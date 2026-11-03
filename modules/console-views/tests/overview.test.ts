@@ -178,3 +178,13 @@ test("Console developers do not see people, group, role or grant administration"
   assert.ok(keys.includes("console.schema"));
   assert.ok(keys.includes("console.server-logs"));
 });
+
+test("a Team Space with no AI account the team can use says so first; a shared key or the Space AI key clears it; a Personal Space never shows it", async () => {
+  const none = await handlers["console.attention"](world({ ...quiet, "spaces.get": { space: { kind: "team" } }, "providers.list": { providers: [{ id: "prv_1", scope: "mine" }] } }).ctx, {});
+  assert.deepEqual(none.items.map((i) => [i.kind, i.title]), [["no_ai_account", "Your team has no AI account"]]);
+  assert.match(none.items[0]!.next, /Space AI key/);
+  const shared = await handlers["console.attention"](world({ ...quiet, "spaces.get": { space: { kind: "team" } }, "providers.list": { providers: [{ id: "prv_2", scope: "shared", spaceKey: true }] } }).ctx, {});
+  assert.deepEqual(shared.items, []);
+  const personal = await handlers["console.attention"](world({ ...quiet, "spaces.get": { space: { kind: "personal" } }, "providers.list": { providers: [] } }).ctx, {});
+  assert.deepEqual(personal.items, []);
+});

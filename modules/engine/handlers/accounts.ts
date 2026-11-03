@@ -106,7 +106,7 @@ export async function accountsList(ctx: Ctx, _input: Record<string, never>) {
 type TurnKind = "chat" | "wake" | "automation" | "goal" | "agent_work";
 const TRIGGER: Readonly<Record<TurnKind, Trigger>> = { chat: "message", wake: "wake", automation: "task", goal: "goal", agent_work: "routine" };
 
-export async function accountResolve(ctx: Ctx, input: { threadId: string; agentId: string; askerId?: string; stepKey?: string; unavailable?: string[]; kind?: TurnKind }) {
+export async function accountResolve(ctx: Ctx, input: { threadId: string; agentId: string; askerId?: string; stepKey?: string; unavailable?: string[]; kind?: TurnKind; dry?: boolean }) {
   const [t, a, policy, defaults, placement, accounts] = await Promise.all([
     ctx.call("threads.get", { threadId: input.threadId }) as Promise<ThreadOut>,
     ctx.call("agents.get", { agentId: input.agentId }) as Promise<AgentOut>,
@@ -125,9 +125,11 @@ export async function accountResolve(ctx: Ctx, input: { threadId: string; agentI
   for (const r of accounts.rows) if (!r.mine && !r.models?.length) { try { const m = savedTested(ctx.db as never, r.ref); if (m.length > 0) r.models = m; } catch { /* nothing saved */ } }
   const trigger: Trigger = input.stepKey ? "task" : TRIGGER[input.kind ?? "chat"];
   const model = member?.model ?? a.agent.model;
+  // the composer's check before sending: the caller is the one who would ask (their own accounts, their team chats)
+  const asker = input.askerId ?? (input.dry === true ? ctx.actingFor ?? ctx.principal.id : undefined);
   const res = resolveAccount({
     starter: t.thread.starter,
-    ...(input.askerId ? { steerer: input.askerId } : {}),
+    ...(asker ? { steerer: asker } : {}),
     trigger,
     ...(trigger === "routine" ? { routineOwner: input.askerId ?? t.thread.starter } : {}),
     ...(model ? { model } : {}),
@@ -146,7 +148,7 @@ export async function accountResolve(ctx: Ctx, input: { threadId: string; agentI
   const itemId = res.accountRef ? accounts.itemByRef.get(res.accountRef) : undefined;
   // an account ahead of this one was passed over: what pays is a fallback, whatever the reason word says
   const fellBack = res.accountRef !== null && res.tried.some((a) => !a.used && (a.why === "expired" || a.why === "failed" || a.why === "failed_this_turn" || a.why === "capped"));
-  return { accountRef: res.accountRef, payer: res.payer, reason: res.reason, allowed: res.allowed, ...(itemId ? { itemId } : {}), ...(fellBack ? { fellBack: true } : {}), ...(res.pin ? { pin: res.pin } : {}),
+  return { accountRef: res.accountRef, payer: res.payer, reason: res.reason, allowed: res.allowed, ...(itemId ? { itemId } : {}), ...(fellBack ? { fellBack: true } : {}), ...(res.pin ? { pin: res.pin } : {}), ...(!res.allowed && res.unblock ? { why: res.unblock.why } : {}),
     ...(res.modelFallback && res.accountRef && model ? { modelFallback: { from: model, ...(accounts.rows.find((r) => r.ref === res.accountRef)?.models?.[0] ? { to: accounts.rows.find((r) => r.ref === res.accountRef)!.models![0]! } : {}) } } : {}) };
 }
 

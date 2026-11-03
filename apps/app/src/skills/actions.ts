@@ -2,15 +2,18 @@
 // skill, Shared for a Space one) and only its handle reaches the skill; then the server is asked for its tools, which is the health check.
 import { keyOf, vaultItemFor } from "./model.ts";
 import type { Call } from "./model.ts";
+import { ensureSpaceFolder } from "../../../../lib/space-folder.ts";
 
 export interface Health { state: "working" | "needs" | "down" | "checking"; tools?: number; error?: string }
 const idem = (): string => globalThis.crypto?.randomUUID?.() ?? `k-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
 
 /** Puts the key in the Vault and gives the skill its handle. The value goes to vault.item.put only; the skill keeps `#Item.value`. Answers the handle. */
 export async function fileSkillKey(call: Call, o: { skill: string; skillId: string; need: string; value: string; space: boolean }): Promise<string> {
-  const scope = o.space ? "shared" : "mine";
-  const folders = ((await call("vault.folders.list", {})) as { folders: { id: string; scope: string }[] }).folders;
-  const folderId = folders.find((f) => f.scope === scope)?.id ?? ((await call("vault.folders.create", { name: o.space ? "Skills" : "Mine", scope, idempotencyKey: idem() })) as { folder: { id: string } }).folder.id;
+  // a Space skill's key: the Space's "Skills" folder, shared with everyone (lib/space-folder.ts); your own skill's key: a Mine folder
+  const folders = o.space ? [] : ((await call("vault.folders.list", {})) as { folders: { id: string; scope: string }[] }).folders;
+  const folderId = o.space
+    ? await ensureSpaceFolder(call, { name: "Skills", idem: idem() })
+    : folders.find((f) => f.scope === "mine")?.id ?? ((await call("vault.folders.create", { name: "Mine", scope: "mine", idempotencyKey: idem() })) as { folder: { id: string } }).folder.id;
   const item = vaultItemFor(o.skill, keyOf(o.need).key);
   await call("vault.item.put", { folderId, name: item, kind: "api_key", fields: [{ key: "value", value: o.value, secret: true }], idempotencyKey: idem() });
   const handle = `#${item}.value`;

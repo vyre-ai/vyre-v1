@@ -28,6 +28,7 @@ export const ATTENTION_PAGE: Readonly<Record<Attention["kind"], string>> = {
   stuck_update: "server",
   limit_hit: "spend",
   access_review_due: "reviews",
+  no_ai_account: "models",
 };
 
 export const ATTENTION_SENTENCE: Readonly<Record<Attention["kind"], string>> = {
@@ -39,6 +40,7 @@ export const ATTENTION_SENTENCE: Readonly<Record<Attention["kind"], string>> = {
   stuck_update: "An update is stuck",
   limit_hit: "A limit was reached",
   access_review_due: "An access review is due",
+  no_ai_account: "Your team has no AI account",
 };
 
 export function Overview(): ReactElement {

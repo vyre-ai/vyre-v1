@@ -30,6 +30,7 @@ type In = {
   askerId?: string;
   stepKey?: string;
   unavailable?: Array<string>;
+  dry?: boolean;
   kind?: "chat" | "wake" | "automation" | "goal" | "agent_work";
 };
 ```
@@ -49,6 +50,7 @@ type Out = {
     used: boolean;
     why?: "unknown" | "expired" | "failed" | "policy_company" | "not_yours" | "space_may_not_use" | "failed_this_turn" | "capped" | "no_model";
   };
+  why?: "no_account" | "expired" | "failed" | "policy";
   modelFallback?: {
     from: string;
     to?: string;
@@ -72,6 +74,7 @@ type Out = {
   "input": {
     "agentId": "agt_a1b2c3",
     "askerId": "usr_a1b2c3",
+    "dry": true,
     "kind": "chat",
     "stepKey": "example",
     "threadId": "thr_a1b2c3",
@@ -94,7 +97,8 @@ type Out = {
       "used": true,
       "why": "unknown"
     },
-    "reason": "starter"
+    "reason": "starter",
+    "why": "no_account"
   }
 }
 ```

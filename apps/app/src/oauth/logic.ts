@@ -34,7 +34,7 @@ export function describeFailure(e: unknown, home: AiHome = "here"): Outcome {
     if (e.code === "permission.no_grant") return failed("This sign-in was started by someone else", "Only the person who started a connection can finish it. You are signed in as a different person.", "Ask them to open the link, or start the connection yourself from Connections.", x);
     // "locked" only for a locked key on a device that can unlock it; on a Space that runs elsewhere signing in opens the key; anything else is a session that ended
     if (e.code === "auth.unauthenticated" && !isOwnKeyRefusal(e)) return failed("You were signed out", "This browser is no longer signed in to the Space.", "Sign in again, then connect the account again.", x);
-    if (e.code === "auth.unauthenticated" && home !== "here") return failed("Your vault opens when you sign in", "A personal account's tokens are kept in your own vault, which opens while you are signed in to this Space.", "Type your password when Vyre asks for it, or sign in again, then connect the account again.", x);
+    if (e.code === "auth.unauthenticated" && home !== "here") return failed("Your vault opens when you sign in", "A personal account's tokens are kept in your own vault, which opens while you are signed in to this Space.", "Sign in again on this device, then connect the account again.", x);
     if (e.code === "auth.unauthenticated") return failed("Your vault is locked", e.message, "Unlock it, then connect the account again.", x);
     if (e.code === "validation.not_found") return failed("The connection was removed while you signed in", e.message, START_AGAIN, x);
     if (e.code.startsWith("provider.")) return failed("The app did not complete the sign-in", e.message, START_AGAIN, x);

@@ -2,6 +2,7 @@
 // capabilities; the connection keeps their handles and this module's tables keep the item ids and the expiry, never a value. Every message and log passes the scrubber with the code, the PKCE
 // verifier, the client secret and the tokens in it.
 import { sha256b64 } from "../../../kernel/src/seal/index.ts";
+import { ensureSpaceFolder } from "../../../lib/space-folder.ts";
 import { checkEgress, mintShort, nowOf, refuse, scrubber } from "../projections.ts";
 import type { ConnectionDb, ConnectorDef, ConnectorsCtx, ConnectorsDeps } from "../projections.ts";
 
@@ -74,6 +75,8 @@ export function createOauth(deps: ConnectorsDeps) {
   async function folderFor(ctx: ConnectorsCtx, conn: ConnectionDb): Promise<string> {
     const scope = conn.owner_kind === "person" ? "mine" : "shared";
     try {
+      // the Space's connection: its tokens sit in the Space's "Connections" folder, shared with everyone so each member's call can fill them (lib/space-folder.ts)
+      if (scope === "shared") return await ensureSpaceFolder((cap, input) => ctx.call(cap, input), { name: "Connections", idem: `connections-folder:${scope}:${conn.owner_id}` });
       const listed = (await ctx.call("vault.folders.list", { scope })) as { folders: { id: string; name: string }[] };
       const have = listed.folders.find((f) => f.name === "Connections");
       if (have) return have.id;

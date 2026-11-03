@@ -1728,14 +1728,6 @@ export type AgentsRoutineDelegateOut = {
       on: "message";
       channelId: string;
     };
-    setBy?: {
-      kind: "person" | "agent" | "actor" | "service";
-      id: string;
-    };
-    lastRun?: {
-      runId: string;
-      status: "running" | "succeeded" | "failed" | "stopped";
-    };
   };
   previousOwnerId: string;
 };
@@ -1767,14 +1759,6 @@ export type AgentsRoutineRunNowOut = {
     watch?: {
       on: "message";
       channelId: string;
-    };
-    setBy?: {
-      kind: "person" | "agent" | "actor" | "service";
-      id: string;
-    };
-    lastRun?: {
-      runId: string;
-      status: "running" | "succeeded" | "failed" | "stopped";
     };
   };
   runId: string;
@@ -1811,14 +1795,6 @@ export type AgentsRoutineSaveOut = {
       on: "message";
       channelId: string;
     };
-    setBy?: {
-      kind: "person" | "agent" | "actor" | "service";
-      id: string;
-    };
-    lastRun?: {
-      runId: string;
-      status: "running" | "succeeded" | "failed" | "stopped";
-    };
   };
 };
 export type AgentsRoutinesListIn = {
@@ -1840,14 +1816,6 @@ export type AgentsRoutinesListOut = {
       watch?: {
         on: "message";
         channelId: string;
-      };
-      setBy?: {
-        kind: "person" | "agent" | "actor" | "service";
-        id: string;
-      };
-      lastRun?: {
-        runId: string;
-        status: "running" | "succeeded" | "failed" | "stopped";
       };
     }>;
 };
@@ -8335,7 +8303,7 @@ export type ConsoleAssistantToolsOut = {
 export type ConsoleAttentionIn = Record<string, unknown>;
 export type ConsoleAttentionOut = {
   items: Array<{
-      kind: "failing_check" | "expiring_certificate" | "failed_run" | "stuck_update" | "limit_hit" | "access_review_due" | "join_stuck" | "home_channel";
+      kind: "failing_check" | "expiring_certificate" | "failed_run" | "stuck_update" | "limit_hit" | "access_review_due" | "join_stuck" | "home_channel" | "no_ai_account";
       title: string;
       ref?: string;
       since: number;
@@ -8400,7 +8368,7 @@ export type ConsoleOverviewIn = Record<string, unknown>;
 export type ConsoleOverviewOut = {
   health: "healthy" | "degraded" | "down";
   attention: Array<{
-      kind: "failing_check" | "expiring_certificate" | "failed_run" | "stuck_update" | "limit_hit" | "access_review_due" | "join_stuck" | "home_channel";
+      kind: "failing_check" | "expiring_certificate" | "failed_run" | "stuck_update" | "limit_hit" | "access_review_due" | "join_stuck" | "home_channel" | "no_ai_account";
       title: string;
       ref?: string;
       since: number;
@@ -9516,6 +9484,7 @@ export type EngineAccountResolveIn = {
   askerId?: string;
   stepKey?: string;
   unavailable?: Array<string>;
+  dry?: boolean;
   kind?: "chat" | "wake" | "automation" | "goal" | "agent_work";
 };
 export type EngineAccountResolveOut = {
@@ -9530,6 +9499,7 @@ export type EngineAccountResolveOut = {
     used: boolean;
     why?: "unknown" | "expired" | "failed" | "policy_company" | "not_yours" | "space_may_not_use" | "failed_this_turn" | "capped" | "no_model";
   };
+  why?: "no_account" | "expired" | "failed" | "policy";
   modelFallback?: {
     from: string;
     to?: string;

@@ -71,6 +71,7 @@ function space(o: { folders?: Array<{ id: string; scope: string }>; tools?: Reco
     if (cap === "vault.folders.list") return { folders };
     if (cap === "vault.folders.create") { const f = { id: `vfd_${folders.length + 1}`, scope: input.scope }; folders.push(f); return { folder: f }; }
     if (cap === "vault.item.put") return { item: { handle: `#${input.name}` } };
+    if (cap === "vault.share") return { granted: true };
     if (cap === "plugins.connection.add_mine" || cap === "plugins.connection.add") return { connection: { connectionId: "mcs_new", name: input.name } };
     if (cap === "plugins.connection.update") return { connectionId: input.connectionId };
     if (cap === "engine.mcp.tools") { const r = o.tools?.[input.server]; return { servers: r ? [{ key: input.server, ...r }] : [] }; }

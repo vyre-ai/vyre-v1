@@ -17,11 +17,25 @@ export interface Keyring {
 
 interface Entry { key: Uint8Array; sessions: Set<string>; unbound: boolean }
 
-export function createKeyring(o: { /** may this node hold the person's key; `sessionId` is the session handing it over, absent for the local admin */ allowed(personId: string, sessionId?: string): boolean; /** is this session still signed in; omitted: sessions never end */ live?(sessionId: string): boolean }): Keyring {
+export function createKeyring(o: {
+  /** may this node hold the person's key; `sessionId` is the session handing it over, absent for the local admin */ allowed(personId: string, sessionId?: string): boolean;
+  /** is this session still signed in; omitted: sessions never end */ live?(sessionId: string): boolean;
+  /**
+   * The key is not held (the server restarted, or deployed) but the person is still signed in through a provider that proved who they are: the server's wrap opens again for those sessions (fix for
+   * "every deploy logs the team out of their own AI"). Answers the key and the sessions it is bound to, or null. The keyring copies the key and wipes the one it was given.
+   */
+  reopen?(personId: string): { key: Uint8Array; sessions: string[] } | null;
+}): Keyring {
   const held = new Map<string, Entry>();
   const wipe = (e: Entry | undefined): void => { e?.key.fill(0); };
   const fresh = (personId: string): Uint8Array | null => {
-    const e = held.get(personId);
+    let e = held.get(personId);
+    if (!e && o.reopen) {
+      const r = o.reopen(personId);
+      if (r) {
+        try { if (r.key.length === 32 && r.sessions.length > 0) { e = { key: Uint8Array.from(r.key), sessions: new Set(r.sessions), unbound: false }; held.set(personId, e); } } finally { r.key.fill(0); }
+      }
+    }
     if (!e) return null;
     if (o.live) for (const id of e.sessions) if (!o.live(id)) e.sessions.delete(id);
     if (!e.unbound && e.sessions.size === 0) { wipe(e); held.delete(personId); return null; }

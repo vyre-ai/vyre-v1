@@ -569,7 +569,9 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   // Owner ruling 3 Nov (R62 amended): a Space server also holds a person's key for as long as the signed-in session that handed it over is live, so a member's own AI account runs their own turns on the
   // Space. Without a session (the local admin token) only the person's own node takes it.
   const sessionAlive = (id: string): boolean => (db ? sessionLive(db, id) : false);
-  const keyring = createKeyring({ allowed: (p, sessionId) => ownNode(p) || (sessionId !== undefined && sessionAlive(sessionId)), live: sessionAlive });
+  // after a restart or a deploy, a person still signed in through Google, Microsoft or GitHub gets their key back from the server's wrap with nothing to type (key-wraps.ts); bound once the wraps exist
+  let reopenWrap: (p: string) => { key: Uint8Array; sessions: string[] } | null = () => null;
+  const keyring = createKeyring({ allowed: (p, sessionId) => ownNode(p) || (sessionId !== undefined && sessionAlive(sessionId)), live: sessionAlive, reopen: (p) => reopenWrap(p) });
   closers.push(() => keyring.clearAll());
   const fillRoute = createFillRoute();
   // GitHub sign-in: the server environment first, then the app an admin saved (members.sign_in_github.set; its secret is read from the Vault by handle and kept in memory only)
@@ -595,6 +597,23 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
     } catch { return true; }
   };
   const keyWraps = cfg.roles.includes("device") ? null : createKeyWraps({ db: () => db, space: () => space ?? "-", secret: () => Buffer.from(sealKeyFile(path.join(paths.root, "person-wrap.key")), "hex"), enabled: wrapsOn });
+  // a person's live sessions that a provider proved (SSO or GitHub sign-in): the ones the wrap may open for, as at a fresh provider sign-in (modules/identity/projections.ts)
+  const provenSessions = (p: string): string[] => {
+    try {
+      return (db?.all(`SELECT id FROM identity_sessions WHERE person_id = ? AND method IN ('sso', 'github') AND revoked_at IS NULL AND expires_at > ?`, p, Date.now()) as Array<{ id: string }> ?? []).map((r) => r.id).filter(sessionAlive);
+    } catch { return []; }
+  };
+  let auditReopen: (p: string, sessions: string[]) => void = () => undefined;
+  if (keyWraps) reopenWrap = (p) => {
+    if (ownNode(p)) return null;
+    const sessions = provenSessions(p);
+    if (sessions.length === 0) return null;
+    const key = keyWraps.open(p);
+    if (!key) return null;
+    sink.log({ space: space ?? "-", level: 30, msg: "vault.key_reopened", place: "vault", attrs: { person: p, sessions: sessions.length } });
+    auditReopen(p, sessions);
+    return { key, sessions };
+  };
   const localKeyRoute = createLocalKeyRoute({ caller: (h) => callerOf(h), keyring, allowed: (p, sessionId) => ownNode(p) || (sessionId !== undefined && sessionAlive(sessionId)),
     log: (msg, attrs) => sink.log({ space: space ?? "-", level: 30, msg, place: "vault", attrs }),
     ...(keyWraps ? { handed: (p: string, key: Uint8Array) => { if (keyWraps.make(p, key)) sink.log({ space: space ?? "-", level: 30, msg: "vault.wrap_made", place: "vault", attrs: { person: p } }); }, wraps: keyWraps } : {}) });
@@ -778,6 +797,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         warn: (msg, attrs) => sink.log({ space: space!, level: 30, msg, place: "hooks", ...(attrs ? { attrs } : {}) }),
       });
       hooks = hookRunner;
+      // each reopen of a person's key from the server's wrap is an audit row for them, as a fresh provider sign-in's is
+      auditReopen = (p, sessions) => { void invokeRef("audit.append", { action: "vault.key_reopened_after_restart", class: "sign_in", onBehalfOf: { kind: "person", id: p }, detail: { sessions: sessions.length } }, { space: space!, principal: { ...SYSTEM_PRINCIPAL }, preAuth: true, origin: "seam" }).catch(() => undefined); };
       const runsHost = createRunsHost({ call: (n, i, as) => hookRunner.call(n, i, as), log: (msg, attrs) => sink.log({ space: spaceId, level: 40, msg, place: "runs", attrs }) });
       closers.push(() => runsHost.settle(5_000));
       const acceptors = new Set([...loaded.moduleExports].flatMap(([id, ns]) => (ns["hostCalls"] && typeof ns["hostCalls"] === "object" && `${id}.accept_webhook` in (ns["hostCalls"] as object) ? [id] : [])));

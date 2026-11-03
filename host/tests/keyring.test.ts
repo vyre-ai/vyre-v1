@@ -70,3 +70,22 @@ test("sweep wipes the key of a person whose sessions have all ended without anyo
   assert.equal(k.holds("usr_a"), false);
   assert.equal(k.sweep(), 0);
 });
+
+test("after a restart the key reopens for a person still signed in through a provider (the server's wrap), bound to those sessions; nobody's opens without one", () => {
+  const live = new Set(["ses_google"]);
+  const asked: string[] = [];
+  const wrap = Uint8Array.from({ length: 32 }, (_, i) => i + 1);
+  const ring = createKeyring({
+    allowed: () => true, live: (id) => live.has(id),
+    reopen: (p) => { asked.push(p); return p === "usr_rubab" ? { key: Uint8Array.from(wrap), sessions: ["ses_google"] } : null; },
+  });
+  assert.equal(ring.get("usr_sara"), null, "no provider session, no wrap: nothing opens");
+  const k = ring.get("usr_rubab");
+  assert.deepEqual(k && [...k], [...wrap]);
+  assert.equal(ring.holds("usr_rubab"), true);
+  ring.get("usr_rubab");
+  assert.deepEqual(asked, ["usr_sara", "usr_rubab"], "opened once, then held");
+  // her Google session ends: the reopened key goes with it, like any other
+  live.delete("ses_google");
+  assert.equal(ring.get("usr_rubab"), null);
+});

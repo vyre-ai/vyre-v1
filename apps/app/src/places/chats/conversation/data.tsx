@@ -25,6 +25,8 @@ export interface ConversationNav {
   openConnectOutsideAgent?(channelId: string): void;
   /** "Connect your AI" on a reply that could not start: the sign-in and key page. Left out where the shell has none. */
   openAiSetup?(): void;
+  /** "set a Space AI key" on the composer's no-AI line, for an owner or admin: Console, AI. Left out where the shell has no Console. */
+  openSpaceAiKey?(): void;
   /** "Unlock" on a reply that stopped because the Vault is locked: asks for the password in place. True once the key is open. Left out where the shell has no Vault key to open. */
   unlockVault?(): Promise<boolean>;
 }

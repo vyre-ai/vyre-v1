@@ -3,7 +3,7 @@
 // never reaches a turn. The values stay in the items; the engine asks for a handle and the filler fills it. providers.test asks the host to reach the provider (the module has no network of its own) and only
 // ever sees the key for that one call.
 // DECISION: a Shared provider is an API key or a local model; a subscription sign-in is Mine for ever (the kind cannot be shared). The Space may use a Mine provider only when its owner says so.
-import { AI_ACCOUNTS, pickSpaceFolder } from "../../../lib/space-folder.ts";
+import { AI_ACCOUNTS, pickSpaceFolder, shareWithEveryone } from "../../../lib/space-folder.ts";
 import { fail } from "../../../host/src/routes/errors.ts";
 import { MINE_CLOSED, itemDelete, itemPut, itemUpdate, maySealMine, openFields, resealOwn } from "./items.ts";
 import { atLeast, bad, denied, ensure, first, isId, levelOn, newId, num, patchMeta, record, rowsOf, statements, str } from "../projections.ts";
@@ -167,7 +167,8 @@ export async function spaceFolder(ctx: VaultCtx, idem: string): Promise<string> 
   const pick = pickSpaceFolder(shared.map((f) => ({ id: str(f, "id"), name: str(f, "name"), canAdd: str(f, "owner") === me(ctx) || atLeast(levelOn(ctx, "vault_folder", str(f, "id")), "edit") })));
   if (pick.id) return pick.id;
   const id = String(((await ctx.call("vault.folders.create", { name: AI_ACCOUNTS, scope: "shared", idempotencyKey: `${idem}:ai-folder` })) as { folder: { id: string } }).folder.id);
-  try { await ctx.call("vault.share", { resource: { type: "vault_folder", id }, subject: { kind: "group", id: "grp_everyone" }, level: "use", idempotencyKey: `${idem}:ai-folder-share` }); } catch { /* a Personal Space: nobody else to share with */ }
+  // shared with Everyone at Use; a refusal is said (lib/space-folder.ts), except in a Personal Space, where there is nobody to share with
+  await shareWithEveryone((cap, input) => ctx.call(cap, input), id, idem);
   return id;
 }
 

@@ -2,6 +2,7 @@
 // Shared folder for a Space one, so every member's call can fill it), and the connection keeps only the handle, in its environment or a header, never in its command line. After adding, the
 // connection is checked through the person's assistant (engine.mcp.tools for that one server); the engine records the result on the connection, so the dot on the page is the same answer.
 import type { ConnectionDraft } from "../../../../../../lib/mcp-import.ts";
+import { ensureSpaceFolder } from "../../../../../../lib/space-folder.ts";
 import { healthFromTest, itemName } from "./model.ts";
 import type { Health } from "./model.ts";
 
@@ -13,11 +14,12 @@ const key = (): string => (globalThis.crypto?.randomUUID?.() ?? `k-${Date.now().
 export const SPACE_KEY_FOLDER = "Connections";
 
 async function folderFor(call: Call, scope: "mine" | "space"): Promise<string> {
+  // a Space connection's key: the Space's "Connections" folder, shared with everyone so each member's call can fill it (lib/space-folder.ts, the one rule for Space-wide keys)
+  if (scope === "space") return ensureSpaceFolder(call, { name: SPACE_KEY_FOLDER, idem: key() });
   const folders = ((await call("vault.folders.list", {})) as { folders: { id: string; scope: string; yourLevel?: string }[] }).folders;
-  const want = scope === "mine" ? "mine" : "shared";
-  const found = folders.find((f) => f.scope === want && (f.yourLevel === undefined || f.yourLevel === "edit" || f.yourLevel === "manage"));
+  const found = folders.find((f) => f.scope === "mine" && (f.yourLevel === undefined || f.yourLevel === "edit" || f.yourLevel === "manage"));
   if (found) return found.id;
-  return ((await call("vault.folders.create", { name: scope === "mine" ? "Mine" : SPACE_KEY_FOLDER, scope: want, idempotencyKey: key() })) as { folder: { id: string } }).folder.id;
+  return ((await call("vault.folders.create", { name: "Mine", scope: "mine", idempotencyKey: key() })) as { folder: { id: string } }).folder.id;
 }
 
 /** One Vault item holding a connection's keys as fields; answers the handle of each field (#Item.FIELD). The values never come back. */
