@@ -25548,6 +25548,19 @@ export type NetworkMachinesOut = {
       drain: boolean;
       pins: Array<string>;
     }>;
+  waiting: Array<{
+      serverId: string;
+      name: string;
+      owner?: string;
+      fingerprint?: string;
+      requestedAt?: number;
+      facts?: {
+        os: string;
+        arch: string;
+        docker: boolean;
+        version: string;
+      };
+    }>;
   alerts: Array<{
       alertId: string;
       serverId: string;
@@ -25726,11 +25739,13 @@ export type NetworkServerDeclineOut = {
   state: "declined";
 };
 export type NetworkServerJoinCodeIn = {
+  nickname?: string;
   idempotencyKey: string;
 };
 export type NetworkServerJoinCodeOut = {
   code: string;
   expiresAt: number;
+  address?: string;
 };
 export type NetworkServerReconnectIn = {
   serverId: string;

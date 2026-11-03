@@ -6141,7 +6141,7 @@
     {
       "deferred": false,
       "name": "network_server_join_code",
-      "summary": "Make a join code to add a cloud box or office Mac for compute",
+      "summary": "Make a join code to add a cloud box or office Mac for compute. A nickname names it once it arrives",
       "toolset": "engineer"
     },
     {

@@ -41852,7 +41852,7 @@
       "blocks": [],
       "cap": "network.server_join_code",
       "deferred": false,
-      "description": "Make a join code to add a cloud box or office Mac for compute",
+      "description": "Make a join code to add a cloud box or office Mac for compute. A nickname names it once it arrives",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -41861,6 +41861,13 @@
               "idem_1"
             ],
             "minLength": 1,
+            "type": "string"
+          },
+          "nickname": {
+            "examples": [
+              "berlin-box"
+            ],
+            "maxLength": 40,
             "type": "string"
           }
         },

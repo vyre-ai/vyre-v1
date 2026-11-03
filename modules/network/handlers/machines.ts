@@ -84,7 +84,9 @@ export async function machines(ctx: NetworkCtx, _input: In) {
   const alerts = alertsFor(ctx, built, latest, ctx.now());
   // the Space server's room is no secret: a member's turns may be sent there, and placement needs to know whether it has room
   const sp = admin ? built.find((b) => b.row.kind === "space") : servers(ctx).filter((s) => s.role === "space").map((s) => build(ctx, s, true)).find((b) => b !== null) ?? undefined;
-  return { machines: built.map((b) => b.row), alerts, admin, now: ctx.now(), ...(sp ? { spaceRoom: { n: sp.row.room.n, why: sp.row.room.why, turns: sp.row.runs.turns, maxTurns: sp.row.limits.maxTurns } } : {}) };
+  // computers that asked to join and wait for a person: an admin may approve any, a member their own
+  const waiting = all.filter((s) => s.role === "compute" && s.enrollment === "pending" && (admin || s.owner === me(ctx))).map((s) => ({ serverId: s.serverId, name: s.name, ...(s.owner ? { owner: s.owner } : {}), ...(s.fingerprint ? { fingerprint: s.fingerprint } : {}), ...(s.requestedAt !== undefined ? { requestedAt: s.requestedAt } : {}), ...(s.facts ? { facts: s.facts } : {}) }));
+  return { machines: built.map((b) => b.row), waiting, alerts, admin, now: ctx.now(), ...(sp ? { spaceRoom: { n: sp.row.room.n, why: sp.row.room.why, turns: sp.row.runs.turns, maxTurns: sp.row.limits.maxTurns } } : {}) };
 }
 
 export async function machine(ctx: NetworkCtx, input: { serverId: string; range?: unknown }) {

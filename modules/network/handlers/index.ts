@@ -68,7 +68,11 @@ export async function certificateRenew(ctx: NetworkCtx, input: { host: string })
   return { state: cert.state };
 }
 
-export async function serverJoinCode(ctx: NetworkCtx, _input: In) { return makeJoinCode(ctx, "space"); }
+export async function serverJoinCode(ctx: NetworkCtx, input: In) {
+  const made = makeJoinCode(ctx, "space", typeof input["nickname"] === "string" ? input["nickname"] : undefined);
+  const address = readConfig(ctx)?.address;
+  return { ...made, ...(address ? { address } : {}) };
+}
 export async function myComputerCode(ctx: NetworkCtx, input: In) {
   const made = makeJoinCode(ctx, "personal", typeof input["nickname"] === "string" ? input["nickname"] : undefined);
   const address = readConfig(ctx)?.address;

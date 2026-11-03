@@ -77,6 +77,19 @@ type Out = {
       drain: boolean;
       pins: Array<string>;
     }>;
+  waiting: Array<{
+      serverId: string;
+      name: string;
+      owner?: string;
+      fingerprint?: string;
+      requestedAt?: number;
+      facts?: {
+        os: string;
+        arch: string;
+        docker: boolean;
+        version: string;
+      };
+    }>;
   alerts: Array<{
       alertId: string;
       serverId: string;
@@ -177,7 +190,22 @@ type Out = {
       "n": 1,
       "turns": 1,
       "why": "example"
-    }
+    },
+    "waiting": [
+      {
+        "facts": {
+          "arch": "example",
+          "docker": true,
+          "os": "example",
+          "version": "example"
+        },
+        "fingerprint": "example",
+        "name": "example",
+        "owner": "example",
+        "requestedAt": 1760000000000,
+        "serverId": "srv_a1b2c3"
+      }
+    ]
   }
 }
 ```

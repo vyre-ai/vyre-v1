@@ -40,7 +40,7 @@ Requires: nothing.
 - [network.relay_set](../capabilities/network.relay_set.md): Switch the Space to the relay or back, with no re-invite (devices pin the Space key, not the address)
 - [network.server_approve](../capabilities/network.server_approve.md): Admit a waiting computer to the Space: a person looks at its name, what it runs on and its fingerprint and approves once
 - [network.server_decline](../capabilities/network.server_decline.md): Turn a waiting computer away
-- [network.server_join_code](../capabilities/network.server_join_code.md): Make a join code to add a cloud box or office Mac for compute
+- [network.server_join_code](../capabilities/network.server_join_code.md): Make a join code to add a cloud box or office Mac for compute. A nickname names it once it arrives
 - [network.server_reconnect](../capabilities/network.server_reconnect.md): Reconnect an offline server
 - [network.server_remove](../capabilities/network.server_remove.md): Remove a server from the Space
 - [network.servers](../capabilities/network.servers.md): Computers in the Space (the Space server and the computers that joined for compute, waiting ones included): grey rows when offline, with Reconnect and Remove

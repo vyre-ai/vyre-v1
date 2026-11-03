@@ -1,6 +1,6 @@
 # network.server_join_code
 
-Make a join code to add a cloud box or office Mac for compute
+Make a join code to add a cloud box or office Mac for compute. A nickname names it once it arrives
 
 | | |
 |---|---|
@@ -25,6 +25,7 @@ Make a join code to add a cloud box or office Mac for compute
 
 ```ts
 type In = {
+  nickname?: string;
   idempotencyKey: string;
 };
 ```
@@ -35,6 +36,7 @@ type In = {
 type Out = {
   code: string;
   expiresAt: number;
+  address?: string;
 };
 ```
 
@@ -53,9 +55,11 @@ type Out = {
 {
   "name": "example",
   "input": {
-    "idempotencyKey": "idem_1"
+    "idempotencyKey": "idem_1",
+    "nickname": "berlin-box"
   },
   "output": {
+    "address": "example",
     "code": "VYRE-1234-ABCD",
     "expiresAt": 1760000000000
   }
