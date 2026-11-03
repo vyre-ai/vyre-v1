@@ -31,7 +31,7 @@ async function subjectOf(data: Data, cap: string, input: Record<string, unknown>
   return undefined;
 }
 
-export function ApprovalCard({ taskId, agent, agentId, data }: { taskId: string; agent: string; agentId: string; data: Data }): ReactElement | null {
+export function ApprovalCard({ taskId, agent, agentId, data, face }: { taskId: string; agent: string; agentId: string; data: Data; /** an agent asking for its person wears that person's face (lane l-agentdm) */ face?: string }): ReactElement | null {
   const [task, setTask] = useState<Task | null | undefined>(undefined);
   const [subject, setSubject] = useState<string | undefined>(undefined);
   /** For an edit of a file that exists: what is taken out and put in, instead of the new text alone. */
@@ -102,7 +102,7 @@ export function ApprovalCard({ taskId, agent, agentId, data }: { taskId: string;
   return (
     <View testID={`approval-${taskId}`} style={st.card} accessibilityRole="summary" accessibilityLabel={headline}>
       <View style={st.head}>
-        <Face name={agent} seedId={agentId} kind="agent" size={20} />
+        <Face name={agent} seedId={face ?? agentId} kind={face ? "person" : "agent"} size={20} />
         <Text style={st.title}>{headline}</Text>
       </View>
       {diff && diff.lines.length > 0 ? (

@@ -50,7 +50,7 @@ import { useMobileBack } from "../../../mobile/shell/back.ts";
 import { offlineLine } from "../agentpage/model.ts";
 import {
   WINDOW, beforeCursor, byOrder, collect, faces, ghostMessages, findMatches, isClosed, lastMessages, leadOf, matchLine, mentionsIn, mergePages, modeTitle, modelLabel, participants, pendingMessage, placeholderFor, queueNote, queuedCount, queuedIds, sendKind, stillPending, stopLabel, swapNeeded,
-  threadKindNote, timeline, titleOf, whoLine, workingAgents, withoutAnswered } from "./model.ts";
+  onBehalfOf, threadKindNote, timeline, titleOf, whoLine, workingAgents, withoutAnswered } from "./model.ts";
 import type { Face as FaceModel, Message, Pending, SendKind, Thread } from "./model.ts";
 import { LoadFailed, failureOf } from "../../../../../../ui/src/States/Loads.tsx";
 
@@ -533,7 +533,7 @@ function ConversationView(): ReactElement {
           <IconButton icon="x" label="Close find" size={24} testID="find-close" onPress={() => { setFinding(false); setQuery(""); }} />
         </View>
       ) : null}
-      <CatchUpLine onJump={(id) => setFocusId(id)} newest={live[live.length - 1]?.messageId ?? ""} />
+      <CatchUpLine onJump={(id) => setFocusId(id)} newest={live[live.length - 1]?.messageId ?? ""} credit={(id) => { const m = all.find((x) => x.author.id === id && onBehalfOf(x)); const ob = m ? onBehalfOf(m) : null; return ob ? `${nameOf(ob.person)} (Agent)` : undefined; }} />
       {note ? <Text testID="conversation-note" style={st.noteLine}>{note}</Text> : null}
       {thread.kind === "thread" ? <ThreadParent threadId={thread.parentThreadId} messageId={thread.parentMessageId} call={data.call as never} nameOf={nameOf} /> : null}
 

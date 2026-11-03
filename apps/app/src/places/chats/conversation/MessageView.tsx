@@ -343,11 +343,6 @@ function Theirs({ item, actions, stream, openWork, mark, meId }: MessageViewProp
         </View>
       ) : <Text style={st.whenLeft}>{item.time}</Text>}
       {item.paidLine ? <Text testID={`paid-${m.messageId}`} style={st.via}>{item.paidLine}</Text> : null}
-      {item.who.forPerson && actions.agentMute && onBehalfOf(m)?.teammate === actions.agentMute.me ? (
-        <Pressable accessibilityRole="button" testID={`agent-mute-${m.messageId}`} onPress={() => actions.agentMute!.mute(item.who.forPerson!)}>
-          <Text style={st.via}>{`Mute agent messages from ${firstName(item.who.name.replace(/ \(Agent\)$/, ""))} for today`}</Text>
-        </Pressable>
-      ) : null}
       {m.via ? <Text testID={`via-${m.messageId}`} style={st.via}>{`Sent by ${item.who.name} on a routine ${m.via.routineOwner === meId ? "you" : actions.nameOf ? actions.nameOf(m.via.routineOwner) : unnamed(m.via.routineOwner)} set`}</Text> : null}
       {work && (!work.short || !item.newgroup || workOpen) ? (
         <Fold testID={`work-${m.messageId}`} label={work.live ? `Working${work.now ? ` · ${work.now}` : ""}` : work.summary} open={work.live || workOpen} live={work.live} onToggle={() => setWorkOpen((o) => !o)}>
@@ -373,7 +368,7 @@ function Theirs({ item, actions, stream, openWork, mark, meId }: MessageViewProp
         if (isPlanFile(b)) return <PlanFileCard key={b.id} block={b} onOpen={(id) => actions.openBeside("file", id)} />;
         const lc = linkCardOf(b);
         const held = lc && actions.files ? heldTaskOf(lc) : null;
-        if (held !== null) return parked.has(held) ? null : <ApprovalCard key={b.id} taskId={held} agent={item.who.name} agentId={item.who.id} data={actions.files!} />;
+        if (held !== null) return parked.has(held) ? null : <ApprovalCard key={b.id} taskId={held} agent={item.who.name} agentId={item.who.id} {...(item.who.face ? { face: item.who.face } : {})} data={actions.files!} />;
         if (lc) return <LinkCardView key={b.id} id={b.id} data={lc} actions={actions} size={14} trusted={m.kind === "system"} />;
         if (isAccessRequest(b.type) && actions.files) return <AccessRequestCard key={b.id} block={b.data as never} data={actions.files} />;
         if (isKeyRequest(b.type) && actions.files) return <KeyRequestCard key={b.id} requestId={String((b.data as { requestId?: unknown }).requestId ?? "")} agent={item.who.name} agentId={item.who.id} data={actions.files} />;
@@ -382,8 +377,13 @@ function Theirs({ item, actions, stream, openWork, mark, meId }: MessageViewProp
         return <Card key={b.id} line={cardLine(b)} actions={actions} />;
       })}
       {collect(errors, (b) => <ErrorRowView key={b.id} block={b} actions={actions} />)}
-      {collect(statuses, (x) => (x.kind === "note" ? <Text key={x.id} testID={`status-${x.id}`} style={st.edited}>{x.text}</Text> : x.kind === "approval" && actions.files ? <ApprovalCard key={x.id} taskId={x.taskId} agent={item.who.name} agentId={item.who.id} data={actions.files} /> : null))}
+      {collect(statuses, (x) => (x.kind === "note" ? <Text key={x.id} testID={`status-${x.id}`} style={st.edited}>{x.text}</Text> : x.kind === "approval" && actions.files ? <ApprovalCard key={x.id} taskId={x.taskId} agent={item.who.name} agentId={item.who.id} {...(item.who.face ? { face: item.who.face } : {})} data={actions.files} /> : null))}
       {item.who.kind === "agent" && actions.withPeople === true && !stream && m.body.trim() !== "" ? <ReplyActions m={m} actions={actions} /> : null}
+      {item.who.forPerson && actions.agentMute && onBehalfOf(m)?.teammate === actions.agentMute.me ? (
+        <Pressable accessibilityRole="button" testID={`agent-mute-${m.messageId}`} onPress={() => actions.agentMute!.mute(item.who.forPerson!)}>
+          <Text style={[st.via, st.muteLine]}>{`Mute agent messages from ${firstName(item.who.name.replace(/ \(Agent\)$/, ""))} for today`}</Text>
+        </Pressable>
+      ) : null}
       <Reactions m={m} a={actions} mine={false} />
       <LearnedLines messageId={m.messageId} />
       {m.pinned ? <Text testID={`pinned-${m.messageId}`} style={st.edited}>pinned</Text> : null}
@@ -584,6 +584,8 @@ export const st = StyleSheet.create({
   who: { fontSize: 13, fontWeight: "600", color: "var(--ink)" as string },
   time: { fontSize: 11.5, color: "var(--ink-3)" as string },
   via: { fontSize: 12, color: "var(--ink-3)" as string },
+  /** under an agent's message for its person, read by the teammate it went to (lane l-agentdm) */
+  muteLine: { marginTop: 4 },
   body: { paddingRight: 8 },
   step: { flexDirection: "row", alignItems: "center", gap: 8, minHeight: 24 },
   stepDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: "var(--ink-4)" as string },
