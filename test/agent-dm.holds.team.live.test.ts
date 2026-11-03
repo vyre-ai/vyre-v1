@@ -7,7 +7,7 @@ import { KEY, boot, connect, hostLog, scriptedModel, seededDir, stop, waitFor } 
 import type { Daemon } from "../host/src/daemon/daemon.ts";
 
 const WHO = ["usr_olivia", "usr_adam", "usr_mia", "usr_noah"];
-const IDS: Record<string, string> = { Noah: "usr_noah", Adam: "usr_adam" };
+const IDS: Record<string, string> = { Noah: "usr_noah", Adam: "usr_adam", Olivia: "usr_olivia" };
 type Msg = { author?: { kind?: string; id?: string }; kind?: string; body?: string };
 
 const as = (d: Daemon) => async (who: string, cap: string, input: unknown): Promise<{ status: number; data: any }> => {   // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -20,7 +20,7 @@ test("Team: after hours, the hourly limit and a mute hold Mia's agent messages; 
   const outcomes: Array<{ to: string; state?: string; when?: string }> = [];
   let n = 0;
   const model = scriptedModel(async function* (input, run) {
-    const m = /^tell (Noah|Adam) (.+)$/.exec(input.trigger?.body ?? "");
+    const m = /^tell (Noah|Adam|Olivia) (.+)$/.exec(input.trigger?.body ?? "");
     if (!m) return;
     const r = yield* run("message_person", { to: IDS[m[1]!], body: m[2]!, idempotencyKey: `holds-${++n}` });
     const out = (r.ok ? (r.content as { data?: unknown }).data ?? {} : {}) as { state?: string; when?: string };
@@ -65,6 +65,14 @@ test("Team: after hours, the hourly limit and a mute hold Mia's agent messages; 
     assert.match(outcomes.at(-1)?.when ?? "", /^Scheduled for Adam .*: .*outside Adam's working hours/);
     await quiet(/^Scheduled for Adam .*: .*outside Adam's working hours/);
     assert.equal((await list("usr_adam", await dmWith("usr_adam"))).length, 0, "nothing reached Adam yet");
+
+    // away (lane l-team1's devices.presence, from notifications.away): Olivia is away for an hour, so it waits until she is back
+    const back = Date.now() + 3_600_000;
+    assert.equal((await api("usr_olivia", "notifications.away.set", { until: back, delegate: { kind: "none" } })).status, 200);
+    await tell("tell Olivia the Rivera invoice went out");
+    assert.equal(outcomes.at(-1)?.state, "scheduled", JSON.stringify(outcomes));
+    await quiet(/^Scheduled for Olivia .*\(Olivia is away\)/);
+    assert.equal((await list("usr_olivia", await dmWith("usr_olivia"))).length, 0, "nothing reached Olivia while she is away");
 
     // 3 an hour to Noah: the fourth waits for the hour, and Mia sees why
     for (let i = 1; i <= 3; i++) { await tell(`tell Noah update ${i} is in`); assert.equal(outcomes.at(-1)?.state, "sent", JSON.stringify(outcomes)); }

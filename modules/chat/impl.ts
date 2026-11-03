@@ -12,6 +12,8 @@ export const handlers: Record<string, Handler> = table as unknown as Record<stri
 /** Every Team Space has #vyre (owner D22): made at the first start, and in an older Space that has neither #vyre nor #general. Hourly after that, which costs one read when it exists. */
 export const periodic = {
   "chat.home_channel": { everyMs: 3_600_000, immediate: true, run: async (ctx: ChatCtx) => { await ensureHome(ctx); } },
+  /** Agent messages to teammates whose time came: checked again and sent, or moved to their new time (lane l-agentdm). */
+  "chat.agent_dm_due": { everyMs: 30_000, run: (ctx: ChatCtx) => sendDue(ctx) },
 };
 
 export const consumers = {
@@ -26,11 +28,6 @@ export const consumers = {
     on: ["task.approved", "task.rejected", "task.sent_back", "vault.request_fulfilled", "vault.request_declined"],
     run: (ctx: ChatCtx, event: Parameters<typeof onCardAnswered>[1]) => onCardAnswered(ctx, event),
   },
-};
-
-export const periodic = {
-  /** Agent messages to teammates whose time came: checked again and sent, or moved to their new time (lane l-agentdm). */
-  "chat.agent_dm_due": { everyMs: 30_000, run: (ctx: ChatCtx) => sendDue(ctx) },
 };
 
 /**
