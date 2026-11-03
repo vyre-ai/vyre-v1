@@ -25,12 +25,14 @@ export interface AddProviderProps {
   initial?: { providerKey: string; connection: ConnectionKind };
   /** Opens with this sign-in showing (screenshots and tests). */
   initialFlow?: SignFlow;
+  /** "shared": added from the Space AI accounts tab, so it belongs to the Space from the start. */
+  initialScope?: "mine" | "shared";
 }
 
 type Flow = SignFlow;
 const DEFAULT_ADDRESS = "http://localhost:11434";
 
-export function AddProvider({ onClose, onAdded, initial, initialFlow }: AddProviderProps): ReactElement {
+export function AddProvider({ onClose, onAdded, initial, initialFlow, initialScope }: AddProviderProps): ReactElement {
   const data = useVaultData();
   // where the Space runs, for the words of a refused save (ai-signin/own-ai.ts)
   const home = data.aiHome ?? "here";
@@ -40,7 +42,7 @@ export function AddProvider({ onClose, onAdded, initial, initialFlow }: AddProvi
   const [catalogFailed, setCatalogFailed] = useState(false);
   const [pick, setPick] = useState<Catalog | null>(null);
   const [kind, setKind] = useState<ConnectionKind | null>(initial?.connection ?? null);
-  const [scope, setScope] = useState<"mine" | "shared">("mine");
+  const [scope, setScope] = useState<"mine" | "shared">(initialScope ?? "mine");
   const [secret, setSecret] = useState("");
   const [address, setAddress] = useState(DEFAULT_ADDRESS);
   const [flow, setFlow] = useState<Flow | null>(initialFlow ?? null);

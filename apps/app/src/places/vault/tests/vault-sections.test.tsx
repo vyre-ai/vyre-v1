@@ -39,3 +39,11 @@ test("Google and Microsoft is its own page with two cards; Connections has two t
   const solo = clean(renderToStaticMarkup(<Vault data={{ ...v.data, personal: true }} initial={{ kind: "connections" }} />));
   assert.ok(has(solo, "Apps and tool servers your agents can use") && !has(solo, 'data-testid="conn-tab-my"'), "one list, no tabs");
 });
+
+test("AI accounts in a Team Space has My AI accounts and Space AI accounts tabs; a Personal Space has one list", () => {
+  const v = createSampleVault(northwind);
+  const team = clean(renderToStaticMarkup(<Vault data={v.data} initial={{ kind: "providers" }} />));
+  assert.ok(has(team, 'data-testid="ai-tab-my"') && has(team, 'data-testid="ai-tab-space"') && has(team, ">Space AI accounts<"), "two tabs");
+  const solo = clean(renderToStaticMarkup(<Vault data={{ ...v.data, personal: true }} initial={{ kind: "providers" }} />));
+  assert.ok(!has(solo, 'data-testid="ai-tab-my"'), "no tabs in a Personal Space");
+});
