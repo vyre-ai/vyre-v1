@@ -6,7 +6,7 @@ import type { InboxData } from "../sidebar/data.tsx";
 import { SAMPLE_NOW, createSampleInbox, northwind } from "../contactlist/sample.ts";
 import type { SampleInbox, SampleSpace } from "../contactlist/sample.ts";
 import type { ContactRow } from "../sidebar/model.ts";
-import type { Conversation, DraftRow, SendOptions, ThreadItem, ThreadOut } from "./model.ts";
+import type { Conversation, DraftRow, MailThread, SendOptions, ThreadItem, ThreadMsg, ThreadOut, ThreadsOut } from "./model.ts";
 
 const MIN = 60_000;
 const ago = (minutes: number): number => SAMPLE_NOW - minutes * MIN;
@@ -61,6 +61,86 @@ export const threads: Record<string, ThreadItem[]> = {
   ],
 };
 
+// ---------------------------------------------------------------- email threads (owner, 3 Nov; a live case, anonymised)
+// Josh Cohen is on two threads. "Claude in Chrome for Clio Grow + follow-up": Maya added you later, you answered, Josh replied (you reacted with a heart) and has written twice
+// since you last looked. "Welcome to Scout, Josh": Andrey started it with you on Cc and Josh replied. The Scout thread is one object, so it shows whole under Andrey too.
+
+const ME = "irfad@northwind.example", JOSH = "josh@cohenshah.example", ANDREY = "andrey@scout.example", MAYA = "maya@northwind.example";
+const P = { me: { address: ME, name: "Irfad Imtiaz" }, josh: { address: JOSH, name: "Josh Cohen" }, andrey: { address: ANDREY, name: "Andrey Volkov" }, maya: { address: MAYA, name: "Maya Chen" } };
+const JOSH_SIG = "Josh Cohen\nManaging Partner | Cohen & Shah Law\n(404) 555-0187 | cohenshah.example\n\nCONFIDENTIALITY NOTICE: This email and any attachments may contain privileged and confidential information intended only for the named recipient. If you received it in error, please tell the sender and delete it.";
+const msg = (id: string, minutes: number, from: { address: string; name: string }, to: { address: string; name?: string }[], cc: { address: string; name?: string }[], subject: string, body: string, o: Partial<ThreadMsg> = {}): ThreadMsg => ({
+  id, at: ago(minutes), direction: from.address === ME ? "out" : "in", mailboxId: "mbx_work", mailboxIds: ["mbx_work"], from, to, cc, subject, body, reactions: [], attachments: [], isPrivate: false, ...o,
+});
+const CHROME = "Claude in Chrome for Clio Grow + follow-up", SCOUT = "Welcome to Scout, Josh";
+const SCOUT_HTML = '<p>Hi Josh,</p><p>Welcome to Scout. Your workspace for <b>Cohen &amp; Shah Law</b> is ready, and your team can sign in now.</p><p><a href="https://app.scout.example/w/cohen-shah" target="_blank" rel="noopener noreferrer nofollow">Open your workspace</a> <span class="vy-link-host">(app.scout.example)</span></p><p>Irfad is copied here. He will connect Scout to Clio Grow when you meet.</p><p>Andrey</p>';
+const scoutThread = (unread: boolean): MailThread => ({
+  threadId: "gm_18c39f7b2d10", subject: SCOUT, role: "cc", participants: [P.andrey, P.josh, P.me], lastAt: ago(1410), messageCount: 2, unread: 0,
+  messages: [
+    { unread: false, message: msg("eml_w1", 1530, P.andrey, [P.josh], [P.me], SCOUT, "Hi Josh,\n\nWelcome to Scout. Your workspace for Cohen & Shah Law is ready, and your team can sign in now.\n\nOpen your workspace (app.scout.example)\n\nIrfad is copied here. He will connect Scout to Clio Grow when you meet.\n\nAndrey", { html: SCOUT_HTML, imagesHeld: 1, signature: "Andrey Volkov\nCEO, Scout\nscout.example" }) },
+    { unread, message: msg("eml_w2", 1410, P.josh, [P.andrey], [P.me], `RE: ${SCOUT}`, "Thanks Andrey. I am in and the team is set up.\n\nIrfad, can you connect it to Clio Grow when we meet Wednesday?", {
+      signature: JOSH_SIG, quoted: "-----Original Message-----\nFrom: Andrey Volkov <andrey@scout.example>\nSent: Friday, October 23, 2026 9:10 AM\nTo: Josh Cohen <josh@cohenshah.example>\nCc: Irfad Imtiaz <irfad@northwind.example>\nSubject: Welcome to Scout, Josh\n\nHi Josh,\nWelcome to Scout. Your workspace for Cohen & Shah Law is ready." }) },
+  ],
+});
+export const mailThreads: Record<string, MailThread[]> = {
+  josh: [
+    {
+      threadId: "gm_18c2a1f04e9b", subject: CHROME, role: "added_later", participants: [P.maya, P.josh, P.me], lastAt: ago(61), messageCount: 5, unread: 2,
+      messages: [
+        { unread: false, message: msg("eml_c1", 2950, P.maya, [P.josh], [P.me], `Re: ${CHROME}`, "Hi Josh,\n\nAdding Irfad, who set up Claude in Chrome for our own Clio Grow intake. Irfad, Josh wants the same setup for his intake team, and a follow-up after each consult.", {
+          signature: "Maya Chen\nClient Success | Northwind\n+1 415 555 0140", quoted: "On Tue, Oct 20, 2026 at 4:12 PM Josh Cohen <josh@cohenshah.example> wrote:\n> Hi Maya,\n>\n> Could someone walk us through the Claude in Chrome setup for Clio Grow? Our intake team re-types every web lead by hand.\n>\n> Josh" }) },
+        { unread: false, message: msg("eml_c2", 2830, P.me, [P.josh], [P.maya], `Re: ${CHROME}`, "Hi Josh,\n\nHappy to. The short version: Claude in Chrome reads each new lead in Clio Grow, fills the matter fields and leaves a note for your team to check before anything is saved. I can set it up with your intake lead on a 30-minute call. Tuesday or Wednesday afternoon both work.\n\nIrfad", {
+          quoted: "On Thu, Oct 22, 2026 at 11:30 AM Maya Chen <maya@northwind.example> wrote:\n> Adding Irfad, who set up Claude in Chrome for our own Clio Grow intake." }) },
+        { unread: false, message: msg("eml_c3", 2700, P.josh, [P.me], [P.maya], `RE: ${CHROME}`, "Thanks, I will put in the card for the Clio seat today. Wednesday at 2 works for us. Rachel Ortiz runs intake and will join.", {
+          signature: JOSH_SIG, reactions: [{ emoji: "\u2764\ufe0f", from: P.me, at: ago(2660) }], quoted: "From: Irfad Imtiaz <irfad@northwind.example>\nSent: Thursday, October 22, 2026 1:30 PM\nTo: Josh Cohen <josh@cohenshah.example>\nCc: Maya Chen <maya@northwind.example>\nSubject: Re: Claude in Chrome for Clio Grow + follow-up" }) },
+        { unread: true, message: msg("eml_c4", 96, P.josh, [P.me], [P.maya], `RE: ${CHROME}`, "Hi Irfad,\n\nQuick one before Wednesday. Our lead form also feeds a Google Sheet that Rachel's team works from, so the intake team sees each lead twice. Could Claude in Chrome check the sheet first and skip anything already in Clio Grow? If that is easy, we would also like it to tag the practice area, so the right attorney gets the lead the same morning.\n\nThe second thing is the follow-up. Right now nobody writes after the consult, so the lead goes quiet and we lose about a third of them. A short email the next morning, then we will call on day three. Could the same setup draft that email for Rachel to send?", {
+          signature: JOSH_SIG, quoted: "-----Original Message-----\nFrom: Josh Cohen <josh@cohenshah.example>\nSent: Thursday, October 22, 2026 3:40 PM\nTo: Irfad Imtiaz <irfad@northwind.example>\nSubject: RE: Claude in Chrome for Clio Grow + follow-up\n\nThanks, I will put in the card for the Clio seat today." }) },
+        { unread: true, message: msg("eml_c5", 61, P.josh, [P.me], [P.maya], `RE: ${CHROME}`, "One more: Rachel is out Wednesday afternoon. Can we do 11:00 instead?\n\nJosh", {
+          signature: "Sent from my iPhone", quoted: "> On Oct 24, 2026, at 9:04 AM, Josh Cohen <josh@cohenshah.example> wrote:\n>\n> Hi Irfad,\n> Quick one before Wednesday." }) },
+      ],
+    },
+    scoutThread(false),
+  ],
+  andrey: [scoutThread(false)],
+};
+/** The email items behind those threads, so the flat history (inbox.thread) holds them too, under each contact on them. */
+const threadItems = (id: string): ThreadItem[] => (mailThreads[id] ?? []).flatMap((t) => t.messages.map((x) => ({
+  kind: "email" as const, id: x.message.id, at: x.message.at, direction: x.message.direction, title: x.message.subject, preview: x.message.body.slice(0, 80), ref: { threadId: t.threadId, subject: x.message.subject, body: x.message.body },
+})));
+
+const bytesOf = (size: string | undefined): number => {
+  const m = /^([\d.]+)\s*(B|KB|MB)$/i.exec(size ?? "");
+  return m ? Math.round(Number(m[1]) * ({ b: 1, kb: 1024, mb: 1024 * 1024 }[(m[2] ?? "b").toLowerCase() as "b" | "kb" | "mb"])) : 0;
+};
+
+/** A sample contact's threads: the two above, else its emails grouped by thread (the subject without Re:), each message as inbox.threads would give it. */
+function threadsOf(conv: { id: string; address: string; displayName: string; mailboxIds: string[] }, items: readonly ThreadItem[]): MailThread[] {
+  const given = mailThreads[conv.id];
+  if (given) return given;
+  const groups = new Map<string, ThreadItem[]>();
+  for (const i of items) {
+    if (i.kind !== "email") continue;
+    const r = i.ref as { subject?: string; threadId?: string } | undefined;
+    const key = r?.threadId ?? (r?.subject ?? i.title ?? "").replace(/^\s*((re|fwd?):\s*)+/i, "").trim().toLowerCase();
+    groups.set(key, [...(groups.get(key) ?? []), i]);
+  }
+  const box = conv.mailboxIds[0] ?? "mbx_work";
+  return [...groups.entries()].map(([key, list]) => {
+    const sorted = [...list].sort((a, b) => a.at - b.at);
+    const them = { address: conv.address, name: conv.displayName };
+    const messages = sorted.map((i) => {
+      const r = (i.ref ?? {}) as { subject?: string; body?: string; quoted?: string; attachments?: { name: string; size?: string }[] };
+      const out = i.direction === "out";
+      const m = msg(i.id, (SAMPLE_NOW - i.at) / MIN, out ? P.me : them, [out ? them : P.me], [], r.subject ?? i.title ?? "", r.body ?? i.preview ?? "", { mailboxId: box, mailboxIds: [box], ...(r.quoted ? { quoted: r.quoted } : {}), attachments: (r.attachments ?? []).map((a, n) => ({ attachmentId: `att_${i.id}_${n}`, name: a.name, mime: "application/octet-stream", size: bytesOf(a.size) })) });
+      return { unread: false, message: m };
+    });
+    const first = messages[0]?.message;
+    return {
+      threadId: `thr_${key.replace(/[^a-z0-9]+/g, "_")}`, subject: (first?.subject ?? "").replace(/^\s*((re|fwd?):\s*)+/i, "") || "(no subject)", role: first?.direction === "out" ? "started" as const : "to" as const,
+      participants: [them, P.me], lastAt: sorted[sorted.length - 1]?.at ?? 0, messageCount: messages.length, unread: 0, messages,
+    };
+  });
+}
+
 /** Phone numbers the sample can text. */
 const PHONES: Record<string, string> = { elena: "+1 415 555 0161", marcus: "+1 415 555 0188", dana: "+1 917 555 0126", hannah: "+1 408 555 0102", nina: "+1 646 555 0150", unk: "+1 628 555 0194" };
 
@@ -89,7 +169,9 @@ export function createContactTabSample(space: SampleSpace = northwind, o: { onli
   const sent: { cap: string; input: unknown }[] = [];
   const mailStatus: ContactTabSample["mailStatus"] = { next: "queued" };
 
-  const stored = space.id === "northwind" ? Object.entries(threads).filter(([k]) => k !== "kai" && k !== "clara") : [["kai", threads["kai"]!] as const, ["clara", threads["clara"]!] as const];
+  const stored = space.id === "northwind"
+    ? [...Object.entries(threads).filter(([k]) => k !== "kai" && k !== "clara"), ["josh", threadItems("josh")] as const, ["andrey", threadItems("andrey")] as const]
+    : [["kai", threads["kai"]!] as const, ["clara", threads["clara"]!] as const];
   const itemRows: Item[] = [];
   for (const [conv, list] of stored) for (const i of list) itemRows.push(item(conv, i));
   replica.put("thread_items", itemRows as unknown as Row[]);
@@ -99,6 +181,15 @@ export function createContactTabSample(space: SampleSpace = northwind, o: { onli
   // Harbor Studio's other client, Clara Voss, whose one email the prototype's Harbor Inbox opens
   const kaiRow = space.id === "harbor" ? contacts().find((c) => c.id === "kai") : undefined;
   if (kaiRow) replica.put("contacts", [...contacts(), { ...kaiRow, id: "clara", contactId: "ct_clara", address: "clara@vossceramics.example", displayName: "Clara Voss", lastPreview: "Studio session for the autumn range" }] as unknown as Row[]);
+  // Josh Cohen and Andrey Volkov, the people on the two threads (northwind only)
+  const elenaRow = space.id === "northwind" ? contacts().find((c) => c.id === "elena") : undefined;
+  if (elenaRow) {
+    replica.put("contacts", [
+      ...contacts(),
+      { ...elenaRow, id: "josh", contactId: "ct_josh", address: JOSH, displayName: "Josh Cohen", lastMessageAt: ago(61), lastChannel: "email", lastPreview: "Claude in Chrome for Clio Grow + follow-up · One more: Rachel is out Wednesday afternoon.", unreadCount: 2, followed: true, mailboxIds: ["mbx_work"] },
+      { ...elenaRow, id: "andrey", contactId: "ct_andrey", address: ANDREY, displayName: "Andrey Volkov", lastMessageAt: ago(1410), lastChannel: "email", lastPreview: "Welcome to Scout, Josh · Josh: Thanks Andrey. I am in and the team is set up.", unreadCount: 0, followed: false, mailboxIds: ["mbx_work"] },
+    ] as unknown as Row[]);
+  }
   const find = (conversationId?: string, contactId?: string): ContactRow | undefined => contacts().find((c) => c.id === conversationId || (contactId !== undefined && c.contactId === contactId));
 
   replica.resolve("inbox.thread", (_t, i) => {
@@ -110,6 +201,18 @@ export function createContactTabSample(space: SampleSpace = northwind, o: { onli
       lastChannel: c.lastChannel, lastPreview: c.lastPreview, unreadCount: c.unreadCount, needsMatch: c.needsMatch, mailboxIds: c.mailboxIds, followed: c.followed, alertOnReplies: c.alertOnReplies,
     };
     return { conversation, items, total: items.length } satisfies ThreadOut;
+  });
+  replica.resolve("inbox.threads", (_t, i) => {
+    const c = find(i.conversationId, i.contactId);
+    if (!c) throw new Error("no such conversation");
+    const items = (replica.rows("thread_items") as unknown as Item[]).filter((x) => x.conversationId === c.id);
+    const conversation: Conversation = {
+      id: c.id, ...(c.contactId ? { contactId: c.contactId } : {}), address: c.address, displayName: c.displayName, lastMessageAt: c.lastMessageAt,
+      lastChannel: c.lastChannel, lastPreview: c.lastPreview, unreadCount: c.unreadCount, needsMatch: c.needsMatch, mailboxIds: c.mailboxIds, followed: c.followed, alertOnReplies: c.alertOnReplies,
+    };
+    // with "Show images" the held picture loads: the sample has none to fetch, so the count goes and the HTML stays
+    const list = threadsOf(c, items).map((t) => (i.images === true ? { ...t, messages: t.messages.map((x) => { const { imagesHeld: _h, ...rest } = x.message; return { ...x, message: rest }; }) } : t));
+    return { conversation, threads: [...list].sort((a, b) => b.lastAt - a.lastAt), total: list.length } satisfies ThreadsOut;
   });
   replica.resolve("inbox.send_options", (_t, i) => {
     const c = find(i.conversationId, i.contactId);

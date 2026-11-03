@@ -187,6 +187,8 @@ interface ThreadRow {
   participants: string[];
   unread: number;
   contactId?: string;
+  /** The conversation the thread opens in: an email thread opens in its contact's tab, as one card. */
+  conversationId?: string;
 }
 
 export async function listByThread(
@@ -226,6 +228,7 @@ export async function listByThread(
     if (mailboxId) row.mailboxId = mailboxId;
     const contactId = strOrNull(convs.get(str(latest, "conversationId")) ?? null, "contactId");
     if (contactId) row.contactId = contactId;
+    row.conversationId = str(latest, "conversationId");
     threads.push(row);
   }
   threads.sort((a, b) => b.lastAt - a.lastAt || a.threadId.localeCompare(b.threadId));

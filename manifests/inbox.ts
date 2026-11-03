@@ -79,7 +79,7 @@ const manifest = defineManifest({
     }),
     read('inbox.list_by_thread', 'Inbox thread view: one row per email thread or text thread', {
       in: { ...listFilter, ...pageIn },
-      out: { threads: t.arr(t.obj({ threadId: t.str(), channel, subject: t.opt(t.str()), mailboxId: t.opt(id.mailbox), lastAt: t.ts(), participants: t.arr(t.str()), unread: t.int(), contactId: t.opt(id.record) })), showing: t.str(), ...pageOut },
+      out: { threads: t.arr(t.obj({ threadId: t.str(), channel, subject: t.opt(t.str()), mailboxId: t.opt(id.mailbox), lastAt: t.ts(), participants: t.arr(t.str()), unread: t.int(), contactId: t.opt(id.record), conversationId: t.opt(cnvId) })), showing: t.str(), ...pageOut },
       tool: 'inbox', label: 'filter',
     }),
     read('inbox.threads', "One contact's email threads, each whole: every thread they are on (From, To or Cc), newest first, with everyone's messages, quoted history and signatures apart, reactions, what is new and your role", {
@@ -201,6 +201,7 @@ const manifest = defineManifest({
       slot: 'tab',
       q: {
         thread: ['inbox.thread', { conversationId: '/state/conversationId', contactId: '/state/contactId' }, true],
+        threads: ['inbox.threads', { conversationId: '/state/conversationId', contactId: '/state/contactId', images: '/state/images' }, true],
         options: ['inbox.send_options', { conversationId: '/state/conversationId', contactId: '/state/contactId' }, true],
         drafts: ['mail.drafts.list', { contactId: '/state/contactId' }, true],
       },

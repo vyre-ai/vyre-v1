@@ -51,8 +51,10 @@ const items = (list: readonly ThreadItem[]): ThreadItem[] => [...list];
 test("screen: the history reads oldest to newest with day separators, newest at the foot", () => {
   const { out } = tab("elena");
   assert.ok(has(out, 'data-testid="contact-tab"') && has(out, "Elena Rivera"));
-  const order = ["email:m_intake", "email:m_reply", "call:c_elena", "texts:t1", "texts:t3", "email:m_lease"].map((k) => at(out, `data-testid="${k}"`));
+  // each email thread is one card at its last activity (owner, 3 Nov); texts and calls stay where they happened
+  const order = ["thread:thr_client_intake_form", "call:c_elena", "texts:t1", "texts:t3", "thread:thr_lease_documents_for_thursday", "email:m_lease"].map((k) => at(out, `data-testid="${k}"`));
   assert.deepEqual(order, [...order].sort((a, b) => a - b), "items run oldest to newest");
+  assert.ok(!has(out, 'data-testid="email:m_intake"'), "an older thread with nothing new is closed: one card, its newest line");
   for (const day of ["Tue 21 Oct", "Wed 22 Oct", "Yesterday", "Today"]) assert.ok(has(out, day), `day separator ${day}`);
   assert.ok(!has(out, String.fromCharCode(0x2014)), "no em dash in any copy");
 });
@@ -71,7 +73,7 @@ test("screen: emails show attachments and record chips; outward mail is in the a
   const { out } = tab("elena");
   assert.ok(has(out, 'data-testid="attachment:Lease-draft-3.pdf"') && has(out, "412 KB") && has(out, 'data-testid="attachment:Floor-plan.png"'));
   assert.ok(has(out, 'data-testid="chip:Lease renewal"') && has(out, 'aria-label="Open record Lease renewal"'));
-  assert.ok(has(out, "You") && has(out, "Work Gmail") && has(out, "hello@"), "who and which inbox");
+  assert.ok(has(out, "You") && has(out, "Work Gmail"), "who and which inbox");
 });
 
 test("screen: texts are bubbles, grouped by side and number, with one meta line", () => {
@@ -139,12 +141,15 @@ test("an agent's text draft goes out through telephony.send_sms from its number,
 
 test("screen: the composer opens on the channel of the last message and the inbox the thread came in on", () => {
   const e = tab("elena").out;
-  for (const id of ["chan-email", "chan-text", "composer-recipients", "contact-recipients", "contact-subject", "from-pick"]) assert.ok(has(e, `data-testid="${id}"`), id);
+  for (const id of ["chan-email", "chan-text", "composer-recipients", "contact-recipients", "from-pick", "reply-in"]) assert.ok(has(e, `data-testid="${id}"`), id);
+  // a reply goes into the newest thread and says so; its subject is the thread's, so there is no Subject field (New email has one)
+  assert.ok(!has(e, 'data-testid="contact-subject"') && has(e, "Replying in"));
   const emailTab = e.slice(e.lastIndexOf("<", e.indexOf('data-testid="chan-email"')), e.indexOf(">", e.indexOf('data-testid="chan-email"')));
   assert.ok(has(emailTab, 'aria-selected="true"'), "the selected channel tab exposes aria-selected");
   const smsTab = e.slice(e.lastIndexOf("<", e.indexOf('data-testid="chan-text"')), e.indexOf(">", e.indexOf('data-testid="chan-text"')));
   assert.ok(has(smsTab, 'aria-selected="false"'), "the other tab says it is not selected");
-  assert.ok(has(e, "Re: Lease documents for Thursday") && !has(e, "Sends from"), "no explaining line under the composer");
+  assert.ok(e.indexOf("Lease documents for Thursday", at(e, "Replying in")) > 0, "Replying in names the thread");
+  assert.ok(!has(e, "Sends from"), "no explaining line under the composer");
   assert.ok(has(e, "Elena Rivera"), "To shows the contact name");
   const fromE = at(e, 'data-testid="from-name"');
   assert.ok(e.slice(fromE, fromE + 80).includes("Work Gmail"), "From names the inbox it came in on");

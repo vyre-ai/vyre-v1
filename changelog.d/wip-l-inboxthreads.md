@@ -10,3 +10,12 @@
   - a Gmail emoji reaction shows on the message it reacts to (❤️ You), not as a message.
 - HTML email is made safe to show: no scripts, styles, forms or frames. Remote images wait until you allow them, and tracking pixels are dropped. Each link shows the site it goes to.
 - Replies stay in their thread for everyone. A reply from Gmail carries the mailbox's Gmail thread, In-Reply-To and the full References chain. A reply from Outlook goes through Outlook's own reply, so it joins the conversation. A reply through a Space sending domain carries the full References chain.
+- Inbox, a contact's tab: each email thread is one card, placed at its last activity. The card shows:
+  - the subject once and the faces of the people on it;
+  - "With Josh Cohen and Andrey Volkov", the message count and the last activity;
+  - an unread dot with "N new";
+  - "You started this", "You were added later" or "Cc" when it matters.
+- An open thread shows older messages as one line each, then "New since you last looked", then the new ones in full. Quoted history sits behind "Show quoted text" and the signature behind a small "…". On landing, the tab scrolls to the first thread with something new.
+- HTML mail shows sanitised, with images held behind "Show images". A Gmail reaction shows as "❤️ You" under the message it answers.
+- The composer says "Replying in <thread>", and you can switch to another thread or to New email, which starts a separate thread. Reply and Reply all are a two-way switch, and Reply all keeps Cc. The reply goes out from the mailbox the thread is in and answers that thread's newest message.
+- All inboxes lists a thread shared by two contacts once. A mailbox's list groups its mail by thread too. An email thread row opens in its conversation instead of a chat.

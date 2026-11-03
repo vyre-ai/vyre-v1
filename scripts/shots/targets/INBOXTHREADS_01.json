@@ -1,0 +1,18 @@
+{
+  "targets": [
+    {
+      "id": "INBOXTHREADS_01-josh",
+      "route": "/m/P-L9c_02?c=josh",
+      "proto": "inbox,at:contact:josh,{skin}",
+      "waitFor": "[data-testid='thread:gm_18c2a1f04e9b']",
+      "note": "Email threads (owner, 3 Nov): Josh Cohen's tab with one card per thread. Claude in Chrome for Clio Grow is open on landing: subject once, faces, 5 messages, You were added later, 2 new, older messages one line each (a heart reaction on Josh's), New since you last looked, the two new ones in full with quoted text and signature folded. Welcome to Scout, Josh sits above it closed, with Cc. The composer says Replying in the newest thread, Reply all."
+    },
+    {
+      "id": "INBOXTHREADS_01-andrey",
+      "route": "/m/P-L9c_02?c=andrey&open=eml_w1",
+      "proto": "inbox,at:threadhtml,{skin}",
+      "waitFor": "[data-testid='html:eml_w1']",
+      "note": "The same Scout thread whole under Andrey Volkov: his welcome email as sanitised HTML with the image held and the link's host shown, and Josh's reply."
+    }
+  ]
+}

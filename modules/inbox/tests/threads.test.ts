@@ -3,7 +3,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { linkMessage, markRead } from "../handlers/match.ts";
-import { listByContact, thread, threads } from "../handlers/views.ts";
+import { listByContact, listByThread, thread, threads } from "../handlers/views.ts";
 import { codeOf, contractErrors, harness, link, NOW } from "../fixtures/harness.ts";
 import type { Contact } from "../fixtures/harness.ts";
 
@@ -92,4 +92,14 @@ test("a conversation or contact is needed, and one the caller may not see is not
   const conv = (await threads(h.ctx, { contactId: JOSH.id })).conversation.id;
   h.denied.add(`conversation:${conv}`);
   await assert.rejects(threads(h.ctx, { contactId: JOSH.id }), (e) => codeOf(e) === "permission.not_found");
+});
+
+test("All inboxes lists the shared thread once, and the row opens in a conversation", async () => {
+  const h = setup();
+  await scout(h);
+  const out = await listByThread(h.ctx, {});
+  assert.deepEqual(contractErrors("inbox.list_by_thread", "out", out), []);
+  const rows = out.threads.filter((t) => t.threadId === "thr_scout");
+  assert.equal(rows.length, 1);
+  assert.ok(rows[0]!.conversationId?.startsWith("cnv_"));
 });

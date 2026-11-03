@@ -211,6 +211,7 @@ function List(): ReactElement {
   const call = (cap: string, input: unknown): void => { void data.call(cap, input); };
   const openEntry = (e: Entry): void => {
     if (e.kind === "contact") data.nav.openConversation(e.openId);
+    else if (e.kind === "thread" && e.conversationId) data.nav.openConversation(e.conversationId);
     else if (e.kind === "thread") data.nav.openThread(e.openId);
     else data.nav.openCall(e.openId);
   };
