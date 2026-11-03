@@ -16,7 +16,7 @@ import type { CapCall, RouteRow } from "./caps.ts";
 import { withVaultGate } from "./vault-gate.ts";
 import { attemptKey } from "../providers/files-review.ts";
 import { loadCryptoKeys } from "../../../../../client/src/crypto/load.ts";
-import { keepKey, rehandKey } from "../../../../../client/src/gateway/key-keeper.ts";
+import { handOnLive, keepKey, rehandKey, watchKey } from "../../../../../client/src/gateway/key-keeper.ts";
 import { holdKeyOnOwnNode, keyDoor, serverKeyState, setServerKeyKept } from "../../../../../client/src/gateway/local-key.ts";
 import { shellDesktopLinkBridge } from "../../../../../client/src/connection/desktop-link.ts";
 import { aiHomeOf } from "../../ai-signin/own-ai.ts";
@@ -267,7 +267,7 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
     onChange: refresh,
     onStatus: (s) => {
       // back after a drop (the server restarted or deployed): hand the kept key back through the key door before anything needs it, so the next turn runs on the person's own account
-      if (s === "live" && everLive && live !== "live" && door) void rehandKey(o.baseUrl, token ?? "").catch(() => false);
+      if (handOnLive(live, s, door)) void rehandKey(o.baseUrl, token ?? "").catch(() => false);
       live = s; if (s === "live") everLive = true; else turns.reset(); tell();
     },
     onTurn: (f) => turns.onFrame(f),
@@ -276,6 +276,8 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
     ...(o.scheduler ? { scheduler: o.scheduler } : {}),
   });
   link.start();
+  // a Space server that lost the key under an open link (a restart the link did not notice) gets it back from this app within one beat
+  const stopKeyWatch = watchKey(o.baseUrl, () => token);
   // this Space's own door for the timing samples the app measured in it (apps/app/src/speed): only this session, with this Space's token, ever sends them
   const detachSpeed = speed.attach({
     spaceId: space.id,
@@ -444,6 +446,7 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
       closed = true;
       stopPerms(); if (permsTimer !== null) clearTimeout(permsTimer);
       detachSpeed();
+      stopKeyWatch();
       console.info(`vyre session closed: ${why}`);
       clearInterval(poll);
       for (const t of warmTimers) clearTimeout(t);

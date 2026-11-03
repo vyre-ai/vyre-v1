@@ -11,3 +11,4 @@
 - `vyre run --env` never prints a fetched value, also not inside an error message from the server or a failed launch; each value fetched is a Vault use with the person as the actor.
 - Vault search finds an item by name, handle, kind, field name or folder name, across Mine, Shared with me and the Space (never by a value).
 - engine.accounts.list takes a place (chat, automation, agent, space) and then says for every account whether it can run there and why not, with its models, by the rule the resolver itself applies. Every picker can read the same list.
+- A Space server that lost a member's key (a restart, a link that came back) gets it again from any of their open apps: the app hands the key it holds when the link is live the first time as well as after a drop, and asks every 30 seconds while open. A resumed device runs its server turns on the member's Mine sign-in whenever any device of theirs is unlocked.
