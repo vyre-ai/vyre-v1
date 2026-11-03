@@ -33,5 +33,8 @@ test("a routine set to post Hi every minute posts Hi in its chat within about a 
     assert.match(notices.find((x) => /Hi every minute/.test(x)) ?? "", /Post Hi\./, "the agent was given the routine's instructions");
     const after = (await call(d, "agents.routines.list", { agentId })).data.routines[0] as { lastRunAt?: number; nextRunAt: number };
     assert.ok(after.lastRunAt !== undefined && after.nextRunAt > routine.nextRunAt, "it ran, and its next run moved on");
+    // the run ends with the agent's turn: the routine's Last run says it was done
+    const done = await waitFor(async () => { const r = (await call(d, "agents.routines.list", { agentId })).data.routines[0] as { lastRun?: { runId: string; status: string } }; return r.lastRun?.status === "succeeded" ? r.lastRun : null; }, 20_000, () => hostLog(d));
+    assert.equal(((await call(d, "runs.get", { runId: done.runId })).data.run as { status: string }).status, "succeeded");
   } finally { await d.stop(); fs.rmSync(dir, { recursive: true, force: true }); }
 });

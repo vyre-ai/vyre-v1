@@ -39,6 +39,8 @@ const routineRow = t.obj({
   watch: t.opt(t.obj({ on: t.enm('message'), channelId: id.channel })),
   // who set it when that was not the owner by hand: the agent that saved it for them. Absent: the owner set it
   setBy: t.opt(principalRef),
+  // the last run it started and how it went (running until its agent's turn ends)
+  lastRun: t.opt(t.obj({ runId: id.run, status: t.enm('running', 'succeeded', 'failed', 'stopped') })),
 });
 const suggestionRow = t.obj({
   suggestionId: t.id('sug'), agentId: id.agent, kind: t.enm('agent_md', 'template'), file: t.str({ examples: ['AGENT.md'] }), diff: t.str(), reason: t.opt(t.str()),

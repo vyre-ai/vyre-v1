@@ -7,7 +7,7 @@
 import { readFileSync } from "node:fs";
 import {
   BUILTIN_SKILLS, GUIDE_MD, GUIDE_VERSION, MAX_DIFF, MAX_PROMPT, TREE_FOLDERS, agentBy, allAgents, allows, applyUnifiedDiff, askerOf, call, canSee, ensure, fingerprint, insertSuggestion, makeFile,
-  makeFolder, markRoutineRan, messageOf, meta, mintId, nextRun, onlyLearnedChanged, parseCron, raise, routineBy, routineOf, routineOut, setMeta, simpleDiff, saveFile, suggestionBy, suggestionOf, suggestionOut, textOf, tolerant, visible, walkFolder,
+  makeFolder, markRoutineRan, messageOf, noteRoutineRun, meta, mintId, nextRun, onlyLearnedChanged, parseCron, raise, routineBy, routineOf, routineOut, setMeta, simpleDiff, saveFile, suggestionBy, suggestionOf, suggestionOut, textOf, tolerant, visible, walkFolder,
 } from "../projections.ts";
 import type { AgentRec, AgentsCtx, FolderOut, RoutineRec, SuggestionRec } from "../projections.ts";
 
@@ -82,6 +82,7 @@ export async function routineDelete(ctx: AgentsCtx, input: { agentId: string; ro
   ctx.db.run("DELETE FROM agents_routine WHERE id = ?", r.id);
   ctx.db.run("DELETE FROM agents_routine_watch WHERE routineId = ?", r.id);
   ctx.db.run("DELETE FROM agents_routine_by WHERE routineId = ?", r.id);
+  ctx.db.run("DELETE FROM agents_routine_last WHERE routineId = ?", r.id);
   ctx.emit("agent.routine_changed", agent.id, { agentId: agent.id, routineId: r.id, op: "deleted" });
   return { deleted: true };
 }
@@ -98,6 +99,7 @@ export async function routineRunNow(ctx: AgentsCtx, input: { agentId: string; ro
   const runKey = `routine-run-now:${r.id}:${input.idempotencyKey ?? Math.floor(ctx.now() / 60_000)}`;
   const started = await call<{ runId: string }>(ctx, "runs.start", { idempotencyKey: runKey, kind: "routine", name: r.title, owner: r.ownerId }, { idempotencyKey: runKey });
   ctx.db.run("UPDATE agents_routine SET lastRunAt = ?, updatedAt = ? WHERE id = ?", ctx.now(), ctx.now(), r.id);
+  noteRoutineRun(ctx.db, r.id, started.runId, ctx.now());
   ctx.emit("agent.routine_run_started", agent.id, { agentId: agent.id, routineId: r.id, runId: started.runId, ownerId: r.ownerId, requestedBy: by(ctx) });
   return { routine: routineOut(routineBy(ctx.db, r.id) as RoutineRec), runId: started.runId };
 }
@@ -129,6 +131,7 @@ export async function runDueRoutines(ctx: AgentsCtx): Promise<string[]> {
     try {
       const started = await call<{ runId: string }>(ctx, "runs.start", { idempotencyKey: key, kind: "routine", name: r.title, owner: r.ownerId }, { idempotencyKey: key });
       markRoutineRan(ctx.db, r.id, now);
+      noteRoutineRun(ctx.db, r.id, started.runId, now);
       ctx.emit("agent.routine_run_started", agent.id, { agentId: agent.id, routineId: r.id, runId: started.runId, ownerId: r.ownerId, requestedBy: "schedule" });
       fired.push(started.runId);
     } catch (e) {
@@ -486,6 +489,7 @@ export async function onMessageReceived(ctx: AgentsCtx, event: { payload: { mess
     // the run carries what woke it, so the agent answers that message in that thread
     const started = await call<{ runId: string }>(ctx, "runs.start", { idempotencyKey: `watch:${r.id}:${p.messageId}`, kind: "routine", name: r.title, owner: r.ownerId, threadId: p.threadId, trigger: { messageId: p.messageId, threadId: p.threadId, channelId: channel } }, { idempotencyKey: `watch:${r.id}:${p.messageId}` });
     ctx.db.run("UPDATE agents_routine SET lastRunAt = ?, updatedAt = ? WHERE id = ?", ctx.now(), ctx.now(), r.id);
+    noteRoutineRun(ctx.db, r.id, started.runId, ctx.now());
     ctx.emit("agent.routine_run_started", agent.id, { agentId: agent.id, routineId: r.id, runId: started.runId, ownerId: r.ownerId, requestedBy: `watch:${p.messageId}` });
     fired.push(started.runId);
   }
