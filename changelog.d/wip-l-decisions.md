@@ -1,0 +1,1 @@
+- Automations and the Console are off the phone (owner ruling, 3 Nov): no tab, You row or More entry, and a link to either on a phone opens one line with "Chat about it", which opens an Ask with the assistant about that item. Desktop keeps both.

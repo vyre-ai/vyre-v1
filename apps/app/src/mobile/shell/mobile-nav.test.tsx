@@ -4,7 +4,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
 import { MobileShell, YouScreen, useMobileBack } from "./index.ts";
-import { MOBILE_TABS, NOT_ON_PHONE, SWIPE_OPEN_AT, back, canBack, current, initialNav, isAllowed, open, origin, selectTab, swipeOffset, swipeRest } from "./model.ts";
+import { MOBILE_TABS, NOT_ON_PHONE, SWIPE_OPEN_AT, back, canBack, current, initialNav, isAllowed, open, origin, replace, selectTab, swipeOffset, swipeRest } from "./model.ts";
+import { CHAT_ABOUT_IT, DesktopOnly } from "./DesktopOnly.tsx";
 import { SwipeRow } from "../sheets/SwipeRow.tsx";
 import { Sheet } from "../sheets/Sheet.tsx";
 
@@ -40,10 +41,10 @@ test("pressing a tab goes to its first screen with a fresh history", () => {
   assert.equal(current(selectTab(s, "files")).tab, "files");
 });
 
-test("no Automations, Journeys or Console on the phone", () => {
-  assert.deepEqual([...NOT_ON_PHONE].sort(), ["console", "journeys"]);
+test("no Automations, Journeys or Console on the phone (owner ruling, 3 Nov)", () => {
+  assert.deepEqual([...NOT_ON_PHONE].sort(), ["automation", "automations", "console", "journey", "journeys"]);
   for (const k of NOT_ON_PHONE) assert.equal(isAllowed(`${k}:anything`), false, k);
-  assert.ok(isAllowed("automations:") && isAllowed("automation:aut_1"), "Automations are on the phone, read-only in the editor");
+  assert.ok(isAllowed("desktop:automations:") && isAllowed("desktop:console:"), "a link to either is the Chat-about-it screen");
   assert.ok(isAllowed("record:rec_1") && isAllowed("chat:c1"));
   const s = initialNav("chats");
   assert.equal(open(s, { tab: "chats", screen: "console:members" }), s, "a refused screen changes nothing");
@@ -59,7 +60,7 @@ test("the shell shows a Back bar with the originating screen's name once you hav
 });
 
 test("You has My work, Starred and Settings", () => {
-  const out = renderToStaticMarkup(<YouScreen nav={{ open: () => undefined, back: () => undefined, selectTab: () => undefined, origin: undefined }} data={{ name: "Irfad Imtiaz", space: "Northwind", workOpen: 4, starred: 3 }} />).replaceAll("<!-- -->", "");
+  const out = renderToStaticMarkup(<YouScreen nav={{ open: () => undefined, replace: () => undefined, back: () => undefined, selectTab: () => undefined, origin: undefined }} data={{ name: "Irfad Imtiaz", space: "Northwind", workOpen: 4, starred: 3 }} />).replaceAll("<!-- -->", "");
   for (const t of ["Irfad Imtiaz", "Northwind", "My work", "4 open", "Starred", "3 starred", "Settings"]) assert.ok(has(out, t), t);
   assert.ok(!has(out, "Automations") && !has(out, "Console"));
 });
@@ -101,4 +102,19 @@ test("a conversation draws its own Back: no Back bar above it, and the dot for a
   assert.ok(!has(own, 'data-testid="mobile-back"'), "no separate bar");
   assert.equal(seen.length, 1, "the screen is handed Back for its own header");
   assert.ok(!has(shell({}), 'data-testid="tab-dot"') && has(shell({ youDot: true }), 'data-testid="tab-dot"') && has(shell({ youDot: true }), "You, another Space needs you"));
+});
+
+test("replace puts a screen in place of the one on show, so Back skips an Ask link", () => {
+  let s = open(initialNav("chats"), { tab: "chats", screen: "desktop:automations:", title: "Automations" });
+  s = open(s, { tab: "chats", screen: "ask:x", title: "Assistant" });
+  s = replace(s, { tab: "chats", screen: "thread:thr_1" });
+  assert.deepEqual(s.history.map((e) => e.screen), ["chats", "desktop:automations:", "thread:thr_1"]);
+  assert.equal(replace(s, { tab: "chats", screen: "console:members" }), s, "a refused screen changes nothing");
+});
+
+test("the Chat-about-it screen is one line and one action, and the action is off until the session is there", () => {
+  const out = renderToStaticMarkup(<DesktopOnly line="Automations open on a computer. You can chat about them here." onChat={() => undefined} />);
+  assert.ok(has(out, 'data-testid="desktop-only"') && has(out, 'data-testid="desktop-only-chat"') && has(out, CHAT_ABOUT_IT) && has(out, "Automations open on a computer."));
+  assert.ok(!has(out, 'aria-disabled="true"'));
+  assert.ok(has(renderToStaticMarkup(<DesktopOnly line="x" />), 'aria-disabled="true"'));
 });
