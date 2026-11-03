@@ -62,7 +62,21 @@ export function ensureTranscript(db: Db): void {
   ensure(db);
   if (tReady.has(db)) return;
   for (const stmt of TRANSCRIPT_SCHEMA) db.run(stmt);
+  // SQLite has no ADD COLUMN IF NOT EXISTS: a column that is already there raises and is skipped
+  try { db.run('ALTER TABLE chat_transcript_row ADD COLUMN "privateTo" TEXT'); } catch { /* already there */ }
   tReady.add(db);
+}
+
+/**
+ * What a tool answered is the asker's private turn detail (agent-visibility gap 2): kept for the person whose turn it was, never part of the transcript everyone in the chat reads. The words of a
+ * turn and the one-line summary of each call stay shared; the chat shows them anyway. A row written by a service with nobody behind it is kept for nobody.
+ */
+const isPrivateRow = (r: { role: string; kind: string }): boolean => r.kind === "tool_result" || (r.role.toLowerCase() === "tool" && r.kind !== "tool_call");
+const privateOwner = (ctx: ChatCtx): string => (ctx.principal.kind === "person" || ctx.principal.kind === "agent" ? askerOf(ctx) : ctx.actingFor ?? "");
+
+/** The one row filter of every transcript read: shared rows, and the reader's own private ones. `r` is the row alias. */
+export function seenRows(ctx: Pick<ChatCtx, "principal" | "actingFor">, r = "r"): { sql: string; args: unknown[] } {
+  return { sql: `(${r}."privateTo" IS NULL OR ${r}."privateTo" = ?)`, args: [askerOf(ctx)] };
 }
 
 /** Every string in a value goes through redact(): a credential pasted into a conversation never reaches the stored transcript. */
@@ -114,10 +128,11 @@ export async function transcriptAppend(
   const top = Number((ctx.db.all("SELECT MAX(idx) AS top FROM chat_transcript_row WHERE thread = ?", t.id) as Row[])[0]?.["top"] ?? 0);
   const by = ctx.principal.id;
   const now = ctx.now();
+  const owner = privateOwner(ctx);
   stored.forEach((r, i) => {
     ctx.db.run(
-      "INSERT INTO chat_transcript_row (thread, idx, turnId, author, role, kind, content, toolName, toolCallId, at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-      t.id, top + i + 1, input.turnId, by, r.role, r.kind, r.content, r.toolName ?? null, r.toolCallId ?? null, now,
+      "INSERT INTO chat_transcript_row (thread, idx, turnId, author, role, kind, content, toolName, toolCallId, at, \"privateTo\") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+      t.id, top + i + 1, input.turnId, by, r.role, r.kind, r.content, r.toolName ?? null, r.toolCallId ?? null, now, isPrivateRow(r) ? owner : null,
     );
   });
   return { appended: stored.length };
@@ -126,8 +141,10 @@ export async function transcriptAppend(
 export async function transcriptGet(ctx: ChatCtx, input: { threadId: string; turnId: string }) {
   ensureTranscript(ctx.db);
   const t = visible(ctx, input.threadId);
-  const rows = ctx.db.all("SELECT * FROM chat_transcript_row WHERE thread = ? AND turnId = ? ORDER BY idx", t.id, input.turnId) as Row[];
-  if (rows.length === 0) raise(ctx, "validation.not_found", "That turn is not in this transcript.");
+  const own = seenRows(ctx);
+  // a turn whose every row is someone else's private detail is, for this reader, a turn with no rows
+  if ((ctx.db.all("SELECT 1 AS x FROM chat_transcript_row WHERE thread = ? AND turnId = ? LIMIT 1", t.id, input.turnId) as Row[]).length === 0) raise(ctx, "validation.not_found", "That turn is not in this transcript.");
+  const rows = ctx.db.all(`SELECT * FROM chat_transcript_row r WHERE thread = ? AND turnId = ? AND ${own.sql} ORDER BY idx`, t.id, input.turnId, ...own.args) as Row[];
   return {
     turnId: input.turnId,
     rows: rows.map((r) => ({
@@ -142,7 +159,8 @@ export async function transcriptRead(ctx: ChatCtx, input: { threadId: string; fr
   const t = visible(ctx, input.threadId);
   const from = Math.max(1, input.fromIdx ?? 1);
   const limit = Math.min(MAX_ROWS, Math.max(1, input.limit ?? 100));
-  const rows = ctx.db.all("SELECT * FROM chat_transcript_row WHERE thread = ? AND idx >= ? ORDER BY idx LIMIT ?", t.id, from, limit + 1) as Row[];
+  const own = seenRows(ctx);
+  const rows = ctx.db.all(`SELECT * FROM chat_transcript_row r WHERE thread = ? AND idx >= ? AND ${own.sql} ORDER BY idx LIMIT ?`, t.id, from, ...own.args, limit + 1) as Row[];
   const shown = rows.slice(0, limit);
   const parts = shown.map((r) => {
     const tool = r["toolName"] ? `, ${String(r["toolName"])}` : "";
@@ -164,8 +182,9 @@ export async function transcriptSearch(
   const q = wordsOf(input.q.slice(0, 500));
   if (q.length === 0) raise(ctx, "validation.bad_input", "Search for at least one word.");
   const limit = Math.min(50, Math.max(1, input.limit ?? 10));
-  const where: string[] = ["t.deleted_at IS NULL"];
-  const args: unknown[] = [];
+  const own = seenRows(ctx);
+  const where: string[] = ["t.deleted_at IS NULL", own.sql];
+  const args: unknown[] = [...own.args];
   if (input.threadId !== undefined) {
     const t = threadBy(ctx.db, input.threadId);
     if (!t || !canSpeak(ctx, t)) raise(ctx, "validation.bad_input", "That chat does not exist or is not yours.");
@@ -249,7 +268,8 @@ function turnsOf(rows: Row[], threadId: string): { turns: Turn[]; lastIdx: numbe
 export async function transcriptSummarize(ctx: ChatCtx, input: { threadId: string; idempotencyKey?: string }) {
   ensureTranscript(ctx.db);
   const t = visible(ctx, input.threadId);
-  const rows = ctx.db.all("SELECT * FROM chat_transcript_row WHERE thread = ? ORDER BY idx", t.id) as Row[];
+  // the summary is read by everyone in the chat: it is built from the shared rows only, never anyone's private turn detail
+  const rows = ctx.db.all('SELECT * FROM chat_transcript_row WHERE thread = ? AND "privateTo" IS NULL ORDER BY idx', t.id) as Row[];
   const cur = (ctx.db.all("SELECT * FROM chat_transcript_summary WHERE thread = ?", t.id) as Row[])[0];
   const now = ctx.now();
   const { turns, lastIdx } = turnsOf(rows, t.id);
