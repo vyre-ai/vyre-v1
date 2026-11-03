@@ -21,7 +21,7 @@ export interface Policy {
   hops: { agentHops: number; reviewLoops: number; ciFixLoops: number };
 }
 
-const HOP_SETTINGS = [["agentHops", "engine.agent_hops", 4]] as const;
+const HOP_SETTINGS = [["agentHops", "engine.agent_hops", 8]] as const;
 
 function policyRow<T>(ctx: EngineCtx, key: string): T | undefined {
   const r = rows(ctx, "SELECT value FROM engine_policy WHERE key = ?", key)[0];
@@ -45,7 +45,7 @@ export async function readPolicy(ctx: EngineCtx): Promise<Policy> {
     const s = await settingValue(ctx, "engine.allowed_accounts");
     allowedAccounts = s === "company" ? "company" : "any";
   }
-  const hops = { agentHops: 4, reviewLoops: 2, ciFixLoops: 3 };
+  const hops = { agentHops: 8, reviewLoops: 2, ciFixLoops: 3 };
   for (const [field, key, fallback] of HOP_SETTINGS) {
     const v = await settingValue(ctx, key);
     hops[field] = typeof v === "number" && Number.isInteger(v) ? v : fallback;

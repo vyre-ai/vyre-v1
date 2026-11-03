@@ -46,6 +46,7 @@ import { useConnectVersion } from "../../../shell/connect/context.ts";
 import { windowAround } from "./focus.ts";
 import type { MessageActions } from "./MessageView.tsx";
 import { FaceButton, Glyph, IconButton, RenameField, TextButton } from "./parts.tsx";
+import { CONTINUE_TEXT, DEFAULT_AGENT_HOPS, limitOf, parkedAtLimit, parkedLine } from "./hops.ts";
 import { useMobileBack } from "../../../mobile/shell/back.ts";
 import { offlineLine } from "../agentpage/model.ts";
 import {
@@ -229,6 +230,13 @@ function ConversationView(): ReactElement {
   // a reply being written has no saved message yet: its row is the live turn (a ghost), and it counts as work from the moment the turn starts
   const working = workingAgents([...win.rows, ...ghosts], writing);
   const isWorking = working.length > 0;
+  // the chat's budget of agent turns: the Space's Policies setting, else 8 (owner ruling, 3 Nov)
+  const [hopLimit, setHopLimit] = useState(DEFAULT_AGENT_HOPS);
+  useEffect(() => {
+    let live = true;
+    data.call("settings.get", { key: "engine.agent_hops" }).then((out) => { if (live) setHopLimit(limitOf((out as { row?: { value?: unknown } } | null)?.row?.value)); }, () => undefined);
+    return () => { live = false; };
+  }, [data.threadId]);  // eslint-disable-line react-hooks/exhaustive-deps
   const nameOf = data.nameOf;
   const lead = leadOf(thread);
   const hasEarlier = win.hiddenLocal > 0 || (olderMore ?? messagesQ.data.hasMore);
@@ -455,6 +463,7 @@ function ConversationView(): ReactElement {
     ? mentionsIn(typed, data.directory.filter((c) => c.kind === "person" && c.id !== data.me.id))[0]
     : undefined;
   const closed = isClosed(thread);
+  const parked = !closed && parkedAtLimit(win.rows[win.rows.length - 1], hopLimit, isWorking);
   const note = data.head ? "" : threadKindNote(thread, nameOf);
   const title = titleOf(thread, nameOf);
   const q = queueNote(queued, lead ? nameOf(lead.agentId) : "", canSteer, ownTurn);
@@ -568,6 +577,7 @@ function ConversationView(): ReactElement {
       {data.waitingLine ?? null}
       <AsideList items={asides} onDismiss={(id) => setAsides((cur) => cur.filter((x) => x.id !== id))} />
       <QueueWaiting ids={queuedIdsNow} call={data.call} threadId={thread.threadId}>{(waiting) => (q && waiting.length > 0 ? (<View testID="queue-row" style={st.queueRow}><Text testID="queue-note" accessibilityLiveRegion="polite" style={st.queue}>{queueNote(waiting.length, lead ? nameOf(lead.agentId) : "", canSteer)}</Text>{waiting.length > 0 ? <TextButton link label="Edit" testID="queue-edit" onPress={() => { const id = waiting[waiting.length - 1]!; const words = timelineMessages.find((m) => m.messageId === id)?.body ?? ""; void act.takeBackQueued(data, thread.threadId, id).then((ok) => { if (ok) { setPending((cur) => cur.filter((p) => p.messageId !== id)); setSeed((s) => ({ n: s.n + 1, value: words })); } else say("It was already read, so it cannot be edited now."); }, fail("Could not take it back.")); }} /> : null}{waiting.length > 0 ? <TextButton link label="Stop and send" testID="queue-send-now" onPress={() => void act.sendQueuedNow(data, thread.threadId, waiting[0]!).catch(fail("Could not send it now."))} /> : null}</View>) : null)}</QueueWaiting>
+      {parked ? <View testID="hop-parked" accessibilityLiveRegion="polite" style={st.lineBox}><Text style={st.lineText}>{parkedLine(hopLimit)}</Text><TextButton label="Continue" testID="hop-continue" onPress={() => commandEnv().send(CONTINUE_TEXT)} /></View> : null}
       {line ? <View testID="conversation-line" accessibilityLiveRegion="polite" style={st.lineBox}><Text style={st.lineText}>{line}</Text>{undo ? <TextButton link label="Undo" testID="conversation-undo" onPress={undo} /> : null}</View> : null}
       {personMention ? (
         <View testID="channel-offer" style={st.offer}>

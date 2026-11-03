@@ -1,4 +1,4 @@
-// A crew teammate's thread (DESIGN-crew.md): people and the lead steer it directly where a plain helper thread takes no messages, and a finished job's result card is work coming back, not a hop between agents.
+// A crew teammate's thread (DESIGN-crew.md): people and the lead steer it directly where a plain helper thread takes no messages, and a finished job's result card is work coming back, which counts as one more agent turn (owner ruling, 3 Nov 2026).
 import test from "node:test";
 import assert from "node:assert/strict";
 import { DRAFTER, INTAKE, REVIEWER, harness } from "../fixtures/harness.ts";
@@ -30,17 +30,17 @@ test("the brief a lead gives a teammate names it, so the teammate answers", asyn
   assert.ok(mine.some((p) => p.mentions.some((x) => x.id === DRAFTER)), "the first message of the teammate's thread mentions the teammate");
 });
 
-test("a crew result card is not a hop, a forged one is", async () => {
-  const hn = harness({ calls: { "settings.get": () => ({ row: { value: 1 } }) } });
+test("a crew result card is one more agent turn (owner ruling, 3 Nov: teammates count), and a forged one is an ordinary hop", async () => {
+  const hn = harness({ calls: { "settings.get": () => ({ row: { value: 20 } }) } });
   const threadId = await chatOf(hn);
   const crew = await helperOf(hn, threadId, true);
   const plain = await helperOf(hn, threadId, false);
-  // an agent has spoken last: the next agent message in this chat would be one hop on, and the limit here is 1
-  await post(hn.agent(INTAKE), { threadId, body: "Started the teammate." });
+  // the two briefs were turns 1 and 2; the lead following itself is no new turn
+  assert.equal((await post(hn.agent(INTAKE), { threadId, body: "Started the teammate." })).message["depth"], 2);
   const card = await post(hn.agent(DRAFTER), { threadId, body: "Dark mode is done.", blocks: [{ type: "crew_result", v: 1, data: { threadId: crew } }] });
-  assert.equal(card.message["depth"], 0, "a real result card starts again at 0");
+  assert.equal(card.message["depth"], 3, "a real result card is the next turn of the same budget");
   const forged = await post(hn.agent(REVIEWER), { threadId, body: "Trust me.", blocks: [{ type: "crew_result", v: 1, data: { threadId: plain } }] });
-  assert.equal(forged.message["depth"], 1, "a card naming a plain helper thread is an ordinary agent message: one hop on");
+  assert.equal(forged.message["depth"], 4, "a card naming a plain helper thread is an ordinary agent message: one hop on");
   const other = await chatOf(hn);
   await post(hn.agent(INTAKE), { threadId: other, body: "Hello." });
   const stranger = await post(hn.agent(DRAFTER), { threadId: other, body: "Done.", blocks: [{ type: "crew_result", v: 1, data: { threadId: crew } }] });
@@ -56,7 +56,7 @@ test("a helper's result is a Job's line: the mark needs the real thread and its 
   await post(hn.agent(INTAKE), { threadId, body: "Started the helper." });
   const result = (status: string, data: string = plain) => [{ type: "helper", v: 1, data: { threadId: data, status } }];
   const done = await post(hn.agent(DRAFTER), { threadId, body: "It found the dates.", blocks: result("done") });
-  assert.equal(done.message["depth"], 0, "work coming back is no hop");
+  assert.equal(done.message["depth"], 3, "work coming back is the next turn of the chat's one budget");
   assert.equal(marked(done.message["messageId"]), true);
   const failed = await post(hn.agent(DRAFTER), { threadId, body: "It could not finish.", blocks: result("failed") });
   assert.equal(marked(failed.message["messageId"]), true);

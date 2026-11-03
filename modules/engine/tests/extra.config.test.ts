@@ -176,7 +176,7 @@ test("use_policy.export writes the policy as a Markdown file in the shared knowl
   const text = ((created[0]?.["content"] as { text: string }).text);
   assert.match(text, /Allowed providers: anthropic/);
   assert.match(text, /- restricted: anthropic/);
-  assert.match(text, /Agent-to-agent hops before a person must reply: 4/);
+  assert.match(text, /Agent-to-agent hops before a person must reply: 8/);
   const none = withRoutes(h, { "files.tree": () => ({ roots: [{ key: "recent", title: "Recent", kind: "virtual", count: 0 }] }) });
   await assert.rejects(H["engine.use_policy.export"](none, {}), (e) => codeOf(e) === "validation.precondition_failed");
 });
