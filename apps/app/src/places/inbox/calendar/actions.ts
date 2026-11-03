@@ -17,8 +17,9 @@ export async function setTimes(data: InboxData, eventId: string, span: Span): Pr
   return out.event;
 }
 
+/** Move to another calendar: its own capability (update_event takes no calendar, so the menu item did nothing before). */
 export async function moveToCalendar(data: InboxData, eventId: string, calendarId: string): Promise<EventRow> {
-  const out = (await data.call("calendar.update_event", { eventId, calendarId })) as CapMap["calendar.update_event"]["out"];
+  const out = (await data.call("calendar.move_to_calendar", { eventId, calendarId })) as CapMap["calendar.move_to_calendar"]["out"];
   return out.event;
 }
 

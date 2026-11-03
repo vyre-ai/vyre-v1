@@ -26,6 +26,7 @@ const graphMessage = t.obj({
 const graphEvent = t.obj({
   id: t.str(), subject: t.opt(t.str()), start: t.rec(), end: t.rec(), location: t.opt(t.rec()), onlineMeeting: t.opt(t.rec()),
   attendees: t.opt(t.arr(t.obj({ email, response: t.opt(t.str()), type: t.opt(t.str()) }))), organizer: t.opt(t.rec()), isCancelled: t.opt(t.bool()),
+  bodyPreview: t.opt(t.str()), seriesMasterId: t.opt(t.str({ description: 'The series an occurrence of a repeating event belongs to' })),
 });
 const driveItem = t.obj({ id: t.str(), name: t.str(), size: t.opt(t.int()), lastModifiedDateTime: t.opt(t.str()), folder: t.opt(t.bool()), webUrl: t.opt(t.str()), parentId: t.opt(t.str()), eTag: t.opt(t.str()), lastModifiedBy: t.opt(t.obj({ name: t.opt(t.str()), email: t.opt(t.str()) })) });
 const eventWrite = {

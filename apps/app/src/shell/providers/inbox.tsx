@@ -80,18 +80,33 @@ function Main({ rt, openId, close }: { rt: ShellRuntime; openId: string | null; 
   // a link to a meeting (subject meeting, or the Meetings screen) opens the Meetings tab, with that meeting's close-out when it names one
   const meetingHash = target.subject?.type === "meeting" ? target.subject.id : target.screen === "meetings.closeout" ? (target.args["meetingId"] ?? "") : null;
   useEffect(() => { if (meetingHash !== null && state.main !== "meetings") dispatch({ type: "meetings" }); }, [meetingHash]); // eslint-disable-line react-hooks/exhaustive-deps -- only a new link moves the tab
+  // a link to an event (vyre://event/<id>, Copy Link in the event pane) opens the Calendar with that event in its pane
+  const eventHash = target.subject?.type === "event" ? target.subject.id : null;
+  useEffect(() => { if (eventHash !== null && state.main !== "calendar") dispatch({ type: "calendar" }); }, [eventHash]); // eslint-disable-line react-hooks/exhaustive-deps -- only a new link moves the view
   // Choosing another inbox, view, filter or the Calendar in the sidebar leaves the open conversation and shows the list again.
   const first = useRef(true);
   useEffect(() => {
     if (first.current) { first.current = false; return; }
     close();
-    if (target.screen === "inbox.unmatched" || (state.main !== "meetings" && meetingHash !== null)) opened({});
+    if (target.screen === "inbox.unmatched" || (state.main !== "meetings" && meetingHash !== null) || (state.main !== "calendar" && eventHash !== null)) opened({});
   }, [state.scope, state.view, state.main, state.channels, state.inboxes, state.needsMatch]); // eslint-disable-line react-hooks/exhaustive-deps -- close and the hash are read when the sidebar changes, not the other way round
   // the connect choice is for an Inbox with nothing connected: once a channel can send (the person came back from the connect flow) the list takes over
   const canSend = useCanSend();
   useEffect(() => { if (state.main === "connect" && canSend === true) dispatch({ type: "scope", scope: { kind: "all" } }); }, [state.main, canSend]); // eslint-disable-line react-hooks/exhaustive-deps -- dispatch is stable
   if (state.main === "connect") return <ConnectChannel />;
-  if (state.main === "calendar") return <Calendar me={rt.me.id} team={team} />;
+  if (state.main === "calendar") {
+    return (
+      <Calendar
+        me={rt.me.id} team={team} {...(eventHash ? { initial: { openId: eventHash } } : {})}
+        onOpenEvent={(id) => { if (id !== eventHash) opened({ subject: { type: "event", id } }); }} onCloseEvent={() => { if (eventHash) opened({}); }}
+        onOpenRecord={(id) => rt.open({ subject: { type: "record", id } })} onOpenFile={(id) => rt.open({ subject: { type: "file", id } })}
+        onOpenConversation={(contactId) => { dispatch({ type: "scope", scope: { kind: "all" } }); opened({ args: { contactId } }); }}
+        onJoin={(url) => rt.openUrl(url)} onOpenUrl={(url) => rt.openUrl(url)}
+        onOpenMeeting={(id) => { dispatch({ type: "meetings" }); opened({ subject: { type: "meeting", id } }); }}
+        onAsk={(e) => { openAskPane({ thing: { kind: "event", id: e.id, title: e.title }, context: { actions: ["who is coming and what they want", "what was agreed last time", "draft an agenda", "move or reschedule it"] } }, "inbox"); }}
+      />
+    );
+  }
   if (state.main === "meetings") {
     const persons = people.status === "ready" ? people.data.filter((p) => p.kind === "person").map((p) => ({ id: p.id, name: p.name })) : [];
     return (

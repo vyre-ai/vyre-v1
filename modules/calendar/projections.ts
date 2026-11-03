@@ -222,6 +222,7 @@ export interface EventOut {
   status: "confirmed" | "tentative" | "canceled";
   bookedByAgentId?: string;
   fromBookingPage?: string;
+  seriesId?: string;
 }
 
 export function toEvent(row: Row): EventOut {
@@ -233,7 +234,7 @@ export function toEvent(row: Row): EventOut {
     attendees: readAttendees(row.attendees), recordIds: readStrings(row.recordIds),
     status: status === "tentative" || status === "canceled" ? status : "confirmed",
   };
-  for (const key of ["location", "joinUrl", "description", "agenda", "organizer", "meetingId", "bookedByAgentId", "fromBookingPage"] as const) {
+  for (const key of ["location", "joinUrl", "description", "agenda", "organizer", "meetingId", "bookedByAgentId", "fromBookingPage", "seriesId"] as const) {
     const v = strOrNull(row, key);
     if (v) out[key] = v;
   }
@@ -350,7 +351,7 @@ export function graphTime(value: unknown): number | undefined {
 // ---- schema
 
 const ready = new WeakSet<object>();
-const migrationSql = ["0001_calendar_core.sql", "0002_calendar_account.sql", "0003_calendar_last_sync.sql"].map((f) => readFileSync(fileURLToPath(new URL(`./migrations/${f}`, import.meta.url)), "utf8")).join("\n");
+const migrationSql = ["0001_calendar_core.sql", "0002_calendar_account.sql", "0003_calendar_last_sync.sql", "0004_calendar_series.sql"].map((f) => readFileSync(fileURLToPath(new URL(`./migrations/${f}`, import.meta.url)), "utf8")).join("\n");
 
 export function statements(sql: string): string[] {
   const out: string[] = [];

@@ -21,7 +21,10 @@ const eventRow = t.obj({
   id: cevId, calendarId: calId, title: t.str(), startsAt: t.ts(), endsAt: t.ts(), allDay: t.bool(), location: t.opt(t.str()), joinUrl: t.opt(t.str()), joinProvider,
   description: t.opt(t.str()), agenda: t.opt(t.str()), attendees: t.arr(attendee), organizer: t.opt(email), recordIds: t.arr(id.record), meetingId: t.opt(id.record),
   status: t.enm('confirmed', 'tentative', 'canceled'), bookedByAgentId: t.opt(id.agent), fromBookingPage: t.opt(id.form),
+  seriesId: t.opt(t.str({ description: 'The provider series a repeating event belongs to; every instance of the series shares it' })),
 });
+// what the caller sees beyond the row: their own answer when they are a guest, and how the event repeats (from the instances of its series)
+const eventFor = { mine: t.opt(t.obj({ email, response: t.enm('needs_action', 'accepted', 'declined', 'tentative') })), repeats: t.opt(t.enm('day', 'weekday', 'week', 'two_weeks', 'month', 'other')) };
 const eventFields = {
   calendarId: calId, title: t.str(), startsAt: t.ts(), endsAt: t.ts(), allDay: t.opt(t.bool()), location: t.opt(t.str()), description: t.opt(t.str()), agenda: t.opt(t.str()),
   attendees: t.opt(t.arr(attendee)), recordIds: t.opt(t.arr(id.record)), joinProvider: t.opt(joinProvider), bookedByAgentId: t.opt(id.agent), fromBookingPage: t.opt(id.form),
@@ -40,7 +43,7 @@ const manifest = defineManifest({
     entity('calendar_event', 'calendar_event', 'cev_', {
       calendarId: 'text', title: 'text', startsAt: 'datetime', endsAt: 'datetime', allDay: 'checkbox', location: 'text', joinUrl: 'url', joinProvider: 'choice',
       description: 'longtext', agenda: 'longtext', attendees: 'text', organizer: 'email', recordIds: 'text', meetingId: 'text', providerId: 'text', status: 'status',
-      bookedByAgentId: 'text', fromBookingPage: 'text', deletedAt: 'datetime',
+      bookedByAgentId: 'text', fromBookingPage: 'text', deletedAt: 'datetime', seriesId: 'text',
     }, 'calendar', {
       parent: { entity: 'calendar', field: 'calendarId' }, parentField: 'calendarId', fts: ['title', 'location', 'description'],
       sync: { profile: { desktop: 'window', phone: 'window', web: 'window' }, window: { days: 120, recentCount: 500 }, protectedFields: ['status'] },
@@ -76,13 +79,15 @@ const manifest = defineManifest({
     read('calendar.list_events', 'Events in a time range for chosen calendars (Day, Week and Month views)', {
       in: { from: t.ts(), to: t.ts(), calendarIds: t.opt(t.arr(calId)), query: t.opt(t.str()), ...pageIn }, out: { events: t.arr(eventRow), ...pageOut }, tool: 'inbox', label: 'filter',
     }),
-    read('calendar.get_event', 'Read one event with attendees, agenda, linked records and meeting', { in: { eventId: cevId }, out: { event: eventRow }, tool: 'inbox', label: 'check' }),
+    read('calendar.get_event', 'Read one event with attendees, agenda, linked records and meeting, your own answer and how it repeats', { in: { eventId: cevId }, out: { event: eventRow, ...eventFor }, tool: 'inbox', label: 'check' }),
     write('calendar.create_event', 'Create an event (drag in 15 minute steps); the provider invites attendees', {
       in: eventFields, out: { event: eventRow }, emits: ['calendar_event.created'], idem: 'key', gate: sendGate, tool: 'inbox', offline: 'queue', cli: 'vyre calendar create',
     }),
     write('calendar.update_event', 'Change, move or resize an event', {
-      in: { eventId: cevId, title: t.opt(t.str()), startsAt: t.opt(t.ts()), endsAt: t.opt(t.ts()), allDay: t.opt(t.bool()), location: t.opt(t.str()), description: t.opt(t.str()), agenda: t.opt(t.str()), attendees: t.opt(t.arr(attendee)), joinProvider: t.opt(joinProvider) },
-      out: { event: eventRow }, emits: ['calendar_event.updated'], gate: sendGate, tool: 'inbox', offline: 'patch',
+      in: { eventId: cevId, title: t.opt(t.str()), startsAt: t.opt(t.ts()), endsAt: t.opt(t.ts()), allDay: t.opt(t.bool()), location: t.opt(t.str()), description: t.opt(t.str()), agenda: t.opt(t.str()), attendees: t.opt(t.arr(attendee)), joinProvider: t.opt(joinProvider),
+        // for a repeating event: this one only (the default), or every instance of its series from this one on
+        scope: t.opt(t.enm('this', 'all')) },
+      out: { event: eventRow, changed: t.opt(t.int()) }, emits: ['calendar_event.updated'], gate: sendGate, tool: 'inbox', offline: 'patch',
     }),
     write('calendar.delete_event', 'Delete an event (Undo in the title bar restores it)', {
       in: { eventId: cevId }, out: { deleted: t.bool() }, emits: ['calendar_event.deleted'], gate: { act: 'send', when: "actor.kind != 'person'" }, tool: 'inbox', offline: 'queue',
@@ -112,6 +117,7 @@ const manifest = defineManifest({
       in: {
         source: t.enm('google', 'microsoft'), calendarId: calId, providerId: t.str(), deleted: t.opt(t.bool()), title: t.opt(t.str()), startsAt: t.opt(t.ts()), endsAt: t.opt(t.ts()),
         allDay: t.opt(t.bool()), location: t.opt(t.str()), joinUrl: t.opt(t.str()), organizer: t.opt(email), attendees: t.opt(t.arr(attendee)), description: t.opt(t.str()),
+        seriesId: t.opt(t.str()),
       },
       out: { eventId: cevId, meetingId: t.opt(id.record), merged: t.bool() }, emits: ['calendar_event.created', 'calendar_event.updated', 'calendar_event.deleted'], idem: 'natural',
     }),

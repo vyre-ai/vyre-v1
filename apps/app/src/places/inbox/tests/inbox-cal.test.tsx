@@ -249,27 +249,28 @@ test("Delete then Undo: calendar.delete_event takes it off the grid and calendar
   assert.deepEqual([copy.title, copy.startsAt, copy.calendarId], ["Dinner with Grace", byId(s, "e_dinner").startsAt, "cal_pers"]);
   await moveToCalendar(s.data, "e_dinner", "cal_work");
   assert.equal(byId(s, "e_dinner").calendarId, "cal_work");
-  assert.deepEqual(s.writes.map((w) => w.cap), ["calendar.delete_event", "calendar.restore_event", "calendar.create_event", "calendar.update_event"]);
+  assert.deepEqual(s.writes.map((w) => w.cap), ["calendar.delete_event", "calendar.restore_event", "calendar.create_event", "calendar.move_to_calendar"], "a move goes through move_to_calendar (update_event takes no calendar)");
 });
 
 // ------------------------------------------------------------------ menus
 
-test("the event menu: Open, Join, Open Record, Open Conversation, Move to a calendar, Duplicate, Delete; Join, record and conversation appear only when the event has them", () => {
+test("the event menu: Open, Edit, Join, Prepare, Ask About This, Copy Link, Open Record, Open Conversation, Move to a calendar, Duplicate, Delete; what the event lacks is left out", () => {
   const s = createCalendarSample();
   const picked: string[] = [];
   const h = {
-    open: () => void picked.push("open"), join: () => void picked.push("join"), openRecord: () => void picked.push("record"), openConversation: () => void picked.push("conversation"),
+    open: () => void picked.push("open"), edit: () => void picked.push("edit"), ask: () => void picked.push("ask"), copyLink: () => void picked.push("link"),
+    join: () => void picked.push("join"), openRecord: () => void picked.push("record"), openConversation: () => void picked.push("conversation"),
     moveTo: (id: string) => void picked.push(`move:${id}`), duplicate: () => void picked.push("duplicate"), remove: () => void picked.push("delete"),
   };
   const rich = eventMenuEntries(menuFacts(byId(s, "e_lease_call"), calendars(s)), h);
-  assert.deepEqual(items(rich).map((x) => x.label), ["Open", "Join", "Open Record", "Open Conversation", "Work Google", "Microsoft", "Personal", "Duplicate", "Delete"]);
+  assert.deepEqual(items(rich).map((x) => x.label), ["Open", "Edit", "Join", "Ask About This", "Copy Link", "Open Record", "Open Conversation", "Work Google", "Microsoft", "Personal", "Duplicate", "Delete"]);
   assert.ok(rich.some(isSeparator) && rich.some((x) => isHead(x) && x.head === "Move to a calendar"));
   assert.deepEqual(items(rich).filter((x) => x.checked).map((x) => x.label), ["Work Google"], "the event's own calendar is checked");
   assert.equal(items(rich).at(-1)?.danger, true, "Delete is marked destructive");
   for (const it of items(rich)) it.onSelect?.();
-  assert.deepEqual(picked, ["open", "join", "record", "conversation", "move:cal_ms", "move:cal_pers", "duplicate", "delete"], "picking the current calendar does nothing");
+  assert.deepEqual(picked, ["open", "edit", "join", "ask", "link", "record", "conversation", "move:cal_ms", "move:cal_pers", "duplicate", "delete"], "picking the current calendar does nothing");
   const plain = items(eventMenuEntries(menuFacts(byId(s, "e_dentist"), calendars(s)), h)).map((x) => x.label);
-  assert.deepEqual(plain, ["Open", "Work Google", "Microsoft", "Personal", "Duplicate", "Delete"]);
+  assert.deepEqual(plain, ["Open", "Edit", "Ask About This", "Copy Link", "Work Google", "Microsoft", "Personal", "Duplicate", "Delete"]);
 });
 
 test("the card's pickers and the header's people menu carry checkmarks; a day's menu offers New Event Here", () => {

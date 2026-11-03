@@ -58,3 +58,18 @@ export const ANSWER = {
   },
   next: { title: "Renewal: legal review", startsAt: new Date(NEXT_AT).toISOString(), minutes: 30 },
 };
+
+/** Maya's world for the close-out and Prepare tests: Pat Lee of Lee Holdings is a contact, Sam is her colleague, her Assistant and mailbox are set up. */
+export function closeoutWorld(h: import("./harness.ts").Harness, people: Record<string, string>): void {
+  const rec = (id: string, type: string, fields: Record<string, unknown>) => h.store.set(id, { id, type, fields, version: 1, createdAt: NOW, updatedAt: NOW, deleted: false });
+  rec("rec_pat00001", "contact", { name: "Pat Lee", email: "pat@client.example", title: "Operations lead", company: [COMPANY] });
+  rec(COMPANY, "company", { name: "Lee Holdings", website: "" });
+  h.contacts.set("pat@client.example", "rec_pat00001");
+  h.script("agents.assistant_of", (i) => (String(i["personId"]) === "usr_maya0001" ? { agentId: ASSISTANT } : {}));
+  h.script("comms.senders.list", () => ({ senders: [{ id: "mbx_maya0001", channel: "email", name: "Maya Ortiz", address: "maya@firm.example", via: "Gmail", provider: "google", scope: "mine", default: true, usable: true }] }));
+  h.script("access.principals.list", () => ({ principals: Object.entries(people).map(([id, name]) => ({ id, kind: "person", name, status: "active", roles: [], groups: [], createdAt: NOW })) }));
+  h.script("schema.describe", (i) => ({ types: [{ key: String(i["type"]), title: "t", plural: "ts", icon: "user", label: "internal", system: true, titleField: "name", fields: [{ key: "name", type: "text", title: "Name" }, { key: "title", type: "text", title: "Job title" }, { key: "website", type: "url", title: "Website" }], version: 1 }] }));
+  let n = 0;
+  h.script("records.comments.add", (i) => ({ comment: { commentId: `rcm_${++n}`, type: i["type"], recordId: i["recordId"], text: i["text"], by: "usr_maya0001", at: NOW, resolved: false, mentions: [], replying: [] } }));
+  h.script("mail.send", () => ({ messageId: `eml_sent${++n}`, status: "sent", suppressed: [] }));
+}

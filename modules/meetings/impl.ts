@@ -28,6 +28,9 @@ export const handlers: Record<string, Handler> = {
   "meetings.closeout.approve": (ctx, i) => h.closeoutApprove(ctx, i),
   "meetings.closeout.skip": (ctx, i) => h.closeoutSkip(ctx, i),
   "meetings.closeout.share": (ctx, i) => h.closeoutShare(ctx, i),
+  "meetings.prep.get": (ctx, i) => h.prepGet(ctx, i),
+  "meetings.prep.start": (ctx, i) => h.prepStart(ctx, i),
+  "meetings.prep.save": (ctx, i) => h.prepSave(ctx, i),
 };
 
 /** The close-out starts by itself when a transcript lands, and an Assistant that submitted its close-out task with the package as outputs still hands it in. */

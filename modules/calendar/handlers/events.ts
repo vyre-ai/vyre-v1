@@ -206,9 +206,34 @@ export async function listEvents(
   return end < found.length ? { events: page, next: String(end), total: found.length } : { events: page, total: found.length };
 }
 
-export async function getEvent(ctx: CalCtx, input: { eventId: string }): Promise<{ event: EventOut }> {
+export async function getEvent(ctx: CalCtx, input: { eventId: string }): Promise<{ event: EventOut; mine?: { email: string; response: Response }; repeats?: Repeats }> {
   ensure(ctx);
-  return { event: toEvent(eventRow(ctx, input.eventId)) };
+  const event = toEvent(eventRow(ctx, input.eventId));
+  const me = ctx.actingFor ?? ctx.principal.id;
+  // the caller's own answer, when one of their addresses is on the guest list (the Going? buttons of the event pane)
+  const mine = isId("usr", me) && event.attendees.length ? new Set((await addressesOf(ctx)).filter((a) => a.owner === me).map((a) => a.address)) : new Set<string>();
+  const guest = event.attendees.find((a) => mine.has(normalizeEmail(a.email)));
+  const repeats = event.seriesId ? repeatsOf(rowsOf(ctx.db.all(`SELECT * FROM calendar_event WHERE "calendarId" = ? AND "seriesId" = ?`, event.calendarId, event.seriesId)).filter((r) => num(r, "deleted_at") === 0).map((r) => num(r, "startsAt"))) : undefined;
+  return { event, ...(guest ? { mine: { email: normalizeEmail(guest.email), response: guest.response ?? "needs_action" } } : {}), ...(repeats ? { repeats } : {}) };
+}
+
+export type Repeats = "day" | "weekday" | "week" | "two_weeks" | "month" | "other";
+const DAY_GAP = (a: number, b: number): number => Math.round((b - a) / DAY_MS);
+/**
+ * How a series repeats, read from the starts of the instances the pull brought in (the provider sends instances, not the rule): every day, every weekday, every week, every two
+ * weeks, every month, or otherwise. One instance alone says nothing more than that it repeats.
+ */
+export function repeatsOf(starts: readonly number[]): Repeats {
+  const s = [...new Set(starts)].sort((a, b) => a - b);
+  if (s.length < 2) return "other";
+  const gaps = s.slice(1).map((t, i) => DAY_GAP(s[i] as number, t));
+  if (gaps.every((g) => g === 7)) return "week";
+  if (gaps.every((g) => g === 14)) return "two_weeks";
+  if (gaps.every((g) => g === 1)) return "day";
+  if (gaps.every((g) => g >= 28 && g <= 31)) return "month";
+  const weekend = s.some((t) => [0, 6].includes(new Date(t).getUTCDay()));
+  if (!weekend && gaps.every((g) => g === 1 || g === 3)) return "weekday";
+  return "other";
 }
 
 // ---- writing events
@@ -232,15 +257,16 @@ interface NewEvent {
   status: "confirmed" | "tentative" | "canceled";
   bookedByAgentId: string | null;
   fromBookingPage: string | null;
+  seriesId?: string | null;
 }
 
 function insertEvent(ctx: CalCtx, e: NewEvent): string {
   const id = newId("cev", ctx.now());
   ctx.db.run(
-    `INSERT INTO calendar_event (id, "calendarId", title, "startsAt", "endsAt", "allDay", location, "joinUrl", "joinProvider", description, agenda, attendees, organizer, "recordIds", "meetingId", "providerId", status, "bookedByAgentId", "fromBookingPage", "deletedAt", version, updated_at, deleted_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO calendar_event (id, "calendarId", title, "startsAt", "endsAt", "allDay", location, "joinUrl", "joinProvider", description, agenda, attendees, organizer, "recordIds", "meetingId", "providerId", status, "bookedByAgentId", "fromBookingPage", "deletedAt", version, updated_at, deleted_at, "seriesId")
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     id, e.calendarId, e.title, e.startsAt, e.endsAt, e.allDay ? 1 : 0, e.location, e.joinUrl, e.joinProvider, e.description, e.agenda, JSON.stringify(e.attendees), e.organizer,
-    JSON.stringify(e.recordIds), e.meetingId, e.providerId, e.status, e.bookedByAgentId, e.fromBookingPage, null, 1, ctx.now(), null,
+    JSON.stringify(e.recordIds), e.meetingId, e.providerId, e.status, e.bookedByAgentId, e.fromBookingPage, null, 1, ctx.now(), null, e.seriesId ?? null,
   );
   return id;
 }
@@ -283,11 +309,13 @@ export async function updateEvent(
   ctx: CalCtx,
   input: {
     eventId: string; title?: string; startsAt?: number; endsAt?: number; allDay?: boolean; location?: string; description?: string; agenda?: string; attendees?: unknown[];
-    joinProvider?: JoinProvider;
+    joinProvider?: JoinProvider; scope?: "this" | "all";
   },
-): Promise<{ event: EventOut }> {
+): Promise<{ event: EventOut; changed?: number }> {
   ensure(ctx);
+  if (input.scope !== undefined && input.scope !== "this" && input.scope !== "all") bad(ctx, "The scope is this or all.");
   const row = eventRow(ctx, input.eventId, "edit");
+  if (input.scope === "all" && strOrNull(row, "seriesId")) return updateSeries(ctx, row, input);
   const set = new Map<string, string | number | null>();
   const changed: string[] = [];
   const put = (field: string, value: string | number | null, have: string | number | null): void => {
@@ -319,6 +347,29 @@ export async function updateEvent(
   ctx.emit("calendar_event.updated", `entity/${input.eventId}`, { eventId: input.eventId, calendarId: str(row, "calendarId"), fields: changed });
   if (changed.some((f) => MEETING_FIELDS.has(f))) await joinMeeting(ctx, input.eventId);
   return { event: toEvent(eventRow(ctx, input.eventId)) };
+}
+
+/**
+ * "All events" of a repeating event: the instances of the series that have not ended, and this one, take the new title, place, description, agenda, guests and link, and move by the
+ * same change of time of day and length (each keeps its own date). Ended instances stay as they happened. Each changed instance says so once, as a single update would.
+ */
+async function updateSeries(ctx: CalCtx, row: Row, input: { eventId: string; title?: string; startsAt?: number; endsAt?: number; allDay?: boolean; location?: string; description?: string; agenda?: string; attendees?: unknown[]; joinProvider?: JoinProvider }): Promise<{ event: EventOut; changed: number }> {
+  const s0 = num(row, "startsAt"), e0 = num(row, "endsAt");
+  const t = input.startsAt !== undefined || input.endsAt !== undefined ? checkTimes(ctx, input.startsAt ?? s0, input.endsAt ?? e0) : { startsAt: s0, endsAt: e0 };
+  const shift = t.startsAt - s0, length = t.endsAt - t.startsAt;
+  const now = ctx.now();
+  const series = rowsOf(ctx.db.all(`SELECT * FROM calendar_event WHERE "calendarId" = ? AND "seriesId" = ?`, str(row, "calendarId"), str(row, "seriesId")))
+    .filter((r) => num(r, "deleted_at") === 0 && (str(r, "id") === str(row, "id") || num(r, "endsAt") > now)).sort((a, b) => num(a, "startsAt") - num(b, "startsAt"));
+  let changed = 0;
+  for (const r of series) {
+    const id = str(r, "id");
+    // this instance takes the times it was given; the others keep their date and move by the same amount, with the new length
+    const startsAt = id === input.eventId ? t.startsAt : num(r, "startsAt") + shift;
+    const { scope: _s, eventId: _e, ...rest } = input as typeof input & { scope?: string };
+    const out = await updateEvent(ctx, { ...rest, eventId: id, ...(shift !== 0 || length !== e0 - s0 ? { startsAt, endsAt: startsAt + length } : {}) });
+    if (out.event) changed++;
+  }
+  return { event: toEvent(eventRow(ctx, input.eventId)), changed };
 }
 
 /** Column names that are not plain lower-case words are quoted, as the generated schema spells them. */
@@ -582,6 +633,7 @@ export interface IngestIn {
   organizer?: string;
   attendees?: unknown[];
   description?: string;
+  seriesId?: string;
 }
 
 /** Land one provider event: upsert by provider id, then merge with a meeting on time plus guests or on the join link. */
@@ -618,7 +670,7 @@ export async function ingestEvent(ctx: CalCtx, input: IngestIn): Promise<{ event
       ...blank(input.calendarId, providerId), title: title ?? "(No title)", startsAt: times?.startsAt ?? 0, endsAt: times?.endsAt ?? 0, allDay: input.allDay === true,
       location: clean(ctx, input.location, "The location", 500) || null, joinUrl: clean(ctx, input.joinUrl, "The join link", 2000) || null,
       description: clean(ctx, input.description, "The description", 20_000) || null, attendees: attendees ?? [], organizer: organizer ?? null,
-      joinProvider: joinKind(input.joinUrl, input.source),
+      joinProvider: joinKind(input.joinUrl, input.source), seriesId: clean(ctx, input.seriesId, "The series id", 1000) || null,
     });
     created(ctx, eventId, input.calendarId, times?.startsAt ?? 0, (attendees ?? []).length, input.source);
   } else {
@@ -644,6 +696,7 @@ export async function ingestEvent(ctx: CalCtx, input: IngestIn): Promise<{ event
     if (input.description !== undefined) put("description", clean(ctx, input.description, "The description", 20_000) || null, strOrNull(have, "description"));
     if (organizer !== undefined) put("organizer", organizer, strOrNull(have, "organizer"));
     if (attendees !== undefined) put("attendees", JSON.stringify(attendees), JSON.stringify(readAttendees(have.attendees)));
+    if (input.seriesId !== undefined) put("seriesId", clean(ctx, input.seriesId, "The series id", 1000) || null, strOrNull(have, "seriesId"));
     if (set.size) {
       const names = [...set.keys()];
       ctx.db.run(`UPDATE calendar_event SET ${names.map((n) => `${quoted(n)} = ?`).join(", ")}, version = ?, updated_at = ? WHERE id = ?`, ...names.map((n) => set.get(n) ?? null), num(have, "version") + 1, now, eventId);
@@ -694,6 +747,8 @@ export function fromGoogle(calendarId: string, e: Json): IngestIn | null {
   const out: IngestIn = { ...base, title: text(e.summary) || "(No title)", startsAt: s.ts, endsAt: en.ts, allDay: s.allDay };
   if (text(e.location)) out.location = text(e.location);
   if (text(e.hangoutLink)) out.joinUrl = text(e.hangoutLink);
+  if (text(e.description)) out.description = text(e.description);
+  if (text(e.recurringEventId)) out.seriesId = text(e.recurringEventId);
   const organizer = text(obj(e.organizer).email);
   if (organizer) out.organizer = organizer;
   if (Array.isArray(e.attendees)) {
@@ -718,6 +773,8 @@ export function fromGraph(calendarId: string, e: Json): IngestIn | null {
   if (location) out.location = location;
   const join = text(obj(e.onlineMeeting).joinUrl);
   if (join) out.joinUrl = join;
+  if (text(e.bodyPreview)) out.description = text(e.bodyPreview);
+  if (text(e.seriesMasterId)) out.seriesId = text(e.seriesMasterId);
   const organizer = text(obj(obj(e.organizer).emailAddress).address) || text(obj(e.organizer).email);
   if (organizer) out.organizer = organizer;
   if (Array.isArray(e.attendees)) {

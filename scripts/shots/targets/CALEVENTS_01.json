@@ -1,0 +1,12 @@
+{
+  "targets": [
+    { "id": "CALEVENTS_01-next", "route": "/m/CALEVENTS_01?open=e_lease_call", "proto": "inbox,{skin}", "waitFor": "[data-testid='event-pane']",
+      "note": "A click on an event opens it beside the calendar: title, when with the time zone, Work Google, Organised by Maya Chen, Join Zoom, Going? Yes (lit), Edit, Prepare, Ask, More; the description's link; the guests with their answers." },
+    { "id": "CALEVENTS_01-prep", "route": "/m/CALEVENTS_01?open=e_planning", "proto": "inbox,{skin}", "waitFor": "[data-testid='event-prep']",
+      "note": "Your own event (no Going?), with the prep notes your Assistant wrote from the attendees' records and past meetings: Copy and Close." },
+    { "id": "CALEVENTS_01-past", "route": "/m/CALEVENTS_01?open=e_intake", "proto": "inbox,{skin}", "waitFor": "[data-testid='event-closeout']",
+      "note": "A past meeting: no Join, no Prepare. Its close-out (1 to approve, the summary, the tasks and where each stands, Open close-out) and its recording and transcript." },
+    { "id": "CALEVENTS_01-edit", "route": "/m/CALEVENTS_01?open=standup_3&edit=1", "proto": "inbox,{skin}", "waitFor": "[data-testid='event-edit']",
+      "note": "Double-click edits in place: title, day, start, length and guests, with Cancel and Save. The standup repeats every weekday, so Save asks This Event or All Events." }
+  ]
+}
