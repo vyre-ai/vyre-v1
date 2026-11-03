@@ -18013,6 +18013,288 @@ export type MeetingsCancelIn = {
 export type MeetingsCancelOut = {
   meetingId: string;
 };
+export type MeetingsCloseoutApproveIn = {
+  meetingId: string;
+  itemIds?: Array<string>;
+};
+export type MeetingsCloseoutApproveOut = {
+  meetingId: string;
+  state: "preparing" | "ready" | "closed" | "nothing";
+  items: Array<{
+      itemId: string;
+      kind: "task" | "record" | "email" | "hold";
+      status: "proposed" | "approved" | "skipped" | "failed";
+      title: string;
+      assignee?: string;
+      ownerName?: string;
+      due?: number;
+      why?: string;
+      recordId?: string;
+      recordType?: string;
+      changes?: Array<{
+          field: string;
+          title: string;
+          from?: string;
+          to: string;
+        }>;
+      note?: string;
+      to?: Array<{
+          address: string;
+          name?: string;
+        }>;
+      subject?: string;
+      text?: string;
+      mailboxId?: string;
+      send?: "send" | "draft";
+      startsAt?: number;
+      endsAt?: number;
+      made?: Array<{
+          type: "task" | "record" | "comment" | "email" | "draft" | "event" | "approval";
+          id: string;
+          title?: string;
+        }>;
+      error?: string;
+    }>;
+};
+export type MeetingsCloseoutEditIn = {
+  meetingId: string;
+  itemId: string;
+  title?: string;
+  assignee?: string;
+  due?: number | null;
+  why?: string;
+  changes?: Array<{
+      field: string;
+      to: string;
+    }>;
+  note?: string;
+  to?: Array<{
+      address: string;
+      name?: string;
+    }>;
+  subject?: string;
+  text?: string;
+  send?: "send" | "draft";
+  startsAt?: number;
+  endsAt?: number;
+};
+export type MeetingsCloseoutEditOut = {
+  item: {
+    itemId: string;
+    kind: "task" | "record" | "email" | "hold";
+    status: "proposed" | "approved" | "skipped" | "failed";
+    title: string;
+    assignee?: string;
+    ownerName?: string;
+    due?: number;
+    why?: string;
+    recordId?: string;
+    recordType?: string;
+    changes?: Array<{
+        field: string;
+        title: string;
+        from?: string;
+        to: string;
+      }>;
+    note?: string;
+    to?: Array<{
+        address: string;
+        name?: string;
+      }>;
+    subject?: string;
+    text?: string;
+    mailboxId?: string;
+    send?: "send" | "draft";
+    startsAt?: number;
+    endsAt?: number;
+    made?: Array<{
+        type: "task" | "record" | "comment" | "email" | "draft" | "event" | "approval";
+        id: string;
+        title?: string;
+      }>;
+    error?: string;
+  };
+};
+export type MeetingsCloseoutGetIn = {
+  meetingId: string;
+};
+export type MeetingsCloseoutGetOut = {
+  meetingId: string;
+  title: string;
+  startsAt: number;
+  endsAt?: number;
+  attendees: Array<{
+      name: string;
+      email?: string;
+      recordId?: string;
+    }>;
+  state: "preparing" | "ready" | "closed" | "nothing";
+  summary?: string;
+  decisions: Array<string>;
+  questions: Array<string>;
+  items: Array<{
+      itemId: string;
+      kind: "task" | "record" | "email" | "hold";
+      status: "proposed" | "approved" | "skipped" | "failed";
+      title: string;
+      assignee?: string;
+      ownerName?: string;
+      due?: number;
+      why?: string;
+      recordId?: string;
+      recordType?: string;
+      changes?: Array<{
+          field: string;
+          title: string;
+          from?: string;
+          to: string;
+        }>;
+      note?: string;
+      to?: Array<{
+          address: string;
+          name?: string;
+        }>;
+      subject?: string;
+      text?: string;
+      mailboxId?: string;
+      send?: "send" | "draft";
+      startsAt?: number;
+      endsAt?: number;
+      made?: Array<{
+          type: "task" | "record" | "comment" | "email" | "draft" | "event" | "approval";
+          id: string;
+          title?: string;
+        }>;
+      error?: string;
+    }>;
+  preparedAt?: number;
+  taskId?: string;
+  agentId?: string;
+  shared: Array<{
+      type: "project" | "channel";
+      id: string;
+    }>;
+};
+export type MeetingsCloseoutListIn = {
+  state?: "preparing" | "ready" | "closed" | "nothing";
+  recordId?: string;
+  cursor?: string;
+  limit?: number;
+};
+export type MeetingsCloseoutListOut = {
+  meetings: Array<{
+      meetingId: string;
+      title: string;
+      startsAt: number;
+      endsAt?: number;
+      attendees: Array<string>;
+      state: "preparing" | "ready" | "closed" | "nothing";
+      proposed: number;
+      done: number;
+    }>;
+  ready: number;
+  next?: string;
+  total?: number;
+};
+export type MeetingsCloseoutPrepareIn = {
+  meetingId: string;
+  redo?: boolean;
+};
+export type MeetingsCloseoutPrepareOut = {
+  meetingId: string;
+  state: "preparing" | "ready" | "closed" | "nothing";
+  taskId?: string;
+};
+export type MeetingsCloseoutProposeIn = {
+  meetingId: string;
+  summary: string;
+  decisions?: Array<string>;
+  questions?: Array<string>;
+  actions?: Array<{
+      title: string;
+      owner?: string;
+      due?: string;
+      why?: string;
+    }>;
+  records?: Array<{
+      recordId: string;
+      changes?: Array<{
+          field: string;
+          value: string;
+        }>;
+      note?: string;
+    }>;
+  email?: {
+    subject: string;
+    text: string;
+  };
+  next?: {
+    title?: string;
+    startsAt: string;
+    minutes?: number;
+  };
+};
+export type MeetingsCloseoutProposeOut = {
+  meetingId: string;
+  state: "preparing" | "ready" | "closed" | "nothing";
+  items: number;
+};
+export type MeetingsCloseoutShareIn = {
+  meetingId: string;
+  projectId?: string;
+  channelId?: string;
+  on: boolean;
+};
+export type MeetingsCloseoutShareOut = {
+  meetingId: string;
+};
+export type MeetingsCloseoutSkipIn = {
+  meetingId: string;
+  itemId: string;
+  undo?: boolean;
+};
+export type MeetingsCloseoutSkipOut = {
+  item: {
+    itemId: string;
+    kind: "task" | "record" | "email" | "hold";
+    status: "proposed" | "approved" | "skipped" | "failed";
+    title: string;
+    assignee?: string;
+    ownerName?: string;
+    due?: number;
+    why?: string;
+    recordId?: string;
+    recordType?: string;
+    changes?: Array<{
+        field: string;
+        title: string;
+        from?: string;
+        to: string;
+      }>;
+    note?: string;
+    to?: Array<{
+        address: string;
+        name?: string;
+      }>;
+    subject?: string;
+    text?: string;
+    mailboxId?: string;
+    send?: "send" | "draft";
+    startsAt?: number;
+    endsAt?: number;
+    made?: Array<{
+        type: "task" | "record" | "comment" | "email" | "draft" | "event" | "approval";
+        id: string;
+        title?: string;
+      }>;
+    error?: string;
+  };
+  state: "preparing" | "ready" | "closed" | "nothing";
+};
+export type MeetingsCloseoutSyncIn = Record<string, unknown>;
+export type MeetingsCloseoutSyncOut = {
+  started: number;
+};
 export type MeetingsGetIn = {
   meetingId: string;
 };
@@ -28588,7 +28870,7 @@ export type TasksActOut = {
     recordId?: string;
     fileIds: Array<string>;
     source?: {
-      kind: "chat" | "run" | "gate" | "journey" | "manual";
+      kind: "chat" | "run" | "gate" | "journey" | "meeting" | "manual";
       id: string;
     };
     parentTaskId?: string;
@@ -28659,7 +28941,7 @@ export type TasksAskOut = {
     recordId?: string;
     fileIds: Array<string>;
     source?: {
-      kind: "chat" | "run" | "gate" | "journey" | "manual";
+      kind: "chat" | "run" | "gate" | "journey" | "meeting" | "manual";
       id: string;
     };
     parentTaskId?: string;
@@ -28730,7 +29012,7 @@ export type TasksAssignOut = {
     recordId?: string;
     fileIds: Array<string>;
     source?: {
-      kind: "chat" | "run" | "gate" | "journey" | "manual";
+      kind: "chat" | "run" | "gate" | "journey" | "meeting" | "manual";
       id: string;
     };
     parentTaskId?: string;
@@ -28796,7 +29078,7 @@ export type TasksBlockOut = {
     recordId?: string;
     fileIds: Array<string>;
     source?: {
-      kind: "chat" | "run" | "gate" | "journey" | "manual";
+      kind: "chat" | "run" | "gate" | "journey" | "meeting" | "manual";
       id: string;
     };
     parentTaskId?: string;
@@ -28866,7 +29148,7 @@ export type TasksCreateIn = {
   recordId?: string;
   fileIds?: Array<string>;
   source?: {
-    kind: "chat" | "run" | "gate" | "journey" | "manual";
+    kind: "chat" | "run" | "gate" | "journey" | "meeting" | "manual";
     id: string;
   };
   parentTaskId?: string;
@@ -28920,7 +29202,7 @@ export type TasksCreateOut = {
     recordId?: string;
     fileIds: Array<string>;
     source?: {
-      kind: "chat" | "run" | "gate" | "journey" | "manual";
+      kind: "chat" | "run" | "gate" | "journey" | "meeting" | "manual";
       id: string;
     };
     parentTaskId?: string;
@@ -28987,7 +29269,7 @@ export type TasksDecideOut = {
     recordId?: string;
     fileIds: Array<string>;
     source?: {
-      kind: "chat" | "run" | "gate" | "journey" | "manual";
+      kind: "chat" | "run" | "gate" | "journey" | "meeting" | "manual";
       id: string;
     };
     parentTaskId?: string;
@@ -29058,7 +29340,7 @@ export type TasksDelegateOut = {
     recordId?: string;
     fileIds: Array<string>;
     source?: {
-      kind: "chat" | "run" | "gate" | "journey" | "manual";
+      kind: "chat" | "run" | "gate" | "journey" | "meeting" | "manual";
       id: string;
     };
     parentTaskId?: string;
@@ -29134,7 +29416,7 @@ export type TasksDependenciesAddOut = {
     recordId?: string;
     fileIds: Array<string>;
     source?: {
-      kind: "chat" | "run" | "gate" | "journey" | "manual";
+      kind: "chat" | "run" | "gate" | "journey" | "meeting" | "manual";
       id: string;
     };
     parentTaskId?: string;
@@ -29200,7 +29482,7 @@ export type TasksDependenciesRemoveOut = {
     recordId?: string;
     fileIds: Array<string>;
     source?: {
-      kind: "chat" | "run" | "gate" | "journey" | "manual";
+      kind: "chat" | "run" | "gate" | "journey" | "meeting" | "manual";
       id: string;
     };
     parentTaskId?: string;
@@ -29275,7 +29557,7 @@ export type TasksEscalateOut = {
     recordId?: string;
     fileIds: Array<string>;
     source?: {
-      kind: "chat" | "run" | "gate" | "journey" | "manual";
+      kind: "chat" | "run" | "gate" | "journey" | "meeting" | "manual";
       id: string;
     };
     parentTaskId?: string;
@@ -29341,7 +29623,7 @@ export type TasksFollowersAddOut = {
     recordId?: string;
     fileIds: Array<string>;
     source?: {
-      kind: "chat" | "run" | "gate" | "journey" | "manual";
+      kind: "chat" | "run" | "gate" | "journey" | "meeting" | "manual";
       id: string;
     };
     parentTaskId?: string;
@@ -29407,7 +29689,7 @@ export type TasksFollowersRemoveOut = {
     recordId?: string;
     fileIds: Array<string>;
     source?: {
-      kind: "chat" | "run" | "gate" | "journey" | "manual";
+      kind: "chat" | "run" | "gate" | "journey" | "meeting" | "manual";
       id: string;
     };
     parentTaskId?: string;
@@ -29472,7 +29754,7 @@ export type TasksGetOut = {
     recordId?: string;
     fileIds: Array<string>;
     source?: {
-      kind: "chat" | "run" | "gate" | "journey" | "manual";
+      kind: "chat" | "run" | "gate" | "journey" | "meeting" | "manual";
       id: string;
     };
     parentTaskId?: string;
@@ -29554,7 +29836,7 @@ export type TasksIndexOut = {
       threadId?: string;
       workerThread?: string;
       source?: {
-        kind: "chat" | "run" | "gate" | "journey" | "manual";
+        kind: "chat" | "run" | "gate" | "journey" | "meeting" | "manual";
         id: string;
       };
       snoozedUntil?: number;
@@ -29612,7 +29894,7 @@ export type TasksLinksAddOut = {
     recordId?: string;
     fileIds: Array<string>;
     source?: {
-      kind: "chat" | "run" | "gate" | "journey" | "manual";
+      kind: "chat" | "run" | "gate" | "journey" | "meeting" | "manual";
       id: string;
     };
     parentTaskId?: string;
@@ -29679,7 +29961,7 @@ export type TasksLinksRemoveOut = {
     recordId?: string;
     fileIds: Array<string>;
     source?: {
-      kind: "chat" | "run" | "gate" | "journey" | "manual";
+      kind: "chat" | "run" | "gate" | "journey" | "meeting" | "manual";
       id: string;
     };
     parentTaskId?: string;
@@ -29755,7 +30037,7 @@ export type TasksListOut = {
       recordId?: string;
       fileIds: Array<string>;
       source?: {
-        kind: "chat" | "run" | "gate" | "journey" | "manual";
+        kind: "chat" | "run" | "gate" | "journey" | "meeting" | "manual";
         id: string;
       };
       parentTaskId?: string;
@@ -29824,7 +30106,7 @@ export type TasksMyWorkOut = {
       recordId?: string;
       fileIds: Array<string>;
       source?: {
-        kind: "chat" | "run" | "gate" | "journey" | "manual";
+        kind: "chat" | "run" | "gate" | "journey" | "meeting" | "manual";
         id: string;
       };
       parentTaskId?: string;
@@ -29897,7 +30179,7 @@ export type TasksNeedsYouOut = {
         recordId?: string;
         fileIds: Array<string>;
         source?: {
-          kind: "chat" | "run" | "gate" | "journey" | "manual";
+          kind: "chat" | "run" | "gate" | "journey" | "meeting" | "manual";
           id: string;
         };
         parentTaskId?: string;
@@ -30001,7 +30283,7 @@ export type TasksPlanOut = {
     recordId?: string;
     fileIds: Array<string>;
     source?: {
-      kind: "chat" | "run" | "gate" | "journey" | "manual";
+      kind: "chat" | "run" | "gate" | "journey" | "meeting" | "manual";
       id: string;
     };
     parentTaskId?: string;
@@ -30072,7 +30354,7 @@ export type TasksReleaseOut = {
     recordId?: string;
     fileIds: Array<string>;
     source?: {
-      kind: "chat" | "run" | "gate" | "journey" | "manual";
+      kind: "chat" | "run" | "gate" | "journey" | "meeting" | "manual";
       id: string;
     };
     parentTaskId?: string;
@@ -30137,7 +30419,7 @@ export type TasksRestoreOut = {
     recordId?: string;
     fileIds: Array<string>;
     source?: {
-      kind: "chat" | "run" | "gate" | "journey" | "manual";
+      kind: "chat" | "run" | "gate" | "journey" | "meeting" | "manual";
       id: string;
     };
     parentTaskId?: string;
@@ -30209,7 +30491,7 @@ export type TasksReviewOut = {
     recordId?: string;
     fileIds: Array<string>;
     source?: {
-      kind: "chat" | "run" | "gate" | "journey" | "manual";
+      kind: "chat" | "run" | "gate" | "journey" | "meeting" | "manual";
       id: string;
     };
     parentTaskId?: string;
@@ -30276,7 +30558,7 @@ export type TasksSnoozeOut = {
     recordId?: string;
     fileIds: Array<string>;
     source?: {
-      kind: "chat" | "run" | "gate" | "journey" | "manual";
+      kind: "chat" | "run" | "gate" | "journey" | "meeting" | "manual";
       id: string;
     };
     parentTaskId?: string;
@@ -30343,7 +30625,7 @@ export type TasksSubmitOut = {
     recordId?: string;
     fileIds: Array<string>;
     source?: {
-      kind: "chat" | "run" | "gate" | "journey" | "manual";
+      kind: "chat" | "run" | "gate" | "journey" | "meeting" | "manual";
       id: string;
     };
     parentTaskId?: string;
@@ -30409,7 +30691,7 @@ export type TasksTakeOut = {
     recordId?: string;
     fileIds: Array<string>;
     source?: {
-      kind: "chat" | "run" | "gate" | "journey" | "manual";
+      kind: "chat" | "run" | "gate" | "journey" | "meeting" | "manual";
       id: string;
     };
     parentTaskId?: string;
@@ -30477,7 +30759,7 @@ export type TasksTransitionOut = {
     recordId?: string;
     fileIds: Array<string>;
     source?: {
-      kind: "chat" | "run" | "gate" | "journey" | "manual";
+      kind: "chat" | "run" | "gate" | "journey" | "meeting" | "manual";
       id: string;
     };
     parentTaskId?: string;
@@ -30563,7 +30845,7 @@ export type TasksUpdateOut = {
     recordId?: string;
     fileIds: Array<string>;
     source?: {
-      kind: "chat" | "run" | "gate" | "journey" | "manual";
+      kind: "chat" | "run" | "gate" | "journey" | "meeting" | "manual";
       id: string;
     };
     parentTaskId?: string;
@@ -30638,7 +30920,7 @@ export type TasksWorkingNotesDeleteOut = {
     recordId?: string;
     fileIds: Array<string>;
     source?: {
-      kind: "chat" | "run" | "gate" | "journey" | "manual";
+      kind: "chat" | "run" | "gate" | "journey" | "meeting" | "manual";
       id: string;
     };
     parentTaskId?: string;
@@ -30705,7 +30987,7 @@ export type TasksWorkingNotesSetOut = {
     recordId?: string;
     fileIds: Array<string>;
     source?: {
-      kind: "chat" | "run" | "gate" | "journey" | "manual";
+      kind: "chat" | "run" | "gate" | "journey" | "meeting" | "manual";
       id: string;
     };
     parentTaskId?: string;
@@ -35028,6 +35310,15 @@ export interface CapMap {
   "mcp.toolsets.list": { in: McpToolsetsListIn; out: McpToolsetsListOut };
   "meetings.attach_recording": { in: MeetingsAttachRecordingIn; out: MeetingsAttachRecordingOut };
   "meetings.cancel": { in: MeetingsCancelIn; out: MeetingsCancelOut };
+  "meetings.closeout.approve": { in: MeetingsCloseoutApproveIn; out: MeetingsCloseoutApproveOut };
+  "meetings.closeout.edit": { in: MeetingsCloseoutEditIn; out: MeetingsCloseoutEditOut };
+  "meetings.closeout.get": { in: MeetingsCloseoutGetIn; out: MeetingsCloseoutGetOut };
+  "meetings.closeout.list": { in: MeetingsCloseoutListIn; out: MeetingsCloseoutListOut };
+  "meetings.closeout.prepare": { in: MeetingsCloseoutPrepareIn; out: MeetingsCloseoutPrepareOut };
+  "meetings.closeout.propose": { in: MeetingsCloseoutProposeIn; out: MeetingsCloseoutProposeOut };
+  "meetings.closeout.share": { in: MeetingsCloseoutShareIn; out: MeetingsCloseoutShareOut };
+  "meetings.closeout.skip": { in: MeetingsCloseoutSkipIn; out: MeetingsCloseoutSkipOut };
+  "meetings.closeout.sync": { in: MeetingsCloseoutSyncIn; out: MeetingsCloseoutSyncOut };
   "meetings.get": { in: MeetingsGetIn; out: MeetingsGetOut };
   "meetings.ingest": { in: MeetingsIngestIn; out: MeetingsIngestOut };
   "meetings.list": { in: MeetingsListIn; out: MeetingsListOut };
@@ -37442,6 +37733,17 @@ export type McpSetupChangedPayload = {
 export type MeetingCanceledPayload = {
   meetingId: string;
 };
+export type MeetingClosedPayload = {
+  meetingId: string;
+  made: Array<{
+      type: string;
+      id: string;
+    }>;
+};
+export type MeetingCloseoutReadyPayload = {
+  meetingId: string;
+  items: number;
+};
 export type MeetingEndedPayload = {
   meetingId: string;
   provider: "zoom" | "meet" | "teams" | "none";
@@ -38947,7 +39249,7 @@ export type TaskCompletedPayload = {
   kind: "work" | "approve" | "review" | "answer" | "unblock" | "signature";
   recordId?: string;
   source?: {
-    kind: "chat" | "run" | "gate" | "journey" | "manual";
+    kind: "chat" | "run" | "gate" | "journey" | "meeting" | "manual";
     id: string;
   };
 };
@@ -38961,7 +39263,7 @@ export type TaskCreatedPayload = {
   };
   recordId?: string;
   source?: {
-    kind: "chat" | "run" | "gate" | "journey" | "manual";
+    kind: "chat" | "run" | "gate" | "journey" | "meeting" | "manual";
     id: string;
   };
 };
@@ -39783,6 +40085,8 @@ export interface EventMap {
   "mcp.session_started": McpSessionStartedPayload;
   "mcp.setup_changed": McpSetupChangedPayload;
   "meeting.canceled": MeetingCanceledPayload;
+  "meeting.closed": MeetingClosedPayload;
+  "meeting.closeout_ready": MeetingCloseoutReadyPayload;
   "meeting.ended": MeetingEndedPayload;
   "meeting.merged": MeetingMergedPayload;
   "meeting.recording_attached": MeetingRecordingAttachedPayload;

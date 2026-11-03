@@ -1441,6 +1441,17 @@ export function createClient(transport: Transport) {
     meetings: {
       attach_recording: call("meetings.attach_recording", 1),
       cancel: call("meetings.cancel", 1),
+      closeout: {
+        approve: call("meetings.closeout.approve", 1),
+        edit: call("meetings.closeout.edit", 1),
+        get: call("meetings.closeout.get", 1),
+        list: call("meetings.closeout.list", 1),
+        prepare: call("meetings.closeout.prepare", 1),
+        propose: call("meetings.closeout.propose", 1),
+        share: call("meetings.closeout.share", 1),
+        skip: call("meetings.closeout.skip", 1),
+        sync: call("meetings.closeout.sync", 1),
+      },
       get: call("meetings.get", 1),
       ingest: call("meetings.ingest", 1),
       list: call("meetings.list", 1),

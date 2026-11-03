@@ -4754,6 +4754,60 @@
     },
     {
       "deferred": false,
+      "name": "meetings_closeout_approve",
+      "summary": "Approve close-out items (all the proposed ones when none are named): create the tasks, apply the record updates, send or save the email, add the holds",
+      "toolset": "inbox"
+    },
+    {
+      "deferred": false,
+      "name": "meetings_closeout_edit",
+      "summary": "Change one proposed close-out item before it is approved",
+      "toolset": "inbox"
+    },
+    {
+      "deferred": false,
+      "name": "meetings_closeout_get",
+      "summary": "One meeting close-out: summary, decisions, open questions and the proposed tasks, record updates, follow-up email and calendar hold",
+      "toolset": "inbox"
+    },
+    {
+      "deferred": false,
+      "name": "meetings_closeout_list",
+      "summary": "The Meetings tab of the Inbox: your meetings (and meetings shared to a project or channel you can read) with their close-out state",
+      "toolset": "inbox"
+    },
+    {
+      "deferred": false,
+      "name": "meetings_closeout_prepare",
+      "summary": "Have the meeting owner's Assistant prepare the close-out from the transcript; redo starts it again without duplicating what was approved",
+      "toolset": "inbox"
+    },
+    {
+      "deferred": false,
+      "name": "meetings_closeout_propose",
+      "summary": "The Assistant's close-out of a meeting: summary, decisions, open questions, action items, record updates, the follow-up email and the next meeting",
+      "toolset": "inbox"
+    },
+    {
+      "deferred": false,
+      "name": "meetings_closeout_share",
+      "summary": "Share a meeting and its close-out with a project or channel (everyone who can read it sees it in their Meetings tab), or stop sharing",
+      "toolset": "inbox"
+    },
+    {
+      "deferred": false,
+      "name": "meetings_closeout_skip",
+      "summary": "Skip a proposed close-out item, or bring a skipped one back",
+      "toolset": "inbox"
+    },
+    {
+      "deferred": false,
+      "name": "meetings_closeout_sync",
+      "summary": "Prepare the close-out of each of your recent meetings that has a transcript and none yet",
+      "toolset": "inbox"
+    },
+    {
+      "deferred": false,
       "name": "meetings_get",
       "summary": "Read a meeting with recording, transcript, summary and decisions",
       "toolset": "inbox"

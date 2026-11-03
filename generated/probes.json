@@ -850,6 +850,13 @@
     {
       "completeMs": 100,
       "firstPaintMs": 50,
+      "id": "screen.meetings.closeout",
+      "place": "inbox",
+      "screen": "meetings.closeout"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
       "id": "screen.meetings.panel",
       "place": "inbox",
       "screen": "meetings.panel"
