@@ -26,6 +26,7 @@ const SKIP = new Set([".git", "node_modules", ".next", ".venv", "venv", "__pycac
 export function repoUrl(raw: string): string {
   const r = raw.trim();
   if (/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(r)) return `https://github.com/${r.replace(/\.git$/, "")}.git`;
+  if (/^https:\/\/[^/\s]*@/.test(r)) throw new SourceError("Leave the token out of the address. Pick it from the Vault instead.");
   if (!/^https:\/\/[^\s@]+$/.test(r) || r.startsWith("-")) throw new SourceError("A repo is an https address, like https://github.com/acme/app, or acme/app on GitHub.");
   const u = new URL(r);
   if (u.username || u.password) throw new SourceError("Leave the token out of the address. Pick it from the Vault instead.");
