@@ -121,11 +121,14 @@ export async function awayDigest(ctx: HomeCtx, input: In): Promise<unknown> {
   if (have && findDigest(ctx.db, have)) return { digestId: have, items: findDigest(ctx.db, have)!.items.length };
   const happened = [...(await runItems(ctx, since, until)), ...(await followItems(ctx, since, until)), ...(await noticeItems(ctx, person, since, until))];
   if (happened.length === 0) return { items: 0 };
-  const items = rankItems(happened);
+  // what still waits on the person comes last; it never makes a digest on its own (it was there before they left)
+  let waiting: DigestItem[] = [];
+  try { waiting = await waitingItems(ctx, until); } catch { /* the digest stands without it */ }
+  const items = rankItems([...happened, ...waiting]);
   const n = happened.length;
   const headline = [`${n} ${n === 1 ? "thing" : "things"} happened while you were away.`];
   const decisions = happened.filter((i) => i.kind === "decision").length;
-  if (decisions > 0) headline.push(`${decisions} ${decisions === 1 ? "was a decision" : "were decisions"} your agents made, each with Undo.`);
+  if (decisions > 0) headline.push(`${decisions} ${decisions === 1 ? "was a decision" : "were decisions"} your agents made for you.`);
   const d: Digest = { id: newId("dgs", until), person, periodStart: since, periodEnd: until, headline, items, builtBy: "vyre" };
   // a newer digest replaces an unseen older one: the row shows one period, from the first time away
   const older = latestUnseen(ctx.db, person);

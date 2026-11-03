@@ -78,7 +78,7 @@ export function Overview(): ReactElement {
               key={`${a.kind}-${a.ref ?? i}`}
               id={`attn-${a.kind}-${a.ref ?? i}`}
               title={a.title}
-              note={`${ATTENTION_SENTENCE[a.kind]} since ${ago(now, a.since)}${compact ? `. ${a.next}` : ""}`}
+              note={a.kind === "home_channel" ? a.next : `${ATTENTION_SENTENCE[a.kind]} since ${ago(now, a.since)}${compact ? `. ${a.next}` : ""}`}
               leading={<Lead><Glyph name="warn" size={16} color="var(--warn)" /></Lead>}
               {...(compact ? {} : { trailing: fix(a, i) ?? <LinkButton label={a.next} onPress={() => data.nav.openPage(ATTENTION_PAGE[a.kind])} testID={`attn-go-${i}`} /> })}
               onPress={() => data.nav.openPage(ATTENTION_PAGE[a.kind])}
@@ -135,7 +135,7 @@ const s = StyleSheet.create({
   big: { fontSize: 20, fontWeight: "600", color: "var(--ink)" as string, fontVariant: ["tabular-nums"] },
   tileSub: { fontSize: 12, color: "var(--ink-3)" as string },
   time: { fontSize: 12, color: "var(--ink-3)" as string, fontVariant: ["tabular-nums"] },
-  pair: { flexDirection: "row", alignItems: "center", gap: 4 },
-  compactFix: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 6 },
+  pair: { flexDirection: "row", alignItems: "center", gap: 18 },
+  compactFix: { flexDirection: "row", flexWrap: "wrap", gap: 18, marginTop: 6 },
   note: { fontSize: 12.5, color: "var(--ink-2)" as string, marginTop: 8, paddingHorizontal: 4 },
 });

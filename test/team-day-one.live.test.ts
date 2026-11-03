@@ -1,5 +1,5 @@
 // The team on day one, over HTTP with each person's own token (owner D21 to D24, 3 Nov): a booted daemon, every module live.
-// Ada (the owner) shares an agent and a Shared Vault item with Everyone, keeps another agent and a Mine item private, and invites Bea as a Member who starts in #sales.
+// Ada (the owner) shares an agent and a Shared Vault item with Everyone, keeps another agent and a Mine item private, and invites Bea as a Member who starts in Sales, #sales and Paralegal.
 // Bea's first login has #vyre, #sales, the shared agent, the shared Vault item and the Space skill, and nothing private. Bea cannot share with everyone herself.
 // Presence: Bea is online to Ada after she does something, away when she sets it, and her last seen moves. A join step that fails is retried, as the periodic job and on Retry.
 // The While you were away digest is written when Dan comes back after four hours with something waiting (a join he made, by name) and not after a minute.
@@ -65,12 +65,16 @@ test("team day one: #vyre and what is shared with Everyone, nothing private; pre
     const sales = ok(await A("channels.create", { name: "sales", visibility: "public" }), "#sales").channel;
     const roles = ok(await A("access.roles.list"), "roles").roles as { id: string; name: string }[];
     const member = roles.find((r) => r.name === "Member")!.id, admin = roles.find((r) => r.name === "Admin")!.id;
-    const inv = ok(await A("members.invites.create", { role: member, channels: [sales.channelId], agents: [helper.id] }), "invite Bea");
+    const salesGroup = ok(await A("access.groups.create", { name: "Sales" }), "the Sales group").group;
+    const inv = ok(await A("members.invites.create", { role: member, groups: [salesGroup.id], channels: [sales.channelId], agents: [helper.id] }), "invite Bea");
     const bea = await accept(d, inv.link, "bea", "Bea Baker");
     await d.hooks?.pump?.();
     const B = as(d, bea.token);
 
     // Bea's first login: #vyre and #sales, Intake (everyone) and Helper (her invite), the shared item and the Space skill; never Ledger nor Ada's Mine item
+    const g = ok(await A("access.groups.get", { groupId: salesGroup.id }), "Sales").group as { members: { id: string }[] };
+    assert.ok(g.members.some((m) => m.id === bea.id), "the invite's group applied");
+    assert.ok(!(ok(await A("members.joins.list"), "joins").joins as { personId: string }[]).some((j) => j.personId === bea.id), "every step of Bea's join worked");
     const chans = ok(await B("channels.list"), "Bea channels").channels as { name: string; members: { id: string }[] }[];
     for (const n of ["vyre", "sales"]) assert.ok(chans.find((c) => c.name === n)?.members.some((m) => m.id === bea.id), `Bea is in #${n}`);
     const agents = (ok(await B("agents.list"), "Bea agents").agents as { agentId: string }[]).map((a) => a.agentId);
@@ -118,7 +122,7 @@ test("team day one: #vyre and what is shared with Everyone, nothing private; pre
     assert.ok(calJoin, "Cal's join has a step that did not work");
     assert.equal(calJoin!.name, "Cal Cruz");
     assert.match(calJoin!.steps[0]!.title, /Channel/);
-    assert.ok(!/usr_|chn_/.test(JSON.stringify(calJoin)), "the step is in words");
+    assert.ok(!/usr_|chn_/.test(JSON.stringify(calJoin!.steps.map((x) => [x.title, (x as { error?: string }).error]))), `the step is in words: ${JSON.stringify(calJoin!.steps)}`);
     await d.hooks!.runPeriodic("members.join_retry");
     assert.ok((ok(await A("members.joins.list"), "joins").joins as { personId: string }[]).some((j) => j.personId === cal.id), "still failing while #ops is archived");
     ok(await A("channels.unarchive", { channelId: ops.channelId }), "#ops is back");
@@ -130,6 +134,7 @@ test("team day one: #vyre and what is shared with Everyone, nothing private; pre
     // the digest: Dan (an admin) invites Eve and goes away; four hours later he comes back and the digest names Eve
     const dan = await accept(d, ok(await A("members.invites.create", { role: admin }), "invite Dan").link, "dan", "Dan Diaz");
     const D = as(d, dan.token);
+    clock.t += 10 * MIN;
     const eve = await accept(d, ok(await D("members.invites.create", { role: member }), "Dan invites Eve").link, "eve", "Eve Evans");
     await d.hooks?.pump?.();
     clock.t += 5 * HOUR;
@@ -138,7 +143,7 @@ test("team day one: #vyre and what is shared with Everyone, nothing private; pre
     const digest = ok(await D("home.digest"), "Dan digest").digest;
     assert.ok(digest, "the digest was written");
     assert.ok(digest.items.some((i: { title: string }) => i.title.includes("Eve Evans")), `the digest names Eve: ${JSON.stringify(digest.items)}`);
-    assert.ok(!/usr_/.test(JSON.stringify(digest)), "names, never ids");
+    assert.ok(!/usr_/.test(JSON.stringify([digest.headline, digest.items.map((i: { title: string; line: string }) => [i.title, i.line])])), "names, never ids");
     ok(await D("home.mark_digest_seen", { digestId: digest.id }), "seen");
     assert.equal(ok(await D("home.digest"), "Dan digest again").digest, null, "it resets once seen");
     assert.ok(eve.id.startsWith("usr_"));

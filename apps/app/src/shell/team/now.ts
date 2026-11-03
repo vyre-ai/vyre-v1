@@ -17,17 +17,20 @@ export function presenceMap(rows: readonly PresenceRow[] | undefined): ReadonlyM
 
 const WHERE: Record<WorkingRow["where"], string> = { space: "on the Space", computer: "on their computer", server: "on their server" };
 
-/** "in #sales for Omar, on the Space". A chat the viewer may not read is "in a private chat"; a turn nobody asked for (a routine) has no "for". */
-export function workingLine(w: WorkingRow, personName: (id: string) => string): string {
+/**
+ * "in #sales for Omar, on the Space". A chat the viewer may not read is "in a private chat"; a turn nobody asked for (a routine) has no "for". `short` (the narrow Chats sidebar) leaves
+ * out "on the Space", the usual case, and keeps "on their computer" and "on their server".
+ */
+export function workingLine(w: WorkingRow, personName: (id: string) => string, short = false): string {
   const where = w.channelId && w.title ? `in #${w.title}` : w.threadId && w.title ? `in ${w.title}` : "in a private chat";
   const who = w.forPerson ? ` for ${personName(w.forPerson)}` : "";
-  return `${where}${who}, ${WHERE[w.where]}`;
+  return short && w.where === "space" ? `${where}${who}` : `${where}${who}, ${WHERE[w.where]}`;
 }
 
 /**
  * Who is around and what agents are doing. People: online first, then away, by name; you are left out (you know where you are). Agents: one row each, the newest turn, by name.
  */
-export function teamNow(o: { presence: readonly PresenceRow[] | undefined; working: readonly WorkingRow[] | undefined; me?: string | undefined; personName(id: string): string; agentName(id: string): string }): TeamNow {
+export function teamNow(o: { presence: readonly PresenceRow[] | undefined; working: readonly WorkingRow[] | undefined; me?: string | undefined; short?: boolean; personName(id: string): string; agentName(id: string): string }): TeamNow {
   const people: NowPerson[] = [];
   for (const r of o.presence ?? []) {
     if (r.personId === o.me || (r.state !== "online" && r.state !== "away")) continue;
@@ -36,7 +39,7 @@ export function teamNow(o: { presence: readonly PresenceRow[] | undefined; worki
   people.sort((a, b) => (a.state === b.state ? a.name.localeCompare(b.name) : a.state === "online" ? -1 : 1));
   const newest = new Map<string, WorkingRow>();
   for (const w of o.working ?? []) { const was = newest.get(w.agentId); if (!was || w.since > was.since) newest.set(w.agentId, w); }
-  const agents: NowAgent[] = [...newest.values()].map((w) => ({ id: w.agentId, name: o.agentName(w.agentId), line: workingLine(w, o.personName), ...(w.threadId ? { threadId: w.threadId } : {}) }));
+  const agents: NowAgent[] = [...newest.values()].map((w) => ({ id: w.agentId, name: o.agentName(w.agentId), line: workingLine(w, o.personName, o.short === true), ...(w.threadId ? { threadId: w.threadId } : {}) }));
   agents.sort((a, b) => a.name.localeCompare(b.name));
   return { people, agents };
 }

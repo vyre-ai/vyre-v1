@@ -32,7 +32,7 @@ export async function readPulse(src: PulseSource, last: Pulse): Promise<Pulse> {
     src.personal ? Promise.resolve(null) : safe<{ working: WorkingRow[] }>(src.call("engine.now", {})),
   ]);
   const presence = p ? p.people : null;
-  const team = src.personal ? null : teamNow({ presence: presence ?? undefined, working: w?.working, me: src.me, personName: src.personName, agentName: src.agentName });
+  const team = src.personal ? null : teamNow({ presence: presence ?? undefined, working: w?.working, me: src.me, short: true, personName: src.personName, agentName: src.agentName });
   return {
     digest: d ? d.digest : last.digest,
     team: src.personal ? null : p || w ? team : last.team,

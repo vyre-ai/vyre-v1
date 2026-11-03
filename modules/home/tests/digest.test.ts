@@ -133,6 +133,7 @@ function activityWorld(h: Harness): void {
     assert.equal(i.subject.id, hex("rec", 1));
     return { events: [{ id: hex("evt", 1), type: "record.updated", at: NOW - 6 * HOUR, actor: "usr_carol" }, { id: hex("evt", 2), type: "record.updated", at: NOW - 4 * HOUR, actor: "usr_dan" }] };
   });
+  h.callee("access.principals.get", (i) => ({ principal: { id: i.principal.id, name: i.principal.id === "usr_dan" ? "Dan Diaz" : "Carol Chen" } }));
   h.callee("tasks.my_work", () => ({
     tasks: [
       { id: hex("tsk", 1), title: "Review the engagement letter", state: "todo", updatedAt: NOW - HOUR },
@@ -153,7 +154,7 @@ test("See all: runs, decisions with Undo, followed records and what waits, ranke
   ]);
   assert.equal(r.total, 7);
   assert.deepEqual(r.items[0].undo, { cap: "runs.undo", input: { runId: hex("run", 3) } });
-  assert.deepEqual(r.items[2], { kind: "record_change", title: "Smith matter", line: "Changed by someone.", subject: { type: "record", id: hex("rec", 1) }, at: NOW - 4 * HOUR });
+  assert.deepEqual(r.items[2], { kind: "record_change", title: "Smith matter", line: "Changed by Dan Diaz.", subject: { type: "record", id: hex("rec", 1) }, at: NOW - 4 * HOUR });
   assert.equal(r.items[3].line, "12 emails sorted");
   assert.equal(r.items[4].line, "Mail was down", "every routine result is here, not one per routine");
   const runsCall = h.calls.find((c) => c.cap === "runs.list")!;
