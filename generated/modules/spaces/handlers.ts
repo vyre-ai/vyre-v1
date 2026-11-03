@@ -10,6 +10,7 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "spaces.delete": Handler<"spaces.delete", X>;
   "spaces.export": Handler<"spaces.export", X>;
   "spaces.get": Handler<"spaces.get", X>;
+  "spaces.image": Handler<"spaces.image", X>;
   "spaces.leave": Handler<"spaces.leave", X>;
   "spaces.matrix": Handler<"spaces.matrix", X>;
   "spaces.onboarding.complete": Handler<"spaces.onboarding.complete", X>;

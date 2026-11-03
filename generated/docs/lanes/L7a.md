@@ -6,7 +6,7 @@ Generated from the manifests. The lead completes it by hand (spec sections, reus
 
 ### access
 
-Capabilities to implement: 65. Events to emit: 18. Contract tests that must go green: `generated/tests/access/`.
+Capabilities to implement: 66. Events to emit: 18. Contract tests that must go green: `generated/tests/access/`.
 
 Capabilities:
 - access.actors.create (write, access.manage, level view)
@@ -32,6 +32,7 @@ Capabilities:
 - access.groups.list (read, grant only, level view)
 - access.groups.remove_member (write, access.manage, level view)
 - access.groups.update (write, access.manage, level view)
+- access.join_share (write, grant only, level view)
 - access.labels.list (read, grant only, level view)
 - access.labels.set (write, policy.manage, level view)
 - access.lists (read, grant only, level view)
@@ -119,7 +120,7 @@ Events:
 
 ### devices
 
-Capabilities to implement: 14. Events to emit: 6. Contract tests that must go green: `generated/tests/devices/`.
+Capabilities to implement: 15. Events to emit: 6. Contract tests that must go green: `generated/tests/devices/`.
 
 Capabilities:
 - devices.epoch (read, grant only, level view)
@@ -127,6 +128,7 @@ Capabilities:
 - devices.get (read, grant only, level view)
 - devices.list (read, access.manage, level view)
 - devices.mine (read, grant only, level view)
+- devices.presence (read, grant only, level view)
 - devices.purge_ack (write, grant only, level view)
 - devices.register (write, grant only, level view)
 - devices.rename (write, grant only, level view)
@@ -227,7 +229,7 @@ Events:
 
 ### members
 
-Capabilities to implement: 31. Events to emit: 5. Contract tests that must go green: `generated/tests/members/`.
+Capabilities to implement: 33. Events to emit: 6. Contract tests that must go green: `generated/tests/members/`.
 
 Capabilities:
 - company.access_log (read, connectors.manage, level view)
@@ -247,6 +249,8 @@ Capabilities:
 - members.invites.list (read, members.invite, level view)
 - members.invites.preview (read, grant only, level view)
 - members.invites.revoke (write, members.invite, level view)
+- members.joins.list (read, members.invite, level view)
+- members.joins.retry (write, members.invite, level view)
 - members.reactivate (write, members.remove, level view)
 - members.remove (write, members.remove, level view, gate delete)
 - members.remove_preview (read, members.remove, level view)
@@ -265,13 +269,14 @@ Capabilities:
 Events:
 - member.invite_revoked
 - member.invited
+- member.join_stuck
 - member.joined
 - member.removal_plan_applied
 - member.removed
 
 ### settings
 
-Capabilities to implement: 14. Events to emit: 2. Contract tests that must go green: `generated/tests/settings/`.
+Capabilities to implement: 15. Events to emit: 2. Contract tests that must go green: `generated/tests/settings/`.
 
 Capabilities:
 - settings.copy_profile (write, grant only, level view)
@@ -283,6 +288,7 @@ Capabilities:
 - settings.kit.set_space (write, kits.install, level view)
 - settings.list (read, grant only, level view)
 - settings.pages (read, grant only, level view)
+- settings.public_of (read, grant only, level view)
 - settings.reset (write, grant only, level view)
 - settings.reset_space (write, policy.manage, level view)
 - settings.search (read, grant only, level view)
@@ -295,7 +301,7 @@ Events:
 
 ### spaces
 
-Capabilities to implement: 19. Events to emit: 10. Contract tests that must go green: `generated/tests/spaces/`.
+Capabilities to implement: 20. Events to emit: 10. Contract tests that must go green: `generated/tests/spaces/`.
 
 Capabilities:
 - follows.list (read, grant only, level view)
@@ -303,6 +309,7 @@ Capabilities:
 - spaces.delete (write, grant only, level manage, gate delete)
 - spaces.export (write, records.export, level manage)
 - spaces.get (read, grant only, level view)
+- spaces.image (read, grant only, level view)
 - spaces.leave (write, grant only, level view)
 - spaces.matrix (read, grant only, level view)
 - spaces.onboarding.complete (write, grant only, level view)
@@ -332,7 +339,7 @@ Events:
 
 ### vault
 
-Capabilities to implement: 50. Events to emit: 20. Contract tests that must go green: `generated/tests/vault/`.
+Capabilities to implement: 51. Events to emit: 20. Contract tests that must go green: `generated/tests/vault/`.
 
 Capabilities:
 - providers.add (write, grant only, level view)
@@ -383,6 +390,7 @@ Capabilities:
 - vault.share (write, grant only, level view)
 - vault.site_rules.list (read, grant only, level view)
 - vault.site_rules.set (write, grant only, level view)
+- vault.text_check (read, grant only, level view)
 - vault.unshare (write, grant only, level view)
 - vault.use (write, grant only, level use)
 

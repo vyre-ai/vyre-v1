@@ -30,6 +30,7 @@ type In = {
   recordLabel?: "public" | "internal" | "confidential" | "restricted";
   refresh?: boolean;
   wait?: boolean;
+  probe?: boolean;
 };
 ```
 
@@ -74,6 +75,7 @@ type Out = {
   "name": "example",
   "input": {
     "accountRef": "#Team_Anthropic_Key",
+    "probe": true,
     "recordLabel": "public",
     "refresh": true,
     "threadId": "thr_a1b2c3",

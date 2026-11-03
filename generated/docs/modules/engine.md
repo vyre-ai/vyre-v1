@@ -35,17 +35,17 @@ Requires: nothing.
 - [engine.lease.heartbeat](../capabilities/engine.lease.heartbeat.md): Extend the lease on a thread
 - [engine.lease.release](../capabilities/engine.lease.release.md): Release the lease on a thread
 - [engine.live_turns](../capabilities/engine.live_turns.md): The turns being written in a thread right now, with the text so far: what a chat opened or reconnected mid-turn shows before it follows the live stream
-- [engine.mcp.call](../capabilities/engine.mcp.call.md): Call an outside MCP tool that may change things; an agent's call goes through the Gate
+- [engine.mcp.call](../capabilities/engine.mcp.call.md): Call a tool of an outside tool server or connection (app hub, OAuth server, remote MCP) that may change things, as mcp_tools lists it; an agent's call goes through the Gate
 - [engine.mcp.oauth_complete](../capabilities/engine.mcp.oauth_complete.md): Finish an OAuth sign-in with the state and code the server sent back, or the error it sent when the person declined. Only the person who started it can finish it.
 - [engine.mcp.oauth_start](../capabilities/engine.mcp.oauth_start.md): Begin signing a remote outside-tool connection in with OAuth (the MCP authorization flow). Answers the address to send the person to; the token that comes back is sealed and never answered.
 - [engine.mcp.oauth_status](../capabilities/engine.mcp.oauth_status.md): Has this remote connection signed in? A yes or no, never the token.
-- [engine.mcp.read](../capabilities/engine.mcp.read.md): Call an outside MCP tool that only reads (the server says so); runs in the sandbox or at the remote server
+- [engine.mcp.read](../capabilities/engine.mcp.read.md): Call a tool of an outside tool server or connection (app hub, OAuth server, remote MCP) that only reads, as mcp_tools lists it with readOnly true; a tool that may change things goes through mcp_call
 - [engine.mcp.tools](../capabilities/engine.mcp.tools.md): The MCP servers a chat with this agent connects to and the tools each offers (starts the server in the sandbox if it is not running)
 - [engine.models.list](../capabilities/engine.models.list.md): Models the account can reach; models that the open labels or policy forbid are listed greyed with the reason
 - [engine.now](../capabilities/engine.now.md): Which agents are working right now: the agent, the person it works for, where it runs (the Space, their computer, their server) and since when; the chat is named only to someone who may read it
 - [engine.placement.decide](../capabilities/engine.placement.decide.md): Decide where a turn runs: host or the asker device (private chat rules, computers, routines, phone and web askers)
 - [engine.placement.options](../capabilities/engine.placement.options.md): What the runs-on chip of a chat offers: this computer, the Space in a Team Space and each of your servers, with whether each is on and why not; where the chat runs now, and whether the person pinned it (not pinned is Automatic)
-- [engine.placement.set](../capabilities/engine.placement.set.md): Pin a private chat to where it runs: this computer, the Space (Team Space), or one of your own servers, or auto to take the pin off. The next turn goes there; a teammate's machine is never a choice
+- [engine.placement.set](../capabilities/engine.placement.set.md): Choose where a private chat runs: one of your computers, the Space, one of your own servers, or auto. Never a teammate's machine. once with space runs the next turn on the Space once
 - [engine.policy.get](../capabilities/engine.policy.get.md): AI policies: allowed accounts, allowed models and providers, and which providers each label may reach
 - [engine.policy.set](../capabilities/engine.policy.set.md): Change AI policies (models and providers, per label provider rules, allowed accounts)
 - [engine.pool.status](../capabilities/engine.pool.status.md): Warm engine pool: sessions per driver, warm hits, evictions

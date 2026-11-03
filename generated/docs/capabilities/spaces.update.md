@@ -27,7 +27,7 @@ Change the Space name, legal name, logo or defaults
 type In = {
   name?: string;
   legalName?: string;
-  logoFileId: string | null;
+  logoFileId?: string | null;
   defaults?: Record<string, unknown>;
 };
 ```
