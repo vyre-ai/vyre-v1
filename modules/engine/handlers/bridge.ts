@@ -12,6 +12,7 @@ import { linksIn } from "../../../lib/grants.ts";
 import { redact } from "../../../agent/src/transcript/sanitize.ts";
 import { sessionWorkKey, workBlocks } from "../../../agent/src/tools/work-cards.ts";
 import { ALL_AGENTS } from "../../../lib/route.ts";
+import { hasReads } from "../../../host/src/seams/answer-reads.ts";
 import { sqlMessages, withMessageId, mintId } from "../projections.ts";
 import type { EngineCtx } from "../projections.ts";
 import type { TurnEngine } from "../../../agent/src/turn-engine/engine.ts";
@@ -41,7 +42,9 @@ export type CallAs = (cap: string, input: unknown, personId: string) => Promise<
 /** What a reader of a live turn is told (the host turns each into one `turn` frame to the people who may read the thread): the turn opened, a piece of its text, the turn ended, and which chat message the finished turn became. */
 export type StreamEvent =
   | { kind: "start"; threadId: string; turnId: string; agentId: string; asker: string; /** the message that started the turn, so a screen puts the reply after it and before what is sent meanwhile */ triggerId?: string }
-  | { kind: "delta"; threadId: string; turnId: string; agentId: string; text: string; /** characters of the turn before this piece, so a reader who also fetched the text so far never doubles or drops a piece */ at: number }
+  | { kind: "delta"; threadId: string; turnId: string; agentId: string; text: string; /** characters of the turn before this piece, so a reader who also fetched the text so far never doubles or drops a piece */ at: number;
+      /** The turn read something (records, files, mail...): its text goes live to the asker only, until the answer is checked against everyone in the chat (answer-audience.ts). */
+      asker?: string; privately?: boolean }
   /** A step of the turn (a tool call or its result): what the agent is doing, for the line under its reply. Names only; no input. */
   | { kind: "step"; threadId: string; turnId: string; agentId: string; phase: "call" | "result" | "input"; id: string; name?: string; ok?: boolean; /** what the call touches, in safe words (a file name, a query): for the live line only */ detail?: string }
   /** Steps gathered to about one frame a second for the screens (live-coalesce.ts): what the fan-out sends instead of each `step`. */
@@ -81,7 +84,7 @@ export interface Bridge {
   liveTurns(threadId: string): Array<{ turnId: string; agentId: string; text: string }>;
 }
 
-interface Segment { blocks: PostBlock[]; text: string; mentions: number; t0?: number; calls?: Map<string, { name: string; at: number }> }
+interface Segment { blocks: PostBlock[]; text: string; mentions: number; t0?: number; calls?: Map<string, { name: string; at: number }>; /** its live text goes to the asker only */ private?: boolean }
 interface Ready { blocks: PostBlock[]; text: string; mentions: number; routineOwner: string | null; turnId: string }
 
 const str = (v: unknown): string => (typeof v === "string" ? v : "");
@@ -246,7 +249,10 @@ export function createBridge(o: BridgeOptions): Bridge {
           // words that come after a tool call are a new paragraph, not a continuation of the sentence before it
           const t = afterBlock && ev.text !== "" && seg.text !== "" && !/\s$/.test(seg.text) && !/^\s/.test(ev.text) ? `\n\n${ev.text}` : ev.text;
           if (ev.text !== "") afterBlock = false;
-          const at = seg.text.length; seg.text += t; if (ev.text !== "") emit({ kind: "delta", threadId: input.threadId, turnId: input.turnId, agentId: input.agent.id, text: t, at });
+          const at = seg.text.length; seg.text += t;
+          // once the turn has read something, what it writes may rest on what not everyone here may open: live, it goes to the asker only (gap 6); the checked answer is posted for all
+          if (hasReads(input.threadId, input.agent.id, input.asker)) seg.private = true;
+          if (ev.text !== "") emit({ kind: "delta", threadId: input.threadId, turnId: input.turnId, agentId: input.agent.id, text: t, at, ...(seg.private ? { asker: input.asker, privately: true } : {}) });
           if (t !== ev.text) { yield { ...ev, text: t }; continue; }
         }
         else if (ev.type === "thinking") { if (ev.text !== "") emit({ kind: "thinking", threadId: input.threadId, turnId: input.turnId, agentId: input.agent.id, text: ev.text, asker: input.asker }); }
@@ -426,8 +432,10 @@ export function createBridge(o: BridgeOptions): Bridge {
       }
     }
     const job = p["job"] === true ? str(p["actingFor"]) || authorId : undefined;
+    // an agent's post speaks for the person it acted for (chat.post's actingFor): a turn it sets off runs for that person, never for the chat's starter; with nobody behind it, it runs for no one
+    const speaksFor = a.kind === "agent" && str(p["actingFor"]).startsWith("usr_") ? str(p["actingFor"]) : undefined;
     const res = withMessageId(messageId, () => eng.receive({
-      threadId, author: { kind: a.kind === "agent" ? "agent" : "person", id: authorId }, mentions, depth: Number(p["depth"] ?? 0), body: got.message.body + note, replyToPerson, ...(job ? { job } : {}),
+      threadId, author: { kind: a.kind === "agent" ? "agent" : "person", id: authorId }, mentions, depth: Number(p["depth"] ?? 0), body: got.message.body + note, replyToPerson, ...(job ? { job } : {}), ...(speaksFor ? { asker: speaksFor } : {}),
     }));
     return { receivedAs: res.responders };
   }
@@ -454,7 +462,8 @@ export function createBridge(o: BridgeOptions): Bridge {
     onEvent: (ctx, event) => (event.name === "message.edited" ? onEdited(ctx, event.payload) : onReceived(ctx, event.payload)),
     liveTurns(threadId) {
       const out: Array<{ turnId: string; agentId: string; text: string }> = [];
-      for (const [turnId, w] of writing) if (w.threadId === threadId) out.push({ turnId, agentId: w.agentId, text: live.get(turnId)?.text ?? "" });
+      // a turn whose text is the asker's alone for now shows no text to whoever opens the chat mid-turn: its answer arrives checked
+      for (const [turnId, w] of writing) if (w.threadId === threadId) out.push({ turnId, agentId: w.agentId, text: live.get(turnId)?.private ? "" : live.get(turnId)?.text ?? "" });
       return out;
     },
     async flush() {

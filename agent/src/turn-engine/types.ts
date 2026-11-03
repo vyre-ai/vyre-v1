@@ -49,6 +49,11 @@ export interface IncomingMessage {
   replyToPerson?: string | undefined;
   /** A Job's own line, verified by chat.post, and the person the Job works for: it wakes the lead even when the lead wrote it, and that person pays for the turn. The author stays the agent: a Job's words never count as a person's. */
   job?: string | undefined;
+  /**
+   * An agent's message: the person it speaks for, the asker of the turn that wrote it (or chat.post's actingFor). A turn it sets off runs for that person, so a chain of @mentions keeps the
+   * person whose message started it. An agent's message without one has no person behind it: a turn it would set off stops with no_asker instead of running as the chat's starter.
+   */
+  asker?: string | undefined;
   mentions?: readonly RouteMention[];
   /** Agent-to-agent hops since the last person message. Persons reset it to 0. */
   depth?: number;

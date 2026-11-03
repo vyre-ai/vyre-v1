@@ -29,7 +29,7 @@ test("a crew thread gets its repository copy, the guide stays out of its commits
     throw new Error(`unexpected ${cap}`);
   };
   await prepareWorkFolder(call, data, { agent: { id: "agt_e" }, asker: "usr_a", threadId: "thr_crew" });
-  const dir = workFolder(data, "usr_a", "thr_crew");
+  const dir = workFolder(data, "usr_a", "thr_crew", "agt_e");
   assert.equal((await git(["rev-parse", "--abbrev-ref", "HEAD"], dir)).out.trim(), "crew/ember-1");
   assert.equal(fs.readFileSync(path.join(dir, "CLAUDE.md"), "utf8"), "the project's own notes\n", "a tracked file of the repository is not overwritten");
   assert.ok(fs.existsSync(path.join(dir, "AGENTS.md")), "the guide the repository lacks is written");
@@ -40,7 +40,7 @@ test("a crew thread gets its repository copy, the guide stays out of its commits
   assert.equal(fs.readFileSync(path.join(dir, "mine.txt"), "utf8"), "work\n");
 
   await prepareWorkFolder(call, data, { agent: { id: "agt_e" }, asker: "usr_a", threadId: "thr_plain" });
-  const plain = workFolder(data, "usr_a", "thr_plain");
+  const plain = workFolder(data, "usr_a", "thr_plain", "agt_e");
   assert.deepEqual(fs.readdirSync(plain).sort(), ["AGENTS.md", "CLAUDE.md"]);
   assert.equal(fs.existsSync(path.join(plain, ".git")), false);
 });

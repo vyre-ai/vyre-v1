@@ -8,6 +8,7 @@ import type { Hlc } from "../../lib/hlc.ts";
 import { mintId } from "../../lib/ids.ts";
 import {isHostService} from "../../lib/trust.ts";
 import { mintEventId } from "./ids.ts";
+import { noteRead } from "./seams/answer-reads.ts";
 import type { Decision as KernelDecision, Req as AuthReq, ResourceRef } from "../../kernel/src/authorize/index.ts";
 import type { EventEnvelope } from "../../packages/contracts/src/envelope.ts";
 import type { CallOpts, Ctx, Decision, EmitOpts, Logger, StepRef } from "../../packages/contracts/src/ctx.ts";
@@ -428,6 +429,10 @@ export function createInvoke(deps: InvokeDeps): Invoke {
         await deps.audit?.(audit("deny", guarded.reason));
         throw fail("permission.no_grant", traceId, { message: "This folder is the source of a connector. Changing it takes edit access to that connector as well.", details: { cap: c.name, reason: guarded.reason, connector: guarded.key } });
       }
+      // what an agent reads for a person inside a chat is noted, so its answer is checked against everyone who reads that chat before it is posted there (seams/answer-reads.ts, gap 6)
+      if (c.effects === "read" && depth === 0 && resource !== null && seed.principal.kind === "agent" && seed.actingFor?.startsWith("usr_") && seed.thread !== undefined) {
+        noteRead({ thread: seed.thread, agent: seed.principal.id, asker: seed.actingFor, resource: { type: resource.type, id: resource.id } });
+      }
     }
     // the capability's own Gate (spec 2.14): fail closed when a Gate is declared and nothing can park the call
     if (c.gate && c.gate.act !== "none" && !approved) {
@@ -555,6 +560,10 @@ export function createInvoke(deps: InvokeDeps): Invoke {
       authorize(action, resource): Decision {
         const d = deps.authorize({ principal: seed.principal.id, actingFor: seed.actingFor, action, resource, provider: seed.provider, now: now() });
         return { effect: d.effect, reason: d.reason, decisionId: d.decisionId };
+      },
+      // each person on their own grants, as no one's agent: what a chat's audience may open (lib/audience.ts). A check that cannot run says no.
+      mayAll(people, action, resource): boolean {
+        return people.every((p) => { try { return deps.authorize({ principal: p, action, resource, now: now() }).effect === "allow"; } catch { return false; } });
       },
       vault: svc.vault ?? { fill: unavailable("vault"), use: unavailable("vault") },
       http: svc.http ?? unavailable("http"),

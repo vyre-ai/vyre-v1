@@ -87,7 +87,15 @@ export interface EngineOptions {
   blockMs?: number;
   /** A running turn whose session says nothing for this long (and runs no tool) ends as failed with turn_timeout, so a hung provider never leaves a turn running. Default 10 minutes. */
   idleMs?: number;
+  /**
+   * The audience check at the answer-posting step: what of a finished answer goes into the chat. An answer built on something not everyone in the chat may open goes to the asker privately and
+   * the chat gets `body` instead. A check that throws shares nothing.
+   */
+  screenAnswer?: (q: { threadId: string; turnId: string; agentId: string; asker: string; reply: string }) => Promise<{ body: string; withheld: boolean }>;
 }
+
+/** What a chat gets when the answer could not be checked or sent privately: never the answer itself. */
+export const ANSWER_HELD = "I could not post my answer here: some of what I used may not be open to everyone in this chat, and I could not send it to you privately. Ask me in your own chat with me.";
 
 /** The events of `src`, but a rejection of `stop` ends the wait even when the source never answers. The source is closed without waiting: a hung one may never return. */
 async function* guarded<T>(src: AsyncIterable<T>, stop: Promise<never>): AsyncGenerator<T> {
@@ -215,10 +223,10 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
   }
 
   function ingest(st: ThreadState, m: IncomingMessage, interrupt: boolean): ReceiveResult {
-    return dispatch(st, store(st, m), interrupt, m.replyToPerson, m.job);
+    return dispatch(st, store(st, m), interrupt, m.replyToPerson, m.job, m.asker);
   }
 
-  function dispatch(st: ThreadState, msg: StoredMessage, interrupt: boolean, replyToPerson?: string, job?: string): ReceiveResult {
+  function dispatch(st: ThreadState, msg: StoredMessage, interrupt: boolean, replyToPerson?: string, job?: string, asker?: string): ReceiveResult {
     const r = route({ agents: st.thread.agents, kind: st.thread.kind }, { author: msg.author, mentions: msg.mentions, depth: msg.depth, replyToPerson, job: job !== undefined, text: msg.body }, opts.policy);
     let responders = r.responders;
     // a round where a person spoke to all the agents: each answers alone, and no answer sets off another agent (the lead posts no summary) unless it @mentions one or the person asks again
@@ -226,8 +234,11 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
     else if (askedAll.get(st.thread.id)?.has(msg.author.id) && r.reason !== "mention") { askedAll.get(st.thread.id)!.delete(msg.author.id); responders = []; }
     let routine = false;
     if (r.reason === "hop_limit") emit({ type: "turn.waiting", threadId: st.thread.id, reason: "hop_limit", messageId: msg.id });
-    // "Watches this channel": an agent may act unmentioned, but only when nobody is the lead, and the turn is logged as a routine.
-    if (responders.length === 0 && r.reason === "no_lead") {
+    // Whose act this message is: a person's own, a Job's person, or for an agent's message the person it speaks for. An agent's message with nobody behind it is the agent's alone.
+    const from = job ?? (msg.author.kind === "agent" && asker !== undefined && asker !== "" ? asker : msg.author.id);
+    const personless = msg.author.kind === "agent" && from === msg.author.id;
+    // "Watches this channel": an agent may act unmentioned, but only when nobody is the lead, and the turn is logged as a routine. Never on an agent's post that no person is behind: it would run as nobody.
+    if (responders.length === 0 && r.reason === "no_lead" && !personless) {
       responders = st.thread.agents.filter((a) => a.watching === true && a.id !== msg.author.id).map((a) => a.id);
       routine = responders.length > 0;
     }
@@ -236,7 +247,7 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
     const outside = new Set(st.thread.agents.filter((a) => a.outside === true).map((a) => a.id));
     for (const agentId of responders) if (outside.has(agentId)) emit({ type: "agent.outside_asked", threadId: st.thread.id, messageId: msg.id, agentId, asker: msg.author.id, body: msg.body });
     responders = responders.filter((id) => !outside.has(id));
-    const qseqs = responders.map((agentId) => enqueue(st, { kind, agentId, from: job ?? msg.author.id, messageId: msg.id, priority: interrupt ? PRIORITY_INTERRUPT : 0, routine }).qseq);
+    const qseqs = responders.map((agentId) => enqueue(st, { kind, agentId, from, messageId: msg.id, priority: interrupt ? PRIORITY_INTERRUPT : 0, routine }).qseq);
     if (interrupt && st.running) void cancelRunning(st);
     if (qseqs.length > 0) kick(st);
     return { responders, reason: r.reason, qseqs, messageId: msg.id };
@@ -295,10 +306,12 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
     }
   }
 
-  function payerOf(st: ThreadState, item: QueueItem): { asker: string; reason: "starter" | "steerer" } {
-    // a person's message, or a Job's line: its row's `from` is the person the Job works for, not the agent that wrote it
+  function payerOf(st: ThreadState, item: QueueItem): { asker: string; reason: "starter" | "steerer"; personless?: true } {
+    // a person's message, a Job's line or an agent's message that speaks for someone: its row's `from` is that person, not the agent that wrote it
     const said = item.kind === "message" || item.kind === "interrupt" ? findMessage(st, item.messageId) : null;
     const personFrom = said?.author.kind === "person" || (said !== null && said !== undefined && item.from !== said.author.id);
+    // an agent's message with no person behind it never borrows the starter's access, account or Vault: the turn is refused (no_asker)
+    if (said && said.author.kind === "agent" && item.from === said.author.id) return { asker: st.thread.starter, reason: "starter", personless: true };
     if (personFrom && item.from !== st.thread.starter) return { asker: item.from, reason: "steerer" };
     return { asker: st.thread.starter, reason: "starter" };
   }
@@ -328,9 +341,14 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
     // The account that pays comes from engine.account.resolve when the host wires it; without it the engine keeps its own starter/steerer choice (unit tests).
     let resolveFailed = false;
     let resolveCode: string | undefined;
-    const refused = opts.admit ? await opts.admit({ threadId: st.thread.id, agentId: item.agentId, asker: wait?.asker ?? payer.asker }).catch(() => null) : null;
+    // a chain with no person behind it stops and asks: nothing is admitted, resolved or paid for, and the chat says a person has to ask
+    const orphan = !wait && payer.personless === true;
+    const refused = orphan
+      ? { code: "no_asker", message: "No person asked for this, so it did not run." }
+      : opts.admit ? await opts.admit({ threadId: st.thread.id, agentId: item.agentId, asker: wait?.asker ?? payer.asker }).catch(() => null) : null;
     const account = opts.resolveAccount && !refused ? await opts.resolveAccount({ threadId: st.thread.id, agentId: item.agentId, askerId: wait?.asker ?? payer.asker }).catch((e: unknown) => { resolveFailed = true; resolveCode = (e as { code?: unknown } | null)?.code as string | undefined; return null; }) : undefined;
-    const asker = wait?.asker ?? (account ? account.payer : payer.asker);
+    // a refused personless turn is recorded for nobody: not the starter, whose access it never had
+    const asker = orphan ? "" : wait?.asker ?? (account ? account.payer : payer.asker);
     const reason = wait ? ("starter" as const) : payer.reason;
     const turn: TurnRow = {
       id: nextId("t"), threadId: st.thread.id, agentId: item.agentId, asker, payerReason: reason, model: agent?.model ?? null, state: "running",
@@ -504,7 +522,17 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
     else emit({ type: "turn.failed", threadId: st.thread.id, turnId: turn.id, agentId: turn.agentId, code: turn.error?.code ?? "engine_error", ...(turn.error?.message ? { message: turn.error.message.slice(0, 300) } : {}) });
     // The agent's answer is a message like any other: it can @mention the next agent, which counts a hop.
     if (turn.state === "completed" && (reply !== "" || mentions.length > 0)) {
-      ingest(st, { threadId: st.thread.id, author: { kind: "agent", id: turn.agentId }, mentions, depth: trigger ? nextDepth(trigger) : 0, body: reply }, false);
+      // the answer is checked against everyone who reads the chat before it is stored and posted: the stored copy is what other agents read next, so it never holds what was withheld
+      let body = reply;
+      let said = mentions;
+      if (opts.screenAnswer && reply !== "") {
+        const s = await opts.screenAnswer({ threadId: st.thread.id, turnId: turn.id, agentId: turn.agentId, asker: turn.asker, reply }).catch(() => ({ body: ANSWER_HELD, withheld: true }));
+        body = s.body;
+        // a withheld answer is addressed to its asker, so no agent answers the line that replaces it
+        if (s.withheld) said = turn.asker.startsWith("usr_") ? [{ kind: "person", id: turn.asker }] : [];
+      }
+      // it speaks for the person this turn ran for, so an agent it @mentions runs for them too (the original asker of the chain), never for the chat's starter
+      ingest(st, { threadId: st.thread.id, author: { kind: "agent", id: turn.agentId }, mentions: said, depth: trigger ? nextDepth(trigger) : 0, body, ...(turn.asker !== "" ? { asker: turn.asker } : {}) }, false);
     }
   }
 

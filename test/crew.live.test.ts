@@ -27,7 +27,7 @@ test("a teammate started from a chat works in its own copy of the repository on 
   const model = scriptedModel(async function* (input) {
     // only the teammate edits; the lead has nothing to say in this test
     if (input.agent.id !== teammate) return;
-    const work = workFolder(dir, owner, input.threadId);
+    const work = workFolder(dir, owner, input.threadId, teammate);
     // the real opener awaits the folder before a session starts (prepareWorkFolder); this stand-in has no opener, so it waits for the copy start is making
     await waitFor(async () => (fs.existsSync(path.join(work, "README.md")) ? true : null), 20_000); 
     fs.writeFileSync(path.join(work, "dark-mode.txt"), "toggle: on\n");
@@ -64,7 +64,7 @@ test("a teammate started from a chat works in its own copy of the repository on 
     assert.deepEqual((await ok(d, "engine.crew.list", { threadId: chat })).jobs.map((j: { jobId: string; name?: string }) => [j.jobId, j.name]), [[job.jobId, "Ember"]]);
 
     // the teammate's turn ran in its own copy
-    const work = workFolder(dir, owner, job.threadId);
+    const work = workFolder(dir, owner, job.threadId, teammate);
     await waitFor(async () => (fs.existsSync(path.join(work, "dark-mode.txt")) ? true : null), 15_000, () => hostLog(d)).catch(async (e) => {
       const ms = (await ok(d, "chat.messages.list", { threadId: job.threadId })).messages as Array<{ author: { kind: string }; body: string; blocks: unknown[] }>;
       throw new Error(`${String(e).slice(0, 200)} THREAD ${JSON.stringify(ms.map((m) => [m.author.kind, m.body, JSON.stringify(m.blocks).slice(0, 200)]))} WORK ${fs.existsSync(work) ? fs.readdirSync(work) : "missing"}`);
@@ -78,7 +78,7 @@ test("a teammate started from a chat works in its own copy of the repository on 
     // a second job for the same teammate is a second branch
     const again = (await ok(d, "engine.crew.start", { threadId: chat, projectId: project, teammateId: teammate, title: "Footer", brief: "Add a footer.", idempotencyKey: "crew-start-2" })).job;
     assert.equal(again.branch, "crew/ember-2");
-    assert.notEqual(workFolder(dir, owner, again.threadId), work);
+    assert.notEqual(workFolder(dir, owner, again.threadId, teammate), work);
     // let its turn finish before the daemon stops
     await waitFor(async () => (((await ok(d, "chat.messages.list", { threadId: again.threadId })).messages as Array<{ author: { kind: string } }>).some((m) => m.author.kind === "agent") ? true : null), 20_000, () => hostLog(d));
   } finally { await stop(d); }
@@ -100,7 +100,7 @@ test("the lead starts a teammate with a tool, the teammate finishes and one resu
   let jobId = "";
   const model = scriptedModel(async function* (input, run) {
     if (input.agent.id === teammate) {
-      const work = workFolder(dir, owner, input.threadId);
+      const work = workFolder(dir, owner, input.threadId, teammate);
       await waitFor(async () => (fs.existsSync(path.join(work, "README.md")) ? true : null), 20_000);
       fs.writeFileSync(path.join(work, "dark-mode.txt"), "toggle: on\n");   // left uncommitted on purpose: the finish commits it
       yield { type: "text", text: "Added the toggle; the test passes." };
@@ -221,7 +221,7 @@ test("a restart mid-work loses nothing: the job is still there, the teammate's c
   // the first daemon's teammate starts its work and never finishes: the daemon is stopped under it
   const hang = scriptedModel(async function* (input) {
     if (input.agent.id !== teammate) return;
-    const work = workFolder(dirData, owner, input.threadId);
+    const work = workFolder(dirData, owner, input.threadId, teammate);
     await waitFor(async () => (fs.existsSync(path.join(work, "README.md")) ? true : null), 20_000);
     fs.writeFileSync(path.join(work, "half-done.txt"), "started\n");
     running = true;
@@ -245,7 +245,7 @@ test("a restart mid-work loses nothing: the job is still there, the teammate's c
   // the same data directory, a new daemon, a teammate that can finish
   const model = scriptedModel(async function* (input) {
     if (input.agent.id !== teammate) return;
-    const work = workFolder(dirData, owner, input.threadId);
+    const work = workFolder(dirData, owner, input.threadId, teammate);
     assert.equal(fs.readFileSync(path.join(work, "half-done.txt"), "utf8"), "started\n", "the copy is as the first daemon left it");
     fs.writeFileSync(path.join(work, "dark-mode.txt"), "toggle: on\n");
     yield { type: "text", text: "Finished after the restart." };

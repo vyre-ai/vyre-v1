@@ -55,7 +55,7 @@ export function createCrewWatcher(o: { db: Db; host: EngineHostSeam; now: () => 
     let summary: CrewSummary | undefined;
     const dataDir = o.host.dataDir;
     if (dataDir && state === "done") {
-      const dir = workFolder(dataDir, asker, thread);
+      const dir = workFolder(dataDir, asker, thread, str(job["agent_id"]));
       try { await commitLeftovers(dir, `Work in progress by ${str(job["agent_id"])}`); summary = await summarize(dir, str(job["base_branch"])); } catch (e) { warn("the teammate's branch could not be summarised", { jobId: str(job["job_id"]), error: e instanceof Error ? e.message : String(e) }); }
     }
     let text = "";

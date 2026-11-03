@@ -85,3 +85,28 @@ test("with no summary the whole history stays", async () => {
   await drain(s, input(3, { history }));
   assert.equal(seen[0]!.history.length, 30);
 });
+
+test("an API engine keeps its own tool results for the person it worked for: the next turn for them gets them privately, a turn for someone else does not", async () => {
+  // a tool result is the asker's private turn detail (agent-visibility gap 2): no longer in the shared transcript, so the agent's memory of its own work is a private per-asker section
+  const seen: TurnInput[] = [];
+  const open: OpenSession = async () => ({
+    warm: true,
+    async *send(i: TurnInput) { seen.push(i); if (i.turnId === "trn_10") { yield { type: "tool_call", id: "call_9", name: "files_read", input: { fileId: "fil_1" } }; } yield { type: "text", text: "ok" }; yield { type: "done" }; },
+    sendToolResult() {}, inject() {}, async cancel() {}, async close() {},
+  }) as EngineSession;
+  const wrapped = withTranscript(open, async () => ({}));
+  const api = { account: { ref: "#K", driver: "anthropic", provider: "anthropic", kind: "api_key", payer: "usr_maya", reason: "starter" } } as never;
+  const ctxOf = (i: TurnInput) => ({ ...i, context: { sections: [], names: {} } });
+  const first = await wrapped(api);
+  for await (const e of first.send(ctxOf(input(10)))) if (e.type === "tool_call") first.sendToolResult(e.id, { ok: true, content: "The Rivera retainer is 4,500 a month" });
+  const results = (i: TurnInput) => i.context?.sections.find((s) => s.id === "results")?.text ?? "";
+  // Maya asks again: her earlier result is there, for her
+  await drain(await wrapped(api), ctxOf(input(11)));
+  assert.match(results(seen.at(-1)!), /Rivera retainer is 4,500/);
+  // Sam asks the same agent in the same chat: nothing of Maya's
+  await drain(await wrapped(api), ctxOf(input(12, { asker: "usr_sam" })));
+  assert.equal(results(seen.at(-1)!), "");
+  // a CLI engine keeps its own session, so it is not given the section
+  await drain(await wrapped({ account: { ref: "#C", driver: "claude_code", provider: "anthropic", kind: "subscription", payer: "usr_maya", reason: "starter" } } as never), ctxOf(input(13)));
+  assert.equal(results(seen.at(-1)!), "");
+});

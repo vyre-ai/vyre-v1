@@ -425,3 +425,21 @@ test("words after a tool call start a new paragraph instead of running into the 
   const body = s.chat.filter((r) => r.author.kind === "agent").map((r) => r.body).join("");
   assert.match(body, /I'll use Edit\.\n\nThe footer is added\./);
 });
+
+test("a turn that read something streams its text to the asker only, and shows no text to a reader who opens the chat mid-turn (gap 6)", async () => {
+  const { noteRead, clearReads } = await import("../../../host/src/seams/answer-reads.ts");
+  const seen: StreamEvent[] = [];
+  let mid: Array<{ text: string }> = [];
+  let b: Bridge | null = null;
+  const s = setup({
+    stream: (e) => { seen.push(e); if (e.kind === "delta" && b) mid = b.liveTurns(T); },
+    script: (i) => { noteRead({ thread: i.threadId, agent: i.agent.id, asker: i.asker, resource: { type: "record", id: "rec_1" } }); return [{ type: "text", text: "The deal is at 310k." }, { type: "done" }]; },
+  });
+  b = s.bridge;
+  await s.say("where is the deal?");
+  const deltas = seen.filter((e) => e.kind === "delta") as Array<Extract<StreamEvent, { kind: "delta" }>>;
+  assert.ok(deltas.length > 0);
+  assert.ok(deltas.every((e) => e.privately === true && e.asker === "usr_dana"), JSON.stringify(deltas));
+  assert.deepEqual(mid.map((t) => t.text), [""], "liveTurns shows the turn, not its words");
+  clearReads(T, LEAD, "usr_dana");
+});

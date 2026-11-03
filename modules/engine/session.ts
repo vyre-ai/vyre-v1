@@ -119,7 +119,7 @@ export function roleBlocks(call: OpenerHost["call"]): (spec: SessionSpec, input?
 
 /**
  * The memory guide of this agent as the person asking may read it (agent layer only), in the CLI's work folder as CLAUDE.md and AGENTS.md. A CLI engine reads one of them from its folder,
- * so it knows it has memory and which tools reach it before its first tool call. The work folder is per person and thread, so nothing here reaches another person.
+ * so it knows it has memory and which tools reach it before its first tool call. The work folder is per person, thread and agent, so nothing here reaches another person or another agent's folder.
  */
 export async function writeMemoryGuide(call: OpenerHost["call"], dir: string, spec: { agent: { id: string }; asker: string }, keepExisting = false, keep = ""): Promise<void> {
   let name: string = spec.agent.id;
@@ -144,9 +144,9 @@ export function compactInstructions(keep: string): string {
  * The guide never overwrites a file the repository already tracks: the copy would show as changed.
  */
 export async function prepareWorkFolder(call: OpenerHost["call"], dataDir: string, spec: { agent: { id: string }; asker: string; threadId: string }, keep = ""): Promise<void> {
-  const dir = workFolder(dataDir, spec.asker, spec.threadId);
+  const dir = workFolder(dataDir, spec.asker, spec.threadId, spec.agent.id);
   const crew = await crewWorkspaceOf(call, spec);
-  if (crew) await ensureWorkspace(dataDir, spec.asker, spec.threadId, crew);
+  if (crew) await ensureWorkspace(dataDir, spec.asker, spec.threadId, spec.agent.id, crew);
   await writeMemoryGuide(call, dir, spec, crew !== null, keep);
 }
 
@@ -269,10 +269,10 @@ export function buildOpener(h: OpenerHost): SessionOpener {
     },
     // Behind the wall the engine cannot reach the daemon's loopback: its MCP config starts a stdio shim that talks to a unix socket in the person's scratch folder (ruling 61).
     ...(dataDir ? { mcpBridge: (m: { url: string; token: string }, spec: { asker: string }) => openMcpBridge(m, { scratch: scratchFolder(dataDir, spec.asker) }) } : {}),
-    ...(dataDir && h.pluginsNative !== false ? { nativePlugins: (spec: SessionSpec, driver: "claude_code" | "codex") => nativePlugins({ call: h.call }, driver, spec.agent.id, spec.asker, workFolder(dataDir, spec.asker, spec.threadId)) } : {}),
+    ...(dataDir && h.pluginsNative !== false ? { nativePlugins: (spec: SessionSpec, driver: "claude_code" | "codex") => nativePlugins({ call: h.call }, driver, spec.agent.id, spec.asker, workFolder(dataDir, spec.asker, spec.threadId, spec.agent.id)) } : {}),
     ...(dataDir ? {
       cli: {
-        workFolder: (spec: SessionSpec) => workFolder(dataDir, spec.asker, spec.threadId),
+        workFolder: (spec: SessionSpec) => workFolder(dataDir, spec.asker, spec.threadId, spec.agent.id),
         ...(h.sessions ? {
           resume: (spec: SessionSpec) => (spec.account ? sessions.resume(keyOf(spec)) : null),
           checkpoint: (spec: SessionSpec, id: string | null) => { if (spec.account) sessions.checkpoint(keyOf(spec), id); },
