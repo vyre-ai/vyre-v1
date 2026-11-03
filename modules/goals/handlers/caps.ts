@@ -1,6 +1,6 @@
 // The goals capabilities. Who may do what is decided here (a goal is not a kernel resource yet): see projections.ts canSee, mustControl, isOwnerPress, isLead.
 import {
-  ENDED, LIVE, activity, addTask, allGoals, clean, dispatch, emit, ensure, getGoal, goalOfTask, goalOut, isAdmin, isHelper, isLead, isOwner, isOwnerPress, isSystem, lineOut, log,
+  ENDED, LIVE, activity, addTask, allGoals, clean, dispatch, emit, ensure, getGoal, goalOfTask, goalOut, isAdmin, isHelper, isLead, isOwner, isOwnerPress, isSystem, lineOut, note,
   money, mustControl, newGoalId, nextCheckin, openWake, progressOf, queueWake, raise, reached, readings, reasonWords, saveGoal, setStatus, visible, wakeById, when,
 } from "../projections.ts";
 import type { Finish, Goal, GoalsCtx, Permission, Retro, Who } from "../projections.ts";
@@ -71,11 +71,12 @@ export async function create(ctx: GoalsCtx, input: In) {
   link(ctx, g);
   await ensureThread(ctx, g);
   emit(ctx, g, "goal.created", { title: g.title, owner: g.owner, leadAgentId: g.leadAgentId, status: g.status });
-  log(ctx, g.id, "created", `Made by ${ctx.principal.kind === "agent" ? "an agent for the owner" : "the owner"}. Finish line: ${g.finish.line}.`);
+  note(ctx, g.id, "created", `Made by ${ctx.principal.kind === "agent" ? "an agent for the owner" : "the owner"}. Finish line: ${g.finish.line}.`);
   const found = overlaps(ctx, g);
-  for (const o of found) log(ctx, g.id, "overlap", `Shares a record with the goal "${o.title}": work on it goes through tasks, one at a time.`, o.goalId);
+  for (const o of found) note(ctx, g.id, "overlap", `Shares a record with the goal "${o.title}": work on it goes through tasks, one at a time.`, o.goalId);
   // the owner (in the app, or an outside agent under their setup grant) starts it at once; an agent's draft waits for the owner's press on its card
   const plan = (input.plan ?? []) as PlanChild[];
+  if (isOwnerPress(ctx, g)) g.permissions = g.permissions.map((p) => ({ ...p, granted: true }));
   if (isOwner(ctx, g) && input.start !== false) await startGoal(ctx, g, { press: isOwnerPress(ctx, g), plan });
   else {
     g.permissions = g.permissions.map((p) => ({ ...p, granted: false }));
@@ -110,19 +111,13 @@ export async function confirm(ctx: GoalsCtx, input: In) {
 
 export async function get(ctx: GoalsCtx, input: In) {
   const g = visible(ctx, input.goalId);
-  const tasks = planTasks(ctx, g.id);
-  // the plan as it stands: states come from the tasks themselves (one read for the whole plan)
-  if (g.rootTaskId && ctx.call) {
-    const idx = await tryCall<{ rows?: Array<{ id: string; key?: string; title: string; state: string; assigned?: Who; blocked: boolean }> }>(ctx, "tasks.index", { scope: "everyone", parentTaskId: g.rootTaskId });
-    if (idx?.rows) {
-      for (const r of idx.rows) if (!goalOfTask(ctx.db, r.id)) addTask(ctx.db, g.id, r.id, "plan");
-      return {
-        ...out(ctx, g), tasks: idx.rows.map((r) => clean({ taskId: r.id, key: r.key, title: r.title, state: r.state, assigned: r.assigned, blocked: r.blocked })),
-        waiting: waits(ctx, g.id), activity: activity(ctx.db, g.id, 30), readings: readings(ctx.db, g.id),
-      };
-    }
+  // the plan as it stands: the goal keeps its tasks' states from their events; each is read again here for its holder and whether it is blocked
+  const tasks: Array<Record<string, unknown>> = [];
+  for (const t of planTasks(ctx, g.id).slice(0, 60)) {
+    const got = (await tryCall<{ task?: { id: string; key?: string; title: string; state: string; assigned?: Who; blocked?: boolean } }>(ctx, "tasks.get", { taskId: t.taskId }))?.task;
+    tasks.push(clean({ taskId: t.taskId, key: got?.key ?? t.key, title: got?.title ?? t.title, state: got?.state ?? t.state, assigned: got?.assigned, blocked: got?.blocked === true }));
   }
-  return { ...out(ctx, g), tasks: tasks.map((t) => clean({ taskId: t.taskId, key: t.key, title: t.title, state: t.state, blocked: false })), waiting: waits(ctx, g.id), activity: activity(ctx.db, g.id, 30), readings: readings(ctx.db, g.id) };
+  return { ...out(ctx, g), tasks, waiting: waits(ctx, g.id), activity: activity(ctx.db, g.id, 30), readings: readings(ctx.db, g.id) };
 }
 
 export async function list(ctx: GoalsCtx, input: In) {
@@ -174,13 +169,13 @@ export async function update(ctx: GoalsCtx, input: In) {
   if (input.title && g.rootTaskId) await tryCall(ctx, "tasks.update", { taskId: g.rootTaskId, title: g.title });
   if (input.helpers) { await seat(ctx, g); await shareFolder(ctx, g); }
   emit(ctx, g, "goal.updated", { fields, by: ctx.principal.id });
-  log(ctx, g.id, "edit", `Changed ${fields.join(", ")}.`);
+  note(ctx, g.id, "edit", `Changed ${fields.join(", ")}.`);
   if (input.finish && LIVE.has(g.status)) { delete g.startValue; await readNow(ctx, g, "edit"); }
   if (input.permissions) await syncGrants(ctx, g, { press: pressGrants });
   // a raised budget lets a goal the budget paused go on
   if (input.budget && g.status === "paused" && g.statusReason?.startsWith("The budget is used") && !overBudget(g)) {
     await resumeGoal(ctx, g, "budget_raised");
-    log(ctx, g.id, "budget", `Budget raised from ${money(budgetBefore.spendMicros ?? 0)} to ${money(g.budget.spendMicros ?? 0)}.`);
+    note(ctx, g.id, "budget", `Budget raised from ${money(budgetBefore.spendMicros ?? 0)} to ${money(g.budget.spendMicros ?? 0)}.`);
   }
   saveGoal(ctx, g);
   return out(ctx, g);
@@ -240,7 +235,7 @@ export async function extend(ctx: GoalsCtx, input: In) {
   if (g.status === "done" || g.status === "stopped" || g.status === "draft") raise(ctx, "validation.precondition_failed", `A ${g.status} goal cannot be extended.`, { reason: "not_extendable" });
   g.deadline = input.deadline;
   emit(ctx, g, "goal.extended", { deadline: g.deadline, by: ctx.principal.id });
-  log(ctx, g.id, "extended", `Deadline moved to ${when(g.deadline, g.zone)}.`);
+  note(ctx, g.id, "extended", `Deadline moved to ${when(g.deadline, g.zone)}.`);
   if (g.status === "missed") {
     delete g.ended; delete g.endedAt;
     g.flatCheckins = 0;
@@ -274,7 +269,7 @@ export async function checklistTick(ctx: GoalsCtx, input: In) {
   const item = (g.finish.items ?? []).find((i) => i.id === input.itemId);
   if (g.finish.kind !== "checklist" || !item) raise(ctx, "validation.not_found", "That condition does not exist.");
   item.done = input.done === true;
-  log(ctx, g.id, "checklist", `${item.done ? "Done" : "Not done"}: ${item.text}`);
+  note(ctx, g.id, "checklist", `${item.done ? "Done" : "Not done"}: ${item.text}`);
   emit(ctx, g, "goal.progress", { ok: true, value: (g.finish.items ?? []).filter((i) => i.done).length, target: (g.finish.items ?? []).length });
   if (LIVE.has(g.status) && reached(g)) await endGoal(ctx, g, "done");
   dispatch(ctx, g);
@@ -303,9 +298,10 @@ export async function report(ctx: GoalsCtx, input: In) {
     kind: "update", summary: input.summary, done: input.done, next: input.next, value: g.finish.kind === "number" ? g.value : undefined, prev, target: g.finish.target, unit: g.finish.unit,
     needs: waits(ctx, g.id).map((w) => w.title),
   }));
-  if (wake && (wake.state === "sent" || wake.state === "claimed")) ctx.db.run("UPDATE goals_wake SET state = 'reported', reported_at = ? WHERE id = ?", ctx.now(), wake.id);
+  // a check-in answers every wake-up that is out: a wake that arrived while the lead was already working is covered by the turn that was running
+  ctx.db.run("UPDATE goals_wake SET state = 'reported', reported_at = ? WHERE goal_id = ? AND state IN ('sent', 'claimed')", ctx.now(), g.id);
   emit(ctx, g, "goal.reported", { wakeId: wake?.id, by: ctx.principal.id }, key);
-  log(ctx, g.id, "report", input.summary, messageId);
+  note(ctx, g.id, "report", input.summary, messageId);
   dispatch(ctx, g);
   saveGoal(ctx, g);
   return clean({ posted: messageId !== undefined, messageId, value: g.value });
@@ -356,7 +352,7 @@ export async function complete(ctx: GoalsCtx, input: In) {
     return { saved: false, askedOwner: true, taskId: r.taskId };
   }
   g.retro = retro;
-  log(ctx, g.id, "retro", `Retrospective: ${retro.summary}`);
+  note(ctx, g.id, "retro", `Retrospective: ${retro.summary}`);
   const text = [`# Retrospective: ${g.title}`, "", `${g.ended === "done" ? "Done" : g.ended === "missed" ? "Missed" : "Stopped"}. ${g.summary ?? ""}`, "", retro.summary, "",
     "## What worked", ...retro.worked.map((w) => `- ${w}`), "", "## What did not", ...retro.didNot.map((w) => `- ${w}`), ...(retro.playbook ? ["", "## Playbook", retro.playbook] : [])].join("\n");
   const reports = await ensureFolder(ctx, g, "Reports");
@@ -414,13 +410,13 @@ export async function step(ctx: GoalsCtx, input: In) {
     ctx.db.run("INSERT INTO goals_step (goal_id, step_id, title, state, result, by, at, done_at) VALUES (?, ?, ?, 'done', ?, ?, ?, ?) ON CONFLICT (goal_id, step_id) DO UPDATE SET state = 'done', result = excluded.result, done_at = excluded.done_at",
       g.id, stepId, input.title ?? null, input.result ?? null, ctx.principal.id, ctx.now(), ctx.now());
     emit(ctx, g, "goal.step_done", { stepId, by: ctx.principal.id }, `step:${g.id}:${stepId}`);
-    log(ctx, g.id, "step", `Done: ${input.title ?? stepId}${input.result ? `. ${String(input.result).slice(0, 200)}` : ""}`, stepId);
+    note(ctx, g.id, "step", `Done: ${input.title ?? stepId}${input.result ? `. ${String(input.result).slice(0, 200)}` : ""}`, stepId);
     saveGoal(ctx, g);
     return clean({ state: "done" as const, result: input.result, idempotencyKey });
   }
   if (!row) {
     ctx.db.run("INSERT INTO goals_step (goal_id, step_id, title, state, by, at) VALUES (?, ?, ?, 'started', ?, ?)", g.id, stepId, input.title ?? null, ctx.principal.id, ctx.now());
-    log(ctx, g.id, "step", `Started: ${input.title ?? stepId}`, stepId);
+    note(ctx, g.id, "step", `Started: ${input.title ?? stepId}`, stepId);
     saveGoal(ctx, g);
   }
   return { state: "started" as const, idempotencyKey };

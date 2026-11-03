@@ -1,5 +1,5 @@
 // What the goals module reads from the event log: its tasks moving, turns in its chats (budget), turns parked on a person (waiting), mentions (folder access). Each is safe to read twice.
-import { ENDED, LIVE, addTask, addThread, allGoals, dispatch, ensure, getGoal, goalOfTask, goalOfThread, log, queueWake, rootOf, saveGoal, setStatus, threadsOf } from "../projections.ts";
+import { ENDED, LIVE, addTask, addThread, allGoals, dispatch, ensure, getGoal, goalOfTask, goalOfThread, note, queueWake, rootOf, saveGoal, setStatus, threadsOf } from "../projections.ts";
 import type { Goal, GoalsCtx, Who } from "../projections.ts";
 import { addWait, dropWait, setTaskState, spend, syncGrants, tick, tickFromTask, tryCall, unstick } from "./life.ts";
 
@@ -40,7 +40,7 @@ export async function onTask(ctx: GoalsCtx, ev: Ev): Promise<string[]> {
     const g = getGoal(ctx.db, goalId);
     if (!g || ENDED.has(g.status)) return [];
     if (REQUESTS.has(t.kind)) { addTask(ctx.db, g.id, t.id, "ask"); addWait(ctx, g, { id: t.id, kind: t.kind, title: t.title, ...(t.assigned ? { assigned: t.assigned } : {}) }); }
-    else if (viaRoot && t.kind === "work") { addTask(ctx.db, g.id, t.id, "plan"); setTaskState(ctx, t.id, t.state, t.title, t.key); log(ctx, g.id, "plan", `Planned ${t.key ? `${t.key} ` : ""}${t.title}`, t.id); if (g.status === "planning") setStatus(ctx, g, "active"); }
+    else if (viaRoot && t.kind === "work") { addTask(ctx.db, g.id, t.id, "plan"); setTaskState(ctx, t.id, t.state, t.title, t.key); note(ctx, g.id, "plan", `Planned ${t.key ? `${t.key} ` : ""}${t.title}`, t.id); if (g.status === "planning") setStatus(ctx, g, "active"); }
     else return [];
     known = goalOfTask(ctx.db, t.id);
     finishGoal(ctx, g);
@@ -61,7 +61,7 @@ export async function onTask(ctx: GoalsCtx, ev: Ev): Promise<string[]> {
     setTaskState(ctx, taskId, to);
     if (to === "done" && ev.name !== "task.transitioned") {
       const t = await read();
-      log(ctx, g.id, "task", `Done: ${t?.key ? `${t.key} ` : ""}${t?.title ?? taskId}`, taskId);
+      note(ctx, g.id, "task", `Done: ${t?.key ? `${t.key} ` : ""}${t?.title ?? taskId}`, taskId);
       await tickFromTask(ctx, g, taskId);
       if (LIVE.has(g.status)) queueWake(ctx, g, "task_done", `Done: ${t?.title ?? taskId}`, `task:${taskId}:done`);
     }
@@ -108,7 +108,7 @@ export async function onMention(ctx: GoalsCtx, ev: Ev): Promise<string[]> {
   const g = goalId ? getGoal(ctx.db, goalId) : undefined;
   if (!g?.folderId || !personId.startsWith("usr_") || personId === g.owner || g.helpers.some((h) => h.id === personId)) return [];
   await tryCall(ctx, "access.share", { resource: { type: "folder", id: g.folderId }, subject: { kind: "person", id: personId }, level: "view", source: `goal:${g.id}:mention`, idempotencyKey: `goal-mention:${g.id}:${personId}` });
-  log(ctx, g.id, "access", `${personId} was mentioned in the goal chat and can read its folder.`, personId);
+  note(ctx, g.id, "access", `${personId} was mentioned in the goal chat and can read its folder.`, personId);
   saveGoal(ctx, g);
   return [g.id];
 }
@@ -118,7 +118,7 @@ export async function sweep(ctx: GoalsCtx): Promise<string[]> {
   ensure(ctx.db);
   const ids = allGoals(ctx.db, "status IN ('planning', 'active', 'waiting', 'stuck', 'paused') OR id IN (SELECT goal_id FROM goals_wake WHERE state = 'pending')").map((g) => g.id);
   for (const id of ids) {
-    try { await tick(ctx, id); } catch (e) { log(ctx, id, "error", `The goal's clock failed once: ${e instanceof Error ? e.message.slice(0, 200) : String(e)}`); }
+    try { await tick(ctx, id); } catch (e) { note(ctx, id, "error", `The goal's clock failed once: ${e instanceof Error ? e.message.slice(0, 200) : String(e)}`); }
   }
   return ids;
 }

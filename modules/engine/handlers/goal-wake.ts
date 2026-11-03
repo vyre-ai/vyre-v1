@@ -34,7 +34,7 @@ export async function onGoalEvent(ctx: Pick<EngineCtx, "db">, host: BatonHost, e
   let busy = false;
   try { busy = engine.turns(threadId).some((t) => (t.state === "running" || t.state === "waiting") && t.agentId === agentId); } catch { /* not open on this host yet */ }
   if (busy) return [];
-  if (!(await openThread(ctx.db as never, host, engine, threadId, agentId, owner))) return [];
+  if (!(await openThread(ctx.db as never, host, engine, threadId, agentId, owner, owner))) return [];
   engine.wake(threadId, agentId);
   return [agentId];
 }

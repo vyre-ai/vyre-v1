@@ -76,6 +76,8 @@ const taskLine = t.obj({ taskId: id.task, key: t.opt(t.str()), title: t.str(), s
 const waitLine = t.obj({ taskId: id.task, kind: t.str(), title: t.str(), assigned: t.opt(who), since: t.ts() });
 const activity = t.obj({ at: t.ts(), kind: t.str({ examples: ['reading'] }), text: t.str(), by: t.opt(t.str()), ref: t.opt(t.str()) });
 const wakeReason = t.str({ examples: ['checkin'] });
+// every change to a goal can move its status, read its source, send a wake-up or end it, so every write declares the goal's events
+const EMITS = ['goal.created', 'goal.started', 'goal.updated', 'goal.status_changed', 'goal.progress', 'goal.woken', 'goal.resumed', 'goal.reported', 'goal.step_done', 'goal.budget_warned', 'goal.ended', 'goal.extended'];
 const target = { goalId };
 const thr = { threadId: id.thread };
 
@@ -108,12 +110,12 @@ export default defineManifest({
         sourceThreadId: t.opt(id.thread), start: t.opt(t.bool()),
       },
       out: { goal: goalRow, overlaps: t.arr(t.obj({ goalId, title: t.str(), recordId: id.record })) }, level: 'member',
-      emits: ['goal.created', 'goal.started', 'goal.status_changed', 'goal.progress'], tool: 'tasks', mcpName: 'goals_create', cli: 'vyre goals create',
+      emits: EMITS, tool: 'tasks', mcpName: 'goals_create', cli: 'vyre goals create',
       errors: ['validation.precondition_failed', 'validation.not_found'],
     }),
     write('goals.confirm', 'Start a drafted goal: the owner presses Start on its card. The standing permissions it names hold from this press', {
       in: { ...target, permissions: t.opt(t.arr(t.str(), { description: 'The labels of the permissions to grant; all when omitted' })) }, out: { goal: goalRow }, level: 'member',
-      emits: ['goal.started', 'goal.status_changed', 'goal.progress'], tool: 'tasks', errors: ['validation.precondition_failed', 'validation.not_found'],
+      emits: EMITS, tool: 'tasks', errors: ['validation.precondition_failed', 'validation.not_found'],
     }),
     read('goals.get', 'One goal: its finish line and progress, the plan as tasks, who is helping, what waits on whom, budget used and the latest activity', {
       in: target, out: { goal: goalRow, tasks: t.arr(taskLine), waiting: t.arr(waitLine), activity: t.arr(activity), readings: t.arr(reading) }, level: 'member', tool: 'tasks', mcpName: 'goals_get', label: 'check',
@@ -132,40 +134,40 @@ export default defineManifest({
         quiet: t.opt(t.nullable(quiet)), zone: t.opt(t.str()), helpers: t.opt(t.arr(who, { maxItems: 20 })), projectId: t.opt(t.nullable(id.project)), recordIds: t.opt(t.arr(id.record, { maxItems: 50 })),
         permissions: t.opt(t.arr(permission, { maxItems: 10 })), stuckAfter: t.opt(t.int({ minimum: 1, maximum: 20 })),
       },
-      out: { goal: goalRow }, level: 'member', emits: ['goal.updated', 'goal.status_changed', 'goal.resumed', 'goal.progress'], tool: 'tasks', errors: ['validation.precondition_failed', 'validation.not_found'],
+      out: { goal: goalRow }, level: 'member', emits: EMITS, tool: 'tasks', errors: ['validation.precondition_failed', 'validation.not_found'],
     }),
     write('goals.pause', 'Pause a goal: no wake-ups and none of its tasks wake their agents until it is resumed', {
-      in: { ...target, reason: t.opt(t.str()) }, out: { goal: goalRow }, level: 'member', emits: ['goal.status_changed'], tool: 'tasks', errors: ['validation.precondition_failed', 'validation.not_found'],
+      in: { ...target, reason: t.opt(t.str()) }, out: { goal: goalRow }, level: 'member', emits: EMITS, tool: 'tasks', errors: ['validation.precondition_failed', 'validation.not_found'],
     }),
-    write('goals.resume', 'Resume a paused goal', { in: target, out: { goal: goalRow }, level: 'member', emits: ['goal.status_changed', 'goal.resumed'], tool: 'tasks', errors: ['validation.precondition_failed', 'validation.not_found'] }),
+    write('goals.resume', 'Resume a paused goal', { in: target, out: { goal: goalRow }, level: 'member', emits: EMITS, tool: 'tasks', errors: ['validation.precondition_failed', 'validation.not_found'] }),
     write('goals.stop', 'Stop a goal for good: its open tasks are withdrawn and its permissions end', {
-      in: { ...target, reason: t.opt(t.str()) }, out: { goal: goalRow }, level: 'member', emits: ['goal.status_changed', 'goal.ended'], tool: 'tasks', errors: ['validation.precondition_failed', 'validation.not_found'],
+      in: { ...target, reason: t.opt(t.str()) }, out: { goal: goalRow }, level: 'member', emits: EMITS, tool: 'tasks', errors: ['validation.precondition_failed', 'validation.not_found'],
     }),
     write('goals.finish', 'The owner says a goal is done (the finish line of an owner-says-done goal, or done early)', {
-      in: { ...target, note: t.opt(t.str()) }, out: { goal: goalRow }, level: 'member', emits: ['goal.status_changed', 'goal.ended'], tool: 'tasks', errors: ['validation.precondition_failed', 'validation.not_found'],
+      in: { ...target, note: t.opt(t.str()) }, out: { goal: goalRow }, level: 'member', emits: EMITS, tool: 'tasks', errors: ['validation.precondition_failed', 'validation.not_found'],
     }),
     write('goals.extend', 'Move the deadline of a goal; a missed goal starts again', {
-      in: { ...target, deadline: t.ts() }, out: { goal: goalRow }, level: 'member', emits: ['goal.extended', 'goal.status_changed', 'goal.resumed'], tool: 'tasks', errors: ['validation.precondition_failed', 'validation.not_found'],
+      in: { ...target, deadline: t.ts() }, out: { goal: goalRow }, level: 'member', emits: EMITS, tool: 'tasks', errors: ['validation.precondition_failed', 'validation.not_found'],
     }),
-    read('goals.progress', 'Where a goal stands: the number from its source, read now when asked, and its history', {
-      in: { ...target, refresh: t.opt(t.bool()) }, out: { progress, readings: t.arr(reading) }, level: 'member', tool: 'tasks', mcpName: 'goals_progress_read', label: 'check', errors: ['validation.not_found'],
+    write('goals.progress', 'Where a goal stands: the number from its source, read now when asked, and its history', {
+      in: { ...target, refresh: t.opt(t.bool()) }, out: { progress, readings: t.arr(reading) }, level: 'member', tool: 'tasks', mcpName: 'goals_progress_read', emits: EMITS, errors: ['validation.not_found'],
     }),
     write('goals.number.set', 'The owner updates the number of a goal whose source is a number they keep', {
-      in: { ...target, value: t.num() }, out: { goal: goalRow }, level: 'member', emits: ['goal.progress', 'goal.status_changed', 'goal.ended'], errors: ['validation.precondition_failed', 'validation.not_found'],
+      in: { ...target, value: t.num() }, out: { goal: goalRow }, level: 'member', emits: EMITS, errors: ['validation.precondition_failed', 'validation.not_found'],
     }),
     write('goals.checklist.tick', 'The owner ticks or unticks one condition of a checklist goal', {
-      in: { ...target, itemId: t.str(), done: t.bool() }, out: { goal: goalRow }, level: 'member', emits: ['goal.progress', 'goal.status_changed', 'goal.ended'], errors: ['validation.precondition_failed', 'validation.not_found'],
+      in: { ...target, itemId: t.str(), done: t.bool() }, out: { goal: goalRow }, level: 'member', emits: EMITS, errors: ['validation.precondition_failed', 'validation.not_found'],
     }),
     write('goals.plan', 'Add tasks to the plan of a goal: each with its brief, what done means, who does it (an agent, a person, a group) and what it waits on. They are tasks like any other and show "Part of" the goal', {
       in: { ...target, children: t.arr(planChild, { minItems: 1, maxItems: 50 }) },
-      out: { tasks: t.arr(t.obj({ key: t.str(), taskId: id.task, created: t.bool() })) }, level: 'member', emits: ['goal.status_changed'], tool: 'tasks', mcpName: 'goals_plan_update',
+      out: { tasks: t.arr(t.obj({ key: t.str(), taskId: id.task, created: t.bool() })) }, level: 'member', emits: EMITS, tool: 'tasks', mcpName: 'goals_plan_update',
       errors: ['validation.precondition_failed', 'validation.not_found'],
     }),
     write('goals.report', 'Post the check-in in the goal chat: the real number against the pace, what changed and why, what was done, the next best step. One per wake-up; short and specific', {
       in: {
         ...target, wakeId: t.opt(t.str()), summary: t.str({ minLength: 1, maxLength: 600 }), done: t.opt(t.arr(t.str(), { maxItems: 10 })), next: t.opt(t.arr(t.str(), { maxItems: 10 })),
       },
-      out: { posted: t.bool(), messageId: t.opt(id.message), value: t.opt(t.num()) }, level: 'member', emits: ['goal.reported'], tool: 'tasks', mcpName: 'goals_checkin_post',
+      out: { posted: t.bool(), messageId: t.opt(id.message), value: t.opt(t.num()) }, level: 'member', emits: EMITS, tool: 'tasks', mcpName: 'goals_checkin_post',
       errors: ['validation.precondition_failed', 'validation.not_found'],
     }),
     write('goals.ask', 'Ask the owner (or a named person) for a decision only they can make: one Waiting-on item, with the options. The same decision asked again returns the first ask; the answer wakes you', {
@@ -173,16 +175,16 @@ export default defineManifest({
         ...target, decision: t.str({ minLength: 1, maxLength: 80, description: 'A short id for the decision, so it is never asked twice', examples: ['lab7-reminder-audience'] }),
         question: t.str({ minLength: 1, maxLength: 600 }), options: t.opt(t.arr(t.str({ minLength: 1 }), { maxItems: 6 })), to: t.opt(id.user),
       },
-      out: { taskId: id.task, asked: t.bool(), answer: t.opt(t.str()) }, level: 'member', emits: ['goal.status_changed'], tool: 'tasks', mcpName: 'goals_ask',
+      out: { taskId: id.task, asked: t.bool(), answer: t.opt(t.str()) }, level: 'member', emits: EMITS, tool: 'tasks', mcpName: 'goals_ask',
       errors: ['validation.precondition_failed', 'validation.not_found'],
     }),
     write('goals.mark_stuck', 'Say plainly that the goal cannot move: the reason and two options for the owner. The owner hears once; the goal shows Stuck until the number moves or the owner picks', {
       in: { ...target, reason: t.str({ minLength: 1, maxLength: 400 }), options: t.arr(t.str({ minLength: 1, maxLength: 200 }), { minItems: 2, maxItems: 2 }) },
-      out: { goal: goalRow }, level: 'member', emits: ['goal.status_changed'], tool: 'tasks', mcpName: 'goals_mark_stuck', errors: ['validation.precondition_failed', 'validation.not_found'],
+      out: { goal: goalRow }, level: 'member', emits: EMITS, tool: 'tasks', mcpName: 'goals_mark_stuck', errors: ['validation.precondition_failed', 'validation.not_found'],
     }),
     write('goals.complete', 'When a goal ends (done or missed), write its retrospective: what worked, what did not, and a playbook worth repeating. It is saved to the goal, its project and Space memory. On an owner-says-done goal whose work is finished, it asks the owner to confirm instead', {
       in: { ...target, retro },
-      out: { saved: t.bool(), askedOwner: t.bool(), taskId: t.opt(id.task) }, level: 'member', emits: ['goal.reported'], tool: 'tasks', mcpName: 'goals_complete',
+      out: { saved: t.bool(), askedOwner: t.bool(), taskId: t.opt(id.task) }, level: 'member', emits: EMITS, tool: 'tasks', mcpName: 'goals_complete',
       errors: ['validation.precondition_failed', 'validation.not_found'],
     }),
     read('goals.search_past', 'Past goals in this Space with their outcome and retrospective, to learn what worked before planning', {
@@ -196,7 +198,7 @@ export default defineManifest({
     write('goals.step', 'Before a step with an effect (a send, a post, a record change), claim it by id; a step already done answers done with its result, so a retried wake-up never repeats it. Finish it with finish true', {
       in: { ...target, stepId: t.str({ minLength: 1, maxLength: 120, examples: ['reminder-email-lab7'] }), title: t.opt(t.str()), finish: t.opt(t.bool()), result: t.opt(t.str({ maxLength: 2000 })) },
       out: { state: t.enm('started', 'already_done', 'done'), result: t.opt(t.str()), idempotencyKey: t.str({ description: 'Pass this as the idempotencyKey of the act' }) }, level: 'member',
-      emits: ['goal.step_done'], tool: 'tasks', mcpName: 'goals_step', errors: ['validation.precondition_failed', 'validation.not_found'],
+      emits: EMITS, tool: 'tasks', mcpName: 'goals_step', errors: ['validation.precondition_failed', 'validation.not_found'],
     }),
     write('goals.folder', 'The Files folder of a goal, where its plan, drafts, research and reports go; asking for a subfolder makes it the first time it is needed', {
       in: { ...target, sub: t.opt(t.enm('Plan', 'Drafts', 'Research', 'Reports')) }, out: { folderId: id.folder, path: t.str() }, level: 'member', tool: 'tasks', mcpName: 'goals_folder',

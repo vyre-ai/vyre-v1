@@ -1,7 +1,7 @@
 // The life of a goal, shared by the capabilities, the consumers and the clock: its chat, root task, folder and grants; reading the source; check-ins; stuck; budget; the end.
 // Everything that touches another module goes through ctx.call and is best effort where the goal can carry on without it: the activity says what could not be done, and the clock tries again.
 import {
-  DAY, HOUR, LIVE, POLL_MS, addReading, addTask, addThread, afterQuiet, better, clean, dispatch, emit, ensure, getGoal, goalOfTask, inQuiet, label, log, money, nextCheckin, progressOf, queueWake,
+  DAY, HOUR, LIVE, POLL_MS, addReading, addTask, addThread, afterQuiet, better, clean, dispatch, emit, ensure, getGoal, goalOfTask, inQuiet, label, note, money, nextCheckin, progressOf, queueWake,
   reached, saveGoal, setStatus, signalOf, threadsOf, when,
 } from "../projections.ts";
 import type { Ended, Goal, GoalsCtx, Who } from "../projections.ts";
@@ -88,7 +88,7 @@ export async function ensureRoot(ctx: GoalsCtx, g: Goal): Promise<string | undef
     notes: { "goal.id": g.id, "goal.root": "1", "goal.title": g.title, "plan.parent": "1", "baton.owner": g.owner, brief: g.finish.line },
     idempotencyKey: `goal-root:${g.id}`,
   });
-  if (!r?.task?.id) { log(ctx, g.id, "error", "The plan's parent task could not be made yet; trying again at the next check."); return undefined; }
+  if (!r?.task?.id) { note(ctx, g.id, "error", "The plan's parent task could not be made yet; trying again at the next check."); return undefined; }
   g.rootTaskId = r.task.id;
   addTask(ctx.db, g.id, r.task.id, "root");
   return g.rootTaskId;
@@ -108,13 +108,13 @@ export async function ensureFolder(ctx: GoalsCtx, g: Goal, sub?: (typeof SUBS)[n
     let parent: string | undefined;
     if (g.projectId) parent = (await tryCall<{ project?: { folderId?: string } }>(ctx, "projects.get", { projectId: g.projectId }))?.project?.folderId;
     if (!parent) parent = (await tryCall<{ roots?: Array<{ key: string; folderId?: string }> }>(ctx, "files.tree", {}))?.roots?.find((r) => r.key === "personal")?.folderId;
-    if (!parent) { log(ctx, g.id, "error", "The goal's Files folder could not be made yet; trying again at the next check."); return undefined; }
+    if (!parent) { note(ctx, g.id, "error", "The goal's Files folder could not be made yet; trying again at the next check."); return undefined; }
     const goals = await childFolder(ctx, parent, "Goals", `goal-folder-root:${parent}`);
     if (!goals) return undefined;
     const id = await childFolder(ctx, goals, g.title.replace(/[/\\]/g, "-").slice(0, 120), `goal-folder:${g.id}`);
     if (!id) return undefined;
     g.folderId = id;
-    log(ctx, g.id, "folder", "Made the goal's folder in Files.", id);
+    note(ctx, g.id, "folder", "Made the goal's folder in Files.", id);
     await shareFolder(ctx, g);
   }
   if (!sub) return g.folderId;
@@ -153,7 +153,7 @@ export async function readNow(ctx: GoalsCtx, g: Goal, why: string): Promise<bool
   if (!r.ok) {
     const fresh = g.readError !== r.error;
     g.readError = r.error ?? "the source did not answer"; g.readFails += 1;
-    if (fresh) { emit(ctx, g, "goal.progress", { ok: false, error: r.error }); log(ctx, g.id, "reading", `Could not read ${sourceWords(g.finish.source)}: ${r.error}`); }
+    if (fresh) { emit(ctx, g, "goal.progress", { ok: false, error: r.error }); note(ctx, g.id, "reading", `Could not read ${sourceWords(g.finish.source)}: ${r.error}`); }
     return false;
   }
   delete g.readError; g.readFails = 0;
@@ -163,7 +163,7 @@ export async function readNow(ctx: GoalsCtx, g: Goal, why: string): Promise<bool
   const moved = prev !== r.value;
   if (moved) {
     emit(ctx, g, "goal.progress", clean({ ok: true, value: r.value, prev, target: g.finish.target }));
-    log(ctx, g.id, "reading", `${sourceWords(g.finish.source)}: ${r.value}${prev !== undefined ? ` (${(r.value ?? 0) - prev >= 0 ? "+" : ""}${(r.value ?? 0) - prev} since ${why === "checkin" ? "the last check-in" : "the last read"})` : ""}`);
+    note(ctx, g.id, "reading", `${sourceWords(g.finish.source)}: ${r.value}${prev !== undefined ? ` (${(r.value ?? 0) - prev >= 0 ? "+" : ""}${(r.value ?? 0) - prev} since ${why === "checkin" ? "the last check-in" : "the last read"})` : ""}`);
   }
   if (LIVE.has(g.status) && reached(g)) { await endGoal(ctx, g, "done"); return moved; }
   // the number moving again ends a stuck spell at once
@@ -176,7 +176,7 @@ export async function readNow(ctx: GoalsCtx, g: Goal, why: string): Promise<bool
 export async function tickFromTask(ctx: GoalsCtx, g: Goal, taskId: string): Promise<boolean> {
   if (g.finish.kind !== "checklist") return false;
   let changed = false;
-  for (const i of g.finish.items ?? []) if (i.taskId === taskId && i.done !== true) { i.done = true; changed = true; log(ctx, g.id, "checklist", `Done: ${i.text} (its task finished)`); }
+  for (const i of g.finish.items ?? []) if (i.taskId === taskId && i.done !== true) { i.done = true; changed = true; note(ctx, g.id, "checklist", `Done: ${i.text} (its task finished)`); }
   if (changed) { emit(ctx, g, "goal.progress", { ok: true, value: (g.finish.items ?? []).filter((i) => i.done).length, target: (g.finish.items ?? []).length }); if (LIVE.has(g.status) && reached(g)) await endGoal(ctx, g, "done"); }
   return changed;
 }
@@ -194,7 +194,7 @@ export async function checkin(ctx: GoalsCtx, g: Goal): Promise<void> {
   if (g.lastSignal === undefined && signal !== undefined) g.flatCheckins = 0;
   else g.flatCheckins = flat ? g.flatCheckins + 1 : 0;
   if (signal !== undefined) g.lastSignal = signal;
-  log(ctx, g.id, "checkin", `Check-in ${g.checkins}: ${numberLine(g)}${g.flatCheckins > 0 ? `, no progress for ${g.flatCheckins} check-in${g.flatCheckins === 1 ? "" : "s"}` : ""}.`);
+  note(ctx, g.id, "checkin", `Check-in ${g.checkins}: ${numberLine(g)}${g.flatCheckins > 0 ? `, no progress for ${g.flatCheckins} check-in${g.flatCheckins === 1 ? "" : "s"}` : ""}.`);
   if (g.flatCheckins >= g.stuckAfter && g.status !== "stuck") await stuck(ctx, g, stuckReason(ctx, g), ["Change the plan", "Extend the deadline"]);
   queueWake(ctx, g, "checkin", undefined, `checkin:${g.id}:${g.checkins}`);
 }
@@ -227,7 +227,7 @@ export async function unstick(ctx: GoalsCtx, g: Goal, why: string): Promise<void
   setStatus(ctx, g, waits(ctx, g.id).length > 0 ? "waiting" : "active");
   g.flatCheckins = 0;
   if (g.stuckTaskId) { await tryCall(ctx, "tasks.withdraw", { taskId: g.stuckTaskId, note: why }); delete g.stuckTaskId; }
-  log(ctx, g.id, "status", why);
+  note(ctx, g.id, "status", why);
 }
 
 // ---- waiting on someone ----
@@ -236,7 +236,7 @@ export function addWait(ctx: GoalsCtx, g: Goal, t: { id: string; kind: string; t
   ensure(ctx.db);
   const made = ctx.db.run("INSERT OR IGNORE INTO goals_wait (goal_id, task_id, kind, title, assigned, since) VALUES (?, ?, ?, ?, ?, ?)", g.id, t.id, t.kind, t.title.slice(0, 200), t.assigned ? JSON.stringify(t.assigned) : null, ctx.now()).changes > 0;
   if (made) {
-    log(ctx, g.id, "waiting", `Waiting: ${t.title}`, t.id);
+    note(ctx, g.id, "waiting", `Waiting: ${t.title}`, t.id);
     if (g.status === "active" || g.status === "planning") setStatus(ctx, g, "waiting", t.title);
   }
   return made;
@@ -246,7 +246,7 @@ export function dropWait(ctx: GoalsCtx, g: Goal, taskId: string, how: string): b
   const row = ctx.db.all("SELECT title FROM goals_wait WHERE goal_id = ? AND task_id = ?", g.id, taskId)[0] as Obj | undefined;
   if (!row) return false;
   ctx.db.run("DELETE FROM goals_wait WHERE goal_id = ? AND task_id = ?", g.id, taskId);
-  log(ctx, g.id, "answered", `${how}: ${String(row["title"])}`, taskId);
+  note(ctx, g.id, "answered", `${how}: ${String(row["title"])}`, taskId);
   if (g.status === "waiting" && waits(ctx, g.id).length === 0) setStatus(ctx, g, "active");
   return true;
 }
@@ -271,7 +271,7 @@ export async function spend(ctx: GoalsCtx, g: Goal, micros: number, turns: numbe
   } else if (used >= 0.8 && !g.budgetWarned) {
     g.budgetWarned = true;
     emit(ctx, g, "goal.budget_warned", { spentMicros: g.spentMicros, turns: g.turns, budget: g.budget });
-    log(ctx, g.id, "budget", `80% of the budget used: ${budgetLine(g)}.`);
+    note(ctx, g.id, "budget", `80% of the budget used: ${budgetLine(g)}.`);
     await post(ctx, g, `80% of the budget is used: ${budgetLine(g)}.`, `budget-80:${g.version}`);
   }
 }
@@ -284,7 +284,7 @@ export function budgetLine(g: Goal): string {
 
 // ---- the end ----
 
-export function summaryOf(ctx: GoalsCtx, g: Goal, outcome: Ended, note?: string): string {
+export function summaryOf(ctx: GoalsCtx, g: Goal, outcome: Ended, extra?: string): string {
   const f = g.finish;
   const p = progressOf(g, taskCounts(ctx, g.id));
   const lines: string[] = [];
@@ -295,18 +295,18 @@ export function summaryOf(ctx: GoalsCtx, g: Goal, outcome: Ended, note?: string)
   const w = waits(ctx, g.id);
   if (w.length) lines.push(`Still waiting on: ${w.slice(0, 3).map((x) => x.title).join("; ")}.`);
   lines.push(`Used ${budgetLine(g)}.`);
-  if (note) lines.push(note);
+  if (extra) lines.push(extra);
   return lines.join(" ");
 }
-export async function endGoal(ctx: GoalsCtx, g: Goal, outcome: Ended, note?: string): Promise<void> {
+export async function endGoal(ctx: GoalsCtx, g: Goal, outcome: Ended, extra?: string): Promise<void> {
   if (!LIVE.has(g.status) && g.status !== "paused" && g.status !== "draft") return;
   const now = ctx.now();
-  g.summary = summaryOf(ctx, g, outcome, note);
+  g.summary = summaryOf(ctx, g, outcome, extra);
   g.ended = outcome; g.endedAt = now;
   delete g.nextCheckinAt;
   setStatus(ctx, g, outcome);
   emit(ctx, g, "goal.ended", { outcome, summary: g.summary });
-  log(ctx, g.id, "ended", `${label(outcome)}. ${g.summary}`);
+  note(ctx, g.id, "ended", `${label(outcome)}. ${g.summary}`);
   await syncGrants(ctx, g);
   // what was asked of people is withdrawn; open work stops when the goal is stopped, and stays for a person to finish or cancel otherwise
   for (const w of waits(ctx, g.id)) await tryCall(ctx, "tasks.withdraw", { taskId: w.taskId, note: `The goal ${outcome === "done" ? "is done" : outcome === "missed" ? "missed its deadline" : "was stopped"}.` });
@@ -317,7 +317,8 @@ export async function endGoal(ctx: GoalsCtx, g: Goal, outcome: Ended, note?: str
   if (g.rootTaskId) await tryCall(ctx, "tasks.transition", { taskId: g.rootTaskId, to: outcome === "done" ? "done" : "canceled", note: g.summary.slice(0, 300) });
   const extendTo = outcome === "missed" ? afterQuiet(nextCheckin({ ...g, rhythm: { every: "day", at: "17:00" } }, now + 2 * DAY), g) : undefined;
   await post(ctx, g, `${label(outcome)}: ${g.summary}${extendTo ? ` Extend to ${when(extendTo, g.zone)}?` : ""}`, `ended:${outcome}:${g.version}`, clean({ kind: "ended", outcome, summary: g.summary, value: g.value, target: g.finish.target, unit: g.finish.unit }));
-  // one last turn for the lead: the retrospective
+  // one last turn for the lead: the retrospective. What was still out or queued no longer applies.
+  ctx.db.run("UPDATE goals_wake SET state = 'dropped' WHERE goal_id = ? AND state IN ('pending', 'sent', 'claimed')", g.id);
   queueWake(ctx, g, "ended", `The goal ${outcome === "done" ? "is done" : outcome === "missed" ? "missed its deadline" : "was stopped"}. Write the retrospective with goals_complete.`, `ended:${g.id}:${outcome}:${now}`);
 }
 
@@ -329,11 +330,14 @@ export async function startGoal(ctx: GoalsCtx, g: Goal, opts: { press: boolean; 
   await ensureThread(ctx, g);
   setStatus(ctx, g, "planning");
   emit(ctx, g, "goal.started", { by: ctx.principal.id });
-  log(ctx, g.id, "started", `Started. Finish line: ${g.finish.line}. Deadline ${when(g.deadline, g.zone)}.`);
+  note(ctx, g.id, "started", `Started. Finish line: ${g.finish.line}. Deadline ${when(g.deadline, g.zone)}.`);
   if (!opts.press) for (const p of g.permissions) p.granted = false;
   await ensureRoot(ctx, g);
   await ensureFolder(ctx, g);
   await readNow(ctx, g, "start");
+  // stuck counts from where the goal started
+  const s0 = signalOf(g, 0);
+  if (s0 !== undefined) g.lastSignal = s0;
   g.nextCheckinAt = nextCheckin(g, now);
   if (opts.plan && opts.plan.length > 0 && g.status === "planning") await addPlan(ctx, g, opts.plan);
   await syncGrants(ctx, g, { press: opts.press });
@@ -345,7 +349,7 @@ export async function addPlan(ctx: GoalsCtx, g: Goal, children: PlanChild[]): Pr
   const root = await ensureRoot(ctx, g);
   if (!root) throw new Error("the plan's parent task could not be made");
   const out = await must<{ children?: Array<{ key: string; taskId: string; shortKey?: string; created: boolean }> }>(ctx, "tasks.plan", {
-    parentTaskId: root,
+    parentTaskId: root, idempotencyKey: `goal-plan:${g.id}:${children.map((c) => c.key).join(",").slice(0, 200)}`,
     children: children.map((c) => clean({
       key: c.key, title: c.title, brief: [c.brief?.trim(), `Why: ${c.why}`, c.impact ? `Expected: ${c.impact}` : undefined, `Part of the goal "${g.title}": ${g.finish.line}`].filter(Boolean).join("\n\n"),
       doneMeans: c.doneMeans, assigned: c.assigned, reviewer: c.reviewer, approver: c.approver, dependsOn: c.dependsOn, due: c.due,
@@ -358,7 +362,7 @@ export async function addPlan(ctx: GoalsCtx, g: Goal, children: PlanChild[]): Pr
     if (goalOfTask(ctx.db, c.taskId)?.goalId && goalOfTask(ctx.db, c.taskId)?.goalId !== g.id) continue;
     addTask(ctx.db, g.id, c.taskId, "plan");
     setTaskState(ctx, c.taskId, "todo", src?.title, c.shortKey);
-    if (c.created) log(ctx, g.id, "plan", `Planned ${c.shortKey ? `${c.shortKey} ` : ""}${src?.title ?? ""}. Why: ${src?.why ?? ""}${src?.impact ? `. Expected: ${src.impact}` : ""}`, c.taskId);
+    if (c.created) note(ctx, g.id, "plan", `Planned ${c.shortKey ? `${c.shortKey} ` : ""}${src?.title ?? ""}. Why: ${src?.why ?? ""}${src?.impact ? `. Expected: ${src.impact}` : ""}`, c.taskId);
   }
   if (g.status === "planning" && made.length > 0) setStatus(ctx, g, "active");
   return made.map((c) => ({ key: c.key, taskId: c.taskId, created: c.created }));
@@ -395,7 +399,7 @@ async function retryUnanswered(ctx: GoalsCtx, g: Goal): Promise<void> {
     const id = String(r["id"]);
     if (Number(r["attempt"]) < 2) {
       ctx.db.run("UPDATE goals_wake SET state = 'pending', reason = reason || ',retry', due_at = ? WHERE id = ?", now, id);
-      log(ctx, g.id, "wake", "The last wake-up got no check-in; asking once more.", id);
+      note(ctx, g.id, "wake", "The last wake-up got no check-in; asking once more.", id);
     } else {
       ctx.db.run("UPDATE goals_wake SET state = 'dropped' WHERE id = ?", id);
       if (g.status !== "stuck") await stuck(ctx, g, "The lead agent stopped answering its wake-ups.", ["Ask the lead agent in the goal chat what is wrong", "Give the goal another lead agent"]);

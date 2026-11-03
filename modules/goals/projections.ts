@@ -229,7 +229,7 @@ export const money = (micros: number): string => `$${(micros / 1_000_000).toFixe
 
 // ---- activity ----
 
-export function log(ctx: Pick<GoalsCtx, "db" | "now" | "principal" | "actingFor">, goalId: string, kind: string, text: string, ref?: string): void {
+export function note(ctx: Pick<GoalsCtx, "db" | "now" | "principal" | "actingFor">, goalId: string, kind: string, text: string, ref?: string): void {
   ensure(ctx.db);
   const last = (ctx.db.all("SELECT MAX(seq) AS s FROM goals_activity WHERE goal_id = ?", goalId)[0] as { s: number | null } | undefined)?.s ?? 0;
   ctx.db.run("INSERT INTO goals_activity (goal_id, seq, at, kind, text, by, ref) VALUES (?, ?, ?, ?, ?, ?, ?)", goalId, last + 1, ctx.now(), kind, text.slice(0, 600), ctx.actingFor && ctx.principal.kind === "agent" ? `${ctx.principal.id}>${ctx.actingFor}` : ctx.principal.id, ref ?? null);
@@ -255,7 +255,7 @@ export function setStatus(ctx: GoalsCtx, g: Goal, to: Status, reason?: string): 
   if (reason !== undefined) g.statusReason = reason; else if (from !== to) delete g.statusReason;
   if (from !== to) {
     emit(ctx, g, "goal.status_changed", clean({ from, to, reason }));
-    log(ctx, g.id, "status", `${label(from)} to ${label(to)}${reason ? `: ${reason}` : ""}`);
+    note(ctx, g.id, "status", `${label(from)} to ${label(to)}${reason ? `: ${reason}` : ""}`);
   }
   return changed;
 }
@@ -335,7 +335,7 @@ export function dispatch(ctx: GoalsCtx, g: Goal): number {
     const attempt = w.attempt + 1;
     ctx.db.run("UPDATE goals_wake SET state = 'sent', attempt = ?, sent_at = ? WHERE id = ?", attempt, now, w.id);
     emit(ctx, g, "goal.woken", { wakeId: w.id, attempt, reason: w.reason, leadAgentId: g.leadAgentId, owner: g.owner }, `${w.id}:${attempt}`);
-    log(ctx, g.id, "wake", `Woke ${"the lead agent"}: ${reasonWords(w.reason)}`, w.id);
+    note(ctx, g.id, "wake", `Woke ${"the lead agent"}: ${reasonWords(w.reason)}`, w.id);
     sent++;
   }
   return sent;
