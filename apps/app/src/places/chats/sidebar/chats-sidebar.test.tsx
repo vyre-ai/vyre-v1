@@ -99,7 +99,7 @@ test("star, mark read and approve change what the next render shows", async () =
   const faces = (s.data.screens.query("chats.all-agents", "agents", {}).getSnapshot() as { data: { agents: { name: string }[] } }).data.agents;
   assert.ok(faces.some((a) => a.name === "Docs"), "Docs stays in the Agents group");
   assert.deepEqual(s.rejected, [], "every read the sidebar sent was accepted by the generated validators");
-  const need = (s.data.screens.query("home.needs-you-top3", "items", { limit: 3 }).getSnapshot() as { data: { items: Parameters<typeof api.act>[0][] } }).data.items[0]!;
+  const need = (s.data.screens.query("tasks.my-work", "needs", { limit: 50 }).getSnapshot() as { data: { items: Parameters<typeof api.act>[0][] } }).data.items[0]!;
   await api.act(need);
   assert.deepEqual(s.calls.map((c) => c.cap), ["stars.toggle", "threads.mark_read", "stars.toggle", "tasks.act"]);
 });

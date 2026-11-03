@@ -29,7 +29,7 @@ function runtime(): { rt: ShellRuntime; calls: Call[]; opened: string[] } {
   const opened: string[] = [];
   let made = 0;
   const fixed: Record<string, LiveQuery<unknown>> = {
-    "home.needs-you-top3.items": ready({ items: [], total: 0 }),
+    "tasks.my-work.needs": ready({ items: [], total: 0 }),
     "chats.sidebar.recent": ready({ starred: [], today: [], yesterday: [], earlier: [], archived: [], nextUnread: null }),
   };
   const screens: ScreenHooks = { query: (id, name, state) => fixed[`${id}.${name}`] ?? (id === "chats.conversation" ? conv.data.screens : side.data.screens).query(id, name, state) };

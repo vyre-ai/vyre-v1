@@ -315,7 +315,7 @@ export default defineManifest({
       empty: 'Nothing needs you', needs: [],
     }),
     screen('tasks.my-work', 'chats', 'ui:MyWork', {
-      q: { list: ['tasks.my_work', { section: '/state/section' }, true], rev: ['tasks.rev', {}, true], needs: ['tasks.needs_you', { limit: '/state/limit' }, true] },
+      q: { list: ['tasks.my_work', { section: '/state/section' }, true], rev: ['tasks.rev', {}, true], needs: ['tasks.needs_you', { limit: '/state/limit' }, true], count: ['tasks.count_needs_you', {}, true] },
       a: {
         assign: ['tasks.assign', { taskId: '/state/taskId', slot: '/state/slot', to: '/state/to' }],
         create: ['tasks.create', { kind: '/draft/kind', title: '/draft/title', assigned: '/draft/assigned', recordId: '/draft/recordId' }],

@@ -5,6 +5,7 @@ import { TASK_STATES } from "../../../../../../ui/src/TaskPage/model.ts";
 import type { TaskState } from "../../../../../../ui/src/TaskPage/model.ts";
 import type { TaskRow, Who } from "./model.ts";
 import { DAY, PRIORITIES } from "./model.ts";
+import { handInTo } from "./moves.ts";
 import type { TaskStore } from "./store.ts";
 
 type Call = (cap: string, input: unknown) => Promise<unknown>;
@@ -14,11 +15,20 @@ export interface ActEnv { call: Call; say: Say; store: TaskStore; newKey(): stri
 export const failure = (e: unknown, fallback: string): string => (e instanceof Error && e.message !== "" ? e.message : fallback);
 
 /** The status change of one task, from any door. */
-export async function setStatus(env: ActEnv, row: Pick<TaskRow, "id" | "state">, to: TaskState, note?: string): Promise<boolean> {
+export async function setStatus(env: ActEnv, row: Pick<TaskRow, "id" | "state"> & Partial<Pick<TaskRow, "kind" | "reviewer" | "approver">>, to: TaskState, note?: string): Promise<boolean> {
   if (row.state === to) return true;
   const back = env.store.patch([row.id], (r) => ({ ...r, state: to }));
-  try { await env.call("tasks.transition", { taskId: row.id, to, expectedFrom: row.state, ...(note ? { note } : {}) }); return true; }
+  try { await moveOne(env, row, to, note); return true; }
   catch (e) { back(); env.say(failure(e, "The status could not be changed.")); return false; }
+}
+
+/** Is this move a hand-in? Work that is open going where a hand-in leads. It goes through tasks.submit, so the summary is kept and the thread hears it: one path from every door. */
+export const isHandIn = (row: Partial<Pick<TaskRow, "kind" | "reviewer" | "approver">> & Pick<TaskRow, "state">, to: TaskState): boolean =>
+  row.kind === "work" && (row.state === "todo" || row.state === "doing") && to === handInTo(row);
+
+async function moveOne(env: ActEnv, row: Pick<TaskRow, "id" | "state"> & Partial<Pick<TaskRow, "kind" | "reviewer" | "approver">>, to: TaskState, note?: string): Promise<void> {
+  if (isHandIn(row, to)) { await env.call("tasks.submit", { taskId: row.id, summary: note?.trim() || "Marked done" }); return; }
+  await env.call("tasks.transition", { taskId: row.id, to, expectedFrom: row.state, ...(note ? { note } : {}) });
 }
 
 /** Do one thing to many tasks, eight at a time. What was refused is counted and the first reason is said. */
@@ -38,12 +48,13 @@ export function bulkStatus(env: ActEnv, ids: readonly string[], to: TaskState): 
 const setOne = async (env: ActEnv, row: TaskRow, to: TaskState): Promise<void> => {
   if (row.state === to) return;
   const back = env.store.patch([row.id], (r) => ({ ...r, state: to }));
-  try { await env.call("tasks.transition", { taskId: row.id, to, expectedFrom: row.state }); } catch (e) { back(); throw e; }
+  try { await moveOne(env, row, to); } catch (e) { back(); throw e; }
 };
 
+/** Give tasks to someone: each row shows them at once, and a row the server refused goes back to who had it. */
 export const bulkAssign = (env: ActEnv, ids: readonly string[], to: Who, name: string): Promise<number> => {
-  env.store.patch(ids, (r) => ({ ...r, assigned: to }));
-  return forEach(env, ids, (id) => env.call("tasks.assign", { taskId: id, slot: "assigned", to }), `${ids.length === 1 ? "Given" : `${ids.length} tasks given`} to ${name}`);
+  const backs = new Map(ids.map((id) => [id, env.store.patch([id], (r) => ({ ...r, assigned: to }))] as const));
+  return forEach(env, ids, async (id) => { try { await env.call("tasks.assign", { taskId: id, slot: "assigned", to }); } catch (e) { backs.get(id)?.(); throw e; } }, `${ids.length === 1 ? "Given" : `${ids.length} tasks given`} to ${name}`);
 };
 export const bulkDue = (env: ActEnv, ids: readonly string[], due: number | null, words: string): Promise<number> => forEach(env, ids, (id) => env.call("tasks.update", { taskId: id, due }), `${ids.length === 1 ? "Due" : `${ids.length} tasks due`} ${words}`);
 export const bulkPriority = (env: ActEnv, ids: readonly string[], priority: string, words: string): Promise<number> => forEach(env, ids, (id) => env.call("tasks.update", { taskId: id, priority }), `${ids.length === 1 ? "Priority" : `Priority of ${ids.length} tasks`} set to ${words}`);
