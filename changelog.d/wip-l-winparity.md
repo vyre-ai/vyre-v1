@@ -1,1 +1,2 @@
 - Windows parity check: a desktop CI job runs each of today's features on a real Windows runner and reports one row per feature: where chats run, native skills, the engines' own model lists, open internet with folders and ssh, and a Personal Space on several computers.
+- Windows Personal Space: an engine can no longer read the person's key stores (Credential Manager, DPAPI keys, the browsers' cookies and saved passwords, Firefox, 1Password, ~/.ssh private keys). Vyre labels them as it labels its own files; the rest of the profile stays readable.

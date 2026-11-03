@@ -14,7 +14,8 @@ import type { EgressEvent, EgressRule, EngineAccess, Roots, SandboxSpec } from "
 import { toWslPath, wslExe } from "../../sandbox/src/wsl/wsl.ts";
 import type { AgentOptions, WslAgent } from "../../sandbox/src/wsl/wsl.ts";
 import type { LocalLauncherOptions } from "../../agent/src/drivers/cli/launcher.ts";
-import { labelLow, lowrunArgv, pipeName } from "../../sandbox/src/win/lowrun.ts";
+import { labelKeyStores, labelLow, lowrunArgv, pipeName } from "../../sandbox/src/win/lowrun.ts";
+import type { KeyStores } from "../../sandbox/src/win/lowrun.ts";
 
 /** What the host knows about the sandbox it runs a CLI engine in. The wall (egress proxy) is started by the host and outlives the turns. */
 export type EngineSandbox =
@@ -26,7 +27,7 @@ export type EngineSandbox =
    * Windows, Personal Space (owner ruling 3 Nov 2026): the engine at Low integrity in a Job Object (sandbox/src/win/lowrun.cs). It may change only its work folder, its scratch home and temp, and
    * `writable` (the folders the person added to Vyre); it reads the computer as Claude Code does. Its network is the egress proxy on loopback, by its variables.
    */
-  | { kind: "lowil"; helper: string; proxyPort: number; writable?: readonly string[]; bash?: string; ssh?: string }
+  | { kind: "lowil"; helper: string; proxyPort: number; writable?: readonly string[]; bash?: string; ssh?: string; keyStores?: KeyStores }
   /** The engine belongs in the person's container, which has no local launcher yet. */
   | { kind: "docker" | "server"; reason?: string };
 
@@ -208,7 +209,10 @@ function lowWrap(s: Extract<EngineSandbox, { kind: "lowil" }>, plan: SandboxPlan
   const home = path.join(scratch, "home");
   const tmp = path.join(scratch, "tmp");
   // the folders the person added (engine-access.ts, checked: never a drive's root, a system folder or Vyre's data) are labelled with the rest
-  for (const dir of [path.join(plan.dataDir, layoutRoots().work, personSeg), scratch, ...(s.writable ?? []), ...(o.access?.added ?? [])]) labelLow(dir);
+  const fresh: string[] = [];
+  for (const dir of [path.join(plan.dataDir, layoutRoots().work, personSeg), scratch, ...(s.writable ?? []), ...(o.access?.added ?? [])]) if (labelLow(dir)) fresh.push(dir);
+  // icacls labels everything under an added folder Low, a key store in it too (the person added their whole home): those are made private again before the engine starts
+  if (fresh.length > 0 && s.keyStores) labelKeyStores(s.helper, s.keyStores, fresh);
   const own = {
     HOME: home, USERPROFILE: home, APPDATA: path.join(home, "AppData", "Roaming"), LOCALAPPDATA: path.join(home, "AppData", "Local"), TEMP: tmp, TMP: tmp,
     CLAUDE_CONFIG_DIR: path.join(home, ".claude"), CLAUDE_CODE_TMPDIR: tmp, CODEX_HOME: path.join(home, ".codex"), XDG_CONFIG_HOME: path.join(home, ".config"), XDG_CACHE_HOME: path.join(home, ".cache"),

@@ -116,3 +116,11 @@ What a Low process could read before E's labels:
 E labels Vyre's folders (`%APPDATA%\ai.vyre.desktop`, `%LOCALAPPDATA%\ai.vyre.desktop`) Medium with no read up and no write up, inherited. The engines folder and the engine's Git Bash are readable and not writable. The engine's own folders are explicitly Low. A Low engine can no longer read the token, the keys, the databases or the logs; the windows-latest proof checks `admin.token` and the logs folder.
 
 Out of scope: the databases stay plaintext to any normal-integrity process of the same user, as they are on a Mac.
+
+### The person's key stores (3 Nov 2026)
+
+The deny list a Mac engine gets (`homeDenies` in `sandbox/src/engine-access.ts`) is applied on Windows as labels too. When E starts, Vyre labels every key store that is on the computer the same way as its own folders: no read up and no write up for every file, inherited by new files. The list covers Credential Manager (`Credentials`, `Vault`), DPAPI's master keys (`Protect`), `Crypto`, `SystemCertificates`, the Chrome, Edge, Brave and Chromium `User Data` folders, Opera, the Firefox and Thunderbird profiles, 1Password, Bitwarden, KeePass, `~/.ssh`, `~/.aws`, `~/.azure`, `~/.kube`, `~/.docker`, gcloud and the GitHub CLI. Single files (`.netrc`, `.git-credentials`) get the same label on the file.
+
+`~/.ssh` is private, but its `known_hosts`, `known_hosts2`, `config` and public keys stay readable, because git's ssh reads them. Private keys go through the agent relay. The labels are set again when the list changes, for example after a browser is installed. They are also set again after icacls labels an added folder Low, since icacls would otherwise reset a key store inside it (when the person adds their whole home). If Windows refuses a label, the engine does not start.
+
+The windows-latest proof checks that a Low engine cannot read Chrome's `User Data\Default\Cookies`, a file in `%APPDATA%\Microsoft\Credentials` or a private key in `~/.ssh`. It also checks that the engine can read the rest of the profile and `~/.ssh\known_hosts`, and that Chrome still keeps a cookie in a labelled `User Data` folder. That last check matters because Chrome's network service, which writes the cookie store, may itself run sandboxed at Low.

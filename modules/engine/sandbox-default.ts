@@ -9,7 +9,9 @@ import type { EgressEvent, EgressRule } from "../../sandbox/src/index.ts";
 import { DISTRO_PIN } from "../../sandbox/src/wsl/pins.ts";
 import { ensureDistro, startWslAgent, wslOn } from "../../sandbox/src/wsl/wsl.ts";
 import type { AgentOptions } from "../../sandbox/src/wsl/wsl.ts";
-import { LABELS, ensureLowrun, ensureSshShim, lowrunPossible, setLabel } from "../../sandbox/src/win/lowrun.ts";
+import { LABELS, ensureLowrun, ensureSshShim, labelKeyStores, lowrunPossible, setLabel } from "../../sandbox/src/win/lowrun.ts";
+import type { KeyStores } from "../../sandbox/src/win/lowrun.ts";
+import { homeDenies, insideFolder } from "../../sandbox/src/engine-access.ts";
 import { privateBash } from "../../sandbox/src/win/msys.ts";
 import { layoutRoots } from "./sandbox.ts";
 import type { EngineSandbox, SandboxPlan } from "./sandbox.ts";
@@ -85,6 +87,8 @@ export interface DefaultSandboxOptions {
   writable?: readonly string[];
   /** Windows: Vyre's own folders a Low engine may not read. Default: the app's data folder (the dataDir's parent when it is ai.vyre.desktop) and %LOCALAPPDATA%\ai.vyre.desktop. */
   privateDirs?: readonly string[];
+  /** Windows: the person's home folder, whose key stores a Low engine may not read. Default %USERPROFILE%. */
+  home?: string;
 }
 
 /** How a Windows computer runs CLI engines: Personal (E) or Contained (B). VYRE_WINDOWS_SANDBOX=contained turns Contained on for the computer until it has a switch in its details. */
@@ -110,10 +114,42 @@ export function vyrePrivateDirs(dataDir: string, env: Readonly<Record<string, st
  * label version: a marker beside the helper says it was done.
  */
 export function protectVyreData(helper: string, binDir: string, dirs: readonly string[], readable: readonly string[]): void {
-  const marker = path.join(binDir, `protected-${Buffer.from(JSON.stringify([LABELS, dirs, readable])).toString("base64url").slice(0, 40)}`);
+  const marker = path.join(binDir, `protected-${fnv([LABELS, dirs, readable])}`);
   if (fs.existsSync(marker)) return;
   for (const d of dirs) setLabel(helper, d, "private");
   for (const d of readable) setLabel(helper, d, "read");
+  fs.writeFileSync(marker, "");
+}
+
+/** A short name for what was labelled (FNV-1a over its JSON): a new list, or new labels, is labelled again. */
+function fnv(v: unknown): string {
+  let h = 0x811c9dc5;
+  for (const c of JSON.stringify(v)) { h ^= c.charCodeAt(0); h = Math.imul(h, 0x01000193) >>> 0; }
+  return h.toString(16).padStart(8, "0");
+}
+
+/**
+ * The person's key stores on this Windows computer (engine-access.ts homeDenies, the list a Mac engine is denied): the ones that are there now, never one that holds Vyre's own folders or is
+ * inside them (protectVyreData keeps those). ~/.ssh is private but its known_hosts, config and public keys stay readable: git's ssh reads them; the private keys go through the agent relay.
+ */
+export function winKeyStores(home: string, own: readonly string[] = [], stat: (p: string) => fs.Stats | undefined = (p) => fs.statSync(p, { throwIfNoEntry: false }), list: (d: string) => string[] = (d) => fs.readdirSync(d)): KeyStores {
+  const dirs: string[] = []; const files: string[] = []; const readable: string[] = [];
+  for (const p of homeDenies(home, "win32")) {
+    if (own.some((d) => insideFolder(p, d, "win32") || insideFolder(d, p, "win32"))) continue;
+    const st = stat(p);
+    if (!st) continue;
+    if (!st.isDirectory()) { files.push(p); continue; }
+    dirs.push(p);
+    if (path.win32.basename(p).toLowerCase() === ".ssh") for (const f of list(p)) if (/^(known_hosts2?|config|.+\.pub)$/i.test(f)) readable.push(path.win32.join(p, f));
+  }
+  return { dirs, files, readable };
+}
+
+/** Labels the key stores once per list (a browser installed later, a new ~/.ssh, is labelled at the next start). New files in a labelled folder take its label as they are made. */
+export function protectKeyStores(helper: string, binDir: string, ks: KeyStores): void {
+  const marker = path.join(binDir, `keys-${fnv([LABELS, ks])}`);
+  if (fs.existsSync(marker)) return;
+  labelKeyStores(helper, ks);
   fs.writeFileSync(marker, "");
 }
 
@@ -234,9 +270,12 @@ export async function defaultSandbox(o: DefaultSandboxOptions): Promise<DefaultS
     const priv = [...new Set([...(o.privateDirs ?? vyrePrivateDirs(o.dataDir)), o.dataDir])];
     const roots = layoutRoots("win32");
     protectVyreData(helper, bin, priv, [path.join(o.dataDir, roots.work), path.join(o.dataDir, roots.scratch), path.join(o.dataDir, "engines"), ...(bash ? [msys] : [])]);
+    // the person's key stores (Credential Manager, DPAPI's keys, the browsers' cookies and saved passwords, 1Password, ~/.ssh's private keys): no read up, as Vyre's own files
+    const keyStores = winKeyStores(o.home ?? process.env["USERPROFILE"] ?? path.win32.dirname(path.win32.dirname(o.dataDir)), [...priv, bin, msys]);
+    protectKeyStores(helper, bin, keyStores);
     // git's ssh (no shell, Vyre's config), where the engine may run it and not change it: beside the engines Vyre installed, which are labelled readable
     const ssh = ensureSshShim(helper, path.join(o.dataDir, "engines", "vyre-ssh"));
-    const low = (port: number): EngineSandbox => ({ kind: "lowil", helper, proxyPort: port, ssh, ...(o.writable ? { writable: o.writable } : {}), ...(bash ? { bash } : {}) });
+    const low = (port: number): EngineSandbox => ({ kind: "lowil", helper, proxyPort: port, ssh, keyStores, ...(o.writable ? { writable: o.writable } : {}), ...(bash ? { bash } : {}) });
     const proxy = createEgressProxy({ ...egress });
     const { port } = await proxy.listen();
     // a turn's own proxy: the rule it carries and its own record of where it went, as on a Mac

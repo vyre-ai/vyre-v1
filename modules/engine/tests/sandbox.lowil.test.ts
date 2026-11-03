@@ -9,6 +9,7 @@ import { sandboxWrap, workFolder } from "../sandbox.ts";
 import type { SandboxPlan } from "../sandbox.ts";
 import { forgetLabels, setLabelRunner } from "../../../sandbox/src/win/lowrun.ts";
 import { engineAccess } from "../../../sandbox/src/index.ts";
+import { winKeyStores } from "../sandbox-default.ts";
 
 test("the Low-integrity wrap: the helper, the engine's argv untouched, its folders labelled Low, its home and temp in scratch, the proxy", () => {
   const data = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "vyre-lowil-")));
@@ -56,6 +57,41 @@ test("git over SSH at Low (lane l-winfix): GIT_SSH is Vyre's ssh helper with a c
   assert.match(config, /^ {2}ProxyCommand ".*node(\.exe)?" ".*connect\.mjs" 4321 %h %p$/m);
   assert.ok(config.includes(`  IdentityAgent "\\\\\\\\.\\\\pipe\\\\${argv[relayAt + 1]}"`), config);
   assert.ok(fs.existsSync(env["CODEX_HOME"] as string), "codex.exe refuses a CODEX_HOME that is not there");
+  setLabelRunner(null);
+  forgetLabels();
+});
+
+test("the person's key stores on Windows: the ones there, folders private, single files private, ~/.ssh's known_hosts and config readable, never Vyre's own", () => {
+  const home = "C:\\Users\\dana";
+  const there: Record<string, "dir" | "file"> = {
+    [`${home}\\.ssh`]: "dir", [`${home}\\.git-credentials`]: "file", [`${home}\\AppData\\Roaming\\Microsoft\\Credentials`]: "dir", [`${home}\\AppData\\Local\\Google\\Chrome\\User Data`]: "dir",
+    [`${home}\\AppData\\Roaming\\ai.vyre.desktop`]: "dir",
+  };
+  const stat = (p: string) => (there[p] ? ({ isDirectory: () => there[p] === "dir" } as fs.Stats) : undefined);
+  const ks = winKeyStores(home, [`${home}\\AppData\\Roaming\\ai.vyre.desktop`], stat, () => ["id_ed25519", "id_ed25519.pub", "known_hosts", "config", "authorized_keys"]);
+  assert.deepEqual([...ks.dirs].sort(), [`${home}\\.ssh`, `${home}\\AppData\\Local\\Google\\Chrome\\User Data`, `${home}\\AppData\\Roaming\\Microsoft\\Credentials`].sort());
+  assert.deepEqual(ks.files, [`${home}\\.git-credentials`]);
+  assert.deepEqual([...ks.readable].sort(), [`${home}\\.ssh\\config`, `${home}\\.ssh\\id_ed25519.pub`, `${home}\\.ssh\\known_hosts`]);
+});
+
+test("an added folder that holds a key store: icacls labels it Low, then the key store is made private again before the engine starts", () => {
+  const data = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "vyre-lowil-")));
+  const added = fs.mkdtempSync(path.join(os.tmpdir(), "vyre-added-"));
+  const calls: string[][] = [];
+  setLabelRunner((c, args) => { calls.push([c, ...args]); return { status: 0 }; });
+  forgetLabels();
+  const inside = `${added}\\.ssh`;
+  const keyStores = { dirs: [inside, "C:\\Elsewhere\\Credentials"], files: [], readable: [`${inside}\\known_hosts`] };
+  const plan: SandboxPlan = { dataDir: data, egressHosts: [], sandbox: { kind: "lowil", helper: "C:\\v\\vyre-lowrun-abc.exe", proxyPort: 4321, writable: [added], keyStores } };
+  const cwd = workFolder(data, "usr_dana", "thr_1");
+  const wrap = sandboxWrap(plan, { homeFromScratch: true });
+  wrap(["C:\\e\\claude.exe", "-p"], { cwd, env: {} });
+  const labels = calls.filter((c) => c[1] === "--label").map((c) => [c[2], c[3]]);
+  assert.deepEqual(labels, [[inside, "S:(ML;OIIO;NRNW;;;ME)"], [`${inside}\\known_hosts`, "S:(ML;;NW;;;ME)"]], "only the store inside the added folder, after icacls");
+  assert.ok(calls.findIndex((c) => c[1] === "--label") > calls.findIndex((c) => c[0] === "icacls.exe" && c[1] === added));
+  calls.length = 0;
+  wrap(["C:\\e\\claude.exe", "-p"], { cwd, env: {} });
+  assert.equal(calls.length, 0, "once: the folders are labelled already");
   setLabelRunner(null);
   forgetLabels();
 });

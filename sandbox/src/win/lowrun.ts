@@ -74,22 +74,23 @@ async function buildLowrun(binDir: string, o: { source?: string; csc?: string | 
 }
 
 const labelled = new Set<string>();
-type Runner = (cmd: string, args: readonly string[], o: { encoding: "utf8"; windowsHide: boolean; timeout: number }) => { status: number | null; stdout?: string | Buffer | null };
+type Runner = (cmd: string, args: readonly string[], o: { encoding: "utf8"; windowsHide: boolean; timeout: number }) => { status: number | null; stdout?: string | Buffer | null; stderr?: string | Buffer | null };
 let runner: Runner = (cmd, args, o) => spawnSync(cmd, [...args], o);
-/** Tests: what runs icacls. */
+/** Tests: what runs icacls and the helper's --label. */
 export function setLabelRunner(r: Runner | null): void { runner = r ?? ((cmd, args, o) => spawnSync(cmd, [...args], o)); }
 
 /**
- * Labels a folder Low, with inheritance, so a Low process may write in it and in everything under it. Once per folder per process. `icacls /setintegritylevel` needs no admin on a folder the
+ * Labels a folder Low, with inheritance, so a Low process may write in it and in everything under it. Once per folder per process: true when it labelled it now. `icacls /setintegritylevel` needs no admin on a folder the
  * person owns. Throws sandbox.policy when Windows refuses.
  */
-export function labelLow(dir: string): void {
+export function labelLow(dir: string): boolean {
   const key = dir.toLowerCase();
-  if (labelled.has(key)) return;
+  if (labelled.has(key)) return false;
   fs.mkdirSync(dir, { recursive: true });
   const r = runner("icacls.exe", [dir, "/setintegritylevel", "(OI)(CI)low", "/T", "/C", "/Q"], { encoding: "utf8", windowsHide: true, timeout: 120_000 });
   if (r.status !== 0) throw new SandboxError("sandbox.policy", `Windows did not let Vyre mark ${dir} for the engine: ${String(r.stdout ?? "").trim().split(/\r?\n/).slice(-1)[0] ?? ""}`);
   labelled.add(key);
+  return true;
 }
 /** Forget which folders were labelled (tests). */
 export function forgetLabels(): void { labelled.clear(); }
@@ -133,13 +134,34 @@ export function ensureSshShim(helper: string, dir: string): string {
  *            databases, the logs, the webview's profile). The folders keep their default label and stay readable: programs check every folder above the one they work in (git does, for
  *            each folder it makes: "C:/.git: Permission denied" on windows-latest), and the work folders are below. A folder holds one mandatory label, so this is a single ACE.
  *   read     the folder and everything in it readable, not writable: the work and scratch roots, the engines Vyre installed, the engine's Git Bash.
+ *   file     one file, no read up and no write up: a key store that is a single file (.netrc, .git-credentials).
+ *   readFile one file readable, not writable, inside a private folder: ~/.ssh's known_hosts and config, which git's ssh reads, beside the private keys it may not.
  * Each is set protected and reset over what is already there. The folders an engine may change are labelled Low afterwards (labelLow).
  */
-export const LABELS = { private: "S:(ML;OIIO;NRNW;;;ME)", read: "S:(ML;OICI;NW;;;ME)" } as const;
+export const LABELS = { private: "S:(ML;OIIO;NRNW;;;ME)", read: "S:(ML;OICI;NW;;;ME)", file: "S:(ML;;NRNW;;;ME)", readFile: "S:(ML;;NW;;;ME)" } as const;
+
+/**
+ * The person's key stores on this computer (engine-access.ts homeDenies: Credential Manager, DPAPI's master keys, the browsers' profiles, Firefox, 1Password, ~/.ssh and the CLIs' sign-ins):
+ * folders labelled private, single files labelled file, and the files inside them an engine's tools must still read (~/.ssh's known_hosts and config) labelled readFile.
+ */
+export interface KeyStores { dirs: readonly string[]; files: readonly string[]; readable: readonly string[] }
+
+const within = (p: string, d: string): boolean => { const a = p.toLowerCase().replace(/\\+$/, ""); const b = d.toLowerCase().replace(/\\+$/, ""); return a === b || a.startsWith(`${b}\\`); };
+
+/**
+ * Labels the key stores so an engine at Low integrity cannot read them, as Vyre's own files are kept (protectVyreData): all of them, or (after labelLow over `near`) those inside or around
+ * those folders, whose labels icacls has just replaced. Throws sandbox.policy when Windows refuses: an engine does not start beside a key store it could read.
+ */
+export function labelKeyStores(helper: string, ks: KeyStores, near?: readonly string[], run: Runner = runner): void {
+  const hit = (p: string): boolean => near === undefined || near.some((d) => within(p, d) || within(d, p));
+  for (const d of ks.dirs) if (hit(d)) setLabel(helper, d, "private", run);
+  for (const f of ks.files) if (hit(f)) setLabel(helper, f, "file", run);
+  for (const f of ks.readable) if (hit(f)) setLabel(helper, f, "readFile", run);
+}
 
 /** Sets one of LABELS on a folder with the helper. Throws sandbox.policy when Windows refuses. */
-export function setLabel(helper: string, dir: string, label: keyof typeof LABELS, run: typeof spawnSync = spawnSync): void {
-  fs.mkdirSync(dir, { recursive: true });
+export function setLabel(helper: string, dir: string, label: keyof typeof LABELS, run: Runner = runner): void {
+  if (label === "private" || label === "read") fs.mkdirSync(dir, { recursive: true });
   const r = run(helper, ["--label", dir, LABELS[label]], { encoding: "utf8", windowsHide: true, timeout: 300_000 });
   if (r.status !== 0) throw new SandboxError("sandbox.policy", `Windows did not let Vyre protect ${dir}: ${String(r.stderr ?? "").trim().split(/\r?\n/).slice(-1)[0] ?? ""}`);
 }
