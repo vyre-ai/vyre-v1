@@ -186,6 +186,18 @@ export function createSampleSettings(space: SampleSpace = northwind): SampleSett
       public: all.filter((f) => f.place === "public"), private: all.filter((f) => f.place === "private"),
     };
   });
+  // Lessons from your corrections: what the person's agents kept after being corrected, as memory.facts.list answers it for kind lesson
+  const ls = (factId: string, text: string, agentId: string, how: string, days: number, used: number, scope: string, extra: Record<string, unknown> = {}): Row => ({
+    id: factId, factId, text, layer: "person", ownerRef: space.me.id, agentId, kind: "lesson", status: "current", sourceKind: "chat", sourceRef: "thr_sample", validFrom: SAMPLE_NOW - days * DAY, learnedAt: SAMPLE_NOW - days * DAY,
+    lesson: { how, used, scope }, ...extra,
+  }) as unknown as Row;
+  replica.put("lessons", [
+    ls("fct_les1", "Notes to Sara: three lines, the number first.", "agt_intake", "edit", 1, 1, "you", { sourceLink: "vyre://thread/thr_sample?m=msg_3" }),
+    ls("fct_les2", "Never send anything to a client before you have seen it.", "agt_docs", "refuse", 6, 5, "space"),
+    ls("fct_les3", "Invoices go out on Fridays, not Mondays.", "agt_billing", "reverse", 13, 3, "you"),
+    ls("fct_les4", "Call Dana Fox \"Ms. Fox\" until she says otherwise.", "agt_docs", "rewrite", 20, 1, "you"),
+  ]);
+  (replica.resolve as unknown as (cap: string, f: () => unknown) => void)("memory.facts.list", () => ({ facts: replica.rows("lessons"), total: replica.rows("lessons").length }));
   replica.resolve("memory.upkeep.status", () => {
     const cap = (replica.rows("memcap")[0] as unknown as { dollars: number } | undefined)?.dollars ?? 5;
     return { month: "2025-10", spentMicros: 1_240_000, capMicros: cap * 1_000_000, capReached: false, modelAvailable: true, openQuestions: 1, runs: [], nights: [{ day: "2025-10-24", runs: 1, costMicros: 42_000, tokensIn: 9_100, tokensOut: 1_200 }], lastNight: { day: "2025-10-24", runs: 1, costMicros: 42_000, tokensIn: 9_100, tokensOut: 1_200 } } as unknown as CapMap["memory.upkeep.status"]["out"];

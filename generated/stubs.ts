@@ -118,6 +118,9 @@ export function stubs(ctx: CallCtx) {
       guide: {
         get: call("agents.guide.get"),
       },
+      instruction: {
+        append: call("agents.instruction.append"),
+      },
       limits: {
         get: call("agents.limits.get"),
       },
@@ -1574,6 +1577,9 @@ export function stubs(ctx: CallCtx) {
       chat_learning: {
         get: call("memory.chat_learning.get"),
         set: call("memory.chat_learning.set"),
+      },
+      corrections: {
+        record: call("memory.corrections.record"),
       },
       counts: call("memory.counts"),
       erase: call("memory.erase"),

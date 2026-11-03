@@ -11,6 +11,7 @@
     "agents.delete@1": "4c44e983897fb6a1f80c88085cf6a4b4b2f66869137dcd3a49f6452c4a125ef1",
     "agents.get@1": "b1702ecfd07c18ac962f9022dfea7446ed1a1ed02ec8cfcfce870dad79e57050",
     "agents.guide.get@1": "70315e2736b26bc8a9ef52812d31a0fe715d47b68a2a9110ec70acec25811a8c",
+    "agents.instruction.append@1": "1e28bdd0ccabfb3e9c1a97c9b7256cb74ad57434f6b9d4e17e3bb1d4cd66b279",
     "agents.limits.get@1": "6ae4c9994620ebc2bfbd7a993154aeb649382f54485dfbd47cc3ad59b50693bf",
     "agents.list@1": "33dc81a3a7f516020090c625811217b65f56dddfe768e4dde5cfc6f781d184ea",
     "agents.memory_key.get@1": "f613f735caf9ffaece4dcec987ec0113547055a8cccbc15aac27d049e95f5003",

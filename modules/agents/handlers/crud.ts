@@ -270,6 +270,37 @@ export async function roleLineSet(ctx: AgentsCtx, input: { agentId: string; desc
   return { agent: agentOut(agentBy(ctx.db, a.id)!, ctx.now()), undoVersionId: undo.versionId };
 }
 
+/** Under this heading in AGENT.md: what the person taught the agent by correcting it, made an instruction. */
+export const LESSONS_HEADING = "## Lessons from corrections";
+const MAX_LESSON_LINE = 240;
+
+/** "Make it an instruction": a lesson (or any one-line rule) is added to the agent's AGENT.md as a bullet under its own heading, as a new version with an inline Undo. Same rule as the role line: Edit on the agent. */
+export async function instructionAppend(ctx: AgentsCtx, input: { agentId: string; line: string }) {
+  const a = visible(ctx, input.agentId);
+  mustChangeSettings(ctx, a);
+  const line = input.line.replace(/\s+/g, " ").trim();
+  if (line === "" || line.length > MAX_LESSON_LINE) raise(ctx, "validation.bad_input", `An instruction is one line of up to ${MAX_LESSON_LINE} characters.`);
+  if (a.agentMdFileId === undefined) raise(ctx, "validation.bad_input", "This agent has no AGENT.md yet.");
+  const before = await versionsOf(ctx, a.agentMdFileId);
+  const undo = [...before].sort((x, y) => y.n - x.n)[0];
+  const text = ((await call<{ text?: string }>(ctx, "files.read", { fileId: a.agentMdFileId, as: "text" })).text) ?? "";
+  const bullet = `- ${line}`;
+  if (text.split("\n").some((l) => l.trim() === bullet)) return { agent: agentOut(a, ctx.now()), added: false, ...(undo ? { undoVersionId: undo.versionId } : {}) };
+  const at = text.indexOf(LESSONS_HEADING);
+  let next: string;
+  if (at < 0) next = `${text.replace(/\s+$/, "")}\n\n${LESSONS_HEADING}\n\n${bullet}\n`;
+  else {
+    // the section runs to the next heading or the end: the bullet goes after its last line
+    const rest = text.slice(at + LESSONS_HEADING.length);
+    const stop = rest.search(/\n#{1,6} /);
+    const end = stop < 0 ? text.length : at + LESSONS_HEADING.length + stop;
+    next = `${text.slice(0, end).replace(/\s+$/, "")}\n${bullet}\n${stop < 0 ? "" : text.slice(end)}`;
+  }
+  const saved = await saveFile(ctx, a.agentMdFileId, next, "Made a lesson an instruction");
+  ctx.emit("agent.config_changed", a.id, { agentId: a.id, fields: ["AGENT.md"], versionId: saved.versionId, by: by(ctx) });
+  return { agent: agentOut(agentBy(ctx.db, a.id)!, ctx.now()), added: true, versionId: saved.versionId, ...(undo ? { undoVersionId: undo.versionId } : {}) };
+}
+
 // ---- lifecycle -----------------------------------------------------------------------------------------------------------------------------------------------
 
 export async function pause(ctx: AgentsCtx, input: { agentId: string; reason?: string }) {

@@ -24,7 +24,15 @@ export interface ChatFact {
   agentId?: string;
   /** The upkeep question this fact waits on ("Two answers, waiting for a pick"). */
   conflict?: boolean;
+  /** What sort of fact it is; a lesson is what an agent learned from being corrected. */
+  kind?: string;
+  lesson?: LessonInfo;
 }
+
+export type LessonHow = "edit" | "refuse" | "reverse" | "rewrite";
+/** Only on a lesson: how it was caught, how many answers used it, who may read it. */
+export interface LessonInfo { how?: LessonHow; used: number; scope: "you" | "proposed" | "space" }
+export const isLesson = (f: { kind?: string | undefined }): boolean => f.kind === "lesson";
 
 export interface ChatQuote {
   ref: string;
@@ -150,7 +158,21 @@ export const subjectOfHref = (href: string): string | null => (href.startsWith(S
 
 // ---------------------------------------------------------------- the learned line
 
-export interface LearnedRow { factId: string; text: string; subjectTitle?: string; pageId?: string; sourceRef: string; at: number }
+export interface LearnedRow { factId: string; text: string; subjectTitle?: string; pageId?: string; sourceRef: string; at: number; lesson?: LessonInfo }
+
+/** The message a learned fact came from: the line its link names (`/chats/<thread>#<message>`), else its source ref (a fact remembered from one message carries that message). */
+export const messageOf = (f: { sourceRef: string; sourceLink?: string | undefined }): string => { const at = f.sourceLink?.indexOf("#") ?? -1; return f.sourceLink && at >= 0 ? f.sourceLink.slice(at + 1) : f.sourceRef; };
+
+// ---------------------------------------------------------------- lessons (learn from every correction)
+
+export const HOW_TEXT: Record<LessonHow, string> = { edit: "Edited a draft", refuse: "Said no", reverse: "Undid an action", rewrite: "Rewrote an answer" };
+export const SCOPE_TEXT: Record<LessonInfo["scope"], string> = { you: "Only you", proposed: "Proposed", space: "Space" };
+export const usedTimes = (n: number): string => `used ${n} ${n === 1 ? "time" : "times"}`;
+export const LESSONS_HEAD = (agent: string): string => `Lessons ${agent} kept from your corrections`;
+export const LESSONS_SWITCH = "Learn from my corrections";
+export const LESSONS_OFF = "Off. Nothing is kept from what you change.";
+export const LESSONS_FOOT = "Lessons from a private chat stay private to you. Sharing one puts it in Proposed first, so a person accepts it.";
+export const lessonUsedLine = (text: string): string => `Used a lesson: ${text}`;
 
 /** The text of a message for "Remember this": its words, markup left in, trimmed and cut at 400 letters. */
 export function rememberText(body: string): string {

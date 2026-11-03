@@ -118,6 +118,9 @@ export function createClient(transport: Transport) {
       guide: {
         get: call("agents.guide.get", 1),
       },
+      instruction: {
+        append: call("agents.instruction.append", 1),
+      },
       limits: {
         get: call("agents.limits.get", 1),
       },
@@ -1574,6 +1577,9 @@ export function createClient(transport: Transport) {
       chat_learning: {
         get: call("memory.chat_learning.get", 1),
         set: call("memory.chat_learning.set", 1),
+      },
+      corrections: {
+        record: call("memory.corrections.record", 1),
       },
       counts: call("memory.counts", 1),
       erase: call("memory.erase", 1),

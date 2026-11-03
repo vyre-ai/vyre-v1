@@ -6,10 +6,10 @@ import type { ReactElement, ReactNode } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { ChatMemoryContext, useRead } from "./data.tsx";
 import type { ChatMemoryData } from "./data.tsx";
-import { subjectIndex } from "./model.ts";
-import type { LearnedRow, SubjectIndex, SubjectPage } from "./model.ts";
+import { messageOf, subjectIndex } from "./model.ts";
+import type { LearnedRow, LessonInfo, SubjectIndex, SubjectPage } from "./model.ts";
 
-interface LearnedItemOut { fact: { factId: string; text: string; sourceRef: string; sourceKind: string; learnedAt: number; subject?: { title: string; pageId: string } }; at: number }
+interface LearnedItemOut { fact: { factId: string; text: string; sourceRef: string; sourceLink?: string; sourceKind: string; learnedAt: number; subject?: { title: string; pageId: string }; lesson?: LessonInfo }; at: number }
 interface LearnedOut { items: LearnedItemOut[] }
 interface PagesOut { pages: SubjectPage[] }
 
@@ -55,7 +55,7 @@ function WithMemory({ memory, threadId, children }: { memory: ChatMemoryData; th
     if (learnedQ.status === "ready") {
       for (const it of learnedQ.data.items) {
         if (it.fact.sourceKind !== "chat") continue;
-        out.set(it.fact.factId, { factId: it.fact.factId, text: it.fact.text, sourceRef: it.fact.sourceRef, at: it.at, ...(it.fact.subject ? { subjectTitle: it.fact.subject.title, pageId: it.fact.subject.pageId } : {}) });
+        out.set(it.fact.factId, { factId: it.fact.factId, text: it.fact.text, sourceRef: messageOf(it.fact), at: it.at, ...(it.fact.lesson ? { lesson: it.fact.lesson } : {}), ...(it.fact.subject ? { subjectTitle: it.fact.subject.title, pageId: it.fact.subject.pageId } : {}) });
       }
     }
     return out;

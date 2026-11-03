@@ -143,6 +143,10 @@ export default defineManifest({
     write('agents.role_line.set', 'Edit the role line in place: saves the description of agent.toml with an inline Undo; read-only without Edit', {
       in: { ...target, description: t.str({ maxLength: 200 }) }, out: { agent: agentRow, undoVersionId: id.version }, on: ['agent', '/agentId'], emits: ['agent.config_changed'], tool: 'agents', offline: 'patch',
     }),
+    write('agents.instruction.append', 'Make a lesson an instruction: one line added to the agent\'s AGENT.md under Lessons from corrections, as a new version with an inline Undo; needs Edit on the agent', {
+      in: { ...target, line: t.str({ maxLength: 240 }) }, out: { agent: agentRow, added: t.bool(), versionId: t.opt(id.version), undoVersionId: t.opt(id.version) }, on: ['agent', '/agentId'], emits: ['agent.config_changed'], tool: 'agents',
+      errors: ['validation.bad_input'],
+    }),
     // ---- outside agents: an app that signed in from outside Vyre is a normal agent that runs elsewhere. Work waits for it here, because it is not running all the time.
     write('agents.outside.connect', 'System: make the agent an app becomes when a person allows it. Called by mcp.oauth.allow, never by a client', {
       in: { clientName: t.str() }, out: { agentId: id.agent, name: t.str() }, perm: 'agents.create', emits: ['agent.created', 'agent.privacy_set'], audit: 'always', idem: 'none', risk: 'high', offline: 'online',

@@ -1,5 +1,7 @@
 // What a fact row carries beyond the fact itself, for the screens (owner design 30 Oct 2026): the subject it is about (a page, with its type), the title of the chat, run or record it came from, who wrote it
 // and how many versions it has. Optional on every row; a fact with no page or source simply has none of them. Nothing here reads a place the caller cannot open.
+import { LESSON, lessonExtras } from "./lessons.ts";
+import type { LessonExtras } from "./lessons.ts";
 import { subjectKey } from "./pages.ts";
 import { actorOf, factOut, num, orNull, rowsOf, str } from "./projections.ts";
 import type { Fact, MemCtx } from "./projections.ts";
@@ -10,6 +12,7 @@ export interface FactExtras {
   by?: string;
   byKind?: "person" | "agent" | "upkeep" | "system";
   versions?: number;
+  lesson?: LessonExtras;
 }
 
 const kindOfId = (id: string): FactExtras["byKind"] => (id.startsWith("usr_") ? "person" : id.startsWith("agt_") ? "agent" : id === "upkeep" ? "upkeep" : "system");
@@ -59,6 +62,7 @@ export function extrasFor(ctx: MemCtx, facts: readonly Fact[]): Map<string, Fact
       cur = orNull(rowsOf(ctx.db, "SELECT replaces FROM memory_facts WHERE id = ?", cur)[0]?.["replaces"]);
     }
     x.versions = versions;
+    if (f.kind === LESSON) x.lesson = lessonExtras(ctx, f);
     out.set(f.id, x);
   }
   return out;
@@ -67,7 +71,7 @@ export function extrasFor(ctx: MemCtx, facts: readonly Fact[]): Map<string, Fact
 /** The contract's fact rows, each with its extras. */
 export function factRows(ctx: MemCtx, facts: readonly Fact[]) {
   const ex = extrasFor(ctx, facts);
-  return facts.map((f) => ({ ...factOut(f), ...(ex.get(f.id) ?? {}) }));
+  return facts.map((f) => ({ ...factOut(f), ...(f.kind ? { kind: f.kind } : {}), ...(ex.get(f.id) ?? {}) }));
 }
 
 export const countOf = (v: unknown): number => num(v);

@@ -386,6 +386,12 @@
     },
     {
       "deferred": false,
+      "name": "agents_instruction_append",
+      "summary": "Make a lesson an instruction: one line added to the agent's AGENT.md under Lessons from corrections, as a new version with an inline Undo; needs Edit on the agent",
+      "toolset": "agents"
+    },
+    {
+      "deferred": false,
       "name": "agents_limits_get",
       "summary": "Effective limits of an agent: agent.toml capped by Space caps",
       "toolset": "agents"
@@ -5206,6 +5212,12 @@
       "deferred": false,
       "name": "memory_backlinks",
       "summary": "Where a page is linked from: other pages, chats, runs and records, each with the line that names it; only places the reader can open",
+      "toolset": "memory"
+    },
+    {
+      "deferred": false,
+      "name": "memory_corrections_record",
+      "summary": "Keep a lesson from a correction made outside the chat's own words: an edit of the agent's draft, a declined or sent-back action, an undo. Called as the person who corrected; kept only when their switch Learn from my corrections is on",
       "toolset": "memory"
     },
     {

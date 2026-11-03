@@ -66,6 +66,25 @@ test("a person editing an agent draft keeps who drafted it and the Gate line", a
   assert.equal(h.rows(`SELECT id FROM mail_message`).length, 1);
 });
 
+test("a person who edits an agent's draft teaches it: one correction to memory with what was and what is now, once per edit; their own draft and an agent's edit teach nothing", async () => {
+  const h = setup({ principal: AGENT });
+  const made = await draft(h.ctx, { mailboxId: MBX, to: [{ address: "pat@acme.test" }], subject: "Follow up", text: "Hi Pat, I hope you are well. Here is the long version.", idempotencyKey: key() });
+  assert.equal(h.calls("memory.corrections.record").length, 0, "the agent writing its own draft is nobody's correction");
+  h.ctx.principal = PERSON;
+  h.advance(60_000);
+  await draft(h.ctx, { mailboxId: MBX, draftId: made.draftId, text: "Hi Pat, quick note.", idempotencyKey: key() });
+  const rec = h.calls("memory.corrections.record");
+  assert.equal(rec.length, 1);
+  assert.deepEqual(rec[0]!.input, { agentId: "agt_scout01", how: "edit", was: "Hi Pat, I hope you are well. Here is the long version.", now: "Hi Pat, quick note.", ref: `${made.draftId}:v1` });
+  // saving it again with the same words (a change of subject only) is not a correction
+  await draft(h.ctx, { mailboxId: MBX, draftId: made.draftId, subject: "Following up", idempotencyKey: key() });
+  assert.equal(h.calls("memory.corrections.record").length, 1);
+  // a person's own draft, edited by them, teaches nothing
+  const mine = await draft(h.ctx, { mailboxId: MBX, to: [{ address: "pat@acme.test" }], subject: "Mine", text: "One", idempotencyKey: key() });
+  await draft(h.ctx, { mailboxId: MBX, draftId: mine.draftId, text: "Two", idempotencyKey: key() });
+  assert.equal(h.calls("memory.corrections.record").length, 1);
+});
+
 test("one recipient field: an address appears once, To before Cc before Bcc", async () => {
   const h = setup();
   const out = await draft(h.ctx, {
