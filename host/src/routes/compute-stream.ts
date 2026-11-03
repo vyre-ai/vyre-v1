@@ -277,13 +277,13 @@ export function createComputeStream(deps: ComputeStreamDeps): ComputeStream {
           return;
         }
         if (m.t === "ask_res") {
-          const r = m as unknown as { id?: unknown; ok?: unknown; result?: unknown; reason?: unknown };
+          const r = m as unknown as { id?: unknown; ok?: unknown; result?: unknown; reason?: unknown; code?: unknown };
           const id = typeof r.id === "string" ? r.id : "";
           const a = asks.get(id);
           if (!a || a.nodeId !== conn.nodeId) return;
           clearTimeout(a.timer);
           asks.delete(id);
-          if (r.ok === true) a.ok(r.result); else a.no(new Error(typeof r.reason === "string" ? r.reason.slice(0, 200) : "The computer could not say."));
+          if (r.ok === true) a.ok(r.result); else a.no(Object.assign(new Error(typeof r.reason === "string" ? r.reason.slice(0, 200) : "The computer could not say."), typeof r.code === "string" ? { code: r.code } : {}));
           return;
         }
         if (typeof m.t === "string" && m.t.startsWith("cli_")) {

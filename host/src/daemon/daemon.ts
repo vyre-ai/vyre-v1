@@ -370,6 +370,8 @@ export interface Daemon {
   ensureIngress(): Promise<void>;
   /** The Chrome bridge behind /chrome-bridge/v1/*: agent tool calls to the extension, and the extension's requests (apps/chrome native host) */
   chromeBridge: ChromeBridge;
+  /** The person's own Chrome as a place work can run, as this daemon serves it: its own extension first, then a person's computer over their device link. */
+  personalChrome: import("../../../lib/personal-chrome.ts").PersonalChrome;
   /** Engine processes on computers that joined (a turn pinned to a server): start one on a node, over its live socket. */
   nodeRelay: { spawnProc: ComputeStream["spawnProc"]; connected(nodeId: string): boolean; secure(nodeId: string): boolean; devices: ComputeStream["devices"] };
   /** A device-role daemon: the Team Spaces it links to for its person's turns (POST /local/chrome/spaces). */
@@ -622,7 +624,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
     },
   });
   chromeEventListeners.add(chromePort.onEvent);
-  bindPersonalChrome(composePorts(chromePort.port, remoteChrome.port));
+  const composedChrome = composePorts(chromePort.port, remoteChrome.port);
+  bindPersonalChrome(composedChrome);
   closers.push(() => bindPersonalChrome(null));
   const chromeAgentsRoute = createChromeAgentsRoute({ token, optIn: (spaces) => chromeBridge.optIn(spaces, "personal"), opened: () => chromeBridge.opened?.spaces ?? [], sameToken });
   let computeRecording: (nodeId: string, a: { token: string; computerId: string; url: string; bytes: Buffer }) => Promise<boolean> = () => Promise.resolve(false);
@@ -2381,7 +2384,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   requestStop = () => { void stop(); };
 
   return {
-    url: `http://${cfg.host}:${boundPort}`, claim, port: boundPort, token, roles: cfg.roles, space, paths, supervisor, scheduler, db, schedule: queue, seams, hooks, projections, sink, log, chromeBridge, nodeRelay: { spawnProc: (n, s) => computeStream.spawnProc(n, s), connected: (n) => computeStream.connected(n), secure: (n) => computeStream.secure(n), devices: (p) => computeStream.devices(p) }, teamLinks: () => teamLinks.ids(),
+    url: `http://${cfg.host}:${boundPort}`, claim, port: boundPort, token, roles: cfg.roles, space, paths, supervisor, scheduler, db, schedule: queue, seams, hooks, projections, sink, log, chromeBridge, personalChrome: composedChrome, nodeRelay: { spawnProc: (n, s) => computeStream.spawnProc(n, s), connected: (n) => computeStream.connected(n), secure: (n) => computeStream.secure(n), devices: (p) => computeStream.devices(p) }, teamLinks: () => teamLinks.ids(),
     runProbes: (names) => runProbes(names), pollCommands: runCommands, ensureIngress: () => ensureIngress(false),
     peers: peerService,
     stop,

@@ -232,7 +232,7 @@ export async function runDeviceLink(d: DeviceLinkDeps): Promise<"stopped"> {
           // this computer answers only for the person it is linked as, whatever the Space says
           const asked = (m["input"] && typeof m["input"] === "object" ? (m["input"] as { person?: unknown }).person : undefined);
           if (person === null || (asked !== undefined && asked !== person)) { say({ t: "ask_res", id, ok: false, reason: "This computer's Chrome is for its own person only." }); return; }
-          void d.chrome.answer(m["kind"], m["input"]).then((result) => say({ t: "ask_res", id, ok: true, result }), (e: unknown) => say({ t: "ask_res", id, ok: false, reason: e instanceof Error ? e.message : "Chrome did not answer." }));
+          void d.chrome.answer(m["kind"], m["input"]).then((result) => say({ t: "ask_res", id, ok: true, result }), (e: unknown) => say({ t: "ask_res", id, ok: false, reason: e instanceof Error ? e.message : "Chrome did not answer.", ...(e && typeof e === "object" && typeof (e as { code?: unknown }).code === "string" ? { code: (e as { code: string }).code.slice(0, 60) } : {}) }));
           return;
         }
         // views, ports and machine questions are a server's; a person's computer answers none of them

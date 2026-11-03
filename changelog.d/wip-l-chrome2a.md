@@ -26,3 +26,4 @@
 - The "Using your Chrome" card shows the plan's checklist, with "<action> waits for you" and the tab group line, above the held card.
 - The Save to Vault card follows the prototype: header with a menu and close, the site, Keep in with a Mine and Shared segment and a one-line note, Not now and Save.
 - Chrome tests: the booted daemon with the real extension and a scripted chat turn (host/tests/chrome-chat.live.test.ts) and the device-link questions (host/tests/device-link.chrome.test.ts).
+- Chrome tests: a server-side turn for a member drives the extension on the member's own computer over the device link, with an edited send, and another person's turn cannot reach that Chrome (host/tests/chrome-team.live.test.ts, two booted daemons and the real extension). An error code the extension gives (held_gone) now survives the trip over the link.
