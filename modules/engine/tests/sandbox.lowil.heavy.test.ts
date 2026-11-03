@@ -41,6 +41,9 @@ function fakeApi(log: string[]): Promise<{ port: number; close(): void }> {
   return new Promise((resolve) => s.listen(0, "127.0.0.1", () => resolve({ port: (s.address() as { port: number }).port, close: () => s.close() })));
 }
 
+/** PowerShell with the script encoded (UTF-16LE base64): nothing in it needs quoting on a command line. */
+const ps = (script: string): string[] => ["powershell.exe", "-NoProfile", "-NonInteractive", "-EncodedCommand", Buffer.from(script, "utf16le").toString("base64")];
+
 function run(argv: readonly string[], o: { cwd: string; env?: Record<string, string>; ms?: number }): Promise<{ code: number | null; out: string; err: string }> {
   return new Promise((resolve) => {
     const p = spawn(argv[0] as string, argv.slice(1), { cwd: o.cwd, env: { ...process.env, ...(o.env ?? {}) }, windowsHide: true, stdio: ["pipe", "pipe", "pipe"] });
@@ -87,13 +90,21 @@ test("a Windows Personal Space: a Claude Code Bash turn, git over HTTPS, and no 
     const git = await run(wrap(["git", "clone", "--depth", "1", "https://github.com/octocat/Hello-World.git", "hello"], { cwd, env: {} }), { cwd, ms: 180_000 });
     console.log(`git: exit ${git.code} ${git.err.slice(-600)}`);
     if (git.code !== 0) {
-      // what Windows says about the folders git could not use
-      const refs = path.join(cwd, "hello", ".git", "refs");
-      const mk = await run(wrap(["cmd.exe", "/d", "/c", `mkdir "${path.join(refs, "remotes", "probe")}" && echo mkdir-ok`], { cwd, env: {} }), { cwd, ms: 60_000 });
-      const acl = await run(["icacls.exe", refs], { cwd });
-      const acl2 = await run(["icacls.exe", path.join(refs, "remotes")], { cwd });
-      const again = await run(wrap(["git", "clone", "--depth", "1", "https://github.com/octocat/Hello-World.git", "hello2"], { cwd, env: { GIT_TRACE: "1" } }), { cwd, env: { GIT_TRACE: "1" }, ms: 180_000 });
-      console.log(`low mkdir: ${mk.code} ${mk.out} ${mk.err}\nrefs acl: ${acl.out}\nremotes acl: ${acl2.out}\ntrace: ${again.err.slice(-2500)}`);
+      // the same ref writes outside a clone, at Low and at normal integrity, to see which step Windows refuses
+      const script = (dir: string) => [
+        "$ErrorActionPreference = 'Continue'",
+        `git init -q '${dir}'`, `Set-Location '${dir}'`,
+        "git -c user.name=v -c user.email=v@v commit -q --allow-empty -m x; \"commit $LASTEXITCODE\"",
+        "git update-ref refs/remotes/origin/main HEAD 2>&1; \"update-ref $LASTEXITCODE\"",
+        "git symbolic-ref refs/remotes/origin/HEAD refs/remotes/origin/main 2>&1; \"symbolic-ref $LASTEXITCODE\"",
+        "New-Item -ItemType Directory -Path .git\\refs\\remotes\\probe 2>&1 | Out-Null; \"mkdir $?\"",
+        "Get-ChildItem -Recurse .git\\refs | ForEach-Object { $_.FullName }",
+        "icacls .git\\refs .git\\refs\\remotes 2>&1",
+        "whoami /groups | Select-String Mandatory",
+      ].join("; ");
+      const low = await run(wrap(ps(script(path.join(cwd, "refs-low"))), { cwd, env: {} }), { cwd, ms: 120_000 });
+      const med = await run(ps(script(path.join(cwd, "refs-medium"))), { cwd, ms: 120_000 });
+      console.log(`LOW:\n${low.out}\n${low.err.slice(-800)}\nMEDIUM:\n${med.out}\n${med.err.slice(-400)}`);
     }
     assert.equal(git.code, 0, git.err.slice(-600));
     assert.ok(fs.existsSync(path.join(cwd, "hello", "README")), "the repository is in the work folder");
@@ -102,7 +113,7 @@ test("a Windows Personal Space: a Claude Code Bash turn, git over HTTPS, and no 
     const outside = path.join(os.homedir(), "vyre-low-outside.txt");
     const data = path.join(dataDir, "vyre-low-pwned.txt");
     fs.rmSync(outside, { force: true });
-    const w = (target: string) => run(wrap(["cmd.exe", "/d", "/c", `echo x> "${target}"`], { cwd, env: {} }), { cwd, ms: 60_000 });
+    const w = (target: string) => run(wrap(ps(`Set-Content -LiteralPath '${target}' -Value x`), { cwd, env: {} }), { cwd, ms: 60_000 });
     for (const t of [outside, data]) { const r = await w(t); console.log(`write ${t}: exit ${r.code} ${r.err.trim()}`); }
     assert.ok(!fs.existsSync(outside), "the profile is not changed");
     assert.ok(!fs.existsSync(data), "Vyre's own data is not changed");
@@ -114,7 +125,7 @@ test("a Windows Personal Space: a Claude Code Bash turn, git over HTTPS, and no 
     // 4. Vyre's own files are not readable by the engine; the person's own files are (the ruling: it reads the computer like Claude Code does)
     const mine = path.join(os.homedir(), "vyre-low-readable.txt");
     fs.writeFileSync(mine, "persons-own-file");
-    const read = (f: string) => run(wrap(["cmd.exe", "/d", "/c", `type "${f}"`], { cwd, env: {} }), { cwd, ms: 60_000 });
+    const read = (f: string) => run(wrap(ps(`Get-Content -LiteralPath '${f}'`), { cwd, env: {} }), { cwd, ms: 60_000 });
     const token = await read(path.join(dataDir, "admin.token"));
     const claim = await read(path.join(dataDir, "logs", "claim-link.txt"));
     const own = await read(mine);
