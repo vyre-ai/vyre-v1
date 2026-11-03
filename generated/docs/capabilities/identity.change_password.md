@@ -36,6 +36,7 @@ type In = {
         epoch: number;
         wrapped: string;
       }>;
+    formerKey?: string;
   };
 };
 ```
@@ -64,6 +65,7 @@ type Out = {
   "input": {
     "currentPassword": "example",
     "keys": {
+      "formerKey": "d3JhcHBlZA==",
       "personKeyByPassword": "d3JhcHBlZA==",
       "personKeyByRecovery": "d3JhcHBlZA==",
       "privateKeyWrapped": "d3JhcHBlZA==",

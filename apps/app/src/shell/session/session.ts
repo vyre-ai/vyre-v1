@@ -197,13 +197,13 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
   void import("../../../../../generated/routes.ts").then((m) => { reads = new Set(m.routes.filter((r) => r.effects === "read").map((r) => r.cap)); }, () => undefined);
   const unlockVault = async (password: string): Promise<void> => {
     const got = (await reach("identity.keys_get", {})) as { keys: { personKeyByPassword: string; personKeyByRecovery?: string; publicKey: string; privateKeyWrapped: string } };
-    const { openBundle, wipe } = await loadCryptoKeys();
+    const { openBundle, heldKeyOf, wipeOpened } = await loadCryptoKeys();
     let opened: Awaited<ReturnType<typeof openBundle>>;
     try { opened = await openBundle(password, { ...got.keys, personKeyByRecovery: got.keys.personKeyByRecovery ?? "" }); } catch { throw new Error("That password does not open your vault."); }
     try {
-      if (!(await holdKeyOnOwnNode(o.baseUrl, token ?? "", opened.personKey))) throw new Error("Your Vault could not be opened. Sign in again to open it.");
-      keepKey(opened.personKey);
-    } finally { wipe(opened.personKey); wipe(opened.privateKey); }
+      if (!(await holdKeyOnOwnNode(o.baseUrl, token ?? "", heldKeyOf(opened)))) throw new Error("Your Vault could not be opened. Sign in again to open it.");
+      keepKey(heldKeyOf(opened));
+    } finally { wipeOpened(opened); }
   };
 
   const once: CapCall = async (cap, input, opts) => {

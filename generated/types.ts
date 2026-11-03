@@ -14820,6 +14820,7 @@ export type IdentityChangePasswordIn = {
         epoch: number;
         wrapped: string;
       }>;
+    formerKey?: string;
   };
 };
 export type IdentityChangePasswordOut = {
@@ -14842,6 +14843,7 @@ export type IdentityClaimOwnerIn = {
         epoch: number;
         wrapped: string;
       }>;
+    formerKey?: string;
   };
 };
 export type IdentityClaimOwnerOut = {
@@ -14863,6 +14865,7 @@ export type IdentityClaimOwnerOut = {
         epoch: number;
         wrapped: string;
       }>;
+    formerKey?: string;
   };
 };
 export type IdentityGithubLinkIn = {
@@ -14895,6 +14898,7 @@ export type IdentityGithubSignInOut = {
         epoch: number;
         wrapped: string;
       }>;
+    formerKey?: string;
   };
 };
 export type IdentityGithubUnlinkIn = Record<string, unknown>;
@@ -14912,6 +14916,7 @@ export type IdentityKeysGetOut = {
         epoch: number;
         wrapped: string;
       }>;
+    formerKey?: string;
   };
 };
 export type IdentityKeysPutIn = {
@@ -14924,11 +14929,53 @@ export type IdentityKeysPutIn = {
         epoch: number;
         wrapped: string;
       }>;
+    formerKey?: string;
   };
   reason: "first_device" | "password_change" | "reset" | "recovery" | "space_key_epoch" | "new_device";
 };
 export type IdentityKeysPutOut = {
   ok: boolean;
+};
+export type IdentityLinkAccountIn = {
+  currentPassword?: string;
+  recoveryProof?: string;
+  username: string;
+  password: string;
+  keys: {
+    personKeyByPassword: string;
+    personKeyByRecovery?: string;
+    publicKey: string;
+    privateKeyWrapped: string;
+    spaceKeys: Array<{
+        epoch: number;
+        wrapped: string;
+      }>;
+    formerKey?: string;
+  };
+  deviceName: string;
+  deviceClass: "desktop" | "phone" | "web" | "extension" | "daemon";
+};
+export type IdentityLinkAccountOut = {
+  status: "ok" | "second_factor_required";
+  challengeId?: string;
+  session?: {
+    sessionId: string;
+    deviceId: string;
+    token: string;
+    expiresAt: number;
+    epoch: number;
+  };
+  keys?: {
+    personKeyByPassword: string;
+    personKeyByRecovery?: string;
+    publicKey: string;
+    privateKeyWrapped: string;
+    spaceKeys: Array<{
+        epoch: number;
+        wrapped: string;
+      }>;
+    formerKey?: string;
+  };
 };
 export type IdentityPairCreateIn = {
   purpose: "app" | "phone" | "extension" | "daemon";
@@ -14962,6 +15009,7 @@ export type IdentityPairRedeemOut = {
         epoch: number;
         wrapped: string;
       }>;
+    formerKey?: string;
   };
 };
 export type IdentityPasskeyRegisterIn = {
@@ -14989,6 +15037,7 @@ export type IdentityRecoveryFetchOut = {
         epoch: number;
         wrapped: string;
       }>;
+    formerKey?: string;
   };
   challenge: {
     eph: string;
@@ -15012,6 +15061,7 @@ export type IdentityRecoveryRestoreIn = {
         epoch: number;
         wrapped: string;
       }>;
+    formerKey?: string;
   };
   deviceName: string;
   deviceClass: "desktop" | "phone" | "web" | "extension" | "daemon";
@@ -15035,6 +15085,7 @@ export type IdentityRecoveryRestoreOut = {
         epoch: number;
         wrapped: string;
       }>;
+    formerKey?: string;
   };
 };
 export type IdentityRecoverySaveIn = {
@@ -15055,6 +15106,7 @@ export type IdentityResetCompleteIn = {
         epoch: number;
         wrapped: string;
       }>;
+    formerKey?: string;
   };
   deviceName: string;
   deviceClass: "desktop" | "phone" | "web" | "extension" | "daemon";
@@ -15078,6 +15130,7 @@ export type IdentityResetCompleteOut = {
         epoch: number;
         wrapped: string;
       }>;
+    formerKey?: string;
   };
 };
 export type IdentityResetPreviewIn = {
@@ -15104,6 +15157,11 @@ export type IdentitySecurityGetOut = {
   github?: string;
   totp: boolean;
   passkeys: Array<string>;
+  username?: string;
+  carried?: Array<{
+      origin: string;
+      at: number;
+    }>;
 };
 export type IdentitySignInIn = {
   username: string;
@@ -15131,6 +15189,7 @@ export type IdentitySignInOut = {
         epoch: number;
         wrapped: string;
       }>;
+    formerKey?: string;
   };
 };
 export type IdentitySignInOptionsIn = Record<string, unknown>;
@@ -15191,6 +15250,7 @@ export type IdentitySsoSignInOut = {
         epoch: number;
         wrapped: string;
       }>;
+    formerKey?: string;
   };
 };
 export type IdentityTotpBeginIn = Record<string, unknown>;
@@ -15242,6 +15302,7 @@ export type IdentityVerifySecondFactorOut = {
         epoch: number;
         wrapped: string;
       }>;
+    formerKey?: string;
   };
 };
 export type IdentityWhoamiIn = Record<string, unknown>;
@@ -15887,6 +15948,7 @@ export type InvitesAcceptCreateAccountIn = {
         epoch: number;
         wrapped: string;
       }>;
+    formerKey?: string;
   };
   ssoProvider?: string;
 };
@@ -15909,6 +15971,7 @@ export type InvitesAcceptCreateAccountOut = {
         epoch: number;
         wrapped: string;
       }>;
+    formerKey?: string;
   };
 };
 export type JourneysAdvanceIn = {
@@ -34863,6 +34926,7 @@ export interface CapMap {
   "identity.github_unlink": { in: IdentityGithubUnlinkIn; out: IdentityGithubUnlinkOut };
   "identity.keys_get": { in: IdentityKeysGetIn; out: IdentityKeysGetOut };
   "identity.keys_put": { in: IdentityKeysPutIn; out: IdentityKeysPutOut };
+  "identity.link_account": { in: IdentityLinkAccountIn; out: IdentityLinkAccountOut };
   "identity.pair_create": { in: IdentityPairCreateIn; out: IdentityPairCreateOut };
   "identity.pair_redeem": { in: IdentityPairRedeemIn; out: IdentityPairRedeemOut };
   "identity.passkey_register": { in: IdentityPasskeyRegisterIn; out: IdentityPasskeyRegisterOut };
@@ -35903,6 +35967,11 @@ export type AccessReviewClosedPayload = {
 export type AccessReviewOpenedPayload = {
   reviewId: string;
   items: number;
+};
+export type AccountLinkedPayload = {
+  personId: string;
+  from: string;
+  to: string;
 };
 export type AgentBlockedPayload = {
   agentId: string;
@@ -37309,7 +37378,7 @@ export type JourneyTimeLimitBreachedPayload = {
 };
 export type KeysStoredPayload = {
   personId: string;
-  reason: "first_device" | "password_change" | "reset" | "recovery" | "space_key_epoch" | "new_device";
+  reason: "first_device" | "password_change" | "reset" | "recovery" | "space_key_epoch" | "new_device" | "link";
 };
 export type KitInstalledPayload = {
   kitId: string;
@@ -39493,6 +39562,7 @@ export interface EventMap {
   "access.requested": AccessRequestedPayload;
   "access_review.closed": AccessReviewClosedPayload;
   "access_review.opened": AccessReviewOpenedPayload;
+  "account.linked": AccountLinkedPayload;
   "agent.blocked": AgentBlockedPayload;
   "agent.config_changed": AgentConfigChangedPayload;
   "agent.config_error": AgentConfigErrorPayload;

@@ -36,6 +36,7 @@ type In = {
         epoch: number;
         wrapped: string;
       }>;
+    formerKey?: string;
   };
   deviceName: string;
   deviceClass: "desktop" | "phone" | "web" | "extension" | "daemon";
@@ -64,6 +65,7 @@ type Out = {
         epoch: number;
         wrapped: string;
       }>;
+    formerKey?: string;
   };
 };
 ```
@@ -87,6 +89,7 @@ type Out = {
     "deviceClass": "desktop",
     "deviceName": "example",
     "keys": {
+      "formerKey": "d3JhcHBlZA==",
       "personKeyByPassword": "d3JhcHBlZA==",
       "personKeyByRecovery": "d3JhcHBlZA==",
       "privateKeyWrapped": "d3JhcHBlZA==",
@@ -104,6 +107,7 @@ type Out = {
   "output": {
     "challengeId": "chl_a1b2c3",
     "keys": {
+      "formerKey": "d3JhcHBlZA==",
       "personKeyByPassword": "d3JhcHBlZA==",
       "personKeyByRecovery": "d3JhcHBlZA==",
       "privateKeyWrapped": "d3JhcHBlZA==",

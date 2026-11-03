@@ -35,7 +35,7 @@ export const GUARDED_CALL_PERMISSION = "members.remove";
  * Host calls the host makes as itself and nobody else may: the save of a sign-in a CLI refreshed during a turn (`vault.signin_refreshed`, host/src/seams/signin-refresh.ts). The handler refuses unless the
  * call is the host's own top-level hook call as the host service: not a person's or an agent's call, not another module's ctx.call, not a gateway, session or MCP call.
  */
-export const HOST_ONLY_CALL = /^vault\.signin_refreshed$/;
+export const HOST_ONLY_CALL = /^(vault\.signin_refreshed|identity\.carry_(sign_in|use))$/;
 export function guardCall(name: string, ctx: Pick<Ctx, "origin" | "depth" | "trace"> & { principal?: { kind: string; id: string } }): void {
   if (HOST_ONLY_CALL.test(name)) {
     const host = ctx.principal?.kind === SYSTEM_PRINCIPAL.kind && ctx.principal.id === SYSTEM_PRINCIPAL.id;

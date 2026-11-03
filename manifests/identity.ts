@@ -17,6 +17,7 @@ const keyBundle = t.obj({
   publicKey: t.str({ examples: ['cHVibGlj'] }),       // x25519 public key
   privateKeyWrapped: wrapped,                         // x25519 private half wrapped by personKey
   spaceKeys: t.arr(t.obj({ epoch: t.int({ minimum: 0 }), wrapped })),
+  formerKey: t.opt(wrapped),                          // rc.17, a linked account only: this Space's earlier person key wrapped by personKey; its data stays under it
 });
 const session = t.obj({ sessionId: id.session, deviceId: id.device, token: t.str({ description: 'Session credential, returned once' }), expiresAt: t.ts(), epoch: t.int({ minimum: 0 }) });
 const signInOut = {
@@ -40,7 +41,8 @@ export default defineManifest({
     ev('factor.enrolled', 'A second factor was added', { p: { personId: id.user, kind: t.enm('totp', 'passkey') }, subject: ['entity', '/personId'], vis: 'owner', retention: 'audit' }),
     ev('factor.removed', 'A second factor was removed', { p: { personId: id.user, kind: t.enm('totp', 'passkey') }, subject: ['entity', '/personId'], vis: 'owner', retention: 'audit' }),
     ev('recovery.saved', 'A recovery code was saved (the code itself is never sent)', { p: { personId: id.user }, subject: ['entity', '/personId'], vis: 'owner', retention: 'audit' }),
-    ev('keys.stored', 'A wrapped key bundle was stored or re-wrapped', { p: { personId: id.user, reason: t.enm('first_device', 'password_change', 'reset', 'recovery', 'space_key_epoch', 'new_device') }, subject: ['entity', '/personId'], vis: 'owner' }),
+    ev('keys.stored', 'A wrapped key bundle was stored or re-wrapped', { p: { personId: id.user, reason: t.enm('first_device', 'password_change', 'reset', 'recovery', 'space_key_epoch', 'new_device', 'link') }, subject: ['entity', '/personId'], vis: 'owner' }),
+    ev('account.linked', 'One account everywhere: this Space\'s sign-in took the username, password and key wraps of the account the person kept; their data and membership here did not change', { p: { personId: id.user, from: t.str(), to: t.str() }, subject: ['entity', '/personId'], vis: 'owner', retention: 'audit' }),
     ev('github.linked', 'A GitHub account was linked to the sign-in', { p: { personId: id.user, login: t.str() }, subject: ['entity', '/personId'], vis: 'owner' }),
     ev('github.unlinked', 'The GitHub link was removed', { p: { personId: id.user }, subject: ['entity', '/personId'], vis: 'owner' }),
   ],
@@ -75,7 +77,7 @@ export default defineManifest({
       ...V, out: { principal: principalRef, name: t.str(), roles: t.arr(id.role), groups: t.arr(id.group), deviceId: t.opt(id.device), epoch: t.int({ minimum: 0 }), spaceId: id.space, deferred: t.opt(t.arr(t.str())) }, tool: 'meta',
     }),
     read('identity.security.get', 'My sign-in in this Space: when the password last changed, the linked GitHub account, whether an authenticator app is set and the passkeys (Settings > Sign-in and devices)', {
-      ...V, out: { passwordChangedAt: t.ts(), github: t.opt(t.str({ description: 'The linked GitHub login', examples: ['maya-chen'] })), totp: t.bool(), passkeys: t.arr(t.str()) }, tool: 'meta',
+      ...V, out: { passwordChangedAt: t.ts(), github: t.opt(t.str({ description: 'The linked GitHub login', examples: ['maya-chen'] })), totp: t.bool(), passkeys: t.arr(t.str()), username: t.opt(t.str({ description: 'My username here, the one a password sign-in takes (rc.17: a device that signed in with Google learns it here)', examples: ['maya'] })), carried: t.opt(t.arr(t.obj({ origin: t.str({ description: 'The web address of the Space the account was brought to', examples: ['https://beacon.vyre.run'] }), at: t.ts() }))) }, tool: 'meta',
     }),
 
     // ---- pairing (one stack for the app, the extension and the daemon)
@@ -96,6 +98,12 @@ export default defineManifest({
     write('identity.change_password', 'Change my own password; keys are re-wrapped on the device first', {
       ...V, in: { currentPassword: t.str(), newPassword: t.str(), keys: keyBundle }, out: ok, emits: ['password.changed', 'keys.stored', 'signin.failed'], audit: 'sensitive', offline: 'online', errors: ['auth.bad_credentials'],
     }),
+    // rc.17: one account everywhere. The caller proves this Space's account (its password, or a recovery proof from identity.recovery_fetch); the device proved the kept account by opening its
+    // bundle with its password, and sends the bundle it built from both (client/src/crypto/keys.ts linkBundle). Every session of the person here ends, and this device gets a new one.
+    write('identity.link_account', 'Use one account everywhere: this Space\'s sign-in takes the username, password and key wraps of the account you keep. Your data, role and membership here stay', {
+      ...V, in: { currentPassword: t.opt(t.str()), recoveryProof: t.opt(t.str()), username: t.str({ pattern: '^[a-z0-9_.-]{2,32}$', examples: ['maya'] }), password: t.str(), keys: keyBundle, ...deviceIn }, out: signInOut,
+      emits: ['account.linked', 'password.changed', 'keys.stored', 'signin.succeeded', 'signin.failed'], audit: 'always', offline: 'online', rate: { n: 5, perSeconds: 300, scope: 'principal' }, errors: ['auth.bad_credentials', 'auth.invalid_code', 'validation.duplicate'],
+    }),
     write('identity.recovery_save', 'Save a recovery code so a reset keeps Mine vault items, private chats and personal memory', {
       ...V, in: { personKeyByRecovery: wrapped }, out: ok, emits: ['recovery.saved', 'keys.stored'], audit: 'sensitive', offline: 'online',
     }),
@@ -105,7 +113,7 @@ export default defineManifest({
     }),
     write('identity.recovery_fetch','Fetch recovery-only encrypted keys and a short-lived sealed private-key possession challenge',{
       ...V,caller:'anonymous',in:{username:t.str({maxLength:32})},
-      out:{keys:t.obj({personKeyByRecovery:wrapped,publicKey:t.str(),privateKeyWrapped:wrapped,spaceKeys:t.arr(t.obj({epoch:t.int({minimum:0}),wrapped}))}),challenge:t.obj({eph:t.str(),iv:t.str(),ct:t.str(),tag:t.str()}),context:t.str(),expiresAt:t.ts()},
+      out:{keys:t.obj({personKeyByRecovery:wrapped,publicKey:t.str(),privateKeyWrapped:wrapped,spaceKeys:t.arr(t.obj({epoch:t.int({minimum:0}),wrapped})),formerKey:t.opt(wrapped)}),challenge:t.obj({eph:t.str(),iv:t.str(),ct:t.str(),tag:t.str()}),context:t.str(),expiresAt:t.ts()},
       emits:[],audit:'always',offline:'online',rate:{n:5,perSeconds:60,scope:'principal'},errors:['auth.invalid_code'],
     }),
     // Ruling 23: the pre-auth half of joining by invite. The person does not exist yet, so the caller is anonymous (no principal), rate limited

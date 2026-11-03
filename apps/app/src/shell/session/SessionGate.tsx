@@ -36,9 +36,12 @@ import type { DesktopRoute } from "./desktop.ts";
 import type { LoadVoiceDevice } from "./phone.ts";
 import { openRealSession } from "./session.ts";
 import type { OpenSessionOptions, RealSession } from "./session.ts";
-import { clearStored, lockName, phaseForStoredAddress, readStored, readStoredSessions, readStoredSpace, openVerifiedSession, signInAndVerify, spaceAddress, spaceEndpoint } from "./stored.ts";
+import { clearStored, lockName, phaseForStoredAddress, readStored, readStoredSessions, readStoredSpace, openVerifiedSession, signInAndVerify, spaceAddress, spaceEndpoint, writeStored } from "./stored.ts";
 import { ContinueAs } from "../../join/ContinueAs.tsx";
-import { carryIdentity, knownIdentity } from "../../join/identity.ts";
+import { HaveAccount } from "../../join/HaveAccount.tsx";
+import { knownIdentity } from "../../join/identity.ts";
+import type { Carried, KnownIdentity } from "../../join/identity.ts";
+import { carried, checkKnownCode, haveAccountDeps, knownProof, rememberAccount } from "../../join/carry-wiring.ts";
 import type { SignInOptions, StoredSession } from "./stored.ts";
 import { SSO_FAILED_LINE, SSO_SECOND_FACTOR_LINE, ssoStartUrl, takeSsoReturn } from "./sso.ts";
 import { GITHUB_FAILED_LINE, GITHUB_SECOND_FACTOR_LINE, githubStartUrl, takeGithubReturn } from "./github.ts";
@@ -63,9 +66,10 @@ const hostOf = (baseUrl: string): string => baseUrl.replace(/^https?:\/\//, "").
 
 async function unlockOwnKey(baseUrl: string, token: string, password: string, keys: { personKeyByPassword: string; personKeyByRecovery?: string; publicKey: string; privateKeyWrapped: string }): Promise<void> {
   try {
-    const { openBundle, wipe } = await loadCryptoKeys();
+    const { openBundle, heldKeyOf, wipeOpened } = await loadCryptoKeys();
     const opened = await openBundle(password, { ...keys, personKeyByRecovery: keys.personKeyByRecovery ?? "" });
-    try { if (await holdKeyOnOwnNode(baseUrl, token, opened.personKey)) keepKey(opened.personKey); } finally { wipe(opened.personKey); wipe(opened.privateKey); }
+    // a linked Space's data is under its earlier key (keys.ts formerKey): that is the one this Space takes
+    try { if (await holdKeyOnOwnNode(baseUrl, token, heldKeyOf(opened))) keepKey(heldKeyOf(opened)); } finally { wipeOpened(opened); }
   } catch { /* personal keys stay locked; signing in does not depend on them */ }
 }
 
@@ -256,8 +260,9 @@ function DesktopJoinScreen({ route, open, onSignedIn, onBack, onSignIn, deviceCl
   const [attempt, setAttempt] = useState(0);
   const [ssoStarted, setSsoStarted] = useState<string | null>(null);
   const [sso, setSso] = useState<string | null>(null);
-  // The account this device already has (rc.14): joining uses it unless the person asks for a different one.
+  // The account this device already has (rc.14): joining uses it unless the person asks for a different one. "I already have a Vyre account" (rc.17) brings one this device has no session for.
   const [different, setDifferent] = useState(false);
+  const [have, setHave] = useState(false);
   const relay = useRelayAddress(route.address, deviceClass === "web");
   const known = useMemo(() => join ? knownIdentity(readStoredSessions(), { spaceId: join.preview.spaceId, baseUrl: route.address }) : null, [join, route.address]);
   // where the Space runs, for the words of a refused save on the AI step (ai-signin/own-ai.ts)
@@ -282,24 +287,34 @@ function DesktopJoinScreen({ route, open, onSignedIn, onBack, onSignIn, deviceCl
   if (!join) return <Opening title="Opening your invite" testID="step-invite-loading" />;
   const required = join.preview.ssoRequired ?? [];
   if (required.length > 0 && !sso) return <JoinSso providers={required} started={ssoStarted} onStart={(key) => { void Promise.resolve(anonymous("identity.sso_join_start", { code: route.code, provider: key })).then((out) => { const start = (out as { start?: string }).start; if (start) { (globalThis as { open?: (url: string, target: string) => unknown }).open?.(`${route.address}${start}`, "_blank"); setSsoStarted(key); } }); }} onDone={() => setSso(ssoStarted)} />;
+  // one join for every way the account was proved: its username and name, the password this Space signs in with, and its bundle carried here; this device then remembers who it is
+  const joinWith = async (c: Carried, from?: KnownIdentity): Promise<void> => {
+    const values: JoinValues = { username: c.username, displayName: c.name, password: c.password, deviceName: deviceFor(deviceClass).deviceName, trustDevice: true, ai: { choice: "none" } };
+    try {
+      const stored = await acceptDesktopJoin(join, values, { anonymous, deviceClass, ...(sso ? { ssoProvider: sso } : {}), open: (token) => open({ baseUrl: route.address, token }), getSpace: (token) => authenticatedSpace(route.address, token), carry: c.carry });
+      const remembered: StoredSession = { ...stored, username: c.username, displayName: c.name };
+      writeStored(remembered);
+      // the password opened the account there too: that Space's session now knows the username, so the next Space is a plain Continue as
+      if (from?.provider && c.viaPassword) rememberAccount(from, c.username);
+      onSignedIn(remembered);
+    } catch (e) {
+      if ((e as { line?: string }).line) throw e;
+      if (e instanceof JoinRefused) throw new Error(`The username ${c.username} is taken in ${join.preview.spaceName}. Use a different account.`);
+      throw new Error("Could not finish joining this Space. Try again.");
+    }
+  };
+  if (have) {
+    return <HaveAccount prefix="join-have" space={spaceLabel(join.preview.spaceName, route.address)} working={`Joining ${join.preview.spaceName}`} deps={haveAccountDeps(deviceFor(deviceClass))} onProof={async (proof) => joinWith(await carried(proof))} onBack={() => setHave(false)} />;
+  }
   if (known && !different) {
-    const joinAs = async (password: string): Promise<void> => {
-      const crypto = await loadCryptoKeys();
-      const source = createCapCaller({ baseUrl: known.baseUrl, token: () => known.token });
-      const values: JoinValues = { username: known.username, displayName: known.name, password, deviceName: deviceFor(deviceClass).deviceName, trustDevice: true, ai: { choice: "none" } };
-      try {
-        onSignedIn(await acceptDesktopJoin(join, values, { anonymous, deviceClass, ...(sso ? { ssoProvider: sso } : {}), open: (token) => open({ baseUrl: route.address, token }), getSpace: (token) => authenticatedSpace(route.address, token), carry: (spaceId) => carryIdentity({ source, carryBundle: (p, b, id) => crypto.carryBundle(p, b, id) }, password, spaceId) }));
-      } catch (e) {
-        if ((e as { line?: string }).line) throw e;
-        if (e instanceof JoinRefused) throw new Error(`The username ${known.username} is taken in ${join.preview.spaceName}. Use a different account.`);
-        throw new Error("Could not finish joining this Space. Try again.");
-      }
-    };
-    return <ContinueAs prefix="join-as" space={spaceLabel(join.preview.spaceName, route.address)} username={known.username} sub={`Enter your Vyre password to join ${join.preview.spaceName}`} working={`Joining ${join.preview.spaceName}`} onContinue={joinAs} onOther={() => setDifferent(true)} onBack={onBack} />;
+    const name = known.username ?? known.name;
+    return <ContinueAs prefix="join-as" space={spaceLabel(join.preview.spaceName, route.address)} username={name} sub={known.provider ? `Your Vyre password (the one you set when you joined), or your recovery code, to join ${join.preview.spaceName}` : `Enter your Vyre password to join ${join.preview.spaceName}`} working={`Joining ${join.preview.spaceName}`}
+      onContinue={async (password) => joinWith(await carried(await knownProof(known, { password })), known)} onOther={() => setDifferent(true)} onBack={onBack}
+      {...(known.provider ? { either: { onCheckCode: (code: string) => checkKnownCode(known, code), onRecovery: async (code: string, newPassword: string) => joinWith(await carried(await knownProof(known, { code, newPassword })), known) } } : {})} />;
   }
   const invite: JoinInvite = { space: spaceLabel(join.preview.spaceName, route.address), host: hostOf(route.address), by: join.preview.invitedBy, role: join.preview.role, fingerprint: join.preview.fingerprint, sso: [], github: false, adminKey: false, deviceName: deviceFor(deviceClass).deviceName };
   const appLink=deviceClass==='web'?inviteAppLink(route,relay):null;
-  return <JoinFlow invite={invite} onJoin={onJoin} {...(deviceClass==='desktop'?{initial:{stage:'steps' as const,step:0}}:{onDownload:()=>{(globalThis as {open?:(url:string,target:string,features:string)=>unknown}).open?.(VYRE_DOWNLOADS,'_blank','noopener,noreferrer');}})} {...(appLink?{onOpenApp:()=>{(globalThis as {location?:{assign(url:string):void}}).location?.assign(appLink);}}:{})} />;
+  return <JoinFlow invite={invite} onJoin={onJoin} onHaveAccount={() => setHave(true)} {...(deviceClass==='desktop'?{initial:{stage:'steps' as const,step:0}}:{onDownload:()=>{(globalThis as {open?:(url:string,target:string,features:string)=>unknown}).open?.(VYRE_DOWNLOADS,'_blank','noopener,noreferrer');}})} {...(appLink?{onOpenApp:()=>{(globalThis as {location?:{assign(url:string):void}}).location?.assign(appLink);}}:{})} />;
 }
 
 /** Everyone in this Space must use its single sign-on: a new person proves the invitation's address first, in a browser window, and then chooses their name and the password that wraps their keys. */

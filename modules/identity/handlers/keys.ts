@@ -2,6 +2,7 @@ import {assertNewMemberPolicy,assertSignInPolicy} from "../policy.ts";
 // Wrapped key storage, password change, recovery and admin reset (spec 3.13, 2.25). The server holds ciphertext only: it checks that a bundle is base64 and stores it,
 // it never receives a personKey and never returns a key to anyone but the signed-in person.
 import type { Device, IdentityCtx, KeyBundle, SignInOut } from "../projections.ts";
+import { spendRecoveryProof } from "./recovery.ts";
 import {
   MIN_SECRET, RESET_TTL_MS, USERNAME, nid, provisionAccount, randomBytes, validBundle, accountById, accountByName, bundleOf, burnVerify, checkVerifier, issueSession, lockedFor, makeVerifier, me, mustAccount, noteFail, raise,
   currentSessionId, revokeSessions, setKeys, sha, peekCode, spendCode, putCode, clearFails, LOCK_AFTER,
@@ -27,7 +28,7 @@ export async function keysPut(ctx: IdentityCtx, input: { keys: KeyBundle; reason
   if(new Set(epochs).size!==epochs.length)raise(ctx.trace.traceId,"validation.bad_input","Each Space key epoch must occur once.");
   if(have){
     if(["password_change","recovery","reset"].includes(input.reason))raise(ctx.trace.traceId,"validation.precondition_failed","Use the verified password change, recovery or administrator reset flow.");
-    if(input.keys.personKeyByPassword!==have.personKeyByPassword||input.keys.personKeyByRecovery!==have.personKeyByRecovery||input.keys.publicKey!==have.publicKey||input.keys.privateKeyWrapped!==have.privateKeyWrapped)raise(ctx.trace.traceId,"permission.no_grant","A device session cannot replace existing account identity keys.");
+    if(input.keys.personKeyByPassword!==have.personKeyByPassword||input.keys.personKeyByRecovery!==have.personKeyByRecovery||input.keys.publicKey!==have.publicKey||input.keys.privateKeyWrapped!==have.privateKeyWrapped||input.keys.formerKey!==have.formerKey)raise(ctx.trace.traceId,"permission.no_grant","A device session cannot replace existing account identity keys.");
     if(have.spaceKeys.some(old=>!input.keys.spaceKeys.some(next=>next.epoch===old.epoch&&next.wrapped===old.wrapped)))raise(ctx.trace.traceId,"validation.version_conflict","Existing Space key epochs must remain unchanged.");
     if(input.reason!=="space_key_epoch"&&(input.keys.spaceKeys.length!==have.spaceKeys.length))raise(ctx.trace.traceId,"validation.precondition_failed","Add a new Space key epoch through its dedicated key update reason.");
   }
@@ -59,6 +60,45 @@ export async function changePassword(ctx: IdentityCtx, input: { currentPassword:
   revokeSessions(ctx, a.person_id, currentSessionId(ctx, a.person_id));
   ctx.emit("password.changed", a.person_id, { personId: a.person_id });
   return ok;
+}
+
+/**
+ * Use one account everywhere (rc.17). The person proves THIS Space's account (its password, or a recovery proof), and sends the bundle their device built after opening the kept account
+ * with its password (client/src/crypto/keys.ts linkBundle): the kept password and recovery wraps and key pair, this Space's keys sealed again to the kept public key epoch for epoch, and
+ * `formerKey`, the key this Space's data is under, sealed under the kept person key. The server checks what it can (the proof, the username is free here, the same epochs, a formerKey, a
+ * different key pair), takes the username and password, stores the bundle, ends every session of the person (their key leaves this server's memory and its wrap is dropped) and opens
+ * one for this device. The person id, their role, groups and data do not change.
+ */
+export async function linkAccount(ctx: IdentityCtx, input: Device & { currentPassword?: string; recoveryProof?: string; username: string; password: string; keys: KeyBundle }): Promise<SignInOut> {
+  const tid = ctx.trace.traceId;
+  const a = me(ctx);
+  if (lockedFor(a, ctx.now()) > 0) { noteFail(ctx, a, a.username, "locked"); raise(tid, "auth.bad_credentials"); }
+  const have = bundleOf(a);
+  if (!have) raise(tid, "validation.precondition_failed", "no keys are stored here yet");
+  if (typeof input.currentPassword === "string") {
+    if (!(await checkVerifier(input.currentPassword, a.verifier))) { noteFail(ctx, a, a.username, "bad_credentials"); raise(tid, "auth.bad_credentials"); }
+  } else if (typeof input.recoveryProof === "string") spendRecoveryProof(ctx, a, have, input.recoveryProof);
+  else { await burnVerify(input.password); raise(tid, "auth.bad_credentials"); }
+  const username = input.username.trim().toLowerCase();
+  if (!USERNAME.test(username)) raise(tid, "validation.bad_input", "username is 2 to 32 letters, digits, dot, dash or underscore");
+  const holder = accountByName(ctx, username);
+  if (holder && holder.person_id !== a.person_id) raise(tid, "validation.duplicate", "that username is taken in this Space");
+  checkNewSecret(ctx, input.password);
+  if (!validBundle(input.keys) || !input.keys.formerKey) raise(tid, "validation.bad_input", "a linked bundle carries the key this Space's data is under");
+  if (input.keys.publicKey === have.publicKey) raise(tid, "validation.precondition_failed", "these are already one account");
+  const epochs = (k: KeyBundle): string => k.spaceKeys.map((s) => s.epoch).sort((x, y) => x - y).join(",");
+  if (epochs(input.keys) !== epochs(have)) raise(tid, "validation.version_conflict", "every Space key epoch here must be sealed again, and no other");
+  const verifier = await makeVerifier(input.password);
+  // nothing about the account may have moved while the verifier was made
+  const now = mustAccount(ctx, a.person_id);
+  if (now.keys_json !== a.keys_json || now.verifier !== a.verifier || now.username !== a.username) raise(tid, "validation.version_conflict", "the account changed; try again");
+  ctx.db.run(`UPDATE identity_accounts SET username = ?, verifier = ?, fails = 0, locked_until = 0 WHERE person_id = ?`, username, verifier, a.person_id);
+  ctx.db.run(`INSERT OR REPLACE INTO identity_password_changed (person_id, changed_at) VALUES (?, ?)`, a.person_id, ctx.now());
+  setKeys(ctx, a.person_id, input.keys, "link");
+  revokeSessions(ctx, a.person_id);
+  ctx.emit("account.linked", a.person_id, { personId: a.person_id, from: a.username, to: username });
+  ctx.emit("password.changed", a.person_id, { personId: a.person_id });
+  return await issueSession(ctx, mustAccount(ctx, a.person_id), input, "password");
 }
 
 export async function recoverySave(ctx: IdentityCtx, input: { personKeyByRecovery: string }) {

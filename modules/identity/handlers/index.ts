@@ -4,7 +4,7 @@ import {
   totpRemove, usernameAvailable, verifySecondFactor, whoami, securityGet,
 } from "./signin.ts";
 import { claimOwner } from "./claim.ts";
-import { acceptCreateAccount, ssoJoinStart, changePassword, keysGet, keysPut, recoveryFetch, recoveryRestore, recoverySave, resetComplete, resetPreview, resetStart } from "./keys.ts";
+import { acceptCreateAccount, ssoJoinStart, changePassword, keysGet, keysPut, linkAccount, recoveryFetch, recoveryRestore, recoverySave, resetComplete, resetPreview, resetStart } from "./keys.ts";
 
 export const handlers = {
   "identity.recovery_fetch":recoveryFetch,
@@ -16,6 +16,7 @@ export const handlers = {
   "identity.github_unlink": githubUnlink,
   "identity.keys_get": keysGet,
   "identity.keys_put": keysPut,
+  "identity.link_account": linkAccount,
   "identity.pair_create": pairCreate,
   "identity.pair_redeem": pairRedeem,
   "identity.passkey_register": passkeyRegister,

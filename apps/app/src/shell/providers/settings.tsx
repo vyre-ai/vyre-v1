@@ -7,6 +7,9 @@ import { StyleSheet, View } from "react-native";
 import { SettingsDataProvider } from "../../places/settings/data.tsx";
 import type { DesktopUpdater, SettingsData } from "../../places/settings/data.tsx";
 import { SecuritySheet } from "../../places/settings/SecuritySheet.tsx";
+import { LinkSheet } from "../../places/settings/LinkSheet.tsx";
+import { readStoredSpace, writeStored } from "../session/stored.ts";
+import { deviceFor } from "../../join/logic.ts";
 import type { SettingsNav } from "../../places/settings/data.tsx";
 import { SettingsPlace } from "../../places/settings/SettingsPlace.tsx";
 import { OLD_PAGES, PAGES } from "../../places/settings/model.ts";
@@ -66,6 +69,23 @@ export function settingsData(rt: ShellRuntime, manageSecurity?: SettingsNav["man
   };
 }
 
+const isDesktopWindow = (): boolean => !!(globalThis as { __TAURI__?: unknown }).__TAURI__;
+
+/** Every Space this device is in, this one first, for "Use one account everywhere" (rc.17). */
+export function linkSpaces(rt: ShellRuntime): { name: string; spaceId: string; call: (cap: string, input: unknown) => Promise<unknown> }[] {
+  const callIn = rt.callIn;
+  const here = { name: rt.space.name, spaceId: rt.space.id, call: rt.call };
+  if (!callIn || !rt.knownSpaces) return [here];
+  return [here, ...rt.knownSpaces.filter((x) => x.spaceId !== rt.space.id).map((x) => ({ name: x.name, spaceId: x.spaceId, call: (cap: string, input: unknown) => callIn(x.spaceId, cap, input) }))];
+}
+
+/** A Space that took the kept account answered with a new session for this device (its old ones ended): store it; the open Space reloads on it. */
+export function storeLinkedSession(spaceId: string, token: string, username: string, openSpace: string): void {
+  const stored = readStoredSpace(spaceId);
+  if (stored) writeStored({ ...stored, token, username });
+  if (spaceId === openSpace) (globalThis as { location?: { reload(): void } }).location?.reload();
+}
+
 /** The other Spaces this device is in, reached as the same person: a new recovery code replaces the old one there too. */
 export function otherSpaces(rt: ShellRuntime): { name: string; call: (cap: string, input: unknown) => Promise<unknown> }[] {
   const callIn = rt.callIn;
@@ -108,7 +128,7 @@ export default function SettingsShellPlace(_props: { place: string }): ReactElem
   }, [rt, askedAdmin]);
   const data = useMemo(() => (rt ? settingsData(rt, (kind) => setSecurity(kind), signIn, consoleAllowed) : null), [rt, signIn, consoleAllowed]);
   if (!data) return <View style={s.page} testID="settings-loading" />;
-  return <SettingsDataProvider value={data}><SettingsPlace key={`${nonce}:${page ?? ""}:${askedAdmin ?? ""}`} {...(addServerAsked() ? { initialPage: "computer" as const } : page ? { initialPage: page } : {})} />{security ? <SecuritySheet key={security} action={security} call={rt!.call} onClose={() => setSecurity(null)} spaceName={rt!.space.name} others={otherSpaces(rt!)} /> : null}</SettingsDataProvider>;
+  return <SettingsDataProvider value={data}><SettingsPlace key={`${nonce}:${page ?? ""}:${askedAdmin ?? ""}`} {...(addServerAsked() ? { initialPage: "computer" as const } : page ? { initialPage: page } : {})} />{security === "link" ? <LinkSheet spaces={linkSpaces(rt!)} device={deviceFor(isDesktopWindow() ? "desktop" : "web")} onSession={(id, token, username) => storeLinkedSession(id, token, username, rt!.space.id)} onClose={() => setSecurity(null)} /> : security ? <SecuritySheet key={security} action={security} call={rt!.call} onClose={() => setSecurity(null)} spaceName={rt!.space.name} others={otherSpaces(rt!)} /> : null}</SettingsDataProvider>;
 }
 
 const s = StyleSheet.create({ page: { flex: 1, backgroundColor: "var(--win)" as string } });

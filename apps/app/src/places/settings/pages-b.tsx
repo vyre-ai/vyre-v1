@@ -88,6 +88,8 @@ function AccountCard({ sec }: { sec: NonNullable<SettingsData["security"]> }): R
     <Section title="Sign-in" testID="signin-account">
       <SettingsRow id="signin.password" label="Password" first lead={<Glyph name="key" size={16} />} sub={`Changed ${sec.account.passwordChanged}`} control={<SmallButton label="Change..." testID="pw-change" onPress={() => data.nav.manageSecurity?.("password", first)} />} />
       <SettingsRow id="signin.recovery" label="Recovery code" lead={<Glyph name="key" size={16} />} sub="Make a new code; the old one stops working" control={<SmallButton label="Make a new code..." testID="recovery-new" onPress={() => data.nav.manageSecurity?.("recovery", first)} />} />
+      {(sec.account.carried ?? []).slice(0, 3).map((c, i) => <SettingsRow key={`carried-${i}`} id={`signin.carried.${i}`} label={`Signed in from ${c.host}`} lead={<Glyph name="key" size={16} />} sub={`To bring your account to another Space, ${c.day}`} />)}
+      {data.spaces.length > 1 ? <SettingsRow id="signin.link" label="Use one account everywhere" lead={<Glyph name="key" size={16} />} sub="Two Vyre accounts? Keep one; your work stays where it is" control={<SmallButton label="Choose..." testID="link-open" onPress={() => data.nav.manageSecurity?.("link", first)} />} /> : null}
       <SettingsRow
         id="signin.github" label="GitHub" lead={<Glyph name="github" size={16} />} sub={gh ? `Connected as @${gh}` : "Sign in with one click"}
         control={<SmallButton label={gh ? "Disconnect" : "Connect"} testID="gh-toggle" onPress={() => data.nav.manageSecurity?.(gh ? "github-off" : "github-on", first)} />}
