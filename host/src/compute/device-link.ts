@@ -21,7 +21,7 @@ export interface DeviceLinkDeps {
   server: string;
   /** The person's own signed-in session for that Space. Held in memory only. */
   token: string;
-  /** The data folder the launcher's sandbox works under: an engine runs in <dataDir>/work/<person>/<process>. */
+  /** The data folder the launcher's sandbox works under: an engine runs in the launcher's work folder (<dataDir>/work/<person>/<process> on a Mac and Linux). */
   dataDir: string;
   /** What this computer calls itself in the Runs-on menu. */
   name: string;
@@ -176,6 +176,8 @@ export async function runDeviceLink(d: DeviceLinkDeps): Promise<"stopped"> {
       if (mac) void proc.exited.then(() => mac.after(), () => mac.after());
       return proc;
     },
+    // the engine module's folder layout passes through: on Windows its sandbox accepts only its own short hashed folders
+    ...(d.launcher.workFolder ? { workFolder: (who: string, proc: string) => d.launcher.workFolder!(who, proc) } : {}),
   };
   const engines = cliRelay({ launcher, dataDir: d.dataDir, server, log: d.log, person: () => person });
   const base = d.retryMs ?? 2_000;

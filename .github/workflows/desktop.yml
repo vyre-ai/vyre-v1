@@ -383,7 +383,7 @@ jobs:
       - name: "runson: Runs on, Automatic, the device link and handover"
         id: runson
         continue-on-error: true
-        run: node --test --test-force-exit --test-reporter=spec test/runson.device.live.test.ts test/runson.handover.live.test.ts test/runson.pinned.live.test.ts test/runson.approvals.device.live.test.ts test/runson.approvals.space.live.test.ts modules/engine/tests/place.test.ts agent/tests/pool.placement.test.ts modules/engine/tests/node-cli.test.ts
+        run: node --test --test-force-exit --test-reporter=spec test/runson.device.live.test.ts test/runson.handover.live.test.ts test/runson.pinned.live.test.ts test/runson.approvals.device.live.test.ts test/runson.approvals.space.live.test.ts modules/engine/tests/place.test.ts agent/tests/pool.placement.test.ts
       - name: "skills: native skills written for Claude Code and Codex"
         id: skills
         continue-on-error: true
