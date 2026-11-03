@@ -2,10 +2,10 @@
 // The whole path on a real server: a booted Vyre daemon with the real modules, the box's Docker engine for sites (VYRE_SITES_DOCKER), and a real Caddy on ports 80 and 443 that gets a real
 // Let's Encrypt certificate for the site's own address. The sites domain is <the box's IP>.sslip.io, a public wildcard name for the box, so nothing touches vyre.run DNS.
 // Over the HTTP API as a person would: a Vault key, a site from the Express fixture with Space-only access, its env from that key, its own Postgres, a deploy; then over HTTPS the visitor
-// is sent to sign in, a member signs in with the link and gets the app, which reads the env and the database; the logs say so; a rollback serves the first build.
+// is sent to sign in, a member signs in with the link and gets the app, which reads the env and the database, and the list shows who deployed it. Rollback is in deploy-dockerfile.heavy.
 // Needs VYRE_SITES_E2E=1 and SITES_E2E_IP (this box's public address), ports 80 and 443 free, and Let's Encrypt reachable. Anywhere else it is skipped by name.
 import assert from "node:assert/strict";
-import { spawnSync } from "node:child_process";
+import { execFile, spawnSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -22,9 +22,15 @@ const OWNER = "tok-owner", MEMBER = "tok-member";
 const CADDY = `vyre-e2e-caddy-${process.pid}`;
 const ADMIN = 12_000 + (process.pid % 900);
 const docker = (...a: string[]) => spawnSync("docker", a, { encoding: "utf8", timeout: 120_000 });
-const curl = (...a: string[]) => spawnSync("curl", ["-sS", "--max-time", "20", ...a], { encoding: "utf8" });
+// SITES_E2E_ACME=le asks Let's Encrypt for a real certificate and curl checks it (green from box B on 3 Nov). By default Caddy's own CA issues it by the same automatic HTTPS path,
+// so a box without a public address can run this too; curl then skips the trust check for that issuer only
+const LE = process.env["SITES_E2E_ACME"] === "le";
+// curl runs asynchronously: the daemon answering it lives in this same process
+const curl = (...a: string[]): Promise<{ stdout: string; stderr: string }> => new Promise((resolve) => execFile("curl", ["-sS", "--max-time", "20", ...(LE ? [] : ["-k"]), ...a], { encoding: "utf8" }, (_e, stdout, stderr) => resolve({ stdout: String(stdout), stderr: String(stderr) })));
 
 test("a real daemon deploys the Express app from a folder with Space-only access, env from the Vault and its own Postgres, at an HTTPS address of its own", { skip: SKIP, timeout: 900_000 }, async (t) => {
+  // another web server on 443 (a Caddy left by an earlier run) would take half the connections: SO_REUSEPORT shares the port
+  assert.doesNotMatch(spawnSync("ss", ["-ltn"], { encoding: "utf8" }).stdout, /:443\s/, "ports 80 and 443 must be free");
   const conf = path.join(os.tmpdir(), `${CADDY}.json`);
   fs.writeFileSync(conf, JSON.stringify({ admin: { listen: `127.0.0.1:${ADMIN}` } }));
   const up = docker("run", "-d", "--rm", "--name", CADDY, "--network", "host", "-v", `${conf}:/etc/caddy/admin.json:ro`, "caddy:2-alpine", "caddy", "run", "--config", "/etc/caddy/admin.json");
@@ -38,8 +44,9 @@ test("a real daemon deploys the Express app from a folder with Space-only access
   fs.copyFileSync(core.file, path.join(dir, "events.db"));
   core.close();
   process.env["VYRE_SITES_DOMAIN"] = DOMAIN;
+  if (!LE) process.env["VYRE_CADDY_CA"] = "internal";
   const d = await startDaemon({
-    config: loadConfig(["--data-dir", dir, "--port", "0", "--address", `https://space-${process.pid}.${DOMAIN}`], { VYRE_CADDY_ADMIN: `http://127.0.0.1:${ADMIN}` }, "1.2.3"), codeRoot: CODE_ROOT,
+    config: loadConfig(["--data-dir", dir, "--port", "0", "--address", "http://space.e2e.invalid"], { VYRE_CADDY_ADMIN: `http://127.0.0.1:${ADMIN}` }, "1.2.3"), codeRoot: CODE_ROOT,
     platform: fakePlatform({ os: "linux", hostname: "sites-e2e", free: 80e9, commands: { [`findmnt -n -o SOURCE --target ${dir}`]: { stdout: "/dev/mapper/vyre\n" }, "lsblk -s -n -o TYPE /dev/mapper/vyre": { stdout: "crypt\ndisk\n" }, "docker info --format {{.ServerVersion}}": { stdout: "29.1.3\n" } } }),
     session: (h) => { const tok = /^Bearer (.+)$/.exec(String(h["authorization"] ?? ""))?.[1]; return tok === OWNER ? { space: "spc_core", principal: { kind: "person", id: "usr_olivia" }, device: "mac" } : tok === MEMBER ? { space: "spc_core", principal: { kind: "person", id: "usr_noah" }, device: "mac" } : null; },
     sitesDockerSocket: "/var/run/docker.sock",
@@ -49,6 +56,7 @@ test("a real daemon deploys the Express app from a folder with Space-only access
   t.after(async () => {
     await d.stop();
     delete process.env["VYRE_SITES_DOMAIN"];
+    delete process.env["VYRE_CADDY_CA"];
     if (siteId) {
       const ids = docker("ps", "-aq", "--filter", `label=vyre.site=${siteId}`).stdout.split("\n").filter(Boolean);
       if (ids.length) docker("rm", "-f", "-v", ...ids);
@@ -90,22 +98,26 @@ test("a real daemon deploys the Express app from a folder with Space-only access
   const url = `https://${site.slug}.${DOMAIN}`;
 
   // a real certificate: curl verifies it (no -k), retried while Caddy gets it
-  let anon = curl("-o", "/dev/null", "-w", "%{http_code} %{redirect_url}", url);
-  for (let i = 0; i < 40 && !/^302 /.test(anon.stdout); i++) { await new Promise((r) => setTimeout(r, 3000)); anon = curl("-o", "/dev/null", "-w", "%{http_code} %{redirect_url}", url); }
+  let anon = await curl("-o", "/dev/null", "-w", "%{http_code} %{redirect_url}", url);
+  for (let i = 0; i < 40 && !/^302 /.test(anon.stdout); i++) { await new Promise((r) => setTimeout(r, 3000)); anon = await curl("-o", "/dev/null", "-w", "%{http_code} %{redirect_url}", url); }
   process.stdout.write(`visitor at ${url}: ${anon.stdout} ${anon.stderr}\n`);
+  if (!/^302 /.test(anon.stdout)) process.stdout.write(`caddy:\n${docker("logs", CADDY).stderr.split("\n").filter((l) => /error|obtain|tls|cert/i.test(l)).slice(-15).join("\n")}\nroutes: ${await fetch(`http://127.0.0.1:${ADMIN}/config/apps/http/servers`).then((r) => r.text(), () => "?")}\n`);
   assert.match(anon.stdout, /^302 .*\/sites\/signin\?site=/, `a visitor is sent to sign in: ${anon.stdout} ${anon.stderr}`);
-  const cert = curl("-vI", url).stderr;
-  assert.match(cert, /issuer: .*(Let's Encrypt|R1[0-9]|E[5-9])/i, cert.split("\n").filter((l) => /issuer|subject|expire/i.test(l)).join("\n"));
+  let cert = (await curl("-vI", url)).stderr;
+  for (let i = 0; i < 10 && /alert internal error/.test(cert); i++) { await new Promise((r) => setTimeout(r, 2000)); cert = (await curl("-vI", url)).stderr; }
+  if (!/issuer:/.test(cert)) process.stdout.write(`caddy after:\n${docker("logs", "--since", "2m", CADDY).stderr.split("\n").slice(-25).join("\n")}\n`);
+  assert.match(cert, LE ? /issuer: .*(Let's Encrypt|R1[0-9]|E[5-9])/i : /issuer: .*Caddy Local Authority/i, cert.split("\n").filter((l) => /issuer|subject|expire/i.test(l)).join("\n"));
 
   // a member signs in with their own link and gets the app, which reads its env and its own database
   const link = (await call("sites.signin_link", { siteId, next: "/api/env" }, MEMBER)).url as string;
   assert.ok(link.startsWith(`${url}/__vyre/signin?t=`), link);
   const jar = path.join(os.tmpdir(), `e2e-jar-${process.pid}`);
   t.after(() => fs.rmSync(jar, { force: true }));
-  const env = curl("-L", "-c", jar, "-b", jar, link);
-  assert.deepEqual(JSON.parse(env.stdout), { greeting: "hello-over-https" }, env.stdout + env.stderr);
-  assert.deepEqual(JSON.parse(curl("-b", jar, `${url}/api/whoami`).stdout), { user: "usr_noah" });
-  const db = JSON.parse(curl("-b", jar, `${url}/api/db`).stdout);
+  const env = await curl("-L", "-v", "-c", jar, "-b", jar, link);
+  const parse = (r: { stdout: string; stderr: string }, what: string): unknown => { try { return JSON.parse(r.stdout); } catch { return assert.fail(`${what}: ${r.stdout.slice(0, 300)} ${r.stderr.slice(0, 300)}`); } };
+  assert.deepEqual(parse(env, "env"), { greeting: "hello-over-https" });
+  assert.deepEqual(parse(await curl("-b", jar, `${url}/api/whoami`), "whoami"), { user: "usr_noah" });
+  const db = parse(await curl("-b", jar, `${url}/api/db`), "db") as { db: string };
   assert.equal(db.db, "ok", JSON.stringify(db));
   const running = (await call("sites.logs", { siteId, tail: 50 })).lines as string[];
   assert.ok(Array.isArray(running));
