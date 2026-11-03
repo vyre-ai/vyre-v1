@@ -4,13 +4,14 @@ Lane L6. Kind module. Version 0.1.0.
 
 Requires: nothing.
 
-## Capabilities (37)
+## Capabilities (38)
 
 - [tasks.act](../capabilities/tasks.act.md): Act on a request at its source: approve, reject, send back, answer, resolve, with a note; continues the chat or run at once
 - [tasks.ask](../capabilities/tasks.ask.md): Ask a question while you work on a task: an Answer task opens for the requester or a named person, the work waits, and the answer wakes you
 - [tasks.assign](../capabilities/tasks.assign.md): Set or clear a slot: Assigned, Reviewer or Approver (person, agent, group, role or automation)
 - [tasks.block](../capabilities/tasks.block.md): Report what is in the way of a task: an Unblock task opens for whoever the task escalates to, and the work waits
 - [tasks.by_key](../capabilities/tasks.by_key.md): Find a task by its short key, such as VY-123
+- [tasks.clock](../capabilities/tasks.clock.md): What the clock moves, once a minute: the day a task is due begins for its holder, a due time passes, a snooze ends, a step sat with someone too long
 - [tasks.count_needs_you](../capabilities/tasks.count_needs_you.md): Count of Ready requests for the rail badge and the Space switcher dot
 - [tasks.create](../capabilities/tasks.create.md): Create a task of any kind (Work by default); Approve, Review, Answer and Unblock requests come from the Gate, agents and Journeys
 - [tasks.decide](../capabilities/tasks.decide.md): Decide on reviewed work: approve it (Done, held actions release) or reject it with a reason (back to the doer)
@@ -18,7 +19,7 @@ Requires: nothing.
 - [tasks.delete](../capabilities/tasks.delete.md): Delete a task; Undo brings it back. A held act and a task a Run waits on are canceled instead
 - [tasks.dependencies.add](../capabilities/tasks.dependencies.add.md): Make a task wait on another; Blocked is derived from unmet dependencies and open Unblock children
 - [tasks.dependencies.remove](../capabilities/tasks.dependencies.remove.md): Remove a dependency
-- [tasks.digest](../capabilities/tasks.digest.md): What an agent should keep in mind: the task bound to this thread, its parent and siblings in a line each, then its own open tasks, the top five and a count. About 300 tokens; detail stays one tasks_get away
+- [tasks.digest](../capabilities/tasks.digest.md): What an agent should keep in mind: the task bound to this thread, its parent and siblings in a line each, then its own open tasks, the top five and a count. About 300 tokens; detail stays one tasks_get away. An agent asking for itself leaves out agentId
 - [tasks.escalate](../capabilities/tasks.escalate.md): Pass a task to the delegate or role after its timeout (called by the scheduler and the Gate)
 - [tasks.followers.add](../capabilities/tasks.followers.add.md): Add a follower; plain @mentions become followers, never tasks
 - [tasks.followers.remove](../capabilities/tasks.followers.remove.md): Remove a follower
@@ -44,7 +45,7 @@ Requires: nothing.
 - [tasks.working_notes.delete](../capabilities/tasks.working_notes.delete.md): Delete a working note
 - [tasks.working_notes.set](../capabilities/tasks.working_notes.set.md): Write a working note (key and value) that any person or agent on the task can read
 
-## Events (24)
+## Events (26)
 
 - [task.approved](../events/task.approved.md): A review or approval was granted
 - [task.assigned](../events/task.assigned.md): A slot (Assigned, Reviewer or Approver) was set or changed
@@ -53,16 +54,18 @@ Requires: nothing.
 - [task.created](../events/task.created.md): A task was created
 - [task.delegated](../events/task.delegated.md): A task was handed over with a note
 - [task.deleted](../events/task.deleted.md): A task was deleted; it can come back with Undo
+- [task.due](../events/task.due.md): A due date reached its holder: the day it is due began in their time zone, or the time passed
 - [task.escalated](../events/task.escalated.md): A task passed to a delegate or role after its timeout
 - [task.follower_added](../events/task.follower_added.md): A follower was added
 - [task.follower_removed](../events/task.follower_removed.md): A follower was removed
 - [task.handled](../events/task.handled.md): A request addressed to a role was resolved by the first action; others see handled by
 - [task.link_changed](../events/task.link_changed.md): A record or file link, or a dependency, was added or removed
 - [task.note_set](../events/task.note_set.md): A working note (key and value) was written by a person or agent
+- [task.nudged](../events/task.nudged.md): A step sat with someone too long, so they (or the person behind it) were reminded
 - [task.ready](../events/task.ready.md): Everything a task waited on finished, so it can start
 - [task.rejected](../events/task.rejected.md): An approver rejected the work with a note
 - [task.released](../events/task.released.md): A taken task went back to the group or role
-- [task.requested](../events/task.requested.md): A request (Approve, Review, Answer or Unblock) is waiting on someone
+- [task.requested](../events/task.requested.md): A request (Approve, Review, Answer or Unblock) is waiting on someone, or the baton of a work task reached its next holder
 - [task.restored](../events/task.restored.md): A deleted task came back
 - [task.sent_back](../events/task.sent_back.md): A reviewer or approver sent work back with a note
 - [task.snoozed](../events/task.snoozed.md): A request was snoozed until a time

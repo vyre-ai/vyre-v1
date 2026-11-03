@@ -2309,6 +2309,7 @@ export function createClient(transport: Transport) {
       assign: call("tasks.assign", 1),
       block: call("tasks.block", 1),
       by_key: call("tasks.by_key", 1),
+      clock: call("tasks.clock", 1),
       count_needs_you: call("tasks.count_needs_you", 1),
       create: call("tasks.create", 1),
       decide: call("tasks.decide", 1),

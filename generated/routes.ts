@@ -30161,6 +30161,24 @@ const routes5: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/tasks/clock",
+    "cap": "tasks.clock",
+    "v": 1,
+    "module": "tasks",
+    "effects": "write",
+    "permission": null,
+    "level": "edit",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/tasks/count_needs_you",
     "cap": "tasks.count_needs_you",
     "v": 1,
@@ -33155,7 +33173,10 @@ const routes5: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes6: Route[] = [
   {
     "method": "POST",
     "path": "/v1/vault/items/export_mine",
@@ -33173,10 +33194,7 @@ const routes5: Route[] = [
     "offline": "online",
     "teamOnly": false,
     "gate": "secret_export"
-  }
-];
-
-const routes6: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/vault/items/list",

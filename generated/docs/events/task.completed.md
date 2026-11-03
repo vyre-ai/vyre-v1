@@ -22,7 +22,7 @@ type Payload = {
   kind: "work" | "approve" | "review" | "answer" | "unblock" | "signature";
   recordId?: string;
   source?: {
-    kind: "chat" | "run" | "gate" | "journey" | "manual";
+    kind: "chat" | "run" | "gate" | "journey" | "meeting" | "goal" | "manual";
     id: string;
   };
 };

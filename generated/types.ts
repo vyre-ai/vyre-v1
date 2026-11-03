@@ -21617,7 +21617,7 @@ export type NotificationsDigestCollectIn = {
 };
 export type NotificationsDigestCollectOut = {
   items: Array<{
-      kind: "approval.requested" | "answer.requested" | "unblock.requested" | "approval.backstop" | "dm" | "mention" | "call.incoming" | "agent.blocked" | "incident.owned" | "task.assigned" | "reply.followed" | "agent.task_finished" | "digest.away" | "mention.thread" | "run.failed" | "conflict.needs_you" | "access.requested" | "access.decided" | "sync.attention" | "health.degraded" | "problem.report" | "member.joined" | "limit.hit" | "vault.rotation_due";
+      kind: "approval.requested" | "answer.requested" | "unblock.requested" | "approval.backstop" | "dm" | "mention" | "call.incoming" | "agent.blocked" | "incident.owned" | "task.assigned" | "reply.followed" | "agent.task_finished" | "digest.away" | "mention.thread" | "run.failed" | "conflict.needs_you" | "access.requested" | "access.decided" | "sync.attention" | "health.degraded" | "problem.report" | "member.joined" | "limit.hit" | "vault.rotation_due" | "task.turn" | "task.returned" | "task.finished" | "task.due";
       title: string;
       at: number;
       subject?: {
@@ -21628,19 +21628,19 @@ export type NotificationsDigestCollectOut = {
     }>;
 };
 export type NotificationsKindSetLevelIn = {
-  kind: "approval.requested" | "answer.requested" | "unblock.requested" | "approval.backstop" | "dm" | "mention" | "call.incoming" | "agent.blocked" | "incident.owned" | "task.assigned" | "reply.followed" | "agent.task_finished" | "digest.away" | "mention.thread" | "run.failed" | "conflict.needs_you" | "access.requested" | "access.decided" | "sync.attention" | "health.degraded" | "problem.report" | "member.joined" | "limit.hit" | "vault.rotation_due";
+  kind: "approval.requested" | "answer.requested" | "unblock.requested" | "approval.backstop" | "dm" | "mention" | "call.incoming" | "agent.blocked" | "incident.owned" | "task.assigned" | "reply.followed" | "agent.task_finished" | "digest.away" | "mention.thread" | "run.failed" | "conflict.needs_you" | "access.requested" | "access.decided" | "sync.attention" | "health.degraded" | "problem.report" | "member.joined" | "limit.hit" | "vault.rotation_due" | "task.turn" | "task.returned" | "task.finished" | "task.due";
   level?: "interrupt" | "badge" | "digest";
   channels?: Array<"desktop" | "phone" | "email">;
 };
 export type NotificationsKindSetLevelOut = {
-  kind: "approval.requested" | "answer.requested" | "unblock.requested" | "approval.backstop" | "dm" | "mention" | "call.incoming" | "agent.blocked" | "incident.owned" | "task.assigned" | "reply.followed" | "agent.task_finished" | "digest.away" | "mention.thread" | "run.failed" | "conflict.needs_you" | "access.requested" | "access.decided" | "sync.attention" | "health.degraded" | "problem.report" | "member.joined" | "limit.hit" | "vault.rotation_due";
+  kind: "approval.requested" | "answer.requested" | "unblock.requested" | "approval.backstop" | "dm" | "mention" | "call.incoming" | "agent.blocked" | "incident.owned" | "task.assigned" | "reply.followed" | "agent.task_finished" | "digest.away" | "mention.thread" | "run.failed" | "conflict.needs_you" | "access.requested" | "access.decided" | "sync.attention" | "health.degraded" | "problem.report" | "member.joined" | "limit.hit" | "vault.rotation_due" | "task.turn" | "task.returned" | "task.finished" | "task.due";
   level: "interrupt" | "badge" | "digest";
   channels: Array<"desktop" | "phone" | "email">;
 };
 export type NotificationsKindsListIn = Record<string, unknown>;
 export type NotificationsKindsListOut = {
   kinds: Array<{
-      key: "approval.requested" | "answer.requested" | "unblock.requested" | "approval.backstop" | "dm" | "mention" | "call.incoming" | "agent.blocked" | "incident.owned" | "task.assigned" | "reply.followed" | "agent.task_finished" | "digest.away" | "mention.thread" | "run.failed" | "conflict.needs_you" | "access.requested" | "access.decided" | "sync.attention" | "health.degraded" | "problem.report" | "member.joined" | "limit.hit" | "vault.rotation_due";
+      key: "approval.requested" | "answer.requested" | "unblock.requested" | "approval.backstop" | "dm" | "mention" | "call.incoming" | "agent.blocked" | "incident.owned" | "task.assigned" | "reply.followed" | "agent.task_finished" | "digest.away" | "mention.thread" | "run.failed" | "conflict.needs_you" | "access.requested" | "access.decided" | "sync.attention" | "health.degraded" | "problem.report" | "member.joined" | "limit.hit" | "vault.rotation_due" | "task.turn" | "task.returned" | "task.finished" | "task.due";
       level: "interrupt" | "badge" | "digest";
       place: "home" | "chats" | "inbox" | "records" | "files" | "apps" | "automations" | "vault" | "settings" | "console";
       title: string;
@@ -21661,7 +21661,7 @@ export type NotificationsListIn = {
 export type NotificationsListOut = {
   notifications: Array<{
       id: string;
-      kind: "approval.requested" | "answer.requested" | "unblock.requested" | "approval.backstop" | "dm" | "mention" | "call.incoming" | "agent.blocked" | "incident.owned" | "task.assigned" | "reply.followed" | "agent.task_finished" | "digest.away" | "mention.thread" | "run.failed" | "conflict.needs_you" | "access.requested" | "access.decided" | "sync.attention" | "health.degraded" | "problem.report" | "member.joined" | "limit.hit" | "vault.rotation_due";
+      kind: "approval.requested" | "answer.requested" | "unblock.requested" | "approval.backstop" | "dm" | "mention" | "call.incoming" | "agent.blocked" | "incident.owned" | "task.assigned" | "reply.followed" | "agent.task_finished" | "digest.away" | "mention.thread" | "run.failed" | "conflict.needs_you" | "access.requested" | "access.decided" | "sync.attention" | "health.degraded" | "problem.report" | "member.joined" | "limit.hit" | "vault.rotation_due" | "task.turn" | "task.returned" | "task.finished" | "task.due";
       level: "interrupt" | "badge" | "digest";
       place: "home" | "chats" | "inbox" | "records" | "files" | "apps" | "automations" | "vault" | "settings" | "console";
       title: string;
@@ -21775,7 +21775,7 @@ export type NotificationsRulesSetOut = {
 };
 export type NotificationsSendIn = {
   to: string;
-  kind: "approval.requested" | "answer.requested" | "unblock.requested" | "approval.backstop" | "dm" | "mention" | "call.incoming" | "agent.blocked" | "incident.owned" | "task.assigned" | "reply.followed" | "agent.task_finished" | "digest.away" | "mention.thread" | "run.failed" | "conflict.needs_you" | "access.requested" | "access.decided" | "sync.attention" | "health.degraded" | "problem.report" | "member.joined" | "limit.hit" | "vault.rotation_due";
+  kind: "approval.requested" | "answer.requested" | "unblock.requested" | "approval.backstop" | "dm" | "mention" | "call.incoming" | "agent.blocked" | "incident.owned" | "task.assigned" | "reply.followed" | "agent.task_finished" | "digest.away" | "mention.thread" | "run.failed" | "conflict.needs_you" | "access.requested" | "access.decided" | "sync.attention" | "health.degraded" | "problem.report" | "member.joined" | "limit.hit" | "vault.rotation_due" | "task.turn" | "task.returned" | "task.finished" | "task.due";
   subject?: {
     type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
     id: string;
@@ -28592,7 +28592,7 @@ export type TasksActOut = {
     recordId?: string;
     fileIds: Array<string>;
     source?: {
-      kind: "chat" | "run" | "gate" | "journey" | "manual";
+      kind: "chat" | "run" | "gate" | "journey" | "meeting" | "goal" | "manual";
       id: string;
     };
     parentTaskId?: string;
@@ -28605,6 +28605,7 @@ export type TasksActOut = {
     createdBy: string;
     createdAt: number;
     updatedAt: number;
+    yourTurn?: boolean;
     priority?: "urgent" | "high" | "normal" | "low";
     labels?: Array<string>;
     start?: number;
@@ -28663,7 +28664,7 @@ export type TasksAskOut = {
     recordId?: string;
     fileIds: Array<string>;
     source?: {
-      kind: "chat" | "run" | "gate" | "journey" | "manual";
+      kind: "chat" | "run" | "gate" | "journey" | "meeting" | "goal" | "manual";
       id: string;
     };
     parentTaskId?: string;
@@ -28676,6 +28677,7 @@ export type TasksAskOut = {
     createdBy: string;
     createdAt: number;
     updatedAt: number;
+    yourTurn?: boolean;
     priority?: "urgent" | "high" | "normal" | "low";
     labels?: Array<string>;
     start?: number;
@@ -28734,7 +28736,7 @@ export type TasksAssignOut = {
     recordId?: string;
     fileIds: Array<string>;
     source?: {
-      kind: "chat" | "run" | "gate" | "journey" | "manual";
+      kind: "chat" | "run" | "gate" | "journey" | "meeting" | "goal" | "manual";
       id: string;
     };
     parentTaskId?: string;
@@ -28747,6 +28749,7 @@ export type TasksAssignOut = {
     createdBy: string;
     createdAt: number;
     updatedAt: number;
+    yourTurn?: boolean;
     priority?: "urgent" | "high" | "normal" | "low";
     labels?: Array<string>;
     start?: number;
@@ -28800,7 +28803,7 @@ export type TasksBlockOut = {
     recordId?: string;
     fileIds: Array<string>;
     source?: {
-      kind: "chat" | "run" | "gate" | "journey" | "manual";
+      kind: "chat" | "run" | "gate" | "journey" | "meeting" | "goal" | "manual";
       id: string;
     };
     parentTaskId?: string;
@@ -28813,6 +28816,7 @@ export type TasksBlockOut = {
     createdBy: string;
     createdAt: number;
     updatedAt: number;
+    yourTurn?: boolean;
     priority?: "urgent" | "high" | "normal" | "low";
     labels?: Array<string>;
     start?: number;
@@ -28830,6 +28834,12 @@ export type TasksByKeyIn = {
 };
 export type TasksByKeyOut = {
   taskId: string | null;
+};
+export type TasksClockIn = Record<string, unknown>;
+export type TasksClockOut = {
+  due: number;
+  woke: number;
+  nudged: number;
 };
 export type TasksCountNeedsYouIn = Record<string, unknown>;
 export type TasksCountNeedsYouOut = {
@@ -28870,7 +28880,7 @@ export type TasksCreateIn = {
   recordId?: string;
   fileIds?: Array<string>;
   source?: {
-    kind: "chat" | "run" | "gate" | "journey" | "manual";
+    kind: "chat" | "run" | "gate" | "journey" | "meeting" | "goal" | "manual";
     id: string;
   };
   parentTaskId?: string;
@@ -28924,7 +28934,7 @@ export type TasksCreateOut = {
     recordId?: string;
     fileIds: Array<string>;
     source?: {
-      kind: "chat" | "run" | "gate" | "journey" | "manual";
+      kind: "chat" | "run" | "gate" | "journey" | "meeting" | "goal" | "manual";
       id: string;
     };
     parentTaskId?: string;
@@ -28937,6 +28947,7 @@ export type TasksCreateOut = {
     createdBy: string;
     createdAt: number;
     updatedAt: number;
+    yourTurn?: boolean;
     priority?: "urgent" | "high" | "normal" | "low";
     labels?: Array<string>;
     start?: number;
@@ -28991,7 +29002,7 @@ export type TasksDecideOut = {
     recordId?: string;
     fileIds: Array<string>;
     source?: {
-      kind: "chat" | "run" | "gate" | "journey" | "manual";
+      kind: "chat" | "run" | "gate" | "journey" | "meeting" | "goal" | "manual";
       id: string;
     };
     parentTaskId?: string;
@@ -29004,6 +29015,7 @@ export type TasksDecideOut = {
     createdBy: string;
     createdAt: number;
     updatedAt: number;
+    yourTurn?: boolean;
     priority?: "urgent" | "high" | "normal" | "low";
     labels?: Array<string>;
     start?: number;
@@ -29062,7 +29074,7 @@ export type TasksDelegateOut = {
     recordId?: string;
     fileIds: Array<string>;
     source?: {
-      kind: "chat" | "run" | "gate" | "journey" | "manual";
+      kind: "chat" | "run" | "gate" | "journey" | "meeting" | "goal" | "manual";
       id: string;
     };
     parentTaskId?: string;
@@ -29075,6 +29087,7 @@ export type TasksDelegateOut = {
     createdBy: string;
     createdAt: number;
     updatedAt: number;
+    yourTurn?: boolean;
     priority?: "urgent" | "high" | "normal" | "low";
     labels?: Array<string>;
     start?: number;
@@ -29138,7 +29151,7 @@ export type TasksDependenciesAddOut = {
     recordId?: string;
     fileIds: Array<string>;
     source?: {
-      kind: "chat" | "run" | "gate" | "journey" | "manual";
+      kind: "chat" | "run" | "gate" | "journey" | "meeting" | "goal" | "manual";
       id: string;
     };
     parentTaskId?: string;
@@ -29151,6 +29164,7 @@ export type TasksDependenciesAddOut = {
     createdBy: string;
     createdAt: number;
     updatedAt: number;
+    yourTurn?: boolean;
     priority?: "urgent" | "high" | "normal" | "low";
     labels?: Array<string>;
     start?: number;
@@ -29204,7 +29218,7 @@ export type TasksDependenciesRemoveOut = {
     recordId?: string;
     fileIds: Array<string>;
     source?: {
-      kind: "chat" | "run" | "gate" | "journey" | "manual";
+      kind: "chat" | "run" | "gate" | "journey" | "meeting" | "goal" | "manual";
       id: string;
     };
     parentTaskId?: string;
@@ -29217,6 +29231,7 @@ export type TasksDependenciesRemoveOut = {
     createdBy: string;
     createdAt: number;
     updatedAt: number;
+    yourTurn?: boolean;
     priority?: "urgent" | "high" | "normal" | "low";
     labels?: Array<string>;
     start?: number;
@@ -29229,7 +29244,7 @@ export type TasksDependenciesRemoveOut = {
   };
 };
 export type TasksDigestIn = {
-  agentId: string;
+  agentId?: string;
   threadId?: string;
 };
 export type TasksDigestOut = {
@@ -29279,7 +29294,7 @@ export type TasksEscalateOut = {
     recordId?: string;
     fileIds: Array<string>;
     source?: {
-      kind: "chat" | "run" | "gate" | "journey" | "manual";
+      kind: "chat" | "run" | "gate" | "journey" | "meeting" | "goal" | "manual";
       id: string;
     };
     parentTaskId?: string;
@@ -29292,6 +29307,7 @@ export type TasksEscalateOut = {
     createdBy: string;
     createdAt: number;
     updatedAt: number;
+    yourTurn?: boolean;
     priority?: "urgent" | "high" | "normal" | "low";
     labels?: Array<string>;
     start?: number;
@@ -29345,7 +29361,7 @@ export type TasksFollowersAddOut = {
     recordId?: string;
     fileIds: Array<string>;
     source?: {
-      kind: "chat" | "run" | "gate" | "journey" | "manual";
+      kind: "chat" | "run" | "gate" | "journey" | "meeting" | "goal" | "manual";
       id: string;
     };
     parentTaskId?: string;
@@ -29358,6 +29374,7 @@ export type TasksFollowersAddOut = {
     createdBy: string;
     createdAt: number;
     updatedAt: number;
+    yourTurn?: boolean;
     priority?: "urgent" | "high" | "normal" | "low";
     labels?: Array<string>;
     start?: number;
@@ -29411,7 +29428,7 @@ export type TasksFollowersRemoveOut = {
     recordId?: string;
     fileIds: Array<string>;
     source?: {
-      kind: "chat" | "run" | "gate" | "journey" | "manual";
+      kind: "chat" | "run" | "gate" | "journey" | "meeting" | "goal" | "manual";
       id: string;
     };
     parentTaskId?: string;
@@ -29424,6 +29441,7 @@ export type TasksFollowersRemoveOut = {
     createdBy: string;
     createdAt: number;
     updatedAt: number;
+    yourTurn?: boolean;
     priority?: "urgent" | "high" | "normal" | "low";
     labels?: Array<string>;
     start?: number;
@@ -29476,7 +29494,7 @@ export type TasksGetOut = {
     recordId?: string;
     fileIds: Array<string>;
     source?: {
-      kind: "chat" | "run" | "gate" | "journey" | "manual";
+      kind: "chat" | "run" | "gate" | "journey" | "meeting" | "goal" | "manual";
       id: string;
     };
     parentTaskId?: string;
@@ -29489,6 +29507,7 @@ export type TasksGetOut = {
     createdBy: string;
     createdAt: number;
     updatedAt: number;
+    yourTurn?: boolean;
     priority?: "urgent" | "high" | "normal" | "low";
     labels?: Array<string>;
     start?: number;
@@ -29523,6 +29542,8 @@ export type TasksIndexIn = {
   underThread?: string;
   done?: boolean;
   rev?: string;
+  q?: string;
+  snoozed?: boolean;
 };
 export type TasksIndexOut = {
   rev: string;
@@ -29558,7 +29579,7 @@ export type TasksIndexOut = {
       threadId?: string;
       workerThread?: string;
       source?: {
-        kind: "chat" | "run" | "gate" | "journey" | "manual";
+        kind: "chat" | "run" | "gate" | "journey" | "meeting" | "goal" | "manual";
         id: string;
       };
       snoozedUntil?: number;
@@ -29569,6 +29590,7 @@ export type TasksIndexOut = {
       createdBy: string;
       createdAt: number;
       updatedAt: number;
+      yourTurn?: boolean;
     }>;
   doneThisWeek: number;
   total: number;
@@ -29616,7 +29638,7 @@ export type TasksLinksAddOut = {
     recordId?: string;
     fileIds: Array<string>;
     source?: {
-      kind: "chat" | "run" | "gate" | "journey" | "manual";
+      kind: "chat" | "run" | "gate" | "journey" | "meeting" | "goal" | "manual";
       id: string;
     };
     parentTaskId?: string;
@@ -29629,6 +29651,7 @@ export type TasksLinksAddOut = {
     createdBy: string;
     createdAt: number;
     updatedAt: number;
+    yourTurn?: boolean;
     priority?: "urgent" | "high" | "normal" | "low";
     labels?: Array<string>;
     start?: number;
@@ -29683,7 +29706,7 @@ export type TasksLinksRemoveOut = {
     recordId?: string;
     fileIds: Array<string>;
     source?: {
-      kind: "chat" | "run" | "gate" | "journey" | "manual";
+      kind: "chat" | "run" | "gate" | "journey" | "meeting" | "goal" | "manual";
       id: string;
     };
     parentTaskId?: string;
@@ -29696,6 +29719,7 @@ export type TasksLinksRemoveOut = {
     createdBy: string;
     createdAt: number;
     updatedAt: number;
+    yourTurn?: boolean;
     priority?: "urgent" | "high" | "normal" | "low";
     labels?: Array<string>;
     start?: number;
@@ -29759,7 +29783,7 @@ export type TasksListOut = {
       recordId?: string;
       fileIds: Array<string>;
       source?: {
-        kind: "chat" | "run" | "gate" | "journey" | "manual";
+        kind: "chat" | "run" | "gate" | "journey" | "meeting" | "goal" | "manual";
         id: string;
       };
       parentTaskId?: string;
@@ -29772,6 +29796,7 @@ export type TasksListOut = {
       createdBy: string;
       createdAt: number;
       updatedAt: number;
+      yourTurn?: boolean;
       priority?: "urgent" | "high" | "normal" | "low";
       labels?: Array<string>;
       start?: number;
@@ -29828,7 +29853,7 @@ export type TasksMyWorkOut = {
       recordId?: string;
       fileIds: Array<string>;
       source?: {
-        kind: "chat" | "run" | "gate" | "journey" | "manual";
+        kind: "chat" | "run" | "gate" | "journey" | "meeting" | "goal" | "manual";
         id: string;
       };
       parentTaskId?: string;
@@ -29841,6 +29866,7 @@ export type TasksMyWorkOut = {
       createdBy: string;
       createdAt: number;
       updatedAt: number;
+      yourTurn?: boolean;
       priority?: "urgent" | "high" | "normal" | "low";
       labels?: Array<string>;
       start?: number;
@@ -29901,7 +29927,7 @@ export type TasksNeedsYouOut = {
         recordId?: string;
         fileIds: Array<string>;
         source?: {
-          kind: "chat" | "run" | "gate" | "journey" | "manual";
+          kind: "chat" | "run" | "gate" | "journey" | "meeting" | "goal" | "manual";
           id: string;
         };
         parentTaskId?: string;
@@ -29914,6 +29940,7 @@ export type TasksNeedsYouOut = {
         createdBy: string;
         createdAt: number;
         updatedAt: number;
+        yourTurn?: boolean;
         priority?: "urgent" | "high" | "normal" | "low";
         labels?: Array<string>;
         start?: number;
@@ -29926,6 +29953,7 @@ export type TasksNeedsYouOut = {
       };
       reason: "ready" | "due_today" | "overdue" | "blocking";
       handledBy?: string;
+      yourTurn?: boolean;
     }>;
   total: number;
 };
@@ -30005,7 +30033,7 @@ export type TasksPlanOut = {
     recordId?: string;
     fileIds: Array<string>;
     source?: {
-      kind: "chat" | "run" | "gate" | "journey" | "manual";
+      kind: "chat" | "run" | "gate" | "journey" | "meeting" | "goal" | "manual";
       id: string;
     };
     parentTaskId?: string;
@@ -30018,6 +30046,7 @@ export type TasksPlanOut = {
     createdBy: string;
     createdAt: number;
     updatedAt: number;
+    yourTurn?: boolean;
     priority?: "urgent" | "high" | "normal" | "low";
     labels?: Array<string>;
     start?: number;
@@ -30076,7 +30105,7 @@ export type TasksReleaseOut = {
     recordId?: string;
     fileIds: Array<string>;
     source?: {
-      kind: "chat" | "run" | "gate" | "journey" | "manual";
+      kind: "chat" | "run" | "gate" | "journey" | "meeting" | "goal" | "manual";
       id: string;
     };
     parentTaskId?: string;
@@ -30089,6 +30118,7 @@ export type TasksReleaseOut = {
     createdBy: string;
     createdAt: number;
     updatedAt: number;
+    yourTurn?: boolean;
     priority?: "urgent" | "high" | "normal" | "low";
     labels?: Array<string>;
     start?: number;
@@ -30141,7 +30171,7 @@ export type TasksRestoreOut = {
     recordId?: string;
     fileIds: Array<string>;
     source?: {
-      kind: "chat" | "run" | "gate" | "journey" | "manual";
+      kind: "chat" | "run" | "gate" | "journey" | "meeting" | "goal" | "manual";
       id: string;
     };
     parentTaskId?: string;
@@ -30154,6 +30184,7 @@ export type TasksRestoreOut = {
     createdBy: string;
     createdAt: number;
     updatedAt: number;
+    yourTurn?: boolean;
     priority?: "urgent" | "high" | "normal" | "low";
     labels?: Array<string>;
     start?: number;
@@ -30213,7 +30244,7 @@ export type TasksReviewOut = {
     recordId?: string;
     fileIds: Array<string>;
     source?: {
-      kind: "chat" | "run" | "gate" | "journey" | "manual";
+      kind: "chat" | "run" | "gate" | "journey" | "meeting" | "goal" | "manual";
       id: string;
     };
     parentTaskId?: string;
@@ -30226,6 +30257,7 @@ export type TasksReviewOut = {
     createdBy: string;
     createdAt: number;
     updatedAt: number;
+    yourTurn?: boolean;
     priority?: "urgent" | "high" | "normal" | "low";
     labels?: Array<string>;
     start?: number;
@@ -30280,7 +30312,7 @@ export type TasksSnoozeOut = {
     recordId?: string;
     fileIds: Array<string>;
     source?: {
-      kind: "chat" | "run" | "gate" | "journey" | "manual";
+      kind: "chat" | "run" | "gate" | "journey" | "meeting" | "goal" | "manual";
       id: string;
     };
     parentTaskId?: string;
@@ -30293,6 +30325,7 @@ export type TasksSnoozeOut = {
     createdBy: string;
     createdAt: number;
     updatedAt: number;
+    yourTurn?: boolean;
     priority?: "urgent" | "high" | "normal" | "low";
     labels?: Array<string>;
     start?: number;
@@ -30347,7 +30380,7 @@ export type TasksSubmitOut = {
     recordId?: string;
     fileIds: Array<string>;
     source?: {
-      kind: "chat" | "run" | "gate" | "journey" | "manual";
+      kind: "chat" | "run" | "gate" | "journey" | "meeting" | "goal" | "manual";
       id: string;
     };
     parentTaskId?: string;
@@ -30360,6 +30393,7 @@ export type TasksSubmitOut = {
     createdBy: string;
     createdAt: number;
     updatedAt: number;
+    yourTurn?: boolean;
     priority?: "urgent" | "high" | "normal" | "low";
     labels?: Array<string>;
     start?: number;
@@ -30413,7 +30447,7 @@ export type TasksTakeOut = {
     recordId?: string;
     fileIds: Array<string>;
     source?: {
-      kind: "chat" | "run" | "gate" | "journey" | "manual";
+      kind: "chat" | "run" | "gate" | "journey" | "meeting" | "goal" | "manual";
       id: string;
     };
     parentTaskId?: string;
@@ -30426,6 +30460,7 @@ export type TasksTakeOut = {
     createdBy: string;
     createdAt: number;
     updatedAt: number;
+    yourTurn?: boolean;
     priority?: "urgent" | "high" | "normal" | "low";
     labels?: Array<string>;
     start?: number;
@@ -30481,7 +30516,7 @@ export type TasksTransitionOut = {
     recordId?: string;
     fileIds: Array<string>;
     source?: {
-      kind: "chat" | "run" | "gate" | "journey" | "manual";
+      kind: "chat" | "run" | "gate" | "journey" | "meeting" | "goal" | "manual";
       id: string;
     };
     parentTaskId?: string;
@@ -30494,6 +30529,7 @@ export type TasksTransitionOut = {
     createdBy: string;
     createdAt: number;
     updatedAt: number;
+    yourTurn?: boolean;
     priority?: "urgent" | "high" | "normal" | "low";
     labels?: Array<string>;
     start?: number;
@@ -30567,7 +30603,7 @@ export type TasksUpdateOut = {
     recordId?: string;
     fileIds: Array<string>;
     source?: {
-      kind: "chat" | "run" | "gate" | "journey" | "manual";
+      kind: "chat" | "run" | "gate" | "journey" | "meeting" | "goal" | "manual";
       id: string;
     };
     parentTaskId?: string;
@@ -30580,6 +30616,7 @@ export type TasksUpdateOut = {
     createdBy: string;
     createdAt: number;
     updatedAt: number;
+    yourTurn?: boolean;
     priority?: "urgent" | "high" | "normal" | "low";
     labels?: Array<string>;
     start?: number;
@@ -30642,7 +30679,7 @@ export type TasksWorkingNotesDeleteOut = {
     recordId?: string;
     fileIds: Array<string>;
     source?: {
-      kind: "chat" | "run" | "gate" | "journey" | "manual";
+      kind: "chat" | "run" | "gate" | "journey" | "meeting" | "goal" | "manual";
       id: string;
     };
     parentTaskId?: string;
@@ -30655,6 +30692,7 @@ export type TasksWorkingNotesDeleteOut = {
     createdBy: string;
     createdAt: number;
     updatedAt: number;
+    yourTurn?: boolean;
     priority?: "urgent" | "high" | "normal" | "low";
     labels?: Array<string>;
     start?: number;
@@ -30709,7 +30747,7 @@ export type TasksWorkingNotesSetOut = {
     recordId?: string;
     fileIds: Array<string>;
     source?: {
-      kind: "chat" | "run" | "gate" | "journey" | "manual";
+      kind: "chat" | "run" | "gate" | "journey" | "meeting" | "goal" | "manual";
       id: string;
     };
     parentTaskId?: string;
@@ -30722,6 +30760,7 @@ export type TasksWorkingNotesSetOut = {
     createdBy: string;
     createdAt: number;
     updatedAt: number;
+    yourTurn?: boolean;
     priority?: "urgent" | "high" | "normal" | "low";
     labels?: Array<string>;
     start?: number;
@@ -35646,6 +35685,7 @@ export interface CapMap {
   "tasks.assign": { in: TasksAssignIn; out: TasksAssignOut };
   "tasks.block": { in: TasksBlockIn; out: TasksBlockOut };
   "tasks.by_key": { in: TasksByKeyIn; out: TasksByKeyOut };
+  "tasks.clock": { in: TasksClockIn; out: TasksClockOut };
   "tasks.count_needs_you": { in: TasksCountNeedsYouIn; out: TasksCountNeedsYouOut };
   "tasks.create": { in: TasksCreateIn; out: TasksCreateOut };
   "tasks.decide": { in: TasksDecideIn; out: TasksDecideOut };
@@ -37822,7 +37862,7 @@ export type NoteErasedPayload = {
 export type NotificationCappedPayload = {
   person: string;
   agentId: string;
-  kind: "approval.requested" | "answer.requested" | "unblock.requested" | "approval.backstop" | "dm" | "mention" | "call.incoming" | "agent.blocked" | "incident.owned" | "task.assigned" | "reply.followed" | "agent.task_finished" | "digest.away" | "mention.thread" | "run.failed" | "conflict.needs_you" | "access.requested" | "access.decided" | "sync.attention" | "health.degraded" | "problem.report" | "member.joined" | "limit.hit" | "vault.rotation_due";
+  kind: "approval.requested" | "answer.requested" | "unblock.requested" | "approval.backstop" | "dm" | "mention" | "call.incoming" | "agent.blocked" | "incident.owned" | "task.assigned" | "reply.followed" | "agent.task_finished" | "digest.away" | "mention.thread" | "run.failed" | "conflict.needs_you" | "access.requested" | "access.decided" | "sync.attention" | "health.degraded" | "problem.report" | "member.joined" | "limit.hit" | "vault.rotation_due" | "task.turn" | "task.returned" | "task.finished" | "task.due";
   perHour: number;
 };
 export type NotificationDelegateChangedPayload = {
@@ -37835,7 +37875,7 @@ export type NotificationDelegateChangedPayload = {
 export type NotificationDeliveredPayload = {
   notificationId: string;
   person: string;
-  kind: "approval.requested" | "answer.requested" | "unblock.requested" | "approval.backstop" | "dm" | "mention" | "call.incoming" | "agent.blocked" | "incident.owned" | "task.assigned" | "reply.followed" | "agent.task_finished" | "digest.away" | "mention.thread" | "run.failed" | "conflict.needs_you" | "access.requested" | "access.decided" | "sync.attention" | "health.degraded" | "problem.report" | "member.joined" | "limit.hit" | "vault.rotation_due";
+  kind: "approval.requested" | "answer.requested" | "unblock.requested" | "approval.backstop" | "dm" | "mention" | "call.incoming" | "agent.blocked" | "incident.owned" | "task.assigned" | "reply.followed" | "agent.task_finished" | "digest.away" | "mention.thread" | "run.failed" | "conflict.needs_you" | "access.requested" | "access.decided" | "sync.attention" | "health.degraded" | "problem.report" | "member.joined" | "limit.hit" | "vault.rotation_due" | "task.turn" | "task.returned" | "task.finished" | "task.due";
   level: "interrupt" | "badge" | "digest";
   place: "home" | "chats" | "inbox" | "records" | "files" | "apps" | "automations" | "vault" | "settings" | "console";
   subject?: {
@@ -38946,6 +38986,8 @@ export type TaskAssignedPayload = {
     kind: "person" | "agent" | "group" | "role" | "automation";
     id: string;
   }) | null;
+  title?: string;
+  by?: string;
 };
 export type TaskChildrenSettledPayload = {
   taskId: string;
@@ -38957,7 +38999,7 @@ export type TaskCompletedPayload = {
   kind: "work" | "approve" | "review" | "answer" | "unblock" | "signature";
   recordId?: string;
   source?: {
-    kind: "chat" | "run" | "gate" | "journey" | "manual";
+    kind: "chat" | "run" | "gate" | "journey" | "meeting" | "goal" | "manual";
     id: string;
   };
 };
@@ -38971,7 +39013,7 @@ export type TaskCreatedPayload = {
   };
   recordId?: string;
   source?: {
-    kind: "chat" | "run" | "gate" | "journey" | "manual";
+    kind: "chat" | "run" | "gate" | "journey" | "meeting" | "goal" | "manual";
     id: string;
   };
 };
@@ -38990,6 +39032,16 @@ export type TaskDelegatedPayload = {
 export type TaskDeletedPayload = {
   taskId: string;
   title: string;
+};
+export type TaskDuePayload = {
+  taskId: string;
+  title: string;
+  due: number;
+  at: "day" | "time";
+  holder: {
+    kind: "person" | "agent" | "group" | "role" | "automation";
+    id: string;
+  };
 };
 export type TaskEscalatedPayload = {
   taskId: string;
@@ -39022,6 +39074,12 @@ export type TaskNoteSetPayload = {
   key: string;
   by: string;
 };
+export type TaskNudgedPayload = {
+  taskId: string;
+  title: string;
+  why: "unblock_waiting" | "idle_agent" | "waiting_on_decision";
+  notify: string;
+};
 export type TaskReadyPayload = {
   taskId: string;
 };
@@ -39043,6 +39101,8 @@ export type TaskRequestedPayload = {
     id: string;
   };
   expiresAt?: number;
+  step?: "work" | "review" | "approval";
+  by?: string;
 };
 export type TaskRestoredPayload = {
   taskId: string;
@@ -40069,12 +40129,14 @@ export interface EventMap {
   "task.created": TaskCreatedPayload;
   "task.delegated": TaskDelegatedPayload;
   "task.deleted": TaskDeletedPayload;
+  "task.due": TaskDuePayload;
   "task.escalated": TaskEscalatedPayload;
   "task.follower_added": TaskFollowerAddedPayload;
   "task.follower_removed": TaskFollowerRemovedPayload;
   "task.handled": TaskHandledPayload;
   "task.link_changed": TaskLinkChangedPayload;
   "task.note_set": TaskNoteSetPayload;
+  "task.nudged": TaskNudgedPayload;
   "task.ready": TaskReadyPayload;
   "task.rejected": TaskRejectedPayload;
   "task.released": TaskReleasedPayload;

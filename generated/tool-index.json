@@ -7784,6 +7784,12 @@
     },
     {
       "deferred": false,
+      "name": "task_digest",
+      "summary": "What an agent should keep in mind: the task bound to this thread, its parent and siblings in a line each, then its own open tasks, the top five and a count. About 300 tokens; detail stays one tasks_get away. An agent asking for itself leaves out agentId",
+      "toolset": "tasks"
+    },
+    {
+      "deferred": false,
       "name": "task_plan",
       "summary": "Break work into tasks in one step: a parent (new, or one that exists) and its children, each with its brief, what done means, who does it and which others it waits on. A child starts by itself when what it waits on is done; the parent hears only when all are done, or one is blocked or asks",
       "toolset": "tasks"

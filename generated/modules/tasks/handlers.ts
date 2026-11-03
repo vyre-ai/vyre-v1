@@ -10,6 +10,7 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "tasks.assign": Handler<"tasks.assign", X>;
   "tasks.block": Handler<"tasks.block", X>;
   "tasks.by_key": Handler<"tasks.by_key", X>;
+  "tasks.clock": Handler<"tasks.clock", X>;
   "tasks.count_needs_you": Handler<"tasks.count_needs_you", X>;
   "tasks.create": Handler<"tasks.create", X>;
   "tasks.decide": Handler<"tasks.decide", X>;

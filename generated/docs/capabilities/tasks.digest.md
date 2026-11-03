@@ -1,6 +1,6 @@
 # tasks.digest
 
-What an agent should keep in mind: the task bound to this thread, its parent and siblings in a line each, then its own open tasks, the top five and a count. About 300 tokens; detail stays one tasks_get away
+What an agent should keep in mind: the task bound to this thread, its parent and siblings in a line each, then its own open tasks, the top five and a count. About 300 tokens; detail stays one tasks_get away. An agent asking for itself leaves out agentId
 
 | | |
 |---|---|
@@ -17,7 +17,7 @@ What an agent should keep in mind: the task bound to this thread, its parent and
 | Audit | none |
 | Team Space only | no |
 | HTTP | POST /v1/tasks/digest |
-| MCP tool | none |
+| MCP tool | task_digest (tasks) |
 | CLI | none |
 | Emits | none |
 
@@ -25,7 +25,7 @@ What an agent should keep in mind: the task bound to this thread, its parent and
 
 ```ts
 type In = {
-  agentId: string;
+  agentId?: string;
   threadId?: string;
 };
 ```

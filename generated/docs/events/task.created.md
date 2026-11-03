@@ -27,7 +27,7 @@ type Payload = {
   };
   recordId?: string;
   source?: {
-    kind: "chat" | "run" | "gate" | "journey" | "manual";
+    kind: "chat" | "run" | "gate" | "journey" | "meeting" | "goal" | "manual";
     id: string;
   };
 };

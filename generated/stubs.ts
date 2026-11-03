@@ -2309,6 +2309,7 @@ export function stubs(ctx: CallCtx) {
       assign: call("tasks.assign"),
       block: call("tasks.block"),
       by_key: call("tasks.by_key"),
+      clock: call("tasks.clock"),
       count_needs_you: call("tasks.count_needs_you"),
       create: call("tasks.create"),
       decide: call("tasks.decide"),

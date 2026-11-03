@@ -38413,7 +38413,11 @@
               "problem.report",
               "member.joined",
               "limit.hit",
-              "vault.rotation_due"
+              "vault.rotation_due",
+              "task.turn",
+              "task.returned",
+              "task.finished",
+              "task.due"
             ],
             "type": "string"
           },
@@ -38872,7 +38876,11 @@
               "problem.report",
               "member.joined",
               "limit.hit",
-              "vault.rotation_due"
+              "vault.rotation_due",
+              "task.turn",
+              "task.returned",
+              "task.finished",
+              "task.due"
             ],
             "type": "string"
           },
@@ -53259,6 +53267,36 @@
     },
     {
       "blocks": [],
+      "cap": "tasks.digest",
+      "deferred": false,
+      "description": "What an agent should keep in mind: the task bound to this thread, its parent and siblings in a line each, then its own open tasks, the top five and a count. About 300 tokens; detail stays one tasks_get away. An agent asking for itself leaves out agentId",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          },
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "name": "task_digest",
+      "planMode": "allowed",
+      "toolset": "tasks",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "tasks.plan",
       "deferred": false,
       "description": "Break work into tasks in one step: a parent (new, or one that exists) and its children, each with its brief, what done means, who does it and which others it waits on. A child starts by itself when what it waits on is done; the parent hears only when all are done, or one is blocked or asks",
@@ -54016,6 +54054,8 @@
                   "run",
                   "gate",
                   "journey",
+                  "meeting",
+                  "goal",
                   "manual"
                 ],
                 "type": "string"
@@ -54351,6 +54391,11 @@
             "pattern": "^tsk_[a-z0-9]+$",
             "type": "string"
           },
+          "q": {
+            "description": "Words to find in the title, key, brief, notes and summary of every task the reader sees",
+            "maxLength": 200,
+            "type": "string"
+          },
           "recordId": {
             "examples": [
               "rec_a1b2c3"
@@ -54368,6 +54413,9 @@
               "everyone"
             ],
             "type": "string"
+          },
+          "snoozed": {
+            "type": "boolean"
           },
           "underThread": {
             "examples": [
