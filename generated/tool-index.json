@@ -5672,6 +5672,54 @@
     },
     {
       "deferred": false,
+      "name": "network_peer_allow",
+      "summary": "Let a new computer use this Personal Space: it gets a full copy of your chats, files, records and Vault (still locked by your password) and stays in sync",
+      "toolset": "engineer"
+    },
+    {
+      "deferred": false,
+      "name": "network_peer_conflicts",
+      "summary": "What syncing between your computers had to settle: the same name made on two computers while apart (one copy is renamed, both are kept), or an item kept aside whole",
+      "toolset": "engineer"
+    },
+    {
+      "deferred": false,
+      "name": "network_peer_decline",
+      "summary": "Turn away a computer that asked to use this Personal Space",
+      "toolset": "engineer"
+    },
+    {
+      "deferred": false,
+      "name": "network_peer_remove",
+      "summary": "Take a computer out of this Personal Space: it stops syncing with your other computers",
+      "toolset": "engineer"
+    },
+    {
+      "deferred": false,
+      "name": "network_peer_requests",
+      "summary": "New computers asking to use this Personal Space, each with the six-digit code its own screen shows",
+      "toolset": "engineer"
+    },
+    {
+      "deferred": false,
+      "name": "network_peer_runner",
+      "summary": "Which of your computers runs scheduled automations, routines and nightly jobs now (one at a time)",
+      "toolset": "engineer"
+    },
+    {
+      "deferred": false,
+      "name": "network_peer_server_code",
+      "summary": "Add a server to your Personal Space: a one-time code for the install line. The server joins through Vyre's relay (no address needed), keeps a full copy in sync, keeps the Space going and runs scheduled work while your computers sleep",
+      "toolset": "engineer"
+    },
+    {
+      "deferred": false,
+      "name": "network_peers",
+      "summary": "The computers that hold this Personal Space: each keeps a full copy and syncs with the others through the relay. This computer, whether each is awake, and when it was last seen",
+      "toolset": "engineer"
+    },
+    {
+      "deferred": false,
       "name": "network_phone",
       "summary": "Your phone address on vyre.run: the name this computer holds, whether it is online, and the link that opens it on a phone",
       "toolset": "engineer"

@@ -4,7 +4,7 @@ Lane L7b. Kind module. Version 0.1.0.
 
 Requires: nothing.
 
-## Capabilities (24)
+## Capabilities (32)
 
 - [network.certificate_renew](../capabilities/network.certificate_renew.md): Renew a certificate now
 - [network.domain_set](../capabilities/network.domain_set.md): Set the Space address to an own domain (DNS check, then ACME)
@@ -18,6 +18,14 @@ Requires: nothing.
 - [network.my_computer_decline](../capabilities/network.my_computer_decline.md): Turn your own waiting computer away
 - [network.my_computer_remove](../capabilities/network.my_computer_remove.md): Remove one of your own computers or servers: its access ends at once
 - [network.my_computers](../capabilities/network.my_computers.md): The computers and servers you added: nickname, online state, what they run on, waiting ones with the fingerprint to compare
+- [network.peer_allow](../capabilities/network.peer_allow.md): Let a new computer use this Personal Space: it gets a full copy of your chats, files, records and Vault (still locked by your password) and stays in sync
+- [network.peer_conflicts](../capabilities/network.peer_conflicts.md): What syncing between your computers had to settle: the same name made on two computers while apart (one copy is renamed, both are kept), or an item kept aside whole
+- [network.peer_decline](../capabilities/network.peer_decline.md): Turn away a computer that asked to use this Personal Space
+- [network.peer_remove](../capabilities/network.peer_remove.md): Take a computer out of this Personal Space: it stops syncing with your other computers
+- [network.peer_requests](../capabilities/network.peer_requests.md): New computers asking to use this Personal Space, each with the six-digit code its own screen shows
+- [network.peer_runner](../capabilities/network.peer_runner.md): Which of your computers runs scheduled automations, routines and nightly jobs now (one at a time)
+- [network.peer_server_code](../capabilities/network.peer_server_code.md): Add a server to your Personal Space: a one-time code for the install line. The server joins through Vyre's relay (no address needed), keeps a full copy in sync, keeps the Space going and runs scheduled work while your computers sleep
+- [network.peers](../capabilities/network.peers.md): The computers that hold this Personal Space: each keeps a full copy and syncs with the others through the relay. This computer, whether each is awake, and when it was last seen
 - [network.phone](../capabilities/network.phone.md): Your phone address on vyre.run: the name this computer holds, whether it is online, and the link that opens it on a phone
 - [network.phone_claim](../capabilities/network.phone_claim.md): Claim a name like alex.vyre.run once, so a phone reaches this computer there while it is on and online. The relay only passes sealed bytes
 - [network.phone_release](../capabilities/network.phone_release.md): Give up the phone address. The name stays reserved to this computer
