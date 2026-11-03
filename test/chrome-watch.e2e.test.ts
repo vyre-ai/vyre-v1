@@ -2,9 +2,9 @@
 // the Watching list, Check now and Pause; and recording and watching are refused on a site that is never sent. Screenshots go to VYRE_SHOT_DIR.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { findChromium, launch, site } from "./e2e/rig.ts";
-import { changeWords, normalize } from "../../../modules/automations/handlers/watches.ts";
-import { AGENTS, LAB, lab, openPanelFor, shootAll } from "./e2e/show-watch.ts";
+import { findChromium, launch, site } from "../apps/chrome/tests/e2e/rig.ts";
+import { changeWords, normalize } from "../modules/automations/handlers/watches.ts";
+import { AGENTS, LAB, lab, openPanelFor, shootAll } from "../apps/chrome/tests/e2e/show-watch.ts";
 
 const found = await findChromium();
 

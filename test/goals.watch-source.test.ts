@@ -2,9 +2,9 @@
 // the number on the page moves when the page does, and a watch that belongs to someone else is not the goal's to read.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { OWNER, labGoal, owner, world } from "../fixtures/world.ts";
-import { harness as automations } from "../../automations/fixtures/db.ts";
-import { handlers } from "../../automations/impl.ts";
+import { OWNER, labGoal, owner, world } from "../modules/goals/fixtures/world.ts";
+import { harness as automations } from "../modules/automations/fixtures/db.ts";
+import { handlers } from "../modules/automations/impl.ts";
 
 const finish = (path?: string) => ({ kind: "number", line: "Luma shows 300 registrations", target: 300, unit: "registrations", source: { kind: "watch", watchId: "", ...(path ? { path } : {}) } });
 
