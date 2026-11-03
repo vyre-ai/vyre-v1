@@ -37,6 +37,7 @@ test("Windows: the builder keeps the added folders, closes the key stores and br
   const exists = new Set([`${HOME}\\.gitconfig`, `${HOME}\\.ssh\\known_hosts`, `${HOME}\\.ssh\\config`, `${HOME}\\AppData\\Roaming\\npm`, `${HOME}\\.cargo\\bin`]);
   const a = engineAccess({ where: "own", home: HOME, dataDir: DATA, platform: "win32", folders: ["C:\\Users\\Dana Reyes\\Client Files", "C:\\Windows", `${DATA}\\vault`, "C:\\"], own: [WORK], sshAuthSock: WIN_SSH_AGENT_PIPE, exists: (p) => exists.has(p) });
   assert.equal(a.rw[0], "C:\\Users\\Dana Reyes\\Client Files");
+  assert.deepEqual(a.added, ["C:\\Users\\Dana Reyes\\Client Files"], "the added folders alone, for the Low engine's labels");
   assert.ok(!a.rw.includes("C:\\Windows") && !a.rw.includes("C:\\"));
   for (const p of [`${HOME}\\AppData\\Roaming\\npm`, `${HOME}\\AppData\\Local\\npm-cache`, `${HOME}\\.cargo`, `${HOME}\\AppData\\Roaming\\Python`]) assert.ok(a.rw.includes(p), p);
   for (const p of [DATA, `${HOME}\\.ssh`, `${HOME}\\AppData\\Roaming\\Microsoft\\Credentials`, `${HOME}\\AppData\\Roaming\\Microsoft\\Protect`, `${HOME}\\AppData\\Local\\Microsoft\\Credentials`,
