@@ -1,5 +1,5 @@
 // A key asked for in a chat, with two people (Team): Mia asks her agent to set up Fathom, the agent asks for the key in Mia's chat, the admin (Olivia) adds it from her own Needs you, and the agent carries on
-// in Mia's chat by itself. Mia is not a manager, so she cannot decide it; the secret reaches no message or log. Real chats on a booted daemon; only the model is scripted.
+// in Mia's chat by itself. Mia could add it to her own Mine from her card (owner ruling 3 Nov, test/member-first-hour.chats); here the admin adds it for the team. The secret reaches no message or log. Real chats on a booted daemon; only the model is scripted.
 import test from "node:test";
 import assert from "node:assert/strict";
 import { CORE_SPACE } from "../fixtures/seed/core/index.ts";
@@ -57,8 +57,8 @@ test("Team: a member's agent asks for a key in her chat; the admin adds it; the 
     }, 60_000, () => hostLog(d));
     const requestId = card.data.requestId as string;
 
-    // Mia cannot decide it; the admin can, and has it in her own Needs you with the chat linked
-    assert.equal(((await api("usr_mia", "vault.requests.list", { mine: false })).data.requests ?? []).length, 0, "the asker never decides her own request");
+    // Mia may add it to her own Mine from her card (owner ruling 3 Nov); the admin may add it for the team, and has it in her own Needs you with the chat linked
+    assert.deepEqual(((await api("usr_mia", "vault.requests.list", { mine: false })).data.requests as Array<{ id: string }>).map((r) => r.id), [requestId], "her card lets her add her own key");
     assert.ok(((await api("usr_olivia", "vault.requests.list", { mine: false })).data.requests as Array<{ id: string }>).some((r) => r.id === requestId));
     const mine = async (who: string) => ((await api(who, "tasks.list", { scope: "mine", kinds: ["unblock"], states: ["todo", "doing"] })).data.tasks as Array<{ title: string; workingNotes: Record<string, string> }>).filter((t) => t.title === "Fathom key needed");
     const row = (await mine("usr_olivia"))[0];

@@ -365,7 +365,8 @@ export function createInvoke(deps: InvokeDeps): Invoke {
     if (!seed.preAuth) {
       try { resource = resolveResource(c, input, seed.space, deps.resolveItem); }
       catch (e) {
-        if (e instanceof BindingError) throw fail("validation.bad_input", traceId, { details: { errors: [`${e.pointer}: ${e.message}`], cap: c.name } });
+        // a Vault name or handle that names nothing the caller may use reads the same as one that does not exist, in words a person or an agent can act on
+        if (e instanceof BindingError) throw fail("validation.bad_input", traceId, { ...(e.message === "no such item" ? { message: "There is no Vault item by that name that you can use. Check the name, or ask for the key." } : {}), details: { errors: [`${e.pointer}: ${e.message}`], cap: c.name } });
         throw e;
       }
       if (resource && deps.ensureResource) await deps.ensureResource(resource);
