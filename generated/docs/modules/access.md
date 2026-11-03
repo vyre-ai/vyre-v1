@@ -4,7 +4,7 @@ Lane L7a. Kind module. Version 0.1.0.
 
 Requires: files.
 
-## Capabilities (65)
+## Capabilities (66)
 
 - [access.actors.create](../capabilities/access.actors.create.md): Register an outside actor and issue a one-time token (works once, within 10 minutes)
 - [access.actors.list](../capabilities/access.actors.list.md): List outside actors (registered external tools such as Claude Code or Codex)
@@ -29,6 +29,7 @@ Requires: files.
 - [access.groups.list](../capabilities/access.groups.list.md): List groups
 - [access.groups.remove_member](../capabilities/access.groups.remove_member.md): Remove a person or agent from a group
 - [access.groups.update](../capabilities/access.groups.update.md): Rename a group or change its managers
+- [access.join_share](../capabilities/access.join_share.md): System: the join step of an invite that picked an agent; the new member gets the level as the inviter's act, while the inviter could still give it
 - [access.labels.list](../capabilities/access.labels.list.md): The four sensitivity labels with rank, provider rule and laptop-sync rule
 - [access.labels.set](../capabilities/access.labels.set.md): Set the sensitivity label of a folder, channel, inbox or other container (items inherit unless set)
 - [access.lists](../capabilities/access.lists.md): Items of one type in a section (Personal, Shared with me, Space, Starred, Following) with folder counts

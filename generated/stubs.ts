@@ -43,6 +43,7 @@ export function stubs(ctx: CallCtx) {
         remove_member: call("access.groups.remove_member"),
         update: call("access.groups.update"),
       },
+      join_share: call("access.join_share"),
       labels: {
         list: call("access.labels.list"),
         set: call("access.labels.set"),

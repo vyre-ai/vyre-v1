@@ -487,6 +487,45 @@ export type AccessGroupsUpdateOut = {
     builtIn: boolean;
   };
 };
+export type AccessJoinShareIn = {
+  resource: {
+    type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
+    id: string;
+  };
+  person: string;
+  level: "view" | "use" | "edit" | "manage";
+  inviter: string;
+  source: string;
+};
+export type AccessJoinShareOut = {
+  grant: {
+    id: string;
+    subject: {
+      kind: "person" | "agent" | "actor" | "service" | "group" | "role" | "link";
+      id: string;
+    };
+    resource: {
+      type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
+      id: string;
+    };
+    level: "view" | "use" | "edit" | "manage";
+    conditions: {
+      rowFilter?: unknown;
+      hiddenFields?: Array<string>;
+      labelCeiling?: "public" | "internal" | "confidential" | "restricted";
+      window?: {
+        from: number;
+        to: number;
+      };
+      expiresAt?: number;
+      export?: boolean;
+      reshare?: boolean;
+    };
+    by: string;
+    source?: string;
+    createdAt: number;
+  };
+};
 export type AccessLabelsListIn = Record<string, unknown>;
 export type AccessLabelsListOut = {
   labels: Array<{
@@ -34114,6 +34153,7 @@ export interface CapMap {
   "access.groups.list": { in: AccessGroupsListIn; out: AccessGroupsListOut };
   "access.groups.remove_member": { in: AccessGroupsRemoveMemberIn; out: AccessGroupsRemoveMemberOut };
   "access.groups.update": { in: AccessGroupsUpdateIn; out: AccessGroupsUpdateOut };
+  "access.join_share": { in: AccessJoinShareIn; out: AccessJoinShareOut };
   "access.labels.list": { in: AccessLabelsListIn; out: AccessLabelsListOut };
   "access.labels.set": { in: AccessLabelsSetIn; out: AccessLabelsSetOut };
   "access.lists": { in: AccessListsIn; out: AccessListsOut };

@@ -43,6 +43,7 @@ export function createClient(transport: Transport) {
         remove_member: call("access.groups.remove_member", 1),
         update: call("access.groups.update", 1),
       },
+      join_share: call("access.join_share", 1),
       labels: {
         list: call("access.labels.list", 1),
         set: call("access.labels.set", 1),
