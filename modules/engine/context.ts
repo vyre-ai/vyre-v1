@@ -115,7 +115,13 @@ export function taskSection(t: Obj, agentId: string, names: Readonly<Record<stri
   const offered = turn === "assigned" && mine.length === 0 && (((t["assigned"] as Who | undefined)?.kind === "group") || ((t["assigned"] as Who | undefined)?.kind === "role"));
   const out: string[] = [`${one(t["title"], 120)} (taskId ${String(t["id"])}, ${state.replace("_", " ")}).`];
   const seat = mine.includes(turn) ? turn : undefined;
-  if (seat) out.push(`You are ${SEAT[seat]}, and it is your turn. Finish this turn with exactly one baton call:\n${BATON_TOOLS[seat]}.\nIf that tool is not in your list, find it with tool_search first.`);
+  const kind = String(t["kind"] ?? "work");
+  if (seat && kind !== "work") {
+    // a request given to an agent: it is answered at its source, with the actions it offers
+    const acts = ((t["actions"] ?? []) as Array<{ key?: string; label?: string; note?: string }>).filter((a) => a.key && a.key !== "delegate" && a.key !== "snooze");
+    const list = acts.map((a) => `${a.key} ("${a.label ?? a.key}"${a.note === "required" ? ", note required" : ""})`).join(", ");
+    out.push(`This is a request of kind ${kind} for you, and it is your turn. Decide it and finish this turn with exactly one call:\ntasks_act {taskId, action, note} with action one of: ${list || "the action the request offers"}.${kind === "answer" ? " Put your answer in note." : ""}\nIf that tool is not in your list, find it with tool_search first.`);
+  } else if (seat) out.push(`You are ${SEAT[seat]}, and it is your turn. Finish this turn with exactly one baton call:\n${BATON_TOOLS[seat]}.\nIf that tool is not in your list, find it with tool_search first.`);
   else if (offered) out.push(`This task is offered to a group you belong to. Take it first with tasks_take {taskId}. If someone else already took it, say so in one line and end your turn. Once it is yours: ${BATON_TOOLS["assigned"]}.`);
   else if (mine.length > 0) out.push(`You are ${mine.map((m) => SEAT[m]).join(" and ")}, but the task is ${state.replace("_", " ")} and it is with ${whoLabel(slots.find(([s]) => s === turn)?.[1], names)} now. It is not your move: say so in one line and end your turn.`);
   else out.push("You are not a seat on this task. Say what you can add in one line and end your turn.");

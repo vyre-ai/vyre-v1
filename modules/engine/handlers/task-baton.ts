@@ -19,6 +19,7 @@ export interface Who { kind: string; id: string }
 export interface BatonTask {
   id: string; kind: string; title: string; state: string; assigned: Who; reviewer?: Who; approver?: Who; takenBy?: string; parentTaskId?: string; threadId?: string;
   createdBy: string; reviewLoops: number; source?: { kind: string; id: string }; workingNotes: Record<string, string>; recordId?: string; blocked?: boolean; workerThread?: string;
+  actions?: Array<{ key: string; label?: string }>;
 }
 /** What the baton needs of the server: a way to call a capability (as the server, or as a person), the clock, and a log. The consumer, the clock job and the turn-end hook all pass one, so none of them
  *  holds on to the ctx of a call that has finished. */
@@ -193,7 +194,7 @@ export async function onTaskEvent(ctx: Pick<EngineCtx, "db">, host: BatonHost, e
     task = await readTask(host, task.parentTaskId);
     if (!task) return [];
   }
-  if (task.kind !== "work") return [];
+  // any task an agent holds starts it: work, and a request (Answer, Review, Approve, Unblock) given or handed to an agent, which it answers with tasks_act
   // a task that waits on others starts when they are done (task.ready); nothing is recorded, so that event finds the baton new
   if (task.blocked === true && answeredChild === undefined) return [];
   // the parent of a plan is held by whoever made the plan, who is at work already: its children wake it, nothing else does
@@ -206,8 +207,15 @@ export async function onTaskEvent(ctx: Pick<EngineCtx, "db">, host: BatonHost, e
   if (!fresh && !(answeredChild && !before?.answered.includes(answeredChild))) return [];
   // a crew job or a helper does this work in its own thread, and it is already running: the baton does not start a second turn
   const worker = task.workingNotes["worker.kind"];
-  if (holder.role === "assigned" && worker !== undefined) return startWorker(ctx, host, task, holder.who, worker, sig, before);
+  if (task.kind === "work" && holder.role === "assigned" && worker !== undefined) return startWorker(ctx, host, task, holder.who, worker, sig, before);
   const targets = await agentsToWake(host, task, holder.who);
+  // the baton left an agent that was woken for it: its turn on this task stops, so two agents never work the same step
+  if (fresh && before?.threadId) {
+    for (const was of before.woken) {
+      if (targets.includes(was)) continue;
+      try { await engine.stop(before.threadId, { agentId: was }); } catch (e) { host.log?.("the agent the task left could not be stopped", { taskId: task.id, agentId: was, error: e instanceof Error ? e.message : String(e) }); }
+    }
+  }
   const answered = [...(fresh ? [] : before?.answered ?? []), ...(answeredChild ? [answeredChild] : [])].slice(-50);
   const asker = await askerOf(host, task);
   const now = clockOf(host);
@@ -222,21 +230,23 @@ export async function onTaskEvent(ctx: Pick<EngineCtx, "db">, host: BatonHost, e
   const threadId = await threadOf(host, task, targets, asker);
   if (!threadId) return [];
   const woken: string[] = [];
+  let outside = false;
   for (const agentId of targets) {
     await shareTask(host, task.id, agentId, asker);
     if (!(await openThread(ctx.db, host, engine, threadId, agentId, asker))) continue;
     // an agent that runs outside Vyre is not woken: the task waits in its queue. Its owner's tasks only; the queue checks that.
     if (await runsOutside(host, agentId)) {
       const q = await host.call("agents.outside.enqueue", { agentId, kind: "task", threadId, taskId: task.id, asker, title: task.title, text: task.workingNotes["brief"] ?? task.title }).catch(() => null) as { queued?: boolean } | null;
-      if (q?.queued === true) woken.push(agentId);
+      if (q?.queued === true) { woken.push(agentId); outside = true; }
       continue;
     }
     engine.wake(threadId, agentId);
     woken.push(agentId);
   }
-  saveBaton(ctx.db, { taskId: task.id, sig, woken, answered, threadId, asker, wokeAt: now });
+  // an outside agent has no turn this host sees end: its clock starts when the task is queued, and the sweep nudges it, then hands it to a person
+  saveBaton(ctx.db, { taskId: task.id, sig, woken, answered, threadId, asker, wokeAt: now, ...(outside ? { turnEndedAt: now } : {}) });
   // the work has started, and the status says so for everyone looking; only the state table moves it
-  if (holder.role === "assigned" && task.state === "todo" && woken.length > 0) await host.call("tasks.transition", { taskId: task.id, to: "doing", expectedFrom: "todo" }).catch((e: unknown) => host.log?.("a woken task could not be marked as started", { taskId: task.id, error: e instanceof Error ? e.message : String(e) }));
+  if (task.kind === "work" && holder.role === "assigned" && task.state === "todo" && woken.length > 0) await host.call("tasks.transition", { taskId: task.id, to: "doing", expectedFrom: "todo" }).catch((e: unknown) => host.log?.("a woken task could not be marked as started", { taskId: task.id, error: e instanceof Error ? e.message : String(e) }));
   return woken;
 }
 
@@ -261,7 +271,7 @@ export async function resumeTasks(ctx: Pick<EngineCtx, "db">, host: BatonHost, e
   const out: string[] = [];
   let cursor: string | undefined;
   for (let page = 0; page < 40; page++) {
-    const got = (await host.call("tasks.list", { scope: "all", states: ["todo", "doing", "in_review", "awaiting_approval"], kinds: ["work"], limit: 500, ...(cursor ? { cursor } : {}) })) as { tasks?: BatonTask[]; next?: string };
+    const got = (await host.call("tasks.list", { scope: "all", states: ["todo", "doing", "in_review", "awaiting_approval"], kinds: ["work", "approve", "review", "answer", "unblock"], limit: 500, ...(cursor ? { cursor } : {}) })) as { tasks?: BatonTask[]; next?: string };
     for (const t of got.tasks ?? []) {
       const holder = holderOf(t);
       if (!holder || holder.who.kind !== "agent" || t.blocked === true) continue;
@@ -288,6 +298,12 @@ const FINISH: Readonly<Record<string, string>> = {
   reviewer: "task_review: approve, or send_back with numbered fixes",
   approver: "task_decide: approve, or reject with a reason",
 };
+/** The one call a turn on a request ends with: tasks_act and the actions the request offers. */
+export function finishOf(task: Pick<BatonTask, "kind"> & { actions?: Array<{ key: string }> }, role: string): string {
+  if (task.kind === "work") return FINISH[role] ?? FINISH["assigned"]!;
+  const keys = (task.actions ?? []).map((a) => a.key).filter((k) => k !== "delegate" && k !== "snooze");
+  return `tasks_act {taskId, action: ${keys.length > 0 ? keys.join(" | ") : "the action the request offers"}, note}`;
+}
 export interface TurnEnd { type: "turn.completed" | "turn.failed" | "turn.cancelled"; threadId: string; agentId: string }
 
 const nudgeMinutesOf = (t: BatonTask): number => { const n = Number(t.workingNotes["baton.nudge_minutes"]); return Number.isFinite(n) && n >= 1 ? n : DEFAULT_NUDGE_MINUTES; };
@@ -299,7 +315,7 @@ const rowsOfThread = (db: Db, threadId: string): BatonRow[] => {
 /** Is the work still waiting on this agent? Yes when the baton has not moved and the task is not parked on a question or a block someone else must answer. */
 async function stillOnAgent(host: BatonHost, row: BatonRow, agentId: string): Promise<{ task: BatonTask; role: string } | undefined> {
   const task = await readTask(host, row.taskId);
-  if (!task || task.kind !== "work" || (task as BatonTask & { blocked?: boolean }).blocked === true) return undefined;
+  if (!task || (task as BatonTask & { blocked?: boolean }).blocked === true) return undefined;
   const holder = holderOf(task);
   if (!holder || signatureOf(task, holder) !== row.sig) return undefined;
   const effective = holder.who.kind === "agent" ? holder.who.id === agentId : task.takenBy === agentId;
@@ -328,7 +344,7 @@ export async function onTurnEnded(ctx: Pick<EngineCtx, "db">, host: BatonHost, e
     }
     saveBaton(ctx.db, { ...next, nudgedAt: now });
     try {
-      await host.call("chat.post", { threadId: ev.threadId, body: `Your turn ended without handing the task on. Finish with exactly one baton call: ${FINISH[on.role]}.`, idempotencyKey: `baton-nudge:${row.taskId}:${row.sig}` });
+      await host.call("chat.post", { threadId: ev.threadId, body: `Your turn ended without handing the task on. Finish with exactly one baton call: ${finishOf(on.task, on.role)}.`, idempotencyKey: `baton-nudge:${row.taskId}:${row.sig}` });
       engine.wake(ev.threadId, ev.agentId);
       result = "nudged";
     } catch (e) { host.log?.("the nudge on a task could not be sent", { taskId: row.taskId, error: e instanceof Error ? e.message : String(e) }); }
@@ -348,6 +364,15 @@ export async function sweepBaton(ctx: Pick<EngineCtx, "db">, host: BatonHost, en
     const holder = task ? holderOf(task) : null;
     if (!task || !holder || signatureOf(task, holder) !== row.sig || (task as BatonTask & { blocked?: boolean }).blocked === true) { if (!task || !holder) dropBaton(ctx.db, row.taskId); continue; }
     if (now - row.turnEndedAt < nudgeMinutesOf(task) * MINUTE) continue;
+    // an outside agent never ends a turn here: the first time its clock runs out it is reminded and its queue gets the task again; the second time a person gets it
+    if (row.nudgedAt === undefined && row.woken.length > 0 && await runsOutside(host, row.woken[0]!)) {
+      try {
+        await host.call("chat.post", { threadId: row.threadId, body: `Still waiting on this. Finish with exactly one call: ${finishOf(task, holder.role)}.`, idempotencyKey: `baton-nudge:${row.taskId}:${row.sig}` });
+        for (const agentId of row.woken) await host.call("agents.outside.enqueue", { agentId, kind: "task", threadId: row.threadId, taskId: task.id, asker: row.asker, title: task.title, text: `Still waiting: ${task.title}` }).catch(() => null);
+      } catch (e) { host.log?.("the nudge on an outside agent's task could not be sent", { taskId: row.taskId, error: e instanceof Error ? e.message : String(e) }); }
+      saveBaton(ctx.db, { ...row, nudgedAt: now, turnEndedAt: now });
+      continue;
+    }
     // an agent still working on it, or parked on an approval, is not stopped
     try { if (engine && row.threadId && engine.turns(row.threadId).some((t) => (t.state === "running" || t.state === "waiting") && row.woken.includes(t.agentId))) continue; } catch { /* a thread this host does not hold */ }
     if (await escalate(ctx, host, task, holder.role, row)) out.push(task.id);

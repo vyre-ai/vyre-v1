@@ -13,6 +13,7 @@ const kindKey = t.enm(
   'approval.requested', 'answer.requested', 'unblock.requested', 'approval.backstop', 'dm', 'mention', 'call.incoming', 'agent.blocked', 'incident.owned', 'task.assigned', 'reply.followed',
   'agent.task_finished', 'digest.away', 'mention.thread', 'run.failed', 'conflict.needs_you', 'access.requested', 'access.decided',
   'sync.attention', 'health.degraded', 'problem.report', 'member.joined', 'limit.hit', 'vault.rotation_due',
+  'task.turn', 'task.returned', 'task.finished', 'task.due',
 );
 const notificationRow = t.obj({
   id: id.notification, kind: kindKey, level, place, title: t.str(), body: t.opt(t.str()), subject: t.opt(resourceRef), count: t.int({ minimum: 1 }),
@@ -51,7 +52,12 @@ export default defineManifest({
     notif('call.incoming', 'interrupt', 'inbox', 'Incoming call from {{from}}', { pushTitle: '{{space}} is calling', respectHours: false }),
     notif('agent.blocked', 'interrupt', 'chats', '{{agent}} is blocked: {{reason}}', { pushTitle: '{{space}} needs you', agentRateKey: 'agent_interrupt', actions: [{ label: 'Unblock', cap: 'tasks.act' }] }),
     notif('incident.owned', 'interrupt', 'console', 'Incident you own: {{title}}', { pushTitle: '{{space}} needs you', respectHours: false }),
-    notif('task.assigned', 'badge', 'home', '{{from}} gave you a task: {{title}}', { actions: [{ label: 'Start', cap: 'tasks.transition' }] }),
+    notif('task.assigned', 'badge', 'chats', '{{from}} {{what}}: {{title}}', { actions: [{ label: 'Start', cap: 'tasks.transition' }] }),
+    // the baton reached a person: their review, their approval, or work sent back to them (l-tasks)
+    notif('task.turn', 'interrupt', 'chats', '{{from}} handed in "{{title}}" for your {{step}}', { pushTitle: '{{space}} needs you', agentRateKey: 'agent_interrupt', actions: [{ label: 'Open', cap: 'tasks.act' }], backstopEmailAfterHours: 4 }),
+    notif('task.returned', 'interrupt', 'chats', '{{from}} sent "{{title}}" back: {{note}}', { pushTitle: '{{space}} needs you', agentRateKey: 'agent_interrupt', actions: [{ label: 'Open', cap: 'tasks.act' }] }),
+    notif('task.finished', 'badge', 'chats', '{{from}} finished "{{title}}"', { agentRateKey: 'agent_interrupt' }),
+    notif('task.due', 'badge', 'chats', '{{when}}: {{title}}', { actions: [{ label: 'Open', cap: 'tasks.act' }] }),
     notif('reply.followed', 'badge', 'inbox', 'New reply on {{where}}'),
     notif('agent.task_finished', 'badge', 'chats', '{{agent}} finished: {{title}}', { agentRateKey: 'agent_interrupt' }),
     notif('digest.away', 'digest', 'home', 'While you were away'),

@@ -12,7 +12,7 @@ export type AssigneeKind = "person" | "agent" | "group" | "role" | "automation";
 export interface Assignee { kind: AssigneeKind; id: string }
 export interface Block { type: string; v?: number; data: unknown }
 export interface ActionDef { key: string; label: string; note?: "required" | "optional" }
-export interface TaskSource { kind: "chat" | "run" | "gate" | "journey" | "manual"; id: string }
+export interface TaskSource { kind: "chat" | "run" | "gate" | "journey" | "meeting" | "goal" | "manual"; id: string }
 export type Priority = "urgent" | "high" | "normal" | "low";
 export interface Recur { every: "day" | "week" | "month"; n?: number }
 
@@ -339,7 +339,13 @@ export function toOut(t: Task, idx: OpenIndex): Record<string, unknown> {
     reviewLoops: t.reviewLoops, snoozedUntil: t.snoozedUntil, createdBy: t.createdBy, createdAt: t.createdAt, updatedAt: t.updatedAt,
   });
 }
-export const out = (ctx: TasksCtx, t: Task): Record<string, unknown> => toOut(t, openIndex(ctx.db));
+/** The row a caller reads: the task, and whether the next move is theirs. */
+export const out = (ctx: TasksCtx, t: Task): Record<string, unknown> => {
+  const idx = openIndex(ctx.db);
+  const o = toOut(t, idx);
+  return isMyTurn(ctx, t, idx) ? { ...o, yourTurn: true } : o;
+};
+export const outFor = (ctx: TasksCtx, t: Task, idx: OpenIndex): Record<string, unknown> => { const o = toOut(t, idx); return isMyTurn(ctx, t, idx) ? { ...o, yourTurn: true } : o; };
 
 // ---- participation ----
 
@@ -422,31 +428,75 @@ export function page<T>(all: readonly T[], cursor?: string, limit?: number): { r
 
 const DAY = 86_400_000;
 export type Reason = "ready" | "due_today" | "overdue" | "blocking";
-export interface NeedsItem { task: Task; reason: Reason; handledBy?: string }
+export interface NeedsItem { task: Task; reason: Reason; handledBy?: string; yourTurn?: boolean }
 
-const startOfDay = (ms: number): number => Math.floor(ms / DAY) * DAY;   // days are UTC until the per-person time zone lands with settings
+/** The minutes a time zone is ahead of UTC at a moment (Asia/Karachi: 300). An unknown zone reads as UTC. */
+export function tzOffsetMin(tz: string | undefined, at: number): number {
+  if (!tz || tz === "UTC") return 0;
+  try {
+    const parts = new Intl.DateTimeFormat("en-US", { timeZone: tz, hourCycle: "h23", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit" }).formatToParts(new Date(at));
+    const n = (k: string): number => Number(parts.find((p) => p.type === k)?.value ?? 0);
+    const local = Date.UTC(n("year"), n("month") - 1, n("day"), n("hour") % 24, n("minute"), n("second"));
+    return Math.round((local - Math.floor(at / 1000) * 1000) / 60_000);
+  } catch { return 0; }
+}
+/** The start of the day a moment falls in, on the clock of a time zone. */
+export function startOfDayIn(ms: number, tz?: string): number {
+  const off = tzOffsetMin(tz, ms) * 60_000;
+  return Math.floor((ms + off) / DAY) * DAY - off;
+}
+/** A person's time zone: the profile.timezone setting, copied here from settings.changed (a module reads only its own tables). UTC until they set one. */
+export function tzOf(db: Db, person: string): string {
+  try { const r = db.all("SELECT tz FROM tasks_tz WHERE person = ?", person)[0] as { tz?: string } | undefined; return r?.tz || "UTC"; } catch { return "UTC"; }
+}
+export function syncTz(db: Db, p: Record<string, unknown>): boolean {
+  if (p["key"] !== "profile.timezone" || p["scope"] !== "person" || typeof p["person"] !== "string") return false;
+  const tz = typeof p["after"] === "string" ? p["after"] : "";
+  if (tz === "" || tz === "UTC") db.run("DELETE FROM tasks_tz WHERE person = ?", p["person"]);
+  else db.run("INSERT OR REPLACE INTO tasks_tz (person, tz) VALUES (?, ?)", p["person"], tz);
+  return true;
+}
 
 /** An Approve that was sent back stays open for the requester's thread, and nobody is waiting on it. */
 const sentBack = (t: Task): boolean => t.kind === "approve" && t.state === "doing";
+
+/**
+ * Is the next move on this task the caller's, so it belongs at the top of their Tasks under Needs you? A request addressed to them; a work task handed in for their review or approval; work sent
+ * back to them with fixes; work someone else gave them that nobody has started; a group or role task of theirs nobody took yet. Never a blocked task, and never one that is closed.
+ */
+export function isMyTurn(ctx: TasksCtx, t: Task, idx: OpenIndex): boolean {
+  if (!isOpen(t.state) || isBlocked(t, idx) || !actionableByMe(ctx, t)) return false;
+  if (isRequest(t.kind)) return !sentBack(t);
+  if (t.kind !== "work") return false;
+  if (t.state === "in_review" || t.state === "awaiting_approval") return true;
+  const shared = t.assigned.kind === "group" || t.assigned.kind === "role";
+  if (shared && t.takenBy === undefined) return true;
+  if (t.workingNotes["fixes"] !== undefined) return true;
+  const who = whoIs(ctx);
+  return t.state === "todo" && t.createdBy !== who.id && t.createdBy !== who.actingFor && t.workingNotes["plan.parent"] !== "1";
+}
 
 /** The Needs you rule of spec 2.8: my Ready requests (Approve, Review, Answer, Unblock), or tasks due today or overdue, or tasks that block someone.
  *  Snoozed requests are hidden until their time. Requests I did not get to because a role-mate acted show "handled by". */
 export function needsYou(ctx: TasksCtx): NeedsItem[] {
   const now = ctx.now();
   const idx = openIndex(ctx.db);
-  const eod = startOfDay(now) + DAY;
   const who = whoIs(ctx);
+  // "today" is the reader's own day, in their time zone
+  const sod = startOfDayIn(now, ctx.principal.kind === "person" ? tzOf(ctx.db, who.actingFor ?? who.id) : undefined);
+  const eod = sod + DAY;
   const items: NeedsItem[] = [];
   for (const t of allTasks(ctx.db, "c.state NOT IN ('done', 'canceled')")) {
     const mine = actionableByMe(ctx, t) || (t.assigned.kind !== "group" && t.assigned.kind !== "role" && involved(t, who));
     if (!mine) continue;
     if (t.snoozedUntil !== undefined && t.snoozedUntil > now) continue;
+    const turn = isMyTurn(ctx, t, idx);
     let reason: Reason | null = null;
-    if (t.due !== undefined && t.due < startOfDay(now)) reason = "overdue";
+    if (t.due !== undefined && t.due < sod) reason = "overdue";
     else if (t.due !== undefined && t.due < eod) reason = "due_today";
-    else if (isRequest(t.kind) && !sentBack(t) && !isBlocked(t, idx) && actionableByMe(ctx, t)) reason = "ready";
+    else if (turn) reason = "ready";
     else if (idx.blocking.has(t.id)) reason = "blocking";
-    if (reason) items.push({ task: t, reason });
+    if (reason) items.push(turn ? { task: t, reason, yourTurn: true } : { task: t, reason });
   }
   // role-addressed requests resolved by someone else in the last day
   for (const t of allTasks(ctx.db, "c.state IN ('done', 'canceled') AND c.handled_by IS NOT NULL AND c.handled_at >= ?", now - DAY)) {

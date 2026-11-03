@@ -3,8 +3,8 @@
 // Group and role slots: the pipeline authorizes the call at level use on the task, so holders pass; the first Take locks the task to one person (tasks.take).
 import { isTrustedService } from "../../../lib/trust.ts";
 import {
-  actionableByMe, allTasks, clean, emitTask, ensurePrefix, findTask, getTask, historyOf, holds, isBlocked, isOpen, isRequest, listTasks, myWork, needsYou, newTaskId, openIndex,
-  out, page, raise, readPolicy, sameAssignee, toOut, touch, visibleTo, whoIs,
+  actionableByMe, allTasks, clean, emitTask, ensurePrefix, findTask, getTask, historyOf, holds, isOpen, isRequest, listTasks, myWork, needsYou, newTaskId, openIndex,
+  out, outFor, page, raise, readPolicy, sameAssignee, touch, visibleTo, whoIs,
 } from "../projections.ts";
 import { ensureThread, syncThread } from "./thread.ts";
 import type {
@@ -85,7 +85,7 @@ function mayAct(t: Task, move: Move, who: Who): boolean {
 
 const isAgentLike = (k: string): boolean => k === "agent" || k === "automation";
 
-export interface Applied { task: Task; move: Move; from: TaskState; /** a group or role request closed by this call: the first action wins and others see "handled by" */ handled: boolean }
+export interface Applied { task: Task; move: Move; from: TaskState; /** a group or role request closed by this call: the first action wins and others see "handled by" */ handled: boolean; /** a group or role task the caller started or handed in without a Take: it is theirs now */ took: boolean }
 export interface Checked { move: Move; note: string | undefined }
 
 /** Check a move against the table of 4.7: the state, the actor, the note, the review-loop limit and the self-review and human-approver policies. Writes nothing,
@@ -123,6 +123,11 @@ export function commitMove(ctx: TasksCtx, t: Task, to: TaskState, c: Checked): A
   t.state = to;
   if (move.action === "send_back") t.reviewLoops += 1;
   if (move.action === "reopen") { t.reviewLoops = 0; delete t.takenBy; delete t.takenAt; delete t.handledBy; delete t.handledAt; }
+  // a group or role task started or handed in by one of its members is theirs, as a Take would make it: the others see who has it
+  let took = false;
+  if (t.kind === "work" && (move.action === "start" || move.action === "submit") && (t.assigned.kind === "group" || t.assigned.kind === "role") && t.takenBy === undefined && !isTrustedService(whoIs(ctx))) {
+    t.takenBy = ctx.actingFor ?? ctx.principal.id; t.takenAt = ctx.now(); took = true;
+  }
   let handled = false;
   if (!isOpen(to)) {
     delete t.snoozedUntil;
@@ -137,7 +142,38 @@ export function commitMove(ctx: TasksCtx, t: Task, to: TaskState, c: Checked): A
   if (move.action === "send_back") emitTask(ctx, ctx.db, "task.sent_back", t, { by, note: note ?? "", reviewLoops: t.reviewLoops }, hist("sent_back"));
   if (move.action === "reject") emitTask(ctx, ctx.db, "task.rejected", t, { by, note: note ?? "" }, hist("rejected"));
   if (move.action === "approve" || move.action === "approve_review") emitTask(ctx, ctx.db, "task.approved", t, { kind: t.kind, by, forPerson: ctx.actingFor }, hist("approved"));
-  return { task: t, move, from, handled };
+  // the baton of a work task reached its next holder: they are asked, the same way a request asks (Needs you, a notification naming the task)
+  const next = t.kind === "work" ? batonNext(t, move.action) : undefined;
+  if (next) emitTask(ctx, ctx.db, "task.requested", t, { kind: t.kind, title: t.title, assigned: next.to, step: next.step, by }, { type: "requested", by });
+  return { task: t, move, from, handled, took };
+}
+
+/** Who a move of a work task hands the baton to, and for what: the reviewer, the approver, or the doer the work went back to. */
+function batonNext(t: Task, action: MoveAction): { to: Assignee; step: "work" | "review" | "approval" } | undefined {
+  if (t.state === "in_review" && t.reviewer) return { to: t.reviewer, step: "review" };
+  if (t.state === "awaiting_approval" && t.approver) return { to: t.approver, step: "approval" };
+  if (t.state === "doing" && (action === "send_back" || action === "reject")) return { to: t.assigned, step: "work" };
+  return undefined;
+}
+
+/**
+ * May the caller change this task (its fields, its people, its links)? Someone on it: a slot they hold by id or took, a group or role slot the kernel lets them use, its creator, the person
+ * responsible for its agent; or anyone the kernel grants edit on it (an admin). The server itself always may. The pipeline checks the grant first; this is the task's own word.
+ */
+export function mayEdit(ctx: TasksCtx, t: Task): boolean {
+  const who = whoIs(ctx);
+  if (isTrustedService(who)) return true;
+  const me = (id: string | undefined): boolean => id !== undefined && (id === who.id || id === who.actingFor);
+  if (me(t.createdBy) || me(t.responsible) || me(t.takenBy)) return true;
+  const can = (level: string): boolean => !!ctx.authorize && ctx.authorize({ perm: null, level }, { type: "task", id: t.id }).effect === "allow";
+  for (const a of [t.assigned, t.reviewer, t.approver]) {
+    if (!a) continue;
+    if ((a.kind === "group" || a.kind === "role") ? t.takenBy === undefined && can("use") : me(a.id)) return true;
+  }
+  return can("edit");
+}
+function mustEdit(ctx: TasksCtx, t: Task, what: string): void {
+  if (!mayEdit(ctx, t)) raise(ctx, "validation.precondition_failed", `Only someone on this task can ${what}.`, { reason: "wrong_actor" });
 }
 
 export function applyMove(ctx: TasksCtx, t: Task, to: TaskState, o: { note?: string | undefined; expectedFrom?: TaskState | undefined } = {}, policy: Policy = readPolicy(ctx.db)): Applied {
@@ -259,9 +295,9 @@ export async function create(ctx: TasksCtx, input: In): Promise<unknown> {
   const by = ctx.principal.id;
   emitTask(ctx, ctx.db, "task.created", t, { kind, title, assigned, recordId: t.recordId, source: t.source }, { type: "created", by });
   if (isRequest(kind)) emitTask(ctx, ctx.db, "task.requested", t, { kind, title, assigned: holderOf(t), expiresAt: t.expiresAt }, { type: "requested", by });
-  emitTask(ctx, ctx.db, "task.assigned", t, { slot: "assigned", to: assigned, from: null }, { type: "assigned", by });
-  if (input.reviewer) emitTask(ctx, ctx.db, "task.assigned", t, { slot: "reviewer", to: reviewer, from: null }, { type: "assigned", by });
-  if (input.approver) emitTask(ctx, ctx.db, "task.assigned", t, { slot: "approver", to: approver, from: null }, { type: "assigned", by });
+  emitTask(ctx, ctx.db, "task.assigned", t, { slot: "assigned", to: assigned, from: null, title, by }, { type: "assigned", by });
+  if (input.reviewer) emitTask(ctx, ctx.db, "task.assigned", t, { slot: "reviewer", to: reviewer, from: null, title, by }, { type: "assigned", by });
+  if (input.approver) emitTask(ctx, ctx.db, "task.assigned", t, { slot: "approver", to: approver, from: null, title, by }, { type: "assigned", by });
   return { task: out(ctx, t) };
 }
 
@@ -276,19 +312,19 @@ export async function list(ctx: TasksCtx, input: In): Promise<unknown> {
   const rows = listTasks(ctx, f);
   const p = page(rows, input.cursor, input.limit);
   const idx = openIndex(ctx.db);
-  return clean({ tasks: p.rows.map((t) => toOut(t, idx)), next: p.next, total: p.total });
+  return clean({ tasks: p.rows.map((t) => outFor(ctx, t, idx)), next: p.next, total: p.total });
 }
 
 export async function needsYouList(ctx: TasksCtx, input: In): Promise<unknown> {
   const items = needsYou(ctx);
   const idx = openIndex(ctx.db);
   const limit = input.limit ?? 50;
-  return { items: items.slice(0, limit).map((i) => clean({ task: toOut(i.task, idx), reason: i.reason, handledBy: i.handledBy })), total: items.length };
+  return { items: items.slice(0, limit).map((i) => clean({ task: outFor(ctx, i.task, idx), reason: i.reason, handledBy: i.handledBy, yourTurn: i.handledBy === undefined && i.yourTurn === true ? true : undefined })), total: items.length };
 }
 
 export async function countNeedsYou(ctx: TasksCtx, _input: In): Promise<unknown> {
-  const idx = openIndex(ctx.db);
-  const n = needsYou(ctx).filter((i) => i.handledBy === undefined && isRequest(i.task.kind) && !isBlocked(i.task, idx) && actionableByMe(ctx, i.task)).length;
+  // exactly the rows of the Needs you group: every task whose next move is the reader's, each once
+  const n = needsYou(ctx).filter((i) => i.handledBy === undefined && i.yourTurn === true).length;
   return { count: n };
 }
 
@@ -296,12 +332,15 @@ export async function myWorkList(ctx: TasksCtx, input: In): Promise<unknown> {
   const r = myWork(ctx, (input.section ?? "open") as Section);
   const p = page(r.tasks, input.cursor, input.limit);
   const idx = openIndex(ctx.db);
-  return clean({ tasks: p.rows.map((t) => toOut(t, idx)), counts: r.counts, next: p.next, total: p.total });
+  return clean({ tasks: p.rows.map((t) => outFor(ctx, t, idx)), counts: r.counts, next: p.next, total: p.total });
 }
 
 export async function update(ctx: TasksCtx, input: In): Promise<unknown> {
   const t = getTask(ctx, input.taskId);
-  if (!isOpen(t.state)) raise(ctx, "validation.precondition_failed", "Reopen the task before editing it.", { reason: "closed" });
+  // linking the thread someone made on opening a task is open to anyone who sees it; every other change is for someone on the task
+  const onlyThread = Object.keys(input).every((k) => k === "taskId" || k === "threadId" || k === "idempotencyKey");
+  if (onlyThread ? !visibleTo(ctx, t) && !isTrustedService(whoIs(ctx)) : !mayEdit(ctx, t)) raise(ctx, "validation.precondition_failed", "Only someone on this task can change it.", { reason: "wrong_actor" });
+  if (!isOpen(t.state) && !onlyThread) raise(ctx, "validation.precondition_failed", "Reopen the task before editing it.", { reason: "closed" });
   const locked = t.source?.kind === "gate" || t.payloadHash !== undefined;
   const changed: string[] = [];
   const set = (k: "title" | "blocks" | "summary" | "why" | "due" | "effort" | "priority" | "labels" | "start" | "fields" | "recur" | "parentTaskId" | "workerThread", v: unknown): void => {
@@ -351,6 +390,8 @@ export async function update(ctx: TasksCtx, input: In): Promise<unknown> {
     touch(ctx, ctx.db, t);
     emitTask(ctx, ctx.db, "task.updated", t, { fields: changed }, { type: "updated", by: ctx.principal.id });
   }
+  // a thread linked later gets the people and agents of the slots, as one made with the task does
+  if (changed.includes("threadId")) await syncThread(ctx, t);
   return { task: out(ctx, t) };
 }
 
@@ -361,7 +402,8 @@ export async function transition(ctx: TasksCtx, input: In): Promise<unknown> {
   if (t.source?.kind === "gate" && !isTrustedService(who) && t.state === "awaiting_approval" && (input.to === "done" || input.to === "doing")) {
     raise(ctx, "validation.precondition_failed", "Approve or send back a held act from the request itself.", { reason: "use_act" });
   }
-  applyMove(ctx, t, input.to as TaskState, { note: input.note, expectedFrom: input.expectedFrom });
+  const applied = applyMove(ctx, t, input.to as TaskState, { note: input.note, expectedFrom: input.expectedFrom });
+  if (applied.took) await syncThread(ctx, t);
   return { task: out(ctx, t) };
 }
 
@@ -369,6 +411,7 @@ export async function assign(ctx: TasksCtx, input: In): Promise<unknown> {
   const t = getTask(ctx, input.taskId);
   const slot = input.slot as Slot;
   const to: Assignee | null = input.to ? asAssignee(input.to) : null;
+  mustEdit(ctx, t, "change who is on it");
   if (!isOpen(t.state)) raise(ctx, "validation.precondition_failed", "Reopen the task before changing who is on it.", { reason: "closed" });
   if (to === null && slot === "assigned") raise(ctx, "validation.precondition_failed", "A task always has someone it is assigned to.", { reason: "assigned_required" });
   if (to === null && ((slot === "reviewer" && t.state === "in_review") || (slot === "approver" && t.state === "awaiting_approval"))) {
@@ -386,7 +429,7 @@ export async function assign(ctx: TasksCtx, input: In): Promise<unknown> {
     if (r !== undefined) t.responsible = r; else delete t.responsible;
   }
   touch(ctx, ctx.db, t);
-  emitTask(ctx, ctx.db, "task.assigned", t, { slot, to, from }, { type: "assigned", by: ctx.principal.id });
+  emitTask(ctx, ctx.db, "task.assigned", t, { slot, to, from, title: t.title, by: ctx.principal.id }, { type: "assigned", by: ctx.principal.id });
   await syncThread(ctx, t);
   return { task: out(ctx, t) };
 }
@@ -413,6 +456,8 @@ export async function take(ctx: TasksCtx, input: In): Promise<unknown> {
   t.takenBy = me; t.takenAt = ctx.now();
   touch(ctx, ctx.db, t);
   emitTask(ctx, ctx.db, "task.taken", t, { by: me }, { type: "taken", by: me });
+  // whoever took it is in its thread from now on
+  await syncThread(ctx, t);
   return { task: out(ctx, t) };
 }
 
@@ -462,6 +507,9 @@ export async function followersAdd(ctx: TasksCtx, input: In): Promise<unknown> {
   const t = getTask(ctx, input.taskId);
   const f = String(input.follower ?? "").trim();
   if (!f) raise(ctx, "validation.bad_input", "Say who follows.", { errors: ["/follower: required"] });
+  // following yourself needs only to see the task; adding someone else is for someone on it
+  const self = f === ctx.principal.id || f === ctx.actingFor;
+  if (self ? !visibleTo(ctx, t) && !isTrustedService(whoIs(ctx)) : !mayEdit(ctx, t)) raise(ctx, "validation.precondition_failed", "Only someone on this task can add a follower.", { reason: "wrong_actor" });
   if (!t.followers.includes(f)) {
     t.followers = [...t.followers, f];
     touch(ctx, ctx.db, t);
@@ -472,6 +520,7 @@ export async function followersAdd(ctx: TasksCtx, input: In): Promise<unknown> {
 export async function followersRemove(ctx: TasksCtx, input: In): Promise<unknown> {
   const t = getTask(ctx, input.taskId);
   const f = String(input.follower ?? "");
+  if (f !== ctx.principal.id && f !== ctx.actingFor) mustEdit(ctx, t, "remove a follower");
   if (t.followers.includes(f)) {
     t.followers = t.followers.filter((x) => x !== f);
     touch(ctx, ctx.db, t);
@@ -520,6 +569,7 @@ function linkTarget(ctx: TasksCtx, input: In): { kind: "record" | "file"; id: st
 }
 export async function linksAdd(ctx: TasksCtx, input: In): Promise<unknown> {
   const t = getTask(ctx, input.taskId);
+  mustEdit(ctx, t, "link to it");
   const l = linkTarget(ctx, input);
   const by = ctx.principal.id;
   if (l.kind === "record") {
@@ -539,6 +589,7 @@ export async function linksAdd(ctx: TasksCtx, input: In): Promise<unknown> {
 }
 export async function linksRemove(ctx: TasksCtx, input: In): Promise<unknown> {
   const t = getTask(ctx, input.taskId);
+  mustEdit(ctx, t, "remove a link");
   const l = linkTarget(ctx, input);
   const by = ctx.principal.id;
   if (l.kind === "record") {
@@ -555,6 +606,7 @@ export async function linksRemove(ctx: TasksCtx, input: In): Promise<unknown> {
 
 export async function dependenciesAdd(ctx: TasksCtx, input: In): Promise<unknown> {
   const t = getTask(ctx, input.taskId);
+  mustEdit(ctx, t, "make it wait on another task");
   const dep = String(input.dependsOnId);
   if (dep === t.id) raise(ctx, "validation.precondition_failed", "A task cannot wait on itself.", { reason: "self_dependency" });
   if (!findTask(ctx.db, dep)) raise(ctx, "validation.precondition_failed", "The task it would wait on does not exist.", { reason: "dependency_missing", taskId: dep });
@@ -567,6 +619,7 @@ export async function dependenciesAdd(ctx: TasksCtx, input: In): Promise<unknown
 }
 export async function dependenciesRemove(ctx: TasksCtx, input: In): Promise<unknown> {
   const t = getTask(ctx, input.taskId);
+  mustEdit(ctx, t, "stop it waiting");
   const dep = String(input.dependsOnId);
   if (t.dependsOn.includes(dep)) {
     t.dependsOn = t.dependsOn.filter((d) => d !== dep);

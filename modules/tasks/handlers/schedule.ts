@@ -62,15 +62,28 @@ function startParent(ctx: TasksCtx, t: Task): string[] {
   return [parent.id];
 }
 
+/** The notes a repeat carries: what the work is, not what was done or said about the last one. */
+const LAST_TIME = /^(outputs|summary|fixes|asked|answer|done_ticks|baton\..*|run\..*|plan\..*|worker\..*|crew\..*|quiet\..*|thread\.origin|decision_id|payload_hash)$/;
+function carried(t: Task): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const [k, v] of Object.entries(t.workingNotes)) if (!LAST_TIME.test(k)) out[k] = v;
+  return out;
+}
+
 async function comeBack(ctx: TasksCtx, t: Task): Promise<void> {
   if (!t.recur || t.state !== "done" || !ctx.call) return;
   const every = t.recur.every, n = t.recur.n ?? 1;
   const base = t.due ?? ctx.now();
-  await ctx.call("tasks.create", {
+  const made = await ctx.call("tasks.create", {
     title: t.title, ...(t.summary ? { summary: t.summary } : {}), ...(t.why ? { why: t.why } : {}), assigned: t.assigned, ...(t.reviewer ? { reviewer: t.reviewer } : {}), ...(t.approver ? { approver: t.approver } : {}),
     due: nextDue(base, every, n), ...(t.start !== undefined ? { start: nextDue(t.start, every, n) } : {}), ...(t.effort !== undefined ? { effort: t.effort } : {}), ...(t.priority ? { priority: t.priority } : {}), labels: t.labels, fields: t.fields, recur: t.recur,
     ...(t.recordId ? { recordId: t.recordId } : {}), ...(t.parentTaskId ? { parentTaskId: t.parentTaskId } : {}), idempotencyKey: `recur:${t.id}`,
+    // the next one starts with the same brief, what done means, the working notes and the files; never what was handed in last time
+    ...(Object.keys(carried(t)).length > 0 ? { notes: carried(t) } : {}), ...(t.fileIds.length > 0 ? { fileIds: t.fileIds } : {}),
   });
+  // who followed it follows the next one
+  const nextId = (made as { task?: { id?: string } } | null)?.task?.id;
+  if (nextId) for (const f of t.followers) await ctx.call("tasks.followers.add", { taskId: nextId, follower: f }).catch(() => undefined);
 }
 
 /** One task event. Returns the tasks it moved, for the log and the tests. */

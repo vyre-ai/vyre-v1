@@ -1,6 +1,6 @@
 // tasks.digest: what an agent keeps in mind about its work, every turn, for almost nothing. The task bound to this thread, its parent and siblings in a line each, then the agent's own open tasks: the top five and a
 // count. A hard cap of about 300 tokens; the hash lets the engine send it only when it changed. Detail stays one tasks_get away. The asker's reach limits it: a task the asker cannot see is not named.
-import { allTasks, actionableSlot, findTask, isOpen, visibleTo } from "../projections.ts";
+import { allTasks, actionableSlot, findTask, isOpen, raise, visibleTo } from "../projections.ts";
 import type { Task, TasksCtx } from "../projections.ts";
 
 type In = Record<string, any>;   // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -55,7 +55,10 @@ export function renderDigest(p: DigestParts): string {
 const rank = (t: Task): number => (t.state === "doing" ? 0 : t.state === "in_review" || t.state === "awaiting_approval" ? 1 : 2);
 
 export async function digest(ctx: TasksCtx, input: In): Promise<unknown> {
-  const agent = String(input.agentId);
+  // an outside agent (Claude Code, Codex over MCP) asks for its own: the caller is the agent
+  // an agent reads only its own; a person or the server names the agent
+  const agent = ctx.principal.kind === "agent" ? ctx.principal.id : typeof input.agentId === "string" ? input.agentId : "";
+  if (agent === "") raise(ctx, "validation.bad_input", "Say which agent: agentId, or ask as the agent.", { errors: ["/agentId: required unless an agent asks"] });
   const thread = typeof input.threadId === "string" ? input.threadId : undefined;
   const open = "c.state NOT IN ('done', 'canceled')";
   const can = (t: Task | undefined): t is Task => t !== undefined && visibleTo(ctx, t);
@@ -64,7 +67,7 @@ export async function digest(ctx: TasksCtx, input: In): Promise<unknown> {
   const parent = bound?.parentTaskId ? findTask(ctx.db, bound.parentTaskId) : undefined;
   const siblings = parent ? allTasks(ctx.db, "m.parent_task = ? AND m.kind = 'work'", parent.id).filter((t) => t.id !== bound?.id) : [];
   const children = bound ? allTasks(ctx.db, "m.parent_task = ? AND m.kind = 'work'", bound.id) : [];
-  const held = allTasks(ctx.db, `${open} AND m.kind = 'work' AND (m.assigned LIKE ? OR m.reviewer LIKE ? OR m.approver LIKE ?)`, `%${agent}%`, `%${agent}%`, `%${agent}%`).filter((t) => {
+  const held = allTasks(ctx.db, `${open} AND (m.assigned LIKE ? OR m.reviewer LIKE ? OR m.approver LIKE ?)`, `%${agent}%`, `%${agent}%`, `%${agent}%`).filter((t) => {
     const slot = actionableSlot(t.state);
     return slot !== null && t[slot]?.id === agent && t.id !== bound?.id && visibleTo(ctx, t);
   }).sort((a, b) => rank(a) - rank(b) || (a.due ?? Infinity) - (b.due ?? Infinity) || b.updatedAt - a.updatedAt);

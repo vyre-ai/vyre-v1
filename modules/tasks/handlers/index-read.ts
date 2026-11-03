@@ -1,6 +1,6 @@
 // The long list (tasks.index): every row a Tasks page draws, in one read, at 5,000 tasks. It reads only the columns a row shows, never the blocks, the notes or the actions, and it answers nothing when the caller
 // already holds this revision. tasks.rev is the one number a screen watches, so a change anywhere else in the Space costs one small read and no list.
-import { actionableByMe, clean, findTask, involved, isOpen, openIndex, visibleTo, whoIs } from "../projections.ts";
+import { actionableByMe, clean, findTask, involved, isMyTurn, isOpen, openIndex, visibleTo, whoIs } from "../projections.ts";
 import type { Assignee, Task, TaskKind, TaskState, TasksCtx } from "../projections.ts";
 
 type In = Record<string, any>;   // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -11,7 +11,8 @@ const MAX_DONE = 1_000;
 
 const COLS = `c.id AS id, c.key AS key, m.kind AS kind, c.title AS title, c.state AS state, m.assigned AS assigned, m.reviewer AS reviewer, m.approver AS approver, m.taken_by AS taken_by, m.due AS due, c.start_at AS start_at,
   m.effort AS effort, c.priority AS priority, c.labels AS labels, c.record_id AS record_id, m.parent_task AS parent_task, m.depends_on AS depends_on, m.thread_id AS thread_id, c.worker_thread AS worker_thread,
-  m.source_kind AS source_kind, m.source_id AS source_id, m.snoozed_until AS snoozed_until, m.followers AS followers, c.created_by AS created_by, c.created_at AS created_at, c.updated_at AS updated_at`;
+  m.source_kind AS source_kind, m.source_id AS source_id, m.snoozed_until AS snoozed_until, m.followers AS followers, c.created_by AS created_by, c.created_at AS created_at, c.updated_at AS updated_at,
+  (m.working_notes LIKE '%"fixes"%') AS has_fixes, (m.working_notes LIKE '%"plan.parent":"1"%') AS plan_parent`;
 
 const parse = <T>(v: unknown, or: T): T => { if (typeof v !== "string" || v === "") return or; try { return JSON.parse(v) as T; } catch { return or; } };
 const str = (v: unknown): string | undefined => (typeof v === "string" && v !== "" ? v : undefined);
@@ -28,9 +29,11 @@ export async function rev(ctx: TasksCtx, _input: In): Promise<unknown> {
 
 /** Just enough of a row for the scope checks the full read uses, so a row is mine or not by the same rule everywhere. */
 function asTask(r: Raw, assigned: Assignee, reviewer: Assignee | null, approver: Assignee | null, followers: string[]): Task {
+  // only the two notes the turn rule reads, from flags the query worked out: a row never parses the notes
+  const notes: Record<string, string> = { ...(r["has_fixes"] ? { fixes: "[]" } : {}), ...(r["plan_parent"] ? { "plan.parent": "1" } : {}) };
   return {
     id: String(r["id"]), kind: r["kind"] as TaskKind, title: String(r["title"]), state: r["state"] as TaskState, assigned, ...(reviewer ? { reviewer } : {}), ...(approver ? { approver } : {}),
-    ...(str(r["taken_by"]) ? { takenBy: String(r["taken_by"]) } : {}), blocks: [], actions: [], fileIds: [], dependsOn: [], followers, workingNotes: {}, labels: [], fields: {}, reviewLoops: 0,
+    ...(str(r["taken_by"]) ? { takenBy: String(r["taken_by"]) } : {}), blocks: [], actions: [], fileIds: [], dependsOn: parse<string[]>(r["depends_on"], []), followers, workingNotes: notes, labels: [], fields: {}, reviewLoops: 0,
     createdBy: String(r["created_by"]), createdAt: Number(r["created_at"]), updatedAt: Number(r["updated_at"]), version: 0,
   };
 }
@@ -49,6 +52,14 @@ export async function index(ctx: TasksCtx, input: In): Promise<unknown> {
   if (input.parentTaskId !== undefined) { where.push("m.parent_task = ?"); args.push(input.parentTaskId); }
   // the work under a chat: the children of the plans that live in that thread
   if (input.underThread !== undefined) { where.push("m.parent_task IN (SELECT id FROM tasks_meta WHERE thread_id = ? AND deleted_at IS NULL)"); args.push(input.underThread); }
+  // words: every one must be somewhere in the title, the key, the summary, the why or the notes (the brief, what done means, working notes, what was handed in)
+  const words = typeof input.q === "string" ? input.q.toLowerCase().split(/\s+/).map((w: string) => w.replace(/[%_\\]/g, "")).filter((w: string) => w !== "").slice(0, 8) : [];
+  for (const w of words) {
+    where.push("(lower(c.title) LIKE ? OR lower(coalesce(c.key, '')) LIKE ? OR lower(coalesce(c.summary, '')) LIKE ? OR lower(coalesce(m.why, '')) LIKE ? OR lower(coalesce(m.working_notes, '')) LIKE ?)");
+    const like = `%${w}%`;
+    args.push(like, like, like, like, like);
+  }
+  const snoozedOnly = input.snoozed === true;
   if (scope === "given") { where.push("c.created_by = ?"); args.push(who.id); }
   const rows = ctx.db.all(`SELECT ${COLS} FROM tasks_core c JOIN tasks_meta m ON m.id = c.id WHERE ${where.join(" AND ")} ORDER BY c.created_at DESC, c.id DESC`, ...args) as Raw[];
   // the rollup of a parent reads every child, seen or not: a count says nothing about a child
@@ -72,8 +83,9 @@ export async function index(ctx: TasksCtx, input: In): Promise<unknown> {
     const reviewer = parse<Assignee | null>(r["reviewer"], null), approver = parse<Assignee | null>(r["approver"], null);
     const followers = parse<string[]>(r["followers"], []);
     const direct = me(assigned.id) || (reviewer !== null && me(reviewer.id)) || (approver !== null && me(approver.id)) || me(String(r["taken_by"] ?? ""));
-    const t = direct ? null : asTask(r, assigned, reviewer, approver, followers);
+    const t = direct && !open ? null : asTask(r, assigned, reviewer, approver, followers);
     if (scope === "mine" && !direct && !(t !== null && (involved(t, who) || actionableByMe(ctx, t)))) continue;
+    if (snoozedOnly && !(open && num(r["snoozed_until"]) !== undefined && Number(r["snoozed_until"]) > clock)) continue;
     if (scope === "given" && assigned.id === who.id) continue;
     if (!direct && !me(String(r["created_by"])) && !followers.some(me) && t !== null && !visibleTo(ctx, t)) continue;
     if (!open) {
@@ -82,7 +94,7 @@ export async function index(ctx: TasksCtx, input: In): Promise<unknown> {
       done += 1;
     } else if (wantDone) continue;
     const snoozed = num(r["snoozed_until"]);
-    if (open && snoozed !== undefined && snoozed > clock) continue;
+    if (open && snoozed !== undefined && snoozed > clock && !snoozedOnly) continue;
     if (out.length >= MAX_ROWS) continue;
     const id = String(r["id"]);
     const dependsOn = parse<string[]>(r["depends_on"], []);
@@ -92,6 +104,7 @@ export async function index(ctx: TasksCtx, input: In): Promise<unknown> {
       assigned, reviewer: reviewer ?? undefined, approver: approver ?? undefined, takenBy: str(r["taken_by"]), due: num(r["due"]), start: num(r["start_at"]), effort: num(r["effort"]), priority: str(r["priority"]),
       labels: parse<string[]>(r["labels"], []), recordId: str(r["record_id"]), parentTaskId: str(r["parent_task"]), dependsOn, threadId: str(r["thread_id"]), workerThread: str(r["worker_thread"]),
       source: sk !== undefined && si !== undefined ? { kind: sk, id: si } : undefined, snoozedUntil: snoozed, children: children.get(id), createdBy: r["created_by"], createdAt: r["created_at"], updatedAt: r["updated_at"],
+      yourTurn: open && t !== null && isMyTurn(ctx, t, idx) ? true : undefined,
     }));
   }
   return { rev: now, unchanged: false, rows: out, doneThisWeek, total: out.length };

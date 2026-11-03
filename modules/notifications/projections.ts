@@ -9,7 +9,8 @@ export type Place = "home" | "chats" | "inbox" | "records" | "files" | "apps" | 
 export type KindKey =
   | "approval.requested" | "answer.requested" | "unblock.requested" | "approval.backstop" | "dm" | "mention" | "call.incoming" | "agent.blocked" | "incident.owned" | "task.assigned" | "reply.followed"
   | "agent.task_finished" | "digest.away" | "mention.thread" | "run.failed" | "conflict.needs_you" | "access.requested" | "access.decided"
-  | "sync.attention" | "health.degraded" | "problem.report" | "member.joined" | "limit.hit" | "vault.rotation_due";
+  | "sync.attention" | "health.degraded" | "problem.report" | "member.joined" | "limit.hit" | "vault.rotation_due"
+  | "task.turn" | "task.returned" | "task.finished" | "task.due";
 export type Action = { label: string; cap: string };
 export interface KindDef {
   key: KindKey; level: Level; place: Place; title: string; pushTitle?: string; actions: Action[]; agentRateKey?: string; backstopEmailAfterHours?: number; respectHours: boolean;
@@ -29,7 +30,11 @@ export const KINDS: readonly KindDef[] = [
   kind("call.incoming", "interrupt", "inbox", "Incoming call from {{from}}", { pushTitle: "{{space}} is calling", respectHours: false }),
   kind("agent.blocked", "interrupt", "chats", "{{agent}} is blocked: {{reason}}", { ...needsYou(), actions: [a("Unblock", "tasks.act")] }),
   kind("incident.owned", "interrupt", "console", "Incident you own: {{title}}", { pushTitle: "{{space}} needs you", respectHours: false }),
-  kind("task.assigned", "badge", "home", "{{from}} gave you a task: {{title}}", { actions: [a("Start", "tasks.transition")] }),
+  kind("task.assigned", "badge", "chats", "{{from}} {{what}}: {{title}}", { actions: [a("Start", "tasks.transition")] }),
+  kind("task.turn", "interrupt", "chats", "{{from}} handed in \"{{title}}\" for your {{step}}", { ...needsYou(), actions: [a("Open", "tasks.act")], backstopEmailAfterHours: 4 }),
+  kind("task.returned", "interrupt", "chats", "{{from}} sent \"{{title}}\" back: {{note}}", { ...needsYou(), actions: [a("Open", "tasks.act")] }),
+  kind("task.finished", "badge", "chats", "{{from}} finished \"{{title}}\"", { agentRateKey: "agent_interrupt" }),
+  kind("task.due", "badge", "chats", "{{when}}: {{title}}", { actions: [a("Open", "tasks.act")] }),
   kind("reply.followed", "badge", "inbox", "New reply on {{where}}"),
   kind("agent.task_finished", "badge", "chats", "{{agent}} finished: {{title}}", { agentRateKey: "agent_interrupt" }),
   kind("digest.away", "digest", "home", "While you were away"),
@@ -48,7 +53,7 @@ export const KINDS: readonly KindDef[] = [
 export const kindOf = (k: string): KindDef | undefined => KINDS.find((x) => x.key === k);
 
 /** Kinds the rail counts as Needs you (it shows a count only for these and for direct conversations); everything else is a quiet dot on its place. */
-export const NEEDS_YOU_KINDS: ReadonlySet<string> = new Set(["approval.requested", "answer.requested", "unblock.requested", "approval.backstop", "agent.blocked", "limit.hit", "conflict.needs_you", "access.requested"]);
+export const NEEDS_YOU_KINDS: ReadonlySet<string> = new Set(["approval.requested", "answer.requested", "unblock.requested", "approval.backstop", "task.turn", "task.returned", "agent.blocked", "limit.hit", "conflict.needs_you", "access.requested"]);
 export const DIRECT_KINDS: ReadonlySet<string> = new Set(["dm", "mention"]);
 /** A mute silences a sender; these two carry a clock the person cannot choose to miss. */
 export const UNMUTABLE_KINDS: ReadonlySet<string> = new Set(["approval.backstop", "incident.owned"]);
