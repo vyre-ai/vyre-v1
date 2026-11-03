@@ -203,6 +203,9 @@ export type Sev = "ok" | "warn" | "err" | "info";
 export interface LintPlace { line: number; msg: string }
 export interface LintItem { k: string; sev: Sev; label: string; tip: string; line: number; list: readonly LintPlace[] }
 
+/** The words the Space's check accepts as "this agent follows VYRE.md" (modules/files/handlers/lint.ts INHERITS; the app does not import modules, so the same words are here). */
+const INHERITS_LINE = /\b(?:inherits?|follows?|extends?|builds?\s+on|based\s+on)\b[\s:,-]*(?:the\s+)?(?:space['\u2019]s\s+)?VYRE\.md/i;
+
 export const LINE_LIMITS: Readonly<Record<LintOut["file"], number | null>> = { vyre_md: 120, agent_md: 150, agent_toml: null, routine_prompt: 150, other: null };
 
 /** What the bar shows: lines against the limit, Inherits VYRE.md, Override: lines, a secret scan, and any other problem the check found. */
@@ -215,7 +218,9 @@ export function lintItems(out: LintOut, text?: string): LintItem[] {
     items.push({ k: "len", sev, label: `${out.lines} / ${limit} lines`, line: Math.min(out.lines, limit + 1), list: [], tip: out.lines > 200 ? "Over 200 lines is an error" : out.lines > limit ? `Over ${limit} lines: move steps into a skill or knowledge/` : `Limit ${limit} lines` });
   } else items.push({ k: "len", sev: "ok", label: plural(out.lines, "line", "lines"), line: 1, list: [], tip: "" });
   if (out.file === "agent_md") {
-    items.push({ k: "inherits", sev: out.inherits ? "ok" : "warn", label: out.inherits ? "Inherits VYRE.md" : "Does not say it inherits VYRE.md", line: 1, list: [], tip: "Say 'Inherits VYRE.md' near the top" });
+    // the chip jumps to the line that says it (the check answers yes or no; the line is found here, with the same words the check accepts)
+    const at = text === undefined ? -1 : text.split("\n").findIndex((l) => INHERITS_LINE.test(l));
+    items.push({ k: "inherits", sev: out.inherits ? "ok" : "warn", label: out.inherits ? "Inherits VYRE.md" : "Does not say it inherits VYRE.md", line: out.inherits ? (at >= 0 ? at + 1 : 1) : 3, list: [], tip: "Say 'Follows VYRE.md' or 'Inherits: VYRE.md' near the top" });
   }
   if (out.file === "agent_md" || out.file === "vyre_md") {
     const list = out.overrides.map((o): LintPlace => ({ line: o.line, msg: o.text }));
