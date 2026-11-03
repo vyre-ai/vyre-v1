@@ -41,6 +41,7 @@ import { createPublicPathRoute } from "../routes/public-path.ts";
 import type { PublicPathDeps, ServedSite } from "../routes/public-path.ts";
 import { createDomainEdge, createSitesHost, dnsPointsAt, mimeOf } from "../seams/sites-host.ts";
 import { createSiteHostRoute, createSiteSigninPage, inSubnets } from "../routes/site-host.ts";
+import { createArtifactHostRoute } from "../routes/artifact-host.ts";
 import type { SiteHostDeps } from "../routes/site-host.ts";
 import { CaddyAdmin, CaddyError, CaddyRouter, ingressHostOf } from "../caddy/index.ts";
 import type { PublicFormView } from "../routes/forms-page.ts";
@@ -308,6 +309,8 @@ export interface DaemonOptions {
   computeLeaseMs?: number;
   /** How often a computer's live-view socket checks that its credential still stands (a test sets it low). Default 2 s. */
   computeStreamRecheckMs?: number;
+  /** The host artifacts are served from, apart from the app's origin (host/src/routes/artifact-host.ts). Default: VYRE_ARTIFACT_HOST, else none. */
+  artifactHost?: string;
   /** Tests: decide whether a node's link counts as private (default: TLS, or a peer on this machine). */
   computeStreamSecure?: (req: import("node:http").IncomingMessage) => boolean;
   /**
@@ -500,7 +503,9 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
     return publicOriginOf(cfg.address, claimed?.state === "claimed" ? claimed.name : null);
   };
   // sites: what the module answers and where the bytes go; set once the modules are loaded and the stream exists
-  let sitesServing: Partial<PublicPathDeps> = {};
+  let sitesServing: Partial<PublicPathDeps> & { artifactSession?: PublicPathDeps["artifact"]; artifactExchange?: (code: string) => Promise<{ siteId: string; token: string; maxAgeSeconds: number } | null> } = {};
+  // the host artifacts are served from, apart from the app's origin (artifact-host.ts); none until one is set up (VYRE_ARTIFACT_HOST), and artifacts then open at their keyed address as before
+  const artifactHostOf = (): string | null => o.artifactHost ?? (process.env["VYRE_ARTIFACT_HOST"] || null);
   let refreshDomains: () => Promise<void> = () => Promise.resolve();
   // sites Vyre deploys, at addresses of their own: set once the sites module is loaded (configureRoutes); until then no host is a site
   let siteHosts: SiteHostDeps | null = null;
@@ -512,6 +517,12 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
     address: (c) => siteHosts?.address(c) ?? Promise.resolve(null), origin: () => publicOrigin()?.origin ?? null,
   });
   const siteSigninPage = createSiteSigninPage();
+  const artifactHostRoute = createArtifactHostRoute({
+    host: artifactHostOf, appOrigin: () => publicOrigin()?.origin ?? null,
+    appOrigins: () => [publicOrigin()?.origin ?? "", "tauri://localhost", "http://tauri.localhost", "https://tauri.localhost"].filter((x) => x !== ""),
+    exchange: (code) => sitesServing.artifactExchange?.(code) ?? Promise.resolve(null), artifact: (id, token) => sitesServing.artifactSession?.(id, token) ?? Promise.resolve(null),
+    serving: { forms: () => null, origin: () => publicOrigin()?.origin ?? null, fetch: (t, r, sink) => sitesServing.fetch ? sitesServing.fetch(t, r, sink) : Promise.resolve(sink.fail("Not available.")), file: (f, rel) => sitesServing.file?.(f, rel) ?? Promise.resolve(null) },
+  });
   // a value the Vault filled for a deploy (sites, kind container_env): held for one deploy, never logged, gone after ten minutes whether taken or not
   const siteSecrets = new Map<string, { value: string; at: number }>();
   const takeSiteSecret = (ref: string): string | undefined => {
@@ -1548,7 +1559,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         // sites are routes: an address pointing at a port on a computer, or at a folder in Files. Site code never runs here; only its bytes pass
         configureRoutes: () => {
           const computers = loaded.moduleExports.get("computers") as { localComputerAddress?: (id: string) => Promise<string | null>; localSiteLogs?: (a: { computerId: string; slug: string; lines: number }) => Promise<string[]> } | undefined;
-          const sitesMod = loaded.moduleExports.get("sites") as { routeBySlug?(c: { db: unknown }, slug: string): ServedSite | null; routeByTicket?(c: { db: unknown }, id: string, token: string, now: number): Promise<{ route: ServedSite; principal: string; owner: string } | null> } | undefined;
+          const sitesMod = loaded.moduleExports.get("sites") as { routeBySlug?(c: { db: unknown }, slug: string): ServedSite | null; routeByTicket?(c: { db: unknown }, id: string, token: string, now: number): Promise<{ route: ServedSite; principal: string; owner: string } | null>; routeByArtifactSession?(c: { db: unknown }, id: string, token: string, now: number): Promise<{ route: ServedSite; principal: string; owner: string } | null>; exchangeArtifactCode?(c: { db: unknown }, code: string, now: number): Promise<{ siteId: string; token: string; maxAgeSeconds: number } | null> } | undefined;
           const sitesExports = loaded.moduleExports.get("sites") as Record<string, unknown> | undefined;
           // Vyre builds and runs sites through the sites runner beside it (compose service sites-runner), which alone holds the Docker socket and refuses anything a site does not need.
           // Its token is new each time it starts and sits next to its socket, so it is read again on every call.
@@ -1627,7 +1638,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           const made = createSitesHost({
             containerAddress: (c) => (sitesExports?.["containerAddress"] as ((c: string) => Promise<string | null>) | undefined)?.(c) ?? Promise.resolve(null),
             deploy: { ...(runnerLink ? { runnerLink } : {}), take: takeSiteSecret, tmp: path.join(paths.root, "site-builds"), sitesDomain, domainOf: (id) => (db!.all("SELECT domain FROM sites_domain WHERE site_id = ? ORDER BY created_at", id)[0] as { domain?: string } | undefined)?.domain ?? null, hostRoute },
-            artifacts: artifactStore, origin: publicOrigin, contained: fs.existsSync("/.dockerenv"),
+            artifacts: artifactStore, origin: publicOrigin, artifactHost: artifactHostOf, contained: fs.existsSync("/.dockerenv"),
             nodeOf: (id) => (db!.all("SELECT node_id FROM computers_computers WHERE computer_id = ?", id)[0] as { node_id?: string | null } | undefined)?.node_id ?? null,
             localAddress: (id) => computers?.localComputerAddress?.(id) ?? Promise.resolve(null),
             localLogs: (computerId, slug, lines) => computers?.localSiteLogs?.({ computerId, slug, lines }) ?? Promise.resolve([]),
@@ -1642,6 +1653,14 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
               const may = got.principal === got.owner || (got.route.access === "space" && access.snap.principal(got.principal)?.status === "active") || (!staleFor(got.principal) && authorize(access.snap, { principal: got.principal, action: { perm: null, level: "view" }, resource: { type: "site", id } }).effect === "allow");
               return may ? got.route : null;
             },
+            artifactSession: async (id, token) => {
+              const got = await sitesMod?.routeByArtifactSession?.({ db: db! }, id, token, now());
+              if (!got) return null;
+              // access is asked on every request, so ending a share ends the session
+              const may = got.principal === got.owner || (got.route.access === "space" && access.snap.principal(got.principal)?.status === "active") || (!staleFor(got.principal) && authorize(access.snap, { principal: got.principal, action: { perm: null, level: "view" }, resource: { type: "site", id } }).effect === "allow");
+              return may ? got.route : null;
+            },
+            artifactExchange: async (code) => (await sitesMod?.exchangeArtifactCode?.({ db: db! }, code, now())) ?? null,
             fetch: (t, r, sink) => made.fetchTarget(t, r, sink),
             file: (folderId, rel) => readFolderFile(folderId, rel),
           };
@@ -2279,6 +2298,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         res.once("finish", () => { setImmediate(requestStop); });
         return;
       }
+      if (artifactHostRoute.handle(req, res)) return;
       if (siteHostRoute.handle(req, res)) return;
       if (peerService?.handle(req, res)) return;
       if (liveTicketRoute.handle(req, res) || publicPath.handle(req, res) || siteSigninPage.handle(req, res) || mcpRoute.handle(req, res) || chromeBridge.handle(req, res) || chromeAgentsRoute.handle(req, res) || githubSignInRoute.handle(req, res) || ssoSignInRoute.handle(req, res) || blobRoute?.handle(req, res) || formsPageRoute?.handle(req, res) || unsubscribeRoute.handle(req, res) || shareRoute?.handle(req, res) || portalLinkRoute?.handle(req, res) || exportRoute.handle(req, res) || webhookRoute.handle(req, res) || computeRoute.handle(req, res) || computeStream.handle(req, res) || localWorkRoute.handle(req, res) || teamLinks.handle(req, res) || fillRoute.handle(req, res) || localKeyRoute.handle(req, res) || appFiles.handle(req, res)) return;

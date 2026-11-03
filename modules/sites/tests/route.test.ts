@@ -2,7 +2,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { registry } from "../../../generated/registry.ts";
-import { configureRoutes, routeBySlug, routeByTicket } from "../handlers/route.ts";
+import { EXCHANGE_MS, ARTIFACT_SESSION_MS, configureRoutes, exchangeArtifactCode, routeByArtifactSession, routeBySlug, routeByTicket } from "../handlers/route.ts";
 import { configureDomainEdge } from "../handlers/route.ts";
 import { handlers } from "../impl.ts";
 import { DatabaseSync } from "node:sqlite";
@@ -148,4 +148,36 @@ test("artifact_publish's result says whether it was opened for the person (requi
   assert.ok(!/opens in a tab/.test(words), "no text promises a tab that nothing opens");
   assert.match(words, /only when the result says `opened: true`/);
   assert.match(words, /Report only what a tool result confirms/);
+});
+
+
+test("with an artifact host, artifact_open gives a one-time code for it: one use, a minute, and the session it starts is for that artifact only", async () => {
+  const w = harness();
+  configureRoutes(host({ artifactHost: () => "mla-a.vyre.run" }) as never);
+  try {
+    const made = await h["sites.create"]!(w.ctx, { name: "Numbers", kind: "artifact", port: 3000 });
+    await h["sites.publish"]!(w.ctx, { siteId: made.site.siteId });
+    const open = await h["sites.artifact_open"]!(w.ctx, { artifactId: made.site.siteId });
+    const code = /^\/x\/([0-9a-f]{48})$/.exec(open.path)?.[1] as string;
+    assert.ok(code, open.path);
+    assert.equal(open.url, `https://mla-a.vyre.run/x/${code}`, "the artifact host, never the app's origin");
+    assert.equal(open.expiresAt - w.ctx.now(), EXCHANGE_MS);
+    // the code is not a session: the app origin's old keyed route cannot use it
+    assert.equal(await routeByTicket(w.ctx, made.site.siteId, code, w.ctx.now()), null);
+    assert.equal(await routeByArtifactSession(w.ctx, made.site.siteId, code, w.ctx.now()), null);
+    const now = w.ctx.now();
+    const got = await exchangeArtifactCode(w.ctx, code, now);
+    assert.equal(got?.siteId, made.site.siteId);
+    assert.equal(got?.maxAgeSeconds, ARTIFACT_SESSION_MS / 1000);
+    assert.equal(await exchangeArtifactCode(w.ctx, code, now), null, "a second use is refused");
+    const session = await routeByArtifactSession(w.ctx, made.site.siteId, got!.token, now + 1000);
+    assert.equal(session?.principal, w.ctx.principal.id);
+    assert.equal(await routeByArtifactSession(w.ctx, "sit_other", got!.token, now), null, "for this artifact only");
+    assert.equal(await routeByArtifactSession(w.ctx, made.site.siteId, got!.token, now + ARTIFACT_SESSION_MS + 1), null, "twelve hours");
+    // a code unused for a minute ends
+    const again = await h["sites.artifact_open"]!(w.ctx, { artifactId: made.site.siteId });
+    const code2 = /^\/x\/([0-9a-f]{48})$/.exec(again.path)?.[1] as string;
+    assert.equal(await exchangeArtifactCode(w.ctx, code2, again.expiresAt + 1), null);
+    assert.equal(await exchangeArtifactCode(w.ctx, "0".repeat(48), now), null);
+  } finally { configureRoutes(null); }
 });

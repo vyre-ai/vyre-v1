@@ -20,7 +20,11 @@ const when = (at: number | undefined, now: number): string => {
 };
 
 /** The whole address of an opened artifact: its public origin when the Space has one, else this app's own gateway. */
-export const artifactAddress = (open: { path: string; url?: string | undefined }, base: string | undefined): string => open.url ?? `${(base ?? "").replace(/\/+$/, "")}${open.path}`;
+export const artifactAddress = (open: { path: string; url?: string | undefined }, base: string | undefined, embed = false): string => {
+  const at = open.url ?? `${(base ?? "").replace(/\/+$/, "")}${open.path}`;
+  // a one-time code for the artifact host (/x/<code>): framed in the app, its cookie is partitioned to the app (the host's CSP lets only the app frame it)
+  return embed && /\/x\/[0-9a-f]{48}$/.test(at) ? `${at}?embed=1` : at;
+};
 
 export function ArtifactsList({ back }: { back(): void }): ReactElement {
   const d = useAppsData();
@@ -39,14 +43,14 @@ export function ArtifactView({ id, back }: { id: string; back(): void }): ReactE
   const [src, setSrc] = useState<string | null>(null), [error, setError] = useState<string | null>(null), [sharing, setSharing] = useState(false), [sure, setSure] = useState(false);
   useEffect(() => {
     let live = true;
-    void d.call("sites.artifact_open", { artifactId: id, idempotencyKey: `open-${id}-${d.clock().now}-${++seq}` }).then((o) => { if (live) setSrc(artifactAddress(o as { path: string; url?: string }, d.baseUrl)); }, (e: unknown) => { if (live) setError(errorMessage(e)); });
+    void d.call("sites.artifact_open", { artifactId: id, idempotencyKey: `open-${id}-${d.clock().now}-${++seq}` }).then((o) => { if (live) setSrc(artifactAddress(o as { path: string; url?: string }, d.baseUrl, true)); }, (e: unknown) => { if (live) setError(errorMessage(e)); });
     return () => { live = false; };
   }, [d, id]);
   const name = site.data?.site.name ?? "Artifact";
   const remove = (): void => { void d.call("sites.delete", { siteId: id }).then(back, (e: unknown) => setError(errorMessage(e))); };
   return <Frame testID="artifact-view" title={name} backTitle="Back to Artifacts" back={back} offline={!online} error={error ?? site.error} loading={site.loading} retry={site.refresh}>
     <View style={ui.actions}>
-      {src ? <Button title="Open in browser" testID="artifact-browser" onPress={() => d.nav.openUrl?.(src)} /> : null}
+      {src ? <Button title="Open in browser" testID="artifact-browser" onPress={() => { void d.call("sites.artifact_open", { artifactId: id, idempotencyKey: `browser-${id}-${d.clock().now}-${++seq}` }).then((o) => d.nav.openUrl?.(artifactAddress(o as { path: string; url?: string }, d.baseUrl)), (e: unknown) => setError(errorMessage(e))); }} /> : null}
       {d.renderShare ? <Button title="Share" testID="artifact-share" onPress={() => setSharing(true)} /> : null}
       {sure ? <><Text style={ui.text}>{`Delete ${name}? The link stops working.`}</Text><Button title="Keep it" onPress={() => setSure(false)} /><Button title="Delete" testID="artifact-delete-yes" onPress={remove} /></> : <Button title="Delete" testID="artifact-delete" onPress={() => setSure(true)} />}
     </View>

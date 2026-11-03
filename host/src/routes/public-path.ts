@@ -68,7 +68,7 @@ function refuse(res: http.ServerResponse, status: number, text: string): void {
 }
 
 /** Every answer on the path leaves through here, whichever handler wrote it. */
-function guard(res: http.ServerResponse, ancestors?: string): void {
+export function guard(res: http.ServerResponse, ancestors?: string): void {
   const write = res.writeHead.bind(res) as (...a: unknown[]) => http.ServerResponse;
   res.writeHead = ((status: number, ...rest: unknown[]) => {
     const last = rest[rest.length - 1];
@@ -104,7 +104,7 @@ async function bodyOf(req: http.IncomingMessage): Promise<Uint8Array | null> {
 }
 
 /** A visitor's request to a site: the whole path as asked, so a site serves under its base path, and only the plain headers. */
-async function serve(deps: PublicPathDeps, site: ServedSite, path: string, rest: string, prefix: string, req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
+export async function serve(deps: PublicPathDeps, site: ServedSite, path: string, rest: string, prefix: string, req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
   const method = (req.method ?? "GET").toUpperCase();
   if (method !== "GET" && method !== "HEAD" && method !== "POST") { res.writeHead(405, { allow: "GET, HEAD, POST", "content-length": "0" }); res.end(); return; }
   res.setHeader("access-control-allow-origin", "*");
