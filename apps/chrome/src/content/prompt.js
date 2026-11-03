@@ -16,7 +16,6 @@
     :host { all: initial; }
     .card { position: fixed; top: 16px; right: 16px; z-index: 2147483647; width: 320px; box-sizing: border-box; padding: 14px; border-radius: 12px;
       background: #ffffff; color: #1c1c1e; font: 13px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; box-shadow: 0 8px 30px rgba(0,0,0,.18), 0 0 0 1px rgba(0,0,0,.08); }
-    @media (prefers-color-scheme: dark) { .card { background: #2c2c2e; color: #f2f2f7; box-shadow: 0 8px 30px rgba(0,0,0,.5), 0 0 0 1px rgba(255,255,255,.1); } input[type=text] { background: #1c1c1e; color: #f2f2f7; } }
     h1 { margin: 0 0 10px; font-size: 13px; font-weight: 600; }
     label { display: block; margin: 8px 0 3px; font-size: 11px; opacity: .65; }
     input[type=text] { width: 100%; box-sizing: border-box; padding: 6px 8px; border: 1px solid rgba(128,128,128,.4); border-radius: 6px; font: inherit; background: #f2f2f7; color: inherit; }
@@ -33,6 +32,7 @@
     .who { margin-top: 6px; display: grid; gap: 4px; }
     .who label { display: flex; gap: 6px; align-items: center; margin: 0; opacity: 1; font-size: 13px; }
     .note { margin-top: 6px; font-size: 11px; opacity: .7; }
+    @media (prefers-color-scheme: dark) { .card { background: #2c2c2e; color: #f2f2f7; box-shadow: 0 8px 30px rgba(0,0,0,.5), 0 0 0 1px rgba(255,255,255,.1); } input[type=text], select { background: #1c1c1e; color: #f2f2f7; } .seg button[aria-pressed=false] { color: #f2f2f7; } }
     .row { display: flex; gap: 8px; margin-top: 12px; }
     .row .grow { flex: 1; }
     .never { margin-top: 8px; width: 100%; opacity: .75; border-style: dashed; }

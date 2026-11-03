@@ -51,8 +51,10 @@ export function createAgentControl(ext, o = {}) {
   const transport = o.transport ?? createTransport(ext, { onMessage: (m) => { void onIncoming(m); }, ...(o.setTimer ? { setTimer: o.setTimer } : {}), ...(o.clearTimer ? { clearTimer: o.clearTimer } : {}) });
   const cdp = createCdp(ext.debugger);
   const traffic = createTraffic(cdp, { now });
+  /** The chat each agent was last asked in, so what it does in the person's Chrome can be shown in that chat. @type {Map<string, string>} */
+  const threads = new Map();
   /** @param {Record<string, any>} event */
-  const emit = (event) => transport.tell("agent.event", event);
+  const emit = (event) => transport.tell("agent.event", typeof event["agent"] === "string" && threads.has(event["agent"]) ? { ...event, thread: threads.get(event["agent"]) } : event);
   const sessions = createSessions({ ext, cdp, traffic, emit, now, grouping: () => mode === "personal", ...(o.setTimer ? { setTimer: o.setTimer } : {}), ...(o.clearTimer ? { clearTimer: o.clearTimer } : {}), ...(o.idleMs !== undefined ? { idleMs: o.idleMs } : {}) });
 
   /** The agent's Space must be the one active here, and the person (or the agent computer's owner) must have opened Chrome to it. @param {{ space: string }} call */
@@ -101,6 +103,8 @@ export function createAgentControl(ext, o = {}) {
       if (dropped.length) await sessions.releaseAll();
       return;
     }
+    if (cmd.type === "agent.held.drop") { sessions.dropHeld(cmd.id); return; }
+    if (cmd.thread) threads.set(cmd.agent.id, cmd.thread);
     try {
       const output = await tools.run({ id: cmd.id, tool: cmd.tool, input: cmd.input, agent: cmd.agent, space: cmd.space });
       transport.tell("agent.result", { callId: cmd.id, ok: true, output });

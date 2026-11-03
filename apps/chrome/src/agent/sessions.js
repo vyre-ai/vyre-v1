@@ -124,7 +124,10 @@ export function createSessions({ ext, cdp, traffic, emit, now = Date.now, setTim
       if (d && d.agent.id !== call.agent.id) fail("busy");
       if (!d) {
         drivers.set(tabId, { agent: call.agent, space: call.space, since: now(), timer: null, goal: "" });
-        emit({ event: "driving", on: true, agent: call.agent.id, name: call.agent.name, tab: tabId, space: call.space });
+        /** @type {string} */
+        let site = "";
+        try { site = new URL(String((await ext.tabs.get(tabId)).url ?? "")).hostname.replace(/^www\./, ""); } catch { /* no address to name */ }
+        emit({ event: "driving", on: true, agent: call.agent.id, name: call.agent.name, tab: tabId, space: call.space, ...(site ? { site } : {}) });
         await draw(tabId, call.agent);
       }
       await group(call.agent, tabId);

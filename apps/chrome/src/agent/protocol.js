@@ -4,6 +4,7 @@
 // computer that is this extension, signed in as the agent; for a person's Chrome it is this extension too, opt-in per Space.
 //
 //   app -> ext   { type: "agent.call", id, tool, input, agent: { id, name }, space }    one tool call for one agent in one Space
+//   app -> ext   { type: "agent.held.drop", id }                                      the person chose Don't send on a held item's card: forget it
 //   app -> ext   { type: "agent.optin", spaces: [spaceId], mode }                     the Spaces whose agents may drive this Chrome (never stored here); mode "computer" in an agent computer, else "personal"
 //   ext -> app   { id, type: "bridge", op: "agent.result", input: { callId, ok, output | error } }
 //   ext -> app   { id, type: "bridge", op: "agent.event", input: { event, ... } }     driving, acted, plan, stopped, paused, resumed (logged under the agent)
@@ -124,15 +125,16 @@ export function checkInput(tool, input) {
 /**
  * A message from the app, checked before anyone acts on it. Returns null for anything the agent channel does not understand.
  * @param {unknown} m
- * @returns {{ type: "agent.call", id: string, tool: string, input: Record<string, any>, agent: { id: string, name: string }, space: string } | { type: "agent.optin", spaces: string[], mode: "personal" | "computer" } | null}
+ * @returns {{ type: "agent.call", id: string, tool: string, input: Record<string, any>, agent: { id: string, name: string }, space: string, thread?: string } | { type: "agent.optin", spaces: string[], mode: "personal" | "computer" } | { type: "agent.held.drop", id: string } | null}
  */
 export function parseCommand(m) {
   if (!isObject(m)) return null;
   if (m["type"] === "agent.optin" && Array.isArray(m["spaces"])) return { type: "agent.optin", spaces: m["spaces"].filter((/** @type {unknown} */ s) => typeof s === "string").slice(0, 100), mode: m["mode"] === "computer" ? "computer" : "personal" };
+  if (m["type"] === "agent.held.drop" && typeof m["id"] === "string" && /^hld_[0-9a-f]+$/.test(m["id"])) return { type: "agent.held.drop", id: m["id"] };
   if (m["type"] !== "agent.call") return null;
   const agent = m["agent"];
   if (typeof m["id"] !== "string" || typeof m["tool"] !== "string" || !isObject(agent) || typeof agent["id"] !== "string" || typeof agent["name"] !== "string" || typeof m["space"] !== "string") return null;
-  return { type: "agent.call", id: m["id"], tool: m["tool"], input: isObject(m["input"]) ? m["input"] : {}, agent: { id: agent["id"], name: String(agent["name"]).slice(0, 40) }, space: m["space"] };
+  return { type: "agent.call", id: m["id"], tool: m["tool"], input: isObject(m["input"]) ? m["input"] : {}, agent: { id: agent["id"], name: String(agent["name"]).slice(0, 40) }, space: m["space"], ...(typeof m["thread"] === "string" && m["thread"] ? { thread: m["thread"].slice(0, 80) } : {}) };
 }
 
 /** The words an agent reads for each failure code (the person reads them in the run log too). */

@@ -36,6 +36,7 @@ export function overlayShow(o) {
       ".take:hover{background:rgba(255,255,255,.14)}",
       ".stop:hover{background:#e0e7ff}.stop:focus-visible,.take:focus-visible{outline:2px solid #a5b4fc;outline-offset:2px}",
       ".hint{color:#a5b4fc;font-size:11px}",
+      "@media (max-width:560px){.goal,.hint{display:none}.bar{gap:8px;padding-left:10px}.t{flex:0 1 auto}}",
       ".waiting .dot{background:#fbbf24}",
       ".cursor{position:fixed;left:0;top:0;display:none;pointer-events:none;will-change:transform}",
       "@media (prefers-reduced-motion:no-preference){.cursor.go{transition:transform .14s ease-out}}",

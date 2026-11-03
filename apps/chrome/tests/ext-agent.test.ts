@@ -666,6 +666,9 @@ test("text is never typed into a secret field; a Vault handle fills it and the v
   const user = await w.call("chrome_fill", { fields: [{ ref: "e1", value: "#Acme.username" }, { ref: "e2", value: "#Acme.password" }] });
   assert.deepEqual([user.ok, user.filled], [true, 2]);
   assert.match((await w.call("chrome_snapshot")).tree, /textbox "Email" \[ref=e1\] \(secret/, "a field filled from the Vault stays masked");
+  // "Show what <agent> saw": the events name the handles it was given, and carry no value
+  assert.deepEqual(w.eventsOf("saw").map((e) => e.handle), ["#Acme.password", "#Acme.username", "#Acme.password"]);
+  assert.doesNotMatch(JSON.stringify(w.eventsOf("saw")), new RegExp(SECRET));
 });
 
 test("a handle the Vault will not fill is a plain failure, not a typed handle", async () => {
@@ -1020,4 +1023,51 @@ test("Browser connections: in an agent's computer an unlisted site is not held b
   await both.call("chrome_snapshot");
   await both.call("chrome_type", { ref: "e1", text: "dana@acme.test" });
   assert.ok(both.typed.length > 0);
+});
+
+// ---------- what the chat shows: the thread, the picture, Don't send ----------
+
+test("the person's Chrome sends a small masked picture of the agent's tab for the chat's step, at most every few seconds, and an agent computer sends none", async () => {
+  const w = await ready({ sites: [SITE] });
+  await w.optIn("personal");
+  await w.call("chrome_tabs", { action: "use", tabId: "7" });
+  await w.call("chrome_snapshot");
+  await new Promise((r) => setTimeout(r, 5));
+  const frames = () => w.eventsOf("frame");
+  assert.equal(frames().length, 1);
+  const f = frames()[0];
+  assert.match(f.thumb, /^data:image\/jpeg;base64,/);
+  assert.equal(f.site, "acme.test");
+  assert.equal(f.name, "Intake");
+  assert.equal(w.shots.at(-1).params.format, "jpeg");
+  assert.equal(w.shots.at(-1).blurred, true, "secret fields are blurred in the picture");
+  assert.ok(!JSON.stringify(f).includes(SECRET));
+  await w.call("chrome_snapshot");
+  await new Promise((r) => setTimeout(r, 5));
+  assert.equal(frames().length, 1, "not again within a few seconds");
+  await w.advance(5000);
+  await w.call("chrome_snapshot");
+  await new Promise((r) => setTimeout(r, 5));
+  assert.equal(frames().length, 2);
+  const quiet = await ready({});
+  await quiet.call("chrome_snapshot");
+  await new Promise((r) => setTimeout(r, 5));
+  assert.equal(quiet.eventsOf("frame").length, 0, "an agent computer has nobody to show it to");
+});
+
+test("events carry the chat the agent was asked in, and Don't send in the chat makes the extension forget the held item", async () => {
+  const w = await ready({ sites: [{ ...SITE, rights: [{ agentId: "agt_intake", right: "act" }] }] });
+  await w.optIn("personal");
+  await w.control.onIncoming({ type: "agent.call", id: "c1", tool: "chrome_tabs", input: { action: "use", tabId: "7" }, agent: w.agent, space: "spc_a", thread: "thr_abc" });
+  await w.call("chrome_snapshot");
+  const snap = await w.call("chrome_snapshot");
+  const send = /button "Send message" \[ref=(e\d+)\]/.exec(snap.tree)[1];
+  const held = await w.call("chrome_act", { ref: send, action: "click" });
+  const ev = w.eventsOf("held")[0];
+  assert.equal(ev.thread, "thr_abc");
+  assert.equal(ev.id, held.heldId);
+  await w.control.onIncoming({ type: "agent.held.drop", id: held.heldId });
+  await w.fails("chrome_send", { heldId: held.heldId }, "held_gone");
+  assert.deepEqual((await w.call("chrome_status")).held, []);
+  assert.equal(parseCommand({ type: "agent.held.drop", id: "../x" }), null, "only a held id is a held id");
 });

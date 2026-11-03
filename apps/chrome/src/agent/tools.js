@@ -20,6 +20,9 @@ import * as verify from "./verify.js";
 
 const HANDLE = /^#[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/;
 const ACTIVATORS = new Set(["button", "link", "menuitem", "menuitemcheckbox", "menuitemradio", "tab", "treeitem", "option"]);
+/** Tools that say nothing about the page, so they never take a picture. */
+const QUIET = new Set(["chrome_status", "chrome_stop", "chrome_resume", "chrome_plan", "chrome_tabs", "chrome_screenshot"]);
+const FRAME_EVERY_MS = 4000;
 const ALLOWED_WHILE_PAUSED = new Set(["chrome_status", "chrome_resume", "chrome_stop"]);
 const MAX_BODY = 120_000;
 const FORBIDDEN_HEADERS = /^(cookie|host|origin|referer|content-length|connection|user-agent|accept-encoding|sec-.*|proxy-.*)$/i;
@@ -312,6 +315,8 @@ export function createTools(kit) {
         await cdp.send(tabId, "Input.insertText", { text: v });
       } finally { v = ""; }
       await evalPage(tabId, markSecret, target.idx);
+      // "Show what <agent> saw": the chat lists the handles the agent was given, never what they hold.
+      kit.emit({ event: "saw", agent: call.agent.id, name: call.agent.name, space: call.space, handle: text.slice(0, 120) });
       return { ok: true, why: `filled ${label(target)} from the Vault` };
     }
     if (replace) await selectAll(tabId);
@@ -787,6 +792,7 @@ export function createTools(kit) {
     let ok = true;
     try {
       const out = await impl({ ...call, input }, input, (s) => { summary = scrub(s); });
+      if (!nested && kit.mode() === "personal" && !QUIET.has(call.tool)) void frame(call);
       ok = !(out && out.ok === false);
       return out;
     } catch (e) {
@@ -796,6 +802,26 @@ export function createTools(kit) {
     } finally {
       if (call.tool !== "chrome_status") kit.emit({ event: "acted", agent: call.agent.id, tool: call.tool, ok, summary });
     }
+  }
+
+  /** The agent's tab as a small, masked picture for the "Using your Chrome" step in the chat: at most one every few seconds per agent, never while paused, and never a field that holds a secret. @type {Map<string, number>} */
+  const framed = new Map();
+  /** @param {Call} call */
+  async function frame(call) {
+    const tabId = sessions.currentTab(call.agent.id);
+    const last = framed.get(call.agent.id);
+    if (tabId === null || !sessions.driverOf(tabId) || (last !== undefined && now() - last < FRAME_EVERY_MS)) return;
+    framed.set(call.agent.id, now());
+    try {
+      const url = String((await ext.tabs.get(tabId)).url ?? "");
+      const m = await cdp.send(tabId, "Page.getLayoutMetrics");
+      const v = m.cssVisualViewport ?? m.visualViewport ?? { clientWidth: 1280, clientHeight: 800 };
+      await evalPage(tabId, blurSecrets, true);
+      try {
+        const shot = await cdp.send(tabId, "Page.captureScreenshot", { format: "jpeg", quality: 45, clip: { x: 0, y: 0, width: Math.max(1, Math.round(v.clientWidth)), height: Math.max(1, Math.round(v.clientHeight)), scale: 0.4 } });
+        if (shot && typeof shot.data === "string") kit.emit({ event: "frame", agent: call.agent.id, name: call.agent.name, space: call.space, tab: tabId, site: new URL(url).hostname.replace(/^www\./, ""), url: maskUrl(url), thumb: `data:image/jpeg;base64,${shot.data}` });
+      } finally { await evalPage(tabId, blurSecrets, false); }
+    } catch { /* a closed tab or a restricted page: no picture this time */ }
   }
 
   return { run, tools: Object.keys(table), look, tabFor };
