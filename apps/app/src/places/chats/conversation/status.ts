@@ -51,6 +51,7 @@ const STATUS_WORDS: Record<string, { message: string; cause?: string; next?: { k
   host_lost: { message: "The server stopped while this was running.", cause: "It may have done part of the work. Check before running it again.", retryable: true },
   agent_paused: { message: "This agent is paused, so it did not answer.", cause: "Resume it from its page, then try again.", retryable: true },
   agent_gone: { message: "This agent was deleted, so it did not answer.", retryable: false },
+  no_asker: { message: "No one asked for this, so it did not run.", cause: "An agent's message started it. Ask the agent yourself and it runs for you.", retryable: false },
 };
 
 /** How a turn_status block reads: a failed turn is the inline error row with a plain sentence and one action; a stopped or parked turn is a quiet line. */

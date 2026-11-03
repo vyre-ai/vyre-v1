@@ -1,0 +1,1 @@
+- Chats: when an agent @mentions another agent, the second agent now runs for the person who asked, on their account and with their access, never for whoever started the chat. An agent's message with no person behind it no longer runs as anyone: the chat says no one asked for it.

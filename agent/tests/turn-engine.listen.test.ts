@@ -34,7 +34,8 @@ test("no-inference-for-listener: 50 scripted messages give turns only to the lea
       else if (id === "docs") wantDocs++;
       else wantBilling++;
     }
-    engine.receive({ threadId: "T", author: m.author, mentions: m.mentions, ...(m.depth === undefined ? {} : { depth: m.depth }) });
+    // an agent's line speaks for the person it works for (a line with nobody behind it runs for no one: turn-engine.chain.test.ts)
+    engine.receive({ threadId: "T", author: m.author, mentions: m.mentions, ...(m.depth === undefined ? {} : { depth: m.depth }), ...(m.author.kind === "agent" ? { asker: "dana" } : {}) });
   }
   await engine.idle("T");
   const ran = (id: string): number => p.sessions.filter((s) => s.spec.agent.id === id).length;
