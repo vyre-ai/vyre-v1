@@ -197,3 +197,13 @@ test("sharing a lesson goes through memory.promote: it waits for a person to acc
   assert.equal((await factsList(h.ctx, { kind: "lesson" })).facts.find((f) => f.factId === id)?.lesson?.scope, "proposed");
   assert.equal((await factsList(h.ctx, { layer: "agent" })).facts.length, 0, "nothing is shared until a person accepts");
 });
+
+test("a lesson is not part of the profile: About you never lists it and it cannot be moved onto it", async () => {
+  const h = harness();
+  const made = await recordCorrection(h.ctx, { agentId: AGENT, how: "refuse", was: "Send the invoice to Dana", note: "ask me first", ref: "p1" });
+  const id = made.lesson!.factId;
+  const { profileGet, profileMove } = await import("../handlers/profile.ts");
+  const prof = await profileGet(h.ctx, {});
+  assert.deepEqual([prof.private.length, prof.public.length], [0, 0]);
+  await assert.rejects(() => profileMove(h.ctx, { factId: id, to: "public" }));
+});
