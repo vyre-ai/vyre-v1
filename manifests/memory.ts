@@ -65,7 +65,8 @@ const trailRow = t.obj({
   runId: t.opt(t.str()), detail: t.opt(t.rec(t.any())),
 });
 const noteRow = t.obj({ noteId: id.note, path: t.str({ examples: ['Agents/Intake/memory/notes/clients.md'] }), title: t.str(), layer, agentId: t.opt(id.agent), updatedAt: t.ts() });
-const hit = t.obj({ kind: t.enm('note', 'fact', 'page'), noteId: t.opt(id.note), factId: t.opt(id.fact), pageId: t.opt(t.str()), title: t.str(), text: t.str(), path: t.opt(t.str()), trueSince: t.opt(t.ts()), layer, sourceLink: t.opt(t.str()), score: t.num(), ...factExtras });
+// the hit's own kind (what was found) comes after the fact's extras, whose kind is what sort of fact it is
+const hit = t.obj({ ...factExtras, kind: t.enm('note', 'fact', 'page'), noteId: t.opt(id.note), factId: t.opt(id.fact), pageId: t.opt(t.str()), title: t.str(), text: t.str(), path: t.opt(t.str()), trueSince: t.opt(t.ts()), layer, sourceLink: t.opt(t.str()), score: t.num() });
 const quoteRow = t.obj({
   ref: t.str({ description: 'Source id of the line: a message id, or <thread>#<index> for a transcript row', examples: ['msg_a1b2c3'] }), source: t.enm('message', 'step'),
   text: t.str({ description: 'The stored words, exactly as written' }), truncated: t.opt(t.bool()),

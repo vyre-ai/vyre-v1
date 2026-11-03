@@ -338,7 +338,7 @@ export default defineManifest({
         state: t.enm('available', 'reviewed', 'needs_review', 'off'), access: t.obj(accessOut), version: t.int(), reviewed: t.opt(t.obj({ by: t.str(), at: t.ts(), version: t.int() })),
         marks: t.arr(markRow), unplaced: t.arr(markRow), names: t.arr(t.obj({ markId, text: t.str() })), requests: t.arr(t.obj({ requestId: redactRequestId, agentId: t.opt(t.str()), actingFor: t.opt(t.str()), at: t.ts() })),
       },
-      on: ['file', '/fileId'], label: 'check', agent: false,
+      on: ['file', '/fileId'], emits: ['file.needs_review'], label: 'check', agent: false,
     }),
     write('files.marks.add', 'Highlight part of a file for the team, or hide it from AI (a span, a box on a scan or picture, a transcript range, or a piece of the name); anyone who can open the file may', {
       in: {
@@ -354,11 +354,11 @@ export default defineManifest({
       in: { markId, text: t.opt(t.str({ minLength: 1 })), drop: t.opt(t.bool()) }, out: { ok: t.bool() }, level: 'view', emits: ['file.redacted', 'file.unredacted'], agent: false,
     }),
     write('files.review', 'Mark a file reviewed for AI (Done): agents may read its redacted version, and every agent that asked is woken', {
-      in: { fileId: id.file }, out: { reviewed: t.obj({ by: t.str(), at: t.ts(), version: t.int() }), woke: t.int({ minimum: 0 }) }, on: ['file', '/fileId'], level: 'view', audit: 'always', emits: ['file.reviewed', 'file.redact_ready'], agent: false,
+      in: { fileId: id.file }, out: { reviewed: t.obj({ by: t.str(), at: t.ts(), version: t.int() }), woke: t.int({ minimum: 0 }) }, on: ['file', '/fileId'], level: 'view', audit: 'always', emits: ['file.reviewed', 'file.redact_ready', 'file.needs_review'], agent: false,
       errors: ['validation.precondition_failed'],
     }),
     write('files.redact.request', 'Ask a person to review a file in a Redacted folder before you read it (Redact before I can read); you are woken when it is ready', {
-      in: { fileId: id.file }, out: { requestId: t.nullable(redactRequestId), state: t.enm('clear', 'redacted', 'needs', 'off') }, on: ['file', '/fileId'], level: 'view', emits: ['file.redact_requested'], tool: 'files', mcpName: 'files_ask_to_read',
+      in: { fileId: id.file }, out: { requestId: t.nullable(redactRequestId), state: t.enm('clear', 'redacted', 'needs', 'off') }, on: ['file', '/fileId'], level: 'view', emits: ['file.redact_requested', 'file.needs_review'], tool: 'files', mcpName: 'files_ask_to_read',
     }),
     write('files.redact.later', 'Not now: put an agent\'s request to read aside', { in: { requestId: redactRequestId }, out: { ok: t.bool() }, level: 'view', agent: false }),
     read('files.redact.detect', 'Find things to redact: names from Records, SSNs, dates of birth, account and case numbers, phones, emails and addresses, by pattern checks on the server (no AI reads the file)', {
@@ -369,7 +369,7 @@ export default defineManifest({
     read('files.agent_view', 'What an agent gets of a file now (Preview as agent): its text with [REDACTED], its name and path as agents read them, or why it gets nothing', {
       in: { fileId: id.file, versionId: t.opt(id.version) },
       out: { state: t.enm('clear', 'redacted', 'needs', 'off'), name: t.str(), path: t.str(), text: t.nullable(t.str()), boxes: t.opt(t.arr(t.obj({ page: t.int(), box: t.nullable(box) }))) },
-      on: ['file', '/fileId'], label: 'check', agent: false,
+      on: ['file', '/fileId'], emits: ['file.needs_review'], label: 'check', agent: false,
     }),
     read('files.agent_states', 'Redaction for AI in a folder: each file\'s badge (Reviewed, Needs review, Not available to AI), each subfolder\'s setting and how many below it wait, and the files to review next', {
       in: { folderId: id.folder },
@@ -378,7 +378,7 @@ export default defineManifest({
         files: t.arr(t.obj({ fileId: id.file, state: t.enm('clear', 'hidden', 'reviewed', 'needs_review', 'off'), own: t.bool(), waiting: t.opt(t.arr(t.str())) })),
         folders: t.arr(t.obj({ folderId: id.folder, value: agentAccess, own: t.bool(), needs: t.int({ minimum: 0 }) })),
       },
-      on: ['folder', '/folderId'], label: 'check', agent: false,
+      on: ['folder', '/folderId'], emits: ['file.needs_review'], label: 'check', agent: false,
     }),
     // ---- file-tree folders
     create('files.folder.create', 'Create a folder', {

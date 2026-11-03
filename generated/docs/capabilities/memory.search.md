@@ -39,17 +39,7 @@ type In = {
 ```ts
 type Out = {
   hits: Array<{
-      kind?: string;
-      noteId?: string;
-      factId?: string;
-      pageId?: string;
-      title: string;
-      text: string;
-      path?: string;
-      trueSince?: number;
-      layer: "person" | "agent" | "project" | "space";
-      sourceLink?: string;
-      score: number;
+      kind: "note" | "fact" | "page";
       lesson?: {
         how?: "edit" | "refuse" | "reverse" | "rewrite";
         used: number;
@@ -64,6 +54,16 @@ type Out = {
       by?: string;
       byKind?: "person" | "agent" | "upkeep" | "system";
       versions?: number;
+      noteId?: string;
+      factId?: string;
+      pageId?: string;
+      title: string;
+      text: string;
+      path?: string;
+      trueSince?: number;
+      layer: "person" | "agent" | "project" | "space";
+      sourceLink?: string;
+      score: number;
     }>;
   tookMs: number;
   meaning?: {
@@ -103,7 +103,7 @@ type Out = {
         "by": "example",
         "byKind": "person",
         "factId": "fct_a1b2c3",
-        "kind": "example",
+        "kind": "note",
         "layer": "person",
         "lesson": {
           "how": "edit",

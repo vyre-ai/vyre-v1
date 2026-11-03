@@ -19,7 +19,7 @@ What an agent gets of a file now (Preview as agent): its text with [REDACTED], i
 | HTTP | POST /v1/files/agent_view |
 | MCP tool | none |
 | CLI | none |
-| Emits | none |
+| Emits | file.needs_review |
 
 ## Input
 

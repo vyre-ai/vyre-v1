@@ -19,7 +19,7 @@ Mark a file reviewed for AI (Done): agents may read its redacted version, and ev
 | HTTP | POST /v1/files/review |
 | MCP tool | none |
 | CLI | none |
-| Emits | file.reviewed, file.redact_ready |
+| Emits | file.reviewed, file.redact_ready, file.needs_review |
 
 ## Input
 

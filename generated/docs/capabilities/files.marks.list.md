@@ -19,7 +19,7 @@ The redactions and highlights on a file, its review for AI, what a new version c
 | HTTP | POST /v1/files/marks/list |
 | MCP tool | none |
 | CLI | none |
-| Emits | none |
+| Emits | file.needs_review |
 
 ## Input
 

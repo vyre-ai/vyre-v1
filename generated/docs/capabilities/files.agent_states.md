@@ -19,7 +19,7 @@ Redaction for AI in a folder: each file's badge (Reviewed, Needs review, Not ava
 | HTTP | POST /v1/files/agent_states |
 | MCP tool | none |
 | CLI | none |
-| Emits | none |
+| Emits | file.needs_review |
 
 ## Input
 

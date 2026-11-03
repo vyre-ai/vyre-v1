@@ -19,7 +19,7 @@ Ask a person to review a file in a Redacted folder before you read it (Redact be
 | HTTP | POST /v1/files/redact/request |
 | MCP tool | files_ask_to_read (files) |
 | CLI | none |
-| Emits | file.redact_requested |
+| Emits | file.redact_requested, file.needs_review |
 
 ## Input
 

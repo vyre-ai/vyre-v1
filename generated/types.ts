@@ -23596,17 +23596,7 @@ export type MemorySearchIn = {
 };
 export type MemorySearchOut = {
   hits: Array<{
-      kind?: string;
-      noteId?: string;
-      factId?: string;
-      pageId?: string;
-      title: string;
-      text: string;
-      path?: string;
-      trueSince?: number;
-      layer: "person" | "agent" | "project" | "space";
-      sourceLink?: string;
-      score: number;
+      kind: "note" | "fact" | "page";
       lesson?: {
         how?: "edit" | "refuse" | "reverse" | "rewrite";
         used: number;
@@ -23621,6 +23611,16 @@ export type MemorySearchOut = {
       by?: string;
       byKind?: "person" | "agent" | "upkeep" | "system";
       versions?: number;
+      noteId?: string;
+      factId?: string;
+      pageId?: string;
+      title: string;
+      text: string;
+      path?: string;
+      trueSince?: number;
+      layer: "person" | "agent" | "project" | "space";
+      sourceLink?: string;
+      score: number;
     }>;
   tookMs: number;
   meaning?: {
