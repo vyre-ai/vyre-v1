@@ -89,7 +89,7 @@ import { Supervisor } from "../supervisor/index.ts";
 import type { RunningUnit, ServiceSpec, UnitExit } from "../supervisor/index.ts";
 import { createGateHook, moduleFetches, moduleOutward, moduleWhens } from "./gate-hook.ts";
 import { withGateNesting } from "./gate-nesting.ts";
-import { createComputersFillHost, createFillRoute } from "../seams/computers.ts";
+import { FILL_PATH, createComputersFillHost, createFillRoute } from "../seams/computers.ts";
 import { homeCallAllowed, homeScopeOf } from "./home-confine.ts";
 import { createComputersHost } from "../seams/computers-host.ts";
 import { createTerminalHostSeam } from "../seams/terminal-host.ts";
@@ -497,6 +497,12 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   // sites Vyre deploys, at addresses of their own: set once the sites module is loaded (configureRoutes); until then no host is a site
   let siteHosts: SiteHostDeps | null = null;
   let siteGuard: (localAddress: string | undefined) => boolean = () => false;
+  let computerSubnetsOf: () => string[] = () => [];
+  // the runner's socket and token, shared by sites and agent computers; the token is new at each runner start, so it is read again on every call
+  const computersRunnerSocket = (): string | undefined => o.sitesRunnerSocket ?? process.env["VYRE_SITES_RUNNER"] ?? undefined;
+  const computersRunnerToken = (): string => { try { return fs.readFileSync(process.env["VYRE_SITES_RUNNER_TOKEN_FILE"] ?? path.join(path.dirname(computersRunnerSocket() as string), "token"), "utf8").trim(); } catch { return ""; } };
+  // the container vyred runs in (compose sets it as vyre.ingress): it joins each computer's network, so agentd can post to the Vault channel
+  const ingressContainer = (): string | undefined => process.env["VYRE_INGRESS_CONTAINER"] ?? (fs.existsSync("/.dockerenv") ? process.env["HOSTNAME"] : undefined);
   let sitesTick: () => Promise<void> = () => Promise.resolve();
   const siteHostRoute = createSiteHostRoute({
     own: (h) => siteHosts?.own(h) ?? true, site: (h) => siteHosts?.site(h) ?? null, ticket: (id, t) => siteHosts?.ticket(id, t) ?? Promise.resolve(null), may: (p, x) => siteHosts?.may(p, x) ?? false,
@@ -1544,6 +1550,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
               if (up) await writeHost(x); else for (const h of x.hosts) { await sitesCaddy.removeRoute(h).catch(() => undefined); written.delete(h); }
             }
           };
+          computerSubnetsOf = () => (computers as { computerSubnets?: () => string[] } | undefined)?.computerSubnets?.() ?? [];
           // sites never reach this daemon: a connection that arrives on a site network's address is closed (the ingress sits on every site's network to proxy to it)
           let subnets: { at: number; list: string[] } = { at: 0, list: [] };
           siteGuard = (address) => {
@@ -1619,6 +1626,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         setComputerHost: () => createComputersHost({
           dataDir: paths.root,
           ...(o.computersSocketPath !== undefined ? { socketPath: o.computersSocketPath } : {}),
+          // On a Team server vyred holds no Docker socket: agent computers are made and run through the runner beside it (the same one that runs sites), which refuses anything else
+          ...(o.computersSocketPath === undefined && computersRunnerSocket() ? { runner: { socket: computersRunnerSocket() as string, token: computersRunnerToken, ...(ingressContainer() ? { ingress: ingressContainer() as string } : {}) } } : {}),
           // the home mirror runs as the agent: the same pipeline as any call, so access, review rules and the scrubber apply
           callAs: createAgentHomeCaller({ db: db!, spaceId, invoke }),
           announce: createMadeFilesAnnouncer({ db: db!, call: createAgentHomeCaller({ db: db!, spaceId, invoke }), log: (msg, attrs) => sink.log({ space: spaceId, level: 30, msg, place: "computers", ...(attrs ? { attrs } : {}) }) }),
@@ -1636,7 +1645,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         // the Vault channel of agent computers (P-L2_21): agentd posts one #Handle.field at a time to /computers/fill with its own token; without a Vault the channel is not offered
         setComputersFill: (d) => d.vault ? createComputersFillHost({
           space: spaceId, invoke, vault: d.vault, now,
-          baseUrl: () => o.computersBaseUrl ?? `http://host.docker.internal:${boundPort}`,
+          baseUrl: () => o.computersBaseUrl ?? (computersRunnerSocket() && ingressContainer() ? `http://vyre-host:${boundPort}` : `http://host.docker.internal:${boundPort}`),
           nodeSecure: (n) => computeStream.secure(n),
           mount: (h) => fillRoute.mount(h),
           log: (u) => sink.log({ space: spaceId, level: 30, msg: "computers.fill", place: "computers", attrs: { ...u } }),
@@ -2213,6 +2222,9 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
     // the app itself, last of all: a browser at the Space's address, or at a join link, gets the web export this image carries (routes/app-files.ts)
     const appFiles = createAppFilesRoute({ dir: () => o.appDir !== undefined ? o.appDir : defaultAppDir() });
     server.on("request", (req, res) => {
+      // an agent computer reaches this daemon only on its own network, and there only the Vault channel agentd posts to: nothing else of the Space's API
+      const onComputerNet = inSubnets(req.socket.localAddress, computerSubnetsOf());
+      if (onComputerNet && !(req.method === "POST" && (req.url ?? "").split("?")[0] === FILL_PATH)) { res.writeHead(403, { "content-type": "application/json" }); res.end(JSON.stringify({ code: "refused", message: "A computer reaches only the Vault channel." })); return; }
       if (carryDoor.handle(req, res)) return;
       if(desktopCors(req,res))return;
       if (bearer(req.headers.authorization)?.startsWith("vas_")) {

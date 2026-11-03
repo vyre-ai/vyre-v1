@@ -320,7 +320,7 @@ test("a Personal Space runs agent computers on a capable host: this computer wit
   assert.deepEqual(await hosts(h.ctx, {}), { available: true, hosts: [{ hostId: "this", kind: "this", name: "This computer", online: true, canRun: true, runs: 1 }] });
   const bare = harness({ personalSpace: true, respond: { "spaces.matrix": () => ({ kind: "personal" }) } });
   bindHost(null);
-  assert.deepEqual(await hosts(bare.ctx, {}), { available: false, hosts: [{ hostId: "this", kind: "this", name: "This computer", online: true, canRun: false, runs: 0, reason: "No Docker" }] });
+  assert.deepEqual(await hosts(bare.ctx, {}), { available: false, hosts: [{ hostId: "this", kind: "this", name: "This computer", online: true, canRun: false, runs: 0, reason: "Agent computers are not set up on this computer. Install Docker, or add a server that has it." }] });
   await assert.rejects(() => provision(bare.ctx, { agentId: INTAKE, idempotencyKey: "k" }), (e) => codeOf(e) === "provider.unavailable");
   assert.deepEqual((await list(bare.ctx, {})).computers, []);
   await assert.rejects(() => wake(bare.ctx, { computerId: "cmt_x" }), (e) => codeOf(e) === "validation.not_found");
@@ -339,7 +339,17 @@ test("servers you added are hosts once approved: offline or without Docker they 
   bindHost(null);
   const out = await hosts(h.ctx, {});
   assert.equal(out.available, true, "one server can run them");
-  assert.deepEqual(out.hosts.map((x) => [x.hostId, x.canRun, x.reason ?? null]), [["this", false, "No Docker"], ["srv_home", true, null], ["srv_off", false, "Offline"], ["srv_nodocker", false, "No Docker"]], "a waiting server is not a host yet");
+  assert.deepEqual(out.hosts.map((x) => [x.hostId, x.canRun, x.reason ?? null]), [["this", false, "Agent computers are not set up on this computer. Install Docker, or add a server that has it."], ["srv_home", true, null], ["srv_off", false, "old-mac is offline. Start it and let it reconnect."], ["srv_nodocker", false, "pi has no Docker. Install and start Docker on it."]], "a waiting server is not a host yet");
   const team = harness({ respond: { "spaces.matrix": () => ({ kind: "team" }) } });
   assert.deepEqual((await hosts(team.ctx, {})).hosts.map((x) => [x.hostId, x.kind, x.name]), [["space", "space", "The Space"]]);
+});
+
+test("a host that cannot run containers says why, in words, before anything is made: provision refuses with the host's own reason and leaves no row; hosts() carries the same reason", async () => {
+  const h = harness({ respond: { "spaces.matrix": () => ({ kind: "team" }) } });
+  const why = "This server's container runner is not running, so agent computers cannot start. Start it: docker compose up -d sites-runner.";
+  bindHost({ ...h.fake.host, health: async () => ({ ok: false, detail: why }) } as never);
+  await assert.rejects(() => provision(h.ctx, { agentId: INTAKE, idempotencyKey: "k" }), (e) => codeOf(e) === "provider.unavailable" && JSON.stringify(e).includes("compose up -d sites-runner"));
+  assert.deepEqual((await list(h.ctx, {})).computers, [], "no row is left behind");
+  const out = await hosts(h.ctx, {});
+  assert.deepEqual([out.available, out.hosts[0]!.reason], [false, why]);
 });
