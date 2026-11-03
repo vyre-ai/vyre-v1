@@ -251,3 +251,18 @@ test("cancel: the record, its calendar events and the Zoom meeting; a missing on
   assert.equal(await refusedWith(m.cancel(h.ctx, { meetingId: "rec_nope" })), "validation.not_found");
   assert.ok(NOW > 0);
 });
+
+test("a provider id too long for an idempotency key makes a short, stable key: the Meeting is made once, and a short id keeps its plain key", async () => {
+  const h = harness();
+  const long = `AAMkAGI2THVSAAA=${"Zm9vYmFyYmF6".repeat(30)}`;   // a Teams or Google id can run to hundreds of characters
+  const teams = { source: "teams" as const, providerRef: long, title: "Estate consult (Teams)", startsAt: START + 3 * HOUR, endsAt: START + 4 * HOUR, attendees: [{ email: "dana@firm.example" }] };
+  const first = out(await m.ingest(h.ctx, teams));
+  const again = out(await m.ingest(h.ctx, teams));
+  assert.equal(again.meetingId, first.meetingId);
+  const keys = h.calls("records.create").map((c) => String(c.input["idempotencyKey"]));
+  assert.equal(keys.length, 1, "made once");
+  assert.ok(keys[0]!.length <= 120 && keys[0]!.startsWith("meeting:teams:h:"), keys[0]);
+  assert.equal(m.meetingKey("teams", long), keys[0], "the same id gives the same key");
+  assert.notEqual(m.meetingKey("teams", `${long}x`), keys[0]);
+  assert.equal(m.meetingKey("zoom", ZOOM_ID), `meeting:zoom:${ZOOM_ID}`, "a short id keeps the key it always had");
+});

@@ -414,6 +414,19 @@ export async function linkRecord(ctx: CalCtx, input: { eventId: string; recordId
 
 // ---- the merge with meetings
 
+/** A join that failed is tried again after JOIN_BACKOFF_MS, doubling each time up to JOIN_BACKOFF_MAX_MS, and not at all after JOIN_ATTEMPTS failures: a sync that sees the event many times a second never retries hot. */
+export const JOIN_ATTEMPTS = 5;
+export const JOIN_BACKOFF_MS = 30_000;
+const JOIN_BACKOFF_MAX_MS = 3_600_000;
+interface JoinMiss { n: number; next: number }
+/** Failed joins per event, per Space database (kept in memory: a restart gives each event its attempts again). */
+const joinMisses = new WeakMap<object, Map<string, JoinMiss>>();
+const missesOf = (ctx: CalCtx): Map<string, JoinMiss> => {
+  let m = joinMisses.get(ctx.db);
+  if (!m) { m = new Map(); joinMisses.set(ctx.db, m); }
+  return m;
+};
+
 /** Make the event a Meeting, or join the one that already describes this call. An event with no guests is a block of time, not a meeting. */
 async function joinMeeting(ctx: CalCtx, eventId: string): Promise<{ meetingId?: string; merged: boolean }> {
   const row = first(ctx.db.all(`SELECT * FROM calendar_event WHERE id = ?`, eventId));
@@ -421,6 +434,9 @@ async function joinMeeting(ctx: CalCtx, eventId: string): Promise<{ meetingId?: 
   const ev = toEvent(row);
   const known = ev.meetingId;
   if (ev.status === "canceled" || ev.allDay || !ev.attendees.length || num(row, "deleted_at") > 0) return known ? { meetingId: known, merged: false } : { merged: false };
+  const misses = missesOf(ctx);
+  const missed = misses.get(eventId);
+  if (missed && (missed.n >= JOIN_ATTEMPTS || ctx.now() < missed.next)) return known ? { meetingId: known, merged: false } : { merged: false };
   const body: Json = {
     source: "calendar", providerRef: strOrNull(row, "providerId") ?? eventId, calendarEventId: eventId, title: ev.title, startsAt: ev.startsAt, endsAt: ev.endsAt,
     attendees: ev.attendees.map((a) => ({ email: a.email, ...(a.name ? { name: a.name } : {}), ...(a.contactId ? { contactId: a.contactId } : {}) })),
@@ -430,9 +446,14 @@ async function joinMeeting(ctx: CalCtx, eventId: string): Promise<{ meetingId?: 
     const res = obj(await ctx.call("meetings.ingest", body));
     const meetingId = text(res.meetingId);
     if (meetingId && meetingId !== known) ctx.db.run(`UPDATE calendar_event SET "meetingId" = ?, version = ?, updated_at = ? WHERE id = ?`, meetingId, num(row, "version") + 1, ctx.now(), eventId);
+    misses.delete(eventId);
     return meetingId ? { meetingId, merged: res.merged === true } : { merged: false };
   } catch (e) {
-    ctx.log.warn("calendar: could not join the event to a meeting", { code: codeOf(e) });
+    const n = (missed?.n ?? 0) + 1;
+    misses.set(eventId, { n, next: ctx.now() + Math.min(JOIN_BACKOFF_MS * 2 ** (n - 1), JOIN_BACKOFF_MAX_MS) });
+    // one warning when it gives up; the tries before it are quiet
+    if (n >= JOIN_ATTEMPTS) ctx.log.warn("calendar: could not join the event to a meeting; not trying again until the daemon restarts", { code: codeOf(e), attempts: n });
+    else ctx.log.info("calendar: could not join the event to a meeting; trying again later", { code: codeOf(e), attempt: n });
     return known ? { meetingId: known, merged: false } : { merged: false };
   }
 }

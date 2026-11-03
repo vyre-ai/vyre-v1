@@ -5,6 +5,7 @@
 // DECISION: ingest is idempotent: the same event or provider id again refreshes the fields (time, title, link, status) and says created false, merged false; only a new identity joining is a merge.
 // DECISION: unmerge splits one calendar event off into a Meeting of its own, built from the event. A meeting with nothing but that one event cannot be unmerged (nothing would be left behind).
 // DECISION: cancel marks the record canceled, deletes its calendar events and the Zoom meeting best-effort (a missing one is fine, a provider refusal is the caller's to see), and says so once.
+import { sha256b64 } from "../../../kernel/src/seal/wire.ts";
 import { addWatcher, canSeeMeeting, codeOf, bad, ensure, first, isId, isInt, isoOf, keyOf, linkFor, linkKey, links, list, meetingRecord, meetingRow, msOf, obj, paging, patchMeeting, providerOfUrl, pageOf, refuse, saveLink, text, strOrUndef } from "../projections.ts";
 import type { Json, Link, MeetCtx, Provider } from "../projections.ts";
 
@@ -100,7 +101,7 @@ async function ingestOnce(ctx: MeetCtx, input: IngestInput) {
   if (!hit) {
     const attendeeIds = await contactIds(ctx, who);
     const created = obj(obj(await ctx.call("records.create", {
-      type: "meeting", idempotencyKey: `meeting:${input.source}:${input.providerRef}`,
+      type: "meeting", idempotencyKey: meetingKey(input.source, input.providerRef),
       fields: {
         title: input.title?.trim() || "Meeting", starts_at: isoOf(input.startsAt), ...(input.endsAt !== undefined ? { ends_at: isoOf(input.endsAt) } : {}), provider,
         ...(input.joinUrl ? { join_url: input.joinUrl } : {}), status: input.status ?? "scheduled", attendees: attendeeIds, recording_state: "none",
@@ -203,6 +204,17 @@ export async function merge(ctx: MeetCtx, input: { meetingId: string; otherId: s
   ctx.emit("meeting.merged", `record/${input.meetingId}`, { meetingId: input.meetingId, ...(added ? { eventId: added } : {}), ...(two.providerRef && !one.providerRef ? { providerRef: two.providerRef } : {}), by: "person" });
   return { meetingId: input.meetingId };
 }
+
+/**
+ * The idempotency key of the Meeting a provider id makes: `meeting:<source>:<providerRef>`, or, when that is longer than a key may be (a provider's event id can run to hundreds of
+ * characters), the same text hashed: short, and the same every time for the same id.
+ */
+export function meetingKey(source: string, providerRef: string): string {
+  const key = `meeting:${source}:${providerRef}`;
+  return key.length <= MAX_KEY ? key : `meeting:${source}:h:${sha256b64(providerRef)}`;
+}
+/** The kernel's limit on an idempotency key (kernel/src/idempotency), with room to spare. */
+const MAX_KEY = 120;
 
 export async function unmerge(ctx: MeetCtx, input: { meetingId: string; eventId: string }) {
   ensure(ctx);

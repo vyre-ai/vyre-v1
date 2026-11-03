@@ -682,7 +682,7 @@ function AgentStrip({ list, narrow, onPress, open, face, mode, runsChip, ring }:
 }
 
 /** The field's tokens, drawn behind the text: a wash under each #link, @mention and [[link]]. The text itself stays the field's own. */
-function TokenBackdrop({ text, ranges, scrollY, style }: { text: string; ranges: readonly TokenRange[]; scrollY: number; style: TextStyle }): ReactElement {
+function TokenBackdrop({ text, ranges, scrollY, style, pad }: { text: string; ranges: readonly TokenRange[]; scrollY: number; style: TextStyle; pad: readonly (ViewStyle | false)[] }): ReactElement {
   const parts: ReactElement[] = [];
   let at = 0;
   ranges.forEach((r, i) => {
@@ -692,7 +692,7 @@ function TokenBackdrop({ text, ranges, scrollY, style }: { text: string; ranges:
   });
   if (at < text.length) parts.push(<Text key="rest">{text.slice(at)}</Text>);
   return (
-    <View pointerEvents="none" style={[styles.backdrop, { transform: [{ translateY: -scrollY }] }]} testID="composer-tokens" aria-hidden>
+    <View pointerEvents="none" style={[styles.backdrop, ...pad, { transform: [{ translateY: -scrollY }] }]} testID="composer-tokens" aria-hidden>
       <Text style={[style, styles.ghost]} {...webProps({ dataSet: { cmpGhost: "1" } })}>{parts}{"​"}</Text>
     </View>
   );
@@ -1092,6 +1092,8 @@ export function Composer(props: ComposerProps): ReactElement {
   }
 
   const fieldText = compact ? styles.fieldCompact : styles.fieldRegular;
+  // the field's padding, which the token wash behind it takes too: the same box, so a wash sits on its word in the one-line pill, the compact field and the regular one
+  const fieldPad: readonly (ViewStyle | false)[] = [styles.padRegular, oneLine && styles.padLine, !oneLine && compact && styles.padCompact];
   // an email keeps its own two rows: its bar holds sender and format buttons; everything else is the one-line pill
   const oneLine = props.sendsOutside !== true;
   const plusNode_ = (
@@ -1103,8 +1105,8 @@ export function Composer(props: ComposerProps): ReactElement {
     </View>
   );
   const fieldNode = (
-    <View style={[styles.fieldWrap, oneLine && styles.fieldLine, !oneLine && compact && styles.fieldWrapCompact]} {...webProps({ dataSet: { cmpField: "1" } })}>
-      {web && ranges.length > 0 ? <TokenBackdrop text={state.text} ranges={ranges} scrollY={scrollY} style={fieldText} /> : null}
+    <View style={[styles.fieldWrap, ...fieldPad, oneLine && styles.fieldLine]} {...webProps({ dataSet: { cmpField: "1" } })}>
+      {web && ranges.length > 0 ? <TokenBackdrop text={state.text} ranges={ranges} scrollY={scrollY} style={fieldText} pad={fieldPad} /> : null}
       <TextInput
         ref={input}
         multiline
@@ -1226,13 +1228,15 @@ const styles = StyleSheet.create({
   cardRm: { position: "absolute", top: -6, right: -6, width: 18, height: 18, borderRadius: 9, backgroundColor: "var(--ink)" as string, alignItems: "center", justifyContent: "center" },
   cardRmText: { color: "var(--win)" as string, fontSize: 12, lineHeight: 14 },
   engine: { color: "var(--ink-3)" as string, fontSize: 11.5, lineHeight: 16, paddingTop: 8, paddingHorizontal: 16 },
-  fieldWrap: { position: "relative", paddingTop: 12, paddingHorizontal: 16, paddingBottom: 4, overflow: "hidden" },
-  fieldWrapCompact: { paddingTop: 10, paddingHorizontal: 12 },
-  fieldLine: { flex: 1, minWidth: 0, paddingTop: 6, paddingBottom: 6, paddingHorizontal: 6 },
+  fieldWrap: { position: "relative", overflow: "hidden" },
+  padRegular: { paddingTop: 12, paddingHorizontal: 16, paddingBottom: 4 },
+  padCompact: { paddingTop: 10, paddingHorizontal: 12 },
+  padLine: { paddingTop: 6, paddingBottom: 6, paddingHorizontal: 6 },
+  fieldLine: { flex: 1, minWidth: 0 },
   field: { width: "100%", color: "var(--ink)" as string, padding: 0, margin: 0, borderWidth: 0 },
   fieldRegular: { fontSize: 15, lineHeight: 22 },
   fieldCompact: { fontSize: 14, lineHeight: 22 },
-  backdrop: { position: "absolute", left: 16, right: 16, top: 12 },
+  backdrop: { position: "absolute", left: 0, right: 0, top: 0 },
   ghost: { color: "transparent", whiteSpace: "pre-wrap", wordBreak: "break-word", overflowWrap: "break-word" } as object,
   tok: { backgroundColor: "var(--accent-wash)" as string, borderRadius: 5, boxShadow: "0 0 0 2px var(--accent-wash)" } as object,
   srOnly: { position: "absolute", width: 1, height: 1, overflow: "hidden", opacity: 0 },
