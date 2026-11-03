@@ -43,6 +43,7 @@ Counts are not written down: they change with every contract change. Run `node t
 - [gate](modules/gate.md) (L6, module)
 - [git](modules/git.md) (L4, module)
 - [github](modules/github.md) (L5, connector)
+- [goals](modules/goals.md) (L6, module)
 - [google](modules/google.md) (L5, connector)
 - [governance](modules/governance.md) (L7a, module)
 - [harbor-studio](modules/harbor-studio.md) (L8, kit)

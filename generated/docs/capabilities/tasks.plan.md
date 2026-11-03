@@ -59,6 +59,7 @@ type In = {
       priority?: "urgent" | "high" | "normal" | "low";
       worker?: "thread" | "crew";
       projectId?: string;
+      notes?: Record<string, string>;
     }>;
   idempotencyKey: string;
 };
@@ -170,6 +171,7 @@ type Out = {
         ],
         "due": 1760000000000,
         "key": "draft",
+        "notes": {},
         "priority": "urgent",
         "projectId": "prj_a1b2c3",
         "reviewer": {

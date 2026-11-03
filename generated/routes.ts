@@ -12577,6 +12577,24 @@ const routes2: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/gate/grants/goal",
+    "cap": "gate.grants.goal",
+    "v": 1,
+    "module": "gate",
+    "effects": "write",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/gate/grants/set",
     "cap": "gate.grants.set",
     "v": 1,
@@ -13560,6 +13578,474 @@ const routes2: Route[] = [
     },
     "idempotency": "natural",
     "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/goals/activity",
+    "cap": "goals.activity",
+    "v": 1,
+    "module": "goals",
+    "effects": "read",
+    "permission": null,
+    "level": "member",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/goals/ask",
+    "cap": "goals.ask",
+    "v": 1,
+    "module": "goals",
+    "effects": "write",
+    "permission": null,
+    "level": "member",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/goals/brief",
+    "cap": "goals.brief",
+    "v": 1,
+    "module": "goals",
+    "effects": "read",
+    "permission": null,
+    "level": "member",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/goals/checklist/tick",
+    "cap": "goals.checklist.tick",
+    "v": 1,
+    "module": "goals",
+    "effects": "write",
+    "permission": null,
+    "level": "member",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/goals/complete",
+    "cap": "goals.complete",
+    "v": 1,
+    "module": "goals",
+    "effects": "write",
+    "permission": null,
+    "level": "member",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/goals/confirm",
+    "cap": "goals.confirm",
+    "v": 1,
+    "module": "goals",
+    "effects": "write",
+    "permission": null,
+    "level": "member",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/goals/create",
+    "cap": "goals.create",
+    "v": 1,
+    "module": "goals",
+    "effects": "write",
+    "permission": null,
+    "level": "member",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "key",
+    "risk": "medium",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/goals/extend",
+    "cap": "goals.extend",
+    "v": 1,
+    "module": "goals",
+    "effects": "write",
+    "permission": null,
+    "level": "member",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/goals/finish",
+    "cap": "goals.finish",
+    "v": 1,
+    "module": "goals",
+    "effects": "write",
+    "permission": null,
+    "level": "member",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/goals/folder",
+    "cap": "goals.folder",
+    "v": 1,
+    "module": "goals",
+    "effects": "write",
+    "permission": null,
+    "level": "member",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/goals/get",
+    "cap": "goals.get",
+    "v": 1,
+    "module": "goals",
+    "effects": "read",
+    "permission": null,
+    "level": "member",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/goals/go",
+    "cap": "goals.go",
+    "v": 1,
+    "module": "goals",
+    "effects": "read",
+    "permission": null,
+    "level": "member",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/goals/list",
+    "cap": "goals.list",
+    "v": 1,
+    "module": "goals",
+    "effects": "read",
+    "permission": null,
+    "level": "member",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/goals/mark_stuck",
+    "cap": "goals.mark_stuck",
+    "v": 1,
+    "module": "goals",
+    "effects": "write",
+    "permission": null,
+    "level": "member",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/goals/number/set",
+    "cap": "goals.number.set",
+    "v": 1,
+    "module": "goals",
+    "effects": "write",
+    "permission": null,
+    "level": "member",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/goals/pause",
+    "cap": "goals.pause",
+    "v": 1,
+    "module": "goals",
+    "effects": "write",
+    "permission": null,
+    "level": "member",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/goals/plan",
+    "cap": "goals.plan",
+    "v": 1,
+    "module": "goals",
+    "effects": "write",
+    "permission": null,
+    "level": "member",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/goals/progress",
+    "cap": "goals.progress",
+    "v": 1,
+    "module": "goals",
+    "effects": "write",
+    "permission": null,
+    "level": "member",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/goals/report",
+    "cap": "goals.report",
+    "v": 1,
+    "module": "goals",
+    "effects": "write",
+    "permission": null,
+    "level": "member",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/goals/resume",
+    "cap": "goals.resume",
+    "v": 1,
+    "module": "goals",
+    "effects": "write",
+    "permission": null,
+    "level": "member",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/goals/search_past",
+    "cap": "goals.search_past",
+    "v": 1,
+    "module": "goals",
+    "effects": "read",
+    "permission": null,
+    "level": "member",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/goals/sources",
+    "cap": "goals.sources",
+    "v": 1,
+    "module": "goals",
+    "effects": "read",
+    "permission": null,
+    "level": "member",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/goals/step",
+    "cap": "goals.step",
+    "v": 1,
+    "module": "goals",
+    "effects": "write",
+    "permission": null,
+    "level": "member",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/goals/stop",
+    "cap": "goals.stop",
+    "v": 1,
+    "module": "goals",
+    "effects": "write",
+    "permission": null,
+    "level": "member",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/goals/update",
+    "cap": "goals.update",
+    "v": 1,
+    "module": "goals",
+    "effects": "write",
+    "permission": null,
+    "level": "member",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/goals/wake_claim",
+    "cap": "goals.wake_claim",
+    "v": 1,
+    "module": "goals",
+    "effects": "write",
+    "permission": null,
+    "level": "member",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
     "offline": null,
     "teamOnly": false,
     "gate": null
@@ -16123,7 +16609,10 @@ const routes2: Route[] = [
     "offline": "online",
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes3: Route[] = [
   {
     "method": "POST",
     "path": "/v1/identity/reset_complete",
@@ -16612,10 +17101,7 @@ const routes2: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  }
-];
-
-const routes3: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/import/template",
@@ -21608,7 +22094,10 @@ const routes3: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes4: Route[] = [
   {
     "method": "POST",
     "path": "/v1/ms/directory/list",
@@ -22118,10 +22607,7 @@ const routes3: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": "none"
-  }
-];
-
-const routes4: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/ms/receive_notification",
@@ -27142,7 +27628,10 @@ const routes4: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes5: Route[] = [
   {
     "method": "POST",
     "path": "/v1/sessions/delete",
@@ -27637,10 +28126,7 @@ const routes4: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  }
-];
-
-const routes5: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/sites/artifact_open",
@@ -32670,7 +33156,10 @@ const routes5: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes6: Route[] = [
   {
     "method": "POST",
     "path": "/v1/updates/history",
@@ -33173,10 +33662,7 @@ const routes5: Route[] = [
     "offline": "online",
     "teamOnly": false,
     "gate": "secret_export"
-  }
-];
-
-const routes6: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/vault/items/list",

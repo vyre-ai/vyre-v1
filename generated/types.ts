@@ -12328,13 +12328,14 @@ export type GateAllowListIn = Record<string, unknown>;
 export type GateAllowListOut = {
   rules: Array<{
       id: string;
-      kind: "standing" | "always";
+      kind: "standing" | "always" | "goal";
       act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "approve";
       target: string;
       agentId?: string;
       threadId?: string;
       automationId?: string;
       stepId?: string;
+      goalId?: string;
       expiresAt?: number;
     }>;
 };
@@ -12354,13 +12355,14 @@ export type GateAllowSetIn = {
 export type GateAllowSetOut = {
   rule: {
     id: string;
-    kind: "standing" | "always";
+    kind: "standing" | "always" | "goal";
     act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "approve";
     target: string;
     agentId?: string;
     threadId?: string;
     automationId?: string;
     stepId?: string;
+    goalId?: string;
     expiresAt?: number;
   };
 };
@@ -12419,6 +12421,20 @@ export type GateGrantsGiveBackIn = {
 };
 export type GateGrantsGiveBackOut = {
   returned: number;
+};
+export type GateGrantsGoalIn = {
+  goalId: string;
+  person: string;
+  threads: Array<string>;
+  until: number;
+  set?: Array<{
+      act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "approve";
+      target: string;
+    }>;
+};
+export type GateGrantsGoalOut = {
+  acts: number;
+  rows: number;
 };
 export type GateGrantsSetIn = {
   automationId: string;
@@ -13210,6 +13226,1648 @@ export type GithubReposListOut = {
     }>;
   next?: string;
   total?: number;
+};
+export type GoalsActivityIn = {
+  goalId: string;
+  before?: number;
+  limit?: number;
+};
+export type GoalsActivityOut = {
+  activity: Array<{
+      at: number;
+      kind: string;
+      text: string;
+      by?: string;
+      ref?: string;
+    }>;
+};
+export type GoalsAskIn = {
+  goalId: string;
+  decision: string;
+  question: string;
+  options?: Array<string>;
+  to?: string;
+};
+export type GoalsAskOut = {
+  taskId: string;
+  asked: boolean;
+  answer?: string;
+};
+export type GoalsBriefIn = {
+  goalId: string;
+  agentId?: string;
+};
+export type GoalsBriefOut = {
+  text: string;
+};
+export type GoalsChecklistTickIn = {
+  goalId: string;
+  itemId: string;
+  done: boolean;
+};
+export type GoalsChecklistTickOut = {
+  goal: {
+    id: string;
+    title: string;
+    outcome?: string;
+    finish: {
+      kind: "number" | "checklist" | "owner";
+      line: string;
+      target?: number;
+      direction?: "up" | "down";
+      unit?: string;
+      source?: {
+        kind: "records" | "connection" | "mcp" | "automation" | "manual";
+        label?: string;
+        type?: string;
+        filter?: unknown;
+        connector?: string;
+        connectionId?: string;
+        action?: string;
+        input?: unknown;
+        server?: string;
+        tool?: string;
+        automationId?: string;
+        path?: string;
+      };
+      items?: Array<{
+          id: string;
+          text: string;
+          taskId?: string;
+          done?: boolean;
+        }>;
+    };
+    deadline: number;
+    owner: string;
+    leadAgentId: string;
+    helpers: Array<{
+        kind: "person" | "agent" | "group" | "role";
+        id: string;
+      }>;
+    projectId?: string;
+    recordIds: Array<string>;
+    budget: {
+      spendMicros?: number;
+      turns?: number;
+    };
+    rhythm: {
+      every: "day" | "hours" | "week";
+      at?: string;
+      hours?: number;
+      day?: number;
+    };
+    zone: string;
+    quiet: {
+      from: string;
+      to: string;
+    } | null;
+    permissions: Array<{
+        act: "send" | "post" | "push_protected" | "site_promote" | "signature_send";
+        target: string;
+        label: string;
+        granted?: boolean;
+      }>;
+    status: "draft" | "planning" | "active" | "waiting" | "stuck" | "paused" | "done" | "missed" | "stopped";
+    statusReason?: string;
+    threadId?: string;
+    rootTaskId?: string;
+    folderId?: string;
+    progress: {
+      value?: number;
+      target?: number;
+      start?: number;
+      percent?: number;
+      readAt?: number;
+      error?: string;
+      itemsDone?: number;
+      items?: number;
+      tasksDone: number;
+      tasks: number;
+    };
+    nextCheckinAt?: number;
+    lastCheckinAt?: number;
+    checkins: number;
+    spentMicros: number;
+    turns: number;
+    stuckAfter: number;
+    endedAt?: number;
+    ended?: "done" | "missed" | "stopped";
+    summary?: string;
+    retro?: {
+      summary: string;
+      worked: Array<string>;
+      didNot: Array<string>;
+      playbook?: string;
+    };
+    createdBy: string;
+    createdAt: number;
+    updatedAt: number;
+  };
+};
+export type GoalsCompleteIn = {
+  goalId: string;
+  retro: {
+    summary: string;
+    worked: Array<string>;
+    didNot: Array<string>;
+    playbook?: string;
+  };
+};
+export type GoalsCompleteOut = {
+  saved: boolean;
+  askedOwner: boolean;
+  taskId?: string;
+};
+export type GoalsConfirmIn = {
+  goalId: string;
+  permissions?: Array<string>;
+};
+export type GoalsConfirmOut = {
+  goal: {
+    id: string;
+    title: string;
+    outcome?: string;
+    finish: {
+      kind: "number" | "checklist" | "owner";
+      line: string;
+      target?: number;
+      direction?: "up" | "down";
+      unit?: string;
+      source?: {
+        kind: "records" | "connection" | "mcp" | "automation" | "manual";
+        label?: string;
+        type?: string;
+        filter?: unknown;
+        connector?: string;
+        connectionId?: string;
+        action?: string;
+        input?: unknown;
+        server?: string;
+        tool?: string;
+        automationId?: string;
+        path?: string;
+      };
+      items?: Array<{
+          id: string;
+          text: string;
+          taskId?: string;
+          done?: boolean;
+        }>;
+    };
+    deadline: number;
+    owner: string;
+    leadAgentId: string;
+    helpers: Array<{
+        kind: "person" | "agent" | "group" | "role";
+        id: string;
+      }>;
+    projectId?: string;
+    recordIds: Array<string>;
+    budget: {
+      spendMicros?: number;
+      turns?: number;
+    };
+    rhythm: {
+      every: "day" | "hours" | "week";
+      at?: string;
+      hours?: number;
+      day?: number;
+    };
+    zone: string;
+    quiet: {
+      from: string;
+      to: string;
+    } | null;
+    permissions: Array<{
+        act: "send" | "post" | "push_protected" | "site_promote" | "signature_send";
+        target: string;
+        label: string;
+        granted?: boolean;
+      }>;
+    status: "draft" | "planning" | "active" | "waiting" | "stuck" | "paused" | "done" | "missed" | "stopped";
+    statusReason?: string;
+    threadId?: string;
+    rootTaskId?: string;
+    folderId?: string;
+    progress: {
+      value?: number;
+      target?: number;
+      start?: number;
+      percent?: number;
+      readAt?: number;
+      error?: string;
+      itemsDone?: number;
+      items?: number;
+      tasksDone: number;
+      tasks: number;
+    };
+    nextCheckinAt?: number;
+    lastCheckinAt?: number;
+    checkins: number;
+    spentMicros: number;
+    turns: number;
+    stuckAfter: number;
+    endedAt?: number;
+    ended?: "done" | "missed" | "stopped";
+    summary?: string;
+    retro?: {
+      summary: string;
+      worked: Array<string>;
+      didNot: Array<string>;
+      playbook?: string;
+    };
+    createdBy: string;
+    createdAt: number;
+    updatedAt: number;
+  };
+};
+export type GoalsCreateIn = {
+  title: string;
+  outcome?: string;
+  finish: {
+    kind: "number" | "checklist" | "owner";
+    line: string;
+    target?: number;
+    direction?: "up" | "down";
+    unit?: string;
+    source?: {
+      kind: "records" | "connection" | "mcp" | "automation" | "manual";
+      label?: string;
+      type?: string;
+      filter?: unknown;
+      connector?: string;
+      connectionId?: string;
+      action?: string;
+      input?: unknown;
+      server?: string;
+      tool?: string;
+      automationId?: string;
+      path?: string;
+    };
+    items?: Array<{
+        id: string;
+        text: string;
+        taskId?: string;
+        done?: boolean;
+      }>;
+  };
+  deadline: number;
+  owner?: string;
+  leadAgentId: string;
+  helpers?: Array<{
+      kind: "person" | "agent" | "group" | "role";
+      id: string;
+    }>;
+  projectId?: string;
+  recordIds?: Array<string>;
+  budget?: {
+    spendMicros?: number;
+    turns?: number;
+  };
+  rhythm?: {
+    every: "day" | "hours" | "week";
+    at?: string;
+    hours?: number;
+    day?: number;
+  };
+  quiet?: {
+    from: string;
+    to: string;
+  } | null;
+  zone?: string;
+  permissions?: Array<{
+      act: "send" | "post" | "push_protected" | "site_promote" | "signature_send";
+      target: string;
+      label: string;
+      granted?: boolean;
+    }>;
+  plan?: Array<{
+      key: string;
+      title: string;
+      why: string;
+      impact?: string;
+      brief?: string;
+      doneMeans?: Array<string>;
+      assigned: {
+        kind: "person" | "agent" | "group" | "role";
+        id: string;
+      };
+      reviewer?: {
+        kind: "person" | "agent" | "group" | "role";
+        id: string;
+      };
+      approver?: {
+        kind: "person" | "agent" | "group" | "role";
+        id: string;
+      };
+      dependsOn?: Array<string>;
+      due?: number;
+    }>;
+  stuckAfter?: number;
+  sourceThreadId?: string;
+  start?: boolean;
+  idempotencyKey: string;
+};
+export type GoalsCreateOut = {
+  goal: {
+    id: string;
+    title: string;
+    outcome?: string;
+    finish: {
+      kind: "number" | "checklist" | "owner";
+      line: string;
+      target?: number;
+      direction?: "up" | "down";
+      unit?: string;
+      source?: {
+        kind: "records" | "connection" | "mcp" | "automation" | "manual";
+        label?: string;
+        type?: string;
+        filter?: unknown;
+        connector?: string;
+        connectionId?: string;
+        action?: string;
+        input?: unknown;
+        server?: string;
+        tool?: string;
+        automationId?: string;
+        path?: string;
+      };
+      items?: Array<{
+          id: string;
+          text: string;
+          taskId?: string;
+          done?: boolean;
+        }>;
+    };
+    deadline: number;
+    owner: string;
+    leadAgentId: string;
+    helpers: Array<{
+        kind: "person" | "agent" | "group" | "role";
+        id: string;
+      }>;
+    projectId?: string;
+    recordIds: Array<string>;
+    budget: {
+      spendMicros?: number;
+      turns?: number;
+    };
+    rhythm: {
+      every: "day" | "hours" | "week";
+      at?: string;
+      hours?: number;
+      day?: number;
+    };
+    zone: string;
+    quiet: {
+      from: string;
+      to: string;
+    } | null;
+    permissions: Array<{
+        act: "send" | "post" | "push_protected" | "site_promote" | "signature_send";
+        target: string;
+        label: string;
+        granted?: boolean;
+      }>;
+    status: "draft" | "planning" | "active" | "waiting" | "stuck" | "paused" | "done" | "missed" | "stopped";
+    statusReason?: string;
+    threadId?: string;
+    rootTaskId?: string;
+    folderId?: string;
+    progress: {
+      value?: number;
+      target?: number;
+      start?: number;
+      percent?: number;
+      readAt?: number;
+      error?: string;
+      itemsDone?: number;
+      items?: number;
+      tasksDone: number;
+      tasks: number;
+    };
+    nextCheckinAt?: number;
+    lastCheckinAt?: number;
+    checkins: number;
+    spentMicros: number;
+    turns: number;
+    stuckAfter: number;
+    endedAt?: number;
+    ended?: "done" | "missed" | "stopped";
+    summary?: string;
+    retro?: {
+      summary: string;
+      worked: Array<string>;
+      didNot: Array<string>;
+      playbook?: string;
+    };
+    createdBy: string;
+    createdAt: number;
+    updatedAt: number;
+  };
+  overlaps: Array<{
+      goalId: string;
+      title: string;
+      recordId: string;
+    }>;
+};
+export type GoalsExtendIn = {
+  goalId: string;
+  deadline: number;
+};
+export type GoalsExtendOut = {
+  goal: {
+    id: string;
+    title: string;
+    outcome?: string;
+    finish: {
+      kind: "number" | "checklist" | "owner";
+      line: string;
+      target?: number;
+      direction?: "up" | "down";
+      unit?: string;
+      source?: {
+        kind: "records" | "connection" | "mcp" | "automation" | "manual";
+        label?: string;
+        type?: string;
+        filter?: unknown;
+        connector?: string;
+        connectionId?: string;
+        action?: string;
+        input?: unknown;
+        server?: string;
+        tool?: string;
+        automationId?: string;
+        path?: string;
+      };
+      items?: Array<{
+          id: string;
+          text: string;
+          taskId?: string;
+          done?: boolean;
+        }>;
+    };
+    deadline: number;
+    owner: string;
+    leadAgentId: string;
+    helpers: Array<{
+        kind: "person" | "agent" | "group" | "role";
+        id: string;
+      }>;
+    projectId?: string;
+    recordIds: Array<string>;
+    budget: {
+      spendMicros?: number;
+      turns?: number;
+    };
+    rhythm: {
+      every: "day" | "hours" | "week";
+      at?: string;
+      hours?: number;
+      day?: number;
+    };
+    zone: string;
+    quiet: {
+      from: string;
+      to: string;
+    } | null;
+    permissions: Array<{
+        act: "send" | "post" | "push_protected" | "site_promote" | "signature_send";
+        target: string;
+        label: string;
+        granted?: boolean;
+      }>;
+    status: "draft" | "planning" | "active" | "waiting" | "stuck" | "paused" | "done" | "missed" | "stopped";
+    statusReason?: string;
+    threadId?: string;
+    rootTaskId?: string;
+    folderId?: string;
+    progress: {
+      value?: number;
+      target?: number;
+      start?: number;
+      percent?: number;
+      readAt?: number;
+      error?: string;
+      itemsDone?: number;
+      items?: number;
+      tasksDone: number;
+      tasks: number;
+    };
+    nextCheckinAt?: number;
+    lastCheckinAt?: number;
+    checkins: number;
+    spentMicros: number;
+    turns: number;
+    stuckAfter: number;
+    endedAt?: number;
+    ended?: "done" | "missed" | "stopped";
+    summary?: string;
+    retro?: {
+      summary: string;
+      worked: Array<string>;
+      didNot: Array<string>;
+      playbook?: string;
+    };
+    createdBy: string;
+    createdAt: number;
+    updatedAt: number;
+  };
+};
+export type GoalsFinishIn = {
+  goalId: string;
+  note?: string;
+};
+export type GoalsFinishOut = {
+  goal: {
+    id: string;
+    title: string;
+    outcome?: string;
+    finish: {
+      kind: "number" | "checklist" | "owner";
+      line: string;
+      target?: number;
+      direction?: "up" | "down";
+      unit?: string;
+      source?: {
+        kind: "records" | "connection" | "mcp" | "automation" | "manual";
+        label?: string;
+        type?: string;
+        filter?: unknown;
+        connector?: string;
+        connectionId?: string;
+        action?: string;
+        input?: unknown;
+        server?: string;
+        tool?: string;
+        automationId?: string;
+        path?: string;
+      };
+      items?: Array<{
+          id: string;
+          text: string;
+          taskId?: string;
+          done?: boolean;
+        }>;
+    };
+    deadline: number;
+    owner: string;
+    leadAgentId: string;
+    helpers: Array<{
+        kind: "person" | "agent" | "group" | "role";
+        id: string;
+      }>;
+    projectId?: string;
+    recordIds: Array<string>;
+    budget: {
+      spendMicros?: number;
+      turns?: number;
+    };
+    rhythm: {
+      every: "day" | "hours" | "week";
+      at?: string;
+      hours?: number;
+      day?: number;
+    };
+    zone: string;
+    quiet: {
+      from: string;
+      to: string;
+    } | null;
+    permissions: Array<{
+        act: "send" | "post" | "push_protected" | "site_promote" | "signature_send";
+        target: string;
+        label: string;
+        granted?: boolean;
+      }>;
+    status: "draft" | "planning" | "active" | "waiting" | "stuck" | "paused" | "done" | "missed" | "stopped";
+    statusReason?: string;
+    threadId?: string;
+    rootTaskId?: string;
+    folderId?: string;
+    progress: {
+      value?: number;
+      target?: number;
+      start?: number;
+      percent?: number;
+      readAt?: number;
+      error?: string;
+      itemsDone?: number;
+      items?: number;
+      tasksDone: number;
+      tasks: number;
+    };
+    nextCheckinAt?: number;
+    lastCheckinAt?: number;
+    checkins: number;
+    spentMicros: number;
+    turns: number;
+    stuckAfter: number;
+    endedAt?: number;
+    ended?: "done" | "missed" | "stopped";
+    summary?: string;
+    retro?: {
+      summary: string;
+      worked: Array<string>;
+      didNot: Array<string>;
+      playbook?: string;
+    };
+    createdBy: string;
+    createdAt: number;
+    updatedAt: number;
+  };
+};
+export type GoalsFolderIn = {
+  goalId: string;
+  sub?: "Plan" | "Drafts" | "Research" | "Reports";
+};
+export type GoalsFolderOut = {
+  folderId: string;
+  path: string;
+};
+export type GoalsGetIn = {
+  goalId: string;
+};
+export type GoalsGetOut = {
+  goal: {
+    id: string;
+    title: string;
+    outcome?: string;
+    finish: {
+      kind: "number" | "checklist" | "owner";
+      line: string;
+      target?: number;
+      direction?: "up" | "down";
+      unit?: string;
+      source?: {
+        kind: "records" | "connection" | "mcp" | "automation" | "manual";
+        label?: string;
+        type?: string;
+        filter?: unknown;
+        connector?: string;
+        connectionId?: string;
+        action?: string;
+        input?: unknown;
+        server?: string;
+        tool?: string;
+        automationId?: string;
+        path?: string;
+      };
+      items?: Array<{
+          id: string;
+          text: string;
+          taskId?: string;
+          done?: boolean;
+        }>;
+    };
+    deadline: number;
+    owner: string;
+    leadAgentId: string;
+    helpers: Array<{
+        kind: "person" | "agent" | "group" | "role";
+        id: string;
+      }>;
+    projectId?: string;
+    recordIds: Array<string>;
+    budget: {
+      spendMicros?: number;
+      turns?: number;
+    };
+    rhythm: {
+      every: "day" | "hours" | "week";
+      at?: string;
+      hours?: number;
+      day?: number;
+    };
+    zone: string;
+    quiet: {
+      from: string;
+      to: string;
+    } | null;
+    permissions: Array<{
+        act: "send" | "post" | "push_protected" | "site_promote" | "signature_send";
+        target: string;
+        label: string;
+        granted?: boolean;
+      }>;
+    status: "draft" | "planning" | "active" | "waiting" | "stuck" | "paused" | "done" | "missed" | "stopped";
+    statusReason?: string;
+    threadId?: string;
+    rootTaskId?: string;
+    folderId?: string;
+    progress: {
+      value?: number;
+      target?: number;
+      start?: number;
+      percent?: number;
+      readAt?: number;
+      error?: string;
+      itemsDone?: number;
+      items?: number;
+      tasksDone: number;
+      tasks: number;
+    };
+    nextCheckinAt?: number;
+    lastCheckinAt?: number;
+    checkins: number;
+    spentMicros: number;
+    turns: number;
+    stuckAfter: number;
+    endedAt?: number;
+    ended?: "done" | "missed" | "stopped";
+    summary?: string;
+    retro?: {
+      summary: string;
+      worked: Array<string>;
+      didNot: Array<string>;
+      playbook?: string;
+    };
+    createdBy: string;
+    createdAt: number;
+    updatedAt: number;
+  };
+  tasks: Array<{
+      taskId: string;
+      key?: string;
+      title: string;
+      state: string;
+      assigned?: {
+        kind: "person" | "agent" | "group" | "role";
+        id: string;
+      };
+      blocked: boolean;
+    }>;
+  waiting: Array<{
+      taskId: string;
+      kind: string;
+      title: string;
+      assigned?: {
+        kind: "person" | "agent" | "group" | "role";
+        id: string;
+      };
+      since: number;
+    }>;
+  activity: Array<{
+      at: number;
+      kind: string;
+      text: string;
+      by?: string;
+      ref?: string;
+    }>;
+  readings: Array<{
+      at: number;
+      value?: number;
+      ok: boolean;
+      error?: string;
+    }>;
+};
+export type GoalsGoIn = {
+  goalId: string;
+};
+export type GoalsGoOut = {
+  go: boolean;
+  status?: "draft" | "planning" | "active" | "waiting" | "stuck" | "paused" | "done" | "missed" | "stopped";
+};
+export type GoalsListIn = {
+  scope: "mine" | "helping" | "project" | "record" | "task" | "all";
+  projectId?: string;
+  recordId?: string;
+  taskId?: string;
+  open?: boolean;
+};
+export type GoalsListOut = {
+  goals: Array<{
+      id: string;
+      title: string;
+      status: "draft" | "planning" | "active" | "waiting" | "stuck" | "paused" | "done" | "missed" | "stopped";
+      statusReason?: string;
+      owner: string;
+      leadAgentId: string;
+      threadId?: string;
+      deadline: number;
+      nextCheckinAt?: number;
+      progress: {
+        value?: number;
+        target?: number;
+        start?: number;
+        percent?: number;
+        readAt?: number;
+        error?: string;
+        itemsDone?: number;
+        items?: number;
+        tasksDone: number;
+        tasks: number;
+      };
+      projectId?: string;
+      updatedAt: number;
+    }>;
+};
+export type GoalsMarkStuckIn = {
+  goalId: string;
+  reason: string;
+  options: Array<string>;
+};
+export type GoalsMarkStuckOut = {
+  goal: {
+    id: string;
+    title: string;
+    outcome?: string;
+    finish: {
+      kind: "number" | "checklist" | "owner";
+      line: string;
+      target?: number;
+      direction?: "up" | "down";
+      unit?: string;
+      source?: {
+        kind: "records" | "connection" | "mcp" | "automation" | "manual";
+        label?: string;
+        type?: string;
+        filter?: unknown;
+        connector?: string;
+        connectionId?: string;
+        action?: string;
+        input?: unknown;
+        server?: string;
+        tool?: string;
+        automationId?: string;
+        path?: string;
+      };
+      items?: Array<{
+          id: string;
+          text: string;
+          taskId?: string;
+          done?: boolean;
+        }>;
+    };
+    deadline: number;
+    owner: string;
+    leadAgentId: string;
+    helpers: Array<{
+        kind: "person" | "agent" | "group" | "role";
+        id: string;
+      }>;
+    projectId?: string;
+    recordIds: Array<string>;
+    budget: {
+      spendMicros?: number;
+      turns?: number;
+    };
+    rhythm: {
+      every: "day" | "hours" | "week";
+      at?: string;
+      hours?: number;
+      day?: number;
+    };
+    zone: string;
+    quiet: {
+      from: string;
+      to: string;
+    } | null;
+    permissions: Array<{
+        act: "send" | "post" | "push_protected" | "site_promote" | "signature_send";
+        target: string;
+        label: string;
+        granted?: boolean;
+      }>;
+    status: "draft" | "planning" | "active" | "waiting" | "stuck" | "paused" | "done" | "missed" | "stopped";
+    statusReason?: string;
+    threadId?: string;
+    rootTaskId?: string;
+    folderId?: string;
+    progress: {
+      value?: number;
+      target?: number;
+      start?: number;
+      percent?: number;
+      readAt?: number;
+      error?: string;
+      itemsDone?: number;
+      items?: number;
+      tasksDone: number;
+      tasks: number;
+    };
+    nextCheckinAt?: number;
+    lastCheckinAt?: number;
+    checkins: number;
+    spentMicros: number;
+    turns: number;
+    stuckAfter: number;
+    endedAt?: number;
+    ended?: "done" | "missed" | "stopped";
+    summary?: string;
+    retro?: {
+      summary: string;
+      worked: Array<string>;
+      didNot: Array<string>;
+      playbook?: string;
+    };
+    createdBy: string;
+    createdAt: number;
+    updatedAt: number;
+  };
+};
+export type GoalsNumberSetIn = {
+  goalId: string;
+  value: number;
+};
+export type GoalsNumberSetOut = {
+  goal: {
+    id: string;
+    title: string;
+    outcome?: string;
+    finish: {
+      kind: "number" | "checklist" | "owner";
+      line: string;
+      target?: number;
+      direction?: "up" | "down";
+      unit?: string;
+      source?: {
+        kind: "records" | "connection" | "mcp" | "automation" | "manual";
+        label?: string;
+        type?: string;
+        filter?: unknown;
+        connector?: string;
+        connectionId?: string;
+        action?: string;
+        input?: unknown;
+        server?: string;
+        tool?: string;
+        automationId?: string;
+        path?: string;
+      };
+      items?: Array<{
+          id: string;
+          text: string;
+          taskId?: string;
+          done?: boolean;
+        }>;
+    };
+    deadline: number;
+    owner: string;
+    leadAgentId: string;
+    helpers: Array<{
+        kind: "person" | "agent" | "group" | "role";
+        id: string;
+      }>;
+    projectId?: string;
+    recordIds: Array<string>;
+    budget: {
+      spendMicros?: number;
+      turns?: number;
+    };
+    rhythm: {
+      every: "day" | "hours" | "week";
+      at?: string;
+      hours?: number;
+      day?: number;
+    };
+    zone: string;
+    quiet: {
+      from: string;
+      to: string;
+    } | null;
+    permissions: Array<{
+        act: "send" | "post" | "push_protected" | "site_promote" | "signature_send";
+        target: string;
+        label: string;
+        granted?: boolean;
+      }>;
+    status: "draft" | "planning" | "active" | "waiting" | "stuck" | "paused" | "done" | "missed" | "stopped";
+    statusReason?: string;
+    threadId?: string;
+    rootTaskId?: string;
+    folderId?: string;
+    progress: {
+      value?: number;
+      target?: number;
+      start?: number;
+      percent?: number;
+      readAt?: number;
+      error?: string;
+      itemsDone?: number;
+      items?: number;
+      tasksDone: number;
+      tasks: number;
+    };
+    nextCheckinAt?: number;
+    lastCheckinAt?: number;
+    checkins: number;
+    spentMicros: number;
+    turns: number;
+    stuckAfter: number;
+    endedAt?: number;
+    ended?: "done" | "missed" | "stopped";
+    summary?: string;
+    retro?: {
+      summary: string;
+      worked: Array<string>;
+      didNot: Array<string>;
+      playbook?: string;
+    };
+    createdBy: string;
+    createdAt: number;
+    updatedAt: number;
+  };
+};
+export type GoalsPauseIn = {
+  goalId: string;
+  reason?: string;
+};
+export type GoalsPauseOut = {
+  goal: {
+    id: string;
+    title: string;
+    outcome?: string;
+    finish: {
+      kind: "number" | "checklist" | "owner";
+      line: string;
+      target?: number;
+      direction?: "up" | "down";
+      unit?: string;
+      source?: {
+        kind: "records" | "connection" | "mcp" | "automation" | "manual";
+        label?: string;
+        type?: string;
+        filter?: unknown;
+        connector?: string;
+        connectionId?: string;
+        action?: string;
+        input?: unknown;
+        server?: string;
+        tool?: string;
+        automationId?: string;
+        path?: string;
+      };
+      items?: Array<{
+          id: string;
+          text: string;
+          taskId?: string;
+          done?: boolean;
+        }>;
+    };
+    deadline: number;
+    owner: string;
+    leadAgentId: string;
+    helpers: Array<{
+        kind: "person" | "agent" | "group" | "role";
+        id: string;
+      }>;
+    projectId?: string;
+    recordIds: Array<string>;
+    budget: {
+      spendMicros?: number;
+      turns?: number;
+    };
+    rhythm: {
+      every: "day" | "hours" | "week";
+      at?: string;
+      hours?: number;
+      day?: number;
+    };
+    zone: string;
+    quiet: {
+      from: string;
+      to: string;
+    } | null;
+    permissions: Array<{
+        act: "send" | "post" | "push_protected" | "site_promote" | "signature_send";
+        target: string;
+        label: string;
+        granted?: boolean;
+      }>;
+    status: "draft" | "planning" | "active" | "waiting" | "stuck" | "paused" | "done" | "missed" | "stopped";
+    statusReason?: string;
+    threadId?: string;
+    rootTaskId?: string;
+    folderId?: string;
+    progress: {
+      value?: number;
+      target?: number;
+      start?: number;
+      percent?: number;
+      readAt?: number;
+      error?: string;
+      itemsDone?: number;
+      items?: number;
+      tasksDone: number;
+      tasks: number;
+    };
+    nextCheckinAt?: number;
+    lastCheckinAt?: number;
+    checkins: number;
+    spentMicros: number;
+    turns: number;
+    stuckAfter: number;
+    endedAt?: number;
+    ended?: "done" | "missed" | "stopped";
+    summary?: string;
+    retro?: {
+      summary: string;
+      worked: Array<string>;
+      didNot: Array<string>;
+      playbook?: string;
+    };
+    createdBy: string;
+    createdAt: number;
+    updatedAt: number;
+  };
+};
+export type GoalsPlanIn = {
+  goalId: string;
+  children: Array<{
+      key: string;
+      title: string;
+      why: string;
+      impact?: string;
+      brief?: string;
+      doneMeans?: Array<string>;
+      assigned: {
+        kind: "person" | "agent" | "group" | "role";
+        id: string;
+      };
+      reviewer?: {
+        kind: "person" | "agent" | "group" | "role";
+        id: string;
+      };
+      approver?: {
+        kind: "person" | "agent" | "group" | "role";
+        id: string;
+      };
+      dependsOn?: Array<string>;
+      due?: number;
+    }>;
+};
+export type GoalsPlanOut = {
+  tasks: Array<{
+      key: string;
+      taskId: string;
+      created: boolean;
+    }>;
+};
+export type GoalsProgressIn = {
+  goalId: string;
+  refresh?: boolean;
+};
+export type GoalsProgressOut = {
+  progress: {
+    value?: number;
+    target?: number;
+    start?: number;
+    percent?: number;
+    readAt?: number;
+    error?: string;
+    itemsDone?: number;
+    items?: number;
+    tasksDone: number;
+    tasks: number;
+  };
+  readings: Array<{
+      at: number;
+      value?: number;
+      ok: boolean;
+      error?: string;
+    }>;
+};
+export type GoalsReportIn = {
+  goalId: string;
+  wakeId?: string;
+  summary: string;
+  done?: Array<string>;
+  next?: Array<string>;
+};
+export type GoalsReportOut = {
+  posted: boolean;
+  messageId?: string;
+  value?: number;
+};
+export type GoalsResumeIn = {
+  goalId: string;
+};
+export type GoalsResumeOut = {
+  goal: {
+    id: string;
+    title: string;
+    outcome?: string;
+    finish: {
+      kind: "number" | "checklist" | "owner";
+      line: string;
+      target?: number;
+      direction?: "up" | "down";
+      unit?: string;
+      source?: {
+        kind: "records" | "connection" | "mcp" | "automation" | "manual";
+        label?: string;
+        type?: string;
+        filter?: unknown;
+        connector?: string;
+        connectionId?: string;
+        action?: string;
+        input?: unknown;
+        server?: string;
+        tool?: string;
+        automationId?: string;
+        path?: string;
+      };
+      items?: Array<{
+          id: string;
+          text: string;
+          taskId?: string;
+          done?: boolean;
+        }>;
+    };
+    deadline: number;
+    owner: string;
+    leadAgentId: string;
+    helpers: Array<{
+        kind: "person" | "agent" | "group" | "role";
+        id: string;
+      }>;
+    projectId?: string;
+    recordIds: Array<string>;
+    budget: {
+      spendMicros?: number;
+      turns?: number;
+    };
+    rhythm: {
+      every: "day" | "hours" | "week";
+      at?: string;
+      hours?: number;
+      day?: number;
+    };
+    zone: string;
+    quiet: {
+      from: string;
+      to: string;
+    } | null;
+    permissions: Array<{
+        act: "send" | "post" | "push_protected" | "site_promote" | "signature_send";
+        target: string;
+        label: string;
+        granted?: boolean;
+      }>;
+    status: "draft" | "planning" | "active" | "waiting" | "stuck" | "paused" | "done" | "missed" | "stopped";
+    statusReason?: string;
+    threadId?: string;
+    rootTaskId?: string;
+    folderId?: string;
+    progress: {
+      value?: number;
+      target?: number;
+      start?: number;
+      percent?: number;
+      readAt?: number;
+      error?: string;
+      itemsDone?: number;
+      items?: number;
+      tasksDone: number;
+      tasks: number;
+    };
+    nextCheckinAt?: number;
+    lastCheckinAt?: number;
+    checkins: number;
+    spentMicros: number;
+    turns: number;
+    stuckAfter: number;
+    endedAt?: number;
+    ended?: "done" | "missed" | "stopped";
+    summary?: string;
+    retro?: {
+      summary: string;
+      worked: Array<string>;
+      didNot: Array<string>;
+      playbook?: string;
+    };
+    createdBy: string;
+    createdAt: number;
+    updatedAt: number;
+  };
+};
+export type GoalsSearchPastIn = {
+  query?: string;
+  limit?: number;
+};
+export type GoalsSearchPastOut = {
+  goals: Array<{
+      goalId: string;
+      title: string;
+      line: string;
+      ended?: "done" | "missed" | "stopped";
+      value?: number;
+      target?: number;
+      endedAt?: number;
+      retro?: {
+        summary: string;
+        worked: Array<string>;
+        didNot: Array<string>;
+        playbook?: string;
+      };
+    }>;
+};
+export type GoalsSourcesIn = {
+  leadAgentId?: string;
+};
+export type GoalsSourcesOut = {
+  records: Array<{
+      type: string;
+      title: string;
+      count?: number;
+    }>;
+  connections: Array<{
+      connectionId: string;
+      connector: string;
+      name: string;
+    }>;
+  mcp: Array<{
+      server: string;
+      tools: Array<string>;
+    }>;
+};
+export type GoalsStepIn = {
+  goalId: string;
+  stepId: string;
+  title?: string;
+  finish?: boolean;
+  result?: string;
+};
+export type GoalsStepOut = {
+  state: "started" | "already_done" | "done";
+  result?: string;
+  idempotencyKey: string;
+};
+export type GoalsStopIn = {
+  goalId: string;
+  reason?: string;
+};
+export type GoalsStopOut = {
+  goal: {
+    id: string;
+    title: string;
+    outcome?: string;
+    finish: {
+      kind: "number" | "checklist" | "owner";
+      line: string;
+      target?: number;
+      direction?: "up" | "down";
+      unit?: string;
+      source?: {
+        kind: "records" | "connection" | "mcp" | "automation" | "manual";
+        label?: string;
+        type?: string;
+        filter?: unknown;
+        connector?: string;
+        connectionId?: string;
+        action?: string;
+        input?: unknown;
+        server?: string;
+        tool?: string;
+        automationId?: string;
+        path?: string;
+      };
+      items?: Array<{
+          id: string;
+          text: string;
+          taskId?: string;
+          done?: boolean;
+        }>;
+    };
+    deadline: number;
+    owner: string;
+    leadAgentId: string;
+    helpers: Array<{
+        kind: "person" | "agent" | "group" | "role";
+        id: string;
+      }>;
+    projectId?: string;
+    recordIds: Array<string>;
+    budget: {
+      spendMicros?: number;
+      turns?: number;
+    };
+    rhythm: {
+      every: "day" | "hours" | "week";
+      at?: string;
+      hours?: number;
+      day?: number;
+    };
+    zone: string;
+    quiet: {
+      from: string;
+      to: string;
+    } | null;
+    permissions: Array<{
+        act: "send" | "post" | "push_protected" | "site_promote" | "signature_send";
+        target: string;
+        label: string;
+        granted?: boolean;
+      }>;
+    status: "draft" | "planning" | "active" | "waiting" | "stuck" | "paused" | "done" | "missed" | "stopped";
+    statusReason?: string;
+    threadId?: string;
+    rootTaskId?: string;
+    folderId?: string;
+    progress: {
+      value?: number;
+      target?: number;
+      start?: number;
+      percent?: number;
+      readAt?: number;
+      error?: string;
+      itemsDone?: number;
+      items?: number;
+      tasksDone: number;
+      tasks: number;
+    };
+    nextCheckinAt?: number;
+    lastCheckinAt?: number;
+    checkins: number;
+    spentMicros: number;
+    turns: number;
+    stuckAfter: number;
+    endedAt?: number;
+    ended?: "done" | "missed" | "stopped";
+    summary?: string;
+    retro?: {
+      summary: string;
+      worked: Array<string>;
+      didNot: Array<string>;
+      playbook?: string;
+    };
+    createdBy: string;
+    createdAt: number;
+    updatedAt: number;
+  };
+};
+export type GoalsUpdateIn = {
+  goalId: string;
+  title?: string;
+  outcome?: string;
+  finish?: {
+    kind: "number" | "checklist" | "owner";
+    line: string;
+    target?: number;
+    direction?: "up" | "down";
+    unit?: string;
+    source?: {
+      kind: "records" | "connection" | "mcp" | "automation" | "manual";
+      label?: string;
+      type?: string;
+      filter?: unknown;
+      connector?: string;
+      connectionId?: string;
+      action?: string;
+      input?: unknown;
+      server?: string;
+      tool?: string;
+      automationId?: string;
+      path?: string;
+    };
+    items?: Array<{
+        id: string;
+        text: string;
+        taskId?: string;
+        done?: boolean;
+      }>;
+  };
+  deadline?: number;
+  budget?: {
+    spendMicros?: number;
+    turns?: number;
+  };
+  rhythm?: {
+    every: "day" | "hours" | "week";
+    at?: string;
+    hours?: number;
+    day?: number;
+  };
+  quiet?: {
+    from: string;
+    to: string;
+  } | null;
+  zone?: string;
+  helpers?: Array<{
+      kind: "person" | "agent" | "group" | "role";
+      id: string;
+    }>;
+  projectId?: string | null;
+  recordIds?: Array<string>;
+  permissions?: Array<{
+      act: "send" | "post" | "push_protected" | "site_promote" | "signature_send";
+      target: string;
+      label: string;
+      granted?: boolean;
+    }>;
+  stuckAfter?: number;
+};
+export type GoalsUpdateOut = {
+  goal: {
+    id: string;
+    title: string;
+    outcome?: string;
+    finish: {
+      kind: "number" | "checklist" | "owner";
+      line: string;
+      target?: number;
+      direction?: "up" | "down";
+      unit?: string;
+      source?: {
+        kind: "records" | "connection" | "mcp" | "automation" | "manual";
+        label?: string;
+        type?: string;
+        filter?: unknown;
+        connector?: string;
+        connectionId?: string;
+        action?: string;
+        input?: unknown;
+        server?: string;
+        tool?: string;
+        automationId?: string;
+        path?: string;
+      };
+      items?: Array<{
+          id: string;
+          text: string;
+          taskId?: string;
+          done?: boolean;
+        }>;
+    };
+    deadline: number;
+    owner: string;
+    leadAgentId: string;
+    helpers: Array<{
+        kind: "person" | "agent" | "group" | "role";
+        id: string;
+      }>;
+    projectId?: string;
+    recordIds: Array<string>;
+    budget: {
+      spendMicros?: number;
+      turns?: number;
+    };
+    rhythm: {
+      every: "day" | "hours" | "week";
+      at?: string;
+      hours?: number;
+      day?: number;
+    };
+    zone: string;
+    quiet: {
+      from: string;
+      to: string;
+    } | null;
+    permissions: Array<{
+        act: "send" | "post" | "push_protected" | "site_promote" | "signature_send";
+        target: string;
+        label: string;
+        granted?: boolean;
+      }>;
+    status: "draft" | "planning" | "active" | "waiting" | "stuck" | "paused" | "done" | "missed" | "stopped";
+    statusReason?: string;
+    threadId?: string;
+    rootTaskId?: string;
+    folderId?: string;
+    progress: {
+      value?: number;
+      target?: number;
+      start?: number;
+      percent?: number;
+      readAt?: number;
+      error?: string;
+      itemsDone?: number;
+      items?: number;
+      tasksDone: number;
+      tasks: number;
+    };
+    nextCheckinAt?: number;
+    lastCheckinAt?: number;
+    checkins: number;
+    spentMicros: number;
+    turns: number;
+    stuckAfter: number;
+    endedAt?: number;
+    ended?: "done" | "missed" | "stopped";
+    summary?: string;
+    retro?: {
+      summary: string;
+      worked: Array<string>;
+      didNot: Array<string>;
+      playbook?: string;
+    };
+    createdBy: string;
+    createdAt: number;
+    updatedAt: number;
+  };
+};
+export type GoalsWakeClaimIn = {
+  goalId: string;
+  wakeId: string;
+  attempt: number;
+};
+export type GoalsWakeClaimOut = {
+  claimed: boolean;
+  threadId?: string;
+  leadAgentId?: string;
+  owner?: string;
 };
 export type GoogleAccessLogIn = {
   cursor?: string;
@@ -29960,6 +31618,7 @@ export type TasksPlanIn = {
       priority?: "urgent" | "high" | "normal" | "low";
       worker?: "thread" | "crew";
       projectId?: string;
+      notes?: Record<string, string>;
     }>;
   idempotencyKey: string;
 };
@@ -34677,6 +36336,7 @@ export interface CapMap {
   "gate.expire": { in: GateExpireIn; out: GateExpireOut };
   "gate.grants.ask": { in: GateGrantsAskIn; out: GateGrantsAskOut };
   "gate.grants.give_back": { in: GateGrantsGiveBackIn; out: GateGrantsGiveBackOut };
+  "gate.grants.goal": { in: GateGrantsGoalIn; out: GateGrantsGoalOut };
   "gate.grants.set": { in: GateGrantsSetIn; out: GateGrantsSetOut };
   "gate.grants.take": { in: GateGrantsTakeIn; out: GateGrantsTakeOut };
   "gate.holds.get": { in: GateHoldsGetIn; out: GateHoldsGetOut };
@@ -34731,6 +36391,32 @@ export interface CapMap {
   "github.receive_webhook": { in: GithubReceiveWebhookIn; out: GithubReceiveWebhookOut };
   "github.repo.get": { in: GithubRepoGetIn; out: GithubRepoGetOut };
   "github.repos.list": { in: GithubReposListIn; out: GithubReposListOut };
+  "goals.activity": { in: GoalsActivityIn; out: GoalsActivityOut };
+  "goals.ask": { in: GoalsAskIn; out: GoalsAskOut };
+  "goals.brief": { in: GoalsBriefIn; out: GoalsBriefOut };
+  "goals.checklist.tick": { in: GoalsChecklistTickIn; out: GoalsChecklistTickOut };
+  "goals.complete": { in: GoalsCompleteIn; out: GoalsCompleteOut };
+  "goals.confirm": { in: GoalsConfirmIn; out: GoalsConfirmOut };
+  "goals.create": { in: GoalsCreateIn; out: GoalsCreateOut };
+  "goals.extend": { in: GoalsExtendIn; out: GoalsExtendOut };
+  "goals.finish": { in: GoalsFinishIn; out: GoalsFinishOut };
+  "goals.folder": { in: GoalsFolderIn; out: GoalsFolderOut };
+  "goals.get": { in: GoalsGetIn; out: GoalsGetOut };
+  "goals.go": { in: GoalsGoIn; out: GoalsGoOut };
+  "goals.list": { in: GoalsListIn; out: GoalsListOut };
+  "goals.mark_stuck": { in: GoalsMarkStuckIn; out: GoalsMarkStuckOut };
+  "goals.number.set": { in: GoalsNumberSetIn; out: GoalsNumberSetOut };
+  "goals.pause": { in: GoalsPauseIn; out: GoalsPauseOut };
+  "goals.plan": { in: GoalsPlanIn; out: GoalsPlanOut };
+  "goals.progress": { in: GoalsProgressIn; out: GoalsProgressOut };
+  "goals.report": { in: GoalsReportIn; out: GoalsReportOut };
+  "goals.resume": { in: GoalsResumeIn; out: GoalsResumeOut };
+  "goals.search_past": { in: GoalsSearchPastIn; out: GoalsSearchPastOut };
+  "goals.sources": { in: GoalsSourcesIn; out: GoalsSourcesOut };
+  "goals.step": { in: GoalsStepIn; out: GoalsStepOut };
+  "goals.stop": { in: GoalsStopIn; out: GoalsStopOut };
+  "goals.update": { in: GoalsUpdateIn; out: GoalsUpdateOut };
+  "goals.wake_claim": { in: GoalsWakeClaimIn; out: GoalsWakeClaimOut };
   "google.access_log": { in: GoogleAccessLogIn; out: GoogleAccessLogOut };
   "google.calendar.create_event": { in: GoogleCalendarCreateEventIn; out: GoogleCalendarCreateEventOut };
   "google.calendar.delete_event": { in: GoogleCalendarDeleteEventIn; out: GoogleCalendarDeleteEventOut };
@@ -37058,6 +38744,90 @@ export type GithubLinkedPayload = {
 };
 export type GithubUnlinkedPayload = {
   personId: string;
+};
+export type GoalBudgetWarnedPayload = {
+  goalId: string;
+  threadId: string;
+  spentMicros: number;
+  turns: number;
+  budget: {
+    spendMicros?: number;
+    turns?: number;
+  };
+};
+export type GoalCreatedPayload = {
+  goalId: string;
+  threadId: string;
+  title: string;
+  owner: string;
+  leadAgentId: string;
+  status: "draft" | "planning" | "active" | "waiting" | "stuck" | "paused" | "done" | "missed" | "stopped";
+};
+export type GoalEndedPayload = {
+  goalId: string;
+  threadId: string;
+  outcome: "done" | "missed" | "stopped";
+  summary: string;
+};
+export type GoalExtendedPayload = {
+  goalId: string;
+  threadId: string;
+  deadline: number;
+  by: string;
+};
+export type GoalProgressPayload = {
+  goalId: string;
+  threadId: string;
+  ok: boolean;
+  value?: number;
+  prev?: number;
+  target?: number;
+  error?: string;
+};
+export type GoalReportedPayload = {
+  goalId: string;
+  threadId: string;
+  wakeId?: string;
+  by: string;
+};
+export type GoalResumedPayload = {
+  goalId: string;
+  threadId: string;
+  taskIds: Array<string>;
+  by: string;
+};
+export type GoalStartedPayload = {
+  goalId: string;
+  threadId: string;
+  by: string;
+};
+export type GoalStatusChangedPayload = {
+  goalId: string;
+  threadId: string;
+  from: "draft" | "planning" | "active" | "waiting" | "stuck" | "paused" | "done" | "missed" | "stopped";
+  to: "draft" | "planning" | "active" | "waiting" | "stuck" | "paused" | "done" | "missed" | "stopped";
+  reason?: string;
+};
+export type GoalStepDonePayload = {
+  goalId: string;
+  threadId: string;
+  stepId: string;
+  by: string;
+};
+export type GoalUpdatedPayload = {
+  goalId: string;
+  threadId: string;
+  fields: Array<string>;
+  by: string;
+};
+export type GoalWokenPayload = {
+  goalId: string;
+  threadId: string;
+  wakeId: string;
+  attempt: number;
+  reason: string;
+  leadAgentId: string;
+  owner: string;
 };
 export type GoogleDwdConfiguredPayload = {
   connector: "google";
@@ -39715,6 +41485,18 @@ export interface EventMap {
   "github.issue_assigned": GithubIssueAssignedPayload;
   "github.linked": GithubLinkedPayload;
   "github.unlinked": GithubUnlinkedPayload;
+  "goal.budget_warned": GoalBudgetWarnedPayload;
+  "goal.created": GoalCreatedPayload;
+  "goal.ended": GoalEndedPayload;
+  "goal.extended": GoalExtendedPayload;
+  "goal.progress": GoalProgressPayload;
+  "goal.reported": GoalReportedPayload;
+  "goal.resumed": GoalResumedPayload;
+  "goal.started": GoalStartedPayload;
+  "goal.status_changed": GoalStatusChangedPayload;
+  "goal.step_done": GoalStepDonePayload;
+  "goal.updated": GoalUpdatedPayload;
+  "goal.woken": GoalWokenPayload;
   "google.dwd_configured": GoogleDwdConfiguredPayload;
   "google.dwd_probed": GoogleDwdProbedPayload;
   "google.dwd_revoked": GoogleDwdRevokedPayload;
