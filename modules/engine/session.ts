@@ -229,6 +229,7 @@ export function buildNodeOpener(h: OpenerHost, launcher: Launcher): SessionOpene
     source: h.session.source, reportMiss: h.session.reportMiss, mcp: h.session.mcp, ...(h.own ? { own: h.own } : {}),
     launcher, where: "device", placement: "device",
     apiContext: async (spec, input) => {
+      if (spec.lean === true) return { system: [{ text: spec.agent.role ?? "", stable: true }], tools: [] };   // a one-shot (memory learning): its own system prompt and nothing else
       if (spec.tools === "none") return { system: [{ text: "You are completing one step of an automation. Answer with the result only.", stable: true }], tools: [] };
       return h.apiTools ? h.apiTools.context(spec, input) : { system: await system(spec, input), tools: [] };
     },
@@ -282,6 +283,7 @@ export function buildOpener(h: OpenerHost): SessionOpener {
     ...(dataDir ? { prepare: (spec: { agent: { id: string }; asker: string; threadId: string }) => prepareWorkFolder(h.call, dataDir, spec, h.sessions?.keep(spec.threadId) ?? "") } : {}),
     // A session with tools "none" (an automation's AI step) gets no tools and no agent role: its prompt carries everything it needs.
     apiContext: async (spec, input) => {
+      if (spec.lean === true) return { system: [{ text: spec.agent.role ?? "", stable: true }], tools: [] };   // a one-shot (memory learning): its own system prompt and nothing else
       if (spec.tools === "none") return { system: [{ text: "You are completing one step of an automation. Answer with the result only.", stable: true }], tools: [] };
       return h.apiTools ? h.apiTools.context(spec, input) : { system: await system(spec, input), tools: [] };
     },

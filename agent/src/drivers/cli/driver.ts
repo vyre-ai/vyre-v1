@@ -79,16 +79,19 @@ export function createCliDriver(adapter: CliAdapter, deps: CliDriverDeps): CliDr
     },
     async open(spec) {
       // a session without tools reaches nothing of Vyre: no MCP session is minted for it
-      const noTools = spec.tools === "none";
+      const lean = spec.lean === true;
+      const noTools = spec.tools === "none" || lean;
       const endpoint = noTools ? { url: "", token: "" } : await deps.mcp(spec);
       const session = createCliSession({
         adapter, launcher: deps.launcher, endpoint,
         model: spec.agent.model ? spec.agent.model.replace(PREFIX, "") : null,
-        resume: deps.resume?.(spec) ?? null,
-        system: deps.system?.(spec) ?? null,
+        // a lean call starts fresh, says only its own system prompt and saves nothing to resume
+        resume: lean ? null : deps.resume?.(spec) ?? null,
+        system: lean ? spec.agent.role ?? null : deps.system?.(spec) ?? null,
+        ...(lean ? { lean: true } : {}),
         workFolder: deps.workFolder?.(spec) ?? null,
         env: deps.env?.(spec) ?? {},
-        ...(deps.plugins?.(spec) ? { plugins: deps.plugins(spec)! } : {}),
+        ...(!lean && deps.plugins?.(spec) ? { plugins: deps.plugins(spec)! } : {}),
         ...(noTools ? { noTools: true } : {}),
         ...(spec.mode !== undefined ? { mode: spec.mode } : {}),
         ...(spec.agent.effort !== undefined ? { effort: spec.agent.effort } : {}),
@@ -97,7 +100,7 @@ export function createCliDriver(adapter: CliAdapter, deps: CliDriverDeps): CliDr
         ...(deps.idleMs !== undefined ? { idleMs: deps.idleMs } : {}),
         ...(deps.graceMs !== undefined ? { graceMs: deps.graceMs } : {}),
         onClose: async () => { if (!noTools) await deps.mcpClose?.(spec, endpoint); },
-        ...(deps.checkpoint ? { checkpoint: (id: string | null) => deps.checkpoint?.(spec, id) } : {}),
+        ...(deps.checkpoint && !lean ? { checkpoint: (id: string | null) => deps.checkpoint?.(spec, id) } : {}),
       }, spec);
       if (deps.prewarm !== false) {
         try { await session.prewarm(); }

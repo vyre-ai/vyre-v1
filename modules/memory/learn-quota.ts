@@ -10,8 +10,11 @@ import type { MemCtx } from "./projections.ts";
 
 export const LEARN_PASSES_DEFAULT = 150;
 export const LEARN_TOKENS_DEFAULT = 400_000;
-/** What a CLI engine adds to every request of its own (its system prompt and tools), before we have seen one of its passes. An API call adds next to nothing. */
-export const CLI_OVERHEAD_GUESS = 12_000;
+/**
+ * What a CLI engine adds to a learning pass of its own, before we have seen one of its passes. The pass runs the engine's leanest command (claudeLean, codexLean): measured against Claude Code
+ * 2.1.316 and codex-cli 0.166 with a recording endpoint, about 400 and 480 tokens besides our prompt (it was 12,000 and more with the engines' own prompts and tools). An API call adds next to nothing.
+ */
+export const CLI_OVERHEAD_GUESS = 600;
 export const API_OVERHEAD_GUESS = 300;
 const CLI_DRIVERS: ReadonlySet<string> = new Set(["claude_code", "codex", "grok"]);
 /** A pass's prompt is about one token for every 3.5 characters; we guess low characters per token so the estimate errs high. */

@@ -228,7 +228,8 @@ async function oneShot(openSession: OpenSession, i: CompleteIn, now: () => numbe
   const n = now();
   const threadId = `oneshot_${n.toString(36)}`;
   const agent = { id: "memory-upkeep", name: "Memory upkeep", mode: "lead" as const, ...(i.system ? { role: i.system } : {}), ...(i.model ? { model: i.model } : {}), accountRef: i.account.ref };
-  const session = await openSession({ threadId, agent, asker: i.account.payer, turnId: `trn_${n.toString(36)}`, traceId: "0".repeat(32), account: i.account });
+  // lean: the system prompt is the job's own, with no tools, MCP, settings, memory files or skills, so a learning pass on a CLI costs a few hundred tokens more than its prompt, not thousands
+  const session = await openSession({ threadId, agent, asker: i.account.payer, turnId: `trn_${n.toString(36)}`, traceId: "0".repeat(32), account: i.account, tools: "none", lean: true });
   let text = "";
   let tokensIn = 0;
   let tokensOut = 0;
