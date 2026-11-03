@@ -4,7 +4,7 @@ Lane L2. Kind module. Version 0.1.0.
 
 Requires: engine, mcp.
 
-## Capabilities (86)
+## Capabilities (88)
 
 - [channels.agent_watch.set](../capabilities/channels.agent_watch.set.md): Let an agent act unmentioned in a channel ("watches this channel"); every such act is logged like a routine
 - [channels.agents.add](../capabilities/channels.agents.add.md): Invite an agent into a channel; agents listen by default
@@ -13,6 +13,8 @@ Requires: engine, mcp.
 - [channels.create](../capabilities/channels.create.md): Create a channel: public to the Team Space or invite-only, with any mix of people and agents
 - [channels.erase](../capabilities/channels.erase.md): Erase one channel for good with all its messages (governance erase)
 - [channels.get](../capabilities/channels.get.md): Read one channel with members, agents and unread count
+- [channels.home](../capabilities/channels.home.md): The Space's first channel: #vyre, or an older Space's #general (legacy: Console offers to rename it). Null in a Personal Space
+- [channels.home_join](../capabilities/channels.home_join.md): System: the join step that puts a new member in the Space's first channel, making #vyre when the Space has none
 - [channels.join](../capabilities/channels.join.md): Join a public channel
 - [channels.leave](../capabilities/channels.leave.md): Leave a channel
 - [channels.list](../capabilities/channels.list.md): List channels by section and folder (the items capability of the Channels list)
