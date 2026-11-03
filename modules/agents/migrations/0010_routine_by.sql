@@ -5,3 +5,11 @@ CREATE TABLE IF NOT EXISTS "agents_routine_by" (
   "byKind" TEXT NOT NULL,
   "byId" TEXT NOT NULL
 );
+-- The last run each routine started and how it went (the runs module says when it ends), for the routine's Last run line.
+CREATE TABLE IF NOT EXISTS "agents_routine_last" (
+  "routineId" TEXT PRIMARY KEY,
+  "runId" TEXT NOT NULL,
+  "status" TEXT NOT NULL,
+  "at" INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS "agents_routine_last__run" ON "agents_routine_last" ("runId");

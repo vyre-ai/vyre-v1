@@ -59,6 +59,10 @@ type Out = {
       kind: "person" | "agent" | "actor" | "service";
       id: string;
     };
+    lastRun?: {
+      runId: string;
+      status: "running" | "succeeded" | "failed" | "stopped";
+    };
   };
   previousOwnerId: string;
 };
@@ -96,6 +100,10 @@ type Out = {
       "cron": "0 9 * * 1-5",
       "enabled": true,
       "kind": "schedule",
+      "lastRun": {
+        "runId": "run_a1b2c3",
+        "status": "running"
+      },
       "lastRunAt": 1760000000000,
       "nextRunAt": 1760000000000,
       "ownerId": "usr_a1b2c3",

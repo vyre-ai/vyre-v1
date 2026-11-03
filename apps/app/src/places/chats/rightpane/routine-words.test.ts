@@ -59,3 +59,15 @@ test("ids in a routine's instructions are names that link", () => {
   assert.equal(idName({ id: "chn_abc123def", kind: "channel" }, "thr_here", { name: "intake" }), "#intake");
   assert.equal(idName({ id: "thr_gone00", kind: "thread" }, "thr_here", null), "a chat", "never the id");
 });
+
+test("Last run says how the last run went once its agent's turn ended", async () => {
+  const { lastRunLine } = await import("./model.ts");
+  const now = Date.UTC(2026, 10, 3, 4, 0);
+  const c = { now, offsetMin: 0 };
+  const r = (status?: string): Routine => ({ routineId: "rtn_1", agentId: "agt_1", title: "Hi", cron: "* * * * *", prompt: "p", enabled: true, ownerId: "usr_me", lastRunAt: now - 2 * 60_000, ...(status ? { lastRun: { runId: "run_1", status } } : {}) } as Routine);
+  assert.equal(lastRunLine(r("succeeded"), c), "Done 2 min ago");
+  assert.equal(lastRunLine(r("failed"), c), "Failed 2 min ago");
+  assert.equal(lastRunLine(r("stopped"), c), "Stopped 2 min ago");
+  assert.equal(lastRunLine(r("running"), c), "Running, started 2 min ago");
+  assert.equal(lastRunLine(r(), c), "2 min ago");
+});

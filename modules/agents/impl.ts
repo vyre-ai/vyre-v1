@@ -6,7 +6,7 @@ import { OWNER_LEFT, announcePrivacy, onFileVersion, onDisplayNameChanged, onPer
 import { ROUTINES_DUE_EVERY_MS, onMessageReceived, runDueRoutines } from "./handlers/routines.ts";
 import { memoryGuideConsumers } from "./memory-guide.ts";
 import type { FileVersionEvent, PersonLeftEvent, PrincipalEvent, SettingChangedEvent, TurnEvent } from "./handlers/crud.ts";
-import { agentOf } from "./projections.ts";
+import { agentOf, noteRoutineOutcome } from "./projections.ts";
 import type { AgentsCtx } from "./projections.ts";
 import { setPluginsHost } from "./handlers/plugins.ts";
 import type { Ctx } from "../../packages/contracts/src/ctx.ts";
@@ -33,6 +33,15 @@ export const hostSeams = { setPluginsHost };
 
 export const consumers = {
   ...memoryGuideConsumers,
+  /** A routine's run ended (the engine finishes it when the agent's turn ends): the routine's Last run says how it went. */
+  "agents.routine_outcome": {
+    on: ["run.succeeded", "run.failed", "run.stopped"],
+    run: (ctx: AgentsCtx, event: { name: string; payload: { runId?: string } }): string[] => {
+      const runId = event.payload.runId;
+      if (!runId) return [];
+      return noteRoutineOutcome(ctx.db, runId, event.name === "run.succeeded" ? "succeeded" : event.name === "run.failed" ? "failed" : "stopped", ctx.now());
+    },
+  },
   /** A person's account exists (claim or join): they get their private assistant, with or without an AI account. */
   "agents.ensure_assistant": {
     on: ["principal.created"],

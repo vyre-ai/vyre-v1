@@ -16,6 +16,7 @@ import { createEngineApiTools } from "./api-tools.ts";
 import { buildNodeOpener, buildOpener, roleBlocks } from "./session.ts";
 import { remoteLauncher, routed, waitsForComputer } from "./node-turns.ts";
 import { bindRelay } from "./relay.ts";
+import { finishRoutineRun } from "./handlers/routine-run.ts";
 import { withHeldNotes } from "./held-notes.ts";
 import { DEVICE_WAIT_LINE, DEVICE_WAIT_STEP, SLEPT_WAIT_LINE } from "./device-turns.ts";
 import type { NodeRelay } from "./node-turns.ts";
@@ -463,6 +464,9 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
       }
       else if (ev.type === "turn.started" || ev.type === "turn.completed" || ev.type === "turn.failed" || ev.type === "turn.cancelled") report(ev.turnId, ev);
       if (ev.type === "turn.completed" || ev.type === "turn.failed" || ev.type === "turn.cancelled") {
+        // a routine's run ends with the turn it woke (handlers/routine-run.ts)
+        void finishRoutineRun(ctx, { call: h.call, ...(h.log ? { log: h.log } : {}) }, ev as Parameters<typeof finishRoutineRun>[2], (id) => engine.turns().find((t) => t.id === id)?.qseq)
+          .catch((err) => h.log?.("a routine run was not finished", { threadId: ev.threadId, error: err instanceof Error ? err.message : String(err) }));
         void onTurnEnded(ctx, { call: h.call, now, ...(h.log ? { log: h.log } : {}) }, engine, ev).catch((err) => h.log?.("a task baton check failed", { threadId: ev.threadId, error: err instanceof Error ? err.message : String(err) }));
       }
       if (ev.type !== "turn.completed") return;

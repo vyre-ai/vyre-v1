@@ -61,7 +61,7 @@ const ready = new WeakSet<object>();
 /** Make sure the agents tables exist. One cheap probe per handle; the IF NOT EXISTS statements run only when it fails. */
 export function ensure(db: Db): void {
   if (ready.has(db)) return;
-  try { db.all("SELECT key FROM agents_meta WHERE key = ?", "probe"); db.all("SELECT routineId FROM agents_routine_watch WHERE routineId = ?", "probe"); db.all("SELECT id FROM agents_skills WHERE id = ?", "probe"); db.all("SELECT id FROM agents_mcp_connections WHERE id = ?", "probe"); db.all("SELECT kind, runtime FROM agents_agent WHERE id = ?", "probe"); db.all("SELECT id FROM agents_outside_jobs WHERE id = ?", "probe"); db.all("SELECT owner, used_by_json FROM agents_mcp_connections WHERE id = ?", "probe"); db.all("SELECT id FROM agents_mcp_catalog WHERE id = ?", "probe"); db.all("SELECT id FROM agents_skill_receipts WHERE id = ?", "probe"); db.all("SELECT routineId FROM agents_routine_by WHERE routineId = ?", "probe"); } catch { for (const stmt of SCHEMA) db.run(stmt); }
+  try { db.all("SELECT key FROM agents_meta WHERE key = ?", "probe"); db.all("SELECT routineId FROM agents_routine_watch WHERE routineId = ?", "probe"); db.all("SELECT id FROM agents_skills WHERE id = ?", "probe"); db.all("SELECT id FROM agents_mcp_connections WHERE id = ?", "probe"); db.all("SELECT kind, runtime FROM agents_agent WHERE id = ?", "probe"); db.all("SELECT id FROM agents_outside_jobs WHERE id = ?", "probe"); db.all("SELECT owner, used_by_json FROM agents_mcp_connections WHERE id = ?", "probe"); db.all("SELECT id FROM agents_mcp_catalog WHERE id = ?", "probe"); db.all("SELECT id FROM agents_skill_receipts WHERE id = ?", "probe"); db.all("SELECT routineId FROM agents_routine_by WHERE routineId = ?", "probe"); db.all("SELECT routineId FROM agents_routine_last WHERE routineId = ?", "probe"); } catch { for (const stmt of SCHEMA) db.run(stmt); }
   ready.add(db);
 }
 
@@ -597,7 +597,7 @@ export function nextRun(expr: string, after: number): number | null {
 
 // ---- routines ------------------------------------------------------------------------------------------------------------------------------------------
 
-export interface RoutineRec { watchChannel?: string; setBy?: { kind: "agent" | "person"; id: string }; id: string; agentId: string; ownerId: string; title: string; cron: string; prompt: string; channelId?: string; enabled: boolean; lastRunAt?: number; nextRunAt?: number; createdAt: number; updatedAt: number }
+export interface RoutineRec { watchChannel?: string; setBy?: { kind: "agent" | "person"; id: string }; lastRun?: { runId: string; status: string }; id: string; agentId: string; ownerId: string; title: string; cron: string; prompt: string; channelId?: string; enabled: boolean; lastRunAt?: number; nextRunAt?: number; createdAt: number; updatedAt: number }
 export function routineOf(r: Row): RoutineRec {
   const o: RoutineRec = { id: str(r["id"]), agentId: str(r["agentId"]), ownerId: str(r["ownerId"]), title: str(r["title"]), cron: str(r["cron"]), prompt: str(r["prompt"]), enabled: flag(r["enabled"]), createdAt: num(r["createdAt"]), updatedAt: num(r["updatedAt"]) };
   const ch = optStr(r["channelId"]); if (ch !== undefined) o.channelId = ch;
@@ -613,13 +613,15 @@ export function routineBy(db: Db, id: string): RoutineRec | null {
   if (w) rec.watchChannel = str(w["channelId"]);
   const b = (db.all("SELECT byKind, byId FROM agents_routine_by WHERE routineId = ?", id) as Row[])[0];
   if (b) rec.setBy = { kind: str(b["byKind"]) === "agent" ? "agent" : "person", id: str(b["byId"]) };
+  const l = (db.all("SELECT runId, status FROM agents_routine_last WHERE routineId = ?", id) as Row[])[0];
+  if (l) rec.lastRun = { runId: str(l["runId"]), status: str(l["status"]) };
   return rec;
 }
 export function routineOut(r: RoutineRec): Record<string, unknown> {
   return {
     routineId: r.id, agentId: r.agentId, title: r.title, ...(r.watchChannel === undefined ? { cron: r.cron } : { kind: "watch", watch: { on: "message", channelId: r.watchChannel } }), prompt: r.prompt, ...(r.channelId !== undefined ? { channelId: r.channelId } : {}), enabled: r.enabled, ownerId: r.ownerId,
     ...(r.lastRunAt !== undefined ? { lastRunAt: r.lastRunAt } : {}), ...(r.nextRunAt !== undefined ? { nextRunAt: r.nextRunAt } : {}),
-    ...(r.setBy !== undefined ? { setBy: r.setBy } : {}),
+    ...(r.setBy !== undefined ? { setBy: r.setBy } : {}), ...(r.lastRun !== undefined ? { lastRun: r.lastRun } : {}),
   };
 }
 /** The line under a message an agent posts because of a routine: "Sent by Intake on a routine Dana set". */
@@ -627,6 +629,19 @@ export const routineLabel = (agentName: string, ownerName: string): string => `S
 /** What the post carries so the label can be drawn: chat.post `via`. Only the routine's owner can open the routine itself. */
 export const routineVia = (r: Pick<RoutineRec, "ownerId">): { routineOwner: string } => ({ routineOwner: r.ownerId });
 /** The scheduler calls this when it starts a routine: the run is recorded and the next one is worked out from now. */
+/** A routine started a run: it is the routine's last run, running until the runs module says how it ended. */
+export function noteRoutineRun(db: Db, routineId: string, runId: string, at: number): void {
+  ensure(db);
+  db.run(`INSERT INTO agents_routine_last (routineId, runId, status, at) VALUES (?, ?, 'running', ?) ON CONFLICT(routineId) DO UPDATE SET runId = excluded.runId, status = 'running', at = excluded.at`, routineId, runId, at);
+}
+/** How a routine's run ended (run.succeeded, run.failed, run.stopped). Only the routine's last run moves its line; an older run ending changes nothing. */
+export function noteRoutineOutcome(db: Db, runId: string, status: "succeeded" | "failed" | "stopped", at: number): string[] {
+  ensure(db);
+  const rows = db.all("SELECT routineId FROM agents_routine_last WHERE runId = ?", runId) as Row[];
+  if (rows.length === 0) return [];
+  db.run("UPDATE agents_routine_last SET status = ?, at = ? WHERE runId = ?", status, at, runId);
+  return rows.map((r) => str(r["routineId"]));
+}
 /** `ran` false: the time passed without a run (the agent was paused), so only the next time moves. */
 export function markRoutineRan(db: Db, id: string, at: number, ran = true): RoutineRec | null {
   ensure(db);

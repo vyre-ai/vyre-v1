@@ -5,7 +5,7 @@
 // @reads /modules/agents/migrations/0002_routine_watch.sql
 import test from "node:test";
 import assert from "node:assert/strict";
-import { handlers, periodic } from "../impl.ts";
+import { consumers, handlers, periodic } from "../impl.ts";
 import { NOW, assertEventsConform, contractErrors, harness, openRaw } from "../fixtures/harness.ts";
 import type { Harness } from "../fixtures/harness.ts";
 
@@ -106,4 +106,25 @@ test("a routine an agent saved for its person says so (setBy): the panel reads i
   assert.deepEqual(contractErrors("agents.routine.save", "out", { routine: set }), []);
   const mine = (await h["agents.routine.save"]!(hn.ctx, { agentId: agent.agentId, routineId: set.routineId, title: "Hi every minute", cron: "* * * * *", prompt: "Post Hi.", idempotencyKey: `r${++n}` })).routine;
   assert.equal(mine.setBy, undefined, "saved again by the person by hand: they set it");
+});
+
+test("the routine's Last run follows its last run: running when it starts, then how it ended; an older run ending changes nothing", async () => {
+  const hn = harness();
+  runsWith(hn);
+  const { agentId } = await withRoutine(hn);
+  hn.advance(MIN);
+  await tick(hn);
+  const list = async () => (await h["agents.routines.list"]!(hn.ctx, { agentId })).routines[0];
+  assert.deepEqual((await list()).lastRun, { runId: "run_r1", status: "running" });
+  assert.deepEqual(contractErrors("agents.routines.list", "out", { routines: [await list()] }), []);
+  const outcome = (name: string, runId: string) => (consumers["agents.routine_outcome"].run as (c: Harness["ctx"], e: unknown) => string[])(hn.as(svc), { name, payload: { runId } });
+  assert.equal(outcome("run.succeeded", "run_r1").length, 1);
+  assert.deepEqual((await list()).lastRun, { runId: "run_r1", status: "succeeded" });
+  hn.advance(MIN);
+  await tick(hn);
+  assert.deepEqual((await list()).lastRun, { runId: "run_r2", status: "running" });
+  assert.deepEqual(outcome("run.failed", "run_r1"), [], "an older run is not the routine's last");
+  assert.deepEqual((await list()).lastRun!.status, "running");
+  outcome("run.failed", "run_r2");
+  assert.deepEqual((await list()).lastRun, { runId: "run_r2", status: "failed" });
 });

@@ -1732,6 +1732,10 @@ export type AgentsRoutineDelegateOut = {
       kind: "person" | "agent" | "actor" | "service";
       id: string;
     };
+    lastRun?: {
+      runId: string;
+      status: "running" | "succeeded" | "failed" | "stopped";
+    };
   };
   previousOwnerId: string;
 };
@@ -1767,6 +1771,10 @@ export type AgentsRoutineRunNowOut = {
     setBy?: {
       kind: "person" | "agent" | "actor" | "service";
       id: string;
+    };
+    lastRun?: {
+      runId: string;
+      status: "running" | "succeeded" | "failed" | "stopped";
     };
   };
   runId: string;
@@ -1807,6 +1815,10 @@ export type AgentsRoutineSaveOut = {
       kind: "person" | "agent" | "actor" | "service";
       id: string;
     };
+    lastRun?: {
+      runId: string;
+      status: "running" | "succeeded" | "failed" | "stopped";
+    };
   };
 };
 export type AgentsRoutinesListIn = {
@@ -1832,6 +1844,10 @@ export type AgentsRoutinesListOut = {
       setBy?: {
         kind: "person" | "agent" | "actor" | "service";
         id: string;
+      };
+      lastRun?: {
+        runId: string;
+        status: "running" | "succeeded" | "failed" | "stopped";
       };
     }>;
 };

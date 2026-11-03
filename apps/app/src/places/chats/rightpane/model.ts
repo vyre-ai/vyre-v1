@@ -460,7 +460,15 @@ export function routineFile(title: string): string {
 }
 
 export function lastRunLine(r: Routine, c: Clock): string {
-  return r.lastRunAt === undefined ? "Not run yet" : agoLabel(r.lastRunAt, c);
+  if (r.lastRunAt === undefined) return "Not run yet";
+  // how the last run went, once its agent's turn ended: "Done 2 min ago", "Failed 2 min ago", "Stopped ...", or "Running, started 2 min ago"
+  const last = (r as Routine & { lastRun?: { status?: string } }).lastRun?.status;
+  const ago = agoLabel(r.lastRunAt, c);
+  if (last === "running") return `Running, started ${ago}`;
+  if (last === "succeeded") return `Done ${ago}`;
+  if (last === "failed") return `Failed ${ago}`;
+  if (last === "stopped") return `Stopped ${ago}`;
+  return ago;
 }
 
 /* ---------- MAP.md ---------- */
