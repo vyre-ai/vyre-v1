@@ -96,13 +96,26 @@ test("the extension may call only the listed capabilities and bridge operations"
   }
   assert.throws(() => request("r", "bridge", "shell.exec"), BridgeFailure);
   assert.ok(!("vault.item.reveal" in CAPABILITIES), "an extension can never ask to see a value");
-  assert.ok(Object.keys(CAPABILITIES).every((c) => c.startsWith("vault.")));
+  assert.ok(Object.keys(CAPABILITIES).every((c) => /^(vault|notes|skills|engine|browser)\./.test(c)), "the Vault, Notes clips, skills from a recording, the model list, and Browser connections and watches");
   assert.ok(Object.keys(BRIDGE_OPS).length >= 6);
 });
 
-test("every capability the extension names exists in the frozen contract", () => {
-  const manifest = fs.readFileSync(path.join(REPO, "manifests/vault.ts"), "utf8");
-  for (const c of Object.keys(CAPABILITIES)) assert.ok(manifest.includes(`'${c}'`), `${c} is in manifests/vault.ts`);
+// Capabilities other lanes declare that are not merged here yet: the extension calls them and the app answers "not_available" until they land.
+const PENDING: Record<string, string> = {
+  "notes.clip": "l-notes (manifests/notes.ts)",
+  "skills.mine.add": "l-skills2 (manifests/_agents-skills.ts)", "skills.share": "l-skills2 (manifests/_agents-skills.ts)",
+  "engine.models.list": "l-livemodels (manifests/engine.ts)",
+  "browser.sites.list": "l-chrome (Browser connections)", "browser.watches.list": "l-chrome (watches)", "browser.watches.save": "l-chrome (watches)",
+  "browser.watches.remove": "l-chrome (watches)", "browser.watches.report": "l-chrome (watches)",
+};
+
+test("every capability the extension names exists in the frozen contract, or is named as pending from its lane", () => {
+  const all = fs.readdirSync(path.join(REPO, "manifests")).filter((f) => f.endsWith(".ts")).map((f) => fs.readFileSync(path.join(REPO, "manifests", f), "utf8")).join("\n");
+  const vault = fs.readFileSync(path.join(REPO, "manifests/vault.ts"), "utf8");
+  for (const c of Object.keys(CAPABILITIES)) {
+    if (c.startsWith("vault.")) assert.ok(vault.includes(`'${c}'`), `${c} is in manifests/vault.ts`);
+    else assert.ok(all.includes(`'${c}'`) || c in PENDING, `${c} is in a manifest or pending from a lane`);
+  }
 });
 
 test("incoming messages are checked before anyone acts on them", () => {
@@ -410,21 +423,23 @@ test("keys: arrows wrap, Enter fills, Cmd-Enter signs in, slash asks, Escape clo
 test("the manifest asks for the smallest set of powers and one content script group", () => {
   const m = JSON.parse(read("manifest.json"));
   assert.equal(m.manifest_version, 3);
-  assert.deepEqual([...m.permissions].sort(), ["activeTab", "nativeMessaging", "scripting", "storage"]);
+  assert.deepEqual([...m.permissions].sort(), ["activeTab", "contextMenus", "favicon", "nativeMessaging", "scripting", "sidePanel", "storage"]);
   assert.ok(!m.permissions.includes("debugger"), "the debugger is never held by default: Chrome asks the person when they open Chrome to an agent");
   assert.deepEqual(m.optional_permissions, ["debugger"], "agent control over chrome.debugger is an optional permission, and the only one");
   assert.match(read("src/worker/index.js"), /^import "\.\.\/agent\/index\.js";$/m, "the worker loads the agent tools");
   assert.ok(!m.permissions.includes("webRequest") && !m.permissions.includes("cookies") && !m.permissions.includes("tabs"));
-  assert.deepEqual(m.host_permissions, ["https://*/*", "http://localhost/*", "http://127.0.0.1/*"]);
+  // The side panel's page chip carries a screenshot, and chrome.tabs.captureVisibleTab needs <all_urls>. Filling stays https (and http on this computer) only: match.js fillablePage.
+  assert.deepEqual(m.host_permissions, ["<all_urls>"]);
   assert.equal(m.background.service_worker, "src/worker/index.js");
   assert.equal(m.background.type, "module");
-  assert.equal(m.action.default_popup, "src/popup/popup.html");
-  assert.deepEqual(m.content_scripts[0].js, ["src/content/finder.js", "src/content/autofill.js", "src/content/capture.js", "src/content/prompt.js"]);
+  assert.equal(m.action.default_popup, undefined, "the toolbar icon opens the side panel (worker: setPanelBehavior)");
+  assert.equal(m.side_panel.default_path, "src/panel/panel.html");
+  assert.deepEqual(m.content_scripts[0].js, ["src/content/finder.js", "src/content/autofill.js", "src/content/capture.js", "src/content/prompt.js", "src/content/select.js"]);
   assert.equal(m.commands._execute_action.suggested_key.mac, "Command+Shift+L");
   const csp: string = m.content_security_policy.extension_pages;
   assert.ok(!/connect-src/.test(csp) && /default-src 'none'/.test(csp) && /script-src 'self'/.test(csp), "extension pages can reach no network");
   assert.ok(!/unsafe-eval|unsafe-inline/.test(csp));
-  for (const f of [...m.content_scripts[0].js, m.background.service_worker, m.action.default_popup, ...Object.values(m.icons) as string[]]) assert.ok(fs.existsSync(path.join(ROOT, f)), f);
+  for (const f of [...m.content_scripts[0].js, m.background.service_worker, m.side_panel.default_path, "src/popup/popup.html", ...Object.values(m.icons) as string[]]) assert.ok(fs.existsSync(path.join(ROOT, f)), f);
   assert.equal(HOST_NAME, "run.vyre.bridge");
   assert.equal(JSON.parse(read("src/worker/native/run.vyre.bridge.json")).name, HOST_NAME);
 });

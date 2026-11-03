@@ -25,7 +25,7 @@ export function showToast(o) {
   st.textContent = `.t{display:flex;align-items:center;gap:10px;width:300px;box-sizing:border-box;padding:10px;border-radius:12px;font:13px/18px Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
     background:${dark ? "#201E29" : "#fff"};color:${dark ? "#F2F0F7" : "#17141F"};box-shadow:0 0 0 1px ${dark ? "rgba(255,255,255,.08)" : "rgba(23,20,31,.07)"},0 10px 24px -8px rgba(23,20,31,.2),0 2px 6px rgba(23,20,31,.06)}
     .th{width:54px;height:38px;border-radius:6px;object-fit:cover;flex:none;box-shadow:0 0 0 1px rgba(23,20,31,.13)}
-    .g{flex:1;min-width:0}.a{font-weight:500;font-size:12px;display:flex;gap:6px;align-items:center}.b{font-size:11px;line-height:14px;color:${dark ? "#928DA2" : "#6A6578"};white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .g{flex:1;min-width:0}.a{font-weight:500;font-size:12px;display:flex;gap:6px;align-items:center}.b{font-size:11px;line-height:14px;color:${dark ? "#928DA2" : "#6A6578"};margin-top:1px}
     button{font:500 12.5px/1 inherit;font-family:inherit;color:inherit;background:${dark ? "#201E29" : "#fff"};border:0;border-radius:7px;height:28px;padding:0 10px;box-shadow:inset 0 0 0 1px ${dark ? "rgba(255,255,255,.12)" : "rgba(23,20,31,.13)"};cursor:pointer}
     button.x{width:24px;padding:0;box-shadow:none;color:${dark ? "#928DA2" : "#6A6578"}}.err .a{color:${dark ? "#FF6F85" : "#CC2A4A"}}`;
   const box = doc.createElement("div");
@@ -33,7 +33,15 @@ export function showToast(o) {
   box.setAttribute("role", "status");
   if (o.thumb) { const img = doc.createElement("img"); img.className = "th"; img.src = o.thumb; img.alt = ""; box.append(img); }
   const txt = doc.createElement("div"); txt.className = "g";
-  const a = doc.createElement("div"); a.className = "a"; a.textContent = o.title;
+  const a = doc.createElement("div"); a.className = "a";
+  if (!o.error) {
+    const NS = "http://www.w3.org/2000/svg";
+    const m = doc.createElementNS(NS, "svg"); m.setAttribute("width", "12"); m.setAttribute("height", "12"); m.setAttribute("viewBox", "0 0 24 24");
+    const p = doc.createElementNS(NS, "path"); p.setAttribute("d", "M5.2 6.4l6.3 11.2 4.9-8.6"); p.setAttribute("fill", "none"); p.setAttribute("stroke", "currentColor"); p.setAttribute("stroke-width", "3.1"); p.setAttribute("stroke-linecap", "round"); p.setAttribute("stroke-linejoin", "round");
+    const c = doc.createElementNS(NS, "circle"); c.setAttribute("cx", "18.6"); c.setAttribute("cy", "5.6"); c.setAttribute("r", "2.7"); c.setAttribute("fill", dark ? "#FF8A66" : "#EE5A38");
+    m.append(p, c); a.append(m);
+  }
+  a.append(doc.createTextNode(o.title));
   const b = doc.createElement("div"); b.className = "b"; b.textContent = o.detail;
   txt.append(a, b); box.append(txt);
   if (o.noteId) {
@@ -49,6 +57,12 @@ export function showToast(o) {
   g[KEY] = host;
   g.setTimeout(() => { if (host.isConnected) host.remove(); }, 6000);
   return true;
+}
+
+/** notes.clip takes the image as base64 bytes and a content type (lane l-notes, manifests/notes.ts imageIn). @param {string} dataUrl */
+export function imageOf(dataUrl) {
+  const m = /^data:(image\/(?:png|jpeg|gif|webp));base64,(.*)$/.exec(dataUrl);
+  return m ? { data: m[2], contentType: m[1] } : undefined;
 }
 
 /**
@@ -78,14 +92,14 @@ export function createNotes({ ext, bridge, privacy, context }) {
       let out;
       try {
         out = await bridge.invoke("notes.clip", {
-          url: String(tab.url), title: String((page && page.title) || tab.title || "").slice(0, 300), ...(sel ? { selection: sel } : {}),
-          ...(shot ? { screenshot: shot.dataUrl } : {}), source: "chrome",
+          url: String(tab.url).slice(0, 2000), title: String((page && page.title) || tab.title || "").slice(0, 500), ...(sel ? { selection: sel } : {}),
+          ...(shot ? { screenshot: imageOf(shot.dataUrl) } : {}),
         });
       } catch (e) {
         await toast(tab.id, { title: "Not saved", detail: e instanceof BridgeFailure && e.code === "no_host" ? "Open the Vyre app and try again." : "Vyre could not save this. Try again.", thumb: null, noteId: null, error: true });
         throw e;
       }
-      const noteId = out && (out.noteId || (out.note && out.note.noteId)) ? String(out.noteId || out.note.noteId) : null;
+      const noteId = out && out.note && out.note.noteId ? String(out.note.noteId) : null;
       const what = sel ? (shot ? "Selection, screenshot and link" : "Selection and link") : (shot ? "Screenshot and link" : "Link and page text");
       await toast(tab.id, { title: "Saved to Notes", detail: `${what} · private`, thumb: shot ? shot.dataUrl : null, noteId });
       return { noteId, selection: Boolean(sel), screenshot: Boolean(shot) };

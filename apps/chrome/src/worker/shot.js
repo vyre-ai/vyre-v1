@@ -87,7 +87,12 @@ async function dataUrlOf(blob) {
  */
 export async function paintMask(dataUrl, where, o = {}) {
   const g = /** @type {any} */ (globalThis);
-  const blob = await (await fetch(dataUrl)).blob();
+  const m = /^data:([^;,]+);base64,(.*)$/.exec(dataUrl);
+  if (!m) throw new Error("not an image");
+  const bin = atob(m[2] ?? "");
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  const blob = new Blob([bytes], { type: m[1] });
   const bmp = await g.createImageBitmap(blob);
   const boxes = scaleRects(where.rects, where, bmp.width, bmp.height);
   const full = new g.OffscreenCanvas(bmp.width, bmp.height);

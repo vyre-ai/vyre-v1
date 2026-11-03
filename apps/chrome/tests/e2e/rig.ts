@@ -51,7 +51,7 @@ export function site(pages: Record<string, string | ((req: http.IncomingMessage,
  * Start the fake app (the daemon's bridge with handlers) and a Chromium with the extension. `ops` answers bridge operations by name, `caps` answers capability calls by name.
  * Every call is recorded in `calls`. Returns the browser context, the extension's service worker, and helpers.
  */
-export async function launch(found: { chromium: any; exe: string }, o: { ops?: Record<string, Handler>; caps?: Record<string, Handler>; colorScheme?: "light" | "dark" } = {}) {
+export async function launch(found: { chromium: any; exe: string }, o: { ops?: Record<string, Handler>; caps?: Record<string, Handler>; colorScheme?: "light" | "dark"; incognito?: boolean } = {}) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "vyre-e2e-"));
   const data = path.join(dir, "data");
   const profile = path.join(dir, "profile");
@@ -83,9 +83,16 @@ export async function launch(found: { chromium: any; exe: string }, o: { ops?: R
   const hostManifest = fs.readFileSync(path.join(ROOT, "src/worker/native/run.vyre.bridge.json"), "utf8").replace("__HOST_PATH__", launcher).replace("__EXTENSION_ID__", EXT_ID);
   fs.writeFileSync(path.join(profile, "NativeMessagingHosts", "run.vyre.bridge.json"), hostManifest);
 
+  // "Allow in Incognito", as a person turns it on at chrome://extensions, seeded in the profile before Chromium starts.
+  if (o.incognito) {
+    fs.mkdirSync(path.join(profile, "Default"), { recursive: true });
+    const prefs = JSON.stringify({ extensions: { settings: { [EXT_ID]: { incognito: true } } } });
+    fs.writeFileSync(path.join(profile, "Default", "Preferences"), prefs);
+    fs.writeFileSync(path.join(profile, "Default", "Secure Preferences"), prefs);
+  }
   const context = await found.chromium.launchPersistentContext(profile, {
     executablePath: found.exe, headless: true, channel: "chromium", viewport: { width: 1280, height: 800 }, colorScheme: o.colorScheme ?? "light",
-    args: [`--disable-extensions-except=${ROOT}`, `--load-extension=${ROOT}`, "--no-first-run", "--no-default-browser-check"],
+    args: [`--disable-extensions-except=${ROOT}`, `--load-extension=${ROOT}`, "--no-first-run", "--no-default-browser-check", "--disable-features=DisableLoadExtensionCommandLineSwitch", "--enable-unsafe-extension-debugging"],
   });
   let worker = context.serviceWorkers().find((w: any) => w.url().startsWith(`chrome-extension://${EXT_ID}/`));
   if (!worker) worker = await context.waitForEvent("serviceworker", { predicate: (w: any) => w.url().startsWith(`chrome-extension://${EXT_ID}/`), timeout: 10_000 });

@@ -29,7 +29,6 @@ export const CAPABILITIES = Object.freeze({
   "vault.site_rules.list": "Never Fill and Never Save sites",
   "vault.site_rules.set": "set or clear one site's rule",
   "vault.share": "share a saved login with the person's agent at Use level",
-  "vault.folders.tree": "Shared folders the person may save into, for the Save to Vault folder picker (names and ids)",
   "notes.clip": "Save to Notes from a page: the address, title, the selection and a masked screenshot (lane l-notes)",
   "skills.mine.add": "save a recording the person reviewed as one of their skills: SKILL.md and its replay script (lane l-skills2)",
   "skills.share": "share that skill with people in the Space, who each get a card (lane l-skills2)",

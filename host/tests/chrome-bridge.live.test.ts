@@ -90,8 +90,21 @@ test("chrome bridge: a booted daemon answers /chrome-bridge/v1/rpc and /events, 
     const ok = await rpc(d, { id: "r1", type: "bridge", op: "agent.event", input: { event: "driving", agent: "agt_scout", tabId: "t1" } });
     assert.equal(ok.status, 200);
     assert.deepEqual(await ok.json(), { id: "r1", ok: true, output: {} });
-    const open = await rpc(d, { id: "r2", type: "bridge", op: "hello", input: {} });
-    assert.deepEqual(await open.json(), { id: "r2", ok: false, error: { code: "not_available", message: "The Vyre app cannot answer that yet." } });
+    // Vyre for Chrome's calls run as the Space owner through the invoke pipeline (lib/chrome-app.ts): hello names this Space, agents.list and a Vault capability answer,
+    // and anything off the extension's list is refused before it is invoked.
+    const hello = await (await rpc(d, { id: "r2", type: "bridge", op: "hello", input: {} })).json();
+    assert.equal(hello.ok, true);
+    assert.equal(hello.output.active, hello.output.spaces[0].id);
+    const agents = await (await rpc(d, { id: "r3", type: "bridge", op: "agents.list", input: {} })).json();
+    assert.equal(agents.ok, true, JSON.stringify(agents));
+    assert.ok(Array.isArray(agents.output.agents));
+    const rules = await (await rpc(d, { id: "r4", type: "invoke", capability: "vault.site_rules.list", input: {} })).json();
+    assert.equal(rules.ok, true, JSON.stringify(rules));
+    assert.ok(Array.isArray(rules.output.sites));
+    const off = await (await rpc(d, { id: "r5", type: "invoke", capability: "records.delete", input: {} })).json();
+    assert.deepEqual(off.error.code, "not_allowed");
+    const later = await (await rpc(d, { id: "r6", type: "bridge", op: "app.open", input: {} })).json();
+    assert.equal(later.error.code, "not_available");
     assert.equal((await rpc(d, "nonsense")).status, 200);
     const bad = await fetch(`${d.url}/chrome-bridge/v1/rpc`, { method: "POST", headers: { authorization: `Bearer ${d.token}` }, body: "{not json" });
     assert.equal(bad.status, 400);

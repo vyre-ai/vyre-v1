@@ -194,12 +194,14 @@ export function createWorker(ext) {
     if (!msg || typeof msg.type !== "string" || sender.id !== ext.runtime.id) return failure(new BridgeFailure("not_allowed", ""));
     try {
       if (msg.type.startsWith("popup.")) return sender.tab ? failure(new BridgeFailure("not_allowed", "")) : await fromPopup(msg, sender);
-      if (msg.type === "panel.clip" && !sender.tab) {
+      // The side panel is an extension page: its sender has our own address (a content script's sender has the page's). Opened as its own window it also has a tab.
+      const ownPage = typeof sender.url === "string" && sender.url.startsWith(`chrome-extension://${ext.runtime.id}/src/panel/`);
+      if (msg.type === "panel.clip" && ownPage) {
         const [tab] = await ext.tabs.query(typeof msg.windowId === "number" ? { active: true, windowId: msg.windowId } : { active: true, lastFocusedWindow: true });
         if (!tab) return failure(new BridgeFailure("no_page", ""));
         return { data: await notes.clip(tab, "") };
       }
-      if (msg.type.startsWith("panel.")) return sender.tab ? failure(new BridgeFailure("not_allowed", "")) : await panel.handle(msg);
+      if (msg.type.startsWith("panel.")) return ownPage ? await panel.handle(msg) : failure(new BridgeFailure("not_allowed", ""));
       if (msg.type.startsWith("vyre.")) return sender.tab ? await fromPage(msg, sender) : failure(new BridgeFailure("not_allowed", ""));
       return failure(new BridgeFailure("not_allowed", ""));
     } catch (e) {
@@ -241,7 +243,7 @@ function start() {
   // The side panel opens from the toolbar icon and Cmd+Shift+L (the action's command), one per window.
   if (ext.sidePanel && ext.sidePanel.setPanelBehavior) void ext.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }).catch(() => {});
   ext.runtime.onConnect.addListener((/** @type {any} */ port) => {
-    if (port.name !== PANEL_PORT || !port.sender || port.sender.id !== ext.runtime.id || port.sender.tab) return;
+    if (port.name !== PANEL_PORT || !port.sender || port.sender.id !== ext.runtime.id || !String(port.sender.url || "").startsWith(`chrome-extension://${ext.runtime.id}/src/panel/`)) return;
     w.panel.connect(port);
   });
   if (ext.contextMenus) {

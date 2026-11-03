@@ -64,3 +64,8 @@ html,body{overflow:hidden}
 .empty .big{display:grid;place-items:center;margin-bottom:12px;color:var(--ink-3)}
 .empty .big .ic{width:26px;height:26px}
 .empty .t{color:var(--ink);margin-bottom:6px;font-weight:600}
+.note.err{margin:0 10px 4px;color:var(--danger)}
+.pconv.list{gap:0;padding:2px 6px 10px}
+.qline.pad{padding:30px 0}
+.lbl.first{margin-top:4px}
+.empty .after{margin-top:16px}

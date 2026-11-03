@@ -27,7 +27,8 @@
     "scripting",
     "nativeMessaging",
     "sidePanel",
-    "contextMenus"
+    "contextMenus",
+    "favicon"
   ],
   "optional_permissions": [
     "debugger"

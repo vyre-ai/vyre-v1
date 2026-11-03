@@ -1,0 +1,5 @@
+- Vyre for Chrome opens as a side panel from the toolbar icon or Cmd+Shift+L: one top bar (Space switcher, Search chats, New chat, More, Open in Vyre, Close), a quiet line for the record that matches the page, two suggestions on an empty chat, and a composer with the page chip (title and a screenshot you can leave out), a separate Selected chip for highlighted text, and agent and model pickers. The model list is your account's live list. Replies stream in, and the chat is the same one in Vyre Chats.
+- Screenshots that leave Chrome have password, card and code fields blacked out on your computer first.
+- Each site can attach the page, ask each time, or never be sent. In an incognito window Vyre is off.
+- Highlight text for a small bubble with Save to Notes and Ask, or right-click any page for Save to Vyre Notes, Ask Vyre about this, Watch this with Vyre and Show Vyre how. A card in the top right confirms a clip, with Open.
+- The Vyre app on your computer now answers the extension: Space, agents, chats, record matches and Vault calls run as you, through the same access checks as everywhere else.

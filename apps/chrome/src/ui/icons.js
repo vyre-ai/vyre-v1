@@ -1,9 +1,10 @@
 // @ts-check
-// Icons, the Vyre mark and faces for the extension's own pages (side panel, review page), drawn from the approved prototype's set. Static markup only:
-// anything a person or a page wrote goes through esc() before it is put in HTML.
+// Icons, the Vyre mark and faces for the extension's own pages (side panel, review page), from the approved prototype's set. Each returns a DOM node. The icon set is
+// static markup in this file, parsed once as SVG; names and avatars from the app go in as text or as an image address, never as markup.
 
-/** @param {unknown} s */
-export const esc = (s) => String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c] ?? c);
+import { h } from "./dom.js";
+
+const SVG = "http://www.w3.org/2000/svg";
 
 export const D = /** @type {Record<string, string>} */ ({
   plus: '<path d="M8 3v10M3 8h10"/>', check: '<path d="M3.5 8.5l3 3 6-7"/>', x: '<path d="M4 4l8 8M12 4l-8 8"/>',
@@ -40,44 +41,67 @@ export const D = /** @type {Record<string, string>} */ ({
   gear: '<circle cx="8" cy="8" r="2"/><path d="M8 1.8v1.6M8 12.6v1.6M3.6 3.6l1.1 1.1M11.3 11.3l1.1 1.1M1.8 8h1.6M12.6 8h1.6M3.6 12.4l1.1-1.1M11.3 4.7l1.1-1.1"/>',
 });
 
-/**
- * The extension's pages allow no inline styles (CSP style-src 'self'), so markup carries sizes and colours in data-css and this applies them through the CSSOM after
- * each render. @param {ParentNode} root
- */
-export function applyCss(root) {
-  for (const el of /** @type {NodeListOf<HTMLElement>} */ (root.querySelectorAll("[data-css]"))) { el.style.cssText = el.dataset["css"] ?? ""; el.removeAttribute("data-css"); }
+/** @type {Map<string, Element[]>} */
+const parsed = new Map();
+/** @param {string} name */
+function shapes(name) {
+  let got = parsed.get(name);
+  if (!got) {
+    const doc = new DOMParser().parseFromString(`<svg xmlns="${SVG}">${D[name] ?? ""}</svg>`, "image/svg+xml");
+    got = [...doc.documentElement.children];
+    parsed.set(name, got);
+  }
+  return got;
 }
 
-/** @param {string} name @param {"" | "s" | "xs"} [size] */
-export const ic = (name, size = "") => `<svg class="ic ${size}" viewBox="0 0 16 16" aria-hidden="true">${D[name] ?? ""}</svg>`;
+/** @param {string} name @param {"" | "s" | "xs"} [size] @returns {SVGSVGElement} */
+export function ic(name, size = "") {
+  const s = /** @type {SVGSVGElement} */ (document.createElementNS(SVG, "svg"));
+  s.setAttribute("class", `ic ${size}`.trim());
+  s.setAttribute("viewBox", "0 0 16 16");
+  s.setAttribute("aria-hidden", "true");
+  for (const n of shapes(name)) s.appendChild(document.importNode(n, true));
+  return s;
+}
 
 /** The Vyre mark. @param {number} z @param {string} [col] */
-export const mark = (z, col) => `<svg width="${z}" height="${z}" viewBox="0 0 24 24" aria-hidden="true" data-css="display:block"><path d="M5.2 6.4l6.3 11.2 4.9-8.6" fill="none" stroke="${col || "currentColor"}" stroke-width="3.1" stroke-linecap="round" stroke-linejoin="round"/><circle cx="18.6" cy="5.6" r="2.7" fill="var(--beacon)"/></svg>`;
+export function mark(z, col) {
+  const s = document.createElementNS(SVG, "svg");
+  s.setAttribute("width", String(z)); s.setAttribute("height", String(z)); s.setAttribute("viewBox", "0 0 24 24"); s.setAttribute("aria-hidden", "true");
+  s.style.display = "block";
+  const p = document.createElementNS(SVG, "path");
+  for (const [k, v] of Object.entries({ d: "M5.2 6.4l6.3 11.2 4.9-8.6", fill: "none", stroke: col || "currentColor", "stroke-width": "3.1", "stroke-linecap": "round", "stroke-linejoin": "round" })) p.setAttribute(k, v);
+  const c = document.createElementNS(SVG, "circle");
+  c.setAttribute("cx", "18.6"); c.setAttribute("cy", "5.6"); c.setAttribute("r", "2.7"); c.style.fill = "var(--beacon)";
+  s.append(p, c);
+  return s;
+}
 
 const HUES = [250, 160, 28, 205, 330, 95, 12, 280];
 /** @param {string} s */
-const hash = (s) => { let h = 7; for (const c of String(s)) h = (h * 31 + c.charCodeAt(0)) >>> 0; return h; };
+const hash = (s) => { let x = 7; for (const c of String(s)) x = (x * 31 + c.charCodeAt(0)) >>> 0; return x; };
 const dark = () => Boolean(globalThis.matchMedia && globalThis.matchMedia("(prefers-color-scheme: dark)").matches);
+const IMG = /^data:image\/(svg\+xml|png|jpeg|webp);base64,[A-Za-z0-9+/=]+$|^data:image\/svg\+xml;utf8,|^https:\/\//;
 
 /**
- * A face: an agent's own avatar when the app sent one (a data: image), the Assistant's mark, else a tile with the initial; a person gets a soft marble.
+ * A face: an agent's own avatar when the app sent one, the Assistant's mark, else a tile with the initial; a person gets a soft marble.
  * @param {{ name: string, kind?: string, avatar?: string | null, assistant?: boolean }} who @param {number} z
  */
 export function face(who, z = 22) {
-  const st = `width:${z}px;height:${z}px;font-size:${Math.round(z * 0.45)}px`;
   const name = String(who.name || "?");
-  if (who.assistant) return `<span class="face ag" data-css="${st};background:var(--sunk);box-shadow:inset 0 0 0 1px var(--line)">${mark(Math.round(z * 0.72))}</span>`;
+  const size = { width: `${z}px`, height: `${z}px`, fontSize: `${Math.round(z * 0.45)}px` };
+  if (who.assistant) return h("span.face.ag", { css: { ...size, background: "var(--sunk)", boxShadow: "inset 0 0 0 1px var(--line)" } }, mark(Math.round(z * 0.72)));
   const hu = HUES[hash(name) % 8];
-  const avatar = typeof who.avatar === "string" && /^data:image\/(svg\+xml|png|jpeg|webp);/.test(who.avatar) ? who.avatar : null;
+  const avatar = typeof who.avatar === "string" && IMG.test(who.avatar) ? who.avatar : null;
   if (who.kind !== "person") {
-    if (avatar) return `<span class="face ag" data-css="${st};background:hsl(${hu} 50% ${dark() ? 30 : 90}%)"><img alt="" src="${esc(avatar)}"></span>`;
-    return `<span class="face ag" data-css="${st};background:hsl(${hu} 45% ${dark() ? 30 : 88}%);color:hsl(${hu} 40% ${dark() ? 85 : 30}%)">${esc(name[0] ?? "?")}</span>`;
+    if (avatar) return h("span.face.ag", { css: { ...size, background: `hsl(${hu} 50% ${dark() ? 30 : 90}%)` } }, h("img", { alt: "", src: avatar }));
+    return h("span.face.ag", { css: { ...size, background: `hsl(${hu} 45% ${dark() ? 30 : 88}%)`, color: `hsl(${hu} 40% ${dark() ? 85 : 30}%)` } }, name[0] ?? "?");
   }
-  if (avatar) return `<span class="face" data-css="${st}"><img alt="" src="${esc(avatar)}"></span>`;
-  const h = hash(name);
-  const c = [0, 1, 2].map((i) => `hsl(${(h * (i + 3) * 37) % 360} ${55 + i * 10}% ${55 + i * 6}%)`);
-  return `<span class="face" data-css="${st}"><svg viewBox="0 0 36 36"><defs><filter id="mb${h % 1000}" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="5"/></filter></defs><rect width="36" height="36" fill="${c[0]}"/><circle cx="${8 + (h % 14)}" cy="${10 + (h % 9)}" r="13" fill="${c[1]}" filter="url(#mb${h % 1000})"/><circle cx="${26 - (h % 7)}" cy="${28 - (h % 11)}" r="11" fill="${c[2]}" filter="url(#mb${h % 1000})"/></svg></span>`;
+  if (avatar) return h("span.face", { css: size }, h("img", { alt: "", src: avatar }));
+  const x = hash(name);
+  const c = [0, 1, 2].map((i) => `hsl(${(x * (i + 3) * 37) % 360} ${55 + i * 10}% ${55 + i * 6}%)`);
+  return h("span.face", { css: { ...size, background: `radial-gradient(circle at ${20 + (x % 40)}% ${25 + (x % 30)}%, ${c[1]} 0, transparent 60%), radial-gradient(circle at ${75 - (x % 20)}% ${80 - (x % 30)}%, ${c[2]} 0, transparent 55%), ${c[0]}` } });
 }
 
 /** The Space tile: its initial on the accent. @param {string} name @param {number} [z] */
-export const spaceTile = (name, z = 24) => `<span class="ptile" data-css="width:${z}px;height:${z}px">${esc((String(name || "V").trim()[0] ?? "V").toUpperCase())}</span>`;
+export const spaceTile = (name, z = 24) => h("span.ptile", { css: { width: `${z}px`, height: `${z}px` } }, (String(name || "V").trim()[0] ?? "V").toUpperCase());
