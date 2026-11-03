@@ -81,6 +81,8 @@ export interface MessageActions {
   fork?(messageId: string): void;
   /** Make a task from this message, linked back to it. */
   makeTask?(messageId: string): void;
+  /** Ask an agent to answer this message, as if it had been named (owner ruling, 3 Nov 2026): opens the channel's agent picker where you pressed. Left out where no agent can be asked. */
+  askAgent?(messageId: string, x: number, y: number): void;
   /** Share this message to a channel or a person: opens the list of places at the point given. */
   share?(messageId: string, x: number, y: number): void;
   /** What the turn behind a reply being written is doing: the live line under it (steps, thinking). */
@@ -174,6 +176,7 @@ export function menuFor(m: Message, mine: boolean, a: MessageActions, onEdit: ()
   const items: MenuEntry[] = [{ label: "Copy", onSelect: () => a.copy(m.body) }];
   if (mine && m.kind === "text") items.push({ label: "Edit", onSelect: onEdit });
   items.push({ label: "Reply in Thread", onSelect: () => a.openThread(m.messageId) });
+  if (a.askAgent && m.kind !== "system" && m.kind !== "quiet") items.push({ label: "Ask an Agent…", onSelect: () => a.askAgent!(m.messageId, at.x, at.y) });
   if (a.makeTask && m.kind !== "system" && m.kind !== "quiet") items.push({ label: "Make a Task", onSelect: () => a.makeTask!(m.messageId) });
   if (a.share && m.kind !== "system" && m.kind !== "quiet") items.push({ label: "Share to...", onSelect: () => a.share!(m.messageId, at.x, at.y) });
   if (a.fork && m.kind !== "system" && m.kind !== "quiet") items.push({ label: "Fork From Here", onSelect: () => a.fork!(m.messageId) });
@@ -198,9 +201,11 @@ export function HoverBar({ m, mine, a, onEdit, visible, byAgent = false }: { m: 
     bar.push({ icon: "copy", label: "Copy", run: () => a.copy(m.body) });
     if (m.kind === "text") bar.push({ icon: "edit", label: "Edit", run: onEdit });
     bar.push({ icon: "reply", label: "Reply in thread", run: () => a.openThread(m.messageId) });
+    if (a.askAgent && talk) bar.push({ icon: "spark", label: "Ask an agent", run: (x, y) => a.askAgent!(m.messageId, x, y) });
   } else {
     if (a.pickReaction && talk) bar.push({ icon: "smile", label: "React", run: (x, y) => a.pickReaction!(m.messageId, x, y) });
     bar.push({ icon: "reply", label: "Reply in thread", run: () => a.openThread(m.messageId) });
+    if (a.askAgent && talk) bar.push({ icon: "spark", label: "Ask an agent", run: (x, y) => a.askAgent!(m.messageId, x, y) });
     if (mine && m.kind === "text") bar.push({ icon: "edit", label: "Edit", run: onEdit });
   }
   return (

@@ -7,6 +7,7 @@ import { DRAFTER, INTAKE, MAYA, REVIEWER, assertEventsConform, contractErrors, f
 import type { Harness } from "../fixtures/harness.ts";
 import { g24dHandlers as g } from "../handlers/g24d.ts";
 import { answerBlock, approvePlan, start } from "../handlers/thread.ts";
+import { insertMessage } from "../projections.ts";
 
 const NAMES = Object.keys(g);
 const cap = (name: string) => registry.capabilities.filter((c) => c.name === name).sort((a, b) => b.v - a.v)[0]!;
@@ -235,6 +236,24 @@ test("helpers: start, list, refusals", async () => {
   await refuses(hn, "chat.helper.start", "validation.bad_input", () => g["chat.helper.start"](hn.agent(), { threadId, title: "", instruction: "x" }));
   await refuses(hn, "chat.helper.start", "validation.not_found", () => g["chat.helper.start"](hn.person(MAYA), { threadId, title: "t", instruction: "x" }));
   await refuses(hn, "chat.helpers.list", "validation.not_found", () => g["chat.helpers.list"](hn.person(MAYA), { threadId }));
+});
+
+test("helpers count against the chat's one budget of agent turns (owner ruling, 3 Nov): each brief and each result is a turn, and at the limit no helper starts", async () => {
+  const hn = harness({ calls: { "settings.get": () => ({ row: { value: 4 } }) } });
+  const threadId = await chatOf(hn);
+  const input = { threadId, title: "Check the dates", instruction: "List every date.", agentId: DRAFTER };
+  const one = await g["chat.helper.start"](hn.agent(INTAKE), input);
+  const line = (hn.raw.all("SELECT depth FROM chat_message WHERE thread = ? ORDER BY threadSeq DESC LIMIT 1", threadId) as Array<{ depth: number }>)[0]!;
+  assert.equal(line.depth, 1, "the brief is one agent turn");
+  const brief = (hn.raw.all("SELECT depth FROM chat_message WHERE thread = ?", one.helper["threadId"]) as Array<{ depth: number }>)[0]!;
+  assert.equal(brief.depth, 1, "the helper's own chat starts from the same count");
+  await g["chat.helper.start"](hn.agent(INTAKE), { ...input, title: "Second" });
+  await g["chat.helper.start"](hn.agent(INTAKE), { ...input, title: "Third" });
+  await refuses(hn, "chat.helper.start", "validation.bad_input", () => g["chat.helper.start"](hn.agent(INTAKE), { ...input, title: "Fourth" }));
+  // a person writing starts the count again, and a person may always start a helper
+  insertMessage({ db: hn.ctx.db, now: () => hn.clock.t }, threadId, { author: "usr_dana", kind: "text", body: "go on", depth: 0 });
+  assert.ok((await g["chat.helper.start"](hn.agent(INTAKE), { ...input, title: "After you wrote" })).helper);
+  assert.ok((await g["chat.helper.start"](hn.ctx, { ...input, title: "Yours" })).helper);
 });
 
 test("handoff opens a linked thread for the other agent and counts the hop", async () => {

@@ -115,6 +115,9 @@ test("failures are named so the accounts module can move a turn to the backup ke
   assert.equal(classifyCli("unexpected status 401 Unauthorized"), "provider.auth_failed");
   assert.equal(classifyCli("Claude AI usage limit reached|1760000000"), "provider.rate_limited");
   assert.equal(classifyCli("429 Too Many Requests"), "provider.rate_limited");
+  // overloaded is the vendor being busy, not a limit (owner ruling, 3 Nov): the engine retries the same account once, then the backup
+  assert.equal(classifyCli('API Error: 529 {"type":"error","error":{"type":"overloaded_error","message":"Overloaded"}}'), "provider.overloaded");
+  assert.equal(classifyCli("Overloaded"), "provider.overloaded");
   assert.equal(classifyCli("Prompt is too long"), "provider.context_too_long");
   assert.equal(classifyCli("boom: the engine crashed"), "engine.cli_error");
 });

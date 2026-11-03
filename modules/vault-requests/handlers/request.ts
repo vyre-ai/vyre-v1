@@ -8,6 +8,7 @@
 // for them reach it (no Use is shared). The owners and admins it went to may still add it for the team. A request that names a Shared or team folder, a company key, or a key an outside agent
 // asked for by name only goes to the owners and admins alone.
 import { isCompanyKey } from "../../../lib/company-keys.ts";
+import { THROUGH_AGENT, THROUGH_ANYONE } from "../../../lib/through-agent.ts";
 import { TABLE, asRow, idsOf, nid, page, raise, requestById, requestOut, strOf } from "../projections.ts";
 import type { Ref, RequestRow, State, VaultReqCtx } from "../projections.ts";
 
@@ -204,7 +205,15 @@ async function ownMine(ctx: VaultReqCtx, row: RequestRow, named: string | undefi
   return strOf(asRow(asRow(await ctx.call("vault.folders.create", { name: "Mine", scope: "mine", idempotencyKey: `${row.id}:mine` }))?.["folder"])?.["id"]);
 }
 
-export async function requestsFulfil(ctx: VaultReqCtx, input: { requestId: string; itemId?: string; fields?: { key: string; value: string }[]; folderId?: string }) {
+/**
+ * Who may use a key approved for an agent's request through that agent (owner ruling, 3 Nov 2026): the card asks, "Only the person who asked" (the default) or "Anyone who asks this
+ * agent". The agent's Use grant then carries the source the access check reads (kernel THROUGH_AGENT), so that person, or anyone, needs no access of their own to the key.
+ */
+export type KeyAudience = "asker" | "anyone";
+export const throughSource = (audience: KeyAudience, asker: string | undefined): string | null =>
+  audience === "anyone" ? `${THROUGH_AGENT}${THROUGH_ANYONE}` : asker ? `${THROUGH_AGENT}${asker}` : null;
+
+export async function requestsFulfil(ctx: VaultReqCtx, input: { requestId: string; itemId?: string; fields?: { key: string; value: string }[]; folderId?: string; audience?: KeyAudience }) {
   const trace = ctx.trace.traceId;
   const { row, me, own } = decidable(ctx, input.requestId);
   const hasFields = !!input.fields && input.fields.length > 0;
@@ -242,11 +251,18 @@ export async function requestsFulfil(ctx: VaultReqCtx, input: { requestId: strin
   else if (row.handle_only === 1) { /* no share */ }
   // the person's own key, in their own Mine: the agent working for them reaches it on their turns, and nobody else's turns do
   else if (own) { /* no share */ }
-  else try {
-    await ctx.call("vault.share", { resource: { type: "vault_item", id: itemId }, subject: { kind: row.requester_kind, id: row.requester_id }, level: "use", idempotencyKey: `${row.id}:use` });
-  } catch (e) {
-    // a Mine item is private to its owner: an agent acting for that person already works as them, so there is nothing to share. Any other refusal stands.
-    if (!/private/i.test(e instanceof Error ? e.message : "") ) throw e;
+  else {
+    let shared = true;
+    try {
+      await ctx.call("vault.share", { resource: { type: "vault_item", id: itemId }, subject: { kind: row.requester_kind, id: row.requester_id }, level: "use", idempotencyKey: `${row.id}:use` });
+    } catch (e) {
+      // a Mine item is private to its owner: an agent acting for that person already works as them, so there is nothing to share. Any other refusal stands.
+      if (!/private/i.test(e instanceof Error ? e.message : "") ) throw e;
+      shared = false;
+    }
+    // who may use it through the agent: the person who asked (default), or anyone who asks this agent
+    const source = shared && row.requester_kind === "agent" ? throughSource(input.audience ?? "asker", (await chatOf(ctx, row))?.asker) : null;
+    if (source) await ctx.call("access.share", { resource: { type: "vault_item", id: itemId }, subject: { kind: "agent", id: row.requester_id }, level: "use", source, idempotencyKey: `${row.id}:through` });
   }
 
   ctx.db.run(`UPDATE ${TABLE} SET state = ?, item_id = ?, decided_by = ?, decided_at = ? WHERE id = ?`, "fulfilled", itemId, me, ctx.now(), row.id);

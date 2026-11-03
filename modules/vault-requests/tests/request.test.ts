@@ -129,6 +129,32 @@ test("a manager supplies the key by saving fields in the folder: the value goes 
   assert.equal(JSON.stringify(await handlers["vault.requests.get"](w.as("agt_helper", "agent"), { requestId: request.id })).includes(SECRET), false);
 });
 
+test("who can use the key through the agent (owner ruling, 3 Nov): only the person who asked by default, anyone who asks the agent when the approver says so", async () => {
+  const card = { threadId: "thr_chat", agentId: "agt_helper", asker: "usr_sam" };
+  const byDefault = world({ card });
+  const a = await ask(byDefault, "agt_helper", { fields: ["api_key"] });
+  await handlers["vault.requests.fulfil"](byDefault.as("usr_mira"), { requestId: a.request.id, fields: [{ key: "api_key", value: "sk_test_1" }] });
+  assert.deepEqual(byDefault.called("access.share").map((c) => c.input), [{ resource: { type: "vault_item", id: "vit_new" }, subject: { kind: "agent", id: "agt_helper" }, level: "use", source: "through-agent:usr_sam", idempotencyKey: `${a.request.id}:through` }]);
+
+  const anyone = world({ card });
+  const b = await ask(anyone, "agt_helper", { fields: ["api_key"] });
+  const input = { requestId: b.request.id, fields: [{ key: "api_key", value: "sk_test_2" }], audience: "anyone" as const };
+  const fulfilIn = registry.capabilities.find((x) => x.name === "vault.requests.fulfil")!.input;
+  assert.deepEqual(validate(fulfilIn, input, "", registry.$defs), [], "audience is part of the contract");
+  await handlers["vault.requests.fulfil"](anyone.as("usr_mira"), input);
+  assert.deepEqual(anyone.called("access.share").map((c) => c.input["source"]), ["through-agent:anyone"]);
+
+  // no chat to read the asker from: the agent alone, as before; a person who asked needs nothing more
+  const noCard = world();
+  const c = await ask(noCard, "agt_helper", { fields: ["api_key"] });
+  await handlers["vault.requests.fulfil"](noCard.as("usr_mira"), { requestId: c.request.id, fields: [{ key: "api_key", value: "sk_test_3" }] });
+  assert.deepEqual(noCard.called("access.share"), []);
+  const person = world({ card });
+  const d = await ask(person, "usr_sam", { fields: ["api_key"] });
+  await handlers["vault.requests.fulfil"](person.as("usr_mira"), { requestId: d.request.id, fields: [{ key: "api_key", value: "sk_test_4" }], audience: "anyone" });
+  assert.deepEqual(person.called("access.share"), [], "only an agent's request has a through");
+});
+
 test("a manager can attach an item that already exists; it must hold the fields asked for", async () => {
   const w = world();
   const { request } = await ask(w, "agt_helper", { fields: ["api_key"] });

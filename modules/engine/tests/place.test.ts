@@ -2,6 +2,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { placementDecide, poolStatus, warm } from "../handlers/place.ts";
+import { runtimeOptIn } from "../handlers/extra/config.ts";
 import { bindOpener, ensure } from "../projections.ts";
 import { harness } from "../fixtures/harness.ts";
 
@@ -30,9 +31,15 @@ test("a private chat runs on the asker's computer when it is online; a channel r
   assert.deepEqual(await placementDecide(channel.ctx, { threadId: "thr_2", agentId: "agt_1", kind: "message" }), { placement: "host", reason: "shared_thread" });
 });
 
-test("a computer that is off waits with the line, and an agent with its own computer runs on the host", async () => {
-  const off = ctxFor("chat", [{ kind: "person", id: "usr_dana" }], [{ ...mac, lastSeenAt: NOW - 10 * 60_000 }]);
+test("a computer that is off: Automatic falls back to the Space by default (owner ruling, 3 Nov), and waits with the line for a person who turned that off; an agent with its own computer runs on the host", async () => {
+  const offMac = { ...mac, lastSeenAt: NOW - 10 * 60_000 };
+  const byDefault = ctxFor("chat", [{ kind: "person", id: "usr_dana" }], [offMac]);
+  assert.deepEqual(await placementDecide(byDefault.ctx, { threadId: "thr_1", agentId: "agt_1", kind: "message" }), { placement: "host", reason: "device_off_runtime_opt_in" });
+  const off = ctxFor("chat", [{ kind: "person", id: "usr_dana" }], [offMac]);
+  runtimeOptIn(off.ctx, { enabled: false });
   assert.deepEqual(await placementDecide(off.ctx, { threadId: "thr_1", agentId: "agt_1", kind: "message" }), { placement: "wait", reason: "device_off", wakeLine: "Your computer is off" });
+  runtimeOptIn(off.ctx, { enabled: true, wrappedRuntimeKey: "ciphertext" });
+  assert.equal((await placementDecide(off.ctx, { threadId: "thr_1", agentId: "agt_1", kind: "message" })).placement, "host", "the fallback reads the setting each time");
   const computer = ctxFor("chat", [{ kind: "person", id: "usr_dana" }], [mac], { hasComputer: true });
   assert.equal((await placementDecide(computer.ctx, { threadId: "thr_1", agentId: "agt_1", kind: "message" })).reason, "agent_computer");
   const phone = ctxFor("chat", [{ kind: "person", id: "usr_dana" }], [{ id: "dev_ph", class: "phone", lastSeenAt: NOW }]);
@@ -161,7 +168,10 @@ test("the Space menu's Chats run on: with engine.local_runs off a private chat d
     return Object.assign(Object.create(base.ctx), { call: async (cap: string, input: unknown) => (cap === "settings.get" ? { row: { value: localRuns } } : inner(cap, input)) });
   };
   assert.equal((await placementDecide(mk(true), { threadId: "thr_1", agentId: "agt_1", kind: "message" })).placement, "device");
-  assert.deepEqual(await placementDecide(mk(false), { threadId: "thr_1", agentId: "agt_1", kind: "message" }), { placement: "wait", reason: "local_runs_off", wakeLine: "Running chats on your computer is off" });
+  assert.deepEqual(await placementDecide(mk(false), { threadId: "thr_1", agentId: "agt_1", kind: "message" }), { placement: "host", reason: "device_off_runtime_opt_in" }, "allowed by default (owner ruling, 3 Nov)");
+  const optedOut = mk(false);
+  runtimeOptIn(optedOut, { enabled: false });
+  assert.deepEqual(await placementDecide(optedOut, { threadId: "thr_1", agentId: "agt_1", kind: "message" }), { placement: "wait", reason: "local_runs_off", wakeLine: "Running chats on your computer is off" });
 });
 
 test("a crew teammate's thread runs on the host even with the asker's computer online: its repository copy is on the host", async () => {

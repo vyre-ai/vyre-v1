@@ -8,7 +8,7 @@ import { createTranscript, redact, refreshSummary, transcriptPath } from "../../
 import type { Part, Turn } from "../../../agent/src/transcript/index.ts";
 import {
   addAgent, addMember, agentsOf, askerOf, blockBy, ensure, hopLimit, insertBlock, insertMessage, insertPlan, insertThread, lastMessage, messageBy, mintId, patchBlockInMessage, planBy, raise,
-  threadBy, threadOut,
+  refOf, threadBy, threadOut,
 } from "../projections.ts";
 import type { ChatCtx, Db, PlanStep, ThreadRec } from "../projections.ts";
 import { mayRecall } from "./history.ts";
@@ -450,10 +450,21 @@ export async function helperStart(
   const asker = askerOf(ctx);
   const by = author(ctx);
 
+  // Helpers and teammates count against the chat's one budget of agent turns (owner ruling, 3 Nov 2026): an agent's brief is one turn past whatever the chat holds now, and at
+  // the limit no helper starts until a person replies or presses Continue. A person starting a helper starts the count again.
+  let depth = 0;
+  if (ctx.principal.kind === "agent") {
+    const prev = lastMessage(ctx.db, parent.id);
+    depth = prev && refOf(prev.author).kind === "agent" ? prev.depth + 1 : 1;
+    const limit = await hopLimit(ctx);
+    // validation.bad_input: the code chat.helper.start already declares (the contract is frozen)
+    if (depth >= limit) raise(ctx, "validation.bad_input", `The agents have taken ${limit} turns since a person wrote. A person has to reply or press Continue before another helper starts.`, { limit, depth });
+  }
+
   // The line in the parent chat that stands for the helper, with its block; the helper thread hangs under that line.
   const blockId = mintId("blk", ctx.now());
   const line = insertMessage(ctx, parent.id, {
-    author: ctx.principal.id, kind: authorKind(ctx), body: `Started a helper: ${title}`,
+    author: ctx.principal.id, kind: authorKind(ctx), body: `Started a helper: ${title}`, depth,
     blocks: [{ type: "helper", v: 1, id: blockId, data: { title, agentId, ...(input.model !== undefined ? { model: input.model } : {}), ...(input.crew === true ? { crew: true } : {}) }, state: "live", traceId: ctx.trace.traceId }],
   });
   const helper = insertThread(ctx, { kind: "helper", title, starter: asker, parentThreadId: parent.id, parentMessageId: line.id, listed: false });
@@ -463,7 +474,7 @@ export async function helperStart(
 
   // A worker that outlives the turn is a task: the one named, else a new one. A crew job binds its own (engine.crew.start). Best effort: the helper runs whether or not this lands.
   if (input.crew !== true) await bindHelperTask(ctx, { taskId: input.taskId, title, instruction, agentId, parentThreadId: parent.id, helperThreadId: helper.id, lineId: line.id, blockId });
-  const first = insertMessage(ctx, helper.id, { author: ctx.principal.id, kind: authorKind(ctx), body: instruction });
+  const first = insertMessage(ctx, helper.id, { author: ctx.principal.id, kind: authorKind(ctx), body: instruction, depth });
   ctx.emit("helper.started", helper.id, { helperThreadId: helper.id, parentThreadId: parent.id, agentId, ...(input.model !== undefined ? { model: input.model } : {}) });
   emitStarted(ctx, helper);
   deliver(ctx, parent, messageBy(ctx.db, line.id)!, [], by, { notify: false });

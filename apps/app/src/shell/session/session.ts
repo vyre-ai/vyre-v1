@@ -108,6 +108,12 @@ const CONSOLE_ROLES = ["owner", "admin", "developer"] as const;
 const PLAIN_ROLES = ["member", "guest"] as const;
 export const roleOpensConsole = (roles: readonly string[]): boolean => holdsRole(roles, ...CONSOLE_ROLES);
 export const roleAsksServer = (roles: readonly string[]): boolean => !roleOpensConsole(roles) && roles.some((r) => !holdsRole([r], ...PLAIN_ROLES));
+/** The Console's rail button (owner ruling, 3 Nov 2026: the Console is in the app's rail for people with console.access, on desktop widths only). A built-in role answers at once; a role this
+ *  Space made asks the server (`ask`, console.nav); a plain Member or Guest never sees it and is never asked for it. */
+export async function railConsole(roles: readonly string[], ask: () => Promise<boolean>): Promise<boolean> {
+  if (roleOpensConsole(roles)) return true;
+  return roleAsksServer(roles) ? ask().catch(() => false) : false;
+}
 /** Only the built-in Member or Guest roles, in a Team Space: no console.access, connectors.manage or schema.manage, so the UI asks for none of them (ShellRuntime.plainRole). */
 export const plainRoleOnly = (roles: readonly string[], kind: string): boolean => kind === "team" && roles.length > 0 && roles.every((r) => holdsRole([r], ...PLAIN_ROLES));
 
@@ -323,7 +329,7 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
     starred: true,
     needsYou: (switcher?.needsYou ?? 0) > 0,
     // whoever holds console.access gets the rail button: the same answer as opening the Console by its address
-    console: roleOpensConsole(who.roles) || (roleAsksServer(who.roles) && await reach("console.nav", {}).then(() => true, () => false)),
+    console: await railConsole(who.roles, () => reach("console.nav", {}).then(() => true, () => false)),
     // a Personal Space has one person and their own computer: the terminal is always theirs. A Team Space gives it to owners and developers
     terminal: space.kind === "personal" || holdsRole(who.roles, "owner", "developer"),
     counts: {},   // the Chats badge is Needs you, live: ShellHost follows tasks.count_needs_you

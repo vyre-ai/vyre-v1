@@ -40,7 +40,11 @@ export type SubjectKind = "actor" | "role" | "group";
 export interface GrantRow {
   id: string; subject_kind: SubjectKind; subject_id: string; resource_type: string; resource_id: string | null;
   level: Level; conditions?: Conditions | undefined; expires_at?: number | null | undefined; by?: string | undefined;
+  /** Where the grant came from ('project:prj_...', 'through-agent:...'). Only a key approved for an agent's request reads it here (THROUGH_AGENT). */
+  source?: string | undefined;
 }
+
+export { THROUGH_AGENT, THROUGH_ANYONE } from "../../../lib/through-agent.ts";
 export interface ResourceRow {
   id: string; type: string; parent_id: string | null; label: number; owner_id: string | null; holds: number;
   /** Set when the access module cut this resource off from its container (Only people added, Only me): the container it came from. Grants above it no longer reach it. */

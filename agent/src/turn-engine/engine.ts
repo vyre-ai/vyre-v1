@@ -112,7 +112,9 @@ async function* guarded<T>(src: AsyncIterable<T>, stop: Promise<never>): AsyncGe
 /** Provider errors that mean this account cannot serve the turn (agent/src/accounts/fallback.ts holds the same list). */
 const KEEP_EVENTS = 20_000;
 const KEEP_TURNS = 5_000;
-const ACCOUNT_FAILURE: ReadonlySet<string> = new Set(["provider.auth_failed", "auth.expired", "provider.rate_limited"]);
+const ACCOUNT_FAILURE: ReadonlySet<string> = new Set(["provider.auth_failed", "auth.expired", "provider.rate_limited", "provider.overloaded"]);
+/** The vendor is busy (owner ruling, 3 Nov 2026): one more try on the same account before the backup takes the turn. Not a limit. */
+const OVERLOADED = "provider.overloaded";
 const MAX_FALLBACKS = 8;
 
 interface Running { turnId: string; agentId: string; asker: string; qseq: number; session: EngineSession | null; cancelled: boolean; lostLease: boolean }
@@ -399,6 +401,7 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
         throw Object.assign(new Error("no account can pay for this turn"), { code: "no_account" });
       }
       const failedRefs: string[] = [];
+      const busyTried = new Set<string>();
       for (;;) {
       const session = await opts.openSession({ threadId: st.thread.id, agent, asker, turnId: turn.id, traceId: turn.traceId, ...(paying ? { account: paying } : {}) });
       run.session = session;
@@ -459,9 +462,16 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
             ended = true;
             break;
           case "error": {
+            // An overloaded vendor before the turn said anything: the same account once more, then the backup below.
+            if (ev.code === OVERLOADED && paying && reply === "" && blockIdx === 0 && !busyTried.has(paying.ref)) {
+              busyTried.add(paying.ref);
+              switchTo = paying;
+              ended = true;
+              break;
+            }
             // A key that is refused or out of quota, before the turn said anything: the next account in the agent's order takes it, and the failed one is skipped.
             if (opts.nextAccount && paying && ACCOUNT_FAILURE.has(ev.code) && reply === "" && blockIdx === 0 && failedRefs.length < MAX_FALLBACKS) {
-              try { switchTo = await opts.nextAccount({ threadId: st.thread.id, agentId: item.agentId, askerId: asker, unavailable: [...failedRefs, paying.ref] }); }
+              try { switchTo = await opts.nextAccount({ threadId: st.thread.id, agentId: item.agentId, askerId: asker, unavailable: [...failedRefs, paying.ref], ...(ev.code === OVERLOADED ? { why: "overloaded" as const } : {}) }); }
               catch (e) {
                 // the next account is there but a person has to say yes first: the turn ends saying that, not with the limit it hit
                 const code = (e as { code?: unknown } | null)?.code;
