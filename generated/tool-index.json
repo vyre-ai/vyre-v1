@@ -1869,7 +1869,7 @@
     {
       "deferred": false,
       "name": "connections_create",
-      "summary": "Plug an account into a connector; secrets are named Vault items, never values",
+      "summary": "Plug an account into a connector; secrets are named Vault items, never values. Your own (person) needs no permission; a Space one needs connectors.manage",
       "toolset": "automations"
     },
     {

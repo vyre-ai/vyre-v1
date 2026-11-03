@@ -7088,7 +7088,7 @@ const routes1: Route[] = [
     "v": 1,
     "module": "connectors",
     "effects": "write",
-    "permission": "connectors.manage",
+    "permission": null,
     "level": "edit",
     "resource": {
       "type": "connection",
@@ -17146,7 +17146,7 @@ const routes3: Route[] = [
     "module": "identity",
     "effects": "read",
     "permission": null,
-    "level": "view",
+    "level": "member",
     "resource": {
       "type": "space"
     },
@@ -29090,7 +29090,7 @@ const routes5: Route[] = [
     "module": "settings",
     "effects": "read",
     "permission": null,
-    "level": "view",
+    "level": "member",
     "resource": {
       "type": "space"
     },
@@ -30881,7 +30881,7 @@ const routes5: Route[] = [
     "module": "spaces",
     "effects": "read",
     "permission": null,
-    "level": "view",
+    "level": "member",
     "resource": {
       "type": "space"
     },
@@ -31079,7 +31079,7 @@ const routes5: Route[] = [
     "module": "spaces",
     "effects": "read",
     "permission": null,
-    "level": "view",
+    "level": "member",
     "resource": {
       "type": "space"
     },

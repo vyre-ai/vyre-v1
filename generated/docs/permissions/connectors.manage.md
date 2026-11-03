@@ -26,7 +26,6 @@ Area: space. Risk: medium. Applies to: connector, connection.
 - company.start
 - company.status
 - company.sweep
-- connections.create
 - connectors.build
 - connectors.define
 - connectors.diff
