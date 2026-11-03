@@ -37,6 +37,7 @@ for (const t of targets) for (const skin of ["paper", "graphite"]) for (const [s
   let found = true;
   if (t.waitFor) await page.waitForSelector(t.waitFor, { timeout: 8000 }).catch(() => { found = false; });
   await page.waitForTimeout(900);
+  if (t.hover) { await page.hover(t.hover).catch(() => undefined); await page.waitForTimeout(400); }
   const file = path.join(out, `${t.id}-${skin}-${size}.png`);
   await page.screenshot({ path: file });
   console.log(`shot ${path.basename(file)} waitFor=${found}${errs.length ? " errors=" + errs.join(" | ").slice(0, 400) : ""}`);

@@ -16,7 +16,7 @@ import { exportAs, exportName } from "./export.ts";
 import { fetchSuggestions, openQuery } from "./suggest.ts";
 import { DIRECTORY, createSample } from "./sample.ts";
 import type { Message, Thread } from "./model.ts";
-import { MessageView } from "./MessageView.tsx";
+import { HoverBar, MessageView, menuFor } from "./MessageView.tsx";
 import { timeline } from "./model.ts";
 
 installComposerForTests(Composer);
@@ -535,26 +535,22 @@ test("a plugin command with a colon in its name is a command, and its prompt is 
   assert.deepEqual(r.flags.sent, ["Say hello to Dana"]);
 });
 
-test("an agent's answer in a chat of people carries Make task and Remember; in a chat of one person it does not, and a person's own message never does", async () => {
-  const r = rig();
-  const reply: Message = { messageId: "m_ans", threadId: r.data.threadId, threadSeq: 2, author: { kind: "agent", id: "agt_billing" }, kind: "agent", body: "Three invoices are paid, two are open.", blocks: [], createdAt: 2, reactions: [], pinned: false, attachments: [] } as unknown as Message;
-  const own: Message = { ...reply, messageId: "m_own", author: { kind: "person", id: r.data.me.id }, kind: "text" } as Message;
-  const render = (withPeople: boolean): string => {
-    const items = timeline([reply, own], { meId: r.data.me.id, nameOf: r.data.nameOf, kindOf: r.data.kindOf, clock: r.data.clock() });
-    return clean(items.map((it) => renderToStaticMarkup(<MessageView item={it} actions={{ openBeside: () => undefined, nameOf: r.data.nameOf, makeTask: () => undefined, withPeople } as never} meId={r.data.me.id} />)).join(""));
-  };
-  const many = render(true);
-  assert.ok(many.includes('data-testid="reply-task-m_ans"'), "Make task under the agent's answer");
-  assert.ok(!many.includes('data-testid="reply-actions-m_own"'), "none under a person's own message");
-  assert.ok(!render(false).includes('data-testid="reply-actions-m_ans"'), "a chat of one person has the message menu only");
-});
-
-test("at rest a message shows no hover action as text: Copy, Reply in thread, Fork and Pin appear only when the message is hovered or focused", async () => {
+test("an agent's answer in a chat of people has Make task in its hover bar; in a chat of one person it does not, and a person's own message never does; nothing of it is drawn at rest", async () => {
   const r = rig();
   const reply: Message = { messageId: "m_ans", threadId: r.data.threadId, threadSeq: 2, author: { kind: "agent", id: "agt_billing" }, kind: "agent", body: "Three invoices are paid, two are open.", blocks: [], createdAt: 2, reactions: [], pinned: false } as unknown as Message;
+  const bar = (withPeople: boolean, visible: boolean, byAgent = true): string => clean(renderToStaticMarkup(
+    <HoverBar m={reply} mine={!byAgent} byAgent={byAgent} visible={visible} onEdit={() => undefined} a={{ openBeside: () => undefined, nameOf: r.data.nameOf, makeTask: () => undefined, withPeople, copy: () => undefined, openThread: () => undefined, setPinned: () => undefined, fork: () => undefined, showMenu: () => undefined } as never} />,
+  ));
+  assert.ok(bar(true, true).includes('data-testid="act-make-m_ans"'), "Make task sits in the bar next to Copy, Reply in thread, Fork and Pin");
+  assert.ok(!bar(false, true).includes('data-testid="act-make-m_ans"'), "a chat of one person has the message menu only");
+  assert.ok(!bar(true, true, false).includes('data-testid="act-make-m_ans"'), "never on a person's own message");
+  assert.ok(!bar(true, false).includes('act-make-m_ans'), "at rest no action is drawn");
+  // the message itself draws none of it at rest
   const items = timeline([reply], { meId: r.data.me.id, nameOf: r.data.nameOf, kindOf: r.data.kindOf, clock: r.data.clock() });
   const html = clean(items.map((it) => renderToStaticMarkup(<MessageView item={it} actions={{ openBeside: () => undefined, nameOf: r.data.nameOf, makeTask: () => undefined, withPeople: true, copy: () => undefined, openThread: () => undefined, setPinned: () => undefined, fork: () => undefined } as never} meId={r.data.me.id} />)).join(""));
   const text = html.replace(/<[^>]+>/g, " ");
-  for (const word of ["Copy", "Reply in thread", "Fork from here", "Pin"]) assert.ok(!new RegExp(`\\b${word}\\b`).test(text), `${word} is not shown at rest`);
-  assert.ok(text.includes("Make task"), "Make task is a real button under the answer, drawn with a ring");
+  for (const word of ["Copy", "Reply in thread", "Fork from here", "Pin", "Make task", "Remember"]) assert.ok(!new RegExp(`\\b${word}\\b`).test(text), `${word} is not shown at rest`);
+  // and the long-press sheet on a phone has it
+  const sheet = menuFor(reply, false, { makeTask: () => undefined, openThread: () => undefined, copy: () => undefined, setPinned: () => undefined, react: () => undefined, remove: () => undefined } as never, () => undefined);
+  assert.ok(sheet.some((e) => "label" in e && e.label === "Make a Task"));
 });

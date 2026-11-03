@@ -52,3 +52,4 @@
 - Inbox > Replies on a phone is a two-line row: who replied and the chat name with the time, then the words with the count or Muted. A chat that is not a direct message shows the other people's faces in its header.
 - Make task and Remember under an agent's answer in a chat of people are drawn as buttons with an edge and an icon, so they no longer read as stray text.
 - Audit rows and the Console overview read as sentences: "Priya Raman assigned a role to Omar Haddad", "Intake revealed the record Rivera engagement, for Priya Raman", in place of "role changed Omar". The sentence is made in lib/words/actions.ts from the act's name, in the past tense, with no dots, underscores or ids; a guard test covers every audited capability.
+- Make task and Remember for an agent's answer in a chat of people sit in the message's hover bar next to Copy, Reply in thread, Fork and Pin (and Make a Task and Remember in the long-press sheet on a phone). Nothing of them is drawn at rest.
