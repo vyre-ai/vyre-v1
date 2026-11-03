@@ -35,6 +35,7 @@ import { withTranscript } from "./transcript.ts";
 import { withNativeSkills } from "./skills-native.ts";
 import { withGoalFolder } from "./goal-folder.ts";
 import { createRoller } from "./rollover.ts";
+import { forgetPlacement, placementOf } from "./placement-cache.ts";
 import { noModelWords } from "./model-fallback.ts";
 import { linkReply } from "./handlers/extra/reply-info.ts";
 import { costOf } from "./turn-cost.ts";
@@ -182,7 +183,7 @@ export async function resolveOne(h: Pick<EngineHostSeam, "call" | "log">, q: Acc
 /** An account whose engine can run on this computer: the pick, or another account of the person when the pick's program is not installed (runnable-account.ts). */
 function runnableAccount(h: EngineHostSeam): (q: AccountQuery) => Promise<ResolvedAccount | null> {
   // On a Space server a person's own account pays only while the server holds their key (locked-account.ts); the next account answers otherwise, said in the chat.
-  const resolve = skipLocked({ resolve: (q) => resolveOne(h, q), ...(h.keyHeld ? { held: h.keyHeld } : {}), onDevice: async (q) => ((await h.call("engine.placement.decide", { threadId: q.threadId, agentId: q.agentId, kind: "message" }, q.askerId)) as { placement?: string }).placement === "device", ...(h.postAs ? { postAs: h.postAs } : {}), ...(h.log ? { log: h.log } : {}) });
+  const resolve = skipLocked({ resolve: (q) => resolveOne(h, q), ...(h.keyHeld ? { held: h.keyHeld } : {}), onDevice: async (q) => (await placementNow(q.threadId, q.agentId, q.askerId)) === "device", ...(h.postAs ? { postAs: h.postAs } : {}), ...(h.log ? { log: h.log } : {}) });
   // A host that hands in its own opener (a test's scripted one) starts no program of ours: nothing to check, and one resolve per turn.
   if (h.openSession) return resolve;
   return createRunnableAccount({
@@ -433,11 +434,11 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
   const skillsDir = host.sandbox?.dataDir ?? host.dataDir;
   const nativeSkills = (o: OpenSession): OpenSession => (!host.openSession && skillsDir ? withNativeSkills(o, { call: h.call, workOf: (spec) => workFolder(skillsDir, spec.asker, spec.threadId, spec.agent.id), ...(h.log ? { log: h.log } : {}) }) : o);
   // where a turn runs, in words, for the turn's own context line (one placement read, only for a chat of a person)
+  const placementNow = (threadId: string, agentId: string, asker: string): Promise<string | undefined> =>
+    placementOf(async () => { try { return ((await h.call("engine.placement.decide", { threadId, agentId, kind: "message" }, asker)) as { placement?: string }).placement; } catch { return undefined; } }, { threadId, agentId, asker }, (h.now ?? Date.now)());
   const placeWords = async (spec: SessionSpec): Promise<string | undefined> => {
-    try {
-      const p = (await h.call("engine.placement.decide", { threadId: spec.threadId, agentId: spec.agent.id, kind: "message" }, spec.asker)) as { placement?: string };
-      return p.placement === "device" ? "on the asker's own computer" : p.placement === "host" ? "on the Space's server" : undefined;
-    } catch { return undefined; }
+    const p = await placementNow(spec.threadId, spec.agent.id, spec.asker);
+    return p === "device" ? "on the asker's own computer" : p === "host" ? "on the Space's server" : undefined;
   };
   // a goal's Files folder as goal/ in a terminal engine's work folder (goal-folder.ts): read as the asker (the read gate holds), written as the agent acting for the asker
   const goalFolder = (o: OpenSession): OpenSession => (skillsDir
@@ -538,6 +539,7 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
     // the chats waiting for a computer, so the line is said once per wait and the right ones start when a computer links
     const waitingFor = new Set<string>();
     h.nodes?.onDevice?.((link, up) => {
+      forgetPlacement();   // a computer linked or dropped: where chats run may have changed
       if (!up || link.engines.length === 0) return;
       for (const threadId of [...waitingFor]) {
         if (waitsForComputer(ctx.db, h.nodes, threadId)) continue;

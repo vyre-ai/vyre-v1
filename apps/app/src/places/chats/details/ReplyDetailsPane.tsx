@@ -29,6 +29,13 @@ function entryOf(l: Line, p: ReplyDetailsPaneProps): Entry {
     case "note": return { key: l.key, type: "block", node: <Text key={l.key} testID={`details-${l.key}`} style={st.note}>{l.text}</Text> };
     case "kv": {
       const copy = l.copy;
+      // a long value with whose it is (Paid by) wraps under its label, so the label never shrinks to "P…" on a phone
+      if (l.note) return { key: l.key, type: "block", node: (
+        <View key={l.key} testID={`details-${l.key}`} style={st.stack}>
+          <Text style={st.stackLabel}>{l.label}</Text>
+          <Text style={st.stackValue}>{l.value}<Text style={st.muted}>{` \u00b7 ${l.note}`}</Text></Text>
+        </View>
+      ) };
       return {
         key: l.key, type: "row", title: l.label, testID: `details-${l.key}`,
         trailing: (
@@ -94,6 +101,9 @@ const st = StyleSheet.create({
   trail: { flexDirection: "row", alignItems: "center", gap: 4, maxWidth: 240, flexShrink: 1 },
   value: { fontSize: 13, color: "var(--ink)" as string, textAlign: "right" },
   muted: { color: "var(--ink-4)" as string },
+  stack: { paddingHorizontal: 12, paddingVertical: 8, gap: 2 },
+  stackLabel: { fontSize: 13, color: "var(--ink)" as string },
+  stackValue: { fontSize: 13, color: "var(--ink-2)" as string },
   mono: { fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace", fontSize: 12, color: "var(--ink-2)" as string },
   note: { fontSize: 12.5, lineHeight: 18, color: "var(--ink-3)" as string, paddingHorizontal: 12, paddingVertical: 6 },
   foot: { paddingHorizontal: 8, paddingTop: 12, paddingBottom: 14, alignItems: "flex-start" },
