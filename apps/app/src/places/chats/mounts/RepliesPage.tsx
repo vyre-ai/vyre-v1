@@ -1,11 +1,9 @@
-// Threads, at the top of Chats: the threads you are in, from the server, newest reply first (audit Threads 4, 6). You are in one when you wrote the message it hangs off, replied, were
-// mentioned or chose Follow; a task's thread stays with its task. Each row says where it hangs, the newest line and who wrote it, when, and how many replies are new (bold while any are).
-// The list is live: a new reply moves its thread to the top. Right-click a row for Open, Mark as Read, Follow or Mute, Leave and Copy Link; J and K move, Enter opens. More pages load on request.
-// Under them, Ask history: every Ask pane you opened beside something in another place (they stay out of Recent), newest first, so one can be reopened here as a full chat.
+// Replies, in the Inbox: the replies to messages you wrote, replied to, were mentioned in or chose to follow, from the server, newest reply first (audit Threads 4, 6). Each row says which chat it hangs
+// off, the newest line and who wrote it, when, and how many replies are new (bold while any are). The same count makes that chat's row in the chat list bold. The list is live: a new reply moves its row to
+// the top. Right-click a row for Open, Mark as Read, Follow or Mute, Leave and Copy Link; J and K move, Enter opens. More load on request. A task's replies stay with its task.
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ReactElement } from "react";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
-import { Avatar } from "../../../../../../ui/src/Avatar/index.tsx";
 import { Row } from "../../../../../../ui/src/Row/index.tsx";
 import { menuTrigger, useMenu } from "../../../../../../ui/src/Menu/index.tsx";
 import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
@@ -23,21 +21,14 @@ type Thread = ThreadsOut["threads"][number];
 
 export const THREADS_SCREEN = "chats.threads";
 const PAGE = 50;
-/** What the page asks for: the threads I am in, newest reply first, without the threads of tasks. */
+/** What the page asks for: the replies I am in, newest reply first, without a task's. */
 export const THREADS_STATE = { kind: ["thread"], mine: true, order: "latest", exceptScope: ["task"], limit: PAGE } as const;
 
-export function ThreadsPage({ rt, nameOf, openChat, say }: { rt: ShellRuntime; nameOf(id: string): string; openChat(id: string): void; say?(text: string): void }): ReactElement {
+export function RepliesPage({ rt, nameOf, openChat, say }: { rt: ShellRuntime; nameOf(id: string): string; openChat(id: string): void; say?(text: string): void }): ReactElement {
   const live = useLive<ThreadsOut>(rt.screens, THREADS_SCREEN, "threads", THREADS_STATE as unknown as Record<string, unknown>);
   const [more, setMore] = useState<{ rows: readonly Thread[]; next: string | undefined } | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
   const menu = useMenu();
-  const [asks, setAsks] = useState<readonly Thread[]>([]);
-  useEffect(() => {
-    let on = true;
-    // an Ask pane is private to the person who opened it: the list holds only theirs
-    void Promise.resolve(rt.call("threads.list", { kind: ["ask"], limit: 100 })).then((o) => { if (on) setAsks((o as ThreadsOut).threads); }, () => undefined);
-    return () => { on = false; };
-  }, [rt]);
   const first = live.status === "ready" ? live.data.threads : [];
   const next = more ? more.next : live.status === "ready" ? live.data.next : undefined;
   const rows = useMemo(() => mergeThreadPages(first, more?.rows ?? []), [first, more]);
@@ -48,7 +39,7 @@ export function ThreadsPage({ rt, nameOf, openChat, say }: { rt: ShellRuntime; n
     if (!next) return;
     void Promise.resolve(rt.call("threads.list", { ...THREADS_STATE, cursor: next })).then(
       (o) => { const out = o as ThreadsOut; setMore((m) => ({ rows: [...(m?.rows ?? []), ...out.threads], next: out.next })); },
-      () => tell("Could not load more threads. Try again."),
+      () => tell("Could not load more replies. Try again."),
     );
   };
   const follow = (id: string, mode: "follow" | "mute" | "leave"): void => {
@@ -79,11 +70,11 @@ export function ThreadsPage({ rt, nameOf, openChat, say }: { rt: ShellRuntime; n
 
   const clock = rt.clock();
   return (
-    <ScrollView testID="threads-page" style={LIST_PAGE.root} contentContainerStyle={LIST_PAGE.content}>
+    <ScrollView testID="replies-page" style={LIST_PAGE.root} contentContainerStyle={LIST_PAGE.content}>
       <View style={LIST_PAGE.col}>
-        <Text accessibilityRole="header" aria-level={1} style={LIST_PAGE.title}>Threads</Text>
+        <Text accessibilityRole="header" aria-level={1} style={LIST_PAGE.title}>Replies</Text>
         <View style={LIST_PAGE.rows} accessibilityRole="list">
-          {live.status === "ready" && rows.length === 0 ? <Text style={LIST_PAGE.empty}>Threads you reply in or are mentioned in show here.</Text> : null}
+          {live.status === "ready" && rows.length === 0 ? <Text style={LIST_PAGE.empty}>Replies to messages you wrote, replied to or follow show here.</Text> : null}
           {rows.map((t) => {
             const v = threadView(t, nameOf, clock);
             return (
@@ -92,30 +83,19 @@ export function ThreadsPage({ rt, nameOf, openChat, say }: { rt: ShellRuntime; n
                 leading={<View style={st.lead}>{v.faces[0] ? <Face name={nameOf(v.faces[0].id)} seedId={v.faces[0].id} kind={v.faces[0].kind} size={28} /> : null}</View>}
                 trailing={<View style={st.trail}><Text style={st.when}>{v.when}</Text>{v.unread > 0 ? <Text testID={`thread-unread-${t.threadId}`} accessibilityLabel={`${v.unread} new`} style={st.unread}>{String(v.unread)}</Text> : v.muted ? <Text style={st.when}>Muted</Text> : null}</View>}
                 onPress={() => { setSelected(t.threadId); openChat(t.threadId); }}
-                domProps={menuTrigger((x, y) => { setSelected(t.threadId); menu.show(entries(t), x, y, "context", { label: "Thread" }); })}
+                domProps={menuTrigger((x, y) => { setSelected(t.threadId); menu.show(entries(t), x, y, "context", { label: "Reply" }); })}
               />
             );
           })}
-          {next ? <View style={st.more}><TextButton label="Show more threads" testID="threads-more" onPress={loadMore} /></View> : null}
+          {next ? <View style={st.more}><TextButton label="Show more replies" testID="replies-more" onPress={loadMore} /></View> : null}
         </View>
-        {asks.length > 0 ? (
-          <View testID="ask-history">
-            <Text accessibilityRole="header" aria-level={2} style={st.head}>Ask history</Text>
-            <View style={LIST_PAGE.rows}>
-              {asks.map((t) => {
-                const who = t.agents[0]?.agentId;
-                return <Row key={t.threadId} id={`ask-${t.threadId}`} title={t.title ?? "Ask"} {...(who ? { note: nameOf(who) } : {})} leading={who ? <View style={st.lead}><Avatar name={nameOf(who)} seedId={who} kind="agent" size={28} /></View> : null} onPress={() => openChat(t.threadId)} />;
-              })}
-            </View>
-          </View>
-        ) : null}
       </View>
       {menu.element}
     </ScrollView>
   );
 }
 
-/** The pages at the top of Chats (Threads, Artifacts) sit in the column Tasks uses: 700 wide, the title 26 in and 34 down, the rows 16 in, so the three read as one family. */
+/** The pages at the top of Chats and the Inbox's Replies sit in the column Tasks uses: 700 wide, the title 26 in and 34 down, the rows 16 in, so they read as one family. */
 export const LIST_PAGE = StyleSheet.create({
   root: { flex: 1, minHeight: 0, backgroundColor: "var(--win)" as string },
   content: { alignItems: "center", paddingHorizontal: 24, paddingTop: 34, paddingBottom: 40 },

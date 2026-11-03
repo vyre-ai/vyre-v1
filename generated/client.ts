@@ -416,6 +416,10 @@ export function createClient(transport: Transport) {
       messages: {
         list: call("chat.messages.list", 1),
       },
+      note_offer: {
+        answer: call("chat.note_offer.answer", 1),
+        make: call("chat.note_offer.make", 1),
+      },
       open_as_chat: call("chat.open_as_chat", 1),
       open_tab: call("chat.open_tab", 1),
       people_status: call("chat.people_status", 1),

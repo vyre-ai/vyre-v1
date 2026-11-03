@@ -32,7 +32,7 @@ export function renderDigest(p: DigestParts): string {
   const lines: string[] = [];
   const room = (s: string): boolean => lines.join("\n").length + s.length + 1 <= DIGEST_CHARS;
   const push = (s: string): boolean => { if (!room(s)) return false; lines.push(s); return true; };
-  if (p.bound) push(`On this thread: ${lineOf(p.bound)}`);
+  if (p.bound) push(`On this chat: ${lineOf(p.bound)}`);
   if (p.parent) push(`Parent: ${lineOf(p.parent)}`);
   const near = (head: string, rows: readonly Task[]): void => {
     if (rows.length === 0) return;

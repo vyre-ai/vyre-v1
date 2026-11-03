@@ -9,7 +9,7 @@ import { MenuIcon } from "../../../../../../ui/src/Menu/index.tsx";
 import type { MenuEntry, MenuItem } from "../../../../../../ui/src/Menu/index.tsx";
 import { Ico } from "./icons.tsx";
 import { noteFill } from "./look.ts";
-import { shareWords } from "./model.ts";
+import { fromLine, shareWords } from "./model.ts";
 import type { Note, Who } from "./model.ts";
 import { IconBtn, LinkCard, Picture, Quote, dom, web } from "./parts.tsx";
 
@@ -51,9 +51,10 @@ export interface PhoneNoteActions {
   more(): void;
   title(v: string): void;
   body(v: string): void;
+  openFrom(threadId: string, messageId: string): void;
 }
 
-export function PhoneNote({ n, image, who, edited, a }: { n: Note; image: string | null; who: Who; edited: string; a: PhoneNoteActions }): ReactElement {
+export function PhoneNote({ n, image, who, edited, from, a }: { n: Note; image: string | null; who: Who; edited: string; from?: ReturnType<typeof fromLine>; a: PhoneNoteActions }): ReactElement {
   const [title, setTitle] = useState(n.title);
   const [body, setBody] = useState(n.body);
   const [bodyH, setBodyH] = useState(100);
@@ -77,8 +78,15 @@ export function PhoneNote({ n, image, who, edited, a }: { n: Note; image: string
           value={body} editable={n.canEdit} multiline onChangeText={(v) => { setBody(v); a.body(v); }} placeholder="Note" placeholderTextColor="var(--ink-3)" accessibilityLabel="Note" testID="note-phone-body"
           onContentSizeChange={(e) => setBodyH(Math.max(100, Math.ceil(e.nativeEvent.contentSize.height)))} style={[s.text, { height: bodyH }]}
         />
-        {n.clip?.selection ? <Quote text={n.clip.selection} big /> : null}
+        {n.clip?.selection?.trim() ? <Quote text={n.clip.selection.trim()} big /> : null}
         {n.link ? <LinkCard link={n.link} noteId={n.noteId} /> : null}
+        {from ? (
+          <View style={s.metaRow} testID="note-from">
+            <Ico name="chat" size={14} color="var(--ink-3)" />
+            <Text numberOfLines={1} style={[s.metaText, { flexShrink: 1 }]}>{from.text}</Text>
+            {from.open ? <Pressable accessibilityRole="link" onPress={() => a.openFrom(from.open!.threadId, from.open!.messageId)} testID="note-from-open"><Text style={s.fromOpen}>Open message</Text></Pressable> : null}
+          </View>
+        ) : null}
         <View style={s.meta}>
           <View style={s.metaRow}><Ico name="tag" size={14} color="var(--ink-3)" /><Text style={s.metaText}>{n.labels.join(", ") || "No labels"}</Text></View>
           <View style={s.metaRow}><Ico name={words.icon} size={14} color="var(--ink-3)" /><Text style={s.metaText}>{words.long}</Text></View>
@@ -108,6 +116,7 @@ const s = StyleSheet.create({
   text: { fontSize: 16, lineHeight: 25, color: "var(--ink)" as string, ...(web ? ({ outlineStyle: "none", resize: "none" } as object) : null) },
   meta: { gap: 6, marginTop: 18 },
   metaRow: { flexDirection: "row", alignItems: "center", gap: 6 },
+  fromOpen: { fontSize: 13, color: "var(--accent)" as string },
   metaText: { fontSize: 13, color: "var(--ink-3)" as string },
   bar: { height: 84, flexDirection: "row", alignItems: "flex-start", gap: 4, paddingTop: 8, paddingHorizontal: 12, borderTopWidth: 1, borderTopColor: "var(--line)" as string },
   ed: { fontSize: 12, color: "var(--ink-3)" as string, alignSelf: "center", marginTop: -26 },

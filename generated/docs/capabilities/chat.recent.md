@@ -39,6 +39,7 @@ type Out = {
       title: string;
       agents: Array<string>;
       unread: number;
+      repliesUnread?: number;
       working: boolean;
       starred: boolean;
       lastAt: number;
@@ -51,6 +52,7 @@ type Out = {
       title: string;
       agents: Array<string>;
       unread: number;
+      repliesUnread?: number;
       working: boolean;
       starred: boolean;
       lastAt: number;
@@ -63,6 +65,7 @@ type Out = {
       title: string;
       agents: Array<string>;
       unread: number;
+      repliesUnread?: number;
       working: boolean;
       starred: boolean;
       lastAt: number;
@@ -75,6 +78,7 @@ type Out = {
       title: string;
       agents: Array<string>;
       unread: number;
+      repliesUnread?: number;
       working: boolean;
       starred: boolean;
       lastAt: number;
@@ -87,6 +91,7 @@ type Out = {
       title: string;
       agents: Array<string>;
       unread: number;
+      repliesUnread?: number;
       working: boolean;
       starred: boolean;
       lastAt: number;
@@ -125,6 +130,7 @@ type Out = {
           "usr_a1b2c3"
         ],
         "preview": "example",
+        "repliesUnread": 1,
         "starred": true,
         "threadId": "thr_a1b2c3",
         "title": "example",
@@ -143,6 +149,7 @@ type Out = {
           "usr_a1b2c3"
         ],
         "preview": "example",
+        "repliesUnread": 1,
         "starred": true,
         "threadId": "thr_a1b2c3",
         "title": "example",
@@ -162,6 +169,7 @@ type Out = {
           "usr_a1b2c3"
         ],
         "preview": "example",
+        "repliesUnread": 1,
         "starred": true,
         "threadId": "thr_a1b2c3",
         "title": "example",
@@ -181,6 +189,7 @@ type Out = {
           "usr_a1b2c3"
         ],
         "preview": "example",
+        "repliesUnread": 1,
         "starred": true,
         "threadId": "thr_a1b2c3",
         "title": "example",
@@ -199,6 +208,7 @@ type Out = {
           "usr_a1b2c3"
         ],
         "preview": "example",
+        "repliesUnread": 1,
         "starred": true,
         "threadId": "thr_a1b2c3",
         "title": "example",

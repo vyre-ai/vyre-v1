@@ -359,6 +359,13 @@ export default defineManifest({
     atool('handoff', 'Hand work to another agent in a new linked thread (counted against the hop limit)', {
       in: { toAgentId: id.agent, note: t.str() }, out: { thread: t.rec(), depth: t.int() }, cap: 'chat.handoff', effects: 'write', planMode: 'blocked',
     }),
+    atool('notes_create', 'Save a note for the person, private by default, when they ask ("save this as a note"). It links back to the chat message it was saved from', {
+      in: { title: t.opt(t.str()), body: t.opt(t.str()), labels: t.opt(t.arr(t.str())) }, out: { note: t.rec() }, cap: 'notes.create', effects: 'write', planMode: 'blocked',
+    }),
+    atool('offer_note', 'Offer to save something worth keeping from this chat as a note: a card with a preview and Save or Not now. Rare: once per topic, never for small talk', {
+      in: { title: t.str(), body: t.str(), topic: t.str(), messageId: t.opt(t.str()) }, out: { offered: t.bool(), why: t.opt(t.str()), blockId: t.opt(id.block), messageId: t.opt(id.message) },
+      cap: 'chat.note_offer.make', effects: 'write', planMode: 'blocked', blocks: ['note_offer'],
+    }),
     atool('memory_propose', 'Save a fact to the asker layer of this agent memory with its source', {
       in: { text: t.str(), sourceKind: t.str(), sourceRef: t.str(), layer: t.opt(t.str()), validFrom: t.opt(t.ts()), kind: t.opt(t.str()) },
       out: { fact: t.rec(), merged: t.bool() }, cap: 'memory.propose_fact', effects: 'write', planMode: 'blocked', blocks: ['memory_saved'],

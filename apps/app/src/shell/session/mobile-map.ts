@@ -71,8 +71,8 @@ export function entryFor(place: PlaceId, hash: string): Entry {
   // Tasks lives in Chats: the list and every task sit on the Chats tab's history
   if (t.screen === "tasks.my-work") return { tab: "chats", screen: "tasks:list", title: "Tasks" };
   if (t.screen === "tasks.page" && t.args.taskId) return { tab: "chats", screen: `task:${t.args.taskId}` };
-  // the threads I am in sit on the Chats tab's history, like Tasks
-  if (t.screen === "chats.threads") return { tab: "chats", screen: "threads:list", title: "Threads" };
+  // the replies I follow sit on the Chats tab's history, like Tasks (a link to the old Threads page arrives here too)
+  if (t.screen === "inbox.replies") return { tab: "chats", screen: "replies:list", title: "Replies" };
   if (t.subject) return { tab: tabOf(place), screen: `${t.subject.type}:${t.subject.id}` };
   if ((TAB_PLACES as readonly string[]).includes(place)) return { tab: place as TabId, screen: place };
   if (place === "settings") return { tab: "you", screen: "you:settings", title: "Settings" };
@@ -99,7 +99,7 @@ export function placeOf(e: Entry): { place: PlaceId; hash: string } | null {
     try { return { place: "chats", hash: decodeURIComponent(e.screen.slice(i + 1)) }; } catch { return null; }
   }
   if (kind === "tasks") return { place: "chats", hash: formatHash({ screen: "tasks.my-work", args: {} }) };
-  if (kind === "threads") return { place: "chats", hash: formatHash({ screen: "chats.threads", args: {} }) };
+  if (kind === "replies" || kind === "threads") return { place: "inbox", hash: formatHash({ screen: "inbox.replies", args: {} }) };
   if (kind === "you") {
     const what = e.screen.slice(i + 1);
     if (what === "settings") return { place: "settings", hash: "" };

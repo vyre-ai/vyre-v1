@@ -42,7 +42,7 @@ export async function assistantOpen(ctx: AssistCtx, input: { page: string; objec
   }));
   // chat.start answers { thread: { threadId } }
   const threadId = str(asRow(started?.["thread"])?.["threadId"] ?? started?.["threadId"]);
-  if (!threadId) return raise(ctx, "internal.unexpected", "The chat did not return a thread.");
+  if (!threadId) return raise(ctx, "internal.unexpected", "The chat did not come back.");
   ctx.db.run(
     `INSERT INTO console_assistant_thread (person_id, thread_id, assistant_id, page, object_ref, opened_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)`,
     personId, threadId, assistantId, input.page, input.objectRef ?? null, now, now,

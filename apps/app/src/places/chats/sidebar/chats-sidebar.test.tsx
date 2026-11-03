@@ -30,9 +30,10 @@ const wait = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms)
 
 test("the sections render from the Northwind sample, in the prototype's order", () => {
   const out = html(createSampleSidebar());
-  const heads = ["row-nav:tasks", "row-nav:threads", "head-recent", "head-channels", "head-faces"].map((id) => at(out, `data-testid="${id}"`));
-  assert.deepEqual([...heads].sort((a, b) => a - b), heads, "Tasks, Threads, Recent, Channels, Agents");
-  for (const text of ["Tasks", "Threads", "Recent", "Agents", "Channels", "Northwind"]) assert.ok(out.includes(text), text);
+  const heads = ["row-nav:tasks", "head-recent", "head-channels", "head-faces"].map((id) => at(out, `data-testid="${id}"`));
+  assert.deepEqual([...heads].sort((a, b) => a - b), heads, "Tasks, Recent, Channels, Agents");
+  for (const text of ["Tasks", "Recent", "Agents", "Channels", "Northwind"]) assert.ok(out.includes(text), text);
+  assert.ok(!out.includes("row-nav:threads"), "no Threads row");
   // The title, the hide button are the shared slot's; there is one search, Cmd-K, so the content draws neither.
   assert.ok(!out.includes("sidebar-toggle") && !out.includes("Hide the sidebar") && !out.includes("Search"), "no frame of its own");
   assert.ok(!out.includes(String.fromCharCode(0x2014)), "no em dash in any copy");
@@ -133,7 +134,7 @@ const registered = (s: SampleSidebar, query: string, slot: SidebarSlotApi = slot
 test("the sidebar registers in the shared slot as Chats with no search of its own, and draws all its rows inside it", () => {
   const { entry, out } = registered(createSampleSidebar(), "");
   assert.deepEqual(entry, { title: "Chats" });
-  for (const text of ["Tasks", "Threads", "Intake", "rivera-matter"]) assert.ok(out.includes(text), text);
+  for (const text of ["Tasks", "Intake", "rivera-matter"]) assert.ok(out.includes(text), text);
   assert.ok(out.includes('data-testid="new-menu"') && out.includes('data-testid="filter-chats"'), "filter and New keep their place");
 });
 
