@@ -427,6 +427,7 @@ export function createClient(transport: Transport) {
       share: call("chat.share", 1),
       start: call("chat.start", 1),
       thread: call("chat.thread", 1),
+      title_make: call("chat.title_make", 1),
       transcript: {
         append: call("chat.transcript.append", 1),
         get: call("chat.transcript.get", 1),

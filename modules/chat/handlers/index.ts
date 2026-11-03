@@ -15,6 +15,7 @@ import { g24bHandlers } from "./g24b.ts";
 import { g24cHandlers } from "./g24c.ts";
 import { g24dHandlers } from "./g24d.ts";
 import { noteOfferHandlers } from "./note-offer.ts";
+import { titleMake } from "./title.ts";
 import { g26Handlers } from "./g26.ts";
 import { historySearch } from "./history.ts";
 import { g27Handlers } from "./g27.ts";
@@ -69,6 +70,7 @@ export const handlers = {
   ...g24bHandlers,
   ...g24cHandlers,
   ...g24dHandlers,
+  "chat.title_make": titleMake,
   ...noteOfferHandlers,
   // P-L2_26 replaces the group entries that had reported limits
   ...g26Handlers,
