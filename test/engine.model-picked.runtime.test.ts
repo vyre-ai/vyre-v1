@@ -2,13 +2,13 @@
 // and what can run, and offers to choose another or run on the person's own computer; nothing is swapped quietly.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { handlers, hostSeams } from "../impl.ts";
-import { ensureRuntime } from "../runtime.ts";
-import { harness } from "../fixtures/harness.ts";
-import { scriptedProvider } from "../../../agent/src/turn-engine/scripted-session.ts";
-import { until } from "../../../agent/src/turn-engine/harness.ts";
-import { statusView } from "../../../apps/app/src/places/chats/conversation/status.ts";
-import type { EngineHostSeam } from "../runtime.ts";
+import { handlers, hostSeams } from "../modules/engine/impl.ts";
+import { ensureRuntime } from "../modules/engine/runtime.ts";
+import { harness } from "../modules/engine/fixtures/harness.ts";
+import { scriptedProvider } from "../agent/src/turn-engine/scripted-session.ts";
+import { until } from "../agent/src/turn-engine/harness.ts";
+import { statusView } from "../apps/app/src/places/chats/conversation/status.ts";
+import type { EngineHostSeam } from "../modules/engine/runtime.ts";
 
 const THREAD = "thr_pick";
 const THREADS = [{ threadId: THREAD, kind: "chat", starter: "usr_dana", agents: [{ agentId: "agt_intake", mode: "lead" as const, model: "claude-sonnet-5-5" }] }];
