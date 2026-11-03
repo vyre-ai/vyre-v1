@@ -98,7 +98,7 @@ function ownFact(ctx: MemCtx, factId: string): Fact {
   const f = loadFact(ctx, factId);
   if (!f) raise(ctx, "validation.bad_input", "That fact is not there.", { factId });
   if (f.layer !== "person" || f.ownerRef !== actorOf(ctx)) raise(ctx, "permission.no_grant", "Only facts about you can go on your profile, and only you can move them.");
-  if (f.status !== "current") raise(ctx, "validation.precondition_failed", "Only a current fact can move.", { status: f.status });
+  if (f.status !== "current") raise(ctx, "validation.bad_input", "Only a current fact can move.", { status: f.status });
   return f;
 }
 

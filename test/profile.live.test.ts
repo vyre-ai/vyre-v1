@@ -1,5 +1,5 @@
 // The person profile on a booted daemon (owner ruling 3 Nov): Olivia's private profile is in the context of her own chat with any of her agents and never in a channel or a group chat with
-// Adam; her public profile is in both; a fact one agent learned is in another agent's context; moving a fact to public changes what the channel hears. Nothing is faked inside the daemon:
+// Noah; her public profile is in both; a fact one agent learned is in another agent's context; moving a fact to public changes what the channel hears. Nothing is faked inside the daemon:
 // chat, channels, agents, engine and memory are live. The model is a stand-in that answers with the profile section of the context it was handed.
 import test from "node:test";
 import { DatabaseSync } from "node:sqlite";
@@ -57,7 +57,7 @@ async function boot(dir: string): Promise<Daemon> {
     vault: { secret: async () => KEY, signRs256: async () => "" },
     session: (headers: Record<string, string | undefined>) => {
       const id = String(headers["authorization"] ?? "").replace(/^Bearer /, "");
-      return ["usr_olivia", "usr_adam"].includes(id) ? { space: CORE_SPACE, principal: { kind: "person" as const, id }, device: "profile-live" } : null;
+      return ["usr_olivia", "usr_noah"].includes(id) ? { space: CORE_SPACE, principal: { kind: "person" as const, id }, device: "profile-live" } : null;
     },
     engineOpenSession: standIn,
   });
@@ -98,7 +98,7 @@ async function ask(d: Daemon, threadId: string, agentId: string, body: string, k
 test("profile live: private only in Olivia's own chats, public everywhere, shared across her agents, and a move changes what the channel hears", async () => {
   const d = await boot(seededDir());
   try {
-    // a key the whole Space may use, so Olivia's and Adam's turns are both paid for
+    // a key the whole Space may use, so Olivia's and Noah's turns are both paid for
     const unlock = await fetch(`${d.url}/local/vault/key/unlock`, { method: "POST", headers: { "content-type": "application/json", authorization: "Bearer usr_olivia" }, body: JSON.stringify({ key: Buffer.from(globalThis.crypto.getRandomValues(new Uint8Array(32))).toString("base64") }) });
     assert.equal(unlock.status, 204);
     const folder = await ok(d, "vault.folders.create", { idempotencyKey: "pl-folder", name: "Team keys", scope: "shared" });
@@ -126,27 +126,27 @@ test("profile live: private only in Olivia's own chats, public everywhere, share
     assert.ok(mine.includes(PUBLIC), mine);
     assert.match(mine, /Only they and their own agents are in this chat/);
 
-    // a public channel with Olivia and Adam: Olivia asks, then Adam asks
-    const ch = (await ok(d, "channels.create", { name: "intake-team", visibility: "public", memberIds: ["usr_adam"], agentIds: [billing], idempotencyKey: "pl-channel" })).channel as { mainThreadId: string };
+    // a public channel with Olivia and Noah: Olivia asks, then Noah asks
+    const ch = (await ok(d, "channels.create", { name: "intake-team", visibility: "public", memberIds: ["usr_noah"], agentIds: [billing], idempotencyKey: "pl-channel" })).channel as { mainThreadId: string };
     const inChannel = await ask(d, ch.mainThreadId, billing, "Draft the client update for the team.", "pl-ch1");
     assert.ok(inChannel.includes(PUBLIC), inChannel);
     assert.ok(!inChannel.includes(PRIVATE) && !inChannel.includes(LEARNED), `a private fact in a channel turn: ${inChannel}`);
     assert.match(inChannel, /public profile only/);
-    const adamAsks = await ask(d, ch.mainThreadId, billing, "What should I know before I email Olivia's client?", "pl-ch2", "usr_adam");
-    assert.ok(adamAsks.includes(PUBLIC), `Olivia's public profile, for Adam's turn: ${adamAsks}`);
-    assert.ok(!adamAsks.includes(PRIVATE) && !adamAsks.includes(LEARNED), adamAsks);
+    const noahAsks = await ask(d, ch.mainThreadId, billing, "What should I know before I email Olivia's client?", "pl-ch2", "usr_noah");
+    assert.ok(noahAsks.includes(PUBLIC), `Olivia's public profile, for Noah's turn: ${noahAsks}`);
+    assert.ok(!noahAsks.includes(PRIVATE) && !noahAsks.includes(LEARNED), noahAsks);
 
-    // a group chat with Adam (the agent answering there): public only
-    const group = (await ok(d, "chat.start", { kind: "chat", agentIds: [billing], personId: "usr_adam", idempotencyKey: "pl-group" })).thread.threadId as string;
-    const inGroup = await ask(d, group, billing, "Plan the handover with Adam.", "pl-group-1");
+    // a group chat with Noah (the agent answering there): public only
+    const group = (await ok(d, "chat.start", { kind: "chat", agentIds: [billing], personId: "usr_noah", idempotencyKey: "pl-group" })).thread.threadId as string;
+    const inGroup = await ask(d, group, billing, "Plan the handover with Noah.", "pl-group-1");
     assert.ok(inGroup.includes(PUBLIC) && !inGroup.includes(PRIVATE) && !inGroup.includes(LEARNED), inGroup);
 
-    // Adam reading Olivia's profile gets her public part only; he cannot move her facts or erase them
-    const seen = await ok(d, "memory.profile.get", { personId: "usr_olivia" }, "usr_adam");
+    // Noah (a member, not an admin) reading Olivia's profile gets her public part only; he cannot move her facts or erase them
+    const seen = await ok(d, "memory.profile.get", { personId: "usr_olivia" }, "usr_noah");
     assert.deepEqual((seen.public as Array<{ text: string }>).map((f) => f.text), [PUBLIC]);
     assert.deepEqual(seen.private, []);
-    assert.notEqual((await call(d, "memory.profile.move", { factId: priv, to: "public" }, "usr_adam")).status, 200);
-    assert.notEqual((await call(d, "memory.erase", { factIds: [priv] }, "usr_adam")).status, 200);
+    assert.notEqual((await call(d, "memory.profile.move", { factId: priv, to: "public" }, "usr_noah")).status, 200);
+    assert.notEqual((await call(d, "memory.erase", { factIds: [priv] }, "usr_noah")).status, 200);
 
     // Olivia moves the learned fact to public: the channel hears it now; the private one still never
     await ok(d, "memory.profile.move", { factId: learned.fact.factId, to: "public" });
@@ -163,6 +163,6 @@ test("profile live: private only in Olivia's own chats, public everywhere, share
     const gone = await ask(d, billingChat, billing, "Draft my week again.", "pl-mine2");
     assert.ok(!gone.includes(PRIVATE), gone);
   } finally {
-    await d.close();
+    await d.stop();
   }
 });

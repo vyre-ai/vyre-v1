@@ -148,7 +148,7 @@ export function AboutYou(): ReactElement {
       <View key={f.factId}>
         <SettingsRow
           id={`about.${f.factId}`} label={f.text} sub={f.suggested && f.place === "private" ? `An agent asks: add to your public profile? ${sourceText(f, data.name)}` : sourceText(f, data.name)} first={first}
-          control={control} inline {...(source(f) && data.nav.openLink ? { onPress: () => openSource(f) } : {})}
+          control={control} inline={!(f.suggested && f.place === "private")} {...(source(f) && data.nav.openLink ? { onPress: () => openSource(f) } : {})}
         />
         {erasing === f.factId ? (
           <View style={st.confirm} testID={`about-erase-confirm-${f.factId}`} accessibilityRole="alert">
