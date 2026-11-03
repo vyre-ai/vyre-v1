@@ -12,14 +12,11 @@ import { ANSWER, ASSISTANT, COMPANY, NEXT_AT, SAM, TRANSCRIPT } from "../fixture
 type Json = Record<string, unknown>;
 const out = (x: unknown): Json => x as Json;
 const ZED = "usr_zedk0001";
+const ZED_ASSISTANT = "agt_zedasst01";
 
 function addRecord(h: Harness, id: string, type: string, fields: Json): void {
   h.store.set(id, { id, type, fields, version: 1, createdAt: NOW, updatedAt: NOW, deleted: false });
 }
-const agentRow = (agentId: string, ownerId: string, kind: "assistant" | "agent") => ({
-  agentId, name: kind === "assistant" ? "Assistant" : "Intake", kind, face: "seed", status: "awake", ownerId, folderId: "fld_agents01", accountPolicy: "asker", accountFallback: [],
-  toolsAllowed: [], toolsDenied: [], vaultKeys: [], limits: {}, captureMode: "auto", hasComputer: false, templateVersion: 1, createdAt: NOW,
-});
 const person = (id: string, name: string) => ({ id, kind: "person", name, status: "active", roles: [], groups: [], createdAt: NOW });
 const typeOf = (key: string, fields: Array<[string, string, string]>) => ({
   key, title: key, plural: `${key}s`, icon: "user", label: "internal", system: true, titleField: "name", fields: fields.map(([k, type, title]) => ({ key: k, type, title })), version: 1,
@@ -31,7 +28,9 @@ function world() {
   addRecord(h, PAT, "contact", { name: "Pat Lee", email: "pat@client.example", title: "Operations lead", company: [COMPANY] });
   addRecord(h, COMPANY, "company", { name: "Lee Holdings", website: "" });
   h.contacts.set("pat@client.example", PAT);
-  h.script("agents.list", () => ({ agents: [agentRow("agt_intake001", MAYA, "agent"), agentRow(ASSISTANT, MAYA, "assistant")], total: 2 }));
+  // the agents module's host seam: Maya's and Zed's Assistants (Zed joined today); Sam has not set one up
+  const assistants: Record<string, string> = { [MAYA]: ASSISTANT, [ZED]: ZED_ASSISTANT };
+  h.script("agents.assistant_of", (i) => (assistants[String(i["personId"])] ? { agentId: assistants[String(i["personId"])] } : {}));
   h.script("comms.senders.list", () => ({ senders: [{ id: "mbx_maya0001", channel: "email", name: "Maya Ortiz", address: "maya@firm.example", via: "Gmail", provider: "google", scope: "mine", default: true, usable: true }] }));
   h.script("access.principals.list", () => ({ principals: [person(MAYA, "Maya Ortiz"), person(SAM, "Sam Reyes"), person(ZED, "Zed King")] }));
   h.script("schema.describe", (i) => ({
@@ -255,30 +254,43 @@ test("another person's private meeting never shows: not in their list, not opena
   assert.equal(await refusedWith(m.closeoutGet(h.ctx, { meetingId: id })), "validation.not_found");
 });
 
-test("the transcript landing starts the close-out by itself once the owner has opened the Meetings tab, and the tab starts any that waited", async () => {
+test("a brand-new member's first meeting closes itself: the transcript lands, their Assistant prepares it, and the package is ready with nobody opening anything", async () => {
   const h = world();
-  const id = await meeting(h);
-  // the host hears the transcript before Maya ever opened the tab: it cannot see her Assistant, so the meeting waits
+  // Zed joined today and has never opened anything; his calendar brings the call in and the transcript lands
+  h.actAs("person", ZED);
+  const got = out(await m.ingest(h.ctx, { source: "calendar", providerRef: "cev_evt00007", calendarEventId: "cev_evt00007", title: "Lee Holdings intro", startsAt: START, endsAt: START + HOUR, attendees: [{ email: "zed@firm.example" }, { email: "pat@client.example" }] }));
+  const id = String(got.meetingId);
+  await m.attachRecording(h.ctx, { meetingId: id, source: "upload", transcriptText: TRANSCRIPT });
+  const before = h.called.length;
+  // from here on nobody is at a screen: the host hears the transcript, Zed's Assistant answers its task
   h.actAs("service", "svc_host");
-  const before = h.calls("tasks.create").length;
   await m.onTranscriptReady(h.ctx, { payload: { meetingId: id, source: "upload" } });
-  assert.equal(h.calls("tasks.create").length, before);
-  h.actAs("person", MAYA);
-  assert.equal(out(await m.closeoutGet(h.ctx, { meetingId: id })).state, "preparing");
-  // opening the tab starts it
-  assert.deepEqual(await m.closeoutSync(h.ctx, {}), { started: 1 });
-  assert.deepEqual(h.calls("tasks.create").at(-1)?.input.assigned, { kind: "agent", id: ASSISTANT });
-  assert.deepEqual(await m.closeoutSync(h.ctx, {}), { started: 0 }, "once");
-
-  // from now on the next transcript starts it with nobody there
-  const next = out(await m.ingest(h.ctx, { source: "calendar", providerRef: "cev_evt00007", calendarEventId: "cev_evt00007", title: "Lee Holdings legal review", startsAt: START + 72 * HOUR, endsAt: START + 73 * HOUR, attendees: [{ email: "pat@client.example" }] }));
-  await m.attachRecording(h.ctx, { meetingId: String(next.meetingId), source: "upload", transcriptText: TRANSCRIPT });
-  h.actAs("service", "svc_host");
-  await m.onTranscriptReady(h.ctx, { payload: { meetingId: String(next.meetingId), source: "upload" } });
-  await m.onTranscriptReady(h.ctx, { payload: { meetingId: String(next.meetingId), source: "upload" } });
-  const asks = h.calls("tasks.create").filter((c) => (c.input.source as Json | undefined)?.id === next.meetingId);
+  await m.onTranscriptReady(h.ctx, { payload: { meetingId: id, source: "upload" } });
+  const asks = h.calls("tasks.create").filter((c) => (c.input.source as Json | undefined)?.id === id);
   assert.equal(asks.length, 1, "one package per meeting, however often the transcript is heard");
-  assert.deepEqual(asks[0]?.input.assigned, { kind: "agent", id: ASSISTANT });
+  assert.deepEqual([asks[0]?.input.assigned, h.calls("agents.assistant_of").at(-1)?.input], [{ kind: "agent", id: ZED_ASSISTANT }, { personId: ZED }], "found through the agents module's seam");
+  h.actAs("agent", ZED_ASSISTANT);
+  await m.closeoutPropose(h.ctx, { meetingId: id, ...ANSWER });
+  assert.deepEqual(h.called.slice(before).filter((c) => c.cap === "meetings.closeout.sync" || c.cap === "agents.list").length, 0, "no visit, no list of agents");
+  h.actAs("person", ZED);
+  const pkg = out(await m.closeoutGet(h.ctx, { meetingId: id }));
+  assert.equal(pkg.state, "ready");
+  assert.deepEqual(byKind(pkg, "email")[0]?.to, [{ address: "pat@client.example", name: "Pat Lee" }], "the follow-up goes to the contact; his own address is never a recipient");
+  assert.deepEqual((out(await m.closeoutList(h.ctx, {})).meetings as Json[]).map((r) => [r.meetingId, r.state]), [[id, "ready"]]);
+
+  // a person with no Assistant yet: the meeting waits, and the Meetings tab starts it once there is one
+  h.actAs("person", SAM);
+  const sams = String(out(await m.ingest(h.ctx, { source: "calendar", providerRef: "cev_evt00008", calendarEventId: "cev_evt00008", title: "Supplier call", startsAt: START + 3 * HOUR, endsAt: START + 4 * HOUR, attendees: [{ email: "pat@client.example" }] })).meetingId);
+  await m.attachRecording(h.ctx, { meetingId: sams, source: "upload", transcriptText: TRANSCRIPT });
+  h.actAs("service", "svc_host");
+  await m.onTranscriptReady(h.ctx, { payload: { meetingId: sams, source: "upload" } });
+  assert.equal(h.calls("tasks.create").filter((c) => (c.input.source as Json | undefined)?.id === sams).length, 0);
+  h.actAs("person", SAM);
+  assert.equal(out(await m.closeoutGet(h.ctx, { meetingId: sams })).state, "preparing");
+  h.script("agents.assistant_of", (i) => ({ agentId: i["personId"] === SAM ? "agt_samasst01" : ASSISTANT }));
+  assert.deepEqual(await m.closeoutSync(h.ctx, {}), { started: 1 });
+  assert.deepEqual(h.calls("tasks.create").at(-1)?.input.assigned, { kind: "agent", id: "agt_samasst01" });
+  assert.deepEqual(await m.closeoutSync(h.ctx, {}), { started: 0 }, "once");
 });
 
 test("an Assistant that submits its task with the package as outputs still hands it in; a send held by the Gate shows as waiting for approval", async () => {

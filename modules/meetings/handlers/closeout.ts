@@ -1,7 +1,7 @@
 // Meetings close themselves (lane l-meetings, owner 3 Nov). When a transcript lands, the meeting owner's own Assistant prepares one close-out package: a short summary with the decisions and open
 // questions, the action items as proposed tasks (owners matched to Space people, due dates when said), record updates for the attendees and their company (field changes and a meeting note), a
 // follow-up email to the outside attendees in the owner's voice, and a hold for the next meeting when one was agreed. The Inbox's Meetings tab shows it; a person approves all of it or item by item.
-// DECISION: the Assistant works in a task of its own (assigned to it, the brief as its first message), so its turn is placed like any private chat of the owner: on the owner's own computer when it
+// DECISION: the Assistant is found through agents.assistant_of (the host may ask, so a transcript starts the close-out with nobody at a screen). It works in a task of its own (assigned to it, the brief as its first message), so its turn is placed like any private chat of the owner: on the owner's own computer when it
 // is on (l-runson). It hands the package back with meetings.closeout.propose; a task it submits with the package as its outputs is read the same way (onPrepareDone).
 // DECISION: nothing leaves Vyre and nothing changes until a person approves. Approving calls the capability each item names as that person: tasks.create, records.update and
 // records.comments.add, mail.send (or mail.draft when the person prefers drafts) and calendar.create_event. The Gate rules each of them as usual, so a held send comes back as an approval.
@@ -124,19 +124,13 @@ function ownerOf(ctx: MeetCtx, fields: Json, recordId: string): string | null {
   return watchersOf(ctx, recordId)[0] ?? personOf(ctx);
 }
 
-/** The person's Assistant: remembered once the person has been here, else looked up when the caller is that person (the host sees nobody's Assistant). */
+/** The person's Assistant, through the agents module's host seam (agents.assistant_of): the host finds it the moment a transcript lands, with nobody at a screen. */
 async function assistantFor(ctx: MeetCtx, person: string): Promise<string | null> {
-  const known = getState(ctx, `assistant:${person}`);
-  if (known) return known;
-  if (personOf(ctx) !== person) return null;
   try {
-    const mine = list(obj(await ctx.call("agents.list", { section: "personal", limit: 100 }))["agents"]).map(obj).filter((a) => text(a["ownerId"]) === person);
-    const id = text((mine.find((a) => a["kind"] === "assistant") ?? mine[0])?.["agentId"]);
-    if (!isId("agt", id)) return null;
-    setState(ctx, `assistant:${person}`, id);
-    return id;
+    const id = text(obj(await ctx.call("agents.assistant_of", { personId: person }))["agentId"]);
+    return isId("agt", id) ? id : null;
   } catch {
-    return null;
+    return null;   // the agents module could not answer: the meeting waits, and the next pass (or the Meetings tab) starts it
   }
 }
 
@@ -301,7 +295,7 @@ async function prepareCore(ctx: MeetCtx, meetingId: string, redo: boolean, syste
   const agentId = await assistantFor(ctx, owner);
   const base: Close = had ?? { recordId: meetingId, owner, title, state: "waiting", gen: 0, taskId: null, agentId: null, summary: null, decisions: [], questions: [], people, preparedAt: null, updatedAt: ctx.now() };
   if (!agentId) {
-    // nobody knows the owner's Assistant yet (the host cannot look it up): the meeting waits, and the owner's next visit to the Meetings tab starts it
+    // the owner has no Assistant yet (no AI account set up), or the agents module did not answer: the meeting waits, and the Meetings tab or a Redo starts it later
     saveClose(ctx, { ...base, owner, title, people, state: base.state === "waiting" ? "waiting" : base.state, updatedAt: ctx.now() });
     return { meetingId, state: shown(base.state === "waiting" ? "waiting" : base.state) };
   }
@@ -334,12 +328,11 @@ export async function closeoutPrepare(ctx: MeetCtx, input: { meetingId: string; 
   return (await prepareCore(ctx, input.meetingId, input.redo === true, false)) as { meetingId: string; state: CloseState; taskId?: string };
 }
 
-/** The Meetings tab opening: each of the person's recent meetings with a transcript and no close-out yet starts one. */
+/** The Meetings tab opening: each of the person's recent meetings with a transcript and no close-out yet starts one (one that waited because its owner had no Assistant then). */
 export async function closeoutSync(ctx: MeetCtx, _input: Record<string, never>) {
   ensure(ctx);
   const me = personOf(ctx);
   if (!me) return { started: 0 };
-  await assistantFor(ctx, me);
   await ownAddresses(ctx, me);
   let started = 0;
   const mine = rowsOf(ctx.db.all(`SELECT * FROM meetings_watcher WHERE "personId" = ?`, me)).map((r) => str(r, "recordId"));

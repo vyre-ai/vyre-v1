@@ -195,7 +195,7 @@ export default defineManifest({
       q: { list: ['meetings.closeout.list', {}, true], meeting: ['meetings.closeout.get', { meetingId: '/state/meetingId' }, true] },
       a: {
         approve: ['meetings.closeout.approve', { meetingId: '/state/meetingId', itemIds: '/state/itemIds' }], edit: ['meetings.closeout.edit', { meetingId: '/state/meetingId', itemId: '/state/itemId' }],
-        skip: ['meetings.closeout.skip', { meetingId: '/state/meetingId', itemId: '/state/itemId' }], redo: ['meetings.closeout.prepare', { meetingId: '/state/meetingId', redo: true }],
+        skip: ['meetings.closeout.skip', { meetingId: '/state/meetingId', itemId: '/state/itemId' }], redo: ['meetings.closeout.prepare', { meetingId: '/state/meetingId', redo: '/state/redo' }],
       },
       empty: 'No meetings to close yet',
     }),

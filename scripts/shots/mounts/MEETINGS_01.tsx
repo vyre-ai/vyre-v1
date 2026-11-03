@@ -2,7 +2,7 @@
 // ready to close, a weekly sync with nothing to do, a closed kickoff and one still being prepared. ?view=package opens the renewal call: the summary, the decision and the open question, two
 // tasks (one already created, with its link), Pat's record update with the field change and the meeting note, the follow-up email and the next-meeting hold (skipped, with Undo). Writes answer
 // nothing here, so the screen stays as drawn. ?at=email scrolls down to the email and the hold; ?edit=mci_e1 opens the email's fields in place. On a phone the tab fills the screen with no sidebar.
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { View, useWindowDimensions } from "react-native";
 import { SAMPLE_NOW, createSampleInbox, northwind } from "../../../apps/app/src/places/inbox/contactlist/sample.ts";
@@ -52,9 +52,13 @@ const PKG: MeetingPackage = {
 const NAMES: Record<string, string> = { [ME]: "Irfad Imtiaz", [SAM]: "Sam Reyes" };
 
 export default function Mount(): ReactNode {
-  const q = useMemo(() => new URLSearchParams((globalThis as { location?: { search?: string } }).location?.search ?? ""), []);
+  // The export renders this page with no address and no window, so the query string and the phone width are read only after the page has hydrated: the first client render matches
+  // the static HTML (reading them during render is what made React's hydration error 418 on ?view=package and on phones, the same as CALROWS_01?hidden=).
+  const [q, setQ] = useState<URLSearchParams>(() => new URLSearchParams());
+  const [hydrated, setHydrated] = useState(false);
+  useEffect(() => { setQ(new URLSearchParams((globalThis as { location?: { search?: string } }).location?.search ?? "")); setHydrated(true); }, []);
   const width = useWindowDimensions().width;
-  const phone = width > 0 && width < 720;
+  const phone = hydrated && width > 0 && width < 720;
   const sample = useMemo(() => {
     const s = createSampleInbox(northwind);
     s.replica.resolve("meetings.closeout.list", () => LIST);
@@ -66,6 +70,7 @@ export default function Mount(): ReactNode {
   // ?at=email scrolls the package down to the follow-up email and the hold
   // ?edit=<item> presses that item's Edit, so the shot shows its fields in place
   useEffect(() => {
+    if (!hydrated) return undefined;
     const doc = (globalThis as { document?: { querySelector(s: string): { scrollIntoView(o?: unknown): void; click(): void } | null } }).document;
     const t = setTimeout(() => {
       const edit = q.get("edit");
@@ -73,13 +78,15 @@ export default function Mount(): ReactNode {
       if (q.get("at") === "email") setTimeout(() => doc?.querySelector("[data-testid='section-email']")?.scrollIntoView({ block: "start" }), 100);
     }, 300);
     return () => clearTimeout(t);
-  }, [q]);
+  }, [q, hydrated]);
   const tab = (
     <MeetingsTab
       openId={openId} onOpen={() => undefined} onBack={() => undefined} nameOf={(id) => NAMES[id] ?? "Someone"} team={[{ id: ME, name: "Irfad Imtiaz" }, { id: SAM, name: "Sam Reyes" }]}
       nav={{ openSubject: () => undefined, openContact: () => undefined, openCalendar: () => undefined }}
     />
   );
+  // the tab itself reads the width while it renders (a phone row puts the state in its note), so nothing is drawn until the page has hydrated
+  if (!hydrated) return <View style={{ flex: 1 }} />;
   return (
     <InboxDataProvider value={data}>
       <InboxStateProvider initial={{ main: "meetings" }}>
