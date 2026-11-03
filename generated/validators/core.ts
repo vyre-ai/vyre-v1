@@ -1392,6 +1392,41 @@ if ("as" in o221) lf(o221["as"], p + "/as", e, L6);
 }
 }
 
+export function d_s_3835a08606(v: unknown, p: string, e: string[]): void {
+{
+const x231 = v;
+const g231 = typeOf(x231);
+const b231: string[] = []; lf(x231, p, b231, L0); if (b231.length) e.push(...b231);
+if (g231 === "object") {
+if (g231 === 'object') { const o231 = x231 as Record<string, unknown>;
+if (!("which" in o231)) e.push(p + "/which" + ': required');
+if ("which" in o231) {
+{
+const x232 = o231["which"];
+const t232_0: string[] = [];
+lf(x232, p + "/which", t232_0, L139);
+const t232_1: string[] = [];
+{
+const x233 = x232;
+const g233 = typeOf(x233);
+const b233: string[] = []; lf(x233, p + "/which", b233, L4); if (b233.length) t232_1.push(...b233);
+if (g233 === "array") {
+if (g233 === 'array') { const a233 = x233 as unknown[];
+if (a233.length < 1) t232_1.push(p + "/which" + ': too few items');
+for (let i233 = 0; i233 < a233.length; i233++) {
+lf(a233[i233], p + "/which" + '/' + i233, t232_1, L10);
+}
+}
+}
+}
+if (![t232_0, t232_1].some((x) => x.length === 0)) e.push(p + "/which" + ': matches none of anyOf');
+}
+}
+}
+}
+}
+}
+
 export function d_s_38b6d47dbd(v: unknown, p: string, e: string[]): void {
 {
 const x238 = v;
@@ -1966,6 +2001,41 @@ lf(a416[i416], p + "/gone" + '/' + i416, e, L6);
 }
 }
 if ("held" in o415) lf(o415["held"], p + "/held", e, L1);
+}
+}
+}
+}
+
+export function d_s_568cc80da9(v: unknown, p: string, e: string[]): void {
+{
+const x422 = v;
+const g422 = typeOf(x422);
+const b422: string[] = []; lf(x422, p, b422, L0); if (b422.length) e.push(...b422);
+if (g422 === "object") {
+if (g422 === 'object') { const o422 = x422 as Record<string, unknown>;
+if (!("who" in o422)) e.push(p + "/who" + ': required');
+if ("who" in o422) {
+{
+const x423 = o422["who"];
+const t423_0: string[] = [];
+lf(x423, p + "/who", t423_0, L232);
+const t423_1: string[] = [];
+{
+const x424 = x423;
+const g424 = typeOf(x424);
+const b424: string[] = []; lf(x424, p + "/who", b424, L4); if (b424.length) t423_1.push(...b424);
+if (g424 === "array") {
+if (g424 === 'array') { const a424 = x424 as unknown[];
+if (a424.length < 1) t423_1.push(p + "/who" + ': too few items');
+for (let i424 = 0; i424 < a424.length; i424++) {
+lf(a424[i424], p + "/who" + '/' + i424, t423_1, L39);
+}
+}
+}
+}
+if (![t423_0, t423_1].some((x) => x.length === 0)) e.push(p + "/who" + ': matches none of anyOf');
+}
+}
 }
 }
 }

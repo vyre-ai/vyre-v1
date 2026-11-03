@@ -12,7 +12,10 @@ import { Sheet } from "../layout/Sheet.tsx";
 import { formOf, usedForLine, usesOf } from "./space-ai.ts";
 import type { Uses, UsesForm } from "./space-ai.ts";
 
-interface Row { id: string; name: string; providerKey: string; scope: string; state?: string; spaceKey?: boolean; uses?: Uses; usesSet?: boolean; capCents?: number | null }
+interface Row { id: string; name: string; providerKey: string; scope: string; state?: string; spaceKey?: boolean; uses?: Uses; capCents?: number | null }
+interface AccountRow { ref: string; providerId?: string; provider?: string; name?: string; title: string; mine: boolean; status: string; spaceKey?: boolean; uses?: Uses; capCents?: number | null }
+const STATE: Readonly<Record<string, string>> = { ok: "ok", untested: "ok", expired: "needs_sign_in", failed: "failing" };
+const rowOf = (a: AccountRow): Row => ({ id: a.providerId ?? a.ref, name: a.name ?? a.title, providerKey: a.provider ?? "", scope: a.mine ? "mine" : "shared", state: STATE[a.status] ?? "failing", ...(a.spaceKey ? { spaceKey: true } : {}), ...(a.uses ? { uses: a.uses } : {}), ...(a.capCents !== undefined ? { capCents: a.capCents } : {}) });
 
 /** The rows of the Space AI accounts tab: every key shared with the Space (the old single Space AI key is one of them). */
 export function SpaceAiAccounts({ mayManage }: { mayManage: boolean }): ReactElement {
@@ -23,7 +26,8 @@ export function SpaceAiAccounts({ mayManage }: { mayManage: boolean }): ReactEle
   const [agents, setAgents] = useState<Array<{ id: string; name: string }>>([]);
   const [open, setOpen] = useState<Row | null>(null);
   const load = useCallback(() => {
-    void (data.call("providers.list", {}) as Promise<{ providers: Row[] }>).then((o) => setRows(o.providers.filter((p) => p.scope === "shared" || p.spaceKey === true)), () => setRows([]));
+    // the Space's accounts as the one place-aware list gives them (engine.accounts.list, place "space"): what each pays for, its cap, whether it works
+    void (data.call("engine.accounts.list", { place: "space" }) as Promise<{ accounts: AccountRow[] }>).then((o) => setRows(o.accounts.filter((a) => !a.mine || a.spaceKey === true).map(rowOf)), () => setRows([]));
   }, [data]);
   useEffect(() => {
     load();

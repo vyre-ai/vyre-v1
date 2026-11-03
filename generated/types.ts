@@ -10401,6 +10401,18 @@ export type EngineAccountsListOut = {
           name: string;
         }>;
       providerId?: string;
+      provider?: string;
+      itemId?: string;
+      uses?: {
+        teamChats?: {
+          who: "everyone" | Array<string>;
+        };
+        automations?: true;
+        goals?: true;
+        agentWork?: {
+          which: "all" | Array<string>;
+        };
+      };
       models?: Array<string>;
       usable?: boolean;
       code?: string;

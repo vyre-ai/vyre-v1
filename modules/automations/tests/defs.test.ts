@@ -6,7 +6,6 @@ import type { Harness } from "../fixtures/db.ts";
 import { alice, bob, create, goodDefinition, node } from "../fixtures/seed.ts";
 import { loadRunPlan } from "../impl.ts";
 import { findRunLink } from "../projections.ts";
-import { usableHere } from "../../../agent/src/accounts/usable.ts";
 
 const validate = async (h: Harness, definition: unknown): Promise<{ ok: boolean; issues: { nodeId?: string; severity: string; message: string }[] }> =>
   h.call("automations.validate", { definition }, alice);
@@ -153,15 +152,18 @@ test("a path that loops back is an error unless it goes through a Loop step", as
 type Prov = { id: string; handle?: string; itemId: string; name: string; connection: string; scope: string; spaceMayUse: boolean; state: string; uses?: Record<string, unknown>; capped?: boolean };
 const prov = (over: Partial<Prov> = {}): Prov => ({ id: "prv_1", handle: "#Mine_Anthropic", itemId: "vit_1", name: "Mine Anthropic", connection: "api_key", scope: "mine", spaceMayUse: false, state: "ok", ...over });
 const shared = (over: Partial<Prov> = {}): Prov => prov({ id: "prv_s", handle: "#Team_Key", itemId: "vit_s", name: "Team key", scope: "shared", ...over });
-/** The engine's answer to engine.accounts.list { place }: the Vault's rows turned into accounts and judged by the resolver's own rule (agent/src/accounts/usable.ts). */
+/** The engine's answer to engine.accounts.list { place }, as the engine gives it for these rows: its judgment (agent/src/accounts/usable.ts) restated here for the automation place, since a module's test cannot import the agent layer. */
 function accountsFrom(providers: Prov[], place: "chat" | "automation" | "agent" | "space", explicit = false, runsAs?: "person" | "space") {
   return providers.map((p) => {
-    const row = {
-      ref: p.handle, driver: "anthropic", provider: "anthropic", kind: (p.connection === "subscription" ? "subscription" : "api_key") as "subscription" | "api_key", title: p.name, mine: p.scope === "mine", ownerId: p.scope === "mine" ? "usr_alice" : null,
-      status: (p.state === "ok" ? "ok" : p.state === "needs_sign_in" ? "expired" : "failed") as "ok" | "expired" | "failed", lastProbeAt: null, spaceMayUse: p.spaceMayUse,
-      ...(p.scope === "shared" && p.uses ? { uses: p.uses } : {}), ...(p.capped === true ? { capped: true } : {}),
-    };
-    return { ref: row.ref, providerId: p.id, title: row.title, mine: row.mine, status: row.status, ...usableHere(row, place, { me: "usr_alice", policy: "any", onServer: true, ...(explicit ? { explicit: true } : {}), ...(runsAs ? { runsAs } : {}) }) };
+    const mine = p.scope === "mine";
+    const status = p.state === "ok" ? "ok" : p.state === "needs_sign_in" ? "expired" : "failed";
+    let why: string | undefined;
+    if (status === "expired") why = "Sign in to this account again.";
+    else if (status === "failed") why = "This account is not working. Open it in the Vault to test it.";
+    else if (p.connection === "subscription" && !p.spaceMayUse) why = "Turn on \"Let the Space run work on my subscription\" for this account to use it here.";
+    else if (!mine && place !== "space" && !explicit && !(place === "automation" && runsAs === "person") && p.uses?.automations !== true) why = "An admin has not kept this account for this kind of work.";
+    else if (!mine && p.capped === true) why = "This account reached its monthly cap.";
+    return { ref: p.handle, providerId: p.id, title: p.name, mine, status, ...(why === undefined ? { usable: true } : { usable: false, why }) };
   });
 }
 function liveHarness(opts: { code?: boolean | string; providers?: Prov[] } = {}) {

@@ -9,7 +9,7 @@
 // DECISION: the three hop and loop limits (agent_hops, review_loops, ci_fix_loops) are declared here; route() reads agent_hops and
 //   tasks.transition reads the other two.
 import { create, defineManifest, ev, health, outward, read, screen, setting, t, write } from '../packages/contracts/src/index.ts';
-import { id, label, pageIn, pageOut, replyTurn } from './_common.ts';
+import { id, label, pageIn, pageOut, replyTurn, spaceUses } from './_common.ts';
 
 const effort = t.enm('low', 'medium', 'high', 'max');
 // Outside tools (CHAT-DESIGN ruling 6): the MCP servers of plugins and connections, run in the sandbox. A call is one capability, so access, the Gate and the audit trail apply to it like any other.
@@ -49,6 +49,9 @@ const accountRow = t.obj({
   aliases: t.opt(t.arr(accountRef, { description: 'Other refs that show as this account: handles folded into it and its older sign-ins. A chat or agent pinned to one of them shows this account' })),
   older: t.opt(t.arr(t.obj({ ref: accountRef, providerId: t.id('prv'), name: t.str() }), { description: 'Older sign-ins of the same provider whose account cannot be read, listed under this one so a person can remove them' })),
   providerId: t.opt(t.id('prv')),
+  provider: t.opt(t.str({ examples: ['anthropic'] })),
+  itemId: t.opt(id.vaultItem),
+  uses: t.opt({ ...spaceUses, description: 'A Space account: what it may pay for. Left out on a Mine account' }),
   models: t.opt(t.arr(t.str(), { description: 'The models the account\'s provider lists, when known' })),
   usable: t.opt(t.bool()),
   code: t.opt(t.str({ description: 'With a place, when usable is false: the reason as a word (expired, failed, space_may_not_use, capped, no_model, not_used_for...)' })),
