@@ -13,6 +13,13 @@
       "proto": "chat,at:task-conflict,{skin}",
       "waitFor": "[data-testid='task-conflict-left']",
       "note": "After Save: the card is gone, only the fields he kept were written, and one quiet line says what was not kept from him."
+    },
+    {
+      "id": "TASKCONFLICT_01-long",
+      "route": "/m/TASKCONFLICT_01?view=long",
+      "proto": "chat,at:task-conflict,{skin}",
+      "waitFor": "[data-testid='task-conflict-more-title']",
+      "note": "A long text clash (a long title): both sides are cut to the part that differs, with context, and Show all opens them in full."
     }
   ]
 }

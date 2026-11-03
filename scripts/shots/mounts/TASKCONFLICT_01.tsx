@@ -1,6 +1,6 @@
 // Mount for TASKCONFLICT_01 (lane l-learn2): two people edited one task. The page is the real task page over a runtime whose tasks.update refuses a save made on version 4 (the task is on 5, changed by Sara)
 // with what the task holds now, exactly as the server does. After the page has drawn, the mount makes the edits a person would: a new due date and a new priority from the Details menus, then a new title.
-// Each is refused, and the card shows each field's value beside the current one. ?view=conflict shows the card with the picks Keep mine, Keep mine, Use Sara's; ?view=saved shows the line after Save.
+// Each is refused, and the card shows each field's value beside the current one. ?view=conflict shows the card with the picks Keep mine, Keep mine, Use Sara's; ?view=saved shows the line after Save; ?view=long edits a long title, so the card shows only the part that differs, with Show all.
 import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { StyleSheet, View } from "react-native";
@@ -20,6 +20,7 @@ const TASK: Row = {
   title: "Draft the renewal note", assigned: { kind: "agent", id: "agt_mira" }, reviewer: { kind: "person", id: ME }, createdBy: ME, version: 4, due: NOW + 3 * DAY, priority: "high",
   workingNotes: { brief: "Short note to Dana covering the new term and what changes. Keep pricing out until Sara signs off." }, createdAt: NOW - 2 * DAY, updatedAt: NOW - 3_600_000,
 };
+const LONG = "Draft the renewal note for Dana covering the new twelve month term, the retainer and the two filing dates, with the fee schedule attached as a table at the end. Pricing stays out until Sara signs off.";
 const CURRENT: Row = { title: "Draft the renewal note", due: NOW + 3 * DAY, priority: "high" };
 
 interface RootLike { setAttribute(name: string, value: string): void; style: { setProperty(name: string, value: string): void; removeProperty(name: string): void } }
@@ -69,7 +70,7 @@ function Page({ view, skin }: { view: string; skin: string }): ReactNode {
     const themeRoot: ThemeRoot = { setAttribute: (n, v) => { root?.setAttribute(n, v); }, setProperty: (n, v) => { root?.style.setProperty(n, v); }, removeProperty: (n) => { root?.style.removeProperty(n); } };
     return createThemeController({ personId: "irfad", spaceId: "nw", spaceSkin: { nw: skin }, prefersDark: skin === "graphite", root: themeRoot, storage: null });
   }, [skin]);
-  const rt = useMemo(() => runtime() as never, []);
+  const rt = useMemo(() => { if (view === "long") { TASK.title = LONG; CURRENT.title = LONG; } return runtime() as never; }, [view]);
   // the edits a person would make, one after the other, once the page has drawn
   useEffect(() => {
     const d = (globalThis as { document?: Doc }).document;
@@ -86,11 +87,11 @@ function Page({ view, skin }: { view: string; skin: string }): ReactNode {
       if (!el) return;
       el.focus?.();
       const proto = (globalThis as unknown as { HTMLTextAreaElement: { prototype: object } }).HTMLTextAreaElement.prototype;
-      (Object.getOwnPropertyDescriptor(proto, "value")?.set as ((v: string) => void) | undefined)?.call(el, "Draft the Northwind renewal note");
+      (Object.getOwnPropertyDescriptor(proto, "value")?.set as ((v: string) => void) | undefined)?.call(el, view === "long" ? LONG.replace("Pricing stays out until Sara signs off.", "Pricing is in, Sara has signed off.") : "Draft the Northwind renewal note");
       el.dispatchEvent?.(new (globalThis as unknown as { Event: new (t: string, i: object) => unknown }).Event("input", { bubbles: true }));
       el.blur?.();
     });
-    if (view === "conflict") at(3400, () => d.querySelector("[data-testid='task-conflict-current-priority']")?.click?.());
+    if (view === "conflict" || view === "long") at(3400, () => d.querySelector("[data-testid='task-conflict-current-priority']")?.click?.());
     if (view === "saved") { at(3400, () => d.querySelector("[data-testid='task-conflict-current-priority']")?.click?.()); at(3900, () => d.querySelector("[data-testid='task-conflict-save']")?.click?.()); }
     return () => timers.forEach(clearTimeout);
   }, [view]);
