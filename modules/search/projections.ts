@@ -1,4 +1,5 @@
 // @reads /modules/search/migrations/0001_index.sql
+// @reads /modules/search/migrations/0002_agent_view.sql
 // The durable rows and shared helpers of the search module (spec b11, ARCH 4.3 and 9): the context type the handlers use, the schema bootstrap, the document rows with their
 // full-text twin, the 384-dimension vectors and the in-memory scan over them (brute-force cosine), and the seams the host fills (the embedding model, a source for an entity).
 // Every statement names a search_* table, which is all ctx.db lets a module touch. The migration file is the one source of the schema.
@@ -24,6 +25,9 @@ export interface SearchCtx {
   space: string;
   principal: { kind: "person" | "agent" | "actor" | "service"; id: string };
   actingFor?: string | undefined;
+  /** Where the call came from and the agent a person's rerun stands for: an agent-bound caller searches only what an agent may read (Redaction for AI). */
+  origin?: string | undefined;
+  forAgent?: string | undefined;
   trace: { traceId: string };
   run?: string | undefined;
   now(): number;
@@ -49,9 +53,9 @@ export const mintId = (prefix: string, now: number = Date.now()): string => `${p
 
 // ---- schema
 
-const SCHEMA = readFileSync(new URL("./migrations/0001_index.sql", import.meta.url), "utf8")
+const SCHEMA = ["0001_index.sql", "0002_agent_view.sql"].flatMap((f) => readFileSync(new URL(`./migrations/${f}`, import.meta.url), "utf8")
   .split("\n").filter((l) => !l.trimStart().startsWith("--")).join("\n")
-  .split(";").map((s) => s.trim()).filter((s) => s.length > 0);
+  .split(";").map((s) => s.trim()).filter((s) => s.length > 0));
 
 const ready = new WeakSet<object>();
 
@@ -60,6 +64,7 @@ export function ensure(db: Db): void {
   if (ready.has(db)) return;
   try {
     db.all("SELECT k FROM search_meta WHERE k = ?", "probe");
+    db.all("SELECT n FROM search_agent_docs WHERE n = ?", 0);
   } catch {
     for (const stmt of SCHEMA) db.run(stmt);
   }
@@ -93,7 +98,11 @@ export interface IndexDoc {
   folderId?: string;
   recordType?: string;
   updatedAt?: number;
+  /** What an agent may read of it, when that is not the same as what a person reads (a file with a redaction layer): an agent's search matches and quotes only this. */
+  agent?: AgentView;
 }
+
+export interface AgentView { title: string; path?: string; body: string; withheld?: boolean }
 
 export interface DocRow {
   n: number; entity: string; id: string; kind: Kind; title: string; body: string; path: string | null; link: string; label: number;
@@ -128,6 +137,10 @@ export function putDoc(db: Db, space: string, d: IndexDoc, now: number): number 
   );
   const n = num(rowsOf(db, "SELECT n FROM search_docs WHERE entity = ? AND id = ?", d.entity, d.id)[0]?.["n"]);
   db.run("INSERT INTO search_fts (rowid, title, body, kind, rtype, folder) VALUES (?, ?, ?, ?, ?, ?)", n, d.title, body, d.kind, d.recordType ?? "", d.folderId ?? "");
+  if (d.agent) {
+    const a = d.agent;
+    db.run("INSERT INTO search_agent_docs (n, title, path, body, withheld) VALUES (?, ?, ?, ?, ?)", n, a.title, a.path ?? null, a.body.length > BODY_CAP ? a.body.slice(0, BODY_CAP) : a.body, a.withheld ? 1 : 0);
+  }
   return n;
 }
 
@@ -138,6 +151,7 @@ export function removeDoc(db: Db, space: string, entity: string, id: string): bo
   const n = num(old["n"]);
   db.run("DELETE FROM search_fts WHERE rowid = ?", n);
   db.run("DELETE FROM search_docs WHERE n = ?", n);
+  db.run("DELETE FROM search_agent_docs WHERE n = ?", n);
   dropVector(db, space, n);
   return true;
 }

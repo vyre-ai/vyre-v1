@@ -32,6 +32,8 @@ export function viewerKindOf(d: { file: { kind: FileKind; mime: string; size?: n
   if (d.file.source !== undefined && d.file.size === 0 && (d.text ?? "") === "" && d.previewUrl === undefined) return "other";
   // a Word or PowerPoint file with no words read from it (password-protected, damaged, an old .doc with no converter) is the quiet "no preview" line with Open in Word, never a blank page
   if (isOffice(d.file.kind) && (d.text ?? "").trim() === "") return "other";
+  // a PDF reads as its words (the text files.viewer_data extracts), so it can be selected, highlighted and redacted for AI like a document; with no words it is the quiet "no preview" line
+  if (d.file.kind === "pdf") return (d.text ?? "").trim() !== "" ? "document" : "other";
   if (d.file.kind !== "google_native") return viewerKind(d.file.kind);
   const app = googleAppOf(d.file);
   const words = (d.text ?? "").trim() !== "";

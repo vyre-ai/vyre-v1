@@ -1,0 +1,15 @@
+{
+  "targets": [
+    { "id": "REDACT_01-list", "route": "/m/REDACT_01?view=list", "proto": "files,at:rdx-list,{skin}", "waitFor": "[data-testid='rx-review-line']", "note": "A Redacted folder: Reviewed, Needs review and Not available badges, a waiting agent, and 3 files need review with Review next." },
+    { "id": "REDACT_01-access", "route": "/m/REDACT_01?view=access", "proto": "files,at:rdx-access,{skin}", "waitFor": "[data-testid='rx-access-pop']", "note": "The folder's Agent access popover: Available, Redacted, Not available, where it comes from, and what is different inside with Reset." },
+    { "id": "REDACT_01-pdf", "route": "/m/REDACT_01?view=pdf", "proto": "files,at:rdx-pdf,{skin}", "waitFor": "[data-testid='vw-selbar']", "note": "The intake form with its redactions and a highlight, and a selection with the Highlight, Redact, Comment and Ask bar." },
+    { "id": "REDACT_01-doc", "route": "/m/REDACT_01?view=doc", "proto": "files,at:rdx-doc,{skin}", "waitFor": "[data-testid='vw-doc']", "note": "The demand letter: highlights, redactions, a redaction inside a highlight, a comment, and the hover card." },
+    { "id": "REDACT_01-scan", "route": "/m/REDACT_01?view=scan", "proto": "files,at:rdx-scan,{skin}", "waitFor": "[data-testid='vw-image']", "note": "An ER record scan with two boxes hidden from AI, Redact an area on, and the Redact tab." },
+    { "id": "REDACT_01-find", "route": "/m/REDACT_01?view=find", "proto": "files,at:rdx-find,{skin}", "waitFor": "[data-testid='rx-panel']", "note": "The retainer waiting for review: Find things to redact with its suggestions, by pattern checks on the server." },
+    { "id": "REDACT_01-request", "route": "/m/REDACT_01?view=request", "proto": "files,at:rdx-request,{skin}", "waitFor": "[data-testid='redactreq-rrq_1']", "note": "The Redact before I can read card in a chat, with Open to review and Not now." },
+    { "id": "REDACT_01-agent", "route": "/m/REDACT_01?view=agent", "proto": "files,at:rdx-agent,{skin}", "waitFor": "[data-testid='rx-banner-preview']", "note": "Preview as agent: [REDACTED] chips, highlights as plain marks, no comments." },
+    { "id": "REDACT_01-newver", "route": "/m/REDACT_01?view=newver", "proto": "files,at:rdx-newver,{skin}", "waitFor": "[data-testid='rx-panel']", "note": "A new version from Google Docs: 5 of 7 redactions carried over, two to place or drop, agents blocked." },
+    { "id": "REDACT_01-activity", "route": "/m/REDACT_01?view=activity", "proto": "files,at:rdx-activity,{skin}", "waitFor": "[data-testid='rx-activity']", "note": "The file's Activity: who redacted what and when, reviews, and every agent read with the (Agent) credit." },
+    { "id": "REDACT_01-phone", "route": "/m/REDACT_01?view=pdf", "proto": "files,at:rdx-phone,{skin}", "waitFor": "[data-testid='vw-doc']", "note": "The intake form on a phone with its layer." }
+  ]
+}
