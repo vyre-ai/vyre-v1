@@ -13,6 +13,8 @@ export interface SettingsNav {
   connect(kind: "mailbox" | "calendar" | "twilio"): void;
   /** An agent's page. Absent where the shell has no way there: the row then only reads. */
   openAgent?(agentId: string): void;
+  /** A Vyre link (a chat line, vyre://thread/<id>?m=<message>, or /chats/<id>). Absent: the source shows but does not open. */
+  openLink?(link: string): void;
   /** The shell's file picker for a profile photo: the file id, or null when nothing was chosen. */
   choosePhoto(): Promise<string | null>;
   /** Applies a skin to the window at once, before it is saved. */

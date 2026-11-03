@@ -4,7 +4,7 @@ Lane L2. Kind module. Version 0.1.0.
 
 Requires: projects.
 
-## Capabilities (60)
+## Capabilities (65)
 
 - [memory.archive_sweep](../capabilities/memory.archive_sweep.md): Daily job: move facts untouched in Trash for the Space setting (30 to 90 days, default 60) to Archive
 - [memory.backlinks](../capabilities/memory.backlinks.md): Where a page is linked from: other pages, chats, runs and records, each with the line that names it; only places the reader can open
@@ -46,6 +46,11 @@ Requires: projects.
 - [memory.page.set_visibility](../capabilities/memory.page.set_visibility.md): Change who can see a page: move it to the Space, a project, an agent or the caller's own personal layer; its Notes, versions and links go with it
 - [memory.page.versions](../capabilities/memory.page.versions.md): Every version of the Notes of a page, newest first, with who wrote it and when
 - [memory.pointer](../capabilities/memory.pointer.md): Pointer block for a message: up to about 5 lines from a local lookup, no model call, deduplicated against the thread
+- [memory.profile.add](../capabilities/memory.profile.add.md): Add a fact about yourself to your public or private profile
+- [memory.profile.context](../capabilities/memory.profile.context.md): The profile lines a turn loads, as the person who asked: their public part, their private part only when nobody else reads the chat, and the public part of the other people in it
+- [memory.profile.get](../capabilities/memory.profile.get.md): Your profile in this Space, as a chat may use it: the public part always, the private part only where nobody else reads the chat (your own chats, your private Ask); with personId, that teammate's public part
+- [memory.profile.move](../capabilities/memory.profile.move.md): Move a fact about you between your public and private profile; only you can make one public (an agent suggests it instead)
+- [memory.profile.suggest](../capabilities/memory.profile.suggest.md): Suggest a fact for the person's public profile ("Add to your public profile?"); it stays private until they say yes in About you; with text, it is remembered privately first
 - [memory.promote](../capabilities/memory.promote.md): Promote a fact to the agent, a project or the Space layer; a task for the right approver carries the name and time, no admin needed when the person can edit the target
 - [memory.promotion.approve](../capabilities/memory.promotion.approve.md): Approve a promotion request (the approver action on its task)
 - [memory.promotion.reject](../capabilities/memory.promotion.reject.md): Reject a promotion request with a note

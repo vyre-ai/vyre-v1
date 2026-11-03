@@ -108,6 +108,7 @@ export function chatMemory(rt: ShellRuntime, a: ChatsActions): ChatMemoryData {
     nameOf: nameLookup(rt),
     nav: {
       openLink: (link) => rt.openUrl(link),
+      openAboutYou: () => rt.open({ screen: "settings.page", args: { page: "memory" } }),
       openPage: (pageId) => know({ v: "page", pageId }),
       openGraph: (pageId) => know({ v: "graph", focus: pageId }),
       openKnowledge: () => know({ v: "learned" }),

@@ -5096,6 +5096,24 @@
     },
     {
       "deferred": false,
+      "name": "memory_profile",
+      "summary": "Your profile in this Space, as a chat may use it: the public part always, the private part only where nobody else reads the chat (your own chats, your private Ask); with personId, that teammate's public part",
+      "toolset": "memory"
+    },
+    {
+      "deferred": false,
+      "name": "memory_profile_move",
+      "summary": "Move a fact about you between your public and private profile; only you can make one public (an agent suggests it instead)",
+      "toolset": "memory"
+    },
+    {
+      "deferred": false,
+      "name": "memory_profile_suggest",
+      "summary": "Suggest a fact for the person's public profile (\"Add to your public profile?\"); it stays private until they say yes in About you; with text, it is remembered privately first",
+      "toolset": "memory"
+    },
+    {
+      "deferred": false,
       "name": "memory_promote",
       "summary": "Promote a fact to the agent, a project or the Space layer; a task for the right approver carries the name and time, no admin needed when the person can edit the target",
       "toolset": "memory"

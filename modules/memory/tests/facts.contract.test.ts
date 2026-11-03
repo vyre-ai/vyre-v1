@@ -11,7 +11,7 @@ const mine = registry.capabilities.filter((c) => c.module === "memory");
 const h = handlers as unknown as Record<string, (ctx: Harness["ctx"], input: any) => Promise<any>>;
 
 test("the handler table holds exactly the frozen memory capabilities", () => {
-  assert.equal(mine.length, 60);
+  assert.equal(mine.length, 65);
   assert.deepEqual(Object.keys(h).sort(), mine.map((c) => c.name).sort());
 });
 
@@ -51,6 +51,12 @@ const cases: Case[] = [
   { cap: "memory.search", code: "validation.bad_input", run: (hn) => h["memory.search"]!(hn.ctx, { q: " " }) },
   { cap: "memory.graph", code: "validation.bad_input", run: (hn) => h["memory.graph"]!(hn.ctx, { scope: "agent" }) },
   { cap: "memory.index_graph", code: "validation.bad_input", run: (hn) => h["memory.index_graph"]!(hn.ctx, { entity: "email", id: "x", seq: 1 }) },
+  { cap: "memory.profile.move", code: "validation.bad_input", run: (hn) => h["memory.profile.move"]!(hn.ctx, { factId: "fct_none", to: "public" }) },
+  { cap: "memory.profile.move", code: "permission.no_grant", run: (hn) => h["memory.profile.move"]!(hn.ctx, { factId: "fct_omar", to: "public" }) },
+  { cap: "memory.profile.move", code: "permission.no_grant", run: (hn) => h["memory.profile.move"]!(harness({ raw: hn.raw, principal: { kind: "agent", id: "agt_intake" }, actingFor: "usr_dana", respond }).ctx, { factId: "fct_cur", to: "public" }) },
+  { cap: "memory.profile.suggest", code: "validation.bad_input", run: (hn) => h["memory.profile.suggest"]!(hn.ctx, {}) },
+  { cap: "memory.profile.add", code: "validation.bad_input", run: (hn) => h["memory.profile.add"]!(hn.ctx, { text: " ", to: "private" }) },
+  { cap: "memory.profile.add", code: "permission.no_grant", run: (hn) => h["memory.profile.add"]!(harness({ raw: hn.raw, principal: { kind: "agent", id: "agt_intake" }, actingFor: "usr_dana", respond }).ctx, { text: "x", to: "public" }) },
   { cap: "memory.layout.save", code: "validation.bad_input", run: (hn) => h["memory.layout.save"]!(hn.ctx, { scope: "space", positions: { n: { x: Number.NaN, y: 0 } } }) },
 ];
 

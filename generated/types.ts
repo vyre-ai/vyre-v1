@@ -19439,6 +19439,211 @@ export type MemoryPointerOut = {
   tokens: number;
   skipped?: "short_ack" | "mid_tool_loop" | "no_match" | "duplicate";
 };
+export type MemoryProfileAddIn = {
+  text: string;
+  to: "public" | "private";
+  kind?: string;
+};
+export type MemoryProfileAddOut = {
+  fact: {
+    factId: string;
+    layer: "person" | "agent" | "project" | "space";
+    ownerRef: string;
+    agentId?: string;
+    noteId?: string;
+    text: string;
+    validFrom: number;
+    validTo?: number;
+    learnedAt: number;
+    closedAt?: number;
+    sourceKind: "chat" | "channel" | "task" | "record" | "run" | "journey" | "manual";
+    sourceRef: string;
+    sourceLink?: string;
+    status: "proposed" | "current" | "closed" | "removed";
+    lowRisk?: boolean;
+    trashedAt?: number;
+    trashReason?: string;
+    archivedAt?: number;
+    subject?: {
+      pageId: string;
+      title: string;
+      kind: string;
+    };
+    sourceTitle?: string;
+    by?: string;
+    byKind?: "person" | "agent" | "upkeep" | "system";
+    versions?: number;
+    place: "public" | "private";
+    suggested?: boolean;
+    lineLink?: string;
+  };
+};
+export type MemoryProfileContextIn = {
+  threadId: string;
+};
+export type MemoryProfileContextOut = {
+  audience: "private" | "shared";
+  people: Array<{
+      personId: string;
+      self: boolean;
+      basics: Array<string>;
+      public: Array<string>;
+      private: Array<string>;
+    }>;
+};
+export type MemoryProfileGetIn = {
+  threadId?: string;
+  personId?: string;
+};
+export type MemoryProfileGetOut = {
+  audience: "private" | "shared";
+  basics: Array<{
+      key: string;
+      label: string;
+      value: string;
+    }>;
+  public: Array<{
+      factId: string;
+      layer: "person" | "agent" | "project" | "space";
+      ownerRef: string;
+      agentId?: string;
+      noteId?: string;
+      text: string;
+      validFrom: number;
+      validTo?: number;
+      learnedAt: number;
+      closedAt?: number;
+      sourceKind: "chat" | "channel" | "task" | "record" | "run" | "journey" | "manual";
+      sourceRef: string;
+      sourceLink?: string;
+      status: "proposed" | "current" | "closed" | "removed";
+      lowRisk?: boolean;
+      trashedAt?: number;
+      trashReason?: string;
+      archivedAt?: number;
+      subject?: {
+        pageId: string;
+        title: string;
+        kind: string;
+      };
+      sourceTitle?: string;
+      by?: string;
+      byKind?: "person" | "agent" | "upkeep" | "system";
+      versions?: number;
+      place: "public" | "private";
+      suggested?: boolean;
+      lineLink?: string;
+    }>;
+  private: Array<{
+      factId: string;
+      layer: "person" | "agent" | "project" | "space";
+      ownerRef: string;
+      agentId?: string;
+      noteId?: string;
+      text: string;
+      validFrom: number;
+      validTo?: number;
+      learnedAt: number;
+      closedAt?: number;
+      sourceKind: "chat" | "channel" | "task" | "record" | "run" | "journey" | "manual";
+      sourceRef: string;
+      sourceLink?: string;
+      status: "proposed" | "current" | "closed" | "removed";
+      lowRisk?: boolean;
+      trashedAt?: number;
+      trashReason?: string;
+      archivedAt?: number;
+      subject?: {
+        pageId: string;
+        title: string;
+        kind: string;
+      };
+      sourceTitle?: string;
+      by?: string;
+      byKind?: "person" | "agent" | "upkeep" | "system";
+      versions?: number;
+      place: "public" | "private";
+      suggested?: boolean;
+      lineLink?: string;
+    }>;
+};
+export type MemoryProfileMoveIn = {
+  factId: string;
+  to: "public" | "private";
+};
+export type MemoryProfileMoveOut = {
+  fact: {
+    factId: string;
+    layer: "person" | "agent" | "project" | "space";
+    ownerRef: string;
+    agentId?: string;
+    noteId?: string;
+    text: string;
+    validFrom: number;
+    validTo?: number;
+    learnedAt: number;
+    closedAt?: number;
+    sourceKind: "chat" | "channel" | "task" | "record" | "run" | "journey" | "manual";
+    sourceRef: string;
+    sourceLink?: string;
+    status: "proposed" | "current" | "closed" | "removed";
+    lowRisk?: boolean;
+    trashedAt?: number;
+    trashReason?: string;
+    archivedAt?: number;
+    subject?: {
+      pageId: string;
+      title: string;
+      kind: string;
+    };
+    sourceTitle?: string;
+    by?: string;
+    byKind?: "person" | "agent" | "upkeep" | "system";
+    versions?: number;
+    place: "public" | "private";
+    suggested?: boolean;
+    lineLink?: string;
+  };
+};
+export type MemoryProfileSuggestIn = {
+  factId?: string;
+  text?: string;
+  threadId?: string;
+};
+export type MemoryProfileSuggestOut = {
+  fact: {
+    factId: string;
+    layer: "person" | "agent" | "project" | "space";
+    ownerRef: string;
+    agentId?: string;
+    noteId?: string;
+    text: string;
+    validFrom: number;
+    validTo?: number;
+    learnedAt: number;
+    closedAt?: number;
+    sourceKind: "chat" | "channel" | "task" | "record" | "run" | "journey" | "manual";
+    sourceRef: string;
+    sourceLink?: string;
+    status: "proposed" | "current" | "closed" | "removed";
+    lowRisk?: boolean;
+    trashedAt?: number;
+    trashReason?: string;
+    archivedAt?: number;
+    subject?: {
+      pageId: string;
+      title: string;
+      kind: string;
+    };
+    sourceTitle?: string;
+    by?: string;
+    byKind?: "person" | "agent" | "upkeep" | "system";
+    versions?: number;
+    place: "public" | "private";
+    suggested?: boolean;
+    lineLink?: string;
+  };
+};
 export type MemoryPromoteIn = {
   factId: string;
   toLayer: "agent" | "project" | "space";
@@ -35103,6 +35308,11 @@ export interface CapMap {
   "memory.page.set_visibility": { in: MemoryPageSetVisibilityIn; out: MemoryPageSetVisibilityOut };
   "memory.page.versions": { in: MemoryPageVersionsIn; out: MemoryPageVersionsOut };
   "memory.pointer": { in: MemoryPointerIn; out: MemoryPointerOut };
+  "memory.profile.add": { in: MemoryProfileAddIn; out: MemoryProfileAddOut };
+  "memory.profile.context": { in: MemoryProfileContextIn; out: MemoryProfileContextOut };
+  "memory.profile.get": { in: MemoryProfileGetIn; out: MemoryProfileGetOut };
+  "memory.profile.move": { in: MemoryProfileMoveIn; out: MemoryProfileMoveOut };
+  "memory.profile.suggest": { in: MemoryProfileSuggestIn; out: MemoryProfileSuggestOut };
   "memory.promote": { in: MemoryPromoteIn; out: MemoryPromoteOut };
   "memory.promotion.approve": { in: MemoryPromotionApproveIn; out: MemoryPromotionApproveOut };
   "memory.promotion.reject": { in: MemoryPromotionRejectIn; out: MemoryPromotionRejectOut };

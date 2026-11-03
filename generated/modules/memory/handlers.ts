@@ -45,6 +45,11 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "memory.page.set_visibility": Handler<"memory.page.set_visibility", X>;
   "memory.page.versions": Handler<"memory.page.versions", X>;
   "memory.pointer": Handler<"memory.pointer", X>;
+  "memory.profile.add": Handler<"memory.profile.add", X>;
+  "memory.profile.context": Handler<"memory.profile.context", X>;
+  "memory.profile.get": Handler<"memory.profile.get", X>;
+  "memory.profile.move": Handler<"memory.profile.move", X>;
+  "memory.profile.suggest": Handler<"memory.profile.suggest", X>;
   "memory.promote": Handler<"memory.promote", X>;
   "memory.promotion.approve": Handler<"memory.promotion.approve", X>;
   "memory.promotion.reject": Handler<"memory.promotion.reject", X>;

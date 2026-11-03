@@ -14,6 +14,7 @@ import { keyResolve, keySet, keysGet } from "./keys.ts";
 import { quote } from "./quotes.ts";
 import { recallRecord, used } from "./recalllog.ts";
 import { forget, remember } from "./tools.ts";
+import { profileAdd, profileContext, profileGet, profileMove, profileSuggest } from "./profile.ts";
 
 export const handlers = {
   "memory.search": search,
@@ -76,4 +77,9 @@ export const handlers = {
   "memory.key.resolve": keyResolve,
   "memory.remember": remember,
   "memory.forget": forget,
+  "memory.profile.get": profileGet,
+  "memory.profile.context": profileContext,
+  "memory.profile.move": profileMove,
+  "memory.profile.suggest": profileSuggest,
+  "memory.profile.add": profileAdd,
 };

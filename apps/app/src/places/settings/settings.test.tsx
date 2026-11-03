@@ -63,7 +63,7 @@ test("search finds rows by words in any order, ranks a title that starts with th
 
 test("the page list in a Team Space is You, then one way to the Console, and no Space pages", () => {
   const out = html(createSampleSettings(northwind));
-  assert.deepEqual(PAGES.filter((p) => p.group === "you").map((p) => p.title), ["Profile", "Notifications", "Appearance", "AI", "Connected", "Email and calendar", "Sign-in and devices", "This computer"]);
+  assert.deepEqual(PAGES.filter((p) => p.group === "you").map((p) => p.title), ["Profile", "Notifications", "Appearance", "AI", "Memory and privacy", "Connected", "Email and calendar", "Sign-in and devices", "This computer"]);
   assert.deepEqual(PAGES.filter((p) => p.group === "space").map((p) => p.title), ["Space", "People and access", "Agents and rules", "Data", "Connected apps", "Advanced"]);
   for (const p of PAGES) assert.equal(has(out, `data-testid="row-page-${p.key}"`), p.group === "you", p.key);
   const at = (t: string): number => { const i = out.indexOf(`>${t}<`); assert.ok(i >= 0, t); return i; };
@@ -155,7 +155,8 @@ test("AI: defaults, how agents work with you, usage with bars, the accounts and 
   assert.ok(has(out, 'data-testid="usage"') && has(out, "OpenAI team key") && has(out, "$48.20") && has(out, "168 turns"));
   assert.ok(has(out, "Run my chats on this computer") && has(out, "Agents can open side tabs"));
   assert.ok(has(out, "AI accounts") && has(out, "Sign in again") && has(out, "Working"));
-  assert.ok(has(out, 'data-testid="row-open-vault"') && has(out, "Who pays for memory"));
+  assert.ok(has(out, 'data-testid="row-open-vault"'));
+  assert.ok(has(html(createSampleSettings(northwind), { initialPage: "memory" }), "Who pays for memory"), "Who pays for memory moved to Memory and privacy");
   assert.equal(moneyLabel(48_200_000), "$48.20");
 });
 
@@ -317,7 +318,7 @@ test("no em dash in any copy on any page", () => {
 
 test("Who pays for memory splits by who it affects: your own picker in Settings, the Space and project pickers in the Console", async () => {
   const s = createSampleSettings(northwind);
-  const out = html(s, { initialPage: "ai" });
+  const out = html(s, { initialPage: "memory" });
   for (const t of ["Who pays for memory", "Your memory", "None (rules only)", 'data-testid="ctl-memory-key-person"']) assert.ok(out.includes(t), t);
   for (const t of ["Space memory", "Project memory", "Memory spend"]) assert.ok(!out.includes(t), `${t} is the Console's`);
   const space = renderToStaticMarkup(<SettingsDataProvider value={s.data}><SpaceDefaults page="memory" /></SettingsDataProvider>).replaceAll("<!-- -->", "");
@@ -325,7 +326,7 @@ test("Who pays for memory splits by who it affects: your own picker in Settings,
   assert.ok(!space.includes("Your memory"), "a person's own choice is not in the Console");
   await s.data.call("memory.key.set", { layer: "person", accountRef: "#Team_OpenAI_Key" });
   await s.data.call("memory.key.set", { layer: "project", projectId: "prj_rivera", accountRef: "#Team_Anthropic_Key" });
-  assert.ok(html(s, { initialPage: "ai" }).includes("OpenAI team key (shared)"), "the chosen account is on the picker");
+  assert.ok(html(s, { initialPage: "memory" }).includes("OpenAI team key (shared)"), "the chosen account is on the picker");
   assert.deepEqual(s.calls.map((c) => c.cap), ["memory.key.set", "memory.key.set"]);
   await assert.rejects(() => createSampleSettings(harbor).data.call("memory.key.set", { layer: "space", accountRef: "#Team_OpenAI_Key" }), /Only a Space admin/);
 });

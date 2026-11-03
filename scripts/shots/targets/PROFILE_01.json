@@ -1,0 +1,25 @@
+{
+  "targets": [
+    {
+      "id": "PROFILE_01-about-you",
+      "route": "/m/PROFILE_01?part=settings",
+      "proto": "settings,at:profile,{skin}",
+      "waitFor": "[data-testid='about-you']",
+      "note": "Settings, Memory and privacy: About you with Public (teammates' chats can use this) and Private (only your own chats), each fact with who learned it, an agent's suggestion waiting with Add to public and Keep private, then Who pays for memory."
+    },
+    {
+      "id": "PROFILE_01-knows-private",
+      "route": "/m/PROFILE_01?part=knows&audience=private",
+      "proto": "chat,at:demo-agent-memory,{skin}",
+      "waitFor": "[data-testid='knows-about']",
+      "note": "Knows in your own chat: About you at the top, public and private, with why."
+    },
+    {
+      "id": "PROFILE_01-knows-shared",
+      "route": "/m/PROFILE_01?part=knows&audience=shared",
+      "proto": "chat,at:demo-agent-memory,{skin}",
+      "waitFor": "[data-testid='knows-about']",
+      "note": "Knows in a chat other people read: About you holds the public part only, and says why."
+    }
+  ]
+}
