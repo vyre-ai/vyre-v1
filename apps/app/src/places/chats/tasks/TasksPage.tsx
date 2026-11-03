@@ -358,7 +358,7 @@ export function TasksPage({ rt, openTask, openAgent, openChat, window }: TasksPa
       <Text accessibilityRole="header" style={st.h1}>Tasks</Text>
       <View style={{ flex: 1 }} />
       {searching || filter.query !== "" ? <TextInput ref={searchRef} autoFocus testID="tasks-search" accessibilityLabel="Search tasks" placeholder="Search" placeholderTextColor="var(--ink-3)" value={filter.query} onChangeText={(q) => setFilter((f) => ({ ...f, query: q }))} onBlur={() => setSearching(false)} style={st.search} /> : <Pressable accessibilityRole="button" accessibilityLabel="Search tasks (/)" testID="tasks-search-open" onPress={() => setSearching(true)} style={st.icon}><Glyph name="search" size={14} /></Pressable>}
-      <TextMenu label={view === "list" ? `Group: ${GROUPS.find((g) => g.key === group)?.title ?? "Smart"}` : "Show"} onPress={arrange} testID="tasks-arrange" />
+      <TextMenu label={view === "list" ? `${narrow ? "" : "Group: "}${GROUPS.find((g) => g.key === group)?.title ?? "Smart"}` : "Show"} onPress={arrange} testID="tasks-arrange" />
       <TextMenu label={scopeTitle} onPress={scopeMenu} testID="tasks-scope" />
       {/* on a phone the four views are a menu, not hidden */}
       {narrow ? <TextMenu label={VIEWS.find((v) => v.id === view)?.label ?? "List"} testID="tasks-view-menu" onPress={(at) => menu.show(VIEWS.map((v) => ({ label: v.label, checked: v.id === view, onSelect: () => setView(v.id) })), at.x, at.y, "other", { label: "View" })} /> : <Segmented label="View" options={VIEWS} value={view} onChange={(v) => setView(v)} testID="tasks-view" />}
