@@ -1,5 +1,6 @@
 // The Apps place in the shell (spec 3.6): sites, forms, templates and sending domains over the Space's data. The runtime's screens, calls and door become the place's AppsData;
 // where a click leaves the place it goes out through the shell. A Personal Space has no Apps (spec 2.1), so the place says it needs a Team Space. Before the runtime exists the place draws its frame.
+import { openAskPane } from "../ask/pane.ts";
 import { useMemo } from "react";
 import type { ReactElement } from "react";
 import AppsLayout, { AppsLoading } from "../../places/apps/shell/index.ts";
@@ -23,7 +24,7 @@ export function appsData(rt: ShellRuntime): AppsData {
     renderShare: (resource, onClose) => <FolderShareSheet rt={rt} folderId={resource.id} resource={resource} onClose={onClose} />,
     nav: {
       open: (group, id) => rt.open({ screen: SCREEN[group] ?? "apps.forms", args: { selected: id } }),
-      newSite: () => rt.open({ screen: "chats.conversation", args: { with: rt.assistant.id, first: NEW_SITE_PROMPT } }),
+      newSite: () => { openAskPane({ thing: null, first: NEW_SITE_PROMPT }, "apps"); },
       openUrl: (url) => rt.openUrl(url),
       openComputers: () => rt.open({ screen: "settings.page", args: { page: "computers" } }),
       create: (group, kind) => rt.open({ screen: group === "forms" ? "apps.forms" : group === "domains" ? "apps.sending-domains" : SCREEN[group] ?? "apps.forms", args: { create: true, ...(kind ? { kind } : {}) } }),

@@ -1,4 +1,5 @@
-// Threads, at the top of Chats: the threads you are in. You join by replying or being mentioned; a thread opens where it lives.
+// Threads, at the top of Chats: the threads you are in. You join by replying or being mentioned; a thread opens where it lives. Under them, Ask history: every Ask pane you opened
+// beside something in another place (they stay out of Recent), newest first, so one can be reopened here as a full chat.
 import type { ReactElement } from "react";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
 import { Avatar } from "../../../../../../ui/src/Avatar/index.tsx";
@@ -11,9 +12,12 @@ type Thread = CapMap["threads.list"]["out"]["threads"][number];
 
 export function ThreadsPage({ rt, nameOf, openChat }: { rt: ShellRuntime; nameOf(id: string): string; openChat(id: string): void }): ReactElement {
   const [rows, setRows] = useState<readonly Thread[] | null>(null);
+  const [asks, setAsks] = useState<readonly Thread[]>([]);
   useEffect(() => {
     let live = true;
     void Promise.resolve(rt.call("threads.list", { kind: ["thread"], limit: 100 })).then((o) => { if (live) setRows((o as CapMap["threads.list"]["out"]).threads.filter((t) => t.members?.some((m) => m.id === rt.me.id) !== false)); }, () => { if (live) setRows([]); });
+    // an Ask pane is private to the person who opened it: the list holds only theirs
+    void Promise.resolve(rt.call("threads.list", { kind: ["ask"], limit: 100 })).then((o) => { if (live) setAsks((o as CapMap["threads.list"]["out"]).threads); }, () => undefined);
     return () => { live = false; };
   }, [rt]);
   return (
@@ -27,6 +31,17 @@ export function ThreadsPage({ rt, nameOf, openChat }: { rt: ShellRuntime; nameOf
           return <Row key={t.threadId} id={`thread-${t.threadId}`} title={t.title ?? "Thread"} {...(t.replyCount !== undefined ? { note: `${t.replyCount} ${t.replyCount === 1 ? "reply" : "replies"}` } : {})} leading={who ? <View style={st.lead}><Avatar name={nameOf(who)} seedId={who} kind="agent" size={28} /></View> : null} onPress={() => openChat(t.threadId)} />;
         })}
         </View>
+        {asks.length > 0 ? (
+          <View testID="ask-history">
+            <Text accessibilityRole="header" aria-level={2} style={st.head}>Ask history</Text>
+            <View style={LIST_PAGE.rows}>
+              {asks.map((t) => {
+                const who = t.agents[0]?.agentId;
+                return <Row key={t.threadId} id={`ask-${t.threadId}`} title={t.title ?? "Ask"} {...(who ? { note: nameOf(who) } : {})} leading={who ? <View style={st.lead}><Avatar name={nameOf(who)} seedId={who} kind="agent" size={28} /></View> : null} onPress={() => openChat(t.threadId)} />;
+              })}
+            </View>
+          </View>
+        ) : null}
       </View>
     </ScrollView>
   );
@@ -44,4 +59,5 @@ export const LIST_PAGE = StyleSheet.create({
 
 const st = StyleSheet.create({
   lead: { marginRight: 12 },
+  head: { fontSize: 15, fontWeight: "600", color: "var(--ink)" as string, paddingHorizontal: 26, marginTop: 26, marginBottom: 8 },
 });

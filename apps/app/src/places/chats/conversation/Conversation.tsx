@@ -455,7 +455,8 @@ function ConversationView(): ReactElement {
     ? mentionsIn(typed, data.directory.filter((c) => c.kind === "person" && c.id !== data.me.id))[0]
     : undefined;
   const closed = isClosed(thread);
-  const note = data.head ? "" : threadKindNote(thread, nameOf);
+  // an Ask drawn in its own pane is already titled Ask Vyre: the quiet "Ask pane" line is for an Ask opened in Chats
+  const note = data.head || (compact && thread.kind === "ask") ? "" : threadKindNote(thread, nameOf);
   const title = titleOf(thread, nameOf);
   const q = queueNote(queued, lead ? nameOf(lead.agentId) : "", canSteer, ownTurn);
 

@@ -40,3 +40,10 @@ test("an ordinary chat is at manage, and a pane that is not yours is not found",
   const pane = await ask(hn);
   assert.equal(await failure(() => h["chat.ask_level"]!(hn.person("usr_maya"), { threadId: pane })), "validation.not_found");
 });
+
+test("an Ask about a place (the pane with no object: Files, Vault, Inbox, Settings and its pages) works at the person's own level, like Records", async () => {
+  const hn = rig("view");
+  for (const scope of ["files", "vault", "inbox", "settings", "settings_page", "apps", "home"]) {
+    assert.deepEqual(await h["chat.ask_level"]!(hn.ctx, { threadId: await ask(hn, scope, scope === "settings_page" ? "appearance" : "place") }), { level: "manage" }, scope);
+  }
+});
