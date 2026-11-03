@@ -5,6 +5,7 @@
 // connect creates the caller's own mailbox (Pending until the first sync); an IMAP connection proves LOGIN and NOOP first.
 // sync_now pulls an IMAP mailbox (UID watermark, peek only, then IDLE for a bounded window); Google and Microsoft mailboxes
 // are pulled by their connectors, which this handler asks and which call mail.ingest for each message.
+import { mustUse } from "../../../lib/vault-check.ts";
 import { fail } from "../../../host/src/routes/errors.ts";
 import {
   bad, ensure, EMAIL, first, isId, logRead, missing, newId, normalizeEmail, num, partyJson, snippetOf, str, strOrNull,
@@ -467,6 +468,8 @@ export async function connect(ctx: MailCtx, input: ConnectIn): Promise<{ mailbox
     throw fail("validation.duplicate", ctx.trace.traceId, { message: "This mailbox is already connected." });
   }
   const imap = input.provider === "imap" ? requireImap(ctx, input.imap) : null;
+  // the poll logs in later as the server: the person connecting must have Use on the password now (lib/vault-check.ts)
+  if (imap) await mustUse((cap, i) => ctx.call(cap, i), imap.passwordHandle, (m) => { throw fail("permission.no_grant", ctx.trace.traceId, { message: m }); });
   if (imap) await probeImap(ctx, imap);
   const own = input.connectionId;
   if (!imap && own === undefined) await mustBeOwnAddress(ctx, input.provider as "google" | "microsoft", address);

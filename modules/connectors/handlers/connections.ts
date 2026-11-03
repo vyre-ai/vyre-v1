@@ -1,5 +1,6 @@
 // Connections (spec 2.10, 4.18): one account plugged into a connector, owned by a person or the Space. The owner can pause it. It starts Pending until the sign-in or the first good
 // probe, and a provider that rejects the key sends it to needs_reconnect. A connection holds the NAME of the Vault item for each secret, never a value.
+import { mustUse } from "../../../lib/vault-check.ts";
 import { CONNECTION_KEY_LINE } from "../../../lib/vault-lines.ts";
 import { newPkce, oauthOf, OAUTH_TTL_MS } from "./oauth.ts";
 import { checkEgress, ensureTables, mintShort, nowOf, PAGE, refuse, scrubber, seedBuiltins } from "../projections.ts";
@@ -118,6 +119,8 @@ export function createConnectionsHandlers(deps: ConnectorsDeps): ConnectionsHand
       for (const [name, handle] of Object.entries(secrets)) {
         if (!def.secrets.some((s) => s.name === name)) refuse(ctx, "validation.bad_input", `${def.title} has no secret called ${name}.`);
         if (!HANDLE.test(handle)) refuse(ctx, "validation.bad_input", `${name} must be the name of a Vault item such as #Name, not a value.`);
+        // a Space connection's run fills its secrets as the Space: whoever connects must have Use on each (lib/vault-check.ts)
+        await mustUse((cap, i) => ctx.call(cap, i), handle, (m) => refuse(ctx, "permission.no_grant", m));
       }
       const now = nowOf(deps);
       const id = mintShort("con", now);
@@ -150,6 +153,7 @@ export function createConnectionsHandlers(deps: ConnectorsDeps): ConnectionsHand
       const def = defOf(ctx, r.connector);
       if (!def.secrets.some((x) => x.name === input.slot)) refuse(ctx, "validation.bad_input", `${def.title} has no secret called ${input.slot}.`);
       if (!HANDLE.test(input.handle)) refuse(ctx, "validation.bad_input", `${input.slot} must be the name of a Vault item such as #Name, not a value.`);
+      await mustUse((cap, i) => ctx.call(cap, i), input.handle, (m) => refuse(ctx, "permission.no_grant", m));
       const secrets = { ...secretsOf(r), [input.slot]: input.handle };
       const state = r.state === "pending" ? initialState(def, secrets) : r.state;
       tx.run("UPDATE cn_connections SET secrets = ?, state = ? WHERE connection_id = ?", JSON.stringify(secrets), state, r.connection_id);
