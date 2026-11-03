@@ -6,7 +6,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { MessageView, menuFor } from "./MessageView.tsx";
 import { onBehalfOf, timeline } from "./model.ts";
 import type { Message } from "./model.ts";
-import { wantsPhrase, heldOf } from "./approval-model.ts";
+import { excerptLines, wantsPhrase, heldOf } from "./approval-model.ts";
 
 const NAMES: Record<string, string> = { usr_dana: "Dana Reyes", usr_maya: "Maya Chen", agt_intake: "Intake" };
 const nameOf = (id: string): string => NAMES[id] ?? id;
@@ -53,6 +53,7 @@ test("Dana sees the same credit and no mute; a message with no block is the agen
 test("the ask-first card says whom it goes to; a teammate's plain approval runs nothing as them", () => {
   assert.equal(wantsPhrase("chat.message_person", "Maya Chen"), "send this to Maya Chen");
   assert.equal(wantsPhrase("chat.message_person"), "send a message to a teammate");
+  assert.deepEqual(excerptLines({ to: "usr_noah", body: "Are you free Friday?" }, 5, "chat.message_person").map((l) => l.text), ["Are you free Friday?"], "the words, never the id");
   const held = heldOf([{ type: "table", data: { cap: "", act: "", plain: true, ask: { what: "approve the 10% Rivera discount" }, text: "Renews Monday." } }]);
   assert.deepEqual([held.plain, held.what, held.detail], [true, "approve the 10% Rivera discount", "Renews Monday."]);
 });

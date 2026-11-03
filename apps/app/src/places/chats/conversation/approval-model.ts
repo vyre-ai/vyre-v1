@@ -111,6 +111,7 @@ export function excerptLines(input: Obj, max = 5, cap?: string): Array<{ label: 
   for (const [k, v] of Object.entries(input)) {
     if (out.length >= max) break;
     if (SKIP.has(k) || k === "content" || /Id$/.test(k) || k === "id") continue;
+    if (cap === "chat.message_person" && k === "to") continue;   // the headline names the teammate; their id is no line to read
     const t = Array.isArray(v) ? v.map(text).filter(Boolean).join(", ") : text(v);
     if (t) out.push({ label: label(k), text: cut(t, k === "body" || k === "text" ? 320 : 120) });
   }
