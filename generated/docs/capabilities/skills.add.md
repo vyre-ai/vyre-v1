@@ -41,7 +41,8 @@ type Out = {
   skill: {
     name: string;
     description: string;
-    tier: "builtin" | "space" | "agent";
+    tier: "builtin" | "space" | "agent" | "mine" | "shared";
+    label?: string;
     source: string;
     agentId?: string;
     system: boolean;
@@ -49,7 +50,7 @@ type Out = {
     bytes: number;
     updatedAt?: number;
     hash?: string;
-    shadowedBy?: "builtin" | "space" | "agent";
+    shadowedBy?: "builtin" | "space" | "agent" | "mine" | "shared";
     note?: string;
     broken?: string;
   };
@@ -90,6 +91,7 @@ type Out = {
       "description": "example",
       "enabled": true,
       "hash": "example",
+      "label": "example",
       "name": "deploy-checks",
       "note": "example",
       "shadowedBy": "builtin",
