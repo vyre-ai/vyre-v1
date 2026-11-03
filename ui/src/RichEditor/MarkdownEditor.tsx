@@ -121,7 +121,7 @@ interface DomTextArea { value: string; style: { height: string }; scrollHeight: 
 
 function RawMarkdown(p: { value: string; onChange: (v: string) => void; editable: boolean; label: string; placeholder: string; autoFocus: boolean; jump: { line: number; n: number } | null; onSave?: () => void; onEscape?: () => void; onNote: (s: string) => void; minHeight: number }): ReactElement {
   const area = useRef<DomTextArea | null>(null);
-  const size = useCallback(() => { const a = area.current; if (a) { a.style.height = "auto"; a.style.height = `${Math.max(a.scrollHeight, p.minHeight)}px`; } }, [p.minHeight]);
+  const size = useCallback(() => { const a = area.current; if (a?.style) { a.style.height = "auto"; a.style.height = `${Math.max(a.scrollHeight, p.minHeight)}px`; } }, [p.minHeight]);
   useEffect(() => { size(); }, [p.value, size]);
   useEffect(() => { if (p.autoFocus) area.current?.focus(); }, [p.autoFocus]);
   useEffect(() => {

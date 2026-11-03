@@ -10,8 +10,9 @@ import { useMenu } from "../../../../../../ui/src/Menu/index.tsx";
 import { VersionBanner } from "../../../../../../ui/src/HistoryTab/index.tsx";
 import { SidePane } from "../../../../../../ui/src/SidePane/index.tsx";
 import { restoreVersion } from "./actions.ts";
-import { AgentFileEditor } from "./AgentFileEditor.tsx";
-import type { AgentFileEditorProps } from "./AgentFileEditor.tsx";
+import { AgentFileEditor, statusWords } from "./AgentFileEditor.tsx";
+import type { AgentFileApi, AgentFileEditorProps, AgentFileHeader } from "./AgentFileEditor.tsx";
+import { ViewSwitch } from "../../../../../../ui/src/RichEditor/index.tsx";
 import { FileDiff } from "./DiffPanels.tsx";
 import { useCap, useReviewData } from "./data.tsx";
 import { HistoryPanel } from "./HistoryPanel.tsx";
@@ -52,6 +53,9 @@ export function AgentFilePage({ path, agentId, edit = false, startHistory = fals
   const [line, setLine] = useState<{ text: string; kind: "ok" | "error" } | null>(null);
   const [reviewNode, setReviewNode] = useState<ReactNode | null>(null);
   const hadReview = useRef(false);
+  // the edit under the header: its save state and the things the header can do to it (Undo, Review, Discard, the Styled and Markdown switch)
+  const [hd, setHd] = useState<AgentFileHeader | null>(null);
+  const api = useRef<AgentFileApi | null>(null);
   const { element: menu, show } = useMenu();
   // agent.toml has no View: its own Text and Form switch on the lint bar is how it is read and edited (vyre-v1.html).
   const isToml = file.name.endsWith(".toml");
@@ -104,6 +108,8 @@ export function AgentFilePage({ path, agentId, edit = false, startHistory = fals
     ], at.x, at.y, "other");
   };
   const compact = file.density === "compact";
+  // the header shows the save state while a .md is being edited
+  const editing = !isToml && mode === "edit";
 
   const main = (
     <View style={st.main}>
@@ -115,14 +121,24 @@ export function AgentFilePage({ path, agentId, edit = false, startHistory = fals
             {path}{top ? ` · ${data.nameOf(top.by)} · ${shortDay(top.at)}` : ""}
           </Text>
         </View>
-        <View style={st.ver} testID="agent-file-version" aria-label={`Version ${version}`}>
-          <Glyph name="check" size={13} color="var(--ok)" width={1.8} />
-          <Text style={st.verText}>{`v${version}`}</Text>
-        </View>
+        {editing && hd !== null ? (
+          <>
+            <ViewSwitch view={hd.view} onView={(v) => api.current?.setView(v)} />
+            <View style={st.ver} testID="agent-file-version" aria-label={hd.status === "saved" ? `Saved, version ${hd.version}` : `Version ${hd.version}`}>
+              {hd.status === "dirty" || hd.status === "saving" ? null : <Glyph name="check" size={13} color={hd.status === "error" || hd.status === "draft" ? "var(--warn)" : "var(--ok)"} width={1.8} />}
+              <Text style={st.verText} testID="agent-file-status">{statusWords(hd)}</Text>
+              {hd.canUndo ? <Btn label="Undo" small onPress={() => api.current?.undo()} testID="agent-file-undo" /> : null}
+              {hd.changed ? <Btn label="Discard" small onPress={() => api.current?.discard()} testID="agent-file-discard" /> : null}
+              {hd.reviewRequired && hd.changed ? <Btn label="Review" small onPress={() => api.current?.review()} testID="agent-file-review-btn" /> : null}
+            </View>
+          </>
+        ) : (
+          <View style={st.ver} testID="agent-file-version" aria-label={`Version ${version}`}>
+            <Glyph name="check" size={13} color="var(--ok)" width={1.8} />
+            <Text style={st.verText}>{`v${version}`}</Text>
+          </View>
+        )}
         {isToml ? null : <Segmented options={[{ id: "view", label: "View" }, { id: "edit", label: "Edit" }]} value={mode} onChange={setMode} label="View or edit" testID="agent-file-mode" />}
-        <IconBtn label="Find in file" onPress={toggleFind} testID="agent-file-find"><Glyph name="search" size={15} color={finding ? "var(--accent)" : "var(--ink-2)"} /></IconBtn>
-        <IconBtn label="Info" onPress={() => setInfo(!info)} testID="agent-file-info"><Glyph name="info" size={15} color={info ? "var(--accent)" : "var(--ink-2)"} /></IconBtn>
-        <IconBtn label="History" onPress={toggleHistory} testID="agent-file-history"><Glyph name="history" size={15} color={pane ? "var(--accent)" : "var(--ink-2)"} /></IconBtn>
         <AskButton
           place="files"
           context={{ kind: "file", id: file.fileId, title: file.name, access: "edit" }}
@@ -155,6 +171,8 @@ export function AgentFilePage({ path, agentId, edit = false, startHistory = fals
           version={version}
           mode={isToml ? "edit" : mode}
           onReviewPane={onReviewPane}
+          onHeader={setHd}
+          apiRef={api}
           above={<SuggestionCard agentId={agentId} file={file.name} onApplied={setApplied} {...(file.density ? { density: file.density } : {})} />}
         />
       )}

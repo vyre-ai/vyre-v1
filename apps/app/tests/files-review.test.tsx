@@ -360,7 +360,9 @@ test("editor: Save is off with nothing changed, shows the lint bar and the file,
   const s = sample();
   const out = html(s, <AgentFileEditor fileId={s.fileIds.agent} name="AGENT.md" saved={AGENT_MD} version={4} />);
   assert.ok(has(out, 'data-testid="agent-file-editor"') && has(out, 'data-testid="lint-bar"') && has(out, 'aria-label="Text of AGENT.md"'));
-  assert.ok(has(tag(out, "agent-file-save"), 'aria-disabled="true"') && has(text(out), "Version 4"), "nothing to save");
+  assert.ok(!has(out, 'data-testid="agent-file-save"') && !has(text(out), "Review and save"), "no save button: a pause after typing saves a new version");
+  assert.ok(has(tag(out, "agent-file-status"), "") && has(text(out), "v4"), "the quiet status line says the version");
+  assert.ok(has(out, 'data-testid="agent-file-text"') && has(out, 'data-testid="markdown-editor-host"'), "a .md is edited in the shared Markdown editor");
   const toml = html(s, <AgentFileEditor fileId={s.fileIds.toml} name="agent.toml" saved={AGENT_TOML} version={2} />);
   assert.ok(has(toml, 'data-testid="lint-view"'), "agent.toml has the Form switch");
   const edited = AGENT_MD.replace("No exclamation marks.", "No exclamation marks. Keep replies short.");
@@ -410,7 +412,9 @@ test("agent file page: header with where it lives and who saved it, View and Edi
   const out = html(s, <AgentFilePage fileId={s.fileIds.agent} name="AGENT.md" path="Agents/Intake" agentId="agt_intake" saved={AGENT_MD} version={4} />);
   assert.ok(has(text(out), "AGENT.md") && has(text(out), "Agents/Intake") && has(text(out), "Irfad Imtiaz") && has(text(out), "Oct 24"), "name, path, author, date");
   assert.ok(has(tag(out, "agent-file-mode-view"), 'aria-checked="true"') && has(tag(out, "agent-file-mode-edit"), 'aria-checked="false"'), "opens on View");
-  for (const id of ["agent-file-find", "agent-file-info", "agent-file-history", "agent-file-ask"]) assert.ok(has(out, `data-testid="${id}"`), id);
+  // the rarely used buttons live in the "..." menu (find, details, history), not in the header
+  for (const id of ["agent-file-ask", "agent-file-more"]) assert.ok(has(out, `data-testid="${id}"`), id);
+  for (const id of ["agent-file-find", "agent-file-info", "agent-file-history"]) assert.ok(!has(out, `data-testid="${id}"`), `${id} is folded into the menu`);
   assert.ok(has(text(out), "Nothing repeated from agent.toml") && has(text(out), "No secrets"), "the chips");
   assert.ok(has(out, 'data-testid="suggestion-card"') && has(text(out), "Intake suggests 2 changes to AGENT.md"), "the suggestion");
   assert.ok(has(out, 'data-testid="suggestion-dismiss"') && has(text(out), "Apply to AGENT.md"));
@@ -745,12 +749,13 @@ test("agent.toml page: the file header with the TOML tile, where it lives, who a
   assert.ok(tile >= 0 && has(text(out.slice(tile, tile + 400)), "TOML"), "the TOML tile");
   assert.ok(has(text(out), "agent.toml") && has(text(out), "Agents / Intake") && has(text(out), "Lena Ortiz") && has(text(out), "Oct 20"), "name, path, owner, date");
   assert.ok(has(tag(out, "agent-file-version"), 'aria-label="Version 3"') && has(text(out), "v3"), "the version check");
-  for (const id of ["agent-file-find", "agent-file-info", "agent-file-history", "agent-file-ask", "agent-file-more"]) assert.ok(has(out, `data-testid="${id}"`), id);
+  for (const id of ["agent-file-ask", "agent-file-more"]) assert.ok(has(out, `data-testid="${id}"`), id);
+  for (const id of ["agent-file-find", "agent-file-info", "agent-file-history"]) assert.ok(!has(out, `data-testid="${id}"`), `${id} is folded into the menu`);
   assert.ok(!has(out, 'data-testid="agent-file-mode"'), "agent.toml has the Text and Form switch, not View and Edit");
   assert.ok(has(out, 'data-testid="lint-bar"') && has(out, 'data-testid="toml-form"') && has(text(out), "Whose AI account"), "chips, then the form");
-  assert.ok(!has(out, 'data-testid="agent-file-save"'), "no save bar until something is edited");
+  assert.ok(!has(out, 'data-testid="agent-file-save"'), "no save button");
   const edited = html(s, <AgentFilePage fileId={s.fileIds.toml} name="agent.toml" path="Agents / Intake" agentId="agt_intake" saved={AGENT_TOML_INTAKE} version={3} start={{ view: "form", draft: AGENT_TOML_INTAKE.replace("3000", "4000"), review: true }} />);
-  assert.ok(has(text(edited), "Edited") && has(edited, 'data-testid="agent-file-save"'), "an edit brings the save bar");
+  assert.ok(!has(edited, 'data-testid="agent-file-save"') && !has(text(edited), "Review and save"), "an edit brings no save bar: it is saved after a pause");
   assert.ok(!has(edited, 'data-testid="agent-file-diff"'), "the diff is not drawn under the form: it goes to the History pane");
 });
 
@@ -761,5 +766,5 @@ test("the diff before a save: under the file by itself, in the page's pane when 
   assert.ok(has(alone, 'data-testid="agent-file-diff"') && has(alone, 'aria-label="Why this change"'), "an editor with no pane keeps its diff under the file");
   const given = html(s, <AgentFileEditor fileId={s.fileIds.toml} name="agent.toml" saved={AGENT_TOML_INTAKE} version={3} start={start} onReviewPane={() => undefined} />);
   assert.ok(!has(given, 'data-testid="agent-file-diff"'), "with a pane to put it in, nothing is drawn under the form");
-  assert.ok(has(given, 'data-testid="toml-form"') && has(given, 'data-testid="agent-file-save"'), "the form and the Save button stay");
+  assert.ok(has(given, 'data-testid="toml-form"'), "the form stays");
 });
