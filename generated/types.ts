@@ -26351,7 +26351,13 @@ export type SkillsAddOut = {
     enabled: boolean;
     bytes: number;
     updatedAt?: number;
+    hash?: string;
+    shadowedBy?: "builtin" | "space" | "agent";
+    note?: string;
+    broken?: string;
   };
+  kept?: boolean;
+  note?: string;
 };
 export type SkillsListIn = {
   agentId?: string;
@@ -26368,6 +26374,10 @@ export type SkillsListOut = {
       enabled: boolean;
       bytes: number;
       updatedAt?: number;
+      hash?: string;
+      shadowedBy?: "builtin" | "space" | "agent";
+      note?: string;
+      broken?: string;
     }>;
 };
 export type SkillsLoadIn = {
@@ -26385,11 +26395,14 @@ export type SkillsLoadOut = {
         path: string;
         text: string;
       }>;
+    text?: string;
+    hash?: string;
   };
 };
 export type SkillsRemoveIn = {
   name: string;
   agentId?: string;
+  source?: string;
   idempotencyKey: string;
 };
 export type SkillsRemoveOut = {
@@ -26412,6 +26425,10 @@ export type SkillsSetEnabledOut = {
     enabled: boolean;
     bytes: number;
     updatedAt?: number;
+    hash?: string;
+    shadowedBy?: "builtin" | "space" | "agent";
+    note?: string;
+    broken?: string;
   };
 };
 export type SourceRulesListIn = Record<string, unknown>;

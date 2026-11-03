@@ -44,6 +44,8 @@ type Out = {
         path: string;
         text: string;
       }>;
+    text?: string;
+    hash?: string;
   };
 };
 ```
@@ -75,8 +77,10 @@ type Out = {
           "text": "example"
         }
       ],
+      "hash": "example",
       "name": "example",
       "source": "example",
+      "text": "example",
       "tier": "builtin"
     }
   }
