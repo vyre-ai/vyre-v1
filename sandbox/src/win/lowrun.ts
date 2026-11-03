@@ -32,15 +32,29 @@ async function sourceHash(src: string): Promise<string> {
   return Buffer.from(await globalThis.crypto.subtle.digest("SHA-256", fs.readFileSync(src))).toString("hex").slice(0, 12);
 }
 
-/** The helper for this version of its source, built if it is not there (a second or two, once). Throws sandbox.unavailable when it cannot be built. */
-export async function ensureLowrun(binDir: string, o: { source?: string; csc?: string | null } = {}): Promise<string> {
+/**
+ * The helper for this version of its source, built if it is not there (a second or two, once). Throws sandbox.unavailable when it cannot be built. One build at a time in this process, and each
+ * build writes a file of its own: the desktop app runs two daemons (its device one and the Personal Space), and both may ask on their first CLI turn. A build another process finished first is used.
+ */
+export function ensureLowrun(binDir: string, o: { source?: string; csc?: string | null } = {}): Promise<string> {
+  const key = `${binDir}|${o.source ?? ""}`;
+  let p = building.get(key);
+  if (!p) {
+    p = buildLowrun(binDir, o).finally(() => building.delete(key));
+    building.set(key, p);
+  }
+  return p;
+}
+const building = new Map<string, Promise<string>>();
+
+async function buildLowrun(binDir: string, o: { source?: string; csc?: string | null }): Promise<string> {
   const src = o.source ?? LOWRUN_SOURCE;
   const exe = path.join(binDir, `vyre-lowrun-${await sourceHash(src)}.exe`);
   if (fs.existsSync(exe)) return exe;
   const csc = o.csc === undefined ? cscPath() : o.csc;
   if (csc === null) throw new SandboxError("sandbox.unavailable", "this Windows has no .NET Framework compiler to set up the engine's sandbox");
   fs.mkdirSync(binDir, { recursive: true });
-  const part = `${exe}.part`;
+  const part = `${exe}.${process.pid}-${Date.now().toString(36)}.part`;
   const r = await new Promise<{ code: number | null; out: string }>((resolve) => {
     const p = spawn(csc, ["/nologo", "/optimize+", "/platform:anycpu", "/target:exe", `/out:${part}`, src], { windowsHide: true, stdio: ["ignore", "pipe", "pipe"] });
     let out = "";
@@ -49,8 +63,13 @@ export async function ensureLowrun(binDir: string, o: { source?: string; csc?: s
     p.once("error", (e) => resolve({ code: null, out: e.message }));
     p.once("close", (code) => resolve({ code, out }));
   });
-  if (r.code !== 0 || !fs.existsSync(part)) throw new SandboxError("sandbox.unavailable", `the engine's sandbox could not be built: ${r.out.trim().split(/\r?\n/).slice(-2).join(" ")}`);
-  fs.renameSync(part, exe);
+  if (r.code !== 0 || !fs.existsSync(part)) {
+    fs.rmSync(part, { force: true });
+    if (fs.existsSync(exe)) return exe;   // another process finished the same build
+    throw new SandboxError("sandbox.unavailable", `the engine's sandbox could not be built: ${r.out.trim().split(/\r?\n/).slice(-2).join(" ")}`);
+  }
+  try { fs.renameSync(part, exe); }
+  catch (e) { fs.rmSync(part, { force: true }); if (!fs.existsSync(exe)) throw e; }   // the other process's copy is the same build
   return exe;
 }
 
