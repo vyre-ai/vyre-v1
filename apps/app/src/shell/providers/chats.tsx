@@ -42,7 +42,7 @@ function ChatsOnPhone({ rt }: { rt: NonNullable<ReturnType<typeof useOptionalShe
 // The shell keys the place by the Space and the place, not the link, so a link that arrives while Chats is open comes through here.
 function ChatsLinked({ rt, hub }: { rt: NonNullable<ReturnType<typeof useOptionalShellRuntime>>; hub: ShellHub }): ReactElement {
   const { opened } = usePlaceHash();
-  return <ChatsMounted rt={rt} hash={useHubState(hub).hash} opened={opened} onSwitch={hub.hold} closeSelf={() => hub.closeTab()} />;
+  return <ChatsMounted rt={rt} hash={useHubState(hub).hash} opened={opened} onSwitch={hub.hold} closeSelf={() => hub.closeTab()} openInNewTab={(h) => hub.go("chats", h, true)} />;
 }
 
 const st = StyleSheet.create({

@@ -25,6 +25,7 @@ export const ICON = {
   alert: ["M8 14a6 6 0 100-12 6 6 0 000 12z", "M8 5v3.5M8 11h.01"],
   retry: ["M13 8a5 5 0 11-1.6-3.7", "M13 2.5v3h-3"],
   panel: ["M2.5 4A1.5 1.5 0 014 2.5h8A1.5 1.5 0 0113.5 4v8a1.5 1.5 0 01-1.5 1.5H4A1.5 1.5 0 012.5 12z", "M6.5 2.5v11"],
+  note: ["M3.5 2.7h9v7.1l-3.6 3.5H3.5z", "M12.5 9.8H8.9v3.5"],
 } as const;
 export type IconName = keyof typeof ICON;
 

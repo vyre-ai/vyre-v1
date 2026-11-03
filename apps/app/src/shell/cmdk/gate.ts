@@ -28,13 +28,14 @@ export interface GateSearchDeps {
 
 const PLACE_OF: Record<HitKind, PlaceId> = {
   person: "chats", agent: "chats", chat: "chats", channel: "chats", inbox: "inbox", record: "records", task: "records",
-  file: "files", automation: "automations", app: "apps", setting: "settings", memory: "home",
+  file: "files", automation: "automations", app: "apps", setting: "settings", memory: "home", note: "chats",
 };
 
 const SKIN = "appearance.skin";
 
 export const placeOfHit = (h: Hit): PlaceId => PLACE_OF[h.kind];
-export const hashOfHit = (h: Hit): string => `subject=${h.kind}:${h.id}`;
+/** A note opens in Notes, over the grid (its link is vyre://note/<id>); everything else opens as its subject. */
+export const hashOfHit = (h: Hit): string => (h.kind === "note" ? `screen=chats.notes&noteId=${encodeURIComponent(h.id)}` : `subject=${h.kind}:${h.id}`);
 
 const matches = (h: Hit, q: string): boolean => `${h.title} ${h.snippet ?? ""}`.toLowerCase().includes(q.toLowerCase());
 

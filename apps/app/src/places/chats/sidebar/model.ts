@@ -209,8 +209,8 @@ export type Entry =
   | { key: string; type: "head"; section: SectionKey; label: string; count?: number; open: boolean }
   | { key: string; type: "face"; agent: Agent; digit?: number; working: boolean; waiting: boolean; assistant?: boolean; unread?: number }
   | { key: string; type: "more"; label: string; to: "agents" | "unread" | "recent" | "people" | "faces" }
-  /** The two rows at the top: Tasks and Threads. */
-  | { key: string; type: "nav"; to: "tasks" | "threads"; label: string; count: number; dot?: boolean }
+  /** The rows at the top: Tasks, Threads and Notes. */
+  | { key: string; type: "nav"; to: "tasks" | "threads" | "notes"; label: string; count: number; dot?: boolean }
   /** A person of the Space: a press opens your chat with them. */
   | { key: string; type: "person"; id: string; name: string; unread: number }
   | { key: string; type: "group"; label: string }
@@ -242,6 +242,8 @@ export interface SidebarInput {
   /** What you owe, on the Tasks row. */
   tasksCount?: number;
   threadsDot?: boolean;
+  /** The Notes row is drawn (the shell has a Notes page). */
+  notes?: boolean;
   /** Unread in my chats with each agent alone, by agent id: the face's dot. */
   agentUnread?: ReadonlyMap<string, number>;
   /** Chats with something waiting on you: they rise to Now. */
@@ -300,6 +302,7 @@ export function buildEntries(i: SidebarInput): Entry[] {
   if (!i.searching) {
     out.push({ key: "nav:tasks", type: "nav", to: "tasks", label: "Tasks", count: i.tasksCount ?? 0 });
     out.push({ key: "nav:threads", type: "nav", to: "threads", label: "Threads", count: 0, dot: i.threadsDot === true });
+    if (i.notes) out.push({ key: "nav:notes", type: "nav", to: "notes", label: "Notes", count: 0 });
   }
   const rows = i.groups.flatMap((g) => g.rows);
   const unique = rows.filter((r, n) => rows.findIndex((x) => x.threadId === r.threadId) === n);
@@ -382,7 +385,7 @@ export function openEntry(entries: readonly Entry[], open: string | null): strin
   if (!open) return null;
   const has = (k: string): string | null => (entries.some((e) => e.key === k) ? k : null);
   if (open === "artifacts") return "artifacts";
-  if (open === "tasks" || open === "threads") return has(`nav:${open}`);
+  if (open === "tasks" || open === "threads" || open === "notes") return has(`nav:${open}`);
   if (open.startsWith("i:")) return has(open);
   if (open.startsWith("a:")) return has(`f:${open.slice(2)}`);
   if (open.startsWith("t:")) {

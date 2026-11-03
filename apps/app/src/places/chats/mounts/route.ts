@@ -22,6 +22,8 @@ export type Route =
   | { view: "threads" }
   /** What models made to show you. */
   | { view: "artifacts" }
+  /** Your notes: the grid. `noteId` opens one (a search hit, a link); `take` opens Take a note (each new number opens it again). */
+  | { view: "notes"; noteId?: string; take?: number }
   /** One page to make an agent (null) or change one. */
   | { view: "agent-form"; agentId: string | null }
   | { view: "search"; q: string; from: string | null }
@@ -63,6 +65,7 @@ export type Act =
   | { t: "task"; taskId: string }
   | { t: "threads" }
   | { t: "artifacts" }
+  | { t: "notes"; noteId?: string; take?: boolean }
   | { t: "agent-form"; agentId?: string }
   /** Search every chat. `q` starts the box with those words. */
   | { t: "search"; q?: string }
@@ -90,6 +93,7 @@ export function step(s: Shown, a: Act): Shown {
     case "task": return { ...s, route: { view: "task", taskId: a.taskId }, layer: null };
     case "threads": return { ...s, route: { view: "threads" }, layer: null };
     case "artifacts": return { ...s, route: { view: "artifacts" }, layer: null };
+    case "notes": return { ...s, route: { view: "notes", ...(a.noteId ? { noteId: a.noteId } : {}), ...(a.take ? { take: (s.route.view === "notes" ? s.route.take ?? 0 : 0) + 1 } : {}) }, layer: null };
     case "agent-form": return { ...s, route: { view: "agent-form", agentId: a.agentId ?? null }, layer: null };
     case "search": return { ...s, route: { view: "search", q: a.q ?? "", from: s.route.view === "chat" ? s.route.threadId : s.route.view === "search" ? s.route.from : null }, layer: null };
     case "search-close": { const from = s.route.view === "search" ? s.route.from : null; return { ...s, route: from === null ? { view: "new" } : { view: "chat", threadId: from }, layer: null }; }
@@ -112,13 +116,13 @@ export function step(s: Shown, a: Act): Shown {
 
 /**
  * What the middle shows, as the key the Chats sidebar selects its row by: `t:<thread>` a chat or a channel, `i:<conversation>` an imported transcript, `a:<agent>` an agent's page or its
- * form, and `tasks`, `threads`, `artifacts`. Null for a page that has no row (a new chat, one task, search, Needs you, a helper). A tab switch, a link and Cmd-K all arrive as a route, so
+ * form, and `tasks`, `threads`, `artifacts`, `notes`. Null for a page that has no row (a new chat, one task, search, Needs you, a helper). A tab switch, a link and Cmd-K all arrive as a route, so
  * the selection follows each of them.
  */
 export function openKeyOf(r: Route): string | null {
   switch (r.view) {
     case "chat": return r.threadId ? `t:${r.threadId}` : null;
-    case "tasks": case "threads": case "artifacts": return r.view;
+    case "tasks": case "threads": case "artifacts": case "notes": return r.view;
     case "imported": return `i:${r.conversationId}`;
     case "agent": return `a:${r.agentId}`;
     case "agent-form": return r.agentId ? `a:${r.agentId}` : null;
@@ -145,6 +149,7 @@ export const SCREEN = {
   task: "tasks.page",
   threads: "chats.threads",
   artifacts: "chats.artifacts",
+  notes: "chats.notes",
   agentForm: "chats.agent-form",
   conversation: "chats.conversation",
   ask: "chats.ask",
@@ -190,6 +195,7 @@ export function fromHash(hash: string): Shown {
     case SCREEN.task: return arg("taskId") === "" ? step(START, { t: "tasks" }) : step(START, { t: "task", taskId: arg("taskId") });
     case SCREEN.threads: return step(START, { t: "threads" });
     case SCREEN.artifacts: return step(START, { t: "artifacts" });
+    case SCREEN.notes: return step(START, { t: "notes", ...(arg("noteId") === "" ? {} : { noteId: arg("noteId") }) });
     case SCREEN.agentForm: return step(START, { t: "agent-form", ...(arg("agentId") === "" ? {} : { agentId: arg("agentId") }) });
     case SCREEN.agent: { const tab = arg("tab"); return arg("agentId") === "" ? START : step(START, { t: "agent", agentId: arg("agentId"), ...(isTabKey(tab) ? { tab } : {}) }); }
     case SCREEN.helper: return arg("threadId") === "" ? START : step(START, { t: "helper", threadId: arg("threadId") });

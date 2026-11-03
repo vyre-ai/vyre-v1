@@ -3,3 +3,12 @@
 - `automations.read_link` also returns an HTML page's meta (title, image address, site name, description) for link cards.
 - Vyre for Chrome may call `notes.clip` to clip a page into a private note with its address, title, selected text and a screenshot.
 - Notes show in the top search (Cmd-K) under Notes. `search.query` asks `notes.search` as the asker, so a person finds their own notes and the ones shared with them, never anyone else's private note. Notes are never written to the search index.
+- Notes in the app: a Notes row in the Chats sidebar under Tasks and Threads (right-click: Open, Open in a new tab, Take a note) opens a grid of note cards, Pinned then Others, in columns about 236 wide. It has its own tab.
+- Take a note opens in place above the grid with a title, text, colour, labels, an image, a pin and who sees it. Esc, Close or a click outside saves it; an empty note is dropped. Pasting an image makes it the note's picture; pasting a lone link shows Reading, then a card with the page's title, image and site name. Dropping an image works too.
+- A note opens over the grid to edit in place (saved as you type), with Ask about this note, Turn into task and Turn into record. Clipped pages show their screenshot, the selected text as a quote, the address and Clipped with Vyre for Chrome.
+- The note menu (right-click, Shift F10 or More) pins, colours, labels, shares, asks, turns into a task or record, copies the link, makes a copy and deletes with Undo. Keys on a selected card: arrows move by where the cards sit, Enter opens, P L S A T R act, Delete deletes, Cmd-Z undoes; C takes a note and / searches.
+- The share sheet adds a person by name, sets Can edit, Can view or Remove, sets the Space to Off, Can view or Can edit, and says which agents can read the note. The label filter is a menu with ticks and counts plus Shared with me, From Chrome and With images.
+- Ask about this note opens Ask Vyre on the right about the note; the grid stays. Turn into task and Turn into record open sheets filled from the note.
+- On a phone Notes is two columns with Take a note above the tab bar; a note opens as its own page and a long press or More opens its actions as a sheet.
+- A note found in the top search opens in Notes.
+- ui/Menu: a row can stay open when chosen (`keep`), show a quiet hint on the right (`hint`), and a menu with a search can tell its surface what was typed (`onSearch`); `useMenu` gains `update` to change the rows of the open menu in place.
