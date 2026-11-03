@@ -3,6 +3,7 @@
 //   engine.incidents.list, engine.incident.get/open/assign/resolve/note.
 // The live engine is the TurnEngine bound at boot (projections.boundEngine). A thread that is not open on this host is opened from threads.get first,
 // with the mode, model and engine this module saved for its agents. Events are the manifest's, with the caller as `by`.
+import { recallPick, rememberPick } from "../last-pick.ts";
 import type { TurnEngine } from "../../../agent/src/turn-engine/engine.ts";
 import type { EngineAgent, ThreadKind } from "../../../agent/src/turn-engine/types.ts";
 import { noteHandoff } from "../context.ts";
@@ -174,7 +175,23 @@ export async function setModel(
   engine.setAgent(input.threadId, input.agentId, { model, ...(accountRef === undefined ? {} : { accountRef }) });
   saveState(ctx, input.threadId, input.agentId, { model, provider, effort: effort ?? null, accountRef: accountRef ?? null });
   ctx.emit("agent.model_changed", input.threadId, { threadId: input.threadId, agentId: input.agentId, model, provider, by: actorOf(ctx) });
+  // a person's own pick is what their next new chat starts on (last-pick.ts)
+  if (input.model !== undefined && ctx.principal.kind === "person") rememberPick(ctx.db, ctx.principal.id, input.agentId, { model, provider, effort: effort ?? null }, ctx.now());
   return { model, provider, ...(effort === undefined ? {} : { effort }), ...(accountRef === undefined ? {} : { accountRef }) };
+}
+
+/**
+ * A new chat starts on the model its person last picked: when the chat has no pick of its own and the person has one remembered, it becomes this chat's pick (as if they had chosen it in the composer), so the
+ * resolver honours it and the composer shows it. Answers the model, or undefined when there is nothing to apply.
+ */
+export async function applyRememberedPick(ctx: EngineCtx, threadId: string, agentId: string, person: string): Promise<string | undefined> {
+  if (stateOf(ctx, threadId, agentId)?.model) return undefined;
+  const pick = recallPick(ctx.db, person, agentId);
+  if (!pick) return undefined;
+  try {
+    const set = await setModel(ctx, { threadId, agentId, model: pick.model, ...(pick.provider ? { provider: pick.provider } : {}), ...(pick.effort ? { effort: pick.effort as "low" | "medium" | "high" | "max" } : {}) });
+    return set.model;
+  } catch { return undefined; }
 }
 
 /** Rolling handoff: the new engine starts from the summary and the last turns (spec 4.14). The summary itself is the transcript module's. */

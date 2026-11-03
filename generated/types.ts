@@ -11542,6 +11542,7 @@ export type EngineUsageGetOut = {
   } | null;
   source: "provider" | "estimate" | "none";
   keepEvery?: string;
+  model?: string;
   lastTurn?: {
     model?: string;
     account?: {

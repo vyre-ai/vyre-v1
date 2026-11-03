@@ -172,7 +172,7 @@ export async function usageGet(ctx: EngineCtx, input: { threadId: string; agentI
   const lastTurn = await lastTurnOf(ctx, input.threadId, input.agentId, listed.accounts);
   return {
     account: row ? { ref: row.ref, name: row.name ?? row.title, provider: accountProvider as string } : null,
-    context, session, week, source, ...(keep !== "" ? { keepEvery: keep } : {}), ...(lastTurn ? { lastTurn } : {}),
+    context, session, week, source, ...(keep !== "" ? { keepEvery: keep } : {}), ...(lastTurn ? { lastTurn } : {}), ...(picked.model ? { model: picked.model } : {}),
   } as const;
 }
 

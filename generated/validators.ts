@@ -42845,6 +42845,7 @@ if ("session" in o2634) d_s_3f78412be5(o2634["session"], p + "/session", e);
 if ("week" in o2634) d_s_3f78412be5(o2634["week"], p + "/week", e);
 if ("source" in o2634) lf(o2634["source"], p + "/source", e, L605);
 if ("keepEvery" in o2634) lf(o2634["keepEvery"], p + "/keepEvery", e, L1);
+if ("model" in o2634) lf(o2634["model"], p + "/model", e, L1);
 if ("lastTurn" in o2634) {
 {
 const x2639 = o2634["lastTurn"];

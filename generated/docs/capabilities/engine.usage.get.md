@@ -56,6 +56,7 @@ type Out = {
   } | null;
   source: "provider" | "estimate" | "none";
   keepEvery?: string;
+  model?: string;
   lastTurn?: {
     model?: string;
     account?: {
@@ -110,6 +111,7 @@ type Out = {
       "model": "example",
       "paid": "example"
     },
+    "model": "example",
     "session": {
       "pct": 1,
       "resetsAt": 1760000000000

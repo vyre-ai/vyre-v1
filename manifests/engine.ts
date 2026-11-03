@@ -320,6 +320,7 @@ export default defineManifest({
         week: t.nullable(t.obj({ pct: t.num({ minimum: 0, maximum: 100 }), resetsAt: t.opt(t.ts()) })),
         source: t.enm('provider', 'estimate', 'none'),
         keepEvery: t.opt(t.str({ description: 'What every compaction of this chat keeps ("Keep this every time"), when set' })),
+        model: t.opt(t.str({ description: 'The model this chat\'s agent is set to answer with now: the chat\'s own pick (a new chat starts on the person\'s last pick), else the agent\'s' })),
         lastTurn: t.opt(t.obj({
           model: t.opt(t.str({ description: 'The model the latest turn really ran on, as its engine said' })),
           account: t.opt(t.obj({ ref: accountRef, name: t.opt(t.str()), provider: t.str(), shared: t.opt(t.bool()) })),
