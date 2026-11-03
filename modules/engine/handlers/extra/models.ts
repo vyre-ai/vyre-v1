@@ -120,10 +120,13 @@ export async function providersList(ctx: EngineCtx, input: { threadId?: string }
 
 /** What a CLI account needs before it can run turns here, in one line with what to do, or null. The host's own sandbox plan, when it gave one, decides; otherwise this computer's (sandbox-default.ts). */
 export const NEEDS_SANDBOX = "Needs a sandbox Vyre cannot set up on this computer yet. Use an API key for now.";
+/** Windows without WSL: what turns it on. */
+export const NEEDS_WSL = "Needs WSL: turn it on once (admin and a restart: wsl --install --no-distribution), or use an API key.";
 function sandboxGap(): string | null {
   const h = engineHost();
   if (h?.sandbox) return null;
-  return cliSandboxGap() === null ? null : NEEDS_SANDBOX;
+  if (cliSandboxGap() === null) return null;
+  return process.platform === "win32" ? NEEDS_WSL : NEEDS_SANDBOX;
 }
 
 export function providerState(driver: Driver, all: readonly ProviderRow[], policy: Policy, label: Label | undefined, gap: string | null = null): ProviderOut {

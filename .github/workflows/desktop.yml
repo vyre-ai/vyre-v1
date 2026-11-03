@@ -296,7 +296,7 @@ jobs:
     if: ${{ !inputs.only || inputs.only == 'sandbox-windows' }}
     name: sandbox (windows-latest)
     runs-on: windows-latest
-    timeout-minutes: 20
+    timeout-minutes: 50
     defaults:
       run:
         shell: bash
@@ -309,6 +309,13 @@ jobs:
           node-version: 24
       - name: Local sockets and the MCP bridge
         run: node --test --test-force-exit --test-reporter=spec sandbox/tests/sock.test.ts modules/engine/tests/mcp-bridge.test.ts
+      # The Windows sandbox (sandbox/src/wsl): the runner has WSL2 and no distribution, like a person's computer with WSL on. Vyre imports its own, installs Linux Claude Code, and runs a turn
+      # with one Bash tool call against a fake model API in the VM; then proves reads, writes and the network are held, and that the MCP shim reaches Vyre over the agent's relay.
+      - name: The Windows sandbox, a real Claude Code turn and the denials
+        env:
+          VYRE_HEAVY_WSL: "1"
+        timeout-minutes: 40
+        run: node --test --test-force-exit --test-reporter=spec --test-timeout=2400000 modules/engine/tests/sandbox.wsl.heavy.test.ts
   # The Mac server installer on a real macOS runner: BSD tar, shasum, diskutil, plutil and the system LibreSSL beside Homebrew's OpenSSL 3. No Docker and no launchd changes.
   # Its unit tests (scripts/install/macos/install.test.ts) also run on the Linux runners with the main suite. There is no self-hosted macOS runner. A tag run skips it:
   # the release already ran it on the commit that was merged.

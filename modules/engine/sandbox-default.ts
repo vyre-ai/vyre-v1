@@ -5,6 +5,9 @@ import fs from "node:fs";
 import { spawnSync } from "node:child_process";
 import path from "node:path";
 import { createEgressProxy, startNetWall } from "../../sandbox/src/index.ts";
+import { DISTRO_PIN } from "../../sandbox/src/wsl/pins.ts";
+import { ensureDistro, startWslAgent, wslOn } from "../../sandbox/src/wsl/wsl.ts";
+import type { AgentOptions } from "../../sandbox/src/wsl/wsl.ts";
 import type { EngineSandbox, SandboxPlan } from "./sandbox.ts";
 
 /** What a CLI engine may reach through the proxy: its vendor's API and sign-in hosts, and nothing else. */
@@ -23,6 +26,22 @@ export interface DefaultSandboxOptions {
   node?: string;
   /** Extra read-only folders for the program being run (a CLI installed outside /usr). */
   programRead?: readonly string[];
+  /** Windows: the first set-up of the WSL sandbox ("import") or its start ("start"), for the turn's live line. */
+  onPhase?: (phase: "import" | "start") => void;
+  /** Windows: where the WSL sandbox's distribution lives. Default %LOCALAPPDATA%\ai.vyre.desktop\wsl (never the roaming profile). */
+  wslRoot?: string;
+  /** Windows tests only: host names the VM's proxy routes to a local port (sandbox/src/wsl/agent.ts). */
+  wslTestRoutes?: Readonly<Record<string, number>>;
+}
+
+/** The code a CLI turn refuses with where CLI engines cannot be sandboxed: Windows without WSL has its own, so the chat can say how to turn it on. */
+export function cliSandboxCode(platform: NodeJS.Platform = process.platform): "sandbox.wsl_off" | "sandbox.unavailable" {
+  return platform === "win32" ? "sandbox.wsl_off" : "sandbox.unavailable";
+}
+
+/** The wall's egress options, built in this one place for the Linux wall and the WSL agent alike: plain data (it crosses into the VM), the policy of the turn that starts. */
+export function wallOptions(hosts: readonly string[]): AgentOptions["wall"] {
+  return { allow: [...hosts] };
 }
 
 const BWRAP = ["/usr/bin/bwrap", "/usr/local/bin/bwrap", "/bin/bwrap"];
@@ -99,7 +118,8 @@ export function cliSandboxGap(o: { platform?: NodeJS.Platform; bwrapPaths?: read
   const platform = o.platform ?? process.platform;
   if (platform === "darwin") return null;
   if (platform === "linux") return (o.bwrapPaths ?? BWRAP).some((p) => fs.existsSync(p)) ? null : "bubblewrap (bwrap) is not installed on this server, so CLI engines cannot be sandboxed";
-  if (platform === "win32") return "Vyre cannot sandbox Claude Code, Codex or Grok on Windows yet, so they do not run on this computer";
+  // Windows sandboxes them in Vyre's own Linux under WSL2 (sandbox/src/wsl): that needs WSL turned on, once, with admin and a restart
+  if (platform === "win32") return wslOn() ? null : "Claude Code, Codex and Grok run in a Linux sandbox on Windows, and WSL is not turned on on this computer";
   return `CLI engines cannot be sandboxed on ${platform}`;
 }
 
@@ -111,12 +131,19 @@ export async function defaultSandbox(o: DefaultSandboxOptions): Promise<DefaultS
   const done = (sandbox: EngineSandbox, close: () => Promise<void>): DefaultSandbox => ({ plan: { sandbox, dataDir: o.dataDir, egressHosts: hosts }, close });
   const gap = cliSandboxGap({ platform, ...(o.bwrapPaths ? { bwrapPaths: o.bwrapPaths } : {}) });
   if (gap !== null) return unavailable(gap);
+  const wall = wallOptions(hosts);
+  if (platform === "win32") {
+    const root = o.wslRoot ?? path.win32.join(process.env["LOCALAPPDATA"] ?? path.win32.join(o.dataDir, ".."), "ai.vyre.desktop", "wsl");
+    await ensureDistro({ root, ...(o.onPhase ? { onPhase: o.onPhase } : {}) });
+    const agent = await startWslAgent({ options: { wall, base: `/home/${DISTRO_PIN.user}/.vyre-run`, ...(o.wslTestRoutes ? { testRoutes: o.wslTestRoutes } : {}) } });
+    return done({ kind: "wsl", distro: DISTRO_PIN.name, user: DISTRO_PIN.user, agent, wall, ...(o.programRead ? { programRead: o.programRead } : {}) }, () => agent.close());
+  }
   if (platform === "linux") {
-    const wall = await startNetWall({ allow: hosts });
-    return done({ kind: "bwrap", wallDir: wall.dir, node, ...(o.programRead ? { programRead: o.programRead } : {}) }, () => wall.close());
+    const net = await startNetWall({ ...wall });
+    return done({ kind: "bwrap", wallDir: net.dir, node, ...(o.programRead ? { programRead: o.programRead } : {}) }, () => net.close());
   }
   if (platform === "darwin") {
-    const proxy = createEgressProxy({ allow: hosts });
+    const proxy = createEgressProxy({ ...wall });
     const { port } = await proxy.listen();
     // Seatbelt denies reads by default: the program being run (this Node, and the CLI's install folders) must be readable.
     const home = process.env["HOME"] ?? "/";

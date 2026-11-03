@@ -4,8 +4,8 @@
 // which is a separate packet; until then a chat on an API key answers in words only.
 import { LaunchError, createLocalLauncher } from "../../agent/src/drivers/cli/launcher.ts";
 import { SandboxError } from "../../sandbox/src/index.ts";
-import { openMcpBridge } from "./mcp-bridge.ts";
-import { enginePath } from "./sandbox-default.ts";
+import { openMcpBridge, openWslMcpBridge } from "./mcp-bridge.ts";
+import { cliSandboxCode, enginePath } from "./sandbox-default.ts";
 import { CLI_NAME, findProgram, isOwned, ownedDirs } from "./cli-programs.ts";
 import type { NodeCliProbe } from "./cli-programs.ts";
 import { sandboxWrap, scratchFolder, workFolder } from "./sandbox.ts";
@@ -243,8 +243,8 @@ export function refuseMissingProgram(program: string, probe?: NodeCliProbe): voi
 /** The MCP bridge of one session: refused with sandbox.unavailable where the engine cannot be sandboxed (the spawn would refuse the same way), engine.mcp_unavailable when the bridge cannot open. */
 export async function openBridge(plan: () => Promise<SandboxPlan>, m: { url: string; token: string }, scratch: string): Promise<Awaited<ReturnType<typeof openMcpBridge>>> {
   const s = (await plan()).sandbox;
-  if (s.kind === "docker" || s.kind === "server") throw new SandboxError("sandbox.unavailable", s.reason ?? "this engine cannot be sandboxed on this computer");
-  try { return await openMcpBridge(m, { scratch }); }
+  if (s.kind === "docker" || s.kind === "server") throw new SandboxError(cliSandboxCode(), s.reason ?? "this engine cannot be sandboxed on this computer");
+  try { return s.kind === "wsl" ? await openWslMcpBridge(s.agent, m, { scratch }) : await openMcpBridge(m, { scratch }); }
   catch (e) { throw Object.assign(new Error(`the engine's link to Vyre's tools could not open: ${e instanceof Error ? e.message : String(e)}`), { code: "engine.mcp_unavailable" }); }
 }
 
@@ -256,7 +256,14 @@ export function buildOpener(h: OpenerHost): SessionOpener {
   const plan = (): Promise<SandboxPlan> => {
     if (h.sandbox) return Promise.resolve(h.sandbox);
     if (!h.defaultSandbox) return Promise.reject(new SandboxError("sandbox.unavailable", "no sandbox is set up for CLI engines on this computer"));
-    return (planned ??= h.defaultSandbox().catch((e: unknown) => { planned = undefined; throw e; }));
+    if (planned) return planned;
+    const p = h.defaultSandbox().then((built) => {
+      // the Windows sandbox's agent ends when its VM stops (`wsl --shutdown`, a Windows update): the next turn builds it again
+      if (built.sandbox.kind === "wsl") void built.sandbox.agent.exited.then(() => { if (planned === p) planned = undefined; });
+      return built;
+    }, (e: unknown) => { planned = undefined; throw e; });
+    planned = p;
+    return p;
   };
   const dataDir = h.sandbox?.dataDir ?? h.dataDir;
   const save = h.session.saveSignin?.bind(h.session);

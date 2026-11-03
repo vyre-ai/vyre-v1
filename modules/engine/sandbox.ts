@@ -10,12 +10,16 @@ import fs from "node:fs";
 import path from "node:path";
 import { SandboxError, bwrapWallCommand, proxyEnv, seatbeltCommand } from "../../sandbox/src/index.ts";
 import type { Roots, SandboxSpec } from "../../sandbox/src/index.ts";
+import { toWslPath, wslExe } from "../../sandbox/src/wsl/wsl.ts";
+import type { AgentOptions, WslAgent } from "../../sandbox/src/wsl/wsl.ts";
 import type { LocalLauncherOptions } from "../../agent/src/drivers/cli/launcher.ts";
 
 /** What the host knows about the sandbox it runs a CLI engine in. The wall (egress proxy) is started by the host and outlives the turns. */
 export type EngineSandbox =
   | { kind: "bwrap"; wallDir: string; programRead?: readonly string[]; node?: string }
   | { kind: "seatbelt"; proxyPort: number; programRead?: readonly string[] }
+  /** Windows: bwrap and the net wall inside Vyre's WSL2 distribution (sandbox/src/wsl). Paths are Windows paths here and become the VM's (/mnt/c/...) in the wrap. */
+  | { kind: "wsl"; distro: string; user: string; agent: WslAgent; wall: AgentOptions["wall"]; programRead?: readonly string[]; vmPath?: (p: string) => string }
   /** The engine belongs in the person's container, which has no local launcher yet. */
   | { kind: "docker" | "server"; reason?: string };
 
@@ -68,11 +72,12 @@ export function sandboxWrap(plan: SandboxPlan, o: { homeFromScratch?: boolean } 
     // The roots are the real paths of the folders: a data folder reached through a symlink (/var is /private/var on a Mac) must name the same folders the work and scratch helpers returned.
     const roots: Roots = { work: [workRoot], scratch: [fs.realpathSync(path.join(plan.dataDir, "scratch"))] };
     const spec: SandboxSpec = {
-      id: sandboxId(person), person, kind: s.kind, scratch,
+      id: sandboxId(person), person, kind: s.kind === "wsl" ? "bwrap" : s.kind, scratch,
       mounts: [{ host: start.cwd, mode: "rw" }],
       egressHosts: plan.egressHosts,
       env: start.env,
     };
+    if (s.kind === "wsl") return wslWrap(s, plan, spec, start, argv, scratch, workRoot);
     if (s.kind === "bwrap") {
       // a turn on a sign-in kept in files sees them as its home: the scratch folder's own home is bound where the sandbox's home would be
       const home = o.homeFromScratch ? path.join(scratch, "home") : undefined;
@@ -90,4 +95,33 @@ export function sandboxWrap(plan: SandboxPlan, o: { homeFromScratch?: boolean } 
     const own = { HOME: home, TMPDIR: tmp, CLAUDE_CODE_TMPDIR: tmp, CLAUDE_CONFIG_DIR: path.join(home, ".claude"), CODEX_HOME: path.join(home, ".codex"), XDG_CONFIG_HOME: path.join(home, ".config"), XDG_CACHE_HOME: path.join(home, ".cache") };
     return ["/usr/bin/env", ...Object.entries({ ...proxyEnv(`http://127.0.0.1:${s.proxyPort}`), ...own }).map(([k, v]) => `${k}=${v}`), w.cmd, ...w.args];
   };
+}
+
+/** Windows variables that mean nothing in Linux; the engine in the VM gets the rest of its environment (the key, the MCP token, the CLI's own settings). */
+const WINDOWS_ONLY = /^(path|pathext|systemroot|systemdrive|windir|temp|tmp|userprofile|appdata|localappdata|programdata|programfiles.*|programw6432|commonprogram.*|comspec|homedrive|homepath|username|userdomain.*|computername|os|processor_.*|number_of_processors|public|allusersprofile|driverdata|logonserver|sessionname|psmodulepath|onedrive.*|wslenv|wsl_utf8)$/i;
+const WIN_PATH = /^[A-Za-z]:[\\/]/;
+
+/**
+ * The argv that runs a CLI engine on Windows: wsl.exe starts bwrap in Vyre's distribution with the same walled profile a Linux server uses (bwrapWallCommand), every folder and argument that is a
+ * Windows path given as the VM sees it. The engine is the Linux build Vyre installed (engine-install.ts, linux-*-musl), so argv[0] is already a path in the engines folder.
+ */
+function wslWrap(s: Extract<EngineSandbox, { kind: "wsl" }>, plan: SandboxPlan, spec: SandboxSpec, start: { env: Record<string, string>; cwd?: string }, argv: readonly string[], scratch: string, workRoot: string): string[] {
+  const v = s.vmPath ?? toWslPath;
+  const home = path.join(scratch, "home");
+  fs.mkdirSync(home, { recursive: true });
+  const roots: Roots = { work: [v(workRoot)], scratch: [v(fs.realpathSync(path.join(plan.dataDir, "scratch")))] };
+  const env = Object.fromEntries(Object.entries(start.env).filter(([k]) => !WINDOWS_ONLY.test(k)));
+  // Claude Code's musl build uses the system's ripgrep (Alpine): its own is a glibc program
+  env["USE_BUILTIN_RIPGREP"] = "0";
+  // the shell an engine's command tool starts (Alpine's bash, installed with the distribution)
+  env["SHELL"] = "/bin/bash";
+  const vmSpec: SandboxSpec = { ...spec, kind: "bwrap", scratch: v(scratch), mounts: [{ host: v(start.cwd as string), mode: "rw" }], env };
+  const vmArgv = argv.map((a) => (WIN_PATH.test(a) ? v(a) : a));
+  // the policy of this turn: the agent's proxy reads it from the next connection on
+  s.agent.setPolicy(s.wall);
+  const w = bwrapWallCommand(vmSpec, roots, vmArgv, {
+    wallDir: s.agent.wallDir, node: s.agent.node, splitUsr: s.agent.splitUsr, home: v(home),
+    ...(s.programRead ? { programRead: s.programRead.map((p) => (WIN_PATH.test(p) ? v(p) : p)) } : {}),
+  });
+  return [wslExe(), "-d", s.distro, "-u", s.user, "--cd", "/", "--exec", "/usr/bin/bwrap", ...w.args];
 }

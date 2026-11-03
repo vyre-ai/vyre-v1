@@ -6,6 +6,8 @@ import fs from "node:fs";
 import net from "node:net";
 import path from "node:path";
 import { localSocket } from "../../sandbox/src/sock.ts";
+import { toWslPath } from "../../sandbox/src/wsl/wsl.ts";
+import type { WslAgent } from "../../sandbox/src/wsl/wsl.ts";
 
 /** The program the CLI starts. Plain Node, no imports beyond the standard library. argv[2] is the socket (a pipe on Windows); the token comes from VYRE_MCP_TOKEN. */
 export const SHIM_SOURCE = `import net from "node:net";
@@ -42,6 +44,65 @@ function replyLines(contentType: string, text: string): string[] {
   return t === "" ? [] : [t.replace(/\r?\n/g, " ")];
 }
 
+/** The far end of one shim connection, whatever carries it (a unix socket here, the WSL agent's relay in sandbox/src/wsl). */
+export interface McpWire { write(line: string): void; end(): void; destroy(): void }
+
+/**
+ * One connection from the shim: the first line is {"auth": "<token>"}, and a wrong token destroys the connection before anything is posted. Every later line is posted to the endpoint with the session
+ * token as the bearer, and the replies come back as lines. When the shim ends its side, the replies still owed are written before this side ends.
+ */
+export function mcpConnection(m: { url: string; token: string }, doFetch: typeof fetch, wire: McpWire): { data(chunk: string): void; end(): void } {
+  let buf = "";
+  let authed = false;
+  let sessionId: string | undefined;
+  let pending = 0;
+  let ended = false;
+  let dead = false;
+  const settle = (): void => { if (ended && pending === 0 && !dead) wire.end(); };
+  return {
+    end() { ended = true; settle(); },
+    data(chunk) {
+      if (dead) return;
+      buf += chunk;
+      let i: number;
+      while ((i = buf.indexOf("\n")) >= 0) {
+        const line = buf.slice(0, i).trim();
+        buf = buf.slice(i + 1);
+        if (line === "") continue;
+        if (!authed) {
+          let tok: unknown;
+          try { tok = (JSON.parse(line) as { auth?: unknown }).auth; } catch { tok = undefined; }
+          if (tok !== m.token) { dead = true; wire.destroy(); return; }
+          authed = true;
+          continue;
+        }
+        pending++;
+        void (async () => {
+          try {
+            const r = await doFetch(m.url, {
+              method: "POST",
+              headers: { "content-type": "application/json", accept: "application/json, text/event-stream", authorization: `Bearer ${m.token}`, ...(sessionId ? { "mcp-session-id": sessionId } : {}) },
+              body: line,
+            });
+            const sid = r.headers.get("mcp-session-id");
+            if (sid) sessionId = sid;
+            for (const out of replyLines(r.headers.get("content-type") ?? "", await r.text())) if (!dead) wire.write(out);
+          } catch {
+            // Preserve the request id. MCP clients wait for the matching id; id:null
+            // turns an endpoint outage into a permanently running agent turn.
+            let id: unknown = null;
+            try { id = (JSON.parse(line) as { id?: unknown }).id ?? null; } catch { /* invalid JSON keeps null */ }
+            if (!dead) wire.write(JSON.stringify({ jsonrpc: "2.0", id, error: { code: -32603, message: "The Vyre endpoint could not be reached." } }));
+          } finally {
+            pending--;
+            settle();
+          }
+        })();
+      }
+    },
+  };
+}
+
 export async function openMcpBridge(m: { url: string; token: string }, o: McpBridgeOptions): Promise<McpBridge> {
   const doFetch = o.fetch ?? fetch;
   fs.mkdirSync(o.scratch, { recursive: true });
@@ -59,52 +120,9 @@ export async function openMcpBridge(m: { url: string; token: string }, o: McpBri
     c.once("close", () => live.delete(c));
     c.on("error", () => c.destroy());
     c.setEncoding("utf8");
-    let buf = "";
-    let authed = false;
-    let sessionId: string | undefined;
-    // The shim ends its side when stdin ends; replies still owed are written before this side ends.
-    let pending = 0;
-    let ended = false;
-    const settle = (): void => { if (ended && pending === 0 && !c.destroyed) c.end(); };
-    c.once("end", () => { ended = true; settle(); });
-    c.on("data", (chunk: string) => {
-      buf += chunk;
-      let i: number;
-      while ((i = buf.indexOf("\n")) >= 0) {
-        const line = buf.slice(0, i).trim();
-        buf = buf.slice(i + 1);
-        if (line === "") continue;
-        if (!authed) {
-          let tok: unknown;
-          try { tok = (JSON.parse(line) as { auth?: unknown }).auth; } catch { tok = undefined; }
-          if (tok !== m.token) { c.destroy(); return; }
-          authed = true;
-          continue;
-        }
-        pending++;
-        void (async () => {
-          try {
-            const r = await doFetch(m.url, {
-              method: "POST",
-              headers: { "content-type": "application/json", accept: "application/json, text/event-stream", authorization: `Bearer ${m.token}`, ...(sessionId ? { "mcp-session-id": sessionId } : {}) },
-              body: line,
-            });
-            const sid = r.headers.get("mcp-session-id");
-            if (sid) sessionId = sid;
-            for (const out of replyLines(r.headers.get("content-type") ?? "", await r.text())) if (!c.destroyed) c.write(`${out}\n`);
-          } catch {
-            // Preserve the request id. MCP clients wait for the matching id; id:null
-            // turns an endpoint outage into a permanently running agent turn.
-            let id: unknown = null;
-            try { id = (JSON.parse(line) as { id?: unknown }).id ?? null; } catch { /* invalid JSON keeps null */ }
-            if (!c.destroyed) c.write(`${JSON.stringify({ jsonrpc: "2.0", id, error: { code: -32603, message: "The Vyre endpoint could not be reached." } })}\n`);
-          } finally {
-            pending--;
-            settle();
-          }
-        })();
-      }
-    });
+    const conn = mcpConnection(m, doFetch, { write: (l) => { if (!c.destroyed) c.write(`${l}\n`); }, end: () => { if (!c.destroyed) c.end(); }, destroy: () => c.destroy() });
+    c.on("data", (chunk: string) => conn.data(chunk));
+    c.once("end", () => conn.end());
   });
   try {
     await new Promise<void>((ok, bad) => { server.once("error", bad); server.listen(sock.listen, () => ok()); });
@@ -122,4 +140,19 @@ export async function openMcpBridge(m: { url: string; token: string }, o: McpBri
       sock.remove();
     },
   };
+}
+
+/**
+ * The bridge for an engine in the Windows sandbox (sandbox/src/wsl): the same shim, written to the scratch folder, run by the VM's Node. Its socket is one the WSL agent opens in the wall's folder
+ * (bound read-only into the sandbox). Each connection to it is relayed over the agent's own stdin and stdout and served here by mcpConnection, so the session's token is checked on this side and no
+ * port is opened anywhere.
+ */
+export async function openWslMcpBridge(agent: Pick<WslAgent, "openMcp" | "closeMcp" | "node">, m: { url: string; token: string }, o: { scratch: string; fetch?: typeof fetch }): Promise<McpBridge> {
+  const doFetch = o.fetch ?? fetch;
+  fs.mkdirSync(o.scratch, { recursive: true });
+  const shim = path.join(o.scratch, "mcp-shim.mjs");
+  fs.writeFileSync(shim, SHIM_SOURCE, { mode: 0o644 });
+  const id = Array.from(globalThis.crypto.getRandomValues(new Uint8Array(8)), (b) => b.toString(16).padStart(2, "0")).join("");
+  const socket = await agent.openMcp(id, (wire) => mcpConnection(m, doFetch, wire));
+  return { stdio: { command: agent.node, args: [toWslPath(shim), socket] }, socket, async close() { agent.closeMcp(id); } };
 }

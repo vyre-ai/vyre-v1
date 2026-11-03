@@ -28,6 +28,11 @@ export interface BwrapWallOptions {
   programRead?: readonly string[];
   /** A folder inside the scratch folder that is bound where the sandbox's home is, instead of an empty one: the engine's sign-in files are in it. */
   home?: string;
+  /**
+   * The system's /bin, /sbin and /lib are folders of their own (Alpine), not links into /usr: they are bound read-only as they are. Default: links into /usr (merged-/usr distributions).
+   * Without this, Alpine's loader (/lib/ld-musl-*.so.1) is not where its programs look, and nothing starts.
+   */
+  splitUsr?: boolean;
 }
 
 export interface WalledCommand {
@@ -40,8 +45,8 @@ export interface WalledCommand {
 /** The Node install prefix, when it is not under /usr (an Actions toolcache, a version manager): the sandbox needs to see the binary and nothing else of it. */
 function nodePrefix(node: string): string | undefined {
   if (node.startsWith("/usr/")) return undefined;
-  const bin = path.dirname(node);
-  return path.basename(bin) === "bin" ? path.dirname(bin) : bin;
+  const bin = path.posix.dirname(node);
+  return path.posix.basename(bin) === "bin" ? path.posix.dirname(bin) : bin;
 }
 
 export function bwrapWallCommand(spec: SandboxSpec, roots: Roots, argv: readonly string[], o: BwrapWallOptions, policy?: PolicyOptions): WalledCommand {
@@ -52,10 +57,11 @@ export function bwrapWallCommand(spec: SandboxSpec, roots: Roots, argv: readonly
   const a: string[] = ["--die-with-parent", "--new-session", "--unshare-all", "--cap-drop", "ALL"];
   const prefix = nodePrefix(node);
   for (const p of [...SYSTEM_RO, ...(prefix ? [prefix] : []), ...(o.programRead ?? [])]) a.push("--ro-bind-try", p, p);
-  a.push("--symlink", "usr/bin", "/bin", "--symlink", "usr/sbin", "/sbin", "--symlink", "usr/lib", "/lib", "--symlink", "usr/lib64", "/lib64");
+  if (o.splitUsr === true) for (const p of ["/bin", "/sbin", "/lib", "/lib64"]) a.push("--ro-bind-try", p, p);
+  else a.push("--symlink", "usr/bin", "/bin", "--symlink", "usr/sbin", "/sbin", "--symlink", "usr/lib", "/lib", "--symlink", "usr/lib64", "/lib64");
   a.push("--proc", "/proc", "--dev", "/dev", "--tmpfs", "/tmp");
   if (o.home !== undefined) {
-    if (checked.scratch === undefined || !(o.home === checked.scratch || o.home.startsWith(`${checked.scratch}${path.sep}`))) throw new SandboxError("sandbox.policy", "the home folder must be inside the scratch folder");
+    if (checked.scratch === undefined || !(o.home === checked.scratch || o.home.startsWith(`${checked.scratch}/`))) throw new SandboxError("sandbox.policy", "the home folder must be inside the scratch folder");
     a.push("--bind", o.home, HOME);
   } else a.push("--tmpfs", HOME);
   for (const m of checked.mounts) a.push(m.mode === "rw" ? "--bind" : "--ro-bind", m.host, m.host);

@@ -1,6 +1,7 @@
 // The engine runtime on a booted daemon (P-L2_23): built the first time a handler or the periodic job runs with the module's database, bound so the control handlers reach it, and told
 // to recover the threads a dead host left mid-turn. Everything it needs from outside arrives through `EngineHostSeam` (host/src/seams/engine.ts): a way to call capabilities as a
 // person, and the opener of real sessions. The turn engine itself stays in agent/src/turn-engine and knows nothing about modules.
+import path from "node:path";
 import { createTurnEngine } from "../../agent/src/turn-engine/engine.ts";
 import type { TurnEngine } from "../../agent/src/turn-engine/engine.ts";
 import type { AccountQuery, EngineEvent, OpenSession, ResolvedAccount, TurnRow } from "../../agent/src/turn-engine/types.ts";
@@ -31,7 +32,8 @@ import { onTurnEnded, resumeTasks } from "./handlers/task-baton.ts";
 import { ensureExtra } from "./handlers/extra/schema.ts";
 import { createKeepAwake } from "./keep-awake.ts";
 import { coalesceLive } from "./live-coalesce.ts";
-import { cliSandboxGap, defaultSandbox } from "./sandbox-default.ts";
+import { cliSandboxCode, cliSandboxGap, defaultSandbox } from "./sandbox-default.ts";
+import { wslOn } from "../../sandbox/src/wsl/wsl.ts";
 import { closePluginRuntime, pluginRuntime } from "./plugin-host.ts";
 import { bindOauthStore } from "./mcp-oauth.ts";
 import { createPluginTools } from "./plugin-tools.ts";
@@ -109,11 +111,21 @@ export function setEngineHost(h: EngineHostSeam | null): void {
   host = h;
   building = null;
   const root = h?.engines?.install ? enginesRoot({ dataDir: h.dataDir }) : null;
-  configureEngines(root !== null ? { root, ...(h?.log ? { log: h.log } : {}) } : null);
+  const vm = root !== null && wslEngines(h);
+  configureEngines(root !== null ? { root: vm ? path.join(root, "wsl") : root, ...(vm ? { platform: process.arch === "arm64" ? "linux-arm64-musl" as const : "linux-x64-musl" as const } : {}), ...(h?.log ? { log: h.log } : {}) } : null);
   if (h === null) { bindEngine(null); bindBridge(null); bindOpener(null); completer = null; compactor = null; bindStepOpen(null); }
 }
 
 export function engineHost(): EngineHostSeam | null { return host; }
+
+/** Windows with WSL on and no plan of the host's: CLI engines run in Vyre's WSL sandbox, so the engines Vyre installs and looks for are the Linux builds in <engines>\wsl. */
+function wslEngines(h: EngineHostSeam | null): boolean {
+  return h !== null && process.platform === "win32" && h.sandbox === undefined && h.cli?.probe === undefined && wslOn();
+}
+/** How CLI programs are looked for: the host's probe, or on Windows with the WSL sandbox only Vyre's Linux builds (a Windows claude.exe cannot run in the VM). */
+function cliProbeOf(h: EngineHostSeam): NodeCliProbe | undefined {
+  return h.cli?.probe ?? (wslEngines(h) ? { platform: "linux", env: { PATH: "" } } : undefined);
+}
 
 /** The sandbox plan plugin code runs in: the host's own, or the default for this platform. Rejects where nothing can confine it, and then nothing starts. */
 export function sandboxPlan(): Promise<SandboxPlan> {
@@ -140,7 +152,7 @@ function runnableAccount(h: EngineHostSeam): (q: AccountQuery) => Promise<Resolv
   // A host that hands in its own opener (a test's scripted one) starts no program of ours: nothing to check, and one resolve per turn.
   if (h.openSession) return (q) => resolveOne(h, q);
   return createRunnableAccount({
-    call: h.call, resolve: (q) => resolveOne(h, q), ...(h.cli?.command ? { command: h.cli.command } : {}), ...(h.cli?.probe ? { probe: h.cli.probe } : {}),
+    call: h.call, resolve: (q) => resolveOne(h, q), ...(h.cli?.command ? { command: h.cli.command } : {}), ...(cliProbeOf(h) ? { probe: cliProbeOf(h) as NodeCliProbe } : {}),
     ...(h.postAs ? { postAs: h.postAs } : {}), ...(h.log ? { log: h.log } : {}), ...(engines() ? { engines: engines()! } : {}),
     // the host's own sandbox plan decides where it gives one; otherwise this computer's (sandbox-default.ts)
     ...(h.sandbox ? {} : { unsandboxed: () => cliSandboxGap() }),
@@ -248,10 +260,28 @@ function cliRead(h: EngineHostSeam): readonly string[] | undefined {
   return extra.length > 0 ? extra : undefined;
 }
 
-/** The default sandbox plan for this platform, built once per runtime. */
-export const defaultPlan = (dataDir: string, programRead?: readonly string[]) => async (): Promise<SandboxPlan> => (defaultBuilt ??= await defaultSandbox({ dataDir, ...(programRead ? { programRead } : {}) })).plan;
+let defaultBuilding: Promise<DefaultSandbox> | null = null;
+/** What the Windows sandbox is doing while a turn waits for it, in the words of the turn's live line. */
+let windowsPhase: "import" | "start" = "start";
+/** The default sandbox plan for this platform, built once per runtime (again after the Windows sandbox's VM stopped). */
+export const defaultPlan = (dataDir: string, programRead?: readonly string[]) => async (): Promise<SandboxPlan> => {
+  const p = defaultBuilding ??= defaultSandbox({ dataDir, ...(programRead ? { programRead } : {}), onPhase: (ph) => { windowsPhase = ph; } }).then((d) => {
+    defaultBuilt = d;
+    if (d.plan.sandbox.kind === "wsl") void d.plan.sandbox.agent.exited.then(() => { if (defaultBuilding === p) { defaultBuilding = null; defaultBuilt = null; } });
+    return d;
+  }, (e: unknown) => { defaultBuilding = null; throw e; });
+  return (await p).plan;
+};
+/** The Windows sandbox, when it is not up yet: what to wait for and the live line's words. Null when it is up (or this is not Windows). */
+function warmWindowsSandbox(dataDir: string, programRead?: readonly string[]): { ready: Promise<void>; words: () => string } | null {
+  if (defaultBuilt !== null && defaultBuilding !== null) return null;
+  return {
+    ready: defaultPlan(dataDir, programRead)().then(() => undefined),
+    words: () => (windowsPhase === "import" ? "Setting up the Windows sandbox, once: this takes a few minutes" : "Starting the Windows sandbox, first turn after a restart"),
+  };
+}
 /** Stop the default sandbox's wall (daemon shutdown, tests). */
-export async function closeDefaultSandbox(): Promise<void> { const d = defaultBuilt; defaultBuilt = null; await d?.close(); }
+export async function closeDefaultSandbox(): Promise<void> { const d = defaultBuilt; defaultBuilt = null; defaultBuilding = null; await d?.close(); }
 
 /**
  * Build and bind the runtime, once, on this module's database; then recover threads a dead host left with work queued or running. Returns null when no host half is configured
@@ -272,11 +302,19 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
     checkpoint: (k: { threadId: string; agentId: string; person: string; driver: string; tools?: "none" }, id: string | null) => { if (keepsSession(k)) saveResumeId(ctx.db, k, id, now0()); },
     keep: (threadId: string) => keepEvery(ctx.db, threadId),
   };
-  const opener = host.openSession ? null : buildOpener({ sessions, ...(h.own ? { own: h.own } : {}), ...(apiTools ? { apiTools } : {}), session: host.session as EngineSessionPorts, call: h.call, ...(host.sandbox ? { sandbox: host.sandbox } : {}), ...(host.cli?.command ? { cliCommand: host.cli.command } : {}), ...(host.cli?.probe ? { cliProbe: host.cli.probe } : {}), ...(host.dataDir ? { dataDir: host.dataDir, defaultSandbox: defaultPlan(host.dataDir, cliRead(host)) } : {}) });
+  const opener = host.openSession ? null : buildOpener({ sessions, ...(h.own ? { own: h.own } : {}), ...(apiTools ? { apiTools } : {}), session: host.session as EngineSessionPorts, call: h.call, ...(host.sandbox ? { sandbox: host.sandbox } : {}), ...(host.cli?.command ? { cliCommand: host.cli.command } : {}), ...(cliProbeOf(host) ? { cliProbe: cliProbeOf(host) as NodeCliProbe } : {}), ...(host.dataDir ? { dataDir: host.dataDir, defaultSandbox: defaultPlan(host.dataDir, cliRead(host)) } : {}) });
   // a turn whose engine Vyre is installing says so on its live line ("Setting up Codex"); the line is the bridge's, which exists once the runtime is built below
   let setupLine: ((e: StreamEvent) => void) | null = null;
   const installer = engines();
-  const baseOpen = host.openSession ?? checkedOpen((opener as NonNullable<typeof opener>).openSession, { ...(host.cli?.command ? { command: host.cli.command } : {}), ...(host.cli?.probe ? { probe: host.cli.probe } : {}), ...(installer ? { engines: installer } : {}), ...(host.sandbox ? {} : { unsandboxed: () => cliSandboxGap() }), live: (e) => setupLine?.(e) });
+  const dataDir0 = host.dataDir;
+  const read0 = cliRead(host);
+  const baseOpen = host.openSession ?? checkedOpen((opener as NonNullable<typeof opener>).openSession, {
+    ...(host.cli?.command ? { command: host.cli.command } : {}), ...(cliProbeOf(host) ? { probe: cliProbeOf(host) as NodeCliProbe } : {}), ...(installer ? { engines: installer } : {}),
+    ...(host.sandbox ? {} : { unsandboxed: () => cliSandboxGap(), unsandboxedCode: () => cliSandboxCode() }),
+    // the Windows sandbox's first start after a restart (or its one-time set-up) is a live line, not a silent wait
+    ...(process.platform === "win32" && !host.sandbox && dataDir0 ? { warm: () => warmWindowsSandbox(dataDir0, read0) } : {}),
+    live: (e) => setupLine?.(e),
+  });
   // a turn the person pinned to one of their servers opens through that server's opener; everything else opens as before
   const nodeOpeners = new Map<string, ReturnType<typeof buildNodeOpener>>();
   const openerHost = { ...(h.own ? { own: h.own } : {}), ...(apiTools ? { apiTools } : {}), session: host.session as EngineSessionPorts, call: h.call };
