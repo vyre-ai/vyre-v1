@@ -1951,6 +1951,9 @@ export function stubs(ctx: CallCtx) {
       subscription_complete: call("providers.subscription_complete"),
       subscription_start: call("providers.subscription_start"),
       test: call("providers.test"),
+      uses: {
+        set: call("providers.uses.set"),
+      },
     },
     records: {
       activity: call("records.activity"),

@@ -4,7 +4,7 @@ import type { Handlers } from './handlers.ts';
 
 /** Example answers: the first example output of each capability (used when the host serves a stub module). */
 export const handlers: Handlers<HandlerCtx> = {
-  "engine.account.resolve": async () => ({"accountRef":"#Team_Anthropic_Key","allowed":true,"fellBack":true,"itemId":"vit_a1b2c3","payer":"usr_a1b2c3","reason":"starter"} as unknown) as never,
+  "engine.account.resolve": async () => ({"accountRef":"#Team_Anthropic_Key","allowed":true,"fellBack":true,"itemId":"vit_a1b2c3","modelFallback":{"from":"example","to":"example"},"payer":"usr_a1b2c3","pin":{"ref":"#Team_Anthropic_Key","used":true,"why":"unknown"},"reason":"starter"} as unknown) as never,
   "engine.accounts.list": async () => ({"accounts":[{"aliases":["#Team_Anthropic_Key"],"base":"example","driver":"anthropic","keyless":true,"kind":"api_key","lastProbeAt":1760000000000,"mine":true,"name":"Dana Claude Max","older":[{"name":"example","providerId":"prv_a1b2c3","ref":"#Team_Anthropic_Key"}],"ownerId":"usr_a1b2c3","ref":"#Team_Anthropic_Key","spaceKey":true,"status":"ok","title":"example"}]} as unknown) as never,
   "engine.compact": async () => ({"context":{"used":1,"window":1},"engine":"claude_code","fellBack":true,"how":"engine","keepEvery":"example","line":"Compacted. Kept: the open questions about the lease. Context now about 14k of 200k tokens."} as unknown) as never,
   "engine.complete": async () => ({"text":"example","tokensIn":1,"tokensOut":1} as unknown) as never,

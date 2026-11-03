@@ -61,7 +61,7 @@ test("account.resolve: the steerer pays when the call acts for them; Dana's Mine
   assert.deepEqual(await accountResolve(sam.ctx, { threadId: "thr_1", agentId: "agt_1", askerId: "usr_sam" }), { accountRef: "#Sam_Anthropic", payer: "usr_sam", reason: "steerer", allowed: true, itemId: "vit_prv_9" });
 });
 
-test("account.resolve: a step key makes it a task; Company only drops personal accounts; a device run needs no subscription switch", async () => {
+test("account.resolve: a step key makes it a task; Company only drops personal accounts; the person's own sign-in pays for their turn on the host and on a device", async () => {
   const task = fake(routes([prov({ id: "prv_3", handle: "#Team_Anthropic_Key", scope: "shared" })]));
   assert.equal((await accountResolve(task.ctx, { threadId: "thr_1", agentId: "agt_1", stepKey: "#Team_Anthropic_Key" })).reason, "step_key");
 
@@ -70,21 +70,21 @@ test("account.resolve: a step key makes it a task; Company only drops personal a
 
   const sub = [prov({ id: "prv_2", handle: "#Dana_Claude", connection: "subscription", engine: "claude-code", spaceMayUse: false })];
   const onHost = fake(routes(sub, { "engine.defaults.get": () => ({ fallback: [] }) }));
-  assert.equal((await accountResolve(onHost.ctx, { threadId: "thr_1", agentId: "agt_1" })).accountRef, null);
+  assert.equal((await accountResolve(onHost.ctx, { threadId: "thr_1", agentId: "agt_1" })).accountRef, "#Dana_Claude", "no switch needed for her own turn");
   const onDevice = fake(routes(sub, { "engine.placement.decide": () => ({ placement: "device" }) }));
   assert.equal((await accountResolve(onDevice.ctx, { threadId: "thr_1", agentId: "agt_1" })).accountRef, "#Dana_Claude");
 });
 
-test("account.resolve: in a Personal Space the host is the person's own computer, so their sign-in pays without the Space switch; a team host still needs it", async () => {
+test("account.resolve: the person's own sign-in pays without the Space switch, in a Personal Space and on a team host alike", async () => {
   const sub = [prov({ id: "prv_4", handle: "#Dana_ChatGPT", providerKey: "codex", connection: "subscription", engine: "codex", spaceMayUse: false })];
   const none = { "engine.defaults.get": () => ({ fallback: [] }) };
   const threads = { "threads.get": () => ({ thread: { starter: "usr_dana", agents: [{ agentId: "agt_1" }] } }) };
   const personal = fake(routes(sub, { ...none, ...threads, "spaces.get": () => ({ space: { kind: "personal" } }) }));
   assert.deepEqual(await accountResolve(personal.ctx, { threadId: "thr_1", agentId: "agt_1" }), { accountRef: "#Dana_ChatGPT", payer: "usr_dana", reason: "starter", allowed: true, itemId: "vit_prv_4" });
   const team = fake(routes(sub, { ...none, ...threads }));
-  assert.equal((await accountResolve(team.ctx, { threadId: "thr_1", agentId: "agt_1" })).accountRef, null);
+  assert.equal((await accountResolve(team.ctx, { threadId: "thr_1", agentId: "agt_1" })).accountRef, "#Dana_ChatGPT", "her own turn on the team server runs on her sign-in");
   const unknown = fake(routes(sub, { ...none, ...threads, "spaces.get": () => { throw new Error("no spaces module"); } }));
-  assert.equal((await accountResolve(unknown.ctx, { threadId: "thr_1", agentId: "agt_1" })).accountRef, null, "an unknown kind is treated as a team server");
+  assert.equal((await accountResolve(unknown.ctx, { threadId: "thr_1", agentId: "agt_1" })).accountRef, "#Dana_ChatGPT", "an unknown kind is treated as a team server, and her turn is still hers");
 });
 
 test("probe_account: models counted on success; a failed sign-in comes back as an error with a next step; an unknown account is not_found", async () => {

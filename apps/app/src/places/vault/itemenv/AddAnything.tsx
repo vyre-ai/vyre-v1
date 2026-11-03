@@ -1,6 +1,7 @@
 // Vault AddAnything: one Add that understands what you paste (spec 3.8). Pick what it is first (a search and a reel of app icons, Custom first), or paste anywhere in the sheet:
 // one key is matched to its app by its shape, several KEY=value lines become one key each, JSON becomes keys from its top level, a link becomes URL, username and password.
 // A one-line status says what was understood, with Undo. Values go to vault.item.put once; they never enter a chat or a log. The footer remembers where you last added.
+import { otherTemplates } from "../layout/sections.ts";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { ReactElement } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
@@ -121,7 +122,8 @@ export function AddAnything({ onClose, onAdded, lastFolderId, initialPaste, init
   };
   const target = folderId && list.some((f) => f.id === folderId) ? folderId : (list.find((f) => f.scope === "mine") ?? list[0])?.id;
   const folder = list.find((f) => f.id === target);
-  const reel = useMemo(() => filterTemplates(search), [search]);
+  // AI providers and Google are added in their own sections: this reel has neither (layout/sections.ts)
+  const reel = useMemo(() => otherTemplates(filterTemplates(search)), [search]);
   const snap = (): Snapshot => ({ name, kind, template, fields });
 
   const applyTemplate = (t: Template): void => {

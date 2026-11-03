@@ -12,6 +12,7 @@ import { ladderFor, levelIncludes } from "../../../packages/contracts/src/levels
 import type { ResourceType } from "../../../packages/contracts/src/types.ts";
 import type { AccessCtx, AccessStore, Cond, Db, GrantRec, Level, Ref, ResourceRec, ResourceRef, SubjectRef } from "../projections.ts";
 import { changed, EVERYONE, fnv, grantView, isExpr, labelRank, nid, page, pkey, raise, storeOf } from "../projections.ts";
+import { isHostService } from "../../../lib/trust.ts";
 
 export type Via = "owner" | "grant" | "folder" | "space";
 export type Section = "personal" | "shared" | "space" | "starred" | "following";
@@ -472,7 +473,8 @@ export async function updateGrant(ctx:ShareCtx,input:{grantId:string;level?:Leve
 function assertEveryone(ctx: ShareCtx, store: AccessStore, res: ResourceRec, level: Level, grant: GrantRec | undefined): void {
   const trace = ctx.trace.traceId;
   if (res.label === "restricted") raise(trace, "validation.precondition_failed", "A restricted item is never shared with everyone. Share it with the people who need it.");
-  if (ctx.principal.kind === "service" || ctx.principal.id.startsWith("svc_")) return;
+  // the host's own service alone (#vyre for a new member, the join steps), matched exactly: no other service, and no id that merely starts with svc_
+  if (isHostService(ctx.principal)) return;
   if (grant && rank(res.type, level) <= rank(res.type, grant.level)) return;
   if (!store.snapshot().info(ctx.principal.id)?.perms.has("access.manage")) raise(trace, "permission.role_lacks_permission", "Only an admin shares with everyone in the Space. Ask an admin, or share it with the people who need it.");
 }
@@ -483,7 +485,7 @@ function assertEveryone(ctx: ShareCtx, store: AccessStore, res: ResourceRec, lev
  */
 export async function joinShare(ctx: ShareCtx, input: { resource: ResourceRef; person: string; level: Level; inviter: string; source: string }) {
   const trace = ctx.trace.traceId;
-  if (((ctx as { depth?: number }).depth ?? 0) === 0 && !(ctx.principal.kind === "service" && ctx.principal.id === "svc_host")) raise(trace, "permission.role_lacks_permission", "This is the join step of an invite, not a direct call.");
+  if (((ctx as { depth?: number }).depth ?? 0) === 0 && !isHostService(ctx.principal)) raise(trace, "permission.role_lacks_permission", "This is the join step of an invite, not a direct call.");
   const store = storeOf(ctx);
   const ss = shareOf(ctx);
   const res = resourceOf(ctx, store, input.resource);

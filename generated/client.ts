@@ -1951,6 +1951,9 @@ export function createClient(transport: Transport) {
       subscription_complete: call("providers.subscription_complete", 1),
       subscription_start: call("providers.subscription_start", 1),
       test: call("providers.test", 1),
+      uses: {
+        set: call("providers.uses.set", 1),
+      },
     },
     records: {
       activity: call("records.activity", 1),

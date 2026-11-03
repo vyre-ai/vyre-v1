@@ -6482,6 +6482,18 @@
     },
     {
       "deferred": false,
+      "name": "providers_space_key_get",
+      "summary": "The Space AI key for the Space: whether one is set, its provider and the models it unlocks (read live from the provider and kept for a while). Never the key",
+      "toolset": "vault"
+    },
+    {
+      "deferred": false,
+      "name": "providers_space_key_set",
+      "summary": "An owner or admin sets or replaces the Space AI key: it is checked with the provider at once (its model list), then kept in a Restricted Shared folder. A person does this, or their outside agent under the setup grant; never an agent on its own",
+      "toolset": "vault"
+    },
+    {
+      "deferred": false,
       "name": "providers_subscription_complete",
       "summary": "Finish a subscription sign-in. Pass the pasted code where the provider shows one; call again until it answers a provider (waiting means the person has not approved yet). The credential goes straight into a Mine item of kind ai_subscription and is never returned.",
       "toolset": "vault"
@@ -6496,6 +6508,12 @@
       "deferred": false,
       "name": "providers_test",
       "summary": "Test a provider connection and list the models it offers",
+      "toolset": "vault"
+    },
+    {
+      "deferred": false,
+      "name": "providers_uses_set",
+      "summary": "An owner or admin makes a shared provider a Space AI account: what it may pay for (team chats, automations, goals, agent work) and an optional monthly spend cap. The engine picks the cheapest Space account that fits a turn and is not capped",
       "toolset": "vault"
     },
     {

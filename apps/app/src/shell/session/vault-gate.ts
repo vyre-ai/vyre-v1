@@ -32,10 +32,10 @@ export function withVaultGate<A extends unknown[], R>(call: (...a: A) => Promise
   return async (...a: A): Promise<R> => {
     try { return await call(...a); }
     catch (e) {
-      if (!unlock || !isVaultLockedError(e)) throw e;
+      if (!isVaultLockedError(e)) throw e;
       // the app still has the key from this session (a daemon restart behind it): hand it back and go again, no prompt
       if (silent && (await silent().catch(() => false))) return call(...a);
-      if (!(await askVaultUnlock(unlock))) throw e;
+      if (!unlock || !(await askVaultUnlock(unlock))) throw e;
       return call(...a);
     }
   };

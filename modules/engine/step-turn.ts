@@ -103,9 +103,11 @@ async function accountFor(ctx: EngineCtx, i: StepTurnIn, asker: string, service:
   const provider = agent?.model ? providerOfModel(agent.model) : undefined;
   const res = resolveAccount({
     starter: asker,
-    trigger: keyRef ? "task" : "message",
+    // an automation's step: its key, then the Space AI accounts kept for automations, then the person's own (a sign-in only with "Let the Space run work on my subscription" on)
+    trigger: "task",
     ...(keyRef ? { stepKey: keyRef } : {}),
-    agent: { accountPolicy: agent?.accountPolicy ?? "asker", ...(agent?.accountKey ? { accountKey: agent.accountKey } : {}), ...(provider ? { provider } : {}) },
+    agent: { ...(agent?.agentId ? { agentId: agent.agentId } : {}), accountPolicy: agent?.accountPolicy ?? "asker", ...(agent?.accountKey ? { accountKey: agent.accountKey } : {}), ...(provider ? { provider } : {}) },
+    ...(agent?.model ? { model: agent.model } : {}),
     backupRefs: backupRef ? [backupRef] : [],
     policy: policy.allowedAccounts,
     accounts: usable,
@@ -116,7 +118,7 @@ async function accountFor(ctx: EngineCtx, i: StepTurnIn, asker: string, service:
     const why = service
       ? i.keyId
         ? "The key chosen for this AI step is not a Space-shared key that works. Share the key with the Space in the Vault (AI providers), or choose another."
-        : "A Space automation needs a Space-shared AI key. Add one in the Vault under AI providers (Shared), then choose it in the AI step."
+        : "A Space automation needs a Space AI account that pays for automations. An owner or admin sets one in the Vault, under AI accounts, or chooses a key in the AI step."
       : "This AI step runs on your own AI account and you have none that works on the server. Sign in with Claude or Codex (and turn on Let the Space run work on my subscription), or add an API key, in AI settings.";
     raise(ctx, "provider.auth_failed", why, { reason: "no_account", next: [{ kind: "open_settings", label: "Open AI settings" }] });
   }

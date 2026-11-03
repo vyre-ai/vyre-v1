@@ -3,7 +3,11 @@
 export type AccountKind = "api_key" | "subscription";
 export type AccountStatus = "ok" | "expired" | "failed" | "untested";
 export type AccountsPolicy = "any" | "company";
-export type Trigger = "message" | "wake" | "routine" | "task";
+/**
+ * What caused the turn, which says which Space AI accounts may pay (owner ruling 9): a person's message (teamChats), a wake-up or a goal's turn (goals), work an agent does with no asker,
+ * a routine, a watcher or a helper (agentWork), an automation's step (task: automations).
+ */
+export type Trigger = "message" | "wake" | "goal" | "routine" | "task";
 export type ResolveReason = "starter" | "steerer" | "step_key" | "backup_key" | "none";
 
 export interface AccountRow {
@@ -19,15 +23,39 @@ export interface AccountRow {
   ownerId: string | null;
   status: AccountStatus;
   lastProbeAt: number | null;
-  /** The standing switch "Let the Space run work on my subscription" (subscriptions only). */
+  /** The standing switch "Let the Space run work on my subscription": others and automations may use it. The owner's own turns never need it. For a shared key: members with Use may run on it. */
   spaceMayUse: boolean;
   /** The Space AI key: one shared API key an owner or admin set for everyone. Any member's turn falls back to it after their own accounts. */
   spaceKey?: boolean;
   /** An older sign-in of the same provider whose account cannot be read, listed under another row. It still pays when a chat, an agent or a fallback names it; it is never picked on its own. */
   older?: boolean;
+  /** A Space AI account: what it may pay for. Absent on Mine accounts. */
+  uses?: SpaceUses;
+  /** teamChats.who covers the person this list is for. */
+  teamChatsForMe?: boolean;
+  /** This month's spend reached the account's cap: no turn runs on it until the month turns. */
+  capped?: boolean;
+  /** The models the account's provider lists (its live list, else the list the Vault kept). A Space account fits a turn when this has the turn's model; any account fits an Automatic turn. */
+  models?: readonly string[];
+  /** Relative price of a turn on this account, lower is cheaper (cost.ts). Among Space accounts that fit, the cheapest pays. */
+  cost?: number;
+}
+
+/** What a Space AI account may pay for (owner ruling 9). Each use is off unless named. */
+export interface SpaceUses {
+  /** A member's own chat, and only when they have no account of their own that can pay: everyone, or the people in these groups. */
+  teamChats?: { who: "everyone" | readonly string[] };
+  /** Automation steps. */
+  automations?: true;
+  /** Goal turns and wake-ups. */
+  goals?: true;
+  /** Work an agent does with no asker (routines, watchers, helpers): every agent, or these. */
+  agentWork?: { which: "all" | readonly string[] };
 }
 
 export interface AgentAccountConfig {
+  /** The agent, so a Space account kept for some agents' work (agentWork.which) can tell. */
+  agentId?: string;
   /** 'key': use accountKey (a shared team key, usage logged per actor). 'asker': the payer's own account. */
   accountPolicy: "asker" | "key";
   accountKey?: string;
@@ -55,13 +83,17 @@ export interface ResolveRequest {
   policy: AccountsPolicy;
   /** The accounts the paying person can see: their own (Mine) plus the shared ones. */
   accounts: readonly AccountRow[];
+  /** The model the turn needs; unset is Automatic (each account's default). */
+  model?: string;
+  /** The person chose the chat's account and its model together: when that account does not serve the model, the turn fails with no_model rather than run anywhere else. */
+  modelPinned?: boolean;
   /** Refs that already failed during this turn. */
   unavailable?: readonly string[];
-  /** The turn runs on the Space host (not the person's own device). Subscriptions then need the standing switch. */
+  /** The turn runs on the Space host (not the person's own device). A subscription then needs the standing switch, unless it is the payer's own turn. */
   onServer: boolean;
 }
 
-export type SkipWhy = "unknown" | "expired" | "failed" | "policy_company" | "not_yours" | "space_may_not_use" | "failed_this_turn";
+export type SkipWhy = "unknown" | "expired" | "failed" | "policy_company" | "not_yours" | "space_may_not_use" | "failed_this_turn" | "capped" | "no_model";
 export interface Attempt { ref: string; used: boolean; why?: SkipWhy }
 
 export interface NeedsYou {
@@ -83,4 +115,8 @@ export interface Resolution {
   tried: Attempt[];
   /** A card for Needs you. Present when nothing could run, and also when a backup key covered for a broken account of the payer's. */
   unblock?: NeedsYou;
+  /** The account the chat, the agent or the automation step is pinned to, and whether it paid; when it did not, why (the turn fell back past it). */
+  pin?: Attempt;
+  /** A team chat or agent work that no Space account fitting its model could pay: it runs on this account's default model instead, and the chat says so in one line. */
+  modelFallback?: true;
 }

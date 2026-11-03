@@ -4,7 +4,7 @@ Lane L7a. Kind module. Version 0.1.0.
 
 Requires: access.
 
-## Capabilities (51)
+## Capabilities (52)
 
 - [providers.add](../capabilities/providers.add.md): Connect a provider with a pasted API key (stored once, used by handle) or a local model address
 - [providers.catalog](../capabilities/providers.catalog.md): The provider gallery from the definition files: name, logo, connection kinds, model list source, engine
@@ -16,11 +16,12 @@ Requires: access.
 - [providers.set_space_use](../capabilities/providers.set_space_use.md): Let the Space run work on my subscription, or stop it (stopping ends my sandbox)
 - [providers.space_key.get](../capabilities/providers.space_key.get.md): The Space AI key for the Space: whether one is set, its provider and the models it unlocks (read live from the provider and kept for a while). Never the key
 - [providers.space_key.remove](../capabilities/providers.space_key.remove.md): Remove the Space AI key; people with their own accounts keep working
-- [providers.space_key.set](../capabilities/providers.space_key.set.md): An owner or admin sets or replaces the Space AI key: it is checked with the provider at once (its model list), then kept in a Restricted Shared folder. A person does this, never an agent
+- [providers.space_key.set](../capabilities/providers.space_key.set.md): An owner or admin sets or replaces the Space AI key: it is checked with the provider at once (its model list), then kept in a Restricted Shared folder. A person does this, or their outside agent under the setup grant; never an agent on its own
 - [providers.space_key.use](../capabilities/providers.space_key.use.md): System: the engine asks to run one turn on the Space AI key for the person it acts for. Answers the handle, never the value; each use is an audit row
 - [providers.subscription_complete](../capabilities/providers.subscription_complete.md): Finish a subscription sign-in. Pass the pasted code where the provider shows one; call again until it answers a provider (waiting means the person has not approved yet). The credential goes straight into a Mine item of kind ai_subscription and is never returned.
 - [providers.subscription_start](../capabilities/providers.subscription_start.md): Start a subscription sign-in (Claude, ChatGPT through Codex, Grok): the server starts the provider's own sign-in and answers its link, and the code to type where the provider shows one. A person does this, never an agent.
 - [providers.test](../capabilities/providers.test.md): Test a provider connection and list the models it offers
+- [providers.uses.set](../capabilities/providers.uses.set.md): An owner or admin makes a shared provider a Space AI account: what it may pay for (team chats, automations, goals, agent work) and an optional monthly spend cap. The engine picks the cheapest Space account that fits a turn and is not capped
 - [vault.export_env](../capabilities/vault.export_env.md): Export a folder as a .env file: one pull link that expires after 1 hour, 1 day or 7 days; never for Restricted items; the folder owner is notified
 - [vault.exports.list](../capabilities/vault.exports.list.md): Export pull links that are still open
 - [vault.exports.revoke](../capabilities/vault.exports.revoke.md): Close an export pull link early

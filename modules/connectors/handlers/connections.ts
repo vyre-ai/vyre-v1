@@ -1,5 +1,6 @@
 // Connections (spec 2.10, 4.18): one account plugged into a connector, owned by a person or the Space. The owner can pause it. It starts Pending until the sign-in or the first good
 // probe, and a provider that rejects the key sends it to needs_reconnect. A connection holds the NAME of the Vault item for each secret, never a value.
+import { CONNECTION_KEY_LINE } from "../../../lib/vault-lines.ts";
 import { newPkce, oauthOf, OAUTH_TTL_MS } from "./oauth.ts";
 import { checkEgress, ensureTables, mintShort, nowOf, PAGE, refuse, scrubber, seedBuiltins } from "../projections.ts";
 import type { ConnectionDb, ConnectionState, ConnectorDef, ConnectorsCtx, ConnectorsDeps } from "../projections.ts";
@@ -224,7 +225,7 @@ export function createConnectionsHandlers(deps: ConnectorsDeps): ConnectionsHand
         if (code === "provider.auth_failed") return { state: "down" as const, detail: message };
         if (code === "provider.rate_limited" || code === "rate_limit.exceeded") return { state: "degraded" as const, detail: message };
         // a key this connection may not use (someone's Mine item) never reaches the provider: the connection is down, as when the Vault itself says no
-        if (code === "permission.no_grant" && (e as { error?: { details?: { cap?: string } } }).error?.details?.cap === "vault.fill") return { state: "down" as const, detail: "This connection cannot use that key." };
+        if (code === "permission.no_grant" && (e as { error?: { details?: { cap?: string } } }).error?.details?.cap === "vault.fill") return { state: "down" as const, detail: CONNECTION_KEY_LINE };
         if (code === "permission.no_grant" || code === "validation.precondition_failed" || code === "validation.bad_input") throw e;
         if (r.state === "active") tx.run("UPDATE cn_connections SET state = 'failing' WHERE connection_id = ?", r.connection_id);
         return { state: "down" as const, detail: message };

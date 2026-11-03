@@ -43020,6 +43020,62 @@
     },
     {
       "blocks": [],
+      "cap": "providers.space_key.get",
+      "deferred": false,
+      "description": "The Space AI key for the Space: whether one is set, its provider and the models it unlocks (read live from the provider and kept for a while). Never the key",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "refresh": {
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
+      "name": "providers_space_key_get",
+      "planMode": "allowed",
+      "toolset": "vault",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "providers.space_key.set",
+      "deferred": false,
+      "description": "An owner or admin sets or replaces the Space AI key: it is checked with the provider at once (its model list), then kept in a Restricted Shared folder. A person does this, or their outside agent under the setup grant; never an agent on its own",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "apiKey": {
+            "type": "string"
+          },
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "providerKey": {
+            "examples": [
+              "opencode-go"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "providerKey",
+          "apiKey",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "name": "providers_space_key_set",
+      "planMode": "blocked",
+      "toolset": "vault",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "providers.subscription_complete",
       "deferred": false,
       "description": "Finish a subscription sign-in. Pass the pasted code where the provider shows one; call again until it answers a provider (waiting means the person has not approved yet). The credential goes straight into a Mine item of kind ai_subscription and is never returned.",
@@ -43107,6 +43163,117 @@
       },
       "name": "providers_test",
       "planMode": "allowed",
+      "toolset": "vault",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "providers.uses.set",
+      "deferred": false,
+      "description": "An owner or admin makes a shared provider a Space AI account: what it may pay for (team chats, automations, goals, agent work) and an optional monthly spend cap. The engine picks the cheapest Space account that fits a turn and is not capped",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "capCents": {
+            "anyOf": [
+              {
+                "description": "The monthly spend cap in cents; null removes it; left out keeps it",
+                "minimum": 0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "providerId": {
+            "examples": [
+              "prv_a1b2c3"
+            ],
+            "pattern": "^prv_[a-z0-9]+$",
+            "type": "string"
+          },
+          "uses": {
+            "description": "What a Space AI account may pay for",
+            "properties": {
+              "agentWork": {
+                "description": "Work an agent does with no asker (routines, watchers, helpers): every agent, or these",
+                "properties": {
+                  "which": {
+                    "anyOf": [
+                      {
+                        "const": "all",
+                        "type": "string"
+                      },
+                      {
+                        "items": {
+                          "examples": [
+                            "agt_a1b2c3"
+                          ],
+                          "pattern": "^agt_[a-z0-9]+$",
+                          "type": "string"
+                        },
+                        "minItems": 1,
+                        "type": "array"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "which"
+                ],
+                "type": "object"
+              },
+              "automations": {
+                "const": true,
+                "description": "Automation steps",
+                "type": "boolean"
+              },
+              "goals": {
+                "const": true,
+                "description": "Goal turns and wake-ups",
+                "type": "boolean"
+              },
+              "teamChats": {
+                "description": "A member's own chat, only when they have no account of their own that can pay: everyone, or the people in these groups",
+                "properties": {
+                  "who": {
+                    "anyOf": [
+                      {
+                        "const": "everyone",
+                        "type": "string"
+                      },
+                      {
+                        "items": {
+                          "examples": [
+                            "grp_a1b2c3"
+                          ],
+                          "pattern": "^grp_[a-z0-9]+$",
+                          "type": "string"
+                        },
+                        "minItems": 1,
+                        "type": "array"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "who"
+                ],
+                "type": "object"
+              }
+            },
+            "type": "object"
+          }
+        },
+        "required": [
+          "providerId",
+          "uses"
+        ],
+        "type": "object"
+      },
+      "name": "providers_uses_set",
+      "planMode": "blocked",
       "toolset": "vault",
       "v": 1
     },

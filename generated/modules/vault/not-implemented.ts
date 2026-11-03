@@ -20,6 +20,7 @@ export const handlers: Handlers<HandlerCtx> = {
   "providers.subscription_complete": async (ctx) => { throw new VyreErr(notImplemented("providers.subscription_complete", ctx.trace)); },
   "providers.subscription_start": async (ctx) => { throw new VyreErr(notImplemented("providers.subscription_start", ctx.trace)); },
   "providers.test": async (ctx) => { throw new VyreErr(notImplemented("providers.test", ctx.trace)); },
+  "providers.uses.set": async (ctx) => { throw new VyreErr(notImplemented("providers.uses.set", ctx.trace)); },
   "vault.export_env": async (ctx) => { throw new VyreErr(notImplemented("vault.export_env", ctx.trace)); },
   "vault.exports.list": async (ctx) => { throw new VyreErr(notImplemented("vault.exports.list", ctx.trace)); },
   "vault.exports.revoke": async (ctx) => { throw new VyreErr(notImplemented("vault.exports.revoke", ctx.trace)); },

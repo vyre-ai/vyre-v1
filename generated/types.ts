@@ -1728,6 +1728,14 @@ export type AgentsRoutineDelegateOut = {
       on: "message";
       channelId: string;
     };
+    setBy?: {
+      kind: "person" | "agent" | "actor" | "service";
+      id: string;
+    };
+    lastRun?: {
+      runId: string;
+      status: "running" | "succeeded" | "failed" | "stopped";
+    };
   };
   previousOwnerId: string;
 };
@@ -1759,6 +1767,14 @@ export type AgentsRoutineRunNowOut = {
     watch?: {
       on: "message";
       channelId: string;
+    };
+    setBy?: {
+      kind: "person" | "agent" | "actor" | "service";
+      id: string;
+    };
+    lastRun?: {
+      runId: string;
+      status: "running" | "succeeded" | "failed" | "stopped";
     };
   };
   runId: string;
@@ -1795,6 +1811,14 @@ export type AgentsRoutineSaveOut = {
       on: "message";
       channelId: string;
     };
+    setBy?: {
+      kind: "person" | "agent" | "actor" | "service";
+      id: string;
+    };
+    lastRun?: {
+      runId: string;
+      status: "running" | "succeeded" | "failed" | "stopped";
+    };
   };
 };
 export type AgentsRoutinesListIn = {
@@ -1816,6 +1840,14 @@ export type AgentsRoutinesListOut = {
       watch?: {
         on: "message";
         channelId: string;
+      };
+      setBy?: {
+        kind: "person" | "agent" | "actor" | "service";
+        id: string;
+      };
+      lastRun?: {
+        runId: string;
+        status: "running" | "succeeded" | "failed" | "stopped";
       };
     }>;
 };
@@ -9484,6 +9516,7 @@ export type EngineAccountResolveIn = {
   askerId?: string;
   stepKey?: string;
   unavailable?: Array<string>;
+  kind?: "chat" | "wake" | "automation" | "goal" | "agent_work";
 };
 export type EngineAccountResolveOut = {
   accountRef: string | null;
@@ -9492,6 +9525,15 @@ export type EngineAccountResolveOut = {
   allowed: boolean;
   itemId?: string;
   fellBack?: boolean;
+  pin?: {
+    ref: string;
+    used: boolean;
+    why?: "unknown" | "expired" | "failed" | "policy_company" | "not_yours" | "space_may_not_use" | "failed_this_turn" | "capped" | "no_model";
+  };
+  modelFallback?: {
+    from: string;
+    to?: string;
+  };
 };
 export type EngineAccountsListIn = Record<string, unknown>;
 export type EngineAccountsListOut = {
@@ -24031,6 +24073,21 @@ export type ProvidersAddOut = {
     displayName?: string;
     aliases?: Array<string>;
     olderOf?: string;
+    uses?: {
+      teamChats?: {
+        who: "everyone" | Array<string>;
+      };
+      automations?: true;
+      goals?: true;
+      agentWork?: {
+        which: "all" | Array<string>;
+      };
+    };
+    usesSet?: boolean;
+    capCents?: number;
+    capped?: boolean;
+    teamChatsForMe?: boolean;
+    models?: Array<string>;
   };
 };
 export type ProvidersCatalogIn = Record<string, unknown>;
@@ -24091,6 +24148,21 @@ export type ProvidersCustomAddOut = {
     displayName?: string;
     aliases?: Array<string>;
     olderOf?: string;
+    uses?: {
+      teamChats?: {
+        who: "everyone" | Array<string>;
+      };
+      automations?: true;
+      goals?: true;
+      agentWork?: {
+        which: "all" | Array<string>;
+      };
+    };
+    usesSet?: boolean;
+    capCents?: number;
+    capped?: boolean;
+    teamChatsForMe?: boolean;
+    models?: Array<string>;
   };
 };
 export type ProvidersCustomListIn = Record<string, unknown>;
@@ -24139,6 +24211,21 @@ export type ProvidersListOut = {
       displayName?: string;
       aliases?: Array<string>;
       olderOf?: string;
+      uses?: {
+        teamChats?: {
+          who: "everyone" | Array<string>;
+        };
+        automations?: true;
+        goals?: true;
+        agentWork?: {
+          which: "all" | Array<string>;
+        };
+      };
+      usesSet?: boolean;
+      capCents?: number;
+      capped?: boolean;
+      teamChatsForMe?: boolean;
+      models?: Array<string>;
     }>;
 };
 export type ProvidersRemoveIn = {
@@ -24179,6 +24266,21 @@ export type ProvidersSetSpaceUseOut = {
     displayName?: string;
     aliases?: Array<string>;
     olderOf?: string;
+    uses?: {
+      teamChats?: {
+        who: "everyone" | Array<string>;
+      };
+      automations?: true;
+      goals?: true;
+      agentWork?: {
+        which: "all" | Array<string>;
+      };
+    };
+    usesSet?: boolean;
+    capCents?: number;
+    capped?: boolean;
+    teamChatsForMe?: boolean;
+    models?: Array<string>;
   };
 };
 export type ProvidersSpaceKeyGetIn = {
@@ -24265,6 +24367,21 @@ export type ProvidersSubscriptionCompleteOut = {
     displayName?: string;
     aliases?: Array<string>;
     olderOf?: string;
+    uses?: {
+      teamChats?: {
+        who: "everyone" | Array<string>;
+      };
+      automations?: true;
+      goals?: true;
+      agentWork?: {
+        which: "all" | Array<string>;
+      };
+    };
+    usesSet?: boolean;
+    capCents?: number;
+    capped?: boolean;
+    teamChatsForMe?: boolean;
+    models?: Array<string>;
   };
   waiting?: boolean;
 };
@@ -24288,6 +24405,65 @@ export type ProvidersTestOut = {
   models: Array<string>;
   latencyMs: number;
   detail?: string;
+};
+export type ProvidersUsesSetIn = {
+  providerId: string;
+  uses: {
+    teamChats?: {
+      who: "everyone" | Array<string>;
+    };
+    automations?: true;
+    goals?: true;
+    agentWork?: {
+      which: "all" | Array<string>;
+    };
+  };
+  capCents?: number | null;
+};
+export type ProvidersUsesSetOut = {
+  provider: {
+    id: string;
+    providerKey: string;
+    name: string;
+    logo?: string;
+    connection: "subscription" | "api_key" | "local_model";
+    via: string;
+    scope: "mine" | "shared";
+    itemId: string;
+    itemName?: string;
+    handle?: string;
+    agentsUsing: Array<string>;
+    usage: {
+      tokens: number;
+      costCents: number;
+      periodStart: number;
+    };
+    engine: string;
+    spaceMayUse: boolean;
+    state: "ok" | "needs_sign_in" | "failing";
+    address?: string;
+    keyless?: boolean;
+    spaceKey?: boolean;
+    identity?: string;
+    displayName?: string;
+    aliases?: Array<string>;
+    olderOf?: string;
+    uses?: {
+      teamChats?: {
+        who: "everyone" | Array<string>;
+      };
+      automations?: true;
+      goals?: true;
+      agentWork?: {
+        which: "all" | Array<string>;
+      };
+    };
+    usesSet?: boolean;
+    capCents?: number;
+    capped?: boolean;
+    teamChatsForMe?: boolean;
+    models?: Array<string>;
+  };
 };
 export type RecordsActivityIn = {
   type: string;
@@ -37073,6 +37249,7 @@ export interface CapMap {
   "providers.subscription_complete": { in: ProvidersSubscriptionCompleteIn; out: ProvidersSubscriptionCompleteOut };
   "providers.subscription_start": { in: ProvidersSubscriptionStartIn; out: ProvidersSubscriptionStartOut };
   "providers.test": { in: ProvidersTestIn; out: ProvidersTestOut };
+  "providers.uses.set": { in: ProvidersUsesSetIn; out: ProvidersUsesSetOut };
   "records.activity": { in: RecordsActivityIn; out: RecordsActivityOut };
   "records.as_of": { in: RecordsAsOfIn; out: RecordsAsOfOut };
   "records.bulk_upsert": { in: RecordsBulkUpsertIn; out: RecordsBulkUpsertOut };
