@@ -35,9 +35,10 @@ function killAll(): void {
   else { spawnSync("pkill", ["-x", "vyre-desktop"], { stdio: "ignore" }); spawnSync("pkill", ["-x", "vyred"], { stdio: "ignore" }); }
 }
 
-function launch(feed: string, tag: string, off = false): { child: ChildProcess; log: () => string; waitFor(re: RegExp, ms: number): Promise<boolean> } {
+function launch(feed: string, tag: string, off = false, debugPort = 0): { child: ChildProcess; log: () => string; waitFor(re: RegExp, ms: number): Promise<boolean> } {
   const env: Record<string, string | undefined> = { ...process.env, VYRE_UPDATE_FEED: feed };
   if (!off) delete env["VYRE_NO_AUTO_UPDATE"];
+  if (debugPort) env["WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS"] = `--remote-debugging-port=${debugPort}`;
   const child = spawn(RUN, [], { env, stdio: ["ignore", "pipe", "pipe"] });
   let text = "";
   const file = path.join(OUT, `${process.platform}-${tag}.log`);
@@ -64,12 +65,48 @@ const failures: string[] = [];
 const before = bytesOf(APP);
 console.log(`update-proof: runs ${RUN}; the update must replace ${APP} (${before.length} bytes)`);
 
+/** Windows only: what the page itself says, over WebView2's remote debugging. Reload it with the runtime listening, and report its exceptions, console errors and what it drew. */
+async function pageDiagnosis(port: number): Promise<void> {
+  try {
+    const list = (await (await fetch(`http://127.0.0.1:${port}/json`)).json()) as Array<{ type: string; url: string; webSocketDebuggerUrl: string }>;
+    const page = list.find((t) => t.type === "page");
+    if (!page) { console.log(`update-proof: diagnosis: no page target (${JSON.stringify(list).slice(0, 300)})`); return; }
+    const ws = new WebSocket(page.webSocketDebuggerUrl);
+    await new Promise<void>((r, j) => { ws.onopen = () => r(); ws.onerror = () => j(new Error("ws")); });
+    let id = 0;
+    const said: string[] = [];
+    const answers = new Map<number, (v: unknown) => void>();
+    ws.onmessage = (m) => {
+      const msg = JSON.parse(String(m.data)) as { id?: number; method?: string; params?: Record<string, unknown>; result?: unknown };
+      if (msg.id !== undefined) { answers.get(msg.id)?.(msg.result); return; }
+      if (msg.method === "Runtime.exceptionThrown") said.push(`exception: ${JSON.stringify((msg.params as { exceptionDetails?: unknown }).exceptionDetails).slice(0, 600)}`);
+      if (msg.method === "Runtime.consoleAPICalled") { const p = msg.params as { type: string; args: Array<{ value?: unknown; description?: string }> }; if (p.type === "error" || p.type === "warning") said.push(`console.${p.type}: ${p.args.map((a) => a.value ?? a.description).join(" ").slice(0, 400)}`); }
+      if (msg.method === "Log.entryAdded") { const e = (msg.params as { entry: { level: string; text: string; url?: string } }).entry; if (e.level === "error") said.push(`log: ${e.text.slice(0, 300)} ${e.url ?? ""}`); }
+      if (msg.method === "Network.loadingFailed") said.push(`network failed: ${JSON.stringify(msg.params).slice(0, 300)}`);
+    };
+    const call = (method: string, params: Record<string, unknown> = {}): Promise<unknown> => new Promise((r) => { const n = ++id; answers.set(n, r); ws.send(JSON.stringify({ id: n, method, params })); setTimeout(() => r(null), 5000); });
+    const look = async (when: string): Promise<void> => {
+      const r = (await call("Runtime.evaluate", { expression: "JSON.stringify({ href: location.href, text: document.body ? document.body.innerText.length : -1, html: document.documentElement.outerHTML.length, scripts: [...document.scripts].map(s => s.src || 'inline').slice(0, 8), ready: document.readyState, root: !!document.getElementById('root') })", returnByValue: true })) as { result?: { value?: string } } | null;
+      console.log(`update-proof: diagnosis ${when}: ${r?.result?.value ?? "no answer"}`);
+    };
+    await look("before reload");
+    await call("Runtime.enable"); await call("Log.enable"); await call("Network.enable");
+    await call("Page.reload", { ignoreCache: false });
+    await sleep(8000);
+    await look("after reload");
+    for (const l of said.slice(0, 20)) console.log(`update-proof: diagnosis: ${l}`);
+    if (said.length === 0) console.log("update-proof: diagnosis: no exceptions or console errors");
+    ws.close();
+  } catch (e) { console.log(`update-proof: diagnosis failed: ${String(e)}`); }
+}
+
 // 0. the control: the same installed app with automatic updates off opens to its first screen, so a blank page below is the update's doing and not the install's
 {
   killAll();
-  const run = launch(GOOD, "control", true);
+  const run = launch(GOOD, "control", true, win ? 9339 : 0);
   await run.waitFor(/page rendered: \d+ chars/, 60_000);
   await sleep(4000);
+  if (win) await pageDiagnosis(9339);
   shot("control");
   const chars = Number(/page rendered: (\d+) chars/.exec(run.log())?.[1] ?? "0");
   console.log(`update-proof: control (updates off) rendered ${chars} chars`);
