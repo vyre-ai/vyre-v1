@@ -998,6 +998,12 @@
     },
     {
       "deferred": false,
+      "name": "browser_sites_list",
+      "summary": "The Browser connections: sites agents may use, where each runs, and each agent's right (Read only or Act). A person sees their own; an agent sees the sites that name it",
+      "toolset": "computer"
+    },
+    {
+      "deferred": false,
       "name": "calendar_availability",
       "summary": "Busy blocks for people over a range (the shaded stripes while adding people)",
       "toolset": "inbox"
@@ -5963,6 +5969,12 @@
       "name": "ms_workbook_update_range",
       "summary": "Write a block of cells in an Excel workbook; a single start cell grows to the size of the values",
       "toolset": "files"
+    },
+    {
+      "deferred": false,
+      "name": "my_ai",
+      "summary": "What AI this chat runs on and what else the person may use now: model, account and who paid, each usable account with models and limits (or not readable), and use today and this month. Ask it for what model, what else, what is left, /usage",
+      "toolset": "meta"
     },
     {
       "deferred": false,

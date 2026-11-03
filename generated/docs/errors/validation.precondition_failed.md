@@ -22,6 +22,7 @@ HTTP 422. Retryable: no.
 - automations.promote
 - automations.replay
 - automations.set_enabled
+- browser.sites.set
 - changesets.approve
 - changesets.edit
 - chat.answer_block
@@ -30,4 +31,3 @@ HTTP 422. Retryable: no.
 - chat.fork
 - chat.handoff
 - chat.message_person
-- chat.share

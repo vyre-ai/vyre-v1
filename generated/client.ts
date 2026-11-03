@@ -293,6 +293,19 @@ export function createClient(transport: Transport) {
       list: call("bookings.list", 1),
       page_create: call("bookings.page_create", 1),
     },
+    browser: {
+      cards: {
+        post: call("browser.cards.post", 1),
+      },
+      chrome: {
+        act: call("browser.chrome.act", 1),
+      },
+      sites: {
+        list: call("browser.sites.list", 1),
+        remove: call("browser.sites.remove", 1),
+        set: call("browser.sites.set", 1),
+      },
+    },
     calendar: {
       availability: call("calendar.availability", 1),
       connect_provider: call("calendar.connect_provider", 1),
@@ -780,6 +793,7 @@ export function createClient(transport: Transport) {
       models: {
         list: call("engine.models.list", 1),
       },
+      my_ai: call("engine.my_ai", 1),
       now: call("engine.now", 1),
       placement: {
         decide: call("engine.placement.decide", 1),

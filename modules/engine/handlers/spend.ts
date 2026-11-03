@@ -277,7 +277,7 @@ async function limitCard(ctx: EngineCtx, hit: Hit, who: { agentId: string; threa
 
 export async function recordUsage(
   ctx: EngineCtx,
-  input: { turnId: string; tokensIn: number; tokensOut: number; costMicros: number; itemId?: string },
+  input: { turnId: string; tokensIn: number; tokensOut: number; costMicros: number; model?: string; itemId?: string },
 ): Promise<{ overLimit?: LimitKind }> {
   ensure(ctx.db);
   for (const [field, v] of [["tokensIn", input.tokensIn], ["tokensOut", input.tokensOut], ["costMicros", input.costMicros]] as const) {
@@ -293,7 +293,7 @@ export async function recordUsage(
        tokens_in = engine_usage.tokens_in + excluded.tokens_in,
        tokens_out = engine_usage.tokens_out + excluded.tokens_out,
        cost_micros = engine_usage.cost_micros + excluded.cost_micros`,
-    turn.id, turn.threadId, turn.agentId, turn.asker, turn.model ?? "unknown", at, input.tokensIn, input.tokensOut, input.costMicros,
+    turn.id, turn.threadId, turn.agentId, turn.asker, turn.model ?? input.model ?? "unknown", at, input.tokensIn, input.tokensOut, input.costMicros,
   );
   // the Vault item this turn ran on, as the turn worker got it from engine.account.resolve; the first one seen for a turn stays
   if (input.itemId !== undefined) ctx.db.run("INSERT OR IGNORE INTO engine_usage_item (turn_id, item_id) VALUES (?, ?)", turn.id, input.itemId);

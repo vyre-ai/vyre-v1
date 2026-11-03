@@ -13,16 +13,27 @@ export function modelWords(model: string): string {
   return tail.split(/[-_]/).filter((p) => p !== "").map((p) => (/^[a-z]{2,4}$/.test(p) && !/[aeiou]/.test(p.slice(1)) ? p.toUpperCase() : p.charAt(0).toUpperCase() + p.slice(1))).join(" ");
 }
 
-/** The chat's line for a swap. */
-export function fallbackLine(f: { from: string; to?: string }): string {
-  const asked = MAKER[providerOfModel(f.from) ?? ""] ?? modelWords(f.from);
-  return f.to ? `Ran on ${modelWords(f.to)}; ${asked} isn't on the team key.` : `Ran on the team key's own model; ${asked} isn't on it.`;
+/** A model as a person says it: claude-sonnet-5-5 is Claude Sonnet 5.5. */
+export function modelName(id: string): string {
+  const c = /^claude-([a-z]+)-(\d+)(?:-(\d+))?$/.exec(id);
+  if (c) return `Claude ${c[1]!.charAt(0).toUpperCase()}${c[1]!.slice(1)} ${c[2]}${c[3] ? `.${c[3]}` : ""}`;
+  const g = /^gpt-([\d.]+)(?:-([a-z]+))?$/.exec(id);
+  return g ? `GPT-${g[1]}${g[2] ? ` ${g[2]!.charAt(0).toUpperCase()}${g[2]!.slice(1)}` : ""}` : modelWords(id);
 }
 
-/**
- * Says the swap in the chat, once per chat, agent and swap. It is called when the session opens (space-key-turns.ts), not when the account is picked: a pick can be passed over after this (the person's own
- * account opens, a program is installed) and the line must describe the turn that ran, not one that was only considered.
- */
+/** The line for a turn whose picked model no account that can pay serves: it says so and names what can run. It never runs another model in its place. */
+export function noModelWords(model: string | null, served: readonly string[]): string {
+  const what = model ? modelName(model) : "That model";
+  const list = served.slice(0, 6).map(modelName);
+  return `${what} cannot run here: none of the AI accounts you can use on this server serve it.${list.length > 0 ? ` Models that can: ${list.join(", ")}.` : ""} Pick another model, or run this chat on the computer where your own sign-in is.`;
+}
+
+/** The chat's line for a swap. */
+export function fallbackLine(f: { from: string; to?: string }): string {
+  const asked = modelName(f.from);
+  return f.to ? `${asked} isn't available here, ran ${modelName(f.to)}.` : `${asked} isn't available here, ran the key's own model.`;
+}
+
 export function noteModelFallback(d: { postAs?: PostAs; log?: (msg: string, attrs?: Record<string, unknown>) => void }): (q: { threadId: string; agentId: string; askerId: string }, f: { from: string; to?: string }) => Promise<void> {
   const said = new Set<string>();
   return async (q, f) => {

@@ -527,6 +527,13 @@ function ConversationView(): ReactElement {
       void act.makeTask(data, thread, m, data.newKey()).then(() => undefined, fail("Could not make the task."));  // the card in the thread says it and opens it; the person stays where they are
     },
     files: data,
+    // the buttons on an agent's cards from the person's own Chrome (browser.chrome.act): they act only for the person whose Chrome it is, and say why when it is not open here
+    chrome: {
+      send: async (h, edits) => { const r = (await data.call("browser.chrome.act", { action: "send", agentId: h.agentId, heldId: h.heldId, ...(edits ? { edits } : {}), threadId: thread.threadId, idempotencyKey: `chrsend:${h.heldId}` })) as { done: boolean }; return { sent: r.done }; },
+      drop: async (h) => { await data.call("browser.chrome.act", { action: "drop", agentId: h.agentId, heldId: h.heldId, threadId: thread.threadId, summary: h.summary, idempotencyKey: `chrdrop:${h.heldId}` }); },
+      watch: async (agentId) => { await data.call("browser.chrome.act", { action: "watch", agentId, idempotencyKey: data.newKey() }); },
+      takeOver: async (agentId) => { await data.call("browser.chrome.act", { action: "takeover", agentId, idempotencyKey: data.newKey() }); },
+    },
     // an agent's message for its person, read by the teammate it went to: they can mute that person's agents for the rest of their day (lane l-agentdm)
     agentMute: {
       me: data.me.id,
@@ -693,7 +700,7 @@ function ConversationView(): ReactElement {
 
       {data.waitingLine ?? null}
       <AsideList items={asides} onDismiss={(id) => setAsides((cur) => cur.filter((x) => x.id !== id))} />
-      <QueueWaiting ids={queuedIdsNow} call={data.call} threadId={thread.threadId}>{(waiting) => (q && waiting.length > 0 ? (<View testID="queue-row" style={st.queueRow}><Text testID="queue-note" accessibilityLiveRegion="polite" style={st.queue}>{queueNote(waiting.length, lead ? nameOf(lead.agentId) : "", canSteer)}</Text>{waiting.length > 0 ? <TextButton link label="Edit" testID="queue-edit" onPress={() => { const id = waiting[waiting.length - 1]!; const words = timelineMessages.find((m) => m.messageId === id)?.body ?? ""; void act.takeBackQueued(data, thread.threadId, id).then((ok) => { if (ok) { setPending((cur) => cur.filter((p) => p.messageId !== id)); setSeed((s) => ({ n: s.n + 1, value: words })); } else say("It was already read, so it cannot be edited now."); }, fail("Could not take it back.")); }} /> : null}{waiting.length > 0 ? <TextButton link label="Stop and send" testID="queue-send-now" onPress={() => void act.sendQueuedNow(data, thread.threadId, waiting[0]!).catch(fail("Could not send it now."))} /> : null}</View>) : null)}</QueueWaiting>
+      <QueueWaiting ids={queuedIdsNow} call={data.call} threadId={thread.threadId}>{(waiting) => (q && waiting.length > 0 ? (<View testID="queue-row" style={st.queueRow}><Text testID="queue-note" accessibilityLiveRegion="polite" style={st.queue}>{queueNote(waiting.length, lead ? nameOf(lead.agentId) : "", canSteer, ownTurn)}</Text>{waiting.length > 0 ? <TextButton link label="Edit" testID="queue-edit" onPress={() => { const id = waiting[waiting.length - 1]!; const words = timelineMessages.find((m) => m.messageId === id)?.body ?? ""; void act.takeBackQueued(data, thread.threadId, id).then((ok) => { if (ok) { setPending((cur) => cur.filter((p) => p.messageId !== id)); setSeed((s) => ({ n: s.n + 1, value: words })); } else say("It was already read, so it cannot be edited now."); }, fail("Could not take it back.")); }} /> : null}{waiting.length > 0 ? <TextButton link label="Stop and send" testID="queue-send-now" onPress={() => void act.sendQueuedNow(data, thread.threadId, waiting[0]!).catch(fail("Could not send it now."))} /> : null}</View>) : null)}</QueueWaiting>
       {unanswered ? (
         <View testID="no-agent-line" style={st.lineBox}>
           <Pressable
@@ -827,7 +834,7 @@ const st = StyleSheet.create({
   earlier: { alignItems: "center", paddingVertical: 10 },
   toLatest: { position: "absolute", alignSelf: "center", bottom: 10, height: 30, flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, borderRadius: 15, borderWidth: 1, borderColor: "var(--line-2)" as string, backgroundColor: "var(--win)" as string },
   toLatestText: { fontSize: 12.5, color: "var(--ink-2)" as string },
-  queueRow: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10, paddingHorizontal: 24, paddingVertical: 4 },
+  queueRow: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", justifyContent: "center", columnGap: 10, rowGap: 2, paddingHorizontal: 24, paddingVertical: 4 },
   queue: { fontSize: 12.5, color: "var(--ink-3)" as string, textAlign: "center" },
   lineBox: { paddingHorizontal: 24, paddingVertical: 4, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 },
   lineText: { fontSize: 12.5, color: "var(--ink-2)" as string },

@@ -7756,6 +7756,21 @@
     },
     {
       "blocks": [],
+      "cap": "browser.sites.list",
+      "deferred": false,
+      "description": "The Browser connections: sites agents may use, where each runs, and each agent's right (Read only or Act). A person sees their own; an agent sees the sites that name it",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "browser_sites_list",
+      "planMode": "allowed",
+      "toolset": "computer",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "calendar.availability",
       "deferred": false,
       "description": "Busy blocks for people over a range (the shaded stripes while adding people)",
@@ -41183,6 +41198,36 @@
       "name": "ms_workbook_update_range",
       "planMode": "blocked",
       "toolset": "files",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "engine.my_ai",
+      "deferred": false,
+      "description": "What AI this chat runs on and what else the person may use now: model, account and who paid, each usable account with models and limits (or not readable), and use today and this month. Ask it for what model, what else, what is left, /usage",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          },
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "name": "my_ai",
+      "planMode": "allowed",
+      "toolset": "meta",
       "v": 1
     },
     {

@@ -40,6 +40,7 @@ const modelInfo = t.obj({
   efforts: t.opt(t.arr(t.str({ description: 'A reasoning-effort level the vendor offers for this model, in its words', examples: ['high'] }))),
   defaultEffort: t.opt(t.str({ examples: ['medium'] })),
 });
+const myUse = t.obj({ turns: t.int(), input: t.int({ description: 'New input tokens: what the provider did not serve from its cache' }), cachedInput: t.int(), output: t.int(), costMicros: t.int() });
 const accountRow = t.obj({
   ref: accountRef, driver: driverId, kind: t.enm('api_key', 'subscription'), title: t.str(), name: t.opt(t.str({ description: 'The name the person gave this account in the Vault; title is the provider', examples: ['Dana Claude Max'] })), mine: t.bool(), ownerId: t.opt(id.user),
   status: t.enm('ok', 'expired', 'failed', 'untested'), lastProbeAt: t.opt(t.ts()),
@@ -65,7 +66,7 @@ const toolTrace = t.obj({ id: t.str(), name: t.str(), detail: t.opt(t.str()), st
 const turnInfoIn = t.obj({
   effort: t.opt(t.str({ examples: ['high'] })),
   account: t.opt(t.obj({ ref: accountRef, driver: t.str(), provider: t.str(), kind: t.enm('api_key', 'subscription'), shared: t.opt(t.bool()), spaceKey: t.opt(t.bool()) })),
-  firstTokenAt: t.opt(t.ts()), cacheReadTokens: t.opt(t.int()), cacheWriteTokens: t.opt(t.int()), reasoningTokens: t.opt(t.int()),
+  firstTokenAt: t.opt(t.ts()), cacheReadTokens: t.opt(t.int()), cacheWriteTokens: t.opt(t.int()), reasoningTokens: t.opt(t.int()), contextTokens: t.opt(t.int()),
   costUsd: t.opt(t.num({ description: 'The provider\'s own price for the turn, when every call reported one' })),
   paid: t.opt(t.str({ description: 'Who paid and why, in a plain line' })),
   tools: t.arr(toolTrace), switches: t.arr(t.obj({ at: t.ts(), from: t.str(), to: t.str(), why: t.str() })),
@@ -248,7 +249,7 @@ export default defineManifest({
       out: { turn: turnRow }, emits: ['turn.completed', 'turn.failed', 'turn.cancelled', 'agent.task_finished', 'agent.blocked'], idem: 'natural', risk: 'low',
     }),
     write('engine.turn.record_usage', 'Meter usage during a turn; over an agent.toml or Space limit it stops the turn and raises agent.limit_hit', {
-      in: { turnId: id.turn, tokensIn: t.int(), tokensOut: t.int(), costMicros: t.int(), itemId: t.opt(id.vaultItem) },
+      in: { turnId: id.turn, tokensIn: t.int(), tokensOut: t.int(), costMicros: t.int(), model: t.opt(t.str({ description: 'The model the turn ran when its record names none: the engine\'s own default, said so' })), itemId: t.opt(id.vaultItem) },
       out: { overLimit: t.opt(t.enm('run', 'day', 'month', 'turns', 'time')) }, emits: ['agent.limit_hit'], idem: 'none', risk: 'low',
     }),
     write('engine.turn.fallback', 'Record a fallback during a turn error: another model or the backup key', {
@@ -294,7 +295,9 @@ export default defineManifest({
         pin: t.opt(t.obj({ ref: accountRef, used: t.bool(), why: t.opt(t.enm('unknown', 'expired', 'failed', 'policy_company', 'not_yours', 'space_may_not_use', 'failed_this_turn', 'capped', 'no_model', 'not_used_for')) }, { description: 'The account the chat, agent or step is pinned to; when it did not pay, why' })),
         cappedFrom: t.opt(accountRef),
         via: t.opt({ ...t.enm('thread', 'chat_key', 'work', 'step', 'space', 'backup'), description: 'Which rule chose the account when it was not the asker\'s own: the chat\'s pick, the agent\'s Chat key, its own-work account, a step\'s account, a Space account kept for the work, or a backup' }),
-        why: t.opt({ ...t.enm('no_account', 'expired', 'failed', 'policy'), description: 'When no account can pay: why. expired and failed name the person\'s own account' }),
+        why: t.opt({ ...t.enm('no_account', 'expired', 'failed', 'policy', 'no_model'), description: 'When no account can pay: why. expired and failed name the person\'s own account; no_model means the model picked in the composer is served by no account that can pay, and servedModels lists what those accounts serve' }),
+        model: t.opt(t.str({ description: 'With why no_model: the model that was picked' })),
+        servedModels: t.opt(t.arr(t.str(), { description: 'With why no_model: the models the accounts that could pay do serve' })),
         modelFallback: t.opt(t.obj({ from: t.str({ description: 'The model the chat asked for' }), to: t.opt(t.str({ description: 'The account\'s default model the turn runs on instead; absent: the engine\'s own default for that account' })) }, { description: 'No account that serves the chat\'s model could pay: a team chat or agent work runs on this account\'s default model, and the chat says so' })),
       }, on: ['thread', '/threadId'],
     }),
@@ -327,6 +330,18 @@ export default defineManifest({
         }, { description: 'What the latest turn of this chat ran on, which can differ from the account shown above when the account that would pay now is not the one that paid then' })),
       },
       on: ['thread', '/threadId'], tool: 'meta', errors: ['validation.not_found'],
+    }),
+    read('engine.my_ai', 'What AI this chat runs on and what else the person may use now: model, account and who paid, each usable account with models and limits (or not readable), and use today and this month. Ask it for what model, what else, what is left, /usage', {
+      in: { threadId: t.opt(id.thread), agentId: t.opt(id.agent) },
+      out: {
+        running: t.opt(t.rec()),
+        accounts: t.arr(t.obj({
+          ref: accountRef, name: t.str(), provider: t.str(), kind: t.enm('api_key', 'subscription'), usable: t.bool(), why: t.opt(t.str()), models: t.arr(t.str()),
+          limits: t.obj({ state: t.enm('read', 'not_readable'), session: t.opt(t.obj({ pct: t.num(), resetsAt: t.opt(t.ts()) })), week: t.opt(t.obj({ pct: t.num(), resetsAt: t.opt(t.ts()) })), note: t.opt(t.str()) }),
+        })),
+        use: t.obj({ today: myUse, month: myUse }),
+      },
+      tool: 'meta', mcpName: 'my_ai',
     }),
     read('engine.probe_account', 'Test an account: reachable, signed in, models it can use', {
       in: { accountRef }, out: { ok: t.bool(), models: t.opt(t.int()), error: t.opt(errShape) }, tool: 'meta', errors: ['provider.auth_failed', 'provider.unavailable', 'provider.network'],

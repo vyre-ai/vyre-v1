@@ -4715,6 +4715,76 @@ export type BookingsPageCreateOut = {
     submissions: number;
   };
 };
+export type BrowserCardsPostIn = {
+  threadId: string;
+  block: {
+    type: "chrome_held" | "chrome_step";
+    data: unknown;
+  };
+  idempotencyKey: string;
+};
+export type BrowserCardsPostOut = {
+  posted: boolean;
+};
+export type BrowserChromeActIn = {
+  action: "send" | "drop" | "watch" | "takeover";
+  agentId: string;
+  heldId?: string;
+  edits?: {
+    to?: string;
+    subject?: string;
+    message?: string;
+  };
+  threadId?: string;
+  summary?: string;
+  idempotencyKey: string;
+};
+export type BrowserChromeActOut = {
+  done: boolean;
+  already?: boolean;
+};
+export type BrowserSitesListIn = Record<string, unknown>;
+export type BrowserSitesListOut = {
+  sites: Array<{
+      id: string;
+      host: string;
+      runsIn: "chrome" | "computers" | "both";
+      rights: Array<{
+          agentId: string;
+          right: "read" | "act";
+        }>;
+      at: number;
+      updatedAt: number;
+    }>;
+};
+export type BrowserSitesRemoveIn = {
+  siteId: string;
+};
+export type BrowserSitesRemoveOut = {
+  ok: boolean;
+};
+export type BrowserSitesSetIn = {
+  host: string;
+  runsIn: "chrome" | "computers" | "both";
+  rights: Array<{
+      agentId: string;
+      right: "read" | "act";
+    }>;
+  idempotencyKey: string;
+};
+export type BrowserSitesSetOut = {
+  site: {
+    id: string;
+    host: string;
+    runsIn: "chrome" | "computers" | "both";
+    rights: Array<{
+        agentId: string;
+        right: "read" | "act";
+      }>;
+    at: number;
+    updatedAt: number;
+  };
+};
 export type CalendarAvailabilityIn = {
   people: Array<string>;
   from: number;
@@ -6949,12 +7019,13 @@ export type ChatReplyDetailsOut = {
       tokens: {
         in: number;
         out: number;
+        context?: number;
         cacheRead?: number;
         cacheWrite?: number;
         reasoning?: number;
       };
       cost?: {
-        source: "subscription" | "reported" | "catalog" | "unknown";
+        source: "subscription" | "reported" | "catalog" | "estimate" | "unknown";
         micros?: number;
         lines?: Array<{
             kind: "input" | "output" | "cache_read" | "cache_write";
@@ -10052,7 +10123,9 @@ export type EngineAccountResolveOut = {
   };
   cappedFrom?: string;
   via?: "thread" | "chat_key" | "work" | "step" | "space" | "backup";
-  why?: "no_account" | "expired" | "failed" | "policy";
+  why?: "no_account" | "expired" | "failed" | "policy" | "no_model";
+  model?: string;
+  servedModels?: Array<string>;
   modelFallback?: {
     from: string;
     to?: string;
@@ -10622,6 +10695,50 @@ export type EngineModelsListOut = {
     failed: boolean;
   };
 };
+export type EngineMyAiIn = {
+  threadId?: string;
+  agentId?: string;
+};
+export type EngineMyAiOut = {
+  running?: Record<string, unknown>;
+  accounts: Array<{
+      ref: string;
+      name: string;
+      provider: string;
+      kind: "api_key" | "subscription";
+      usable: boolean;
+      why?: string;
+      models: Array<string>;
+      limits: {
+        state: "read" | "not_readable";
+        session?: {
+          pct: number;
+          resetsAt?: number;
+        };
+        week?: {
+          pct: number;
+          resetsAt?: number;
+        };
+        note?: string;
+      };
+    }>;
+  use: {
+    today: {
+      turns: number;
+      input: number;
+      cachedInput: number;
+      output: number;
+      costMicros: number;
+    };
+    month: {
+      turns: number;
+      input: number;
+      cachedInput: number;
+      output: number;
+      costMicros: number;
+    };
+  };
+};
 export type EngineNowIn = Record<string, unknown>;
 export type EngineNowOut = {
   working: Array<{
@@ -11132,12 +11249,13 @@ export type EngineTurnOfMessageOut = {
     tokens: {
       in: number;
       out: number;
+      context?: number;
       cacheRead?: number;
       cacheWrite?: number;
       reasoning?: number;
     };
     cost?: {
-      source: "subscription" | "reported" | "catalog" | "unknown";
+      source: "subscription" | "reported" | "catalog" | "estimate" | "unknown";
       micros?: number;
       lines?: Array<{
           kind: "input" | "output" | "cache_read" | "cache_write";
@@ -11204,6 +11322,7 @@ export type EngineTurnRecordIn = {
     cacheReadTokens?: number;
     cacheWriteTokens?: number;
     reasoningTokens?: number;
+    contextTokens?: number;
     costUsd?: number;
     paid?: string;
     tools: Array<{
@@ -11261,6 +11380,7 @@ export type EngineTurnRecordUsageIn = {
   tokensIn: number;
   tokensOut: number;
   costMicros: number;
+  model?: string;
   itemId?: string;
 };
 export type EngineTurnRecordUsageOut = {
@@ -39421,6 +39541,7 @@ export type VaultItemsMatchOut = {
         updatedAt: number;
       };
       usernameField?: string;
+      username?: string;
     }>;
 };
 export type VaultPolicyGetIn = Record<string, unknown>;
@@ -40333,6 +40454,11 @@ export interface CapMap {
   "bookings.cancel": { in: BookingsCancelIn; out: BookingsCancelOut };
   "bookings.list": { in: BookingsListIn; out: BookingsListOut };
   "bookings.page_create": { in: BookingsPageCreateIn; out: BookingsPageCreateOut };
+  "browser.cards.post": { in: BrowserCardsPostIn; out: BrowserCardsPostOut };
+  "browser.chrome.act": { in: BrowserChromeActIn; out: BrowserChromeActOut };
+  "browser.sites.list": { in: BrowserSitesListIn; out: BrowserSitesListOut };
+  "browser.sites.remove": { in: BrowserSitesRemoveIn; out: BrowserSitesRemoveOut };
+  "browser.sites.set": { in: BrowserSitesSetIn; out: BrowserSitesSetOut };
   "calendar.availability": { in: CalendarAvailabilityIn; out: CalendarAvailabilityOut };
   "calendar.connect_provider": { in: CalendarConnectProviderIn; out: CalendarConnectProviderOut };
   "calendar.create_calendar": { in: CalendarCreateCalendarIn; out: CalendarCreateCalendarOut };
@@ -40685,6 +40811,7 @@ export interface CapMap {
   "engine.mcp.read": { in: EngineMcpReadIn; out: EngineMcpReadOut };
   "engine.mcp.tools": { in: EngineMcpToolsIn; out: EngineMcpToolsOut };
   "engine.models.list": { in: EngineModelsListIn; out: EngineModelsListOut };
+  "engine.my_ai": { in: EngineMyAiIn; out: EngineMyAiOut };
   "engine.now": { in: EngineNowIn; out: EngineNowOut };
   "engine.placement.decide": { in: EnginePlacementDecideIn; out: EnginePlacementDecideOut };
   "engine.placement.options": { in: EnginePlacementOptionsIn; out: EnginePlacementOptionsOut };
@@ -42515,6 +42642,12 @@ export type BookingCreatedPayload = {
   bookingId: string;
   formId: string;
   recordId: string;
+};
+export type BrowserSiteChangedPayload = {
+  siteId: string;
+  host: string;
+  runsIn: "chrome" | "computers" | "both";
+  removed: boolean;
 };
 export type CalendarCreatedPayload = {
   calendarId: string;
@@ -46158,6 +46291,7 @@ export interface EventMap {
   "block.waiting": BlockWaitingPayload;
   "booking.cancelled": BookingCancelledPayload;
   "booking.created": BookingCreatedPayload;
+  "browser.site_changed": BrowserSiteChangedPayload;
   "calendar.created": CalendarCreatedPayload;
   "calendar.synced": CalendarSyncedPayload;
   "calendar_event.created": CalendarEventCreatedPayload;

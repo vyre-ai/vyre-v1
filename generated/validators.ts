@@ -7,6 +7,7 @@ import { validators as m_agents, eventValidators as m_agents_ev } from './valida
 import { validators as m_audit, eventValidators as m_audit_ev } from './validators/audit.ts';
 import { validators as m_automations, eventValidators as m_automations_ev } from './validators/automations.ts';
 import { validators as m_backup, eventValidators as m_backup_ev } from './validators/backup.ts';
+import { validators as m_browser, eventValidators as m_browser_ev } from './validators/browser.ts';
 import { validators as m_calendar, eventValidators as m_calendar_ev } from './validators/calendar.ts';
 import { validators as m_chat, eventValidators as m_chat_ev } from './validators/chat.ts';
 import { validators as m_computers, eventValidators as m_computers_ev } from './validators/computers.ts';
@@ -89,6 +90,7 @@ export const validators: Record<string, { in: Check; out: Check }> = {
   ...m_audit,
   ...m_automations,
   ...m_backup,
+  ...m_browser,
   ...m_calendar,
   ...m_chat,
   ...m_computers,
@@ -170,6 +172,7 @@ export const eventValidators: Record<string, Check> = {
   ...m_audit_ev,
   ...m_automations_ev,
   ...m_backup_ev,
+  ...m_browser_ev,
   ...m_calendar_ev,
   ...m_chat_ev,
   ...m_computers_ev,
