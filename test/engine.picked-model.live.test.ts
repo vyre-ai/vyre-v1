@@ -6,16 +6,16 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import { boot, hostLog, seededDir, waitFor } from "./memory-live-kit.ts";
-import { SPACE_KEY, api, connectClaude, door, join, ok, standIn, vendor } from "./member-key-kit.ts";
+import { api, connectClaude, door, join, ok, standIn } from "./member-key-kit.ts";
+import { fakeSpaceKey, setSpaceKey } from "./support/space-key-endpoint.ts";
 
 test("Sonnet picked on a Team server: unlocked it runs on her own sign-in; locked it refuses in one plain line and the Space key runs nothing", { timeout: 120_000 }, async () => {
-  const stub = await vendor();
+  const stub = await fakeSpaceKey();
   const dir = seededDir();
   const d = await boot(dir, standIn, undefined, { vault: undefined } as unknown as NonNullable<Parameters<typeof boot>[3]>);
   try {
     await fetch(`${d.url}/local/vault/key/unlock`, { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${d.token}` }, body: JSON.stringify({ key: Buffer.alloc(32, 3).toString("base64") }) });
-    const ep = await ok(d, d.token, "providers.custom_add", { name: "Stub Go", baseUrl: stub.base, apiKey: SPACE_KEY, scope: "mine" });
-    await ok(d, d.token, "providers.space_key.set", { providerKey: ep.endpoint.key, apiKey: SPACE_KEY });
+    await setSpaceKey(d, d.token, stub);
     const agentId = (await ok(d, d.token, "agents.create", { name: "Spark", role: "You help the team." })).agent.agentId as string;
     const rubab = await join(d, "rubab");
     assert.equal((await door(d, rubab.token, "unlock", rubab.personKey)).status, 204);
