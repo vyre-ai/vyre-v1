@@ -98,6 +98,8 @@ The fallback is WSL2 with bwrap, when it is already installed. Last resort: the 
 - MCP: the loopback URL, with the session token the opener mints. The token is the session's own (mcp.session.mint with the agent as principal, acting for the asker, for one thread). It expires by itself and is revoked when the warm session closes. It grants nothing beyond that session's MCP calls.
 - Git Bash: MSYS2 keeps its state in a kernel object folder named after its installation. A Low engine cannot open the one a normal-integrity Git Bash made, which the windows-latest proof hit. The engine therefore gets its own copy of Git's `usr\bin` and `etc` (`sandbox/src/win/msys.ts`). The copy is readable and not writable, and `CLAUDE_CODE_GIT_BASH_PATH` points at it. Git itself stays the person's.
 
+- One person's own agents are not isolated from each other under E. Integrity levels cannot separate two Low processes of the same user, so agent A can read agent B's folder. This was decided on 3 Nov 2026: it is the same person's data, and Personal is zero friction. Anything that needs isolation from other people (a Team Space turn on a member's computer) uses option B.
+
 ### Vyre's own data at rest (audit, 3 Nov 2026)
 
 What a Low process could read before E's labels:
