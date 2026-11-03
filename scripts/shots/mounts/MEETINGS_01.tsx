@@ -1,7 +1,7 @@
 // Mount for MEETINGS_01: Inbox > Meetings over the Northwind sample (invented people). The sidebar's Meetings row says one meeting is ready to close. ?view=list shows the tab: the renewal call
 // ready to close, a weekly sync with nothing to do, a closed kickoff and one still being prepared. ?view=package opens the renewal call: the summary, the decision and the open question, two
 // tasks (one already created, with its link), Pat's record update with the field change and the meeting note, the follow-up email and the next-meeting hold (skipped, with Undo). Writes answer
-// nothing here, so the screen stays as drawn. ?at=email scrolls down to the email and the hold. On a phone the tab fills the screen with no sidebar.
+// nothing here, so the screen stays as drawn. ?at=email scrolls down to the email and the hold; ?edit=mci_e1 opens the email's fields in place. On a phone the tab fills the screen with no sidebar.
 import { useEffect, useMemo } from "react";
 import type { ReactNode } from "react";
 import { View, useWindowDimensions } from "react-native";
@@ -64,9 +64,14 @@ export default function Mount(): ReactNode {
   const data = useMemo<InboxData>(() => ({ ...sample.data, me: ME, call: (cap, input) => (cap.startsWith("meetings.") ? Promise.resolve({}) : sample.data.call(cap, input)) }), [sample]);
   const openId = q.get("view") === "package" ? RENEWAL : null;
   // ?at=email scrolls the package down to the follow-up email and the hold
+  // ?edit=<item> presses that item's Edit, so the shot shows its fields in place
   useEffect(() => {
-    if (q.get("at") !== "email") return;
-    const t = setTimeout(() => (globalThis as { document?: { querySelector(s: string): { scrollIntoView(o?: unknown): void } | null } }).document?.querySelector("[data-testid='section-email']")?.scrollIntoView({ block: "start" }), 300);
+    const doc = (globalThis as { document?: { querySelector(s: string): { scrollIntoView(o?: unknown): void; click(): void } | null } }).document;
+    const t = setTimeout(() => {
+      const edit = q.get("edit");
+      if (edit) doc?.querySelector(`[data-testid='edit-${edit}']`)?.click();
+      if (q.get("at") === "email") setTimeout(() => doc?.querySelector("[data-testid='section-email']")?.scrollIntoView({ block: "start" }), 100);
+    }, 300);
     return () => clearTimeout(t);
   }, [q]);
   const tab = (

@@ -20,6 +20,13 @@
       "proto": "inbox,{skin}",
       "waitFor": "[data-testid='section-email']",
       "note": "Further down the same close-out: the follow-up email to Pat (To, subject, the words, Send it with its menu) and the next-meeting hold, skipped, with Undo."
+    },
+    {
+      "id": "MEETINGS_01-edit",
+      "route": "/m/MEETINGS_01?view=package&at=email&edit=mci_e1",
+      "proto": "inbox,{skin}",
+      "waitFor": "[data-testid='edit-text-mci_e1']",
+      "note": "Edit on the follow-up email: the subject and the words become fields in place, with Cancel and Save; nothing else on the page moves."
     }
   ]
 }

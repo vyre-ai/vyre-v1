@@ -217,7 +217,7 @@ function ItemCard({ item, api }: { item: Item; api: ItemApi }): ReactElement {
         <View key={ch.field} style={st.change} testID={`change-${item.itemId}-${ch.field}`}>
           <Text style={st.changeField}>{ch.title}</Text>
           {ch.from ? <><Text style={st.changeFrom} numberOfLines={1}>{ch.from}</Text><Text style={st.arrow}>{"→"}</Text></> : null}
-          {editing ? <Field value={val(`ch:${ch.field}`, ch.to)} onChange={set(`ch:${ch.field}`)} label={ch.title} /> : <Text style={st.changeTo} numberOfLines={1}>{ch.to}</Text>}
+          {editing ? <Field value={val(`ch:${ch.field}`, ch.to)} onChange={set(`ch:${ch.field}`)} label={ch.title} /> : <Text style={st.changeTo} numberOfLines={2}>{ch.to}</Text>}
         </View>,
       );
     }
@@ -243,7 +243,7 @@ function ItemCard({ item, api }: { item: Item; api: ItemApi }): ReactElement {
         {editing ? <Field value={val("startsAt", isoMinute(item.startsAt, api.offsetMin))} onChange={set("startsAt")} label="Starts, 2026-11-07 15:00" onEnter={save} testID={`edit-start-${item.itemId}`} /> : (
           <Text style={st.itemMeta}>{item.startsAt !== undefined ? `${dayLabel(item.startsAt, api.offsetMin, true)}${item.endsAt !== undefined ? ` for ${Math.round((item.endsAt - item.startsAt) / 60_000)} minutes` : ""}` : ""}</Text>
         )}
-        <Text style={st.itemQuiet}>A hold on your calendar. Nobody is invited until you send it.</Text>
+        <Text style={st.itemQuiet}>A hold on your own calendar. Nobody is invited.</Text>
       </View>
     );
   }
@@ -428,7 +428,7 @@ const st = StyleSheet.create({
   metaRow: { flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap" },
   pick: { flexDirection: "row", alignItems: "center", gap: 5, height: 26, paddingHorizontal: 6, marginLeft: -6, borderRadius: 6 },
   change: { flexDirection: "row", alignItems: "center", gap: 6, minHeight: 22 },
-  changeField: { fontSize: 12.5, color: "var(--ink-3)" as string, minWidth: 90 },
+  changeField: { fontSize: 12.5, color: "var(--ink-3)" as string, minWidth: 76 },
   changeFrom: { fontSize: 12.5, color: "var(--ink-3)" as string, textDecorationLine: "line-through", flexShrink: 1 },
   arrow: { fontSize: 12.5, color: "var(--ink-4)" as string },
   changeTo: { fontSize: 12.5, fontWeight: "500", color: "var(--ink)" as string, flexShrink: 1 },
@@ -443,7 +443,7 @@ const st = StyleSheet.create({
   btnText: { fontSize: 12.5, fontWeight: "500", color: "var(--ink)" as string },
   btnTextPrimary: { color: "var(--win)" as string },
   input: { minHeight: 30, paddingHorizontal: 9, paddingVertical: 5, borderRadius: 7, borderWidth: 1, borderColor: "var(--field-line)" as string, backgroundColor: "var(--field)" as string, fontSize: 13, color: "var(--ink)" as string, outlineStyle: "none" as "none", flexGrow: 1, minWidth: 140 },
-  inputMulti: { minHeight: 120, textAlignVertical: "top" as "top" },
+  inputMulti: { minHeight: 200, textAlignVertical: "top" as "top" },
   skRow: { flexDirection: "row", alignItems: "center", gap: 12, height: 62, paddingHorizontal: 18 },
   skTile: { width: 32, height: 32, borderRadius: 8, backgroundColor: "var(--hover)" as string },
   skLines: { flex: 1, gap: 6 },
