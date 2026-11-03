@@ -126,11 +126,11 @@ test("a question that was answered wakes the work it blocked, once", async () =>
   assert.deepEqual(await s2.run("task.transitioned", "tsk_q2"), [DOER], "a block that was canceled also gives the work back");
 });
 
-test("a request is not work: it wakes nobody, and neither does a missing task", async () => {
+test("a request an agent holds wakes it like work does (l-tasks); a missing task wakes nobody", async () => {
   const s = scene({ tsk_a1: task({ id: "tsk_a1", kind: "approve" }) });
-  assert.deepEqual(await s.run("task.created", "tsk_a1"), []);
+  assert.deepEqual(await s.run("task.created", "tsk_a1"), [DOER]);
+  assert.deepEqual(await s.run("task.created", "tsk_a1"), [], "the same baton is not woken twice");
   assert.deepEqual(await s.run("task.created", "tsk_gone"), []);
-  assert.equal(s.provider.specs.length, 0);
 });
 
 test("with no thread yet, the thread is made first, in the asker's name", async () => {
