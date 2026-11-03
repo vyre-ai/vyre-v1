@@ -8529,7 +8529,7 @@
     {
       "deferred": false,
       "name": "tasks_working_notes_set",
-      "summary": "Write a working note (key and value) that any person or agent on the task can read",
+      "summary": "Write a working note (key and value) that any person or agent on the task can read; send expectedFrom, the note as you last read it",
       "toolset": "tasks"
     },
     {

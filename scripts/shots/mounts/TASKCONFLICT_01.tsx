@@ -14,18 +14,18 @@ const NOW = Date.UTC(2026, 10, 3, 9, 30);
 const DAY = 86_400_000;
 const ME = "usr_irfad";
 const PEOPLE = [{ id: ME, name: "Irfad Imtiaz", kind: "person" }, { id: "usr_sara", name: "Sara Khan", kind: "person" }, { id: "agt_mira", name: "Mira", kind: "agent" }];
-type Row = Record<string, unknown>;
-const TASK: Row = {
-  id: "tsk_1", key: "NW-47", kind: "work", state: "doing", blocked: false, blocks: [], actions: [], labels: [], dependsOn: [], fileIds: [], followers: [ME, "usr_sara"], reviewLoops: 0,
-  title: "Draft the renewal note", assigned: { kind: "agent", id: "agt_mira" }, reviewer: { kind: "person", id: ME }, createdBy: ME, version: 4, due: NOW + 3 * DAY, priority: "high",
-  workingNotes: { brief: OLD_BRIEF }, createdAt: NOW - 2 * DAY, updatedAt: NOW - 3_600_000,
-};
 const OLD_BRIEF = "Short note to Dana covering the new term and what changes. Keep pricing out until Sara signs off.";
 const SARA_BRIEF = "Short note to Dana covering the new term. Pricing stays out until Sara signs off.";
 const MINE_BRIEF = "Short note to Dana covering the new term and what changes. Pricing goes in as a table at the end.";
 const LONG_BASE = "Note to Dana covering the new twelve month term, the retainer, the two filing dates and the fee schedule, with each change from last year's engagement letter listed on its own line so she can check them one by one before she signs. ";
 const SARA_LONG = `${LONG_BASE}Pricing stays out until Sara has signed off the figures.`;
 const MINE_LONG = `${LONG_BASE}Pricing goes in as a table at the end, after Sara signed off the figures.`;
+type Row = Record<string, unknown>;
+const TASK: Row = {
+  id: "tsk_1", key: "NW-47", kind: "work", state: "doing", blocked: false, blocks: [], actions: [], labels: [], dependsOn: [], fileIds: [], followers: [ME, "usr_sara"], reviewLoops: 0,
+  title: "Draft the renewal note", assigned: { kind: "agent", id: "agt_mira" }, reviewer: { kind: "person", id: ME }, createdBy: ME, version: 4, due: NOW + 3 * DAY, priority: "high",
+  workingNotes: { brief: OLD_BRIEF }, createdAt: NOW - 2 * DAY, updatedAt: NOW - 3_600_000,
+};
 const CURRENT: Row = { title: "Draft the renewal note", due: NOW + 3 * DAY, priority: "high", brief: SARA_BRIEF };
 
 interface RootLike { setAttribute(name: string, value: string): void; style: { setProperty(name: string, value: string): void; removeProperty(name: string): void } }

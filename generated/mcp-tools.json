@@ -60018,12 +60018,12 @@
       "blocks": [],
       "cap": "tasks.working_notes.set",
       "deferred": false,
-      "description": "Write a working note (key and value) that any person or agent on the task can read",
+      "description": "Write a working note (key and value) that any person or agent on the task can read; send expectedFrom, the note as you last read it",
       "effects": "write",
       "inputSchema": {
         "properties": {
           "expectedFrom": {
-            "description": "The value of this note the writer started from (empty when there was none). When the note holds something else now, nothing is written and the refusal says what it holds",
+            "description": "The note as you last read it, empty when it had none. If someone changed the note since, nothing is written and the refusal gives the current note: make your change again on top of it (a list note, Done means or its ticks, is merged for an agent). Without it an agent may only append to the note",
             "type": "string"
           },
           "key": {

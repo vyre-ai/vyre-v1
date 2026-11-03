@@ -1,6 +1,6 @@
 # tasks.working_notes.set
 
-Write a working note (key and value) that any person or agent on the task can read
+Write a working note (key and value) that any person or agent on the task can read; send expectedFrom, the note as you last read it
 
 | | |
 |---|---|

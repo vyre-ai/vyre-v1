@@ -69,3 +69,35 @@ test("a note written from an old value is refused with what the note holds now a
   await h.call("tasks.working_notes.set", { taskId: made.id, key: "brief", value: "Agent's brief" }, { id: bob.id });
   assert.equal((await h.call("tasks.get", { taskId: made.id }, me)).task.workingNotes.brief, "Agent's brief");
 });
+
+const agent = { id: "agt_bot", kind: "agent" as const };
+test("an agent that read a note and writes it back after a person saved is refused with the current note, and the person's edit survives", async () => {
+  const h = harness();
+  const made = (await h.call("tasks.create", newTask({ assigned: { kind: "agent", id: "agt_bot" } }), me)).task;
+  await h.call("tasks.working_notes.set", { taskId: made.id, key: "brief", value: "First" }, agent);   // an empty note: an append
+  // the agent reads "First"; Alice saves; the agent writes the whole note back
+  await h.call("tasks.working_notes.set", { taskId: made.id, key: "brief", value: "Alice's brief", expectedFrom: "First" }, me);
+  await assert.rejects(h.call("tasks.working_notes.set", { taskId: made.id, key: "brief", value: "First, made longer by the agent", expectedFrom: "First" }, agent), (e) => {
+    const d = (e as { error?: { details?: Record<string, unknown> }; message?: string });
+    assert.equal(d.error?.details?.reason, "stale_version");
+    assert.deepEqual(d.error?.details?.current, { brief: "Alice's brief" });
+    assert.match(String((e as Error).message), /It now says: Alice's brief\. Make your change again on top of that/);
+    return true;
+  });
+  assert.equal((await h.call("tasks.get", { taskId: made.id }, me)).task.workingNotes.brief, "Alice's brief", "the person's edit survived");
+  // naming nothing is allowed only for a pure append
+  await h.call("tasks.working_notes.set", { taskId: made.id, key: "brief", value: "Alice's brief, and a line from the agent" }, agent);
+  await assert.rejects(h.call("tasks.working_notes.set", { taskId: made.id, key: "brief", value: "Overwritten" }, agent), /changed while you were editing/);
+  assert.equal((await h.call("tasks.get", { taskId: made.id }, me)).task.workingNotes.brief, "Alice's brief, and a line from the agent");
+  // a person naming nothing still writes, as before
+  await h.call("tasks.working_notes.set", { taskId: made.id, key: "brief", value: "Person rewrites" }, me);
+});
+
+test("a list note an agent changed from a stale read is merged with the person's change", async () => {
+  const h = harness();
+  const made = (await h.call("tasks.create", newTask({ assigned: { kind: "agent", id: "agt_bot" } }), me)).task;
+  await h.call("tasks.working_notes.set", { taskId: made.id, key: "done_means", value: '["a"]' }, agent);
+  await h.call("tasks.working_notes.set", { taskId: made.id, key: "done_means", value: '["a","theirs"]', expectedFrom: '["a"]' }, me);
+  await h.call("tasks.working_notes.set", { taskId: made.id, key: "done_means", value: '["a","agent"]', expectedFrom: '["a"]' }, agent);
+  assert.equal((await h.call("tasks.get", { taskId: made.id }, me)).task.workingNotes.done_means, '["a","theirs","agent"]');
+});
