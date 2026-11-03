@@ -135,6 +135,13 @@ test("a Windows Personal Space: a Claude Code Bash turn, git over HTTPS, and no 
     const token = await read(path.join(dataDir, "admin.token"));
     const claim = await read(path.join(dataDir, "logs", "claim-link.txt"));
     const own = await read(mine);
+    // what Windows holds on them, and whether "no read up" holds on a file labelled by itself
+    const direct = path.join(dataDir, "direct.txt");
+    fs.writeFileSync(direct, "direct-secret");
+    if (d.plan.sandbox.kind === "lowil") await run([d.plan.sandbox.helper, "--label", direct, "S:(ML;;NRNW;;;ME)"], { cwd });
+    const directRead = await read(direct);
+    const labels = await run(ps(`icacls '${dataDir}'; icacls '${path.join(dataDir, "admin.token")}'; icacls '${direct}'; icacls '${path.join(dataDir, "work")}'`), { cwd });
+    console.log(`labels:\n${labels.out}\ndirect read: ${directRead.out.trim().slice(0, 40)}`);
     console.log(`read admin.token: exit ${token.code} ${token.out.trim()} ${token.err.trim()} | claim: ${claim.code} ${claim.err.trim()} | own: ${own.out.trim()}`);
     assert.ok(!token.out.includes("owner-bearer-token-xyz"), "admin.token is not readable");
     assert.ok(!claim.out.includes("claim-link-secret-xyz"), "the logs folder is not readable");
