@@ -22,6 +22,7 @@ import { DropHost, DropOverlay, useDropRoute, useFileDrop } from "../FileDrop/in
 import { Row } from "../Row/index.tsx";
 import { answering, contextRing, deleteToken, effortsFor, modeInfo, nextMode, sendControl, sizeLabel, stripName, tokenRanges } from "./brain.ts";
 import type { ChatMode, ComposerAgent, TokenRange } from "./brain.ts";
+import { ChatField } from "./ChatField.tsx";
 import { ContextRing, EffortBars, GroupHead, I, IconTile, Kbd, Pop, STOP, ensureComposerCss, useDismiss } from "./parts.tsx";
 import { composerSymbols } from "./props.ts";
 import { closeEmoji, findEmoji } from "./emoji.ts";
@@ -519,6 +520,8 @@ export interface ComposerPreview {
 }
 
 export interface ComposerProps extends ComposerShellProps {
+  /** Draw the text on the shared editor with each @mention as one chip (ChatField), instead of the plain field with a wash behind it. Off by default until it has passed every composer test in a browser. */
+  chatField?: boolean;
   lists?: ComposerLists;
   /** Agents that listen in this thread (answer only when @mentioned). The lead comes from `lead`. */
   listening?: readonly string[];
@@ -1120,26 +1123,37 @@ export function Composer(props: ComposerProps): ReactElement {
       </Pressable>
     </View>
   );
+  const useChat = web && props.chatField === true;
   const fieldNode = (
     <View style={[styles.fieldWrap, ...fieldPad, oneLine && styles.fieldLine]} {...webProps({ dataSet: { cmpField: "1" } })}>
-      {web && ranges.length > 0 ? <TokenBackdrop text={state.text} ranges={ranges} scrollY={scrollY} style={fieldText} pad={fieldPad} /> : null}
-      <TextInput
-        ref={input}
-        multiline
-        value={state.text}
-        placeholder={props.placeholder ?? "Message"}
-        placeholderTextColor="var(--ink-3)"
-        accessibilityLabel={props.label ?? "Message"}
-        onChange={onChange as never}
-        onSelectionChange={(e) => patch({ cursor: e.nativeEvent.selection.start })}
-        onKeyPress={onKeyPress as never}
-        onContentSizeChange={(e) => setHeight(Math.max(MIN_FIELD, Math.min(MAX_FIELD, Math.ceil(e.nativeEvent.contentSize.height))))}
-        onScroll={(e) => setScrollY(scrollTopOf(e))}
-        onFocus={onFocus}
-        onBlur={onBlur}
-        testID="composer-field"
-        style={[styles.field, fieldText, FIELD_STYLE, { height }]}
-      />
+      {useChat ? (
+        <ChatField
+          value={state.text} cursor={state.cursor} ranges={ranges} placeholder={props.placeholder ?? "Message"} label={props.label ?? "Message"} testID="composer-field" fontSize={compact ? 14 : 15} lineHeight={22} maxHeight={MAX_FIELD}
+          onChange={onChange as never} onSelectionChange={(e) => patch({ cursor: e.nativeEvent.selection.start })} onKeyPress={onKeyPress as never} onFocus={onFocus} onBlur={onBlur}
+          controlRef={(c) => { input.current = c as never; }}
+        />
+      ) : (
+        <>
+          {web && ranges.length > 0 ? <TokenBackdrop text={state.text} ranges={ranges} scrollY={scrollY} style={fieldText} pad={fieldPad} /> : null}
+          <TextInput
+            ref={input}
+            multiline
+            value={state.text}
+            placeholder={props.placeholder ?? "Message"}
+            placeholderTextColor="var(--ink-3)"
+            accessibilityLabel={props.label ?? "Message"}
+            onChange={onChange as never}
+            onSelectionChange={(e) => patch({ cursor: e.nativeEvent.selection.start })}
+            onKeyPress={onKeyPress as never}
+            onContentSizeChange={(e) => setHeight(Math.max(MIN_FIELD, Math.min(MAX_FIELD, Math.ceil(e.nativeEvent.contentSize.height))))}
+            onScroll={(e) => setScrollY(scrollTopOf(e))}
+            onFocus={onFocus}
+            onBlur={onBlur}
+            testID="composer-field"
+            style={[styles.field, fieldText, FIELD_STYLE, { height }]}
+          />
+        </>
+      )}
     </View>
   );
   const stripNode_ = ai ? (
