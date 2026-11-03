@@ -58,8 +58,9 @@ export function sameContent(a: unknown, b: unknown): boolean {
 export type CreateCells = (db: { all(sql: string, ...a: unknown[]): unknown[]; run(sql: string, ...a: unknown[]): unknown; exec(sql: string): void }, o: { site: string; now(): number; deny?(t: string): boolean; denyColumns?: Record<string, readonly string[]> }) => CellsLike;
 
 /** Tables that describe this computer, or are kept from this computer's own log by sequence, and never travel. The engine's queue, leases and parked turns are work this computer's own engine
- *  holds: copied, another computer's engine would take a turn that is already running here (a chat message itself travels; the turn it started stays where it was sent). */
-const LOCAL = /^(host_|health_|logs_|sync_|search_|network_(phone|endpoint|config|command|result|dns|cert|peer_request|peer_self|peer_conflict|peer_invite|peer_blob_seen)|engine_(thread_queue|thread_lease|waits|crew_job|crew_wait|capture_state))/;
+ *  holds: copied, another computer's engine would take a turn that is already running here (a chat message itself travels; the turn it started stays where it was sent). The access store's
+ *  cursor (access_local_cursor) is a sequence number of this computer's own log: copied, it made the other computer skip its own access events at or below it. */
+const LOCAL = /^(host_|health_|logs_|sync_|search_|access_local_|network_(phone|endpoint|config|command|result|dns|cert|peer_request|peer_self|peer_conflict|peer_invite|peer_blob_seen)|engine_(thread_queue|thread_lease|waits|crew_job|crew_wait|capture_state))/;
 export const denyModules = (t: string): boolean => LOCAL.test(t);
 export const DENY_COLUMNS: Readonly<Record<string, readonly string[]>> = { network_peer: ["last_seen_at"] };
 

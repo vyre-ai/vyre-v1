@@ -8,7 +8,8 @@ import assert from "node:assert/strict";
 import { createRelay } from "../relay/node/server.js";
 import { boot, call, firstComputer, pause, stageSecond } from "./peers-kit.mjs";
 
-const LEASE = 1_500;
+// short so the failover below takes seconds, long enough that a loaded runner gets from one renewal to the checks that follow it (1.5 s ran out between them under CI load)
+const LEASE = 4_000;
 
 test("one runner at a time with failover, one Run per tick, and a synced message starts no turn on the other computer", { timeout: 60_000 }, async () => {
   const relay = createRelay();
@@ -60,7 +61,9 @@ test("one runner at a time with failover, one Run per tick, and a synced message
     const onA = await A.log.read({ type: "message.received", limit: 500 });
     assert.equal(onA.filter((e) => JSON.stringify(e).includes(threadId)).length + (await A.log.read({ type: "agent.engaged", limit: 500 })).filter((e) => JSON.stringify(e).includes(threadId)).length >= 1, true, "the message was received on A, where it was sent");
 
-    // A goes to sleep: once its lease runs out, B takes over
+    // A goes to sleep: once its lease runs out, B takes over. A renews as it would on its last round before sleeping, so the lease B sees is a fresh one
+    assert.equal(A.peers.sync.lease().mine, true, "A renews its lease");
+    await B.peers.sync.round();
     await A.stop(); A = null;
     assert.equal(B.peers.mayRun("automations.schedule_tick"), false, "not while A's lease still runs");
     await pause(LEASE + 300);

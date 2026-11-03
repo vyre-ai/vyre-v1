@@ -1,5 +1,6 @@
 # Changelog
 
+- A Personal Space on two computers: an agent made on one computer now opens on the other, and a computer restarted after syncing can make agents again. The access store's record of how far it had read its own log travelled to the other computer, which then skipped its own access changes; it now stays on each computer.
 - Calendar events open on a click: the event opens beside the calendar (a sheet on a phone) with when in your time zone and how it repeats, the calendar, who organised it, a big Join button, Going? Yes, No or Maybe, the guests and how each answered, and the description with its links. Enter opens a focused event and Escape closes it.
 - From the event: Edit in place (title, day, time, length, guests; a repeating event asks This Event or All Events), Prepare (your Assistant drafts prep notes from the attendees' records and past meetings), Ask about this, Copy Link and Delete. Right-click gives the same menu and a double-click edits.
 - A past meeting shows its close-out (summary, tasks, Open close-out) and its recording and transcript.
