@@ -1092,10 +1092,10 @@ export function Composer(props: ComposerProps): ReactElement {
   }
 
   const fieldText = compact ? styles.fieldCompact : styles.fieldRegular;
-  // the field's padding, which the token wash behind it takes too: the same box, so a wash sits on its word in the one-line pill, the compact field and the regular one
-  const fieldPad: readonly (ViewStyle | false)[] = [styles.padRegular, oneLine && styles.padLine, !oneLine && compact && styles.padCompact];
   // an email keeps its own two rows: its bar holds sender and format buttons; everything else is the one-line pill
   const oneLine = props.sendsOutside !== true;
+  // the field's padding, which the token wash behind it takes too: the same box, so a wash sits on its word in the one-line pill, the compact field and the regular one
+  const fieldPad: readonly (ViewStyle | false)[] = [styles.padRegular, oneLine && styles.padLine, !oneLine && compact && styles.padCompact];
   const plusNode_ = (
     <View ref={plusBtn as never}>
       <Pressable accessibilityRole="button" accessibilityLabel="Attach a file" accessibilityState={{ expanded: plusOpen }} testID="composer-attach" onPress={() => { setPanelOpen(false); setPlusOpen((x) => !x); }} {...webProps({ title: "Add" })}

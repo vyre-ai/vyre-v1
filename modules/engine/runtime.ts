@@ -17,7 +17,6 @@ import { buildNodeOpener, buildOpener, roleBlocks } from "./session.ts";
 import { remoteLauncher, routed, waitsForComputer } from "./node-turns.ts";
 import { bindRelay } from "./relay.ts";
 import { withHeldNotes } from "./held-notes.ts";
-import { BRIDGE_PREFIX } from "./handlers/bridge.ts";
 import { DEVICE_WAIT_LINE, DEVICE_WAIT_STEP, SLEPT_WAIT_LINE } from "./device-turns.ts";
 import type { NodeRelay } from "./node-turns.ts";
 import { withRecall } from "./recall.ts";
