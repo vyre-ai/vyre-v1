@@ -243,6 +243,12 @@ export function canSeeMeeting(ctx: MeetCtx, recordId: string): boolean {
 export async function meetingRecord(ctx: MeetCtx, recordId: string): Promise<MeetingRecord> {
   if (!isId("rec", recordId)) bad(ctx, "Meeting id is not valid.");
   if (!canSeeMeeting(ctx, recordId)) return missing(ctx, "That meeting is not in this Space.");
+  return fetchMeeting(ctx, recordId);
+}
+
+/** The Meeting record without the watcher check, for a caller that decided who may see it on its own terms (the close-out also shows meetings shared to a project or channel). */
+export async function fetchMeeting(ctx: MeetCtx, recordId: string): Promise<MeetingRecord> {
+  if (!isId("rec", recordId)) bad(ctx, "Meeting id is not valid.");
   let rec: Json;
   try {
     rec = obj(obj(await ctx.call("records.get", { type: "meeting", recordId })).record);

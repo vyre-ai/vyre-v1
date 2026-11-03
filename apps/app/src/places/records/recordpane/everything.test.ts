@@ -2,7 +2,7 @@
 // The Everything feed: each source becomes lines, they merge newest first, and a source the person may not read adds nothing.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { fromComments, fromConversation, fromFiles, fromRuns, fromTasks, fromThreads, loadEverything, merge } from "./everything.ts";
+import { fromComments, fromConversation, fromFiles, fromMeetings, fromRuns, fromTasks, fromThreads, loadEverything, merge } from "./everything.ts";
 import type { Item } from "./everything.ts";
 
 const names = (id: string): string => ({ usr_maya: "Maya Cole", usr_dan: "Dan Ruiz" })[id] ?? id;
@@ -36,11 +36,21 @@ test("a source that answers no adds nothing, and nothing says it was refused", a
   };
   const out = await loadEverything({ call, type: "contact", recordId: "rec_1", names, folderOf: async () => "fld_1" });
   assert.deepEqual(out.map((x) => [x.kind, x.title]), [["task", "Reply"], ["edit", "Maya created it"]]);
-  assert.deepEqual([...new Set(seen)].sort(), ["files.list", "inbox.thread", "records.activity", "records.comments.list", "runs.list", "tasks.list", "threads.list"]);
+  assert.deepEqual([...new Set(seen)].sort(), ["files.list", "inbox.thread", "meetings.closeout.list", "records.activity", "records.comments.list", "runs.list", "tasks.list", "threads.list"]);
 });
 
 test("no folder, no file read", async () => {
   const seen: string[] = [];
   await loadEverything({ call: async (cap) => { seen.push(cap); throw new Error("no"); }, type: "contact", recordId: "rec_1", names, folderOf: async () => null });
   assert.ok(!seen.includes("files.list"));
+});
+
+test("a record lists its meetings with where their close-out stands, and a tap opens the close-out", async () => {
+  const items = fromMeetings([
+    { meetingId: "rec_m1", title: "Renewal call", startsAt: 20, attendees: ["Pat Lee"], state: "ready", proposed: 4, done: 0 },
+    { meetingId: "rec_m2", title: "Kickoff", startsAt: 10, attendees: [], state: "closed", proposed: 0, done: 5 },
+  ]);
+  assert.deepEqual(items.map((i) => [i.kind, i.title, i.note, i.subject?.type]), [["meeting", "Renewal call", "Ready to close · 4 to approve", "meeting"], ["meeting", "Kickoff", "Closed · 5 done", "meeting"]]);
+  const out = await loadEverything({ call: async (cap, input) => { if (cap === "meetings.closeout.list") { assert.deepEqual(input, { recordId: "rec_1", limit: 50 }); return { meetings: [{ meetingId: "rec_m1", title: "Renewal call", startsAt: 20, attendees: [], state: "nothing", proposed: 0, done: 0 }], ready: 0 }; } throw new Error("no"); }, type: "contact", recordId: "rec_1", names, folderOf: async () => null });
+  assert.deepEqual(out.map((x) => [x.kind, x.note]), [["meeting", "Nothing to do"]]);
 });

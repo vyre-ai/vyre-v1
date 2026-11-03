@@ -9,7 +9,7 @@
 // nothing is made twice (every call also carries an idempotency key built from the meeting and what the item is).
 // DECISION: a person sees the close-outs of their own meetings (they brought the meeting in, meetings_watcher) and of meetings shared to a project or channel they can read; nobody else's.
 // The host and an agent not acting for a person see what their own access lets them.
-import { bad, codeOf, ensure, first, getState, isId, isInt, linkFor, list, meetingRecord, missing, msOf, newId, obj, pageOf, paging, parseJson, patchMeeting, personOf, refuse, rowsOf, setState, str, strOrUndef, text } from "../projections.ts";
+import { bad, codeOf, ensure, fetchMeeting, first, getState, isId, isInt, linkFor, list, missing, msOf, newId, obj, pageOf, paging, parseJson, patchMeeting, personOf, refuse, rowsOf, setState, str, strOrUndef, text } from "../projections.ts";
 import type { Json, MeetCtx, Row } from "../projections.ts";
 
 export type CloseState = "preparing" | "ready" | "closed" | "nothing";
@@ -96,15 +96,25 @@ const watchersOf = (ctx: MeetCtx, recordId: string): string[] => rowsOf(ctx.db.a
 const sharesOf = (ctx: MeetCtx, recordId: string): Array<{ type: "project" | "channel"; id: string }> =>
   rowsOf(ctx.db.all(`SELECT * FROM meetings_share WHERE "recordId" = ?`, recordId)).map((r) => ({ type: str(r, "kind") as "project" | "channel", id: str(r, "targetId") })).sort((a, b) => a.id.localeCompare(b.id));
 
-/** May the caller open this meeting's close-out: their own meeting, or one shared to a project or channel they can read. The host, and an agent acting for nobody, go by their own access. */
+/**
+ * May the caller open this meeting's close-out: their own meeting, or one shared to a project or channel they can read. An agent acting for a person is that person here; an agent acting for
+ * nobody opens only the close-out it was asked to prepare (another person's meetings never reach an agent's chat through it). The host opens any.
+ */
 function canOpen(ctx: MeetCtx, recordId: string): boolean {
   const me = personOf(ctx);
-  if (me === null) return true;
+  if (me === null) return ctx.principal.kind === "agent" ? closeOf(ctx, recordId)?.agentId === ctx.principal.id : true;
   if (watchersOf(ctx, recordId).includes(me)) return true;
   if (!ctx.authorize) return false;
   return sharesOf(ctx, recordId).some((s) => {
     try { return ctx.authorize!({ perm: null, level: "view" }, { type: s.type, id: s.id }).effect === "allow"; } catch { return false; }
   });
+}
+
+/** The meeting, when the caller may open its close-out; the same answer as for one that is not there otherwise (what exists is not leaked). */
+async function meetingFor(ctx: MeetCtx, recordId: string) {
+  if (!isId("rec", recordId)) bad(ctx, "Meeting id is not valid.");
+  if (!canOpen(ctx, recordId)) return missing(ctx, "That meeting is not in this Space.");
+  return fetchMeeting(ctx, recordId);
 }
 
 /** The person a meeting's close-out is for: its organizer when that is a person here, else whoever brought it in first. */
@@ -274,8 +284,8 @@ function briefOf(o: { meetingId: string; title: string; startsAt: number; endsAt
 /** Start (or redo) the close-out of a meeting. `system`: the transcript consumer, which skips quietly what a person would be told about. */
 async function prepareCore(ctx: MeetCtx, meetingId: string, redo: boolean, system: boolean): Promise<{ meetingId: string; state: CloseState; taskId?: string } | null> {
   ensure(ctx);
-  const rec = await meetingRecord(ctx, meetingId);
-  if (!canOpen(ctx, meetingId)) return system ? null : missing(ctx, "That meeting is not in this Space.");
+  if (system && !canOpen(ctx, meetingId)) return null;
+  const rec = await meetingFor(ctx, meetingId);
   const transcript = text(rec.fields["transcript"]);
   if (!transcript) return system ? null : refuse(ctx, "There is no transcript of this meeting yet, so there is nothing to close out.");
   const had = closeOf(ctx, meetingId);
@@ -390,8 +400,7 @@ function matchPerson(said: string, team: ReadonlyArray<{ id: string; name: strin
 
 async function proposeCore(ctx: MeetCtx, input: ProposeIn): Promise<{ meetingId: string; state: CloseState; items: number }> {
   ensure(ctx);
-  const rec = await meetingRecord(ctx, input.meetingId);
-  if (!canOpen(ctx, input.meetingId)) return missing(ctx, "That meeting is not in this Space.");
+  const rec = await meetingFor(ctx, input.meetingId);
   if (typeof input.summary !== "string") bad(ctx, "The summary is text.");
   const had = closeOf(ctx, input.meetingId);
   const owner = had?.owner || ownerOf(ctx, rec.fields, input.meetingId);
@@ -518,8 +527,7 @@ function itemOut(i: Item): Json {
 
 export async function closeoutGet(ctx: MeetCtx, input: { meetingId: string }) {
   ensure(ctx);
-  const rec = await meetingRecord(ctx, input.meetingId);
-  if (!canOpen(ctx, input.meetingId)) return missing(ctx, "That meeting is not in this Space.");
+  const rec = await meetingFor(ctx, input.meetingId);
   const c = closeOf(ctx, input.meetingId);
   const link = linkFor(ctx, input.meetingId);
   const items = itemsOf(ctx, input.meetingId);
@@ -568,8 +576,7 @@ interface EditIn {
 
 async function openItem(ctx: MeetCtx, meetingId: string, itemId: string): Promise<{ c: Close; it: Item }> {
   ensure(ctx);
-  await meetingRecord(ctx, meetingId);
-  if (!canOpen(ctx, meetingId)) missing(ctx, "That meeting is not in this Space.");
+  await meetingFor(ctx, meetingId);
   const c = closeOf(ctx, meetingId);
   const it = itemsOf(ctx, meetingId).find((i) => i.id === itemId);
   if (!c || !it) return missing(ctx, "That close-out item is not there.");
@@ -657,8 +664,7 @@ export async function closeoutApprove(ctx: MeetCtx, input: { meetingId: string; 
 
 async function approveOnce(ctx: MeetCtx, input: { meetingId: string; itemIds?: string[] }) {
   ensure(ctx);
-  const rec = await meetingRecord(ctx, input.meetingId);
-  if (!canOpen(ctx, input.meetingId)) return missing(ctx, "That meeting is not in this Space.");
+  const rec = await meetingFor(ctx, input.meetingId);
   const c = closeOf(ctx, input.meetingId);
   if (!c) return refuse(ctx, "This meeting has no close-out yet.");
   const all = itemsOf(ctx, input.meetingId);
@@ -756,7 +762,7 @@ async function calendarOf(ctx: MeetCtx, person: string): Promise<string | undefi
 
 export async function closeoutShare(ctx: MeetCtx, input: { meetingId: string; projectId?: string; channelId?: string; on: boolean }) {
   ensure(ctx);
-  await meetingRecord(ctx, input.meetingId);
+  await meetingFor(ctx, input.meetingId);
   const me = personOf(ctx);
   if ((input.projectId === undefined) === (input.channelId === undefined)) bad(ctx, "Share with one project or one channel.");
   if (me !== null && !watchersOf(ctx, input.meetingId).includes(me)) refuse(ctx, "Only the people whose meeting it is can share it.");
