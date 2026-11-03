@@ -45,6 +45,9 @@ for (const skin of ["paper", "graphite"]) {
   await tid("goal-lead").click(); await shot("5-lead-dialog");
   await page.keyboard.press("Escape");
   await tid("goal-step-title-rem-edit").click().catch(() => undefined); await shot("6-step-editing");
+  await page.keyboard.press("Escape");
+  await page.getByText("Details", { exact: true }).first().click().catch(() => undefined); await shot("7-details");
+  await tid("goal-set-checkins-change").click().catch(() => undefined); await shot("8-checkins-editing");
   await ctx.close();
 }
 await browser.close(); real.close();

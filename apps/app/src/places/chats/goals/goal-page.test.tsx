@@ -147,3 +147,12 @@ test("the Details pane: every setting edits in place and saves through goals.upd
   await press(find(d, "goal-rhythm-save"));
   assert.equal(saved.at(-1)?.["quiet"], null, "quiet hours switched off");
 });
+
+test("a running goal's step renames where it stands", async () => {
+  const { root, calls } = await page("active");
+  const p = find(root!, "goal-page")!;
+  await press(find(p, "goal-task-rename-tsk_ads"));
+  await typeInto(find(p, "goal-task-name-tsk_ads"), "Retarget the Lab 8 form, week two");
+  await fire(find(p, "goal-task-name-tsk_ads"), "onBlur", { nativeEvent: { target: { value: "x" } }, target: { value: "x" }, currentTarget: null });
+  assert.deepEqual(calls.find((c) => c.cap === "tasks.update")?.input, { taskId: "tsk_ads", title: "Retarget the Lab 8 form, week two" });
+});

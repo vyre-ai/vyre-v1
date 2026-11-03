@@ -18,6 +18,7 @@ import { useGoal } from "./data.ts";
 import type { Call } from "./data.ts";
 import { Bar, TONE } from "./GoalRow.tsx";
 import { ENDED, LIVE, bareLine, budgetOf, byDay, canEdit as mayEdit, chartOf, dueWords, fmt, fractionOf, leftWords, nameList, numberOf, statusOf, taskWord, whenWords } from "./model.ts";
+import { TextField } from "../../../../../../ui/src/TextField/index.tsx";
 import { GoalSettings } from "./GoalSettings.tsx";
 import { AddLine, ChecklistEdit, DeadlineEdit, DraftPlanEdit, EditText, HelpersRow, Mini, PeopleDialog, newId } from "./GoalEdit.tsx";
 import type { PickEntry } from "../../../../../../ui/src/PeoplePicker/index.tsx";
@@ -109,6 +110,7 @@ export function GoalPage({ goalId, call, changes, me, nameOf, clock, conversatio
       <Plan data={data} nameOf={nameOf} openTask={openTask} edit={edit}
         onDraft={(plan) => void run("goals.update", { plan }, "Plan changed.", { plan: data.draftPlan ?? [] })}
         onRemove={(taskId) => void call("tasks.withdraw", { taskId, note: "Taken off the goal's plan by the owner." }).then(() => { reload(); setLine("Step removed."); }, (e: unknown) => setLine(e instanceof Error ? e.message : "That could not be changed."))}
+        onRename={(taskId, title) => void call("tasks.update", { taskId, title }).then(() => { reload(); setLine("Step renamed."); }, (e: unknown) => setLine(e instanceof Error ? e.message : "That could not be changed."))}
         onAdd={(title) => void run("goals.plan", { children: [{ key: newId("s"), title, why: "Added by the owner", assigned: { kind: "agent", id: g.leadAgentId } }] }, "Step added.")} />
     </View>
   );
@@ -376,9 +378,12 @@ function WaitRow({ w, call, nameOf, now, offsetMin, openTask, onDone }: { w: Wai
   );
 }
 
-function Plan({ data, nameOf, openTask, edit, onDraft, onRemove, onAdd }: {
-  data: GoalPageData; nameOf(id: string): string; openTask(id: string): void; edit: boolean; onDraft(next: PlanStep[]): void; onRemove(taskId: string): void; onAdd(title: string): void;
+function Plan({ data, nameOf, openTask, edit, onDraft, onRemove, onAdd, onRename }: {
+  data: GoalPageData; nameOf(id: string): string; openTask(id: string): void; edit: boolean; onDraft(next: PlanStep[]): void; onRemove(taskId: string): void; onAdd(title: string): void; onRename(taskId: string, title: string): void;
 }): ReactElement {
+  const [renaming, setRenaming] = useState<string | null>(null);
+  const [name, setName] = useState("");
+  const finish = (t: TaskLine, save: boolean): void => { setRenaming(null); const next = name.trim(); if (save && next !== "" && next !== t.title) onRename(t.taskId, next); };
   const g = data.goal, tasks = data.tasks;
   if (g.status === "draft") {
     const steps = data.draftPlan ?? [];
@@ -396,9 +401,14 @@ function Plan({ data, nameOf, openTask, edit, onDraft, onRemove, onAdd }: {
       {tasks.length === 0 ? <Text style={st.small}>{edit ? `No steps yet. ${nameOf(g.leadAgentId)} researches first, then plans here. You can add a step now.` : `${nameOf(g.leadAgentId)} researches first, then plans here.`}</Text> : null}
       {tasks.map((t) => {
         const s = taskWord(t.state, t.blocked);
+        if (renaming === t.taskId) {
+          return <TextField key={t.taskId} testID={`goal-task-name-${t.taskId}`} accessibilityLabel="Step name" autoFocus value={name} onChangeText={setName} onBlur={() => finish(t, true)} onSubmitEditing={() => finish(t, true)}
+            onKeyPress={(e: { nativeEvent: { key: string } }) => { if (e.nativeEvent.key === "Escape") finish(t, false); }} />;
+        }
         return <Row key={t.taskId} id={`gt-${t.taskId}`} title={t.title} titleSuffix={t.key ?? ""} onPress={() => openTask(t.taskId)}
           leading={<View style={{ marginRight: 8 }}><Icon name={t.state === "done" ? "check" : "target"} color={t.state === "done" ? "var(--ok)" : "var(--ink-4)"} /></View>}
           trailing={<View style={st.planTrail}><Text style={[st.small, { color: TONE[s.tone] as string }]}>{s.word}</Text>{t.assigned ? <Avatar {...avatarOf({ id: t.assigned.id, name: nameOf(t.assigned.id), kind: t.assigned.kind === "agent" ? "agent" : "person" })} size={18} /> : null}
+            {edit && t.state !== "done" && t.state !== "canceled" ? <Mini label="Rename" testID={`goal-task-rename-${t.taskId}`} onPress={() => { setName(t.title); setRenaming(t.taskId); }} /> : null}
             {edit && t.state !== "done" && t.state !== "canceled" ? <Mini label="Remove" testID={`goal-task-remove-${t.taskId}`} onPress={() => onRemove(t.taskId)} /> : null}</View>} />;
       })}
       {edit && g.status !== "done" ? <AddLine label="a new step" placeholder="Add a step" testID="goal-step-new" onAdd={onAdd} /> : null}
