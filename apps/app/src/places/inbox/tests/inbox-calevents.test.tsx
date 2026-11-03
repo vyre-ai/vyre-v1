@@ -80,7 +80,7 @@ test("a click on an event opens it in the pane: when, how it repeats, calendar, 
   assert.match(textOf(find(root, "event-guests")), /Elena Rivera.*Not answered/s);
   assert.match(textOf(find(root, "event-guests")), /1 going, 1 not answered/);
   await press(find(root, "event-join"));
-  assert.equal(opened.at(-1), "join:https://zoom.example/j/9902");
+  assert.equal(opened.at(-1), "join:https://us02web.zoom.us/j/84512345678?pwd=Q2x");
   assert.ok(find(root, "event-rsvp"), "Going? for a guest who did not organise it");
   assert.equal(find(root, "event-rsvp-accepted")?.props["aria-checked"], true, "your answer is lit");
   const link = (find(root, "event-description")?.children ?? []).find((c) => typeof c === "object" && (c as Node).props["role"] === "link") as Node | undefined;
@@ -200,4 +200,89 @@ test("on a phone the event opens as a sheet", async () => {
     assert.ok(!find(root, "calendar-event-col"), "no side column on a phone");
     assert.ok(find(root, "event-pane"), "the pane is in the sheet");
   } finally { dims.get = was; }
+});
+
+// ---- how the meeting happens (owner 3 Nov): detection, the pane's Join, Call and Maps, Add a video call, the new event's Video call
+
+import { mapsUrl, providerOf, telUrl, videoDefault, videoOptions, waysOf } from "../calendar/eventpane/join.ts";
+
+test("detection: Meet, Zoom and Teams from the conference or the link; a phone call; a place; several at once, the video call first; none", () => {
+  const meet = waysOf({ conference: { provider: "meet", url: "https://meet.google.com/abc-defg-hij", meetingId: "abc-defg-hij", dialIns: [{ number: "+1 415-555-0161", pin: "264326521#" }] } });
+  assert.deepEqual(meet, [{ kind: "video", provider: "meet", url: "https://meet.google.com/abc-defg-hij", dialIns: [{ number: "+1 415-555-0161", pin: "264326521#" }], meetingId: "abc-defg-hij" }]);
+  assert.deepEqual(waysOf({ joinUrl: "https://us02web.zoom.us/j/845?pwd=x" })[0], { kind: "video", provider: "zoom", url: "https://us02web.zoom.us/j/845?pwd=x", dialIns: [] }, "a bare join link");
+  assert.equal((waysOf({ description: "Join: https://teams.microsoft.com/l/meetup-join/19abc and bring the deck https://docs.example/deck" })[0] as { provider?: string }).provider, "teams", "a meeting link in the description, not the document");
+  for (const [url, p] of [["https://acme.webex.com/meet/pat", "webex"], ["https://whereby.com/northwind", "whereby"], ["https://around.co/r/x", "around"], ["https://docs.example/x", null]] as const) assert.equal(providerOf(url), p);
+  assert.deepEqual(waysOf({ location: "+1 415 555 0132", description: "Dial in and enter PIN 4471 when asked." }), [{ kind: "phone", number: "+1 415 555 0132", pin: "4471" }]);
+  assert.deepEqual(waysOf({ description: "Call us at tel:+14155550132" }), [{ kind: "phone", number: "+14155550132" }]);
+  assert.deepEqual(waysOf({ location: "Tartine Manufactory, 595 Alabama St, San Francisco" }), [{ kind: "place", address: "Tartine Manufactory, 595 Alabama St, San Francisco" }]);
+  const many = waysOf({ joinUrl: "https://meet.google.com/abc", location: "Room 4, 410 Valencia St", description: "Or call tel:+1 415 555 0177, PIN 2210" });
+  assert.deepEqual(many.map((w) => w.kind), ["video", "phone", "place"], "the video call leads, then the phone, then the place");
+  assert.deepEqual(waysOf({ location: "https://meet.google.com/abc" }).map((w) => w.kind), ["video"], "a link as the location is the call, not a place");
+  assert.deepEqual(waysOf({ title: "x" } as never), [], "none");
+  assert.equal(mapsUrl("595 Alabama St"), "https://www.google.com/maps/search/?api=1&query=595%20Alabama%20St");
+  assert.equal(telUrl("+1 415 555 0132", "4471#"), "tel:+14155550132,,4471#");
+  assert.deepEqual([videoOptions("google", true), videoOptions("microsoft", false), videoOptions("local", true), videoOptions("local", false)], [["meet", "zoom"], ["teams"], ["zoom"], []]);
+  assert.deepEqual([videoDefault(["meet", "zoom"], null), videoDefault(["meet", "zoom"], "zoom"), videoDefault(["teams"], "zoom"), videoDefault(["meet"], "none"), videoDefault([], null)], ["meet", "zoom", "teams", "none", "none"]);
+});
+
+test("the pane: Join Zoom with its dial-in, PIN and passcode to copy; a phone call; a place with Open in Maps; several ways with Other ways to join", async () => {
+  const { opened, tree } = world();
+  const root = await mount(createRoot, tree());
+  await press(find(root, "event-body:e_lease_call"));
+  await settle();
+  assert.match(textOf(find(root, "event-join")), /Join Zoom/);
+  assert.ok(find(root, "event-join")?.children?.some((c) => typeof c === "object"), "with its mark");
+  assert.match(textOf(find(root, "event-dial")), /Or dial\s+\+1 669 444 9171\s+and 1 more.*PIN\s+84512345678#.*Passcode\s+551203/s);
+  await press(find(root, "event-join"));
+  assert.equal(opened.at(-1), "join:https://us02web.zoom.us/j/84512345678?pwd=Q2x");
+  assert.ok(!find(root, "event-add-video"), "a meeting with a video call offers no other");
+
+  await press(find(root, "event-body:e_vendor"));
+  await settle();
+  assert.match(textOf(find(root, "event-call")), /Call \+1 415 555 0132/);
+  await press(find(root, "event-call"));
+  assert.equal(opened.at(-1), "url:tel:+14155550132,,4471", "no Vyre number here: the phone's own dialer, with the PIN");
+
+  await press(find(root, "event-body:e_planning"));
+  await settle();
+  assert.match(textOf(find(root, "event-join")), /Join Google Meet/);
+  assert.match(textOf(find(root, "event-other-ways")), /Other ways to join.*Room 4, Northwind office/s);
+
+  await press(find(root, "event-body:e_dinner"));
+  await settle();
+  assert.match(textOf(find(root, "event-way-place")), /Tartine Manufactory, 595 Alabama St/);
+  await press(find(root, "event-maps"));
+  assert.equal(opened.at(-1), `url:${mapsUrl("Tartine Manufactory, 595 Alabama St, San Francisco")}`);
+  assert.ok(find(root, "event-add-video"), "a place, no call: Add a video call (Zoom is connected)");
+});
+
+test("Add a video call asks for one of the connected services; the new-event card's Video call starts on the calendar's own and is sent with the event", async () => {
+  const { s, tree } = world();
+  const root = await mount(createRoot, tree());
+  await press(find(root, "event-body:e_dinner"));
+  await settle();
+  await press(find(root, "event-add-video"));
+  await settle();
+  assert.ok(find(root, "menu-item-Google Meet") && find(root, "menu-item-Zoom") && !find(root, "menu-item-Teams"), "a Google calendar offers Meet, and Zoom is connected; no Teams");
+  await press(find(root, "menu-item-Zoom"));
+  await settle();
+  assert.deepEqual(s.calls.filter((c) => c.cap === "calendar.update_event").at(-1)?.input, { eventId: "e_dinner", video: "zoom" });
+
+  const g = globalThis as unknown as { addEventListener(t: string, f: (e: unknown) => void): void };
+  const handlers: Record<string, (e: unknown) => void> = {};
+  const add = g.addEventListener;
+  g.addEventListener = (t: string, f: (e: unknown) => void) => { handlers[t] = f; };
+  try {
+    const col = find(root, `col:${TODAY + DAY}`)!;
+    await act(async () => { (col.props["onPointerDown"] as (e: unknown) => void)({ clientX: 50, clientY: 12 * 52 + 300, button: 0, currentTarget: { getBoundingClientRect: () => ({ left: 0, top: 300, width: 100, height: 1248 }) } }); });
+    await act(async () => { handlers["pointerup"]?.({ clientX: 50, clientY: 12 * 52 + 300 }); });
+    await settle();
+  } finally { g.addEventListener = add; }
+  assert.match(textOf(find(root, "cal-card-video")), /Google Meet/, "a Google calendar starts on Meet");
+  await press(find(root, "cal-card-video"));
+  assert.ok(find(root, "menu-item-Zoom") && find(root, "menu-item-None"));
+  await press(find(root, "menu-item-Zoom"));
+  await press(find(root, "cal-card-add"));
+  await settle();
+  assert.equal((s.calls.filter((c) => c.cap === "calendar.create_event").at(-1)?.input as { video?: string }).video, "zoom");
 });

@@ -49,13 +49,21 @@ function nwEvents(): EventRow[] {
     ev("e_ooo", "cal_work", "Lena out of office", at(-1, 0), at(0, 0), { allDay: true }),
     ev("e_renewal", "cal_work", "Renewal quote with Whitfield", at(-1, 15), at(-1, 16), { recordIds: ["rec_whitfield"], attendees: att(ME) }),
     ev("e_lease_call", "cal_work", "Lease call with Elena", at(0, 11), at(0, 11, 45), {
-      joinProvider: "zoom", joinUrl: "https://zoom.example/j/9902", recordIds: ["rec_elena", "rec_lease"], bookedByAgentId: "agt_intake", fromBookingPage: "Book a lease call", organizer: "maya@northwind.example",
+      joinProvider: "zoom", joinUrl: "https://us02web.zoom.us/j/84512345678?pwd=Q2x", recordIds: ["rec_elena", "rec_lease"], bookedByAgentId: "agt_intake", fromBookingPage: "Book a lease call", organizer: "maya@northwind.example",
+      conference: { provider: "zoom", url: "https://us02web.zoom.us/j/84512345678?pwd=Q2x", meetingId: "84512345678", passcode: "551203", dialIns: [{ number: "+1 669 444 9171", pin: "84512345678#", label: "US" }, { number: "+1 646 931 3860", pin: "84512345678#", label: "US" }] },
       description: "Draft 3 of the lease, clause by clause. The draft: https://files.northwind.example/elena/lease-draft-3.pdf",
       attendees: [...att(ME), { email: OUTSIDE.email, name: OUTSIDE.name, contactId: "ct_elena", response: "needs_action" }],
     }),
-    ev("e_planning", "cal_work", "Quarterly planning", at(0, 14), at(0, 15), { organizer: ME, attendees: att(ME, "maya@northwind.example") }),
-    ev("e_invoices", "cal_ms", "Invoice review", at(0, 14, 30), at(0, 15, 30), { attendees: att(ME, "omar@northwind.example") }),
-    ev("e_dinner", "cal_pers", "Dinner with Grace", at(0, 19), at(0, 20, 30)),
+    ev("e_planning", "cal_work", "Quarterly planning", at(0, 14), at(0, 15), {
+      organizer: ME, attendees: att(ME, "maya@northwind.example"), location: "Room 4, Northwind office, 410 Valencia St, San Francisco", joinProvider: "meet", joinUrl: "https://meet.google.com/abc-defg-hij",
+      conference: { provider: "meet", url: "https://meet.google.com/abc-defg-hij", meetingId: "abc-defg-hij", dialIns: [{ number: "+1 415-555-0161", pin: "264326521#", label: "US" }] },
+    }),
+    ev("e_invoices", "cal_ms", "Invoice review", at(0, 14, 30), at(0, 15, 30), {
+      attendees: att(ME, "omar@northwind.example"), organizer: "omar@northwind.example", joinProvider: "teams", joinUrl: "https://teams.microsoft.com/l/meetup-join/19%3ameeting_NjA4%40thread.v2/0",
+      conference: { provider: "teams", url: "https://teams.microsoft.com/l/meetup-join/19%3ameeting_NjA4%40thread.v2/0", meetingId: "482991733", dialIns: [{ number: "+1 323-555-0144", pin: "482991733#" }] },
+    }),
+    ev("e_vendor", "cal_work", "Supplier call: Harbor Freight", at(1, 11), at(1, 11, 30), { attendees: att(ME), organizer: "maya@northwind.example", location: "+1 415 555 0132", description: "Dial in and enter PIN 4471 when asked." }),
+    ev("e_dinner", "cal_pers", "Dinner with Grace", at(0, 19), at(0, 20, 30), { location: "Tartine Manufactory, 595 Alabama St, San Francisco" }),
     ev("e_sat", "cal_pers", "Farmers market", at(1, 9), at(1, 10)),
     ev("e_mon1", "cal_work", "Client intake: Priya Nair", at(3, 10, 30), at(3, 11, 30), { joinProvider: "meet", joinUrl: "https://meet.example/abc-defg", attendees: att(ME) }),
   );
@@ -129,8 +137,10 @@ export function createCalendarSample(space: SampleSpace = northwind, o: { online
 
   let n = 0;
   const w: Record<string, (i: never) => unknown> = {
-    "calendar.create_event": (i: { calendarId: string; title: string; startsAt: number; endsAt: number; attendees?: EventRow["attendees"]; joinProvider?: EventRow["joinProvider"] }) => {
-      const e = ev(`evt_new_${++n}`, i.calendarId, i.title, i.startsAt, i.endsAt, { attendees: i.attendees ?? [], joinProvider: i.joinProvider ?? "none", ...(i.joinProvider && i.joinProvider !== "none" ? { joinUrl: `https://zoom.example/j/${1000 + n}` } : {}) });
+    "calendar.create_event": (i: { calendarId: string; title: string; startsAt: number; endsAt: number; attendees?: EventRow["attendees"]; joinProvider?: EventRow["joinProvider"]; video?: "meet" | "zoom" | "teams" }) => {
+      // the server makes the call through the connection; here it answers with a link of that kind
+      const link = i.video === "meet" ? "https://meet.google.com/new-ewnt-abc" : i.video === "teams" ? "https://teams.microsoft.com/l/meetup-join/new" : i.video === "zoom" ? `https://us02web.zoom.us/j/8${1000 + n}` : undefined;
+      const e = ev(`evt_new_${++n}`, i.calendarId, i.title, i.startsAt, i.endsAt, { attendees: i.attendees ?? [], joinProvider: i.video ?? i.joinProvider ?? "none", ...(link ? { joinUrl: link, conference: { provider: i.video!, url: link, dialIns: [] } } : {}) });
       replica.put("events", [e as unknown as Row]);
       return { event: e };
     },
@@ -180,6 +190,7 @@ export function createCalendarSample(space: SampleSpace = northwind, o: { online
   };
   const prep = new Map<string, { state: "working" | "ready"; notes: string[] }>([["e_planning", { state: "ready", notes: ["Maya wants the Q1 numbers before the call.", "Open from last time: the hiring plan for spring.", "Decide the budget split today."] }]]);
   const reads: Record<string, (i: never) => unknown> = {
+    "connections.list": () => ({ connections: [{ connector: "zoom", state: "active" }, { connector: "google", state: "active" }] }),
     "calendar.get_event": (i: { eventId: string }) => {
       const e = rows().find((x) => x.id === i.eventId);
       if (!e) throw Object.assign(new Error("There is no such event."), { code: "validation.not_found" });

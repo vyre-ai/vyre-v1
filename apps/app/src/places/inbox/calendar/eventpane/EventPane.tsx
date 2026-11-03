@@ -18,9 +18,14 @@ import {
   RESPONSE_LABEL, RSVP, editDraft, editInput, ended, eventLink, guestName, linkParts, repeatsLine, rsvpSummary, undoInput, whenLine, zoneName,
 } from "./model.ts";
 import type { Closeout, EditDraft, EventFull, EventRow, Prep, Response } from "./model.ts";
+import { BrandMark } from "./BrandMark.tsx";
+import { PROVIDER_NAME, mapsUrl, videoOptions, waysOf } from "./join.ts";
+import type { Way } from "./join.ts";
 
 export interface EventPaneNav {
   join(url: string): void;
+  /** a phone call: through Vyre's number when one is connected, else the phone's own dialer */
+  call(number: string, pin?: string): void;
   openUrl(url: string): void;
   openRecord(recordId: string): void;
   openMeeting(meetingId: string): void;
@@ -40,12 +45,14 @@ export interface EventPaneProps {
   editing?: boolean;
   /** inside the phone's sheet: the sheet already carries the title and Done */
   inSheet?: boolean;
+  /** Zoom is connected (Add a video call offers it) */
+  zoom?: boolean;
   /** bumped when the calendar re-read its events: the pane reads the event again */
   stamp: string;
   nav: EventPaneNav;
   onClose(): void;
   /** a change with Undo, for the calendar's status line */
-  onUndo(label: string, run: () => Promise<unknown>): void;
+  onUndo(label: string, run?: () => Promise<unknown>): void;
   onDeleted(e: EventRow): void;
 }
 
@@ -192,14 +199,78 @@ export function EventPane(p: EventPaneProps): ReactElement {
     <View style={st.meta}>
       {cal ? <View style={st.metaRow}><View style={[st.dot, { backgroundColor: cal.color }]} /><Text style={st.metaText} testID="event-calendar">{cal.title}</Text></View> : null}
       {organiser ? <Text style={st.metaText} testID="event-organiser">Organised by <Text style={st.metaBold}>{organiser}</Text></Text> : null}
-      {e.location ? <View style={st.metaRow}><Icon name="pin" size={13} /><Text style={st.metaText} testID="event-location">{e.location}</Text></View> : null}
+      {e.location && past ? <View style={st.metaRow}><Icon name="pin" size={13} /><Text style={st.metaText} testID="event-location">{e.location}</Text></View> : null}
     </View>
   );
-  const join = e.joinUrl && !past && !edit ? (
-    <Pressable accessibilityRole="button" accessibilityLabel={`Join ${e.joinProvider === "meet" ? "Google Meet" : e.joinProvider === "zoom" ? "Zoom" : e.joinProvider === "teams" ? "Teams" : "the call"}`} testID="event-join"
-      onPress={() => p.nav.join(e.joinUrl!)} style={({ hovered }: { hovered?: boolean }) => [st.join, hovered === true && st.joinOver]}>
-      <Icon name="video" size={15} color="var(--win)" /><Text style={st.joinText}>{`Join ${e.joinProvider === "meet" ? "Google Meet" : e.joinProvider === "zoom" ? "Zoom" : e.joinProvider === "teams" ? "Teams" : "the call"}`}</Text>
-    </Pressable>
+  // how to join, read from the provider's conference, the link, the location and the description: the primary first, the others under Other ways to join
+  const ways = waysOf(e);
+  const copy = (v: string, what: string): void => { void (globalThis as { navigator?: { clipboard?: { writeText(s: string): Promise<void> } } }).navigator?.clipboard?.writeText(v)?.catch(() => undefined); p.onUndo(`${what} copied`); };
+  const CopyBtn = ({ v, what, id }: { v: string; what: string; id: string }): ReactElement => (
+    <Pressable accessibilityRole="button" accessibilityLabel={`Copy ${what}`} testID={id} onPress={() => copy(v, what)} style={({ hovered }: { hovered?: boolean }) => [st.copy, hovered === true && st.copyOver]}><Text style={st.copyText}>Copy</Text></Pressable>
+  );
+  const primary = (w: Way): ReactElement => {
+    if (w.kind === "video") {
+      const name = PROVIDER_NAME[w.provider];
+      const d = w.dialIns[0];
+      return (
+        <View style={st.way} testID="event-way-video">
+          <Pressable accessibilityRole="button" accessibilityLabel={`Join ${name}`} testID="event-join" onPress={() => p.nav.join(w.url)} style={({ hovered }: { hovered?: boolean }) => [st.join, hovered === true && st.joinOver]}>
+            <View style={st.markBg}><BrandMark provider={w.provider} size={16} /></View><Text style={st.joinText}>{`Join ${name}`}</Text>
+          </Pressable>
+          {d || w.passcode ? (
+            <View style={st.dial} testID="event-dial">
+              {d ? <Text style={st.dialText}>Or dial <Text style={st.dialBold}>{d.number}</Text>{w.dialIns.length > 1 ? ` and ${w.dialIns.length - 1} more` : ""}</Text> : null}
+              {d?.pin ? <><Text style={st.dialText}>{"· PIN "}<Text style={st.dialBold}>{d.pin}</Text></Text><CopyBtn v={d.pin} what="PIN" id="event-copy-pin" /></> : null}
+              {w.passcode ? <><Text style={st.dialText}>{"· Passcode "}<Text style={st.dialBold}>{w.passcode}</Text></Text><CopyBtn v={w.passcode} what="Passcode" id="event-copy-passcode" /></> : null}
+            </View>
+          ) : null}
+        </View>
+      );
+    }
+    if (w.kind === "phone") {
+      return (
+        <View style={st.way} testID="event-way-phone">
+          <Pressable accessibilityRole="button" accessibilityLabel={`Call ${w.number}`} testID="event-call" onPress={() => p.nav.call(w.number, w.pin)} style={({ hovered }: { hovered?: boolean }) => [st.join, hovered === true && st.joinOver]}>
+            <Icon name="phone" size={15} color="var(--win)" /><Text style={st.joinText}>{`Call ${w.number}`}</Text>
+          </Pressable>
+          {w.pin ? <View style={st.dial}><Text style={st.dialText}>PIN <Text style={st.dialBold}>{w.pin}</Text></Text><CopyBtn v={w.pin} what="PIN" id="event-copy-pin" /></View> : null}
+        </View>
+      );
+    }
+    return (
+      <View style={st.place} testID="event-way-place">
+        <Icon name="pin" size={15} />
+        <View style={st.grow}>
+          <Text style={st.placeText}>{w.address}</Text>
+          <View style={st.actions}>
+            <Btn label="Open in Maps" testID="event-maps" onPress={() => p.nav.openUrl(mapsUrl(w.address))} />
+            <Btn label="Copy" testID="event-copy-address" onPress={() => copy(w.address, "Address")} />
+          </View>
+        </View>
+      </View>
+    );
+  };
+  const other = (w: Way, i: number): ReactElement => (
+    <Row key={`way:${i}`} id={`way:${i}`} title={w.kind === "video" ? `Join ${PROVIDER_NAME[w.provider]}` : w.kind === "phone" ? `Call ${w.number}${w.pin ? `, PIN ${w.pin}` : ""}` : w.address}
+      leading={<View style={st.otherLead}>{w.kind === "video" ? <BrandMark provider={w.provider} size={16} /> : <Icon name={w.kind === "phone" ? "phone" : "pin"} size={14} />}</View>}
+      onPress={() => (w.kind === "video" ? p.nav.join(w.url) : w.kind === "phone" ? p.nav.call(w.number, w.pin) : p.nav.openUrl(mapsUrl(w.address)))} />
+  );
+  const hasVideo = ways.some((w) => w.kind === "video");
+  const videos = videoOptions(cal?.provider, p.zoom === true);
+  const addVideo = (x: number, y: number): void => {
+    menu.show([{ head: "Add a video call" }, ...videos.map((v) => ({ label: PROVIDER_NAME[v], onSelect: () => { void run("calendar.update_event", { eventId: e.id, video: v }).then(() => p.onUndo(`Added a ${PROVIDER_NAME[v]} call; the guests are told`), () => undefined); } }))], x, y);
+  };
+  const join = !past && !edit ? (
+    <View style={st.ways} testID="event-ways">
+      {ways[0] ? primary(ways[0]) : null}
+      {ways.length > 1 ? (
+        <View testID="event-other-ways">
+          <Text style={st.otherHead}>Other ways to join</Text>
+          {ways.slice(1).map(other)}
+        </View>
+      ) : null}
+      {!hasVideo && videos.length ? <Btn label="Add a video call" icon="video" testID="event-add-video" onPress={addVideo} /> : null}
+    </View>
   ) : null;
   const rsvp = canAnswer && !edit ? (
     <View style={st.rsvp} testID="event-rsvp">
@@ -339,6 +410,19 @@ const st = StyleSheet.create({
   join: { height: 38, borderRadius: 9, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: "var(--accent)" as string, marginTop: 4 },
   joinOver: { opacity: 0.92 },
   joinText: { fontSize: 13.5, fontWeight: "600", color: "var(--win)" as string },
+  markBg: { width: 22, height: 22, borderRadius: 6, backgroundColor: "var(--win)" as string, alignItems: "center", justifyContent: "center" },
+  ways: { gap: 8, marginTop: 4 },
+  way: { gap: 6 },
+  dial: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 6 },
+  dialText: { fontSize: 12.5, color: "var(--ink-3)" as string },
+  dialBold: { color: "var(--ink-2)" as string, fontWeight: "500", fontVariant: ["tabular-nums"] },
+  copy: { paddingHorizontal: 6, paddingVertical: 1, borderRadius: 5 },
+  copyOver: { backgroundColor: "var(--accent-wash)" as string },
+  copyText: { fontSize: 12, color: "var(--accent)" as string, fontWeight: "500" },
+  place: { flexDirection: "row", gap: 10, alignItems: "flex-start", padding: 10, borderRadius: 9, borderWidth: 1, borderColor: "var(--line)" as string, backgroundColor: "var(--win)" as string },
+  placeText: { fontSize: 13, lineHeight: 18, color: "var(--ink)" as string, marginBottom: 8 },
+  otherHead: { fontSize: 11.5, fontWeight: "600", color: "var(--ink-3)" as string, marginTop: 2, marginBottom: 2 },
+  otherLead: { width: 20, alignItems: "center", marginRight: 8 },
   rsvp: { flexDirection: "row", alignItems: "center", gap: 8 },
   rsvpLabel: { fontSize: 12.5, color: "var(--ink-3)" as string },
   seg: { flexDirection: "row", borderWidth: 1, borderColor: "var(--line)" as string, borderRadius: 7, overflow: "hidden" },

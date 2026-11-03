@@ -513,6 +513,7 @@ const mapEvent = (e: Record<string, unknown>) => {
   const out: Record<string, unknown> = { id: text(e.id) ?? "", start: obj(e.start), end: obj(e.end) };
   for (const k of ["status", "summary", "location", "hangoutLink", "updated", "description", "recurringEventId"] as const) if (text(e[k]) !== undefined) out[k] = text(e[k]);
   if (e.organizer && typeof e.organizer === "object") out.organizer = obj(e.organizer);
+  if (e.conferenceData && typeof e.conferenceData === "object") out.conferenceData = obj(e.conferenceData);
   if (Array.isArray(e.attendees)) {
     out.attendees = e.attendees.map((x) => {
       const o = obj(x);

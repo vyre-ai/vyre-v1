@@ -163,7 +163,7 @@ Fields: `numberId` text, `direction` choice, `from` text, `to` text, `body` long
 
 Profile desktop `window`, phone `window`, web `window`. Window 120 days or 500 recent rows. Protected field `status`. Parent is `calendar`. No `calendar_event.versions` or `calendar_event.restore_version`. Trash restore is a separate event (`calendar_event.restored`), not One History.
 
-Fields: `calendarId` text, `title` text, `startsAt` datetime, `endsAt` datetime, `allDay` checkbox, `location` text, `joinUrl` url, `joinProvider` choice, `description` longtext, `agenda` longtext, `attendees` text, `organizer` email, `recordIds` text, `meetingId` text, `providerId` text, `status` status, `bookedByAgentId` text, `fromBookingPage` text, `deletedAt` datetime, `seriesId` text (the provider series a repeating event belongs to).
+Fields: `calendarId` text, `title` text, `startsAt` datetime, `endsAt` datetime, `allDay` checkbox, `location` text, `joinUrl` url, `joinProvider` choice, `description` longtext, `agenda` longtext, `attendees` text, `organizer` email, `recordIds` text, `meetingId` text, `providerId` text, `status` status, `bookedByAgentId` text, `fromBookingPage` text, `deletedAt` datetime, `seriesId` text (the provider series a repeating event belongs to), `conference` text (how to join: provider, link, meeting id, passcode, dial-in, as JSON).
 
 ### digest (`home`, `home_digests`, id `dgs_`)
 

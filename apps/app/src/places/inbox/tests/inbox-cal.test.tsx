@@ -231,7 +231,7 @@ test("Add: calendar.create_event with the title, times, calendar, people and an 
   const s = createCalendarSample();
   const d = { ...newDraft({ startsAt: MON27 + 13 * HOUR, endsAt: MON27 + 13.5 * HOUR }, "cal_work", [MAYA]), title: "Plan the move" };
   const e = await createEvent(s.data, d, "key-1");
-  assert.deepEqual(s.writes.at(-1), { cap: "calendar.create_event", input: { calendarId: "cal_work", title: "Plan the move", startsAt: d.startsAt, endsAt: d.endsAt, attendees: [{ email: MAYA }], joinProvider: "zoom", idempotencyKey: "key-1" } });
+  assert.deepEqual(s.writes.at(-1), { cap: "calendar.create_event", input: { calendarId: "cal_work", title: "Plan the move", startsAt: d.startsAt, endsAt: d.endsAt, attendees: [{ email: MAYA }], idempotencyKey: "key-1" } });
   assert.ok(events(s).some((x) => x.id === e.id && x.title === "Plan the move"));
   const blank = await createEvent(s.data, newDraft({ startsAt: MON27 + 15 * HOUR, endsAt: MON27 + 16 * HOUR }, "cal_pers"), "key-2");
   assert.equal(blank.title, "New event", "an untitled event is named New event");

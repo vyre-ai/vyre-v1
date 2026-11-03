@@ -12,6 +12,8 @@ const quiet = (what: string) => ({ act: 'none', reason: what });
 const zoomMeeting = t.obj({
   id: t.str({ examples: ['81234567890'] }), uuid: t.opt(t.str()), topic: t.str(), startTime: t.opt(t.ts()), durationMinutes: t.opt(t.int()), joinUrl: t.str(), password: t.opt(t.str()),
   hostEmail: t.opt(email), timezone: t.opt(t.str()),
+  // the phone numbers to dial in (Zoom's global dial-in list for the meeting); the meeting id with the passcode is the PIN
+  dialIns: t.opt(t.arr(t.obj({ number: t.str(), country: t.opt(t.str()) }))),
 });
 const recordingFile = t.obj({ id: t.str(), fileType: t.str(), recordingType: t.opt(t.str()), fileSize: t.opt(t.int()), downloadUrl: t.opt(t.str()), status: t.opt(t.str()) });
 const eventType = t.enm('meeting.started', 'meeting.ended', 'recording.completed', 'recording.transcript_completed', 'endpoint.url_validation');

@@ -10,6 +10,9 @@ import { ResizableColumn } from "../../../../../../ui/src/SidePane/resize.tsx";
 import { Sheet } from "../../../mobile/sheets/Sheet.tsx";
 import { EventPane } from "./eventpane/EventPane.tsx";
 import { eventLink } from "./eventpane/model.ts";
+import { BrandMark } from "./eventpane/BrandMark.tsx";
+import { PROVIDER_NAME, telUrl, videoDefault, videoOptions } from "./eventpane/join.ts";
+import { usePhone } from "../softphone/phone.tsx";
 import { menuTrigger, useMenu } from "../../../../../../ui/src/Menu/index.tsx";
 import { useInboxData, useOnline, useOptionalInboxData, useScreenQuery } from "../sidebar/data.tsx";
 import { useInboxState } from "../sidebar/state.tsx";
@@ -48,6 +51,8 @@ export interface CalendarProps {
   onOpenMeeting?(meetingId: string): void;
   onOpenFile?(fileId: string): void;
   onOpenUrl?(url: string): void;
+  /** Call a number: through Vyre's telephony when a number is connected; absent, the phone's own dialer (tel:) */
+  onCall?(number: string, pin?: string): void;
   /** Where the view opens: a deep link, or a test. `openId` opens that event in the pane. */
   initial?: { mode?: Mode; day?: number; people?: readonly string[]; draft?: Draft; openId?: string; edit?: boolean };
 }
@@ -118,6 +123,20 @@ function Grid({ p }: { p: CalendarProps }): ReactElement {
   const [open, setOpen] = useState<{ id: string; edit: boolean } | null>(p.initial?.openId ? { id: p.initial.openId, edit: p.initial.edit === true } : null);
   const openEvent = (id: string, edit = false): void => { dispatch({ type: "select", id }); setOpen({ id, edit }); p.onOpenEvent?.(id); };
   const closeEvent = (): void => { setOpen(null); p.onCloseEvent?.(); };
+  // Vyre's own phone, when a number is connected: a phone meeting is called through it
+  const phoneDock = usePhone();
+  // Zoom connected? (the new-event card and Add a video call offer it then)
+  const [zoomOn, setZoomOn] = useState(false);
+  useEffect(() => {
+    let live = true;
+    void Promise.resolve(data.call("connections.list", {})).then((o) => { if (live) setZoomOn(((o as { connections?: Array<{ connector: string; state: string }> }).connections ?? []).some((c) => /zoom/.test(c.connector) && c.state === "active")); }, () => undefined);
+    return () => { live = false; };
+  }, [data]);
+  // the person's usual video call, remembered on this device when they pick one
+  const VIDEO_KEY = "vyre.calendar.video";
+  const store = (globalThis as { localStorage?: { getItem(k: string): string | null; setItem(k: string, v: string): void } }).localStorage;
+  const videosFor = (calendarId: string): Array<"meet" | "teams" | "zoom"> => videoOptions(calendars.find((c) => c.id === calendarId)?.provider, zoomOn);
+  const videoOf = (d: Draft): "meet" | "teams" | "zoom" | "none" => d.video ?? videoDefault(videosFor(d.calendarId), (() => { try { return store?.getItem(VIDEO_KEY) ?? null; } catch { return null; } })());
   // a second press on the same event soon after the first edits it: react-native-web's Pressable drops onDoubleClick, and a re-render between the clicks would break a native one
   const lastPress = useRef<{ id: string; at: number }>({ id: "", at: 0 });
   const pressEvent = (id: string): void => {
@@ -174,7 +193,7 @@ function Grid({ p }: { p: CalendarProps }): ReactElement {
 
   const fail = (): void => undefined;
   const add = (d: Draft): void => {
-    void createEvent(data, d).then((e) => { dispatch({ type: "draft", draft: null }); dispatch({ type: "select", id: e.id }); setCardSlots(null); }).catch(fail);
+    void createEvent(data, { ...d, video: videoOf(d) }).then((e) => { dispatch({ type: "draft", draft: null }); dispatch({ type: "select", id: e.id }); setCardSlots(null); }).catch(fail);
   };
   const deleted = (e: EventRow): void => {
     setUndo({ label: `Deleted “${e.title}”`, run: () => restoreEvent(data, e.id).then(() => dispatch({ type: "select", id: e.id })) });
@@ -366,6 +385,17 @@ function Grid({ p }: { p: CalendarProps }): ReactElement {
           <Text style={s.pkText}>{calendars.find((c) => c.id === draft.calendarId)?.title ?? "Calendar"}</Text><Icon name="chevd" size={9} />
         </Pressable>
       </View>
+      {videosFor(draft.calendarId).length ? (
+        <View style={s.pr}>{videoOf(draft) === "none" ? <Icon name="video" size={14} /> : <BrandMark provider={videoOf(draft) as "meet"} size={14} />}
+          <Pressable accessibilityRole="button" accessibilityLabel="Video call" testID="cal-card-video" onPress={(e) => {
+            const q = pointOf(e);
+            const pick = (v: "meet" | "teams" | "zoom" | "none"): void => { try { store?.setItem(VIDEO_KEY, v); } catch { /* remembered for this visit only */ } dispatch({ type: "draft", draft: { ...draft, video: v } }); };
+            menu.show([{ head: "Video call" }, ...videosFor(draft.calendarId).map((v) => ({ label: PROVIDER_NAME[v], checked: videoOf(draft) === v, onSelect: () => pick(v) })), { separator: true }, { label: "None", checked: videoOf(draft) === "none", onSelect: () => pick("none") }], q.x, q.y);
+          }} style={({ hovered }: { hovered?: boolean }) => [s.pk, hovered === true && s.hicOver]}>
+            <Text style={s.pkText}>{videoOf(draft) === "none" ? "No video call" : PROVIDER_NAME[videoOf(draft) as "meet"]}</Text><Icon name="chevd" size={9} />
+          </Pressable>
+        </View>
+      ) : null}
       {cardSlots ? <FindTimeList slots={cardSlots} offsetMin={off} onPick={pickSlot} testID="cal-card-slots" /> : null}
       <View style={s.pf}>
         <Pressable accessibilityRole="button" accessibilityLabel="Find a time" testID="cal-card-find" onPress={() => openCardFind(draft)} style={({ hovered }: { hovered?: boolean }) => [s.btn, hovered === true && s.btnOver]}><Icon name="spark" size={14} color="var(--ink)" /><Text style={s.btnText}>Find a time</Text></Pressable>
@@ -450,6 +480,7 @@ function Grid({ p }: { p: CalendarProps }): ReactElement {
 
   const nav = {
     join: (url: string) => { if (p.onJoin) p.onJoin(url); else (globalThis as { open?: (u: string) => void }).open?.(url); },
+    call: (number: string, pin?: string) => { if (p.onCall) p.onCall(number, pin); else if (phoneDock) phoneDock.dial(number); else if (p.onOpenUrl) p.onOpenUrl(telUrl(number, pin)); else (globalThis as { open?: (u: string) => void }).open?.(telUrl(number, pin)); },
     openUrl: (url: string) => { if (p.onOpenUrl) p.onOpenUrl(url); else (globalThis as { open?: (u: string) => void }).open?.(url); },
     openRecord: (id: string) => p.onOpenRecord?.(id), openMeeting: (id: string) => p.onOpenMeeting?.(id), openFile: (id: string) => p.onOpenFile?.(id),
     ask: (e: { id: string; title: string }) => p.onAsk?.({ id: e.id, title: e.title }),
@@ -459,7 +490,7 @@ function Grid({ p }: { p: CalendarProps }): ReactElement {
     <EventPane
       key={`${open.id}:${open.edit ? "edit" : "view"}`} eventId={open.id} editing={open.edit} inSheet={phone} calendars={calendars} names={names} directory={directoryOf(p.team)} me={p.me} nav={nav}
       stamp={openRow ? `${openRow.title}|${openRow.startsAt}|${openRow.endsAt}|${openRow.calendarId}|${JSON.stringify(openRow.attendees)}` : ""}
-      onClose={closeEvent} onUndo={(label, run) => setUndo({ label, run })} onDeleted={deleted}
+      onClose={closeEvent} onUndo={(label, run) => setUndo(run ? { label, run } : { label })} onDeleted={deleted} zoom={zoomOn}
     />
   ) : null;
   return (
