@@ -20,6 +20,8 @@ export interface ChatsNav {
   openSpaceSwitcher(): void;
   /** Opens the New channel sheet. */
   openNewChannel(): void;
+  /** One goal's page, from its row in the Goals group. */
+  openGoal?(goalId: string): void;
   /** The two rows at the top of the list: everything you owe, and the threads you are in. */
   openTasks?(): void;
   openThreads?(): void;
@@ -45,6 +47,8 @@ export interface ChatsSidebarData {
   people?: readonly { id: string; name: string }[];
   /** You: left out of the people a channel can add (you are always in), and the test for "a channel you are not in". */
   me?: { id: string };
+  /** The Space changed: what a group that reads by capability (Goals) follows. */
+  changes?: { subscribe(listener: () => void): () => void };
   clock(): { now: number; offsetMin: number };
 }
 

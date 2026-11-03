@@ -53,6 +53,7 @@ import { WORKSPACE_MIN_W, Workspace } from "./Workspace.tsx";
 import { ChatWork } from "../tasks/ChatWork.tsx";
 import { TasksPage } from "../tasks/TasksPage.tsx";
 import { TaskDetail } from "../tasks/TaskDetail.tsx";
+import { GoalPage } from "../goals/GoalPage.tsx";
 import type { Act, Shown } from "./route.ts";
 import { nameOr } from "../names.ts";
 import { LoadFailed } from "../../../../../../ui/src/States/Loads.tsx";
@@ -199,7 +200,7 @@ export function ChatsMounted({ rt, hash = "", initial, window, opened, onSwitch,
   /* ---------- the sidebar: registered in the shell's shared place sidebar slot (collapse, search and the phone list are the slot's) ---------- */
   const side = useMemo(() => {
     const base = wireSidebar(rt, go);
-    return { ...base, people: list.filter((p) => p.kind === "person" && p.id !== rt.me.id).map((p) => ({ id: p.id, name: p.name })), nav: { ...base.nav, openTasks: () => act({ t: "tasks" }), openThreads: () => act({ t: "threads" }), ...(base.nav.openArtifacts ? { openArtifacts: () => act({ t: "artifacts" }) } : {}), openNew: () => act({ t: "new" }), openNewAgent: () => act({ t: "agent-form" }) } };
+    return { ...base, people: list.filter((p) => p.kind === "person" && p.id !== rt.me.id).map((p) => ({ id: p.id, name: p.name })), nav: { ...base.nav, openTasks: () => act({ t: "tasks" }), openThreads: () => act({ t: "threads" }), ...(base.nav.openArtifacts ? { openArtifacts: () => act({ t: "artifacts" }) } : {}), openNew: () => act({ t: "new" }), openNewAgent: () => act({ t: "agent-form" }), openGoal: (goalId: string) => rt.open({ subject: { type: "goal", id: goalId } }) }, ...(rt.changes ? { changes: rt.changes } : {}) };
   }, [rt, go, act, list]);
 
   /* ---------- the open chat ---------- */
@@ -268,6 +269,7 @@ export function ChatsMounted({ rt, hash = "", initial, window, opened, onSwitch,
   let main: ReactElement;
   if (route.view === "tasks") main = <TasksPage rt={rt} openTask={go.task} openAgent={(id) => go.agent(id)} openChat={(text) => rt.open({ screen: "chats.ask", args: { with: "assistant", first: text } })} {...(window ? { window } : {})} />;
   else if (route.view === "task") main = <TaskDetail key={route.taskId} rt={rt} taskId={route.taskId} conversationFor={conversationFor} openTask={go.task} openAgent={(id) => go.agent(id)} openChat={(id) => rt.open({ screen: "chats.conversation", args: { threadId: id } })} />;
+  else if (route.view === "goal") main = <GoalPage key={route.goalId} goalId={route.goalId} call={rt.call as (cap: string, input: unknown) => Promise<unknown>} changes={rt.changes} me={rt.me.id} nameOf={nameOf} clock={rt.clock} conversationFor={conversationFor} openTask={go.task} openAgent={(id) => go.agent(id)} openFolder={(id) => rt.open({ subject: { type: "folder", id } })} openFile={(id) => rt.open({ subject: { type: "file", id } })} fill={(t) => fill.set(t)} />;
   else if (route.view === "search") main = <SearchPage key={route.q} data={searchData} />;
   else if (route.view === "needs") main = <NeedsYou data={needs} {...(route.taskId ? { initialSelected: route.taskId } : {})} {...(window ? { window } : {})} />;
   else if (route.view === "imported") main = <ImportedSession key={route.conversationId} conversationId={route.conversationId} data={importedData} />;

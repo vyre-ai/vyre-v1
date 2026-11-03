@@ -99,7 +99,8 @@ export function RecordDetail({ rt, recordId, type: hint, fields = false, tab = "
     openFolder: (id) => rt.open({ subject: { type: "folder", id } }), openFile: (id) => rt.open({ subject: { type: "file", id } }),
     openRecord: (type, id) => rt.open({ subject: { type: "record", id }, args: { type } }),
     openRecordPage: (type, id) => rt.open({ subject: { type: "record", id }, args: { type, recordView: "fields" } }),
-  } }), [rt]);
+    openGoal: (id) => rt.open({ subject: { type: "goal", id } }),
+  }, ...(rt.changes ? { changes: rt.changes } : {}) }), [rt]);
   if (actionError) return <States kind="error" message={actionError} retryable onRetry={() => setActionError("")} />;
   if (resolved.error) return <States kind="error" message={resolved.error} />;
   if (!resolved.type) return <States kind="empty" title="Opening record…" icon="records" />;

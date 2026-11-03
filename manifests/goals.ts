@@ -7,6 +7,7 @@
 //           see its project, and Space admins. Events go to the participants of the goal's chat.
 // DECISION: statuses add draft (an agent drafted it, the owner has not pressed Start) and paused (the owner paused it, or the budget ran out) to the lead's list.
 import { block, create, defineManifest, ev, read, t, write } from '../packages/contracts/src/index.ts';
+import type { EventName } from '../packages/contracts/src/types.ts';
 import { id } from './_common.ts';
 
 const goalId = id.goal;
@@ -77,7 +78,7 @@ const waitLine = t.obj({ taskId: id.task, kind: t.str(), title: t.str(), assigne
 const activity = t.obj({ at: t.ts(), kind: t.str({ examples: ['reading'] }), text: t.str(), by: t.opt(t.str()), ref: t.opt(t.str()) });
 const wakeReason = t.str({ examples: ['checkin'] });
 // every change to a goal can move its status, read its source, send a wake-up or end it, so every write declares the goal's events
-const EMITS = ['goal.created', 'goal.started', 'goal.updated', 'goal.status_changed', 'goal.progress', 'goal.woken', 'goal.resumed', 'goal.reported', 'goal.step_done', 'goal.budget_warned', 'goal.ended', 'goal.extended'];
+const EMITS: EventName[] = ['goal.created', 'goal.started', 'goal.updated', 'goal.status_changed', 'goal.progress', 'goal.woken', 'goal.resumed', 'goal.reported', 'goal.step_done', 'goal.budget_warned', 'goal.ended', 'goal.extended'];
 const target = { goalId };
 const thr = { threadId: id.thread };
 

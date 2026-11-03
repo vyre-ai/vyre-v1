@@ -21,6 +21,8 @@ export interface ConversationNav {
   togglePane(): void;
   /** A card's file, record or diff opens beside the chat. A "computer" card or the Computer chip passes the agent's id. */
   openBeside(kind: string, id: string): void;
+  /** A goal's page (a goal card's Open). Left out where the shell has no such page. */
+  openGoal?(goalId: string): void;
   /** The channel menu's "Connect an outside agent": the sheet for this channel (P-L9b_23). Left out where the shell has no such sheet. */
   openConnectOutsideAgent?(channelId: string): void;
   /** "Connect your AI" on a reply that could not start: the sign-in and key page. Left out where the shell has none. */

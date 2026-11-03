@@ -1,0 +1,98 @@
+// A goal in a chat: the block a message carries (type "goal"). A draft the owner starts with one press; a check-in with the number Vyre read, what moved and what is next; a stuck notice
+// with its two options; the end with its summary and, for a missed goal, Extend. The card follows the goal itself, so a goal started or extended anywhere shows here at once.
+import { useCallback, useEffect, useState } from "react";
+import type { ReactElement } from "react";
+import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Row } from "../../../../../../ui/src/Row/index.tsx";
+import { useFollow } from "../conversation/use-follow.ts";
+import type { Changes } from "../conversation/use-follow.ts";
+import { Bar, TONE } from "./GoalRow.tsx";
+import { Btn, Icon } from "./GoalPage.tsx";
+import { delta, fmt, statusOf } from "./model.ts";
+import type { GoalBlock, Progress, Status } from "./model.ts";
+
+export { goalBlockOf } from "./model.ts";
+
+interface Live { status: Status; progress: Progress; deadline: number }
+
+export function GoalCard({ block, call, changes, openGoal, me }: { block: GoalBlock; call(cap: string, input: unknown): Promise<unknown>; changes: Changes | undefined; openGoal?: (goalId: string) => void; me?: string }): ReactElement {
+  const [live, setLive] = useState<Live | null>(null);
+  const [said, setSaid] = useState("");
+  const load = useCallback(async (): Promise<void> => {
+    const o = (await call("goals.get", { goalId: block.goalId })) as { goal?: Live & { owner?: string } };
+    if (o.goal) setLive({ status: o.goal.status, progress: o.goal.progress, deadline: o.goal.deadline });
+  }, [call, block.goalId]);
+  useEffect(() => { void load().catch(() => undefined); }, [load]);
+  // a draft or an end card follows the goal; a check-in is what it said at the time
+  useFollow(changes, load, block.kind !== "update");
+  const status = live?.status ?? block.status;
+  const press = (cap: string, input: Record<string, unknown>, done: string): void => {
+    void call(cap, { goalId: block.goalId, ...input }).then(() => { setSaid(done); void load(); }, (e: unknown) => setSaid(e instanceof Error && e.message ? e.message : "That did not go through."));
+  };
+  const s = statusOf({ status, owner: me ?? "" }, me);
+  const value = block.kind === "update" ? block.value : live?.progress.value ?? block.value;
+  const target = block.target ?? live?.progress.target;
+  const frac = value !== undefined && target ? Math.max(0, Math.min(1, value / target)) : live ? (live.progress.percent ?? 0) / 100 : 0;
+  const d = block.kind === "update" ? delta(block) : null;
+  const title = block.kind === "draft" ? "Goal drafted" : block.kind === "update" ? "Check-in" : block.kind === "stuck" ? "Stuck" : block.outcome === "done" ? "Goal reached" : block.outcome === "missed" ? "Goal missed" : "Goal stopped";
+  const icon = block.kind === "stuck" ? "warn" : block.outcome === "done" ? "check" : "target";
+  return (
+    <View testID={`goal-card-${block.kind}-${block.goalId}`} style={st.card}>
+      <View style={st.head}>
+        <Icon name={icon} size={14} color={block.kind === "stuck" ? TONE.stuck : block.outcome === "done" ? TONE.ok : "var(--ink-3)"} />
+        <Text style={st.kind}>{title}</Text>
+        <View style={{ flex: 1 }} />
+        <Text style={[st.small, { color: TONE[s.tone] as string }]}>{s.word}</Text>
+      </View>
+      <Pressable accessibilityRole="link" accessibilityLabel={`Open the goal ${block.title}`} onPress={() => openGoal?.(block.goalId)} testID={`goal-card-open-${block.goalId}`}>
+        <Text style={st.title}>{block.title}</Text>
+      </Pressable>
+      <Text style={st.small}>{block.line}</Text>
+      {value !== undefined && target !== undefined ? (
+        <View style={st.num}>
+          <Text style={st.big}>{fmt(value)}</Text><Text style={st.of}>{`/ ${fmt(target)}${block.unit ? ` ${block.unit}` : ""}`}</Text>
+          {d ? <Text style={[st.small, { marginLeft: 8 }]}>{d}</Text> : null}
+        </View>
+      ) : null}
+      {value !== undefined && target !== undefined ? <Bar value={frac} tone={block.outcome === "done" ? "ok" : "plain"} width="100%" /> : null}
+      {block.summary ? <Text style={st.body}>{block.summary}</Text> : null}
+      {block.done?.length ? <Lines label="Done" items={block.done} icon="check" /> : null}
+      {block.next?.length ? <Lines label="Next" items={block.next} icon="target" /> : null}
+      {block.kind === "draft" && block.plan?.length ? <Lines label="First plan" items={block.plan} icon="target" /> : null}
+      {block.kind === "draft" && block.permissions?.length ? <Lines label="May do without asking, once you start it" items={block.permissions} icon="check" /> : null}
+      {block.kind !== "draft" && block.needs?.length ? <Lines label={block.kind === "stuck" ? "Options" : "Waiting on you"} items={block.needs} icon="clock" /> : null}
+      {said ? <Text testID="goal-card-said" style={st.said}>{said}</Text> : (
+        <View style={st.actions}>
+          {block.kind === "draft" && status === "draft" ? <><Btn label="Start goal" primary testID="goal-card-start" onPress={() => press("goals.confirm", {}, "Started. The lead agent researches first, then plans.")} /><Btn label="Open" onPress={() => openGoal?.(block.goalId)} /></> : null}
+          {block.kind === "ended" && block.outcome === "missed" && status === "missed" ? <Btn label="Extend three days" primary testID="goal-card-extend" onPress={() => press("goals.extend", { deadline: Math.max(Date.now(), live?.deadline ?? block.deadline) + 3 * 86_400_000 }, "Extended. Check-ins resume.")} /> : null}
+          {block.kind !== "draft" ? <Btn label="Open goal" onPress={() => openGoal?.(block.goalId)} testID="goal-card-goto" /> : null}
+        </View>
+      )}
+    </View>
+  );
+}
+
+function Lines({ label, items, icon }: { label: string; items: readonly string[]; icon: string }): ReactElement {
+  return (
+    <View style={st.lines}>
+      <Text style={st.label}>{label}</Text>
+      {items.map((t) => <Row key={t} id={`gl-${t.slice(0, 24)}`} title={t} leading={<View style={{ marginRight: 8 }}><Icon name={icon} color="var(--ink-4)" /></View>} />)}
+    </View>
+  );
+}
+
+const st = StyleSheet.create({
+  card: { marginTop: 6, padding: 12, borderRadius: 10, borderWidth: 1, borderColor: "var(--line)" as string, backgroundColor: "var(--raised)" as string, gap: 6, maxWidth: 560 },
+  head: { flexDirection: "row", alignItems: "center", gap: 6 },
+  kind: { color: "var(--ink-3)" as string, fontSize: 12, fontWeight: "600" },
+  title: { color: "var(--ink)" as string, fontSize: 14.5, fontWeight: "600" },
+  small: { color: "var(--ink-3)" as string, fontSize: 12, lineHeight: 17 },
+  body: { color: "var(--ink-2)" as string, fontSize: 13, lineHeight: 19 },
+  num: { flexDirection: "row", alignItems: "baseline", gap: 6, marginTop: 4 },
+  big: { color: "var(--ink)" as string, fontSize: 26, fontWeight: "600", fontVariant: ["tabular-nums"] },
+  of: { color: "var(--ink-3)" as string, fontSize: 14, fontVariant: ["tabular-nums"] },
+  lines: { marginTop: 2 },
+  label: { color: "var(--ink-3)" as string, fontSize: 11.5, fontWeight: "600", marginTop: 6 },
+  actions: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 4 },
+  said: { color: "var(--ok)" as string, fontSize: 12.5, marginTop: 4 },
+});

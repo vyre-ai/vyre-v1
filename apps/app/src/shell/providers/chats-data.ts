@@ -145,6 +145,7 @@ export function conversationData(rt: ShellRuntime, a: ChatsActions, threadId: st
     openThread: a.openThread,
     togglePane: a.togglePane,
     openBeside: (kind, id) => (kind === "artifact" ? rt.open({ screen: "apps.artifacts", args: { selected: id } }) : rt.open({ subject: { type: kind, id } })),
+    openGoal: (goalId) => rt.open({ subject: { type: "goal", id: goalId } }),
     openAiSetup: () => rt.open({ screen: "vault.layout", args: { addProvider: "true" } }),   // the same page the Needs you sign-in opens
     ...(rt.unlockVault ? { unlockVault: () => askVaultUnlock(rt.unlockVault!) } : {}),
   };

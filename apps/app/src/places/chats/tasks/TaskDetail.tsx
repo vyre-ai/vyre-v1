@@ -37,6 +37,7 @@ import { dueLabel, holderOf, isOpenState, KIND_TITLE, planOrder, PRIORITIES } fr
 import type { IndexOut, TaskFull, TaskRow, Who } from "./model.ts";
 import { faceKind, LiveWords, TextMenu, useLiveTurn, webProps } from "./parts.tsx";
 import { activityOf } from "./activity.ts";
+import { partOf } from "../goals/model.ts";
 import type { ActivityShow } from "./activity.ts";
 
 type History = CapMap["tasks.history"]["out"];
@@ -147,6 +148,9 @@ function TaskHead({ task, rt, nameOf, run, line, menu, kids, list, openTask, ope
   const turn = useLiveTurn(rt.turns, task.workerThread ?? task.threadId);
   const parent = useLive<TaskOut>(rt.screens, "tasks.page", "task", task.parentTaskId ? { route: { taskId: task.parentTaskId } } : null);
   const parentTitle = parent.status === "ready" ? parent.data.task.title : undefined;
+  // a task of a goal says so, and opens the goal; the goal's own parent task opens the goal too
+  const notes = task.workingNotes as Record<string, string>;
+  const goal = partOf(notes) ?? (notes["goal.root"] === "1" && notes["goal.id"] ? { goalId: notes["goal.id"], title: notes["goal.title"] ?? task.title } : null);
   const onDigit = useRef((_: string): void => undefined);
   onDigit.current = (k): void => { const s = TASK_STATES[Number(k) - 1]; if (s) void run("tasks.transition", { to: s.key, expectedFrom: task.state }); };
   useEffect(() => {
@@ -163,7 +167,7 @@ function TaskHead({ task, rt, nameOf, run, line, menu, kids, list, openTask, ope
   return <View testID="task-head" style={st.col}>
     <View style={st.crumbs}>
       {task.key ? <Text style={st.key}>{task.key}</Text> : null}
-      {task.parentTaskId ? <Chip label={parentTitle ?? "Parent task"} onPress={() => openTask(task.parentTaskId!)} /> : <SourceChip task={task} rt={rt} openChat={openChat} />}
+      {goal ? <Chip label={`Part of ${goal.title}`} onPress={() => rt.open({ subject: { type: "goal", id: goal.goalId } })} /> : task.parentTaskId ? <Chip label={parentTitle ?? "Parent task"} onPress={() => openTask(task.parentTaskId!)} /> : <SourceChip task={task} rt={rt} openChat={openChat} />}
       {task.parentTaskId ? <SourceChip task={task} rt={rt} openChat={openChat} /> : null}
       {labels}
       <View style={{ flex: 1 }} />

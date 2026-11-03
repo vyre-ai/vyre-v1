@@ -41,6 +41,8 @@ export interface ProjectNav {
   openRecord(type: string, recordId: string): void;
   /** The project as a record page (its Overview fields). */
   openRecordPage(type: string, recordId: string): void;
+  /** One of the project's goals, on its own page in Chats. */
+  openGoal?(goalId: string): void;
 }
 
 export interface ProjectPageData {
@@ -52,6 +54,8 @@ export interface ProjectPageData {
   fileName?(fileId: string): string;
   /** Present only in a Personal Space, where imported coding history is private to its owner. */
   imports?: ProjectImports;
+  /** The Space changed: the Goals strip reads again. */
+  changes?: { subscribe(listener: () => void): () => void };
 }
 
 const Ctx = createContext<ProjectPageData | null>(null);

@@ -10,6 +10,7 @@ import { DeferredPlan as Plan } from "../../../../../../ui/src/Plan/DeferredPlan
 import type { PlanTask } from "../../../../../../ui/src/Plan/index.tsx";
 import { Row } from "../../../../../../ui/src/Row/index.tsx";
 import { TabStrip } from "../../../../../../ui/src/TabStrip/index.tsx";
+import { GoalsOf } from "../../chats/goals/GoalsList.tsx";
 import { useProjectPageData } from "./data.tsx";
 import { ROLE_WORDS, TAB_SPECS, ago, dateWords, dueWords, editsBetween, isoDay, planStages, planTasks, plural } from "./model.ts";
 import type { Overview, PlanOut, TabKey } from "./model.ts";
@@ -90,6 +91,7 @@ export function ProjectPage({ projectId, tab: first = "overview", planView = "ti
         <Text style={[s.stripText, p.lateTasks > 0 && s.late]} testID="project-late">{p.lateTasks > 0 ? `${p.lateTasks} late` : "None late"}</Text>
         <Text style={s.stripText}>{plural(p.memberCount, "person", "people")}</Text>
       </View>
+      {d.nav.openGoal ? <GoalsOf scope="project" id={projectId} call={d.call} changes={d.changes} now={d.now()} offsetMin={0} nameOf={d.nameOf} openGoal={d.nav.openGoal} testID="project-goals" /> : null}
       <TabStrip tabs={TAB_SPECS} active={tab} onSelect={(k) => { setTab(k as TabKey); onTabChange?.(k as TabKey); }} />
       {tab === "overview" ? <OverviewTab o={o} now={now} /> : null}
       {tab === "plan" ? (
