@@ -19,7 +19,7 @@ System: make the agent an app becomes when a person allows it. Called by mcp.oau
 | HTTP | POST /v1/agents/outside/connect |
 | MCP tool | none |
 | CLI | none |
-| Emits | agent.created |
+| Emits | agent.created, agent.privacy_set |
 
 ## Input
 

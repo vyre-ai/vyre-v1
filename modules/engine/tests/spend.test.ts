@@ -105,7 +105,7 @@ test("cap reached raises the Needs you card Raise once or Stop, stops the turn, 
   const card = h.calls("tasks.create")[0]?.input as Record<string, unknown>;
   assert.equal(h.calls("tasks.create").length, 1);
   assert.equal(card["kind"], "unblock");
-  assert.equal(card["title"], "agt_intake hit its daily limit");
+  assert.equal(card["title"], "An agent hit its daily limit", "an agent nobody can name reads as a plain word, never its id");
   assert.deepEqual(card["assigned"], { kind: "person", id: "usr_dana" }, "the card goes to the person who pays");
   assert.deepEqual((card["actions"] as Array<{ key: string; label: string }>).map((a) => a.label), ["Raise once", "Stop"]);
   assert.deepEqual(card["source"], { kind: "chat", id: THREAD });
@@ -256,7 +256,7 @@ test("usage groups by day, person, agent or model; a person without ai.spend see
   assert.deepEqual((await usageQuery(h.ctx, { by: "person", personId: "usr_sam" })).rows.map((r) => r.key), ["usr_dana"], "asking for someone else still gives my own");
 });
 
-test("usage by agent and by person names them, with the agent's face, and keeps the id when a name cannot be read", async () => {
+test("usage by agent and by person names them, with the agent's face; someone else's private agent is named as its person; an agent nobody can name is a plain word", async () => {
   const h = harness();
   await usageQuery(h.ctx, { by: "day" });   // makes the tables
   h.db.run("INSERT INTO engine_usage (turn_id, thread_id, agent_id, person_id, model, at, tokens_in, tokens_out, cost_micros) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)", "trn_n1", THREAD, AGENT, "usr_dana", "m", 1_760_000_000_000, 10, 1, 5);
@@ -265,11 +265,13 @@ test("usage by agent and by person names them, with the agent's face, and keeps 
     const b = input as { agentId?: string; principal?: { id: string } };
     if (cap === "agents.get" && b.agentId === AGENT) return { agent: { agentId: AGENT, name: "Intake", face: "scout" } };
     if (cap === "access.principals.get" && b.principal?.id === "usr_dana") return { principal: { id: "usr_dana", name: "Dana Reyes" } };
+    if (cap === "access.principals.get" && b.principal?.id === "agt_simba") return { principal: { id: "agt_simba", name: "Olivia Reyes (Agent)" } };
     throw new Error("not found");
   } };
+  h.db.run("INSERT INTO engine_usage (turn_id, thread_id, agent_id, person_id, model, at, tokens_in, tokens_out, cost_micros) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)", "trn_n3", THREAD, "agt_simba", "usr_olivia", "m", 1_760_000_000_000, 10, 1, 5);
   const agents = await usageQuery(ctx, { by: "agent" });
-  assert.deepEqual(agents.rows.map((r) => [r.key, r.title, r.face ?? null]), [["agt_gone", "agt_gone", null], [AGENT, "Intake", "scout"]]);
-  assert.deepEqual((await usageQuery(ctx, { by: "person" })).rows.map((r) => [r.key, r.title]), [["usr_dana", "Dana Reyes"], ["usr_sam", "usr_sam"]]);
+  assert.deepEqual(agents.rows.map((r) => [r.key, r.title, r.face ?? null]).sort(), [["agt_gone", "An agent", null], [AGENT, "Intake", "scout"], ["agt_simba", "Olivia Reyes (Agent)", null]].sort());
+  assert.deepEqual((await usageQuery(ctx, { by: "person" })).rows.map((r) => [r.key, r.title]).sort(), [["usr_dana", "Dana Reyes"], ["usr_olivia", "usr_olivia"], ["usr_sam", "usr_sam"]]);
   assert.deepEqual(contractErrors("engine.usage.query", "out", agents), []);
 });
 

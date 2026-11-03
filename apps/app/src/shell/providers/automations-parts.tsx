@@ -52,7 +52,7 @@ export function useDirectory(rt: ShellRuntime): ConfigDirectory {
   const list = people.status === "ready" ? people.data : [];
   return useMemo(() => directoryFrom({
     people: list.filter((p) => p.kind === "person").map((p) => ({ id: p.id, name: p.name })),
-    agents: list.filter((p) => p.kind === "agent").map((p) => ({ id: p.id, name: p.name })),
+    agents: list.filter((p) => p.kind === "agent" && (p as { private?: boolean }).private !== true).map((p) => ({ id: p.id, name: p.name })),
     ...loaded,
   }), [list, loaded]);
 }

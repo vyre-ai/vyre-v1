@@ -1,4 +1,5 @@
 import {updateGrant} from "./share.ts";
+import { isTrustedService } from "../../../lib/trust.ts";
 // Roles, groups, grants and principals. Role permission changes stage as a diff, then Apply swaps the whole set.
 import { isOwnerRole } from "../../../kernel/src/authorize/snapshot.ts";
 import type { AccessCtx, Cond, GrantRec, GroupRec, PKind, PrincipalRec, Ref, RoleHolder, ResourceRef, RoleRec, SubjectRef } from "../projections.ts";
@@ -327,22 +328,30 @@ export async function grantsUpdate(ctx: AccessCtx, input: { grantId: string; lev
   return updateGrant(ctx,input);
 }
 
+/** Who is looking: the person behind the call (an agent's person), and whether they may manage access. The server's own reads see every principal as it is. */
+function viewerOf(ctx: AccessCtx, store: ReturnType<typeof storeOf>): { id: string; admin: boolean } | undefined {
+  if (isTrustedService(ctx.principal)) return undefined;
+  const id = ctx.actingFor ?? ctx.principal.id;
+  return { id, admin: store.snapshot().info(id)?.perms.has("access.manage") === true };
+}
+
 export async function principalsList(ctx: AccessCtx, input: { kind?: PKind; status?: "invited" | "active" | "suspended" | "removed"; q?: string; cursor?: string; limit?: number }) {
   const store = storeOf(ctx);
   const q = input.q?.toLowerCase();
-  const all = [...store.principals.values()].filter((p) => {
+  const viewer = viewerOf(ctx, store);
+  const all = [...store.principals.values()].map((p) => principalView(store, p, viewer)).filter((p) => {
     if (input.kind && p.kind !== input.kind) return false;
     if (input.status && p.status !== input.status) return false;
     if (q && !p.name.toLowerCase().includes(q) && !p.id.includes(q)) return false;
     return true;
-  }).sort((a, b) => (a.id < b.id ? -1 : 1)).map((p) => principalView(store, p));
+  }).sort((a, b) => (a.id < b.id ? -1 : 1));
   const p = page(all, input.cursor, input.limit);
   return { principals: p.rows, total: p.total, ...(p.next ? { next: p.next } : {}) };
 }
 
 export async function principalsGet(ctx: AccessCtx, input: { principal: Ref }) {
   const store = storeOf(ctx);
-  return { principal: principalView(store, mustPrincipal(store, input.principal.id, ctx.trace.traceId)) };
+  return { principal: principalView(store, mustPrincipal(store, input.principal.id, ctx.trace.traceId), viewerOf(ctx, store)) };
 }
 
 export async function principalsEffective(ctx: AccessCtx, input: { principal: Ref }) {

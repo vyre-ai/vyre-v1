@@ -58,11 +58,21 @@ export function setAgentFaces(agents: readonly { id: string; face?: string | und
 }
 
 export const pickedFace = (id: string | undefined): string => (id === undefined ? "" : picked.get(id) ?? "");
+
+/** Someone else's private agent (their assistant, an outside agent they connected) wears its person's face to everyone else (owner ruling 3 Nov): agent id to person id. */
+let standIns: ReadonlyMap<string, string> = new Map();
+export function setStandIns(next: ReadonlyMap<string, string>): void {
+  if (next.size === standIns.size && [...next].every(([id, p]) => standIns.get(id) === p)) return;
+  standIns = new Map(next);
+  emit();
+}
+/** The person whose face this id wears, or "" when it wears its own. */
+export const standInOf = (id: string | undefined): string => (id === undefined ? "" : standIns.get(id) ?? "");
 export const assistantId = (): string => state.id;
 export const assistantLook = (): string => state.look;
 export function subscribeAssistant(l: () => void): () => void { listeners.add(l); return () => { listeners.delete(l); }; }
 /** Test seam: forget the assistant and its look. */
-export function resetAssistant(): void { state = { id: "", look: "", name: "" }; picked = new Map(); emit(); }
+export function resetAssistant(): void { state = { id: "", look: "", name: "" }; picked = new Map(); standIns = new Map(); emit(); }
 
 export const isAssistantId = (id: string | undefined): boolean => id !== undefined && id !== "" && id === state.id;
 

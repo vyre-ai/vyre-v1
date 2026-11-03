@@ -75,7 +75,7 @@ Requires: chat, engine, mcp, memory, runs, terminal.
 - [skills.remove](../capabilities/skills.remove.md): Remove a skill from the Space library, or from one agent
 - [skills.set_enabled](../capabilities/skills.set_enabled.md): Turn a Space or agent skill off or on without removing it
 
-## Events (29)
+## Events (30)
 
 - [agent.config_changed](../events/agent.config_changed.md): AGENT.md, agent.toml or the agent record changed (a new version was saved)
 - [agent.config_error](../events/agent.config_error.md): An agent.toml failed validation; the last good version keeps running
@@ -85,6 +85,7 @@ Requires: chat, engine, mcp, memory, runs, terminal.
 - [agent.job_taken](../events/agent.job_taken.md): An outside agent took a job
 - [agent.owner_changed](../events/agent.owner_changed.md): An agent was handed to another person
 - [agent.paused](../events/agent.paused.md): An agent was paused
+- [agent.privacy_set](../events/agent.privacy_set.md): An agent became private to its person (their assistant, an outside agent) or stopped being so; access names it as its person to everyone else
 - [agent.restored](../events/agent.restored.md): An agent came back from Trash
 - [agent.resumed](../events/agent.resumed.md): An agent was resumed
 - [agent.routine_changed](../events/agent.routine_changed.md): A routine was created, changed or deleted
