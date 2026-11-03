@@ -11637,6 +11637,114 @@ export type EventsTypesOut = {
       notify?: string;
     }>;
 };
+export type FilesAgentAccessGetIn = {
+  target: {
+    type: "file" | "folder";
+    id: string;
+  };
+};
+export type FilesAgentAccessGetOut = {
+  value: "on" | "redact" | "off";
+  own: boolean;
+  inherited: "on" | "redact" | "off";
+  from?: {
+    kind: "file" | "folder";
+    id: string;
+    name: string;
+  };
+  setBy?: string;
+  setAt?: number;
+  overrides?: Array<{
+      kind: "file" | "folder";
+      id: string;
+      name: string;
+      value: "on" | "redact" | "off";
+    }>;
+  files?: number;
+};
+export type FilesAgentAccessSetIn = {
+  target: {
+    type: "file" | "folder";
+    id: string;
+  };
+  value: ("on" | "redact" | "off") | null;
+};
+export type FilesAgentAccessSetOut = {
+  value: "on" | "redact" | "off";
+  own: boolean;
+  inherited: "on" | "redact" | "off";
+  from?: {
+    kind: "file" | "folder";
+    id: string;
+    name: string;
+  };
+  setBy?: string;
+  setAt?: number;
+  overrides?: Array<{
+      kind: "file" | "folder";
+      id: string;
+      name: string;
+      value: "on" | "redact" | "off";
+    }>;
+  files?: number;
+};
+export type FilesAgentStatesIn = {
+  folderId: string;
+};
+export type FilesAgentStatesOut = {
+  access: {
+    value: "on" | "redact" | "off";
+    own: boolean;
+    inherited: "on" | "redact" | "off";
+    from?: {
+      kind: "file" | "folder";
+      id: string;
+      name: string;
+    };
+    setBy?: string;
+    setAt?: number;
+    overrides?: Array<{
+        kind: "file" | "folder";
+        id: string;
+        name: string;
+        value: "on" | "redact" | "off";
+      }>;
+    files?: number;
+  };
+  needs: number;
+  queue: Array<string>;
+  files: Array<{
+      fileId: string;
+      state: "clear" | "hidden" | "reviewed" | "needs_review" | "off";
+      own: boolean;
+      waiting?: Array<string>;
+    }>;
+  folders: Array<{
+      folderId: string;
+      value: "on" | "redact" | "off";
+      own: boolean;
+      needs: number;
+    }>;
+};
+export type FilesAgentViewIn = {
+  fileId: string;
+  versionId?: string;
+};
+export type FilesAgentViewOut = {
+  state: "clear" | "redacted" | "needs" | "off";
+  name: string;
+  path: string;
+  text: string | null;
+  boxes?: Array<{
+      page: number;
+      box: {
+        x: number;
+        y: number;
+        w: number;
+        h: number;
+      } | null;
+    }>;
+};
 export type FilesCommentsAddIn = {
   fileId: string;
   anchor: {
@@ -12254,6 +12362,156 @@ export type FilesListOut = {
   next?: string;
   total?: number;
 };
+export type FilesMarksAddIn = {
+  target: {
+    type: "file" | "folder";
+    id: string;
+  };
+  kind: "redact" | "highlight";
+  shape: "span" | "box" | "range" | "name";
+  text?: string;
+  occurrence?: number;
+  page?: number;
+  box?: {
+    x: number;
+    y: number;
+    w: number;
+    h: number;
+  };
+  from?: number;
+  to?: number;
+  label?: string;
+  via?: "select" | "check" | "box" | "range" | "name";
+};
+export type FilesMarksAddOut = {
+  mark: {
+    markId: string;
+    targetId: string;
+    version: number;
+    kind: "redact" | "highlight";
+    shape: "span" | "box" | "range" | "name";
+    text?: string;
+    occurrence?: number;
+    page?: number;
+    box?: {
+      x: number;
+      y: number;
+      w: number;
+      h: number;
+    };
+    from?: number;
+    to?: number;
+    label?: string;
+    by: string;
+    byAgent?: string;
+    via?: string;
+    at: number;
+    unplaced: boolean;
+  };
+};
+export type FilesMarksListIn = {
+  fileId: string;
+};
+export type FilesMarksListOut = {
+  state: "available" | "reviewed" | "needs_review" | "off";
+  access: {
+    value: "on" | "redact" | "off";
+    own: boolean;
+    inherited: "on" | "redact" | "off";
+    from?: {
+      kind: "file" | "folder";
+      id: string;
+      name: string;
+    };
+    setBy?: string;
+    setAt?: number;
+    overrides?: Array<{
+        kind: "file" | "folder";
+        id: string;
+        name: string;
+        value: "on" | "redact" | "off";
+      }>;
+    files?: number;
+  };
+  version: number;
+  reviewed?: {
+    by: string;
+    at: number;
+    version: number;
+  };
+  marks: Array<{
+      markId: string;
+      targetId: string;
+      version: number;
+      kind: "redact" | "highlight";
+      shape: "span" | "box" | "range" | "name";
+      text?: string;
+      occurrence?: number;
+      page?: number;
+      box?: {
+        x: number;
+        y: number;
+        w: number;
+        h: number;
+      };
+      from?: number;
+      to?: number;
+      label?: string;
+      by: string;
+      byAgent?: string;
+      via?: string;
+      at: number;
+      unplaced: boolean;
+    }>;
+  unplaced: Array<{
+      markId: string;
+      targetId: string;
+      version: number;
+      kind: "redact" | "highlight";
+      shape: "span" | "box" | "range" | "name";
+      text?: string;
+      occurrence?: number;
+      page?: number;
+      box?: {
+        x: number;
+        y: number;
+        w: number;
+        h: number;
+      };
+      from?: number;
+      to?: number;
+      label?: string;
+      by: string;
+      byAgent?: string;
+      via?: string;
+      at: number;
+      unplaced: boolean;
+    }>;
+  names: Array<{
+      markId: string;
+      text: string;
+    }>;
+  requests: Array<{
+      requestId: string;
+      agentId?: string;
+      actingFor?: string;
+      at: number;
+    }>;
+};
+export type FilesMarksPlaceIn = {
+  markId: string;
+  text?: string;
+  drop?: boolean;
+};
+export type FilesMarksPlaceOut = {
+  ok: boolean;
+};
+export type FilesMarksRemoveIn = {
+  markId: string;
+};
+export type FilesMarksRemoveOut = {
+  removed: boolean;
+};
 export type FilesMarkupGetIn = {
   fileId: string;
   page?: number;
@@ -12368,6 +12626,33 @@ export type FilesRecentOut = {
       conflict?: boolean;
     }>;
 };
+export type FilesRedactDetectIn = {
+  fileId: string;
+  names?: Array<string>;
+};
+export type FilesRedactDetectOut = {
+  suggestions: Array<{
+      kind: string;
+      label: string;
+      text: string;
+      count: number;
+    }>;
+  textLayer: boolean;
+  checkedBy: "patterns";
+};
+export type FilesRedactLaterIn = {
+  requestId: string;
+};
+export type FilesRedactLaterOut = {
+  ok: boolean;
+};
+export type FilesRedactRequestIn = {
+  fileId: string;
+};
+export type FilesRedactRequestOut = {
+  requestId: string | null;
+  state: "clear" | "redacted" | "needs" | "off";
+};
 export type FilesRenameIn = {
   fileId: string;
   name: string;
@@ -12464,6 +12749,17 @@ export type FilesRestoreVersionOut = {
     conflict?: boolean;
   };
   versionId: string;
+};
+export type FilesReviewIn = {
+  fileId: string;
+};
+export type FilesReviewOut = {
+  reviewed: {
+    by: string;
+    at: number;
+    version: number;
+  };
+  woke: number;
 };
 export type FilesRevokeExternalIn = {
   fileId: string;
@@ -40367,6 +40663,10 @@ export interface CapMap {
   "events.replay": { in: EventsReplayIn; out: EventsReplayOut };
   "events.since": { in: EventsSinceIn; out: EventsSinceOut };
   "events.types": { in: EventsTypesIn; out: EventsTypesOut };
+  "files.agent_access.get": { in: FilesAgentAccessGetIn; out: FilesAgentAccessGetOut };
+  "files.agent_access.set": { in: FilesAgentAccessSetIn; out: FilesAgentAccessSetOut };
+  "files.agent_states": { in: FilesAgentStatesIn; out: FilesAgentStatesOut };
+  "files.agent_view": { in: FilesAgentViewIn; out: FilesAgentViewOut };
   "files.comments.add": { in: FilesCommentsAddIn; out: FilesCommentsAddOut };
   "files.comments.delete": { in: FilesCommentsDeleteIn; out: FilesCommentsDeleteOut };
   "files.comments.list": { in: FilesCommentsListIn; out: FilesCommentsListOut };
@@ -40389,6 +40689,10 @@ export interface CapMap {
   "files.knowledge": { in: FilesKnowledgeIn; out: FilesKnowledgeOut };
   "files.lint": { in: FilesLintIn; out: FilesLintOut };
   "files.list": { in: FilesListIn; out: FilesListOut };
+  "files.marks.add": { in: FilesMarksAddIn; out: FilesMarksAddOut };
+  "files.marks.list": { in: FilesMarksListIn; out: FilesMarksListOut };
+  "files.marks.place": { in: FilesMarksPlaceIn; out: FilesMarksPlaceOut };
+  "files.marks.remove": { in: FilesMarksRemoveIn; out: FilesMarksRemoveOut };
   "files.markup.get": { in: FilesMarkupGetIn; out: FilesMarkupGetOut };
   "files.markup.save": { in: FilesMarkupSaveIn; out: FilesMarkupSaveOut };
   "files.move": { in: FilesMoveIn; out: FilesMoveOut };
@@ -40396,10 +40700,14 @@ export interface CapMap {
   "files.purge": { in: FilesPurgeIn; out: FilesPurgeOut };
   "files.read": { in: FilesReadIn; out: FilesReadOut };
   "files.recent": { in: FilesRecentIn; out: FilesRecentOut };
+  "files.redact.detect": { in: FilesRedactDetectIn; out: FilesRedactDetectOut };
+  "files.redact.later": { in: FilesRedactLaterIn; out: FilesRedactLaterOut };
+  "files.redact.request": { in: FilesRedactRequestIn; out: FilesRedactRequestOut };
   "files.rename": { in: FilesRenameIn; out: FilesRenameOut };
   "files.resolve": { in: FilesResolveIn; out: FilesResolveOut };
   "files.restore": { in: FilesRestoreIn; out: FilesRestoreOut };
   "files.restore_version": { in: FilesRestoreVersionIn; out: FilesRestoreVersionOut };
+  "files.review": { in: FilesReviewIn; out: FilesReviewOut };
   "files.revoke_external": { in: FilesRevokeExternalIn; out: FilesRevokeExternalOut };
   "files.save": { in: FilesSaveIn; out: FilesSaveOut };
   "files.share": { in: FilesShareIn; out: FilesShareOut };
@@ -42696,6 +43004,19 @@ export type FieldRevealedPayload = {
   type: string;
   field: string;
 };
+export type FileAgentAccessChangedPayload = {
+  fileId: string;
+  value: "on" | "redact" | "off";
+  own: boolean;
+  by: string;
+};
+export type FileAgentReadPayload = {
+  fileId: string;
+  version: number;
+  redacted: boolean;
+  agentId?: string;
+  actingFor?: string;
+};
 export type FileCommentAddedPayload = {
   fileId: string;
   commentId: string;
@@ -42726,6 +43047,23 @@ export type FileExternalRevokedPayload = {
   fileId: string;
   linkId: string;
 };
+export type FileHighlightRemovedPayload = {
+  fileId?: string;
+  folderId?: string;
+  markId: string;
+  shape: string;
+  label?: string;
+  by: string;
+};
+export type FileHighlightedPayload = {
+  fileId?: string;
+  folderId?: string;
+  markId: string;
+  shape: string;
+  label?: string;
+  by: string;
+  byAgent?: string;
+};
 export type FileMarkupSavedPayload = {
   fileId: string;
   versionId?: string;
@@ -42735,8 +43073,41 @@ export type FileMovedPayload = {
   fromFolderId: string;
   toFolderId: string;
 };
+export type FileNeedsReviewPayload = {
+  fileId: string;
+  version: number;
+  unplaced: number;
+};
 export type FilePurgedPayload = {
   fileId: string;
+};
+export type FileRedactReadyPayload = {
+  requestId: string;
+  fileId: string;
+  name: string;
+  by: string;
+  agentId?: string;
+  actingFor?: string;
+  threadId?: string;
+  taskId?: string;
+};
+export type FileRedactRequestedPayload = {
+  requestId: string;
+  fileId: string;
+  name: string;
+  agentId?: string;
+  actingFor?: string;
+  threadId?: string;
+};
+export type FileRedactedPayload = {
+  fileId?: string;
+  folderId?: string;
+  markId: string;
+  shape: string;
+  label?: string;
+  by: string;
+  byAgent?: string;
+  placed?: boolean;
 };
 export type FileRenamedPayload = {
   fileId: string;
@@ -42746,6 +43117,12 @@ export type FileRenamedPayload = {
 export type FileRestoredPayload = {
   fileId: string;
   folderId: string;
+};
+export type FileReviewedPayload = {
+  fileId: string;
+  version: number;
+  by: string;
+  requests: number;
 };
 export type FileSharedExternalPayload = {
   fileId: string;
@@ -42757,6 +43134,15 @@ export type FileStarredPayload = {
   by: string;
   starred: boolean;
 };
+export type FileUnredactedPayload = {
+  fileId?: string;
+  folderId?: string;
+  markId: string;
+  shape: string;
+  label?: string;
+  by: string;
+  dropped?: boolean;
+};
 export type FileVersionAddedPayload = {
   fileId: string;
   versionId: string;
@@ -42766,6 +43152,12 @@ export type FileVersionAddedPayload = {
 };
 export type FileVersionsPurgedPayload = {
   removed: number;
+};
+export type FolderAgentAccessChangedPayload = {
+  folderId: string;
+  value: "on" | "redact" | "off";
+  own: boolean;
+  by: string;
 };
 export type FolderCreatedPayload = {
   folderId: string;
@@ -45797,21 +46189,32 @@ export interface EventMap {
   "factor.enrolled": FactorEnrolledPayload;
   "factor.removed": FactorRemovedPayload;
   "field.revealed": FieldRevealedPayload;
+  "file.agent_access_changed": FileAgentAccessChangedPayload;
+  "file.agent_read": FileAgentReadPayload;
   "file.comment_added": FileCommentAddedPayload;
   "file.comment_resolved": FileCommentResolvedPayload;
   "file.conflict_kept": FileConflictKeptPayload;
   "file.created": FileCreatedPayload;
   "file.deleted": FileDeletedPayload;
   "file.external_revoked": FileExternalRevokedPayload;
+  "file.highlight_removed": FileHighlightRemovedPayload;
+  "file.highlighted": FileHighlightedPayload;
   "file.markup_saved": FileMarkupSavedPayload;
   "file.moved": FileMovedPayload;
+  "file.needs_review": FileNeedsReviewPayload;
   "file.purged": FilePurgedPayload;
+  "file.redact_ready": FileRedactReadyPayload;
+  "file.redact_requested": FileRedactRequestedPayload;
+  "file.redacted": FileRedactedPayload;
   "file.renamed": FileRenamedPayload;
   "file.restored": FileRestoredPayload;
+  "file.reviewed": FileReviewedPayload;
   "file.shared_external": FileSharedExternalPayload;
   "file.starred": FileStarredPayload;
+  "file.unredacted": FileUnredactedPayload;
   "file.version_added": FileVersionAddedPayload;
   "file_versions.purged": FileVersionsPurgedPayload;
+  "folder.agent_access_changed": FolderAgentAccessChangedPayload;
   "folder.created": FolderCreatedPayload;
   "folder.deleted": FolderDeletedPayload;
   "folder.mounted": FolderMountedPayload;

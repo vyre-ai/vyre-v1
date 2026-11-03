@@ -19153,6 +19153,74 @@
     },
     {
       "blocks": [],
+      "cap": "files.agent_access.get",
+      "deferred": false,
+      "description": "What agents may read in a folder or of a file: Available, Redacted or Not available, where it comes from, and what is set differently inside",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "target": {
+            "description": "The file or folder",
+            "properties": {
+              "id": {
+                "examples": [
+                  "fil_a1b2c3"
+                ],
+                "type": "string"
+              },
+              "type": {
+                "enum": [
+                  "file",
+                  "folder"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "type",
+              "id"
+            ],
+            "type": "object"
+          }
+        },
+        "required": [
+          "target"
+        ],
+        "type": "object"
+      },
+      "name": "files_agent_access_get",
+      "planMode": "allowed",
+      "toolset": "files",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "files.redact.request",
+      "deferred": false,
+      "description": "Ask a person to review a file in a Redacted folder before you read it (Redact before I can read); you are woken when it is ready",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "fileId": {
+            "examples": [
+              "fil_a1b2c3"
+            ],
+            "pattern": "^fil_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "fileId"
+        ],
+        "type": "object"
+      },
+      "name": "files_ask_to_read",
+      "planMode": "blocked",
+      "toolset": "files",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "files.comments.add",
       "deferred": false,
       "description": "Comment on a file, a range, a cell, a page or an area (area comments are numbered pins); @ people and agents",
@@ -20307,6 +20375,132 @@
       },
       "name": "files_recent",
       "planMode": "allowed",
+      "toolset": "files",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "files.marks.add",
+      "deferred": false,
+      "description": "Highlight part of a file for the team, or hide it from AI (a span, a box on a scan or picture, a transcript range, or a piece of the name); anyone who can open the file may",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "box": {
+            "description": "Fractions of the page or picture",
+            "properties": {
+              "h": {
+                "maximum": 1,
+                "minimum": 0,
+                "type": "number"
+              },
+              "w": {
+                "maximum": 1,
+                "minimum": 0,
+                "type": "number"
+              },
+              "x": {
+                "maximum": 1,
+                "minimum": 0,
+                "type": "number"
+              },
+              "y": {
+                "maximum": 1,
+                "minimum": 0,
+                "type": "number"
+              }
+            },
+            "required": [
+              "x",
+              "y",
+              "w",
+              "h"
+            ],
+            "type": "object"
+          },
+          "from": {
+            "minimum": 0,
+            "type": "number"
+          },
+          "kind": {
+            "enum": [
+              "redact",
+              "highlight"
+            ],
+            "type": "string"
+          },
+          "label": {
+            "maxLength": 80,
+            "type": "string"
+          },
+          "occurrence": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "page": {
+            "minimum": 1,
+            "type": "integer"
+          },
+          "shape": {
+            "enum": [
+              "span",
+              "box",
+              "range",
+              "name"
+            ],
+            "type": "string"
+          },
+          "target": {
+            "description": "The file or folder",
+            "properties": {
+              "id": {
+                "examples": [
+                  "fil_a1b2c3"
+                ],
+                "type": "string"
+              },
+              "type": {
+                "enum": [
+                  "file",
+                  "folder"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "type",
+              "id"
+            ],
+            "type": "object"
+          },
+          "text": {
+            "maxLength": 4000,
+            "type": "string"
+          },
+          "to": {
+            "minimum": 0,
+            "type": "number"
+          },
+          "via": {
+            "enum": [
+              "select",
+              "check",
+              "box",
+              "range",
+              "name"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "target",
+          "kind",
+          "shape"
+        ],
+        "type": "object"
+      },
+      "name": "files_redact",
+      "planMode": "blocked",
       "toolset": "files",
       "v": 1
     },
