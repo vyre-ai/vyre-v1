@@ -17,6 +17,8 @@ import { captureConsumers, capturePeriodic } from "./handlers/capture.ts";
 import { checkGroupAccount } from "./group-account.ts";
 import { closeNoAccountTasks, engineHost, ensureRuntime, openAs, recoverStale, setEngineHost, wakeAfterUnblock } from "./runtime.ts";
 import { onTaskEvent, sweepBaton } from "./handlers/task-baton.ts";
+import { onRoutineRun } from "./handlers/routine-run.ts";
+import type { RoutineRunEvent } from "./handlers/routine-run.ts";
 import { markLostJobs, ownerChanged, resumeAgent, stopAgent, stopPerson } from "./handlers/departures.ts";
 import type { EngineCtx } from "./projections.ts";
 import { installOnConnect } from "./engine-setup.ts";
@@ -122,6 +124,16 @@ export const consumers = {
       const host = engineHost();
       if (!engine || !host) return [];
       return onTaskEvent(ctx, { call: host.call, now: () => ctx.now(), ...(host.log ? { log: host.log } : {}) }, engine, event);
+    },
+  },
+  /** A routine's run started (its time came, or Run Now): its agent acts on the routine's instructions in the routine's chat, for its owner (handlers/routine-run.ts). */
+  "engine.routine_run": {
+    on: ["agent.routine_run_started"],
+    run: async (ctx: EngineCtx, event: RoutineRunEvent): Promise<string[]> => {
+      const engine = await ensureRuntime(ctx);
+      const host = engineHost();
+      if (!engine || !host) return [];
+      return onRoutineRun(ctx, { call: host.call, ...(host.log ? { log: host.log } : {}) }, engine, async (threadId, person) => { await openAs(ctx, threadId, person); }, event);
     },
   },
   /** A key an agent asked for in a chat was added or declined: the agent is told in that chat, as the person it asked for, and carries on. */

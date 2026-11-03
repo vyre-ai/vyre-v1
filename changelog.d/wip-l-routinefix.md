@@ -1,0 +1,2 @@
+- Scheduled routines run now. When a routine's time comes, its agent acts on the routine's instructions in the routine's chat, or in its channel, for the person who set it. The reply is labelled as their routine. Run Now makes the agent act the same way. A routine that missed runs while the server was off runs once when it comes back, not once for every missed time. Only the computer that runs scheduled work fires routines.
+- Fixed a server that would not start because the key request module failed to load.

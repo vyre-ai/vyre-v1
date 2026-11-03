@@ -624,11 +624,15 @@ export const routineLabel = (agentName: string, ownerName: string): string => `S
 /** What the post carries so the label can be drawn: chat.post `via`. Only the routine's owner can open the routine itself. */
 export const routineVia = (r: Pick<RoutineRec, "ownerId">): { routineOwner: string } => ({ routineOwner: r.ownerId });
 /** The scheduler calls this when it starts a routine: the run is recorded and the next one is worked out from now. */
-export function markRoutineRan(db: Db, id: string, at: number): RoutineRec | null {
+/** `ran` false: the time passed without a run (the agent was paused), so only the next time moves. */
+export function markRoutineRan(db: Db, id: string, at: number, ran = true): RoutineRec | null {
   ensure(db);
   const r = routineBy(db, id);
   if (!r) return null;
-  db.run("UPDATE agents_routine SET lastRunAt = ?, nextRunAt = ?, updatedAt = ? WHERE id = ?", at, r.enabled ? nextRun(r.cron, at) : null, at, id);
+  // the next run counts from now, so a routine that missed several times while the server was off runs once, not once per missed time
+  const next = r.enabled ? nextRun(r.cron, at) : null;
+  if (ran) db.run("UPDATE agents_routine SET lastRunAt = ?, nextRunAt = ?, updatedAt = ? WHERE id = ?", at, next, at, id);
+  else db.run("UPDATE agents_routine SET nextRunAt = ?, updatedAt = ? WHERE id = ?", next, at, id);
   return routineBy(db, id);
 }
 
