@@ -4,7 +4,7 @@ Lane L4. Kind module. Version 0.1.0.
 
 Requires: mounts.
 
-## Capabilities (66)
+## Capabilities (77)
 
 - [changesets.approve](../capabilities/changesets.approve.md): Approve and commit a changeset: 3-way merge on the recorded base, conflicts go to the reviewer; optionally push
 - [changesets.comments.add](../capabilities/changesets.comments.add.md): Add an inline comment to a changeset with @ people and agents (an @ agent answers in the thread)
@@ -17,6 +17,9 @@ Requires: mounts.
 - [changesets.request_changes](../capabilities/changesets.request_changes.md): Send the reviewer comments back to the agent thread and keep the changeset open
 - [changesets.revert_change](../capabilities/changesets.revert_change.md): Revert a single change (one hunk or one file) inside a changeset
 - [changesets.review_externally](../capabilities/changesets.review_externally.md): Open a changeset to an outside agent (Claude Code, Codex) with a read and comment token; returns a one-time review link (the token is in the link, shown once, never logged)
+- [files.agent_access.get](../capabilities/files.agent_access.get.md): What agents may read in a folder or of a file: Available, Redacted or Not available, where it comes from, and what is set differently inside
+- [files.agent_access.set](../capabilities/files.agent_access.set.md): Set Agent access on a folder or a file (on Available, redact Redacted, off Not available); null follows the folder above
+- [files.agent_view](../capabilities/files.agent_view.md): What an agent gets of a file now (Preview as agent): its text with [REDACTED], its name and path as agents read them, or why it gets nothing
 - [files.comments.add](../capabilities/files.comments.add.md): Comment on a file, a range, a cell, a page or an area (area comments are numbered pins); @ people and agents
 - [files.comments.delete](../capabilities/files.comments.delete.md): Delete a comment
 - [files.comments.list](../capabilities/files.comments.list.md): List comments and numbered pins on a file; agents read pins to see what a person marked
@@ -39,6 +42,10 @@ Requires: mounts.
 - [files.knowledge](../capabilities/files.knowledge.md): The Knowledge section of the tree: the knowledge folders and files the caller may read, plus the Memory and Graph entries
 - [files.lint](../capabilities/files.lint.md): Lint a guidance file: line counts against the limits, Inherits VYRE.md, Override lines, secret scan, agent.toml schema, routine prompt files, handoff names, repeated facts
 - [files.list](../capabilities/files.list.md): List files and folders in a folder or a section (Personal, Shared with me, Space). deep with section space lists every file in every Space folder the caller may see; q keeps names that contain it
+- [files.marks.add](../capabilities/files.marks.add.md): Highlight part of a file for the team, or hide it from AI (a span, a box on a scan or picture, a transcript range, or a piece of the name); anyone who can open the file may
+- [files.marks.list](../capabilities/files.marks.list.md): The redactions and highlights on a file, its review for AI, what a new version could not place, and agents waiting to read it
+- [files.marks.place](../capabilities/files.marks.place.md): A redaction a new version could not carry over: place it on a near match, or drop it
+- [files.marks.remove](../capabilities/files.marks.remove.md): Un-redact or remove a highlight; only a person takes a redaction off
 - [files.markup.get](../capabilities/files.markup.get.md): Read freehand markup (Draw) saved on an image or page
 - [files.markup.save](../capabilities/files.markup.save.md): Save freehand markup on an image or page
 - [files.move](../capabilities/files.move.md): Move a file to another folder (grants of the new folder apply, nothing is copied)
@@ -46,10 +53,14 @@ Requires: mounts.
 - [files.purge](../capabilities/files.purge.md): Delete a file from Trash for good
 - [files.read](../capabilities/files.read.md): Read the content of a file or one of its versions as text, base64 or a short-lived download address; as text, a PDF, Word, Excel or PowerPoint file comes back as its extracted text
 - [files.recent](../capabilities/files.recent.md): Recently opened or changed files
+- [files.redact.detect](../capabilities/files.redact.detect.md): Find things to redact: names from Records, SSNs, dates of birth, account and case numbers, phones, emails and addresses, by pattern checks on the server (no AI reads the file)
+- [files.redact.later](../capabilities/files.redact.later.md): Not now: put an agent's request to read aside
+- [files.redact.request](../capabilities/files.redact.request.md): Ask a person to review a file in a Redacted folder before you read it (Redact before I can read); you are woken when it is ready
 - [files.rename](../capabilities/files.rename.md): Rename a file
 - [files.resolve](../capabilities/files.resolve.md): Turn a tree path such as Projects/Probate GTM/plan.md into an id
 - [files.restore](../capabilities/files.restore.md): Bring a file back from Trash
 - [files.restore_version](../capabilities/files.restore_version.md): Restore a file to an earlier version (a new version is added)
+- [files.review](../capabilities/files.review.md): Mark a file reviewed for AI (Done): agents may read its redacted version, and every agent that asked is woken
 - [files.revoke_external](../capabilities/files.revoke_external.md): Revoke an outside link
 - [files.save](../capabilities/files.save.md): Save a guidance file (VYRE.md, AGENT.md, agent.toml, routine prompts): snapshot first, lint, then commit as a version
 - [files.share](../capabilities/files.share.md): Share a file with a person, group, role or agent at View, Use, Edit or Manage (folders use access.share)
@@ -73,7 +84,7 @@ Requires: mounts.
 - [sheets.update_row](../capabilities/sheets.update_row.md): Update one row by row id or by a key column value
 - [sheets.upsert_row](../capabilities/sheets.upsert_row.md): Update the row that matches the given columns, or append a new one
 
-## Events (31)
+## Events (42)
 
 - [changeset.approved](../events/changeset.approved.md): A changeset was approved and committed
 - [changeset.changes_requested](../events/changeset.changes_requested.md): The reviewer asked the agent for changes
@@ -82,21 +93,32 @@ Requires: mounts.
 - [changeset.opened](../events/changeset.opened.md): Agent edits were staged in a working copy for review
 - [changeset.sent_for_review](../events/changeset.sent_for_review.md): A changeset was opened to an outside agent for review
 - [changeset.updated](../events/changeset.updated.md): A change inside a changeset was reverted or the agent added more edits
+- [file.agent_access_changed](../events/file.agent_access_changed.md): Agent access of a file changed
+- [file.agent_read](../events/file.agent_read.md): An agent read a file from a Redacted folder, or one with parts hidden from AI
 - [file.comment_added](../events/file.comment_added.md): A comment or pin was added to a file
 - [file.comment_resolved](../events/file.comment_resolved.md): A comment was resolved
 - [file.conflict_kept](../events/file.conflict_kept.md): Two saves collided on a binary file; the newest is current and the other is kept as a labelled version
 - [file.created](../events/file.created.md): A file was created
 - [file.deleted](../events/file.deleted.md): A file moved to Trash
 - [file.external_revoked](../events/file.external_revoked.md): An outside link was revoked
+- [file.highlight_removed](../events/file.highlight_removed.md): A highlight was removed
+- [file.highlighted](../events/file.highlighted.md): Part of a file was highlighted for the team
 - [file.markup_saved](../events/file.markup_saved.md): Freehand markup on an image or page was saved
 - [file.moved](../events/file.moved.md): A file moved to another folder
+- [file.needs_review](../events/file.needs_review.md): A new version left redactions it could not place: agents wait for a review
 - [file.purged](../events/file.purged.md): A file was deleted for good
+- [file.redact_ready](../events/file.redact_ready.md): A file an agent asked for was reviewed: the agent is woken to read it
+- [file.redact_requested](../events/file.redact_requested.md): An agent asked to read a file nobody has reviewed yet ("Redact before I can read")
+- [file.redacted](../events/file.redacted.md): Part of a file (or a piece of a name) was hidden from AI
 - [file.renamed](../events/file.renamed.md): A file was renamed
 - [file.restored](../events/file.restored.md): A file came back from Trash
+- [file.reviewed](../events/file.reviewed.md): A person reviewed a file for AI: agents may read its redacted version
 - [file.shared_external](../events/file.shared_external.md): A link outside the Space was made for a file
 - [file.starred](../events/file.starred.md): A person starred a file or took the star off
+- [file.unredacted](../events/file.unredacted.md): A redaction was taken off (or dropped after a new version)
 - [file.version_added](../events/file.version_added.md): A file got a new version
 - [file_versions.purged](../events/file_versions.purged.md): Old file versions were removed by retention (a count)
+- [folder.agent_access_changed](../events/folder.agent_access_changed.md): Agent access of a folder changed
 - [folder.created](../events/folder.created.md): A folder was created
 - [folder.deleted](../events/folder.deleted.md): A folder and its files moved to Trash
 - [folder.moved](../events/folder.moved.md): A folder moved

@@ -16,6 +16,9 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "changesets.request_changes": Handler<"changesets.request_changes", X>;
   "changesets.revert_change": Handler<"changesets.revert_change", X>;
   "changesets.review_externally": Handler<"changesets.review_externally", X>;
+  "files.agent_access.get": Handler<"files.agent_access.get", X>;
+  "files.agent_access.set": Handler<"files.agent_access.set", X>;
+  "files.agent_view": Handler<"files.agent_view", X>;
   "files.comments.add": Handler<"files.comments.add", X>;
   "files.comments.delete": Handler<"files.comments.delete", X>;
   "files.comments.list": Handler<"files.comments.list", X>;
@@ -38,6 +41,10 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "files.knowledge": Handler<"files.knowledge", X>;
   "files.lint": Handler<"files.lint", X>;
   "files.list": Handler<"files.list", X>;
+  "files.marks.add": Handler<"files.marks.add", X>;
+  "files.marks.list": Handler<"files.marks.list", X>;
+  "files.marks.place": Handler<"files.marks.place", X>;
+  "files.marks.remove": Handler<"files.marks.remove", X>;
   "files.markup.get": Handler<"files.markup.get", X>;
   "files.markup.save": Handler<"files.markup.save", X>;
   "files.move": Handler<"files.move", X>;
@@ -45,10 +52,14 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "files.purge": Handler<"files.purge", X>;
   "files.read": Handler<"files.read", X>;
   "files.recent": Handler<"files.recent", X>;
+  "files.redact.detect": Handler<"files.redact.detect", X>;
+  "files.redact.later": Handler<"files.redact.later", X>;
+  "files.redact.request": Handler<"files.redact.request", X>;
   "files.rename": Handler<"files.rename", X>;
   "files.resolve": Handler<"files.resolve", X>;
   "files.restore": Handler<"files.restore", X>;
   "files.restore_version": Handler<"files.restore_version", X>;
+  "files.review": Handler<"files.review", X>;
   "files.revoke_external": Handler<"files.revoke_external", X>;
   "files.save": Handler<"files.save", X>;
   "files.share": Handler<"files.share", X>;

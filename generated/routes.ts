@@ -11331,6 +11331,71 @@ const routes2: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/files/agent_access/get",
+    "cap": "files.agent_access.get",
+    "v": 1,
+    "module": "files",
+    "effects": "read",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "dynamic",
+      "ref": "/target",
+      "allowed": [
+        "file",
+        "folder"
+      ]
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/files/agent_access/set",
+    "cap": "files.agent_access.set",
+    "v": 1,
+    "module": "files",
+    "effects": "write",
+    "permission": null,
+    "level": "manage",
+    "resource": {
+      "type": "dynamic",
+      "ref": "/target",
+      "allowed": [
+        "file",
+        "folder"
+      ]
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/files/agent_view",
+    "cap": "files.agent_view",
+    "v": 1,
+    "module": "files",
+    "effects": "read",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "file",
+      "id": "/fileId"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/files/comments/add",
     "cap": "files.comments.add",
     "v": 1,
@@ -11746,6 +11811,84 @@ const routes2: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/files/marks/add",
+    "cap": "files.marks.add",
+    "v": 1,
+    "module": "files",
+    "effects": "write",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "dynamic",
+      "ref": "/target",
+      "allowed": [
+        "file",
+        "folder"
+      ]
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/files/marks/list",
+    "cap": "files.marks.list",
+    "v": 1,
+    "module": "files",
+    "effects": "read",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "file",
+      "id": "/fileId"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/files/marks/place",
+    "cap": "files.marks.place",
+    "v": 1,
+    "module": "files",
+    "effects": "write",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/files/marks/remove",
+    "cap": "files.marks.remove",
+    "v": 1,
+    "module": "files",
+    "effects": "write",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/files/markup/get",
     "cap": "files.markup.get",
     "v": 1,
@@ -11878,6 +12021,62 @@ const routes2: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/files/redact/detect",
+    "cap": "files.redact.detect",
+    "v": 1,
+    "module": "files",
+    "effects": "read",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "file",
+      "id": "/fileId"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/files/redact/later",
+    "cap": "files.redact.later",
+    "v": 1,
+    "module": "files",
+    "effects": "write",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/files/redact/request",
+    "cap": "files.redact.request",
+    "v": 1,
+    "module": "files",
+    "effects": "write",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "file",
+      "id": "/fileId"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/files/rename",
     "cap": "files.rename",
     "v": 1,
@@ -11941,6 +12140,25 @@ const routes2: Route[] = [
     "effects": "write",
     "permission": "files.write",
     "level": "edit",
+    "resource": {
+      "type": "file",
+      "id": "/fileId"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/files/review",
+    "cap": "files.review",
+    "v": 1,
+    "module": "files",
+    "effects": "write",
+    "permission": null,
+    "level": "view",
     "resource": {
       "type": "file",
       "id": "/fileId"
@@ -16411,7 +16629,10 @@ const routes2: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes3: Route[] = [
   {
     "method": "POST",
     "path": "/v1/health/support_bundle",
@@ -16609,10 +16830,7 @@ const routes2: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  }
-];
-
-const routes3: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/hubspot/health",
@@ -21882,7 +22100,10 @@ const routes3: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes4: Route[] = [
   {
     "method": "POST",
     "path": "/v1/memory/used",
@@ -22086,10 +22307,7 @@ const routes3: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  }
-];
-
-const routes4: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/mounts/get",
@@ -27413,7 +27631,10 @@ const routes4: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": "none"
-  },
+  }
+];
+
+const routes5: Route[] = [
   {
     "method": "POST",
     "path": "/v1/resend/domains/delete",
@@ -27612,10 +27833,7 @@ const routes4: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  }
-];
-
-const routes5: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/runbooks/parse",
@@ -32929,7 +33147,10 @@ const routes5: Route[] = [
     "offline": "queue",
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes6: Route[] = [
   {
     "method": "POST",
     "path": "/v1/tasks/submit",
@@ -33133,10 +33354,7 @@ const routes5: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  }
-];
-
-const routes6: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/telephony/call/list",
