@@ -4,7 +4,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { capture, factGet, factsAsOf } from "../handlers/facts.ts";
-import { chatLearningGet, chatLearningSet, learningToday, parseOps } from "../handlers/learn.ts";
+import { chatLearningGet, chatLearningSet, learningToday, parseOps, shouldLearn } from "../handlers/learn.ts";
 import { cheapestModel, tierOf } from "../learn-model.ts";
 import { localDay } from "../learn-quota.ts";
 import { asPerson, assertEventsConform, contractErrors, DAY, harness, NOW, seedFact } from "../fixtures/harness.ts";
@@ -252,6 +252,21 @@ test("Don't remember this chat: nothing is learned from it by a turn pass or at 
   assert.equal((await capture(dana.ctx, turn())).via, "model");
   const stranger = asPerson(h, { kind: "person", id: "usr_x" }, { respond: { "threads.get": () => { throw new Error("not found"); } } });
   await assert.rejects(chatLearningGet(stranger.ctx, { threadId: THREAD }), (e) => (e as { error?: { code?: string } }).error?.code === "validation.not_found");
+});
+
+test("the thread setting memory.off (the composer switch) stops every learning path through shouldLearn", async () => {
+  const seen: Seen = { complete: [], listed: 0 };
+  const s: Script = { messages: [say(1, "I prefer the blue theme for reports.")], models: priced };
+  for (const thread of [{ "memory.off": true }, { settings: { "memory.off": true } }]) {
+    const respond = { ...chat(s, seen), "threads.get": () => ({ thread: { kind: "chat", starter: DANA, agents: [{ agentId: "agt_intake", mode: "lead" }], members: [person(DANA)], ...thread } }) };
+    const h = harness({ respond });
+    assert.equal(shouldLearn(h.ctx, THREAD, thread), false);
+    assert.equal((await capture(h.ctx, turn())).skipped, "forgotten");
+    assert.deepEqual(await capture(h.ctx, { threadId: THREAD, reason: "closed" }), { proposed: 0, merged: 0 });
+    assert.equal(h.rows("SELECT id FROM memory_facts").length, 0);
+  }
+  assert.equal(seen.complete.length, 0, "no model pass, nothing written");
+  assert.equal(shouldLearn(harness().ctx, THREAD, { settings: { "memory.off": false } }), true);
 });
 
 test("lines a turn pass read are not captured again when the chat goes quiet; lines it did not read still are", async () => {

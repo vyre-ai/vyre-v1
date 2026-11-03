@@ -41,6 +41,19 @@ let seams: LearnSeams = DEFAULT_SEAMS;
 /** A sibling lane binds its own target or audience rule here; null puts the defaults back. */
 export function setLearnSeams(s: Partial<LearnSeams> | null): void { seams = s ? { ...DEFAULT_SEAMS, ...s } : DEFAULT_SEAMS; }
 
+// ---- the one hook: may memory learn from this chat?
+
+/** The chat fields shouldLearn reads: the thread setting `memory.off` (lane l-decisions' composer switch sets it, at the top of the thread or under its settings). */
+export interface LearnThread { "memory.off"?: unknown; settings?: Record<string, unknown> | null }
+/**
+ * "Don't remember this chat" (owner decision D11): false when the thread setting `memory.off` is true, or when memory's own switch (memory.chat_learning.set) is off.
+ * Every learning path asks this first, the pass after a turn and capture at chat end, and when it says no nothing is read and nothing is written.
+ */
+export function shouldLearn(ctx: Pick<MemCtx, "db">, threadId: string, thread?: LearnThread | null): boolean {
+  if (thread?.["memory.off"] === true || thread?.settings?.["memory.off"] === true) return false;
+  return !chatForgotten(ctx, threadId).off;
+}
+
 // ---- the model pass
 
 export interface TurnAccount { ref: string; driver: string; kind?: string; payer?: string; spaceKey?: boolean }
@@ -117,7 +130,7 @@ async function modeOf(ctx: MemCtx, agentId: string | null): Promise<CaptureMode 
   } catch { return null; }
 }
 
-interface ThreadIn { kind?: string; agents?: Array<{ agentId: string; mode: string }>; members?: Array<{ kind?: string; id?: string }> }
+interface ThreadIn extends LearnThread { kind?: string; agents?: Array<{ agentId: string; mode: string }>; members?: Array<{ kind?: string; id?: string }> }
 
 /** The model this account learns with: the one remembered for it, else the cheapest on its live list. A list that cannot be read is asked again in an hour. */
 async function modelFor(ctx: MemCtx, acct: TurnAccount, now: number): Promise<string | null> {
@@ -139,8 +152,9 @@ export async function learnTurn(ctx: MemCtx, input: LearnIn): Promise<LearnOut> 
   // only a person learns about themselves: the engine hands the chat over as the person whose turn it was
   if (ctx.principal.kind !== "person") raise(ctx, "permission.no_grant", "Learning runs for the person whose turn it was.");
   const asker = actorOf(ctx);
-  if (chatForgotten(ctx, input.threadId).off) return none("forgotten");
+  if (!shouldLearn(ctx, input.threadId)) return none("forgotten");
   const t = ((await ctx.call("threads.get", { threadId: input.threadId })) as { thread?: ThreadIn }).thread ?? {};
+  if (!shouldLearn(ctx, input.threadId, t)) return none("forgotten");
   if (t.kind === "run") return none("off");   // a routine's run: nothing a person said
   const agentId = input.agentId ?? (t.agents?.find((a) => a.mode === "lead") ?? t.agents?.[0])?.agentId ?? null;
   const mode = await modeOf(ctx, agentId);

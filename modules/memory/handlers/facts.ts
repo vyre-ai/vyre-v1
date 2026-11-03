@@ -9,9 +9,8 @@ import { extrasFor, factRows } from "../enrich.ts";
 import { meaningScores } from "../meaning.ts";
 import { reviewRequired } from "../policy.ts";
 import { trail, whoIs } from "../trail.ts";
-import { chatForgotten } from "../learn-quota.ts";
-import { learnTurn, readByTurns } from "./learn.ts";
-import type { LearnIn, LearnOut } from "./learn.ts";
+import { learnTurn, readByTurns, shouldLearn } from "./learn.ts";
+import type { LearnIn, LearnOut, LearnThread } from "./learn.ts";
 import type { Who } from "../trail.ts";
 import { emitAccepted, emitLearned, emitProposed, insertFact, normal } from "../factcore.ts";
 import { loadPage, readPage } from "../pages.ts";
@@ -861,8 +860,9 @@ export async function capture(ctx: MemCtx, input: { threadId: string; reason: "c
   // after every turn: the model pass on the asker's own account (learn.ts); at chat end or when quiet, the rules below over what no turn pass read
   if (input.reason === "turn") return learnTurn(ctx, input);
   // "Don't remember this chat": nothing is learned from it, by model or by rules
-  if (chatForgotten(ctx, input.threadId).off) return { proposed: 0, merged: 0 };
+  if (!shouldLearn(ctx, input.threadId)) return { proposed: 0, merged: 0 };
   const t = ((await ctx.call("threads.get", { threadId: input.threadId })) as ThreadOut).thread;
+  if (!shouldLearn(ctx, input.threadId, t as LearnThread)) return { proposed: 0, merged: 0 };
   const page = (await ctx.call("chat.messages.list", { threadId: input.threadId, limit: 200 })) as { messages: Array<CaptureMessage & { threadSeq?: number }> };
   const agentId = (t.agents.find((a) => a.mode === "lead") ?? t.agents[0])?.agentId ?? null;
   const shared = t.kind === "channel" || t.kind === "thread";
