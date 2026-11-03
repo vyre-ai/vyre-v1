@@ -12,6 +12,8 @@ import { UrlSync } from "../shell/session/UrlSync.tsx";
 import type { ShellHub } from "../shell/spaces/hub.ts";
 import { loadTwilioDevice } from "../shell/session/voice.ts";
 import { registerShellPlaces } from "../shell/places.ts";
+import { StartupUpdate } from "./update/StartupUpdate.tsx";
+import { WhatsNewOnce } from "./update/WhatsNewSheet.tsx";
 
 registerShellPlaces();
 
@@ -62,10 +64,12 @@ function AppRoute(): ReactElement {
       </Suspense>
     );
   }
+  // On the desktop the app updates itself first, before the lock screen (startup/update); once someone is in, What's new shows once after an update, on every platform.
   return (
-    <>
+    <StartupUpdate>
       <SessionGate baseUrl={hydrationBaseUrl(path !== null)} onHub={setHub} voice={loadTwilioDevice} />
       {hub ? <UrlSync hub={hub} /> : null}
-    </>
+      {hub ? <WhatsNewOnce /> : null}
+    </StartupUpdate>
   );
 }

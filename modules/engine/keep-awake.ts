@@ -2,7 +2,7 @@
 // system-idle power assertion the same way an app would, and `-w` ties it to this process, so a server that dies leaves nothing behind. Other systems: a server does not sleep, and nothing is done.
 import { spawn } from "node:child_process";
 
-export interface KeepAwake { up(): void; down(): void; stop(): void }
+export interface KeepAwake { up(): void; down(): void; stop(): void; /** Turns running now. */ running(): number }
 export interface KeepAwakeDeps { platform?: string; pid?: number; run?: (cmd: string, args: readonly string[]) => { kill(): void; on(ev: "error", fn: () => void): void } }
 
 export function createKeepAwake(d: KeepAwakeDeps = {}): KeepAwake {
@@ -19,5 +19,6 @@ export function createKeepAwake(d: KeepAwakeDeps = {}): KeepAwake {
     },
     down() { running = Math.max(0, running - 1); if (running === 0) release(); },
     stop() { running = 0; release(); },
+    running: () => running,
   };
 }

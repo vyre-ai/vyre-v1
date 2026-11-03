@@ -1,5 +1,6 @@
 // Settings data: the one context every page reads. Lists are live queries over the local copy; every change goes through `call`, one capability per action, and is saved as it is made
 // (quiet Saved, Undo where the capability returns the previous value). The shell supplies the value; the place never decides how a thing opens.
+import type { DesktopUpdates } from "../../startup/update/store.ts";
 import { createContext, useContext, useMemo, useSyncExternalStore } from "react";
 import type { ReactElement, ReactNode } from "react";
 import type { LiveQuery, QueryState, ScreenHooks } from "../../../../../client/src/index.ts";
@@ -28,13 +29,8 @@ export interface SpaceSecurity { totp: boolean; passkeys: readonly string[]; flo
 /** The sign-in that is the same for every Space: the password and a linked GitHub account. */
 export interface AccountSecurity { passwordChanged: string; github: string | null }
 
-/** The desktop app's own updates. Only the desktop shell supplies it; the web app and the phone update by reloading. */
-export interface DesktopUpdater {
-  /** Asks the update server whether a newer Vyre exists for this app's channel. Rejects with words for a person when the server cannot be reached. */
-  check(): Promise<{ current: string; channel: string; version: string | null; notes: string | null }>;
-  /** Downloads it, checks its signature, installs and restarts the app. Resolves only if the app did not restart; rejects with words. */
-  install(): Promise<void>;
-}
+/** The desktop app's own updates (startup/update/store.ts). Only the desktop shell supplies it; the web app and the phone are the new version as soon as they load. */
+export type DesktopUpdater = DesktopUpdates;
 
 /** What this person may do for the Space: which Console pages they can open and whether they can change Space-wide rows. Absent in a Personal Space and for someone with neither. */
 export interface SettingsData {

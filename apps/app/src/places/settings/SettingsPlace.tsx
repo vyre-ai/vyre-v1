@@ -1,7 +1,8 @@
 // The Settings place: You, and under the Space's own name what applies to everyone here, with one search (Cmd-F) over all of it. Changes save as they are made. The Console's pages open
 // inside a Space page, with a way back. On a phone the page list and a page are two screens with a back arrow.
 import { ResizableColumn } from "../../../../../ui/src/SidePane/resize.tsx";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { subscribeUpdates, updateState, updateWaiting } from "../../startup/update/store.ts";
 import type { ReactElement } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions } from "react-native";
 import { Row } from "../../../../../ui/src/Row/index.tsx";
@@ -10,6 +11,7 @@ import { PAGE, useIsPersonal, useScreenQuery, useSettingsData } from "./data.tsx
 import { PAGES, pageByKey, searchRows, spacePagesFor } from "./model.ts";
 import type { Hit, PageKey, SettingRow, SpacePage } from "./model.ts";
 import { AppearancePage, ComputerPage, SignInPage } from "./pages-b.tsx";
+import { AboutVyre } from "./DesktopUpdate.tsx";
 import { AiPage, ConnectedPage, NotificationsPage, ProfilePage } from "./pages-a.tsx";
 import { MailPage } from "./MailPage.tsx";
 import { SpacePageBody, useSpaceRows } from "./SpacePages.tsx";
@@ -51,6 +53,8 @@ function SettingsBody({ initialPage = "profile", initialQuery = "", initialView 
   const hits = useMemo(() => searchRows(rows, q, { personal }), [rows, q, personal]);
   const spacePages = spacePagesFor(personal);
   const def = pageByKey(page);
+  // a newer Vyre waiting to install (the toggle is off, or the start did not hear in time): About says so, and the rail has its dot
+  const update = updateWaiting(useSyncExternalStore(subscribeUpdates, updateState, updateState));
 
   useEffect(() => {
     const doc = (globalThis as { document?: { addEventListener(t: string, f: (e: KeyboardEvent) => void): void; removeEventListener(t: string, f: (e: KeyboardEvent) => void): void } }).document;
@@ -81,7 +85,7 @@ function SettingsBody({ initialPage = "profile", initialQuery = "", initialView 
   const pageRows: ReactElement[] = [];
   const spaceTitle = data.space.name;
   pageRows.push(<View key="g-you" style={n.groupHead}><Text accessibilityRole="header" style={n.groupTitle}>You</Text></View>);
-  for (const p of PAGES) if (p.group === "you") pageRows.push(<Row key={p.key} id={`page-${p.key}`} title={p.title} selected={!q.trim() && page === p.key} leading={<IconBox name={p.icon} />} onPress={() => open(p.key)} />);
+  for (const p of PAGES) if (p.group === "you") pageRows.push(<Row key={p.key} id={`page-${p.key}`} title={p.title} {...(p.key === "about" && update ? { note: "Update available" } : {})} selected={!q.trim() && page === p.key} leading={<IconBox name={p.icon} />} onPress={() => open(p.key)} />);
   if (spacePages.length > 0) {
     pageRows.push(<View key="g-space" style={n.groupHead} testID="space-group"><Mark name={spaceTitle} size={16} /><Text accessibilityRole="header" style={n.groupTitle}>{spaceTitle}</Text></View>);
     for (const key of spacePages) { const p = pageByKey(key); pageRows.push(<Row key={p.key} id={`page-${p.key}`} title={p.title} selected={!q.trim() && page === p.key} leading={<IconBox name={p.icon} />} onPress={() => open(p.key)} />); }
@@ -143,6 +147,7 @@ function SettingsBody({ initialPage = "profile", initialQuery = "", initialView 
       case "mail": return <MailPage />;
       case "signin": return <SignInPage />;
       case "computer": return <ComputerPage />;
+      case "about": return <AboutVyre />;
       default:
         return <SpacePageBody page={page as SpacePage} rows={spaceRows.rows} reload={spaceRows.reload} found={found} personal />;
     }

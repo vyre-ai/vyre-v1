@@ -4,7 +4,8 @@
 //   2. registers the vyre:// scheme and passes links to the page (links.rs, commands.rs),
 //   3. registers the global shortcut CommandOrControl+Shift+V to bring the window forward,
 //   4. keeps one instance: a second launch (or a link on Windows and Linux) focuses the first,
-//   5. native features for the page: tray icon, OS notifications whose click opens the thread, file and folder dialog, Needs you badge (native.rs).
+//   5. native features for the page: tray icon, OS notifications whose click opens the thread, file and folder dialog, Needs you badge (native.rs),
+//   6. updates itself: a check at launch, and on the page's word the signed update installs once nothing runs here (updater.rs).
 // No keychain: the replica key is wrapped in IndexedDB by the page, so an ad-hoc signed Mac app works (ARCH 5.10).
 
 mod chrome;
@@ -229,6 +230,7 @@ pub fn run() {
                 native::on_focus(window.app_handle());
             }
         })
+        .manage(updater::SharedUpdate::default())
         .manage(AppState { sidecar: shared.clone(), personal: personal.clone(), server: server.clone(), links: Mutex::new(commands::LinkHandoff::default()), native: native::NativeState::default() })
         .invoke_handler(tauri::generate_handler![
             first_frame,
@@ -238,6 +240,7 @@ pub fn run() {
             commands::take_pending_link,
             commands::page_report,
             commands::open_link,
+            updater::startup_update,
             updater::check_desktop_update,
             updater::install_desktop_update,
             native::notify,
@@ -254,6 +257,9 @@ pub fn run() {
         ])
         .setup(move |app| {
             let handle = app.handle().clone();
+
+            // The update check starts now, with the window, so its answer is usually there by the time the page asks for it before the lock screen (updater.rs).
+            updater::start_check(&handle);
 
             #[cfg(target_os = "macos")]
             if let Some(w) = app.get_webview_window("main") {

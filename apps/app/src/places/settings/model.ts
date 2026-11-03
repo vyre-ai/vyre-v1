@@ -4,7 +4,7 @@ import type { CapMap } from "../../../../../generated/types.ts";
 
 export type SettingRow = CapMap["settings.list"]["out"]["rows"][number];
 export type PageInfo = CapMap["settings.pages"]["out"]["pages"][number];
-export type YouPage = "profile" | "notifications" | "appearance" | "ai" | "connected" | "mail" | "signin" | "computer";
+export type YouPage = "profile" | "notifications" | "appearance" | "ai" | "connected" | "mail" | "signin" | "computer" | "about";
 export type SpacePage = "space" | "people" | "agents" | "data" | "apps" | "advanced";
 export type PageKey = YouPage | SpacePage;
 
@@ -19,6 +19,7 @@ export const PAGES: readonly PageDef[] = [
   { key: "mail", title: "Email and calendar", group: "you", icon: "mail", pages: [] },
   { key: "signin", title: "Sign-in and devices", group: "you", icon: "key", pages: ["Sign-in and devices"] },
   { key: "computer", title: "This computer", group: "you", icon: "laptop", pages: ["This computer"] },
+  { key: "about", title: "About Vyre", group: "you", icon: "info", pages: ["About"] },
   { key: "space", title: "Space", group: "space", icon: "grid", pages: [] },
   { key: "people", title: "People and access", group: "space", icon: "people", pages: [] },
   { key: "agents", title: "Agents and rules", group: "space", icon: "shield", pages: [] },
@@ -66,6 +67,7 @@ export const SECTIONS: Readonly<Record<YouPage, readonly SectionDef[]>> = {
   mail: [],
   signin: [],
   computer: [],
+  about: [],
 };
 
 export interface Section { title: string; rows: SettingRow[] }

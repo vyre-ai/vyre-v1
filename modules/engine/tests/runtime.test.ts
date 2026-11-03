@@ -70,6 +70,19 @@ test("a turn runs on the account engine.account.resolve names, for the payer, an
   hostSeams.setEngineHost(null);
 });
 
+test("the host hears how many turns run here as they start and end, so the desktop app waits for 0 before it updates", async () => {
+  const h = harness({ threads: THREADS });
+  const heard: number[] = [];
+  const f: Fake = { calls: [], haveKey: true, accountsDown: false };
+  hostSeams.setEngineHost({ ...hostFor(scriptedProvider({ script: say }), f), turns: (n) => heard.push(n) });
+  const engine = (await ensureRuntime(h.ctx))!;
+  await handlers["engine.stop"]!(h.ctx as never, { threadId: THREAD } as never).catch(() => undefined);
+  engine.receive({ threadId: THREAD, author: { kind: "person", id: "usr_dana" }, body: "hello" });
+  await engine.idle(THREAD);
+  assert.deepEqual(heard, [1, 0]);
+  hostSeams.setEngineHost(null);
+});
+
 test("no account in a chat: no session, no Unblock task (the chat says so inline), and the turn ends failed with no_account", async () => {
   const h = harness({ threads: THREADS });
   const p = scriptedProvider({ script: say });

@@ -343,6 +343,50 @@ pub(crate) fn local_request(shared: &Shared, method: &str, path: &str, body: &st
     text.starts_with("HTTP/1.1 2")
 }
 
+/// One loopback request with the admin token that returns the answer's body on a 2xx (the app's update asks what is running before it stops a daemon, updater.rs). None when the daemon is not
+/// ready, does not answer or refuses.
+pub(crate) fn local_json(shared: &Shared, method: &str, path: &str) -> Option<String> {
+    let url = current(shared).url?;
+    let token = shared.admin_token.lock().ok().and_then(|t| t.clone())?;
+    let addr = host_port(&url)?;
+    let mut s = TcpStream::connect_timeout(&addr, Duration::from_millis(800)).ok()?;
+    let _ = s.set_read_timeout(Some(Duration::from_millis(5000)));
+    let _ = s.set_write_timeout(Some(Duration::from_millis(1500)));
+    let request = format!("{method} {path} HTTP/1.1\r\nHost: {addr}\r\nAuthorization: Bearer {token}\r\nContent-Length: 0\r\nConnection: close\r\n\r\n");
+    s.write_all(request.as_bytes()).ok()?;
+    let mut text = String::new();
+    let _ = s.read_to_string(&mut text);
+    if !text.starts_with("HTTP/1.1 2") { return None; }
+    text.split_once("\r\n\r\n").map(|(_, body)| body.to_string())
+}
+
+/// The daemon's process is up (started and not yet ended).
+pub fn is_running(shared: &Shared) -> bool {
+    shared.child.lock().map(|c| c.is_some()).unwrap_or(false)
+}
+
+/// Stop the daemon and wait until its process has really ended, so its program and files can be replaced (on Windows a running program cannot be). A daemon that has not ended by `timeout`
+/// is killed. True when it ended on its own.
+pub fn stop_and_wait(shared: &Shared, timeout: Duration) -> bool {
+    stop(shared);
+    let begun = Instant::now();
+    while begun.elapsed() < timeout {
+        if !is_running(shared) { return true; }
+        std::thread::sleep(Duration::from_millis(100));
+    }
+    if let Ok(mut c) = shared.child.lock() {
+        if let Some(child) = c.take() { let _ = child.kill(); }
+    }
+    std::thread::sleep(Duration::from_millis(300));
+    false
+}
+
+/// Start a daemon again after `stop_and_wait`, when the update did not install: the restart loop takes it back.
+pub fn resume(app: &AppHandle, shared: &Shared) {
+    if let Ok(mut s) = shared.stopping.lock() { *s = false; }
+    start(app, shared, 0);
+}
+
 pub fn current(shared: &Shared) -> Status {
     shared.status.lock().ok().and_then(|s| s.clone()).unwrap_or_else(|| Status::new(Phase::Starting))
 }

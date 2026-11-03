@@ -22,7 +22,8 @@ import type { ImageKey } from "./pack.ts";
 import { imageHasChrome, stageChrome } from "./computer.ts";
 import { GithubReleases, publishRelease, updateRolling } from "./publish.ts";
 import { smokeRelease } from "./smoke.ts";
-import { checkDesktopArtifacts, digestLine, signDesktop } from "./updater.ts";
+import { checkDesktopArtifacts, digestLine, feedNotes, signDesktop } from "./updater.ts";
+import { WHATS_NEW_FILE } from "../changelog/assemble.ts";
 import { lineage, newestStable } from "./lineage.ts";
 import { SIGNING_KEY_ENV, keyId, publicKeyHexOf } from "./sign.ts";
 import { bump, channelOfVersion, releaseCounter, tagVersion, versionProblems } from "./version.ts";
@@ -116,7 +117,9 @@ export function main(argv: string[]): number {
         const pinned = argv[5];
         if (a === undefined || b === undefined || c === undefined || argv[4] === undefined || pinned === undefined || pem === "") { console.error(`usage: ${SIGNING_KEY_ENV}=<pkcs8 pem> updater <dir> <version> <channel> <tag> <pinned-public-key-hex>`); return 2; }
         if (!(UPDATE_CHANNELS as readonly string[]).includes(c)) { console.error(`release: channel must be one of ${UPDATE_CHANNELS.join(", ")}`); return 2; }
-        const written = signDesktop({ dir: a, version: b, channel: c, tag: argv[4], repo: process.env["GITHUB_REPOSITORY"] ?? "vyre-ai/vyre-v1", privateKeyPem: pem, pinnedPublicKey: pinned, now: () => new Date() });
+        let whatsNew: unknown = null;
+        try { whatsNew = JSON.parse(fs.readFileSync(path.join(root, WHATS_NEW_FILE), "utf8")); } catch { /* no What's new: the notes say the version */ }
+        const written = signDesktop({ dir: a, version: b, channel: c, tag: argv[4], repo: process.env["GITHUB_REPOSITORY"] ?? "vyre-ai/vyre-v1", privateKeyPem: pem, pinnedPublicKey: pinned, now: () => new Date(), notes: feedNotes(b, whatsNew) });
         console.log(`release: signed the desktop updates: ${written.join(", ")}`);
         return 0;
       }

@@ -24,7 +24,8 @@ export function releaseCounter(version: string): number {
 }
 
 /** Files that carry the release version, relative to the repo root. */
-export const VERSION_FILES: readonly string[] = ["package.json"];
+/** apps/app/public/whats-new.json is the release's What's new (scripts/changelog/assemble.ts): stamping it here means its lines are always for the version that ships them. */
+export const VERSION_FILES: readonly string[] = ["package.json", "apps/app/public/whats-new.json"];
 
 interface Found { file: string; version: string | undefined }
 

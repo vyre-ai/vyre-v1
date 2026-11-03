@@ -39,6 +39,9 @@ jobs:
         os: [macos-latest, windows-latest]
     runs-on: ${{ matrix.os }}
     timeout-minutes: 45
+    # A built app checks for a newer Vyre when it opens and installs it (updater.rs); no test run of a build may update itself. Only the update proof below turns it back on.
+    env:
+      VYRE_NO_AUTO_UPDATE: "1"
     defaults:
       run:
         shell: bash
@@ -179,6 +182,15 @@ jobs:
           set -euo pipefail
           ln -sf "$(command -v node)" "$VYRE_TEST_NODE"
           cargo test --lib --manifest-path apps/desktop/src-tauri/Cargo.toml real_native_personal_profile_concurrency_and_restart -- --ignored --nocapture
+      - name: The app updates itself on a real Mac, from a copy of the installed app (a bad signature refused, then a signed update installed with the daemons stopped first)
+        if: runner.os == 'macOS'
+        run: |
+          set -euo pipefail
+          proof="$RUNNER_TEMP/Vyre-Update-Proof"
+          rm -rf "$proof" && mkdir -p "$proof"
+          ditto "$RUNNER_TEMP/Vyre-Applications/Vyre.app" "$proof/Vyre.app"
+          raw="https://raw.githubusercontent.com/${{ github.repository }}/${{ github.sha }}/apps/desktop/src-tauri/ci"
+          node apps/desktop/src-tauri/ci/update-proof.ts "$proof/Vyre.app/Contents/MacOS/vyre-desktop" "$PWD/out/update-proof" "$raw/update-proof.json" "$raw/update-proof-badsig.json"
       - name: The DMG's name and SHA-256, a small file the release carries instead of the DMG until publish
         if: runner.os == 'macOS'
         run: |
@@ -230,6 +242,16 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: runner.os == 'Windows'
         with: { name: desktop-Windows-sha256, path: win-sum, if-no-files-found: error }
+      - name: The app updates itself on a real Windows runner (VyreSetup.exe installed for this user, a bad signature refused, then a signed update installed by the NSIS updater with the daemons stopped first)
+        if: runner.os == 'Windows'
+        run: |
+          set -euo pipefail
+          ./win-exe/VyreSetup.exe //S
+          app=""
+          for d in "$LOCALAPPDATA/Vyre" "$LOCALAPPDATA/Programs/Vyre"; do if [ -f "$d/vyre-desktop.exe" ]; then app="$d/vyre-desktop.exe"; fi; done
+          [ -n "$app" ] || { echo "VyreSetup.exe /S installed no vyre-desktop.exe"; find "$LOCALAPPDATA" -maxdepth 3 -iname 'vyre-desktop.exe' || true; exit 1; }
+          raw="https://raw.githubusercontent.com/${{ github.repository }}/${{ github.sha }}/apps/desktop/src-tauri/ci"
+          node apps/desktop/src-tauri/ci/update-proof.ts "$app" "$PWD/out/update-proof" "$raw/update-proof.json" "$raw/update-proof-badsig.json"
       - uses: actions/upload-artifact@v4
         if: runner.os == 'Windows'
         with: { name: desktop-Windows-exe, path: win-exe, if-no-files-found: error }
