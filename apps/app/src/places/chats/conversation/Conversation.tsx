@@ -54,7 +54,7 @@ import { useMobileBack } from "../../../mobile/shell/back.ts";
 import { offlineLine } from "../agentpage/model.ts";
 import {
   WINDOW, beforeCursor, byOrder, collect, faces, ghostMessages, findMatches, isClosed, lastMessages, leadOf, matchLine, mentionsIn, mergePages, modeTitle, modelLabel, participants, pendingMessage, placeholderFor, queueNote, queuedCount, queuedIds, sendKind, stillPending, stopLabel, swapNeeded,
-  threadKindNote, timeline, titleOf, whoLine, workingAgents, withoutAnswered } from "./model.ts";
+  directWith, muteOfferFor, onBehalfOf, threadKindNote, timeline, titleOf, whoLine, workingAgents, withoutAnswered } from "./model.ts";
 import type { Face as FaceModel, Message, Pending, SendKind, Thread } from "./model.ts";
 import { LoadFailed, failureOf } from "../../../../../../ui/src/States/Loads.tsx";
 
@@ -66,6 +66,19 @@ export const CONVERSATION_SCREEN = "chats.conversation";
 
 /** `compact` is for a conversation inside another screen (the onboarding Assistant): just the messages and the composer, no title bar with members, search and side-panel buttons. */
 const CompactContext = createContext(false);
+/** The mute lines a teammate has been shown, by message (lane l-agentdm): kept on this device so the line does not come back once seen. */
+const MUTE_SEEN = "vyre.agentdm.mute-seen.v1";
+function readMuteSeen(): ReadonlySet<string> {
+  try { return new Set(JSON.parse(globalThis.localStorage?.getItem(MUTE_SEEN) ?? "[]") as string[]); } catch { return new Set(); }
+}
+function rememberMuteSeen(id: string): void {
+  try {
+    const now = [...readMuteSeen()];
+    if (now.includes(id)) return;
+    globalThis.localStorage?.setItem(MUTE_SEEN, JSON.stringify([...now, id].slice(-200)));
+  } catch { /* no storage here: the line shows again next time */ }
+}
+
 export function Conversation({ data, compact = false }: { data?: ConversationData; compact?: boolean }): ReactElement {
   const ctx = useOptionalConversationData();
   const value = data ?? ctx;
@@ -218,6 +231,9 @@ function ConversationView(): ReactElement {
   const serverMode = threadQ.status === "loading" ? null : modeOf(threadQ.data.thread);
   // what the server says wins once it changes (a /plan, another device); a local choice holds until then
   useEffect(() => { setModeOver(null); }, [serverMode]);
+  // the mute line under an agent's message for its person shows until the teammate has seen it: what this chat already showed before this open stays hidden (lane l-agentdm)
+  const muteSeen = useRef<ReadonlySet<string>>(readMuteSeen());
+  const [mutedHere, setMutedHere] = useState<ReadonlySet<string>>(new Set());
   const failed = failureOf(threadQ, messagesQ);
   // the chat's budget of agent turns: the Space's Policies setting, else 8 (owner ruling, 3 Nov)
   const [hopLimit, setHopLimit] = useState(DEFAULT_AGENT_HOPS);
@@ -407,6 +423,8 @@ function ConversationView(): ReactElement {
   };
 
   /* ---------- the message actions, one object for every row ---------- */
+  const muteOffer = muteOfferFor(all, data.me.id, (id, person) => muteSeen.current.has(id) || mutedHere.has(person));
+  if (muteOffer) rememberMuteSeen(muteOffer);
   const host: BlockHost = {
     invoke: (cap, input) => data.call(cap, input),
     open: (tab, input) => { const id = Object.values(input).find((v): v is string => typeof v === "string"); data.nav.openBeside(tab, id ?? ""); },
@@ -451,6 +469,15 @@ function ConversationView(): ReactElement {
       void act.makeTask(data, thread, m, data.newKey()).then(() => undefined, fail("Could not make the task."));  // the card in the thread says it and opens it; the person stays where they are
     },
     files: data,
+    // an agent's message for its person, read by the teammate it went to: they can mute that person's agents for the rest of their day (lane l-agentdm)
+    agentMute: {
+      me: data.me.id,
+      offerFor: muteOffer,
+      mute: (personId: string) => void Promise.resolve(data.call("chat.agent_dm.mute", { personId })).then(
+        () => { setMutedHere((cur) => new Set([...cur, personId])); const first = nameOf(personId).split(" ")[0]; say(`Muted for today. ${first ? `${first}'s agents wait` : "Their agents wait"} until tomorrow.`); },
+        fail("Could not mute them."),
+      ),
+    },
     ...(data.activityOf ? { activityOf: (id: string) => data.activityOf!(id) } : {}),
     nameOf,
     openMessage: (threadId, messageId) => (messageId === "" ? data.nav.openThread(threadId) : data.nav.openThread(threadId, messageId)),
@@ -493,7 +520,9 @@ function ConversationView(): ReactElement {
   const unanswered = closed || isWorking ? null : unansweredOwn(thread, win.rows, data.me.id, data.directory);
   // an Ask drawn in its own pane is already titled Ask Vyre: the quiet "Ask pane" line is for an Ask opened in Chats
   const note = data.head || (compact && thread.kind === "ask") ? "" : threadKindNote(thread, nameOf);
-  const title = titleOf(thread, nameOf);
+  const title = titleOf(thread, nameOf, data.me.id);
+  // a direct chat is named for the other person and wears their face
+  const dmWith = thread.title ? null : directWith(thread, data.me.id);
   const q = queueNote(queued, lead ? nameOf(lead.agentId) : "", canSteer, ownTurn);
 
   // A mounted folder or file dragged from Files is shared with this chat's agents (desktop); the line says so and can take it back
@@ -524,6 +553,7 @@ function ConversationView(): ReactElement {
           />
         ) : (
           <Pressable accessibilityRole="button" accessibilityLabel={`Rename ${title}`} testID="conversation-title-button" {...(Platform.OS === "web" ? ({ title: "Rename" } as object) : {})} onPress={() => { if (thread.kind === "chat" || thread.kind === "channel") setRenaming(true); }} style={({ hovered }: { hovered?: boolean }) => [st.titleBtn, hovered === true && st.titleOver]}>
+            {dmWith ? <Face name={title} seedId={dmWith} kind="person" size={20} /> : null}
             <Text numberOfLines={1} testID="conversation-title" style={st.title}>{title}</Text>
           </Pressable>
         )}
@@ -562,7 +592,7 @@ function ConversationView(): ReactElement {
           <IconButton icon="x" label="Close find" size={24} testID="find-close" onPress={() => { setFinding(false); setQuery(""); }} />
         </View>
       ) : null}
-      <CatchUpLine onJump={(id) => setFocusId(id)} newest={live[live.length - 1]?.messageId ?? ""} />
+      <CatchUpLine onJump={(id) => setFocusId(id)} newest={live[live.length - 1]?.messageId ?? ""} credit={(id) => { const m = all.find((x) => x.author.id === id && onBehalfOf(x)); const ob = m ? onBehalfOf(m) : null; return ob ? `${nameOf(ob.person)} (Agent)` : undefined; }} />
       {note ? <Text testID="conversation-note" style={st.noteLine}>{note}</Text> : null}
       {thread.kind === "thread" ? <ThreadParent threadId={thread.parentThreadId} messageId={thread.parentMessageId} call={data.call as never} nameOf={nameOf} /> : null}
 
@@ -718,7 +748,7 @@ const st = StyleSheet.create({
   root: { flex: 1, minHeight: 0, backgroundColor: "var(--win)" as string },
   head: { minHeight: 48, flexDirection: "row", alignItems: "center", gap: 8, paddingLeft: 20, paddingRight: 10 },
   title: { flexShrink: 1, minWidth: 40, maxWidth: 320, fontSize: 14, fontWeight: "600", color: "var(--ink)" as string },
-  titleBtn: { flexShrink: 1, borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2, marginLeft: -6 },
+  titleBtn: { flexShrink: 1, flexDirection: "row", alignItems: "center", gap: 6, borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2, marginLeft: -6 },
   titleOver: { backgroundColor: "var(--hover)" as string },
   rename: { width: 320, maxWidth: "60%", height: 26, borderRadius: 6, paddingHorizontal: 6, marginLeft: -6, fontSize: 14, fontWeight: "600", color: "var(--ink)" as string, backgroundColor: "var(--field)" as string, outlineStyle: "none", outlineWidth: 0 } as object,
   faces: { flexDirection: "row", alignItems: "center", gap: 2, flexShrink: 0 },

@@ -73,7 +73,7 @@ async function companyFolder(ctx: VaultReqCtx): Promise<string | undefined> {
   return id ?? undefined;
 }
 
-export async function requestCreate(ctx: VaultReqCtx, input: { name: string; fields?: string[]; reason: string; forRun?: string; folderId?: string; handleOnly?: boolean; idempotencyKey: string }) {
+export async function requestCreate(ctx: VaultReqCtx, input: { name: string; fields?: string[]; reason: string; forRun?: string; folderId?: string; handleOnly?: boolean; to?: string; idempotencyKey: string }) {
   const trace = ctx.trace.traceId;
   const requester = requesterOf(ctx);
   const name = input.name.trim();
@@ -106,7 +106,10 @@ export async function requestCreate(ctx: VaultReqCtx, input: { name: string; fie
     return { request: requestOut(waiting) };
   }
 
-  const managers = await managersFor(ctx, input.folderId, requester.id);
+  // a request addressed to one teammate (an agent asking them in their direct chat) goes to that person alone; they decide it as they would as a manager
+  const asker = ctx.actingFor ?? requester.id;
+  if (input.to !== undefined && (!input.to.startsWith("usr_") || input.to === asker || input.to === requester.id)) raise(trace, "validation.bad_input", "Address the request to a teammate, not to yourself.");
+  const managers = input.to !== undefined ? [input.to] : await managersFor(ctx, input.folderId, requester.id);
   if (managers.length === 0) raise(trace, "validation.precondition_failed", "Nobody can decide this request.");
   const id = nid("vrq");
   const block = { type: "vault_request", v: 1, data: { requestId: id, name, fields, reason: input.reason.trim(), requester, ...(input.forRun ? { forRun: input.forRun } : {}), ...(input.folderId ? { folderId: input.folderId } : {}), ...(ctx.thread ? { threadId: ctx.thread } : {}), ...(ctx.thread && requester.kind === "agent" ? { agentId: requester.id } : {}), ...(ctx.thread && (ctx.actingFor ?? (requester.kind === "person" ? requester.id : undefined)) ? { asker: (ctx.actingFor ?? requester.id) } : {}), state: "waiting" } };

@@ -140,6 +140,21 @@ export async function copySource(ctx: SettingsCtx, _input: Record<string, never>
   return out;
 }
 
+/**
+ * A teammate's time zone and working hours (lane l-agentdm), only the ones they set themselves: the shipped default of 9 to 5 UTC is nobody's real day, so it is never handed out as theirs. Any member, and an
+ * agent acting for one, may read them; nothing else of the teammate's settings is reachable here.
+ */
+export async function publicOf(ctx: SettingsCtx, input: { personId: string }) {
+  spaceReader(ctx);
+  if (typeof input.personId !== "string" || !input.personId.startsWith("usr_")) raise(ctx, "validation.bad_input", "That is not a person.");
+  const out: { timezone?: string; hours?: unknown } = {};
+  const zone = stored(ctx, "profile.timezone", "person", input.personId)?.value;
+  if (typeof zone === "string" && zone.trim() !== "") out.timezone = zone.trim();
+  const hours = stored(ctx, "profile.working_hours", "person", input.personId)?.value;
+  if (hours !== null && typeof hours === "object") out.hours = hours;
+  return out;
+}
+
 /** This Space's other half: write the chosen values into my profile here. A field that is not listed is left alone, and a title in the values is ignored. */
 export async function copyProfile(ctx: SettingsCtx, input: { fields: CopyField[]; values: Record<string, unknown> }) {
   const person = me(ctx);

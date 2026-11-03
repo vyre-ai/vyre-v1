@@ -40,7 +40,7 @@ const SETUP_NOTE = "Runs as the person you act for, under the setup grant they g
 /** Listed for an outside agent from the start, so it can get work and answer without a search. */
 const OUTSIDE_PRELOAD: readonly string[] = ["agents_next"];
 /** Listed for a CLI engine from the start: "make me a file" is a first-hour ask, and it needs a new file and a place to put it. */
-const ENGINE_PRELOAD: readonly string[] = ["files_tree", "files_create", "files_folder_create"];
+const ENGINE_PRELOAD: readonly string[] = ["files_tree", "files_create", "files_folder_create", "people_status", "message_person"];   // and who is in, and a message to a teammate (lane l-agentdm)
 
 interface Session {
   caller: McpCaller;

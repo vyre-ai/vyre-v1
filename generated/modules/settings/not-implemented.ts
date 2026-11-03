@@ -14,6 +14,7 @@ export const handlers: Handlers<HandlerCtx> = {
   "settings.kit.set_space": async (ctx) => { throw new VyreErr(notImplemented("settings.kit.set_space", ctx.trace)); },
   "settings.list": async (ctx) => { throw new VyreErr(notImplemented("settings.list", ctx.trace)); },
   "settings.pages": async (ctx) => { throw new VyreErr(notImplemented("settings.pages", ctx.trace)); },
+  "settings.public_of": async (ctx) => { throw new VyreErr(notImplemented("settings.public_of", ctx.trace)); },
   "settings.reset": async (ctx) => { throw new VyreErr(notImplemented("settings.reset", ctx.trace)); },
   "settings.reset_space": async (ctx) => { throw new VyreErr(notImplemented("settings.reset_space", ctx.trace)); },
   "settings.search": async (ctx) => { throw new VyreErr(notImplemented("settings.search", ctx.trace)); },

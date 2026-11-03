@@ -6,6 +6,7 @@ import * as u from "./handlers/use.ts";
 import * as pr from "./handlers/providers.ts";
 import * as g from "./handlers/g20.ts";
 import * as sk from "./handlers/space-key.ts";
+import { textCheck } from "./handlers/text-check.ts";
 import { Filler, setFiller, setKeyPort } from "./handlers/crypto.ts";
 import type { KeyPort } from "./handlers/crypto.ts";
 import { deferredHandlers } from "../../host/src/routes/deferred.ts";
@@ -46,6 +47,7 @@ export const handlers: Record<string, Handler> = {
   "vault.exports.list": (ctx, i) => u.exportsList(ctx, i),
   "vault.exports.revoke": (ctx, i) => u.exportsRevoke(ctx, i),
   "vault.report_scrub_miss": (ctx, i) => u.reportScrubMiss(ctx, i),
+  "vault.text_check": (ctx, i) => textCheck(ctx, i),
   "providers.catalog": (ctx, i) => pr.catalog(ctx, i),
   "providers.list": (ctx, i) => pr.list(ctx, i),
   "providers.add": (ctx, i) => pr.add(ctx, i),
