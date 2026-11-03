@@ -33,6 +33,9 @@ export const WATCHED: Readonly<Record<string, { entity: string; idKey: string; r
   "file.created": { entity: "file", idKey: "fileId" }, "file.renamed": { entity: "file", idKey: "fileId" }, "file.moved": { entity: "file", idKey: "fileId" },
   "file.version_added": { entity: "file", idKey: "fileId" }, "file.restored": { entity: "file", idKey: "fileId" },
   "file.deleted": { entity: "file", idKey: "fileId", remove: true }, "file.purged": { entity: "file", idKey: "fileId", remove: true },
+  // Redaction for AI: the index holds what an agent may read of a file (files.agent_view), so a change to its layer or its Agent access reads it again
+  "file.redacted": { entity: "file", idKey: "fileId" }, "file.unredacted": { entity: "file", idKey: "fileId" }, "file.highlighted": { entity: "file", idKey: "fileId" },
+  "file.reviewed": { entity: "file", idKey: "fileId" }, "file.needs_review": { entity: "file", idKey: "fileId" }, "file.agent_access_changed": { entity: "file", idKey: "fileId" },
   "thread.started": { entity: "thread", idKey: "threadId" }, "thread.updated": { entity: "thread", idKey: "threadId" }, "thread.replied": { entity: "thread", idKey: "threadId" },
   "message.received": { entity: "thread", idKey: "threadId" }, "message.edited": { entity: "thread", idKey: "threadId" },
   "message.deleted": { entity: "thread", idKey: "threadId" },

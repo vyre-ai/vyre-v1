@@ -78,8 +78,9 @@ const fileSource: Source = async (ctx, id) => {
   }
   let body = "";
   if (TEXTUAL.has(text(f["kind"]))) {
-    const r = await read<{ text?: string }>(ctx, "files.read", { fileId: id, as: "text", length: 20_000 });
-    body = text(r?.text);
+    // the body is what an agent may read of the file (Redaction for AI): [REDACTED] where a part is hidden, nothing while it waits for review or is Not available, so a search cannot find a redacted word
+    const r = await read<{ text?: string | null }>(ctx, "files.agent_view", { fileId: id });
+    body = text(r?.text).slice(0, 20_000);
   }
   const doc: IndexDoc = {
     entity: "file", id, kind: "file", title: name, body, path, link: `vyre://file/${id}`, label, resource: { type: "file", id }, ...(folderId ? { folderId } : {}),

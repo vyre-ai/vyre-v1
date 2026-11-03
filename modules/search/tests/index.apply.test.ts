@@ -28,12 +28,12 @@ test("a record becomes its title and the words of its fields, never a credential
   assert.deepEqual(h.calls("records.get")[0]!.input, { recordId: "rec_a", type: "client" });
 });
 
-test("a file becomes its name, its folder path and, for text, its first twenty thousand characters", async () => {
+test("a file becomes its name, its folder path and, for text, the first twenty thousand characters an agent may read of it", async () => {
   const h = harness({
     respond: {
       "files.get": (i) => ({ file: i["fileId"] === "fil_pdf" ? { fileId: "fil_pdf", name: "Scan.pdf", kind: "pdf", folderId: "fld_a", label: 1 } : i["fileId"] === "fil_del" ? { fileId: "fil_del", name: "Old.md", kind: "markdown", deletedAt: 3 } : { fileId: i["fileId"], name: "Lease.md", kind: "markdown", folderId: "fld_a", label: 1, updatedAt: 9 } }),
       "files.folder.get": () => ({ folder: { path: "Clients/Harbor" } }),
-      "files.read": () => ({ text: "The rent is due on the first of the month" }),
+      "files.agent_view": () => ({ state: "clear", name: "Lease.md", path: "Clients/Harbor", text: "The rent is due on the first of the month" }),
     },
   });
   await indexApply(h.ctx, { entity: "file", id: "fil_md", op: "upsert", seq: 1 });
@@ -42,8 +42,10 @@ test("a file becomes its name, its folder path and, for text, its first twenty t
   assert.equal(md["path"], "Clients/Harbor/Lease.md");
   assert.match(String(md["body"]), /rent is due/);
   assert.equal(row(h, "fil_pdf")["body"], "", "a PDF has no text to read here");
-  assert.equal(h.calls("files.read").length, 1, "only the text file was read");
-  assert.deepEqual(h.calls("files.read")[0]!.input, { fileId: "fil_md", as: "text", length: 20000 });
+  // the body is what an agent may read of the file (Redaction for AI): files.agent_view, never the raw files.read
+  assert.equal(h.calls("files.read").length, 0, "the raw text is never read into the index");
+  assert.equal(h.calls("files.agent_view").length, 1, "only the text file was read");
+  assert.deepEqual(h.calls("files.agent_view")[0]!.input, { fileId: "fil_md" });
   assert.deepEqual((await query(h.ctx, { q: "rent due", types: ["file"] })).hits.map((x) => [x.id, x.path]), [["fil_md", "Clients/Harbor/Lease.md"]]);
   seed(h, { id: "fil_del", title: "Old.md", kind: "file" });
   await indexApply(h.ctx, { entity: "file", id: "fil_del", op: "upsert", seq: 3 });
@@ -161,4 +163,21 @@ test("Recent lists what the asker opened, newest first, only what they may still
   assert.deepEqual((await recentList(h.ctx, {})).hits.map((x) => x.id), ["rec_a", "fil_b"]);
   assert.deepEqual((await recentList(asPerson(h, { kind: "person", id: "usr_omar" }).ctx, {})).hits, [], "another person's Recent is empty");
   assert.deepEqual(contractErrors("search.recent.list", "out", await recentList(h.ctx, {})), []);
+});
+
+test("Redaction for AI: a redacted word never reaches the index, and a file waiting for review indexes no body", async () => {
+  const h = harness({
+    respond: {
+      "files.get": (i) => ({ file: { fileId: i["fileId"], name: i["fileId"] === "fil_r" ? "Intake.md" : "Retainer.md", kind: "markdown", folderId: "fld_a", label: 1 } }),
+      "files.folder.get": () => ({ folder: { path: "Projects/Rivera injury claim" } }),
+      "files.agent_view": (i) => (i["fileId"] === "fil_r" ? { state: "redacted", name: "Intake.md", path: "", text: "Name: [REDACTED]. SSN: [REDACTED]." } : { state: "needs", name: "Retainer.md", path: "", text: null }),
+      "files.read": () => ({ text: "Name: Elena Rivera. SSN: 512-44-8391." }),
+    },
+  });
+  await indexApply(h.ctx, { entity: "file", id: "fil_r", op: "upsert", seq: 1 });
+  await indexApply(h.ctx, { entity: "file", id: "fil_n", op: "upsert", seq: 2 });
+  assert.doesNotMatch(String(row(h, "fil_r")["body"]), /Elena|512-44/);
+  assert.match(String(row(h, "fil_r")["body"]), /\[REDACTED\]/);
+  assert.equal(row(h, "fil_n")["body"], "");
+  assert.deepEqual((await query(h.ctx, { q: "512-44-8391", types: ["file"] })).hits, [], "a search for the redacted number finds nothing");
 });

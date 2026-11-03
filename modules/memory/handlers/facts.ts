@@ -4,6 +4,7 @@
 // DECISION: where a fact lands follows "who accepts what" in spec 2.15: channel facts go straight to the project layer, run and Journey facts wait in proposed for the agent owner,
 //   everything from a chat goes to the asker's own layer and merges on its own only for a kind in the setting memory.auto_merge_kinds (default preference), or when the person typed it themselves.
 // DECISION: search is local and has no model call: BM25 over words, character trigrams for the "semantic" side, a small recency lift. The vector table of ARCH 6.10 is the same call shape and slots in later.
+import { agentBound } from "../../../lib/redact.ts";
 import { IMPORTED_PREAMBLE } from "../../../lib/recall-intent.ts";
 import { extrasFor, factRows } from "../enrich.ts";
 import { meaningScores } from "../meaning.ts";
@@ -694,6 +695,11 @@ export async function readNote(ctx: MemCtx, input: { noteId: string }) {
   const r = await readableNote(ctx, makeAccess(ctx), input.noteId, "validation.not_found");
   const note = noteRowOut(ctx, r);
   if (!note) raise(ctx, "validation.not_found", "There is no such note.", { noteId: input.noteId });
+  // an agent reads the note as an agent may (Redaction for AI): files.agent_view, [REDACTED] where a part is hidden; a person reads it as it is
+  if (agentBound(ctx as unknown as { principal: { kind: string }; origin?: string })) {
+    const v = (await ctx.call("files.agent_view", { fileId: str(r["file_id"]) })) as { text?: string | null };
+    return { note, markdown: v.text ?? "" };
+  }
   const file = (await ctx.call("files.read", { fileId: str(r["file_id"]), as: "text" })) as { text?: string };
   return { note, markdown: file.text ?? "" };
 }
