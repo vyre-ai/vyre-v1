@@ -1022,6 +1022,7 @@ export function stubs(ctx: CallCtx) {
       holds: {
         get: call("gate.holds.get"),
         list: call("gate.holds.list"),
+        revise: call("gate.holds.revise"),
       },
       links: {
         known: call("gate.links.known"),
@@ -2529,6 +2530,7 @@ export function stubs(ctx: CallCtx) {
         remove: call("tasks.followers.remove"),
       },
       get: call("tasks.get"),
+      held_revise: call("tasks.held_revise"),
       history: call("tasks.history"),
       index: call("tasks.index"),
       links: {

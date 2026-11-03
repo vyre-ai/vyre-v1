@@ -139,6 +139,10 @@ export default defineManifest({
       },
       out: { task: taskRow }, on: ['task', '/taskId'], emits: ['task.updated'], tool: 'tasks', offline: 'patch',
     }),
+    // Only the Gate calls this, from gate.holds.revise: a held act's card and the hash its approval is bound to change together, because the person edited the words that will be sent.
+    write('tasks.held_revise', 'Rewrite the card of a held act and the hash its approval is bound to (the Gate\'s edit of a held message; not for a person or an agent to call)', {
+      in: { ...target, blocks: t.arr(blockIn), payloadHash: t.str() }, out: { ok: t.bool() }, on: ['task', '/taskId'], level: 'use', emits: ['task.updated'], audit: 'always', errors: ['validation.precondition_failed'],
+    }),
     write('tasks.transition', 'Move a task to a new status (the only writer of status); checks the 4.7 state table and the reviewer/approver rules', {
       in: { ...target, to: taskState, note: t.opt(t.str()), expectedFrom: t.opt(taskState) },
       out: { task: taskRow }, on: ['task', '/taskId'], level: 'use', emits: ['task.transitioned', 'task.completed', 'task.sent_back', 'task.approved', 'task.rejected', 'task.updated', 'task.ready', 'task.children_settled', 'task.requested'],

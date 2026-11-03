@@ -3,7 +3,7 @@ import { act, delegate, escalate } from "./act.ts";
 import { ask, block, decide, review, submit } from "./baton.ts";
 import {
   assign, countNeedsYou, create, dependenciesAdd, dependenciesRemove, followersAdd, followersRemove, get, history, linksAdd, linksRemove, list, myWorkList,
-  needsYouList, notesDelete, notesSet, release, snooze, take, transition, update, withdraw,
+  needsYouList, heldRevise, notesDelete, notesSet, release, snooze, take, transition, update, withdraw,
 } from "./state.ts";
 
 import { byKey, index, rev } from "./index-read.ts";
@@ -51,4 +51,5 @@ export const handlers = {
   "tasks.withdraw": withdraw,
   "tasks.working_notes.delete": notesDelete,
   "tasks.working_notes.set": notesSet,
+  "tasks.held_revise": heldRevise,
 };

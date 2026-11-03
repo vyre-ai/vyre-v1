@@ -13850,6 +13850,15 @@ export type GateHoldsListOut = {
   next?: string;
   total?: number;
 };
+export type GateHoldsReviseIn = {
+  holdId: string;
+  taskId: string;
+  body: string;
+};
+export type GateHoldsReviseOut = {
+  ok: boolean;
+  edited: number;
+};
 export type GateLinksKnownIn = {
   url: string;
   threads: Array<string>;
@@ -35550,6 +35559,18 @@ export type TasksGetOut = {
     workerThread?: string;
   };
 };
+export type TasksHeldReviseIn = {
+  taskId: string;
+  blocks: Array<{
+      type: string;
+      v?: number;
+      data: unknown;
+    }>;
+  payloadHash: string;
+};
+export type TasksHeldReviseOut = {
+  ok: boolean;
+};
 export type TasksHistoryIn = {
   taskId: string;
   cursor?: string;
@@ -40972,6 +40993,7 @@ export interface CapMap {
   "gate.grants.take": { in: GateGrantsTakeIn; out: GateGrantsTakeOut };
   "gate.holds.get": { in: GateHoldsGetIn; out: GateHoldsGetOut };
   "gate.holds.list": { in: GateHoldsListIn; out: GateHoldsListOut };
+  "gate.holds.revise": { in: GateHoldsReviseIn; out: GateHoldsReviseOut };
   "gate.links.known": { in: GateLinksKnownIn; out: GateLinksKnownOut };
   "gate.park": { in: GateParkIn; out: GateParkOut };
   "gate.release": { in: GateReleaseIn; out: GateReleaseOut };
@@ -42056,6 +42078,7 @@ export interface CapMap {
   "tasks.followers.add": { in: TasksFollowersAddIn; out: TasksFollowersAddOut };
   "tasks.followers.remove": { in: TasksFollowersRemoveIn; out: TasksFollowersRemoveOut };
   "tasks.get": { in: TasksGetIn; out: TasksGetOut };
+  "tasks.held_revise": { in: TasksHeldReviseIn; out: TasksHeldReviseOut };
   "tasks.history": { in: TasksHistoryIn; out: TasksHistoryOut };
   "tasks.index": { in: TasksIndexIn; out: TasksIndexOut };
   "tasks.links.add": { in: TasksLinksAddIn; out: TasksLinksAddOut };
@@ -43511,6 +43534,12 @@ export type GateRequestedPayload = {
     kind: "person" | "agent" | "actor" | "service";
     id: string;
   };
+};
+export type GateRevisedPayload = {
+  holdId: string;
+  act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "approve";
+  taskId: string;
+  by: string;
 };
 export type GateRuleChangedPayload = {
   act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "approve";
@@ -46449,6 +46478,7 @@ export interface EventMap {
   "gate.denied": GateDeniedPayload;
   "gate.expired": GateExpiredPayload;
   "gate.requested": GateRequestedPayload;
+  "gate.revised": GateRevisedPayload;
   "gate.rule_changed": GateRuleChangedPayload;
   "git.branch_changed": GitBranchChangedPayload;
   "git.committed": GitCommittedPayload;

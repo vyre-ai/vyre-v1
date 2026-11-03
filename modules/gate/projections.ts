@@ -2,6 +2,7 @@
 // owner floor and the agent's own rule), the fixed summary line of a hold, and the exact preview blocks.
 // Durable tables: migrations/0001_gate_holds.sql. Every statement names only gate_* tables (ctx.db refuses anything else, ARCH B2).
 // The act kinds below mirror manifests/gate.ts gateActs (frozen, ruling 9); the contract test of this module compares them.
+import { outwardOf } from "../../lib/outward.ts";
 import { isTrustedService } from "../../lib/trust.ts";
 import { fail } from "../../host/src/routes/errors.ts";
 import { canonical } from "../../lib/canonical.ts";
@@ -324,8 +325,20 @@ export function summaryLine(a: ActDef, capName: string, input: unknown): string 
 }
 
 /** The exact preview (spec 2.14): the whole input, as the act kind's block, so the approver sees what will go out. */
-export function previewBlocks(a: ActDef, capName: string, input: unknown): { type: string; v: number; data: unknown }[] {
-  return [{ type: a.block, v: 1, data: { act: a.key, cap: capName, input } }];
+export function previewBlocks(a: ActDef, capName: string, input: unknown, edited?: { by: string; at: number }): { type: string; v: number; data: unknown }[] {
+  // a held message in a person's words: who, by which channel, when, and what it says as Markdown (lib/outward.ts). The raw input stays beside it, because it is the exact act that was held.
+  const outward = outwardOf(capName, input);
+  return [{ type: a.block, v: 1, data: { act: a.key, cap: capName, input, ...(outward ? { outward: { ...outward, ...(edited ? { edited } : {}) } } : {}) } }];
+}
+
+// ---- the payload hash (bound at park, carried by the approval token): made by the host, see lib/payload-hasher.ts ----
+export { bindPayloadHash, payloadHasher } from "../../lib/payload-hasher.ts";
+export type { PayloadHasher } from "../../lib/payload-hasher.ts";
+
+/** Replace a held call's input and the two hashes made from it (the edit of a held message). */
+export function reviseHoldInput(db: Db, h: Hold, input: unknown, inputHash: string, payloadHash: string): void {
+  db.run("UPDATE gate_holds SET input = ?, input_hash = ?, payload_hash = ? WHERE id = ? AND state = 'held' AND sending_at IS NULL", JSON.stringify(input ?? null), inputHash, payloadHash, h.id);
+  h.input = input; h.inputHash = inputHash; h.payloadHash = payloadHash;
 }
 
 // ---- ask the person (docs/ask-the-person.md) ----

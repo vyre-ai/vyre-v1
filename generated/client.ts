@@ -1022,6 +1022,7 @@ export function createClient(transport: Transport) {
       holds: {
         get: call("gate.holds.get", 1),
         list: call("gate.holds.list", 1),
+        revise: call("gate.holds.revise", 1),
       },
       links: {
         known: call("gate.links.known", 1),
@@ -2529,6 +2530,7 @@ export function createClient(transport: Transport) {
         remove: call("tasks.followers.remove", 1),
       },
       get: call("tasks.get", 1),
+      held_revise: call("tasks.held_revise", 1),
       history: call("tasks.history", 1),
       index: call("tasks.index", 1),
       links: {

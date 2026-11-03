@@ -1,7 +1,7 @@
 // Tasks state machine and the capabilities that change or read a task (ARCH 4.7, spec 2.8, 4.1, 4.2).
 // `tasks.transition` is the only writer of the status field; `tasks.act` (handlers/act.ts) and the Gate reach the same applyMove. The table of 4.7 lives in planMove.
 // Group and role slots: the pipeline authorizes the call at level use on the task, so holders pass; the first Take locks the task to one person (tasks.take).
-import { isTrustedService } from "../../../lib/trust.ts";
+import { isSystemCall, isTrustedService } from "../../../lib/trust.ts";
 import {
   actionableByMe, allTasks, clean, emitTask, ensurePrefix, findTask, getTask, historyOf, holds, isOpen, isRequest, listTasks, myWork, needsYou, newTaskId, openIndex,
   out, outFor, page, raise, readPolicy, sameAssignee, touch, visibleTo, whoIs,
@@ -575,6 +575,18 @@ export async function notesSet(ctx: TasksCtx, input: In): Promise<unknown> {
   touch(ctx, ctx.db, t);
   emitTask(ctx, ctx.db, "task.note_set", t, { key, by: ctx.principal.id }, { type: "note_set", by: ctx.principal.id });
   return { task: out(ctx, t) };
+}
+/** The Gate's edit of a held message: the card and the hash the approval is bound to change together. A nested call from the Gate only, on a task that is the held act, while it is still open. */
+export async function heldRevise(ctx: TasksCtx, input: In): Promise<unknown> {
+  const t = getTask(ctx, input.taskId);
+  if (!isSystemCall(ctx)) raise(ctx, "validation.field_locked", "Only the Gate changes a held act.", { field: "blocks" });
+  if (t.source?.kind !== "gate" || t.payloadHash === undefined) raise(ctx, "validation.precondition_failed", "That task is not a held act.", { reason: "not_held" });
+  if (!isOpen(t.state)) raise(ctx, "validation.precondition_failed", "That act is decided already.", { reason: "closed" });
+  t.blocks = input.blocks as Block[];
+  t.payloadHash = String(input.payloadHash);
+  touch(ctx, ctx.db, t);
+  emitTask(ctx, ctx.db, "task.updated", t, { fields: ["blocks"] }, { type: "updated", by: ctx.principal.id });
+  return { ok: true };
 }
 export async function notesDelete(ctx: TasksCtx, input: In): Promise<unknown> {
   const t = getTask(ctx, input.taskId);
