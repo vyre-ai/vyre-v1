@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import type { DriverEvent, EngineSession, OpenSession, ToolResult, TurnInput } from "../../agent/src/turn-engine/types.ts";
+import type { OpenSession } from "../../agent/src/turn-engine/types.ts";
 import { bootCore } from "../../fixtures/seed/core/index.ts";
 import { fakePlatform } from "../../host/src/platform/index.ts";
 import type { FetchFn } from "../../host/src/platform/probes.ts";
@@ -109,28 +109,9 @@ export async function post(d: Daemon, threadId: string, agentId: string, body: s
   return waitFor(() => lastAgentReply(d, threadId, before), 60_000, () => hostLog(d));
 }
 
-/** Runs one tool through the engine's tool runner (the real pipeline: the agent acting for the asker) and returns what the tool answered. */
-export type RunTool = (name: string, input: unknown) => AsyncGenerator<DriverEvent, ToolResult>;
-
-/** A model vendor stand-in that decides like a model would: `plan` reads the turn input and yields text and tool calls. */
-export function scriptedModel(plan: (input: TurnInput, run: RunTool) => AsyncGenerator<DriverEvent, void>): OpenSession {
-  return async () => {
-    const waiting = new Map<string, (r: ToolResult) => void>();
-    let n = 0;
-    const run: RunTool = async function* (name, input) {
-      const id = `call_${++n}`;
-      const answer = new Promise<ToolResult>((resolve) => waiting.set(id, resolve));
-      yield { type: "tool_call", id, name, input };
-      return answer;
-    };
-    return {
-      warm: true,
-      async *send(input: TurnInput): AsyncGenerator<DriverEvent> { yield* plan(input, run); yield { type: "done" }; },
-      sendToolResult(id: string, r: ToolResult) { waiting.get(id)?.(r); waiting.delete(id); },
-      inject() {}, async cancel() {}, async close() {},
-    } as EngineSession;
-  };
-}
+// the scripted model and its tool runner are test/support/live.ts's, one copy, so its handling of memory's learning one-shots covers these tests too
+export { isOneShot, scriptedModel } from "./live.ts";
+export type { RunTool, ScriptedModelOptions } from "./live.ts";
 
 /** Stops the daemon, but never waits for it forever: a test that failed must still report why. */
 export async function stop(d: Daemon): Promise<void> {

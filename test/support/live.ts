@@ -154,11 +154,21 @@ import type { DriverEvent, EngineSession, ToolResult, TurnInput } from "../../ag
 /** Runs one tool through the engine's tool runner (the real pipeline: the agent acting for the asker) and returns what the tool answered. */
 export type RunTool = (name: string, input: unknown) => AsyncGenerator<DriverEvent, ToolResult>;
 
+/** Memory's learning pass after a turn: the engine's one-shot (modules/engine/runtime.ts oneShot), on its own oneshot_ thread, as the memory-upkeep pseudo-agent. */
+export const isOneShot = (input: TurnInput): boolean => String(input.threadId ?? "").startsWith("oneshot_") || input.agent?.id === "memory-upkeep";
+
+/** What `scriptedModel` does with memory's learning one-shots: "answer" (the default) answers them itself with nothing to learn; "pass" hands them to `plan` like a turn. */
+export interface ScriptedModelOptions { oneShots?: "answer" | "pass" }
+
 /**
  * A model vendor stand-in that decides like a model would: `plan` reads the turn input and yields text and tool calls. `yield* run(name, input)` makes a tool call and returns its result.
  * The tool runs for real, as the agent acting for the asker, through the invoke pipeline.
+ *
+ * Memory's learning pass opens a session through this same model after every turn, at a time that depends on load. A plan that counts its calls or keys on the order of turns took it for a
+ * chat turn (golden chat-flows flow 4, needs.asks, chat.two-questions: "no question (turns 3)" on CI). So by default the helper answers a one-shot itself with the empty learning reply and the
+ * plan sees chat turns only. A test that asserts on what memory learns passes `{ oneShots: "pass" }` and answers the one-shot in its plan.
  */
-export function scriptedModel(plan: (input: TurnInput, run: RunTool) => AsyncGenerator<DriverEvent, void>): OpenSession {
+export function scriptedModel(plan: (input: TurnInput, run: RunTool) => AsyncGenerator<DriverEvent, void>, o: ScriptedModelOptions = {}): OpenSession {
   return async () => {
     const waiting = new Map<string, (r: ToolResult) => void>();
     let n = 0;
@@ -170,7 +180,11 @@ export function scriptedModel(plan: (input: TurnInput, run: RunTool) => AsyncGen
     };
     return {
       warm: true,
-      async *send(input: TurnInput): AsyncGenerator<DriverEvent> { yield* plan(input, run); yield { type: "done" }; },
+      async *send(input: TurnInput): AsyncGenerator<DriverEvent> {
+        if (o.oneShots !== "pass" && isOneShot(input)) { yield { type: "text", text: '{"ops":[]}' }; yield { type: "done" }; return; }
+        yield* plan(input, run);
+        yield { type: "done" };
+      },
       sendToolResult(id: string, r: ToolResult) { waiting.get(id)?.(r); waiting.delete(id); },
       inject() {}, async cancel() {}, async close() {},
     } as EngineSession;

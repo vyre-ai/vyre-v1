@@ -10,12 +10,8 @@ import { makeUse } from "./support/bench.ts";
 test("a second question asked in the turn an answer started is answered, and the agent goes on", async () => {
   const dir = seededDir();
   let turns = 0;
-  // Only the chat's turns count. Memory's learning pass after a turn (the engine's one-shot: its own oneshot_ thread, the memory-upkeep pseudo-agent) opens a session through this same model,
-  // and when it opened between the first answer and the turn that answer started (under load, as on CI) it took turn 2: the second question went to the one-shot and the chat's next turn,
-  // counted 3, said "All applied." with no question asked ("no question (turns 3)"). It gets the empty answer a learning pass expects and is not a turn of this chat.
-  const isOneShot = (input: any): boolean => String(input.threadId ?? "").startsWith("oneshot_") || input.agent?.id === "memory-upkeep";   // eslint-disable-line @typescript-eslint/no-explicit-any
+  // only the chat's turns reach this plan: scriptedModel answers memory's learning one-shot itself (test/support/live.ts)
   const d = await boot(dir, scriptedModel(async function* (input: any, run: RunTool) {
-    if (isOneShot(input)) { yield { type: "text", text: '{"ops":[]}' }; return; }
     const use = makeUse(run, { calls: 0, log: [] });
     turns++;
     if (turns === 1) { yield* use("ask_question", { threadId: input.threadId, prompt: "First?", mode: "single", options: [{ key: "a", label: "Yes" }, { key: "b", label: "No" }] }); return; }
