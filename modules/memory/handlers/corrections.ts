@@ -2,7 +2,7 @@
 // chat becomes (lessons.ts). The callers are the modules where the correction happens (gate.deny, a draft edit); they pass what the person changed and, when they have it, their own note.
 // Nothing is kept when the person's switch "Learn from my corrections" is off, when the chat is set not to be remembered, when the agent keeps no memory, or when the only words there are
 // would come from a chat other people read.
-import { createHash } from "node:crypto";
+import { sha256Hex } from "../../../kernel/src/log/hash.ts";
 import { factRows } from "../enrich.ts";
 import { HOWS, lessonText, lessonsOn, writeLesson } from "../lessons.ts";
 import type { How } from "../lessons.ts";
@@ -27,7 +27,7 @@ export async function recordCorrection(ctx: MemCtx, input: CorrectionIn): Promis
   const text = lessonText({ how: input.how, ...(input.was ? { was: input.was } : {}), ...(input.now ? { now: input.now } : {}), ...(input.note ? { note: input.note } : {}) }, shared);
   if (text === null) return { kept: false, why: "nothing" };
   const me = actorOf(ctx);
-  const key = `corr:${me}:${input.agentId}:${input.how}:${createHash("sha256").update(input.ref ?? `${input.was ?? ""}|${input.now ?? ""}|${input.note ?? ""}`).digest("hex").slice(0, 24)}`;
+  const key = `corr:${me}:${input.agentId}:${input.how}:${sha256Hex(input.ref ?? `${input.was ?? ""}|${input.now ?? ""}|${input.note ?? ""}`).slice(0, 24)}`;
   const made = writeLesson(ctx, {
     agentId: input.agentId, how: input.how, text, who: whoIs(ctx), key, ...(input.threadId ? { threadId: input.threadId } : {}), sourceKind: input.threadId ? "chat" : "manual",
     audience: input.threadId && shared ? [["heard_in", input.threadId]] : [], propose: mode === "propose",

@@ -451,9 +451,9 @@ async function marksPlace(ctx: Ctx, input: unknown): Promise<O> {
   const file = fileRow(ctx, str(row.target_id));
   if (!file) fail(ctx, "validation.not_found", "That file is not here.", {});
   const text = optStr(ctx, o, "text");
+  if (o.drop !== true && !text) fail(ctx, "validation.bad_input", "Give the text to place it on, or drop: true.", { field: "text" });
   if (o.drop === true) ctx.db.run("UPDATE files_mark SET removed_at = ?, removed_by = ? WHERE id = ?", ctx.now(), person(ctx), id);
-  else if (text) ctx.db.run("UPDATE files_mark SET text = ?, occurrence = NULL, version = ?, unplaced = 0 WHERE id = ?", text, num(file.version), id);
-  else fail(ctx, "validation.bad_input", "Give the text to place it on, or drop: true.", { field: "text" });
+  else ctx.db.run("UPDATE files_mark SET text = ?, occurrence = NULL, version = ?, unplaced = 0 WHERE id = ?", text, num(file.version), id);
   ctx.emit(o.drop === true ? "file.unredacted" : "file.redacted", `file/${str(file.id)}`, { fileId: str(file.id), markId: id, shape: str(row.shape), ...(row.label ? { label: str(row.label) } : {}), by: person(ctx), ...(o.drop === true ? { dropped: true } : { placed: true }) });
   if (!liveRows(ctx, str(file.id)).some((r) => num(r.unplaced) === 1 && str(r.kind) === "redact")) {
     const rev = one(ctx, "SELECT * FROM files_review WHERE file_id = ?", str(file.id));
