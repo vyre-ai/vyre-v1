@@ -6,9 +6,9 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
-import { makeBundle, wipe } from "../../../client/src/crypto/keys.ts";
-import { bootFreshSpace, dismissOnboarding, edge } from "./real-app-harness.test.ts";
-import { Client, signIn } from "../../../test/support/outside-client.ts";
+import { makeBundle, wipe } from "../client/src/crypto/keys.ts";
+import { bootFreshSpace, dismissOnboarding, edge } from "../apps/app/tests/real-app-harness.test.ts";
+import { Client, signIn } from "./support/outside-client.ts";
 
 const PASSWORD = "correct horse battery staple 9";
 const OUT = process.env["VYRE_TEST_CAPTURE_DIR"] ?? "shots-evidence/agent-credit";
