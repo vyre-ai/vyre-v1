@@ -612,7 +612,8 @@ export function openReplica(opts: OpenReplicaOptions): ReplicaStore {
   const stored = "storedRegistryHash" in opts ? (opts.storedRegistryHash ?? null) : readHash(driver);
   const upgraded = stored !== null && stored !== opts.registryHash;
   if (upgraded) dropTargets(driver, "rebuildTargets" in opts && opts.rebuildTargets ? opts.rebuildTargets : listTargets(driver));
-  driver.exec(ddl.sql);
+  // a driver that answers at once can check each table for its pending column, so a new replica gets it in the CREATE TABLE (no ALTER per table)
+  driver.exec(driver.sync ? ddl.withPending : ddl.sql);
   driver.exec(CLIENT_SQL);
   ensurePending(driver, ddl.tables);
   const sql = prepareAll(driver, ddl.tables);

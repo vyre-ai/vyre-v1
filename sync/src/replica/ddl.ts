@@ -139,12 +139,33 @@ export function parseTables(sql: string): TableInfo[] {
   return tables;
 }
 
-let cachedSql: { path: string; sql: string; tables: TableInfo[] } | null = null;
+/**
+ * The same DDL with each field-meta table's `pending` column in its CREATE TABLE, as its last column: where ensurePending adds it with ALTER TABLE,
+ * one per table, which on a new replica was most of the open (47 ALTERs, about 70 ms against 14 ms for the whole DDL). A replica made before stays as it is:
+ * CREATE TABLE IF NOT EXISTS leaves its tables alone and ensurePending still adds the column.
+ */
+export function withPendingColumns(sql: string): string {
+  return sql.replace(TABLE_RE, (all: string, name: string, body: string) => {
+    if (!name.endsWith("__fm") || /^\s*"pending"\s/m.test(body)) return all;
+    const lines = body.split("\n");
+    let last = -1;
+    lines.forEach((l, i) => { if (COL_RE.test(l)) last = i; });
+    if (last < 0) return all;
+    const line = lines[last]!;
+    const indent = /^\s*/.exec(line)?.[0] ?? "  ";
+    const followed = line.trimEnd().endsWith(",");
+    if (!followed) lines[last] = `${line.trimEnd()},`;
+    lines.splice(last + 1, 0, `${indent}"pending" INTEGER NOT NULL DEFAULT 0${followed ? "," : ""}`);
+    return `CREATE TABLE IF NOT EXISTS "${name}" (${lines.join("\n")});`;
+  });
+}
 
-export function loadReplicaSql(): { path: string; sql: string; tables: TableInfo[] } {
+let cachedSql: { path: string; sql: string; tables: TableInfo[]; withPending: string } | null = null;
+
+export function loadReplicaSql(): { path: string; sql: string; tables: TableInfo[]; withPending: string } {
   const file = resolveReplicaSql();
   if (cachedSql && cachedSql.path === file) return cachedSql;
   const sql = readFileSync(file, "utf8");
-  cachedSql = { path: file, sql, tables: parseTables(sql) };
+  cachedSql = { path: file, sql, tables: parseTables(sql), withPending: withPendingColumns(sql) };
   return cachedSql;
 }
