@@ -135,6 +135,7 @@ export function NewSiteSheet({ onClose, onMade }: { onClose(): void; onMade(site
         <Label text="Private repo: a GitHub token from the Vault" />
         <View style={s.keys}>
           <Chip on={token === ""} title="Public repo" onPress={() => setToken("")} />
+          {/* ui-rows-lint: not a list (chips to pick the GitHub token) */}
           {keys.slice(0, 12).map((k) => <Chip key={k.handle} on={token === k.handle} title={k.name} onPress={() => setToken(k.handle)} />)}
         </View>
       </View> : null}

@@ -263,6 +263,7 @@ function Page({ initial, sheet, view, route, onRouteClose, connectionsInitial, c
       : null;
   const aiTabs = selection.kind === "providers" && data.personal !== true ? (
     <View style={s.aiTabs} accessibilityRole="tablist" testID="ai-tabs">
+      {/* ui-rows-lint: not a list (two tabs) */}
       {([["my", "My AI accounts"], ["space", "Space AI accounts"]] as const).map(([k, label]) => (
         <Pressable key={k} accessibilityRole="tab" accessibilityState={{ selected: aiTab === k }} onPress={() => setAiTab(k)} style={[s.aiTab, aiTab === k ? s.aiTabOn : null]} testID={`ai-tab-${k}`}>
           <Text style={[s.aiTabText, aiTab === k ? s.aiTabTextOn : null]}>{label}</Text>

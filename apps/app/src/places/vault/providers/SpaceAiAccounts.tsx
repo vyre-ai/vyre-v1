@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 import type { ReactElement } from "react";
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { useMenu } from "../../../../../../ui/src/Menu/index.tsx";
+import { Row } from "../../../../../../ui/src/Row/index.tsx";
 import { useVaultData } from "../layout/data.tsx";
 import { Btn, LogoTile } from "../layout/parts.tsx";
 import { Sheet } from "../layout/Sheet.tsx";
@@ -36,14 +37,11 @@ export function SpaceAiAccounts({ mayManage }: { mayManage: boolean }): ReactEle
       {rows === null ? <Text style={[s.quiet, s.pad]}>Loading</Text> : rows.length === 0 ? (
         <Text style={[s.quiet, s.pad]} testID="space-ai-empty">{mayManage ? "No Space AI accounts yet. Press + to add one; it covers people with no AI account of their own, and whatever else you tick." : "No Space AI accounts yet. Admins add them."}</Text>
       ) : rows.map((r) => (
-        <Pressable key={r.id} accessibilityRole="button" onPress={() => setOpen(r)} style={s.row} testID={`space-ai-${r.id}`}>
-          <LogoTile name={r.name} size={32} />
-          <View style={{ flex: 1, minWidth: 0 }}>
-            <Text numberOfLines={1} style={s.name}>{r.name}</Text>
-            <Text numberOfLines={1} style={s.quiet}>{usedForLine(r.uses ?? (r.spaceKey ? { teamChats: { who: "everyone" } } : undefined), r.capCents, nameOf)}</Text>
-          </View>
-          <Text style={[s.health, r.state === "ok" ? s.ok : null]}>{r.state === "ok" ? "Works" : "Check the key"}</Text>
-        </Pressable>
+        <Row
+          key={r.id} id={`space-ai-${r.id}`} title={r.name} note={usedForLine(r.uses ?? (r.spaceKey ? { teamChats: { who: "everyone" } } : undefined), r.capCents, nameOf)} onPress={() => setOpen(r)}
+          leading={<View style={s.logo}><LogoTile name={r.name} size={28} /></View>}
+          trailing={<Text style={[s.health, r.state === "ok" ? s.ok : null]}>{r.state === "ok" ? "Works" : "Check the key"}</Text>}
+        />
       ))}
       {!mayManage && rows && rows.length > 0 ? <Text style={[s.quiet, s.pad]}>Admins add and change Space AI accounts.</Text> : null}
       {open ? <UsesSheet row={open} mayManage={mayManage} groups={groups} agents={agents} onClose={() => setOpen(null)} onSaved={() => { setOpen(null); load(); }} /> : null}
@@ -98,7 +96,7 @@ function UsesSheet({ row, mayManage, groups, agents, onClose, onSaved }: { row: 
 
 const s = StyleSheet.create({
   pad: { paddingHorizontal: 14, paddingVertical: 12 },
-  row: { flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 12, paddingVertical: 9, borderRadius: 8 },
+  logo: { marginRight: 10 },
   name: { fontSize: 13, fontWeight: "500", color: "var(--ink)" as string },
   quiet: { fontSize: 12, color: "var(--ink-3)" as string },
   health: { fontSize: 11.5, color: "var(--warn)" as string },

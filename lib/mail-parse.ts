@@ -106,7 +106,7 @@ export function previewOf(text: string, max = 160): string {
   const room = Math.max(1, max - 1);
   const cut = flat.lastIndexOf(" ", room);
   const head = cut > room * 0.5 ? flat.slice(0, cut) : flat.slice(0, room);
-  return `${head.replace(/[\s,.;:\u2013\u2014-]+$/u, "")}…`;
+  return `${head.replace(/[\s,.;:\p{Pd}]+$/u, "")}…`;
 }
 
 /** The preview a list row shows: the first words the sender wrote this time, past a greeting. */
@@ -192,7 +192,7 @@ export function decodePart(data: string, o: { encoding?: string | null; charset?
 
 // ---- HTML
 
-const NAMED: Record<string, string> = { amp: "&", lt: "<", gt: ">", quot: '"', apos: "'", nbsp: " ", ndash: "–", mdash: "\u2014", hellip: "…", rsquo: "’", lsquo: "‘", rdquo: "”", ldquo: "“", copy: "©", reg: "®", trade: "™", bull: "•", middot: "·", zwnj: "", zwj: "", shy: "" };
+const NAMED: Record<string, string> = { amp: "&", lt: "<", gt: ">", quot: '"', apos: "'", nbsp: " ", ndash: "–", mdash: String.fromCharCode(0x2014), hellip: "…", rsquo: "’", lsquo: "‘", rdquo: "”", ldquo: "“", copy: "©", reg: "®", trade: "™", bull: "•", middot: "·", zwnj: "", zwj: "", shy: "" };
 
 export function decodeEntities(s: string): string {
   return s.replace(/&(#x[0-9a-f]+|#\d+|[a-z]+);?/gi, (all, k: string) => {

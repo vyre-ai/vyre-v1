@@ -123,6 +123,7 @@ export function DeployedSite({ site: x, refresh, back }: { site: Site; refresh()
   const wanted = env.data?.wanted ?? [];
   const addon = (kind: "postgres" | "redis"): { kind: string; state: string; envName: string; detail?: string } | undefined => x.addons?.find((a) => a.kind === kind);
   const pg = addon("postgres"), redis = addon("redis");
+  // ui-rows-lint: not a list (chips to pick one Vault key)
   const keyChips = (on: string, set: (h: string) => void): ReactElement => <View style={s.chips}>{keys.length === 0 ? <Text style={ui.text}>No Vault keys yet. Add one in the Vault first.</Text> : keys.slice(0, 16).map((k) => <Pressable key={k.handle} accessibilityRole="radio" accessibilityState={{ checked: on === k.handle }} onPress={() => set(k.handle)} style={[s.chip, on === k.handle && s.chipOn]}><Text style={s.chipText} numberOfLines={1}>{k.name}</Text></Pressable>)}</View>;
 
   return <Frame testID="apps-site-detail" title={x.name} back={back} offline={!online} error={error}>
@@ -164,6 +165,7 @@ export function DeployedSite({ site: x, refresh, back }: { site: Site; refresh()
     <Card title="Env vars">
       <Text style={ui.text}>Each one takes its value from a Vault key when it deploys. Values never show here. PORT is set for you.</Text>
       {envRows.map((e) => <Row key={e.name} id={`env-${e.name}`} title={e.name} note={e.vaultName} trailing={<Button title="Remove" disabled={!!busy || !online} onPress={() => void run("Saving", "sites.env_set", { siteId: id, entries: envRows.filter((r) => r.name !== e.name).map((r) => ({ name: r.name, vaultHandle: r.vaultName })) })} />} />)}
+      {/* ui-rows-lint: not a list (chips of the env names the app looks for) */}
       {wanted.length ? <View style={s.chips}><Text style={ui.text}>It also looks for:</Text>{wanted.map((n) => <Pressable key={n} onPress={() => setEnvName(n)} style={s.chip}><Text style={s.chipText}>{n}</Text></Pressable>)}</View> : null}
       <TextInput accessibilityLabel="Env var name" testID="site-env-name" value={envName} onChangeText={setEnvName} placeholder="NAME" placeholderTextColor="var(--ink-4)" autoCapitalize="characters" style={[ui.input, s.mono]} />
       {keyChips(envKey, setEnvKey)}
