@@ -5,12 +5,10 @@ import type { ReactElement } from "react";
 import type { LiveQuery } from "../../../../../client/src/index.ts";
 import type { CapMap } from "../../../../../generated/types.ts";
 import { NotificationBanners } from "./Banners.tsx";
-import { BannerStack, arrivals, bannerTarget } from "./model.ts";
+import { BANNER_QUERY, BannerStack, arrivals, bannerTarget } from "./model.ts";
 import type { Notification } from "./model.ts";
 
 type ListOut = CapMap["notifications.list"]["out"];
-
-export const BANNER_QUERY = { level: "interrupt", unseenOnly: true, limit: 20 } as const;
 
 export interface NotificationsHostProps {
   query(cap: string, input: Record<string, unknown>): LiveQuery<ListOut>;

@@ -130,6 +130,9 @@ export function queueLine(online: boolean, waiting: number, conflicts = 0): Queu
 
 /* ---------- arrivals ---------- */
 
+/** The read the banners watch: my unseen Interrupt notifications, newest first. */
+export const BANNER_QUERY = { level: "interrupt", unseenOnly: true, limit: 20 } as const;
+
 /**
  * The banners to raise from a fresh read of my unseen Interrupt notifications: only what arrived since the last read. The first read only learns what is already there (a launch does not
  * replay old banners); a row that came back with a higher count (a burst in one thread) is raised again, collapsed into its banner.
