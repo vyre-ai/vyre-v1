@@ -21929,13 +21929,17 @@ export type PluginsConnectionAddIn = {
   headers?: Record<string, string>;
   hub?: "composio" | "pipedream";
   auth?: "oauth";
+  title?: string;
+  share?: Array<string>;
+  source?: "registry" | "paste" | "import" | "hub" | "skill" | "kit" | "hand";
+  sourceRef?: string;
   idempotencyKey: string;
 };
 export type PluginsConnectionAddOut = {
   connection: {
     connectionId: string;
     name: string;
-    scope: "space" | "agent";
+    scope: "space" | "agent" | "mine";
     agentId?: string;
     transport: "stdio" | "http";
     url?: string;
@@ -21947,7 +21951,50 @@ export type PluginsConnectionAddOut = {
     createdAt: number;
     hub?: "composio" | "pipedream";
     auth?: "oauth";
+    owner?: string;
+    share?: Array<string>;
+    source?: string;
+    sourceRef?: string;
+    title?: string;
   };
+};
+export type PluginsConnectionAddMineIn = {
+  name: string;
+  title?: string;
+  url?: string;
+  command?: string;
+  args?: Array<string>;
+  env?: Record<string, string>;
+  headers?: Record<string, string>;
+  auth?: "oauth";
+  source?: "registry" | "paste" | "import" | "hub" | "skill" | "kit" | "hand" | "plugin";
+  sourceRef?: string;
+  idempotencyKey: string;
+};
+export type PluginsConnectionAddMineOut = {
+  connection: {
+    connectionId: string;
+    name: string;
+    scope: "mine";
+    owner: string;
+  };
+};
+export type PluginsConnectionCheckedIn = {
+  connectionId: string;
+  health?: "ok" | "needs_signin" | "key_refused" | "not_answering" | "needs_setup" | "off" | "unknown";
+  note?: string;
+  tools?: number;
+  usedBy?: string;
+};
+export type PluginsConnectionCheckedOut = {
+  ok: boolean;
+};
+export type PluginsConnectionForgetIn = {
+  connectionId: string;
+  idempotencyKey: string;
+};
+export type PluginsConnectionForgetOut = {
+  removed: boolean;
 };
 export type PluginsConnectionRemoveIn = {
   connectionId?: string;
@@ -21959,6 +22006,111 @@ export type PluginsConnectionRemoveIn = {
 export type PluginsConnectionRemoveOut = {
   removed: boolean;
 };
+export type PluginsConnectionUpdateIn = {
+  connectionId: string;
+  title?: string;
+  enabled?: boolean;
+  auth?: "oauth" | "none";
+  share?: Array<string>;
+  idempotencyKey: string;
+};
+export type PluginsConnectionUpdateOut = {
+  connectionId: string;
+};
+export type PluginsConnectionsHomeIn = Record<string, unknown>;
+export type PluginsConnectionsHomeOut = {
+  mine: Array<{
+      key: string;
+      kind: "mcp" | "plugin" | "hub" | "skill";
+      name: string;
+      title: string;
+      scope: "mine" | "space" | "agent";
+      connectionId?: string;
+      pluginId?: string;
+      owner?: string;
+      agentId?: string;
+      share: Array<string>;
+      transport: "stdio" | "http" | "sse" | "ws";
+      address: string;
+      source: "registry" | "paste" | "import" | "hub" | "skill" | "kit" | "hand" | "plugin";
+      sourceRef?: string;
+      auth?: "oauth";
+      hub?: "composio" | "pipedream";
+      enabled: boolean;
+      health: "ok" | "needs_signin" | "key_refused" | "not_answering" | "needs_setup" | "off" | "unknown";
+      healthNote?: string;
+      tools?: number;
+      checkedAt?: number;
+      usedAt?: number;
+      usedBy: Array<string>;
+      keys: Array<string>;
+      needs: Array<string>;
+      canManage: boolean;
+    }>;
+  space: Array<{
+      key: string;
+      kind: "mcp" | "plugin" | "hub" | "skill";
+      name: string;
+      title: string;
+      scope: "mine" | "space" | "agent";
+      connectionId?: string;
+      pluginId?: string;
+      owner?: string;
+      agentId?: string;
+      share: Array<string>;
+      transport: "stdio" | "http" | "sse" | "ws";
+      address: string;
+      source: "registry" | "paste" | "import" | "hub" | "skill" | "kit" | "hand" | "plugin";
+      sourceRef?: string;
+      auth?: "oauth";
+      hub?: "composio" | "pipedream";
+      enabled: boolean;
+      health: "ok" | "needs_signin" | "key_refused" | "not_answering" | "needs_setup" | "off" | "unknown";
+      healthNote?: string;
+      tools?: number;
+      checkedAt?: number;
+      usedAt?: number;
+      usedBy: Array<string>;
+      keys: Array<string>;
+      needs: Array<string>;
+      canManage: boolean;
+    }>;
+  agents: Array<{
+      key: string;
+      kind: "mcp" | "plugin" | "hub" | "skill";
+      name: string;
+      title: string;
+      scope: "mine" | "space" | "agent";
+      connectionId?: string;
+      pluginId?: string;
+      owner?: string;
+      agentId?: string;
+      share: Array<string>;
+      transport: "stdio" | "http" | "sse" | "ws";
+      address: string;
+      source: "registry" | "paste" | "import" | "hub" | "skill" | "kit" | "hand" | "plugin";
+      sourceRef?: string;
+      auth?: "oauth";
+      hub?: "composio" | "pipedream";
+      enabled: boolean;
+      health: "ok" | "needs_signin" | "key_refused" | "not_answering" | "needs_setup" | "off" | "unknown";
+      healthNote?: string;
+      tools?: number;
+      checkedAt?: number;
+      usedAt?: number;
+      usedBy: Array<string>;
+      keys: Array<string>;
+      needs: Array<string>;
+      canManage: boolean;
+    }>;
+  policy: {
+    spaceAdders: "admins" | "managers";
+    allowListOn: boolean;
+    allowList: Array<string>;
+  };
+  canAddSpace: boolean;
+  admin: boolean;
+};
 export type PluginsConnectionsListIn = {
   agentId?: string;
 };
@@ -21966,7 +22118,7 @@ export type PluginsConnectionsListOut = {
   connections: Array<{
       connectionId: string;
       name: string;
-      scope: "space" | "agent";
+      scope: "space" | "agent" | "mine";
       agentId?: string;
       transport: "stdio" | "http";
       url?: string;
@@ -21978,7 +22130,33 @@ export type PluginsConnectionsListOut = {
       createdAt: number;
       hub?: "composio" | "pipedream";
       auth?: "oauth";
+      owner?: string;
+      share?: Array<string>;
+      source?: string;
+      sourceRef?: string;
+      title?: string;
     }>;
+};
+export type PluginsConnectionsPolicyIn = Record<string, unknown>;
+export type PluginsConnectionsPolicyOut = {
+  policy: {
+    spaceAdders: "admins" | "managers";
+    allowListOn: boolean;
+    allowList: Array<string>;
+  };
+};
+export type PluginsConnectionsPolicySetIn = {
+  spaceAdders?: "admins" | "managers";
+  allowListOn?: boolean;
+  allowList?: Array<string>;
+  idempotencyKey: string;
+};
+export type PluginsConnectionsPolicySetOut = {
+  policy: {
+    spaceAdders: "admins" | "managers";
+    allowListOn: boolean;
+    allowList: Array<string>;
+  };
 };
 export type PluginsFilesIn = {
   pluginId: string;
@@ -22198,6 +22376,54 @@ export type PluginsMcpServersOut = {
       oauth?: boolean;
       connectionId?: string;
     }>;
+};
+export type PluginsRegistrySearchIn = {
+  q?: string;
+  cursor?: string;
+  source?: "official" | "smithery";
+  limit?: number;
+};
+export type PluginsRegistrySearchOut = {
+  entries: Array<{
+      id: string;
+      source: "official" | "smithery";
+      name: string;
+      title: string;
+      description: string;
+      version: string;
+      website?: string;
+      repository?: string;
+      remote?: {
+        url: string;
+        transport: "http" | "sse";
+        headers: Array<{
+            name: string;
+            description: string;
+            required: boolean;
+            secret: boolean;
+            value?: string;
+          }>;
+      };
+      package?: {
+        registry: "npm" | "pypi" | "oci";
+        runner: "npx" | "uvx" | "docker";
+        identifier: string;
+        version: string;
+        env: Array<{
+            name: string;
+            description: string;
+            required: boolean;
+            secret: boolean;
+            value?: string;
+          }>;
+      };
+      signIn: "oauth" | "key" | "none";
+      allowed: boolean;
+    }>;
+  next?: string;
+  offline: boolean;
+  fetchedAt?: number;
+  source: "official" | "smithery";
 };
 export type PluginsSetEnabledIn = {
   pluginId: string;
@@ -26351,7 +26577,13 @@ export type SkillsAddOut = {
     enabled: boolean;
     bytes: number;
     updatedAt?: number;
+    hash?: string;
+    shadowedBy?: "builtin" | "space" | "agent";
+    note?: string;
+    broken?: string;
   };
+  kept?: boolean;
+  note?: string;
 };
 export type SkillsListIn = {
   agentId?: string;
@@ -26368,6 +26600,10 @@ export type SkillsListOut = {
       enabled: boolean;
       bytes: number;
       updatedAt?: number;
+      hash?: string;
+      shadowedBy?: "builtin" | "space" | "agent";
+      note?: string;
+      broken?: string;
     }>;
 };
 export type SkillsLoadIn = {
@@ -26385,11 +26621,14 @@ export type SkillsLoadOut = {
         path: string;
         text: string;
       }>;
+    text?: string;
+    hash?: string;
   };
 };
 export type SkillsRemoveIn = {
   name: string;
   agentId?: string;
+  source?: string;
   idempotencyKey: string;
 };
 export type SkillsRemoveOut = {
@@ -26412,6 +26651,10 @@ export type SkillsSetEnabledOut = {
     enabled: boolean;
     bytes: number;
     updatedAt?: number;
+    hash?: string;
+    shadowedBy?: "builtin" | "space" | "agent";
+    note?: string;
+    broken?: string;
   };
 };
 export type SourceRulesListIn = Record<string, unknown>;
@@ -35268,8 +35511,15 @@ export interface CapMap {
   "plugins.commands.list": { in: PluginsCommandsListIn; out: PluginsCommandsListOut };
   "plugins.config.set": { in: PluginsConfigSetIn; out: PluginsConfigSetOut };
   "plugins.connection.add": { in: PluginsConnectionAddIn; out: PluginsConnectionAddOut };
+  "plugins.connection.add_mine": { in: PluginsConnectionAddMineIn; out: PluginsConnectionAddMineOut };
+  "plugins.connection.checked": { in: PluginsConnectionCheckedIn; out: PluginsConnectionCheckedOut };
+  "plugins.connection.forget": { in: PluginsConnectionForgetIn; out: PluginsConnectionForgetOut };
   "plugins.connection.remove": { in: PluginsConnectionRemoveIn; out: PluginsConnectionRemoveOut };
+  "plugins.connection.update": { in: PluginsConnectionUpdateIn; out: PluginsConnectionUpdateOut };
+  "plugins.connections.home": { in: PluginsConnectionsHomeIn; out: PluginsConnectionsHomeOut };
   "plugins.connections.list": { in: PluginsConnectionsListIn; out: PluginsConnectionsListOut };
+  "plugins.connections.policy": { in: PluginsConnectionsPolicyIn; out: PluginsConnectionsPolicyOut };
+  "plugins.connections.policy_set": { in: PluginsConnectionsPolicySetIn; out: PluginsConnectionsPolicySetOut };
   "plugins.files": { in: PluginsFilesIn; out: PluginsFilesOut };
   "plugins.get": { in: PluginsGetIn; out: PluginsGetOut };
   "plugins.hooks.list": { in: PluginsHooksListIn; out: PluginsHooksListOut };
@@ -35280,6 +35530,7 @@ export interface CapMap {
   "plugins.marketplace.remove": { in: PluginsMarketplaceRemoveIn; out: PluginsMarketplaceRemoveOut };
   "plugins.marketplaces.list": { in: PluginsMarketplacesListIn; out: PluginsMarketplacesListOut };
   "plugins.mcp.servers": { in: PluginsMcpServersIn; out: PluginsMcpServersOut };
+  "plugins.registry.search": { in: PluginsRegistrySearchIn; out: PluginsRegistrySearchOut };
   "plugins.set_enabled": { in: PluginsSetEnabledIn; out: PluginsSetEnabledOut };
   "plugins.uninstall": { in: PluginsUninstallIn; out: PluginsUninstallOut };
   "portal.account_create": { in: PortalAccountCreateIn; out: PortalAccountCreateOut };
@@ -37951,13 +38202,28 @@ export type PluginChangedPayload = {
 export type PluginConnectionAddedPayload = {
   connectionId: string;
   name: string;
-  scope: "space" | "agent";
+  scope: "space" | "agent" | "mine";
   agentId?: string;
   by: string;
+};
+export type PluginConnectionChangedPayload = {
+  connectionId: string;
+  name: string;
+  by: string;
+};
+export type PluginConnectionCheckedPayload = {
+  connectionId: string;
+  name: string;
+  health: "ok" | "needs_signin" | "key_refused" | "not_answering" | "needs_setup" | "off" | "unknown";
 };
 export type PluginConnectionRemovedPayload = {
   connectionId: string;
   name: string;
+  by: string;
+};
+export type PluginConnectionsPolicyChangedPayload = {
+  spaceAdders: "admins" | "managers";
+  allowListOn: boolean;
   by: string;
 };
 export type PluginInstalledPayload = {
@@ -39874,7 +40140,10 @@ export interface EventMap {
   "plugin.allowlist_changed": PluginAllowlistChangedPayload;
   "plugin.changed": PluginChangedPayload;
   "plugin.connection_added": PluginConnectionAddedPayload;
+  "plugin.connection_changed": PluginConnectionChangedPayload;
+  "plugin.connection_checked": PluginConnectionCheckedPayload;
   "plugin.connection_removed": PluginConnectionRemovedPayload;
+  "plugin.connections_policy_changed": PluginConnectionsPolicyChangedPayload;
   "plugin.installed": PluginInstalledPayload;
   "plugin.marketplace_added": PluginMarketplaceAddedPayload;
   "plugin.marketplace_refreshed": PluginMarketplaceRefreshedPayload;

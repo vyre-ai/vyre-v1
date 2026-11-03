@@ -1788,10 +1788,17 @@ export function createClient(transport: Transport) {
       },
       connection: {
         add: call("plugins.connection.add", 1),
+        add_mine: call("plugins.connection.add_mine", 1),
+        checked: call("plugins.connection.checked", 1),
+        forget: call("plugins.connection.forget", 1),
         remove: call("plugins.connection.remove", 1),
+        update: call("plugins.connection.update", 1),
       },
       connections: {
+        home: call("plugins.connections.home", 1),
         list: call("plugins.connections.list", 1),
+        policy: call("plugins.connections.policy", 1),
+        policy_set: call("plugins.connections.policy_set", 1),
       },
       files: call("plugins.files", 1),
       get: call("plugins.get", 1),
@@ -1810,6 +1817,9 @@ export function createClient(transport: Transport) {
       },
       mcp: {
         servers: call("plugins.mcp.servers", 1),
+      },
+      registry: {
+        search: call("plugins.registry.search", 1),
       },
       set_enabled: call("plugins.set_enabled", 1),
       uninstall: call("plugins.uninstall", 1),

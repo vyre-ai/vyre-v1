@@ -54,8 +54,15 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "plugins.commands.list": Handler<"plugins.commands.list", X>;
   "plugins.config.set": Handler<"plugins.config.set", X>;
   "plugins.connection.add": Handler<"plugins.connection.add", X>;
+  "plugins.connection.add_mine": Handler<"plugins.connection.add_mine", X>;
+  "plugins.connection.checked": Handler<"plugins.connection.checked", X>;
+  "plugins.connection.forget": Handler<"plugins.connection.forget", X>;
   "plugins.connection.remove": Handler<"plugins.connection.remove", X>;
+  "plugins.connection.update": Handler<"plugins.connection.update", X>;
+  "plugins.connections.home": Handler<"plugins.connections.home", X>;
   "plugins.connections.list": Handler<"plugins.connections.list", X>;
+  "plugins.connections.policy": Handler<"plugins.connections.policy", X>;
+  "plugins.connections.policy_set": Handler<"plugins.connections.policy_set", X>;
   "plugins.files": Handler<"plugins.files", X>;
   "plugins.get": Handler<"plugins.get", X>;
   "plugins.hooks.list": Handler<"plugins.hooks.list", X>;
@@ -66,6 +73,7 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "plugins.marketplace.remove": Handler<"plugins.marketplace.remove", X>;
   "plugins.marketplaces.list": Handler<"plugins.marketplaces.list", X>;
   "plugins.mcp.servers": Handler<"plugins.mcp.servers", X>;
+  "plugins.registry.search": Handler<"plugins.registry.search", X>;
   "plugins.set_enabled": Handler<"plugins.set_enabled", X>;
   "plugins.uninstall": Handler<"plugins.uninstall", X>;
   "skills.add": Handler<"skills.add", X>;

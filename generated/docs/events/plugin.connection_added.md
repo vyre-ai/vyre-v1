@@ -20,7 +20,7 @@ An MCP server was connected
 type Payload = {
   connectionId: string;
   name: string;
-  scope: "space" | "agent";
+  scope: "space" | "agent" | "mine";
   agentId?: string;
   by: string;
 };

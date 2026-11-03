@@ -8,7 +8,7 @@ Finish an OAuth sign-in with the state and code the server sent back, or the err
 | Version | 1 (since 1.0.0) |
 | Effects | write |
 | Permission | grant only |
-| Grant level | view |
+| Grant level | member |
 | Risk | medium |
 | Resource | space |
 | Gate | none |
