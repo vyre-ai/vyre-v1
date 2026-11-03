@@ -115,8 +115,8 @@ export default defineManifest({
       emits: EMITS, tool: 'tasks', mcpName: 'goals_create', cli: 'vyre goals create',
       errors: ['validation.precondition_failed', 'validation.not_found'],
     }),
-    write('goals.confirm', 'Start a drafted goal: the owner presses Start on its card. The standing permissions it names hold from this press', {
-      in: { ...target, permissions: t.opt(t.arr(t.str(), { description: 'The labels of the permissions to grant; all when omitted' })) }, out: { goal: goalRow }, level: 'member',
+    write('goals.confirm', 'Start a drafted goal: the owner presses Start on its card, or an agent acting for the owner starts it with messageId, the owner's own message asking for it (in the goal's chat, under 15 minutes old). An agent's start grants no permission. The standing permissions it names hold from this press', {
+      in: { ...target, permissions: t.opt(t.arr(t.str(), { description: 'The labels of the permissions to grant; all when omitted' })), messageId: t.opt(id.message) }, out: { goal: goalRow }, level: 'member',
       emits: EMITS, tool: 'tasks', errors: ['validation.precondition_failed', 'validation.not_found'],
     }),
     read('goals.get', 'One goal: its finish line and progress, the plan as tasks, who is helping, what waits on whom, budget used and the latest activity', {

@@ -437,3 +437,17 @@ test("the agent that drafted a goal may add to its plan before Start; another ag
   assert.equal(added.drafted, 1);
   await assert.rejects(w.call("goals.plan", { goalId: goal.id, children: [step("y", "Another")] }, { id: "agt_other", kind: "agent", actingFor: OWNER }), /lead agent or the owner/);
 });
+
+test("an agent starts a draft only when the owner just asked in their own message; otherwise the draft stays and the card waits", async () => {
+  const w = world({ count: 10 });
+  const agent = { id: LEAD, kind: "agent" as const, actingFor: OWNER };
+  const { goal } = await w.call("goals.create", labGoal({ sourceThreadId: "thr_chat" }), agent);
+  assert.equal(goal.status, "draft");
+  assert.ok(w.state.posts.some((p) => p.threadId === "thr_chat" && p.blocks?.[0]?.data.kind === "draft"), "the card with Start is in the chat");
+  for (const messageId of [undefined, "msg_other", "msg_owner_old"]) {
+    await assert.rejects(w.call("goals.confirm", { goalId: goal.id, ...(messageId ? { messageId } : {}) }, agent), /Only the owner starts a goal/);
+  }
+  const started = (await w.call("goals.confirm", { goalId: goal.id, messageId: "msg_owner_start" }, agent)).goal;
+  assert.equal(started.status, "planning");
+  assert.ok(started.permissions.every((p: { granted: boolean }) => p.granted === false), "an agent's start grants no permission");
+});

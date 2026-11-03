@@ -101,9 +101,21 @@ export async function create(ctx: GoalsCtx, input: In) {
   return { ...out(ctx, g), overlaps: found, seated, plan: { drafted: !LIVE.has(g.status) ? plan.length : 0, attached: LIVE.has(g.status) ? plan.length : 0 } };
 }
 
+/** An agent acting for the owner may start a draft when the owner just asked for it in their own words: their message, in this goal's chat, a few minutes old. */
+async function ownerAsked(ctx: GoalsCtx, g: Goal, messageId: unknown): Promise<boolean> {
+  if (ctx.principal.kind !== "agent" || ctx.actingFor !== g.owner || typeof messageId !== "string") return false;
+  for (const threadId of [g.sourceThreadId, g.threadId]) {
+    if (!threadId) continue;
+    const r = await tryCall<{ message?: { author?: { kind?: string; id?: string }; createdAt?: number } }>(ctx, "chat.message.get", { threadId, messageId });
+    const m = r?.message;
+    if (m?.author?.kind === "person" && m.author.id === g.owner && typeof m.createdAt === "number" && ctx.now() - m.createdAt <= 15 * 60_000) return true;
+  }
+  return false;
+}
+
 export async function confirm(ctx: GoalsCtx, input: In) {
   const g = visible(ctx, input.goalId);
-  if (!isOwner(ctx, g)) raise(ctx, "validation.precondition_failed", "Only the owner starts a goal.", { reason: "owner_only" });
+  if (!isOwner(ctx, g) && !(await ownerAsked(ctx, g, input.messageId))) raise(ctx, "validation.precondition_failed", "Only the owner starts a goal. If the owner just asked you to start it, pass the id of their message; otherwise leave the Start button on the goal card for them.", { reason: "owner_only" });
   if (g.status !== "draft") raise(ctx, "validation.precondition_failed", `This goal is ${g.status} already.`, { reason: "not_draft" });
   const press = isOwnerPress(ctx, g);
   const pick = input.permissions as string[] | undefined;
