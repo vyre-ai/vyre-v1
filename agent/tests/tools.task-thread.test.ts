@@ -3,7 +3,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { ctx, makeSession, thread } from "../src/tools/harness.ts";
 
-const BATON = ["task_submit", "task_ask", "task_block", "task_review", "task_decide", "tasks_take"];
+const BATON = ["task_submit", "task_ask", "task_block", "task_review", "task_decide", "tasks_take", "tasks_act"];
 
 test("a task thread lists the baton tools; a chat finds them with tool_search", () => {
   const { session } = makeSession();

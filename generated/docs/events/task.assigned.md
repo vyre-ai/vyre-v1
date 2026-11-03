@@ -28,5 +28,7 @@ type Payload = {
     kind: "person" | "agent" | "group" | "role" | "automation";
     id: string;
   }) | null;
+  title?: string;
+  by?: string;
 };
 ```

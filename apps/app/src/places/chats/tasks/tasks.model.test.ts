@@ -36,7 +36,7 @@ test("a reviewer's turn is theirs: the holder moves with the status", () => {
 });
 
 test("the flat list has Needs you first, then the sections, then add and the count of what is done", () => {
-  const need = { task: { id: "n", kind: "answer", title: "Q" } } as unknown as NeedItem;
+  const need = { task: { id: "n", kind: "answer", title: "Q" }, yourTurn: true } as unknown as NeedItem;
   const entries = buildEntries({ ...base, rows: [row({ id: "a", due: NOW }), row({ id: "b", updatedAt: NOW - QUIET_MS - 1 })], needs: [need], doneCount: 12 });
   assert.deepEqual(entries.map((e) => e.key), ["h:needs", "n:n", "h:now", "now:a", "quiet", "add", "done"]);
 });
@@ -140,4 +140,20 @@ test("the work under a chat: only what is open, what is moving first, and each l
 test("a section reads soonest first, then by priority, then what changed last, and no date goes last", () => {
   const list = [row({ id: "none", updatedAt: NOW }), row({ id: "later", due: NOW + 3 * DAY }), row({ id: "soon-low", due: NOW + DAY, priority: "low" }), row({ id: "soon-old", due: NOW + DAY, updatedAt: 1 }), row({ id: "soon-new", due: NOW + DAY, updatedAt: 2 }), row({ id: "soon-urgent", due: NOW + DAY, priority: "urgent" })];
   assert.deepEqual(sectionsOf(list, me, NOW, 0, new Set()).next.map((r) => r.id), ["soon-urgent", "soon-new", "soon-old", "soon-low", "later", "none"]);
+});
+
+test("work handed to me sits in Needs you, once, and not again in Now (l-tasks)", () => {
+  const review = row({ id: "r", state: "in_review", reviewer: { kind: "person", id: me }, yourTurn: true } as never);
+  const entries = buildEntries({ ...base, rows: [review], needs: [{ task: review, reason: "ready", yourTurn: true } as unknown as NeedItem] });
+  assert.deepEqual(entries.map((e) => e.key).filter((k) => k.endsWith(":r")), ["n:r"], "one row, in Needs you");
+});
+
+test("a team task I took, or one offered to me, is mine, not Waiting on others (l-tasks)", () => {
+  const team = { kind: "group", id: "grp_support" } as const;
+  const taken = row({ id: "t", assigned: team, takenBy: me } as never);
+  const offered = row({ id: "o", assigned: team, yourTurn: true } as never);
+  const theirs = row({ id: "x", assigned: team, takenBy: "usr_sara" } as never);
+  const s = sectionsOf([taken, offered, theirs], me, NOW, 0, new Set());
+  assert.deepEqual(s.waiting.map((r) => r.id), ["x"]);
+  assert.deepEqual([...s.now, ...s.next].map((r) => r.id).sort(), ["o", "t"]);
 });

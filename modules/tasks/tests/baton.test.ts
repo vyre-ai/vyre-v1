@@ -40,7 +40,7 @@ test("the baton goes doer, reviewer, approver, done, one tool each", async () =>
   assert.equal(state(h, id), "in_review");
   assert.deepEqual(JSON.parse(notes(h, id).outputs!), { letter: "Dear Ms Rivera" });
   assert.equal(notes(h, id).summary, "Drafted the letter");
-  assert.deepEqual(h.events.map((e) => e.name), ["task.transitioned"]);
+  assert.deepEqual(h.events.map((e) => e.name), ["task.transitioned", "task.requested"], "the reviewer is asked: it is their turn");
   const b = await h.call("tasks.review", { taskId: id, verdict: "approve" }, checker);
   assert.equal(b.next, "approval");
   assert.equal(state(h, id), "awaiting_approval");

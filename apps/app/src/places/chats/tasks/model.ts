@@ -47,10 +47,12 @@ export function sectionsOf(rows: readonly TaskRow[], me: string, now: number, of
   const out: Sections = { now: [], next: [], quiet: [], waiting: [] };
   const end = dayStart(now, offsetMin) + DAY;
   for (const t of rows) {
-    if (t.kind !== "work" && needIds.has(t.id)) continue;
+    if (needIds.has(t.id)) continue;
     if (!isOpenState(t.state)) continue;
+    // a group or role task is mine once I took it, or while it is offered to me (the server says whose turn it is)
     const h = holderOf(t);
-    if (h?.id !== me) { out.waiting.push(t); continue; }
+    const mine = h?.id === me || t.takenBy === me || t.yourTurn === true;
+    if (!mine) { out.waiting.push(t); continue; }
     if (t.due === undefined && t.state !== "doing" && now - t.updatedAt > QUIET_MS) { out.quiet.push(t); continue; }
     if ((t.due !== undefined && t.due < end) || t.state === "doing") out.now.push(t);
     else out.next.push(t);
@@ -77,7 +79,8 @@ function byDue(list: readonly TaskRow[]): TaskRow[] {
   return out;
 }
 
-export interface Filter { query: string; label: string | null; person: string | null; priority: string | null; states: readonly TaskState[] | null; waiting: boolean }
+/** found: the ids the server's search matched for the query (words in the brief, notes and summary), when it answered. */
+export interface Filter { query: string; label: string | null; person: string | null; priority: string | null; states: readonly TaskState[] | null; waiting: boolean; found?: ReadonlySet<string> | undefined }
 export const NO_FILTER: Filter = { query: "", label: null, person: null, priority: null, states: null, waiting: false };
 export const isFiltered = (f: Filter): boolean => f.query !== "" || f.label !== null || f.person !== null || f.priority !== null || f.states !== null || f.waiting;
 
@@ -85,7 +88,8 @@ export function filterRows(rows: readonly TaskRow[], f: Filter): readonly TaskRo
   if (!isFiltered(f)) return rows;
   const q = f.query.trim().toLowerCase();
   return rows.filter((t) => {
-    if (q !== "" && !t.title.toLowerCase().includes(q) && !(t.key ?? "").toLowerCase().includes(q)) return false;
+    if (q !== "" && f.found === undefined && !t.title.toLowerCase().includes(q) && !(t.key ?? "").toLowerCase().includes(q)) return false;
+    if (q !== "" && f.found !== undefined && !f.found.has(t.id) && !t.title.toLowerCase().includes(q) && !(t.key ?? "").toLowerCase().includes(q)) return false;
     if (f.label !== null && !t.labels.includes(f.label)) return false;
     if (f.person !== null && holderOf(t)?.id !== f.person && t.assigned.id !== f.person) return false;
     if (f.priority !== null && (t.priority ?? "normal") !== f.priority) return false;
@@ -180,7 +184,7 @@ export const HEIGHT: Record<Entry["kind"], number> = { head: 44, need: 54, task:
 export const heightOf = (e: Entry): number => HEIGHT[e.kind];
 
 export interface BuildIn {
-  rows: readonly TaskRow[]; needs: readonly NeedItem[]; me: string; now: number; offsetMin: number; scope: ScopeKind | "project"; group: GroupKey; sort: SortKey; filter: Filter;
+  rows: readonly TaskRow[]; needs: readonly NeedItem[]; me: string; now: number; offsetMin: number; scope: ScopeKind | "project" | "snoozed"; group: GroupKey; sort: SortKey; filter: Filter;
   doneRows: readonly TaskRow[] | null; doneCount: number; names: Names; quietOff: boolean;
 }
 
@@ -197,7 +201,8 @@ export function buildEntries(b: BuildIn): Entry[] {
   if (b.group !== "smart") {
     for (const g of groupRows(rows, b.group, b.names, b.now, b.offsetMin)) push(`g:${g.key}`, g.title, g.rows);
   } else if (b.scope === "mine") {
-    const needs = b.needs.filter((n) => n.task.kind !== "work" && n.handledBy === undefined);
+    // Needs you: every task whose next move is mine, each once, work handed to me included; the badge counts the same rows
+    const needs = b.needs.filter((n) => n.handledBy === undefined && n.yourTurn === true);
     if (needs.length > 0 && !isFiltered(b.filter)) {
       out.push({ kind: "head", key: "h:needs", title: "Needs you", count: needs.length });
       for (const n of needs) out.push({ kind: "need", key: `n:${n.task.id}`, item: n });
@@ -209,9 +214,9 @@ export function buildEntries(b: BuildIn): Entry[] {
     push("waiting", "Waiting on others", s.waiting);
   } else {
     const open = rows.filter((t) => isOpenState(t.state));
-    push(b.scope, b.scope === "given" ? "Given by you" : b.scope === "project" ? "In this project" : "Open", open);
+    push(b.scope, b.scope === "given" ? "Given by you" : b.scope === "project" ? "In this project" : b.scope === "snoozed" ? "Snoozed" : "Open", open);
   }
-  if (rows.length === 0 && out.length === 0) out.push({ kind: "empty", key: "empty", text: isFiltered(b.filter) ? "No task matches." : b.scope === "mine" ? "Nothing on your list." : "No tasks here yet." });
+  if (rows.length === 0 && out.length === 0) out.push({ kind: "empty", key: "empty", text: isFiltered(b.filter) ? "No task matches." : b.scope === "mine" ? "Nothing on your list." : b.scope === "snoozed" ? "Nothing is snoozed." : "No tasks here yet." });
   out.push({ kind: "add", key: "add" });
   if (b.doneCount > 0 || b.doneRows !== null) {
     out.push({ kind: "done", key: "done", count: b.doneCount, open: b.doneRows !== null });

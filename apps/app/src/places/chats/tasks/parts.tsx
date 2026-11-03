@@ -11,6 +11,7 @@ import type { ActivityStore, LiveTurn, TurnStreams } from "../../../shell/sessio
 import { activityLine } from "../conversation/activity.ts";
 import { Glyph } from "../conversation/parts.tsx";
 import { batonMarks, dueLabel, holderOf, isOpenState, KIND_TITLE, ago } from "./model.ts";
+import { canTake } from "./moves.ts";
 import type { NeedItem, TaskRow, Who } from "./model.ts";
 
 export interface RowEnv {
@@ -21,6 +22,8 @@ export interface RowEnv {
   menu(row: TaskRow, at: { x: number; y: number }): void;
   pick(id: string, range: boolean): void;
   act(item: NeedItem, key: string): void;
+  /** the right-click menu of a Needs you row */
+  needMenu?(item: NeedItem, at: { x: number; y: number }): void;
 }
 
 export const faceKind = (w: Who): "person" | "agent" | "group" | "automation" => (w.kind === "role" ? "group" : w.kind);
@@ -89,7 +92,7 @@ function WebLine({ row, env, selected, current }: { row: TaskRow; env: RowEnv; s
   const closed = !isOpenState(row.state);
   const project = row.recordId ? env.project(row.recordId) : undefined;
   const waits = row.blocked ? row.dependsOn.map(env.keyOf).filter((k): k is string => k !== undefined) : [];
-  const sub = waits.length > 0 ? `Waits on ${waits.slice(0, 3).join(", ")}` : [project, row.children ? `${row.children.done} of ${row.children.total}` : ""].filter(Boolean).join(" · ");
+  const sub = subOf(row, env, waits, project);
   const press = (e: Press): void => { if (e.metaKey || e.ctrlKey) env.pick(row.id, false); else if (e.shiftKey) env.pick(row.id, true); else env.open(row.id); };
   const trigger = menuTrigger((x, y) => env.menu(row, { x, y }));
   return h("div", {
@@ -114,6 +117,14 @@ function WebLine({ row, env, selected, current }: { row: TaskRow; env: RowEnv; s
   );
 }
 
+/** The second line of a row: what it waits on, else who took a team task (or that it waits for someone to take it), its project and its breakdown. */
+function subOf(row: TaskRow, env: RowEnv, waits: readonly string[], project: string | undefined): string {
+  if (waits.length > 0) return `Waits on ${waits.slice(0, 3).join(", ")}`;
+  const team = row.assigned.kind === "group" || row.assigned.kind === "role";
+  const taken = team && isOpenState(row.state) ? (row.takenBy ? `Taken by ${row.takenBy === env.me ? "you" : env.nameOf(row.takenBy)}` : `${env.nameOf(row.assigned.id)}: nobody took it yet`) : "";
+  return [taken, project, row.children ? `${row.children.done} of ${row.children.total}` : ""].filter(Boolean).join(" · ");
+}
+
 /** One task on a list. */
 export const TaskLine = memo(function TaskLine({ row, env, selected, current }: { row: TaskRow; env: RowEnv; selected: boolean; current: boolean }): ReactElement {
   if (Platform.OS === "web") return <View style={s.rowWrap}><WebLine row={row} env={env} selected={selected} current={current} /></View>;
@@ -129,7 +140,7 @@ function NativeLine({ row, env, selected, current }: { row: TaskRow; env: RowEnv
   const closed = !isOpenState(row.state);
   const project = row.recordId ? env.project(row.recordId) : undefined;
   const waits = row.blocked ? row.dependsOn.map(env.keyOf).filter((k): k is string => k !== undefined) : [];
-  const sub = waits.length > 0 ? `Waits on ${waits.slice(0, 3).join(", ")}` : [project, row.children ? `${row.children.done} of ${row.children.total}` : ""].filter(Boolean).join(" · ");
+  const sub = subOf(row, env, waits, project);
   return <View testID={`task-row-${row.id}`} {...webProps({ "data-tk": row.id })} {...menuTrigger((x, y) => env.menu(row, { x, y }))} style={s.rowWrap}>
     {/* a row of this list: selection, status, title, baton, face and date each have their own press, so it is not one ui/Row press */}
     <Pressable accessibilityRole="button" accessibilityLabel={row.title} onPress={(e) => { const m = e as unknown as { metaKey?: boolean; ctrlKey?: boolean; shiftKey?: boolean; nativeEvent?: { metaKey?: boolean; ctrlKey?: boolean; shiftKey?: boolean } }; const n = m.nativeEvent ?? m; if (n.metaKey || n.ctrlKey) env.pick(row.id, false); else if (n.shiftKey) env.pick(row.id, true); else env.open(row.id); }} style={({ hovered }: { hovered?: boolean }) => [s.row, hovered === true && s.rowHover, selected && s.rowSel, current && s.rowCur]}>
@@ -158,9 +169,12 @@ export const NeedLine = memo(function NeedLine({ item, env }: { item: NeedItem; 
   const t = item.task;
   const by = t.createdBy;
   const who: Who = { kind: by.startsWith("agt_") ? "agent" : "person", id: by };
-  const primary = t.kind === "approve" ? { key: "approve", label: "Approve" } : { key: "open", label: "Open" };
-  const sub = [KIND_TITLE[t.kind], env.nameOf(by), t.recordId ? env.project(t.recordId) : undefined, ago(env.now - t.createdAt)].filter(Boolean).join(" · ");
-  return <View style={s.rowWrap}>
+  // a team task is taken first; a held act is approved here; anything else opens, where its move is
+  const primary = canTake(t) ? { key: "take", label: "Take" } : t.kind === "approve" ? { key: "approve", label: "Approve" } : { key: "open", label: "Open" };
+  const step = t.kind !== "work" ? KIND_TITLE[t.kind] : t.state === "in_review" ? "Your review" : t.state === "awaiting_approval" ? "Your approval" : t.workingNotes["fixes"] !== undefined ? "Sent back to you" : canTake(t) ? `For ${env.nameOf(t.assigned.id)}` : "Given to you";
+  const sub = [step, env.nameOf(by), t.recordId ? env.project(t.recordId) : undefined, ago(env.now - t.updatedAt)].filter(Boolean).join(" · ");
+  const trigger = env.needMenu ? menuTrigger((x, y) => env.needMenu?.(item, { x, y })) : {};
+  return <View style={s.rowWrap} {...trigger}>
     <Pressable accessibilityRole="button" accessibilityLabel={t.title} testID={`need-row-${t.id}`} onPress={() => env.open(t.id)} style={({ hovered }: { hovered?: boolean }) => [s.row, s.need, hovered === true && s.rowHover]}>
       <FaceButton who={who} name={env.nameOf(by)} size={28} onPress={() => env.openProfile(who)} />
       <View style={s.text}><Text numberOfLines={1} style={s.title}>{t.title}</Text><Text numberOfLines={1} style={s.sub}>{sub}</Text></View>

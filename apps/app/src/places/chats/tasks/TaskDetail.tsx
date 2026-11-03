@@ -1,10 +1,9 @@
 // One task page, in a tab. The head says what it is, where it came from and whose turn it is, with the one action that is yours. The blocks are filled by its kind and source (Work: brief, done means, outputs and
 // subtasks; Answer: the question; Approve: what is held; Review: what to check; Unblock: what it needs). Activity is the chat feed and composer of the task's own thread, with the status changes and hand-offs woven in.
 // The rail holds every field. Every change is one capability call; the page reads the task again from the live query.
-import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactElement, ReactNode } from "react";
 import { Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions } from "react-native";
-import type { QueryState } from "../../../../../../client/src/index.ts";
 import type { CapMap } from "../../../../../../generated/types.ts";
 import { QuickField } from "./QuickField.tsx";
 import { parseQuick } from "./quick.ts";
@@ -31,7 +30,6 @@ import { accessRequestOf, blockView } from "../needsyou/model.ts";
 import { TaskBlock } from "../needsyou/NeedsYou.tsx";
 import { heldMail } from "../needsyou/heldmail.ts";
 import { HeldMailCard } from "../needsyou/HeldMail.tsx";
-import { nameOr } from "../names.ts";
 import { dueEntries, failure, priorityEntries } from "./actions.ts";
 import { dueLabel, holderOf, isOpenState, KIND_TITLE, planOrder, PRIORITIES } from "./model.ts";
 import type { IndexOut, TaskFull, TaskRow, Who } from "./model.ts";
@@ -39,6 +37,10 @@ import { faceKind, LiveWords, TextMenu, useLiveTurn, webProps } from "./parts.ts
 import { activityOf } from "./activity.ts";
 import type { ActivityShow } from "./activity.ts";
 import { offered } from "../../../shell/session/private-agents.ts";
+import { canRelease, canTake, handInLabel, movesFor } from "./moves.ts";
+import type { Move } from "./moves.ts";
+import { useTaskPeople } from "./people.ts";
+import type { Seat } from "./people.ts";
 
 type History = CapMap["tasks.history"]["out"];
 type TaskOut = CapMap["tasks.get"]["out"];
@@ -59,16 +61,24 @@ export interface TaskDetailProps {
   openChat(threadId: string): void;
   /** Off where the page sits in a side pane: the rail folds in under the head. */
   rail?: boolean;
+  /** In a side pane: open the task on its own page. */
+  openFull?(id: string): void;
+  /** On its own page: back to the list it was opened from. */
+  back?(): void;
 }
 
-export function TaskDetail({ rt, taskId, conversationFor, openTask, openAgent, openChat, rail = true }: TaskDetailProps): ReactElement {
+/** What the person is typing for a move: the hand-in summary, the fixes, the reason, what blocks them. */
+type Mode = "" | "submit" | "fixes" | "reject" | "block";
+const MODE_OF: Record<string, Mode> = { summary: "submit", fixes: "fixes", reason: "reject" };
+
+export function TaskDetail({ rt, taskId, conversationFor, openTask, openAgent, openChat, rail = true, openFull, back }: TaskDetailProps): ReactElement {
   const q = useLive<TaskOut>(rt.screens, "tasks.page", "task", { route: { taskId } });
   const history = useLive<History>(rt.screens, "tasks.page", "activity", { route: { taskId } });
   const width = useWindowDimensions().width;
-  const people = useSyncExternalStore(rt.principals.subscribe, rt.principals.getSnapshot, rt.principals.getSnapshot) as QueryState<Array<{ id: string; name: string; kind: string }>>;
-  const list = useMemo(() => (people.status === "ready" ? people.data : []), [people]);
-  const byId = useMemo(() => new Map(list.map((p) => [p.id, p] as const)), [list]);
-  const nameOf = useCallback((id: string): string => (id === rt.me.id ? "You" : id === rt.assistant.id ? rt.assistant.name : nameOr(byId.get(id)?.name, id)), [byId, rt.assistant.id, rt.assistant.name, rt.me.id]);
+  const who = useTaskPeople(rt);
+  const list = who.list;
+  const nameOf = who.nameOf;
+  const [mode, setMode] = useState<Mode>("");
   const [show, setShow] = useState<ActivityShow>("all");
   const [railOpen, setRailOpen] = useState(rail && width >= 980);
   const [line, setLine] = useState("");
@@ -77,11 +87,14 @@ export function TaskDetail({ rt, taskId, conversationFor, openTask, openAgent, o
   const menu = useMenu();
   const task = (q.status === "ready" ? q.data.task : null);
   const shown = override && task && override.updatedAt >= task.updatedAt ? override : task;
-  useEffect(() => { setOverride(null); setLine(""); }, [taskId]);
+  useEffect(() => { setOverride(null); setLine(""); setMode(""); }, [taskId]);
   const readKids = useCallback((): void => {
     void rt.call("tasks.index", { scope: "everyone", parentTaskId: taskId }).then((o) => setKids((o as IndexOut).rows.filter((r) => r.kind === "work").sort(planOrder)), () => setKids([]));
   }, [rt, taskId]);
-  useEffect(() => { readKids(); }, [readKids, task?.updatedAt]);
+  // the breakdown is live: a child that moves changes the Space's task revision, and the children are read again
+  const rev = useLive<{ rev: string }>(rt.screens, "tasks.my-work", "rev", {});
+  const revValue = rev.status === "ready" ? rev.data.rev : "";
+  useEffect(() => { readKids(); }, [readKids, task?.updatedAt, revValue]);
 
   const run = useCallback(async (cap: string, input: Record<string, unknown>): Promise<boolean> => {
     setLine("");
@@ -112,14 +125,16 @@ export function TaskDetail({ rt, taskId, conversationFor, openTask, openAgent, o
     const failed = q.status === "loading" ? q.error : undefined;
     return <View testID="task-detail-loading" style={st.root}>{failed ? <States kind="error" message="This task is not available" cause={failed.message} /> : <Text style={st.quiet}>Opening task…</Text>}</View>;
   }
-  const head = <TaskHead task={shown} rt={rt} nameOf={nameOf} run={run} line={line} menu={menu} kids={kids} openTask={openTask} openAgent={openAgent} openChat={openChat} onKids={readKids} list={list} railOpen={railOpen} onRail={rail ? () => setRailOpen((o) => !o) : undefined} show={show} onShow={setShow} />;
+  // a move picked from a status menu that needs words opens the box for them under the head
+  const begin = (m: Move): void => { if (m.ask && MODE_OF[m.ask]) { setMode(MODE_OF[m.ask]!); return; } void run(m.cap, m.input); };
+  const head = <TaskHead task={shown} rt={rt} nameOf={nameOf} run={run} line={line} menu={menu} kids={kids} openTask={openTask} openAgent={openAgent} openChat={openChat} onKids={readKids} list={list} seats={who.seats} railOpen={railOpen} onRail={rail ? () => setRailOpen((o) => !o) : undefined} show={show} onShow={setShow} mode={mode} setMode={setMode} begin={begin} {...(openFull ? { openFull } : {})} {...(back ? { back } : {})} />;
   const feed = conv
     ? <Conversation key={threadId} compact data={{ ...conv, head, activity: { events, show }, placeholder: "Comment, or @ someone" }} />
     : <ScrollView contentContainerStyle={st.col}>{head}</ScrollView>;
   return <View testID="task-detail" style={st.row}>
     <View style={st.main}>{feed}</View>
     {railOpen ? <SidePane paneKey="task-details" toggle={{ open: true, onPress: () => setRailOpen(false) }} title="Details" tabs={[{ key: "details", title: "Details" }]} activeTab="details" defaultWidth={340} onCloseTab={() => setRailOpen(false)}>
-      <Rail task={shown} rt={rt} nameOf={nameOf} run={run} menu={menu} list={list} openTask={openTask} kidsCount={kids.length} />
+      <Rail task={shown} rt={rt} nameOf={nameOf} run={run} menu={menu} seats={who.seats} openTask={openTask} kidsCount={kids.length} begin={begin} />
     </SidePane> : null}
     {menu.element}
   </View>;
@@ -129,19 +144,24 @@ const NO_ENTRIES: History["entries"] = [];
 type Menu = ReturnType<typeof useMenu>;
 const pointAt = (e: unknown): { x: number; y: number } => { const t = (e as { currentTarget?: { getBoundingClientRect?: () => { left: number; bottom: number } } }).currentTarget?.getBoundingClientRect?.(); return { x: t?.left ?? 8, y: (t?.bottom ?? 48) + 4 }; };
 
-function statusEntries(task: TaskFull, run: (cap: string, input: Record<string, unknown>) => Promise<boolean>): MenuEntry[] {
+/** The status menu: only the moves this person's seat allows, in the words of the move. Take and Give back for a team task. */
+function statusEntries(task: TaskFull, me: string, run: (cap: string, input: Record<string, unknown>) => Promise<boolean>, begin: (m: Move) => void): MenuEntry[] {
   const items: MenuEntry[] = [];
-  for (const [i, s] of TASK_STATES.entries()) items.push({ label: s.title, leading: <StatusDot state={s.key} size={14} />, checked: s.key === task.state, count: i + 1, onSelect: () => void run("tasks.transition", { to: s.key, expectedFrom: task.state }) });
+  if (canTake(task)) items.push({ label: "Take it", onSelect: () => void run("tasks.take", {}) });
+  for (const m of movesFor(task, me)) items.push({ label: m.label, ...(m.to ? { leading: <StatusDot state={m.to} size={14} /> } : {}), ...(m.danger ? { danger: true } : {}), onSelect: () => begin(m) });
+  if (canRelease(task, me)) items.push({ separator: true }, { label: "Give it back", onSelect: () => void run("tasks.release", {}) });
+  if (items.length === 0) items.push({ head: `${stateTitle(task.state as TaskState)}. Nothing here is yours to move.` });
   return items;
 }
 
 interface HeadProps {
-  task: TaskFull; rt: ShellRuntime; nameOf(id: string): string; run(cap: string, input: Record<string, unknown>): Promise<boolean>; line: string; menu: Menu; kids: readonly TaskRow[]; list: ReadonlyArray<{ id: string; name: string; kind: string }>;
+  task: TaskFull; rt: ShellRuntime; nameOf(id: string): string; run(cap: string, input: Record<string, unknown>): Promise<boolean>; line: string; menu: Menu; kids: readonly TaskRow[]; list: ReadonlyArray<{ id: string; name: string; kind: string }>; seats: readonly Seat[];
   openTask(id: string): void; openAgent(id: string): void; openChat(id: string): void; onKids(): void; railOpen: boolean; onRail: (() => void) | undefined; show: ActivityShow; onShow(s: ActivityShow): void;
+  mode: Mode; setMode(m: Mode): void; begin(m: Move): void; openFull?(id: string): void; back?(): void;
 }
 
 /** The head and every block, above the feed, scrolling with it. */
-function TaskHead({ task, rt, nameOf, run, line, menu, kids, list, openTask, openAgent, openChat, onKids, railOpen, onRail, show, onShow }: HeadProps): ReactElement {
+function TaskHead({ task, rt, nameOf, run, line, menu, kids, list, seats, openTask, openAgent, openChat, onKids, railOpen, onRail, show, onShow, mode, setMode, begin, openFull, back }: HeadProps): ReactElement {
   const [title, setTitle] = useState(task.title);
   useEffect(() => setTitle(task.title), [task.title]);
   const view = task as unknown as TaskView;
@@ -149,7 +169,8 @@ function TaskHead({ task, rt, nameOf, run, line, menu, kids, list, openTask, ope
   const parent = useLive<TaskOut>(rt.screens, "tasks.page", "task", task.parentTaskId ? { route: { taskId: task.parentTaskId } } : null);
   const parentTitle = parent.status === "ready" ? parent.data.task.title : undefined;
   const onDigit = useRef((_: string): void => undefined);
-  onDigit.current = (k): void => { const s = TASK_STATES[Number(k) - 1]; if (s) void run("tasks.transition", { to: s.key, expectedFrom: task.state }); };
+  // 1 to 6 pick a state, and only a move this person can make reaches it
+  onDigit.current = (k): void => { const s = TASK_STATES[Number(k) - 1]; const m = s ? movesFor(task, rt.me.id).find((x) => x.to === s.key) : undefined; if (m) begin(m); };
   useEffect(() => {
     if (Platform.OS !== "web") return undefined;
     const g = globalThis as unknown as { addEventListener(t: string, f: (e: KeyboardEvent) => void): void; removeEventListener(t: string, f: (e: KeyboardEvent) => void): void };
@@ -163,20 +184,22 @@ function TaskHead({ task, rt, nameOf, run, line, menu, kids, list, openTask, ope
   for (const l of (task.labels ?? []).slice(0, 4)) labels.push(<Text key={l} style={st.label}>{`#${l}`}</Text>);
   return <View testID="task-head" style={st.col}>
     <View style={st.crumbs}>
+      {back ? <Pressable accessibilityRole="link" accessibilityLabel="Back to Tasks" testID="task-back" onPress={back} style={({ hovered }: { hovered?: boolean }) => [st.chip, hovered === true && { backgroundColor: "var(--hover)" as string }]}><Text style={st.chipText}>Tasks</Text></Pressable> : null}
       {task.key ? <Text style={st.key}>{task.key}</Text> : null}
       {task.parentTaskId ? <Chip label={parentTitle ?? "Parent task"} onPress={() => openTask(task.parentTaskId!)} /> : <SourceChip task={task} rt={rt} openChat={openChat} />}
       {task.parentTaskId ? <SourceChip task={task} rt={rt} openChat={openChat} /> : null}
       {labels}
       <View style={{ flex: 1 }} />
+      {openFull ? <Pressable accessibilityRole="button" accessibilityLabel="Open the full page" testID="task-open-full" onPress={() => openFull(task.id)} style={st.iconBtn}><Glyph name="link" size={14} /></Pressable> : null}
       {onRail && !railOpen ? <Pressable accessibilityRole="button" accessibilityLabel="Show details" testID="task-rail-toggle" onPress={onRail} style={st.iconBtn}><Glyph name="pane" size={14} /></Pressable> : null}
     </View>
     <View style={st.titleRow}>
-      <View style={{ marginTop: 7 }}><StatusDot state={task.state} size={24} live={turn !== undefined} onPress={(at) => menu.show(statusEntries(task, run), at.x, at.y, "other", { label: "Status" })} testID="task-status" /></View>
+      <View style={{ marginTop: 7 }}><StatusDot state={task.state} size={24} live={turn !== undefined} onPress={(at) => menu.show(statusEntries(task, rt.me.id, run, begin), at.x, at.y, "other", { label: "Status" })} testID="task-status" /></View>
       <TextInput accessibilityLabel="Task title" testID="task-title" value={title} onChangeText={setTitle} onBlur={saveTitle} onSubmitEditing={saveTitle} multiline={false} style={st.h1} />
     </View>
     {steps.length > 2 ? <BatonPath steps={steps} nameOf={nameOf} /> : null}
     {turn ? <View style={st.liveLine}><LiveWords turn={turn} turns={rt.turns} name={nameOf(turn.agentId)} /></View> : null}
-    <YourAction task={task} view={view} me={rt.me.id} run={run} menu={menu} list={list} />
+    <YourAction task={task} view={view} me={rt.me.id} run={run} menu={menu} list={list} mode={mode} setMode={setMode} nameOf={nameOf} />
     {line ? <Text accessibilityRole="alert" testID="task-line" style={st.error}>{line}</Text> : null}
     <TaskBody task={task} rt={rt} nameOf={nameOf} run={run} kids={kids} people={list.filter(offered)} openTask={openTask} openAgent={openAgent} onKids={onKids} />
     <View style={st.feedHead}>
@@ -208,12 +231,15 @@ function SourceChip({ task, rt, openChat }: { task: TaskFull; rt: ShellRuntime; 
       setName(`${run?.name ?? run?.automation ?? "An automation"}${at >= 0 ? ` · step ${at + 1}` : ""}`);
     }, () => setName("An automation"));
     if (s.kind === "chat") void rt.call("threads.get", { threadId: s.id }).then((o) => setName((o as { thread?: { title?: string } }).thread?.title ?? "A chat"), () => setName("A chat"));
+    // a goal's plan and a meeting's follow-ups name where they come from (lanes l-goals and l-meetings add the sources)
+    if (s.kind === "goal") void rt.call("goals.get", { goalId: s.id }).then((o) => setName((o as { goal?: { title?: string } }).goal?.title ?? ""), () => setName(""));
     if (s.kind === "meeting") void rt.call("meetings.closeout.get", { meetingId: s.id }).then((o) => setName((o as { title?: string }).title ?? ""), () => setName(""));
   }, [rt, s?.kind, s?.id, task.workingNotes["run.step"]]);  // eslint-disable-line react-hooks/exhaustive-deps
   if (!s || s.kind === "manual") return null;
   if (s.kind === "run") return <Chip label={name || "An automation"} icon="flow" onPress={() => rt.open({ subject: { type: "run", id: s.id } })} />;
   if (s.kind === "chat") return <Chip label={name || "A chat"} icon="chat" onPress={() => openChat(s.id)} />;
-  if (s.kind === "gate") return <Chip label="Held before sending" icon="lock" onPress={() => rt.open({ screen: "tasks.needs-you", args: { taskId: task.id } })} />;
+  if (s.kind === "gate") return <Chip label="Held before sending" icon="lock" onPress={() => rt.open({ subject: { type: "task", id: task.id } })} />;
+  if (s.kind === "goal") return <Chip label={name ? `Part of ${name}` : "Part of a goal"} icon="flow" onPress={() => rt.open({ subject: { type: "goal", id: s.id } })} />;
   // a task from a meeting close-out says which meeting, and opens its close-out in the Inbox's Meetings tab
   if (s.kind === "meeting") return <Chip label={name ? `From ${name}` : "From a meeting"} icon="task" onPress={() => rt.open({ subject: { type: "meeting", id: s.id } })} />;
   return <Chip label="From a journey" icon="flow" onPress={() => rt.open({ subject: { type: "journey", id: s.id } })} />;
@@ -233,16 +259,17 @@ function BatonPath({ steps, nameOf }: { steps: ReturnType<typeof stepsOf>; nameO
   return <View testID="baton-path" style={st.pathRow}>{out}</View>;
 }
 
-/** The one action that is yours: what your seat does next. Nothing when it is not your move. */
-function YourAction({ task, view, me, run, menu, list }: { task: TaskFull; view: TaskView; me: string; run(cap: string, input: Record<string, unknown>): Promise<boolean>; menu: Menu; list: ReadonlyArray<{ id: string; name: string; kind: string }> }): ReactElement | null {
-  const [mode, setMode] = useState<"" | "submit" | "fixes" | "reject" | "block">("");
+/** The one action that is yours: what your seat does next. Take for a team task nobody took. Nothing when it is not your move. */
+function YourAction({ task, view, me, run, menu, list, mode, setMode, nameOf }: { task: TaskFull; view: TaskView; me: string; run(cap: string, input: Record<string, unknown>): Promise<boolean>; menu: Menu; list: ReadonlyArray<{ id: string; name: string; kind: string }>; mode: Mode; setMode(m: Mode): void; nameOf(id: string): string }): ReactElement | null {
   const [text, setText] = useState("");
   const close = (ok: boolean): void => { if (ok) { setMode(""); setText(""); } };
-  useEffect(() => { setMode(""); setText(""); }, [task.state]);
+  useEffect(() => { setMode(""); setText(""); }, [task.state]);   // eslint-disable-line react-hooks/exhaustive-deps
   if (task.kind !== "work") return null;
-  const move = myMove(view, me);
+  if (canTake(task)) return <View style={st.actions}><Btn label="Take it" primary testID="task-take" onPress={() => void run("tasks.take", {})} /><Text style={st.waiting}>{`For ${nameOf(task.assigned.id)}. Whoever takes it does it.`}</Text></View>;
+  const taken = task.takenBy !== undefined && (task.assigned.kind === "group" || task.assigned.kind === "role") && task.takenBy !== me && isOpenState(task.state as TaskState) ? <Text style={st.waiting}>{`Taken by ${nameOf(task.takenBy)}`}</Text> : null;
+  const move = myMove({ ...view, takenBy: task.takenBy ?? (task.yourTurn ? me : undefined) } as TaskView, me);
   if (task.blocked && move === null) return <Text style={st.waiting}>{"This waits on something else and starts by itself."}</Text>;
-  if (!move) return null;
+  if (!move) return taken;
   const prompt = (placeholder: string, label: string, press: () => void, multi = false): ReactElement => <View style={st.actionForm}>
     <TextInput autoFocus accessibilityLabel={placeholder} testID="task-action-text" placeholder={placeholder} placeholderTextColor="var(--ink-3)" value={text} onChangeText={setText} multiline={multi} style={[st.input, multi && { minHeight: 64 }]} />
     <View style={st.actions}><Btn label={label} primary onPress={press} /><Btn label="Cancel" onPress={() => { setMode(""); setText(""); }} /></View>
@@ -250,14 +277,20 @@ function YourAction({ task, view, me, run, menu, list }: { task: TaskFull; view:
   if (mode === "submit") return prompt("What you did, in one line", task.reviewer || task.approver ? "Hand in" : "Mark done", () => { if (text.trim()) void run("tasks.submit", { summary: text.trim() }).then(close); });
   if (mode === "block") return prompt("What is in the way", "Report it", () => { if (text.trim()) void run("tasks.block", { reason: text.trim() }).then(close); });
   if (mode === "fixes") return prompt("One fix per line", "Send back", () => { const fixes = fixesFromText(text); if (fixes.length) void run("tasks.review", { verdict: "send_back", fixes }).then(close); }, true);
-  if (mode === "reject") return prompt("Why not", "Reject", () => { if (text.trim()) void run("tasks.decide", { verdict: "reject", reason: text.trim() }).then(close); }, true);
+  if (mode === "reject") return prompt("Why not", "Send back", () => { if (text.trim()) void run("tasks.decide", { verdict: "reject", reason: text.trim() }).then(close); }, true);
+  const giveBack = canRelease(task, me) ? <Btn label="Give it back" testID="task-release" onPress={() => void run("tasks.release", {})} /> : null;
   if (move === "review") return <View style={st.actions}><Btn label="Approve" primary testID="task-approve" onPress={() => void run("tasks.review", { verdict: "approve" })} /><Btn label="Send back" testID="task-send-back" onPress={() => setMode("fixes")} /></View>;
-  if (move === "approve") return <View style={st.actions}><Btn label="Approve" primary testID="task-approve" onPress={() => void run("tasks.decide", { verdict: "approve" })} /><Btn label="Reject" testID="task-reject" onPress={() => setMode("reject")} /></View>;
+  if (move === "approve") return <View style={st.actions}><Btn label="Approve" primary testID="task-approve" onPress={() => void run("tasks.decide", { verdict: "approve" })} /><Btn label="Send back" testID="task-reject" onPress={() => setMode("reject")} /></View>;
+  // from To do or Doing the same moves: start (from To do), hand in, say what blocks it; from To do it can also go to an agent
+  const handIn = <Btn label={handInLabel(task)} primary={task.state !== "todo"} testID="task-submit" onPress={() => setMode("submit")} />;
+  const blocked = <Btn label="Blocked" testID="task-blocked" onPress={() => setMode("block")} />;
   if (task.state === "todo") return <View style={st.actions}>
     <Btn label="Start" primary testID="task-start" onPress={() => void run("tasks.transition", { to: "doing", expectedFrom: "todo" })} />
-    <Btn label="Give to an agent" testID="task-give" onPress={(e) => { const at = pointAt(e); menu.show(list.filter((p) => p.kind === "agent").map((p) => ({ label: p.name, leading: <Avatar name={p.name} seedId={p.id} kind="agent" size={16} />, onSelect: () => void run("tasks.assign", { slot: "assigned", to: { kind: "agent", id: p.id } }) })), at.x, at.y, "other", { label: "Give to an agent" }); }} />
+    {handIn}{blocked}
+    <Btn label="Give to an agent" testID="task-give" onPress={(e) => { const at = pointAt(e); menu.show(list.filter((p) => p.kind === "agent" && offered(p)).map((p) => ({ label: p.name, leading: <Avatar name={p.name} seedId={p.id} kind="agent" size={16} />, onSelect: () => void run("tasks.assign", { slot: "assigned", to: { kind: "agent", id: p.id } }) })), at.x, at.y, "other", { label: "Give to an agent" }); }} />
+    {giveBack}
   </View>;
-  return <View style={st.actions}><Btn label={task.reviewer || task.approver ? "Hand in" : "Mark done"} primary testID="task-submit" onPress={() => setMode("submit")} /><Btn label="Blocked" testID="task-blocked" onPress={() => setMode("block")} /></View>;
+  return <View style={st.actions}>{handIn}{blocked}{giveBack}</View>;
 }
 
 function Btn({ label, onPress, primary = false, testID }: { label: string; onPress(e: unknown): void; primary?: boolean; testID?: string }): ReactElement {
@@ -356,10 +389,24 @@ function DoneMeans({ task, run }: { task: TaskFull; run(cap: string, input: Reco
   return <Block {...(items.length ? { title: "Done means" } : {})}>{rows}<View style={st.addKid}><View style={st.addDot} /><TextInput accessibilityLabel="Add what done means" testID="task-add-means" placeholder="Add what done means" placeholderTextColor="var(--ink-3)" value={more} onChangeText={setMore} onSubmitEditing={add} style={st.inline} /></View></Block>;
 }
 
+/** The names of a task's files, read once each (files.get). A file that cannot be read keeps a plain word. */
+function useFileNames(rt: ShellRuntime, ids: readonly string[]): ReadonlyMap<string, string> {
+  const [names, setNames] = useState<ReadonlyMap<string, string>>(new Map());
+  const key = ids.join(",");
+  useEffect(() => {
+    let live = true;
+    const want = key === "" ? [] : key.split(",").slice(0, 30);
+    void Promise.all(want.map((id) => rt.call("files.get", { fileId: id }).then((o) => [id, (o as { file?: { name?: string } }).file?.name ?? ""] as const, () => [id, ""] as const))).then((rows) => { if (live) setNames(new Map(rows.filter(([, n]) => n !== ""))); });
+    return () => { live = false; };
+  }, [rt, key]);
+  return names;
+}
+
 function Outputs({ task, rt }: { task: TaskFull; rt: ShellRuntime }): ReactElement | null {
   const d = deliverableOf(task as unknown as TaskView);
+  const names = useFileNames(rt, task.fileIds);
   const fileRows: ReactElement[] = [];
-  for (const id of task.fileIds) fileRows.push(<Pressable key={id} accessibilityRole="link" accessibilityLabel="Open the file" onPress={() => rt.open({ subject: { type: "file", id } })} style={st.output}><Glyph name="file" size={14} /><Text style={st.outputText}>A file</Text></Pressable>);
+  for (const id of task.fileIds) { const name = names.get(id) ?? "A file"; fileRows.push(<Pressable key={id} accessibilityRole="link" accessibilityLabel={`Open ${name}`} onPress={() => rt.open({ subject: { type: "file", id } })} style={st.output}><Glyph name="file" size={14} /><Text numberOfLines={1} style={st.outputText}>{name}</Text></Pressable>); }
   if (!d && fileRows.length === 0) return null;
   const fields: ReactElement[] = [];
   for (const f of d?.fields ?? []) fields.push(<View key={f.name} style={st.field}><Text style={st.fieldName}>{f.name}</Text><Text selectable style={st.body}>{f.value}</Text></View>);
@@ -403,7 +450,11 @@ function TreeRow({ row, rt, nameOf, kids, openTask, openAgent, onKids }: { row: 
   const menu = useMenu();
   const h = holderOf(row);
   const waits = row.blocked ? row.dependsOn.map((d) => kids.find((k) => k.id === d)?.key).filter(Boolean) : [];
-  const status = (at: { x: number; y: number }): void => menu.show(TASK_STATES.map((s, i) => ({ label: s.title, leading: <StatusDot state={s.key} size={14} />, checked: s.key === row.state, count: i + 1, onSelect: () => void rt.call("tasks.transition", { taskId: row.id, to: s.key, expectedFrom: row.state }).then(onKids, () => undefined) })), at.x, at.y, "other", { label: "Status" });
+  // the moves that are yours on this child; one that needs words opens it
+  const status = (at: { x: number; y: number }): void => {
+    const items: MenuEntry[] = movesFor(row, rt.me.id).map((m) => ({ label: m.label, ...(m.to ? { leading: <StatusDot state={m.to} size={14} /> } : {}), onSelect: () => { if (m.ask) openTask(row.id); else void rt.call(m.cap, { taskId: row.id, ...m.input }).then(onKids, () => undefined); } }));
+    menu.show(items.length > 0 ? items : [{ head: "Nothing here is yours to move." }], at.x, at.y, "other", { label: "Status" });
+  };
   return <View style={st.tree}>
     <StatusDot state={row.state} size={17} live={turn !== undefined} onPress={status} />
     <Pressable accessibilityRole="link" accessibilityLabel={row.title} testID={`tree-${row.id}`} onPress={() => openTask(row.id)} style={st.treeMain}>
@@ -417,13 +468,19 @@ function TreeRow({ row, rt, nameOf, kids, openTask, openAgent, onKids }: { row: 
 }
 
 /** Every field of a task, in a column. */
-function Rail({ task, rt, nameOf, run, menu, list, openTask, kidsCount }: { task: TaskFull; rt: ShellRuntime; nameOf(id: string): string; run(cap: string, input: Record<string, unknown>): Promise<boolean>; menu: Menu; list: ReadonlyArray<{ id: string; name: string; kind: string }>; openTask(id: string): void; kidsCount: number }): ReactElement {
+function Rail({ task, rt, nameOf, run, menu, seats, openTask, kidsCount, begin }: { task: TaskFull; rt: ShellRuntime; nameOf(id: string): string; run(cap: string, input: Record<string, unknown>): Promise<boolean>; menu: Menu; seats: readonly Seat[]; openTask(id: string): void; kidsCount: number; begin(m: Move): void }): ReactElement {
   const clock = rt.clock();
   const act = { now: () => rt.clock().now, offsetMin: clock.offsetMin };
   const person = (slot: "assigned" | "reviewer" | "approver", w: Who | undefined): ReactElement => w ? <View style={st.kvFace}><Avatar name={nameOf(w.id)} seedId={w.id} kind={faceKind(w)} size={18} /><Text numberOfLines={1} style={st.kvVal}>{nameOf(w.id)}</Text></View> : <Text style={st.kvAdd}>Add</Text>;
   const slotMenu = (slot: "assigned" | "reviewer" | "approver", e: unknown): void => {
     const at = pointAt(e);
-    const items: MenuEntry[] = list.filter((p) => p.kind === "person" || p.kind === "agent").map((p) => ({ label: p.id === rt.me.id ? "You" : p.name, leading: <Avatar name={p.name} seedId={p.id} kind={p.kind === "agent" ? "agent" : "person"} size={16} />, checked: task[slot]?.id === p.id, onSelect: () => void run("tasks.assign", { slot, to: { kind: p.kind, id: p.id } }) }));
+    // people, agents, then teams and roles; someone else's private agent is never offered
+    const items: MenuEntry[] = [];
+    let teams = false;
+    for (const p of seats) {
+      if ((p.kind === "group" || p.kind === "role") && !teams) { items.push({ head: "Teams and roles" }); teams = true; }
+      items.push({ label: p.name, leading: <Avatar name={p.name} seedId={p.id} kind={faceKind({ kind: p.kind, id: p.id })} size={16} />, checked: task[slot]?.id === p.id, onSelect: () => void run("tasks.assign", { slot, to: { kind: p.kind, id: p.id } }) });
+    }
     if (slot !== "assigned" && task[slot]) items.push({ separator: true }, { label: "Clear", onSelect: () => void run("tasks.assign", { slot, to: null }) });
     menu.show(items, at.x, at.y, "other", { label: slot }, { search: "Find someone" });
   };
@@ -468,8 +525,9 @@ function Rail({ task, rt, nameOf, run, menu, list, openTask, kidsCount }: { task
     customRows.push(<KV key={f.key} label={f.title} testID={`rail-field-${f.key}`}><TextInput accessibilityLabel={f.title} placeholder="Add" placeholderTextColor="var(--ink-4)" defaultValue={v === undefined ? "" : String(v)} onEndEditing={(e) => { const t = e.nativeEvent.text.trim(); if (t !== String(v ?? "")) void run("tasks.update", { fields: { [f.key]: t === "" ? null : t } }); }} style={st.kvInput} /></KV>);
   }
   return <ScrollView testID="task-rail" contentContainerStyle={st.rail}>
-    <KV label="Status" testID="rail-status" onPress={(e) => { const at = pointAt(e); menu.show(statusEntries(task, run), at.x, at.y, "other", { label: "Status" }); }}><View style={st.kvFace}><StatusDot state={task.state as TaskState} size={13} /><Text style={st.kvVal}>{stateTitle(task.state as TaskState)}</Text></View></KV>
+    <KV label="Status" testID="rail-status" onPress={(e) => { const at = pointAt(e); menu.show(statusEntries(task, rt.me.id, run, begin), at.x, at.y, "other", { label: "Status" }); }}><View style={st.kvFace}><StatusDot state={task.state as TaskState} size={13} /><Text style={st.kvVal}>{stateTitle(task.state as TaskState)}</Text></View></KV>
     <KV label="Assigned" testID="rail-assigned" onPress={(e) => slotMenu("assigned", e)}>{person("assigned", task.assigned)}</KV>
+    {(task.assigned.kind === "group" || task.assigned.kind === "role") ? <KV label="Taken by" testID="rail-taken" {...(canTake(task) ? { onPress: () => void run("tasks.take", {}) } : canRelease(task, rt.me.id) ? { onPress: () => void run("tasks.release", {}) } : {})}>{task.takenBy ? <Text numberOfLines={1} style={st.kvVal}>{task.takenBy === rt.me.id ? "You (give it back)" : nameOf(task.takenBy)}</Text> : <Text style={st.kvAdd}>{canTake(task) ? "Take it" : "Nobody yet"}</Text>}</KV> : null}
     <KV label="Reviewer" testID="rail-reviewer" onPress={(e) => slotMenu("reviewer", e)}>{person("reviewer", task.reviewer)}</KV>
     <KV label="Approver" testID="rail-approver" onPress={(e) => slotMenu("approver", e)}>{person("approver", task.approver)}</KV>
     <KV label="Due" testID="rail-due" onPress={(e) => { const at = pointAt(e); menu.show(dueEntries(act, (when) => void run("tasks.update", { due: when })), at.x, at.y, "other", { label: "Due" }); }}>{due.text ? <Text style={[st.kvVal, due.late && { color: "var(--danger)" as string }]}>{due.text}</Text> : <Text style={st.kvAdd}>Add</Text>}</KV>

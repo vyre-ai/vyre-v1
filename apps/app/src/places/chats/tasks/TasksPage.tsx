@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import type { ReactElement } from "react";
 import { Platform, Pressable, StyleSheet, Text, TextInput, View, useWindowDimensions } from "react-native";
-import type { QueryState } from "../../../../../../client/src/index.ts";
 import type { CapMap } from "../../../../../../generated/types.ts";
 import { DeferredComposer as Composer } from "../../../../../../ui/src/Composer/Deferred.tsx";
 import type { ComposerSend } from "../../../../../../ui/src/Composer/index.tsx";
@@ -22,7 +21,6 @@ import { VirtualList } from "../../../../../../ui/src/VirtualList/index.tsx";
 import type { VirtualWindow } from "../../../../../../ui/src/VirtualList/index.tsx";
 import type { ShellRuntime } from "../../../shell/providers/runtime.tsx";
 import { Glyph } from "../conversation/parts.tsx";
-import { nameOr } from "../names.ts";
 import { useLive } from "../mounts/live.ts";
 import { QuickField } from "./QuickField.tsx";
 import { Avatar } from "../../../../../../ui/src/Avatar/index.tsx";
@@ -36,14 +34,19 @@ import type { RowEnv } from "./parts.tsx";
 import { parseQuick } from "./quick.ts";
 import type { QuickPerson } from "./quick.ts";
 import { storeFor } from "./store.ts";
+import type { ScopeKey } from "./store.ts";
 import { CalendarView, Timeline } from "./Timeline.tsx";
 import { offered } from "../../../shell/session/private-agents.ts";
+import { AwayLine } from "./AwayLine.tsx";
+import { canTake, movesFor } from "./moves.ts";
+import type { Move } from "./moves.ts";
+import { useTaskPeople } from "./people.ts";
 
 export const TASKS_SCREEN = "tasks.my-work";
 type NeedsOut = CapMap["tasks.needs_you"]["out"];
 type ProjectRow = { projectId: string; recordId: string; title: string };
 type ViewRow = CapMap["views.list"]["out"]["views"][number];
-type Scope = { kind: ScopeKind } | { kind: "project"; recordId: string; title: string };
+type Scope = { kind: ScopeKind } | { kind: "snoozed" } | { kind: "project"; recordId: string; title: string };
 
 const VIEWS = [{ id: "list", label: "List" }, { id: "board", label: "Board" }, { id: "timeline", label: "Timeline" }, { id: "calendar", label: "Month" }] as const;
 const newKey = (): string => `task_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 9)}`;
@@ -86,7 +89,7 @@ export function TasksPage({ rt, openTask, openAgent, openChat, window }: TasksPa
   useEffect(() => { if (!line) return undefined; const t = setTimeout(() => setLine(null), line.undo ? 8000 : 4000); return () => clearTimeout(t); }, [line]);
 
   /* ---------- the list, from this device, read again when a task changed ---------- */
-  const key = useMemo(() => (scope.kind === "project" ? { scope: "everyone" as const, recordId: scope.recordId } : { scope: scope.kind }), [scope]);
+  const key = useMemo((): ScopeKey => (scope.kind === "project" ? { scope: "everyone" as const, recordId: scope.recordId } : scope.kind === "snoozed" ? { scope: "mine" as const, snoozed: true } : { scope: scope.kind }), [scope]);
   const store = useMemo(() => storeFor(rt, rt.call, key), [rt, key]);
   const snap = useSyncExternalStore(store.subscribe, store.get, store.get);
   const rev = useLive<{ rev: string }>(rt.screens, TASKS_SCREEN, "rev", {});
@@ -95,16 +98,15 @@ export function TasksPage({ rt, openTask, openAgent, openChat, window }: TasksPa
   useEffect(() => { setDoneRows(null); setSelected(new Set()); setCursor(-1); }, [store]);
   const needsQ = useLive<NeedsOut>(rt.screens, TASKS_SCREEN, "needs", { limit: 200 });
   const needs = needsQ.status === "ready" ? needsQ.data.items : NO_NEEDS;
-  const people = useSyncExternalStore(rt.principals.subscribe, rt.principals.getSnapshot, rt.principals.getSnapshot) as QueryState<Array<{ id: string; name: string; kind: string; username?: string }>>;
-  const list = people.status === "ready" ? people.data : [];
-  const byId = useMemo(() => new Map(list.map((p) => [p.id, p] as const)), [list]);
+  const who = useTaskPeople(rt);
+  const list = who.list as ReadonlyArray<{ id: string; name: string; kind: string; username?: string }>;
   const [projects, setProjects] = useState<readonly ProjectRow[]>([]);
   const [savedViews, setSavedViews] = useState<readonly ViewRow[]>([]);
   const readViews = useCallback((): void => { void rt.call("views.list", { type: "task" }).then((o) => setSavedViews((o as CapMap["views.list"]["out"]).views), () => setSavedViews([])); }, [rt]);
   useEffect(() => { void rt.call("projects.list", {}).then((o) => setProjects((o as { projects: ProjectRow[] }).projects), () => setProjects([])); readViews(); }, [rt, readViews]);
   const projectName = useMemo(() => new Map(projects.map((p) => [p.recordId, p.title] as const)), [projects]);
   const keys = useMemo(() => new Map(snap.rows.map((r) => [r.id, r.key] as const)), [snap.rows]);
-  const nameOf = useCallback((id: string): string => (id === rt.me.id ? "You" : id === rt.assistant.id ? rt.assistant.name : nameOr(byId.get(id)?.name, id)), [byId, rt.me.id, rt.assistant.id, rt.assistant.name]);
+  const nameOf = who.nameOf;
   const clock = rt.clock();
   const dayOfNow = Math.floor(clock.now / 60_000);   // the list is ordered by the minute: a repaint does not reorder it under the pointer
   const now = dayOfNow * 60_000;
@@ -112,17 +114,30 @@ export function TasksPage({ rt, openTask, openAgent, openChat, window }: TasksPa
   const act: ActEnv = useMemo(() => ({ call: rt.call, say, store, newKey, now: () => rt.clock().now, offsetMin: rt.clock().offsetMin }), [rt, say, store]);
 
   /* ---------- status: one path from every door ---------- */
+  // the moves this person can make from their seat, in the words of the move; one that needs words (a summary, fixes, a reason) opens the task, where they are typed
+  const runMove = useCallback((row: TaskRow, m: Move): void => {
+    if (m.ask) { openTask(row.id); return; }
+    if (m.cap === "tasks.transition" && m.to) { void setStatus(act, row, m.to); return; }
+    void rt.call(m.cap, { taskId: row.id, ...m.input }).then(() => { say(`${m.label}: ${row.title}`); store.refresh(); }, (e: unknown) => say(failure(e, "That could not be done.")));
+  }, [act, openTask, rt, say, store]);
   const statusMenu = useCallback((row: TaskRow, at: { x: number; y: number }): void => {
     const items: MenuEntry[] = [];
-    for (const [i, s] of TASK_STATES.entries()) items.push({ label: s.title, leading: <StatusDot state={s.key} size={14} />, checked: s.key === row.state, count: i + 1, onSelect: () => void setStatus(act, row, s.key) });
+    if (canTake(row)) items.push({ label: "Take it", onSelect: () => void rt.call("tasks.take", { taskId: row.id }).then(() => { say(`Taken: ${row.title}`); store.refresh(); }, (e: unknown) => say(failure(e, "It could not be taken."))) });
+    for (const m of movesFor(row, rt.me.id)) items.push({ label: m.label, ...(m.to ? { leading: <StatusDot state={m.to} size={14} /> } : {}), ...(m.danger ? { danger: true } : {}), onSelect: () => runMove(row, m) });
+    if (items.length === 0) items.push({ head: `${TASK_STATES.find((s) => s.key === row.state)?.title ?? row.state}. Nothing here is yours to move.` });
     menu.show(items, at.x, at.y, "other", { label: "Status" });
-  }, [act, menu]);
+  }, [menu, rt, runMove, say, store]);
 
+  // people, agents, then teams and roles: a team task waits for whoever takes it
   const assignMenu = useCallback((ids: readonly string[], at: { x: number; y: number }): void => {
     const entries: MenuEntry[] = [];
-    for (const p of list) if (p.kind === "person" || p.kind === "agent") entries.push({ label: p.id === rt.me.id ? "You" : p.name, leading: <Avatar name={p.name} seedId={p.id} kind={faceKind({ kind: p.kind as Who["kind"], id: p.id })} size={16} />, onSelect: () => void bulkAssign(act, ids, { kind: p.kind as Who["kind"], id: p.id }, p.id === rt.me.id ? "you" : p.name) });
+    let teamsHead = false;
+    for (const p of who.seats) {
+      if ((p.kind === "group" || p.kind === "role") && !teamsHead) { entries.push({ head: "Teams and roles" }); teamsHead = true; }
+      entries.push({ label: p.name, leading: <Avatar name={p.name} seedId={p.id} kind={faceKind({ kind: p.kind, id: p.id })} size={16} />, onSelect: () => void bulkAssign(act, ids, { kind: p.kind, id: p.id }, p.id === rt.me.id ? "you" : p.name) });
+    }
     menu.show(entries, at.x, at.y, "other", { label: "Assign" }, { search: "Find someone" });
-  }, [act, list, menu, rt.me.id]);
+  }, [act, who.seats, menu, rt.me.id]);
 
   const labelsIn = useMemo(() => { const s = new Set<string>(); for (const r of snap.rows) for (const l of r.labels) s.add(l); return [...s].sort(); }, [snap.rows]);
   const labelMenu = useCallback((ids: readonly string[], at: { x: number; y: number }): void => {
@@ -156,22 +171,44 @@ export function TasksPage({ rt, openTask, openAgent, openChat, window }: TasksPa
   }, [act, assignMenu, dueMenu, labelMenu, menu, moveMenu, openTask, pick, rt, say, selected, statusMenu]);
 
   const actNeed = useCallback((item: NeedItem, key: string): void => {
+    if (key === "take") { void rt.call("tasks.take", { taskId: item.task.id }).then(() => { say(`Taken: ${item.task.title}`); store.refresh(); }, (e: unknown) => say(failure(e, "It could not be taken."))); return; }
     void rt.call("tasks.act", { taskId: item.task.id, action: key }).then(() => say(`Approved: ${item.task.title}`), (e: unknown) => say(failure(e, "That could not be done.")));
-  }, [rt, say]);
+  }, [rt, say, store]);
+  // a Needs you row has the menu every row has: open, the moves that are yours, take
+  const needMenu = useCallback((item: NeedItem, at: { x: number; y: number }): void => {
+    const row = item.task as unknown as TaskRow;
+    const items: MenuEntry[] = [{ label: "Open", onSelect: () => openTask(row.id) }, { separator: true }];
+    if (canTake(row)) items.push({ label: "Take it", onSelect: () => actNeed(item, "take") });
+    for (const m of movesFor(item.task, rt.me.id)) items.push({ label: m.label, ...(m.danger ? { danger: true } : {}), onSelect: () => runMove(row, m) });
+    menu.show(items, at.x, at.y, "context", { label: item.task.title });
+  }, [actNeed, menu, openTask, rt.me.id, runMove]);
 
   const openProfile = useCallback((who: Who): void => { if (who.kind === "agent") openAgent(who.id); else rt.open({ subject: { type: "contact", id: who.id } }); }, [openAgent, rt]);
 
   const env: RowEnv = useMemo(() => ({
     now, offsetMin: clock.offsetMin, me: rt.me.id, turns: rt.turns, nameOf, project: (id) => projectName.get(id), keyOf: (id) => keys.get(id),
-    open: openTask, openProfile, status: statusMenu, menu: rowMenu, pick, act: actNeed,
-  }), [now, clock.offsetMin, rt.me.id, rt.turns, nameOf, projectName, keys, openTask, openProfile, statusMenu, rowMenu, pick, actNeed]);
+    open: openTask, openProfile, status: statusMenu, menu: rowMenu, pick, act: actNeed, needMenu,
+  }), [now, clock.offsetMin, rt.me.id, rt.turns, nameOf, projectName, keys, openTask, openProfile, statusMenu, rowMenu, pick, actNeed, needMenu]);
+
+  /* ---------- search: words in the brief, notes and summary, across every task this person sees ---------- */
+  const [found, setFound] = useState<{ q: string; rows: readonly TaskRow[] } | null>(null);
+  const query = filter.query.trim();
+  useEffect(() => {
+    if (query.length < 2) { setFound(null); return undefined; }
+    let live = true;
+    const t = setTimeout(() => { void rt.call("tasks.index", { scope: "everyone", q: query }).then((o) => { if (live) setFound({ q: query, rows: (o as IndexOut).rows }); }, () => undefined); }, 200);
+    return () => { live = false; clearTimeout(t); };
+  }, [query, rt, snap.rev]);
+  const searching2 = found !== null && found.q === query;
+  const shownRows = searching2 ? found.rows : snap.rows;
+  const shownFilter = useMemo(() => (searching2 ? { ...filter, found: new Set(found.rows.map((r) => r.id)) } : filter), [filter, found, searching2]);
 
   /* ---------- what is drawn ---------- */
   const scopeKind = scope.kind;
   const entries = useMemo(() => buildEntries({
-    rows: snap.rows, needs, me: rt.me.id, now, offsetMin: clock.offsetMin, scope: scopeKind, group, sort, filter, doneRows, doneCount: snap.doneThisWeek, quietOff: false,
+    rows: shownRows, needs, me: rt.me.id, now, offsetMin: clock.offsetMin, scope: searching2 ? "everyone" : scopeKind, group, sort, filter: shownFilter, doneRows, doneCount: snap.doneThisWeek, quietOff: false,
     names: { name: nameOf, project: (id) => projectName.get(id) },
-  }), [snap.rows, snap.doneThisWeek, needs, rt.me.id, now, clock.offsetMin, scopeKind, group, sort, filter, doneRows, nameOf, projectName]);
+  }), [shownRows, snap.doneThisWeek, needs, rt.me.id, now, clock.offsetMin, scopeKind, searching2, group, sort, shownFilter, doneRows, nameOf, projectName]);
   const taskIndex = useMemo(() => { const out: number[] = []; for (const [i, e] of entries.entries()) if (e.kind === "task") out.push(i); return out; }, [entries]);
   const currentRow = useMemo((): TaskRow | undefined => { const e = entries[taskIndex[cursor] ?? -1]; return e?.kind === "task" ? e.row : undefined; }, [entries, taskIndex, cursor]);
 
@@ -244,7 +281,7 @@ export function TasksPage({ rt, openTask, openAgent, openChat, window }: TasksPa
   }, [act, assignMenu, currentRow, openTask, pick, selected, statusMenu, taskIndex.length]);
 
   /* ---------- the bar ---------- */
-  const scopeTitle = savedName ?? (scope.kind === "mine" ? "Mine" : scope.kind === "given" ? "Given by you" : scope.kind === "everyone" ? "Everyone" : scope.title);
+  const scopeTitle = savedName ?? (scope.kind === "mine" ? "Mine" : scope.kind === "given" ? "Given by you" : scope.kind === "everyone" ? "Everyone" : scope.kind === "snoozed" ? "Snoozed" : "title" in scope ? scope.title : "Tasks");
   const applySaved = (v: ViewRow): void => {
     const c = (v.config ?? {}) as { scope?: Scope; view?: ViewKind; sort?: SortKey; filter?: Filter };
     if (c.scope) setScope(c.scope);
@@ -260,6 +297,7 @@ export function TasksPage({ rt, openTask, openAgent, openChat, window }: TasksPa
       { label: "Mine", checked: scope.kind === "mine", onSelect: () => choose({ kind: "mine" }) },
       { label: "Given by you", checked: scope.kind === "given", onSelect: () => choose({ kind: "given" }) },
       { label: "Everyone", checked: scope.kind === "everyone", onSelect: () => choose({ kind: "everyone" }) },
+      { label: "Snoozed", checked: scope.kind === "snoozed", onSelect: () => choose({ kind: "snoozed" }) },
     ];
     if (projects.length > 0) { items.push({ head: "Projects" }); for (const p of projects.slice(0, 30)) items.push({ label: p.title, checked: scope.kind === "project" && scope.recordId === p.recordId, onSelect: () => choose({ kind: "project", recordId: p.recordId, title: p.title }) }); }
     if (savedViews.length > 0) { items.push({ head: "Saved views" }); for (const v of savedViews) items.push({ label: v.title, checked: savedName === v.title, onSelect: () => applySaved(v) }); }
@@ -322,10 +360,12 @@ export function TasksPage({ rt, openTask, openAgent, openChat, window }: TasksPa
       {searching || filter.query !== "" ? <TextInput ref={searchRef} autoFocus testID="tasks-search" accessibilityLabel="Search tasks" placeholder="Search" placeholderTextColor="var(--ink-3)" value={filter.query} onChangeText={(q) => setFilter((f) => ({ ...f, query: q }))} onBlur={() => setSearching(false)} style={st.search} /> : <Pressable accessibilityRole="button" accessibilityLabel="Search tasks (/)" testID="tasks-search-open" onPress={() => setSearching(true)} style={st.icon}><Glyph name="search" size={14} /></Pressable>}
       <TextMenu label={view === "list" ? `Group: ${GROUPS.find((g) => g.key === group)?.title ?? "Smart"}` : "Show"} onPress={arrange} testID="tasks-arrange" />
       <TextMenu label={scopeTitle} onPress={scopeMenu} testID="tasks-scope" />
-      {narrow ? null : <Segmented label="View" options={VIEWS} value={view} onChange={(v) => setView(v)} testID="tasks-view" />}
+      {/* on a phone the four views are a menu, not hidden */}
+      {narrow ? <TextMenu label={VIEWS.find((v) => v.id === view)?.label ?? "List"} testID="tasks-view-menu" onPress={(at) => menu.show(VIEWS.map((v) => ({ label: v.label, checked: v.id === view, onSelect: () => setView(v.id) })), at.x, at.y, "other", { label: "View" })} /> : <Segmented label="View" options={VIEWS} value={view} onChange={(v) => setView(v)} testID="tasks-view" />}
     </View>
     {isFiltered(filter) ? <View style={st.showing}><Text style={st.showingText}>{`Showing ${filter.query ? `"${filter.query}"` : filter.waiting ? "what is waiting" : filter.label ? `#${filter.label}` : filter.person ? nameOf(filter.person) : "a filter"}`}</Text><Pressable accessibilityRole="button" accessibilityLabel="Show all" onPress={() => setFilter(NO_FILTER)}><Text style={st.showAll}>Show all</Text></Pressable></View> : null}
     {saving !== null ? <View style={st.showing}><TextInput autoFocus testID="tasks-save-name" accessibilityLabel="Name this view" placeholder="Name this view" placeholderTextColor="var(--ink-3)" value={saving} onChangeText={setSaving} onSubmitEditing={() => saveView(saving)} onBlur={() => setSaving(null)} style={st.search} /></View> : null}
+    {scope.kind === "mine" && !isFiltered(filter) ? <AwayLine call={rt.call as (cap: string, input: unknown) => Promise<unknown>} assistant={rt.assistant} openTask={openTask} /> : null}
     <View style={{ flex: 1, minHeight: 0 }}>{body}
     {selected.size > 0 ? <BulkBar ids={[...selected]} act={act} onStatus={(at) => { const ids = [...selected]; const items: MenuEntry[] = []; for (const s of TASK_STATES) items.push({ label: s.title, leading: <StatusDot state={s.key as TaskState} size={14} />, onSelect: () => void bulkStatus(act, ids, s.key).then(() => setSelected(new Set())) }); menu.show(items, at.x, at.y, "other", { label: "Status" }); }} onAssign={(at) => assignMenu([...selected], at)} onDue={(at) => dueMenu([...selected], at)} onLabels={(at) => labelMenu([...selected], at)} onMove={(at) => moveMenu([...selected], at)} onDelete={() => { void bulkDelete(act, [...selected]); setSelected(new Set()); }} onClear={() => setSelected(new Set())} /> : null}
     </View>

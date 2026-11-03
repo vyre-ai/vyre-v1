@@ -100,8 +100,8 @@ test("drawn: the person you have an unread message from has the dot on their row
     recent: { status: "ready", data: recent },
     channels: { status: "ready", data: { channels: [] } },
     agents: { status: "ready", data: { agents: [] } },
-    items: { status: "ready", data: { items: [], total: 0 } },
-    list: { status: "ready", data: { tasks: [] } },
+    needs: { status: "ready", data: { items: [], total: 0 } },
+    count: { status: "ready", data: { count: 0 } },
   };
   const noop = (): void => undefined;
   const data = {

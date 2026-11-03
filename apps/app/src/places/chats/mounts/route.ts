@@ -86,8 +86,6 @@ export function step(s: Shown, a: Act): Shown {
   switch (a.t) {
     case "chat": return a.threadId.startsWith(LOCAL_PREFIX) ? s : { ...s, route: a.threadId === "" ? { view: "new" } : { view: "chat", threadId: a.threadId, ...(a.focus ? { focus: a.focus } : {}) }, ...(a.pane ? { pane: true, terminalId: null } : {}), layer: null };
     case "new": return { ...s, route: { view: "new" }, layer: null };
-    case "tasks": return { ...s, route: { view: "tasks" }, layer: null };
-    case "task": return { ...s, route: { view: "task", taskId: a.taskId }, layer: null };
     case "threads": return { ...s, route: { view: "threads" }, layer: null };
     case "artifacts": return { ...s, route: { view: "artifacts" }, layer: null };
     case "agent-form": return { ...s, route: { view: "agent-form", agentId: a.agentId ?? null }, layer: null };
@@ -96,7 +94,8 @@ export function step(s: Shown, a: Act): Shown {
     case "helper": return { ...s, route: { view: "helper", threadId: a.threadId }, layer: null };
     case "imported": return { ...s, route: { view: "imported", conversationId: a.conversationId }, layer: null };
     case "ask": return { ...s, route: { view: "ask", agentId: a.agentId, scopeType: a.scopeType, scopeId: a.scopeId, bringFrom: a.bringFrom ?? null, ...(a.draft ? { draft: a.draft } : {}), ...(a.first ? { first: a.first } : {}) }, layer: null };
-    case "needs": return { ...s, route: { view: "needs", taskId: a.taskId ?? null }, layer: null };
+    // one Tasks door: a Needs you link opens Tasks, or the task it names (the old Needs you page is gone)
+    case "needs": return a.taskId ? step(s, { t: "task", taskId: a.taskId }) : step(s, { t: "tasks" });
     case "tasks": return { ...s, route: { view: "tasks" }, pane: false, terminalId: null, layer: null };
     case "task": return { ...s, route: { view: "task", taskId: a.taskId }, pane: false, terminalId: null, layer: null };
     case "agent": return { ...s, route: { view: "agent", agentId: a.agentId, tab: a.tab ?? null }, layer: null };

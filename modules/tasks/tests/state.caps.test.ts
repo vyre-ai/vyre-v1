@@ -155,16 +155,18 @@ test("Needs you: my Ready requests, due today or overdue, and what blocks others
   assert.equal(reasons.get(review), "ready");
   assert.equal(reasons.get(overdue), "overdue");
   assert.equal(reasons.get(today), "due_today");
-  assert.equal(reasons.get(blocker), "blocking");
-  assert.equal(reasons.has(later), false, "plain work due later is not in Needs you");
+  // work the owner gave Alice that she has not started is her turn: it is in Needs you as ready, ahead of blocking (l-tasks)
+  assert.equal(reasons.get(blocker), "ready");
+  assert.equal(reasons.get(later), "ready", "work given to her and not started waits on her");
   assert.equal(reasons.has(notMine), false);
   assert.equal(reasons.has(waiting), false, "a blocked request is not Ready");
-  assert.equal(r.total, 5);
-  assert.deepEqual(r.items.map((i: { reason: string }) => i.reason), ["overdue", "due_today", "blocking", "ready", "ready"]);
+  assert.equal(r.total, 6);
+  assert.deepEqual(r.items.map((i: { reason: string }) => i.reason), ["overdue", "due_today", "ready", "ready", "ready", "ready"]);
   const limited = await h.call("tasks.needs_you", { limit: 2 }, { id: alice.id });
   assert.equal(limited.items.length, 2);
-  assert.equal(limited.total, 5);
-  assert.equal((await h.call("tasks.count_needs_you", {}, { id: alice.id })).count, 2);
+  assert.equal(limited.total, 6);
+  // the count is every row whose next move is hers, each once: the two requests and the four pieces of work given to her
+  assert.equal((await h.call("tasks.count_needs_you", {}, { id: alice.id })).count, 6);
   assert.equal((await h.call("tasks.needs_you", {}, { id: cara.id })).total, 0);
 });
 
@@ -366,7 +368,7 @@ test("assign sets and clears the three slots under the rules", async () => {
   const id = await mk(h);
   const r = await h.call("tasks.assign", { taskId: id, slot: "reviewer", to: bob }, me);
   assert.deepEqual(r.task.reviewer, bob);
-  assert.deepEqual(h.events[0]!.payload, { taskId: id, slot: "reviewer", to: bob, from: null });
+  assert.deepEqual(h.events[0]!.payload, { taskId: id, slot: "reviewer", to: bob, from: null, title: "Draft the engagement letter", by: me.id });
   await h.call("tasks.assign", { taskId: id, slot: "reviewer", to: bob }, me);
   assert.equal(h.events.length, 0);
   await refused(h.call("tasks.assign", { taskId: id, slot: "assigned", to: null }, me), "validation.precondition_failed", "assigned_required");

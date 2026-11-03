@@ -42,7 +42,8 @@ import type { ChannelSheetKind } from "../channels/request.ts";
 
 export const SIDEBAR_SCREEN = "chats.sidebar";
 export const AGENTS_SCREEN = "chats.all-agents";
-export const NEEDS_SCREEN = "home.needs-you-top3";
+/** Tasks is the one door to what needs you: the sidebar reads its Needs you and its count (tasks.my-work), never the Home screen. */
+export const NEEDS_SCREEN = "tasks.my-work";
 export const ROW_H = 34;
 /** A section head sits a little apart from the rows above it. */
 const WORK_SCREEN = "tasks.my-work";
@@ -129,8 +130,8 @@ function Sidebar({ window, query, slot, open: shown }: { window?: VirtualWindow;
   const channelsQ = useScreenQuery<ChannelsOut>(SIDEBAR_SCREEN, "channels", {});
   const agentsQ = useScreenQuery<AgentsOut>(AGENTS_SCREEN, "agents", {});
   // The prototype lists every request under Needs you, not only the top three.
-  const needsQ = useScreenQuery<NeedsOut>(NEEDS_SCREEN, "items", {});
-  const workQ = useScreenQuery<{ tasks: readonly unknown[] }>(WORK_SCREEN, "list", { section: "open" });
+  const needsQ = useScreenQuery<NeedsOut>(NEEDS_SCREEN, "needs", { limit: 50 });
+  const countQ = useScreenQuery<{ count: number }>(WORK_SCREEN, "count", {});
   const peopleQ = useMemo(() => data.people ?? [], [data.people]);
   // read again after a rename, archive or delete here or on the transcript page
   const [reread, setReread] = useState(0);
@@ -173,7 +174,8 @@ function Sidebar({ window, query, slot, open: shown }: { window?: VirtualWindow;
   const channels: Channel[] = useMemo(() => allChannels.filter((c) => (meId === undefined || c.recordId !== undefined || c.members.some((m) => m.id === meId)) && matchesQuery(query, c.name)), [allChannels, query, meId]);
   const allNeeds: NeedsItem[] = needsQ.status === "ready" ? needsQ.data.items : [];
   const waitingThreads = useMemo(() => new Set(allNeeds.flatMap((n) => { const id = (n.task as { threadId?: string }).threadId; return id ? [id] : []; })), [allNeeds]);
-  const tasksCount = (needsQ.status === "ready" ? needsQ.data.total : 0) + (workQ.status === "ready" ? workQ.data.tasks.length : 0);
+  // exactly what waits on you: the rows of Tasks' Needs you group, each once (tasks.count_needs_you)
+  const tasksCount = countQ.status === "ready" ? countQ.data.count : 0;
   // A read that failed ends the skeleton and says so, for that section only (never the empty state: empty means nothing is here). The other sections draw what they have.
   const errors: Partial<Record<SectionKey, SectionError>> = {};
   for (const [section, label, q] of [["recent", "Chats", recentQ], ["channels", "Channels", channelsQ], ["faces", "Agents", agentsQ]] as const) {

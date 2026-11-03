@@ -55,7 +55,7 @@ export function Landing(p: LandingProps): ReactElement {
   const you: WithEntry = useMemo(() => ({ id: rt.assistant.id, name: rt.assistant.name, kind: "assistant" }), [rt.assistant.id, rt.assistant.name]);
   const [picked, setPicked] = useState<readonly WithEntry[]>([you]);
   const [choice, setChoice] = useState<NewChoice>({ mode: "auto" });
-  const needs = useLive<NeedsOut>(rt.screens, "home.needs-you-top3", "items", { limit: LANDING_NEEDS });
+  const needs = useLive<NeedsOut>(rt.screens, "tasks.my-work", "needs", { limit: LANDING_NEEDS });
   const recent = useLive<RecentOut>(rt.screens, "chats.sidebar", "recent", { filter: "all" });
   const accounts = useAccounts(rt);
   const resume = useResume();
