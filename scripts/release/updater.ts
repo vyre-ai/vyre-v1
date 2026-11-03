@@ -38,15 +38,19 @@ export function minisignPublicKey(publicKey: Uint8Array): string {
 /** What goes in tauri.conf.json `plugins.updater.pubkey`. */
 export const minisignPublicKeyBase64 = (publicKey: Uint8Array): string => Buffer.from(minisignPublicKey(publicKey)).toString("base64");
 
-/** A minisign signature file over a file whose BLAKE2b-512 digest is `digestHex`. Refuses a key that is not the pinned one. */
-export function minisignSign(o: { digestHex: string; fileName: string; privateKeyPem: string; pinnedPublicKey: string | Uint8Array; seconds: number }): string {
+/**
+ * A minisign signature file over a file whose BLAKE2b-512 digest is `digestHex`. Refuses a key that is not the pinned one. With `version`, the trusted comment names the release the file is for
+ * (`version:<v>`, the field Tauri's updater reads): an app then refuses a feed that pairs a new version number with an older signed bundle.
+ */
+export function minisignSign(o: { digestHex: string; fileName: string; privateKeyPem: string; pinnedPublicKey: string | Uint8Array; seconds: number; version?: string }): string {
   if (!/^[0-9a-f]{128}$/.test(o.digestHex)) throw new Error("a digest is 128 hex characters (BLAKE2b-512)");
   const publicKey = publicKeyBytes(o.pinnedPublicKey);
   const key = crypto.createPrivateKey(o.privateKeyPem);
   if (publicKeyHexOf(o.privateKeyPem) !== Buffer.from(publicKey).toString("hex")) throw new Error("the signing key is not the pinned release key: nothing was signed");
   const id = keyIdBytes(publicKey);
   const signature = crypto.sign(null, Buffer.from(o.digestHex, "hex"), key);
-  const trusted = `timestamp:${Math.floor(o.seconds)}\tfile:${o.fileName}`;
+  if (o.version !== undefined && !/^[0-9A-Za-z.+-]{1,64}$/.test(o.version)) throw new Error("a signed version is a plain version string");
+  const trusted = `timestamp:${Math.floor(o.seconds)}\tfile:${o.fileName}${o.version !== undefined ? `\tversion:${o.version}` : ""}`;
   const global = crypto.sign(null, Buffer.concat([signature, Buffer.from(trusted)]), key);
   return `untrusted comment: signature from the Vyre release key\n${Buffer.concat([Buffer.from("ED"), id, signature]).toString("base64")}\ntrusted comment: ${trusted}\n${global.toString("base64")}\n`;
 }
@@ -89,20 +93,31 @@ export function readDigests(dir: string): Record<string, string> {
 }
 
 /** In the sign job: a .sig per digest, and desktop-<channel>.json. Returns the files written. */
-export function signDesktop(o: { dir: string; version: string; channel: string; tag: string; repo: string; privateKeyPem: string; pinnedPublicKey: string | Uint8Array; now: () => Date }): string[] {
+/**
+ * The feed's notes: the release's What's new lines (apps/app/public/whats-new.json, scripts/changelog/assemble.ts), one per line, when the file is for this version and has any; else "Vyre <version>".
+ * The app shows them in Settings beside "Update available". The notes are not signed (Tauri signs the bundle only), so the app draws them as plain text; the sheet after an update reads the copy
+ * inside the signed bundle instead.
+ */
+export function feedNotes(version: string, whatsNew: unknown): string {
+  const w = whatsNew as { version?: unknown; lines?: unknown } | null;
+  const lines = w && w.version === version && Array.isArray(w.lines) ? w.lines.filter((l): l is string => typeof l === "string" && l.trim() !== "").map((l) => l.trim()).slice(0, 6) : [];
+  return lines.length > 0 ? lines.join("\n") : `Vyre ${version}`;
+}
+
+export function signDesktop(o: { dir: string; version: string; channel: string; tag: string; repo: string; privateKeyPem: string; pinnedPublicKey: string | Uint8Array; now: () => Date; notes?: string }): string[] {
   const digests = readDigests(o.dir);
   if (Object.keys(digests).length === 0) throw new Error("no update digests to sign");
   const platforms: Record<string, { url: string; signature: string }> = {};
   const written: string[] = [];
   for (const [name, digestHex] of Object.entries(digests)) {
-    const text = minisignSign({ digestHex, fileName: name, privateKeyPem: o.privateKeyPem, pinnedPublicKey: o.pinnedPublicKey, seconds: o.now().getTime() / 1000 });
+    const text = minisignSign({ digestHex, fileName: name, privateKeyPem: o.privateKeyPem, pinnedPublicKey: o.pinnedPublicKey, seconds: o.now().getTime() / 1000, version: o.version });
     const asset = signatureAsset(text);
     fs.writeFileSync(path.join(o.dir, `${name}.sig`), `${asset}\n`);
     written.push(`${name}.sig`);
     platforms[UPDATE_ARTIFACTS[name]!] = { url: `https://github.com/${o.repo}/releases/download/${o.tag}/${name}`, signature: asset };
   }
   const feed = `desktop-${o.channel}.json`;
-  fs.writeFileSync(path.join(o.dir, feed), desktopFeed({ version: o.version, channel: o.channel, notes: `Vyre ${o.version}`, pubDate: o.now().toISOString(), platforms }));
+  fs.writeFileSync(path.join(o.dir, feed), desktopFeed({ version: o.version, channel: o.channel, notes: o.notes ?? `Vyre ${o.version}`, pubDate: o.now().toISOString(), platforms }));
   return [...written, feed];
 }
 

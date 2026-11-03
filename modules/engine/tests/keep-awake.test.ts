@@ -29,3 +29,14 @@ test("a server does nothing, and a Mac without the command just carries on", () 
   const broken = createKeepAwake({ platform: "darwin", run: () => { throw new Error("no such command"); } });
   assert.doesNotThrow(() => { broken.up(); broken.down(); });
 });
+
+test("it counts the turns running now, for the desktop shell's wait before an update; an extra end never goes below 0", () => {
+  const k = createKeepAwake({ platform: "linux" });
+  assert.equal(k.running(), 0);
+  k.up(); k.up();
+  assert.equal(k.running(), 2);
+  k.down(); k.down(); k.down();
+  assert.equal(k.running(), 0);
+  k.up(); k.stop();
+  assert.equal(k.running(), 0);
+});

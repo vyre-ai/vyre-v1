@@ -1,37 +1,51 @@
+// Settings, About Vyre: the version, the channel, the last check and Check now; "Update Vyre automatically", on by default; the quiet "Update available" row when a newer version waits;
+// and What's new. The shell's commands themselves are tested in startup/update/store.test.ts.
 import test from "node:test";
 import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
-import { desktopUpdater } from "./settings.tsx";
-import { DesktopUpdateBody, updateLine } from "../../places/settings/DesktopUpdate.tsx";
+import { AboutBody, updateLine } from "../../places/settings/DesktopUpdate.tsx";
+import type { AboutBodyProps } from "../../places/settings/DesktopUpdate.tsx";
 
-test("the desktop shell gives Settings two fixed update commands and a browser gives none", async () => {
-  assert.equal(desktopUpdater(undefined), undefined);
-  const calls: Array<[string, unknown]> = [];
-  const u = desktopUpdater(async (command, args) => { calls.push([command, args]); return command === "check_desktop_update" ? { current: "1.0.0-rc.3", channel: "beta", version: "1.0.0-rc.4", notes: "Vyre 1.0.0-rc.4" } : undefined; })!;
-  assert.deepEqual(await u.check(), { current: "1.0.0-rc.3", channel: "beta", version: "1.0.0-rc.4", notes: "Vyre 1.0.0-rc.4" });
-  await u.install();
-  assert.deepEqual(calls, [["check_desktop_update", undefined], ["install_desktop_update", undefined]], "the page passes the shell nothing");
-  assert.deepEqual(await desktopUpdater(async () => ({ current: "1.0.0", channel: "stable" }))!.check(), { current: "1.0.0", channel: "stable", version: null, notes: null });
-  await assert.rejects(() => desktopUpdater(async () => ({}))!.check(), /could not read/);
-  await assert.rejects(() => desktopUpdater(async () => { throw "Couldn’t reach the update server. Check your connection and try again."; })!.check(), /reach the update server/);
-});
+const none = { phase: "none" as const, current: "1.0.0-rc.16", channel: "beta", version: null, notes: null, checkedAt: 0 };
+const some = { phase: "available" as const, current: "1.0.0-rc.16", channel: "beta", version: "1.0.0-rc.17", notes: "Vyre updates itself.\nCalmer start.", checkedAt: 0 };
+const draw = (o: Partial<AboutBodyProps>): string => renderToStaticMarkup(
+  <AboutBody desktop state={{ check: none, installing: false }} webVersion={null} auto busy={false} failure="" progress={null} notes={null} now={5 * 60_000}
+    onCheck={() => undefined} onInstall={() => undefined} onAuto={() => undefined} onWhatsNew={() => undefined} {...o} />,
+);
 
-test("the update section says what was found and offers the one next step", () => {
-  const none = { current: "1.0.0-rc.3", channel: "beta", version: null, notes: null };
-  const some = { current: "1.0.0-rc.3", channel: "beta", version: "1.0.0-rc.4", notes: "Fixes the first-run checklist" };
+test("the version row: the version, the channel, when it last checked, and Check now", () => {
   assert.equal(updateLine(null), "");
   assert.equal(updateLine(none), "Up to date");
-  assert.equal(updateLine(some), "Update available 1.0.0-rc.4");
-  const draw = (o: Partial<Parameters<typeof DesktopUpdateBody>[0]>): string => renderToStaticMarkup(<DesktopUpdateBody found={null} busy={false} failure="" installing={false} onCheck={() => undefined} onInstall={() => undefined} {...o} />);
-  assert.match(draw({}), /data-testid="update-check"/);
-  assert.doesNotMatch(draw({}), /update-install/);
-  const ready = draw({ found: some });
-  assert.match(ready, /data-testid="update-install"/);
-  assert.doesNotMatch(ready, /update-check/);
-  assert.match(ready, /Fixes the first-run checklist/);
-  assert.match(draw({ found: none }), /Up to date/);
-  assert.match(draw({ found: none }), /Vyre 1\.0\.0-rc\.3/);
-  assert.doesNotMatch(draw({ found: none }), /updates itself|Nothing installs until/);
-  assert.match(draw({ found: some, installing: true, busy: true }), /Vyre will restart/);
-  assert.match(draw({ failure: "Couldn’t reach the update server." }), /role="alert"/);
+  assert.equal(updateLine(some), "Update available 1.0.0-rc.17");
+  const out = draw({});
+  for (const t of ["Vyre 1.0.0-rc.16", "Beta channel. Checked 5 min ago", "Up to date", "Check now", "Update Vyre automatically"]) assert.ok(out.includes(t), t);
+  assert.match(out, /data-testid="update-check"/);
+  assert.doesNotMatch(out, /update-install/, "nothing to install");
+  assert.match(out, /aria-checked="true"/, "on by default");
+  assert.match(draw({ auto: false }), /aria-checked="false"/);
 });
+
+test("a newer version waiting: a quiet Update available row with its notes and Update now; while it installs, the progress", () => {
+  const out = draw({ state: { check: some, installing: false } });
+  assert.ok(out.includes("Update available") && out.includes("Vyre 1.0.0-rc.17 is ready. Vyre updates itself."));
+  assert.ok(!out.includes("Update available 1.0.0-rc.17"), "said once, on its own row");
+  assert.match(out, /data-testid="update-install"/);
+  const going = draw({ state: { check: some, installing: true }, busy: true, progress: { phase: "download", downloaded: 1024 * 1024, total: 2 * 1024 * 1024 } });
+  assert.ok(going.includes("Updating to 1.0.0-rc.17") && going.includes("1.0 MB of 2.0 MB, 50%"));
+  assert.match(draw({ state: { check: some, installing: false }, failure: "The update did not install: the signature is not valid" }), /the signature is not valid/);
+});
+
+test("a check that failed says why on the version row", () => {
+  assert.match(draw({ failure: "Couldn't reach the update server." }), /Couldn&#x27;t reach the update server\./);
+});
+
+test("in a browser: the version from the build and What's new, no toggle and no Check now", () => {
+  const out = draw({ desktop: false, state: { check: null, installing: false }, webVersion: "1.0.0-rc.17", notes: { version: "1.0.0-rc.17", lines: ["Better."] } });
+  assert.ok(out.includes("Vyre 1.0.0-rc.17") && out.includes("updates each time it opens"));
+  assert.doesNotMatch(out, /update-check|update-auto/);
+  assert.match(out, /data-testid="whats-new-open"/);
+  assert.ok(out.includes("What got better in 1.0.0-rc.17"));
+  assert.doesNotMatch(draw({ notes: { version: "1.0.0-rc.16", lines: [] } }), /whats-new-open/, "nothing to open with no lines");
+  for (const o of [{}, { state: { check: some, installing: false } }]) assert.ok(!draw(o).includes("—"));
+});
+

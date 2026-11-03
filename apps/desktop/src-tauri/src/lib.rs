@@ -4,7 +4,8 @@
 //   2. registers the vyre:// scheme and passes links to the page (links.rs, commands.rs),
 //   3. registers the global shortcut CommandOrControl+Shift+V to bring the window forward,
 //   4. keeps one instance: a second launch (or a link on Windows and Linux) focuses the first,
-//   5. native features for the page: tray icon, OS notifications whose click opens the thread, file and folder dialog, Needs you badge (native.rs).
+//   5. native features for the page: tray icon, OS notifications whose click opens the thread, file and folder dialog, Needs you badge (native.rs),
+//   6. updates itself: a check at launch, and on the page's word the signed update installs once nothing runs here (updater.rs).
 // No keychain: the replica key is wrapped in IndexedDB by the page, so an ad-hoc signed Mac app works (ARCH 5.10).
 
 mod chrome;
@@ -62,6 +63,24 @@ const EXTERNAL_LINKS: &str = r#"(function () {
     e.preventDefault();
     inv("open_link", { url: href });
   }, true);
+})();"#;
+
+/// Run in the page after every load: the desktop app has no service worker (the page never registers one, startup/boot.ts). One an earlier version registered is removed with its caches, and
+/// the page loads again. On Windows such a worker took over every page load from the second start and the window drew nothing (update-proof run 41627777786), so the page itself could not run
+/// the code that fixes it: the shell does it from here, whatever page the worker served.
+pub(crate) const NO_SERVICE_WORKER: &str = r#"(function () {
+  if (window.__vyreNoSw || !navigator.serviceWorker || !navigator.serviceWorker.getRegistrations) return;
+  window.__vyreNoSw = true;
+  var inv = window.__TAURI__ && window.__TAURI__.core && window.__TAURI__.core.invoke;
+  navigator.serviceWorker.getRegistrations().then(function (rs) {
+    if (!rs.length) return;
+    var gone = Promise.all(rs.map(function (r) { return r.unregister(); }));
+    var cleared = window.caches ? caches.keys().then(function (ks) { return Promise.all(ks.map(function (k) { return caches.delete(k); })); }) : Promise.resolve();
+    Promise.all([gone, cleared]).then(function () {
+      if (inv) inv("page_report", { kind: "service-worker", text: "removed " + rs.length + " service worker(s) an earlier version registered; loading again" }).catch(function () {});
+      location.replace("/");
+    }, function () {});
+  }, function () {});
 })();"#;
 
 /// Two animation frames after the page starts drawing, tell the shell. rAF stops in a window that cannot be seen, so the timer keeps this from depending on it.
@@ -213,6 +232,7 @@ pub fn run() {
                 let _ = webview.eval(FIRST_FRAME);
                 let _ = webview.eval(PAGE_PROBE);
                 let _ = webview.eval(EXTERNAL_LINKS);
+                let _ = webview.eval(NO_SERVICE_WORKER);
                 if std::env::var("VYRE_SHELL_BANNER").is_ok() {
                     let _ = webview.eval(BANNER);
                 }
@@ -230,6 +250,7 @@ pub fn run() {
                 native::on_focus(window.app_handle());
             }
         })
+        .manage(updater::SharedUpdate::default())
         .manage(AppState { sidecar: shared.clone(), personal: personal.clone(), server: server.clone(), links: Mutex::new(commands::LinkHandoff::default()), native: native::NativeState::default() })
         .invoke_handler(tauri::generate_handler![
             first_frame,
@@ -239,6 +260,7 @@ pub fn run() {
             commands::take_pending_link,
             commands::page_report,
             commands::open_link,
+            updater::startup_update,
             updater::check_desktop_update,
             updater::install_desktop_update,
             native::notify,
@@ -257,6 +279,9 @@ pub fn run() {
         ])
         .setup(move |app| {
             let handle = app.handle().clone();
+
+            // The update check starts now, with the window, so its answer is usually there by the time the page asks for it before the lock screen (updater.rs).
+            updater::start_check(&handle);
 
             #[cfg(target_os = "macos")]
             if let Some(w) = app.get_webview_window("main") {

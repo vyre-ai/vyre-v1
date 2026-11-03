@@ -1,0 +1,15 @@
+{
+  "version": "99.0.0-rc.1",
+  "notes": "Proof: each bundle with the other platform's signature, which must be refused.",
+  "pub_date": "2026-11-03T09:35:03.495Z",
+  "platforms": {
+    "darwin-aarch64": {
+      "url": "https://github.com/vyre-ai/vyre-v1/releases/download/v1.0.0-rc.18/Vyre.app.tar.gz",
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRoZSBWeXJlIHJlbGVhc2Uga2V5ClJVUkwzYkRTQzJTVHBHQ1UrQ09YRUZDSTVkS1ZqdmVFbTJGYkFsa2hCWHE3dU90TmhrK2llVW5Ia1pMUEhaeGIzTC96L2ltZ0QxSEgzb0ZtK2U2OGdubUtXZEFVK3h6V3dRTT0KdHJ1c3RlZCBjb21tZW50OiB0aW1lc3RhbXA6MTc5MzY5ODUwMwlmaWxlOlZ5cmVTZXR1cC5leGUKSTNWR0g1Nlg1NkNEeEdGWUhLbDAvd0lQaUpKYVJtUTMyNU03WVNYNUVJN3BaRXpBcktCK2dDd3JZOENGaTY5YjMvQ3lmSmRVQ0N1d2NvQkxVdDhIQUE9PQo="
+    },
+    "windows-x86_64": {
+      "url": "https://github.com/vyre-ai/vyre-v1/releases/download/v1.0.0-rc.18/VyreSetup.exe",
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRoZSBWeXJlIHJlbGVhc2Uga2V5ClJVUkwzYkRTQzJTVHBHZDdhalMzZDU4eExWc1RYMkpIU0hSMzVnNmZhUHVNb0YvVnREdTJBMWNUaWVjSlhGSjdwblNrN29KWXpOUGJnTGZ1Rm1iN1REU3Y2RG9JUmh2eHNBbz0KdHJ1c3RlZCBjb21tZW50OiB0aW1lc3RhbXA6MTc5MzY5ODUwMwlmaWxlOlZ5cmUuYXBwLnRhci5negp2MHIzUkdTV2ZSN2o0c3FQTDJHTlZhOEdsWlFOZysyWnRiSjNvTG9mYWxPcW92dXM2NmJ0dGVUSmEvNHY2dVppZ3dTWmJiZURsMlVEbEQ5YXhuSm1BUT09Cg=="
+    }
+  }
+}

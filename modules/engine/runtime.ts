@@ -107,6 +107,8 @@ export interface EngineHostSeam {
   extend?: (engine: TurnEngine) => void;
   /** Told at shutdown with the promise of the engine's close (CLI sessions ended, the sign-ins they refreshed saved), so the daemon waits for it before its databases close. */
   closing?: (done: Promise<void>) => void;
+  /** Told how many turns run here now, each time it changes (the desktop shell waits for 0 before it updates the app). */
+  turns?: (running: number) => void;
 }
 
 interface AccountRow { ref: string; driver: string; kind: "api_key" | "subscription"; mine?: boolean; base?: string; keyless?: boolean; spaceKey?: boolean }
@@ -516,8 +518,8 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
           .catch((err: unknown) => h.log?.("a message for an outside agent was not queued", { threadId: ev.threadId, error: err instanceof Error ? err.message : String(err) }));
         return;
       }
-      if (ev.type === "turn.started") { awake.up(); clearReads(ev.threadId, ev.agentId, ev.asker); }
-      else if (ev.type === "turn.completed" || ev.type === "turn.cancelled" || (ev.type === "turn.failed" && ev.code !== "host_lost") || (ev.type === "turn.waiting" && ev.reason === "approval")) awake.down();
+      if (ev.type === "turn.started") { awake.up(); clearReads(ev.threadId, ev.agentId, ev.asker); h.turns?.(awake.running()); }
+      else if (ev.type === "turn.completed" || ev.type === "turn.cancelled" || (ev.type === "turn.failed" && ev.code !== "host_lost") || (ev.type === "turn.waiting" && ev.reason === "approval")) { awake.down(); h.turns?.(awake.running()); }
       // a turn a dead host left is not in this engine's rows: its record is closed from what recover() knows, so the turn list, Try again and the agent's Working status are right
       if (ev.type === "turn.failed" && ev.code === "host_lost") {
         void h.call("engine.turn.record", { threadId: ev.threadId, turnId: ev.turnId, agentId: ev.agentId, phase: "failed", qseq: ev.qseq ?? 0, ...(ev.asker ? { asker: ev.asker } : {}), code: ev.code }, ev.asker)

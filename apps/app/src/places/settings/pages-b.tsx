@@ -2,7 +2,6 @@
 import { SessionImport } from "./SessionImport.tsx";
 import { ComputersSection } from "./Computers.tsx";
 import { KEYBOARD_MAP, formatCombo } from "../../shell/keyboard/map.ts";
-import { DesktopUpdate } from "./DesktopUpdate.tsx";
 import { useState, useSyncExternalStore } from "react";
 import type { ReactElement } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
@@ -257,7 +256,6 @@ export function ComputerPage(): ReactElement {
   return (
     <>
       <ComputersSection />
-      <DesktopUpdate />
       <SessionImport />
     </>
   );

@@ -63,7 +63,7 @@ test("search finds rows by words in any order, ranks a title that starts with th
 
 test("the page list in a Team Space is You, then one way to the Console, and no Space pages", () => {
   const out = html(createSampleSettings(northwind));
-  assert.deepEqual(PAGES.filter((p) => p.group === "you").map((p) => p.title), ["Profile", "Notifications", "Appearance", "AI", "Memory and privacy", "Skills", "Connected", "Email and calendar", "Sign-in and devices", "This computer"]);
+  assert.deepEqual(PAGES.filter((p) => p.group === "you").map((p) => p.title), ["Profile", "Notifications", "Appearance", "AI", "Memory and privacy", "Skills", "Connected", "Email and calendar", "Sign-in and devices", "This computer", "About Vyre"]);
   assert.deepEqual(PAGES.filter((p) => p.group === "space").map((p) => p.title), ["Space", "People and access", "Agents and rules", "Data", "Connected apps", "Advanced"]);
   for (const p of PAGES) assert.equal(has(out, `data-testid="row-page-${p.key}"`), p.group === "you", p.key);
   const at = (t: string): number => { const i = out.indexOf(`>${t}<`); assert.ok(i >= 0, t); return i; };
