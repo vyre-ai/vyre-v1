@@ -269,7 +269,7 @@ Events:
 
 ### settings
 
-Capabilities to implement: 14. Events to emit: 2. Contract tests that must go green: `generated/tests/settings/`.
+Capabilities to implement: 15. Events to emit: 2. Contract tests that must go green: `generated/tests/settings/`.
 
 Capabilities:
 - settings.copy_profile (write, grant only, level view)
@@ -281,6 +281,7 @@ Capabilities:
 - settings.kit.set_space (write, kits.install, level view)
 - settings.list (read, grant only, level view)
 - settings.pages (read, grant only, level view)
+- settings.public_of (read, grant only, level view)
 - settings.reset (write, grant only, level view)
 - settings.reset_space (write, policy.manage, level view)
 - settings.search (read, grant only, level view)
@@ -330,7 +331,7 @@ Events:
 
 ### vault
 
-Capabilities to implement: 50. Events to emit: 20. Contract tests that must go green: `generated/tests/vault/`.
+Capabilities to implement: 51. Events to emit: 20. Contract tests that must go green: `generated/tests/vault/`.
 
 Capabilities:
 - providers.add (write, grant only, level view)
@@ -381,6 +382,7 @@ Capabilities:
 - vault.share (write, grant only, level view)
 - vault.site_rules.list (read, grant only, level view)
 - vault.site_rules.set (write, grant only, level view)
+- vault.text_check (read, grant only, level view)
 - vault.unshare (write, grant only, level view)
 - vault.use (write, grant only, level use)
 
