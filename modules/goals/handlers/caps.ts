@@ -282,7 +282,9 @@ export async function checklistTick(ctx: GoalsCtx, input: In) {
 /** The lead (or the owner) adds steps to the plan. Every step says why. */
 export async function plan(ctx: GoalsCtx, input: In) {
   const g = visible(ctx, input.goalId);
-  if (!isLead(ctx, g) && !isOwner(ctx, g) && !isSystem(ctx)) raise(ctx, "validation.precondition_failed", "The lead agent or the owner plans this goal.", { reason: "not_lead" });
+  // the agent that drafted a goal may add to its plan before the owner presses Start
+  const drafter = g.status === "draft" && g.createdBy === ctx.principal.id;
+  if (!isLead(ctx, g) && !isOwner(ctx, g) && !isSystem(ctx) && !drafter) raise(ctx, "validation.precondition_failed", "The lead agent or the owner plans this goal.", { reason: "not_lead" });
   if (g.status === "draft") {
     // a draft has no tasks yet: the steps join the drafted plan and become tasks when the owner presses Start
     const row = ctx.db.all("SELECT result FROM goals_step WHERE goal_id = ? AND step_id = 'draft:plan'", g.id)[0] as { result?: string } | undefined;
