@@ -39,7 +39,9 @@ function killAll(): void {
 function launch(feed: string, tag: string, off = false): { child: ChildProcess; log: () => string; waitFor(re: RegExp, ms: number): Promise<boolean> } {
   const env: Record<string, string | undefined> = { ...process.env, VYRE_UPDATE_FEED: feed };
   if (!off) delete env["VYRE_NO_AUTO_UPDATE"];
-  const child = spawn(RUN, [], { env, stdio: ["ignore", "pipe", "pipe"] });
+  // the default stdio, as apps/desktop/tests/shell.heavy.test.ts starts it: started with stdin "ignore" the Windows app's page draws nothing (tmp-winlook run 41596151473, where the same
+// installed rc.18 opened from Explorer draws its Welcome screen)
+  const child = spawn(RUN, [], { env });
   let text = "";
   const file = path.join(OUT, `${process.platform}-${tag}.log`);
   const add = (c: Buffer): void => { const s = c.toString("utf8"); text += s; fs.appendFileSync(file, s); };
