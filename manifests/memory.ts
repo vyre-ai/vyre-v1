@@ -216,9 +216,34 @@ export default defineManifest({
       in: { promotionId }, out: { ok: t.bool() }, emits: ['memory.promotion_undone'], tool: 'memory', audit: 'sensitive',
     }),
     // ---- write: system
-    write('memory.capture', 'Capture at chat end: a cheap-model pass proposes facts to the person layer; channel facts go to the project layer, Automation facts to proposed/', {
-      in: { threadId: id.thread, reason: t.enm('closed', 'idle') }, out: { proposed: t.int(), merged: t.int() },
-      emits: ['memory.captured', 'memory.fact_proposed', 'memory.fact_accepted', 'memory.learned'], idem: 'natural', risk: 'low', errors: ['permission.provider_label'],
+    write('memory.capture', 'Learn from a chat: after each turn on the asker\'s own account and cheapest model inside their daily quota, else by rules; at chat end or when quiet, by rules over what no turn pass read', {
+      in: {
+        threadId: id.thread, reason: t.enm('closed', 'idle', 'turn'), turnId: t.opt(t.str()), agentId: t.opt(id.agent),
+        account: t.opt(t.obj({
+          ref: t.str(), driver: t.str(), kind: t.opt(t.str()), payer: t.opt(t.str({ description: 'Who pays for the turn; learning uses the account only when this is the asker' })),
+          spaceKey: t.opt(t.bool()),
+        }, { description: 'The account the turn ran on' })),
+      },
+      out: {
+        proposed: t.int(), merged: t.int(), updated: t.opt(t.int()), closed: t.opt(t.int()), via: t.opt(t.enm('model', 'rules', 'none')),
+        skipped: t.opt(t.enm('forgotten', 'off', 'nothing_new')),
+      },
+      emits: ['memory.captured', 'memory.fact_proposed', 'memory.fact_accepted', 'memory.learned'], idem: 'natural', risk: 'low', errors: ['permission.provider_label', 'permission.no_grant'],
+    }),
+    read('memory.learning.today', 'What learning from your chats used today against your daily quota (model passes and input tokens), when it resets, and whether it learns with a model or by rules until then', {
+      in: {},
+      out: {
+        day: t.str({ examples: ['2026-11-03'] }), passes: t.int({ minimum: 0 }), tokensIn: t.int({ minimum: 0 }), tokensOut: t.int({ minimum: 0 }), rulePasses: t.int({ minimum: 0 }),
+        capPasses: t.int({ minimum: 0 }), capTokens: t.int({ minimum: 0 }), resetsAt: t.ts(), timezone: t.str(), state: t.enm('learning', 'rules_only'),
+      },
+      label: 'check',
+    }),
+    read('memory.chat_learning.get', 'Whether a chat is remembered: off means nothing is learned from it', {
+      in: { threadId: id.thread }, out: { threadId: id.thread, remember: t.bool(), by: t.opt(t.str()), at: t.opt(t.ts()) }, errors: ['validation.not_found'],
+    }),
+    write('memory.chat_learning.set', "Don't remember this chat: anyone in it turns learning off; who turned it off, or who started the chat, turns it back on", {
+      in: { threadId: id.thread, remember: t.bool() }, out: { threadId: id.thread, remember: t.bool(), by: t.opt(t.str()), at: t.opt(t.ts()) },
+      emits: ['memory.chat_learning_changed'], idem: 'natural', risk: 'low', errors: ['validation.not_found', 'permission.no_grant'],
     }),
     write('memory.maintain', 'Upkeep, nightly or on demand: merge duplicates into Trash, flag contradictions and old facts as questions, close expired facts, and with a memory key let a model do the rest; rewrite MAP.md for each agent', {
       in: { agentId: t.opt(id.agent), rulesOnly: t.opt(t.bool()) },
@@ -369,6 +394,7 @@ export default defineManifest({
     ev('memory.promotion_undone', 'A promotion was undone', { p: { promotionId, factId: id.fact, by: t.str() }, subject: ['entity', '/factId'], retention: 'memory' }),
     ev('memory.removed', 'Facts were removed from answers (kept in history)', { p: { factIds: t.arr(id.fact), by: t.str() }, subject: ['entity', '/by'], vis: 'participants', retention: 'memory' }),
     ev('memory.erased', 'Facts were erased from history (who and when only)', { p: { count: t.int(), by: t.str(), scope: t.opt(t.str()) }, subject: ['entity', '/by'], vis: 'participants', retention: 'memory' }),
+    ev('memory.chat_learning_changed', "Don't remember this chat was turned on or off", { p: { threadId: id.thread, remember: t.bool(), by: t.str() }, subject: ['thread', '/threadId'], vis: 'participants', retention: 'memory' }),
     ev('memory.captured', 'Capture ran for a thread', { p: { threadId: id.thread, proposed: t.int(), merged: t.int() }, subject: ['thread', '/threadId'], vis: 'participants', retention: 'memory' }),
     ev('memory.map_rewritten', 'MAP.md of an agent was rewritten by the nightly job', { p: { agentId: id.agent, lines: t.int() }, subject: ['agent', '/agentId'], retention: 'memory' }),
     ev('memory.note_restored', 'A shared memory note was restored to an earlier version', { p: { noteId: id.note, versionId: id.version, by: t.str() }, subject: ['note', '/noteId'], retention: 'memory' }),
@@ -399,6 +425,8 @@ export default defineManifest({
     setting('memory.trash_days', 'space', 'Policies', 'Days in Trash before Archive (30 to 90)', t.int({ minimum: 30, maximum: 90 }), 60),
     setting('memory.upkeep_monthly_cap', 'space', 'Policies', 'Monthly spend cap for model upkeep, in US dollars', t.num({ minimum: 0 }), 5),
     setting('memory.meaning_search', 'space', 'Policies', 'Meaning search: local model, the memory key, or off', t.enm('local', 'key', 'off'), 'local'),
+    setting('memory.learn_daily_passes', 'space', 'Policies', 'Memory learning: model passes per person per day', t.int({ minimum: 0, maximum: 5000 }), 150),
+    setting('memory.learn_daily_tokens', 'space', 'Policies', 'Memory learning: input tokens per person per day', t.int({ minimum: 0, maximum: 50000000 }), 400000),
   ],
   screens: [
     screen('chats.agent-memory', 'chats', 'ui:AgentMemory', {

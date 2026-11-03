@@ -217,6 +217,11 @@ export interface SessionSpec {
   mode?: ChatMode;
   /** "none": the session has no Vyre tools and no tools of its own (an automation's AI step answers in words and sends nothing). Absent: the agent's tools. */
   tools?: "none";
+  /**
+   * A one-shot model call (memory learning, upkeep): the agent's role is the whole system prompt, and nothing else goes with it. No tools, no MCP, no settings files, no CLAUDE.md or AGENTS.md,
+   * no skills, no saved session. A CLI engine runs its leanest command (CommandOptions.lean); an API driver sends the role alone. Implies tools "none".
+   */
+  lean?: boolean;
 }
 export type OpenSession = (spec: SessionSpec) => Promise<EngineSession>;
 

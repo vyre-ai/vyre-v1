@@ -18,6 +18,8 @@ export { ensure } from "./projections.ts";
 export { setEmbedder, configureMeaning } from "./meaning.ts";
 export type { Embedder, MeaningHost } from "./meaning.ts";
 export { setUpkeepModel } from "./handlers/upkeep.ts";
+export { setLearnSeams, shouldLearn } from "./handlers/learn.ts";
+export type { LearnSeams, LearnThread } from "./handlers/learn.ts";
 export type { UpkeepAction, UpkeepModel, UpkeepRequest, UpkeepResult, UpkeepScope } from "./handlers/upkeep.ts";
 export { periodic } from "./hooks.ts";
 

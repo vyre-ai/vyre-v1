@@ -117,6 +117,28 @@ export function codexSandbox(o: Pick<CommandOptions, "mode" | "planMode" | "work
   const mode = o.mode ?? (o.planMode ? "plan" : "auto");   // no mode: the older rule, writable inside a granted folder unless plan mode
   return o.workFolder !== null && mode === "auto" && o.noTools !== true ? "workspace-write" : "read-only";
 }
+/**
+ * The leanest Codex call (a memory learning pass): ephemeral, no user config, rules, AGENTS.md, environment, permission, app, collaboration or skill text, no shell, web search, agents, goals,
+ * images, apps, plugins or hooks, and `instructions` replacing Codex's own instructions. CHECKED against codex-cli 0.166 with a recording endpoint: about 1,550 characters (some 500 tokens) besides
+ * our instructions and message, of which 1,357 are the request_user_input tool no switch removes; without these flags about 37,000 (some 11,000 tokens). `base_instructions` is ignored by this
+ * version and `model_instructions_file` needs a real file, so the instructions go in through `instructions`.
+ */
+export function codexLean(o: Pick<CommandOptions, "model" | "system">): string[] {
+  const toml = (v: string): string => JSON.stringify(v);
+  const off = ["shell_tool", "unified_exec", "multi_agent", "goals", "view_image", "apps", "plugins", "skill_search", "image_generation", "hooks", "shell_snapshot"];
+  return [
+    "codex", "exec", "--json", "--skip-git-repo-check", "--ephemeral", "--ignore-user-config", "--ignore-rules",
+    "-c", `sandbox_mode=${toml("read-only")}`, "-c", `approval_policy=${toml("never")}`,
+    "-c", `instructions=${toml(o.system ?? "")}`,
+    "-c", "include_environment_context=false", "-c", "include_permissions_instructions=false", "-c", "include_apps_instructions=false", "-c", "include_collaboration_mode_instructions=false",
+    "-c", "project_doc_max_bytes=0", "-c", `web_search=${toml("disabled")}`, "-c", "skills.include_instructions=false", "-c", "skills.bundled.enabled=false",
+    "-c", `model_reasoning_effort=${toml("low")}`,
+    ...off.flatMap((f) => ["--disable", f]),
+    ...(o.model !== null ? ["-m", o.model] : []),
+    "-",
+  ];
+}
+
 /** `model_reasoning_effort` is the config key Codex itself writes (low, medium, high are the values its config files show); max is high, as xhigh is not proven on every account. */
 export const codexEffort = (e: Effort | null | undefined): string | null => (e === undefined || e === null ? null : e === "max" ? "high" : e);
 
@@ -150,6 +172,7 @@ export const codex: CliAdapter = {
   systemFlag: false,
   env: () => ({}),
   command(o: CommandOptions) {
+    if (o.lean === true) return codexLean(o);
     const toml = (v: string): string => JSON.stringify(v);
     return [
       "codex", "exec", "--json", "--skip-git-repo-check",

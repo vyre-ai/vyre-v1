@@ -117,7 +117,7 @@ function consoleData(rt: ShellRuntime, allowed: ReadonlySet<string>, openPage: C
   };
 }
 
-const DEFAULTS: Readonly<Record<string, SpacePage | "memory">> = { "def-access": "people", "def-agents": "agents", "def-memory": "memory", "def-data": "data", "def-apps": "apps", "def-advanced": "advanced" };
+const DEFAULTS: Readonly<Record<string, SpacePage | "memory" | "memlearn">> = { memlearn: "memlearn", "def-access": "people", "def-agents": "agents", "def-memory": "memory", "def-data": "data", "def-apps": "apps", "def-advanced": "advanced" };
 
 /** Space defaults are drawn by the rows Settings shows in a Personal Space, so one row has one home in each kind of Space. */
 function spaceDefaults(rt: ShellRuntime, id: string): ReactElement | null {

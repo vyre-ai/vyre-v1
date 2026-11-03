@@ -11,7 +11,7 @@ const mine = registry.capabilities.filter((c) => c.module === "memory");
 const h = handlers as unknown as Record<string, (ctx: Harness["ctx"], input: any) => Promise<any>>;
 
 test("the handler table holds exactly the frozen memory capabilities", () => {
-  assert.equal(mine.length, 60);
+  assert.equal(mine.length, 63);   // 60, then memory.learning.today, memory.chat_learning.get and .set (learning after every turn)
   assert.deepEqual(Object.keys(h).sort(), mine.map((c) => c.name).sort());
 });
 
