@@ -7939,6 +7939,11 @@ export const screens: ScreenIndexEntry[] = [
           "limit": "/state/limit"
         },
         "live": true
+      },
+      "count": {
+        "cap": "tasks.count_needs_you",
+        "input": {},
+        "live": true
       }
     },
     "actions": {
