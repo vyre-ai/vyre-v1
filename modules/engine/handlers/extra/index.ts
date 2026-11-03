@@ -8,7 +8,6 @@ import { reviewList, reviewMark } from "./review.ts";
 import { reviewerGet, reviewerSet } from "../reviewer.ts";
 import { engineHealth, leaseAcquire, leaseHeartbeat, leaseRelease, queueList, queuePeek, routePreview } from "./threads.ts";
 import { turnOfMessage } from "./reply-info.ts";
-import { paidLine } from "./paid.ts";
 import { turnAppend, turnEnqueue, turnFallback, turnFinish, turnGet, turnRecord, turnRetry, turnStart, turnWait, turnsList } from "./turns.ts";
 
 export const extraHandlers = {
@@ -37,11 +36,7 @@ export const extraHandlers = {
   "engine.turn.finish": turnFinish,
   "engine.turn.record": turnRecord,
   "engine.turn.fallback": turnFallback,
-  "engine.turn.get": async (ctx: Parameters<typeof turnGet>[0], input: Parameters<typeof turnGet>[1]) => {
-    const out = turnGet(ctx, input);
-    const paid = await paidLine(ctx, { agentId: out.what.turn.agentId, ...(out.what.keyUsed !== undefined ? { keyUsed: out.what.keyUsed } : {}) });
-    return paid === undefined ? out : { what: { ...out.what, paid } };
-  },
+  "engine.turn.get": turnGet,
   "engine.turn.of_message": turnOfMessage,
   "engine.turns.list": turnsList,
   "engine.turn.retry": turnRetry,

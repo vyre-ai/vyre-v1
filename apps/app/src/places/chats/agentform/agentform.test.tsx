@@ -79,7 +79,8 @@ test("the Chat key sits under AI account as its own choice, off by default, with
   const out = page(true).replaceAll("<!-- -->", "");
   assert.ok(out.indexOf("AI account") < out.indexOf("Chat key") && out.indexOf("Chat key") < out.indexOf("Preferred model"));
   assert.ok(out.includes("Pay for chats with this account instead of each person&#x27;s own"));
-  assert.match(out, /role="checkbox" aria-checked="false"[^>]*data-testid="agent-chat-key"|aria-checked="false"[^>]*role="checkbox"/);
+  assert.match(out, /role="switch"[^>]*aria-checked="false"[^>]*data-testid="agent-chat-key"|aria-checked="false"[^>]*data-testid="agent-chat-key"/, "a switch, off");
+  assert.ok(!out.includes("agent-chat-key-account"), "the account menu is there only when it is on");
   assert.ok(out.includes("Only people who manage the Space&#x27;s AI accounts can turn this on."), "a person who cannot manage the Space's AI accounts sees it off and why");
 });
 

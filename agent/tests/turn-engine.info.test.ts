@@ -85,3 +85,19 @@ test("an account switch on a refused key is kept with the turn: from, to and why
   assert.deepEqual(t.info!.switches.map((s) => [s.from, s.to, s.why]), [["#Dana_Claude", "#Team_Anthropic", "provider.rate_limited"]]);
   assert.equal(t.info!.account?.ref, "#Team_Anthropic", "the account that paid at the end");
 });
+
+test("the turn keeps who paid and why: the asker's own key with the Chat key off, the agent's Chat key when it paid, a Space account after a fallback", async () => {
+  const run = async (acct: ResolvedAccount): Promise<string | undefined> => {
+    const { c, now } = clock();
+    const p = scriptedProvider({ script: () => [{ type: "text", text: "Hi." }, { type: "usage", inputTokens: 10, outputTokens: 2 }, { type: "done" }], beforeEvent: () => { c.t += 10; } });
+    const engine = createTurnEngine({ holder: "host:s", now, openSession: p.openSession, resolveAccount: async () => acct });
+    engine.openThread(thread([{ id: "mira", mode: "lead", model: "claude-opus-5-5" }]));
+    engine.receive({ threadId: "T", author: person, body: "Hello." });
+    await engine.idle("T");
+    return engine.turns("T")[0]!.info!.paid;
+  };
+  assert.equal(await run(account({ kind: "api_key", ref: "#Dana_Key" })), "The asker's own key");
+  assert.equal(await run(account({ kind: "subscription" })), "The asker's own sign-in");
+  assert.match((await run(account({ kind: "api_key", ref: "#Team", shared: true, via: "chat_key" })))!, /^The agent's Chat key/);
+  assert.equal(await run(account({ kind: "api_key", ref: "#Team", shared: true, via: "space", fellBack: true })), "A Space AI account, after another could not pay");
+});

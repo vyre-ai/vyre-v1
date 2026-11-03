@@ -60,10 +60,11 @@ const turnInfoIn = t.obj({
   account: t.opt(t.obj({ ref: accountRef, driver: t.str(), provider: t.str(), kind: t.enm('api_key', 'subscription'), shared: t.opt(t.bool()), spaceKey: t.opt(t.bool()) })),
   firstTokenAt: t.opt(t.ts()), cacheReadTokens: t.opt(t.int()), cacheWriteTokens: t.opt(t.int()), reasoningTokens: t.opt(t.int()),
   costUsd: t.opt(t.num({ description: 'The provider\'s own price for the turn, when every call reported one' })),
+  paid: t.opt(t.str({ description: 'Who paid and why, in a plain line' })),
   tools: t.arr(toolTrace), switches: t.arr(t.obj({ at: t.ts(), from: t.str(), to: t.str(), why: t.str() })),
 });
 const whatHappened = t.obj({
-  turn: turnRow, machine: t.enm('host', 'device'), keyUsed: t.opt(t.str()), paid: t.opt(t.str({ description: 'Who paid and why, in a plain line: the agent\'s Chat key when it is on and paid, a Space AI account, or the asker\'s own account' })), steps: t.arr(t.obj({ idx: t.int(), kind: t.str(), title: t.str(), durationMs: t.int(), ok: t.bool() })),
+  turn: turnRow, machine: t.enm('host', 'device'), keyUsed: t.opt(t.str()), paid: t.opt(t.str({ description: 'Who paid and why, in a plain line, as stored when the turn ended' })), steps: t.arr(t.obj({ idx: t.int(), kind: t.str(), title: t.str(), durationMs: t.int(), ok: t.bool() })),
   denials: t.arr(t.obj({ cap: t.str(), reason: t.str() })), fallbacks: t.arr(t.obj({ kind: t.str(), to: t.str(), at: t.ts() })),
   reached: t.opt(t.arr(t.str({ examples: ['github.com'] }), { description: 'Hosts the engine reached on the internet while the turn ran (a sample, at most 20)' })),
 });
@@ -283,7 +284,8 @@ export default defineManifest({
       },
       out: {
         accountRef: t.nullable(accountRef), payer: t.nullable(id.user), reason: t.enm('starter', 'steerer', 'step_key', 'backup_key', 'none'), allowed: t.bool(), itemId: t.opt(id.vaultItem), fellBack: t.opt(t.bool()),
-        pin: t.opt(t.obj({ ref: accountRef, used: t.bool(), why: t.opt(t.enm('unknown', 'expired', 'failed', 'policy_company', 'not_yours', 'space_may_not_use', 'failed_this_turn', 'capped', 'no_model')) }, { description: 'The account the chat, agent or step is pinned to; when it did not pay, why' })),
+        pin: t.opt(t.obj({ ref: accountRef, used: t.bool(), why: t.opt(t.enm('unknown', 'expired', 'failed', 'policy_company', 'not_yours', 'space_may_not_use', 'failed_this_turn', 'capped', 'no_model', 'not_used_for')) }, { description: 'The account the chat, agent or step is pinned to; when it did not pay, why' })),
+        via: t.opt({ ...t.enm('thread', 'chat_key', 'work', 'step', 'space', 'backup'), description: 'Which rule chose the account when it was not the asker\'s own: the chat\'s pick, the agent\'s Chat key, its own-work account, a step\'s account, a Space account kept for the work, or a backup' }),
         why: t.opt({ ...t.enm('no_account', 'expired', 'failed', 'policy'), description: 'When no account can pay: why. expired and failed name the person\'s own account' }),
         modelFallback: t.opt(t.obj({ from: t.str({ description: 'The model the chat asked for' }), to: t.opt(t.str({ description: 'The account\'s default model the turn runs on instead; absent: the engine\'s own default for that account' })) }, { description: 'No account that serves the chat\'s model could pay: a team chat or agent work runs on this account\'s default model, and the chat says so' })),
       }, on: ['thread', '/threadId'],

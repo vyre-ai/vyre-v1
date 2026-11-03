@@ -6,6 +6,7 @@
 // A tool call held at the Gate parks the turn (turn.waiting { task }, state waiting); resume() queues the wake that continues it once the task is answered.
 // Messages and waits sit behind MessageStore and WaitStore, so a second host that takes the thread over (recover) replays the same bodies.
 import { nextDepth, route } from "../../../lib/route.ts";
+import { payLine } from "../accounts/paid.ts";
 import { createMemoryQueue } from "./queue.ts";
 import type { QueueStore } from "./queue.ts";
 import { HEARTBEAT_MS, createMemoryLeases } from "./lease.ts";
@@ -730,6 +731,7 @@ function noteBlock(info: TurnInfo, kind: string, payload: unknown, at: number): 
 
 /** At the end of a turn: the account that paid last, and the provider's dollar figure only when every call gave one. */
 function settleInfo(info: TurnInfo, paying: ResolvedAccount | null, usages: number, priced: number): void {
+  if (paying) info.paid = payLine({ ...(paying.via ? { via: paying.via } : {}), kind: paying.kind, ...(paying.fellBack ? { fellBack: true } : {}) });
   if (paying) info.account = { ref: paying.ref, driver: paying.driver, provider: paying.provider, kind: paying.kind, ...(paying.shared ? { shared: true } : {}), ...(paying.spaceKey ? { spaceKey: true } : {}) };
   if (usages === 0 || priced !== usages) delete info.costUsd;
 }

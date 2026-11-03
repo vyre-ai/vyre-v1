@@ -9,6 +9,7 @@ import { each } from "../../../shell/sidebar/model.ts";
 import type { CapMap } from "../../../../../../generated/types.ts";
 import type { ConfigDirectory } from "../../automations/config/data.tsx";
 import { Overlay } from "../../automations/config/Overlay.tsx";
+import { Switch } from "../../automations/config/parts.tsx";
 import { shareRows } from "../../automations/config/SettingsTab.tsx";
 import { ShareSheet } from "../../../../../../ui/src/ShareSheet/index.tsx";
 import { useMenu } from "../../../../../../ui/src/Menu/index.tsx";
@@ -67,6 +68,7 @@ export function AgentForm({ agentId, call, newKey, onDone, onCancel, say, sharin
   const [models, setModels] = useState<readonly { model: string; title: string }[]>([]);
   const [busy, setBusy] = useState(false);
   const spaceAi = useSpaceAi(call);
+  const chatOn = d.chatOn === true;
   const aiPop = useMenu();
   // the account the agent was saved with: only a change is sent
   const [savedWork, setSavedWork] = useState("");
@@ -84,7 +86,7 @@ export function AgentForm({ agentId, call, newKey, onDone, onCancel, say, sharin
     void Promise.resolve(call("agents.get", { agentId })).then(async (o) => {
       const a = (o as CapMap["agents.get"]["out"]).agent;
       if (!live) return;
-      setD((c) => ({ ...c, name: a.name, does: a.role ?? "", face: a.face.startsWith("pick-") ? a.face : "", model: a.model ?? "", fallbackModel: a.fallbackModel ?? "", workKey: a.workKey ?? "", chatKey: a.accountPolicy === "key" ? a.accountKey ?? "" : "" }));
+      setD((c) => ({ ...c, name: a.name, does: a.role ?? "", face: a.face.startsWith("pick-") ? a.face : "", model: a.model ?? "", fallbackModel: a.fallbackModel ?? "", workKey: a.workKey ?? "", chatKey: a.accountPolicy === "key" ? a.accountKey ?? "" : "", chatOn: a.accountPolicy === "key" }));
       setSavedWork(a.workKey ?? "");
       setSavedChat(a.accountPolicy === "key" ? a.accountKey ?? "" : "");
       setFolderId(a.folderId);
@@ -110,9 +112,9 @@ export function AgentForm({ agentId, call, newKey, onDone, onCancel, say, sharin
         id = made.agent.agentId;
         folder = made.agent.folderId;
         // the AI account is not part of agents.create: set it on the new agent
-        const work = { ...workPatch(d.workKey, ""), ...(mayManageAi ? chatKeyPatch(d.chatKey, "") : {}) };
+        const work = { ...workPatch(d.workKey, ""), ...(mayManageAi ? chatKeyPatch(chatOn ? d.chatKey : "", "") : {}) };
         if (Object.keys(work).length > 0) await call("agents.update", { agentId: id, patch: work });
-      } else await call("agents.update", { agentId: id, patch: { ...updatePatch(d), ...workPatch(d.workKey, savedWork), ...(mayManageAi ? chatKeyPatch(d.chatKey, savedChat) : {}) } });
+      } else await call("agents.update", { agentId: id, patch: { ...updatePatch(d), ...workPatch(d.workKey, savedWork), ...(mayManageAi ? chatKeyPatch(chatOn ? d.chatKey : "", savedChat) : {}) } });
       if (folder) {
         const ls = (await call("files.list", { section: "space", folder, limit: 50 })) as CapMap["files.list"]["out"];
         const md = ls.files.find((f) => f.name === "AGENT.md");
@@ -203,22 +205,26 @@ export function AgentForm({ agentId, call, newKey, onDone, onCancel, say, sharin
             <Text testID="agent-ai-note" style={st.hint}>Pays for its own work: routines, watchers and helpers that run with nobody asking. Automatic uses a Space AI account the rules allow for this agent, the cheapest that fits. In a chat, the person's own account comes first.</Text>
             {!d.workKey && spaceAi ? <Text testID="agent-ai-today" style={st.hint}>{automaticLine(spaceAi, "agentWork", agentId ?? undefined)}</Text> : null}
             <Text accessibilityRole="header" style={[st.secTitle, { marginTop: 18 }]}>Chat key</Text>
-            <Pressable
-              role="checkbox" aria-checked={(d.chatKey ?? "") !== ""} aria-disabled={!mayManageAi} testID="agent-chat-key"
-              onPress={(e) => {
-                if (!mayManageAi) return;
-                if ((d.chatKey ?? "") !== "") { set({ chatKey: "" }); return; }
-                const r = (e as unknown as { currentTarget?: { getBoundingClientRect?: () => { left: number; bottom: number } } }).currentTarget?.getBoundingClientRect?.();
-                aiPop.show(aiMenu(spaceAi ?? [], "chats", undefined, (h) => set({ chatKey: h ?? "" }), { none: "Keep each person's own", ...(openVault ? { openVault } : {}) }), r?.left ?? 0, (r?.bottom ?? 0) + 4, "other");
-              }}
-              style={[st.opt, !mayManageAi && { opacity: 0.6 }]}
-            >
-              <View style={[st.radio, (d.chatKey ?? "") !== "" && st.radioOn]} />
+            <View style={st.switchRow}>
               <View style={st.optText}>
                 <Text style={st.lineText}>Pay for chats with this account instead of each person's own</Text>
-                <Text style={st.lineNote}>{(d.chatKey ?? "") !== "" ? `On: ${aiName(spaceAi ?? [], d.chatKey)} pays for every chat with this agent.` : mayManageAi ? "Off. In a chat the person's own account comes first." : "Off. Only people who manage the Space's AI accounts can turn this on."}</Text>
+                <Text testID="agent-chat-key-state" style={st.lineNote}>{chatOn ? "On. Every chat with this agent is paid by the account below." : mayManageAi ? "Off. In a chat the person's own account comes first." : "Off. Only people who manage the Space's AI accounts can turn this on."}</Text>
               </View>
-            </Pressable>
+              <Switch on={chatOn} label="Pay for chats with this account instead of each person's own" disabled={!mayManageAi} testID="agent-chat-key" onChange={(next) => set(next ? { chatOn: true } : { chatOn: false, chatKey: "" })} />
+            </View>
+            {chatOn ? (
+              <Pressable
+                role="button" aria-haspopup="menu" aria-label={`Chat key account: ${(d.chatKey ?? "") === "" ? "choose one" : aiName(spaceAi ?? [], d.chatKey)}. Change`} testID="agent-chat-key-account" disabled={!mayManageAi}
+                onPress={(e) => {
+                  const r = (e as unknown as { currentTarget?: { getBoundingClientRect?: () => { left: number; bottom: number } } }).currentTarget?.getBoundingClientRect?.();
+                  aiPop.show(aiMenu(spaceAi ?? [], "chats", d.chatKey || undefined, (h) => set({ chatKey: h ?? "" }), { none: "Choose an account", ...(openVault ? { openVault } : {}) }), r?.left ?? 0, (r?.bottom ?? 0) + 4, "other");
+                }}
+                style={[st.kv, { marginTop: 8 }]}
+              >
+                <Text style={st.lineText}>{(d.chatKey ?? "") === "" ? "Choose an account" : aiName(spaceAi ?? [], d.chatKey)}</Text>
+                <Text style={st.lineNote}>Space AI account</Text>
+              </Pressable>
+            ) : null}
           </Section>
         ) : null}
 
@@ -289,6 +295,7 @@ const st = StyleSheet.create({
   lineText: { fontSize: 14, color: "var(--ink)" as string },
   lineNote: { fontSize: 12.5, color: "var(--ink-3)" as string },
   kv: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10, minHeight: 40, paddingHorizontal: 12, borderRadius: 11, backgroundColor: "var(--sunk)" as string },
+  switchRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 14, paddingVertical: 8 },
   hint: { marginTop: 6, fontSize: 12.5, lineHeight: 18, color: "var(--ink-3)" as string },
   opt: { flexDirection: "row", alignItems: "center", gap: 11, paddingVertical: 8 },
   optText: { flex: 1, gap: 1 },

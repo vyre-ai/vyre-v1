@@ -48,8 +48,9 @@ type Out = {
   pin?: {
     ref: string;
     used: boolean;
-    why?: "unknown" | "expired" | "failed" | "policy_company" | "not_yours" | "space_may_not_use" | "failed_this_turn" | "capped" | "no_model";
+    why?: "unknown" | "expired" | "failed" | "policy_company" | "not_yours" | "space_may_not_use" | "failed_this_turn" | "capped" | "no_model" | "not_used_for";
   };
+  via?: "thread" | "chat_key" | "work" | "step" | "space" | "backup";
   why?: "no_account" | "expired" | "failed" | "policy";
   modelFallback?: {
     from: string;
@@ -98,6 +99,7 @@ type Out = {
       "why": "unknown"
     },
     "reason": "starter",
+    "via": "thread",
     "why": "no_account"
   }
 }

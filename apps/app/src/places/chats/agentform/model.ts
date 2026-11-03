@@ -5,7 +5,7 @@ import type { CapMap } from "../../../../../../generated/types.ts";
 export type VaultItem = CapMap["vault.items.list"]["out"]["items"][number];
 export type ComputerChoice = "none" | "own" | "yours";
 
-export interface AgentDraft { name: string; does: string; face: string; instructions: string; model: string; fallbackModel: string; computer: ComputerChoice; /** The Space AI account for its own work (a Vault handle); empty or absent is Automatic. */ workKey?: string; /** The Chat key: a Space account that pays for every person's chats with this agent instead of their own. Empty or absent is off. */ chatKey?: string }
+export interface AgentDraft { name: string; does: string; face: string; instructions: string; model: string; fallbackModel: string; computer: ComputerChoice; /** The Space AI account for its own work (a Vault handle); empty or absent is Automatic. */ workKey?: string; /** The Chat key: a Space account that pays for every person's chats with this agent instead of their own. Empty or absent is off. */ chatKey?: string; /** The Chat key switch; on with no account chosen sends nothing. */ chatOn?: boolean }
 
 export const FACES_OFFERED = 6;
 

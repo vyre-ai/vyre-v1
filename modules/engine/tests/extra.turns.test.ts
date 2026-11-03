@@ -115,14 +115,14 @@ test("turn.get shows steps with durations, the machine, the key and the denials;
   h.advance(250);
   H["engine.turn.append"](h.ctx, { turnId: turn.turnId, kind: "tool_result", data: { denied: true, cap: "mail.send", reason: "Held for approval" } });
   H["engine.turn.fallback"](h.ctx, { turnId: turn.turnId, kind: "switch_model", to: "gpt-5" });
-  const got = await H["engine.turn.get"](h.ctx, { turnId: turn.turnId });
+  const got = H["engine.turn.get"](h.ctx, { turnId: turn.turnId });
   assert.deepEqual(contractErrors("engine.turn.get", "out", got), []);
   assert.deepEqual(got.what.steps.map((s) => [s.kind, s.title, s.durationMs, s.ok]), [["tool_call", "mail_send", 100, true], ["tool_result", "tool_result", 250, false]]);
   assert.deepEqual(got.what.denials, [{ cap: "mail.send", reason: "Held for approval" }]);
   assert.equal(got.what.machine, "host");
   assert.equal(got.what.keyUsed, "#Dana_Anthropic");
   assert.equal(got.what.fallbacks[0]?.to, "gpt-5");
-  await assert.rejects(async () => H["engine.turn.get"](h.ctx, { turnId: "trn_nope" }), (e) => codeOf(e) === "validation.not_found");
+  assert.throws(() => H["engine.turn.get"](h.ctx, { turnId: "trn_nope" }), (e) => codeOf(e) === "validation.not_found");
 
   await H["engine.turn.finish"](h.ctx, { turnId: turn.turnId, outcome: "completed" });
   h.advance(10);
@@ -213,24 +213,3 @@ test("health is healthy with an empty queue, degraded when a turn waits a minute
   assert.match(H["engine.health"](h2.ctx, {}).detail ?? "", /no worker/);
 });
 
-
-test("turn.get says who paid and why: the agent's Chat key when it is on, a Space account, or the asker's own account", async () => {
-  const h = harness();
-  const { turn } = await startTurn(h);
-  const base = h.ctx.call;
-  const scene = (policy: "asker" | "key", scope: "mine" | "shared") => {
-    h.ctx.call = async (cap: string, input: unknown): Promise<unknown> => {
-      if (cap === "agents.get") return { agent: { accountPolicy: policy, ...(policy === "key" ? { accountKey: "#Dana_Anthropic" } : {}) } };
-      if (cap === "providers.list") return { providers: [{ handle: "#Dana_Anthropic", name: "Team credits", scope }] };
-      return base(cap, input);
-    };
-  };
-  scene("key", "shared");
-  const on = (await H["engine.turn.get"](h.ctx, { turnId: turn.turnId })).what as { paid?: string };
-  assert.match(on.paid ?? "", /Team credits paid, because this agent's Chat key is on: it pays for chats with this account instead of each person's own\./);
-  scene("asker", "shared");
-  assert.equal(((await H["engine.turn.get"](h.ctx, { turnId: turn.turnId })).what as { paid?: string }).paid, "Team credits paid: a Space AI account.");
-  scene("asker", "mine");
-  assert.equal(((await H["engine.turn.get"](h.ctx, { turnId: turn.turnId })).what as { paid?: string }).paid, "The asker's own AI account paid.");
-  h.ctx.call = base;
-});

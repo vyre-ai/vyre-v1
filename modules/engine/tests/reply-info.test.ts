@@ -121,11 +121,33 @@ test("a reply with no recorded turn is not found; an older turn with only its ro
 test("engine.turn.get: the in-process engine's tool steps and account switches show, and a turn of a chat the caller cannot open does not exist for them", async () => {
   const h = harness();
   await recordTurn(h, apiInfo({ switches: [{ at: 1_000_100, from: "#Dana_Claude", to: "#Team_Anthropic", why: "provider.rate_limited" }] }));
-  const { what } = await H["engine.turn.get"](h.ctx, { turnId: "trn_reply1" });
+  const { what } = H["engine.turn.get"](h.ctx, { turnId: "trn_reply1" });
   assert.deepEqual(what.steps.map((s) => [s.kind, s.title, s.ok]), [["tool_call", "Read", true], ["tool_result", "Read", true], ["tool_call", "records.get", true], ["tool_result", "records.get", true]]);
   assert.deepEqual(what.fallbacks, [{ kind: "backup_key", to: "#Team_Anthropic", at: 1_000_100 }]);
   const outsider = harness({ raw: h.raw, principal: { kind: "person", id: "usr_eve" }, manager: false });
-  await assert.rejects(async () => H["engine.turn.get"](outsider.ctx, { turnId: "trn_reply1" }), (e) => codeOf(e) === "validation.not_found");
+  assert.throws(() => H["engine.turn.get"](outsider.ctx, { turnId: "trn_reply1" }), (e) => codeOf(e) === "validation.not_found");
   const asker = harness({ raw: h.raw, principal: { kind: "person", id: "usr_dana" }, manager: false });
-  assert.equal((await H["engine.turn.get"](asker.ctx, { turnId: "trn_reply1" })).what.turn.turnId, "trn_reply1", "the asker always sees their own turn");
+  assert.equal(H["engine.turn.get"](asker.ctx, { turnId: "trn_reply1" }).what.turn.turnId, "trn_reply1", "the asker always sees their own turn");
+});
+
+test("who paid and why is stored with the turn and read back synchronously: Chat key off (the asker's own) and on (the agent's Chat key); an older turn shows nothing; another member does not see it", async () => {
+  const own = apiInfo({ account: { ref: "#Dana_Anthropic", driver: "anthropic", provider: "anthropic", kind: "api_key" }, paid: "The asker's own key" });
+  const h = harness();
+  await recordTurn(h, own, { turnId: "trn_off" });
+  const off = H["engine.turn.get"](h.ctx, { turnId: "trn_off" });
+  assert.deepEqual(contractErrors("engine.turn.get", "out", off), []);
+  assert.equal(off.what.paid, "The asker's own key");
+  assert.equal(H["engine.turn.of_message"](h.ctx, { threadId: T, messageId: MSG }).turn.paid, "The asker's own key");
+  const h2 = harness();
+  await recordTurn(h2, apiInfo({ paid: "The agent's Chat key" }), { turnId: "trn_on" });
+  const on = H["engine.turn.get"](h2.ctx, { turnId: "trn_on" });
+  assert.equal(on.what.paid, "The agent's Chat key");
+  assert.deepEqual(contractErrors("engine.turn.of_message", "out", H["engine.turn.of_message"](h2.ctx, { threadId: T, messageId: MSG })), []);
+  // a turn recorded before this was kept has no line
+  const h3 = harness();
+  await recordTurn(h3, apiInfo(), { turnId: "trn_old" });
+  assert.equal(H["engine.turn.get"](h3.ctx, { turnId: "trn_old" }).what.paid, undefined);
+  // the account is the asker's and the managers' only, so is the reason
+  const other = harness({ raw: h2.raw, principal: { kind: "person", id: "usr_eve" }, manager: false });
+  assert.equal(H["engine.turn.of_message"](other.ctx, { threadId: T, messageId: MSG }).turn.paid, undefined);
 });

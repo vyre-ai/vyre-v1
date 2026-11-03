@@ -1,6 +1,6 @@
 // The menu every "AI account" choice opens: Automatic, then each Space AI account. One that is not kept for the work is shown but cannot be picked, with the reason on hover.
 import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
-import { aiOptions, noAccountLine } from "./pick.ts";
+import { aiOptions } from "./pick.ts";
 import type { PickRow, Work } from "./pick.ts";
 
 export function aiMenu(rows: readonly PickRow[], work: Work, current: string | undefined, choose: (handle: string | undefined) => void, o: { agentId?: string; none?: string; skip?: readonly string[]; openVault?: () => void } = {}): MenuEntry[] {
@@ -16,7 +16,7 @@ export function aiMenu(rows: readonly PickRow[], work: Work, current: string | u
   }
   // nothing is kept for this work: say so once, and point at where to change it
   if (opts.length === 1) {
-    entries.push({ separator: true }, { label: noAccountLine(work), disabled: true });
+    entries.push({ separator: true }, { label: work === "chats" ? "None to choose" : `None kept for ${work === "automations" ? "automations" : "this agent"}`, disabled: true });
     if (o.openVault) entries.push({ label: "Open Vault, AI accounts", onSelect: o.openVault });
   }
   return entries;

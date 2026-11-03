@@ -163,7 +163,7 @@ test("account.resolve: the agent's AI account for its own work pays a routine, w
   const agent = (o: Record<string, unknown> = {}) => ({ "agents.get": () => ({ agent: { accountPolicy: "asker", workKey: "#Work_Credits", ...o } }), "engine.defaults.get": () => ({ fallback: [] }) });
   // the pick pays for a routine, though a cheaper account also covers it
   const ok = fake(routes([mine, cheap, work], agent()));
-  assert.deepEqual(await accountResolve(ok.ctx, { threadId: "thr_1", agentId: "agt_1", kind: "agent_work" }), { accountRef: "#Work_Credits", payer: "usr_dana", reason: "starter", allowed: true, itemId: "vit_prv_w", pin: { ref: "#Work_Credits", used: true } });
+  assert.deepEqual(await accountResolve(ok.ctx, { threadId: "thr_1", agentId: "agt_1", kind: "agent_work" }), { accountRef: "#Work_Credits", payer: "usr_dana", reason: "starter", allowed: true, itemId: "vit_prv_w", pin: { ref: "#Work_Credits", used: true }, via: "work" });
   // Automatic (no pick) is the cheapest account that covers the work
   const auto = await accountResolve(fake(routes([mine, cheap, work], agent({ workKey: undefined }))).ctx, { threadId: "thr_1", agentId: "agt_1", kind: "agent_work" });
   assert.equal(auto.accountRef, "#Cheap_Work");

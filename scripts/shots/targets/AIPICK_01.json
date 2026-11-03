@@ -71,6 +71,13 @@
       "protoClick": "[data-a='newagent']",
       "waitFor": "[data-testid='agent-chat-key']",
       "note": "A person who cannot manage the Space's AI accounts: the Chat key is off and says why."
+    },
+    {
+      "id": "AIPICK_01-details",
+      "route": "/m/AIPICK_01?part=details",
+      "proto": "chats,{skin}",
+      "waitFor": "body",
+      "note": "The Details tab with Paid because."
     }
   ]
 }

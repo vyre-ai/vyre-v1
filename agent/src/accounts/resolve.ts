@@ -11,7 +11,7 @@
 import { sameProviderFamily } from "./provider.ts";
 import type { AccountRow, Attempt, NeedsYou, ResolveReason, ResolveRequest, Resolution, SkipWhy, SpaceUses, Trigger } from "./types.ts";
 
-interface Candidate { ref: string; reason: ResolveReason; pin?: true; space?: true; strict?: true; use?: true }
+interface Candidate { ref: string; reason: ResolveReason; pin?: true; space?: true; strict?: true; use?: true; via?: Via }
 
 function payerOf(req: ResolveRequest): { payer: string; reason: "starter" | "steerer" } {
   if (req.trigger === "routine" && req.routineOwner) return { payer: req.routineOwner, reason: "starter" };
@@ -76,31 +76,31 @@ function candidates(req: ResolveRequest, payerReason: "starter" | "steerer", pay
   const out: Candidate[] = [];
   // the fallbacks someone configured (the agent's ordered list, the Space's backups) keep that reason wherever they land in the order, so moving on to one never stops to ask (switch-on-limit.ts)
   const configured = new Set<string>([...(req.trigger !== "task" ? req.agent.accountFallback ?? [] : []), ...req.backupRefs]);
-  const add = (ref: string | undefined, reason: ResolveReason, o: { pin?: true; space?: true; use?: true } = {}): void => {
-    if (ref !== undefined && ref !== "" && !out.some((c) => c.ref === ref)) out.push({ ref, reason: configured.has(ref) && o.pin !== true ? "backup_key" : reason, ...o });
+  const add = (ref: string | undefined, reason: ResolveReason, o: { pin?: true; space?: true; use?: true; via?: Via } = {}): void => {
+    if (ref !== undefined && ref !== "" && !out.some((c) => c.ref === ref)) out.push({ ref, reason: configured.has(ref) && o.pin !== true ? "backup_key" : reason, ...o, via: configured.has(ref) && o.pin !== true ? "backup" : o.via ?? "other" });
   };
   const own = (): void => {
     // the payer's own accounts: subscription sign-ins before keys (already paid for); an older sign-in listed under another row of the provider is not picked on its own
     const mine = req.accounts.filter((a) => a.mine && a.ownerId === payer && a.older !== true && (req.agent.provider === undefined || sameProviderFamily(a.provider, req.agent.provider)));
-    for (const a of [...mine.filter((a) => a.kind === "subscription"), ...mine.filter((a) => a.kind === "api_key")]) add(a.ref, payerReason);
+    for (const a of [...mine.filter((a) => a.kind === "subscription"), ...mine.filter((a) => a.kind === "api_key")]) add(a.ref, payerReason, { via: "own" });
   };
   const space = (): void => {
     const kept = req.accounts.map((a, i) => ({ a, i })).filter(({ a }) => covers(a, req));
     kept.sort((x, y) => (x.a.cost ?? 3) - (y.a.cost ?? 3) || x.i - y.i);
-    for (const { a } of kept) add(a.ref, payerReason, { space: true });
+    for (const { a } of kept) add(a.ref, payerReason, { space: true, via: "space" });
   };
   if (req.trigger === "task") {
-    add(req.stepKey, "step_key", { pin: true });
-    if (req.agent.accountPolicy === "key") add(req.agent.accountKey, payerReason, { pin: true });
+    add(req.stepKey, "step_key", { pin: true, via: "step" });
+    if (req.agent.accountPolicy === "key") add(req.agent.accountKey, payerReason, { pin: true, via: "chat_key" });
     space();
     // a step that names no key is the person's own Run: their own accounts after the Space's; a step with a key keeps to it, the Space's and its backup
     if (req.stepKey === undefined && req.agent.accountPolicy !== "key") own();
   } else {
-    add(req.threadAccountRef, payerReason, req.modelPinned === true ? { pin: true, strict: true } : { pin: true });
+    add(req.threadAccountRef, payerReason, req.modelPinned === true ? { pin: true, strict: true, via: "thread" } : { pin: true, via: "thread" });
     // the AI account picked for the agent's own work (routines, watchers, helpers): before its chat key, and only a Space account that is kept for this agent's work
-    if (req.trigger === "routine") add(req.agent.workKey, payerReason, { pin: true, use: true });
+    if (req.trigger === "routine") add(req.agent.workKey, payerReason, { pin: true, use: true, via: "work" });
     if (req.agent.accountPolicy === "key") {
-      add(req.agent.accountKey, payerReason, { pin: true });
+      add(req.agent.accountKey, payerReason, { pin: true, via: "chat_key" });
       // an agent pinned to a key goes on down its own ordered fallback list, as configured, before anything else
       for (const f of req.agent.accountFallback ?? []) add(f, "backup_key");
     }
@@ -143,7 +143,7 @@ export function resolveAccount(req: ResolveRequest): Resolution {
     }
     tried.push({ ref: c.ref, used: true });
     if (c.pin && pin === undefined) pin = { ref: c.ref, used: true };
-    const res: Resolution = { accountRef: c.ref, payer, reason: c.reason, allowed: true, tried, ...(pin ? { pin } : {}) };
+    const res: Resolution = { accountRef: c.ref, payer, reason: c.reason, allowed: true, tried, via: c.via ?? "other", ...(pin ? { pin } : {}) };
     if (broken) res.unblock = needs(payer, broken.ref, broken.why, true);
     return res;
   }

@@ -6888,6 +6888,7 @@ export type ChatReplyDetailsOut = {
       shared?: boolean;
       accountRef?: string;
       state: "queued" | "running" | "waiting" | "completed" | "failed" | "cancelled";
+      paid?: string;
       ranOn: Array<{
           kind: string;
           name: string;
@@ -10000,8 +10001,9 @@ export type EngineAccountResolveOut = {
   pin?: {
     ref: string;
     used: boolean;
-    why?: "unknown" | "expired" | "failed" | "policy_company" | "not_yours" | "space_may_not_use" | "failed_this_turn" | "capped" | "no_model";
+    why?: "unknown" | "expired" | "failed" | "policy_company" | "not_yours" | "space_may_not_use" | "failed_this_turn" | "capped" | "no_model" | "not_used_for";
   };
+  via?: "thread" | "chat_key" | "work" | "step" | "space" | "backup";
   why?: "no_account" | "expired" | "failed" | "policy";
   modelFallback?: {
     from: string;
@@ -11055,6 +11057,7 @@ export type EngineTurnOfMessageOut = {
     shared?: boolean;
     accountRef?: string;
     state: "queued" | "running" | "waiting" | "completed" | "failed" | "cancelled";
+    paid?: string;
     ranOn: Array<{
         kind: string;
         name: string;
@@ -11141,6 +11144,7 @@ export type EngineTurnRecordIn = {
     cacheWriteTokens?: number;
     reasoningTokens?: number;
     costUsd?: number;
+    paid?: string;
     tools: Array<{
         id: string;
         name: string;

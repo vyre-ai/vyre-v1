@@ -8,6 +8,8 @@ export type AccountsPolicy = "any" | "company";
  * a routine, a watcher or a helper (agentWork), an automation's step (task: automations).
  */
 export type Trigger = "message" | "wake" | "goal" | "routine" | "task";
+/** Which rule chose the account that paid: the chat's pick, the agent's Chat key, the agent's own-work account, a step's account, the asker's own, a Space account kept for the work, or a backup. */
+export type Via = "thread" | "chat_key" | "work" | "step" | "own" | "space" | "backup" | "other";
 export type ResolveReason = "starter" | "steerer" | "step_key" | "backup_key" | "none";
 
 export interface AccountRow {
@@ -116,6 +118,8 @@ export interface Resolution {
   reason: ResolveReason;
   /** True when a usable account was found: the turn can run. */
   allowed: boolean;
+  /** Which rule chose the account that paid. */
+  via?: Via;
   tried: Attempt[];
   /** A card for Needs you. Present when nothing could run, and also when a backup key covered for a broken account of the payer's. */
   unblock?: NeedsYou;

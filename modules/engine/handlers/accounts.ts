@@ -148,7 +148,7 @@ export async function accountResolve(ctx: Ctx, input: { threadId: string; agentI
   const itemId = res.accountRef ? accounts.itemByRef.get(res.accountRef) : undefined;
   // an account ahead of this one was passed over: what pays is a fallback, whatever the reason word says
   const fellBack = res.accountRef !== null && res.tried.some((a) => !a.used && (a.why === "expired" || a.why === "failed" || a.why === "failed_this_turn" || a.why === "capped"));
-  return { accountRef: res.accountRef, payer: res.payer, reason: res.reason, allowed: res.allowed, ...(itemId ? { itemId } : {}), ...(fellBack ? { fellBack: true } : {}), ...(res.pin ? { pin: res.pin } : {}), ...(!res.allowed && res.unblock ? { why: res.unblock.why } : {}),
+  return { accountRef: res.accountRef, payer: res.payer, reason: res.reason, allowed: res.allowed, ...(itemId ? { itemId } : {}), ...(fellBack ? { fellBack: true } : {}), ...(res.pin ? { pin: res.pin } : {}), ...(res.via && ["chat_key", "thread", "work", "step", "space"].includes(res.via) ? { via: res.via } : {}), ...(!res.allowed && res.unblock ? { why: res.unblock.why } : {}),
     ...(res.modelFallback && res.accountRef && model ? { modelFallback: { from: model, ...(accounts.rows.find((r) => r.ref === res.accountRef)?.models?.[0] ? { to: accounts.rows.find((r) => r.ref === res.accountRef)!.models![0]! } : {}) } } : {}) };
 }
 
