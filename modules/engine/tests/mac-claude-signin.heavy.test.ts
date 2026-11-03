@@ -55,7 +55,8 @@ test("the real Claude Code under the Seatbelt profile reads the Keychain sign-in
       return { sandbox: { kind: "seatbelt" as const, proxyPort: l.port, ...(base.sandbox.kind === "seatbelt" && base.sandbox.programRead ? { programRead: base.sandbox.programRead } : {}) }, close: () => px.close() };
     },
   };
-  const cred = (t: string) => JSON.stringify({ claudeAiOauth: { accessToken: t, refreshToken: "sk-ant-ort01-FAKEREFRESH0123456789", expiresAt: Date.now() + 30 * 86400_000, scopes: ["user:inference", "user:profile"], subscriptionType: "max" } });   // secret-scan: fake
+  const expiresAt = Date.now() + 30 * 86400_000;
+  const cred = (t: string) => JSON.stringify({ claudeAiOauth: { accessToken: t, refreshToken: "sk-ant-ort01-FAKEREFRESH0123456789", expiresAt, scopes: ["user:inference", "user:profile"], subscriptionType: "max" } });   // secret-scan: fake
   const kc = new Map<string, string>([[CLAUDE_KEYCHAIN, cred(TOKEN)]]);
   const writes: string[] = [];
   const homes = { home: os.homedir(), env: {}, platform: "darwin" as const, exists: (p: string) => fs.existsSync(p), keychain: { read: (s: string) => kc.get(s) ?? null, write: (s: string, t: string) => { writes.push(t); kc.set(s, t); } } };
