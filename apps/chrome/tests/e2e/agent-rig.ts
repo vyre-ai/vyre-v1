@@ -3,14 +3,13 @@
 import fs from "node:fs";
 import assert from "node:assert/strict";
 import { createAgentControl } from "../../src/agent/index.js";
+import { playwrightChromium } from "./rig.ts";
 
 export const SECRET = "hunter2-Pa55";
 export const LOGIN = "techmanager@mylegalacademy.com";
 
 export async function findChrome() {
-  let pw: any;
-  try { pw = await import("playwright-core"); } catch { return null; }
-  const chromium = pw.chromium ?? pw.default?.chromium;
+  const chromium = await playwrightChromium();
   if (!chromium) return null;
   const candidates = [process.env["CHROME_BIN"], (() => { try { return chromium.executablePath(); } catch { return undefined; } })(), "/usr/bin/google-chrome", "/usr/bin/google-chrome-stable", "/usr/bin/chromium", "/usr/bin/chromium-browser"];
   const exe = candidates.find((c) => c && fs.existsSync(c));
