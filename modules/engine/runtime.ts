@@ -35,6 +35,7 @@ import { capabilitySkills, createContextBuilder, takeHandoff, withTurnContext } 
 import { withTranscript } from "./transcript.ts";
 import { withNativeSkills } from "./skills-native.ts";
 import { withGoalFolder } from "./goal-folder.ts";
+import { createRoller } from "./rollover.ts";
 import { linkReply } from "./handlers/extra/reply-info.ts";
 import { costOf } from "./turn-cost.ts";
 import { workFolder } from "./sandbox.ts";
@@ -452,6 +453,8 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
     const bridge = h.postAs ? createBridge({ postAs: h.postAs, now, stream: (e) => { if (e.kind === "final" && e.messageId) linkPosted(e); live?.(e); crewWatch?.(e); }, addressAsker: (threadId, agentId) => { const r = reviewerOf(ctx.db, threadId); return r?.kind === "agent" && r.id === agentId; }, ...(h.log ? { log: { warn: h.log } } : {}), callAs: (cap, input, person) => h.call(cap, input, person) }) : null;
     // The turn context is built as the asker before each turn (modules/engine/context.ts); what the agent waits on is read off the engine once it exists.
     let running: TurnEngine | null = null;
+    // a chat whose window is nearly full starts a fresh session at the end of a turn (rollover.ts); the account a turn ran on is told at its end (onTurnEnd below)
+    const roller = createRoller({ db: ctx.db, engine: () => running, compactor: () => compactor, ...(h.log ? { log: h.log } : {}) });
     const turnContext = createContextBuilder({
       call: h.call, skills: h.skills ?? capabilitySkills(h.call), now, handoff: takeHandoff,
       waiting: (threadId, agentId) => (running?.waiting(threadId) ?? []).filter((w) => w.agentId === agentId).map((w) => `an answer to task ${w.taskId} (a held call needs approval)`),
@@ -479,7 +482,7 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
         catch (e) { h.log?.("could not open the Unblock task for a turn with no account", { threadId: info.threadId, asker: info.asker, error: e instanceof Error ? e.message : String(e) }); throw e; }
       },
       // memory learns from the turn in the background (learn.ts): scheduled here, never awaited, so the reply is not held for it
-      onTurnEnd: (turn, account) => { learnAfterTurn(h, turn, account); return meter(h, turn, account); },
+      onTurnEnd: (turn, account) => { roller.ranOn(turn.id, account); learnAfterTurn(h, turn, account); return meter(h, turn, account); },
       onLimits: (account, reading) => recordAccountLimits(ctx.db, account.ref, reading, now()),
       // the answer check (gap 6): an answer built on something not everyone in the chat may open goes to the asker privately
       ...(h.mayAll ? {
@@ -555,6 +558,7 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
         void onTurnEnded(ctx, { call: h.call, now, ...(h.log ? { log: h.log } : {}) }, engine, ev).catch((err) => h.log?.("a task baton check failed", { threadId: ev.threadId, error: err instanceof Error ? err.message : String(err) }));
       }
       if (ev.type !== "turn.completed") return;
+      void roller.afterTurn(ev).catch((err) => h.log?.("the rollover check failed", { threadId: ev.threadId, error: err instanceof Error ? err.message : String(err) }));
       void reviewAfter({ call: h.call, ...(h.postAs ? { postAs: h.postAs } : {}) }, ctx.db, engine, ev, () => mintEngineId("msg", now())).catch((err) => h.log?.("the reviewer could not be asked", { threadId: ev.threadId, error: err instanceof Error ? err.message : String(err) }));
     });
     bridge?.attach(engine);
