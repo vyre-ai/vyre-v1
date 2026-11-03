@@ -15,7 +15,7 @@ const effort = t.enm('low', 'medium', 'high', 'max');
 // Outside tools (CHAT-DESIGN ruling 6): the MCP servers of plugins and connections, run in the sandbox. A call is one capability, so access, the Gate and the audit trail apply to it like any other.
 const mcpTool = t.obj({ name: t.str(), description: t.str(), inputSchema: t.json(), readOnly: t.bool() });
 const mcpServerRow = t.obj({ key: t.str({ examples: ['greeter/echo'] }), name: t.str(), from: t.enm('plugin', 'connection'), ok: t.bool(), error: t.opt(t.str()), tools: t.arr(mcpTool), hub: t.opt(t.enm('composio', 'pipedream')), oauth: t.opt(t.bool()) });
-const mcpCallIn = { agentId: id.agent, server: t.str({ examples: ['greeter/echo'] }), tool: t.str(), input: t.opt(t.json()) };
+const mcpCallIn = { agentId: id.agent, server: t.str({ examples: ['greeter/echo'], description: 'The server key mcp_tools lists' }), tool: t.str({ description: 'The tool name as the server lists it' }), input: t.opt(t.json()) };
 const mcpCallOut = { isError: t.bool(), text: t.str(), structured: t.opt(t.json()) };
 const agentMode = t.enm('lead', 'listen');
 // The crew (DESIGN-crew.md): a teammate working in its own copy of the project repository, on its own branch, in its own thread under the lead's chat.
@@ -35,6 +35,10 @@ const modelInfo = t.obj({
   provider: t.str({ examples: ['anthropic'] }), model: t.str({ examples: ['claude-sonnet-5-5'] }), title: t.str(), driver: driverId, contextTokens: t.opt(t.int()),
   allowed: t.bool(), reason: t.opt(t.enm('label_provider', 'policy_model', 'not_connected', 'usage_limit')),
   resetsAt: t.opt(t.ts()),
+  alias: t.opt(t.str({ description: "The engine's own name that resolves to this model today (Claude Code's opus); a pick saved as the alias is this model", examples: ['opus'] })),
+  isDefault: t.opt(t.bool()),
+  efforts: t.opt(t.arr(t.str({ description: 'A reasoning-effort level the vendor offers for this model, in its words', examples: ['high'] }))),
+  defaultEffort: t.opt(t.str({ examples: ['medium'] })),
 });
 const accountRow = t.obj({
   ref: accountRef, driver: driverId, kind: t.enm('api_key', 'subscription'), title: t.str(), name: t.opt(t.str({ description: 'The name the person gave this account in the Vault; title is the provider', examples: ['Dana Claude Max'] })), mine: t.bool(), ownerId: t.opt(id.user),
@@ -108,8 +112,9 @@ export default defineManifest({
     read('engine.mcp.tools', 'The MCP servers a chat with this agent connects to and the tools each offers (starts the server in the sandbox if it is not running)', {
       in: { agentId: id.agent, server: t.opt(t.str()) }, out: { servers: t.arr(mcpServerRow) }, perm: null, level: 'view', tool: 'agents', mcpName: 'mcp_tools', agent: { planMode: 'allowed' },
     }),
-    read('engine.mcp.read', 'Call an outside MCP tool that only reads (the server says so); runs in the sandbox or at the remote server', {
-      in: mcpCallIn, out: mcpCallOut, perm: null, level: 'use', errors: ['validation.not_found', 'provider.unavailable', 'permission.no_grant'],
+    read('engine.mcp.read', 'Call a tool of an outside tool server or connection (app hub, OAuth server, remote MCP) that only reads, as mcp_tools lists it with readOnly true; a tool that may change things goes through mcp_call', {
+      in: mcpCallIn, out: mcpCallOut, perm: null, level: 'use', tool: 'agents', mcpName: 'mcp_read', agent: { planMode: 'allowed' },
+      errors: ['validation.not_found', 'provider.unavailable', 'permission.no_grant', 'validation.precondition_failed'],
     }),
     write('engine.mcp.oauth_start', 'Begin signing a remote outside-tool connection in with OAuth (the MCP authorization flow). Answers the address to send the person to; the token that comes back is sealed and never answered.', {
       in: { connectionId: t.str(), redirectUri: t.str() }, out: { authUrl: t.str(), state: t.str() }, perm: 'agents.manage', level: 'manage', audit: 'always', agent: false,
@@ -120,8 +125,9 @@ export default defineManifest({
       errors: ['auth.invalid_code', 'permission.no_grant', 'validation.bad_input', 'provider.unavailable'],
     }),
     read('engine.mcp.oauth_status', 'Has this remote connection signed in? A yes or no, never the token.', { in: { connectionId: t.str() }, out: { signedIn: t.bool() }, perm: null, level: 'view', agent: false }),
-    outward('engine.mcp.call', 'Call an outside MCP tool that may change things; an agent\'s call goes through the Gate', {
-      in: mcpCallIn, out: mcpCallOut, perm: null, level: 'use', risk: 'medium', gate: { act: 'send', when: "actor.kind != 'person'" }, errors: ['validation.not_found', 'provider.unavailable', 'permission.no_grant', 'validation.precondition_failed'],
+    outward('engine.mcp.call', 'Call a tool of an outside tool server or connection (app hub, OAuth server, remote MCP) that may change things, as mcp_tools lists it; an agent\'s call goes through the Gate', {
+      in: mcpCallIn, out: mcpCallOut, perm: null, level: 'use', risk: 'medium', gate: { act: 'send', when: "actor.kind != 'person'" }, tool: 'agents', mcpName: 'mcp_call', agent: { planMode: 'blocked', blocks: [] },
+      errors: ['validation.not_found', 'provider.unavailable', 'permission.no_grant', 'validation.precondition_failed'],
     }),
     // ---- control of a running thread (K list)
     write('engine.interrupt', 'Interrupt now: cancel the current turn and queue the message at top priority ("stop and send")', {
@@ -288,7 +294,19 @@ export default defineManifest({
       in: { accountRef }, out: { ok: t.bool(), models: t.opt(t.int()), error: t.opt(errShape) }, tool: 'meta', errors: ['provider.auth_failed', 'provider.unavailable', 'provider.network'],
     }),
     read('engine.models.list', 'Models the account can reach; models that the open labels or policy forbid are listed greyed with the reason', {
-      in: { accountRef: t.opt(accountRef), threadId: t.opt(id.thread), recordLabel: t.opt(label) }, out: { models: t.arr(modelInfo) }, tool: 'meta',
+      in: {
+        accountRef: t.opt(accountRef), threadId: t.opt(id.thread), recordLabel: t.opt(label),
+        refresh: t.opt(t.bool()),
+        wait: t.opt(t.bool()),
+      },
+      out: {
+        models: t.arr(modelInfo),
+        listed: t.opt(t.obj({
+          source: t.enm('live', 'saved', 'shipped'), updatedAt: t.opt(t.ts()), refreshing: t.bool(),
+          failed: t.bool(),
+        }, { description: 'How fresh the subscription engines\' lists are; left out when none is listed' })),
+      },
+      tool: 'meta',
     }),
     read('engine.providers.list', 'AI providers and engines (API and CLI) with whether each is connected and allowed for the open labels', {
       in: { threadId: t.opt(id.thread) },

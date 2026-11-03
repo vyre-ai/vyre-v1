@@ -384,7 +384,7 @@ function ConversationView(): ReactElement {
     if (!lead) return;
     void act.listModels(data).then(
       (models) => menu.show(
-        [{ head: `Model for ${nameOf(lead.agentId)}` } as MenuEntry, ...collect(models, (m): MenuEntry => ({ label: m.title, checked: modelLabel(lead.model ?? "") === m.title, onSelect: () => { if (!m.allowed) { say(`${m.title} is not allowed here. Ask an admin for access.`); return; } void act.setModel(data, lead.agentId, m).then(() => say(`${nameOf(lead.agentId)} now answers with ${m.title}`), fail("Could not switch the model.")); } }))],
+        [{ head: `Model for ${nameOf(lead.agentId)}` } as MenuEntry, ...collect(models, (m): MenuEntry => ({ label: m.title, checked: m.model === lead.model || (m.alias !== undefined && m.alias === lead.model) || modelLabel(lead.model ?? "") === m.title, onSelect: () => { if (!m.allowed) { say(`${m.title} is not allowed here. Ask an admin for access.`); return; } void act.setModel(data, lead.agentId, m).then(() => say(`${nameOf(lead.agentId)} now answers with ${m.title}`), fail("Could not switch the model.")); } }))],
         x, y, "other", { label: "Model" },
       ),
       fail("Could not list the models."),

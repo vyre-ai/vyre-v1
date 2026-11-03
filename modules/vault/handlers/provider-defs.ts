@@ -2,7 +2,7 @@
 // vault_provider_def). Nothing about a provider lives in code except the engine driver its `engine` names. A bad built-in file stops the module at first use with the file named; a bad custom
 // definition is refused when it is added.
 //
-// A definition: key, name, connections (subscription | api_key | local_model), modelsSource ("static", an address, or "{address}/v1/models"), engine (the driver), and optionally order, logo,
+// A definition: key, name, connections (subscription | api_key | local_model), modelsSource ("static", "engine" for a subscription engine whose own CLI lists them (modules/engine/live-models.ts; models is then the release's shipped list), an address, or "{address}/v1/models"), engine (the driver), and optionally order, logo,
 // models (what a static list offers), instruction (sign-in text), base (the address the driver talks to when the provider has its own) and keyless (no key at all).
 import { readdirSync, readFileSync } from "node:fs";
 

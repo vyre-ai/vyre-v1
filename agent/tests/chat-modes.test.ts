@@ -18,7 +18,7 @@ import { driverDeps, newSpy, specOf } from "../fixtures/golden-streams/rig.ts";
 const BASE: CommandOptions = { model: null, resume: null, mcpUrl: "http://127.0.0.1:4100/mcp", planMode: false, workFolder: "/work/acme", system: null };
 const after = (argv: readonly string[], flag: string): string | undefined => argv[argv.indexOf(flag) + 1];
 const allowedOf = (argv: readonly string[]): string[] => argv.slice(argv.indexOf("--allowedTools") + 1, argv.indexOf("--add-dir"));
-const VYRE_AND_FOLDER = ["mcp__vyre__*", "WebSearch", "WebFetch", "Read", "Edit", "Write", "Glob", "Grep", "Bash"];
+const VYRE_AND_FOLDER = ["mcp__vyre__*", "WebSearch", "WebFetch", "Read", "Edit", "Write", "Glob", "Grep", "Bash", "Skill"];
 
 // ---- Claude Code: --permission-mode and --effort (both checked against `claude --help`, 2.1.314)
 
@@ -26,13 +26,13 @@ test("claude: Ask first is default and allows only the tools that change nothing
   const cmd = (o: Partial<CommandOptions>) => CLI_ADAPTERS.claude_code.command({ ...BASE, ...o });
   const ask = cmd({ mode: "ask" });
   assert.equal(after(ask, "--permission-mode"), "default");
-  assert.deepEqual(allowedOf(ask), ["mcp__vyre__*", "WebSearch", "WebFetch", "Read", "Glob", "Grep"], "Edit, Write and Bash would prompt, which a headless run cannot answer: they are withheld");
+  assert.deepEqual(allowedOf(ask), ["mcp__vyre__*", "WebSearch", "WebFetch", "Read", "Glob", "Grep", "Skill"], "Edit, Write and Bash would prompt, which a headless run cannot answer: they are withheld; Skill only reads");
   const auto = cmd({ mode: "auto" });
   assert.equal(after(auto, "--permission-mode"), "acceptEdits");
   assert.deepEqual(allowedOf(auto), VYRE_AND_FOLDER);
   const plan = cmd({ mode: "plan" });
   assert.equal(after(plan, "--permission-mode"), "plan");
-  assert.deepEqual(allowedOf(plan), ["mcp__vyre__*", "WebSearch", "WebFetch", "Read", "Glob", "Grep"]);
+  assert.deepEqual(allowedOf(plan), ["mcp__vyre__*", "WebSearch", "WebFetch", "Read", "Glob", "Grep", "Skill"]);
   // no mode (a step, a one-shot job): the older rule, plan mode alone is told apart
   assert.equal(after(cmd({}), "--permission-mode"), "default");
   assert.deepEqual(allowedOf(cmd({})), VYRE_AND_FOLDER);

@@ -8,6 +8,7 @@ import path from "node:path";
 import { sandboxWrap, workFolder } from "../sandbox.ts";
 import type { SandboxPlan } from "../sandbox.ts";
 import { forgetLabels, setLabelRunner } from "../../../sandbox/src/win/lowrun.ts";
+import { engineAccess } from "../../../sandbox/src/index.ts";
 
 test("the Low-integrity wrap: the helper, the engine's argv untouched, its folders labelled Low, its home and temp in scratch, the proxy", () => {
   const data = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "vyre-lowil-")));
@@ -31,6 +32,30 @@ test("the Low-integrity wrap: the helper, the engine's argv untouched, its folde
   assert.equal(env["TEMP"], path.join(scratch, "tmp"));
   assert.ok(!("ANTHROPIC_API_KEY" in env), "the key stays in the spawn's own environment");
   assert.deepEqual(labelled, [path.join(data, "work", "usr_dana"), fs.realpathSync(scratch), added]);
+  setLabelRunner(null);
+  forgetLabels();
+});
+
+test("git over SSH at Low (lane l-winfix): GIT_SSH is Vyre's ssh helper with a config of its own, the agent reached through a relay pipe, CODEX_HOME made", () => {
+  const data = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "vyre-lowil-")));
+  setLabelRunner(() => ({ status: 0 }));
+  forgetLabels();
+  const plan: SandboxPlan = { dataDir: data, egressHosts: [], sandbox: { kind: "lowil", helper: "C:\\v\\vyre-lowrun-abc.exe", proxyPort: 4321, ssh: "C:\\d\\engines\\vyre-ssh\\vyre-ssh-abc.exe" } };
+  const cwd = workFolder(data, "usr_dana", "thr_1");
+  const access = engineAccess({ where: "own", home: os.homedir(), dataDir: data, platform: "win32", sshAuthSock: "\\\\.\\pipe\\openssh-ssh-agent", exists: () => false });
+  const argv = sandboxWrap(plan, { homeFromScratch: true, access })(["git", "clone", "ssh://git@example.com/x.git"], { cwd, env: {} });
+  const relayAt = argv.indexOf("--agent-relay");
+  assert.ok(relayAt > 0 && relayAt < argv.indexOf("--"));
+  assert.match(argv[relayAt + 1] as string, /^vyre-agent-\d+-[0-9a-f]{12}$/);
+  assert.equal(argv[relayAt + 2], "openssh-ssh-agent");
+  const env = Object.fromEntries(Buffer.from(argv[2] as string, "base64").toString("utf8").split("\0").map((kv) => [kv.slice(0, kv.indexOf("=")), kv.slice(kv.indexOf("=") + 1)]));
+  assert.equal(env["GIT_SSH"], "C:\\d\\engines\\vyre-ssh\\vyre-ssh-abc.exe");
+  assert.equal(env["GIT_SSH_VARIANT"], "ssh");
+  assert.equal(env["GIT_SSH_COMMAND"], undefined, "no shell: GIT_SSH_COMMAND would win over GIT_SSH and go through sh");
+  const config = fs.readFileSync(env["VYRE_SSH_CONFIG"] as string, "utf8");
+  assert.match(config, /^ {2}ProxyCommand ".*node(\.exe)?" ".*connect\.mjs" 4321 %h %p$/m);
+  assert.ok(config.includes(`  IdentityAgent "\\\\\\\\.\\\\pipe\\\\${argv[relayAt + 1]}"`), config);
+  assert.ok(fs.existsSync(env["CODEX_HOME"] as string), "codex.exe refuses a CODEX_HOME that is not there");
   setLabelRunner(null);
   forgetLabels();
 });

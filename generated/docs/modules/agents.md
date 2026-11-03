@@ -70,7 +70,7 @@ Requires: chat, engine, mcp, memory, runs, terminal.
 - [plugins.set_enabled](../capabilities/plugins.set_enabled.md): Turn an installed plugin off or on without removing it
 - [plugins.uninstall](../capabilities/plugins.uninstall.md): Remove an installed plugin and what it brought
 - [skills.add](../capabilities/skills.add.md): Add or replace a skill in the Space library, or in one agent (SKILL.md text with name and description in its front matter, plus optional supporting files)
-- [skills.list](../capabilities/skills.list.md): Skills a chat with this agent can load: Vyre built-in, the Space library and the agent own skills/ folder, one line each. With no agentId, the Space library and built-in ones
+- [skills.list](../capabilities/skills.list.md): Skills a chat with this agent can load: Vyre built-in, the Space library and the agent own skills/ folder, one line each. Two with one name are both listed, the one not used marked shadowedBy; a broken one is marked broken. With no agentId, the Space library and built-in ones
 - [skills.load](../capabilities/skills.load.md): Load the full text of one skill by name (SKILL.md body and its supporting files); agent skills win over Space ones, Space ones over built-in
 - [skills.remove](../capabilities/skills.remove.md): Remove a skill from the Space library, or from one agent
 - [skills.set_enabled](../capabilities/skills.set_enabled.md): Turn a Space or agent skill off or on without removing it

@@ -3,19 +3,20 @@
 // agent's tools run through the invoke pipeline. An API-key driver gets the agent's role as its system prompt and no tools yet: running its tools needs the engine's tool runner (callTool),
 // which is a separate packet; until then a chat on an API key answers in words only.
 import { LaunchError, createLocalLauncher } from "../../agent/src/drivers/cli/launcher.ts";
-import { ACCESS_ENV, RULE_ENV, SandboxError, accessFromEnv, engineAccess, ruleFromEnv } from "../../sandbox/src/index.ts";
+import { ACCESS_ENV, RULE_ENV, SandboxError, WIN_SSH_AGENT_PIPE, accessFromEnv, engineAccess, ruleFromEnv } from "../../sandbox/src/index.ts";
 import type { AccessAsked, EgressEvent, EgressRule, EngineAccess } from "../../sandbox/src/index.ts";
 import os from "node:os";
 import { openMcpBridge, openWslMcpBridge } from "./mcp-bridge.ts";
 import { cliSandboxCode, enginePath, wallEgress, wallEgressOfRule } from "./sandbox-default.ts";
 import { CLI_NAME, findProgram, isOwned, ownedDirs } from "./cli-programs.ts";
 import type { NodeCliProbe } from "./cli-programs.ts";
-import { sandboxWrap, scratchFolder, workFolder } from "./sandbox.ts";
+import { sandboxWrap, scratchFolder, workFolder, workParts } from "./sandbox.ts";
 import { ensureWorkspace } from "./handlers/crew.ts";
 import { placeCredentialFiles, takeCredentialFiles } from "./credential-files.ts";
 import type { Placed } from "./credential-files.ts";
 import type { CliProcess, LaunchSpec, Launcher } from "../../agent/src/drivers/cli/types.ts";
 import { nativePlugins } from "./plugin-native.ts";
+import { syncNativeSkills } from "./skills-native.ts";
 import type { SandboxPlan } from "./sandbox.ts";
 import type { ApiTools } from "../../agent/src/drivers/open/api-tools.ts";
 import type { SystemBlock } from "../../agent/src/drivers/api/types.ts";
@@ -84,6 +85,8 @@ export interface OpenerHost {
   now?: () => number;
   /** Set false to keep installed plugins out of a CLI engine's own config. Default: they are written there. */
   pluginsNative?: boolean;
+  /** Set false to keep the agent's skills out of a Claude Code or Codex work folder (skills-native.ts). Default: they are written there. */
+  skillsNative?: boolean;
   /**
    * What a chat keeps between engine sessions (modules/engine/cli-sessions.ts): the CLI engine's own session id per chat, agent, person and engine (read when a session opens, written when the engine
    * names a new one), and the chat's "Keep this every time", written into the work folder's compact instructions. Absent: every session starts new, as before.
@@ -263,9 +266,11 @@ export function accessHere(dataDir: string, cwd: string | undefined, asked: Acce
   const own = [...(cwd ? [cwd] : []), ...(where ? [scratchFolder(dataDir, where.person)] : [])];
   const toolbox = path.join(data, "toolbox");
   if (asked.where === "server") fs.mkdirSync(toolbox, { recursive: true });
-  const sock = Object.hasOwn(o, "sshAuthSock") ? o.sshAuthSock : process.env["SSH_AUTH_SOCK"];
+  const platform = o.platform ?? process.platform;
+  // Windows OpenSSH's agent answers on its named pipe whether or not SSH_AUTH_SOCK names it
+  const sock = Object.hasOwn(o, "sshAuthSock") ? o.sshAuthSock : process.env["SSH_AUTH_SOCK"] ?? (platform === "win32" ? WIN_SSH_AGENT_PIPE : undefined);
   return engineAccess({
-    where: asked.where, home: o.home ?? os.homedir(), dataDir: data, platform: o.platform ?? process.platform, folders: asked.folders.filter((f) => fs.existsSync(f)).map(real), own, toolbox,
+    where: asked.where, home: o.home ?? os.homedir(), dataDir: data, platform, folders: asked.folders.filter((f) => fs.existsSync(f)).map(real), own, toolbox,
     ...(asked.where === "own" && sock ? { sshAuthSock: sock } : {}), exists: fs.existsSync,
   });
 }
@@ -279,12 +284,17 @@ echo "sudo: AI tools in Vyre do not get administrator rights. Ask the person to 
 exit 126
 `;
 
-function withSudoShim(a: EngineAccess, dataDir: string, cwd: string | undefined): EngineAccess {
+/** The same answer for cmd.exe and PowerShell on Windows. */
+export const SUDO_CMD_SHIM = "@echo off\r\necho sudo: AI tools in Vyre do not get administrator rights. Ask the person to run it: call the terminal_request tool with command \"sudo %*\" and why it is needed; they can run it in their terminal with one click. 1>&2\r\nexit /b 126\r\n";
+
+export function withSudoShim(a: EngineAccess, dataDir: string, cwd: string | undefined, platform: NodeJS.Platform = process.platform): EngineAccess {
   const who = workOf(dataDir, cwd);
   if (!who) return a;
   const bin = path.join(scratchFolder(dataDir, who.person), "bin");
   fs.mkdirSync(bin, { recursive: true });
   for (const name of ["sudo", "doas"]) fs.writeFileSync(path.join(bin, name), SUDO_SHIM, { mode: 0o755 });
+  // Windows: cmd.exe and PowerShell find sudo.cmd before Windows' own sudo.exe when this folder is first on PATH; Git Bash runs the script above
+  if (platform === "win32") for (const name of ["sudo", "doas"]) fs.writeFileSync(path.join(bin, `${name}.cmd`), SUDO_CMD_SHIM);
   return { ...a, pathAdd: [bin, ...a.pathAdd] };
 }
 
@@ -296,13 +306,10 @@ export function withAccess(spec: LaunchSpec, asked: AccessAsked): LaunchSpec {
 /** Where an engine process went on the network: one call per host and verdict per process (at most 40 of each), with the person and thread of its work folder. */
 export type EgressWatch = (where: { person: string; threadId: string }, e: EgressEvent) => void;
 
-/** The person and the thread of a work folder `<dataDir>/work/<person>/<thread>`, or null for any other folder. */
+/** The person and the thread of a work folder (sandbox.ts workParts: `<dataDir>/work/<person>/<thread>`, or the short Windows layout), or null for any other folder. */
 function workOf(dataDir: string, cwd: string | undefined): { person: string; threadId: string } | null {
-  if (cwd === undefined) return null;
-  let root: string;
-  try { root = fs.realpathSync(path.join(dataDir, "work")); } catch { return null; }
-  const rel = path.relative(root, cwd).split(path.sep);
-  return rel.length === 2 && rel.every((x) => x !== "" && x !== "..") ? { person: rel[0] as string, threadId: rel[1] as string } : null;
+  const w = workParts(dataDir, cwd);
+  return w ? { person: w.person, threadId: w.threadId } : null;
 }
 
 /** One report per host, port and verdict for the life of a process, and at most 40 hosts reached and 40 refused: a turn that fetches a thousand files from one registry is one line. */
@@ -356,6 +363,11 @@ export function refuseMissingProgram(program: string, probe?: NodeCliProbe): voi
   if (program in CLI_NAME && findProgram(program, probe) === null) throw new LaunchError("engine.cli_missing", `${program} is not installed on this computer.`);
 }
 
+/** The Space's rule, or "Only the AI providers" when it cannot be read. */
+async function ruleOf(e: NonNullable<OpenerHost["egress"]>): Promise<EgressRule> {
+  try { return await e.rule(); } catch { return wallEgress({ mode: "providers", hosts: [] }).rule; }
+}
+
 /** The MCP bridge of one session: refused with sandbox.unavailable where the engine cannot be sandboxed (the spawn would refuse the same way), engine.mcp_unavailable when the bridge cannot open. */
 export async function openBridge(plan: () => Promise<SandboxPlan>, m: { url: string; token: string }, scratch: string): Promise<Awaited<ReturnType<typeof openMcpBridge>> | null> {
   const s = (await plan()).sandbox;
@@ -364,11 +376,6 @@ export async function openBridge(plan: () => Promise<SandboxPlan>, m: { url: str
   if (s.kind === "lowil") return null;
   try { return s.kind === "wsl" ? await openWslMcpBridge(s.agent, m, { scratch }) : await openMcpBridge(m, { scratch }); }
   catch (e) { throw Object.assign(new Error(`the engine's link to Vyre's tools could not open: ${e instanceof Error ? e.message : String(e)}`), { code: "engine.mcp_unavailable" }); }
-}
-
-/** The Space's rule, or "Only the AI providers" when it cannot be read. */
-async function ruleOf(e: NonNullable<OpenerHost["egress"]>): Promise<EgressRule> {
-  try { return await e.rule(); } catch { return wallEgress({ mode: "providers", hosts: [] }).rule; }
 }
 
 /** Builds the opener; the runtime keeps it for the life of the daemon and calls close() on shutdown. */
@@ -411,7 +418,14 @@ export function buildOpener(h: OpenerHost): SessionOpener {
     // Behind the wall the engine cannot reach the daemon's loopback: its MCP config starts a stdio shim that talks to a unix socket in the person's scratch folder (ruling 61), a named pipe on Windows.
     // A computer that cannot sandbox the engine refuses here, before anything is opened, with the sandbox's own reason; a bridge that cannot open says so with a code of its own.
     ...(dataDir ? { mcpBridge: (m: { url: string; token: string }, spec: { asker: string }) => openBridge(plan, m, scratchFolder(dataDir, spec.asker)) } : {}),
-    ...(dataDir && h.pluginsNative !== false ? { nativePlugins: (spec: SessionSpec, driver: "claude_code" | "codex") => nativePlugins({ call: h.call }, driver, spec.agent.id, spec.asker, workFolder(dataDir, spec.asker, spec.threadId)) } : {}),
+    // before a Claude Code or Codex engine starts: the agent's skills where the CLI reads its own (refreshed before each turn by the runtime), then its plugins
+    ...(dataDir && (h.pluginsNative !== false || h.skillsNative !== false) ? {
+      nativePlugins: async (spec: SessionSpec, driver: "claude_code" | "codex") => {
+        const work = workFolder(dataDir, spec.asker, spec.threadId);
+        if (h.skillsNative !== false && spec.tools !== "none") await syncNativeSkills({ call: h.call }, driver, spec.agent.id, spec.asker, work).catch(() => undefined);
+        return h.pluginsNative !== false ? nativePlugins({ call: h.call }, driver, spec.agent.id, spec.asker, work) : null;
+      },
+    } : {}),
     ...(dataDir ? {
       cli: {
         workFolder: (spec: SessionSpec) => workFolder(dataDir, spec.asker, spec.threadId),

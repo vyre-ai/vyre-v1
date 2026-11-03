@@ -26,8 +26,10 @@ import { checkedOpen, createRunnableAccount } from "./runnable-account.ts";
 import { skipLocked } from "./locked-account.ts";
 import type { NodeCliProbe } from "./cli-programs.ts";
 import { configureEngines, engines, enginesRoot } from "./engine-install.ts";
-import { createContextBuilder, diskSkills, takeHandoff, withTurnContext } from "./context.ts";
+import { capabilitySkills, createContextBuilder, takeHandoff, withTurnContext } from "./context.ts";
 import { withTranscript } from "./transcript.ts";
+import { withNativeSkills } from "./skills-native.ts";
+import { workFolder } from "./sandbox.ts";
 import { createCompactor, withCompaction } from "./compact.ts";
 import type { Compactor } from "./compact.ts";
 import { keepEvery, keepsSession, resumeId, saveResumeId } from "./cli-sessions.ts";
@@ -43,6 +45,7 @@ import { EGRESS_SETTING, recordEgress } from "./egress-log.ts";
 import type { AccessAsked, EgressRule } from "../../sandbox/src/index.ts";
 import { closePluginRuntime, pluginRuntime } from "./plugin-host.ts";
 import { bindOauthStore } from "./mcp-oauth.ts";
+import { bindModelLister } from "./live-models.ts";
 import { createPluginTools } from "./plugin-tools.ts";
 import type { DefaultSandbox } from "./sandbox-default.ts";
 import type { SandboxPlan } from "./sandbox.ts";
@@ -86,7 +89,7 @@ export interface EngineHostSeam {
   log?: (msg: string, attrs?: Record<string, unknown>) => void;
   /** Run chat.post as an agent (the host builds the call with the agent as principal). With it the chat bridge is attached: the engine's replies become chat posts. */
   postAs?: PostAs;
-  /** The skills the turn context indexes and loads a focus skill from. Default: the built-in skills on disk (agent/skills). */
+  /** The skills the turn context indexes and loads a focus skill from. Default: the skills module's loader (skills.list and skills.load as the asker), with the built-ins on disk when it cannot answer. */
   skills?: import("./context.ts").SkillsPort;
   /** Live turn events (text as it is written, the end, the message it became) for the host to put on the live socket. */
   stream?: (e: StreamEvent) => void;
@@ -123,7 +126,7 @@ export function setEngineHost(h: EngineHostSeam | null): void {
   const root = h?.engines?.install ? enginesRoot({ dataDir: h.dataDir }) : null;
   const vm = root !== null && wslEngines(h);
   configureEngines(root !== null ? { root: vm ? path.join(root, "wsl") : root, ...(vm ? { platform: process.arch === "arm64" ? "linux-arm64-musl" as const : "linux-x64-musl" as const } : {}), ...(h?.log ? { log: h.log } : {}) } : null);
-  if (h === null) { bindEngine(null); bindBridge(null); bindOpener(null); completer = null; compactor = null; bindStepOpen(null); }
+  if (h === null) { bindEngine(null); bindBridge(null); bindOpener(null); completer = null; compactor = null; bindStepOpen(null); bindModelLister(null); }
 }
 
 export function engineHost(): EngineHostSeam | null { return host; }
@@ -337,6 +340,8 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
   const egress = { rule: () => spaceRule(h.call), record: (where: { person: string; threadId: string }, e: Parameters<typeof recordEgress>[3]) => recordEgress(ctx.db, h.call, where, e, now0, h.log) };
   const access = (asker: string) => engineAccessFor(h.call, asker);
   const opener = host.openSession ? null : buildOpener({ sessions, egress, access, ...(h.own ? { own: h.own } : {}), ...(apiTools ? { apiTools } : {}), session: host.session as EngineSessionPorts, call: h.call, ...(host.sandbox ? { sandbox: host.sandbox } : {}), ...(host.cli?.command ? { cliCommand: host.cli.command } : {}), ...(cliProbeOf(host) ? { cliProbe: cliProbeOf(host) as NodeCliProbe } : {}), ...(host.dataDir ? { dataDir: host.dataDir, defaultSandbox: defaultPlan(host.dataDir, cliRead(host)) } : {}) });
+  // the composer's model menu asks each subscription engine for its own list, through this opener: the person's sandbox and sign-in, as a turn would run (live-models.ts)
+  bindModelLister(opener ? (account, asker, o) => opener.models(account, asker, o) : null);
   // a turn whose engine Vyre is installing says so on its live line ("Setting up Codex"); the line is the bridge's, which exists once the runtime is built below
   let setupLine: ((e: StreamEvent) => void) | null = null;
   const installer = engines();
@@ -382,6 +387,9 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
     note: (spec, text) => noteLine(spec.agent.id, spec.asker, spec.threadId, text === SLEPT_WAIT_LINE ? { state: "device_wait", text, threadId: spec.threadId } : { state: "note", text }),
     live: (spec, phase) => setupLine?.({ kind: "step", threadId: spec.threadId, turnId: spec.turnId, agentId: spec.agent.id, phase, id: `${DEVICE_WAIT_STEP}_${spec.turnId}`, name: DEVICE_WAIT_STEP, ...(phase === "result" ? { ok: true } : {}) }),
   }) : baseOpen;
+  // a Claude Code or Codex chat gets the agent's skills in its work folder before every turn, so one added mid-chat reaches a running engine (the opener wrote them as it started)
+  const skillsDir = host.sandbox?.dataDir ?? host.dataDir;
+  const nativeSkills = (o: OpenSession): OpenSession => (!host.openSession && skillsDir ? withNativeSkills(o, { call: h.call, workOf: (spec) => workFolder(skillsDir, spec.asker, spec.threadId), ...(h.log ? { log: h.log } : {}) }) : o);
   closeOpener = opener ? async () => { await opener.close(); await Promise.all([...nodeOpeners.values()].map((o) => o.close())); } : null;
   building ??= (async () => {
     const now = h.now ?? Date.now;
@@ -392,7 +400,7 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
     // The turn context is built as the asker before each turn (modules/engine/context.ts); what the agent waits on is read off the engine once it exists.
     let running: TurnEngine | null = null;
     const turnContext = createContextBuilder({
-      call: h.call, skills: h.skills ?? diskSkills(), now, handoff: takeHandoff,
+      call: h.call, skills: h.skills ?? capabilitySkills(h.call), now, handoff: takeHandoff,
       waiting: (threadId, agentId) => (running?.waiting(threadId) ?? []).filter((w) => w.agentId === agentId).map((w) => `an answer to task ${w.taskId} (a held call needs approval)`),
     });
     const limitSwitch = createLimitSwitch({
@@ -407,7 +415,7 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
       },
     });
     const engine = createTurnEngine({
-      holder: h.holder, openSession: withHeldNotes(withChatSettings(withSpaceKeyTurns(withTurnContext(withCompaction(withTranscript(withRecall(bridge ? bridge.tap(openSession) : openSession, h.call), h.call, now), ctx.db), turnContext), { call: h.call, db: ctx.db, now }), h.call)), now,
+      holder: h.holder, openSession: withHeldNotes(withChatSettings(withSpaceKeyTurns(withTurnContext(nativeSkills(withCompaction(withTranscript(withRecall(bridge ? bridge.tap(openSession) : openSession, h.call), h.call, now), ctx.db)), turnContext), { call: h.call, db: ctx.db, now }), h.call)), now,
       queue: sqlQueue(ctx.db), leases: sqlLeases(ctx.db), messages: sqlMessages(ctx.db, now), waits: sqlWaits(ctx.db), newId: (p) => mintEngineId(p, now()),
       admit: (q) => admission(h, q),
       lostTurn: (row) => lostTurnId(ctx.db, row, () => mintEngineId("trn", now())),

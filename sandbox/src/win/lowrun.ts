@@ -75,10 +75,37 @@ export function labelLow(dir: string): void {
 /** Forget which folders were labelled (tests). */
 export function forgetLabels(): void { labelled.clear(); }
 
-/** The argv that starts `argv` at Low integrity with `env` added. */
-export function lowrunArgv(helper: string, argv: readonly string[], env: Readonly<Record<string, string>>): string[] {
+/**
+ * The argv that starts `argv` at Low integrity with `env` added. `agentRelay`: the helper serves `pipe` (labelled Low, this user only) for the life of the job, passes each connection on to the
+ * SSH agent's `target` pipe, and points SSH_AUTH_SOCK at it.
+ */
+export function lowrunArgv(helper: string, argv: readonly string[], env: Readonly<Record<string, string>>, o: { agentRelay?: { pipe: string; target: string } } = {}): string[] {
   const pairs = Object.entries(env).map(([k, v]) => `${k}=${v}`).join("\0");
-  return [helper, ...(pairs !== "" ? ["--env", Buffer.from(pairs, "utf8").toString("base64")] : []), "--", ...argv];
+  const relay = o.agentRelay && PIPE_NAME.test(o.agentRelay.pipe) && PIPE_NAME.test(o.agentRelay.target) ? ["--agent-relay", o.agentRelay.pipe, o.agentRelay.target] : [];
+  return [helper, ...(pairs !== "" ? ["--env", Buffer.from(pairs, "utf8").toString("base64")] : []), ...relay, "--", ...argv];
+}
+
+/** A pipe's own name (what follows \\.\pipe\): letters, digits, dot, dash, underscore. */
+export const PIPE_NAME = /^[A-Za-z0-9._-]{1,200}$/;
+
+/** The pipe name of an SSH agent address (\\.\pipe\name, either slash), or null. */
+export function pipeName(sock: string | undefined): string | null {
+  const m = /^[\\/]{2}\.[\\/]pipe[\\/](.+)$/i.exec(sock ?? "");
+  return m && PIPE_NAME.test(m[1] as string) ? (m[1] as string) : null;
+}
+
+/**
+ * git's ssh on Windows: a copy of the helper named vyre-ssh-<version>.exe (its name makes it run Windows OpenSSH with -F %VYRE_SSH_CONFIG%), in `dir`, a folder the engine may read and not change.
+ * Made once per helper version.
+ */
+export function ensureSshShim(helper: string, dir: string): string {
+  const version = path.basename(helper).replace(/^vyre-lowrun-/, "").replace(/\.exe$/i, "");
+  const shim = path.join(dir, `vyre-ssh-${version}.exe`);
+  if (fs.existsSync(shim)) return shim;
+  fs.mkdirSync(dir, { recursive: true });
+  fs.copyFileSync(helper, `${shim}.part`);
+  fs.renameSync(`${shim}.part`, shim);
+  return shim;
 }
 
 /**

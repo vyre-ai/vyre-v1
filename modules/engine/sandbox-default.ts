@@ -9,8 +9,9 @@ import type { EgressEvent, EgressRule } from "../../sandbox/src/index.ts";
 import { DISTRO_PIN } from "../../sandbox/src/wsl/pins.ts";
 import { ensureDistro, startWslAgent, wslOn } from "../../sandbox/src/wsl/wsl.ts";
 import type { AgentOptions } from "../../sandbox/src/wsl/wsl.ts";
-import { LABELS, ensureLowrun, lowrunPossible, setLabel } from "../../sandbox/src/win/lowrun.ts";
+import { LABELS, ensureLowrun, ensureSshShim, lowrunPossible, setLabel } from "../../sandbox/src/win/lowrun.ts";
 import { privateBash } from "../../sandbox/src/win/msys.ts";
+import { layoutRoots } from "./sandbox.ts";
 import type { EngineSandbox, SandboxPlan } from "./sandbox.ts";
 
 /** The AI providers' API and sign-in hosts: what a CLI engine needs to work at all, and all it may reach under "Only the AI providers". */
@@ -118,11 +119,6 @@ export function protectVyreData(helper: string, binDir: string, dirs: readonly s
 
 /** Where the Windows helper lives: Vyre's own folder, never the roaming profile. */
 export const winBinDir = (env: Readonly<Record<string, string | undefined>> = process.env): string => path.win32.join(env["LOCALAPPDATA"] ?? env["APPDATA"] ?? "C:\\", "ai.vyre.desktop", "bin");
-
-/** The wall's egress options, built in this one place for every platform: plain data, the policy of the turn that starts (lane l-openweb's shared policy lands here). */
-export function wallOptions(hosts: readonly string[]): AgentOptions["wall"] {
-  return { allow: [...hosts] };
-}
 
 const BWRAP = ["/usr/bin/bwrap", "/usr/local/bin/bwrap", "/bin/bwrap"];
 
@@ -236,11 +232,14 @@ export async function defaultSandbox(o: DefaultSandboxOptions): Promise<DefaultS
     const bash = await privateBash(msys).catch(() => null);
     // Vyre's folders (and the data folder itself, which the work folders are under) private; the roots an engine works under, its engines and its Git Bash readable
     const priv = [...new Set([...(o.privateDirs ?? vyrePrivateDirs(o.dataDir)), o.dataDir])];
-    protectVyreData(helper, bin, priv, [path.join(o.dataDir, "work"), path.join(o.dataDir, "scratch"), path.join(o.dataDir, "engines"), ...(bash ? [msys] : [])]);
-    const low = (port: number): EngineSandbox => ({ kind: "lowil", helper, proxyPort: port, ...(o.writable ? { writable: o.writable } : {}), ...(bash ? { bash } : {}) });
+    const roots = layoutRoots("win32");
+    protectVyreData(helper, bin, priv, [path.join(o.dataDir, roots.work), path.join(o.dataDir, roots.scratch), path.join(o.dataDir, "engines"), ...(bash ? [msys] : [])]);
+    // git's ssh (no shell, Vyre's config), where the engine may run it and not change it: beside the engines Vyre installed, which are labelled readable
+    const ssh = ensureSshShim(helper, path.join(o.dataDir, "engines", "vyre-ssh"));
+    const low = (port: number): EngineSandbox => ({ kind: "lowil", helper, proxyPort: port, ssh, ...(o.writable ? { writable: o.writable } : {}), ...(bash ? { bash } : {}) });
     const proxy = createEgressProxy({ ...egress });
     const { port } = await proxy.listen();
-    // a turn's own proxy, as on a Mac: the rule it carries and its own record of where it went
+    // a turn's own proxy: the rule it carries and its own record of where it went, as on a Mac
     const openWall = async (e: WallEgress, onEvent?: (ev: EgressEvent) => void): Promise<OpenedWall> => {
       const p = createEgressProxy({ ...e, ...(onEvent ? { onEvent } : {}) });
       const l = await p.listen();
@@ -248,8 +247,10 @@ export async function defaultSandbox(o: DefaultSandboxOptions): Promise<DefaultS
     };
     return done(low(port), () => proxy.close(), openWall);
   }
+  // elsewhere the same one reason (bubblewrap missing on Linux, a platform with no sandbox): the plan says so and every CLI turn refuses
+  const gapHere = cliSandboxGap({ platform, ...(o.bwrapPaths ? { bwrapPaths: o.bwrapPaths } : {}) });
+  if (gapHere !== null) return unavailable(gapHere);
   if (platform === "linux") {
-    if (!(o.bwrapPaths ?? BWRAP).some((p) => fs.existsSync(p))) return unavailable("bubblewrap (bwrap) is not installed on this server, so CLI engines cannot be sandboxed");
     const bw = (dir: string): EngineSandbox => ({ kind: "bwrap", wallDir: dir, node, ...(o.programRead ? { programRead: o.programRead } : {}) });
     const wall = await startNetWall({ ...egress });
     // a turn's own wall: the rule it carries (the Space's choice when it started) and its own record of where it went

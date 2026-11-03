@@ -5,10 +5,11 @@
   "connections": [
     "subscription"
   ],
-  "modelsSource": "static",
+  "modelsSource": "engine",
   "engine": "claude-code",
   "models": [
     "claude-opus-5-5",
+    "claude-fable-5-1",
     "claude-sonnet-5-5",
     "claude-haiku-5-5"
   ],
