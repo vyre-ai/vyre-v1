@@ -159,7 +159,9 @@ pub async fn startup_update(app: AppHandle, wait_ms: u64) -> Result<DesktopUpdat
     let wait = Duration::from_millis(wait_ms).min(MAX_WAIT);
     let waiting = st.clone();
     tauri::async_runtime::spawn_blocking(move || waiting.wait(wait)).await.map_err(|e| e.to_string())?;
-    Ok(st.describe(&current_version(&app)))
+    let d = st.describe(&current_version(&app));
+    println!("vyre-desktop: update: the page asked before the lock screen: {:?}{}", d.phase, d.version.as_deref().map(|v| format!(" {v}")).unwrap_or_default());
+    Ok(d)
 }
 
 /// Check now. A network or feed failure comes back as words, never as "up to date".
@@ -275,6 +277,7 @@ fn daemons(app: &AppHandle) -> Vec<Box<dyn LocalService>> {
 #[tauri::command]
 pub async fn install_desktop_update(app: AppHandle) -> Result<(), String> {
     let st = shared(&app);
+    println!("vyre-desktop: update: the page asked to install");
     if !st.begin_install() { return Err("Vyre is already updating.".to_string()); }
     let r = install(&app, &st).await;
     st.end_install();

@@ -33,9 +33,9 @@ function killAll(): void {
   else { spawnSync("pkill", ["-x", "vyre-desktop"], { stdio: "ignore" }); spawnSync("pkill", ["-x", "vyred"], { stdio: "ignore" }); }
 }
 
-function launch(feed: string, tag: string): { child: ChildProcess; log: () => string; waitFor(re: RegExp, ms: number): Promise<boolean> } {
+function launch(feed: string, tag: string, off = false): { child: ChildProcess; log: () => string; waitFor(re: RegExp, ms: number): Promise<boolean> } {
   const env: Record<string, string | undefined> = { ...process.env, VYRE_UPDATE_FEED: feed };
-  delete env["VYRE_NO_AUTO_UPDATE"];
+  if (!off) delete env["VYRE_NO_AUTO_UPDATE"];
   const child = spawn(APP, [], { env, stdio: ["ignore", "pipe", "pipe"] });
   let text = "";
   const file = path.join(OUT, `${process.platform}-${tag}.log`);
@@ -61,6 +61,21 @@ function inOrder(log: string, steps: readonly RegExp[]): string | null {
 const failures: string[] = [];
 const before = bytesOf(APP);
 console.log(`update-proof: ${APP}, ${before.length} bytes`);
+
+// 0. the control: the same installed app with automatic updates off opens to its first screen, so a blank page below is the update's doing and not the install's
+{
+  killAll();
+  const run = launch(GOOD, "control", true);
+  await run.waitFor(/page rendered: \d+ chars/, 60_000);
+  await sleep(4000);
+  shot("control");
+  const chars = Number(/page rendered: (\d+) chars/.exec(run.log())?.[1] ?? "0");
+  console.log(`update-proof: control (updates off) rendered ${chars} chars`);
+  if (chars === 0) failures.push("control: the installed app draws nothing even with updates off");
+  if (/update: downloading/.test(run.log())) failures.push("control: it updated with VYRE_NO_AUTO_UPDATE=1");
+  killAll();
+  await sleep(2000);
+}
 
 // 1. a bad signature is refused and nothing is installed
 {
