@@ -45,7 +45,7 @@ import { replySummaries } from "./replies.ts";
 import type { ReplySummary } from "./replies.ts";
 import type { LiveQuery } from "../../../../../../client/src/index.ts";
 import { isAssistantRow } from "../../../../../../lib/agent-kind.ts";
-import { ChatBrain, compactChat, entryOf, modeOf, prettyModel, setChatMode, stripAgents, useAccounts, useUsage } from "./brain.tsx";
+import { ChatBrain, compactChat, entryOf, modeOf, prettyModel, setChatMode, stripAgents, useAccounts, usePickUnavailable, useUsage } from "./brain.tsx";
 import type { ChatMode } from "../../../../../../ui/src/Composer/index.tsx";
 import { useConnectVersion } from "../../../shell/connect/context.ts";
 import { windowAround } from "./focus.ts";
@@ -277,6 +277,7 @@ function ConversationView(): ReactElement {
   const leadNow = threadQ.status === "loading" ? undefined : leadOf(threadQ.data.thread);
   // the lead's context, read again whenever the message count changes (a turn ended or a message went out)
   const leadUsage = useUsage(data, leadNow?.agentId ?? null, leadNow?.accountRef ?? null, messagesQ.status === "loading" ? 0 : messagesQ.data.messages.length);
+  const leadPickOff = usePickUnavailable(data, leadNow?.model, leadNow?.accountRef ?? null);
   const outsideOffline = useOutsideOffline(data, leadNow?.agentId ?? null, messagesQ.status === "loading" ? 0 : messagesQ.data.messages.length);
   const place = useRunsOn({ call: data.call, threadId: data.threadId, agentId: leadNow?.agentId, spaceName: data.spaceName ?? "The Space", say });
   const serverMode = threadQ.status === "loading" ? null : modeOf(threadQ.data.thread);
@@ -576,7 +577,7 @@ function ConversationView(): ReactElement {
   };
   const contexts = new Map<string, { used: number; window: number } | null>();
   if (lead && leadUsage !== "loading") contexts.set(lead.agentId, leadUsage?.context ?? null);
-  const composerAgents = stripAgents(thread, nameOf, accounts ?? [], contexts);
+  const composerAgents = stripAgents(thread, nameOf, accounts ?? [], contexts, new Set(lead && leadPickOff ? [lead.agentId] : []));
   const personMention = thread.kind === "chat" && thread.members.filter((m) => m.kind === "person").length <= 1
     ? mentionsIn(typed, data.directory.filter((c) => c.kind === "person" && c.id !== data.me.id))[0]
     : undefined;

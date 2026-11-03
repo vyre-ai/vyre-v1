@@ -13,7 +13,8 @@ import { isAssistantId } from "../../../../../../ui/src/Avatar/index.tsx";
 import { useOpenConnect } from "../../../shell/connect/context.ts";
 import type { ConversationData } from "./data.tsx";
 import type { Thread, ThreadAgent } from "./model.ts";
-import { loadMenuModels, pickedRow } from "./live-models.ts";
+import { loadMenuModels, pickedRow, pickUnavailable } from "./live-models.ts";
+import type { ModelsOut } from "./live-models.ts";
 import type { MenuModel } from "./live-models.ts";
 
 /* ---------- capabilities that may not exist yet ---------- */
@@ -123,7 +124,7 @@ export function prettyModel(model: string | undefined, titles?: ReadonlyMap<stri
 }
 
 /** The strip's view of each agent in the thread: provider, model, effort, the account's name when two accounts of one provider are connected, and the context the engine reported. */
-export function stripAgents(thread: Thread, nameOf: (id: string) => string, accounts: readonly PanelAccount[], contexts: ReadonlyMap<string, { used: number; window: number } | null>): ComposerAgent[] {
+export function stripAgents(thread: Thread, nameOf: (id: string) => string, accounts: readonly PanelAccount[], contexts: ReadonlyMap<string, { used: number; window: number } | null>, unavailable: ReadonlySet<string> = new Set()): ComposerAgent[] {
   return thread.agents.map((a: ThreadAgent) => {
     const acct = entryOf(accounts, a.accountRef);
     const sameProvider = acct ? accounts.filter((x) => brandOf(x.provider) === brandOf(acct.provider)).length : 0;
@@ -135,6 +136,7 @@ export function stripAgents(thread: Thread, nameOf: (id: string) => string, acco
       ...(a.effort ? { effort: a.effort } : {}),
       ...(acct && sameProvider > 1 ? { accountName: acct.name } : {}),
       ...(ctx !== undefined ? { context: ctx } : {}),
+      ...(unavailable.has(a.agentId) ? { unavailable: true } : {}),
     } as ComposerAgent;
   });
 }
@@ -162,6 +164,24 @@ export function useUsage(data: Pick<ConversationData, "call" | "threadId">, agen
     return () => { live = false; };
   }, [data, agentId, accountRef ?? "", tick]);
   return u;
+}
+
+/**
+ * True when the model this chat's lead starts with (the person's remembered pick) cannot run here, so the strip can say "Not available here". It reads the saved list (no vendor is asked) for the
+ * lead's account, once per pick. A list that fails to load says nothing.
+ */
+export function usePickUnavailable(data: Pick<ConversationData, "call" | "threadId">, model: string | undefined, accountRef: string | null | undefined): boolean {
+  const [off, setOff] = useState(false);
+  useEffect(() => {
+    if (!model) { setOff(false); return undefined; }
+    let live = true;
+    void Promise.resolve(data.call("engine.models.list", { threadId: data.threadId, probe: false, ...(accountRef ? { accountRef } : {}) })).then(
+      (out) => { if (live) setOff(pickUnavailable(out as ModelsOut | undefined, model)); },
+      () => { if (live) setOff(false); },
+    );
+    return () => { live = false; };
+  }, [data, model ?? "", accountRef ?? ""]);
+  return off;
 }
 
 /* ---------- the panel, wired ---------- */
