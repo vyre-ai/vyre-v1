@@ -265,11 +265,13 @@ export default defineManifest({
     read('engine.account.resolve', 'Resolve the account that pays for a turn: a pin (the chat\'s account, the agent\'s key, the step\'s key), the person\'s own, the Space AI accounts whose uses cover the turn (cheapest that fits, not capped), the backups, else an Unblock', {
       in: {
         ...threadT, agentId: id.agent, askerId: t.opt(id.user), stepKey: t.opt(t.str()), unavailable: t.opt(t.arr(t.str(), { description: 'Accounts that already failed this turn: the answer is the next one in the agent\'s order' })),
+        dry: t.opt({ ...t.bool(), description: 'The composer\'s check before sending: would the caller\'s next message here find an account. The caller is the asker; nothing is recorded' }),
         kind: t.opt({ ...t.enm('chat', 'wake', 'automation', 'goal', 'agent_work'), description: 'What caused the turn, which says which Space AI accounts may pay: a person\'s chat (team chats), a wake-up of a chat or a goal\'s turn (goals), an automation step (automations), or agent work with no asker (agent work). Default chat; a step key means automation' }),
       },
       out: {
         accountRef: t.nullable(accountRef), payer: t.nullable(id.user), reason: t.enm('starter', 'steerer', 'step_key', 'backup_key', 'none'), allowed: t.bool(), itemId: t.opt(id.vaultItem), fellBack: t.opt(t.bool()),
         pin: t.opt(t.obj({ ref: accountRef, used: t.bool(), why: t.opt(t.enm('unknown', 'expired', 'failed', 'policy_company', 'not_yours', 'space_may_not_use', 'failed_this_turn', 'capped', 'no_model')) }, { description: 'The account the chat, agent or step is pinned to; when it did not pay, why' })),
+        why: t.opt({ ...t.enm('no_account', 'expired', 'failed', 'policy'), description: 'When no account can pay: why. expired and failed name the person\'s own account' }),
         modelFallback: t.opt(t.obj({ from: t.str({ description: 'The model the chat asked for' }), to: t.opt(t.str({ description: 'The account\'s default model the turn runs on instead; absent: the engine\'s own default for that account' })) }, { description: 'No account that serves the chat\'s model could pay: a team chat or agent work runs on this account\'s default model, and the chat says so' })),
       }, on: ['thread', '/threadId'],
     }),

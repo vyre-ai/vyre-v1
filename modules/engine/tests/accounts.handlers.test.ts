@@ -53,7 +53,7 @@ test("account.resolve: the starter's key, then the Space's fallback key when it 
   assert.deepEqual(await accountResolve(down.ctx, { threadId: "thr_1", agentId: "agt_1" }), { accountRef: "#Team_Anthropic_Key", payer: "usr_dana", reason: "backup_key", allowed: true, itemId: "vit_prv_3", fellBack: true });
 
   const none = fake(routes([prov({ id: "prv_1", handle: "#Dana_Anthropic", state: "failing" })], { "engine.defaults.get": () => ({ fallback: [] }) }));
-  assert.deepEqual(await accountResolve(none.ctx, { threadId: "thr_1", agentId: "agt_1" }), { accountRef: null, payer: null, reason: "none", allowed: false });
+  assert.deepEqual(await accountResolve(none.ctx, { threadId: "thr_1", agentId: "agt_1" }), { accountRef: null, payer: null, reason: "none", allowed: false, why: "failed" });
 });
 
 test("account.resolve: the steerer pays when the call acts for them; Dana's Mine key is never in their list", async () => {
@@ -147,3 +147,11 @@ test("turning the Space's use of my subscription off stops my sandbox; turning i
 });
 
 // Run on the final commit of this packet, after merging main, so the CI log lists this file as ok.
+
+test("account.resolve dry: the composer's check answers for the caller, not the chat's starter, and says why nothing can pay", async () => {
+  const sam = fake(routes([prov({ id: "prv_9", handle: "#Sam_Anthropic" })], { "engine.defaults.get": () => ({ fallback: [] }) }), { actingFor: "usr_sam" });
+  assert.deepEqual(await accountResolve(sam.ctx, { threadId: "thr_1", agentId: "agt_1", dry: true }), { accountRef: "#Sam_Anthropic", payer: "usr_sam", reason: "steerer", allowed: true, itemId: "vit_prv_9" });
+  const none = fake(routes([], { "engine.defaults.get": () => ({ fallback: [] }) }), { actingFor: "usr_mia" });
+  const out = await accountResolve(none.ctx, { threadId: "thr_1", agentId: "agt_1", dry: true });
+  assert.deepEqual([out.allowed, out.payer, out.why], [false, null, "no_account"]);
+});

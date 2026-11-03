@@ -3,7 +3,7 @@ import { defineManifest, read, screen, t } from '../packages/contracts/src/index
 import { id } from './_common.ts';
 
 const state = t.enm('healthy', 'degraded', 'down');
-const attention = t.obj({ kind: t.enm('failing_check', 'expiring_certificate', 'failed_run', 'stuck_update', 'limit_hit', 'access_review_due', 'join_stuck', 'home_channel'), title: t.str(), ref: t.opt(t.str()), since: t.ts(), next: t.str() });
+const attention = t.obj({ kind: t.enm('failing_check', 'expiring_certificate', 'failed_run', 'stuck_update', 'limit_hit', 'access_review_due', 'join_stuck', 'home_channel', 'no_ai_account'), title: t.str(), ref: t.opt(t.str()), since: t.ts(), next: t.str() });
 const usageRow = t.obj({ key: t.str(), name: t.str(), turns: t.int(), tokensIn: t.int(), tokensOut: t.int(), costMicros: t.int() });
 
 export default defineManifest({

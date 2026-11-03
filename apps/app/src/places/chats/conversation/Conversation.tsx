@@ -52,6 +52,9 @@ import { MemorySwitch } from "./memory-switch.tsx";
 import type { AgentMeta } from "./askagent.ts";
 import { useMobileBack } from "../../../mobile/shell/back.ts";
 import { offlineLine } from "../agentpage/model.ts";
+import { CONNECT_YOURS, NO_AI_LINE, SET_SPACE_KEY, aiReady } from "./ai-ready.ts";
+import type { AiReady } from "./ai-ready.ts";
+import { useOpenConnect } from "../../../shell/connect/context.ts";
 import {
   WINDOW, beforeCursor, byOrder, collect, faces, ghostMessages, findMatches, isClosed, lastMessages, leadOf, matchLine, mentionsIn, mergePages, modeTitle, modelLabel, participants, pendingMessage, placeholderFor, queueNote, queuedCount, queuedIds, sendKind, stillPending, stopLabel, swapNeeded,
   directWith, muteOfferFor, onBehalfOf, threadKindNote, timeline, titleOf, whoLine, workingAgents, withoutAnswered } from "./model.ts";
@@ -130,6 +133,26 @@ export function useOutsideOffline(data: Pick<ConversationData, "call">, agentId:
   return line;
 }
 const OUTSIDE_POLL_MS = 30_000;
+
+/** Before sending, not after a failed reply: no AI account that could pay for my next message to this agent here is said above the composer, with the fix beside it (ai-ready.ts). */
+function NoAiLine({ data, threadId, agentId }: { data: Pick<ConversationData, "call" | "nav">; threadId: string; agentId: string }): ReactElement | null {
+  const [ai, setAi] = useState<AiReady>({ ready: true, admin: false });
+  const openConnect = useOpenConnect();
+  useEffect(() => {
+    let live = true;
+    void aiReady(data.call, threadId, agentId).then((r) => { if (live) setAi(r); });
+    return () => { live = false; };
+  }, [data.call, threadId, agentId]);
+  if (ai.ready) return null;
+  const connect = (): void => { if (openConnect) void openConnect({ kind: "ai" }); else data.nav.openAiSetup?.(); };
+  return (
+    <View testID="no-ai-line" accessibilityLiveRegion="polite" style={st.lineBox}>
+      <Text style={st.lineText}>{NO_AI_LINE}</Text>
+      <TextButton link label={CONNECT_YOURS} testID="no-ai-connect" onPress={connect} />
+      {ai.admin && data.nav.openSpaceAiKey ? <><Text style={st.lineText}>or</Text><TextButton link label={SET_SPACE_KEY} testID="no-ai-space-key" onPress={() => data.nav.openSpaceAiKey?.()} /></> : null}
+    </View>
+  );
+}
 
 function ConversationView(): ReactElement {
   const data = useConversationData();
@@ -645,6 +668,7 @@ function ConversationView(): ReactElement {
           </Pressable>
         </View>
       ) : null}
+      {lead && !closed ? <NoAiLine data={data} threadId={thread.threadId} agentId={lead.agentId} /> : null}
       {parked ? <View testID="hop-parked" accessibilityLiveRegion="polite" style={st.lineBox}><Text style={st.lineText}>{parkedLine(hopLimit)}</Text><TextButton label="Continue" testID="hop-continue" onPress={() => commandEnv().send(CONTINUE_TEXT)} /></View> : null}
       {line ? <View testID="conversation-line" accessibilityLiveRegion="polite" style={st.lineBox}><Text style={st.lineText}>{line}</Text>{undo ? <TextButton link label="Undo" testID="conversation-undo" onPress={undo} /> : null}</View> : null}
       {personMention ? (
