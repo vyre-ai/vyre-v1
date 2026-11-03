@@ -114,6 +114,8 @@ export function statusView(b: MessageBlock): StatusView {
   if (state === "note" && str(d.text) !== "") return { kind: "note", id: b.id, text: str(d.text) };
   // a chat pinned to the person's computer waits for it, quietly, with the way to run it on the server instead
   if (state === "device_wait") return { kind: "wait", id: b.id, text: str(d.text) || DEVICE_WAIT_TEXT, action: { ...RUN_ON_SERVER } };
+  // files a terminal agent deleted in goal/ went to Vyre's Trash (modules/engine/goal-folder.ts): the line carries Undo, which brings them back
+  if (state === "trashed" && str(d.text) !== "" && Array.isArray(d.fileIds)) return { kind: "wait", id: b.id, text: str(d.text), action: { key: `undo_trash:${(d.fileIds as unknown[]).filter((x): x is string => typeof x === "string").join(",")}`, label: "Undo" } };
   if (state === "cancelled") return { kind: "note", id: b.id, text: "Stopped." };
   if (state === "waiting" && str(d.taskId) !== "") return { kind: "approval", id: b.id, taskId: str(d.taskId) };
   if (state === "waiting") return { kind: "note", id: b.id, text: "Waiting for your approval." };

@@ -115,5 +115,30 @@ test("goal folder live: a goal turn reads, edits and adds files in goal/; a chan
     await wake("once more", "w3");
     assert.equal(again["plan.md"], "step one\nstep two\nthe owner's own line\n");
     assert.equal(again["plan (agent copy).md"], "step one\nstep two\nagent step three\n");
+    // ---- turn 4: a few MB goes up through an upload slot, and a file deleted in goal/ goes to Trash with an Undo line
+    const draftsF = (await ok(d, "files.list", { folder: root })).folders.find((f: { name: string }) => f.name === "Drafts");
+    const notes = (await ok(d, "files.list", { folder: research })).files.find((f: { name: string }) => f.name === "notes.md");
+    script = async (work) => {
+      fs.writeFileSync(path.join(work, "goal", "Drafts", "big.bin"), Buffer.alloc(3 * 1024 * 1024, 5));
+      fs.rmSync(path.join(work, "goal", "Research", "notes.md"));
+    };
+    await wake("big one", "w4");
+    await eventually(async () => {
+      const big = (await ok(d, "files.list", { folder: draftsF.folderId })).files.find((f: { name: string }) => f.name === "big.bin");
+      assert.ok(big, "the big file is in Vyre");
+      assert.equal(big.size, 3 * 1024 * 1024);
+      assert.deepEqual((await ok(d, "files.list", { folder: research })).files.map((f: { name: string }) => f.name), [], "notes.md left the folder");
+      const trash = (await ok(d, "files.trash.list", {})).files.map((f: { fileId: string }) => f.fileId);
+      assert.ok(trash.includes(notes.fileId), "it is in Trash, not gone");
+    });
+    const line = await waitFor(async () => {
+      const msgs = (await ok(d, "chat.messages.list", { threadId, limit: 100 })).messages as Array<{ blocks?: Array<{ type: string; data: { state?: string; text?: string; fileIds?: string[] } }> }>;
+      return msgs.flatMap((m) => m.blocks ?? []).find((b) => b.type === "turn_status" && b.data.state === "trashed") ?? null;
+    }, 20_000, () => hostLog(d));
+    assert.match(line.data.text!, /^Moved a file deleted in goal\/ to Vyre's Trash: Research\/notes\.md\.$/);
+    assert.deepEqual(line.data.fileIds, [notes.fileId]);
+    // Undo
+    await ok(d, "files.restore", { fileId: line.data.fileIds![0] });
+    assert.deepEqual((await ok(d, "files.list", { folder: research })).files.map((f: { name: string }) => f.name), ["notes.md"]);
   } finally { clearInterval(pumping); await d.stop(); }
 });

@@ -10,7 +10,10 @@
 // as a copy, which holds only the redacted words). A folder set to Not available is not entered. The rule for folders handed to an engine on a person's computer (mounts.engine_folders: nothing
 // hidden below a disk folder) stays as it is; goal/ is a different thing, a copy that holds nothing but what an agent may read.
 // Writes run as the agent acting for the person (credit "<Person> (Agent)", Review changes folders stage them), through `act`.
-// What cannot be saved back (over 256 KB, which is the direct write limit; a Google document's export) is said in GOAL-SYNC.txt in the work folder, which the skill tells the agent to read.
+// Size: a file up to the Files upload limit (25 MB) is saved back; one over the direct write limit (256 KB) goes up through an upload slot (files.upload_url, bytes put in process by the host), the rest inline.
+// Deletes: a file deleted in goal/ is moved to Vyre's Trash (files.delete as the person, so it is recoverable and not held at the Gate; never a purge), unless it changed in Vyre meanwhile. The chat's turn line
+// says so with Undo (files.restore). A file that is a Google document's export (or has hidden parts) that was edited on disk is saved beside it as a copy, in the format it came down in, and the turn line says so.
+// What cannot be saved back (over 25 MB) is said in GOAL-SYNC.txt in the work folder, which the skill tells the agent to read.
 import { createHash } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
@@ -19,12 +22,15 @@ import type { EngineSession, OpenSession, SessionSpec, TurnInput } from "../../a
 export const GOAL_DIR = "goal";
 export const GOAL_MANIFEST = ".vyre-goal.json";
 export const GOAL_NOTES = "GOAL-SYNC.txt";
-/** The direct write limit of Files (files.write with content inline). */
-export const MAX_UP = 256 * 1024;
-export const MAX_DOWN = 10 * 1024 * 1024;
+/** The direct write limit of Files (content inline); above it a file goes through an upload slot. */
+export const MAX_INLINE = 256 * 1024;
+/** The Files upload limit (MAX_UPLOAD in modules/files). */
+export const MAX_UP = 25 * 1024 * 1024;
+export const MAX_DOWN = 25 * 1024 * 1024;
 const MAX_FILES = 2000;
 const MAX_DEPTH = 8;
 const MAX_BYTES = 200 * 1024 * 1024;
+const MB = 1024 * 1024;
 
 type Obj = Record<string, unknown>;
 const isObj = (v: unknown): v is Obj => typeof v === "object" && v !== null && !Array.isArray(v);
@@ -36,11 +42,17 @@ export interface GoalFolderPorts {
   read(cap: string, input: unknown, asker: string): Promise<unknown>;
   /** A write as the agent acting for the asker. */
   act(cap: string, input: unknown, who: { agentId: string; asker: string }): Promise<unknown>;
+  /** A write as the person (a move to Trash, which a hold at the Gate would not fit: it is recoverable and the chat says so with Undo). */
+  person?(cap: string, input: unknown, asker: string): Promise<unknown>;
+  /** Bytes into an upload slot (the address files.upload_url gave). Absent: a file over the inline limit is not saved back. */
+  put?(url: string, bytes: Uint8Array): Promise<void>;
   log?(msg: string, attrs?: Record<string, unknown>): void;
 }
 export interface GoalTurn { work: string; goalId: string; agentId: string; asker: string; turnId: string }
 
-interface Entry { fileId: string; version: number; sha: string; ro: boolean }
+interface Entry { fileId: string; version: number; sha: string; ro: boolean; /** a Google document's export */ g?: boolean }
+/** What a sync did, for the notes file and the chat's turn line. */
+export interface SyncResult { notes: string[]; trashed: Array<{ fileId: string; name: string }>; copies: string[] }
 interface Manifest { v: 1; goalId: string; folderId: string; files: Record<string, Entry>; folders: Record<string, string> }
 
 const sha = (b: Uint8Array): string => createHash("sha256").update(b).digest("hex");
@@ -147,10 +159,11 @@ export async function syncDown(p: GoalFolderPorts, t: GoalTurn): Promise<string[
       if (state === "off" || state === "needs_review" || state === undefined) continue;
       const name = uniqueName(diskName(str(f.name)), taken);
       const r = rel === "" ? name : `${rel}/${name}`;
-      const ro = state !== "clear" || str(f.kind) === "google_native";
+      const google = str(f.kind) === "google_native";
+      const ro = state !== "clear" || google;
       const version = num(f.version);
       if (++count > MAX_FILES) { if (count === MAX_FILES + 1) notes.push(`The folder has more than ${MAX_FILES} files; the rest are not in goal/.`); continue; }
-      if (num(f.size) > MAX_DOWN) { notes.push(`${r} is over ${MAX_DOWN / 1024 / 1024} MB and is not in goal/.`); continue; }
+      if (num(f.size) > MAX_DOWN) { notes.push(`${r} is over ${MAX_DOWN / MB} MB and is not in goal/.`); continue; }
       const abs = path.join(root, r);
       const was = old?.files[r];
       // unchanged in Vyre, and what is on disk is what was written: nothing to fetch (a redacted file is fetched every time, its redactions can change without a new version)
@@ -169,13 +182,13 @@ export async function syncDown(p: GoalFolderPorts, t: GoalTurn): Promise<string[
       }
       const data = Buffer.from(b64, "base64");
       bytes += data.byteLength;
-      if (bytes > MAX_BYTES) { notes.push(`goal/ is over ${MAX_BYTES / 1024 / 1024} MB; ${r} and the files after it are not copied.`); continue; }
+      if (bytes > MAX_BYTES) { notes.push(`goal/ is over ${MAX_BYTES / MB} MB; ${r} and the files after it are not copied.`); continue; }
       try {
         fs.mkdirSync(path.dirname(abs), { recursive: true });
         if (fs.existsSync(abs)) fs.chmodSync(abs, 0o644);
         fs.writeFileSync(abs, data, { mode: ro ? 0o444 : 0o644 });
       } catch (e) { p.log?.("a goal file could not be written", { fileId, error: msgOf(e) }); continue; }
-      next.files[r] = { fileId, version, sha: sha(data), ro };
+      next.files[r] = { fileId, version, sha: sha(data), ro, ...(google ? { g: true } : {}) };
       seen.add(fileId);
     }
   };
@@ -193,15 +206,28 @@ export async function syncDown(p: GoalFolderPorts, t: GoalTurn): Promise<string[
 }
 
 /** Upload what changed on disk. Returns the notes for GOAL-SYNC.txt. */
-export async function syncUp(p: GoalFolderPorts, t: GoalTurn): Promise<string[]> {
-  const notes: string[] = [];
+export async function syncUp(p: GoalFolderPorts, t: GoalTurn): Promise<SyncResult> {
+  const notes: string[] = [], trashed: SyncResult["trashed"] = [], copies: string[] = [];
+  const out = (): SyncResult => ({ notes, trashed, copies });
   const m = readManifest(t.work);
   const root = path.join(t.work, GOAL_DIR);
-  if (!m || m.goalId !== t.goalId || !fs.existsSync(root)) return notes;
+  if (!m || m.goalId !== t.goalId || !fs.existsSync(root)) return out();
   const rootReal = fs.realpathSync(root);
   let n = 0;
   const key = (what: string): string => `gf-${t.turnId}-${what}-${++n}`;
-  const copyName = (name: string, taken: Set<string>): string => {
+  /** The content of a write: inline up to the direct limit, an upload slot above it, null when there is no way to send it. */
+  const contentOf = async (data: Buffer): Promise<{ base64: string } | { blobId: string } | null> => {
+    if (data.byteLength <= MAX_INLINE) return { base64: data.toString("base64") };
+    if (!p.put) return null;
+    const slot = (await p.act("files.upload_url", { size: data.byteLength, idempotencyKey: key("slot") }, t)) as { blobId?: unknown; url?: unknown };
+    if (typeof slot.blobId !== "string" || typeof slot.url !== "string") throw new Error("Files gave no upload slot");
+    await p.put(slot.url, data);
+    return { blobId: slot.blobId };
+  };
+  const isText = (b: Buffer): boolean => !b.subarray(0, 4096).includes(0);
+  const copyName = (name: string, taken: Set<string>, data?: Buffer, format = false): string => {
+    // a Google document's export may have no extension: the copy keeps the format it came down in (text is markdown, anything else is a Word file)
+    if (format && path.extname(name) === "") name = `${name}${data && isText(data) ? ".md" : ".docx"}`;
     const ext = path.extname(name), stem = ext ? name.slice(0, -ext.length) : name;
     return uniqueName(`${stem} (agent copy)${ext}`, taken);
   };
@@ -229,15 +255,18 @@ export async function syncUp(p: GoalFolderPorts, t: GoalTurn): Promise<string[]>
     notes.push(`The folder ${relDir} could not be made in Vyre.`);
     return null;
   };
-  const saveCopy = async (relDir: string, name: string, data: Buffer, why: string): Promise<boolean> => {
+  const saveCopy = async (relDir: string, name: string, data: Buffer, why: string, format = false): Promise<boolean> => {
     const fid = await folderOf(relDir);
     if (!fid) return false;
     const taken = await takenIn(fid);
     for (let i = 0; i < 3; i++) {
-      const copy = copyName(name, taken);
+      const copy = copyName(name, taken, data, format);
       try {
-        await p.act("files.create", { folderId: fid, name: copy, content: { base64: data.toString("base64") }, idempotencyKey: key("copy") }, t);
-        notes.push(`${why} It was saved as ${relDir ? `${relDir}/` : ""}${copy}.`);
+        const content = await contentOf(data);
+        if (!content) { notes.push(`${why} The copy is over ${MAX_INLINE / 1024} KB and could not be sent.`); return false; }
+        await p.act("files.create", { folderId: fid, name: copy, content, idempotencyKey: key("copy") }, t);
+        const line = `${why} It was saved as ${relDir ? `${relDir}/` : ""}${copy}.`;
+        notes.push(line); copies.push(line);
         return true;
       } catch (e) { if (codeOf(e) !== "validation.duplicate") { notes.push(`${why} The copy could not be saved: ${msgOf(e)}`); return false; } }
     }
@@ -268,16 +297,18 @@ export async function syncUp(p: GoalFolderPorts, t: GoalTurn): Promise<string[]>
     const e = m.files[r];
     if (e && e.sha === h) continue;   // not touched
     const relDir = path.posix.dirname(r) === "." ? "" : path.posix.dirname(r), name = path.posix.basename(r);
-    if (data.byteLength > MAX_UP) { notes.push(`${r} is over ${MAX_UP / 1024} KB, which Files takes from an agent in one write, so it was not saved to Vyre. Split it or keep it in your work folder.`); if (e) e.sha = h; continue; }
+    if (data.byteLength > MAX_UP) { notes.push(`${r} is over ${MAX_UP / MB} MB, the Files upload limit, so it was not saved to Vyre. Split it or keep it in your work folder.`); if (e) e.sha = h; continue; }
     if (e && e.ro) {
       // never over the original: a file with parts hidden from AI holds only the redacted words
-      const kept = await saveCopy(relDir, name, data, `${r} has parts hidden from AI (or is a Google document), so your edit could not replace it.`);
+      const kept = await saveCopy(relDir, name, data, e.g ? `${r} is a Google document, which is edited in Google and not from here, so your edit was kept beside it.` : `${r} has parts hidden from AI, so your edit could not replace it.`, e.g === true);
       if (kept) e.sha = h;   // dealt with; the next start brings the redacted text back
       continue;
     }
     if (e) {
       try {
-        const w = (await p.act("files.write", { fileId: e.fileId, content: { base64: data.toString("base64") }, baseVersion: e.version, reason: "Edited in a terminal turn", idempotencyKey: key("write") }, t)) as { file?: { version?: unknown }; changesetId?: unknown };
+        const content = await contentOf(data);
+        if (!content) { notes.push(`${r} could not be sent to Vyre.`); continue; }
+        const w = (await p.act("files.write", { fileId: e.fileId, content, baseVersion: e.version, reason: "Edited in a terminal turn", idempotencyKey: key("write") }, t)) as { file?: { version?: unknown }; changesetId?: unknown };
         e.sha = h;
         if (typeof w.changesetId === "string") notes.push(`${r} is waiting for a person to approve it in Review changes.`);
         else if (typeof w.file?.version === "number") e.version = w.file.version;
@@ -294,7 +325,9 @@ export async function syncUp(p: GoalFolderPorts, t: GoalTurn): Promise<string[]>
     const fid = await folderOf(relDir);
     if (!fid) continue;
     try {
-      const c = (await p.act("files.create", { folderId: fid, name, content: { base64: data.toString("base64") }, idempotencyKey: key("create") }, t)) as { file?: { fileId?: unknown; version?: unknown }; changesetId?: unknown };
+      const content = await contentOf(data);
+      if (!content) { notes.push(`${r} could not be sent to Vyre.`); continue; }
+      const c = (await p.act("files.create", { folderId: fid, name, content, idempotencyKey: key("create") }, t)) as { file?: { fileId?: unknown; version?: unknown }; changesetId?: unknown };
       const id = str(c.file?.fileId);
       if (id) m.files[r] = { fileId: id, version: num(c.file?.version) || 1, sha: h, ro: false };
       if (typeof c.changesetId === "string") notes.push(`${r} is waiting for a person to approve it in Review changes.`);
@@ -305,10 +338,24 @@ export async function syncUp(p: GoalFolderPorts, t: GoalTurn): Promise<string[]>
       } else notes.push(`${r} was not saved to Vyre: ${msgOf(err)}`);
     }
   }
+  // a file that was in goal/ and is not any more goes to Vyre's Trash, where it can be restored: never a purge, and not when someone changed it in Vyre meanwhile
+  const onDisk = new Set(files);
+  for (const [r, e] of Object.entries(m.files)) {
+    if (onDisk.has(r) || e.ro || e.fileId === "") continue;
+    try { fs.lstatSync(path.join(rootReal, r)); continue; } catch { /* gone from disk */ }
+    try {
+      const now = ((await p.read("files.get", { fileId: e.fileId }, t.asker)) as { file?: { version?: unknown; deletedAt?: unknown } }).file;
+      if (!now || now.deletedAt) { delete m.files[r]; continue; }
+      if (num(now.version) !== e.version) { notes.push(`${r} was deleted in goal/ but changed in Vyre meanwhile, so it was kept.`); continue; }
+      await (p.person ?? ((cap, input) => p.act(cap, input, t)))("files.delete", { fileId: e.fileId, idempotencyKey: key("trash") }, t.asker);
+      trashed.push({ fileId: e.fileId, name: r });
+      delete m.files[r];
+    } catch (err) { notes.push(`${r} was deleted in goal/ but could not be moved to Trash in Vyre: ${msgOf(err)}`); }
+  }
   // folders that exist only on disk (empty ones the agent made) are made too, so they are there for the next turn
   for (const d of dirs) if (!m.folders[d]) await folderOf(d);
   writeManifest(t.work, m);
-  return notes;
+  return out();
 }
 
 const notesFile = (work: string, notes: string[]): void => {
@@ -328,17 +375,28 @@ function exclusive<T>(work: string, f: () => Promise<T>): Promise<T> {
   return run;
 }
 
-export async function startOfTurn(p: GoalFolderPorts, t: GoalTurn): Promise<void> {
-  await exclusive(t.work, async () => {
-    const notes: string[] = [];
+export async function startOfTurn(p: GoalFolderPorts, t: GoalTurn): Promise<SyncResult> {
+  return exclusive(t.work, async () => {
     // an earlier turn that never finished (the daemon stopped) left edits on disk: they go up before anything is downloaded over them
-    notes.push(...await syncUp(p, t).catch((e: unknown) => { p.log?.("goal/ could not be saved at the start of a turn", { goalId: t.goalId, error: msgOf(e) }); return []; }));
-    notes.push(...await syncDown(p, t));
-    notesFile(t.work, notes);
+    const up = await syncUp(p, t).catch((e: unknown): SyncResult => { p.log?.("goal/ could not be saved at the start of a turn", { goalId: t.goalId, error: msgOf(e) }); return { notes: [], trashed: [], copies: [] }; });
+    const down = await syncDown(p, t);
+    notesFile(t.work, [...up.notes, ...down]);
+    return up;
   });
 }
-export async function endOfTurn(p: GoalFolderPorts, t: GoalTurn): Promise<void> {
-  await exclusive(t.work, async () => { notesFile(t.work, await syncUp(p, t)); });
+export async function endOfTurn(p: GoalFolderPorts, t: GoalTurn): Promise<SyncResult> {
+  return exclusive(t.work, async () => { const r = await syncUp(p, t); notesFile(t.work, r.notes); return r; });
+}
+
+/** The chat's turn lines for what a sync did: copies kept, and files moved to Trash with Undo. */
+export function turnLines(r: SyncResult): Array<Record<string, unknown>> {
+  const out: Array<Record<string, unknown>> = [];
+  if (r.copies.length > 0) out.push({ state: "note", text: r.copies.slice(0, 3).join(" ") + (r.copies.length > 3 ? ` And ${r.copies.length - 3} more.` : "") });
+  if (r.trashed.length > 0) {
+    const names = r.trashed.slice(0, 5).map((x) => x.name).join(", ") + (r.trashed.length > 5 ? ` and ${r.trashed.length - 5} more` : "");
+    out.push({ state: "trashed", text: `Moved ${r.trashed.length === 1 ? "a file" : `${r.trashed.length} files`} deleted in goal/ to Vyre's Trash: ${names}.`, fileIds: r.trashed.map((x) => x.fileId) });
+  }
+  return out;
 }
 
 // ---- which turns, and the wrapper ----
@@ -347,6 +405,8 @@ export interface GoalFolderDeps extends GoalFolderPorts {
   workOf(spec: SessionSpec): string | null;
   /** True for a session that is a terminal engine (Claude Code or Codex); a test's scripted engine says yes for all. */
   terminal(spec: SessionSpec): boolean;
+  /** A line in the chat from the agent whose turn it is (a turn_status block). */
+  say?(turn: { threadId: string; agentId: string; asker: string }, data: Record<string, unknown>): void;
 }
 
 /** The goal a chat belongs to: the lead's chat (scope goal) or a task of the goal (scope task, the goal in its working notes). Cached per chat. */
@@ -384,14 +444,15 @@ export function withGoalFolder(open: OpenSession, d: GoalFolderDeps): OpenSessio
             const goalId = work ? await goalOf(input.threadId, input.asker) : null;
             if (work && goalId) {
               t = { work, goalId, agentId: input.agent.id, asker: input.asker, turnId: input.turnId };
-              await startOfTurn(d, t);
+              say(input, await startOfTurn(d, t));
             }
           } catch (e) { d.log?.("goal/ could not be set up for the engine", { threadId: input.threadId, error: msgOf(e) }); }
+          function say(i: TurnInput, r: SyncResult): void { for (const data of turnLines(r)) d.say?.({ threadId: i.threadId, agentId: i.agent.id, asker: i.asker }, data); }
           let saved = false;
           const save = async (): Promise<void> => {
             if (saved || !t) return;
             saved = true;
-            try { await endOfTurn(d, t); } catch (e) { d.log?.("goal/ could not be saved to Vyre", { threadId: input.threadId, error: msgOf(e) }); }
+            try { say(input, await endOfTurn(d, t)); } catch (e) { d.log?.("goal/ could not be saved to Vyre", { threadId: input.threadId, error: msgOf(e) }); }
           };
           try {
             for await (const ev of session.send(input)) {

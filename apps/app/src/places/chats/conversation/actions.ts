@@ -168,6 +168,13 @@ export async function errorAction(data: ConversationData, key: string, turnId: s
     if (turnId) await retryTurn(data, turnId);
     return;
   }
+  // Undo on "Moved ... to Vyre's Trash": each file comes back where it was
+  if (key.startsWith("undo_trash:")) {
+    let back = 0;
+    for (const fileId of key.slice(11).split(",").filter((x) => x !== "")) { try { await data.call("files.restore", { fileId, idempotencyKey: `undo-${fileId}` }); back++; } catch { /* already back, or gone for good */ } }
+    say(back > 0 ? `Brought back ${back === 1 ? "the file" : `${back} files`} from Trash.` : "Those files are not in Trash any more.");
+    return;
+  }
   if (key === "connect_ai" || key === "open_vault") { if (data.nav.openAiSetup) data.nav.openAiSetup(); else say("Open the Vault and add an AI account."); return; }
   if (installProgram(key) !== undefined) { if (turnId) await retryTurn(data, turnId); else say("Send your message again to set it up."); return; }
   // Windows: WSL needs admin and a restart, which only the person can do; the steps, word for word (sandbox/src/wsl/wsl.ts TURN_ON_WSL_STEPS)

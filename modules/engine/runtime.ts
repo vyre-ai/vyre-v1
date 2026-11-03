@@ -86,6 +86,8 @@ export interface EngineHostSeam {
   keyHeld?: (person: string) => boolean;
   /** Is this module db handle this daemon's own? Two daemons in one process (the two-computer tests) share the engine module, and only the daemon whose host half it holds builds its runtime. */
   ours?: (db: unknown) => boolean;
+  /** Bytes into a Files upload slot, in process (the daemon's putToSlot): a goal's files over the inline limit go up this way. */
+  putToSlot?: (url: string, bytes: Uint8Array) => Promise<void>;
   /** CLI engines: swap a program for a command (a fake CLI in a test), and extra read-only folders the sandbox must expose for it. Default: the real CLI, nothing extra. */
   cli?: { command?: Readonly<Record<string, readonly string[]>>; programRead?: readonly string[]; /** Where programs are looked for (a test's own folders); default: this computer's PATH. */ probe?: NodeCliProbe; /** A test's stand-in for the providers the API drivers call. */ apiFetch?: typeof fetch };
   /** The Space data directory. With it and no `sandbox`, the module builds the default sandbox for this platform on the first CLI turn (sandbox-default.ts). */
@@ -430,6 +432,9 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
         workOf: (spec) => workFolder(skillsDir, spec.asker, spec.threadId, spec.agent.id),
         terminal: (spec) => !!host.openSession || spec.account?.driver === "claude_code" || spec.account?.driver === "codex",
         read: (cap, input, asker) => h.call(cap, input, asker),
+        person: (cap, input, asker) => h.call(cap, input, asker),
+        ...(h.putToSlot ? { put: h.putToSlot } : {}),
+        say: (t, data) => noteLine(t.agentId, t.asker, t.threadId, data),
         act: async (cap, input, who) => {
           if (!h.invoke || !h.space) return h.call(cap, input, who.asker);
           const r = await h.invoke(cap, input, { space: h.space, principal: { kind: "agent", id: who.agentId }, actingFor: who.asker, origin: "engine" });
