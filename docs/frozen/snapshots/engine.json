@@ -1,7 +1,7 @@
 {
   "module": "engine",
   "capabilities": {
-    "engine.account.resolve@1": "ae6c980af5dacb00ab1896f44bdf1f6bbca0d95e19d69de6a9fd0a8850ceb059",
+    "engine.account.resolve@1": "d5f619bfd255e6771af3433946e3eb50e24a4514d4816e7b9994311c9aadcd78",
     "engine.accounts.list@1": "8c6edfa9db3b52b55811f93dc81f93a37d09fe918b169d9f245c7ff6104508cf",
     "engine.compact@1": "48ff04b060857c4d32138a593b2c4b2598529cfa71c338de5e879b12166d39bf",
     "engine.complete@1": "08f02e8950b9b9c9af5cb68979ab5aee051230e968eba37e97fa012843590603",

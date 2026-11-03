@@ -14844,6 +14844,16 @@ export type GoalsCreateOut = {
       title: string;
       recordId: string;
     }>;
+  seated: Array<{
+      kind: "person" | "agent";
+      id: string;
+      inChat: boolean;
+      error?: string;
+    }>;
+  plan: {
+    drafted: number;
+    attached: number;
+  };
 };
 export type GoalsExtendIn = {
   goalId: string;
@@ -15578,6 +15588,7 @@ export type GoalsPlanOut = {
       taskId: string;
       created: boolean;
     }>;
+  drafted?: number;
 };
 export type GoalsProgressIn = {
   goalId: string;
@@ -16031,6 +16042,12 @@ export type GoalsUpdateOut = {
     createdAt: number;
     updatedAt: number;
   };
+  seated?: Array<{
+      kind: "person" | "agent";
+      id: string;
+      inChat: boolean;
+      error?: string;
+    }>;
 };
 export type GoalsWakeClaimIn = {
   goalId: string;
