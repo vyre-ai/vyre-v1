@@ -15,6 +15,8 @@ import { EMPTY_START, InviteStart, startInput } from "./InviteStart.tsx";
 import { EveryoneGets } from "./EveryoneGets.tsx";
 import type { StartSet } from "./InviteStart.tsx";
 import { Help,  Actions, Button, Field, FormSheet, Note, ReadState, Select, attempt, useAction, useRead } from "./shared.tsx";
+import { PersonExceptions, WhatTheyCanDo, useExceptions } from "./exceptions.tsx";
+import type { PersonLite } from "./permissions-model.ts";
 
 type Roles = CapMap["access.roles.list"]["out"];
 type Groups = CapMap["access.groups.list"]["out"];
@@ -147,6 +149,8 @@ function PersonById({ id, ...rest }: { id: string; roles: Roles["roles"]; groups
 function PersonObject({ person, roles, groups, onBack, refresh }: { person: Person; roles: Roles["roles"]; groups: Groups["groups"]; onBack: () => void; refresh: () => void }): ReactElement {
   const [tab, setTab] = useState("overview");
   const effective = useRead<CapMap["access.principals.effective"]["out"]>("access.principals.effective", { principal: { kind: "person", id: person.id } });
+  const exceptions = useExceptions();
+  const mineEx = (exceptions.data?.exceptions ?? []).filter((e) => (e.subject.kind === "person" && e.subject.id === person.id) || (e.subject.kind === "group" && person.groups.includes(e.subject.id)));
   const devices = useRead<CapMap["devices.list"]["out"]>("devices.list", { person: person.id });
   const activity = useRead<CapMap["audit.list"]["out"]>("audit.list", { actor: { kind: "person", id: person.id }, limit: 50 });
   const names = useObjectNames({ identities: [], resources: effective.data ? [...effective.data.owns, ...effective.data.grants.map((g) => g.resource)] : [] });
@@ -159,19 +163,19 @@ function PersonObject({ person, roles, groups, onBack, refresh }: { person: Pers
   const name = person.name === person.id ? "Person profile unavailable" : person.name;
   let body: ReactElement;
   if (tab === "access") {
-    body = <ObjectSection title="Effective access" count={effective.data?.permissions.length ?? 0} testID="person-effective">
+    body = <>
+    <PersonExceptions person={person} owner={person.roles.includes("rol_owner")} />
+    <Section title="What they can do" right={<Text style={{ fontSize: 12, color: "var(--ink-3)" as string }}>{mineEx.length ? "Their role plus exceptions" : "What their role gives"}</Text>} testID="person-what">{effective.data ? <WhatTheyCanDo person={person as unknown as PersonLite} permissions={effective.data.permissions} guest={person.roles.length > 0 && person.roles.every((r) => r === "rol_guest")} /> : <ReadState error={effective.error} retry={effective.refresh} />}</Section>
+    <ObjectSection title="Effective access" count={effective.data?.permissions.length ?? 0} testID="person-effective">
       {effective.data ? <>
         <Row id="person-eff-roles" title="Roles" note={effective.data.roles.map(roleName).join(", ") || "No roles"} />
-        <View testID="person-eff-permissions" style={{ paddingHorizontal: 8, paddingVertical: 6, gap: 4 }}>
-          <Text style={{ fontSize: 13, color: "var(--ink)" as string }}>Permissions</Text>
-          {/* ui-rows-lint: not a list (one wrapping line per permission area; a Row would cut the actions off) */}
-          {permissionAreas(effective.data.permissions).map(([area, actions]) => <Text key={area} style={{ fontSize: 12, color: "var(--ink-3)" as string }}><Text style={{ fontWeight: "600", color: "var(--ink-2)" as string }}>{area}</Text>{`  ${actions.join(", ")}`}</Text>)}
-        </View>
+
         {effective.data.grants.map((grant) => <Row key={grant.id} id={`person-grant-${grant.id}`} title={names.resource(grant.resource)} note={`${grant.level} · direct grant`} />)}
         {effective.data.owns.map((own) => <Row key={`${own.type}:${own.id}`} id={`person-owns-${own.id}`} title={names.resource(own)} note="Owns" />)}
         {effective.data.grants.length + effective.data.owns.length === 0 ? <Empty icon="doc">No direct grants and nothing owned</Empty> : null}
       </> : <ReadState error={effective.error} retry={effective.refresh} />}
-    </ObjectSection>;
+    </ObjectSection>
+    </>;
   } else if (tab === "groups") {
     body = <ObjectSection title="Groups" count={mine.length} testID="person-groups">
       {mine.map((group) => <Row key={group.id} id={`person-group-${group.id}`} title={group.name} note={group.builtIn ? "Built-in group" : `${group.members.length} members`} trailing={<Button label="Remove" disabled={action.busy} onPress={() => void action.run("access.groups.remove_member", { groupId: group.id, member: { kind: "person", id: person.id } }, "Removed from group")} />} />)}

@@ -4,7 +4,7 @@ Lane L7a. Kind module. Version 0.1.0.
 
 Requires: files.
 
-## Capabilities (66)
+## Capabilities (71)
 
 - [access.actors.create](../capabilities/access.actors.create.md): Register an outside actor and issue a one-time token (works once, within 10 minutes)
 - [access.actors.list](../capabilities/access.actors.list.md): List outside actors (registered external tools such as Claude Code or Codex)
@@ -18,6 +18,11 @@ Requires: files.
 - [access.connector_builder.grant](../capabilities/access.connector_builder.grant.md): Give an assistant the Connector builder role (Member permissions plus connectors.manage), making the role if the Space has none. Needs access.manage.
 - [access.connector_builder.status](../capabilities/access.connector_builder.status.md): Does this assistant hold the permission to build connectors, and may the caller give it
 - [access.deciders](../capabilities/access.deciders.md): The people who hold Manage on a resource and so may decide a request about it. Used to route a request to a person even when the caller, an agent, cannot see the resource itself; it names people and shows nothing else
+- [access.exceptions.explain](../capabilities/access.exceptions.explain.md): May this person (or the agent acting for them) do what a permission covers, and why, in plain words: the Owner, their own exception, a group exception or their role
+- [access.exceptions.lapse](../capabilities/access.exceptions.lapse.md): The server ends a permission exception whose end has come (the periodic job); audited
+- [access.exceptions.list](../capabilities/access.exceptions.list.md): Permission exceptions in force: who differs from their role, on what, Allowed or Not allowed, until when and why
+- [access.exceptions.remove](../capabilities/access.exceptions.remove.md): Remove a permission exception: the person or group goes back to what their role gives
+- [access.exceptions.set](../capabilities/access.exceptions.set.md): Give a person or a group a permission exception: Allowed or Not allowed on a permission or a whole area, against their role. A person beats a group beats the role; the Owner is never restricted; you give only what you hold
 - [access.grants.list](../capabilities/access.grants.list.md): List grants by resource, subject or source (Console Grants)
 - [access.grants.update](../capabilities/access.grants.update.md): Change the level, conditions or expiry of a grant
 - [access.groups.add_member](../capabilities/access.groups.add_member.md): Add a person or agent to a group (groups hold no groups)
@@ -73,11 +78,13 @@ Requires: files.
 - [folders.rename](../capabilities/folders.rename.md): Rename a folder
 - [folders.unplace](../capabilities/folders.unplace.md): Take an item out of its folder back to the top of its section
 
-## Events (18)
+## Events (20)
 
 - [access.changed](../events/access.changed.md): Roles, groups, labels or membership changed; bumps the authorize cache epoch
 - [access.declined](../events/access.declined.md): An access request was declined; the note goes back to the requester
 - [access.everyone_defaults_changed](../events/access.everyone_defaults_changed.md): The default grants of the Everyone group changed
+- [access.exception_removed](../events/access.exception_removed.md): A permission exception was removed by an admin, or lapsed at its end (lapsed)
+- [access.exception_set](../events/access.exception_set.md): A person or group was given a permission exception: Allowed or Not allowed on permissions, against their role
 - [access.granted](../events/access.granted.md): An access request was approved
 - [access.requested](../events/access.requested.md): Someone asked for access to a resource
 - [access_review.closed](../events/access_review.closed.md): An access review closed

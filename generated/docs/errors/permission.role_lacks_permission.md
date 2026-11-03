@@ -13,6 +13,11 @@ HTTP 403. Retryable: no.
 - access.actors.update
 - access.check
 - access.connector_builder.grant
+- access.exceptions.explain
+- access.exceptions.lapse
+- access.exceptions.list
+- access.exceptions.remove
+- access.exceptions.set
 - access.grants.list
 - access.groups.add_member
 - access.groups.create
@@ -26,8 +31,3 @@ HTTP 403. Retryable: no.
 - access.policies.set
 - access.principals.effective
 - access.reviews.close
-- access.reviews.decide
-- access.reviews.get
-- access.reviews.list
-- access.reviews.start
-- access.roles.apply

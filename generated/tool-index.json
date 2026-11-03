@@ -50,6 +50,30 @@
     },
     {
       "deferred": false,
+      "name": "access_exceptions_explain",
+      "summary": "May this person (or the agent acting for them) do what a permission covers, and why, in plain words: the Owner, their own exception, a group exception or their role",
+      "toolset": "engineer"
+    },
+    {
+      "deferred": false,
+      "name": "access_exceptions_list",
+      "summary": "Permission exceptions in force: who differs from their role, on what, Allowed or Not allowed, until when and why",
+      "toolset": "engineer"
+    },
+    {
+      "deferred": false,
+      "name": "access_exceptions_remove",
+      "summary": "Remove a permission exception: the person or group goes back to what their role gives",
+      "toolset": "engineer"
+    },
+    {
+      "deferred": false,
+      "name": "access_exceptions_set",
+      "summary": "Give a person or a group a permission exception: Allowed or Not allowed on a permission or a whole area, against their role. A person beats a group beats the role; the Owner is never restricted; you give only what you hold",
+      "toolset": "engineer"
+    },
+    {
+      "deferred": false,
       "name": "access_grants_list",
       "summary": "List grants by resource, subject or source (Console Grants)",
       "toolset": "engineer"

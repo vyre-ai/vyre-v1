@@ -18,6 +18,11 @@ HTTP 500. Retryable: yes.
 - access.connector_builder.grant
 - access.connector_builder.status
 - access.deciders
+- access.exceptions.explain
+- access.exceptions.lapse
+- access.exceptions.list
+- access.exceptions.remove
+- access.exceptions.set
 - access.grants.list
 - access.grants.update
 - access.groups.add_member
@@ -26,8 +31,3 @@ HTTP 500. Retryable: yes.
 - access.groups.defaults_set
 - access.groups.delete
 - access.groups.get
-- access.groups.list
-- access.groups.remove_member
-- access.groups.update
-- access.join_share
-- access.labels.list

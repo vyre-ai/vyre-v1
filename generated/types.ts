@@ -200,6 +200,106 @@ export type AccessDecidersIn = {
 export type AccessDecidersOut = {
   people: Array<string>;
 };
+export type AccessExceptionsExplainIn = {
+  principal: string;
+  perm: string;
+};
+export type AccessExceptionsExplainOut = {
+  allowed: boolean;
+  source: "owner" | "person" | "group" | "role";
+  words: string;
+  exception?: {
+    exceptionId: string;
+    subject: {
+      kind: "person" | "group";
+      id: string;
+      name: string;
+    };
+    perms: Array<string>;
+    own?: Array<string>;
+    area?: string;
+    effect: "allow" | "deny" | "own" | "ask";
+    until?: number;
+    why?: string;
+    by: {
+      id: string;
+      name: string;
+    };
+    at: number;
+  };
+};
+export type AccessExceptionsLapseIn = {
+  exceptionId: string;
+};
+export type AccessExceptionsLapseOut = {
+  removed: boolean;
+};
+export type AccessExceptionsListIn = {
+  subject?: {
+    kind: "person" | "group";
+    id: string;
+  };
+};
+export type AccessExceptionsListOut = {
+  exceptions: Array<{
+      exceptionId: string;
+      subject: {
+        kind: "person" | "group";
+        id: string;
+        name: string;
+      };
+      perms: Array<string>;
+      own?: Array<string>;
+      area?: string;
+      effect: "allow" | "deny" | "own" | "ask";
+      until?: number;
+      why?: string;
+      by: {
+        id: string;
+        name: string;
+      };
+      at: number;
+    }>;
+};
+export type AccessExceptionsRemoveIn = {
+  exceptionId: string;
+};
+export type AccessExceptionsRemoveOut = {
+  removed: boolean;
+};
+export type AccessExceptionsSetIn = {
+  subject: {
+    kind: "person" | "group";
+    id: string;
+  };
+  perms?: Array<string>;
+  area?: string;
+  effect: "allow" | "deny" | "own" | "ask";
+  until?: number;
+  why?: string;
+  idempotencyKey: string;
+};
+export type AccessExceptionsSetOut = {
+  exception: {
+    exceptionId: string;
+    subject: {
+      kind: "person" | "group";
+      id: string;
+      name: string;
+    };
+    perms: Array<string>;
+    own?: Array<string>;
+    area?: string;
+    effect: "allow" | "deny" | "own" | "ask";
+    until?: number;
+    why?: string;
+    by: {
+      id: string;
+      name: string;
+    };
+    at: number;
+  };
+};
 export type AccessGrantsListIn = {
   resource?: {
     type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
@@ -39356,6 +39456,11 @@ export interface CapMap {
   "access.connector_builder.grant": { in: AccessConnectorBuilderGrantIn; out: AccessConnectorBuilderGrantOut };
   "access.connector_builder.status": { in: AccessConnectorBuilderStatusIn; out: AccessConnectorBuilderStatusOut };
   "access.deciders": { in: AccessDecidersIn; out: AccessDecidersOut };
+  "access.exceptions.explain": { in: AccessExceptionsExplainIn; out: AccessExceptionsExplainOut };
+  "access.exceptions.lapse": { in: AccessExceptionsLapseIn; out: AccessExceptionsLapseOut };
+  "access.exceptions.list": { in: AccessExceptionsListIn; out: AccessExceptionsListOut };
+  "access.exceptions.remove": { in: AccessExceptionsRemoveIn; out: AccessExceptionsRemoveOut };
+  "access.exceptions.set": { in: AccessExceptionsSetIn; out: AccessExceptionsSetOut };
   "access.grants.list": { in: AccessGrantsListIn; out: AccessGrantsListOut };
   "access.grants.update": { in: AccessGrantsUpdateIn; out: AccessGrantsUpdateOut };
   "access.groups.add_member": { in: AccessGroupsAddMemberIn; out: AccessGroupsAddMemberOut };
@@ -41334,6 +41439,29 @@ export type AccessDeclinedPayload = {
 };
 export type AccessEveryoneDefaultsChangedPayload = {
   grants: number;
+  by: string;
+};
+export type AccessExceptionRemovedPayload = {
+  exceptionId: string;
+  subject: {
+    kind: "person" | "group";
+    id: string;
+  };
+  perms: Array<string>;
+  effect: "allow" | "deny" | "own" | "ask";
+  lapsed: boolean;
+  by: string;
+};
+export type AccessExceptionSetPayload = {
+  exceptionId: string;
+  subject: {
+    kind: "person" | "group";
+    id: string;
+  };
+  perms: Array<string>;
+  effect: "allow" | "deny" | "own" | "ask";
+  area?: string;
+  until?: number;
   by: string;
 };
 export type AccessGrantedPayload = {
@@ -45169,6 +45297,8 @@ export interface EventMap {
   "access.changed": AccessChangedPayload;
   "access.declined": AccessDeclinedPayload;
   "access.everyone_defaults_changed": AccessEveryoneDefaultsChangedPayload;
+  "access.exception_removed": AccessExceptionRemovedPayload;
+  "access.exception_set": AccessExceptionSetPayload;
   "access.granted": AccessGrantedPayload;
   "access.requested": AccessRequestedPayload;
   "access_review.closed": AccessReviewClosedPayload;
