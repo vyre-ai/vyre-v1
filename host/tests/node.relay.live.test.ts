@@ -54,7 +54,7 @@ test("the Space runs a process on an approved node: input goes in, output and th
     assert.ok(out.startsWith("echo:hello echo:node") || out.startsWith("echo:hello node"), out);
     assert.ok(out.includes(`|${d.url}/s|${d.url}/mcp/x`), `the Space's loopback address became the node's server address: ${out}`);
     assert.equal(exit.code, 3);
-    assert.ok(seen.cwd[0]!.startsWith(path.join(nodeDir, "turns")), "the engine works in a folder of the node's own");
+    assert.ok(seen.cwd[0]!.startsWith(path.join(nodeDir, "work")), "the engine works in a folder of the node's own: <data dir>/work/<person>/<process>, the layout the sandbox accepts (l-runson)");
     assert.ok(log.some((l) => /engine prc_[a-f0-9]+ started/.test(l)) && log.some((l) => /engine prc_[a-f0-9]+ ended: 3/.test(l)), JSON.stringify(log));
 
     const long = await d.nodeRelay.spawnProc(nodeId, { argv: [process.execPath, "-e", "setInterval(()=>{},1000)"], env: {} });
