@@ -106,7 +106,7 @@ import { createSigninRefresh } from "../seams/signin-refresh.ts";
 import type { ConnectorNetwork } from "../seams/connectors.ts";
 import { createAuditRecorder } from "../seams/audit.ts";
 import { INVITE_TRIES, inviteKeyOf, loadRelayKeys, startRelayBox } from "../seams/relay.ts";
-import { createPeerService } from "../peers/service.ts";
+import { createPeerService, joinWithCode } from "../peers/service.ts";
 import type { PeerService } from "../peers/service.ts";
 import type { CreateCells } from "../peers/sync.ts";
 import { applyPeerJoin } from "../peers/join.ts";
@@ -386,6 +386,10 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   ensureDirs(paths);
 
   applyPendingRestore(paths.root);   // a restore staged by backup.restore is moved into place before any database is opened
+  // a server added to a Personal Space with a one-time code (VYRE_PEER_JOIN): at its first start it copies the Space from the computer that made the code, through the relay (host/src/peers)
+  if (cfg.peers && hasSpace && cfg.peerJoin) {
+    await joinWithCode({ root: paths.root, code: cfg.peerJoin, name: cfg.peerName ?? platform.hostname.replace(/\.local$/, "").slice(0, 60), platform: platform.os, now, log: (m, a) => process.stdout.write(`vyred: ${m} ${JSON.stringify(a ?? {})}\n`), ...(o.seams?.relayWebSocket ? { WebSocket: o.seams.relayWebSocket } : {}) });
+  }
   // a computer that asked to use a Personal Space from another computer and was allowed: the copy it staged replaces the fresh Space it made on its first run (host/src/peers/join.ts)
   const joined = cfg.peers && hasSpace ? applyPeerJoin(paths.root, now) : null;
   const existing = readInfo(paths);
@@ -398,7 +402,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   closers.push(() => { chromeBridge.failAll(); chromeBridge.closeStreams(); });
   const fetchFn: FetchFn | null = o.fetch ?? (typeof fetch === "function" ? (fetch as unknown as FetchFn) : null);
 
-  let space: string | null = joined?.space ?? cfg.space ?? (hasSpace ? readLogMeta(paths.events, "space") : null);
+  // a computer of a Personal Space on several computers is the Space its copy says, whatever id its first start was given (a server's install picks one before it joins)
+  let space: string | null = joined?.space ?? (cfg.peers && hasSpace ? readLogMeta(paths.events, "space") : null) ?? cfg.space ?? (hasSpace ? readLogMeta(paths.events, "space") : null);
   let db: HostDb | null = null;
   let queue: ScheduleQueue | null = null;
   let seams: WiredSeams | null = null;
@@ -1867,6 +1872,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
     restart: () => requestStop(),
     ...(o.seams?.relayWebSocket ? { WebSocket: o.seams.relayWebSocket } : {}),
     createCells: () => peerCells,
+    ...(cfg.peerKind ? { kind: cfg.peerKind } : {}),
     changed: () => { if (space) hub?.poke?.(space); },
     ...(o.peerRoundMs ? { roundMs: o.peerRoundMs } : {}), ...(o.peerLeaseMs ? { leaseMs: o.peerLeaseMs } : {}),
   }) : null;

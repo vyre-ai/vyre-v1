@@ -90,3 +90,27 @@ export async function peerRunner(ctx: NetworkCtx, _input: Record<string, unknown
   const holder = str(r["peer_id"]);
   return { peerId: holder, here: holder === me && (num(r["expires_at"]) ?? 0) > ctx.now(), expiresAt: num(r["expires_at"]) ?? 0 };
 }
+
+/** A server's join code lasts this long. */
+export const SERVER_CODE_MS = 30 * 60_000;
+const b64u = (b: Uint8Array): string => btoa(String.fromCharCode(...b)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+
+/**
+ * Add a server to a Personal Space: a one-time code for the install line. The server joins through the relay (no address needed), takes a full copy and stays in sync, keeps the Space going while
+ * the computers sleep and runs its scheduled work. The code names this computer's route and the Space's box key (public) and carries a secret only its hash of which stays here.
+ */
+export async function peerServerCode(ctx: NetworkCtx, input: { nickname?: string }) {
+  const who = personOnly(ctx);
+  const me = selfId(ctx);
+  const self = me ? asRow(ctx.db.all("SELECT route, relay FROM network_peer WHERE id = ?", me)[0]) : undefined;
+  const box = str(asRow(ctx.db.all("SELECT box FROM network_peer_self WHERE id = 1")[0])?.["box"]);
+  if (!self || !str(self["route"]) || !box) failWith(ctx.trace.traceId, "validation.precondition_failed", "This computer is not linked to Vyre's relay yet. Check the connection and try again in a minute.");
+  const secret = b64u(globalThis.crypto.getRandomValues(new Uint8Array(32)));
+  const hash = Array.from(new Uint8Array(await globalThis.crypto.subtle.digest("SHA-256", new TextEncoder().encode(secret))), (b) => b.toString(16).padStart(2, "0")).join("");
+  const name = typeof input.nickname === "string" && input.nickname.trim() ? input.nickname.trim().slice(0, 40) : "Server";
+  const id = `pinv_${b64u(globalThis.crypto.getRandomValues(new Uint8Array(9)))}`;
+  const expiresAt = ctx.now() + SERVER_CODE_MS;
+  ctx.db.run("INSERT INTO network_peer_invite (id, secret_hash, name, created_by, created_at, expires_at, used_at) VALUES (?, ?, ?, ?, ?, ?, ?)", id, hash, name, who, ctx.now(), expiresAt, null);
+  const code = `VYRE-PS-${b64u(new TextEncoder().encode(JSON.stringify({ v: 1, r: str(self["relay"]), o: str(self["route"]), b: box, s: secret, n: name })))}`;
+  return { code, expiresAt };
+}

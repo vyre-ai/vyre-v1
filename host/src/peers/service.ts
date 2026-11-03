@@ -85,6 +85,8 @@ export interface PeerServiceDeps {
   /** how often the computers sync while awake (tests make it short) */
   roundMs?: number;
   leaseMs?: number;
+  /** a server of the Space (VYRE_PEER_KIND=server): it takes the scheduled-work lease from a computer */
+  kind?: "computer" | "server";
 }
 
 export interface PeerService {
@@ -140,6 +142,75 @@ function walk(dir: string, rel = ""): string[] {
 }
 const safeRel = (p: string): string | null => { const n = path.posix.normalize(p); return !n || n.startsWith("/") || n.startsWith("..") || n.includes("\0") || n.includes("\\") ? null : n; };
 
+/** Copy the Space from the computer that allowed this one into peer-join/: each database, every blob, the agents' git trees, the key files and what join.ts needs. applyPeerJoin moves it into place. */
+export async function stageCopy(root: string, ch: PeerChannel, pkg: JoinPackage, fromName: string, fromRelay: string, now: number): Promise<void> {
+  const stage = path.join(root, JOIN_DIR);
+  fs.rmSync(stage, { recursive: true, force: true });
+  fs.mkdirSync(path.join(stage, "blobs"), { recursive: true, mode: 0o700 });
+  const auth = { authorization: `Peer ${pkg.token}` };
+  const get = async (file: string, to: string): Promise<void> => {
+    const fd = fs.openSync(to, "w", 0o600);
+    try {
+      const r = await ch.request({ method: "GET", path: `/v1/peers/snapshot?file=${encodeURIComponent(file)}`, headers: auth, timeoutMs: 10 * 60_000, sink: (chunk) => { fs.writeSync(fd, chunk); } });
+      if (r.status !== 200) throw Object.assign(new Error(`Could not copy ${file} from ${fromName}.`), { code: "provider.unavailable" });
+    } finally { fs.closeSync(fd); }
+  };
+  for (const f of STAGED_DBS) await get(f, path.join(stage, f));
+  // file contents, then the agents' git trees, so a repository works here as it did there
+  for (const dir of ["blobs", "trees"]) {
+    const list = await ch.request({ method: "GET", path: `/v1/peers/snapshot?file=${dir}`, headers: auth });
+    for (const rel of list.status === 200 ? list.json<{ data: { files: string[] } }>().data.files : []) {
+      const safe = safeRel(rel);
+      if (!safe) continue;
+      fs.mkdirSync(path.dirname(path.join(stage, dir, safe)), { recursive: true });
+      await get(`${dir}/${safe}`, path.join(stage, dir, safe));
+    }
+  }
+  for (const [f, text] of Object.entries(pkg.secrets)) if (SECRET_FILES.includes(f)) fs.writeFileSync(path.join(stage, f), text, { mode: 0o600 });
+  const self = pkg.peers.find((p) => p.peerId === pkg.peerId);
+  fs.writeFileSync(path.join(stage, "join.json"), JSON.stringify({ v: 1, space: pkg.space, peerId: pkg.peerId, token: pkg.token, box: pkg.box, relay: self?.relay ?? fromRelay, from: fromName, at: now }), { mode: 0o600 });
+  fs.writeFileSync(path.join(stage, "ready"), "1", { mode: 0o600 });
+}
+
+/** What a server's join code says (modules/network/handlers/peers.ts peerServerCode). */
+export interface ServerCode { relay: string; route: string; box: string; secret: string; name: string }
+export function parseServerCode(code: string): ServerCode | null {
+  const m = /^VYRE-PS-([A-Za-z0-9_-]{20,2000})$/.exec(code.trim());
+  if (!m) return null;
+  try {
+    const j = JSON.parse(Buffer.from(m[1]!, "base64url").toString("utf8")) as { v?: unknown; r?: unknown; o?: unknown; b?: unknown; s?: unknown; n?: unknown };
+    if (j.v !== 1 || typeof j.r !== "string" || !/^(wss?|https?):\/\//.test(j.r) || typeof j.o !== "string" || !/^[a-z2-7]{26}$/.test(j.o) || typeof j.b !== "string" || Buffer.from(j.b, "base64url").length !== 32 || typeof j.s !== "string" || !/^[A-Za-z0-9_-]{32,64}$/.test(j.s)) return null;
+    return { relay: j.r, route: j.o, box: j.b, secret: j.s, name: typeof j.n === "string" ? j.n.slice(0, 40) : "Server" };
+  } catch { return null; }
+}
+
+/**
+ * A server joining a Personal Space with its one-time code, at its first start (VYRE_PEER_JOIN), before any database is open: it reaches the computer that made the code through the relay,
+ * pinned to the Space's box key the code carries, is allowed by the code itself (the person made it), and copies the Space into peer-join/ for applyPeerJoin. Nothing to do once it has a Space.
+ */
+export async function joinWithCode(o: { root: string; code: string; name: string; platform: string; now: () => number; log: (m: string, a?: Record<string, unknown>) => void; WebSocket?: typeof WebSocket }): Promise<{ space: string } | null> {
+  if (fs.existsSync(path.join(o.root, "events.db")) || fs.existsSync(path.join(o.root, JOIN_DIR, "ready"))) return null;
+  const c = parseServerCode(o.code);
+  if (!c) throw new Error("That server code is not a Vyre code. Make a new one in Settings, Computers, Add a server.");
+  const keys = loadRelayKeys(o.root);
+  const route = await routeIdOf(keys.routePub);
+  const ch = await openPeerChannel({ relay: c.relay, route: c.route, box: fromB64u(c.box) }, { ...(o.WebSocket ? { WebSocket: o.WebSocket } : {}), timeoutMs: 20_000 });
+  try {
+    const nonce = b64u(globalThis.crypto.getRandomValues(new Uint8Array(18)));
+    const asked = await ch.request({ method: "POST", path: "/v1/peers/enrol", headers: { "content-type": "application/json" }, body: JSON.stringify({ invite: c.secret, s: newAskSecret(), nonce, route, name: o.name, platform: o.platform, kind: "server" }) });
+    const a = asked.json<{ data?: { requestId: string; poll: string }; error?: { message: string } }>();
+    if (asked.status !== 200 || !a.data) throw new Error(a.error?.message ?? "The computer that made the code refused it.");
+    const st = await ch.request({ method: "POST", path: "/v1/peers/enrol/status", headers: { "content-type": "application/json" }, body: JSON.stringify({ requestId: a.data.requestId, poll: a.data.poll }) });
+    const out = st.json<{ data?: { state: string; package?: JoinPackage } }>().data;
+    if (!out?.package) throw new Error("The computer that made the code did not hand over the Space.");
+    // the server answers under the Space's box key, so a phone's pin holds here too
+    fs.writeFileSync(path.join(o.root, "relay.key"), JSON.stringify({ v: 2, routeSeed: keys.routeSeed, routePub: b64u(keys.routePub), boxPriv: out.package.box.priv, boxPub: out.package.box.pub }), { mode: 0o600 });
+    await stageCopy(o.root, ch, out.package, c.name, c.relay, o.now());
+    o.log("peers.server_joined", { space: out.package.space });
+    return { space: out.package.space };
+  } finally { ch.close(); }
+}
+
 export function createPeerService(d: PeerServiceDeps): PeerService {
   const asks = new Map<string, number>();
   let timer: ReturnType<typeof setInterval> | null = null;
@@ -165,13 +236,14 @@ export function createPeerService(d: PeerServiceDeps): PeerService {
     const t = d.now();
     if (have) {
       h.run("UPDATE network_peer SET route = ?, relay = ?, last_seen_at = ? WHERE id = ?", route, d.relayUrl, t, have);
+      h.run("UPDATE network_peer_self SET box = ? WHERE id = 1", b64u(loadRelayKeys(d.root).boxPub));
       return;
     }
     const id = rid("peer_");
     const token = newToken("vpt_");
     fs.writeFileSync(tokenFile, `${token}\n`, { mode: 0o600 });
-    h.run("INSERT INTO network_peer (id, name, platform, kind, route, relay, token_hash, added_at, last_seen_at) VALUES (?, ?, ?, 'computer', ?, ?, ?, ?, ?)", id, d.name, d.platform, route, d.relayUrl, await tokenHash(token), t, t);
-    h.run("INSERT OR REPLACE INTO network_peer_self (id, peer_id) VALUES (1, ?)", id);
+    h.run("INSERT INTO network_peer (id, name, platform, kind, route, relay, token_hash, added_at, last_seen_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)", id, d.name, d.platform, d.kind ?? "computer", route, d.relayUrl, await tokenHash(token), t, t);
+    h.run("INSERT OR REPLACE INTO network_peer_self (id, peer_id, box) VALUES (1, ?, ?)", id, b64u(loadRelayKeys(d.root).boxPub));
   }
 
   async function tick(): Promise<void> {
@@ -234,15 +306,26 @@ export function createPeerService(d: PeerServiceDeps): PeerService {
     const s = str(b?.["s"]), nonce = str(b?.["nonce"]), route = str(b?.["route"]);
     const name = str(b?.["name"]).trim().slice(0, 60) || "A computer", platform = str(b?.["platform"]).slice(0, 20);
     if (!ASK_RE.test(s) || !/^[A-Za-z0-9_-]{16,64}$/.test(nonce) || !/^[a-z2-7]{26}$/.test(route)) { refuse(res, 400, "validation.bad_input", "That request is not complete."); return; }
-    const at = asks.get(s);
-    if (at === undefined || d.now() - at > ASK_TTL_MS) { refuse(res, 403, "auth.invalid_code", "Ask for this Space by name first."); return; }
+    // a server with a one-time code from Settings (network.peer_server_code): the person allowed it by making the code, so it needs no ask and no second yes
+    const inviteSecret = str(b?.["invite"]);
+    let invited: { id: string; by: string } | null = null;
+    if (inviteSecret) {
+      const row = h.all("SELECT id, created_by FROM network_peer_invite WHERE secret_hash = ? AND used_at IS NULL AND expires_at > ?", await tokenHash(inviteSecret), d.now())[0] as Record<string, unknown> | undefined;
+      if (!row) { refuse(res, 403, "auth.invalid_code", "That server code was used, or it ran out. Make a new one in Settings, Computers."); return; }
+      invited = { id: str(row["id"]), by: str(row["created_by"]) };
+      h.run("UPDATE network_peer_invite SET used_at = ? WHERE id = ?", d.now(), invited.id);
+    } else {
+      const at = asks.get(s);
+      if (at === undefined || d.now() - at > ASK_TTL_MS) { refuse(res, 403, "auth.invalid_code", "Ask for this Space by name first."); return; }
+    }
+    const kind = b?.["kind"] === "server" ? "server" : "computer";
     const open = Number((h.all("SELECT count(*) AS n FROM network_peer_request WHERE state = 'pending' AND expires_at > ?", d.now())[0] as { n: number }).n);
-    if (open >= MAX_PENDING) { refuse(res, 429, "rate_limit.exceeded", "Too many computers are waiting. Allow or decline them first."); return; }
+    if (!invited && open >= MAX_PENDING) { refuse(res, 429, "rate_limit.exceeded", "Too many computers are waiting. Allow or decline them first."); return; }
     const id = rid("preq_");
     const poll = newToken("vpp_");
     const code = await confirmCode(s, nonce);
-    h.run("INSERT INTO network_peer_request (id, name, platform, code, poll_hash, ask_hash, state, created_at, expires_at, peer_id) VALUES (?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?)",
-      id, name, platform, code, await tokenHash(poll), await tokenHash(s), d.now(), d.now() + REQUEST_TTL_MS, `route:${route}`);
+    h.run("INSERT INTO network_peer_request (id, name, platform, code, poll_hash, ask_hash, state, created_at, expires_at, decided_by, decided_at, peer_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+      id, name, platform, code, await tokenHash(poll), await tokenHash(s), invited ? "allowed" : "pending", d.now(), d.now() + REQUEST_TTL_MS, invited?.by ?? null, invited ? d.now() : null, `${kind}:${route}`);
     asks.delete(s);
     d.log("peers.requested", { request: id });
     json(res, 200, { data: { requestId: id, poll, code, name: d.name } });
@@ -275,14 +358,15 @@ export function createPeerService(d: PeerServiceDeps): PeerService {
     if (state === "pending" && Number(row["expires_at"]) <= d.now()) { json(res, 200, { data: { state: "expired" } }); return; }
     if (state !== "allowed") { json(res, 200, { data: { state: state === "collected" ? "expired" : state } }); return; }
     // allowed: mint the new computer's token, add its row, hand everything over once
-    const route = str(row["peer_id"]).replace(/^route:/, "");
+    const [kindPart, route] = str(row["peer_id"]).split(":") as [string, string];
+    const peerKind = kindPart === "server" ? "server" : "computer";
     const peerId = rid("peer_");
     const token = newToken("vpt_");
     const t = d.now();
     const th = await tokenHash(token);
     h.tx(() => {
-      h.run("INSERT INTO network_peer (id, name, platform, kind, route, relay, token_hash, added_at, added_by, last_seen_at) VALUES (?, ?, ?, 'computer', ?, ?, ?, ?, ?, ?)",
-        peerId, str(row["name"]), str(row["platform"]), route, d.relayUrl, th, t, str(row["decided_by"]) || null, t);
+      h.run("INSERT INTO network_peer (id, name, platform, kind, route, relay, token_hash, added_at, added_by, last_seen_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        peerId, str(row["name"]), str(row["platform"]), peerKind, route, d.relayUrl, th, t, str(row["decided_by"]) || null, t);
       h.run("UPDATE network_peer_request SET state = 'collected', peer_id = ? WHERE id = ?", peerId, id);
     });
     // capture changes from now on, before the new computer copies anything: what is written after its copy reaches it in the first sync
@@ -410,42 +494,9 @@ export function createPeerService(d: PeerServiceDeps): PeerService {
   async function commit(): Promise<{ space: string }> {
     const j = joining, c = j?.chosen, pkg = j?.pkg;
     if (!j || !c || !pkg) throw Object.assign(new Error("Nothing to copy yet."), { code: "validation.precondition_failed" });
-    const stage = path.join(d.root, JOIN_DIR);
-    fs.rmSync(stage, { recursive: true, force: true });
-    fs.mkdirSync(path.join(stage, "blobs"), { recursive: true, mode: 0o700 });
-    const auth = { authorization: `Peer ${pkg.token}` };
-    await withTarget(c.target, async (ch) => {
-      const get = async (file: string, to: string): Promise<void> => {
-        const fd = fs.openSync(to, "w", 0o600);
-        try {
-          const r = await ch.request({ method: "GET", path: `/v1/peers/snapshot?file=${encodeURIComponent(file)}`, headers: auth, timeoutMs: 10 * 60_000, sink: (chunk) => { fs.writeSync(fd, chunk); } });
-          if (r.status !== 200) throw Object.assign(new Error(`Could not copy ${file} from ${c.offer.name}.`), { code: "provider.unavailable" });
-        } finally { fs.closeSync(fd); }
-      };
-      for (const f of STAGED_DBS) await get(f, path.join(stage, f));
-      const list = await ch.request({ method: "GET", path: "/v1/peers/snapshot?file=blobs", headers: auth });
-      const files = list.status === 200 ? list.json<{ data: { files: string[] } }>().data.files : [];
-      for (const rel of files) {
-        const safe = safeRel(rel);
-        if (!safe) continue;
-        fs.mkdirSync(path.dirname(path.join(stage, "blobs", safe)), { recursive: true });
-        await get(`blobs/${safe}`, path.join(stage, "blobs", safe));
-      }
-      // the agents' git trees, so a repository works on this computer as it did on that one
-      const trees = await ch.request({ method: "GET", path: "/v1/peers/snapshot?file=trees", headers: auth });
-      for (const rel of trees.status === 200 ? trees.json<{ data: { files: string[] } }>().data.files : []) {
-        const safe = safeRel(rel);
-        if (!safe) continue;
-        fs.mkdirSync(path.dirname(path.join(stage, "trees", safe)), { recursive: true });
-        await get(`trees/${safe}`, path.join(stage, "trees", safe));
-      }
-    });
-    for (const [f, text] of Object.entries(pkg.secrets)) if (SECRET_FILES.includes(f)) fs.writeFileSync(path.join(stage, f), text, { mode: 0o600 });
-    const self = pkg.peers.find((p) => p.peerId === pkg.peerId);
-    fs.writeFileSync(path.join(stage, "join.json"), JSON.stringify({ v: 1, space: pkg.space, peerId: pkg.peerId, token: pkg.token, box: pkg.box, relay: self?.relay ?? c.offer.relay, from: c.offer.name, at: d.now() }), { mode: 0o600 });
+    await withTarget(c.target, (ch) => stageCopy(d.root, ch, pkg, c.offer.name, c.offer.relay, d.now()));
     // the desktop app reads the Personal Space's id from this marker on every start; the next start is the joined Space
     if (fs.existsSync(path.join(d.root, "personal-profile.json"))) fs.writeFileSync(path.join(d.root, "personal-profile.json"), JSON.stringify({ spaceId: pkg.space }), { mode: 0o600 });
-    fs.writeFileSync(path.join(stage, "ready"), "1", { mode: 0o600 });
     d.log("peers.joined", { space: pkg.space, from: c.offer.name });
     joining = null;
     setTimeout(() => d.restart(), 200).unref?.();

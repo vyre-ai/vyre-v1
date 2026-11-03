@@ -31,12 +31,13 @@ CREATE TABLE IF NOT EXISTS network_peer_request (
   peer_id TEXT
 );
 -- Which network_peer row is this computer (one row, never copied to another computer), and how its copy stands: waiting counts the rows written here that another computer has not
--- taken yet, synced_at is when this computer last reached one.
+-- taken yet, synced_at is when this computer last reached one, box the Space's box key (public) a server's join code carries.
 CREATE TABLE IF NOT EXISTS network_peer_self (
   id INTEGER PRIMARY KEY,
   peer_id TEXT NOT NULL,
   waiting INTEGER NOT NULL DEFAULT 0,
-  synced_at INTEGER
+  synced_at INTEGER,
+  box TEXT
 );
 -- Which computer of a Personal Space runs the Space's scheduled work (automations, routines, watchers, provider pulls, nightly jobs): one at a time, by a lease every computer copies.
 -- The holder renews expires_at every 30 seconds; when it sleeps, another computer takes it once it runs out. A server of the Space takes it from a computer.
@@ -56,4 +57,15 @@ CREATE TABLE IF NOT EXISTS network_peer_conflict (
   kind TEXT NOT NULL,
   detail TEXT NOT NULL,
   at INTEGER NOT NULL
+);
+-- A server joining this Personal Space with a one-time code (Settings, Computers, Add a server). The code carries this computer's route and the Space's box key (both public) and a secret whose hash
+-- is kept here; it works once, for 30 minutes, and the person who made it allowed the server by making it.
+CREATE TABLE IF NOT EXISTS network_peer_invite (
+  id TEXT PRIMARY KEY,
+  secret_hash TEXT NOT NULL,
+  name TEXT NOT NULL,
+  created_by TEXT NOT NULL,
+  created_at INTEGER NOT NULL,
+  expires_at INTEGER NOT NULL,
+  used_at INTEGER
 );

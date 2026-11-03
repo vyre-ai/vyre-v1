@@ -69,6 +69,10 @@ export interface DaemonConfig {
   peers?: boolean;
   /** --peer-name (VYRE_PEER_NAME): what other computers call this one; the host name when absent. */
   peerName?: string;
+  /** VYRE_PEER_KIND=server: an always-on server of a Personal Space (it takes the scheduled-work lease from a computer). */
+  peerKind?: "computer" | "server";
+  /** VYRE_PEER_JOIN: the one-time code from Settings, Computers, Add a server in a Personal Space. A fresh data directory joins that Space with it at the first start. */
+  peerJoin?: string;
 }
 
 export const DEFAULTS = { host: "127.0.0.1", port: 8420, caddyAdmin: "http://127.0.0.1:2019" } as const;
@@ -109,6 +113,8 @@ export function loadConfig(argv: readonly string[], env: NodeJS.ProcessEnv = pro
     ...((flag(argv, "space-name") ?? env["VYRE_SPACE_NAME"]) ? { spaceName: (flag(argv, "space-name") ?? env["VYRE_SPACE_NAME"])! } : {}),
     ...(argv.includes("--peers") || env["VYRE_PEERS"] === "1" ? { peers: true } : {}),
     ...((flag(argv, "peer-name") ?? env["VYRE_PEER_NAME"]) ? { peerName: (flag(argv, "peer-name") ?? env["VYRE_PEER_NAME"])!.slice(0, 60) } : {}),
+    ...((flag(argv, "peer-kind") ?? env["VYRE_PEER_KIND"]) === "server" ? { peerKind: "server" as const } : {}),
+    ...((flag(argv, "peer-join") ?? env["VYRE_PEER_JOIN"]) ? { peerJoin: (flag(argv, "peer-join") ?? env["VYRE_PEER_JOIN"])!.trim() } : {}),
   };
 }
 

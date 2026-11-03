@@ -30,7 +30,7 @@ export type CreateCells = (db: { all(sql: string, ...a: unknown[]): unknown[]; r
 
 /** Tables that describe this computer, or are kept from this computer's own log by sequence, and never travel. The engine's queue, leases and parked turns are work this computer's own engine
  *  holds: copied, another computer's engine would take a turn that is already running here (a chat message itself travels; the turn it started stays where it was sent). */
-const LOCAL = /^(host_|health_|logs_|sync_|search_|network_(phone|endpoint|config|command|result|dns|cert|peer_request|peer_self|peer_conflict)|engine_(thread_queue|thread_lease|waits|crew_job|crew_wait|capture_state))/;
+const LOCAL = /^(host_|health_|logs_|sync_|search_|network_(phone|endpoint|config|command|result|dns|cert|peer_request|peer_self|peer_conflict|peer_invite)|engine_(thread_queue|thread_lease|waits|crew_job|crew_wait|capture_state))/;
 export const denyModules = (t: string): boolean => LOCAL.test(t);
 export const DENY_COLUMNS: Readonly<Record<string, readonly string[]>> = { network_peer: ["last_seen_at"] };
 

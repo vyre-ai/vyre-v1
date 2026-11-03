@@ -7,7 +7,7 @@ import { Dialog } from "../../../../../ui/src/Dialog/index.tsx";
 import { TextField } from "../../../../../ui/src/TextField/index.tsx";
 import { setComputersAvailable, takeAddServerRequest } from "../../shell/computers-available.ts";
 import { useIsPersonal, useSettingsData } from "./data.tsx";
-import { addressKind, emptySheet, factsLine, joinCommand, phaseOf, runsLine, validNickname } from "./computers-model.ts";
+import { addressKind, emptySheet, factsLine, joinCommand, peerServerCommand, phaseOf, runsLine, validNickname } from "./computers-model.ts";
 import type { HostInfo, ServerInfo, Sheet } from "./computers-model.ts";
 import { Glyph, Section, SettingsRow, SmallButton, Tip, pointer } from "./ui.tsx";
 import { PhoneAccessSection } from "./PhoneAccess.tsx";
@@ -84,8 +84,8 @@ export interface AddSheetProps {
 
 export function AddServerSheet({ sheet, servers, busy, error, now, onNickname, onMake, onApprove, onDecline, onCopy, onClose, onPhoneAccess }: AddSheetProps): ReactElement {
   const { phase, arrived } = phaseOf(sheet, servers);
-  const reach = addressKind(sheet.address);
-  const command = sheet.code && sheet.address ? joinCommand(sheet.address, sheet.code) : sheet.code ? joinCommand("<this address>", sheet.code) : "";
+  const reach = sheet.peer ? "public" : addressKind(sheet.address);
+  const command = sheet.peer && sheet.code ? peerServerCommand(sheet.code) : sheet.code && sheet.address ? joinCommand(sheet.address, sheet.code) : sheet.code ? joinCommand("<this address>", sheet.code) : "";
   const left = sheet.expiresAt ? Math.max(0, Math.ceil((sheet.expiresAt - now) / 60000)) : 0;
   const actions = phase === "name"
     ? [{ label: "Cancel", testID: "add-cancel", onPress: onClose }, { label: busy ? "Making" : "Get command", testID: "add-make", primary: true, disabled: busy || !validNickname(sheet.nickname), onPress: onMake }]
@@ -147,6 +147,8 @@ export function ComputersSection(): ReactElement {
   const personal = useIsPersonal();
   const [hosts, setHosts] = useState<HostInfo[]>([]);
   const [servers, setServers] = useState<ServerInfo[]>([]);
+  // a Personal Space's own servers, as the Add a server sheet sees them once they joined through the relay
+  const [peerServers, setPeerServers] = useState<ServerInfo[]>([]);
   const [removing, setRemoving] = useState<string | null>(null);
   // asked for from the Space menu or an agent's page: the sheet is open as Computers draws
   const [sheet, setSheet] = useState<Sheet | null>(() => (takeAddServerRequest() ? emptySheet() : null));
@@ -163,10 +165,14 @@ export function ComputersSection(): ReactElement {
         data.call("network.my_computers", {}) as Promise<{ computers: ServerInfo[] }>,
       ]);
       if (alive.current) { setHosts(h.hosts); setServers(m.computers); }
+      if (personal) {
+        const p = await (data.call("network.peers", {}) as Promise<{ computers: { peerId: string; name: string; kind: string; online: boolean; lastSeenAt?: number }[] }>).catch(() => ({ computers: [] }));
+        if (alive.current) setPeerServers(p.computers.filter((c) => c.kind === "server").map((c) => ({ serverId: c.peerId, name: c.name, state: c.online ? "healthy" as const : "down" as const, enrollment: "approved" as const, ...(c.lastSeenAt !== undefined ? { lastSeenAt: c.lastSeenAt } : {}) })));
+      }
       // agent computers appear elsewhere the moment a host can run one, and go when none can
       setComputersAvailable(data.space.id, (h as { available?: boolean }).available === true);
     } catch { /* the lists stay as they were */ }
-  }, [data]);
+  }, [data, personal]);
   useEffect(() => { void load(); }, [load]);
   useEffect(() => {
     if (!sheet?.code || sheet.approved) return undefined;
@@ -179,6 +185,12 @@ export function ComputersSection(): ReactElement {
     try { await run(); } catch { if (alive.current) setError(fail); } finally { if (alive.current) setBusy(false); }
   };
   const make = (): Promise<void> => guarded(async () => {
+    if (personal) {
+      // a Personal Space: the server joins through the relay with a one-time code, no address needed
+      const got = await data.call("network.peer_server_code", { idempotencyKey: `add-${Math.random().toString(36).slice(2)}`, nickname: sheet!.nickname.trim() }) as { code: string; expiresAt: number };
+      setSheet((s) => s && { ...s, nickname: s.nickname.trim(), code: got.code, expiresAt: got.expiresAt, address: null, peer: true });
+      return;
+    }
     const made = await data.call("network.my_computer_code", { idempotencyKey: `add-${Math.random().toString(36).slice(2)}`, nickname: sheet!.nickname.trim() }) as { code: string; expiresAt: number; address?: string };
     setSheet((s) => s && { ...s, nickname: s.nickname.trim(), code: made.code, expiresAt: made.expiresAt, address: made.address ?? null });
   }, "Couldn't make a command. Try again.");
@@ -197,7 +209,7 @@ export function ComputersSection(): ReactElement {
       <PhoneAccessSection />
       {sheet ? (
         <AddServerSheet
-          sheet={sheet} servers={servers} busy={busy} error={error} now={now}
+          sheet={sheet} servers={sheet.peer ? peerServers : servers} busy={busy} error={error} now={now}
           onNickname={(v) => setSheet((s) => s && { ...s, nickname: v })} onMake={() => void make()} onApprove={(id) => void approve(id)} onDecline={(id) => void decline(id)}
           onCopy={copyText} onClose={() => { setSheet(null); void load(); }}
         />
