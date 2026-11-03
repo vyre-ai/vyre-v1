@@ -2,7 +2,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { embedRun, health, indexApply, indexRebuild, indexStats, recentRecord, setLister } from "../handlers/index.ts";
-import { query, recentList } from "../handlers/query.ts";
+import { query, recentList, related, resolveItem } from "../handlers/query.ts";
 import { setSource } from "../projections.ts";
 import { assertEventsConform, asPerson, contractErrors, harness, notFound, seed } from "../fixtures/harness.ts";
 
@@ -28,12 +28,12 @@ test("a record becomes its title and the words of its fields, never a credential
   assert.deepEqual(h.calls("records.get")[0]!.input, { recordId: "rec_a", type: "client" });
 });
 
-test("a file becomes its name, its folder path and, for text, the first twenty thousand characters an agent may read of it", async () => {
+test("a file becomes its name, its folder path and, for text, its first twenty thousand characters", async () => {
   const h = harness({
     respond: {
       "files.get": (i) => ({ file: i["fileId"] === "fil_pdf" ? { fileId: "fil_pdf", name: "Scan.pdf", kind: "pdf", folderId: "fld_a", label: 1 } : i["fileId"] === "fil_del" ? { fileId: "fil_del", name: "Old.md", kind: "markdown", deletedAt: 3 } : { fileId: i["fileId"], name: "Lease.md", kind: "markdown", folderId: "fld_a", label: 1, updatedAt: 9 } }),
       "files.folder.get": () => ({ folder: { path: "Clients/Harbor" } }),
-      "files.agent_view": () => ({ state: "clear", name: "Lease.md", path: "Clients/Harbor", text: "The rent is due on the first of the month" }),
+      "files.read": () => ({ text: "The rent is due on the first of the month" }),
     },
   });
   await indexApply(h.ctx, { entity: "file", id: "fil_md", op: "upsert", seq: 1 });
@@ -42,10 +42,8 @@ test("a file becomes its name, its folder path and, for text, the first twenty t
   assert.equal(md["path"], "Clients/Harbor/Lease.md");
   assert.match(String(md["body"]), /rent is due/);
   assert.equal(row(h, "fil_pdf")["body"], "", "a PDF has no text to read here");
-  // the body is what an agent may read of the file (Redaction for AI): files.agent_view, never the raw files.read
-  assert.equal(h.calls("files.read").length, 0, "the raw text is never read into the index");
-  assert.equal(h.calls("files.agent_view").length, 1, "only the text file was read");
-  assert.deepEqual(h.calls("files.agent_view")[0]!.input, { fileId: "fil_md" });
+  assert.equal(h.calls("files.read").length, 1, "only the text file was read");
+  assert.deepEqual(h.calls("files.read")[0]!.input, { fileId: "fil_md", as: "text", length: 20000 });
   assert.deepEqual((await query(h.ctx, { q: "rent due", types: ["file"] })).hits.map((x) => [x.id, x.path]), [["fil_md", "Clients/Harbor/Lease.md"]]);
   seed(h, { id: "fil_del", title: "Old.md", kind: "file" });
   await indexApply(h.ctx, { entity: "file", id: "fil_del", op: "upsert", seq: 3 });
@@ -165,19 +163,57 @@ test("Recent lists what the asker opened, newest first, only what they may still
   assert.deepEqual(contractErrors("search.recent.list", "out", await recentList(h.ctx, {})), []);
 });
 
-test("Redaction for AI: a redacted word never reaches the index, and a file waiting for review indexes no body", async () => {
+test("Redaction for AI: a person still finds a redacted word in a file they may read; an agent's search, Related, Resolve and an Ask turn never do", async () => {
+  const RAW = "Ms. Elena Rivera was diagnosed with a torn meniscus in her right knee. Our demand is $85,000.";
+  const AGENT = "Ms. [REDACTED] was diagnosed with a [REDACTED]. Our demand is ==$85,000==.";
   const h = harness({
     respond: {
-      "files.get": (i) => ({ file: { fileId: i["fileId"], name: i["fileId"] === "fil_r" ? "Intake.md" : "Retainer.md", kind: "markdown", folderId: "fld_a", label: 1 } }),
+      "files.get": (i) => ({ file: { fileId: i["fileId"], name: i["fileId"] === "fil_demand" ? "Demand letter.md" : i["fileId"] === "fil_ret" ? "Retainer.md" : "Knee notes.md", kind: "markdown", folderId: "fld_a", label: 1, updatedAt: 9 } }),
       "files.folder.get": () => ({ folder: { path: "Projects/Rivera injury claim" } }),
-      "files.agent_view": (i) => (i["fileId"] === "fil_r" ? { state: "redacted", name: "Intake.md", path: "", text: "Name: [REDACTED]. SSN: [REDACTED]." } : { state: "needs", name: "Retainer.md", path: "", text: null }),
-      "files.read": () => ({ text: "Name: Elena Rivera. SSN: 512-44-8391." }),
+      "files.read": (i) => ({ text: i["fileId"] === "fil_clear" ? "Knee exam notes for the clinic." : i["fileId"] === "fil_ret" ? "Retainer: torn meniscus claim, fee one third." : RAW }),
+      "files.agent_view": (i) => (i["fileId"] === "fil_demand" ? { state: "redacted", name: "Demand letter.md", path: "Projects/[REDACTED] injury claim", text: AGENT }
+        : i["fileId"] === "fil_ret" ? { state: "off", name: "Retainer.md", path: "Projects/[REDACTED] injury claim", text: null }
+        : { state: "clear", name: "Knee notes.md", path: "Projects/Rivera injury claim", text: "Knee exam notes for the clinic." }),
     },
   });
-  await indexApply(h.ctx, { entity: "file", id: "fil_r", op: "upsert", seq: 1 });
-  await indexApply(h.ctx, { entity: "file", id: "fil_n", op: "upsert", seq: 2 });
-  assert.doesNotMatch(String(row(h, "fil_r")["body"]), /Elena|512-44/);
-  assert.match(String(row(h, "fil_r")["body"]), /\[REDACTED\]/);
-  assert.equal(row(h, "fil_n")["body"], "");
-  assert.deepEqual((await query(h.ctx, { q: "512-44-8391", types: ["file"] })).hits, [], "a search for the redacted number finds nothing");
+  for (const [id, seq] of [["fil_demand", 1], ["fil_ret", 2], ["fil_clear", 3]] as const) await indexApply(h.ctx, { entity: "file", id, op: "upsert", seq });
+  assert.match(String(row(h, "fil_demand")["body"]), /meniscus/, "the index keeps the whole text for people");
+  assert.equal(h.rows("SELECT n FROM search_agent_docs").length, 2, "only the files an agent reads differently carry an agent view");
+  assert.equal((await embedRun(h.ctx, {})).embedded, 3, "the vectors are built from the whole text, so the agent filter must hold against them too");
+
+  // a person who may read the file finds the redacted word, quoted from the whole text
+  const person = await query(h.ctx, { q: "meniscus", types: ["file"], mode: "keyword" });
+  assert.deepEqual(person.hits.map((x) => x.id).sort(), ["fil_demand", "fil_ret"]);
+  assert.ok((await query(h.ctx, { q: "torn meniscus knee", types: ["file"], mode: "semantic" })).hits.some((x) => x.id === "fil_demand"), "a person's semantic search finds it");
+  assert.match(String(person.hits.find((x) => x.id === "fil_demand")!.snippet), /\[meniscus\]/);
+
+  // an agent never does: not the redacted file, not the file agents may not see, in keyword, semantic or hybrid
+  const agent = asPerson(h, { kind: "agent", id: "agt_intake" });
+  for (const mode of ["keyword", "semantic", "hybrid"] as const) {
+    assert.deepEqual((await query(agent.ctx, { q: "meniscus", types: ["file"], mode })).hits, [], `an agent's ${mode} search finds no redacted word`);
+    assert.deepEqual((await query(agent.ctx, { q: "Elena Rivera", mode })).hits, [], `an agent's ${mode} search finds no redacted name`);
+  }
+  // an Ask turn: a person's question run by the engine is agent-bound, so it reads the agent's view too
+  const ask = { ...h.ctx, origin: "engine" };
+  assert.deepEqual((await query(ask, { q: "meniscus", types: ["file"] })).hits, [], "the agent's Ask the Space never finds it");
+  assert.deepEqual((await query({ ...h.ctx, forAgent: "agt_intake" }, { q: "torn meniscus" })).hits, [], "nor a person's rerun that stands for an agent");
+
+  // what an agent may find, it finds as an agent may read it: the agent title, path and snippet, no hidden word
+  const seen = await query(agent.ctx, { q: "demand", types: ["file"] });
+  assert.deepEqual(seen.hits.map((x) => x.id), ["fil_demand"]);
+  assert.equal(seen.hits[0]!.path, "Projects/[REDACTED] injury claim/Demand letter.md");
+  assert.doesNotMatch(JSON.stringify(seen.hits), /meniscus|Elena|Rivera/);
+  assert.deepEqual((await query(agent.ctx, { q: "knee", types: ["file"] })).hits.map((x) => x.id), ["fil_clear"], "a clear file is searched as it is");
+
+  // Resolve and Related: the file agents may not see is not there, the redacted one carries no hidden word, and Related never links through one
+  assert.deepEqual(await resolveItem(agent.ctx, { kind: "file", itemId: "fil_ret" }), {});
+  assert.doesNotMatch(JSON.stringify(await resolveItem(agent.ctx, { kind: "file", itemId: "fil_demand" })), /meniscus|Elena|Rivera/);
+  assert.ok((await resolveItem(h.ctx, { kind: "file", itemId: "fil_ret" })).hit, "a person resolves it");
+  assert.ok((await related(h.ctx, { kind: "file", itemId: "fil_ret" })).hits.some((x) => x.id === "fil_demand"), "a person's Related links the two by the word meniscus");
+  assert.deepEqual((await related(agent.ctx, { kind: "file", itemId: "fil_ret" })).hits, [], "an agent's Related of a file it may not see is empty");
+  assert.doesNotMatch(JSON.stringify(await related(agent.ctx, { kind: "file", itemId: "fil_clear" })), /meniscus|Elena|Rivera/);
+
+  // a file taken out of the index takes its agent view with it
+  await indexApply(h.ctx, { entity: "file", id: "fil_demand", op: "delete", seq: 4 });
+  assert.equal(h.rows("SELECT n FROM search_agent_docs").length, 1);
 });

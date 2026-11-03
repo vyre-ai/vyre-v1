@@ -214,6 +214,22 @@ test("Find things to redact runs pattern checks only and suggests the file's own
   c.w.done();
 });
 
+test("Find things to redact suggests the email built from a name already redacted, so the reviewed file does not give the name away", async () => {
+  const c = await claim();
+  await c.w.call(c.ctx, "files.marks.add", { target: { type: "file", id: c.intake }, kind: "redact", shape: "span", text: "Elena Rivera" });
+  const d = await c.w.call(c.ctx, "files.redact.detect", { fileId: c.intake });   // no names given and no Records: the redacted name is enough
+  const email = d.suggestions.find((s: Obj) => s.text === "elena.rivera@fastmail.example");
+  assert.equal(email?.label, "Email with a name in it");
+  assert.ok(!d.suggestions.some((s: Obj) => s.text === "Elena Rivera"), "the redacted name itself is not suggested again");
+  await c.w.call(c.ctx, "files.marks.add", { target: { type: "file", id: c.intake }, kind: "redact", shape: "span", text: "elena.rivera@fastmail.example" });
+  assert.ok(!(await c.w.call(c.ctx, "files.redact.detect", { fileId: c.intake })).suggestions.some((s: Obj) => s.text === "elena.rivera@fastmail.example"));
+  await c.w.call(c.ctx, "files.review", { fileId: c.intake });
+  const view = await c.w.call(c.ctx, "files.agent_view", { fileId: c.intake });
+  assert.doesNotMatch(String(view.text), /elena\.rivera|Elena Rivera/);
+  assert.match(String(view.text), /Email: \[REDACTED\]/);
+  c.w.done();
+});
+
 test("a folder's list reads each file's badge, each subfolder's own setting and what waits below, and the files to review next", async () => {
   const c = await claim();
   await c.w.call(c.ctx, "files.review", { fileId: c.intake });

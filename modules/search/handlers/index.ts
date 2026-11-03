@@ -76,15 +76,26 @@ const fileSource: Source = async (ctx, id) => {
     const p = text(fo?.folder?.["path"]);
     if (p) path = `${p.replace(/\/$/, "")}/${name}`;
   }
+  const textual = TEXTUAL.has(text(f["kind"]));
   let body = "";
-  if (TEXTUAL.has(text(f["kind"]))) {
-    // the body is what an agent may read of the file (Redaction for AI): [REDACTED] where a part is hidden, nothing while it waits for review or is Not available, so a search cannot find a redacted word
-    const r = await read<{ text?: string | null }>(ctx, "files.agent_view", { fileId: id });
-    body = text(r?.text).slice(0, 20_000);
+  if (textual) {
+    const r = await read<{ text?: string }>(ctx, "files.read", { fileId: id, as: "text", length: 20_000 });
+    body = text(r?.text);
   }
+  // Redaction for AI: a person's search keeps the whole text (a person who may read the file finds a redacted word in it). When an agent may read less, the agent's view is kept beside it, and an
+  // agent's search matches and quotes only that: [REDACTED] where a part is hidden, no body while the file waits for review, nothing at all while agents may not see it or the view is not there.
+  type View = { state?: string; name?: string; path?: string; text?: string | null };
+  let v: View | null;
+  try { v = await read<View>(ctx, "files.agent_view", { fileId: id }); } catch { v = null; }   // fail closed: no view, nothing for an agent; a person's search is untouched
+  const agentTitle = text(v?.name) || name;
+  const agentFolder = text(v?.path);
+  const agentPath = agentFolder ? `${agentFolder.replace(/\/$/, "")}/${agentTitle}` : agentTitle;
+  const agentBody = textual ? text(v?.text).slice(0, 20_000) : "";
+  const differs = !v || (v.state ?? "clear") !== "clear" || agentTitle !== name || agentBody !== body.slice(0, 20_000);
   const doc: IndexDoc = {
     entity: "file", id, kind: "file", title: name, body, path, link: `vyre://file/${id}`, label, resource: { type: "file", id }, ...(folderId ? { folderId } : {}),
     ...(typeof f["updatedAt"] === "number" ? { updatedAt: f["updatedAt"] } : {}),
+    ...(differs ? { agent: { title: agentTitle, path: agentPath, body: v ? agentBody : "", withheld: !v || v.state === "off" } } : {}),
   };
   return { doc };
 };

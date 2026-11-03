@@ -147,8 +147,39 @@ export function detect(text: string, opts: { names?: readonly string[]; skip?: r
     const count = occurrences(text, v).length;
     if (count) out.push({ kind, label, text: v, count });
   };
-  for (const n of opts.names ?? []) if (n.trim().includes(" ") || n.trim().length >= 4) add("name", "Name", n);
+  const names = opts.names ?? [];
+  for (const n of names) if (n.trim().includes(" ") || n.trim().length >= 4) add("name", "Name", n);
+  for (const d of builtFromNames(text, names)) add(d.kind, d.label, d.text);
   for (const r of RULES) { r.re.lastIndex = 0; let m: RegExpExecArray | null; while ((m = r.re.exec(text))) add(r.kind, r.label, m[0]); }
+  return out;
+}
+
+/** An email, handle, web address or user name: a run of word characters joined by . _ - + @ / : that a name can hide inside. */
+const IDENT = /[\p{L}\p{N}][\p{L}\p{N}._+@/:-]*[\p{L}\p{N}]/gu;
+const EMAIL = /^[\w.+-]+@[\w-]+(?:\.[a-z]{2,})+$/i;
+
+/**
+ * Identifiers built from a name: an email, a handle or a user name that carries a piece of a name (elena.rivera@fastmail.example beside a redacted Elena Rivera, @erivera, rivera_e). Hiding the
+ * name and leaving these gives the name away, so they are suggested for review with the name. A piece is a word of a name of three letters or more; a bare piece, or a piece with only 's after
+ * it, is the name itself (the name rule covers it), and a piece inside an ordinary word only counts when the word is joined by an identifier mark or a digit.
+ */
+export function builtFromNames(text: string, names: readonly string[]): { kind: DetectKind; label: string; text: string }[] {
+  const pieces = [...new Set(names.flatMap((n) => n.toLowerCase().split(/[^\p{L}]+/u)).filter((p) => [...p].length >= 3))];
+  if (pieces.length === 0) return [];
+  const out: { kind: DetectKind; label: string; text: string }[] = [];
+  IDENT.lastIndex = 0;
+  let m: RegExpExecArray | null;
+  while ((m = IDENT.exec(text))) {
+    const t = m[0], low = t.toLowerCase();
+    if (pieces.includes(low) || pieces.some((p) => low === `${p}'s`)) continue;
+    const joined = /[._+@/:\d-]/.test(t);
+    const hit = pieces.some((p) => low.includes(p) && (joined || [...p].length >= 4));
+    if (!hit) continue;
+    // a capitalised word that merely starts or ends with a name piece (Riverside) is a word, not an identifier
+    if (!joined && /^\p{Lu}\p{Ll}+$/u.test(t)) continue;
+    if (out.some((o) => o.text === t)) continue;
+    out.push(EMAIL.test(t) ? { kind: "email", label: "Email with a name in it", text: t } : { kind: "name", label: "Built from a name", text: t });
+  }
   return out;
 }
 

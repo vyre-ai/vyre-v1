@@ -62,7 +62,7 @@ export function accessOf(ctx: Ctx, t: { fileId?: string; folderId?: string }): A
 const toMark = (r: Row): Mark => ({
   id: str(r.id), kind: str(r.kind) === "highlight" ? "highlight" : "redact", shape: (["span", "box", "range", "name"].includes(str(r.shape)) ? str(r.shape) : "span") as Mark["shape"],
   text: r.text === null || r.text === undefined ? null : str(r.text), occurrence: r.occurrence === null || r.occurrence === undefined ? null : num(r.occurrence),
-  page: r.page === null || r.page === undefined ? null : num(r.page), box: typeof r.box === "string" && r.box ? (JSON.parse(r.box) as Mark["box"]) : null,
+  page: r.page === null || r.page === undefined ? null : num(r.page), box: typeof r.box === "string" && r.box ? (JSON.parse(r.box) as NonNullable<Mark["box"]>) : null,
   from: r.range_from === null || r.range_from === undefined ? null : num(r.range_from), to: r.range_to === null || r.range_to === undefined ? null : num(r.range_to),
   label: r.label === null || r.label === undefined ? null : str(r.label),
 });
@@ -510,13 +510,19 @@ async function recordNames(ctx: Ctx): Promise<string[]> {
 }
 
 /** Find things to redact: server checks, no AI. Names from Records, SSNs, dates of birth, account and case numbers, phones, emails, addresses, and the file's own name. */
+/** Two or more capitalised words (Elena Rivera, Dr. Amara Okafor): a redacted text a person most likely picked as a name. */
+const LOOKS_LIKE_NAME = /^(?:(?:Dr|Mr|Mrs|Ms)\. )?\p{Lu}[\p{Ll}'-]+(?: \p{Lu}[\p{Ll}'-]+)+$/u;
+
 async function detectCap(ctx: Ctx, input: unknown): Promise<O> {
   const o = rec(ctx, input), fileId = reqId(ctx, o, "fileId");
   const file = fileRow(ctx, fileId);
   if (!file) fail(ctx, "validation.not_found", "That file is not here.", { fileId });
   const text = (await textOf(ctx, fileId)) ?? "";
-  const names = [...(Array.isArray(o.names) ? o.names.filter((x): x is string => typeof x === "string") : []), ...(await recordNames(ctx))];
-  const have = liveRows(ctx, fileId).filter((r) => str(r.kind) === "redact" && r.text).map((r) => str(r.text));
+  const live = liveRows(ctx, fileId).filter((r) => str(r.kind) === "redact" && r.text);
+  const have = live.map((r) => str(r.text));
+  // the names already hidden here count as names too, so an email or handle built from one (elena.rivera@...) is suggested beside it: leaving it would give the name away
+  const hidden = live.filter((r) => str(r.shape) === "name" || str(r.label) === "Name" || LOOKS_LIKE_NAME.test(str(r.text).trim())).map((r) => str(r.text).trim());
+  const names = [...new Set([...(Array.isArray(o.names) ? o.names.filter((x): x is string => typeof x === "string") : []), ...(await recordNames(ctx)), ...hidden])];
   const found = detect(text, { names, skip: have });
   const fname = str(file.name), inName = names.flatMap((n) => n.split(" ")).filter((p) => p.length >= 3 && fname.includes(p) && !have.includes(p));
   return { suggestions: [...found, ...[...new Set(inName)].map((p) => ({ kind: "file_name", label: "Name in the file name", text: p, count: 1 }))], textLayer: text.trim() !== "", checkedBy: "patterns" };

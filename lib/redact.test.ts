@@ -1,7 +1,7 @@
 // Redaction for AI, the pure part: what an agent reads, the detectors (no model), and carrying marks to a new version.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { REDACTED, agentBound, agentName, classify, detect, reanchor, renderForAgent, scrubAll, scrubDeep, type Mark } from "./redact.ts";
+import { REDACTED, agentBound, agentName, builtFromNames, classify, detect, reanchor, renderForAgent, scrubAll, scrubDeep, type Mark } from "./redact.ts";
 
 const red = (text: string, o: Partial<Mark> = {}): Mark => ({ id: `m${Math.random()}`, kind: "redact", shape: "span", text, ...o });
 const hl = (text: string, o: Partial<Mark> = {}): Mark => ({ id: `h${Math.random()}`, kind: "highlight", shape: "span", text, ...o });
@@ -53,6 +53,27 @@ test("detectors find names from Records, SSNs, dates of birth, account and case 
   assert.equal(classify("512-44-8391"), "SSN");
   assert.equal(classify("Elena Rivera", ["Elena Rivera"]), "Name");
   assert.equal(classify("prefers afternoons"), "Text");
+});
+
+test("detectors suggest an email, handle or user name built from a name, so hiding the name does not leave it given away", () => {
+  const t = [
+    "Name: Elena Rivera. Email: elena.rivera@fastmail.example. Work: erivera@northwind.example.",
+    "Instagram @elenarivera86, portal user rivera_e, profile linkedin.com/in/elena-rivera.",
+    "Rivera's spouse lives in Riverside. Contact desk@clinic.example. Elena signed.",
+  ].join("\n");
+  const built = builtFromNames(t, ["Elena Rivera"]);
+  assert.deepEqual(built.map((x) => [x.text, x.kind]), [
+    ["elena.rivera@fastmail.example", "email"], ["erivera@northwind.example", "email"], ["elenarivera86", "name"], ["rivera_e", "name"], ["linkedin.com/in/elena-rivera", "name"],
+  ], "the bare name, Rivera's, Riverside and an email with no name in it are not built from the name");
+  assert.equal(built[0]!.label, "Email with a name in it");
+  // through detect: suggested beside the name, before the plain email rule, once each
+  const s = detect(t, { names: ["Elena Rivera"], skip: ["Elena Rivera"] });
+  assert.equal(s.filter((x) => x.text === "elena.rivera@fastmail.example").length, 1);
+  assert.equal(s.find((x) => x.text === "elena.rivera@fastmail.example")!.label, "Email with a name in it");
+  assert.equal(s.find((x) => x.text === "desk@clinic.example")!.label, "Email", "an email with no name in it is still an email");
+  assert.ok(s.some((x) => x.text === "rivera_e"));
+  assert.deepEqual(builtFromNames(t, []), [], "no names, nothing built from one");
+  assert.deepEqual(detect(t, { names: ["Elena Rivera"], skip: ["Elena Rivera", "elena.rivera@fastmail.example"] }).filter((x) => x.text === "elena.rivera@fastmail.example"), [], "a redacted email is not suggested again");
 });
 
 test("re-anchoring: a mark follows its text to the new version, a chosen match moves to where its surroundings fit, a vanished text is unplaced", () => {

@@ -93,11 +93,12 @@ function docs(): Map<string, Doc> {
     data: vdata("f_intake", "Rivera intake form.pdf", "pdf", "application/pdf", INTAKE), state: "reviewed", reviewed: { by: "usr_irfad", at: NOW - 8 * MIN, version: 3 }, requests: [], unplaced: [],
     access: { value: "redact", own: false, inherited: "redact", from: CLAIM },
     marks: [red("m1", "Elena Rivera", "Name", "usr_irfad", 12 * MIN, { occurrence: 0 }), red("m2", "03/14/1986", "Date of birth"), red("m3", "512-44-8391", "SSN"), red("m4", "(415) 555-0161", "Phone"), red("m5", "2217 Alder Street, Apt 4", "Address"),
+      red("m7", "elena.rivera@fastmail.example", "Email", "usr_irfad", 10 * MIN),
       hl("h1", "Slipped on a wet floor near aisle 7 with no warning sign.", "usr_maya", DAY + 70 * MIN), red("m6", "(415) 555-0178", "Phone", "usr_irfad", 22 * MIN, { byAgent: "assistant" })],
     comments: [{ commentId: "c1", fileId: "f_intake", anchor: { kind: "range", quote: "Mercy General Hospital, emergency room" }, text: "Request the full ER chart, not just the discharge summary.", by: "usr_lena", at: NOW - DAY, resolved: false, mentions: [], replies: [] }],
     events: [
       ev("e1", "file.agent_read", "svc_host", 5 * MIN, { agentId: "agt_intake", redacted: true }), ev("e2", "file.reviewed", "usr_irfad", 8 * MIN, { by: "usr_irfad" }),
-      ev("e3", "file.redacted", "usr_irfad", 11 * MIN, { by: "usr_irfad", label: "Date of birth" }), ev("e4", "file.redacted", "usr_irfad", 12 * MIN, { by: "usr_irfad", label: "Name" }),
+      ev("e10", "file.redacted", "usr_irfad", 10 * MIN, { by: "usr_irfad", label: "Email" }), ev("e3", "file.redacted", "usr_irfad", 11 * MIN, { by: "usr_irfad", label: "Date of birth" }), ev("e4", "file.redacted", "usr_irfad", 12 * MIN, { by: "usr_irfad", label: "Name" }),
       ev("e5", "file.redacted", "usr_irfad", 22 * MIN, { by: "usr_irfad", byAgent: "assistant", label: "Phone" }), ev("e6", "file.unredacted", "usr_maya", DAY + 60 * MIN, { by: "usr_maya", label: "Date" }),
       ev("e7", "file.highlighted", "usr_maya", DAY + 70 * MIN, { by: "usr_maya" }), ev("e8", "file.comment_added", "usr_lena", DAY, {}), ev("e9", "file.agent_read", "svc_host", DAY + 2 * 60 * MIN, { agentId: "agt_docs", redacted: true }),
     ],
@@ -130,8 +131,8 @@ function docs(): Map<string, Doc> {
 
 const SUGGEST: Record<string, { kind: string; label: string; text: string; count: number }[]> = {
   f_retainer: [
-    { kind: "name", label: "Name", text: "Elena Rivera", count: 2 }, { kind: "account", label: "Account or case number", text: "CV-2026-04417", count: 1 }, { kind: "account", label: "Account or case number", text: "4471-0098-2216", count: 1 },
-    { kind: "phone", label: "Phone", text: "(415) 555-0161", count: 1 }, { kind: "email", label: "Email", text: "elena.rivera@fastmail.example", count: 1 }, { kind: "address", label: "Address", text: "2217 Alder Street, Apt 4", count: 1 },
+    { kind: "name", label: "Name", text: "Elena Rivera", count: 2 }, { kind: "email", label: "Email with a name in it", text: "elena.rivera@fastmail.example", count: 1 }, { kind: "account", label: "Account or case number", text: "CV-2026-04417", count: 1 }, { kind: "account", label: "Account or case number", text: "4471-0098-2216", count: 1 },
+    { kind: "phone", label: "Phone", text: "(415) 555-0161", count: 1 }, { kind: "address", label: "Address", text: "2217 Alder Street, Apt 4", count: 1 },
     { kind: "file_name", label: "Name in the file name", text: "Rivera", count: 1 },
   ],
 };
@@ -253,7 +254,7 @@ function ViewText({ children, bold }: { children: string; bold?: boolean }): Rea
 function Page({ q }: { q: URLSearchParams }): ReactNode {
   const view = q.get("view") ?? "list";
   const body = view === "access" ? <List open /> : view === "request" ? <Request />
-    : view === "pdf" ? <Viewer fileId="f_intake" script={(d) => selectIn(d, "elena.rivera@fastmail.example")} />
+    : view === "pdf" ? <Viewer fileId="f_intake" script={(d) => selectIn(d, "Marco Rivera")} />
     : view === "doc" ? <Viewer fileId="f_demand" script={(d) => hoverMark(d, "[data-rdx='1'][data-mark='m2']")} />
     : view === "scan" ? <Viewer fileId="f_scan" script={(d) => { click(d, "vw-tool-redact"); click(d, "vw-redact-btn"); }} />
     : view === "find" ? <Viewer fileId="f_retainer" script={(d) => { click(d, "vw-redact-btn"); setTimeout(() => click(d, "rx-find"), 250); }} />
