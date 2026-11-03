@@ -20,6 +20,7 @@ A requested key was supplied; the waiting run can resume
 type Payload = {
   requestId: string;
   itemId: string;
+  handle?: string;
   forRun?: string;
   name?: string;
   threadId?: string;

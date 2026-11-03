@@ -39350,6 +39350,7 @@ export type VaultRequestDeclinedPayload = {
 export type VaultRequestFulfilledPayload = {
   requestId: string;
   itemId: string;
+  handle?: string;
   forRun?: string;
   name?: string;
   threadId?: string;
