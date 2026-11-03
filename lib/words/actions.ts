@@ -71,5 +71,7 @@ export function actionSentence(s: ActionSentence): string {
   if (!p) return `${s.who} did something to ${s.thing}${forWho}`;
   const prep = PREP[p.verbWord];
   if (prep) return `${s.who} ${p.verb} ${p.noun ? a(p.noun) : "it"} ${prep} ${s.thing}${forWho}`;
+  // a role or access belongs to a person: "changed the role of Omar"
+  if (p.noun === "role" || p.noun === "access" || p.noun === "permission exception") return `${s.who} ${p.verb} the ${p.noun} of ${s.thing}${forWho}`;
   return `${s.who} ${p.verb} ${p.noun ? `the ${p.noun} ` : ""}${s.thing}${forWho}`;
 }

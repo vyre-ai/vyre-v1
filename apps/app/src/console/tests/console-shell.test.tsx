@@ -95,7 +95,7 @@ test("Overview: what needs you, the server tiles and the last admin acts, each w
   for (const t of ["Server", "Members", "Agents", "Turns today", "Spend this month"]) assert.ok(has(out, `data-testid="tile-${t}"`), t);
   assert.ok(has(out, "Degraded") && has(out, ">14<") && has(out, ">6<") && has(out, "1,284") && has(out, "$412"));
   assert.equal((out.match(/data-testid="row-act-\d"/g) ?? []).length, 5, "five admin acts");
-  assert.ok(has(out, "Priya Raman changed the role Omar Haddad") && has(out, "6 min ago"));
+  assert.ok(has(out, "Priya Raman changed the role of Omar Haddad") && has(out, "6 min ago"));
   assert.ok(has(out, 'data-testid="to-audit"'));
   assert.deepEqual(Object.keys(ATTENTION_PAGE).sort(), ["access_review_due", "expiring_certificate", "failed_run", "failing_check", "home_channel", "join_stuck", "limit_hit", "no_ai_account", "stuck_update"]);
   for (const id of Object.values(ATTENTION_PAGE)) assert.ok(PAGES.some((p) => p.id === id), `${id} is a page`);
@@ -118,7 +118,7 @@ test("Audit log: every row has who, what, the kind and when; nothing from a filt
   const out = html(createSampleConsole(), { initialPage: "audit" });
   assert.ok(has(out, 'data-testid="audit"') && has(out, 'aria-label="Search the audit log"') && has(out, 'aria-label="Filter"'));
   for (const r of AUDIT) assert.ok(has(out, `data-testid="row-${r.id}"`), r.id);
-  assert.ok(has(out, "Priya Raman changed the role Omar Haddad"));
+  assert.ok(has(out, "Priya Raman changed the role of Omar Haddad"));
   assert.ok(has(out, "Intake revealed the record Rivera engagement, for Priya Raman"), "an agent's act names the person it acted for");
   assert.ok(has(out, "Admin actions, space") && has(out, "Sensitive reads, record"));
   assert.ok(!has(out, 'data-testid="audit-showing"'));

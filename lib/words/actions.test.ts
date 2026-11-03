@@ -15,7 +15,7 @@ test("acts read as sentences", () => {
   assert.equal(actionWords("agents.routine.save"), "saved a routine");
   assert.equal(actionWords("vault.items.create"), "created an item");
   // an event name already in the past
-  assert.equal(actionSentence({ who: "Priya Raman", action: "role.changed", thing: "Omar Haddad" }), "Priya Raman changed the role Omar Haddad");
+  assert.equal(actionSentence({ who: "Priya Raman", action: "role.changed", thing: "Omar Haddad" }), "Priya Raman changed the role of Omar Haddad");
   assert.equal(actionSentence({ who: "Intake", action: "record.revealed", thing: "Rivera engagement", forWho: "Priya Raman" }), "Intake revealed the record Rivera engagement, for Priya Raman");
   assert.equal(actionSentence({ who: "Olivia Owner", action: "audit.viewed", thing: "space/spc_fresh" }), "Olivia Owner opened the audit log");
 });
