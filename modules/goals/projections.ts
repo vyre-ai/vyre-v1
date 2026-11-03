@@ -3,7 +3,7 @@
 import { readFileSync } from "node:fs";
 import { fail } from "../../host/src/routes/errors.ts";
 import { makeId } from "../../packages/contracts/src/ids.ts";
-import { isHostService, isPersonPress } from "../../lib/trust.ts";
+import { isHostService, isPersonPress, isTrustedService } from "../../lib/trust.ts";
 
 export type Status = "draft" | "planning" | "active" | "waiting" | "stuck" | "paused" | "done" | "missed" | "stopped";
 export type Ended = "done" | "missed" | "stopped";
@@ -138,7 +138,8 @@ export function saveGoal(ctx: Pick<GoalsCtx, "db" | "now">, g: Goal): void {
 // ---- who may do what ----
 
 const me = (ctx: Pick<GoalsCtx, "principal" | "actingFor">): string => ctx.actingFor ?? ctx.principal.id;
-export const isSystem = (ctx: Pick<GoalsCtx, "principal" | "depth">): boolean => isHostService(ctx.principal as never) || (ctx.principal.kind === "service" && (ctx.depth ?? 0) > 0);
+// the server: the host, or a module's own service in a nested call (a hook, the clock). A tenant service (an Automation, a form, a site) is never the system, nested or not (lib/trust.ts).
+export const isSystem = (ctx: Pick<GoalsCtx, "principal" | "depth">): boolean => isHostService(ctx.principal as never) || ((ctx.depth ?? 0) > 0 && isTrustedService(ctx.principal as never));
 /** The owner, in person or through the outside agent their setup grant lets act as them. An agent acting for the owner (the lead) is not the owner. */
 export const isOwner = (ctx: Pick<GoalsCtx, "principal">, g: Goal): boolean => ctx.principal.kind === "person" && ctx.principal.id === g.owner;
 /** The owner's own press in the app: what may grant a permission or set the number (never an agent, never the MCP door). */

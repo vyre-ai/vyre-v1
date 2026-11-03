@@ -11,7 +11,7 @@ import type { FetchFn } from "../src/platform/probes.ts";
 import { loadConfig } from "../src/daemon/config.ts";
 import { startDaemon } from "../src/daemon/daemon.ts";
 
-const L6 = ["automations", "events", "gate", "home", "journeys", "notifications", "runs", "scheduler-api", "steps-core", "tasks"];
+const L6 = ["automations", "events", "gate", "goals", "home", "journeys", "notifications", "runs", "scheduler-api", "steps-core", "tasks"];   // goals: l-goals
 
 const caddyFetch: FetchFn = () => Promise.resolve({ ok: true, status: 200, headers: { get: () => null }, text: () => Promise.resolve('{"apps":{"http":{}}}') });
 
