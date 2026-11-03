@@ -29,7 +29,11 @@ export { MARKUP_TOOLS, VIEWER_KINDS, viewerLabel } from "./props.ts";
 export interface Anchor { x: number; y: number; w: number; h: number }
 export interface Stroke { points: readonly (readonly [number, number])[] }
 export interface MarkupBox extends Anchor { id: string; text: string }
-export interface DocBlock { id: string; tag: "h1" | "h2" | "p" | "li" | "code" | "meta"; text: string }
+/**
+ * One block of a document. An Office file adds a table's rows (`hrow` its header, `row` the rest, cells split by a tab), a picture's place (`fig`, its alt text), a slide's heading (`slide`, its
+ * title, `n` its number) and its speaker notes (`note`). `level` nests a list item.
+ */
+export interface DocBlock { id: string; tag: "h1" | "h2" | "p" | "li" | "code" | "meta" | "hrow" | "row" | "fig" | "slide" | "note"; text: string; level?: number; n?: number }
 export interface ViewerDetails {
   rows: readonly (readonly [string, string])[];
   sections?: readonly { title: string; count?: number; items: readonly { id: string; title: string; note?: string }[] }[];
@@ -100,25 +104,43 @@ export function lineNumbers(count: number): string {
 
 export interface Sheet { cols: readonly string[]; rows: readonly (readonly string[])[] }
 
-/** The text a person sees: **bold** and [[link]] markers removed. Find reads this, so a match is always something on screen. */
+/** ***bold italic***, **bold**, *italic* (a single star next to a word, so "5 * 3" and "a*b" stay as they are), [[link]] and [text](target). */
+const INLINE = /\*\*\*(\S(?:.*?\S)?)\*\*\*|\*\*(.+?)\*\*|(?<![*\w])\*(?![\s*])([^*\n]*?[^\s*])\*(?![*\w])|\[\[(.+?)\]\]|\[([^\]\n]+)\]\(([^)\s]+)\)/g;
+/** A link's words without the marks a Word file puts inside them ("[**Terms**](https://...)"). */
+const unmark = (t: string): string => t.replace(/\*{1,3}([^*]+)\*{1,3}/g, "$1");
+
+/** The text a person sees: **bold**, *italic* and [[link]] markers removed. Find reads this, so a match is always something on screen. */
 export function stripInline(s: string): string {
-  return s.replace(/\*\*(.+?)\*\*/g, "$1").replace(/\[\[(.+?)\]\]/g, "$1").replace(/\[([^\]\n]+)\]\(([^)\s]+)\)/g, "$1");
+  return s.replace(INLINE, (_m, bi?: string, b?: string, i?: string, wiki?: string, label?: string) => bi ?? b ?? i ?? wiki ?? unmark(label ?? ""));
 }
-/** A run of a line: plain, bold, or a link. `ref` is what a link points at (the name in [[Name]], the path in [text](path)). */
-export interface InlineRun { text: string; bold?: boolean; link?: boolean; ref?: string; kind?: "wiki" | "md" }
-/** Splits **bold**, [[link]] and [text](target) into runs; the runs' text joins to stripInline(s). */
+/** A run of a line: plain, bold, italic, or a link. `ref` is what a link points at (the name in [[Name]], the path in [text](path)). */
+export interface InlineRun { text: string; bold?: boolean; italic?: boolean; link?: boolean; ref?: string; kind?: "wiki" | "md" }
+/** Splits ***bold italic***, **bold**, *italic*, [[link]] and [text](target) into runs; the runs' text joins to stripInline(s). */
 export function inlineRuns(s: string): readonly InlineRun[] {
   const out: InlineRun[] = [];
   let at = 0;
-  for (const m of s.matchAll(/\*\*(.+?)\*\*|\[\[(.+?)\]\]|\[([^\]\n]+)\]\(([^)\s]+)\)/g)) {
+  for (const m of s.matchAll(INLINE)) {
     const i = m.index ?? 0;
     if (i > at) out.push({ text: s.slice(at, i) });
-    if (m[1] !== undefined) out.push({ text: m[1], bold: true });
-    else if (m[2] !== undefined) out.push({ text: m[2], link: true, ref: m[2].trim(), kind: "wiki" });
-    else out.push({ text: m[3] ?? "", link: true, ref: decodeURI(m[4] ?? "").replace(/#.*$/, "").replace(/^\.\//, ""), kind: "md" });
+    if (m[1] !== undefined) out.push({ text: m[1], bold: true, italic: true });
+    else if (m[2] !== undefined) out.push({ text: m[2], bold: true });
+    else if (m[3] !== undefined) out.push({ text: m[3], italic: true });
+    else if (m[4] !== undefined) out.push({ text: m[4], link: true, ref: m[4].trim(), kind: "wiki" });
+    else out.push({ text: unmark(m[5] ?? ""), link: true, ref: decodeURI(m[6] ?? "").replace(/#.*$/, "").replace(/^\.\//, ""), kind: "md" });
     at = i + m[0].length;
   }
   if (at < s.length) out.push({ text: s.slice(at) });
+  return out;
+}
+
+/** Blocks grouped under the slide heading before them: a deck draws each slide as a card. Blocks before the first slide (none, for a deck) form a group with no heading. */
+export function slideGroups(blocks: readonly DocBlock[]): readonly { head: DocBlock | null; items: readonly { b: DocBlock; at: number }[] }[] {
+  const out: { head: DocBlock | null; items: { b: DocBlock; at: number }[] }[] = [];
+  blocks.forEach((b, at) => {
+    if (b.tag === "slide") out.push({ head: b, items: [] });
+    else if (out.length === 0) out.push({ head: null, items: [{ b, at }] });
+    else out[out.length - 1]!.items.push({ b, at });
+  });
   return out;
 }
 
@@ -266,6 +288,8 @@ export interface ViewerViewProps extends ViewerProps {
   onInfo?: () => void;
   onHistory?: () => void;
   onMore?: () => void;
+  /** The line of the quiet "no preview" state, for a file whose app is known ("No preview of this file here. Open it in Word."); without it the line names Open in, or the file's own app. */
+  noPreview?: string;
   /** A file that lives at a provider (Google Docs, Word, Excel, Dropbox): one press opens it in the provider's own editor. `label` reads "Open in Google Docs". */
   openIn?: { label: string; onOpen: () => void };
   onBoxes?: (boxes: readonly MarkupBox[]) => void;
@@ -467,6 +491,69 @@ export function Viewer(props: ViewerViewProps): ReactElement {
 
   const shownComments = openComments(props.comments ?? []);
   const isCode = blocks.length > 0 && blocks.every((b) => b.tag === "code");
+  const deck = blocks.some((b) => b.tag === "slide");
+  /** A short line's words with find marks (a table cell, a slide title); the whole-block path below keeps comments and links as well. */
+  const inlineText = (text: string, runs: readonly { text: string; hit?: boolean; on?: boolean }[]): ReactNode => (find !== "" && runs.length > 0
+    ? each(runs, (r, i) => (r.hit === true ? <Text key={i} style={s.mark1}>{r.text}</Text> : r.text))
+    : each(inlineRuns(text), (r, i) => (r.bold === true || r.italic === true ? <Text key={i} style={[r.bold === true && s.bold, r.italic === true && s.italic]}>{r.text}</Text> : r.text)));
+  const slideFind = (b: DocBlock): readonly { text: string; hit?: boolean; on?: boolean }[] => (find === "" ? [] : markRuns(stripInline(b.text), findMatches([stripInline(b.text)], find), 0, -1, []));
+  const renderBlock = (b: DocBlock, bi: number): ReactElement => {
+    if (b.tag === "hrow" || b.tag === "row") {
+      const cells = b.text.split("\t");
+      return (
+        <View key={b.id} style={[s.cellRow, b.tag === "hrow" && s.cellHead]} testID={`vw-block-${b.id}`} accessibilityRole={b.tag === "hrow" ? "header" : undefined} {...web({ "data-tag": b.tag })}>
+          {each(cells, (c, ci) => <Text key={ci} style={[s.cellText, b.tag === "hrow" && s.bold]}>{inlineText(c, find === "" ? [] : markRuns(stripInline(c), findMatches([stripInline(c)], find), 0, -1, []))}</Text>)}
+        </View>
+      );
+    }
+    if (b.tag === "fig") {
+      return (
+        <View key={b.id} style={s.fig} testID={`vw-block-${b.id}`} accessibilityLabel={b.text === "" ? "A picture" : `A picture: ${b.text}`} {...web({ "data-tag": "fig" })}>
+          <Text style={s.figText} numberOfLines={2}>{b.text === "" ? "Picture" : `Picture: ${b.text}`}</Text>
+        </View>
+      );
+    }
+    if (b.tag === "meta") {
+      return (
+        <View key={b.id} style={s.meta} testID={`vw-block-${b.id}`}>
+          {each(b.text.split("\n"), (ln, li) => { const [k, ...v] = ln.split("\t"); return <View key={li} style={s.metaRow}><Text style={s.metaKey}>{k}</Text><Text style={s.metaVal}>{v.join(" ")}</Text></View>; })}
+        </View>
+      );
+    }
+    if ((editing || (props.kind === "plan" && editId === b.id)) && find === "") {
+      return <TextInput key={b.id} multiline autoFocus={props.kind === "plan"} onBlur={() => setEditId((e) => (e === b.id ? null : e))} value={b.text} accessibilityLabel={`${b.tag} block`} testID={`vw-block-${b.id}`} style={[s.block, s[b.tag]]}
+        onSelectionChange={(e) => { const { start, end } = e.nativeEvent.selection; setQuoted(end > start ? { id: b.id, quote: b.text.slice(start, end) } : null); }}
+        onChangeText={(t) => changeBlocks(each(blocks, (x) => (x.id === b.id ? { ...x, text: t } : x)))} />;
+    }
+    const lead = b.tag === "li" ? "•  " : "";
+    const nest = (b.level ?? 0) > 0 ? { paddingLeft: (b.tag === "li" ? 6 : 0) + 20 * Math.min(6, b.level ?? 0) } : b.tag === "note" && blocks[bi - 1]?.tag !== "note" ? s.noteFirst : null;
+    const marks = commentRuns(b.text, shownComments);
+    if (find !== "") {
+      const runs = markRuns(stripInline(b.text), hits, bi, at, hits);
+      return (
+        <Text key={b.id} testID={`vw-block-${b.id}`} style={[s.block, s[b.tag], nest]} {...web({ "data-tag": b.tag })}>
+          {lead}
+          {each(runs, (r, i) => (r.hit === true ? <Text key={i} style={[s.mark1, r.on === true && s.markOn]} {...web({ "data-find": r.on === true ? "current" : "match" })}>{r.text}</Text> : r.text))}
+        </Text>
+      );
+    }
+    return (
+      <Text key={b.id} testID={`vw-block-${b.id}`} style={[s.block, s[b.tag], nest]} onPress={props.kind === "plan" ? () => setEditId(b.id) : undefined} {...web({ "data-tag": b.tag })}>
+        {b.tag === "note" && blocks[bi - 1]?.tag !== "note" ? <Text style={s.noteLabel}>{"Notes  "}</Text> : null}
+        {lead}
+        {shownComments.length > 0 && marks.some((m) => m.comment !== undefined)
+          ? each(marks, (m, i) => (m.comment !== undefined ? <Text key={i} style={s.commented} {...web({ "data-comment": m.comment })}>{m.text}</Text> : m.text))
+          : each(inlineRuns(b.text), (r, i) => (r.bold === true || r.italic === true
+            ? <Text key={i} style={[r.bold === true && s.bold, r.italic === true && s.italic]}>{r.text}</Text>
+            : r.link === true
+              ? (props.fileLinks && r.ref !== undefined && r.kind !== undefined && !/^(https?:|mailto:)/.test(r.ref)
+                ? <FileLinkText key={i} r={{ start: 0, end: 0, label: r.text, ref: r.ref, kind: r.kind }} links={props.fileLinks} />
+                : <Text key={i} style={s.link} {...web({ "data-link": "true" })}>{r.text}</Text>)
+              : props.fileLinks ? <Text key={i}>{withFileLinks(splitRefs(r.text), props.fileLinks)}</Text> : r.text))}
+      </Text>
+    );
+  };
+
   const docBody = (
     <ScrollView style={s.scroll} contentContainerStyle={s.docWrap} testID="vw-doc">
       {quoted !== null && (props.kind === "document" || props.kind === "plan") ? (
@@ -480,45 +567,19 @@ export function Viewer(props: ViewerViewProps): ReactElement {
       <View style={[s.doc, isCode && s.codeDoc]}>
         {isCode ? <Text style={s.lineNums} selectable={false} testID="vw-lines">{lineNumbers(blocks.length)}</Text> : null}
         <View style={isCode ? s.codeCol : undefined}>
-        {each(blocks, (b, bi) => {
-          if (b.tag === "meta") {
-            return (
-              <View key={b.id} style={s.meta} testID={`vw-block-${b.id}`}>
-                {each(b.text.split("\n"), (ln, li) => { const [k, ...v] = ln.split("\t"); return <View key={li} style={s.metaRow}><Text style={s.metaKey}>{k}</Text><Text style={s.metaVal}>{v.join(" ")}</Text></View>; })}
-              </View>
-            );
-          }
-          if ((editing || (props.kind === "plan" && editId === b.id)) && find === "") {
-            return <TextInput key={b.id} multiline autoFocus={props.kind === "plan"} onBlur={() => setEditId((e) => (e === b.id ? null : e))} value={b.text} accessibilityLabel={`${b.tag} block`} testID={`vw-block-${b.id}`} style={[s.block, s[b.tag]]}
-              onSelectionChange={(e) => { const { start, end } = e.nativeEvent.selection; setQuoted(end > start ? { id: b.id, quote: b.text.slice(start, end) } : null); }}
-              onChangeText={(t) => changeBlocks(each(blocks, (x) => (x.id === b.id ? { ...x, text: t } : x)))} />;
-          }
-          const lead = b.tag === "li" ? "•  " : "";
-          const marks = commentRuns(b.text, shownComments);
-          if (find !== "") {
-            const runs = markRuns(stripInline(b.text), hits, bi, at, hits);
-            return (
-              <Text key={b.id} testID={`vw-block-${b.id}`} style={[s.block, s[b.tag]]} {...web({ "data-tag": b.tag })}>
-                {lead}
-                {each(runs, (r, i) => (r.hit === true ? <Text key={i} style={[s.mark1, r.on === true && s.markOn]} {...web({ "data-find": r.on === true ? "current" : "match" })}>{r.text}</Text> : r.text))}
-              </Text>
-            );
-          }
-          return (
-            <Text key={b.id} testID={`vw-block-${b.id}`} style={[s.block, s[b.tag]]} onPress={props.kind === "plan" ? () => setEditId(b.id) : undefined} {...web({ "data-tag": b.tag })}>
-              {lead}
-              {shownComments.length > 0 && marks.some((m) => m.comment !== undefined)
-                ? each(marks, (m, i) => (m.comment !== undefined ? <Text key={i} style={s.commented} {...web({ "data-comment": m.comment })}>{m.text}</Text> : m.text))
-                : each(inlineRuns(b.text), (r, i) => (r.bold === true
-                  ? <Text key={i} style={s.bold}>{r.text}</Text>
-                  : r.link === true
-                    ? (props.fileLinks && r.ref !== undefined && r.kind !== undefined && !/^(https?:|mailto:)/.test(r.ref)
-                      ? <FileLinkText key={i} r={{ start: 0, end: 0, label: r.text, ref: r.ref, kind: r.kind }} links={props.fileLinks} />
-                      : <Text key={i} style={s.link} {...web({ "data-link": "true" })}>{r.text}</Text>)
-                    : props.fileLinks ? <Text key={i}>{withFileLinks(splitRefs(r.text), props.fileLinks)}</Text> : r.text))}
-            </Text>
-          );
-        })}
+        {deck
+          ? each(slideGroups(blocks), (g, gi) => (
+            <View key={g.head?.id ?? `g${gi}`} style={s.slideCard} testID={`vw-slide-${g.head?.n ?? gi + 1}`} {...web({ "data-slide": String(g.head?.n ?? gi + 1) })}>
+              {g.head !== null ? (
+                <View style={s.slideHead}>
+                  <Text style={s.slideNum} selectable={false}>{String(g.head.n ?? gi + 1)}</Text>
+                  {g.head.text !== "" ? <Text style={[s.block, s.h2, s.slideTitle]} testID={`vw-block-${g.head.id}`} {...web({ "data-tag": "slide" })}>{inlineText(g.head.text, slideFind(g.head))}</Text> : null}
+                </View>
+              ) : null}
+              {each(g.items, ({ b, at: bi }) => renderBlock(b, bi))}
+            </View>
+          ))
+          : each(blocks, (b, bi) => renderBlock(b, bi))}
         </View>
         {blocks.length === 0 ? <Text style={s.empty}>This file is empty.</Text> : null}
         {links.from.length > 0 ? (
@@ -574,7 +635,7 @@ export function Viewer(props: ViewerViewProps): ReactElement {
   const body = props.kind === "image" ? image
     : props.kind === "csv" ? table
     : props.kind === "document" || props.kind === "plan" ? docBody
-    : <View style={s.emptyBox} testID="vw-other"><Text style={s.empty}>{props.openIn !== undefined ? `No preview of this file here. ${props.openIn.label} to see it.` : "No preview for this file. Open it in its own app."}</Text></View>;
+    : <View style={s.emptyBox} testID="vw-other"><Text style={s.empty}>{props.openIn !== undefined ? `No preview of this file here. ${props.openIn.label} to see it.` : props.noPreview ?? "No preview for this file. Open it in its own app."}</Text></View>;
 
   return (
     <View accessibilityLabel={viewerLabel(props)} style={s.root} testID="viewer"
@@ -693,6 +754,22 @@ const s = StyleSheet.create({
   metaKey: { width: 84, color: "var(--ink-3)" as string, fontSize: 12.5 },
   metaVal: { flex: 1, color: "var(--ink)" as string, fontSize: 12.5 },
   bold: { fontWeight: "700" },
+  italic: { fontStyle: "italic" },
+  cellRow: { flexDirection: "row", borderBottomWidth: 1, borderBottomColor: "var(--line)" as string },
+  cellHead: { backgroundColor: "var(--sunk)" as string, borderTopLeftRadius: 6, borderTopRightRadius: 6 },
+  cellText: { flex: 1, minWidth: 0, color: "var(--ink)" as string, fontSize: 13.5, lineHeight: 19, paddingHorizontal: 10, paddingVertical: 7 },
+  fig: { alignSelf: "flex-start", minWidth: 180, maxWidth: "100%", borderWidth: 1, borderStyle: "dashed", borderColor: "var(--line-2)" as string, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 14, backgroundColor: "var(--sunk)" as string },
+  figText: { color: "var(--ink-3)" as string, fontSize: 12.5 },
+  slideCard: { borderWidth: 1, borderColor: "var(--line)" as string, borderRadius: 12, backgroundColor: "var(--raised)" as string, paddingHorizontal: 22, paddingTop: 16, paddingBottom: 18, gap: 8, marginBottom: 8 },
+  slideHead: { flexDirection: "row", alignItems: "baseline", gap: 12 },
+  slideNum: { color: "var(--ink-4)" as string, fontSize: 12, fontWeight: "600", minWidth: 14 },
+  slideTitle: { flex: 1 },
+  slide: {},
+  hrow: {},
+  row: {},
+  note: { color: "var(--ink-2)" as string, fontSize: 13, lineHeight: 19 },
+  noteFirst: { borderTopWidth: 1, borderTopColor: "var(--line)" as string, paddingTop: 8, marginTop: 2 },
+  noteLabel: { color: "var(--ink-3)" as string, fontSize: 11.5, fontWeight: "600" },
   link: { color: "var(--accent)" as string },
   handle: { position: "absolute", right: -7, top: -7, width: 14, height: 14, borderRadius: 7, backgroundColor: "#E5483A", borderWidth: 2, borderColor: "#FFFFFF" },
   commented: { backgroundColor: "rgba(229,165,92,0.45)" },

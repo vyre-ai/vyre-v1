@@ -138,7 +138,7 @@ test("zip: stored and deflated entries are read when asked for; a file that is n
 
 test("Office text: docx paragraphs, tabs and breaks; entities; pptx slides in numeric order; xlsx sheets with shared, inline and sparse cells; OpenDocument", () => {
   const d = officeExtract(docx(["Hello & <World>", "Col A\tCol B", "line1\nline2", ""]), "docx");
-  assert.deepEqual(d, { text: "Hello & <World>\nCol A\tCol B\nline1\nline2" });
+  assert.deepEqual(d, { text: "Hello & <World>\n\nCol A\tCol B\n\nline1\nline2" }, "paragraphs are Markdown blocks; a line break stays a line");
   const ent = officeExtract(zip({ "word/document.xml": `<w:document><w:body><w:p><w:r><w:t>&#x41;&#66;&quot;&apos;</w:t></w:r></w:p></w:body></w:document>` }), "docx");
   assert.equal(ent?.text, `AB"'`);
   assert.equal(officeExtract(zip({ "other.xml": "<x/>" }), "docx"), null, "no document part");
@@ -147,7 +147,7 @@ test("Office text: docx paragraphs, tabs and breaks; entities; pptx slides in nu
   const p = officeExtract(pptx(slides), "pptx");
   assert.equal(p?.pages, 11);
   const parts = (p?.text ?? "").split("\f");
-  assert.deepEqual([parts.length, parts[0], parts[1], parts[9], parts[10]], [11, "Slide 1\nNotes 1", "Slide 2\nNotes 2", "Slide 10\nNotes 10", "Slide 11\nNotes 11"]);
+  assert.deepEqual([parts.length, parts[0], parts[1], parts[9], parts[10]], [11, "# Slide 1\n\nSlide 1\nNotes 1", "# Slide 2\n\nSlide 2\nNotes 2", "# Slide 10\n\nSlide 10\nNotes 10", "# Slide 11\n\nSlide 11\nNotes 11"]);
 
   const x = officeExtract(xlsx([
     { name: "Budget", rows: [["Item", "Cost"], ["Rent", 1200], ["inline:Tax & fees", true]] },
@@ -312,7 +312,7 @@ test("docx: text from the file, page images through soffice then pdftoppm; witho
   assert.deepEqual([m["ready"], m["width"], m["pages"]], [true, 256, 3], "page count comes from the converted PDF");
   assert.equal(w.ran("soffice").length, 1);
   assert.equal((w.ran("soffice")[0]?.argv ?? []).includes("--headless"), true);
-  assert.deepEqual(await call(w, "previews.text", { fileId: f.fileId }), { text: "Title\nBody text", truncated: false, source: "office", pages: 3 });
+  assert.deepEqual(await call(w, "previews.text", { fileId: f.fileId }), { text: "Title\n\nBody text", truncated: false, source: "office", pages: 3 });
   const pages = await call(w, "previews.pages", { fileId: f.fileId, from: 2, count: 2 });
   assert.deepEqual([pages["total"], (pages["pages"] as Row[]).map((p) => p["n"])], [3, [2, 3]]);
 
@@ -329,7 +329,7 @@ test("xlsx and pptx without soffice: one page per sheet or slide, text per page;
   assert.deepEqual(await call(w, "previews.text", { fileId: x.fileId, page: 2 }), { text: "# Two\nb\t2", truncated: false, source: "office", pages: 2 });
   assert.equal((await call(w, "previews.text", { fileId: x.fileId }))["text"], "# One\na\t1\n\n# Two\nb\t2");
   const p = w.files.add("deck.pptx", "", pptx([["First"], ["Second"], ["Third"]]));
-  assert.equal((await call(w, "previews.text", { fileId: p.fileId, page: 3 }))["text"], "Third");
+  assert.equal((await call(w, "previews.text", { fileId: p.fileId, page: 3 }))["text"], "# Slide 3\n\nThird");
   assert.equal((await call(w, "previews.pages", { fileId: p.fileId }))["total"], 3);
   const o = w.files.add("old.doc", "application/msword", enc("legacy bytes"));
   assert.deepEqual(await call(w, "previews.get", { fileId: o.fileId }), { ready: false, reason: "converter_down" });

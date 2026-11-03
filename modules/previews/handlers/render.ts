@@ -3,7 +3,7 @@
 //   image    PNG is decoded and scaled here (area average, no upscaling); JPEG, WebP, GIF and the rest go through vipsthumbnail. Sizes s, m, l, xl are 96, 256, 640 and 1280 pixels wide.
 //   pdf      text from pdftotext when it is on the server, else the text layer read straight from the file (Flate streams, simple fonts); page count from the page tree; page images from pdftoppm.
 //   office   docx, pptx, xlsx and the OpenDocument formats are read as zip files here, so their text and slide or sheet counts need no converter; page images, and the legacy formats (doc, xls, ppt, rtf),
-//            go through soffice (to PDF) then pdftoppm.
+//            go through soffice (to PDF) then pdftoppm. A Word file reads as Markdown and a deck as one Markdown page per slide (ooxml.ts); a password-protected file is `corrupt`.
 //   text     plain, markdown, code, csv, json and the like are the text.
 //   other    video, audio, archives: failed with reason `unsupported`; the file still opens as a download.
 // No OCR in v1: a scan with no text layer returns empty text with source `none`.
@@ -23,6 +23,7 @@ import type { Ctx } from "../../../packages/contracts/src/ctx.ts";
 import type { ErrorCode, NextStep, VyreError } from "../../../packages/contracts/src/types.ts";
 import type { StoredImage } from "./store.ts";
 import { blobRef, dropImages, findImage, putImage, sweepGc } from "./store.ts";
+import { docxMarkdown, slideMarkdown, unxml } from "./ooxml.ts";
 
 type Row = Record<string, unknown>;
 
@@ -457,27 +458,12 @@ const entryText = (z: ZipEntries, name: string): string | undefined => {
 
 // ---- office text --------------------------------------------------------------------------------------------
 
-function unxml(s: string): string {
-  return s
-    .replace(/&#x([0-9a-fA-F]+);/g, (_m, h: string) => String.fromCodePoint(Number.parseInt(h, 16)))
-    .replace(/&#(\d+);/g, (_m, d: string) => String.fromCodePoint(Number.parseInt(d, 10)))
-    .replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/&amp;/g, "&");
-}
-
 export interface Extracted { text: string; pages?: number }
 
+/** A Word document as Markdown (ooxml.ts): headings, lists, bold and italic, links, tables and pictures keep their shape. */
 function docxText(z: ZipEntries): Extracted | null {
-  const xml = entryText(z, "word/document.xml");
-  if (xml === undefined) return null;
-  let out = "";
-  const re = /<w:t(?:\s[^>]*)?>([^<]*)<\/w:t>|<w:tab\/>|<w:(?:br|cr)(?:\s[^>]*)?\/>|<\/w:p>|<\/w:tc>/g;
-  for (let m = re.exec(xml); m; m = re.exec(xml)) {
-    const tag = m[0];
-    if (tag.startsWith("<w:t>") || tag.startsWith("<w:t ")) out += unxml(m[1] ?? "");
-    else if (tag === "<w:tab/>" || tag === "</w:tc>") out += "\t";
-    else out += "\n";
-  }
-  return { text: out.replace(/\t+\n/g, "\n").trimEnd() };
+  const text = docxMarkdown((name) => entryText(z, name));
+  return text === null ? null : { text };
 }
 
 /** The slide files in the order the deck shows them (presentation.xml lists them by relationship id), or by file number when the deck does not say. */
@@ -519,17 +505,11 @@ function slideNotes(z: ZipEntries, slide: string): string {
   return out.trim();
 }
 
+/** A deck as one page of Markdown per slide (ooxml.ts): "# Slide 2: Title", the body, then the speaker notes. */
 function pptxText(z: ZipEntries): Extracted | null {
   const slides = slideFiles(z);
   if (slides.length === 0) return null;
-  const texts = slides.map((file) => {
-    const xml = entryText(z, file) ?? "";
-    let out = "";
-    const re = /<a:t(?:\s[^>]*)?>([^<]*)<\/a:t>|<\/a:p>/g;
-    for (let t = re.exec(xml); t; t = re.exec(xml)) out += t[0] === "</a:p>" ? "\n" : unxml(t[1] ?? "");
-    const notes = slideNotes(z, file);
-    return `${out.trimEnd()}${notes === "" ? "" : `\n\nNotes: ${notes}`}`;
-  });
+  const texts = slides.map((file, i) => slideMarkdown(entryText(z, file) ?? "", i + 1, slideNotes(z, file)));
   return { text: texts.join("\f"), pages: slides.length };
 }
 
@@ -1088,9 +1068,17 @@ async function renderPdfBytes(d: PreviewDrivers, pdf: Uint8Array, source: "pdf" 
   return out;
 }
 
+/** An Office file saved with a password: a compound file (the old binary container) that holds an EncryptedPackage stream instead of the zip. */
+export function isEncryptedOffice(b: Uint8Array): boolean {
+  if (u32le(b, 0) !== 0xe011cfd0 || u32le(b, 4) !== 0xe11ab1a1) return false;
+  return Buffer.from(b.buffer, b.byteOffset, b.byteLength).indexOf(Buffer.from("EncryptedPackage", "utf16le")) >= 0;
+}
+
 export function officeExtract(bytes: Uint8Array, type: OfficeType): Extracted | null {
   if (type === "legacy") return null;
   const z = readZip(bytes);
+  // an Office file saved with a password is not a zip file but an encrypted compound file; it cannot be read without the password
+  if (!z && isEncryptedOffice(bytes)) throw new PreviewFail("corrupt", "This file is password-protected.");
   if (!z) throw new PreviewFail("corrupt", "This document could not be opened.");
   return type === "docx" ? docxText(z) : type === "pptx" ? pptxText(z) : type === "xlsx" ? xlsxText(z) : odfText(z);
 }

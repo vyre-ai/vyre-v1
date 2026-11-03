@@ -17,7 +17,8 @@ export function viewerKind(kind: FileKind): ViewerKind {
     case "image": return "image";
     case "text": case "markdown": case "code": case "document": case "google_native": return "document";
     case "spreadsheet": return "csv";
-    case "presentation": return "plan";
+    // a deck is read as its slides, one card each, in the document layout
+    case "presentation": return "document";
     default: return "other";
   }
 }
@@ -29,6 +30,8 @@ export function viewerKind(kind: FileKind): ViewerKind {
 export function viewerKindOf(d: { file: { kind: FileKind; mime: string; size?: number; source?: unknown }; text?: string | undefined; previewUrl?: string | undefined }): ViewerKind {
   // a file of a connected folder that is still an empty placeholder (its provider could not be reached when it opened) has nothing to show yet: Open in is the way to it
   if (d.file.source !== undefined && d.file.size === 0 && (d.text ?? "") === "" && d.previewUrl === undefined) return "other";
+  // a Word or PowerPoint file with no words read from it (password-protected, damaged, an old .doc with no converter) is the quiet "no preview" line with Open in Word, never a blank page
+  if (isOffice(d.file.kind) && (d.text ?? "").trim() === "") return "other";
   if (d.file.kind !== "google_native") return viewerKind(d.file.kind);
   const app = googleAppOf(d.file);
   const words = (d.text ?? "").trim() !== "";
@@ -48,6 +51,53 @@ export function docsMarkdown(text: string): string {
     .map((l) => (/^\s*\|.*\|\s*$/.test(l) ? l.trim().slice(1, -1).split("|").map((c) => c.trim()).filter((c) => c !== "").join(" \u00b7 ") : l))
     .map((l) => l.replace(/\\([\\`*_{}[\]()#+\-.!|<>~=])/g, "$1"))
     .join("\n");
+}
+
+/** A Word, PowerPoint or OpenDocument file: its words are read from the file, and it is edited in its own app, never by saving the words over it. */
+export const isOffice = (kind: FileKind): boolean => kind === "document" || kind === "presentation";
+
+const SLIDE = /^# Slide (\d+)(?::\s+(.*))?$/;
+const PIPE_ROW = /^\s*\|.*\|\s*$/;
+const PIPE_RULE = /^\s*\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)*\|?\s*$/;
+/** The cells of a pipe-table row; a cell's own pipe is written \| and comes back as |. */
+const pipeCells = (line: string): string[] => line.trim().slice(1, -1).split(/(?<!\\)\|/).map((c) => c.trim().replace(/\\\|/g, "|"));
+
+/**
+ * The words of an Office file (the Markdown the previews module reads from it) as the viewer's blocks: headings, paragraphs, bullets nested by level, numbered items, a table's header and rows,
+ * a picture's place, and for a deck each "# Slide n: title" with the slide's words and its speaker notes under it.
+ */
+export function officeBlocks(text: string): DocBlock[] {
+  const out: DocBlock[] = [];
+  const lines = text.split("\n");
+  let notes = false;
+  let slides = false;
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i]!;
+    const id = `o${i}`;
+    const slide = SLIDE.exec(line);
+    if (slide) { slides = true; notes = false; out.push({ id, tag: "slide", text: slide[2] ?? "", n: Number(slide[1]) }); continue; }
+    if (slides && /^Notes: /.test(line)) { notes = true; out.push({ id, tag: "note", text: line.slice(7) }); continue; }
+    if (line.trim() === "") continue;
+    if (notes) { out.push({ id, tag: "note", text: line }); continue; }
+    if (PIPE_ROW.test(line) && !PIPE_RULE.test(line)) {
+      const head = !PIPE_ROW.test(lines[i - 1] ?? "") && PIPE_RULE.test(lines[i + 1] ?? "");
+      out.push({ id, tag: head ? "hrow" : "row", text: pipeCells(line).join("\t") });
+      continue;
+    }
+    if (PIPE_RULE.test(line) && PIPE_ROW.test(lines[i - 1] ?? "")) continue;
+    const heading = /^(#{1,6})\s+(.*)$/.exec(line);
+    if (heading) { out.push({ id, tag: heading[1]!.length === 1 ? "h1" : "h2", text: heading[2]! }); continue; }
+    const item = /^(\s*)([-*]|\d+\.)\s+(.*)$/.exec(line);
+    if (item) {
+      const level = Math.floor(item[1]!.length / 2);
+      out.push({ id, tag: item[2] === "-" || item[2] === "*" ? "li" : "p", text: item[2] === "-" || item[2] === "*" ? item[3]! : `${item[2]} ${item[3]!}`, ...(level > 0 ? { level } : {}) });
+      continue;
+    }
+    const fig = /^\[Image(?::\s*(.*))?\]$/.exec(line.trim());
+    if (fig) { out.push({ id, tag: "fig", text: fig[1] ?? "" }); continue; }
+    out.push({ id, tag: "p", text: line });
+  }
+  return out;
 }
 
 /** Plans and documents edit in place; images take markup; the rest is read only. */
