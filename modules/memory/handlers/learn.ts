@@ -402,8 +402,11 @@ export async function chatLearningSet(ctx: MemCtx, input: { threadId: string; re
   return chatLearningGet(ctx, { threadId: input.threadId });
 }
 
-/** For capture at chat end: the person's own lines a turn pass has already read are left alone. */
-export function readByTurns(ctx: Pick<MemCtx, "db">, threadId: string, person: string, seq: number | undefined): boolean {
-  if (seq === undefined) return false;
-  return seq <= cursorOf(ctx, threadId, person);
+/**
+ * For capture at chat end: a line of the person's that a turn pass already read AND learned a fact from (the fact links the line's message) is left alone. A line a pass read but learned nothing from
+ * (a model that found nothing, a pass that failed) still goes through the rules, so nothing said is lost to a pass that did not keep it.
+ */
+export function readByTurns(ctx: Pick<MemCtx, "db">, threadId: string, person: string, seq: number | undefined, messageId?: string): boolean {
+  if (seq === undefined || messageId === undefined || seq > cursorOf(ctx, threadId, person)) return false;
+  return rowsOf(ctx.db, "SELECT fact_id FROM memory_fact_links WHERE kind = 'message' AND ref = ? LIMIT 1", messageId).length > 0;
 }
