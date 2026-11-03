@@ -186,6 +186,8 @@ export interface TurnInput {
    * in order). The engine continues from there and does not repeat a step that is done.
    */
   handover?: { from: string; said: string; steps: readonly string[] };
+  /** A note from Vyre for this turn (a held call was answered: modules/engine/held-notes.ts). The engine's input only; never a chat message. */
+  notice?: string;
 }
 
 export interface ResumedCall { taskId: string; callId: string; toolName: string; approved: boolean; result: ToolResult }

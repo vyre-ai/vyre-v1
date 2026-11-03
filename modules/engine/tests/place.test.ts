@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import { placementDecide, poolStatus, warm } from "../handlers/place.ts";
 import { bindOpener, ensure } from "../projections.ts";
 import { harness } from "../fixtures/harness.ts";
+import { runtimeOptIn } from "../handlers/extra/config.ts";
 
 const NOW = 1_760_000_000_000;
 function ctxFor(threadKind: string, members: Array<{ kind: string; id: string }>, devices: unknown[], over: { hasComputer?: boolean } = {}) {
@@ -30,9 +31,15 @@ test("a private chat runs on the asker's computer when it is online; a channel r
   assert.deepEqual(await placementDecide(channel.ctx, { threadId: "thr_2", agentId: "agt_1", kind: "message" }), { placement: "host", reason: "shared_thread" });
 });
 
-test("with the computer off a private chat runs on the Space's server (allowed by default), and an agent with its own computer runs on the host", async () => {
-  const off = ctxFor("chat", [{ kind: "person", id: "usr_dana" }], [{ ...mac, lastSeenAt: NOW - 10 * 60_000 }]);
-  assert.deepEqual(await placementDecide(off.ctx, { threadId: "thr_1", agentId: "agt_1", kind: "message" }), { placement: "host", reason: "space" });
+test("a computer that is off: Automatic runs on the Space's server (allowed by default, owner rulings 3 Nov), and waits with the line for a person who turned that off; an agent with its own computer runs on the host", async () => {
+  const offMac = { ...mac, lastSeenAt: NOW - 10 * 60_000 };
+  const byDefault = ctxFor("chat", [{ kind: "person", id: "usr_dana" }], [offMac]);
+  assert.deepEqual(await placementDecide(byDefault.ctx, { threadId: "thr_1", agentId: "agt_1", kind: "message" }), { placement: "host", reason: "space" });
+  const off = ctxFor("chat", [{ kind: "person", id: "usr_dana" }], [offMac]);
+  runtimeOptIn(off.ctx, { enabled: false });
+  assert.deepEqual(await placementDecide(off.ctx, { threadId: "thr_1", agentId: "agt_1", kind: "message" }), { placement: "wait", reason: "device_off", wakeLine: "Your computer is off" });
+  runtimeOptIn(off.ctx, { enabled: true, wrappedRuntimeKey: "ciphertext" });
+  assert.equal((await placementDecide(off.ctx, { threadId: "thr_1", agentId: "agt_1", kind: "message" })).placement, "host", "the fallback reads the setting each time");
   const computer = ctxFor("chat", [{ kind: "person", id: "usr_dana" }], [mac], { hasComputer: true });
   assert.equal((await placementDecide(computer.ctx, { threadId: "thr_1", agentId: "agt_1", kind: "message" })).reason, "agent_computer");
   const phone = ctxFor("chat", [{ kind: "person", id: "usr_dana" }], [{ id: "dev_ph", class: "phone", lastSeenAt: NOW }]);
@@ -204,6 +211,7 @@ test("with a relay, the live link decides: the computer in use first, then anoth
     connected.clear();
     assert.deepEqual(await decide(ctx), { placement: "host", reason: "space" }, "a teammate's linked computer is never theirs");
     const opts = await placementOptions(Object.assign(Object.create(ctx), { device: "dev_mac" }), { threadId: "thr_1", agentId: "agt_1" });
+    assert.deepEqual(opts.automatic, { target: "space" }, "Automatic would run it on the Space now");
     assert.deepEqual(opts.options.filter((o) => o.target === "device").map((o) => [o.name, o.online]), [["This computer", false], ["Desk", false]]);
     assert.deepEqual(opts.options.find((o) => o.target === "server"), { target: "server", serverId: "srv_home", name: "home-box", online: false, reason: "Off" }, "a server that is not connected is off");
   } finally { bindRelay(null); }

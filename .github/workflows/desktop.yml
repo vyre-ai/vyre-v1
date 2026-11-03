@@ -288,7 +288,7 @@ jobs:
           VYRE_HEAVY_MAC: "1"
         run: |
           set -euo pipefail
-          node --test --test-force-exit --test-reporter=spec modules/engine/tests/sandbox.mac.heavy.test.ts modules/engine/tests/cli.heavy.test.ts modules/engine/tests/sandbox.test.ts sandbox/tests/sandbox.escape.test.ts
+          node --test --test-force-exit --test-reporter=spec modules/engine/tests/sandbox.mac.heavy.test.ts modules/engine/tests/mac-claude-signin.heavy.test.ts modules/engine/tests/cli.heavy.test.ts modules/engine/tests/sandbox.test.ts sandbox/tests/sandbox.escape.test.ts
           VYRE_HEAVY_DOCKER=1 node --test --test-force-exit --test-reporter=spec golden/steps/07-reply.heavy.test.ts
   # CLI engines on Windows: the local sockets the daemon makes (a named pipe, never a unix socket path a long profile folder breaks) and the MCP shim reaching Vyre over one from a
   # 120-character data folder. Blocks the release because release.yml calls this whole workflow.

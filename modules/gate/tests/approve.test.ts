@@ -46,7 +46,7 @@ test("a valid approval re-invokes the parked call as its original caller, once, 
   assert.equal(hold.state, "approved");
   assert.equal(hold.decidedBy, alice.id);
   assert.equal(hold.sendingAt, undefined);
-  assert.deepEqual(h.events.map((e) => [e.name, e.payload]), [["gate.approved", { holdId: p.holdId, act: "send", taskId: p.taskId, by: alice.id }]]);
+  assert.deepEqual(h.events.map((e) => [e.name, e.payload]), [["gate.approved", { holdId: p.holdId, act: "send", taskId: p.taskId, capName: "mail.send", agentId: "agt_bot", actingFor: alice.id, by: alice.id }]]);
   assert.equal(h.callsTo("scheduler.cancel").length, 2, "both timers are canceled");
   assert.deepEqual(h.callsTo("runs.resume")[0]!.input, { runId: "run_1", reason: "approval" });
   await refused(release(h, p), "validation.precondition_failed", "not_held");
@@ -177,7 +177,7 @@ test("sending back a hold keeps the task for the requester; dropping it closes t
   const r = await h.call("gate.deny", { holdId: p.holdId, taskId: p.taskId, mode: "send_back", note: "Wrong client." }, person(alice));
   assert.deepEqual(r, { ok: true });
   assert.equal(findHold(h.db, p.holdId)!.state, "denied");
-  assert.deepEqual(h.events.map((e) => [e.name, e.payload]), [["gate.denied", { holdId: p.holdId, act: "send", taskId: p.taskId, by: alice.id, mode: "send_back", note: "Wrong client." }]]);
+  assert.deepEqual(h.events.map((e) => [e.name, e.payload]), [["gate.denied", { holdId: p.holdId, act: "send", taskId: p.taskId, capName: "mail.send", agentId: "agt_bot", actingFor: alice.id, by: alice.id, mode: "send_back", note: "Wrong client." }]]);
   assert.equal(h.callsTo("tasks.withdraw").length, 0, "tasks.act moves the task on a send-back");
   assert.equal(h.callsTo("scheduler.cancel").length, 2);
   assert.equal(h.callsTo("runs.resume").length, 1, "the waiting turn hears the note");

@@ -48,7 +48,11 @@ function settle(ctx: GateCtx, h: Hold, state: "approved" | "denied" | "expired",
   saveHold(ctx.db, h);
 }
 
-const payloadOf = (h: Hold, extra: Record<string, unknown>): Record<string, unknown> => ({ holdId: h.id, act: h.act, taskId: h.taskId, ...(h.askedBy ? { askedBy: h.askedBy } : {}), ...extra });
+// the chat the held call came from and the agent that made it, recorded at hold time, so an answer wakes that agent there (modules/engine held-notes.ts) without looking for it afterwards
+const payloadOf = (h: Hold, extra: Record<string, unknown>): Record<string, unknown> => ({
+  holdId: h.id, act: h.act, taskId: h.taskId, capName: h.capName, ...(h.askedBy ? { askedBy: h.askedBy } : {}),
+  ...(h.threadId ? { threadId: h.threadId } : {}), ...(h.principal.kind === "agent" ? { agentId: h.principal.id } : {}), ...(h.actingFor ? { actingFor: h.actingFor } : {}), ...extra,
+});
 const emitGate = (ctx: GateCtx, name: string, h: Hold, extra: Record<string, unknown>): void => {
   const clean: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(payloadOf(h, extra))) if (v !== undefined) clean[k] = v;

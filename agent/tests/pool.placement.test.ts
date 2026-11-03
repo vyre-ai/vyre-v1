@@ -15,7 +15,7 @@ function input(over: Over = {}): PlaceInput {
     item: over.item ?? { kind: "message" },
     agent: over.agent ?? { hasComputer: false },
     engine: over.engine ?? "claude_code",
-    asker: { devices: [laptop, phone], localRuns: true, runtimeOptIn: false, ...over.asker },
+    asker: { devices: [laptop, phone], localRuns: true, runtimeOptIn: true, ...over.asker },
     ...(over.space ? { space: over.space } : {}),
   };
 }
@@ -76,6 +76,7 @@ test("Automatic follows one order: the computer in use, another awake computer o
   // 4. nothing of theirs: the Space's server, when the Space allows it
   assert.deepEqual(placeTurn(input({ asker: { devices: [off] } })), { placement: "host", reason: "space" });
   assert.deepEqual(placeTurn(input({ asker: { devices: [off] }, space: { shared: false } })), { placement: "wait", reason: "device_off", wakeLine: DEVICE_OFF_LINE }, "a Space that keeps its server for itself makes the turn wait");
+  assert.deepEqual(placeTurn(input({ asker: { devices: [off], runtimeOptIn: false } })), { placement: "wait", reason: "device_off", wakeLine: DEVICE_OFF_LINE }, "so does a person who turned off letting the Space continue their chats");
   assert.equal(DEVICE_OFF_LINE, "Your computer is off");
 });
 

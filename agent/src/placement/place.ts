@@ -8,7 +8,8 @@
 //             1. the computer the person is using, when it is a desktop app joined to this Space and runs the turn's engine;
 //             2. another of the person's computers joined to this Space and awake (the most recently seen first);
 //             3. a server the person added to this Space as their own, while it is connected;
-//             4. the Space's shared server, when the Space allows it (the default). A Personal Space has no step 4.
+//             4. the Space's shared server, when the Space allows it (the default) and the person has not turned off "Let the Space continue my chats when my computer is off" (on by
+//                default, owner ruling 3 Nov, spec b7). A Personal Space has no step 4.
 //           Nothing of theirs is there and step 4 is not allowed: the turn waits, "Your computer is off".
 //   Never another member's computer or another member's server: the caller passes only the asker's own.
 import type { QueueKind, ThreadKind } from "../turn-engine/types.ts";
@@ -57,7 +58,7 @@ export interface PlaceInput {
     servers?: readonly PlaceServer[];
     /** engine.local_runs: run my private chats on my computers. Default on. Off skips steps 1 and 2. */
     localRuns?: boolean;
-    /** engine.runtime_opt_in: kept for the callers that still pass it; the Space's own allowance (space.shared) decides step 4. */
+    /** engine.runtime_opt_in: "Let the Space continue my chats when my computer is off", on unless the person turned it off. Off, step 4 is skipped for them. */
     runtimeOptIn: boolean;
     /** Where this person pinned this chat. A device or server is one of theirs; `online` and `name` are what the Space knows of it. */
     chosen?: { target: "device" | "space" | "server"; deviceId?: string; serverId?: string; online?: boolean; name?: string };
@@ -130,7 +131,7 @@ export function placeTurn(i: PlaceInput): Placement {
   }
   const server = (i.asker.servers ?? []).filter((s) => s.online && (s.engines === undefined || s.engines.includes(i.engine))).sort((a, b) => (a.serverId < b.serverId ? -1 : 1))[0];
   if (server) return { placement: "host", reason: "own_server", nodeId: server.serverId };
-  if (space.shared) return { placement: "host", reason: "space" };
+  if (space.shared && i.asker.runtimeOptIn) return { placement: "host", reason: "space" };
   return { placement: "wait", reason: "device_off", wakeLine: localRuns ? DEVICE_OFF_LINE : LOCAL_RUNS_OFF_LINE };
 }
 
