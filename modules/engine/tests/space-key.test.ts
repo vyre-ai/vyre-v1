@@ -54,9 +54,9 @@ test("the order: thread pin, agent key, own accounts, the Space AI key, then the
   const r = resolveAccount(base({ starter: "usr_mia", accounts: [SPACE, BACKUP], backupRefs: ["#Backup_Key"], agent: { accountPolicy: "asker", accountFallback: ["#Backup_Key"] } }));
   assert.equal(r.accountRef, "#OpenCode_Go_for_everyone");
   assert.deepEqual(r.tried.map((t) => t.ref), ["#OpenCode_Go_for_everyone"]);
-  // a task: its step key, then its backup; the Space AI key is kept for team chats (owner ruling 9), so an automation does not run on it
+  // a task: its step key, then the Space AI key (every use on, owner ruling 9), then its backup
   assert.equal(resolveAccount(base({ trigger: "task", stepKey: "#Team_Anthropic_Key" })).accountRef, "#Team_Anthropic_Key");
-  assert.equal(resolveAccount(base({ trigger: "task", starter: "usr_mia", accounts: [SPACE, BACKUP], backupRefs: ["#Backup_Key"] })).accountRef, "#Backup_Key");
+  assert.equal(resolveAccount(base({ trigger: "task", starter: "usr_mia", accounts: [SPACE, BACKUP], backupRefs: ["#Backup_Key"] })).accountRef, "#OpenCode_Go_for_everyone");
 });
 
 test("Company accounts only: personal accounts are skipped, so everyone runs on the Space AI key", () => {
@@ -124,9 +124,9 @@ test("every member sees the Space AI key as the provider it is, not a special op
   assert.deepEqual([r.accountRef, r.payer, r.allowed, r.itemId], ["#OpenCode_Go_for_everyone", "usr_mia", true, "vit_space"], "usage is metered against the key's item and the member");
   const automatic = ctxWith({}, [{ threadId: "thr_1", starter: "usr_mia", agents: [{ agentId: "agt_1", mode: "lead" as const }] }] as never).ctx;
   assert.equal((await accountResolve(automatic, { threadId: "thr_1", agentId: "agt_1" })).accountRef, "#OpenCode_Go_for_everyone");
-  // a Claude model the key does not list does not fit, and says why
+  // a Claude model the key does not list: the team chat runs on the key's first model, and says so (owner, 3 Nov)
   const other = await accountResolve(ctx, { threadId: "thr_1", agentId: "agt_1" });
-  assert.equal(other.allowed, false);
+  assert.deepEqual([other.accountRef, other.modelFallback], ["#OpenCode_Go_for_everyone", { from: "claude-sonnet-5-5", to: "glm-5.3" }]);
 });
 
 test("the model list of the Space AI key comes from the Vault's kept list, never from a member testing the key", async () => {

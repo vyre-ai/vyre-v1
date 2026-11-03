@@ -131,6 +131,8 @@ export async function accountResolve(ctx: Ctx, input: { threadId: string; agentI
     trigger,
     ...(trigger === "routine" ? { routineOwner: input.askerId ?? t.thread.starter } : {}),
     ...(model ? { model } : {}),
+    // the person chose the chat's account and its model together: a list that does not have the model fails the turn rather than run elsewhere
+    ...(member?.accountRef && member?.model ? { modelPinned: true } : {}),
     ...(member?.accountRef ? { threadAccountRef: c(member.accountRef) } : {}),
     agent: { agentId: input.agentId, accountPolicy: a.agent.accountPolicy, ...(a.agent.accountKey ? { accountKey: c(a.agent.accountKey) } : {}), ...(a.agent.accountFallback?.length ? { accountFallback: a.agent.accountFallback.map(c) } : {}), ...(provider ? { provider } : {}) },
     ...(input.stepKey ? { stepKey: c(input.stepKey) } : {}),
@@ -144,7 +146,8 @@ export async function accountResolve(ctx: Ctx, input: { threadId: string; agentI
   const itemId = res.accountRef ? accounts.itemByRef.get(res.accountRef) : undefined;
   // an account ahead of this one was passed over: what pays is a fallback, whatever the reason word says
   const fellBack = res.accountRef !== null && res.tried.some((a) => !a.used && (a.why === "expired" || a.why === "failed" || a.why === "failed_this_turn" || a.why === "capped"));
-  return { accountRef: res.accountRef, payer: res.payer, reason: res.reason, allowed: res.allowed, ...(itemId ? { itemId } : {}), ...(fellBack ? { fellBack: true } : {}), ...(res.pin ? { pin: res.pin } : {}) };
+  return { accountRef: res.accountRef, payer: res.payer, reason: res.reason, allowed: res.allowed, ...(itemId ? { itemId } : {}), ...(fellBack ? { fellBack: true } : {}), ...(res.pin ? { pin: res.pin } : {}),
+    ...(res.modelFallback && res.accountRef && model ? { modelFallback: { from: model, ...(accounts.rows.find((r) => r.ref === res.accountRef)?.models?.[0] ? { to: accounts.rows.find((r) => r.ref === res.accountRef)!.models![0]! } : {}) } } : {}) };
 }
 
 export async function accountProbe(ctx: Ctx, input: { accountRef: string }) {

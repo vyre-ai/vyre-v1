@@ -5,12 +5,13 @@
 //   an automation step, a goal's turn, or work an agent does with no asker: the Space accounts kept for that (automations, goals, agentWork), then the person's own (a sign-in only with the switch on;
 //   an automation step that names a key keeps to it, the Space accounts and its backup).
 //   then the agent's own fallback list and the Space's backups.
-// Among Space accounts, one fits when its provider lists the turn's model (any fits an Automatic turn), capped ones are passed over, and the cheapest pays (cost.ts).
+// Among Space accounts, one fits when its provider lists the turn's model (any fits an Automatic turn), capped ones are passed over, and the cheapest pays (cost.ts). When none that fits can pay a
+// team chat or agent work, the cheapest that covers it runs on its own default model (modelFallback) and the chat says so; only a chat whose person pinned the account and the model together fails.
 // DECISION: a person's own sign-in always answers their own turns, wherever they run (owner ruling, member keys on the server); "Let the Space run work on my subscription" is only for others and automations.
 import { sameProviderFamily } from "./provider.ts";
 import type { AccountRow, Attempt, NeedsYou, ResolveReason, ResolveRequest, Resolution, SkipWhy, SpaceUses, Trigger } from "./types.ts";
 
-interface Candidate { ref: string; reason: ResolveReason; pin?: true; space?: true }
+interface Candidate { ref: string; reason: ResolveReason; pin?: true; space?: true; strict?: true }
 
 function payerOf(req: ResolveRequest): { payer: string; reason: "starter" | "steerer" } {
   if (req.trigger === "routine" && req.routineOwner) return { payer: req.routineOwner, reason: "starter" };
@@ -24,10 +25,13 @@ const ownTurn = (row: AccountRow, req: ResolveRequest, payer: string): boolean =
 type Use = keyof SpaceUses;
 const USE: Readonly<Record<Trigger, Use>> = { message: "teamChats", wake: "goals", goal: "goals", routine: "agentWork", task: "automations" };
 
-/** The uses of a Space account. The Space AI key from before Space accounts reads as kept for team chats, for everyone. */
+/** Every use on: what the Space AI key paid for before Space accounts (owner, 3 Nov: nothing that ran on it stops). */
+const ALL_USES: SpaceUses = { teamChats: { who: "everyone" }, automations: true, goals: true, agentWork: { which: "all" } };
+
+/** The uses of a Space account. The Space AI key from before Space accounts has every use on. */
 function usesOf(a: AccountRow): SpaceUses | undefined {
   if (a.mine) return undefined;
-  return a.uses ?? (a.spaceKey === true ? { teamChats: { who: "everyone" } } : undefined);
+  return a.uses ?? (a.spaceKey === true ? ALL_USES : undefined);
 }
 
 /** May this Space account pay for this kind of turn, for this person and this agent? */
@@ -47,9 +51,11 @@ function covers(a: AccountRow, req: ResolveRequest): boolean {
 
 /** A Space account fits when its provider lists the model the turn needs; an Automatic turn runs on the account's default. */
 const fits = (a: AccountRow, req: ResolveRequest): boolean => req.model === undefined || req.model === "" || (a.models ?? []).includes(req.model);
+/** Uses whose turns run on an account's default model when nothing that fits can pay (owner, 3 Nov): a team chat and agent work, and a wake of a chat. Goals and automations keep to their model. */
+const SUBSTITUTES: ReadonlySet<Use> = new Set<Use>(["teamChats", "agentWork"]);
 
 /** Why this row cannot pay for this turn, or null when it can. */
-export function skipReason(row: AccountRow | undefined, req: ResolveRequest, payer: string, how: { space?: boolean } = {}): SkipWhy | null {
+export function skipReason(row: AccountRow | undefined, req: ResolveRequest, payer: string, how: { space?: boolean; strict?: boolean } = {}): SkipWhy | null {
   if (!row) return "unknown";
   if (req.unavailable?.includes(row.ref)) return "failed_this_turn";
   if (req.policy === "company" && (row.mine || row.kind === "subscription")) return "policy_company";
@@ -59,6 +65,8 @@ export function skipReason(row: AccountRow | undefined, req: ResolveRequest, pay
   if (row.status === "failed") return "failed";
   if (row.capped === true) return "capped";
   if (how.space === true && !fits(row, req)) return "no_model";
+  // the chat's own account and model, chosen together: a list that says it does not serve the model is final
+  if (how.strict === true && (row.models?.length ?? 0) > 0 && !fits(row, req)) return "no_model";
   return null;
 }
 
@@ -84,7 +92,7 @@ function candidates(req: ResolveRequest, payerReason: "starter" | "steerer", pay
     // a step that names no key is the person's own Run: their own accounts after the Space's; a step with a key keeps to it, the Space's and its backup
     if (req.stepKey === undefined && req.agent.accountPolicy !== "key") own();
   } else {
-    add(req.threadAccountRef, payerReason, { pin: true });
+    add(req.threadAccountRef, payerReason, req.modelPinned === true ? { pin: true, strict: true } : { pin: true });
     if (req.agent.accountPolicy === "key") add(req.agent.accountKey, payerReason, { pin: true });
     const chat = req.trigger === "message" || req.trigger === "wake";
     if (chat) { if (req.agent.accountPolicy !== "key") own(); space(); }
@@ -105,14 +113,19 @@ export function resolveAccount(req: ResolveRequest): Resolution {
   let broken: { ref: string; why: "expired" | "failed" } | null = null;
   let policyBlocked = false;
   let pin: Attempt | undefined;
+  const misfits: Candidate[] = [];
+  const owner = req.trigger === "routine" && req.routineOwner ? req.routineOwner : req.starter;
 
   for (const c of candidates(req, payerReason, payer)) {
     const row = byRef.get(c.ref);
-    const why = skipReason(row, req, payer, c.space ? { space: true } : {});
+    const why = skipReason(row, req, payer, { ...(c.space ? { space: true } : {}), ...(c.strict ? { strict: true } : {}) });
     if (why !== null) {
       const at: Attempt = { ref: c.ref, used: false, why };
       tried.push(at);
       if (c.pin && pin === undefined) pin = at;
+      // the person chose this account and this model together: it does not serve the model, so nothing else runs the chat
+      if (c.strict && why === "no_model") return { accountRef: null, payer: null, reason: "none", allowed: false, tried, unblock: needs(owner, c.ref, "no_account", false), pin: at };
+      if (c.space && why === "no_model") misfits.push(c);
       if (why === "policy_company") policyBlocked = true;
       // A payer's own account that is signed out or failing is theirs to fix.
       if ((why === "expired" || why === "failed") && row && row.mine && row.ownerId === payer && broken === null) broken = { ref: c.ref, why };
@@ -125,7 +138,14 @@ export function resolveAccount(req: ResolveRequest): Resolution {
     return res;
   }
 
-  const owner = req.trigger === "routine" && req.routineOwner ? req.routineOwner : req.starter;
+  // a team chat or agent work: the cheapest Space account that covers it runs it on its own default model
+  const swap = SUBSTITUTES.has(USE[req.trigger]) || req.trigger === "wake" ? misfits[0] : undefined;
+  if (swap) {
+    tried.push({ ref: swap.ref, used: true });
+    const res: Resolution = { accountRef: swap.ref, payer, reason: swap.reason, allowed: true, tried, modelFallback: true, ...(pin ? { pin } : {}) };
+    if (broken) res.unblock = needs(payer, broken.ref, broken.why, true);
+    return res;
+  }
   const why = broken?.why ?? (policyBlocked ? "policy" : "no_account");
   return { accountRef: null, payer: null, reason: "none", allowed: false, tried, unblock: needs(owner, broken?.ref ?? null, why, false), ...(pin ? { pin } : {}) };
 }

@@ -6,7 +6,8 @@
 //   agentWork   work an agent does with no asker (routines, watchers, helpers): every agent, or some
 // DECISION: a shared key nobody set uses for keeps working the way the Vault panel promised ("Automations and agents without a key of their own run on it"): while the Space may use it, it pays
 // for every use, for the people who can Use it in the Vault. Setting uses makes it a Space account every member's turn can reach, whatever the Vault's sharing, because the engine alone fills it.
-// DECISION: the Space AI key from before is a Space account kept for team chats, for everyone; it is moved over the first time anything here reads the Vault.
+// DECISION: the Space AI key from before is a Space account with every use on (team chats for everyone, automations, goals, all agents' work), so nothing that ran on it stops; admins narrow it
+// later. It is moved over the first time anything here reads the Vault. A Space AI key set in Console afterwards starts the same way.
 import { readFileSync } from "node:fs";
 import { bad, first, num, parseJson, record, rowsOf, statements, str } from "../projections.ts";
 import type { Row, VaultCtx } from "../projections.ts";
@@ -20,7 +21,10 @@ const ready = new WeakSet<object>();
 const me = (ctx: VaultCtx): string => ctx.actingFor ?? ctx.principal.id;
 const live = (r: Row): boolean => r["deleted_at"] === null || r["deleted_at"] === undefined;
 
-/** The table, and the Space AI key from before moved over as a Space account for team chats, for everyone. */
+/** Every use on: what the Space AI key paid for before Space accounts. */
+export const ALL_USES: SpaceUses = { teamChats: { who: "everyone" }, automations: true, goals: true, agentWork: { which: "all" } };
+
+/** The table, and the Space AI key from before moved over as a Space account with every use on. */
 export function ensureUses(ctx: VaultCtx): void {
   if (!ready.has(ctx.db)) {
     try { ctx.db.all(`SELECT "providerId" FROM vault_provider_uses WHERE "providerId" = ?`, "probe"); } catch { for (const s of statements(sql)) ctx.db.run(s); }
@@ -30,15 +34,15 @@ export function ensureUses(ctx: VaultCtx): void {
   try { key = first(ctx.db.all(`SELECT * FROM vault_space_key WHERE "id" = ?`, "space")); } catch { return; }
   if (!key || first(ctx.db.all(`SELECT "providerId" FROM vault_provider_uses WHERE "providerId" = ?`, str(key, "providerId")))) return;
   ctx.db.run(`INSERT INTO vault_provider_uses ("providerId", "uses", "capCents", "models", "setBy", "setAt") VALUES (?, ?, ?, ?, ?, ?)`,
-    str(key, "providerId"), JSON.stringify({ teamChats: { who: "everyone" } }), null, typeof key["models"] === "string" ? key["models"] : "[]", str(key, "setBy"), num(key, "setAt"));
+    str(key, "providerId"), JSON.stringify(ALL_USES), null, typeof key["models"] === "string" ? key["models"] : "[]", str(key, "setBy"), num(key, "setAt"));
 }
 
-/** A new Space AI key is a Space account for team chats, for everyone (providers.space_key.set). */
+/** A new Space AI key is a Space account with every use on (providers.space_key.set). */
 export function keepSpaceKey(ctx: VaultCtx, providerId: string, models: readonly string[]): void {
   ensureUses(ctx);
   ctx.db.run(`DELETE FROM vault_provider_uses WHERE "providerId" = ?`, providerId);
   ctx.db.run(`INSERT INTO vault_provider_uses ("providerId", "uses", "capCents", "models", "setBy", "setAt") VALUES (?, ?, ?, ?, ?, ?)`,
-    providerId, JSON.stringify({ teamChats: { who: "everyone" } }), null, JSON.stringify(models), me(ctx), ctx.now());
+    providerId, JSON.stringify(ALL_USES), null, JSON.stringify(models), me(ctx), ctx.now());
 }
 
 /** The models a provider's test listed, kept for a Space account so the engine can tell whether it serves a turn's model. */
@@ -53,7 +57,7 @@ export function keptFor(ctx: VaultCtx, p: Row): Kept | null {
   ensureUses(ctx);
   const r = first(ctx.db.all(`SELECT * FROM vault_provider_uses WHERE "providerId" = ?`, str(p, "id")));
   if (r) return { uses: parseJson<SpaceUses>(r["uses"], {}), capCents: typeof r["capCents"] === "number" ? r["capCents"] : null, models: parseJson<string[]>(r["models"], []), set: true };
-  return { uses: num(p, "spaceMayUse") === 1 ? { teamChats: { who: "everyone" }, automations: true, goals: true, agentWork: { which: "all" } } : {}, capCents: null, models: [], set: false };
+  return { uses: num(p, "spaceMayUse") === 1 ? ALL_USES : {}, capCents: null, models: [], set: false };
 }
 
 /** Is the person in one of these groups (directly)? Unknown groups, or an access module that does not answer, count as no. */

@@ -215,6 +215,8 @@ export interface ResolvedAccount { ref: string; driver: string; provider: string
   shared?: boolean;
   /** The Space AI key everyone falls back to: the turn runs on one of the models it unlocks. */
   spaceKey?: boolean;
+  /** No account serving the chat's model could pay: the turn runs on this account's default model (`to`, else the engine's default), and the chat says so (owner ruling 9). */
+  modelFallback?: { from: string; to?: string };
   /** An OpenAI-compatible endpoint names its own address (custom, local); `keyless` is a local server with no key. */
   base?: string; keyless?: boolean }
 export interface AccountQuery {

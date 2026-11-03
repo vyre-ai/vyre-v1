@@ -66,9 +66,25 @@ test("the cheapest Space account that fits pays; one whose provider does not lis
   assert.equal(ref(mia("claude-sonnet-5-5")), "#Dear", "only one serves it");
   assert.deepEqual(mia("claude-sonnet-5-5").tried[0], { ref: "#Cheap", used: false, why: "no_model" }, "the cheaper one is looked at first and passed over: it does not serve the model");
   assert.equal(ref(mia()), "#Cheap", "Automatic: each runs its default, the cheaper pays");
-  const none = mia("gpt-5");
-  assert.equal(none.allowed, false);
-  assert.deepEqual(none.tried.map((t) => t.why), ["no_model", "no_model"]);
+  // neither serves it: a team chat runs on the cheapest one's default model, marked so the chat can say it (owner, 3 Nov)
+  const swapped = mia("gpt-5");
+  assert.deepEqual([swapped.accountRef, swapped.modelFallback], ["#Cheap", true]);
+  assert.deepEqual(swapped.tried.slice(0, 2).map((t) => t.why), ["no_model", "no_model"]);
+});
+
+test("the default-model swap is for team chats, wakes and agent work; goals and automations keep to their model; an account and a model the person pinned together fail with no_model", () => {
+  const glm = { ...TEAM, uses: { teamChats: { who: "everyone" as const }, goals: true as const, automations: true as const, agentWork: { which: "all" as const } } };
+  const at = (o: Partial<ResolveRequest>) => resolveAccount(base({ starter: "usr_mia", accounts: [glm], model: "claude-sonnet-5-5", ...o }));
+  assert.equal(at({}).modelFallback, true);
+  assert.equal(at({ trigger: "wake" }).modelFallback, true);
+  assert.equal(at({ trigger: "routine", routineOwner: "usr_mia" }).modelFallback, true);
+  assert.equal(at({ trigger: "goal" }).allowed, false);
+  assert.equal(at({ trigger: "task" }).allowed, false);
+  // the chat pinned to the team key and to Claude, together: it does not serve Claude, so the chat fails and says why
+  const pinned = at({ threadAccountRef: "#OpenCode_Go_for_everyone", modelPinned: true });
+  assert.deepEqual([pinned.allowed, pinned.pin], [false, { ref: "#OpenCode_Go_for_everyone", used: false, why: "no_model" }]);
+  // the account pinned without a model of its own choosing: it pays, on its default
+  assert.equal(at({ threadAccountRef: "#OpenCode_Go_for_everyone" }).accountRef, "#OpenCode_Go_for_everyone");
 });
 
 test("a capped Space account is passed over and the next one pays; capped alone, nothing runs and the Unblock says no account", () => {
@@ -97,10 +113,9 @@ test("a pin is honoured: the step's key, the agent's key and the chat's account 
   assert.deepEqual([gone.accountRef, gone.pin], ["#Dana_Anthropic", { ref: "#Removed", used: false, why: "unknown" }]);
 });
 
-test("the Space AI key from before reads as kept for team chats, for everyone: it pays for a chat, never for an automation", () => {
+test("the Space AI key from before has every use on: it pays for a chat, an automation, a goal and agent work, as it did", () => {
   const legacy = row({ ref: "#OpenCode_Go_for_everyone", driver: "opencode_go", spaceKey: true });
-  assert.equal(ref(resolveAccount(base({ starter: "usr_mia", accounts: [legacy] }))), "#OpenCode_Go_for_everyone");
-  assert.equal(resolveAccount(base({ trigger: "task", starter: "usr_mia", accounts: [legacy] })).allowed, false);
+  for (const trigger of ["message", "wake", "goal", "task", "routine"] as const) assert.equal(ref(resolveAccount(base({ trigger, starter: "usr_mia", routineOwner: "usr_mia", accounts: [legacy] }))), "#OpenCode_Go_for_everyone", trigger);
   // a Mine row that claims uses is never a Space account
   assert.equal(resolveAccount(base({ starter: "usr_mia", accounts: [row({ ref: "#Rob", mine: true, ownerId: "usr_rob", uses: { teamChats: { who: "everyone" } }, teamChatsForMe: true })] })).allowed, false);
 });

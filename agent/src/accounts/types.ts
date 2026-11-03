@@ -85,6 +85,8 @@ export interface ResolveRequest {
   accounts: readonly AccountRow[];
   /** The model the turn needs; unset is Automatic (each account's default). */
   model?: string;
+  /** The person chose the chat's account and its model together: when that account does not serve the model, the turn fails with no_model rather than run anywhere else. */
+  modelPinned?: boolean;
   /** Refs that already failed during this turn. */
   unavailable?: readonly string[];
   /** The turn runs on the Space host (not the person's own device). A subscription then needs the standing switch, unless it is the payer's own turn. */
@@ -115,4 +117,6 @@ export interface Resolution {
   unblock?: NeedsYou;
   /** The account the chat, the agent or the automation step is pinned to, and whether it paid; when it did not, why (the turn fell back past it). */
   pin?: Attempt;
+  /** A team chat or agent work that no Space account fitting its model could pay: it runs on this account's default model instead, and the chat says so in one line. */
+  modelFallback?: true;
 }

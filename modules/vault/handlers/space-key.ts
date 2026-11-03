@@ -166,7 +166,7 @@ export async function set(ctx: VaultCtx, input: { providerKey: string; apiKey: s
   ctx.db.run(`DELETE FROM vault_space_key WHERE "id" = ?`, ROW);
   ctx.db.run(`INSERT INTO vault_space_key ("id", "providerId", "folderId", "setBy", "setAt", "checkedAt", "models", "state") VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
     ROW, providerId, folderId, ctx.principal.id, ctx.now(), ctx.now(), JSON.stringify(r.models), "ok");
-  // a Space account kept for team chats, for everyone (owner ruling 9)
+  // a Space account with every use on (owner ruling 9; admins narrow it with providers.uses.set)
   keepSpaceKey(ctx, providerId, r.models);
   ctx.emit("provider.added", `entity/${providerId}`, { providerId, providerKey: def.key, connection: "api_key", scope: "shared" }, { vis: "participants" });
   return out(ctx, current(ctx));

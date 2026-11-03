@@ -105,14 +105,15 @@ test("bad uses, a Mine key and a cap that is not a whole number of cents are ref
   done(h);
 });
 
-test("the Space AI key from before is a Space account kept for team chats, for everyone, with the models it unlocks; a Space that had one before this is moved over when the Vault is next read", async () => {
+test("the Space AI key from before is a Space account with every use on, with the models it unlocks; a Space that had one before this is moved over when the Vault is next read", async () => {
   const { h } = space();
   await sk.set(h.ctx, { providerKey: "opencode-go", apiKey: OCG, idempotencyKey: idem() });
   const row = (await listed(h, MAYA)).find((x) => x.spaceKey === true)!;
-  assert.deepEqual([row.uses, row.usesSet, row.teamChatsForMe, row.models], [{ teamChats: { who: "everyone" } }, true, true, ["glm-5.3"]]);
+  const ALL = { teamChats: { who: "everyone" }, automations: true, goals: true, agentWork: { which: "all" } };
+  assert.deepEqual([row.uses, row.usesSet, row.teamChatsForMe, row.models], [ALL, true, true, ["glm-5.3"]]);
   // a Space whose key was set before Space accounts: no uses row yet
   h.ctx.db.run(`DELETE FROM vault_provider_uses WHERE "providerId" = ?`, String(row.id));
   const again = (await listed(h, ROB)).find((x) => x.spaceKey === true)!;
-  assert.deepEqual([again.uses, again.usesSet, again.teamChatsForMe], [{ teamChats: { who: "everyone" } }, true, true]);
+  assert.deepEqual([again.uses, again.usesSet, again.teamChatsForMe], [ALL, true, true]);
   done(h);
 });
