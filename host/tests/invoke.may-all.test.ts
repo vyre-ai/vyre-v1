@@ -38,3 +38,29 @@ test("mayAll answers on each person's own grants: yes only when every one of the
   assert.equal(ctx.mayAll!(["usr_dana", "usr_zed"], view, { type: "folder", id: "fld_deal" }), false, "a stranger in the list makes it no");
   assert.equal(ctx.mayAll!([], view, { type: "folder", id: "fld_deal" }), true, "nobody else: nothing to hold back");
 });
+
+test("what an agent reads for a person inside a chat is noted for the answer check; a person's own read, or one outside a chat, is not", async () => {
+  const { hasReads, takeReads } = await import("../src/seams/answer-reads.ts");
+  const recGet = { ...probe, name: "example.get", resource: { type: "folder", id: "/folderId" } } as unknown as CapabilityDef;
+  const s = new AccessSnapshot();
+  s.putResource({ id: "spc_1", type: "space", parent_id: null, label: 0, owner_id: null, holds: 0 });
+  s.putResource({ id: "fld_deal", type: "folder", parent_id: "spc_1", label: 0, owner_id: null, holds: 0 });
+  s.putRole({ id: "member", clearance: 2, perms: [], name: "Member" });
+  s.putGrant({ id: "g_m", subject_kind: "role", subject_id: "member", resource_type: "space", resource_id: "spc_1", level: "view" });
+  s.putPrincipal({ id: "usr_dana", kind: "person", status: "active", name: "Dana" });
+  s.putPrincipal({ id: "agt_x", kind: "agent", status: "active", name: "X" });
+  for (const id of ["usr_dana", "agt_x"]) s.addPrincipalRole({ holder: id, role: "member" });
+  const deps: InvokeDeps = {
+    caps: indexCapabilities([recGet]), validateInput: () => [], authorize: (req) => authorize(s, req),
+    handler: () => async () => ({}), commit: async (b) => b.events.map((e, i) => ({ ...e, seq: i + 1 })),
+    idem: { once: (_p: string, _c: string, _k: string, _i: unknown, run: () => Promise<unknown>) => run() } as never,
+    rate: createRateLimiter(), log: { debug() {}, info() {}, warn() {}, error() {} }, now: () => 1_000,
+  };
+  const invoke = createInvoke(deps);
+  await invoke("example.get", { folderId: "fld_deal" }, { space: "spc_1", principal: { kind: "person", id: "usr_dana" }, thread: "thr_c" });
+  await invoke("example.get", { folderId: "fld_deal" }, { space: "spc_1", principal: { kind: "agent", id: "agt_x" }, actingFor: "usr_dana" });
+  assert.equal(hasReads("thr_c", "agt_x", "usr_dana"), false, "no person's own read, and no read outside a chat");
+  await invoke("example.get", { folderId: "fld_deal" }, { space: "spc_1", principal: { kind: "agent", id: "agt_x" }, actingFor: "usr_dana", thread: "thr_c" });
+  assert.deepEqual(takeReads("thr_c", "agt_x", "usr_dana"), [{ type: "folder", id: "fld_deal" }]);
+  assert.equal(hasReads("thr_c", "agt_x", "usr_dana"), false, "taken once");
+});

@@ -190,3 +190,44 @@ test("a record comment's Ask posts its answer on the record: Dana's own memory s
   assert.ok(!(await said(ask(true))).includes(SECRET), "the comment's Ask is read by the record's readers");
   assert.ok((await said(ask(false))).includes(SECRET), "the Ask pane Dana opened on the record is hers alone");
 });
+
+test("D5: an agent learns from a private channel, and those facts stay with its members: recalled and readable only where every reader is a member", async () => {
+  const raw = openRaw();
+  const channel = { thread: { threadId: "thr_ch", kind: "channel", channelId: "chn_deals", starter: DANA, members: [person(DANA), person(MAYA)], agents: [{ agentId: AGENT, mode: "listen" }] } };
+  const channelGet = { channel: { channelId: "chn_deals", visibility: "invite", members: [person(DANA), person(MAYA)] } };
+  const said = [{ messageId: "msg_1", threadId: "thr_ch", author: person(MAYA), body: `We agreed the ${SECRET} vendor gets paid net 60.`, createdAt: NOW }];
+  const cap = harness({ raw, principal: { kind: "service", id: "svc_memory" }, respond: { "threads.get": () => channel, "channels.get": () => channelGet, "chat.messages.list": () => ({ messages: said }), "agents.get": () => ({ agent: { captureMode: "auto", folderId: "fld_intake" } }) } });
+  assert.ok((await capture(cap.ctx, { threadId: "thr_ch", reason: "idle" })).merged >= 1, "the agent learned it");
+  const row = raw.all("SELECT layer, audience FROM memory_facts WHERE agent_id = ?", AGENT)[0] as { layer: string; audience: string };
+  assert.equal(row.layer, "agent");
+  assert.deepEqual(JSON.parse(row.audience), { people: [DANA, MAYA] }, "tagged with the channel's people");
+  // every memory read an agent can make, as Dana's agent in a chat Leo is also in: none returns it
+  const mixed = harness({ raw, principal: { kind: "agent", id: AGENT }, actingFor: DANA, respond: { "threads.get": () => chatOf(DANA, "usr_leo"), "agents.get": () => ({ agent: { folderId: "fld_intake" } }) } });
+  (mixed.ctx as MemCtx & { thread?: string }).thread = "thr_mix";
+  for (const c of ["memory.search", "memory.facts_as_of", "memory.facts.list", "memory.learned"]) {
+    const out = await (handlers as Record<string, (ctx: MemCtx, input: unknown) => Promise<unknown>>)[c]!(mixed.ctx, c === "memory.search" ? { q: "vendor", mode: "keyword" } : c === "memory.facts_as_of" ? { date: NOW + 1000 } : {});
+    assert.ok(!JSON.stringify(out).includes("net 60"), `${c}: ${JSON.stringify(out).slice(0, 300)}`);
+  }
+  // in the channel itself, where every reader is a member, it comes back
+  const inside = harness({ raw, principal: { kind: "agent", id: AGENT }, actingFor: DANA, respond: { "threads.get": () => channel, "channels.get": () => channelGet, "agents.get": () => ({ agent: { folderId: "fld_intake" } }) } });
+  (inside.ctx as MemCtx & { thread?: string }).thread = "thr_ch";
+  assert.ok(JSON.stringify(await handlers["memory.facts_as_of"](inside.ctx as never, { date: NOW + 1000 } as never)).includes("net 60"));
+});
+
+test("D7: one agent reads another agent's memory when the asker can open that agent's folder, and not otherwise", async () => {
+  const raw = openRaw();
+  const seed = harness({ raw });
+  seedFact(seed, { id: "fct_other", layer: "agent", agentId: "agt_billing", text: `Billing's ${SECRET} rule: invoices go out on the 1st` });
+  const asks = (deny: string[]) => {
+    const h = harness({ raw, principal: { kind: "agent", id: AGENT }, actingFor: DANA, deny, respond: { "threads.get": () => chatOf(DANA), "agents.get": (b) => ({ agent: { folderId: `fld_${String(b["agentId"]).replace(/^agt_/, "")}` } }) } });
+    (h.ctx as MemCtx & { thread?: string }).thread = "thr_dana";
+    return h;
+  };
+  const read = async (h: Harness) => JSON.stringify([
+    await search(h.ctx, { q: "invoices", agentId: "agt_billing", mode: "keyword" }),
+    await handlers["memory.fact.get"](h.ctx as never, { factId: "fct_other" } as never).catch(() => ({})),
+    await handlers["memory.facts.list"](h.ctx as never, { agentId: "agt_billing" } as never),
+  ]);
+  assert.match(await read(asks([])), /invoices go out/, "Dana may open Billing's folder: Intake, working for her, reads Billing's memory");
+  assert.doesNotMatch(await read(asks(["folder:fld_billing"])), /invoices go out/, "without Billing's folder, nothing of it");
+});

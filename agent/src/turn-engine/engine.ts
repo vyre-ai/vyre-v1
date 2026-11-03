@@ -87,7 +87,15 @@ export interface EngineOptions {
   blockMs?: number;
   /** A running turn whose session says nothing for this long (and runs no tool) ends as failed with turn_timeout, so a hung provider never leaves a turn running. Default 10 minutes. */
   idleMs?: number;
+  /**
+   * The audience check at the answer-posting step: what of a finished answer goes into the chat. An answer built on something not everyone in the chat may open goes to the asker privately and
+   * the chat gets `body` instead. A check that throws shares nothing.
+   */
+  screenAnswer?: (q: { threadId: string; turnId: string; agentId: string; asker: string; reply: string }) => Promise<{ body: string; withheld: boolean }>;
 }
+
+/** What a chat gets when the answer could not be checked or sent privately: never the answer itself. */
+export const ANSWER_HELD = "I could not post my answer here: some of what I used may not be open to everyone in this chat, and I could not send it to you privately. Ask me in your own chat with me.";
 
 /** The events of `src`, but a rejection of `stop` ends the wait even when the source never answers. The source is closed without waiting: a hung one may never return. */
 async function* guarded<T>(src: AsyncIterable<T>, stop: Promise<never>): AsyncGenerator<T> {
@@ -514,8 +522,17 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
     else emit({ type: "turn.failed", threadId: st.thread.id, turnId: turn.id, agentId: turn.agentId, code: turn.error?.code ?? "engine_error", ...(turn.error?.message ? { message: turn.error.message.slice(0, 300) } : {}) });
     // The agent's answer is a message like any other: it can @mention the next agent, which counts a hop.
     if (turn.state === "completed" && (reply !== "" || mentions.length > 0)) {
+      // the answer is checked against everyone who reads the chat before it is stored and posted: the stored copy is what other agents read next, so it never holds what was withheld
+      let body = reply;
+      let said = mentions;
+      if (opts.screenAnswer && reply !== "") {
+        const s = await opts.screenAnswer({ threadId: st.thread.id, turnId: turn.id, agentId: turn.agentId, asker: turn.asker, reply }).catch(() => ({ body: ANSWER_HELD, withheld: true }));
+        body = s.body;
+        // a withheld answer is addressed to its asker, so no agent answers the line that replaces it
+        if (s.withheld) said = turn.asker.startsWith("usr_") ? [{ kind: "person", id: turn.asker }] : [];
+      }
       // it speaks for the person this turn ran for, so an agent it @mentions runs for them too (the original asker of the chain), never for the chat's starter
-      ingest(st, { threadId: st.thread.id, author: { kind: "agent", id: turn.agentId }, mentions, depth: trigger ? nextDepth(trigger) : 0, body: reply, ...(turn.asker !== "" ? { asker: turn.asker } : {}) }, false);
+      ingest(st, { threadId: st.thread.id, author: { kind: "agent", id: turn.agentId }, mentions: said, depth: trigger ? nextDepth(trigger) : 0, body, ...(turn.asker !== "" ? { asker: turn.asker } : {}) }, false);
     }
   }
 

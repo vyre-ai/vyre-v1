@@ -93,3 +93,23 @@ test("a watcher does not act on an agent's post that no person is behind", async
   await engine.idle("T");
   assert.deepEqual(engine.turns("T").map((t) => [t.agentId, t.asker, t.routine]), [["agt_w", "usr_bob", true]]);
 });
+
+test("the answer check runs before the answer is stored: a withheld answer is replaced, addressed to its asker, and a failing check shares nothing", async () => {
+  const { ANSWER_HELD } = await import("../src/turn-engine/engine.ts");
+  const p = scriptedProvider({ script: [{ type: "text", text: "The walk-away number is 310k." }, { type: "done", mentions: [agent("agt_y")] }] });
+  let fail = false;
+  const engine = createTurnEngine({
+    holder: "host:s", openSession: p.openSession,
+    screenAnswer: async (q) => { if (fail) throw new Error("down"); return q.asker === "usr_bob" ? { body: "Sent to you privately.", withheld: true } : { body: q.reply, withheld: false }; },
+  });
+  engine.openThread(channel({ agents: [{ id: "agt_x", mode: "listen" }] }));
+  engine.receive({ threadId: "T", author: person("usr_bob"), mentions: [agent("agt_x")], body: "the number?" });
+  await engine.idle("T");
+  const answer = engine.messages("T").filter((m) => m.author.kind === "agent").at(-1)!;
+  assert.equal(answer.body, "Sent to you privately.", "the stored copy, which other agents read next, holds no part of it");
+  assert.deepEqual(answer.mentions, [person("usr_bob")], "and it hands nothing on to another agent");
+  fail = true;
+  engine.receive({ threadId: "T", author: person("usr_alice"), mentions: [agent("agt_x")], body: "and now?" });
+  await engine.idle("T");
+  assert.equal(engine.messages("T").filter((m) => m.author.kind === "agent").at(-1)!.body, ANSWER_HELD);
+});

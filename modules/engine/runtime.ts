@@ -5,7 +5,10 @@ import { createTurnEngine } from "../../agent/src/turn-engine/engine.ts";
 import type { TurnEngine } from "../../agent/src/turn-engine/engine.ts";
 import type { AccountQuery, EngineEvent, OpenSession, ResolvedAccount, TurnRow } from "../../agent/src/turn-engine/types.ts";
 import { open } from "./handlers/control.ts";
-import { bindBridge, createBridge } from "./handlers/bridge.ts";
+import { BRIDGE_PREFIX, bindBridge, createBridge } from "./handlers/bridge.ts";
+import { screenAnswer, settleAnswer } from "./answer-audience.ts";
+import { ANSWER_HELD } from "../../agent/src/turn-engine/engine.ts";
+import { clearReads } from "../../host/src/seams/answer-reads.ts";
 import { createCrewWatcher } from "./crew-watch.ts";
 import type { StreamEvent } from "./handlers/bridge.ts";
 import type { Invoke } from "../../host/src/invoke.ts";
@@ -78,6 +81,8 @@ export interface EngineHostSeam {
   log?: (msg: string, attrs?: Record<string, unknown>) => void;
   /** Run chat.post as an agent (the host builds the call with the agent as principal). With it the chat bridge is attached: the engine's replies become chat posts. */
   postAs?: PostAs;
+  /** May every one of these people do this on this resource, each on their own grants (the answer check, modules/engine/answer-audience.ts)? Absent: answers are posted unchecked, as before. */
+  mayAll?(people: readonly string[], action: { perm: string | null; level: "view" | "use" | "edit" | "manage" }, resource: { type: string; id: string | null }): boolean;
   /** The skills the turn context indexes and loads a focus skill from. Default: the built-in skills on disk (agent/skills). */
   skills?: import("./context.ts").SkillsPort;
   /** Live turn events (text as it is written, the end, the message it became) for the host to put on the live socket. */
@@ -326,6 +331,16 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
       },
       onTurnEnd: (turn, account) => meter(h, turn, account),
       onLimits: (account, reading) => recordAccountLimits(ctx.db, account.ref, reading, now()),
+      // the answer check (gap 6): an answer built on something not everyone in the chat may open goes to the asker privately
+      ...(h.mayAll ? {
+        screenAnswer: async (q: { threadId: string; turnId: string; agentId: string; asker: string; reply: string }) => {
+          const s = await screenAnswer({ call: h.call, mayAll: h.mayAll!, ...(h.postAs ? { postAs: (agentId, post) => h.postAs!(agentId, post as never) } : {}), newId: () => BRIDGE_PREFIX + mintEngineId("b", now()).slice(2) }, q)
+            .catch((e: unknown) => { settleAnswer(q.turnId, { body: ANSWER_HELD, withheld: true }); throw e; });
+          settleAnswer(q.turnId, s);
+          if (s.withheld) h.log?.("an answer went to its asker privately", { threadId: q.threadId, turnId: q.turnId, agentId: q.agentId, closed: s.closed.map((r) => `${r.type}:${r.id ?? ""}`).slice(0, 20) });
+          return s;
+        },
+      } : {}),
       ...(apiTools ? { callTool: apiTools.runner } : {}),
     });
     running = engine;
@@ -353,7 +368,7 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
           .catch((err: unknown) => h.log?.("a message for an outside agent was not queued", { threadId: ev.threadId, error: err instanceof Error ? err.message : String(err) }));
         return;
       }
-      if (ev.type === "turn.started") awake.up();
+      if (ev.type === "turn.started") { awake.up(); clearReads(ev.threadId, ev.agentId, ev.asker); }
       else if (ev.type === "turn.completed" || ev.type === "turn.cancelled" || (ev.type === "turn.failed" && ev.code !== "host_lost") || (ev.type === "turn.waiting" && ev.reason === "approval")) awake.down();
       // a turn a dead host left is not in this engine's rows: its record is closed from what recover() knows, so the turn list, Try again and the agent's Working status are right
       if (ev.type === "turn.failed" && ev.code === "host_lost") {
