@@ -29,6 +29,22 @@ export const LOCAL_SIGNINS: readonly { key: string; button: string }[] = [
   { key: "codex", button: "Use the Codex sign-in on this computer" },
 ];
 
+/**
+ * On a Mac, Claude Code keeps its sign-in in the login Keychain, and the first read shows the Mac's own "allow access" prompt. It is read only when the person presses the button, never on
+ * load, so the button says what is about to happen.
+ */
+export const KEYCHAIN_NOTE = "Your Mac will ask once; choose Always Allow.";
+
+/** This browser or app runs on a Mac (a Personal Space's server is this same computer). */
+export function onMacDevice(nav: { platform?: string; userAgent?: string } | undefined = (globalThis as { navigator?: { platform?: string; userAgent?: string } }).navigator): boolean {
+  return /mac/i.test(nav?.platform ?? "") || /Macintosh|Mac OS X/.test(nav?.userAgent ?? "");
+}
+
+/** The note under a local sign-in button: only Claude Code on a Mac reads the Keychain. */
+export function localNote(providerKey: string, mac: boolean): string | null {
+  return mac && providerKey === "claude-code" ? KEYCHAIN_NOTE : null;
+}
+
 /** Use the sign-in already on this computer: the server reads it and saves it in one go, so the account comes back at once. Rejects with the server's plain line (none there, or not a Personal Space). */
 export async function takeLocalSignin(call: Call, providerKey: string, idempotencyKey: string, home: AiHome = "here"): Promise<{ id: string } & Record<string, unknown>> {
   const flow = await startFlow(call, providerKey, idempotencyKey, home, true);

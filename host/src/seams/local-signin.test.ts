@@ -35,11 +35,16 @@ test("claude: ~/.claude/.credentials.json (or CLAUDE_CONFIG_DIR), else the Mac K
   assert.equal(readLocalSignin("grok", { home: "/h", env: {}, readFile: () => null }).state, "failed");
 });
 
-test("the port uses it only when the daemon gave it a reader (a Personal Space): the flow is finished at once, with no link; elsewhere it is refused in plain words", async () => {
+test("the port uses it only when the daemon gave it a reader (a Personal Space), and reads only on the press: the flow is finished at once, with no link; elsewhere it is refused in plain words", async () => {
   const fetch = (async () => { throw new Error("no network in this test"); }) as never;
-  const personal = createProviderSignin({ fetch, localSignin: () => ({ state: "done", fields: [{ key: "credentials", value: "{}", secret: true }] }) });
+  let reads = 0;
+  const personal = createProviderSignin({ fetch, localSignin: () => { reads++; return { state: "done", fields: [{ key: "credentials", value: "{}", secret: true }] }; } });
+  assert.equal(reads, 0, "nothing is read when the port is made (the Mac Keychain prompt comes only after a press)");
+  assert.equal(personal.has("codex") && personal.active("sub_l"), false);
+  assert.equal(reads, 0);
   const started = await personal.start({ id: "sub_l", provider: "codex", person: "usr_maya", local: true });
   assert.deepEqual(started, { url: "", needsCode: false, expiresInSec: 900 });
+  assert.equal(reads, 1, "one read, on the press");
   assert.equal(personal.active("sub_l"), true);
   assert.equal((await personal.step({ id: "sub_l", person: "usr_maya" })).state, "done");
   assert.equal((await personal.step({ id: "sub_l", person: "usr_other" })).state, "failed", "the flow is the person's own");

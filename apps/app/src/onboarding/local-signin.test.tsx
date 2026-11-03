@@ -44,3 +44,18 @@ test("pressing it starts the sign-in with local, finishes it at once and hands b
     assert.equal(r2.calls[0]!.input["local"], true);
   } finally { restore(); }
 });
+
+test("on a Mac the Claude Code button says the Keychain will ask once; Codex and other computers say nothing more", async () => {
+  const { KEYCHAIN_NOTE, localNote, onMacDevice } = await import("../ai-signin/flow.ts");
+  assert.equal(KEYCHAIN_NOTE, "Your Mac will ask once; choose Always Allow.");
+  assert.equal(localNote("claude-code", true), KEYCHAIN_NOTE);
+  assert.equal(localNote("codex", true), null);
+  assert.equal(localNote("claude-code", false), null);
+  assert.equal(onMacDevice({ platform: "MacIntel" }), true);
+  assert.equal(onMacDevice({ userAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 15_1) AppleWebKit/605.1.15" }), true);
+  assert.equal(onMacDevice({ platform: "Linux x86_64", userAgent: "Mozilla/5.0 (X11; Linux x86_64)" }), false);
+  const mac = renderToStaticMarkup(<ConnectAiCard call={recorder().call} local mac onConnected={() => undefined} />).replaceAll("&#x27;", "'");
+  assert.ok(mac.includes('data-testid="ai-local-note-claude-code"') && mac.includes(KEYCHAIN_NOTE));
+  assert.ok(!mac.includes("ai-local-note-codex"));
+  assert.ok(!renderToStaticMarkup(<ConnectAiCard call={recorder().call} local mac={false} onConnected={() => undefined} />).includes("ai-local-note-"));
+});
