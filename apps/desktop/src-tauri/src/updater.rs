@@ -255,12 +255,31 @@ pub(crate) fn parse_turns(body: &str) -> Option<u32> {
     v.get("data")?.get("turns")?.as_u64().map(|n| n.min(u32::MAX as u64) as u32)
 }
 
+/// How long a daemon that is still starting is given to come up before the update asks it what runs and stops it.
+const START_WAIT: Duration = Duration::from_secs(25);
+
+/// Still starting: its process is up but it has not answered yet.
+pub(crate) fn starting(phase: &crate::sidecar::Phase) -> bool {
+    matches!(phase, crate::sidecar::Phase::Starting | crate::sidecar::Phase::Restarting)
+}
+
+impl Daemon {
+    /// A daemon still starting is let come up first (a turn it recovers at start is then counted), so it is asked what runs and stops itself, closing its stores: the graceful stop needs the
+    /// address and token it only has once it is ready. On Windows a download can finish before the daemon's Node has started (update-proof run 41633487747), and it was killed mid-start.
+    fn settle(&self) {
+        let begun = Instant::now();
+        while begun.elapsed() < START_WAIT && crate::sidecar::is_running(&self.shared) && starting(&crate::sidecar::current(&self.shared).phase) {
+            std::thread::sleep(Duration::from_millis(150));
+        }
+    }
+}
+
 impl LocalService for Daemon {
     fn name(&self) -> &'static str { self.name }
     fn running(&self) -> bool { crate::sidecar::is_running(&self.shared) }
-    fn drain(&self) -> Option<u32> { crate::sidecar::local_json(&self.shared, "POST", "/local/daemon/drain").and_then(|b| parse_turns(&b)) }
+    fn drain(&self) -> Option<u32> { self.settle(); crate::sidecar::local_json(&self.shared, "POST", "/local/daemon/drain").and_then(|b| parse_turns(&b)) }
     fn busy(&self) -> Option<u32> { crate::sidecar::local_json(&self.shared, "GET", "/local/daemon/busy").and_then(|b| parse_turns(&b)) }
-    fn stop(&self, timeout: Duration) -> bool { crate::sidecar::stop_and_wait(&self.shared, timeout) }
+    fn stop(&self, timeout: Duration) -> bool { self.settle(); crate::sidecar::stop_and_wait(&self.shared, timeout) }
     fn resume(&self) { crate::sidecar::resume(&self.app, &self.shared) }
 }
 
@@ -390,6 +409,13 @@ mod tests {
         assert!(off.begin_install() && !off.begin_install(), "one install at a time");
         off.end_install();
         assert!(off.begin_install());
+    }
+
+    #[test]
+    fn a_daemon_still_starting_is_waited_for_and_one_that_is_up_or_down_is_not() {
+        use crate::sidecar::Phase;
+        assert!(starting(&Phase::Starting) && starting(&Phase::Restarting));
+        assert!(!starting(&Phase::Ready) && !starting(&Phase::Failed) && !starting(&Phase::Stopped));
     }
 
     #[test]

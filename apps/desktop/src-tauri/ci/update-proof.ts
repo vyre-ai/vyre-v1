@@ -204,11 +204,22 @@ if (kept) {
   let changed = false;
   for (let i = 0; i < 120 && !changed; i++) { await sleep(2500); try { changed = !same(APP, before); } catch { /* the installer is writing it */ } }
   if (!changed) failures.push("update: the installed program is the same file after the update");
-  await sleep(15_000);
-  shot("after-update");
-  const running = win
+  // The program file changes part way through the install: on Windows the NSIS installer goes on (the rest of the files, the registry, shortcuts) and opens the new app only when it is done
+  // (.onInstSuccess, with the /R the updater passes). So wait for the new app, up to three minutes, keeping the process list every 10 s as evidence.
+  const isRunning = (): boolean => (win
     ? /vyre-desktop\.exe/i.test(spawnSync("tasklist", ["/FI", "IMAGENAME eq vyre-desktop.exe"], { encoding: "utf8" }).stdout ?? "")
-    : spawnSync("pgrep", ["-x", "vyre-desktop"], { encoding: "utf8" }).status === 0;
+    : spawnSync("pgrep", ["-x", "vyre-desktop"], { encoding: "utf8" }).status === 0);
+  const procs = path.join(OUT, `${process.platform}-processes-after-update.txt`);
+  const started = Date.now();
+  let running = false;
+  for (let i = 0; i < 90 && !running; i++) {
+    if (i % 5 === 0) fs.appendFileSync(procs, `--- ${Math.round((Date.now() - started) / 1000)} s after the program changed\n${win ? spawnSync("tasklist", ["/V", "/FO", "CSV"], { encoding: "utf8" }).stdout ?? "" : spawnSync("ps", ["-axo", "pid,comm"], { encoding: "utf8" }).stdout ?? ""}\n`);
+    running = isRunning();
+    if (!running) await sleep(2000);
+  }
+  console.log(`update-proof: the new app ${running ? `was running ${Math.round((Date.now() - started) / 1000)} s after the program changed` : "had not opened 3 minutes after the program changed"}`);
+  await sleep(10_000);
+  shot("after-update");
   if (!running) failures.push("update: the new app did not open");
   console.log(`update-proof: installed ${changed ? "a different program" : "nothing new"}, new app running=${running}`);
   console.log(run.log().split("\n").filter((l) => l.includes("vyre-desktop: update:")).join("\n"));
