@@ -61,6 +61,7 @@ type Out = {
     tokens: {
       in: number;
       out: number;
+      context?: number;
       cacheRead?: number;
       cacheWrite?: number;
       reasoning?: number;
@@ -193,6 +194,7 @@ type Out = {
       "tokens": {
         "cacheRead": 1,
         "cacheWrite": 1,
+        "context": 1,
         "in": 1,
         "out": 1,
         "reasoning": 1

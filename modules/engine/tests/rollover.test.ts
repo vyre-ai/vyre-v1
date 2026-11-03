@@ -14,12 +14,12 @@ const CLAUDE: ResolvedAccount = { ref: "#Dana_Claude", driver: "claude_code", pr
 const API: ResolvedAccount = { ref: "#Team_Anthropic", driver: "anthropic", provider: "anthropic", kind: "api_key", payer: "usr_dana", reason: "starter" } as ResolvedAccount;
 const msg = (seq: number, body: string): StoredMessage => ({ id: `msg_${seq}`, threadId: T, threadSeq: seq, author: { kind: "person", id: "usr_dana" }, mentions: [], depth: 0, body, at: NOW } as StoredMessage);
 
-function rig(o: { account: ResolvedAccount; tokensIn: number; queued?: boolean; turnsSince?: number }) {
+function rig(o: { account: ResolvedAccount; tokensIn: number; context?: number; queued?: boolean; turnsSince?: number }) {
   const h = harness();
   const posts: string[] = [];
   let dropped = 0;
   const turns = (): unknown[] => [
-    { id: "trn_now", threadId: T, agentId: A, asker: "usr_dana", model: "claude-sonnet-5-5", state: "completed", traceId: "a".repeat(32), startedAt: NOW + 100_000, tokensIn: o.tokensIn },
+    { id: "trn_now", threadId: T, agentId: A, asker: "usr_dana", model: "claude-sonnet-5-5", state: "completed", traceId: "a".repeat(32), startedAt: NOW + 100_000, tokensIn: o.tokensIn, info: { tools: [], switches: [], ...((o.context ?? o.tokensIn) > 0 ? { contextTokens: o.context ?? o.tokensIn } : {}) } },
     ...Array.from({ length: o.turnsSince ?? 0 }, (_, i) => ({ id: `trn_${i}`, threadId: T, agentId: A, asker: "usr_dana", model: "claude-sonnet-5-5", state: "completed", traceId: "x", startedAt: NOW + 1_000 + i, tokensIn: 1000 })),
   ];
   const engine = {
@@ -75,6 +75,15 @@ test("a queued message holds the roll for a few turn boundaries, unless the wind
   assert.equal(await r.go(), true, "it has waited long enough");
   const full = rig({ account: CLAUDE, tokensIn: 185_000, queued: true });
   assert.equal(await full.go(), true, "past 90% it rolls whatever is queued");
+});
+
+test("a turn's summed input is not the window: 1.0M tokens in over twenty calls of a 60k context does not roll", async () => {
+  const r = rig({ account: CLAUDE, tokensIn: 1_000_000, context: 60_000 });
+  assert.equal(await r.go(), false);
+  assert.equal(r.dropped(), 0);
+  // and one with no per-call figure (an older record) is estimated from the words said, never from the sum
+  const none = rig({ account: CLAUDE, tokensIn: 1_000_000, context: 0 });
+  assert.equal(await none.go(), false);
 });
 
 test("with no token report the roll comes from an estimate of the characters said", async () => {

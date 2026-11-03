@@ -47,6 +47,7 @@ type Out = {
         tokensIn: number;
         tokensOut: number;
         costMicros: number;
+        tokensCached?: number;
       };
     }>;
   totals: {
@@ -54,6 +55,7 @@ type Out = {
     tokensIn: number;
     tokensOut: number;
     costMicros: number;
+    tokensCached?: number;
   };
 };
 ```
@@ -86,6 +88,7 @@ type Out = {
         "title": "example",
         "totals": {
           "costMicros": 1,
+          "tokensCached": 1,
           "tokensIn": 1,
           "tokensOut": 1,
           "turns": 1
@@ -94,6 +97,7 @@ type Out = {
     ],
     "totals": {
       "costMicros": 1,
+      "tokensCached": 1,
       "tokensIn": 1,
       "tokensOut": 1,
       "turns": 1

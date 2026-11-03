@@ -36,6 +36,7 @@ import { withTranscript } from "./transcript.ts";
 import { withNativeSkills } from "./skills-native.ts";
 import { withGoalFolder } from "./goal-folder.ts";
 import { createRoller } from "./rollover.ts";
+import { noModelWords } from "./model-fallback.ts";
 import { linkReply } from "./handlers/extra/reply-info.ts";
 import { costOf } from "./turn-cost.ts";
 import { workFolder } from "./sandbox.ts";
@@ -118,7 +119,7 @@ export interface EngineHostSeam {
 }
 
 interface AccountRow { ref: string; driver: string; kind: "api_key" | "subscription"; mine?: boolean; base?: string; keyless?: boolean; spaceKey?: boolean }
-interface ResolveOut { accountRef: string | null; payer: string | null; reason: ResolvedAccount["reason"]; allowed: boolean; itemId?: string; fellBack?: boolean; via?: ResolvedAccount["via"]; cappedFrom?: string; modelFallback?: { from: string; to?: string } }
+interface ResolveOut { why?: string; model?: string; servedModels?: string[]; accountRef: string | null; payer: string | null; reason: ResolvedAccount["reason"]; allowed: boolean; itemId?: string; fellBack?: boolean; via?: ResolvedAccount["via"]; cappedFrom?: string; modelFallback?: { from: string; to?: string } }
 
 /** The provider a driver belongs to, for the session spec; the CLI engines run their vendor's models. */
 const PROVIDER_OF_DRIVER: Readonly<Record<string, string>> = Object.freeze({ claude_code: "anthropic", codex: "openai", grok: "xai" });
@@ -168,6 +169,7 @@ export function sandboxPlan(): Promise<SandboxPlan> {
 
 export async function resolveOne(h: Pick<EngineHostSeam, "call" | "log">, q: AccountQuery): Promise<ResolvedAccount | null> {
   const res = (await h.call("engine.account.resolve", { threadId: q.threadId, agentId: q.agentId, askerId: q.askerId, ...(q.stepKey ? { stepKey: q.stepKey } : {}), ...(q.unavailable?.length ? { unavailable: [...q.unavailable] } : {}), ...(q.kind ? { kind: q.kind } : {}) }, q.askerId)) as ResolveOut;
+  if (res.why === "no_model") throw Object.assign(new Error(noModelWords(res.model ?? null, res.servedModels ?? [])), { code: "engine.model_unavailable" });
   if (!res.allowed || !res.accountRef || !res.payer) {
     h.log?.("no account can pay for this turn", { threadId: q.threadId, agentId: q.agentId, asker: q.askerId, allowed: res.allowed, reason: res.reason, accountRef: res.accountRef ?? null });
     return null;
@@ -175,7 +177,7 @@ export async function resolveOne(h: Pick<EngineHostSeam, "call" | "log">, q: Acc
   const list = (await h.call("engine.accounts.list", {}, res.payer)) as { accounts: AccountRow[] };
   const row = list.accounts.find((a) => a.ref === res.accountRef);
   if (!row) { h.log?.("the account the turn resolved is not in the payer's list", { threadId: q.threadId, accountRef: res.accountRef, payer: res.payer }); return null; }   // the key vanished between the two calls: treat as none, the next turn asks again
-  return { ref: row.ref, driver: row.driver, provider: providerOfDriver(row.driver), kind: row.kind, payer: res.payer, reason: res.reason, ...(row.mine ? {} : { shared: true }), ...(res.itemId ? { itemId: res.itemId } : {}), ...(res.fellBack ? { fellBack: true } : {}), ...(res.via ? { via: res.via } : {}), ...(res.cappedFrom ? { cappedFrom: res.cappedFrom } : {}), ...(row.base ? { base: row.base } : {}), ...(row.keyless ? { keyless: true } : {}), ...(row.spaceKey ? { spaceKey: true } : {}), ...(res.modelFallback ? { modelFallback: res.modelFallback } : {}) };
+  return { ref: row.ref, ...((row as { name?: string; title?: string }).name ?? (row as { title?: string }).title ? { name: (row as { name?: string }).name ?? (row as { title?: string }).title } : {}), driver: row.driver, provider: providerOfDriver(row.driver), kind: row.kind, payer: res.payer, reason: res.reason, ...(row.mine ? {} : { shared: true }), ...(res.itemId ? { itemId: res.itemId } : {}), ...(res.fellBack ? { fellBack: true } : {}), ...(res.via ? { via: res.via } : {}), ...(res.cappedFrom ? { cappedFrom: res.cappedFrom } : {}), ...(row.base ? { base: row.base } : {}), ...(row.keyless ? { keyless: true } : {}), ...(row.spaceKey ? { spaceKey: true } : {}), ...(res.modelFallback ? { modelFallback: res.modelFallback } : {}) };
 }
 
 /** An account whose engine can run on this computer: the pick, or another account of the person when the pick's program is not installed (runnable-account.ts). */
@@ -262,9 +264,15 @@ export function costMicrosOf(turn: Readonly<TurnRow>, account: ResolvedAccount |
   }).micros ?? 0;
 }
 
+/** What a turn whose model nothing named ran on: the engine's own default, said so, never "unknown". */
+function defaultModelLabel(a: ResolvedAccount | null): string {
+  const t: Record<string, string> = { claude_code: "Claude Code's default model", codex: "Codex's default model", grok: "Grok's default model" };
+  return a ? t[a.driver] ?? `${a.driver} default model` : "unknown";
+}
+
 async function meter(h: EngineHostSeam, turn: Readonly<TurnRow>, account: ResolvedAccount | null): Promise<void> {
   if (turn.tokensIn + turn.tokensOut === 0) return;
-  await h.call("engine.turn.record_usage", { turnId: turn.id, tokensIn: turn.tokensIn, tokensOut: turn.tokensOut, costMicros: costMicrosOf(turn, account), ...(account?.itemId ? { itemId: account.itemId } : {}) }, turn.asker);
+  await h.call("engine.turn.record_usage", { turnId: turn.id, tokensIn: turn.tokensIn, tokensOut: turn.tokensOut, costMicros: costMicrosOf(turn, account), model: turn.model ?? defaultModelLabel(account), ...(((turn.info?.cacheReadTokens ?? 0) + (turn.info?.cacheWriteTokens ?? 0)) > 0 ? { cachedIn: (turn.info?.cacheReadTokens ?? 0) + (turn.info?.cacheWriteTokens ?? 0) } : {}), ...(account?.itemId ? { itemId: account.itemId } : {}) }, turn.asker);
 }
 
 export interface CompleteIn { account: ResolvedAccount; system?: string; prompt: string; model?: string }

@@ -10,7 +10,7 @@ import { windowFor } from "../../../agent/src/transcript/windows.ts";
 import { raise } from "../projections.ts";
 import type { Db, EngineCtx } from "../projections.ts";
 import { ensureExtra } from "./extra/schema.ts";
-import { num, optStr, rows } from "./extra/util.ts";
+import { num, optStr, rows, str } from "./extra/util.ts";
 import { keepEvery, lastCompaction } from "../cli-sessions.ts";
 
 export type LimitWindow = "session" | "week";
@@ -95,6 +95,15 @@ async function modelOf(ctx: EngineCtx, threadId: string, agentId: string): Promi
   return {};
 }
 
+/** The context size a turn recorded (what the model was shown in its last call), or undefined when it did not (an older turn). */
+function contextOfTurn(ctx: EngineCtx, turnId: string): number | undefined {
+  try {
+    const r = rows(ctx, "SELECT info FROM engine_turn_info WHERE turn_id = ?", turnId)[0];
+    const v = r && typeof r["info"] === "string" ? (JSON.parse(r["info"]) as { contextTokens?: unknown }).contextTokens : undefined;
+    return typeof v === "number" && v > 0 ? Math.trunc(v) : undefined;
+  } catch { return undefined; }
+}
+
 export async function usageGet(ctx: EngineCtx, input: { threadId: string; agentId: string; accountRef?: string }) {
   ensureExtra(ctx.db);
   ensureLimits(ctx.db);
@@ -110,7 +119,7 @@ export async function usageGet(ctx: EngineCtx, input: { threadId: string; agentI
   if (ref !== undefined && !row) raise(ctx, "validation.not_found", "There is no such account.", { accountRef: ref });
 
   const { model, provider } = await modelOf(ctx, input.threadId, input.agentId);
-  const last = rows(ctx, "SELECT tokens_in, started_at, ended_at FROM engine_turns WHERE thread_id = ? AND agent_id = ? AND tokens_in > 0 ORDER BY started_at DESC, qseq DESC LIMIT 1", input.threadId, input.agentId)[0];
+  const last = rows(ctx, "SELECT turn_id, tokens_in, started_at, ended_at FROM engine_turns WHERE thread_id = ? AND agent_id = ? AND tokens_in > 0 ORDER BY started_at DESC, qseq DESC LIMIT 1", input.threadId, input.agentId)[0];
   const accountProvider = row ? (PROVIDER_OF[row.driver] ?? row.driver) : undefined;
   let context: { used: number; window: number } | null = null;
   if (model) {
@@ -118,7 +127,9 @@ export async function usageGet(ctx: EngineCtx, input: { threadId: string; agentI
     // a compaction since the latest turn left the context at what it reported (engine.compact): that is the figure until the next turn says otherwise
     const c = lastCompaction(ctx.db, input.threadId, input.agentId);
     const lastAt = last ? Math.max(num(last["started_at"]), num(last["ended_at"])) : 0;
-    const used = c && c.used !== null && c.at >= lastAt ? c.used : last ? Math.trunc(num(last["tokens_in"])) : 0;
+    // the turn's input tokens add up every call of it (cache reads included): the context is what the model was shown in its last call, when the turn recorded it
+    const lastCtx = last ? contextOfTurn(ctx, str(last["turn_id"])) : undefined;
+    const used = c && c.used !== null && c.at >= lastAt ? c.used : lastCtx ?? (last ? Math.trunc(num(last["tokens_in"])) : 0);
     context = { used: Math.min(window, used), window };
   }
 

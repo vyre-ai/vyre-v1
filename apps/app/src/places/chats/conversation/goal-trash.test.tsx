@@ -16,3 +16,13 @@ test("the trashed line reads as a quiet line with Undo, and Undo restores each f
   assert.deepEqual(calls.map((c) => [c.cap, (c.input as { fileId: string }).fileId]), [["files.restore", "fil_a"], ["files.restore", "fil_b"]]);
   assert.deepEqual(said, ["Brought back the file from Trash."]);
 });
+
+test("a line the engine says as the agent has no hover card; a reply a turn made keeps its card", async () => {
+  const { isSystemLine } = await import("./status.ts");
+  const line = (state: string) => ({ body: "", blocks: [{ type: "turn_status", v: 1, id: "b", data: { state, text: "Ran on Deepseek V4.1 Flash; Claude isn't on the team key." } }] }) as never;
+  assert.equal(isSystemLine(line("note")), true, "the model swap line (the owner's rc.20 'Not recorded for this reply')");
+  assert.equal(isSystemLine(line("trashed")), true);
+  assert.equal(isSystemLine(line("failed")), false, "a failed turn has its turn");
+  assert.equal(isSystemLine({ body: "Hello.", blocks: [] } as never), false);
+  assert.equal(isSystemLine({ body: "Hello.", blocks: line("note").blocks } as never), false, "words of its own: a reply");
+});

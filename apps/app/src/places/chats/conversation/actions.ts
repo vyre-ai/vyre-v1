@@ -168,6 +168,13 @@ export async function errorAction(data: ConversationData, key: string, turnId: s
     if (turnId) await retryTurn(data, turnId);
     return;
   }
+  // the picked model cannot run on this server: the chat runs on this person's own computer, where their own sign-in is, and the turn that stopped runs again
+  if (key === "run_on_my_computer") {
+    await data.call("engine.placement.set", { threadId: data.threadId, target: "device" } satisfies CapMap["engine.placement.set"]["in"]);
+    if (turnId) await retryTurn(data, turnId);
+    return;
+  }
+  if (key === "pick_model") { say("Choose another model in the composer."); return; }
   // Undo on "Moved ... to Vyre's Trash": each file comes back where it was
   if (key.startsWith("undo_trash:")) {
     let back = 0;

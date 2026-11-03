@@ -12,9 +12,9 @@ import type { EngineHostSeam } from "../runtime.ts";
 
 const THREAD = "thr_roll";
 const THREADS = [{ threadId: THREAD, kind: "chat", starter: "usr_dana", agents: [{ agentId: "agt_intake", mode: "lead" as const }] }];
-const full: DriverEvent[] = [{ type: "text", text: "Done." }, { type: "usage", inputTokens: 170_000, outputTokens: 40 }, { type: "done" }];
+const full: DriverEvent[] = [{ type: "text", text: "Done." }, { type: "usage", inputTokens: 600_000, contextTokens: 170_000, outputTokens: 40 }, { type: "done" }];
 
-test("a turn that reported 170k of a 200k window is followed by a rollover: the engine session is forgotten, a Vyre summary stands in, and the chat is told", async () => {
+test("a turn whose last call was shown 170k of a 200k window is followed by a rollover: the engine session is forgotten, a Vyre summary stands in, and the chat is told", async () => {
   const h = harness({ threads: THREADS });
   const posts: string[] = [];
   const host: EngineHostSeam = {

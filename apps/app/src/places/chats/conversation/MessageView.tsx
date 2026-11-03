@@ -53,7 +53,7 @@ import { AttachmentChips, LinkedText, MountRefs, refsOf } from "./attachments.ts
 import { unnamed } from "../names.ts";
 import type { ConversationData } from "./data.tsx";
 import type { GlyphName } from "./parts.tsx";
-import { reportLabel, bodyBlocks, cardLine, collect, errorRow, isCard, isErrorBlock, isTurnStatus, onBehalfOf, planSteps, questionOptions, statusView, terminalAskOf, workOf } from "./model.ts";
+import { reportLabel, bodyBlocks, cardLine, collect, errorRow, isCard, isErrorBlock, isSystemLine, isTurnStatus, onBehalfOf, planSteps, questionOptions, statusView, terminalAskOf, workOf } from "./model.ts";
 import type { CardLine, Item, Message } from "./model.ts";
 import { ReplyLine } from "./ReplyLine.tsx";
 import { MARK } from "./marks.ts";
@@ -362,7 +362,7 @@ function Theirs({ item, actions, stream, openWork, mark, meId, replies }: Messag
   const renderCode = useMemo(() => (runCfg ? (b: { lang: string; text: string; closed: boolean }) => { const c = commandOf(b.lang, b.text, b.closed); return c ? <RunCode command={c} cfg={runCfg} /> : null; } : undefined), [runCfg]);
   const subjects = useSubjectBlocks(blocks);
   // an agent's reply: hovering its face or name shows how it was made (model, account, asker, where, cost, tokens, time)
-  const withCard = (kids: ReactElement): ReactElement => (!person && actions.details && !stream && !h.phone ? <ReplyHover messageId={m.messageId} details={actions.details}>{kids}</ReplyHover> : kids);
+  const withCard = (kids: ReactElement): ReactElement => (!person && actions.details && !stream && !h.phone && !isSystemLine(m) ? <ReplyHover messageId={m.messageId} details={actions.details}>{kids}</ReplyHover> : kids);
   return (
     <View testID={`msg-${m.messageId}`} accessibilityLabel={`${item.who.name}, ${item.time}`} {...h.props} {...menuTrigger((x, y) => actions.showMenu(menuFor(m, false, actions, () => undefined, { x, y }), x, y, "Message"))} style={[st.msg, item.newgroup && st.gapTop, mark === "match" && st.found, mark === "active" && st.foundActive]}>
       {h.phone ? <ActionSheet open={sheet} entries={menuFor(m, false, actions, () => undefined)} onClose={() => setSheet(false)} /> : <HoverBar byAgent={!person} m={m} mine={false} a={actions} onEdit={() => undefined} visible={h.over || h.focus} />}

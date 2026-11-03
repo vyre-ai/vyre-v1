@@ -190,7 +190,9 @@ export function createBridge(o: BridgeOptions): Bridge {
       const setup = program ? /\((offline|checksum|unsupported|disk|failed)\)\.?$/.exec(e.message ?? "")?.[1] : undefined;
       // A Vault that could not be read gives the code it answered with (a fixed word shape, never the text that came with it).
       const reason = e.code === "engine.vault_unreadable" ? /^The Vault could not be read \(([a-z_]+(?:\.[a-z_]+)*)\)\.$/.exec(e.message ?? "")?.[1] : undefined;
-      return { type: "turn_status", v: 1, data: { state: "failed", turnId: e.turnId, code: e.code, ...(program ? { program } : {}), ...(setup ? { setup } : {}), ...(reason ? { reason } : {}) } };
+      // a picked model nothing can serve: the words name the model and what can run (model-fallback.ts noModelWords), a fixed sentence of Vyre's own
+      const detail = e.code === "engine.model_unavailable" ? e.message : undefined;
+      return { type: "turn_status", v: 1, data: { state: "failed", turnId: e.turnId, code: e.code, ...(detail ? { detail } : {}), ...(program ? { program } : {}), ...(setup ? { setup } : {}), ...(reason ? { reason } : {}) } };
     }
     return { type: "turn_status", v: 1, data: { state: "cancelled", turnId: e.turnId } };
   };

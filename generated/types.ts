@@ -6949,6 +6949,7 @@ export type ChatReplyDetailsOut = {
       tokens: {
         in: number;
         out: number;
+        context?: number;
         cacheRead?: number;
         cacheWrite?: number;
         reasoning?: number;
@@ -10052,7 +10053,9 @@ export type EngineAccountResolveOut = {
   };
   cappedFrom?: string;
   via?: "thread" | "chat_key" | "work" | "step" | "space" | "backup";
-  why?: "no_account" | "expired" | "failed" | "policy";
+  why?: "no_account" | "expired" | "failed" | "policy" | "no_model";
+  model?: string;
+  servedModels?: Array<string>;
   modelFallback?: {
     from: string;
     to?: string;
@@ -11119,6 +11122,7 @@ export type EngineTurnOfMessageOut = {
     tokens: {
       in: number;
       out: number;
+      context?: number;
       cacheRead?: number;
       cacheWrite?: number;
       reasoning?: number;
@@ -11191,6 +11195,7 @@ export type EngineTurnRecordIn = {
     cacheReadTokens?: number;
     cacheWriteTokens?: number;
     reasoningTokens?: number;
+    contextTokens?: number;
     costUsd?: number;
     paid?: string;
     tools: Array<{
@@ -11248,6 +11253,8 @@ export type EngineTurnRecordUsageIn = {
   tokensIn: number;
   tokensOut: number;
   costMicros: number;
+  model?: string;
+  cachedIn?: number;
   itemId?: string;
 };
 export type EngineTurnRecordUsageOut = {
@@ -11431,6 +11438,7 @@ export type EngineUsageQueryOut = {
         tokensIn: number;
         tokensOut: number;
         costMicros: number;
+        tokensCached?: number;
       };
     }>;
   totals: {
@@ -11438,6 +11446,7 @@ export type EngineUsageQueryOut = {
     tokensIn: number;
     tokensOut: number;
     costMicros: number;
+    tokensCached?: number;
   };
 };
 export type EngineUsePolicyExportIn = Record<string, unknown>;

@@ -140,12 +140,17 @@ export function createClaudeDecoder(): CliDecoder {
     if (!failed && !sawText && text !== "") out.push({ type: "text", text });
     const u = obj(j["usage"]);
     let total = tallyOf(u);
+    // the last model call's own input (cache included) is the context size; the result's usage adds up every call of the turn
+    // the model Claude Code says it ran (the result's modelUsage names each one, the one that wrote the most first)
+    const used = obj(j["modelUsage"]);
+    const ranModel = used ? Object.entries(used).map(([k, v]) => [k, num(obj(v)?.["outputTokens"])] as const).sort((a, b) => b[1] - a[1])[0]?.[0] : undefined;
+    const lastCall = [...perMessage.values()].at(-1)?.input ?? 0;
     if (!u) { total = { input: 0, output: 0 }; for (const t of perMessage.values()) { total.input += t.input; total.output += t.output; } }
     // the result line's own split and the dollar figure Claude Code priced the turn at (for a sign-in it is what the API would have charged, which the turn record does not bill)
     const cacheRead = given(u, "cache_read_input_tokens"), cacheWrite = given(u, "cache_creation_input_tokens"), costUsd = given(j, "total_cost_usd");
     if (total.input > 0 || total.output > 0) {
       out.push({
-        type: "usage", inputTokens: total.input, outputTokens: total.output,
+        type: "usage", inputTokens: total.input, outputTokens: total.output, ...(lastCall > 0 ? { contextTokens: lastCall } : {}), ...(ranModel ? { model: ranModel } : {}),
         ...(cacheRead !== undefined ? { cacheReadTokens: cacheRead } : {}), ...(cacheWrite !== undefined ? { cacheWriteTokens: cacheWrite } : {}), ...(costUsd !== undefined ? { costUsd } : {}),
       });
     }

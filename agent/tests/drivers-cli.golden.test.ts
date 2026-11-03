@@ -16,7 +16,8 @@ function decode(file: string, decoder: CliDecoder): CliEvent[] {
   const out: CliEvent[] = [];
   for (const line of fixtureText(file).replaceAll("{{SESSION}}", "S1").split("\n")) if (line.trim() !== "") out.push(...decoder.push(line));
   out.push(...decoder.finish());
-  return out;
+  // the context size and the model are checked on their own (the last test below); the golden expectations here are the counts
+  return out.map((e) => { if (e.type !== "usage") return e; const { contextTokens: _c, model: _m, ...rest } = e; return rest; });
 }
 
 const usage = (inputTokens: number, outputTokens: number, more: Partial<Extract<CliEvent, { type: "usage" }>> = {}): CliEvent => ({ type: "usage", inputTokens, outputTokens, ...more });
@@ -224,3 +225,20 @@ for (const id of ["claude_code", "codex", "grok"] as const) {
     await session.close();
   });
 }
+
+
+test("claude: the context is the last call's input and the model is the one the result lists, not the sum over the turn's calls", () => {
+  const d = createClaudeDecoder();
+  const lines = [
+    { type: "assistant", message: { id: "m1", model: "claude-sonnet-5-5", content: [{ type: "tool_use", id: "t1", name: "Read", input: {} }], usage: { input_tokens: 5, cache_read_input_tokens: 50_000, cache_creation_input_tokens: 0, output_tokens: 20 } } },
+    { type: "assistant", message: { id: "m2", model: "claude-sonnet-5-5", content: [{ type: "text", text: "done" }], usage: { input_tokens: 6, cache_read_input_tokens: 52_000, cache_creation_input_tokens: 0, output_tokens: 30 } } },
+    { type: "result", subtype: "success", is_error: false, result: "done", session_id: "S1", usage: { input_tokens: 11, cache_read_input_tokens: 102_000, cache_creation_input_tokens: 0, output_tokens: 50 }, modelUsage: { "claude-sonnet-5-5": { outputTokens: 50 }, "claude-haiku-5-5": { outputTokens: 3 } } },
+  ];
+  const got: CliEvent[] = [];
+  for (const l of lines) got.push(...d.push(JSON.stringify(l)));
+  got.push(...d.finish());
+  const u = got.find((e) => e.type === "usage") as Extract<CliEvent, { type: "usage" }>;
+  assert.equal(u.inputTokens, 102_011, "the turn's input adds up every call, the cache reads again and again");
+  assert.equal(u.contextTokens, 52_006, "what the model was shown in its last call");
+  assert.equal(u.model, "claude-sonnet-5-5");
+});

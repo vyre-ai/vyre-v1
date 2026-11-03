@@ -58,7 +58,7 @@ const toolTrace = t.obj({ id: t.str(), name: t.str(), detail: t.opt(t.str()), st
 const turnInfoIn = t.obj({
   effort: t.opt(t.str({ examples: ['high'] })),
   account: t.opt(t.obj({ ref: accountRef, driver: t.str(), provider: t.str(), kind: t.enm('api_key', 'subscription'), shared: t.opt(t.bool()), spaceKey: t.opt(t.bool()) })),
-  firstTokenAt: t.opt(t.ts()), cacheReadTokens: t.opt(t.int()), cacheWriteTokens: t.opt(t.int()), reasoningTokens: t.opt(t.int()),
+  firstTokenAt: t.opt(t.ts()), cacheReadTokens: t.opt(t.int()), cacheWriteTokens: t.opt(t.int()), reasoningTokens: t.opt(t.int()), contextTokens: t.opt(t.int()),
   costUsd: t.opt(t.num({ description: 'The provider\'s own price for the turn, when every call reported one' })),
   paid: t.opt(t.str({ description: 'Who paid and why, in a plain line' })),
   tools: t.arr(toolTrace), switches: t.arr(t.obj({ at: t.ts(), from: t.str(), to: t.str(), why: t.str() })),
@@ -75,7 +75,7 @@ const incidentRow = t.obj({
 });
 const scope = t.enm('space', 'person', 'agent');
 const caps = t.obj({ run: t.opt(t.int()), dayMicros: t.opt(t.int()), monthMicros: t.opt(t.int()), turnsPerDay: t.opt(t.int()), timeMinutesPerRun: t.opt(t.int()) });
-const usageTotals = t.obj({ turns: t.int(), tokensIn: t.int(), tokensOut: t.int(), costMicros: t.int() });
+const usageTotals = t.obj({ turns: t.int(), tokensIn: t.int(), tokensOut: t.int(), costMicros: t.int(), tokensCached: t.opt(t.int({ description: 'Of tokensIn, the part read from or written to the provider cache: the same context counted again by each call' })) });
 const threadT = { threadId: id.thread };
 
 export default defineManifest({
@@ -241,7 +241,7 @@ export default defineManifest({
       out: { turn: turnRow }, emits: ['turn.completed', 'turn.failed', 'turn.cancelled', 'agent.task_finished', 'agent.blocked'], idem: 'natural', risk: 'low',
     }),
     write('engine.turn.record_usage', 'Meter usage during a turn; over an agent.toml or Space limit it stops the turn and raises agent.limit_hit', {
-      in: { turnId: id.turn, tokensIn: t.int(), tokensOut: t.int(), costMicros: t.int(), itemId: t.opt(id.vaultItem) },
+      in: { turnId: id.turn, tokensIn: t.int(), tokensOut: t.int(), costMicros: t.int(), model: t.opt(t.str({ description: 'The model the turn ran when its record names none: the engine\'s own default, said so' })), cachedIn: t.opt(t.int({ description: 'Of tokensIn, the cached part' })), itemId: t.opt(id.vaultItem) },
       out: { overLimit: t.opt(t.enm('run', 'day', 'month', 'turns', 'time')) }, emits: ['agent.limit_hit'], idem: 'none', risk: 'low',
     }),
     write('engine.turn.fallback', 'Record a fallback during a turn error: another model or the backup key', {
@@ -287,7 +287,9 @@ export default defineManifest({
         pin: t.opt(t.obj({ ref: accountRef, used: t.bool(), why: t.opt(t.enm('unknown', 'expired', 'failed', 'policy_company', 'not_yours', 'space_may_not_use', 'failed_this_turn', 'capped', 'no_model', 'not_used_for')) }, { description: 'The account the chat, agent or step is pinned to; when it did not pay, why' })),
         cappedFrom: t.opt(accountRef),
         via: t.opt({ ...t.enm('thread', 'chat_key', 'work', 'step', 'space', 'backup'), description: 'Which rule chose the account when it was not the asker\'s own: the chat\'s pick, the agent\'s Chat key, its own-work account, a step\'s account, a Space account kept for the work, or a backup' }),
-        why: t.opt({ ...t.enm('no_account', 'expired', 'failed', 'policy'), description: 'When no account can pay: why. expired and failed name the person\'s own account' }),
+        why: t.opt({ ...t.enm('no_account', 'expired', 'failed', 'policy', 'no_model'), description: 'When no account can pay: why. expired and failed name the person\'s own account; no_model means the model picked in the composer is served by no account that can pay, and servedModels lists what those accounts serve' }),
+        model: t.opt(t.str({ description: 'With why no_model: the model that was picked' })),
+        servedModels: t.opt(t.arr(t.str(), { description: 'With why no_model: the models the accounts that could pay do serve' })),
         modelFallback: t.opt(t.obj({ from: t.str({ description: 'The model the chat asked for' }), to: t.opt(t.str({ description: 'The account\'s default model the turn runs on instead; absent: the engine\'s own default for that account' })) }, { description: 'No account that serves the chat\'s model could pay: a team chat or agent work runs on this account\'s default model, and the chat says so' })),
       }, on: ['thread', '/threadId'],
     }),

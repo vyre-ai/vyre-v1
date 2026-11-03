@@ -12,7 +12,7 @@ const signin: ReplyTurn = {
   turnId: "trn_a1", traceId: "0123456789abcdef0123456789abcdef", agentId: "agt_mira", asker: "usr_irfad", model: "claude-opus-5-5", effort: "high", engine: "claude_code", provider: "anthropic",
   accountKind: "subscription", accountRef: "#Irfad_Claude", state: "completed", ranOn: [{ kind: "computer", name: "Irfad's MacBook" }],
   timing: { queuedAt: 999_600, startedAt: 1_000_000, firstTokenAt: 1_002_100, endedAt: 1_014_000 },
-  tokens: { in: 41_280, out: 1904, cacheRead: 118_400, cacheWrite: 9650 }, cost: { source: "subscription" },
+  tokens: { in: 169_330, out: 1904, cacheRead: 118_400, cacheWrite: 9650 }, cost: { source: "subscription" },
   tools: [{ name: "Read", args: "upload-spec.md", ok: true, durationMs: 1800 }, { name: "crew.start", args: "3 teammates", ok: true, durationMs: 600, heldTaskId: "tsk_h1" }],
   files: { read: ["upload-spec.md"], written: [] }, skills: ["write-a-brief"],
   switches: [{ at: 1_000_500, why: "provider.overloaded", sameAccount: true, from: "#Irfad_Claude", to: "#Irfad_Claude" }], private: false, partial: false,
@@ -42,7 +42,7 @@ test("the hover card of a sign-in turn: model and effort, the account by name, w
   assert.equal(c.head, "Mira");
   assert.equal(c.sub, "Claude Opus 5.5 · High effort");
   assert.deepEqual(c.lines.map((l) => (l.kind === "kv" ? [l.label, l.value] : null)), [
-    ["Asked by", "You"], ["AI account", "Irfad's Claude (Max)"], ["Ran on", "Irfad's MacBook"], ["Cost", "Included in your Claude plan"], ["Tokens", "41k in · 1.9k out"], ["Took", "14 s"],
+    ["Asked by", "You"], ["Paid by", "Irfad's Claude (Max)"], ["Ran on", "Irfad's MacBook"], ["Cost", "Included in your Claude plan"], ["Tokens", "41k new in · 128k cached · 1.9k out"], ["Took", "14 s"],
   ]);
 });
 
@@ -82,7 +82,7 @@ test("another member sees whose account it was, not the account, the cost, the a
   delete (hidden as Partial<ReplyTurn>).cost;
   delete (hidden as Partial<ReplyTurn>).accountRef;
   const card = cardLines(details(hidden), omar);
-  assert.equal(kv(card.lines, "account"), "On Irfad's account");
+  assert.equal(kv(card.lines, "paid"), "On Irfad's account");
   assert.equal(kv(card.lines, "asker"), "Irfad Imtiaz");
   assert.equal(card.lines.find((l) => l.key === "cost"), undefined);
   const lines = detailLines(details(hidden), omar);
@@ -96,4 +96,14 @@ test("a reply with no recorded turn says so and shows the steps it saved", () =>
   assert.ok(lines.some((l) => l.kind === "note" && l.text.startsWith("Vyre did not keep the details of this reply")));
   assert.ok(lines.some((l) => l.kind === "item" && l.title === "Read" && l.right === "Done · 2 s"));
   assert.equal(cardLines(details(), me("usr_irfad")).sub, "Not recorded for this reply");
+});
+
+test("the card counts new input and cached input apart, and the tab says what the model was shown in its last call", () => {
+  const t: ReplyTurn = { ...signin, tokens: { in: 1_000_000, out: 8_300, context: 61_000, cacheRead: 940_000, cacheWrite: 0 } };
+  assert.equal(kv(cardLines(details(t), me("usr_irfad")).lines, "tokens"), "60k new in · 940k cached · 8.3k out");
+  const lines = detailLines(details(t), me("usr_irfad"));
+  const row = (k: string) => lines.find((l) => l.key === k && l.kind === "kv") as { label: string; value: string } | undefined;
+  assert.deepEqual([row("in")?.label, row("in")?.value, row("context")?.label, row("context")?.value], ["New input", "60,000", "Context in the last call", "61,000"]);
+  // a provider that gave no split: the total as it is
+  assert.equal(kv(cardLines(details({ ...signin, tokens: { in: 41_280, out: 1904 } }), me("usr_irfad")).lines, "tokens"), "41k in · 1.9k out");
 });

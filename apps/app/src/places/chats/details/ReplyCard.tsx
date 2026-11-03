@@ -93,7 +93,7 @@ export function ReplyCard({ messageId, details, at, onEnter, onLeave, onClose }:
               // ui-rows-lint: not a list (label and value pairs of one card, no hover or selection)
               <View key={l.key} testID={`reply-card-${l.key}`} style={st.kv}>
                 <Text style={st.k}>{l.label}</Text>
-                <Text numberOfLines={2} style={st.v}>{l.value}</Text>
+                <Text numberOfLines={2} style={st.v}>{l.value}{l.note ? <Text style={st.note}>{` \u00b7 ${l.note}`}</Text> : null}</Text>
               </View>
             ) : l.kind === "note" ? <Text key={l.key} style={st.note}>{l.text}</Text> : null))}
           </>

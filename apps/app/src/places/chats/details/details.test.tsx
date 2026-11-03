@@ -19,7 +19,7 @@ const labels = (items: ReturnType<typeof menuFor>): string[] => items.map((i) =>
 const TURN: ReplyTurn = {
   turnId: "trn_a1", traceId: "0123456789abcdef0123456789abcdef", agentId: "agt_mira", asker: "usr_irfad", model: "claude-opus-5-5", effort: "high", engine: "claude_code", provider: "anthropic",
   accountKind: "subscription", accountRef: "#Irfad_Claude", state: "completed", ranOn: [{ kind: "computer", name: "Irfad's MacBook" }],
-  timing: { queuedAt: 999_600, startedAt: 1_000_000, firstTokenAt: 1_002_100, endedAt: 1_014_000 }, tokens: { in: 41_280, out: 1904, cacheRead: 118_400, cacheWrite: 9650 }, cost: { source: "subscription" },
+  timing: { queuedAt: 999_600, startedAt: 1_000_000, firstTokenAt: 1_002_100, endedAt: 1_014_000 }, tokens: { in: 169_330, out: 1904, cacheRead: 118_400, cacheWrite: 9650 }, cost: { source: "subscription" },
   tools: [{ name: "Read", args: "upload-spec.md", ok: true, durationMs: 1800 }], files: { read: ["upload-spec.md"], written: [] }, skills: [], switches: [], private: false, partial: false,
 };
 const DETAILS = (turn: ReplyTurn): ReplyDetails => ({ messageId: "msg_r1", threadId: "thr_c", agentId: "agt_mira", at: 1, turn, memory: { facts: [{ factId: "fct_1", text: "Files live in one folder per client" }], quotes: [] }, steps: [] });
@@ -56,7 +56,7 @@ test("the hover card names the model, the account, the asker, where it ran, the 
   const details = actionsFor("usr_irfad", call);
   await details.read("msg_r1");
   const out = clean(renderToStaticMarkup(<ReplyCard messageId="msg_r1" details={details} at={{ left: 10, top: 10 }} onClose={() => undefined} />));
-  for (const s of ["Mira", "Claude Opus 5.5 · High effort", "Asked by", "You", "Irfad's Claude (Max)", "Irfad's MacBook", "Included in your Claude plan", "41k in · 1.9k out", "14 s", "Details"]) assert.ok(out.includes(s), s);
+  for (const s of ["Mira", "Claude Opus 5.5 · High effort", "Asked by", "You", "Irfad's Claude (Max)", "Irfad's MacBook", "Included in your Claude plan", "41k new in · 128k cached · 1.9k out", "14 s", "Details"]) assert.ok(out.includes(s), s);
 });
 
 test("the Details tab draws every section from the record, with copy buttons on the ids and Not reported where the provider was silent", async () => {
@@ -86,12 +86,22 @@ test("another member's Details: whose account it was, and no account name, cost,
   assert.ok(!out.includes("Irfad's Claude (Max)") && !out.includes("upload-spec.md") && !out.includes("Included in"));
 });
 
-test("the hover card and the Details tab say who paid and why when the turn kept it, and say nothing when it did not", async () => {
-  const paid = "The agent's Chat key";
+test("one Paid by row: the account's name, then in grey whose it is; no sentence-style reasons", async () => {
   const { cardLines, detailLines } = await import("./model.ts");
   const ctx = { meId: "usr_irfad", nameOf: (id: string) => NAMES[id] ?? id };
-  const d = DETAILS({ ...TURN, paid });
-  assert.deepEqual(cardLines(d, ctx as never).lines.filter((l) => l.key === "paid").map((l) => "value" in l ? l.value : ""), [paid]);
-  assert.deepEqual(detailLines(d, ctx as never).filter((l) => l.key === "paid").map((l) => "label" in l ? l.label : ""), ["Paid because"]);
-  assert.equal(cardLines(DETAILS(TURN), ctx as never).lines.some((l) => l.key === "paid"), false);
+  const rows = (paid: string | undefined) => {
+    const d = DETAILS({ ...TURN, ...(paid ? { paid } : {}) });
+    return { card: cardLines(d, ctx as never).lines.filter((l) => l.kind === "kv" && (l.key === "paid" || l.key === "account")), tab: detailLines(d, ctx as never).filter((l) => l.kind === "kv" && (l.key === "paid" || l.key === "account")) };
+  };
+  for (const [paid, value, note] of [
+    ["OpenCode Go \u00b7 Space account", "OpenCode Go", "Space account"], ["Claude Code \u00b7 your sign-in", "Claude Code", "your sign-in"],
+    ["Anthropic key \u00b7 Intake's own account", "Anthropic key", "Intake's own account"], ["OpenCode Go \u00b7 Backup after #Team_Credits hit its cap", "OpenCode Go", "Backup after #Team_Credits hit its cap"],
+  ] as const) {
+    const r = rows(paid);
+    for (const list of [r.card, r.tab]) assert.deepEqual(list.map((l) => l.kind === "kv" ? [l.key, l.label, l.value, l.note] : null), [["paid", "Paid by", value, note]]);
+  }
+  // a turn from before the wording, or one with no stored line: one row, the account by its own name, no sentence
+  const old = rows("The asker's own key");
+  assert.deepEqual(old.card.map((l) => l.kind === "kv" ? [l.label, l.note] : null), [["Paid by", undefined]]);
+  assert.ok(!JSON.stringify(old).includes("Paid because") && !JSON.stringify(old).includes("AI account"));
 });
