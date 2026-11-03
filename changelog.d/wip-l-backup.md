@@ -19,3 +19,4 @@
 - The Vault Space AI accounts tab reads engine.accounts.list too (the rows now carry what each account pays for and its provider), so the Space AI pickers and the tab share one answer.
 - The shots app draws each mount after hydration, so a mount that lays itself out by the window (the Vault at 1440, the Runs on menu) no longer differs from the pre-rendered page: React error 418 is gone from those mounts.
 - A live test of the launch lock on a Space server: held goes straight in; relaunched with the key lost shows the lock; Not now leaves her chat on the Space key with its one line; Unlock brings her Mine sign-in back.
+- The Vault item Automations row and the onboarding reads (has an AI account, same account, preview) read engine.accounts.list too, so every "can this run" answer comes from one source; the Providers page and Console Spend keep providers.list for usage.

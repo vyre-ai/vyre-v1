@@ -39381,6 +39381,7 @@ if ("name" in o2416) lf(o2416["name"], p + "/accounts" + '/' + i2412 + "/older" 
 }
 if ("providerId" in o2413) lf(o2413["providerId"], p + "/accounts" + '/' + i2412 + "/providerId", e, L268);
 if ("provider" in o2413) lf(o2413["provider"], p + "/accounts" + '/' + i2412 + "/provider", e, L1);
+if ("itemId" in o2413) lf(o2413["itemId"], p + "/accounts" + '/' + i2412 + "/itemId", e, L81);
 if ("uses" in o2413) {
 {
 const x2417 = o2413["uses"];

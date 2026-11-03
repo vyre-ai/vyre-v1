@@ -49,6 +49,7 @@ const accountRow = t.obj({
   older: t.opt(t.arr(t.obj({ ref: accountRef, providerId: t.id('prv'), name: t.str() }), { description: 'Older sign-ins of the same provider whose account cannot be read, listed under this one so a person can remove them' })),
   providerId: t.opt(t.id('prv')),
   provider: t.opt(t.str({ examples: ['anthropic'] })),
+  itemId: t.opt(id.vaultItem),
   uses: t.opt({ ...spaceUses, description: 'A Space account: what it may pay for. Left out on a Mine account' }),
   models: t.opt(t.arr(t.str(), { description: 'The models the account\'s provider lists, when known' })),
   usable: t.opt(t.bool()),

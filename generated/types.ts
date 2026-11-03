@@ -10087,6 +10087,7 @@ export type EngineAccountsListOut = {
         }>;
       providerId?: string;
       provider?: string;
+      itemId?: string;
       uses?: {
         teamChats?: {
           who: "everyone" | Array<string>;

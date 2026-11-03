@@ -58,6 +58,7 @@ type Out = {
         }>;
       providerId?: string;
       provider?: string;
+      itemId?: string;
       uses?: {
         teamChats?: {
           who: "everyone" | Array<string>;
@@ -108,6 +109,7 @@ type Out = {
         "capped": true,
         "code": "example",
         "driver": "anthropic",
+        "itemId": "vit_a1b2c3",
         "keyless": true,
         "kind": "api_key",
         "lastProbeAt": 1760000000000,
