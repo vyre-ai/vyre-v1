@@ -6,7 +6,7 @@
 //   snapshot.take / versions / restore_version             the files a run uses, and rolling back
 // A broken agent.toml never stops an agent: the last good configuration stays in agents_agent.config and is what every read here returns.
 import {
-  AGENT_MD_DEFAULT, isAgentMdV1, AWAKE_MS, agentFor, agentView, governs, seesSetup, withoutSetup, teammateOf, isAssistant, LIMIT_KEYS, LIMIT_TOML, MAX_NAME, MAX_ROLE, NAME_BAD, TREE_FOLDERS, agentBy, agentByName, agentOf, agentOut, allAgents, allows, applyPatch, askerOf, call, canSee, checkToml,
+  AGENT_MD_DEFAULT, isAgentMdV1, AWAKE_MS, agentFor, agentView, governs, isPrivateAgent, seesSetup, withoutSetup, teammateOf, isAssistant, LIMIT_KEYS, LIMIT_TOML, MAX_NAME, MAX_ROLE, NAME_BAD, TREE_FOLDERS, agentBy, agentByName, agentOf, agentOut, allAgents, allows, applyPatch, askerOf, call, canSee, checkToml,
   codeOf, ensure, insertAgent, makeFile, makeFolder, meta, mintId, newConfig, nameKey, parseToml, raise, saveFile, setMeta, slug, statusOf, storeConfig, textOf, tolerant, tomlFor, versionsOf, visible, widenings,
   writeConfig,
 } from "../projections.ts";
@@ -187,7 +187,10 @@ async function make(ctx: AgentsCtx, input: CreateInput, kind: AgentKind, runtime
     templateVersion: await templateVersion(ctx, template), paused: false, working: 0, lastActiveAt: now, createdAt: now, updatedAt: now,
   };
   insertAgent(ctx.db, rec);
-  ctx.emit("agent.created", id, { agentId: id, name, ownerId: owner, folderId: tree.folderId, templateVersion: rec.templateVersion });
+  const priv = isPrivateAgent(rec);
+  ctx.emit("agent.created", id, { agentId: id, name, ownerId: owner, folderId: tree.folderId, templateVersion: rec.templateVersion, ...(priv ? { private: true } : {}) });
+  // access names a private agent as its person to everyone else ("Irfad Imtiaz (Agent)"); this is what tells it
+  if (priv) { ctx.emit("agent.privacy_set", id, { agentId: id, ownerId: owner, private: true }); setMeta(ctx.db, `privacy:${id}`, "1"); }
   return { agent: agentView(rec, now) };
 }
 
@@ -773,4 +776,17 @@ export async function upgradeStarterAgentMd(ctx: AgentsCtx): Promise<string[]> {
     }
   }
   return done;
+}
+
+/** At boot: every private agent made before access learnt of privacy (agent.privacy_set) is told once, so it is named as its person to everyone else. Safe to repeat. */
+export async function announcePrivacy(ctx: AgentsCtx): Promise<string[]> {
+  ensure(ctx.db);
+  const told: string[] = [];
+  for (const a of allAgents(ctx.db)) {
+    if (!isPrivateAgent(a) || meta(ctx.db, `privacy:${a.id}`) !== undefined) continue;
+    ctx.emit("agent.privacy_set", a.id, { agentId: a.id, ownerId: a.ownerId, private: true });
+    setMeta(ctx.db, `privacy:${a.id}`, "1");
+    told.push(a.id);
+  }
+  return told;
 }

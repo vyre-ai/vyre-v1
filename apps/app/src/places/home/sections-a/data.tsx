@@ -11,7 +11,8 @@ export interface Principal {
   id: string; name: string; kind: Kind; /** The sign-in name this person chose, when this device knows it (it is never read from the Space). */ username?: string;
   /** An agent's person. */ owner?: string;
   /** Someone else's agent this person may not open or @mention (their assistant, an outside agent they connected): named as its person, "Irfad Imtiaz (Agent)", never offered. */ private?: boolean;
-  /** A private agent's own name, for logs only (Console audit details). */ agentName?: string;
+  /** A private agent's own name, for owners and admins only (Console audit details). */ agentName?: string;
+  /** An agent this person may not use that is not someone's private one (a Space agent kept from them): named as it is, never offered. */ hidden?: boolean;
 }
 
 /** Where a click goes. The shell supplies these (tabs, the right pane); Home never decides how a thing opens. */
