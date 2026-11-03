@@ -69,11 +69,18 @@ export async function aiStep(env: StepEnv, node: StepNode, input: Rec, call: Ste
   const title = typeof (node as { title?: unknown }).title === "string" ? String((node as { title?: unknown }).title) : node.id;
   const schema = rec(cfg["outputSchema"]) ? (cfg["outputSchema"] as JsonSchema) : undefined;
   if (cfg["mode"] === "task") return taskStep(env, node, cfg, call, title);
+  // the step's own account wins; a step that chooses none runs on the automation's AI account (and its backup), which pays only if the Space kept it for automations
+  const stepKey = text(cfg["keyId"]);
+  const fromAutomation = stepKey === undefined;
+  const keyId = stepKey ?? text(env.run.ai?.keyId);
+  const backupKeyId = text(cfg["backupKeyId"]) ?? (fromAutomation ? text(env.run.ai?.backupKeyId) : undefined);
+  const inherits = fromAutomation && (keyId !== undefined || backupKeyId !== undefined);
   const turn = (await env.ctx.call("engine.step_turn", {
     prompt: promptOf(env, cfg, call, title),
     ...(text(cfg["agentId"]) ? { agentId: cfg["agentId"] } : {}),
-    ...(text(cfg["keyId"]) ? { keyId: cfg["keyId"] } : {}),
-    ...(text(cfg["backupKeyId"]) ? { backupKeyId: cfg["backupKeyId"] } : {}),
+    ...(keyId ? { keyId } : {}),
+    ...(backupKeyId ? { backupKeyId } : {}),
+    ...(inherits ? { keyFrom: "automation" } : {}),
     ...(typeof cfg["timeoutMinutes"] === "number" ? { timeoutMinutes: cfg["timeoutMinutes"] } : {}),
     ...(recordIdsIn(call.outputs, call.trigger, call.item).length > 0 ? { recordIds: recordIdsIn(call.outputs, call.trigger, call.item) } : {}),
     runId: env.run.id, stepId: node.id, idempotencyKey: call.key,

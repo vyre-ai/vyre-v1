@@ -161,6 +161,8 @@ export function AiForm({ def, node, onChange, openMenu, kind, keys, agents, who,
   const ai = node.ai ?? {};
   const answer = answerKindOf(input);
   const keyName = (id: string | undefined, none: string): string => (id ? (keys.find((k) => k.id === id)?.name ?? id) : none);
+  /** A Space step that names no account runs on the automation's (Settings > AI account), else Automatic. */
+  const spaceNone = def.ai?.keyId ? "The automation's AI account" : "Automatic";
   const pickable = kind === "space" ? keys.filter((k) => k.shared !== false) : keys;
   const pickKey = (field: "keyId" | "backupKeyId", none: string) => (x: number, y: number): void => {
     const entries: MenuEntry[] = [{ label: none, checked: !ai[field], onSelect: () => writeAi(withAi(ai, field, undefined)) }];
@@ -275,9 +277,9 @@ export function AiForm({ def, node, onChange, openMenu, kind, keys, agents, who,
       />
       <Hint testID="agent-note">{ai.agentId ? "The turn takes the agent's name, role, model and the memory you may read. It does not get the agent's tools." : "With no agent the turn is a plain question and answer."}</Hint>
       <Group head="Account" testID="ai-account">
-        <Choice label="Runs on" value={keyName(ai.keyId, kind === "space" ? "Choose a shared key" : "Your own AI account")} testID="choose-key" onOpen={pickKey("keyId", kind === "space" ? "No key" : "Your own AI account")} />
+        <Choice label="Runs on" value={keyName(ai.keyId, kind === "space" ? spaceNone : "Your own AI account")} testID="choose-key" onOpen={pickKey("keyId", kind === "space" ? spaceNone : "Your own AI account")} />
         <Choice label="Backup" value={keyName(ai.backupKeyId, "No backup")} testID="choose-backup" onOpen={pickKey("backupKeyId", "No backup")} />
-        <Hint testID="account-note">{kind === "space" ? "A Space automation runs as itself and can use only a key shared with the Space." : "A Personal automation runs on your own AI account unless you pick another."}</Hint>
+        <Hint testID="account-note">{kind === "space" ? "A Space automation runs as itself and can use only a Space AI account. With none chosen here, the step runs on the automation's AI account in Settings, or on the cheapest Space AI account kept for automations." : "A Personal automation runs on your own AI account unless you pick another."}</Hint>
       </Group>
       <Group head="Answer" testID="ai-answer">
         <Choice

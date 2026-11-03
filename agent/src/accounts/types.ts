@@ -8,6 +8,8 @@ export type AccountsPolicy = "any" | "company";
  * a routine, a watcher or a helper (agentWork), an automation's step (task: automations).
  */
 export type Trigger = "message" | "wake" | "goal" | "routine" | "task";
+/** Which rule chose the account that paid: the chat's pick, the agent's Chat key, the agent's own-work account, a step's account, the asker's own, a Space account kept for the work, or a backup. */
+export type Via = "thread" | "chat_key" | "work" | "step" | "own" | "space" | "backup" | "other";
 export type ResolveReason = "starter" | "steerer" | "step_key" | "backup_key" | "none";
 
 export interface AccountRow {
@@ -61,6 +63,8 @@ export interface AgentAccountConfig {
   accountKey?: string;
   /** The ordered fallback list from the agent settings: tried in this order after the chat key (or the asker's own accounts), then the Space backups. */
   accountFallback?: readonly string[];
+  /** The AI account picked for the agent's own work (routines, watchers, helpers: turns nobody asked for). A Space account pays only when its "Used for" covers this agent's work and it is under its cap. */
+  workKey?: string;
   /** Provider the agent's model needs, when known. Unset means any. */
   provider?: string;
 }
@@ -87,13 +91,15 @@ export interface ResolveRequest {
   model?: string;
   /** The person chose the chat's account and its model together: when that account does not serve the model, the turn fails with no_model rather than run anywhere else. */
   modelPinned?: boolean;
+  /** Refs a person picked for this kind of work (an automation's AI account and its backup): each is a Space account that pays only when its "Used for" covers the turn. */
+  useChecked?: readonly string[];
   /** Refs that already failed during this turn. */
   unavailable?: readonly string[];
   /** The turn runs on the Space host (not the person's own device). A subscription then needs the standing switch, unless it is the payer's own turn. */
   onServer: boolean;
 }
 
-export type SkipWhy = "unknown" | "expired" | "failed" | "policy_company" | "not_yours" | "space_may_not_use" | "failed_this_turn" | "capped" | "no_model";
+export type SkipWhy = "unknown" | "expired" | "failed" | "policy_company" | "not_yours" | "space_may_not_use" | "failed_this_turn" | "capped" | "no_model" | "not_used_for";
 export interface Attempt { ref: string; used: boolean; why?: SkipWhy }
 
 export interface NeedsYou {
@@ -112,6 +118,8 @@ export interface Resolution {
   reason: ResolveReason;
   /** True when a usable account was found: the turn can run. */
   allowed: boolean;
+  /** Which rule chose the account that paid. */
+  via?: Via;
   tried: Attempt[];
   /** A card for Needs you. Present when nothing could run, and also when a backup key covered for a broken account of the payer's. */
   unblock?: NeedsYou;

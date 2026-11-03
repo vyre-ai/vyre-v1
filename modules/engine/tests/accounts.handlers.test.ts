@@ -6,7 +6,7 @@ import { captureSubscription, draftFor, probeAccount, setSpaceUse, statusAfter }
 import type { AccountRow, SubscriptionItemDraft } from "../../../agent/src/accounts/index.ts";
 import { accountProbe, accountResolve, accountsList } from "../handlers/accounts.ts";
 
-type Prov = { id: string; providerKey: string; name: string; connection: string; scope: string; handle?: string; itemId: string; engine: string; spaceMayUse: boolean; state: string };
+type Prov = { id: string; providerKey: string; name: string; connection: string; scope: string; handle?: string; itemId: string; engine: string; spaceMayUse: boolean; state: string; uses?: Record<string, unknown>; capped?: boolean; models?: string[] };
 const prov = (o: Partial<Prov> & { id: string; handle: string }): Prov => ({ providerKey: "anthropic", name: o.handle, connection: "api_key", scope: "mine", itemId: `vit_${o.id}`, engine: "anthropic", spaceMayUse: false, state: "ok", ...o });
 
 function fake(routes: Record<string, (input: unknown) => unknown>, opts: { actingFor?: string } = {}): { ctx: Ctx; calls: string[] } {
@@ -154,4 +154,42 @@ test("account.resolve dry: the composer's check answers for the caller, not the 
   const none = fake(routes([], { "engine.defaults.get": () => ({ fallback: [] }) }), { actingFor: "usr_mia" });
   const out = await accountResolve(none.ctx, { threadId: "thr_1", agentId: "agt_1", dry: true });
   assert.deepEqual([out.allowed, out.payer, out.why], [false, null, "no_account"]);
+});
+
+test("account.resolve: the agent's AI account for its own work pays a routine, where the Space kept it for this agent and under its cap; a chat of the same agent stays on the asker's own account", async () => {
+  const work = prov({ id: "prv_w", handle: "#Work_Credits", scope: "shared", uses: { agentWork: { which: ["agt_1"] } } });
+  const cheap = prov({ id: "prv_c", handle: "#Cheap_Work", scope: "shared", engine: "opencode_go", providerKey: "opencode-go", uses: { agentWork: { which: "all" } }, models: ["claude-sonnet-5-5"] });
+  const mine = prov({ id: "prv_1", handle: "#Dana_Anthropic" });
+  const agent = (o: Record<string, unknown> = {}) => ({ "agents.get": () => ({ agent: { accountPolicy: "asker", workKey: "#Work_Credits", ...o } }), "engine.defaults.get": () => ({ fallback: [] }) });
+  // the pick pays for a routine, though a cheaper account also covers it
+  const ok = fake(routes([mine, cheap, work], agent()));
+  assert.deepEqual(await accountResolve(ok.ctx, { threadId: "thr_1", agentId: "agt_1", kind: "agent_work" }), { accountRef: "#Work_Credits", payer: "usr_dana", reason: "starter", allowed: true, itemId: "vit_prv_w", pin: { ref: "#Work_Credits", used: true }, via: "work" });
+  // Automatic (no pick) is the cheapest account that covers the work
+  const auto = await accountResolve(fake(routes([mine, cheap, work], agent({ workKey: undefined }))).ctx, { threadId: "thr_1", agentId: "agt_1", kind: "agent_work" });
+  assert.equal(auto.accountRef, "#Cheap_Work");
+  // the same agent in a chat: the asker's own account first
+  const chat = await accountResolve(ok.ctx, { threadId: "thr_1", agentId: "agt_1" });
+  assert.equal(chat.accountRef, "#Dana_Anthropic");
+  // an account kept for another agent is passed over with its reason; a capped one too
+  const other = await accountResolve(fake(routes([mine, cheap, prov({ id: "prv_w", handle: "#Work_Credits", scope: "shared", uses: { agentWork: { which: ["agt_other"] } } })], agent())).ctx, { threadId: "thr_1", agentId: "agt_1", kind: "agent_work" });
+  assert.deepEqual([other.accountRef, other.pin], ["#Cheap_Work", { ref: "#Work_Credits", used: false, why: "not_used_for" }]);
+  const capped = await accountResolve(fake(routes([mine, cheap, { ...work, capped: true }], agent())).ctx, { threadId: "thr_1", agentId: "agt_1", kind: "agent_work" });
+  assert.deepEqual([capped.accountRef, capped.pin], ["#Cheap_Work", { ref: "#Work_Credits", used: false, why: "capped" }]);
+});
+
+test("account.resolve: the Chat key is off unless set: the asker's own account answers a chat; with it on, the Space account pays every person's chats and the turn says so", async () => {
+  const mine = prov({ id: "prv_1", handle: "#Dana_Anthropic" });
+  const team = prov({ id: "prv_t", handle: "#Team_Credits", scope: "shared", uses: { teamChats: { who: "everyone" } }, models: ["claude-sonnet-5-5"] });
+  const agent = (o: Record<string, unknown>) => ({ "agents.get": () => ({ agent: { accountPolicy: "asker", ...o } }), "engine.defaults.get": () => ({ fallback: [] }) });
+  const off = await accountResolve(fake(routes([mine, team], agent({}))).ctx, { threadId: "thr_1", agentId: "agt_1" });
+  assert.deepEqual([off.accountRef, off.reason, off.pin], ["#Dana_Anthropic", "starter", undefined]);
+  const on = await accountResolve(fake(routes([mine, team], agent({ accountPolicy: "key", accountKey: "#Team_Credits" }))).ctx, { threadId: "thr_1", agentId: "agt_1" });
+  assert.deepEqual([on.accountRef, on.pin], ["#Team_Credits", { ref: "#Team_Credits", used: true }]);
+});
+
+test("account.resolve: a backup that pays because the account ahead hit its cap says which one", async () => {
+  const team = prov({ id: "prv_t", handle: "#Team_Credits", scope: "shared", capped: true, uses: { teamChats: { who: "everyone" } } });
+  const mine = prov({ id: "prv_2", handle: "#Other_Team", scope: "shared", uses: { teamChats: { who: "everyone" } }, models: ["claude-sonnet-5-5"] });
+  const r = await accountResolve(fake(routes([mine, team], { "agents.get": () => ({ agent: { accountPolicy: "key", accountKey: "#Team_Credits" } }), "engine.defaults.get": () => ({ fallback: [] }) })).ctx, { threadId: "thr_1", agentId: "agt_1" });
+  assert.deepEqual([r.accountRef, r.cappedFrom, r.fellBack], ["#Other_Team", "#Team_Credits", true]);
 });

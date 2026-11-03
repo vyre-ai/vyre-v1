@@ -29,6 +29,7 @@ type In = {
   agentId?: string;
   keyId?: string;
   backupKeyId?: string;
+  keyFrom?: "automation";
   timeoutMinutes?: number;
   recordIds?: Array<string>;
   runId: string;
@@ -74,6 +75,7 @@ type Out = {
     "agentId": "agt_a1b2c3",
     "backupKeyId": "#Team_Anthropic_Key",
     "idempotencyKey": "idem_1",
+    "keyFrom": "automation",
     "keyId": "#Team_Anthropic_Key",
     "prompt": "example",
     "recordIds": [

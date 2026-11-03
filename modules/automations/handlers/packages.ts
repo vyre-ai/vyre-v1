@@ -85,6 +85,7 @@ export function scrub(def: Definition): { definition: Definition; requires: Requ
   const out: Definition = {
     ...(def.start ? { start: [...def.start] } : {}),
     ...(def.allowSelfTrigger !== undefined ? { allowSelfTrigger: def.allowSelfTrigger } : {}),
+    ...(def.ai ? { ai: { ...def.ai } } : {}),
     triggers: def.triggers.map((t) => copy(t) as Definition["triggers"][number]),
     nodes: def.nodes.map((n) => { at = n.id; return copy(n) as Definition["nodes"][number]; }),
   };

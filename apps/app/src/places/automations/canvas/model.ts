@@ -527,7 +527,11 @@ const REQUIRED: Readonly<Record<string, readonly { field: string; label: string 
 
 const blank = (v: unknown): boolean => v === undefined || v === null || (typeof v === "string" && v.trim() === "");
 
-export function check(def: Definition, kind: "personal" | "space" = "space"): Issue[] {
+/**
+ * What the client can tell without the server. `automatic`: a Space AI account kept for automations exists, so a Space AI step that names no account runs on the cheapest of them (the
+ * automation's AI account in Settings, or Automatic) and needs no key of its own.
+ */
+export function check(def: Definition, kind: "personal" | "space" = "space", o: { automatic?: boolean } = {}): Issue[] {
   const out: Issue[] = [];
   const by = new Map(def.nodes.map((n) => [n.id, n] as const));
   if (def.triggers.length === 0) out.push({ severity: "error", message: "Add a trigger so something starts this Automation" });
@@ -559,7 +563,7 @@ export function check(def: Definition, kind: "personal" | "space" = "space"): Is
     if (k === "parallel" && (n.branches?.length ?? 0) < 2) out.push({ nodeId: n.id, severity: "error", message: `${label} needs at least two lanes` });
     if (k === "loop" && !n.branches?.[0]) out.push({ nodeId: n.id, severity: "warning", message: `${label} has nothing inside it` });
     // a Personal AI step runs on its owner's own account; a Space one runs as itself and needs a key shared with the Space
-    if (k === "ai" && kind === "space" && !n.ai?.keyId) out.push({ nodeId: n.id, severity: "error", message: `${label}: a Space automation needs a key shared with the Space, pick one` });
+    if (k === "ai" && kind === "space" && !n.ai?.keyId && !def.ai?.keyId && o.automatic !== true) out.push({ nodeId: n.id, severity: "error", message: `${label}: a Space automation needs a key shared with the Space, pick one` });
     if (k === "ai" && n.ai?.keyId && !n.ai.backupKeyId) out.push({ nodeId: n.id, severity: "warning", message: `${label}: add a backup key so a lost key never stops the run` });
     if (k === "http") {
       const url = typeof n.input?.["url"] === "string" ? n.input["url"].trim() : "";

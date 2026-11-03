@@ -5,7 +5,7 @@
 export interface ReplyCost { source: "subscription" | "reported" | "catalog" | "unknown"; micros?: number; lines?: Array<{ kind: "input" | "output" | "cache_read" | "cache_write"; tokens: number; perMillion: number; micros: number }>; priceAsOf?: string; missing?: string[] }
 export interface ReplyTurn {
   turnId: string; traceId: string; agentId: string; asker: string; model: string; effort?: string; engine: string; provider?: string;
-  accountKind?: "api_key" | "subscription"; shared?: boolean; accountRef?: string; state: string;
+  accountKind?: "api_key" | "subscription"; shared?: boolean; accountRef?: string; paid?: string; state: string;
   ranOn: Array<{ kind: string; name: string }>;
   timing: { queuedAt?: number; startedAt: number; firstTokenAt?: number; endedAt?: number };
   tokens: { in: number; out: number; cacheRead?: number; cacheWrite?: number; reasoning?: number };
@@ -112,6 +112,7 @@ export function cardLines(d: ReplyDetails, c: DetailsContext): { head: string; s
   const lines: Line[] = [
     { kind: "kv", key: "asker", label: "Asked by", value: asker(t, c) },
     { kind: "kv", key: "account", label: "AI account", value: accountLine(t, c) },
+    ...(t.paid ? [{ kind: "kv" as const, key: "paid", label: "Paid because", value: t.paid }] : []),
     { kind: "kv", key: "ran", label: "Ran on", value: ranOnLine(t) },
     ...(t.private ? [] : [{ kind: "kv" as const, key: "cost", label: "Cost", value: costLine(t, c) }]),
     { kind: "kv", key: "tokens", label: "Tokens", value: `${short(t.tokens.in)} in · ${short(t.tokens.out)} out` },
@@ -150,6 +151,7 @@ export function detailLines(d: ReplyDetails, c: DetailsContext): Line[] {
   kv("model", "Model", modelTitle(t.model));
   kv("effort", "Effort", t.effort ? cap(t.effort) : "The model's default");
   kv("account", "AI account", accountLine(t, c));
+  if (t.paid) kv("paid", "Paid because", t.paid);
   kv("provider", "Provider", t.provider && PROVIDERS[t.engine] && t.engine !== t.provider ? `${providerName(t.provider)} · ${providerName(t.engine)}` : providerName(t.provider ?? t.engine));
   if (t.ranOn.length > 1) t.ranOn.forEach((r, i) => kv(`ran-${i}`, i === 0 ? "Ran on" : "Then", r.name));
   else kv("ran", "Ran on", ranOnLine(t));

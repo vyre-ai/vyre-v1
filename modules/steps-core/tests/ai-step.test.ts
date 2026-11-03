@@ -126,3 +126,23 @@ test("the records the run read go to the engine with the turn, so the Space's la
   await run(none, ask({ prompt: "p" }), call());
   assert.equal("recordIds" in none.log[0]!.input, false);
 });
+
+test("a step that chooses no account runs on the automation's AI account and its backup, marked as the automation's; a step's own key wins and a step with neither sends none", async () => {
+  const h = harness({ "engine.step_turn": () => turn("ok") });
+  const env = (ai?: { keyId?: string; backupKeyId?: string }) => ({ ...h.env, run: { ...h.env.run, ...(ai ? { ai } : {}) } });
+  const go = (e: ReturnType<typeof env>, node: StepNode) => runStep({ ...e, ai: (n, i, cl) => aiStep(e, n, i, cl) }, node, call());
+  await go(env({ keyId: "#Team_Credits", backupKeyId: "#Backup" }), ask({ prompt: "Hi" }));
+  const inherited = h.log[h.log.length - 1]!.input;
+  assert.deepEqual([inherited.keyId, inherited.backupKeyId, inherited.keyFrom], ["#Team_Credits", "#Backup", "automation"]);
+  // the step's own key wins and is not marked; the automation's backup is not borrowed by a step that picked its own account
+  await go(env({ keyId: "#Team_Credits", backupKeyId: "#Backup" }), ask({ prompt: "Hi" }, { keyId: "#Step_Key" }));
+  const own = h.log[h.log.length - 1]!.input;
+  assert.deepEqual([own.keyId, own.backupKeyId, own.keyFrom], ["#Step_Key", undefined, undefined]);
+  // only a backup on the automation: Automatic as the main, the backup still marked
+  await go(env({ backupKeyId: "#Backup" }), ask({ prompt: "Hi" }));
+  const onlyBackup = h.log[h.log.length - 1]!.input;
+  assert.deepEqual([onlyBackup.keyId, onlyBackup.backupKeyId, onlyBackup.keyFrom], [undefined, "#Backup", "automation"]);
+  // nothing set anywhere: Automatic, no key sent
+  await go(env(), ask({ prompt: "Hi" }));
+  assert.deepEqual(Object.keys(h.log[h.log.length - 1]!.input).sort(), ["idempotencyKey", "prompt", "runId", "stepId"]);
+});

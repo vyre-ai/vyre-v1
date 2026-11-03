@@ -112,3 +112,11 @@ export function canPromote(p: PromoteDiff, choices: readonly Choice[], keys: rea
   return p.diff.keysToReplace.every((k) => { const c = choiceFor(choices, k.stepId); const key = keys.find((x) => x.id === c); return c !== "" && key !== undefined && spaceKey(key); });
 }
 export const promoteInput = (automationId: string, ownerId: string, choices: readonly Choice[]): { automationId: string; confirm: true; ownerId: string; replaceKeys: Choice[] } => ({ automationId, confirm: true, ownerId, replaceKeys: choices.filter((c) => c.keyId !== "") });
+
+/** The definition with the automation's AI account changed: the main (keyId) or the backup (backupKeyId). A cleared field is gone, and with both gone the whole block is (Automatic). */
+export function withAutomationAi(def: Automation["definition"], field: "keyId" | "backupKeyId", handle: string | undefined): Automation["definition"] {
+  const next = { ...(def.ai ?? {}) } as { keyId?: string; backupKeyId?: string };
+  if (handle) next[field] = handle; else delete next[field];
+  const { ai: _gone, ...rest } = def;
+  return next.keyId || next.backupKeyId ? { ...rest, ai: next } : rest;
+}

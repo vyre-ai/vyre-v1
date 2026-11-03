@@ -114,7 +114,7 @@ export interface EngineHostSeam {
 }
 
 interface AccountRow { ref: string; driver: string; kind: "api_key" | "subscription"; mine?: boolean; base?: string; keyless?: boolean; spaceKey?: boolean }
-interface ResolveOut { accountRef: string | null; payer: string | null; reason: ResolvedAccount["reason"]; allowed: boolean; itemId?: string; fellBack?: boolean; modelFallback?: { from: string; to?: string } }
+interface ResolveOut { accountRef: string | null; payer: string | null; reason: ResolvedAccount["reason"]; allowed: boolean; itemId?: string; fellBack?: boolean; via?: ResolvedAccount["via"]; cappedFrom?: string; modelFallback?: { from: string; to?: string } }
 
 /** The provider a driver belongs to, for the session spec; the CLI engines run their vendor's models. */
 const PROVIDER_OF_DRIVER: Readonly<Record<string, string>> = Object.freeze({ claude_code: "anthropic", codex: "openai", grok: "xai" });
@@ -171,7 +171,7 @@ export async function resolveOne(h: Pick<EngineHostSeam, "call" | "log">, q: Acc
   const list = (await h.call("engine.accounts.list", {}, res.payer)) as { accounts: AccountRow[] };
   const row = list.accounts.find((a) => a.ref === res.accountRef);
   if (!row) { h.log?.("the account the turn resolved is not in the payer's list", { threadId: q.threadId, accountRef: res.accountRef, payer: res.payer }); return null; }   // the key vanished between the two calls: treat as none, the next turn asks again
-  return { ref: row.ref, driver: row.driver, provider: providerOfDriver(row.driver), kind: row.kind, payer: res.payer, reason: res.reason, ...(row.mine ? {} : { shared: true }), ...(res.itemId ? { itemId: res.itemId } : {}), ...(res.fellBack ? { fellBack: true } : {}), ...(row.base ? { base: row.base } : {}), ...(row.keyless ? { keyless: true } : {}), ...(row.spaceKey ? { spaceKey: true } : {}), ...(res.modelFallback ? { modelFallback: res.modelFallback } : {}) };
+  return { ref: row.ref, driver: row.driver, provider: providerOfDriver(row.driver), kind: row.kind, payer: res.payer, reason: res.reason, ...(row.mine ? {} : { shared: true }), ...(res.itemId ? { itemId: res.itemId } : {}), ...(res.fellBack ? { fellBack: true } : {}), ...(res.via ? { via: res.via } : {}), ...(res.cappedFrom ? { cappedFrom: res.cappedFrom } : {}), ...(row.base ? { base: row.base } : {}), ...(row.keyless ? { keyless: true } : {}), ...(row.spaceKey ? { spaceKey: true } : {}), ...(res.modelFallback ? { modelFallback: res.modelFallback } : {}) };
 }
 
 /** An account whose engine can run on this computer: the pick, or another account of the person when the pick's program is not installed (runnable-account.ts). */
