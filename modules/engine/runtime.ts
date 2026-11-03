@@ -32,6 +32,7 @@ import { capabilitySkills, createContextBuilder, takeHandoff, withTurnContext } 
 import { withTranscript } from "./transcript.ts";
 import { withNativeSkills } from "./skills-native.ts";
 import { linkReply } from "./handlers/extra/reply-info.ts";
+import { costOf } from "./turn-cost.ts";
 import { workFolder } from "./sandbox.ts";
 import { createCompactor, withCompaction } from "./compact.ts";
 import type { Compactor } from "./compact.ts";
@@ -227,9 +228,20 @@ async function askToPay(h: EngineHostSeam, db: Db, q: AccountQuery, to: Resolved
   if (taskId) db.run("INSERT OR REPLACE INTO engine_unblock (task_id, thread_id, agent_id, asker, at, paid_ref) VALUES (?, ?, ?, ?, ?, ?)", taskId, q.threadId, q.agentId, q.askerId, (h.now ?? Date.now)(), to.ref);
 }
 
+/** The turn's usage against the spend limits, at what it really cost (turn-cost.ts): a sign-in is in its plan (0), an API key turn is the provider's price or the list price, an unknown price is 0. */
+export function costMicrosOf(turn: Readonly<TurnRow>, account: ResolvedAccount | null): number {
+  const i = turn.info;
+  return costOf({
+    model: turn.model ?? "", tokensIn: turn.tokensIn, tokensOut: turn.tokensOut,
+    ...(account ? { driver: account.driver, provider: account.provider, accountKind: account.kind } : {}),
+    ...(i?.cacheReadTokens !== undefined ? { cacheReadTokens: i.cacheReadTokens } : {}), ...(i?.cacheWriteTokens !== undefined ? { cacheWriteTokens: i.cacheWriteTokens } : {}),
+    ...(i?.costUsd !== undefined ? { costUsd: i.costUsd } : {}),
+  }).micros ?? 0;
+}
+
 async function meter(h: EngineHostSeam, turn: Readonly<TurnRow>, account: ResolvedAccount | null): Promise<void> {
   if (turn.tokensIn + turn.tokensOut === 0) return;
-  await h.call("engine.turn.record_usage", { turnId: turn.id, tokensIn: turn.tokensIn, tokensOut: turn.tokensOut, costMicros: 0, ...(account?.itemId ? { itemId: account.itemId } : {}) }, turn.asker);
+  await h.call("engine.turn.record_usage", { turnId: turn.id, tokensIn: turn.tokensIn, tokensOut: turn.tokensOut, costMicros: costMicrosOf(turn, account), ...(account?.itemId ? { itemId: account.itemId } : {}) }, turn.asker);
 }
 
 export interface CompleteIn { account: ResolvedAccount; system?: string; prompt: string; model?: string }

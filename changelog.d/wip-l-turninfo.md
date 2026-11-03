@@ -4,3 +4,4 @@
 - Engine: engine.turn.get no longer answers for a chat the caller cannot open. It now shows the tool steps and account switches of chat turns too.
 - Chats: hover an agent's face or name on a reply to see a card with the model and effort, the AI account, who asked, where it ran, the cost, the tokens in and out, and how long it took. The card also offers Details.
 - Chats: the message menu has Details on every agent reply. It opens the right pane on a Details tab with the reply's message, turn and trace ids (each with Copy), timing, tokens, the cost line by line, tools with their durations and holds, what the agent knew, skills, files, and errors and retries. "Show What the Agent Knew Here" left the menu and is now a section of that tab.
+- Engine: AI spend is now metered at what each turn really cost (a sign-in is 0, as it is in its plan), so spend limits and the usage pages count real dollars.

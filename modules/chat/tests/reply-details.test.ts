@@ -3,7 +3,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { handlers } from "../impl.ts";
-import { DANA, INTAKE, MAYA, harness } from "../fixtures/harness.ts";
+import { DANA, INTAKE, MAYA, contractErrors, harness } from "../fixtures/harness.ts";
 
 type Fn = (ctx: any, input: any) => Promise<any>;
 const h = handlers as unknown as Record<string, Fn>;
@@ -32,7 +32,9 @@ test("the reply's details carry its turn and what the agent knew, both asked as 
     "engine.turn.of_message": () => ({ turn: TURN }),
     "memory.used": () => ({ messageId: "msg_x", facts: [{ factId: "fct_1", text: "Files live in one folder per client", sourceTitle: "Portal plan", layer: "project" }], quotes: [] }),
   });
-  const { details } = await h["chat.reply_details"]!(hn.ctx, { threadId: thread, messageId: reply });
+  const out = await h["chat.reply_details"]!(hn.ctx, { threadId: thread, messageId: reply });
+  assert.deepEqual(contractErrors("chat.reply_details", "out", out), []);
+  const { details } = out;
   assert.equal(details.messageId, reply);
   assert.equal(details.agentId, INTAKE);
   assert.equal(details.turn.model, "claude-opus-5-5");
@@ -45,7 +47,9 @@ test("the reply's details carry its turn and what the agent knew, both asked as 
 test("with no recorded turn the reply's own steps remain, and nothing is invented", async () => {
   const notFound = () => { throw { error: { code: "validation.not_found" } }; };
   const { hn, thread, reply } = await chatWithReply({ "engine.turn.of_message": notFound, "memory.used": notFound });
-  const { details } = await h["chat.reply_details"]!(hn.ctx, { threadId: thread, messageId: reply });
+  const out = await h["chat.reply_details"]!(hn.ctx, { threadId: thread, messageId: reply });
+  assert.deepEqual(contractErrors("chat.reply_details", "out", out), []);
+  const { details } = out;
   assert.equal(details.turn, undefined);
   assert.equal(details.memory, undefined);
   assert.deepEqual(details.steps, [{ name: "Read", ok: true, secs: 2 }]);

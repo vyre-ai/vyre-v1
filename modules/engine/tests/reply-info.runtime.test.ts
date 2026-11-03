@@ -25,6 +25,7 @@ test("a CLI turn's usage, price and steps reach the turn record, and the posted 
   const h = harness({ threads: THREADS });
   const p = scriptedProvider({ script: turnOut });
   const posts: string[] = [];
+  const metered: Array<Record<string, unknown>> = [];
   hostSeams.setEngineHost({
     holder: "host:spc_enginetest", openSession: p.openSession, now: () => h.clock.t,
     async call(cap, input) {
@@ -32,7 +33,8 @@ test("a CLI turn's usage, price and steps reach the turn record, and the posted 
       if (cap === "engine.accounts.list") return { accounts: [{ ref: "#Dana_Key", driver: "claude_code", provider: "anthropic", kind: "api_key", status: "ok" }] };
       if (cap === "engine.turn.record") return handlers[cap]!(h.ctx as never, input as never);
       if (cap === "threads.get") return { thread: THREADS[0] };
-      if (cap === "engine.turn.record_usage" || cap === "agents.status") return {};
+      if (cap === "engine.turn.record_usage") { metered.push(input as Record<string, unknown>); return {}; }
+      if (cap === "agents.status") return {};
       throw new Error(`unexpected ${cap}`);
     },
     postAs: async (_agentId, post) => { posts.push(post.clientId); return {}; },
@@ -47,5 +49,6 @@ test("a CLI turn's usage, price and steps reach the turn record, and the posted 
   assert.deepEqual(turn["tokens"], { in: 5000, out: 120, cacheRead: 4000, cacheWrite: 600 });
   assert.deepEqual(turn["tools"].map((x: any) => [x.name, x.args, x.ok]), [["Read", "brief.md", true]]);
   assert.equal(turn["partial"], false);
+  assert.deepEqual(metered.map((m) => [m["tokensIn"], m["tokensOut"], m["costMicros"]]), [[5000, 120, 12_300]], "spend is metered at the engine's own price, not 0");
   hostSeams.setEngineHost(null);
 });

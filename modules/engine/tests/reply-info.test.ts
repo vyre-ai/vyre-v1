@@ -5,7 +5,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { extraHandlers } from "../handlers/extra/index.ts";
 import { linkReply } from "../handlers/extra/reply-info.ts";
-import { codeOf, harness } from "../fixtures/harness.ts";
+import { codeOf, contractErrors, harness } from "../fixtures/harness.ts";
 import type { Harness } from "../fixtures/harness.ts";
 import type { EngineCtx } from "../projections.ts";
 import type { TurnInfo } from "../../../agent/src/turn-engine/types.ts";
@@ -30,7 +30,9 @@ async function recordTurn(h: Harness, info: TurnInfo, o: { turnId?: string; mode
   const base = { threadId: T, turnId, agentId: "agt_mira", qseq: 1, asker: o.asker ?? "usr_dana", ...(o.model === "" ? {} : { model: o.model ?? "claude-sonnet-5-5" }) };
   await H["engine.turn.record"](ctx, { ...base, phase: "started" });
   h.advance(14_000);
-  await H["engine.turn.record"](ctx, { ...base, phase: "completed", tokensIn: o.tokensIn ?? 41_280, tokensOut: o.tokensOut ?? 1904, info, engine: info.account?.driver ?? "chat", ...(info.account ? { accountRef: info.account.ref } : {}) });
+  const done = { ...base, phase: "completed" as const, tokensIn: o.tokensIn ?? 41_280, tokensOut: o.tokensOut ?? 1904, info, engine: info.account?.driver ?? "chat", ...(info.account ? { accountRef: info.account.ref } : {}) };
+  assert.deepEqual(contractErrors("engine.turn.record", "in", done), [], "the runtime's record with its info is a valid input");
+  await H["engine.turn.record"](ctx, done);
   linkReply(h.db, { threadId: T, turnId, messageId: MSG }, h.ctx.now());
   return turnId;
 }
@@ -38,7 +40,9 @@ async function recordTurn(h: Harness, info: TurnInfo, o: { turnId?: string; mode
 test("an API turn records its cost from the list price and its tokens, and the reply's Details show them", async () => {
   const h = harness();
   await recordTurn(h, apiInfo());
-  const { turn } = H["engine.turn.of_message"](h.ctx, { threadId: T, messageId: MSG });
+  const out = H["engine.turn.of_message"](h.ctx, { threadId: T, messageId: MSG });
+  assert.deepEqual(contractErrors("engine.turn.of_message", "out", out), []);
+  const { turn } = out;
   assert.equal(turn.model, "claude-sonnet-5-5");
   assert.equal(turn.effort, "medium");
   assert.equal(turn.engine, "anthropic");
@@ -84,7 +88,9 @@ test("another member of a shared chat sees the model, agent, asker, where and to
   const h = harness();
   await recordTurn(h, apiInfo());
   const omar = harness({ raw: h.raw, principal: { kind: "person", id: "usr_omar" }, manager: false });
-  const { turn } = H["engine.turn.of_message"](omar.ctx, { threadId: T, messageId: MSG });
+  const seen = H["engine.turn.of_message"](omar.ctx, { threadId: T, messageId: MSG });
+  assert.deepEqual(contractErrors("engine.turn.of_message", "out", seen), [], "the member's view is a valid output too");
+  const { turn } = seen;
   assert.equal(turn.private, true);
   assert.equal(turn.asker, "usr_dana");
   assert.equal(turn.model, "claude-sonnet-5-5");
@@ -104,7 +110,9 @@ test("a reply with no recorded turn is not found; an older turn with only its ro
   const ctx = ctxOf(h);
   await H["engine.turn.record"](ctx, { threadId: T, turnId: "trn_old1", agentId: "agt_mira", qseq: 1, asker: "usr_dana", phase: "completed", tokensIn: 10, tokensOut: 2 });
   linkReply(h.db, { threadId: T, turnId: "trn_old1", messageId: "msg_old1" }, 1);
-  const { turn } = H["engine.turn.of_message"](h.ctx, { threadId: T, messageId: "msg_old1" });
+  const old = H["engine.turn.of_message"](h.ctx, { threadId: T, messageId: "msg_old1" });
+  assert.deepEqual(contractErrors("engine.turn.of_message", "out", old), []);
+  const { turn } = old;
   assert.equal(turn.partial, true);
   assert.deepEqual(turn.tools, []);
   assert.equal(turn.cost, undefined);
