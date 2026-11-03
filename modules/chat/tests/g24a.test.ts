@@ -193,6 +193,15 @@ test("threads.members.add and remove: a private chat offers a channel; a channel
   assert.deepEqual(assertEventsConform(hn), []);
 });
 
+test("threads.members.add: a goal's own chat gains people, an ordinary private chat still does not", async () => {
+  const hn = harness();
+  const goalChat = await chatOf(hn, { scopeType: "goal", scopeId: "gol_x" });
+  const t = (await ok("threads.members.add", hn.ctx, { threadId: goalChat, personId: LEO })).thread;
+  assert.ok(t.members.some((m: any) => m.id === LEO), "the goal's helper is in its chat");
+  const plain = await chatOf(hn);
+  await refused("threads.members.add", hn.ctx, { threadId: plain, personId: LEO }, "validation.precondition_failed");
+});
+
 test("threads.mark_read keeps a cursor per person in chat_thread_read; unreadOf counts what is after it", async () => {
   const hn = harness();
   const ch = await channelOf(hn);

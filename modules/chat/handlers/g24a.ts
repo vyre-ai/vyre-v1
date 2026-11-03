@@ -239,7 +239,8 @@ export async function removeAgent(ctx: ChatCtx, input: { threadId: string; agent
 export async function membersAdd(ctx: ChatCtx, input: { threadId: string; personId: string }) {
   const t = load(ctx, input.threadId, { govern: true });
   if (!input.personId.startsWith("usr_")) raise(ctx, "validation.bad_input", "That is not a person.", { personId: input.personId });
-  if (isPrivateRoot(rootOf(ctx, t))) {
+  // a goal's own chat is private to the goal's people: the goal adds its owner and helpers, so it may gain people
+  if (isPrivateRoot(rootOf(ctx, t)) && rootOf(ctx, t).scopeType !== "goal") {
     raise(ctx, "validation.precondition_failed", "A private chat never gains people. Make it a channel to bring someone in.", { offer: "threads.make_channel", threadId: t.id });
   }
   if (isMember(ctx.db, t.id, input.personId)) return out(ctx, t.id);
