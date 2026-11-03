@@ -95,7 +95,7 @@ test("Overview: what needs you, the server tiles and the last admin acts, each w
   for (const t of ["Server", "Members", "Agents", "Turns today", "Spend this month"]) assert.ok(has(out, `data-testid="tile-${t}"`), t);
   assert.ok(has(out, "Degraded") && has(out, ">14<") && has(out, ">6<") && has(out, "1,284") && has(out, "$412"));
   assert.equal((out.match(/data-testid="row-act-\d"/g) ?? []).length, 5, "five admin acts");
-  assert.ok(has(out, "Priya Raman role changed Omar Haddad") && has(out, "6 min ago"));
+  assert.ok(has(out, "Priya Raman changed the role Omar Haddad") && has(out, "6 min ago"));
   assert.ok(has(out, 'data-testid="to-audit"'));
   assert.deepEqual(Object.keys(ATTENTION_PAGE).sort(), ["access_review_due", "expiring_certificate", "failed_run", "failing_check", "home_channel", "join_stuck", "limit_hit", "no_ai_account", "stuck_update"]);
   for (const id of Object.values(ATTENTION_PAGE)) assert.ok(PAGES.some((p) => p.id === id), `${id} is a page`);
@@ -118,8 +118,8 @@ test("Audit log: every row has who, what, the kind and when; nothing from a filt
   const out = html(createSampleConsole(), { initialPage: "audit" });
   assert.ok(has(out, 'data-testid="audit"') && has(out, 'aria-label="Search the audit log"') && has(out, 'aria-label="Filter"'));
   for (const r of AUDIT) assert.ok(has(out, `data-testid="row-${r.id}"`), r.id);
-  assert.ok(has(out, "Priya Raman role changed Omar Haddad"));
-  assert.ok(has(out, "Intake record revealed Rivera engagement, for Priya Raman"), "an agent's act names the person it acted for");
+  assert.ok(has(out, "Priya Raman changed the role Omar Haddad"));
+  assert.ok(has(out, "Intake revealed the record Rivera engagement, for Priya Raman"), "an agent's act names the person it acted for");
   assert.ok(has(out, "Admin actions, space") && has(out, "Sensitive reads, record"));
   assert.ok(!has(out, 'data-testid="audit-showing"'));
   assert.ok(has(out, 'aria-label="Verify the chain"') && has(out, 'aria-label="Export"'));
@@ -170,7 +170,7 @@ test("the audit model: the six kinds, the screen state a filter writes, and the 
   assert.equal(isFiltered(NO_FILTER), false);
   assert.equal(isFiltered({ ...NO_FILTER, query: "  " }), false);
   assert.equal(isFiltered({ ...NO_FILTER, cls: "admin" }), true);
-  assert.equal(rowTitle(AUDIT[2]!, (id) => NAMES[id] ?? id), "Intake record revealed Rivera engagement, for Priya Raman");
+  assert.equal(rowTitle(AUDIT[2]!, (id) => NAMES[id] ?? id), "Intake revealed the record Rivera engagement, for Priya Raman");
   assert.deepEqual(snapshotLines({ role: "Member", n: 2, o: { a: 1 } }), ["role: Member", "n: 2", 'o: {"a":1}']);
   assert.deepEqual(snapshotLines(undefined), []);
 });
@@ -185,7 +185,7 @@ test("text helpers: relative times, whole dollars and action phrases", () => {
   assert.equal(actionPhrase("gate.rule_changed"), "gate rule changed");
   assert.equal(activityTitle("Olivia Owner", "audit.viewed", "space/spc_fresh"), "Olivia Owner opened the audit log");
   assert.equal(activityTitle("act_anon_12ca17b49af22894", "identity.claim_owner", undefined), "The owner claimed this Space");
-  assert.equal(activityTitle("Priya Raman", "gate.rule_changed", "Send"), "Priya Raman gate rule changed Send");
+  assert.equal(activityTitle("Priya Raman", "gate.rule_changed", "Send"), "Priya Raman changed the rule Send");
 });
 
 test("the skin menu lists System, then Dark and Light skins, and checks the open one", () => {
