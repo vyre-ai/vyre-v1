@@ -474,3 +474,77 @@ test("no string shown to people holds an em dash or a section sign", async () =>
     assert.ok(!src.includes("§"), `${f} has a section sign`);
   }
 });
+
+/* ---------- accessView: the rules behind the Dex sheet ---------- */
+
+import { accessCount, accessView, levelHint, rowSub } from "./model.ts";
+import type { ShareRow as Row } from "./props.ts";
+
+const r = (o: Partial<Row> & Pick<Row, "subjectKind" | "subjectId">): Row => ({ name: o.subjectId, level: "view", via: "grant", fromFolderId: null, ...o });
+const base = { itemType: "agent" as const, resourceId: "agt_dex", ownerId: "usr_me", ownerName: "Irfad" };
+
+test("accessView: an item never lists itself", () => {
+  const v = accessView({ ...base, shares: [r({ subjectKind: "agent", subjectId: "agt_dex", level: "edit", via: "space" })] });
+  assert.deepEqual(v.agents.specific, []);
+  assert.equal(v.agents.on, false);
+  assert.equal(v.count, 1);
+});
+
+test("accessView: a person is one row at their highest level; the owner is only the Owner row", () => {
+  const v = accessView({ ...base, shares: [
+    r({ subjectKind: "person", subjectId: "usr_me", level: "manage", via: "folder" }),
+    r({ subjectKind: "person", subjectId: "usr_omar", level: "view", via: "grant" }),
+    r({ subjectKind: "person", subjectId: "usr_omar", level: "edit", via: "folder" }),
+    r({ subjectKind: "person", subjectId: "usr_kai", level: "edit", via: "grant" }),
+    r({ subjectKind: "person", subjectId: "usr_kai", level: "edit", via: "folder" }),
+  ] });
+  assert.deepEqual(v.people.map((p) => [p.subjectId, p.level, p.via]), [["usr_kai", "edit", "grant"], ["usr_omar", "edit", "folder"]]);
+  assert.equal(v.people.some((p) => p.subjectId === "usr_me"), false);
+});
+
+test("accessView: a private agent is never listed by name, a Space agent folds into one line, one added on purpose shows", () => {
+  const v = accessView({ ...base, shares: [
+    r({ subjectKind: "agent", subjectId: "agt_aliza", name: "Aliza Rizvi (Agent)", level: "edit", via: "space", privateAgent: true }),
+    r({ subjectKind: "agent", subjectId: "agt_docs", name: "Docs", level: "edit", via: "space" }),
+    r({ subjectKind: "agent", subjectId: "agt_scout", name: "Scout", level: "use", via: "grant" }),
+  ] });
+  assert.deepEqual(v.agents.specific.map((a) => a.name), ["Scout"]);
+  assert.equal(v.agents.on, true);
+  assert.equal(JSON.stringify(v).includes("Aliza"), false);
+});
+
+test("accessView: Everyone is general access, not a person row, and its level is read from the grant", () => {
+  const v = accessView({ ...base, shares: [r({ subjectKind: "group", subjectId: "grp_everyone", level: "use", via: "space" })] });
+  assert.equal(v.general.level, "use");
+  assert.deepEqual(v.people, []);
+  assert.equal(accessView({ ...base, shares: [] }).general.level, null);
+});
+
+test("accessView: the folder words stay true, and Nobody else yet is only for a truly empty list", () => {
+  const inherited = [r({ subjectKind: "person", subjectId: "usr_omar", level: "edit", via: "folder" })];
+  assert.equal(accessView({ ...base, shares: inherited }).inheritedFrom, "From the Space");
+  assert.equal(accessView({ ...base, folderName: "Clients", shares: inherited }).inheritedFrom, "From the folder Clients");
+  assert.equal(rowSub({ subjectKind: "person", via: "folder" }), "From the Space");
+  assert.equal(accessView({ ...base, shares: inherited }).empty, false);
+  assert.equal(accessView({ ...base, shares: [] }).empty, true);
+  assert.equal(accessView({ ...base, shares: [r({ subjectKind: "group", subjectId: "grp_everyone", via: "space" })] }).empty, false);
+});
+
+test("accessView: the count behind the sheet is the same deduped list", () => {
+  const shares = [
+    r({ subjectKind: "person", subjectId: "usr_me", level: "manage", via: "folder" }),
+    r({ subjectKind: "person", subjectId: "usr_omar", level: "view" }),
+    r({ subjectKind: "person", subjectId: "usr_omar", level: "edit", via: "folder" }),
+    r({ subjectKind: "agent", subjectId: "agt_dex", via: "space" }),
+    r({ subjectKind: "agent", subjectId: "agt_x", via: "space", privateAgent: true }),
+    r({ subjectKind: "group", subjectId: "grp_everyone", level: "use", via: "space" }),
+  ];
+  assert.equal(accessCount({ ...base, shares }), 3);
+  assert.equal(accessView({ ...base, shares }).count, 3);
+});
+
+test("levelHint: every level of every item has a one line description", () => {
+  for (const type of ["note", "file", "record", "rtype", "artifact", "project", "vault", "agent"] as const) {
+    for (const l of ["view", "use", "edit", "manage"] as const) assert.ok(levelHint(type, l).length > 0 && !/\n/.test(levelHint(type, l)));
+  }
+});

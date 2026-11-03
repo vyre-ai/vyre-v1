@@ -664,6 +664,14 @@ export async function deciders(ctx: ShareCtx, input: { resource: ResourceRef }):
   return { people };
 }
 
+/** Someone else's private agent: their Assistant or an outside agent they connected. Only its own person sees it listed. */
+function hiddenAgent(ctx: ShareCtx, store: AccessStore, agentId: string): boolean {
+  if (!isPrivateAgent(store, agentId)) return false;
+  const owner = store.principals.get(agentId)?.owner;
+  const me = actingId(ctx) ?? ctx.principal.id;
+  return owner !== me;
+}
+
 export async function sharesOf(ctx: ShareCtx, input: { resource: ResourceRef }) {
   const store = storeOf(ctx);
   const res = resourceOf(ctx, store, input.resource);
@@ -686,6 +694,8 @@ export async function sharesOf(ctx: ShareCtx, input: { resource: ResourceRef }) 
   all.sort((a, b) => (a.id < b.id ? -1 : 1));
   for (const g of all) {
     if (g.conditions.expiresAt !== undefined && g.conditions.expiresAt <= now) continue;
+    // an item never lists itself, and nobody sees another person's private agent (an Assistant, an outside agent) by name
+    if (g.subject.kind === "agent" && (g.subject.id === res.id || hiddenAgent(ctx, store, g.subject.id))) continue;
     const ancestor = g.resource.id !== "*" && g.resource.id !== res.id;
     const through = ancestor ? "folder" : g.subject.kind === "group" ? "group" : g.subject.kind === "role" ? "role" : "direct";
     shares.push({ grant: grantView(g), through });

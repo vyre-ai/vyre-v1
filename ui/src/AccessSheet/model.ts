@@ -684,8 +684,9 @@ export function sheetRows<R extends AccessRowLike>(shares: readonly R[], type: S
 }
 
 export function rowSub(row: { subjectKind: ShareSubjectKind; via: string }, folderName?: string): string {
-  if (row.via === "folder") return folderName ? `From the folder ${folderName}` : "From the folder";
-  if (row.via === "space") return "Everyone in the Space";
+  // never "Not in a folder" above "From the folder": with no folder named, what is inherited comes from the Space
+  if (row.via === "folder") return folderName ? `From the folder ${folderName}` : "From the Space";
+  if (row.via === "space") return "From the Space";
   return ({ person: "Person", group: "Group", role: "Role", agent: "Agent", link: "Link" } as Record<ShareSubjectKind, string>)[row.subjectKind];
 }
 
@@ -716,4 +717,88 @@ export function takenFromRows(directory: AccessDirectory, rows: readonly { subje
     }
   }
   return out;
+}
+
+/* ---------- the access view: one deduped list for the sheet and for the count behind it ---------- */
+
+export const EVERYONE_IDS: readonly string[] = ["grp_everyone", "space"];
+
+export interface AccessViewInput {
+  shares: readonly ShareRow[];
+  itemType: ShareItemType;
+  /** The item's own id: an item never lists itself. */
+  resourceId: string;
+  ownerId?: string | undefined;
+  ownerName: string;
+  folderName?: string | undefined;
+}
+
+export interface AccessView {
+  owner: { id: string | null; name: string };
+  /** "Everyone in the Space": the level, or null for No access. `row` is the grant behind it. */
+  general: { level: ShareLevel | null; row: ShareRow | null };
+  /** People, groups and roles, each once at their highest level, the owner and the Space left out. */
+  people: ShareRow[];
+  /** Agents: the Space line (on when agents in the Space hold access) and only the ones added on purpose. */
+  agents: { on: boolean; inherited: boolean; specific: ShareRow[] };
+  link: ShareRow | null;
+  /** Where inherited rows come from. */
+  inheritedFrom: string;
+  /** The owner, the people, the groups and roles, the agents added on purpose, and the Space when it holds access. The same number is behind the sheet. */
+  count: number;
+  /** Nobody but the owner, and nothing general. */
+  empty: boolean;
+}
+
+const VIA_RANK: Record<ShareRow["via"], number> = { owner: 3, grant: 2, folder: 1, space: 0 };
+
+export const isEveryoneRow = (r: Pick<ShareRow, "subjectKind" | "subjectId">): boolean => r.subjectKind === "group" && EVERYONE_IDS.includes(r.subjectId);
+
+/** Merge the same subject into one row at its highest level; at the same level the direct grant wins, so it can be removed. */
+function onePerSubject(type: ShareItemType, rows: readonly ShareRow[]): ShareRow[] {
+  const best = new Map<string, ShareRow>();
+  for (const r of rows) {
+    const key = `${r.subjectKind}:${r.subjectId}`;
+    const have = best.get(key);
+    if (!have) { best.set(key, r); continue; }
+    const d = levelRank(type, r.level) - levelRank(type, have.level);
+    if (d > 0 || (d === 0 && VIA_RANK[r.via] > VIA_RANK[have.via])) best.set(key, r);
+  }
+  return [...best.values()];
+}
+
+export function accessView(i: AccessViewInput): AccessView {
+  const byAccess = (a: ShareRow, b: ShareRow): number => levelRank(i.itemType, b.level) - levelRank(i.itemType, a.level) || a.name.localeCompare(b.name);
+  const rows = i.shares.filter((r) => {
+    if (r.subjectKind === "agent" && (r.subjectId === i.resourceId || r.privateAgent === true)) return false;
+    if (i.ownerId !== undefined && r.subjectKind === "person" && r.subjectId === i.ownerId) return false;
+    return r.via !== "owner";
+  });
+  const merged = onePerSubject(i.itemType, rows);
+  const link = merged.find((r) => r.subjectKind === "link") ?? null;
+  const everyone = merged.find(isEveryoneRow) ?? null;
+  const people = merged.filter((r) => (r.subjectKind === "person" || r.subjectKind === "group" || r.subjectKind === "role") && !isEveryoneRow(r)).sort(byAccess);
+  const agentRows = merged.filter((r) => r.subjectKind === "agent").sort(byAccess);
+  const specific = agentRows.filter((r) => r.via === "grant");
+  const inherited = agentRows.some((r) => r.via !== "grant");
+  const count = 1 + people.length + specific.length + (everyone ? 1 : 0);
+  return {
+    owner: { id: i.ownerId ?? null, name: i.ownerName },
+    general: { level: everyone ? everyone.level : null, row: everyone },
+    people, agents: { on: inherited || specific.length > 0, inherited, specific }, link,
+    inheritedFrom: i.folderName ? `From the folder ${i.folderName}` : "From the Space",
+    count, empty: people.length === 0 && specific.length === 0 && everyone === null && !inherited,
+  };
+}
+
+/** The line under the title and the count behind the sheet's button: one number, from the same view. */
+export function accessCount(i: AccessViewInput): number {
+  return accessView(i).count;
+}
+
+/** The one-line description of a level, for the picker's menu. */
+export function levelHint(type: ShareItemType, level: ShareLevel): string {
+  if (type === "agent") return ({ view: "Chat with it. It works with what they can see.", use: "Give it tasks and put it in their own work.", edit: "Change how it works.", manage: "Share it, pause it and delete it." } as Record<ShareLevel, string>)[level];
+  if (type === "vault") return ({ use: "Agents and automations use it. The value stays hidden.", view: "See the value and use it.", edit: "See, use and change it.", manage: "Also share it." } as Record<ShareLevel, string>)[level];
+  return ({ view: "Open it and read it.", use: "Open it and use it.", edit: "Change it.", manage: "Also share it, move it and delete it." } as Record<ShareLevel, string>)[level];
 }

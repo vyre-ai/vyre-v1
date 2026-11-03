@@ -304,7 +304,7 @@ test("share a note: title, subtitle, who has access, and the level choices come 
   const html = ssr(<AccessSheet {...share({ itemType: "note", itemName: "Lab 8 run of show", resourceType: "file", resourceId: "n1", directory: sharePeople })} />);
   assert.match(html, /Share “Lab 8 run of show”/);
   assert.match(html, /Note · 2 with access/);
-  assert.match(html, /Who has access/);
+  assert.match(html, /General access/);
   assert.match(html, /Owner/);
   assert.match(html, /aria-label="Level for Omar Reyes: Can edit"/);
   assert.match(html, /Anyone in the Space/);
@@ -424,7 +424,7 @@ test("who has access: change level, remove, inherited rows cannot be lowered or 
       onShare: (i) => said.push(i), onUnshare: (i) => gone.push(i),
     })} />);
     assert.match(textOf(root), /From the folder Clients/);
-    assert.match(textOf(root), /Access from a folder can be raised on one item, never lowered\./);
+    assert.doesNotMatch(textOf(root), /never lowered/, "no legend paragraph");
     assert.equal(find(root, "as-acc-remove-p_kai"), null, "inherited: no remove");
     await press(find(root, "as-acc-level-p_kai"));
     assert.equal(find(root, "menu-item-Can view"), null, "inherited: cannot be lowered");
@@ -486,4 +486,76 @@ test("share, phone: a bottom sheet and a short button", async () => {
       assert.equal(find(root, "as-sheet")?.props["data-sheet"], "phone");
     });
   });
+});
+
+/* ---------- Dex's Share sheet (owner, 4 Nov): one clean list ---------- */
+
+const dex = (over: Partial<ShareSheetProps> = {}): ShareSheetProps => share({
+  itemType: "agent", itemName: "Dex", resourceType: "agent", resourceId: "agt_dex", ownerId: "usr_me", ownerName: "Irfad", spaceName: "Northwind", directory: sharePeople,
+  shares: [
+    { subjectKind: "person", subjectId: "usr_me", name: "Irfad", level: "manage", via: "folder", fromFolderId: null },
+    { subjectKind: "agent", subjectId: "agt_dex", name: "Dex", level: "edit", via: "space", fromFolderId: null },
+    { subjectKind: "agent", subjectId: "agt_docs", name: "Docs", level: "edit", via: "space", fromFolderId: null },
+    { subjectKind: "agent", subjectId: "agt_aliza", name: "Aliza Rizvi (Agent)", level: "edit", via: "space", fromFolderId: null, privateAgent: true },
+    { subjectKind: "group", subjectId: "grp_everyone", name: "Everyone", level: "use", via: "grant", fromFolderId: null },
+  ],
+  ...over,
+});
+
+test("Dex: an item never lists itself, the owner is one row, and no one else's private agent is named", () => {
+  const html = ssr(<AccessSheet {...dex()} />);
+  assert.equal((html.match(/>Irfad</g) ?? []).length + (html.match(/title="Irfad"/g) ?? []).length >= 1, true);
+  assert.doesNotMatch(html, /aria-label="Level for Dex/, "no self row");
+  assert.doesNotMatch(html, /Aliza Rizvi/, "no private agent by name");
+  assert.doesNotMatch(html, /Level for Irfad/, "the owner is the Owner row, not a level row");
+  assert.equal((html.match(/Owner/g) ?? []).length, 1);
+});
+
+test("Dex: general access is one row at the top, and the folder words stay true", () => {
+  const html = ssr(<AccessSheet {...dex()} />);
+  assert.match(html, /Everyone in Northwind/);
+  assert.ok(html.indexOf("General access") < html.indexOf("People"), "general access above the people");
+  assert.match(html, /Can use/);
+  assert.doesNotMatch(html, /Not in a folder/);
+  assert.doesNotMatch(html, /From the folder/, "an item with no folder says the Space");
+  assert.match(html, /From the Space/, "the Dex agent line is inherited from the Space");
+  assert.doesNotMatch(html, /Nobody else yet/);
+  assert.doesNotMatch(html, /never lowered|open it and use it/i, "no legend");
+});
+
+test("Dex: agents get one line, with On or Off", () => {
+  const html = ssr(<AccessSheet {...dex()} />);
+  assert.match(html, /Agents in this Space can call Dex/);
+  assert.match(html, /On/);
+  const off = ssr(<AccessSheet {...dex({ shares: [] })} />);
+  assert.match(off, /Agents in this Space can call Dex/);
+  assert.match(off, /Off/);
+  assert.match(off, /Nobody else yet/, "truly empty");
+});
+
+test("Dex: agents added on purpose show; the line flips through onAgents", async () => {
+  await withDom(async () => {
+    const flips: boolean[] = [];
+    const root = await mount(createRoot, <AccessSheet {...dex({
+      shares: [{ subjectKind: "agent", subjectId: "agt_scout", name: "Scout", level: "use", via: "grant", fromFolderId: null }], onAgents: (on) => flips.push(on),
+    })} />);
+    assert.match(textOf(root), /Scout/);
+    await press(find(root, "as-agents-toggle"));
+    assert.deepEqual(flips, [false]);
+  });
+});
+
+test("Dex: a level picker describes each option inside its menu", async () => {
+  await withDom(async () => {
+    const root = await mount(createRoot, <AccessSheet {...dex()} />);
+    await press(find(root, "as-acc-level-space"));
+    assert.match(textOf(root), /Chat with it|Give it tasks|Change how it works/);
+    assert.match(textOf(root), /No access/);
+  });
+});
+
+test("Dex: the count in the subtitle is the deduped list", () => {
+  const html = ssr(<AccessSheet {...dex()} />);
+  // owner + everyone (the general row); Dex itself, the private agent and the owner's repeat do not count
+  assert.match(html, /Agent · 2 with access/);
 });

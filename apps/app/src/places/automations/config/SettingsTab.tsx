@@ -31,13 +31,14 @@ type SharesOut = CapMap["access.shares_of"]["out"];
 export type AccessRow = ShareRow & { through: SharesOut["shares"][number]["through"] };
 
 /** The contract's grants as the Share sheet's rows: direct grants can be raised and removed, the rest come from a group, a role, a folder or the owner. `through` keeps which. */
-export function shareRows(out: SharesOut, name: (id: string) => string): AccessRow[] {
+export function shareRows(out: SharesOut, name: (id: string) => string, resourceId?: string): AccessRow[] {
   return each(out.shares, (s) => {
     const kind = s.grant.subject.kind;
     return {
       subjectKind: kind === "person" || kind === "group" || kind === "role" || kind === "agent" || kind === "link" ? kind : "agent",
       subjectId: s.grant.subject.id, name: name(s.grant.subject.id), level: s.grant.level,
-      via: s.through === "owner" ? "owner" : s.through === "direct" ? "grant" : s.through === "folder" ? "folder" : "space",
+      // a group or role the item itself was given to (Everyone) is a grant on this item; only a folder or the Space above it is inherited
+      via: s.through === "owner" ? "owner" : s.through === "direct" || (resourceId !== undefined && s.grant.resource.id === resourceId) ? "grant" : s.through === "folder" ? "folder" : "space",
       fromFolderId: s.through === "folder" ? s.grant.source ?? null : null,
       through: s.through,
     };

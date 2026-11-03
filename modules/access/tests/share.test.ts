@@ -13,7 +13,7 @@ import {
 import type { ShareCtx } from "../handlers/share.ts";
 import { MemoryDb } from "../fixtures/db.ts";
 import type { Db } from "../projections.ts";
-import { dropStore, EVERYONE, pkey, storeOf } from "../projections.ts";
+import { dropStore, EVERYONE, pkey, setPrivate, storeOf } from "../projections.ts";
 
 const NOW = 1_700_000_000_000;
 const DAY = 24 * 60 * 60 * 1000;
@@ -304,6 +304,24 @@ test("shares_of tells the caller their own level, so the sheet offers nothing ab
   await share(a, { resource: { type: "site", id: "sit_m" }, subject: { kind: "person", id: "usr_b" }, level: "edit" });
   assert.equal((await sharesOf(a, { resource: { type: "site", id: "sit_m" } })).mine, "manage");
   assert.equal((await sharesOf(r.as("usr_b"), { resource: { type: "site", id: "sit_m" } })).mine, "edit");
+});
+
+test("shares_of never lists the item itself or another person's private agent, but its own person still sees it", async () => {
+  const r = rig();
+  r.item("agt_dex", "usr_a", "agent");
+  const store = r.store;
+  putPrincipal(store, { id: "agt_dex", kind: "agent", name: "Dex" });
+  putPrincipal(store, { id: "agt_aliza", kind: "agent", name: "Assistant", owner: "usr_b" });
+  putPrincipal(store, { id: "agt_docs", kind: "agent", name: "Docs" });
+  setPrivate(store, "agt_aliza", true);
+  store.bump();
+  const a = r.as("usr_a");
+  const res = { type: "agent" as const, id: "agt_dex" };
+  for (const id of ["agt_dex", "agt_aliza", "agt_docs"]) await share(a, { resource: res, subject: { kind: "agent", id }, level: "edit" });
+  const seen = async (who: string): Promise<string[]> => (await sharesOf(r.as(who), { resource: res })).shares.map((s) => s.grant.subject.id).sort();
+  assert.deepEqual(await seen("usr_a"), ["agt_docs", "usr_a"], "not itself, not Aliza's private agent");
+  await share(a, { resource: res, subject: { kind: "person", id: "usr_b" }, level: "view" });
+  assert.deepEqual(await seen("usr_b"), ["agt_aliza", "agt_docs", "usr_a", "usr_b"], "its own person still sees it");
 });
 
 test("deciders names the people who hold Manage, and shows a caller who cannot see the resource nothing but those ids", async () => {

@@ -13,6 +13,8 @@ import { TextField } from "../TextField/index.tsx";
 import { Tooltip } from "../Tooltip/index.tsx";
 import {
   ASSISTANT_NOTICE,
+  accessView,
+  levelHint,
   HOW_OPTIONS,
   ITEM_DEFS,
   LINK_SUBJECT_ID,
@@ -26,7 +28,6 @@ import {
   pokeNote,
   removable,
   rowSub,
-  sheetRows,
   shareInput,
   unshareInput,
 } from "./model.ts";
@@ -356,7 +357,8 @@ export function AccessList({ p, offered, cleared, onCleared }: { p: ShareSheetPr
   const type = p.itemType;
   const [apart, setApart] = useState(false);
   const shares = p.shares.filter((r) => !cleared.includes(`${r.subjectKind}:${r.subjectId}`));
-  const { direct, inherited, link } = sheetRows(shares, type);
+  const v = accessView({ shares, itemType: type, resourceId: p.resourceId, ownerId: p.ownerId, ownerName: p.ownerName, folderName: p.folderName });
+  const { link } = v;
   const lname = (l: ShareLevel): string => (rec ? RECORD_LEVEL_NAMES[l] : undefined) ?? levelName(type, l);
   const say = (kind: ShareSubjectKind, id: string, level: ShareLevel): void => p.onShare?.(shareInput(p, { kind, id }, level, p.newKey?.()));
   const remove = (row: ShareRow): void => {
@@ -364,12 +366,12 @@ export function AccessList({ p, offered, cleared, onCleared }: { p: ShareSheetPr
     p.onUnshare?.(unshareInput(p, { kind: row.subjectKind, id: row.subjectId }));
   };
   const pickLevel = (row: ShareRow, x: number, y: number): void => {
-    const items: MenuEntry[] = levelsFor(row, type, offered).map((l) => ({ label: lname(l), checked: l === row.level, onSelect: () => say(row.subjectKind, row.subjectId, l) }));
+    const items: MenuEntry[] = levelsFor(row, type, offered).map((l) => ({ label: lname(l), hint: levelHint(type, l), checked: l === row.level, onSelect: () => say(row.subjectKind, row.subjectId, l) }));
     menu.show(items, x, y, "context", { label: `Access for ${row.name}` });
   };
   const rowMenu = (row: ShareRow, x: number, y: number): void => {
     const items: MenuEntry[] = [];
-    if (levelsFor(row, type, offered).length > 1) for (const l of levelsFor(row, type, offered)) items.push({ label: lname(l), checked: l === row.level, onSelect: () => say(row.subjectKind, row.subjectId, l) });
+    if (levelsFor(row, type, offered).length > 1) for (const l of levelsFor(row, type, offered)) items.push({ label: lname(l), hint: levelHint(type, l), checked: l === row.level, onSelect: () => say(row.subjectKind, row.subjectId, l) });
     if (removable(row)) {
       if (items.length > 0) items.push({ separator: true });
       items.push({ label: "Remove", danger: true, onSelect: () => remove(row) });
@@ -377,7 +379,8 @@ export function AccessList({ p, offered, cleared, onCleared }: { p: ShareSheetPr
     if (items.length === 0) items.push({ label: "Copy Name", onSelect: () => void (globalThis as { navigator?: { clipboard?: { writeText(s: string): Promise<void> } } }).navigator?.clipboard?.writeText(row.name) });
     menu.show(items, x, y, "context", { label: `Access for ${row.name}` });
   };
-  const rowNode = (row: ShareRow, inheritedRow: boolean): ReactElement => {
+  const rowNode = (row: ShareRow): ReactElement => {
+    const inheritedRow = row.via !== "grant";
     const can = levelsFor(row, type, offered).length > 1;
     const trail = (
       <View style={st.trail}>
@@ -406,7 +409,17 @@ export function AccessList({ p, offered, cleared, onCleared }: { p: ShareSheetPr
       </View>
     );
   };
-  const count = direct.length + inherited.length + 1;
+  const levels = levelsFor({ subjectKind: "group", level: "view", via: "grant" }, type, offered);
+  const generalRow = v.general.row;
+  const generalSubject = { kind: "group" as const, id: generalRow?.subjectId ?? p.directory.space?.subject?.id ?? "grp_everyone" };
+  const generalLevels = generalRow ? levelsFor(generalRow, type, offered) : levels;
+  const pickGeneral = (x: number, y: number): void => {
+    const items: MenuEntry[] = generalLevels.map((l) => ({ label: lname(l), hint: levelHint(type, l), checked: l === v.general.level, onSelect: () => say(generalSubject.kind, generalSubject.id, l) }));
+    if (generalRow && removable(generalRow)) items.push({ separator: true }, { label: "No access", checked: false, onSelect: () => remove(generalRow) });
+    menu.show(items, x, y, "context", { label: "General access" });
+  };
+  const spaceName = p.spaceName ?? "the Space";
+  const generalLocked = (generalRow !== null && generalRow.via !== "grant" && generalLevels.length <= 1) || (rec !== undefined && !rec.canChange);
   return (
     <View testID="as-access">
       {rec ? (
@@ -425,15 +438,31 @@ export function AccessList({ p, offered, cleared, onCleared }: { p: ShareSheetPr
             />
           )}
         </View>
-      ) : null}
-      <View style={st.listHead}><Text style={st.listHeadText}>Who has access</Text><Text style={st.listHeadText}>{count}</Text></View>
+      ) : (
+        <View testID="as-general">
+          <Text style={st.sect}>General access</Text>
+          <SlotRow
+            id="as-acc-space" title={`Everyone in ${spaceName}`} note={generalRow && generalRow.via !== "grant" ? v.inheritedFrom : "Anyone who is in the Space"} leadWidth={36} lead={<Face kind="group" id="space" name="Everyone" size={28} />}
+            trail={<View style={st.trail}><Picker label="General access" value={v.general.level ? lname(v.general.level) : "No access"} disabled={generalLocked} testID="as-acc-level-space" onPress={pickGeneral} /></View>}
+          />
+        </View>
+      )}
+      <View style={st.listHead}><Text style={st.listHeadText}>People</Text><Text style={st.listHeadText} testID="as-count">{v.count}</Text></View>
       <SlotRow id="as-acc-owner" title={p.ownerName} note="Person" leadWidth={36} lead={<Face kind="person" id={p.ownerId ?? p.ownerName} name={p.ownerName} size={28} />} trail={<Text style={st.ownerText}>Owner</Text>} />
-      {rec && rec.audience === "space" && rec.follows === undefined ? <SlotRow id="as-acc-space" title="Everyone in the Space" note="As their role allows" leadWidth={36} lead={<Face kind="group" id="space" name="Everyone" size={28} />} trail={<Text style={st.ownerText}>Their role</Text>} /> : null}
+      {rec && rec.audience === "space" && rec.follows === undefined ? <SlotRow id="as-acc-space-rec" title="Everyone in the Space" note="As their role allows" leadWidth={36} lead={<Face kind="group" id="space" name="Everyone" size={28} />} trail={<Text style={st.ownerText}>Their role</Text>} /> : null}
       {rec && rec.audience === "added" ? <SlotRow id="as-acc-admins" title="Admins" note="Always" leadWidth={36} lead={<Face kind="group" id="admins" name="Admins" size={28} />} trail={<Text style={st.ownerText}>{lname("manage")}</Text>} /> : null}
-      {direct.map((r) => rowNode(r, false))}
-      {direct.length === 0 && !rec ? <Text style={st.empty}>Nobody else yet.</Text> : null}
-      {inherited.length > 0 ? <Text style={[st.sect, { marginTop: 12 }]}>{rec ? `From ${p.folderName ?? "its type"}` : p.folderName ? `From the folder ${p.folderName}` : "Inherited"}</Text> : null}
-      {inherited.map((r) => rowNode(r, true))}
+      {v.people.map((r) => rowNode(r))}
+      {v.empty && !rec ? <Text style={st.empty} testID="as-nobody">Nobody else yet.</Text> : null}
+      {rec ? null : (
+        <View testID="as-agents">
+          <Text style={st.sect}>Agents</Text>
+          <SlotRow
+            id="as-acc-agents" title={`Agents in this Space can call ${p.itemName}`} note={v.agents.inherited ? v.inheritedFrom : "Agents added below only"} leadWidth={36} lead={<Face kind="agent" id="agents" name="Agents" size={28} />}
+            trail={p.onAgents ? <View style={st.trail}><Pill label={v.agents.on ? "On" : "Off"} testID="as-agents-toggle" onPress={() => p.onAgents?.(!v.agents.on)} /></View> : <Text style={st.ownerText} testID="as-agents-state">{v.agents.on ? "On" : "Off"}</Text>}
+          />
+          {v.agents.specific.map((r) => rowNode(r))}
+        </View>
+      )}
       {p.allowExternal === true && !rec ? (
         <View>
           <Text style={[st.sect, { marginTop: 12 }]}>Link</Text>
@@ -457,7 +486,6 @@ export function AccessList({ p, offered, cleared, onCleared }: { p: ShareSheetPr
           </View>
         </View>
       ) : null}
-      {p.target === "item" && !rec ? <Text style={[st.sub, { marginTop: 10, paddingHorizontal: 6 }]}>Access from a folder can be raised on one item, never lowered.</Text> : null}
       {menu.element}
     </View>
   );

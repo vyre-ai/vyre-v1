@@ -128,6 +128,8 @@ export interface ShareRow {
   canExport?: boolean;
   /** Records only: the holder may share it further, up to their own level. */
   canShare?: boolean;
+  /** Somebody else's Assistant or private agent. The sheet never lists one by name. */
+  privateAgent?: boolean;
 }
 
 export type Audience = "space" | "added" | "me";
@@ -230,6 +232,10 @@ export interface ShareSheetProps extends CommonProps {
   onInviteGuest?(input: { email: string; level: ShareLevel }): void;
   /** The New agent button on the Assistant notice. */
   onNewAgent?(): void;
+  /** The Space's name, for "Everyone in Northwind". */
+  spaceName?: string;
+  /** Agents in the Space may call this item: left out, the line is shown as it is and cannot be flipped. */
+  onAgents?(on: boolean): void;
 }
 
 export type AccessSheetProps = AddSheetProps | ShareSheetProps;
