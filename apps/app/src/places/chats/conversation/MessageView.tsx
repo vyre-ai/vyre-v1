@@ -376,7 +376,9 @@ function Theirs({ item, actions, stream, openWork, mark, meId }: MessageViewProp
         return <Card key={b.id} line={cardLine(b)} actions={actions} />;
       })}
       {collect(errors, (b) => <ErrorRowView key={b.id} block={b} actions={actions} />)}
-      {collect(statuses, (x) => (x.kind === "note" ? <Text key={x.id} testID={`status-${x.id}`} style={st.edited}>{x.text}</Text> : x.kind === "approval" && actions.files ? <ApprovalCard key={x.id} taskId={x.taskId} agent={item.who.name} agentId={item.who.id} data={actions.files} /> : null))}
+      {collect(statuses, (x) => (x.kind === "note" ? <Text key={x.id} testID={`status-${x.id}`} style={st.edited}>{x.text}</Text>
+        : x.kind === "wait" ? <View key={x.id} testID={`status-${x.id}`} style={st.waitRow}><Text style={st.edited}>{x.text}</Text><TextButton link label={x.action.label} testID={`status-${x.action.key}`} onPress={() => actions.errorNext(x.action.key)} /></View>
+        : x.kind === "approval" && actions.files ? <ApprovalCard key={x.id} taskId={x.taskId} agent={item.who.name} agentId={item.who.id} data={actions.files} /> : null))}
       {item.who.kind === "agent" && actions.withPeople === true && !stream && m.body.trim() !== "" ? <ReplyActions m={m} actions={actions} /> : null}
       <Reactions m={m} a={actions} mine={false} />
       <LearnedLines messageId={m.messageId} />
@@ -571,6 +573,7 @@ export const st = StyleSheet.create({
   editBox: { width: "85%", gap: 6, borderWidth: 1, borderColor: "var(--line-2)" as string, borderRadius: 12, padding: 8, backgroundColor: "var(--win)" as string },
   editField: { minHeight: 44, fontSize: 15, lineHeight: 22, color: "var(--ink)" as string, outlineStyle: "none", outlineWidth: 0 } as object,
   editRow: { flexDirection: "row", justifyContent: "flex-end", gap: 6 },
+  waitRow: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 8 },
   failed: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 2 },
   failedText: { fontSize: 12.5, color: "var(--danger)" as string },
   msg: { paddingVertical: 2, position: "relative", gap: 6 },

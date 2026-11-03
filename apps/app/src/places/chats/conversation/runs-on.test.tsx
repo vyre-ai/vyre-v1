@@ -37,3 +37,17 @@ test("Runs on leads with Automatic, which says where it lands, and no row says i
   assert.equal(rows[0]!.online, true, "Automatic can always be picked");
   assert.equal(runsOptions(state({ effective: { target: "server", serverId: "srv_home" } }))[0]!.note, "home-box");
 });
+
+test("each computer is its own row: This computer for the one the person is on, the others by name; the pill names another computer", () => {
+  const s = {
+    private: true, pinned: true, effective: { target: "device" as const, deviceId: "dev_desk" },
+    options: [
+      { target: "device" as const, deviceId: "dev_mac", current: true, name: "This computer", online: false, reason: "Off" },
+      { target: "device" as const, deviceId: "dev_desk", name: "Desk", online: true },
+      { target: "space" as const, name: "The Space", online: true },
+    ],
+  };
+  assert.equal(currentOption(s).name, "Desk", "the pinned computer, by its id");
+  assert.deepEqual(runsOptions(s).map((o) => [o.key, o.name, o.note ?? "", o.online]), [["auto:", "Automatic", "Desk", true], ["device:dev_mac", "This computer", "", false], ["device:dev_desk", "Desk", "Your computer", true], ["space:", "The Space", "", true]]);
+  assert.equal(currentOption({ ...s, effective: { target: "device" as const } }).name, "This computer", "a pin that names no computer is the one the person is on");
+});
