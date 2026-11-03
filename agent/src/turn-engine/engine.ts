@@ -119,6 +119,9 @@ const OVERLOADED = "provider.overloaded";
 const MAX_FALLBACKS = 8;
 
 interface Running { turnId: string; agentId: string; asker: string; qseq: number; session: EngineSession | null; cancelled: boolean; lostLease: boolean }
+/** Agent-to-agent hand-offs that may follow one person's message, and how many times one pair may pass it between them. */
+const MENTION_HOPS = 3;
+const MAX_PAIR_PASSES = 2;
 interface ThreadState { thread: OpenThread; messages: StoredMessage[]; running: Running | null; worker: Promise<void> | null; active: boolean }
 
 const defaultSchedule = (fn: () => void, ms: number): (() => void) => {
@@ -227,15 +230,30 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
   }
 
   function ingest(st: ThreadState, m: IncomingMessage, interrupt: boolean): ReceiveResult {
+    if (m.people) st.thread.people = [...m.people];
     return dispatch(st, store(st, m), interrupt, m.replyToPerson, m.job, m.asker);
   }
 
   function dispatch(st: ThreadState, msg: StoredMessage, interrupt: boolean, replyToPerson?: string, job?: string, asker?: string): ReceiveResult {
-    const r = route({ agents: st.thread.agents, kind: st.thread.kind }, { author: msg.author, mentions: msg.mentions, depth: msg.depth, replyToPerson, job: job !== undefined, text: msg.body }, opts.policy);
+    const r = route({ agents: st.thread.agents, kind: st.thread.kind, ...(st.thread.people ? { people: st.thread.people } : {}) }, { author: msg.author, mentions: msg.mentions, depth: msg.depth, replyToPerson, job: job !== undefined, text: msg.body }, opts.policy);
     let responders = r.responders;
     // a round where a person spoke to all the agents: each answers alone, and no answer sets off another agent (the lead posts no summary) unless it @mentions one or the person asks again
     if (msg.author.kind === "person") { if (r.reason === "all") askedAll.set(st.thread.id, new Set(responders)); else askedAll.delete(st.thread.id); }
     else if (askedAll.get(st.thread.id)?.has(msg.author.id) && r.reason !== "mention") { askedAll.get(st.thread.id)!.delete(msg.author.id); responders = []; }
+    // An agent's @mention is a hand-off: at most MENTION_HOPS of them follow one person's message, and the same two agents never pass it back and forth more than twice (owner ruling 4 Nov 2026).
+    let chain: { from: string; to: string[] } | undefined;
+    if (msg.author.kind === "agent" && job === undefined && r.reason === "mention" && responders.length > 0) {
+      if ((msg.depth ?? 0) > MENTION_HOPS) { responders = []; emit({ type: "turn.waiting", threadId: st.thread.id, reason: "hop_limit", messageId: msg.id }); }
+      else {
+        const since = st.messages.slice(); let k = since.length - 1;
+        while (k >= 0 && since[k]!.author.kind !== "person") k--;
+        const run = since.slice(k + 1);
+        const bounces = (a: string, b: string): number => run.filter((x) => x.author.kind === "agent" && ((x.author.id === a && x.mentions.some((y) => y.kind === "agent" && y.id === b)) || (x.author.id === b && x.mentions.some((y) => y.kind === "agent" && y.id === a)))).length;
+        responders = responders.filter((to) => bounces(msg.author.id, to) <= MAX_PAIR_PASSES);
+        if (responders.length === 0) emit({ type: "turn.waiting", threadId: st.thread.id, reason: "hop_limit", messageId: msg.id });
+        else chain = { from: msg.author.id, to: [...responders] };
+      }
+    }
     let routine = false;
     if (r.reason === "hop_limit") emit({ type: "turn.waiting", threadId: st.thread.id, reason: "hop_limit", messageId: msg.id });
     // Whose act this message is: a person's own, a Job's person, or for an agent's message the person it speaks for. An agent's message with nobody behind it is the agent's alone.
@@ -254,7 +272,7 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
     const qseqs = responders.map((agentId) => enqueue(st, { kind, agentId, from, messageId: msg.id, priority: interrupt ? PRIORITY_INTERRUPT : 0, routine }).qseq);
     if (interrupt && st.running) void cancelRunning(st);
     if (qseqs.length > 0) kick(st);
-    return { responders, reason: r.reason, qseqs, messageId: msg.id };
+    return { responders, reason: r.reason, qseqs, messageId: msg.id, ...(chain && qseqs.length > 0 ? { chain } : {}) };
   }
 
   /** Per chat, the agents still answering a message a person sent to all of them. */

@@ -62,7 +62,7 @@ test("the context holds identity, where, skills, what the agent can do and the t
   assert.match(text("where"), /threadId thr_1\. This is a chat called "Intake desk"\./);
   assert.match(text("where"), /talking with Maya Chen \(usr_maya; /);
   assert.match(text("where"), /Also here: Omar Haddad\./);
-  assert.match(text("where"), /Agents here: Docs \(listen\)\./);
+  assert.match(text("where"), /Agents here: Docs \(answers when tagged[^)]*\)\. To hand something to one, @mention it by name/);
   assert.match(text("skills"), /^Working in Vyre \(always loaded\):\n# Working in Vyre\nThe manual\./);
   assert.match(text("skills"), /load it with load_skill \{name\}[^\n]*:\n- focus-records: Work in Records\./, "the index names the tool that loads every tier");
   assert.doesNotMatch(text("skills"), /agents_builtin_skill_get/);

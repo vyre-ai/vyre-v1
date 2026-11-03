@@ -3009,10 +3009,7 @@
             "type": "string"
           },
           "projectId": {
-            "examples": [
-              "prj_a1b2c3"
-            ],
-            "pattern": "^prj_[a-z0-9]+$",
+            "description": "Make a teammate of this project, or of this chat (a thread id): it shows with its crew and not on the Agents page",
             "type": "string"
           },
           "role": {
@@ -3202,10 +3199,7 @@
             "type": "integer"
           },
           "projectId": {
-            "examples": [
-              "prj_a1b2c3"
-            ],
-            "pattern": "^prj_[a-z0-9]+$",
+            "description": "A project, or a chat, whose teammates to list",
             "type": "string"
           },
           "section": {
@@ -15583,7 +15577,7 @@
       ],
       "cap": "engine.crew.start",
       "deferred": false,
-      "description": "Start a teammate on a brief: it gets its own thread under this chat and its own copy of the project repository on its own branch, and works until it is done",
+      "description": "Start a teammate on a brief in any chat. It works on its own branch in its own copy of the repository: the chat's project's, else the chat's own work folder on this computer (made on first use). Nothing to set up first",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -15607,6 +15601,10 @@
             "type": "string"
           },
           "model": {
+            "type": "string"
+          },
+          "name": {
+            "description": "A name for the new teammate; one is chosen when left out",
             "type": "string"
           },
           "projectId": {
@@ -15646,8 +15644,6 @@
         },
         "required": [
           "threadId",
-          "projectId",
-          "teammateId",
           "title",
           "brief",
           "idempotencyKey"
@@ -17117,10 +17113,7 @@
       "inputSchema": {
         "properties": {
           "projectId": {
-            "examples": [
-              "prj_a1b2c3"
-            ],
-            "pattern": "^prj_[a-z0-9]+$",
+            "description": "A project, or a chat (a thread id) that has its own work folder",
             "type": "string"
           }
         },
@@ -18021,6 +18014,10 @@
               "type": "object"
             },
             "type": "array"
+          },
+          "text": {
+            "description": "The draft, so a message that names the lead in words is answered by it",
+            "type": "string"
           },
           "threadId": {
             "examples": [
