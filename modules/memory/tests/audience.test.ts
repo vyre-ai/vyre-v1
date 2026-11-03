@@ -182,3 +182,11 @@ test("memory.quote by ref: a line asked for by its ref is held to the same rule"
   (alone.ctx as MemCtx & { thread?: string }).thread = "thr_dana";
   assert.ok(JSON.stringify(await handlers["memory.quote"](alone.ctx as never, { ref: "thr_dana#1" } as never)).includes(SECRET));
 });
+
+test("a record comment's Ask posts its answer on the record: Dana's own memory stays out of it; her private Ask pane on the same record keeps it", async () => {
+  const w = await danasWorld();
+  const ask = (recordId: boolean) => agentInShared(w.raw, { respond: { "threads.get": () => ({ thread: { kind: "ask", starter: DANA, scopeType: "record", scopeId: "rec_1", ...(recordId ? { recordId: "rec_1" } : {}), members: [person(DANA), { kind: "agent", id: AGENT }] } }) } });
+  const said = async (h: Harness): Promise<string> => JSON.stringify(await pointer(h.ctx, { threadId: "thr_shared", agentId: AGENT, text: `the ${SECRET} plan for the knee` }));
+  assert.ok(!(await said(ask(true))).includes(SECRET), "the comment's Ask is read by the record's readers");
+  assert.ok((await said(ask(false))).includes(SECRET), "the Ask pane Dana opened on the record is hers alone");
+});
