@@ -25,14 +25,20 @@ const caddyFetch: FetchFn = () => Promise.resolve({ ok: true, status: 200, heade
 export const MAC = "tok-olivia-mac";
 export const NOAH = "tok-noah-mac";
 
-export interface SpaceRig { d: Daemon; dir: string; as(token: string | null, cap: string, input: unknown): Promise<{ status: number; data: any } >; stop(): Promise<void> }   // eslint-disable-line @typescript-eslint/no-explicit-any
+export interface SpaceRig { d: Daemon; dir: string; /** the address a computer links to: loopback, or this machine's private address for a LAN Space */ address: string; as(token: string | null, cap: string, input: unknown): Promise<{ status: number; data: any } >; stop(): Promise<void> }   // eslint-disable-line @typescript-eslint/no-explicit-any
 
-/** The Team Space server, with Olivia's Claude account connected. */
-export async function bootSpace(): Promise<SpaceRig> {
+/** An address of this machine on its private network (not loopback): a Space there is reached by an engine only through its wall, the way a LAN Space is. */
+export function lanAddress(): string {
+  for (const list of Object.values(os.networkInterfaces())) for (const a of list ?? []) if (a.family === "IPv4" && !a.internal && /^(10\.|192\.168\.)/.test(a.address)) return a.address;
+  throw new Error("this machine has no private network address for the LAN Space test");
+}
+
+/** The Team Space server, with Olivia's Claude account connected. `lan`: it listens on this machine's private address instead of loopback, so a sandboxed engine reaches it only through its wall. */
+export async function bootSpace(o: { lan?: boolean } = {}): Promise<SpaceRig> {
   const dir = seededDir();
   let admin = "";
   const d = await startDaemon({
-    config: loadConfig(["--data-dir", dir, "--port", "0", "--space-kind", "team"], {}, "1.2.3"),
+    config: loadConfig(["--data-dir", dir, "--port", "0", "--space-kind", "team", ...(o.lan ? ["--host", "0.0.0.0"] : [])], {}, "1.2.3"),
     codeRoot: CODE_ROOT,
     platform: fakePlatform({ os: "linux", hostname: "mla-server", free: 80e9, commands: { [`findmnt -n -o SOURCE --target ${dir}`]: { stdout: "/dev/mapper/vyre\n" }, "lsblk -s -n -o TYPE /dev/mapper/vyre": { stdout: "crypt\ndisk\n" }, "docker info --format {{.ServerVersion}}": { stdout: "27.1.1\n" } } }),
     fetch: caddyFetch,
@@ -49,13 +55,16 @@ export async function bootSpace(): Promise<SpaceRig> {
     },
   });
   admin = d.token;
-  await connect(d);
+  // the test's own calls (and the owner's key, which goes to loopback only) use this machine's loopback; a computer links at the LAN address when `lan`
+  const loop = `http://127.0.0.1:${d.port}`;
+  await connect(Object.assign(Object.create(d) as Daemon, { url: loop }));
+  const address = o.lan ? `http://${lanAddress()}:${d.port}` : d.url;
   const as = async (token: string | null, cap: string, input: unknown) => {
-    const r = await fetch(`${d.url}/v1/${cap.replaceAll(".", "/")}`, { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${token ?? d.token}` }, body: JSON.stringify(input) });
+    const r = await fetch(`${loop}/v1/${cap.replaceAll(".", "/")}`, { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${token ?? d.token}` }, body: JSON.stringify(input) });
     const body = (await r.json()) as { data?: unknown; error?: unknown };
     return { status: r.status, data: (body.data ?? body) as any };   // eslint-disable-line @typescript-eslint/no-explicit-any
   };
-  return { d, dir, as, stop: async () => { await d.stop(); fs.rmSync(dir, { recursive: true, force: true }); } };
+  return { d, dir, address, as, stop: async () => { await d.stop(); fs.rmSync(dir, { recursive: true, force: true }); } };
 }
 
 export interface DeviceRig { d: Daemon; dir: string; spawns: Array<{ argv: readonly string[]; proc: NodeProc }>; link(space: SpaceRig, token?: string): Promise<void>; unlink(): Promise<void>; stop(): Promise<void> }
@@ -86,7 +95,7 @@ export async function bootDevice(o: { slowMs?: number } = {}): Promise<DeviceRig
   return {
     d, dir, spawns,
     async link(space, token = MAC) {
-      const r = await local2("POST", "/local/chrome/spaces", { id: "spc_core", name: "Core", address: space.d.url, token });
+      const r = await local2("POST", "/local/chrome/spaces", { id: "spc_core", name: "Core", address: space.address, token });
       assert.equal(r.status, 204, `link: ${r.status}`);
       linked = { space };
       await waitFor(async () => (space.d.nodeRelay.devices("usr_olivia").some((l) => l.deviceId === "dev_olivia_mac" && l.engines.length > 0) ? true : null), 10_000);
@@ -139,4 +148,31 @@ export async function lines(s: SpaceRig, threadId: string): Promise<Array<{ stat
 export async function hostSpawns(s: SpaceRig): Promise<number> {
   const pool = (await s.as(null, "engine.pool.status", {})).data as { sessions: Array<{ hits: number; misses: number }> };
   return pool.sessions.reduce((n, x) => n + x.misses, 0);
+}
+
+// ---- approvals: a held call by the agent's CLI engine, answered by the person
+
+/** A change the agent asks for over MCP, which Ask first holds at the Gate. */
+export const HELD_TASK = (title: string): string => `tool tasks_create ${JSON.stringify({ title, assigned: { kind: "person", id: "usr_olivia" }, idempotencyKey: `rs-${title.replaceAll(" ", "-")}` })}`;
+
+/** Ask a held change, approve it (or decline it), and return what the agent said after: the run of one approval on wherever the chat runs. */
+export async function heldThenAnswered(s: SpaceRig, threadId: string, agentId: string, title: string, answer: "approve" | "reject"): Promise<{ held: string; after: string; taskId: string }> {
+  const before = await send(s, threadId, agentId, HELD_TASK(title), `rs-held-${title.replaceAll(" ", "-")}`);
+  const hold = await waitFor(async () => {
+    await s.d.hooks?.pump?.();
+    const h = (await s.as(null, "gate.holds.list", { states: ["held"] })).data.holds as Array<{ taskId: string; capName: string }> | undefined;
+    return h?.find((x) => x.capName === "tasks.create") ?? null;
+  }, 20_000, () => hostLog(s.d));
+  const held = await replyAfter(s, threadId, before);
+  // the card is in the chat, pointing at the approval
+  await waitFor(async () => ((await messages(s, threadId)).some((m) => (m.blocks ?? []).some((b) => b.type === "link_card" && (b.data as { target?: { id?: string } } | undefined)?.target?.id === hold.taskId)) ? true : null), 10_000);
+  const mark = (await messages(s, threadId)).length;
+  const r = await s.as(null, "tasks.act", { taskId: hold.taskId, action: answer, ...(answer === "reject" ? { note: "Not this one" } : {}) });
+  assert.equal(r.status, 200, JSON.stringify(r.data));
+  const after = await replyAfter(s, threadId, mark);
+  return { held, after, taskId: hold.taskId };
+}
+
+export async function taskTitles(s: SpaceRig): Promise<string[]> {
+  return (((await s.as(null, "tasks.list", {})).data.tasks as Array<{ title: string }> | undefined) ?? []).map((t) => t.title);
 }

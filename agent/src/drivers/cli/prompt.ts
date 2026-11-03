@@ -38,6 +38,7 @@ export function defaultPrompt(input: TurnInput, fresh: boolean, steered: readonl
     const steps = h.steps.length === 0 ? " You had not used any tool yet." : ` Steps you had already taken, in order: ${h.steps.slice(-40).join(", ")}.`;
     parts.push(`(You started answering the message below on ${h.from}, which went to sleep. You are going on from where you stopped.${said}${steps} Do not repeat a step that is done; continue the answer.)`);
   }
+  if (input.notice) parts.push(`(Vyre: ${input.notice})`);
   for (const m of steered) parts.push(say(m, input.context));
   const recalled = input.recall ? recallText(input.recall) : "";
   if (recalled !== "") parts.push(recalled);

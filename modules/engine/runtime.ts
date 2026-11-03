@@ -13,6 +13,7 @@ import { createEngineApiTools } from "./api-tools.ts";
 import { buildNodeOpener, buildOpener, roleBlocks } from "./session.ts";
 import { remoteLauncher, routed, waitsForComputer } from "./node-turns.ts";
 import { bindRelay } from "./relay.ts";
+import { withHeldNotes } from "./held-notes.ts";
 import { BRIDGE_PREFIX } from "./handlers/bridge.ts";
 import { DEVICE_WAIT_LINE, DEVICE_WAIT_STEP, SLEPT_WAIT_LINE } from "./device-turns.ts";
 import type { NodeRelay } from "./node-turns.ts";
@@ -366,7 +367,7 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
       },
     });
     const engine = createTurnEngine({
-      holder: h.holder, openSession: withChatSettings(withSpaceKeyTurns(withTurnContext(withCompaction(withTranscript(withRecall(bridge ? bridge.tap(openSession) : openSession, h.call), h.call, now), ctx.db), turnContext), { call: h.call, db: ctx.db, now }), h.call), now,
+      holder: h.holder, openSession: withHeldNotes(withChatSettings(withSpaceKeyTurns(withTurnContext(withCompaction(withTranscript(withRecall(bridge ? bridge.tap(openSession) : openSession, h.call), h.call, now), ctx.db), turnContext), { call: h.call, db: ctx.db, now }), h.call)), now,
       queue: sqlQueue(ctx.db), leases: sqlLeases(ctx.db), messages: sqlMessages(ctx.db, now), waits: sqlWaits(ctx.db), newId: (p) => mintEngineId(p, now()),
       admit: (q) => admission(h, q),
       lostTurn: (row) => lostTurnId(ctx.db, row, () => mintEngineId("trn", now())),
