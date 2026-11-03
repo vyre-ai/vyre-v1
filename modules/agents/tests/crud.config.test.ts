@@ -364,3 +364,17 @@ test("an agent's AI account for its own work is a setting: set, kept in agent.to
   assert.equal(cleared.agent.workKey, undefined);
   assert.doesNotMatch(String(hn.rows("SELECT tomlText FROM agents_agent WHERE id = ?", a.agentId)[0]!["tomlText"]), /work_key/);
 });
+
+test("the Chat key is off for a new agent and set only by someone who manages the Space's AI accounts", async () => {
+  const hn = harness();
+  const a = (await h["agents.create"]!(hn.ctx, { name: "Plain", role: "Use me for chats.", idempotencyKey: "ck1" })).agent;
+  assert.deepEqual([a.accountPolicy, a.accountKey], ["asker", undefined], "off by default: the asker's own account answers");
+  assert.equal((await h["agents.get"]!(hn.ctx, { agentId: a.agentId })).agent.accountPolicy, "asker");
+  const on = await h["agents.update"]!(hn.ctx, { agentId: a.agentId, patch: { accountPolicy: "key", accountKey: "#Team_A" } });
+  assert.deepEqual([on.agent.accountPolicy, on.agent.accountKey], ["key", "#Team_A"]);
+  const member = harness({ allow: (act) => act.perm !== "policy.manage" });
+  const b = (await h["agents.create"]!(member.ctx, { name: "Plain2", role: "Use me for chats.", idempotencyKey: "ck2" })).agent;
+  await assert.rejects(() => h["agents.update"]!(member.ctx, { agentId: b.agentId, patch: { accountPolicy: "key", accountKey: "#Team_A" } }), /manage the Space's AI accounts/);
+  const stillOff = await h["agents.update"]!(member.ctx, { agentId: b.agentId, patch: { workKey: "#Team_A" } });
+  assert.equal(stillOff.agent.accountPolicy, "asker", "the AI account for its own work is not the Chat key, and anyone who edits the agent may set it");
+});

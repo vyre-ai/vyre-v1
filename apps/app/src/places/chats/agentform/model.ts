@@ -5,7 +5,7 @@ import type { CapMap } from "../../../../../../generated/types.ts";
 export type VaultItem = CapMap["vault.items.list"]["out"]["items"][number];
 export type ComputerChoice = "none" | "own" | "yours";
 
-export interface AgentDraft { name: string; does: string; face: string; instructions: string; model: string; fallbackModel: string; computer: ComputerChoice; /** The Space AI account for its own work (a Vault handle); empty or absent is Automatic. */ workKey?: string }
+export interface AgentDraft { name: string; does: string; face: string; instructions: string; model: string; fallbackModel: string; computer: ComputerChoice; /** The Space AI account for its own work (a Vault handle); empty or absent is Automatic. */ workKey?: string; /** The Chat key: a Space account that pays for every person's chats with this agent instead of their own. Empty or absent is off. */ chatKey?: string }
 
 export const FACES_OFFERED = 6;
 
@@ -53,4 +53,11 @@ export function workPatch(workKey: string | undefined, saved: string): { workKey
   const now = workKey ?? "";
   if (now === saved) return {};
   return { workKey: now === "" ? null : now };
+}
+
+/** What agents.update gets for the Chat key: nothing when as saved; on is policy "key" with the account, off is the asker's own again. */
+export function chatKeyPatch(chatKey: string | undefined, saved: string): { accountPolicy?: "asker" | "key"; accountKey?: string | null } {
+  const now = chatKey ?? "";
+  if (now === saved) return {};
+  return now === "" ? { accountPolicy: "asker", accountKey: null } : { accountPolicy: "key", accountKey: now };
 }

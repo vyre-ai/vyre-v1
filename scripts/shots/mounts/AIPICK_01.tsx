@@ -34,12 +34,13 @@ export default function Mount(): ReactNode {
   const call = useMemo(() => {
     const base = sample.data.call;
     return async (cap: string, input: unknown): Promise<unknown> => {
-      if (cap === "providers.list") return { providers: ROWS };
+      if (cap === "providers.list") return { providers: part === "agent-none" ? ROWS.filter((r) => r.scope === "mine" || r.id === "prv_o") : ROWS };
+      if (cap === "providers.space_key.get") return { mayManage: part !== "agent-member" };
       if (cap === "vault.items.list") return { items: [] };
       if (cap === "engine.models.list") return { models: [{ model: "claude-opus-5-5", title: "Opus 5.5", allowed: true }, { model: "claude-sonnet-5-5", title: "Sonnet 5.5", allowed: true }] };
       if (cap === "access.shares_of") return { shares: [] };
       if (cap === "files.list") return { files: [], folders: [] };
-      if (cap === "agents.get") return { agent: { agentId: "agt_intake", name: "Intake", role: "Answers new enquiries and books the consult", face: "pick-intake", model: "claude-sonnet-5-5", folderId: "fld_intake", workKey: "#Team_Credits", status: "awake", accountPolicy: "asker", accountFallback: [] } };
+      if (cap === "agents.get") return { agent: { agentId: "agt_intake", name: "Intake", role: "Answers new enquiries and books the consult", face: "pick-intake", model: "claude-sonnet-5-5", folderId: "fld_intake", workKey: "#Team_Credits", status: "awake", accountPolicy: part === "agent-chatkey" ? "key" : "asker", ...(part === "agent-chatkey" ? { accountKey: "#OpenCode_Team" } : {}), accountFallback: [] } };
       if (part?.startsWith("settings")) return base(cap, input);
       return {};
     };
@@ -61,8 +62,8 @@ export default function Mount(): ReactNode {
     return (
       <View style={{ height, backgroundColor: "var(--win)" as string }}>
         <AgentForm
-          agentId={part === "agent-set" ? "agt_intake" : null} call={call} newKey={() => "k"} onDone={() => undefined} onCancel={() => undefined} say={() => undefined}
-          sharing={{ directory: sample.extras.directory, meName: "Irfad Imtiaz", meId: "usr_irfad", nameOf: (id) => sample.data.name(id) }}
+          agentId={part === "agent-set" || part === "agent-chatkey" ? "agt_intake" : null} call={call} newKey={() => "k"} onDone={() => undefined} onCancel={() => undefined} say={() => undefined}
+          openVault={() => undefined} sharing={{ directory: sample.extras.directory, meName: "Irfad Imtiaz", meId: "usr_irfad", nameOf: (id) => sample.data.name(id) }}
         />
       </View>
     );

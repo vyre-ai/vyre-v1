@@ -176,3 +176,13 @@ test("account.resolve: the agent's AI account for its own work pays a routine, w
   const capped = await accountResolve(fake(routes([mine, cheap, { ...work, capped: true }], agent())).ctx, { threadId: "thr_1", agentId: "agt_1", kind: "agent_work" });
   assert.deepEqual([capped.accountRef, capped.pin], ["#Cheap_Work", { ref: "#Work_Credits", used: false, why: "capped" }]);
 });
+
+test("account.resolve: the Chat key is off unless set: the asker's own account answers a chat; with it on, the Space account pays every person's chats and the turn says so", async () => {
+  const mine = prov({ id: "prv_1", handle: "#Dana_Anthropic" });
+  const team = prov({ id: "prv_t", handle: "#Team_Credits", scope: "shared", uses: { teamChats: { who: "everyone" } }, models: ["claude-sonnet-5-5"] });
+  const agent = (o: Record<string, unknown>) => ({ "agents.get": () => ({ agent: { accountPolicy: "asker", ...o } }), "engine.defaults.get": () => ({ fallback: [] }) });
+  const off = await accountResolve(fake(routes([mine, team], agent({}))).ctx, { threadId: "thr_1", agentId: "agt_1" });
+  assert.deepEqual([off.accountRef, off.reason, off.pin], ["#Dana_Anthropic", "starter", undefined]);
+  const on = await accountResolve(fake(routes([mine, team], agent({ accountPolicy: "key", accountKey: "#Team_Credits" }))).ctx, { threadId: "thr_1", agentId: "agt_1" });
+  assert.deepEqual([on.accountRef, on.pin], ["#Team_Credits", { ref: "#Team_Credits", used: true }]);
+});

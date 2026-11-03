@@ -12,6 +12,7 @@ import {
 } from "../projections.ts";
 import type { AgentConfig, AgentKind, AgentRec, AgentRuntime, AgentsCtx, FolderOut, Limits, VersionOut } from "../projections.ts";
 import { isOutside, outsideFace, outsideName } from "./outside.ts";
+import { isAdmin } from "./connections.ts";
 import { readTemplate, templateVersion } from "./routines.ts";
 import { isHostService } from "../../../lib/trust.ts";
 
@@ -228,6 +229,8 @@ export async function update(ctx: AgentsCtx, input: { agentId: string; patch: Re
   const res = applyPatch(doc, a.config, input.patch);
   if (!res.ok) raise(ctx, res.code, res.message);
   if (res.fields.length === 0) return { agent: agentOut(a, ctx.now()) };
+  // The Chat key (owner, 3 Nov): paying for every person's chats with one Space account instead of each person's own is an override that only people who manage the Space's AI accounts set
+  if ((res.fields.includes("accountPolicy") || res.fields.includes("accountKey")) && !isHostService(ctx.principal) && !isAdmin(ctx)) raise(ctx, "permission.no_grant", "Only people who manage the Space's AI accounts can make an agent pay for chats with one account.", { reason: "chat_key_admin" });
   const newName = res.config.name;
   if (nameKey(newName) !== nameKey(a.name) && agentByName(ctx.db, newName)) raise(ctx, "validation.bad_input", "An agent with that name already exists.", { name: newName });
   const text = tomlFor(res.doc);

@@ -3,7 +3,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
 import { AgentForm } from "./AgentForm.tsx";
-import { createInput, draftInstructions, faceChoices, faceSeed, grantsFor, reachOffers, updatePatch, workPatch } from "./model.ts";
+import { createInput, draftInstructions, faceChoices, faceSeed, grantsFor, reachOffers, updatePatch, workPatch, chatKeyPatch } from "./model.ts";
 import type { AgentDraft, VaultItem } from "./model.ts";
 
 const draft: AgentDraft = { name: " Collector ", does: "Chases unpaid invoices", face: "f1", instructions: "", model: "", fallbackModel: "", computer: "own" };
@@ -73,4 +73,20 @@ test("the AI account is sent only when it changed: a pick on a new agent, a pick
   assert.deepEqual(workPatch("#Other", "#Team_Credits"), { workKey: "#Other" });
   assert.deepEqual(workPatch("", "#Team_Credits"), { workKey: null });
   assert.deepEqual(updatePatch({ ...draft, workKey: "#X" }), { name: "Collector", role: "Chases unpaid invoices", face: "f1", model: null, fallbackModel: null }, "the form sends the account through workPatch, not updatePatch");
+});
+
+test("the Chat key sits under AI account as its own choice, off by default, with its own words", () => {
+  const out = page(true).replaceAll("<!-- -->", "");
+  assert.ok(out.indexOf("AI account") < out.indexOf("Chat key") && out.indexOf("Chat key") < out.indexOf("Preferred model"));
+  assert.ok(out.includes("Pay for chats with this account instead of each person&#x27;s own"));
+  assert.match(out, /role="checkbox" aria-checked="false"[^>]*data-testid="agent-chat-key"|aria-checked="false"[^>]*role="checkbox"/);
+  assert.ok(out.includes("Only people who manage the Space&#x27;s AI accounts can turn this on."), "a person who cannot manage the Space's AI accounts sees it off and why");
+});
+
+test("the Chat key is sent only when it changed: on names the account, off hands chats back to each person's own", () => {
+  assert.deepEqual(chatKeyPatch("", ""), {});
+  assert.deepEqual(chatKeyPatch(undefined, ""), {});
+  assert.deepEqual(chatKeyPatch("#Team_Credits", ""), { accountPolicy: "key", accountKey: "#Team_Credits" });
+  assert.deepEqual(chatKeyPatch("#Team_Credits", "#Team_Credits"), {});
+  assert.deepEqual(chatKeyPatch("", "#Team_Credits"), { accountPolicy: "asker", accountKey: null });
 });

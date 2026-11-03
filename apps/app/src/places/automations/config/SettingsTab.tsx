@@ -205,13 +205,13 @@ export function SettingsTab({ automation, openPromote = false, openShare = false
                 >
                   <PickButton
                     label="Main AI account" value={aiName(spaceAi ?? [], a.definition.ai?.keyId)} testID="ai-main"
-                    onPress={(x, y) => show(aiMenu(spaceAi ?? [], "automations", a.definition.ai?.keyId, (h) => setAi("keyId", h, h ? `Runs on ${aiName(spaceAi ?? [], h)}` : "Runs on Automatic"), { skip: a.definition.ai?.backupKeyId ? [a.definition.ai.backupKeyId] : [] }), x, y, "other")}
+                    onPress={(x, y) => show(aiMenu(spaceAi ?? [], "automations", a.definition.ai?.keyId, (h) => setAi("keyId", h, h ? `Runs on ${aiName(spaceAi ?? [], h)}` : "Runs on Automatic"), { ...(data.nav.openKeys ? { openVault: data.nav.openKeys } : {}), skip: a.definition.ai?.backupKeyId ? [a.definition.ai.backupKeyId] : [] }), x, y, "other")}
                   />
                 </SRow>
                 <SRow last minHeight={52} label="Backup" sub="Takes over when the main one is out of credits or not answering">
                   <PickButton
                     label="Backup AI account" value={a.definition.ai?.backupKeyId ? aiName(spaceAi ?? [], a.definition.ai.backupKeyId) : "None"} empty={!a.definition.ai?.backupKeyId} testID="ai-backup"
-                    onPress={(x, y) => show(aiMenu(spaceAi ?? [], "automations", a.definition.ai?.backupKeyId, (h) => setAi("backupKeyId", h, h ? `${aiName(spaceAi ?? [], h)} is the backup` : "No backup"), { none: "None", skip: a.definition.ai?.keyId ? [a.definition.ai.keyId] : [] }), x, y, "other")}
+                    onPress={(x, y) => show(aiMenu(spaceAi ?? [], "automations", a.definition.ai?.backupKeyId, (h) => setAi("backupKeyId", h, h ? `${aiName(spaceAi ?? [], h)} is the backup` : "No backup"), { none: "None", ...(data.nav.openKeys ? { openVault: data.nav.openKeys } : {}), skip: a.definition.ai?.keyId ? [a.definition.ai.keyId] : [] }), x, y, "other")}
                   />
                 </SRow>
               </Group>

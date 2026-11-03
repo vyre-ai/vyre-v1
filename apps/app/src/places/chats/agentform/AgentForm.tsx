@@ -18,7 +18,7 @@ import { useSpaceAi } from "../../vault/providers/useSpaceAi.ts";
 import type { ShareInput, UnshareInput } from "../../../../../../ui/src/ShareSheet/index.tsx";
 import { Glyph as Mark } from "../conversation/parts.tsx";
 import { Glyph } from "../sidebar/parts.tsx";
-import { createInput, draftInstructions, faceChoices, faceSeed, grantsFor, reachOffers, updatePatch, workPatch } from "./model.ts";
+import { createInput, draftInstructions, faceChoices, faceSeed, grantsFor, reachOffers, updatePatch, workPatch, chatKeyPatch } from "./model.ts";
 import type { AgentDraft, ComputerChoice, VaultItem } from "./model.ts";
 
 type Call = (cap: string, input: unknown) => Promise<unknown>;
@@ -33,6 +33,8 @@ export interface AgentFormProps {
   onDone(agentId: string): void;
   onCancel(): void;
   say(text: string): void;
+  /** Opens Vault > AI accounts, where an admin keeps accounts for this work. */
+  openVault?(): void;
   /** Absent in a Personal Space, where nobody else can use it. */
   sharing?: { directory: ConfigDirectory; meName: string; meId: string; nameOf(id: string): string };
 }
@@ -44,7 +46,7 @@ const COMPUTERS: readonly { id: ComputerChoice; title: string; note: string }[] 
   { id: "yours", title: "Yours, when you ask", note: "Uses your computer only in your own chats" },
 ];
 
-export function AgentForm({ agentId, call, newKey, onDone, onCancel, say, sharing }: AgentFormProps): ReactElement {
+export function AgentForm({ agentId, call, newKey, onDone, onCancel, say, sharing, openVault }: AgentFormProps): ReactElement {
   const [d, setD] = useState<AgentDraft>(() => ({ ...EMPTY, face: agentId === null ? faceSeed() : "" }));
   const [shares, setShares] = useState<CapMap["access.shares_of"]["out"] | null>(null);
   const [sharingOpen, setSharingOpen] = useState(false);
@@ -68,6 +70,10 @@ export function AgentForm({ agentId, call, newKey, onDone, onCancel, say, sharin
   const aiPop = useMenu();
   // the account the agent was saved with: only a change is sent
   const [savedWork, setSavedWork] = useState("");
+  const [savedChat, setSavedChat] = useState("");
+  // only people who manage the Space's AI accounts may set the Chat key
+  const [mayManageAi, setMayManageAi] = useState(false);
+  useEffect(() => { void new Promise<unknown>((r) => r(call("providers.space_key.get", {}))).then((k) => setMayManageAi((k as { mayManage?: boolean } | null)?.mayManage === true), () => undefined); }, [call]);
   const set = (p: Partial<AgentDraft>): void => setD((c) => ({ ...c, ...p }));
 
   useEffect(() => {
@@ -78,8 +84,9 @@ export function AgentForm({ agentId, call, newKey, onDone, onCancel, say, sharin
     void Promise.resolve(call("agents.get", { agentId })).then(async (o) => {
       const a = (o as CapMap["agents.get"]["out"]).agent;
       if (!live) return;
-      setD((c) => ({ ...c, name: a.name, does: a.role ?? "", face: a.face.startsWith("pick-") ? a.face : "", model: a.model ?? "", fallbackModel: a.fallbackModel ?? "", workKey: a.workKey ?? "" }));
+      setD((c) => ({ ...c, name: a.name, does: a.role ?? "", face: a.face.startsWith("pick-") ? a.face : "", model: a.model ?? "", fallbackModel: a.fallbackModel ?? "", workKey: a.workKey ?? "", chatKey: a.accountPolicy === "key" ? a.accountKey ?? "" : "" }));
       setSavedWork(a.workKey ?? "");
+      setSavedChat(a.accountPolicy === "key" ? a.accountKey ?? "" : "");
       setFolderId(a.folderId);
       const ls = (await call("files.list", { section: "space", folder: a.folderId, limit: 50 })) as CapMap["files.list"]["out"];
       const md = ls.files.find((f) => f.name === "AGENT.md");
@@ -103,9 +110,9 @@ export function AgentForm({ agentId, call, newKey, onDone, onCancel, say, sharin
         id = made.agent.agentId;
         folder = made.agent.folderId;
         // the AI account is not part of agents.create: set it on the new agent
-        const work = workPatch(d.workKey, "");
+        const work = { ...workPatch(d.workKey, ""), ...(mayManageAi ? chatKeyPatch(d.chatKey, "") : {}) };
         if (Object.keys(work).length > 0) await call("agents.update", { agentId: id, patch: work });
-      } else await call("agents.update", { agentId: id, patch: { ...updatePatch(d), ...workPatch(d.workKey, savedWork) } });
+      } else await call("agents.update", { agentId: id, patch: { ...updatePatch(d), ...workPatch(d.workKey, savedWork), ...(mayManageAi ? chatKeyPatch(d.chatKey, savedChat) : {}) } });
       if (folder) {
         const ls = (await call("files.list", { section: "space", folder, limit: 50 })) as CapMap["files.list"]["out"];
         const md = ls.files.find((f) => f.name === "AGENT.md");
@@ -186,7 +193,7 @@ export function AgentForm({ agentId, call, newKey, onDone, onCancel, say, sharin
               role="button" aria-haspopup="menu" aria-label={`AI account: ${aiName(spaceAi ?? [], d.workKey)}. Change`} testID="agent-ai-account"
               onPress={(e) => {
                 const r = (e as unknown as { currentTarget?: { getBoundingClientRect?: () => { left: number; bottom: number } } }).currentTarget?.getBoundingClientRect?.();
-                aiPop.show(aiMenu(spaceAi ?? [], "agentWork", d.workKey || undefined, (h) => set({ workKey: h ?? "" }), { ...(agentId ? { agentId } : {}) }), r?.left ?? 0, (r?.bottom ?? 0) + 4, "other");
+                aiPop.show(aiMenu(spaceAi ?? [], "agentWork", d.workKey || undefined, (h) => set({ workKey: h ?? "" }), { ...(agentId ? { agentId } : {}), ...(openVault ? { openVault } : {}) }), r?.left ?? 0, (r?.bottom ?? 0) + 4, "other");
               }}
               style={st.kv}
             >
@@ -195,6 +202,23 @@ export function AgentForm({ agentId, call, newKey, onDone, onCancel, say, sharin
             </Pressable>
             <Text testID="agent-ai-note" style={st.hint}>Pays for its own work: routines, watchers and helpers that run with nobody asking. Automatic uses a Space AI account the rules allow for this agent, the cheapest that fits. In a chat, the person's own account comes first.</Text>
             {!d.workKey && spaceAi ? <Text testID="agent-ai-today" style={st.hint}>{automaticLine(spaceAi, "agentWork", agentId ?? undefined)}</Text> : null}
+            <Text accessibilityRole="header" style={[st.secTitle, { marginTop: 18 }]}>Chat key</Text>
+            <Pressable
+              role="checkbox" aria-checked={(d.chatKey ?? "") !== ""} aria-disabled={!mayManageAi} testID="agent-chat-key"
+              onPress={(e) => {
+                if (!mayManageAi) return;
+                if ((d.chatKey ?? "") !== "") { set({ chatKey: "" }); return; }
+                const r = (e as unknown as { currentTarget?: { getBoundingClientRect?: () => { left: number; bottom: number } } }).currentTarget?.getBoundingClientRect?.();
+                aiPop.show(aiMenu(spaceAi ?? [], "chats", undefined, (h) => set({ chatKey: h ?? "" }), { none: "Keep each person's own", ...(openVault ? { openVault } : {}) }), r?.left ?? 0, (r?.bottom ?? 0) + 4, "other");
+              }}
+              style={[st.opt, !mayManageAi && { opacity: 0.6 }]}
+            >
+              <View style={[st.radio, (d.chatKey ?? "") !== "" && st.radioOn]} />
+              <View style={st.optText}>
+                <Text style={st.lineText}>Pay for chats with this account instead of each person's own</Text>
+                <Text style={st.lineNote}>{(d.chatKey ?? "") !== "" ? `On: ${aiName(spaceAi ?? [], d.chatKey)} pays for every chat with this agent.` : mayManageAi ? "Off. In a chat the person's own account comes first." : "Off. Only people who manage the Space's AI accounts can turn this on."}</Text>
+              </View>
+            </Pressable>
           </Section>
         ) : null}
 

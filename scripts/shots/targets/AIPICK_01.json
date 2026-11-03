@@ -46,6 +46,31 @@
       "proto": "automations,{skin}",
       "waitFor": "[data-testid='ai-account']",
       "note": "Main and backup chosen."
+    },
+    {
+      "id": "AIPICK_01-agent-chatkey",
+      "route": "/m/AIPICK_01?part=agent-chatkey",
+      "proto": "chats,{skin}",
+      "protoClick": "[data-a='newagent']",
+      "waitFor": "[data-testid='agent-chat-key']",
+      "note": "A saved agent with the Chat key on: Pay for chats with this account instead of each person's own."
+    },
+    {
+      "id": "AIPICK_01-agent-none",
+      "route": "/m/AIPICK_01?part=agent-none",
+      "proto": "chats,{skin}",
+      "protoClick": "[data-a='newagent']",
+      "waitFor": "[data-testid='agent-ai-account']",
+      "click": "[data-testid='agent-ai-account']",
+      "note": "No Space account is kept for agent work: the one plain line and the link to the Vault."
+    },
+    {
+      "id": "AIPICK_01-agent-member",
+      "route": "/m/AIPICK_01?part=agent-member",
+      "proto": "chats,{skin}",
+      "protoClick": "[data-a='newagent']",
+      "waitFor": "[data-testid='agent-chat-key']",
+      "note": "A person who cannot manage the Space's AI accounts: the Chat key is off and says why."
     }
   ]
 }

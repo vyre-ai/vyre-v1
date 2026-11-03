@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { aiCaption, aiName, aiOptions, automaticLine, keptFor, spaceAccounts } from "./pick.ts";
+import { aiCaption, aiName, aiOptions, automaticLine, keptFor, noAccountLine, spaceAccounts } from "./pick.ts";
 import type { PickRow } from "./pick.ts";
 
 const credits: PickRow = { id: "prv_a", name: "Anthropic API · Team credits", handle: "#Team_Credits", scope: "shared", state: "ok", uses: { automations: true, goals: true, agentWork: { which: ["agt_intake"] } } };
@@ -23,14 +23,14 @@ test("an account is kept for the work its uses say; the old Space AI key is kept
   assert.equal(keptFor({ ...chats, uses: { agentWork: { which: "all" } } }, "agentWork", "agt_any"), true);
 });
 
-test("the options start with Automatic and give the reason an account cannot be picked", () => {
-  const o = aiOptions([credits, chats, { ...legacy, state: "failing" }], "automations");
-  assert.deepEqual(o.map((x) => [x.value, x.label]), [["", "Automatic"], ["#Team_Credits", "Anthropic API · Team credits"], ["#OpenCode", "OpenCode Go · Team key"], ["#Old", "Old Space key"]]);
-  assert.equal(o[1]!.blocked, undefined);
-  assert.match(o[2]!.blocked!, /Not used for automations/);
-  assert.match(o[3]!.blocked!, /Check the key/);
-  assert.match(aiOptions([credits], "agentWork", "agt_other")[1]!.blocked!, /Not used for this agent's own work/);
+test("the options are Automatic and the Space accounts that work and are kept for the work, each with its cap; a pick the resolver would refuse is not offered", () => {
+  const o = aiOptions([{ ...credits, capCents: 50000 }, chats, { ...legacy, state: "failing" }], "automations");
+  assert.deepEqual(o.map((x) => [x.value, x.label]), [["", "Automatic"], ["#Team_Credits", "Anthropic API · Team credits (up to $500 a month)"]]);
+  assert.deepEqual(aiOptions([credits], "agentWork", "agt_other").map((x) => x.value), [""], "kept for another agent");
+  assert.deepEqual(aiOptions([credits], "agentWork", "agt_intake").map((x) => x.value), ["", "#Team_Credits"]);
   assert.equal(aiOptions([{ ...credits, capped: true }], "automations")[1]!.capped, true);
+  assert.deepEqual(aiOptions([chats], "chats").map((x) => x.value), ["", "#OpenCode"], "the Chat key may name any working Space account");
+  assert.match(noAccountLine("automations"), /No Space AI account is kept for automations yet/);
 });
 
 test("names, captions and the Automatic line", () => {
