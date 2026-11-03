@@ -41,3 +41,16 @@ test("an agent is named in words by its whole name, any case", () => {
   assert.equal(namedIn("dex, look", "Dex"), true);
   assert.equal(namedIn("indexes", "Dex"), false);
 });
+
+test("in the engine: the owner's exact message runs the lead, and a person who is in the chat is still not answered for", async () => {
+  const { createTurnEngine, scriptedProvider } = await import("../src/turn-engine/index.ts");
+  const p = scriptedProvider({ script: [{ type: "done" }] });
+  const engine = createTurnEngine({ holder: "host:s", openSession: p.openSession });
+  engine.openThread({ id: "T", kind: "chat", starter: "usr_irfad", agents: [{ id: "agt_dex", name: "Dex", mode: "lead" }], people: ["usr_irfad"] });
+  const got = engine.receive({ threadId: "T", author: me, mentions: [person("usr_aliza"), person("usr_rubab")], body: "Tell @Aliza and @Rubab the plan" });
+  assert.deepEqual([got.responders, got.reason], [["agt_dex"], "lead"]);
+  // the host read the chat again for this message and Aliza is in it now: the message is for her
+  const to = engine.receive({ threadId: "T", author: me, mentions: [person("usr_aliza")], body: "@Aliza look", people: ["usr_irfad", "usr_aliza"] });
+  assert.deepEqual(to.responders, []);
+  await engine.idle("T");
+});
