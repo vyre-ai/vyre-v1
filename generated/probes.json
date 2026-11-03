@@ -276,6 +276,13 @@
     {
       "completeMs": 100,
       "firstPaintMs": 50,
+      "id": "screen.chats.threads",
+      "place": "chats",
+      "screen": "chats.threads"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
       "id": "screen.company.setup",
       "place": "console",
       "screen": "company.setup"

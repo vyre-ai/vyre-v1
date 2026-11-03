@@ -72,7 +72,7 @@ type Out = {
     recordId?: string;
     fileIds: Array<string>;
     source?: {
-      kind: "chat" | "run" | "gate" | "journey" | "meeting" | "manual";
+      kind: "chat" | "run" | "gate" | "journey" | "meeting" | "goal" | "manual";
       id: string;
     };
     parentTaskId?: string;
@@ -85,6 +85,7 @@ type Out = {
     createdBy: string;
     createdAt: number;
     updatedAt: number;
+    yourTurn?: boolean;
     priority?: "urgent" | "high" | "normal" | "low";
     labels?: Array<string>;
     start?: number;
@@ -187,7 +188,8 @@ type Out = {
       "updatedAt": 1760000000000,
       "why": "example",
       "workerThread": "thr_a1b2c3",
-      "workingNotes": {}
+      "workingNotes": {},
+      "yourTurn": true
     }
   }
 }
