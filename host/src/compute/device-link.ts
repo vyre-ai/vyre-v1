@@ -182,10 +182,12 @@ export async function runDeviceLink(d: DeviceLinkDeps): Promise<"stopped"> {
   const engines = cliRelay({ launcher, dataDir: d.dataDir, server, log: d.log, person: () => person });
   const base = d.retryMs ?? 2_000;
   let wait = base;
+  // stopped: every engine this link started has exited and its folder is removed before the link says so (the daemon's stop waits for it)
+  const stopped = async (): Promise<"stopped"> => { await engines.stopAll(); return "stopped"; };
   for (;;) {
-    if (d.signal.aborted) return "stopped";
+    if (d.signal.aborted) return stopped();
     const ended = await once();
-    if (d.signal.aborted) return "stopped";
+    if (d.signal.aborted) return stopped();
     wait = ended === "closed" ? base : Math.min(wait * 2, 60_000);
     await d.sleep(wait, d.signal).catch(() => undefined);
   }

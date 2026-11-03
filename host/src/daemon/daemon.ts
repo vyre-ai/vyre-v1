@@ -562,8 +562,15 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
     start: (l) => {
       if (hasSpace || !cfg.roles.includes("device")) return () => undefined;
       const abort = new AbortController();
-      void linkDevice(l, abort.signal).catch((e: unknown) => sink.log({ space: l.id, level: 40, msg: "team.link_failed", place: "device-link", attrs: { error: e instanceof Error ? e.message : String(e) } }));
-      return () => abort.abort();
+      const running = linkDevice(l, abort.signal).catch((e: unknown) => sink.log({ space: l.id, level: 40, msg: "team.link_failed", place: "device-link", attrs: { error: e instanceof Error ? e.message : String(e) } }));
+      // stopping waits for the link to end and its engines to exit: an engine still running holds its work folder (Windows will not remove a folder a process works in)
+      // bounded, so a socket that never reports its close cannot hold the daemon's stop
+      return () => {
+        abort.abort();
+        let t: ReturnType<typeof setTimeout> | undefined;
+        const late = new Promise<void>((r) => { t = setTimeout(() => { sink.log({ space: l.id, level: 40, msg: "team.link_stop_slow", place: "device-link" }); r(); }, 15_000); });
+        return Promise.race([running, late]).finally(() => clearTimeout(t));
+      };
     },
   });
   closers.push(() => teamLinks.close());
