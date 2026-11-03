@@ -27,6 +27,7 @@ import { Shell } from "../spaces/Shell.tsx";
 import type { PlaceContext } from "../spaces/Shell.tsx";
 import { CapError, createCapCaller } from "./caps.ts";
 import { isLoopbackUrl } from "../../../../../client/src/gateway/local-key.ts";
+import { linkComputer, unlinkComputer } from "./computer-link.ts";
 import { PHONE_BELOW } from "./mobile-map.ts";
 import { openPhone } from "./phone.ts";
 import { readUrlIntoHub } from "./url.ts";
@@ -95,6 +96,8 @@ export function ShellHost({ stored, open, onSignedOut, onHub, hub: given, initia
   const flags = useRef<{ away: boolean; offline: boolean; terminal?: boolean; inbox?: boolean }>({ away: false, offline: false });
 
   useEffect(() => { onHub(hub); return () => onHub(null); }, [hub, onHub]);
+  // this computer runs the person's own chats in each Team Space they are signed in to here (computer-link.ts): at app start and whenever the signed-in Spaces change
+  useEffect(() => { void linkComputer(catalogue); }, [catalogueKey, stored.token]);
   useEffect(() => {
     let off = false;
     let opened: RealSession | null = null;
@@ -231,14 +234,14 @@ export function ShellHost({ stored, open, onSignedOut, onHub, hub: given, initia
     ? <States kind="error" message={`Couldn't reach ${stored.def.name}`} cause={failed} next="Try again" retryable onRetry={() => setAttempt((n) => n + 1)} />
     : <PlaceHost place={ctx.place} runtime={session?.runtime ?? null} hash={ctx.hash} opened={(t) => { const next = formatHash(t); if (next !== ctx.hash) hub.move(ctx.place, next); }} />;
   const signOut = (): void => {
-    forgetKey(); void dropKeyOnOwnNode(stored.baseUrl, stored.token).catch(() => undefined);
+    forgetKey(); void dropKeyOnOwnNode(stored.baseUrl, stored.token).catch(() => undefined); void unlinkComputer(stored);
     void session?.call("identity.sign_out", {}).catch(() => undefined);
     onSignedOut("manual");
   };
   const lock=():void=>{
     const identity=lockedIdentity({...stored,name:session?.me.name??stored.def.name});
     storeLock(identity);clearStored();
-    forgetKey();void dropKeyOnOwnNode(stored.baseUrl,stored.token).catch(()=>undefined);
+    forgetKey();void dropKeyOnOwnNode(stored.baseUrl,stored.token).catch(()=>undefined);void unlinkComputer(stored);
     void session?.call("identity.sign_out",{}).catch(()=>undefined);
     if(onLocked)onLocked(identity);else onSignedOut("manual");
   };

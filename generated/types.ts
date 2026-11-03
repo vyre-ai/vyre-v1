@@ -9905,6 +9905,7 @@ export type EnginePlacementDecideOut = {
   reason: string;
   wakeLine?: string;
   nodeId?: string;
+  deviceId?: string;
 };
 export type EnginePlacementOptionsIn = {
   threadId: string;
@@ -9916,10 +9917,13 @@ export type EnginePlacementOptionsOut = {
   effective: {
     target: "device" | "space" | "server";
     serverId?: string;
+    deviceId?: string;
   };
   options: Array<{
       target: "device" | "space" | "server";
       serverId?: string;
+      deviceId?: string;
+      current?: boolean;
       name: string;
       online: boolean;
       reason?: string;
@@ -9929,10 +9933,13 @@ export type EnginePlacementSetIn = {
   threadId: string;
   target: "auto" | "device" | "space" | "server";
   serverId?: string;
+  deviceId?: string;
+  once?: boolean;
 };
 export type EnginePlacementSetOut = {
   target: "auto" | "device" | "space" | "server";
   serverId?: string;
+  deviceId?: string;
 };
 export type EnginePolicyGetIn = Record<string, unknown>;
 export type EnginePolicyGetOut = {
@@ -10283,6 +10290,10 @@ export type EngineTurnFinishOut = {
       traceId: string;
     };
     nodeId?: string;
+    ranOn?: Array<{
+        kind: "computer" | "server" | "space";
+        name: string;
+      }>;
   };
 };
 export type EngineTurnGetIn = {
@@ -10316,6 +10327,10 @@ export type EngineTurnGetOut = {
         traceId: string;
       };
       nodeId?: string;
+      ranOn?: Array<{
+          kind: "computer" | "server" | "space";
+          name: string;
+        }>;
     };
     machine: "host" | "device";
     keyUsed?: string;
@@ -10335,6 +10350,7 @@ export type EngineTurnGetOut = {
         to: string;
         at: number;
       }>;
+    reached?: Array<string>;
   };
 };
 export type EngineTurnRecordIn = {
@@ -10380,6 +10396,10 @@ export type EngineTurnRecordOut = {
       traceId: string;
     };
     nodeId?: string;
+    ranOn?: Array<{
+        kind: "computer" | "server" | "space";
+        name: string;
+      }>;
   };
 };
 export type EngineTurnRecordUsageIn = {
@@ -10425,6 +10445,10 @@ export type EngineTurnRetryOut = {
       traceId: string;
     };
     nodeId?: string;
+    ranOn?: Array<{
+        kind: "computer" | "server" | "space";
+        name: string;
+      }>;
   };
 };
 export type EngineTurnStartIn = {
@@ -10464,6 +10488,10 @@ export type EngineTurnStartOut = {
       traceId: string;
     };
     nodeId?: string;
+    ranOn?: Array<{
+        kind: "computer" | "server" | "space";
+        name: string;
+      }>;
   };
 };
 export type EngineTurnWaitIn = {
@@ -10509,6 +10537,10 @@ export type EngineTurnsListOut = {
         traceId: string;
       };
       nodeId?: string;
+      ranOn?: Array<{
+          kind: "computer" | "server" | "space";
+          name: string;
+        }>;
     }>;
   next?: string;
   total?: number;
@@ -20110,6 +20142,17 @@ export type MountsEditorsOut = {
       name?: string;
       email?: string;
       at?: number;
+    }>;
+};
+export type MountsEngineFoldersIn = {
+  person: string;
+};
+export type MountsEngineFoldersOut = {
+  folders: Array<{
+      mountId: string;
+      folderId: string;
+      deviceId?: string;
+      path: string;
     }>;
 };
 export type MountsFileLinkIn = {
@@ -35126,6 +35169,7 @@ export interface CapMap {
   "mounts.doc_insert_text": { in: MountsDocInsertTextIn; out: MountsDocInsertTextOut };
   "mounts.doc_replace_text": { in: MountsDocReplaceTextIn; out: MountsDocReplaceTextOut };
   "mounts.editors": { in: MountsEditorsIn; out: MountsEditorsOut };
+  "mounts.engine_folders": { in: MountsEngineFoldersIn; out: MountsEngineFoldersOut };
   "mounts.file_link": { in: MountsFileLinkIn; out: MountsFileLinkOut };
   "mounts.get": { in: MountsGetIn; out: MountsGetOut };
   "mounts.history": { in: MountsHistoryIn; out: MountsHistoryOut };

@@ -77,7 +77,7 @@ test("a turn pinned to an enrolled server runs its engine there; the node id is 
     for (let i = 0; i < 50 && !log.some((l) => /engine prc_[a-f0-9]+ ended: /.test(l)); i++) await new Promise((r) => setTimeout(r, 100));   // the node logs the end a moment after the reply
     assert.ok(log.some((l) => /engine prc_[a-f0-9]+ started: .*/.test(l)) && log.some((l) => /engine prc_[a-f0-9]+ ended: /.test(l)), `the node's log: ${JSON.stringify(log)}`);
     assert.ok(seen.env.some((e) => Object.values(e).includes(SECRET)), "the person's own key was filled into the engine's environment on the server");
-    assert.ok(seen.cwd[0]!.startsWith(path.join(nodeDir, "turns")), "the engine worked in a folder of the server's own");
+    assert.ok(seen.cwd[0]!.startsWith(path.join(nodeDir, "work")), "the engine worked in a folder of the server's own, laid out the way its sandbox requires (work/<person>/<process>)");
     assert.ok(seen.env.every((e) => Object.values(e).every((v) => !/127\.0\.0\.1:41800/.test(v))), "the Space's loopback address never reached the node's engine");
     const kept = JSON.stringify({ events: engine.events(), messages: engine.messages("T1"), log });
     assert.ok(!kept.includes(SECRET), "the key is in no event, message or log line");

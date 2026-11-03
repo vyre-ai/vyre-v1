@@ -13,6 +13,7 @@ import { redact } from "../../../agent/src/transcript/sanitize.ts";
 import { sessionWorkKey, workBlocks } from "../../../agent/src/tools/work-cards.ts";
 import { ALL_AGENTS } from "../../../lib/route.ts";
 import { sqlMessages, withMessageId, mintId } from "../projections.ts";
+import { setUsing } from "../node-turns.ts";
 import type { EngineCtx } from "../projections.ts";
 import type { TurnEngine } from "../../../agent/src/turn-engine/engine.ts";
 import type { DriverEvent, EngineAgent, EngineEvent, EngineSession, OpenSession, ThreadKind, TurnInput } from "../../../agent/src/turn-engine/types.ts";
@@ -66,7 +67,7 @@ export interface BridgeOptions {
 /** Does this agent run outside Vyre? Read as the server: an outside agent is hidden from everyone but its owner, and a teammate's message must not start a turn for it. */
 const runsOutside = (ctx: EngineCtx, agentId: string): Promise<boolean> => ctx.call("agents.get", { agentId }).then((r) => (r as { agent?: { runtime?: string } } | null)?.agent?.runtime === "outside", () => false);
 
-export interface BridgeEvent { name: string; subject?: string; payload: Record<string, unknown> }
+export interface BridgeEvent { name: string; subject?: string; payload: Record<string, unknown>; /** the device the message was sent from */ device?: string }
 
 export interface Bridge {
   /** Connect the engine built after the bridge (the engine needs `tap` for its openSession, the bridge needs the engine). */
@@ -378,11 +379,14 @@ export function createBridge(o: BridgeOptions): Bridge {
     return true;
   }
 
-  async function onReceived(ctx: EngineCtx, p: Record<string, unknown>): Promise<{ skipped?: string; receivedAs?: string[] }> {
+  async function onReceived(ctx: EngineCtx, p: Record<string, unknown>, device?: string): Promise<{ skipped?: string; receivedAs?: string[] }> {
     const messageId = str(p["messageId"]), threadId = str(p["threadId"]);
     if (!engine) return { skipped: "engine_not_running" };
     if (messageId === "" || threadId === "") return { skipped: "no_ids" };
     if (messageId.startsWith(BRIDGE_PREFIX)) return { skipped: "own_post" };
+    // the computer the person is using (step 1 of where a turn runs): the device their message came from
+    const sender = (p["author"] ?? {}) as { kind?: string; id?: string };
+    if (device && sender.kind === "person" && typeof sender.id === "string") { try { setUsing(ctx.db, threadId, sender.id, device, ctx.now()); } catch { /* where it was sent from is a hint, never a reason to drop the message */ } }
     const store = sqlMessages(ctx.db, ctx.now);
     if (store.get(messageId)) return { skipped: "known" };            // the engine stored it: its own reply echoing back, or a replay
     const a = (p["author"] ?? {}) as { kind?: string; id?: string };
@@ -451,7 +455,7 @@ export function createBridge(o: BridgeOptions): Bridge {
       if (spec.account?.shared) onSharedKey.add(key); else onSharedKey.delete(key);
       return wrap(await openSession(spec));
     },
-    onEvent: (ctx, event) => (event.name === "message.edited" ? onEdited(ctx, event.payload) : onReceived(ctx, event.payload)),
+    onEvent: (ctx, event) => (event.name === "message.edited" ? onEdited(ctx, event.payload) : onReceived(ctx, event.payload, event.device)),
     liveTurns(threadId) {
       const out: Array<{ turnId: string; agentId: string; text: string }> = [];
       for (const [turnId, w] of writing) if (w.threadId === threadId) out.push({ turnId, agentId: w.agentId, text: live.get(turnId)?.text ?? "" });
