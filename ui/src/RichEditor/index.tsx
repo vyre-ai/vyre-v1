@@ -28,8 +28,8 @@ export { Awareness, FRAGMENT, Y, blocksToFragment, connectDocs, dropAwareness, e
 export type { CursorUser, RemoteCursor } from "./yjs.ts";
 export { bridgeHtml, connectBridge, decodeBridge, encodeBridge, fromBase64, toBase64 } from "./bridge.ts";
 export type { BridgeEnd, BridgeMessage } from "./bridge.ts";
-export { FORMAT_COMMANDS, FORMAT_ICONS, MarkdownEditor, TEXT_STYLES, ViewSwitch, highlightLine, highlightMarkdown, shortcutText, tooltip } from "./MarkdownEditor.tsx";
-export type { MarkdownEditorProps, MarkdownView, RawSpan } from "./MarkdownEditor.tsx";
+export { FORMAT_COMMANDS, FORMAT_ICONS, MarkdownEditor, TEXT_STYLES, ViewSwitch, findTrigger, highlightLine, highlightMarkdown, shortcutText, tooltip } from "./MarkdownEditor.tsx";
+export type { MarkdownEditorProps, MarkdownView, RawSpan, SuggestItem, SuggestOptions } from "./MarkdownEditor.tsx";
 export { Autosaver } from "./autosave.ts";
 export { useAutosavedText } from "./useAutosavedText.ts";
 export type { AutosavedText } from "./useAutosavedText.ts";

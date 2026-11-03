@@ -14,6 +14,24 @@ import type { PMNode } from "./mdtree.ts";
 
 export type MarkdownView = "styled" | "raw";
 
+/** One row of a suggestion menu. */
+export interface SuggestItem { id: string; label: string; detail?: string }
+
+/**
+ * A menu that opens at the caret when the text before it ends in a trigger: `[[` for a page link, `@` for a person. The editor reports what was typed after the trigger (onQuery, null when the menu closes), the host
+ * answers with the rows to show, and a pick writes `insert(item)` in place of the trigger and the query. Arrows move, Enter or Tab pick, Escape closes, a press picks.
+ */
+export interface SuggestOptions {
+  trigger: "[[" | "@";
+  items: readonly SuggestItem[];
+  onQuery: (query: string | null) => void;
+  /** The text a pick writes. Default: [[Label]] for [[, @Label and a space for @. */
+  insert?: (item: SuggestItem) => string;
+  label: string;
+  menuTestID?: string;
+  itemTestID?: (item: SuggestItem) => string;
+}
+
 export interface MarkdownEditorProps {
   /** The Markdown the editor shows. A value that is not the text the editor last reported replaces what it shows (a restore, an agent's change). */
   value: string;
@@ -46,6 +64,8 @@ export interface MarkdownEditorProps {
   bare?: boolean;
   /** Bumped to put the caret in the editor (a title's Enter, a paste elsewhere). */
   focusKey?: number;
+  /** A menu at the caret for a trigger typed in the styled view. */
+  suggest?: SuggestOptions;
   /** Cmd or Ctrl with Enter (close the note). */
   onModEnter?: () => void;
   testID?: string;
@@ -178,6 +198,14 @@ function RawMarkdown(p: { value: string; onChange: (v: string) => void; editable
   );
 }
 
+/** Where the text before the caret ends in a trigger: the query typed after it and how many characters the trigger and query take. "[[Bro" is `Bro`, 5; "hi @Sa" is `Sa`, 3; text with the trigger closed or far behind is null. */
+export function findTrigger(before: string, trigger: "[[" | "@"): { query: string; length: number } | null {
+  const m = trigger === "[[" ? /\[\[([^\]\n]*)$/.exec(before) : /(?:^|\s)@([\p{L}\p{N}_.-]*)$/u.exec(before);
+  if (!m) return null;
+  const query = m[1] ?? "";
+  return { query, length: trigger.length + query.length };
+}
+
 /* ---------- the bar ---------- */
 
 const T = (inner: string): string => `<svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${inner}</svg>`;
@@ -291,6 +319,9 @@ export function MarkdownEditor(props: MarkdownEditorProps): ReactElement {
   const [note, setNote] = useState<string | null>(null);
   const [linkAt, setLinkAt] = useState<string | null>(null);
   const [barW, setBarW] = useState(0);
+  const [sg, setSg] = useState<{ start: number; query: string; left: number; top: number } | null>(null);
+  const [sgHi, setSgHi] = useState(0);
+  const sgRef = useRef({ open: null as { start: number; query: string } | null, hi: 0, shut: -1 });
   const host = useRef<unknown>(null);
   const wrap = useRef<{ getBoundingClientRect?: () => { left: number; top: number } } | null>(null);
   const last = useRef(props.value);
@@ -305,6 +336,37 @@ export function MarkdownEditor(props: MarkdownEditorProps): ReactElement {
   }, []);
 
   const editorRef = useRef<EditorLike | null>(null);
+  // where the caret is in a trigger: "[[" then letters, or "@" then letters
+  const readTrigger = useCallback((ed: EditorLike): void => {
+    const opt = cb.current.suggest;
+    const set = (v: { start: number; query: string; left: number; top: number } | null): void => {
+      sgRef.current.open = v === null ? null : { start: v.start, query: v.query };
+      setSg((o) => (o === null && v === null ? o : v));
+      if (v === null) { if (opt) opt.onQuery(null); } else if (opt) opt.onQuery(v.query);
+    };
+    if (!opt || !ed.isEditable) { if (sgRef.current.open) set(null); return; }
+    const sel = ed.state.selection as unknown as { from: number; empty: boolean; $from: { parent: { textBetween(a: number, b: number, sep: string, leaf: string): string }; parentOffset: number } };
+    if (!sel.empty) { if (sgRef.current.open) set(null); return; }
+    const before = sel.$from.parent.textBetween(0, sel.$from.parentOffset, "\n", "\ufffc");
+    const m = findTrigger(before, opt.trigger);
+    if (!m) { if (sgRef.current.open) set(null); return; }
+    const start = sel.from - m.length;
+    if (sgRef.current.shut === start) { if (sgRef.current.open) set(null); return; }
+    const box = wrap.current?.getBoundingClientRect?.();
+    const at = ed.view.coordsAtPos(sel.from);
+    const next = { start, query: m.query, left: Math.max(4, at.left - (box?.left ?? 0)), top: at.bottom - (box?.top ?? 0) + 4 };
+    if (sgRef.current.open?.query !== next.query || sgRef.current.open?.start !== next.start) { sgRef.current.hi = 0; setSgHi(0); }
+    set(next);
+  }, []);
+  const pickSuggest = useCallback((item: SuggestItem): void => {
+    const opt = cb.current.suggest;
+    const o = sgRef.current.open;
+    const ed = editorRef.current;
+    if (!opt || !o || !ed) return;
+    const to = ed.state.selection.from;
+    const text = opt.insert ? opt.insert(item) : opt.trigger === "[[" ? `[[${item.label}]]` : `@${item.label} `;
+    (ed.chain().focus() as unknown as { insertContentAt(r: { from: number; to: number }, c: string): { run(): boolean } }).insertContentAt({ from: o.start, to }, text).run();
+  }, []);
   const openLink = useCallback(() => {
     const e = editorRef.current;
     if (!e) return;
@@ -347,6 +409,13 @@ export function MarkdownEditor(props: MarkdownEditorProps): ReactElement {
           },
           handleKeyDown: (_v: unknown, event: unknown) => {
             const k = event as { key: string; metaKey: boolean; ctrlKey: boolean; preventDefault(): void };
+            const open = sgRef.current.open;
+            const rows = cb.current.suggest?.items ?? [];
+            if (open && rows.length > 0) {
+              if (k.key === "ArrowDown" || k.key === "ArrowUp") { k.preventDefault(); const n = rows.length; sgRef.current.hi = (sgRef.current.hi + (k.key === "ArrowDown" ? 1 : n - 1)) % n; setSgHi(sgRef.current.hi); return true; }
+              if (k.key === "Enter" || k.key === "Tab") { k.preventDefault(); pickSuggest(rows[Math.min(sgRef.current.hi, rows.length - 1)] as SuggestItem); return true; }
+              if (k.key === "Escape") { k.preventDefault(); sgRef.current.shut = open.start; readTrigger(editorRef.current as EditorLike); return true; }
+            }
             if ((k.metaKey || k.ctrlKey) && k.key.toLowerCase() === "s") { k.preventDefault(); cb.current.onSave?.(); return true; }
             if ((k.metaKey || k.ctrlKey) && k.key === "Enter" && cb.current.onModEnter) { k.preventDefault(); cb.current.onModEnter(); return true; }
             if (k.key === "Escape") { cb.current.onEscape?.(); return false; }
@@ -360,6 +429,7 @@ export function MarkdownEditor(props: MarkdownEditorProps): ReactElement {
           for (const c of FORMAT_COMMANDS) if (c.active(ed)) on.push(c.id);
           setActive(on);
           setStyle(styleOf(ed));
+          readTrigger(ed);
           ed.view.dom.setAttribute("data-empty", ed.state.doc.content.size <= 2 ? "true" : "false");
           if (!transaction.docChanged) return;
           const md = docToMarkdown(ed.getJSON());
@@ -369,6 +439,7 @@ export function MarkdownEditor(props: MarkdownEditorProps): ReactElement {
         },
         onSelectionUpdate: () => {
           const ed = editorRef.current;
+          if (ed) readTrigger(ed);
           if (!ed || !ed.isEditable) { setBubble(null); return; }
           const { from, to, empty } = ed.state.selection;
           const box = wrap.current?.getBoundingClientRect?.();
@@ -483,6 +554,18 @@ export function MarkdownEditor(props: MarkdownEditorProps): ReactElement {
     </View>
   ) : null;
 
+  const sgItems = sg !== null && props.suggest ? props.suggest.items : [];
+  const suggestNode = sg !== null && props.suggest && sgItems.length > 0 ? (
+    <View style={[st.suggest, { left: sg.left, top: sg.top }]} accessibilityRole="menu" accessibilityLabel={props.suggest.label} testID={props.suggest.menuTestID ?? "md-suggest"} {...webProps({ onMouseDown: (e: { preventDefault(): void }) => e.preventDefault() })}>
+      {sgItems.map((it, i) => (
+        <Pressable key={it.id} accessibilityRole="menuitem" accessibilityLabel={it.label} accessibilityState={{ selected: i === sgHi }} testID={props.suggest?.itemTestID ? props.suggest.itemTestID(it) : `md-suggest-${it.id}`} onPress={() => pickSuggest(it)} style={[st.sgItem, i === sgHi && st.sgOn]}>
+          <Text style={st.sgText}>{it.label}</Text>
+          {it.detail ? <Text style={st.sgDetail}>{it.detail}</Text> : null}
+        </Pressable>
+      ))}
+    </View>
+  ) : null;
+
   const pill = note !== null ? <View style={st.pill} testID="md-note" accessibilityLiveRegion="polite"><View style={st.pillDot} /><Text style={st.pillText}>{note}</Text></View> : null;
 
   let body: ReactElement;
@@ -499,6 +582,7 @@ export function MarkdownEditor(props: MarkdownEditorProps): ReactElement {
       <View style={[st.page, compact && st.pageCompact, props.bare === true && st.pageBare]} ref={wrap as never}>
         {body}
         {bubbleNode}
+        {suggestNode}
       </View>
       {pill}
       {phone ? bar : null}
@@ -550,6 +634,11 @@ const st = StyleSheet.create({
   pageCompact: { paddingVertical: 12, paddingHorizontal: 16 },
   pageBare: { paddingVertical: 0, paddingHorizontal: 0, maxWidth: "100%" as unknown as number, alignSelf: "stretch" },
   bubble: { position: "absolute", zIndex: 20, flexDirection: "row", alignItems: "center", gap: 1, padding: 3, borderRadius: 9, backgroundColor: "var(--raised)" as string, borderWidth: 1, borderColor: "var(--line-2)" as string },
+  suggest: { position: "absolute", zIndex: 30, minWidth: 220, maxWidth: 320, padding: 4, borderRadius: 10, backgroundColor: "var(--raised)" as string, borderWidth: 1, borderColor: "var(--line-2)" as string },
+  sgItem: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 8, height: 30, borderRadius: 6 },
+  sgOn: { backgroundColor: "var(--hover)" as string },
+  sgText: { flex: 1, color: "var(--ink)" as string, fontSize: 13 },
+  sgDetail: { color: "var(--ink-3)" as string, fontSize: 11.5 },
   pill: { position: "absolute", bottom: 14, alignSelf: "center", flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 6, paddingHorizontal: 12, borderRadius: 99, backgroundColor: "var(--raised)" as string, borderWidth: 1, borderColor: "var(--line-2)" as string },
   pillDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: "var(--ok)" as string },
   pillText: { color: "var(--ink-2)" as string, fontSize: 12.5 },

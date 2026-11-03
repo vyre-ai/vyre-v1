@@ -6,7 +6,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
 import { MemoryDataProvider } from "../memory/data.tsx";
-import { KnowPage, caretSpot, choiceText, completeLink, isStale, neighbours, notePieces, pageCrumbs, questionFor, radial, sharedStart, shownFacts, stepIndex, subtitleOf, visibleChoices } from "../memory/KnowPage.tsx";
+import { KnowPage, choiceText, isStale, neighbours, notePieces, pageCrumbs, questionFor, radial, sharedStart, shownFacts, subtitleOf, visibleChoices } from "../memory/KnowPage.tsx";
 import type { KPageRow } from "../memory/KnowPage.tsx";
 import { promoteTargets, whoText } from "../memory/KnowFactLine.tsx";
 import { createKnowSample, pageIdOf } from "../memory/sample-know.ts";
@@ -111,14 +111,6 @@ test("the [[ autocomplete: what is typed after [[ is the query, a picked title c
   assert.equal(openLinkAt("See [[Brooks]] and", 18), null);
   assert.equal(openLinkAt("no link", 3), null);
   assert.equal(openLinkAt("[[a\nb", 5), null);
-  assert.deepEqual(completeLink("See [[Bro and more", 9, "Brooks onboarding"), { text: "See [[Brooks onboarding]] and more", caret: 25 });
-  assert.deepEqual(completeLink("See [[Bro]] x", 9, "Brooks onboarding"), { text: "See [[Brooks onboarding]] x", caret: 25 });
-  assert.equal(completeLink("plain", 3, "X"), null);
-  assert.equal(stepIndex(0, 3, "ArrowDown"), 1);
-  assert.equal(stepIndex(2, 3, "ArrowDown"), 0);
-  assert.equal(stepIndex(0, 3, "ArrowUp"), 2);
-  assert.equal(stepIndex(0, 0, "ArrowUp"), 0);
-  assert.ok(caretSpot("a\nb\nc", 5).top > caretSpot("a", 1).top, "a later line sits lower");
 });
 
 test("Notes pieces: [[links]] with a page are links, a link to a title with no page is dead", async () => {

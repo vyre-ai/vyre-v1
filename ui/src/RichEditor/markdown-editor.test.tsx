@@ -51,3 +51,14 @@ test("the Styled and Markdown switch names both views", () => {
   assert.match(html, /Styled/);
   assert.match(html, /Markdown/);
 });
+
+test("the [[ and @ menus open on the trigger and its query, and close once the text moves on", async () => {
+  const { findTrigger } = await import("./index.tsx");
+  assert.deepEqual(findTrigger("See [[Bro", "[["), { query: "Bro", length: 5 });
+  assert.deepEqual(findTrigger("See [[", "[["), { query: "", length: 2 });
+  assert.equal(findTrigger("See [[Brooks]] and", "[["), null, "a closed link is done");
+  assert.equal(findTrigger("no trigger", "[["), null);
+  assert.deepEqual(findTrigger("hi @Sa", "@"), { query: "Sa", length: 3 });
+  assert.deepEqual(findTrigger("@Aliza", "@"), { query: "Aliza", length: 6 });
+  assert.equal(findTrigger("mail me@example.com", "@"), null, "an @ inside an address is not a mention");
+});
