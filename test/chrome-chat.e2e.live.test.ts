@@ -3,13 +3,13 @@
 // chat (through browser.cards.post, as chat.post with no text and no mention); Send on the card sends once; Don't send is forgotten by the extension and the agent is told in the chat.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { findChromium, launch, site } from "./e2e/rig.ts";
-import { createBridgePort } from "../../../lib/personal-chrome-bridge.ts";
-import { bindPersonalChrome } from "../../../lib/personal-chrome.ts";
-import { harness } from "../../../modules/computers/fixtures/harness.ts";
-import { tool } from "../../../modules/computers/tests/tools.fixture.ts";
-import { handlers as browser } from "../../../modules/browser/impl.ts";
-import { world as browserWorld } from "../../../modules/browser/fixtures/world.ts";
+import { findChromium, launch, site } from "../apps/chrome/tests/e2e/rig.ts";
+import { createBridgePort } from "../lib/personal-chrome-bridge.ts";
+import { bindPersonalChrome } from "../lib/personal-chrome.ts";
+import { harness } from "../modules/computers/fixtures/harness.ts";
+import { tool } from "../modules/computers/tests/tools.fixture.ts";
+import { handlers as browser } from "../modules/browser/impl.ts";
+import { world as browserWorld } from "../modules/browser/fixtures/world.ts";
 
 const found = await findChromium();
 const SPACE = "spc_computerstest";

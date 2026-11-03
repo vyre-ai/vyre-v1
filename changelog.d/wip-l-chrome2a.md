@@ -30,3 +30,4 @@
 - Vyre for Chrome: the Vyre badge now sits in every sign-in field at once (and the card number), the Save card has icons on Mine and Shared and an eye on Peek, and the chat's step card shows the tab's picture at full size.
 - Chrome tests: the two-daemon test now also signs a second real member in on their own computer (real invite and accept, real device link): their turn is refused and the first member's page is not touched.
 - Vyre for Chrome: the Save to Vault card shows the site's own icon beside its name (its initial where Chrome has none).
+- Chrome tests that cross layers (the daemon, the computers module, the browser module and the extension in one test) moved to test/ (chrome-chat.live, chrome-team.live, chrome-chat.e2e.live); the Browser sheet lists its agents as ui/Row rows.

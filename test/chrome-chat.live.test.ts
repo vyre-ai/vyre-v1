@@ -7,18 +7,18 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { bootCore } from "../../fixtures/seed/core/index.ts";
-import { fakePlatform } from "../src/platform/index.ts";
-import type { FetchFn } from "../src/platform/probes.ts";
-import { loadConfig } from "../src/daemon/config.ts";
-import { startDaemon } from "../src/daemon/daemon.ts";
-import { issueSessionToken } from "../src/daemon/session.ts";
+import { bootCore } from "../fixtures/seed/core/index.ts";
+import { fakePlatform } from "../host/src/platform/index.ts";
+import type { FetchFn } from "../host/src/platform/probes.ts";
+import { loadConfig } from "../host/src/daemon/config.ts";
+import { startDaemon } from "../host/src/daemon/daemon.ts";
+import { issueSessionToken } from "../host/src/daemon/session.ts";
 
 const caddyFetch: FetchFn = () => Promise.resolve({ ok: true, status: 200, headers: { get: () => null }, text: () => Promise.resolve('{"apps":{"http":{}}}') });
 
 /** This repo with the devices module live (device sessions are its rows), as revoke.e2e.test.ts builds it. */
 function codeRootWithDevicesLive(): string {
-  const repo = fileURLToPath(new URL("../..", import.meta.url));
+  const repo = fileURLToPath(new URL("..", import.meta.url));
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "vyre-chrome-person-"));
   for (const name of fs.readdirSync(repo)) if (name !== ".git" && name !== "host") fs.symlinkSync(path.join(repo, name), path.join(root, name));
   fs.mkdirSync(path.join(root, "host"));
@@ -40,12 +40,12 @@ function seededDir(): string {
   return dir;
 }
 
-import { findChromium, launch, site } from "../../apps/chrome/tests/e2e/rig.ts";
-import { bindPersonalChrome } from "../../lib/personal-chrome.ts";
-import { harness } from "../../modules/computers/fixtures/harness.ts";
-import { tool } from "../../modules/computers/tests/tools.fixture.ts";
-import { handlers as browser } from "../../modules/browser/impl.ts";
-import { world as browserWorld } from "../../modules/browser/fixtures/world.ts";
+import { findChromium, launch, site } from "../apps/chrome/tests/e2e/rig.ts";
+import { bindPersonalChrome } from "../lib/personal-chrome.ts";
+import { harness } from "../modules/computers/fixtures/harness.ts";
+import { tool } from "../modules/computers/tests/tools.fixture.ts";
+import { handlers as browser } from "../modules/browser/impl.ts";
+import { world as browserWorld } from "../modules/browser/fixtures/world.ts";
 
 const found = await findChromium();
 const MAIL = `<!doctype html><meta charset="utf-8"><title>Mail</title><main><form method="post" action="/send"><label for="to">To</label><input id="to" name="to" value="dana@client.test">
