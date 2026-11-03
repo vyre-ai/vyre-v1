@@ -262,7 +262,8 @@ test("own computer under Seatbelt: brew install and pip install --user work and 
   try {
     const brew = "HOMEBREW_NO_AUTO_UPDATE=1 HOMEBREW_NO_INSTALL_CLEANUP=1 HOMEBREW_NO_ANALYTICS=1 HOMEBREW_NO_ENV_HINTS=1";
     const first = await ownRun(dataDir, [
-      `${brew} /opt/homebrew/bin/brew install --quiet hello >/dev/null 2>&1; echo "brew=$?"`,
+      // what brew said goes into the work folder and is printed when it fails, so a refusal names itself (lane l-runson's diagnosis)
+      `${brew} /opt/homebrew/bin/brew install --quiet hello >brew.log 2>&1; r=$?; echo "brew=$r"; [ "$r" = 0 ] || tail -40 brew.log`,
       "python3 -m pip install --user --quiet --break-system-packages six >/dev/null 2>&1 || python3 -m pip install --user --quiet six >/dev/null 2>&1; echo \"pip=$?\"",
     ].join("\n"), [], "thr_inst1");
     assert.match(first, /brew=0/, first);

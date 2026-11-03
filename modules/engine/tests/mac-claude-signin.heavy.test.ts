@@ -1,6 +1,7 @@
 // @heavy mac
 // Claude Code on a person's own Mac, signed in through the Keychain (lane l-runson; owner decision D2): the device daemon reads the Keychain entry outside the sandbox and hands it to the engine as
-// .credentials.json in a private config folder (host/src/compute/device-link.ts macClaude). Proved here with the real Claude Code under Vyre's exact Seatbelt profile (defaultSandbox + spawnCli and a
+// .credentials.json in a private config folder, and its access token in CLAUDE_CODE_OAUTH_TOKEN (host/src/compute/device-link.ts macClaude; the first run here showed Claude Code on a Mac does not
+// read the file and answers "Not logged in"). Proved here with the real Claude Code under Vyre's exact Seatbelt profile (defaultSandbox + spawnCli and a
 // wall of the process's own, as the engine module starts every CLI): it starts with CLAUDE_CONFIG_DIR and that file, and its model request carries the file's token as the bearer, at a fake
 // endpoint reached only through the egress proxy (the way the D2 cred-check did on box B). A refresh the engine writes into the file goes back to the Keychain (here an in-memory stand-in: a
 // runner's login Keychain is not the person's). Runs in the desktop workflow's sandbox leg (VYRE_HEAVY_MAC=1, VYRE_MAC_CLI_DIR).
@@ -54,7 +55,8 @@ test("the real Claude Code under the Seatbelt profile reads the Keychain sign-in
       return { sandbox: { kind: "seatbelt" as const, proxyPort: l.port, ...(base.sandbox.kind === "seatbelt" && base.sandbox.programRead ? { programRead: base.sandbox.programRead } : {}) }, close: () => px.close() };
     },
   };
-  const cred = (t: string) => JSON.stringify({ claudeAiOauth: { accessToken: t, refreshToken: "sk-ant-ort01-FAKEREFRESH0123456789", expiresAt: Date.now() + 30 * 86400_000, scopes: ["user:inference", "user:profile"], subscriptionType: "max" } });   // secret-scan: fake
+  const expiresAt = Date.now() + 30 * 86400_000;
+  const cred = (t: string) => JSON.stringify({ claudeAiOauth: { accessToken: t, refreshToken: "sk-ant-ort01-FAKEREFRESH0123456789", expiresAt, scopes: ["user:inference", "user:profile"], subscriptionType: "max" } });   // secret-scan: fake
   const kc = new Map<string, string>([[CLAUDE_KEYCHAIN, cred(TOKEN)]]);
   const writes: string[] = [];
   const homes = { home: os.homedir(), env: {}, platform: "darwin" as const, exists: (p: string) => fs.existsSync(p), keychain: { read: (s: string) => kc.get(s) ?? null, write: (s: string, t: string) => { writes.push(t); kc.set(s, t); } } };
