@@ -67,18 +67,22 @@ export async function bootSpace(o: { lan?: boolean } = {}): Promise<SpaceRig> {
   return { d, dir, address, as, stop: async () => { await d.stop(); fs.rmSync(dir, { recursive: true, force: true }); } };
 }
 
-export interface DeviceRig { d: Daemon; dir: string; spawns: Array<{ argv: readonly string[]; proc: NodeProc }>; link(space: SpaceRig, token?: string): Promise<void>; unlink(): Promise<void>; stop(): Promise<void> }
+export interface DeviceRig { d: Daemon; dir: string; home: string; spawns: Array<{ argv: readonly string[]; env: Record<string, string>; proc: NodeProc }>; link(space: SpaceRig, token?: string): Promise<void>; unlink(): Promise<void>; stop(): Promise<void> }
 
 /** Olivia's computer: the Vyre app's device daemon. Its engines are the fake claude, told it runs on the device, started in this computer's own sandbox. */
-export async function bootDevice(o: { slowMs?: number } = {}): Promise<DeviceRig> {
+export async function bootDevice(o: { slowMs?: number; signedIn?: "claude" } = {}): Promise<DeviceRig> {
   const dir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "vyre-runson-mac-")));
+  // her own home on this computer: signed in to Claude Code here when the test says so (a sign-in file in ~/.claude, as on Linux)
+  const home = path.join(dir, "home-olivia");
+  fs.mkdirSync(path.join(home, ".claude"), { recursive: true });
+  if (o.signedIn === "claude") fs.writeFileSync(path.join(home, ".claude", ".credentials.json"), JSON.stringify({ claudeAiOauth: { accessToken: "her-own-mac-sign-in" } }), { mode: 0o600 });
   const spawns: DeviceRig["spawns"] = [];
   // this computer's own sandbox (not the module's shared default, which in this one test process belongs to the server)
   const sandbox = await defaultSandbox({ dataDir: dir, programRead: [path.dirname(FAKE_CLI)] });
   const launcher: NodeLauncher = {
     async spawn(spec) {
       const proc = await spawnCli(sandbox.plan, { argv: spec.argv, env: { ...spec.env, FAKE_WHERE: "device", ...(o.slowMs !== undefined ? { FAKE_SLOW_MS: String(o.slowMs) } : {}) }, ...(spec.cwd !== undefined ? { cwd: spec.cwd } : {}) }, [process.execPath, FAKE_CLI, ...spec.argv]);
-      spawns.push({ argv: spec.argv, proc: proc as unknown as NodeProc });
+      spawns.push({ argv: spec.argv, env: { ...spec.env }, proc: proc as unknown as NodeProc });
       return proc as unknown as NodeProc;
     },
   };
@@ -88,12 +92,12 @@ export async function bootDevice(o: { slowMs?: number } = {}): Promise<DeviceRig
     platform: fakePlatform({ os: "linux", hostname: "olivia-mac", free: 80e9, commands: { [`findmnt -n -o SOURCE --target ${dir}`]: { stdout: "/dev/mapper/vyre\n" }, "lsblk -s -n -o TYPE /dev/mapper/vyre": { stdout: "crypt\ndisk\n" } } }),
     fetch: caddyFetch,
     intervals: { fast: 3_600_000, slow: 3_600_000, encryption: 3_600_000, commands: 3_600_000, hooks: 3_600_000 },
-    deviceLink: { launcher, engines: ["claude_code"], name: "Olivia's Mac", retryMs: 100 },
+    deviceLink: { launcher, engines: ["claude_code"], name: "Olivia's Mac", retryMs: 100, homes: { home, env: {}, platform: "linux", exists: (p) => fs.existsSync(p) } },
   });
   let linked: { space: SpaceRig } | null = null;
   const local2 = (method: string, p: string, body?: unknown) => fetch(`${d.url}${p}`, { method, headers: { authorization: `Bearer ${d.token}`, "content-type": "application/json" }, ...(body !== undefined ? { body: JSON.stringify(body) } : {}) });
   return {
-    d, dir, spawns,
+    d, dir, home, spawns,
     async link(space, token = MAC) {
       const r = await local2("POST", "/local/chrome/spaces", { id: "spc_core", name: "Core", address: space.address, token });
       assert.equal(r.status, 204, `link: ${r.status}`);
