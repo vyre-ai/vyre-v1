@@ -1,5 +1,6 @@
 // @reads /modules/memory/migrations/0001_init.sql
 // @reads /modules/memory/migrations/0003_trail.sql
+// Person-layer text is sealed under the person's own key (personal.ts): sealText and openText below are that file's.
 // Durable rows and shared helpers of the memory module (spec 2.15, 4.15; ARCH 6.10): the context type the handlers use, the schema bootstrap, fact rows and their
 // contract shape, the sealing of person-layer text, layer access, and the local ranking (BM25 over words, trigram similarity, recency) that search and the pointer block share.
 // Every statement names a memory_* table, which is all ctx.db lets a module touch. The migration file is the one source of the schema.
@@ -10,6 +11,8 @@ import { fail } from "../../host/src/routes/errors.ts";
 import { mintUuid } from "../../lib/ids.ts";
 import type { Sealed } from "../../packages/contracts/src/ctx.ts";
 import type { ErrorCode, EventName } from "../../packages/contracts/src/types.ts";
+import { openFactText } from "./personal.ts";
+import type { SealCtx } from "./personal.ts";
 
 /** What the module needs of ctx.db (the host's ScopedDb has this shape). */
 export interface Db {
@@ -112,13 +115,8 @@ export const mintId = (prefix: string, now: number = Date.now()): string => `${p
 
 // ---- sealing of person-layer text (enc = 2)
 
-const enc = new TextEncoder();
-const dec = new TextDecoder();
-
-/** Each person has their own seal scope, so one person's memory never opens under another's key. */
-export const sealScope = (owner: string): string => `mem.${owner}`.toLowerCase().replace(/[^a-z0-9_.:-]/g, "_").slice(0, 64);
-export const sealText = (ctx: Pick<MemCtx, "seal">, owner: string, text: string): string => JSON.stringify(ctx.seal.seal(enc.encode(text), sealScope(owner)));
-export const openText = (ctx: Pick<MemCtx, "seal">, sealed: string): string => dec.decode(ctx.seal.unseal(JSON.parse(sealed) as Sealed));
+// Under the person's own key since 3 Nov 2026; rows from before keep the server seal (scope mem.<owner>) until the background job re-seals them (personal.ts).
+export { sealScope, sealText, openText, personalLocked, LOCKED_LINE } from "./personal.ts";
 
 // ---- facts
 
@@ -158,15 +156,13 @@ export interface Fact {
 }
 
 /** Row to Fact. A person-layer row opens only for its owner; for anyone else its text stays empty and callers drop it before it reaches an answer. */
-export function readFact(ctx: Pick<MemCtx, "seal" | "principal" | "actingFor">, r: Row): Fact {
+export function readFact(ctx: Pick<MemCtx, "seal" | "principal" | "actingFor"> & Partial<Pick<MemCtx, "db" | "space">>, r: Row): Fact {
   const layer = str(r["layer"]) as Layer;
   const owner = str(r["owner_ref"]);
   const sealed = orNull(r["sealed"]);
   let text = str(r["text"]);
   if (num(r["enc"]) === 2 && sealed !== null) {
-    if (owner === actorOf(ctx)) {
-      try { text = openText(ctx, sealed); } catch { text = ""; }
-    } else text = "";
+    text = owner === actorOf(ctx) ? openFactText(ctx as SealCtx, str(r["id"]), owner, sealed) : "";
   }
   return {
     id: str(r["id"]), layer, ownerRef: owner, agentId: orNull(r["agent_id"]), projectId: orNull(r["project_id"]), noteId: orNull(r["note_id"]), kind: orNull(r["kind"]), text,
@@ -177,6 +173,9 @@ export function readFact(ctx: Pick<MemCtx, "seal" | "principal" | "actingFor">, 
     audience: audienceFrom(r["audience"]),
   };
 }
+
+/** The title a fact shows under in search and recall: its kind, or "Fact". */
+export const factTitle = (kind: string | null): string => (kind ? `${kind.slice(0, 1).toUpperCase()}${kind.slice(1)}` : "Fact");
 
 /** The contract's fact row. */
 export function factOut(f: Fact) {
@@ -375,11 +374,20 @@ export interface Ranked {
   mass: number;
 }
 
-interface DocTok { len: number; tf: Map<string, number> }
+export interface DocTok { len: number; tf: Map<string, number> }
 const tokCache = new Map<string, DocTok>();
 const TOK_CACHE_MAX = 50_000;
 
+/** The words of a document, counted (title twice). */
+export function tokOf(title: string, text: string): DocTok {
+  const toks = [...tokens(title), ...tokens(title), ...tokens(text)];
+  const tf = new Map<string, number>();
+  for (const w of toks) tf.set(w, (tf.get(w) ?? 0) + 1);
+  return { len: toks.length, tf };
+}
+
 function docTok(d: RankDoc): DocTok {
+  if (d.tok) return d.tok;
   const key = d.shared ? `${d.title}\u0000${d.text}` : null;
   if (key !== null) {
     const hit = tokCache.get(key);
@@ -397,18 +405,22 @@ function docTok(d: RankDoc): DocTok {
 }
 
 /** A document to rank. `shared` documents (agent, project and Space layers, notes) have their words cached by content; a person's own text is never kept between calls. */
-export interface RankDoc { title: string; text: string; shared?: boolean }
+export interface RankDoc { title: string; text: string; shared?: boolean; /** words counted ahead of time (a person's own facts, from their in-memory index) */ tok?: DocTok }
+
+/** Documents left out of a ranking because they hold none of the query's words: they still count in the corpus (how many, how long), so the scores of the others do not change. */
+export interface Ghost { n: number; len: number }
+const NO_GHOST: Ghost = { n: 0, len: 0 };
 
 /** BM25 of the query over each document (title counts twice), plus a coverage measure that does not depend on how many documents there are. */
-export function bm25(docs: ReadonlyArray<RankDoc>, query: string): Ranked[] {
+export function bm25(docs: ReadonlyArray<RankDoc>, query: string, ghost: Ghost = NO_GHOST): Ranked[] {
   const q = [...new Set(tokens(query))];
   const out: Ranked[] = docs.map(() => ({ score: 0, matched: 0, terms: q.length, coverage: 0, mass: 0 }));
   if (q.length === 0 || docs.length === 0) return out;
   const toks = docs.map(docTok);
-  const avg = toks.reduce((a, t) => a + t.len, 0) / docs.length || 1;
+  const n = docs.length + ghost.n;
+  const avg = (toks.reduce((a, t) => a + t.len, 0) + ghost.len) / n || 1;
   const df = new Map<string, number>();
   for (const t of toks) for (const w of q) if (t.tf.has(w)) df.set(w, (df.get(w) ?? 0) + 1);
-  const n = docs.length;
   const idf = (d: number): number => Math.log(1 + (n - d + 0.5) / (d + 0.5));
   const rarest = idf(1);
   const rel = (w: string): number => {
@@ -440,6 +452,32 @@ function grams(s: string): Map<string, number> {
     m.set(g, (m.get(g) ?? 0) + 1);
   }
   return m;
+}
+
+/** A text's character trigrams as numbers (each gram is three characters of [a-z0-9 ], so three bytes), with their counts and the vector's length. */
+export interface GramVec { keys: Int32Array; counts: Float32Array; norm: number }
+const gramCode = (g: string): number => (g.charCodeAt(0) << 16) | (g.charCodeAt(1) << 8) | g.charCodeAt(2);
+export function gramVec(s: string): GramVec {
+  const m = grams(s);
+  const keys = new Int32Array(m.size);
+  const counts = new Float32Array(m.size);
+  let i = 0;
+  let n = 0;
+  for (const [g, c] of m) { keys[i] = gramCode(g); counts[i] = c; n += c * c; i++; }
+  return { keys, counts, norm: Math.sqrt(n) };
+}
+/** trigramSim against one question, with the question's grams made once: the same number as trigramSim(q, text) for gramVec(text). */
+export function trigramScorer(q: string): (v: GramVec) => number {
+  const qm = new Map<number, number>();
+  let qn = 0;
+  for (const [g, c] of grams(q)) { qm.set(gramCode(g), c); qn += c * c; }
+  const qnorm = Math.sqrt(qn);
+  return (v) => {
+    if (qnorm === 0 || v.norm === 0) return 0;
+    let dot = 0;
+    for (let i = 0; i < v.keys.length; i++) { const o = qm.get(v.keys[i]!); if (o) dot += v.counts[i]! * o; }
+    return dot / (qnorm * v.norm);
+  };
 }
 
 /** Cosine similarity of character trigrams: the local stand-in for vectors, which forgives spelling and word forms. */

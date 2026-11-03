@@ -17,8 +17,9 @@ export async function recallFor(call: Call, input: TurnInput): Promise<RecallLin
   if (input.resumed || !t || t.author.kind !== "person" || !recallable(t.body)) return [];
   const facts = (async (): Promise<RecallLine[]> => {
     try {
-      const out = (await call("memory.pointer", { threadId: input.threadId, agentId: input.agent.id, text: t.body }, input.asker)) as { lines?: RecallLine[] };
-      return out.lines ?? [];
+      const out = (await call("memory.pointer", { threadId: input.threadId, agentId: input.agent.id, text: t.body }, input.asker)) as { lines?: RecallLine[]; locked?: string };
+      // the asker's private memory is under their own key and this server does not hold it now: one plain line says so, so "nothing recalled" is not read as "nothing known"
+      return [...(out.lines ?? []), ...(out.locked ? [{ title: "Private memory locked", fact: out.locked, path: "memory/person" }] : [])];
     } catch { return []; }
   })();
   // exact words of earlier chats come back only when the person asked to find what was said; otherwise every message would be matched against everything ever typed

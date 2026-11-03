@@ -71,6 +71,7 @@ type Out = {
     }>;
   next?: string;
   total?: number;
+  locked?: string;
 };
 ```
 
@@ -130,6 +131,7 @@ type Out = {
         "versions": 1
       }
     ],
+    "locked": "example",
     "next": "example",
     "total": 1
   }
