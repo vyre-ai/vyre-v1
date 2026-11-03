@@ -366,12 +366,19 @@ async function sitesDeploy(ctx: Ctx, input: unknown): Promise<{ deployment: unkn
   const token = source.tokenHandle ? await filled(ctx, source.tokenHandle, `${siteId}:token:${ctx.now()}`) : null;
   if (optBool(ctx, o, "onlyIfChanged") === true && source.repo) {
     const last = one(ctx, "SELECT * FROM sites_deployment WHERE site_id = ? AND env = ? ORDER BY at DESC", siteId, "production");
+    // a push redeploys a site that was deployed; the first deploy is someone's own press
+    if (!last) fail(ctx, "validation.precondition_failed", "It has not been deployed yet.");
     const head = await remoteHead(source.repo, source.branch, token);
     if (last && head && (last.commit_sha === head || (last.state !== "ready" && last.state !== "failed"))) return { deployment: depRow(last, current) };
     if (!head) fail(ctx, "validation.precondition_failed", "The repo could not be read just now.");
   }
   const busy = one(ctx, "SELECT * FROM sites_deployment WHERE site_id = ? AND env = ? AND state IN ('queued', 'building')", siteId, "production");
-  if (busy && done.has(str(busy.id))) return { deployment: depRow(busy, current) };
+  if (busy && done.has(str(busy.id))) {
+    // one deploy at a time per site: a second ask joins the one running, and waits for it when asked to
+    if (optBool(ctx, o, "wait") === true) await Promise.race([done.get(str(busy.id)), new Promise((res) => setTimeout(res, WAIT_MAX_MS).unref?.())]);
+    const now_ = mustSite(ctx, siteId);
+    return { deployment: depRow(one(ctx, "SELECT * FROM sites_deployment WHERE id = ?", busy.id) as Row, isNull(now_.current_deployment) ? null : str(now_.current_deployment)) };
+  }
   const depId = nid(ctx, "dpl");
   const now = ctx.now();
   const by = ctx.actingFor ?? ctx.principal.id;

@@ -74,7 +74,12 @@ function gitWhy(out: string): string {
 async function fromRepo(dir: string, s: SourceSpec, token: string | null): Promise<{ commit?: string; message?: string; branch?: string }> {
   const url = repoUrl(s.repo as string);
   const branch = cleanBranch(s.branch);
-  const r = await git(["clone", "--depth", "1", "--single-branch", ...(branch ? ["--branch", branch] : []), "--", url, "."], dir, token);
+  let r = await git(["clone", "--depth", "1", "--single-branch", ...(branch ? ["--branch", branch] : []), "--", url, "."], dir, token);
+  // a plain web server holding a repo (git's dumb HTTP) cannot do a shallow clone: take the branch whole
+  if (r.code !== 0 && /dumb http transport does not support shallow/i.test(r.out)) {
+    for (const n of fs.readdirSync(dir)) fs.rmSync(path.join(dir, n), { recursive: true, force: true });
+    r = await git(["clone", "--single-branch", ...(branch ? ["--branch", branch] : []), "--", url, "."], dir, token);
+  }
   if (r.code !== 0) throw new SourceError(gitWhy(r.out));
   const head = await git(["log", "-1", "--format=%H%n%s"], dir, null, 10_000);
   const [commit, ...msg] = head.out.trim().split("\n");

@@ -80,9 +80,7 @@ Check the Vyre site with your team for a day, then remove the Railway service an
 
 ## For the person who runs the server
 
-Sites need two things on the Space's server, once:
+Sites need two things on the Space's server:
 
-1. **Docker for sites.** Give Vyre the Docker socket and say so: add to the server's `compose.override.yml`, under `vyred`, `volumes: - /var/run/docker.sock:/var/run/docker.sock`, `group_add: ["<the docker group id>"]`, and `environment: VYRE_SITES_DOCKER: /var/run/docker.sock`. Then restart it: `docker compose up -d` in the server folder (/srv/vyre). Each site runs in its own container with a CPU, memory and process cap, rotated logs and no capabilities, and builds stop when the disk has under 2 GB free.
-2. **An address for sites.** Add one DNS record: `*.mla.vyre.run` as an A record to the server's IP (DNS only, not proxied). Vyre notices it within ten minutes. Or set `VYRE_SITES_DOMAIN` to another wildcard name that points at the server.
-
-`Settings` and `sites.host` say whether both are in place.
+1. **The sites runner.** Vyre Server 1.0.0-rc.17 and later run it beside Vyre: a small service that alone holds the Docker socket and builds and runs only site containers, on the `vyre-sites` network, with every capability dropped and a CPU, memory and process cap. Vyre itself never holds the socket. A new install has it; an existing server gets it with `vyre-server update`. `vyre-server check` lists it.
+2. **An address for sites.** One DNS record: `*.<your Space's domain>` as an A record to the server's IP (DNS only, not proxied). For My Legal Academy that is `*.mla.vyre.run`, already in place, so sites are `<name>.mla.vyre.run`. Vyre notices the record by itself. `VYRE_SITES_DOMAIN` in `vyre.env` names another wildcard domain instead.
