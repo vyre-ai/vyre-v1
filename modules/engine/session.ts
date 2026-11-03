@@ -347,7 +347,7 @@ export function buildNodeOpener(h: OpenerHost, launcher: Launcher): SessionOpene
     },
   } : launcher;
   return createSessionOpener({
-    source: h.session.source, reportMiss: h.session.reportMiss, mcp: h.session.mcp, ...(h.own ? { own: h.own } : {}),
+    source: h.session.source, reportMiss: h.session.reportMiss, mcp: h.session.mcp, ...(h.own ? { own: h.own } : {}), ...(h.apiFetch ? { fetch: h.apiFetch } : {}),
     launcher: ruled, where: "device", placement: "device",
     apiContext: async (spec, input) => {
       if (spec.lean === true) return { system: [{ text: spec.agent.role ?? "", stable: true }], tools: [] };   // a one-shot (memory learning): its own system prompt and nothing else
