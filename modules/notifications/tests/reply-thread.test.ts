@@ -32,7 +32,8 @@ test("three replies in a minute are one row that says 3 new replies, and it inte
   const r = rows(h);
   assert.equal(r.length, 1);
   assert.deepEqual([r[0].count, r[0].title, r[0].body], [3, "3 new replies in #intake", "Maya Chen says hi"], "the newest line under the count");
-  assert.deepEqual(h.events.map((e) => e.payload.collapsed), [false, true, true]);
+  assert.equal(h.events[0]!.payload.collapsed, true, "the third folded into the first row");
+  assert.equal(h.events[0]!.payload.pushed, false, "and did not push again");
   // seen, the next reply is news again
   await h.call("notifications.mark_seen", { notificationIds: [a.notificationId] }, me);
   h.advance(MIN);

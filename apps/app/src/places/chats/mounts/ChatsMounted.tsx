@@ -35,13 +35,14 @@ import type { ConnectProps } from "./ConnectOutsideAgent.tsx";
 import { SearchPage } from "../search/SearchPage.tsx";
 import type { SearchData } from "../search/SearchPage.tsx";
 import { TextButton } from "../conversation/parts.tsx";
-import { channelThread, isChannelId, copy, agentPageData, askWith, chatOpening, chatWith, createCapture, createGo, helperData, needsData, newKey, popupData, terminalData, wireConversation, wirePane, wireSidebar } from "./data.ts";
+import { channelThread, isChannelId, copy, threadDoor, agentPageData, askWith, chatOpening, chatWith, createCapture, createGo, helperData, needsData, newKey, popupData, terminalData, wireConversation, wirePane, wireSidebar } from "./data.ts";
 import type { CaptureCounter, Go, LineAction } from "./data.ts";
 import { useLive } from "./live.ts";
 import { noteThreadKind } from "../../../shell/ask/screen.ts";
 import { START, fromHash, openKeyOf, step, workOf } from "./route.ts";
 import { Landing } from "../landing/Landing.tsx";
 import { ThreadsPage } from "./ThreadsPage.tsx";
+import { ThreadSide } from "./ThreadSide.tsx";
 import { ArtifactsPage } from "./ArtifactsPage.tsx";
 import { AgentForm } from "../agentform/AgentForm.tsx";
 import { setAgentFaces } from "../../../../../../ui/src/Avatar/assistant.ts";
@@ -181,6 +182,8 @@ export function ChatsMounted({ rt, hash = "", initial, window, opened, onSwitch,
     setRightTabs((t) => t.filter((x) => x.key !== key));
   }, [rightTabs]);
   const route = shown.route;
+  const width = useWindowDimensions().width;
+  const narrow = width > 0 && width < WIDE;
   // the sidebar draws the row of what the middle shows, however it was opened (a row, a tab, a link, Cmd-K)
   const openKey = openKeyOf(route);
   // Cmd/Ctrl+Shift+F searches every chat, from anywhere in the place
@@ -192,8 +195,6 @@ export function ChatsMounted({ rt, hash = "", initial, window, opened, onSwitch,
     g.addEventListener?.("keydown", onKey);
     return () => g.removeEventListener?.("keydown", onKey);
   }, [go]);
-  const width = useWindowDimensions().width;
-  const narrow = width > 0 && width < WIDE;
   const directory = useDirectory(rt);
 
   /* ---------- the sidebar: registered in the shell's shared place sidebar slot (collapse, search and the phone list are the slot's) ---------- */
@@ -233,15 +234,30 @@ export function ChatsMounted({ rt, hash = "", initial, window, opened, onSwitch,
   const leadComputer = computerOf(leadId);
   const leadAgent = useMemo(() => ({ agentId: leadId, name: nameOf(leadId), ...(leadComputer ? { computerId: leadComputer } : {}) }), [leadId, nameOf, leadComputer]);
 
+  // A reply thread opened as a chat (a link, a notification, an old tab) opens beside its message instead; a task's thread opens on its task.
+  const door = thread.status === "ready" && threadId !== null && thread.data.thread.threadId === threadId ? threadDoor(thread.data.thread) : null;
+  useEffect(() => {
+    if (door === null || threadId === null) return;
+    if (door.t === "side") act({ t: "chat", threadId: door.parent, focus: door.messageId, side: threadId });
+    else if (door.t === "task") act({ t: "task", taskId: door.taskId });
+  }, [door?.t, threadId]);   // eslint-disable-line react-hooks/exhaustive-deps
   const focus = route.view === "chat" ? route.focus : undefined;
+  const focusN = route.view === "chat" ? route.focusN : undefined;
   const conv = useMemo(
     () => {
       if (threadId === null) return null;
-      const wired = wireConversation(rt, go, { threadId, list, nameOf, leadId, fill, ...(focus ? { focus } : {}) });
+      const wired = wireConversation(rt, go, { threadId, list, nameOf, leadId, fill, ...(focus ? { focus } : {}), ...(focusN ? { focusN } : {}) });
       return { ...wired, nav: { ...wired.nav, openAgent: profile } };
     },
-    [rt, go, threadId, list, nameOf, leadId, fill, focus, profile],
+    [rt, go, threadId, list, nameOf, leadId, fill, focus, focusN, profile],
   );
+  // the thread beside the chat: its parent box goes back to the message in the chat (on a phone the sheet steps aside first)
+  const sideId = route.view === "chat" && threadId !== null ? shown.side ?? null : null;
+  const sideConv = useMemo(() => {
+    if (sideId === null) return null;
+    const wired = wireConversation(rt, go, { threadId: sideId, list, nameOf, leadId: rt.assistant.id, fill });
+    return { ...wired, nav: { ...wired.nav, openAgent: profile, openThread: (id: string, messageId?: string) => { if (messageId) { if (narrow) go.closeSide(); go.message(id, messageId); } else go.thread(id); } } };
+  }, [rt, go, sideId, list, nameOf, fill, profile, narrow]);
   const conversationFor = useCallback((id: string) => wireConversation(rt, go, { threadId: id, list, nameOf, leadId: rt.assistant.id, fill }), [rt, go, list, nameOf, fill]);
   const searchData = useMemo<SearchData>(() => ({
     call: rt.call, me: { id: rt.me.id, name: rt.me.name }, nameOf, kindOf: (id) => (byId.get(id)?.kind === "agent" || id === rt.assistant.id ? "agent" : "person"), clock: rt.clock,
@@ -274,7 +290,7 @@ export function ChatsMounted({ rt, hash = "", initial, window, opened, onSwitch,
   else if (route.view === "helper") main = helperId === "" ? <HelperChatLoading /> : <HelperChat key={helperId} data={helper} />;
   else if (route.view === "agent") main = agentId === "" ? <AgentPageLoading /> : <AgentPage key={agentId} data={agentPage} {...(route.tab ? { initialTab: route.tab } : {})} {...(window ? { window } : {})} />;
   else if (route.view === "agent-form") main = <AgentForm key={route.agentId ?? "new"} agentId={route.agentId} call={rt.call as (cap: string, input: unknown) => Promise<unknown>} newKey={newKey} onDone={(id) => { closeSelf?.(); go.agentChat(id); }} onCancel={() => act({ t: "new" })} say={setLine} {...(rt.space.kind === "personal" ? {} : { sharing: { directory, meName: rt.me.name, meId: rt.me.id, nameOf } })} />;
-  else if (route.view === "threads") main = <ThreadsPage rt={rt} nameOf={nameOf} openChat={go.thread} />;
+  else if (route.view === "threads") main = <ThreadsPage rt={rt} nameOf={nameOf} openChat={go.thread} say={setLine} />;
   else if (route.view === "artifacts") main = <ArtifactsPage rt={rt} />;
   else if (route.view === "new") {
     const agentRows = list.filter((p) => p.kind === "agent").map((p) => ({ id: p.id, name: p.name }));
@@ -301,7 +317,10 @@ export function ChatsMounted({ rt, hash = "", initial, window, opened, onSwitch,
     />
   ) : null;
   let right: ReactElement | null = null;
-  if (shown.terminalId !== null) {
+  const beside = sideId !== null && sideConv !== null ? <ThreadSide key={sideId} rt={rt} threadId={sideId} data={sideConv} narrow={narrow} onClose={go.closeSide} say={setLine} /> : null;
+  if (beside !== null && !narrow) {
+    right = <View testID="chats-thread-side" style={st.pane}>{beside}</View>;
+  } else if (shown.terminalId !== null) {
     right = (
       <View testID="chats-terminal" style={narrow ? st.terminalFull : st.terminal}>
         <SidePane
@@ -334,6 +353,7 @@ export function ChatsMounted({ rt, hash = "", initial, window, opened, onSwitch,
         </View>
       ) : null}
       {right}
+      {narrow ? beside : null}
       <Layer shown={shown} rt={rt} go={go} nameOf={nameOf} list={list} counter={counter} terminal={terminal} window={window} />
       {line ? <View testID="chats-line" accessibilityRole="alert" accessibilityLiveRegion="polite" style={st.toast}><Text style={st.toastText}>{line.text}</Text>{line.action ? <TextButton label={line.action.label} testID="chats-line-action" onPress={() => { const run = line.action?.run; setLineState(null); run?.(); }} /> : null}</View> : null}
     </View>

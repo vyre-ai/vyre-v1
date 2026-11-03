@@ -57,6 +57,8 @@ export interface ConversationData {
   
   /** A message to open on and mark (from a memory quote's link `vyre://thread/<id>?m=<messageId>`, a search result or a fork's link back): the page loads the messages around it. */
   focus?: string;
+  /** Counts each time the same message is asked for again, so it is marked again. */
+  focusN?: number;
   /** The signed-in person: messages from them are the right-hand bubbles. */
   me: { id: string; name: string };
   nameOf(id: string): string;

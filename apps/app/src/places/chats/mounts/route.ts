@@ -12,7 +12,7 @@ type RecentOut = CapMap["chat.recent"]["out"];
 
 export type Route =
   /** `focus`: a message to open on and mark (a link from memory `...&m=<messageId>`, a search result or the link a fork starts with). */
-  | { view: "chat"; threadId: string | null; focus?: string }
+  | { view: "chat"; threadId: string | null; focus?: string; /** counts each time the same message is asked for again, so it is marked again */ focusN?: number }
   /** The first screen: a new chat, with what needs you and what is running under the composer. */
   | { view: "new" }
   /** Tasks and one task's page: the routes the Tasks lane fills. */
@@ -51,13 +51,17 @@ export interface Shown {
   /** The terminal drawn beside the chat, as a side tab. */
   terminalId: string | null;
   layer: Layer | null;
+  /** An inline thread open beside its message (the chat stays put): on a computer in the right column, on a phone as a sheet over the chat. */
+  side?: string | null;
 }
 
 export const START: Shown = { route: { view: "new" }, pane: false, terminalId: null, layer: null };
 
 export type Act =
   /** `pane` opens the agent's pane beside the chat (a click on an agent). */
-  | { t: "chat"; threadId: string; pane?: boolean; focus?: string }
+  | { t: "chat"; threadId: string; pane?: boolean; focus?: string; /** the inline thread to open beside the chat */ side?: string }
+  /** Close the thread beside the chat (Escape, its close button). */
+  | { t: "side-close" }
   | { t: "new" }
   | { t: "tasks" }
   | { t: "task"; taskId: string }
@@ -84,7 +88,19 @@ export type Act =
 
 export function step(s: Shown, a: Act): Shown {
   switch (a.t) {
-    case "chat": return a.threadId.startsWith(LOCAL_PREFIX) ? s : { ...s, route: a.threadId === "" ? { view: "new" } : { view: "chat", threadId: a.threadId, ...(a.focus ? { focus: a.focus } : {}) }, ...(a.pane ? { pane: true, terminalId: null } : {}), layer: null };
+    case "chat": {
+      if (a.threadId.startsWith(LOCAL_PREFIX)) return s;
+      const same = s.route.view === "chat" && s.route.threadId === a.threadId;
+      // the same message asked for again (the box at the top of its thread) is marked again
+      const n = same && s.route.view === "chat" && a.focus !== undefined && s.route.focus === a.focus ? (s.route.focusN ?? 0) + 1 : 0;
+      // a thread beside the chat stays while the chat does, and goes when another one opens
+      const side = a.side ?? (same ? s.side ?? null : null);
+      return {
+        ...s, route: a.threadId === "" ? { view: "new" } : { view: "chat", threadId: a.threadId, ...(a.focus ? { focus: a.focus } : {}), ...(n > 0 ? { focusN: n } : {}) },
+        ...(a.pane ? { pane: true, terminalId: null } : {}), side: a.threadId === "" ? null : side, layer: null,
+      };
+    }
+    case "side-close": return { ...s, side: null };
     case "new": return { ...s, route: { view: "new" }, layer: null };
     case "tasks": return { ...s, route: { view: "tasks" }, layer: null };
     case "task": return { ...s, route: { view: "task", taskId: a.taskId }, layer: null };
@@ -219,4 +235,15 @@ export function anchorOfFocus(fallback: { x: number; y: number } = { x: 8, y: 48
   const box = doc?.activeElement?.getBoundingClientRect?.();
   if (!box || (box.width === 0 && box.height === 0)) return fallback;
   return { x: box.left, y: box.bottom + 4 };
+}
+
+/**
+ * Where a thread opens: a helper as the helper chat; a reply thread beside the message it hangs off (the chat stays put); a task's thread on its task; anything else as a chat.
+ */
+export type ThreadDoor = { t: "helper" | "chat" } | { t: "side"; parent: string; messageId: string } | { t: "task"; taskId: string };
+export function threadDoor(t: { kind: string; parentThreadId?: string | undefined; parentMessageId?: string | undefined; scopeType?: string | undefined; scopeId?: string | undefined }): ThreadDoor {
+  if (t.kind === "helper") return { t: "helper" };
+  if (t.kind === "thread" && t.scopeType === "task" && t.scopeId) return { t: "task", taskId: t.scopeId };
+  if (t.kind === "thread" && t.parentThreadId && t.parentMessageId) return { t: "side", parent: t.parentThreadId, messageId: t.parentMessageId };
+  return { t: "chat" };
 }

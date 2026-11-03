@@ -50,6 +50,9 @@ import type { ConversationData } from "./data.tsx";
 import type { GlyphName } from "./parts.tsx";
 import { reportLabel, bodyBlocks, cardLine, collect, errorRow, isCard, isErrorBlock, isTurnStatus, planSteps, questionOptions, statusView, terminalAskOf, workOf } from "./model.ts";
 import type { CardLine, Item, Message } from "./model.ts";
+import { ReplyLine } from "./ReplyLine.tsx";
+import type { ReplySummary } from "./replies.ts";
+import type { Clock } from "../rightpane/model.ts";
 
 export interface MessageActions {
   copy(text: string): void;
@@ -119,6 +122,8 @@ export interface MessageViewProps {
   openWork?: boolean;
   /** Find in chat: this message matches, or is the match the person is on. */
   mark?: "match" | "active" | undefined;
+  /** The thread under this message, when anyone has replied in it: the line that opens it. */
+  replies?: { s: ReplySummary; clock: Clock } | undefined;
 }
 
 /** Where a forked chat came from: the first line of a fork carries the chat, the message and the chat's title. */
@@ -247,7 +252,13 @@ function ActionSheet({ open, entries, onClose }: { open: boolean; entries: reado
 
 /* ---------- yours ---------- */
 
-function Mine({ item, actions, sending, mark }: MessageViewProps & { item: Extract<Item, { kind: "me" }> }): ReactElement {
+/** The line under a message with a thread; a press opens the thread beside the chat. */
+function Replies({ m, replies, actions, mine }: { m: Message; replies: MessageViewProps["replies"]; actions: MessageActions; mine: boolean }): ReactElement | null {
+  if (!replies) return null;
+  return <ReplyLine s={replies.s} clock={replies.clock} nameOf={actions.nameOf ?? unnamed} mine={mine} testID={`replies-${m.messageId}`} onOpen={() => actions.openThread(m.messageId)} />;
+}
+
+function Mine({ item, actions, sending, mark, replies }: MessageViewProps & { item: Extract<Item, { kind: "me" }> }): ReactElement {
   const m = item.message;
   const [sheet, setSheet] = useState(false);
   const h = useHover(() => setSheet(true));
@@ -296,6 +307,7 @@ function Mine({ item, actions, sending, mark }: MessageViewProps & { item: Extra
         </View>
       ) : null}
       <Reactions m={m} a={actions} mine />
+      <Replies m={m} replies={replies} actions={actions} mine />
       <LearnedLines messageId={m.messageId} />
     </View>
   );
@@ -303,7 +315,7 @@ function Mine({ item, actions, sending, mark }: MessageViewProps & { item: Extra
 
 /* ---------- anyone else's ---------- */
 
-function Theirs({ item, actions, stream, openWork, mark, meId }: MessageViewProps & { item: Extract<Item, { kind: "other" }> }): ReactElement {
+function Theirs({ item, actions, stream, openWork, mark, meId, replies }: MessageViewProps & { item: Extract<Item, { kind: "other" }> }): ReactElement {
   const m = item.message;
   const [sheet, setSheet] = useState(false);
   const h = useHover(() => setSheet(true));
@@ -374,6 +386,7 @@ function Theirs({ item, actions, stream, openWork, mark, meId }: MessageViewProp
       {collect(statuses, (x) => (x.kind === "note" ? <Text key={x.id} testID={`status-${x.id}`} style={st.edited}>{x.text}</Text> : x.kind === "approval" && actions.files ? <ApprovalCard key={x.id} taskId={x.taskId} agent={item.who.name} agentId={item.who.id} data={actions.files} /> : null))}
       {item.who.kind === "agent" && actions.withPeople === true && !stream && m.body.trim() !== "" ? <ReplyActions m={m} actions={actions} /> : null}
       <Reactions m={m} a={actions} mine={false} />
+      <Replies m={m} replies={replies} actions={actions} mine={false} />
       <LearnedLines messageId={m.messageId} />
       {m.pinned ? <Text testID={`pinned-${m.messageId}`} style={st.edited}>pinned</Text> : null}
     </View>
