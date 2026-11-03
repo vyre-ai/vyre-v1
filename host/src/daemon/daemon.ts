@@ -109,7 +109,7 @@ import { INVITE_TRIES, inviteKeyOf, loadRelayKeys, startRelayBox } from "../seam
 import { createPeerService, joinWithCode } from "../peers/service.ts";
 import type { PeerService } from "../peers/service.ts";
 import type { CreateCells, PeerAccessEvent, PeerAccessPort } from "../peers/sync.ts";
-import { PEER_ACCESS } from "../peers/sync.ts";
+import { PEER_ACCESS, accessCheck, sameContent } from "../peers/sync.ts";
 import { applyPeerJoin } from "../peers/join.ts";
 import { createAppFilesRoute, defaultAppDir } from "../routes/app-files.ts";
 import type { RelayBox } from "../seams/relay.ts";
@@ -1139,15 +1139,23 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           }
         },
         async import(events) {
-          let folded = 0;
+          let folded = 0, refused = 0;
           for (const e of events) {
-            if (!PEER_ACCESS.has(e.type) || typeof e.id !== "string") continue;
+            const why = accessCheck(e, spaceId);
+            if (why) { refused++; sink.log({ space: spaceId, level: 40, msg: "peers.access_refused", place: "peers", attrs: { id: String(e.id).slice(0, 80), type: String(e.type), why } }); continue; }
             const r = await spaceLog.appendResult({ id: e.id, type: e.type, sv: e.sv, trace_id: e.trace_id, actor: e.actor, vis: e.vis as "space", ...(e.entity ? { entity: e.entity } : {}), ...(e.entity_id ? { entity_id: e.entity_id } : {}), payload: e.payload });
-            if (!r.ok || r.duplicate) continue;
+            if (!r.ok) { refused++; continue; }
+            if (r.duplicate) {
+              // the same id again: folded once already. The same id with other content is refused, never folded
+              let stored: unknown = null;
+              try { stored = JSON.parse(new TextDecoder().decode(r.event.payload)); } catch { /* unreadable */ }
+              if (r.event.type !== e.type || !sameContent(stored, e.payload)) { refused++; sink.log({ space: spaceId, level: 40, msg: "peers.access_refused", place: "peers", attrs: { id: e.id.slice(0, 80), type: e.type, why: "an id already used for other content" } }); }
+              continue;
+            }
             access.fold(r.event); accessPending.push(toAccessEvent(r.event)); headSeq = Math.max(headSeq, r.event.seq); folded++;
           }
           if (folded) await syncAccess(true);
-          return folded;
+          return { folded, refused };
         },
       };
       matchProven = (key, who, person) => matchProvenAddress((n, i) => hookRunner.call(n, i), key, who, person);

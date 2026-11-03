@@ -31,13 +31,28 @@ export interface CellsLike {
  *  record made on one is a resource on every other one too (without it, the copied row is "not found or not visible" there). */
 export const PEER_ACCESS: ReadonlySet<string> = new Set([
   "role.defined", "principal.created", "principal.role_set", "group.member_added", "group.member_removed", "resource.created", "grant.created", "grant.revoked",
-  "principal.suspended", "principal.reactivated", "member.removed", "space.ownership_transferred",
+  "principal.suspended", "principal.reactivated", "member.removed",
 ]);
 export interface PeerAccessEvent { seq: number; id: string; type: string; sv: number; actor: string; vis: string; trace_id: string; entity?: string; entity_id?: string; payload: unknown }
 export interface PeerAccessPort {
   since(after: number, limit: number): Promise<{ events: PeerAccessEvent[]; next: number; more: boolean }>;
-  /** Append the other computer's events under their own ids (a second copy is a duplicate, never a second fold). Returns how many were new here. */
-  import(events: readonly PeerAccessEvent[]): Promise<number>;
+  /** Append the other computer's events under their own ids. A second copy is a duplicate, never a second fold; an id reused with other content, an event about another Space and anything that
+   *  would make or move the Space itself are refused (accessCheck). Returns how many were new here and how many were refused. */
+  import(events: readonly PeerAccessEvent[]): Promise<{ folded: number; refused: number }>;
+}
+
+/** Why an access event from another computer is refused here, or null when it may be appended: it must be of a kind in PEER_ACCESS, and never name another Space or make a Space. */
+export function accessCheck(e: PeerAccessEvent, space: string): string | null {
+  if (!PEER_ACCESS.has(e.type) || typeof e.id !== "string" || !e.id) return "not an access event";
+  const p = (e.payload && typeof e.payload === "object" ? e.payload : {}) as Record<string, unknown>;
+  for (const k of ["space", "spaceId", "space_id"]) if (k in p && p[k] !== space) return "about another Space";
+  if (e.type === "resource.created" && (p["type"] === "space" || p["id"] === space)) return "makes or moves the Space itself";
+  return null;
+}
+/** The same content, whatever order its keys were written in. */
+export function sameContent(a: unknown, b: unknown): boolean {
+  const canon = (v: unknown): unknown => (Array.isArray(v) ? v.map(canon) : v && typeof v === "object" ? Object.fromEntries(Object.keys(v as object).sort().map((k) => [k, canon((v as Record<string, unknown>)[k])])) : v);
+  return JSON.stringify(canon(a)) === JSON.stringify(canon(b));
 }
 
 export type CreateCells = (db: { all(sql: string, ...a: unknown[]): unknown[]; run(sql: string, ...a: unknown[]): unknown; exec(sql: string): void }, o: { site: string; now(): number; deny?(t: string): boolean; denyColumns?: Record<string, readonly string[]> }) => CellsLike;
@@ -294,7 +309,9 @@ export function createPeerSync(d: PeerSyncDeps): PeerSync {
               const r = await ch.request({ method: "POST", path: "/v1/peers/access", headers: auth, body: JSON.stringify({ since }) });
               if (r.status !== 200) break;
               const page = r.json<{ data: { events: PeerAccessEvent[]; next: number; more: boolean } }>().data;
-              out.applied += await acc.import(page.events);
+              const got = await acc.import(page.events);
+              out.applied += got.folded;
+              if (got.refused) d.log("peers.access_refused", { from: p.id, n: got.refused });
               cells.modules.setCursor(`access:${p.id}`, page.next);
               if (!page.more) break;
             }

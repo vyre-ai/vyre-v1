@@ -103,6 +103,8 @@ export interface PeerService {
   readonly sync: PeerSync;
   /** May this computer run the module job `name` now: the Space's scheduled work only on the lease holder (runner.ts), its own upkeep everywhere. */
   mayRun(name: string): boolean;
+  /** this computer's access events, as other computers read and append them (tests look at it directly) */
+  accessPort(): PeerAccessPort | null;
   stop(): void;
 }
 
@@ -546,5 +548,5 @@ export function createPeerService(d: PeerServiceDeps): PeerService {
     timer = setInterval(() => { void tick().catch(() => {}); }, TICK_MS);
     timer.unref?.();
   }
-  return { onAsk, handle, tick, sync: peerSync, mayRun: (name) => EVERY_COMPUTER.has(name) || peerSync.isRunner(), stop: () => { if (timer) clearInterval(timer); timer = null; peerSync.stop(); void selfRoute; } };
+  return { onAsk, handle, tick, sync: peerSync, mayRun: (name) => EVERY_COMPUTER.has(name) || peerSync.isRunner(), accessPort: () => d.access?.() ?? null, stop: () => { if (timer) clearInterval(timer); timer = null; peerSync.stop(); void selfRoute; } };
 }
