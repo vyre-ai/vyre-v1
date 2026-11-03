@@ -1,1 +1,0 @@
-- An agent's settings no longer slip back for a moment after you change them. A late notice for an older copy of the agent's agent.toml could put the old settings back until the next one arrived, so a Memory key you had just set could pay with the Space key instead.
