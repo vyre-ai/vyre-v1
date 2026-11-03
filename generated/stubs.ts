@@ -345,6 +345,9 @@ export function stubs(ctx: CallCtx) {
       update: call("channels.update"),
     },
     chat: {
+      agent_dm: {
+        mute: call("chat.agent_dm.mute"),
+      },
       answer_block: call("chat.answer_block"),
       approve_plan: call("chat.approve_plan"),
       aside: call("chat.aside"),
@@ -374,11 +377,13 @@ export function stubs(ctx: CallCtx) {
       message: {
         get: call("chat.message.get"),
       },
+      message_person: call("chat.message_person"),
       messages: {
         list: call("chat.messages.list"),
       },
       open_as_chat: call("chat.open_as_chat"),
       open_tab: call("chat.open_tab"),
+      people_status: call("chat.people_status"),
       pin: call("chat.pin"),
       pins: {
         list: call("chat.pins.list"),
@@ -2099,6 +2104,7 @@ export function stubs(ctx: CallCtx) {
       },
       list: call("settings.list"),
       pages: call("settings.pages"),
+      public_of: call("settings.public_of"),
       reset: call("settings.reset"),
       reset_space: call("settings.reset_space"),
       search: call("settings.search"),
@@ -2556,6 +2562,7 @@ export function stubs(ctx: CallCtx) {
         list: call("vault.site_rules.list"),
         set: call("vault.site_rules.set"),
       },
+      text_check: call("vault.text_check"),
       unshare: call("vault.unshare"),
       use: call("vault.use"),
     },

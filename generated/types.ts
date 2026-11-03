@@ -5552,6 +5552,13 @@ export type ChannelsUpdateOut = {
     restricted?: boolean;
   };
 };
+export type ChatAgentDmMuteIn = {
+  personId: string;
+  undo?: boolean;
+};
+export type ChatAgentDmMuteOut = {
+  until: number | null;
+};
 export type ChatAnswerBlockIn = {
   threadId: string;
   blockId: string;
@@ -5989,6 +5996,29 @@ export type ChatMessageGetOut = {
     enc?: number;
   };
 };
+export type ChatMessagePersonIn = {
+  to: string;
+  body: string;
+  timing?: "now" | "online" | "at";
+  at?: number;
+  urgent?: boolean;
+  card?: {
+    kind: "approval" | "review" | "key";
+    title: string;
+    detail?: string;
+    fields?: Array<string>;
+  };
+  idempotencyKey: string;
+};
+export type ChatMessagePersonOut = {
+  state: "sent" | "scheduled";
+  threadId: string;
+  messageId?: string;
+  dueAt?: number;
+  when: string;
+  taskId?: string;
+  requestId?: string;
+};
 export type ChatMessagesListIn = {
   threadId: string;
   before?: number;
@@ -6083,6 +6113,25 @@ export type ChatOpenTabIn = {
 export type ChatOpenTabOut = {
   opened: boolean;
   reason?: "disabled_by_person" | "no_device";
+};
+export type ChatPeopleStatusIn = {
+  personIds?: Array<string>;
+  q?: string;
+};
+export type ChatPeopleStatusOut = {
+  people: Array<{
+      personId: string;
+      name: string;
+      state: "online" | "away" | "offline" | "unknown";
+      lastSeenAt?: number;
+      awayUntil?: number;
+      timezone?: string;
+      localTime?: string;
+      hours?: string;
+      inHours: boolean;
+      mutedUntil?: number;
+      wouldGo: string;
+    }>;
 };
 export type ChatPinIn = {
   messageId: string;
@@ -25891,6 +25940,17 @@ export type SettingsPagesOut = {
       rows: number;
     }>;
 };
+export type SettingsPublicOfIn = {
+  personId: string;
+};
+export type SettingsPublicOfOut = {
+  timezone?: string;
+  hours?: {
+    days: Array<number>;
+    from: string;
+    to: string;
+  };
+};
 export type SettingsResetIn = {
   key: string;
 };
@@ -33563,6 +33623,7 @@ export type VaultRequestIn = {
   forRun?: string;
   folderId?: string;
   handleOnly?: boolean;
+  to?: string;
   idempotencyKey: string;
 };
 export type VaultRequestOut = {
@@ -33717,6 +33778,13 @@ export type VaultSiteRulesSetOut = {
   host: string;
   neverFill: boolean;
   neverSave: boolean;
+};
+export type VaultTextCheckIn = {
+  text: string;
+};
+export type VaultTextCheckOut = {
+  handles: Array<string>;
+  checked: boolean;
 };
 export type VaultUnshareIn = {
   resource: {
@@ -34447,6 +34515,7 @@ export interface CapMap {
   "channels.stream_prefs.set": { in: ChannelsStreamPrefsSetIn; out: ChannelsStreamPrefsSetOut };
   "channels.unarchive": { in: ChannelsUnarchiveIn; out: ChannelsUnarchiveOut };
   "channels.update": { in: ChannelsUpdateIn; out: ChannelsUpdateOut };
+  "chat.agent_dm.mute": { in: ChatAgentDmMuteIn; out: ChatAgentDmMuteOut };
   "chat.answer_block": { in: ChatAnswerBlockIn; out: ChatAnswerBlockOut };
   "chat.approve_plan": { in: ChatApprovePlanIn; out: ChatApprovePlanOut };
   "chat.aside": { in: ChatAsideIn; out: ChatAsideOut };
@@ -34466,9 +34535,11 @@ export interface CapMap {
   "chat.history.search": { in: ChatHistorySearchIn; out: ChatHistorySearchOut };
   "chat.make_task": { in: ChatMakeTaskIn; out: ChatMakeTaskOut };
   "chat.message.get": { in: ChatMessageGetIn; out: ChatMessageGetOut };
+  "chat.message_person": { in: ChatMessagePersonIn; out: ChatMessagePersonOut };
   "chat.messages.list": { in: ChatMessagesListIn; out: ChatMessagesListOut };
   "chat.open_as_chat": { in: ChatOpenAsChatIn; out: ChatOpenAsChatOut };
   "chat.open_tab": { in: ChatOpenTabIn; out: ChatOpenTabOut };
+  "chat.people_status": { in: ChatPeopleStatusIn; out: ChatPeopleStatusOut };
   "chat.pin": { in: ChatPinIn; out: ChatPinOut };
   "chat.pins.list": { in: ChatPinsListIn; out: ChatPinsListOut };
   "chat.plan.propose": { in: ChatPlanProposeIn; out: ChatPlanProposeOut };
@@ -35701,6 +35772,7 @@ export interface CapMap {
   "settings.kit.set_space": { in: SettingsKitSetSpaceIn; out: SettingsKitSetSpaceOut };
   "settings.list": { in: SettingsListIn; out: SettingsListOut };
   "settings.pages": { in: SettingsPagesIn; out: SettingsPagesOut };
+  "settings.public_of": { in: SettingsPublicOfIn; out: SettingsPublicOfOut };
   "settings.reset": { in: SettingsResetIn; out: SettingsResetOut };
   "settings.reset_space": { in: SettingsResetSpaceIn; out: SettingsResetSpaceOut };
   "settings.search": { in: SettingsSearchIn; out: SettingsSearchOut };
@@ -36034,6 +36106,7 @@ export interface CapMap {
   "vault.share": { in: VaultShareIn; out: VaultShareOut };
   "vault.site_rules.list": { in: VaultSiteRulesListIn; out: VaultSiteRulesListOut };
   "vault.site_rules.set": { in: VaultSiteRulesSetIn; out: VaultSiteRulesSetOut };
+  "vault.text_check": { in: VaultTextCheckIn; out: VaultTextCheckOut };
   "vault.unshare": { in: VaultUnshareIn; out: VaultUnshareOut };
   "vault.use": { in: VaultUseIn; out: VaultUseOut };
   "views.delete": { in: ViewsDeleteIn; out: ViewsDeleteOut };

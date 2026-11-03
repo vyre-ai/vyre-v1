@@ -345,6 +345,9 @@ export function createClient(transport: Transport) {
       update: call("channels.update", 1),
     },
     chat: {
+      agent_dm: {
+        mute: call("chat.agent_dm.mute", 1),
+      },
       answer_block: call("chat.answer_block", 1),
       approve_plan: call("chat.approve_plan", 1),
       aside: call("chat.aside", 1),
@@ -374,11 +377,13 @@ export function createClient(transport: Transport) {
       message: {
         get: call("chat.message.get", 1),
       },
+      message_person: call("chat.message_person", 1),
       messages: {
         list: call("chat.messages.list", 1),
       },
       open_as_chat: call("chat.open_as_chat", 1),
       open_tab: call("chat.open_tab", 1),
+      people_status: call("chat.people_status", 1),
       pin: call("chat.pin", 1),
       pins: {
         list: call("chat.pins.list", 1),
@@ -2099,6 +2104,7 @@ export function createClient(transport: Transport) {
       },
       list: call("settings.list", 1),
       pages: call("settings.pages", 1),
+      public_of: call("settings.public_of", 1),
       reset: call("settings.reset", 1),
       reset_space: call("settings.reset_space", 1),
       search: call("settings.search", 1),
@@ -2556,6 +2562,7 @@ export function createClient(transport: Transport) {
         list: call("vault.site_rules.list", 1),
         set: call("vault.site_rules.set", 1),
       },
+      text_check: call("vault.text_check", 1),
       unshare: call("vault.unshare", 1),
       use: call("vault.use", 1),
     },

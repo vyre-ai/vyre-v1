@@ -5227,6 +5227,12 @@
       "toolset": "memory"
     },
     {
+      "deferred": true,
+      "name": "message_person",
+      "summary": "Message a teammate for the person you work for, in their direct chat, signed as them (Agent); the reply comes back to this chat. Can carry an approval, review or key card. Waits for away and after hours unless urgent; 3 an hour",
+      "toolset": "chats"
+    },
+    {
       "deferred": false,
       "name": "mounts_add",
       "summary": "Mount a Google, SharePoint, OneDrive or Dropbox folder, a folder on your computer or a GitHub repository into a folder of the tree; the first sync is a Run",
@@ -5872,6 +5878,12 @@
       "deferred": false,
       "name": "open_tab",
       "summary": "Open a side tab beside the chat for the person (a file, record, diff, terminal); respects the person tab setting and posts a line",
+      "toolset": "chats"
+    },
+    {
+      "deferred": true,
+      "name": "people_status",
+      "summary": "Your teammates as you see them: online, away or offline and when last seen, their local time and working hours, and when a message to them would go. Only people in this Space, never anything private",
       "toolset": "chats"
     },
     {

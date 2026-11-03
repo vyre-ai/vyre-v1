@@ -34965,6 +34965,100 @@
     },
     {
       "blocks": [],
+      "cap": "chat.message_person",
+      "deferred": true,
+      "description": "Message a teammate for the person you work for, in their direct chat, signed as them (Agent); the reply comes back to this chat. Can carry an approval, review or key card. Waits for away and after hours unless urgent; 3 an hour",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "at": {
+            "description": "Milliseconds since the Unix epoch",
+            "examples": [
+              1760000000000
+            ],
+            "minimum": 0,
+            "type": "integer"
+          },
+          "body": {
+            "maxLength": 4000,
+            "type": "string"
+          },
+          "card": {
+            "properties": {
+              "detail": {
+                "maxLength": 2000,
+                "type": "string"
+              },
+              "fields": {
+                "description": "A key card: the field names wanted",
+                "items": {
+                  "pattern": "^[A-Za-z][A-Za-z0-9_]*$",
+                  "type": "string"
+                },
+                "maxItems": 10,
+                "type": "array"
+              },
+              "kind": {
+                "enum": [
+                  "approval",
+                  "review",
+                  "key"
+                ],
+                "type": "string"
+              },
+              "title": {
+                "description": "What to approve or review, or the key's name",
+                "maxLength": 200,
+                "minLength": 1,
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind",
+              "title"
+            ],
+            "type": "object"
+          },
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "timing": {
+            "enum": [
+              "now",
+              "online",
+              "at"
+            ],
+            "type": "string"
+          },
+          "to": {
+            "examples": [
+              "usr_a1b2c3"
+            ],
+            "pattern": "^usr_[a-z0-9]+$",
+            "type": "string"
+          },
+          "urgent": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "to",
+          "body",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "name": "message_person",
+      "planMode": "blocked",
+      "toolset": "chats",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "mounts.add",
       "deferred": false,
       "description": "Mount a Google, SharePoint, OneDrive or Dropbox folder, a folder on your computer or a GitHub repository into a folder of the tree; the first sync is a Run",
@@ -39087,6 +39181,37 @@
       },
       "name": "open_tab",
       "planMode": "blocked",
+      "toolset": "chats",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "chat.people_status",
+      "deferred": true,
+      "description": "Your teammates as you see them: online, away or offline and when last seen, their local time and working hours, and when a message to them would go. Only people in this Space, never anything private",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "personIds": {
+            "items": {
+              "examples": [
+                "usr_a1b2c3"
+              ],
+              "pattern": "^usr_[a-z0-9]+$",
+              "type": "string"
+            },
+            "maxItems": 50,
+            "type": "array"
+          },
+          "q": {
+            "description": "Part of a name; omitted: everyone",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "name": "people_status",
+      "planMode": "allowed",
       "toolset": "chats",
       "v": 1
     },
@@ -59234,6 +59359,13 @@
             "type": "string"
           },
           "reason": {
+            "type": "string"
+          },
+          "to": {
+            "examples": [
+              "usr_a1b2c3"
+            ],
+            "pattern": "^usr_[a-z0-9]+$",
             "type": "string"
           }
         },
