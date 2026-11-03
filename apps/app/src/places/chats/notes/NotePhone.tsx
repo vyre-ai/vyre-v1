@@ -1,6 +1,7 @@
 // Notes on a phone: the note opened as its own page (Back to Notes, pin and share at the top, the text to edit, labels and who sees it, a bar at the foot with colour, labels, image,
 // when it was edited and More), and the action sheet a long press or More opens: Ask about this note, Turn into task, Turn into record, Share, Pin, Make a copy, Delete. The sheet's rows
 // are the note menu's own entries (ui/Menu entries drawn as ui/Row), so the phone and the computer offer the same actions.
+import { MarkdownEditor } from "../../../../../../ui/src/RichEditor/index.tsx";
 import { useState } from "react";
 import type { ReactElement } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
@@ -57,7 +58,6 @@ export interface PhoneNoteActions {
 export function PhoneNote({ n, image, who, edited, from, a }: { n: Note; image: string | null; who: Who; edited: string; from?: ReturnType<typeof fromLine>; a: PhoneNoteActions }): ReactElement {
   const [title, setTitle] = useState(n.title);
   const [body, setBody] = useState(n.body);
-  const [bodyH, setBodyH] = useState(100);
   const words = shareWords(n, who);
   const fill = noteFill(n.color);
   return (
@@ -74,10 +74,7 @@ export function PhoneNote({ n, image, who, edited, from, a }: { n: Note; image: 
       <ScrollView style={{ flex: 1 }} contentContainerStyle={s.body}>
         {n.hasImage ? <View style={s.bleed}><Picture uri={image} alt="Note image" /></View> : null}
         <TextInput value={title} editable={n.canEdit} onChangeText={(v) => { setTitle(v); a.title(v); }} placeholder="Title" placeholderTextColor="var(--ink-3)" accessibilityLabel="Title" style={s.title} testID="note-phone-title" />
-        <TextInput
-          value={body} editable={n.canEdit} multiline onChangeText={(v) => { setBody(v); a.body(v); }} placeholder="Note" placeholderTextColor="var(--ink-3)" accessibilityLabel="Note" testID="note-phone-body"
-          onContentSizeChange={(e) => setBodyH(Math.max(100, Math.ceil(e.nativeEvent.contentSize.height)))} style={[s.text, { height: bodyH }]}
-        />
+        <MarkdownEditor testID="note-phone-body" label="Note" value={body} mode={n.canEdit ? "edit" : "read"} onChange={(v) => { setBody(v); a.body(v); }} placeholder="Note" bare density="compact" minHeight={100} />
         {n.clip?.selection?.trim() ? <Quote text={n.clip.selection.trim()} big /> : null}
         {n.link ? <LinkCard link={n.link} noteId={n.noteId} /> : null}
         {from ? (
