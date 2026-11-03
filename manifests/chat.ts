@@ -377,7 +377,7 @@ export default defineManifest({
       tool: 'chats', mcpName: 'message_person', deferred: true, agent: { planMode: 'blocked' }, errors: ['validation.not_found', 'validation.precondition_failed'],
     }),
     write('chat.agent_dm.mute', 'Mute agent messages from one person for the rest of my day; what their agents send waits until tomorrow and the person is told. undo lifts it', {
-      in: { personId: id.user, undo: t.opt(t.bool()) }, out: { until: t.nullable(t.ts()) }, level: 'view', idem: 'natural', risk: 'low', offline: 'online',
+      in: { personId: id.user, undo: t.opt(t.bool()) }, out: { until: t.nullable(t.ts()) }, level: 'view', idem: 'natural', risk: 'low', offline: 'online', emits: ['message.received'],
     }),
     read('chat.history.search', 'Word-for-word search over the chat messages and transcript rows (turns, tool calls and results) the asker could open themselves; used by memory for exact quotes. Returns the stored words, author, time and a link that opens the chat at that line', {
       in: {
