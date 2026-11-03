@@ -6,7 +6,7 @@ import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { View } from "react-native";
 import { ChatsSidebar } from "../../../apps/app/src/places/chats/sidebar/ChatsSidebar.tsx";
-import { createSampleSidebar, northwind } from "../../../apps/app/src/places/chats/sidebar/sample.ts";
+import { SAMPLE_NOW, createSampleSidebar, northwind } from "../../../apps/app/src/places/chats/sidebar/sample.ts";
 import { RepliesPage, THREADS_SCREEN } from "../../../apps/app/src/places/chats/mounts/RepliesPage.tsx";
 import type { ShellRuntime } from "../../../apps/app/src/shell/providers/runtime.tsx";
 
@@ -18,23 +18,16 @@ const NAMES: Record<string, string> = { usr_leo: "Leo Park", usr_maya: "Maya Che
 
 /** The sample sidebar's own rows, with unread replies on two chats (as chat.recent returns them) and two Ask rows for the Asks filter. */
 function sidebar(): ReturnType<typeof createSampleSidebar>["data"] {
-  const s = createSampleSidebar(northwind).data;
-  const replies = new Map<string, number>();
+  const sb = createSampleSidebar(northwind);
+  const rows = sb.replica.rows("threads") as unknown as { id: string; threadId: string; lastAt: number }[];
+  const today = rows.filter((r) => Math.floor(r.lastAt / 86_400_000) === Math.floor(SAMPLE_NOW / 86_400_000)).slice(0, 2);
+  today.forEach((r, i) => sb.replica.put("threads", [{ ...r, repliesUnread: i === 0 ? 3 : 1 }]));
+  const s = sb.data;
   return {
     ...s,
     call: async (cap: string, input: unknown) => {
-      if (cap === "threads.list") {
-        const k = (input as { kind?: string[] }).kind ?? [];
-        if (k.includes("ask")) return { threads: [{ threadId: "ask_1", title: "Summarise the Rivera intake", agents: ["agt_assistant"] }, { threadId: "ask_2", title: "What changed on the lease?", agents: ["agt_docs"] }], total: 2 };
-      }
-      const out = await s.call(cap, input);
-      if (cap !== "chat.recent") return out;
-      const o = out as Record<string, { threadId: string; repliesUnread?: number }[] | unknown>;
-      for (const key of ["today", "yesterday", "earlier"]) {
-        const rows = o[key] as { threadId: string; repliesUnread?: number }[] | undefined;
-        rows?.forEach((r, i) => { if (key === "today" && i < 2) { const n = i === 0 ? 3 : 1; replies.set(r.threadId, n); r.repliesUnread = n; } });
-      }
-      return o;
+      if (cap === "threads.list" && ((input as { kind?: string[] }).kind ?? []).includes("ask")) return { threads: [{ threadId: "ask_1", title: "Summarise the Rivera intake", agents: ["agt_assistant"] }, { threadId: "ask_2", title: "What changed on the lease?", agents: ["agt_docs"] }], total: 2 };
+      return s.call(cap, input);
     },
   };
 }
@@ -47,12 +40,14 @@ const REPLIES = { threads: [
   row("thr_4", { parentTitle: "Lease documents", preview: "Muted: Docs is still drafting", repliers: [{ kind: "person", id: "usr_leo" }], unread: 0, following: true, muted: true, lastMessageAt: at(9, 40) }),
 ], total: 4 };
 
+const SNAP = { status: "ready", data: REPLIES };
+
 export default function Mount(): ReactNode {
   const [part, setPart] = useState<string | null>(null);
   useEffect(() => setPart(new URLSearchParams((globalThis as { location?: { search?: string } }).location?.search ?? "").get("part") ?? "list"), []);
   const data = useMemo(sidebar, []);
   const rt = useMemo(() => ({
-    screens: { query(screenId: string) { if (screenId !== THREADS_SCREEN) throw new Error(screenId); return { subscribe: () => () => undefined, getSnapshot: () => ({ status: "ready", data: REPLIES }) }; } },
+    screens: { query(screenId: string) { if (screenId !== THREADS_SCREEN) throw new Error(screenId); return { subscribe: () => () => undefined, getSnapshot: () => SNAP }; } },
     clock: () => ({ now: NOW, offsetMin: 0 }),
     call: async () => ({ threads: [], total: 4 }),
   } as unknown as ShellRuntime), []);
