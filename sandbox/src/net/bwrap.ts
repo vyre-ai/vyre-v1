@@ -10,7 +10,8 @@ import { validateSpec } from "../policy.ts";
 import type { PolicyOptions } from "../policy.ts";
 import { SandboxError } from "../types.ts";
 import type { CredentialFile, ExecResult, ExecSpec, Roots, Sandbox, SandboxSpec } from "../types.ts";
-import { GUEST_BRIDGE, GUEST_DIR, GUEST_PORT, GUEST_SOCKET } from "./guest.ts";
+import { toolProxyEnv } from "../egress-policy.ts";
+import { GUEST_BRIDGE, GUEST_CONNECT, GUEST_DIR, GUEST_PORT, GUEST_SOCKET } from "./guest.ts";
 import { startNetWall } from "./host.ts";
 import type { NetWall, NetWallOptions } from "./host.ts";
 
@@ -62,7 +63,9 @@ export function bwrapWallCommand(spec: SandboxSpec, roots: Roots, argv: readonly
   if (checked.scratch !== undefined) a.push("--bind", checked.scratch, checked.scratch);
   a.push("--ro-bind", o.wallDir, GUEST_DIR);
   const env: Record<string, string> = {
-    ...(spec.env ?? {}), HOME, PATH: `${prefix ? `${prefix}/bin:` : ""}/usr/local/bin:/usr/bin:/bin`, LANG: "C.UTF-8", ...proxyEnv(`http://127.0.0.1:${GUEST_PORT}`),
+    ...(spec.env ?? {}), HOME, PATH: `${prefix ? `${prefix}/bin:` : ""}/usr/local/bin:/usr/bin:/bin`, LANG: "C.UTF-8",
+    // the proxy for every tool, and git+ssh through the bridge's CONNECT helper (the wall has no other way out)
+    ...toolProxyEnv(`http://127.0.0.1:${GUEST_PORT}`, { node, helper: GUEST_CONNECT, port: GUEST_PORT, knownHosts: `${HOME}/.vyre-known-hosts` }),
   };
   // bwrap builds the new root as a writable tmpfs; nothing may be written on it. The binds above are their own mounts and stay as asked.
   a.push("--remount-ro", "/");
@@ -89,7 +92,7 @@ export interface WalledBwrapDeps {
 export async function startWalledBwrapSandbox(spec: SandboxSpec, deps: WalledBwrapDeps): Promise<WalledBwrapSandbox> {
   if (spec.kind !== "bwrap") throw new SandboxError("sandbox.policy", "this is the bwrap sandbox");
   validateSpec(spec, deps.roots, deps.policy);
-  const wall: NetWall = await startNetWall({ allow: spec.egressHosts, ...(deps.egress ? { egress: deps.egress } : {}), ...(deps.baseDir ? { baseDir: deps.baseDir } : {}) });
+  const wall: NetWall = await startNetWall({ allow: spec.egressHosts, ...(spec.egressRule ? { rule: spec.egressRule } : {}), ...(deps.egress ? { egress: deps.egress } : {}), ...(deps.baseDir ? { baseDir: deps.baseDir } : {}) });
   const bwrap = deps.bwrap ?? BWRAP;
   const opts: BwrapWallOptions = { wallDir: wall.dir, ...(deps.node ? { node: deps.node } : {}), ...(deps.programRead ? { programRead: deps.programRead } : {}) };
   let stopped = false;

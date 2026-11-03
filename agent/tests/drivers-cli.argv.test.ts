@@ -31,7 +31,7 @@ test("claude: a granted work folder turns the file and shell tools on inside it;
   assert.equal(argv.includes("--tools"), false);
   assert.equal(after(argv, "--add-dir"), "/work/acme");
   const allowed = argv.slice(argv.indexOf("--allowedTools") + 1, argv.indexOf("--add-dir"));
-  assert.deepEqual(allowed, ["mcp__vyre__*", "WebSearch", "Read", "Edit", "Write", "Glob", "Grep", "Bash"]);
+  assert.deepEqual(allowed, ["mcp__vyre__*", "WebSearch", "WebFetch", "Read", "Edit", "Write", "Glob", "Grep", "Bash"]);
   assert.equal(after(argv, "--permission-mode"), "plan");
   assert.equal(after(argv, "--model"), "sonnet");
   assert.equal(after(argv, "--resume"), "sess-9");
@@ -52,6 +52,7 @@ test("codex: exec --json, its own sandbox read-only unless a work folder was gra
   const overrides = argv.filter((_, i) => argv[i - 1] === "-c");
   assert.deepEqual(overrides, [
     'sandbox_mode="read-only"',
+    "sandbox_workspace_write.network_access=true",
     'mcp_servers.vyre.url="http://127.0.0.1:4100/mcp"',
     `mcp_servers.vyre.bearer_token_env_var="${TOKEN_ENV}"`,
   ]);

@@ -1,0 +1,3 @@
+- AI tools can use the internet. Claude Code, Codex and Grok reach any public website or service by default: web pages, git clone over HTTPS and SSH, npm, pip, cargo, go and Homebrew work with no setup. Private, local and metadata addresses, the computer's own network and Vyre's own ports stay blocked.
+- Console, AI, Internet access: owners and admins choose what AI tools can reach on the internet (Anything public, Only the AI providers, or a list). The choice applies from the next engine start on the Space's servers and on members' computers; refusals are in the audit log.
+- A failed turn's Details and Console review sampling show the hosts the engine reached and what was blocked.

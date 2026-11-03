@@ -144,3 +144,62 @@ test("git works under the profile: a crew teammate can init, add and commit in i
   assert.equal(r.code, 0, r.err);
   assert.match(r.out, /first/);
 });
+
+// ---- open web (owner ruling 3 Nov): the same rules as bwrap, under Seatbelt, through spawnCli and a wall of the process's own
+
+test("open web under Seatbelt: a public host through the proxy, inside addresses refused, no way around the proxy, and the providers-only rule blocks the public host again", { skip }, async () => {
+  const { createEgressProxy, RULE_ENV } = await import("../../../sandbox/src/index.ts");
+  const { spawnCli } = await import("../session.ts");
+  const { wallEgress } = await import("../sandbox-default.ts");
+  const http = await import("node:http");
+  const up = http.createServer((_q, r) => { r.writeHead(200); r.end("hello-public\n"); });
+  await new Promise<void>((ok) => up.listen(0, "127.0.0.1", ok));
+  const upPort = (up.address() as net.AddressInfo).port;
+  const base = (await plan()).plan;
+  const proxies: Array<{ close(): Promise<void> }> = [];
+  const p = {
+    ...base,
+    openWall: async (e: { allow: string[]; rule: never }) => {
+      const px = createEgressProxy({ ...e, lookup: async (h: string) => (h === "pkg.example.com" ? ["203.0.113.10"] : h === "api.anthropic.com" ? ["203.0.113.12"] : []), connect: async () => net.connect(upPort, "127.0.0.1") });
+      proxies.push(px);
+      const l = await px.listen();
+      return { sandbox: { kind: "seatbelt" as const, proxyPort: l.port, ...(base.sandbox.kind === "seatbelt" && base.sandbox.programRead ? { programRead: base.sandbox.programRead } : {}) }, close: () => px.close() };
+    },
+  };
+  const go = async (rule: unknown, script: string): Promise<string> => {
+    const cwd = workFolder(data, PERSON, "thr_web");
+    const proc = await spawnCli(p, { argv: ["/bin/sh", "-c", script], cwd, env: { [RULE_ENV]: JSON.stringify(rule) } }, ["/bin/sh", "-c", script]);
+    let out = "";
+    for await (const c of proc.stdout) out += typeof c === "string" ? c : Buffer.from(c).toString("utf8");
+    await proc.exited;
+    return out;
+  };
+  try {
+    const out = await go({ egress: "public" }, [
+      'echo "fetch=$(/usr/bin/curl -s --max-time 10 http://pkg.example.com/hello)"',
+      'echo "tunnel=$(/usr/bin/curl -s -p --max-time 10 http://pkg.example.com:8443/hello)"',
+      "echo \"meta=$(/usr/bin/curl -s -o /dev/null -w '%{http_code}' --noproxy '' -x $HTTP_PROXY --max-time 5 http://169.254.169.254/)\"",
+      "echo \"loop=$(/usr/bin/curl -s -o /dev/null -w '%{http_code}' --noproxy '' -x $HTTP_PROXY --max-time 5 http://127.0.0.1:8420/)\"",
+      "/usr/bin/curl -s --noproxy '*' --max-time 10 http://1.1.1.1/ >/dev/null 2>&1; echo \"direct=$?\"",
+    ].join("\n"));
+    assert.match(out, /fetch=hello-public/);
+    assert.match(out, /tunnel=hello-public/);
+    assert.match(out, /meta=403/);
+    assert.match(out, /loop=403/);
+    assert.doesNotMatch(out, /direct=0/, "Seatbelt lets the process reach only its proxy");
+    const tight = await go(wallEgress({ mode: "providers", hosts: [] }).rule, "echo \"fetch=$(/usr/bin/curl -s -o /dev/null -w '%{http_code}' --max-time 5 http://pkg.example.com/hello)\"");
+    assert.match(tight, /fetch=403/);
+  } finally { for (const px of proxies) await px.close().catch(() => undefined); await new Promise((ok) => up.close(ok)); }
+});
+
+test("open web under Seatbelt, live: curl and git clone over HTTPS reach github.com through the default plan", { skip: ON && process.env["VYRE_LIVE_NET"] !== "0" ? false : "needs a Mac and VYRE_HEAVY_MAC=1" }, async () => {
+  const { spawnCli } = await import("../session.ts");
+  const cwd = workFolder(data, PERSON, "thr_live");
+  const script = "echo \"code=$(/usr/bin/curl -s -o /dev/null -w '%{http_code}' --max-time 20 https://github.com/)\"; git clone -q --depth 1 https://github.com/octocat/Hello-World.git hw 2>&1; echo \"clone=$?\"";
+  const proc = await spawnCli((await plan()).plan, { argv: ["/bin/sh", "-c", script], cwd, env: {} }, ["/bin/sh", "-c", script]);
+  let out = "";
+  for await (const c of proc.stdout) out += typeof c === "string" ? c : Buffer.from(c).toString("utf8");
+  await proc.exited;
+  assert.match(out, /code=200/);
+  assert.match(out, /clone=0/);
+});
