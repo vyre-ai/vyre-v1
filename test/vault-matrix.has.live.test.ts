@@ -3,7 +3,7 @@
 // second server and out of the Personal Space, and the Personal Space's Mine stays out of the Team Spaces.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { SCOPE, WHO, api, bootSpace, canUse, fakeProvider, personalRig, save, seededPerson, signInFrom, teamRig } from "./support/vault-matrix.ts";
+import { SCOPE, WHO, api, bootSpace, canUse, fakeProvider, joinAs, passwordSignIn, personalRig, save, seededPerson, signInFrom, teamRig } from "./support/vault-matrix.ts";
 import type { Rig } from "./support/vault-matrix.ts";
 
 test("Vault matrix, what they have: nothing saved in one Space shows in, or is usable from, their Personal Space or their second Team Space", { timeout: 120_000 }, async () => {
@@ -19,6 +19,12 @@ test("Vault matrix, what they have: nothing saved in one Space shows in, or is u
     // the same people on the second server (one account everywhere: the same id and key bundle), signed in and their key handed over there
     for (const who of WHO) {
       const p = team.people[who]!;
+      if (who === "member_sso" || who === "guest") {
+        // people who joined by invite join the second server by invite too
+        const joined = await joinAs(second.d, second.d.token, p.username, who === "guest" ? "Guest" : "Member");
+        there.set(who, await passwordSignIn(second.d, joined, "desktop"));
+        continue;
+      }
       const twin = await seededPerson(second.d, p.id);
       twin.personKey = p.personKey;
       there.set(who, await signInFrom(second.d, twin, "desktop"));
@@ -30,7 +36,8 @@ test("Vault matrix, what they have: nothing saved in one Space shows in, or is u
     for (const who of WHO) for (const scope of SCOPE) {
       if (who === "guest" && scope === "mine") continue;   // a guest keeps nothing in the Vault (the matrix's plain no)
       if (scope === "space_ai_key" && who !== "owner" && who !== "admin") continue;   // set by an owner or admin only
-      const s = await save(team, { token: team.people[who]!.tokens.desktop! }, `has-${who}-${scope}`, scope, { group: team.group!, everyone: team.everyone! });
+      // a guest keeps nothing; what is shared with them is the owner's
+      const s = await save(team, { token: team.people[who === "guest" ? "owner" : who]!.tokens.desktop! }, `has-${who}-${scope}`, scope, { group: team.group!, everyone: team.everyone! });
       if (!s.saved) { failures.push(`${who} ${scope}: could not save (${s.o.line ?? ""})`); continue; }
       const listed = async (rig: Rig, token: string): Promise<boolean> => ((await api(rig.d, token, "vault.items.list", {})).data.items as Array<{ name: string; handle: string }> ?? []).some((i) => i.handle === s.saved!.handle || i.name === `Key has-${who}-${scope}`);
       const inSecond = await listed(t2, there.get(who)!) || await canUse(t2, there.get(who)!, s.saved.handle) || await canUse(t2, there.get(who)!, s.saved.ai.handle);

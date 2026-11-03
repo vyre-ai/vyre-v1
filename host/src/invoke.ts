@@ -3,7 +3,7 @@
 //   1 resolve  2 validate  3 idempotency  4 rate limit  5 authorize (+ Gate)  6 handler  7 commit (events, audit)  8 publish
 // Everything the pipeline needs from outside is a port in InvokeDeps, so the same code runs against the real kernel (authorize, LogClient idempotency, tx) and against fakes in tests.
 // Errors leave as HostError (a shaped VyreError with its HTTP status); nothing here throws a raw exception to a caller.
-import { roleLine } from "../../lib/vault-lines.ts";
+import { PERSON_LACKS_ROLE_LINE, roleLine } from "../../lib/vault-lines.ts";
 import { formatHlc, tickHlc } from "../../lib/hlc.ts";
 import type { Hlc } from "../../lib/hlc.ts";
 import { mintId } from "../../lib/ids.ts";
@@ -401,12 +401,15 @@ export function createInvoke(deps: InvokeDeps): Invoke {
         const pd = deps.authorize({ ...req, principal: seed.actingFor!, actingFor: undefined, approved: false });
         if (pd.effect === "deny") {
           await deps.audit?.(audit("deny", `asks_person:${pd.reason}`));
-          throw fail(codeForReason(pd.reason), traceId, { message: "The person you act for cannot do this either. Someone whose role allows it, an owner or an admin of this Space, has to do it or give them that role.", details: { cap: c.name, reason: "person_lacks_role", personReason: pd.reason, steps: pd.steps.map((x) => x.text) } });
+          throw fail(codeForReason(pd.reason), traceId, { message: PERSON_LACKS_ROLE_LINE, details: { cap: c.name, reason: "person_lacks_role", personReason: pd.reason, steps: pd.steps.map((x) => x.text) } });
         }
         // the setup grant: the person said yes ahead of time for this kind of call, so it runs as them now. Sends, posts and payments are never in it: they keep the Gate and the chat's rules.
         if (seed.setupGrant === true && c.effects !== "outward") {
           await deps.audit?.(audit("allow", "setup_grant"));
-          const asPerson: CtxSeed = { ...seed, principal: { kind: "person", id: seed.actingFor! }, actingFor: undefined, askPerson: undefined, setupGrant: undefined, askFirst: undefined, askable: undefined, chatMode: undefined, auditAll: true };
+          // Setting the Space AI key puts the value the agent itself sent into a Restricted folder and answers nothing secret: the provider label (which keeps Restricted data from reaching a provider)
+          // has nothing to keep from it there, so the call runs as the person alone. Every other call keeps the label.
+          const keyIn = c.name === "providers.space_key.set" ? { provider: undefined } : {};
+          const asPerson: CtxSeed = { ...seed, principal: { kind: "person", id: seed.actingFor! }, actingFor: undefined, askPerson: undefined, setupGrant: undefined, askFirst: undefined, askable: undefined, chatMode: undefined, auditAll: true, ...keyIn };
           return stepsFour(c, input, asPerson, trace, depth, true);
         }
         return park(c, input, seed, traceId, pd.decisionId, c.gate?.act && c.gate.act !== "none" ? c.gate.act : "approve", audit("hold", "asks_person"), "person");

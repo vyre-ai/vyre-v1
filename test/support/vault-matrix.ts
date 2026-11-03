@@ -23,10 +23,11 @@ import { CODE_ROOT, startDaemon } from "../../host/src/daemon/daemon.ts";
 import type { Daemon } from "../../host/src/daemon/daemon.ts";
 import { makeBundle } from "../../client/src/crypto/keys.ts";
 import { issueSessionToken } from "../../host/src/daemon/session.ts";
+import { runComputeNode } from "../../host/src/compute/node.ts";
 import type { NodeLauncher, NodeProc } from "../../host/src/compute/node.ts";
 import { defaultSandbox } from "../../modules/engine/sandbox-default.ts";
 import { spawnCli } from "../../modules/engine/session.ts";
-import { AUTOMATION_ROLE_LINE, CHAT_ROLE_LINE, CONNECTION_KEY_LINE, CONNECTION_ROLE_LINE, SPACE_KEY_ROLE_LINE, VAULT_ROLE_LINE } from "../../lib/vault-lines.ts";
+import { AUTOMATION_ROLE_LINE, CHAT_ROLE_LINE, PERSON_LACKS_ROLE_LINE, CONNECTION_KEY_LINE, CONNECTION_ROLE_LINE, SPACE_KEY_ROLE_LINE, VAULT_ROLE_LINE } from "../../lib/vault-lines.ts";
 import { Client, signIn as mcpSignIn } from "./outside-client.ts";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -54,7 +55,7 @@ export function cells(): Cell[] {
 export const label = (c: Cell): string => `${c.space}/${c.who}/${c.from}/${c.has}/${c.scope}/${c.runs}`;
 
 /** What a cell must do: work, or be refused with exactly these words. */
-export type Expect = { ok: true } | { line: string };
+export type Expect = { ok: true } | { line: string } | { na: string };
 export const OK: Expect = { ok: true };
 
 /** The plain words of every truly impossible combination: what happened and what to do instead. The server answers with exactly these. */
@@ -66,6 +67,8 @@ export const IMPOSSIBLE = {
   connectionKey: CONNECTION_KEY_LINE,
   chatRole: CHAT_ROLE_LINE,
   automationRole: AUTOMATION_ROLE_LINE,
+  personalSpaceKey: "Needs a Team Space. Create or join one to use this.",
+  agentPersonRole: PERSON_LACKS_ROLE_LINE,
 } as const;
 
 /** A cell that cannot exist at all: there is nobody to ask (a Personal Space has one person), or the axes contradict each other. */
@@ -80,6 +83,8 @@ export function expected(c: Cell): Record<Action, Expect> {
   const all = (e: Expect): Record<Action, Expect> => ({ save: e, chat: e, automation: e, connection: e, share: e });
   if (c.space !== "team") {
     if (c.scope === "group" || c.scope === "space") return { ...all(OK), share: { line: IMPOSSIBLE.personalShare }, connection: OK };
+    // a Personal Space has no Space AI key: the person's own accounts pay for their turns
+    if (c.scope === "space_ai_key") return all({ line: IMPOSSIBLE.personalSpaceKey });
     return all(OK);
   }
   const manager = c.who === "owner" || c.who === "admin";
@@ -89,9 +94,12 @@ export function expected(c: Cell): Record<Action, Expect> {
   // the Space AI key is set by an owner or admin; once set it covers everyone
   if (!manager && c.scope === "space_ai_key" && c.who !== "guest") out.save = { line: IMPOSSIBLE.spaceKeyRole };
   // apps are connected by owners and admins (a member's own connections come with Vault, Connections: lane l-connections)
-  if (!manager) out.connection = { line: IMPOSSIBLE.connectionRole };
+  // (their outside agent is told the same in its own words: the person it acts for cannot either)
+  if (!manager) out.connection = { line: c.from === "mcp" ? IMPOSSIBLE.agentPersonRole : IMPOSSIBLE.connectionRole };
   // a guest starts no chats and runs no automations: what is shared with them is used where an owner or admin puts them
   if (c.who === "guest") { out.chat = { line: IMPOSSIBLE.chatRole }; out.automation = { line: IMPOSSIBLE.automationRole }; }
+  // the Space AI key pays for AI turns and goes nowhere else: no connection takes it
+  if (c.scope === "space_ai_key") out.connection = { na: "the Space AI key pays for AI turns only" };
   return out;
 }
 
@@ -330,6 +338,31 @@ export async function bootComputer(space: Daemon, personId: string, token: strin
   return { d, stop: async () => { await d.stop(); await sandbox.close(); fs.rmSync(dir, { recursive: true, force: true }); } };
 }
 
+/** The owner's own server, joined to the Space as a computer of theirs (`vyred --role compute --join`): it runs the owner's turns and nobody else's, with the key filled in by the Space over its
+ * private link. It runs in this process (runComputeNode), its engine the fake claude in its own sandbox, told it runs on the owner's server. */
+export async function bootOwnerServer(space: Daemon, ownerToken: string): Promise<{ nodeId: string; stop(): Promise<void> }> {
+  const dir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "vyre-vm-srv-")));
+  const sandbox = await defaultSandbox({ dataDir: dir, programRead: [path.dirname(FAKE_CLI)] });
+  const launcher: NodeLauncher = {
+    async spawn(spec) {
+      const proc = await spawnCli(sandbox.plan, { argv: spec.argv, env: { ...spec.env, FAKE_WHERE: "ownerserver" }, ...(spec.cwd !== undefined ? { cwd: spec.cwd } : {}) }, [process.execPath, FAKE_CLI, ...spec.argv]);
+      return proc as unknown as NodeProc;
+    },
+  };
+  const abort = new AbortController();
+  const made = await ok(space, ownerToken, "network.my_computer_code", { nickname: "Olivia's server" });
+  const running = runComputeNode({
+    server: space.url, join: made.code as string, dataDir: dir, name: "olivia-server", signal: abort.signal, now: Date.now, pollMs: 100,
+    fetch: (url, init) => fetch(url, init) as never,
+    sleep: (ms, signal) => new Promise<void>((resolve, reject) => { const t = setTimeout(resolve, ms); signal.addEventListener("abort", () => { clearTimeout(t); reject(new Error("stopped")); }, { once: true }); }),
+    log: () => undefined, facts: () => ({ os: "linux", arch: "x64", docker: false, version: "t" }), cliLauncher: launcher,
+  });
+  const waiting = await waitFor(async () => ((await api(space, ownerToken, "network.my_computers", {})).data?.computers as Array<{ enrollment: string; serverId: string }> | undefined)?.find((c) => c.enrollment === "pending") ?? null, 15_000, "the server asks to join");
+  await ok(space, ownerToken, "network.my_computer_approve", { serverId: waiting.serverId });
+  await waitFor(async () => (space.nodeRelay.connected(waiting.serverId) ? true : null), 15_000, "the server's live socket");
+  return { nodeId: waiting.serverId, stop: async () => { abort.abort(); await running.catch(() => undefined); await sandbox.close(); fs.rmSync(dir, { recursive: true, force: true }); } };
+}
+
 /** A Personal Space on the person's own computer, its owner signed in from the app (this computer's own door), a browser and a phone (the Space's door over https). */
 export async function personalRig(o: { froms?: readonly Exclude<From, "mcp">[] } = {}): Promise<Rig> {
   const froms = o.froms ?? (["desktop", "web", "phone"] as const);
@@ -351,8 +384,12 @@ export interface Rig {
   peer?: Person; outsider?: Person; group?: string; everyone?: string;
   /** the custom endpoint the Space AI key is set on */
   endpoint?: string;
+  /** the token setup calls are made with (the daemon's own admin token when absent) */
+  admin?: string;
   /** the person's own computer, linked to this Space (lane l-runson) */
   computer?: { d: Daemon; stop(): Promise<void> };
+  /** the owner's own server, joined to this Space */
+  server?: { nodeId: string; stop(): Promise<void> };
   stop(): Promise<void>;
 }
 
@@ -431,7 +468,7 @@ export async function save(rig: Rig, a: Actor, tag: string, scope: Scope, people
     // an outside agent with no setup grant leaves this to its person, whose own role decides
     const r = a.mcp && !a.mcp.setup ? { o: outcome(await api(d, a.token, "providers.space_key.set", { idempotencyKey: key("c"), providerKey: rig.endpoint, apiKey: aiValue })) } : await call("providers.space_key.set", "providers_space_key_set", { providerKey: rig.endpoint, apiKey: aiValue });
     if (!r.o.ok) return { o: r.o };
-    const row = ((await api(d, rig.people.owner!.tokens.desktop ?? d.token, "providers.list", {})).data.providers as Array<{ itemId: string; handle: string; spaceKey?: boolean }>).find((x) => x.spaceKey);
+    const row = ((await api(d, rig.people.owner?.tokens.desktop ?? a.token, "providers.list", {})).data.providers as Array<{ itemId: string; handle: string; spaceKey?: boolean }>).find((x) => x.spaceKey);
     return { o: { ok: true }, saved: { handle: row!.handle, itemId: row!.itemId, value: aiValue, ai: { handle: row!.handle, itemId: row!.itemId, value: aiValue } } };
   }
   const f = await folderOf(d, a, scope === "mine" ? "mine" : "shared", scope === "mine" ? "Mine" : `Shared by ${tag.split("-")[0]}`);
@@ -488,9 +525,9 @@ const agents = new Map<string, string>();
 async function agentOn(rig: Rig, handle: string): Promise<string> {
   const have = agents.get(`${rig.d.url}${handle}`);
   if (have) return have;
-  const made = await ok(rig.d, rig.d.token, "agents.create", { name: `On ${handle.replace(/^#/, "").slice(0, 30)}`, role: "You answer." });
+  const made = await ok(rig.d, rig.admin ?? rig.d.token, "agents.create", { name: `On ${handle.replace(/^#/, "").slice(0, 30)}`, role: "You answer." });
   const id = made.agent.agentId as string;
-  await ok(rig.d, rig.d.token, "agents.update", { agentId: id, patch: { accountPolicy: "key", accountKey: handle } });
+  await ok(rig.d, rig.admin ?? rig.d.token, "agents.update", { agentId: id, patch: { accountPolicy: "key", accountKey: handle } });
   agents.set(`${rig.d.url}${handle}`, id);
   return id;
 }
@@ -591,11 +628,14 @@ export async function runCell(rig: Rig, c: Cell): Promise<Result> {
     if (c.from === "mcp") for (const f of ["desktop", "web", "phone"] as const) if (p.tokens[f]) assert.equal((await door(rig.d, p.tokens[f]!, "unlock", p.personKey, rig.kind === "personal" && f === "desktop")).status, 204);
     if (!saved) { const no = res.save!; return { save: no, chat: no, automation: no, connection: no, share: no }; }
     // on their own computer: a Mine sign-in runs the engine there; the Space fills it in, nothing is asked on the computer
+    // on the owner's own server: the owner's Mine sign-in runs the engine there; anyone else's turn never does
     const onComputer = rig.computer !== undefined && c.runs === "own_computer" && c.scope === "mine";
-    const claude = onComputer ? (await saveClaude(rig, token, tag)).saved : undefined;
+    const onServer = rig.server !== undefined && c.runs === "owner_server" && c.scope === "mine";
+    const claude = onComputer || onServer ? (await saveClaude(rig, token, tag)).saved : undefined;
     const chat = await chatUse(rig, token, (claude ?? saved).ai.handle);
     res.chat = okWith(sha12((claude ?? saved).ai.value), chat);
-    if (res.chat.ok && onComputer && chat.where !== "device") res.chat = { ok: false, line: `the turn ran on the ${chat.where ?? "server"}, not on their computer` };
+    const where = onComputer ? "device" : onServer ? (c.who === "owner" ? "ownerserver" : "space") : null;
+    if (res.chat.ok && where !== null && chat.where !== where) res.chat = { ok: false, line: `the turn ran on ${chat.where ?? "the server"}, not on ${where}` };
     const step = okWith(sha12(saved.ai.value), await stepUse(rig, token, saved.ai.handle));
     const httpStep = c.scope === "space_ai_key" ? null : okWith(sha12(saved.value), await automationUse(rig, { token }, saved.handle));
     res.automation = !step.ok ? step : httpStep && !httpStep.ok ? httpStep : { ok: true };
@@ -615,6 +655,7 @@ export async function runCell(rig: Rig, c: Cell): Promise<Result> {
 
 /** Whether an outcome meets what the cell expects; the reason when it does not. */
 export function meets(e: Expect, o: Outcome): string | null {
+  if ("na" in e) return null;
   if ("ok" in e) return o.ok ? null : `expected it to work: ${o.code ?? ""} ${o.line ?? ""}`.trim();
   if (o.ok) return `expected "${e.line}", but it went through`;
   return o.line === e.line ? null : `expected "${e.line}", got ${o.code ?? ""} "${o.line ?? ""}"`;
@@ -638,6 +679,7 @@ export function teamSlice(o: { who: Who; runs: Runs; froms?: readonly From[] }):
     // everyone is signed in on the desktop app as well: the others in a cell (the group's peer, an outsider, an admin) are checked from there
     const rig = await teamRig({ froms: [...new Set<Exclude<From, "mcp">>(["desktop", ...(froms.filter((f) => f !== "mcp") as Exclude<From, "mcp">[])])] });
     if (o.runs === "own_computer") { const p = rig.people[o.who]!; rig.computer = await bootComputer(rig.d, p.id, p.tokens.desktop!); }
+    if (o.runs === "owner_server") rig.server = await bootOwnerServer(rig.d, rig.people.owner!.tokens.desktop!);
     const failures: string[] = [];
     const rows = new Map<string, { key: string; cells: number; marks: Record<Action, string> }>();
     try {
@@ -648,7 +690,7 @@ export function teamSlice(o: { who: Who; runs: Runs; froms?: readonly From[] }):
         row.cells += 1;
         for (const a of ACTIONS) {
           const why = meets(want[a], r[a]);
-          row.marks[a] = why === null ? ("ok" in want[a] ? "green" : "green (plain no)") : "RED";
+          row.marks[a] = why === null ? ("ok" in want[a] ? "green" : "na" in want[a] ? "n/a" : "green (plain no)") : "RED";
           if (why !== null) failures.push(`${label(c)} ${a}: ${why}`);
         }
         rows.set(runKey(c), row);
@@ -656,6 +698,7 @@ export function teamSlice(o: { who: Who; runs: Runs; froms?: readonly From[] }):
     } finally {
       process.stdout.write(`${table([...rows.values()])}\n`);
       await rig.computer?.stop();
+      await rig.server?.stop();
       await rig.stop();
     }
     const distinct = [...new Set(failures)];
@@ -664,28 +707,30 @@ export function teamSlice(o: { who: Who; runs: Runs; froms?: readonly From[] }):
 }
 
 /** Every Personal Space cell of its owner signed in from these places: the Space is their own computer, so the turn runs there. */
-export function personalSlice(o: { froms: readonly From[] }): void {
-  const mine = cells().filter((c) => c.space === "personal" && absent(c) === null && o.froms.includes(c.from) && c.runs !== "owner_server");
-  test(`Vault matrix, Personal Space, its owner from ${o.froms.join(" and ")}: ${mine.length} cells`, { timeout: 120_000 }, async () => {
+export function personalSlice(o: { froms: readonly From[]; server?: boolean }): void {
+  const mine = cells().filter((c) => c.space === "personal" && absent(c) === null && o.froms.includes(c.from) && (c.runs === "owner_server") === (o.server === true));
+  test(`Vault matrix, Personal Space, its owner from ${o.froms.join(" and ")}${o.server ? ", with a server of theirs added" : ""}: ${mine.length} cells`, { timeout: 120_000 }, async () => {
     const rig = await personalRig({ froms: (["desktop", ...o.froms.filter((f) => f !== "mcp" && f !== "desktop")] as Exclude<From, "mcp">[]) });
+    if (o.server) rig.server = await bootOwnerServer(rig.d, rig.people.owner!.tokens.desktop!);
     const failures: string[] = [];
     const rows = new Map<string, { key: string; cells: number; marks: Record<Action, string> }>();
     try {
       for (const c of mine) {
         // on a Personal Space the server is the person's own computer: both are one run
-        const r = await runCell(rig, { ...c, runs: "server" });
+        const r = await runCell(rig, { ...c, runs: c.runs === "owner_server" ? "owner_server" : "server" });
         const want = expected(c);
         const row = rows.get(runKey(c)) ?? { key: runKey(c), cells: 0, marks: {} as Record<Action, string> };
         row.cells += 1;
         for (const a of ACTIONS) {
           const why = meets(want[a], r[a]);
-          row.marks[a] = why === null ? ("ok" in want[a] ? "green" : "green (plain no)") : "RED";
+          row.marks[a] = why === null ? ("ok" in want[a] ? "green" : "na" in want[a] ? "n/a" : "green (plain no)") : "RED";
           if (why !== null) failures.push(`${label(c)} ${a}: ${why}`);
         }
         rows.set(runKey(c), row);
       }
     } finally {
       process.stdout.write(`${table([...rows.values()])}\n`);
+      await rig.server?.stop();
       await rig.stop();
     }
     const distinct = [...new Set(failures)];

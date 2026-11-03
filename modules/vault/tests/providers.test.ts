@@ -58,14 +58,13 @@ test("a Mine key lives in the person's own AI providers folder and no one else l
   h.cleanup();
 });
 
-test("add refuses what cannot work: an unknown provider, a wrong connection, no key, no address, a Shared key with no folder", async () => {
+test("add refuses what cannot work: an unknown provider, a wrong connection, no key, no address (a Shared key with no folder now goes in AI accounts: test/vault.space-shared-provider.live.test.ts)", async () => {
   const h = harness();
   const base = { providerKey: "anthropic", connection: "api_key", scope: "mine", apiKey: SECRET, idempotencyKey: "x" };
   assert.equal(await refusedWith(p.add(h.ctx, { ...base, providerKey: "nope" })), "validation.bad_input");
   assert.equal(await refusedWith(p.add(h.ctx, { ...base, providerKey: "claude-code" })), "validation.bad_input", "a subscription is connected with Sign in");
   assert.equal(await refusedWith(p.add(h.ctx, { ...base, apiKey: "  " })), "validation.bad_input");
   assert.equal(await refusedWith(p.add(h.ctx, { providerKey: "local", connection: "local_model", scope: "mine", idempotencyKey: "x" })), "validation.bad_input");
-  assert.equal(await refusedWith(p.add(h.ctx, { ...base, scope: "shared" })), "validation.bad_input");
   h.cleanup();
 });
 

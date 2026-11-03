@@ -19,3 +19,6 @@ export function roleLine(cap: string): string | null {
 
 /** A connection for the whole Space was given a key it may not use (someone's Mine item, or a key the person who made it cannot use). */
 export const CONNECTION_KEY_LINE = "A connection for the whole Space cannot use a Mine item or a key not shared with you. Put the key in a Shared folder, then check the connection again.";
+
+/** An outside agent asked its person to do something their own role does not allow either. */
+export const PERSON_LACKS_ROLE_LINE = "The person you act for cannot do this either. Someone whose role allows it, an owner or an admin of this Space, has to do it or give them that role.";
