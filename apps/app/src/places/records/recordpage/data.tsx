@@ -15,6 +15,8 @@ export interface RecordPageNav {
   openRecord(type: string, recordId: string): void;
   /** The record's own chat (every project has one; any record can have one) opens in Chats. */
   openChat(type: string, recordId: string): void;
+  /** Ask Vyre about this record: the Ask pane opens beside the page, in this place. Left out where the shell has no assistant. */
+  ask?(type: string, recordId: string, title: string): void;
   /** "Ask for these": the person's conversation opens in the Inbox with a message drafted for the fields the record lacks. Nothing is sent until they press Send. */
   askFor(input: AskForInput): void;
   /** The record's folder opens in Files. */

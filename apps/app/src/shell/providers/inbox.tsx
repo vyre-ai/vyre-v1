@@ -27,6 +27,7 @@ import { inboxData } from "./inbox-data.ts";
 import { useInboxSources } from "../rail/inbox-sources.ts";
 import { capLive } from "./records-live.ts";
 import { ResizableColumn } from "../../../../../ui/src/SidePane/resize.tsx";
+import { openAskPane } from "../ask/pane.ts";
 import { SIDEBAR_DEFAULT } from "../sidebar/index.ts";
 import { useOptionalShellRuntime } from "./runtime.tsx";
 import type { ShellRuntime } from "./runtime.tsx";
@@ -64,6 +65,11 @@ function useOpenTasks(rt: ShellRuntime): readonly OpenTask[] {
 }
 
 function Main({ rt, openId, close }: { rt: ShellRuntime; openId: string | null; close: () => void }): ReactElement {
+  // Ask in a conversation opens the Ask pane beside it, about the contact (one Ask per contact, the same one Records continues) or, before it is matched, the conversation
+  const askInbox = (contactId?: string, about?: { conversationId: string; title: string }): void => {
+    const thing = contactId ? { kind: "record", id: contactId, ...(about?.title ? { title: about.title } : {}) } : about && about.conversationId !== "" ? { kind: "conversation", id: about.conversationId, ...(about.title ? { title: about.title } : {}) } : null;
+    openAskPane({ thing, context: { actions: ["summarise the conversation", "draft a reply for the person to send", "find the record"] } }, "inbox");
+  };
   const missing = useMissing(rt.screens, "inbox.contact-tab", "thread", openId ? { conversationId: openId } : null);
   const { state, dispatch } = useInboxState();
   const { target, opened } = usePlaceHash();
@@ -89,10 +95,10 @@ function Main({ rt, openId, close }: { rt: ShellRuntime; openId: string | null; 
   }
   // "Ask for these" from a record: the person's conversation opens by contact (it may not exist yet) with the message drafted
   const askContact = !openId ? target.args["contactId"] : undefined;
-  if (askContact) return <CallConversation key={`ask:${target.args["ask"] ?? askContact}`} conversationId="" contactId={askContact} {...(getAsk(target.args["ask"]) ? { ask: getAsk(target.args["ask"])! } : {})} tasks={tasks} onOpenRecord={(contactId, recordId) => rt.open({ subject: { type: "record", id: recordId ?? contactId } })} onAsk={(contactId) => rt.open({ screen: "chats.conversation", args: { with: "assistant", ...(contactId ? { contactId } : {}) } })} />;
+  if (askContact) return <CallConversation key={`ask:${target.args["ask"] ?? askContact}`} conversationId="" contactId={askContact} {...(getAsk(target.args["ask"]) ? { ask: getAsk(target.args["ask"])! } : {})} tasks={tasks} onOpenRecord={(contactId, recordId) => rt.open({ subject: { type: "record", id: recordId ?? contactId } })} onAsk={askInbox} />;
   if (openId && missing) return <NotFound what="conversation" />;
   // the conversation with the call bar and, after a call, the ended strip when the phone is on this contact
-  if (openId) return <CallConversation key={openId} conversationId={openId} tasks={tasks} onOpenRecord={(contactId, recordId) => rt.open({ subject: { type: "record", id: recordId ?? contactId } })} onAsk={(contactId) => rt.open({ screen: "chats.conversation", args: { with: "assistant", ...(contactId ? { contactId } : {}) } })} />;
+  if (openId) return <CallConversation key={openId} conversationId={openId} tasks={tasks} onOpenRecord={(contactId, recordId) => rt.open({ subject: { type: "record", id: recordId ?? contactId } })} onAsk={askInbox} />;
   return <ContactList />;
 }
 

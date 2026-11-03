@@ -43,7 +43,8 @@ export interface ContactTabProps {
   contactId?: string;
   /** Open the person's or company's record (the header link and a record chip). */
   onOpenRecord?(contactId: string, recordId?: string): void;
-  onAsk?(contactId?: string): void;
+  /** Ask Vyre about this conversation: the contact when it has one, else the conversation itself, with the name the head shows. */
+  onAsk?(contactId?: string, about?: { conversationId: string; title: string }): void;
   onDial?(number: string): void;
   /** Open Vyre Files to attach; the app answers with the attachments' file ids. */
   onAttach?(): void;
@@ -295,7 +296,7 @@ function Tab({ conversationId, contactId, ...props }: ContactTabProps): ReactEle
         <HeadButton icon="call" label="Call" testID="head-call" onPress={dial} />
         {conv.contactId ? <HeadButton icon="star" label={starred ? "Unstar" : "Star"} testID="head-star" on={starred} onPress={() => setStarMine(!starred)} /> : null}
         {conv.contactId ? <HeadButton icon="bell" label={conv.followed ? "Following" : "Follow"} testID="head-follow" on={conv.followed} onPress={showFollow} /> : null}
-        {phone ? null : <HeadButton icon="ask" label="Ask" testID="head-ask" text="Ask" onPress={() => props.onAsk?.(conv.contactId)} />}
+        {phone ? null : <HeadButton icon="ask" label="Ask" testID="head-ask" text="Ask" onPress={() => props.onAsk?.(conv.contactId, { conversationId: conv.id, title: hdr?.title ?? conv.displayName })} />}
       </View>
       {online ? null : <Text style={s.offline} accessibilityRole="alert" testID="contact-offline">Offline, showing your saved copy</Text>}
 
@@ -337,7 +338,7 @@ function Tab({ conversationId, contactId, ...props }: ContactTabProps): ReactEle
               <View style={s.bx}>
                 <BarButton icon="tpl" label="Templates" testID="composer-templates" onPress={showTemplates} />
                 <BarButton icon="bolt" label="Quick actions" testID="composer-quick" onPress={showQuick} />
-                <Pressable accessibilityRole="button" accessibilityLabel="Ask" testID="composer-ask" onPress={() => props.onAsk?.(conv.contactId)} style={({ hovered }: { hovered?: boolean }) => [s.askChip, hovered === true && s.hicOver]}>
+                <Pressable accessibilityRole="button" accessibilityLabel="Ask" testID="composer-ask" onPress={() => props.onAsk?.(conv.contactId, { conversationId: conv.id, title: hdr?.title ?? conv.displayName })} style={({ hovered }: { hovered?: boolean }) => [s.askChip, hovered === true && s.hicOver]}>
                   <Face name="intake" size={16} round={false} /><Text style={s.askText}>Ask</Text><Icon name="chevd" size={9} />
                 </Pressable>
               </View>

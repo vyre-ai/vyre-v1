@@ -153,6 +153,8 @@ function SettingsBody({ initialPage = "profile", initialQuery = "", initialView 
       <View style={n.head}>
         {phone ? <Pressable accessibilityRole="button" accessibilityLabel="Settings" testID="back" onPress={() => setView("nav")} style={[n.back, pointer]}><View style={{ transform: [{ rotate: "90deg" }] }}><Glyph name="chevD" size={14} color="var(--ink-2)" /></View></Pressable> : null}
         <Text accessibilityRole="header" aria-level={1} style={n.title}>{searching ? "Search" : def.title}</Text>
+        <View style={{ flex: 1 }} />
+        {data.ask && !searching ? <Pressable accessibilityRole="button" accessibilityLabel={`Ask Vyre about ${def.title}`} testID="settings-ask" onPress={() => data.ask?.({ key: page, title: def.title })} style={({ hovered }: { hovered?: boolean }) => [n.ask, pointer, hovered === true && n.askOver]}><Glyph name="spark" size={14} color="var(--ink-2)" /><Text style={n.askText}>Ask</Text></Pressable> : null}
       </View>
       <ScrollView style={{ flex: 1 }} contentContainerStyle={n.content}>
         <View style={n.column}>
@@ -192,6 +194,9 @@ const n = StyleSheet.create({
   head: { height: 48, flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 18, borderBottomWidth: 1, borderBottomColor: "var(--line)" as string },
   back: { width: 28, height: 28, alignItems: "center", justifyContent: "center", borderRadius: 7 },
   title: { fontSize: 14.5, fontWeight: "600", color: "var(--ink)" as string },
+  ask: { height: 28, flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 8, borderRadius: 7 },
+  askOver: { backgroundColor: "var(--hover)" as string },
+  askText: { fontSize: 12.5, fontWeight: "500", color: "var(--ink-2)" as string },
   content: { paddingTop: 16, paddingBottom: 24, paddingHorizontal: 20, alignItems: "center" },
   column: { width: "100%", maxWidth: 684 },
 });

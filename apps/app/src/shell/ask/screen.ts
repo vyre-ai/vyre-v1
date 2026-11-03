@@ -62,4 +62,17 @@ export function subscribeScreen(fn: () => void): () => void { listeners.add(fn);
 /** The kind of each thread the Chats place has open, noted when it loads. Only an Ask pane's messages carry the screen: a plain chat is not about a screen. */
 const KIND = new Map<string, string>();
 export function noteThreadKind(threadId: string, kind: string): void { KIND.set(threadId, kind); }
-export const carriesScreen = (threadId: string): boolean => KIND.get(threadId) === "ask";
+export const carriesScreen = (threadId: string): boolean => KIND.get(threadId) === "ask" || PINNED.has(threadId);
+
+/** An Ask pane says what its thread is about (the thing, its place, what the door added), read when a message is sent, so moving around the place never loses it. */
+const PINNED = new Map<string, () => ScreenContext>();
+export function pinThreadScreen(threadId: string, read: (() => ScreenContext) | null): void {
+  if (read) PINNED.set(threadId, read); else PINNED.delete(threadId);
+}
+
+/** The screen a message in this thread carries: the pane's own when it has one, else where the person is for an Ask thread, else none. */
+export function screenForThread(threadId: string): ScreenContext | null {
+  const pinned = PINNED.get(threadId);
+  if (pinned) return pinned();
+  return KIND.get(threadId) === "ask" ? currentScreen() : null;
+}

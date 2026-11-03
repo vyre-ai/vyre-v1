@@ -38,6 +38,8 @@ export interface DesktopUpdater {
 
 /** What this person may do for the Space: which Console pages they can open and whether they can change Space-wide rows. Absent in a Personal Space and for someone with neither. */
 export interface SettingsData {
+  /** Ask Vyre about the open page: the Ask pane opens beside Settings, about that page. Left out where the shell has no assistant. */
+  ask?(page: { key: string; title: string }): void;
   /** Opens the Console, for a person who may. */
   openConsole?(): void;
   /** Opens Connect your company, for a person who may change the company's connection. */
