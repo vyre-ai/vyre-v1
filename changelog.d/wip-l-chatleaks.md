@@ -1,1 +1,2 @@
 - Chats: when an agent @mentions another agent, the second agent now runs for the person who asked, on their account and with their access, never for whoever started the chat. An agent's message with no person behind it no longer runs as anyone: the chat says no one asked for it.
+- Chats: two agents on a coding engine (Claude Code, Codex, Grok) working for you in the same chat each get their own work folder, so neither reads the other's memory notes. A shared folder beside them is the one place both can reach.

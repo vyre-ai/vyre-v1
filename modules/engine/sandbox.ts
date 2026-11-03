@@ -1,7 +1,8 @@
 // The sandbox around a CLI engine (P-L2_23, security review S8 finding 1). A CLI engine (Claude Code, Codex, Grok) is a program the daemon starts; without a wrap it can read every file the
 // daemon's user can read. This builds the `wrap` the local launcher takes, so the engine runs in the person's sandbox: Seatbelt on a Mac, bubblewrap with the network wall on Linux. It lives here
 // because agent code may not import the sandbox package.
-//   - The working folder is one folder per person and thread under the Space data directory. It is the first read-write mount (bwrap does --chdir to the first mount) and the process's cwd.
+//   - The working folder is one folder per person, thread and agent under the Space data directory. It is the first read-write mount (bwrap does --chdir to the first mount) and the process's cwd.
+//     Two agents working for one person in one chat never share it, so neither reads the other's memory guide; the chat's `shared` folder beside them is the one place both see.
 //   - bwrap starts with --clearenv, so the spawn's environment (the key, VYRE_MCP_TOKEN) is copied into the sandbox spec and travels as --setenv. Seatbelt inherits the environment, so the proxy
 //     variables are put in front of the command with env(1).
 //   - Where the engine has to run in the person's container (host placement, Windows without WSL) there is no local wrap: the spawn fails with sandbox.unavailable and never falls back to the
@@ -21,7 +22,7 @@ export type EngineSandbox =
 
 export interface SandboxPlan {
   sandbox: EngineSandbox;
-  /** The Space data directory; work folders live under `<dataDir>/work/<person>/<thread>`, scratch under `<dataDir>/scratch/<person>`. */
+  /** The Space data directory; work folders live under `<dataDir>/work/<person>/<thread>/<agent>` (beside the chat's `shared` folder), scratch under `<dataDir>/scratch/<person>`. */
   dataDir: string;
   /** Hosts the engine may reach through the proxy (its provider's API). */
   egressHosts: readonly string[];
@@ -34,9 +35,23 @@ const part = (id: string): string => {
   return s;
 };
 
-/** The folder one person's one thread works in. It is made if it is not there. Different people and different threads never share one. */
-export function workFolder(dataDir: string, person: string, thread: string): string {
-  const dir = path.join(dataDir, "work", part(person), part(thread));
+/** The name of the folder of a chat that every agent working there for the same person may read and write. No agent's own folder is ever named this. */
+export const SHARED_FOLDER = "shared";
+
+/**
+ * The folder one agent works in for one person in one thread. It is made if it is not there. Different people, threads and agents never share one: two agents in one chat each get their own,
+ * with the chat's shared folder beside them. Without an agent it is the person's folder for the thread (plugins keep theirs there).
+ */
+export function workFolder(dataDir: string, person: string, thread: string, agent?: string): string {
+  if (agent !== undefined && part(agent) === SHARED_FOLDER) throw new SandboxError("sandbox.policy", "an agent id cannot name the shared folder");
+  const dir = agent === undefined ? path.join(dataDir, "work", part(person), part(thread)) : path.join(dataDir, "work", part(person), part(thread), part(agent));
+  fs.mkdirSync(dir, { recursive: true });
+  return fs.realpathSync(dir);
+}
+
+/** The folder of one person's thread that all the agents working there for that person share: the chat's shared files, and nothing of any one agent's own. */
+export function sharedFolder(dataDir: string, person: string, thread: string): string {
+  const dir = path.join(dataDir, "work", part(person), part(thread), SHARED_FOLDER);
   fs.mkdirSync(dir, { recursive: true });
   return fs.realpathSync(dir);
 }
@@ -50,8 +65,9 @@ export function scratchFolder(dataDir: string, person: string): string {
 const sandboxId = (person: string): string => `vyre-sbx-${part(person).toLowerCase().replace(/_/g, "-")}`;
 
 /**
- * `wrap` for createLocalLauncher. The work folder arrives as `start.cwd` (the opener's workFolder, made by workFolder() above) and names the person: `<dataDir>/work/<person>/<thread>`. A spawn
- * with any other folder is refused: the engine must never run in the daemon's own folder or anywhere else.
+ * `wrap` for createLocalLauncher. The work folder arrives as `start.cwd` (the opener's workFolder, made by workFolder() above) and names the person: `<dataDir>/work/<person>/<thread>/<agent>`,
+ * or `<dataDir>/work/<person>/<thread>` for a folder of the person's own. A spawn with any other folder is refused: the engine must never run in the daemon's own folder or anywhere else. An agent's
+ * folder is mounted with the chat's shared folder and nothing else of the chat: another agent's folder beside it stays closed.
  */
 export function sandboxWrap(plan: SandboxPlan, o: { homeFromScratch?: boolean } = {}): NonNullable<LocalLauncherOptions["wrap"]> {
   return (argv, start) => {
@@ -62,14 +78,15 @@ export function sandboxWrap(plan: SandboxPlan, o: { homeFromScratch?: boolean } 
     if (start.cwd === undefined) throw new SandboxError("sandbox.policy", "a CLI engine needs a work folder");
     const workRoot = fs.realpathSync(path.join(plan.dataDir, "work"));
     const rel = path.relative(workRoot, start.cwd).split(path.sep);
-    if (rel.length !== 2 || rel.some((x) => x === "" || x === "..")) throw new SandboxError("sandbox.policy", "the work folder is not one of the Space's person-and-thread folders");
+    if ((rel.length !== 2 && rel.length !== 3) || rel.some((x) => x === "" || x === "..") || rel[2] === SHARED_FOLDER) throw new SandboxError("sandbox.policy", "the work folder is not one of the Space's person-and-thread folders");
     const person = rel[0] as string;
+    const shared = rel.length === 3 ? sharedFolder(plan.dataDir, person, rel[1] as string) : null;
     const scratch = scratchFolder(plan.dataDir, person);
     // The roots are the real paths of the folders: a data folder reached through a symlink (/var is /private/var on a Mac) must name the same folders the work and scratch helpers returned.
     const roots: Roots = { work: [workRoot], scratch: [fs.realpathSync(path.join(plan.dataDir, "scratch"))] };
     const spec: SandboxSpec = {
       id: sandboxId(person), person, kind: s.kind, scratch,
-      mounts: [{ host: start.cwd, mode: "rw" }],
+      mounts: [{ host: start.cwd, mode: "rw" }, ...(shared ? [{ host: shared, mode: "rw" as const }] : [])],
       egressHosts: plan.egressHosts,
       env: start.env,
     };
