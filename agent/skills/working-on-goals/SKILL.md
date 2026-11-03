@@ -65,7 +65,11 @@ These are in the tasks toolset. If one is not in your list, find it with `tool_s
 - Records shared with another goal change only through tasks.
 
 ## Files
-Everything you make for the goal goes in its folder: drafts in Drafts, research notes in Research, exports and reports in Reports, the plan's working documents in Plan. From a terminal, write the file in your work folder, then put it in the goal folder with the files tools (`goals_folder` gives the folder id). Name files so a person can find them.
+Everything you make for the goal goes in its folder: drafts in Drafts, research notes in Research, exports and reports in Reports, the plan's working documents in Plan. Name files so a person can find them.
+- In Claude Code or Codex the folder is already on disk as `goal/` in your work folder. Read, edit and add files there like any other files. Vyre copies the folder down before your turn and saves what you changed after it, as new versions of the same files and new files in the same subfolders. Make a subfolder by making a folder. Do not use the files tools for what is in `goal/`.
+- A file someone changed in Vyre while you worked is kept as both: your version is saved as "<name> (agent copy)". A file that has parts hidden from AI is in `goal/` with those parts replaced by [REDACTED] and is read-only; if you edit it anyway, the edit is saved as a copy and the original stays. A file you are not allowed to read is not there at all.
+- Deleting a file in `goal/` does not delete it in Vyre. A file over 256 KB, and a Google document, is not saved back. If `GOAL-SYNC.txt` is in your work folder, read it first: it says what Vyre could not do last time.
+- With the API (no work folder), use `goals_folder` to get the folder id and the files tools.
 
 ## When it ends
 Done or missed, you get one last wake-up. Write the retrospective with `goals_complete`:

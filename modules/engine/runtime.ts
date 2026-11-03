@@ -34,6 +34,7 @@ import { configureEngines, engines, enginesRoot } from "./engine-install.ts";
 import { capabilitySkills, createContextBuilder, takeHandoff, withTurnContext } from "./context.ts";
 import { withTranscript } from "./transcript.ts";
 import { withNativeSkills } from "./skills-native.ts";
+import { withGoalFolder } from "./goal-folder.ts";
 import { linkReply } from "./handlers/extra/reply-info.ts";
 import { costOf } from "./turn-cost.ts";
 import { workFolder } from "./sandbox.ts";
@@ -422,6 +423,21 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
   // a Claude Code or Codex chat gets the agent's skills in its own work folder (person/thread/agent) before every turn, so one added mid-chat reaches a running engine (the opener wrote them as it started)
   const skillsDir = host.sandbox?.dataDir ?? host.dataDir;
   const nativeSkills = (o: OpenSession): OpenSession => (!host.openSession && skillsDir ? withNativeSkills(o, { call: h.call, workOf: (spec) => workFolder(skillsDir, spec.asker, spec.threadId, spec.agent.id), ...(h.log ? { log: h.log } : {}) }) : o);
+  // a goal's Files folder as goal/ in a terminal engine's work folder (goal-folder.ts): read as the asker (the read gate holds), written as the agent acting for the asker
+  const goalFolder = (o: OpenSession): OpenSession => (skillsDir
+    ? withGoalFolder(o, {
+        workOf: (spec) => workFolder(skillsDir, spec.asker, spec.threadId, spec.agent.id),
+        terminal: (spec) => !!host.openSession || spec.account?.driver === "claude_code" || spec.account?.driver === "codex",
+        read: (cap, input, asker) => h.call(cap, input, asker),
+        act: async (cap, input, who) => {
+          if (!h.invoke || !h.space) return h.call(cap, input, who.asker);
+          const r = await h.invoke(cap, input, { space: h.space, principal: { kind: "agent", id: who.agentId }, actingFor: who.asker, origin: "engine" });
+          if (r.status !== "ok") throw Object.assign(new Error(`${cap} was held for approval`), { code: "permission.on_hold" });
+          return r.output;
+        },
+        ...(h.log ? { log: h.log } : {}),
+      })
+    : o);
   closeOpener = opener ? async () => { await opener.close(); await Promise.all([...nodeOpeners.values()].map((o) => o.close())); } : null;
   building ??= (async () => {
     const now = h.now ?? Date.now;
@@ -452,7 +468,7 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
       },
     });
     const engine = createTurnEngine({
-      holder: h.holder, openSession: withHeldNotes(withChatSettings(withSpaceKeyTurns(withTurnContext(nativeSkills(withCompaction(withTranscript(withRecall(withAudienceReset(bridge ? bridge.tap(openSession) : openSession, { db: ctx.db, call: h.call, now, ...(opener ? { drop: (threadId: string) => opener.pool.drop(threadId) } : {}), ...(h.log ? { log: h.log } : {}) }), h.call), h.call, now), ctx.db)), turnContext), { call: h.call, db: ctx.db, now }), h.call)), now,
+      holder: h.holder, openSession: withHeldNotes(withChatSettings(withSpaceKeyTurns(withTurnContext(goalFolder(nativeSkills(withCompaction(withTranscript(withRecall(withAudienceReset(bridge ? bridge.tap(openSession) : openSession, { db: ctx.db, call: h.call, now, ...(opener ? { drop: (threadId: string) => opener.pool.drop(threadId) } : {}), ...(h.log ? { log: h.log } : {}) }), h.call), h.call, now), ctx.db))), turnContext), { call: h.call, db: ctx.db, now }), h.call)), now,
       queue: sqlQueue(ctx.db), leases: sqlLeases(ctx.db), messages: sqlMessages(ctx.db, now), waits: sqlWaits(ctx.db), newId: (p) => mintEngineId(p, now()),
       admit: (q) => admission(h, q),
       lostTurn: (row) => lostTurnId(ctx.db, row, () => mintEngineId("trn", now())),

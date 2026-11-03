@@ -8,7 +8,7 @@
 import type { Ctx } from "../../../packages/contracts/src/ctx.ts";
 import { mintUuid } from "../../../lib/ids.ts";
 import { REDACTED, agentName, classify, detect, isAgentAccess, reanchor, redactedTexts, renderForAgent, scrubAll, scrubDeep, type AgentAccess, type Mark } from "../../../lib/redact.ts";
-import { fail, many, one, num, rec, optStr, optInt, treeHandlers } from "./tree.ts";
+import { bytesToB64, fail, many, one, num, rec, optStr, optInt, treeHandlers } from "./tree.ts";
 
 type Row = Record<string, unknown>;
 type O = Record<string, unknown>;
@@ -309,7 +309,7 @@ export async function agentGate(ctx: Ctx, input: unknown): Promise<Gate> {
           const whole = (await agentText(ctx, s, versionId)) ?? "";
           const bytes = new TextEncoder().encode(whole);
           noteRead(ctx, s, w);
-          return { output: { ...out, base64: Buffer.from(bytes).toString("base64"), size: bytes.byteLength, truncated: false } };
+          return { output: { ...out, base64: bytesToB64(bytes), size: bytes.byteLength, truncated: false } };
         }
         return refuseBinary(name, fid);
       }
