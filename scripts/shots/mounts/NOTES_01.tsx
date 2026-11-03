@@ -48,7 +48,7 @@ function notes(clipFresh: boolean): Note[] {
     n("n3", { title: "Lab 8 registrations, Mon", hasImage: true, body: "212 on Luma. Lab 7 ended at 280. The Skool post brought 9 in two hours.", labels: ["Lab 8"], pinned: true, updatedAt: at(2, 9, 20) }),
     ...(clipFresh ? [] : [clip]),
     n("n6", { title: "Reel ideas for Lab 8", body: "1. Three questions Claude asks on every intake call\n2. Before and after: a 40 minute intake note in 2 minutes\n3. Andrey reacts to a live demo", labels: ["Lab 8"], color: "sand", owner: "usr_aliza", mine: false, share: { people: [{ personId: ME, role: "edit" }], space: "off" }, updatedAt: at(1, 16, 0) }),
-    n("n4", { link: { url: "https://docs.lawmatics.com/custom-fields", title: "Custom fields: create, map to forms, use in the API", siteName: "Lawmatics Help Center", image: uri("lawm"), description: "Field types, API names, and how intake forms fill matters." }, body: "For the Weinberger field list", labels: ["Clients"], updatedAt: at(1, 11, 0) }),
+    n("n4", { link: { url: "https://docs.lawmatics.com/custom-fields", title: "Custom fields: create, map to forms, use in the API", siteName: "Lawmatics Help Center", preview: "image", description: "Field types, API names, and how intake forms fill matters." }, body: "For the Weinberger field list", labels: ["Clients"], updatedAt: at(1, 11, 0) }),
     n("n7", { title: "GT+ pricing", body: "$1,500 a month, 3 month minimum. Andrey confirms Thursday, then the GHL pipeline goes live.", labels: ["Sales"], color: "rose", share: { people: [], space: "view" }, updatedAt: Date.UTC(2026, 9, 30, 9, 0) }),
     n("n10", { title: "Whiteboard, triage skill", hasImage: true, labels: ["Lab 8"], updatedAt: at(1, 12, 0) }),
     n("n8", { title: "Compliance workshop: what people asked", body: "Where do the files we upload live?\nWho owns the prompts we write?\nDo clients need to know when AI takes notes?", labels: ["Reading"], color: "sky", updatedAt: Date.UTC(2026, 9, 28, 9) }),
@@ -57,6 +57,8 @@ function notes(clipFresh: boolean): Note[] {
   return clipFresh ? [clip, ...rest] : rest;
 }
 const IMAGE_OF: Record<string, string> = { n3: "luma", n5: "bg", n10: "board" };
+/** Link card pictures, as the server fetched and stored them (notes.image part link). */
+const LINK_IMAGE_OF: Record<string, string> = { n4: "lawm" };
 const TYPES = [
   { key: "client", title: "Client", plural: "Clients", icon: "", label: "internal", system: false, titleField: "name", summaryField: "stage", version: 1, fields: [{ key: "name", type: "text", title: "Name" }, { key: "contact", type: "text", title: "Contact" }, { key: "stage", type: "text", title: "Stage" }, { key: "owner", type: "text", title: "Owner" }] },
   { key: "contact", title: "Contact", plural: "Contacts", icon: "", label: "internal", system: false, titleField: "name", version: 1, fields: [{ key: "name", type: "text", title: "Name" }, { key: "firm", type: "text", title: "Firm" }, { key: "role", type: "text", title: "Role" }] },
@@ -101,7 +103,7 @@ function notesRuntime(part: string): ShellRuntime {
     switch (cap) {
       case "notes.list": { const live = rows.filter((x) => !gone.has(x.noteId)); const sorted = [...live.filter((x) => x.pinned), ...live.filter((x) => !x.pinned)]; return { notes: sorted, labels: ["Lab 8", "Clients", "Sales", "Partners", "Reading"].map((name) => ({ name, count: live.filter((x) => x.labels.includes(name)).length })) }; }
       case "notes.get": return out(i.noteId);
-      case "notes.image": { const k = IMAGE_OF[i.noteId]; if (!k) throw new Error("no image"); return { contentType: "image/svg+xml", data: b64(SVG[k]!) }; }
+      case "notes.image": { const k = i["part"] === "link" ? LINK_IMAGE_OF[i.noteId] : IMAGE_OF[i.noteId]; if (!k) throw new Error("no image"); return { contentType: "image/svg+xml", data: b64(SVG[k]!) }; }
       case "notes.create": { const id = `n${rows.length + 20}`; const c = i as unknown as { title?: string; body?: string; color?: Note["color"]; pinned?: boolean; labels?: string[]; image?: unknown; link?: string }; const made = n(id, { title: c.title ?? "", body: c.body ?? "", color: c.color ?? "", pinned: c.pinned === true, labels: c.labels ?? [], hasImage: !!c.image, ...(c.link ? { link: { url: c.link, siteName: "Skool", title: "Lab 8: Claude reads your intake calls" } } : {}), createdAt: NOW, updatedAt: NOW }); rows = [made, ...rows]; return { note: made }; }
       case "notes.update": case "notes.pin": case "notes.label": case "notes.share": {
         rows = rows.map((x) => {
@@ -124,7 +126,7 @@ function notesRuntime(part: string): ShellRuntime {
       case "automations.read_link": {
         if (part === "reading") return new Promise(() => undefined);
         await new Promise((r) => setTimeout(r, 300));
-        return { ok: true, meta: { title: "Lab 8: Claude reads your intake calls", siteName: "Skool", image: uri("skool"), description: "MLA AI Labs · Thu 6 Nov, 6:00 PM ET" } };
+        return { ok: true, meta: { title: "Lab 8: Claude reads your intake calls", siteName: "Skool", description: "MLA AI Labs · Thu 6 Nov, 6:00 PM ET" }, preview: { contentType: "image/svg+xml", data: b64(SVG["skool"]!), from: "image" } };
       }
       // Ask about this note: its own new Ask thread (the sample's chats are another Space's)
       case "chat.start": if ((input as { kind?: string }).kind === "ask") return { thread: { threadId: "t_note_ask", kind: "ask", title: "Weinberger intake call, 31 Oct", listed: false, planMode: false, members: [{ kind: "person", id: ME }], agents: [{ agentId: "agt_assistant", mode: "lead" }], createdAt: NOW } }; return base.call(cap, input);

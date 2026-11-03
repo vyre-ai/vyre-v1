@@ -36,13 +36,14 @@ export type Role = "edit" | "view";
 export type SpaceShare = "off" | "view" | "edit";
 /** `space_only`: a Space reader who removed a Space-shared note from their own notes; the entry only hides it from them. */
 export interface Share { role: Role; removed_at: number | null; space_only?: boolean }
-export interface Link { url: string; title?: string; siteName?: string; image?: string; description?: string }
+/** A read link. `preview` says the card has a picture, kept as a notes blob (link_blob) and served by notes.image; the page's own image address is never kept or handed out. */
+export interface Link { url: string; title?: string; siteName?: string; description?: string; preview?: "image" | "icon" }
 export interface Clip { url: string; title?: string; selection?: string; at: number }
 export interface Linked { kind: "task" | "record"; id: string; title: string; at: number }
 
 export interface NoteRow {
   id: string; owner: string; title: string; body: string; color: string; pinned: number; labels_json: string;
-  image_blob: string | null; image_type: string | null; link_json: string | null; clip_json: string | null; shot_blob: string | null;
+  image_blob: string | null; image_type: string | null; link_json: string | null; clip_json: string | null; shot_blob: string | null; link_blob: string | null; link_blob_type: string | null;
   linked_json: string; share_people_json: string; share_space: SpaceShare; search_text: string; idem_key: string | null;
   created_at: number; updated_at: number; deleted_at: number | null; archived_at: number | null;
 }
@@ -194,21 +195,55 @@ export function checkUrl(ctx: NotesCtx, url: string): string {
   return parsed.toString();
 }
 
-/** Read a link through the one public fetch path (automations.read_link) for its title, image and site name. A link that cannot be read stays a plain link. */
-export async function unfurl(ctx: NotesCtx, url: string): Promise<Link> {
+/** A link read into a card, with its picture when the server could fetch one. */
+export interface Unfurled { link: Link; picture: { bytes: Uint8Array; contentType: string } | null }
+const PICTURE_TYPES = new Set(["image/png", "image/jpeg", "image/gif", "image/webp"]);
+const MAX_PICTURE = 1_000_000;
+
+/**
+ * Read a link through the one public fetch path (automations.read_link) for its title, site name and description, and its picture: the page image, else the site icon, fetched on the
+ * server (size-capped, image types only) so no browser ever asks the other site for it. A link that cannot be read stays a plain card; a picture that cannot be fetched leaves none.
+ */
+export async function unfurl(ctx: NotesCtx, url: string): Promise<Unfurled> {
   const host = new URL(url).hostname.replace(/^www\./, "");
   try {
-    const out = (await ctx.call("automations.read_link", { url })) as { ok?: boolean; finalUrl?: string; meta?: { title?: string; siteName?: string; image?: string; description?: string } } | null;
-    if (!out || out.ok !== true) return { url, siteName: host };
+    const out = (await ctx.call("automations.read_link", { url, preview: true })) as {
+      ok?: boolean; meta?: { title?: string; siteName?: string; description?: string }; preview?: { contentType?: string; data?: string; from?: string };
+    } | null;
+    if (!out || out.ok !== true) return { link: { url, siteName: host }, picture: null };
     const m = out.meta ?? {};
     const link: Link = { url, siteName: m.siteName || host };
     if (m.title) link.title = m.title.slice(0, 300);
-    if (m.image && /^https:\/\//.test(m.image)) link.image = m.image;
     if (m.description) link.description = m.description.slice(0, 500);
-    return link;
+    const p = out.preview;
+    let picture: Unfurled["picture"] = null;
+    if (p && typeof p.data === "string" && typeof p.contentType === "string" && PICTURE_TYPES.has(p.contentType)) {
+      const bytes = new Uint8Array(Buffer.from(p.data, "base64"));
+      if (bytes.byteLength > 0 && bytes.byteLength <= MAX_PICTURE) {
+        picture = { bytes, contentType: p.contentType };
+        link.preview = p.from === "icon" ? "icon" : "image";
+      }
+    }
+    return { link, picture };
   } catch {
     ctx.log?.warn("link not read", { note: "unfurl" });
-    return { url, siteName: host };
+    return { link: { url, siteName: host }, picture: null };
+  }
+}
+
+/** Put a read link on a row: the card, and its picture as the row's link blob (or none). */
+export async function applyLink(ctx: NotesCtx, r: NoteRow, u: Unfurled | null): Promise<void> {
+  r.link_json = u ? JSON.stringify(u.link) : null;
+  if (u?.picture && ctx.blobs) {
+    r.link_blob = await storeImage(ctx, u.picture.bytes, u.picture.contentType);
+    r.link_blob_type = u.picture.contentType;
+  } else {
+    r.link_blob = null;
+    r.link_blob_type = null;
+    if (u?.link.preview) {
+      delete u.link.preview;
+      r.link_json = JSON.stringify(u.link);
+    }
   }
 }
 

@@ -8,7 +8,13 @@ import { readFileSync } from "node:fs";
 import { ALIZA, ANDREY, failed, harness, ME, PNG } from "../fixtures/harness.ts";
 
 const LUMA = "https://lu.ma/lab-8";
-const pages = { [LUMA]: JSON.stringify({ title: "Lab 8: Claude reads your intake calls", siteName: "Luma", image: "https://images.lu.ma/lab-8.png", description: "Thu 6 Nov, 6:00 PM ET" }) };
+const ICON_SITE = "https://skool.com/mla-ai-labs";
+const pages = {
+  [LUMA]: JSON.stringify({ title: "Lab 8: Claude reads your intake calls", siteName: "Luma", image: "https://images.lu.ma/lab-8.png", description: "Thu 6 Nov, 6:00 PM ET", preview: { contentType: "image/png", data: PNG, from: "image" } }),
+  [ICON_SITE]: JSON.stringify({ title: "MLA AI Labs", siteName: "Skool", icon: "https://skool.com/apple-touch-icon.png", preview: { contentType: "image/png", data: PNG, from: "icon" } }),
+  "https://example.org/no-picture": JSON.stringify({ title: "No picture", image: "https://example.org/a.png" }),
+  "https://example.org/svg": JSON.stringify({ title: "An SVG", preview: { contentType: "image/svg+xml", data: PNG, from: "image" } }),
+};
 const threads = {
   thr_mine: { starter: ME },                                   // my own chat with my Assistant
   thr_ask: { kind: "ask", starter: ME },                       // the Ask pane, opened by me
@@ -84,11 +90,12 @@ test("pasting an image stores a blob the blob route never serves; the note hands
   assert.equal(await failed(w.call("notes.create", { image: { data: "", contentType: "image/png" } })), "validation.bad_input");
 });
 
-test("a pasted link reads into a card with title, image and site name through automations.read_link; one that cannot be read stays a plain link", async () => {
+test("a pasted link reads into a card with title, site name and a picture fetched on the server; one that cannot be read stays a plain link", async () => {
   const w = world();
   const a = (await w.call("notes.create", { link: LUMA, body: "Post with reel 1 on Tuesday" })).note;
-  assert.deepEqual(a.link, { url: LUMA, siteName: "Luma", title: "Lab 8: Claude reads your intake calls", image: "https://images.lu.ma/lab-8.png", description: "Thu 6 Nov, 6:00 PM ET" });
-  assert.deepEqual(w.calls.filter((c) => c.cap === "automations.read_link").map((c) => c.input), [{ url: LUMA }]);
+  assert.deepEqual(a.link, { url: LUMA, siteName: "Luma", title: "Lab 8: Claude reads your intake calls", description: "Thu 6 Nov, 6:00 PM ET", preview: "image" });
+  assert.deepEqual(w.calls.filter((c) => c.cap === "automations.read_link").map((c) => c.input), [{ url: LUMA, preview: true }], "the picture is fetched by the server");
+  assert.doesNotMatch(JSON.stringify(a), /images\.lu\.ma/, "no other site's address reaches a browser");
   assert.equal((await w.call("notes.search", { q: "claude reads" })).notes[0].noteId, a.noteId, "the card's title is searchable");
   const b = (await w.call("notes.create", { link: "https://example.org/private" })).note;
   assert.deepEqual(b.link, { url: "https://example.org/private", siteName: "example.org" });
@@ -96,6 +103,27 @@ test("a pasted link reads into a card with title, image and site name through au
   assert.equal(w.calls.filter((c) => c.cap === "automations.read_link").length, 2, "a refused link is never fetched");
   const removed = (await w.call("notes.update", { noteId: a.noteId, link: null })).note;
   assert.equal(removed.link, undefined);
+});
+
+test("a link card's picture is a notes blob served by notes.image to readers only; else the site icon; else a plain card; never a type that is not a picture", async () => {
+  const w = world();
+  const a = (await w.call("notes.create", { link: LUMA })).note;
+  const pic = [...w.blobs.values()].at(-1)!;
+  assert.deepEqual([pic.meta.contentType, pic.resource], ["image/png", undefined], "a module blob with no resource: the blob route never serves it");
+  assert.deepEqual(await w.call("notes.image", { noteId: a.noteId, part: "link" }), { contentType: "image/png", data: PNG });
+  assert.equal(await failed(w.call("notes.image", { noteId: a.noteId, part: "link" }, ALIZA)), "validation.not_found");
+  assert.equal(await failed(w.call("notes.image", { noteId: a.noteId })), "validation.not_found", "the note itself has no image");
+  const icon = (await w.call("notes.create", { link: ICON_SITE })).note;
+  assert.equal(icon.link.preview, "icon");
+  assert.equal((await w.call("notes.image", { noteId: icon.noteId, part: "link" })).contentType, "image/png");
+  for (const url of ["https://example.org/no-picture", "https://example.org/svg"]) {
+    const plain = (await w.call("notes.create", { link: url })).note;
+    assert.equal(plain.link.preview, undefined, url);
+    assert.equal(await failed(w.call("notes.image", { noteId: plain.noteId, part: "link" })), "validation.not_found", url);
+  }
+  const moved = (await w.call("notes.update", { noteId: a.noteId, link: "https://example.org/no-picture" })).note;
+  assert.equal(moved.link.preview, undefined);
+  assert.equal(await failed(w.call("notes.image", { noteId: a.noteId, part: "link" })), "validation.not_found", "a new link without a picture drops the old one");
 });
 
 test("a private note exists for nobody else and for none of their agents", async () => {

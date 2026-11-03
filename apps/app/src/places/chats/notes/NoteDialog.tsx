@@ -83,7 +83,7 @@ export function NoteDialog({ n, image, who, edited, a }: { n: Note; image: strin
               </Source>
             </View>
           ) : null}
-          {n.link ? <View style={[s.pad, { paddingTop: 4 }]}><LinkCard link={n.link} row={false} testID="note-dialog-link" /></View> : null}
+          {n.link ? <View style={[s.pad, { paddingTop: 4 }]}><LinkCard link={n.link} noteId={n.noteId} row={false} testID="note-dialog-link" /></View> : null}
           {/* ui-rows-lint: not a list (the task or record made from this note, one line each with Open) */}
           {n.linked.map((l) => (
             <View key={`${l.kind}:${l.id}`} style={s.pad}>

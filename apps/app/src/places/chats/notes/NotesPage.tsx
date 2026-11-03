@@ -26,7 +26,7 @@ import { TakeNote } from "./TakeNote.tsx";
 import { ActionSheet, PhoneNote } from "./NotePhone.tsx";
 import { RecordSheet, ShareSheet, TaskSheet } from "./NoteSheets.tsx";
 import type { Person, RecordDone, RecordDraft, TaskDone, TaskDraft } from "./NoteSheets.tsx";
-import { Btn, IconBtn, Keycap, Swatch, TickBox, dom, pressPoint, web } from "./parts.tsx";
+import { Btn, IconBtn, Keycap, LinkPictures, Swatch, TickBox, dom, pressPoint, web } from "./parts.tsx";
 import { CLOSED, barStep, createInput, fromDataUri, pasteKind, takeStep } from "./take.ts";
 import type { Bar, LinkPreview, Take, TakeAct } from "./take.ts";
 
@@ -111,6 +111,7 @@ function pickFile(then: (uri: string) => void): void {
 export function NotesPage({ rt, nameOf, noteId = null, initial, store: given, phone: forcePhone, takeNonce = 0 }: NotesPageProps): ReactElement {
   ensureNotesCss();
   const store = useMemo(() => given ?? notesStoreFor(rt), [given, rt]);
+  const linkPicture = useCallback((noteId: string): string | null => store.linkImage(noteId), [store]);
   const data = useSyncExternalStore(store.subscribe, store.get, store.get);
   const width = useWindowDimensions().width;
   const phone = forcePhone ?? (width > 0 && width < NOTES_PHONE);
@@ -181,11 +182,11 @@ export function NotesPage({ rt, nameOf, noteId = null, initial, store: given, ph
   /* ---------- saving ---------- */
   const unfurl = useCallback((url: string): void => {
     dispatch({ t: "reading", url });
-    void Promise.resolve(rt.call("automations.read_link", { url })).then(
+    void Promise.resolve(rt.call("automations.read_link", { url, preview: true })).then(
       (o) => {
         const out = o as CapMap["automations.read_link"]["out"];
         const m = out.ok ? out.meta ?? {} : {};
-        const link: LinkPreview = { url, siteName: m.siteName || hostOf(url), ...(m.title ? { title: m.title } : {}), ...(m.image && /^(https:\/\/|data:image\/)/.test(m.image) ? { image: m.image } : {}), ...(m.description ? { description: m.description } : {}) };
+        const link: LinkPreview = { url, siteName: m.siteName || hostOf(url), ...(m.title ? { title: m.title } : {}), ...(out.ok && out.preview ? { image: `data:${out.preview.contentType};base64,${out.preview.data}`, preview: out.preview.from } : {}), ...(m.description ? { description: m.description } : {}) };
         dispatch({ t: "read", link });
       },
       () => dispatch({ t: "read", link: { url, siteName: hostOf(url) } }),
@@ -661,6 +662,7 @@ export function NotesPage({ rt, nameOf, noteId = null, initial, store: given, ph
 
   if (phone) {
     return (
+      <LinkPictures.Provider value={linkPicture}>
       <View ref={rootRef as never} style={st.root} testID="notes-page">
         <ScrollView style={{ flex: 1 }} contentContainerStyle={st.phoneBody}>
           <View style={st.phoneHead}>
@@ -701,11 +703,13 @@ export function NotesPage({ rt, nameOf, noteId = null, initial, store: given, ph
         {toast}
         {menu.element}
       </View>
+      </LinkPictures.Provider>
     );
   }
 
   const n = data.notes.length;
   return (
+    <LinkPictures.Provider value={linkPicture}>
     <View ref={rootRef as never} style={st.root} testID="notes-page">
       <View style={st.head}>
         <View style={st.ti}>
@@ -745,6 +749,7 @@ export function NotesPage({ rt, nameOf, noteId = null, initial, store: given, ph
       {layer}
       {menu.element}
     </View>
+    </LinkPictures.Provider>
   );
 }
 

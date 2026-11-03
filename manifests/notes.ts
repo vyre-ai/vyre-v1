@@ -5,7 +5,8 @@
 // DECISION: agents read notes through notes.search and notes.get only, and only when everyone who reads the chat may read the note (lib/audience.ts: a private note reads in its owner's
 // own chats, never in a channel; a shared note follows its share).
 // DECISION: an image is a blob with no access-layer resource, so the blob route never serves it; notes.image hands the bytes to someone who may read the note.
-// DECISION: a link is read through automations.read_link (the one public fetch path) and its page meta: title, image address and site name.
+// DECISION: a link is read through automations.read_link (the one public fetch path): title, site name, description, and its picture (page image, else site icon) fetched on the
+// server, size-capped and image types only, kept as a notes blob and served by notes.image. A browser never loads another site's image for a card.
 // DECISION: delete is a soft delete; notes.restore is Undo. to_task and to_record call tasks.create and records.create and keep the new id on the note, so the two link both ways.
 import { create, defineManifest, ev, read, write, t } from '../packages/contracts/src/index.ts';
 import { id, pageIn, pageOut } from './_common.ts';
@@ -17,7 +18,7 @@ const label = t.str({ minLength: 1, maxLength: 40, examples: ['Lab 8'] });
 const role = t.enm('edit', 'view');
 const spaceShare = t.enm('off', 'view', 'edit');
 const imageIn = t.obj({ data: t.str({ description: 'The image bytes, base64', maxLength: 14_000_000 }), contentType: t.enm('image/png', 'image/jpeg', 'image/gif', 'image/webp') });
-const linkOut = t.obj({ url: t.str(), title: t.opt(t.str()), siteName: t.opt(t.str()), image: t.opt(t.str({ description: 'The page image address, as the page names it' })), description: t.opt(t.str()) });
+const linkOut = t.obj({ url: t.str(), title: t.opt(t.str()), siteName: t.opt(t.str()), description: t.opt(t.str()), preview: t.opt(t.enm('image', 'icon')) }, { description: 'A read link. With preview, the card has a picture (the page image or the site icon), fetched on the server and read with notes.image part link; no other site\'s address is ever handed to a browser' });
 const clipOut = t.obj({ url: t.str(), title: t.opt(t.str()), selection: t.opt(t.str()), hasShot: t.bool(), at: t.ts() });
 const linked = t.obj({ kind: t.enm('task', 'record'), id: t.str({ examples: ['tsk_a1b2c3'] }), title: t.str(), at: t.ts() });
 const noteRow = t.obj({
@@ -60,8 +61,8 @@ export default defineManifest({
     read('notes.search', 'Search the notes the asker may read: title, text, labels, link and clipped page. An agent finds only notes everyone in its chat may read', {
       ...M, in: { q: t.str({ minLength: 1 }), limit: t.opt(t.int({ minimum: 1, maximum: 50 })) }, out: { notes: t.arr(hit) }, tool: 'memory', mcpName: 'notes_search', agent: { planMode: 'allowed' },
     }),
-    read('notes.image', 'The image of a note, for someone who may read it', {
-      ...M, in: target, out: { contentType: t.str(), data: t.str({ description: 'base64' }) }, errors: ['validation.not_found'],
+    read('notes.image', 'The image of a note (or a clip screenshot), or with part link its link card picture, for someone who may read it', {
+      ...M, in: { ...target, part: t.opt(t.enm('image', 'link')) }, out: { contentType: t.str(), data: t.str({ description: 'base64' }) }, errors: ['validation.not_found'],
     }),
     write('notes.update', 'Change a note: title, text, colour, image or link (null removes the image or link)', {
       ...M, in: { ...target, title: t.opt(t.str({ maxLength: 500 })), body: t.opt(t.str({ maxLength: 100_000 })), color: t.opt(color), image: t.opt(t.nullable(imageIn)), link: t.opt(t.nullable(t.str({ maxLength: 2000 }))) },

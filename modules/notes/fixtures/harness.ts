@@ -10,6 +10,7 @@ import type { BlobMeta, Db, NotesCtx } from "../projections.ts";
 // Boundary B2 keeps node:sqlite out of module import lines; the fixture asks the runtime for the built-in, as modules/tasks/fixtures/db.ts does.
 const { DatabaseSync } = process.getBuiltinModule("node:sqlite");
 const migration = readFileSync(new URL("../migrations/0001_notes.sql", import.meta.url), "utf8");
+const picture = readFileSync(new URL("../migrations/0002_link_picture.sql", import.meta.url), "utf8");
 export const TRACE = "0123456789abcdef0123456789abcdef";
 export const NOW = 1_762_160_000_000;
 export const ME = "usr_irfad", ALIZA = "usr_aliza", ANDREY = "usr_andrey";
@@ -25,6 +26,7 @@ export interface ChannelDef { visibility: "public" | "invite"; members: string[]
 export function harness(o: { threads?: Record<string, ThreadDef>; channels?: Record<string, ChannelDef>; pages?: Record<string, string> } = {}) {
   const sqlite = new DatabaseSync(":memory:");
   sqlite.exec(migration);
+  sqlite.exec(picture);
   const norm = (a: unknown): unknown => (a === undefined ? null : a);
   const raw: Db = {
     all: (sql, ...args) => sqlite.prepare(sql).all(...(args.map(norm) as never[])),
@@ -51,9 +53,12 @@ export function harness(o: { threads?: Record<string, ThreadDef>; channels?: Rec
       if (!c) throw new Error("no such channel");
       return { channel: { visibility: c.visibility, members: c.members.map((id) => ({ kind: "person", id })) } };
     },
-    "automations.read_link": (i: { url: string }) => {
-      const meta = pages[i.url];
-      return meta === undefined ? { ok: false, reason: "not reachable" } : { ok: true, finalUrl: i.url, kind: "html", text: "", meta: JSON.parse(meta) };
+    // a page: its meta as JSON, and with "preview" the picture read_link fetched on the server (the stand-in passes it through as given)
+    "automations.read_link": (i: { url: string; preview?: boolean }) => {
+      const page = pages[i.url];
+      if (page === undefined) return { ok: false, reason: "not reachable" };
+      const { preview, ...meta } = JSON.parse(page) as Record<string, unknown>;
+      return { ok: true, finalUrl: i.url, kind: "html", text: "", meta, ...(i.preview && preview ? { preview } : {}) };
     },
     "tasks.create": (i: { title: string; idempotencyKey: string }) => ({ task: { id: (taskKeys[i.idempotencyKey] ??= `tsk_${++n}`), title: i.title } }),   // the tasks module answers a key it has seen with the same task
     "records.create": () => ({ record: { id: `rec_${++n}` } }),

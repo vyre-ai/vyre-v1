@@ -12,3 +12,4 @@
 - On a phone Notes is two columns with Take a note above the tab bar; a note opens as its own page and a long press or More opens its actions as a sheet.
 - A note found in the top search opens in Notes.
 - ui/Menu: a row can stay open when chosen (`keep`), show a quiet hint on the right (`hint`), and a menu with a search can tell its surface what was typed (`onSearch`); `useMenu` gains `update` to change the rows of the open menu in place.
+- A link card's picture is fetched by the server when the link is read: the page image, or the site icon if that fails, or no picture (PNG, JPEG, GIF or WebP only, checked by type and first bytes, up to 1 MB). It is kept as a notes blob and served through `notes.image` with `part: "link"`, so a browser never loads another site's image and that site never learns who is looking. `automations.read_link` takes `preview` for this and also returns the page's icon address.

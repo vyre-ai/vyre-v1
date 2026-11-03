@@ -78,7 +78,7 @@ export function PhoneNote({ n, image, who, edited, a }: { n: Note; image: string
           onContentSizeChange={(e) => setBodyH(Math.max(100, Math.ceil(e.nativeEvent.contentSize.height)))} style={[s.text, { height: bodyH }]}
         />
         {n.clip?.selection ? <Quote text={n.clip.selection} big /> : null}
-        {n.link ? <LinkCard link={n.link} /> : null}
+        {n.link ? <LinkCard link={n.link} noteId={n.noteId} /> : null}
         <View style={s.meta}>
           <View style={s.metaRow}><Ico name="tag" size={14} color="var(--ink-3)" /><Text style={s.metaText}>{n.labels.join(", ") || "No labels"}</Text></View>
           <View style={s.metaRow}><Ico name={words.icon} size={14} color="var(--ink-3)" /><Text style={s.metaText}>{words.long}</Text></View>

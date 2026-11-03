@@ -10,7 +10,8 @@ export const IMAGE_TYPES: readonly ImageType[] = ["image/png", "image/jpeg", "im
 /** An image held before it is saved: the bytes as base64, their type, and the data address the page draws it from. */
 export interface TakeImage { data: string; contentType: ImageType; uri: string }
 /** A pasted link once it is read: what the card shows. */
-export interface LinkPreview { url: string; title?: string; siteName?: string; image?: string; description?: string }
+/** A link card. `image` is only ever a data address the server fetched (read_link with preview, or notes.image part link): a browser never loads another site's picture. */
+export interface LinkPreview { url: string; title?: string; siteName?: string; image?: string; description?: string; preview?: "image" | "icon" }
 /** Who sees a new note: only you, a person (the share sheet opens once it is saved), or the Space. */
 export type TakeShare = "private" | "person" | "space";
 

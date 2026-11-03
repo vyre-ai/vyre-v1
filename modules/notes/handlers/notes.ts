@@ -1,26 +1,26 @@
 // Notes: take, read, list, search, change, pin and label (lane L2). Every handler checks and raises before its first write (raise-after-write).
 import {
-  askerAudience, checkUrl, cleanLabels, decodeImage, editable, emit, labelsOf, linkOf, mayRead, noteOut, page, personOf, raise, readable, searchText, storeImage, TABLE, unfurl,
+  applyLink, askerAudience, checkUrl, cleanLabels, decodeImage, editable, emit, labelsOf, linkOf, mayRead, noteOut, page, personOf, raise, readable, searchText, storeImage, TABLE, unfurl,
 } from "../projections.ts";
-import type { ImageIn, Link, NoteRow, NotesCtx } from "../projections.ts";
+import type { ImageIn, NoteRow, NotesCtx, Unfurled } from "../projections.ts";
 
 type Color = "" | "rose" | "sand" | "sage" | "sky" | "lilac" | "slate";
-const COLS = "id, owner, title, body, color, pinned, labels_json, image_blob, image_type, link_json, clip_json, shot_blob, linked_json, share_people_json, share_space, search_text, idem_key, created_at, updated_at, deleted_at, archived_at";
+const COLS = "id, owner, title, body, color, pinned, labels_json, image_blob, image_type, link_json, clip_json, shot_blob, link_blob, link_blob_type, linked_json, share_people_json, share_space, search_text, idem_key, created_at, updated_at, deleted_at, archived_at";
 
 export function insertNote(ctx: NotesCtx, r: NoteRow): void {
-  ctx.db.run(`INSERT INTO ${TABLE} (${COLS}) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    r.id, r.owner, r.title, r.body, r.color, r.pinned, r.labels_json, r.image_blob, r.image_type, r.link_json, r.clip_json, r.shot_blob, r.linked_json, r.share_people_json, r.share_space,
+  ctx.db.run(`INSERT INTO ${TABLE} (${COLS}) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    r.id, r.owner, r.title, r.body, r.color, r.pinned, r.labels_json, r.image_blob, r.image_type, r.link_json, r.clip_json, r.shot_blob, r.link_blob, r.link_blob_type, r.linked_json, r.share_people_json, r.share_space,
     r.search_text, r.idem_key, r.created_at, r.updated_at, r.deleted_at, r.archived_at);
 }
 /** Write every changeable column of a row back, with its search text. */
 export function saveNote(ctx: NotesCtx, r: NoteRow): void {
   r.search_text = searchText(r);
-  ctx.db.run(`UPDATE ${TABLE} SET title = ?, body = ?, color = ?, pinned = ?, labels_json = ?, image_blob = ?, image_type = ?, link_json = ?, linked_json = ?, share_people_json = ?, share_space = ?, search_text = ?, updated_at = ?, deleted_at = ?, archived_at = ? WHERE id = ?`,
-    r.title, r.body, r.color, r.pinned, r.labels_json, r.image_blob, r.image_type, r.link_json, r.linked_json, r.share_people_json, r.share_space, r.search_text, r.updated_at, r.deleted_at, r.archived_at, r.id);
+  ctx.db.run(`UPDATE ${TABLE} SET title = ?, body = ?, color = ?, pinned = ?, labels_json = ?, image_blob = ?, image_type = ?, link_json = ?, link_blob = ?, link_blob_type = ?, linked_json = ?, share_people_json = ?, share_space = ?, search_text = ?, updated_at = ?, deleted_at = ?, archived_at = ? WHERE id = ?`,
+    r.title, r.body, r.color, r.pinned, r.labels_json, r.image_blob, r.image_type, r.link_json, r.link_blob, r.link_blob_type, r.linked_json, r.share_people_json, r.share_space, r.search_text, r.updated_at, r.deleted_at, r.archived_at, r.id);
 }
 export function blankNote(id: string, owner: string, now: number): NoteRow {
   return {
-    id, owner, title: "", body: "", color: "", pinned: 0, labels_json: "[]", image_blob: null, image_type: null, link_json: null, clip_json: null, shot_blob: null,
+    id, owner, title: "", body: "", color: "", pinned: 0, labels_json: "[]", image_blob: null, image_type: null, link_json: null, clip_json: null, shot_blob: null, link_blob: null, link_blob_type: null,
     linked_json: "[]", share_people_json: "{}", share_space: "off", search_text: "", idem_key: null, created_at: now, updated_at: now, deleted_at: null, archived_at: null,
   };
 }
@@ -46,13 +46,14 @@ export async function createNote(ctx: NotesCtx, input: CreateIn) {
   const url = input.link ? checkUrl(ctx, input.link) : null;
   const bytes = input.image ? decodeImage(ctx, input.image) : null;
   if (!title && !body.trim() && !url && !bytes) raise(ctx.trace.traceId, "validation.bad_input", "A note needs a title, text, an image or a link.");
-  const link: Link | null = url ? await unfurl(ctx, url) : null;
+  const read: Unfurled | null = url ? await unfurl(ctx, url) : null;
   const blob = bytes ? await storeImage(ctx, bytes, input.image!.contentType) : null;
   const r = blankNote(nid(), person, ctx.now());
   Object.assign(r, {
     title, body, color: input.color ?? "", pinned: input.pinned ? 1 : 0, labels_json: JSON.stringify(cleanLabels(input.labels)),
-    image_blob: blob, image_type: blob ? input.image!.contentType : null, link_json: link ? JSON.stringify(link) : null, idem_key: input.idempotencyKey ?? null,
+    image_blob: blob, image_type: blob ? input.image!.contentType : null, idem_key: input.idempotencyKey ?? null,
   });
+  await applyLink(ctx, r, read);
   r.search_text = searchText(r);
   insertNote(ctx, r);
   emit(ctx, "notes.created", r);
@@ -105,9 +106,10 @@ export async function searchNotes(ctx: NotesCtx, input: { q: string; limit?: num
   return { notes: rows.slice(0, input.limit ?? 10).map((r) => ({ noteId: r.id, title: r.title || linkOf(r)?.title || "", snippet: snippet(r, q), labels: labelsOf(r), owner: r.owner, updatedAt: r.updated_at })) };
 }
 
-export async function noteImage(ctx: NotesCtx, input: { noteId: string }) {
+/** A note's picture (its image, or a clip's screenshot), or with part "link" its link card's picture: served from the notes blobs to someone who may read the note. */
+export async function noteImage(ctx: NotesCtx, input: { noteId: string; part?: "image" | "link" }) {
   const r = await readable(ctx, input.noteId);
-  const id = r.image_blob ?? r.shot_blob;
+  const id = input.part === "link" ? r.link_blob : r.image_blob ?? r.shot_blob;
   if (!id || !ctx.blobs) raise(ctx.trace.traceId, "validation.not_found", "This note has no image.");
   const got = await ctx.blobs.get(id);
   if (!got) raise(ctx.trace.traceId, "validation.not_found", "This note has no image.");
@@ -122,8 +124,8 @@ export async function updateNote(ctx: NotesCtx, input: UpdateIn) {
   if (input.title !== undefined) r.title = input.title.trim();
   if (input.body !== undefined) r.body = input.body;
   if (input.color !== undefined) r.color = input.color;
-  if (input.link === null) r.link_json = null;
-  else if (url && linkOf(r)?.url !== url) r.link_json = JSON.stringify(await unfurl(ctx, url));
+  if (input.link === null) await applyLink(ctx, r, null);
+  else if (url && linkOf(r)?.url !== url) await applyLink(ctx, r, await unfurl(ctx, url));
   if (input.image === null) { r.image_blob = null; r.image_type = null; }
   else if (bytes) { r.image_blob = await storeImage(ctx, bytes, input.image!.contentType); r.image_type = input.image!.contentType; }
   r.updated_at = ctx.now();

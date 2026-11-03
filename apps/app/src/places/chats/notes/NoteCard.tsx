@@ -51,7 +51,7 @@ export const NoteCard = memo(function NoteCard({ n, image, who, selected, tabbab
           {n.body ? <Text numberOfLines={phone ? 6 : 9} style={s.text}>{n.body}</Text> : null}
           {n.clip?.selection ? <Quote text={n.clip.selection} /> : null}
           {n.clip ? <Source icon="clip" url={n.clip.url} /> : null}
-          {n.link ? <LinkCard link={n.link} compact /> : null}
+          {n.link ? <LinkCard link={n.link} noteId={n.noteId} compact /> : null}
           {/* ui-rows-lint: not a list (what the note was turned into, one line each inside the card) */}
           {n.linked.map((l) => (
             <View key={`${l.kind}:${l.id}`} style={s.linked}>

@@ -1,6 +1,6 @@
 // The meta of a fetched HTML page, for a link card: title, image address, site name and description, from Open Graph tags, then Twitter tags, then <title> and the description meta.
 // The page is never run or rendered: this reads the first 64 KB of the head as text with patterns. Entities are decoded for the few that appear in titles.
-export interface PageMeta { title?: string; image?: string; siteName?: string; description?: string }
+export interface PageMeta { title?: string; image?: string; siteName?: string; description?: string; icon?: string }
 
 const ENT: Record<string, string> = { amp: "&", lt: "<", gt: ">", quot: '"', apos: "'", "#39": "'", nbsp: " " };
 const decode = (s: string): string =>
@@ -39,6 +39,20 @@ export function pageMeta(html: string, base: URL): PageMeta {
     try {
       const u = new URL(img, base);
       if (u.protocol === "https:") out.image = u.toString();
+    } catch { /* not an address */ }
+  }
+  // the site's icon, the fallback picture for a card: an apple-touch-icon (a PNG) first, then any rel icon
+  const icons: { rel: string; href: string }[] = [];
+  for (const m of head.matchAll(/<link\b[^>]*>/gi)) {
+    const a = attrs(m[0]);
+    const rel = (a["rel"] ?? "").toLowerCase();
+    if (a["href"] && /(^|\s)(icon|apple-touch-icon)(\s|$)/.test(rel)) icons.push({ rel, href: a["href"] });
+  }
+  const pick = icons.find((i) => i.rel.includes("apple-touch-icon")) ?? icons[0];
+  if (pick) {
+    try {
+      const u = new URL(decode(pick.href), base);
+      if (u.protocol === "https:") out.icon = u.toString();
     } catch { /* not an address */ }
   }
   return out;

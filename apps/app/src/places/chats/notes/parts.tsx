@@ -1,6 +1,6 @@
 // Notes, the small pieces every part of the page draws: buttons in the prototype's three weights, the icon button with its tooltip, a picture, the link card, a clipped page's quote and
 // address, faces, a tick box and a key cap. Sizes and colours follow the approved prototype; every colour is a skin token.
-import { createElement } from "react";
+import { createContext, createElement, useContext } from "react";
 import type { ReactElement, ReactNode } from "react";
 import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import { Tooltip } from "../../../../../../ui/src/Tooltip/index.tsx";
@@ -72,13 +72,20 @@ export function Picture({ uri, alt, maxHeight, height, testID }: { uri: string |
   );
 }
 
+/** The picture of a saved note's link card, by note id: a data address from notes.image part link, or null while it loads or when there is none. */
+export const LinkPictures = createContext<(noteId: string) => string | null>(() => null);
+const isData = (u: string | null | undefined): u is string => typeof u === "string" && u.startsWith("data:image/");
+
 /** The card a read link becomes: the page's image, its site with a coloured letter, its title, and (not compact) its description and address. */
-export function LinkCard({ link, compact = false, row = false, testID }: { link: LinkPreview; compact?: boolean; row?: boolean; testID?: string }): ReactElement {
+export function LinkCard({ link, noteId, compact = false, row = false, testID }: { link: LinkPreview; noteId?: string; compact?: boolean; row?: boolean; testID?: string }): ReactElement {
+  const picture = useContext(LinkPictures);
+  // only a data address: the server fetched the picture, so the browser never asks the other site for it
+  const src = isData(link.image) ? link.image : noteId && link.preview ? picture(noteId) : null;
   const site = link.siteName || hostOf(link.url);
   const mark = siteMark(site);
   return (
     <View testID={testID} style={[st.lk, row ? st.lkRow : null]} {...dom({ dataSet: { nlk: "true" } })}>
-      {link.image && web ? createElement("div", { style: row ? { width: 150, flex: "none", overflow: "hidden" } : { width: "100%" } }, createElement("img", { src: link.image, alt: "", draggable: false, style: row ? { height: "100%", width: "100%", objectFit: "cover", objectPosition: "left center", display: "block" } : { width: "100%", height: "auto", display: "block" } })) : null}
+      {isData(src) && web ? createElement("div", { style: row ? { width: 150, flex: "none", overflow: "hidden" } : { width: "100%" } }, createElement("img", { src, alt: "", draggable: false, style: row ? { height: "100%", width: "100%", objectFit: "cover", objectPosition: "left center", display: "block" } : { width: "100%", height: "auto", display: "block" } })) : null}
       <View style={st.lx}>
         <View style={st.ls}>
           <View style={[st.fav, { backgroundColor: mark.color }]}><Text style={st.favText}>{mark.letter}</Text></View>

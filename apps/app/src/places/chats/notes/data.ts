@@ -36,6 +36,8 @@ export interface NotesStore {
   toRecord(input: CapMap["notes.to_record"]["in"]): Promise<{ recordId: string } | null>;
   /** The note's image as a data address, or null until it is read (the store reads it and tells its listeners). */
   image(noteId: string): string | null;
+  /** A saved link card's picture (notes.image part link), as a data address; null while it loads or when the card has none. */
+  linkImage(noteId: string): string | null;
   /** An image chosen or pasted here: shown at once, before the server has it. */
   setImage(noteId: string, uri: string | null): void;
   /** Where a refusal is said (the page's bar). */
@@ -50,6 +52,7 @@ export function createNotesStore(call: Call, sayFirst: (text: string) => void = 
   let state: NotesState = { status: "loading", notes: [], labels: [], images: 0 };
   const listeners = new Set<() => void>();
   const images = new Map<string, string | "pending" | "none">();
+  const linkImages = new Map<string, string | "pending" | "none">();
   const set = (next: Partial<NotesState>): void => { state = { ...state, ...next }; for (const l of listeners) l(); };
   const ping = (): void => set({ images: state.images + 1 });
   const find = (id: string): Note | undefined => state.notes.find((n) => n.noteId === id);
@@ -183,6 +186,19 @@ export function createNotesStore(call: Call, sayFirst: (text: string) => void = 
       void Promise.resolve(call("notes.image", { noteId })).then(
         (o) => { const out = o as CapMap["notes.image"]["out"]; images.set(noteId, toDataUri(out.contentType, out.data)); ping(); },
         () => { images.set(noteId, "none"); ping(); },
+      );
+      return null;
+    },
+    linkImage(noteId) {
+      const n = find(noteId);
+      const had = linkImages.get(noteId);
+      if (had === "pending" || had === "none") return null;
+      if (had !== undefined) return had;
+      if (!n?.link?.preview) return null;
+      linkImages.set(noteId, "pending");
+      void Promise.resolve(call("notes.image", { noteId, part: "link" })).then(
+        (o) => { const out = o as CapMap["notes.image"]["out"]; linkImages.set(noteId, toDataUri(out.contentType, out.data)); ping(); },
+        () => { linkImages.set(noteId, "none"); ping(); },
       );
       return null;
     },
