@@ -9,7 +9,7 @@ import type { SidebarSlotApi } from "../../../shell/sidebar/index.ts";
 import { ChatsSidebar, ChatsSidebarSlot } from "./ChatsSidebar.tsx";
 import { SectionHead, Tool } from "./parts.tsx";
 import { createSidebarApi } from "./actions.ts";
-import { validateInput } from "../../../../../../generated/validators.ts";
+import { validateInput } from "../../../../tests/validators.support.ts";
 import { FACES_SHOWN, NEW_CHAT_MS, buildEntries, groupRecent, matchesQuery, refetch, rowOf } from "./model.ts";
 import type { ChatRow, RecentOut } from "./model.ts";
 import { createSampleSidebar, harbor, northwind, personal } from "./sample.ts";

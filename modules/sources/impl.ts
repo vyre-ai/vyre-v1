@@ -7,6 +7,7 @@ import { openRecordStore } from "../../kernel/src/store/records.ts";
 import type { ProjectionHost, Tx } from "../../kernel/src/store/projection.ts";
 import type { Store } from "../../kernel/src/store/types.ts";
 import type { SeamSetters } from "../../host/src/seams/index.ts";
+import { perSpaceStore } from "../../host/src/daemon/store.ts";
 import type { SpaceStoreSeam } from "../../host/src/daemon/store.ts";
 import { createSourcesHandlers } from "./handlers/index.ts";
 import type { SourcesHandlers } from "./handlers/index.ts";
@@ -41,23 +42,23 @@ export function openSources(o: Partial<Omit<SourcesDeps, "tx">> & { tx?: Tx; pat
 // ---- loader entry ----
 
 type HostCtx = { trace: { traceId: string }; emit(name: string, subject: string, payload: Record<string, unknown>): unknown; call(cap: string, input: unknown): Promise<unknown>; principal?: { id: string } };
-let shared: SourcesHandle | null = null;
-let spaceSeam: SpaceStoreSeam | null = null;
-/** The host hands the Space store (P-H_08, ruling 31). */
-export function setSourcesSpaceStore(seam: SpaceStoreSeam | null): void { spaceSeam = seam; shared = null; }
 let resolver: ((name: string) => Promise<string | undefined>) | null = null;
-const live = (): SourcesHandle => {
-  if (!shared) {
-    shared = openSources(spaceSeam ? { tx: spaceSeam.open().tx } : {});
-    if (resolver) shared.deps.secret = resolver;
-  }
-  return shared;
-};
+const handles = new Set<SourcesHandle>();
+// One handle per Space store (two daemons in one process each have their own); a call is served from the one its ctx.db belongs to.
+const stores = perSpaceStore<SourcesHandle>((seam) => {
+  const h = openSources(seam ? { tx: seam.open().tx } : {});
+  if (resolver) h.deps.secret = resolver;
+  handles.add(h);
+  return h;
+});
+/** The host hands the Space store (P-H_08, ruling 31). */
+export function setSourcesSpaceStore(seam: SpaceStoreSeam | null): void { stores.set(seam); }
+const live = (ctx?: { db?: unknown }): SourcesHandle => stores.get(ctx);
 
 function adapt(name: keyof SourcesHandlers): (ctx: HostCtx, input: never) => Promise<unknown> {
   return (ctx, input) => {
     const sc: SourcesCtx = { trace: ctx.trace, emit: (n, s, p) => ctx.emit(n, s, p), call: (c, i) => ctx.call(c, i), ...(ctx.principal ? { actor: ctx.principal.id } : {}) };
-    return (live().handlers[name] as (c: SourcesCtx, i: unknown) => Promise<unknown>)(sc, input);
+    return (live(ctx as { db?: unknown }).handlers[name] as (c: SourcesCtx, i: unknown) => Promise<unknown>)(sc, input);
   };
 }
 
@@ -74,7 +75,7 @@ export const SYNC_RUN_KIND = "connector_sync";
 /** The Vault resolves a webhook signing secret by item name, for one delivery only (deps.secret). */
 export function setSourcesSecretResolver(fn: ((name: string) => Promise<string | undefined>) | null): void {
   resolver = fn;
-  if (shared) { if (fn) shared.deps.secret = fn; else delete shared.deps.secret; }
+  for (const h of handles) { if (fn) h.deps.secret = fn; else delete h.deps.secret; }
 }
 /** Where the host hands its half at boot (ruling 31): the loader reads this export and the daemon calls each setter with the driver of the same name. */
 export const hostSeams: SeamSetters = { setSourcesSecretResolver, setSourcesSpaceStore };
