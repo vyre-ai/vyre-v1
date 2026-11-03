@@ -1,14 +1,13 @@
 // Vyre's own user agent for calls to AI providers that want to know the caller (OpenCode refuses a generic SDK or HTTP library agent), and the OpenCode session header.
-import { readFileSync } from "node:fs";
-
 let version: string | null = null;
-/** This Vyre's version: VYRE_VERSION (the launcher sets it), else the repository's package.json, else "dev". */
+/**
+ * This Vyre's version: VYRE_VERSION (the launcher and the daemon set it, host/src/daemon/main.ts), else npm's own variable when run from the repository, else 0.0.0-dev as the daemon says. No file is read: a staged bundle
+ * carries no package.json beside this module.
+ */
 export function vyreVersion(): string {
   if (version !== null) return version;
-  const env = process.env["VYRE_VERSION"];
-  if (env && /^[\w.+-]{1,40}$/.test(env)) return (version = env);
-  try { const v = (JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8")) as { version?: unknown }).version; if (typeof v === "string" && v !== "") return (version = v); } catch { /* no package.json here */ }
-  return (version = "dev");
+  for (const env of [process.env["VYRE_VERSION"], process.env["npm_package_version"]]) if (env && /^[\w.+-]{1,40}$/.test(env)) return (version = env);
+  return (version = "0.0.0-dev");   // the daemon's own default (host/src/daemon/main.ts)
 }
 
 /** `vyre/<version>`. */
