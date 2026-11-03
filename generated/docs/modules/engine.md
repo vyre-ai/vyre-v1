@@ -16,7 +16,7 @@ Requires: nothing.
 - [engine.crew.push](../capabilities/engine.crew.push.md): Push the project repository's base branch, with a teammate's merged work in it, to its remote. It is an outward act: a person pressing Push is their own act; an agent goes only when the person's own message this turn asked for it, else it holds at the Gate
 - [engine.crew.repo.get](../capabilities/engine.crew.repo.get.md): The project's repository for the crew, or nothing when none is set
 - [engine.crew.repo.set](../capabilities/engine.crew.repo.set.md): Say which folder on this computer holds the project's repository, and the branch teammates start from; the folder must be a git repository
-- [engine.crew.start](../capabilities/engine.crew.start.md): Start a teammate on a brief: it gets its own thread under this chat and its own copy of the project repository on its own branch, and works until it is done
+- [engine.crew.start](../capabilities/engine.crew.start.md): Start a teammate on a brief in any chat. It works on its own branch in its own copy of the repository: the chat's project's, else the chat's own work folder on this computer (made on first use). Nothing to set up first
 - [engine.crew.stop](../capabilities/engine.crew.stop.md): Stop a teammate: its running turn ends and anything queued for it is dropped; its work stays on its branch
 - [engine.crew.wait](../capabilities/engine.crew.wait.md): Wake me when the checks of a pull request end: the host looks at them, not the model, shows the progress in the Crew tab, and posts one message here that wakes the lead when they finish
 - [engine.crew.workspace](../capabilities/engine.crew.workspace.md): System: the repository copy a teammate thread works in, so the engine can make it before the first turn

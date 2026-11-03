@@ -10458,7 +10458,7 @@ export type EngineCrewListOut = {
       jobId: string;
       threadId: string;
       leadThreadId: string;
-      projectId: string;
+      projectId?: string;
       agentId: string;
       name?: string;
       title: string;
@@ -10488,7 +10488,7 @@ export type EngineCrewMergeOut = {
     jobId: string;
     threadId: string;
     leadThreadId: string;
-    projectId: string;
+    projectId?: string;
     agentId: string;
     name?: string;
     title: string;
@@ -10520,7 +10520,7 @@ export type EngineCrewPushOut = {
     jobId: string;
     threadId: string;
     leadThreadId: string;
-    projectId: string;
+    projectId?: string;
     agentId: string;
     name?: string;
     title: string;
@@ -10560,8 +10560,9 @@ export type EngineCrewRepoSetOut = {
 };
 export type EngineCrewStartIn = {
   threadId: string;
-  projectId: string;
-  teammateId: string;
+  projectId?: string;
+  teammateId?: string;
+  name?: string;
   title: string;
   brief: string;
   model?: string;
@@ -10575,7 +10576,7 @@ export type EngineCrewStartOut = {
     jobId: string;
     threadId: string;
     leadThreadId: string;
-    projectId: string;
+    projectId?: string;
     agentId: string;
     name?: string;
     title: string;
@@ -10596,7 +10597,7 @@ export type EngineCrewStopOut = {
     jobId: string;
     threadId: string;
     leadThreadId: string;
-    projectId: string;
+    projectId?: string;
     agentId: string;
     name?: string;
     title: string;
@@ -11189,6 +11190,7 @@ export type EngineRoutePreviewIn = {
       kind: "person" | "agent";
       id: string;
     }>;
+  text?: string;
 };
 export type EngineRoutePreviewOut = {
   responders: Array<string>;
@@ -42789,6 +42791,7 @@ export type AgentPrivacySetPayload = {
   agentId: string;
   ownerId: string;
   private: boolean;
+  assistant?: boolean;
 };
 export type AgentRestoredPayload = {
   agentId: string;
@@ -43444,7 +43447,7 @@ export type CrewJobStartedPayload = {
   jobId: string;
   threadId: string;
   leadThreadId: string;
-  projectId: string;
+  projectId?: string;
   agentId: string;
   branch: string;
 };

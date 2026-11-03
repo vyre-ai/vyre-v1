@@ -65,6 +65,8 @@ function collect(list: readonly GrantRec[], s: SubjectInfo, need: number, req: R
 }
 /** Permissions a grant can carry on its own (a person is given them on one thing without a role change). */
 const GRANT_PERMS: ReadonlySet<string> = new Set(["records.export"]);
+/** What an Assistant never does as its person's hands: give access, move or end the Space's ownership, remove people or end the Space. */
+const PERSON_ONLY = /^(access\.(share|unshare|transfer_ownership|roles\.|groups\.)|spaces\.(delete|transfer)|members\.(remove|set_role)|agents\.set_owner)/;
 const ownerScope = (clearance: number): Scope => ({ level: "manage", rowFilter: null, hiddenFields: NO_FIELDS, labelCeiling: clearance });
 
 /** A subject's verdict: a Scope, or the ReasonCode it was denied with. */
@@ -83,9 +85,10 @@ function evalSubject(snap: AccessSnapshot, s: SubjectInfo, req: Req, res: Resour
   const root = chain[chain.length - 1];
   const viaMine = p.kind === "agent" && (res.type === "vault_item" || res.type === "vault_folder") && res.id !== "" && req.actingFor !== undefined && root !== undefined && root.type === "vault_folder" && root.parent_id === null && root.owner_id === req.actingFor && rankOf(req.action.level) <= rankOf("use");
   const viaOwner = (p.kind === "agent" && res.type === "mailbox" && res.id !== "" && req.actingFor !== undefined && res.owner_id === req.actingFor && rankOf(req.action.level) <= rankOf("use")) || viaMine;
-  // a person's own assistant is their hands on a project they made and, for the Space's owner, on the Space itself (owner ruling, 4 Nov 2026: the owner's assistant sets up, builds and provisions for them):
-  // it holds what its own role carries (the permission was checked above) at the owner's own level, and authorize still checks the person too, so it never exceeds them
-  const viaHands = p.kind === "agent" && (res.type === "project" || res.type === "space") && res.id !== "" && req.actingFor !== undefined && res.owner_id === req.actingFor;
+  // A person's own Assistant (never another Space agent, never an outside agent: that one has the setup grant, which runs its calls as the person) is their hands on a project they made and, for the
+  // Space's owner, on the Space (owner ruling 4 Nov 2026). It holds what its own role carries (the permission was checked above) at the owner's level, and authorize still checks the person too.
+  // Never through this: handing out access, moving or ending the Space's ownership, or removing people. Those stay with a person (or held).
+  const viaHands = p.kind === "agent" && p.assistant === true && (res.type === "project" || res.type === "space") && res.id !== "" && req.actingFor !== undefined && res.owner_id === req.actingFor && !(req.cap !== undefined && PERSON_ONLY.test(req.cap));
   const isOwner = res.id === "" ? chain.some((r) => r.owner_id === p.id) : res.owner_id === p.id || viaOwner || viaHands;
   // rule 2: grants on the resource, an ancestor, or the whole type
   const need = rankOf(req.action.level);

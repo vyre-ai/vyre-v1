@@ -67,7 +67,7 @@ type Out = {
       "baseBranch": "example",
       "branch": "example",
       "path": "example",
-      "projectId": "prj_a1b2c3"
+      "projectId": "example"
     }
   }
 }

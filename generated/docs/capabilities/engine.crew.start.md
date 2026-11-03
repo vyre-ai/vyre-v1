@@ -1,6 +1,6 @@
 # engine.crew.start
 
-Start a teammate on a brief: it gets its own thread under this chat and its own copy of the project repository on its own branch, and works until it is done
+Start a teammate on a brief in any chat. It works on its own branch in its own copy of the repository: the chat's project's, else the chat's own work folder on this computer (made on first use). Nothing to set up first
 
 | | |
 |---|---|
@@ -26,8 +26,9 @@ Start a teammate on a brief: it gets its own thread under this chat and its own 
 ```ts
 type In = {
   threadId: string;
-  projectId: string;
-  teammateId: string;
+  projectId?: string;
+  teammateId?: string;
+  name?: string;
   title: string;
   brief: string;
   model?: string;
@@ -46,7 +47,7 @@ type Out = {
     jobId: string;
     threadId: string;
     leadThreadId: string;
-    projectId: string;
+    projectId?: string;
     agentId: string;
     name?: string;
     title: string;
@@ -79,6 +80,7 @@ type Out = {
     "effort": "low",
     "idempotencyKey": "idem_1",
     "model": "example",
+    "name": "example",
     "projectId": "prj_a1b2c3",
     "provider": "example",
     "taskId": "tsk_a1b2c3",

@@ -22,11 +22,11 @@ const agentMode = t.enm('lead', 'listen');
 // A Job is running (working, waiting on a hold), paused (its agent was paused), lost (the server stopped under it and only a person may run it again), stopped, or ended (done, failed, merged).
 const crewState = t.enm('working', 'waiting', 'paused', 'lost', 'done', 'failed', 'stopped', 'merged');
 const crewJob = t.obj({
-  jobId: t.str({ examples: ['crw_01a1b2'] }), threadId: id.thread, leadThreadId: id.thread, projectId: id.project, agentId: id.agent, name: t.opt(t.str()), title: t.str(), branch: t.str({ examples: ['crew/ember-1'] }),
+  jobId: t.str({ examples: ['crw_01a1b2'] }), threadId: id.thread, leadThreadId: id.thread, projectId: t.opt(id.project), agentId: id.agent, name: t.opt(t.str()), title: t.str(), branch: t.str({ examples: ['crew/ember-1'] }),
   base: t.str({ examples: ['main'] }), state: crewState, startedAt: t.ts(), endedAt: t.opt(t.ts()), result: t.opt(t.rec()),
 });
 const crewWait = t.obj({ waitId: t.str(), kind: t.enm('checks'), label: t.str({ examples: ['acme/site#12'] }), state: t.enm('pending', 'passing', 'failing', 'none'), done: t.int(), total: t.int(), startedAt: t.ts() });
-const crewRepo = t.obj({ projectId: id.project, path: t.str(), baseBranch: t.str(), branch: t.str({ description: 'The branch the repository is on now' }) });
+const crewRepo = t.obj({ projectId: t.str(), path: t.str(), baseBranch: t.str(), branch: t.str({ description: 'The branch the repository is on now' }) });
 const turnState = t.enm('queued', 'running', 'waiting', 'completed', 'failed', 'cancelled');
 const driverId = t.enm('anthropic', 'openai', 'openrouter', 'google', 'xai', 'opencode_go', 'local', 'custom', 'claude_code', 'codex', 'grok');
 const accountRef = t.str({ description: 'Vault handle or subscription account reference; never a secret value', examples: ['#Team_Anthropic_Key'] });
@@ -98,9 +98,9 @@ export default defineManifest({
       in: { projectId: id.project, path: t.str({ examples: ['/Users/maya/code/site'] }), baseBranch: t.opt(t.str({ examples: ['main'] })) }, out: { repo: crewRepo },
       on: ['project', '/projectId'], level: 'manage', idem: 'natural', audit: 'always', tool: 'chats', errors: ['validation.bad_input'],
     }),
-    read('engine.crew.repo.get', 'The project\'s repository for the crew, or nothing when none is set', { in: { projectId: id.project }, out: { repo: t.nullable(crewRepo) }, on: ['project', '/projectId'], tool: 'chats' }),
-    write('engine.crew.start', 'Start a teammate on a brief: it gets its own thread under this chat and its own copy of the project repository on its own branch, and works until it is done', {
-      in: { ...threadT, projectId: id.project, teammateId: id.agent, title: t.str(), brief: t.str(), model: t.opt(t.str()), provider: t.opt(t.str()), effort: t.opt(effort), taskId: t.opt(id.task) }, out: { job: crewJob },
+    read('engine.crew.repo.get', 'The project\'s repository for the crew, or nothing when none is set', { in: { projectId: t.str({ description: 'A project, or a chat (a thread id) that has its own work folder' }) }, out: { repo: t.nullable(crewRepo) }, on: ['project', '/projectId'], tool: 'chats' }),
+    write('engine.crew.start', 'Start a teammate on a brief in any chat. It works on its own branch in its own copy of the repository: the chat\'s project\'s, else the chat\'s own work folder on this computer (made on first use). Nothing to set up first', {
+      in: { ...threadT, projectId: t.opt(id.project), teammateId: t.opt(id.agent), name: t.opt(t.str({ description: 'A name for the new teammate; one is chosen when left out' })), title: t.str(), brief: t.str(), model: t.opt(t.str()), provider: t.opt(t.str()), effort: t.opt(effort), taskId: t.opt(id.task) }, out: { job: crewJob },
       on: ['thread', '/threadId'], level: 'use', idem: 'key', audit: 'always', emits: ['crew.job_started'], tool: 'chats', mcpName: 'crew_start', agent: { planMode: 'blocked', blocks: ['helper'] },
       errors: ['validation.bad_input', 'validation.precondition_failed'],
     }),
@@ -201,7 +201,7 @@ export default defineManifest({
       in: { ...threadT, agentId: t.opt(id.agent) }, out: { warm: t.bool() }, on: ['thread', '/threadId'], level: 'view', offline: 'online', idem: 'none', risk: 'low',
     }),
     read('engine.route.preview', 'Who will answer a draft message ("Intake will reply" or "No agent will reply, type @ to ask one"); same route() the client runs locally', {
-      in: { ...threadT, mentions: t.opt(t.arr(t.obj({ kind: t.enm('person', 'agent'), id: t.str() }))) },
+      in: { ...threadT, mentions: t.opt(t.arr(t.obj({ kind: t.enm('person', 'agent'), id: t.str() }))), text: t.opt(t.str({ description: 'The draft, so a message that names the lead in words is answered by it' })) },
       out: { responders: t.arr(id.agent), line: t.str({ examples: ['Intake will reply'] }) }, on: ['thread', '/threadId'], tool: 'chats',
     }),
     // ---- turns
@@ -477,7 +477,7 @@ export default defineManifest({
       p: { jobId: t.str(), threadId: id.thread, leadThreadId: id.thread, branch: t.str() }, subject: ['thread', '/leadThreadId'], vis: 'participants', label: 'subject',
     }),
     ev('crew.job_started', 'A teammate started on a brief in its own thread and its own branch', {
-      p: { jobId: t.str(), threadId: id.thread, leadThreadId: id.thread, projectId: id.project, agentId: id.agent, branch: t.str() }, subject: ['thread', '/leadThreadId'], vis: 'participants', label: 'subject',
+      p: { jobId: t.str(), threadId: id.thread, leadThreadId: id.thread, projectId: t.opt(id.project), agentId: id.agent, branch: t.str() }, subject: ['thread', '/leadThreadId'], vis: 'participants', label: 'subject',
     }),
     ev('turn.queued', 'A turn was queued for an agent in a thread', {
       p: { threadId: id.thread, agentId: id.agent, kind: t.str(), qseq: t.int(), messageId: t.opt(id.message) }, subject: ['thread', '/threadId'], vis: 'participants', label: 'subject',
