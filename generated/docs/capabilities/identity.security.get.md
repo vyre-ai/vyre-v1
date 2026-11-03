@@ -36,6 +36,10 @@ type Out = {
   totp: boolean;
   passkeys: Array<string>;
   username?: string;
+  carried?: Array<{
+      origin: string;
+      at: number;
+    }>;
 };
 ```
 
@@ -53,6 +57,12 @@ type Out = {
   "name": "example",
   "input": {},
   "output": {
+    "carried": [
+      {
+        "at": 1760000000000,
+        "origin": "https://beacon.vyre.run"
+      }
+    ],
     "github": "maya-chen",
     "passkeys": [
       "example"

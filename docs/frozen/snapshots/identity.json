@@ -19,7 +19,7 @@
     "identity.reset_complete@1": "c5cbbd13f50499a5d21c6a6530cdcf283d911fbcd9912275518d070372edb463",
     "identity.reset_preview@1": "e3589ba9793787ea7d6ce327c9fb8a6996c8e1f4d14f62a9474454b60e48f161",
     "identity.reset_start@1": "6e2354f449bd54445e11447b3f13c5d80a48d09730fbbdd0b0abfe105810545b",
-    "identity.security.get@1": "fbb32712af81f62b64ec06d2e4ac73ab0b9472923a597ef2801b40d0f5ce7bc5",
+    "identity.security.get@1": "3b576242717c0ff110336112aa33e3a6b00fb0948ee7b5a26dbe78d51a2c488f",
     "identity.sign_in@1": "97aa20f00e4f990f35f0d3420d7ed0adfaa76527b67133e08087050bc4b1dc59",
     "identity.sign_in_options@1": "e68cea81145174f44617f6388d1b807b2cf1671438da847d3984c98496815d13",
     "identity.sign_out@1": "8eb7a3d15e095567046d9c4a8bb80d120b920a42a88744857cfe491539a73808",
