@@ -91,14 +91,13 @@ test("a second computer finds the Personal Space by name, is allowed on the firs
     const simple = await fetch(`${B.url}/local/peers/find`, { method: "POST", headers: { "content-type": "text/plain" }, body: JSON.stringify({ username: "olivia" }) });
     assert.equal(simple.status, 403, "only JSON, which a browser must ask before sending");
 
+    const nobody = await local(B, "find", { username: "nobody-here" });
+    assert.equal(nobody.body.data.offers.length, 0, "a name no computer watches finds nothing");
     const found = await local(B, "find", { username: "olivia" });
     assert.equal(found.status, 200, JSON.stringify(found.body));
     assert.equal(found.body.data.offers.length, 1, "one computer of the Space answered");
     assert.equal(found.body.data.offers[0].name, "Office iMac");
     assert.equal(found.body.data.offers[0].space, A.space);
-    const nobody = await local(B, "find", { username: "nobody-here" });
-    assert.equal(nobody.body.data.offers.length, 0, "a name no computer watches finds nothing");
-    await local(B, "find", { username: "olivia" });
 
     const asked = await local(B, "request", { index: 0, name: "Home laptop" });
     assert.equal(asked.status, 200, JSON.stringify(asked.body));
