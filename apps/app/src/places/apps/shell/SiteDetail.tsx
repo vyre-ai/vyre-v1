@@ -8,6 +8,7 @@ import type { CapMap } from "../../../../../../generated/types.ts";
 import { useAppsData } from "./data.tsx";
 import { actionKey, errorMessage, mutate } from "./mutations.ts";
 import { Button, Card, Frame, Select, s, useOnline, useRead } from "./editor-ui.tsx";
+import { DeployedSite } from "./DeployedSite.tsx";
 
 type Site = CapMap["sites.get"]["out"]["site"];
 type DomainState = CapMap["sites.domain_check"]["out"]["state"];
@@ -24,7 +25,7 @@ export function siteLine(site: Pick<Site, "live" | "blocked">, status: { answeri
   return status.answering ? "Live and answering." : status.detail ?? "Published, but it is not answering.";
 }
 
-function Domain({ siteId, domain, online }: { siteId: string; domain: string; online: boolean }): ReactElement {
+export function DomainRow({ siteId, domain, online }: { siteId: string; domain: string; online: boolean }): ReactElement {
   const d = useAppsData();
   const check = useRead<CapMap["sites.domain_check"]["out"]>("sites.domain_check", { siteId, domain }, "sites");
   const [error, setError] = useState<string | null>(null);
@@ -55,8 +56,10 @@ export function SiteDetail({ id, back }: { id: string; back(): void }): ReactEle
   };
   const x = site.data?.site;
   const domainRows: ReactElement[] = [];
-  for (const row of domains.data?.domains ?? []) domainRows.push(<Domain key={row.domain} siteId={id} domain={row.domain} online={online} />);
+  for (const row of domains.data?.domains ?? []) domainRows.push(<DomainRow key={row.domain} siteId={id} domain={row.domain} online={online} />);
   const publish = (): void => { if (x) void run(x.access === "public" ? "sites.promote" : "sites.publish", { siteId: id }); };
+  // a site Vyre builds and runs has its own page: deploys, build log, env vars, database
+  if (x?.deployed) return <DeployedSite site={x} refresh={site.refresh} back={back} />;
   return <Frame testID="apps-site-detail" title={x?.name ?? "Site"} back={back} offline={!online} error={error ?? site.error} loading={site.loading} retry={site.refresh}>
     {x ? <>
       <Card title="Address">

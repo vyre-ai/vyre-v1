@@ -10,9 +10,12 @@ ARG BUILD_CMD=""
 ARG START_CMD="npm start"
 COPY package.json package-lock.json* yarn.lock* pnpm-lock.yaml* .npmrc* ./
 RUN echo "lock ${LOCK_HASH}" > /dev/null && sh -c "$INSTALL_CMD"
-COPY --chown=node:node . .
+COPY . .
 RUN if [ -n "$BUILD_CMD" ]; then sh -c "$BUILD_CMD"; fi
+# the app may write where it was built (Next.js keeps a cache in .next): everything but node_modules belongs to the user it runs as
+RUN chown node:node /app && find /app -mindepth 1 -maxdepth 1 ! -name node_modules -exec chown -R node:node {} +
 ENV PORT=3000 NODE_ENV=production VYRE_START="$START_CMD"
 USER node
 EXPOSE 3000
-CMD ["sh", "-c", "exec $VYRE_START"]
+# eval: a start command that names $PORT (a Procfile, uvicorn --port $PORT) gets the value, not the text
+CMD ["sh", "-c", "eval \"exec $VYRE_START\""]

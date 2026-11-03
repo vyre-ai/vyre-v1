@@ -8,8 +8,9 @@ import { usePlaceHash } from "../hash/context.tsx";
 import { FolderShareSheet } from "./files-share.tsx";
 import { useOptionalShellRuntime } from "./runtime.tsx";
 import type { ShellRuntime } from "./runtime.tsx";
+import { nameOf } from "./misc-common.ts";
 
-const NEW_SITE_PROMPT = "I want a new site. Ask me what it is for, then build it, run it on a computer and give it an address.";
+const NEW_SITE_PROMPT = "I want a new site. Ask me what it is for or where its code is, then build it and deploy it here with sites_deploy, and give me its address.";
 const SCREEN: Readonly<Record<string, string>> = { artifacts: "apps.artifacts", sites: "apps.site-editor", forms: "apps.form-settings", templates: "apps.templates", domains: "apps.sending-domains" };
 
 export { appsRoute } from "../../places/apps/shell/routes.ts";
@@ -20,10 +21,12 @@ export function appsData(rt: ShellRuntime): AppsData {
   return {
     assistantId: rt.assistant.id, me: { id: rt.me.id, name: rt.me.name }, connection: rt.connection,
     screens: rt.screens, call: rt.call, clock: () => ({ now: rt.clock().now }), team: rt.space.kind === "team", deferred: [...deferred], ...(rt.baseUrl ? { baseUrl: rt.baseUrl } : {}),
+    nameOf: nameOf(rt),
     renderShare: (resource, onClose) => <FolderShareSheet rt={rt} folderId={resource.id} resource={resource} onClose={onClose} />,
     nav: {
       open: (group, id) => rt.open({ screen: SCREEN[group] ?? "apps.forms", args: { selected: id } }),
       newSite: () => rt.open({ screen: "chats.conversation", args: { with: rt.assistant.id, first: NEW_SITE_PROMPT } }),
+      ask: (first) => rt.open({ screen: "chats.conversation", args: { with: rt.assistant.id, first } }),
       openUrl: (url) => rt.openUrl(url),
       openComputers: () => rt.open({ screen: "settings.page", args: { page: "computers" } }),
       create: (group, kind) => rt.open({ screen: group === "forms" ? "apps.forms" : group === "domains" ? "apps.sending-domains" : SCREEN[group] ?? "apps.forms", args: { create: true, ...(kind ? { kind } : {}) } }),

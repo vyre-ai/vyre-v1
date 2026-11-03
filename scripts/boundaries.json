@@ -237,7 +237,8 @@
         "modules/computers",
         "modules/terminal",
         "modules/engine",
-        "modules/steps-core"
+        "modules/steps-core",
+        "modules/sites"
       ],
       "to": [
         "sandbox"

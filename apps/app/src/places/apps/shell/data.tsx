@@ -19,6 +19,8 @@ export interface AppsNav {
   openTask(taskId: string): void;
   /** Kit builder: a thread with an agent that builds the Kit. */
   openThread(threadId: string): void;
+  /** A chat with the assistant that starts with these words (Ask an agent to fix a deploy). */
+  ask?(first: string): void;
   /** New site is a chat: an agent builds and runs it, and this opens one with that prompt. */
   newSite?(): void;
   /** An address, in the browser. */
@@ -40,6 +42,8 @@ export interface AppsData {
   deferred?: readonly string[];
   /** The Space's own address, when this app reaches it by one. */
   baseUrl?: string | undefined;
+  /** A person's or agent's name by id (the id until the people list has loaded). */
+  nameOf?(id: string): string;
   /** The share sheet, on a resource. */
   renderShare?(resource: { type: string; id: string; name: string }, onClose: () => void): ReactElement;
   nav: AppsNav;
