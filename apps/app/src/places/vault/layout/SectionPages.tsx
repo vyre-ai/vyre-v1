@@ -4,6 +4,7 @@
 import { useEffect, useState } from "react";
 import type { ReactElement } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Row } from "../../../../../../ui/src/Row/index.tsx";
 import { useVaultData } from "./data.tsx";
 import { Btn, Glyph, LogoTile } from "./parts.tsx";
 import { Sheet } from "./Sheet.tsx";
@@ -75,12 +76,12 @@ export function ConnectionsPage({ tab, onTab }: { tab: "my" | "space"; onTab: (t
         </View>
       ) : null}
       <View style={s.rows}>
-        {list === null ? <Text style={[s.quiet, { padding: 14 }]}>Loading</Text> : shown.length === 0 ? <Text style={[s.quiet, { padding: 14 }]} testID="conn-empty">{team && tab === "space" ? "No connections shared with the Space yet." : "No connections yet. Press + to add one."}</Text> : shown.map((c, i) => (
-          <View key={c.connectionId} style={[s.row, i === 0 ? null : s.rowLine]} testID={`conn-${c.connectionId}`}>
-            <LogoTile name={c.connector} size={30} />
-            <View style={{ flex: 1, minWidth: 0 }}><Text style={s.rowName}>{c.title ?? c.connector}</Text><Text style={s.quiet}>{c.connector}</Text></View>
-            <Text style={[s.state, c.state === "active" ? s.on : null]}>{c.state === "active" ? "Connected" : c.state === "needs_reconnect" || c.state === "failing" ? "Needs a new key" : c.state ?? ""}</Text>
-          </View>
+        {list === null ? <Text style={[s.quiet, { padding: 14 }]}>Loading</Text> : shown.length === 0 ? <Text style={[s.quiet, { padding: 14 }]} testID="conn-empty">{team && tab === "space" ? "No connections shared with the Space yet." : "No connections yet. Press + to add one."}</Text> : shown.map((c) => (
+          <Row
+            key={c.connectionId} id={`conn-${c.connectionId}`} title={c.title ?? c.connector} note={c.connector}
+            leading={<LogoTile name={c.connector} size={30} />}
+            trailing={<Text style={[s.state, c.state === "active" ? s.on : null]}>{c.state === "active" ? "Connected" : c.state === "needs_reconnect" || c.state === "failing" ? "Needs a new key" : c.state ?? ""}</Text>}
+          />
         ))}
       </View>
     </View>
@@ -94,10 +95,10 @@ export function AddChooser({ onPick, onClose }: { onPick: (s: Section) => void; 
     <Sheet title="What are you adding?" onClose={onClose} testID="vault-add-choose">
       <View style={{ gap: 2 }}>
         {ADD_CHOICES.map((c) => (
-          <Pressable key={c.target} accessibilityRole="button" onPress={() => onPick(c.target)} style={s.choice} testID={`add-choose-${c.target}`}>
-            {mark[c.target] ? <LogoTile name={mark[c.target]} size={32} /> : <View style={s.keyTile}><Glyph name="keys" size={16} color="var(--ink-2)" /></View>}
-            <View style={{ flex: 1 }}><Text style={s.rowName}>{c.title}</Text><Text style={s.quiet}>{c.line}</Text></View>
-          </Pressable>
+          <Row
+            key={c.target} id={`add-choose-${c.target}`} title={c.title} note={c.line} onPress={() => onPick(c.target)}
+            leading={mark[c.target] ? <LogoTile name={mark[c.target]} size={32} /> : <View style={s.keyTile}><Glyph name="keys" size={16} color="var(--ink-2)" /></View>}
+          />
         ))}
       </View>
     </Sheet>
