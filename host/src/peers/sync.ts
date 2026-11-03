@@ -64,7 +64,7 @@ export const denyModules = (t: string): boolean => LOCAL.test(t);
 export const DENY_COLUMNS: Readonly<Record<string, readonly string[]>> = { network_peer: ["last_seen_at"] };
 
 const ROUND_MS = 5_000;
-/** A write here wakes the other computers this long after the last one in a burst; the 5 s round stays as the fallback. */
+/** A write here wakes the other computers this long after the first one in a burst (the rest of the burst goes with it); the 5 s round stays as the fallback. */
 const WAKE_DEBOUNCE_MS = 500;
 const WATCH_MS = 200;
 const TREES_EVERY = 3;
@@ -126,14 +126,17 @@ export function createPeerSync(d: PeerSyncDeps): PeerSync {
   let wokeBlobs = false, wokeTrees = false;
   // live: a write here pokes the other computers (debounced); a poke from one asks for a round soon
   let watcher: ReturnType<typeof setInterval> | null = null;
-  let lastDirty = -1, wakeTimer: ReturnType<typeof setTimeout> | null = null, soonTimer: ReturnType<typeof setTimeout> | null = null;
-  const dirtyMark = (): number => {
-    let n = 0;
-    const h = d.db();
-    try { n += Number((h?.all("SELECT COALESCE(MAX(n), 0) AS n FROM peer_dirty")[0] as { n?: number } | undefined)?.n ?? 0); } catch { /* not installed */ }
-    try { n += Number((spaceDb?.all("SELECT COALESCE(MAX(n), 0) AS n FROM peer_dirty")[0] as { n?: number } | undefined)?.n ?? 0) * 1e9; } catch { /* no space store */ }
-    return n;
+  let lastDirty: string | null = null, wakeTimer: ReturnType<typeof setTimeout> | null = null, soonTimer: ReturnType<typeof setTimeout> | null = null;
+  // a local write shows as a new row in peer_dirty, or (when a round stamped it before the watcher looked) as one more stamp: peer_dirty's numbers start again once it is emptied, so MAX(n)
+  // alone can read the same before and after a write
+  const markOf = (db: HostDb | null): string => {
+    if (!db) return "-";
+    let n = "0", st = "0";
+    try { n = String((db.all("SELECT COALESCE(MAX(n), 0) AS n FROM peer_dirty")[0] as { n?: number } | undefined)?.n ?? 0); } catch { /* not installed */ }
+    try { st = String((db.all("SELECT value FROM peer_meta WHERE key = 'stamped'")[0] as { value?: string } | undefined)?.value ?? "0"); } catch { /* not installed */ }
+    return `${n}.${st}`;
   };
+  const dirtyMark = (): string => `${markOf(d.db())}|${markOf(spaceDb)}`;
   async function poke(): Promise<void> {
     const h = d.db(), me = d.selfId(), token = d.token();
     if (!h || !me || !token) return;
@@ -148,11 +151,11 @@ export function createPeerSync(d: PeerSyncDeps): PeerSync {
     watcher = setInterval(() => {
       if (!cells) return;
       const m = dirtyMark();
-      if (lastDirty < 0) { lastDirty = m; return; }
+      if (lastDirty === null) { lastDirty = m; return; }
       if (m === lastDirty) return;
       lastDirty = m;
-      if (wakeTimer) clearTimeout(wakeTimer);
-      wakeTimer = setTimeout(() => { wakeTimer = null; void poke(); }, d.wakeMs ?? WAKE_DEBOUNCE_MS);
+      // at most this long after the first write: a computer whose rounds keep writing (the lease, access it folds) must not push its own wake back forever
+      if (!wakeTimer) wakeTimer = setTimeout(() => { wakeTimer = null; void poke(); }, d.wakeMs ?? WAKE_DEBOUNCE_MS);
     }, WATCH_MS);
     watcher.unref?.();
   }
@@ -205,6 +208,8 @@ export function createPeerSync(d: PeerSyncDeps): PeerSync {
       if (spaceDb) c.space = make(spaceDb, { site, now: d.now, deny: (t) => t.startsWith("sync_") });
       for (const x of Object.values(c)) x.install();
       cells = c as Record<StoreName, CellsLike>;
+      // the starting point is taken now, not at the watcher's first look up to 200 ms later: a write in between would be the starting point and never sent
+      lastDirty = dirtyMark();
       d.log("peers.capture_on", {});
       return true;
     } catch (e) { d.log("peers.capture_failed", { why: (e as Error).message }); return false; }

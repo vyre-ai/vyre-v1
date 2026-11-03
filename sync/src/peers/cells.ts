@@ -167,6 +167,8 @@ export function createCells(db: CellDb, o: CellOptions): Cells {
       else if (t.tracked.includes(d.col)) { upsertClock(d.tbl, d.pk, d.col, h, o.site, v); moved++; }
     }
     db.run("DELETE FROM peer_dirty WHERE n <= ?", dirty[dirty.length - 1]!.n);
+    // peer_dirty empties here and its numbers start again, so MAX(n) alone can read the same before and after a write: this count only grows (sync.ts's live watcher reads both)
+    setMeta("stamped", String(Number(meta("stamped") ?? "0") + 1));
     if (last) setMeta("hlc", formatHlc(last));
     return moved;
   }
