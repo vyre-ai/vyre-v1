@@ -400,7 +400,7 @@ function MenuRow({ entry, lit, onHover, onChoose, nodeRef }: {
       style={[styles.item, wash, entry.disabled === true ? { opacity: 0.45 } : null]}
       {...webProps({ ...(report ? { dataSet: { report: "true" } } : {}), ...(entry.disabled === true && entry.reason !== undefined ? { title: entry.reason } : {}) })}
     >
-      {entry.leading !== undefined ? <View style={styles.leading}>{entry.leading}</View> : null}
+      {entry.leading !== undefined ? <View style={[styles.leading, lit ? styles.leadingLit : null]}>{entry.leading}</View> : null}
       {entry.leading === undefined && entry.icon !== undefined && entry.icon.length > 0 ? <MenuIcon icon={entry.icon} color={ink} /> : null}
       <Text numberOfLines={1} style={[styles.label, { color: ink }]}>{entry.label}</Text>
       {entry.mark !== undefined ? (Platform.OS === "web"
@@ -551,6 +551,8 @@ const styles = StyleSheet.create({
   iconSlot: { width: ICON_SIZE, height: ICON_SIZE, alignItems: "center", justifyContent: "center" },
   mark: { width: 7, height: 7, borderRadius: 4, marginLeft: "auto", backgroundColor: "var(--warn)" as string },
   leading: { width: 20, height: 20, alignItems: "center", justifyContent: "center" },
+  // a mark that is the accent colour (a status ring) would vanish on the lit row: it sits on a light disc there
+  leadingLit: { borderRadius: 10, backgroundColor: "var(--raised)" as string },
   search: { flexDirection: "row", alignItems: "center", gap: 8, height: 32, paddingHorizontal: 9, marginBottom: 4, borderBottomWidth: 1, borderBottomColor: "var(--line)" as string },
   searchInput: { flex: 1, minWidth: 0, fontSize: 13, color: "var(--ink)" as string, ...({ outlineStyle: "none" } as ViewStyle) },
   none: { paddingVertical: 10, paddingHorizontal: 9, fontSize: 12.5, color: "var(--ink-3)" as string },

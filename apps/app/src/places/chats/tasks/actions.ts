@@ -14,6 +14,14 @@ export interface ActEnv { call: Call; say: Say; store: TaskStore; newKey(): stri
 
 export const failure = (e: unknown, fallback: string): string => (e instanceof Error && e.message !== "" ? e.message : fallback);
 
+/** An edit from the task page carries the version it was made on, so a task someone else changed first is refused with what changed, never overwritten. Linking a thread is not an edit. */
+export function withVersion(cap: string, input: Record<string, unknown>, version: number | undefined): Record<string, unknown> {
+  if (cap !== "tasks.update" || version === undefined) return input;
+  const keys = Object.keys(input).filter((k) => k !== "taskId" && k !== "idempotencyKey");
+  if (keys.length === 0 || keys.every((k) => k === "threadId")) return input;
+  return { ...input, expectedVersion: version };
+}
+
 /** The status change of one task, from any door. */
 export async function setStatus(env: ActEnv, row: Pick<TaskRow, "id" | "state"> & Partial<Pick<TaskRow, "kind" | "reviewer" | "approver">>, to: TaskState, note?: string): Promise<boolean> {
   if (row.state === to) return true;
@@ -54,7 +62,8 @@ const setOne = async (env: ActEnv, row: TaskRow, to: TaskState): Promise<void> =
 /** Give tasks to someone: each row shows them at once, and a row the server refused goes back to who had it. */
 export const bulkAssign = (env: ActEnv, ids: readonly string[], to: Who, name: string): Promise<number> => {
   const backs = new Map(ids.map((id) => [id, env.store.patch([id], (r) => ({ ...r, assigned: to }))] as const));
-  return forEach(env, ids, async (id) => { try { await env.call("tasks.assign", { taskId: id, slot: "assigned", to }); } catch (e) { backs.get(id)?.(); throw e; } }, `${ids.length === 1 ? "Given" : `${ids.length} tasks given`} to ${name}`);
+  // a team or role holds the task differently from a person (nobody has taken it, whose turn it is), so the list is read again rather than trusting the patched row
+  return forEach(env, ids, async (id) => { try { await env.call("tasks.assign", { taskId: id, slot: "assigned", to }); } catch (e) { backs.get(id)?.(); throw e; } }, `${ids.length === 1 ? "Given" : `${ids.length} tasks given`} to ${name}`).then((n) => { if (n > 0) env.store.refresh(); return n; });
 };
 export const bulkDue = (env: ActEnv, ids: readonly string[], due: number | null, words: string): Promise<number> => forEach(env, ids, (id) => env.call("tasks.update", { taskId: id, due }), `${ids.length === 1 ? "Due" : `${ids.length} tasks due`} ${words}`);
 export const bulkPriority = (env: ActEnv, ids: readonly string[], priority: string, words: string): Promise<number> => forEach(env, ids, (id) => env.call("tasks.update", { taskId: id, priority }), `${ids.length === 1 ? "Priority" : `Priority of ${ids.length} tasks`} set to ${words}`);

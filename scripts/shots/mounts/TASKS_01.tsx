@@ -5,6 +5,9 @@
 //   ?view=team     the task page of the team task nobody took: Take it, and the rail's Taken by line.
 //   ?view=menu     the review's status menu: only the moves his seat allows.
 //   ?view=pane     the review in the side pane of a chat (no rail, Open the full page).
+//   ?view=board    the Board; ?view=board-keys the Board after a keyboard walk (focus on a card in the next column); ?view=board-status the status menu Space opens on that card.
+//   ?view=timeline the Timeline; ?view=timeline-keys the Timeline after a keyboard walk down one row.
+//   ?view=guest    a task given to a guest: the menu that says what the guest will see before it is saved.
 import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { StyleSheet, View } from "react-native";
@@ -23,6 +26,8 @@ const PEOPLE = [
   { id: "usr_omar", name: "Omar Reyes", kind: "person" }, { id: "agt_scout", name: "Scout", kind: "agent" },
   // someone else's private agent: the server already names it as its person
   { id: "agt_omar_cc", name: "Omar Reyes (Agent)", kind: "agent", owner: "usr_omar", private: true },
+  // holds only the Guest role: the shell marks the principal `guest`
+  { id: "usr_gus", name: "Gus Guest", kind: "person", guest: true },
 ];
 const TEAMS = { groups: [{ id: "grp_intake", name: "Intake team", members: [], managers: [], builtIn: false }], roles: [{ id: "rol_billing", name: "Billing", builtIn: false, clearance: "internal", assignableToAgents: false, permissions: [], holders: 2 }] };
 const who = (id: string): { kind: "person" | "agent" | "group" | "role"; id: string } => ({ kind: id.startsWith("agt_") ? "agent" : id.startsWith("grp_") ? "group" : id.startsWith("rol_") ? "role" : "person", id });
@@ -100,7 +105,9 @@ function runtime(): unknown {
 }
 
 interface RootLike { setAttribute(name: string, value: string): void; style: { setProperty(name: string, value: string): void; removeProperty(name: string): void } }
-type Doc = { querySelector(s: string): { click?: () => void } | null; documentElement?: RootLike };
+type Pick1 = { click?: () => void; focus?: () => void; textContent?: string | null; dispatchEvent?: (e: unknown) => boolean };
+type Doc = { querySelector(s: string): Pick1 | null; querySelectorAll(s: string): ArrayLike<Pick1>; documentElement?: RootLike; dispatchEvent?: (e: unknown) => boolean };
+const keyEv = (key: string): unknown => new (globalThis as unknown as { KeyboardEvent: new (t: string, i: object) => unknown }).KeyboardEvent("keydown", { key, bubbles: true, cancelable: true });
 
 export default function Mount(): ReactNode {
   // the address is read after mount (rule 25), so the static first frame and the page agree
@@ -122,11 +129,34 @@ function Page({ view, skin }: { view: string; skin: string }): ReactNode {
     const t = setTimeout(() => (globalThis as { document?: Doc }).document?.querySelector("[data-testid='task-status']")?.click?.(), 400);
     return () => clearTimeout(t);
   }, [view]);
+  // views that need a press or a key after the page has drawn, as a person would make them
+  useEffect(() => {
+    const d = (globalThis as { document?: Doc }).document;
+    if (!d || !["board", "board-keys", "board-status", "timeline", "timeline-keys", "guest"].includes(view)) return undefined;
+    const timers: ReturnType<typeof setTimeout>[] = [];
+    const at = (ms: number, f: () => void): void => { timers.push(setTimeout(f, ms)); };
+    const item = (text: string): Pick1 | undefined => Array.from(d.querySelectorAll("[role='menuitem']")).find((e) => e.textContent?.includes(text));
+    const key = (el: Pick1 | null | undefined, k: string): void => { el?.dispatchEvent?.(keyEv(k)); };
+    if (view === "guest") {
+      at(500, () => key(d as unknown as Pick1, "j"));
+      at(700, () => key(d as unknown as Pick1, "a"));
+      at(1000, () => item("Gus Guest")?.click?.());
+      return () => timers.forEach(clearTimeout);
+    }
+    const want = view.startsWith("board") ? "board" : "timeline";
+    at(400, () => { const seg = d.querySelector(`[data-testid='tasks-view-${want}']`); if (seg) seg.click?.(); else { d.querySelector("[data-testid='tasks-view-menu']")?.click?.(); at(250, () => item(want === "board" ? "Board" : "Timeline")?.click?.()); } });
+    if (view.endsWith("-keys") || view === "board-status") {
+      at(1500, () => d.querySelector("[data-tkcard]")?.focus?.());
+      at(1700, () => key(d.querySelector("[data-tkcard]:focus") ?? d.querySelector("[data-tkcard]"), want === "board" ? "ArrowRight" : "ArrowDown"));
+    }
+    if (view === "board-status") at(2200, () => key(d.querySelector("[data-tkcard]:focus"), " "));
+    return () => timers.forEach(clearTimeout);
+  }, [view]);
   const none = (): void => undefined;
   const detail = (taskId: string, pane = false): ReactNode => <TaskDetail rt={rt} taskId={taskId} conversationFor={() => { throw new Error("no thread in this sample"); }} openTask={none} openAgent={none} openChat={none} {...(pane ? { rail: false, openFull: none } : { back: none })} />;
   return (
     <View testID="tasks-mount" style={[StyleSheet.absoluteFill, { backgroundColor: "var(--win)" as string }]}>
-      {view === "list" ? <TasksPage rt={rt} openTask={none} openAgent={none} openChat={none} />
+      {view === "list" || view === "guest" || view.startsWith("board") || view.startsWith("timeline") ? <TasksPage rt={rt} openTask={none} openAgent={none} openChat={none} />
         : view === "pane" ? <View style={{ flex: 1, flexDirection: "row" }}><View style={{ flex: 1, backgroundColor: "var(--sunk)" as string }} /><View testID="chats-task-pane" style={{ width: 460, borderLeftWidth: 1, borderLeftColor: "var(--line)" as string }}>{detail("tsk_review", true)}</View></View>
         : detail(view === "team" ? "tsk_team" : "tsk_review")}
     </View>
