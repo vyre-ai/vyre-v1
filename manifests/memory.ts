@@ -216,7 +216,7 @@ export default defineManifest({
       in: { promotionId }, out: { ok: t.bool() }, emits: ['memory.promotion_undone'], tool: 'memory', audit: 'sensitive',
     }),
     // ---- write: system
-    write('memory.capture', 'Learn from a chat. After every turn (reason turn) a pass on the asker\'s own account and its cheapest model adds, updates or closes the asker\'s facts, inside their daily quota, else by rules; at chat end or when quiet (closed, idle) rules read what no turn pass read: channel facts go to the project layer, Automation facts to proposed', {
+    write('memory.capture', 'Learn from a chat: after each turn on the asker\'s own account and cheapest model inside their daily quota, else by rules; at chat end or when quiet, by rules over what no turn pass read', {
       in: {
         threadId: id.thread, reason: t.enm('closed', 'idle', 'turn'), turnId: t.opt(t.str()), agentId: t.opt(id.agent),
         account: t.opt(t.obj({
