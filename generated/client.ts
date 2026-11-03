@@ -1548,6 +1548,13 @@ export function createClient(transport: Transport) {
         versions: call("memory.page.versions", 1),
       },
       pointer: call("memory.pointer", 1),
+      profile: {
+        add: call("memory.profile.add", 1),
+        context: call("memory.profile.context", 1),
+        get: call("memory.profile.get", 1),
+        move: call("memory.profile.move", 1),
+        suggest: call("memory.profile.suggest", 1),
+      },
       promote: call("memory.promote", 1),
       promotion: {
         approve: call("memory.promotion.approve", 1),

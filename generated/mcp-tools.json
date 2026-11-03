@@ -34020,6 +34020,103 @@
       "v": 1
     },
     {
+      "blocks": [],
+      "cap": "memory.profile.get",
+      "deferred": false,
+      "description": "Your profile in this Space, as a chat may use it: the public part always, the private part only where nobody else reads the chat (your own chats, your private Ask); with personId, that teammate's public part",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "personId": {
+            "description": "A teammate: their public profile only",
+            "examples": [
+              "usr_a1b2c3"
+            ],
+            "type": "string"
+          },
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "name": "memory_profile",
+      "planMode": "allowed",
+      "toolset": "memory",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "memory.profile.move",
+      "deferred": false,
+      "description": "Move a fact about you between your public and private profile; only you can make one public (an agent suggests it instead)",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "factId": {
+            "examples": [
+              "fct_a1b2c3"
+            ],
+            "pattern": "^fct_[a-z0-9]+$",
+            "type": "string"
+          },
+          "to": {
+            "enum": [
+              "public",
+              "private"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "factId",
+          "to"
+        ],
+        "type": "object"
+      },
+      "name": "memory_profile_move",
+      "planMode": "allowed",
+      "toolset": "memory",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "memory.profile.suggest",
+      "deferred": false,
+      "description": "Suggest a fact for the person's public profile (\"Add to your public profile?\"); it stays private until they say yes in About you; with text, it is remembered privately first",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "factId": {
+            "examples": [
+              "fct_a1b2c3"
+            ],
+            "pattern": "^fct_[a-z0-9]+$",
+            "type": "string"
+          },
+          "text": {
+            "type": "string"
+          },
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "name": "memory_profile_suggest",
+      "planMode": "allowed",
+      "toolset": "memory",
+      "v": 1
+    },
+    {
       "blocks": [
         "memory_saved"
       ],

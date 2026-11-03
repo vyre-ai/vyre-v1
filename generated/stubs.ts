@@ -1548,6 +1548,13 @@ export function stubs(ctx: CallCtx) {
         versions: call("memory.page.versions"),
       },
       pointer: call("memory.pointer"),
+      profile: {
+        add: call("memory.profile.add"),
+        context: call("memory.profile.context"),
+        get: call("memory.profile.get"),
+        move: call("memory.profile.move"),
+        suggest: call("memory.profile.suggest"),
+      },
       promote: call("memory.promote"),
       promotion: {
         approve: call("memory.promotion.approve"),
