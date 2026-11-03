@@ -243,7 +243,7 @@ export default defineManifest({
       in: { ...threadT, agentId: id.agent, kind: t.enm('message', 'interrupt', 'wake', 'handoff') },
       out: { placement: t.enm('host', 'device', 'wait'), reason: t.str(), wakeLine: t.opt(t.str({ examples: ['Your computer is off'] })), nodeId: t.opt(t.str()), deviceId: t.opt(t.str({ description: 'The computer of the asker\'s the turn runs on, or the pinned one it waits for' })) }, on: ['thread', '/threadId'],
     }),
-    write('engine.placement.set', 'Pin a private chat to where it runs: one of your computers (this one by default), the Space (Team Space), or one of your own servers, or auto to take the pin off. The next turn goes there; a teammate\'s machine is never a choice. once: true with target space runs the next turn on the Space this once ("Run it on the server instead")', {
+    write('engine.placement.set', 'Choose where a private chat runs: one of your computers, the Space, one of your own servers, or auto. Never a teammate\'s machine. once with space runs the next turn on the Space once', {
       in: { ...threadT, target: t.enm('auto', 'device', 'space', 'server'), serverId: t.opt(t.str()), deviceId: t.opt(t.str()), once: t.opt(t.bool()) }, out: { target: t.enm('auto', 'device', 'space', 'server'), serverId: t.opt(t.str()), deviceId: t.opt(t.str()) },
       on: ['thread', '/threadId'], perm: null, level: 'use', tool: 'chats', errors: ['permission.no_grant', 'validation.precondition_failed', 'validation.bad_input'],
     }),
