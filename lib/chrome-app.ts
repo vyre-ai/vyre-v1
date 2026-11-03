@@ -260,6 +260,21 @@ export function createChromeApp(deps: ChromeAppDeps) {
           const suggested = list.find((a) => a.assistant) ?? list[0] ?? null;
           return { agents: list, suggested: suggested ? { id: suggested.id, name: suggested.name } : null };
         }
+        case "people.list": {
+          // who the person may pick to tell or to share with: the people of the Space they can see, and the channels they can see (with the chat each one is). Nothing beyond what their own session may read.
+          session();
+          const q = str(input["q"], 80).trim().toLowerCase();
+          const [ps, cs] = await Promise.all([call("access.principals.list", { kind: "person", status: "active", limit: 200 }).catch(() => null), call("channels.list", {}).catch(() => null)]);
+          const people = (Array.isArray(ps?.principals) ? ps.principals : []).map((p: any) => ({ id: String(p.id), name: String(p.name ?? "") })).filter((p: any) => p.name && (!q || p.name.toLowerCase().includes(q)));
+          const channels = (Array.isArray(cs?.channels) ? cs.channels : []).filter((c: any) => !c.archived).map((c: any) => ({ id: String(c.channelId), threadId: String(c.mainThreadId ?? ""), name: String(c.name ?? "") })).filter((c: any) => c.threadId && (!q || c.name.toLowerCase().includes(q)));
+          return { people, channels, me: await me() };
+        }
+        case "goals.pick": {
+          // the goals the person owns that have a number to reach: a watch can count toward one
+          session();
+          const out = await call("goals.list", { scope: "mine", open: true }).catch(() => null);
+          return { goals: (Array.isArray(out?.goals) ? out.goals : []).filter((g: any) => typeof g?.progress?.target === "number").map((g: any) => ({ id: String(g.id), title: String(g.title ?? ""), value: g.progress.value ?? null, target: g.progress.target })) };
+        }
         case "ask.page": {
           const r = await chatAsk({ agentId: input["agentId"], text: input["question"], page: isObject(input["page"]) ? { url: input["page"]["url"], title: input["page"]["title"] } : null });
           return r;

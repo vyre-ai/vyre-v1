@@ -55,6 +55,8 @@ export const BRIDGE_OPS = Object.freeze({
   "chat.ask": "send a side panel message to an agent in the active Space: the same thread as Vyre Chats; the reply streams back as chat.delta pushes",
   "chat.search": "find the person's chats in the active Space by words, for the side panel's chat search",
   "chat.thread": "one chat's messages, to show it in the side panel",
+  "people.list": "the people and channels the signed-in person may pick to tell or to share with (their own view of the Space, nothing more)",
+  "goals.pick": "the signed-in person's own open goals that have a number, for Counts toward a goal",
   "records.match": "records that match a page: from its address and the email addresses and phone numbers written on it, with their recent chats and goals",
 });
 

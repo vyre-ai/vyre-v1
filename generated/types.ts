@@ -4514,6 +4514,221 @@ export type AutomationsVersionsOut = {
       name?: string;
     }>;
 };
+export type AutomationsWatchesCheckIn = {
+  watchId: string;
+};
+export type AutomationsWatchesCheckOut = {
+  watch: {
+    watchId: string;
+    title: string;
+    url: string;
+    host: string;
+    mode: "region" | "page";
+    region?: {
+      label: string;
+      selector?: string;
+    };
+    everyMinutes: number;
+    tell: Array<string>;
+    tellThreads: Array<string>;
+    goalId?: string;
+    agentId?: string;
+    runsOn: "computer" | "chrome";
+    computerId?: string;
+    state: "on" | "paused" | "error";
+    checkNow: boolean;
+    value?: string;
+    lastCheckedAt?: number;
+    nextDueAt?: number;
+    changes: number;
+    lastChange?: {
+      at: number;
+      before: string;
+      after: string;
+    };
+    threadId?: string;
+    error?: string;
+    createdAt: number;
+    updatedAt: number;
+  };
+};
+export type AutomationsWatchesListIn = {
+  watchId?: string;
+  runsOn?: "computer" | "chrome";
+  person?: string;
+};
+export type AutomationsWatchesListOut = {
+  watches: Array<{
+      watchId: string;
+      title: string;
+      url: string;
+      host: string;
+      mode: "region" | "page";
+      region?: {
+        label: string;
+        selector?: string;
+      };
+      everyMinutes: number;
+      tell: Array<string>;
+      tellThreads: Array<string>;
+      goalId?: string;
+      agentId?: string;
+      runsOn: "computer" | "chrome";
+      computerId?: string;
+      state: "on" | "paused" | "error";
+      checkNow: boolean;
+      value?: string;
+      lastCheckedAt?: number;
+      nextDueAt?: number;
+      changes: number;
+      lastChange?: {
+        at: number;
+        before: string;
+        after: string;
+      };
+      threadId?: string;
+      error?: string;
+      createdAt: number;
+      updatedAt: number;
+    }>;
+};
+export type AutomationsWatchesRemoveIn = {
+  watchId: string;
+  op: "remove" | "pause" | "resume";
+  idempotencyKey: string;
+};
+export type AutomationsWatchesRemoveOut = {
+  removed: boolean;
+  watch?: {
+    watchId: string;
+    title: string;
+    url: string;
+    host: string;
+    mode: "region" | "page";
+    region?: {
+      label: string;
+      selector?: string;
+    };
+    everyMinutes: number;
+    tell: Array<string>;
+    tellThreads: Array<string>;
+    goalId?: string;
+    agentId?: string;
+    runsOn: "computer" | "chrome";
+    computerId?: string;
+    state: "on" | "paused" | "error";
+    checkNow: boolean;
+    value?: string;
+    lastCheckedAt?: number;
+    nextDueAt?: number;
+    changes: number;
+    lastChange?: {
+      at: number;
+      before: string;
+      after: string;
+    };
+    threadId?: string;
+    error?: string;
+    createdAt: number;
+    updatedAt: number;
+  };
+};
+export type AutomationsWatchesReportIn = {
+  watchId: string;
+  value?: string;
+  error?: string;
+};
+export type AutomationsWatchesReportOut = {
+  changed: boolean;
+  watch: {
+    watchId: string;
+    title: string;
+    url: string;
+    host: string;
+    mode: "region" | "page";
+    region?: {
+      label: string;
+      selector?: string;
+    };
+    everyMinutes: number;
+    tell: Array<string>;
+    tellThreads: Array<string>;
+    goalId?: string;
+    agentId?: string;
+    runsOn: "computer" | "chrome";
+    computerId?: string;
+    state: "on" | "paused" | "error";
+    checkNow: boolean;
+    value?: string;
+    lastCheckedAt?: number;
+    nextDueAt?: number;
+    changes: number;
+    lastChange?: {
+      at: number;
+      before: string;
+      after: string;
+    };
+    threadId?: string;
+    error?: string;
+    createdAt: number;
+    updatedAt: number;
+  };
+};
+export type AutomationsWatchesSaveIn = {
+  watchId?: string;
+  title: string;
+  url: string;
+  mode: "region" | "page";
+  region?: {
+    label: string;
+    selector?: string;
+  };
+  everyMinutes: number;
+  tell?: Array<string>;
+  tellThreads?: Array<string>;
+  goalId?: string | null;
+  agentId?: string;
+  runsOn: "computer" | "chrome";
+  computerId?: string;
+  paused?: boolean;
+  value?: string;
+  idempotencyKey: string;
+};
+export type AutomationsWatchesSaveOut = {
+  watch: {
+    watchId: string;
+    title: string;
+    url: string;
+    host: string;
+    mode: "region" | "page";
+    region?: {
+      label: string;
+      selector?: string;
+    };
+    everyMinutes: number;
+    tell: Array<string>;
+    tellThreads: Array<string>;
+    goalId?: string;
+    agentId?: string;
+    runsOn: "computer" | "chrome";
+    computerId?: string;
+    state: "on" | "paused" | "error";
+    checkNow: boolean;
+    value?: string;
+    lastCheckedAt?: number;
+    nextDueAt?: number;
+    changes: number;
+    lastChange?: {
+      at: number;
+      before: string;
+      after: string;
+    };
+    threadId?: string;
+    error?: string;
+    createdAt: number;
+    updatedAt: number;
+  };
+};
 export type AutomationsWebhookUrlGetIn = {
   automationId: string;
 };
@@ -4715,206 +4930,45 @@ export type BookingsPageCreateOut = {
     submissions: number;
   };
 };
-export type BrowserWatchesCheckIn = {
-  watchId: string;
-};
-export type BrowserWatchesCheckOut = {
-  watch: {
-    watchId: string;
-    title: string;
-    url: string;
-    host: string;
-    mode: "region" | "page";
-    region?: {
-      label: string;
-      selector?: string;
-    };
-    everyMinutes: number;
-    tell: Array<string>;
-    agentId?: string;
-    runsOn: "computer" | "chrome";
-    computerId?: string;
-    state: "on" | "paused" | "error";
-    checkNow: boolean;
-    value?: string;
-    lastCheckedAt?: number;
-    nextDueAt?: number;
-    changes: number;
-    lastChange?: {
-      at: number;
-      before: string;
-      after: string;
-    };
-    threadId?: string;
-    error?: string;
-    createdAt: number;
-    updatedAt: number;
-  };
-};
-export type BrowserWatchesListIn = {
-  watchId?: string;
-  runsOn?: "computer" | "chrome";
-  person?: string;
-};
-export type BrowserWatchesListOut = {
-  watches: Array<{
-      watchId: string;
-      title: string;
-      url: string;
+export type BrowserSitesListIn = Record<string, unknown>;
+export type BrowserSitesListOut = {
+  sites: Array<{
+      id: string;
       host: string;
-      mode: "region" | "page";
-      region?: {
-        label: string;
-        selector?: string;
-      };
-      everyMinutes: number;
-      tell: Array<string>;
-      agentId?: string;
-      runsOn: "computer" | "chrome";
-      computerId?: string;
-      state: "on" | "paused" | "error";
-      checkNow: boolean;
-      value?: string;
-      lastCheckedAt?: number;
-      nextDueAt?: number;
-      changes: number;
-      lastChange?: {
-        at: number;
-        before: string;
-        after: string;
-      };
-      threadId?: string;
-      error?: string;
-      createdAt: number;
+      runsIn: "chrome" | "computers" | "both";
+      rights: Array<{
+          agentId: string;
+          right: "read" | "act";
+        }>;
+      at: number;
       updatedAt: number;
     }>;
 };
-export type BrowserWatchesRemoveIn = {
-  watchId: string;
-  op: "remove" | "pause" | "resume";
+export type BrowserSitesRemoveIn = {
+  siteId: string;
+};
+export type BrowserSitesRemoveOut = {
+  ok: boolean;
+};
+export type BrowserSitesSetIn = {
+  host: string;
+  runsIn: "chrome" | "computers" | "both";
+  rights: Array<{
+      agentId: string;
+      right: "read" | "act";
+    }>;
   idempotencyKey: string;
 };
-export type BrowserWatchesRemoveOut = {
-  removed: boolean;
-  watch?: {
-    watchId: string;
-    title: string;
-    url: string;
+export type BrowserSitesSetOut = {
+  site: {
+    id: string;
     host: string;
-    mode: "region" | "page";
-    region?: {
-      label: string;
-      selector?: string;
-    };
-    everyMinutes: number;
-    tell: Array<string>;
-    agentId?: string;
-    runsOn: "computer" | "chrome";
-    computerId?: string;
-    state: "on" | "paused" | "error";
-    checkNow: boolean;
-    value?: string;
-    lastCheckedAt?: number;
-    nextDueAt?: number;
-    changes: number;
-    lastChange?: {
-      at: number;
-      before: string;
-      after: string;
-    };
-    threadId?: string;
-    error?: string;
-    createdAt: number;
-    updatedAt: number;
-  };
-};
-export type BrowserWatchesReportIn = {
-  watchId: string;
-  value?: string;
-  error?: string;
-};
-export type BrowserWatchesReportOut = {
-  changed: boolean;
-  watch: {
-    watchId: string;
-    title: string;
-    url: string;
-    host: string;
-    mode: "region" | "page";
-    region?: {
-      label: string;
-      selector?: string;
-    };
-    everyMinutes: number;
-    tell: Array<string>;
-    agentId?: string;
-    runsOn: "computer" | "chrome";
-    computerId?: string;
-    state: "on" | "paused" | "error";
-    checkNow: boolean;
-    value?: string;
-    lastCheckedAt?: number;
-    nextDueAt?: number;
-    changes: number;
-    lastChange?: {
-      at: number;
-      before: string;
-      after: string;
-    };
-    threadId?: string;
-    error?: string;
-    createdAt: number;
-    updatedAt: number;
-  };
-};
-export type BrowserWatchesSaveIn = {
-  watchId?: string;
-  title: string;
-  url: string;
-  mode: "region" | "page";
-  region?: {
-    label: string;
-    selector?: string;
-  };
-  everyMinutes: number;
-  tell?: Array<string>;
-  agentId?: string;
-  runsOn: "computer" | "chrome";
-  computerId?: string;
-  paused?: boolean;
-  value?: string;
-  idempotencyKey: string;
-};
-export type BrowserWatchesSaveOut = {
-  watch: {
-    watchId: string;
-    title: string;
-    url: string;
-    host: string;
-    mode: "region" | "page";
-    region?: {
-      label: string;
-      selector?: string;
-    };
-    everyMinutes: number;
-    tell: Array<string>;
-    agentId?: string;
-    runsOn: "computer" | "chrome";
-    computerId?: string;
-    state: "on" | "paused" | "error";
-    checkNow: boolean;
-    value?: string;
-    lastCheckedAt?: number;
-    nextDueAt?: number;
-    changes: number;
-    lastChange?: {
-      at: number;
-      before: string;
-      after: string;
-    };
-    threadId?: string;
-    error?: string;
-    createdAt: number;
+    runsIn: "chrome" | "computers" | "both";
+    rights: Array<{
+        agentId: string;
+        right: "read" | "act";
+      }>;
+    at: number;
     updatedAt: number;
   };
 };
@@ -40507,6 +40561,11 @@ export interface CapMap {
   "automations.validate": { in: AutomationsValidateIn; out: AutomationsValidateOut };
   "automations.vault_usage": { in: AutomationsVaultUsageIn; out: AutomationsVaultUsageOut };
   "automations.versions": { in: AutomationsVersionsIn; out: AutomationsVersionsOut };
+  "automations.watches.check": { in: AutomationsWatchesCheckIn; out: AutomationsWatchesCheckOut };
+  "automations.watches.list": { in: AutomationsWatchesListIn; out: AutomationsWatchesListOut };
+  "automations.watches.remove": { in: AutomationsWatchesRemoveIn; out: AutomationsWatchesRemoveOut };
+  "automations.watches.report": { in: AutomationsWatchesReportIn; out: AutomationsWatchesReportOut };
+  "automations.watches.save": { in: AutomationsWatchesSaveIn; out: AutomationsWatchesSaveOut };
   "automations.webhook_url.get": { in: AutomationsWebhookUrlGetIn; out: AutomationsWebhookUrlGetOut };
   "automations.webhook_url.rotate": { in: AutomationsWebhookUrlRotateIn; out: AutomationsWebhookUrlRotateOut };
   "backup.config_get": { in: BackupConfigGetIn; out: BackupConfigGetOut };
@@ -40525,11 +40584,9 @@ export interface CapMap {
   "bookings.cancel": { in: BookingsCancelIn; out: BookingsCancelOut };
   "bookings.list": { in: BookingsListIn; out: BookingsListOut };
   "bookings.page_create": { in: BookingsPageCreateIn; out: BookingsPageCreateOut };
-  "browser.watches.check": { in: BrowserWatchesCheckIn; out: BrowserWatchesCheckOut };
-  "browser.watches.list": { in: BrowserWatchesListIn; out: BrowserWatchesListOut };
-  "browser.watches.remove": { in: BrowserWatchesRemoveIn; out: BrowserWatchesRemoveOut };
-  "browser.watches.report": { in: BrowserWatchesReportIn; out: BrowserWatchesReportOut };
-  "browser.watches.save": { in: BrowserWatchesSaveIn; out: BrowserWatchesSaveOut };
+  "browser.sites.list": { in: BrowserSitesListIn; out: BrowserSitesListOut };
+  "browser.sites.remove": { in: BrowserSitesRemoveIn; out: BrowserSitesRemoveOut };
+  "browser.sites.set": { in: BrowserSitesSetIn; out: BrowserSitesSetOut };
   "calendar.availability": { in: CalendarAvailabilityIn; out: CalendarAvailabilityOut };
   "calendar.connect_provider": { in: CalendarConnectProviderIn; out: CalendarConnectProviderOut };
   "calendar.create_calendar": { in: CalendarCreateCalendarIn; out: CalendarCreateCalendarOut };
@@ -42661,6 +42718,16 @@ export type AutomationVersionRestoredPayload = {
   versionId: string;
   version: number;
 };
+export type AutomationsWatchChangedPayload = {
+  watchId: string;
+  owner: string;
+  changes: number;
+};
+export type AutomationsWatchSavedPayload = {
+  watchId: string;
+  owner: string;
+  op: "added" | "changed" | "paused" | "resumed" | "removed";
+};
 export type AwayClearedPayload = {
   person: string;
   waitedApprovals: number;
@@ -42713,15 +42780,11 @@ export type BookingCreatedPayload = {
   formId: string;
   recordId: string;
 };
-export type BrowserWatchChangedPayload = {
-  watchId: string;
-  owner: string;
-  changes: number;
-};
-export type BrowserWatchSavedPayload = {
-  watchId: string;
-  owner: string;
-  op: "added" | "changed" | "paused" | "resumed" | "removed";
+export type BrowserSiteChangedPayload = {
+  siteId: string;
+  host: string;
+  runsIn: "chrome" | "computers" | "both";
+  removed: boolean;
 };
 export type CalendarCreatedPayload = {
   calendarId: string;
@@ -46354,6 +46417,8 @@ export interface EventMap {
   "automation.trigger_dropped": AutomationTriggerDroppedPayload;
   "automation.updated": AutomationUpdatedPayload;
   "automation.version_restored": AutomationVersionRestoredPayload;
+  "automations.watch.changed": AutomationsWatchChangedPayload;
+  "automations.watch.saved": AutomationsWatchSavedPayload;
   "away.cleared": AwayClearedPayload;
   "away.set": AwaySetPayload;
   "backup.completed": BackupCompletedPayload;
@@ -46365,8 +46430,7 @@ export interface EventMap {
   "block.waiting": BlockWaitingPayload;
   "booking.cancelled": BookingCancelledPayload;
   "booking.created": BookingCreatedPayload;
-  "browser.watch.changed": BrowserWatchChangedPayload;
-  "browser.watch.saved": BrowserWatchSavedPayload;
+  "browser.site_changed": BrowserSiteChangedPayload;
   "calendar.created": CalendarCreatedPayload;
   "calendar.synced": CalendarSyncedPayload;
   "calendar_event.created": CalendarEventCreatedPayload;

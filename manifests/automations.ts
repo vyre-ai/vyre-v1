@@ -131,7 +131,7 @@ const rowFilter = t.obj({ fileId: id.file, sheet: t.opt(t.str()), op: t.opt(t.en
 const watchId = t.id('wch');
 const watchRegion = t.obj({ label: t.str({ minLength: 1, maxLength: 200, examples: ['Price'] }), selector: t.opt(t.str({ maxLength: 500 })) });
 const watchRow = t.obj({
-  watchId, title: t.str(), url: t.str(), host: t.str(), mode: t.enm('region', 'page'), region: t.opt(watchRegion), everyMinutes: t.int({ minimum: 5, maximum: 10_080 }), tell: t.arr(id.user),
+  watchId, title: t.str(), url: t.str(), host: t.str(), mode: t.enm('region', 'page'), region: t.opt(watchRegion), everyMinutes: t.int({ minimum: 5, maximum: 10_080 }), tell: t.arr(id.user), tellThreads: t.arr(id.thread), goalId: t.opt(t.id('gol')),
   agentId: t.opt(id.agent), runsOn: t.enm('computer', 'chrome'), computerId: t.opt(t.str()), state: t.enm('on', 'paused', 'error'), checkNow: t.bool(),
   value: t.opt(t.str({ description: 'What the last check read, cut at 2,000 characters' })), lastCheckedAt: t.opt(t.ts()), nextDueAt: t.opt(t.ts()), changes: t.int({ minimum: 0 }),
   lastChange: t.opt(t.obj({ at: t.ts(), before: t.str(), after: t.str() })), threadId: t.opt(id.thread), error: t.opt(t.str()), createdAt: t.ts(), updatedAt: t.ts(),
@@ -486,7 +486,7 @@ export default defineManifest({
     create('automations.watches.save', 'Vyre for Chrome: watch a page or a region of one. It runs in the person\'s Chrome or on an agent\'s computer; a change is told in a chat with what it was and what it is now', {
       level: 'member', in: {
         watchId: t.opt(watchId), title: t.str({ minLength: 1, maxLength: 200 }), url: t.str({ minLength: 1, maxLength: 2000 }), mode: t.enm('region', 'page'), region: t.opt(watchRegion),
-        everyMinutes: t.int({ minimum: 5, maximum: 10_080 }), tell: t.opt(t.arr(id.user, { maxItems: 20 })), agentId: t.opt(id.agent), runsOn: t.enm('computer', 'chrome'), computerId: t.opt(t.str()),
+        everyMinutes: t.int({ minimum: 5, maximum: 10_080 }), tell: t.opt(t.arr(id.user, { maxItems: 20 })), tellThreads: t.opt(t.arr(id.thread, { maxItems: 20 })), goalId: t.opt(t.nullable(t.id('gol'))), agentId: t.opt(id.agent), runsOn: t.enm('computer', 'chrome'), computerId: t.opt(t.str()),
         paused: t.opt(t.bool()), value: t.opt(t.str({ maxLength: 20_000, description: 'The first reading, taken when the sheet was filled in: the baseline' })),
       },
       out: { watch: watchRow }, emits: ['automations.watch.saved'], offline: 'online', agent: false, errors: ['validation.not_found', 'validation.bad_input'],

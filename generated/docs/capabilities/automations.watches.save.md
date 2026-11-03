@@ -1,6 +1,6 @@
-# browser.watches.report
+# automations.watches.save
 
-A check of a watched page: what it read now (or why it could not read). The first reading is the baseline; a different one is a change and is told in the watch's chat with before and after
+Vyre for Chrome: watch a page or a region of one. It runs in the person's Chrome or on an agent's computer; a change is told in a chat with what it was and what it is now
 
 | | |
 |---|---|
@@ -12,22 +12,37 @@ A check of a watched page: what it read now (or why it could not read). The firs
 | Risk | medium |
 | Resource | space |
 | Gate | none |
-| Idempotency | natural |
+| Idempotency | key |
 | Offline | online |
 | Audit | none |
 | Team Space only | no |
-| HTTP | POST /v1/browser/watches/report |
-| MCP tool | browser_watches_report (automations) |
+| HTTP | POST /v1/automations/watches/save |
+| MCP tool | none |
 | CLI | none |
-| Emits | browser.watch.changed |
+| Emits | automations.watch.saved |
 
 ## Input
 
 ```ts
 type In = {
-  watchId: string;
+  watchId?: string;
+  title: string;
+  url: string;
+  mode: "region" | "page";
+  region?: {
+    label: string;
+    selector?: string;
+  };
+  everyMinutes: number;
+  tell?: Array<string>;
+  tellThreads?: Array<string>;
+  goalId?: string | null;
+  agentId?: string;
+  runsOn: "computer" | "chrome";
+  computerId?: string;
+  paused?: boolean;
   value?: string;
-  error?: string;
+  idempotencyKey: string;
 };
 ```
 
@@ -35,7 +50,6 @@ type In = {
 
 ```ts
 type Out = {
-  changed: boolean;
   watch: {
     watchId: string;
     title: string;
@@ -48,6 +62,8 @@ type Out = {
     };
     everyMinutes: number;
     tell: Array<string>;
+    tellThreads: Array<string>;
+    goalId?: string;
     agentId?: string;
     runsOn: "computer" | "chrome";
     computerId?: string;
@@ -84,12 +100,30 @@ type Out = {
 {
   "name": "example",
   "input": {
-    "error": "example",
+    "agentId": "agt_a1b2c3",
+    "computerId": "example",
+    "everyMinutes": 5,
+    "goalId": "gol_a1b2c3",
+    "idempotencyKey": "idem_1",
+    "mode": "region",
+    "paused": true,
+    "region": {
+      "label": "Price",
+      "selector": "example"
+    },
+    "runsOn": "computer",
+    "tell": [
+      "usr_a1b2c3"
+    ],
+    "tellThreads": [
+      "thr_a1b2c3"
+    ],
+    "title": "example",
+    "url": "example",
     "value": "example",
     "watchId": "wch_a1b2c3"
   },
   "output": {
-    "changed": true,
     "watch": {
       "agentId": "agt_a1b2c3",
       "changes": 1,
@@ -98,6 +132,7 @@ type Out = {
       "createdAt": 1760000000000,
       "error": "example",
       "everyMinutes": 5,
+      "goalId": "gol_a1b2c3",
       "host": "example",
       "lastChange": {
         "after": "example",
@@ -115,6 +150,9 @@ type Out = {
       "state": "on",
       "tell": [
         "usr_a1b2c3"
+      ],
+      "tellThreads": [
+        "thr_a1b2c3"
       ],
       "threadId": "thr_a1b2c3",
       "title": "example",

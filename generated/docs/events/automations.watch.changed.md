@@ -1,6 +1,6 @@
-# browser.watch.saved
+# automations.watch.changed
 
-A watch was made, changed, paused, resumed or removed
+A watched page changed since its last reading
 
 | | |
 |---|---|
@@ -20,6 +20,6 @@ A watch was made, changed, paused, resumed or removed
 type Payload = {
   watchId: string;
   owner: string;
-  op: "added" | "changed" | "paused" | "resumed" | "removed";
+  changes: number;
 };
 ```

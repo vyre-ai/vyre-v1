@@ -14,7 +14,7 @@ const NOW = Date.UTC(2026, 10, 3, 16, 30);
 const min = (n: number): number => NOW - n * 60_000;
 const W = (o: Record<string, unknown>) => ({ tell: [], checkNow: false, changes: 0, createdAt: min(9000), updatedAt: min(5), state: "on", ...o });
 const ROWS = [
-  W({ watchId: "wch_1", title: "Lab 8 registrations", url: "https://lu.ma/mla-ai-lab-8", host: "lu.ma", mode: "region", region: { label: "Guest count" }, everyMinutes: 30, agentId: "agt_ops", runsOn: "computer", value: "3,598 going", lastCheckedAt: min(12), changes: 14, lastChange: { at: min(40), before: "3,570 going", after: "3,598 going" } }),
+  W({ watchId: "wch_1", title: "Lab 8 registrations", url: "https://lu.ma/mla-ai-lab-8", host: "lu.ma", mode: "region", region: { label: "Guest count" }, everyMinutes: 30, agentId: "agt_ops", tell: ["usr_aliza"], tellThreads: ["thr_mkt"], goalId: "gol_lab8", runsOn: "computer", value: "3,598 going", lastCheckedAt: min(12), changes: 14, lastChange: { at: min(40), before: "3,570 going", after: "3,598 going" } }),
   W({ watchId: "wch_2", title: "Okafor docket", url: "https://hcdistrictclerk.com/case/20251101", host: "hcdistrictclerk.com", mode: "page", everyMinutes: 120, agentId: "agt_ops", runsOn: "computer", value: "Hearing set 12 Nov", lastCheckedAt: min(30), changes: 2, lastChange: { at: min(300), before: "Hearing set 5 Nov", after: "Hearing set 12 Nov" } }),
   W({ watchId: "wch_3", title: "Competitor pricing: LawLeads Pro", url: "https://lawleadspro.com/pricing", host: "lawleadspro.com", mode: "region", region: { label: "Pricing table" }, everyMinutes: 1440, agentId: "agt_research", runsOn: "chrome", value: "Pro $499 a month", lastCheckedAt: min(60 * 9 * 24 - 5) }),
   W({ watchId: "wch_4", title: "Marisol Vega's stage", url: "https://app.gohighlevel.com/contacts/c_8812", host: "app.gohighlevel.com", mode: "region", region: { label: "Opportunity stage" }, everyMinutes: 60, agentId: "agt_scout", runsOn: "chrome", state: "paused", value: "Booked", lastCheckedAt: min(60 * 40) }),
@@ -28,12 +28,13 @@ export default function Mount(): ReactNode {
   const data = useMemo(() => ({
     ...sample.data,
     clock: () => ({ now: NOW }),
-    name: (id: string) => ({ agt_ops: "Ops", agt_scout: "Scout", agt_research: "Research" } as Record<string, string>)[id] ?? sample.data.name(id),
+    name: (id: string) => ({ agt_ops: "Ops", agt_scout: "Scout", agt_research: "Research", usr_aliza: "Aliza" } as Record<string, string>)[id] ?? sample.data.name(id),
     call: async (cap: string, input: unknown): Promise<unknown> => {
       if (cap === "automations.watches.list") {
         const rows = part === "empty" ? [] : part === "paused" ? [ROWS[3]!, W({ watchId: "wch_5", title: "Weinberger intake form", url: "https://weinberger.example/intake", host: "weinberger.example", mode: "page", everyMinutes: 60, agentId: "agt_scout", runsOn: "chrome", state: "error", error: "The page did not finish loading." }), ROWS[0]!] : ROWS;
         return { watches: rows };
       }
+      if (cap === "goals.list") return { goals: [{ id: "gol_lab8", title: "Lab 8: 5,000 registrations" }] };
       return sample.data.call(cap, input);
     },
   }), [sample, part]);

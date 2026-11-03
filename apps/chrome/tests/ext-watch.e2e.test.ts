@@ -26,7 +26,7 @@ test("a watch: pick a part of the page, start it, a change tells the chat what i
     return { changed, watch: w };
   };
   const r = await launch(found!, {
-    ops: { "agents.list": AGENTS, "app.open": () => ({ opened: "app" }), "chat.ask": () => ({ threadId: "thr_pc", turnId: "m" }) },
+    ops: { "agents.list": AGENTS, "people.list": () => ({ people: [{ id: "usr_me", name: "Me" }, { id: "usr_aliza", name: "Aliza" }], channels: [{ id: "chn_mkt", threadId: "thr_mkt", name: "marketing" }], me: "usr_me" }), "goals.pick": () => ({ goals: [{ id: "gol_lab8", title: "Lab 8: 5,000 registrations", value: 3412, target: 5000 }] }), "app.open": () => ({ opened: "app" }), "chat.ask": () => ({ threadId: "thr_pc", turnId: "m" }) },
     caps: {
       "automations.watches.list": (i) => ({ watches: store.filter((w) => (!i.watchId || w.watchId === i.watchId) && (!i.runsOn || w.runsOn === i.runsOn)) }),
       "automations.watches.save": (i) => {
@@ -76,8 +76,20 @@ test("a watch: pick a part of the page, start it, a change tells the chat what i
     await panel.click('[data-a="wFreq"]');
     await panel.click("#menu .mi:has-text('Every 15 minutes')");
     await shootAll(r, panel, "chrome2b-watch-sheet-picked");
+    await panel.click('[data-a="wTell"]');
+    await panel.click('[data-a="wTellPerson"][data-k="usr_aliza"]');
+    await panel.click('[data-a="wTellThread"][data-k="thr_mkt"]');
+    assert.equal(await panel.$('[data-a="wTellPerson"][data-k="usr_me"]'), null);
+    assert.match(await panel.textContent('[data-a="wTell"]') ?? "", /Also Aliza and #marketing/);
+    await panel.click('[data-a="wGoal"]');
+    assert.equal(await panel.getAttribute('[data-a="wGoalPick"][data-k="gol_lab8"]', "aria-checked"), "true", "a single goal is picked for them");
+    await panel.click('[data-a="wGoalPick"][data-k="gol_lab8"]');
+    await shootAll(r, panel, "chrome2b-watch-sheet-tell-goal");
     await panel.click('[data-a="wStart"]');
     await panel.waitForSelector(".rowh");
+    assert.deepEqual(r.callsTo("automations.watches.save")[0]!.input.tell, ["usr_aliza"]);
+    assert.deepEqual(r.callsTo("automations.watches.save")[0]!.input.tellThreads, ["thr_mkt"]);
+    assert.equal(r.callsTo("automations.watches.save")[0]!.input.goalId, "gol_lab8");
     const w = store[0];
     assert.deepEqual([w.title, w.mode, w.region.label, w.region.selector, w.everyMinutes, w.runsOn, w.agentId, w.value], ["AI Lab 8 · Luma", "region", "Guest count", "#going", 15, "chrome", "agt_scout", "3,412 going"]);
     await shootAll(r, panel, "chrome2b-watching-list");

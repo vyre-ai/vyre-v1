@@ -3,7 +3,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { MenuEntry, MenuItem } from "../../../../../../ui/src/Menu/index.tsx";
-import { everyWords, watchItems, watchNote } from "./read.ts";
+import { everyWords, lastWords, tellWords, watchItems, watchNote } from "./read.ts";
 import { WatchDetail, watchMenu } from "./WatchingView.tsx";
 import { STUDIO_NAV } from "../chrome.ts";
 
@@ -30,6 +30,14 @@ test("the line under a watch says how often and when it last changed", () => {
   assert.equal(watchNote({ ...w!, state: "paused" }, NOW), "Paused");
   assert.equal(watchNote({ ...w!, state: "error", error: "timed out" }, NOW), "Can't read it: timed out");
   assert.deepEqual([everyWords(60), everyWords(1440), everyWords(2880), everyWords(360), everyWords(15)], ["Every hour", "Every day", "Every 2 days", "Every 6 hours", "Every 15 minutes"]);
+});
+
+test("the table's cells: when it last changed, and who hears of it", () => {
+  const [w] = watchItems({ watches: [raw({ tell: ["usr_aliza"], tellThreads: ["thr_a", "thr_b"], goalId: "gol_1" })] })!;
+  assert.equal(lastWords(w!, NOW), "Changed 40 min ago");
+  assert.equal(tellWords(w!, (id) => (id === "usr_aliza" ? "Aliza" : id)), "You, Aliza, 2 channels");
+  assert.equal(tellWords({ ...w!, tell: [], tellThreads: 0 }, (id) => id), "You");
+  assert.equal(w!.goalId, "gol_1");
 });
 
 test("a row's menu: details, Check now (not while paused), Pause or Resume, the page, Remove", () => {

@@ -132,3 +132,18 @@ test("the words of an alert and of an agent's wake-up", () => {
   assert.match(changeWords(w, "a".repeat(2000), ""), /Before: a{700}\.\.\.\nNow: \(nothing\)/);
   assert.match(wakeWords({ ...w, watchId: "wch_1", everyMinutes: 60, tell: [], runsOn: "computer", state: "on", checkNow: false, changes: 0, host: "", createdAt: 0, updatedAt: 0 }), /read the whole page/);
 });
+
+test("a change is also told in the channels the person chose; a watch can count toward a goal that has a number, and only one the person controls", async () => {
+  const { h, posts } = world();
+  const updates: any[] = [];   // eslint-disable-line @typescript-eslint/no-explicit-any
+  h.callee("goals.get", (i: any) => { if (i.goalId === "gol_theirs") throw new Error("not found"); return { goal: { finish: i.goalId === "gol_list" ? { kind: "checklist", line: "x" } : { kind: "number", line: "300 by Friday", target: 300 } } }; });   // eslint-disable-line @typescript-eslint/no-explicit-any
+  h.callee("goals.update", (i: any) => { if (i.goalId === "gol_bob") throw new Error("only the owner"); updates.push(i); return {}; });   // eslint-disable-line @typescript-eslint/no-explicit-any
+  const w = (await save(h, { agentId: "agt_scout", tellThreads: ["thr_mkt"], goalId: "gol_lab8", value: "212" })).watch;
+  assert.deepEqual([w.tellThreads, w.goalId], [["thr_mkt"], "gol_lab8"]);
+  assert.deepEqual(updates[0].finish.source, { kind: "watch", watchId: w.watchId, label: "Acme pricing (watched page)" });
+  assert.equal(updates[0].finish.target, 300, "the rest of the finish line is kept");
+  await h.call("automations.watches.report", { watchId: w.watchId, value: "301" }, alice);
+  assert.deepEqual(posts.map((p) => p.threadId).sort(), [w.threadId, "thr_mkt"].sort(), "the watch's own chat and the channel");
+  for (const goalId of ["gol_theirs", "gol_list", "gol_bob"]) await assert.rejects(save(h, { goalId }), (e) => ["validation.not_found", "validation.bad_input", "permission.no_grant"].includes(codeOf(e) ?? ""), goalId);
+  assert.equal((await save(h, { watchId: w.watchId, goalId: null })).watch.goalId, undefined, "null takes it off the goal");
+});

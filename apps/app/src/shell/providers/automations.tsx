@@ -36,6 +36,9 @@ export function automationsData(rt: ShellRuntime, nav: AutomationsData["nav"], k
   return { screens: rt.screens, call: rt.call, me: { id: rt.me.id, name: rt.me.name }, name: nameOf(rt), keys, ...(keysStatus ? { keysStatus } : {}), ...(accounts ? { accounts } : {}), ...(lastPicks ? { lastPicks } : {}), nav, clock: () => ({ now: rt.clock().now }), canSpace: allows(rt, GATE.spaceAutomations) };
 }
 
+/** The tab hash names the Watching view. */
+export const watchingHash = (screen: string | undefined): boolean => screen === "watching";
+
 type Overlay = { kind: "failed" } | { kind: "run"; id: string } | { kind: "journey"; id: string } | { kind: "journeyNew" };
 
 function Loading(): ReactElement {
@@ -43,16 +46,16 @@ function Loading(): ReactElement {
 }
 
 function Body({ rt }: { rt: ShellRuntime }): ReactElement {
-  const { opened } = usePlaceHash();
+  const { opened, target } = usePlaceHash();
   const hashed = useOpenedId(["automation"], ["automationId"]);
   const [picked, setOpenId] = useState<string | null>(null);
-  // Vyre for Chrome opens /automations/watching from its Watching list
-  const [view, setViewRaw] = useState<StudioView>(() => (typeof location !== "undefined" && /\/automations\/watching\/?$/.test(location.pathname) ? "watching" : "automations"));
+  // Vyre for Chrome opens /automations#screen=watching (the tab hash, so the same link works on the web, the desktop app and the phone)
+  const [view, setViewRaw] = useState<StudioView>(() => (watchingHash(target.screen) ? "watching" : "automations"));
   const [overlay, setOverlay] = useState<Overlay | null>(null);
   const [step, setStep] = useState<string | null>(null);
   const [sideRun, setSideRun] = useState<string | null>(null);
   // a task a run made, beside the run: its thread, brief and baton buttons (the Back button returns to the run)
-  const setView = (next: StudioView): void => { setOverlay(null); setViewRaw(next); };
+  const setView = (next: StudioView): void => { setOverlay(null); setViewRaw(next); if (next === "watching") opened({ screen: "watching" }); else if (watchingHash(target.screen)) opened({}); };
   const [keys, setKeys] = useState<readonly KeyChoice[]>([]);
   const [keysStatus, setKeysStatus] = useState<KeysStatus>("loading");
   const [accounts, setAccounts] = useState<readonly AccountOption[]>([]);

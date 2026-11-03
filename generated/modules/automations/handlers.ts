@@ -64,11 +64,11 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "automations.validate": Handler<"automations.validate", X>;
   "automations.vault_usage": Handler<"automations.vault_usage", X>;
   "automations.versions": Handler<"automations.versions", X>;
+  "automations.watches.check": Handler<"automations.watches.check", X>;
+  "automations.watches.list": Handler<"automations.watches.list", X>;
+  "automations.watches.remove": Handler<"automations.watches.remove", X>;
+  "automations.watches.report": Handler<"automations.watches.report", X>;
+  "automations.watches.save": Handler<"automations.watches.save", X>;
   "automations.webhook_url.get": Handler<"automations.webhook_url.get", X>;
   "automations.webhook_url.rotate": Handler<"automations.webhook_url.rotate", X>;
-  "browser.watches.check": Handler<"browser.watches.check", X>;
-  "browser.watches.list": Handler<"browser.watches.list", X>;
-  "browser.watches.remove": Handler<"browser.watches.remove", X>;
-  "browser.watches.report": Handler<"browser.watches.report", X>;
-  "browser.watches.save": Handler<"browser.watches.save", X>;
 }

@@ -12,7 +12,7 @@ test("record a flow with real clicks and typing, a password is never captured, r
   const s = await site({ "/portal": PORTAL, "/new": NEW });
   const saved: any[] = [];
   const r = await launch(found!, {
-    ops: { "agents.list": AGENTS, "chat.ask": () => ({ threadId: "thr_test", turnId: "msg_1" }), "app.open": () => ({ opened: "app" }) },
+    ops: { "agents.list": AGENTS, "people.list": () => ({ people: [{ id: "usr_me", name: "Me" }, { id: "usr_aliza", name: "Aliza" }, { id: "usr_andrey", name: "Andrey" }], channels: [], me: "usr_me" }), "chat.ask": () => ({ threadId: "thr_test", turnId: "msg_1" }), "app.open": () => ({ opened: "app" }) },
     caps: {
       "skills.mine.add": (i) => { saved.push(i); const name = /^name: (.*)$/m.exec(i.text)![1]; return { skill: { skillId: "sko_1", name } }; },
       "skills.mine.set": () => ({ skillId: "sko_1", enabled: true, agents: ["*"], setup: {}, needs: [] }),
@@ -108,9 +108,19 @@ test("record a flow with real clicks and typing, a password is never captured, r
     await r.waitFor(() => r.callsTo("chat.ask")[0], 4000, "chat.ask");
     assert.match(r.callsTo("chat.ask")[0]!.input.text, /Run the skill "add-a-contact-to-acme"/);
     await review.click('[data-a="share"]');
-    await review.click("#menu .mi:has-text('Everyone')");
+    await review.click('[data-a="shareMode"][data-k="people"]');
+    await review.waitForSelector('[data-a="sharePerson"][data-k="usr_aliza"]');
+    assert.equal(await review.$('[data-a="sharePerson"][data-k="usr_me"]'), null, "the person is not offered themselves");
+    await review.click('[data-a="sharePerson"][data-k="usr_aliza"]');
+    await r.shot(review, "chrome2b-share-people-1440-paper");
+    await review.click('[data-a="shareDone"]');
     await r.waitFor(() => r.callsTo("skills.share")[0], 4000, "skills.share");
-    assert.deepEqual(r.callsTo("skills.share")[0]!.input, { skillId: "sko_1", space: true });
+    assert.deepEqual(r.callsTo("skills.share")[0]!.input, { skillId: "sko_1", to: ["usr_aliza"] });
+    await review.click('[data-a="share"]');
+    await review.click('[data-a="shareMode"][data-k="space"]');
+    await review.click('[data-a="shareDone"]');
+    await r.waitFor(() => r.callsTo("skills.share")[1], 4000, "skills.share for the Space");
+    assert.deepEqual(r.callsTo("skills.share")[1]!.input, { skillId: "sko_1", space: true });
     await review.click('[data-a="view"]');
     await r.waitFor(() => r.callsTo("app.open").find((c) => c.input.place === "skill"), 4000, "app.open skill");
     await r.shot(review, "chrome2b-share-card-1440-paper");

@@ -144,7 +144,7 @@ export function createWatches({ ext, bridge, privacy, now = Date.now }) {
     },
     /**
      * Make or change a watch from the sheet. For a watch that runs here the first reading is taken now, so a change is measured from what the person saw.
-     * @param {any} tab @param {{ watchId?: string, title?: string, mode: "region" | "page", region?: { label: string, selector?: string }, everyMinutes: number, agentId?: string, runsOn: "computer" | "chrome", paused?: boolean }} w
+     * @param {any} tab @param {{ watchId?: string, title?: string, mode: "region" | "page", region?: { label: string, selector?: string }, everyMinutes: number, agentId?: string, runsOn: "computer" | "chrome", paused?: boolean, tell?: string[], tellThreads?: string[], goalId?: string }} w
      */
     async save(tab, w) {
       const may = await guard(tab);
@@ -153,6 +153,8 @@ export function createWatches({ ext, bridge, privacy, now = Date.now }) {
         ...(w.watchId ? { watchId: w.watchId } : {}), title: String(w.title || tab.title || may.host || "A page").slice(0, 200), url, mode: w.mode === "page" ? "page" : "region",
         ...(w.mode === "region" && w.region ? { region: { label: String(w.region.label || "Part of the page").slice(0, 200), ...(w.region.selector ? { selector: String(w.region.selector).slice(0, 500) } : {}) } } : {}),
         everyMinutes: Math.max(5, Math.min(10_080, Math.round(Number(w.everyMinutes) || 60))), runsOn: w.runsOn === "computer" ? "computer" : "chrome", ...(w.agentId ? { agentId: String(w.agentId) } : {}),
+        ...(Array.isArray(w.tell) ? { tell: w.tell.map((x) => String(x).slice(0, 80)).slice(0, 20) } : {}), ...(Array.isArray(w.tellThreads) ? { tellThreads: w.tellThreads.map((x) => String(x).slice(0, 80)).slice(0, 20) } : {}),
+        ...(typeof w.goalId === "string" ? { goalId: w.goalId.slice(0, 80) } : {}),
         ...(w.paused !== undefined ? { paused: Boolean(w.paused) } : {}),
       };
       // the baseline: what the page shows now, read in the tab the person is looking at, so nothing has to open

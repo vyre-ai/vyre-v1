@@ -1,6 +1,6 @@
-# browser.watches.check
+# automations.watches.report
 
-Vyre for Chrome: check a watch now. One in the person's Chrome is read at the extension's next look; one on an agent's computer wakes the agent
+A check of a watched page: what it read now (or why it could not read). The first reading is the baseline; a different one is a change and is told in the watch's chat with before and after
 
 | | |
 |---|---|
@@ -16,16 +16,18 @@ Vyre for Chrome: check a watch now. One in the person's Chrome is read at the ex
 | Offline | online |
 | Audit | none |
 | Team Space only | no |
-| HTTP | POST /v1/browser/watches/check |
-| MCP tool | none |
+| HTTP | POST /v1/automations/watches/report |
+| MCP tool | automations_watches_report (automations) |
 | CLI | none |
-| Emits | none |
+| Emits | automations.watch.changed |
 
 ## Input
 
 ```ts
 type In = {
   watchId: string;
+  value?: string;
+  error?: string;
 };
 ```
 
@@ -33,6 +35,7 @@ type In = {
 
 ```ts
 type Out = {
+  changed: boolean;
   watch: {
     watchId: string;
     title: string;
@@ -45,6 +48,8 @@ type Out = {
     };
     everyMinutes: number;
     tell: Array<string>;
+    tellThreads: Array<string>;
+    goalId?: string;
     agentId?: string;
     runsOn: "computer" | "chrome";
     computerId?: string;
@@ -74,7 +79,6 @@ type Out = {
 - permission.no_grant
 - validation.bad_input
 - validation.not_found
-- validation.precondition_failed
 
 ## Example
 
@@ -82,9 +86,12 @@ type Out = {
 {
   "name": "example",
   "input": {
+    "error": "example",
+    "value": "example",
     "watchId": "wch_a1b2c3"
   },
   "output": {
+    "changed": true,
     "watch": {
       "agentId": "agt_a1b2c3",
       "changes": 1,
@@ -93,6 +100,7 @@ type Out = {
       "createdAt": 1760000000000,
       "error": "example",
       "everyMinutes": 5,
+      "goalId": "gol_a1b2c3",
       "host": "example",
       "lastChange": {
         "after": "example",
@@ -110,6 +118,9 @@ type Out = {
       "state": "on",
       "tell": [
         "usr_a1b2c3"
+      ],
+      "tellThreads": [
+        "thr_a1b2c3"
       ],
       "threadId": "thr_a1b2c3",
       "title": "example",

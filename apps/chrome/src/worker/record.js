@@ -301,12 +301,12 @@ export function createRecorder({ ext, bridge, privacy, now = Date.now, shot = ma
       await keep(all);
       return { agents };
     },
-    /** Share the saved skill with everyone in the Space (cards go to them, each decides) or take it back. @param {string} id @param {{ space?: boolean, stop?: boolean }} o */
+    /** Share the saved skill with chosen people, or everyone in the Space (cards go to them, each decides), or take it back. @param {string} id @param {{ space?: boolean, stop?: boolean, to?: string[] }} o */
     async share(id, o) {
       const rec = (await finished())[id];
       const saved = rec && /** @type {any} */ (rec)["saved"];
       if (!saved || !saved.skillId) throw new BridgeFailure("not_allowed", "Save the skill first.");
-      const out = await bridge.invoke("skills.share", { skillId: saved.skillId, ...(o.stop ? { stop: true } : { space: Boolean(o.space) }) });
+      const out = await bridge.invoke("skills.share", { skillId: saved.skillId, ...(o.stop ? { stop: true } : Array.isArray(o.to) && o.to.length ? { to: o.to.map((x) => String(x).slice(0, 80)).slice(0, 50) } : { space: Boolean(o.space) }) });
       return { sharedWith: out && Array.isArray(out.sharedWith) ? out.sharedWith : [] };
     },
     /** Try it: ask an agent, in a new chat, to run the skill. The chat is the place to follow it. @param {string} id @param {string} agentId */

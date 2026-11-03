@@ -39,9 +39,21 @@ export function showSheet(s) {
     h("div.shf", null, h("button.btn.q", act("sheetX"), "Cancel"), h("button.btn.pri", act("recStart", { disabled: s.busy }), ic("rec", "s"), "Start recording")));
 }
 
+/** One choice in an inline list: a check box (many) or a radio (one). @param {string} a @param {string} key @param {string} label @param {boolean} on @param {string} icon @param {boolean} [radio] */
+function pickRow(a, key, label, on, icon, radio = false) {
+  return h(`button.opt${on ? ".on" : ""}`, act(a, { data: { k: key }, role: radio ? "radio" : "checkbox", "aria-checked": String(on) }), h(`span.rd${radio ? "" : ".sq"}`, null, !radio && on ? ic("check", "xs") : null),
+    h("div.grow.ell", null, h("div.ot.ell", null, label)), h("span.mut", null, ic(icon, "s")));
+}
+
+/** "Only you", "You and Aliza", "You, Aliza and #marketing". @param {any} w @param {any} dir */
+export function tellWords(w, dir) {
+  const names = [...w.tellPeople.map((/** @type {string} */ id) => (dir && dir.people.find((/** @type {any} */ p) => p.id === id) || { name: "someone" }).name), ...w.tellThreads.map((/** @type {string} */ id) => `#${(dir && dir.channels.find((/** @type {any} */ c) => c.threadId === id) || { name: "a channel" }).name}`)];
+  return names.length ? `Also ${names.length > 1 ? `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}` : names[0]}` : "Only you. Pick people or channels to tell too.";
+}
+
 /**
  * Watch this page.
- * @param {{ page: { host?: string, title?: string } | null, w: { what: "region" | "page", region: { label: string } | null, every: number, agentId: string, run: "computer" | "chrome" | null, picking: boolean, saving: boolean, error: string, note: string },
+ * @param {{ dir?: any, goals?: any[] | null, page: { host?: string, title?: string } | null, w: { tellOpen: boolean, tellPeople: string[], tellThreads: string[], goalOn: boolean, goalId: string | null, what: "region" | "page", region: { label: string } | null, every: number, agentId: string, run: "computer" | "chrome" | null, picking: boolean, saving: boolean, error: string, note: string },
  *   agents: { id: string, name: string, avatar?: string | null, assistant?: boolean, computer?: boolean }[] }} s
  */
 export function watchSheet(s) {
@@ -49,7 +61,7 @@ export function watchSheet(s) {
   const agent = s.agents.find((a) => a.id === w.agentId) || s.agents[0] || null;
   const hasPc = Boolean(agent && agent.computer);
   const run = runsOnFor(hasPc, w.run);
-  const start = (w.what === "region" && !w.region) || w.saving || !agent;
+  const start = (w.what === "region" && !w.region) || w.saving || !agent || (w.goalOn && !w.goalId);
   return h("div.sheet", null, head("Watch this page", s.page ? s.page.host || "" : ""),
     h("div.shb", null,
       h("div.lbl.first", null, "What to watch"),
@@ -72,7 +84,21 @@ export function watchSheet(s) {
           ? h("div", null, `Runs on ${agent ? agent.name : "the agent"}'s computer, so your computer can sleep. ${agent ? agent.name : "It"} signs in with the Vault and never sees the password.`, w.run ? null : h("div.xs.mut", { css: { marginTop: "3px" } }, `Default, because ${agent ? agent.name : "the agent"} has a computer.`))
           : h("div", null, "Runs in your Chrome in the background while it is open, with your own sessions.", hasPc ? null : h("div.xs.mut", { css: { marginTop: "3px" } }, `Default, because ${agent ? agent.name : "the agent"} has no computer. `, agent ? h("button.lnk", act("givePc"), `Give ${agent.name} one`) : null))),
       h("div.lbl", null, "Tell"),
-      h("div.note", null, ic("chat", "s"), h("div", null, `You, in a chat with ${agent ? agent.name : "the agent"}. It shows what changed: what it was and what it is now.`)),
+      h("button.trow", act("wTell", { "aria-expanded": String(w.tellOpen) }), h("span", { css: { color: "var(--ink-3)", display: "grid" } }, ic("chat", "s")),
+        h("div.grow", null, h("div.b5", null, `You, in a chat with ${agent ? agent.name : "the agent"}`), h("div.xs.mut", null, tellWords(w, s.dir))), ic("chev", "xs")),
+      w.tellOpen ? h("div", { css: { padding: "0 0 4px 36px" } },
+        !s.dir ? h("div.xs.mut", null, "Loading") : [
+          s.dir.people.filter((p) => p.id !== s.dir.me).length ? h("div.xs.mut", null, "People") : null,
+          ...s.dir.people.filter((p) => p.id !== s.dir.me).map((p) => pickRow("wTellPerson", p.id, p.name, w.tellPeople.includes(p.id), "user")),
+          s.dir.channels.length ? h("div.xs.mut", { css: { marginTop: "6px" } }, "Channels") : null,
+          ...s.dir.channels.map((c) => pickRow("wTellThread", c.threadId, c.name, w.tellThreads.includes(c.threadId), "chat")),
+        ]) : null,
+      h("div.lbl", null, "Goal"),
+      h("button.trow", act("wGoal", { role: "switch", "aria-checked": String(w.goalOn), disabled: !(s.goals && s.goals.length) }),
+        h("span", { css: { color: "var(--ink-3)", display: "grid" } }, ic("goal", "s")),
+        h("div.grow", null, h("div.b5", null, "Counts toward a goal"), h("div.xs.mut", null, s.goals && s.goals.length ? "The number it reads becomes the goal's progress." : s.goals ? "You have no goal with a number to reach yet." : "Loading")),
+        h(`span.tg${w.goalOn ? ".on" : ""}`)),
+      w.goalOn && s.goals ? h("div", { css: { padding: "0 0 4px 36px" } }, s.goals.map((g) => pickRow("wGoalPick", g.id, `${g.title}${g.value !== null ? ` · ${g.value} of ${g.target}` : ` · ${g.target}`}`, w.goalId === g.id, "goal", true))) : null,
       w.note ? h("div.xs.mut", { css: { marginTop: "8px" } }, w.note) : null,
       w.error ? h("div.note.err", { css: { margin: "10px 0 0" } }, w.error) : null),
     h("div.shf", null, h("button.btn.q", act("sheetX"), "Cancel"), h("button.btn.pri", act("wStart", { disabled: start, css: start ? { opacity: ".5" } : null }), ic("eye", "s"), w.saving ? "Starting" : "Start watching")));

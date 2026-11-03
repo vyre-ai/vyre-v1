@@ -231,7 +231,7 @@ export function countBy<T>(rows: readonly T[], key: (row: T) => string): { value
 
 export interface WatchItem {
   id: string; title: string; url: string; host: string; mode: "region" | "page"; region: string; everyMinutes: number; state: "on" | "paused" | "error"; runsOn: "computer" | "chrome";
-  agentId: string; changes: number; lastCheckedAt: number | null; lastChange: { at: number; before: string; after: string } | null; error: string; value: string;
+  agentId: string; tell: string[]; tellThreads: number; goalId: string; changes: number; lastCheckedAt: number | null; lastChange: { at: number; before: string; after: string } | null; error: string; value: string;
 }
 
 export function watchItems(out: unknown): WatchItem[] | null {
@@ -246,7 +246,7 @@ export function watchItems(out: unknown): WatchItem[] | null {
     rows.push({
       id: w["watchId"], title: w["title"], url: typeof w["url"] === "string" ? w["url"] : "", host: typeof w["host"] === "string" ? w["host"] : "", mode: w["mode"] === "page" ? "page" : "region",
       region: region && typeof region["label"] === "string" ? region["label"] : "", everyMinutes: num(w["everyMinutes"]), state: w["state"] === "paused" ? "paused" : w["state"] === "error" ? "error" : "on",
-      runsOn: w["runsOn"] === "chrome" ? "chrome" : "computer", agentId: typeof w["agentId"] === "string" ? w["agentId"] : "", changes: num(w["changes"]),
+      runsOn: w["runsOn"] === "chrome" ? "chrome" : "computer", agentId: typeof w["agentId"] === "string" ? w["agentId"] : "", tell: Array.isArray(w["tell"]) ? w["tell"].filter((x): x is string => typeof x === "string") : [], tellThreads: Array.isArray(w["tellThreads"]) ? w["tellThreads"].length : 0, goalId: typeof w["goalId"] === "string" ? w["goalId"] : "", changes: num(w["changes"]),
       lastCheckedAt: typeof w["lastCheckedAt"] === "number" ? w["lastCheckedAt"] : null,
       lastChange: change && typeof change["at"] === "number" ? { at: change["at"], before: String(change["before"] ?? ""), after: String(change["after"] ?? "") } : null,
       error: typeof w["error"] === "string" ? w["error"] : "", value: typeof w["value"] === "string" ? w["value"] : "",
@@ -263,11 +263,22 @@ export function everyWords(min: number): string {
   return `Every ${min} minutes`;
 }
 
-/** The line under a watch: how often, and when it last changed. */
-export function watchNote(w: WatchItem, now: number): string {
+/** When a watch last changed, or why it is not running. */
+export function lastWords(w: WatchItem, now: number): string {
   if (w.state === "paused") return "Paused";
   if (w.state === "error") return `Can't read it${w.error ? `: ${w.error}` : ""}`;
   const ago = (ms: number): string => { const m = Math.max(0, Math.round(ms / 60000)); return m < 1 ? "just now" : m < 60 ? `${m} min ago` : m < 2880 ? `${Math.round(m / 60)} h ago` : `${Math.round(m / 1440)} days ago`; };
-  const when = w.lastChange ? `Changed ${ago(now - w.lastChange.at)}` : w.lastCheckedAt !== null ? `No change since ${ago(now - w.lastCheckedAt)}` : "Not checked yet";
-  return `${everyWords(w.everyMinutes)} · ${when}`;
+  return w.lastChange ? `Changed ${ago(now - w.lastChange.at)}` : w.lastCheckedAt !== null ? `No change since ${ago(now - w.lastCheckedAt)}` : "Not checked yet";
+}
+
+/** The line under a watch's name on a phone: how often, and when it last changed. */
+export function watchNote(w: WatchItem, now: number): string {
+  if (w.state === "paused" || w.state === "error") return lastWords(w, now);
+  return `${everyWords(w.everyMinutes)} · ${lastWords(w, now)}`;
+}
+
+/** Who hears about a change besides the person: people by name, channels by count. */
+export function tellWords(w: WatchItem, name: (id: string) => string): string {
+  const parts = [...w.tell.map(name), ...(w.tellThreads ? [`${w.tellThreads} ${w.tellThreads === 1 ? "channel" : "channels"}`] : [])];
+  return parts.length ? `You, ${parts.join(", ")}` : "You";
 }

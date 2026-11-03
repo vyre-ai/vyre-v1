@@ -6,6 +6,8 @@ import type { IconKey } from "./model.ts";
 
 export const PATHS = {
   bolt: ["M9 1.8L3.5 9H8l-1 5.2L12.5 7H8z"],
+  pause: ["M6 4v8M10 4v8"],
+  play: ["M5 3.5l7 4.5-7 4.5z"],
   eye: ["M1.8 8S4 3.8 8 3.8 14.2 8 14.2 8 12 12.2 8 12.2 1.8 8 1.8 8z", "M9.8 8a1.8 1.8 0 11-3.6 0 1.8 1.8 0 013.6 0z"],
   server: ["M2.5 3h11v4h-11z", "M2.5 9h11v4h-11z", "M5 5h.01M5 11h.01"],
   monitor: ["M2 3h12v8H2z", "M6 14h4M8 11v3"],

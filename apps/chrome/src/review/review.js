@@ -14,7 +14,7 @@ const $ = (/** @type {string} */ s) => /** @type {HTMLElement} */ (document.quer
 const S = {
   rec: /** @type {any} */ (null), words: /** @type {string[]} */ ([]), gone: false,
   agents: /** @type {any[]} */ ([]), who: /** @type {Set<string>} */ (new Set()),
-  saved: /** @type {any} */ (null), busy: "", error: "", note: "", shared: /** @type {"me" | "space"} */ ("me"), tried: /** @type {string | null} */ (null),
+  saved: /** @type {any} */ (null), busy: "", error: "", note: "", shared: /** @type {"me" | "people" | "space"} */ ("me"), sharedWith: /** @type {string[]} */ ([]), shareOpen: false, dir: /** @type {any} */ (null), tried: /** @type {string | null} */ (null),
 };
 
 /** @param {string} type @param {Record<string, any>} [body] */
@@ -84,6 +84,21 @@ function whoLine() {
     h("span", null, picked.length ? picked.map((a) => a.name).join(", ") : "Nobody yet"), h("span.chev", null, ic("chev", "xs")));
 }
 
+const sharedNames = () => listWords(S.sharedWith.map((id) => ((S.dir && S.dir.people.find((/** @type {any} */ p) => p.id === id)) || { name: "someone" }).name));
+
+/** The share choices, open under the card: Only you, specific people (from the people this person may see), everyone in the Space. */
+function sharePanel() {
+  const row = (/** @type {string} */ a, /** @type {string} */ k, /** @type {string} */ label, /** @type {boolean} */ on, /** @type {boolean} */ radio, /** @type {string} */ icon) =>
+    h(`button.opt${on ? ".on" : ""}`, { data: { a, k }, role: radio ? "radio" : "checkbox", "aria-checked": String(on) }, h(`span.rd${radio ? "" : ".sq"}`, null, !radio && on ? ic("check", "xs") : null), h("div.grow.ell", null, h("div.ot.ell", null, label)), h("span.mut", null, ic(icon, "s")));
+  const people = S.dir ? S.dir.people.filter((/** @type {any} */ p) => p.id !== S.dir.me) : [];
+  return h("div", { css: { marginTop: "12px", paddingTop: "8px", borderTop: "1px solid var(--line)" } },
+    row("shareMode", "me", "Only you", S.shared === "me", true, "lock"),
+    row("shareMode", "people", "Specific people", S.shared === "people", true, "users"),
+    S.shared === "people" ? h("div", { css: { padding: "0 0 4px 26px" } }, !S.dir ? h("div.xs.mut", null, "Loading") : people.length ? people.map((/** @type {any} */ p) => row("sharePerson", p.id, p.name, S.sharedWith.includes(p.id), false, "user")) : h("div.xs.mut", null, "No one else is in this Space yet.")) : null,
+    row("shareMode", "space", "Everyone in this Space", S.shared === "space", true, "globe"),
+    h("div.btns", { css: { marginTop: "8px" } }, h("button.btn.pri", { data: { a: "shareDone" }, disabled: S.shared === "people" && !S.sharedWith.length }, "Done"), h("button.btn.q", { data: { a: "shareX" } }, "Cancel")));
+}
+
 function skillCard() {
   const sv = S.saved;
   const agents = S.agents.filter((a) => (sv.agents || []).includes("*") || (sv.agents || []).includes(a.id));
@@ -94,14 +109,15 @@ function skillCard() {
       h("span.k", null, "Asks for"), h("span", null, S.rec.inputs.filter((/** @type {any} */ i) => i.mode === "ask").map((/** @type {any} */ i) => i.label).join(", ") || "Nothing"),
       h("span.k", null, "Sites"), h("span", null, hostsOf().join(", ")),
       h("span.k", null, "Signs in"), h("span", null, S.rec.steps.some((/** @type {any} */ s) => s.kind === "signin") ? "With Vault" : "No sign-in"),
-      h("span.k", null, "Shared with"), h("span", null, S.shared === "space" ? "Everyone in this Space" : "Only you")),
+      h("span.k", null, "Shared with"), h("span", null, S.shared === "space" ? "Everyone in this Space" : S.shared === "people" ? sharedNames() : "Only you")),
     h("div.skf", null,
       h("button.btn.pri", { data: { a: "add" }, disabled: S.busy === "add" }, ic("plus", "s"), "Add to my agents"),
       h("button.btn", { data: { a: "try" }, disabled: S.busy === "try" }, ic("play", "s"), "Try it"),
       h("button.btn.q", { data: { a: "view" } }, "View steps"),
       h("button.btn.q", { data: { a: "share" }, "aria-haspopup": "menu" }, ic("users", "s"), "Share"),
       h("span.grow"),
-      h("span.xs.mut", null, agents.length ? `On ${agents.map((a) => a.name).join(", ")}` : "")));
+      h("span.xs.mut", null, agents.length ? `On ${agents.map((a) => a.name).join(", ")}` : "")),
+    S.shareOpen ? sharePanel() : null);
 }
 
 function render() {
@@ -191,10 +207,19 @@ const A = /** @type {Record<string, (el: HTMLElement) => void | Promise<void>>} 
   },
   chat: () => void ask("rec.open", { place: "chats", skillId: S.tried }).catch(() => {}),
   view: () => void ask("rec.open", { place: "skill", skillId: S.saved && S.saved.skillId }).catch(() => {}),
-  share: (el) => menu(el, [
-    { label: "Only you", check: S.shared === "me", run: async () => { try { await ask("rec.share", { stop: true }); S.shared = "me"; } catch (e) { fail(e); return; } render(); } },
-    { label: "Everyone in this Space", check: S.shared === "space", run: async () => { try { await ask("rec.share", { space: true }); S.shared = "space"; S.note = "Everyone in the Space gets a card and decides whether to add it."; } catch (e) { fail(e); return; } render(); } },
-  ]),
+  share: async () => { S.shareOpen = !S.shareOpen; render(); if (S.shareOpen && !S.dir) { try { S.dir = await ask("rec.people"); } catch { S.dir = { people: [], channels: [], me: "" }; } render(); } },
+  shareMode: (el) => { S.shared = /** @type {any} */ (el.dataset["k"]); render(); },
+  sharePerson: (el) => { const id = String(el.dataset["k"]); S.sharedWith = S.sharedWith.includes(id) ? S.sharedWith.filter((x) => x !== id) : [...S.sharedWith, id]; render(); },
+  shareX: () => { S.shareOpen = false; render(); },
+  shareDone: async () => {
+    try {
+      if (S.shared === "me") await ask("rec.share", { stop: true });
+      else if (S.shared === "people") { await ask("rec.share", { to: S.sharedWith }); S.note = `${sharedNames()} get a card and decide whether to add it.`; }
+      else { await ask("rec.share", { space: true }); S.note = "Everyone in the Space gets a card and decides whether to add it."; }
+      S.shareOpen = false;
+    } catch (e) { fail(e); return; }
+    render();
+  },
 });
 
 document.addEventListener("click", (e) => {

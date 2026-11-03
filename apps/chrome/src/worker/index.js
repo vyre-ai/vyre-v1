@@ -229,6 +229,8 @@ export function createWorker(ext) {
       case "panel.rec.state": return { data: await recorder.state() };
       case "panel.rec.start": return { data: await recorder.start(await panelTab(msg), { name: typeof msg.name === "string" ? msg.name : "" }) };
       case "panel.rec.control": return { data: await recorder.control(msg.op === "stop" ? "stop" : msg.op === "resume" ? "resume" : "pause") };
+      case "panel.watch.dir": return { data: await bridge.op("people.list", {}) };
+      case "panel.watch.goals": return { data: await bridge.op("goals.pick", {}) };
       case "panel.watch.list": return { data: await watches.list() };
       case "panel.watch.save": return { data: await watches.save(await panelTab(msg), msg.watch || {}) };
       case "panel.watch.change": return { data: await watches.change(String(msg.watchId || ""), msg.op === "remove" ? "remove" : msg.op === "resume" ? "resume" : "pause") };
@@ -261,7 +263,8 @@ export function createWorker(ext) {
       case "rec.agents": return { data: await bridge.op("agents.list", {}) };
       case "rec.save": return { data: await recorder.save(id, { agents: Array.isArray(msg.agents) ? msg.agents : [] }) };
       case "rec.add": return { data: await recorder.addToAgents(id) };
-      case "rec.share": return { data: await recorder.share(id, { space: Boolean(msg.space), stop: Boolean(msg.stop) }) };
+      case "rec.share": return { data: await recorder.share(id, { space: Boolean(msg.space), stop: Boolean(msg.stop), to: Array.isArray(msg.to) ? msg.to : [] }) };
+      case "rec.people": return { data: await bridge.op("people.list", {}) };
       case "rec.try": return { data: await recorder.tryIt(id, String(msg.agentId || "")) };
       case "rec.open": return { data: await bridge.op("app.open", { place: msg.place === "chats" ? "chats" : "skill", id: String(msg.skillId || "").slice(0, 80) }) };
       default: return failure(new BridgeFailure("not_allowed", String(msg.type)));

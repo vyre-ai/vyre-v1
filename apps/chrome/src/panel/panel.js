@@ -31,8 +31,9 @@ const S = {
   draft: "", error: "",
   // recording (Show Vyre how) and watching (Watch this page)
   rec: /** @type {{ running: boolean, paused?: boolean, count?: number, secret?: boolean }} */ ({ running: false }), recName: "", recError: "", recBusy: false,
-  w: /** @type {{ what: "region" | "page", region: { label: string, selector?: string, text?: string } | null, every: number, agentId: string, run: "computer" | "chrome" | null, picking: boolean, saving: boolean, error: string, note: string }} */ ({
-    what: "region", region: null, every: 30, agentId: "", run: null, picking: false, saving: false, error: "", note: "" }),
+  w: /** @type {{ tellOpen: boolean, tellPeople: string[], tellThreads: string[], goalOn: boolean, goalId: string | null, what: "region" | "page", region: { label: string, selector?: string, text?: string } | null, every: number, agentId: string, run: "computer" | "chrome" | null, picking: boolean, saving: boolean, error: string, note: string }} */ ({
+    tellOpen: false, tellPeople: [], tellThreads: [], goalOn: false, goalId: null, what: "region", region: null, every: 30, agentId: "", run: null, picking: false, saving: false, error: "", note: "" }),
+  dir: /** @type {any} */ (null), goals: /** @type {any[] | null} */ (null),
   wList: /** @type {any[] | null} */ (null), wOpen: /** @type {string | null} */ (null), wError: "",
 };
 const SHEETS = ["show", "watch", "watching"];
@@ -190,7 +191,7 @@ function render() {
   top();
   const off = offView();
   const sheet = S.view === "show" ? showSheet({ name: S.recName, host: S.page ? S.page.host ?? "" : "", error: S.recError, busy: S.recBusy })
-    : S.view === "watch" ? watchSheet({ page: S.page, w: S.w, agents: S.agents })
+    : S.view === "watch" ? watchSheet({ page: S.page, w: S.w, agents: S.agents, dir: S.dir, goals: S.goals })
     : S.view === "watching" ? watchingSheet({ list: S.wList, open: S.wOpen, error: S.wError, agents: S.agents }) : null;
   mount($("#main"), off ?? (S.view === "history" ? historyView() : S.view === "site" ? [...chatView(), siteView()] : sheet ? [...chatView(), sheet] : chatView()));
   const c2 = document.querySelector("#conv");
@@ -372,9 +373,17 @@ function enterView(view) {
   S.recError = ""; S.wError = "";
   if (view === "show") S.recName = S.recName || "";
   if (view === "watch") {
-    S.w = { what: "region", region: null, every: 30, agentId: S.agent || (S.agents[0] ? S.agents[0].id : ""), run: null, picking: false, saving: false, error: "", note: "" };
+    S.w = { tellOpen: false, tellPeople: [], tellThreads: [], goalOn: false, goalId: null, what: "region", region: null, every: 30, agentId: S.agent || (S.agents[0] ? S.agents[0].id : ""), run: null, picking: false, saving: false, error: "", note: "" };
+    void loadPickers();
   }
   if (view === "watching") void loadWatching();
+}
+
+/** The people, channels and goals the person may pick on the Watch sheet, as the app shows them to this person. */
+async function loadPickers() {
+  try { S.dir = await ask("panel.watch.dir"); } catch { S.dir = { people: [], channels: [], me: "" }; }
+  try { const g = /** @type {any} */ (await ask("panel.watch.goals")); S.goals = g ? g.goals : []; } catch { S.goals = []; }
+  if (S.view === "watch") render();
 }
 
 async function loadWatching() {
@@ -456,10 +465,15 @@ const A = /** @type {Record<string, (el: HTMLElement) => void | Promise<void>>} 
     if (!a || S.w.saving || (S.w.what === "region" && !S.w.region)) return;
     S.w.saving = true; S.w.error = ""; render();
     try {
-      await ask("panel.watch.save", { watch: { mode: S.w.what, ...(S.w.what === "region" ? { region: { label: S.w.region?.label, selector: S.w.region?.selector } } : {}), everyMinutes: S.w.every, agentId: a.id, runsOn: runsOnFor(Boolean(a.computer), S.w.run) } });
+      await ask("panel.watch.save", { watch: { mode: S.w.what, ...(S.w.what === "region" ? { region: { label: S.w.region?.label, selector: S.w.region?.selector } } : {}), everyMinutes: S.w.every, agentId: a.id, runsOn: runsOnFor(Boolean(a.computer), S.w.run), tell: S.w.tellPeople, tellThreads: S.w.tellThreads, ...(S.w.goalOn && S.w.goalId ? { goalId: S.w.goalId } : {}) } });
       S.w.saving = false; S.w.region = null; S.w.run = null; enterView("watching"); render();
     } catch (e) { S.w.saving = false; S.w.error = e instanceof Error ? e.message : "Could not start watching."; render(); }
   },
+  wTell: () => { S.w.tellOpen = !S.w.tellOpen; render(); },
+  wTellPerson: (el) => { const id = String(el.dataset["k"]); S.w.tellPeople = S.w.tellPeople.includes(id) ? S.w.tellPeople.filter((x) => x !== id) : [...S.w.tellPeople, id]; render(); },
+  wTellThread: (el) => { const id = String(el.dataset["k"]); S.w.tellThreads = S.w.tellThreads.includes(id) ? S.w.tellThreads.filter((x) => x !== id) : [...S.w.tellThreads, id]; render(); },
+  wGoal: () => { S.w.goalOn = !S.w.goalOn; if (!S.w.goalOn) S.w.goalId = null; else if (S.goals && S.goals.length === 1) S.w.goalId = S.goals[0].id; render(); },
+  wGoalPick: (el) => { S.w.goalId = String(el.dataset["k"]); render(); },
   wNew: () => { enterView("watch"); render(); },
   wRow: (el) => { S.wOpen = S.wOpen === el.dataset["id"] ? null : String(el.dataset["id"]); render(); },
   wPause: async (el) => { try { await ask("panel.watch.change", { watchId: el.dataset["id"], op: el.dataset["on"] ? "pause" : "resume" }); } catch (e) { S.wError = e instanceof Error ? e.message : ""; } await loadWatching(); },

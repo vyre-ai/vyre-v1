@@ -1,4 +1,4 @@
-# browser.watches.list
+# automations.watches.list
 
 Vyre for Chrome: the person's watches, newest first: what is watched, how often, where it runs, what the last check read and the last change with before and after
 
@@ -16,8 +16,8 @@ Vyre for Chrome: the person's watches, newest first: what is watched, how often,
 | Offline | online |
 | Audit | none |
 | Team Space only | no |
-| HTTP | POST /v1/browser/watches/list |
-| MCP tool | browser_watches_list (automations) |
+| HTTP | POST /v1/automations/watches/list |
+| MCP tool | automations_watches_list (automations) |
 | CLI | none |
 | Emits | none |
 
@@ -47,6 +47,8 @@ type Out = {
       };
       everyMinutes: number;
       tell: Array<string>;
+      tellThreads: Array<string>;
+      goalId?: string;
       agentId?: string;
       runsOn: "computer" | "chrome";
       computerId?: string;
@@ -96,6 +98,7 @@ type Out = {
         "createdAt": 1760000000000,
         "error": "example",
         "everyMinutes": 5,
+        "goalId": "gol_a1b2c3",
         "host": "example",
         "lastChange": {
           "after": "example",
@@ -113,6 +116,9 @@ type Out = {
         "state": "on",
         "tell": [
           "usr_a1b2c3"
+        ],
+        "tellThreads": [
+          "thr_a1b2c3"
         ],
         "threadId": "thr_a1b2c3",
         "title": "example",

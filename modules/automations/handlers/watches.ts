@@ -19,7 +19,7 @@ const ERRORS_BEFORE_STATE = 3;
 
 export interface WatchOut {
   watchId: string; title: string; url: string; host: string; mode: "region" | "page"; region?: { label: string; selector?: string };
-  everyMinutes: number; tell: string[]; agentId?: string; runsOn: "computer" | "chrome"; computerId?: string; state: "on" | "paused" | "error";
+  everyMinutes: number; tell: string[]; tellThreads: string[]; goalId?: string; agentId?: string; runsOn: "computer" | "chrome"; computerId?: string; state: "on" | "paused" | "error";
   checkNow: boolean; value?: string; lastCheckedAt?: number; nextDueAt?: number; changes: number; lastChange?: { at: number; before: string; after: string };
   threadId?: string; error?: string; createdAt: number; updatedAt: number;
 }
@@ -58,7 +58,7 @@ export function watchOut(r: Row): WatchOut {
   return clean({
     watchId: String(r["id"]), title: String(r["title"]), url: String(r["url"]), host: String(r["host"]), mode: r["mode"] === "page" ? "page" : "region",
     region: region ? clean({ label: String(region.label ?? ""), selector: s(region.selector) }) : undefined,
-    everyMinutes: Number(r["every_min"]), tell: json<string[]>(r["tell_json"], []), agentId: s(r["agent_id"]), runsOn: r["runs_on"] === "chrome" ? "chrome" : "computer", computerId: s(r["computer_id"]),
+    everyMinutes: Number(r["every_min"]), tell: json<string[]>(r["tell_json"], []), tellThreads: json<string[]>(r["tell_threads_json"], []), goalId: s(r["goal_id"]), agentId: s(r["agent_id"]), runsOn: r["runs_on"] === "chrome" ? "chrome" : "computer", computerId: s(r["computer_id"]),
     state: r["state"] === "paused" ? "paused" : r["state"] === "error" ? "error" : "on", checkNow: Number(r["check_now"]) === 1,
     value: value === undefined ? undefined : value.slice(0, 2000), lastCheckedAt: n(r["last_checked_at"]), nextDueAt: n(r["next_due_at"]), changes: Number(r["changes"]),
     lastChange: at !== undefined && typeof was === "string" && typeof now === "string" ? { at, before: was.slice(0, 2000), after: now.slice(0, 2000) } : undefined,
@@ -83,7 +83,7 @@ function put(ctx: AutoCtx, r: Row): void {
 
 type Region = { label: string; selector?: string };
 type SaveIn = {
-  watchId?: string; title: string; url: string; mode: "region" | "page"; region?: Region; everyMinutes: number; tell?: string[]; agentId?: string; runsOn: "computer" | "chrome"; computerId?: string;
+  watchId?: string; title: string; url: string; mode: "region" | "page"; region?: Region; everyMinutes: number; tell?: string[]; tellThreads?: string[]; goalId?: string | null; agentId?: string; runsOn: "computer" | "chrome"; computerId?: string;
   paused?: boolean; value?: string; idempotencyKey: string;
 };
 export async function save(ctx: AutoCtx, input: SaveIn): Promise<{ watch: WatchOut }> {
@@ -100,17 +100,37 @@ export async function save(ctx: AutoCtx, input: SaveIn): Promise<{ watch: WatchO
   };
   Object.assign(r, {
     title: input.title.trim().slice(0, 200) || hostOf(url), url, host: hostOf(url), mode: input.mode, region_json: input.mode === "region" && input.region ? JSON.stringify(clean(input.region)) : null,
-    every_min: input.everyMinutes, tell_json: JSON.stringify(tell), agent_id: input.agentId ?? null, runs_on: input.runsOn, computer_id: input.computerId ?? null, updated_at: now,
+    every_min: input.everyMinutes, tell_json: JSON.stringify(tell), tell_threads_json: JSON.stringify([...new Set(input.tellThreads ?? [])].slice(0, 20)), agent_id: input.agentId ?? null, runs_on: input.runsOn, computer_id: input.computerId ?? null, updated_at: now,
   });
   // changing what is read starts a new baseline: the old reading is of something else
   if (prior && (prior["url"] !== url || prior["region_json"] !== r["region_json"] || prior["mode"] !== input.mode)) Object.assign(r, { value: baseline ?? null, last_checked_at: baseline === undefined ? null : now, error: null, errors_in_row: 0 });
   if (input.paused !== undefined) r["state"] = input.paused ? "paused" : "on";
   if (!prior || prior["every_min"] !== input.everyMinutes || r["state"] === "on") r["next_due_at"] = now + (baseline === undefined ? 0 : input.everyMinutes * 60_000);
+  if (input.goalId !== undefined) await linkGoal(ctx, r, input.goalId);
   // the chat is made now, by the person: an agent woken in it acts for them, which is what lets it report what it read
   if (!r["thread_id"] && r["agent_id"]) await alertThread(ctx, r);
   put(ctx, r);
   ctx.emit("automations.watch.saved", String(r["id"]), { watchId: String(r["id"]), owner: person, op: prior ? "changed" : "added" }, { vis: "owner" });
   return { watch: watchOut(r) };
+}
+
+/**
+ * "Counts toward a goal": the goal's finish line reads this watch. goals.get and goals.update run as the person, so only a goal they may see and control can be linked; a goal whose
+ * finish line is not a number cannot. null takes the watch off the goal.
+ */
+async function linkGoal(ctx: AutoCtx, r: Row, goalId: string | null): Promise<void> {
+  const was = s(r["goal_id"]);
+  if (goalId === null) { r["goal_id"] = null; return; }
+  if (was === goalId) return;
+  if (!ctx.call) raise(ctx, "validation.bad_input", "Goals cannot be reached from here.");
+  let got: { goal?: { finish?: Record<string, unknown> } } | undefined;
+  try { got = (await ctx.call("goals.get", { goalId })) as typeof got; } catch { raise(ctx, "validation.not_found", "There is no such goal, or it is not yours to change."); }
+  const finish = got?.goal?.finish;
+  if (!finish || finish["kind"] !== "number") raise(ctx, "validation.bad_input", "A watch can count toward a goal that has a number to reach.");
+  try {
+    await ctx.call("goals.update", { goalId, finish: { ...finish, source: { kind: "watch", watchId: String(r["id"]), label: `${String(r["title"])} (watched page)` } } });
+  } catch { raise(ctx, "permission.no_grant", "Only the owner of a goal changes where its number comes from."); }
+  r["goal_id"] = goalId;
 }
 
 export async function list(ctx: AutoCtx, input: { watchId?: string; runsOn?: "computer" | "chrome"; person?: string }): Promise<{ watches: WatchOut[] }> {
@@ -196,7 +216,9 @@ export async function report(ctx: AutoCtx, input: ReportIn): Promise<{ changed: 
   if (changed) {
     const w = watchOut(r);
     const thread = await alertThread(ctx, r);
-    if (thread) await tryCall(ctx, "chat.post", { threadId: thread, body: changeWords(w, String(r["was"]), String(r["now_text"])), idempotencyKey: `watch-change:${w.watchId}:${w.changes}` });
+    const body = changeWords(w, String(r["was"]), String(r["now_text"]));
+    if (thread) await tryCall(ctx, "chat.post", { threadId: thread, body, idempotencyKey: `watch-change:${w.watchId}:${w.changes}` });
+    for (const th of w.tellThreads) if (th !== thread) await tryCall(ctx, "chat.post", { threadId: th, body, idempotencyKey: `watch-change:${w.watchId}:${w.changes}:${th}` });
   }
   put(ctx, r);
   if (changed) ctx.emit("automations.watch.changed", input.watchId, { watchId: input.watchId, owner: person, changes: Number(r["changes"]) }, { vis: "owner" });
