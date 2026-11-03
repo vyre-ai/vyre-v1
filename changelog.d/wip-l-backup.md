@@ -1,0 +1,4 @@
+- The server update backup is now consistent while the daemon writes: each SQLite database is copied with VACUUM INTO and checked, the other files are copied, and only the copy is tarred. A file that changes during the copy no longer fails the update.
+- A failed backup now starts the server again instead of leaving it stopped. `vyre-server backup` takes the update lock and uses the same path as the scheduled update.
+- An update that is killed or cut off now goes back to the previous release (at once on a signal, at the next command after a crash), and compose.env is rewritten whole instead of with sed.
+- A lock left by a dead update process is reclaimed.

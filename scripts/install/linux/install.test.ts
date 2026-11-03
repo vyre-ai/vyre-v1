@@ -547,3 +547,163 @@ test("the owner's claim link: vyre-server claim-link prints it from the data dir
   assert.match(read(SERVER).split("\n").slice(1, 14).join("\n"), /vyre-server claim-link/, "the help text (lines 2-14) lists it");
   fs.rmSync(dir, { recursive: true });
 });
+
+// ---- backup and update safety (l-backup)
+
+const WRITER = `
+const { DatabaseSync } = require("node:sqlite");
+const fs = require("node:fs");
+const dir = process.argv[1];
+const dbs = ["events.db", "modules.db"].map((n) => { const d = new DatabaseSync(dir + "/" + n); d.exec("PRAGMA journal_mode=WAL; CREATE TABLE IF NOT EXISTS t (id INTEGER PRIMARY KEY, v TEXT)"); return d; });
+let i = 0;
+fs.writeFileSync(dir + "/ready", "1");
+const tick = () => {
+  for (const d of dbs) d.exec("INSERT INTO t (v) VALUES ('" + "x".repeat(200) + i + "')");
+  fs.writeFileSync(dir + "/state.json", JSON.stringify({ i }));
+  fs.writeFileSync(dir + "/scratch-" + (i % 5) + ".tmp", String(i));
+  i++;
+  if (!fs.existsSync(dir + "/stop")) setImmediate(tick); else { for (const d of dbs) d.close(); }
+};
+tick();
+`;
+
+function integrity(db: string): { ok: string; rows: number } {
+  const r = spawnSync("node", ["--no-warnings", "-e", `const {DatabaseSync}=require("node:sqlite");const d=new DatabaseSync(process.argv[1],{readOnly:true});console.log(JSON.stringify({ok:d.prepare("PRAGMA integrity_check").get().integrity_check,rows:d.prepare("SELECT count(*) c FROM t").get().c}))`, db], { encoding: "utf8" });
+  assert.equal(r.status, 0, r.stderr);
+  const o = JSON.parse(r.stdout) as { ok: string; rows: number };
+  return o;
+}
+
+test("a backup taken while the daemon keeps writing restores with databases that pass integrity_check", async () => {
+  const dir = tmp();
+  const space = path.join(dir, "data", "space");
+  fs.mkdirSync(space, { recursive: true });
+  fs.mkdirSync(path.join(dir, "data", "caddy"), { recursive: true });
+  fs.writeFileSync(path.join(dir, "data", "caddy", "cert.pem"), "cert");
+  const { spawn } = await import("node:child_process");
+  const writer = spawn("node", ["--no-warnings", "-e", WRITER, space], { stdio: "inherit" });
+  try {
+    for (let n = 0; n < 100 && !fs.existsSync(path.join(space, "ready")); n++) await new Promise((r) => setTimeout(r, 50));
+    assert.ok(fs.existsSync(path.join(space, "ready")), "the writer started");
+    // dc is a no-op, so the writer keeps going through the whole backup: the worst case.
+    for (let round = 0; round < 3; round++) {
+      const r = sh(SERVER, `DATA_DIR="${dir}/data"; dc(){ return 0; }; backup_data live${round}; echo "$BACKUP_FILE"`, { VYRE_DIR: dir });
+      assert.equal(r.status, 0, r.stderr);
+      const file = r.stdout.trim().split("\n").pop()!;
+      const restore = path.join(dir, "restore" + round);
+      fs.mkdirSync(restore);
+      assert.equal(spawnSync("tar", ["-xzf", file, "-C", restore]).status, 0);
+      for (const n of ["events.db", "modules.db"]) {
+        const o = integrity(path.join(restore, "space", n));
+        assert.equal(o.ok, "ok");
+        assert.ok(o.rows > 0, "the backup holds rows");
+      }
+      assert.ok(!fs.existsSync(path.join(restore, "space", "events.db-wal")), "no stray wal in the backup");
+      assert.equal(fs.readFileSync(path.join(restore, "caddy", "cert.pem"), "utf8"), "cert");
+    }
+    assert.equal(fs.readdirSync(path.join(dir, "backups")).filter((f) => f.startsWith(".stage")).length, 0, "the staging folder is gone");
+  } finally {
+    fs.writeFileSync(path.join(space, "stop"), "1");
+    await new Promise((r) => writer.on("exit", r));
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("a database that will not copy puts the server back and leaves no partial backup", () => {
+  const dir = tmp();
+  try {
+    fs.mkdirSync(path.join(dir, "data", "space"), { recursive: true });
+    const d = path.join(dir, "data", "space", "events.db");
+    spawnSync("node", ["--no-warnings", "-e", `const {DatabaseSync}=require("node:sqlite");new DatabaseSync(process.argv[1]).exec("CREATE TABLE t(x)")`, d]);
+    const r = sh(SERVER, `DATA_DIR="${dir}/data"; dc(){ echo "$*" >>"${dir}/dc.log"; }; sqlite_snapshot(){ return 1; }; sleep(){ :; }; backup_data x`, { VYRE_DIR: dir });
+    assert.notEqual(r.status, 0);
+    assert.match(r.stderr, /nothing was changed/);
+    const log = read(path.join(dir, "dc.log"));
+    assert.match(log, /^stop/m);
+    assert.match(log, /^up -d/m, "the server was started again");
+    assert.deepEqual(fs.readdirSync(path.join(dir, "backups")), []);
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+});
+
+function installFixture(dir: string): void {
+  for (const [v, img] of [["1.0.0", "old"], ["1.1.0", "new"]] as const) {
+    fs.mkdirSync(path.join(dir, "releases", v), { recursive: true });
+    fs.writeFileSync(path.join(dir, "releases", v, "images.lock"), `VYRE_IMAGE=${img}@sha256:${"a".repeat(64)}\n`);
+    fs.writeFileSync(path.join(dir, "releases", v, ".complete"), "");
+    fs.writeFileSync(path.join(dir, "releases", v, "VERSION"), v);
+  }
+  fs.symlinkSync("releases/1.1.0", path.join(dir, "current"));
+  fs.writeFileSync(path.join(dir, "compose.env"), `VYRE_PORT=8420\nVYRE_IMAGE=new@sha256:${"a".repeat(64)}\nDOCKER_GID=1\n`);
+}
+
+test("sync_image sets only VYRE_IMAGE, from the release current points at", () => {
+  const dir = tmp();
+  try {
+    installFixture(dir);
+    fs.rmSync(path.join(dir, "current"));
+    fs.symlinkSync("releases/1.0.0", path.join(dir, "current"));
+    const r = sh(SERVER, "sync_image", { VYRE_DIR: dir });
+    assert.equal(r.status, 0, r.stderr);
+    const env = read(path.join(dir, "compose.env"));
+    assert.match(env, /^VYRE_IMAGE=old@sha256:/m);
+    assert.match(env, /^VYRE_PORT=8420$/m);
+    assert.match(env, /^DOCKER_GID=1$/m);
+    assert.equal(fs.existsSync(path.join(dir, "compose.env.new")), false);
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+});
+
+test("an update that was cut off is rolled back by the next command that takes the lock", () => {
+  const dir = tmp();
+  try {
+    installFixture(dir);
+    fs.mkdirSync(path.join(dir, "state"));
+    fs.writeFileSync(path.join(dir, "state", "update.pending"), "releases/1.0.0\n");
+    const r = sh(SERVER, `dc(){ echo "$*" >>"${dir}/dc.log"; }; lock_update_operation; readlink "$DIR/current"; sed -n 's/^VYRE_IMAGE=//p' "$DIR/compose.env"`, { VYRE_DIR: dir });
+    assert.equal(r.status, 0, r.stderr);
+    assert.match(r.stdout, /cut off/);
+    assert.match(r.stdout, /releases\/1\.0\.0/);
+    assert.match(r.stdout, /old@sha256/);
+    assert.equal(fs.existsSync(path.join(dir, "state", "update.pending")), false);
+    assert.match(read(path.join(dir, "dc.log")), /^up -d/m);
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+});
+
+test("an update killed mid-way rolls back and starts the server again", async () => {
+  const dir = tmp();
+  try {
+    installFixture(dir);
+    fs.rmSync(path.join(dir, "current"));
+    fs.symlinkSync("releases/1.0.0", path.join(dir, "current"));
+    fs.writeFileSync(path.join(dir, "compose.env"), `VYRE_IMAGE=old@sha256:${"a".repeat(64)}\n`);
+    fs.writeFileSync(path.join(dir, "vyre.env"), "");
+    const { spawn } = await import("node:child_process");
+    // fetch_release and the pull are stubbed; the health check hangs so the update is still running when the signal arrives.
+    const script = `. "${SERVER}"\ntrap cleanup EXIT\nfetch_release(){ REL_VERSION=1.1.0; }; unpack_release(){ :; }; docker(){ return 0; }; backup_data(){ BACKUP_FILE=f; }; cur_version(){ printf 1.0.0; }; dc(){ echo "$*" >>"${dir}/dc.log"; }; wait_healthy(){ touch "${dir}/waiting"; n=0; while [ $n -lt 30 ]; do sleep 1; n=$((n+1)); done; }; cmd_update --yes --version 1.1.0 --feed-base https://x.example/`;
+    const child = spawn("sh", ["-c", script], { env: { PATH: process.env.PATH ?? "", VYRE_SOURCE_ONLY: "1", VYRE_TEST_MODE: "1", VYRE_DIR: dir, TMPDIR: dir }, stdio: "ignore" });
+    for (let n = 0; n < 100 && !fs.existsSync(path.join(dir, "waiting")); n++) await new Promise((r) => setTimeout(r, 50));
+    assert.ok(fs.existsSync(path.join(dir, "waiting")));
+    assert.ok(fs.existsSync(path.join(dir, "state", "update.pending")), "the marker is there while the update runs");
+    child.kill("SIGTERM");
+    await new Promise((r) => child.on("exit", r));
+    assert.equal(fs.readlinkSync(path.join(dir, "current")), "releases/1.0.0");
+    assert.equal(fs.existsSync(path.join(dir, "state", "update.pending")), false);
+    assert.match(read(path.join(dir, "compose.env")), /^VYRE_IMAGE=old@/m);
+    assert.equal(fs.existsSync(path.join(dir, "state", "update.lock")), false, "the lock is released");
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+});
+
+test("a lock left by a process that is gone is reclaimed; a lock with a live owner is not", () => {
+  const dir = tmp();
+  try {
+    const lock = path.join(dir, "state", "update.lock");
+    fs.mkdirSync(lock, { recursive: true });
+    fs.writeFileSync(path.join(lock, "pid"), "999999\n");
+    const dead = sh(SERVER, 'lock_update_operation; echo got', { VYRE_DIR: dir });
+    assert.equal(dead.status, 0, dead.stderr);
+    assert.match(dead.stdout, /got/);
+    fs.mkdirSync(lock, { recursive: true });
+    fs.writeFileSync(path.join(lock, "pid"), `${process.pid}\n`);
+    const live = sh(SERVER, 'lock_update_operation', { VYRE_DIR: dir });
+    assert.equal(live.status, 75);
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+});
