@@ -35,8 +35,11 @@ withOutsideSpace("Simba and the owner's assistant are invisible to members, refu
     // what was visible before: the Space's principal directory names every agent, Simba and every assistant included, and the shell offered all of it to mention and to Cmd-K
     const named = principals.find((p) => p.id === simba);
     assert.match(named?.name ?? "", /^Olivia\b.* \(Agent\)$/, `${id}: the server names Simba as Olivia's agent`);
-    assert.deepEqual([named?.private, named?.owner, named?.agentName], [true, OLIVIA, undefined], `${id}: with her face, and no own name for a member`);
-    assert.equal(JSON.stringify(principals).includes("Simba"), false, `${id}: the agent's own name is nowhere in what the server answers`);
+    const admin = (principals.find((p) => p.id === id)?.roles as string[] | undefined ?? []).some((r) => r === "rol_admin" || r === "rol_owner");
+    assert.deepEqual([named?.private, named?.owner], [true, OLIVIA], `${id}: with her face`);
+    // a member never gets its own name; an admin gets it only as agentName, for the audit details line
+    assert.equal(named?.agentName, admin ? "Simba (Claude Code)" : undefined, `${id}: own name only for an admin (${admin})`);
+    if (!admin) assert.equal(JSON.stringify(principals).includes("Simba"), false, `${id}: the agent's own name is nowhere in what the server answers`);
     if (oliviasAssistant) assert.match(principals.find((p) => p.id === oliviasAssistant)?.name ?? "", /^Olivia\b.* \(Agent\)$/, `${id}: the same for her assistant`);
     assert.equal(agents.some((a) => a.agentId === simba), false, `${id}: agents.list has no row for Simba`);
     if (oliviasAssistant) assert.equal(agents.some((a) => a.agentId === oliviasAssistant), false, `${id}: nor for Olivia's assistant`);
@@ -78,10 +81,10 @@ withOutsideSpace("Simba and the owner's assistant are invisible to members, refu
   const auto = await c.tool("use_tool", { name: "automations_create", arguments: { name: "Weekly digest", idempotencyKey: "simba-auto" } });
   const automationId = auto.json.result?.structuredContent?.data?.automation?.id as string;
   assert.ok(automationId, JSON.stringify(auto.json).slice(0, 400));
-  const logged = expectStatus(await s.call("events.list", owner, { types: ["record.created", "automation.created"], limit: 200 }), 200, "events.list").events as Json[];
+  const logged = expectStatus(await s.call("events.list", owner, { types: ["record.created", "automation.created"], actor: simba, limit: 200 }), 200, "events.list").events as Json[];
   for (const [type, id] of [["record.created", recordId], ["automation.created", automationId]] as const) {
     const e = logged.find((x) => x.type === type && JSON.stringify(x).includes(id));
-    assert.ok(e, `${type} is in the log`);
+    assert.ok(e, `${type} is in the log: ${JSON.stringify(logged.map((x) => [x.type, x.actor, x.subject])).slice(0, 600)}`);
     assert.deepEqual([e.actor, e.onBehalf], [simba, OLIVIA], `${type}: stored as Simba, for Olivia (never svc_records)`);
   }
   const activity = expectStatus(await s.call("records.activity", noah, { type: "contact", recordId }), 200, "records.activity").entries as Json[];
@@ -94,7 +97,15 @@ withOutsideSpace("Simba and the owner's assistant are invisible to members, refu
   assert.ok(row, "an audit row for Simba's record");
   assert.equal(row.onBehalfOf?.id, OLIVIA);
   const details = agentDetails(row, oliviaSees.get(simba)?.agentName ?? oliviaSees.get(simba)?.name);
-  assert.match(details ?? "", new RegExp(`^Simba \\(Claude Code\\) · ${simba} · under the setup grant · trace ${row.traceId}$`));
+  // records.create needs no setup grant, so the line says none; a setup call (members.sso.set) says it acted under the grant
+  assert.match(details ?? "", new RegExp(`^Simba \\(Claude Code\\) · ${simba} · trace ${row.traceId}$`));
+  const roles = expectStatus(await s.call("access.roles.list", owner, {}), 200, "access.roles.list").roles as Json[];
+  const memberRole = (roles.find((r) => r.name === "Member" || r.id === "member") ?? roles.find((r) => r.id !== "owner" && r.id !== "rol_owner"))!.id;
+  const inv = (await c.tool("use_tool", { name: "members_invites_create", arguments: { role: memberRole, email: "sam@northwind.example", idempotencyKey: "simba-invite" } })).json.result;
+  assert.equal(inv?.isError ?? false, false, JSON.stringify(inv).slice(0, 400));
+  const setupRow = (expectStatus(await s.call("audit.list", owner, { limit: 300 }), 200, "audit.list").rows as Json[]).find((r) => r.actor?.id === simba && r.action === "members.invites.create");
+  assert.ok(setupRow, "an audit row for the setup call");
+  assert.match(agentDetails(setupRow, oliviaSees.get(simba)?.name) ?? "", new RegExp(`^Simba \\(Claude Code\\) · ${simba} · under the setup grant · trace ${setupRow.traceId}$`));
   assert.equal(noahSees.get(simba)?.agentName, undefined, "a member's directory never holds the agent's own name");
 
   // and Noah cannot @mention it there
