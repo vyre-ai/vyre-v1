@@ -17,6 +17,7 @@ import type { Ref, Task } from "./model.ts";
 import { PERSONAL_STAGE, planEdits, planStages, planTasks } from "./plan.ts";
 import type { PlanContext } from "./plan.ts";
 import { EmptyLine, Face, Glyph, HRow, LinkButton, SectionHeader, Section, Skeleton, StatusCircle, s, useNarrow } from "./parts.tsx";
+import { offered } from "../../../shell/session/private-agents.ts";
 
 export const WORK_SCREEN = "tasks.my-work";
 type Out = CapMap["tasks.my_work"]["out"];
@@ -187,7 +188,7 @@ export function MyWork(): ReactElement {
   const planStageList = planStages(tasks, planCtx);
   const planToday = toIso(dayNumber(clock.now, clock.offsetMin));
   const planPeople: PlanWho[] = [];
-  for (const x of p.list) planPeople.push({ name: x.name, kind: x.kind === "agent" ? "agent" : x.kind === "group" ? "group" : x.kind === "role" ? "role" : "person" });
+  for (const x of p.list) if (offered(x)) planPeople.push({ name: x.name, kind: x.kind === "agent" ? "agent" : x.kind === "group" ? "group" : x.kind === "role" ? "role" : "person" });
   // New task and a stage's "+": one tasks.create, assigned to me, under that stage's project (none for Personal), due in two days; the task appears when the live query returns it
   const onPlanCreate = (stageId: string | null): void => {
     const recordId = stageId !== null && stageId !== PERSONAL_STAGE ? stageId : undefined;

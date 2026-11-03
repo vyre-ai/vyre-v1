@@ -1074,17 +1074,24 @@ export const isAssistant = (a: Pick<AgentRec, "kind">): boolean => a.kind === "a
 export function canSee(ctx: AgentsCtx, a: AgentRec): boolean {
   // the assistant is private even from the Space's admins and from anyone it was shared with: other people neither see, mention nor open it
   if (isAssistant(a)) return a.ownerId === askerOf(ctx);
-  // an outside agent runs on its owner's machine on its owner's access: a share does not change who may use it. An admin who turned on All in the Space may see it, to answer for it.
-  if (a.runtime === "outside") return a.ownerId === askerOf(ctx) || isHostService(ctx.principal) || seesAll(ctx);
+  // an outside agent runs on its owner's machine on its owner's access: it is theirs alone, like the assistant. A share does not change who may use it, and an admin's All in the Space does not list it:
+  // owners and admins answer for it in Console (mcp.connected.list with all), where they can take its setup grant back or remove it, never chat as it
+  if (isPrivateAgent(a)) return a.ownerId === askerOf(ctx) || (a.runtime === "outside" && isHostService(ctx.principal));
   return a.ownerId === askerOf(ctx) || allows(ctx, null, "view", "agent", a.id) || seesAll(ctx);
 }
-/** An agent the caller may see, or the same answer as for one that is not there (what exists is not leaked). */
+/** An agent only its person sees, uses and opens: their private assistant, and an outside agent they connected through /mcp. What it did in a shared place stays visible, attributed to it and its person. */
+export const isPrivateAgent = (a: Pick<AgentRec, "kind" | "runtime">): boolean => isAssistant(a) || a.runtime === "outside";
+/** What a person is told when they reach for someone else's private agent by its id. */
+export const PRIVATE_AGENT = "That agent is private to the person it belongs to. Only they can open it, chat with it or @mention it.";
+/** An agent the caller may see, or the same answer as for one that is not there (what exists is not leaked). Someone else's private agent is refused in plain words: its work in shared places already names it. */
 export function visible(ctx: AgentsCtx, id: string, code: ErrorCode = "validation.not_found"): AgentRec {
   ensure(ctx.db);
   const a = agentBy(ctx.db, id);
-  if (!a || !canSee(ctx, a)) raise(ctx, code, "That agent does not exist.");
+  if (!a || !canSee(ctx, a)) raise(ctx, code, a && isPrivateAgent(a) && ctx.principal.kind === "person" ? PRIVATE_AGENT : "That agent does not exist.", a && isPrivateAgent(a) ? { reason: "private" } : undefined);
   return a;
 }
+/** An owner or admin (access.manage) answers for every outside agent in the Space: they may remove one from Console, without seeing it anywhere else or chatting as it. */
+export const governs = (ctx: AgentsCtx, a: AgentRec): boolean => a.runtime === "outside" && allows(ctx, "access.manage", "manage", "space", null) && ctx.authorize !== undefined;
 
 export async function makeFolder(ctx: AgentsCtx, parentId: string, name: string, key: string, subject?: { kind: "agent"; id: string }): Promise<FolderOut> {
   return (await call<{ folder: FolderOut }>(ctx, "files.folder.create", { parentId, name, idempotencyKey: key, ...(subject ? { subject } : {}) }, { idempotencyKey: key })).folder;

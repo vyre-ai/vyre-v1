@@ -13,6 +13,7 @@ import type { ObjectListRow } from "../objects/ObjectList.tsx";
 import { Actions, Button, Field, FormSheet, ModelSelect, Note, pickRow, Stepper, ReadState, Select, attempt, useAction, useRead } from "./shared.tsx";
 
 import {TemplateFiles} from "./TemplateFiles.tsx";
+import { connectedNote } from "./connected-model.ts";
 
 type Agents = CapMap["agents.list"]["out"];
 const PROVIDERS = [{ key: "anthropic", title: "Anthropic" }, { key: "openai", title: "OpenAI" }, { key: "google", title: "Google" }, { key: "other", title: "Other" }];
@@ -96,8 +97,10 @@ export function ConnectedApps(): ReactElement {
   const consoleData = useConsoleData();
   const list = useRead<CapMap["mcp.connected.list"]["out"]>("mcp.connected.list", { all: true });
   const action = useAction(list.refresh);
+  const [removing, setRemoving] = useState<string | null>(null);
   if (!list.data) return <ReadState error={list.error} retry={list.refresh} />;
   const rows: readonly Connected[] = list.data.agents;
+  const now = Date.now();
   return (
     <View testID="console-connected-apps">
       <Section title="Connected MCP apps" count={rows.length}>
@@ -105,8 +108,13 @@ export function ConnectedApps(): ReactElement {
           {rows.length === 0 ? <Empty icon="doc">Nobody has connected an MCP app yet</Empty> : rows.map((a) => (
             <Row
               key={a.agentId} id={`connected-${a.agentId}`} title={a.clientName}
-              note={`For ${consoleData.name(a.person ?? "")} · ${a.setup === true ? "Acts for them, including setup" : "Asks them first"}`}
-              {...(a.setup === true ? { trailing: <Button label="Turn off setup" testID={`connected-setup-off-${a.agentId}`} disabled={action.busy} onPress={() => void action.run("mcp.setup.set", { agentId: a.agentId, setup: false }, "Setup turned off. It asks first now.")} /> } : {})}
+              note={connectedNote(a, consoleData.name(a.person ?? ""), now)}
+              trailing={<Actions>
+                {a.setup === true ? <Button label="Turn off setup" testID={`connected-setup-off-${a.agentId}`} disabled={action.busy} onPress={() => void action.run("mcp.setup.set", { agentId: a.agentId, setup: false }, "Setup turned off. It asks first now.")} /> : null}
+                {removing === a.agentId
+                  ? <Button label="Confirm remove" danger testID={`connected-remove-confirm-${a.agentId}`} disabled={action.busy} onPress={() => void action.run("mcp.connected.remove", { agentId: a.agentId }, "Removed. Its sign-in ended and it went to Trash.").then(() => setRemoving(null))} />
+                  : <Button label="Remove" testID={`connected-remove-${a.agentId}`} disabled={action.busy} onPress={() => setRemoving(a.agentId)} />}
+              </Actions>}
             />
           ))}
         </Group>

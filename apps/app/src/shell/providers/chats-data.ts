@@ -15,6 +15,7 @@ import { KNOW_SCREEN, routeToArgs } from "../../places/files/memory/know.ts";
 import { nameLookup } from "./records-live.ts";
 import type { ShellRuntime } from "./runtime.tsx";
 import { nameOr } from "../../places/chats/names.ts";
+import { attributed, offered } from "../session/private-agents.ts";
 import { requestChannelSheet } from "../../places/chats/channels/request.ts";
 
 export interface ChatsActions {
@@ -32,7 +33,7 @@ const kindOf = (p: Principal | undefined): "person" | "agent" => (p && p.kind ==
 
 export function candidates(list: readonly Principal[], meId: string): Candidate[] {
   const out: Candidate[] = [];
-  for (const p of list) if (p.id !== meId && (p.kind === "person" || p.kind === "agent")) out.push({ id: p.id, name: p.name, kind: p.kind });
+  for (const p of list) if (p.id !== meId && offered(p) && (p.kind === "person" || p.kind === "agent")) out.push({ id: p.id, name: p.name, kind: p.kind });
   return out;
 }
 
@@ -40,7 +41,7 @@ export function composerLists(list: readonly Principal[], meId: string): Compose
   const people: ListItem[] = [];
   const agents: ListItem[] = [];
   for (const p of list) {
-    if (p.id === meId) continue;
+    if (p.id === meId || !offered(p)) continue;
     if (p.kind === "person") people.push(p.name);
     else if (p.kind === "agent") agents.push(p.name);
   }
@@ -150,7 +151,7 @@ export function conversationData(rt: ShellRuntime, a: ChatsActions, threadId: st
   };
   return {
     screens: rt.screens, call: rt.call, connection: rt.connection, ...(rt.changes ? { changes: rt.changes } : {}), threadId, me: { id: rt.me.id, name: rt.me.name },
-    nameOf: (id) => nameOr(byId.get(id)?.name, id),
+    nameOf: (id) => nameOr(attributed(byId.get(id), (o) => byId.get(o)?.name), id),
     kindOf: (id) => kindOf(byId.get(id)),
     nav, clock: rt.clock, spaceName: rt.space.name, ...(rt.baseUrl ? { spaceUrl: rt.baseUrl } : {}), ...(rt.space.kind === "personal" ? { personal: true } : {}),
     ...(fill ? { fill } : {}),

@@ -6,7 +6,7 @@
 //   snapshot.take / versions / restore_version             the files a run uses, and rolling back
 // A broken agent.toml never stops an agent: the last good configuration stays in agents_agent.config and is what every read here returns.
 import {
-  AGENT_MD_DEFAULT, isAgentMdV1, AWAKE_MS, agentFor, agentView, seesSetup, withoutSetup, teammateOf, isAssistant, LIMIT_KEYS, LIMIT_TOML, MAX_NAME, MAX_ROLE, NAME_BAD, TREE_FOLDERS, agentBy, agentByName, agentOf, agentOut, allAgents, allows, applyPatch, askerOf, call, canSee, checkToml,
+  AGENT_MD_DEFAULT, isAgentMdV1, AWAKE_MS, agentFor, agentView, governs, seesSetup, withoutSetup, teammateOf, isAssistant, LIMIT_KEYS, LIMIT_TOML, MAX_NAME, MAX_ROLE, NAME_BAD, TREE_FOLDERS, agentBy, agentByName, agentOf, agentOut, allAgents, allows, applyPatch, askerOf, call, canSee, checkToml,
   codeOf, ensure, insertAgent, makeFile, makeFolder, meta, mintId, newConfig, nameKey, parseToml, raise, saveFile, setMeta, slug, statusOf, storeConfig, textOf, tolerant, tomlFor, versionsOf, visible, widenings,
   writeConfig,
 } from "../projections.ts";
@@ -285,7 +285,10 @@ export async function retire(ctx: AgentsCtx, a: AgentRec, who: string): Promise<
 }
 
 export async function remove(ctx: AgentsCtx, input: { agentId: string }) {
-  const a = visible(ctx, input.agentId);
+  // an owner or admin removes someone's outside agent from Console (mcp.connected.remove), without it ever being listed for them
+  ensure(ctx.db);
+  const found = agentBy(ctx.db, input.agentId);
+  const a = found && governs(ctx, found) ? found : visible(ctx, input.agentId);
   // every person has one assistant for as long as they are here; it ends with them (onPersonLeft), never by a press or by an agent
   if (isAssistant(a)) raise(ctx, "validation.precondition_failed", "Your assistant stays with you. Rename it or change what it does instead.", { reason: "assistant_stays" });
   await retire(ctx, a, by(ctx));
