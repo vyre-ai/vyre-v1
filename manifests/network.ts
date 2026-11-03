@@ -4,6 +4,17 @@ import { create, defineManifest, ev, health, read, t, write } from '../packages/
 const serverId = t.id('srv');
 const state = t.enm('healthy', 'degraded', 'down');
 const person = t.obj({ serverId, name: t.str(), state, enrollment: t.enm('pending', 'approved'), fingerprint: t.opt(t.str()), lastSeenAt: t.opt(t.ts()), requestedAt: t.opt(t.ts()), facts: t.opt(t.obj({ os: t.str(), arch: t.str(), docker: t.bool(), version: t.str() })) });
+const range = t.enm('1h', '24h', '7d', '30d');
+const room = t.obj({ n: t.int({ minimum: 0, maximum: 100, description: 'What is free of the tightest of CPU, memory, disk and the turn limit; 0 when offline or draining' }), why: t.str() });
+const machineRow = t.obj({
+  serverId, name: t.str(), nickname: t.opt(t.str()), kind: t.enm('space', 'server', 'linked'), owner: t.opt(t.str()), mine: t.bool(), state, online: t.bool(), lastSeenAt: t.opt(t.ts()),
+  version: t.opt(t.str()), os: t.opt(t.str()), arch: t.opt(t.str()), cores: t.opt(t.int()), memBytes: t.opt(t.int()), diskBytes: t.opt(t.int()), latencyMs: t.opt(t.int()),
+  load: t.opt(t.obj({ cpu: t.num(), memPct: t.num(), diskPct: t.num(), diskFreeBytes: t.int() })), vyre: t.opt(t.obj({ cpu: t.num(), memPct: t.num() })),
+  private: t.bool(), runs: t.obj({ turns: t.int(), agentComputers: t.int(), sites: t.int(), automations: t.int() }), can: t.arr(t.str()), room,
+  limits: t.obj({ maxTurns: t.nullable(t.int()), maxAgentComputers: t.nullable(t.int()) }), drain: t.bool(), pins: t.arr(t.str()),
+});
+const machineAlert = t.obj({ alertId: t.str(), serverId, kind: t.enm('disk', 'memory', 'offline', 'backup', 'update'), title: t.str(), detail: t.str() });
+const point = t.obj({ t: t.ts(), cpu: t.nullable(t.num()), mem: t.nullable(t.num()), disk: t.nullable(t.num()), netIn: t.nullable(t.num()), netOut: t.nullable(t.num()) });
 const endpoint = t.obj({ kind: t.enm('direct', 'relay', 'tunnel'), url: t.str({ examples: ['https://northwind.example.com'] }), health: state, rttMs: t.opt(t.int()) });
 
 export default defineManifest({
@@ -16,6 +27,7 @@ export default defineManifest({
     ev('network.certificate_failed', 'Certificate issue or renewal failed', { p: { host: t.str(), reason: t.str() }, subject: ['entity', '/host'], notify: 'health.degraded' }),
     ev('network.server_requested', 'A computer asked to join the Space and waits for a person to approve it', { p: { serverId, name: t.str(), fingerprint: t.str() }, subject: ['entity', '/serverId'] }),
     ev('network.server_added', 'A server joined the Space for compute', { p: { serverId, name: t.str() }, subject: ['entity', '/serverId'] }),
+    ev('network.machine_alert', 'A machine needs a look: disk nearly full, memory pressure, offline with pinned work or a failed backup', { p: { alertId: t.str(), serverId, kind: t.enm('disk', 'memory', 'offline', 'backup', 'update'), title: t.str(), detail: t.str() }, subject: ['entity', '/serverId'], notify: 'machine.alert' }),
     ev('network.server_removed', 'A server was removed', { p: { serverId }, subject: ['entity', '/serverId'] }),
   ],
   capabilities: [
@@ -42,6 +54,13 @@ export default defineManifest({
     write('network.phone_release', 'Give up the phone address. The name stays reserved to this computer', { in: {}, out: { state: t.enm('none', 'releasing') }, level: 'use', audit: 'always', tool: 'engineer' }),
     write('network.server_reconnect', 'Reconnect an offline server', { in: { serverId }, out: { state }, perm: 'server.network', tool: 'engineer' }),
     write('network.server_remove', 'Remove a server from the Space', { in: { serverId }, out: { removed: t.bool() }, perm: 'server.network', level: 'manage', risk: 'high', audit: 'always', emits: ['network.server_removed'], gate: { act: 'delete' }, tool: 'engineer' }),
+    read('network.machines', 'Every machine that runs Vyre work: the Space server, added servers and linked computers, with load, room left and alerts. A member\'s own computer shows an admin only name, online, capacity and Vyre\'s work', { out: { machines: t.arr(machineRow), alerts: t.arr(machineAlert), admin: t.bool(), now: t.ts() }, level: 'use', tool: 'engineer', label: 'filter' }),
+    read('network.machine', 'One machine with its history for a range (1 hour, 24 hours, 7 days or 30 days), what runs on it by agent and chat, and its Doctor findings', { in: { serverId, range: t.opt(range) }, out: { machine: machineRow, series: t.obj({ range, step: t.int(), points: t.arr(point) }), findings: t.arr(t.obj({ key: t.str(), state, detail: t.str(), next: t.str(), fix: t.nullable(t.str()) })), work: t.arr(t.obj({ agent: t.str(), what: t.str(), where: t.str(), cpu: t.num() })), alerts: t.arr(machineAlert), privacy: t.enm('full', 'vyre_only') }, level: 'use', tool: 'engineer' }),
+    write('network.machine_set', 'Set a machine\'s nickname, the most turns or agent computers it takes at once (empty for no limit) and Drain: no new work lands on a drained machine and what runs finishes', { in: { serverId, nickname: t.opt(t.nullable(t.str({ maxLength: 40 }))), maxTurns: t.opt(t.nullable(t.int({ minimum: 0, maximum: 64 }))), maxAgentComputers: t.opt(t.nullable(t.int({ minimum: 0, maximum: 64 }))), drain: t.opt(t.bool()) }, out: { machine: machineRow }, level: 'use', audit: 'always', tool: 'engineer' }),
+    write('network.machine_pin', 'Pin an agent to a machine so its turns always run there (waiting when it is away), or let it go', { in: { serverId, agentId: t.str(), pinned: t.bool() }, out: { machine: machineRow }, level: 'use', audit: 'always', tool: 'engineer' }),
+    read('network.machine_alerts', 'The machine alerts the asker may see: disk under 10 percent free, memory pressure, a machine offline with pinned work, a failed backup, an update waiting (the Console dot and the Inbox line)', { out: { alerts: t.arr(machineAlert) }, level: 'use', tool: 'engineer' }),
+    write('network.machine_alerts_notify', 'Host only: send each new machine alert to the Inbox once while it lasts', { in: {}, out: { sent: t.int() }, level: 'view', emits: ['network.machine_alert'] }),
+    read('network.machine_place', 'Which machine a turn goes to, given the places to try in order: the first with room, skipping a busy one, and why it moved (the Ran on line)', { in: { order: t.arr(serverId) }, out: { serverId: t.nullable(t.str()), name: t.nullable(t.str()), skipped: t.arr(t.obj({ serverId: t.str(), name: t.str(), why: t.str() })), moved: t.bool(), line: t.nullable(t.str()) }, level: 'use', tool: 'engineer' }),
     read('network.health', 'Network health probe: certificate expiry and relay reachability', { out: { state, detail: t.opt(t.str()), latencyMs: t.opt(t.int()), daysToExpiry: t.opt(t.int()) } }),
     read('network.peers', 'The computers that hold this Personal Space: each keeps a full copy and syncs with the others through the relay. This computer, whether each is awake, and when it was last seen', { out: { waiting: t.int({ description: 'Changes made on this computer that no other computer has taken yet' }), syncedAt: t.opt(t.ts()), computers: t.arr(t.obj({ peerId: t.str(), name: t.str(), platform: t.str(), kind: t.enm('computer', 'server'), self: t.bool(), online: t.bool(), lastSeenAt: t.opt(t.ts()), addedAt: t.ts() })) }, level: 'use', tool: 'engineer' }),
     read('network.peer_requests', 'New computers asking to use this Personal Space, each with the six-digit code its own screen shows', { out: { requests: t.arr(t.obj({ requestId: t.str(), name: t.str(), platform: t.str(), code: t.str({ examples: ['418 207'] }), requestedAt: t.ts(), expiresAt: t.ts() })) }, level: 'use', tool: 'engineer' }),

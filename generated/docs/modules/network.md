@@ -4,7 +4,7 @@ Lane L7b. Kind module. Version 0.1.0.
 
 Requires: nothing.
 
-## Capabilities (32)
+## Capabilities (39)
 
 - [network.certificate_renew](../capabilities/network.certificate_renew.md): Renew a certificate now
 - [network.domain_set](../capabilities/network.domain_set.md): Set the Space address to an own domain (DNS check, then ACME)
@@ -13,6 +13,13 @@ Requires: nothing.
 - [network.enroll_status](../capabilities/network.enroll_status.md): A waiting computer asks whether it was approved by signing a fresh timestamp with its key; approved, it receives its credential once (called by the computer, no sign-in)
 - [network.health](../capabilities/network.health.md): Network health probe: certificate expiry and relay reachability
 - [network.ingress_check](../capabilities/network.ingress_check.md): Check whether forms and webhooks can reach this Space from outside
+- [network.machine](../capabilities/network.machine.md): One machine with its history for a range (1 hour, 24 hours, 7 days or 30 days), what runs on it by agent and chat, and its Doctor findings
+- [network.machine_alerts](../capabilities/network.machine_alerts.md): The machine alerts the asker may see: disk under 10 percent free, memory pressure, a machine offline with pinned work, a failed backup, an update waiting (the Console dot and the Inbox line)
+- [network.machine_alerts_notify](../capabilities/network.machine_alerts_notify.md): Host only: send each new machine alert to the Inbox once while it lasts
+- [network.machine_pin](../capabilities/network.machine_pin.md): Pin an agent to a machine so its turns always run there (waiting when it is away), or let it go
+- [network.machine_place](../capabilities/network.machine_place.md): Which machine a turn goes to, given the places to try in order: the first with room, skipping a busy one, and why it moved (the Ran on line)
+- [network.machine_set](../capabilities/network.machine_set.md): Set a machine's nickname, the most turns or agent computers it takes at once (empty for no limit) and Drain: no new work lands on a drained machine and what runs finishes
+- [network.machines](../capabilities/network.machines.md): Every machine that runs Vyre work: the Space server, added servers and linked computers, with load, room left and alerts. A member's own computer shows an admin only name, online, capacity and Vyre's work
 - [network.my_computer_approve](../capabilities/network.my_computer_approve.md): Admit your own waiting computer
 - [network.my_computer_code](../capabilities/network.my_computer_code.md): Make a join code for your own computer or server (a Mac, PC or Linux box): it will run only your own agents. A nickname names it once it arrives; it also works in a Personal Space
 - [network.my_computer_decline](../capabilities/network.my_computer_decline.md): Turn your own waiting computer away
@@ -39,11 +46,12 @@ Requires: nothing.
 - [network.servers](../capabilities/network.servers.md): Computers in the Space (the Space server and the computers that joined for compute, waiting ones included): grey rows when offline, with Reconnect and Remove
 - [network.status](../capabilities/network.status.md): Address, certificate state, relay state and public ingress
 
-## Events (6)
+## Events (7)
 
 - [network.certificate_failed](../events/network.certificate_failed.md): Certificate issue or renewal failed
 - [network.certificate_renewed](../events/network.certificate_renewed.md): A certificate was issued or renewed
 - [network.domain_changed](../events/network.domain_changed.md): The Space address changed (own domain or relay)
+- [network.machine_alert](../events/network.machine_alert.md): A machine needs a look: disk nearly full, memory pressure, offline with pinned work or a failed backup
 - [network.server_added](../events/network.server_added.md): A server joined the Space for compute
 - [network.server_removed](../events/network.server_removed.md): A server was removed
 - [network.server_requested](../events/network.server_requested.md): A computer asked to join the Space and waits for a person to approve it

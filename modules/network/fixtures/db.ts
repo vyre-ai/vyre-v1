@@ -176,7 +176,7 @@ export class FakeNetworkDb implements RawDb {
   readonly log: string[] = [];
 
   constructor(migrationPath: string = MIGRATION) {
-    this.tables = parseMigration(readFileSync(migrationPath, "utf8") + "\n" + readFileSync(new URL("../migrations/0002_command_results.sql", import.meta.url), "utf8") + "\n" + readFileSync(new URL("../migrations/0003_compute_enrollment.sql", import.meta.url), "utf8") + "\n" + readFileSync(new URL("../migrations/0004_join_nickname.sql", import.meta.url), "utf8") + "\n" + readFileSync(new URL("../migrations/0005_phone.sql", import.meta.url), "utf8") + "\n" + readFileSync(new URL("../migrations/0006_peers.sql", import.meta.url), "utf8"));
+    this.tables = parseMigration(readFileSync(migrationPath, "utf8") + "\n" + readFileSync(new URL("../migrations/0002_command_results.sql", import.meta.url), "utf8") + "\n" + readFileSync(new URL("../migrations/0003_compute_enrollment.sql", import.meta.url), "utf8") + "\n" + readFileSync(new URL("../migrations/0004_join_nickname.sql", import.meta.url), "utf8") + "\n" + readFileSync(new URL("../migrations/0005_phone.sql", import.meta.url), "utf8") + "\n" + readFileSync(new URL("../migrations/0006_peers.sql", import.meta.url), "utf8") + "\n" + readFileSync(new URL("../migrations/0007_machines.sql", import.meta.url), "utf8"));
   }
 
   rows(table: string): Row[] { return this.table(table).rows.map((r) => ({ ...r })); }
@@ -334,7 +334,7 @@ export interface Harness {
 }
 
 /** A handler ctx over a fresh fake database, behind the host's table guard. ctx.call answers from `answer()`; an unanswered capability is not implemented. */
-export function harness(o: { now?: number; principal?: string; actingFor?: string; answers?: Record<string, CallAnswer> } = {}): Harness {
+export function harness(o: { now?: number; principal?: string; actingFor?: string; admin?: boolean; kind?: "person" | "service"; answers?: Record<string, CallAnswer> } = {}): Harness {
   const raw = new FakeNetworkDb();
   const events: EmittedEvent[] = [];
   const calls: CallRecord[] = [];
@@ -342,7 +342,8 @@ export function harness(o: { now?: number; principal?: string; actingFor?: strin
   let clock = o.now ?? NOW;
   const ctx: NetworkCtx = {
     space: SPACE,
-    principal: { kind: "person", id: o.principal ?? "usr_admin" },
+    principal: { kind: o.kind ?? "person", id: o.principal ?? "usr_admin" },
+    authorize: (() => ({ effect: o.admin === false ? "deny" : "allow", reason: "test", decisionId: "dec_test" })) as unknown as Ctx["authorize"],
     ...(o.actingFor ? { actingFor: o.actingFor } : {}),
     trace: { traceId: TRACE, spanId: "abcdef0123456789" },
     now: () => clock,

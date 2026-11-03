@@ -6,7 +6,7 @@ import type { Ctx } from "../../../packages/contracts/src/ctx.ts";
 import { ERROR_CODES, VyreErr } from "../../../packages/contracts/src/errors.ts";
 import type { ErrorCode, NextStep, VyreError } from "../../../packages/contracts/src/types.ts";
 
-export type NetworkCtx = Pick<Ctx, "space" | "principal" | "actingFor" | "trace" | "now" | "db" | "emit" | "call">;
+export type NetworkCtx = Pick<Ctx, "space" | "principal" | "actingFor" | "trace" | "now" | "db" | "emit" | "call" | "authorize">;
 export type State = "healthy" | "degraded" | "down";
 export type Mode = "own_domain" | "relay";
 

@@ -6,7 +6,10 @@ import type { Mode, NetworkCtx } from "./status.ts";
 import { approve, approveMine, decline, declineMine, enroll, enrollStatus, makeJoinCode, mine, revoke } from "./enroll.ts";
 import { peerAllow, peerConflicts, peerDecline, peerRemove, peerRequests, peerRunner, peerServerCode, peers } from "./peers.ts";
 
+import { machine, machineAlerts, machineAlertsNotify, machinePin, machinePlace, machineSet, machines } from "./machines.ts";
+
 export type { NetworkCtx } from "./status.ts";
+export { machine, machineAlerts, machineAlertsNotify, machinePin, machinePlace, machineSet, machines };
 
 const DOMAIN = /^(?=.{4,253}$)([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/;
 const CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -154,6 +157,13 @@ export const handlers = {
   "network.phone_release": phoneRelease,
   "network.server_reconnect": serverReconnect,
   "network.server_remove": serverRemove,
+  "network.machines": machines,
+  "network.machine": machine,
+  "network.machine_set": machineSet,
+  "network.machine_pin": machinePin,
+  "network.machine_alerts": machineAlerts,
+  "network.machine_alerts_notify": machineAlertsNotify,
+  "network.machine_place": machinePlace,
   "network.health": health,
   "network.peers": peers,
   "network.peer_requests": peerRequests,
