@@ -93,18 +93,19 @@ test("a Windows Personal Space: a Claude Code Bash turn, git over HTTPS, and no 
       // the same ref writes outside a clone, at Low and at normal integrity, to see which step Windows refuses
       const script = (dir: string) => [
         "$ErrorActionPreference = 'Continue'",
-        `git init -q '${dir}'`, `Set-Location '${dir}'`,
-        "git -c user.name=v -c user.email=v@v commit -q --allow-empty -m x; \"commit $LASTEXITCODE\"",
-        "git update-ref refs/remotes/origin/main HEAD 2>&1; \"update-ref $LASTEXITCODE\"",
-        "git symbolic-ref refs/remotes/origin/HEAD refs/remotes/origin/main 2>&1; \"symbolic-ref $LASTEXITCODE\"",
-        "New-Item -ItemType Directory -Path .git\\refs\\remotes\\probe 2>&1 | Out-Null; \"mkdir $?\"",
-        "Get-ChildItem -Recurse .git\\refs | ForEach-Object { $_.FullName }",
-        "icacls .git\\refs .git\\refs\\remotes 2>&1",
-        "whoami /groups | Select-String Mandatory",
+        `New-Item -ItemType Directory -Force -Path '${dir}' | Out-Null`, `Set-Location '${dir}'`,
+        "\"init: $((git init 2>&1 | Out-String).Trim()) [$LASTEXITCODE]\"",
+        "\"tree: $((Get-ChildItem -Force -Recurse .git -Directory | ForEach-Object { $_.FullName.Substring($PWD.Path.Length) }) -join ' ')\"",
+        "\"commit: $((git -c user.name=v -c user.email=v@v commit --allow-empty -m x 2>&1 | Out-String).Trim()) [$LASTEXITCODE]\"",
+        "\"update-ref: $((git update-ref refs/remotes/origin/main HEAD 2>&1 | Out-String).Trim()) [$LASTEXITCODE]\"",
+        "\"mkdir: $(try { New-Item -ItemType Directory -Path .git\\refs\\remotes\\probe -ErrorAction Stop | Out-Null; 'ok' } catch { $_.Exception.Message })\"",
+        "\"mkdir-objects: $(try { New-Item -ItemType Directory -Path .git\\objects\\probe -ErrorAction Stop | Out-Null; 'ok' } catch { $_.Exception.Message })\"",
+        "\"refs label: $((icacls .git\\refs | Select-String Mandatory) -join ' ')\"",
+        "\"refs attrs: $((Get-Item -Force .git\\refs).Attributes) .git attrs: $((Get-Item -Force .git).Attributes)\"",
       ].join("; ");
       const low = await run(wrap(ps(script(path.join(cwd, "refs-low"))), { cwd, env: {} }), { cwd, ms: 120_000 });
       const med = await run(ps(script(path.join(cwd, "refs-medium"))), { cwd, ms: 120_000 });
-      console.log(`LOW:\n${low.out}\n${low.err.slice(-800)}\nMEDIUM:\n${med.out}\n${med.err.slice(-400)}`);
+      console.log(`LOW:\n${low.out}\nMEDIUM:\n${med.out}`);
     }
     assert.equal(git.code, 0, git.err.slice(-600));
     assert.ok(fs.existsSync(path.join(cwd, "hello", "README")), "the repository is in the work folder");
