@@ -475,8 +475,13 @@ function assertEveryone(ctx: ShareCtx, store: AccessStore, res: ResourceRec, lev
   if (res.label === "restricted") raise(trace, "validation.precondition_failed", "A restricted item is never shared with everyone. Share it with the people who need it.");
   // the host's own service alone (#vyre for a new member, the join steps), matched exactly: no other service, and no id that merely starts with svc_
   if (isHostService(ctx.principal)) return;
+  const refuse = (): never => raise(trace, "permission.role_lacks_permission", "Only an admin shares with everyone in the Space. Ask an admin, or share it with the people who need it.");
+  // a guest (or an agent acting for one) never shares with Everyone, not even again at a level Everyone already holds: refused before the shortcut below
+  const person = (ctx as { actingFor?: string }).actingFor ?? ctx.principal.id;
+  const roles = store.rolesOf(person);
+  if (roles.length > 0 && roles.every((r) => r === "rol_guest")) refuse();
   if (grant && rank(res.type, level) <= rank(res.type, grant.level)) return;
-  if (!store.snapshot().info(ctx.principal.id)?.perms.has("access.manage")) raise(trace, "permission.role_lacks_permission", "Only an admin shares with everyone in the Space. Ask an admin, or share it with the people who need it.");
+  if (!store.snapshot().info(ctx.principal.id)?.perms.has("access.manage")) refuse();
 }
 
 /**

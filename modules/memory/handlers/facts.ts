@@ -965,7 +965,7 @@ export async function capture(ctx: MemCtx, input: { threadId: string; reason: "c
   let proposed = 0;
   let merged = 0;
   // an imported session's first message (the preamble and the transcript it carries) is history to read, not something the person said: nothing is learned from it
-  const unread = page.messages.filter((m) => !IMPORTED_PREAMBLE.test(String((m as { body?: unknown }).body ?? "")) && !readByTurns(ctx, input.threadId, m.author.id, m.threadSeq));
+  const unread = page.messages.filter((m) => !IMPORTED_PREAMBLE.test(String((m as { body?: unknown }).body ?? "")) && !readByTurns(ctx, input.threadId, m.author.id, m.threadSeq, m.messageId));
   for (const c of await extractor(unread)) {
     const key = `${input.threadId}:${c.messageId}:${c.index}`;
     if (rowsOf(ctx.db, "SELECT fact_id FROM memory_fact_links WHERE kind = 'capture' AND ref = ?", key)[0]) continue;

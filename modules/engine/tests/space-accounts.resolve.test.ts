@@ -119,3 +119,21 @@ test("the Space AI key from before has every use on: it pays for a chat, an auto
   // a Mine row that claims uses is never a Space account
   assert.equal(resolveAccount(base({ starter: "usr_mia", accounts: [row({ ref: "#Rob", mine: true, ownerId: "usr_rob", uses: { teamChats: { who: "everyone" } }, teamChatsForMe: true })] })).allowed, false);
 });
+
+test("an agent pinned to a key goes down its own ordered fallback list as configured, before Space accounts, and every configured fallback (its list, the Space's backups) carries backup_key so moving on never stops to ask", () => {
+  const key = (r: string, cost = 3) => row({ ref: r, cost, uses: { teamChats: { who: "everyone" } }, teamChatsForMe: true, models: ["claude-sonnet-5-5"] });
+  const A = key("#A"), B = key("#B", 1), C = key("#C"), D = key("#D"), E = key("#E", 0), F = key("#F", 0);
+  const agent = { accountPolicy: "key" as const, agentId: "agt_keeper", accountKey: "#A", accountFallback: ["#C", "#B", "#D"] };
+  const at = (unavailable: string[]) => resolveAccount(base({ agent, accounts: [A, B, C, D, E, F], backupRefs: ["#E"], unavailable }));
+  assert.equal(ref(at([])), "#A", "the pin");
+  for (const [gone, next] of [[["#A"], "#C"], [["#A", "#C"], "#B"], [["#A", "#C", "#B"], "#D"]] as const) {
+    const r = at([...gone]);
+    assert.deepEqual([r.accountRef, r.reason], [next, "backup_key"], `after ${gone.join(", ")}: the agent's list, in its order (a cheaper Space account does not jump ahead)`);
+  }
+  const space = at(["#A", "#C", "#B", "#D"]);
+  assert.equal(space.accountRef, "#E", "then the cheapest Space account");
+  assert.equal(space.reason, "backup_key", "#E is also one of the Space's backups: it keeps that reason");
+  const last = at(["#A", "#C", "#B", "#D", "#E"]);
+  assert.equal(last.accountRef, "#F");
+  assert.notEqual(last.reason, "backup_key", "a Space account nobody listed as a fallback is not one");
+});

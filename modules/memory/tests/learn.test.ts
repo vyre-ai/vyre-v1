@@ -280,6 +280,24 @@ test("lines a turn pass read are not captured again when the chat goes quiet; li
   assert.equal(h.rows("SELECT id FROM memory_facts").length, 2);
 });
 
+test("a line a turn pass read but learned nothing from still goes through the rules when the chat goes quiet", async () => {
+  const seen: Seen = { complete: [], listed: 0 };
+  // the model reads both lines and keeps only the first; the second it read is not lost
+  const s: Script = { messages: [say(1, "I prefer tea in the afternoon."), say(2, "I prefer email over calls.")], models: priced, answer: () => ({ text: JSON.stringify({ ops: [{ op: "add", line: 1, text: "Dana prefers tea in the afternoon", kind: "preference" }] }) }) };
+  const h = harness({ respond: chat(s, seen) });
+  const pass = await capture(h.ctx, turn());
+  assert.equal(pass.via, "model");
+  assert.equal(pass.proposed, 1);
+  const idle = await capture(h.ctx, { threadId: THREAD, reason: "idle" });
+  assert.equal(idle.proposed, 1, "the rules keep the line the pass read and learned nothing from; the line it learned from is left alone");
+  assert.equal(h.rows("SELECT id FROM memory_facts").length, 2);
+  // a pass that learned nothing at all: every line it read still reaches the rules
+  const s2: Script = { messages: [say(1, "I prefer short answers in the morning.")], models: priced, answer: () => ({ text: "{\"ops\":[]}" }) };
+  const h2 = harness({ respond: chat(s2, seen) });
+  assert.equal((await capture(h2.ctx, turn())).proposed, 0);
+  assert.equal((await capture(h2.ctx, { threadId: THREAD, reason: "closed" })).proposed, 1);
+});
+
 test("parseOps keeps only well-formed ops", () => {
   assert.deepEqual(parseOps("nothing"), []);
   assert.deepEqual(parseOps("{\"ops\":[{\"op\":\"add\",\"line\":\"2\",\"text\":\"Likes tea\",\"kind\":\"weird\"},{\"op\":\"close\",\"line\":1},{\"op\":\"update\",\"id\":\"fct_a\",\"line\":1,\"text\":\"x\"}]}"),
