@@ -123,7 +123,7 @@ export function mineOnly(routines: readonly Routine[], meId: string): Routine[] 
 }
 
 export function routineNote(r: Routine, c: Clock): string {
-  const words = r.kind === "watch" ? "On new messages" : cronWords(r.cron ?? "");
+  const words = r.kind === "watch" ? "On new messages" : cronWords(r.cron ?? "", c);
   const when = r.enabled ? words : `Paused · ${words}`;
   if (r.enabled && r.nextRunAt !== undefined) return `${when} · next ${nextLabel(r.nextRunAt, c)}`;
   return when;

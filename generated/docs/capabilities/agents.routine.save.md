@@ -61,6 +61,10 @@ type Out = {
       on: "message";
       channelId: string;
     };
+    setBy?: {
+      kind: "person" | "agent" | "actor" | "service";
+      id: string;
+    };
   };
 };
 ```
@@ -105,6 +109,10 @@ type Out = {
       "ownerId": "usr_a1b2c3",
       "prompt": "example",
       "routineId": "rtn_a1b2c3",
+      "setBy": {
+        "id": "usr_a1b2c3",
+        "kind": "person"
+      },
       "title": "example",
       "watch": {
         "channelId": "chn_a1b2c3",

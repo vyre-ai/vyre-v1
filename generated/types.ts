@@ -1728,6 +1728,10 @@ export type AgentsRoutineDelegateOut = {
       on: "message";
       channelId: string;
     };
+    setBy?: {
+      kind: "person" | "agent" | "actor" | "service";
+      id: string;
+    };
   };
   previousOwnerId: string;
 };
@@ -1759,6 +1763,10 @@ export type AgentsRoutineRunNowOut = {
     watch?: {
       on: "message";
       channelId: string;
+    };
+    setBy?: {
+      kind: "person" | "agent" | "actor" | "service";
+      id: string;
     };
   };
   runId: string;
@@ -1795,6 +1803,10 @@ export type AgentsRoutineSaveOut = {
       on: "message";
       channelId: string;
     };
+    setBy?: {
+      kind: "person" | "agent" | "actor" | "service";
+      id: string;
+    };
   };
 };
 export type AgentsRoutinesListIn = {
@@ -1816,6 +1828,10 @@ export type AgentsRoutinesListOut = {
       watch?: {
         on: "message";
         channelId: string;
+      };
+      setBy?: {
+        kind: "person" | "agent" | "actor" | "service";
+        id: string;
       };
     }>;
 };

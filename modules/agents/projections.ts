@@ -53,7 +53,7 @@ export const askerOf = (ctx: Pick<AgentsCtx, "principal" | "actingFor">): string
 
 // ---- schema -----------------------------------------------------------------------------------------------------------------------------------------
 
-const SCHEMA = ["0001_agents.sql", "0002_routine_watch.sql", "0003_skills.sql", "0004_plugins.sql", "0005_mcp_hub_auth.sql", "0006_agent_kind.sql", "0007_outside.sql", "0008_skill_scopes.sql", "0009_connections_home.sql"].map((f) => readFileSync(new URL(`./migrations/${f}`, import.meta.url), "utf8")).join("\n")
+const SCHEMA = ["0001_agents.sql", "0002_routine_watch.sql", "0003_skills.sql", "0004_plugins.sql", "0005_mcp_hub_auth.sql", "0006_agent_kind.sql", "0007_outside.sql", "0008_skill_scopes.sql", "0009_connections_home.sql", "0010_routine_by.sql"].map((f) => readFileSync(new URL(`./migrations/${f}`, import.meta.url), "utf8")).join("\n")
   .split("\n").filter((l) => !l.trimStart().startsWith("--")).join("\n")
   .split(";").map((s) => s.trim()).filter((s) => s.length > 0);
 const ready = new WeakSet<object>();
@@ -61,7 +61,7 @@ const ready = new WeakSet<object>();
 /** Make sure the agents tables exist. One cheap probe per handle; the IF NOT EXISTS statements run only when it fails. */
 export function ensure(db: Db): void {
   if (ready.has(db)) return;
-  try { db.all("SELECT key FROM agents_meta WHERE key = ?", "probe"); db.all("SELECT routineId FROM agents_routine_watch WHERE routineId = ?", "probe"); db.all("SELECT id FROM agents_skills WHERE id = ?", "probe"); db.all("SELECT id FROM agents_mcp_connections WHERE id = ?", "probe"); db.all("SELECT kind, runtime FROM agents_agent WHERE id = ?", "probe"); db.all("SELECT id FROM agents_outside_jobs WHERE id = ?", "probe"); db.all("SELECT owner, used_by_json FROM agents_mcp_connections WHERE id = ?", "probe"); db.all("SELECT id FROM agents_mcp_catalog WHERE id = ?", "probe"); db.all("SELECT id FROM agents_skill_receipts WHERE id = ?", "probe"); } catch { for (const stmt of SCHEMA) db.run(stmt); }
+  try { db.all("SELECT key FROM agents_meta WHERE key = ?", "probe"); db.all("SELECT routineId FROM agents_routine_watch WHERE routineId = ?", "probe"); db.all("SELECT id FROM agents_skills WHERE id = ?", "probe"); db.all("SELECT id FROM agents_mcp_connections WHERE id = ?", "probe"); db.all("SELECT kind, runtime FROM agents_agent WHERE id = ?", "probe"); db.all("SELECT id FROM agents_outside_jobs WHERE id = ?", "probe"); db.all("SELECT owner, used_by_json FROM agents_mcp_connections WHERE id = ?", "probe"); db.all("SELECT id FROM agents_mcp_catalog WHERE id = ?", "probe"); db.all("SELECT id FROM agents_skill_receipts WHERE id = ?", "probe"); db.all("SELECT routineId FROM agents_routine_by WHERE routineId = ?", "probe"); } catch { for (const stmt of SCHEMA) db.run(stmt); }
   ready.add(db);
 }
 
@@ -597,7 +597,7 @@ export function nextRun(expr: string, after: number): number | null {
 
 // ---- routines ------------------------------------------------------------------------------------------------------------------------------------------
 
-export interface RoutineRec { watchChannel?: string; id: string; agentId: string; ownerId: string; title: string; cron: string; prompt: string; channelId?: string; enabled: boolean; lastRunAt?: number; nextRunAt?: number; createdAt: number; updatedAt: number }
+export interface RoutineRec { watchChannel?: string; setBy?: { kind: "agent" | "person"; id: string }; id: string; agentId: string; ownerId: string; title: string; cron: string; prompt: string; channelId?: string; enabled: boolean; lastRunAt?: number; nextRunAt?: number; createdAt: number; updatedAt: number }
 export function routineOf(r: Row): RoutineRec {
   const o: RoutineRec = { id: str(r["id"]), agentId: str(r["agentId"]), ownerId: str(r["ownerId"]), title: str(r["title"]), cron: str(r["cron"]), prompt: str(r["prompt"]), enabled: flag(r["enabled"]), createdAt: num(r["createdAt"]), updatedAt: num(r["updatedAt"]) };
   const ch = optStr(r["channelId"]); if (ch !== undefined) o.channelId = ch;
@@ -611,12 +611,15 @@ export function routineBy(db: Db, id: string): RoutineRec | null {
   const rec = routineOf(r);
   const w = (db.all("SELECT channelId FROM agents_routine_watch WHERE routineId = ?", id) as Row[])[0];
   if (w) rec.watchChannel = str(w["channelId"]);
+  const b = (db.all("SELECT byKind, byId FROM agents_routine_by WHERE routineId = ?", id) as Row[])[0];
+  if (b) rec.setBy = { kind: str(b["byKind"]) === "agent" ? "agent" : "person", id: str(b["byId"]) };
   return rec;
 }
 export function routineOut(r: RoutineRec): Record<string, unknown> {
   return {
     routineId: r.id, agentId: r.agentId, title: r.title, ...(r.watchChannel === undefined ? { cron: r.cron } : { kind: "watch", watch: { on: "message", channelId: r.watchChannel } }), prompt: r.prompt, ...(r.channelId !== undefined ? { channelId: r.channelId } : {}), enabled: r.enabled, ownerId: r.ownerId,
     ...(r.lastRunAt !== undefined ? { lastRunAt: r.lastRunAt } : {}), ...(r.nextRunAt !== undefined ? { nextRunAt: r.nextRunAt } : {}),
+    ...(r.setBy !== undefined ? { setBy: r.setBy } : {}),
   };
 }
 /** The line under a message an agent posts because of a routine: "Sent by Intake on a routine Dana set". */

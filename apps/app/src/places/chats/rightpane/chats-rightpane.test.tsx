@@ -335,8 +335,8 @@ test("a cron reads in words for the common shapes and as written for the rest", 
   assert.equal(cronWords("0 8 * * *"), "Every day at 08:00");
   assert.equal(cronWords("30 9 * * 1-5"), "Weekdays at 09:30");
   assert.equal(cronWords("0 17 * * 5"), "Every Friday at 17:00");
-  assert.equal(cronWords("*/5 * * * *"), "*/5 * * * *");
-  assert.equal(cronWords("0 8 1 * *"), "0 8 1 * *");
+  assert.equal(cronWords("*/5 * * * *"), "Every 5 minutes", "plain words, never the raw cron (it is in Details)");
+  assert.equal(cronWords("0 8 1 * *"), "On day 1 of each month at 08:00");
   assert.equal(routineFile("Morning lead sweep!"), "routines/morning-lead-sweep.md");
   assert.equal(routineFile("???"), "routines/routine.md");
 });
@@ -438,7 +438,7 @@ test("routine rows read like the prototype: short schedule, next day, watchers o
   assert.equal(shortSchedule("0 8 * * 1-5"), "weekdays 8:00");
   assert.equal(shortSchedule("30 9 * * 5"), "every Friday 9:30");
   assert.equal(shortSchedule("0 17 * * *"), "every day 17:00");
-  assert.equal(shortSchedule("*/5 * * * *"), "*/5 * * * *");
+  assert.equal(shortSchedule("*/5 * * * *"), "every 5 minutes", "plain words, never the raw cron");
   assert.equal(nextDay(Date.UTC(2025, 9, 27, 8), c), "Mon Oct 27");
   const r = (cron: string, enabled = true): Routine => ({ routineId: "x", agentId: "a", title: "t", cron, prompt: "p", enabled, ownerId: "u" });
   const w = (enabled = true): Routine => ({ routineId: "w", agentId: "a", title: "t", prompt: "p", enabled, ownerId: "u", kind: "watch", watch: { on: "message", channelId: "intake" } });

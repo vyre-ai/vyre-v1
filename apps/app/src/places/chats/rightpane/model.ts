@@ -320,19 +320,73 @@ export function splitFacts(facts: readonly Fact[]): { proposed: Fact[]; known: F
 /* ---------- routines ---------- */
 
 /** A cron string in words for the common shapes; anything else shows as written. */
-export function cronWords(cron: string): string {
-  const p = cron.trim().split(/\s+/);
-  if (p.length !== 5) return cron;
-  const [min, hour, dom, mon, dow] = p as [string, string, string, string, string];
-  if (!/^\d+$/.test(min) || !/^\d+$/.test(hour) || dom !== "*" || mon !== "*") return cron;
-  const at = `${two(Number(hour))}:${two(Number(min))}`;
-  if (dow === "*") return `Every day at ${at}`;
-  if (dow === "1-5") return `Weekdays at ${at}`;
-  if (/^[0-6]$/.test(dow)) {
-    const names = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
-    return `Every ${names[Number(dow)]} at ${at}`;
+/**
+ * A cron in plain words, in the viewer's time zone (`c.offsetMin`; the server keeps every cron in UTC): "Every minute", "Every 5 minutes", "Every hour at :30", "Weekdays at 09:00",
+ * "Every Friday at 17:00", "Mon, Wed and Fri at 08:00", "On day 1 of each month at 08:00". A shape the words cannot say is "On a custom schedule"; the raw cron is only ever in Details.
+ */
+export function cronWords(cron: string, c: { offsetMin: number } = { offsetMin: 0 }): string {
+  const w = cronShape(cron, c.offsetMin);
+  if (w === null) return CUSTOM_SCHEDULE;
+  switch (w.t) {
+    case "minute": return "Every minute";
+    case "minutes": return `Every ${w.n} minutes`;
+    case "hourly": return `Every hour at :${two(w.min)}`;
+    case "daily": return w.days === null ? `Every day at ${w.at}` : `${daysWords(w.days)} at ${w.at}`;
+    case "monthly": return `On day ${w.day} of each month at ${w.at}`;
   }
-  return cron;
+}
+export const CUSTOM_SCHEDULE = "On a custom schedule";
+const DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+const DAY_SHORT = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+function daysWords(days: readonly number[]): string {
+  const k = days.join(",");
+  if (k === "1,2,3,4,5") return "Weekdays";
+  if (k === "0,6") return "Weekends";
+  if (days.length === 1) return `Every ${DAY_NAMES[days[0]!]}`;
+  const names = days.map((d) => DAY_SHORT[d]!);
+  return `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
+}
+type CronShape =
+  | { t: "minute" } | { t: "minutes"; n: number } | { t: "hourly"; min: number }
+  | { t: "daily"; at: string; h: number; m: number; days: number[] | null } | { t: "monthly"; at: string; day: number };
+/** The day-of-week field as days (0 is Sunday; 7 is Sunday too), or null when it is not a plain list or range. */
+function dowSet(f: string): number[] | null {
+  const out = new Set<number>();
+  for (const part of f.split(",")) {
+    const r = /^(\d)(?:-(\d))?$/.exec(part);
+    if (!r) return null;
+    const a = Number(r[1]), b = r[2] === undefined ? a : Number(r[2]);
+    if (a > 7 || b > 7 || b < a) return null;
+    for (let d = a; d <= b; d++) out.add(d % 7);
+  }
+  return [...out].sort((x, y) => x - y);
+}
+/** What a UTC cron means where the viewer is: the time moved by their offset, and the days moved with it when the time crosses midnight. Null for a shape the words do not cover. */
+export function cronShape(cron: string, offsetMin: number): CronShape | null {
+  const p = cron.trim().split(/\s+/);
+  if (p.length !== 5) return null;
+  const [min, hour, dom, mon, dow] = p as [string, string, string, string, string];
+  if (mon !== "*") return null;
+  if (min === "*" && hour === "*" && dom === "*" && dow === "*") return { t: "minute" };
+  const every = /^\*\/(\d+)$/.exec(min);
+  if (every && hour === "*" && dom === "*" && dow === "*") return Number(every[1]) === 1 ? { t: "minute" } : { t: "minutes", n: Number(every[1]) };
+  if (!/^\d+$/.test(min)) return null;
+  if (hour === "*" && dom === "*" && dow === "*") return { t: "hourly", min: (((Number(min) + offsetMin) % 60) + 60) % 60 };
+  if (!/^\d+$/.test(hour)) return null;
+  const total = Number(hour) * 60 + Number(min) + offsetMin;
+  const shift = Math.floor(total / 1440);
+  const local = ((total % 1440) + 1440) % 1440;
+  const h = Math.floor(local / 60), m = local % 60;
+  const at = `${two(h)}:${two(m)}`;
+  if (dom === "*") {
+    if (dow === "*") return { t: "daily", at, h, m, days: null };
+    const days = dowSet(dow);
+    if (days === null) return null;
+    return { t: "daily", at, h, m, days: [...new Set(days.map((d) => (((d + shift) % 7) + 7) % 7))].sort((x, y) => x - y) };
+  }
+  // a day of the month moved across midnight would be a different day each month: only the plain case is put in words
+  if (/^\d+$/.test(dom) && dow === "*" && shift === 0) return { t: "monthly", at, day: Number(dom) };
+  return null;
 }
 
 /** A watcher (kind "watch") fires on a new message in a channel, not a clock. */
@@ -340,16 +394,18 @@ export function isWatcher(r: Routine): boolean {
   return r.kind === "watch";
 }
 
-/** The short schedule the prototype writes on a row: "weekdays 8:00", "every Friday 9:00", "every day 17:00"; anything else as it is. */
-export function shortSchedule(cron: string): string {
-  const p = cron.trim().split(/\s+/);
-  if (p.length !== 5 || !/^\d+$/.test(p[0]!) || !/^\d+$/.test(p[1]!) || p[2] !== "*" || p[3] !== "*") return cron;
-  const at = `${Number(p[1])}:${two(Number(p[0]))}`;
-  const dow = p[4]!;
-  if (dow === "*") return `every day ${at}`;
-  if (dow === "1-5") return `weekdays ${at}`;
-  if (/^[0-6]$/.test(dow)) return `every ${["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"][Number(dow)]} ${at}`;
-  return cron;
+/** The short schedule the prototype writes on a row, in the viewer's time zone: "every minute", "weekdays 8:00", "every Friday 9:00", "every day 17:00"; else the plain words, lower case. */
+export function shortSchedule(cron: string, c: { offsetMin: number } = { offsetMin: 0 }): string {
+  const w = cronShape(cron, c.offsetMin);
+  if (w !== null && w.t === "daily") {
+    const at = `${w.h}:${two(w.m)}`;
+    if (w.days === null) return `every day ${at}`;
+    const k = w.days.join(",");
+    if (k === "1,2,3,4,5") return `weekdays ${at}`;
+    if (w.days.length === 1) return `every ${DAY_NAMES[w.days[0]!]} ${at}`;
+  }
+  const words = cronWords(cron, c);
+  return words.charAt(0).toLowerCase() + words.slice(1);
 }
 
 /** "Mon Oct 27": the weekday and the date, the way the prototype says when a routine runs next. */
@@ -360,10 +416,18 @@ export function nextDay(ts: number, c: Clock): string {
 
 export function routineNote(r: Routine, c: Clock): string {
   const cron = r.cron ?? "";
-  if (!r.enabled) return `Paused · ${isWatcher(r) ? "on new messages" : cronWords(cron)}`;
+  if (!r.enabled) return `Paused · ${isWatcher(r) ? "on new messages" : cronWords(cron, c)}`;
   if (isWatcher(r)) return "on new messages";
-  return r.nextRunAt !== undefined ? `${shortSchedule(cron)} · next ${nextDay(r.nextRunAt, c)}` : shortSchedule(cron);
+  return r.nextRunAt !== undefined ? `${shortSchedule(cron, c)} · next ${nextDay(r.nextRunAt, c)}` : shortSchedule(cron, c);
 }
+
+/** The one Next line under an open routine's title: "Next: today 09:12", "Next: tomorrow 08:00", "Next: Mon 10:00"; Paused, or nothing scheduled, says so. */
+export function nextLine(r: Routine, c: Clock): string {
+  if (!r.enabled) return "Paused. Turn it on to schedule the next run.";
+  if (isWatcher(r)) return "Runs on every new message in the channel";
+  return r.nextRunAt !== undefined ? `Next: ${nextLower(r.nextRunAt, c)}` : "No run is scheduled";
+}
+const nextLower = (ts: number, c: Clock): string => nextLabel(ts, c).replace(/^(Today|Tomorrow)\b/, (w) => w.toLowerCase());
 
 export function routinesOn(rs: readonly Routine[]): number {
   return rs.filter((r) => r.enabled).length;
@@ -426,4 +490,29 @@ export function sourceLabel(f: Fact, chatTitle: (id: string) => string | undefin
 /** The clock time a fact was learned today ("9:31"), else the date. */
 export function learnedWhen(ts: number, c: Clock): string {
   return dayNo(c.now, c) - dayNo(ts, c) <= 0 ? clock24(ts, c).replace(/^0/, "") : dayMonth(ts, c);
+}
+
+/* ---------- ids in words ---------- */
+
+export type IdPart = { text: string } | { id: string; kind: "thread" | "channel" };
+/** A routine's instructions with the chat and channel ids picked out, so each is drawn as its name and a link, never as "thr_01a19...". */
+export function idParts(text: string): IdPart[] {
+  const out: IdPart[] = [];
+  const re = /\b(thr|chn)_[A-Za-z0-9]{6,}\b/g;
+  let at = 0;
+  for (let m = re.exec(text); m; m = re.exec(text)) {
+    if (m.index > at) out.push({ text: text.slice(at, m.index) });
+    out.push({ id: m[0], kind: m[1] === "chn" ? "channel" : "thread" });
+    at = m.index + m[0].length;
+  }
+  if (at < text.length) out.push({ text: text.slice(at) });
+  return out;
+}
+
+/** The name an id is shown as: "this chat" for the chat the pane is beside, "#intake" for a channel, the chat's title, else a plain word. */
+export function idName(p: { id: string; kind: "thread" | "channel" }, here: string, found: { kind?: string; title?: string; name?: string } | null | undefined): string {
+  if (p.kind === "thread" && p.id === here) return "this chat";
+  if (p.kind === "channel") return found?.name ? `#${found.name}` : "a channel";
+  if (found?.kind === "channel" && found.title) return `#${found.title}`;
+  return found?.title ?? "a chat";
 }
