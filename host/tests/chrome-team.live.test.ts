@@ -13,6 +13,7 @@ import { fileExportsImporter } from "../src/loader.ts";
 import { fakePlatform } from "../src/platform/index.ts";
 import type { FetchFn } from "../src/platform/probes.ts";
 import { loadConfig } from "../src/daemon/config.ts";
+import { issueSessionToken } from "../src/daemon/session.ts";
 import { startDaemon } from "../src/daemon/daemon.ts";
 import type { Daemon } from "../src/daemon/daemon.ts";
 
@@ -124,6 +125,32 @@ test("a server-side turn for a member drives the extension on the member's own c
     assert.match(decodeURIComponent(srv.hits.filter((h) => h.path === "/send")[0]!.body.replace(/\+/g, " ")), /subject=Edited on the server/);
     assert.deepEqual(await press(held.heldId, "s2"), { done: false, already: true });
 
+    // a second member, signed in on their own computer (a real session, a real device link, no Chrome open to agents there): their turn is refused, and it never reaches the first member's Chrome
+    const invite = await post(space.d, "/v1/members/invites/create", { role: "rol_member", idempotencyKey: "chrome-team-invite" }, space.owner);
+    assert.equal(invite.status, 200, JSON.stringify(invite.json));
+    const code = decodeURIComponent(new URL(invite.json.data.link).pathname.split("/").pop() ?? "");
+    const joined = await post(space.d, "/v1/members/accept", { code, username: "noah", password: PASSWORD, deviceName: "Noah's Mac", deviceClass: "desktop", keys: KEYS }, undefined);
+    assert.equal(joined.status, 200, JSON.stringify(joined.json));
+    const noahToken = String(joined.json.data.token);
+    const noahId = String(joined.json.data.personId);
+    const dirNoah = fs.mkdtempSync(path.join(os.tmpdir(), "vyre-chrome-device-noah-"));
+    const noah = await startDaemon({
+      config: loadConfig(["--role", "device", "--data-dir", dirNoah, "--port", "0"], {}, "1.2.3"),
+      platform: fakePlatform({ os: "linux", hostname: "noah-mac", free: 80e9, commands: {} }), fetch: caddyFetch,
+      deviceLink: { launcher: { spawn: async () => { throw new Error("no engine in this test"); } }, engines: [], name: "Noah's Mac" },
+      intervals: { fast: 3_600_000, slow: 3_600_000, encryption: 3_600_000, hooks: 3_600_000 },
+    });
+    try {
+      assert.equal((await fetch(`${noah.url}/local/chrome/spaces`, { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${noah.token}` }, body: JSON.stringify({ id: "spc_stream", name: "Stream Co", address: space.d.url, token: noahToken }) })).status, 204);
+      await until("the second member's link", () => space.d.nodeRelay.devices(noahId).length > 0);
+      bindPersonalChrome(space.d.personalChrome);   // each booted daemon binds the process-wide port when it starts: the Space's is the one a server-side turn uses
+      const noahTurn = turnFor(noahId);
+      await assert.rejects(noahTurn.agent("computers.chrome.snapshot"), (e: any) => e?.error?.code === "provider.unavailable", "their own computer has no Chrome open to agents");
+      await assert.rejects(noahTurn.agent("computers.chrome.act", { ref: "e1", action: "click" }), (e: any) => e?.error?.code === "provider.unavailable");
+      assert.equal(sends(), 1, "and the first member's page was not touched");
+    } finally { await noah.stop(); fs.rmSync(dirNoah, { recursive: true, force: true }); }
+
+    bindPersonalChrome(space.d.personalChrome);   // stopping the second computer's daemon unbound the shared port
     // another person's turn cannot reach this Chrome, with the same words as a closed one
     await assert.rejects(theirs.agent("computers.chrome.snapshot"), (e: any) => e?.error?.code === "provider.unavailable");
     await assert.rejects(theirs.agent("computers.chrome.act", { ref: "e1", action: "click" }), (e: any) => e?.error?.code === "provider.unavailable");

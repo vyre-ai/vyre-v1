@@ -24,8 +24,8 @@
     .who { font-size: 11.5px; opacity: .65; }
   `;
 
-  /** @type {null | { host: any, root: any, badge: any, pick: any, field: any, off: () => void }} */
-  let ui = null;
+  /** One badge, with its picker, per field. @type {Map<any, { host: any, root: any, badge: any, pick: any, field: any, off: () => void }>} */
+  const uis = new Map();
 
   /** @param {any} el */
   function wanted(el) {
@@ -35,18 +35,17 @@
     return card.number === el ? "card" : null;
   }
 
-  function hide() {
-    if (!ui) return;
-    ui.off();
-    ui.host.remove();
-    ui = null;
+  /** @param {any} [only] one field's badge, else all of them */
+  function hide(only) {
+    for (const [f, u] of [...uis]) { if (only && f !== only) continue; u.off(); u.host.remove(); uis.delete(f); }
   }
 
   /** @param {any} field */
   function place(field) {
+    const ui = uis.get(field);
     if (!ui) return;
     const r = field.getBoundingClientRect();
-    if (r.width < 60 || r.height < 18) { hide(); return; }
+    if (r.width < 60 || r.height < 18 || !field.isConnected) { hide(field); return; }
     ui.badge.style.left = Math.round(r.right - SIZE - 6) + "px";
     ui.badge.style.top = Math.round(r.top + (r.height - SIZE) / 2) + "px";
     if (ui.pick.isConnected) { ui.pick.style.left = Math.max(8, Math.round(r.right - 240)) + "px"; ui.pick.style.top = Math.round(r.bottom + 6) + "px"; }
@@ -54,8 +53,7 @@
 
   /** @param {any} field @param {"login"|"card"} kind */
   function show(field, kind) {
-    if (ui && ui.field === field) { place(field); return; }
-    hide();
+    if (uis.has(field)) { place(field); return; }
     const d = g.document;
     const host = d.createElement("div");
     const root = host.attachShadow({ mode: "closed" });
@@ -75,7 +73,7 @@
     g.addEventListener("scroll", onMove, true);
     g.addEventListener("resize", onMove);
     const off = () => { g.removeEventListener("scroll", onMove, true); g.removeEventListener("resize", onMove); };
-    ui = { host, root, badge, pick, field, off };
+    uis.set(field, { host, root, badge, pick, field, off });
     place(field);
 
     badge.addEventListener("mousedown", (/** @type {any} */ e) => e.preventDefault()); // keep the field focused
@@ -110,7 +108,7 @@
             b.addEventListener("click", (/** @type {any} */ ev) => {
               if (!ev.isTrusted) return;
               try { g.chrome.runtime.sendMessage({ type: "vyre.fill", itemId: row.id, kind: row.kind === "card" ? "card" : row.kind === "totp" ? "otp" : "login", usernameField: row.usernameField }); } catch { /* reloaded */ }
-              hide();
+              pick.remove();
             });
             pick.append(b);
           }
@@ -121,16 +119,22 @@
     pick.addEventListener("keydown", (/** @type {any} */ e) => { if (e.key === "Escape") { pick.remove(); field.focus?.(); } });
   }
 
-  g.document.addEventListener("focusin", (/** @type {any} */ e) => {
-    const kind = wanted(e.target);
-    if (kind) show(e.target, /** @type {"login"|"card"} */ (kind)); else if (ui && !(ui.host === e.target)) hide();
-  }, true);
-  g.document.addEventListener("focusout", () => {
-    g.setTimeout(() => {
-      const a = g.document.activeElement;
-      if (ui && a !== ui.field && a !== ui.host) hide();
-    }, 150);
-  }, true);
+  // The badge sits in every sign-in field (and the card number) as soon as the page has them, as the prototype shows, not only in the one with focus.
+  function scan() {
+    if (!ns.finder) return;
+    const found = ns.finder.findLoginFields(g.document);
+    for (const el of [found.username, found.password, found.otp]) if (el && el.tagName === "INPUT" && !uis.has(el)) show(el, "login");
+    const card = ns.finder.findCardFields(g.document);
+    if (card.number && !uis.has(card.number)) show(card.number, "card");
+    for (const [f] of [...uis]) place(f);
+  }
+  g.document.addEventListener("focusin", (/** @type {any} */ e) => { const kind = wanted(e.target); if (kind) show(e.target, /** @type {"login"|"card"} */ (kind)); }, true);
+  /** @type {any} */
+  let later = null;
+  const soon = () => { if (later) return; later = g.setTimeout(() => { later = null; scan(); }, 250); };
+  scan();
+  if (typeof g.MutationObserver === "function") new g.MutationObserver(soon).observe(g.document.documentElement || g.document, { childList: true, subtree: true });
+  g.addEventListener("load", soon);
 
   ns.badge = { hide };
 })();
