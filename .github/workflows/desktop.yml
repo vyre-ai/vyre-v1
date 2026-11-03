@@ -190,7 +190,7 @@ jobs:
           rm -rf "$proof" && mkdir -p "$proof"
           ditto "$RUNNER_TEMP/Vyre-Applications/Vyre.app" "$proof/Vyre.app"
           raw="https://raw.githubusercontent.com/${{ github.repository }}/${{ github.sha }}/apps/desktop/src-tauri/ci"
-          node apps/desktop/src-tauri/ci/update-proof.ts "$proof/Vyre.app/Contents/MacOS/vyre-desktop" "$PWD/out/update-proof" "$raw/update-proof.json" "$raw/update-proof-badsig.json"
+          node apps/desktop/src-tauri/ci/update-proof.ts "$proof/Vyre.app/Contents/MacOS/vyre-desktop" "$proof/Vyre.app/Contents/MacOS/vyre-desktop" "$PWD/out/update-proof" "$raw/update-proof.json" "$raw/update-proof-badsig.json"
       - name: The DMG's name and SHA-256, a small file the release carries instead of the DMG until publish
         if: runner.os == 'macOS'
         run: |
@@ -251,7 +251,8 @@ jobs:
           for d in "$LOCALAPPDATA/Vyre" "$LOCALAPPDATA/Programs/Vyre"; do if [ -f "$d/vyre-desktop.exe" ]; then app="$d/vyre-desktop.exe"; fi; done
           [ -n "$app" ] || { echo "VyreSetup.exe /S installed no vyre-desktop.exe"; find "$LOCALAPPDATA" -maxdepth 3 -iname 'vyre-desktop.exe' || true; exit 1; }
           raw="https://raw.githubusercontent.com/${{ github.repository }}/${{ github.sha }}/apps/desktop/src-tauri/ci"
-          node apps/desktop/src-tauri/ci/update-proof.ts "$app" "$PWD/out/update-proof" "$raw/update-proof.json" "$raw/update-proof-badsig.json"
+          # the build-folder copy asks for the update; the NSIS updater replaces the installed copy (update-proof.ts says why)
+          node apps/desktop/src-tauri/ci/update-proof.ts "$PWD/apps/desktop/src-tauri/target/release/vyre-desktop.exe" "$app" "$PWD/out/update-proof" "$raw/update-proof.json" "$raw/update-proof-badsig.json"
       - uses: actions/upload-artifact@v4
         if: runner.os == 'Windows'
         with: { name: desktop-Windows-exe, path: win-exe, if-no-files-found: error }

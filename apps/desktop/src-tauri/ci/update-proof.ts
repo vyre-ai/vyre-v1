@@ -12,8 +12,10 @@ import fs from "node:fs";
 import path from "node:path";
 
 const args = process.argv.slice(2);
-if (args.length !== 4 || args.some((a) => !a)) { console.error("usage: update-proof.ts <app> <out> <good feed> <bad feed>"); process.exit(2); }
-const [APP, OUT, GOOD, BAD] = args as [string, string, string, string];
+if (args.length !== 5 || args.some((a) => !a)) { console.error("usage: update-proof.ts <app to run> <installed program the update replaces> <out> <good feed> <bad feed>"); process.exit(2); }
+// On a Mac the two are the same file (the bundle swap replaces the app it runs from). On Windows the NSIS updater installs into the folder VyreSetup.exe installed to, whichever copy of the app
+// asked for it; the proof runs the build-folder copy, since the copy VyreSetup.exe /S installs opens a blank page on the hosted runner even with updates off (the control below says so).
+const [RUN, APP, OUT, GOOD, BAD] = args as [string, string, string, string, string];
 fs.mkdirSync(OUT, { recursive: true });
 const win = process.platform === "win32";
 /** The program as it is now; a different program after the update. */
@@ -36,7 +38,7 @@ function killAll(): void {
 function launch(feed: string, tag: string, off = false): { child: ChildProcess; log: () => string; waitFor(re: RegExp, ms: number): Promise<boolean> } {
   const env: Record<string, string | undefined> = { ...process.env, VYRE_UPDATE_FEED: feed };
   if (!off) delete env["VYRE_NO_AUTO_UPDATE"];
-  const child = spawn(APP, [], { env, stdio: ["ignore", "pipe", "pipe"] });
+  const child = spawn(RUN, [], { env, stdio: ["ignore", "pipe", "pipe"] });
   let text = "";
   const file = path.join(OUT, `${process.platform}-${tag}.log`);
   const add = (c: Buffer): void => { const s = c.toString("utf8"); text += s; fs.appendFileSync(file, s); };
@@ -60,7 +62,7 @@ function inOrder(log: string, steps: readonly RegExp[]): string | null {
 
 const failures: string[] = [];
 const before = bytesOf(APP);
-console.log(`update-proof: ${APP}, ${before.length} bytes`);
+console.log(`update-proof: runs ${RUN}; the update must replace ${APP} (${before.length} bytes)`);
 
 // 0. the control: the same installed app with automatic updates off opens to its first screen, so a blank page below is the update's doing and not the install's
 {
@@ -71,7 +73,7 @@ console.log(`update-proof: ${APP}, ${before.length} bytes`);
   shot("control");
   const chars = Number(/page rendered: (\d+) chars/.exec(run.log())?.[1] ?? "0");
   console.log(`update-proof: control (updates off) rendered ${chars} chars`);
-  if (chars === 0) failures.push("control: the installed app draws nothing even with updates off");
+  if (chars === 0) failures.push("control: the app draws nothing even with updates off");
   if (/update: downloading/.test(run.log())) failures.push("control: it updated with VYRE_NO_AUTO_UPDATE=1");
   killAll();
   await sleep(2000);
@@ -85,6 +87,7 @@ console.log(`update-proof: ${APP}, ${before.length} bytes`);
   await sleep(3000);
   shot("update-refused");
   if (!refused) failures.push("bad signature: no refusal in the log");
+  if (!/update: the page asked to install/.test(run.log())) failures.push("bad signature: the page never asked to install");
   if (/update: installing/.test(run.log())) failures.push("bad signature: it went on to install");
   if (run.child.exitCode !== null) failures.push("bad signature: the app ended");
   if (!same(APP, before)) failures.push("bad signature: the installed program changed");
@@ -100,7 +103,7 @@ console.log(`update-proof: ${APP}, ${before.length} bytes`);
   const found = await run.waitFor(/update: downloading/, 60_000);
   for (let i = 0; i < 6 && found; i++) { await sleep(1500); shot(`updating-${i}`); }
   const installing = await run.waitFor(/update: installing/, 300_000);
-  const order = inOrder(run.log(), [/update: 99\.0\.0-rc\.1 is available/, /update: downloading 99\.0\.0-rc\.1/, /signature verified against the pinned release key/, /update: stopped the device service/, /update: installing 99\.0\.0-rc\.1/]);
+  const order = inOrder(run.log(), [/update: 99\.0\.0-rc\.1 is available/, /update: the page asked before the lock screen: Available 99\.0\.0-rc\.1/, /update: the page asked to install/, /update: downloading 99\.0\.0-rc\.1/, /signature verified against the pinned release key/, /update: stopped the device service/, /update: installing 99\.0\.0-rc\.1/]);
   if (inOrder(run.log(), [/sidecar ready/, /update: stopped the device service/])) failures.push("update: the device service was not running before the update stopped it");
   if (!installing) failures.push("update: it never reached the install");
   if (order) failures.push(`update: ${order}`);
