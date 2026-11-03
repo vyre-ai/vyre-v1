@@ -8,7 +8,7 @@ import { chartGeometry, chartTable } from "./charts.ts";
 import type { Geo } from "./charts.ts";
 import { highlight } from "./highlight.ts";
 import type { TokenKind } from "./highlight.ts";
-import { hasDiagramLoader, renderDiagram, renderMath } from "./loaders.ts";
+import { NotEnabled, hasDiagramLoader, renderDiagram, renderMath } from "./loaders.ts";
 import type { DiagramTheme } from "./loaders.ts";
 
 const web = Platform.OS === "web";
@@ -133,7 +133,7 @@ function useMath(tex: string, display: boolean): MathState {
   useEffect(() => {
     let live = true;
     setS(null);
-    renderMath(tex, display).then((html) => { if (live) setS({ html }); }, (e: unknown) => { if (live) setS({ error: e instanceof Error ? e.message : "The formula did not draw." }); });
+    renderMath(tex, display).then((html) => { if (live) setS({ html }); }, (e: unknown) => { if (live) setS({ error: e instanceof NotEnabled ? e.message : "Couldn't draw this formula. Showing it as written." }); });
     return () => { live = false; };
   }, [tex, display]);
   return s;
@@ -183,7 +183,7 @@ export function DiagramBlock({ source, id }: { source: string; id: string }): Re
   useEffect(() => {
     let live = true;
     setS(null);
-    renderDiagram(source, currentTheme()).then((svg) => { if (live) setS({ svg }); }, (e: unknown) => { if (live) setS({ error: e instanceof Error ? e.message : "The diagram did not draw." }); });
+    renderDiagram(source, currentTheme()).then((svg) => { if (live) setS({ svg }); }, (e: unknown) => { if (live) setS({ error: e instanceof NotEnabled ? e.message : "Couldn't draw this diagram. Showing its source." }); });
     return () => { live = false; };
   }, [source]);
   const frame = (svg: string, big: boolean): ReactNode => createElement("iframe", { sandbox: "", srcDoc: frameDoc(svg), title: "Diagram", style: { border: 0, width: "100%", aspectRatio: String(aspectOf(svg)), maxHeight: big ? "78vh" : 420, background: "transparent", display: "block" } });
@@ -194,7 +194,7 @@ export function DiagramBlock({ source, id }: { source: string; id: string }): Re
       {s && "svg" in s && !showSource ? <Pressable accessibilityRole="imagebutton" accessibilityLabel="Diagram, press to enlarge" testID={`diagram-${id}`} onPress={() => setBig(true)} style={st.dg}>{web ? frame(s.svg, false) : null}</Pressable> : null}
       {failed || showSource || (s === null && !hasDiagramLoader()) ? (
         <View>
-          {failed ? <Text style={st.error} testID={`diagram-error-${id}`} accessibilityRole="alert">{(s as { error: string }).error}</Text> : null}
+          {failed ? <Text style={st.note} testID={`diagram-error-${id}`}>{(s as { error: string }).error}</Text> : (s === null && !hasDiagramLoader() ? <Text style={st.note} testID={`diagram-error-${id}`}>{"Showing the diagram's source"}</Text> : null)}
           <ScrollView horizontal showsHorizontalScrollIndicator={false}><Text style={st.preText} selectable testID={`diagram-source-text-${id}`}>{source}</Text></ScrollView>
         </View>
       ) : null}

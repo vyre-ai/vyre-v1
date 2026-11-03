@@ -43,7 +43,7 @@ test("math is drawn by the loader once registered, and a loader that fails leave
   setMathLoader(async () => async () => { throw new Error("bad tex"); });
   await assert.rejects(renderMath("\\bad{", false), /bad tex/);
   setMathLoader(null);
-  await assert.rejects(renderMath("x", false), /not switched on/);
+  await assert.rejects(renderMath("x", false), /Showing the (diagram's source|formula as written)/);
 });
 
 test("callouts: note, tip, important, warning and caution, with their words", () => {
@@ -107,7 +107,9 @@ test("a diagram falls back to its source with a line saying why when no renderer
   assert.equal(hasDiagramLoader(), false);
   const fallback = draw(md);
   assert.ok(fallback.includes("flowchart LR") && fallback.includes('data-testid="diagram-source-text-b0"'), "the source, readable");
-  await assert.rejects(renderDiagram("flowchart LR", { ink: "#000", sunk: "#eee", line: "#ccc", accent: "#55f", win: "#fff", dark: false }), /not switched on/);
+  assert.ok(fallback.includes("Showing the diagram's source"), "a plain muted line says what it shows");
+  assert.ok(!fallback.includes("not switched on") && !fallback.includes("build"), "no build internals");
+  await assert.rejects(renderDiagram("flowchart LR", { ink: "#000", sunk: "#eee", line: "#ccc", accent: "#55f", win: "#fff", dark: false }), /Showing the (diagram's source|formula as written)/);
   let seen = "";
   setDiagramLoader(async () => async (src, theme) => { seen = `${src}|${theme.dark ? "dark" : "light"}`; return '<svg viewBox="0 0 200 100"></svg>'; });
   assert.equal(await renderDiagram("graph TD", { ink: "#fff", sunk: "#222", line: "#444", accent: "#99f", win: "#111", dark: true }), '<svg viewBox="0 0 200 100"></svg>');

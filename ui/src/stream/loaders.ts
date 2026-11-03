@@ -1,5 +1,8 @@
 // Diagrams and math need big libraries (Mermaid, KaTeX) that a message only pays for when it uses them. They are loaded the first time a message needs one, through a loader the app registers; until
 // one is registered, or if it fails, the reply shows the source with a line saying why, never a blank or a crash. A loader returns an SVG or HTML string; a diagram is shown inside a sandboxed frame.
+/** Thrown when no renderer is switched on: not a failure, so the reply says only what it shows instead. */
+export class NotEnabled extends Error {}
+
 export type DiagramRender = (source: string, theme: DiagramTheme) => Promise<string>;
 export type MathRender = (tex: string, display: boolean) => Promise<string>;
 
@@ -25,7 +28,7 @@ export function renderDiagram(source: string, theme: DiagramTheme): Promise<stri
   const hit = cache.get(key);
   if (hit) return hit;
   const run = (async () => {
-    if (!diagram) throw new Error("Diagrams are not switched on in this build, so the source is shown.");
+    if (!diagram) throw new NotEnabled("Showing the diagram's source");
     diagramFn ??= diagram();
     const fn = await diagramFn;
     return fn(source, theme);
@@ -40,7 +43,7 @@ export function renderMath(tex: string, display: boolean): Promise<string> {
   const hit = cache.get(key);
   if (hit) return hit;
   const run = (async () => {
-    if (!math) throw new Error("Math is not switched on in this build, so the formula is shown as written.");
+    if (!math) throw new NotEnabled("Showing the formula as written");
     mathFn ??= math();
     const fn = await mathFn;
     return fn(tex, display);
