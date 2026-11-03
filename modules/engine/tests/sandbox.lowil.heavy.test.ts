@@ -74,6 +74,7 @@ test("a Windows Personal Space: a Claude Code Bash turn, git over HTTPS, and no 
   const secrets: Array<[string, string]> = [
     [path.join(LOCAL, "Google", "Chrome", "User Data", "Default", "Cookies"), "chrome-cookie-secret"],
     [path.join(ROAMING, "Microsoft", "Credentials", "vyre-proof-credential"), "credential-blob-secret"],
+    // secret-scan: fake (a stand-in private key file the Low engine must not read)
     [path.join(HOME, ".ssh", "id_vyre_proof"), "-----BEGIN OPENSSH PRIVATE KEY----- key-secret"],
   ];
   for (const [f, v] of secrets) { fs.mkdirSync(path.dirname(f), { recursive: true }); if (!fs.existsSync(f)) fs.writeFileSync(f, v); }
