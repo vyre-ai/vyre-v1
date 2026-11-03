@@ -15168,6 +15168,28 @@ export type GoalsGetOut = {
     createdAt: number;
     updatedAt: number;
   };
+  draftPlan?: Array<{
+      key: string;
+      title: string;
+      why: string;
+      impact?: string;
+      brief?: string;
+      doneMeans?: Array<string>;
+      assigned: {
+        kind: "person" | "agent" | "group" | "role";
+        id: string;
+      };
+      reviewer?: {
+        kind: "person" | "agent" | "group" | "role";
+        id: string;
+      };
+      approver?: {
+        kind: "person" | "agent" | "group" | "role";
+        id: string;
+      };
+      dependsOn?: Array<string>;
+      due?: number;
+    }>;
   tasks: Array<{
       taskId: string;
       key?: string;
@@ -15941,6 +15963,30 @@ export type GoalsUpdateIn = {
       granted?: boolean;
     }>;
   stuckAfter?: number;
+  leadAgentId?: string;
+  owner?: string;
+  plan?: Array<{
+      key: string;
+      title: string;
+      why: string;
+      impact?: string;
+      brief?: string;
+      doneMeans?: Array<string>;
+      assigned: {
+        kind: "person" | "agent" | "group" | "role";
+        id: string;
+      };
+      reviewer?: {
+        kind: "person" | "agent" | "group" | "role";
+        id: string;
+      };
+      approver?: {
+        kind: "person" | "agent" | "group" | "role";
+        id: string;
+      };
+      dependsOn?: Array<string>;
+      due?: number;
+    }>;
 };
 export type GoalsUpdateOut = {
   goal: {

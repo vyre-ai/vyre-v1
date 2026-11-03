@@ -118,6 +118,7 @@ export function ChatsMounted({ rt, hash = "", initial, window, opened, onSwitch,
   const live = useSyncExternalStore(rt.principals.subscribe, rt.principals.getSnapshot, rt.principals.getSnapshot);
   const list = live.status === "ready" ? live.data : NO_PEOPLE;
   const byId = useMemo(() => new Map(list.map((p) => [p.id, p] as const)), [list]);
+  const pickList = useMemo(() => list.filter((p) => p.kind === "person" || p.kind === "agent").map((p) => ({ id: p.id, name: p.name, kind: p.kind === "agent" ? "agent" as const : "person" as const })), [list]);
   const nameOf = useCallback((id: string): string => (id === rt.assistant.id ? rt.assistant.name : nameOr(byId.get(id)?.name, id)), [byId, rt.assistant.id, rt.assistant.name]);
 
   // what someone picked on an agent's page shows on every face of that agent
@@ -310,7 +311,7 @@ export function ChatsMounted({ rt, hash = "", initial, window, opened, onSwitch,
   let main: ReactElement;
   if (route.view === "tasks") main = <TasksPage rt={rt} openTask={go.task} openAgent={(id) => go.agent(id)} openChat={(text) => rt.open({ screen: "chats.ask", args: { with: "assistant", first: text } })} {...(window ? { window } : {})} />;
   else if (route.view === "task") main = <TaskDetail key={route.taskId} rt={rt} taskId={route.taskId} conversationFor={conversationFor} openTask={go.task} openAgent={(id) => go.agent(id)} openChat={(id) => rt.open({ screen: "chats.conversation", args: { threadId: id } })} back={() => act({ t: "tasks" })} />;
-  else if (route.view === "goal") main = <GoalPage key={route.goalId} goalId={route.goalId} call={rt.call as (cap: string, input: unknown) => Promise<unknown>} changes={rt.changes} me={rt.me.id} nameOf={nameOf} clock={rt.clock} conversationFor={conversationFor} openTask={go.task} openAgent={(id) => go.agent(id)} openFolder={(id) => rt.open({ subject: { type: "folder", id } })} openFile={(id) => rt.open({ subject: { type: "file", id } })} fill={(t) => fill.set(t)} />;
+  else if (route.view === "goal") main = <GoalPage key={route.goalId} goalId={route.goalId} call={rt.call as (cap: string, input: unknown) => Promise<unknown>} changes={rt.changes} me={rt.me.id} nameOf={nameOf} clock={rt.clock} conversationFor={conversationFor} openTask={go.task} openAgent={(id) => go.agent(id)} openFolder={(id) => rt.open({ subject: { type: "folder", id } })} openFile={(id) => rt.open({ subject: { type: "file", id } })} fill={(t) => fill.set(t)} directory={pickList} />;
   else if (route.view === "search") main = <SearchPage key={route.q} data={searchData} />;
   else if (route.view === "needs") main = <TasksPage rt={rt} openTask={go.task} openAgent={(id) => go.agent(id)} openChat={(text) => rt.open({ screen: "chats.ask", args: { with: "assistant", first: text } })} {...(window ? { window } : {})} />;
   else if (route.view === "imported") main = <ImportedSession key={route.conversationId} conversationId={route.conversationId} data={importedData} />;

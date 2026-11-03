@@ -49,7 +49,7 @@ export function sampleGoals(now: number, state: SampleState = "active"): { page:
     { at: now - 4 * DAY, kind: "plan", text: "Planned VY-311 Remind Lab 7 attendees who have not registered. Why: past attendees registered at 31% after one reminder. Expected: +40 to +60", ref: "tsk_rem" },
     { at: now - 5 * DAY, kind: "started", text: "Started. Finish line: Luma registrations for Lab 8 reach 300." },
   ];
-  const page: GoalPageData = { goal: state === "draft" ? { ...goal, status: "draft", permissions: goal.permissions.map((p) => ({ ...p, granted: false })) } : goal, tasks: state === "draft" ? [] : tasks, waiting, activity, readings };
+  const page: GoalPageData = { goal: state === "draft" ? { ...goal, status: "draft", permissions: goal.permissions.map((p) => ({ ...p, granted: false })) } : goal, tasks: state === "draft" ? [] : tasks, ...(state === "draft" ? { draftPlan: [{ key: "rem", title: "Remind Lab 7 attendees who have not registered", why: "Past attendees registered at 31% after one reminder", assigned: { kind: "agent" as const, id: "agt_labdesk" } }, { key: "reels", title: "Two short reels from the Lab 7 recording", why: "Short video moved the number last time", assigned: { kind: "person" as const, id: "usr_aliza" } }] } : {}), waiting, activity, readings };
   const line = (g: Goal): GoalLine => ({ id: g.id, title: g.title, status: g.status, ...(g.statusReason ? { statusReason: g.statusReason } : {}), owner: g.owner, leadAgentId: g.leadAgentId, deadline: g.deadline, ...(g.nextCheckinAt ? { nextCheckinAt: g.nextCheckinAt } : {}), progress: g.progress, updatedAt: g.updatedAt });
   const lines: GoalLine[] = [
     line(page.goal),

@@ -30,7 +30,7 @@ Requires: nothing.
 - [goals.sources](../capabilities/goals.sources.md): What a goal could count, for drafting a measurable finish line: record types with their counts, connections, and the outside MCP servers the lead can read
 - [goals.step](../capabilities/goals.step.md): Before a step with an effect (a send, a post, a record change), claim it by id; a step already done answers done with its result, so a retried wake-up never repeats it. Finish it with finish true
 - [goals.stop](../capabilities/goals.stop.md): Stop a goal for good: its open tasks are withdrawn and its permissions end
-- [goals.update](../capabilities/goals.update.md): Change a goal: its finish line, deadline, budget, check-in rhythm, quiet hours, helpers, links or standing permissions (only the owner)
+- [goals.update](../capabilities/goals.update.md): Change a goal: its title, finish line, deadline, lead, owner, drafted plan, budget, check-in rhythm, quiet hours, helpers, links or standing permissions (only the owner)
 - [goals.wake_claim](../capabilities/goals.wake_claim.md): System: the engine claims one wake-up of a goal before it starts the turn, so a wake-up read twice runs once. Only the server may call it
 
 ## Events (12)

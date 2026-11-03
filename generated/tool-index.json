@@ -3705,7 +3705,7 @@
     {
       "deferred": false,
       "name": "goals_update",
-      "summary": "Change a goal: its finish line, deadline, budget, check-in rhythm, quiet hours, helpers, links or standing permissions (only the owner)",
+      "summary": "Change a goal: its title, finish line, deadline, lead, owner, drafted plan, budget, check-in rhythm, quiet hours, helpers, links or standing permissions (only the owner)",
       "toolset": "tasks"
     },
     {

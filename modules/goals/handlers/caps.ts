@@ -47,6 +47,14 @@ function link(ctx: GoalsCtx, g: Goal): void {
   for (const r of g.recordIds) ctx.db.run("INSERT OR IGNORE INTO goals_link (goal_id, record_id) VALUES (?, ?)", g.id, r);
 }
 
+function draftPlanOf(ctx: GoalsCtx, g: Goal): PlanChild[] {
+  const row = ctx.db.all("SELECT result FROM goals_step WHERE goal_id = ? AND step_id = 'draft:plan'", g.id)[0] as { result?: string } | undefined;
+  try { return JSON.parse(row?.result ?? "[]") as PlanChild[]; } catch { return []; }
+}
+function saveDraftPlan(ctx: GoalsCtx, g: Goal, plan: PlanChild[]): void {
+  ctx.db.run("INSERT OR REPLACE INTO goals_step (goal_id, step_id, title, state, result, by, at) VALUES (?, 'draft:plan', 'The drafted plan', 'started', ?, ?, ?)", g.id, JSON.stringify(plan), ctx.principal.id, ctx.now());
+}
+
 export async function create(ctx: GoalsCtx, input: In) {
   ensure(ctx.db);
   const owner: string = input.owner ?? (me(ctx).startsWith("usr_") ? me(ctx) : "");
@@ -118,7 +126,7 @@ export async function get(ctx: GoalsCtx, input: In) {
     const got = (await tryCall<{ task?: { id: string; key?: string; title: string; state: string; assigned?: Who; blocked?: boolean } }>(ctx, "tasks.get", { taskId: t.taskId }))?.task;
     tasks.push(clean({ taskId: t.taskId, key: got?.key ?? t.key, title: got?.title ?? t.title, state: got?.state ?? t.state, assigned: got?.assigned, blocked: got?.blocked === true }));
   }
-  return { ...out(ctx, g), tasks, waiting: waits(ctx, g.id), activity: activity(ctx.db, g.id, 30), readings: readings(ctx.db, g.id) };
+  return { ...out(ctx, g), tasks, ...(g.status === "draft" ? { draftPlan: draftPlanOf(ctx, g) } : {}), waiting: waits(ctx, g.id), activity: activity(ctx.db, g.id, 30), readings: readings(ctx.db, g.id) };
 }
 
 export async function list(ctx: GoalsCtx, input: In) {
@@ -152,6 +160,25 @@ export async function update(ctx: GoalsCtx, input: In) {
   if (input.finish) { checkFinish(ctx, input.finish as Finish); if (input.finish.kind === "checklist") input.finish.items = input.finish.items.map((i: { id: string; done?: boolean }) => ({ ...i, done: (g.finish.items ?? []).find((o) => o.id === i.id)?.done ?? false })); }
   set("title", input.title?.trim()); set("outcome", input.outcome); set("finish", input.finish); set("deadline", input.deadline); set("rhythm", input.rhythm); set("zone", input.zone);
   set("helpers", input.helpers); set("recordIds", input.recordIds); set("stuckAfter", input.stuckAfter);
+  const wasLead = g.leadAgentId, wasOwner = g.owner;
+  if (input.leadAgentId !== undefined && input.leadAgentId !== g.leadAgentId) {
+    if (ENDED.has(g.status)) raise(ctx, "validation.precondition_failed", `A ${g.status} goal keeps its lead.`, { reason: "ended" });
+    const agent = await tryCall<{ agent?: { runtime?: string } }>(ctx, "agents.get", { agentId: input.leadAgentId });
+    if (ctx.call && !agent?.agent) raise(ctx, "validation.not_found", "That agent does not exist.", { agentId: input.leadAgentId });
+    if (agent?.agent?.runtime === "outside") raise(ctx, "validation.precondition_failed", "The lead of a goal works inside Vyre; an outside agent can be a helper.", { reason: "outside_lead" });
+    g.leadAgentId = input.leadAgentId; fields.push("lead");
+  }
+  if (input.owner !== undefined && input.owner !== g.owner) {
+    if (ENDED.has(g.status)) raise(ctx, "validation.precondition_failed", `A ${g.status} goal keeps its owner.`, { reason: "ended" });
+    if (!String(input.owner).startsWith("usr_")) raise(ctx, "validation.precondition_failed", "A goal belongs to a person: say who owns it.", { reason: "no_owner" });
+    g.owner = input.owner; fields.push("owner");
+    // what the old owner allowed does not carry over: the new owner presses Start or grants again
+    g.permissions = g.permissions.map((p) => ({ ...p, granted: false }));
+  }
+  if (input.plan !== undefined) {
+    if (g.status !== "draft") raise(ctx, "validation.precondition_failed", "Only a draft has a plan to rewrite; a running goal's steps are its tasks.", { reason: "not_draft" });
+    saveDraftPlan(ctx, g, input.plan as PlanChild[]); fields.push("plan");
+  }
   if (input.quiet !== undefined) { g.quiet = input.quiet; fields.push("quiet"); }
   if (input.projectId !== undefined) { if (input.projectId === null) delete g.projectId; else g.projectId = input.projectId; fields.push("projectId"); }
   const budgetBefore = g.budget;
@@ -169,7 +196,13 @@ export async function update(ctx: GoalsCtx, input: In) {
   if (input.title && g.folderId) await tryCall(ctx, "files.folder.rename", { folderId: g.folderId, name: g.title.replace(/[/\\]/g, "-").slice(0, 120) });
   if (input.title && g.rootTaskId) await tryCall(ctx, "tasks.update", { taskId: g.rootTaskId, title: g.title });
   let seated: Seat[] | undefined;
-  if (input.helpers) { seated = await seat(ctx, g); await shareFolder(ctx, g); }
+  if (g.leadAgentId !== wasLead && g.threadId) {
+    if (!g.helpers.some((h) => h.kind === "agent" && h.id === wasLead)) await tryCall(ctx, "threads.remove_agent", { threadId: g.threadId, agentId: wasLead });
+    await tryCall(ctx, "threads.add_agent", { threadId: g.threadId, agentId: g.leadAgentId, mode: "lead" });
+    if (g.rootTaskId) await tryCall(ctx, "tasks.delegate", { taskId: g.rootTaskId, to: { kind: "agent", id: g.leadAgentId }, note: "The goal has a new lead." });
+  }
+  if (input.helpers || g.owner !== wasOwner || g.leadAgentId !== wasLead) { seated = await seat(ctx, g); await shareFolder(ctx, g); }
+  if (g.owner !== wasOwner) await syncGrants(ctx, g, { press: false });
   emit(ctx, g, "goal.updated", { fields, by: ctx.principal.id });
   note(ctx, g.id, "edit", `Changed ${fields.join(", ")}.`);
   if (input.finish && LIVE.has(g.status)) { delete g.startValue; await readNow(ctx, g, "edit"); }
@@ -285,13 +318,10 @@ export async function plan(ctx: GoalsCtx, input: In) {
   if (!isLead(ctx, g) && !isOwner(ctx, g) && !isSystem(ctx)) raise(ctx, "validation.precondition_failed", "The lead agent or the owner plans this goal.", { reason: "not_lead" });
   if (g.status === "draft") {
     // a draft has no tasks yet: the steps join the drafted plan and become tasks when the owner presses Start
-    const row = ctx.db.all("SELECT result FROM goals_step WHERE goal_id = ? AND step_id = 'draft:plan'", g.id)[0] as { result?: string } | undefined;
-    let drafted: PlanChild[] = [];
-    try { drafted = JSON.parse(row?.result ?? "[]") as PlanChild[]; } catch { drafted = []; }
     const incoming = input.children as PlanChild[];
     const keys = new Set(incoming.map((c) => c.key));
-    drafted = [...drafted.filter((c) => !keys.has(c.key)), ...incoming];
-    ctx.db.run("INSERT OR REPLACE INTO goals_step (goal_id, step_id, title, state, result, by, at) VALUES (?, 'draft:plan', 'The drafted plan', 'started', ?, ?, ?)", g.id, JSON.stringify(drafted), ctx.principal.id, ctx.now());
+    const drafted = [...draftPlanOf(ctx, g).filter((c) => !keys.has(c.key)), ...incoming];
+    saveDraftPlan(ctx, g, drafted);
     note(ctx, g.id, "plan", `Added ${incoming.length} step${incoming.length === 1 ? "" : "s"} to the drafted plan. They become tasks when the owner starts the goal.`);
     saveGoal(ctx, g);
     return { tasks: [], drafted: drafted.length };

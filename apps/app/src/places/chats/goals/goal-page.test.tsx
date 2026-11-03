@@ -1,8 +1,9 @@
 // The goal page and the goal card over the sample Space's goals: what each state says, the one-tap answers and controls call the right capability, and a draft card starts the goal.
 import test from "node:test";
+import { act } from "react";
 import assert from "node:assert/strict";
 import { createRoot } from "test-renderer";
-import { find, flush, installDom, mount, press, textOf } from "../../../../../../ui/src/testing/dom.ts";
+import { find, flush, installDom, mount, press, textOf, typeInto } from "../../../../../../ui/src/testing/dom.ts";
 import type { ConversationData } from "../conversation/data.tsx";
 import { GoalPage } from "./GoalPage.tsx";
 import { GoalCard } from "./GoalCard.tsx";
@@ -77,4 +78,49 @@ test("a draft card starts the goal with one press, and a check-in card shows the
   await flush();
   assert.match(textOf(update), /212.*\/ 300 registrations|212/s);
   assert.match(textOf(update), /\+18/);
+});
+
+const fire = async (n: ReturnType<typeof find>, prop: string, ...args: unknown[]): Promise<void> => { await act(async () => { await (n!.props[prop] as (...a: unknown[]) => unknown)(...args); }); await flush(); };
+
+test("a draft can be edited where it stands: title, finish line, helpers and the drafted plan each save through goals.update, with Undo", async () => {
+  const { root, calls } = await page("draft");
+  const p = find(root!, "goal-page")!;
+  assert.match(textOf(find(p, "goal-plan")), /Remind Lab 7 attendees.*Past attendees registered at 31%.*Two short reels/s, "the drafted plan shows, not the lead agent's promise to plan");
+  assert.doesNotMatch(textOf(find(p, "goal-finish")), / by /, "the deadline is said once, in its own place");
+  assert.match(textOf(find(p, "goal-helpers")), /Helpers.*Content.*Aliza Khan/s);
+  // the title: press it, type, leave the field
+  await press(find(p, "goal-title-edit"));
+  await typeInto(find(p, "goal-title-field"), "320 registrations for Lab 8");
+  await fire(find(p, "goal-title-field"), "onBlur", { nativeEvent: { target: { value: "x" } }, target: { value: "x" }, currentTarget: null });
+  const rename = calls.find((c) => c.cap === "goals.update" && c.input["title"]);
+  assert.deepEqual(rename?.input, { goalId: "gol_lab8", title: "320 registrations for Lab 8" });
+  assert.match(textOf(find(p, "goal-line")), /Renamed/);
+  await press(find(p, "goal-undo"));
+  assert.deepEqual(calls.filter((c) => c.cap === "goals.update").at(-1)?.input, { goalId: "gol_lab8", title: "300 registrations for Lab 8" });
+  // a helper comes off with one press
+  await press(find(p, "goal-helper-remove-usr_aliza"));
+  assert.deepEqual(calls.filter((c) => c.cap === "goals.update").at(-1)?.input["helpers"], [{ kind: "agent", id: "agt_content" }]);
+  // a step comes off the drafted plan, and a new one goes on the end
+  await press(find(p, "goal-step-remove-rem"));
+  const plan = calls.filter((c) => c.cap === "goals.update").at(-1)?.input["plan"] as Array<{ key: string }>;
+  assert.deepEqual(plan.map((s) => s.key), ["reels"]);
+  await typeInto(find(p, "goal-step-new-field"), "Ask Andrey for a quote");
+  await press(find(p, "goal-step-new-add"));
+  const added = calls.filter((c) => c.cap === "goals.update").at(-1)?.input["plan"] as Array<{ title: string; why: string }>;
+  assert.equal(added.at(-1)?.title, "Ask Andrey for a quote");
+  assert.equal(added.length, 3);
+});
+
+test("someone who does not own the goal sees it read-only", async () => {
+  installDom();
+  const call = goalsCall(async () => ({}), NOW, "draft");
+  const root = await mount(createRoot as never, (
+    <GoalPage goalId="gol_lab8" call={call} changes={undefined} me="usr_aliza" nameOf={(id) => NAMES[id] ?? id} clock={() => ({ now: NOW, offsetMin: 300 })}
+      conversationFor={() => ({}) as ConversationData} openTask={() => undefined} openAgent={() => undefined} pane={false} />
+  ));
+  await flush(); await flush();
+  const p = find(root!, "goal-page")!;
+  assert.equal(find(p, "goal-title-edit"), null);
+  assert.equal(find(p, "goal-add-helper"), null);
+  assert.equal(find(p, "goal-step-new-field"), null);
 });
