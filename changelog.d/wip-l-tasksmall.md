@@ -1,0 +1,5 @@
+- Tasks: the Board and the Timeline work from the keyboard. Arrows move between cards and rows, Enter opens a task, Space or S opens its status menu, and Esc lets go. One card or row takes Tab, so Tab enters the board once and leaves it once.
+- Tasks: giving a task to a guest now says what the guest will see (the task, its thread and its files) and asks before it is saved. Quick add holds a task assigned to a guest the same way until Enter is pressed again.
+- Tasks: giving a task to a team or role refreshes the list at once instead of leaving the old row on screen.
+- Tasks: two people editing one task no longer overwrite each other. The second save is refused with a plain line saying what the task holds now, and the task page shows the current values. tasks.update takes expectedVersion, and a task now carries its version.
+- Tasks: the old Home task page is gone. Every link to a task, including the one beside a run in Automations, opens it in the Tasks place.

@@ -25,6 +25,7 @@ const taskRow = t.obj({
   recordId: t.opt(id.record), fileIds: t.arr(id.file), source: t.opt(source), parentTaskId: t.opt(id.task), dependsOn: t.arr(id.task),
   followers: t.arr(t.str()), workingNotes: t.rec(t.str()), threadId: t.opt(id.thread), reviewLoops: t.int({ minimum: 0 }),
   snoozedUntil: t.opt(t.ts()), createdBy: t.str(), createdAt: t.ts(), updatedAt: t.ts(),
+  version: t.opt(t.int({ minimum: 0, description: 'Counts the writes to the task; send it back as expectedVersion on tasks.update to be told when someone else changed the task first' })),
   yourTurn: t.opt(t.bool()),   // the next move is the reader's: their seat, or a group or role of theirs nobody took yet
   priority: t.opt(priority), labels: t.opt(t.arr(t.str())), start: t.opt(t.ts()), fields: t.opt(fieldValues), recur: t.opt(recur), workerThread: t.opt(id.thread),
 });
@@ -134,6 +135,7 @@ export default defineManifest({
       in: {
         ...target, title: t.opt(t.str()), summary: t.opt(t.str()), why: t.opt(t.str()), due: t.opt(t.nullable(t.ts())), effort: t.opt(t.nullable(t.int())), blocks: t.opt(t.arr(blockIn)), threadId: t.opt(id.thread),
         priority: t.opt(t.nullable(priority)), labels: t.opt(t.arr(t.str())), start: t.opt(t.nullable(t.ts())), fields: t.opt(fieldValues), recur: t.opt(t.nullable(recur)), parentTaskId: t.opt(t.nullable(id.task)), workerThread: t.opt(id.thread),
+        expectedVersion: t.opt(t.int({ minimum: 0, description: 'The version the editor saw; a task that moved on is refused with what changed, never overwritten' })),
       },
       out: { task: taskRow }, on: ['task', '/taskId'], emits: ['task.updated'], tool: 'tasks', offline: 'patch',
     }),

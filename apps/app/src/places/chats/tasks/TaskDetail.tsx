@@ -30,7 +30,8 @@ import { accessRequestOf, blockView } from "../needsyou/model.ts";
 import { TaskBlock } from "../needsyou/NeedsYou.tsx";
 import { heldMail } from "../needsyou/heldmail.ts";
 import { HeldMailCard } from "../needsyou/HeldMail.tsx";
-import { dueEntries, failure, priorityEntries } from "./actions.ts";
+import { giveWithCare } from "./guest.ts";
+import { dueEntries, failure, priorityEntries, withVersion } from "./actions.ts";
 import { dueLabel, holderOf, isOpenState, KIND_TITLE, planOrder, PRIORITIES } from "./model.ts";
 import type { IndexOut, TaskFull, TaskRow, Who } from "./model.ts";
 import { faceKind, LiveWords, TextMenu, useLiveTurn, webProps } from "./parts.tsx";
@@ -88,6 +89,8 @@ export function TaskDetail({ rt, taskId, conversationFor, openTask, openAgent, o
   const menu = useMenu();
   const task = (q.status === "ready" ? q.data.task : null);
   const shown = override && task && override.updatedAt >= task.updatedAt ? override : task;
+  const versionRef = useRef<number | undefined>(undefined);
+  versionRef.current = shown?.version;
   useEffect(() => { setOverride(null); setLine(""); setMode(""); }, [taskId]);
   const readKids = useCallback((): void => {
     void rt.call("tasks.index", { scope: "everyone", parentTaskId: taskId }).then((o) => setKids((o as IndexOut).rows.filter((r) => r.kind === "work").sort(planOrder)), () => setKids([]));
@@ -100,10 +103,10 @@ export function TaskDetail({ rt, taskId, conversationFor, openTask, openAgent, o
   const run = useCallback(async (cap: string, input: Record<string, unknown>): Promise<boolean> => {
     setLine("");
     try {
-      const out = await rt.call(cap, { taskId, ...input }) as { task?: TaskFull };
+      const out = await rt.call(cap, { taskId, ...withVersion(cap, input, versionRef.current) }) as { task?: TaskFull };
       if (out.task) setOverride(out.task);
       return true;
-    } catch (e) { setLine(failure(e, "That could not be changed.")); return false; }
+    } catch (e) { setOverride(null); setLine(failure(e, "That could not be changed.")); return false; }
   }, [rt, taskId]);
 
   // a task with no thread yet (a planned child before it starts) gets one when someone opens it: comments need somewhere to go
@@ -485,7 +488,7 @@ function Rail({ task, rt, nameOf, run, menu, seats, openTask, kidsCount, begin }
     let teams = false;
     for (const p of seats) {
       if ((p.kind === "group" || p.kind === "role") && !teams) { items.push({ head: "Teams and roles" }); teams = true; }
-      items.push({ label: p.name, leading: <Avatar name={p.name} seedId={p.id} kind={faceKind({ kind: p.kind, id: p.id })} size={16} />, checked: task[slot]?.id === p.id, onSelect: () => void run("tasks.assign", { slot, to: { kind: p.kind, id: p.id } }) });
+      items.push({ label: p.name, leading: <Avatar name={p.name} seedId={p.id} kind={faceKind({ kind: p.kind, id: p.id })} size={16} />, checked: task[slot]?.id === p.id, onSelect: () => giveWithCare(menu.show, p, at, () => void run("tasks.assign", { slot, to: { kind: p.kind, id: p.id } })) });
     }
     if (slot !== "assigned" && task[slot]) items.push({ separator: true }, { label: "Clear", onSelect: () => void run("tasks.assign", { slot, to: null }) });
     menu.show(items, at.x, at.y, "other", { label: slot }, { search: "Find someone" });

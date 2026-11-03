@@ -33839,6 +33839,7 @@ export type TasksActOut = {
     createdBy: string;
     createdAt: number;
     updatedAt: number;
+    version?: number;
     yourTurn?: boolean;
     priority?: "urgent" | "high" | "normal" | "low";
     labels?: Array<string>;
@@ -33911,6 +33912,7 @@ export type TasksAskOut = {
     createdBy: string;
     createdAt: number;
     updatedAt: number;
+    version?: number;
     yourTurn?: boolean;
     priority?: "urgent" | "high" | "normal" | "low";
     labels?: Array<string>;
@@ -33983,6 +33985,7 @@ export type TasksAssignOut = {
     createdBy: string;
     createdAt: number;
     updatedAt: number;
+    version?: number;
     yourTurn?: boolean;
     priority?: "urgent" | "high" | "normal" | "low";
     labels?: Array<string>;
@@ -34050,6 +34053,7 @@ export type TasksBlockOut = {
     createdBy: string;
     createdAt: number;
     updatedAt: number;
+    version?: number;
     yourTurn?: boolean;
     priority?: "urgent" | "high" | "normal" | "low";
     labels?: Array<string>;
@@ -34181,6 +34185,7 @@ export type TasksCreateOut = {
     createdBy: string;
     createdAt: number;
     updatedAt: number;
+    version?: number;
     yourTurn?: boolean;
     priority?: "urgent" | "high" | "normal" | "low";
     labels?: Array<string>;
@@ -34249,6 +34254,7 @@ export type TasksDecideOut = {
     createdBy: string;
     createdAt: number;
     updatedAt: number;
+    version?: number;
     yourTurn?: boolean;
     priority?: "urgent" | "high" | "normal" | "low";
     labels?: Array<string>;
@@ -34321,6 +34327,7 @@ export type TasksDelegateOut = {
     createdBy: string;
     createdAt: number;
     updatedAt: number;
+    version?: number;
     yourTurn?: boolean;
     priority?: "urgent" | "high" | "normal" | "low";
     labels?: Array<string>;
@@ -34398,6 +34405,7 @@ export type TasksDependenciesAddOut = {
     createdBy: string;
     createdAt: number;
     updatedAt: number;
+    version?: number;
     yourTurn?: boolean;
     priority?: "urgent" | "high" | "normal" | "low";
     labels?: Array<string>;
@@ -34465,6 +34473,7 @@ export type TasksDependenciesRemoveOut = {
     createdBy: string;
     createdAt: number;
     updatedAt: number;
+    version?: number;
     yourTurn?: boolean;
     priority?: "urgent" | "high" | "normal" | "low";
     labels?: Array<string>;
@@ -34541,6 +34550,7 @@ export type TasksEscalateOut = {
     createdBy: string;
     createdAt: number;
     updatedAt: number;
+    version?: number;
     yourTurn?: boolean;
     priority?: "urgent" | "high" | "normal" | "low";
     labels?: Array<string>;
@@ -34608,6 +34618,7 @@ export type TasksFollowersAddOut = {
     createdBy: string;
     createdAt: number;
     updatedAt: number;
+    version?: number;
     yourTurn?: boolean;
     priority?: "urgent" | "high" | "normal" | "low";
     labels?: Array<string>;
@@ -34675,6 +34686,7 @@ export type TasksFollowersRemoveOut = {
     createdBy: string;
     createdAt: number;
     updatedAt: number;
+    version?: number;
     yourTurn?: boolean;
     priority?: "urgent" | "high" | "normal" | "low";
     labels?: Array<string>;
@@ -34741,6 +34753,7 @@ export type TasksGetOut = {
     createdBy: string;
     createdAt: number;
     updatedAt: number;
+    version?: number;
     yourTurn?: boolean;
     priority?: "urgent" | "high" | "normal" | "low";
     labels?: Array<string>;
@@ -34885,6 +34898,7 @@ export type TasksLinksAddOut = {
     createdBy: string;
     createdAt: number;
     updatedAt: number;
+    version?: number;
     yourTurn?: boolean;
     priority?: "urgent" | "high" | "normal" | "low";
     labels?: Array<string>;
@@ -34953,6 +34967,7 @@ export type TasksLinksRemoveOut = {
     createdBy: string;
     createdAt: number;
     updatedAt: number;
+    version?: number;
     yourTurn?: boolean;
     priority?: "urgent" | "high" | "normal" | "low";
     labels?: Array<string>;
@@ -35030,6 +35045,7 @@ export type TasksListOut = {
       createdBy: string;
       createdAt: number;
       updatedAt: number;
+      version?: number;
       yourTurn?: boolean;
       priority?: "urgent" | "high" | "normal" | "low";
       labels?: Array<string>;
@@ -35100,6 +35116,7 @@ export type TasksMyWorkOut = {
       createdBy: string;
       createdAt: number;
       updatedAt: number;
+      version?: number;
       yourTurn?: boolean;
       priority?: "urgent" | "high" | "normal" | "low";
       labels?: Array<string>;
@@ -35174,6 +35191,7 @@ export type TasksNeedsYouOut = {
         createdBy: string;
         createdAt: number;
         updatedAt: number;
+        version?: number;
         yourTurn?: boolean;
         priority?: "urgent" | "high" | "normal" | "low";
         labels?: Array<string>;
@@ -35281,6 +35299,7 @@ export type TasksPlanOut = {
     createdBy: string;
     createdAt: number;
     updatedAt: number;
+    version?: number;
     yourTurn?: boolean;
     priority?: "urgent" | "high" | "normal" | "low";
     labels?: Array<string>;
@@ -35353,6 +35372,7 @@ export type TasksReleaseOut = {
     createdBy: string;
     createdAt: number;
     updatedAt: number;
+    version?: number;
     yourTurn?: boolean;
     priority?: "urgent" | "high" | "normal" | "low";
     labels?: Array<string>;
@@ -35419,6 +35439,7 @@ export type TasksRestoreOut = {
     createdBy: string;
     createdAt: number;
     updatedAt: number;
+    version?: number;
     yourTurn?: boolean;
     priority?: "urgent" | "high" | "normal" | "low";
     labels?: Array<string>;
@@ -35492,6 +35513,7 @@ export type TasksReviewOut = {
     createdBy: string;
     createdAt: number;
     updatedAt: number;
+    version?: number;
     yourTurn?: boolean;
     priority?: "urgent" | "high" | "normal" | "low";
     labels?: Array<string>;
@@ -35560,6 +35582,7 @@ export type TasksSnoozeOut = {
     createdBy: string;
     createdAt: number;
     updatedAt: number;
+    version?: number;
     yourTurn?: boolean;
     priority?: "urgent" | "high" | "normal" | "low";
     labels?: Array<string>;
@@ -35628,6 +35651,7 @@ export type TasksSubmitOut = {
     createdBy: string;
     createdAt: number;
     updatedAt: number;
+    version?: number;
     yourTurn?: boolean;
     priority?: "urgent" | "high" | "normal" | "low";
     labels?: Array<string>;
@@ -35695,6 +35719,7 @@ export type TasksTakeOut = {
     createdBy: string;
     createdAt: number;
     updatedAt: number;
+    version?: number;
     yourTurn?: boolean;
     priority?: "urgent" | "high" | "normal" | "low";
     labels?: Array<string>;
@@ -35764,6 +35789,7 @@ export type TasksTransitionOut = {
     createdBy: string;
     createdAt: number;
     updatedAt: number;
+    version?: number;
     yourTurn?: boolean;
     priority?: "urgent" | "high" | "normal" | "low";
     labels?: Array<string>;
@@ -35799,6 +35825,7 @@ export type TasksUpdateIn = {
   }) | null;
   parentTaskId?: string | null;
   workerThread?: string;
+  expectedVersion?: number;
 };
 export type TasksUpdateOut = {
   task: {
@@ -35851,6 +35878,7 @@ export type TasksUpdateOut = {
     createdBy: string;
     createdAt: number;
     updatedAt: number;
+    version?: number;
     yourTurn?: boolean;
     priority?: "urgent" | "high" | "normal" | "low";
     labels?: Array<string>;
@@ -35927,6 +35955,7 @@ export type TasksWorkingNotesDeleteOut = {
     createdBy: string;
     createdAt: number;
     updatedAt: number;
+    version?: number;
     yourTurn?: boolean;
     priority?: "urgent" | "high" | "normal" | "low";
     labels?: Array<string>;
@@ -35995,6 +36024,7 @@ export type TasksWorkingNotesSetOut = {
     createdBy: string;
     createdAt: number;
     updatedAt: number;
+    version?: number;
     yourTurn?: boolean;
     priority?: "urgent" | "high" | "normal" | "low";
     labels?: Array<string>;

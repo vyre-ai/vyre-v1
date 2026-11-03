@@ -88,6 +88,7 @@ type Out = {
     createdBy: string;
     createdAt: number;
     updatedAt: number;
+    version?: number;
     yourTurn?: boolean;
     priority?: "urgent" | "high" | "normal" | "low";
     labels?: Array<string>;
@@ -195,6 +196,7 @@ type Out = {
       "threadId": "thr_a1b2c3",
       "title": "example",
       "updatedAt": 1760000000000,
+      "version": 1,
       "why": "example",
       "workerThread": "thr_a1b2c3",
       "workingNotes": {},

@@ -47,6 +47,7 @@ type In = {
   }) | null;
   parentTaskId?: string | null;
   workerThread?: string;
+  expectedVersion?: number;
 };
 ```
 
@@ -104,6 +105,7 @@ type Out = {
     createdBy: string;
     createdAt: number;
     updatedAt: number;
+    version?: number;
     yourTurn?: boolean;
     priority?: "urgent" | "high" | "normal" | "low";
     labels?: Array<string>;
@@ -141,6 +143,7 @@ type Out = {
     ],
     "due": 1760000000000,
     "effort": 1,
+    "expectedVersion": 1,
     "fields": {},
     "labels": [
       "example"
@@ -228,6 +231,7 @@ type Out = {
       "threadId": "thr_a1b2c3",
       "title": "example",
       "updatedAt": 1760000000000,
+      "version": 1,
       "why": "example",
       "workerThread": "thr_a1b2c3",
       "workingNotes": {},

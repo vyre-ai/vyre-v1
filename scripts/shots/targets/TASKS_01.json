@@ -1,9 +1,81 @@
 {
   "targets": [
-    { "id": "TASKS_01-list", "route": "/m/TASKS_01?view=list", "proto": "chat,{skin}", "waitFor": "[data-testid='tasks-page']", "note": "Tasks, Mine: While you were away on top; Needs you holds a review handed to Irfad, work sent back by Omar's private agent (named Omar Reyes (Agent)), a team task with Take and a question; then Now, Next and Waiting on others, where a team task shows Taken by Sara Khan." },
-    { "id": "TASKS_01-review", "route": "/m/TASKS_01?view=review", "proto": "chat,{skin}", "waitFor": "[data-testid='task-approve']", "note": "The task page of the review handed to Irfad: the baton path by name, Approve and Send back, a way back to Tasks." },
-    { "id": "TASKS_01-team", "route": "/m/TASKS_01?view=team", "proto": "chat,{skin}", "waitFor": "[data-testid='task-take']", "note": "A team task nobody took: Take it, and the rail's Taken by line." },
-    { "id": "TASKS_01-menu", "route": "/m/TASKS_01?view=menu", "proto": "chat,{skin}", "waitFor": "[data-testid='task-head']", "note": "The review's status menu: only the moves Irfad's seat allows, in their words." },
-    { "id": "TASKS_01-pane", "route": "/m/TASKS_01?view=pane", "proto": "chat,{skin}", "waitFor": "[data-testid='chats-task-pane']", "note": "The review in the right pane, as it opens beside the chat it was pressed in: no rail, Open the full page." }
+    {
+      "id": "TASKS_01-list",
+      "route": "/m/TASKS_01?view=list",
+      "proto": "chat,{skin}",
+      "waitFor": "[data-testid='tasks-page']",
+      "note": "Tasks, Mine: While you were away on top; Needs you holds a review handed to Irfad, work sent back by Omar's private agent (named Omar Reyes (Agent)), a team task with Take and a question; then Now, Next and Waiting on others, where a team task shows Taken by Sara Khan."
+    },
+    {
+      "id": "TASKS_01-review",
+      "route": "/m/TASKS_01?view=review",
+      "proto": "chat,{skin}",
+      "waitFor": "[data-testid='task-approve']",
+      "note": "The task page of the review handed to Irfad: the baton path by name, Approve and Send back, a way back to Tasks."
+    },
+    {
+      "id": "TASKS_01-team",
+      "route": "/m/TASKS_01?view=team",
+      "proto": "chat,{skin}",
+      "waitFor": "[data-testid='task-take']",
+      "note": "A team task nobody took: Take it, and the rail's Taken by line."
+    },
+    {
+      "id": "TASKS_01-menu",
+      "route": "/m/TASKS_01?view=menu",
+      "proto": "chat,{skin}",
+      "waitFor": "[data-testid='task-head']",
+      "note": "The review's status menu: only the moves Irfad's seat allows, in their words."
+    },
+    {
+      "id": "TASKS_01-pane",
+      "route": "/m/TASKS_01?view=pane",
+      "proto": "chat,{skin}",
+      "waitFor": "[data-testid='chats-task-pane']",
+      "note": "The review in the right pane, as it opens beside the chat it was pressed in: no rail, Open the full page."
+    },
+    {
+      "id": "TASKS_01-board",
+      "route": "/m/TASKS_01?view=board",
+      "proto": "chat,{skin}",
+      "waitFor": "[data-testid='tasks-board']",
+      "note": "The Board by status: one column each, a card per task."
+    },
+    {
+      "id": "TASKS_01-board-keys",
+      "route": "/m/TASKS_01?view=board-keys",
+      "proto": "chat,{skin}",
+      "waitFor": "[data-tkcard]:focus",
+      "note": "The Board after a keyboard walk: arrows moved focus from the first card to the card in the next column; one card takes Tab."
+    },
+    {
+      "id": "TASKS_01-board-status",
+      "route": "/m/TASKS_01?view=board-status",
+      "proto": "chat,{skin}",
+      "waitFor": "[role='menuitem']",
+      "note": "Space on the focused card opens the status menu, with the moves this seat allows."
+    },
+    {
+      "id": "TASKS_01-timeline",
+      "route": "/m/TASKS_01?view=timeline",
+      "proto": "chat,{skin}",
+      "waitFor": "[data-testid='tasks-timeline']",
+      "note": "The Timeline: a line per dated task."
+    },
+    {
+      "id": "TASKS_01-timeline-keys",
+      "route": "/m/TASKS_01?view=timeline-keys",
+      "proto": "chat,{skin}",
+      "waitFor": "[data-tkcard]:focus",
+      "note": "The Timeline after a keyboard walk: ArrowDown moved focus to the second row."
+    },
+    {
+      "id": "TASKS_01-guest",
+      "route": "/m/TASKS_01?view=guest",
+      "proto": "chat,{skin}",
+      "waitFor": "[role='menuitem']",
+      "note": "A task given to a guest: the menu says the guest will see the task, its thread and its files, and offers Give it or Cancel."
+    }
   ]
 }

@@ -59504,6 +59504,11 @@
               }
             ]
           },
+          "expectedVersion": {
+            "description": "The version the editor saw; a task that moved on is refused with what changed, never overwritten",
+            "minimum": 0,
+            "type": "integer"
+          },
           "fields": {
             "additionalProperties": true,
             "type": "object"
