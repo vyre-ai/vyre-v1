@@ -379,6 +379,10 @@ export default defineManifest({
     read('engine.pool.status', 'Warm engine pool: sessions per driver, warm hits, evictions', {
       out: { sessions: t.arr(t.obj({ driver: driverId, warm: t.int(), max: t.int(), hits: t.int(), misses: t.int() })), totalWarm: t.int() }, perm: null, level: 'manage', tool: 'engineer',
     }),
+    read('engine.now', 'Which agents are working right now: the agent, the person it works for, where it runs (the Space, their computer, their server) and since when; the chat is named only to someone who may read it', {
+      in: {}, out: { working: t.arr(t.obj({ agentId: id.agent, forPerson: t.str(), where: t.enm('space', 'computer', 'server'), since: t.ts(), threadId: t.opt(id.thread), title: t.opt(t.str()), channelId: t.opt(id.channel), kind: t.opt(t.str()) })) },
+      perm: null, tool: 'chats', team: true,
+    }),
     read('engine.live_turns', 'The turns being written in a thread right now, with the text so far: what a chat opened or reconnected mid-turn shows before it follows the live stream', {
       in: { threadId: id.thread }, out: { turns: t.arr(t.obj({ turnId: t.str(), agentId: id.agent, text: t.str() })) }, on: ['thread', '/threadId'], perm: null, tool: 'chats',
     }),

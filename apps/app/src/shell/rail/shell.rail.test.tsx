@@ -71,6 +71,9 @@ test("the Space menu: your Spaces with the open one checked, then the actions; T
   assert.ok(iconsAllOrNone(nw));
   assert.ok(!labels(spaceMenuEntries({ ...input, openId: "hb" })).includes("Open Terminal"), "a member does not get Open Terminal");
   assert.ok(labels(spaceMenuEntries({ ...input, away: true })).includes("I'm Back"));
+  // Invite People copies a real invite link: only for someone who may invite (Owner, Admin), never in a Personal Space, where nobody else can join
+  assert.ok(!labels(spaceMenuEntries({ ...input, openId: "hb" })).includes("Invite People"), "a member cannot invite, so the item is absent");
+  assert.ok(!labels(spaceMenuEntries({ ...input, openId: "me", spaces: SEED_DEFS.map((d) => (d.spaceId === "me" ? { ...d, invite: true } : d)) })).includes("Invite People"), "never in a Personal Space");
   const shown = menuEntries({ items: nw, source: "context" });
   assert.ok(isReportItem(shown[shown.length - 1] as MenuEntry), "ui/Menu appends Report a problem; the switcher never adds it by hand");
   assert.ok(!labels(nw).includes("Report a problem"));

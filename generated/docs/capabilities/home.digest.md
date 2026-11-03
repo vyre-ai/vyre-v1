@@ -38,7 +38,7 @@ type Out = {
     periodEnd: number;
     headline: Array<string>;
     items: Array<{
-        kind: "decision" | "finished" | "record_change" | "routine" | "waiting";
+        kind: "decision" | "finished" | "record_change" | "routine" | "notice" | "waiting";
         title: string;
         line: string;
         subject?: {

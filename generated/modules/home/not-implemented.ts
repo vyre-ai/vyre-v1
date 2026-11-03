@@ -7,6 +7,7 @@ import type { Handlers } from './handlers.ts';
 export const handlers: Handlers<HandlerCtx> = {
   "home.activity": async (ctx) => { throw new VyreErr(notImplemented("home.activity", ctx.trace)); },
   "home.at_risk": async (ctx) => { throw new VyreErr(notImplemented("home.at_risk", ctx.trace)); },
+  "home.away_digest": async (ctx) => { throw new VyreErr(notImplemented("home.away_digest", ctx.trace)); },
   "home.checklist": async (ctx) => { throw new VyreErr(notImplemented("home.checklist", ctx.trace)); },
   "home.digest": async (ctx) => { throw new VyreErr(notImplemented("home.digest", ctx.trace)); },
   "home.dismiss_checklist": async (ctx) => { throw new VyreErr(notImplemented("home.dismiss_checklist", ctx.trace)); },

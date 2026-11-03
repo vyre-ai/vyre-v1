@@ -7,6 +7,7 @@ export type Handler<C extends keyof CapMap, X extends HandlerCtx = HandlerCtx> =
 export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "home.activity": Handler<"home.activity", X>;
   "home.at_risk": Handler<"home.at_risk", X>;
+  "home.away_digest": Handler<"home.away_digest", X>;
   "home.checklist": Handler<"home.checklist", X>;
   "home.digest": Handler<"home.digest", X>;
   "home.dismiss_checklist": Handler<"home.dismiss_checklist", X>;

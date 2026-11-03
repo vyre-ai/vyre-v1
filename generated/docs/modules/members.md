@@ -4,7 +4,7 @@ Lane L7a. Kind module. Version 0.1.0.
 
 Requires: access, home.
 
-## Capabilities (31)
+## Capabilities (33)
 
 - [company.access_log](../capabilities/company.access_log.md): Who reached whose mail, calendar or files: who made the call, the person an agent worked for, which mailbox, when
 - [company.check](../capabilities/company.check.md): Prove the key now in the Vault works, with no person involved. Answers what is wrong in plain words, or who it is; never the key. A key that works is remembered
@@ -23,6 +23,8 @@ Requires: access, home.
 - [members.invites.list](../capabilities/members.invites.list.md): List invites
 - [members.invites.preview](../capabilities/members.invites.preview.md): Join page: the public Space routing id, name and logo, who invited, expiry and display fingerprint for a code
 - [members.invites.revoke](../capabilities/members.invites.revoke.md): Revoke an open invite
+- [members.joins.list](../capabilities/members.joins.list.md): Joins that have not finished: each new member with the steps that did not work yet, in words, how often each was tried, and whether it is stuck (three tries or more)
+- [members.joins.retry](../capabilities/members.joins.retry.md): Retry a new member's join steps that did not work, now
 - [members.reactivate](../capabilities/members.reactivate.md): Reactivate a suspended person
 - [members.remove](../capabilities/members.remove.md): Remove a person with the wizard plan: reassign owned things, pause routines, revoke mailbox connections, rotate the Space key epoch
 - [members.remove_preview](../capabilities/members.remove_preview.md): Removal wizard: each kind of thing the person owns, its default action and the transfer diff
@@ -38,10 +40,11 @@ Requires: access, home.
 - [members.sso.test](../capabilities/members.sso.test.md): Test an SSO provider: discovery document, keys and redirect
 - [members.suspend](../capabilities/members.suspend.md): Suspend a person: they cannot act and their devices purge on next contact
 
-## Events (5)
+## Events (6)
 
 - [member.invite_revoked](../events/member.invite_revoked.md): An invite was revoked
 - [member.invited](../events/member.invited.md): An invite was made
+- [member.join_stuck](../events/member.join_stuck.md): A join step (a group, a channel, a project, an agent, the first channel, their mail and calendar) failed three times; it is still tried every two minutes and shows in Console Overview
 - [member.joined](../events/member.joined.md): A person accepted an invite and is active; the inviter gets a quiet line
 - [member.removal_plan_applied](../events/member.removal_plan_applied.md): The removal wizard reassigned or paused the things the person owned (counts only)
 - [member.removed](../events/member.removed.md): A person was removed or left; devices purge, the Space key epoch rotates

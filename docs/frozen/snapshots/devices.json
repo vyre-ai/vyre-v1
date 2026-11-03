@@ -6,6 +6,7 @@
     "devices.get@1": "ce99c557e333491001bd0dfd44663907e55732cb61277f5e9ed9d71e90bf42c4",
     "devices.list@1": "9bb3f96f7e10850b9bab8b70ffbb060aba1f66a54cd8fdc9dd8582f12ed7d8ce",
     "devices.mine@1": "fbf27966d167cc295c6474a15ffa08642e8d776b34ab5313ec67df86b228c899",
+    "devices.presence@1": "f4d889f5b3ea53662de4bfd09ff5b37758ffc3ce01c4e4ac2002a7f91a869c0f",
     "devices.purge_ack@1": "1a90714ac4803ec7a60c74c28bb0666da74db1f3fd22f2aa02f646b2428077b3",
     "devices.register@1": "c91785f7dcdb81e917af0ca5c424d5dc7cd754e59a73b96ffeb65766f6b7d12b",
     "devices.rename@1": "567905385a6f0f43f4d1474db39e62c2ff88c743276c66164d724cba858c5652",
@@ -14,7 +15,7 @@
     "devices.rotate_space_key@1": "0bd6b032c89d6310e918a9281ac0d73fbfdbebc533d4dbacc652bb7408007666",
     "devices.sessions.list@1": "9b62a00752a4930c908c155aacfeeda91e546a1b6c224d810a60c8410de6fd58",
     "devices.sessions.revoke@1": "baee8a3de5526bb736abdcccff17e6718cec2ef8eae48bccd1c08aa10fe2b3bb",
-    "devices.touch@1": "54a277cc065164c3f30bf7211b4cf87a8982393f9b04ba756827b5d5d98fbb2a"
+    "devices.touch@1": "86d53102928b653bd5aa3a8a362173db7dab4e2993c63c30c40ab1326f30645a"
   },
   "events": {
     "device.purged": "300e9b45b47f1c4e0ea0b5526be0b0dd2f57af11adff3c70a3c9b9b06c2f4b5c",

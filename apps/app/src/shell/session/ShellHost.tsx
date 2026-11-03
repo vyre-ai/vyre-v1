@@ -37,6 +37,7 @@ import type { OpenSessionOptions, RealSession } from "./session.ts";
 import { clearStored, readStored, verifyStoredSession, writeStored } from "./stored.ts";
 import type { StoredSession } from "./stored.ts";
 import { VaultUnlockHost } from "./VaultUnlockHost.tsx";
+import { teamActions } from "./team-actions.ts";
 import { ReportHost } from "../report/ReportHost.tsx";
 import { isMacShell, lockedIdentity, storeLock } from "./entry.ts";
 import { anyUnread } from "../../places/chats/sidebar/model.ts";
@@ -134,7 +135,17 @@ export function ShellHost({ stored, open, onSignedOut, onHub, hub: given, initia
     void loadRecent(session.runtime).then((hits) => { if (!off) recent.current = hits; });
     return () => { off = true; };
   }, [session]);
-  const search = useMemo(() => (session ? (flags.current.terminal = session.def.terminal, createGateSearch({ runtime: session.runtime, nav: hub, state: flags.current, recent: () => recent.current })) : null), [session, hub]);
+  // Invite People and Set Yourself Away reach the Space: a real link on the clipboard, and away stored where teammates see it (team-actions.ts)
+  const team = useMemo(() => (session ? teamActions({ call: session.call, hub, space: session.def.name }) : null), [session, hub]);
+  useEffect(() => {
+    if (!team) return undefined;
+    let off = false;
+    void team.load().then((a) => { if (!off) flags.current.away = a; });
+    return () => { off = true; };
+  }, [team]);
+  const setAway = useCallback((on: boolean): void => { flags.current.away = on; void team?.away(on); }, [team]);
+  const teamProp = useMemo(() => (team ? { invite: () => { void team.invite(); }, away: setAway } : undefined), [team, setAway]);
+  const search = useMemo(() => (session ? (flags.current.terminal = session.def.terminal, createGateSearch({ runtime: session.runtime, nav: hub, state: flags.current, recent: () => recent.current, ...(team ? { away: setAway } : {}) })) : null), [session, hub, team, setAway]);
 
   useEffect(() => {
     if (!session || stored.def.kind !== "team") return undefined;
@@ -255,7 +266,7 @@ export function ShellHost({ stored, open, onSignedOut, onHub, hub: given, initia
   if (narrow) return wrap(<Suspense fallback={<View style={{ flex: 1, backgroundColor: "var(--win)" as string }} />}><PhoneHost session={session} location={{ place: location.place, hash: location.hash }} needsYou={needsYou} registerGo={registerGo} onSignOut={signOut} onLock={lock} {...(onSwitchSpace?{onSwitchSpace:selectSpace}:{})} {...(onAddSpace?{onAddSpace}:{})} /></Suspense>);
   return wrap(
     <>
-      <Shell hub={hub} {...(session ? { me: { id: session.me.id, name: session.me.name } } : {})} onOpenMe={() => hub.go("settings", "profile")} {...(runsOnProp ? { runsOn: runsOnProp } : {})} {...(theme?{theme}:{})} {...(onSwitchSpace?{onSwitchSpace:selectSpace}:{})} renderPlace={renderPlace} renderNewTab={renderNewTab} onSearch={() => setSearchOpen(true)} onSpaceAction={(a) => { if (a === "sign-out") signOut(); else if(a==='lock')lock();else if(a==='add')onAddSpace?.(); }} {...(phone ? { phone: { device: phone.device, data: phone.data } } : {})} {...(purge ? { purge } : {})} />
+      <Shell hub={hub} {...(teamProp ? { team: teamProp } : {})} {...(session ? { me: { id: session.me.id, name: session.me.name } } : {})} onOpenMe={() => hub.go("settings", "profile")} {...(runsOnProp ? { runsOn: runsOnProp } : {})} {...(theme?{theme}:{})} {...(onSwitchSpace?{onSwitchSpace:selectSpace}:{})} renderPlace={renderPlace} renderNewTab={renderNewTab} onSearch={() => setSearchOpen(true)} onSpaceAction={(a) => { if (a === "sign-out") signOut(); else if(a==='lock')lock();else if(a==='add')onAddSpace?.(); }} {...(phone ? { phone: { device: phone.device, data: phone.data } } : {})} {...(purge ? { purge } : {})} />
       {searchOpen && search ? <CmdK data={search} onClose={() => setSearchOpen(false)} onTiming={(name, ms) => { if (name === "local" && session) speed.record(session.runtime.space.id, "search", ms); }} /> : null}
     </>
   );

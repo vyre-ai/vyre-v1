@@ -9,6 +9,7 @@ export const handlers: Handlers<HandlerCtx> = {
   "devices.get": async () => ({"device":{"class":"desktop","current":true,"epoch":1,"id":"dev_a1b2c3","lastSeenAt":1760000000000,"location":"example","name":"example","person":"usr_a1b2c3","revokedAt":1760000000000},"sessions":[{"current":true,"deviceId":"dev_a1b2c3","id":"ses_a1b2c3","kind":"device","lastSeenAt":1760000000000,"location":"example","principal":{"id":"usr_a1b2c3","kind":"person"},"startedAt":1760000000000}]} as unknown) as never,
   "devices.list": async () => ({"devices":[{"class":"desktop","current":true,"epoch":1,"id":"dev_a1b2c3","lastSeenAt":1760000000000,"location":"example","name":"example","person":"usr_a1b2c3","revokedAt":1760000000000}],"next":"example","total":1} as unknown) as never,
   "devices.mine": async () => ({"devices":[{"class":"desktop","current":true,"epoch":1,"id":"dev_a1b2c3","lastSeenAt":1760000000000,"location":"example","name":"example","person":"usr_a1b2c3","revokedAt":1760000000000}],"sessions":[{"current":true,"deviceId":"dev_a1b2c3","id":"ses_a1b2c3","kind":"device","lastSeenAt":1760000000000,"location":"example","principal":{"id":"usr_a1b2c3","kind":"person"},"startedAt":1760000000000}]} as unknown) as never,
+  "devices.presence": async () => ({"people":[{"awayUntil":1760000000000,"lastSeenAt":1760000000000,"personId":"usr_a1b2c3","state":"online"}]} as unknown) as never,
   "devices.purge_ack": async () => ({"ok":true} as unknown) as never,
   "devices.register": async () => ({"device":{"class":"desktop","current":true,"epoch":1,"id":"dev_a1b2c3","lastSeenAt":1760000000000,"location":"example","name":"example","person":"usr_a1b2c3","revokedAt":1760000000000},"sessionId":"ses_a1b2c3"} as unknown) as never,
   "devices.rename": async () => ({"device":{"class":"desktop","current":true,"epoch":1,"id":"dev_a1b2c3","lastSeenAt":1760000000000,"location":"example","name":"example","person":"usr_a1b2c3","revokedAt":1760000000000}} as unknown) as never,
@@ -17,5 +18,5 @@ export const handlers: Handlers<HandlerCtx> = {
   "devices.rotate_space_key": async () => ({"epoch":1} as unknown) as never,
   "devices.sessions.list": async () => ({"next":"example","sessions":[{"current":true,"deviceId":"dev_a1b2c3","id":"ses_a1b2c3","kind":"device","lastSeenAt":1760000000000,"location":"example","principal":{"id":"usr_a1b2c3","kind":"person"},"startedAt":1760000000000}],"total":1} as unknown) as never,
   "devices.sessions.revoke": async () => ({"ok":true} as unknown) as never,
-  "devices.touch": async () => ({"ok":true} as unknown) as never,
+  "devices.touch": async () => ({"back":true,"lastSeenAt":1760000000000,"ok":true} as unknown) as never,
 };

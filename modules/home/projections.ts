@@ -64,13 +64,13 @@ export const mayActFor = (ctx: HomeCtx, person: string): boolean => isService(ct
 
 // ---- the digest ----
 
-export type ItemKind = "decision" | "finished" | "record_change" | "routine" | "waiting";
+export type ItemKind = "decision" | "finished" | "record_change" | "routine" | "notice" | "waiting";
 export interface ResourceRef { type: string; id: string }
 export interface DigestItem { kind: ItemKind; title: string; line: string; subject?: ResourceRef; at?: number; undo?: { cap: string; input: unknown } }
 export interface Digest { id: string; person: string; periodStart: number; periodEnd: number; headline: string[]; items: DigestItem[]; seenAt?: number; builtBy: string }
 
 /** Where each kind sits in the digest, in the order of spec 3.1: decisions first (each with Undo), then finished work, record changes, routine results, then what waits. */
-export const KIND_RANK: Record<ItemKind, number> = { decision: 0, finished: 1, record_change: 2, routine: 3, waiting: 4 };
+export const KIND_RANK: Record<ItemKind, number> = { decision: 0, finished: 1, record_change: 2, routine: 3, notice: 4, waiting: 5 };
 export const MAX_ITEMS = 7;
 export const MAX_HEADLINE = 3;
 
