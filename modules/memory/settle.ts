@@ -5,7 +5,7 @@
 // A person whose key is not held is skipped, and anything kept in memory for them is dropped. Nothing here needs a key to be held to keep the Space working: it only moves rows forward.
 import { normal } from "./factcore.ts";
 import { trashFact } from "./handlers/lifecycle.ts";
-import { indexOf, openFactText, peopleWithMemory, resealPerson, sweepHeld } from "./personal.ts";
+import { currentPersonFacts, indexOf, openFactText, peopleWithMemory, resealPerson, sweepHeld } from "./personal.ts";
 import { ensure, factTitle, orNull, readFact, rowsOf, str, tokOf } from "./projections.ts";
 import type { MemCtx } from "./projections.ts";
 import { UPKEEP } from "./trail.ts";
@@ -53,10 +53,11 @@ function fold(ctx: MemCtx, owner: string, ids: string[]): number {
   return n;
 }
 
-/** Open the person's live facts into their in-memory index. */
+/** Open the person's live facts into their in-memory index, with the list of their current rows, so their first turn after signing in reads no row of theirs. */
 function warm(ctx: MemCtx, owner: string): number {
   const ix = indexOf(ctx, owner);
   if (!ix) return 0;
+  currentPersonFacts(ctx, owner);
   let n = 0;
   for (const r of rowsOf(ctx.db, "SELECT id, kind, sealed FROM memory_facts WHERE layer = 'person' AND owner_ref = ? AND status = 'current' AND enc = 2 AND sealed IS NOT NULL", owner)) {
     const id = str(r["id"]);
