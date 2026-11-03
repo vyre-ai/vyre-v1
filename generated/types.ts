@@ -20113,6 +20113,17 @@ export type MountsEditorsOut = {
       at?: number;
     }>;
 };
+export type MountsEngineFoldersIn = {
+  person: string;
+};
+export type MountsEngineFoldersOut = {
+  folders: Array<{
+      mountId: string;
+      folderId: string;
+      deviceId?: string;
+      path: string;
+    }>;
+};
 export type MountsFileLinkIn = {
   fileId: string;
 };
@@ -35127,6 +35138,7 @@ export interface CapMap {
   "mounts.doc_insert_text": { in: MountsDocInsertTextIn; out: MountsDocInsertTextOut };
   "mounts.doc_replace_text": { in: MountsDocReplaceTextIn; out: MountsDocReplaceTextOut };
   "mounts.editors": { in: MountsEditorsIn; out: MountsEditorsOut };
+  "mounts.engine_folders": { in: MountsEngineFoldersIn; out: MountsEngineFoldersOut };
   "mounts.file_link": { in: MountsFileLinkIn; out: MountsFileLinkOut };
   "mounts.get": { in: MountsGetIn; out: MountsGetOut };
   "mounts.history": { in: MountsHistoryIn; out: MountsHistoryOut };
