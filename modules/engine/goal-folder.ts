@@ -15,7 +15,7 @@
 // hold an agent's delete, the turn does not wait: the held delete is the chat's normal approval card (Approve moves it to Trash, Keep leaves it, and the next turn finds the file back in goal/ and GOAL-SYNC.txt says so).
 // Where they allow it, the file goes straight to Trash and the chat's turn line says so with Undo (files.restore). A file that is a Google document's export (or has hidden parts) that was edited on disk is saved beside it as a copy, in the format it came down in, and the turn line says so.
 // What cannot be saved back (over 25 MB) is said in GOAL-SYNC.txt in the work folder, which the skill tells the agent to read.
-import { createHash } from "node:crypto";
+import { sha256b64 } from "../../kernel/src/seal/wire.ts";
 import fs from "node:fs";
 import path from "node:path";
 import type { EngineSession, OpenSession, SessionSpec, TurnInput } from "../../agent/src/turn-engine/types.ts";
@@ -54,7 +54,7 @@ interface Entry { fileId: string; version: number; sha: string; ro: boolean; /**
 export interface SyncResult { notes: string[]; trashed: Array<{ fileId: string; name: string }>; held: Array<{ fileId: string; name: string; taskId: string }>; copies: string[] }
 interface Manifest { v: 1; goalId: string; folderId: string; files: Record<string, Entry>; folders: Record<string, string>; /** deletes the Gate is holding: file id to task id */ held?: Record<string, string> }
 
-const sha = (b: Uint8Array): string => createHash("sha256").update(b).digest("hex");
+const sha = (b: Uint8Array): string => sha256b64(b);
 const codeOf = (e: unknown): string => (isObj(e) && isObj(e.error) ? str(e.error.code) : isObj(e) ? str(e.code) : "");
 const msgOf = (e: unknown): string => (e instanceof Error ? e.message : String(e));
 

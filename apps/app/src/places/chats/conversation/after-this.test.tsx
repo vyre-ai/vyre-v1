@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
 import React from "react";
 import { Conversation } from "./Conversation.tsx";
-import { waiting } from "../../../../../../scripts/shots/mounts/AFTERTHIS_01.tsx";
+import { waiting } from "./waiting-sample.ts";
 
 test("the queue line draws on the page: After this for someone else's turn, Goes in at the next step for your own", async () => {
   for (const own of [false, true]) {
