@@ -8,7 +8,7 @@ import { DiffTab } from "../../../../../../ui/src/DiffTab/index.tsx";
 import type { Density } from "../../../../../../ui/src/DiffTab/index.tsx";
 import { acceptSuggestion, dismissSuggestion } from "./actions.ts";
 import { useCap, useReviewData } from "./data.tsx";
-import { suggestionHunks, suggestsLine } from "./model.ts";
+import { applySuggestionStrict, diffNote, draftDiff, suggestionHunks, suggestsLine } from "./model.ts";
 import { Btn, Note } from "./parts.tsx";
 
 export interface SuggestionCardProps {
@@ -16,17 +16,26 @@ export interface SuggestionCardProps {
   /** "AGENT.md". */
   file: string;
   density?: Density;
+  /**
+   * The file as it is now. With it, the card shows the diff of that text against the text the suggestion makes of it, computed here as a line diff of the two real texts; the suggestion's own diff is only how the change is stored.
+   * A suggestion that does not fit this text says so and cannot be applied. Without it the card draws the stored diff.
+   */
+  text?: string;
   /** The suggestion was applied: the diff that went into the file, so the editor can show the new text. */
   onApplied?(diff: string): void;
 }
 
-export function SuggestionCard({ agentId, file, density = "regular", onApplied }: SuggestionCardProps): ReactElement | null {
+export function SuggestionCard({ agentId, file, density = "regular", text, onApplied }: SuggestionCardProps): ReactElement | null {
   const data = useReviewData();
   const q = useCap("agents.suggestions.list", { agentId, kind: "agent_md", state: ["open"] });
   const [busy, setBusy] = useState(false);
   const [line, setLine] = useState<{ text: string; kind: "ok" | "error" } | null>(null);
   const open = q.status === "ready" ? q.data.suggestions.find((s) => s.file === file && s.state === "open") : undefined;
-  const hunks = useMemo(() => (open ? suggestionHunks(open.diff) : []), [open]);
+  // the text the suggestion makes of the file, and the diff of the two texts: what the card shows is what Apply writes
+  const after = useMemo(() => (open && text !== undefined ? applySuggestionStrict(text, open.diff) : null), [open, text]);
+  const fits = text === undefined || after !== null;
+  const real = useMemo(() => (text !== undefined && after !== null ? draftDiff(file, text, after) : null), [text, after, file]);
+  const hunks = useMemo(() => (real ? real.hunks : open && text === undefined ? suggestionHunks(open.diff) : []), [real, open, text]);
   if (!open) return line ? <Note text={line.text} kind={line.kind} testID="suggestion-note" /> : null;
 
   const go = (what: "apply" | "dismiss"): void => {
@@ -51,11 +60,14 @@ export function SuggestionCard({ agentId, file, density = "regular", onApplied }
         </View>
       </View>
       {open.widening ? <Text style={st.warn} testID="suggestion-widening">This loosens a rule. An admin sees it in the overrides.</Text> : null}
-      <DiffTab title={file} layout="unified" wordMarks files={[{ path: file, added: hunks.reduce((n, h) => n + (h.added ? h.added.split("\n").length : 0), 0), removed: hunks.reduce((n, h) => n + (h.removed ? h.removed.split("\n").length : 0), 0), body: "text", hunks }]} comments={[]} selectedPath={file} density={density} bare testID="suggestion-diff" />
+      {text !== undefined && after !== null && text === after ? <Text style={st.same} testID="suggestion-nochange">No changes. The file already says this.</Text> : null}
+      {!fits ? <Text style={st.warn} testID="suggestion-stale">This suggestion no longer fits the file as it is now. Dismiss it, and Intake can suggest again.</Text> : null}
+      {text !== undefined && after !== null && diffNote(text, after) ? <Text style={st.same} testID="suggestion-note-eol">{diffNote(text, after)}</Text> : null}
+      {fits ? <DiffTab title={file} layout="unified" wordMarks files={[real ?? { path: file, added: hunks.reduce((n, h) => n + (h.added ? h.added.split("\n").length : 0), 0), removed: hunks.reduce((n, h) => n + (h.removed ? h.removed.split("\n").length : 0), 0), body: "text", hunks }]} comments={[]} selectedPath={file} density={density} bare testID="suggestion-diff" /> : null}
       <View style={st.foot}>
         <Text style={st.footText} testID="suggestion-foot" {...{ title: "The old version stays in History." }}>Nothing changes until you apply it.</Text>
         <Btn label="Dismiss" small disabled={busy} onPress={() => go("dismiss")} testID="suggestion-dismiss" />
-        <Btn label={`Apply to ${file}`} small primary disabled={busy} onPress={() => go("apply")} testID="suggestion-apply" />
+        <Btn label={`Apply to ${file}`} small primary disabled={busy || !fits} onPress={() => go("apply")} testID="suggestion-apply" />
       </View>
       {line ? <Note text={line.text} kind={line.kind} testID="suggestion-note" /> : null}
     </View>
@@ -68,6 +80,7 @@ const st = StyleSheet.create({
   headText: { flex: 1, minWidth: 0 },
   title: { fontSize: 13.5, fontWeight: "600", color: "var(--ink)" as string },
   reason: { fontSize: 12.5, lineHeight: 18, color: "var(--ink-3)" as string },
+  same: { fontSize: 12.5, color: "var(--ink-3)" as string, paddingHorizontal: 14, paddingBottom: 6 },
   warn: { fontSize: 12.5, color: "var(--warn)" as string, paddingHorizontal: 14, paddingBottom: 6 },
   foot: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 8, paddingHorizontal: 14, paddingVertical: 10, borderTopWidth: 1, borderTopColor: "var(--line)" },
   footText: { flexGrow: 1, flexShrink: 1, flexBasis: 200, fontSize: 12, color: "var(--ink-3)" as string },

@@ -173,7 +173,7 @@ export function AgentFilePage({ path, agentId, edit = false, startHistory = fals
           onReviewPane={onReviewPane}
           onHeader={setHd}
           apiRef={api}
-          above={<SuggestionCard agentId={agentId} file={file.name} onApplied={setApplied} {...(file.density ? { density: file.density } : {})} />}
+          above={<SuggestionCard agentId={agentId} file={file.name} text={text} onApplied={setApplied} {...(file.density ? { density: file.density } : {})} />}
         />
       )}
     </View>

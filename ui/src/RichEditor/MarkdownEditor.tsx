@@ -450,7 +450,7 @@ export function MarkdownEditor(props: MarkdownEditorProps): ReactElement {
           <Pressable accessibilityRole="button" accessibilityLabel="Cancel" testID="md-link-cancel" onPress={() => { setLinkAt(null); editor?.commands.focus(); }} style={st.linkBtn}><Text style={st.linkBtnText}>Cancel</Text></Pressable>
         </View>
       ) : (
-        <ScrollView horizontal={phone} scrollEnabled={phone} showsHorizontalScrollIndicator={false} contentContainerStyle={st.barRow} style={st.barScroll}>
+        <ScrollView horizontal={phone} scrollEnabled={phone} showsHorizontalScrollIndicator={false} contentContainerStyle={[st.barRow, compact && st.barRowCompact]} style={st.barScroll}>
           <Pressable accessibilityRole="button" accessibilityLabel="Text style" testID="md-tool-style" onPress={openStyle} {...webProps({ title: "Text style" })} style={({ hovered }: Hover) => [st.styleBtn, hovered === true && st.toolHover]}>
             <Text style={st.styleText}>{styleLabel}</Text>
             <MenuIcon icon={FORMAT_ICONS["chevron"] ?? ""} size={14} color="var(--ink-3)" />
@@ -523,10 +523,11 @@ export function ViewSwitch({ view, onView }: { view: MarkdownView; onView: (v: M
 
 const st = StyleSheet.create({
   root: { flex: 1, minWidth: 0, backgroundColor: "var(--win)" as string },
-  bar: { minHeight: 38, justifyContent: "center", paddingHorizontal: 12, borderBottomWidth: 1, borderBottomColor: "var(--line)" as string, backgroundColor: "var(--win)" as string },
+  bar: { minHeight: 38, justifyContent: "center", alignItems: "center", paddingHorizontal: 12, borderBottomWidth: 1, borderBottomColor: "var(--line)" as string, backgroundColor: "var(--win)" as string },
   barPhone: { borderBottomWidth: 0, borderTopWidth: 1, borderTopColor: "var(--line)" as string },
-  barScroll: { flexGrow: 1 },
-  barRow: { flexDirection: "row", alignItems: "center", gap: 2, flexGrow: 1 },
+  barScroll: { flexGrow: 1, width: "100%", maxWidth: 760 },
+  barRowCompact: { paddingHorizontal: 10 },
+  barRow: { flexDirection: "row", alignItems: "center", gap: 2, flexGrow: 1, paddingHorizontal: 26 },
   item: { flexDirection: "row", alignItems: "center" },
   grow: { flex: 1 },
   sep: { width: 1, height: 16, backgroundColor: "var(--line)" as string, marginHorizontal: 6 },
@@ -541,7 +542,7 @@ const st = StyleSheet.create({
   segOn: { backgroundColor: "var(--raised)" as string },
   segText: { color: "var(--ink-3)" as string, fontSize: 12.5, fontWeight: "500" },
   segTextOn: { color: "var(--ink)" as string },
-  linkRow: { flexDirection: "row", alignItems: "center", gap: 6, paddingVertical: 4 },
+  linkRow: { flexDirection: "row", alignItems: "center", gap: 6, paddingVertical: 4, width: "100%", maxWidth: 760, paddingHorizontal: 26 },
   linkInput: { flex: 1, height: 28, paddingHorizontal: 8, borderRadius: 6, backgroundColor: "var(--sunk)" as string, color: "var(--ink)" as string, fontSize: 13 },
   linkBtn: { height: 28, paddingHorizontal: 10, borderRadius: 6, justifyContent: "center" },
   linkBtnText: { color: "var(--accent)" as string, fontSize: 12.5 },

@@ -16,7 +16,7 @@ import { Prose } from "../runbook/Prose.tsx";
 import { LintBar } from "./LintBar.tsx";
 import { openByName, useFileLinks } from "../links.ts";
 import type { EditView } from "./LintBar.tsx";
-import { draftDiff, saveBlocked } from "./model.ts";
+import { diffNote, draftDiff, saveBlocked } from "./model.ts";
 import { Btn, Note, TextField } from "./parts.tsx";
 import { TomlForm } from "./TomlForm.tsx";
 
@@ -120,6 +120,7 @@ export function AgentFileEditor({ fileId, name, saved, version, density = "regul
   checks.current = { red, amber };
   const changed = draft !== base.text && (reviewRequired || review);
   const diff = useMemo(() => draftDiff(name, base.text, draft), [name, base.text, draft]);
+  const note = useMemo(() => diffNote(base.text, draft), [base.text, draft]);
 
   const edit = useCallback((t: string): void => {
     fa.edit(t);
@@ -149,7 +150,8 @@ export function AgentFileEditor({ fileId, name, saved, version, density = "regul
   useEffect(() => {
     onReviewPane?.(reviewing ? (
       <View style={st.pane} testID="agent-file-diff">
-        <DiffTab title={name} layout="unified" wordMarks files={[diff]} comments={[]} selectedPath={name} density="compact" bare />
+        {diff.hunks.length === 0 ? <Text style={st.same} testID="agent-file-nochange">No changes</Text> : <DiffTab title={name} layout="unified" wordMarks files={[diff]} comments={[]} selectedPath={name} density="compact" bare />}
+        {note ? <Text style={st.same} testID="agent-file-diff-note">{note}</Text> : null}
         <View style={st.reason}>
           <TextField value={reason} onChange={setReason} label="Why this change" placeholder="Why? (optional)" onSubmit={() => saveNow.current()} onEscape={() => setReview(false)} testID="agent-file-reason" />
           <View style={st.reasonRow}>
@@ -159,7 +161,7 @@ export function AgentFileEditor({ fileId, name, saved, version, density = "regul
         </View>
       </View>
     ) : null);
-  }, [onReviewPane, reviewing, diff, name, reason, saving, red]);
+  }, [onReviewPane, reviewing, diff, note, name, reason, saving, red]);
   // The page keeps no diff of a file that is gone.
   useEffect(() => () => onReviewPane?.(null), [onReviewPane]);
 
@@ -194,7 +196,8 @@ export function AgentFileEditor({ fileId, name, saved, version, density = "regul
       )}
       {reviewing && !onReviewPane ? (
         <View style={st.diff} testID="agent-file-diff">
-          <DiffTab title={name} layout="unified" wordMarks files={[diff]} comments={[]} selectedPath={name} density={density} bare />
+          {diff.hunks.length === 0 ? <Text style={st.same} testID="agent-file-nochange">No changes</Text> : <DiffTab title={name} layout="unified" wordMarks files={[diff]} comments={[]} selectedPath={name} density={density} bare />}
+          {note ? <Text style={st.same} testID="agent-file-diff-note">{note}</Text> : null}
           <View style={st.reason}>
             <TextField value={reason} onChange={setReason} label="Why this change" placeholder="Why? (optional)" onSubmit={saveReviewed} onEscape={() => setReview(false)} testID="agent-file-reason" />
             <View style={st.reasonRow}>
@@ -219,6 +222,7 @@ const st = StyleSheet.create({
   reason: { paddingTop: 8, gap: 8 },
   reasonRow: { flexDirection: "row", justifyContent: "flex-end", gap: 8 },
   pane: { paddingHorizontal: 12, paddingBottom: 8 },
+  same: { fontSize: 12.5, color: "var(--ink-3)" as string, paddingVertical: 6 },
   status: { fontSize: 12, color: "var(--ink-3)" as string, paddingHorizontal: 16, paddingVertical: 8 },
   mono: { fontFamily: "var(--mono)", fontSize: 12.5, color: "var(--ink)" as string },
 });
