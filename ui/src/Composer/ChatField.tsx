@@ -75,7 +75,7 @@ export function ChatField(p: ChatFieldProps): ReactElement {
         extensions: chatExtensions(),
         content: chatDoc(cb.current.value, cb.current.ranges) as never,
         editorProps: {
-          attributes: { class: "vyre-chat", role: "textbox", "aria-multiline": "true", "aria-label": cb.current.label, "data-placeholder": cb.current.placeholder, "data-testid": cb.current.testID, spellcheck: "true" },
+          attributes: { class: "vyre-chat", role: "textbox", "aria-multiline": "true", "aria-label": cb.current.label, "data-placeholder": cb.current.placeholder, "data-testid": cb.current.testID, spellcheck: "true", style: `max-height:${cb.current.maxHeight}px` },
           handleKeyDown: (_v: unknown, event: unknown) => {
             const k = event as { key: string; shiftKey: boolean; metaKey: boolean; ctrlKey: boolean; altKey: boolean; isComposing: boolean; defaultPrevented: boolean; preventDefault(): void };
             if (k.isComposing) return false;

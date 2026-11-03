@@ -41,7 +41,7 @@ async function session(fieldKind) {
   await field(page).click();
   await page.keyboard.type("Hi @Aliza and @Rubab, notes please");
   await page.keyboard.press("Shift+Enter");
-  await page.keyboard.type("second line for @Sol");
+  await page.keyboard.type("second line for @Sol thanks");
   await page.keyboard.press("Enter");
   await page.waitForTimeout(400);
   const sent = await sentOf(page);
