@@ -20,7 +20,7 @@ const holdRow = t.obj({
 });
 const holdId = t.id('hld');
 const stepRef = t.obj({ automationId: id.automation, nodeId: t.str(), defHash: t.str(), ask: t.opt(t.bool()) });
-const allowRow = t.obj({ id: t.str(), kind: t.enm('standing', 'always'), act: actKey, target: t.str(), agentId: t.opt(id.agent), threadId: t.opt(id.thread), automationId: t.opt(id.automation), stepId: t.opt(t.str()), expiresAt: t.opt(t.ts()) });
+const allowRow = t.obj({ id: t.str(), kind: t.enm('standing', 'always', 'goal'), act: actKey, target: t.str(), agentId: t.opt(id.agent), threadId: t.opt(id.thread), automationId: t.opt(id.automation), stepId: t.opt(t.str()), goalId: t.opt(id.goal), expiresAt: t.opt(t.ts()) });
 const grantRow = t.obj({ id: t.str(), act: actKey, target: t.str(), stepId: t.opt(t.str()) });
 
 export default defineManifest({
@@ -68,6 +68,10 @@ export default defineManifest({
     write('gate.grants.take', 'System: does a grant cover this call? Asked by the Gate hook at act time, it spends a single-use grant; only the server may call it', {
       in: { act: actKey, targets: t.arr(t.str()), step: t.opt(stepRef), turn: t.opt(t.obj({ person: t.str(), threads: t.arr(id.thread, { minItems: 1 }) })), always: t.opt(t.obj({ person: t.str(), agentId: t.str(), threads: t.arr(id.thread), cap: t.str() })) },
       out: { granted: t.bool(), spent: t.opt(t.arr(t.str())) }, perm: null, level: 'view', idem: 'natural',
+    }),
+    write('gate.grants.goal', 'System: what a goal may do without a hold. The owner\'s press on the goal names the acts (set); the goal\'s own chats are where they hold, and only while it runs (threads, empty to end them). Only the goals module calls it', {
+      in: { goalId: id.goal, person: id.user, threads: t.arr(id.thread), until: t.ts(), set: t.opt(t.arr(t.obj({ act: actKey, target: t.str({ minLength: 1 }) }), { maxItems: 10 })) },
+      out: { acts: t.int({ minimum: 0 }), rows: t.int({ minimum: 0 }) }, perm: null, level: 'view', audit: 'always', idem: 'natural',
     }),
     write('gate.grants.give_back', 'System: hand back the turn grants a call spent when the call was refused before it went out; only the server may call it', {
       in: { ids: t.arr(t.str(), { minItems: 1 }) }, out: { returned: t.int() }, perm: null, level: 'view', idem: 'natural',

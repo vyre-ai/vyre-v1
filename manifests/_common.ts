@@ -21,7 +21,7 @@ export const id = {
   connector: t.str({ examples: ['hubspot'] }), connection: t.id('con'), mailbox: t.id('mbx'), number: t.id('num'), domain: t.id('dom'),
   contact: t.id('rec'), event: t.id('evt'), meeting: t.id('mtg'), call: t.id('cal'), computer: t.id('cmt'), terminal: t.id('trm'),
   notification: t.id('ntf'), conflict: t.id('cfl'), fact: t.id('fct'), note: t.id('not'), report: t.id('rpt'), decision: t.id('dec'),
-  space: t.id('spc'), trace: t.str({ pattern: '^[0-9a-f]{32}$', examples: ['0123456789abcdef0123456789abcdef'] }),
+  space: t.id('spc'), goal: t.id('gol'), trace: t.str({ pattern: '^[0-9a-f]{32}$', examples: ['0123456789abcdef0123456789abcdef'] }),
 };
 
 export const label = t.enm('public', 'internal', 'confidential', 'restricted');

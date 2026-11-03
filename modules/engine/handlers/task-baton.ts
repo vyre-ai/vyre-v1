@@ -101,6 +101,11 @@ async function agentMembers(host: BatonHost, who: Who): Promise<string[]> {
   } catch { return []; }
 }
 
+/** May the work of this goal wake its agents now. A goal that cannot be read does not hold work back. */
+export async function goalGoes(host: BatonHost, goalId: string): Promise<boolean> {
+  try { return ((await host.call("goals.go", { goalId })) as { go?: boolean } | null)?.go !== false; } catch { return true; }
+}
+
 /** The agents to wake for a holder. A taken group task is held by the one who took it, who is already working, so nobody else is woken. */
 export async function agentsToWake(host: BatonHost, t: BatonTask, who: Who): Promise<string[]> {
   if (who.kind === "agent") return [who.id];
@@ -128,7 +133,7 @@ async function threadOf(host: BatonHost, t: BatonTask, agentIds: string[], asker
 }
 
 /** Open the task's thread in the engine for this asker, with the agents chat knows, and the agent that is about to be woken among them. */
-async function openThread(db: Db, host: BatonHost, engine: TurnEngine, threadId: string, agentId: string, asker: string): Promise<boolean> {
+export async function openThread(db: Db, host: BatonHost, engine: TurnEngine, threadId: string, agentId: string, asker: string): Promise<boolean> {
   // the thread is the server's to read: whoever made the task (a service, for a Space automation) owns it, and the person it runs for need not be able to open it
   const read: Reader = (cap, input) => host.call(cap, input);
   let open = true;
@@ -194,6 +199,10 @@ export async function onTaskEvent(ctx: Pick<EngineCtx, "db">, host: BatonHost, e
     if (!task) return [];
   }
   if (task.kind !== "work") return [];
+  // a goal's root task is held by the goal itself: the goals module wakes its lead in the goal chat (goal-wake.ts), never the baton
+  if (task.workingNotes["goal.root"] === "1") return [];
+  // the work of a paused, drafted or ended goal waits: nothing is recorded, so goal.resumed finds the baton new
+  if (task.workingNotes["goal.id"] && !(await goalGoes(host, task.workingNotes["goal.id"]))) return [];
   // a task that waits on others starts when they are done (task.ready); nothing is recorded, so that event finds the baton new
   if (task.blocked === true && answeredChild === undefined) return [];
   // the parent of a plan is held by whoever made the plan, who is at work already: its children wake it, nothing else does

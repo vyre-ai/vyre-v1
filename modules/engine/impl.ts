@@ -17,6 +17,7 @@ import { captureConsumers, capturePeriodic } from "./handlers/capture.ts";
 import { checkGroupAccount } from "./group-account.ts";
 import { closeNoAccountTasks, engineHost, ensureRuntime, openAs, recoverStale, setEngineHost, wakeAfterUnblock } from "./runtime.ts";
 import { onTaskEvent, sweepBaton } from "./handlers/task-baton.ts";
+import { onGoalEvent } from "./handlers/goal-wake.ts";
 import { markLostJobs, ownerChanged, resumeAgent, stopAgent, stopPerson } from "./handlers/departures.ts";
 import type { EngineCtx } from "./projections.ts";
 import { installOnConnect } from "./engine-setup.ts";
@@ -120,6 +121,16 @@ export const consumers = {
       const host = engineHost();
       if (!engine || !host) return [];
       return onTaskEvent(ctx, { call: host.call, now: () => ctx.now(), ...(host.log ? { log: host.log } : {}) }, engine, event);
+    },
+  },
+  /** A goal's lead is due a turn in the goal chat, or a paused goal goes on (handlers/goal-wake.ts). */
+  "engine.goal_wake": {
+    on: ["goal.woken", "goal.resumed"],
+    run: async (ctx: EngineCtx, event: Parameters<typeof onGoalEvent>[3]): Promise<string[]> => {
+      const engine = await ensureRuntime(ctx);
+      const host = engineHost();
+      if (!engine || !host) return [];
+      return onGoalEvent(ctx, { call: host.call, now: () => ctx.now(), ...(host.log ? { log: host.log } : {}) }, engine, event);
     },
   },
   /** A key an agent asked for in a chat was added or declined: the agent is told in that chat, as the person it asked for, and carries on. */
