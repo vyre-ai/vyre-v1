@@ -173,7 +173,7 @@ function lastError(lines: readonly string[]): string | null {
 async function filled(ctx: Ctx, handle: string, ref: string): Promise<string> {
   const h = routesHost();
   if (!h?.take) fail(ctx, "validation.precondition_failed", "This server cannot fill values from the Vault into a site.");
-  try { await ctx.vault.fill(handle, { kind: "site_env", ref }); } catch (e) {
+  try { await ctx.vault.fill(handle, { kind: "container_env", ref }); } catch (e) {
     fail(ctx, "permission.no_grant", `You cannot use the Vault key ${handle}, or it is empty. Ask for access or pick another.`, { handle, error: e instanceof Error ? e.message.slice(0, 120) : "" });
   }
   const v = h.take(ref);

@@ -36,7 +36,8 @@ export function siteRow(s: SiteRow, o: { now?: number; nameOf?: (id: string) => 
   if (!s.deployed) return { group: "sites", id: s.siteId, title: s.name, note: s.blocked ? "Taken down" : s.live ? s.url ?? "Live" : "Not published", state: s.state };
   const last = s.lastDeploy;
   const who = last?.by ? (last.by === o.me ? "you" : o.nameOf?.(last.by) ?? "a teammate") : null;
-  const when = last ? `${last.state === "failed" ? "failed" : "deployed"} ${ago(last.finishedAt ?? last.at, o.now ?? Date.now())}${who ? ` by ${who}` : ""}` : "not deployed yet";
+  const failed = last?.state === "failed";
+  const when = last ? `${failed ? (s.live ? "last deploy failed" : "") : last.state === "ready" ? "deployed" : "started"} ${ago(last.finishedAt ?? last.at, o.now ?? Date.now())}${who ? ` by ${who}` : ""}`.trim() : "not deployed yet";
   const state = s.blocked ? "Taken down" : STATE_WORD[s.state] ?? s.state;
   const where = s.live && s.url ? s.url.replace(/^https:\/\//, "") : null;
   return { group: "sites", id: s.siteId, title: s.name, note: [state, where, when].filter(Boolean).join(" · "), state: s.state };

@@ -39,7 +39,7 @@ test("a real daemon deploys the Express app from a folder with Space-only access
   core.close();
   process.env["VYRE_SITES_DOMAIN"] = DOMAIN;
   const d = await startDaemon({
-    config: loadConfig(["--data-dir", dir, "--port", "0"], { VYRE_CADDY_ADMIN: `http://127.0.0.1:${ADMIN}` }, "1.2.3"), codeRoot: CODE_ROOT,
+    config: loadConfig(["--data-dir", dir, "--port", "0", "--address", `https://space-${process.pid}.${DOMAIN}`], { VYRE_CADDY_ADMIN: `http://127.0.0.1:${ADMIN}` }, "1.2.3"), codeRoot: CODE_ROOT,
     platform: fakePlatform({ os: "linux", hostname: "sites-e2e", free: 80e9, commands: { [`findmnt -n -o SOURCE --target ${dir}`]: { stdout: "/dev/mapper/vyre\n" }, "lsblk -s -n -o TYPE /dev/mapper/vyre": { stdout: "crypt\ndisk\n" }, "docker info --format {{.ServerVersion}}": { stdout: "29.1.3\n" } } }),
     session: (h) => { const tok = /^Bearer (.+)$/.exec(String(h["authorization"] ?? ""))?.[1]; return tok === OWNER ? { space: "spc_core", principal: { kind: "person", id: "usr_olivia" }, device: "mac" } : tok === MEMBER ? { space: "spc_core", principal: { kind: "person", id: "usr_noah" }, device: "mac" } : null; },
     sitesDockerSocket: "/var/run/docker.sock",
@@ -73,7 +73,7 @@ test("a real daemon deploys the Express app from a folder with Space-only access
 
   // a shared Vault key for GREETING
   const folders = (await call("vault.folders.list", { scope: "shared" })).folders as Array<{ folderId?: string; id?: string }>;
-  const folderId = folders[0]?.folderId ?? folders[0]?.id ?? (await call("vault.folders.create", { name: "Sites", scope: "shared" })).folder.folderId;
+  const folderId = folders[0]?.folderId ?? folders[0]?.id ?? (await call("vault.folders.create", { name: "Sites", scope: "shared" })).folder.id;
   const item = (await call("vault.item.put", { folderId, name: "CX_Greeting", kind: "env", fields: [{ key: "value", value: "hello-over-https", secret: true }], injectIntoDeployments: true })).item;
 
   const fixture = path.join(CODE_ROOT, "fixtures", "sites", "express");

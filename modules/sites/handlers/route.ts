@@ -50,7 +50,7 @@ export interface SitesHost {
   /** The Docker engine socket of this server, which builds and runs deployed sites (handlers/runner.ts); absent where there is none. Tests pass a runner instead. */
   dockerSocket?: string;
   runner?: Runner;
-  /** a value the Vault filled for a deploy (kind site_env), taken once */
+  /** a value the Vault filled for a deploy (kind container_env), taken once */
   take?(ref: string): string | undefined;
   /** true when this daemon runs in a container: a path on its disk is not an agent's */
   contained?: boolean;

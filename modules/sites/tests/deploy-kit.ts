@@ -40,7 +40,7 @@ export function deployWorld(o: { vault?: Record<string, string>; members?: strin
       async fill(handle: string, into: { kind: string; ref: string }) {
         const v = vault.get(handle);
         if (v === undefined) throw new Error(`no grant on ${handle}`);
-        if (into.kind === "site_env") secrets.set(into.ref, v);
+        if (into.kind === "container_env") secrets.set(into.ref, v);
       },
       use: (handle: string) => ({ handle }),
     },
