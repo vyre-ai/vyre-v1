@@ -4,7 +4,7 @@ Lane L4. Kind module. Version 0.1.0.
 
 Requires: mounts.
 
-## Capabilities (77)
+## Capabilities (78)
 
 - [changesets.approve](../capabilities/changesets.approve.md): Approve and commit a changeset: 3-way merge on the recorded base, conflicts go to the reviewer; optionally push
 - [changesets.comments.add](../capabilities/changesets.comments.add.md): Add an inline comment to a changeset with @ people and agents (an @ agent answers in the thread)
@@ -19,6 +19,7 @@ Requires: mounts.
 - [changesets.review_externally](../capabilities/changesets.review_externally.md): Open a changeset to an outside agent (Claude Code, Codex) with a read and comment token; returns a one-time review link (the token is in the link, shown once, never logged)
 - [files.agent_access.get](../capabilities/files.agent_access.get.md): What agents may read in a folder or of a file: Available, Redacted or Not available, where it comes from, and what is set differently inside
 - [files.agent_access.set](../capabilities/files.agent_access.set.md): Set Agent access on a folder or a file (on Available, redact Redacted, off Not available); null follows the folder above
+- [files.agent_states](../capabilities/files.agent_states.md): Redaction for AI in a folder: each file's badge (Reviewed, Needs review, Not available to AI), each subfolder's setting and how many below it wait, and the files to review next
 - [files.agent_view](../capabilities/files.agent_view.md): What an agent gets of a file now (Preview as agent): its text with [REDACTED], its name and path as agents read them, or why it gets nothing
 - [files.comments.add](../capabilities/files.comments.add.md): Comment on a file, a range, a cell, a page or an area (area comments are numbered pins); @ people and agents
 - [files.comments.delete](../capabilities/files.comments.delete.md): Delete a comment

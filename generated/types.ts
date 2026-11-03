@@ -11568,6 +11568,44 @@ export type FilesAgentAccessSetOut = {
     }>;
   files?: number;
 };
+export type FilesAgentStatesIn = {
+  folderId: string;
+};
+export type FilesAgentStatesOut = {
+  access: {
+    value: "on" | "redact" | "off";
+    own: boolean;
+    inherited: "on" | "redact" | "off";
+    from?: {
+      kind: "file" | "folder";
+      id: string;
+      name: string;
+    };
+    setBy?: string;
+    setAt?: number;
+    overrides?: Array<{
+        kind: "file" | "folder";
+        id: string;
+        name: string;
+        value: "on" | "redact" | "off";
+      }>;
+    files?: number;
+  };
+  needs: number;
+  queue: Array<string>;
+  files: Array<{
+      fileId: string;
+      state: "clear" | "hidden" | "reviewed" | "needs_review" | "off";
+      own: boolean;
+      waiting?: Array<string>;
+    }>;
+  folders: Array<{
+      folderId: string;
+      value: "on" | "redact" | "off";
+      own: boolean;
+      needs: number;
+    }>;
+};
 export type FilesAgentViewIn = {
   fileId: string;
   versionId?: string;
@@ -40308,6 +40346,7 @@ export interface CapMap {
   "events.types": { in: EventsTypesIn; out: EventsTypesOut };
   "files.agent_access.get": { in: FilesAgentAccessGetIn; out: FilesAgentAccessGetOut };
   "files.agent_access.set": { in: FilesAgentAccessSetIn; out: FilesAgentAccessSetOut };
+  "files.agent_states": { in: FilesAgentStatesIn; out: FilesAgentStatesOut };
   "files.agent_view": { in: FilesAgentViewIn; out: FilesAgentViewOut };
   "files.comments.add": { in: FilesCommentsAddIn; out: FilesCommentsAddOut };
   "files.comments.delete": { in: FilesCommentsDeleteIn; out: FilesCommentsDeleteOut };

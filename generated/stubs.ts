@@ -878,6 +878,7 @@ export function stubs(ctx: CallCtx) {
         get: call("files.agent_access.get"),
         set: call("files.agent_access.set"),
       },
+      agent_states: call("files.agent_states"),
       agent_view: call("files.agent_view"),
       comments: {
         add: call("files.comments.add"),

@@ -18,6 +18,7 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "changesets.review_externally": Handler<"changesets.review_externally", X>;
   "files.agent_access.get": Handler<"files.agent_access.get", X>;
   "files.agent_access.set": Handler<"files.agent_access.set", X>;
+  "files.agent_states": Handler<"files.agent_states", X>;
   "files.agent_view": Handler<"files.agent_view", X>;
   "files.comments.add": Handler<"files.comments.add", X>;
   "files.comments.delete": Handler<"files.comments.delete", X>;

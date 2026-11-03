@@ -18,6 +18,7 @@ export const handlers: Handlers<HandlerCtx> = {
   "changesets.review_externally": async (ctx) => { throw new VyreErr(notImplemented("changesets.review_externally", ctx.trace)); },
   "files.agent_access.get": async (ctx) => { throw new VyreErr(notImplemented("files.agent_access.get", ctx.trace)); },
   "files.agent_access.set": async (ctx) => { throw new VyreErr(notImplemented("files.agent_access.set", ctx.trace)); },
+  "files.agent_states": async (ctx) => { throw new VyreErr(notImplemented("files.agent_states", ctx.trace)); },
   "files.agent_view": async (ctx) => { throw new VyreErr(notImplemented("files.agent_view", ctx.trace)); },
   "files.comments.add": async (ctx) => { throw new VyreErr(notImplemented("files.comments.add", ctx.trace)); },
   "files.comments.delete": async (ctx) => { throw new VyreErr(notImplemented("files.comments.delete", ctx.trace)); },

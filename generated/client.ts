@@ -878,6 +878,7 @@ export function createClient(transport: Transport) {
         get: call("files.agent_access.get", 1),
         set: call("files.agent_access.set", 1),
       },
+      agent_states: call("files.agent_states", 1),
       agent_view: call("files.agent_view", 1),
       comments: {
         add: call("files.comments.add", 1),

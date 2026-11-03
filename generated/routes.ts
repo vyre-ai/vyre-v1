@@ -11377,6 +11377,25 @@ const routes2: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/files/agent_states",
+    "cap": "files.agent_states",
+    "v": 1,
+    "module": "files",
+    "effects": "read",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "folder",
+      "id": "/folderId"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/files/agent_view",
     "cap": "files.agent_view",
     "v": 1,
@@ -16611,7 +16630,10 @@ const routes2: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes3: Route[] = [
   {
     "method": "POST",
     "path": "/v1/health/status",
@@ -16629,10 +16651,7 @@ const routes2: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  }
-];
-
-const routes3: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/health/support_bundle",
@@ -22082,7 +22101,10 @@ const routes3: Route[] = [
     "offline": "queue",
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes4: Route[] = [
   {
     "method": "POST",
     "path": "/v1/memory/upkeep/status",
@@ -22100,10 +22122,7 @@ const routes3: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  }
-];
-
-const routes4: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/memory/used",
@@ -27613,7 +27632,10 @@ const routes4: Route[] = [
     "offline": "queue",
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes5: Route[] = [
   {
     "method": "POST",
     "path": "/v1/resend/domains/create",
@@ -27631,10 +27653,7 @@ const routes4: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": "none"
-  }
-];
-
-const routes5: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/resend/domains/delete",
@@ -33128,7 +33147,10 @@ const routes5: Route[] = [
     "offline": "online",
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes6: Route[] = [
   {
     "method": "POST",
     "path": "/v1/tasks/snooze",
@@ -33147,10 +33169,7 @@ const routes5: Route[] = [
     "offline": "queue",
     "teamOnly": false,
     "gate": null
-  }
-];
-
-const routes6: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/tasks/submit",
