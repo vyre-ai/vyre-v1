@@ -96,7 +96,7 @@ test("the extension may call only the listed capabilities and bridge operations"
   }
   assert.throws(() => request("r", "bridge", "shell.exec"), BridgeFailure);
   assert.ok(!("vault.item.reveal" in CAPABILITIES), "an extension can never ask to see a value");
-  assert.ok(Object.keys(CAPABILITIES).every((c) => /^(vault|notes|skills|engine|browser)\./.test(c)), "the Vault, Notes clips, skills from a recording, the model list, and Browser connections and watches");
+  assert.ok(Object.keys(CAPABILITIES).every((c) => /^(vault|notes|skills|engine|browser|automations)\./.test(c)), "the Vault, Notes clips, skills from a recording, the model list, and Browser connections and watches");
   assert.ok(Object.keys(BRIDGE_OPS).length >= 6);
 });
 
@@ -104,8 +104,7 @@ test("the extension may call only the listed capabilities and bridge operations"
 const PENDING: Record<string, string> = {
   "skills.mine.add": "l-skills2 (manifests/_agents-skills.ts)", "skills.share": "l-skills2 (manifests/_agents-skills.ts)",
   "engine.models.list": "l-livemodels (manifests/engine.ts)",
-  "browser.watches.list": "l-chrome (watches)", "browser.watches.save": "l-chrome (watches)",
-  "browser.watches.remove": "l-chrome (watches)", "browser.watches.report": "l-chrome (watches)",
+  "browser.sites.list": "l-chrome (Browser connections)",
 };
 
 test("every capability the extension names exists in the frozen contract, or is named as pending from its lane", () => {
@@ -422,7 +421,7 @@ test("keys: arrows wrap, Enter fills, Cmd-Enter signs in, slash asks, Escape clo
 test("the manifest asks for the smallest set of powers and one content script group", () => {
   const m = JSON.parse(read("manifest.json"));
   assert.equal(m.manifest_version, 3);
-  assert.deepEqual([...m.permissions].sort(), ["activeTab", "contextMenus", "favicon", "nativeMessaging", "scripting", "sidePanel", "storage", "tabGroups"]);
+  assert.deepEqual([...m.permissions].sort(), ["activeTab", "alarms", "contextMenus", "favicon", "nativeMessaging", "scripting", "sidePanel", "storage", "tabGroups"]);
   assert.ok(!m.permissions.includes("debugger"), "the debugger is never held by default: Chrome asks the person when they open Chrome to an agent");
   assert.deepEqual(m.optional_permissions, ["debugger"], "agent control over chrome.debugger is an optional permission, and the only one");
   assert.match(read("src/worker/index.js"), /^import "\.\.\/agent\/index\.js";$/m, "the worker loads the agent tools");

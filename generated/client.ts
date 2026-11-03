@@ -268,6 +268,13 @@ export function createClient(transport: Transport) {
       validate: call("automations.validate", 1),
       vault_usage: call("automations.vault_usage", 1),
       versions: call("automations.versions", 1),
+      watches: {
+        check: call("automations.watches.check", 1),
+        list: call("automations.watches.list", 1),
+        remove: call("automations.watches.remove", 1),
+        report: call("automations.watches.report", 1),
+        save: call("automations.watches.save", 1),
+      },
       webhook_url: {
         get: call("automations.webhook_url.get", 1),
         rotate: call("automations.webhook_url.rotate", 1),

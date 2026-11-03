@@ -17,6 +17,7 @@ export { consumeEvent, dropReason, fireOne, loadRunPlan, matches, startRun, trig
 import { recordSavedItem } from "./offer-store.ts";
 import type { OfferDb } from "./offer-store.ts";
 import { backfillGrants } from "./grants.ts";
+import { tick as watchesTick } from "./handlers/watches.ts";
 import { findAutomation, findRunLink, listChildLinks, listScopedChildren, saveRunLink, syncPolicy } from "./projections.ts";
 import type { AutoCtx, RunScope } from "./projections.ts";
 
@@ -71,6 +72,7 @@ export const consumers = {
 };
 export const periodic = {
   "automations.schedule_tick": { everyMs: SCHEDULE_EVERY_MS, run: (ctx: Ctx) => runDueSchedules(ctx as AutoCtx) },
+  "automations.watches_tick": { everyMs: 60_000, run: (ctx: Ctx) => watchesTick(ctx as unknown as AutoCtx) },
   "automations.grants_backfill": { everyMs: SCHEDULE_EVERY_MS, run: (ctx: Ctx) => backfillGrants(ctx as unknown as AutoCtx) },
 };
 export const hostCalls = {

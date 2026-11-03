@@ -60,6 +60,11 @@
     "automations.validate@1": "5318db33aaeeca00e796be4cbd32ec47a9adfe804490a1af6a7a8a1c3ebd7b8c",
     "automations.vault_usage@1": "ec0a6bb0fdc5feeb92af677d62b56c8b340431d9ad27f13d65a7b54f036bece1",
     "automations.versions@1": "7d23649a0a13baca18afd140ba45b9a6a21f835234262e64176995733db0770c",
+    "automations.watches.check@1": "565beb81870fa3e49e897e6f85b2a457d63fce9ed856c01cff3943c92a4db19c",
+    "automations.watches.list@1": "2de372543781085e671e365c97a20014276ea7168731d8f84d7f700b2346cfd3",
+    "automations.watches.remove@1": "b93f18ba0ac1d2e5e76b7ce139f4d8de62fcdb28348cc658701575bb5794bcc1",
+    "automations.watches.report@1": "62ad9c0e655643dec228e31e2767b031b35ef6a6455e28f091dd3364bee7081b",
+    "automations.watches.save@1": "ed8d511269e74eaa33c210f1f46cc80d71a757235b5bcf4cb238862672e22866",
     "automations.webhook_url.get@1": "f33ccf2f1bad29340e0c5c466f02caafa78e7f06b9d7664a24dbd75b6c8b7821",
     "automations.webhook_url.rotate@1": "b777fc7cbbf439ec3e80e4aa10acad626ad78f70fcfa8614cc086c1d6456f84a"
   },
@@ -82,6 +87,8 @@
     "automation.runs_migrated": "81a64e09688830f6ac512a5a75a8346608dbc987bb0ef9110f644d4d032afa50",
     "automation.trigger_dropped": "ff7888dcc5f58c89b3059e3428bf2135b047f721a31bf3dfa5aa6dda630e2f7b",
     "automation.updated": "2e8b21de032a518cf75325b81489e9d15c0ab3b11d28395e4da097ec0d1b7ef5",
-    "automation.version_restored": "267cf68a8b4de15918239a9b7ecb9ddcd041ef5b94ac03f9a12641bf626f963f"
+    "automation.version_restored": "267cf68a8b4de15918239a9b7ecb9ddcd041ef5b94ac03f9a12641bf626f963f",
+    "automations.watch.changed": "30646a11f27becb8d54a2b91078d4ee4a0c793733da1797b8c535419aa6d30f6",
+    "automations.watch.saved": "0b1a1be2a3383c36c6acd448092ef19209b562e2a5b7d67f73812c83f5835d3b"
   }
 }

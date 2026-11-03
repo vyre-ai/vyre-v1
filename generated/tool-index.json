@@ -920,6 +920,18 @@
     },
     {
       "deferred": false,
+      "name": "automations_watches_list",
+      "summary": "Vyre for Chrome: the person's watches, newest first: what is watched, how often, where it runs, what the last check read and the last change with before and after",
+      "toolset": "automations"
+    },
+    {
+      "deferred": false,
+      "name": "automations_watches_report",
+      "summary": "A check of a watched page: what it read now (or why it could not read). The first reading is the baseline; a different one is a change and is told in the watch's chat with before and after",
+      "toolset": "automations"
+    },
+    {
+      "deferred": false,
       "name": "automations_webhook_url_get",
       "summary": "The inbound webhook URL of an Automation that has a webhook trigger",
       "toolset": "automations"

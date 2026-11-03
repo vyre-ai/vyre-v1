@@ -4514,6 +4514,221 @@ export type AutomationsVersionsOut = {
       name?: string;
     }>;
 };
+export type AutomationsWatchesCheckIn = {
+  watchId: string;
+};
+export type AutomationsWatchesCheckOut = {
+  watch: {
+    watchId: string;
+    title: string;
+    url: string;
+    host: string;
+    mode: "region" | "page";
+    region?: {
+      label: string;
+      selector?: string;
+    };
+    everyMinutes: number;
+    tell: Array<string>;
+    tellThreads: Array<string>;
+    goalId?: string;
+    agentId?: string;
+    runsOn: "computer" | "chrome";
+    computerId?: string;
+    state: "on" | "paused" | "error";
+    checkNow: boolean;
+    value?: string;
+    lastCheckedAt?: number;
+    nextDueAt?: number;
+    changes: number;
+    lastChange?: {
+      at: number;
+      before: string;
+      after: string;
+    };
+    threadId?: string;
+    error?: string;
+    createdAt: number;
+    updatedAt: number;
+  };
+};
+export type AutomationsWatchesListIn = {
+  watchId?: string;
+  runsOn?: "computer" | "chrome";
+  person?: string;
+};
+export type AutomationsWatchesListOut = {
+  watches: Array<{
+      watchId: string;
+      title: string;
+      url: string;
+      host: string;
+      mode: "region" | "page";
+      region?: {
+        label: string;
+        selector?: string;
+      };
+      everyMinutes: number;
+      tell: Array<string>;
+      tellThreads: Array<string>;
+      goalId?: string;
+      agentId?: string;
+      runsOn: "computer" | "chrome";
+      computerId?: string;
+      state: "on" | "paused" | "error";
+      checkNow: boolean;
+      value?: string;
+      lastCheckedAt?: number;
+      nextDueAt?: number;
+      changes: number;
+      lastChange?: {
+        at: number;
+        before: string;
+        after: string;
+      };
+      threadId?: string;
+      error?: string;
+      createdAt: number;
+      updatedAt: number;
+    }>;
+};
+export type AutomationsWatchesRemoveIn = {
+  watchId: string;
+  op: "remove" | "pause" | "resume";
+  idempotencyKey: string;
+};
+export type AutomationsWatchesRemoveOut = {
+  removed: boolean;
+  watch?: {
+    watchId: string;
+    title: string;
+    url: string;
+    host: string;
+    mode: "region" | "page";
+    region?: {
+      label: string;
+      selector?: string;
+    };
+    everyMinutes: number;
+    tell: Array<string>;
+    tellThreads: Array<string>;
+    goalId?: string;
+    agentId?: string;
+    runsOn: "computer" | "chrome";
+    computerId?: string;
+    state: "on" | "paused" | "error";
+    checkNow: boolean;
+    value?: string;
+    lastCheckedAt?: number;
+    nextDueAt?: number;
+    changes: number;
+    lastChange?: {
+      at: number;
+      before: string;
+      after: string;
+    };
+    threadId?: string;
+    error?: string;
+    createdAt: number;
+    updatedAt: number;
+  };
+};
+export type AutomationsWatchesReportIn = {
+  watchId: string;
+  value?: string;
+  error?: string;
+};
+export type AutomationsWatchesReportOut = {
+  changed: boolean;
+  watch: {
+    watchId: string;
+    title: string;
+    url: string;
+    host: string;
+    mode: "region" | "page";
+    region?: {
+      label: string;
+      selector?: string;
+    };
+    everyMinutes: number;
+    tell: Array<string>;
+    tellThreads: Array<string>;
+    goalId?: string;
+    agentId?: string;
+    runsOn: "computer" | "chrome";
+    computerId?: string;
+    state: "on" | "paused" | "error";
+    checkNow: boolean;
+    value?: string;
+    lastCheckedAt?: number;
+    nextDueAt?: number;
+    changes: number;
+    lastChange?: {
+      at: number;
+      before: string;
+      after: string;
+    };
+    threadId?: string;
+    error?: string;
+    createdAt: number;
+    updatedAt: number;
+  };
+};
+export type AutomationsWatchesSaveIn = {
+  watchId?: string;
+  title: string;
+  url: string;
+  mode: "region" | "page";
+  region?: {
+    label: string;
+    selector?: string;
+  };
+  everyMinutes: number;
+  tell?: Array<string>;
+  tellThreads?: Array<string>;
+  goalId?: string | null;
+  agentId?: string;
+  runsOn: "computer" | "chrome";
+  computerId?: string;
+  paused?: boolean;
+  value?: string;
+  idempotencyKey: string;
+};
+export type AutomationsWatchesSaveOut = {
+  watch: {
+    watchId: string;
+    title: string;
+    url: string;
+    host: string;
+    mode: "region" | "page";
+    region?: {
+      label: string;
+      selector?: string;
+    };
+    everyMinutes: number;
+    tell: Array<string>;
+    tellThreads: Array<string>;
+    goalId?: string;
+    agentId?: string;
+    runsOn: "computer" | "chrome";
+    computerId?: string;
+    state: "on" | "paused" | "error";
+    checkNow: boolean;
+    value?: string;
+    lastCheckedAt?: number;
+    nextDueAt?: number;
+    changes: number;
+    lastChange?: {
+      at: number;
+      before: string;
+      after: string;
+    };
+    threadId?: string;
+    error?: string;
+    createdAt: number;
+    updatedAt: number;
+  };
+};
 export type AutomationsWebhookUrlGetIn = {
   automationId: string;
 };
@@ -14593,7 +14808,7 @@ export type GoalsChecklistTickOut = {
       direction?: "up" | "down";
       unit?: string;
       source?: {
-        kind: "records" | "connection" | "mcp" | "automation" | "manual";
+        kind: "records" | "connection" | "mcp" | "automation" | "watch" | "manual";
         label?: string;
         type?: string;
         filter?: unknown;
@@ -14604,6 +14819,7 @@ export type GoalsChecklistTickOut = {
         server?: string;
         tool?: string;
         automationId?: string;
+        watchId?: string;
         path?: string;
       };
       items?: Array<{
@@ -14710,7 +14926,7 @@ export type GoalsConfirmOut = {
       direction?: "up" | "down";
       unit?: string;
       source?: {
-        kind: "records" | "connection" | "mcp" | "automation" | "manual";
+        kind: "records" | "connection" | "mcp" | "automation" | "watch" | "manual";
         label?: string;
         type?: string;
         filter?: unknown;
@@ -14721,6 +14937,7 @@ export type GoalsConfirmOut = {
         server?: string;
         tool?: string;
         automationId?: string;
+        watchId?: string;
         path?: string;
       };
       items?: Array<{
@@ -14807,7 +15024,7 @@ export type GoalsCreateIn = {
     direction?: "up" | "down";
     unit?: string;
     source?: {
-      kind: "records" | "connection" | "mcp" | "automation" | "manual";
+      kind: "records" | "connection" | "mcp" | "automation" | "watch" | "manual";
       label?: string;
       type?: string;
       filter?: unknown;
@@ -14818,6 +15035,7 @@ export type GoalsCreateIn = {
       server?: string;
       tool?: string;
       automationId?: string;
+      watchId?: string;
       path?: string;
     };
     items?: Array<{
@@ -14896,7 +15114,7 @@ export type GoalsCreateOut = {
       direction?: "up" | "down";
       unit?: string;
       source?: {
-        kind: "records" | "connection" | "mcp" | "automation" | "manual";
+        kind: "records" | "connection" | "mcp" | "automation" | "watch" | "manual";
         label?: string;
         type?: string;
         filter?: unknown;
@@ -14907,6 +15125,7 @@ export type GoalsCreateOut = {
         server?: string;
         tool?: string;
         automationId?: string;
+        watchId?: string;
         path?: string;
       };
       items?: Array<{
@@ -15004,7 +15223,7 @@ export type GoalsExtendOut = {
       direction?: "up" | "down";
       unit?: string;
       source?: {
-        kind: "records" | "connection" | "mcp" | "automation" | "manual";
+        kind: "records" | "connection" | "mcp" | "automation" | "watch" | "manual";
         label?: string;
         type?: string;
         filter?: unknown;
@@ -15015,6 +15234,7 @@ export type GoalsExtendOut = {
         server?: string;
         tool?: string;
         automationId?: string;
+        watchId?: string;
         path?: string;
       };
       items?: Array<{
@@ -15107,7 +15327,7 @@ export type GoalsFinishOut = {
       direction?: "up" | "down";
       unit?: string;
       source?: {
-        kind: "records" | "connection" | "mcp" | "automation" | "manual";
+        kind: "records" | "connection" | "mcp" | "automation" | "watch" | "manual";
         label?: string;
         type?: string;
         filter?: unknown;
@@ -15118,6 +15338,7 @@ export type GoalsFinishOut = {
         server?: string;
         tool?: string;
         automationId?: string;
+        watchId?: string;
         path?: string;
       };
       items?: Array<{
@@ -15217,7 +15438,7 @@ export type GoalsGetOut = {
       direction?: "up" | "down";
       unit?: string;
       source?: {
-        kind: "records" | "connection" | "mcp" | "automation" | "manual";
+        kind: "records" | "connection" | "mcp" | "automation" | "watch" | "manual";
         label?: string;
         type?: string;
         filter?: unknown;
@@ -15228,6 +15449,7 @@ export type GoalsGetOut = {
         server?: string;
         tool?: string;
         automationId?: string;
+        watchId?: string;
         path?: string;
       };
       items?: Array<{
@@ -15397,7 +15619,7 @@ export type GoalsMarkStuckOut = {
       direction?: "up" | "down";
       unit?: string;
       source?: {
-        kind: "records" | "connection" | "mcp" | "automation" | "manual";
+        kind: "records" | "connection" | "mcp" | "automation" | "watch" | "manual";
         label?: string;
         type?: string;
         filter?: unknown;
@@ -15408,6 +15630,7 @@ export type GoalsMarkStuckOut = {
         server?: string;
         tool?: string;
         automationId?: string;
+        watchId?: string;
         path?: string;
       };
       items?: Array<{
@@ -15500,7 +15723,7 @@ export type GoalsNumberSetOut = {
       direction?: "up" | "down";
       unit?: string;
       source?: {
-        kind: "records" | "connection" | "mcp" | "automation" | "manual";
+        kind: "records" | "connection" | "mcp" | "automation" | "watch" | "manual";
         label?: string;
         type?: string;
         filter?: unknown;
@@ -15511,6 +15734,7 @@ export type GoalsNumberSetOut = {
         server?: string;
         tool?: string;
         automationId?: string;
+        watchId?: string;
         path?: string;
       };
       items?: Array<{
@@ -15603,7 +15827,7 @@ export type GoalsPauseOut = {
       direction?: "up" | "down";
       unit?: string;
       source?: {
-        kind: "records" | "connection" | "mcp" | "automation" | "manual";
+        kind: "records" | "connection" | "mcp" | "automation" | "watch" | "manual";
         label?: string;
         type?: string;
         filter?: unknown;
@@ -15614,6 +15838,7 @@ export type GoalsPauseOut = {
         server?: string;
         tool?: string;
         automationId?: string;
+        watchId?: string;
         path?: string;
       };
       items?: Array<{
@@ -15773,7 +15998,7 @@ export type GoalsResumeOut = {
       direction?: "up" | "down";
       unit?: string;
       source?: {
-        kind: "records" | "connection" | "mcp" | "automation" | "manual";
+        kind: "records" | "connection" | "mcp" | "automation" | "watch" | "manual";
         label?: string;
         type?: string;
         filter?: unknown;
@@ -15784,6 +16009,7 @@ export type GoalsResumeOut = {
         server?: string;
         tool?: string;
         automationId?: string;
+        watchId?: string;
         path?: string;
       };
       items?: Array<{
@@ -15928,7 +16154,7 @@ export type GoalsStopOut = {
       direction?: "up" | "down";
       unit?: string;
       source?: {
-        kind: "records" | "connection" | "mcp" | "automation" | "manual";
+        kind: "records" | "connection" | "mcp" | "automation" | "watch" | "manual";
         label?: string;
         type?: string;
         filter?: unknown;
@@ -15939,6 +16165,7 @@ export type GoalsStopOut = {
         server?: string;
         tool?: string;
         automationId?: string;
+        watchId?: string;
         path?: string;
       };
       items?: Array<{
@@ -16026,7 +16253,7 @@ export type GoalsUpdateIn = {
     direction?: "up" | "down";
     unit?: string;
     source?: {
-      kind: "records" | "connection" | "mcp" | "automation" | "manual";
+      kind: "records" | "connection" | "mcp" | "automation" | "watch" | "manual";
       label?: string;
       type?: string;
       filter?: unknown;
@@ -16037,6 +16264,7 @@ export type GoalsUpdateIn = {
       server?: string;
       tool?: string;
       automationId?: string;
+      watchId?: string;
       path?: string;
     };
     items?: Array<{
@@ -16088,7 +16316,7 @@ export type GoalsUpdateOut = {
       direction?: "up" | "down";
       unit?: string;
       source?: {
-        kind: "records" | "connection" | "mcp" | "automation" | "manual";
+        kind: "records" | "connection" | "mcp" | "automation" | "watch" | "manual";
         label?: string;
         type?: string;
         filter?: unknown;
@@ -16099,6 +16327,7 @@ export type GoalsUpdateOut = {
         server?: string;
         tool?: string;
         automationId?: string;
+        watchId?: string;
         path?: string;
       };
       items?: Array<{
@@ -40436,6 +40665,11 @@ export interface CapMap {
   "automations.validate": { in: AutomationsValidateIn; out: AutomationsValidateOut };
   "automations.vault_usage": { in: AutomationsVaultUsageIn; out: AutomationsVaultUsageOut };
   "automations.versions": { in: AutomationsVersionsIn; out: AutomationsVersionsOut };
+  "automations.watches.check": { in: AutomationsWatchesCheckIn; out: AutomationsWatchesCheckOut };
+  "automations.watches.list": { in: AutomationsWatchesListIn; out: AutomationsWatchesListOut };
+  "automations.watches.remove": { in: AutomationsWatchesRemoveIn; out: AutomationsWatchesRemoveOut };
+  "automations.watches.report": { in: AutomationsWatchesReportIn; out: AutomationsWatchesReportOut };
+  "automations.watches.save": { in: AutomationsWatchesSaveIn; out: AutomationsWatchesSaveOut };
   "automations.webhook_url.get": { in: AutomationsWebhookUrlGetIn; out: AutomationsWebhookUrlGetOut };
   "automations.webhook_url.rotate": { in: AutomationsWebhookUrlRotateIn; out: AutomationsWebhookUrlRotateOut };
   "backup.config_get": { in: BackupConfigGetIn; out: BackupConfigGetOut };
@@ -42590,6 +42824,16 @@ export type AutomationVersionRestoredPayload = {
   automationId: string;
   versionId: string;
   version: number;
+};
+export type AutomationsWatchChangedPayload = {
+  watchId: string;
+  owner: string;
+  changes: number;
+};
+export type AutomationsWatchSavedPayload = {
+  watchId: string;
+  owner: string;
+  op: "added" | "changed" | "paused" | "resumed" | "removed";
 };
 export type AwayClearedPayload = {
   person: string;
@@ -46280,6 +46524,8 @@ export interface EventMap {
   "automation.trigger_dropped": AutomationTriggerDroppedPayload;
   "automation.updated": AutomationUpdatedPayload;
   "automation.version_restored": AutomationVersionRestoredPayload;
+  "automations.watch.changed": AutomationsWatchChangedPayload;
+  "automations.watch.saved": AutomationsWatchSavedPayload;
   "away.cleared": AwayClearedPayload;
   "away.set": AwaySetPayload;
   "backup.completed": BackupCompletedPayload;

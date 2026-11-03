@@ -164,8 +164,8 @@ export function createPanel({ ext, bridge, store, privacy, context, views = new 
           const sp = (kept["spaces"] ?? []).find((/** @type {any} */ s) => s.id === kept["activeSpace"]);
           const web = sp && /^https:\/\/|^http:\/\/(localhost|127\.0\.0\.1)[:/]/.test(sp.webUrl) ? new URL(sp.webUrl).origin : null;
           if (!web) throw e;
-          const path = { chats: "/chats", notes: "/chats/notes", vault: "/vault", watching: "/automations/watching", skill: "/settings/skills", goal: "/goals", record: "/records" }[place] ?? "/";
-          await ext.tabs.create({ url: `${web}${path}${id ? `/${encodeURIComponent(id)}` : ""}` });
+          const path = { chats: "/chats", notes: "/chats/notes", vault: "/vault", watching: "/automations#screen=watching", skill: "/settings/skills", goal: "/goals", record: "/records" }[place] ?? "/";
+          await ext.tabs.create({ url: place === "watching" ? `${web}${path}` : `${web}${path}${id ? `/${encodeURIComponent(id)}` : ""}` });
           return { data: { opened: "web" } };
         }
       }

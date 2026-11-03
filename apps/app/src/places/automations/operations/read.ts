@@ -226,3 +226,66 @@ export function countBy<T>(rows: readonly T[], key: (row: T) => string): { value
   for (const r of rows) n.set(key(r), (n.get(key(r)) ?? 0) + 1);
   return [...n.entries()].map(([value, count]) => ({ value, count })).sort((a, b) => (a.value < b.value ? -1 : 1));
 }
+
+// ---- Watching: pages and parts of pages checked on a rhythm (Vyre for Chrome) ----
+
+export interface WatchItem {
+  id: string; title: string; url: string; host: string; mode: "region" | "page"; region: string; everyMinutes: number; state: "on" | "paused" | "error"; runsOn: "computer" | "chrome";
+  agentId: string; tell: string[]; tellThreads: number; goalId: string; changes: number; lastCheckedAt: number | null; lastChange: { at: number; before: string; after: string } | null; error: string; value: string;
+}
+
+export function watchItems(out: unknown): WatchItem[] | null {
+  const o = obj(out);
+  if (!o || !Array.isArray(o["watches"])) return null;
+  const rows: WatchItem[] = [];
+  for (const raw of o["watches"]) {
+    const w = obj(raw);
+    if (!w || typeof w["watchId"] !== "string" || typeof w["title"] !== "string") continue;
+    const region = obj(w["region"]);
+    const change = obj(w["lastChange"]);
+    rows.push({
+      id: w["watchId"], title: w["title"], url: typeof w["url"] === "string" ? w["url"] : "", host: typeof w["host"] === "string" ? w["host"] : "", mode: w["mode"] === "page" ? "page" : "region",
+      region: region && typeof region["label"] === "string" ? region["label"] : "", everyMinutes: num(w["everyMinutes"]), state: w["state"] === "paused" ? "paused" : w["state"] === "error" ? "error" : "on",
+      runsOn: w["runsOn"] === "chrome" ? "chrome" : "computer", agentId: typeof w["agentId"] === "string" ? w["agentId"] : "", tell: Array.isArray(w["tell"]) ? w["tell"].filter((x): x is string => typeof x === "string") : [], tellThreads: Array.isArray(w["tellThreads"]) ? w["tellThreads"].length : 0, goalId: typeof w["goalId"] === "string" ? w["goalId"] : "", changes: num(w["changes"]),
+      lastCheckedAt: typeof w["lastCheckedAt"] === "number" ? w["lastCheckedAt"] : null,
+      lastChange: change && typeof change["at"] === "number" ? { at: change["at"], before: String(change["before"] ?? ""), after: String(change["after"] ?? "") } : null,
+      error: typeof w["error"] === "string" ? w["error"] : "", value: typeof w["value"] === "string" ? w["value"] : "",
+    });
+  }
+  return rows;
+}
+
+/** "Every 30 minutes", "Every hour", "Every 2 days". */
+export function everyWords(min: number): string {
+  if (min === 60) return "Every hour";
+  if (min > 0 && min % 1440 === 0) return min === 1440 ? "Every day" : `Every ${min / 1440} days`;
+  if (min > 60 && min % 60 === 0) return `Every ${min / 60} hours`;
+  return `Every ${min} minutes`;
+}
+
+/** The Every column: the number and its unit, "30 minutes", "1 hour", "1 day". */
+export function everyShort(min: number): string {
+  if (min === 60) return "1 hour";
+  if (min === 1440) return "1 day";
+  return everyWords(min).replace("Every ", "");
+}
+
+/** When a watch last changed, or why it is not running. */
+export function lastWords(w: WatchItem, now: number): string {
+  if (w.state === "paused") return "Paused";
+  if (w.state === "error") return `Can't read it${w.error ? `: ${w.error}` : ""}`;
+  const ago = (ms: number): string => { const m = Math.max(0, Math.round(ms / 60000)); return m < 1 ? "just now" : m < 60 ? `${m} min ago` : m < 2880 ? `${Math.round(m / 60)} h ago` : `${Math.round(m / 1440)} days ago`; };
+  return w.lastChange ? `Changed ${ago(now - w.lastChange.at)}` : w.lastCheckedAt !== null ? `No change since ${ago(now - w.lastCheckedAt)}` : "Not checked yet";
+}
+
+/** The line under a watch's name on a phone: how often, and when it last changed. */
+export function watchNote(w: WatchItem, now: number): string {
+  if (w.state === "paused" || w.state === "error") return lastWords(w, now);
+  return `${everyWords(w.everyMinutes)} · ${lastWords(w, now)}`;
+}
+
+/** Who hears about a change besides the person: people by name, channels by count. */
+export function tellWords(w: WatchItem, name: (id: string) => string): string {
+  const parts = [...w.tell.map(name), ...(w.tellThreads ? [`${w.tellThreads} ${w.tellThreads === 1 ? "channel" : "channels"}`] : [])];
+  return parts.length ? `You, ${parts.join(", ")}` : "You";
+}
