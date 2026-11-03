@@ -63,6 +63,11 @@ function world(props: Partial<Parameters<typeof Calendar>[0]> = {}) {
   return { s, opened, tree };
 }
 const settle = async (): Promise<void> => { for (let i = 0; i < 4; i++) await flush(); };
+/** A click that happened at `at` (the event's own timeStamp), as the browser reports it. */
+const clickAt = async (n: Node | null, at: number): Promise<void> => {
+  assert.ok(n);
+  await act(async () => { (n.props["onClick"] as (e: unknown) => void)({ stopPropagation() {}, preventDefault() {}, altKey: false, timeStamp: at, target: { getAttribute: () => null }, currentTarget: { getAttribute: () => null }, nativeEvent: { timeStamp: at } }); });
+};
 const key = async (n: Node | null, k: string): Promise<void> => { assert.ok(n); await act(async () => { (n.props["onKeyDown"] as (e: unknown) => void)({ key: k, preventDefault() {}, target: { tagName: "DIV" } }); }); };
 
 test("a click on an event opens it in the pane: when, how it repeats, calendar, organiser, Join, Going?, attendees with their answers, the description's links", async () => {
@@ -137,8 +142,10 @@ test("a past meeting shows its close-out with Open close-out, and its recording 
 test("double-click edits in place; Save on a repeating event asks This Event or All Events, and All moves every instance still ahead", async () => {
   const { s, tree } = world();
   const root = await mount(createRoot, tree());
-  await press(find(root, "event-body:standup_0"));
-  await press(find(root, "event-body:standup_0"));
+  // two clicks 120 ms apart, by the clicks' own times: how long the first click's pane takes to draw (long, on a loaded runner) is not part of the gap
+  const at = performance.now();
+  await clickAt(find(root, "event-body:standup_0"), at);
+  await clickAt(find(root, "event-body:standup_0"), at + 120);
   await settle();
   assert.ok(find(root, "event-edit"), "a double-click opens it in edit");
   assert.equal(find(root, "event-edit-title")?.props["value"], "Team standup", "the fields start from the event");
