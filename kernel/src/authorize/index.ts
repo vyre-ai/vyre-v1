@@ -180,7 +180,8 @@ export function authorize(snap: AccessSnapshot, req: Req): Decision {
     if (!c) return denied(snap, "not_found", name, steps);
     chain = c; res = { id: "", type: ref.type, parent_id: ref.parent, label: c[0]!.label, owner_id: null, holds: 0 };
   }
-  let label = res.label;
+  // the effective label: the highest of the resource's own and every folder above it (a new child takes its container's), so a Restricted folder covers what is in it
+  let label = snap.effectiveLabel(ref.id ?? ref.parent!);
   if (req.fields) for (const f of req.fields) { const fl = snap.fieldLabel(res.type, f); if (fl > label) label = fl; }
 
   // An agent holds only its own role's permissions, never more through its person or a group (ARCH 4.5: agents never hold Owner or Admin, nor what only they carry). Building Journeys,

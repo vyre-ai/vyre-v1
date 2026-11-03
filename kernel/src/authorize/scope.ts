@@ -12,7 +12,8 @@ export type Pred =
   | { t: "expr"; e: Expr; me: string }
   | { t: "acl"; person: string; entityType: string; rank: number; ids: ReadonlySet<string> }
   | { t: "owner"; me: string }
-  | { t: "label_le"; n: number }
+  /** the row's effective label is at most n: its own `label` column, or the higher label it inherits from a folder above it (`lifted`, ids of rows whose folders raise their label) */
+  | { t: "label_le"; n: number; lifted?: ReadonlyMap<string, number> }
   | { t: "no_hold" };
 
 const TRUE: Pred = { t: "true" }, FALSE: Pred = { t: "false" };
@@ -60,7 +61,7 @@ export function aclIds(snap: AccessSnapshot, info: SubjectInfo, entityType: stri
     let ok = false;
     for (const anc of chain) {
       for (const g of snap.grantsOn(anc.id) ?? []) {
-        if (!info.keys.has(g.key) || g.rank < rank || !live(g, now) || r.label > g.ceiling) continue;
+        if (!info.keys.has(g.key) || g.rank < rank || !live(g, now) || snap.effectiveLabel(r.id) > g.ceiling) continue;
         if (g.filter) {
           const row = snap.rowSource?.(r.id);
           if (!row || !evalExpr(g.filter, row, r.owner_id, info.p.id)) continue;
@@ -74,19 +75,34 @@ export function aclIds(snap: AccessSnapshot, info: SubjectInfo, entityType: stri
   return out;
 }
 
-function subjectPred(snap: AccessSnapshot, s: SubjectInfo, q: ScopeForReq): Pred {
+/** Rows of `entityType` whose effective label is above their own (a folder above them carries a higher one), with that label. The entity table holds the row's own label; this is the rest. */
+export function liftedLabels(snap: AccessSnapshot, entityType: string): ReadonlyMap<string, number> {
+  const out = new Map<string, number>();
+  for (const r of snap.allResources()) {
+    if (r.type !== entityType) continue;
+    const eff = snap.effectiveLabel(r.id);
+    if (eff > r.label) out.set(r.id, eff);
+  }
+  return out;
+}
+
+function labelLe(n: number, lifted: ReadonlyMap<string, number>): Pred {
+  return lifted.size ? { t: "label_le", n, lifted } : { t: "label_le", n };
+}
+
+function subjectPred(snap: AccessSnapshot, s: SubjectInfo, q: ScopeForReq, lifted: ReadonlyMap<string, number>): Pred {
   if (s.p.status !== "active") return FALSE;
   if (q.perm && !s.perms.has(q.perm)) return FALSE;
   const rank = rankOf(q.level);
   const parts: Pred[] = [];
   for (const g of snap.typeWide(q.entityType) ?? []) {
     if (!s.keys.has(g.key) || g.rank < rank || !live(g, q.now)) continue;
-    parts.push(and([g.filter ? { t: "expr", e: g.filter, me: s.p.id } : TRUE, ...(g.ceiling === Infinity ? [] : [{t:"label_le",n:g.ceiling} as Pred])]));
+    parts.push(and([g.filter ? { t: "expr", e: g.filter, me: s.p.id } : TRUE, ...(g.ceiling === Infinity ? [] : [labelLe(g.ceiling, lifted)])]));
   }
   const ids = aclIds(snap, s, q.entityType, rank, q.now);
   if (ids.size) parts.push({ t: "acl", person: s.p.id, entityType: q.entityType, rank, ids });
   parts.push({ t: "owner", me: s.p.id });
-  return and([or(parts), { t: "label_le", n: s.clearance }, ...(q.destructive ? [{ t: "no_hold" } as Pred] : [])]);
+  return and([or(parts), labelLe(s.clearance, lifted), ...(q.destructive ? [{ t: "no_hold" } as Pred] : [])]);
 }
 
 /** The predicate for "every row of entityType this principal (acting for someone) may touch at this level". */
@@ -103,7 +119,8 @@ export function scopeFor(snap: AccessSnapshot, q: ScopeForReq): ScopeResult {
     if (me.p.kind === "svc" || (me.p.kind === "actor" && me.p.owner)) { const o = me.p.owner ? snap.info(me.p.owner) : null; if (!o) return empty("not_a_member"); subjects.push(o); }
     if (q.actingFor && q.actingFor !== q.principal) { const a = snap.info(q.actingFor); if (!a) return empty("not_a_member"); if (!subjects.includes(a)) subjects.push(a); }
   }
-  const preds = subjects.map((s) => subjectPred(snap, s, q));
+  const lifted = liftedLabels(snap, q.entityType);
+  const preds = subjects.map((s) => subjectPred(snap, s, q, lifted));
   // Same rule as authorize: per subject a field is hidden only if every type-wide grant that reaches that subject hides it; across subjects the hidden sets union.
   const rank = rankOf(q.level);
   const hidden = new Set<string>();
@@ -130,7 +147,7 @@ export function evalPred(p: Pred, row: Readonly<Record<string, unknown>>): boole
     case "expr": return evalExpr(p.e, row, (row["owner_id"] as string | null | undefined) ?? null, p.me);
     case "acl": return p.ids.has(row["id"] as string);
     case "owner": return row["owner_id"] === p.me;
-    case "label_le": return (row["label"] as number) <= p.n;
+    case "label_le": return (p.lifted?.get(row["id"] as string) ?? (row["label"] as number)) <= p.n;
     case "no_hold": return (row["holds"] as number) === 0;
   }
 }
@@ -169,7 +186,14 @@ export function toSql(p: Pred, opts: { table?: string } = {}): Sql {
       case "expr": return exprSql(x.e, x.me, params, t);
       case "acl": params.push(x.person, x.entityType, x.rank); return `${t}"id" IN (SELECT entity_id FROM acl_index WHERE person = ? AND entity_type = ? AND level_rank >= ?)`;
       case "owner": params.push(x.me); return `${t}"owner_id" = ?`;
-      case "label_le": params.push(x.n); return `${t}"label" <= ?`;
+      case "label_le": {
+        params.push(x.n);
+        const over: string[] = [];
+        if (x.lifted) for (const [id, eff] of x.lifted) if (eff > x.n) over.push(id);
+        if (!over.length) return `${t}"label" <= ?`;
+        for (const id of over) params.push(id);
+        return `(${t}"label" <= ? AND ${t}"id" NOT IN (${over.map(() => "?").join(", ")}))`;
+      }
       case "no_hold": return `${t}"holds" = 0`;
     }
   };
