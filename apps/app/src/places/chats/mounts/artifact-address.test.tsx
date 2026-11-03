@@ -1,7 +1,7 @@
 // An artifact opens at a one-time code for its own host (never the app's origin): framed in the app it asks for the partitioned cookie, opened in a browser it does not.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { artifactAddress } from "./Artifacts.tsx";
+import { artifactAddress } from "./artifact-address.ts";
 
 test("the artifact host's code is framed with ?embed=1 and opened in a browser as it is; the keyed address of a Space with no artifact host is unchanged", () => {
   const code = "a".repeat(48);

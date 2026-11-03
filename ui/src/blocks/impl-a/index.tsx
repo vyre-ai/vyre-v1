@@ -11,6 +11,8 @@ import type { TextStyle, ViewStyle } from "react-native";
 import type { Block } from "../../kit/types.ts";
 import { menuTrigger, useMenu } from "../../Menu/index.tsx";
 import { Row } from "../../Row/index.tsx";
+import { ArtifactCard, linkOf } from "../../ArtifactCard/index.tsx";
+import type { ArtifactInfo } from "../../ArtifactCard/index.tsx";
 import type { MenuEntry } from "../../Menu/index.tsx";
 import {
   BLOCK_SPECS_A,
@@ -487,14 +489,45 @@ export function DeployBlock({ block, host }: BlockViewProps): ReactElement {
 
 /* ---------- mount ---------- */
 
-/** Something a model made to show: one line that opens it. */
+/** Something a model made to show: a card with its picture, one quiet line, and Open, Copy link and "...". The whole card opens it. */
 export function ArtifactBlock({ block, host }: BlockViewProps): ReactElement {
-  const title = typeof (block.data as { title?: unknown } | null)?.title === "string" ? (block.data as { title: string }).title : "Artifact";
-  const menu = useCallback(() => baseMenu(host, "artifact", block, [], () => undefined), [host, block]);
+  const data = (block.data ?? {}) as { artifactId?: unknown; title?: unknown; thumb?: unknown };
+  const id = typeof data.artifactId === "string" ? data.artifactId : "";
+  const title = typeof data.title === "string" ? data.title : "Artifact";
+  const [site, setSite] = useState<{ name?: string; owner?: string; access?: ArtifactInfo["access"]; updatedAt?: number } | null>(null);
+  const [gone, setGone] = useState(false);
+  const { element, show } = useMenu();
+  useEffect(() => {
+    if (id === "") return undefined;
+    let live = true;
+    void Promise.resolve(host.invoke("sites.get", { siteId: id })).then(
+      (o) => { const s = (o as { site?: { name?: string; owner?: string; access?: ArtifactInfo["access"]; updatedAt?: number } } | null)?.site; if (live && s) setSite(s); },
+      () => undefined,
+    );
+    return () => { live = false; };
+  }, [host, id]);
+  const trigger = useMemo(() => menuTrigger((x, y) => show([{ label: "Open", onSelect: () => void openTab(host, "artifact", block.data) }, { separator: true }, { label: "Copy trace id", onSelect: () => copyText(block.traceId) }], x, y, "context", { label: "artifact block" })), [host, block, show]);
+  const me = host.meId ?? site?.owner ?? "";
+  const info: ArtifactInfo = { id, name: site?.name ?? title, owner: site?.owner ?? me, access: site?.access, updatedAt: site?.updatedAt, thumb: typeof data.thumb === "string" ? data.thumb : undefined };
+  const address = useCallback(async (): Promise<string | null> => {
+    try {
+      const o = (await host.invoke("sites.artifact_open", { artifactId: id, idempotencyKey: `card-${id}-${Date.now()}` })) as { path: string; url?: string };
+      return linkOf(o, (globalThis as { location?: { origin?: string } }).location?.origin);
+    } catch { return null; }
+  }, [host, id]);
+  if (gone) return <View testID={`blk-artifact-${block.id}`}><Text style={styles.sub}>{`${info.name} was deleted`}</Text></View>;
   return (
-    <Card type="artifact" block={block} testID={`blk-artifact-${block.id}`} menu={menu}>
-      <Head testID={`blk-artifact-${block.id}`} title={title} onPress={() => void openTab(host, "artifact", block.data)} />
-    </Card>
+    <View testID={`blk-artifact-${block.id}`} accessibilityLabel="artifact block" {...webProps({ dataSet: { blockType: "artifact", blockV: String(block.v), traceId: block.traceId } })} {...trigger}>
+      <ArtifactCard
+        info={info} meId={me} now={Date.now()} {...(host.nameOf ? { nameOf: host.nameOf } : {})} testID={`blk-artifact-${block.id}-card`}
+        onOpen={() => void openTab(host, "artifact", block.data)}
+        onCopyLink={() => void address().then((u) => { if (u) copyText(u); })}
+        onShare={() => host.open("artifact-share", { artifactId: id })}
+        onBrowser={() => void address().then((u) => { if (u) host.openUrl?.(u); })}
+        onDelete={info.owner === me ? () => void Promise.resolve(host.invoke("sites.delete", { siteId: id })).then(() => setGone(true), () => undefined) : undefined}
+      />
+      {element}
+    </View>
   );
 }
 

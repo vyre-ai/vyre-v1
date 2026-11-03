@@ -24,6 +24,8 @@ export type Route =
   | { view: "threads" }
   /** What models made to show you. */
   | { view: "artifacts" }
+  /** One artifact, in its own tab, under the Artifacts row. `share` opens the Share sheet on it. */
+  | { view: "artifact"; artifactId: string; share?: boolean }
   /** Your notes: the grid. `noteId` opens one (a search hit, a link); `take` opens Take a note (each new number opens it again). */
   | { view: "notes"; noteId?: string; take?: number }
   /** One page to make an agent (null) or change one. */
@@ -72,6 +74,7 @@ export type Act =
   | { t: "goal"; goalId: string }
   | { t: "threads" }
   | { t: "artifacts" }
+  | { t: "artifact"; artifactId: string; share?: boolean }
   | { t: "notes"; noteId?: string; take?: boolean }
   | { t: "agent-form"; agentId?: string }
   /** Search every chat. `q` starts the box with those words. */
@@ -111,6 +114,7 @@ export function step(s: Shown, a: Act): Shown {
     case "goal": return { ...s, route: { view: "goal", goalId: a.goalId }, pane: false, terminalId: null, layer: null };
     case "threads": return { ...s, route: { view: "threads" }, layer: null };
     case "artifacts": return { ...s, route: { view: "artifacts" }, layer: null };
+    case "artifact": return { ...s, route: { view: "artifact", artifactId: a.artifactId, ...(a.share ? { share: true } : {}) }, pane: false, terminalId: null, layer: null };
     case "notes": return { ...s, route: { view: "notes", ...(a.noteId ? { noteId: a.noteId } : {}), ...(a.take ? { take: (s.route.view === "notes" ? s.route.take ?? 0 : 0) + 1 } : {}) }, layer: null };
     case "agent-form": return { ...s, route: { view: "agent-form", agentId: a.agentId ?? null }, layer: null };
     case "search": return { ...s, route: { view: "search", q: a.q ?? "", from: s.route.view === "chat" ? s.route.threadId : s.route.view === "search" ? s.route.from : null }, layer: null };
@@ -142,6 +146,7 @@ export function openKeyOf(r: Route): string | null {
   switch (r.view) {
     case "chat": return r.threadId ? `t:${r.threadId}` : null;
     case "tasks": case "threads": case "artifacts": case "notes": return r.view;
+    case "artifact": return "artifacts";
     case "goal": return `g:${r.goalId}`;
     case "imported": return `i:${r.conversationId}`;
     case "agent": return `a:${r.agentId}`;
@@ -209,8 +214,9 @@ export function fromHash(hash: string): Shown {
   const screen = p.get("screen") ?? "";
   const arg = (k: string): string => p.get(k) ?? "";
   const fixed = { x: 8, y: 48 };
-  const subject = /^(thread|chat|channel|task|goal):(.+)$/.exec(arg("subject"));
+  const subject = /^(thread|chat|channel|task|goal|artifact):(.+)$/.exec(arg("subject"));
   if (subject?.[1] === "goal") return step(START, { t: "goal", goalId: subject[2]! });
+  if (subject?.[1] === "artifact") return step(START, { t: "artifact", artifactId: subject[2]!, ...(arg("share") === "1" ? { share: true } : {}) });
   if (subject) return subject[1] === "task" ? step(START, { t: "task", taskId: subject[2]! }) : step(START, { t: "chat", threadId: subject[2]! });
   switch (screen) {
     case SCREEN.tasks: return step(START, { t: "tasks" });

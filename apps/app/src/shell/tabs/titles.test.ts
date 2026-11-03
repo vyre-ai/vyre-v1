@@ -31,3 +31,11 @@ test("a Records tab on a type is named for the type: its plural, else its title;
   assert.equal(typeTitleAsk("files", { type: "company" }), null);
   assert.equal(typeTitleAsk("records", {}), null);
 });
+
+test("a tab opened on an artifact is named for the artifact", () => {
+  const ask = titleAsk({ type: "artifact", id: "sit_1" })!;
+  assert.equal(ask.cap, "sites.get");
+  assert.deepEqual(ask.input, { siteId: "sit_1" });
+  assert.equal(ask.name({ site: { siteId: "sit_1", name: "Pricing comparison" } }), "Pricing comparison");
+  assert.equal(ask.name({ site: {} }), null);
+});

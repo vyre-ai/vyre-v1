@@ -2,7 +2,7 @@
 // The links that open Chats: a link with `with` and `about` is an Ask about an object, `with` alone is a chat with that agent, and a thread id is that thread.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { START, askAbout, fromHash, step } from "./route.ts";
+import { START, askAbout, fromHash, openKeyOf, step } from "./route.ts";
 
 test("with and about make an Ask about the object, and bring names the chat whose summary comes along", () => {
   const s = fromHash("#screen=chats.conversation&with=agt_billing&about=record%3Arec_a1&bring=thr_old");
@@ -59,4 +59,11 @@ test("Open Terminal from the Space menu or Search opens the terminal list", () =
 test("Artifacts opens inside Chats like Threads, and its link lands there", () => {
   assert.deepEqual(step(START, { t: "artifacts" }).route, { view: "artifacts" });
   assert.deepEqual(fromHash("#screen=chats.artifacts").route, { view: "artifacts" });
+});
+
+test("one artifact opens in its own tab inside Chats, keeps the Artifacts row selected, and asks for the Share sheet only when told", () => {
+  assert.deepEqual(step(START, { t: "artifact", artifactId: "sit_1" }).route, { view: "artifact", artifactId: "sit_1" });
+  assert.deepEqual(fromHash("subject=artifact:sit_1").route, { view: "artifact", artifactId: "sit_1" });
+  assert.deepEqual(fromHash("subject=artifact:sit_1&share=1").route, { view: "artifact", artifactId: "sit_1", share: true });
+  assert.equal(openKeyOf(fromHash("subject=artifact:sit_1").route), "artifacts");
 });
