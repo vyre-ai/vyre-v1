@@ -41,6 +41,51 @@ A native bisect inside the container (`bisect.cs`) shows why:
 
 All three are AppContainer by design, and all three are in the engines' runtimes (Bun and libuv, Rust std, MSYS2), which Vyre cannot change. Option 1 can confine the engines but cannot let them run a tool. It is set aside.
 
+## Third spike: option E, a Low-integrity token and a Job Object (run 41548971173)
+
+`spikes/win-lowil` started each process with this user's own token at Low integrity (`CreateProcessAsUser`, no admin), in a Job Object that kills the tree on close and caps processes at 64 and memory at 4 GB each. The work folder and the engine's home carry a Low mandatory label.
+
+| Probe | Result |
+|---|---|
+| Claude Code, Bash tool (Git Bash) | ran, wrote its file |
+| Claude Code, PowerShell tool | ran, wrote its file |
+| Codex, exec_command (pwsh) | ran, wrote its file |
+| Job Object closed | the whole tree died (2 processes, then 0) |
+| write the Low-labelled work folder | ok |
+| write the profile, write Vyre's data folder | EPERM |
+| write `%LOCALAPPDATA%Low` | ok (Low's own folder, by design) |
+| read `%USERPROFILE%\.ssh\id_ed25519` | read |
+| read Chrome cookies, Edge saved logins, Firefox logins | read |
+| read Vyre's Personal Space (`%APPDATA%\ai.vyre.desktop\personal`) | read |
+| read `~\.claude\.credentials.json`, `~\.codex\auth.json` | read |
+| read a file in Documents; list the profile and Vyre's folder | read |
+| fetch `https://api.anthropic.com` with no proxy set | reached (HTTP 404) |
+| connect to the host's loopback | reached |
+
+The `%TEMP%` write probe ran with TEMP pointed at the Low home, so it proves nothing about the real Temp folder. That folder is Medium by default and should refuse, but this run did not test it.
+
+E keeps an engine from changing anything outside its folder, and it stops runaway processes. It confines no reads, so every secret in the profile is open to the engine. It confines no network either: `HTTPS_PROXY` is only a request, and the engine can reach any host and the daemon's own loopback ports. Two more points:
+- Low cannot write to a Medium named pipe, so the MCP bridge's pipe would need a Low label.
+- The runner's tool-cache Node refused to start at Low ("Access is denied"). A copy beside the engines started. Vyre's own Node must sit in a folder a Low process may execute from.
+
+## Option B on the runner (run 41552740011)
+
+windows-latest has WSL 3.0.3 with default version 2. VirtualMachinePlatform is enabled, a hypervisor is present, and no distro is installed. `wsl --import` of the 3 MB Alpine minirootfs took 10 s with no admin. The first boot of the WSL2 VM took 13 s. `apk add bubblewrap` gave bwrap 0.12.0, which ran a shell under `--unshare-all --die-with-parent`. B can be proven in CI.
+
+## Side by side
+
+| | A: AppContainer + Job + in-container bridge | B: WSL2 + bubblewrap (the Linux path) | E: Low integrity + Job Object |
+|---|---|---|---|
+| Files: reads | confined, kernel (profile closed) | confined, kernel (only the folders bound in) | **not confined**: `.ssh`, browser cookies and logins, Vyre's data folder, other CLIs' sign-ins, documents |
+| Files: writes | confined, kernel | confined, kernel | confined, kernel (Low-labelled folder and LocalLow only) |
+| Network | kernel: only the bridge, then the host's allow-list; the daemon's loopback is unreachable | kernel: the net wall inside the VM, then the allow-list | **not confined**: `HTTPS_PROXY` is a request; direct internet and the daemon's loopback answer |
+| Process tree, limits | Job Object | bwrap `--die-with-parent`, VM limits | Job Object (kill on close, 64 processes, 4 GB each) |
+| Engines' tools work | **no**: libuv, Rust std and MSYS2 are denied by AppContainer design | expected yes (the Linux builds as on a Linux server); not yet run there | yes: Claude Bash, Claude PowerShell, Codex |
+| Admin, reboot, setup | none | none where WSL is on (Vyre imports its own distro). Where WSL is off: one admin step and a reboot (`wsl --install --no-distribution`) | none |
+| First-turn cost | none | about 13 s VM boot after the computer starts; the import is once | none |
+| Build cost | stopped | medium-high: the wall and proxy run inside the VM; the MCP relay crosses VM to Windows; sign-in files go in the Linux home; Linux engines inside | low |
+| Provable on windows-latest | yes (and it fails) | yes | yes |
+
 ## Options
 
 ### 1. AppContainer (LowBox token) + Job Object: files work, the network does not
@@ -99,7 +144,11 @@ Claude Code documents native Windows as having no sandbox. Codex ships `codex-wi
 - The MCP shim: Node with `--preserve-symlinks-main`, reaching the bridge pipe. The pipe's DACL must name the container SID. libuv cannot set that (a Node pipe server answers the container with EPERM), so the pipe must come from native code.
 - Vyre installs all three by itself. `engine-pins.ts` now has win32-x64 and win32-arm64 builds, checked against the vendors' sums.
 
-## Recommendation
+## Recommendation (after the three spikes)
+
+Build B. It is the only option that keeps the rule on Windows, which is reads and the network confined by the kernel, and it runs the engines as they run on a Linux server. Vyre imports its own small distro with bwrap, so a computer with WSL turned on needs no setup. A computer without WSL keeps the honest refusal and an "API key works now" path, plus a one-line "Turn on WSL (needs admin and a restart)" action. E would let engines run everywhere today, but a prompt-injected engine could read `~/.ssh` or a browser's cookies and send them anywhere. That is the owner's call, not a default.
+
+### The first recommendation, kept for the record
 
 Build option 1 with the in-container bridge. It needs no admin, no reboot and no setup, and its file and network confinement are kernel-enforced. The spike shows the confinement holds. Before building it:
 
