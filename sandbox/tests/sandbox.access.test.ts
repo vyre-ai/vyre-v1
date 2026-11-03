@@ -48,7 +48,7 @@ test("Seatbelt: later rules win, so the order is open, then close, then the conf
   assert.ok(open < close && close < known && known < work);
   assert.match(prof, /\(deny file-read\* file-write\* [^\n]*\(subpath "\/Users\/dana\/\.ssh"\)/);
   assert.match(prof, /\(allow network-outbound \(remote unix-socket \(subpath "\/private\/tmp\/agent\.sock"\)\)\)/);
-  assert.deepEqual(sshFiles(a, "/x/.vyre-known-hosts"), { knownHosts: `/x/.vyre-known-hosts ${HOME}/.ssh/known_hosts` });
+  assert.deepEqual(sshFiles(a, "/x/.vyre-known-hosts"), { knownHosts: ["/x/.vyre-known-hosts", `${HOME}/.ssh/known_hosts`] });
 });
 
 test("bwrap: the folders bound, an empty folder over a closed one inside them, the configs after, the work folder last; the tools' variables and PATH", () => {

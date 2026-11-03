@@ -3,7 +3,7 @@
 // agent's tools run through the invoke pipeline. An API-key driver gets the agent's role as its system prompt and no tools yet: running its tools needs the engine's tool runner (callTool),
 // which is a separate packet; until then a chat on an API key answers in words only.
 import { LaunchError, createLocalLauncher } from "../../agent/src/drivers/cli/launcher.ts";
-import { ACCESS_ENV, RULE_ENV, SandboxError, accessFromEnv, engineAccess, ruleFromEnv } from "../../sandbox/src/index.ts";
+import { ACCESS_ENV, RULE_ENV, SandboxError, WIN_SSH_AGENT_PIPE, accessFromEnv, engineAccess, ruleFromEnv } from "../../sandbox/src/index.ts";
 import type { AccessAsked, EgressEvent, EgressRule, EngineAccess } from "../../sandbox/src/index.ts";
 import os from "node:os";
 import { openMcpBridge } from "./mcp-bridge.ts";
@@ -264,9 +264,11 @@ export function accessHere(dataDir: string, cwd: string | undefined, asked: Acce
   const own = [...(cwd ? [cwd] : []), ...(where ? [scratchFolder(dataDir, where.person)] : [])];
   const toolbox = path.join(data, "toolbox");
   if (asked.where === "server") fs.mkdirSync(toolbox, { recursive: true });
-  const sock = Object.hasOwn(o, "sshAuthSock") ? o.sshAuthSock : process.env["SSH_AUTH_SOCK"];
+  const platform = o.platform ?? process.platform;
+  // Windows OpenSSH's agent answers on its named pipe whether or not SSH_AUTH_SOCK names it
+  const sock = Object.hasOwn(o, "sshAuthSock") ? o.sshAuthSock : process.env["SSH_AUTH_SOCK"] ?? (platform === "win32" ? WIN_SSH_AGENT_PIPE : undefined);
   return engineAccess({
-    where: asked.where, home: o.home ?? os.homedir(), dataDir: data, platform: o.platform ?? process.platform, folders: asked.folders.filter((f) => fs.existsSync(f)).map(real), own, toolbox,
+    where: asked.where, home: o.home ?? os.homedir(), dataDir: data, platform, folders: asked.folders.filter((f) => fs.existsSync(f)).map(real), own, toolbox,
     ...(asked.where === "own" && sock ? { sshAuthSock: sock } : {}), exists: fs.existsSync,
   });
 }
