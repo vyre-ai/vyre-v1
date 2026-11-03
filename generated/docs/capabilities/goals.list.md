@@ -45,6 +45,7 @@ type Out = {
       owner: string;
       leadAgentId: string;
       threadId?: string;
+      folderId?: string;
       deadline: number;
       nextCheckinAt?: number;
       progress: {
@@ -88,6 +89,7 @@ type Out = {
     "goals": [
       {
         "deadline": 1760000000000,
+        "folderId": "fld_a1b2c3",
         "id": "gol_a1b2c3",
         "leadAgentId": "agt_a1b2c3",
         "nextCheckinAt": 1760000000000,

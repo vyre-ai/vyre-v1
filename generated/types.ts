@@ -14045,6 +14045,7 @@ export type GoalsListOut = {
       owner: string;
       leadAgentId: string;
       threadId?: string;
+      folderId?: string;
       deadline: number;
       nextCheckinAt?: number;
       progress: {
