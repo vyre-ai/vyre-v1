@@ -70,3 +70,84 @@ test("making a project that fails half way leaves no project behind", async () =
     assert.equal(((await call(d, "projects.list", {})).data.projects as unknown[]).length, 0);
   } finally { await stop(d); }
 });
+
+// ---- a crew on the person's own computer: no Docker, no GitHub, no repository yet ----
+
+import { spawnSync } from "node:child_process";
+import fs from "node:fs";
+import path from "node:path";
+import { fakePlatform } from "../host/src/platform/index.ts";
+import { workFolder } from "../modules/engine/sandbox.ts";
+
+const git = (cwd: string, ...args: string[]): string => {
+  const r = spawnSync("git", args, { cwd, encoding: "utf8", env: { ...process.env, GIT_AUTHOR_NAME: "t", GIT_AUTHOR_EMAIL: "t@t", GIT_COMMITTER_NAME: "t", GIT_COMMITTER_EMAIL: "t@t" } });
+  assert.equal(r.status, 0, `git ${args.join(" ")}: ${r.stderr}`);
+  return r.stdout;
+};
+
+test("in a Space with no Docker and no GitHub, a project with no repository: 'start a crew of two' makes the repository, two teammates work on their own branches, and Merge lands them", async () => {
+  let dir = ""; let owner = ""; let lead = ""; let project = "";
+  const mates: Record<string, string> = {};
+  const started: Answer[] = [];
+  const model = scriptedModel(async function* (input, run) {
+    const mate = Object.entries(mates).find(([, id]) => id === input.agent.id)?.[0];
+    if (mate) {
+      const work = workFolder(dir, owner, input.threadId, input.agent.id);
+      await waitFor(async () => (fs.existsSync(path.join(work, ".git")) ? true : null), 20_000);
+      fs.writeFileSync(path.join(work, `${mate.toLowerCase()}.txt`), `${mate} was here\n`);
+      git(work, "add", "-A"); git(work, "commit", "--quiet", "-m", `${mate} adds a file`);
+      yield { type: "text", text: `${mate} finished.` };
+      return;
+    }
+    if (input.agent.id !== lead || !/start a crew of two/.test(input.trigger?.body ?? "")) return;
+    yield* run("tool_search", { query: "crew teammate" });
+    for (const [name, id] of Object.entries(mates)) {
+      started.push((yield* run("crew_start", { threadId: input.threadId, projectId: project, teammateId: id, title: `${name}'s part`, brief: `Add ${name.toLowerCase()}.txt`, idempotencyKey: `local-${name}` })) as Answer);
+    }
+    yield { type: "text", text: "Started two teammates." };
+  });
+  // a computer with git and no Docker: `docker info` finds nothing
+  const seeded = seededDir();
+  const platform = fakePlatform({
+    os: "linux", hostname: "no-docker", free: 80e9,
+    commands: { [`findmnt -n -o SOURCE --target ${seeded}`]: { stdout: "/dev/mapper/vyre\n" }, "lsblk -s -n -o TYPE /dev/mapper/vyre": { stdout: "crypt\ndisk\n" } },
+  });
+  const d = await boot(seeded, model, { platform });
+  dir = d.paths.root;
+  try {
+    await connect(d);
+    lead = await makeAgent(d, "Lead");
+    owner = (await ok(d, "agents.get", { agentId: lead })).agent.ownerId as string;
+    project = (await ok(d, "projects.create", { type: "project", title: "Local site", idempotencyKey: "local-project" })).projectId as string;
+    for (const name of ["Ember", "Birch"]) mates[name] = (await ok(d, "projects.teammates.create", { projectId: project, name, role: "member", idempotencyKey: `local-${name}-mate` })).teammate.agentId as string;
+    assert.equal((await ok(d, "engine.crew.repo.get", { projectId: project })).repo, null, "no repository yet");
+    const chat = await startChat(d, lead, "local1");
+    await ok(d, "chat.post", { threadId: chat, body: "start a crew of two", mentions: [{ kind: "agent", id: lead }], idempotencyKey: "local1-ask" });
+
+    const cards = await waitFor(async () => {
+      const ms = (await ok(d, "chat.messages.list", { threadId: chat })).messages as Array<{ author: { id: string }; blocks: Array<{ type: string; data: Record<string, any> }> }>;   // eslint-disable-line @typescript-eslint/no-explicit-any
+      const found = ms.filter((m) => m.blocks.some((b) => b.type === "crew_result"));
+      return found.length >= 2 ? found : null;
+    }, 60_000, () => `${hostLog(d)} ${JSON.stringify(started).slice(0, 500)}`);
+    assert.equal(cards.length, 2);
+    for (const a of started) assert.equal(a.ok, true, JSON.stringify(a.content));
+
+    // the repository the crew made is a real one on this computer, with main as its start, in the project's own folder
+    const repo = (await ok(d, "engine.crew.repo.get", { projectId: project })).repo as { path: string; baseBranch: string; branch: string };
+    assert.deepEqual([repo.baseBranch, repo.branch], ["main", "main"]);
+    assert.ok(repo.path.startsWith(path.join(dir, "trees") + path.sep), repo.path);
+    assert.equal(git(repo.path, "rev-parse", "--is-inside-work-tree").trim(), "true");
+    assert.equal(git(repo.path, "remote").trim(), "", "no remote: GitHub is optional");
+
+    const jobs = (await ok(d, "engine.crew.list", { threadId: chat })).jobs as Array<{ jobId: string; branch: string; state: string }>;
+    assert.deepEqual(jobs.map((j) => j.branch).sort(), ["crew/birch-1", "crew/ember-1"]);
+    assert.deepEqual(jobs.map((j) => j.state), ["done", "done"]);
+    for (const c of cards) assert.equal(c.blocks.find((b) => b.type === "crew_result")!.data["ahead"], 1);
+
+    // Merge, the button on each card: both branches land
+    for (const j of jobs) assert.equal((await ok(d, "engine.crew.merge", { jobId: j.jobId, idempotencyKey: `local-merge-${j.jobId}` })).landed, true);
+    assert.equal(fs.readFileSync(path.join(repo.path, "ember.txt"), "utf8"), "Ember was here\n");
+    assert.equal(fs.readFileSync(path.join(repo.path, "birch.txt"), "utf8"), "Birch was here\n");
+    assert.deepEqual((await ok(d, "engine.crew.list", { threadId: chat })).jobs.map((j: { state: string }) => j.state), ["merged", "merged"]);
+  } finally { await stop(d); }
+});
