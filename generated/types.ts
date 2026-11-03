@@ -1728,6 +1728,14 @@ export type AgentsRoutineDelegateOut = {
       on: "message";
       channelId: string;
     };
+    setBy?: {
+      kind: "person" | "agent" | "actor" | "service";
+      id: string;
+    };
+    lastRun?: {
+      runId: string;
+      status: "running" | "succeeded" | "failed" | "stopped";
+    };
   };
   previousOwnerId: string;
 };
@@ -1759,6 +1767,14 @@ export type AgentsRoutineRunNowOut = {
     watch?: {
       on: "message";
       channelId: string;
+    };
+    setBy?: {
+      kind: "person" | "agent" | "actor" | "service";
+      id: string;
+    };
+    lastRun?: {
+      runId: string;
+      status: "running" | "succeeded" | "failed" | "stopped";
     };
   };
   runId: string;
@@ -1795,6 +1811,14 @@ export type AgentsRoutineSaveOut = {
       on: "message";
       channelId: string;
     };
+    setBy?: {
+      kind: "person" | "agent" | "actor" | "service";
+      id: string;
+    };
+    lastRun?: {
+      runId: string;
+      status: "running" | "succeeded" | "failed" | "stopped";
+    };
   };
 };
 export type AgentsRoutinesListIn = {
@@ -1816,6 +1840,14 @@ export type AgentsRoutinesListOut = {
       watch?: {
         on: "message";
         channelId: string;
+      };
+      setBy?: {
+        kind: "person" | "agent" | "actor" | "service";
+        id: string;
+      };
+      lastRun?: {
+        runId: string;
+        status: "running" | "succeeded" | "failed" | "stopped";
       };
     }>;
 };
