@@ -7,7 +7,7 @@ import { Dialog } from "../../../../../ui/src/Dialog/index.tsx";
 import { TextField } from "../../../../../ui/src/TextField/index.tsx";
 import { setComputersAvailable, takeAddServerRequest } from "../../shell/computers-available.ts";
 import { useSettingsData } from "./data.tsx";
-import { addressKind, emptySheet, factsLine, joinCommand, phaseOf, runsLine, validNickname } from "./computers-model.ts";
+import { addressKind, emptySheet, engineLine, factsLine, joinCommand, phaseOf, runsLine, validNickname } from "./computers-model.ts";
 import type { HostInfo, ServerInfo, Sheet } from "./computers-model.ts";
 import { Glyph, Section, SettingsRow, SmallButton, Tip, pointer } from "./ui.tsx";
 import { PhoneAccessSection } from "./PhoneAccess.tsx";
@@ -36,9 +36,12 @@ export interface ComputersBodyProps {
 export function ComputersBody({ hosts, servers, removing, onAdd, onAskRemove, onRemove }: ComputersBodyProps): ReactElement {
   const here = hosts.find((h) => h.kind === "this");
   const rows: ReactElement[] = [];
+  // how the AI's engines run here, when it is not the full sandbox: a Windows Personal Space
+  const engines = engineLine({ desktop: (globalThis as { __TAURI__?: unknown }).__TAURI__ !== undefined, userAgent: (globalThis as { navigator?: { userAgent?: string } }).navigator?.userAgent ?? "" });
+  const thisSub = [here ? runsLine(here) : "", engines].filter(Boolean).join(" · ");
   rows.push(
     <SettingsRow
-      key="this" id="computer.this" first label="This computer" lead={<Dot on />} {...(here && runsLine(here) ? { sub: runsLine(here) } : {})}
+      key="this" id="computer.this" first label="This computer" lead={<Dot on />} {...(thisSub ? { sub: thisSub } : {})}
       {...(here && !here.canRun ? { help: "Agent computers need Docker here, or a server." } : {})}
       control={here?.canRun ? <Glyph name="check" color="var(--ok, #2f9e5b)" /> : undefined}
     />,

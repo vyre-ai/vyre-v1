@@ -245,9 +245,11 @@ export function refuseMissingProgram(program: string, probe?: NodeCliProbe): voi
 }
 
 /** The MCP bridge of one session: refused with sandbox.unavailable where the engine cannot be sandboxed (the spawn would refuse the same way), engine.mcp_unavailable when the bridge cannot open. */
-export async function openBridge(plan: () => Promise<SandboxPlan>, m: { url: string; token: string }, scratch: string): Promise<Awaited<ReturnType<typeof openMcpBridge>>> {
+export async function openBridge(plan: () => Promise<SandboxPlan>, m: { url: string; token: string }, scratch: string): Promise<Awaited<ReturnType<typeof openMcpBridge>> | null> {
   const s = (await plan()).sandbox;
   if (s.kind === "docker" || s.kind === "server") throw new SandboxError("sandbox.unavailable", s.reason ?? "this engine cannot be sandboxed on this computer");
+  // a Windows Personal Space engine has the loopback (the ruling: the person's own computer): it reaches Vyre's MCP endpoint by its URL, with its session token
+  if (s.kind === "lowil") return null;
   try { return await openMcpBridge(m, { scratch }); }
   catch (e) { throw Object.assign(new Error(`the engine's link to Vyre's tools could not open: ${e instanceof Error ? e.message : String(e)}`), { code: "engine.mcp_unavailable" }); }
 }

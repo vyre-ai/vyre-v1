@@ -296,7 +296,7 @@ jobs:
     if: ${{ !inputs.only || inputs.only == 'sandbox-windows' }}
     name: sandbox (windows-latest)
     runs-on: windows-latest
-    timeout-minutes: 20
+    timeout-minutes: 45
     defaults:
       run:
         shell: bash
@@ -309,6 +309,13 @@ jobs:
           node-version: 24
       - name: Local sockets and the MCP bridge
         run: node --test --test-force-exit --test-reporter=spec sandbox/tests/sock.test.ts modules/engine/tests/mcp-bridge.test.ts
+      # A Windows Personal Space (owner ruling 3 Nov 2026): Claude Code at Low integrity in a Job Object, built and started by Vyre's own code. A turn with one Bash tool call against a fake
+      # model API, git over HTTPS through the egress proxy, no change outside the work folder and the added folders, Vyre's own secrets unreadable, nothing left running after the job.
+      - name: A Windows Personal Space, a real Claude Code turn, git, and what it may change
+        env:
+          VYRE_HEAVY_LOWIL: "1"
+        timeout-minutes: 30
+        run: node --test --test-force-exit --test-reporter=spec --test-timeout=1800000 modules/engine/tests/sandbox.lowil.heavy.test.ts
   # The Mac server installer on a real macOS runner: BSD tar, shasum, diskutil, plutil and the system LibreSSL beside Homebrew's OpenSSL 3. No Docker and no launchd changes.
   # Its unit tests (scripts/install/macos/install.test.ts) also run on the Linux runners with the main suite. There is no self-hosted macOS runner. A tag run skips it:
   # the release already ran it on the commit that was merged.
