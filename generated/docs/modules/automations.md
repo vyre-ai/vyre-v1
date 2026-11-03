@@ -25,7 +25,7 @@ Requires: chat, files, forms, github, journeys, mail, meetings, records, runs, t
 - [automations.fire](../capabilities/automations.fire.md): Start a run from a matched trigger event, checking self-trigger origin and the chain depth limit of 8 (called by the trigger consumer)
 - [automations.followers.add](../capabilities/automations.followers.add.md): Follow an Automation to get its updates
 - [automations.followers.remove](../capabilities/automations.followers.remove.md): Stop following an Automation
-- [automations.get](../capabilities/automations.get.md): Read an Automation with its definition, alerts and followers
+- [automations.get](../capabilities/automations.get.md): Read an Automation with its definition, alerts and followers, and whether the caller may change it (a Space one: owners, admins and people given Edit on it)
 - [automations.groups.create](../capabilities/automations.groups.create.md): Create a Group
 - [automations.groups.delete](../capabilities/automations.groups.delete.md): Delete a Group; its Automations become ungrouped
 - [automations.groups.list](../capabilities/automations.groups.list.md): List Groups with Automation counts

@@ -8,7 +8,7 @@ List agents you are in or that are shared with you (admins may toggle All in the
 | Version | 1 (since 1.0.0) |
 | Effects | read |
 | Permission | grant only |
-| Grant level | view |
+| Grant level | member |
 | Risk | low |
 | Resource | space |
 | Gate | none |
