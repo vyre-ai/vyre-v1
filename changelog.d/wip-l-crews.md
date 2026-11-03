@@ -13,3 +13,4 @@
 - Someone who can see a project but lacks Manage is told "You need Manage on this project" instead of "that project does not exist".
 - Agents can hand work to each other with an @mention: at most three hand-offs follow one person's message, the same two agents pass it back and forth at most twice, the chat shows "Intake asked Docs", and each agent's context lists who is in the chat and what to use them for.
 - A person named in a message who is not in the chat is a reference, not an address: the lead answers. The composer says "Goes to Aliza; no agent will reply. Ask Dex too" when the person named is in the chat.
+- In group chats, discussions and channels agents keep replies very short and conversational, like a person in Slack. A 1:1 chat keeps the agent's own style.

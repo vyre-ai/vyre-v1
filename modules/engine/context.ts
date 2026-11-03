@@ -99,6 +99,8 @@ export function capabilitySkills(call: Call, fallback: SkillsPort = diskSkills()
 export const SKILL_INDEX_MAX = 60;
 
 const cutTo = (s: string, n: number): string => (s.length <= n ? s : `${s.slice(0, n - 1)}…`);
+/** The line every agent gets in a group chat, a discussion or a channel. */
+export const GROUP_STYLE = "This is a group conversation: keep replies very short, like a person writing in Slack. Stay conversational and follow how the discussion flows; a note is short and to the point unless someone asks for detail.";
 const one = (s: unknown, n = 140): string => cutTo(String(s ?? "").replace(/\s+/g, " ").trim(), n);
 const arr = <T = Obj>(v: unknown): T[] => (Array.isArray(v) ? (v as T[]) : []);
 const str = (v: unknown): string | undefined => (typeof v === "string" && v !== "" ? v : undefined);
@@ -430,6 +432,8 @@ export function createContextBuilder(d: ContextDeps) {
       await Promise.all(mates.slice(0, 8).map(async (a) => { try { const r = str(((await read<Obj>("agents.get", { agentId: a.id }, asker))?.["agent"] as Obj | undefined)?.["role"]); if (r) brief.set(a.id, one(r, 100)); } catch { /* no brief */ } }));
       where.push(`Agents here: ${mates.slice(0, 8).map((a) => `${who(a.id)} (${a.mode === "lead" ? "lead" : "answers when tagged"}${brief.has(a.id) ? `; use for: ${brief.get(a.id)}` : ""})`).join("; ")}. To hand something to one, @mention it by name in your reply with what you need; it answers on ${who(asker)}'s account, and a chain of hand-offs stops after three.`);
     }
+    // a group chat, a discussion or a channel (more than one other participant): short, like a person in Slack. A 1:1 keeps the agent's own style (owner ruling 4 Nov 2026)
+    if (kind === "channel" || others.length + mates.length >= 2) where.push(GROUP_STYLE);
     const rv = reviewerOut?.["reviewer"] as { kind?: string; id?: string } | null | undefined;
     if (rv?.id) {
       if (rv.kind === "agent" && rv.id === agentId) where.push(`You are the reviewer of this chat. When you are asked, read the lead agent's last answer and what it changed, check it against what ${who(asker)} asked, and say Approved or list what is wrong. Address your verdict to ${who(asker)} with a mention.`);
