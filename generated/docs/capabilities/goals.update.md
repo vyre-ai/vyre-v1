@@ -188,6 +188,12 @@ type Out = {
     createdAt: number;
     updatedAt: number;
   };
+  seated?: Array<{
+      kind: "person" | "agent";
+      id: string;
+      inChat: boolean;
+      error?: string;
+    }>;
 };
 ```
 
@@ -383,7 +389,15 @@ type Out = {
       "turns": 1,
       "updatedAt": 1760000000000,
       "zone": "Asia/Karachi"
-    }
+    },
+    "seated": [
+      {
+        "error": "example",
+        "id": "example",
+        "inChat": true,
+        "kind": "person"
+      }
+    ]
   }
 }
 ```

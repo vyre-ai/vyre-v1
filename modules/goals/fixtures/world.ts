@@ -18,7 +18,7 @@ export const owner: Caller = { id: OWNER, kind: "person", origin: "app" };
 export const lead: Caller = { id: LEAD, kind: "agent", actingFor: OWNER };
 export const host: Caller = { id: "svc_host", kind: "service" };
 
-export function world(o: { count?: number; failRead?: string } = {}) {
+export function world(o: { count?: number; failRead?: string; failMembers?: string } = {}) {
   const sqlite = new DatabaseSync(":memory:");
   const norm = (a: unknown): unknown => (a === undefined ? null : a);
   const raw: Db = {
@@ -42,7 +42,7 @@ export function world(o: { count?: number; failRead?: string } = {}) {
     "settings.get": () => ({ row: { value: "Asia/Karachi" } }),
     "chat.start": (i) => ({ thread: { threadId: `thr_${String(i.scopeId ?? next("x")).replace(/^gol_/, "g")}` } }),
     "chat.post": (i, who) => { state.posts.push({ threadId: i.threadId, body: i.body, blocks: i.blocks, by: who.id }); return { message: { messageId: next("msg") } }; },
-    "threads.members.add": (i) => { state.members.push({ threadId: i.threadId, id: i.personId }); return {}; },
+    "threads.members.add": (i) => { if (o.failMembers) throw new Error(o.failMembers); state.members.push({ threadId: i.threadId, id: i.personId }); return {}; },
     "threads.add_agent": (i) => { state.members.push({ threadId: i.threadId, id: i.agentId }); return {}; },
     "tasks.create": (i, who) => {
       const t: FakeTask = { id: next("tsk"), kind: i.kind ?? "work", title: i.title, state: i.kind === "approve" ? "awaiting_approval" : "todo", workingNotes: { ...(i.notes ?? {}) }, createdBy: who.id, summary: i.summary, ...(i.parentTaskId ? { parentTaskId: i.parentTaskId } : {}), assigned: i.assigned };

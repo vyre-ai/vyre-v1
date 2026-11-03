@@ -64,21 +64,41 @@ export function numberLine(g: Goal): string {
 
 // ---- making what a goal needs: its chat, its root task, its folder ----
 
-export async function ensureThread(ctx: GoalsCtx, g: Goal): Promise<string | undefined> {
+/** What happened to each helper when the goal chat was set up: the real result of each call, never a guess. */
+export interface Seat { kind: "person" | "agent"; id: string; inChat: boolean; error?: string }
+export async function ensureThread(ctx: GoalsCtx, g: Goal, seated?: Seat[]): Promise<string | undefined> {
   if (!g.threadId) {
     const r = await tryCall<{ thread?: { threadId?: string } }>(ctx, "chat.start", { kind: "chat", agentIds: [g.leadAgentId], scopeType: "goal", scopeId: g.id, title: g.title, idempotencyKey: `goal-thread:${g.id}` });
-    if (!r?.thread?.threadId) return undefined;
+    if (!r?.thread?.threadId) {
+      if (seated) for (const h of g.helpers) seated.push({ kind: h.kind as Seat["kind"], id: h.id, inChat: false, error: "The goal chat could not be made yet." });
+      return undefined;
+    }
     g.threadId = r.thread.threadId;
     addThread(ctx.db, g.id, g.threadId, "goal");
   }
-  await seat(ctx, g);
+  const got = await seat(ctx, g);
+  if (seated) seated.push(...got);
   return g.threadId;
 }
-/** The owner and the helpers are in the goal chat: people as members, agents listening (they speak when mentioned). */
-export async function seat(ctx: GoalsCtx, g: Goal): Promise<void> {
-  if (!g.threadId) return;
-  for (const p of new Set([g.owner, ...g.helpers.filter((h) => h.kind === "person").map((h) => h.id)])) await tryCall(ctx, "threads.members.add", { threadId: g.threadId, personId: p });
-  for (const h of g.helpers) if (h.kind === "agent" && h.id !== g.leadAgentId) await tryCall(ctx, "threads.add_agent", { threadId: g.threadId, agentId: h.id, mode: "listen" });
+/** The owner and the helpers are in the goal chat: people as members, agents listening (they speak when mentioned). Each result is returned; a failure is written to the goal's activity. */
+export async function seat(ctx: GoalsCtx, g: Goal): Promise<Seat[]> {
+  const results: Seat[] = [];
+  if (!g.threadId || !ctx.call) return results;
+  const people = new Set([g.owner, ...g.helpers.filter((h) => h.kind === "person").map((h) => h.id)]);
+  for (const p of people) {
+    try { await ctx.call("threads.members.add", { threadId: g.threadId, personId: p }); if (p !== g.owner) results.push({ kind: "person", id: p, inChat: true }); }
+    catch (e) {
+      const error = why(e);
+      note(ctx, g.id, "error", `Could not add ${p === g.owner ? "the owner" : p} to the goal chat: ${error}`);
+      if (p !== g.owner) results.push({ kind: "person", id: p, inChat: false, error });
+    }
+  }
+  for (const h of g.helpers) {
+    if (h.kind !== "agent" || h.id === g.leadAgentId) continue;
+    try { await ctx.call("threads.add_agent", { threadId: g.threadId, agentId: h.id, mode: "listen" }); results.push({ kind: "agent", id: h.id, inChat: true }); }
+    catch (e) { const error = why(e); note(ctx, g.id, "error", `Could not add ${h.id} to the goal chat: ${error}`); results.push({ kind: "agent", id: h.id, inChat: false, error }); }
+  }
+  return results;
 }
 
 export async function ensureRoot(ctx: GoalsCtx, g: Goal): Promise<string | undefined> {
