@@ -402,3 +402,17 @@ test("one Personal Space on several computers: the name sends the phone to which
   await rt.settle();
   assert.match(await (await rt.fetch("https://solo-phone.vyre.run/")).text(), /Mac mini is asleep/);
 });
+
+test("a person's computers come before their server: a server that holds the name sends the phone to an awake computer first", async t => {
+  const rt = world(t);
+  const server = await box(rt), laptop = await box(rt);
+  await server.say({ t: "host.claim", name: "dana-phone", label: "Home server" });
+  assert.equal((await server.say({ t: "host.members", selfKind: "server", members: [{ route: laptop.route, label: "Laptop", kind: "computer" }] })).status, "ok");
+  let info = await (await rt.fetch("https://dana-phone.vyre.run/__vyre/info.json")).json();
+  assert.equal(info.route, laptop.route, "the computer that is awake first");
+  assert.deepEqual(info.computers.map((/** @type {any} */ c) => c.label), ["Laptop", "Home server"]);
+  laptop.close();
+  await rt.settle();
+  info = await (await rt.fetch("https://dana-phone.vyre.run/__vyre/info.json")).json();
+  assert.equal(info.route, server.route, "the laptop sleeps: the server answers");
+});

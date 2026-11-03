@@ -197,11 +197,12 @@ export function createPeerService(d: PeerServiceDeps): PeerService {
     let held = false;
     try { held = (h.all("SELECT state FROM network_phone WHERE id = 1")[0] as { state?: string } | undefined)?.state === "claimed"; } catch { /* no phone table */ }
     if (!held) { toldMembers = ""; return; }
-    const list = (h.all("SELECT route, name FROM network_peer WHERE removed_at IS NULL ORDER BY added_at, id") as { route: string; name: string }[])
-      .filter((p) => p.route && p.route !== route).map((p) => ({ route: p.route, label: p.name }));
-    const sig = JSON.stringify(list);
+    const rows = h.all("SELECT route, name, kind FROM network_peer WHERE removed_at IS NULL ORDER BY added_at, id") as { route: string; name: string; kind: string }[];
+    const selfKind = rows.find((p) => p.route === route)?.kind === "server" ? "server" as const : "computer" as const;
+    const list = rows.filter((p) => p.route && p.route !== route).map((p) => ({ route: p.route, label: p.name, kind: p.kind === "server" ? "server" as const : "computer" as const }));
+    const sig = JSON.stringify([selfKind, list]);
     if (sig === toldMembers) return;
-    const r = await box.host.members(list);
+    const r = await box.host.members(list, selfKind);
     if (r.status === "ok") toldMembers = sig;
     d.log("peers.members_told", { n: list.length, status: r.status });
   }

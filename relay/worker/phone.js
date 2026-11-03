@@ -119,7 +119,7 @@ export class HostSlot {
     const url = new URL(request.url);
     const cur = (await this.ctx.storage.get("h")) || null;
     if (request.method === "GET" && url.pathname === "/info") {
-      return json(200, cur ? { route: cur.route, label: cur.label, released: Boolean(cur.released), members: Array.isArray(cur.members) ? cur.members : [] } : {});
+      return json(200, cur ? { route: cur.route, label: cur.label, released: Boolean(cur.released), members: Array.isArray(cur.members) ? cur.members : [], ...(cur.kind === "server" ? { kind: "server" } : {}) } : {});
     }
     let body;
     try { body = await request.json(); } catch { return json(400, { error: "bad request" }); }
@@ -138,10 +138,10 @@ export class HostSlot {
       for (const m of list) {
         const r = String(m && m.route || "");
         if (!/^[a-z2-7]{26}$/.test(r) || r === route || members.some(x => x.route === r)) continue;
-        members.push({ route: r, label: cleanLabel(m.label) });
+        members.push({ route: r, label: cleanLabel(m.label), ...(m && m.kind === "server" ? { kind: "server" } : {}) });
         if (members.length >= PHONE.members) break;
       }
-      await this.ctx.storage.put("h", { ...cur, members });
+      await this.ctx.storage.put("h", { ...cur, members, ...(body.selfKind === "server" ? { kind: "server" } : { kind: undefined }) });
       return json(200, { status: "ok", count: members.length });
     }
     if (request.method === "POST" && url.pathname === "/release") {
@@ -209,7 +209,7 @@ export async function hostControl(relay, ws, m) {
   }
   if (op === "members") {
     if (!mine) return reply(op, "none");
-    const out = /** @type {any} */ (await (await slotOf(env, mine.name).fetch("https://host/members", { method: "PUT", body: JSON.stringify({ route, members: Array.isArray(m.members) ? m.members.slice(0, 32) : [] }) })).json());
+    const out = /** @type {any} */ (await (await slotOf(env, mine.name).fetch("https://host/members", { method: "PUT", body: JSON.stringify({ route, selfKind: m.selfKind === "server" ? "server" : "computer", members: Array.isArray(m.members) ? m.members.slice(0, 32) : [] }) })).json());
     return reply(op, out.status, { name: mine.name });
   }
   if (op === "release") {
@@ -441,15 +441,17 @@ export async function onHost(request, env, name) {
   const stateOf = async route => {
     try { const j = /** @type {any} */ (await (await env.ROUTES.get(env.ROUTES.idFromName(route)).fetch("https://route/online")).json()); return { online: Boolean(j.online), seenAt: typeof j.seenAt === "number" ? j.seenAt : null }; } catch { return { online: false, seenAt: null }; }
   };
-  // One Personal Space on several computers: the name's own route first, then the others it named. The phone goes to the first that is awake, and so do public pages and the door.
+  // One Personal Space on several computers: the person's computers first (the name's own route first among them), then their servers (the owner's order of 3 Nov: a computer of theirs that is
+  // awake, then their own server). The phone goes to the first that is awake, and so do public pages and the door; a phone's chat runs on the computer it reached.
   const members = Array.isArray(info.members) ? info.members : [];
-  const routes = [{ route: info.route, label: info.label || "" }, ...members.map((/** @type {any} */ m) => ({ route: String(m.route), label: String(m.label || "") }))];
+  const all0 = [{ route: info.route, label: info.label || "", server: info.kind === "server" }, ...members.map((/** @type {any} */ m) => ({ route: String(m.route), label: String(m.label || ""), server: m.kind === "server" }))];
+  const routes = [...all0.filter(r => !r.server), ...all0.filter(r => r.server)];
   let states = /** @type {{ online: boolean, seenAt: number | null }[] | null} */ (null);
   const all = async () => (states ??= await Promise.all(routes.map(r => stateOf(r.route))));
   if (members.length) {
     const s = await all();
     const awake = routes.findIndex((_, i) => s[i]?.online);
-    if (awake > 0) info = { ...info, route: routes[awake].route };
+    if (awake >= 0) info = { ...info, route: routes[awake].route };
   }
   const online = async () => (await all()).some(x => x.online);
   if (url.pathname === "/p" || url.pathname.startsWith("/p/") || ARTIFACT.test(url.pathname)) return onPublic(request, env, name, info, online);

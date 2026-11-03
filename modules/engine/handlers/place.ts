@@ -91,6 +91,16 @@ function isCrewJob(ctx: EngineCtx, threadId: string): boolean {
   try { return ctx.db.all("SELECT 1 AS x FROM engine_crew_job WHERE thread_id = ?", threadId).length > 0; } catch { return false; }
 }
 
+/**
+ * A Personal Space on several computers (lane l-multidevice): each computer holds the whole Space and is the person's own, so a chat runs on the computer it reached (own_host): the desktop app's
+ * own computer, or for a phone the awake computer the relay sent it to (the relay tries the person's computers before their server). The device rows of the person's other computers are copies
+ * from those computers, and their stored last-seen time says nothing about this one: only a computer with a live link here counts as one this computer could hand a turn to.
+ */
+export function personalDevices(team: boolean, devices: PlaceDevice[]): PlaceDevice[] {
+  if (team || relayOf()?.devices) return devices;
+  return devices.map((x) => ({ ...x, online: false }));
+}
+
 export async function placementDecide(ctx: CallCtx, input: { threadId: string; agentId: string; kind: "message" | "interrupt" | "wake" | "handoff" }) {
   const asker = askerOf(ctx);
   const [t, a, d] = await Promise.all([
@@ -111,7 +121,7 @@ export async function placementDecide(ctx: CallCtx, input: { threadId: string; a
     item: { kind: input.kind === "message" ? "message" : input.kind },
     agent: { hasComputer: a.agent.hasComputer === true },
     engine: engineOf(ctx, input.threadId, input.agentId),
-    asker: { devices: devicesFrom(d, ctx.now(), asker), ...(current ? { current } : {}), servers, localRuns, runtimeOptIn: flagOn(ctx, asker, "runtime_opt_in"), ...(chosen ? { chosen } : {}) },
+    asker: { devices: personalDevices(space.team, devicesFrom(d, ctx.now(), asker)), ...(current ? { current } : {}), servers, localRuns, runtimeOptIn: flagOn(ctx, asker, "runtime_opt_in"), ...(chosen ? { chosen } : {}) },
     space: space.team ? { shared: space.shared } : { shared: false, hostIsAsker: true },
   };
   const p = placeTurn(place);
