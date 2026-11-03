@@ -1,0 +1,1 @@
+- Share adapters (apps/app/src/share/adapter.ts): one typed adapter per item type (Notes, Vault items and folders, Files, folders, artifacts, records, record types, projects, agents) for the shared Share sheet. Each lists who has access, sets a level, removes, and offers only the levels the person holds. access.shares_of now returns the caller's own level (`mine`).

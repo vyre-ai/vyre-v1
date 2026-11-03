@@ -686,9 +686,10 @@ export async function sharesOf(ctx: ShareCtx, input: { resource: ResourceRef }) 
     const through = ancestor ? "folder" : g.subject.kind === "group" ? "group" : g.subject.kind === "role" ? "role" : "direct";
     shares.push({ grant: grantView(g), through });
   }
-  if (!RECORDS.has(res.type)) return { shares };
+  const mine = callerLevel(ctx, store, res) ?? undefined;
+  if (!RECORDS.has(res.type)) return { shares, ...(mine ? { mine } : {}) };
   const audience = audienceOf(res);
-  const out: { shares: typeof shares; audience: Audience; exporters: Exporters; inherits?: string; outside?: boolean; can: Rights } = { shares, audience, exporters: exportersOf(store, res), can: rightsOf(ctx, store, res) };
+  const out: { shares: typeof shares; mine?: Level; audience: Audience; exporters: Exporters; inherits?: string; outside?: boolean; can: Rights } = { shares, ...(mine ? { mine } : {}), audience, exporters: exportersOf(store, res), can: rightsOf(ctx, store, res) };
   if (res.type === "record_type") out.outside = res.row?.["outside"] === true;
   // a record follows its type until it is cut off from it
   if (res.type === "record" && audience === "space" && res.parentId !== null && store.resources.get(res.parentId)?.type === "record_type") out.inherits = res.parentId;

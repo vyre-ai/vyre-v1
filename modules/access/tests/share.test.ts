@@ -297,6 +297,15 @@ test("shares_of names who has access and through what", async () => {
   assert.equal(await code(sharesOf(r.as("usr_b"), { resource: { type: "site", id: "sit_y" } })), "permission.no_grant");
 });
 
+test("shares_of tells the caller their own level, so the sheet offers nothing above it", async () => {
+  const r = rig();
+  r.item("sit_m", "usr_a");
+  const a = r.as("usr_a");
+  await share(a, { resource: { type: "site", id: "sit_m" }, subject: { kind: "person", id: "usr_b" }, level: "edit" });
+  assert.equal((await sharesOf(a, { resource: { type: "site", id: "sit_m" } })).mine, "manage");
+  assert.equal((await sharesOf(r.as("usr_b"), { resource: { type: "site", id: "sit_m" } })).mine, "edit");
+});
+
 test("deciders names the people who hold Manage, and shows a caller who cannot see the resource nothing but those ids", async () => {
   const r = rig();
   r.item("sit_x", "usr_a");

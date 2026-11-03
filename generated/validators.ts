@@ -22083,6 +22083,7 @@ if ("through" in o1262) lf(o1262["through"], p + "/shares" + '/' + i1261 + "/thr
 }
 }
 }
+if ("mine" in o1260) lf(o1260["mine"], p + "/mine", e, L42);
 if ("audience" in o1260) lf(o1260["audience"], p + "/audience", e, L277);
 if ("exporters" in o1260) lf(o1260["exporters"], p + "/exporters", e, L437);
 if ("inherits" in o1260) lf(o1260["inherits"], p + "/inherits", e, L1);

@@ -66,6 +66,7 @@ type Out = {
       };
       through: "direct" | "group" | "role" | "folder" | "owner";
     }>;
+  mine?: "view" | "use" | "edit" | "manage";
   audience?: "space" | "added" | "me";
   exporters?: "admins" | "viewers" | "chosen";
   inherits?: string;
@@ -107,6 +108,7 @@ type Out = {
     },
     "exporters": "admins",
     "inherits": "example",
+    "mine": "view",
     "outside": true,
     "shares": [
       {
