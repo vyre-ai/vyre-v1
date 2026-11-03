@@ -82,7 +82,7 @@ export interface MessageActions {
   /** Make a task from this message, linked back to it. */
   makeTask?(messageId: string): void;
   /** The reader's side of an agent's message for its person (lane l-agentdm): who reads, and mute that person's agents for the rest of the day. Absent where the shell cannot. */
-  agentMute?: { me: string; mute(personId: string): void };
+  agentMute?: { me: string; mute(personId: string): void; /** the one message the quiet mute line goes under; absent: none */ offerFor?: string | null };
   /** Share this message to a channel or a person: opens the list of places at the point given. */
   share?(messageId: string, x: number, y: number): void;
   /** What the turn behind a reply being written is doing: the live line under it (steps, thinking). */
@@ -379,7 +379,7 @@ function Theirs({ item, actions, stream, openWork, mark, meId }: MessageViewProp
       {collect(errors, (b) => <ErrorRowView key={b.id} block={b} actions={actions} />)}
       {collect(statuses, (x) => (x.kind === "note" ? <Text key={x.id} testID={`status-${x.id}`} style={st.edited}>{x.text}</Text> : x.kind === "approval" && actions.files ? <ApprovalCard key={x.id} taskId={x.taskId} agent={item.who.name} agentId={item.who.id} {...(item.who.face ? { face: item.who.face } : {})} data={actions.files} /> : null))}
       {item.who.kind === "agent" && actions.withPeople === true && !stream && m.body.trim() !== "" ? <ReplyActions m={m} actions={actions} /> : null}
-      {item.who.forPerson && actions.agentMute && onBehalfOf(m)?.teammate === actions.agentMute.me ? (
+      {item.who.forPerson && actions.agentMute && actions.agentMute.offerFor === m.messageId && onBehalfOf(m)?.teammate === actions.agentMute.me ? (
         <Pressable accessibilityRole="button" testID={`agent-mute-${m.messageId}`} onPress={() => actions.agentMute!.mute(item.who.forPerson!)}>
           <Text style={[st.via, st.muteLine]}>{`Mute agent messages from ${firstName(item.who.name.replace(/ \(Agent\)$/, ""))} for today`}</Text>
         </Pressable>

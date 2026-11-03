@@ -4,9 +4,9 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
 import { MessageView, menuFor } from "./MessageView.tsx";
-import { onBehalfOf, timeline } from "./model.ts";
+import { muteOfferFor, onBehalfOf, timeline } from "./model.ts";
 import type { Message } from "./model.ts";
-import { excerptLines, wantsPhrase, heldOf } from "./approval-model.ts";
+import { excerptLines, sentLine, wantsPhrase, heldOf } from "./approval-model.ts";
 
 const NAMES: Record<string, string> = { usr_dana: "Dana Reyes", usr_maya: "Maya Chen", agt_intake: "Intake" };
 const nameOf = (id: string): string => NAMES[id] ?? id;
@@ -21,7 +21,7 @@ const clean = (h: string): string => h.replace(/<[^>]+>/g, " ").replace(/&#x27;|
 
 function view(me: string): { html: string; muted: string[]; menu: string[] } {
   const muted: string[] = [];
-  const actions = { nameOf, agentMute: { me, mute: (p: string) => muted.push(p) }, copy: () => undefined, openThread: () => undefined, setPinned: () => undefined, react: () => undefined, remove: () => undefined, openAgent: () => undefined, showMenu: () => undefined };
+  const actions = { nameOf, agentMute: { me, offerFor: "msg_dm1", mute: (p: string) => muted.push(p) }, copy: () => undefined, openThread: () => undefined, setPinned: () => undefined, react: () => undefined, remove: () => undefined, openAgent: () => undefined, showMenu: () => undefined };
   const items = timeline([m], { meId: me, nameOf, kindOf, clock });
   const html = clean(items.map((it) => renderToStaticMarkup(<MessageView item={it} actions={actions as never} meId={me} />)).join(""));
   const menu = menuFor(m, false, actions as never, () => undefined).flatMap((e) => ("label" in e && typeof e.label === "string" ? [e.label] : []));
@@ -53,7 +53,22 @@ test("Dana sees the same credit and no mute; a message with no block is the agen
 test("the ask-first card says whom it goes to; a teammate's plain approval runs nothing as them", () => {
   assert.equal(wantsPhrase("chat.message_person", "Maya Chen"), "send this to Maya Chen");
   assert.equal(wantsPhrase("chat.message_person"), "send a message to a teammate");
+  assert.equal(sentLine("allowed", "Noah Berg", true), "Sent to Noah Berg · approved in chat");
+  assert.equal(sentLine("allowed", "Noah Berg"), "Sent to Noah Berg");
+  assert.equal(sentLine("denied", "Noah Berg"), "Not sent to Noah Berg");
   assert.deepEqual(excerptLines({ to: "usr_noah", body: "Are you free Friday?" }, 5, "chat.message_person").map((l) => l.text), ["Are you free Friday?"], "the words, never the id");
   const held = heldOf([{ type: "table", data: { cap: "", act: "", plain: true, ask: { what: "approve the 10% Rivera discount" }, text: "Renews Monday." } }]);
   assert.deepEqual([held.plain, held.what, held.detail], [true, "approve the 10% Rivera discount", "Renews Monday."]);
+});
+
+test("the mute line shows once: under the newest message for the reader, until seen, muted, or the reader wrote after it", () => {
+  const older = { ...m, messageId: "msg_a" } as Message;
+  const newer = { ...m, messageId: "msg_b" } as Message;
+  const mine = { ...m, messageId: "msg_c", author: { kind: "person", id: "usr_maya" }, blocks: [] } as unknown as Message;
+  const none = (): boolean => false;
+  assert.equal(muteOfferFor([older, newer], "usr_maya", none), "msg_b", "the newest one only");
+  assert.equal(muteOfferFor([older, newer], "usr_dana", none), null, "never for the person who sent it");
+  assert.equal(muteOfferFor([older, newer], "usr_maya", (id) => id === "msg_b"), null, "seen already");
+  assert.equal(muteOfferFor([older, newer], "usr_maya", (_id, p) => p === "usr_dana"), null, "muted");
+  assert.equal(muteOfferFor([older, newer, mine], "usr_maya", none), null, "she wrote after it: she has seen it");
 });

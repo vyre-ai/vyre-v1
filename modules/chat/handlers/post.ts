@@ -8,6 +8,7 @@ import { isTrustedService } from "../../../lib/trust.ts";
 import type { ChatCtx, MessageRec, ThreadRec } from "../projections.ts";
 import { unarchiveForMention } from "./archive-state.ts";
 import { saveScreen } from "./screen.ts";
+import { approveInChat } from "./agent-dm.ts";
 
 export interface Mention { kind: "person" | "agent"; id: string }
 export interface PostInput {
@@ -235,5 +236,7 @@ export async function post(ctx: ChatCtx, input: PostInput) {
   });
   saveScreen(ctx, thread.id, m.id, input.screen);
   deliver(ctx, thread, m, mentions, { kind: author.kind, id: author.id }, { job });
+  // a person's own typed "send it" presses the "Send this to <name>?" card it answers (lane l-agentdm)
+  if (author.kind === "person" && ctx.depth === 0 && (ctx.origin === "user" || ctx.origin === "sync") && body.trim() !== "") await approveInChat(ctx, thread.id, body);
   return { message: messageOut(m, encOf(ctx.db, thread)) };
 }

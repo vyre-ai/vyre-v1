@@ -218,6 +218,20 @@ export function onBehalfOf(m: Pick<Message, "author" | "blocks">): { person: str
   return d && typeof d.person === "string" && typeof d.teammate === "string" ? { person: d.person, agentId: typeof d.agentId === "string" ? d.agentId : m.author.id, teammate: d.teammate } : null;
 }
 
+/**
+ * Where the one "Mute agent messages from <Person> for today" line goes in a chat (lane l-agentdm): under the newest agent message written for its person to the reader, and only until the reader has
+ * seen it (`hidden`), muted that person, or written in the chat after it. Null when no line shows.
+ */
+export function muteOfferFor(messages: readonly Pick<Message, "messageId" | "author" | "blocks">[], me: string, hidden: (messageId: string, person: string) => boolean): string | null {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const m = messages[i]!;
+    if (m.author.kind === "person" && m.author.id === me) return null;
+    const ob = onBehalfOf(m);
+    if (ob && ob.teammate === me) return hidden(m.messageId, ob.person) ? null : m.messageId;
+  }
+  return null;
+}
+
 /** The header of a row: its author, or for an agent writing for its person, that person marked as their agent and wearing their face. */
 export function whoOf(m: Pick<Message, "author" | "blocks">, ctx: Pick<TimelineCtx, "nameOf" | "kindOf">): Who {
   const ob = onBehalfOf(m);
@@ -309,10 +323,19 @@ export function swapNeeded(t: Thread, agentId: string): ThreadAgent | null {
 export interface Strip { text: string; tone: "live" | "quiet" }
 
 /** The title for the header: the thread's own title, else the agent or person you talk with. */
-export function titleOf(t: Thread, nameOf: (id: string) => string): string {
+/** A direct chat: no agents, no channel, and the reader plus exactly one other person. Its person is that other person, the one its title and face name. */
+export function directWith(t: Thread, meId: string | undefined): string | null {
+  if (meId === undefined || t.kind !== "chat" || t.agents.length > 0) return null;
+  const others = t.members.filter((m) => m.kind === "person" && m.id !== meId);
+  return others.length === 1 && t.members.some((m) => m.id === meId) ? others[0]!.id : null;
+}
+
+export function titleOf(t: Thread, nameOf: (id: string) => string, meId?: string): string {
   if (t.title) return t.title;
   const first = t.agents[0];
-  return first ? nameOf(first.agentId) : "Chat";
+  if (first) return nameOf(first.agentId);
+  const other = directWith(t, meId);
+  return other ? nameOf(other) : "Chat";
 }
 
 /** The label of the stop control: one agent working, its name; more than one, Stop all. */

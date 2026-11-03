@@ -9,7 +9,7 @@ import type { CapMap } from "../../../../../../generated/types.ts";
 import type { ConversationData } from "./data.tsx";
 import { Glyph, TextButton } from "./parts.tsx";
 import { collect } from "./model.ts";
-import { askLine, askRows, denyNote, diffLines, doneLine, excerptLines, heldOf, outcomeOf, plainRows, wantsLine } from "./approval-model.ts";
+import { askLine, askRows, denyNote, diffLines, doneLine, excerptLines, heldOf, outcomeOf, plainRows, sentLine, wantsLine } from "./approval-model.ts";
 import type { DiffLine } from "./approval-model.ts";
 import { Face } from "../needsyou/parts.tsx";
 import { useFollow } from "./use-follow.ts";
@@ -77,7 +77,7 @@ export function ApprovalCard({ taskId, agent, agentId, data, face }: { taskId: s
     return (
       <View testID={`approval-done-${taskId}`} style={st.done} accessibilityRole="text">
         <Glyph name={ended === "allowed" ? "check" : "x"} size={13} color={ended === "allowed" ? "var(--ok)" : "var(--ink-3)"} />
-        <Text style={st.doneText}>{held.plain ? `${ended === "allowed" ? "Approved" : "Sent back"} · ${task.title}` : doneLine(ended, held.cap, subject, held.input)}</Text>
+        <Text style={st.doneText}>{held.plain ? `${ended === "allowed" ? "Approved" : "Sent back"} · ${task.title}` : held.cap === "chat.message_person" ? sentLine(ended, subject, (task.workingNotes as Record<string, string> | undefined)?.["approved_in"] === "chat") : doneLine(ended, held.cap, subject, held.input)}</Text>
       </View>
     );
   }

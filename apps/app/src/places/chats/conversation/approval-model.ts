@@ -123,6 +123,12 @@ export function doneLine(outcome: "allowed" | "denied", cap: string, subject?: s
   return `${outcome === "allowed" ? "Allowed" : "Denied"} · ${wantsPhrase(cap, subject, input)}`;
 }
 
+/** A message to a teammate, answered: "Sent to Noah Berg", and how when the person said yes in words ("approved in chat"). */
+export function sentLine(outcome: "allowed" | "denied", subject?: string, inChat = false): string {
+  const who = subject ?? "your teammate";
+  return outcome === "allowed" ? `Sent to ${who}${inChat ? " · approved in chat" : ""}` : `Not sent to ${who}`;
+}
+
 /** What goes back to the agent with a Deny: the person's words, or a plain default (a send back needs a note). */
 export const denyNote = (reason: string): string => (reason.trim() === "" ? "Not allowed." : reason.trim());
 

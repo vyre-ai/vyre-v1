@@ -3,7 +3,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { handlers } from "../impl.ts";
-import { onCardAnswered, onDirectReply, sendDue, saysFact } from "../handlers/agent-dm.ts";
+import { approveInChat, onCardAnswered, onDirectReply, sendDue, saysFact } from "../handlers/agent-dm.ts";
+import { insertMessage } from "../projections.ts";
 import { DANA, INTAKE, MAYA, NOW, assertEventsConform, codeOf, contractErrors, harness } from "../fixtures/harness.ts";
 
 type Fn = (ctx: any, input: any) => Promise<any>;   // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -155,6 +156,8 @@ test("an approval card: an Approve task for Maya, shown in the message; her answ
   assert.deepEqual(t.approver, { kind: "person", id: MAYA });
   assert.deepEqual(t.source, { kind: "chat", id: origin });
   assert.equal(t.blocks[0]!.data["plain"], true, "a plain yes or no: nothing runs as Maya");
+  assert.equal(msgs(hn, out.threadId)[0]!["body"], "", "the card alone: its title is the ask, its detail the reason, nothing said twice");
+  assert.equal((tasks[0] as { summary?: string }).summary, "Their retainer renews Monday.");
   const card = msgs(hn, out.threadId)[0]!.blocks.find((b) => b.type === "link_card")!;
   assert.deepEqual(card.data, { icon: "approval", lead: "Approve", title: "the 10% Rivera discount", target: { type: "task", id: "tsk_card1" } });
   assert.equal((await onCardAnswered(hn.ctx, { name: "task.approved", payload: { taskId: "tsk_card1", by: MAYA } })).length, 1);
@@ -201,4 +204,22 @@ test("refusals: a person calls it, a stranger, yourself, and a block only the se
   await assert.rejects(h["chat.message_person"]!(agent, { to: "usr_stranger", body: "Hi", idempotencyKey: key() }), (e) => codeOf(e) === "validation.not_found");
   await assert.rejects(h["chat.message_person"]!(agent, { to: DANA, body: "Hi", idempotencyKey: key() }), (e) => codeOf(e) === "validation.bad_input");
   await assert.rejects(h["chat.post"]!(agent, { threadId: origin, body: "x", blocks: [{ type: "on_behalf", v: 1, data: { person: MAYA, teammate: DANA } }], idempotencyKey: key() }), (e) => codeOf(e) === "validation.bad_input");
+});
+
+test("a plain yes in Dana's own words presses the Send this to Maya card: noted as approved in chat, acted as Dana; anything else leaves it", async () => {
+  const { hn } = world();
+  const { origin } = await asked(hn);
+  const held = { task: { id: "tsk_held", state: "awaiting_approval", approver: { kind: "person", id: DANA }, blocks: [{ type: "doc_excerpt", data: { cap: "chat.message_person", input: { to: MAYA, body: "Free Friday?" } } }] } };
+  const acted: unknown[] = [];
+  const h2 = harness({ raw: hn.raw, calls: {
+    "tasks.get": () => held, "access.principals.get": () => ({ principal: { kind: "person", name: "Maya Chen", status: "active" } }),
+    "tasks.working_notes.set": (i) => { acted.push(["note", i]); return {}; }, "tasks.act": (i) => { acted.push(["act", i]); return {}; },
+  } });
+  insertMessage(h2.ctx, origin, { author: INTAKE, kind: "agent", body: "", blocks: [{ type: "link_card", v: 1, id: "blk_h", state: "done", data: { icon: "approval", lead: "Message", title: "Free Friday?", target: { type: "task", id: "tsk_held" } } }] });
+  assert.deepEqual(await approveInChat(h2.ctx, origin, "what time is it?"), [], "not a yes");
+  assert.deepEqual(await approveInChat(h2.ctx, origin, "send it to Omar"), [], "names someone else");
+  assert.deepEqual(await approveInChat(h2.person(MAYA), origin, "yes send it"), [], "only the person the card asks");
+  assert.deepEqual(await approveInChat(h2.ctx, origin, "yes, send it"), ["tsk_held"]);
+  assert.deepEqual(acted, [["note", { taskId: "tsk_held", key: "approved_in", value: "chat" }], ["act", { taskId: "tsk_held", action: "approve", note: "Approved in chat" }]]);
+  assert.deepEqual(await approveInChat(h2.ctx, origin, "tell Maya yes"), ["tsk_held"], "a send that names her covers it too");
 });

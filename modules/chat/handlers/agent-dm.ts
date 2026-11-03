@@ -13,6 +13,7 @@
 //   privacy          the message is checked against the person's private profile facts and their Mine Vault values before it leaves (the direct chat's audience is two people, so nothing private of one
 //                    goes in unless that person said it themselves in the chat they asked in).
 import { readFileSync } from "node:fs";
+import { askedIn } from "../../../lib/asked.ts";
 import { othersRead } from "../../../lib/audience.ts";
 import type { Audience } from "../../../lib/audience.ts";
 import { dueAt, dueWords, endOfDay, inHours, localTime, readPresence, readPublicTime } from "../../../lib/presence.ts";
@@ -42,6 +43,8 @@ const HOUR = 3_600_000;
 /** How long after the agent's message a teammate's words in the direct chat still go back to it. */
 export const REPLY_WINDOW = 24 * HOUR;
 const MAX_RELAY = 2000;
+/** A second identical message to the same teammate within this window is the first one. */
+const TWIN_MS = 10 * 60_000;
 
 type Row = Record<string, unknown>;
 export interface DmRow {
@@ -298,6 +301,11 @@ export async function messagePerson(ctx: ChatCtx, input: MessageIn) {
     if (had) return answer(ctx, had, (await person(callOf(ctx), had.teammate))?.name ?? "them", null);
   }
 
+  // the same words to the same teammate a moment ago (a parked call released by a plain "send it", then asked again in the next turn) are that message, never a second one
+  if (!input.card && body !== "") {
+    const twin = rows(ctx.db, "SELECT * FROM chat_agent_dm WHERE agent = ? AND person = ? AND teammate = ? AND body = ? AND created_at > ? ORDER BY created_at DESC LIMIT 1", agent, ctx.actingFor, input.to, body, ctx.now() - TWIN_MS)[0];
+    if (twin) return answer(ctx, twin, (await person(callOf(ctx), twin.teammate))?.name ?? "them", null);
+  }
   const call = callOf(ctx);
   const them = await person(call, input.to);
   if (!them || them.status !== "active") raise(ctx, "validation.not_found", "That person is not in this Space.");
@@ -315,12 +323,15 @@ export async function messagePerson(ctx: ChatCtx, input: MessageIn) {
   const dm = directChat(ctx, me, input.to);
   const id = mintId("adm", now);
   const key = input.idempotencyKey ?? id;
-  const card = input.card ? await makeCard(ctx, input.card, { to: input.to, personName: mine, key }) : null;
+  // a card says it all: its title is the ask, its detail the reason (the agent's words when it gave none), so the message carries the card alone and nothing is said twice
+  const asked = input.card ? { ...input.card, ...(input.card.detail?.trim() ? {} : body !== "" ? { detail: body } : {}) } : null;
+  const card = asked ? await makeCard(ctx, asked, { to: input.to, personName: mine, key }) : null;
+  const said = card ? "" : body;
   const words = input.urgent === true && d.at !== null && d.at <= now ? "now (urgent)" : dueWords(d, them.name, time.timezone, now);
   ctx.db.run(
     `INSERT INTO chat_agent_dm (id, person, agent, teammate, origin, dm, body, blocks, timing, urgent, state, due_at, reason, task, request, card, idem, created_at, wanted_at)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'scheduled', ?, ?, ?, ?, ?, ?, ?, ?)`,
-    id, me, agent, input.to, origin, dm.id, body, JSON.stringify(card ? [card.block] : []), timing, input.urgent === true ? 1 : 0, d.at, d.reason ?? null,
+    id, me, agent, input.to, origin, dm.id, said, JSON.stringify(card ? [card.block] : []), timing, input.urgent === true ? 1 : 0, d.at, d.reason ?? null,
     card?.task ?? null, card?.request ?? null, input.card ? JSON.stringify({ kind: input.card.kind, title: input.card.title.trim() }) : null, input.idempotencyKey ?? null, now, input.at ?? null,
   );
   const row = rows(ctx.db, "SELECT * FROM chat_agent_dm WHERE id = ?", id)[0]!;
@@ -436,3 +447,39 @@ export async function onCardAnswered(ctx: ChatCtx, event: { name: string; payloa
 
 /** A person's agent messages, oldest first (tests and the host read them). */
 export const dmRows = (db: Db, person: string): DmRow[] => { ensureAgentDm(db); return rows(db, "SELECT * FROM chat_agent_dm WHERE person = ? ORDER BY created_at", person); };
+
+// ---- a plain "send it" approves the card --------------------------------------------------------------------------------------------------------------
+
+const YES = /^\s*(yes|yep|yeah|ok|okay|sure|go ahead|do it|send it|send that|please do|approved?)\b/i;
+
+/**
+ * The person answered a "Send this to <name>?" card in words (owner rule, Auto mode: a plain instruction in the person's own message is the approval). Their own typed message in the chat the card is in,
+ * that says yes or asks to send to that teammate, presses the card for them: the held message goes, the card shows it was sent and approved in chat, and the agent's parked turn carries on. Only a person's
+ * own typed words, from their own signed-in device, count; the press is theirs (tasks.act as them), so nothing is approved that they could not approve with a tap.
+ */
+export async function approveInChat(ctx: ChatCtx, threadId: string, body: string): Promise<string[]> {
+  if (!ctx.call || ctx.principal.kind !== "person" || !threadId) return [];
+  const asks = askedIn(body).filter((a) => a.act === "send");
+  if (asks.length === 0 && !YES.test(body)) return [];
+  const cards = (ctx.db.all("SELECT blocks FROM chat_message WHERE thread = ? AND deleted_at IS NULL ORDER BY threadSeq DESC LIMIT 40", threadId) as Row[])
+    .flatMap((r) => json<Array<{ type?: string; data?: { icon?: string; target?: { type?: string; id?: string } } }>>(r["blocks"], []))
+    .filter((b) => b.type === "link_card" && b.data?.icon === "approval" && b.data.target?.type === "task" && typeof b.data.target.id === "string")
+    .map((b) => b.data!.target!.id!);
+  const done: string[] = [];
+  for (const taskId of [...new Set(cards)]) {
+    try {
+      const t = ((await ctx.call("tasks.get", { taskId })) as { task?: { state?: string; approver?: { id?: string }; blocks?: Array<{ data?: { cap?: string; input?: { to?: string } } }> } }).task;
+      const held = t?.blocks?.[0]?.data;
+      if (!t || held?.cap !== "chat.message_person" || t.state !== "awaiting_approval" || t.approver?.id !== ctx.principal.id || typeof held.input?.to !== "string") continue;
+      const to = held.input.to;
+      const name = ((await person(callOf(ctx), to))?.name ?? "").toLowerCase();
+      const parts = name.split(/\s+/).filter(Boolean);
+      const covers = asks.length === 0 || asks.some((a) => a.target === "" || a.target === to || parts.includes(a.target) || parts.join(" ") === a.target);
+      if (!covers) continue;
+      await ctx.call("tasks.working_notes.set", { taskId, key: "approved_in", value: "chat" });
+      await ctx.call("tasks.act", { taskId, action: "approve", note: "Approved in chat" });
+      done.push(taskId);
+    } catch (e) { ctx.log.warn("a plain yes did not press the card", { taskId, error: e instanceof Error ? e.message : String(e) }); }
+  }
+  return done;
+}
