@@ -30,8 +30,11 @@ CREATE TABLE IF NOT EXISTS network_peer_request (
   decided_at INTEGER,
   peer_id TEXT
 );
--- Which network_peer row is this computer (one row, never copied to another computer).
+-- Which network_peer row is this computer (one row, never copied to another computer), and how its copy stands: waiting counts the rows written here that another computer has not
+-- taken yet, synced_at is when this computer last reached one.
 CREATE TABLE IF NOT EXISTS network_peer_self (
   id INTEGER PRIMARY KEY,
-  peer_id TEXT NOT NULL
+  peer_id TEXT NOT NULL,
+  waiting INTEGER NOT NULL DEFAULT 0,
+  synced_at INTEGER
 );

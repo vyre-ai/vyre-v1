@@ -31,7 +31,7 @@ test("found by name, allowed on the other computer with the same code, opened wi
     const made = await makeBundle(PASSWORD, "K7QM-4TXD-9WPA-H3NE");
     const bundle = { personKeyByPassword: made.personKeyByPassword, personKeyByRecovery: made.personKeyByRecovery, publicKey: made.publicKey, privateKeyWrapped: made.privateKeyWrapped };
     const { j, calls } = fakeJoin({ states: [{ state: "pending", from: "Office iMac" }, { state: "allowed", from: "Office iMac", bundle, username: "irfad", space: "spc_personal", spaceName: "Personal" }] });
-    let joined: { space: string; username: string } | null = null;
+    let joined: { space: string; username: string; password: string } | null = null;
     const root = await mount(createRoot, <JoinFrame><OtherComputer join={j} pollMs={50} startLocal={async () => ({ address: "http://127.0.0.1:1" })} onJoined={(o) => { joined = o; }} onAddress={() => undefined} /></JoinFrame>);
     await typeInto(find(root, "peer-username"), "irfad");
     await typeInto(find(root, "peer-password"), PASSWORD);
@@ -43,7 +43,7 @@ test("found by name, allowed on the other computer with the same code, opened wi
     assert.equal(textOf(find(root, "peer-code")).trim(), "418 207");
     assert.match(textOf(root), /open Settings, then Computers, and allow this computer/);
     await until(() => joined !== null, "the copy is made once the bundle opens");
-    assert.deepEqual(joined, { space: "spc_personal", username: "irfad" });
+    assert.deepEqual(joined, { space: "spc_personal", username: "irfad", password: PASSWORD }, "the password goes on to sign in once, so it is not asked again");
     assert.deepEqual(calls.filter((c) => c !== "status"), ["find:irfad", "request:0", "commit"]);
   } finally { restore(); }
 });

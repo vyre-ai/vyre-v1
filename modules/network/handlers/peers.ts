@@ -17,8 +17,11 @@ function selfId(ctx: NetworkCtx): string | null {
 export async function peers(ctx: NetworkCtx, _input: Record<string, unknown>) {
   const me = selfId(ctx);
   const now = ctx.now();
+  const mine = asRow(ctx.db.all("SELECT waiting, synced_at FROM network_peer_self WHERE id = 1")[0]);
+  const syncedAt = num(mine?.["synced_at"]);
   const rows = ctx.db.all("SELECT id, name, platform, kind, added_at, last_seen_at FROM network_peer WHERE removed_at IS NULL ORDER BY added_at, id").map(asRow);
   return {
+    waiting: num(mine?.["waiting"]) ?? 0, ...(syncedAt !== undefined ? { syncedAt } : {}),
     computers: rows.map((r) => {
       const id = str(r?.["id"]);
       const self = id === me;

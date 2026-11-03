@@ -25,6 +25,8 @@ import { openPeerChannel } from "./link.ts";
 import type { PeerChannel, PeerTarget } from "./link.ts";
 import { JOIN_DIR, SECRET_FILES, STAGED_DBS } from "./join.ts";
 import { packagedOrigin } from "../daemon/desktop-cors.ts";
+import { createPeerSync } from "./sync.ts";
+import type { CreateCells, PeerSync } from "./sync.ts";
 
 const ASK_TTL_MS = 10 * 60_000;
 const REQUEST_TTL_MS = 10 * 60_000;
@@ -75,6 +77,12 @@ export interface PeerServiceDeps {
   restart: () => void;
   WebSocket?: typeof WebSocket;
   fetch?: typeof fetch;
+  /** the cell engine (sync/src/peers/cells.ts), handed over by the sync module once it is loaded */
+  createCells?: () => CreateCells | null;
+  /** rows came from another computer: the open apps re-read */
+  changed?: () => void;
+  /** how often the computers sync while awake (tests make it short) */
+  roundMs?: number;
 }
 
 export interface PeerService {
@@ -84,6 +92,8 @@ export interface PeerService {
   handle(req: http.IncomingMessage, res: http.ServerResponse): boolean;
   /** watch the owner's name, keep this computer's row, renew; runs on a timer and once at start */
   tick(): Promise<void>;
+  /** keeping the copies in step with the other computers (sync.ts) */
+  readonly sync: PeerSync;
   stop(): void;
 }
 
@@ -139,6 +149,11 @@ export function createPeerService(d: PeerServiceDeps): PeerService {
   const claimed = (h: HostDb): boolean => owners(h).length > 0;
   const selfId = (h: HostDb): string | null => { try { return str((h.all("SELECT peer_id FROM network_peer_self WHERE id = 1")[0] as Record<string, unknown> | undefined)?.["peer_id"]) || null; } catch { return null; } };
   const tokenFile = path.join(d.root, "peer.token");
+  const ownToken = (): string | null => { try { return fs.readFileSync(tokenFile, "utf8").trim() || null; } catch { return null; } };
+  const peerSync = createPeerSync({
+    root: d.root, db, createCells: () => d.createCells?.() ?? null, selfId: () => { const h = db(); return h ? selfId(h) : null; }, token: ownToken,
+    now: d.now, log: d.log, changed: () => d.changed?.(), ...(d.WebSocket ? { WebSocket: d.WebSocket } : {}), ...(d.roundMs ? { roundMs: d.roundMs } : {}),
+  });
 
   /** This computer's row in network_peer, made the first time the Space has an owner and a relay route. Its token is kept in peer.token (0600) and only its hash in the row. */
   async function ensureSelf(h: HostDb, route: string): Promise<void> {
@@ -165,6 +180,7 @@ export function createPeerService(d: PeerServiceDeps): PeerService {
     selfRoute = ready.route;
     try { await ensureSelf(h, ready.route); } catch (e) { d.log("peers.self_failed", { why: (e as Error).message }); }
     box.watch(await Promise.all(owners(h).map((o) => nameLocator(o.username))));
+    if (peerSync.ensure()) peerSync.start();
     const cut = d.now() - ASK_TTL_MS;
     for (const [s, at] of asks) if (at < cut) asks.delete(s);
     try { h.run("UPDATE network_peer_request SET state = 'expired' WHERE state IN ('pending', 'allowed') AND expires_at <= ?", d.now()); } catch { /* not migrated yet */ }
@@ -248,6 +264,8 @@ export function createPeerService(d: PeerServiceDeps): PeerService {
         peerId, str(row["name"]), str(row["platform"]), route, d.relayUrl, th, t, str(row["decided_by"]) || null, t);
       h.run("UPDATE network_peer_request SET state = 'collected', peer_id = ? WHERE id = ?", peerId, id);
     });
+    // capture changes from now on, before the new computer copies anything: what is written after its copy reaches it in the first sync
+    if (peerSync.ensure()) peerSync.start();
     d.log("peers.allowed", { request: id, peer: peerId });
     json(res, 200, { data: { state: "allowed", package: packageFor(h, { id: peerId, token }) } });
   }
@@ -264,10 +282,12 @@ export function createPeerService(d: PeerServiceDeps): PeerService {
     const who = await peerOf(req);
     if (!who) { refuse(res, 401, "auth.unauthenticated", "This computer is not part of the Space."); return; }
     const file = url.searchParams.get("file") ?? "";
-    if (file === "blobs") { json(res, 200, { data: { files: walk(path.join(d.root, "blobs")) } }); return; }
+    if (file === "blobs" || file === "trees") { json(res, 200, { data: { files: walk(path.join(d.root, file)) } }); return; }
     const blob = file.startsWith("blobs/") ? safeRel(file.slice(6)) : null;
+    const tree = file.startsWith("trees/") ? safeRel(file.slice(6)) : null;
     let src: string, tmp: string | null = null;
     if (blob) src = path.join(d.root, "blobs", blob);
+    else if (tree) src = path.join(d.root, "trees", tree);
     else if (SNAP_FILES.has(file)) {
       src = path.join(d.root, file);
       if (!fs.existsSync(src)) { refuse(res, 404, "validation.not_found", "No such file."); return; }
@@ -390,6 +410,14 @@ export function createPeerService(d: PeerServiceDeps): PeerService {
         fs.mkdirSync(path.dirname(path.join(stage, "blobs", safe)), { recursive: true });
         await get(`blobs/${safe}`, path.join(stage, "blobs", safe));
       }
+      // the agents' git trees, so a repository works on this computer as it did on that one
+      const trees = await ch.request({ method: "GET", path: "/v1/peers/snapshot?file=trees", headers: auth });
+      for (const rel of trees.status === 200 ? trees.json<{ data: { files: string[] } }>().data.files : []) {
+        const safe = safeRel(rel);
+        if (!safe) continue;
+        fs.mkdirSync(path.dirname(path.join(stage, "trees", safe)), { recursive: true });
+        await get(`trees/${safe}`, path.join(stage, "trees", safe));
+      }
     });
     for (const [f, text] of Object.entries(pkg.secrets)) if (SECRET_FILES.includes(f)) fs.writeFileSync(path.join(stage, f), text, { mode: 0o600 });
     const self = pkg.peers.find((p) => p.peerId === pkg.peerId);
@@ -436,12 +464,12 @@ export function createPeerService(d: PeerServiceDeps): PeerService {
     if (url.pathname === "/v1/peers/enrol" && req.method === "POST") { void enrol(req, res); return true; }
     if (url.pathname === "/v1/peers/enrol/status" && req.method === "POST") { void enrolStatus(req, res); return true; }
     if (url.pathname === "/v1/peers/snapshot" && req.method === "GET") { void snapshot(req, res, url); return true; }
-    return false;
+    return peerSync.handle(req, res, peerOf);
   }
 
   if (d.enabled) {
     timer = setInterval(() => { void tick().catch(() => {}); }, TICK_MS);
     timer.unref?.();
   }
-  return { onAsk, handle, tick, stop: () => { if (timer) clearInterval(timer); timer = null; void selfRoute; } };
+  return { onAsk, handle, tick, sync: peerSync, stop: () => { if (timer) clearInterval(timer); timer = null; peerSync.stop(); void selfRoute; } };
 }

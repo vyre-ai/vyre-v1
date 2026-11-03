@@ -124,10 +124,24 @@ export function ShellHost({ stored, open, onSignedOut, onHub, hub: given, initia
 
   useEffect(() => {
     if (!session) return undefined;
-    const sync = (): void => hub.setOnline(session.runtime.connection.get() === "online", 0);
+    // A Personal Space on several computers (lane l-multidevice): changes made here that no other computer of the Space has taken yet are the ones waiting. While this computer reaches
+    // another one they are being sent; when it has reached none for a minute, the title bar says it is offline with them waiting.
+    let peers = { waiting: 0, reached: true };
+    const sync = (): void => { const up = session.runtime.connection.get() === "online"; hub.setOnline(up && peers.reached, peers.waiting); };
     sync();
-    return session.runtime.connection.subscribe(sync);
-  }, [session, hub]);
+    const offConn = session.runtime.connection.subscribe(sync);
+    if (stored.def.kind !== "personal") return offConn;
+    let off = false;
+    const read = (): void => { void session.call("network.peers", {}).then((out) => {
+      if (off) return;
+      const o = out as { waiting?: number; syncedAt?: number; computers?: unknown[] };
+      peers = { waiting: o.waiting ?? 0, reached: (o.computers?.length ?? 0) < 2 || (o.waiting ?? 0) === 0 || (typeof o.syncedAt === "number" && Date.now() - o.syncedAt < 60_000) };
+      sync();
+    }, () => undefined); };
+    read();
+    const t = setInterval(read, 10_000);
+    return () => { off = true; clearInterval(t); offConn(); };
+  }, [session, hub, stored.def.kind]);
   useEffect(() => {
     if (!session) return;
     let off = false;

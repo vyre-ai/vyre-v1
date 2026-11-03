@@ -108,6 +108,7 @@ import { createAuditRecorder } from "../seams/audit.ts";
 import { INVITE_TRIES, inviteKeyOf, loadRelayKeys, startRelayBox } from "../seams/relay.ts";
 import { createPeerService } from "../peers/service.ts";
 import type { PeerService } from "../peers/service.ts";
+import type { CreateCells } from "../peers/sync.ts";
 import { applyPeerJoin } from "../peers/join.ts";
 import { createAppFilesRoute, defaultAppDir } from "../routes/app-files.ts";
 import type { RelayBox } from "../seams/relay.ts";
@@ -226,6 +227,8 @@ function sealKeyFile(file: string): string {
 export interface DaemonOptions {
   /** Lets the process entry resolve after an authenticated HTTP shutdown as well as a signal. */
   onStopped?:()=>void;
+  /** Tests: how often the computers of a Personal Space sync (host/src/peers/sync.ts); 5 s when absent. */
+  peerRoundMs?: number;
   /** GitHub sign-in (default: VYRE_GH_OAUTH_CLIENT_ID and VYRE_GH_OAUTH_CLIENT_SECRET from the environment; null: not set up) */
   githubOAuth?: GithubOAuth | null;
   /** where the GitHub app an admin saves in the app talks to (default: github.com; only a test points these at a stand-in) */
@@ -1795,6 +1798,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   let relayBox: RelayBox | null = null;
   let startPhoneRelay: (() => RelayBox) | null = null;
   // One Personal Space on several computers (host/src/peers): asks by name, new computers, copies. Only a Personal Space started with --peers.
+  // the cell engine lives in sync/ (sync/src/peers/cells.ts), which host may not import: the sync module hands it over
+  const peerCells = cfg.peers && hasSpace ? ((await fileExportsImporter(codeRoot)("sync"))?.["createPeerCells"] as CreateCells | undefined) ?? null : null;
   const peerService: PeerService | null = cfg.peers && hasSpace ? createPeerService({
     root: paths.root, db: () => db, space: () => space, enabled: true,
     name: cfg.peerName ?? platform.hostname.replace(/\.local$/, "").slice(0, 60), platform: platform.os,
@@ -1803,6 +1808,9 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
     now, log: (msg, attrs) => sink.log({ space: space ?? "-", level: 20, msg, place: "peers", ...(attrs ? { attrs } : {}) }),
     restart: () => requestStop(),
     ...(o.seams?.relayWebSocket ? { WebSocket: o.seams.relayWebSocket } : {}),
+    createCells: () => peerCells,
+    changed: () => { if (space) hub?.poke?.(space); },
+    ...(o.peerRoundMs ? { roundMs: o.peerRoundMs } : {}),
   }) : null;
   if (peerService) closers.push(() => peerService.stop());
   const phone: PhonePort = createPhonePort({ current: () => relayBox, start: () => startPhoneRelay?.() ?? null, dropped: () => { relayBox = null; }, configured: Boolean(cfg.relayUrl) });

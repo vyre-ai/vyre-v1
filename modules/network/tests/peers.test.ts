@@ -20,7 +20,7 @@ function space() {
   const h = harness();
   h.raw.run("INSERT INTO network_peer (id, name, platform, kind, route, relay, token_hash, added_at, last_seen_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)", "peer_a", "Office iMac", "darwin", "computer", "a".repeat(26), "wss://relay.vyre.run", "h1", NOW - 10_000, NOW - 10_000);
   h.raw.run("INSERT INTO network_peer (id, name, platform, kind, route, relay, token_hash, added_at, last_seen_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)", "peer_b", "Home laptop", "darwin", "computer", "b".repeat(26), "wss://relay.vyre.run", "h2", NOW - 5_000, NOW - PEER_AWAKE_MS - 1);
-  h.raw.run("INSERT INTO network_peer_self (id, peer_id) VALUES (?, ?)", 1, "peer_a");
+  h.raw.run("INSERT INTO network_peer_self (id, peer_id, waiting, synced_at) VALUES (?, ?, ?, ?)", 1, "peer_a", 3, NOW - 4_000);
   return h;
 }
 const request = (h: ReturnType<typeof harness>, id: string, expires = NOW + 60_000) =>
@@ -30,6 +30,7 @@ test("the list names this computer and says which others are awake and when each
   const h = space();
   const out = await call("network.peers", h.ctx, {});
   checked("network.peers", out);
+  assert.deepEqual([out.waiting, out.syncedAt], [3, NOW - 4_000], "the changes this computer still has to hand over, and when it last reached another");
   assert.deepEqual(out.computers.map((c: { name: string; self: boolean; online: boolean }) => [c.name, c.self, c.online]), [["Office iMac", true, true], ["Home laptop", false, false]]);
   assert.equal(out.computers[1].lastSeenAt, NOW - PEER_AWAKE_MS - 1);
 });

@@ -24,8 +24,8 @@ type Phase =
 export interface OtherComputerProps {
   /** Start this computer's own (fresh) Personal Space and say where it answers. */
   startLocal(): Promise<{ address: string }>;
-  /** The copy is in place and the Space restarted on it: go on to sign in there. */
-  onJoined(o: { space: string; username: string }): void;
+  /** The copy is in place and the Space restarts on it: sign in there with the same username and password, once, so the person is not asked again. */
+  onJoined(o: { space: string; username: string; password: string }): void;
   /** Sign in to a Space by its address instead. */
   onAddress(): void;
   onBack?: (() => void) | undefined;
@@ -81,7 +81,7 @@ export function OtherComputer({ startLocal, onJoined, onAddress, onBack, deviceN
     if (!alive.current) return;
     setPhase({ kind: "copying", from });
     const done = await (await client()).commit();
-    if (alive.current) onJoined({ space: done.space, username: username.trim() });
+    if (alive.current) onJoined({ space: done.space, username: username.trim(), password });
   });
 
   // waiting for the person to allow this computer on the other one

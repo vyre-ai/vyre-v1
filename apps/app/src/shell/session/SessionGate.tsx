@@ -91,6 +91,33 @@ function RecoverScreen({ baseUrl, space, username, open, onBack, onSignedIn }: {
   return <Suspense fallback={<Opening />}><RecoveryAccount space={space} address={baseUrl} username={username} onBack={onBack} onAdminReset={() => setResetting(true)} onRecover={async (input) => { const [crypto, keys] = await Promise.all([loadRecoveryCrypto(), loadCryptoKeys()]); onSignedIn(await completeRecovery({ call: anonymous, recover: crypto.recoverAccountKeys, verify, holdKey, wipe: keys.wipe }, { ...input, deviceClass })); }} /></Suspense>;
 }
 
+/** A username and password sign-in at one Space, with the person's own key handed to their own computer's daemon afterwards. The sign-in screen uses it, and so does a computer that has just
+ *  joined the person's Personal Space from another computer: the password typed there opens the account, so the person is not asked for it twice (lane l-multidevice). */
+async function passwordSignIn(baseUrl: string, open: NonNullable<SessionGateProps["open"]>, v: { username: string; password: string; code?: string }, options?: SignInOptions | null) {
+  const anonymous = createCapCaller({ baseUrl, token: () => null });
+  let token: string | null = null;
+  let keys: { personKeyByPassword: string; personKeyByRecovery?: string; publicKey: string; privateKeyWrapped: string } | undefined;
+  return signInAndVerify({
+    baseUrl, username: v.username.trim().toLowerCase(),
+    discover: async () => options ?? (await anonymous("identity.sign_in_options", {}) as SignInOptions),
+    signIn: async () => {
+      const out = (await anonymous("identity.sign_in", {
+        username: v.username, password: v.password, ...signInDevice(), ...(v.code ? { totp: v.code } : {}),
+      })) as { status: "ok" | "second_factor_required"; session?: { token: string }; keys?: typeof keys };
+      token = out.session?.token ?? null;
+      keys = out.keys;
+      return out;
+    },
+    open: () => open({ baseUrl, token: token ?? "" }),
+    getSpace: async () => {
+      const authenticated = createCapCaller({ baseUrl, token: () => token });
+      const space = ((await authenticated("spaces.get", {})) as { space: { id: string; fingerprint: string } }).space;
+      return { id: space.id, marker: space.fingerprint };
+    },
+    afterVerified: async (stored) => { if (keys) await unlockOwnKey(baseUrl, stored.token, v.password, keys); },
+  });
+}
+
 function SignInScreen({ baseUrl, open, onSignedIn, notice, onBack, unlock }: { baseUrl: string; open: NonNullable<SessionGateProps["open"]>; onSignedIn: (s: StoredSession) => void; notice?: boolean; onBack?:()=>void; unlock?:boolean }): ReactElement {
   useEffect(() => { mark("app.usable"); }, []);
   const anonymous = useMemo(() => createCapCaller({ baseUrl, token: () => null }), [baseUrl]);
@@ -169,27 +196,7 @@ function SignInScreen({ baseUrl, open, onSignedIn, notice, onBack, unlock }: { b
     if (browser.location) browser.location.assign(githubStartUrl(baseUrl, browser.location.origin + browser.location.pathname));
   }, [baseUrl]);
   const signIn = useCallback(async (v: { username: string; password: string; code?: string }): Promise<"ok" | "second_factor_required"> => {
-    let token: string | null = null;
-    let keys: { personKeyByPassword: string; personKeyByRecovery?: string; publicKey: string; privateKeyWrapped: string } | undefined;
-    const result = await signInAndVerify({
-      baseUrl, username: v.username.trim().toLowerCase(),
-      discover: async () => options ?? (await anonymous("identity.sign_in_options", {}) as SignInOptions),
-      signIn: async () => {
-        const out = (await anonymous("identity.sign_in", {
-          username: v.username, password: v.password, ...signInDevice(), ...(v.code ? { totp: v.code } : {}),
-        })) as { status: "ok" | "second_factor_required"; session?: { token: string }; keys?: typeof keys };
-        token = out.session?.token ?? null;
-        keys = out.keys;
-        return out;
-      },
-      open: () => open({ baseUrl, token: token ?? "" }),
-      getSpace: async () => {
-        const authenticated = createCapCaller({ baseUrl, token: () => token });
-        const space = ((await authenticated("spaces.get", {})) as { space: { id: string; fingerprint: string } }).space;
-        return { id: space.id, marker: space.fingerprint };
-      },
-      afterVerified: async (stored) => { if (keys) await unlockOwnKey(baseUrl, stored.token, v.password, keys); },
-    });
+    const result = await passwordSignIn(baseUrl, open, v, options);
     if (currentAddress.current !== baseUrl) throw new Error("The Space address changed. Sign in again.");
     if (result.status === "second_factor_required") return result.status;
     onSignedIn(result.stored);
@@ -200,7 +207,7 @@ function SignInScreen({ baseUrl, open, onSignedIn, notice, onBack, unlock }: { b
 }
 
 /** Sign in on a desktop with no Space yet: first the person's own Personal Space from their other computer (OtherComputer), or a Space by its address. */
-function DesktopSignInDoor({ invoke, back, connect, onJoined }: { invoke: Invoke; back: () => void; connect: (back: () => void) => ReactElement; onJoined: (o: { space: string; username: string }) => void }): ReactElement {
+function DesktopSignInDoor({ invoke, back, connect, onJoined }: { invoke: Invoke; back: () => void; connect: (back: () => void) => ReactElement; onJoined: (o: { space: string; username: string; password: string }) => void }): ReactElement {
   const [byAddress, setByAddress] = useState(false);
   if (byAddress) return connect(() => setByAddress(false));
   return <JoinFrame><OtherComputer startLocal={async () => ({ address: (await ensurePersonalSpace(invoke)).address })} onJoined={onJoined} onAddress={() => setByAddress(true)} onBack={back} /></JoinFrame>;
@@ -438,7 +445,9 @@ export function SessionGate(props: SessionGateProps): ReactElement {
   // first launch on the desktop app: three doors; elsewhere (and for a person who already has a Space) the plain connect screen
   const connectScreen=(back?:()=>void):ReactElement=><ConnectSpaceWelcome onConnect={connectSpace} onGetStarted={()=>{setEntryStart('choice');setEntry(true);}} {...(back?{onBack:back}:{})} />;
   // the Personal Space this computer just joined restarts on its copy: wait for it to answer as that Space, then sign in there
-  const joinedPersonal=async({space}:{space:string;username:string}):Promise<void>=>{if(!invoke)return;for(let i=0;i<120;i++){try{const local=await ensurePersonalSpace(invoke);if(local.spaceId===space&&!local.claimUrl){await chooseEntry({kind:'signin',address:local.address});return;}}catch{/* restarting */}await new Promise(r=>setTimeout(r,500));}setPhase({kind:'signin'});};
+  // the password typed to join already opened the account: sign in with it once here and hand the key to this computer's daemon, so the person is never asked again (owner rule). A second factor,
+  // or a sign-in that fails, falls back to the sign-in screen at the joined Space.
+  const joinedPersonal=async({space,username,password}:{space:string;username:string;password:string}):Promise<void>=>{if(!invoke)return;for(let i=0;i<120;i++){let local:{address:string;spaceId:string;claimUrl?:string|null}|null=null;try{local=await ensurePersonalSpace(invoke);}catch{/* restarting */}if(local&&local.spaceId===space&&!local.claimUrl){try{const r=await passwordSignIn(local.address,open,{username,password});if(r.status==='ok'){setConnectedAddress(local.address);signedIn(r.stored);return;}}catch{/* the sign-in screen says why */}await chooseEntry({kind:'signin',address:local.address});return;}await new Promise(r=>setTimeout(r,500));}setPhase({kind:'signin'});};
   const existingScreen=invoke?((back:()=>void):ReactElement=><DesktopSignInDoor invoke={invoke} back={back} connect={connectScreen} onJoined={o=>void joinedPersonal(o)} />):connectScreen;
   const device=windowKnown?deviceOf({desktop:!!invoke,mac:isMacShell(),width:windowWidth}):deviceOf({desktop:false,mac:false,width:1280});
   const getApp=():void=>{(globalThis as {open?:(url:string,target?:string)=>unknown}).open?.(VYRE_DOWNLOADS,'_blank');};

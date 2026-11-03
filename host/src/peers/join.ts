@@ -10,7 +10,7 @@ export const JOIN_DIR = "peer-join";
 export const STAGED_DBS: readonly string[] = ["events.db", "modules.db", "space.db"];
 /** The Space's key files: the same on every computer of the Space. */
 export const SECRET_FILES: readonly string[] = ["seal.key", "person-wrap.key", "vault-filler.key"];
-const MOVED_ASIDE = [...STAGED_DBS.flatMap((f) => [f, `${f}-wal`, `${f}-shm`]), ...SECRET_FILES, "blobs", "peer.token", "logs/claim-link.txt"];
+const MOVED_ASIDE = [...STAGED_DBS.flatMap((f) => [f, `${f}-wal`, `${f}-shm`]), ...SECRET_FILES, "blobs", "trees", "peer.token", "logs/claim-link.txt"];
 
 export interface AppliedJoin { space: string; peerId: string; from: string }
 
@@ -34,6 +34,7 @@ export function applyPeerJoin(root: string, now: () => number = Date.now): Appli
     if (fs.existsSync(staged)) fs.renameSync(staged, path.join(root, f));
   }
   if (fs.existsSync(path.join(stage, "blobs"))) fs.renameSync(path.join(stage, "blobs"), path.join(root, "blobs"));
+  if (fs.existsSync(path.join(stage, "trees"))) fs.renameSync(path.join(stage, "trees"), path.join(root, "trees"));
   fs.writeFileSync(path.join(root, "peer.token"), `${token}\n`, { mode: 0o600 });
 
   // the relay key: this computer keeps its own route key and takes the Space's box key
@@ -54,7 +55,11 @@ export function applyPeerJoin(root: string, now: () => number = Date.now): Appli
       "UPDATE network_config SET address = NULL, relay_address = NULL",
     ]) { try { db.exec(sql); } catch { /* an older copy without that table */ } }
     db.run("INSERT OR REPLACE INTO network_peer_self (id, peer_id) VALUES (1, ?)", peerId);
+    // writes the other computer had not given a clock yet when it made the copy are its own: it sends them itself, so they are not stamped here as this computer's
+    try { db.exec("DELETE FROM peer_dirty"); } catch { /* the copy had no capture yet */ }
   } finally { db.close(); }
+  const sdb = fs.existsSync(path.join(root, "space.db")) ? openDb(path.join(root, "space.db")) : null;
+  try { sdb?.exec("DELETE FROM peer_dirty"); } catch { /* no capture there yet */ } finally { sdb?.close(); }
   fs.rmSync(stage, { recursive: true, force: true });
   return { space, peerId, from: typeof meta.from === "string" ? meta.from : "" };
 }
