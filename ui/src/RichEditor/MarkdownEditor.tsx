@@ -78,7 +78,7 @@ const webProps = (props: Record<string, unknown>): Record<string, unknown> => (w
 
 let cssDone = false;
 const MD_CSS = [
-  ".vyre-md{outline:none;font:15px/24px var(--ui,inherit);color:var(--ink);caret-color:var(--accent);overflow-wrap:break-word}",
+  ".vyre-md{outline:none;font-family:var(--ui,inherit);font-size:15px;line-height:24px;color:var(--ink);caret-color:var(--accent);overflow-wrap:break-word}",
   ".vyre-md[data-empty=true] p:first-child::before{content:attr(data-placeholder);color:var(--ink-4);float:left;height:0;pointer-events:none}",
   ".vyre-md p{margin:0 0 10px}.vyre-md h1{font-size:22px;line-height:28px;margin:0 0 12px}.vyre-md h2{font-size:17px;line-height:24px;margin:22px 0 6px}.vyre-md h3{font-size:15px;line-height:22px;margin:16px 0 4px}",
   ".vyre-md h4,.vyre-md h5,.vyre-md h6{font-size:14px;margin:14px 0 4px}",
@@ -93,7 +93,7 @@ const MD_CSS = [
   ".vyre-md .vyre-hit{animation:vyre-md-hit 1.6s ease-out;border-radius:4px}@keyframes vyre-md-hit{0%,55%{background:var(--accent-wash);box-shadow:-6px 0 0 var(--accent-wash),6px 0 0 var(--accent-wash)}100%{background:transparent;box-shadow:none}}",
   ".vyre-md .ProseMirror-gapcursor{display:none}",
   // the raw view: the text drawn behind a transparent textarea of the same box, sized to its text so there is no scroll to keep in step
-  ".vyre-rawwrap{position:relative}.vyre-rawwrap pre,.vyre-rawwrap textarea{font:15px/24px var(--ui,inherit);letter-spacing:normal;white-space:pre-wrap;overflow-wrap:break-word;word-break:normal;margin:0;padding:0;border:0;width:100%;box-sizing:border-box;tab-size:2}",
+  ".vyre-rawwrap{position:relative}.vyre-rawwrap pre,.vyre-rawwrap textarea{font-family:var(--ui,inherit);font-size:15px;line-height:24px;letter-spacing:normal;white-space:pre-wrap;overflow-wrap:break-word;word-break:normal;margin:0;padding:0;border:0;width:100%;box-sizing:border-box;tab-size:2}",
   ".vyre-rawwrap pre{position:absolute;left:0;top:0;right:0;color:var(--ink);pointer-events:none}.vyre-rawwrap textarea{position:relative;display:block;background:transparent;color:transparent;caret-color:var(--accent);resize:none;overflow:hidden;outline:none}",
   ".vyre-rawwrap textarea::selection{background:var(--accent-wash);color:transparent}.vyre-rawwrap textarea::placeholder{color:var(--ink-4)}",
   ".vyre-rawwrap .rk{color:var(--ink-4)}.vyre-rawwrap .rh{color:var(--accent)}.vyre-rawwrap .rc{color:var(--ok)}.vyre-rawwrap .rl{color:var(--accent)}.vyre-rawwrap .rb{color:var(--ink)}.vyre-rawwrap .ro{background:color-mix(in srgb,var(--warn) 16%,transparent);border-radius:3px}.vyre-rawwrap .rf{color:var(--ink-3)}",
