@@ -1,1 +1,0 @@
-- A Personal Space on two computers: an agent made on one computer now opens on the other, and a computer restarted after syncing can make agents again. The access store's record of how far it had read its own log travelled to the other computer, which then skipped its own access changes; it now stays on each computer.
