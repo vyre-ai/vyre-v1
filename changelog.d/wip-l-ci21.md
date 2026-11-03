@@ -6,3 +6,4 @@
 - portal.live test: seven daemon boots became three (one shared by the tests that can share, one for the rate limit test, one for the landing page test); the file runs in 15 s instead of 29 s on the same host.
 - The nightly perf file perf/server/server.test.ts is split into three files (load, write, sockets) with a shared support module, each its own perf entry in test/slow.json with the same 120 s cap and the same assertions. They share the seed template cache of the host instead of each building the full 100k contact Space.
 - The connection_count probe opened its socket with the session token in the address, which the Space no longer accepts; it now asks for a one-use ticket first. It was failing behind the watchdog.
+- The golden shards deal out the long step tests (joining, offline conflict, senders, key failure, matrix, purge) across both shards; the first split put all of them in shard 2 (3m29s against 30 s for shard 1).

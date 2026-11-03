@@ -6,7 +6,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { shardOf } from "./golden.ts";
+import { HEAVY, shardOf, stepFiles } from "./golden.ts";
 
 const SCRIPT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "golden.ts");
 
@@ -53,4 +53,13 @@ test("golden: shards split the step tests with none lost or run twice, a shard w
   assert.match(none.stderr, /has no step test/);
   assert.equal(spawnSync(process.execPath, [SCRIPT, "--dir", dir, "--shard", "3/2"], { encoding: "utf8" }).status, 2);
   assert.deepEqual(shardOf(["a", "b", "c", "d", "e"], 1, 2).concat(shardOf(["a", "b", "c", "d", "e"], 2, 2)).sort(), ["a", "b", "c", "d", "e"]);
+});
+
+test("golden: the long step tests are spread over the shards, none lost, none twice", () => {
+  const files = stepFiles(path.resolve(path.dirname(SCRIPT), "..", "golden", "steps"));
+  const a = shardOf(files, 1, 2), b = shardOf(files, 2, 2);
+  assert.deepEqual([...a, ...b].sort(), [...files].sort());
+  const heavy = (xs: string[]) => xs.filter((f) => HEAVY.some((h) => path.basename(f).startsWith(h))).length;
+  assert.ok(Math.abs(heavy(a) - heavy(b)) <= 1, `heavy files: ${heavy(a)} and ${heavy(b)}`);
+  assert.ok(heavy(a) + heavy(b) === HEAVY.length, "every name in HEAVY matches a step test");
 });
