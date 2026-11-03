@@ -30,7 +30,8 @@ function shot(name: string): void {
 }
 
 function killAll(): void {
-  if (win) { for (const im of ["vyre-desktop.exe", "vyred.exe"]) spawnSync("taskkill", ["/F", "/T", "/IM", im], { stdio: "ignore", timeout: 10_000 }); }
+  // WebView2's own processes too: one left from an earlier step that killed the app without its tree keeps the profile, and every later window attaches to it and draws nothing
+  if (win) { for (const im of ["vyre-desktop.exe", "vyred.exe", "msedgewebview2.exe"]) spawnSync("taskkill", ["/F", "/T", "/IM", im], { stdio: "ignore", timeout: 10_000 }); }
   // by process name: a match on the whole command line would end this script too, whose arguments name the app
   else { spawnSync("pkill", ["-x", "vyre-desktop"], { stdio: "ignore" }); spawnSync("pkill", ["-x", "vyred"], { stdio: "ignore" }); }
 }
@@ -99,6 +100,13 @@ async function pageDiagnosis(port: number): Promise<void> {
     ws.close();
   } catch (e) { console.log(`update-proof: diagnosis failed: ${String(e)}`); }
 }
+
+if (win) {
+  const left = spawnSync("tasklist", ["/FI", "IMAGENAME eq msedgewebview2.exe"], { encoding: "utf8" }).stdout ?? "";
+  console.log(`update-proof: WebView2 processes left from earlier steps: ${(left.match(/msedgewebview2\.exe/gi) ?? []).length}`);
+}
+killAll();
+await sleep(2000);
 
 // 0. the control: the same installed app with automatic updates off opens to its first screen, so a blank page below is the update's doing and not the install's
 {
