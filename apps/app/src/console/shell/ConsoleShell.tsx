@@ -97,6 +97,17 @@ function ShellBody({ initialPage = DEFAULT_PAGE, initialAudit, skin = SYSTEM_SKI
   const [pageHelps, setPageHelps] = useState<readonly string[]>([]);
   const registerHelp = useCallback((text: string) => { setPageHelps((h) => [...h, text]); return () => setPageHelps((h) => h.filter((x) => x !== text)); }, []);
   const pages = visiblePages(data.can, data.allowedScreens);
+  // the dot on Machines: how many alerts the machines have (a disk nearly full, memory pressure, offline with pinned work, a failed backup, an update waiting)
+  const [machineAlerts, setMachineAlerts] = useState(0);
+  const machinesOpen = pages.some((p) => p.id === "machines");
+  useEffect(() => {
+    if (!machinesOpen) return undefined;
+    let live = true;
+    const load = (): void => { void (data.call("network.machine_alerts", {}) as Promise<{ alerts?: unknown[] }>).then((o) => { if (live) setMachineAlerts(o.alerts?.length ?? 0); }, () => undefined); };
+    load();
+    const t = setInterval(load, 60_000);
+    return () => { live = false; clearInterval(t); };
+  }, [machinesOpen, data]);
   const def = pageById(page) ?? PAGES[0]!;
   const helpLine = [PAGE_NOTE[def.id], ...pageHelps].filter(Boolean).join(". ");
 
@@ -154,7 +165,7 @@ function ShellBody({ initialPage = DEFAULT_PAGE, initialAudit, skin = SYSTEM_SKI
   const navRows: ReactElement[] = [];
   for (const sec of sections) {
     if (sec.id === "space") navRows.push(<View key="gap" style={{ height: 12 }} />);
-    navRows.push(<Row key={sec.id} id={`nav-${sec.id}`} title={sec.title} selected={here?.id === sec.id} leading={<Lead><Glyph name={sec.icon} size={15} color={here?.id === sec.id ? "var(--ink)" : "var(--ink-3)"} /></Lead>} onPress={() => { const to = landing(sec, ok, lastIn[sec.id]); if (to) go(to); }} />);
+    navRows.push(<Row key={sec.id} id={`nav-${sec.id}`} title={sec.title} selected={here?.id === sec.id} leading={<Lead><Glyph name={sec.icon} size={15} color={here?.id === sec.id ? "var(--ink)" : "var(--ink-3)"} /></Lead>} {...(sec.id === "machines" && machineAlerts > 0 ? { trailing: <View style={s.alertDot} testID="nav-machines-alerts" accessibilityLabel={`${machineAlerts} machine alert${machineAlerts === 1 ? "" : "s"}`}><Text style={s.alertDotText}>{machineAlerts}</Text></View> } : {})} onPress={() => { const to = landing(sec, ok, lastIn[sec.id]); if (to) go(to); }} />);
   }
   const tabs = here ? visibleTabs(here, ok) : [];
   const activeTab = tabs.find((t) => t.views.some((x) => x.page === page));
@@ -285,6 +296,8 @@ const s = StyleSheet.create({
   viewText: { fontSize: 12.5, fontWeight: "500", color: "var(--ink-3)" as string },
   viewTextOn: { color: "var(--ink)" as string },
   extra: { marginTop: 8 },
+  alertDot: { minWidth: 18, height: 18, paddingHorizontal: 5, borderRadius: 9, alignItems: "center", justifyContent: "center", backgroundColor: "var(--warn)" as string },
+  alertDotText: { fontSize: 11, fontWeight: "600", color: "#fff" },
   wide: { width: "100%", maxWidth: 1200, flex: 1, minHeight: 480 },
   soon: { fontSize: 13, color: "var(--ink-3)" as string, padding: 14 },
   assistant: { width: ASSISTANT_WIDTH, borderLeftWidth: 1, borderLeftColor: "var(--line)" as string, backgroundColor: "var(--side)" as string, padding: 14 },

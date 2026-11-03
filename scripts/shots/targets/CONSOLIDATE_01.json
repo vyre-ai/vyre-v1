@@ -1,0 +1,74 @@
+{
+  "targets": [
+    {
+      "id": "CONSOLIDATE_01-machines",
+      "route": "/m/CONSOLIDATE_01?part=machines",
+      "proto": "overview,{skin}",
+      "waitFor": "[data-testid='machines-list']",
+      "note": "Console, Machines: the health strip, the alerts, one row for every machine with what it runs and can run and its room left, and the order work runs in."
+    },
+    {
+      "id": "CONSOLIDATE_01-machine",
+      "route": "/m/CONSOLIDATE_01?part=machine",
+      "proto": "overview,{skin}",
+      "waitFor": "[data-testid='machine-charts']",
+      "note": "One machine: four charts over 24 hours, what runs by agent and chat, what it can run."
+    },
+    {
+      "id": "CONSOLIDATE_01-machine-7d",
+      "route": "/m/CONSOLIDATE_01?part=machine-7d",
+      "proto": "overview,{skin}",
+      "waitFor": "[data-testid='chart-cpu-tip']",
+      "note": "The same over 7 days with the crosshair on all four charts and the tooltip."
+    },
+    {
+      "id": "CONSOLIDATE_01-machine-private",
+      "route": "/m/CONSOLIDATE_01?part=machine-private",
+      "proto": "overview,{skin}",
+      "waitFor": "[data-testid='machine-private']",
+      "note": "Another person's computer as an admin sees it: a notice, Vyre's share in two charts, none of their work."
+    },
+    {
+      "id": "CONSOLIDATE_01-people",
+      "route": "/m/CONSOLIDATE_01?part=people",
+      "proto": "overview,{skin}",
+      "waitFor": "[data-testid='console-tabs']",
+      "note": "Console, People and access with the quiet underline tabs."
+    },
+    {
+      "id": "CONSOLIDATE_01-permissions",
+      "route": "/m/CONSOLIDATE_01?part=permissions",
+      "proto": "overview,{skin}",
+      "waitFor": "[data-testid='console-views']",
+      "note": "Permissions, Roles, Grants and Check access as one tab with a text switch."
+    },
+    {
+      "id": "CONSOLIDATE_01-add-server",
+      "route": "/m/CONSOLIDATE_01?part=add-server",
+      "proto": "overview,{skin}",
+      "waitFor": "[data-testid='add-server-sheet']",
+      "note": "Add a server: the one command and the fingerprint to compare (the Console and Settings share it)."
+    },
+    {
+      "id": "CONSOLIDATE_01-device",
+      "route": "/m/CONSOLIDATE_01?part=device",
+      "proto": "overview,{skin}",
+      "waitFor": "[data-testid='machines']",
+      "note": "Settings, This device: my own machines in the same component, then Phone access."
+    },
+    {
+      "id": "CONSOLIDATE_01-device-machine",
+      "route": "/m/CONSOLIDATE_01?part=device-machine",
+      "proto": "overview,{skin}",
+      "waitFor": "[data-testid='machine-charts']",
+      "note": "My own MacBook in full: load, running turns, limits."
+    },
+    {
+      "id": "CONSOLIDATE_01-you",
+      "route": "/m/CONSOLIDATE_01?part=you",
+      "proto": "overview,{skin}",
+      "waitFor": "[data-testid='settings-place']",
+      "note": "Settings, You: the profile with About you and memory under it."
+    }
+  ]
+}
