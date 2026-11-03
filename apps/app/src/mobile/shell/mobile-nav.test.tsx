@@ -118,3 +118,9 @@ test("the Chat-about-it screen is one line and one action, and the action is off
   assert.ok(!has(out, 'aria-disabled="true"'));
   assert.ok(has(renderToStaticMarkup(<DesktopOnly line="x" />), 'aria-disabled="true"'));
 });
+
+test("Install Vyre sits on You only while Chrome offers the install (owner decision D18)", async () => {
+  const { InstallRow, INSTALL_TITLE } = await import("./InstallRow.tsx");
+  assert.ok(renderToStaticMarkup(<InstallRow offered={() => true} />).includes(INSTALL_TITLE));
+  assert.equal(renderToStaticMarkup(<InstallRow offered={() => false} />), "");
+});

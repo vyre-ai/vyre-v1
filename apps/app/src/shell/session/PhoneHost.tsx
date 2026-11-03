@@ -7,7 +7,7 @@ import type { ReactElement, ReactNode } from "react";
 import { View } from "react-native";
 import { Row } from "../../../../../ui/src/Row/index.tsx";
 import { useResume } from "../../onboarding/ResumeChip.tsx";
-import { DesktopOnly, MobileShell, YouScreen } from "../../mobile/shell/index.ts";
+import { DesktopOnly, InstallRow, MobileShell, YouScreen } from "../../mobile/shell/index.ts";
 import type { Entry, MobileNav } from "../../mobile/shell/index.ts";
 import type { LiveQuery, QueryState } from "../../../../../client/src/index.ts";
 import type { CapMap } from "../../../../../generated/types.ts";
@@ -32,6 +32,7 @@ function You({ session, nav, onSignOut, onAddSpace, onLock, onSwitchSpace }: { s
   return (
     <View style={{ flex: 1 }}>
       <YouScreen nav={nav} data={{ name: session.me.name, space: session.def.name, workOpen: work.status === "ready" ? work.data.tasks.length : 0, starred: stars.status === "ready" ? stars.data.stars.length : 0 }} />
+      <InstallRow />
       {resume ? <Row id="you-finish-setup" title="Finish setup" note={`${resume.done} of ${resume.total} done`} onPress={resume.open} /> : null}
       <Row id="you-vault" title="Vault" note="Keys, logins and cards" onPress={() => nav.open(entryFor("vault", ""))} />
       {session.runtime.space.kind === "team" ? <Row id="you-apps" title="Apps" note="Forms and templates" onPress={() => nav.open(entryFor("apps", ""))} /> : null}

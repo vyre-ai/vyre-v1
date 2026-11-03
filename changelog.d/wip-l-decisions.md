@@ -7,3 +7,4 @@
 - The chat composer has a "Don't remember this chat" switch, off by default. While it is on, nothing from the chat goes into memory and the composer says "Not remembering this chat" (owner ruling, 3 Nov).
 - When you approve an agent's request for a key, the card asks who can use it through that agent: only the person who asked (the default) or anyone who asks the agent. Teammates covered by your choice no longer need their own access to the key (owner ruling, 3 Nov).
 - In your Personal Space, you can use the Claude Code or Codex sign-in that is already on your computer instead of signing in again (owner ruling, 3 Nov).
+- On Android, install Vyre from Chrome: the phone's You screen offers Install Vyre, and the home screen icon fits Android's icon shapes (owner ruling, 3 Nov).
