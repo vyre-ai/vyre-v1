@@ -45,6 +45,8 @@ export interface HomeSync {
 }
 /** `failed` counts what a pass could not do (a call refused or lost, a removal that did not happen): a pass with any is not a finished sync. */
 export interface HomeReport { down: number; up: number; conflicts: number; removed: number; refused: string[]; suggested: number; failed: number;
+  /** Files the read gate kept off the computer (Not available to AI, waiting for review, or a picture with parts hidden from AI). */
+  hidden?: number;
   /** The files the agent made on the computer in this pass (new in Files, not edits), for the chat to say so. Recordings and hidden paths are left out. */
   made: MadeFile[] }
 export interface MadeFile { fileId: string; name: string; kind: string; size: number; version: number }
@@ -108,6 +110,12 @@ export function createHomeSync(o: { agentId: string; computerId: string; fs: Hom
     return { files, folders, complete: queue.length === 0 };
   }
 
+  /** A refusal of the read gate: the file is Not available to AI, waits for review, or has parts hidden from AI that its bytes would show. */
+  function gateRefused(e: unknown): boolean {
+    const x = e as { error?: { details?: { reason?: unknown } }; details?: { reason?: unknown } } | null;
+    const reason = x?.error?.details?.reason ?? x?.details?.reason;
+    return reason === "agent_access_off" || reason === "needs_review" || reason === "redacted_binary" || reason === "redacted_file";
+  }
   async function download(f: RemoteFile): Promise<Buffer> {
     const parts: Buffer[] = [];
     for (let offset = 0; ; offset += READ_CHUNK) {
@@ -240,6 +248,8 @@ export function createHomeSync(o: { agentId: string; computerId: string; fs: Hom
           delete m.files[rel];   // gone on both sides
         }
       } catch (e) {
+        // the read gate (Redaction for AI) refused this file to the agent: whatever copy the computer holds leaves it, and the file is not counted as failed
+        if (gateRefused(e)) { if (l) { removeFiles.push(rel); afterRemove.push(() => { delete m.files[rel]; }); } else delete m.files[rel]; report.hidden = (report.hidden ?? 0) + 1; continue; }
         report.failed++;
         d.log("warn", "computers.home.file_failed", { computer: o.computerId, path: rel, error: e instanceof Error ? e.message.slice(0, 160) : "unknown" });
       }

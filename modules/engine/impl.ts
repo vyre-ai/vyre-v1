@@ -209,6 +209,42 @@ export const consumers = {
       return [p.taskId];
     },
   },
+  /**
+   * Redaction for AI: an agent asked to read a file in a Redacted folder nobody had reviewed ("Redact before I can read"); the request card goes into the chat it asked in, as the agent, with
+   * Open to review. A request with no chat is a Review task for the person (the files module makes it).
+   */
+  "engine.redact_requested": {
+    on: ["file.redact_requested"],
+    run: async (ctx: EngineCtx, event: { payload: { requestId: string; fileId: string; name: string; agentId?: string; actingFor?: string; threadId?: string } }): Promise<string[]> => {
+      const p = event.payload, host = engineHost();
+      if (!host?.postAs || !p.threadId?.startsWith("thr_") || !p.agentId || !p.actingFor?.startsWith("usr_")) return [];
+      await Promise.resolve(host.postAs(p.agentId, {
+        actingFor: p.actingFor, threadId: p.threadId, body: "", mentions: [], clientId: BRIDGE_PREFIX + mintEngineId("b", ctx.now()).slice(2),
+        blocks: [{ type: "redact_request", v: 1, data: { requestId: p.requestId, fileId: p.fileId, name: p.name, agentId: p.agentId, state: "waiting" } }],
+      })).catch((e: unknown) => host.log?.("the request to read was not shown in the chat", { requestId: p.requestId, error: e instanceof Error ? e.message : String(e) }));
+      return [p.requestId];
+    },
+  },
+  /** Done on a file an agent asked for: the agent's next turn starts in that chat with a note from Vyre, the same wake path as an approved held call. */
+  "engine.redact_ready": {
+    on: ["file.redact_ready"],
+    run: async (ctx: EngineCtx, event: { payload: { requestId: string; fileId: string; name: string; by: string; agentId?: string; actingFor?: string; threadId?: string } }): Promise<string[]> => {
+      const p = event.payload, host = engineHost();
+      if (!host || !p.threadId?.startsWith("thr_") || !p.agentId || !p.actingFor?.startsWith("usr_")) return [];
+      const engine = await ensureRuntime(ctx);
+      if (!engine) return [];
+      let by = "a person";
+      try { const n = ((await host.call("access.principals.get", { principal: { kind: "person", id: p.by } })) as { principal?: { name?: unknown } }).principal?.name; if (typeof n === "string" && n.trim() !== "") by = n.trim(); } catch { /* a name is a courtesy */ }
+      queueHeldNote(p.threadId, p.agentId, `${by} reviewed ${p.name} (file ${p.fileId}). Read it again now: you get the redacted version, with [REDACTED] where a part is hidden. Do not guess what a redacted part says; if you need it, say so and ask ${by} to un-redact it.`);
+      if (host.postAs) {
+        await Promise.resolve(host.postAs(p.agentId, { actingFor: p.actingFor, threadId: p.threadId, body: "", mentions: [], clientId: BRIDGE_PREFIX + mintEngineId("b", ctx.now()).slice(2), blocks: [{ type: "turn_status", v: 1, data: { state: "note", text: `Reviewed by ${by}` } }] }))
+          .catch((e: unknown) => host.log?.("the review was not shown in the chat", { requestId: p.requestId, error: e instanceof Error ? e.message : String(e) }));
+      }
+      try { await openAs(ctx, p.threadId, p.actingFor); engine.wake(p.threadId, p.agentId); }
+      catch (e) { host.log?.("the agent was not woken after the file was reviewed", { requestId: p.requestId, error: e instanceof Error ? e.message : String(e) }); return []; }
+      return [p.requestId];
+    },
+  },
   "engine.unblock": {
     on: ["task.completed"],
     run: async (ctx: EngineCtx, event: { payload: { taskId: string } }): Promise<string[]> => ((await wakeAfterUnblock(ctx, event.payload.taskId)) ? [event.payload.taskId] : []),

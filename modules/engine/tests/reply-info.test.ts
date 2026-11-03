@@ -129,3 +129,28 @@ test("engine.turn.get: the in-process engine's tool steps and account switches s
   const asker = harness({ raw: h.raw, principal: { kind: "person", id: "usr_dana" }, manager: false });
   assert.equal(H["engine.turn.get"](asker.ctx, { turnId: "trn_reply1" }).what.turn.turnId, "trn_reply1", "the asker always sees their own turn");
 });
+
+test("who paid and why is stored with the turn and read back synchronously: Chat key off (the asker's own) and on (the agent's Chat key); an older turn shows nothing; another member does not see it", async () => {
+  const own = apiInfo({ account: { ref: "#Dana_Anthropic", driver: "anthropic", provider: "anthropic", kind: "api_key" }, paid: "The asker's own key" });
+  const h = harness();
+  await recordTurn(h, own, { turnId: "trn_off" });
+  const off = H["engine.turn.get"](h.ctx, { turnId: "trn_off" });
+  assert.deepEqual(contractErrors("engine.turn.get", "out", off), []);
+  assert.equal(off.what.paid, "The asker's own key");
+  assert.equal(H["engine.turn.of_message"](h.ctx, { threadId: T, messageId: MSG }).turn.paid, "The asker's own key");
+  const h2 = harness();
+  await recordTurn(h2, apiInfo({ paid: "The agent's Chat key" }), { turnId: "trn_on" });
+  const on = H["engine.turn.get"](h2.ctx, { turnId: "trn_on" });
+  assert.equal(on.what.paid, "The agent's Chat key");
+  assert.deepEqual(contractErrors("engine.turn.of_message", "out", H["engine.turn.of_message"](h2.ctx, { threadId: T, messageId: MSG })), []);
+  // the line is the one stored when the turn ended: changing the agent's Chat key or the accounts afterwards does not change it
+  const later = { ...h2.ctx, call: async (cap: string) => { throw new Error(`the stored line must not ask ${cap}`); } };
+  assert.equal(H["engine.turn.get"](later as never, { turnId: "trn_on" }).what.paid, "The agent's Chat key");
+  // a turn recorded before this was kept has no line
+  const h3 = harness();
+  await recordTurn(h3, apiInfo(), { turnId: "trn_old" });
+  assert.equal(H["engine.turn.get"](h3.ctx, { turnId: "trn_old" }).what.paid, undefined);
+  // the account is the asker's and the managers' only, so is the reason
+  const other = harness({ raw: h2.raw, principal: { kind: "person", id: "usr_eve" }, manager: false });
+  assert.equal(H["engine.turn.of_message"](other.ctx, { threadId: T, messageId: MSG }).turn.paid, undefined);
+});

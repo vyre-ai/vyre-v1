@@ -95,7 +95,7 @@ export function seed(h: Harness, d: Partial<IndexDoc> & { id: string; title: str
   const doc: IndexDoc = {
     entity, id: d.id, kind, title: d.title, body: d.body ?? "", link: d.link ?? `vyre://${entity}/${d.id}`, label: d.label ?? 0,
     resource: d.resource ?? { type: kind === "chat" ? "thread" : kind, id: d.id },
-    ...(d.path ? { path: d.path } : {}), ...(d.folderId ? { folderId: d.folderId } : {}), ...(d.recordType ? { recordType: d.recordType } : {}), ...(d.updatedAt !== undefined ? { updatedAt: d.updatedAt } : {}),
+    ...(d.path ? { path: d.path } : {}), ...(d.folderId ? { folderId: d.folderId } : {}), ...(d.recordType ? { recordType: d.recordType } : {}), ...(d.updatedAt !== undefined ? { updatedAt: d.updatedAt } : {}), ...(d.agent ? { agent: d.agent } : {}),
   };
   return putDoc(h.db, h.space, doc, h.clock.t);
 }

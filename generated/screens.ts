@@ -7789,6 +7789,12 @@ export const screens: ScreenIndexEntry[] = [
           "kind": "/hit/kind",
           "itemId": "/hit/id"
         }
+      },
+      "asked": {
+        "cap": "search.ask",
+        "input": {
+          "q": "/query/q"
+        }
       }
     },
     "needs": [],

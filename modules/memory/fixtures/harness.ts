@@ -76,6 +76,11 @@ export function harness(o: HarnessOptions = {}) {
       called.push({ cap, input: body });
       const r = respond[cap];
       if (r) return r(body);
+      // Redaction for AI: memory reads what an agent may read of a file (files.agent_view); a test that scripts files.read gets that text back as a clear file, through files.read
+      if (cap === "files.agent_view" && respond["files.read"]) {
+        const got = (await ctx.call("files.read", { fileId: body["fileId"], as: "text" })) as { text?: string };
+        return { state: "clear", name: "", path: "", text: got.text ?? "" };
+      }
       if (cap === "agents.get") return { agent: { folderId: `fld_${String(body["agentId"]).replace(/^agt_/, "")}`, ownerId: "usr_boss" } };
       // the folder's own shares: by default the asker holds a direct grant, so a test that is not about inheritance keeps editing; a test that is sets respond["access.shares_of"]
       if (cap === "access.shares_of") return { shares: [{ grant: { subject: { kind: "person", id: ctx.principal.id }, level: "manage" }, through: "direct" }] };

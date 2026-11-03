@@ -25,6 +25,8 @@ import { connectLabel, connectThen, stepNeed } from "../../../shell/connect/mode
 import { setupFromIssue } from "../connect/route.ts";
 import type { ConnectTarget } from "../connect/route.ts";
 import { AutomationConfig } from "../config/AutomationConfig.tsx";
+import { keptFor, spaceAccounts } from "../../vault/providers/pick.ts";
+import { useSpaceAi } from "../../vault/providers/useSpaceAi.ts";
 import { Overlay } from "../config/Overlay.tsx";
 import { PromoteSheet } from "../config/PromoteSheet.tsx";
 import { installFocusRing, insertLabel, keyNeighbour, moreLabel, tabLabel } from "../a11y.ts";
@@ -208,7 +210,10 @@ function CanvasBody({ a, canEdit, tab, setTab, failedRuns, versions, tabBodies, 
     return () => { live = false; };
   }, [data]);
   useEffect(() => { installFocusRing(); }, []);
-  const issues = useMemo(() => sortedIssues([...check(def, a.kind), ...serverIssues]), [def, a.kind, serverIssues]);
+  const spaceAi = useSpaceAi(data.call);
+  // a Space AI account kept for automations that works and is under its cap: a step with no account of its own runs on the cheapest of them
+  const automatic = useMemo(() => spaceAccounts(spaceAi ?? []).some((r) => (r.state === undefined || r.state === "ok") && keptFor(r, "automations") && r.capped !== true), [spaceAi]);
+  const issues = useMemo(() => sortedIssues([...check(def, a.kind, { automatic }), ...serverIssues]), [def, a.kind, serverIssues, automatic]);
   const tested = useMemo(() => new Set(Object.keys(samples)), [samples]);
   const required = useMemo(() => {
     const out: Record<string, string[]> = {};

@@ -85,6 +85,7 @@ export async function draft(ctx: MailCtx, input: DraftIn): Promise<DraftOut> {
   const threadId = existing ? str(existing, "threadId") : strOrNull(parent, "threadId") ?? draftId;
   const draftedBy = strOrNull(existing, "draftedByAgent") ?? agentId;
 
+  const was = existing ? textOf(ctx, str(existing, "id")) : undefined;
   if (existing) {
     ctx.db.run(
       `UPDATE mail_message SET "toAddresses" = ?, "ccAddresses" = ?, subject = ?, snippet = ?, body = ?, "sentAt" = ?, "contactId" = ?,
@@ -114,6 +115,10 @@ export async function draft(ctx: MailCtx, input: DraftIn): Promise<DraftOut> {
   }
   ctx.db.run(`INSERT OR IGNORE INTO mail_idem ("idemKey", kind, "refId") VALUES (?, ?, ?)`, input.idempotencyKey, "draft", draftId);
 
+  // a person edits what an agent drafted: memory keeps a lesson from it (memory.corrections.record, as the person), when their switch is on. A failing memory never holds the save up.
+  if (existing && draftedBy && ctx.principal.kind === "person" && was !== undefined && bodyText !== undefined && was.trim() !== bodyText.trim() && bodyText.trim() !== "") {
+    try { await ctx.call("memory.corrections.record", { agentId: draftedBy, how: "edit", was, now: bodyText, ref: `${draftId}:v${num(existing, "version")}` }); } catch { /* the draft is saved; the lesson is a courtesy */ }
+  }
   const payload: { draftId: string; mailboxId: string; byAgent?: string; contactId?: string } = { draftId, mailboxId: input.mailboxId };
   if (draftedBy) payload.byAgent = draftedBy;
   if (contactId) payload.contactId = contactId;

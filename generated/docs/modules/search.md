@@ -4,9 +4,10 @@ Lane L1. Kind module. Version 0.1.0.
 
 Requires: nothing.
 
-## Capabilities (11)
+## Capabilities (12)
 
 - [search.actions.list](../capabilities/search.actions.list.md): Actions offered after the > prefix (New task, Call someone, Switch skin, Set yourself away, Go offline)
+- [search.ask](../capabilities/search.ask.md): Ask the Space: answer a question from the chats, records, files, tasks and notes the caller may read, on the caller's own AI account, with numbered citations; nothing readable gives the no-access answer and calls no model
 - [search.embed.run](../capabilities/search.embed.run.md): Embeddings consumer: compute pending vectors with the small local model (384 dimensions)
 - [search.health](../capabilities/search.health.md): Search health: consumer lag and a probe query latency
 - [search.index.apply](../capabilities/search.index.apply.md): Index consumer: apply one changed entity row to full text and vectors (durable cursor; never sees private rows)

@@ -138,6 +138,7 @@ export async function turnDetail(data: ConversationData, turnId: string): Promis
   // where it ran, in order: her computer, then the server it went on to when the computer slept
   const ran = t.ranOn ?? [];
   rows.push(["Ran on", ran.length > 0 ? ranOnText(ran) : what.machine === "device" ? "This computer" : "This Space"]);
+  if (what.paid) rows.push(["Paid by", what.paid]);
   if (secs !== null) rows.push(["Took", `${secs} s`]);
   if (t.error?.code) rows.push(["Code", t.error.code]);
   // where the engine went on the internet while it ran (a sample), and what this Space's internet setting blocked

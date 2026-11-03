@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import { registry } from "../../../generated/registry.ts";
 import { deref } from "../../../packages/contracts/src/jsonschema.ts";
 import { indexApply } from "../handlers/index.ts";
-import { query } from "../handlers/query.ts";
+import { query, resolveItem } from "../handlers/query.ts";
 import { WATCHED, consumers, targetOf, targetsOf } from "../impl.ts";
 import { asPerson, contractErrors, harness, notFound, seed } from "../fixtures/harness.ts";
 import type { Harness } from "../fixtures/harness.ts";
@@ -14,7 +14,8 @@ const ids = (r: { hits: Array<{ id: string }> }): string[] => r.hits.map((h) => 
 const docCount = (h: Harness): number => Number(h.rows("SELECT count(*) AS c FROM search_docs")[0]!["c"]);
 
 function populated(): Harness {
-  const h = harness();
+  // chat's own rule: she can open every chat here except the invite-only one (thr_closed)
+  const h = harness({ respond: { "chat.messages.list": (i) => (i["threadId"] === "thr_closed" ? notFound() : { messages: [] }), "channels.get": (i) => (i["channelId"] === "ch_closed" ? notFound() : { channel: {} }) } });
   seed(h, { id: "rec_pub", title: "Harbor lease plan", kind: "record", recordType: "client" });
   seed(h, { id: "rec_secret", title: "Harbor lease settlement terms", kind: "record", recordType: "client" });
   seed(h, { id: "fil_open", title: "Harbor lease draft.md", kind: "file", body: "Harbor lease draft with the rent schedule", path: "Clients/Harbor/Harbor lease draft.md" });
@@ -46,6 +47,17 @@ test("a result never includes a row the asker cannot read, whatever the page siz
   assert.ok(!(await query(h.ctx, { q: "settlement" })).hits.some((x) => x.id === "rec_secret"), "a word only the hidden row has finds nothing");
   assert.ok(!(await query(h.ctx, { q: "board minutes", mode: "semantic" })).hits.some((x) => x.id === "fil_hidden"));
   assert.ok(!(await query(h.ctx, { q: "ha" })).hits.some((x) => x.id === "rec_secret" || x.id === "fil_hidden"), "type-ahead too");
+});
+
+test("an invite-only chat or channel is not shown to someone who was not invited, though the Space's view grant covers it", async () => {
+  const h = populated();
+  seed(h, { id: "thr_closed", title: "Harbor lease founders", kind: "chat", body: "the harbor lease buyout price is confidential" });
+  seed(h, { id: "ch_closed", title: "Harbor lease founders", kind: "channel", body: "harbor lease" });
+  const all = await query(h.ctx, { q: "harbor lease" });
+  assert.ok(!all.hits.some((x) => x.id === "thr_closed" || x.id === "ch_closed"), "not in the results, the snippet nor the count");
+  assert.ok(all.hits.some((x) => x.id === "thr_team"), "a chat she can open is there");
+  assert.deepEqual((await resolveItem(h.ctx, { kind: "chat", itemId: "thr_closed" })), {});
+  assert.deepEqual(await resolveItem(h.ctx, { kind: "channel", itemId: "ch_closed" }), {});
 });
 
 test("two people on one Space see their own rows", async () => {

@@ -118,6 +118,9 @@ export function stubs(ctx: CallCtx) {
       guide: {
         get: call("agents.guide.get"),
       },
+      instruction: {
+        append: call("agents.instruction.append"),
+      },
       limits: {
         get: call("agents.limits.get"),
       },
@@ -874,6 +877,12 @@ export function stubs(ctx: CallCtx) {
       types: call("events.types"),
     },
     files: {
+      agent_access: {
+        get: call("files.agent_access.get"),
+        set: call("files.agent_access.set"),
+      },
+      agent_states: call("files.agent_states"),
+      agent_view: call("files.agent_view"),
       comments: {
         add: call("files.comments.add"),
         delete: call("files.comments.delete"),
@@ -900,6 +909,12 @@ export function stubs(ctx: CallCtx) {
       knowledge: call("files.knowledge"),
       lint: call("files.lint"),
       list: call("files.list"),
+      marks: {
+        add: call("files.marks.add"),
+        list: call("files.marks.list"),
+        place: call("files.marks.place"),
+        remove: call("files.marks.remove"),
+      },
       markup: {
         get: call("files.markup.get"),
         save: call("files.markup.save"),
@@ -909,10 +924,16 @@ export function stubs(ctx: CallCtx) {
       purge: call("files.purge"),
       read: call("files.read"),
       recent: call("files.recent"),
+      redact: {
+        detect: call("files.redact.detect"),
+        later: call("files.redact.later"),
+        request: call("files.redact.request"),
+      },
       rename: call("files.rename"),
       resolve: call("files.resolve"),
       restore: call("files.restore"),
       restore_version: call("files.restore_version"),
+      review: call("files.review"),
       revoke_external: call("files.revoke_external"),
       save: call("files.save"),
       share: call("files.share"),
@@ -1575,6 +1596,9 @@ export function stubs(ctx: CallCtx) {
         get: call("memory.chat_learning.get"),
         set: call("memory.chat_learning.set"),
       },
+      corrections: {
+        record: call("memory.corrections.record"),
+      },
       counts: call("memory.counts"),
       erase: call("memory.erase"),
       export_markdown: call("memory.export_markdown"),
@@ -2187,6 +2211,7 @@ export function stubs(ctx: CallCtx) {
       actions: {
         list: call("search.actions.list"),
       },
+      ask: call("search.ask"),
       embed: {
         run: call("search.embed.run"),
       },

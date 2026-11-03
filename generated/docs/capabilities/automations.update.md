@@ -81,6 +81,10 @@ type In = {
       }>;
     start?: Array<string>;
     allowSelfTrigger?: boolean;
+    ai?: {
+      keyId?: string;
+      backupKeyId?: string;
+    };
   };
   expectedVersion?: number;
 };
@@ -153,6 +157,10 @@ type Out = {
         }>;
       start?: Array<string>;
       allowSelfTrigger?: boolean;
+      ai?: {
+        keyId?: string;
+        backupKeyId?: string;
+      };
     };
     followers: Array<string>;
     alerts: {
@@ -200,6 +208,10 @@ type Out = {
   "input": {
     "automationId": "aut_a1b2c3",
     "definition": {
+      "ai": {
+        "backupKeyId": "example",
+        "keyId": "example"
+      },
       "allowSelfTrigger": true,
       "nodes": [
         {
@@ -301,6 +313,10 @@ type Out = {
       },
       "createdAt": 1760000000000,
       "definition": {
+        "ai": {
+          "backupKeyId": "example",
+          "keyId": "example"
+        },
         "allowSelfTrigger": true,
         "nodes": [
           {

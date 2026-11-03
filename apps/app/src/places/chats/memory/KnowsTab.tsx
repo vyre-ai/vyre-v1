@@ -15,14 +15,14 @@ import { Icon } from "../../files/memory/parts.tsx";
 import type { PaneDeps } from "../rightpane/actions.ts";
 import { MAP_LIMIT, learnedWhen, parseMap } from "../rightpane/model.ts";
 import type { MapIndex } from "../rightpane/model.ts";
-import { PaneList, Tool } from "../rightpane/parts.tsx";
+import { PaneList, Switch, Tool } from "../rightpane/parts.tsx";
 import type { Entry } from "../rightpane/parts.tsx";
 import { usePaneData, useScreenQuery } from "../rightpane/data.tsx";
 import type { CapMap } from "../../../../../../generated/types.ts";
-import { correctFact, decideFact, forgetFacts } from "./actions.ts";
+import { correctFact, decideFact, forgetFacts, makeInstruction, setLessonSwitch, shareLesson } from "./actions.ts";
 import { useKnowsFocus, useRead } from "./data.tsx";
 import type { ChatMemoryData } from "./data.tsx";
-import { KNOWS_FOOT, KNOWS_SCOPE, asOfFilter, groupKnows, knowRowKey } from "./model.ts";
+import { HOW_TEXT, KNOWS_FOOT, KNOWS_SCOPE, LESSONS_FOOT, LESSONS_HEAD, LESSONS_OFF, LESSONS_SWITCH, SCOPE_TEXT, asOfFilter, groupKnows, isLesson, knowRowKey, usedTimes } from "./model.ts";
 import type { ChatFact, KnowsOut, UsedOut } from "./model.ts";
 import { ChipLink, LinkButton, ToolButton, glyphOf, sourceLabel, webProps, ownMenuKeys } from "./parts.tsx";
 import type { VirtualWindow } from "../../../../../../ui/src/VirtualList/index.tsx";
@@ -66,6 +66,9 @@ export function KnowsTab({ deps, memory, spaceName, window }: { deps: PaneDeps; 
   const fallbackQ = useRead<{ facts: RawFact[] }>(store, "memory.facts.list", knowsQ.status === "absent" ? { status: ["current"], agentId } : null);
   const proposedQ = useRead<{ facts: RawFact[] }>(store, "memory.facts.list", { status: ["proposed"], layer: "agent", agentId });
   const replacedQ = useRead<{ facts: RawFact[] }>(store, "memory.facts.list", filter.replaced ? { status: ["closed"], layer: "agent", agentId } : null);
+  // the lessons the agent kept from your corrections (kind lesson): their own section, with the switch that decides whether any are kept
+  const lessonsQ = useRead<{ facts: RawFact[] }>(store, "memory.facts.list", { status: ["current"], agentId, kind: "lesson" });
+  const switchQ = useRead<{ row?: { value?: unknown } } | null>(store, "settings.get", { key: "memory.lessons" });
   const mapQ = useRead<{ map?: { body: string; lines: number } | null }>(store, "memory.map.get", { agentId });
   // About you: the person's profile as this chat's audience allows (the private part only where nobody else reads it), the same answer the agent's context gets
   const aboutQ = useRead<AboutOut>(store, "memory.profile.get", { threadId });
@@ -124,7 +127,10 @@ export function KnowsTab({ deps, memory, spaceName, window }: { deps: PaneDeps; 
     return <View testID="knows-loading" accessibilityLabel="Loading" style={st.sk}><View style={st.skBar} /><View style={[st.skBar, { width: "70%" }]} /><View style={st.skBar} /></View>;
   }
   const base: ChatFact[] = knowsQ.status === "ready" ? knowsQ.data.facts : fallbackQ.status === "ready" ? fallbackQ.data.facts.filter((f) => f.layer !== "agent" || f.agentId === agentId || f.agentId === undefined).map(withAt) : [];
-  const facts = asOfFilter(base, focus.asOf).filter((f) => !filter.fromMe || f.by === memory.me.id);
+  const lessons = lessonsQ.status === "ready" ? lessonsQ.data.facts.map(withAt).filter(isLesson) : [];
+  const lessonIds = new Set(lessons.map((l) => l.factId));
+  const learning = switchQ.status !== "ready" || switchQ.data?.row?.value !== false;
+  const facts = asOfFilter(base, focus.asOf).filter((f) => !isLesson(f) && !lessonIds.has(f.factId)).filter((f) => !filter.fromMe || f.by === memory.me.id);
   const groups = groupKnows(facts);
   const proposed = proposedQ.status === "ready" ? proposedQ.data.facts.map(withAt) : [];
   const replaced = filter.replaced && replacedQ.status === "ready" ? replacedQ.data.facts.map(withAt) : [];
@@ -205,6 +211,33 @@ export function KnowsTab({ deps, memory, spaceName, window }: { deps: PaneDeps; 
       });
     }
   }
+  if (!pinned && (lessons.length > 0 || !learning)) {
+    entries.push({ key: "l-lessons", type: "label", text: LESSONS_HEAD(name), right: String(lessons.length) });
+    entries.push({
+      key: "lessons-switch", type: "block",
+      node: (
+        <View style={st.switchRow}>
+          <Text style={st.switchText}>{LESSONS_SWITCH}</Text>
+          <Switch on={learning} label={LESSONS_SWITCH} onPress={() => void setLessonSwitch(memory, !learning, say)} testID="lessons-switch" />
+        </View>
+      ),
+    });
+    if (!learning) entries.push({ key: "lessons-off", type: "block", node: <Text testID="lessons-off" style={st.scope}>{LESSONS_OFF}</Text> });
+    else {
+      for (const l of lessons) {
+        entries.push({
+          key: `les-${l.factId}`, type: "block",
+          node: (
+            <LessonRow
+              fact={l} editing={edit === l.factId} draft={draft} onDraft={setDraft} age={ageText(l.at, memory.now())} onEdit={() => startEdit(l)} onSave={() => save(l)} onCancel={() => setEdit(null)}
+              onForget={() => forget(l)} onSource={() => openSource(l)} onShare={() => void shareLesson(memory, l.factId, agentId, say)} onMake={() => void makeInstruction(memory, agentId, l.text, say)}
+            />
+          ),
+        });
+      }
+      entries.push({ key: "lessons-foot", type: "block", node: <Text testID="lessons-foot" style={st.scope}>{LESSONS_FOOT}</Text> });
+    }
+  }
   entries.push({
     key: "h-known", type: "block",
     node: (
@@ -245,6 +278,49 @@ export function KnowsTab({ deps, memory, spaceName, window }: { deps: PaneDeps; 
     ),
   });
   return <View style={st.fill}><PaneList plain entries={entries} {...(window ? { window } : {})} testID="knows-list" />{menu.element}</View>;
+}
+
+/** One lesson in the Knows tab: its words, how it was caught, when, how often it was used and who may read it, with its own actions in a row of quiet buttons. */
+function LessonRow({ fact, editing, draft, onDraft, age, onEdit, onSave, onCancel, onForget, onSource, onShare, onMake }: {
+  fact: ChatFact; editing: boolean; draft: string; onDraft: (t: string) => void; age: string;
+  onEdit: () => void; onSave: () => void; onCancel: () => void; onForget: () => void; onSource: () => void; onShare: () => void; onMake: () => void;
+}): ReactElement {
+  const info = fact.lesson;
+  return (
+    <View style={st.cardOuter}>
+      <View testID={`lesson-${fact.factId}`} accessibilityLabel={`Lesson: ${fact.text}`} style={st.lesson}>
+        {editing ? (
+          <View style={st.editRow}>
+            <TextInput
+              autoFocus selectTextOnFocus accessibilityLabel="Edit this lesson" testID={`lesson-input-${fact.factId}`} value={draft} onChangeText={onDraft} style={st.input}
+              onKeyPress={(e) => {
+                const k = (e as unknown as { nativeEvent: { key: string } }).nativeEvent.key;
+                if (k === "Escape") onCancel();
+                else if (k === "Enter") { (e as unknown as { preventDefault?: () => void }).preventDefault?.(); onSave(); }
+              }}
+            />
+            <LinkButton label="Save" testID={`lesson-save-${fact.factId}`} onPress={onSave} />
+            <LinkButton label="Cancel" quiet testID={`lesson-cancel-${fact.factId}`} onPress={onCancel} />
+          </View>
+        ) : <Text testID={`lesson-text-${fact.factId}`} style={st.factText}>{fact.text}</Text>}
+        <View style={st.foot}>
+          {info?.how ? <Text style={st.meta}>{HOW_TEXT[info.how]}</Text> : null}
+          <Text style={st.meta}>{`· ${age}`}</Text>
+          {info ? <Text style={st.meta}>{`· ${usedTimes(info.used)}`}</Text> : null}
+          {info ? <Text testID={`lesson-scope-${fact.factId}`} style={st.chip}>{SCOPE_TEXT[info.scope]}</Text> : null}
+        </View>
+        {editing ? null : (
+          <View style={st.lessonActions}>
+            <LinkButton label="Edit" testID={`lesson-edit-${fact.factId}`} onPress={onEdit} />
+            <LinkButton label="Where it came from" testID={`lesson-from-${fact.factId}`} onPress={onSource} />
+            {info?.scope === "you" ? <LinkButton label="Share with the Space" testID={`lesson-share-${fact.factId}`} onPress={onShare} /> : null}
+            <LinkButton label="Make it an instruction" testID={`lesson-make-${fact.factId}`} onPress={onMake} />
+            <LinkButton label="Forget" quiet testID={`lesson-forget-${fact.factId}`} onPress={onForget} />
+          </View>
+        )}
+      </View>
+    </View>
+  );
 }
 
 function KnowRow({ fact, editing, draft, onDraft, readonly, who, age, used, pinned, onEdit, onSave, onCancel, onForget, onSource, menu }: {
@@ -314,6 +390,11 @@ const st = StyleSheet.create({
   err: { paddingHorizontal: 8, paddingBottom: 6, fontSize: 12, color: "var(--danger)" as string },
   hint: { fontSize: 11.5, lineHeight: 16, color: "var(--ink-3)" as string },
   asof: { flexDirection: "row", alignItems: "center", gap: 8, marginHorizontal: 8, marginTop: 8, paddingHorizontal: 10, paddingVertical: 8, borderRadius: 9, backgroundColor: "var(--sunk)" as string, boxShadow: "inset 0 0 0 1px var(--line)" } as object,
+  switchRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 12, paddingVertical: 6 },
+  switchText: { fontSize: 13, color: "var(--ink)" as string },
+  lesson: { paddingVertical: 8, paddingHorizontal: 4, borderTopWidth: 1, borderTopColor: "var(--line)" as string },
+  lessonActions: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", columnGap: 10, rowGap: 2, marginTop: 5 },
+  chip: { fontSize: 11.5, color: "var(--ink-3)" as string, paddingHorizontal: 7, paddingVertical: 1, borderRadius: 7, backgroundColor: "var(--sunk)" as string, overflow: "hidden" },
   asofText: { flex: 1, fontSize: 12, color: "var(--ink-2)" as string },
   map: { paddingHorizontal: 8, paddingTop: 8, paddingBottom: 4, gap: 8 },
   about: { paddingHorizontal: 8, paddingBottom: 6, gap: 2 },

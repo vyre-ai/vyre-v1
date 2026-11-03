@@ -8,6 +8,7 @@ import { useMenu } from "../../../../../../ui/src/Menu/index.tsx";
 import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
 import { each } from "../../files/memory/model.ts";
 import { correctFact, restoreLearned, undoLearned } from "./actions.ts";
+import { SCOPE_TEXT } from "./model.ts";
 import type { LearnedRow } from "./model.ts";
 import { LinkButton, webProps, ownMenu } from "./parts.tsx";
 import { useThreadMemory } from "./thread.tsx";
@@ -67,7 +68,9 @@ function LearnedLine({ row }: { row: LearnedRow & { current: boolean } }): React
       </View>
     );
   }
+  const lesson = row.lesson;
   const items = (x: number, y: number): void => menu.show([
+    ...(lesson && memory.showKnows ? [{ label: "See in Knows", onSelect: () => memory.showKnows?.() } as MenuEntry] : []),
     { label: "Edit", onSelect: () => { setDraft(row.text); setEditing(true); } },
     ...(row.pageId ? [{ label: "Open Page", onSelect: () => memory.nav.openPage(row.pageId!) } as MenuEntry] : []),
     { separator: true },
@@ -77,10 +80,13 @@ function LearnedLine({ row }: { row: LearnedRow & { current: boolean } }): React
     <View testID={`learned-line-${row.factId}`} accessibilityLabel={`Learned: ${row.text}`} {...webProps({ tabIndex: 0 })} {...ownMenu(items)} style={st.line}>
       <View style={st.dot} />
       <Text style={st.text}><Text style={st.bold}>Learned:</Text>{` ${row.subjectTitle ? `${row.subjectTitle}: ` : ""}${row.text}`}</Text>
+      {lesson ? <><Text style={st.sep}>·</Text><Text testID={`learned-scope-${row.factId}`} style={st.scope}>{SCOPE_TEXT[lesson.scope]}</Text></> : null}
       <Text style={st.sep}>·</Text>
       <LinkButton label="Undo" testID={`learned-undo-${row.factId}`} a11y={`Undo: ${row.text}`} onPress={undo} />
       <Text style={st.sep}>·</Text>
-      <LinkButton label="Edit" testID={`learned-edit-btn-${row.factId}`} a11y={`Edit: ${row.text}`} onPress={() => { setDraft(row.text); setEditing(true); }} />
+      {lesson && memory.showKnows
+        ? <LinkButton label="See" testID={`learned-see-${row.factId}`} a11y={`See what the agent has learned: ${row.text}`} onPress={() => memory.showKnows?.()} />
+        : <LinkButton label="Edit" testID={`learned-edit-btn-${row.factId}`} a11y={`Edit: ${row.text}`} onPress={() => { setDraft(row.text); setEditing(true); }} />}
       {err ? <Text accessibilityRole="alert" style={st.err}>{err}</Text> : null}
       {menu.element}
     </View>
@@ -94,6 +100,7 @@ const st = StyleSheet.create({
   text: { flexShrink: 1, fontSize: 12.5, color: "var(--ink-3)" as string },
   bold: { fontWeight: "600", color: "var(--ink-2)" as string },
   off: { color: "var(--ink-4)" as string },
+  scope: { fontSize: 12, color: "var(--ink-4)" as string },
   sep: { fontSize: 12.5, color: "var(--ink-4)" as string },
   input: { flexGrow: 1, flexBasis: 220, maxWidth: 360, height: 28, paddingHorizontal: 10, borderRadius: 7, backgroundColor: "var(--field)" as string, color: "var(--ink)" as string, fontSize: 13, boxShadow: "inset 0 0 0 1px var(--line-2)", outlineStyle: "none" } as object,
   err: { width: "100%", fontSize: 12, color: "var(--danger)" as string },

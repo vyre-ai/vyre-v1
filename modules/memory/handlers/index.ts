@@ -14,6 +14,7 @@ import { keyResolve, keySet, keysGet } from "./keys.ts";
 import { quote } from "./quotes.ts";
 import { recallRecord, used } from "./recalllog.ts";
 import { forget, remember } from "./tools.ts";
+import { recordCorrection } from "./corrections.ts";
 import { chatLearningGet, chatLearningSet, learningToday } from "./learn.ts";
 import { profileAdd, profileContext, profileGet, profileMove, profileSuggest } from "./profile.ts";
 
@@ -22,6 +23,7 @@ export const handlers = {
   "memory.read_note": readNote,
   "memory.facts_as_of": factsAsOf,
   "memory.facts.list": factsList,
+  "memory.corrections.record": recordCorrection,
   "memory.fact.get": factGet,
   "memory.notes.list": notesList,
   "memory.layers.list": layersList,

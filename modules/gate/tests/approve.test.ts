@@ -189,6 +189,22 @@ test("sending back a hold keeps the task for the requester; dropping it closes t
   assert.equal(sent(h), 0);
 });
 
+test("turning down what an agent was about to do teaches it: memory keeps a lesson as the person, with their note; a memory that fails never holds the denial up", async () => {
+  const h = harness();
+  const p = await park(h, { runId: "run_1" });
+  h.callee("memory.corrections.record", () => { throw new Error("memory is down"); });
+  await h.call("gate.deny", { holdId: p.holdId, taskId: p.taskId, mode: "send_back", note: "Wrong client." }, person(alice));
+  assert.equal(findHold(h.db, p.holdId)!.state, "denied", "the denial stands");
+  const call = h.callsTo("memory.corrections.record")[0]!;
+  assert.deepEqual([call.input.agentId, call.input.how, call.input.note, call.input.ref], ["agt_bot", "refuse", "Wrong client.", p.holdId]);
+  assert.equal(typeof call.input.was, "string");
+  // a hold a system closes is nobody's correction
+  const q = await park(h, { decisionId: "dec_2" });
+  const before = h.callsTo("memory.corrections.record").length;
+  await h.call("gate.deny", { holdId: q.holdId, taskId: q.taskId, mode: "drop" }, svc as never);
+  assert.equal(h.callsTo("memory.corrections.record").length, before);
+});
+
 // ---- timeouts: golden 7 ----
 
 async function fireDue(h: Harness, fired: Set<string>, trace: string[]): Promise<void> {

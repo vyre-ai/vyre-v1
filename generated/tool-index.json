@@ -386,6 +386,12 @@
     },
     {
       "deferred": false,
+      "name": "agents_instruction_append",
+      "summary": "Make a lesson an instruction: one line added to the agent's AGENT.md under Lessons from corrections, as a new version with an inline Undo; needs Edit on the agent",
+      "toolset": "agents"
+    },
+    {
+      "deferred": false,
       "name": "agents_limits_get",
       "summary": "Effective limits of an agent: agent.toml capped by Space caps",
       "toolset": "agents"
@@ -2858,6 +2864,18 @@
     },
     {
       "deferred": false,
+      "name": "files_agent_access_get",
+      "summary": "What agents may read in a folder or of a file: Available, Redacted or Not available, where it comes from, and what is set differently inside",
+      "toolset": "files"
+    },
+    {
+      "deferred": false,
+      "name": "files_ask_to_read",
+      "summary": "Ask a person to review a file in a Redacted folder before you read it (Redact before I can read); you are woken when it is ready",
+      "toolset": "files"
+    },
+    {
+      "deferred": false,
       "name": "files_comments_add",
       "summary": "Comment on a file, a range, a cell, a page or an area (area comments are numbered pins); @ people and agents",
       "toolset": "files"
@@ -3022,6 +3040,12 @@
       "deferred": false,
       "name": "files_recent",
       "summary": "Recently opened or changed files",
+      "toolset": "files"
+    },
+    {
+      "deferred": false,
+      "name": "files_redact",
+      "summary": "Highlight part of a file for the team, or hide it from AI (a span, a box on a scan or picture, a transcript range, or a piece of the name); anyone who can open the file may",
       "toolset": "files"
     },
     {
@@ -5210,6 +5234,12 @@
     },
     {
       "deferred": false,
+      "name": "memory_corrections_record",
+      "summary": "Keep a lesson from a correction made outside the chat's own words: an edit of the agent's draft, a declined or sent-back action, an undo. Called as the person who corrected; kept only when their switch Learn from my corrections is on",
+      "toolset": "memory"
+    },
+    {
+      "deferred": false,
       "name": "memory_counts",
       "summary": "Counts for the agent strip: current facts, proposed facts, facts from the caller and facts merged on their own",
       "toolset": "memory"
@@ -7276,6 +7306,12 @@
       "deferred": false,
       "name": "search_actions_list",
       "summary": "Actions offered after the > prefix (New task, Call someone, Switch skin, Set yourself away, Go offline)",
+      "toolset": "meta"
+    },
+    {
+      "deferred": false,
+      "name": "search_ask",
+      "summary": "Ask the Space: answer a question from the chats, records, files, tasks and notes the caller may read, on the caller's own AI account, with numbered citations; nothing readable gives the no-access answer and calls no model",
       "toolset": "meta"
     },
     {

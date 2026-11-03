@@ -1,0 +1,25 @@
+{
+  "targets": [
+    {
+      "id": "LEARN_01-chat",
+      "route": "/m/LEARN_01?part=chat",
+      "proto": "chat,at:learn,{skin}",
+      "waitFor": "[data-testid^='learned-line-']",
+      "note": "The message that taught a lesson has a quiet line, Learned: the lesson, Only you, Undo and See; the reply after it has Used a lesson."
+    },
+    {
+      "id": "LEARN_01-knows",
+      "route": "/m/LEARN_01?part=knows",
+      "proto": "chat,at:learn-pane,{skin}",
+      "waitFor": "[data-testid='lessons-switch']",
+      "note": "Knows lists the lessons the agent kept from your corrections: how each was caught, when, how often it was used, who may read it, and Edit, Where it came from, Share with the Space, Make it an instruction and Forget, under the switch Learn from my corrections."
+    },
+    {
+      "id": "LEARN_01-settings",
+      "route": "/m/LEARN_01?part=settings",
+      "proto": "settings,at:models,{skin}",
+      "waitFor": "[data-testid='lessons']",
+      "note": "Settings, Memory and privacy: Lessons from your corrections with the switch and every lesson across agents, each with how it was caught, which agent, when, how often it was used and who may read it."
+    }
+  ]
+}

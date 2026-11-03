@@ -137,10 +137,12 @@ function Grid({ p }: { p: CalendarProps }): ReactElement {
   const store = (globalThis as { localStorage?: { getItem(k: string): string | null; setItem(k: string, v: string): void } }).localStorage;
   const videosFor = (calendarId: string): Array<"meet" | "teams" | "zoom"> => videoOptions(calendars.find((c) => c.id === calendarId)?.provider, zoomOn);
   const videoOf = (d: Draft): "meet" | "teams" | "zoom" | "none" => d.video ?? videoDefault(videosFor(d.calendarId), (() => { try { return store?.getItem(VIDEO_KEY) ?? null; } catch { return null; } })());
-  // a second press on the same event soon after the first edits it: react-native-web's Pressable drops onDoubleClick, and a re-render between the clicks would break a native one
+  // a second press on the same event soon after the first edits it: react-native-web's Pressable drops onDoubleClick, and a re-render between the clicks would break a native one.
+  // The gap is read from each click's own time, not from when its handler ran: a slow draw of the first click's pane must not split a person's double-click in two.
   const lastPress = useRef<{ id: string; at: number }>({ id: "", at: 0 });
-  const pressEvent = (id: string): void => {
-    const now = Date.now();
+  const pressEvent = (id: string, ev?: unknown): void => {
+    const stamp = ev as { timeStamp?: number; nativeEvent?: { timeStamp?: number } } | undefined;
+    const now = stamp?.nativeEvent?.timeStamp ?? stamp?.timeStamp ?? performance.now();
     const twice = lastPress.current.id === id && now - lastPress.current.at < 450;
     lastPress.current = twice ? { id: "", at: 0 } : { id, at: now };
     openEvent(id, twice);
@@ -319,7 +321,7 @@ function Grid({ p }: { p: CalendarProps }): ReactElement {
       <View key={e.id} {...menuTrigger((x, y) => eventMenu(e, x, y))} style={[s.cev, { top: b.top, height: b.height, left: b.left as unknown as number, width: b.width as unknown as number, backgroundImage: tint(col, isPast(e, clockNow.now) ? 9 : 15), borderLeftColor: col }, cal.selected === e.id && s.cevSel]} testID={`event:${e.id}`}>
         <Pressable
           accessibilityRole="button" accessibilityLabel={`${e.title}, ${eventLine(e, off)}`} accessibilityState={{ selected: cal.selected === e.id }} testID={`event-body:${e.id}`}
-          onPress={() => pressEvent(e.id)} {...({ onPointerDown: startEvent(e, "move") } as object)} style={s.cevIn}
+          onPress={(ev) => pressEvent(e.id, ev)} {...({ onPointerDown: startEvent(e, "move") } as object)} style={s.cevIn}
         >
           <Text numberOfLines={1} style={[s.cevTitle, isPast(e, clockNow.now) && s.cevPast]}>{e.title}</Text>
           {b.one ? null : <Text numberOfLines={1} style={s.cevSmall}>{range(span.startsAt, span.endsAt, off)}</Text>}
@@ -425,7 +427,7 @@ function Grid({ p }: { p: CalendarProps }): ReactElement {
             >
               <View style={[s.mn, d === today && s.mnToday]}><Text style={[s.mnText, out && s.mnOut, d === today && s.mnTodayText]}>{dateOf(d, off)}</Text></View>
               {each(show, (e) => (
-                <Pressable key={e.id} accessibilityRole="button" accessibilityLabel={e.title} testID={`mev:${e.id}`} onPress={() => pressEvent(e.id)} {...menuTrigger((x, y) => eventMenu(e, x, y))} style={({ hovered }: { hovered?: boolean }) => [s.mev, (hovered === true || cal.selected === e.id) && s.mevOver]}>
+                <Pressable key={e.id} accessibilityRole="button" accessibilityLabel={e.title} testID={`mev:${e.id}`} onPress={(ev) => pressEvent(e.id, ev)} {...menuTrigger((x, y) => eventMenu(e, x, y))} style={({ hovered }: { hovered?: boolean }) => [s.mev, (hovered === true || cal.selected === e.id) && s.mevOver]}>
                   <View style={[s.cdotS, { backgroundColor: colorOf(calendars, e.calendarId) }]} />
                   {e.allDay ? null : <Text style={s.mevTime}>{clock(e.startsAt, off).replace(":00", "").replace(" ", "").toLowerCase()}</Text>}
                   <Text numberOfLines={1} style={[s.mevText, isPast(e, clockNow.now) && s.cevPast]}>{e.title}</Text>
@@ -451,7 +453,7 @@ function Grid({ p }: { p: CalendarProps }): ReactElement {
               <Text style={[s.dhWk, d === today && s.dhToday]}>{weekdayShort(d, off)}</Text>
               <View style={[s.dhNum, d === today && s.dhNumToday]}><Text style={[s.dhNumText, d === today && s.dhNumTodayText]}>{dateOf(d, off)}</Text></View>
             </Pressable>
-            {each(allDays[i] ?? [], (e) => <Pressable key={e.id} accessibilityRole="button" accessibilityLabel={e.title} testID={`allday:${e.id}`} onPress={() => pressEvent(e.id)} {...menuTrigger((x, y) => eventMenu(e, x, y))} style={[s.cevAll, { backgroundImage: tint(colorOf(calendars, e.calendarId), 15), borderLeftColor: colorOf(calendars, e.calendarId) }]}><Text numberOfLines={1} style={s.cevTitle}>{e.title}</Text></Pressable>)}
+            {each(allDays[i] ?? [], (e) => <Pressable key={e.id} accessibilityRole="button" accessibilityLabel={e.title} testID={`allday:${e.id}`} onPress={(ev) => pressEvent(e.id, ev)} {...menuTrigger((x, y) => eventMenu(e, x, y))} style={[s.cevAll, { backgroundImage: tint(colorOf(calendars, e.calendarId), 15), borderLeftColor: colorOf(calendars, e.calendarId) }]}><Text numberOfLines={1} style={s.cevTitle}>{e.title}</Text></Pressable>)}
           </View>
         ))}
       </View>

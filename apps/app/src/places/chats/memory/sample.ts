@@ -70,7 +70,17 @@ export function aboutYou(audience: "private" | "shared") {
   };
 }
 
-export interface ChatMemoryOptions { fail?: string; withoutCaps?: string[]; noMemory?: boolean; /** Who reads this chat, for About you at the top of Knows: only you (default) or other people too. */ audience?: "private" | "shared" }
+/** The lessons the sample's Assistant kept from the person's corrections (kind lesson), as memory.facts.list answers them. One was caught on the held reply's line. */
+export const LESSON_IDS = { sara: "fct_lesson_sara", dollars: "fct_lesson_dollars" } as const;
+export function lessonRows(): Array<Record<string, unknown>> {
+  const base = { layer: "person", ownerRef: ME, agentId: ASSISTANT, kind: "lesson", status: "current", sourceKind: "chat", sourceRef: KNOW_THREAD, validFrom: KNOW_NOW - 86_400_000, lowRisk: false };
+  return [
+    { ...base, factId: LESSON_IDS.sara, text: "Notes to Sara: three lines, the number first.", learnedAt: KNOW_NOW - 3_600_000, sourceLink: `/chats/${KNOW_THREAD}#${MESSAGE_IDS.held}`, by: ME, byKind: "person", lesson: { how: "refuse", used: 1, scope: "you" } },
+    { ...base, factId: LESSON_IDS.dollars, text: "Round money in notes to whole dollars.", learnedAt: KNOW_NOW - 9 * 86_400_000, sourceLink: `/chats/${KNOW_THREAD}#msg_old`, by: ME, byKind: "person", lesson: { how: "rewrite", used: 4, scope: "space" } },
+  ];
+}
+
+export interface ChatMemoryOptions { /** The Assistant has kept lessons from corrections, and the switch "Learn from my corrections" is on. */ lessons?: boolean; fail?: string; withoutCaps?: string[]; noMemory?: boolean; /** Who reads this chat, for About you at the top of Knows: only you (default) or other people too. */ audience?: "private" | "shared" }
 
 export function createChatMemorySample(o: ChatMemoryOptions = {}): ChatMemorySample {
   const conv = createSample("idle");
@@ -90,8 +100,39 @@ export function createChatMemorySample(o: ChatMemoryOptions = {}): ChatMemorySam
   const absent = new Set<string>(o.withoutCaps ?? []);
   const tr = (input: unknown): unknown => (input && typeof input === "object" && (input as { threadId?: string }).threadId === CHAT_THREAD ? { ...(input as object), threadId: KNOW_THREAD } : input);
   const READS = new Set(["memory.used", "memory.knows", "memory.quote", "memory.learned", "memory.page.list", "memory.page.get", "memory.facts.list", "memory.map.get", "memory.counts"]);
+  // lessons: their own little backend (the Knowledge sample knows no lessons): the list, the switch, sharing, the instruction and the undo of each
+  const lessons = lessonRows();
+  const gone = new Set<string>();
+  const sw = { on: true };
+  const lessonCall = (cap: string, input: unknown): unknown => {
+    const i = (input ?? {}) as Record<string, unknown>;
+    switch (cap) {
+      case "memory.facts.list": return i["kind"] === "lesson" ? { facts: sw.on ? lessons.filter((l) => !gone.has(String(l["factId"]))) : [], total: 2 } : undefined;
+      case "settings.get": return i["key"] === "memory.lessons" ? { row: { key: "memory.lessons", value: sw.on } } : undefined;
+      case "settings.set": if (i["key"] !== "memory.lessons") return undefined; sw.on = i["value"] === true; return { row: { value: sw.on }, previous: !sw.on };
+      case "memory.promote": { const l = lessons.find((x) => x["factId"] === i["factId"])!; (l["lesson"] as { scope: string }).scope = "proposed"; return { promotionId: "prm_1", promoted: false, taskId: "tsk_1" }; }
+      case "agents.instruction.append": return { agent: {}, added: true, versionId: "ver_2", undoVersionId: "ver_1" };
+      case "agents.restore_version": return { agent: {} };
+      case "memory.forget": { for (const id of (i["factIds"] as string[]) ?? []) gone.add(id); return undefined; }
+      case "memory.restore": gone.delete(String(i["factId"])); return undefined;
+      case "memory.undo": if (!lessons.some((l) => l["factId"] === i["factId"])) return undefined; gone.add(String(i["factId"])); return { fact: {}, trashed: true };
+      default: return undefined;
+    }
+  };
   const call = async (cap: string, input: unknown): Promise<unknown> => {
     calls.push({ cap, input });
+    if (absent.has(cap)) throw new Error(`unknown capability ${cap}`);
+    if (o.lessons) {
+      const r = lessonCall(cap, input);
+      if (r !== undefined) return r;
+      const mine = lessons.filter((l) => !gone.has(String(l["factId"])));
+      const asked = (input ?? {}) as { threadId?: string; messageId?: string };
+      if (cap === "memory.learned") { const base = (await baseCall(cap, input)) as { items: unknown[]; total?: number }; const items = [...mine.filter((l) => String(l["sourceLink"]).endsWith(`#${MESSAGE_IDS.held}`)).map((l) => ({ fact: l, at: l["learnedAt"], what: "learned", actor: ASSISTANT, actorKind: "agent", sourceKind: "chat", sourceRef: KNOW_THREAD, undone: false })), ...base.items]; return { ...base, items }; }
+      if (cap === "memory.used" && asked.messageId === MESSAGE_IDS.reply) { const base = (await baseCall(cap, input)) as { facts: unknown[] }; return { ...base, facts: [...mine.slice(0, 1), ...base.facts] }; }
+    }
+    return baseCall(cap, input);
+  };
+  const baseCall = async (cap: string, input: unknown): Promise<unknown> => {
     if (absent.has(cap)) throw new Error(`unknown capability ${cap}`);
     if (cap === "memory.profile.get") return aboutYou(o.audience ?? "private");
     if (o.fail && !READS.has(cap)) throw new Error(o.fail);
