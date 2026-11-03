@@ -400,3 +400,11 @@ test("goals.create reports what happened to each helper: seated when the chat to
   const upd = await ok.call("goals.update", { goalId: made.goal.id, helpers: [{ kind: "person", id: ALIZA }] }, owner);
   assert.deepEqual(upd.seated.map((s: { id: string; inChat: boolean }) => [s.id, s.inChat]), [[ALIZA, true]]);
 });
+
+test("the agent that drafted a goal may add to its plan before Start; another agent may not", async () => {
+  const w = world({ count: 10 });
+  const { goal } = await w.call("goals.create", labGoal(), { id: "agt_drafter", kind: "agent", actingFor: OWNER });
+  const added = await w.call("goals.plan", { goalId: goal.id, children: [step("x", "A step")] }, { id: "agt_drafter", kind: "agent", actingFor: OWNER });
+  assert.equal(added.drafted, 1);
+  await assert.rejects(w.call("goals.plan", { goalId: goal.id, children: [step("y", "Another")] }, { id: "agt_other", kind: "agent", actingFor: OWNER }), /lead agent or the owner/);
+});
