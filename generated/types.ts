@@ -25877,6 +25877,26 @@ export type SheetsUpsertRowOut = {
   created: boolean;
   versionId?: string;
 };
+export type SitesAddonAddIn = {
+  siteId: string;
+  kind: "postgres" | "redis";
+  idempotencyKey: string;
+};
+export type SitesAddonAddOut = {
+  addon: {
+    kind: "postgres" | "redis";
+    state: "starting" | "ready" | "failed";
+    envName: string;
+    detail?: string;
+  };
+};
+export type SitesAddonRemoveIn = {
+  siteId: string;
+  kind: "postgres" | "redis";
+};
+export type SitesAddonRemoveOut = {
+  removed: boolean;
+};
 export type SitesArtifactOpenIn = {
   artifactId: string;
 };
@@ -25916,6 +25936,20 @@ export type SitesCreateIn = {
   templateKit?: string;
   slug?: string;
   access?: "public" | "password" | "space" | "private";
+  source?: {
+    repo?: string;
+    branch?: string;
+    tokenHandle?: string;
+    folderId?: string;
+    fileId?: string;
+    path?: string;
+    root?: string;
+  };
+  limits?: {
+    cpus: number;
+    memoryMb: number;
+    diskMb?: number;
+  };
   computerId?: string;
   port?: number;
   folderId?: string;
@@ -25940,7 +25974,55 @@ export type SitesCreateOut = {
     live?: boolean;
     blocked?: boolean;
     updatedAt?: number;
+    deployed?: boolean;
+    source?: {
+      repo?: string;
+      branch?: string;
+      tokenHandle?: string;
+      folderId?: string;
+      fileId?: string;
+      path?: string;
+      root?: string;
+    };
+    lastDeploy?: {
+      deploymentId: string;
+      siteId: string;
+      env: "staging" | "preview" | "production";
+      state: "queued" | "building" | "ready" | "failed" | "stopped";
+      url?: string;
+      branch?: string;
+      commit?: string;
+      at: number;
+      by?: string;
+      note?: string;
+      problem?: string;
+      fix?: "set_env" | "add_postgres" | "add_redis" | "retry" | "set_start" | "set_port" | "open_logs" | "connect_repo" | "free_space" | "more_memory";
+      current?: boolean;
+      finishedAt?: number;
+    };
+    limits?: {
+      cpus: number;
+      memoryMb: number;
+      diskMb?: number;
+    };
+    addons?: Array<{
+        kind: "postgres" | "redis";
+        state: "starting" | "ready" | "failed";
+        envName: string;
+        detail?: string;
+      }>;
+    autoDeploy?: boolean;
+    passwordSet?: boolean;
   };
+};
+export type SitesDbImportIn = {
+  siteId: string;
+  fileId?: string;
+  fromHandle?: string;
+};
+export type SitesDbImportOut = {
+  ok: boolean;
+  detail: string;
 };
 export type SitesDeleteIn = {
   siteId: string;
@@ -25950,7 +26032,17 @@ export type SitesDeleteOut = {
 };
 export type SitesDeployIn = {
   siteId: string;
-  deploymentId?: string;
+  source?: {
+    repo?: string;
+    branch?: string;
+    tokenHandle?: string;
+    folderId?: string;
+    fileId?: string;
+    path?: string;
+    root?: string;
+  };
+  wait?: boolean;
+  onlyIfChanged?: boolean;
 };
 export type SitesDeployOut = {
   deployment: {
@@ -25962,6 +26054,12 @@ export type SitesDeployOut = {
     branch?: string;
     commit?: string;
     at: number;
+    by?: string;
+    note?: string;
+    problem?: string;
+    fix?: "set_env" | "add_postgres" | "add_redis" | "retry" | "set_start" | "set_port" | "open_logs" | "connect_repo" | "free_space" | "more_memory";
+    current?: boolean;
+    finishedAt?: number;
   };
 };
 export type SitesDeploymentsIn = {
@@ -25979,6 +26077,12 @@ export type SitesDeploymentsOut = {
       branch?: string;
       commit?: string;
       at: number;
+      by?: string;
+      note?: string;
+      problem?: string;
+      fix?: "set_env" | "add_postgres" | "add_redis" | "retry" | "set_start" | "set_port" | "open_logs" | "connect_repo" | "free_space" | "more_memory";
+      current?: boolean;
+      finishedAt?: number;
     }>;
   next?: string;
   total?: number;
@@ -26037,6 +26141,7 @@ export type SitesEnvListOut = {
       vaultName: string;
       injected: boolean;
     }>;
+  wanted?: Array<string>;
 };
 export type SitesEnvSetIn = {
   siteId: string;
@@ -26070,6 +26175,45 @@ export type SitesGetOut = {
     live?: boolean;
     blocked?: boolean;
     updatedAt?: number;
+    deployed?: boolean;
+    source?: {
+      repo?: string;
+      branch?: string;
+      tokenHandle?: string;
+      folderId?: string;
+      fileId?: string;
+      path?: string;
+      root?: string;
+    };
+    lastDeploy?: {
+      deploymentId: string;
+      siteId: string;
+      env: "staging" | "preview" | "production";
+      state: "queued" | "building" | "ready" | "failed" | "stopped";
+      url?: string;
+      branch?: string;
+      commit?: string;
+      at: number;
+      by?: string;
+      note?: string;
+      problem?: string;
+      fix?: "set_env" | "add_postgres" | "add_redis" | "retry" | "set_start" | "set_port" | "open_logs" | "connect_repo" | "free_space" | "more_memory";
+      current?: boolean;
+      finishedAt?: number;
+    };
+    limits?: {
+      cpus: number;
+      memoryMb: number;
+      diskMb?: number;
+    };
+    addons?: Array<{
+        kind: "postgres" | "redis";
+        state: "starting" | "ready" | "failed";
+        envName: string;
+        detail?: string;
+      }>;
+    autoDeploy?: boolean;
+    passwordSet?: boolean;
   };
 };
 export type SitesHostIn = Record<string, unknown>;
@@ -26079,6 +26223,9 @@ export type SitesHostOut = {
   computers: boolean;
   domains: boolean;
   domainsNeed?: string;
+  deploy?: boolean;
+  deployNeed?: string;
+  sitesDomain?: string;
 };
 export type SitesListIn = {
   section?: "personal" | "shared" | "space";
@@ -26106,6 +26253,45 @@ export type SitesListOut = {
       live?: boolean;
       blocked?: boolean;
       updatedAt?: number;
+      deployed?: boolean;
+      source?: {
+        repo?: string;
+        branch?: string;
+        tokenHandle?: string;
+        folderId?: string;
+        fileId?: string;
+        path?: string;
+        root?: string;
+      };
+      lastDeploy?: {
+        deploymentId: string;
+        siteId: string;
+        env: "staging" | "preview" | "production";
+        state: "queued" | "building" | "ready" | "failed" | "stopped";
+        url?: string;
+        branch?: string;
+        commit?: string;
+        at: number;
+        by?: string;
+        note?: string;
+        problem?: string;
+        fix?: "set_env" | "add_postgres" | "add_redis" | "retry" | "set_start" | "set_port" | "open_logs" | "connect_repo" | "free_space" | "more_memory";
+        current?: boolean;
+        finishedAt?: number;
+      };
+      limits?: {
+        cpus: number;
+        memoryMb: number;
+        diskMb?: number;
+      };
+      addons?: Array<{
+          kind: "postgres" | "redis";
+          state: "starting" | "ready" | "failed";
+          envName: string;
+          detail?: string;
+        }>;
+      autoDeploy?: boolean;
+      passwordSet?: boolean;
     }>;
   next?: string;
   total?: number;
@@ -26114,9 +26300,40 @@ export type SitesLogsIn = {
   siteId: string;
   deploymentId?: string;
   tail?: number;
+  build?: boolean;
 };
 export type SitesLogsOut = {
   lines: Array<string>;
+  state?: "queued" | "building" | "ready" | "failed" | "stopped";
+};
+export type SitesPasswordSetIn = {
+  siteId: string;
+  password: string;
+};
+export type SitesPasswordSetOut = {
+  ok: boolean;
+};
+export type SitesPlanIn = {
+  siteId?: string;
+  source?: {
+    repo?: string;
+    branch?: string;
+    tokenHandle?: string;
+    folderId?: string;
+    fileId?: string;
+    path?: string;
+    root?: string;
+  };
+};
+export type SitesPlanOut = {
+  kind: string;
+  note: string;
+  build?: string;
+  start?: string;
+  port?: number;
+  needs: Array<"postgres" | "redis">;
+  env: Array<string>;
+  from: Array<string>;
 };
 export type SitesPreviewRebuildIn = {
   siteId: string;
@@ -26132,6 +26349,12 @@ export type SitesPreviewRebuildOut = {
     branch?: string;
     commit?: string;
     at: number;
+    by?: string;
+    note?: string;
+    problem?: string;
+    fix?: "set_env" | "add_postgres" | "add_redis" | "retry" | "set_start" | "set_port" | "open_logs" | "connect_repo" | "free_space" | "more_memory";
+    current?: boolean;
+    finishedAt?: number;
   };
 };
 export type SitesPreviewRemoveIn = {
@@ -26154,6 +26377,12 @@ export type SitesPreviewsOut = {
       branch?: string;
       commit?: string;
       at: number;
+      by?: string;
+      note?: string;
+      problem?: string;
+      fix?: "set_env" | "add_postgres" | "add_redis" | "retry" | "set_start" | "set_port" | "open_logs" | "connect_repo" | "free_space" | "more_memory";
+      current?: boolean;
+      finishedAt?: number;
     }>;
 };
 export type SitesPromoteIn = {
@@ -26179,6 +26408,45 @@ export type SitesPromoteOut = {
     live?: boolean;
     blocked?: boolean;
     updatedAt?: number;
+    deployed?: boolean;
+    source?: {
+      repo?: string;
+      branch?: string;
+      tokenHandle?: string;
+      folderId?: string;
+      fileId?: string;
+      path?: string;
+      root?: string;
+    };
+    lastDeploy?: {
+      deploymentId: string;
+      siteId: string;
+      env: "staging" | "preview" | "production";
+      state: "queued" | "building" | "ready" | "failed" | "stopped";
+      url?: string;
+      branch?: string;
+      commit?: string;
+      at: number;
+      by?: string;
+      note?: string;
+      problem?: string;
+      fix?: "set_env" | "add_postgres" | "add_redis" | "retry" | "set_start" | "set_port" | "open_logs" | "connect_repo" | "free_space" | "more_memory";
+      current?: boolean;
+      finishedAt?: number;
+    };
+    limits?: {
+      cpus: number;
+      memoryMb: number;
+      diskMb?: number;
+    };
+    addons?: Array<{
+        kind: "postgres" | "redis";
+        state: "starting" | "ready" | "failed";
+        envName: string;
+        detail?: string;
+      }>;
+    autoDeploy?: boolean;
+    passwordSet?: boolean;
   };
 };
 export type SitesPublishIn = {
@@ -26203,6 +26471,45 @@ export type SitesPublishOut = {
     live?: boolean;
     blocked?: boolean;
     updatedAt?: number;
+    deployed?: boolean;
+    source?: {
+      repo?: string;
+      branch?: string;
+      tokenHandle?: string;
+      folderId?: string;
+      fileId?: string;
+      path?: string;
+      root?: string;
+    };
+    lastDeploy?: {
+      deploymentId: string;
+      siteId: string;
+      env: "staging" | "preview" | "production";
+      state: "queued" | "building" | "ready" | "failed" | "stopped";
+      url?: string;
+      branch?: string;
+      commit?: string;
+      at: number;
+      by?: string;
+      note?: string;
+      problem?: string;
+      fix?: "set_env" | "add_postgres" | "add_redis" | "retry" | "set_start" | "set_port" | "open_logs" | "connect_repo" | "free_space" | "more_memory";
+      current?: boolean;
+      finishedAt?: number;
+    };
+    limits?: {
+      cpus: number;
+      memoryMb: number;
+      diskMb?: number;
+    };
+    addons?: Array<{
+        kind: "postgres" | "redis";
+        state: "starting" | "ready" | "failed";
+        envName: string;
+        detail?: string;
+      }>;
+    autoDeploy?: boolean;
+    passwordSet?: boolean;
   };
 };
 export type SitesRollbackIn = {
@@ -26220,6 +26527,12 @@ export type SitesRollbackOut = {
     branch?: string;
     commit?: string;
     at: number;
+    by?: string;
+    note?: string;
+    problem?: string;
+    fix?: "set_env" | "add_postgres" | "add_redis" | "retry" | "set_start" | "set_port" | "open_logs" | "connect_repo" | "free_space" | "more_memory";
+    current?: boolean;
+    finishedAt?: number;
   };
 };
 export type SitesServiceIdentityIn = {
@@ -26231,6 +26544,14 @@ export type SitesServiceIdentityOut = {
       resource: string;
       level: string;
     }>;
+};
+export type SitesSigninLinkIn = {
+  siteId: string;
+  next?: string;
+};
+export type SitesSigninLinkOut = {
+  url: string;
+  expiresAt: number;
 };
 export type SitesStagingPasswordSetIn = {
   siteId: string;
@@ -26271,6 +26592,45 @@ export type SitesStopOut = {
     live?: boolean;
     blocked?: boolean;
     updatedAt?: number;
+    deployed?: boolean;
+    source?: {
+      repo?: string;
+      branch?: string;
+      tokenHandle?: string;
+      folderId?: string;
+      fileId?: string;
+      path?: string;
+      root?: string;
+    };
+    lastDeploy?: {
+      deploymentId: string;
+      siteId: string;
+      env: "staging" | "preview" | "production";
+      state: "queued" | "building" | "ready" | "failed" | "stopped";
+      url?: string;
+      branch?: string;
+      commit?: string;
+      at: number;
+      by?: string;
+      note?: string;
+      problem?: string;
+      fix?: "set_env" | "add_postgres" | "add_redis" | "retry" | "set_start" | "set_port" | "open_logs" | "connect_repo" | "free_space" | "more_memory";
+      current?: boolean;
+      finishedAt?: number;
+    };
+    limits?: {
+      cpus: number;
+      memoryMb: number;
+      diskMb?: number;
+    };
+    addons?: Array<{
+        kind: "postgres" | "redis";
+        state: "starting" | "ready" | "failed";
+        envName: string;
+        detail?: string;
+      }>;
+    autoDeploy?: boolean;
+    passwordSet?: boolean;
   };
 };
 export type SitesTableCreateIn = {
@@ -26307,6 +26667,21 @@ export type SitesUpdateIn = {
   name?: string;
   settings?: Record<string, unknown>;
   access?: "public" | "password" | "space" | "private";
+  source?: {
+    repo?: string;
+    branch?: string;
+    tokenHandle?: string;
+    folderId?: string;
+    fileId?: string;
+    path?: string;
+    root?: string;
+  };
+  limits?: {
+    cpus: number;
+    memoryMb: number;
+    diskMb?: number;
+  };
+  autoDeploy?: boolean;
   computerId?: string;
   port?: number;
   folderId?: string;
@@ -26330,6 +26705,45 @@ export type SitesUpdateOut = {
     live?: boolean;
     blocked?: boolean;
     updatedAt?: number;
+    deployed?: boolean;
+    source?: {
+      repo?: string;
+      branch?: string;
+      tokenHandle?: string;
+      folderId?: string;
+      fileId?: string;
+      path?: string;
+      root?: string;
+    };
+    lastDeploy?: {
+      deploymentId: string;
+      siteId: string;
+      env: "staging" | "preview" | "production";
+      state: "queued" | "building" | "ready" | "failed" | "stopped";
+      url?: string;
+      branch?: string;
+      commit?: string;
+      at: number;
+      by?: string;
+      note?: string;
+      problem?: string;
+      fix?: "set_env" | "add_postgres" | "add_redis" | "retry" | "set_start" | "set_port" | "open_logs" | "connect_repo" | "free_space" | "more_memory";
+      current?: boolean;
+      finishedAt?: number;
+    };
+    limits?: {
+      cpus: number;
+      memoryMb: number;
+      diskMb?: number;
+    };
+    addons?: Array<{
+        kind: "postgres" | "redis";
+        state: "starting" | "ready" | "failed";
+        envName: string;
+        detail?: string;
+      }>;
+    autoDeploy?: boolean;
+    passwordSet?: boolean;
   };
 };
 export type SkillsAddIn = {
@@ -35500,10 +35914,13 @@ export interface CapMap {
   "sheets.read_rows": { in: SheetsReadRowsIn; out: SheetsReadRowsOut };
   "sheets.update_row": { in: SheetsUpdateRowIn; out: SheetsUpdateRowOut };
   "sheets.upsert_row": { in: SheetsUpsertRowIn; out: SheetsUpsertRowOut };
+  "sites.addon_add": { in: SitesAddonAddIn; out: SitesAddonAddOut };
+  "sites.addon_remove": { in: SitesAddonRemoveIn; out: SitesAddonRemoveOut };
   "sites.artifact_open": { in: SitesArtifactOpenIn; out: SitesArtifactOpenOut };
   "sites.artifact_publish": { in: SitesArtifactPublishIn; out: SitesArtifactPublishOut };
   "sites.build": { in: SitesBuildIn; out: SitesBuildOut };
   "sites.create": { in: SitesCreateIn; out: SitesCreateOut };
+  "sites.db_import": { in: SitesDbImportIn; out: SitesDbImportOut };
   "sites.delete": { in: SitesDeleteIn; out: SitesDeleteOut };
   "sites.deploy": { in: SitesDeployIn; out: SitesDeployOut };
   "sites.deployments": { in: SitesDeploymentsIn; out: SitesDeploymentsOut };
@@ -35517,6 +35934,8 @@ export interface CapMap {
   "sites.host": { in: SitesHostIn; out: SitesHostOut };
   "sites.list": { in: SitesListIn; out: SitesListOut };
   "sites.logs": { in: SitesLogsIn; out: SitesLogsOut };
+  "sites.password_set": { in: SitesPasswordSetIn; out: SitesPasswordSetOut };
+  "sites.plan": { in: SitesPlanIn; out: SitesPlanOut };
   "sites.preview_rebuild": { in: SitesPreviewRebuildIn; out: SitesPreviewRebuildOut };
   "sites.preview_remove": { in: SitesPreviewRemoveIn; out: SitesPreviewRemoveOut };
   "sites.previews": { in: SitesPreviewsIn; out: SitesPreviewsOut };
@@ -35524,6 +35943,7 @@ export interface CapMap {
   "sites.publish": { in: SitesPublishIn; out: SitesPublishOut };
   "sites.rollback": { in: SitesRollbackIn; out: SitesRollbackOut };
   "sites.service_identity": { in: SitesServiceIdentityIn; out: SitesServiceIdentityOut };
+  "sites.signin_link": { in: SitesSigninLinkIn; out: SitesSigninLinkOut };
   "sites.staging_password_set": { in: SitesStagingPasswordSetIn; out: SitesStagingPasswordSetOut };
   "sites.status": { in: SitesStatusIn; out: SitesStatusOut };
   "sites.stop": { in: SitesStopIn; out: SitesStopOut };

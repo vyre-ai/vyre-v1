@@ -27643,6 +27643,44 @@ const routes4: Route[] = [
 const routes5: Route[] = [
   {
     "method": "POST",
+    "path": "/v1/sites/addon_add",
+    "cap": "sites.addon_add",
+    "v": 1,
+    "module": "sites",
+    "effects": "write",
+    "permission": "sites.deploy",
+    "level": "edit",
+    "resource": {
+      "type": "site",
+      "id": "/siteId"
+    },
+    "idempotency": "key",
+    "risk": "medium",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/sites/addon_remove",
+    "cap": "sites.addon_remove",
+    "v": 1,
+    "module": "sites",
+    "effects": "write",
+    "permission": "sites.deploy",
+    "level": "manage",
+    "resource": {
+      "type": "site",
+      "id": "/siteId"
+    },
+    "idempotency": "natural",
+    "risk": "high",
+    "offline": null,
+    "teamOnly": false,
+    "gate": "delete"
+  },
+  {
+    "method": "POST",
     "path": "/v1/sites/artifact_open",
     "cap": "sites.artifact_open",
     "v": 1,
@@ -27721,6 +27759,25 @@ const routes5: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/sites/db_import",
+    "cap": "sites.db_import",
+    "v": 1,
+    "module": "sites",
+    "effects": "write",
+    "permission": "sites.deploy",
+    "level": "edit",
+    "resource": {
+      "type": "site",
+      "id": "/siteId"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/sites/delete",
     "cap": "sites.delete",
     "v": 1,
@@ -27754,7 +27811,7 @@ const routes5: Route[] = [
     "idempotency": "natural",
     "risk": "medium",
     "offline": null,
-    "teamOnly": true,
+    "teamOnly": false,
     "gate": null
   },
   {
@@ -27966,6 +28023,43 @@ const routes5: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/sites/password_set",
+    "cap": "sites.password_set",
+    "v": 1,
+    "module": "sites",
+    "effects": "write",
+    "permission": "sites.deploy",
+    "level": "edit",
+    "resource": {
+      "type": "site",
+      "id": "/siteId"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/sites/plan",
+    "cap": "sites.plan",
+    "v": 1,
+    "module": "sites",
+    "effects": "read",
+    "permission": "sites.deploy",
+    "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/sites/preview_rebuild",
     "cap": "sites.preview_rebuild",
     "v": 1,
@@ -28066,8 +28160,8 @@ const routes5: Route[] = [
     "v": 1,
     "module": "sites",
     "effects": "outward",
-    "permission": "sites.promote",
-    "level": "manage",
+    "permission": "sites.deploy",
+    "level": "edit",
     "resource": {
       "type": "site",
       "id": "/siteId"
@@ -28075,7 +28169,7 @@ const routes5: Route[] = [
     "idempotency": "key",
     "risk": "high",
     "offline": null,
-    "teamOnly": true,
+    "teamOnly": false,
     "gate": "none"
   },
   {
@@ -28093,6 +28187,25 @@ const routes5: Route[] = [
     },
     "idempotency": "natural",
     "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/sites/signin_link",
+    "cap": "sites.signin_link",
+    "v": 1,
+    "module": "sites",
+    "effects": "write",
+    "permission": null,
+    "level": "edit",
+    "resource": {
+      "type": "site",
+      "id": "/siteId"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
     "offline": null,
     "teamOnly": false,
     "gate": null
@@ -33060,7 +33173,10 @@ const routes5: Route[] = [
     "offline": "online",
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes6: Route[] = [
   {
     "method": "POST",
     "path": "/v1/vault/item/put",
@@ -33173,10 +33289,7 @@ const routes5: Route[] = [
     "offline": "online",
     "teamOnly": false,
     "gate": "secret_export"
-  }
-];
-
-const routes6: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/vault/items/list",
