@@ -139,7 +139,7 @@ export function parseCommand(m) {
 export const WORDS = Object.freeze({
   not_opted_in: "This Chrome has not been opened to agents for that Space. The person turns it on in Vyre for Chrome.",
   wrong_space: "That agent belongs to a Space that is not the active Space in this Chrome.",
-  paused: "The person stopped the agent in this Chrome. Wait until they say to go on, then call chrome_resume.",
+  paused: "The person stopped the agent in this Chrome, or took over the tab. Wait until they say to go on, then call chrome_resume.",
   busy: "Another agent is using that tab.",
   no_tab: "There is no tab to work in. Open a page with chrome_open first.",
   no_page: "That tab is not a web page the agent may drive.",

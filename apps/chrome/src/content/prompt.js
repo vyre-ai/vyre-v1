@@ -26,6 +26,13 @@
     button.primary { background: #4338ca; border-color: #4338ca; color: #fff; }
     button:focus-visible { outline: 2px solid #4338ca; outline-offset: 2px; }
     .share { display: flex; gap: 6px; align-items: center; margin-top: 10px; }
+    .seg { display: flex; margin-top: 10px; border: 1px solid rgba(128,128,128,.4); border-radius: 8px; overflow: hidden; }
+    .seg button { flex: 1; border: 0; border-radius: 0; }
+    .seg button[aria-pressed=true] { background: #4338ca; color: #fff; }
+    select { width: 100%; box-sizing: border-box; padding: 6px 8px; border: 1px solid rgba(128,128,128,.4); border-radius: 6px; font: inherit; background: #f2f2f7; color: inherit; }
+    .who { margin-top: 6px; display: grid; gap: 4px; }
+    .who label { display: flex; gap: 6px; align-items: center; margin: 0; opacity: 1; font-size: 13px; }
+    .note { margin-top: 6px; font-size: 11px; opacity: .7; }
     .row { display: flex; gap: 8px; margin-top: 12px; }
     .row .grow { flex: 1; }
     .never { margin-top: 8px; width: 100%; opacity: .75; border-style: dashed; }
@@ -49,7 +56,7 @@
     card.setAttribute("aria-label", "Save this login in Vyre");
 
     const h = d.createElement("h1");
-    h.textContent = p.mode === "update" ? "Update this login in Vyre?" : "Save this login in Vyre?";
+    h.textContent = p.mode === "update" ? "Update this login in Vyre?" : "Save to Vault?";
     const nameLabel = d.createElement("label");
     nameLabel.textContent = "Name";
     const nameInput = d.createElement("input");
@@ -79,21 +86,66 @@
     });
     pw.append(out, peek);
 
-    /** @type {any} */
-    let shareBox = null;
-    const row0 = d.createElement("div");
-    row0.className = "share";
-    if (p.agent) {
-      shareBox = d.createElement("input");
-      shareBox.type = "checkbox";
-      shareBox.id = "share";
-      const lab = d.createElement("label");
-      lab.htmlFor = "share";
-      lab.style.margin = "0";
-      lab.style.opacity = "1";
-      lab.textContent = "Share with " + p.agent.name;
-      row0.append(shareBox, lab);
-    }
+    // Mine is the default and stays private. Shared opens a folder picker and an allow list of agents, filled by the worker from the Space (names and ids only).
+    const cardId = Array.from(g.crypto.getRandomValues(new Uint8Array(8)), (/** @type {number} */ b) => b.toString(16).padStart(2, "0")).join("");
+    let scope = "mine";
+    /** @type {{ id: string, name: string }[]} */
+    let folders = [];
+    /** @type {any[]} */
+    const agentBoxes = [];
+    const seg = d.createElement("div");
+    seg.className = "seg";
+    const mineBtn = d.createElement("button");
+    mineBtn.type = "button";
+    mineBtn.textContent = "Mine";
+    const sharedBtn = d.createElement("button");
+    sharedBtn.type = "button";
+    sharedBtn.textContent = "Shared";
+    seg.append(mineBtn, sharedBtn);
+    const sharedBox = d.createElement("div");
+    sharedBox.style.display = "none";
+    const folderLabel = d.createElement("label");
+    folderLabel.textContent = "Folder";
+    const folderSel = d.createElement("select");
+    const who = d.createElement("div");
+    who.className = "who";
+    const whoLabel = d.createElement("label");
+    whoLabel.textContent = "Agents that can use it";
+    const note = d.createElement("div");
+    note.className = "note";
+    sharedBox.append(folderLabel, folderSel, whoLabel, who, note);
+    const paint = () => {
+      mineBtn.setAttribute("aria-pressed", String(scope === "mine"));
+      sharedBtn.setAttribute("aria-pressed", String(scope === "shared"));
+      sharedBox.style.display = scope === "shared" ? "" : "none";
+      note.textContent = scope === "shared" && !folders.length ? "There is no shared folder you can add to. Ask a manager, or keep it in Mine." : "";
+    };
+    mineBtn.addEventListener("click", () => { scope = "mine"; paint(); });
+    sharedBtn.addEventListener("click", () => {
+      scope = "shared";
+      paint();
+      if (folderSel.options.length || who.childNodes.length) return;
+      try {
+        g.chrome.runtime.sendMessage({ type: "vyre.choices" }, (/** @type {any} */ r) => {
+          const data = r && r.data;
+          if (!data) { note.textContent = "Vyre could not list your shared folders. Keep it in Mine, or try again."; return; }
+          folders = data.folders;
+          for (const f of folders) { const o = d.createElement("option"); o.value = f.id; o.textContent = f.name; folderSel.append(o); }
+          for (const a of data.agents) {
+            const l = d.createElement("label");
+            const c = d.createElement("input");
+            c.type = "checkbox";
+            c.value = a.id;
+            c.checked = Boolean(a.suggested);
+            agentBoxes.push(c);
+            l.append(c, d.createTextNode(a.name));
+            who.append(l);
+          }
+          paint();
+        });
+      } catch { note.textContent = "Vyre could not list your shared folders."; }
+    });
+    paint();
 
     const row = d.createElement("div");
     row.className = "row";
@@ -112,7 +164,7 @@
     never.textContent = "Never for this site";
 
     card.append(h, nameLabel, nameInput, userLabel, userInput, pwLabel, pw);
-    if (p.agent) card.append(row0);
+    if (p.mode !== "update") card.append(seg, sharedBox);
     card.append(row, never);
     root.append(style, card);
     (d.documentElement || d.body).appendChild(host);
@@ -133,7 +185,8 @@
       try { g.chrome.runtime.sendMessage({ type, ...extra }); } catch { /* extension reloaded */ }
     }
     save.addEventListener("click", () => {
-      tell("vyre.save", { name: nameInput.value, username: userInput.value, password: secret, share: Boolean(shareBox && shareBox.checked), mode: p.mode });
+      const agentIds = agentBoxes.filter((c) => c.checked).map((c) => c.value);
+      tell("vyre.save", { name: nameInput.value, username: userInput.value, password: secret, scope, folderId: scope === "shared" ? folderSel.value : undefined, agentIds: scope === "shared" ? agentIds : [], cardId, mode: p.mode });
       done();
     });
     later.addEventListener("click", () => { tell("vyre.dismiss", { never: false }); done(); });

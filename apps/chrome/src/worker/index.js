@@ -8,6 +8,7 @@ import { createBridge } from "./bridge.js";
 import { createFill } from "./fill.js";
 import { badgeText, pageOf } from "./match.js";
 import { BridgeFailure, wordsFor } from "./protocol.js";
+import { cardFieldsInPage } from "./pagecalls.js";
 import { createRules } from "./rules.js";
 import { createSave } from "./save.js";
 import { createStore } from "./store.js";
@@ -20,7 +21,7 @@ import { createPrivacy } from "./privacy.js";
 import "../agent/index.js";
 
 /** What a page in an incognito window may still ask for: the fill the person clicks. Everything else is off there. */
-const INCOGNITO_OK = new Set(["vyre.fill"]);
+const INCOGNITO_OK = new Set(["vyre.fill", "vyre.accounts"]);
 
 /** A web address we will open for a Space: https, or http on this computer. @param {unknown} u */
 function openable(u) {
@@ -99,6 +100,13 @@ export function createWorker(ext) {
       const r = await fill.loginsFor(tab && tab.url);
       state.rows = r.rows;
       state.blocked = r.blocked;
+      // A page that asks for a payment card also lists the person's cards (names only).
+      if (tab && !r.blocked && state.page && state.page.secure) {
+        try {
+          const seen = await ext.scripting.executeScript({ target: { tabId: tab.id, allFrames: true }, func: cardFieldsInPage, args: [] });
+          if (seen.some((/** @type {any} */ f) => f.result)) { state.cardFields = true; state.cards = await fill.cards(); }
+        } catch { /* no cards to offer */ }
+      }
       if (tab) await ext.action.setBadgeText({ tabId: tab.id, text: badgeText(r.rows.length) });
     } catch (e) {
       state.status = e instanceof BridgeFailure && e.code === "no_host" ? "no_host" : "offline";
@@ -114,7 +122,7 @@ export function createWorker(ext) {
       case "popup.state": return { data: await popupState() };
       case "popup.fill": {
         if (!tab) return failure(new BridgeFailure("no_page", ""));
-        const r = await fill.fill({ tabId: tab.id, url: tab.url, itemId: String(msg.itemId), usernameField: msg.usernameField ? String(msg.usernameField) : undefined, kind: msg.kind === "otp" ? "otp" : "login", signIn: Boolean(msg.signIn) });
+        const r = await fill.fill({ tabId: tab.id, url: tab.url, itemId: String(msg.itemId), usernameField: msg.usernameField ? String(msg.usernameField) : undefined, kind: msg.kind === "otp" ? "otp" : msg.kind === "card" ? "card" : "login", signIn: Boolean(msg.signIn) });
         return { data: r };
       }
       case "popup.neverFill": {
@@ -180,7 +188,17 @@ export function createWorker(ext) {
       }
       case "vyre.openNote": return { data: await bridge.op("app.open", { place: "notes", id: String(msg.noteId || "").slice(0, 80) }) };
       case "vyre.submit": return { data: await save.submitted({ tabId, origin }, { username: String(msg.username || ""), password: String(msg.password || ""), kind: msg.kind === "signup" ? "signup" : "signin" }) };
-      case "vyre.save": return { data: await save.save({ tabId, origin }, { name: String(msg.name || ""), username: String(msg.username || ""), password: String(msg.password || ""), share: Boolean(msg.share), mode: msg.mode === "update" ? "update" : "save" }) };
+      case "vyre.save": return { data: await save.save({ tabId, origin }, { name: String(msg.name || ""), username: String(msg.username || ""), password: String(msg.password || ""), scope: msg.scope === "shared" ? "shared" : "mine", folderId: typeof msg.folderId === "string" ? msg.folderId : undefined, agentIds: Array.isArray(msg.agentIds) ? msg.agentIds.filter((/** @type {unknown} */ x) => typeof x === "string").slice(0, 20) : [], cardId: typeof msg.cardId === "string" ? msg.cardId : undefined, mode: msg.mode === "update" ? "update" : "save" }) };
+      case "vyre.choices": return { data: await save.choices({ tabId, origin }) };
+      case "vyre.accounts": {
+        if (msg.kind === "card") return { data: { blocked: null, rows: await fill.cards() } };
+        const r = await fill.loginsFor(sender.tab.url);
+        return { data: { blocked: r.blocked, rows: r.rows.map((/** @type {any} */ x) => ({ id: x.id, name: x.name, kind: x.kind, usernameField: x.usernameField || undefined })) } };
+      }
+      case "vyre.fill": {
+        const kind = msg.kind === "otp" ? "otp" : msg.kind === "card" ? "card" : "login";
+        return { data: await fill.fill({ tabId, url: String(sender.tab.url || ""), itemId: String(msg.itemId || ""), usernameField: msg.usernameField ? String(msg.usernameField) : undefined, kind, signIn: false }) };
+      }
       case "vyre.dismiss": return { data: await save.dismissed({ tabId, origin }, { never: Boolean(msg.never) }) };
       default: return failure(new BridgeFailure("not_allowed", String(msg.type)));
     }

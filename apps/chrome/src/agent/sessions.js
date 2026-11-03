@@ -7,6 +7,12 @@ import { overlayCursor, overlayHide, overlayShow } from "./overlay.js";
 import { HELD_TTL_MS, IDLE_MS, OVERLAY_PORT, fail } from "./protocol.js";
 
 export const BEACON = "●";
+/** Chrome's tab group colours, without grey (grey reads as "no agent"). */
+export const GROUP_COLORS = Object.freeze(["blue", "purple", "cyan", "green", "orange", "pink", "yellow", "red"]);
+/** The same agent always gets the same colour. @param {string} agentId */
+export function groupColor(agentId) { let h = 7; for (const c of String(agentId)) h = (h * 31 + c.charCodeAt(0)) >>> 0; return GROUP_COLORS[h % GROUP_COLORS.length]; }
+/** @param {string} name */
+export const groupTitle = (name) => `Vyre · ${String(name).slice(0, 24)}`;
 const BEACON_COLOR = "#4f46e5";
 
 /** @param {string} prefix */
@@ -19,16 +25,18 @@ function randomId(prefix) {
 /**
  * @typedef {{ id: string, name: string }} AgentRef
  * @typedef {{ agent: AgentRef, space: string, since: number, timer: any, goal: string }} Driver
- * @typedef {{ id: string, agentId: string, space: string, tabId: number, kind: string, why: string, summary: string, selector: import("./selector.js").Selector | null, action: { type: "click", button: "left" | "right" | "middle", double: boolean } | { type: "press", key: string }, expires: number }} Held
+ * @typedef {{ to?: string, from?: string, subject?: string, message?: string, site?: string }} Card
+ * @typedef {{ id: string, agentId: string, space: string, tabId: number, kind: string, why: string, summary: string, card?: Card, selector: import("./selector.js").Selector | null, action: { type: "click", button: "left" | "right" | "middle", double: boolean } | { type: "press", key: string }, expires: number }} Held
  * @param {{
- *   ext: { scripting: { executeScript(o: any): Promise<any> }, action?: { setBadgeText(o: any): any, setBadgeBackgroundColor(o: any): any, setTitle?(o: any): any } },
+ *   ext: { scripting: { executeScript(o: any): Promise<any> }, tabs?: any, tabGroups?: any, action?: { setBadgeText(o: any): any, setBadgeBackgroundColor(o: any): any, setTitle?(o: any): any } },
  *   cdp: { detach(tabId: number): Promise<void> },
  *   traffic: { forget(tabId: number): void },
  *   emit: (event: Record<string, any>) => void,
  *   now?: () => number, setTimer?: (f: () => void, ms: number) => any, clearTimer?: (t: any) => void, idleMs?: number,
+ *   grouping?: () => boolean,
  * }} deps
  */
-export function createSessions({ ext, cdp, traffic, emit, now = Date.now, setTimer = (f, ms) => setTimeout(f, ms), clearTimer = (t) => clearTimeout(t), idleMs = IDLE_MS }) {
+export function createSessions({ ext, cdp, traffic, emit, now = Date.now, setTimer = (f, ms) => setTimeout(f, ms), clearTimer = (t) => clearTimeout(t), idleMs = IDLE_MS, grouping = () => true }) {
   /** @type {Map<number, Driver>} */
   const drivers = new Map();
   /** @type {Map<string, Set<number>>} tabs an agent opened or was given, by agent id */
@@ -44,12 +52,37 @@ export function createSessions({ ext, cdp, traffic, emit, now = Date.now, setTim
   /** @type {Map<string, string>} what each agent said it is doing (chrome_plan) */
   const goals = new Map();
 
+  /** @type {Map<string, number>} the Chrome tab group of each agent in this window set */
+  const groupIds = new Map();
+
   /** @param {() => Promise<any>} f */
   const quiet = async (f) => { try { await f(); } catch { /* a restricted or closed tab: nothing to draw on */ } };
 
+  /** Is something an agent reached waiting for the person on this tab? @param {number} tabId */
+  const waitingOn = (tabId) => { for (const h of held.values()) if (h.tabId === tabId && h.expires >= now()) return true; return false; };
+
+  /** Put a tab in its agent's group, "Vyre · <agent>", made on first use and found again by id. The group is the person's view of which tabs an agent has. @param {AgentRef} agent @param {number} tabId */
+  async function group(agent, tabId) {
+    if (!grouping() || !ext.tabs || typeof ext.tabs.group !== "function" || !ext.tabGroups) return;
+    await quiet(async () => {
+      let gid = groupIds.get(agent.id);
+      if (gid !== undefined) {
+        try { const t = await ext.tabs.get(tabId); if (t && t.groupId === gid) return; } catch { return; }
+      }
+      /** @type {number} */
+      let made;
+      try { made = await ext.tabs.group(gid !== undefined ? { tabIds: [tabId], groupId: gid } : { tabIds: [tabId] }); }
+      catch { if (gid === undefined) return; groupIds.delete(agent.id); made = await ext.tabs.group({ tabIds: [tabId] }); gid = undefined; }
+      if (gid === undefined || gid !== made) {
+        groupIds.set(agent.id, made);
+        await ext.tabGroups.update(made, { title: groupTitle(agent.name), color: groupColor(agent.id), collapsed: false });
+      }
+    });
+  }
+
   /** @param {number} tabId @param {AgentRef} agent @param {boolean} [isPaused] */
   async function draw(tabId, agent, isPaused = false) {
-    await quiet(() => ext.scripting.executeScript({ target: { tabId }, func: overlayShow, args: [{ name: agent.name, goal: goals.get(agent.id) ?? "", paused: isPaused, port: OVERLAY_PORT }] }));
+    await quiet(() => ext.scripting.executeScript({ target: { tabId }, func: overlayShow, args: [{ name: agent.name, goal: goals.get(agent.id) ?? "", paused: isPaused, waiting: !isPaused && waitingOn(tabId), port: OVERLAY_PORT }] }));
     if (ext.action) {
       const a = ext.action;
       await quiet(async () => { await a.setBadgeText({ tabId, text: BEACON }); await a.setBadgeBackgroundColor({ tabId, color: BEACON_COLOR }); if (a.setTitle) await a.setTitle({ tabId, title: `Vyre: ${agent.name} is using this tab` }); });
@@ -94,6 +127,7 @@ export function createSessions({ ext, cdp, traffic, emit, now = Date.now, setTim
         emit({ event: "driving", on: true, agent: call.agent.id, name: call.agent.name, tab: tabId, space: call.space });
         await draw(tabId, call.agent);
       }
+      await group(call.agent, tabId);
       arm(tabId);
     },
     /** @param {number} tabId */
@@ -101,6 +135,7 @@ export function createSessions({ ext, cdp, traffic, emit, now = Date.now, setTim
     /** The page loaded again (a navigation, a reload): the frame went with the old document, so draw it again. @param {number} tabId */
     async redraw(tabId) { const d = drivers.get(tabId); if (d) await draw(tabId, d.agent); },
     release,
+    group,
     /** The agent's cursor goes to a point; with `click`, a ring. @param {number} tabId @param {number} x @param {number} y @param {boolean} [click] */
     async cursor(tabId, x, y, click) {
       await quiet(() => ext.scripting.executeScript({ target: { tabId }, func: overlayCursor, args: [x, y, Boolean(click)] }));
@@ -142,7 +177,7 @@ export function createSessions({ ext, cdp, traffic, emit, now = Date.now, setTim
     /**
      * The person pressed Stop, or Esc, or the agent stopped itself. Stop and the tool give the tab back (frame off, detached); Esc keeps the dashed frame so the person
      * sees it is waiting for them. Either way nothing runs for this agent until chrome_resume.
-     * @param {string} agentId @param {"person" | "esc" | "tool"} by @param {string} [reason]
+     * @param {string} agentId @param {"person" | "esc" | "tool" | "takeover"} by @param {string} [reason]
      */
     async pause(agentId, by, reason) {
       paused.set(agentId, { by, at: now() });
@@ -155,9 +190,9 @@ export function createSessions({ ext, cdp, traffic, emit, now = Date.now, setTim
           await draw(tabId, d.agent, true);
           drivers.delete(tabId);
           traffic.forget(tabId);
-        } else await release(tabId, by === "person" ? "stopped by the person" : "stopped by the agent");
+        } else await release(tabId, by === "person" ? "stopped by the person" : by === "takeover" ? "the person took over" : "stopped by the agent");
       }
-      emit({ event: by === "esc" ? "paused" : "stopped", agent: agentId, by, ...(reason ? { reason: String(reason).slice(0, 200) } : {}) });
+      emit({ event: by === "esc" ? "paused" : by === "takeover" ? "takeover" : "stopped", agent: agentId, by, ...(reason ? { reason: String(reason).slice(0, 200) } : {}) });
     },
     /** @param {string} agentId */
     async resume(agentId) {
@@ -179,7 +214,9 @@ export function createSessions({ ext, cdp, traffic, emit, now = Date.now, setTim
       for (const [id, h] of held) if (h.expires < now()) held.delete(id);
       const id = randomId("hld");
       held.set(id, { id, agentId: call.agent.id, space: call.space, tabId, expires: now() + HELD_TTL_MS, ...what });
-      emit({ event: "held", agent: call.agent.id, id, kind: what.kind, summary: what.summary, tab: tabId });
+      emit({ event: "held", agent: call.agent.id, name: call.agent.name, space: call.space, id, kind: what.kind, why: what.why, summary: what.summary, tab: tabId, ...(what.card ? { card: what.card } : {}) });
+      const d = drivers.get(tabId);
+      if (d) void draw(tabId, d.agent);
       return id;
     },
     /** Take a held item out for chrome_send: only the agent and Space that reached it, only before it expires. @param {{ agent: AgentRef, space: string }} call @param {string} id */
@@ -187,10 +224,17 @@ export function createSessions({ ext, cdp, traffic, emit, now = Date.now, setTim
       const h = held.get(id);
       if (!h || h.expires < now() || h.agentId !== call.agent.id || h.space !== call.space) fail("held_gone");
       held.delete(id);
+      const d = drivers.get(h.tabId);
+      if (d) void draw(h.tabId, d.agent);
       return h;
     },
+    /** The held items of one agent, as the approval card shows them. @param {string} agentId */
+    heldOf: (agentId) => [...held.values()].filter((h) => h.agentId === agentId && h.expires >= now()).map((h) => ({ id: h.id, kind: h.kind, summary: h.summary, tab: h.tabId, ...(h.card ? { card: h.card } : {}) })),
     /** @param {string} agentId */
     heldIds: (agentId) => [...held.values()].filter((h) => h.agentId === agentId && h.expires >= now()).map((h) => h.id),
+
+    /** The person chose Don't send in Vyre: forget the item, so the agent cannot press it later. @param {string} id */
+    dropHeld(id) { const h = held.get(id); if (!h) return false; held.delete(id); const d = drivers.get(h.tabId); if (d) void draw(h.tabId, d.agent); return true; },
 
     // ---- goal line
     /** @param {AgentRef} agent @param {string} goal */

@@ -9,7 +9,7 @@
 //   * secrets: a value goes into a page only as a Vault handle the app's filler substitutes; fields filled that way stay masked, are blurred in screenshots and scrubbed
 //     from anything read back.
 
-import { callExpression, blurSecrets, collectPage, describeElement, focusElement, markSecret, pageRequest, pointInfo, probe, revealElement, scrollTo, scrubSecrets, selectOption } from "./page.js";
+import { callExpression, blurSecrets, collectPage, composeFacts, describeElement, focusElement, markSecret, pageRequest, pointInfo, probe, revealElement, scrollTo, scrubSecrets, selectOption } from "./page.js";
 import { AgentFailure, BATCHABLE, TAB_LIMIT, checkInput, errorOf, fail } from "./protocol.js";
 import { bareUrl, maskBody, maskHeaders, maskJson, maskUrl, scrub } from "./mask.js";
 import { refMap, renderTree, toSnapshot } from "./snapshot.js";
@@ -204,10 +204,16 @@ export function createTools(kit) {
     if (tab.id === undefined) fail("no_tab");
     sessions.own(call.agent.id, tab.id);
     sessions.setCurrent(call.agent.id, tab.id);
+    await sessions.group(call.agent, tab.id);
     return tab.id;
   }
 
   // ---------- acting on a control
+
+  /** What the approval card shows for a held item; empty when the page cannot be read. @param {number} tabId @param {number | null} idx */
+  async function cardOf(tabId, idx) {
+    try { return /** @type {Record<string, string>} */ (await evalPage(tabId, composeFacts, idx)) || undefined; } catch { return undefined; }
+  }
 
   /** Press (click, double click, hover) a control, chosen by selector, against a fresh look. @param {Call} call @param {number} tabId @param {selector.Selector} sel @param {{ verb: "click" | "hover", button?: "left" | "right" | "middle", double?: boolean, mode?: "normal" | "approved", wantChecked?: boolean }} o */
   async function pressControl(call, tabId, sel, o) {
@@ -221,7 +227,7 @@ export function createTools(kit) {
     if (o.verb === "click" && o.mode !== "approved") {
       const v = consequence.of(c);
       if (v.consequential) {
-        const heldId = sessions.hold(call, tabId, { kind: v.kind, why: v.why, summary: `${v.kind}: ${label(c)} on ${bareUrl(before.url)}`, selector: sel, action: { type: "click", button, double: Boolean(o.double) } });
+        const heldId = sessions.hold(call, tabId, { kind: v.kind, why: v.why, summary: `${v.kind}: ${label(c)} on ${bareUrl(before.url)}`, card: await cardOf(tabId, c.idx), selector: sel, action: { type: "click", button, double: Boolean(o.double) } });
         return { ok: false, heldId, why: `${v.why}. It is held until the person approves it.` };
       }
     }
@@ -250,7 +256,7 @@ export function createTools(kit) {
       const activator = Boolean(ctl && ACTIVATORS.has(ctl.role));
       const v = activator && ctl ? consequence.of(ctl) : k.key === "Enter" && ctl ? consequence.ofEnter(ctl) : { consequential: false, kind: "none", why: "" };
       if (v.consequential) {
-        const heldId = sessions.hold(call, tabId, { kind: v.kind, why: v.why, summary: `${v.kind}: ${spec} on ${ctl ? label(ctl) : "the page"}`, selector: ctl ? selector.of(ctl) : null, action: { type: "press", key: spec } });
+        const heldId = sessions.hold(call, tabId, { kind: v.kind, why: v.why, summary: `${v.kind}: ${spec} on ${ctl ? label(ctl) : "the page"}`, card: await cardOf(tabId, ctl ? ctl.idx : null), selector: ctl ? selector.of(ctl) : null, action: { type: "press", key: spec } });
         return { ok: false, heldId, why: `${v.why}. It is held until the person approves it.` };
       }
     }
@@ -391,7 +397,7 @@ export function createTools(kit) {
         if (under && under.actionable) {
           const v = consequence.of({ name: under.name, nameless: under.nameless, role: under.role, submit: under.submit, href: under.href });
           if (v.consequential) {
-            const heldId = sessions.hold(call, tabId, { kind: v.kind, why: v.why, summary: `${v.kind}: click at ${x},${y} on ${bareUrl((await ext.tabs.get(tabId)).url ?? "")}`, selector: null, action: { type: "click", button, double: false } });
+            const heldId = sessions.hold(call, tabId, { kind: v.kind, why: v.why, summary: `${v.kind}: click at ${x},${y} on ${bareUrl((await ext.tabs.get(tabId)).url ?? "")}`, card: await cardOf(tabId, null), selector: null, action: { type: "click", button, double: false } });
             return { ok: false, heldId, why: `${v.why}. It is held until the person approves it.` };
           }
         }

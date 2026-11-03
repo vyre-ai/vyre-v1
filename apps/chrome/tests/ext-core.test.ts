@@ -422,7 +422,7 @@ test("keys: arrows wrap, Enter fills, Cmd-Enter signs in, slash asks, Escape clo
 test("the manifest asks for the smallest set of powers and one content script group", () => {
   const m = JSON.parse(read("manifest.json"));
   assert.equal(m.manifest_version, 3);
-  assert.deepEqual([...m.permissions].sort(), ["activeTab", "contextMenus", "favicon", "nativeMessaging", "scripting", "sidePanel", "storage"]);
+  assert.deepEqual([...m.permissions].sort(), ["activeTab", "contextMenus", "favicon", "nativeMessaging", "scripting", "sidePanel", "storage", "tabGroups"]);
   assert.ok(!m.permissions.includes("debugger"), "the debugger is never held by default: Chrome asks the person when they open Chrome to an agent");
   assert.deepEqual(m.optional_permissions, ["debugger"], "agent control over chrome.debugger is an optional permission, and the only one");
   assert.match(read("src/worker/index.js"), /^import "\.\.\/agent\/index\.js";$/m, "the worker loads the agent tools");
@@ -433,7 +433,7 @@ test("the manifest asks for the smallest set of powers and one content script gr
   assert.equal(m.background.type, "module");
   assert.equal(m.action.default_popup, undefined, "the toolbar icon opens the side panel (worker: setPanelBehavior)");
   assert.equal(m.side_panel.default_path, "src/panel/panel.html");
-  assert.deepEqual(m.content_scripts[0].js, ["src/content/finder.js", "src/content/autofill.js", "src/content/capture.js", "src/content/prompt.js", "src/content/select.js"]);
+  assert.deepEqual(m.content_scripts[0].js, ["src/content/finder.js", "src/content/autofill.js", "src/content/capture.js", "src/content/badge.js", "src/content/prompt.js", "src/content/select.js"]);
   assert.equal(m.commands._execute_action.suggested_key.mac, "Command+Shift+L");
   const csp: string = m.content_security_policy.extension_pages;
   assert.ok(!/connect-src/.test(csp) && /default-src 'none'/.test(csp) && /script-src 'self'/.test(csp), "extension pages can reach no network");

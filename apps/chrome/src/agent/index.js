@@ -52,7 +52,7 @@ export function createAgentControl(ext, o = {}) {
   const traffic = createTraffic(cdp, { now });
   /** @param {Record<string, any>} event */
   const emit = (event) => transport.tell("agent.event", event);
-  const sessions = createSessions({ ext, cdp, traffic, emit, now, ...(o.setTimer ? { setTimer: o.setTimer } : {}), ...(o.clearTimer ? { clearTimer: o.clearTimer } : {}), ...(o.idleMs !== undefined ? { idleMs: o.idleMs } : {}) });
+  const sessions = createSessions({ ext, cdp, traffic, emit, now, grouping: () => mode === "personal", ...(o.setTimer ? { setTimer: o.setTimer } : {}), ...(o.clearTimer ? { clearTimer: o.clearTimer } : {}), ...(o.idleMs !== undefined ? { idleMs: o.idleMs } : {}) });
 
   /** The agent's Space must be the one active here, and the person (or the agent computer's owner) must have opened Chrome to it. @param {{ space: string }} call */
   async function authorize(call) {
@@ -111,6 +111,7 @@ export function createAgentControl(ext, o = {}) {
       const agent = sessions.driverOf(tabId);
       if (!agent || !m) return;
       if (m.type === "stop") void sessions.pause(agent.id, "person");
+      else if (m.type === "takeover") void sessions.pause(agent.id, "takeover");
       else if (m.type === "esc") void sessions.pause(agent.id, "esc");
     });
   });
