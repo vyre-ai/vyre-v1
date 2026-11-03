@@ -68,7 +68,8 @@ test("the Threads page draws the threads I am in from its live read, with what i
   assert.equal(typeof one!.props.onContextMenu, "function", "right-click opens the row's menu");
   await press(find(root, "threads-more"));
   await flush();
-  assert.deepEqual(asked.map((a) => [a.cap, a.input["cursor"]]), [["threads.list", "thr_1"]], "the next page, from where the first ended");
+  // the Ask history under the threads is its own read (kind ask); then the next page, from where the first ended
+  assert.deepEqual(asked.map((a) => [a.cap, a.input["kind"], a.input["cursor"]]), [["threads.list", ["ask"], undefined], ["threads.list", ["thread"], "thr_1"]], "Ask history, then the next page from where the first ended");
   assert.match(textOf(find(root, "row-thread-thr_2")), /Lee file/);
   await press(find(root, "row-thread-thr_2"));
   assert.deepEqual(opened, ["thr_2"]);
