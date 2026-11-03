@@ -71,13 +71,17 @@ export interface EngineHostSeam {
 
 /** Start a process on a node (host/src/routes/compute-stream.ts spawnProc), structural here. A rejection carries an engine.* `code`. */
 export interface EngineNodes {
-  spawn(nodeId: string, spec: { argv: readonly string[]; cwd?: string; env: Readonly<Record<string, string>> }): Promise<{
+  spawn(nodeId: string, spec: { argv: readonly string[]; cwd?: string; env: Readonly<Record<string, string>>; person?: string }): Promise<{
     readonly pid: number | undefined; readonly stdout: AsyncIterable<Uint8Array>; write(data: string): Promise<void>; endInput(): void;
     readonly exited: Promise<{ code: number | null; signal: string | null }>; stderrTail(): string; kill(signal?: "SIGTERM" | "SIGKILL"): void;
   }>;
   connected(nodeId: string): boolean;
   /** Is the node's link private? An account key is sent only over one that is. */
   secure(nodeId: string): boolean;
+  /** The person's own computers linked to the Space right now (their Vyre app): node id `device:<id>`, the engines each runs (routes/compute-stream.ts DeviceLink). */
+  devices?(person?: string): Array<{ nodeId: string; deviceId: string; person: string; name?: string; engines: string[]; since: number }>;
+  /** Told when one of them links or goes. */
+  onDevice?(fn: (link: { nodeId: string; deviceId: string; person: string; name?: string; engines: string[] }, up: boolean) => void): () => void;
 }
 
 export interface EngineHostDeps {

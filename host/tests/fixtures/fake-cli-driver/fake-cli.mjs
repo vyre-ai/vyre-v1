@@ -16,6 +16,8 @@
 // These are picked by the prompt's last line (the person's message comes last, after the turn context and any recent messages a fresh session is given):
 //   resumecheck  "resumed=<the --resume id or none> session=<this session's id>"
 //   rawecho      answers with the whole prompt it was given, turn context included
+//   whereami     "ran-on=<FAKE_WHERE or space> handover=<yes when the turn went on after its computer slept>"
+//   slowwhere    "first part. " at once, then after FAKE_SLOW_MS the same as whereami
 //   /compact ... compacts the way Claude Code does: a compact_boundary line (42000 tokens before, 2500 after), then an empty success result
 // Sessions are kept the way the real CLI keeps them: a file per session id under $HOME/.fake-claude/sessions, with the last line of every prompt it was sent. `--resume <id>` of a session with no file
 // says so in the real CLI's words on stderr and exits 1 before reading anything.
@@ -290,6 +292,19 @@ async function run(raw) {
   keep(lastLine);
   if (lastLine === "resumecheck") { reply([`resumed=${resumed ?? "none"} session=${session}`]); return; }
   if (lastLine === "rawecho") { reply([raw]); return; }
+  // where the engine ran (lane l-runson): FAKE_WHERE is set by the test's launcher on the person's computer; a turn that went on after the computer slept says so
+  if (lastLine === "whereami") { reply([`ran-on=${process.env.FAKE_WHERE ?? "space"} handover=${raw.includes("which went to sleep") ? "yes" : "no"}`]); return; }
+  // "slowwhere": the first words at once, the rest after FAKE_SLOW_MS (default 4 s): a turn that is in the middle when its computer goes away
+  if (lastLine === "slowwhere") {
+    init();
+    out({ type: "stream_event", event: { type: "message_start", message: { id: `m_sw_${process.pid}` } } });
+    out({ type: "stream_event", event: { type: "content_block_delta", index: 0, delta: { type: "text_delta", text: "first part. " } } });
+    await new Promise((res) => setTimeout(res, Number(process.env.FAKE_SLOW_MS ?? 4000)));
+    const rest = `ran-on=${process.env.FAKE_WHERE ?? "space"} handover=${raw.includes("which went to sleep") ? "yes" : "no"}`;
+    out({ type: "stream_event", event: { type: "content_block_delta", index: 0, delta: { type: "text_delta", text: rest } } });
+    out({ type: "result", subtype: "success", is_error: false, result: `first part. ${rest}`, session_id: session, usage: { input_tokens: 5, output_tokens: 5 } });
+    return;
+  }
   if (/^\/compact\b/.test(prompt.trim())) {
     out({ type: "system", subtype: "compact_boundary", session_id: session, compact_metadata: { trigger: "manual", pre_tokens: 42_000, post_tokens: 2_500 } });
     out({ type: "result", subtype: "success", is_error: false, result: "", session_id: session, usage: { input_tokens: 42_000, output_tokens: 700 } });

@@ -59,6 +59,8 @@ export interface HookEvent {
   at: number;
   /** the Run whose step made this event, when one did */
   runId?: string;
+  /** the device the call that made it came from (the person's computer or phone), when one did */
+  device?: string;
 }
 
 export interface ConsumerDef { name: string; module: string; on: readonly string[]; run(ctx: Ctx, event: HookEvent): Promise<unknown> | unknown }
@@ -108,7 +110,7 @@ export function toHookEvent(e: StoredEvent): HookEvent {
   if (e.enc === 0) {
     try { const v: unknown = JSON.parse(new TextDecoder().decode(e.payload)); if (isRecord(v)) payload = v; } catch { /* a payload that is not JSON reads as empty */ }
   }
-  return { id: e.id, seq: e.seq, name: e.type, subject: e.entity_id ? `${e.entity ?? ""}/${e.entity_id}` : (e.entity ?? ""), payload, actor: e.actor, traceId: e.trace_id, at: e.at, ...(e.run_id ? { runId: e.run_id } : {}) };
+  return { id: e.id, seq: e.seq, name: e.type, subject: e.entity_id ? `${e.entity ?? ""}/${e.entity_id}` : (e.entity ?? ""), payload, actor: e.actor, traceId: e.trace_id, at: e.at, ...(e.run_id ? { runId: e.run_id } : {}), ...(e.device ? { device: e.device } : {}) };
 }
 
 export interface LogReader {

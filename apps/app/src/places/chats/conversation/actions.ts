@@ -138,6 +138,10 @@ export async function turnDetail(data: ConversationData, turnId: string): Promis
   rows.push(["Ran on", what.machine === "device" ? "This computer" : "This Space"]);
   if (secs !== null) rows.push(["Took", `${secs} s`]);
   if (t.error?.code) rows.push(["Code", t.error.code]);
+  // where the engine went on the internet while it ran (a sample), and what this Space's internet setting blocked
+  if (what.reached?.length) rows.push(["Reached", what.reached.join(", ")]);
+  const blocked = what.denials.filter((d) => d.cap === "internet").map((d) => d.reason);
+  if (blocked.length > 0) rows.push(["Blocked", blocked.slice(0, 5).join("; ")]);
   rows.push(["Trace", t.traceId]);
   return rows;
 }

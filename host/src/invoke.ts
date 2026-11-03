@@ -132,7 +132,12 @@ export interface GateHook {
   seen?(cap: CapabilityDef, input: unknown, output: unknown, seed: CtxSeed): Promise<void>;
 }
 
+/** The reason a step's outward act was refused on a computer that does not hold the schedule lease now; the Run waits for the one that does (modules/runs). */
+export const NOT_SCHEDULING_COMPUTER = "not_scheduling_computer";
+
 export interface InvokeDeps {
+  /** A Personal Space on several computers: does this computer hold the scheduled-work lease now. Absent: always. */
+  scheduledHere?(): boolean;
   /** The Files mutation guard for connector sources (host/src/daemon/connector-source-guard.ts): an extra check on top of normal Files authorization. */
   sourceGuard?: { check(a: { cap: string; input: unknown; seed: CtxSeed; now: number }): { key: string; reason: string } | null };
   recordAccess?: {
@@ -292,6 +297,11 @@ export function createInvoke(deps: InvokeDeps): Invoke {
       if (!cap) throw fail("validation.unknown_capability", traceId, { message: "There is no such capability.", details: { cap: capName, v: seed.v ?? null } });
       const c = cap;
       deps.personal?.gate(c.name, traceId, { input, principal: seed.principal, actingFor: seed.actingFor });
+      // A Personal Space on several computers: a send, post or payment inside a scheduled step happens only on the computer that holds the schedule lease at that moment (host/src/peers/runner.ts).
+      // Anywhere else the step parks and the holder carries it on after the next sync, so two computers that both thought they held the lease cannot both send.
+      if (seed.step && c.effects === "outward" && deps.scheduledHere && !deps.scheduledHere()) {
+        throw fail("internal.unavailable", traceId, { message: "Waiting for the computer that runs scheduled work.", details: { cap: c.name, reason: NOT_SCHEDULING_COMPUTER } });
+      }
       const depth = seed.depth ?? 0;
       if (depth >= MAX_DEPTH) throw fail("validation.precondition_failed", traceId, { message: "Calls nest too deeply.", details: { depth, limit: MAX_DEPTH } });
 

@@ -178,6 +178,9 @@ export const codex: CliAdapter = {
       "codex", "exec", "--json", "--skip-git-repo-check",
       // Codex's own sandbox stays on inside ours: read-only unless a work folder was granted and the chat is not in plan mode.
       "-c", `sandbox_mode=${toml(codexSandbox(o))}`,
+      // Codex's workspace-write sandbox cuts its commands off the network unless told otherwise; Vyre's wall around it applies the Space's internet setting, so the commands may use the network
+      // the wall allows (npm install, git clone, curl). The key is from Codex's config reference ([sandbox_workspace_write] network_access); not yet seen on a live run.
+      "-c", "sandbox_workspace_write.network_access=true",
       ...(o.mode !== undefined ? ["-c", `approval_policy=${toml("never")}`] : []),
       ...(codexEffort(o.effort) !== null ? ["-c", `model_reasoning_effort=${toml(codexEffort(o.effort)!)}`] : []),
       // Codex's stdio server block takes command, args, env (plain values) and env_vars (names of variables passed on from Codex's environment). CHECKED against codex-cli 0.166 (a real run on a build box,

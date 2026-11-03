@@ -396,6 +396,8 @@ write_config() {
     ( umask 077; : >"$DIR/vyre.env" )
     chmod 0600 "$DIR/vyre.env"
     [ -z "${VYRE_CODE:-}" ] || printf 'VYRE_SETUP_CODE=%s\n' "$VYRE_CODE" >>"$DIR/vyre.env"
+    # a server for a Personal Space (Settings, Computers, Add a server): VYRE_PEER_JOIN is the one-time code; the server joins through the relay, needs no address and holds a full copy
+    if [ -n "${VYRE_PEER_JOIN:-}" ]; then printf 'VYRE_SPACE_KIND=personal\nVYRE_PEERS=1\nVYRE_PEER_KIND=server\nVYRE_PEER_JOIN=%s\n' "$VYRE_PEER_JOIN" >>"$DIR/vyre.env"; fi
   fi
   # compose.env: what the compose file reads. Rewritten each install from the release and the choices made here.
   {
