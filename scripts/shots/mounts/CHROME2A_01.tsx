@@ -53,7 +53,7 @@ function Chat({ part }: { part: string }): ReactNode {
   const [thumb, setThumb] = useState("");
   useEffect(() => setThumb(drawShot()), []);
   const items = useMemo(() => timeline([message(part, thumb)], { meId: "usr_olivia", nameOf: (id: string) => NAMES[id] ?? id, kindOf: (id: string) => (id.startsWith("agt_") ? "agent" : "person"), clock: { now: Date.UTC(2026, 10, 4, 15, 0), offsetMin: -300 } }), [part, thumb]);
-  const actions = useMemo(() => ({ nameOf: (id: string) => NAMES[id] ?? id, chrome: { send() {}, drop() {}, edit() {}, watch() {}, takeOver() {} }, copy() {}, openThread() {}, setPinned() {}, react() {}, remove() {}, openAgent() {}, showMenu() {} }), []);
+  const actions = useMemo(() => ({ nameOf: (id: string) => NAMES[id] ?? id, chrome: { send: async () => ({ sent: true }), drop: async () => undefined, edit: async () => undefined, watch: async () => undefined, takeOver: async () => undefined }, copy() {}, openThread() {}, setPinned() {}, react() {}, remove() {}, openAgent() {}, showMenu() {} }), []);
   return (
     <View style={{ flex: 1, minHeight: 520, padding: 24, backgroundColor: "var(--win)" as string }}>
       <View style={{ maxWidth: 720, width: "100%" }}>{items.map((it) => <MessageView key={it.key} item={it} actions={actions as never} meId="usr_olivia" />)}</View>

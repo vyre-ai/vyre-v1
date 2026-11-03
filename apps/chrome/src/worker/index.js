@@ -192,8 +192,8 @@ export function createWorker(ext) {
       case "vyre.choices": return { data: await save.choices({ tabId, origin }) };
       case "vyre.accounts": {
         if (msg.kind === "card") return { data: { blocked: null, rows: await fill.cards() } };
-        const r = await fill.loginsFor(sender.tab.url);
-        return { data: { blocked: r.blocked, rows: r.rows.map((/** @type {any} */ x) => ({ id: x.id, name: x.name, kind: x.kind, usernameField: x.usernameField || undefined })) } };
+        const r = await fill.accountsFor(sender.tab.url);
+        return { data: { blocked: r.blocked, rows: r.rows.map((/** @type {any} */ x) => ({ id: x.id, name: x.name, kind: x.kind, username: x.username || undefined, usernameField: x.usernameField || undefined })) } };
       }
       case "vyre.fill": {
         const kind = msg.kind === "otp" ? "otp" : msg.kind === "card" ? "card" : "login";

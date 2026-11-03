@@ -128,11 +128,20 @@ export function createFill({ bridge, scripting, rules, now = Date.now, waitMs = 
     }
   }
 
+  /** The accounts for a page as the field badge's picker lists them: the item's name and, under it, the username when the Vault says it (so two logins for one site can be told apart). Never a password. @param {string | undefined} url */
+  async function accountsFor(url) {
+    const r = await loginsFor(url);
+    if (r.blocked || !r.page) return { blocked: r.blocked, rows: [] };
+    const out = await bridge.invoke("vault.items.match", { url: r.page.origin });
+    const items = Array.isArray(out && out.items) ? out.items : [];
+    return { blocked: null, rows: items.map((/** @type {any} */ e) => ({ ...loginRow(e), username: typeof e.username === "string" ? e.username.slice(0, 120) : "" })) };
+  }
+
   /** The person's card items, names only: a card is not tied to a site, so the list is the Vault's cards the person may use. */
   async function cards() {
     const out = await bridge.invoke("vault.items.list", { kind: "card", section: "personal" });
     return (Array.isArray(out && out.items) ? out.items : []).map((/** @type {any} */ i) => ({ id: String(i.id ?? ""), name: String(i.name ?? "Card").slice(0, 80), kind: "card" }));
   }
 
-  return { loginsFor, cards, fill, deliver, get pendingRefs() { return refs.size; } };
+  return { loginsFor, accountsFor, cards, fill, deliver, get pendingRefs() { return refs.size; } };
 }

@@ -151,6 +151,11 @@ export function createChromeBridge(deps: ChromeBridgeDeps) {
       push({ type: "agent.optin", spaces, mode });
     },
 
+    /** Take over from the chat's card: the extension gives the agent's tab back to the person, as the bar's button does. */
+    takeOver(agentId: string): number { return push({ type: "agent.takeover", agent: agentId }); },
+    /** Watch from the chat's card: the extension brings the agent's tab to the front. */
+    watch(agentId: string): number { return push({ type: "agent.watch", agent: agentId }); },
+
     /** The Spaces whose agents the person opened this Chrome to, and in what mode; null until the app says. */
     get opened(): { spaces: string[]; mode: "personal" | "computer" } | null { return lastOptIn ? { spaces: [...lastOptIn.spaces], mode: lastOptIn.mode } : null; },
 

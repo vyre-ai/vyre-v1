@@ -4715,6 +4715,29 @@ export type BookingsPageCreateOut = {
     submissions: number;
   };
 };
+export type BrowserCardsPostIn = {
+  threadId: string;
+  block: {
+    type: "chrome_held" | "chrome_step";
+    data: unknown;
+  };
+  idempotencyKey: string;
+};
+export type BrowserCardsPostOut = {
+  posted: boolean;
+};
+export type BrowserChromeActIn = {
+  action: "send" | "drop" | "watch" | "takeover";
+  agentId: string;
+  heldId?: string;
+  threadId?: string;
+  summary?: string;
+  idempotencyKey: string;
+};
+export type BrowserChromeActOut = {
+  done: boolean;
+  already?: boolean;
+};
 export type BrowserSitesListIn = Record<string, unknown>;
 export type BrowserSitesListOut = {
   sites: Array<{
@@ -39438,6 +39461,7 @@ export type VaultItemsMatchOut = {
         updatedAt: number;
       };
       usernameField?: string;
+      username?: string;
     }>;
 };
 export type VaultPolicyGetIn = Record<string, unknown>;
@@ -40350,6 +40374,8 @@ export interface CapMap {
   "bookings.cancel": { in: BookingsCancelIn; out: BookingsCancelOut };
   "bookings.list": { in: BookingsListIn; out: BookingsListOut };
   "bookings.page_create": { in: BookingsPageCreateIn; out: BookingsPageCreateOut };
+  "browser.cards.post": { in: BrowserCardsPostIn; out: BrowserCardsPostOut };
+  "browser.chrome.act": { in: BrowserChromeActIn; out: BrowserChromeActOut };
   "browser.sites.list": { in: BrowserSitesListIn; out: BrowserSitesListOut };
   "browser.sites.remove": { in: BrowserSitesRemoveIn; out: BrowserSitesRemoveOut };
   "browser.sites.set": { in: BrowserSitesSetIn; out: BrowserSitesSetOut };

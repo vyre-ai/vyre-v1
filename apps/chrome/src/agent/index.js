@@ -104,6 +104,12 @@ export function createAgentControl(ext, o = {}) {
       return;
     }
     if (cmd.type === "agent.held.drop") { sessions.dropHeld(cmd.id); return; }
+    if (cmd.type === "agent.takeover") { await sessions.pause(cmd.agent, "takeover"); return; }
+    if (cmd.type === "agent.watch") {
+      const tabId = sessions.currentTab(cmd.agent);
+      if (tabId !== null) { try { const t = await ext.tabs.update(tabId, { active: true }); if (t && t.windowId !== undefined && ext.windows) await ext.windows.update(t.windowId, { focused: true }); } catch { /* the tab is gone */ } }
+      return;
+    }
     if (cmd.thread) threads.set(cmd.agent.id, cmd.thread);
     try {
       const output = await tools.run({ id: cmd.id, tool: cmd.tool, input: cmd.input, agent: cmd.agent, space: cmd.space });

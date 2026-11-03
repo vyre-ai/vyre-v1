@@ -125,12 +125,13 @@ export function checkInput(tool, input) {
 /**
  * A message from the app, checked before anyone acts on it. Returns null for anything the agent channel does not understand.
  * @param {unknown} m
- * @returns {{ type: "agent.call", id: string, tool: string, input: Record<string, any>, agent: { id: string, name: string }, space: string, thread?: string } | { type: "agent.optin", spaces: string[], mode: "personal" | "computer" } | { type: "agent.held.drop", id: string } | null}
+ * @returns {{ type: "agent.call", id: string, tool: string, input: Record<string, any>, agent: { id: string, name: string }, space: string, thread?: string } | { type: "agent.optin", spaces: string[], mode: "personal" | "computer" } | { type: "agent.held.drop", id: string } | { type: "agent.takeover", agent: string } | { type: "agent.watch", agent: string } | null}
  */
 export function parseCommand(m) {
   if (!isObject(m)) return null;
   if (m["type"] === "agent.optin" && Array.isArray(m["spaces"])) return { type: "agent.optin", spaces: m["spaces"].filter((/** @type {unknown} */ s) => typeof s === "string").slice(0, 100), mode: m["mode"] === "computer" ? "computer" : "personal" };
   if (m["type"] === "agent.held.drop" && typeof m["id"] === "string" && /^hld_[0-9a-f]+$/.test(m["id"])) return { type: "agent.held.drop", id: m["id"] };
+  if ((m["type"] === "agent.takeover" || m["type"] === "agent.watch") && typeof m["agent"] === "string" && m["agent"]) return { type: m["type"], agent: m["agent"].slice(0, 80) };
   if (m["type"] !== "agent.call") return null;
   const agent = m["agent"];
   if (typeof m["id"] !== "string" || typeof m["tool"] !== "string" || !isObject(agent) || typeof agent["id"] !== "string" || typeof agent["name"] !== "string" || typeof m["space"] !== "string") return null;

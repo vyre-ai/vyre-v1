@@ -31,6 +31,16 @@ export default defineManifest({
       level: 'member', idem: 'key', in: { host: t.str({ examples: ['app.gohighlevel.com'] }), runsIn, rights: t.arr(rightRow) }, out: { site: siteRow },
       emits: ['browser.site_changed'], audit: 'sensitive', offline: 'online', errors: ['validation.precondition_failed'],
     }),
+    // The two Chrome cards in a chat (chrome_held, chrome_step): a host-written block, cleaned to the page's own fields and posted as the caller with no text and no mention, so it never wakes an agent.
+    write('browser.cards.post', 'Leave a card in a chat for work in the person\'s own Chrome: a held send with the page\'s To, From, Subject and Message, or the "Using your Chrome" step with a masked picture. Never routes to an agent', {
+      level: 'member', idem: 'key', in: { threadId: id.thread, block: t.obj({ type: t.enm('chrome_held', 'chrome_step'), data: t.json() }) }, out: { posted: t.bool() }, audit: 'none', offline: 'online', errors: ['validation.bad_input'],
+    }),
+    // What the buttons on those cards do. Only the signed-in person, only in their own Chrome: Send releases the held item through chrome_send (once: a second press says it was already done), Don't send makes the
+    // extension forget it and tells the agent in the chat, Watch brings its tab to the front, Take over gives the tab back.
+    write('browser.chrome.act', 'Press a button on a Chrome card: send what is held, do not send it, watch the agent\'s tab, or take it over', {
+      level: 'member', idem: 'key', risk: 'high', in: { action: t.enm('send', 'drop', 'watch', 'takeover'), agentId: id.agent, heldId: t.opt(t.str({ pattern: '^hld_[0-9a-f]+$', examples: ['hld_a1b2c3'] })), threadId: t.opt(id.thread), summary: t.opt(t.str()) },
+      out: { done: t.bool(), already: t.opt(t.bool()) }, audit: 'always', offline: 'online', errors: ['provider.unavailable', 'validation.bad_input', 'permission.no_grant'],
+    }),
     write('browser.sites.remove', 'Remove a Browser connection', { level: 'member', in: { siteId }, out: ok, emits: ['browser.site_changed'], audit: 'sensitive', offline: 'online', errors: ['validation.not_found'] }),
   ],
 });

@@ -18,6 +18,7 @@ export interface BrowserCtx {
   now(): number;
   db: Db;
   emit(name: string, subject: string, payload: unknown): unknown;
+  call(cap: string, input: unknown): Promise<unknown>;
 }
 
 export interface SiteRow { id: string; owner: string; host: string; runs_in: RunsIn; rights_json: string; removed: number; at: number; updated_at: number }

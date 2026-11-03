@@ -294,6 +294,12 @@ export function createClient(transport: Transport) {
       page_create: call("bookings.page_create", 1),
     },
     browser: {
+      cards: {
+        post: call("browser.cards.post", 1),
+      },
+      chrome: {
+        act: call("browser.chrome.act", 1),
+      },
       sites: {
         list: call("browser.sites.list", 1),
         remove: call("browser.sites.remove", 1),

@@ -8,6 +8,7 @@ import { MessageView } from "./MessageView.tsx";
 import { timeline } from "./model.ts";
 import type { Message } from "./model.ts";
 
+const ok = { send: async () => ({ sent: true }), drop: async () => undefined, edit: async () => undefined, watch: async () => undefined, takeOver: async () => undefined };
 const THUMB = "data:image/jpeg;base64,/9j/4AAQSkZJRg==";
 const HELD = { heldId: "hld_a1b2c3", agent: "Scout", site: "mail.google.com", kind: "send", card: { to: "dana@client.test", from: "olivia@firm.test", subject: "Your signed deed", message: "Hi Dana, the signed deed is attached." }, state: "waiting" };
 const flat = (h: string): string => h.replace(/<[^>]+>/g, " ").replace(/&#x27;|&#39;/g, "'").replace(/\s+/g, " ");
@@ -29,7 +30,7 @@ test("the words follow the act: Send, Post, Pay or Delete, and the matching Don'
 });
 
 test("the held card draws the four fields and three buttons; once answered it says what happened and has no buttons", () => {
-  const open = renderToStaticMarkup(<HeldSendCard id="b1" data={HELD} agentId="agt_scout" actions={{ send() {}, drop() {}, edit() {}, watch() {}, takeOver() {} }} />);
+  const open = renderToStaticMarkup(<HeldSendCard id="b1" data={HELD} agentId="agt_scout" actions={ok} />);
   const t = flat(open);
   assert.match(t, /Held: send this/);
   assert.match(t, /Scout wants to send this/);
@@ -53,7 +54,7 @@ test("the step card says Using your Chrome with the site, shows only the extensi
   assert.equal(stepWords({ agent: "Scout", site: "a.test", thumb: null, state: "using", saw: [], open: false }), "Using your Chrome · a.test");
   assert.equal(stepWords({ agent: "Scout", site: "a.test", thumb: null, state: "waiting", saw: [], open: false }), "Waiting for you · a.test");
   assert.equal(stepWords({ agent: "Scout", site: "a.test", thumb: null, state: "stopped", saw: [], open: false }), "Stopped in your Chrome · a.test");
-  const live = renderToStaticMarkup(<ChromeStepCard id="s1" data={{ agent: "Scout", site: "app.gohighlevel.com", thumb: THUMB, state: "using" }} agentId="agt_scout" actions={{ send() {}, drop() {}, edit() {}, watch() {}, takeOver() {} }} />);
+  const live = renderToStaticMarkup(<ChromeStepCard id="s1" data={{ agent: "Scout", site: "app.gohighlevel.com", thumb: THUMB, state: "using" }} agentId="agt_scout" actions={ok} />);
   assert.match(flat(live), /Using your Chrome · app\.gohighlevel\.com/);
   assert.match(live, /chrome-step-s1-thumb/);
   assert.match(live, /chrome-step-watch-s1/);
@@ -77,7 +78,7 @@ test("in a message from the agent, both blocks draw as their own cards and the b
     depth: 0, attachments: [], reactions: [], pinned: false, createdAt: Date.UTC(2025, 9, 9, 9, 0),
   } as unknown as Message;
   const nameOf = (id: string): string => (id === "agt_scout" ? "Scout" : "Olivia");
-  const actions = { nameOf, chrome: { send: (id: string) => { calls.push(`send ${id}`); }, drop: () => {}, edit: () => {}, watch: () => {}, takeOver: () => {} }, copy: () => undefined, openThread: () => undefined, setPinned: () => undefined, react: () => undefined, remove: () => undefined, openAgent: () => undefined, showMenu: () => undefined } as never;
+  const actions = { nameOf, chrome: ok, copy: () => undefined, openThread: () => undefined, setPinned: () => undefined, react: () => undefined, remove: () => undefined, openAgent: () => undefined, showMenu: () => undefined } as never;
   const items = timeline([m], { meId: "usr_olivia", nameOf, kindOf: (id: string) => (id.startsWith("agt_") ? "agent" : "person"), clock: { now: Date.UTC(2025, 9, 9, 10, 0), zone: "UTC" } as never });
   const html = items.map((it) => renderToStaticMarkup(<MessageView item={it} actions={actions} meId="usr_olivia" />)).join("");
   assert.match(html, /chrome-step-blk_s/);

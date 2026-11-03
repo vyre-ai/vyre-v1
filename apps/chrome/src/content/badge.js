@@ -20,6 +20,8 @@
     .row { display: flex; width: 100%; gap: 8px; align-items: center; padding: 7px 8px; border: 0; border-radius: 8px; background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer; }
     .row:hover, .row:focus-visible { background: rgba(67,56,202,.14); outline: none; }
     .note { padding: 8px; opacity: .75; }
+    .row { flex-direction: column; align-items: flex-start; gap: 1px; }
+    .who { font-size: 11.5px; opacity: .65; }
   `;
 
   /** @type {null | { host: any, root: any, badge: any, pick: any, field: any, off: () => void }} */
@@ -103,7 +105,8 @@
             b.type = "button";
             b.className = "row";
             b.setAttribute("role", "menuitem");
-            b.textContent = row.name;
+            b.append(row.name);
+            if (row.username) { const u = d.createElement("span"); u.className = "who"; u.textContent = row.username; b.append(u); }
             b.addEventListener("click", (/** @type {any} */ ev) => {
               if (!ev.isTrusted) return;
               try { g.chrome.runtime.sendMessage({ type: "vyre.fill", itemId: row.id, kind: row.kind === "card" ? "card" : row.kind === "totp" ? "otp" : "login", usernameField: row.usernameField }); } catch { /* reloaded */ }

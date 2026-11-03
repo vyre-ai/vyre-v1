@@ -38,7 +38,7 @@ export async function shootExtension(scheme: "light" | "dark", skin: "paper" | "
       ops: { "agents.list": () => AGENTS, "login.check": () => ({ state: "new", name: "Acme Portal" }) },
       caps: {
         "browser.sites.list": () => ({ sites: [{ id: "bsi_1", host: "127.0.0.1", runsIn: "chrome", rights: [{ agentId: "agt_scout", right: "act" }], at: 1, updatedAt: 1 }] }),
-        "vault.items.match": () => ({ items: [{ item: { id: "vit_acme", name: "Acme Portal", kind: "login", handle: "#Acme_Portal", fieldKeys: ["username", "password"] }, usernameField: "username" }] }),
+        "vault.items.match": () => ({ items: [{ item: { id: "vit_acme", name: "Acme Portal", kind: "login", handle: "#Acme_Portal", fieldKeys: ["username", "password"] }, usernameField: "username", username: USERNAME }, { item: { id: "vit_acme2", name: "Acme Portal (billing)", kind: "login", handle: "#Acme_Billing", fieldKeys: ["username", "password"] }, usernameField: "username", username: "billing@acme.test" }] }),
         "vault.use": (i) => ({ handle: "#Acme_Portal", itemId: i["item"], fields: ["username", "password"] }),
         "vault.fill": (i) => { push({ type: "fill", ref: (i["target"] as any).ref, value: String(i["handle"]).endsWith(".username") ? USERNAME : PASSWORD }); return { filled: true, where: "browser" }; },
         "vault.folders.list": (i) => ({ folders: i["scope"] === "shared" ? [{ id: "vfd_team", name: "Team logins", yourLevel: "edit" }] : [{ id: "vfd_mine", name: "Mine", yourLevel: "manage" }] }),

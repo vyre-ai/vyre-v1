@@ -45,3 +45,29 @@ export function blockOf(e: AgentEvent): ChromeBlock | null {
     default: return null;
   }
 }
+
+const HELD_ID = /^hld_[0-9a-f]+$/;
+/**
+ * The block a card post may carry, cut down to what the chat reads, or null. Only the two chrome card types, a real held id, only the four named fields, and a picture only as the extension's own data image.
+ * Whoever posts gets the same cleaning, so a card never carries more than the page's own fields.
+ */
+export function cleanBlock(type: unknown, data: unknown): { type: "chrome_held" | "chrome_step"; v: 1; data: Record<string, unknown> } | null {
+  const d = obj(data);
+  if (type === "chrome_held") {
+    const heldId = str(d["heldId"], 80);
+    if (!HELD_ID.test(heldId)) return null;
+    const card = obj(d["card"]);
+    const pick = (k: string, n: number): string => str(card[k], n);
+    const state = d["state"] === "sent" || d["state"] === "dropped" || d["state"] === "expired" ? d["state"] : "waiting";
+    return { type: "chrome_held", v: 1, data: { heldId, agentId: str(d["agentId"], 80), agent: str(d["agent"], 60), site: str(d["site"], 120), kind: str(d["kind"], 20) || "send", summary: str(d["summary"], 200), card: { to: pick("to", 200), from: pick("from", 200), subject: pick("subject", 200), message: pick("message", 2000) }, state } };
+  }
+  if (type === "chrome_step") {
+    const site = str(d["site"], 120);
+    if (!site) return null;
+    const thumb = str(d["thumb"], 400_000);
+    const state = ["waiting", "paused", "done", "stopped"].includes(String(d["state"])) ? d["state"] : "using";
+    const saw = (Array.isArray(d["saw"]) ? d["saw"] : []).filter((h): h is string => typeof h === "string" && /^#[A-Za-z0-9_]+(\.[A-Za-z0-9_]+)?$/.test(h)).slice(0, 20);
+    return { type: "chrome_step", v: 1, data: { agentId: str(d["agentId"], 80), agent: str(d["agent"], 60), site, thumb: THUMB.test(thumb) ? thumb : null, state, saw } };
+  }
+  return null;
+}

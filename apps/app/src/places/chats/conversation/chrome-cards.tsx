@@ -13,12 +13,16 @@ export interface HeldCardData {
   state: "waiting" | "sent" | "dropped" | "expired";
 }
 export interface StepCardData { agent: string; site: string; thumb: string | null; state: "using" | "waiting" | "paused" | "done" | "stopped"; /** Vault handles the agent was given on this page (names, never values). */ saw: string[]; /** The list of handles starts open (a screenshot mount). */ open: boolean }
+/** What a button press on a card needs to name. */
+export interface HeldRef { heldId: string; agentId: string; summary: string }
+/** What the buttons do. Each answers when it is done, or throws with words for the person. send answers whether it went out now (false: it was already done). */
 export interface ChromeCardActions {
-  send(heldId: string): void | Promise<void>;
-  drop(heldId: string): void | Promise<void>;
-  edit(heldId: string): void | Promise<void>;
-  watch(agentId: string): void | Promise<void>;
-  takeOver(agentId: string): void | Promise<void>;
+  send(h: HeldRef): Promise<{ sent: boolean }>;
+  drop(h: HeldRef): Promise<void>;
+  /** Edit means the person changes it in Chrome themselves: the agent steps back and the tab is theirs. */
+  edit(h: HeldRef): Promise<void>;
+  watch(agentId: string): Promise<void>;
+  takeOver(agentId: string): Promise<void>;
 }
 
 const HANDLE = /^#[A-Za-z0-9_]+(\.[A-Za-z0-9_]+)?$/;
@@ -67,8 +71,15 @@ export function HeldSendCard({ id, data, agentId, agentName, actions }: { id: st
   const h = { ...found, agent: found.agent === "An agent" && agentName ? agentName : found.agent };
   const v = verbOf(h.kind);
   const rows: Array<[string, string]> = ([["To", h.to], ["From", h.from], ["Subject", h.subject], ["Message", h.message]] as Array<[string, string]>).filter(([, t]) => t !== "");
-  const open = h.state === "waiting";
-  void agentId;
+  const [local, setLocal] = useState<"" | "sent" | "dropped" | "editing">("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const open = h.state === "waiting" && local === "";
+  const ref: HeldRef = { heldId: h.heldId, agentId: found.agentId || agentId, summary: h.summary };
+  const press = (f: () => Promise<void>): void => {
+    setBusy(true); setError("");
+    f().then(() => setBusy(false), (e: unknown) => { setBusy(false); setError(e instanceof Error ? e.message : "That did not work. Try again."); });
+  };
   const where = h.site ? `${h.site}, in your Chrome` : "";
   const heldTitle = h.kind === "send" ? "Held: send this" : h.kind === "post" ? "Held: post this" : h.kind === "payment" ? "Held: make this payment" : h.kind === "delete" ? "Held: delete this" : "Held: waiting for you";
   return (
@@ -90,11 +101,12 @@ export function HeldSendCard({ id, data, agentId, agentName, actions }: { id: st
       <View style={s.foot}>
         {open ? (
           <View style={s.actions}>
-            <TextButton label={v.do} primary icon="check" onPress={() => { void actions?.send(h.heldId); }} disabled={!actions} testID={`chrome-held-send-${id}`} />
-            <TextButton label="Edit" ring icon="edit" onPress={() => { void actions?.edit(h.heldId); }} disabled={!actions} testID={`chrome-held-edit-${id}`} />
-            <TextButton label={v.dont} onPress={() => { void actions?.drop(h.heldId); }} disabled={!actions} testID={`chrome-held-drop-${id}`} />
+            <TextButton label={v.do} primary icon="check" onPress={() => press(async () => { await (actions as ChromeCardActions).send(ref); setLocal("sent"); })} disabled={!actions || busy} testID={`chrome-held-send-${id}`} />
+            <TextButton label="Edit" ring icon="edit" onPress={() => press(async () => { await (actions as ChromeCardActions).edit(ref); setLocal("editing"); })} disabled={!actions || busy} testID={`chrome-held-edit-${id}`} />
+            <TextButton label={v.dont} onPress={() => press(async () => { await (actions as ChromeCardActions).drop(ref); setLocal("dropped"); })} disabled={!actions || busy} testID={`chrome-held-drop-${id}`} />
           </View>
-        ) : <Text style={s.state} testID={`chrome-held-state-${id}`}>{h.state === "sent" ? "Sent" : h.state === "dropped" ? "Not sent" : "No longer waiting"}</Text>}
+        ) : <Text style={s.state} testID={`chrome-held-state-${id}`}>{h.state === "sent" || local === "sent" ? "Sent" : h.state === "dropped" || local === "dropped" ? `Not sent. ${h.agent} was told.` : local === "editing" ? "The tab is yours. Change what you need in Chrome and press Send there. The agent waits." : "No longer waiting"}</Text>}
+        {error ? <Text style={s.error} accessibilityRole="alert" testID={`chrome-held-error-${id}`}>{error}</Text> : null}
         {open ? <Text style={s.stopped}>{`${h.agent} stopped before ${v.do}`}</Text> : null}
       </View>
     </View>
@@ -115,8 +127,8 @@ export function ChromeStepCard({ id, data, agentId, agentName, actions }: { id: 
         <Text style={s.site} numberOfLines={1}>{c.agent}</Text>
         {live ? (
           <View style={s.actions}>
-            <TextButton label="Watch" onPress={() => { void actions?.watch(agentId); }} disabled={!actions} testID={`chrome-step-watch-${id}`} />
-            <TextButton label="Take over" onPress={() => { void actions?.takeOver(agentId); }} disabled={!actions} testID={`chrome-step-takeover-${id}`} />
+            <TextButton label="Watch" onPress={() => { void actions?.watch(agentId).catch(() => undefined); }} disabled={!actions} testID={`chrome-step-watch-${id}`} />
+            <TextButton label="Take over" onPress={() => { void actions?.takeOver(agentId).catch(() => undefined); }} disabled={!actions} testID={`chrome-step-takeover-${id}`} />
           </View>
         ) : null}
         {c.saw.length > 0 ? (
@@ -137,6 +149,7 @@ const s = StyleSheet.create({
   needs: { fontSize: 12, color: "var(--ink-3)" as string },
   who: { paddingHorizontal: 12, fontSize: 12.5, color: "var(--ink-3)" as string },
   foot: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8, paddingHorizontal: 12, paddingTop: 4 },
+  error: { fontSize: 12, color: "var(--danger)" as string },
   stopped: { fontSize: 12, color: "var(--ink-3)" as string },
   head: { flexDirection: "row", alignItems: "center", gap: 8 },
   title: { flexShrink: 1, fontSize: 13.5, fontWeight: "500", color: "var(--ink)" as string },

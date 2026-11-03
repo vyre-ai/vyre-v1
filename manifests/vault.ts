@@ -102,7 +102,7 @@ export default defineManifest({
       level: 'member', in: { section: t.opt(section), folder: t.opt(id.vaultFolder), kind: t.opt(itemKind), q: t.opt(t.str()), ...pageIn },
       out: { items: t.arr(itemMeta), counts: t.rec(t.int({ minimum: 0 })), ...pageOut }, tool: 'vault', label: 'filter', cli: 'vyre vault list',
     }),
-    read('vault.items.match', 'Items that fit a website address (the Chrome extension offers them to fill)', { ...V, in: { url }, out: { items: t.arr(t.obj({ item: itemMeta, usernameField: t.opt(fieldKey) })) }, tool: 'vault', label: 'filter' }),
+    read('vault.items.match', 'Items that fit a website address (the Chrome extension offers them to fill)', { ...V, in: { url }, out: { items: t.arr(t.obj({ item: itemMeta, usernameField: t.opt(fieldKey), username: t.opt(t.str()) })) }, tool: 'vault', label: 'filter' }),
     read('vault.item.get', 'One item: metadata and field keys, never values', {
       in: { itemId: id.vaultItem }, out: { item: itemMeta, fields: t.arr(t.obj({ key: fieldKey, secret: t.bool(), hasValue: t.bool() })) }, on: ['vault_item', '/itemId'], level: 'use', tool: 'vault', label: 'check', cli: 'vyre vault get',
     }),

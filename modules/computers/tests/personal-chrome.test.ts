@@ -13,14 +13,15 @@ function port(o: { person?: string; open?: boolean; answers?: Record<string, Rec
   const p: PersonalChrome = {
     async available(a) { return o.open !== false && a.person === (o.person ?? DANA); },
     async call(a) { calls.push(a); return o.answers?.[a.tool] ?? { ok: true }; },
-    held: (id) => (id === "hld_ab12" ? { site: "mail.test", kind: "send", summary: "send: Send on mail.test", card: { to: "dana@client.test", subject: "Deed", message: "Hi" } } : null),
+    held: async (id) => (id === "hld_ab12" ? { site: "mail.test", kind: "send", summary: "send: Send on mail.test", card: { to: "dana@client.test", subject: "Deed", message: "Hi" } } : null),
     frame: () => ({ site: "mail.test", thumb: THUMB }),
+    drop() {}, takeOver() {}, watch() {},
   };
   bindPersonalChrome(p);
   return calls;
 }
 const agentFor = (person: string, thread?: string) => {
-  const h = harness({ principal: { kind: "agent", id: "agt_scout" }, actingFor: person, respond: { "chat.post": () => ({ message: { id: "msg_1" } }) } });
+  const h = harness({ principal: { kind: "agent", id: "agt_scout" }, actingFor: person, respond: { "browser.cards.post": () => ({ posted: true }) } });
   if (thread) h.ctx.thread = thread;
   return h;
 };
@@ -57,13 +58,13 @@ test("a held send leaves its card in the chat with the page's own fields, once, 
     const out = await tool["computers.chrome.act"]!(h.ctx, { ref: "e1", action: "click", computerId: "my-chrome" });
     assert.equal(out.heldId, "hld_ab12");
     assert.equal(calls[0]!.thread, "thr_1");
-    const posts = h.calls("chat.post");
-    const held = posts.map((p) => (p.input["blocks"] as Array<{ type: string; data: Record<string, any> }>)[0]!).find((b) => b.type === "chrome_held")!;
+    const posts = h.calls("browser.cards.post");
+    const held = posts.map((p) => (p.input["block"] as { type: string; data: Record<string, any> })).find((b) => b.type === "chrome_held")!;
     assert.deepEqual([held.data["heldId"], held.data["card"].to, held.data["state"]], ["hld_ab12", "dana@client.test", "waiting"]);
-    const step = posts.map((p) => (p.input["blocks"] as Array<{ type: string; data: Record<string, any> }>)[0]!).find((b) => b.type === "chrome_step")!;
+    const step = posts.map((p) => (p.input["block"] as { type: string; data: Record<string, any> })).find((b) => b.type === "chrome_step")!;
     assert.deepEqual([step.data["site"], step.data["thumb"], step.data["state"]], ["mail.test", THUMB, "using"]);
     await tool["computers.chrome.snapshot"]!(h.ctx, { computerId: "my-chrome" });
-    assert.equal(h.calls("chat.post").filter((p) => (p.input["blocks"] as Array<{ type: string }>)[0]!.type === "chrome_step").length, 1, "one step card for a burst");
+    assert.equal(h.calls("browser.cards.post").filter((p) => (p.input["block"] as { type: string }).type === "chrome_step").length, 1, "one step card for a burst");
   } finally { bindPersonalChrome(null); }
 });
 

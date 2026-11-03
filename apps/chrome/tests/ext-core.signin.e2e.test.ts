@@ -19,7 +19,7 @@ const DASH = `<!doctype html><meta charset="utf-8"><title>Acme Portal</title><bo
 
 function vaultCaps(push: (m: Record<string, unknown>) => void) {
   return {
-    "vault.items.match": () => ({ items: [{ item: { id: "vit_acme", name: "Acme Portal", kind: "login", handle: "#Acme_Portal", fieldKeys: ["username", "password"] }, usernameField: "username" }] }),
+    "vault.items.match": () => ({ items: [{ item: { id: "vit_acme", name: "Acme Portal", kind: "login", handle: "#Acme_Portal", fieldKeys: ["username", "password"] }, usernameField: "username", username: USERNAME }] }),
     "vault.use": (i: Record<string, any>) => ({ handle: "#Acme_Portal", itemId: i["item"], fields: ["username", "password"] }),
     "vault.fill": (i: Record<string, any>) => { push({ type: "fill", ref: i["target"].ref, value: String(i["handle"]).endsWith(".username") ? USERNAME : PASSWORD }); return { filled: true, where: "browser" }; },
     "vault.folders.list": (i: Record<string, any>) => ({ folders: i["scope"] === "shared"
@@ -47,6 +47,7 @@ test("the badge in a sign-in field opens an account picker; picking an account f
     await r.shot(page, "chrome2a-badge");
     await page.mouse.click(badge.x, badge.y);
     await boxOf(page, "button", "Acme Portal");
+    await boxOf(page, "span", USERNAME);
     await r.shot(page, "chrome2a-picker");
     await press(page, "button", "Acme Portal");
     await r.waitFor(async () => (await page.inputValue("#pw")) === PASSWORD ? true : undefined as any, 3000, "the password in the field").catch(() => {});

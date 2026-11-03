@@ -4,6 +4,8 @@ import type { Handlers } from './handlers.ts';
 
 /** Example answers: the first example output of each capability (used when the host serves a stub module). */
 export const handlers: Handlers<HandlerCtx> = {
+  "browser.cards.post": async () => ({"posted":true} as unknown) as never,
+  "browser.chrome.act": async () => ({"already":true,"done":true} as unknown) as never,
   "browser.sites.list": async () => ({"sites":[{"at":1760000000000,"host":"app.gohighlevel.com","id":"bsi_a1b2c3","rights":[{"agentId":"agt_a1b2c3","right":"read"}],"runsIn":"chrome","updatedAt":1760000000000}]} as unknown) as never,
   "browser.sites.remove": async () => ({"ok":true} as unknown) as never,
   "browser.sites.set": async () => ({"site":{"at":1760000000000,"host":"app.gohighlevel.com","id":"bsi_a1b2c3","rights":[{"agentId":"agt_a1b2c3","right":"read"}],"runsIn":"chrome","updatedAt":1760000000000}} as unknown) as never,

@@ -232,16 +232,16 @@ async function chromeCards(ctx: CompCtx, port: PersonalChrome, out: ToolAnswer):
   const at = ctx.now();
   try {
     const heldId = typeof out["heldId"] === "string" ? out["heldId"] : "";
-    const held = heldId ? port.held(heldId) : null;
+    const held = heldId ? await port.held(heldId) : null;
     if (heldId && held) {
-      await ctx.call("chat.post", { threadId: thread, body: "", mentions: [], idempotencyKey: `chrheld:${heldId}`, blocks: [{ type: "chrome_held", v: 1, data: { heldId, agentId: agent, agent: "", site: held.site ?? "", kind: held.kind ?? "send", summary: held.summary ?? "", card: held.card ?? {}, state: "waiting" } }] });
+      await ctx.call("browser.cards.post", { threadId: thread, idempotencyKey: `chrheld:${heldId}`, block: { type: "chrome_held", data: { heldId, agentId: agent, site: held.site ?? "", kind: held.kind ?? "send", summary: held.summary ?? "", card: held.card ?? {}, state: "waiting" } } });
     }
     const f = port.frame(agent);
     const key = `${agent}|${thread}`;
     const prev = lastStep.get(key);
     if (f && (prev === undefined || at - prev >= LIVE_GAP_MS)) {
       lastStep.set(key, at);
-      await ctx.call("chat.post", { threadId: thread, body: "", mentions: [], idempotencyKey: `chrstep:${agent}:${thread}:${Math.floor(at / LIVE_GAP_MS)}`, blocks: [{ type: "chrome_step", v: 1, data: { agentId: agent, agent: "", site: f.site, thumb: f.thumb, state: "using" } }] });
+      await ctx.call("browser.cards.post", { threadId: thread, idempotencyKey: `chrstep:${agent}:${thread}:${Math.floor(at / LIVE_GAP_MS)}`, block: { type: "chrome_step", data: { agentId: agent, site: f.site, thumb: f.thumb, state: "using" } } });
     }
   } catch { /* the work went through; the card is a courtesy */ }
 }

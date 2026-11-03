@@ -294,6 +294,12 @@ export function stubs(ctx: CallCtx) {
       page_create: call("bookings.page_create"),
     },
     browser: {
+      cards: {
+        post: call("browser.cards.post"),
+      },
+      chrome: {
+        act: call("browser.chrome.act"),
+      },
       sites: {
         list: call("browser.sites.list"),
         remove: call("browser.sites.remove"),
