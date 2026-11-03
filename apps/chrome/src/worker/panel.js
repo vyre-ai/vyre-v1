@@ -93,10 +93,11 @@ export function createPanel({ ext, bridge, store, privacy, context, views = new 
         let hello = null;
         let status = "online";
         try { hello = await bridge.op("hello"); } catch (e) { status = e instanceof BridgeFailure && e.code === "no_host" ? "no_host" : "offline"; }
+        if (hello && hello.signedIn === false) status = "signed_out";
         if (hello && Array.isArray(hello.spaces)) await store.set({ spaces: hello.spaces.map((/** @type {any} */ s) => ({ id: String(s.id), name: String(s.name), webUrl: String(s.webUrl ?? "") })), activeSpace: typeof hello.active === "string" ? hello.active : null }).catch(() => {});
         /** @type {any} */
         let agents = { agents: [], suggested: null };
-        if (hello && !hello.locked) { try { agents = await bridge.op("agents.list", { page: may.read ? may.host : null }); } catch { /* the picker shows nobody */ } }
+        if (hello && !hello.locked && status === "online") { try { agents = await bridge.op("agents.list", { page: may.read ? may.host : null }); } catch { /* the picker shows nobody */ } }
         const pick = await picks();
         const view = tab ? views.get(tab.windowId) ?? null : null;
         if (tab) views.delete(tab.windowId);

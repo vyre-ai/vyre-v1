@@ -184,8 +184,9 @@ export function createChromeApp(deps: ChromeAppDeps) {
     return { threads: [...rows.values()].slice(0, limit).map((r) => ({ ...r, agentName: r["agentId"] ? agents.get(String(r["agentId"]))?.name ?? "" : "" })) };
   }
 
-  async function agentsById() {
-    const out = await call("agents.list", { limit: 100 }).catch(() => ({ agents: [] }));
+  async function agentsById(section?: string) {
+    session(); // signed out is an answer, not an empty list
+    const out = await call("agents.list", { limit: 100, ...(section === "personal" ? { section } : {}) }).catch(() => ({ agents: [] }));
     const map = new Map<string, { id: string; name: string; role: string; assistant: boolean }>();
     for (const a of Array.isArray(out?.agents) ? out.agents : []) {
       const assistant = a.role === "assistant" || a.kind === "assistant";
@@ -206,6 +207,7 @@ export function createChromeApp(deps: ChromeAppDeps) {
   }
 
   async function recordsMatch(input: Record<string, unknown>) {
+    session();
     const keys = [...(Array.isArray(input["emails"]) ? input["emails"] : []), ...(Array.isArray(input["phones"]) ? input["phones"] : [])].map((k) => str(k, 120)).filter(Boolean).slice(0, 6);
     const found = new Map<string, Record<string, unknown>>();
     for (const k of keys) {
@@ -250,7 +252,7 @@ export function createChromeApp(deps: ChromeAppDeps) {
           return { person: w?.principal?.id ?? null, name: w?.name ?? "", spaceId: w?.spaceId ?? session().id };
         }
         case "agents.list": {
-          const list = [...(await agentsById()).values()];
+          const list = [...(await agentsById(typeof input["section"] === "string" ? input["section"] : undefined)).values()];
           const suggested = list.find((a) => a.assistant) ?? list[0] ?? null;
           return { agents: list, suggested: suggested ? { id: suggested.id, name: suggested.name } : null };
         }

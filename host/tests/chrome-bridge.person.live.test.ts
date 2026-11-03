@@ -64,7 +64,7 @@ test("the extension acts as the picked Space's signed-in person through the gate
     const unlink = (id: string) => fetch(`${d.url}/local/chrome/spaces?id=${id}`, { method: "DELETE", headers: { authorization: `Bearer ${d.token}` } });
 
     // nobody signed in: refused, and the daemon's own admin token does not stand in for anyone
-    assert.equal((await rpc({ type: "bridge", op: "whoami", input: {} })).error.code, "signed_out");
+    assert.equal((await rpc({ type: "bridge", op: "agents.list", input: {} })).error.code, "signed_out");
 
     assert.equal((await link("spc_owner", owner)).status, 204);
     assert.equal((await link("spc_member", member)).status, 204);
@@ -73,25 +73,26 @@ test("the extension acts as the picked Space's signed-in person through the gate
     assert.equal(hello.output.active, "spc_member", "the newest sign-in is picked first");
     assert.equal(d.teamLinks().length, 0, "sessions for the extension only are never dialled for chats");
 
-    // the member's Space: everything runs as the member, with the member's roles
-    const asMember = await rpc({ type: "bridge", op: "whoami", input: {} });
-    assert.equal(asMember.output.person, "usr_noah", JSON.stringify(asMember));
-    const memberWho = await fetch(`${d.url}/v1/identity/whoami`, { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${member}` }, body: "{}" }).then((r) => r.json());
-    assert.ok(!(memberWho.data.roles as string[]).some((r) => /owner/.test(r)), "the member holds no owner role");
-    assert.equal((await rpc({ type: "invoke", capability: "vault.site_rules.list", input: {} })).ok, true, "a member's own call goes through as the member");
+    // Whose agents the extension sees says who it acts as: Scout is the member's own agent (fixtures/seed/core/recipe.ts).
+    const mine = async () => ((await rpc({ type: "bridge", op: "agents.list", input: { section: "personal" } })).output?.agents ?? []).map((a: { name: string }) => a.name);
 
-    // pick the owner's Space in the extension: now the owner
+    // the member's Space: everything runs as the member, with the member's roles
+    assert.deepEqual(await mine(), ["Scout"]);
+    assert.equal((await rpc({ type: "invoke", capability: "vault.site_rules.list", input: {} })).ok, true, "a member's own call goes through as the member");
+    assert.equal((await rpc({ type: "invoke", capability: "records.delete", input: {} })).error.code, "not_allowed", "nothing off the extension's list, for anyone");
+
+    // pick the owner's Space in the extension: now the owner, whose own agents do not include Scout
     assert.equal((await rpc({ type: "bridge", op: "space.select", input: { id: "spc_owner" } })).ok, true);
-    assert.equal((await rpc({ type: "bridge", op: "whoami", input: {} })).output.person, "usr_olivia");
+    assert.deepEqual(await mine(), []);
     assert.equal((await rpc({ type: "bridge", op: "space.select", input: { id: "spc_nobody" } })).error.code, "validation.not_found", "only a Space someone is signed in to here");
 
     // the owner signs out on this computer: back to the member, never left acting as the owner
     assert.equal((await unlink("spc_owner")).status, 204);
-    assert.equal((await rpc({ type: "bridge", op: "whoami", input: {} })).output.person, "usr_noah");
+    assert.deepEqual(await mine(), ["Scout"]);
 
     // a session the Space no longer knows is refused by the Space, not upgraded by the bridge
     await link("spc_member", "vst_" + "0".repeat(64));
-    const stale = await rpc({ type: "bridge", op: "whoami", input: {} });
+    const stale = await rpc({ type: "invoke", capability: "vault.site_rules.list", input: {} });
     assert.equal(stale.ok, false);
     assert.match(stale.error.code, /^auth\./);
 

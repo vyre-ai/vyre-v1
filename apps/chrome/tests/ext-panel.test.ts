@@ -11,7 +11,8 @@ import { createNotes, imageOf } from "../src/worker/notes.js";
 import { ago, applyDelta, chips, groupThreads, modelGroups, modelLabel, suggestions } from "../src/panel/model.js";
 import { BRIDGE_OPS, CAPABILITIES, parseIncoming, request } from "../src/worker/protocol.js";
 import { createStore } from "../src/worker/store.js";
-import { CHROME_CAPABILITIES, createChromeApp } from "../../../lib/chrome-app.ts";
+import { CHROME_CAPABILITIES, KEYED, createChromeApp, gatewayCall, routeOf } from "../../../lib/chrome-app.ts";
+import { routes } from "../../../generated/routes.ts";
 
 function memoryArea() {
   const data: Record<string, unknown> = {};
@@ -241,30 +242,30 @@ test("the new pushes are understood and checked, and every new call is on the ex
 
 // ---------- the app's side
 
-function fakeApp() {
-  const calls: { cap: string; input: any }[] = [];
+function fakeApp(o: { signedIn?: boolean } = {}) {
+  const calls: { cap: string; input: any; as: string }[] = [];
   const pushed: any[] = [];
   const timers: (() => void)[] = [];
   let replies: any[] = [];
+  const sessions = o.signedIn === false ? [] : [{ id: "spc_mla", name: "My Legal Academy", address: "https://mla.test", token: "vst_mine" }, { id: "spc_me", name: "Personal", address: "http://127.0.0.1:4100", token: "vst_me" }];
   const app = createChromeApp({
-    invoke: async (cap, input) => {
-      calls.push({ cap, input });
-      if (cap === "chat.start") return { status: "ok", output: { thread: { threadId: "thr_1" } } };
-      if (cap === "chat.post") return { status: "ok", output: { message: { messageId: "msg_9", threadSeq: 4 } } };
-      if (cap === "chat.messages.list") return { status: "ok", output: { messages: replies } };
-      if (cap === "agents.list") return { status: "ok", output: { agents: [{ agentId: "agt_a", name: "Assistant", role: "assistant" }, { agentId: "agt_s", name: "Scout" }] } };
-      if (cap === "search.query") return { status: "ok", output: { hits: [{ kind: "record", id: "rec_1", title: "Marisol Vega", recordType: "Contact" }] } };
-      if (cap === "search.related") return { status: "ok", output: { hits: [{ kind: "chat", id: "thr_7", title: "Follow up after Lab 7" }] } };
-      if (cap === "notes.clip") return { status: "ok", output: { note: { noteId: "not_1" } } };
-      if (cap === "vault.items.match") return { status: "held" };
-      return { status: "ok", output: {} };
+    sessions: () => sessions,
+    call: async (sess, cap, input) => {
+      calls.push({ cap, input, as: sess.token });
+      if (cap === "chat.start") return { thread: { threadId: "thr_1" } };
+      if (cap === "chat.post") return { message: { messageId: "msg_9", threadSeq: 4 } };
+      if (cap === "chat.messages.list") return { messages: replies };
+      if (cap === "agents.list") return { agents: [{ agentId: "agt_a", name: "Assistant", role: "assistant" }, { agentId: "agt_s", name: "Scout" }] };
+      if (cap === "search.query") return { hits: [{ kind: "record", id: "rec_1", title: "Marisol Vega", recordType: "Contact" }] };
+      if (cap === "search.related") return { hits: [{ kind: "chat", id: "thr_7", title: "Follow up after Lab 7" }] };
+      if (cap === "notes.clip") return { note: { noteId: "not_1" } };
+      if (cap === "identity.whoami") return { principal: { kind: "person", id: sess.token === "vst_me" ? "usr_me" : "usr_noah" }, name: "Noah", spaceId: sess.id };
+      return {};
     },
-    space: () => ({ id: "spc_1", name: "My Legal Academy", webUrl: "https://mla.test" }),
-    me: () => "usr_me",
     push: (m) => pushed.push(m),
     setTimer: (f) => { timers.push(f); return 0; },
   });
-  return { app, calls, pushed, run: async () => { const f = timers.shift(); f?.(); await new Promise((r) => setImmediate(r)); }, reply: (r: any[]) => { replies = r; } };
+  return { app, calls, pushed, sessions, run: async () => { const f = timers.shift(); f?.(); await new Promise((r) => setImmediate(r)); }, reply: (r: any[]) => { replies = r; } };
 }
 
 test("chat.ask starts the chat with the agent and model, posts the page and selection as blocks, and streams the reply back", async () => {
@@ -284,15 +285,55 @@ test("chat.ask starts the chat with the agent and model, posts the page and sele
   assert.equal(f.calls.filter((c) => c.cap === "chat.messages.list")[0]!.input.after, 4, "only messages after the person's own");
 });
 
-test("the app runs only the extension's capabilities, says held when the Gate holds one, and answers hello, agents and records", async () => {
+test("every call runs with the picked Space's own session; with nobody signed in each one is refused", async () => {
   const f = fakeApp();
+  const hello: any = await f.app.op("hello", {});
+  assert.deepEqual(hello, { version: "1", spaces: [{ id: "spc_mla", name: "My Legal Academy", webUrl: "https://mla.test" }, { id: "spc_me", name: "Personal", webUrl: "http://127.0.0.1:4100" }], active: "spc_me", locked: false, signedIn: true });
+  assert.equal(((await f.app.op("whoami", {})) as any).person, "usr_me", "the newest sign-in until one is picked");
+  await f.app.op("space.select", { id: "spc_mla" });
+  assert.equal(((await f.app.op("whoami", {})) as any).person, "usr_noah");
+  await f.app.invoke("notes.clip", { url: "https://a.test" });
+  assert.equal(f.calls.at(-1)!.as, "vst_mine", "the clip goes with the picked Space's session");
+  await assert.rejects(f.app.op("space.select", { id: "spc_other" }), (e: any) => e.code === "validation.not_found");
   await assert.rejects(f.app.invoke("records.delete", {}), (e: any) => e.code === "not_allowed");
-  assert.deepEqual(await f.app.invoke("notes.clip", { url: "https://a.test" }), { note: { noteId: "not_1" } });
-  await assert.rejects(f.app.invoke("vault.items.match", {}), (e: any) => e.code === "held");
-  assert.deepEqual(await f.app.op("hello", {}), { version: "1", spaces: [{ id: "spc_1", name: "My Legal Academy", webUrl: "https://mla.test" }], active: "spc_1", locked: false });
+  const out = fakeApp({ signedIn: false });
+  assert.deepEqual(await out.app.op("hello", {}), { version: "1", spaces: [], active: null, locked: false, signedIn: false });
+  for (const go of [() => out.app.invoke("notes.clip", { url: "https://a.test" }), () => out.app.op("agents.list", {}), () => out.app.op("chat.ask", { text: "hi", agentId: "agt_a" }), () => out.app.op("records.match", { emails: ["a@b.co"] })]) {
+    await assert.rejects(go(), (e: any) => e.code === "signed_out" && e.message === "Sign in to Vyre on this computer.");
+  }
+  assert.equal(out.calls.length, 0, "nothing is sent anywhere");
+});
+
+test("agents, record matches and app.open", async () => {
+  const f = fakeApp();
   const ag: any = await f.app.op("agents.list", {});
   assert.equal(ag.suggested.id, "agt_a");
   const rec: any = await f.app.op("records.match", { emails: ["marisol@vegalaw.com"], phones: [] });
   assert.deepEqual(rec.records[0], { id: "rec_1", name: "Marisol Vega", kind: "Contact", why: "by email address", chats: [{ threadId: "thr_7", title: "Follow up after Lab 7", at: null, agentName: "" }], goals: [] });
   await assert.rejects(f.app.op("app.open", {}), (e: any) => e.code === "not_available");
+});
+
+test("the gateway call: the capability's route, the person's bearer session, a key where the route takes one, and the Space's own error codes", async () => {
+  for (const c of [...CHROME_CAPABILITIES, "identity.whoami", "agents.list", "chat.start", "chat.post", "chat.messages.list", "chat.search", "chat.recent", "threads.get", "threads.agent.configure", "search.query", "search.related"]) {
+    const r = routes.find((x: any) => x.cap === c);
+    if (!r) continue; // a lane's capability that is not merged yet
+    assert.equal(r.path, routeOf(c), c);
+    assert.equal(r.method, "POST", c);
+    assert.equal(KEYED.includes(c), r.idempotency === "key", `${c} takes a key: ${r.idempotency}`);
+  }
+  const seen: any[] = [];
+  const fetchOk = (async (url: string, init: any) => { seen.push({ url, init }); return new Response(JSON.stringify({ data: { ok: 1 } }), { status: 200 }); }) as any;
+  const s = { id: "spc_a", name: "A", address: "https://a.vyre.run/", token: "vst_x" };
+  assert.deepEqual(await gatewayCall(s, "chat.post", { threadId: "thr_1", body: "hi" }, { fetch: fetchOk, key: () => "k1" }), { ok: 1 });
+  assert.equal(seen[0].url, "https://a.vyre.run/v1/chat/post");
+  assert.equal(seen[0].init.headers.authorization, "Bearer vst_x");
+  assert.equal(JSON.parse(seen[0].init.body).idempotencyKey, "k1");
+  await gatewayCall(s, "vault.items.match", { url: "https://x.test" }, { fetch: fetchOk });
+  assert.equal(JSON.parse(seen[1].init.body).idempotencyKey, undefined);
+  const deny = (async () => new Response(JSON.stringify({ error: { code: "permission.role_lacks_permission", message: "No." } }), { status: 403 })) as any;
+  await assert.rejects(gatewayCall(s, "vault.share", {}, { fetch: deny }), (e: any) => e.code === "permission.role_lacks_permission");
+  const gone = (async () => new Response("", { status: 401 })) as any;
+  await assert.rejects(gatewayCall(s, "vault.share", {}, { fetch: gone }), (e: any) => e.code === "auth.unauthenticated");
+  const down = (async () => { throw new Error("ECONNREFUSED"); }) as any;
+  await assert.rejects(gatewayCall(s, "vault.share", {}, { fetch: down }), (e: any) => e.code === "offline");
 });

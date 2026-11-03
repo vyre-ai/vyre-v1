@@ -3,3 +3,5 @@
 - Each site can attach the page, ask each time, or never be sent. In an incognito window Vyre is off.
 - Highlight text for a small bubble with Save to Notes and Ask, or right-click any page for Save to Vyre Notes, Ask Vyre about this, Watch this with Vyre and Show Vyre how. A card in the top right confirms a clip, with Open.
 - The Vyre app on your computer now answers the extension: Space, agents, chats, record matches and Vault calls run as you, through the same access checks as everywhere else.
+- Vyre for Chrome acts as you, with your own sign-in for the Space you pick in the extension, never as the Space owner. When nobody is signed in to the Vyre app on the computer, the panel says "Sign in to Vyre on this computer".
+- A message sent from Chrome shows its page as a small card (title, site, screenshot) and its highlighted text as a quote, in Vyre Chats.
