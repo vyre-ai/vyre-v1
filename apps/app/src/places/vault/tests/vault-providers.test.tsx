@@ -58,7 +58,8 @@ test("providers: a subscription opens on the prototype's own page, with the sign
   assert.ok(has(out, ">Used by<") && has(out, ">Intake<") && has(out, ">Research<") && has(out, ">Recent use<"));
   assert.ok(has(out, "this month") && has(out, "4.2M tokens"), "the month's total line");
   assert.ok(has(out, 'data-testid="provider-ask"') && !has(out, 'data-testid="provider-share"'), "Ask in the header, nothing to share");
-  assert.deepEqual(["Claude", "OpenCode Go key", "OpenAI key"].map((n) => has(out, n)), [true, true, true], "the prototype's three providers");
+  // My AI accounts lists the person's own; the shared OpenAI key is under Space AI accounts (owner, 3 Nov)
+  assert.deepEqual(["Claude", "OpenCode Go key", "OpenAI key"].map((n) => has(out, n)), [true, true, false], "the person's own two; the Space's one is on its own tab");
 });
 
 test("providers: Sign in again shows only on an account that needs it", () => {

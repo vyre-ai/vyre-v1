@@ -31,6 +31,7 @@ import { ConnectionsView } from "../connections/ConnectionsView.tsx";
 import type { ConnectionsData } from "../connections/ConnectionsView.tsx";
 import type { AddInitial } from "../connections/AddConnection.tsx";
 import { AddChooser, ConnectionsPage, GoogleMicrosoftPage } from "./SectionPages.tsx";
+import { SpaceAiAccounts } from "../providers/SpaceAiAccounts.tsx";
 import { addTarget } from "./sections.ts";
 import type { Section } from "./sections.ts";
 import type { ConnectionKind } from "../providers/index.ts";
@@ -93,6 +94,11 @@ function Page({ initial, sheet, view, route, onRouteClose, connectionsInitial, c
   // the + in All, Mine and the folders asks first which of the four (layout/sections.ts); the Connections page's own tab
   const [choosing, setChoosing] = useState(false);
   const [connTab, setConnTab] = useState<"my" | "space">("my");
+  // AI accounts in a Team Space: My AI accounts and Space AI accounts (the ones the Space pays with); a Personal Space has one list
+  const [aiTab, setAiTab] = useState<"my" | "space">("my");
+  const [mayManageAi, setMayManageAi] = useState(false);
+  useEffect(() => { if (data.personal === true) return; void (data.call("providers.space_key.get", {}) as Promise<{ mayManage?: boolean }>).then((k) => setMayManageAi(k.mayManage === true), () => undefined); }, [data]);
+  const spaceAi = selection.kind === "providers" && data.personal !== true && aiTab === "space";
   const [addingProvider, setAddingProvider] = useState<boolean | { providerKey: string; connection: ConnectionKind }>(typeof sheet?.addProvider === "object" ? sheet.addProvider : sheet?.addProvider !== undefined);
   // A link that asks for the sign-in (an agent with no AI account) opens the sheet even when the Vault is already showing.
   const routedAdd = route.surface === "layout" && route.addProvider === true;
@@ -121,7 +127,11 @@ function Page({ initial, sheet, view, route, onRouteClose, connectionsInitial, c
   // each item is shown in its one primary section: the folder it is in is part of that (the company connection's, connections' tokens)
   const folderName = useCallback((id: string): string | undefined => folderList.find((f) => f.id === id)?.name, [folderList]);
   const counts = useMemo(() => countItems(all, providerIds, health.status === "ready" ? health.data : null, requested, folderName), [all, providerIds, health, requested, folderName]);
-  const visible = useMemo(() => visibleItems(all, selection, query, providerIds, healthIds, folderName), [all, selection, query, providerIds, healthIds, folderName]);
+  const visible = useMemo(() => {
+    const v = visibleItems(all, selection, query, providerIds, healthIds, folderName);
+    // My AI accounts (a Team Space): the person's own; the Space's are on the other tab
+    return selection.kind === "providers" && data.personal !== true && aiTab === "my" && !query ? v.filter((it) => it.scope === "mine") : v;
+  }, [all, selection, query, providerIds, healthIds, folderName, data.personal, aiTab]);
   const clock = data.clock();
 
   useEffect(() => {
@@ -241,7 +251,7 @@ function Page({ initial, sheet, view, route, onRouteClose, connectionsInitial, c
   function addThe(t: Section | "ask"): void {
     setChoosing(false);
     if (t === "ask") setChoosing(true);
-    else if (t === "ai") setAddingProvider(true);
+    else if (t === "ai") { if (spaceAi && !mayManageAi) return; setAddingProvider(true); }
     else if (t === "google") { if (data.nav.openCompany) data.nav.openCompany(); else select({ kind: "google" }); }
     else if (t === "connections") { if (data.nav.openConnections) data.nav.openConnections(); else select({ kind: "connections" }); }
     else setAdding({});
@@ -251,9 +261,25 @@ function Page({ initial, sheet, view, route, onRouteClose, connectionsInitial, c
     : selection.kind === "google"
       ? <GoogleMicrosoftPage {...(data.nav.openCompany ? { onOpenCompany: data.nav.openCompany } : {})} keys={visible.length ? <ItemList items={visible} selectedId={effectiveId} providerOf={providerOf} healthIds={healthIds} clock={clock} onSelect={(id) => { setSelectedId(id); if (!twoPane) setDetailOpen(true); }} onOpen={(id) => { setSelectedId(id); setEditing(id); }} onMenu={itemMenu} /> : null} />
       : null;
-  const listBody = (
+  const aiTabs = selection.kind === "providers" && data.personal !== true ? (
+    <View style={s.aiTabs} accessibilityRole="tablist" testID="ai-tabs">
+      {([["my", "My AI accounts"], ["space", "Space AI accounts"]] as const).map(([k, label]) => (
+        <Pressable key={k} accessibilityRole="tab" accessibilityState={{ selected: aiTab === k }} onPress={() => setAiTab(k)} style={[s.aiTab, aiTab === k ? s.aiTabOn : null]} testID={`ai-tab-${k}`}>
+          <Text style={[s.aiTabText, aiTab === k ? s.aiTabTextOn : null]}>{label}</Text>
+        </Pressable>
+      ))}
+    </View>
+  ) : null;
+  const listBody = spaceAi ? (
     <>
       {header}
+      {aiTabs}
+      <SpaceAiAccounts mayManage={mayManageAi} />
+    </>
+  ) : (
+    <>
+      {header}
+      {aiTabs}
       <View style={s.searchWrap}>
         <View style={s.search}>
           <Glyph name="search" size={14} />
@@ -331,7 +357,7 @@ function Page({ initial, sheet, view, route, onRouteClose, connectionsInitial, c
       ) : null}
       {addingProvider ? (
         <AddProvider
-          {...(typeof addingProvider === "object" ? { initial: addingProvider } : {})} onClose={() => setAddingProvider(false)}
+          {...(typeof addingProvider === "object" ? { initial: addingProvider } : {})} {...(spaceAi ? { initialScope: "shared" as const } : {})} onClose={() => setAddingProvider(false)}
           onAdded={(p) => { setSelection({ kind: "providers" }); setSelectedId(p.itemId); showNote(`Connected ${p.name}`); }}
         />
       ) : null}
@@ -521,6 +547,11 @@ export default function VaultLayout({ data, initial, sheet, view, route = { surf
 }
 
 const s = StyleSheet.create({
+  aiTabs: { flexDirection: "row", gap: 18, marginHorizontal: 12, borderBottomWidth: 1, borderBottomColor: "var(--line)" as string },
+  aiTab: { height: 34, justifyContent: "center", borderBottomWidth: 2, borderBottomColor: "transparent", marginBottom: -1 },
+  aiTabOn: { borderBottomColor: "var(--ink)" as string },
+  aiTabText: { fontSize: 13, fontWeight: "500", color: "var(--ink-3)" as string },
+  aiTabTextOn: { color: "var(--ink)" as string },
   page: { flex: 1, flexDirection: "row", backgroundColor: "var(--win)" as string, position: "relative" },
   listPane: { minWidth: 0, backgroundColor: "var(--win)" as string },
   listPaneTwo: { width: 380, flexShrink: 0, borderRightWidth: 1, borderRightColor: "var(--line)" as string },
