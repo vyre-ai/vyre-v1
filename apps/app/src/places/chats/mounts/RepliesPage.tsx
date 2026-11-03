@@ -24,7 +24,10 @@ const PAGE = 50;
 /** What the page asks for: the replies I am in, newest reply first, without a task's. */
 export const THREADS_STATE = { kind: ["thread"], mine: true, order: "latest", exceptScope: ["task"], limit: PAGE } as const;
 
-export function RepliesPage({ rt, nameOf, openChat, say }: { rt: ShellRuntime; nameOf(id: string): string; openChat(id: string): void; say?(text: string): void }): ReactElement {
+/** What pressing a row does: the reply opens its chat with the thread beside the message, the chat name opens the chat itself. */
+export type OpenReply = (t: { threadId: string; parentThreadId?: string | undefined; parentMessageId?: string | undefined }, how: "reply" | "chat") => void;
+
+export function RepliesPage({ rt, nameOf, openChat, say }: { rt: ShellRuntime; nameOf(id: string): string; openChat: OpenReply; say?(text: string): void }): ReactElement {
   const live = useLive<ThreadsOut>(rt.screens, THREADS_SCREEN, "threads", THREADS_STATE as unknown as Record<string, unknown>);
   const [more, setMore] = useState<{ rows: readonly Thread[]; next: string | undefined } | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
@@ -46,8 +49,9 @@ export function RepliesPage({ rt, nameOf, openChat, say }: { rt: ShellRuntime; n
     void Promise.resolve(rt.call("threads.follow", { threadId: id, mode })).then(() => tell(followSaid(mode)), () => tell("Could not change that. Try again."));
   };
   const markRead = (id: string): void => { void Promise.resolve(rt.call("threads.mark_read", { threadId: id })).catch(() => tell("Could not mark it read. Try again.")); };
+  const open = (t: Thread, how: "reply" | "chat"): void => { if (how === "reply" && t.unread) markRead(t.threadId); openChat(t, how); };
   const entries = (t: Thread): MenuEntry[] => [
-    { label: "Open", onSelect: () => openChat(t.threadId) },
+    { label: "Open", onSelect: () => open(t, "reply") },
     { label: "Mark as Read", disabled: !t.unread, onSelect: () => markRead(t.threadId) },
     { separator: true },
     ...followMenu(modeOf(t), (mode) => follow(t.threadId, mode)),
@@ -60,13 +64,14 @@ export function RepliesPage({ rt, nameOf, openChat, say }: { rt: ShellRuntime; n
     const g = globalThis as unknown as { addEventListener?: (t: string, f: (e: KeyboardEvent) => void) => void; removeEventListener?: (t: string, f: (e: KeyboardEvent) => void) => void };
     const onKey = (e: KeyboardEvent): void => {
       if (e.metaKey || e.ctrlKey || e.altKey || typing(e.target)) return;
-      if (e.key === "Enter" && selected !== null) { e.preventDefault(); openChat(selected); return; }
+      const sel = rows.find((r) => r.threadId === selected);
+      if (e.key === "Enter" && sel) { e.preventDefault(); open(sel, "reply"); return; }
       const to = moveSelection(ids, selected, e.key);
       if (to !== null) { e.preventDefault(); setSelected(to); }
     };
     g.addEventListener?.("keydown", onKey);
     return () => g.removeEventListener?.("keydown", onKey);
-  }, [ids, selected, openChat]);
+  }, [ids, rows, selected, openChat]); // eslint-disable-line react-hooks/exhaustive-deps -- open reads the same props
 
   const clock = rt.clock();
   return (
@@ -79,10 +84,10 @@ export function RepliesPage({ rt, nameOf, openChat, say }: { rt: ShellRuntime; n
             const v = threadView(t, nameOf, clock);
             return (
               <Row
-                key={t.threadId} id={`thread-${t.threadId}`} title={v.title} note={v.note} emphasis={v.bold} selected={selected === t.threadId}
+                key={t.threadId} id={`thread-${t.threadId}`} title={v.who} titleSuffix={`replied in ${v.title}`} note={v.note} emphasis={v.bold} selected={selected === t.threadId}
                 leading={<View style={st.lead}>{v.faces[0] ? <Face name={nameOf(v.faces[0].id)} seedId={v.faces[0].id} kind={v.faces[0].kind} size={28} /> : null}</View>}
-                trailing={<View style={st.trail}><Text style={st.when}>{v.when}</Text>{v.unread > 0 ? <Text testID={`thread-unread-${t.threadId}`} accessibilityLabel={`${v.unread} new`} style={st.unread}>{String(v.unread)}</Text> : v.muted ? <Text style={st.when}>Muted</Text> : null}</View>}
-                onPress={() => { setSelected(t.threadId); openChat(t.threadId); }}
+                trailing={<View style={st.trail}><Text style={st.when}>{v.when}</Text><TextButton label={v.title} testID={`reply-chat-${t.threadId}`} onPress={() => open(t, "chat")} />{v.unread > 0 ? <Text testID={`thread-unread-${t.threadId}`} accessibilityLabel={`${v.unread} new`} style={st.unread}>{String(v.unread)}</Text> : v.muted ? <Text style={st.when}>Muted</Text> : null}</View>}
+                onPress={() => { setSelected(t.threadId); open(t, "reply"); }}
                 domProps={menuTrigger((x, y) => { setSelected(t.threadId); menu.show(entries(t), x, y, "context", { label: "Reply" }); })}
               />
             );

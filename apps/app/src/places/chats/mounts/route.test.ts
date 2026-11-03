@@ -13,6 +13,10 @@ test("with and about make an Ask about the object, and bring names the chat whos
 test("with alone is a chat with that agent, a thread id wins, and neither is the start", () => {
   assert.deepEqual(fromHash("#screen=chats.conversation&with=assistant").route, { view: "ask", agentId: "assistant", scopeType: "", scopeId: "", bringFrom: null });
   assert.deepEqual(fromHash("#screen=chats.conversation&threadId=thr_1&with=agt_x&about=record%3Arec_1").route, { view: "chat", threadId: "thr_1" });
+  // a reply opened from Inbox > Replies: the chat, on the message the thread hangs off, with the thread beside it
+  const reply = fromHash("#screen=chats.conversation&threadId=thr_chat&m=msg_9&side=thr_reply");
+  assert.deepEqual(reply.route, { view: "chat", threadId: "thr_chat", focus: "msg_9" });
+  assert.equal(reply.side, "thr_reply");
   assert.deepEqual(fromHash("#screen=chats.conversation").route, { view: "new" }, "the start is a new chat");
   assert.deepEqual(fromHash("#screen=tasks.my-work").route, { view: "tasks" });
   assert.deepEqual(fromHash("#screen=tasks.page&taskId=tsk_1").route, { view: "task", taskId: "tsk_1" });

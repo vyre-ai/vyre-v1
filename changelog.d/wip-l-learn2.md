@@ -40,3 +40,5 @@
 - A note card is only as tall as its words. Its hover tools sit over its foot and take no room, so one note no longer sits in a tall empty card.
 - The closed Take a note bar has a flat edge in place of the wide soft shadow, which showed as a shaded strip under it in dark themes.
 - An agent is told in its base instructions to say in plain words what failed and never paste ids or traces. A tool that crashes on the server returns a plain sentence to the agent, with the trace in the error's own fields and not in the words it would repeat.
+- In Inbox > Replies, pressing a reply (or Enter on it) opens that chat with the thread open beside the message, and marks the reply read. The chat's name in the row opens the chat itself. A reply row now leads with who replied, then the reply.
+- A link to a chat can name the thread to open beside it (side=...).
