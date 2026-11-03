@@ -65,9 +65,22 @@ function findMatch(ctx: MeetCtx, o: { source: string; providerRef: string; event
   return best ? { link: best, by: "time_and_attendees" } : null;
 }
 
-export async function ingest(ctx: MeetCtx, input: {
+type IngestInput = {
   source: string; providerRef: string; calendarEventId?: string; title?: string; startsAt: number; endsAt?: number; joinUrl?: string; attendees: unknown[]; status?: string;
-}) {
+};
+
+// One ingest at a time. An ingest looks for its match, then awaits records and contacts before it writes the merge index; two at once (the scheduled calendar pull and the Meet
+// hand-off of the same call, or a Sync now during the scheduled pull) both found nothing and made two Meetings of one call. In turn, the second finds the first. The chain is
+// module-wide because ctx.db is a fresh wrapper on every call; ingest is short, so one queue costs nothing that matters.
+let ingesting: Promise<unknown> = Promise.resolve();
+
+export async function ingest(ctx: MeetCtx, input: IngestInput) {
+  const next = ingesting.then(() => ingestOnce(ctx, input), () => ingestOnce(ctx, input));
+  ingesting = next.catch(() => undefined);
+  return next;
+}
+
+async function ingestOnce(ctx: MeetCtx, input: IngestInput) {
   ensure(ctx);
   if (!SOURCES.includes(input.source as never)) bad(ctx, "A meeting comes from the calendar, Zoom, Meet or Teams.");
   if (typeof input.providerRef !== "string" || input.providerRef === "") bad(ctx, "A meeting names its provider id.");
@@ -118,8 +131,10 @@ export async function ingest(ctx: MeetCtx, input: {
   if (provider !== "none" && l.provider !== provider) { next.provider = provider; patch["provider"] = provider; }
   if (!merged && input.startsAt !== l.startsAt) { next.startsAt = input.startsAt; patch["starts_at"] = isoOf(input.startsAt); }
   if (!merged && input.endsAt !== undefined && input.endsAt !== l.endsAt) { next.endsAt = input.endsAt; patch["ends_at"] = isoOf(input.endsAt); }
-  // a refresh of the same event or provider meeting may retitle it; a new identity joining keeps the title it finds, unless that was only the placeholder
-  if (input.title?.trim() && input.title.trim() !== text(rec.fields["title"]) && (!merged || text(rec.fields["title"]) === "" || text(rec.fields["title"]) === "Meeting")) patch["title"] = input.title.trim();
+  // a refresh of the same event or provider meeting may retitle it; a new identity joining keeps the title it finds, unless that was only the placeholder, or the meeting so far came
+  // only from a provider (Meet names every call "Google Meet") and this is the calendar event, which carries the name people gave the call
+  const providerOnly = isCal && newEvent && l.eventIds.length === 0;
+  if (input.title?.trim() && input.title.trim() !== text(rec.fields["title"]) && (!merged || providerOnly || text(rec.fields["title"]) === "" || text(rec.fields["title"]) === "Meeting")) patch["title"] = input.title.trim();
   if (newEvent && !text(rec.fields["calendar_event_id"])) patch["calendar_event_id"] = eventId;
   if (who.length) {
     const have = list(rec.fields["attendees"]).filter((x): x is string => typeof x === "string");
