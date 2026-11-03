@@ -153,7 +153,8 @@ export interface InvokeDeps {
   audit?(row: AuditRow): void | Promise<void>;
   publish?(events: EventEnvelope[]): void;
   idem?: {
-    once<T>(principal: string, cap: string, key: string | undefined | null, input: unknown, run: () => Promise<T>): Promise<T>;
+    /** `keep`: what of the result is stored for a repeat; omitted, all of it. */
+    once<T>(principal: string, cap: string, key: string | undefined | null, input: unknown, run: () => Promise<T>, keep?: (result: T) => unknown): Promise<T>;
     /** Write the approved result over the hold stored for the same key, so the Run's next call of that key gets what was released. */
     settle?(principal: string, cap: string, key: string, input: unknown, result: unknown): Promise<void> | void;
   };
@@ -330,7 +331,8 @@ export function createInvoke(deps: InvokeDeps): Invoke {
         key = seed.approval ? `${k}:approved` : k;
       }
       const run = (): Promise<InvokeResult> => stepsFour(c, input, seed, trace, depth, collectionRateChecked);
-      const result = key !== undefined && deps.idem ? await deps.idem.once(seed.principal.id, c.name, key, input, run) : await run();
+      // the answer kept for a repeat never holds a person's own memory in words (owner ruling 3 Nov 2026: it is sealed under their key, and events.db is not)
+      const result = key !== undefined && deps.idem ? await deps.idem.once(seed.principal.id, c.name, key, input, run, c.name.startsWith("memory.") ? withoutPersonalWords : undefined) : await run();
       if (seed.approval && rawKey && result.status === "ok") await deps.idem?.settle?.(seed.principal.id, c.name, rawKey, input, result);
       span(result.status === "held" ? "held" : "ok");
       return { ...result, traceId };
@@ -567,3 +569,20 @@ export function createInvoke(deps: InvokeDeps): Invoke {
 
   return invoke;
 }
+
+/**
+ * A copy of a memory answer with the words of every person-layer item blanked (a fact's text; a page's title, subtitle, blurb and notes): what idempotency keeps for a repeat. Ids, layers and times stay,
+ * so a repeated call still learns which row it made; the words are read again through the module, under the person's key.
+ */
+export function withoutPersonalWords(v: unknown): unknown {
+  if (Array.isArray(v)) return v.map(withoutPersonalWords);
+  if (v === null || typeof v !== "object") return v;
+  const o = v as Record<string, unknown>;
+  const out: Record<string, unknown> = {};
+  for (const [k, x] of Object.entries(o)) out[k] = withoutPersonalWords(x);
+  if (o["layer"] === "person") for (const k of ["text", "title", "subtitle", "blurb", "notes", "snippet"]) if (typeof out[k] === "string") out[k] = "";
+  // a page answer carries its notes next to the page
+  if (isPersonPage(o["page"]) && typeof out["notes"] === "string") out["notes"] = "";
+  return out;
+}
+const isPersonPage = (p: unknown): boolean => p !== null && typeof p === "object" && (p as { layer?: unknown }).layer === "person";

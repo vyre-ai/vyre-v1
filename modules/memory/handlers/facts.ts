@@ -18,8 +18,10 @@ import { excerpt } from "../../../lib/md.ts";
 import { isHostService } from "../../../lib/trust.ts";
 import {
   actorOf, autoMergeKinds, bm25, ensure, factOut, liveNow, loadFact, makeAccess, mintId, num, orNull, ownerOfLayer, pageOf, raise, readFact, recencyBoost, rowsOf, sealText, snippet, sourceLinkOf,
-  str, tokens, trigramSim, seenByOthers } from "../projections.ts";
-import type { Access, Fact, FactStatus, Layer, MemCtx, Row, SourceKind } from "../projections.ts";
+  str, tokens, seenByOthers, factTitle, tokOf, personalLocked, LOCKED_LINE, gramVec, trigramScorer } from "../projections.ts";
+import type { Access, DocTok, Ghost, GramVec, Fact, FactStatus, Layer, MemCtx, Row, SourceKind } from "../projections.ts";
+import { currentPersonFacts, indexOf, openFactText } from "../personal.ts";
+import type { PersonIndex } from "../personal.ts";
 
 const LAYERS: readonly Layer[] = ["person", "agent", "project", "space"];
 
@@ -63,7 +65,8 @@ async function readableFacts(ctx: MemCtx, access: Access, rows: Row[]): Promise<
   const out: Fact[] = [];
   for (const r of rows) {
     const f = readFact(ctx, r);
-    if (f.layer === "person" && f.ownerRef !== me) continue;
+    // a person's own fact that cannot be opened now (their key is not held here) is left out; `locked` on the answer says why
+    if (f.layer === "person" && (f.ownerRef !== me || f.text === "")) continue;
     if (await access.can(f.layer, f.ownerRef, f.agentId, f.projectId, "view")) out.push(f);
   }
   return out;
@@ -298,7 +301,12 @@ export async function factsList(
     facts = facts.filter((f) => f.text.toLowerCase().includes(needle));
   }
   const p = pageOf(facts, input.cursor, input.limit);
-  return { facts: factRows(ctx, p.page), ...(p.next ? { next: p.next } : {}), total: p.total };
+  return { facts: factRows(ctx, p.page), ...(p.next ? { next: p.next } : {}), total: p.total, ...lockedFor(ctx, input.layer) };
+}
+
+/** `locked` for an answer that may hold the asker's own memory: set when it is sealed under their key and the key is not held here, so the empty part is explained. */
+function lockedFor(ctx: MemCtx, layer: Layer | undefined): { locked?: string } {
+  return (layer === undefined || layer === "person") && personalLocked(ctx, actorOf(ctx)) ? { locked: LOCKED_LINE } : {};
 }
 
 export async function factsAsOf(ctx: MemCtx, input: Page & { date: number; agentId?: string; layer?: Layer; q?: string }) {
@@ -315,7 +323,7 @@ export async function factsAsOf(ctx: MemCtx, input: Page & { date: number; agent
     facts = facts.filter((f) => f.text.toLowerCase().includes(needle));
   }
   const p = pageOf(facts, input.cursor, input.limit);
-  return { facts: factRows(ctx, p.page), ...(p.next ? { next: p.next } : {}), total: p.total };
+  return { facts: factRows(ctx, p.page), ...(p.next ? { next: p.next } : {}), total: p.total, ...lockedFor(ctx, input.layer) };
 }
 
 export async function layersList(ctx: MemCtx, input: { agentId?: string; projectId?: string }) {
@@ -367,7 +375,7 @@ export async function mapGet(ctx: MemCtx, input: { agentId: string }) {
 
 // ---- search
 
-interface Doc { kind: "fact" | "note" | "page"; id: string; title: string; text: string; layer: Layer; path: string | null; since: number | null; link: string | null; learnedAt: number; shared: boolean }
+interface Doc { kind: "fact" | "note" | "page"; id: string; title: string; text: string; layer: Layer; path: string | null; since: number | null; link: string | null; learnedAt: number; shared: boolean; tok?: DocTok }
 
 /** The notes the caller may read, as documents. Person-layer notes are indexed by sealed title only. */
 async function noteDocs(ctx: MemCtx, access: Access, agentId: string | undefined, projectId: string | undefined): Promise<Array<Doc & { noteId: string }>> {
@@ -417,16 +425,36 @@ async function pageDocs(ctx: MemCtx, access: Access, agentId: string | undefined
   return out;
 }
 
-async function factDocs(ctx: MemCtx, access: Access, agentId: string | undefined, projectId: string | undefined): Promise<Doc[]> {
+/**
+ * `only`: the query's words, when the caller ranks by words alone (the pointer): a personal fact that holds none of them is not made into a document, only counted in `ghost` so BM25 scores
+ * the rest exactly as if it were there.
+ */
+async function factDocs(ctx: MemCtx, access: Access, agentId: string | undefined, projectId: string | undefined, only?: { words: string[]; ghost: Ghost }): Promise<Doc[]> {
   const now = ctx.now();
   const me = actorOf(ctx);
+  // the asker's own facts come from their in-memory index while their key is held (no scan of their rows, no sealed value read); otherwise from the table as before
+  const ix = indexOf(ctx, me);
+  const mine = ix ? currentPersonFacts(ctx, me) : null;
   const args: unknown[] = [now, me];
-  let sql = "SELECT id, layer, owner_ref, agent_id, project_id, note_id, kind, text, sealed, enc, valid_from, learned_at, source_link FROM memory_facts WHERE status = 'current' AND (valid_to IS NULL OR valid_to > ?) AND (layer != 'person' OR owner_ref = ?)";
+  // with the index: shared layers, plus the asker's own plain person-layer rows (a fact on their public profile); without it: everything the asker may read
+  let sql = `SELECT id, layer, owner_ref, agent_id, project_id, note_id, kind, text, enc, valid_from, learned_at, source_link FROM memory_facts WHERE status = 'current' AND (valid_to IS NULL OR valid_to > ?) AND ${mine ? "(layer IN ('agent', 'project', 'space') OR (layer = 'person' AND owner_ref = ? AND enc <> 2))" : "(layer != 'person' OR owner_ref = ?)"}`;
   if (agentId) { sql += " AND (agent_id = ? OR layer IN ('project', 'space'))"; args.push(agentId); }
   if (projectId) { sql += " AND (project_id = ? OR layer != 'project')"; args.push(projectId); }
   const paths = new Map<string, string | null>();
+  const pathOf = (noteId: string | null): string | null => {
+    if (!noteId) return null;
+    if (!paths.has(noteId)) paths.set(noteId, orNull(rowsOf(ctx.db, "SELECT path FROM memory_notes WHERE note_id = ?", noteId)[0]?.["path"]));
+    return paths.get(noteId) ?? null;
+  };
   const allowed = new Map<string, boolean>();
   const docs: Doc[] = [];
+  const missing: Doc[] = [];
+  const take = (doc: Doc, plain = false): void => {
+    if (doc.layer !== "person" || plain) { if (doc.text !== "") docs.push(doc); return; }
+    if (doc.text === "") { missing.push(doc); return; }
+    if (ix) doc.tok = personalTok(ix, doc);
+    docs.push(doc);
+  };
   // Access is decided once per place a fact lives in (layer, owner, agent, project), not once per fact.
   for (const r of rowsOf(ctx.db, sql, ...args)) {
     const layer = r["layer"] as Layer;
@@ -440,21 +468,43 @@ async function factDocs(ctx: MemCtx, access: Access, agentId: string | undefined
       allowed.set(place, ok);
     }
     if (!ok) continue;
-    const text = num(r["enc"]) === 2 ? readFact(ctx, { ...r, status: "current" }).text : str(r["text"]);
-    if (text === "") continue;
-    const noteId = orNull(r["note_id"]);
-    let path: string | null = null;
-    if (noteId) {
-      if (!paths.has(noteId)) paths.set(noteId, orNull(rowsOf(ctx.db, "SELECT path FROM memory_notes WHERE note_id = ?", noteId)[0]?.["path"]));
-      path = paths.get(noteId) ?? null;
-    }
-    const kind = orNull(r["kind"]);
-    docs.push({
-      kind: "fact", id: str(r["id"]), title: kind ? `${kind.slice(0, 1).toUpperCase()}${kind.slice(1)}` : "Fact", text, layer, path, since: num(r["valid_from"]), link: orNull(r["source_link"]),
-      learnedAt: num(r["learned_at"]), shared: layer !== "person",
+    const id = str(r["id"]);
+    take({
+      kind: "fact", id, title: factTitle(orNull(r["kind"])), text: num(r["enc"]) === 2 ? ix?.texts.get(id) ?? "" : str(r["text"]), layer, path: pathOf(orNull(r["note_id"])), since: num(r["valid_from"]),
+      link: orNull(r["source_link"]), learnedAt: num(r["learned_at"]), shared: layer !== "person",
+    }, num(r["enc"]) !== 2);
+  }
+  for (const m of mine ?? []) {
+    if ((m.validTo !== null && m.validTo <= now) || (agentId && m.agentId !== agentId)) continue;
+    const known = only && ix ? ix.toks.get(m.id) as DocTok | undefined : undefined;
+    if (known && only && !only.words.some((w) => known.tf.has(w))) { only.ghost.n++; only.ghost.len += known.len; continue; }
+    take({
+      kind: "fact", id: m.id, title: factTitle(m.kind), text: ix?.texts.get(m.id) ?? "", layer: "person", path: pathOf(m.noteId), since: m.validFrom, link: m.sourceLink, learnedAt: m.learnedAt, shared: false,
     });
   }
+  // personal facts the index does not have yet (first use after unlock, or the old server seal): opened once, then kept in memory while the key is held
+  for (let i = 0; i < missing.length; i += 400) {
+    const part = missing.slice(i, i + 400);
+    const sealedOf = new Map(rowsOf(ctx.db, `SELECT id, sealed FROM memory_facts WHERE id IN (${part.map(() => "?").join(",")})`, ...part.map((d) => d.id)).map((r) => [str(r["id"]), orNull(r["sealed"])]));
+    for (const d of part) {
+      const sealed = sealedOf.get(d.id);
+      if (!sealed) continue;
+      d.text = openFactText(ctx, d.id, me, sealed);
+      if (d.text === "") continue;
+      if (ix) d.tok = personalTok(ix, d);
+      docs.push(d);
+    }
+  }
   return docs;
+}
+
+/** The counted words of a personal fact, kept in its owner's in-memory index. */
+function personalTok(ix: PersonIndex, d: Doc): DocTok {
+  const hit = ix.toks.get(d.id) as DocTok | undefined;
+  if (hit) return hit;
+  const t = tokOf(d.title, d.text);
+  ix.toks.set(d.id, t);
+  return t;
 }
 
 export async function search(
@@ -469,6 +519,7 @@ export async function search(
   const layers = new Set<Layer>(input.layers && input.layers.length > 0 ? input.layers : LAYERS);
   const privateLeaks = ctx.principal.kind === "agent" && ctx.thread !== undefined && await seenByOthers(ctx, ctx.thread);
   if (privateLeaks) layers.delete("person");
+  const locked = layers.has("person") && personalLocked(ctx, actorOf(ctx));
   const docs = [...(await factDocs(ctx, access, input.agentId, input.projectId)), ...(await noteDocs(ctx, access, input.agentId, input.projectId)), ...(await pageDocs(ctx, access, input.agentId, input.projectId))].filter((d) => layers.has(d.layer));
   const mode = input.mode ?? "hybrid";
   const ranked = bm25(docs, q);
@@ -478,9 +529,18 @@ export async function search(
   const meaning = mode === "keyword" ? null : await meaningScores(ctx, docs.map((d) => ({ kind: d.kind, id: d.id, text: `${d.title} ${d.text}`, shared: d.shared })), q);
   const cos = (d: Doc): number | undefined => meaning?.scores?.get(`${d.kind}:${d.id}`);
   const hits: Array<{ doc: Doc; score: number }> = [];
+  // trigrams of the question are made once; a personal fact's are kept in its owner's in-memory index; keyword mode does not use them
+  const simOf = trigramScorer(q);
+  const own = indexOf(ctx, actorOf(ctx));
+  const gramsOf = (d: Doc): GramVec => {
+    if (d.layer !== "person" || d.kind !== "fact" || !own) return gramVec(`${d.title} ${d.text}`);
+    let g = own.grams.get(d.id) as GramVec | undefined;
+    if (!g) { g = gramVec(`${d.title} ${d.text}`); own.grams.set(d.id, g); }
+    return g;
+  };
   docs.forEach((d, i) => {
     const r = ranked[i]!;
-    const sim = trigramSim(q, `${d.title} ${d.text}`);
+    const sim = mode === "keyword" ? 0 : simOf(gramsOf(d));
     const mean = cos(d);
     let score = 0;
     if (mode === "keyword") score = r.matched > 0 ? r.score : 0;
@@ -504,6 +564,7 @@ export async function search(
       ...(doc.link ? { sourceLink: doc.link } : {}), score: Math.round(score * 10_000) / 10_000, ...(doc.kind === "fact" ? extra.get(doc.id) ?? {} : {}),
     })),
     tookMs: Math.max(0, Math.round(performance.now() - t0)),
+    ...(locked ? { locked: LOCKED_LINE } : {}),
     ...(meaning ? { meaning: { state: meaning.status.state, ...(meaning.status.model ? { model: meaning.status.model } : {}), ...(meaning.status.hint ? { hint: meaning.status.hint } : {}) } } : {}),
   };
 }
@@ -518,7 +579,7 @@ export const POINTER_MAX_LINES = 5;
 export const POINTER_MAX_TOKENS = 350;
 
 export interface PointerLine { title: string; fact?: string; trueSince?: number; path: string; sourceLink?: string; ref?: string }
-export interface PointerOut { lines: PointerLine[]; tokens: number; skipped?: "short_ack" | "mid_tool_loop" | "no_match" | "duplicate" }
+export interface PointerOut { lines: PointerLine[]; tokens: number; skipped?: "short_ack" | "mid_tool_loop" | "no_match" | "duplicate"; locked?: string }
 
 export async function pointer(ctx: MemCtx, input: { threadId: string; agentId: string; text: string; sinceIdx?: number }): Promise<PointerOut> {
   ensure(ctx.db);
@@ -532,15 +593,20 @@ export async function pointer(ctx: MemCtx, input: { threadId: string; agentId: s
     ctx.db.run("INSERT OR REPLACE INTO memory_pointer_state (thread_id, last_idx) VALUES (?, ?)", input.threadId, input.sinceIdx);
   }
   const access = makeAccess(ctx);
-  const everything = [...(await factDocs(ctx, access, input.agentId, undefined)), ...(await noteDocs(ctx, access, input.agentId, undefined))];
+  const only = { words: [...new Set(tokens(text))], ghost: { n: 0, len: 0 } };
+  const everything = [...(await factDocs(ctx, access, input.agentId, undefined, only)), ...(await noteDocs(ctx, access, input.agentId, undefined))];
   // what one person told their agent never reaches a chat other people read (hole 8)
-  const docs = everything.some((d) => d.layer === "person") && await seenByOthers(ctx, input.threadId) ? everything.filter((d) => d.layer !== "person") : everything;
-  const ranked = bm25(docs, text);
+  const hidePersonal = (everything.some((d) => d.layer === "person") || only.ghost.n > 0) && await seenByOthers(ctx, input.threadId);
+  const docs = hidePersonal ? everything.filter((d) => d.layer !== "person") : everything;
+  const ghost = hidePersonal ? { n: 0, len: 0 } : only.ghost;
+  // the asker's own memory is sealed under their key and the key is not held here: say so in a private chat, so the agent does not take "nothing recalled" for "nothing known"
+  const lock: { locked?: string } = personalLocked(ctx, actorOf(ctx)) && !(await seenByOthers(ctx, input.threadId)) ? { locked: LOCKED_LINE } : {};
+  const ranked = bm25(docs, text, ghost);
   const order = docs
     .map((d, i) => ({ d, r: ranked[i]! }))
     .filter(({ r }) => r.matched >= 1 && r.coverage >= POINTER_MIN_COVERAGE && r.mass >= POINTER_MIN_MASS)
     .sort((a, b) => b.r.score - a.r.score || a.d.id.localeCompare(b.d.id));
-  if (order.length === 0) return { lines: [], tokens: 0, skipped: "no_match" as const };
+  if (order.length === 0) return { lines: [], tokens: 0, skipped: "no_match" as const, ...lock };
   const shown = new Set(rowsOf(ctx.db, "SELECT ref FROM memory_pointer_log WHERE thread_id = ?", input.threadId).map((r) => str(r["ref"])));
   const lines: PointerLine[] = [];
   let tokenCount = 0;
@@ -558,8 +624,8 @@ export async function pointer(ctx: MemCtx, input: { threadId: string; agentId: s
     shown.add(ref);
     ctx.db.run("INSERT OR IGNORE INTO memory_pointer_log (thread_id, ref, at) VALUES (?, ?, ?)", input.threadId, ref, ctx.now());
   }
-  if (lines.length === 0) return { lines: [], tokens: 0, skipped: "duplicate" as const };
-  return { lines, tokens: tokenCount };
+  if (lines.length === 0) return { lines: [], tokens: 0, skipped: "duplicate" as const, ...lock };
+  return { lines, tokens: tokenCount, ...lock };
 }
 
 // ---- notes: list, read, versions, restore

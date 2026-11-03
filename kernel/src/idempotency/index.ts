@@ -19,7 +19,8 @@ export interface IdemBackend {
 export function createIdempotency(backend: IdemBackend) {
   const inflight = new Map<string, { hash: string; p: Promise<unknown> }>();
   return Object.freeze({
-    async once<T>(principal: string, cap: string, key: string | undefined | null, input: unknown, run: () => Promise<T>): Promise<T> {
+    /** `keep`: what of the result is stored for a repeat (default all of it); the first caller still gets the whole result. */
+    async once<T>(principal: string, cap: string, key: string | undefined | null, input: unknown, run: () => Promise<T>, keep?: (result: T) => unknown): Promise<T> {
       if (key === undefined || key === null) return run();
       if (typeof key !== "string" || !key || key.length > 200) throw new LogError("bad_key", "an idempotency key is a short text");
       const k = `${principal}|${cap}|${key}`;
@@ -36,7 +37,8 @@ export function createIdempotency(backend: IdemBackend) {
           return had.result as T;
         }
         const result = await run();
-        await backend.put(k, principal, cap, { hash, result: result === undefined ? null : result });
+        const kept = result === undefined ? null : keep ? keep(result) : result;
+        await backend.put(k, principal, cap, { hash, result: kept === undefined ? null : kept });
         return result;
       })();
       inflight.set(k, { hash, p });

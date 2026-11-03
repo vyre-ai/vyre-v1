@@ -1278,6 +1278,14 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         } }),
         // memory's meaning search: a small embedding model on this server, fetched into the data folder the first time it is used and checked against pinned hashes
         setMemoryMeaningHost: () => ({ files: createModelFiles({ root: process.env["VYRE_MODEL_CACHE"] ?? paths.root }), now, log: (msg: string, attrs?: Record<string, unknown>) => sink.log({ space: spaceId, level: 30, msg, place: "memory-meaning", ...(attrs ? { attrs } : {}) }) }),
+        // a person's own memory (owner ruling 3 Nov 2026): the keyring's copy of their person key while a session of theirs that handed it over is alive, and an overwrite of what a re-seal frees
+        setMemoryKeyPort: () => ({
+          personKey: (personId: string) => keyring.get(personId),
+          wipe: <T>(fn: () => T): T => {
+            db!.exec("PRAGMA secure_delete = ON");
+            try { return fn(); } finally { try { db!.exec("PRAGMA wal_checkpoint(TRUNCATE)"); } catch { /* a reader holds the log: the next checkpoint takes it */ } }
+          },
+        }),
         // the unsubscribe link in an Automations email is built from the same address; with none the email goes out without one
         setMailLinksHost: () => ({ get publicBase() { return publicOrigin()?.origin; }, get publicPath() { return publicOrigin()?.relay; } }),
         // backups: the Space's own files, the owner from the access layer (P-SEC_07: without owner() every export refuses), exports into the blob store, S3 over the seam fetch with keys from the Vault

@@ -6,7 +6,8 @@
 //   layer are therefore bound to the Space resource, not to one pointer.
 // DECISION: the spec names "low-risk fact kinds" without listing them; the setting memory.auto_merge_kinds defaults to preferences only.
 // DECISION: memory_saved block actions are limited to Propose for team; correcting or removing needs a fact id array, which a block cannot pass.
-// NOT EXPRESSIBLE: person-layer rows are end-to-end (enc=2) per row while the same entity also holds shared layers; EntityDef e2e is per entity, so it stays 'none'.
+// NOT EXPRESSIBLE: person-layer rows are sealed per row under the person's own key (enc=2; owner ruling 3 Nov 2026, modules/memory/personal.ts) while the same entity also holds shared layers;
+//   EntityDef e2e is per entity, so it stays 'none'.
 import { block, create, defineManifest, entity, ev, read, screen, setting, t, write } from '../packages/contracts/src/index.ts';
 import { id, pageIn, pageOut, versionRow } from './_common.ts';
 
@@ -83,6 +84,8 @@ const graphIn = {
 };
 const graphOut = { nodes: t.arr(node), edges: t.arr(edge), clusters: t.arr(t.obj({ name: t.str(), hub: t.str(), size: t.int() })) };
 const factT = { factId: id.fact };
+/** Why the asker's own memory is missing from an answer: it is sealed under their own key and this server does not hold the key now (owner ruling 3 Nov 2026). */
+const locked = t.opt(t.str({ description: 'Set when your private memory is sealed under your own key and this server does not hold it right now, so nothing personal came back; the reason in plain words' }));
 const promotionId = t.id('prm');
 
 export default defineManifest({
@@ -101,7 +104,7 @@ export default defineManifest({
     // ---- read tools
     read('memory.search', 'Search notes and current facts the asker may read; BM25, vectors and recency; snippets carry the source link', {
       in: { q: t.str(), layers: t.opt(t.arr(layer)), agentId: t.opt(id.agent), projectId: t.opt(id.project), mode: t.opt(t.enm('keyword', 'semantic', 'hybrid')), limit: t.opt(t.int({ minimum: 1, maximum: 50 })) },
-      out: { hits: t.arr(hit), tookMs: t.int(), meaning: t.opt(meaningInfo) }, label: 'filter', tool: 'memory', mcpName: 'memory_search', agent: { planMode: 'allowed' }, cli: 'vyre memory search',
+      out: { hits: t.arr(hit), tookMs: t.int(), meaning: t.opt(meaningInfo), locked }, label: 'filter', tool: 'memory', mcpName: 'memory_search', agent: { planMode: 'allowed' }, cli: 'vyre memory search',
     }),
     read('memory.quote', 'Exact words of a chat message or run step, word for word, with author, time and a link that opens the chat at that line; only chats, channels and runs the asker could open themselves', {
       in: {
@@ -127,12 +130,12 @@ export default defineManifest({
       in: { noteId: id.note }, out: { note: noteRow, markdown: t.str() }, on: ['note', '/noteId'], label: 'check', tool: 'memory', mcpName: 'read_note', agent: { planMode: 'allowed' },
     }),
     read('memory.facts_as_of', 'Facts that were true on a date (valid_from and valid_to), for "what did it believe on 3 March"', {
-      in: { date: t.ts(), agentId: t.opt(id.agent), layer: t.opt(layer), q: t.opt(t.str()), ...pageIn }, out: { facts: t.arr(factRow), ...pageOut },
+      in: { date: t.ts(), agentId: t.opt(id.agent), layer: t.opt(layer), q: t.opt(t.str()), ...pageIn }, out: { facts: t.arr(factRow), ...pageOut, locked },
       label: 'filter', tool: 'memory', mcpName: 'facts_as_of', agent: { planMode: 'allowed' },
     }),
     read('memory.facts.list', 'List facts by layer, agent, status or "From you"; proposed facts wait here for acceptance', {
       in: { layer: t.opt(layer), agentId: t.opt(id.agent), projectId: t.opt(id.project), status: t.opt(t.arr(factStatus)), fromMe: t.opt(t.bool()), q: t.opt(t.str()), ...pageIn },
-      out: { facts: t.arr(factRow), ...pageOut }, label: 'filter', tool: 'memory',
+      out: { facts: t.arr(factRow), ...pageOut, locked }, label: 'filter', tool: 'memory',
     }),
     read('memory.fact.get', 'Read one fact with its history of closed versions', {
       in: factT, out: { fact: factRow, history: t.arr(factRow) }, label: 'check', tool: 'memory', errors: ['validation.not_found'],
@@ -153,7 +156,7 @@ export default defineManifest({
     }),
     read('memory.pointer', 'Pointer block for a message: up to about 5 lines from a local lookup, no model call, deduplicated against the thread', {
       in: { threadId: id.thread, agentId: id.agent, text: t.str(), sinceIdx: t.opt(t.int()) },
-      out: { lines: t.arr(t.obj({ title: t.str(), fact: t.opt(t.str()), trueSince: t.opt(t.ts()), path: t.str(), sourceLink: t.opt(t.str({ description: 'Link to the exact chat, task or record the fact came from' })), ref: t.opt(t.str({ description: 'The fact id, for memory_forget' })) })), tokens: t.int(), skipped: t.opt(t.enm('short_ack', 'mid_tool_loop', 'no_match', 'duplicate')) },
+      out: { lines: t.arr(t.obj({ title: t.str(), fact: t.opt(t.str()), trueSince: t.opt(t.ts()), path: t.str(), sourceLink: t.opt(t.str({ description: 'Link to the exact chat, task or record the fact came from' })), ref: t.opt(t.str({ description: 'The fact id, for memory_forget' })) })), tokens: t.int(), skipped: t.opt(t.enm('short_ack', 'mid_tool_loop', 'no_match', 'duplicate')), locked },
       label: 'filter',
     }),
     // ---- write: facts
