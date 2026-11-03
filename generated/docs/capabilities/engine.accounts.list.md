@@ -57,6 +57,17 @@ type Out = {
           name: string;
         }>;
       providerId?: string;
+      provider?: string;
+      uses?: {
+        teamChats?: {
+          who: "everyone" | Array<string>;
+        };
+        automations?: true;
+        goals?: true;
+        agentWork?: {
+          which: "all" | Array<string>;
+        };
+      };
       models?: Array<string>;
       usable?: boolean;
       code?: string;
@@ -113,12 +124,23 @@ type Out = {
           }
         ],
         "ownerId": "usr_a1b2c3",
+        "provider": "anthropic",
         "providerId": "prv_a1b2c3",
         "ref": "#Team_Anthropic_Key",
         "spaceKey": true,
         "status": "ok",
         "title": "example",
         "usable": true,
+        "uses": {
+          "agentWork": {
+            "which": "all"
+          },
+          "automations": true,
+          "goals": true,
+          "teamChats": {
+            "who": "everyone"
+          }
+        },
         "why": "example"
       }
     ]

@@ -110,7 +110,7 @@ export async function accountsList(ctx: Ctx, input: { place?: "chat" | "automati
         ...(r.lastProbeAt !== null ? { lastProbeAt: r.lastProbeAt } : {}), ...(r.spaceKey === true ? { spaceKey: true } : {}),
         ...(aliases.length > 0 ? { aliases } : {}), ...(older.length > 0 ? { older } : {}),
         ...(idByRef.get(r.ref) ? { providerId: idByRef.get(r.ref)! } : {}),
-        ...(r.capped === true ? { capped: true } : {}), ...(capOf.has(r.ref) ? { capCents: capOf.get(r.ref)! } : {}),
+        provider: r.provider, ...(r.uses ? { uses: r.uses } : {}), ...(r.capped === true ? { capped: true } : {}), ...(capOf.has(r.ref) ? { capCents: capOf.get(r.ref)! } : {}),
         ...(r.models?.length ? { models: [...r.models] } : {}),
         ...(place && checks ? usableHere(r, place, { me, policy: checks.policy, onServer: checks.onServer, ...(input.model ? { model: input.model } : {}), ...(input.agentId ? { agentId: input.agentId } : {}), ...(input.explicit === true ? { explicit: true } : {}), ...(input.runsAs ? { runsAs: input.runsAs } : {}) }) : {}),
       };
