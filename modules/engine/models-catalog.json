@@ -1,0 +1,25 @@
+{
+  "about": "The models each subscription engine offers out of the box, shipped with the release so a fresh install with no network still shows current ones. Each list is what the pinned CLI itself answered, signed out (agent/src/drivers/cli/models.ts names the call): refresh it with every engine pin bump. A signed-in account's live list replaces it.",
+  "pins": { "codex": "0.166.0", "claude_code": "2.1.316", "grok": "1.0.70" },
+  "codex": [
+    { "id": "gpt-6.1-sol", "title": "GPT-6.1-Sol", "isDefault": true, "efforts": ["low", "medium", "high", "xhigh", "max", "ultra"], "defaultEffort": "low" },
+    { "id": "gpt-6-astra", "title": "GPT-6-Astra", "efforts": ["low", "medium", "high", "xhigh", "max", "ultra"], "defaultEffort": "low" },
+    { "id": "gpt-6-sol", "title": "GPT-6-Sol", "efforts": ["low", "medium", "high", "xhigh", "max", "ultra"], "defaultEffort": "medium" },
+    { "id": "gpt-6-luna", "title": "GPT-6-Luna", "efforts": ["low", "medium", "high", "xhigh", "max"], "defaultEffort": "medium" },
+    { "id": "gpt-5.6-sol", "title": "GPT-5.6-Sol", "efforts": ["low", "medium", "high", "xhigh", "max", "ultra"], "defaultEffort": "low" },
+    { "id": "gpt-6.1-terra", "title": "GPT-6.1 Terra", "efforts": ["low", "medium", "high", "xhigh", "max", "ultra"], "defaultEffort": "low" },
+    { "id": "gpt-5.6-terra", "title": "GPT-5.6-Terra", "efforts": ["low", "medium", "high", "xhigh", "max", "ultra"], "defaultEffort": "medium" },
+    { "id": "gpt-5.6-luna", "title": "GPT-5.6-Luna", "efforts": ["low", "medium", "high", "xhigh", "max"], "defaultEffort": "medium" },
+    { "id": "gpt-5.5", "title": "GPT-5.5", "efforts": ["low", "medium", "high", "xhigh"], "defaultEffort": "medium" }
+  ],
+  "claude_code": [
+    { "id": "claude-opus-5-5", "title": "Opus 5.5", "alias": "opus", "isDefault": true, "efforts": ["low", "medium", "high", "xhigh", "max"] },
+    { "id": "claude-fable-5-1", "title": "Fable 5.1", "alias": "fable", "efforts": ["low", "medium", "high", "xhigh", "max"] },
+    { "id": "claude-sonnet-5-5", "title": "Sonnet 5.5", "alias": "sonnet", "efforts": ["low", "medium", "high", "xhigh", "max"] },
+    { "id": "claude-haiku-5-5", "title": "Haiku 5.5", "alias": "haiku", "efforts": ["low", "medium", "high", "xhigh", "max"] }
+  ],
+  "grok": [
+    { "id": "grok-4.6", "title": "Grok 4.6", "isDefault": true },
+    { "id": "grok-4.5", "title": "Grok 4.5" }
+  ]
+}

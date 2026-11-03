@@ -19,6 +19,8 @@ import { API_IDS } from "../api/types.ts";
 import type { ApiId, Clock, Fetch } from "../api/types.ts";
 import { CLI_ADAPTERS, createCliDriver } from "../cli/driver.ts";
 import type { CliDriverDeps } from "../cli/driver.ts";
+import { listCliModels } from "../cli/models.ts";
+import type { LiveModel } from "../cli/models.ts";
 import { CLI_IDS } from "../cli/types.ts";
 import type { CliId, Launcher, McpEndpoint, NativePlugins } from "../cli/types.ts";
 import { cliCredential } from "./credentials.ts";
@@ -80,6 +82,11 @@ export interface SessionOpener {
   /** The composer got focus or the thread was opened: start the engine ahead of the first message. Never throws, never waits. */
   warm(spec: SessionSpec): void;
   pool: EnginePool;
+  /**
+   * The models a CLI account can use, asked of the engine itself the way the vendor's app asks it (agent/src/drivers/cli/models.ts): the same launcher, sandbox, work folder and Vault fill a
+   * turn of `asker` gets, and no MCP session (the run uses no tools). Throws when the engine gives no answer; the caller keeps the list it had.
+   */
+  models(account: OpenAccount, asker: string, o?: { timeoutMs?: number }): Promise<LiveModel[]>;
   /** Close every session (shutdown): processes end and MCP tokens are revoked. */
   close(): Promise<void>;
 }
@@ -144,6 +151,19 @@ export function createSessionOpener(d: SessionOpenerDeps): SessionOpener {
     },
   });
 
+  /** The thread part of the work folder a model list runs in: one per person, never a chat's own. */
+  const LIST_THREAD = "model-list";
+  async function models(account: OpenAccount, asker: string, o: { timeoutMs?: number } = {}): Promise<LiveModel[]> {
+    if (!(CLI_IDS as readonly string[]).includes(account.driver)) throw new DriverError("engine.unknown_driver", `${account.driver} is not a CLI engine.`);
+    const id = account.driver as CliId;
+    const cred = cliCredential(id, account.kind, account.ref);
+    if (!cred) throw new DriverError("engine.account_unsupported", `${id} cannot run on this kind of account yet.`);
+    const spec = { threadId: LIST_THREAD, asker, agent: { id: "model-list", name: "Model list", mode: "lead" }, account } as unknown as OpenerSpec;
+    const launcher = createFillLauncher({ inner: d.launcher, source: d.source, reportMiss: d.reportMiss, who: { agentId: "model-list", asker, where, traceId: "0".repeat(32) }, env: { [cred.env]: cred.handle }, onUsed: used(spec), ...(d.saveSignin ? { saveSignin: d.saveSignin } : {}) });
+    const cwd = d.cli?.workFolder?.(spec) ?? null;
+    return listCliModels(launcher, id, { ...(cwd !== null ? { cwd } : {}), env: CLI_ADAPTERS[id].env(), ...(o.timeoutMs !== undefined ? { timeoutMs: o.timeoutMs } : {}) });
+  }
+
   const drivers: PoolDriver[] = [...CLI_IDS.map(cliDriver), ...API_IDS.map(apiDriver)];
   const known = new Set(drivers.map((x) => x.id));
   const pool = createPool({ placement: d.placement ?? "host", drivers, ...d.pool });
@@ -162,6 +182,7 @@ export function createSessionOpener(d: SessionOpenerDeps): SessionOpener {
     openSession: open,
     warm: (spec) => warmHint(pool, resolve, spec),
     pool,
+    models,
     close: () => pool.close(),
   };
 }

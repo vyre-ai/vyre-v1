@@ -119,3 +119,35 @@ test("the wired panel: usage is asked for the account in use and again for the a
     assert.ok(s.calls.some((c) => c.cap === "nav.openAiSetup"), "Add another AI provider opens the AI setup when there is no connect host");
   } finally { restore(); resetMissing(); }
 });
+
+test("the model menu shows the saved list at once, then the vendor's new model by its own name, its default marked, an alias pick checked, and a quiet line on freshness", async () => {
+  resetMissing();
+  const restore = installDom();
+  try {
+    const row = (model: string, title: string, o: Record<string, unknown> = {}) => ({ provider: "claude-code", model, title, driver: "claude_code", allowed: true, ...o });
+    const lists: unknown[] = [];
+    const s = stub({
+      "engine.models.list": (i) => {
+        lists.push(i);
+        return i["wait"] === true
+          ? { models: [row("claude-opus-6", "Opus 6", { alias: "opus", isDefault: true }), row("claude-sonnet-5-5", "Sonnet 5.5", { alias: "sonnet", allowed: false, reason: "usage_limit" })], listed: { source: "live", updatedAt: 1, refreshing: false, failed: false } }
+          : { models: [row("claude-opus-5-5", "Opus 5.5", { alias: "opus", isDefault: true }), row("claude-sonnet-5-5", "Sonnet 5.5", { alias: "sonnet" })], listed: { source: "saved", updatedAt: 1, refreshing: true, failed: false } };
+      },
+      "engine.usage.get": () => null,
+      "agents.get": () => ({ agent: {} }),
+    });
+    const onOpus = { ...thread, agents: [{ ...thread.agents[0]!, model: "opus" }] } as Thread;
+    const root = await mount(createRoot, <ChatBrain data={s.data} thread={onOpus} agent={{ id: "agt_intake", name: "Intake" }} accounts={connectedAccounts(ROWS)} mode="ask" onMode={() => undefined} close={() => undefined} narrow={false} say={() => undefined} />);
+    await flush();
+    await flush();
+    assert.deepEqual(lists.map((i) => [(i as Record<string, unknown>)["refresh"] ?? null, (i as Record<string, unknown>)["wait"] ?? null]), [[true, null], [null, true]], "a refresh as the menu opens, then one quiet wait");
+    await press(find(root, "model-model"));
+    assert.match(textOf(find(root, "row-model-claude-opus-6")), /Opus 6/);
+    assert.match(textOf(find(root, "row-model-claude-opus-6")), /Default/);
+    assert.equal(find(root, "row-model-claude-opus-5-5"), null, "the saved list was replaced by the fresh one");
+    assert.match(textOf(find(root, "row-model-claude-sonnet-5-5")), /Out of usage/, "usage greying is kept");
+    assert.match(textOf(find(root, "model-models-line")), /Updated just now/);
+    assert.match(textOf(find(root, "model-model")), /Opus 6/, "a pick saved as the alias shows the model it means today");
+    assert.doesNotMatch(textOf(find(root, "model-models")), /Latest/);
+  } finally { restore(); resetMissing(); }
+});

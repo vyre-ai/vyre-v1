@@ -177,12 +177,15 @@ export async function startChannel(data: ConversationData, personId: string, key
   await data.call("threads.make_channel", { threadId: data.threadId, personId, idempotencyKey: key } satisfies CapMap["threads.make_channel"]["in"]);
 }
 
-export interface ModelChoice { provider: string; model: string; title: string; allowed: boolean }
+export interface ModelChoice { provider: string; model: string; title: string; allowed: boolean; alias?: string; isDefault?: boolean }
 
-/** The models this thread may use (the Space's policy and the asker's accounts decide which are allowed). */
+/** The models this thread may use (the Space's policy and the asker's accounts decide which are allowed). The menu opening asks the subscription engines for their lists again (live-models.ts). */
 export async function listModels(data: ConversationData): Promise<ModelChoice[]> {
-  const out = (await data.call("engine.models.list", { threadId: data.threadId } satisfies CapMap["engine.models.list"]["in"])) as CapMap["engine.models.list"]["out"];
-  return out.models.map((m) => ({ provider: m.provider, model: m.model, title: m.title, allowed: m.allowed }));
+  const out = (await data.call("engine.models.list", { threadId: data.threadId, refresh: true } as CapMap["engine.models.list"]["in"])) as CapMap["engine.models.list"]["out"];
+  return out.models.map((m) => {
+    const x = m as typeof m & { alias?: string; isDefault?: boolean };
+    return { provider: m.provider, model: m.model, title: m.title, allowed: m.allowed, ...(x.alias ? { alias: x.alias } : {}), ...(x.isDefault ? { isDefault: true } : {}) };
+  });
 }
 
 /** Switches the model the lead answers with. The engine writes the switch into the chat as a quiet line. */

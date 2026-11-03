@@ -28,6 +28,8 @@ type In = {
   accountRef?: string;
   threadId?: string;
   recordLabel?: "public" | "internal" | "confidential" | "restricted";
+  refresh?: boolean;
+  wait?: boolean;
 };
 ```
 
@@ -44,7 +46,17 @@ type Out = {
       allowed: boolean;
       reason?: "label_provider" | "policy_model" | "not_connected" | "usage_limit";
       resetsAt?: number;
+      alias?: string;
+      isDefault?: boolean;
+      efforts?: Array<string>;
+      defaultEffort?: string;
     }>;
+  listed?: {
+    source: "live" | "saved" | "shipped";
+    updatedAt?: number;
+    refreshing: boolean;
+    failed: boolean;
+  };
 };
 ```
 
@@ -63,14 +75,28 @@ type Out = {
   "input": {
     "accountRef": "#Team_Anthropic_Key",
     "recordLabel": "public",
-    "threadId": "thr_a1b2c3"
+    "refresh": true,
+    "threadId": "thr_a1b2c3",
+    "wait": true
   },
   "output": {
+    "listed": {
+      "failed": true,
+      "refreshing": true,
+      "source": "live",
+      "updatedAt": 1760000000000
+    },
     "models": [
       {
+        "alias": "opus",
         "allowed": true,
         "contextTokens": 1,
+        "defaultEffort": "medium",
         "driver": "anthropic",
+        "efforts": [
+          "high"
+        ],
+        "isDefault": true,
         "model": "claude-sonnet-5-5",
         "provider": "anthropic",
         "reason": "label_provider",
