@@ -36979,6 +36979,10 @@ export type GateApprovedPayload = {
     kind: "person" | "agent" | "actor" | "service";
     id: string;
   };
+  capName?: string;
+  threadId?: string;
+  agentId?: string;
+  actingFor?: string;
 };
 export type GateDeniedPayload = {
   holdId: string;
@@ -36991,6 +36995,10 @@ export type GateDeniedPayload = {
     kind: "person" | "agent" | "actor" | "service";
     id: string;
   };
+  capName?: string;
+  threadId?: string;
+  agentId?: string;
+  actingFor?: string;
 };
 export type GateExpiredPayload = {
   holdId: string;

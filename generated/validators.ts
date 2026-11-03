@@ -88137,6 +88137,10 @@ if ("taskId" in o5630) lf(o5630["taskId"], p + "/taskId", e, L25);
 if ("by" in o5630) lf(o5630["by"], p + "/by", e, L2);
 if ("forPerson" in o5630) lf(o5630["forPerson"], p + "/forPerson", e, L2);
 if ("askedBy" in o5630) d_s_6c1eb10d98(o5630["askedBy"], p + "/askedBy", e);
+if ("capName" in o5630) lf(o5630["capName"], p + "/capName", e, L2);
+if ("threadId" in o5630) lf(o5630["threadId"], p + "/threadId", e, L2);
+if ("agentId" in o5630) lf(o5630["agentId"], p + "/agentId", e, L2);
+if ("actingFor" in o5630) lf(o5630["actingFor"], p + "/actingFor", e, L2);
 }
 }
 }
@@ -88161,6 +88165,10 @@ if ("by" in o5631) lf(o5631["by"], p + "/by", e, L2);
 if ("mode" in o5631) lf(o5631["mode"], p + "/mode", e, L535);
 if ("note" in o5631) lf(o5631["note"], p + "/note", e, L2);
 if ("askedBy" in o5631) d_s_6c1eb10d98(o5631["askedBy"], p + "/askedBy", e);
+if ("capName" in o5631) lf(o5631["capName"], p + "/capName", e, L2);
+if ("threadId" in o5631) lf(o5631["threadId"], p + "/threadId", e, L2);
+if ("agentId" in o5631) lf(o5631["agentId"], p + "/agentId", e, L2);
+if ("actingFor" in o5631) lf(o5631["actingFor"], p + "/actingFor", e, L2);
 }
 }
 }
