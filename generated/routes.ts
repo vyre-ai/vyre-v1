@@ -22654,6 +22654,132 @@ const routes4: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/network/peer_allow",
+    "cap": "network.peer_allow",
+    "v": 1,
+    "module": "network",
+    "effects": "write",
+    "permission": null,
+    "level": "use",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "high",
+    "offline": null,
+    "teamOnly": false,
+    "gate": "enroll_node"
+  },
+  {
+    "method": "POST",
+    "path": "/v1/network/peer_conflicts",
+    "cap": "network.peer_conflicts",
+    "v": 1,
+    "module": "network",
+    "effects": "read",
+    "permission": null,
+    "level": "use",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/network/peer_decline",
+    "cap": "network.peer_decline",
+    "v": 1,
+    "module": "network",
+    "effects": "write",
+    "permission": null,
+    "level": "use",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/network/peer_remove",
+    "cap": "network.peer_remove",
+    "v": 1,
+    "module": "network",
+    "effects": "write",
+    "permission": null,
+    "level": "use",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "high",
+    "offline": null,
+    "teamOnly": false,
+    "gate": "delete"
+  },
+  {
+    "method": "POST",
+    "path": "/v1/network/peer_requests",
+    "cap": "network.peer_requests",
+    "v": 1,
+    "module": "network",
+    "effects": "read",
+    "permission": null,
+    "level": "use",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/network/peer_runner",
+    "cap": "network.peer_runner",
+    "v": 1,
+    "module": "network",
+    "effects": "read",
+    "permission": null,
+    "level": "use",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/network/peers",
+    "cap": "network.peers",
+    "v": 1,
+    "module": "network",
+    "effects": "read",
+    "permission": null,
+    "level": "use",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/network/phone",
     "cap": "network.phone",
     "v": 1,
@@ -27503,7 +27629,10 @@ const routes4: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes5: Route[] = [
   {
     "method": "POST",
     "path": "/v1/sheets/append_rows",
@@ -27637,10 +27766,7 @@ const routes4: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  }
-];
-
-const routes5: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/sites/artifact_open",
@@ -33041,7 +33167,10 @@ const routes5: Route[] = [
     "offline": "online",
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes6: Route[] = [
   {
     "method": "POST",
     "path": "/v1/vault/item/move",
@@ -33173,10 +33302,7 @@ const routes5: Route[] = [
     "offline": "online",
     "teamOnly": false,
     "gate": "secret_export"
-  }
-];
-
-const routes6: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/vault/items/list",
