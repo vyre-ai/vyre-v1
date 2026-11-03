@@ -39,10 +39,13 @@ type Out = {
   effective: {
     target: "device" | "space" | "server";
     serverId?: string;
+    deviceId?: string;
   };
   options: Array<{
       target: "device" | "space" | "server";
       serverId?: string;
+      deviceId?: string;
+      current?: boolean;
       name: string;
       online: boolean;
       reason?: string;
@@ -69,11 +72,14 @@ type Out = {
   },
   "output": {
     "effective": {
+      "deviceId": "example",
       "serverId": "example",
       "target": "device"
     },
     "options": [
       {
+        "current": true,
+        "deviceId": "example",
         "name": "example",
         "online": true,
         "reason": "example",

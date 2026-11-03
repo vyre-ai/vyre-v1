@@ -12,6 +12,7 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "mounts.doc_insert_text": Handler<"mounts.doc_insert_text", X>;
   "mounts.doc_replace_text": Handler<"mounts.doc_replace_text", X>;
   "mounts.editors": Handler<"mounts.editors", X>;
+  "mounts.engine_folders": Handler<"mounts.engine_folders", X>;
   "mounts.file_link": Handler<"mounts.file_link", X>;
   "mounts.get": Handler<"mounts.get", X>;
   "mounts.history": Handler<"mounts.history", X>;

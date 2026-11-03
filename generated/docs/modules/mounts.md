@@ -4,7 +4,7 @@ Lane L4. Kind module. Version 0.1.0.
 
 Requires: files.
 
-## Capabilities (24)
+## Capabilities (25)
 
 - [mounts.account_pause](../capabilities/mounts.account_pause.md): The connector stops or restarts everything that syncs as one address; the folders stay
 - [mounts.add](../capabilities/mounts.add.md): Mount a Google, SharePoint, OneDrive or Dropbox folder, a folder on your computer or a GitHub repository into a folder of the tree; the first sync is a Run
@@ -13,6 +13,7 @@ Requires: files.
 - [mounts.doc_insert_text](../capabilities/mounts.doc_insert_text.md): Insert text into a mounted Google Doc after or before some existing text, or at its start or end; refuses if the Doc changed meanwhile
 - [mounts.doc_replace_text](../capabilities/mounts.doc_replace_text.md): Replace text in a mounted Google Doc, in the Doc itself; the change shows in its Google version history
 - [mounts.editors](../capabilities/mounts.editors.md): Who last edited each file at the provider, for the rows of a file list (files outside a mount are left out)
+- [mounts.engine_folders](../capabilities/mounts.engine_folders.md): System: the folders on their own computers a person mounted into this Space (local mounts they added), with the path on the computer, for that person's CLI engine
 - [mounts.file_link](../capabilities/mounts.file_link.md): Where a mounted file opens at its provider (Google Docs, Sheets, Slides, Word, Excel, PowerPoint, Dropbox) and what an agent can do to it in place
 - [mounts.get](../capabilities/mounts.get.md): Read one mount: state, lag, pending changes and conflicts (the sync line of a folder)
 - [mounts.history](../capabilities/mounts.history.md): The provider's revisions of a file, newest first, with who saved each (the person or agent for edits sent from Vyre)
