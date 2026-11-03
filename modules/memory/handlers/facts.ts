@@ -9,6 +9,9 @@ import { extrasFor, factRows } from "../enrich.ts";
 import { meaningScores } from "../meaning.ts";
 import { reviewRequired } from "../policy.ts";
 import { trail, whoIs } from "../trail.ts";
+import { chatForgotten } from "../learn-quota.ts";
+import { learnTurn, readByTurns } from "./learn.ts";
+import type { LearnIn, LearnOut } from "./learn.ts";
 import type { Who } from "../trail.ts";
 import { emitAccepted, emitLearned, emitProposed, insertFact, normal } from "../factcore.ts";
 import { loadPage, readPage } from "../pages.ts";
@@ -853,10 +856,14 @@ async function captureModeOf(ctx: MemCtx, agentId: string): Promise<CaptureMode 
   } catch { return null; }
 }
 
-export async function capture(ctx: MemCtx, input: { threadId: string; reason: "closed" | "idle" }) {
+export async function capture(ctx: MemCtx, input: { threadId: string; reason: "closed" | "idle" } | LearnIn): Promise<LearnOut> {
   ensure(ctx.db);
+  // after every turn: the model pass on the asker's own account (learn.ts); at chat end or when quiet, the rules below over what no turn pass read
+  if (input.reason === "turn") return learnTurn(ctx, input);
+  // "Don't remember this chat": nothing is learned from it, by model or by rules
+  if (chatForgotten(ctx, input.threadId).off) return { proposed: 0, merged: 0 };
   const t = ((await ctx.call("threads.get", { threadId: input.threadId })) as ThreadOut).thread;
-  const page = (await ctx.call("chat.messages.list", { threadId: input.threadId, limit: 200 })) as { messages: CaptureMessage[] };
+  const page = (await ctx.call("chat.messages.list", { threadId: input.threadId, limit: 200 })) as { messages: Array<CaptureMessage & { threadSeq?: number }> };
   const agentId = (t.agents.find((a) => a.mode === "lead") ?? t.agents[0])?.agentId ?? null;
   const shared = t.kind === "channel" || t.kind === "thread";
   const fromRun = t.kind === "run";
@@ -872,7 +879,8 @@ export async function capture(ctx: MemCtx, input: { threadId: string; reason: "c
   let proposed = 0;
   let merged = 0;
   // an imported session's first message (the preamble and the transcript it carries) is history to read, not something the person said: nothing is learned from it
-  for (const c of await extractor(page.messages.filter((m) => !IMPORTED_PREAMBLE.test(String((m as { body?: unknown }).body ?? ""))))) {
+  const unread = page.messages.filter((m) => !IMPORTED_PREAMBLE.test(String((m as { body?: unknown }).body ?? "")) && !readByTurns(ctx, input.threadId, m.author.id, m.threadSeq));
+  for (const c of await extractor(unread)) {
     const key = `${input.threadId}:${c.messageId}:${c.index}`;
     if (rowsOf(ctx.db, "SELECT fact_id FROM memory_fact_links WHERE kind = 'capture' AND ref = ?", key)[0]) continue;
     let layer: Layer = "person";

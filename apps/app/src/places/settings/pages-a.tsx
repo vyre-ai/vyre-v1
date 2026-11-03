@@ -8,6 +8,7 @@ import { Avatar, assistantId, assistantLook, setAssistantLook, subscribeAssistan
 import { Bar, RegistrySections, useRead } from "./blocks.tsx";
 import { CopyFromSpace } from "./CopyFromSpace.tsx";
 import { MemoryKeys } from "./MemoryKeys.tsx";
+import { MemoryLearning } from "./MemoryLearning.tsx";
 import { SignInApps } from "./SignInApps.tsx";
 import { OutsideAgents } from "./OutsideAgents.tsx";
 import { MODELS, NOTIFICATIONS, useIsPersonal, useSettingsData, useScreenQuery } from "./data.tsx";
@@ -312,6 +313,7 @@ export function AiPage({ rows, found }: PageProps): ReactElement {
         <SettingsRow id="open-vault" label="Sign-ins and keys" sub="Add an account, or let the Space use yours" lead={<Glyph name="key" size={15} />} first={acc.length === 0} onPress={() => data.nav.openVault()} control={<Glyph name="chevR" size={13} />} />
       </Section>
       <MemoryKeys />
+      <MemoryLearning />
     </>
   );
 }

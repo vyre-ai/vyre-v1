@@ -12,13 +12,15 @@ export interface NewFact {
   promotedFrom?: string | null; promotedBy?: string | null; promotedAt?: number | null; links?: Array<[string, string]>;
   /** The trail line this insert writes: create (the default), learn (captured by memory itself), edit (a correction), promote. */
   how?: TrailAction; why?: string; who?: Who; runId?: string;
+  /** A link to the exact line the fact came from (a chat message), instead of the one the source kind and ref give. */
+  sourceLink?: string;
 }
 
 /** Insert one fact row (sealed when it is a person-layer fact) and its source links. */
 export function insertFact(ctx: MemCtx, n: NewFact): Fact {
   const id = mintId("fct", ctx.now());
   const sealed = n.layer === "person";
-  const link = sourceLinkOf(n.sourceKind, n.sourceRef);
+  const link = n.sourceLink ?? sourceLinkOf(n.sourceKind, n.sourceRef);
   const subject = n.sourceKind === "record" ? n.sourceRef : null;
   ctx.db.run(
     "INSERT INTO memory_facts (id, layer, owner_ref, agent_id, project_id, note_id, kind, text, sealed, enc, valid_from, valid_to, learned_at, closed_at, source_kind, source_ref, source_link, source_person, proposed_by, status, low_risk, subject, replaces, promoted_from, promoted_by, promoted_at) " +
