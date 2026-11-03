@@ -37,3 +37,5 @@
 
 - When a tool crashes on the server, the agent is told in plain words which tool failed, that nothing was changed, and the trace to give the person, instead of a bare 500.
 - Tests for an agent's memory search: a fresh agent, an agent with lessons, a person key held and gone, awkward notes, and the read gate on a search answer.
+- A note card is only as tall as its words. Its hover tools sit over its foot and take no room, so one note no longer sits in a tall empty card.
+- The closed Take a note bar has a flat edge in place of the wide soft shadow, which showed as a shaded strip under it in dark themes.

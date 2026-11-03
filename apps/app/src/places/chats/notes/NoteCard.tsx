@@ -66,7 +66,7 @@ export const NoteCard = memo(function NoteCard({ n, image, who, selected, tabbab
           </View>
         </View>
         {phone ? null : (
-          <View style={s.tools} {...dom({ dataSet: { nfade: "off" } })}>
+          <View style={[s.tools, { backgroundColor: ring }]} {...dom({ dataSet: { nfade: "off" } })}>
             <IconBtn icon="palette" label="Colour" size={30} iconSize={15} tabbable={false} onPress={(x, y) => a.colour(n.noteId, x, y)} testID={`note-colour-${n.noteId}`} />
             <IconBtn icon="tag" label="Labels (L)" size={30} iconSize={15} tabbable={false} onPress={(x, y) => a.labels(n.noteId, x, y)} testID={`note-labels-${n.noteId}`} />
             {n.mine ? <IconBtn icon="share" label="Share (S)" size={30} iconSize={15} tabbable={false} onPress={() => a.share(n.noteId)} testID={`note-share-${n.noteId}`} /> : null}
@@ -108,6 +108,7 @@ const s = StyleSheet.create({
   meta: { fontSize: 11.5, color: "var(--ink-3)" as string },
   shr: { flexDirection: "row", alignItems: "center", gap: 4, flexShrink: 0 },
   grow: { flex: 1, minWidth: 0 },
-  tools: { flexDirection: "row", alignItems: "center", paddingHorizontal: 6, paddingBottom: 6, marginTop: -4 },
+  // the tools sit over the card's foot on hover and take no room of their own, so a card is as tall as its words
+  tools: { position: "absolute", left: 0, right: 0, bottom: 0, flexDirection: "row", alignItems: "center", paddingHorizontal: 6, paddingTop: 4, paddingBottom: 4 },
   pin: { position: "absolute", top: 8, right: 8 },
 });
