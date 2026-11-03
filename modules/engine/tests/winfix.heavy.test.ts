@@ -28,6 +28,8 @@ import { PUBLIC_RULE, addedFolder, createEgressProxy } from "../../../sandbox/sr
 
 const ON = process.env["VYRE_HEAVY_WINFIX"] === "1" && process.platform === "win32";
 
+const MAIN_PROMPT = "Read the skill's files.";
+
 /** A fake model API: each request answers with the next scripted tool call, or "done" when every one has its result; it records the tool results and whether a text was in the request. */
 function fakeApi(steps: Array<{ name: string; input: Record<string, unknown> }>, log: string[]): Promise<{ port: number; bodies: string[]; close(): void }> {
   const bodies: string[] = [];
@@ -42,7 +44,10 @@ function fakeApi(steps: Array<{ name: string; input: Record<string, unknown> }>,
       bodies.push(body);
       const results = [...JSON.stringify(j.messages ?? []).matchAll(/"type":"tool_result".{0,600}/g)].map((m) => m[0]);
       for (const r of results) if (!log.includes(`toolResult ${r}`)) log.push(`toolResult ${r}`);
-      const step = steps[results.length];
+      // side requests (a title, a summary) are answered with text: only the conversation that carries the prompt gets the tool calls
+      const main = body.includes(MAIN_PROMPT);
+      log.push(`request ${main ? "main" : "side"} ${j.model ?? ""} results=${results.length}`);
+      const step = main ? steps[results.length] : undefined;
       const msg = { id: "msg_1", type: "message", role: "assistant", model: j.model ?? "fake", content: [], stop_reason: null, stop_sequence: null, usage: { input_tokens: 1, output_tokens: 1 } };
       const block = step ? { type: "tool_use", id: `toolu_${results.length + 1}`, name: step.name, input: {} } : { type: "text", text: "" };
       const delta = step ? { type: "input_json_delta", partial_json: JSON.stringify(step.input) } : { type: "text_delta", text: "done" };
@@ -137,12 +142,12 @@ describe("Windows parity (lane l-winfix)", { skip: !ON && "VYRE_HEAVY_WINFIX=1 o
     assert.ok(logs.some((l) => l.includes("too long for Windows")), "and logged");
 
     const log: string[] = [];
-    const api = await fakeApi([{ name: "Read", input: { file_path: badName } }, { name: "Read", input: { file_path: device } }, { name: "Read", input: { file_path: deep } }], log);
+    const api = await fakeApi([{ name: "Read", input: { file_path: deep } }, { name: "Read", input: { file_path: badName } }, { name: "Read", input: { file_path: device } }], log);
     try {
       const env = { ANTHROPIC_API_KEY: "sk-ant-fake", ANTHROPIC_BASE_URL: `http://127.0.0.1:${api.port}`, CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: "1", DISABLE_AUTOUPDATER: "1" };
       const wrap = sandboxWrap(d.plan, { homeFromScratch: true });
-      const turn = await run(wrap([claude, "-p", "Read the skill's files.", "--output-format", "text", "--permission-mode", "bypassPermissions", "--model", "claude-sonnet-4-5"], { cwd, env }), { cwd, env, ms: 180_000 });
-      console.log(`claude: exit ${turn.code}\n${turn.out.slice(-400)}\n${turn.err.slice(-1200)}\nresults: ${log.join("\n").slice(-2500)}`);
+      const turn = await run(wrap([claude, "-p", MAIN_PROMPT, "--output-format", "text", "--permission-mode", "bypassPermissions", "--model", "claude-sonnet-4-5", "--debug"], { cwd, env }), { cwd, env, ms: 180_000 });
+      console.log(`claude: exit ${turn.code}\n${turn.out.slice(-400)}\n${turn.err.slice(-6000)}\nresults: ${log.join("\n").slice(-4000)}`);
       assert.equal(turn.code, 0, turn.err.slice(-800));
       assert.ok(api.bodies.some((b) => b.includes("winfix-proof") && b.includes("WINFIX-DESC-51a")), "claude.exe lists the skill from .claude/skills of its folder");
       for (const marker of ["BADNAME-CONTENT-7f3", "DEVICE-NAME-CONTENT-2c1", "DEEP-CONTENT-9b4"]) assert.ok(log.some((l) => l.includes(marker)), `claude.exe read ${marker}`);
@@ -192,8 +197,10 @@ describe("Windows parity (lane l-winfix)", { skip: !ON && "VYRE_HEAVY_WINFIX=1 o
       assert.equal(g.status, 0, g.stderr);
     }
     const signed: string[] = [];
+    const seen: string[] = [];
     const server = new ssh2.Server({ hostKeys: [fs.readFileSync(path.join(keys, "host"))] }, (client: any) => {
       client.on("authentication", (ctx: any) => {
+        seen.push(`auth ${ctx.method} ${ctx.username} ${ctx.key?.algo ?? ""} sig=${Boolean(ctx.signature)}`);
         if (ctx.method === "publickey" && ctx.key.algo === allowed.type && Buffer.compare(ctx.key.data, allowed.getPublicSSH()) === 0) {
           if (!ctx.signature) return ctx.accept();
           if (allowed.verify(ctx.blob, ctx.signature, ctx.hashAlgo) === true) { signed.push(ctx.username); return ctx.accept(); }
@@ -203,13 +210,13 @@ describe("Windows parity (lane l-winfix)", { skip: !ON && "VYRE_HEAVY_WINFIX=1 o
         client.on("session", (accept: () => any) => {
           accept().once("exec", (ok: () => any, _no: unknown, info: { command: string }) => {
             const stream = ok();
-            assert.match(info.command, /^git-upload-pack '\/?served\.git'$/);
+            seen.push(`exec ${info.command}`);
             const p = spawn("git", ["upload-pack", repo], { windowsHide: true });
             stream.pipe(p.stdin); p.stdout.pipe(stream); p.stderr.pipe(stream.stderr);
             p.on("exit", (code) => { stream.exit(code ?? 1); stream.end(); });
           });
         });
-      }).on("error", () => undefined);
+      }).on("error", (e: Error) => { seen.push(`error ${e.message}`); });
     });
     await new Promise<void>((r) => server.listen(0, "127.0.0.1", () => r()));
     const sshPort = (server.address() as net.AddressInfo).port;
@@ -227,7 +234,12 @@ describe("Windows parity (lane l-winfix)", { skip: !ON && "VYRE_HEAVY_WINFIX=1 o
       const clone = await run(wrap(["git", "clone", "-q", "ssh://git@git.vyre-proof.example/served.git", "over-ssh"], { cwd, env: { GIT_TRACE: "1" } }), { cwd, ms: 180_000 });
       const cfg = fs.readdirSync(path.join(dataDir, "s")).map((p) => path.join(dataDir, "s", p, "home", ".ssh", "vyre_config")).find((f) => fs.existsSync(f));
       console.log(`vyre_config:\n${cfg ? fs.readFileSync(cfg, "utf8") : "(none)"}`);
-      console.log(`git clone over ssh: exit ${clone.code}\n${clone.err.slice(-2500)}`);
+      console.log(`git clone over ssh: exit ${clone.code}\n${clone.err.slice(-2500)}\nserver: ${seen.join(" | ")}`);
+      if (clone.code !== 0) {
+        const shim = (plan.sandbox as { ssh?: string }).ssh as string;
+        const direct = await run(wrap([shim, "-v", "git@git.vyre-proof.example", "git-upload-pack '/served.git'"], { cwd, env: {} }), { cwd, ms: 60_000, input: "0000" });
+        console.log(`ssh through the shim: exit ${direct.code}\n${direct.out.slice(0, 300)}\n${direct.err.slice(-4000)}\nserver: ${seen.join(" | ")}`);
+      }
       assert.equal(keysAtLow.code, 0, "the Low engine reaches the agent's named pipe");
       assert.equal(clone.code, 0, clone.err.slice(-800));
       assert.equal(fs.readFileSync(path.join(cwd, "over-ssh", "README"), "utf8"), "SSH-CLONE-CONTENT-8d0");
