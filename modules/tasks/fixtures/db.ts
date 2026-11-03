@@ -25,7 +25,7 @@ type Authorize = (who: { id: string }, action: { perm: string | null; level: str
 type Callee = (input: any, who: { id: string }) => unknown;   // eslint-disable-line @typescript-eslint/no-explicit-any
 
 /** The calls that only keep a task's thread (the work baton): they are logged apart in `threadCalls`, so a test about a release or a resume counts only the calls it is about. */
-const THREAD_CAPS: ReadonlySet<string> = new Set(["chat.start", "chat.post", "threads.members.add", "threads.add_agent"]);
+const THREAD_CAPS: ReadonlySet<string> = new Set(["chat.start", "chat.post", "threads.members.add", "threads.add_agent", "threads.members.remove", "threads.remove_agent"]);
 
 export interface HarnessOptions {
   now?: number;

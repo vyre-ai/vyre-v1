@@ -17,6 +17,8 @@ function withThreads(o: Parameters<typeof harness>[0] = {}): Harness {
   h.callee("threads.members.add", () => ({}));
   h.callee("threads.add_agent", () => ({}));
   h.callee("chat.post", () => ({ message: {} }));
+  h.callee("threads.members.remove", () => ({}));
+  h.callee("threads.remove_agent", () => ({}));
   return h;
 }
 async function refused(p: Promise<unknown>, reason: string): Promise<void> {
@@ -205,4 +207,22 @@ test("a repeat comes back with its brief, its files and its followers, not what 
   assert.deepEqual(next.notes, { brief: "Pay the rent" });
   assert.deepEqual(next.fileIds, ["fil_lease1"]);
   assert.ok(h.calls.some((c) => c.cap === "tasks.followers.add" && (c.input as { follower: string }).follower === cara.id));
+});
+
+test("the holder a task was taken from leaves its thread; one still on it stays", async () => {
+  const h = withThreads();
+  const id = (await h.call("tasks.create", newTask({ assigned: bob, reviewer: cara }), me)).task.id as string;
+  h.threadCalls.length = 0;
+  await h.call("tasks.assign", { taskId: id, slot: "assigned", to: alice }, me);
+  assert.deepEqual(h.threadCalls.filter((c) => c.cap === "threads.members.remove").map((c) => (c.input as { personId: string }).personId), [bob.id]);
+  await h.call("tasks.assign", { taskId: id, slot: "reviewer", to: { kind: "agent", id: "agt_bot" } }, me);
+  assert.deepEqual(h.threadCalls.filter((c) => c.cap === "threads.members.remove").map((c) => (c.input as { personId: string }).personId), [bob.id, cara.id]);
+  h.threadCalls.length = 0;
+  await h.call("tasks.assign", { taskId: id, slot: "reviewer", to: bob }, me);
+  assert.deepEqual(h.threadCalls.filter((c) => c.cap === "threads.remove_agent").map((c) => (c.input as { agentId: string }).agentId), ["agt_bot"]);
+  // the one who made it stays in its thread when it moves on from them
+  const mine = (await h.call("tasks.create", newTask({ assigned: owner }), me)).task.id as string;
+  h.threadCalls.length = 0;
+  await h.call("tasks.assign", { taskId: mine, slot: "assigned", to: alice }, me);
+  assert.deepEqual(h.threadCalls.filter((c) => c.cap === "threads.members.remove"), [], "the creator stays");
 });

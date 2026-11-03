@@ -6,7 +6,7 @@ import {
   actionableByMe, allTasks, clean, emitTask, ensurePrefix, findTask, getTask, historyOf, holds, isOpen, isRequest, listTasks, myWork, needsYou, newTaskId, openIndex,
   out, outFor, page, raise, readPolicy, sameAssignee, touch, visibleTo, whoIs,
 } from "../projections.ts";
-import { ensureThread, syncThread } from "./thread.ts";
+import { ensureThread, syncThread, unseat } from "./thread.ts";
 import type {
   ActionDef, Assignee, Block, ListFilter, Policy, Section, Slot, Task, TaskKind, TaskSource, TaskState, TasksCtx, Who,
 } from "../projections.ts";
@@ -432,6 +432,8 @@ export async function assign(ctx: TasksCtx, input: In): Promise<unknown> {
   touch(ctx, ctx.db, t);
   emitTask(ctx, ctx.db, "task.assigned", t, { slot, to, from, title: t.title, by: ctx.principal.id }, { type: "assigned", by: ctx.principal.id });
   await syncThread(ctx, t);
+  // the one it was taken from leaves its thread, so they stop hearing a task that is no longer theirs
+  await unseat(ctx, t, from);
   return { task: out(ctx, t) };
 }
 

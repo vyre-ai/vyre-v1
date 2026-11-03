@@ -163,6 +163,7 @@ interface HeadProps {
 /** The head and every block, above the feed, scrolling with it. */
 function TaskHead({ task, rt, nameOf, run, line, menu, kids, list, seats, openTask, openAgent, openChat, onKids, railOpen, onRail, show, onShow, mode, setMode, begin, openFull, back }: HeadProps): ReactElement {
   const [title, setTitle] = useState(task.title);
+  const [titleH, setTitleH] = useState(34);
   useEffect(() => setTitle(task.title), [task.title]);
   const view = task as unknown as TaskView;
   const turn = useLiveTurn(rt.turns, task.workerThread ?? task.threadId);
@@ -195,7 +196,8 @@ function TaskHead({ task, rt, nameOf, run, line, menu, kids, list, seats, openTa
     </View>
     <View style={st.titleRow}>
       <View style={{ marginTop: 7 }}><StatusDot state={task.state} size={24} live={turn !== undefined} onPress={(at) => menu.show(statusEntries(task, rt.me.id, run, begin), at.x, at.y, "other", { label: "Status" })} testID="task-status" /></View>
-      <TextInput accessibilityLabel="Task title" testID="task-title" value={title} onChangeText={setTitle} onBlur={saveTitle} onSubmitEditing={saveTitle} multiline={false} style={st.h1} />
+      {/* the title wraps to as many lines as it needs (a phone, the side pane); Enter saves it, it never holds a line break */}
+      <TextInput accessibilityLabel="Task title" testID="task-title" value={title} onChangeText={(v) => setTitle(v.replace(/\n/g, ""))} onBlur={saveTitle} onSubmitEditing={saveTitle} multiline blurOnSubmit scrollEnabled={false} onContentSizeChange={(e) => setTitleH(Math.max(34, Math.ceil(e.nativeEvent.contentSize.height)))} style={[st.h1, { height: titleH }]} />
     </View>
     {steps.length > 2 ? <BatonPath steps={steps} nameOf={nameOf} /> : null}
     {turn ? <View style={st.liveLine}><LiveWords turn={turn} turns={rt.turns} name={nameOf(turn.agentId)} /></View> : null}
