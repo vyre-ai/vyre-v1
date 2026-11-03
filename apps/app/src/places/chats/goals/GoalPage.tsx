@@ -14,6 +14,7 @@ import { Avatar, avatarOf } from "../../../../../../ui/src/Avatar/index.tsx";
 import { Conversation } from "../conversation/Conversation.tsx";
 import type { ConversationData } from "../conversation/data.tsx";
 import type { Changes } from "../conversation/use-follow.ts";
+import { formatActivity } from "../../../../../../lib/words/activity.ts";
 import { useGoal } from "./data.ts";
 import type { Call } from "./data.ts";
 import { Bar, TONE } from "./GoalRow.tsx";
@@ -83,7 +84,7 @@ export function GoalPage({ goalId, call, changes, me, nameOf, clock, conversatio
       <View style={st.main}>{feed}</View>
       {paneOpen && !phone ? (
         <SidePane paneKey="goal-pane" toggle={{ open: true, onPress: () => setPaneOpen(false) }} title="Goal" tabs={[{ key: "activity", title: "Activity" }, { key: "details", title: "Details" }, { key: "files", title: "Files" }]} activeTab={tab} onSelectTab={(k) => setTab(k as PaneTab)} defaultWidth={340} onCloseTab={() => setPaneOpen(false)}>
-          {tab === "activity" ? <Activity data={data} nameOf={nameOf} now={now} offsetMin={offsetMin} openTask={openTask} /> : tab === "details" ? <Details g={g} nameOf={nameOf} offsetMin={offsetMin} now={now} run={run} menu={menu} /> : <Files g={g} call={call} changes={changes} {...(openFolder ? { openFolder } : {})} {...(openFile ? { openFile } : {})} />}
+          {tab === "activity" ? <Activity data={data} me={me} nameOf={nameOf} now={now} offsetMin={offsetMin} openTask={openTask} /> : tab === "details" ? <Details g={g} nameOf={nameOf} offsetMin={offsetMin} now={now} run={run} menu={menu} /> : <Files g={g} call={call} changes={changes} {...(openFolder ? { openFolder } : {})} {...(openFile ? { openFile } : {})} />}
         </SidePane>
       ) : null}
       {menu.element}
@@ -203,7 +204,7 @@ function Notice({ data, now, offsetMin, run, fill, menu }: { data: GoalPageData;
   if (g.status === "draft") {
     return (
       <Card testID="goal-draft" tone="plain" icon="target" title="Drafted, not started">
-        <Text style={st.body}>{`Nothing runs and no permission holds until you press Start goal.`}</Text>
+        <Text style={st.body}>{`Nothing starts until you press Start goal.`}</Text>
       </Card>
     );
   }
@@ -240,7 +241,7 @@ function Card({ tone, icon, title, children, testID }: { tone: Tone; icon: strin
 /** The number, big and still, with where it comes from and the chart of how it got here. */
 function NumberBlock({ data, now, offsetMin, phone }: { data: GoalPageData; now: number; offsetMin: number; phone: boolean }): ReactElement {
   const g = data.goal, p = g.progress;
-  const src = g.finish.source?.label ?? (g.finish.kind === "checklist" ? "the checklist" : g.finish.kind === "owner" ? "the owner says done" : "the source");
+  const src = g.finish.source?.label ?? (g.finish.kind === "checklist" ? "Checklist" : g.finish.kind === "owner" ? "You say when it is done" : "the source");
   const sub = p.error ? `Can't read ${src}: ${p.error}` : p.readAt ? `${src}, read ${whenWords(p.readAt, now, offsetMin)}` : src;
   const big = p.target !== undefined ? (p.value === undefined ? "–" : fmt(p.value)) : p.items !== undefined ? String(p.itemsDone ?? 0) : String(p.tasksDone);
   const of = p.target !== undefined ? `/ ${fmt(p.target)}` : p.items !== undefined ? `of ${p.items}` : `of ${p.tasks} tasks`;
@@ -344,7 +345,8 @@ function Plan({ tasks, nameOf, openTask }: { tasks: readonly TaskLine[]; nameOf(
   );
 }
 
-function Activity({ data, nameOf, now, offsetMin, openTask }: { data: GoalPageData; nameOf(id: string): string; now: number; offsetMin: number; openTask(id: string): void }): ReactElement {
+export function Activity({ data, me, nameOf, now, offsetMin, openTask }: { data: GoalPageData; me: string; nameOf(id: string): string; now: number; offsetMin: number; openTask(id: string): void }): ReactElement {
+  const viewer = { me, nameOf, offsetMin };
   const days = byDay(data.activity, now, offsetMin);
   if (days.length === 0) return <Text style={[st.small, st.pad]}>Nothing yet.</Text>;
   return (
@@ -353,21 +355,17 @@ function Activity({ data, nameOf, now, offsetMin, openTask }: { data: GoalPageDa
       {days.map((d) => (
         <View key={d.day} style={st.day}>
           <Text style={st.label}>{d.day}</Text>
-          {d.items.map((a) => (
-            <Row key={`${a.at}-${a.kind}-${a.text.slice(0, 24)}`} id={`ga-${a.at}`} title={a.text} note={`${whenWords(a.at, now, offsetMin)}${a.by ? ` · ${credit(a.by, nameOf)}` : ""}`}
-              {...(a.ref?.startsWith("tsk_") ? { onPress: () => openTask(a.ref!) } : {})} />
-          ))}
+          {d.items.map((a) => {
+            const line = formatActivity(a, viewer);
+            return (
+              <Row key={`${a.at}-${a.kind}-${a.text.slice(0, 24)}`} id={`ga-${a.at}`} title={line.text} note={`${whenWords(a.at, now, offsetMin)}${line.credit ? ` · ${line.credit}` : ""}`}
+                {...(a.ref?.startsWith("tsk_") ? { onPress: () => openTask(a.ref!) } : {})} />
+            );
+          })}
         </View>
       ))}
     </ScrollView>
   );
-}
-/** Who did it: a person by name, a person's agent as "<Person> (Agent)", the server as Vyre. */
-function credit(by: string, nameOf: (id: string) => string): string {
-  const [actor, forWho] = by.split(">");
-  if (forWho) return `${nameOf(forWho)} (Agent)`;
-  if (actor?.startsWith("svc_")) return "Vyre";
-  return nameOf(actor ?? by);
 }
 
 function Details({ g, nameOf, offsetMin, now, run, menu }: { g: Goal; nameOf(id: string): string; offsetMin: number; now: number; run: Run; menu: Menu }): ReactElement {
