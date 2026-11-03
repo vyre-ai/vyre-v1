@@ -1,6 +1,7 @@
 // Identity module (lane L7a). The manifest stays `stub` until the lead regenerates the registry with status live (needs gen, which only CI runs).
 import { handlers } from "./handlers/index.ts";
 import { claimIssue } from "./handlers/claim.ts";
+import { carrySignIn, carryUse } from "./handlers/carry.ts";
 import { configureSessionTokens, sessionOfToken } from "./projections.ts";
 import type { IdentityCtx } from "./projections.ts";
 
@@ -16,6 +17,9 @@ export const codecs = {};
  * DECISION: the fingerprint is a placeholder (see host/src/seams/spaceadmin.ts).
  */
 export const hostCalls = {
+  /** rc.17: a sign-in from another Space's web page makes a carry token, never a session (handlers/carry.ts; the host's carry door is its only caller) */
+  "identity.carry_sign_in": (ctx: unknown, i: { username: string; password: string; totp?: string; origin: string }) => carrySignIn(ctx as IdentityCtx, i),
+  "identity.carry_use": (ctx: unknown, i: { token: string; origin: string; op: "keys_get" | "whoami" | "sign_out" }) => carryUse(ctx as IdentityCtx, i),
   /** ruling 71: a fresh one-time claim link for an owner who has no account yet (null once they have one) */
   "identity.claim_issue": (ctx: unknown, i: { personId: string }): { code: string; expiresAt: number } | null => claimIssue(ctx as IdentityCtx, i),
   "identity.ensure_space": (ctx: { space: string; db: { run(sql: string, ...a: unknown[]): unknown } }, i: { name: string; github: boolean }): void => {

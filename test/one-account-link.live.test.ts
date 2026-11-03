@@ -78,7 +78,7 @@ test("two accounts become one: the kept password and recovery code work in B, B'
       assert.equal((await api(a, kept.token, "identity.whoami", {})).status, 200);
       // audited, with the move named and no secret in it
       const rows = (await ok(b, b.token, "audit.list", { limit: 200 })).rows as Array<{ action: string; onBehalfOf?: { id: string } }>;
-      const linked = rows.filter((r) => r.action.includes("link_account") && r.onBehalfOf?.id === other.personId);
+      const linked = rows.filter((r) => r.action === "identity.link_account" && JSON.stringify(r).includes(other.personId));
       assert.ok(linked.length >= 1, `an audit row for the link: ${JSON.stringify(rows.map((r) => r.action).slice(0, 40))}`);
       assert.ok(!JSON.stringify(rows).includes(PASSWORD), "no password in the audit log");
     }

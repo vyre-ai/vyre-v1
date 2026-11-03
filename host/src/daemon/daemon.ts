@@ -122,6 +122,7 @@ import { createMcpRoute } from "../routes/mcp.ts";
 import type { McpRuntime } from "../routes/mcp.ts";
 import { createKeyring } from "../seams/keyring.ts";
 import { WRAP_POLICY, createKeyWraps } from "../seams/key-wraps.ts";
+import { createCarryDoor } from "../routes/carry-door.ts";
 import { createGithubSignInRoute } from "../routes/github-signin.ts";
 import { createSsoSignInRoute, createSsoTickets } from "../routes/sso-signin.ts";
 import { createPeopleExtras, githubOAuthFromEnv, linkSso, matchProvenAddress, ssoProvidersIn } from "../seams/people.ts";
@@ -1892,9 +1893,12 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       return publicOrigin()?.origin ?? null;
     };
     const mcpRoute = createMcpRoute({ runtime: () => mcpRuntime, origin: mcpOrigin });
+    // rc.17: another Space's web page bringing the account ("I already have a Vyre account"): a carry token, never a session, and CORS for those few calls only (routes/carry-door.ts)
+    const carryDoor = createCarryDoor({ ownOrigin: () => publicOrigin()?.origin ?? null, call: (n, i) => (hooks ? hooks.call(n, i) : Promise.reject(new Error("no Space here"))) });
     // the app itself, last of all: a browser at the Space's address, or at a join link, gets the web export this image carries (routes/app-files.ts)
     const appFiles = createAppFilesRoute({ dir: () => o.appDir !== undefined ? o.appDir : defaultAppDir() });
     server.on("request", (req, res) => {
+      if (carryDoor.handle(req, res)) return;
       if(desktopCors(req,res))return;
       if (bearer(req.headers.authorization)?.startsWith("vas_")) {
         // Do not hand a preview to public share/forms, MCP, sync, uploads,

@@ -15,6 +15,18 @@ In every case the device opens the bundle (`client/src/crypto/keys.ts`: `carryBu
 
 Not built (option B, put to the owner): handing the person key, which the server keeps behind a provider sign-in (`host/src/seams/key-wraps.ts`), to an authenticated session. It would let whoever controls a member's Google identity take the key off the server, and with one account that reaches every Space. With option A, a Google sign-in alone opens the person's Vault on that server only. Bringing the account to another Space still takes the password or the recovery code.
 
+### From another Space's web page: the carry door (lead ruling, 3 Nov)
+
+On the web, B's join page is served from B's origin, so it reaches A cross-origin. A page from B could pass a session token to B's server. So a sign-in from a foreign https origin never makes a session (`host/src/routes/carry-door.ts`, `modules/identity/handlers/carry.ts`). It makes a carry token (`vct_`) with these limits:
+
+- it allows only `identity.keys_get`, once, `identity.whoami` and `identity.sign_out`;
+- it is bound to the Origin that asked, and lasts 5 minutes;
+- it is answered only by the carry door. Every other route and capability refuses it with 401, whether the call comes from a browser or from a server.
+
+The sign-in runs the same checks as `identity.sign_in`: lockout, the verifier, the second factor, membership and the sign-in policy. It is limited to 10 a minute per origin and address. It writes an audit row (`identity.carry_sign_in`, with the origin), and the person sees "Signed in from <host>, to bring your account to another Space" in Settings, Sign-in (`identity.security.get` `carried`).
+
+Only the six identity paths answer a foreign origin's preflight: `sign_in_options`, `sign_in`, `recovery_fetch`, `keys_get`, `whoami` and `sign_out`. A foreign page that sends a session token is refused (403). Everything else stays desktop-only (`host/src/daemon/desktop-cors.ts`). The desktop app and the Space's own pages sign in as before.
+
 A Google button on "I already have a Vyre account" is also not built. The SSO return goes only to the Space's own origin or loopback, so a Google sign-in at A cannot hand a session to a page served by B. A device with no session uses the recovery code there.
 
 ## Use one account everywhere (rc.17)

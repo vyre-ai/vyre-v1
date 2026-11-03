@@ -26,7 +26,7 @@ export interface SettingsNav {
 /** What one Space asks of this person's sign-in: its second factor, passkeys, the floor its admins set and single sign-on. */
 export interface SpaceSecurity { totp: boolean; passkeys: readonly string[]; floor: string; floorBy: string; sso: string; devices: number }
 /** The sign-in that is the same for every Space: the password and a linked GitHub account. */
-export interface AccountSecurity { passwordChanged: string; github: string | null }
+export interface AccountSecurity { passwordChanged: string; github: string | null; /** rc.17: sign-ins from another Space's page that brought this account there, newest first */ carried?: ReadonlyArray<{ host: string; day: string }> }
 
 /** The desktop app's own updates. Only the desktop shell supplies it; the web app and the phone update by reloading. */
 export interface DesktopUpdater {
