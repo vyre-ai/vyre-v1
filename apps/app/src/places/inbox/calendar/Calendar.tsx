@@ -22,7 +22,7 @@ import { each } from "./each.ts";
 import { Icon } from "./icons.tsx";
 import { calendarMenuEntries, dayMenuEntries, eventMenuEntries, lengthMenuEntries, peopleMenuEntries } from "./menus.ts";
 import {
-  DAY, HH, MONTH_CAP, allDayLane, availabilityLine, atSlot, blockOf, calReduce, clickCreate, clock, conflicts, dateOf, dayText, directoryOf, dragCreate, dragMove, dragResize, eventLine, eventsOn, freeLine, initialCal, isPast, lanesOf, monthCell, lengthText, menuFacts,
+  DAY, HH, HOUR, MONTH_CAP, allDayLane, availabilityLine, atSlot, blockOf, calReduce, clickCreate, clock, conflicts, dateOf, dayText, directoryOf, dragCreate, dragMove, dragResize, eventLine, eventsOn, freeLine, initialCal, isBand, isPast, lanesOf, monthCell, lengthText, menuFacts,
   minutes, monthOf, nameMap, newDraft, offsetToY, range, setLength, slotText, startOfDay, stripesOf, viewDays, viewRange, viewTitle, visibleCalendarIds, weekdayShort, whoLabel,
 } from "./model.ts";
 import type { Busy, CalendarRow, Draft, EventRow, Mode, Slot, Span } from "./model.ts";
@@ -193,8 +193,14 @@ function Grid({ p }: { p: CalendarProps }): ReactElement {
     void findTime(data, shaded, length, Math.max(clockNow.now, today), today + 14 * DAY, 1).then((r) => { if (live) setFirst(r[0]); }).catch(() => undefined);
     return () => { live = false; };
   }, [shaded.join(), length, draftEnd, today]);
-  // the grid opens at the working day, or at the current time (two and a half hours above it) when today is in view
-  useEffect(() => { scroll.current?.scrollTo?.({ y: cal.mode === "month" ? 0 : viewDays(cal.mode, cal.day, off).includes(today) ? Math.max(0, offsetToY(clockNow.now - today) - 2.5 * HH) : 7.5 * HH, animated: false }); }, [cal.mode]); // eslint-disable-line react-hooks/exhaustive-deps -- on open and when the mode changes
+  // the grid opens at the working day, or just above the current time when today is in view, but never below the earliest timed event shown (with half an hour of margin)
+  useEffect(() => {
+    if (cal.mode === "month") { scroll.current?.scrollTo?.({ y: 0, animated: false }); return; }
+    const vd = viewDays(cal.mode, cal.day, off);
+    const base = vd.includes(today) ? Math.max(0, (clockNow.now - today) / HOUR - 2.5) : 7.5;
+    const firsts = events.filter((e) => !e.allDay && !isBand(e) && e.status !== "canceled").flatMap((e) => vd.filter((d) => e.startsAt >= d && e.startsAt < d + DAY).map((d) => (e.startsAt - d) / HOUR));
+    scroll.current?.scrollTo?.({ y: Math.max(0, Math.min(base, (firsts.length ? Math.min(...firsts) : 24) - 0.5)) * HH, animated: false });
+  }, [cal.mode, evq.status]); // eslint-disable-line react-hooks/exhaustive-deps -- on open, when the mode changes and when the events arrive
 
   const calId = cal.draft?.calendarId ?? calendars.find((c) => !c.personal)?.id ?? calendars[0]?.id ?? "";
   const withDraft = (span: Span, title = ""): void => dispatch({ type: "draft", draft: newDraft(span, calId, cal.people, title) });
@@ -350,6 +356,14 @@ function Grid({ p }: { p: CalendarProps }): ReactElement {
     const l = { ...laid, e: { ...e, ...span } };
     const b = blockOf(l, day);
     const col = colorOf(calendars, e.calendarId);
+    if (laid.more) {
+      // past three at once: the first two show and this tile lists the rest
+      const rest = laid.more;
+      return (
+        <Pressable key={`more:${e.id}`} accessibilityRole="button" accessibilityLabel={`${rest.length} more at this time`} testID={`grpmore:${e.id}`} onPress={(ev) => { const q = pointOf(ev); menu.show([{ head: "At this time" }, ...rest.map((r) => ({ label: `${r.title}  ${clock(r.startsAt, off)}`, onSelect: () => openEvent(r.id) }))], q.x, q.y); }}
+          style={({ hovered }: { hovered?: boolean }) => [s.grpMore, { top: b.top }, hovered === true && s.hicOver]}><Text style={s.grpMoreText}>{`+${rest.length}`}</Text></Pressable>
+      );
+    }
     if (laid.band) {
       // a long Block or Focus: a quiet tinted band behind the others; only its small label takes a press (the rest lets a drag create through)
       const crowded = all.some((o) => !o.band && o.e.startsAt < e.startsAt + 16 * 36e5 / HH && o.e.endsAt > e.startsAt);
@@ -364,7 +378,7 @@ function Grid({ p }: { p: CalendarProps }): ReactElement {
     const when = b.time === "range" ? range(span.startsAt, span.endsAt, off) : clock(span.startsAt, off);
     const inline = b.lines === 1 && b.time === "start";
     return (
-      <View key={e.id} {...menuTrigger((x, y) => eventMenu(e, x, y))} style={[s.cev, { top: b.top, height: b.height, left: b.left as unknown as number, width: b.width as unknown as number, backgroundImage: tint(col, isPast(e, clockNow.now) ? 9 : 15), borderLeftColor: col }, cal.selected === e.id && s.cevSel]} testID={`event:${e.id}`}>
+      <View key={e.id} {...menuTrigger((x, y) => eventMenu(e, x, y))} style={[s.cev, { top: b.top, height: b.height, left: b.left as unknown as number, width: b.width as unknown as number, zIndex: b.z, backgroundImage: tint(col, isPast(e, clockNow.now) ? 9 : 15), borderLeftColor: col }, cal.selected === e.id && s.cevSel]} testID={`event:${e.id}`}>
         <Pressable
           accessibilityRole="button" accessibilityLabel={`${e.title}, ${eventLine(e, off)}`} accessibilityState={{ selected: cal.selected === e.id }} testID={`event-body:${e.id}`}
           onPress={(ev) => pressEvent(e.id, ev)} onHoverIn={hoverIn(e.id)} onHoverOut={hoverOut} {...({ onPointerDown: startEvent(e, "move") } as object)} style={[s.cevIn, inline && s.cevInline]}
@@ -373,7 +387,7 @@ function Grid({ p }: { p: CalendarProps }): ReactElement {
           {b.time === "none" ? null : <Text numberOfLines={1} style={s.cevSmall}>{when}</Text>}
         </Pressable>
         <View testID={`resize:${e.id}`} {...({ onPointerDown: startEvent(e, "resize") } as object)} style={s.grip} />
-        {e.bookedByAgentId && b.height >= 24 && laid.lanes < 3 ? <View style={s.af}><Face name={e.bookedByAgentId.replace(/^agt_/, "")} seedId={e.bookedByAgentId} size={14} round={false} /></View> : null}
+        {e.bookedByAgentId && b.height >= 24 && laid.lanes < 2 ? <View style={s.af}><Face name={e.bookedByAgentId.replace(/^agt_/, "")} seedId={e.bookedByAgentId} size={14} round={false} /></View> : null}
       </View>
     );
   };
@@ -683,6 +697,8 @@ const s = StyleSheet.create({
   nowPill: { position: "absolute", right: 3, height: 14, paddingHorizontal: 4, borderRadius: 4, backgroundColor: ink("--danger"), justifyContent: "center", zIndex: 9 },
   nowPillText: { fontSize: 10, lineHeight: 14, fontWeight: "600", color: "#fff", fontVariant: ["tabular-nums"] },
   band: { position: "absolute", left: 0, right: 0, zIndex: 1 },
+  grpMore: { position: "absolute", right: 3, height: 20, minWidth: 26, paddingHorizontal: 6, borderRadius: 5, justifyContent: "center", alignItems: "center", zIndex: 6, backgroundColor: ink("--raised"), boxShadow: "0 0 0 1px var(--line-2)" as unknown as undefined },
+  grpMoreText: { fontSize: 11, fontWeight: "600", color: ink("--ink-2") },
   bandLabel: { position: "absolute", left: 6, maxWidth: "90%" as unknown as number, paddingHorizontal: 3, borderRadius: 3, opacity: 0.8 },
   bandLabelTop: { top: 2 },
   bandLabelBot: { bottom: 2 },
@@ -700,12 +716,12 @@ const s = StyleSheet.create({
   ccol: { flex: 1, minWidth: 0, height: GRID, borderLeftWidth: 1, borderLeftColor: ink("--line"), backgroundImage: GRIDBG as unknown as undefined },
   ccolWeekend: { backgroundImage: `${SOLID("color-mix(in srgb, var(--ink) 2.4%, transparent)")}, ${GRIDBG}` as unknown as undefined },
   ccolToday: { backgroundImage: `${SOLID("color-mix(in srgb, var(--accent) 5.5%, transparent)")}, ${GRIDBG}` as unknown as undefined },
-  cev: { position: "absolute", borderRadius: 5, overflow: "hidden", borderLeftWidth: 3, zIndex: 2 },
+  cev: { position: "absolute", borderRadius: 5, overflow: "hidden", borderLeftWidth: 3, zIndex: 2, boxShadow: "0 0 0 1px var(--win)" as unknown as undefined },
   cevSel: { zIndex: 4, boxShadow: "0 0 0 2px var(--accent)" as unknown as undefined },
   cevIn: { flex: 1, paddingTop: 3, paddingBottom: 2, paddingLeft: 5, paddingRight: 4 },
   cevInline: { flexDirection: "row", alignItems: "baseline", gap: 6, paddingTop: 2 },
   cevTitleInline: { flexShrink: 1 },
-  cevTitle: { fontSize: 11.5, lineHeight: 14, fontWeight: "600", color: ink("--ink") },
+  cevTitle: { fontSize: 11.5, lineHeight: 14, fontWeight: "600", color: ink("--ink"), ...({ overflowWrap: "normal", wordBreak: "normal" } as object) },
   cevPast: { color: ink("--ink-2") },
   cevSmall: { fontSize: 11, lineHeight: 14, color: ink("--ink-2") },
   grip: { position: "absolute", left: 0, right: 0, bottom: 0, height: 6, cursor: "ns-resize" as unknown as undefined },

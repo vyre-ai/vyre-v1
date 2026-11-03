@@ -13,11 +13,16 @@ const row = (id: string, title: string, a: number, b: number, o: Partial<EventRo
   ({ id, calendarId: "cal_work", title, startsAt: D0 + a * HOUR, endsAt: D0 + b * HOUR, allDay: false, joinProvider: "none", attendees: [], recordIds: [], status: "confirmed", ...o });
 const allDay = (id: string, title: string, from: number, days = 1, o: Partial<EventRow> = {}): EventRow => row(id, title, 0, 0, { allDay: true, startsAt: D0 + from * DAY, endsAt: D0 + (from + days) * DAY, ...o });
 
-test("overlap: an overlap group shares the column in equal widths, a later event starts a new group at full width", () => {
+test("overlap: events that start together share the width, a later start sits on top 14 px further in, past three the first two show and a +N tile holds the rest", () => {
   const l = lanesOf([row("a", "NDA", 10, 10.5), row("b", "Meeting with Priya", 10, 10.5), row("c", "Hartwell intake", 10.25, 11), row("d", "Lunch", 12, 13)]);
-  assert.deepEqual(l.map((x) => [x.e.id, x.lane, x.lanes]), [["a", 0, 3], ["b", 1, 3], ["c", 2, 3], ["d", 0, 1]]);
-  assert.equal(blockOf(l[0]!, D0).width, "calc(33.3333333333333% - 4px)".replace("33.3333333333333", String(100 / 3)));
-  assert.equal(blockOf(l[3]!, D0).width, "calc(100% - 4px)");
+  assert.deepEqual(l.map((x) => [x.e.id, x.lane, x.lanes, x.level]), [["a", 0, 2, 0], ["b", 1, 2, 0], ["c", 0, 1, 1], ["d", 0, 1, 0]]);
+  assert.equal(blockOf(l[0]!, D0).width, "calc((100% - 0px) / 2 - 4px)");
+  assert.equal(blockOf(l[2]!, D0).left, "calc(14px + 0 * (100% - 14px) / 1 + 2px)");
+  assert.ok(blockOf(l[2]!, D0).z > blockOf(l[0]!, D0).z, "the later card is drawn on top");
+  assert.equal(blockOf(l[3]!, D0).width, "calc((100% - 0px) / 1 - 4px)");
+  const many = lanesOf([row("a", "A", 10, 11), row("b", "B", 10.25, 11), row("c", "C", 10.5, 11), row("d", "D", 10.75, 11), row("e", "E", 10.75, 11)]);
+  assert.deepEqual(many.filter((x) => !x.more).map((x) => x.e.id), ["a", "b"], "the first two");
+  assert.deepEqual(many.find((x) => x.more)!.more!.map((x) => x.id), ["c", "d", "e"], "and a tile for the other three");
 });
 
 test("background blocks: a long Block or Focus is a band behind the others and takes no column; a short one and a real meeting are not", () => {
@@ -31,13 +36,13 @@ test("background blocks: a long Block or Focus is a band behind the others and t
   const l = lanesOf([row("blk", "Block", 9, 17), row("a", "Call A", 10, 11), row("b", "Call B", 10, 11)]);
   const band = l.find((x) => x.e.id === "blk")!;
   assert.equal(band.band, true);
-  assert.deepEqual(l.filter((x) => !x.band).map((x) => [x.e.id, x.lane, x.lanes]), [["a", 0, 2], ["b", 1, 2]], "the two calls split the column; the band is not counted");
+  assert.deepEqual(l.filter((x) => !x.band).map((x) => [x.e.id, x.lane, x.lanes]), [["a", 0, 2], ["b", 1, 2]], "the two calls share the width; the band is not counted");
   assert.equal(l[0]!.band, true, "bands come first, drawn behind");
   assert.equal(blockOf(band, D0).top, 9 * HH);
 });
 
 test("titles and time: two lines before a cut, the time on its own line only when there is room", () => {
-  const one = (o: EventRow, lanes = 1) => blockOf({ e: o, lane: 0, lanes, band: false }, D0);
+  const one = (o: EventRow, lanes = 1) => blockOf({ e: o, lane: 0, lanes, level: 0, band: false }, D0);
   const q = one(row("q", "Quick", 10, 10.25));
   assert.deepEqual([q.lines, q.time], [1, "start"], "15 minutes: one line, the start beside the title");
   const h = one(row("h", "Half", 10, 10.5));
@@ -87,7 +92,7 @@ test("screen: the crowded week shows the band behind, the 10:00 group in three c
   for (const id of ["e_x_nda", "e_x_priya", "e_x_hart"]) {
     const i = out.indexOf(`data-testid="event:${id}"`);
     assert.ok(i >= 0, id);
-    assert.ok(out.slice(Math.max(0, i - 500), i).includes("width:calc(33.3333"), `${id} takes a third of the column`);
+    assert.ok(/width:calc\(\(100% - \d+px\) \/ [12] - 4px\)/.test(out.slice(Math.max(0, i - 600), i)), `${id} gets most of the column`);
   }
   assert.ok(has('data-testid="cal-allday"'), "the all-day lane");
   assert.ok(has('data-testid="allday:e_x_summit"'), "the summit is one bar");

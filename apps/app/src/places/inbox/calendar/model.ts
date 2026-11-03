@@ -171,7 +171,22 @@ export const minutes = (s: Span): number => Math.round((s.endsAt - s.startsAt) /
 
 // ---------------------------------------------------------------- lanes
 
-export interface Laid { e: EventRow; lane: number; lanes: number; /** A long background block (Block, Focus): drawn as a tinted band behind the day, taking no column. */ band: boolean }
+export interface Laid {
+  e: EventRow;
+  /** Side by side: events that start together (within 15 minutes) share the width; this is the place among them and `lanes` how many. */
+  lane: number;
+  lanes: number;
+  /** Cascade level: a later start is drawn on top of the card below, `CASCADE` px further in (0 to 3). */
+  level: number;
+  /** A long background block (Block, Focus): drawn as a tinted band behind the day, taking no column. */
+  band: boolean;
+  /** Past three events in a group the first two show and this tile lists the rest. */
+  more?: EventRow[];
+}
+
+/** Pixels each cascade level is drawn further in. */
+export const CASCADE = 14;
+const TOGETHER = 15 * MIN;
 
 /** A long "Block", "Focus", "Busy" or "Hold" (two hours or more), or any event of seven hours or more, is a background band, not a column. */
 export function isBand(e: EventRow): boolean {
@@ -180,22 +195,31 @@ export function isBand(e: EventRow): boolean {
   return len >= 7 * HOUR || (len >= 2 * HOUR && /^(block|focus|busy|hold|do not book)\b/i.test(e.title));
 }
 
-/** Overlapping events side by side: an overlap group shares the column in equal widths (each event gets a lane and the number of lanes in its group). Bands come first, behind. */
+/** Overlapping events like a good calendar: events that start together share the width; a later start sits on top of the card below, a little further in, so every title keeps most of the column. Bands come first, behind. */
 export function lanesOf(list: readonly EventRow[]): Laid[] {
-  const out: Laid[] = list.filter(isBand).map((e) => ({ e, lane: 0, lanes: 1, band: true }));
+  const out: Laid[] = list.filter(isBand).map((e) => ({ e, lane: 0, lanes: 1, level: 0, band: true }));
   const sorted = list.filter((e) => !isBand(e)).sort((a, b) => a.startsAt - b.startsAt || b.endsAt - a.endsAt);
-  let group: { e: EventRow; lane: number }[] = [];
+  let group: EventRow[] = [];
   let end = 0;
   const flush = (): void => {
-    const n = Math.max(1, ...group.map((g) => g.lane + 1));
-    for (const g of group) out.push({ e: g.e, lane: g.lane, lanes: n, band: false });
+    const keep = group.slice(0, group.length > 3 ? 2 : group.length), more = group.slice(keep.length);
+    const subs: { at: number; end: number; es: EventRow[] }[] = [];
+    for (const e of keep) {
+      let g = subs.find((x) => Math.abs(e.startsAt - x.at) < TOGETHER);
+      if (!g) { g = { at: e.startsAt, end: 0, es: [] }; subs.push(g); }
+      g.es.push(e);
+      g.end = Math.max(g.end, e.endsAt);
+    }
+    subs.forEach((g, i) => {
+      const level = Math.min(3, subs.slice(0, i).filter((x) => x.end > g.at).length);
+      g.es.forEach((e, k) => out.push({ e, lane: k, lanes: g.es.length, level, band: false }));
+    });
+    if (more.length > 0) out.push({ e: more[0] as EventRow, lane: 0, lanes: 1, level: 0, band: false, more });
     group = [];
   };
   for (const e of sorted) {
     if (group.length > 0 && e.startsAt >= end) { flush(); end = 0; }
-    let lane = 0;
-    while (group.some((g) => g.lane === lane && g.e.endsAt > e.startsAt)) lane++;
-    group.push({ e, lane });
+    group.push(e);
     end = Math.max(end, e.endsAt);
   }
   if (group.length > 0) flush();
@@ -203,7 +227,7 @@ export function lanesOf(list: readonly EventRow[]): Laid[] {
 }
 
 export interface Block {
-  top: number; height: number; left: string; width: string;
+  top: number; height: number; left: string; width: string; z: number;
   /** Under 40 px. */
   one: boolean;
   /** How many lines the title may take before it is cut: one in a block under 30 px, else two. */
@@ -218,7 +242,8 @@ export function blockOf(l: Laid, day: number): Block {
   const height = Math.max(20, offsetToY(Math.min(l.e.endsAt, day + DAY) - Math.max(l.e.startsAt, day)) - 1);
   const lines = height < 30 ? 1 : 2;
   const time = height >= 44 ? (l.lanes > 1 ? "start" : "range") : lines === 1 && l.lanes === 1 ? "start" : "none";
-  return { top, height, left: `calc(${(l.lane * 100) / l.lanes}% + 2px)`, width: `calc(${100 / l.lanes}% - 4px)`, one: height < 40, lines, time };
+  const off = l.level * CASCADE;
+  return { top, height, left: `calc(${off}px + ${l.lane} * (100% - ${off}px) / ${l.lanes} + 2px)`, width: `calc((100% - ${off}px) / ${l.lanes} - 4px)`, z: 2 + l.level, one: height < 40, lines, time };
 }
 
 /** The events of one day: timed ones in order, all-day ones apart. */
