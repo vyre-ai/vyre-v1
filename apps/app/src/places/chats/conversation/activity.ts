@@ -30,6 +30,8 @@ export function thinkingExcerpt(text: string, max = 72): string {
 /** A step in words, with what it touches when the host said so: "Reading model.ts", "Searching the web: stream pacing". A turn waiting while Vyre installs its engine reads "Setting up Codex". */
 export function stepLabel(name: string, detail?: string): string {
   if (name === "engine_setup") return detail ? `Setting up ${detail}` : "Setting up";
+  // the Windows sandbox starting (or set up once) reads as the engine says it: "Starting the Windows sandbox, first turn after a restart"
+  if (name === "sandbox_start") return detail || "Starting the Windows sandbox";
   // a turn whose computer went to sleep, pinned to it: it waits for it (modules/engine/device-turns.ts)
   if (name === "device_wait") return "Waiting for your computer";
   const words = name !== "" ? stepWords(name) : "Working";

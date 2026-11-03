@@ -96,14 +96,17 @@ export function createPeerSync(d: PeerSyncDeps): PeerSync {
   let wokeBlobs = false, wokeTrees = false;
   // live: a write here pokes the other computers (debounced); a poke from one asks for a round soon
   let watcher: ReturnType<typeof setInterval> | null = null;
-  let lastDirty = -1, wakeTimer: ReturnType<typeof setTimeout> | null = null, soonTimer: ReturnType<typeof setTimeout> | null = null;
-  const dirtyMark = (): number => {
-    let n = 0;
-    const h = d.db();
-    try { n += Number((h?.all("SELECT COALESCE(MAX(n), 0) AS n FROM peer_dirty")[0] as { n?: number } | undefined)?.n ?? 0); } catch { /* not installed */ }
-    try { n += Number((spaceDb?.all("SELECT COALESCE(MAX(n), 0) AS n FROM peer_dirty")[0] as { n?: number } | undefined)?.n ?? 0) * 1e9; } catch { /* no space store */ }
-    return n;
+  let lastDirty: string | null = null, wakeTimer: ReturnType<typeof setTimeout> | null = null, soonTimer: ReturnType<typeof setTimeout> | null = null;
+  // a local write shows as a new row in peer_dirty, or (when a round stamped it before the watcher looked) as one more stamp: peer_dirty's numbers start again once it is emptied, so a write
+  // that was stamped between two looks left MAX(n) where it was and was never sent (the Windows parity run, and one run in three on Linux)
+  const markOf = (db: HostDb | null): string => {
+    if (!db) return "-";
+    let n = "0", st = "0";
+    try { n = String((db.all("SELECT COALESCE(MAX(n), 0) AS n FROM peer_dirty")[0] as { n?: number } | undefined)?.n ?? 0); } catch { /* not installed */ }
+    try { st = String((db.all("SELECT value FROM peer_meta WHERE key = 'stamped'")[0] as { value?: string } | undefined)?.value ?? "0"); } catch { /* not installed */ }
+    return `${n}.${st}`;
   };
+  const dirtyMark = (): string => `${markOf(d.db())}|${markOf(spaceDb)}`;
   async function poke(): Promise<void> {
     const h = d.db(), me = d.selfId(), token = d.token();
     if (!h || !me || !token) return;
@@ -118,7 +121,7 @@ export function createPeerSync(d: PeerSyncDeps): PeerSync {
     watcher = setInterval(() => {
       if (!cells) return;
       const m = dirtyMark();
-      if (lastDirty < 0) { lastDirty = m; return; }
+      if (lastDirty === null) { lastDirty = m; return; }
       if (m === lastDirty) return;
       lastDirty = m;
       if (wakeTimer) clearTimeout(wakeTimer);
@@ -175,6 +178,8 @@ export function createPeerSync(d: PeerSyncDeps): PeerSync {
       if (spaceDb) c.space = make(spaceDb, { site, now: d.now, deny: (t) => t.startsWith("sync_") });
       for (const x of Object.values(c)) x.install();
       cells = c as Record<StoreName, CellsLike>;
+      // the live watcher's starting point is the moment capture is on: a write made before its first look (a round, then a write at once) is a change from here, not part of the start
+      lastDirty = dirtyMark();
       d.log("peers.capture_on", {});
       return true;
     } catch (e) { d.log("peers.capture_failed", { why: (e as Error).message }); return false; }

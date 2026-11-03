@@ -37,7 +37,14 @@ export interface RunnableDeps {
   engines?: EngineSetup;
   /** Why this computer cannot sandbox a CLI engine (sandbox-default.ts cliSandboxGap), or null. A CLI account is then passed over like a missing program, and its start refuses with sandbox.unavailable. */
   unsandboxed?: () => string | null;
+  /** The code that refusal carries (sandbox-default.ts cliSandboxCode: Windows without WSL says how to turn it on). Default sandbox.unavailable. */
+  unsandboxedCode?: () => string;
+  /** The Windows sandbox, when it is not up yet: what a CLI turn waits for, and the words of its live line. Null once it is up. */
+  warm?: () => { ready: Promise<void>; words: () => string } | null;
 }
+
+/** The live step of a turn waiting for the Windows sandbox to start: the activity line reads its detail as it is ("Starting the Windows sandbox, first turn after a restart"). */
+export const SANDBOX_START_STEP = "sandbox_start";
 
 /** Will a turn that needs this program wait for Vyre to install it? Yes when there is a build for this computer and the last try did not just fail. */
 export const willInstall = (program: string, d: Pick<RunnableDeps, "engines">): boolean => d.engines !== undefined && d.engines.supported(program) && !d.engines.failedRecently(program);
@@ -119,10 +126,23 @@ export function createRunnableAccount(d: RunnableDeps): (q: AccountQuery) => Pro
  * and then opens as usual. Where it cannot be installed, or the install fails, the turn fails with engine.cli_missing before the Vault is asked for the account's key and before any sandbox starts; the
  * message names the program and, in brackets, why (offline, checksum, unsupported, disk, failed), which the chat turns into a sentence. A turn pinned to a server never gets here (node-turns.ts routes it first).
  */
-export function checkedOpen(open: OpenSession, d: Pick<RunnableDeps, "command" | "probe" | "engines" | "unsandboxed"> & { live?: (e: StreamEvent) => void; beatMs?: number }): OpenSession {
+export function checkedOpen(open: OpenSession, d: Pick<RunnableDeps, "command" | "probe" | "engines" | "unsandboxed" | "unsandboxedCode" | "warm"> & { live?: (e: StreamEvent) => void; beatMs?: number }): OpenSession {
   return async (spec) => {
     // a computer that cannot sandbox a CLI engine refuses before anything is downloaded, filled or started
-    if (spec.account && cannotRun(spec.account.driver, d) === "sandbox") throw new SandboxError("sandbox.unavailable", d.unsandboxed?.() ?? "CLI engines cannot be sandboxed on this computer");
+    if (spec.account && cannotRun(spec.account.driver, d) === "sandbox") throw new SandboxError(d.unsandboxedCode?.() ?? "sandbox.unavailable", d.unsandboxed?.() ?? "CLI engines cannot be sandboxed on this computer");
+    // the Windows sandbox starts (or is set up, once) while the turn says so; its own deadlines end a start that will not come up, with sandbox.wsl_start or sandbox.wsl_setup
+    const w = spec.account && CLI_PROGRAM[spec.account.driver] !== undefined ? d.warm?.() ?? null : null;
+    if (w) {
+      const step = { threadId: spec.threadId, turnId: spec.turnId, agentId: spec.agent.id, id: "sandbox_start" };
+      const say = (e: StreamEvent): void => { try { d.live?.(e); } catch { /* the live line is a courtesy */ } };
+      say({ kind: "step", phase: "call", ...step, name: SANDBOX_START_STEP });
+      say({ kind: "step", phase: "input", ...step, detail: w.words() });
+      const beat = setInterval(() => say({ kind: "step", phase: "input", ...step, detail: w.words() }), d.beatMs ?? SETUP_BEAT_MS);
+      beat.unref?.();
+      try { await w.ready; say({ kind: "step", phase: "result", ...step, ok: true }); }
+      catch (e) { say({ kind: "step", phase: "result", ...step, ok: false }); throw e; }
+      finally { clearInterval(beat); }
+    }
     const lacking = spec.account ? missingProgram(spec.account.driver, d) : null;
     if (lacking === null) return open(spec);
     const setup = d.engines;

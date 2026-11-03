@@ -4,6 +4,8 @@
 //   - git clones a repository over HTTPS through the proxy;
 //   - writes outside the work folder and the added folders are refused, inside them they work;
 //   - Vyre's own secrets in its data folder (admin.token, seal.key, the databases) cannot be read by the engine, though the person's files can;
+//   - the person's key stores cannot be read either (Chrome's User Data\Default\Cookies, %APPDATA%\Microsoft\Credentials, a private key in ~/.ssh), while the rest of the profile and ~/.ssh's
+//     known_hosts can, and Chrome itself still keeps its cookies in a labelled profile;
 //   - closing the job ends everything the engine started.
 import test from "node:test";
 import assert from "node:assert/strict";
@@ -67,13 +69,23 @@ test("a Windows Personal Space: a Claude Code Bash turn, git over HTTPS, and no 
   fs.writeFileSync(path.join(dataDir, "admin.token"), "owner-bearer-token-xyz");
   fs.mkdirSync(path.join(dataDir, "logs"), { recursive: true });
   fs.writeFileSync(path.join(dataDir, "logs", "claim-link.txt"), "claim-link-secret-xyz");
+  // the person's key stores, as a Windows profile has them (made here when the runner has none), before Vyre first starts an engine and labels them
+  const LOCAL = process.env["LOCALAPPDATA"] as string; const ROAMING = process.env["APPDATA"] as string; const HOME = process.env["USERPROFILE"] ?? os.homedir();
+  const secrets: Array<[string, string]> = [
+    [path.join(LOCAL, "Google", "Chrome", "User Data", "Default", "Cookies"), "chrome-cookie-secret"],
+    [path.join(ROAMING, "Microsoft", "Credentials", "vyre-proof-credential"), "credential-blob-secret"],
+    [path.join(HOME, ".ssh", "id_vyre_proof"), "-----BEGIN OPENSSH PRIVATE KEY----- key-secret"],
+  ];
+  for (const [f, v] of secrets) { fs.mkdirSync(path.dirname(f), { recursive: true }); if (!fs.existsSync(f)) fs.writeFileSync(f, v); }
+  const readables: Array<[string, string]> = [
+    [path.join(HOME, ".ssh", "known_hosts"), "github.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl"],
+    [path.join(ROAMING, "vyre-proof-normal.txt"), "roaming-normal"],
+    [path.join(LOCAL, "Google", "Chrome", "vyre-proof-beside.txt"), "beside-user-data"],
+  ];
+  for (const [f, v] of readables) { if (!fs.existsSync(f)) fs.writeFileSync(f, v); }
   const log: string[] = [];
   const api = await fakeApi(log);
-  // a Windows computer in a Team Space reports its engines (node-cli.ts), so Automatic can run a member's turn on it
-  const { nodeCliReport } = await import("../node-cli.ts");
-  const report = nodeCliReport({ enginesRoot: path.join(dataDir, "engines") });
-  console.log(`node report: ${JSON.stringify(report)}`);
-  assert.deepEqual([report.sandbox.ok, report.sandbox.kind, report.programs.claude !== null], [true, "lowil", true]);
+  // a Personal Space turn never asks the computer's engine report: that report is for Team turns, which run under B (sandbox.wsl.heavy.test.ts proves it)
   const d = await defaultSandbox({ platform: "win32", dataDir, winBin: path.join(box, "bin"), egressHosts: ["github.com", "*.github.com", "codeload.github.com"], writable: [added] });
   assert.equal(d.plan.sandbox.kind, "lowil");
   try {
@@ -146,6 +158,40 @@ test("a Windows Personal Space: a Claude Code Bash turn, git over HTTPS, and no 
     assert.ok(!token.out.includes("owner-bearer-token-xyz"), "admin.token is not readable");
     assert.ok(!claim.out.includes("claim-link-secret-xyz"), "the logs folder is not readable");
     assert.ok(own.out.includes("persons-own-file"), "the person's files are readable, as Claude Code reads them");
+
+    // 4b. the person's key stores are not readable by the engine (no read up, as Vyre's own files); the rest of the profile is, and ~/.ssh's known_hosts, which git's ssh reads
+    for (const [f, v] of secrets) {
+      const r = await read(f);
+      console.log(`read key store ${f}: exit ${r.code} ${r.out.trim().slice(0, 60)} ${r.err.trim().split(/\r?\n/)[0] ?? ""}`);
+      assert.ok(!r.out.includes(v.slice(-12)), `${f} is not readable`);
+      assert.notEqual(r.code, 0, `${f}: the read is refused`);
+    }
+    for (const [f] of readables) {
+      const r = await read(f);
+      assert.equal(r.code, 0, `${f} is readable: ${r.err.trim().slice(0, 200)}`);
+      assert.ok(r.out.trim().length > 0, `${f} is readable`);
+    }
+    const ksLabels = await run(ps(`icacls '${secrets[0]?.[0]}'; icacls '${path.join(ROAMING, "Microsoft", "Credentials")}'; icacls '${path.join(HOME, ".ssh", "known_hosts")}'`), { cwd });
+    console.log(`key store labels:\n${ksLabels.out}`);
+    // Chrome in a labelled profile still keeps a cookie (its network service, which may run sandboxed, writes and reads the store): a profile of its own under User Data, and one outside it
+    const chromeExe = ["C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe", "C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe"].find((c) => fs.existsSync(c));
+    if (chromeExe) {
+      const kept = async (userData: string): Promise<string> => {
+        const seen: string[] = [];
+        const srv = http.createServer((req, res) => { seen.push(`${req.url} [${req.headers.cookie ?? ""}]`); if (req.url === "/set") res.setHeader("set-cookie", "vyreproof=kept; Max-Age=3600; Path=/"); res.writeHead(200, { "content-type": "text/html" }).end("<html><body>ok</body></html>"); });
+        const port = await new Promise<number>((r) => srv.listen(0, "127.0.0.1", () => r((srv.address() as { port: number }).port)));
+        const go = (u: string) => run([chromeExe, "--headless=new", `--user-data-dir=${userData}`, "--profile-directory=VyreProbe", "--no-first-run", "--disable-gpu", "--dump-dom", `http://127.0.0.1:${port}${u}`], { cwd, ms: 120_000 });
+        await go("/set");
+        await new Promise((r) => setTimeout(r, 2000));
+        await go("/get");
+        srv.close();
+        return seen.join(" ");
+      };
+      const control = await kept(path.join(box, "chrome-control"));
+      const labelled = await kept(path.join(LOCAL, "Google", "Chrome", "User Data"));
+      console.log(`chrome cookie: control ${control} | labelled User Data ${labelled}`);
+      if (control.includes("/get [vyreproof=kept]")) assert.ok(labelled.includes("/get [vyreproof=kept]"), `Chrome keeps its cookies in a labelled profile: ${labelled}`);
+    } else console.log("chrome cookie: no Chrome on this runner");
 
     // 5. the job ends what the engine started when its helper ends
     const marker = `vyre-low-sleeper-${process.pid}`;

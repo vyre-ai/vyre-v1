@@ -9,6 +9,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { defaultSandbox } from "../../modules/engine/sandbox-default.ts";
 import { spawnCli } from "../../modules/engine/session.ts";
+import { workFolder } from "../../modules/engine/sandbox.ts";
 import { fakePlatform } from "../../host/src/platform/index.ts";
 import type { FetchFn } from "../../host/src/platform/probes.ts";
 import { loadConfig } from "../../host/src/daemon/config.ts";
@@ -24,6 +25,20 @@ const caddyFetch: FetchFn = () => Promise.resolve({ ok: true, status: 200, heade
 /** The people's own sessions: Olivia on her Mac (a desktop computer) and Noah, a teammate on his. */
 export const MAC = "tok-olivia-mac";
 export const NOAH = "tok-noah-mac";
+
+/** A stopped daemon's folder is removed at once, with no retries: a handle it kept would stop an update or an uninstall too. When it cannot be, the files still held are named. */
+function rmStrict(dir: string): void {
+  try { fs.rmSync(dir, { recursive: true, force: true }); } catch (e) {
+    const held: string[] = [];
+    const walk = (p: string): void => {
+      let st: fs.Stats; try { st = fs.lstatSync(p); } catch { return; }
+      if (st.isDirectory()) { for (const n of fs.readdirSync(p)) walk(path.join(p, n)); return; }
+      try { fs.unlinkSync(p); } catch (x) { held.push(`${path.relative(dir, p)} (${(x as NodeJS.ErrnoException).code})`); }
+    };
+    walk(dir);
+    throw new Error(`the stopped daemon still holds ${held.join(", ") || dir}: ${(e as Error).message}`);
+  }
+}
 
 export interface SpaceRig { d: Daemon; dir: string; /** the address a computer links to: loopback, or this machine's private address for a LAN Space */ address: string; as(token: string | null, cap: string, input: unknown): Promise<{ status: number; data: any } >; stop(): Promise<void> }   // eslint-disable-line @typescript-eslint/no-explicit-any
 
@@ -64,7 +79,7 @@ export async function bootSpace(o: { lan?: boolean } = {}): Promise<SpaceRig> {
     const body = (await r.json()) as { data?: unknown; error?: unknown };
     return { status: r.status, data: (body.data ?? body) as any };   // eslint-disable-line @typescript-eslint/no-explicit-any
   };
-  return { d, dir, address, as, stop: async () => { await d.stop(); fs.rmSync(dir, { recursive: true, force: true }); } };
+  return { d, dir, address, as, stop: async () => { await d.stop(); rmStrict(dir); } };
 }
 
 export interface DeviceRig { d: Daemon; dir: string; home: string; spawns: Array<{ argv: readonly string[]; env: Record<string, string>; proc: NodeProc }>; link(space: SpaceRig, token?: string): Promise<void>; unlink(): Promise<void>; stop(): Promise<void> }
@@ -80,6 +95,7 @@ export async function bootDevice(o: { slowMs?: number; signedIn?: "claude" } = {
   // this computer's own sandbox (not the module's shared default, which in this one test process belongs to the server)
   const sandbox = await defaultSandbox({ dataDir: dir, programRead: [path.dirname(FAKE_CLI)] });
   const launcher: NodeLauncher = {
+    workFolder: (person, proc) => workFolder(dir, person, proc),
     async spawn(spec) {
       const proc = await spawnCli(sandbox.plan, { argv: spec.argv, env: { ...spec.env, FAKE_WHERE: "device", ...(o.slowMs !== undefined ? { FAKE_SLOW_MS: String(o.slowMs) } : {}) }, ...(spec.cwd !== undefined ? { cwd: spec.cwd } : {}) }, [process.execPath, FAKE_CLI, ...spec.argv]);
       spawns.push({ argv: spec.argv, env: { ...spec.env }, proc: proc as unknown as NodeProc });
@@ -110,7 +126,7 @@ export async function bootDevice(o: { slowMs?: number; signedIn?: "claude" } = {
       const s = linked?.space;
       if (s) await waitFor(async () => (s.d.nodeRelay.devices("usr_olivia").length === 0 ? true : null), 10_000);
     },
-    stop: async () => { await d.stop(); await sandbox.close(); fs.rmSync(dir, { recursive: true, force: true }); },
+    stop: async () => { await d.stop(); await sandbox.close(); rmStrict(dir); },
   };
 }
 

@@ -11,3 +11,10 @@ test("Internet access: three choices, public first and the default; typed hosts 
   assert.match(internetSummary({ mode: "list", hosts: ["github.com"] }), /AI providers and 1 host: github.com\./);
   assert.match(internetSummary({ mode: "public", hosts: [] }), /any public website/);
 });
+
+test("the Internet page says how the choice holds on Windows: sealed for team chats, a guide in a Personal Space", async () => {
+  const { WINDOWS_NOTE } = await import("./internet-values.ts");
+  assert.match(WINDOWS_NOTE, /team chats run in a sealed Linux sandbox/);
+  assert.match(WINDOWS_NOTE, /Personal Space on Windows/);
+  assert.match(WINDOWS_NOTE, /can still reach the internet directly/);
+});

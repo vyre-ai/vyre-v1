@@ -7,8 +7,8 @@ import { Dialog } from "../../../../../ui/src/Dialog/index.tsx";
 import { TextField } from "../../../../../ui/src/TextField/index.tsx";
 import { setComputersAvailable, takeAddServerRequest } from "../../shell/computers-available.ts";
 import { useIsPersonal, useSettingsData } from "./data.tsx";
-import { addressKind, emptySheet, engineLine, factsLine, joinCommand, peerServerCommand, phaseOf, runsLine, validNickname } from "./computers-model.ts";
-import type { HostInfo, ServerInfo, Sheet } from "./computers-model.ts";
+import { WIN_SANDBOX, addressKind, emptySheet, engineLine, factsLine, joinCommand, peerServerCommand, phaseOf, runsLine, validNickname, winSandboxRow } from "./computers-model.ts";
+import type { HostInfo, ServerInfo, Sheet, WinSandboxPhase } from "./computers-model.ts";
 import { Glyph, Section, SettingsRow, SmallButton, Tip, pointer } from "./ui.tsx";
 import { PhoneAccessSection } from "./PhoneAccess.tsx";
 import { PeersSection } from "./Peers.tsx";
@@ -47,6 +47,7 @@ export function ComputersBody({ hosts, servers, removing, onAdd, onAskRemove, on
       control={here?.canRun ? <Glyph name="check" color="var(--ok, #2f9e5b)" /> : undefined}
     />,
   );
+  rows.push(<WindowsSandboxRow key="winsandbox" />);
   servers.filter((s) => s.enrollment === "approved").forEach((s) => {
     const h = hosts.find((x) => x.hostId === s.serverId);
     const online = s.state !== "down";
@@ -237,3 +238,32 @@ const st = StyleSheet.create({
   print: { fontSize: 26, letterSpacing: 2, color: "var(--ink)" as string, ...({ fontFamily: "ui-monospace, Menlo, monospace" } as object) },
   error: { color: "var(--danger)" as string, fontSize: 13 },
 });
+
+type ShellInvoke = (cmd: string, args?: Record<string, unknown>) => Promise<unknown>;
+const shellInvoke = (): ShellInvoke | undefined => (globalThis as { __TAURI__?: { core?: { invoke?: ShellInvoke } } }).__TAURI__?.core?.invoke;
+
+/** Windows only: "Set up the Windows sandbox for team chats", once, while WSL is off (desktop shell winsandbox.rs). Renders nothing anywhere else. */
+export function WindowsSandboxRow(): ReactElement | null {
+  const [phase, setPhase] = useState<WinSandboxPhase>({ kind: "hidden" });
+  useEffect(() => {
+    const invoke = shellInvoke();
+    if (!invoke) return;
+    let live = true;
+    void invoke("windows_sandbox_state").then((s) => { if (live) setPhase(winSandboxRow(s as { supported: boolean; on: boolean })); }).catch(() => undefined);
+    return () => { live = false; };
+  }, []);
+  if (phase.kind === "hidden") return null;
+  const setup = (): void => {
+    const invoke = shellInvoke();
+    if (!invoke) return;
+    setPhase({ kind: "asking" });
+    void invoke("setup_windows_sandbox").then(() => setPhase({ kind: "restart" }), (e: unknown) => setPhase({ kind: "failed", why: typeof e === "string" ? e : "Windows did not turn WSL on." }));
+  };
+  const sub = phase.kind === "restart" ? WIN_SANDBOX.restart : phase.kind === "failed" ? phase.why : undefined;
+  return (
+    <SettingsRow
+      id="computer.winsandbox" label={WIN_SANDBOX.label} lead={<Glyph name="shield" />} help={WIN_SANDBOX.help} {...(sub ? { sub } : {})}
+      control={phase.kind === "restart" ? undefined : <SmallButton label={phase.kind === "asking" ? "Waiting for Windows" : "Set up"} testID="winsandbox-setup" onPress={setup} />}
+    />
+  );
+}

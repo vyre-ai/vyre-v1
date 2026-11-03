@@ -69,7 +69,7 @@ test("Claude Code on a Mac: the Keychain sign-in is handed over as a file in a p
   const cfg = m!.env["CLAUDE_CONFIG_DIR"]!;
   assert.equal(cfg, path.join(dir, "scratch", "usr_dana", "claude-own", "prc_1"), "inside the person's scratch folder, which the sandbox opens for the turn");
   assert.equal(fs.readFileSync(path.join(cfg, ".credentials.json"), "utf8"), cred("tok-1"));
-  assert.equal((fs.statSync(path.join(cfg, ".credentials.json")).mode & 0o777), 0o600);
+  if (process.platform !== "win32") assert.equal((fs.statSync(path.join(cfg, ".credentials.json")).mode & 0o777), 0o600);
   assert.deepEqual([m!.env["CLAUDE_CODE_OAUTH_TOKEN"], m!.env["OTHER"]], ["tok-1", "x"], "her own Mac sign-in's token in place of the Space's (Claude Code on a Mac takes it from the variable)");
   // the engine refreshes in place while it is still warm: written back without waiting for it to end
   fs.writeFileSync(path.join(cfg, ".credentials.json"), cred("tok-2"));

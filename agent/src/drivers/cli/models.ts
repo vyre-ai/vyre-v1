@@ -11,7 +11,7 @@
 //   Grok 1.0.70     `grok models`: plain text, "Default model: <id>" then "  * <id> (default)" and "  - <id>" lines. It reads the account's list when signed in (~/.grok/models_cache.json).
 //                   RECORDED on box B with the pinned binary, signed out (3 Nov 2026).
 import { lines } from "./lines.ts";
-import type { CliId, Launcher } from "./types.ts";
+import type { CliId, CliProcess, Launcher } from "./types.ts";
 
 /** One model as the vendor's CLI listed it. `id` is what Vyre passes to the CLI's --model; `alias` is the CLI's own name that keeps resolving to the newest (Claude Code's opus, sonnet). */
 export interface LiveModel {
@@ -173,7 +173,7 @@ export class ModelListError extends Error {
  * Ask the CLI for its models through the launcher the turns use (the sandbox, the fill). Ends the process as soon as the answer is in; gives up after `timeoutMs`. Throws ModelListError with a
  * plain reason when there is no answer; the caller keeps the list it had.
  */
-export async function listCliModels(launcher: Launcher, cli: CliId, o: { cwd?: string; env?: Readonly<Record<string, string>>; timeoutMs?: number } = {}): Promise<LiveModel[]> {
+export async function listCliModels(launcher: Launcher, cli: CliId, o: { cwd?: string; env?: Readonly<Record<string, string>>; timeoutMs?: number; graceMs?: number } = {}): Promise<LiveModel[]> {
   const dialog = MODEL_DIALOGS[cli]();
   const proc = await launcher.spawn({ argv: dialog.argv, ...(o.cwd !== undefined ? { cwd: o.cwd } : {}), env: { ...dialog.env, ...o.env } });
   let timer: ReturnType<typeof setTimeout> | undefined;
@@ -199,9 +199,20 @@ export async function listCliModels(launcher: Launcher, cli: CliId, o: { cwd?: s
   } finally {
     if (timer !== undefined) clearTimeout(timer);
     talk.catch(() => undefined);
-    try { proc.endInput(); } catch { /* closed */ }
-    proc.kill("SIGTERM");
-    // the process ends and its sign-in files are put back (fill launcher) before the caller goes on
-    await Promise.race([proc.exited.catch(() => undefined), new Promise((r) => setTimeout(r, 3_000))]);
+    await closeGently(proc, o.graceMs ?? 3_000);
   }
+}
+
+/**
+ * Ends a model-list run the way its CLI ends by itself: its input closes and it gets `graceMs` to exit, so `codex app-server` finishes writing models_cache.json. Only a process still running after
+ * that is killed, and the caller waits up to `graceMs` more for it. A kill is a hard stop on Windows (SIGTERM there is TerminateProcess), which is why it is the last step and not the first. Either
+ * way the process has ended, and the fill launcher has put the sign-in files back, before the caller goes on.
+ */
+export async function closeGently(proc: Pick<CliProcess, "endInput" | "kill" | "exited">, graceMs = 3_000): Promise<"exited" | "killed" | "stuck"> {
+  const ended = proc.exited.then(() => true, () => true);
+  const wait = (ms: number): Promise<boolean> => { let t: ReturnType<typeof setTimeout> | undefined; return Promise.race([ended, new Promise<boolean>((r) => { t = setTimeout(() => r(false), ms); })]).finally(() => clearTimeout(t)); };
+  try { proc.endInput(); } catch { /* closed */ }
+  if (await wait(graceMs)) return "exited";
+  proc.kill("SIGTERM");
+  return (await wait(graceMs)) ? "killed" : "stuck";
 }

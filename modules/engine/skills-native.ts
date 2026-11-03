@@ -17,7 +17,7 @@ import path from "node:path";
 import type { EngineSession, OpenSession, SessionSpec, TurnInput } from "../../agent/src/turn-engine/types.ts";
 
 export type NativeSkillDriver = "claude_code" | "codex";
-export interface NativeSkillsDeps { call(cap: string, input: unknown, as?: string): Promise<unknown> }
+export interface NativeSkillsDeps { call(cap: string, input: unknown, as?: string): Promise<unknown>; log?(msg: string, attrs?: Record<string, unknown>): void }
 
 /** Where each CLI looks for skills inside its work folder. */
 export const SKILL_BASES: Readonly<Record<NativeSkillDriver, string>> = { claude_code: ".claude/skills", codex: ".agents/skills" };
@@ -27,9 +27,46 @@ export const NATIVE_MANIFEST = ".vyre-skills.json";
 interface Row { name?: unknown; tier?: unknown; source?: unknown; hash?: unknown; shadowedBy?: unknown; broken?: unknown; enabled?: unknown }
 interface Manifest { fingerprint: string; dirs: string[] }
 
-/** A skill name as a folder name a CLI accepts: lowercase letters, digits and hyphens, at most 64. */
-export function skillDir(name: string): string {
-  return name.toLowerCase().replace(/[^a-z0-9-]+/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "").slice(0, 64) || "skill";
+/** Windows' reserved device names: a file or folder named one of them (with any extension) opens the device, not a file. */
+const RESERVED = /^(con|prn|aux|nul|com[0-9¹²³]|lpt[0-9¹²³]|conin\$|conout\$)(\.|$)/i;
+
+/**
+ * A skill name as a folder name a CLI accepts: lowercase letters, digits and hyphens, at most 64 (40 on Windows, to keep paths short: the CLIs name a skill by its front matter, not its folder),
+ * never a name Windows keeps for a device (con, nul, com1: "con-skill").
+ */
+export function skillDir(name: string, platform: NodeJS.Platform = process.platform): string {
+  const max = platform === "win32" ? 40 : 64;
+  let d = name.toLowerCase().replace(/[^a-z0-9-]+/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "").slice(0, max) || "skill";
+  if (platform === "win32") d = d.replace(/-+$/, "") || "skill";
+  return RESERVED.test(d) ? `${d.slice(0, max - 6)}-skill` : d;
+}
+
+/**
+ * A skill's supporting file as it is written under the skill's folder, or null when it may not be: outside the folder, the folder itself, or SKILL.md in any case (the skill's own text is written from
+ * the skill; a "skill.md" beside it would replace it on a Mac's or a Windows disk, where case does not count). On Windows each part of the path is made a name Windows can hold: the characters it
+ * refuses (: * ? " < > |, control characters) become "_", trailing dots and spaces go, and a device name (con, nul, com1, lpt1 with any extension) gets "_" in front.
+ */
+export function skillFile(rel: string, platform: NodeJS.Platform = process.platform): string | null {
+  const win = platform === "win32";
+  const parts = rel.split(win ? /[\\/]+/ : /\/+/).filter((p) => p !== "" && p !== ".");
+  if (parts.length === 0 || parts.some((p) => p === "..")) return null;
+  const clean = win ? parts.map((p) => {
+    const q = p.replace(/[\u0000-\u001f:*?"<>|]/g, "_").replace(/[. ]+$/, "") || "_";
+    return RESERVED.test(q) ? `_${q}` : q;
+  }) : parts;
+  const out = clean.join(win ? "\\" : "/");
+  if (out.toLowerCase() === "skill.md") return null;
+  return out;
+}
+
+/**
+ * Windows: whether a file can be written where every engine and tool reads it. Vyre does not count on long-path support in programs it does not own (a skill's scripts run under whatever
+ * tools the person has), so a file at 260 characters or more, or in a folder at 248 or more, is left out and logged. The short work layout (sandbox.ts) keeps Vyre's own part of the
+ * path near 100 characters, which leaves a skill's own file paths room. Elsewhere every path fits.
+ */
+export const WIN_MAX_FILE = 259;
+export function fitsPath(file: string, platform: NodeJS.Platform = process.platform): boolean {
+  return platform !== "win32" || (file.length <= WIN_MAX_FILE && path.win32.dirname(file).length < 248);
 }
 
 function readManifest(base: string): Manifest | null {
@@ -77,14 +114,21 @@ export async function syncNativeSkills(d: NativeSkillsDeps, driver: NativeSkillD
     if (!skill) continue;
     const root = path.join(base, dir);
     const text = typeof skill.text === "string" && skill.text !== "" ? skill.text : `---\nname: ${dir}\ndescription: ${JSON.stringify(skill.description ?? "")}\n---\n\n${skill.body ?? ""}`;
-    fs.mkdirSync(root, { recursive: true });
-    fs.writeFileSync(path.join(root, "SKILL.md"), text, { mode: 0o644 });
+    // each write on its own: a file the disk refuses (a name, a path too long, a full disk) loses that file, or that one skill when it is SKILL.md, and never the others
+    try {
+      if (!fitsPath(path.join(root, "SKILL.md"))) throw new Error("the path is too long for Windows");
+      fs.mkdirSync(root, { recursive: true });
+      fs.writeFileSync(path.join(root, "SKILL.md"), text, { mode: 0o644 });
+    } catch (e) { d.log?.("a skill could not be written for the engine", { skill: dir, error: e instanceof Error ? e.message : String(e) }); fs.rmSync(root, { recursive: true, force: true }); continue; }
     for (const f of skill.files ?? []) {
-      const abs = path.join(root, f.path);
-      const rel = path.relative(root, abs);
-      if (rel === "" || rel.startsWith("..") || path.isAbsolute(rel) || rel === "SKILL.md") continue;
-      fs.mkdirSync(path.dirname(abs), { recursive: true });
-      fs.writeFileSync(abs, f.text, { mode: /\.(sh|py)$/.test(f.path) || f.path.startsWith("scripts/") ? 0o755 : 0o644 });
+      const rel = typeof f.path === "string" ? skillFile(f.path) : null;
+      if (rel === null || typeof f.text !== "string") continue;
+      const abs = path.join(root, rel);
+      try {
+        if (!fitsPath(abs)) throw new Error("the path is too long for Windows");
+        fs.mkdirSync(path.dirname(abs), { recursive: true });
+        fs.writeFileSync(abs, f.text, { mode: /\.(sh|py)$/.test(f.path) || f.path.startsWith("scripts/") ? 0o755 : 0o644 });
+      } catch (e) { d.log?.("a skill's file could not be written for the engine", { skill: dir, file: rel, error: e instanceof Error ? e.message : String(e) }); }
     }
     written.push(dir);
   }
@@ -102,7 +146,7 @@ const nativeDriver = (spec: SessionSpec): NativeSkillDriver | null => {
  * An OpenSession whose Claude Code and Codex sessions get the agent's skills written into their work folder before every turn (the opener writes them once as the engine starts). Only a change writes:
  * the fingerprint is read first. A failure never holds the turn.
  */
-export function withNativeSkills(open: OpenSession, d: NativeSkillsDeps & { workOf(spec: SessionSpec): string | null; log?(msg: string, attrs?: Record<string, unknown>): void }): OpenSession {
+export function withNativeSkills(open: OpenSession, d: NativeSkillsDeps & { workOf(spec: SessionSpec): string | null }): OpenSession {
   return async (spec) => {
     const session = await open(spec);
     const driver = nativeDriver(spec);

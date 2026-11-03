@@ -15,10 +15,10 @@ import type { EgressRule } from "../egress-policy.ts";
 import { BRIDGE_SOURCE, CONNECT_SOURCE } from "./guest.ts";
 
 export interface NetWallOptions {
-  /** Host patterns the proxy lets through (the person's egress list). */
-  allow: readonly string[];
-  /** The rule (egress-policy.ts, plain JSON). Given, it decides and `allow` is not read: `{ egress: "public" }` opens every public host. */
-  rule?: EgressRule;
+  /** Host patterns the proxy lets through (the person's egress list), or a function read at each connection (the WSL agent replaces its policy at each turn's start). */
+  allow: readonly string[] | (() => readonly string[]);
+  /** The rule (egress-policy.ts, plain JSON), or a function read at each connection. Given, it decides and `allow` is not read: `{ egress: "public" }` opens every public host. */
+  rule?: EgressRule | (() => EgressRule);
   /** How the proxy resolves and connects, and who watches. Default: the system's. */
   egress?: Partial<EgressOptions>;
   /** Where to make the folder. Default: the system's temp folder, or /tmp when that is too long for a unix socket path (sandbox/src/sock.ts). Linux hosts only. */

@@ -138,12 +138,74 @@ export function addressRefusal(ip: string, own: readonly Cidr[]): "private_addre
 
 // ---- what the tools inside need -------------------------------------------------------------------------------------------------------------------
 
+/** What git's ssh command needs: the CONNECT helper and the Node that runs it (a walled sandbox), the known-hosts files (the engine's own first) and the person's config when it may be read. */
+export interface ToolSsh {
+  node: string; helper: string; port: number;
+  /** The engine's own known-hosts file first (where a new host is written), then the person's, read only. A string is one file. */
+  knownHosts: string | readonly string[];
+  config?: string;
+  /** The machine the engine runs on. Windows: Windows OpenSSH (it reaches the agent's named pipe; Git's own ssh cannot), NUL for no config, and paths with forward slashes. Default: this one. */
+  platform?: NodeJS.Platform;
+  /** The ssh to run. Default: "ssh", on Windows %SystemRoot%\System32\OpenSSH\ssh.exe. */
+  program?: string;
+  /** Windows: %SystemRoot%, where Windows OpenSSH is. Default C:\Windows. */
+  systemRoot?: string;
+}
+
+/**
+ * git's ssh command: ssh through the proxy (ProxyCommand runs the CONNECT helper), the known-hosts files, the person's config or none. Quoted twice: single quotes for the shell git runs it with
+ * (sh, or Git for Windows' bash), double quotes inside a value for ssh's own word splitting, so a path with a space (a Mac's "Application Support", "C:\Users\Dana Reyes") stays one path.
+ */
+export function gitSshCommand(ssh: ToolSsh): string {
+  const win = (ssh.platform ?? process.platform) === "win32";
+  // Windows: forward slashes, which Windows OpenSSH, Node and Git all take, so no backslash is ever read as an escape by bash or by ssh
+  const fwd = (p: string): string => (win ? p.replace(/\\/g, "/") : p);
+  // double quotes for the shell ssh starts the ProxyCommand with (POSIX), or for CreateProcess (Windows, where a path holds no double quote and backslashes are already gone)
+  const dq = (p: string): string => (win ? `"${fwd(p)}"` : `"${p.replace(/(["\\$`])/g, "\\$1")}"`);
+  const sq = (s: string): string => `'${s.replace(/'/g, "'\\''")}'`;
+  const files = (typeof ssh.knownHosts === "string" ? [ssh.knownHosts] : [...ssh.knownHosts]).map((f) => `"${fwd(f).replace(/(["\\])/g, "\\$1")}"`);
+  const program = ssh.program ?? (win ? `${fwd(ssh.systemRoot ?? "C:\\Windows")}/System32/OpenSSH/ssh.exe` : "ssh");
+  return [
+    win ? sq(fwd(program)) : program,
+    "-F", sq(ssh.config ? fwd(ssh.config) : win ? "NUL" : "/dev/null"),
+    "-o", sq(`ProxyCommand=${dq(ssh.node)} ${dq(ssh.helper)} ${ssh.port} %h %p`),
+    "-o", "StrictHostKeyChecking=accept-new",
+    "-o", sq(`UserKnownHostsFile=${files.join(" ")}`),
+    "-o", "BatchMode=yes", "-o", "ConnectTimeout=20",
+  ].join(" ");
+}
+
+/**
+ * The same settings as an ssh config file, for an ssh that git starts without a shell (Windows: GIT_SSH is Vyre's ssh helper, which runs Windows OpenSSH with -F this file). Vyre's own settings
+ * come first, so they win (ssh keeps the first value it reads); the person's config, when the sandbox may read it, follows with Include for their hosts, users and keys. `agent` is the SSH agent
+ * the engine signs with (the relay pipe on Windows). Every value is quoted, so a path with a space stays one path.
+ */
+export function sshConfig(ssh: ToolSsh & { agent?: string }): string {
+  const win = (ssh.platform ?? process.platform) === "win32";
+  const fwd = (p: string): string => (win ? p.replace(/\\/g, "/") : p);
+  // ssh's own quoting: a backslash before a quote or a backslash is an escape
+  const q = (v: string): string => `"${v.replace(/(["\\])/g, "\\$1")}"`;
+  const files = (typeof ssh.knownHosts === "string" ? [ssh.knownHosts] : [...ssh.knownHosts]).map((f) => q(fwd(f)));
+  return [
+    "# Written by Vyre for this engine. Its own settings come first; the person's config follows.",
+    "Host *",
+    `  ProxyCommand ${q(fwd(ssh.node))} ${q(fwd(ssh.helper))} ${ssh.port} %h %p`,
+    `  UserKnownHostsFile ${files.join(" ")}`,
+    "  StrictHostKeyChecking accept-new",
+    "  BatchMode yes",
+    "  ConnectTimeout 20",
+    ...(ssh.agent ? [`  IdentityAgent ${q(ssh.agent)}`] : []),
+    ...(ssh.config ? ["", "Match all", `  Include ${q(fwd(ssh.config))}`] : []),
+    "",
+  ].join("\n");
+}
+
 /**
  * The variables that make the usual tools use the proxy without the model knowing: curl, git over HTTPS, npm, pip, cargo, go, Homebrew, Node's own fetch (NODE_USE_ENV_PROXY, Node 24) and the CLIs'
  * own web tools. `ssh` is given to git as a command that tunnels through the proxy (CONNECT host:22), so a git+ssh remote on a public host works when the rule lets it. `ssh` needs the bridge's
  * connect helper and the Node that runs it, which only the walled sandboxes have.
  */
-export function toolProxyEnv(proxyUrl: string, ssh?: { node: string; helper: string; port: number; knownHosts: string; config?: string }): Record<string, string> {
+export function toolProxyEnv(proxyUrl: string, ssh?: ToolSsh): Record<string, string> {
   const env: Record<string, string> = {
     HTTP_PROXY: proxyUrl, HTTPS_PROXY: proxyUrl, ALL_PROXY: proxyUrl, http_proxy: proxyUrl, https_proxy: proxyUrl, all_proxy: proxyUrl,
     NO_PROXY: "localhost,127.0.0.1", no_proxy: "localhost,127.0.0.1",
@@ -153,12 +215,6 @@ export function toolProxyEnv(proxyUrl: string, ssh?: { node: string; helper: str
     CARGO_HTTP_PROXY: proxyUrl,
     // git over HTTPS (libcurl), go modules and Homebrew's curl read the variables above themselves; GIT_CONFIG_COUNT is left to whatever else sets it
   };
-  if (ssh) {
-    const q = (s: string): string => `"${s.replace(/(["\\$`])/g, "\\$1")}"`;
-    const proxyCommand = `ProxyCommand=${q(ssh.node)} ${q(ssh.helper)} ${ssh.port} %h %p`;
-    // single quotes for git's shell, double quotes inside for the shell ssh runs the ProxyCommand with; -F the person's own config when the sandbox may read it, else /dev/null so ssh reads none
-    const sq = (s: string): string => `'${s.replace(/'/g, "'\\''")}'`;
-    env["GIT_SSH_COMMAND"] = ["ssh", "-F", sq(ssh.config ?? "/dev/null"), "-o", sq(proxyCommand), "-o", "StrictHostKeyChecking=accept-new", "-o", sq(`UserKnownHostsFile=${ssh.knownHosts}`), "-o", "BatchMode=yes", "-o", "ConnectTimeout=20"].join(" ");
-  }
+  if (ssh) env["GIT_SSH_COMMAND"] = gitSshCommand(ssh);
   return env;
 }

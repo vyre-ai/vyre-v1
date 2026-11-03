@@ -48,7 +48,7 @@ test("Claude Code: the Space's and the agent's own skills are in .claude/skills 
   assert.equal(fs.readFileSync(path.join(base, "triage", "SKILL.md"), "utf8"), SKILL("triage", "The intake agent's own triage steps."), "the agent's own copy, front matter and all");
   assert.equal(fs.readFileSync(path.join(base, "triage", "notes.md"), "utf8"), "extra notes");
   assert.equal(fs.readFileSync(path.join(base, "deploy-checks", "references", "list.md"), "utf8"), "one two");
-  assert.equal(fs.statSync(path.join(base, "deploy-checks", "scripts", "check.sh")).mode & 0o111, 0o111, "a script can be run from beside its skill");
+  if (process.platform !== "win32") assert.equal(fs.statSync(path.join(base, "deploy-checks", "scripts", "check.sh")).mode & 0o111, 0o111, "a script can be run from beside its skill");
   assert.deepEqual(fs.readdirSync(base).sort(), [NATIVE_MANIFEST, "deploy-checks", "triage"]);
   assert.ok(wd.log.every((l) => l.as === "per_dana" && l.input["agentId"] === "agt_intake"));
 

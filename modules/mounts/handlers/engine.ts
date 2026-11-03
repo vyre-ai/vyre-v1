@@ -968,6 +968,15 @@ async function mountsList(ctx: Ctx, input: unknown): Promise<Row> {
 }
 
 /**
+ * A folder path as a computer names it, absolute: "/..." on a Mac or Linux; on Windows a drive letter (C:\ or C:/), a share (two backslashes, server, share) or the long form that starts
+ * with a backslash pair and a question mark (a drive or UNC after it). The sandbox's own check (sandbox/src/engine-access.ts addedFolder) decides on the machine what the engine may hold; this only
+ * drops what names no place.
+ */
+function absoluteLocal(p: string): boolean {
+  return p.startsWith("/") || /^[A-Za-z]:[\\/]/.test(p) || /^\\\\\?\\(?:[A-Za-z]:\\|UNC\\[^\\]+\\[^\\]+)/i.test(p) || /^[\\/]{2}[^\\/?.][^\\/]*[\\/][^\\/]+/.test(p);
+}
+
+/**
  * The local folders a person added to this Space from their own computers, with the path on that computer, for their CLI engine's sandbox (owner ruling 3 Nov). Only the host asks (the engine, as each
  * engine process starts); a person, an agent or an outside actor is refused, since the paths are of the person's machine. A folder the person mounted is theirs to work in, private or shared.
  */
@@ -976,7 +985,7 @@ async function engineFolders(ctx: Ctx, input: unknown): Promise<{ folders: Row[]
   const o = record(ctx, input);
   const person = optStr(o, "person");
   if (person === undefined) fail(ctx, "validation.bad_input", "person is required");
-  const folders = liveMounts(ctx).filter((r) => str(r["kind"]) === "local" && str(r["owner"]) === person && typeof r["local_path"] === "string" && (r["local_path"] as string).startsWith("/"))
+  const folders = liveMounts(ctx).filter((r) => str(r["kind"]) === "local" && str(r["owner"]) === person && typeof r["local_path"] === "string" && absoluteLocal(r["local_path"] as string))
     .map((r) => ({ mountId: str(r["id"]), folderId: str(r["folder_id"]), ...(typeof r["device_id"] === "string" && r["device_id"] !== "" ? { deviceId: r["device_id"] } : {}), path: r["local_path"] as string }));
   return { folders };
 }

@@ -157,6 +157,9 @@ export async function retryTurn(data: ConversationData, turnId: string): Promise
  * says "Setting up Codex"; one retry of that turn, so the message is not posted twice); Unlock asks for the password in place and, once the key is open, sends the reply that stopped again. Anything else
  * points to the model switcher.
  */
+/** How to turn WSL on, as the chat says it: the same steps as sandbox/src/wsl/wsl.ts TURN_ON_WSL_STEPS (status.test.ts keeps them equal). */
+export const TURN_ON_WSL_TEXT = "To turn on WSL: open the Start menu, type PowerShell, and choose Run as administrator. Run: wsl --install --no-distribution. Then restart the computer. Vyre sets up its sandbox by itself on the next Claude Code, Codex or Grok reply.";
+
 export async function errorAction(data: ConversationData, key: string, turnId: string | undefined, say: (text: string) => void): Promise<void> {
   // "Run it on the server instead": the next turn of this chat runs on the Space, once; the chat stays where the person chose. A turn that failed for it runs again.
   if (key === "run_on_server") {
@@ -166,6 +169,8 @@ export async function errorAction(data: ConversationData, key: string, turnId: s
   }
   if (key === "connect_ai" || key === "open_vault") { if (data.nav.openAiSetup) data.nav.openAiSetup(); else say("Open the Vault and add an AI account."); return; }
   if (installProgram(key) !== undefined) { if (turnId) await retryTurn(data, turnId); else say("Send your message again to set it up."); return; }
+  // Windows: WSL needs admin and a restart, which only the person can do; the steps, word for word (sandbox/src/wsl/wsl.ts TURN_ON_WSL_STEPS)
+  if (key === "turn_on_wsl") { say(TURN_ON_WSL_TEXT); return; }
   if (key === "unlock_vault") {
     if (!data.nav.unlockVault) { say("Unlock your Vault from the Vault page, then try again."); return; }
     if ((await data.nav.unlockVault()) && turnId) await retryTurn(data, turnId);

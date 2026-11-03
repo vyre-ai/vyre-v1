@@ -43,3 +43,23 @@ test("Git for Windows is found from git.exe on PATH (cmd or mingw64\\bin), else 
   assert.equal(gitRoot({ PATH: "C:\\Windows", ProgramFiles: "C:\\Program Files" }, (p) => std.has(p)), "C:\\Program Files\\Git");
   assert.equal(gitRoot({ PATH: "C:\\Windows" }, () => false), null);
 });
+
+test("the helper is built once at a time: two asks in one process share one build, and each build writes a file of its own", async () => {
+  const { ensureLowrun } = await import("../src/win/lowrun.ts");
+  const os = await import("node:os");
+  const path = await import("node:path");
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "vyre-lowrun-"));
+  const src = path.join(dir, "x.cs");
+  fs.writeFileSync(src, "class X {}");
+  // a stand-in compiler: a Node script that writes the /out: file after a moment, and counts its runs
+  const count = path.join(dir, "runs");
+  const csc = path.join(dir, "csc.mjs");
+  fs.writeFileSync(csc, `#!/usr/bin/env node\nimport fs from "node:fs";\nfs.appendFileSync(${JSON.stringify(count)}, "x");\nconst out = process.argv.find((a) => a.startsWith("/out:")).slice(5);\nsetTimeout(() => fs.writeFileSync(out, "exe"), 200);\n`, { mode: 0o755 });
+  const [a, b] = await Promise.all([ensureLowrun(dir, { source: src, csc }), ensureLowrun(dir, { source: src, csc })]);
+  assert.equal(a, b);
+  assert.ok(fs.existsSync(a) && /vyre-lowrun-[0-9a-f]{12}\.exe$/.test(a));
+  assert.equal(fs.readFileSync(count, "utf8"), "x", "one build for both");
+  assert.deepEqual(fs.readdirSync(dir).filter((n) => n.endsWith(".part")), [], "no build file left behind");
+  assert.equal(await ensureLowrun(dir, { source: src, csc }), a, "built once: the next ask uses it");
+  fs.rmSync(dir, { recursive: true, force: true });
+});
