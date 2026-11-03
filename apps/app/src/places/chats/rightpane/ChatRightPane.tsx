@@ -143,7 +143,7 @@ function PaneView({ open, onToggle, tab: controlled, initialTab, setup: setupFir
       <View testID="chats-right-pane" style={[st.root, extra?.active ? st.gone : null]} onLayout={(e) => { const w = Math.round(e.nativeEvent.layout.width); if (w > 0 && w !== paneW) setPaneW(w); }}>
         <TabMeasure titles={tabs.map((x) => x.title)} onWidth={titles.set} />
         <AgentHeader deps={deps} role={agent?.role} status={agent?.status} menu={menu} />
-        <TabStrip tabs={strip} active={tab} onSelect={select} tight bare label={`${data.agent.name}'s tabs`} />
+        <View style={st.tabs}><TabStrip tabs={strip} active={tab} onSelect={select} tight bare label={`${data.agent.name}'s tabs`} /></View>
         {online ? null : <Text testID="pane-offline" style={st.offline}>Offline. Showing what this device keeps.</Text>}
         <View testID={`pane-body-${tab}`} style={st.body}>
           {tab === "about" ? <AboutTab agent={agent} name={data.agent.name} hasComputer={showComputer} {...(!noComputers && !showComputer ? { onGive: () => { setSetup(true); setOwn("computer"); onTab?.("computer"); } } : {})} onOpenFiles={() => { setOwn("files"); onTab?.("files"); }} onOpenKnows={() => { setOwn("memory"); onTab?.("memory"); }} /> : null}
@@ -197,6 +197,7 @@ function HeaderBar({ deps, role, status, computerState, menu }: { deps: PaneDeps
 const st = StyleSheet.create({
   root: { flex: 1, minHeight: 0, backgroundColor: "var(--side)" as string },
   gone: { display: "none" },
+  tabs: { marginTop: 10, paddingTop: 12, paddingHorizontal: 14, borderBottomWidth: 1, borderBottomColor: "var(--line)" as string },
   offline: { paddingHorizontal: 12, paddingBottom: 4, fontSize: 11.5, color: "var(--ink-3)" as string },
   body: { flex: 1, minHeight: 0 },
   sk: { padding: 10, gap: 12 },

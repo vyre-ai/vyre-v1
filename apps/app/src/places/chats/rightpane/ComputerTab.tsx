@@ -23,7 +23,7 @@ type TimelineOut = CapMap["computers.timeline"]["out"];
 
 export const COMPUTER_SCREEN = "chats.agent-computer";
 export const POPUP_SCREEN = "chats.computer-popup";
-export const SCREEN_H = 150;
+export const SCREEN_H = 180;
 
 /** The faux window the screen draws: a bar with three dots and a caption line, then lines of content. The real frame replaces it when the stream arrives. */
 function Screen({ view, caption, onPress, name, online, live }: { view: ReturnType<typeof computerView>; caption: string; onPress: () => void; name: string; online: boolean; live?: { computerId: string; state: string; control: boolean } }): ReactElement {
@@ -375,13 +375,13 @@ const st = StyleSheet.create({
   thumbBar: { height: 3, borderRadius: 2, backgroundColor: "rgba(255,255,255,0.28)" as string },
   thumbLine: { height: 2, borderRadius: 1, backgroundColor: "rgba(255,255,255,0.14)" as string, width: "85%" },
   fill: { flex: 1, minHeight: 0 },
-  padded: { paddingHorizontal: 8, paddingVertical: 8 },
+  padded: { paddingHorizontal: 24, paddingVertical: 8 },
   none: { fontSize: 12.5, color: "var(--ink-3)" as string, lineHeight: 18 },
   grow: { flex: 1 },
-  chip: { flexShrink: 1, height: 24, flexDirection: "row", alignItems: "center", gap: 7, paddingLeft: 9, paddingRight: 11, borderRadius: 12, backgroundColor: "var(--sunk)" as string },
-  foot: { flexDirection: "row", alignItems: "center", gap: 9, marginHorizontal: 14, marginTop: 6, paddingVertical: 11, borderTopWidth: 1, borderTopColor: "var(--line)" as string },
+  chip: { flexShrink: 1, height: 26, flexDirection: "row", alignItems: "center", gap: 7, paddingLeft: 9, paddingRight: 11, borderRadius: 12, backgroundColor: "var(--sunk)" as string },
+  foot: { flexDirection: "row", alignItems: "center", gap: 9, marginHorizontal: 24, marginTop: 22, paddingVertical: 14, borderTopWidth: 1, borderTopColor: "var(--line)" as string },
   footText: { flex: 1, fontSize: 12.5, color: "var(--ink-3)" as string },
-  head: { minHeight: 34, flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8, paddingTop: 6 },
+  head: { minHeight: 34, flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 24, paddingTop: 18, paddingBottom: 10 },
   back: { height: 24, flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 4 },
   backText: { fontSize: 12.5, color: "var(--ink-2)" as string },
   status: { flex: 1, minWidth: 0, flexDirection: "row", alignItems: "center", gap: 7 },
@@ -389,7 +389,7 @@ const st = StyleSheet.create({
   dotLive: { backgroundColor: "var(--ok)" as string },
   dotMine: { backgroundColor: "var(--accent)" as string },
   statusText: { flexShrink: 1, fontSize: 12.5, fontWeight: "500", color: "var(--ink-2)" as string },
-  screen: { height: SCREEN_H, borderRadius: 10, backgroundColor: "var(--sunk)" as string, overflow: "hidden" },
+  screen: { height: SCREEN_H, borderRadius: 14, backgroundColor: "var(--sunk)" as string, overflow: "hidden" },
   screenMine: { borderWidth: 1.5, borderColor: "var(--accent)" as string },
   window: { position: "absolute", left: 14, right: 14, top: 14, bottom: 0, borderTopLeftRadius: 8, borderTopRightRadius: 8, backgroundColor: "var(--raised)" as string, overflow: "hidden" },
   bar: { height: 18, flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8, backgroundColor: "var(--hover)" as string },
