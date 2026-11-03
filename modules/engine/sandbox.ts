@@ -44,7 +44,7 @@ const part = (id: string): string => {
 
 /**
  * Where work and scratch folders live. A Mac and Linux: `<dataDir>/work/<person>/<thread>` and `<dataDir>/scratch/<person>`, named by the ids. Windows keeps its paths short, since the engines and
- * the tools they run do not all read a path past MAX_PATH (260; claude.exe's Read hangs on one, the windows-latest proof): `<dataDir>\w\<p>\<t>` and `<dataDir>\s\<p>`, each segment the first
+ * the tools they run are not all sure to read a path past MAX_PATH (260), and Vyre does not count on long-path support in programs it does not own: `<dataDir>\w\<p>\<t>` and `<dataDir>\s\<p>`, each segment the first
  * 10 hex digits of a hash of the id, and an index Vyre keeps beside them (`<dataDir>\w-ids\<segment>`, the id) turns a segment back into its id. The engine cannot change the index: it is not in
  * a folder the engine may write.
  */

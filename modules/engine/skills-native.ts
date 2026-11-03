@@ -60,8 +60,8 @@ export function skillFile(rel: string, platform: NodeJS.Platform = process.platf
 }
 
 /**
- * Windows: whether a file can be written where every engine and tool reads it. Vyre does not count on long-path support in programs it does not own (claude.exe's Read hangs on a path past
- * MAX_PATH, the windows-latest proof), so a file at 260 characters or more, or in a folder at 248 or more, is left out and logged. The short work layout (sandbox.ts) keeps Vyre's own part of the
+ * Windows: whether a file can be written where every engine and tool reads it. Vyre does not count on long-path support in programs it does not own (a skill's scripts run under whatever
+ * tools the person has), so a file at 260 characters or more, or in a folder at 248 or more, is left out and logged. The short work layout (sandbox.ts) keeps Vyre's own part of the
  * path near 100 characters, which leaves a skill's own file paths room. Elsewhere every path fits.
  */
 export const WIN_MAX_FILE = 259;
