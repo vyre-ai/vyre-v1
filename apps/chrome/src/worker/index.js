@@ -15,6 +15,7 @@ import { createStore } from "./store.js";
 import { createContext } from "./context.js";
 import { createMenus } from "./menus.js";
 import { createNotes } from "./notes.js";
+import { createArtifacts } from "./artifacts.js";
 import { createPanel, PANEL_PORT } from "./panel.js";
 import { createPrivacy } from "./privacy.js";
 // Agent control (P-L10_06): starts itself in the extension when Chrome has granted the optional debugger permission, and does nothing otherwise.
@@ -49,7 +50,8 @@ export function createWorker(ext) {
   const context = createContext(ext, privacy);
   /** @type {Map<number, string>} the view a side panel should open on, by window (a right-click Watch or Show Vyre how) */
   const views = new Map();
-  const panel = createPanel({ ext, bridge, store, privacy, context, views });
+  const artifacts = createArtifacts({ ext, bridge, store });
+  const panel = createPanel({ ext, bridge, store, privacy, context, views, artifacts });
   const notes = createNotes({ ext, bridge, privacy, context });
   const menus = createMenus({ ext, notes, panel, views, privacy });
 
@@ -199,6 +201,8 @@ export function createWorker(ext) {
         const kind = msg.kind === "otp" ? "otp" : msg.kind === "card" ? "card" : "login";
         return { data: await fill.fill({ tabId, url: String(sender.tab.url || ""), itemId: String(msg.itemId || ""), usernameField: msg.usernameField ? String(msg.usernameField) : undefined, kind, signIn: false }) };
       }
+      case "vyre.artifact.hosts": return { data: { hosts: await artifacts.hosts() } };
+      case "vyre.artifact": return { data: await artifacts.open({ href: String(msg.href || "").slice(0, 2000) }) };
       case "vyre.dismiss": return { data: await save.dismissed({ tabId, origin }, { never: Boolean(msg.never) }) };
       default: return failure(new BridgeFailure("not_allowed", String(msg.type)));
     }
@@ -228,7 +232,7 @@ export function createWorker(ext) {
   }
 
   return {
-    bridge, store, rules, fill, save, privacy, context, panel, notes, menus, popupState, refreshBadge, onMessage,
+    bridge, store, rules, fill, save, privacy, context, panel, notes, artifacts, menus, popupState, refreshBadge, onMessage,
     /** @param {number} tabId @param {{ status?: string, url?: string }} info @param {any} tab */
     async onTabUpdated(tabId, info, tab) {
       await save.tabUpdated(tabId, info);

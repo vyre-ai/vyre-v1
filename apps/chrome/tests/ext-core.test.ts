@@ -433,7 +433,7 @@ test("the manifest asks for the smallest set of powers and one content script gr
   assert.equal(m.background.type, "module");
   assert.equal(m.action.default_popup, undefined, "the toolbar icon opens the side panel (worker: setPanelBehavior)");
   assert.equal(m.side_panel.default_path, "src/panel/panel.html");
-  assert.deepEqual(m.content_scripts[0].js, ["src/content/finder.js", "src/content/autofill.js", "src/content/capture.js", "src/content/badge.js", "src/content/prompt.js", "src/content/select.js"]);
+  assert.deepEqual(m.content_scripts[0].js, ["src/content/finder.js", "src/content/autofill.js", "src/content/capture.js", "src/content/artifact.js", "src/content/badge.js", "src/content/prompt.js", "src/content/select.js"]);
   assert.equal(m.commands._execute_action.suggested_key.mac, "Command+Shift+L");
   const csp: string = m.content_security_policy.extension_pages;
   assert.ok(!/connect-src/.test(csp) && /default-src 'none'/.test(csp) && /script-src 'self'/.test(csp), "extension pages can reach no network");

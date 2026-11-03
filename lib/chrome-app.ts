@@ -201,6 +201,7 @@ export function createChromeApp(deps: ChromeAppDeps) {
     const mine = await me();
     const messages = (Array.isArray(list?.messages) ? list.messages : []).filter((m: any) => m.kind !== "quiet" && m.kind !== "system").map((m: any) => ({
       id: String(m.messageId), text: String(m.body ?? ""), at: m.createdAt ?? m.at ?? null,
+      artifacts: (Array.isArray(m.blocks) ? m.blocks : []).filter((b: any) => b?.type === "artifact" && /^sit_[a-z0-9]+$/.test(String(b?.data?.artifactId ?? ""))).slice(0, 4).map((b: any) => ({ id: String(b.data.artifactId), title: str(b.data.title ?? "Artifact", 120) })),
       author: { kind: m.author?.kind ?? "agent", id: m.author?.id ?? "", me: m.author?.kind === "person" && m.author?.id === mine, name: m.author?.kind === "agent" ? agents.get(m.author.id)?.name ?? "Agent" : m.author?.id === mine ? "You" : "Someone", assistant: m.author?.kind === "agent" ? Boolean(agents.get(m.author.id)?.assistant) : false },
     }));
     return { threadId, title: t?.thread?.title ?? "", agentId: t?.thread?.agents?.[0]?.agentId ?? null, messages };
@@ -246,6 +247,27 @@ export function createChromeApp(deps: ChromeAppDeps) {
           if (!deps.sessions().some((x) => x.id === id)) throw new AppError("validation.not_found", "You are not signed in to that Space on this computer.");
           picked = id;
           return { active: id };
+        }
+        case "artifact.open": {
+          // The person's own session mints the single-use code (sites.artifact_open, View level: a non-shared artifact is refused by the Space). The extension then opens the address in a tab; it never touches page cookies.
+          const raw = str(input["url"], 2000);
+          let id = str(input["artifactId"], 80);
+          let s: ChromeSession | undefined;
+          if (raw) {
+            let u: URL;
+            try { u = new URL(raw); } catch { throw new AppError("validation.bad_input", "That is not an address."); }
+            const m = /^\/a\/(sit_[a-z0-9]+)\/?$/.exec(u.pathname);
+            if (!m) throw new AppError("validation.bad_input", "That is not an artifact link.");
+            id = m[1]!;
+            // the link is for the Space it points at: a link to a Space this person is not signed in to here is not ours to open
+            s = deps.sessions().find((x) => { try { return new URL(x.address).host === u.host; } catch { return false; } });
+            if (!s) { if (deps.sessions().length === 0) throw new AppError("signed_out", SIGNED_OUT); throw new AppError("not_this_space", "You are not signed in to that Space on this computer."); }
+          } else s = session();
+          if (!/^sit_[a-z0-9]+$/.test(id)) throw new AppError("validation.bad_input", "Say which artifact.");
+          const out = await deps.call(s, "sites.artifact_open", { artifactId: id });
+          const url = typeof out?.url === "string" ? out.url : typeof out?.path === "string" ? `${s.address.replace(/\/+$/, "")}${out.path}` : "";
+          if (!/^https:\/\/|^http:\/\/(localhost|127\.0\.0\.1)[:/]/.test(url)) throw new AppError("provider.unavailable", "The Space did not give an address to open.");
+          return { url, expiresAt: out?.expiresAt ?? null };
         }
         case "whoami": {
           const w = await call("identity.whoami", {});

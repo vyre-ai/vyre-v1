@@ -48,7 +48,7 @@ export function outgoing(chips, may, ctx) {
  *   views?: Map<number, string>,
  * }} deps
  */
-export function createPanel({ ext, bridge, store, privacy, context, views = new Map() }) {
+export function createPanel({ ext, bridge, store, privacy, context, views = new Map(), artifacts }) {
   /** @type {Set<any>} */
   const ports = new Set();
   /** @type {Map<number, string>} the last selection seen in each tab */
@@ -155,6 +155,18 @@ export function createPanel({ ext, bridge, store, privacy, context, views = new 
         return { data: { threads: Array.isArray(out && out.threads) ? out.threads : [] } };
       }
       case "panel.thread": return { data: await bridge.op("chat.thread", { threadId: str(msg.threadId, 80) }) };
+      case "panel.openArtifact": {
+        const id = str(msg.id, 80);
+        const r = await artifacts.open({ id });
+        if (!r.handled) {
+          // not opened as the person (no app, nothing to mint with): the Space's own link, which the web app opens if it is signed in
+          const kept = await store.get(["spaces", "activeSpace"]);
+          const sp = (kept["spaces"] ?? []).find((/** @type {any} */ x) => x.id === kept["activeSpace"]);
+          const web = sp && /^https:\/\/|^http:\/\/(localhost|127\.0\.0\.1)[:/]/.test(sp.webUrl) ? new URL(sp.webUrl).origin : null;
+          if (web && /^sit_[a-z0-9]+$/.test(id)) await ext.tabs.create({ url: `${web}/a/${id}` });
+        }
+        return { data: r };
+      }
       case "panel.open": {
         const place = ["chats", "notes", "vault", "watching", "skill", "goal", "record"].includes(msg.place) ? msg.place : "chats";
         const id = msg.id ? str(msg.id, 80) : null;
