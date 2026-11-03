@@ -1,0 +1,8 @@
+{
+  "targets": [
+    { "id": "MEMBERKEY_01-policy-on", "route": "/m/MEMBERKEY_01?part=policy-on", "proto": "console,{skin}", "waitFor": "[data-testid='policy-provider-vault']", "note": "Console > Policies > Sign-in requirements: Members' AI sign-ins open after Google or GitHub sign-in, On, with what keeping the key costs." },
+    { "id": "MEMBERKEY_01-policy-off", "route": "/m/MEMBERKEY_01?part=policy-off", "proto": "console,{skin}", "waitFor": "[data-testid='policy-provider-vault']", "note": "The same switch Off: members type their password once per device." },
+    { "id": "MEMBERKEY_01-vault-kept", "route": "/m/MEMBERKEY_01?part=vault-kept", "proto": "vault,{skin}", "waitFor": "[data-testid='vault-server-key']", "note": "Vault > AI providers, a member's own Claude: Opens after you sign in with Google or GitHub on this server, Forget on this server." },
+    { "id": "MEMBERKEY_01-vault-forgotten", "route": "/m/MEMBERKEY_01?part=vault-forgotten", "proto": "vault,{skin}", "waitFor": "[data-testid='vault-server-key']", "note": "After Forget: Opens when you type your password on this server, Keep on this server." }
+  ]
+}

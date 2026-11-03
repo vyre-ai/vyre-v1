@@ -48,6 +48,10 @@ type Out = {
     payloadHash: string;
     createdAt: number;
     expiresAt: number;
+    askedBy?: {
+      kind: "person" | "agent" | "actor" | "service";
+      id: string;
+    };
   };
 };
 ```
@@ -71,6 +75,10 @@ type Out = {
     "hold": {
       "act": "send",
       "actingFor": "example",
+      "askedBy": {
+        "id": "usr_a1b2c3",
+        "kind": "person"
+      },
       "capName": "mail.send",
       "createdAt": 1760000000000,
       "expiresAt": 1760000000000,

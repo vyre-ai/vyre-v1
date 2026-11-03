@@ -1,3 +1,4 @@
+import { ownsSubject } from "./own-subject.ts";
 import { createChoiceSource } from "./forms-choices.ts";
 import {syncEndpointOrigin} from "./sync-endpoint.ts";
 import {collectSpaceExport,SpaceExportError} from '../seams/space-export.ts';
@@ -101,6 +102,8 @@ import { connectorReadSender } from "../seams/connector-read.ts";
 import { documentPin } from "../seams/document-pin.ts";
 import { createConnectorsHost } from "../seams/connectors.ts";
 import { createProviderSignin } from "../seams/provider-signin.ts";
+import type { SigninProvider } from "../seams/provider-signin.ts";
+import { readLocalSignin } from "../seams/local-signin.ts";
 import { createSigninRefresh } from "../seams/signin-refresh.ts";
 import type { ConnectorNetwork } from "../seams/connectors.ts";
 import { createAuditRecorder } from "../seams/audit.ts";
@@ -112,6 +115,8 @@ import { createVaultExportRoute } from "../routes/vault-export.ts";
 import { createWebhookRoute } from "../routes/webhooks.ts";
 import { createComputeRoute } from "../routes/compute.ts";
 import { createComputeStream } from "../routes/compute-stream.ts";
+import { createTeamLinksRoute } from "../routes/team-links.ts";
+import type { TeamLink } from "../routes/team-links.ts";
 import type { ComputeStream } from "../routes/compute-stream.ts";
 import { createRunsHost } from "../seams/runs.ts";
 import type { WebhookAccept } from "../routes/webhooks.ts";
@@ -120,6 +125,7 @@ import { createLocalKeyRoute } from "../routes/local-key.ts";
 import { createMcpRoute } from "../routes/mcp.ts";
 import type { McpRuntime } from "../routes/mcp.ts";
 import { createKeyring } from "../seams/keyring.ts";
+import { WRAP_POLICY, createKeyWraps } from "../seams/key-wraps.ts";
 import { createGithubSignInRoute } from "../routes/github-signin.ts";
 import { createSsoSignInRoute, createSsoTickets } from "../routes/sso-signin.ts";
 import { createPeopleExtras, githubOAuthFromEnv, linkSso, matchProvenAddress, ssoProvidersIn } from "../seams/people.ts";
@@ -140,7 +146,7 @@ import { bootstrapSpace, mintOwner } from "./bootstrap.ts";
 import { createAccess, isAccessEvent, isMemberOrGuest, toAccessEvent, touchesAccess } from "./access.ts";
 import { ADMIN_DEVICE, createSessionResolver, issueSessionToken, sessionLive } from "./session.ts";
 import { createResourceRegistrar, missingAgentResources } from "../gateway/resources.ts";
-import { createPrincipalRegistrar, lowAgentUpgradeEvents, missingAgentPrincipalEvents, ownPlaceGrant } from "../gateway/principals.ts";
+import { createPrincipalRegistrar, lowAgentUpgradeEvents, missingAgentHomeEvents, missingAgentPrincipalEvents, ownPlaceGrant } from "../gateway/principals.ts";
 import { fromStored, toNew } from "./commit.ts";
 import { collectHooks, createHookRunner, SYSTEM_PRINCIPAL } from "./consumers.ts";
 import { createRecordsVaultHost } from "../seams/records-vault.ts";
@@ -277,6 +283,11 @@ export interface DaemonOptions {
   computeStreamRecheckMs?: number;
   /** Tests: decide whether a node's link counts as private (default: TLS, or a peer on this machine). */
   computeStreamSecure?: (req: import("node:http").IncomingMessage) => boolean;
+  /**
+   * A device-role daemon's links to the Team Spaces its person is signed in to (routes/team-links.ts, compute/device-link.ts): the launcher their engines start with, the engines it says it runs,
+   * the name it shows and the socket it dials with. Default: the engine module's own launcher in this computer's sandbox, the CLI engines the sandbox can run, the host name, the platform WebSocket.
+   */
+  deviceLink?: { launcher?: import("../compute/node.ts").NodeLauncher; engines?: readonly string[]; name?: string; socket?: (url: string, headers: Record<string, string>) => import("../compute/node.ts").NodeSocket; retryMs?: number; homes?: import("../compute/device-link.ts").OwnHomes };
   /** Where CLI engines run sandboxed (modules/engine/sandbox.ts SandboxPlan). Omitted: a CLI engine refuses to start. */
   engineSandbox?: unknown;
   /** Tests: swap a CLI engine's program for a command, and expose extra read-only folders in its sandbox (modules/engine runtime `cli`). */
@@ -333,7 +344,9 @@ export interface Daemon {
   /** The Chrome bridge behind /chrome-bridge/v1/*: agent tool calls to the extension, and the extension's requests (apps/chrome native host) */
   chromeBridge: ChromeBridge;
   /** Engine processes on computers that joined (a turn pinned to a server): start one on a node, over its live socket. */
-  nodeRelay: { spawnProc: ComputeStream["spawnProc"]; connected(nodeId: string): boolean; secure(nodeId: string): boolean };
+  nodeRelay: { spawnProc: ComputeStream["spawnProc"]; connected(nodeId: string): boolean; secure(nodeId: string): boolean; devices: ComputeStream["devices"] };
+  /** A device-role daemon: the Team Spaces it links to for its person's turns (POST /local/chrome/spaces). */
+  teamLinks: () => string[];
   stop(): Promise<void>;
 }
 
@@ -459,8 +472,42 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   let computeHome: (nodeId: string, a: { token: string; computerId: string; cap: string; input: unknown }) => Promise<{ ok: true; output: unknown } | null> = () => Promise.resolve(null);
   let computeStreamOpen: (ticket: string, computerId: string) => Promise<{ nodeId: string; personId: string; input: boolean } | null> = () => Promise.resolve(null);
   let computeStreamInput: (computerId: string, personId: string) => Promise<boolean> = () => Promise.resolve(false);
-  const computeStream = createComputeStream({ poll: (c) => computePoll(c, {}), open: (t, c) => computeStreamOpen(t, c), mayInput: (c, p) => computeStreamInput(c, p), ...(o.computeStreamRecheckMs !== undefined ? { recheckMs: o.computeStreamRecheckMs } : {}), ...(o.computeStreamSecure ? { secure: o.computeStreamSecure } : {}) });
+  // a person's own computer links with their signed-in session (lane l-runson); who it is comes from the same resolver as the gateway, once the Space is open
+  let deviceOfToken: (token: string) => Promise<{ person: string; device: string; name?: string } | null> = () => Promise.resolve(null);
+  const computeStream = createComputeStream({ poll: (c) => computePoll(c, {}), device: (t) => deviceOfToken(t), open: (t, c) => computeStreamOpen(t, c), mayInput: (c, p) => computeStreamInput(c, p), ...(o.computeStreamRecheckMs !== undefined ? { recheckMs: o.computeStreamRecheckMs } : {}), ...(o.computeStreamSecure ? { secure: o.computeStreamSecure } : {}) });
   closers.push(() => computeStream.close());
+  // A device-role daemon (the Vyre app's, on the person's own computer) links to each Team Space its person is signed in to here, so their chats there can run on this computer (lane l-runson).
+  // A daemon that hosts a Space does not: its Space is here, and its turns already run here.
+  const linkDevice = async (l: TeamLink, signal: AbortSignal): Promise<void> => {
+    const { runDeviceLink } = await import("../compute/device-link.ts");
+    const { platformSocket } = await import("../compute/node.ts");
+    type EngineExports = { nodeCliLauncher?: (dataDir: string, deps?: { install?: boolean }) => import("../compute/node.ts").NodeLauncher; nodeCliReport?: () => { sandbox: { ok: boolean } } };
+    const engine = o.deviceLink?.launcher && o.deviceLink.engines ? undefined : ((await fileExportsImporter(codeRoot)("engine")) as EngineExports | undefined);
+    let made: import("../compute/node.ts").NodeLauncher | undefined;
+    const launcher = o.deviceLink?.launcher ?? { spawn: (spec: Parameters<import("../compute/node.ts").NodeLauncher["spawn"]>[0]) => {
+      if (!engine?.nodeCliLauncher) return Promise.reject(Object.assign(new Error("this computer has no engine module"), { code: "engine.cli_failed" }));
+      made ??= engine.nodeCliLauncher(paths.root, { install: o.engineInstall === true });
+      return made.spawn(spec);
+    } };
+    // the CLI engines: Vyre installs a missing one the first time a turn needs it, so what decides is whether this computer can sandbox an engine at all (Windows waits for lane l-winengine)
+    const engines = o.deviceLink?.engines ?? (engine?.nodeCliReport?.().sandbox.ok === true ? ["claude_code", "codex", "grok"] : []);
+    await runDeviceLink({
+      server: l.address, token: l.token, dataDir: paths.root, name: o.deviceLink?.name ?? platform.hostname, engines, launcher,
+      socket: o.deviceLink?.socket ?? platformSocket, signal, ...(o.deviceLink?.retryMs !== undefined ? { retryMs: o.deviceLink.retryMs } : {}), ...(o.deviceLink?.homes ? { homes: o.deviceLink.homes } : {}),
+      sleep: (ms, sig) => new Promise<void>((resolve, reject) => { const t = setTimeout(resolve, ms); t.unref?.(); sig.addEventListener("abort", () => { clearTimeout(t); reject(new Error("stopped")); }, { once: true }); }),
+      log: (line) => sink.log({ space: l.id, level: 20, msg: "team.link", place: "device-link", attrs: { line } }),
+    });
+  };
+  const teamLinks = createTeamLinksRoute({
+    token, sameToken, log: (msg, attrs) => sink.log({ space: "-", level: 20, msg, place: "device-link", attrs }),
+    start: (l) => {
+      if (hasSpace || !cfg.roles.includes("device")) return () => undefined;
+      const abort = new AbortController();
+      void linkDevice(l, abort.signal).catch((e: unknown) => sink.log({ space: l.id, level: 40, msg: "team.link_failed", place: "device-link", attrs: { error: e instanceof Error ? e.message : String(e) } }));
+      return () => abort.abort();
+    },
+  });
+  closers.push(() => teamLinks.close());
   let computeRecording: (nodeId: string, a: { token: string; computerId: string; url: string; bytes: Buffer }) => Promise<boolean> = () => Promise.resolve(false);
   const computeRoute = createComputeRoute({ poll: (c, r) => computePoll(c, r), jobs: (n, r) => computeJobs(n, r), result: (n, a) => computeResult(n, a), home: (n, a) => computeHome(n, a), recording: (n, a) => computeRecording(n, a) });
   const webhookRoute = createWebhookRoute({ has: (c) => webhooks.has(c), accept: (c, a) => webhooks.accept(c, a), automation: (a) => webhooks.automation(a), publicBase: () => { const a = cfg.address ?? `http://${cfg.host}:${boundPort}`; return /^https?:\/\//.test(a) ? a : `https://${a}`; } });
@@ -470,7 +517,10 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   let callerOf: (h: http.IncomingHttpHeaders) => Promise<{ person: string; sessionId?: string } | null> = () => Promise.resolve(null);
   const ownNode = (p: string): boolean => cfg.roles.includes("device") || p === ownerOfSpace();
   const connectorPort=createConnectorsHost({publicBase:()=>{const address=cfg.address??`http://${cfg.host}:${boundPort}`;return /^https?:\/\//.test(address)?address:`https://${address}`;},own:caller=>ownNode(caller.actingFor??caller.principal.id),...(o.connectorNetwork?{network:o.connectorNetwork}:{})});
-  const keyring = createKeyring({ allowed: ownNode, live: (id) => (db ? sessionLive(db, id) : false) });
+  // Owner ruling 3 Nov (R62 amended): a Space server also holds a person's key for as long as the signed-in session that handed it over is live, so a member's own AI account runs their own turns on the
+  // Space. Without a session (the local admin token) only the person's own node takes it.
+  const sessionAlive = (id: string): boolean => (db ? sessionLive(db, id) : false);
+  const keyring = createKeyring({ allowed: (p, sessionId) => ownNode(p) || (sessionId !== undefined && sessionAlive(sessionId)), live: sessionAlive });
   closers.push(() => keyring.clearAll());
   const fillRoute = createFillRoute();
   // GitHub sign-in: the server environment first, then the app an admin saved (members.sign_in_github.set; its secret is read from the Vault by handle and kept in memory only)
@@ -488,7 +538,17 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
     bind: (key, who, person) => { const bound = db ? linkSso(db, key, who, person) : false; if (bound) matchProven(key, who, person); return bound; },
     log: (why, attrs) => sink.log({ space: space ?? "-", level: 30, msg: why, place: "sso", attrs }),
   });
-  const localKeyRoute = createLocalKeyRoute({ caller: (h) => callerOf(h), keyring, allowed: ownNode });
+  // A Space server keeps a wrap of a member's key that opens after their Google, Microsoft or GitHub sign-in (host/src/seams/key-wraps.ts), unless an owner turned the policy off. Never on a person's own computer.
+  const wrapsOn = (): boolean => {
+    try {
+      const r = db?.all(`SELECT value FROM access_policies WHERE key = ? AND scope = 'space'`, WRAP_POLICY)[0] as { value?: string } | undefined;
+      return r?.value === undefined || JSON.parse(r.value) !== false;
+    } catch { return true; }
+  };
+  const keyWraps = cfg.roles.includes("device") ? null : createKeyWraps({ db: () => db, space: () => space ?? "-", secret: () => Buffer.from(sealKeyFile(path.join(paths.root, "person-wrap.key")), "hex"), enabled: wrapsOn });
+  const localKeyRoute = createLocalKeyRoute({ caller: (h) => callerOf(h), keyring, allowed: (p, sessionId) => ownNode(p) || (sessionId !== undefined && sessionAlive(sessionId)),
+    log: (msg, attrs) => sink.log({ space: space ?? "-", level: 30, msg, place: "vault", attrs }),
+    ...(keyWraps ? { handed: (p: string, key: Uint8Array) => { if (keyWraps.make(p, key)) sink.log({ space: space ?? "-", level: 30, msg: "vault.wrap_made", place: "vault", attrs: { person: p } }); }, wraps: keyWraps } : {}) });
   let headSeq = 0;
   let sawSpace = false, hostMadeSpace = false;
   let claimIssue: () => Promise<{ code: string; expiresAt: number } | null> = async () => null;
@@ -623,7 +683,22 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
             sink.log({ space, level: 20, msg: "access.agent_principal_reconciled", place: "boot", entity: "agent", entity_id: repairedEvent.id });
           }
         }
-
+        // Ruling 99 home grants an agent never got at birth (see missingAgentHomeEvents). The host writes them once per boot, granted by the agent's owner; the agents module's 15 s
+        // boot check runs as the host and holds no grant on anyone's folder, so it no longer tries (it logged the refusal for every agent on every pass).
+        // A Personal Space has no sharing, so nothing to write.
+        if (cfg.spaceKind !== "personal") {
+          let rows: { id: string; ownerId: string; folderId: string | null }[] = [];
+          try { rows = db!.all(`SELECT "id", "ownerId", "folderId" FROM agents_agent WHERE "deletedAt" IS NULL`) as typeof rows; } catch { /* no agents table yet: nothing to repair */ }
+          const known = rows.filter((r) => access.snap.info(r.id) !== null && access.snap.info(r.ownerId) !== null && r.folderId !== null && access.snap.resource(r.folderId) !== undefined);
+          for (const e of missingAgentHomeEvents({ events: agentAccessEvents, agents: known })) {
+            const repaired = await appendRepair({ id: `evt_agent_home_${e.id}`, type: e.type, sv: 1, trace_id: "c0".repeat(16), actor: "svc_host", vis: "space", entity: e.entity, entity_id: e.id, payload: e.payload });
+            if (!repaired.duplicate) {
+              access.fold(repaired.event);
+              accessPending.push(toAccessEvent(repaired.event));
+              sink.log({ space, level: 20, msg: "access.agent_home_reconciled", place: "boot", entity: "agent", entity_id: String(e.payload["subject_id"]) });
+            }
+          }
+        }
       }
       headSeq = (await log.currentHead()).seq;
 
@@ -853,7 +928,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         : undefined;
 
       // the Personal Space gate (P-H_19): a test or boot may pass one; otherwise the matrix over the registry's teamOnly rows, which refuses while cfg.spaceKind is "personal"
-      const personal = o.personal ?? personalMatrix({ kind: () => cfg.spaceKind ?? "team", caps: registryCaps as unknown as Array<{ name: string; teamOnly?: boolean }> });
+      const personal = o.personal ?? personalMatrix({ kind: () => cfg.spaceKind ?? "team", caps: registryCaps as unknown as Array<{ name: string; teamOnly?: boolean }>, owns: (subject, person) => (db ? ownsSubject(db, subject, person) : false) });
       const invoke = createInvoke({
         caps: indexCapabilities(caps),
         validateInput: (cap, v, input) => (extraCaps.has(cap) ? [] : validateInput(cap, v, input)),
@@ -1025,7 +1100,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       // the drivers that need the daemon's own state (the Space log, the access snapshot, the pipeline); the registry in seams/ builds the rest from the Vault
       const spaceLog = log;
       matchProven = (key, who, person) => matchProvenAddress((n, i) => hookRunner.call(n, i), key, who, person);
-      peopleExtras = createPeopleExtras({ access: () => access.snap, stale: (id) => staleFor(id), db: db!, recoveryCommit:createRecoveryCommit({db:db!,now}),call: (n, i, as) => hookRunner.call(n, i, as), keyring, sso: { tickets: ssoTickets }, github: githubNow,
+      peopleExtras = createPeopleExtras({ access: () => access.snap, stale: (id) => staleFor(id), db: db!, recoveryCommit:createRecoveryCommit({db:db!,now}),call: (n, i, as) => hookRunner.call(n, i, as), keyring, ...(keyWraps ? { wraps: keyWraps } : {}), sso: { tickets: ssoTickets }, github: githubNow,
         // an invite on a Space reached at its phone address carries an invite key, never the box key (seams/relay.ts)
         phoneInvite: { keyFor: async (codeHash) => (phoneClaimed() ? (await inviteKeyOf(loadRelayKeys(paths.root).boxPriv, codeHash)).pub : null) },
         githubApp: {
@@ -1338,7 +1413,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           log: (u) => sink.log({ space: spaceId, level: 30, msg: "computers.fill", place: "computers", attrs: { ...u } }),
         }) : null,
         // the turn engine: capabilities run for a person through this pipeline, the agent speaks into chat as itself, and the session opener's ports come from the Vault (P-L2_23)
-        setEngineHost: (d) => (engineSeam = createEngineHost({ space: spaceId, invoke, now, publishTurn: () => hub?.publishTurn ? hub.publishTurn.bind(hub) : null, log: (msg, attrs) => sink.log({ space: spaceId, level: 30, msg, place: "engine", ...(attrs ? { attrs } : {}) }), ...(d.vault ? { vault: d.vault } : {}), dataDir: paths.root, own: ownNode, nodes: { spawn: (n, s) => computeStream.spawnProc(n, s), connected: (n) => computeStream.connected(n), secure: (n) => computeStream.secure(n) }, ...(o.engineCli !== undefined ? { cli: o.engineCli } : {}), ...(o.engineInstall ? { engineInstall: true } : {}), ...(o.engineOpenSession !== undefined ? { openSession: o.engineOpenSession } : {}), ...(o.mcpFetch !== undefined ? { mcpFetch: o.mcpFetch } : {}), ...(o.engineSandbox !== undefined ? { sandbox: o.engineSandbox } : {}), saveSignin: (r) => signinRefresh.save(r), closing: (done) => { engineClosing = done; } })),
+        setEngineHost: (d) => (engineSeam = createEngineHost({ space: spaceId, invoke, now, publishTurn: () => hub?.publishTurn ? hub.publishTurn.bind(hub) : null, log: (msg, attrs) => sink.log({ space: spaceId, level: 30, msg, place: "engine", ...(attrs ? { attrs } : {}) }), ...(d.vault ? { vault: d.vault } : {}), dataDir: paths.root, own: ownNode, ...(cfg.roles.includes("device") ? {} : { keyHeld: (p: string) => { const k = keyring.get(p); k?.fill(0); return k !== null; } }), nodes: { spawn: (n, s) => computeStream.spawnProc(n, s), connected: (n) => computeStream.connected(n), secure: (n) => computeStream.secure(n), devices: (p) => computeStream.devices(p), onDevice: (f) => computeStream.onDevice(f) }, ...(o.engineCli !== undefined ? { cli: o.engineCli } : {}), ...(o.engineInstall ? { engineInstall: true } : {}), ...(o.engineOpenSession !== undefined ? { openSession: o.engineOpenSession } : {}), ...(o.mcpFetch !== undefined ? { mcpFetch: o.mcpFetch } : {}), ...(o.engineSandbox !== undefined ? { sandbox: o.engineSandbox } : {}), saveSignin: (r) => signinRefresh.save(r), closing: (done) => { engineClosing = done; } })),
         // Report a problem: the bundle sources (the person's last actions from the log, the versions) and the reports.vyre.run client, signed with a key derived from this Space's seal key
         configureReports: () => createReportsHost({
           space: spaceId, now, fetch: o.reportsFetch ?? ((u, i) => globalThis.fetch(u, i as RequestInit) as never),
@@ -1403,7 +1478,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         configureSync: () => createSyncSeam({ store: spaceStore, ...(loaded.serving.get("conflicts") === "live" ? { conflicts: { open: (c) => hookRunner.call("conflicts.park", c) as Promise<string>, history: async (e) => { await hookRunner.call("conflicts.record_history", e); } } } : {}), access: () => access.snap, space: spaceId, now, registryHash, liveHub: syncLive.seam, invoke: (c, i, seed) => invoke(c, i, seed), keyed: (c, v) => capIndex?.get(c, v)?.idempotency === "key", ...(cfg.address ? { endpoints: () => { const url=syncEndpointOrigin(cfg.address!);return url?[{kind:"direct" as const,url}]:[]; } } : {}) }),
         setVaultKeyPort: () => ({ personKey: async (personId: string) => keyring.get(personId) }),
         setVaultFillerKey: () => Buffer.from(sealKeyFile(path.join(paths.root, "vault-filler.key")), "hex"),
-        configureVault: (d) => ({ signin: createProviderSignin({ fetch: d.fetch }), refreshed: { take: (t: string, itemId: string) => signinRefresh.take(t, itemId) }, sinks: { ...o.seams?.vaultSinks, http_header: (filled:Parameters<typeof connectorPort.sink>[0],execution?:Parameters<typeof connectorPort.sink>[1]) => { if(connectorPort.accepts(filled.ref))return connectorPort.sink(filled,execution);const existing=o.seams?.vaultSinks?.['http_header'];if(existing)return existing(filled);throw new Error("This HTTP fill reference is unavailable.");} }, db: db!, probe: createProviderProbe({ own: ownNode }), refuse: ({ address, caller }) => refuseModelAddress(address, ownNode(caller)), origin: () => { const a = cfg.address ?? `http://${cfg.host}:${boundPort}`; return /^https?:\/\//.test(a) ? a : `https://${a}`; }, provide: (p: VaultPort & { pullExport?(exportId: string, token: string): string }) => { vaultImpl = p; if (p.pullExport) pullVaultExport = p.pullExport; } }),
+        configureVault: (d) => ({ signin: createProviderSignin({ fetch: d.fetch, ...(cfg.spaceKind === "personal" ? { localSignin: (p: SigninProvider) => readLocalSignin(p) } : {}) }), refreshed: { take: (t: string, itemId: string) => signinRefresh.take(t, itemId) }, sinks: { ...o.seams?.vaultSinks, http_header: (filled:Parameters<typeof connectorPort.sink>[0],execution?:Parameters<typeof connectorPort.sink>[1]) => { if(connectorPort.accepts(filled.ref))return connectorPort.sink(filled,execution);const existing=o.seams?.vaultSinks?.['http_header'];if(existing)return existing(filled);throw new Error("This HTTP fill reference is unavailable.");} }, db: db!, probe: createProviderProbe({ own: ownNode }), refuse: ({ address, caller }) => refuseModelAddress(address, ownNode(caller)), origin: () => { const a = cfg.address ?? `http://${cfg.host}:${boundPort}`; return /^https?:\/\//.test(a) ? a : `https://${a}`; }, provide: (p: VaultPort & { pullExport?(exportId: string, token: string): string }) => { vaultImpl = p; if (p.pullExport) pullVaultExport = p.pullExport; } }),
         setConnectorsHost: () => connectorPort,
         setDocumentNetwork: () => documentPin(),
         setConnectorReadSender: (d) => connectorReadSender(d),
@@ -1487,7 +1562,10 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       await reloadSpaceGithub().catch((e: unknown) => sink.log({ space: spaceId, level: 40, msg: "github.signin_reload_failed", place: "boot", attrs: { error: e instanceof Error ? e.message : String(e) } }));
       if (loaded.serving.get("identity") === "live") {
         const made = (await spaceLog.read({ after: 0, limit: 200 })).find((e) => e.type === "space.created");
-        const name = made ? ((JSON.parse(new TextDecoder().decode(made.payload)) as { name?: string }).name ?? spaceId) : spaceId;
+        // the name as it is now (the spaces profile, after any rename), else the one the Space was made with; sign-in options show it before anyone signs in, so it is never left an id
+        let current = "";
+        try { current = String((db?.all("SELECT name FROM spaces_profile WHERE id = ?", spaceId)[0] as { name?: unknown } | undefined)?.name ?? "").trim(); } catch { /* the profile table is made by the spaces module */ }
+        const name = current || (made ? ((JSON.parse(new TextDecoder().decode(made.payload)) as { name?: string }).name ?? spaceId) : spaceId);
         await hookRunner.call("identity.ensure_space", { name, github: githubNow() !== null }).catch((e: unknown) => sink.log({ space: spaceId, level: 40, msg: "identity.space_failed", place: "boot", attrs: { error: e instanceof Error ? e.message : String(e) } }));
       }
       if (loaded.serving.get("spaces") === "live") {
@@ -1563,6 +1641,16 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         })();
       });
       ownerOfSpace = () => access.owner() ?? cfg.owner ?? null;
+      deviceOfToken = async (t) => {
+        if (t.startsWith("vas_") || sameToken(t, token)) return null;   // a preview, or the admin token: neither is a person's computer
+        const who = await session({ authorization: `Bearer ${t}` });
+        if (!who || who.principal.kind !== "person" || who.previewToken !== undefined || !who.device || who.device === ADMIN_DEVICE) return null;
+        // a phone, a browser tab or an extension runs no engine: only a desktop app or a daemon links as a computer
+        let row: { class?: string; name?: string } | undefined;
+        try { row = db!.all("SELECT class, name FROM devices_device WHERE id = ? AND person = ?", who.device, who.principal.id)[0] as typeof row; } catch { row = undefined; }
+        if (row?.class !== undefined && row.class !== "desktop" && row.class !== "daemon") return null;
+        return { person: who.principal.id, device: who.device, ...(row?.name ? { name: row.name } : {}) };
+      };
       callerOf = async (h) => {
         if (bearer(h["authorization"])?.startsWith("vas_")) return null;
         const who = await session(h);
@@ -1804,7 +1892,12 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   const fast = o.intervals?.fast ?? 15_000, slow = o.intervals?.slow ?? 60_000;
   const group = (names: ProbeName[]): ProbeName[] => names.filter((n) => relevant.includes(n));
   // a signed-out person's key leaves memory within the interval, not whenever someone next reads it
-  scheduler.add({ name: "keyring.sweep", schedule: { everyMs: o.intervals?.sweep ?? 30_000 }, run: () => { keyring.sweep(); } });
+  scheduler.add({ name: "keyring.sweep", schedule: { everyMs: o.intervals?.sweep ?? 30_000 }, run: () => {
+    keyring.sweep();
+    // an owner turned "Members' AI sign-ins open after Google or GitHub sign-in" off: every wrap goes
+    const n = keyWraps?.enforce() ?? 0;
+    if (n > 0) sink.log({ space: space ?? "-", level: 30, msg: "vault.wraps_dropped", place: "vault", attrs: { count: n } });
+  } });
   scheduler.add({ name: "probes.fast", schedule: { everyMs: fast }, run: async () => { await runProbes(group(["events_db", "index_db", "scheduler", "disk_space"]), false); } });
   scheduler.add({ name: "probes.slow", schedule: { everyMs: slow }, run: async () => { await runProbes(group(["docker", "caddy", "time_skew"]), false); reportNetwork(); await ensureIngress(false); await refreshNetworkCertificate(); } });
   scheduler.add({ name: "probes.encryption", schedule: { everyMs: o.intervals?.encryption ?? 300_000 }, run: async () => { await runProbes(group(["disk_encrypted"]), false); } });
@@ -1877,7 +1970,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         res.once("finish", () => { setImmediate(requestStop); });
         return;
       }
-      if (liveTicketRoute.handle(req, res) || publicPath.handle(req, res) || mcpRoute.handle(req, res) || chromeBridge.handle(req, res) || githubSignInRoute.handle(req, res) || ssoSignInRoute.handle(req, res) || blobRoute?.handle(req, res) || formsPageRoute?.handle(req, res) || unsubscribeRoute.handle(req, res) || shareRoute?.handle(req, res) || portalLinkRoute?.handle(req, res) || exportRoute.handle(req, res) || webhookRoute.handle(req, res) || computeRoute.handle(req, res) || computeStream.handle(req, res) || fillRoute.handle(req, res) || localKeyRoute.handle(req, res) || appFiles.handle(req, res)) return;
+      if (liveTicketRoute.handle(req, res) || publicPath.handle(req, res) || mcpRoute.handle(req, res) || chromeBridge.handle(req, res) || githubSignInRoute.handle(req, res) || ssoSignInRoute.handle(req, res) || blobRoute?.handle(req, res) || formsPageRoute?.handle(req, res) || unsubscribeRoute.handle(req, res) || shareRoute?.handle(req, res) || portalLinkRoute?.handle(req, res) || exportRoute.handle(req, res) || webhookRoute.handle(req, res) || computeRoute.handle(req, res) || computeStream.handle(req, res) || teamLinks.handle(req, res) || fillRoute.handle(req, res) || localKeyRoute.handle(req, res) || appFiles.handle(req, res)) return;
       listener(req, res);
     });
     await new Promise<void>((resolve, reject) => {
@@ -1976,7 +2069,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   requestStop = () => { void stop(); };
 
   return {
-    url: `http://${cfg.host}:${boundPort}`, claim, port: boundPort, token, roles: cfg.roles, space, paths, supervisor, scheduler, db, schedule: queue, seams, hooks, projections, sink, log, chromeBridge, nodeRelay: { spawnProc: (n, s) => computeStream.spawnProc(n, s), connected: (n) => computeStream.connected(n), secure: (n) => computeStream.secure(n) },
+    url: `http://${cfg.host}:${boundPort}`, claim, port: boundPort, token, roles: cfg.roles, space, paths, supervisor, scheduler, db, schedule: queue, seams, hooks, projections, sink, log, chromeBridge, nodeRelay: { spawnProc: (n, s) => computeStream.spawnProc(n, s), connected: (n) => computeStream.connected(n), secure: (n) => computeStream.secure(n), devices: (p) => computeStream.devices(p) }, teamLinks: () => teamLinks.ids(),
     runProbes: (names) => runProbes(names), pollCommands: runCommands, ensureIngress: () => ensureIngress(false),
     stop,
   };

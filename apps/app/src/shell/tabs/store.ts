@@ -62,17 +62,46 @@ export function activeEntry(state: TabsState): TabEntry | undefined {
   return findTab(state, state.active);
 }
 
-/** Opens a tab or selects the one already open with that key. `background` opens it behind the current tab (Cmd-click). */
+/** The tab that holds `key`: the one opened on it, else a place's tab that is showing it now (the Inbox tab on that conversation). */
+function holding(state: TabsState, key: string, except?: TabEntry): TabEntry | undefined {
+  return state.tabs.find((t) => t !== except && t.key === key) ?? state.tabs.find((t) => t !== except && t.isNew !== true && tabKey(t.place, t.hash) === key);
+}
+
+/** Opens a tab or selects the one already open with that key (or showing it). `background` opens it behind the current tab (Cmd-click). */
 export function openTab(state: TabsState, tab: TabEntry, background = false): TabsState {
-  const at = state.tabs.find((t) => t.key === tab.key);
+  const at = holding(state, tab.key);
   if (at !== undefined) {
     if (background) return state;
     // the tab follows where its place went (a new screen inside it), so coming back lands there
     const moved = tab.hash !== undefined && tab.hash !== at.hash && !at.isNew;
-    return { tabs: moved ? state.tabs.map((t) => (t === at ? { ...t, hash: tab.hash as string } : t)) : state.tabs, active: tab.key };
+    return { tabs: moved ? state.tabs.map((t) => (t === at ? { ...t, hash: tab.hash as string } : t)) : state.tabs, active: at.key };
   }
   const tabs = [...state.tabs, tab];
   return { tabs, active: background && state.active !== "" ? state.active : tab.key };
+}
+
+/**
+ * The person went somewhere inside the place the selected tab shows (a conversation in Inbox, a chat in Chats, a file in Files): the tab follows them, and no tab is opened. A place is one
+ * tab (spec 3.0): a place's own tab keeps its key and only its hash moves, so the rail and links still find it. A tab opened on an item becomes the tab of what it shows now. When another
+ * tab already holds where they went, that tab is selected instead, so two tabs never show the same thing. Anywhere else (another place, a "+" tab) is an ordinary open.
+ */
+export function moveTab(state: TabsState, place: PlaceId, hash: string | undefined, title?: string): TabsState {
+  const cur = activeEntry(state);
+  const tab = placeTab(place, hash, title);
+  if (cur === undefined || cur.isNew === true || cur.place !== place) return openTab(state, tab);
+  const other = holding(state, tab.key, cur);
+  if (other !== undefined) return openTab(state, { ...tab, key: other.key });
+  const own = cur.key === place;
+  const next: TabEntry = {
+    key: own ? cur.key : tab.key,
+    // a place's tab keeps its name; a tab that now shows another item starts from the place's name until that item's name arrives (hub.retitle)
+    title: own ? cur.title : title ?? PLACE_TITLE[place],
+    place,
+    ...(hash === undefined || hash === "" ? {} : { hash }),
+    ...(cur.pinned === true ? { pinned: true } : {}),
+  };
+  if (next.key === cur.key && next.hash === cur.hash && next.title === cur.title) return state;
+  return { tabs: state.tabs.map((t) => (t === cur ? next : t)), active: next.key };
 }
 
 /** The tab to select after `closed` goes away: the neighbour on the right, else on the left. */
@@ -206,6 +235,8 @@ export interface TabsController {
   subscribe(listener: () => void): () => void;
   /** Open a place (or an item in it) as a tab, or select it. */
   openPlace(place: PlaceId, hash?: string, title?: string, background?: boolean): void;
+  /** The person went somewhere inside the selected tab's place: the tab follows (moveTab). */
+  move(place: PlaceId, hash?: string, title?: string): void;
   newTab(from: PlaceId): TabEntry;
   select(key: string): void;
   close(key: string): void;
@@ -266,6 +297,10 @@ export function createTabsController(options: TabsControllerOptions): TabsContro
     openPlace(place, hash, title, background = false) {
       if (hidden.includes(place)) return;
       set(openTab(state, placeTab(place, hash, title), background));
+    },
+    move(place, hash, title) {
+      if (hidden.includes(place)) return;
+      set(moveTab(state, place, hash, title));
     },
     newTab(from) {
       const tab = newTabEntry(from, state);

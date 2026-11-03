@@ -28,7 +28,8 @@ export interface ProviderSigninPort {
   has(provider: string): boolean;
   /** True while this server holds the flow (a restart loses it). */
   active(id: string): boolean;
-  start(p: { id: string; provider: SigninProvider; person: string }): Promise<SigninStarted>;
+  /** `local`: use the sign-in already on this computer (Personal Space only, owner decision D2): the flow is finished at once, with no link. */
+  start(p: { id: string; provider: SigninProvider; person: string; local?: boolean }): Promise<SigninStarted>;
   /** One look at a flow. A pasted code is passed with it. Never answers a value to anyone but the module that saves it.
    * A finished flow keeps its answer until cancel (the module saved it) or the 15 minutes run out, so a save that failed can be tried again without spending the code twice. */
   step(p: { id: string; person: string; code?: string }): Promise<SigninStep>;
@@ -87,6 +88,8 @@ export interface SigninDeps {
   random?: (n: number) => Uint8Array;
   /** Run the Grok command line. Tests pass a script; the default runs `grok login --device-code` in a private home. */
   spawnGrok?: () => GrokProc;
+  /** Read the sign-in already on this computer (local-signin.ts). Only a Personal Space daemon, whose server is the person's own computer, passes it. */
+  localSignin?: (provider: SigninProvider) => SigninStep | Promise<SigninStep>;
 }
 
 async function postJson(fetch: SeamFetch, url: string, body: unknown): Promise<{ status: number; json: Record<string, unknown> | null }> {
@@ -220,8 +223,15 @@ export function createProviderSignin(deps: SigninDeps): ProviderSigninPort {
   return {
     has: (provider) => provider === "claude-code" || provider === "codex" || provider === "grok",
     active: (id) => flows.has(id),
-    async start({ id, provider, person }) {
+    async start({ id, provider, person, local }) {
       sweep();
+      if (local === true) {
+        if (!deps.localSignin) throw new Error("The sign-in on this computer can be used in your Personal Space only. Sign in instead.");
+        const got = await deps.localSignin(provider);
+        if (got.state !== "done") throw new Error(got.state === "failed" ? got.message : "The sign-in on this computer could not be read. Sign in instead.");
+        flows.set(id, { id, provider, person, at: now(), done: true, result: got });
+        return { url: "", needsCode: false, expiresInSec: TTL_MS / 1000 };
+      }
       const f: Flow = { id, provider, person, at: now(), done: false };
       flows.set(id, f);
       try {

@@ -63,8 +63,8 @@ test("migration and module state: two tables, nothing else; the first sync of a 
   assert.deepEqual(w.files.paths(), ["Client Drive/Budget", "Client Drive/Contracts/nda.docx", "Client Drive/Plan", "Client Drive/intro.pdf"]);
   assert.equal(w.files.folders.get(folderId)?.reviewChanges, true, "cloud mounts default to Review changes");
   const plan = w.files.fileNamed("Plan");
-  assert.deepEqual([plan.kind, plan.mime], ["google_native", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"]);
-  assert.equal(w.files.fileNamed("Budget").mime, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+  assert.deepEqual([plan.kind, plan.mime], ["google_native", "application/vnd.google-apps.document"], "a Doc keeps Google's type; its content is the export");
+  assert.equal(w.files.fileNamed("Budget").mime, "application/vnd.google-apps.spreadsheet");
   assert.equal(w.files.text(plan.id), "export:g1@2026-10-02T09:00:00.000Z");
   assert.equal(w.files.text(w.files.fileNamed("intro.pdf").id), "drive:f1@2026-10-01T10:05:00.000Z");
 

@@ -64,6 +64,12 @@ test("503 three times: after the retries the turn fails with provider.unavailabl
   assert.equal(errorOf(events).code, "provider.unavailable");
 });
 
+test("529 overloaded is provider.overloaded and the session leaves the one retry to the engine (owner ruling, 3 Nov)", async () => {
+  const { events, f } = await run(() => ({ status: 529, text: '{"type":"error","error":{"type":"overloaded_error","message":"Overloaded"}}' }));
+  assert.equal(f.requests.length, 1);
+  assert.equal(errorOf(events).code, "provider.overloaded");
+});
+
 test("a dropped connection is retried like a 5xx", async () => {
   const { events, f } = await run((_r, n) => (n === 0 ? { throws: "socket hang up" } : OK()));
   assert.equal(f.requests.length, 2);
@@ -117,7 +123,7 @@ test("an error event before the first delta is retried; one after a delta is sur
   const b = await run(() => ({ chunks: chunked(late, 40) }), {}, "anthropic");
   assert.equal(b.f.requests.length, 1, "bytes were streamed, so nothing is replayed");
   assert.deepEqual(b.events.map((e) => e.type), ["text", "error"]);
-  assert.equal(errorOf(b.events).code, "provider.unavailable");
+  assert.equal(errorOf(b.events).code, "provider.overloaded", "overloaded is its own code, not a limit and not a generic outage");
 });
 
 test("a stream that goes quiet is cut after the idle time and reported", async () => {

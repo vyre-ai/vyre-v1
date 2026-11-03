@@ -121,12 +121,38 @@ test("a manager supplies the key by saving fields in the folder: the value goes 
   assert.deepEqual(w.called("vault.share").map((c) => c.input), [{ resource: { type: "vault_item", id: "vit_new" }, subject: { kind: "agent", id: "agt_helper" }, level: "use", idempotencyKey: `${request.id}:use` }]);
   assert.deepEqual(w.called("tasks.transition").map((c) => [c.input["taskId"], c.input["to"]]), [["tsk_1", "done"]]);
   assert.deepEqual(w.called("runs.resume").map((c) => c.input), [{ runId: "run_intake", reason: "key" }]);
-  assert.deepEqual(w.events, [{ name: "vault.request_fulfilled", subject: request.id, payload: { requestId: request.id, itemId: "vit_new", name: request.name, forRun: "run_intake" } }]);
+  assert.deepEqual(w.events, [{ name: "vault.request_fulfilled", subject: request.id, payload: { requestId: request.id, itemId: "vit_new", name: request.name, forRun: "run_intake", agentId: "agt_helper" } }]);
   // the value went to the vault service and nowhere else
   const everywhere = JSON.stringify({ rows: w.db.dump(), events: w.events, warnings: w.warnings, others: w.calls.filter((c) => c.cap !== "vault.item.put") });
   assert.equal(everywhere.includes(SECRET), false, "the value is in the vault call only");
   assert.equal(JSON.stringify(done).includes(SECRET), false);
   assert.equal(JSON.stringify(await handlers["vault.requests.get"](w.as("agt_helper", "agent"), { requestId: request.id })).includes(SECRET), false);
+});
+
+test("who can use the key through the agent (owner ruling, 3 Nov): only the person who asked by default, anyone who asks the agent when the approver says so", async () => {
+  const card = { threadId: "thr_chat", agentId: "agt_helper", asker: "usr_sam" };
+  const byDefault = world({ card });
+  const a = await ask(byDefault, "agt_helper", { fields: ["api_key"] });
+  await handlers["vault.requests.fulfil"](byDefault.as("usr_mira"), { requestId: a.request.id, fields: [{ key: "api_key", value: "sk_test_1" }] });
+  assert.deepEqual(byDefault.called("access.share").map((c) => c.input), [{ resource: { type: "vault_item", id: "vit_new" }, subject: { kind: "agent", id: "agt_helper" }, level: "use", source: "through-agent:usr_sam", idempotencyKey: `${a.request.id}:through` }]);
+
+  const anyone = world({ card });
+  const b = await ask(anyone, "agt_helper", { fields: ["api_key"] });
+  const input = { requestId: b.request.id, fields: [{ key: "api_key", value: "sk_test_2" }], audience: "anyone" as const };
+  const fulfilIn = registry.capabilities.find((x) => x.name === "vault.requests.fulfil")!.input;
+  assert.deepEqual(validate(fulfilIn, input, "", registry.$defs), [], "audience is part of the contract");
+  await handlers["vault.requests.fulfil"](anyone.as("usr_mira"), input);
+  assert.deepEqual(anyone.called("access.share").map((c) => c.input["source"]), ["through-agent:anyone"]);
+
+  // no chat to read the asker from: the agent alone, as before; a person who asked needs nothing more
+  const noCard = world();
+  const c = await ask(noCard, "agt_helper", { fields: ["api_key"] });
+  await handlers["vault.requests.fulfil"](noCard.as("usr_mira"), { requestId: c.request.id, fields: [{ key: "api_key", value: "sk_test_3" }] });
+  assert.deepEqual(noCard.called("access.share"), []);
+  const person = world({ card });
+  const d = await ask(person, "usr_sam", { fields: ["api_key"] });
+  await handlers["vault.requests.fulfil"](person.as("usr_mira"), { requestId: d.request.id, fields: [{ key: "api_key", value: "sk_test_4" }], audience: "anyone" });
+  assert.deepEqual(person.called("access.share"), [], "only an agent's request has a through");
 });
 
 test("a manager can attach an item that already exists; it must hold the fields asked for", async () => {
@@ -178,7 +204,7 @@ test("declining records the note, closes the cards as canceled and tells the wai
   const got = (await handlers["vault.requests.get"](w.as("agt_helper", "agent"), { requestId: request.id })).request;
   assert.deepEqual([got.state, got.note, got.decidedAt], ["declined", "Use the shared one", NOW]);
   assert.deepEqual(w.called("tasks.transition").map((c) => [c.input["taskId"], c.input["to"], c.input["note"]]), [["tsk_1", "canceled", "Declined: Use the shared one"], ["tsk_2", "canceled", "Declined: Use the shared one"]]);
-  assert.deepEqual(w.events, [{ name: "vault.request_declined", subject: request.id, payload: { requestId: request.id, name: request.name, forRun: "run_x", note: "Use the shared one" } }]);
+  assert.deepEqual(w.events, [{ name: "vault.request_declined", subject: request.id, payload: { requestId: request.id, name: request.name, forRun: "run_x", note: "Use the shared one", agentId: "agt_helper" } }]);
   assert.equal(w.called("runs.resume").length, 0, "a declined request does not resume the Run");
   assert.equal(w.called("vault.share").length, 0);
 });
@@ -265,4 +291,17 @@ test("a company key goes in on the card, into a Restricted folder, and the agent
   assert.equal(w.called("vault.share").length, 0, "no Use for the agent");
   assert.deepEqual(w.called("access.labels.set").map((c) => (c.input as { label: string }).label), ["restricted", "restricted"], "the folder before the key goes in, the item after");
   assert.ok(!JSON.stringify(w.called("tasks.create")).includes("SECRET-JSON"));
+});
+
+test("an outside agent's request (handleOnly) gets the key's name and no Use; the answer names the agent so it can be told without a chat", async () => {
+  const w = world();
+  const { request } = await ask(w, "agt_outside", { name: "Google_Client_Secret", fields: ["value"], handleOnly: true });
+  w.events.length = 0;
+  const SECRET = "GOCSPX-not-for-agents";
+  await handlers["vault.requests.fulfil"](w.as("usr_mira"), { requestId: request.id, fields: [{ key: "value", value: SECRET }] });
+  assert.equal(w.called("vault.item.put").length, 1, "the value goes to the Vault");
+  assert.equal(w.called("vault.share").length, 0, "no standing Use for an agent outside Vyre");
+  assert.deepEqual(w.events, [{ name: "vault.request_fulfilled", subject: request.id, payload: { requestId: request.id, itemId: "vit_new", name: "Google_Client_Secret", agentId: "agt_outside" } }]);
+  const everywhere = JSON.stringify({ rows: w.db.dump(), events: w.events, warnings: w.warnings, others: w.calls.filter((c) => c.cap !== "vault.item.put") });
+  assert.equal(everywhere.includes(SECRET), false, "the value is in the vault call only");
 });

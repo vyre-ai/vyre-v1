@@ -65,6 +65,24 @@ test("a Zoom meeting merges into the calendar event: by link, by time and people
   assert.equal(strangers.created, true, "same time, different people");
 });
 
+test("a Meet call pulled twice, at the same time as its calendar event, is one Meeting named for the event", async () => {
+  // the scheduled calendar pull and the Meet hand-off land the same call at once, then a member's Sync now and the next pass land it again
+  const MEET_LINK = "https://meet.google.com/abc-defg-hij";
+  const meet = { source: "meet" as const, providerRef: "conferenceRecords/c1", title: "Google Meet", startsAt: START, endsAt: START + HOUR, joinUrl: MEET_LINK, attendees: [] };
+  const event = calendar({ title: "Intake call", joinUrl: MEET_LINK });
+  for (const order of [[meet, event], [event, meet]] as const) {
+    const h = harness();
+    const once = (await Promise.all(order.map((x) => m.ingest(h.ctx, x as Parameters<typeof m.ingest>[1])))).map(out);
+    assert.equal(once[0]!.meetingId, once[1]!.meetingId, "both halves of the call land on one Meeting");
+    const twice = (await Promise.all([m.ingest(h.ctx, event), m.ingest(h.ctx, meet), m.ingest(h.ctx, event)])).map(out);
+    assert.deepEqual(twice.map((r) => [r.meetingId, r.created, r.merged]), [[once[0]!.meetingId, false, false], [once[0]!.meetingId, false, false], [once[0]!.meetingId, false, false]], "pulling again changes nothing");
+    assert.equal(h.store.size, 1, "one Meeting, however many pulls");
+    const f = h.fields(String(once[0]!.meetingId));
+    assert.deepEqual([f["title"], f["provider"], f["provider_ref"], f["join_url"], f["calendar_event_id"]], ["Intake call", "meet", "conferenceRecords/c1", MEET_LINK, EVENT]);
+    assert.equal(h.named("meeting.merged").length, 1, "the two halves merged once");
+  }
+});
+
 test("ingest checks its input: source, ids, times, link, status, attendees", async () => {
   const h = harness();
   const bad = async (o: Json): Promise<string> => refusedWith(m.ingest(h.ctx, calendar(o) as Parameters<typeof m.ingest>[1]));

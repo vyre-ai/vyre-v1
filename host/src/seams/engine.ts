@@ -59,6 +59,8 @@ export interface EngineHostSeam {
   space?: string;
   /** True when the person is on their own computer: a local model or custom endpoint on loopback or the private network is then allowed (lib/net-guard.ts). */
   own?: (person: string) => boolean;
+  /** A Space server only: does it hold this person's key right now (they are signed in and opened it)? Absent on a person's own computer, where a turn waits for the key instead. */
+  keyHeld?: (person: string) => boolean;
   /** The computers that joined the Space, for a turn pinned to one of them: start the engine process there over its live socket. Absent: no turn runs on a node. */
   nodes?: EngineNodes;
   /** The module calls it at shutdown with the promise of its close (sessions ended, refreshed sign-ins saved), so the daemon waits before the databases close. */
@@ -67,13 +69,17 @@ export interface EngineHostSeam {
 
 /** Start a process on a node (host/src/routes/compute-stream.ts spawnProc), structural here. A rejection carries an engine.* `code`. */
 export interface EngineNodes {
-  spawn(nodeId: string, spec: { argv: readonly string[]; cwd?: string; env: Readonly<Record<string, string>> }): Promise<{
+  spawn(nodeId: string, spec: { argv: readonly string[]; cwd?: string; env: Readonly<Record<string, string>>; person?: string }): Promise<{
     readonly pid: number | undefined; readonly stdout: AsyncIterable<Uint8Array>; write(data: string): Promise<void>; endInput(): void;
     readonly exited: Promise<{ code: number | null; signal: string | null }>; stderrTail(): string; kill(signal?: "SIGTERM" | "SIGKILL"): void;
   }>;
   connected(nodeId: string): boolean;
   /** Is the node's link private? An account key is sent only over one that is. */
   secure(nodeId: string): boolean;
+  /** The person's own computers linked to the Space right now (their Vyre app): node id `device:<id>`, the engines each runs (routes/compute-stream.ts DeviceLink). */
+  devices?(person?: string): Array<{ nodeId: string; deviceId: string; person: string; name?: string; engines: string[]; since: number }>;
+  /** Told when one of them links or goes. */
+  onDevice?(fn: (link: { nodeId: string; deviceId: string; person: string; name?: string; engines: string[] }, up: boolean) => void): () => void;
 }
 
 export interface EngineHostDeps {
@@ -93,6 +99,7 @@ export interface EngineHostDeps {
   /** The live socket's publisher; late-bound because the socket opens after the modules load. */
   publishTurn?: () => PublishTurn | null;
   own?: (person: string) => boolean;
+  keyHeld?: (person: string) => boolean;
   openSession?: unknown;
   nodes?: EngineNodes;
   /** See EngineHostSeam.mcpFetch and pluginLaunch (modules/engine/runtime.ts). */
@@ -147,5 +154,5 @@ export function createEngineHost(d: EngineHostDeps): EngineHostSeam {
     pub({ t: "turn", turn: turnId, delta: { kind, ...rest } }, (person) => (onlyAsker !== null ? person === onlyAsker : mayRead(e.threadId, person)));
   };
   const session = d.vault ? createEngineSessionHost({ invoke: d.invoke, vault: d.vault, space: d.space, ...(d.log ? { log: d.log } : {}), ...(d.saveSignin ? { saveSignin: d.saveSignin } : {}) }) : undefined;
-  return { ...(d.closing ? { closing: d.closing } : {}), holder: `host:${d.space}`, call, postAs, ...(d.publishTurn ? { stream, forgetReaders: () => { epoch++; seen.clear(); } } : {}), ...(d.now ? { now: d.now } : {}), ...(d.log ? { log: d.log } : {}), ...(session ? { session } : {}), ...(d.sandbox !== undefined ? { sandbox: d.sandbox } : {}), ...(d.dataDir ? { dataDir: d.dataDir } : {}), ...(d.cli !== undefined ? { cli: d.cli } : {}), ...(d.engineInstall ? { engines: { install: true } } : {}), ...(d.openSession !== undefined ? { openSession: d.openSession } : {}), invoke: d.invoke, space: d.space, ...(d.own ? { own: d.own } : {}), ...(d.nodes ? { nodes: d.nodes } : {}), mcpFetch: d.mcpFetch ?? createGuardedFetch({ own: false }), ...(d.pluginLaunch !== undefined ? { pluginLaunch: d.pluginLaunch } : {}) };
+  return { ...(d.closing ? { closing: d.closing } : {}), holder: `host:${d.space}`, call, postAs, ...(d.publishTurn ? { stream, forgetReaders: () => { epoch++; seen.clear(); } } : {}), ...(d.now ? { now: d.now } : {}), ...(d.log ? { log: d.log } : {}), ...(session ? { session } : {}), ...(d.sandbox !== undefined ? { sandbox: d.sandbox } : {}), ...(d.dataDir ? { dataDir: d.dataDir } : {}), ...(d.cli !== undefined ? { cli: d.cli } : {}), ...(d.engineInstall ? { engines: { install: true } } : {}), ...(d.openSession !== undefined ? { openSession: d.openSession } : {}), invoke: d.invoke, space: d.space, ...(d.own ? { own: d.own } : {}), ...(d.keyHeld ? { keyHeld: d.keyHeld } : {}), ...(d.nodes ? { nodes: d.nodes } : {}), mcpFetch: d.mcpFetch ?? createGuardedFetch({ own: false }), ...(d.pluginLaunch !== undefined ? { pluginLaunch: d.pluginLaunch } : {}) };
 }

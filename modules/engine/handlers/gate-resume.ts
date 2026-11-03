@@ -4,14 +4,18 @@ import { boundEngine } from "../projections.ts";
 import type { EngineCtx } from "../projections.ts";
 import { openFor } from "../runtime.ts";
 
-interface GateEvent { name: string; payload: { holdId: string; taskId: string; note?: string } }
+interface GateEvent { name: string; payload: { holdId: string; taskId: string; note?: string; askedBy?: unknown } }
 
 export const gateResumeConsumers = {
   "engine.gate_resume": {
     on: ["gate.approved", "gate.denied", "gate.expired"],
     run: async (ctx: EngineCtx, event: GateEvent): Promise<{ skipped?: string; queued?: number | null }> => {
+      // an outside agent asked its person (docs/ask-the-person.md): no turn here waits on it, and its answer is the outside agent's to take (modules/mcp)
+      if (event.payload.askedBy !== undefined) return { skipped: "outside_ask" };
       let engine;
       try { engine = boundEngine(ctx); } catch { return { skipped: "engine_not_running" }; }
+      // only a turn that parked on this hold (an API engine's) is resumed here; a CLI engine's held call over MCP ended its turn, and engine.hold_answered wakes it with the answer (held-notes.ts)
+      try { if (ctx.db.all("SELECT 1 AS x FROM engine_waits WHERE task_id = ?", event.payload.taskId).length === 0) return { skipped: "no_parked_turn" }; } catch { /* the table is made with the first parked turn */ return { skipped: "no_parked_turn" }; }
       const approved = event.name === "gate.approved";
       let result: { ok: boolean; content: unknown } | undefined;
       if (approved) {

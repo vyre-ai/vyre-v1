@@ -249,6 +249,50 @@ function guessKind(name: string, mime: string): string {
   return "other";
 }
 
+// ---- Google-native files ----
+
+const GOOGLE_NATIVE = "application/vnd.google-apps.";
+const GOOGLE_APP: Record<string, string> = {
+  document: "Google Docs", spreadsheet: "Google Sheets", presentation: "Google Slides", drawing: "Google Drawings", form: "Google Forms", site: "Google Sites", jam: "Jamboard", map: "Google My Maps", script: "Apps Script",
+};
+
+/** The Google app a native file opens in ("Google Docs"), from Google's own type. */
+export function googleApp(mime: string): string {
+  return mime.startsWith(GOOGLE_NATIVE) ? GOOGLE_APP[mime.slice(GOOGLE_NATIVE.length)] ?? "Google Drive" : "Google Drive";
+}
+
+/** What Google type an export came from: a Doc is kept as Markdown (or plain text), a Sheet as CSV, Slides as PDF, a Drawing as PNG; older copies were Word, Excel or PDF. */
+export function nativeOfExport(mime: string): string | undefined {
+  const m = mime.toLowerCase();
+  if (m === "text/markdown" || m === "text/plain" || m.includes("wordprocessingml")) return `${GOOGLE_NATIVE}document`;
+  if (m === "text/csv" || m.includes("spreadsheetml")) return `${GOOGLE_NATIVE}spreadsheet`;
+  if (m === "application/pdf" || m.includes("presentationml")) return `${GOOGLE_NATIVE}presentation`;
+  if (m === "image/png") return `${GOOGLE_NATIVE}drawing`;
+  return undefined;
+}
+
+/**
+ * The type of what a file holds. A Google-native file keeps Google's type (a Doc is application/vnd.google-apps.document) and holds an export of it, whose type is the blob's own; every
+ * other file is what its mime says. "" for a Google-native file with no export in Vyre (not opened yet, or a Form or a Site, which have none).
+ */
+export function contentMime(ctx: Ctx, file: Row, blobId: string = String(file.blob)): string {
+  if (String(file.kind) !== "google_native") return String(file.mime);
+  const b = one(ctx, "SELECT * FROM files_blob WHERE id = ?", blobId);
+  return b && num(b.size) > 0 && !isNull(b.mime) ? String(b.mime) : "";
+}
+
+/**
+ * A Google Doc's Markdown as it reads: Drive puts every picture in the export as base64 at the end ("[image1]: <data:image/png;base64,...>"), which is noise to a person and a flood of
+ * tokens to an agent. The pictures are named where they stood ("[image]") and their data is dropped.
+ */
+export function readableExport(text: string): string {
+  return text
+    .replace(/^\[image\d+\]:\s*<?data:[^\n]*$/gm, "")
+    .replace(/!\[([^\]]*)\]\[image\d+\]/g, (_m, alt: string) => (alt.trim() !== "" ? `[image: ${alt.trim()}]` : "[image]"))
+    .replace(/\n{3,}/g, "\n\n")
+    .trimEnd() + "\n";
+}
+
 function textLike(mime: string): boolean {
   return mime.startsWith("text/") || mime === "application/json" || mime === "text/javascript";
 }
@@ -278,6 +322,8 @@ function mustFolder(ctx: Ctx, id: string): Row {
   if (!row) fail(ctx, "validation.not_found", "That folder is not in this Space.", { folderId: id });
   return row;
 }
+
+const str0 = (v: unknown): string => (typeof v === "string" ? v : "");
 
 function liveFolder(ctx: Ctx, id: string): Row {
   const row = mustFolder(ctx, id);
@@ -349,12 +395,42 @@ function fileFlags(ctx: Ctx): FileFlags {
   return flags;
 }
 
-function fileOutC(ctx: Ctx, row: Row): FileOut {
+export function fileOutC(ctx: Ctx, row: Row): FileOut {
   const out = fileOut(row);
   const flags = fileFlags(ctx);
   out.starred = flags.starred.has(out.fileId);
   out.conflict = flags.conflict.has(out.fileId);
+  const source = sourceOfFolder(ctx, String(row.folder_id));
+  if (source) out.source = source;
   return out;
+}
+
+// ---- where a folder comes from ----
+
+type Source = { mountId: string; provider: string };
+const sourceCache = new WeakMap<object, Map<string, Source | null>>();
+
+/**
+ * The mount a folder is in: the nearest folder up the tree that the mounts module marked (files.folder.settings source), so a Drive folder, everything in it and a file moved into it
+ * carry Google Drive, and a file moved out carries nothing. Read once per folder per call.
+ */
+export function sourceOfFolder(ctx: Ctx, folderId: string): Source | undefined {
+  let cache = sourceCache.get(ctx);
+  if (!cache) { cache = new Map(); sourceCache.set(ctx, cache); }
+  const seen: string[] = [];
+  let found: Source | null = null;
+  let at: string | null = folderId;
+  for (let hops = 0; at !== null && hops < 64; hops += 1) {
+    const hit = cache.get(at);
+    if (hit !== undefined) { found = hit; break; }
+    seen.push(at);
+    const row: Row | undefined = one(ctx, "SELECT * FROM files_folder WHERE id = ?", at);
+    if (!row) break;
+    if (!isNull(row.source_mount) && !isNull(row.source_provider)) { found = { mountId: String(row.source_mount), provider: String(row.source_provider) }; break; }
+    at = isNull(row.parent_id) ? null : String(row.parent_id);
+  }
+  for (const id of seen) cache.set(id, found);
+  return found ?? undefined;
 }
 
 async function filesStar(ctx: Ctx, input: unknown): Promise<{ file: FileOut }> {
@@ -404,9 +480,8 @@ export function folderOut(ctx: Ctx, row: Row): FolderOut {
   };
   if (!isNull(row.parent_id)) out.parentId = String(row.parent_id);
   out.subject = subjectOf(ctx, row);
-  if (!isNull(row.source_mount) && !isNull(row.source_provider)) {
-    out.source = { mountId: String(row.source_mount), provider: String(row.source_provider) };
-  }
+  const source = sourceOfFolder(ctx, String(row.id));
+  if (source) out.source = source;
   return out;
 }
 
@@ -889,9 +964,15 @@ async function filesRead(ctx: Ctx, input: unknown): Promise<{ text?: string; bas
     blobId = String(version.blob);
     n = num(version.n);
   }
-  const mime = String(file.mime);
+  const native = String(file.kind) === "google_native";
+  const mime = native ? contentMime(ctx, file, blobId) : String(file.mime);
   const size = num(file.size);
   const as = optStr(ctx, o, "as") ?? (textLike(mime) ? "text" : "base64");
+  // a Google-native file reads as its export; with none in Vyre (Google could not be reached, or a Form or a Site has none) there is nothing to read here, and the answer says where it opens
+  if (native && mime === "" && as !== "url") {
+    const app = googleApp(String(file.mime));
+    fail(ctx, "validation.unsupported", `This is a ${app} file and Vyre holds no copy of its content right now. Open it in ${app}.`, { fileId: String(file.id), openIn: app });
+  }
   if (!["text", "base64", "url"].includes(as)) fail(ctx, "validation.bad_input", "The input is not valid.", { field: "as" });
   noteOpen(ctx, String(file.id));
   ctx.log.info("files.read", { fileId: String(file.id), version: n });
@@ -913,8 +994,16 @@ async function filesRead(ctx: Ctx, input: unknown): Promise<{ text?: string; bas
   const slice = plain.subarray(Math.min(offset, plain.byteLength), end);
   const truncated = offset > 0 || end < plain.byteLength;
   if (as === "text") {
+    if (slice.byteLength > MAX_INLINE && !(native && offset === 0 && length === undefined)) fail(ctx, "validation.too_large", "This file is over the size limit to read as text.");
+    const words = new TextDecoder().decode(slice);
+    // a Doc's export reads without the pictures' data, which can be most of its bytes
+    if (native && mime === "text/markdown") {
+      const readable = readableExport(words);
+      if (new TextEncoder().encode(readable).byteLength > MAX_INLINE) fail(ctx, "validation.too_large", "This file is over the size limit to read as text.");
+      return { text: readable, mime, size: plain.byteLength, version: n, truncated };
+    }
     if (slice.byteLength > MAX_INLINE) fail(ctx, "validation.too_large", "This file is over the size limit to read as text.");
-    return { text: new TextDecoder().decode(slice), mime, size: plain.byteLength, version: n, truncated };
+    return { text: words, mime, size: plain.byteLength, version: n, truncated };
   }
   return { base64: bytesToB64(slice), mime, size: plain.byteLength, version: n, truncated };
 }
@@ -1116,17 +1205,33 @@ async function folderSettings(ctx: Ctx, input: unknown): Promise<{ folder: Folde
   const row = liveFolder(ctx, reqStr(ctx, o, "folderId"));
   const review = optBool(ctx, o, "reviewChanges");
   const labelName = optStr(ctx, o, "label");
-  if (review === undefined && labelName === undefined) fail(ctx, "validation.bad_input", "The input is not valid.");
+  const sourceIn = o.source;
+  if (sourceIn !== undefined && sourceIn !== null && (typeof sourceIn !== "object" || Array.isArray(sourceIn) || typeof (sourceIn as Row).mountId !== "string" || typeof (sourceIn as Row).provider !== "string" || String((sourceIn as Row).provider) === "")) {
+    fail(ctx, "validation.bad_input", "The input is not valid.", { field: "source" });
+  }
+  if (review === undefined && labelName === undefined && sourceIn === undefined) fail(ctx, "validation.bad_input", "The input is not valid.");
+  // every refusal comes before the first write: an unknown label never leaves a changed source behind
+  const rank = labelName === undefined ? undefined : LABEL_RANK[labelName];
+  if (labelName !== undefined && rank === undefined) fail(ctx, "validation.bad_input", "The input is not valid.", { field: "label" });
   const fields: string[] = [];
+  // the mounts module marks the top of a mount with where it comes from; nothing changes (and nothing is said) when the mark is already there
+  const source = sourceIn === undefined ? undefined : sourceIn === null ? null : { mountId: String((sourceIn as Row).mountId), provider: String((sourceIn as Row).provider) };
+  if (source !== undefined && (str0(row.source_mount) !== (source?.mountId ?? "") || str0(row.source_provider) !== (source?.provider ?? ""))) {
+    ctx.db.run("UPDATE files_folder SET source_mount = ?, source_provider = ? WHERE id = ?", source?.mountId ?? null, source?.provider ?? null, row.id);
+    sourceCache.delete(ctx);
+    fields.push("source");
+  }
+  if (review === undefined && labelName === undefined) {
+    if (fields.length > 0) ctx.emit("folder.settings_changed", `folder/${String(row.id)}`, { folderId: String(row.id), fields });
+    return { folder: folderOut(ctx, mustFolder(ctx, String(row.id))) };
+  }
   let label = num(row.label);
   let reviewBit = flag(row.review_changes) ? 1 : 0;
   if (review !== undefined) {
     reviewBit = review ? 1 : 0;
     fields.push("reviewChanges");
   }
-  if (labelName !== undefined) {
-    const rank = LABEL_RANK[labelName];
-    if (rank === undefined) fail(ctx, "validation.bad_input", "The input is not valid.", { field: "label" });
+  if (labelName !== undefined && rank !== undefined) {
     await setFolderLabel(String(row.id), labelName as "public" | "internal" | "confidential" | "restricted");
     label = rank;
     fields.push("label");
@@ -1186,6 +1291,11 @@ async function filesWrite(ctx: Ctx, input: unknown): Promise<{ file: FileOut; ve
     "UPDATE files_file SET blob = ?, size = ?, version = ?, updated_at = ?, updated_by = ? WHERE id = ?",
     blob.blobId, blob.size, n, now, ctx.principal.id, file.id,
   );
+  // a Google-native file made before it kept Google's type (it read as text/plain) takes it from its first export
+  if (String(file.kind) === "google_native" && !mime.startsWith(GOOGLE_NATIVE)) {
+    const native = nativeOfExport(contentMime(ctx, { kind: "google_native", blob: blob.blobId }));
+    if (native !== undefined) ctx.db.run("UPDATE files_file SET mime = ? WHERE id = ?", native, file.id);
+  }
   const versionId = addVersion(ctx, String(file.id), n, blob.blobId, reason, undefined);
   noteOpen(ctx, String(file.id));
   const payload: { fileId: string; versionId: string; n: number; by: string; reason?: string } = {

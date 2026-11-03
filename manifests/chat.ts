@@ -45,7 +45,7 @@ const channelRow = t.obj({
 });
 const recentRow = t.obj({
   threadId: id.thread, kind: threadKind, title: t.str(), agents: t.arr(id.agent), unread: t.int(), working: t.bool(), starred: t.bool(),
-  lastAt: t.ts(), preview: t.opt(t.str()),
+  lastAt: t.ts(), preview: t.opt(t.str()), people: t.opt(t.arr(id.user, { description: 'The other people in the chat, never the asker: a direct message names the one person it is with' })),
 });
 const mention = t.obj({ kind: t.enm('person', 'agent'), id: t.str({ examples: ['usr_a1b2c3'] }) });
 const screenObject = t.obj({ type: t.str({ examples: ['record'] }), id: t.str({ examples: ['rec_a1b2c3'] }), title: t.opt(t.str()) });
@@ -170,8 +170,8 @@ export default defineManifest({
       in: threadT, out: { ok: t.bool() }, on: ['thread', '/threadId'], level: 'view', emits: ['channel.member_removed'], audit: 'sensitive', risk: 'medium', idem: 'natural', offline: 'online',
       agent: false, errors: ['validation.bad_input'],
     }),
-    write('threads.mark_read', 'Mark a thread read up to a sequence number', {
-      in: { ...threadT, upto: t.opt(t.int()) }, out: { unread: t.int() }, on: ['thread', '/threadId'], level: 'view', tool: 'chats', offline: 'queue', idem: 'natural', risk: 'low',
+    write('threads.mark_read', 'Mark a thread read up to a sequence number, or unread again (the newest message from someone else counts as new)', {
+      in: { ...threadT, upto: t.opt(t.int()), unread: t.opt(t.bool()) }, out: { unread: t.int() }, on: ['thread', '/threadId'], level: 'view', tool: 'chats', offline: 'queue', idem: 'natural', risk: 'low',
     }),
     write('threads.add_agent', 'Add an agent to a thread as listening (or leading when it is the only agent)', {
       in: { ...threadT, agentId: id.agent, mode: t.opt(agentMode) }, out: { thread: threadRow }, on: ['thread', '/threadId'], perm: 'channels.agents',
@@ -286,7 +286,8 @@ export default defineManifest({
     }),
     read('chat.recent', 'Sidebar Recent: Starred, Today, Yesterday, Earlier with unread counts and the working pulse, then the chats I archived (they are in no other group)', {
       in: { filter: t.opt(t.enm('all', 'unread', 'people', 'agents')) },
-      out: { starred: t.arr(recentRow), today: t.arr(recentRow), yesterday: t.arr(recentRow), earlier: t.arr(recentRow), archived: t.arr(recentRow), nextUnread: t.nullable(id.thread) }, tool: 'chats', label: 'filter',
+      out: { starred: t.arr(recentRow), today: t.arr(recentRow), yesterday: t.arr(recentRow), earlier: t.arr(recentRow), archived: t.arr(recentRow), nextUnread: t.nullable(id.thread),
+        threadsUnread: t.opt(t.int({ minimum: 0, description: 'Unread messages, from someone else, across the inline threads the asker is in (the Threads row)' })) }, tool: 'chats', label: 'filter',
     }),
     read('chat.composer.suggest', 'Composer symbol tables: @ people and agents, # folders, channels, records and files, / commands, skills and templates', {
       in: { symbol: t.enm('@', '#', '/'), q: t.str(), threadId: t.opt(id.thread) },

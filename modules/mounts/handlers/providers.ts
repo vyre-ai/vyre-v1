@@ -11,6 +11,7 @@
 // Drive keeps a change feed (google.drive.list_changes since a page token) but no capability returns the first start token, so a Drive mount scans (a full listing, compared with what was mapped)
 // until a cursor is stored; once one is, every pass reads the feed. Graph returns a delta link with the first listing, so it is on the feed from the first pass.
 
+import { VyreErr } from "../../../packages/contracts/src/errors.ts";
 import type { Ctx } from "../../../packages/contracts/src/ctx.ts";
 import { dropbox } from "./dropbox-provider.ts";
 
@@ -147,12 +148,31 @@ export const MAX_PAGES = 200;
 const DRIVE_FOLDER = "application/vnd.google-apps.folder";
 const DRIVE_NATIVE = "application/vnd.google-apps.";
 
-/** What a Google-native document is kept as: an export snapshot in the format closest to its kind. */
-export function exportMimeFor(native: string): string {
-  if (native.endsWith(".document")) return "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
-  if (native.endsWith(".spreadsheet")) return "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
-  return "application/pdf";
+/**
+ * What a Google-native file is kept as: an export a person and an agent can read. A Doc is Markdown (headings, lists and tables stay words), a Sheet is CSV (its first tab, drawn as a table),
+ * Slides and a Jamboard are PDF (pages, with their text taken out), a Drawing is a PNG. A Form, a Site, a map, a shortcut or an Apps Script project has no export that reads as the file: undefined,
+ * and the file opens at Google instead. A Google-native file has no bytes of its own, so it is never downloaded.
+ */
+export function exportMimeFor(native: string): string | undefined {
+  if (native.endsWith(".document")) return "text/markdown";
+  if (native.endsWith(".spreadsheet")) return "text/csv";
+  if (native.endsWith(".presentation") || native.endsWith(".jam")) return "application/pdf";
+  if (native.endsWith(".drawing")) return "image/png";
+  return undefined;
 }
+
+/** The Google app a native file opens in, for "Open in Google Docs". */
+export function googleAppOf(native: string | undefined): string {
+  const kind = (native ?? "").slice((native ?? "").lastIndexOf(".") + 1);
+  const app: Record<string, string> = {
+    document: "Google Docs", spreadsheet: "Google Sheets", presentation: "Google Slides", drawing: "Google Drawings", form: "Google Forms", site: "Google Sites",
+    jam: "Jamboard", map: "Google My Maps", script: "Apps Script",
+  };
+  return (native ?? "").startsWith(DRIVE_NATIVE) ? app[kind] ?? "Google Drive" : "Google Drive";
+}
+
+/** Whether there is content to fetch for an item: any file with bytes, and a Google-native file with an export. */
+export const fetchable = (item: { mime?: string; native?: boolean }): boolean => item.native !== true || (item.mime !== undefined && exportMimeFor(item.mime) !== undefined);
 
 const personOf = (u: Row, nameKey: string, mailKey: string): Person | undefined => {
   const name = text(u[nameKey]);
@@ -191,9 +211,17 @@ function driveItem(f: Row, parentId?: string): RemoteItem | undefined {
   };
 }
 
+/** "root" is Drive's alias for My Drive. The change feed names the real id as a file's parent, so a mount of My Drive maps that id, or every change at its top would read as a move out. */
+export const DRIVE_ROOT_ALIAS = "root";
+
 async function driveScan(ctx: Ctx, m: MountRec): Promise<PullBatch> {
-  const root = m.ref;
+  let root = m.ref;
   if (root === undefined) return { items: [], removed: [], full: true };
+  let rootId: string | undefined;
+  if (root === DRIVE_ROOT_ALIAS) {
+    try { rootId = text(obj(obj(await ctx.call("google.drive.get_file", { ...withConnection(m), fileId: root }))["file"])["id"]); } catch { /* the alias still lists; the next scan tries again */ }
+    if (rootId !== undefined) root = rootId;
+  }
   // The feed's start token is taken before the listing, so a change made while the listing runs is read by the next pass. Without one the mount rescans every time.
   let cursor: string | undefined;
   try { cursor = text(obj(await ctx.call("google.drive.changes_start_token", withConnection(m)))["startPageToken"]); } catch { /* no token: the next pass scans again */ }
@@ -214,7 +242,7 @@ async function driveScan(ctx: Ctx, m: MountRec): Promise<PullBatch> {
       pages += 1;
     } while (pageToken !== undefined && pages < MAX_PAGES);
   }
-  return { items, removed: [], full: true, ...(cursor !== undefined ? { cursor } : {}) };
+  return { items, removed: [], full: true, ...(cursor !== undefined ? { cursor } : {}), ...(rootId !== undefined ? { rootId } : {}) };
 }
 
 async function driveFeed(ctx: Ctx, m: MountRec, cursor: string): Promise<PullBatch> {
@@ -246,10 +274,20 @@ const google: Provider = {
     return m.cursor !== undefined ? driveFeed(ctx, m, m.cursor) : driveScan(ctx, m);
   },
   async download(ctx, m, item) {
-    if (item.native === true && item.mime !== undefined) {
-      const mime = exportMimeFor(item.mime);
-      const res = obj(await ctx.call("google.drive.export_file", { ...withConnection(m), fileId: item.remoteId, mimeType: mime }));
-      return { blobId: text(res["blobId"]) ?? "", size: whole(res["size"]) ?? 0, mime };
+    if (item.native === true) {
+      // a Google-native file has no bytes: it is exported, never downloaded (Drive refuses alt=media for one)
+      const mime = item.mime !== undefined ? exportMimeFor(item.mime) : undefined;
+      if (mime === undefined) throw new VyreErr({ code: "validation.unsupported", message: `A ${googleAppOf(item.mime)} file has no export Vyre can show. Open it in ${googleAppOf(item.mime)}.`, retryable: false, traceId: ctx.trace.traceId, next: [] });
+      const exported = async (as: string): Promise<Downloaded> => {
+        const res = obj(await ctx.call("google.drive.export_file", { ...withConnection(m), fileId: item.remoteId, mimeType: as }));
+        return { blobId: text(res["blobId"]) ?? "", size: whole(res["size"]) ?? 0, mime: as };
+      };
+      if (mime !== "text/markdown") return exported(mime);
+      // Markdown is the newer export of a Doc; where Drive does not offer it, plain text still reads as the document
+      try { return await exported(mime); } catch (e) {
+        if (e instanceof VyreErr && (e.error.code.startsWith("provider.auth") || e.error.code === "provider.rate_limited" || e.error.code.startsWith("permission."))) throw e;
+        return exported("text/plain");
+      }
     }
     const res = obj(await ctx.call("google.drive.download_file", { ...withConnection(m), fileId: item.remoteId }));
     return { blobId: text(res["blobId"]) ?? "", size: whole(res["size"]) ?? 0, ...(text(res["mimeType"]) !== undefined ? { mime: text(res["mimeType"]) as string } : {}) };

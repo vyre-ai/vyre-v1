@@ -176,6 +176,13 @@ export interface TurnInput {
   compact?: { keep: string };
   /** What the person asked to keep through every compaction of this chat ("Keep this every time"): an engine that shortens the conversation by itself puts it at the head of what stands for the dropped part. */
   keep?: string;
+  /**
+   * The same turn going on after the computer it started on went away (modules/engine/device-turns.ts): where it started, what it had already said, and the steps it had already taken (tool names,
+   * in order). The engine continues from there and does not repeat a step that is done.
+   */
+  handover?: { from: string; said: string; steps: readonly string[] };
+  /** A note from Vyre for this turn (a held call was answered: modules/engine/held-notes.ts). The engine's input only; never a chat message. */
+  notice?: string;
 }
 
 export interface ResumedCall { taskId: string; callId: string; toolName: string; approved: boolean; result: ToolResult }
@@ -205,7 +212,11 @@ export interface ResolvedAccount { ref: string; driver: string; provider: string
   spaceKey?: boolean;
   /** An OpenAI-compatible endpoint names its own address (custom, local); `keyless` is a local server with no key. */
   base?: string; keyless?: boolean }
-export interface AccountQuery { threadId: string; agentId: string; askerId: string; stepKey?: string; /** Accounts that already failed this turn: the answer skips them and follows the agent's order. */ unavailable?: readonly string[] }
+export interface AccountQuery {
+  threadId: string; agentId: string; askerId: string; stepKey?: string; /** Accounts that already failed this turn: the answer skips them and follows the agent's order. */ unavailable?: readonly string[];
+  /** Why the last account was left: "overloaded" is the vendor being busy, not a limit, so it is not set aside to rest and the chat says it was busy. */
+  why?: "overloaded";
+}
 export interface SessionSpec {
   threadId: string; agent: EngineAgent; asker: string; turnId: string; traceId: string; account?: ResolvedAccount;
   /** The chat's mode for this turn. Absent: the driver's older behaviour (a session of a step or a one-shot job has no chat mode). */

@@ -6,6 +6,7 @@ import { Linking, Platform, Pressable, StyleSheet, Text, TextInput, View } from 
 import type { ViewStyle } from "react-native";
 import { GIVE_UP_MS, POLL_MS, checkFlow, nextLine, pastedCode, safeLink } from "./flow.ts";
 import type { Call, Flow } from "./flow.ts";
+import type { AiHome } from "./own-ai.ts";
 
 async function copy(text: string): Promise<boolean> {
   try { const nav = (globalThis as { navigator?: { clipboard?: { writeText(t: string): Promise<void> } } }).navigator; if (!nav?.clipboard) return false; await nav.clipboard.writeText(text); return true; } catch { return false; }
@@ -25,9 +26,11 @@ export interface SignInPanelProps {
   /** The account is saved. */
   onDone(provider: { id: string } & Record<string, unknown>): void;
   onCancel(): void;
+  /** Where the person's own key can be kept from here (own-ai.ts); a refusal says "locked" only where it can be unlocked. Default: the Space is on this computer. */
+  home?: AiHome;
 }
 
-export function SignInPanel({ call, flow, onDone, onCancel }: SignInPanelProps): ReactElement {
+export function SignInPanel({ call, flow, onDone, onCancel, home = "here" }: SignInPanelProps): ReactElement {
   const link = safeLink(flow.url);
   const [code, setCode] = useState("");
   const [busy, setBusy] = useState(false);
@@ -44,7 +47,7 @@ export function SignInPanel({ call, flow, onDone, onCancel }: SignInPanelProps):
       if (stop || !alive.current) return;
       if (Date.now() - started.current > GIVE_UP_MS) { setError("The sign-in took too long and was closed. Start again."); return; }
       try {
-        const r = await checkFlow(call, flow.flowId);
+        const r = await checkFlow(call, flow.flowId, undefined, home);
         if (stop || !alive.current) return;
         if (r.state === "done") { onDone(r.provider); return; }
       } catch (e) { if (!stop && alive.current) setError(e instanceof Error ? e.message : "The sign-in did not finish."); return; }
@@ -58,7 +61,7 @@ export function SignInPanel({ call, flow, onDone, onCancel }: SignInPanelProps):
     if (!c) { setError("Paste the whole code the page shows."); return; }
     setBusy(true); setError("");
     try {
-      const r = await checkFlow(call, flow.flowId, c);
+      const r = await checkFlow(call, flow.flowId, c, home);
       if (!alive.current) return;
       if (r.state === "done") onDone(r.provider); else setError("Still waiting. Check the code and try again.");
     } catch (e) { if (alive.current) setError(e instanceof Error ? e.message : "The sign-in did not finish."); }

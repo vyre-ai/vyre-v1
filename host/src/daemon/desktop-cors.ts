@@ -1,4 +1,5 @@
 // Only the packaged desktop origin may cross into a Space API. This never authenticates a request.
+// /healthz too (public facts only): the desktop app reads it to tell a Space server on a vyre.run name from a relay phone address (client/src/gateway/space-probe.ts).
 import type{IncomingMessage,ServerResponse}from'node:http';
 const origins=new Set(['tauri://localhost','http://tauri.localhost','https://tauri.localhost']);
 const methods=new Set(['GET','POST','PUT','PATCH','DELETE','HEAD']);
@@ -6,7 +7,7 @@ const headers=new Set(['accept','authorization','content-type','idempotency-key'
 export function packagedOrigin(value:string|undefined):value is string{return typeof value==='string'&&origins.has(value);}
 export function desktopCors(req:IncomingMessage,res:ServerResponse):boolean{
  const pathname=(req.url??'').split('?')[0]??'';
- if(!pathname.startsWith('/v1/')&&!pathname.startsWith('/sync/')&&!pathname.startsWith('/local/vault/key/'))return false;
+ if(pathname!=='/healthz'&&!pathname.startsWith('/v1/')&&!pathname.startsWith('/sync/')&&!pathname.startsWith('/local/vault/key/')&&!pathname.startsWith('/vault/key/'))return false;
  res.setHeader('vary','Origin');const origin=req.headers.origin;
  if(!packagedOrigin(origin))return false;
  if(req.method==='OPTIONS'){

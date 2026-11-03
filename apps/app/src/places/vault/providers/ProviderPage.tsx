@@ -14,6 +14,7 @@ import { Btn, Glyph, LogoTile, Mono } from "../layout/parts.tsx";
 import { Info } from "../../../../../../ui/src/Tip/index.tsx";
 import type { CapMap } from "../../../../../../generated/types.ts";
 import { countWords, tokenWords, userKind } from "./model.ts";
+import { ServerKeyLine } from "./ServerKeyLine.tsx";
 
 type HistoryOut = CapMap["vault.item.history"]["out"];
 
@@ -57,6 +58,7 @@ export function ProviderPage({ provider, handle, onNote, tokensOf }: ProviderPag
           </View>
         </View>
         <View style={s.private} testID="provider-private"><Glyph name="lock" size={12} color="var(--ink-3)" /><Text style={s.dim}>Mine</Text><Info help="Only you can use it" /></View>
+        {provider.scope === "mine" ? <ServerKeyLine /> : null}
 
         <View style={s.box} testID="provider-signin">
           <View style={s.boxRow}>

@@ -10,6 +10,7 @@ import path from "node:path";
 import { GUEST_DIR } from "../net/guest.ts";
 import { startNetWall } from "../net/host.ts";
 import type { AgentOptions } from "./wsl.ts";
+import type { EgressRule } from "../egress-policy.ts";
 
 const o = JSON.parse(Buffer.from(process.argv[2] ?? "", "base64").toString("utf8")) as AgentOptions;
 const send = (m: Record<string, unknown>): void => { process.stdout.write(`${JSON.stringify(m)}\n`); };
@@ -29,7 +30,9 @@ const egress = testing ? {
 
 fs.mkdirSync(o.base, { recursive: true, mode: 0o700 });
 // the policy is plain data from the daemon; the proxy reads its allow list at each connection, so a policy sent at a turn's start applies from that turn on
-const wall = await startNetWall({ allow: () => policy.allow, egress, baseDir: o.base });
+// the shared rule (egress-policy.ts, plain JSON) when the daemon sends one, else the allow list as a list rule
+const ruleNow = (): EgressRule => (policy["rule"] as EgressRule | undefined) ?? { egress: "list", allow: [...policy.allow] };
+const wall = await startNetWall({ allow: () => policy.allow, rule: ruleNow, egress, baseDir: o.base });
 
 const servers = new Map<string, { server: net.Server; file: string }>();
 const conns = new Map<string, net.Socket>();

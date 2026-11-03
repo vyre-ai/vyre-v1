@@ -11,8 +11,9 @@ import { Btn, Glyph, LogoTile, Mono } from "../layout/parts.tsx";
 import { Sheet } from "../layout/Sheet.tsx";
 import { Info } from "../../../../../../ui/src/Tip/index.tsx";
 import { SignInPanel } from "../../../ai-signin/SignInPanel.tsx";
-import { startFlow } from "../../../ai-signin/flow.ts";
+import { LOCAL_SIGNINS, localNote, onMacDevice, startFlow, takeLocalSignin } from "../../../ai-signin/flow.ts";
 import type { Flow as SignFlow } from "../../../ai-signin/flow.ts";
+import { ownAiRefusal } from "../../../ai-signin/own-ai.ts";
 import { CONNECTION_NAME, CONNECTION_NOTE, connectionList, normalizeAddress, testWords } from "./model.ts";
 import type { Catalog, ConnectionKind } from "./model.ts";
 
@@ -30,6 +31,8 @@ const DEFAULT_ADDRESS = "http://localhost:11434";
 
 export function AddProvider({ onClose, onAdded, initial, initialFlow }: AddProviderProps): ReactElement {
   const data = useVaultData();
+  // where the Space runs, for the words of a refused save (ai-signin/own-ai.ts)
+  const home = data.aiHome ?? "here";
   const { element, show } = useMenu();
   const [catalog, setCatalog] = useState<readonly Catalog[] | null>(null);
   const [catalogTries, setCatalogTries] = useState(0);
@@ -60,14 +63,17 @@ export function AddProvider({ onClose, onAdded, initial, initialFlow }: AddProvi
   const done = (p: Provider): void => { setSecret(""); setAdded(p); onAdded(p); };
   const run = async (f: () => Promise<void>): Promise<void> => {
     setBusy(true); setLine(null);
-    try { await f(); } catch (e) { setLine(e instanceof Error ? e.message : "That did not work."); }
+    try { await f(); } catch (e) { setLine(ownAiRefusal(e, home) ?? (e instanceof Error ? e.message : "That did not work.")); }
     setBusy(false);
   };
   const key = (what: string): string => `add-${what}-${++n.current}-${data.clock().now}`;
 
   const startSignIn = (): Promise<void> => run(async () => {
-    setFlow(await startFlow((cap, input) => data.call(cap, input), pick!.key, key(pick!.key)));
+    setFlow(await startFlow((cap, input) => data.call(cap, input), pick!.key, key(pick!.key), home));
   });
+  // a Personal Space takes the Claude Code or Codex sign-in already on this computer (owner decision D2)
+  const local = data.personal === true && pick ? LOCAL_SIGNINS.find((o) => o.key === pick.key) : undefined;
+  const takeLocal = (): Promise<void> => run(async () => { done(await takeLocalSignin((cap, input) => data.call(cap, input), pick!.key, key(`local-${pick!.key}`), home) as unknown as Provider); });
   // a provider this server cannot sign in itself still answers the old instruction; "I have signed in" then looks for the item the person saved
   const finishSignIn = (): Promise<void> => run(async () => {
     const out = (await data.call("providers.subscription_complete", { flowId: flow!.flowId })) as { provider?: Provider };
@@ -100,7 +106,7 @@ export function AddProvider({ onClose, onAdded, initial, initialFlow }: AddProvi
       {added ? <Btn label="Done" primary onPress={onClose} testID="provider-done" /> : <Btn label="Cancel" onPress={onClose} testID="provider-cancel" />}
       {!added && pick && kind === "api_key" ? <Btn label={busy ? "Adding" : "Add"} primary disabled={busy || secret.trim().length === 0} why="Paste the key first" onPress={() => void addKey()} testID="provider-add" /> : null}
       {!added && pick && kind === "local_model" ? <Btn label={busy ? "Testing" : "Add and test"} primary disabled={busy} onPress={() => void addLocal()} testID="provider-add-local" /> : null}
-      {!added && pick && kind === "subscription" ? (flow ? (flow.url ? null : <Btn label={busy ? "Checking" : "I have signed in"} primary disabled={busy} onPress={() => void finishSignIn()} testID="provider-signed-in" />) : <Btn label={busy ? "Opening" : `Sign in with ${pick.name}`} primary disabled={busy} onPress={() => void startSignIn()} testID="provider-signin" />) : null}
+      {!added && pick && kind === "subscription" ? (flow ? (flow.url ? null : <Btn label={busy ? "Checking" : "I have signed in"} primary disabled={busy} onPress={() => void finishSignIn()} testID="provider-signed-in" />) : <>{local ? <Btn label={local.button} primary disabled={busy} onPress={() => void takeLocal()} testID="provider-local-signin" /> : null}{local && localNote(local.key, onMacDevice()) ? <Text style={s.quiet} testID="provider-local-note">{localNote(local.key, onMacDevice())}</Text> : null}<Btn label={busy ? "Opening" : `Sign in with ${pick.name}`} primary={!local} disabled={busy} onPress={() => void startSignIn()} testID="provider-signin" /></>) : null}
     </>
   );
 
@@ -131,7 +137,7 @@ export function AddProvider({ onClose, onAdded, initial, initialFlow }: AddProvi
         <View style={s.stack} testID="provider-subscription">
           <View style={s.leadRow}><Text style={s.lead}>Sign in with your plan</Text><Info help={CONNECTION_NOTE.subscription} /></View>
           {flow ? (
-            flow.url ? <SignInPanel call={(cap, input) => data.call(cap, input)} flow={flow} onCancel={() => setFlow(null)} onDone={(p) => done(p as unknown as Provider)} /> : (
+            flow.url ? <SignInPanel call={(cap, input) => data.call(cap, input)} flow={flow} home={home} onCancel={() => setFlow(null)} onDone={(p) => done(p as unknown as Provider)} /> : (
               <View style={s.stack}><Text style={s.body} testID="provider-instruction">{flow.instruction}</Text></View>
             )
           ) : null}

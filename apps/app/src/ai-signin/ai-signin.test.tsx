@@ -56,13 +56,16 @@ test("starting passes the provider and a key, and fills the flow from the answer
   await assert.rejects(() => startFlow(rec({ "providers.subscription_start": new Error("validation.bad_input") }).call, "grok", "k"), /could not start/);
 });
 
-test("checking: waiting is not a failure, done carries the provider, a refusal carries the provider's words, a locked Vault says so", async () => {
-  const send = (a: unknown, code?: string): Promise<unknown> => checkFlow(rec({ "providers.subscription_complete": a }).call, "sub_1", code);
+test("checking: waiting is not a failure, done carries the provider, a refusal carries the provider's words, a locked Vault says so only where it can be unlocked", async () => {
+  const send = (a: unknown, code?: string, home?: "here" | "computer" | "none"): Promise<unknown> => checkFlow(rec({ "providers.subscription_complete": a }).call, "sub_1", code, home);
+  const locked = (): Error => Object.assign(coded("Your vault key is locked. Unlock it to save the sign-in.", "auth.unauthenticated"), { details: { reason: "vault_locked" } });
   assert.deepEqual(await send({ waiting: true }), { state: "waiting" });
   assert.deepEqual(await send({ provider: { id: "prv_1" } }, "CODE12345"), { state: "done", provider: { id: "prv_1" } });
   assert.deepEqual(await send(coded("x", "validation.precondition_failed")), { state: "waiting" });
   await assert.rejects(() => send(coded("Claude did not accept that code. It may have expired. Start again.", "provider.auth_failed")), /did not accept that code/);
-  await assert.rejects(() => send(coded("x", "auth.unauthenticated")), /Mine Vault is locked/);
+  await assert.rejects(() => send(locked(), "CODE12345"), /Mine Vault is locked on this device/);
+  await assert.rejects(() => send(coded("x", "auth.unauthenticated")), /You were signed out/, "auth.unauthenticated with no vault reason is a session that ended, not a lock");
+  await assert.rejects(() => send(locked(), "CODE12345", "none"), (e: Error) => /sign in again/.test(e.message) && !/locked|unlock/i.test(e.message), "a browser on a server is never told to unlock");
   const r = rec({ "providers.subscription_complete": { waiting: true } });
   await checkFlow(r.call, "sub_1", "ABCDEF123");
   assert.deepEqual(r.calls[0]!.input, { flowId: "sub_1", code: "ABCDEF123" });

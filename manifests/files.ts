@@ -307,8 +307,8 @@ export default defineManifest({
       in: { folderId: id.folder }, out: { deleted: t.bool() }, on: ['folder', '/folderId'], perm: 'files.delete', gate: { act: 'delete', when: "actor.kind != 'person'" }, emits: ['folder.deleted'], tool: 'files', errors: ['permission.on_hold'],
     }),
     write('files.folder.restore', 'Bring a folder back from Trash', { in: { folderId: id.folder }, out: { folder: folderRow }, on: ['folder', '/folderId'], perm: 'files.delete', emits: ['folder.restored'], tool: 'files' }),
-    write('files.folder.settings', 'Change Review changes, sensitivity label or the working-folder flags of a folder', {
-      in: { folderId: id.folder, reviewChanges: t.opt(t.bool()), label: t.opt(label) }, out: { folder: folderRow }, on: ['folder', '/folderId'], perm: 'files.write', level: 'manage',
+    write('files.folder.settings', 'Change Review changes, sensitivity label or the working-folder flags of a folder; the mounts module marks a mounted folder with its source (null takes the mark off)', {
+      in: { folderId: id.folder, reviewChanges: t.opt(t.bool()), label: t.opt(label), source: t.opt(t.nullable(t.obj({ mountId: id.mount, provider: t.str() }))) }, out: { folder: folderRow }, on: ['folder', '/folderId'], perm: 'files.write', level: 'manage',
       audit: 'always', emits: ['folder.settings_changed'], tool: 'files',
     }),
     // ---- changesets (Review changes)

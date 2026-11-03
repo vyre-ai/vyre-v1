@@ -1,23 +1,33 @@
 // Unlock and lock the signed-in person's Mine items on their own node (ruling 62, 63): POST /local/vault/key/unlock { key } hands this daemon the person key their client unwrapped after a password sign-in,
 // POST /local/vault/key/lock takes it away. Local only: the socket must be loopback, the Host must be a loopback name, and no proxy header may be present (a reverse proxy on this machine is loopback too, and
 // a remote caller through it carries its own Host and forwarded headers). The key is for the person the bearer token belongs to and nobody else; a node that is not that person's refuses.
+// Owner ruling 3 Nov (R62 amended): a Space server may also hold a person's key while that person is signed in, so a member's own AI account works on the Space with nothing to set up. That door is
+// POST /vault/key/unlock | lock | status on the Space's own address: https only (or this machine), a signed-in device session only (never the admin token), and the key is bound to that session, so it is
+// dropped when the person's sessions end. It is held for the bearer's own person and opened only for their own turns (the vault's KeyPort); it is never written to disk or readable through any API.
 import type http from "node:http";
 import { httpOf, makeError } from "./errors.ts";
 import type { Keyring } from "../seams/keyring.ts";
+import { linkIsSecure } from "./compute-stream.ts";
 
 export interface LocalKeyDeps {
   /** who the request's bearer token belongs to, and the device session it is (none for the local admin token), or null */
   caller(headers: http.IncomingHttpHeaders): Promise<{ person: string; sessionId?: string } | null> | { person: string; sessionId?: string } | null;
   keyring: Keyring;
-  /** whether this node is that person's own */
-  allowed(personId: string): boolean;
+  /** whether this node may hold that person's key for this session (their own computer, or a Space server while the session is signed in) */
+  allowed(personId: string, sessionId?: string): boolean;
+  /** told when a key is handed over or taken away (ids only, never the key) */
+  log?(msg: string, attrs: Record<string, unknown>): void;
+  /** A key the person's client handed over at the Space's door, after opening it with their password: the server may keep a wrap of it for their provider sign-ins (host/src/seams/key-wraps.ts). */
+  handed?(personId: string, key: Uint8Array): void;
+  /** The person's wrap on this server: whether one is kept, and their own Forget and Remember (the Space's door only). */
+  wraps?: { has(personId: string): boolean; forgotten(personId: string): boolean; forget(personId: string): void; remember(personId: string): void };
 }
 
 const TRACE = "0".repeat(32);
 const LOOPBACK_ADDR = new Set(["127.0.0.1", "::1", "::ffff:127.0.0.1"]);
 const LOOPBACK_HOST = new Set(["127.0.0.1", "localhost", "[::1]"]);
 const PROXY_HEADERS = ["x-forwarded-for", "x-forwarded-host", "x-forwarded-proto", "forwarded", "x-real-ip", "via"];
-const PATH = /^\/local\/vault\/key\/(unlock|lock|status)$/;
+const PATH = /^\/(local\/)?vault\/key\/(unlock|lock|status|forget|remember)$/;
 
 function send(res: http.ServerResponse, status: number, body?: unknown): void {
   if (body === undefined) { res.writeHead(status, { "cache-control": "no-store" }); res.end(); return; }
@@ -43,23 +53,41 @@ async function bodyOf(req: http.IncomingMessage): Promise<unknown> {
 }
 
 export function createLocalKeyRoute(deps: LocalKeyDeps): { handle(req: http.IncomingMessage, res: http.ServerResponse): boolean } {
-  async function serve(req: http.IncomingMessage, res: http.ServerResponse, op: "unlock" | "lock" | "status"): Promise<void> {
-    if (!isLocal(req)) return refuse(res, "permission.no_grant", "This only works on your own computer.");
+  type Op = "unlock" | "lock" | "status" | "forget" | "remember";
+  async function serve(req: http.IncomingMessage, res: http.ServerResponse, op: Op, local: boolean): Promise<void> {
+    if (local && (op === "forget" || op === "remember")) { send(res, 404, { error: makeError("validation.not_found", TRACE, { message: "Not here." }) }); return; }
+    // the Space's door: the same test as a node link that carries an account key (TLS here, or https as told by a proxy on this machine); never plain http from another machine
+    if (local ? !isLocal(req) : !linkIsSecure(req)) return refuse(res, "permission.no_grant", local ? "This only works on your own computer." : "Your key goes to the Space over https only.");
     const caller = await deps.caller(req.headers);
     const person = caller?.person;
     if (!person || !caller) return refuse(res, "auth.unauthenticated", "Sign in first.");
-    if (!deps.allowed(person)) return refuse(res, "permission.no_grant", "This computer is not yours, so it does not hold your key.");
+    // the Space's door takes a key only from a signed-in session of the person themselves, and binds it to that session
+    if (!local && caller.sessionId === undefined) return refuse(res, "permission.no_grant", "Sign in on a device to open your Vault.");
+    if (!deps.allowed(person, caller.sessionId)) return refuse(res, "permission.no_grant", "This computer is not yours, so it does not hold your key.");
     // whether this node holds the person's key (a yes or no; the key never leaves). The app asks at launch, to show its lock screen only when it is needed, and while it runs, to hand the key over again after a restart.
-    if (op === "status") { const k = deps.keyring.get(person); const held = k !== null; k?.fill(0); return send(res, 200, { held }); }
-    if (op === "lock") { deps.keyring.clear(person); return send(res, 204); }
+    if (op === "status") {
+      const k = deps.keyring.get(person); const held = k !== null; k?.fill(0);
+      // the Space's door also says whether the server keeps a wrap that opens after a provider sign-in, and whether the person said Forget
+      return send(res, 200, local || !deps.wraps ? { held } : { held, remembered: deps.wraps.has(person), forgotten: deps.wraps.forgotten(person) });
+    }
+    if (op === "forget" || op === "remember") {
+      if (!deps.wraps) return refuse(res, "validation.bad_input", "This server keeps no wrap.");
+      if (op === "forget") deps.wraps.forget(person); else deps.wraps.remember(person);
+      deps.log?.(op === "forget" ? "vault.wrap_forgotten" : "vault.wrap_remembered", { person });
+      return send(res, 204);
+    }
+    if (op === "lock") { deps.keyring.clear(person); deps.log?.("vault.key_dropped", { person, door: local ? "local" : "space" }); return send(res, 204); }
     let key: Buffer;
     try {
       const k = (await bodyOf(req) as { key?: unknown }).key;
       key = typeof k === "string" ? Buffer.from(k, "base64") : Buffer.alloc(0);
     } catch { return refuse(res, "validation.bad_input", "Send { key } as base64."); }
     if (key.length !== 32) { key.fill(0); return refuse(res, "validation.bad_input", "The key is 32 bytes, base64."); }
-    deps.keyring.hold(person, key, caller.sessionId);
+    const held = deps.keyring.hold(person, key, caller.sessionId);
+    if (held && !local) { try { deps.handed?.(person, key); } catch { /* the wrap is a convenience; the unlock stands */ } }
     key.fill(0);
+    if (!held) return refuse(res, "permission.no_grant", "This computer is not yours, so it does not hold your key.");
+    deps.log?.("vault.key_held", { person, door: local ? "local" : "space", ...(caller.sessionId ? { session: caller.sessionId } : {}) });
     send(res, 204);
   }
   return {
@@ -67,7 +95,7 @@ export function createLocalKeyRoute(deps: LocalKeyDeps): { handle(req: http.Inco
       const m = PATH.exec(new URL(req.url ?? "/", "http://vyred").pathname);
       if (!m) return false;
       if ((req.method ?? "GET").toUpperCase() !== "POST") { send(res, 405, { error: makeError("validation.bad_input", TRACE, { message: "POST only." }) }); return true; }
-      void serve(req, res, m[1] as "unlock" | "lock" | "status").catch(() => { if (!res.headersSent) refuse(res, "validation.bad_input", "That did not work."); else res.end(); });
+      void serve(req, res, m[2] as Op, m[1] !== undefined).catch(() => { if (!res.headersSent) refuse(res, "validation.bad_input", "That did not work."); else res.end(); });
       return true;
     },
   };

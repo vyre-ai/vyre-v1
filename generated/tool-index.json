@@ -2559,7 +2559,7 @@
     {
       "deferred": false,
       "name": "engine_placement_set",
-      "summary": "Pin a private chat to where it runs: this computer, the Space (Team Space), or one of your own servers, or auto to take the pin off. The next turn goes there; a teammate's machine is never a choice",
+      "summary": "Choose where a private chat runs: one of your computers, the Space, one of your own servers, or auto. Never a teammate's machine. once with space runs the next turn on the Space once",
       "toolset": "chats"
     },
     {
@@ -2907,7 +2907,7 @@
     {
       "deferred": false,
       "name": "files_folder_settings",
-      "summary": "Change Review changes, sensitivity label or the working-folder flags of a folder",
+      "summary": "Change Review changes, sensitivity label or the working-folder flags of a folder; the mounts module marks a mounted folder with its source (null takes the mark off)",
       "toolset": "files"
     },
     {
@@ -8313,7 +8313,7 @@
     {
       "deferred": false,
       "name": "threads_mark_read",
-      "summary": "Mark a thread read up to a sequence number",
+      "summary": "Mark a thread read up to a sequence number, or unread again (the newest message from someone else counts as new)",
       "toolset": "chats"
     },
     {

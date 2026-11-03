@@ -5,7 +5,7 @@ import type { Ctx } from "../../../packages/contracts/src/ctx.ts";
 import { createTurnEngine, scriptedProvider } from "../../../agent/src/turn-engine/index.ts";
 import type { AccountQuery, EngineAgent, OpenThread, ResolvedAccount, SessionSpec } from "../../../agent/src/turn-engine/index.ts";
 import { chatSettings, withChatSettings } from "../chat-settings.ts";
-import { LIMIT_REST_MS, createLimitSwitch } from "../switch-on-limit.ts";
+import { LIMIT_LINE, LIMIT_REST_MS, OVERLOADED_LINE, createLimitSwitch } from "../switch-on-limit.ts";
 import { accountResolve } from "../handlers/accounts.ts";
 import type { AgentPost } from "../handlers/bridge.ts";
 
@@ -125,6 +125,17 @@ test("a limit moves the turn to the next account and the chat is told with a mod
     ...(post.post.blocks[0]!.data as object), scope: "thread",
     from: { provider: "anthropic", model: "claude-opus-5-5", effort: "high" }, to: { provider: "openai", model: "claude-opus-5-5", effort: "high" },
   });
+});
+
+test("an overloaded vendor moves the turn with its own line, and the busy account is not set aside to rest (owner ruling, 3 Nov: overloaded is not a limit)", async () => {
+  const r = switchRig();
+  assert.equal((await r.sw.next(query({ unavailable: ["#A"], why: "overloaded" })))?.ref, "#B");
+  assert.equal((r.posts[0]!.post.blocks[0]!.data as { reason: string }).reason, OVERLOADED_LINE);
+  assert.equal((await r.sw.resolve(query()))?.ref, "#A", "the next message tries the busy account first again");
+  const limit = switchRig();
+  await limit.sw.next(query({ unavailable: ["#A"] }));
+  assert.equal((limit.posts[0]!.post.blocks[0]!.data as { reason: string }).reason, LIMIT_LINE);
+  assert.equal((await limit.sw.resolve(query()))?.ref, "#B", "an account that ran out still rests");
 });
 
 test("an agent set to keep to its account does not switch, and nothing is posted", async () => {

@@ -106,6 +106,8 @@ export interface ShellHub {
   retry(): void;
   /** Navigate: open a place (or an item in it) as a tab and show it. */
   go(place: PlaceId, hash?: string, background?: boolean): void;
+  /** The person went somewhere inside the place on screen: the selected tab follows, no tab opens (tabs/store.ts moveTab). */
+  move(place: PlaceId, hash?: string): void;
   /** The view is about to change: whoever draws the frame keeps a still copy until the next one is ready. */
   hold(): void;
   setHolder(fn: (() => void) | null): void;
@@ -113,6 +115,8 @@ export interface ShellHub {
   retitle(key: string, title: string): void;
   /** The count on a place of the open Space, from what it counts live (the rail reads it, and only redraws when it changes). */
   count(place: PlaceId, n: number): void;
+  /** The quiet dot on a place of the open Space: something new, no number (Chats: an unread chat, channel or thread). Only a change redraws. */
+  dot(place: PlaceId, on: boolean): void;
   /** Whether this person has something flowing into Inbox in the open Space (rail/inbox-sources.ts). Only a change redraws. With `reveal`, Inbox joining the rail comes in as a fresh place. */
   setInbox(has: boolean, reveal?: { tip: string | null }): void;
   /** The fresh place has been seen (its tip dismissed or timed out). */
@@ -314,6 +318,12 @@ export function createShellHub(options: HubOptions): ShellHub {
       s.def = { ...s.def, counts: { ...s.def.counts, [place]: n } };
       emit();
     },
+    dot(place, on) {
+      const s = open();
+      if ((s.def.dots[place] === true) === on) return;
+      s.def = { ...s.def, dots: { ...s.def.dots, [place]: on } };
+      emit();
+    },
     setInbox(has, reveal) {
       const s = open();
       if (s.def.inbox === has) return;
@@ -345,6 +355,18 @@ export function createShellHub(options: HubOptions): ShellHub {
       if (!background) {
         s.place = place;
         s.hash = hash ?? "";
+      }
+      emit();
+    },
+    move(place, hash) {
+      const s = open();
+      if (place !== s.place || (hash ?? "") !== s.hash) holder?.();
+      s.tabs.move(livePlace(place), hash, screenTitle(hash));
+      const now = s.tabs.state();
+      const t = now.tabs.find((x) => x.key === now.active);
+      if (t !== undefined) {
+        s.place = t.place;
+        s.hash = t.hash ?? "";
       }
       emit();
     },

@@ -80,6 +80,17 @@ export interface CtxSeed {
   mustAsk?: boolean | undefined;
   /** Every call of this caller goes on the audit log, whatever the capability says. Set only by the MCP door for an outside agent; it follows no nested call. */
   auditAll?: boolean | undefined;
+  /**
+   * Ask the person (docs/ask-the-person.md). Set only by the MCP door for an outside agent; it follows no nested call. A call the agent may not make itself is parked for the person it acts for, when that
+   * person's own access allows it, and on their yes runs as them, once, with exactly this input. 'always': a person-only tool, never run as the agent. 'if_refused': only when the agent's own role lacks it.
+   * Nothing is widened: the agent gets no role and no grant, and the person's access is checked again when the call runs.
+   */
+  askPerson?: "always" | "if_refused" | undefined;
+  /**
+   * The setup grant (owner ruling 3 Nov): the person gave this outside agent "Act for me, including setup", and the MCP door found the capability in its scope. Where an ask would park, the call runs as
+   * that person instead, without a card: their own access decides, now; an audit row says which agent did it for whom under the grant. Never for an outward act. Set only by the MCP door, with askPerson.
+   */
+  setupGrant?: boolean | undefined;
 }
 
 export interface AuditRow {
@@ -103,8 +114,8 @@ export interface GateHook {
   applies(cap: CapabilityDef, input: unknown, seed: CtxSeed): { act: string } | null | Promise<{ act: string } | null>;
   /** A call the Gate let through on a person's yes failed before it went out: the yes goes back for a corrected retry. */
   giveBack?(input: unknown): Promise<void>;
-  /** Park the call as an approval task (4.6) and return its ids. */
-  park(a: { cap: CapabilityDef; input: unknown; seed: CtxSeed; act: string; decisionId: string; traceId: string }): Promise<{ taskId: string; runId?: string }>;
+  /** Park the call as an approval task (4.6) and return its ids. `runAs: "person"`: an agent asked the person it acts for (CtxSeed.askPerson); the hold runs as that person, and only they approve it. */
+  park(a: { cap: CapabilityDef; input: unknown; seed: CtxSeed; act: string; decisionId: string; traceId: string; runAs?: "person" | undefined }): Promise<{ taskId: string; runId?: string }>;
   /**
    * Who a resumed call runs as: exactly the ask-time caller, whom it acted for, and its run and thread, read from the held row the token names. Never the approver's. Null refuses the resume.
    * Without this method a call carrying onBehalfOf is refused.
@@ -152,7 +163,7 @@ export interface InvokeDeps {
    * The Personal Space gate (P-H_19, spec 2.1): asked first for every capability. In a Personal Space it throws `permission.needs_team` for a team-only capability, before validation,
    * authorize or any handler work. The sync module's `createPersonalHost(...)` satisfies this; a Team Space passes nothing, or a gate that never throws.
    */
-  personal?: { gate(cap: string, traceId: string): void };
+  personal?: { gate(cap: string, traceId: string, call?: PersonalCall): void };
   /**
    * Called with the resource a call resolved to, before it is authorized: a resource that exists only on demand (a connector that ships with the server) is registered here, so the
    * decision finds it. Nothing to do for any other resource.
@@ -180,6 +191,8 @@ export type InvokeResult =
 
 const defaultHex = (n: number): string => Array.from(globalThis.crypto.getRandomValues(new Uint8Array(n)), (b) => b.toString(16).padStart(2, "0")).join("");
 const DESTRUCTIVE = /(^|[._])(delete|remove|purge|erase|destroy)([._]|$)/;
+/** Reasons that stop an ask: the asking agent itself is not live here, or a policy on the caller refuses it. */
+const ASK_STOPS: ReadonlySet<string> = new Set(["not_a_member", "suspended", "agent_needs_actor", "provider_label", "limit"]);
 const SCOPED_RECORD_READS=new Set(["records.get","records.query","records.search","records.history","records.activity"]);
 const noop = (): void => {};
 const nullLogger: Logger = { debug: noop, info: noop, warn: noop, error: noop };
@@ -199,17 +212,51 @@ export function createRateLimiter(): NonNullable<InvokeDeps["rate"]> {
   };
 }
 
+/** What the Personal gate may read of a call: its raw input (before validation) and who makes it. */
+export interface PersonalCall { input: unknown; principal: PrincipalSeed; actingFor?: string | undefined }
+
+/**
+ * The share capabilities a Personal Space still serves for the person's own agents and automations. In a Personal Space everything belongs to the one person, and their agents and automations
+ * act for them, so giving one of them Use on their own item is not sharing with anyone else. A person, group, role, link or outside actor still needs a Team Space.
+ */
+export const OWN_SHARE_CAPS: ReadonlySet<string> = new Set(["vault.share", "vault.unshare", "access.share", "access.unshare"]);
+const OWN_SUBJECT_KINDS: ReadonlySet<string> = new Set(["agent", "service"]);
+
+/** The plain line a person sees for a refused team-only call: never the capability's name. */
+export function needsTeamLine(cap: string): string {
+  return OWN_SHARE_CAPS.has(cap) ? "Sharing with other people needs a Team Space. Create or join one to share this." : "Needs a Team Space. Create or join one to use this.";
+}
+
+/** The subject of a share call, read defensively (the gate runs before validation). */
+function shareSubject(input: unknown): { kind: string; id: string } | null {
+  const s = input !== null && typeof input === "object" ? (input as { subject?: unknown }).subject : undefined;
+  if (s === null || typeof s !== "object") return null;
+  const { kind, id } = s as { kind?: unknown; id?: unknown };
+  return typeof kind === "string" && typeof id === "string" && id !== "" ? { kind, id } : null;
+}
+
 /**
  * The Personal Space matrix as an invoke gate (spec 2.1): in a Personal Space a capability whose manifest says `teamOnly` is refused with `permission.needs_team`. Same rule and wording as
- * the sync module's createPersonalHost(...).gate (host never imports a module, so the daemon builds this one from the registry's rows and the Space kind).
+ * the sync module's createPersonalHost(...).gate (host never imports a module, so the daemon builds this one from the registry's rows and the Space kind). One exception: a share capability
+ * (OWN_SHARE_CAPS) a person makes to an agent or automation that `owns` says is theirs. Without `owns` there is no exception.
  */
-export function personalMatrix(o: { kind: () => "personal" | "team"; caps: Iterable<{ name: string; teamOnly?: boolean }> }): NonNullable<InvokeDeps["personal"]> {
+export function personalMatrix(o: {
+  kind: () => "personal" | "team";
+  caps: Iterable<{ name: string; teamOnly?: boolean }>;
+  /** Whether this agent (kind "agent") or automation (kind "service", svc_<id>) belongs to this person. */
+  owns?: (subject: { kind: string; id: string }, person: string) => boolean;
+}): NonNullable<InvokeDeps["personal"]> {
   const teamOnly = new Set<string>();
   for (const c of o.caps) if (c.teamOnly === true) teamOnly.add(c.name);
+  const own = (cap: string, call: PersonalCall | undefined): boolean => {
+    if (!o.owns || !call || !OWN_SHARE_CAPS.has(cap) || call.principal.kind !== "person") return false;
+    const subject = shareSubject(call.input);
+    return subject !== null && OWN_SUBJECT_KINDS.has(subject.kind) && o.owns(subject, call.principal.id);
+  };
   return {
-    gate(cap, traceId) {
-      if (o.kind() !== "personal" || !teamOnly.has(cap)) return;
-      throw fail("permission.needs_team", traceId, { message: `Needs a Team Space. ${cap} works in a Team Space; create or join one to use it.`, details: { capability: cap }, next: [{ kind: "open_settings", label: "Create or join a Team Space" }] });
+    gate(cap, traceId, call) {
+      if (o.kind() !== "personal" || !teamOnly.has(cap) || own(cap, call)) return;
+      throw fail("permission.needs_team", traceId, { message: needsTeamLine(cap), details: { capability: cap }, next: [{ kind: "open_settings", label: "Create or join a Team Space" }] });
     },
   };
 }
@@ -242,7 +289,7 @@ export function createInvoke(deps: InvokeDeps): Invoke {
       cap = deps.caps.get(capName, seed.v);
       if (!cap) throw fail("validation.unknown_capability", traceId, { message: "There is no such capability.", details: { cap: capName, v: seed.v ?? null } });
       const c = cap;
-      deps.personal?.gate(c.name, traceId);
+      deps.personal?.gate(c.name, traceId, { input, principal: seed.principal, actingFor: seed.actingFor });
       const depth = seed.depth ?? 0;
       if (depth >= MAX_DEPTH) throw fail("validation.precondition_failed", traceId, { message: "Calls nest too deeply.", details: { depth, limit: MAX_DEPTH } });
 
@@ -293,7 +340,8 @@ export function createInvoke(deps: InvokeDeps): Invoke {
       // the span first: the log can then tell a repeat of the same failure, which it counts, from a new one
       span(error.code.startsWith("permission.") ? "denied" : "error", error.code);
       if (unexpected) log.error("handler threw", { cap: capName, traceId, stack: e instanceof Error ? e.stack : String(e) });
-      log.info("invoke", { cap: capName, traceId, status: error.code });
+      // who was refused: without the caller and the person it acted for, a refusal in the log cannot be traced to a session
+      log.info("invoke", { cap: capName, traceId, status: error.code, actor: seed.principal.id, ...(seed.actingFor ? { onBehalf: seed.actingFor } : {}) });
       throw new HostError(error);
     }
   };
@@ -336,6 +384,32 @@ export function createInvoke(deps: InvokeDeps): Invoke {
         class: cls, cap: c.name, v: c.v, principal: seed.principal.id, actingFor: seed.actingFor, decisionId: d.decisionId, reason,
         resource, traceId, spanId: trace.spanId, at: t, risk: c.risk,
       });
+      // Ask the person: an outside agent stopped at what only a person does, or at a role its person holds, asks that person instead of hitting a wall. The person's own access decides, alone,
+      // as it will again when the call runs on their yes; nothing here lets the agent itself past anything.
+      const mustAsk = seed.askPerson === "always" && depth === 0 && seed.approval === undefined;
+      // the agent itself must still be a live member that may act for this person: a suspended or removed agent, or a policy on the caller (provider label, spend), stops here as before
+      const agentLive = !(d.effect === "deny" && ASK_STOPS.has(d.reason));
+      const asks = seed.askPerson !== undefined && seed.principal.kind === "agent" && seed.actingFor !== undefined && seed.actingFor.startsWith("usr_") && depth === 0 && !approved && seed.approval === undefined && agentLive
+        && (seed.askPerson === "always" || (d.effect === "deny" && d.reason === "role_lacks_permission"));
+      // fail closed: what the door says only a person does never runs as the agent, whatever authorize said
+      if (mustAsk && !asks) {
+        await deps.audit?.(audit("deny", d.effect === "deny" ? d.reason : "person_only"));
+        throw fail(d.effect === "deny" ? codeForReason(d.reason) : "permission.role_lacks_permission", traceId, { message: "Only a person can do that here.", details: { cap: c.name, reason: "person_only" } });
+      }
+      if (asks) {
+        const pd = deps.authorize({ ...req, principal: seed.actingFor!, actingFor: undefined, approved: false });
+        if (pd.effect === "deny") {
+          await deps.audit?.(audit("deny", `asks_person:${pd.reason}`));
+          throw fail(codeForReason(pd.reason), traceId, { message: "The person you act for cannot do this either. Someone whose role allows it, an owner or an admin of this Space, has to do it or give them that role.", details: { cap: c.name, reason: "person_lacks_role", personReason: pd.reason, steps: pd.steps.map((x) => x.text) } });
+        }
+        // the setup grant: the person said yes ahead of time for this kind of call, so it runs as them now. Sends, posts and payments are never in it: they keep the Gate and the chat's rules.
+        if (seed.setupGrant === true && c.effects !== "outward") {
+          await deps.audit?.(audit("allow", "setup_grant"));
+          const asPerson: CtxSeed = { ...seed, principal: { kind: "person", id: seed.actingFor! }, actingFor: undefined, askPerson: undefined, setupGrant: undefined, askFirst: undefined, askable: undefined, chatMode: undefined, auditAll: true };
+          return stepsFour(c, input, asPerson, trace, depth, true);
+        }
+        return park(c, input, seed, traceId, pd.decisionId, c.gate?.act && c.gate.act !== "none" ? c.gate.act : "approve", audit("hold", "asks_person"), "person");
+      }
       if (d.effect === "deny") {
         await deps.audit?.(audit("deny", d.reason));
         const code = codeForReason(d.reason);
@@ -421,10 +495,10 @@ export function createInvoke(deps: InvokeDeps): Invoke {
     return { status: "ok", output:finishOutput?await finishOutput():output, traceId };
   }
 
-  async function park(c: CapabilityDef, input: unknown, seed: CtxSeed, traceId: string, decisionId: string, act: string, row: AuditRow | null): Promise<InvokeResult> {
+  async function park(c: CapabilityDef, input: unknown, seed: CtxSeed, traceId: string, decisionId: string, act: string, row: AuditRow | null, runAs?: "person"): Promise<InvokeResult> {
     if (!deps.gate) throw fail("internal.unavailable", traceId, { message: "Approvals are not available right now.", details: { cap: c.name } });
     if (row) await deps.audit?.(row);
-    const p = await deps.gate.park({ cap: c, input, seed, act, decisionId, traceId });
+    const p = await deps.gate.park({ cap: c, input, seed, act, decisionId, traceId, ...(runAs ? { runAs } : {}) });
     return { status: "held", taskId: p.taskId, runId: p.runId, traceId };
   }
 

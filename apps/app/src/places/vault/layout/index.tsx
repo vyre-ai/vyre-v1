@@ -26,6 +26,7 @@ import { HealthView } from "../health/index.ts";
 import { ImportSheet } from "../import/index.ts";
 import type { Source } from "../import/index.ts";
 import { AddProvider, ProviderPage, ProviderPanel } from "../providers/index.ts";
+import { ConnectHere } from "../providers/ConnectHere.tsx";
 import type { ConnectionKind } from "../providers/index.ts";
 import type { CapMap } from "../../../../../../generated/types.ts";
 
@@ -80,7 +81,8 @@ function Page({ initial, sheet, view, route, onRouteClose }: { initial?: Selecti
   const [detailOpen, setDetailOpen] = useState(route.surface === "share");
   const [adding, setAdding] = useState<{ paste?: string; app?: string } | null>(sheet?.add ?? null);
   const [editing, setEditing] = useState<string | null>(sheet?.edit ?? null);
-  const [addingProvider, setAddingProvider] = useState<boolean>(sheet?.addProvider !== undefined);
+  // open, and the provider and way of connecting it starts on when a Connect row in the section picked one
+  const [addingProvider, setAddingProvider] = useState<boolean | { providerKey: string; connection: ConnectionKind }>(typeof sheet?.addProvider === "object" ? sheet.addProvider : sheet?.addProvider !== undefined);
   // A link that asks for the sign-in (an agent with no AI account) opens the sheet even when the Vault is already showing.
   const routedAdd = route.surface === "layout" && route.addProvider === true;
   useEffect(() => { if (routedAdd) setAddingProvider(true); }, [routedAdd]);
@@ -101,6 +103,8 @@ function Page({ initial, sheet, view, route, onRouteClose }: { initial?: Selecti
   const providerList: readonly Provider[] = providers.status === "ready" ? providers.data.providers : EMPTY_PROVIDERS;
   const providerOf = useMemo(() => new Map(providerList.map((p) => [p.itemId, p] as const)), [providerList]);
   const providerIds = useMemo(() => new Set(providerOf.keys()), [providerOf]);
+  /** Providers the person signed in to with a plan: the section's Connect row for each is left out. */
+  const signedIn = useMemo(() => new Set(providerList.filter((p) => p.connection === "subscription").map((p) => p.providerKey)), [providerList]);
   const healthIds = useMemo(() => new Set(health.status === "ready" ? health.data.items.map((i) => i.itemId) : []), [health]);
   const requested = requests.status === "ready" ? requests.data.requests.length : 0;
   const counts = useMemo(() => countItems(all, providerIds, health.status === "ready" ? health.data : null, requested), [all, providerIds, health, requested]);
@@ -230,17 +234,26 @@ function Page({ initial, sheet, view, route, onRouteClose }: { initial?: Selecti
       </View>
       {!loading && selection.kind === "health" && health.status === "ready" && visible.length > 0 ? (
         <HealthView health={health.data} selectedId={effectiveId} onSelect={(id) => { setSelectedId(id); if (!twoPane) setDetailOpen(true); }} />
-      ) : loading ? <ListSkeleton /> : visible.length === 0 ? (
+      ) : loading ? (
+        // a list the Space did not answer says so, with its reason, instead of loading for ever
+        items.status === "loading" && items.error
+          ? <View style={s.empty} testID="vault-load-failed"><States kind="error" message="Couldn't load your Vault" cause={items.error.message} {...(items.error.code ? { code: items.error.code } : {})} {...(items.error.traceId ? { traceId: items.error.traceId } : {})} retryable onRetry={() => { retryVaultQueries(data.screens); }} /></View>
+          : <ListSkeleton />
+      ) : visible.length === 0 ? (
+        // each section says what it is about, even in an empty Vault (it used to say "Your vault is empty" on every section, so a click looked dead): AI providers offers the way to connect
+        selection.kind === "providers" && !query ? <ConnectHere connected={signedIn} onPick={(pick) => setAddingProvider(pick ?? true)} /> : (
         <View style={s.empty} testID="vault-empty">
-          {all.length === 0
-            ? <States kind="empty" title="Your vault is empty" icon="files" action={{ label: "Add an item", onPress: () => setAdding({}) }} />
-            : query ? <States kind="empty" title={`Nothing matches ${query}`} icon="search" action={{ label: "Clear search", onPress: () => setQuery("") }} />
+          {query ? <States kind="empty" title={`Nothing matches ${query}`} icon="search" action={{ label: "Clear search", onPress: () => setQuery("") }} />
+            : selection.kind === "all" && all.length === 0 ? <States kind="empty" title="Your vault is empty" icon="files" action={{ label: "Add an item", onPress: () => setAdding({}) }} />
             : selection.kind === "health" ? <States kind="empty" title="Nothing needs attention" icon="done" />
-            : selection.kind === "providers" ? <States kind="empty" title="No AI providers yet" icon="chat" action={{ label: "Add a provider", onPress: () => setAddingProvider(true) }} />
             : <States kind="empty" title={EMPTY_TITLE[selection.kind] ?? "Nothing here yet"} icon="files" action={{ label: "Add an item", onPress: () => setAdding({}) }} />}
         </View>
+        )
       ) : (
-        <ItemList items={visible} selectedId={effectiveId} providerOf={providerOf} healthIds={healthIds} clock={clock} onSelect={(id) => { setSelectedId(id); if (!twoPane) setDetailOpen(true); }} onOpen={(id) => { setSelectedId(id); setEditing(id); }} onMenu={itemMenu} />
+        <>
+          <ItemList items={visible} selectedId={effectiveId} providerOf={providerOf} healthIds={healthIds} clock={clock} onSelect={(id) => { setSelectedId(id); if (!twoPane) setDetailOpen(true); }} onOpen={(id) => { setSelectedId(id); setEditing(id); }} onMenu={itemMenu} />
+          {selection.kind === "providers" && !query ? <ConnectHere connected={signedIn} onPick={(pick) => setAddingProvider(pick ?? true)} /> : null}
+        </>
       )}
       <View style={s.lineSlot}>{note ? <QuietLine text={note.text} onUndo={note.undo ? undoNote : undefined} testID="vault-line" /> : null}</View>
       {!online ? <Text style={s.offline} testID="vault-offline">Offline, showing your saved copy</Text> : null}
@@ -286,7 +299,7 @@ function Page({ initial, sheet, view, route, onRouteClose }: { initial?: Selecti
       ) : null}
       {addingProvider ? (
         <AddProvider
-          {...(typeof sheet?.addProvider === "object" ? { initial: sheet.addProvider } : {})} onClose={() => setAddingProvider(false)}
+          {...(typeof addingProvider === "object" ? { initial: addingProvider } : {})} onClose={() => setAddingProvider(false)}
           onAdded={(p) => { setSelection({ kind: "providers" }); setSelectedId(p.itemId); showNote(`Connected ${p.name}`); }}
         />
       ) : null}

@@ -1424,6 +1424,9 @@ export function stubs(ctx: CallCtx) {
       sessions: {
         list: call("mcp.sessions.list"),
       },
+      setup: {
+        set: call("mcp.setup.set"),
+      },
       tool: {
         describe: call("mcp.tool.describe"),
         search: call("mcp.tool.search"),
@@ -1586,6 +1589,7 @@ export function stubs(ctx: CallCtx) {
       doc_insert_text: call("mounts.doc_insert_text"),
       doc_replace_text: call("mounts.doc_replace_text"),
       editors: call("mounts.editors"),
+      engine_folders: call("mounts.engine_folders"),
       file_link: call("mounts.file_link"),
       get: call("mounts.get"),
       history: call("mounts.history"),

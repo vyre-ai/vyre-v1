@@ -757,7 +757,7 @@ test("the real app on a booted daemon: sign-in screen, then Home, Chats, Records
         await joined.getByTestId("joined-provider-error").waitFor({ timeout: 15_000 });
         assert.equal(await joined.getByText("Your AI account is connected", { exact: true }).count(), 0);
         await joined.getByTestId("joined-provider-continue").click();
-        await joined.getByTestId("joined-provider-error").filter({ hasText: "Mine vault is locked here" }).waitFor({ timeout: 15_000 });
+        await joined.getByTestId("joined-provider-error").filter({ hasText: "Your Mine Vault opens when you sign in to this Space" }).waitFor({ timeout: 15_000 });
         assert.equal(await joined.getByText("Your API key is saved", { exact: true }).count(), 0, "a Team server never reports Mine saved without the member’s own-node key");
         assert.equal(accepted, 1, "retry never consumes the invite twice");
         assert.equal(providerAttempts, 2);

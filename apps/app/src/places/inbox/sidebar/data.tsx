@@ -26,6 +26,10 @@ export interface InboxNav {
   openEmailDesign?(emailId?: string): void;
   /** "Mailbox Settings" or "Number Settings" from an inbox row's menu. */
   openInboxSettings(inboxId: string): void;
+  /** "Calendar settings" from a calendar row's menu: Settings, Email and calendar. */
+  openCalendarSettings?(): void;
+  /** A provider's own web page ("Open in Google Calendar"). Absent: the menu leaves that item out. */
+  openExternal?(url: string): void;
 }
 
 /** What a line shows beyond the list capability's row: the person's organisation, do-not-disturb, a bounced email, an agent's draft. Read from the replica's record, deliverability and draft tables. */
@@ -51,6 +55,8 @@ export interface InboxData {
   connection: Connection;
   clock(): { now: number; offsetMin: number };
   nav: InboxNav;
+  /** The signed-in person's id: Sync now is offered on their own calendars. */
+  me?: string;
   /** Extras for one line (the line's key). Absent: the line shows only what the list capability returns. */
   extras?(key: string): RowExtras | undefined;
   /** Naming and grouping for the Space's numbers. */

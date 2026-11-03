@@ -2,6 +2,7 @@
 // and registers the service worker once the app is usable so it never competes with startup.
 import { skins } from "@vyre/ui/tokens";
 import { APPEARANCE_KEY, tokenTable } from "../../../../ui/src/theme/theme.ts";
+import { INSTALL_BOOT } from "./install.ts";
 
 export function bootScript(): string {
   const data: Record<string, { base: string; light: Record<string, string>; dark: Record<string, string> }> = {};
@@ -23,5 +24,6 @@ export function bootScript(): string {
   // and cut the page off from the Space, so the app's worker stays out of that page.
   const sw = `(function(){var l=0,u=0,d=0;function go(){if(d||!("serviceWorker" in navigator))return;d=1;var c=navigator.serviceWorker.controller;if(c&&/\\/__vyre\\/sw\\.js$/.test(new URL(c.scriptURL).pathname))return;navigator.serviceWorker.register("/sw.js").catch(function(){});}`
     + `addEventListener("vyre:usable",function(){u=1;if(l)setTimeout(go,0);});addEventListener("load",function(){l=1;if(u)setTimeout(go,0);else setTimeout(go,5000);});})();`;
-  return theme + sw;
+  // Android installs the web app (owner decision D18): Chrome's install offer is kept from the first frame, so the phone's You screen can offer Install Vyre (install.ts)
+  return theme + sw + INSTALL_BOOT;
 }

@@ -4,7 +4,8 @@
 import fs from "node:fs";
 import { spawnSync } from "node:child_process";
 import path from "node:path";
-import { createEgressProxy, startNetWall } from "../../sandbox/src/index.ts";
+import { PUBLIC_RULE, createEgressProxy, startNetWall, validHostPattern } from "../../sandbox/src/index.ts";
+import type { EgressEvent, EgressRule } from "../../sandbox/src/index.ts";
 import { DISTRO_PIN } from "../../sandbox/src/wsl/pins.ts";
 import { ensureDistro, startWslAgent, wslOn } from "../../sandbox/src/wsl/wsl.ts";
 import type { AgentOptions } from "../../sandbox/src/wsl/wsl.ts";
@@ -12,12 +13,51 @@ import { LABELS, ensureLowrun, lowrunPossible, setLabel } from "../../sandbox/sr
 import { privateBash } from "../../sandbox/src/win/msys.ts";
 import type { EngineSandbox, SandboxPlan } from "./sandbox.ts";
 
-/** What a CLI engine may reach through the proxy: its vendor's API and sign-in hosts, and nothing else. */
+/** The AI providers' API and sign-in hosts: what a CLI engine needs to work at all, and all it may reach under "Only the AI providers". */
 export const ENGINE_EGRESS_HOSTS: readonly string[] = [
   "api.anthropic.com", "*.anthropic.com", "claude.ai", "*.claude.ai", "api.openai.com", "*.openai.com", "chatgpt.com", "*.chatgpt.com", "api.x.ai", "*.x.ai",
 ];
 
+/**
+ * What AI tools can reach on the internet, as a Space owner or admin chooses it in the Console (Space, AI, Internet access; the setting engine.egress):
+ *   public     anything public (the default, owner ruling 3 Nov)
+ *   providers  only the AI providers (ENGINE_EGRESS_HOSTS), the old behaviour
+ *   list       the AI providers and the hosts listed
+ */
+export interface EgressPolicy { mode: "public" | "providers" | "list"; hosts: readonly string[] }
+export const DEFAULT_EGRESS_POLICY: EgressPolicy = Object.freeze({ mode: "public", hosts: Object.freeze([]) as readonly string[] });
+
+/** The wall's egress options: the allow-list and the rule. Plain JSON, so the Windows (WSL2) sandbox sends it into its VM as it is, to the same startNetWall. */
+export interface WallEgress { allow: string[]; rule: EgressRule }
+
+/** A setting value read back from the store, or anything: what it says, with every host it lists that is not a host name dropped. Unreadable is the default. */
+export function egressPolicyOf(v: unknown): EgressPolicy {
+  const o = (v !== null && typeof v === "object" ? v : {}) as { mode?: unknown; hosts?: unknown };
+  const mode = o.mode === "providers" || o.mode === "list" || o.mode === "public" ? o.mode : DEFAULT_EGRESS_POLICY.mode;
+  const hosts = Array.isArray(o.hosts) ? [...new Set(o.hosts.filter((h): h is string => typeof h === "string" && validHostPattern(h)))].slice(0, 500) : [];
+  return { mode, hosts };
+}
+
+/**
+ * The one place that builds the wall's egress options (lane l-winengine builds its VM's wall from the same call). The AI providers are always on a list: a Space that lists only its own hosts still
+ * has engines that can answer.
+ */
+export function wallEgress(policy: EgressPolicy = DEFAULT_EGRESS_POLICY): WallEgress {
+  const providers = [...ENGINE_EGRESS_HOSTS];
+  if (policy.mode === "public") return { allow: providers, rule: PUBLIC_RULE };
+  const allow = policy.mode === "list" ? [...new Set([...providers, ...egressPolicyOf(policy).hosts])] : providers;
+  return { allow, rule: { egress: "list", allow } };
+}
+
+/** The wall's options for a rule a spawn carries (egress-policy.ts RULE_ENV). */
+export function wallEgressOfRule(rule: EgressRule): WallEgress {
+  return rule.egress === "public" ? { allow: [...ENGINE_EGRESS_HOSTS], rule } : { allow: [...rule.allow], rule };
+}
+
 export interface DefaultSandbox { plan: SandboxPlan; close(): Promise<void> }
+
+/** A wall of its own for one engine process: the sandbox to run it in, and how to stop the wall when the process has ended. */
+export interface OpenedWall { sandbox: EngineSandbox; close(): Promise<void> }
 
 export interface DefaultSandboxOptions {
   dataDir: string;
@@ -25,6 +65,8 @@ export interface DefaultSandboxOptions {
   /** Where to look for bwrap. Default: the usual places. */
   bwrapPaths?: readonly string[];
   egressHosts?: readonly string[];
+  /** The shared wall's egress (plugins, and turns that carry no rule). Default: wallEgress(), anything public. egressHosts, when given, makes it that list. */
+  egress?: WallEgress;
   node?: string;
   /** Extra read-only folders for the program being run (a CLI installed outside /usr). */
   programRead?: readonly string[];
@@ -167,20 +209,27 @@ export function cliSandboxGap(o: { platform?: NodeJS.Platform; bwrapPaths?: read
 
 export async function defaultSandbox(o: DefaultSandboxOptions): Promise<DefaultSandbox> {
   const platform = o.platform ?? process.platform;
-  const hosts = o.egressHosts ?? ENGINE_EGRESS_HOSTS;
+  const egress: WallEgress = o.egressHosts ? { allow: [...o.egressHosts], rule: { egress: "list", allow: [...o.egressHosts] } } : (o.egress ?? wallEgress());
+  const hosts = egress.allow;
   const node = o.node ?? process.execPath;
   const unavailable = (reason: string): DefaultSandbox => ({ plan: { sandbox: { kind: "server", reason }, dataDir: o.dataDir, egressHosts: hosts }, close: async () => undefined });
-  const done = (sandbox: EngineSandbox, close: () => Promise<void>): DefaultSandbox => ({ plan: { sandbox, dataDir: o.dataDir, egressHosts: hosts }, close });
-  const gap = cliSandboxGap({ platform, ...(o.bwrapPaths ? { bwrapPaths: o.bwrapPaths } : {}), ...(o.windowsMode ? { windowsMode: o.windowsMode } : {}) });
-  if (gap !== null) return unavailable(gap);
-  const policy = wallOptions(hosts);
-  if (platform === "win32" && (o.windowsMode ?? windowsMode()) === "contained") {
-    const root = o.wslRoot ?? path.win32.join(process.env["LOCALAPPDATA"] ?? path.win32.join(o.dataDir, ".."), "ai.vyre.desktop", "wsl");
-    await ensureDistro({ root, ...(o.onPhase ? { onPhase: o.onPhase } : {}) });
-    const agent = await startWslAgent({ options: { wall: policy, base: `/home/${DISTRO_PIN.user}/.vyre-run`, ...(o.wslTestRoutes ? { testRoutes: o.wslTestRoutes } : {}) } });
-    return done({ kind: "wsl", distro: DISTRO_PIN.name, user: DISTRO_PIN.user, agent, wall: policy, ...(o.programRead ? { programRead: o.programRead } : {}) }, () => agent.close());
-  }
+  const done = (sandbox: EngineSandbox, close: () => Promise<void>, openWall: NonNullable<SandboxPlan["openWall"]>): DefaultSandbox => ({ plan: { sandbox, dataDir: o.dataDir, egressHosts: hosts, egressRule: egress.rule, openWall }, close });
+  const watched = (onEvent?: (e: EgressEvent) => void) => (onEvent ? { egress: { onEvent } } : {});
   if (platform === "win32") {
+    // Windows: a Personal Space runs engines at Low integrity in a Job Object (E, RULINGS 14); Team Space turns and a Contained computer run them in Vyre's WSL2 Linux (B, RULINGS 15)
+    const mode = o.windowsMode ?? windowsMode();
+    const gap = cliSandboxGap({ platform, windowsMode: mode });
+    if (gap !== null) return unavailable(gap);
+    if (mode === "contained") {
+      const root = o.wslRoot ?? path.win32.join(process.env["LOCALAPPDATA"] ?? path.win32.join(o.dataDir, ".."), "ai.vyre.desktop", "wsl");
+      await ensureDistro({ root, ...(o.onPhase ? { onPhase: o.onPhase } : {}) });
+      const wall: AgentOptions["wall"] = { allow: egress.allow, rule: egress.rule };
+      const agent = await startWslAgent({ options: { wall, base: `/home/${DISTRO_PIN.user}/.vyre-run`, ...(o.wslTestRoutes ? { testRoutes: o.wslTestRoutes } : {}) } });
+      const base: EngineSandbox = { kind: "wsl", distro: DISTRO_PIN.name, user: DISTRO_PIN.user, agent, wall, ...(o.programRead ? { programRead: o.programRead } : {}) };
+      // one wall in the VM for every turn; a turn's rule (the Space's choice when it started) is sent to it as the engine starts (sandbox.ts wslWrap)
+      const openWall = async (e: WallEgress): Promise<OpenedWall> => ({ sandbox: { ...base, wall: { allow: e.allow, rule: e.rule } }, close: async () => undefined });
+      return done(base, () => agent.close(), openWall);
+    }
     const bin = o.winBin ?? winBinDir();
     const helper = await ensureLowrun(bin);
     const msys = path.win32.join(path.win32.dirname(bin), "msys");
@@ -188,21 +237,37 @@ export async function defaultSandbox(o: DefaultSandboxOptions): Promise<DefaultS
     // Vyre's folders (and the data folder itself, which the work folders are under) private; the roots an engine works under, its engines and its Git Bash readable
     const priv = [...new Set([...(o.privateDirs ?? vyrePrivateDirs(o.dataDir)), o.dataDir])];
     protectVyreData(helper, bin, priv, [path.join(o.dataDir, "work"), path.join(o.dataDir, "scratch"), path.join(o.dataDir, "engines"), ...(bash ? [msys] : [])]);
-    const proxy = createEgressProxy({ ...policy });
+    const low = (port: number): EngineSandbox => ({ kind: "lowil", helper, proxyPort: port, ...(o.writable ? { writable: o.writable } : {}), ...(bash ? { bash } : {}) });
+    const proxy = createEgressProxy({ ...egress });
     const { port } = await proxy.listen();
-    return done({ kind: "lowil", helper, proxyPort: port, ...(o.writable ? { writable: o.writable } : {}), ...(bash ? { bash } : {}) }, () => proxy.close());
+    // a turn's own proxy, as on a Mac: the rule it carries and its own record of where it went
+    const openWall = async (e: WallEgress, onEvent?: (ev: EgressEvent) => void): Promise<OpenedWall> => {
+      const p = createEgressProxy({ ...e, ...(onEvent ? { onEvent } : {}) });
+      const l = await p.listen();
+      return { sandbox: low(l.port), close: () => p.close() };
+    };
+    return done(low(port), () => proxy.close(), openWall);
   }
   if (platform === "linux") {
-    const wall = await startNetWall({ ...policy });
-    return done({ kind: "bwrap", wallDir: wall.dir, node, ...(o.programRead ? { programRead: o.programRead } : {}) }, () => wall.close());
+    if (!(o.bwrapPaths ?? BWRAP).some((p) => fs.existsSync(p))) return unavailable("bubblewrap (bwrap) is not installed on this server, so CLI engines cannot be sandboxed");
+    const bw = (dir: string): EngineSandbox => ({ kind: "bwrap", wallDir: dir, node, ...(o.programRead ? { programRead: o.programRead } : {}) });
+    const wall = await startNetWall({ ...egress });
+    // a turn's own wall: the rule it carries (the Space's choice when it started) and its own record of where it went
+    const openWall = async (e: WallEgress, onEvent?: (ev: EgressEvent) => void): Promise<OpenedWall> => { const w = await startNetWall({ ...e, ...watched(onEvent) }); return { sandbox: bw(w.dir), close: () => w.close() }; };
+    return done(bw(wall.dir), () => wall.close(), openWall);
   }
   if (platform === "darwin") {
-    const proxy = createEgressProxy({ ...policy });
+    const proxy = createEgressProxy({ ...egress });
     const { port } = await proxy.listen();
     // Seatbelt denies reads by default: the program being run (this Node, and the CLI's install folders) must be readable.
     const home = process.env["HOME"] ?? "/";
     const programRead = [...(o.programRead ?? []), ...appleDeveloperRoots(), path.dirname(path.dirname(node)), path.join(home, ".local"), "/opt/homebrew", "/usr/local", ...cliInstallRoots({ PATH: enginePath(process.env, home) }, home)].filter((p) => p !== "/");
-    return done({ kind: "seatbelt", proxyPort: port, programRead }, () => proxy.close());
+    const openWall = async (e: WallEgress, onEvent?: (ev: EgressEvent) => void): Promise<OpenedWall> => {
+      const p = createEgressProxy({ ...e, ...(onEvent ? { onEvent } : {}) });
+      const l = await p.listen();
+      return { sandbox: { kind: "seatbelt", proxyPort: l.port, programRead }, close: () => p.close() };
+    };
+    return done({ kind: "seatbelt", proxyPort: port, programRead }, () => proxy.close(), openWall);
   }
   return unavailable(`CLI engines cannot be sandboxed on ${platform}`);
 }

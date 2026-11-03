@@ -9,10 +9,10 @@ import { recordWork, sessionWorkKey } from "../../agent/src/tools/work-cards.ts"
 import type { McpCaller, McpServer, McpServerDeps } from "../../agent/src/mcp/types.ts";
 import type { Invoke } from "../../host/src/invoke.ts";
 import { handlers as table } from "./handlers/index.ts";
-import { onAgentDeleted, onHoldAnswered } from "./handlers/oauth.ts";
+import { onAgentDeleted, onHoldAnswered, onKeyAnswered } from "./handlers/oauth.ts";
 import type { OauthCtx } from "./handlers/oauth.ts";
 import type { Handler } from "../../host/src/invoke.ts";
-import { bindEndpoint, bindServer, boundServer, driverForToken, ensure, insertSession, isLive, loadGenerated, mintId, outsideCaller, sessionBy, touchSession } from "./projections.ts";
+import { bindEndpoint, bindServer, boundServer, driverForToken, ensure, hasSetup, insertSession, isLive, loadGenerated, mintId, outsideCaller, sessionBy, touchSession } from "./projections.ts";
 import type { Db, Endpoint, McpCtx } from "./projections.ts";
 import { allowTab, refusalPage } from "./allow-page.ts";
 import { beginAuthorize, challenge, collect, createLimiter, exchange, grantForAccess, protectedResource, registerClient, serverMetadata } from "./oauth.ts";
@@ -179,6 +179,8 @@ export function createMcpRuntime(o: RuntimeOptions): McpRuntimeServer {
       // a CLI engine's work shows under its reply as cards, as it does on an API driver: a task, a file, and a send waiting on a yes
       else if (detail?.card && detail.threadId) recordWork(sessionWorkKey(detail.threadId, caller.principal.id), detail.card);
     },
+    // the setup grant (owner ruling 3 Nov): read on every call, so taking it back in Settings or the Console counts at the next one
+    setupGrant: (caller) => caller.kind === "outside" && caller.actingFor !== undefined && hasSetup(o.db, caller.principal.id, caller.actingFor),
     async bindThread(caller, threadId) {
       const read = await withChatMode(o, { ...caller, kind: "driver", threadId });
       return { ...(read.mode ? { mode: read.mode } : {}), ...(read.planMode ? { planMode: true } : {}), ...(read.threadKind ? { threadKind: read.threadKind } : {}), ...(read.scope ? { scope: read.scope } : {}) };
@@ -249,7 +251,9 @@ export const consumers = {
   /** An agent went to Trash, whatever the way: its sign-in ends with it. */
   "mcp.agent_gone": { on: ["agent.deleted"], run: (ctx: McpCtx, event: { payload: { agentId?: unknown } }): string[] => onAgentDeleted(ctx, event) },
   /** A person answered a call an outside agent was held on. */
-  "mcp.hold_answered": { on: ["gate.approved", "gate.denied", "gate.expired"], run: (ctx: OauthCtx, event: { name: string; payload: { taskId?: unknown; mode?: unknown; note?: unknown } }): Promise<string[]> => onHoldAnswered(ctx, event) },
+  "mcp.hold_answered": { on: ["gate.approved", "gate.denied", "gate.expired"], run: (ctx: OauthCtx, event: { name: string; payload: { taskId?: unknown; holdId?: unknown; mode?: unknown; note?: unknown; askedBy?: unknown } }): Promise<string[]> => onHoldAnswered(ctx, event) },
+  /** A key an outside agent asked a person to paste was saved or declined. */
+  "mcp.key_answered": { on: ["vault.request_fulfilled", "vault.request_declined"], run: (ctx: OauthCtx, event: { name: string; payload: { requestId?: unknown; name?: unknown; note?: unknown; agentId?: unknown; threadId?: unknown } }): Promise<string[]> => onKeyAnswered(ctx, event) },
 };
 
 export { bindEndpoint, bindServer };

@@ -7,6 +7,8 @@ import { Platform, Pressable, StyleSheet, Text, View, useWindowDimensions } from
 import { Avatar } from "../../../../../../ui/src/Avatar/index.tsx";
 import { menuTrigger } from "../../../../../../ui/src/Menu/index.tsx";
 import { useSelection } from "./data.tsx";
+import { retryLoads } from "../../../../../../ui/src/States/retry.ts";
+import type { LoadFailure } from "../../../../../../ui/src/States/retry.ts";
 
 export const DOUBLE_MS = 450;
 
@@ -103,7 +105,16 @@ export function EmptyLine({ text, id }: { text: string; id: string }): ReactElem
 }
 
 /** Rows the size of the real ones, so nothing moves when the data arrives. */
-export function Skeleton({ rows, id }: { rows: number; id: string }): ReactElement {
+export function Skeleton({ rows, id, failure }: { rows: number; id: string; failure?: LoadFailure | undefined }): ReactElement {
+  // a read that failed says so with Retry, in the same room, rather than leaving the section blank for ever
+  if (failure) {
+    return (
+      <View testID={`${id}-failed`} accessibilityRole="alert" style={[s.empty, { minHeight: rows * 44 }]}>
+        <Text style={s.emptyText}>{"Couldn't load this."}</Text>
+        <LinkButton label="Retry" onPress={retryLoads} testID={`${id}-retry`} />
+      </View>
+    );
+  }
   // the room the rows will take, so nothing jumps; no shimmer and no grey bars
   return <View testID={`${id}-loading`} accessibilityLabel="Loading" style={{ minHeight: rows * 44 }} />;
 }

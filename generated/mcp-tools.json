@@ -17286,10 +17286,16 @@
       "blocks": [],
       "cap": "engine.placement.set",
       "deferred": false,
-      "description": "Pin a private chat to where it runs: this computer, the Space (Team Space), or one of your own servers, or auto to take the pin off. The next turn goes there; a teammate's machine is never a choice",
+      "description": "Choose where a private chat runs: one of your computers, the Space, one of your own servers, or auto. Never a teammate's machine. once with space runs the next turn on the Space once",
       "effects": "write",
       "inputSchema": {
         "properties": {
+          "deviceId": {
+            "type": "string"
+          },
+          "once": {
+            "type": "boolean"
+          },
           "serverId": {
             "type": "string"
           },
@@ -19458,7 +19464,7 @@
       "blocks": [],
       "cap": "files.folder.settings",
       "deferred": false,
-      "description": "Change Review changes, sensitivity label or the working-folder flags of a folder",
+      "description": "Change Review changes, sensitivity label or the working-folder flags of a folder; the mounts module marks a mounted folder with its source (null takes the mark off)",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -19480,6 +19486,32 @@
           },
           "reviewChanges": {
             "type": "boolean"
+          },
+          "source": {
+            "anyOf": [
+              {
+                "properties": {
+                  "mountId": {
+                    "examples": [
+                      "mnt_a1b2c3"
+                    ],
+                    "pattern": "^mnt_[a-z0-9]+$",
+                    "type": "string"
+                  },
+                  "provider": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "mountId",
+                  "provider"
+                ],
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": [
@@ -57354,7 +57386,7 @@
       "blocks": [],
       "cap": "threads.mark_read",
       "deferred": false,
-      "description": "Mark a thread read up to a sequence number",
+      "description": "Mark a thread read up to a sequence number, or unread again (the newest message from someone else counts as new)",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -57364,6 +57396,9 @@
             ],
             "pattern": "^thr_[a-z0-9]+$",
             "type": "string"
+          },
+          "unread": {
+            "type": "boolean"
           },
           "upto": {
             "type": "integer"
@@ -59090,6 +59125,9 @@
             ],
             "pattern": "^run_[a-z0-9]+$",
             "type": "string"
+          },
+          "handleOnly": {
+            "type": "boolean"
           },
           "idempotencyKey": {
             "examples": [

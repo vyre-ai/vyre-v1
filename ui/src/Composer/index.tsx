@@ -96,7 +96,9 @@ export type ListItem = string | { t: string; s?: string; kind?: string; sealed?:
   /** An id a pick keeps (a record, file, folder or channel), so what is sent names the thing and not only its title. */
   ref?: string;
   /** A command that takes words after its name: the hint for them. Picking it writes "/name " and waits instead of running. */
-  arg?: string };
+  arg?: string;
+  /** Other words it is found by, past its name: a connected folder's provider ("Google Drive", "SharePoint"), so typing the provider finds it. */
+  find?: string };
 
 export interface ComposerLists {
   people?: readonly ListItem[];
@@ -113,6 +115,8 @@ export interface ComposerLists {
   /** Templates and snippets insert their body at the cursor. */
   templates?: readonly ListItem[];
   snippets?: readonly ListItem[];
+  /** A quiet line under the # list: something could not be read, and what shows is not everything. */
+  notice?: string;
 }
 
 export type TriggerChar = "@" | "#" | "/" | "[[" | ":";
@@ -183,7 +187,8 @@ function ranked(items: readonly ListItem[] | undefined, query: string, group: st
   const scored: { at: number; q: number; item: PopupItem }[] = [];
   (items ?? []).forEach((x, at) => {
     const label = nameOf(x).replace(/^[#/]/, "");
-    const q = quality(query, prepare(label));
+    const find = typeof x === "string" ? undefined : x.find;
+    const q = Math.max(quality(query, prepare(label)), find ? quality(query, prepare(find)) : 0);
     if (q === 0) return;
     const note = noteOf(x);
     const sealed = typeof x === "string" ? undefined : x.sealed;
@@ -243,13 +248,21 @@ export function popupFor(trigger: Trigger, lists: ComposerLists, _agentChat = tr
     const found = ranked(lists.records, q, "Records", "Record", MENTION_LIMIT);
     return found.length ? [{ head: "Link a record" }, ...found] : [];
   }
-  const out: PopupEntry[] = [];
+  // A connected source (a mounted Drive, SharePoint library, Dropbox, GitHub repository or live folder) carries data.mount. Folders that hold one lead the list and show every source plus a
+  // few plain folders, so a person's connected places are the first thing # offers and are never pushed below the fold by recent records and files.
+  const groups: { name: HashGroup; found: PopupItem[] }[] = [];
   for (const name of HASH_GROUPS) {
     if (scope !== "All" && scope !== name) continue;
     const [key, kind] = HASH_LIST[name];
-    const found = ranked(lists[key], q, name, kind, scope === "All" ? GROUP_LIMIT : SCOPED_LIMIT);
-    if (found.length) out.push({ head: name }, ...found);
+    const sources = name === "Folders" ? (lists.folders ?? []).filter((x) => typeof x !== "string" && x.data?.["mount"] !== undefined).length : 0;
+    const limit = scope === "All" ? Math.min(SCOPED_LIMIT, Math.max(GROUP_LIMIT, sources + 2)) : SCOPED_LIMIT;
+    const found = ranked(lists[key], q, name, kind, limit);
+    if (found.length) groups.push({ name, found });
   }
+  const lead = groups.findIndex((g) => g.name === "Folders" && g.found.some((x) => x.data?.["mount"] !== undefined));
+  if (lead > 0) groups.unshift(...groups.splice(lead, 1));
+  const out: PopupEntry[] = [];
+  for (const g of groups) out.push({ head: g.name }, ...g.found);
   return out;
 }
 
@@ -280,6 +293,8 @@ export interface WhoContext {
   listening?: readonly string[];
   agents?: readonly ListItem[];
   people?: readonly ListItem[];
+  /** The thread kind when known: in a channel a lone listening agent still waits to be named, as the engine routes it (lib/route.ts). */
+  kind?: string;
 }
 
 function mentionsIn(text: string, items: readonly ListItem[] | undefined): string[] {
@@ -301,11 +316,15 @@ export interface WhoAnswer {
   reason: string;
 }
 
+/** What the composer says when nobody is named and no agent leads (owner ruling, 3 Nov 2026). */
+export const NO_AGENT_LINE = "No agent will reply. @mention one";
+
 /** The composer's who-will-answer line for the text typed so far, from lib/route.ts. */
 export function whoAnswers(text: string, ctx: WhoContext): WhoAnswer {
   const agentNames = mentionsIn(text, ctx.agents);
   const personNames = mentionsIn(text, ctx.people);
   const thread: RouteThread = {
+    ...(ctx.kind === undefined ? {} : { kind: ctx.kind }),
     agents: [
       ...(ctx.lead === undefined ? [] : [{ id: ctx.lead, mode: "lead" as const }]),
       ...(ctx.listening ?? []).filter((n) => n !== ctx.lead).map((id) => ({ id, mode: "listen" as const })),
@@ -321,7 +340,8 @@ export function whoAnswers(text: string, ctx: WhoContext): WhoAnswer {
     const who = firstWord(personNames[0] ?? "They");
     return { line: `${who} will see this · no agent will reply`, responders: [], dim: true, reason: result.reason };
   }
-  return { line: "No agent will reply · type @ to ask one", responders: [], dim: true, reason: result.reason };
+  // owner ruling, 3 Nov 2026: agents listen until named, and the line says so plainly
+  return { line: NO_AGENT_LINE, responders: [], dim: true, reason: result.reason };
 }
 
 /** The line to show: computed when the text addresses someone or the caller gave a thread; otherwise the caller's own line. */
@@ -409,7 +429,7 @@ export function sendNow(state: ComposerState, answers: string, mode: SendMode = 
 export type PickEffect = { kind: "command"; name: string } | { kind: "folder"; folder: string } | { kind: "none" };
 
 /** Applies a picked popup item to the state. */
-export function applyPick(state: ComposerState, trigger: Trigger, item: PopupItem): { next: ComposerState; effect: PickEffect } {
+export function applyPick(state: ComposerState, trigger: Trigger, item: PopupItem, opts: { /** a picked folder sets the thread's folder chip; false where nothing takes the chip (a chat), so a folder with an id is linked like a file */ folderChip?: boolean } = {}): { next: ComposerState; effect: PickEffect } {
   const before = state.text.slice(0, trigger.start);
   const after = state.text.slice(trigger.end);
   const place = (text: string, insertAt: number): ComposerState => ({ ...state, text, cursor: insertAt, active: -1, dismissedAt: -1 });
@@ -438,7 +458,7 @@ export function applyPick(state: ComposerState, trigger: Trigger, item: PopupIte
     }
     return { next: place(before + after, before.length), effect: { kind: "command", name: item.body ?? item.label } };
   }
-  if (item.kind === "Folder") {
+  if (item.kind === "Folder" && (opts.folderChip !== false || item.ref === undefined)) {
     const cleared = place(before + after, before.length);
     return { next: { ...cleared, folder: item.label }, effect: { kind: "folder", folder: item.label } };
   }
@@ -722,7 +742,7 @@ export function Composer(props: ComposerProps): ReactElement {
   const lists = props.lists ?? {};
   const hasLead = props.lead !== undefined && props.lead.length > 0;
   const whoCtx: WhoContext | undefined = hasLead || lists.agents !== undefined || lists.people !== undefined
-    ? { ...(hasLead ? { lead: props.lead as string } : {}), ...(props.listening === undefined ? {} : { listening: props.listening }), ...(lists.agents === undefined ? {} : { agents: lists.agents }), ...(lists.people === undefined ? {} : { people: lists.people }) }
+    ? { ...(hasLead ? { lead: props.lead as string } : {}), ...(props.listening === undefined ? {} : { listening: props.listening }), ...(lists.agents === undefined ? {} : { agents: lists.agents }), ...(lists.people === undefined ? {} : { people: lists.people }), ...(props.agentChat === false ? { kind: "channel" } : {}) }
     : undefined;
   const who = answerLine(state.text, props.whoWillAnswer, whoCtx);
   const answerers = props.sendsOutside === true || props.hideWho === true ? [] : answering(who.responders, props.agents);
@@ -791,7 +811,7 @@ export function Composer(props: ComposerProps): ReactElement {
       input.current?.focus?.();
       return;
     }
-    const done = applyPick(cur, t, entry);
+    const done = applyPick(cur, t, entry, { folderChip: props.onFolder !== undefined });
     stateRef.current = done.next;
     setState(done.next);
     if (done.effect.kind === "folder") props.onFolder?.(done.effect.folder);
@@ -1030,6 +1050,7 @@ export function Composer(props: ComposerProps): ReactElement {
         </View>
         <View style={styles.scr} accessibilityRole="menu" {...webProps({ role: "listbox" })}>
           {listNodes.length > 0 ? listNodes : <Text style={styles.empty} testID="composer-popup-empty">{trigger?.query ? `Nothing called “${trigger.query}”` : "Type to search"}</Text>}
+          {trigger?.ch === "#" && effective.notice ? <Text style={styles.notice} testID="composer-popup-notice">{effective.notice}</Text> : null}
         </View>
       </View>
       {narrow ? null : preview}
@@ -1251,6 +1272,7 @@ const styles = StyleSheet.create({
   scopeValue: { fontSize: 12.5, fontWeight: "500", color: "var(--ink)" as string },
   scopeQ: { marginLeft: "auto", fontSize: 12, color: "var(--ink-4)" as string, flexShrink: 1 },
   empty: { fontSize: 12.5, color: "var(--ink-3)" as string, padding: 10 },
+  notice: { fontSize: 12, color: "var(--ink-4)" as string, paddingHorizontal: 10, paddingVertical: 6 },
   pv: { width: 240, borderLeftWidth: 1, borderLeftColor: "var(--line)" as string, padding: 16, gap: 10, backgroundColor: "var(--win)" as string },
   pvBig: { width: 40, height: 40, borderRadius: 12, alignItems: "center", justifyContent: "center" },
   pvTitle: { fontSize: 15, fontWeight: "600", color: "var(--ink)" as string },

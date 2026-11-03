@@ -11,6 +11,7 @@ import { HelperDataProvider, useHelperData, useOnline, useOptionalHelperData, us
 import type { HelperChatData } from "./data.tsx";
 import { READ_ONLY_NOTE, addressParts, blockLine, byOrder, helperStatus, metaLine, parentOf, whenLabel, workSummary } from "./model.ts";
 import type { Message } from "./model.ts";
+import { LoadFailed, failureOf } from "../../../../../../ui/src/States/Loads.tsx";
 
 type ThreadOut = CapMap["threads.get"]["out"];
 type MessagesOut = CapMap["chat.messages.list"]["out"];
@@ -39,6 +40,8 @@ function HelperView(): ReactElement {
     try { await data.call("engine.stop", { threadId: data.threadId }); setLine("Stopped. The helper's steps so far are kept."); } catch { setLine("Could not stop it. Try again."); }
   }, [data]);
 
+  const failed = failureOf(threadQ, messagesQ);
+  if (failed) return <LoadFailed what="this helper" failure={failed} testID="helper-load-failed" />;
   if (threadQ.status === "loading" || messagesQ.status === "loading") return <HelperChatLoading />;
   const thread = threadQ.data.thread;
   const messages = byOrder(messagesQ.data.messages);

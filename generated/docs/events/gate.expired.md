@@ -23,5 +23,9 @@ type Payload = {
   taskId: string;
   outcome: "dropped" | "escalated";
   escalatedTo?: string;
+  askedBy?: {
+    kind: "person" | "agent" | "actor" | "service";
+    id: string;
+  };
 };
 ```

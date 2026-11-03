@@ -212,7 +212,7 @@ export async function setSpaceUse(ctx: VaultCtx, input: { providerId: string; al
 
 // ---- subscription sign-in
 
-export async function subscriptionStart(ctx: VaultCtx, input: { providerKey: string; idempotencyKey: string }) {
+export async function subscriptionStart(ctx: VaultCtx, input: { providerKey: string; idempotencyKey: string; local?: boolean }) {
   ensureProviders(ctx);
   const c = entry(ctx, input.providerKey);
   if (!c || !c.connections.includes("subscription")) return bad(ctx, "That provider does not sign in with a subscription.");
@@ -222,13 +222,16 @@ export async function subscriptionStart(ctx: VaultCtx, input: { providerKey: str
   const port = hostOf()?.signin;
   if (port?.has(c.key)) {
     let started: Awaited<ReturnType<SigninPort["start"]>>;
-    try { started = await port.start({ id, provider: c.key, person: me(ctx) }); } catch (e) { return bad(ctx, e instanceof Error ? e.message : "The sign-in could not start. Try again."); }
+    try { started = await port.start({ id, provider: c.key, person: me(ctx), ...(input.local === true ? { local: true } : {}) }); } catch (e) { return bad(ctx, e instanceof Error ? e.message : "The sign-in could not start. Try again."); }
     ctx.db.run(`INSERT INTO vault_provider_flow ("id", "person", "providerKey", "startedAt", "doneAt") VALUES (?, ?, ?, ?, ?)`, id, me(ctx), c.key, ctx.now(), null);
+    // the sign-in on this computer (owner decision D2): read already, so finishing it saves it; there is no link to open
+    if (input.local === true) return { flowId: id, needsCode: false, instruction: `Using the ${c.name} sign-in on this computer.` };
     return {
       flowId: id, url: started.url, ...(started.userCode ? { userCode: started.userCode } : {}), needsCode: started.needsCode,
       instruction: started.needsCode ? `Open the sign-in, approve it, then paste the code ${c.name} shows.` : `Open the sign-in and enter the code ${started.userCode ?? ""}. This page finishes by itself.`.replace("  ", " "),
     };
   }
+  if (input.local === true) return bad(ctx, "The sign-in on this computer can be used in your Personal Space only. Sign in instead.");
   ctx.db.run(`INSERT INTO vault_provider_flow ("id", "person", "providerKey", "startedAt", "doneAt") VALUES (?, ?, ?, ?, ?)`, id, me(ctx), c.key, ctx.now(), null);
   return { flowId: id, needsCode: false, instruction: c.instruction ?? `Sign in to ${c.name} on your computer, then press Done.` };
 }

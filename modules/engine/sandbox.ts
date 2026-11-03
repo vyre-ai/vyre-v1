@@ -8,8 +8,8 @@
 //     unwrapped launcher.
 import fs from "node:fs";
 import path from "node:path";
-import { SandboxError, bwrapWallCommand, proxyEnv, seatbeltCommand } from "../../sandbox/src/index.ts";
-import type { Roots, SandboxSpec } from "../../sandbox/src/index.ts";
+import { CONNECT_SOURCE, SandboxError, bwrapWallCommand, proxyEnv, seatbeltCommand, sshFiles, toolProxyEnv } from "../../sandbox/src/index.ts";
+import type { EgressEvent, EgressRule, EngineAccess, Roots, SandboxSpec } from "../../sandbox/src/index.ts";
 import { toWslPath, wslExe } from "../../sandbox/src/wsl/wsl.ts";
 import type { AgentOptions, WslAgent } from "../../sandbox/src/wsl/wsl.ts";
 import type { LocalLauncherOptions } from "../../agent/src/drivers/cli/launcher.ts";
@@ -33,8 +33,15 @@ export interface SandboxPlan {
   sandbox: EngineSandbox;
   /** The Space data directory; work folders live under `<dataDir>/work/<person>/<thread>`, scratch under `<dataDir>/scratch/<person>`. */
   dataDir: string;
-  /** Hosts the engine may reach through the proxy (its provider's API). */
+  /** Hosts the engine may reach through the proxy (its provider's API), when the wall runs a list. */
   egressHosts: readonly string[];
+  /** The rule of the plan's own wall (egress-policy.ts). Absent: the list above. */
+  egressRule?: EgressRule;
+  /**
+   * Open a wall for one engine process, with the rule its turn carries and a watcher for where it went (sandbox-default.ts). Absent (a host's own plan, a test's): the process uses the plan's wall.
+   * The wall is stopped when the process ends.
+   */
+  openWall?: (egress: { allow: string[]; rule: EgressRule }, onEvent?: (e: EgressEvent) => void) => Promise<{ sandbox: EngineSandbox; close(): Promise<void> }>;
 }
 
 const SAFE = /[^a-zA-Z0-9_-]/g;
@@ -63,7 +70,7 @@ const sandboxId = (person: string): string => `vyre-sbx-${part(person).toLowerCa
  * `wrap` for createLocalLauncher. The work folder arrives as `start.cwd` (the opener's workFolder, made by workFolder() above) and names the person: `<dataDir>/work/<person>/<thread>`. A spawn
  * with any other folder is refused: the engine must never run in the daemon's own folder or anywhere else.
  */
-export function sandboxWrap(plan: SandboxPlan, o: { homeFromScratch?: boolean } = {}): NonNullable<LocalLauncherOptions["wrap"]> {
+export function sandboxWrap(plan: SandboxPlan, o: { homeFromScratch?: boolean; access?: EngineAccess; basePath?: string } = {}): NonNullable<LocalLauncherOptions["wrap"]> {
   return (argv, start) => {
     const s = plan.sandbox;
     if (s.kind === "docker" || s.kind === "server") {
@@ -89,18 +96,25 @@ export function sandboxWrap(plan: SandboxPlan, o: { homeFromScratch?: boolean } 
       // a turn on a sign-in kept in files sees them as its home: the scratch folder's own home is bound where the sandbox's home would be
       const home = o.homeFromScratch ? path.join(scratch, "home") : undefined;
       if (home) fs.mkdirSync(home, { recursive: true, mode: 0o700 });
-      const w = bwrapWallCommand(spec, roots, argv, { wallDir: s.wallDir, ...(s.node ? { node: s.node } : {}), ...(s.programRead ? { programRead: s.programRead } : {}), ...(home ? { home } : {}) });
+      const w = bwrapWallCommand(spec, roots, argv, { wallDir: s.wallDir, ...(s.node ? { node: s.node } : {}), ...(s.programRead ? { programRead: s.programRead } : {}), ...(home ? { home } : {}), ...(o.access ? { access: o.access } : {}), ...(o.basePath ? { basePath: o.basePath } : {}) });
       return [w.cmd, ...w.args];
     }
-    const w = seatbeltCommand(spec, roots, argv, { proxyPort: s.proxyPort, ...(s.programRead ? { programRead: s.programRead } : {}) });
+    const w = seatbeltCommand(spec, roots, argv, { proxyPort: s.proxyPort, ...(s.programRead ? { programRead: s.programRead } : {}), ...(o.access ? { access: o.access } : {}) });
     // sandbox-exec keeps the caller's environment, so the proxy variables go in front with env(1). The CLI's own state (Claude Code's ~/.claude, Codex's ~/.codex), its temp files and its HOME live in the
     // scratch folder, the one place besides the work folder the profile lets it write: the person's real home stays closed, and the key travels in the environment, not in a file under it.
     const home = path.join(scratch, "home");
     const tmp = path.join(scratch, "tmp");
     fs.mkdirSync(home, { recursive: true });
     fs.mkdirSync(tmp, { recursive: true });
+    // the CONNECT helper ssh runs as its ProxyCommand (git+ssh to a public host), in the scratch folder the profile lets the engine read
+    const helper = path.join(scratch, "net", "connect.mjs");
+    fs.mkdirSync(path.dirname(helper), { recursive: true });
+    fs.writeFileSync(helper, CONNECT_SOURCE, { mode: 0o644 });
     const own = { HOME: home, TMPDIR: tmp, CLAUDE_CODE_TMPDIR: tmp, CLAUDE_CONFIG_DIR: path.join(home, ".claude"), CODEX_HOME: path.join(home, ".codex"), XDG_CONFIG_HOME: path.join(home, ".config"), XDG_CACHE_HOME: path.join(home, ".cache") };
-    return ["/usr/bin/env", ...Object.entries({ ...proxyEnv(`http://127.0.0.1:${s.proxyPort}`), ...own }).map(([k, v]) => `${k}=${v}`), w.cmd, ...w.args];
+    const net = toolProxyEnv(`http://127.0.0.1:${s.proxyPort}`, { node: process.execPath, helper, port: s.proxyPort, ...sshFiles(o.access, path.join(home, ".vyre-known-hosts")) });
+    // what the engine may touch (engine-access.ts): the package managers pointed at the person's own install locations, the SSH agent, and their bin folders first on PATH
+    const acc = o.access ? { ...o.access.env, ...(o.access.sshAuthSock ? { SSH_AUTH_SOCK: o.access.sshAuthSock } : {}), ...(o.basePath ? { PATH: [...o.access.pathAdd, o.basePath].join(":") } : {}) } : {};
+    return ["/usr/bin/env", ...Object.entries({ ...net, ...own, ...acc }).map(([k, v]) => `${k}=${v}`), w.cmd, ...w.args];
   };
 }
 

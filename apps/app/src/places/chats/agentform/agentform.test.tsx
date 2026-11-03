@@ -3,7 +3,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
 import { AgentForm } from "./AgentForm.tsx";
-import { createInput, draftInstructions, faceChoices, faceSeed, reachOffers, updatePatch } from "./model.ts";
+import { createInput, draftInstructions, faceChoices, faceSeed, grantsFor, reachOffers, updatePatch } from "./model.ts";
 import type { AgentDraft, VaultItem } from "./model.ts";
 
 const draft: AgentDraft = { name: " Collector ", does: "Chases unpaid invoices", face: "f1", instructions: "", model: "", fallbackModel: "", computer: "own" };
@@ -30,6 +30,11 @@ test("Can reach searches the Vault, and with nothing typed it offers what the wo
   assert.deepEqual(reachOffers(items, "", draft.does, []).map((i) => i.id), ["v1"]);
   assert.deepEqual(reachOffers(items, "stripe", draft.does, []).map((i) => i.id), ["v2"]);
   assert.deepEqual(reachOffers(items, "", draft.does, ["v1"]), [], "what is picked leaves the offers");
+});
+
+test("Can use grants a Shared item at Use and skips a Mine item, which the agent's own turn already reaches", () => {
+  const picked = [{ ...item("v1", "Fathom"), scope: "shared" } as VaultItem, { ...item("v2", "My Gmail"), scope: "mine" } as VaultItem];
+  assert.deepEqual(grantsFor(picked).map((i) => i.id), ["v1"]);
 });
 
 test("the fields become agents.create and agents.update input", () => {

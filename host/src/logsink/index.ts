@@ -320,7 +320,14 @@ export class LogSink implements SpanSink {
   invokeLogger(space: string): Logger {
     const at = (level: number) => (msg: string, attrs?: Record<string, unknown>): void => {
       const t = attrs?.["traceId"];
-      this.log({ space, level, msg, ...(typeof t === "string" ? { trace_id: t } : {}), ...(typeof attrs?.["cap"] === "string" ? { cap: attrs["cap"] } : {}), ...(attrs ? { attrs } : {}) });
+      const actor = attrs?.["actor"], onBehalf = attrs?.["onBehalf"], status = attrs?.["status"];
+      this.log({
+        space, level, msg, ...(typeof t === "string" ? { trace_id: t } : {}), ...(typeof attrs?.["cap"] === "string" ? { cap: attrs["cap"] } : {}),
+        // a refused or failed call names who made it and its result in the columns a query filters on
+        ...(typeof actor === "string" ? { actor } : {}), ...(typeof onBehalf === "string" ? { on_behalf: onBehalf } : {}), ...(msg === "invoke" && typeof status === "string" ? { result: status } : {}),
+        // the ids go in their columns only, where an erased person is tombstoned, never in attrs
+        ...(attrs ? { attrs: Object.fromEntries(Object.entries(attrs).filter(([k]) => k !== "actor" && k !== "onBehalf")) } : {}),
+      });
     };
     return { debug: at(LEVELS.debug), info: at(LEVELS.info), warn: at(LEVELS.warn), error: at(LEVELS.error) };
   }

@@ -31,7 +31,7 @@ test("claude: a granted work folder turns the file and shell tools on inside it;
   assert.equal(argv.includes("--tools"), false);
   assert.equal(after(argv, "--add-dir"), "/work/acme");
   const allowed = argv.slice(argv.indexOf("--allowedTools") + 1, argv.indexOf("--add-dir"));
-  assert.deepEqual(allowed, ["mcp__vyre__*", "WebSearch", "Read", "Edit", "Write", "Glob", "Grep", "Bash"]);
+  assert.deepEqual(allowed, ["mcp__vyre__*", "WebSearch", "WebFetch", "Read", "Edit", "Write", "Glob", "Grep", "Bash"]);
   assert.equal(after(argv, "--permission-mode"), "plan");
   assert.equal(after(argv, "--model"), "sonnet");
   assert.equal(after(argv, "--resume"), "sess-9");
@@ -52,6 +52,7 @@ test("codex: exec --json, its own sandbox read-only unless a work folder was gra
   const overrides = argv.filter((_, i) => argv[i - 1] === "-c");
   assert.deepEqual(overrides, [
     'sandbox_mode="read-only"',
+    "sandbox_workspace_write.network_access=true",
     'mcp_servers.vyre.url="http://127.0.0.1:4100/mcp"',
     `mcp_servers.vyre.bearer_token_env_var="${TOKEN_ENV}"`,
   ]);
@@ -115,6 +116,9 @@ test("failures are named so the accounts module can move a turn to the backup ke
   assert.equal(classifyCli("unexpected status 401 Unauthorized"), "provider.auth_failed");
   assert.equal(classifyCli("Claude AI usage limit reached|1760000000"), "provider.rate_limited");
   assert.equal(classifyCli("429 Too Many Requests"), "provider.rate_limited");
+  // overloaded is the vendor being busy, not a limit (owner ruling, 3 Nov): the engine retries the same account once, then the backup
+  assert.equal(classifyCli('API Error: 529 {"type":"error","error":{"type":"overloaded_error","message":"Overloaded"}}'), "provider.overloaded");
+  assert.equal(classifyCli("Overloaded"), "provider.overloaded");
   assert.equal(classifyCli("Prompt is too long"), "provider.context_too_long");
   assert.equal(classifyCli("boom: the engine crashed"), "engine.cli_error");
 });

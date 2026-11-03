@@ -19,11 +19,12 @@
 // Lag: stale_since is when the oldest unsynced change was first seen. A pass that leaves nothing waiting clears it, a failed pass starts it. The lag health reads it for every live mount.
 
 import { mintUuid } from "../../../lib/ids.ts";
+import { isHostService } from "../../../lib/trust.ts";
 import { ERROR_CODES, VyreErr } from "../../../packages/contracts/src/errors.ts";
 import type { Ctx } from "../../../packages/contracts/src/ctx.ts";
 import type { ErrorCode, NextStep, VyreError } from "../../../packages/contracts/src/types.ts";
 import { pushMoves } from "./outbound-moves.ts";
-import { PROVIDER_LABEL, isCloud, providerOf } from "./providers.ts";
+import { DRIVE_ROOT_ALIAS, PROVIDER_LABEL, fetchable, isCloud, providerOf } from "./providers.ts";
 import type { IfMatch, MountKind, MountMode, MountRec, Person, Provider, PullBatch, RemoteItem, Revision } from "./providers.ts";
 
 type Row = Record<string, unknown>;
@@ -244,16 +245,38 @@ async function filesWrite(ctx: Ctx, fileId: string, blobId: string, reason: stri
   return num(obj(r["file"])["version"]);
 }
 
-/** Runs `make` with the name; a name already taken in the folder retries once with the provider's name in brackets. */
-async function withFreeName<T>(name: string, label: string, make: (n: string) => Promise<T>): Promise<{ value: T; renamed: boolean }> {
-  try {
-    return { value: await make(name), renamed: false };
-  } catch (e) {
-    if (codeOf(e) !== "validation.duplicate") throw e;
-    const dot = name.lastIndexOf(".");
-    const taken = dot > 0 ? `${name.slice(0, dot)} (${label})${name.slice(dot)}` : `${name} (${label})`;
-    return { value: await make(taken), renamed: true };
+/** Most names one item tries before the pass gives up on it: its own, then "(Google Drive)", "(Google Drive 2)" and on. */
+const NAME_TRIES = 20;
+
+/** The names an item may take in its Vyre folder, in order: its own, then the provider's name in brackets, numbered. "Plan.docx" becomes "Plan (Google Drive).docx". */
+export function freeNames(name: string, label: string): string[] {
+  const dot = name.lastIndexOf(".");
+  const [stem, ext] = dot > 0 ? [name.slice(0, dot), name.slice(dot)] : [name, ""];
+  const out = [name];
+  for (let n = 1; out.length < NAME_TRIES; n++) out.push(`${stem} (${n === 1 ? label : `${label} ${n}`})${ext}`);
+  return out;
+}
+
+/**
+ * Runs `make` with the first name the folder does not hold yet. Drive lets one folder hold several items of one name (and a Google-native file has no extension, so a Doc and a Sheet both
+ * called "Plan" share it); a Vyre folder does not. `taken` is what the mount knows is in the folder already (the provider names it mapped there and the names this pass gave), so the
+ * name is chosen before the call: a refused create is left for a Vyre file the mount has not seen yet, and only then is the next name tried.
+ */
+async function withFreeName<T>(ctx: Ctx, name: string, label: string, taken: Set<string>, make: (n: string) => Promise<T>): Promise<{ value: T; renamed: boolean; name: string }> {
+  const names = freeNames(name, label);
+  const first = names.findIndex((n) => !taken.has(n));
+  for (let i = Math.max(0, first); i < names.length; i++) {
+    const n = names[i] as string;
+    try {
+      const value = await make(n);
+      taken.add(n);
+      return { value, renamed: i > 0, name: n };
+    } catch (e) {
+      if (codeOf(e) !== "validation.duplicate") throw e;
+      taken.add(n);
+    }
   }
+  return fail(ctx, "validation.duplicate", `Every name for ${name} is taken in its folder.`);
 }
 
 /** A delete of something that is already gone is not an error. */
@@ -272,6 +295,24 @@ async function trashLocal(ctx: Ctx, rows: Row[], top: Row): Promise<void> {
   dropItems(ctx, rows, below);
 }
 
+/** Mounts whose folder this process has marked with its source. */
+const marked = new Set<string>();
+
+/**
+ * The mount's folder carries its source (files.folder.settings source), so Files draws the provider's mark on it and on everything in it, and the viewer offers "Open in Google Docs".
+ * Marked when the mount is made and once per process on its first pass (a mount made before the mark existed gets it then); a kept copy loses the mark when the mount goes.
+ */
+async function markSource(ctx: Ctx, row: Row, on = true): Promise<void> {
+  const id = str(row["id"]);
+  if (on && marked.has(id)) return;
+  try {
+    await ctx.call("files.folder.settings", { folderId: str(row["folder_id"]), source: on ? { mountId: id, provider: PROVIDER_LABEL[str(row["kind"]) as MountKind] } : null });
+    if (on) marked.add(id); else marked.delete(id);
+  } catch (e) {
+    ctx.log.warn("mounts: the folder could not be marked with its source", { mountId: id, code: codeOf(e) ?? "" });
+  }
+}
+
 /** A cloud mount whose content is fetched when a file is opened. */
 const isLive = (m: Pick<MountRec, "kind" | "mode">): boolean => m.mode === "live_only" && isCloud(m.kind);
 
@@ -286,9 +327,21 @@ async function applyBatch(ctx: Ctx, m: MountRec, provider: Provider, batch: Pull
   const live = isLive(m);
   const root = rows.find((r) => isNull(r["parent_key"]));
   if (!root) return fail(ctx, "internal.unexpected", "The mount lost its root.");
-  if (batch.rootId !== undefined && isNull(root["remote_id"])) patchItem(ctx, root, { remote_id: batch.rootId });
+  if (batch.rootId !== undefined && (isNull(root["remote_id"]) || root["remote_id"] === DRIVE_ROOT_ALIAS)) patchItem(ctx, root, { remote_id: batch.rootId });
   const byRemote = (): Map<string, Row> => new Map(rows.filter((r) => !isNull(r["remote_id"])).map((r) => [str(r["remote_id"]), r]));
   const index = byRemote();
+
+  // the names each Vyre folder of the mount holds as far as the mount knows: what it mapped there by the provider's name, and what this pass gave
+  const names = new Map<string, Set<string>>();
+  const namesIn = (parent: Row): Set<string> => {
+    const key = str(parent["item_key"]);
+    let set = names.get(key);
+    if (!set) {
+      set = new Set(rows.filter((r) => r["parent_key"] === key && !flag(r["deleted"])).map((r) => str(r["name"])));
+      names.set(key, set);
+    }
+    return set;
+  };
 
   const gone = new Set(batch.removed);
   if (batch.full) {
@@ -301,7 +354,7 @@ async function applyBatch(ctx: Ctx, m: MountRec, provider: Provider, batch: Pull
     const parentFolder = str(parent["folder_id"]);
     if (item.isFolder) {
       if (!row) {
-        const made = await withFreeName(item.name, label, (n) => filesCreateFolder(ctx, parentFolder, n));
+        const made = await withFreeName(ctx, item.name, label, namesIn(parent), (n) => filesCreateFolder(ctx, parentFolder, n));
         if (made.renamed) conflicts += 1;
         const created = insertItem(ctx, m.id, { remoteId: item.id, parentKey: str(parent["item_key"]), folderId: made.value, name: item.name, isFolder: true });
         rows.push(created);
@@ -323,10 +376,11 @@ async function applyBatch(ctx: Ctx, m: MountRec, provider: Provider, batch: Pull
     }
     if (!provider.download) return;
     if (!row) {
-      // a live mount creates the file empty: the content is fetched when it is opened
-      const dl = live ? undefined : await provider.download(ctx, m, { remoteId: item.id, name: item.name, ...(item.mime !== undefined ? { mime: item.mime } : {}), ...(item.native ? { native: true } : {}) });
-      const mime = dl ? dl.mime ?? (item.native ? undefined : item.mime) : item.native ? undefined : item.mime;
-      const made = await withFreeName(item.name, label, (n) => filesCreate(ctx, parentFolder, n, dl?.blobId, mime, item.native ? "google_native" : undefined));
+      // a live mount creates the file empty: the content is fetched when it is opened. A Google-native file keeps Google's own type (a Doc is a Doc); its content is the export.
+      // One with no export (a Form, a Site) stays empty and opens at Google.
+      const dl = live || !fetchable(item) ? undefined : await provider.download(ctx, m, { remoteId: item.id, name: item.name, ...(item.mime !== undefined ? { mime: item.mime } : {}), ...(item.native ? { native: true } : {}) });
+      const mime = item.native ? item.mime : dl?.mime ?? item.mime;
+      const made = await withFreeName(ctx, item.name, label, namesIn(parent), (n) => filesCreate(ctx, parentFolder, n, dl?.blobId, mime, item.native ? "google_native" : undefined));
       if (made.renamed) conflicts += 1;
       const created = insertItem(ctx, m.id, {
         remoteId: item.id, parentKey: str(parent["item_key"]), fileId: made.value.fileId, name: item.name, isFolder: false, native: item.native === true,
@@ -356,7 +410,7 @@ async function applyBatch(ctx: Ctx, m: MountRec, provider: Provider, batch: Pull
         }
         return;
       }
-      if (live) {
+      if (live || !fetchable(item)) {
         // the copy in Vyre is now stale; it is fetched again the next time the file is opened
         patchItem(ctx, row, { remote_version: item.version, ...metaOf(item) });
         pulled += 1;
@@ -612,11 +666,15 @@ async function runPass(ctx: Ctx, mountId: string): Promise<PassResult> {
     queued.delete(mountId);
     const row = mountRow(ctx, mountId);
     if (row["state"] === "paused") return fail(ctx, "validation.precondition_failed", "This mount is paused. Resume it first.");
-    const m = recOf(row);
+    const rows = itemsOf(ctx, mountId);
+    const rec = recOf(row);
+    // a mount of My Drive made before the alias was resolved scans once more, so the feed's parents (the real id) are known
+    const onAlias = rec.kind === "google_drive" && rows.some((r) => isNull(r["parent_key"]) && r["remote_id"] === DRIVE_ROOT_ALIAS);
+    const m: MountRec = onAlias ? (({ cursor: _old, ...rest }) => rest)(rec) : rec;
     const provider = providerOf(m.kind);
     const started = ctx.now();
     patchMount(ctx, row, { state: "syncing" });
-    const rows = itemsOf(ctx, m.id);
+    await markSource(ctx, row);
     let pulled = 0;
     let conflicts = 0;
     let pushed = 0;
@@ -828,6 +886,7 @@ async function mountsAdd(ctx: Ctx, input: unknown): Promise<{ mountId: string; f
   ctx.db.run(`INSERT INTO mounts_mount (${cols.join(", ")}) VALUES (${cols.map(() => "?").join(", ")})`, ...cols.map((c) => fields[c]));
   const rootRemote = source.kind === "google_drive" || source.kind === "dropbox" ? source.ref ?? null : source.kind === "sharepoint" || source.kind === "onedrive" ? source.path ?? null : source.kind === "local" ? "" : null;
   insertItem(ctx, mountId, { key: "root", remoteId: rootRemote, parentKey: null, folderId, name, isFolder: true });
+  await markSource(ctx, mountRow(ctx, mountId));
   ctx.emit("folder.mounted", `folder/${folderId}`, { mountId, folderId, kind: source.kind, by: ctx.principal.id });
   const runId = ctx.run ?? nid(ctx, "run");
 
@@ -906,6 +965,20 @@ async function mountsList(ctx: Ctx, input: unknown): Promise<Row> {
   const all = liveMounts(ctx).filter((r) => (kind === undefined || str(r["kind"]) === kind) && maySee(ctx, r));
   const page = all.slice(offset, offset + limit);
   return { mounts: page.map((r) => viewOf(ctx, r)), ...(offset + limit < all.length ? { next: String(offset + limit) } : {}), total: all.length };
+}
+
+/**
+ * The local folders a person added to this Space from their own computers, with the path on that computer, for their CLI engine's sandbox (owner ruling 3 Nov). Only the host asks (the engine, as each
+ * engine process starts); a person, an agent or an outside actor is refused, since the paths are of the person's machine. A folder the person mounted is theirs to work in, private or shared.
+ */
+async function engineFolders(ctx: Ctx, input: unknown): Promise<{ folders: Row[] }> {
+  if (!isHostService(ctx.principal)) fail(ctx, "permission.no_grant", "only Vyre itself reads where a person's folders are on their computer");
+  const o = record(ctx, input);
+  const person = optStr(o, "person");
+  if (person === undefined) fail(ctx, "validation.bad_input", "person is required");
+  const folders = liveMounts(ctx).filter((r) => str(r["kind"]) === "local" && str(r["owner"]) === person && typeof r["local_path"] === "string" && (r["local_path"] as string).startsWith("/"))
+    .map((r) => ({ mountId: str(r["id"]), folderId: str(r["folder_id"]), ...(typeof r["device_id"] === "string" && r["device_id"] !== "" ? { deviceId: r["device_id"] } : {}), path: r["local_path"] as string }));
+  return { folders };
 }
 
 async function mountsGet(ctx: Ctx, input: unknown): Promise<{ mount: Row }> {
@@ -988,6 +1061,7 @@ async function mountsRemove(ctx: Ctx, input: unknown): Promise<{ removed: boolea
   const keepCopy = o["keepCopy"] !== false;
   return exclusive(`mount:${str(row["id"])}`, async () => {
     if (!keepCopy) await quietly(() => ctx.call("files.folder.delete", { folderId: str(row["folder_id"]) }));
+    else await markSource(ctx, row, false);
     ctx.db.run("DELETE FROM mounts_item WHERE mount_id = ?", row["id"]);
     patchMount(ctx, row, { deleted_at: ctx.now(), updated_at: ctx.now(), next_sync_at: null });
     ctx.emit("mount.removed", `folder/${str(row["folder_id"])}`, { mountId: str(row["id"]), folderId: str(row["folder_id"]), keptCopy: keepCopy });
@@ -1043,7 +1117,7 @@ async function ensureDir(ctx: Ctx, m: MountRec, rows: Row[], dir: string): Promi
       at = have;
       continue;
     }
-    const made = await withFreeName(seg, "device", (n) => filesCreateFolder(ctx, str(at["folder_id"]), n));
+    const made = await withFreeName(ctx, seg, "device", new Set(rows.filter((r) => r["parent_key"] === at["item_key"]).map((r) => str(r["name"]))), (n) => filesCreateFolder(ctx, str(at["folder_id"]), n));
     const created = insertItem(ctx, m.id, { remoteId: prefix, parentKey: str(at["item_key"]), folderId: made.value, name: seg, isFolder: true });
     rows.push(created);
     at = created;
@@ -1095,7 +1169,7 @@ async function applyLocal(ctx: Ctx, m: MountRec, rows: Row[], ch: Row, device: s
       return { applied: 1, conflicts: clash ? 1 : 0 };
     }
     const parent = await ensureDir(ctx, m, rows, dirOf(path));
-    const made = await withFreeName(leafOf(path), "device", (n) => filesCreate(ctx, str(parent["folder_id"]), n, blobId));
+    const made = await withFreeName(ctx, leafOf(path), "device", new Set(rows.filter((r) => r["parent_key"] === parent["item_key"]).map((r) => str(r["name"]))), (n) => filesCreate(ctx, str(parent["folder_id"]), n, blobId));
     rows.push(insertItem(ctx, m.id, { remoteId: path, parentKey: str(parent["item_key"]), fileId: made.value.fileId, name: leafOf(path), isFolder: false, remoteVersion: mtime, version: made.value.version }));
     return { applied: 1, conflicts: made.renamed ? 1 : 0 };
   }
@@ -1194,7 +1268,8 @@ async function mountsOpen(ctx: Ctx, input: unknown): Promise<Row> {
       const want = fresh?.version ?? (isNull(item["remote_version"]) ? undefined : str(item["remote_version"]));
       if (fresh) patchItem(ctx, item, { name: item["name"], ...metaOf(fresh) });
       if (flag(item["dirty"]) || want === undefined || item["cached_version"] === want) return;
-      if (flag(item["native"]) && fresh?.mime === undefined) return;
+      // a Google-native file is exported in the format of its kind; one with no export (a Form, a Site) has nothing to fetch and opens at Google
+      if (flag(item["native"]) && (fresh?.mime === undefined || !fetchable({ mime: fresh.mime, native: true }))) return;
       const dl = await provider.download!(ctx, m, { remoteId: str(item["remote_id"]), name: str(item["name"]), ...(fresh?.mime !== undefined ? { mime: fresh.mime } : {}), ...(flag(item["native"]) ? { native: true } : {}) });
       const r = obj(await ctx.call("files.write", { fileId, content: { blobId: dl.blobId }, reason: `Fetched from ${provider.label}` }));
       if (typeof r["changesetId"] === "string") {
@@ -1338,6 +1413,7 @@ async function mountsLag(ctx: Ctx, _input: unknown): Promise<Row> {
 export const engineHandlers = {
   "mounts.browse": (ctx: Ctx, input: unknown) => mountsBrowse(ctx, input),
   "mounts.list": (ctx: Ctx, input: unknown) => mountsList(ctx, input),
+  "mounts.engine_folders": (ctx: Ctx, input: unknown) => engineFolders(ctx, input),
   "mounts.get": (ctx: Ctx, input: unknown) => mountsGet(ctx, input),
   "mounts.add": (ctx: Ctx, input: unknown) => mountsAdd(ctx, input),
   "mounts.update": (ctx: Ctx, input: unknown) => mountsUpdate(ctx, input),

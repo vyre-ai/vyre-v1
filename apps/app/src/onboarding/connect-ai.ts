@@ -3,6 +3,8 @@
 import type { CapCall } from "../shell/session/caps.ts";
 import { startFlow } from "../ai-signin/flow.ts";
 import type { Flow } from "../ai-signin/flow.ts";
+import { ownAiRefusal } from "../ai-signin/own-ai.ts";
+import type { AiHome } from "../ai-signin/own-ai.ts";
 
 export interface AiOption { key: string; label: string; help: string }
 /** Sign in with a subscription: the provider keys are the Vault's own (modules/vault/providers). */
@@ -23,13 +25,13 @@ export const API_KEYS: readonly AiOption[] = [
 export type SignInFlow = Flow;
 
 /** Press "Sign in with X": the server starts that provider's own sign-in and answers its link (and the code to type, where the provider shows one). */
-export async function startSubscription(call: CapCall, providerKey: string, idempotencyKey: string): Promise<SignInFlow> {
+export async function startSubscription(call: CapCall, providerKey: string, idempotencyKey: string, home: AiHome = "here"): Promise<SignInFlow> {
   if (!SUBSCRIPTIONS.some((o) => o.key === providerKey)) throw new Error("Choose Claude, ChatGPT or Grok.");
-  return startFlow(call, providerKey, idempotencyKey);
+  return startFlow(call, providerKey, idempotencyKey, home);
 }
 
-/** The key goes to the Vault in this one call. The caller clears its field whether this resolves or rejects. */
-export async function saveApiKey(call: CapCall, providerKey: string, key: string, idempotencyKey: string): Promise<string> {
+/** The key goes to the Vault in this one call. The caller clears its field whether this resolves or rejects. `home`: where the person's own key can be kept from here (own-ai.ts). */
+export async function saveApiKey(call: CapCall, providerKey: string, key: string, idempotencyKey: string, home: AiHome = "here"): Promise<string> {
   if (!API_KEYS.some((o) => o.key === providerKey)) throw new Error("Choose the provider this key belongs to.");
   const value = key.trim();
   if (value === "") throw new Error("Paste your API key.");
@@ -38,6 +40,6 @@ export async function saveApiKey(call: CapCall, providerKey: string, key: string
     return out.provider.id;
   } catch (e) {
     // the message never repeats the key
-    throw new Error((e as { code?: string }).code === "auth.unauthenticated" ? "Your Mine Vault is locked on this device. Unlock it, then try again." : "Could not save this key. Check it and try again.");
+    throw new Error(ownAiRefusal(e, home) ?? "Could not save this key. Check it and try again.");
   }
 }

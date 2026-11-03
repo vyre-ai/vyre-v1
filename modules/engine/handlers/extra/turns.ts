@@ -2,7 +2,8 @@
 //   engine.turn.enqueue/start/append/wait/finish/fallback, engine.turn.get, engine.turns.list, engine.turn.retry.
 // The worker in @vyre/agent calls these through invoke, so every turn event has an owning capability and a trace id. Each turn is one engine_turns row;
 // queue rows stay in engine_thread_queue (shared with the in-process engine). A write that repeats (same queue row, same outcome) answers with the first result.
-import { nodeOfTurn } from "../../node-turns.ts";
+import { nodeOfTurn, whereOfTurn } from "../../node-turns.ts";
+import { REFUSAL_WORDS, egressOfTurn } from "../../egress-log.ts";
 import { engines } from "../../engine-install.ts";
 import { PRIORITY_INTERRUPT } from "../../../../agent/src/turn-engine/queue.ts";
 import { actorOf, engineIfBound, mintId, raise, sqlQueue } from "../../projections.ts";
@@ -20,10 +21,11 @@ export const LONG_TASK_MS = 60_000;
 const BLOCKING_CODES: ReadonlySet<string> = new Set(["provider.auth_failed", "auth.expired"]);
 const DEFAULT_SAMPLE_PERCENT = 5;
 
-/** The server a turn ran on, when its chat was pinned to one (node-turns.ts). */
+/** The server a turn ran on, when its chat was pinned to one, and every place it ran, in order (node-turns.ts). */
 function withNode(ctx: EngineCtx, r: Row): Row {
   const node = nodeOfTurn(ctx.db, str(r["turn_id"]));
-  return node === undefined ? r : { ...r, node_id: node };
+  const ran = whereOfTurn(ctx.db, str(r["turn_id"])).map((w) => ({ kind: w.kind, name: w.name }));
+  return { ...r, ...(node === undefined || node.startsWith("device:") ? {} : { node_id: node }), ...(ran.length > 0 ? { ran_on: ran } : {}) };
 }
 
 function loadTurn(ctx: EngineCtx, turnId: string): Row {
@@ -307,7 +309,7 @@ function stepOf(block: Row, prevAt: number): Step {
 export function turnGet(ctx: EngineCtx, input: { turnId: string }): {
   what: {
     turn: TurnOut; machine: "host" | "device"; keyUsed?: string; steps: Step[];
-    denials: Array<{ cap: string; reason: string }>; fallbacks: Array<{ kind: string; to: string; at: number }>;
+    denials: Array<{ cap: string; reason: string }>; fallbacks: Array<{ kind: string; to: string; at: number }>; reached?: string[];
   };
 } {
   const t = loadTurn(ctx, input.turnId);
@@ -327,7 +329,11 @@ export function turnGet(ctx: EngineCtx, input: { turnId: string }): {
   }
   const fallbacks = rows(ctx, "SELECT kind, to_what, at FROM engine_turn_fallbacks WHERE turn_id = ? ORDER BY n ASC", input.turnId).map((f) => ({ kind: str(f["kind"]), to: str(f["to_what"]), at: num(f["at"]) }));
   const key = optStr(t["account_ref"]);
-  return { what: { turn: turnOf(t), machine: str(t["placement"]) === "device" ? "device" : "host", ...(key === undefined ? {} : { keyUsed: key }), steps, denials, fallbacks } };
+  // where its engine went on the internet while it ran (egress-log.ts): the hosts reached, and each refusal as a denial
+  const net = egressOfTurn(ctx.db, { threadId: str(t["thread_id"]), person: str(t["asker"]), from: num(t["started_at"]), to: t["ended_at"] === null || t["ended_at"] === undefined ? ctx.now() : num(t["ended_at"]) });
+  for (const r of net.refused) denials.push({ cap: "internet", reason: `${r.host}:${r.port} blocked: ${REFUSAL_WORDS[r.reason]}` });
+  const firstRan = (Array.isArray(t["ran_on"]) ? (t["ran_on"] as Array<{ kind?: string }>)[0]?.kind : undefined);
+  return { what: { turn: turnOf(t), machine: str(t["placement"]) === "device" || firstRan === "computer" ? "device" : "host", ...(key === undefined ? {} : { keyUsed: key }), steps, denials, fallbacks, ...(net.reached.length > 0 ? { reached: net.reached } : {}) } };
 }
 
 export function turnsList(ctx: EngineCtx, input: { threadId: string; state?: TurnState[]; cursor?: string; limit?: number }): { turns: TurnOut[]; next?: string; total?: number } {

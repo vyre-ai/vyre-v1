@@ -14,7 +14,7 @@ import { ShareSheet } from "../../../../../../ui/src/ShareSheet/index.tsx";
 import type { ShareInput, UnshareInput } from "../../../../../../ui/src/ShareSheet/index.tsx";
 import { Glyph as Mark } from "../conversation/parts.tsx";
 import { Glyph } from "../sidebar/parts.tsx";
-import { createInput, draftInstructions, faceChoices, faceSeed, reachOffers, updatePatch } from "./model.ts";
+import { createInput, draftInstructions, faceChoices, faceSeed, grantsFor, reachOffers, updatePatch } from "./model.ts";
 import type { AgentDraft, ComputerChoice, VaultItem } from "./model.ts";
 
 type Call = (cap: string, input: unknown) => Promise<unknown>;
@@ -104,7 +104,7 @@ export function AgentForm({ agentId, call, newKey, onDone, onCancel, say, sharin
           for (const [i, text] of notes.entries()) await call("files.create", { folderId: ctx, name: `note-${files.length + i + 1}.md`, content: { text }, kind: "markdown", idempotencyKey: newKey() });
         }
       }
-      for (const item of picked) await call("vault.share", { resource: { type: "vault_item", id: item.id }, subject: { kind: "agent", id }, level: "use", idempotencyKey: newKey() });
+      for (const item of grantsFor(picked)) await call("vault.share", { resource: { type: "vault_item", id: item.id }, subject: { kind: "agent", id }, level: "use", idempotencyKey: newKey() });
       onDone(id);
     } catch { say("Could not save the agent. Try again."); } finally { setBusy(false); }
   };

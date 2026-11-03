@@ -176,7 +176,8 @@ test("Google Workspace: setup, check, then mail, calendar, Meet and Drive reach 
     const threads = await w.ok(MEMBER, "inbox.list_by_thread", {});
     assert.ok(JSON.stringify(threads).includes("Can we talk about the deed?"), "the message is in the Inbox thread list");
 
-    // 5 calendar: the poll chain that the sync started made Noah's Google calendar and pulled his event
+    // 5 calendar: setup made Noah's Google calendar, and Calendar's own scheduled pull (run by the server, which a member's private calendar does not refuse) lands his event
+    await w.d.hooks!.runPeriodic("calendar.pull_provider");
     const cals = await w.ok(MEMBER, "calendar.list_calendars", {});
     const gcal = cals.calendars.find((c: { provider: string }) => c.provider === "google");
     assert.ok(gcal, "Noah's Google calendar is in Calendar");
@@ -185,6 +186,9 @@ test("Google Workspace: setup, check, then mail, calendar, Meet and Drive reach 
     assert.deepEqual(seen.events.map((e: { title: string }) => e.title), ["Intake call"]);
     const mia = await w.ok(OTHER, "calendar.list_calendars", {});
     assert.equal(mia.calendars.some((c: { id: string }) => c.id === gcal.id), false, "another member does not see Noah's calendar");
+    assert.equal(gcal.title, NOAH, "the calendar is named for Noah's account, not \"Google Calendar\"");
+    await w.ok(MEMBER, "calendar.sync_now", { calendarId: gcal.id });   // Sync now on the sidebar row: Noah may pull his own calendar
+    assert.notEqual((await w.call(OTHER, "calendar.sync_now", { calendarId: gcal.id })).status, 200, "and Mia may not pull his");
 
     // 6 Meet: the same pass handed the conference's transcript to Meetings
     const meetings = await w.ok(MEMBER, "meetings.list", {});

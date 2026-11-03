@@ -113,7 +113,7 @@ export const SPACE_ROWS: readonly SpaceRowDef[] = [
   sr("tasks.require_human_approver", "agents", "Approvals", "Only people can approve", { kind: "switch" }, "An agent can never be the approver of a task."),
   sr("tasks.allow_self_review", "agents", "Approvals", "A reviewer can also be the assignee", { kind: "switch" }, "Off, whoever does the work cannot also review or approve it."),
   sr("changesets.different_person", "agents", "Approvals", "The approver must be someone else", { kind: "switch" }, "The person who asked an agent for file changes cannot approve them."),
-  sr("engine.agent_hops", "agents", "Limits", "Agents can reply to each other", { kind: "number", min: 1, max: 20, unit: "times" }, "After this many replies between agents, a person has to answer. It stops loops."),
+  sr("engine.agent_hops", "agents", "Limits", "Agents can reply to each other", { kind: "number", min: 1, max: 20, unit: "times" }, "After this many agent turns, helpers and teammates counted, a person has to answer or press Continue. It stops loops."),
   sr("tasks.review_loop_limit", "agents", "Limits", "A reviewer can send work back", { kind: "number", min: 1, max: 10, unit: "times" }, "After this many send-backs, a person decides."),
   sr("memory.require_review", "agents", "Memory and automations", "Review shared memory first", { kind: "switch" }, "Everything an agent learns for the Space waits in Proposed until someone accepts it."),
   sr("memory.meaning_search", "agents", "Memory and automations", "Search by meaning", { kind: "choice", options: [{ value: "local", label: "On this server" }, { value: "key", label: "With the memory key" }, { value: "off", label: "Off" }] }, "Finds memory by meaning as well as by its words."),

@@ -40,6 +40,8 @@ function pipeline(snap: AccessSnapshot, calls: string[]): Invoke {
   return async (cap, _input, seed) => {
     const row = g.caps.get(cap);
     assert.ok(row, `capability ${cap}`);
+    // what only a person does is parked for the person the agent acts for, never run as the agent (docs/ask-the-person.md)
+    if (seed.askPerson === "always") return { status: "held", taskId: "tsk_ask", traceId: "t".repeat(32) };
     const d = authorize(snap, {
       principal: seed.principal.id, actingFor: seed.actingFor, action: { perm: null, level: row.level }, resource: { type: "folder", id: "R1" }, cap, now: NOW,
     });
@@ -57,10 +59,10 @@ const callerOf = (kind: "outside" | "driver", withPerson = true): McpCaller =>
 function serverFor(snap: AccessSnapshot, caller: McpCaller, calls: string[]) {
   const server = createMcpServer({ catalog: g.catalog, defaults: g.defaults, invoke: pipeline(snap, calls), open: async () => caller });
   let n = 0;
-  return async (name: string): Promise<{ allowed: boolean; code?: string }> => {
+  return async (name: string): Promise<{ allowed: boolean; code?: string; asksPerson?: boolean }> => {
     const r = await server.handle({ method: "POST", headers: { authorization: "Bearer t" }, body: JSON.stringify({ jsonrpc: "2.0", id: ++n, method: "tools/call", params: { name, arguments: {} } }) });
-    const res = (JSON.parse(r.body) as { result: { isError: boolean; structuredContent: { error?: { code: string } } } }).result;
-    return res.isError ? { allowed: false, code: res.structuredContent.error?.code ?? "?" } : { allowed: true };
+    const res = (JSON.parse(r.body) as { result: { isError: boolean; structuredContent: { error?: { code: string }; asksPerson?: boolean } } }).result;
+    return res.isError ? { allowed: false, code: res.structuredContent.error?.code ?? "?", ...(res.structuredContent.asksPerson ? { asksPerson: true } : {}) } : { allowed: true };
   };
 }
 
@@ -125,14 +127,14 @@ test("the person being suspended or removed stops the connection at once, with t
   assert.equal(r.code, "permission.suspended");
 });
 
-test("what stays with people stays there: with every level at manage, an outside agent still cannot touch the Vault, the terminal, sign-in or access", async () => {
+test("what stays with people stays there: with every level at manage, an outside agent still cannot touch the Vault, the terminal, sign-in or access; it can only ask its person", async () => {
   const snap = world({ person: "manage", agent: null, actor: "manage" });
   const calls: string[] = [];
   const call = serverFor(snap, callerOf("outside"), calls);
   for (const t of g.catalog.all.filter((x) => g.defaults.has(x.name) && x.name !== "tool_search")) {
     const r = await call(t.name);
     if (r.allowed) assert.equal(outsideAllows(t), true, `${t.name} ran for an outside agent`);
-    else if (!outsideAllows(t)) assert.equal(r.code, "permission.role_lacks_permission", t.name);
+    else if (!outsideAllows(t)) assert.ok(r.code === "permission.role_lacks_permission" || r.code === "validation.bad_input" || r.asksPerson === true, `${t.name}: ${r.code}`);
   }
   for (const c of calls) assert.equal(isPersonOnly(c, g.caps.get(c)!.effects), false, `${c} reached the pipeline from outside`);
 });

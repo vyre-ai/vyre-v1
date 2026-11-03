@@ -8,6 +8,8 @@
 export const GUEST_DIR = "/run/vyre-net";
 export const GUEST_SOCKET = `${GUEST_DIR}/proxy.sock`;
 export const GUEST_BRIDGE = `${GUEST_DIR}/bridge.mjs`;
+/** The CONNECT helper for programs that do not speak HTTP proxy (ssh's ProxyCommand): `node connect.mjs <proxy port> <host> <port>`. */
+export const GUEST_CONNECT = `${GUEST_DIR}/connect.mjs`;
 /** The loopback port the sandbox's proxy variables name. */
 export const GUEST_PORT = 3128;
 
@@ -37,4 +39,37 @@ server.listen(port, "127.0.0.1", () => {
   child.on("exit", (code, signal) => { server.close(); process.exit(code === null ? (signal ? 128 + (os.constants.signals[signal] ?? 0) : 1) : code); });
   for (const s of ["SIGINT", "SIGTERM"]) process.on(s, () => child.kill(s));
 });
+`;
+
+/**
+ * usage: node connect.mjs <proxy port on 127.0.0.1> <host> <port>
+ * Asks the proxy for a tunnel (CONNECT host:port) and then carries stdin and stdout through it: ssh runs it as its ProxyCommand, so `git clone git@host:repo` reaches a public host through the wall.
+ * A refusal or a host that does not answer ends it at once with one line on stderr saying so, which ssh and git show as they are; it never waits on a tunnel that will not open.
+ */
+export const CONNECT_SOURCE = `import net from "node:net";
+const [portArg, host, target] = process.argv.slice(2);
+const authority = host && host.includes(":") ? "[" + host + "]:" + target : host + ":" + target;
+const s = net.connect(Number(portArg), "127.0.0.1");
+s.setTimeout(30000, () => { process.stderr.write("vyre: " + authority + " did not answer through the network proxy\\n"); process.exit(1); });
+s.on("error", (e) => { process.stderr.write("vyre: the network proxy is not reachable: " + e.message + "\\n"); process.exit(1); });
+s.on("connect", () => s.write("CONNECT " + authority + " HTTP/1.1\\r\\nHost: " + authority + "\\r\\n\\r\\n"));
+let buf = Buffer.alloc(0);
+const onData = (d) => {
+  buf = Buffer.concat([buf, d]);
+  const end = buf.indexOf("\\r\\n\\r\\n");
+  if (end < 0) { if (buf.length > 8192) process.exit(1); return; }
+  s.off("data", onData);
+  s.setTimeout(0);
+  const status = buf.subarray(0, buf.indexOf("\\r\\n")).toString("latin1");
+  if (!/^HTTP\\/1\\.[01] 200/.test(status)) {
+    process.stderr.write("vyre: " + authority + " cannot be reached from here (" + status.replace(/^HTTP\\/1\\.[01] /, "") + "): this Space's network policy refused it, or the host did not answer\\n");
+    process.exit(1);
+  }
+  const rest = buf.subarray(end + 4);
+  if (rest.length > 0) process.stdout.write(rest);
+  process.stdin.pipe(s);
+  s.pipe(process.stdout);
+  s.on("close", () => process.exit(0));
+};
+s.on("data", onData);
 `;

@@ -27,6 +27,7 @@ import { Shell } from "../spaces/Shell.tsx";
 import type { PlaceContext } from "../spaces/Shell.tsx";
 import { CapError, createCapCaller } from "./caps.ts";
 import { isLoopbackUrl } from "../../../../../client/src/gateway/local-key.ts";
+import { linkComputer, unlinkComputer } from "./computer-link.ts";
 import { PHONE_BELOW } from "./mobile-map.ts";
 import { openPhone } from "./phone.ts";
 import { readUrlIntoHub } from "./url.ts";
@@ -39,6 +40,8 @@ import type { StoredSession } from "./stored.ts";
 import { VaultUnlockHost } from "./VaultUnlockHost.tsx";
 import { ReportHost } from "../report/ReportHost.tsx";
 import { isMacShell, lockedIdentity, storeLock } from "./entry.ts";
+import { anyUnread } from "../../places/chats/sidebar/model.ts";
+import type { RecentOut } from "../../places/chats/sidebar/model.ts";
 import type { LockedIdentity } from "./entry.ts";
 
 const PhoneHost = lazy(() => import("./PhoneHost.tsx").then((m) => ({ default: m.PhoneHost })));
@@ -93,6 +96,8 @@ export function ShellHost({ stored, open, onSignedOut, onHub, hub: given, initia
   const flags = useRef<{ away: boolean; offline: boolean; terminal?: boolean; inbox?: boolean }>({ away: false, offline: false });
 
   useEffect(() => { onHub(hub); return () => onHub(null); }, [hub, onHub]);
+  // this computer runs the person's own chats in each Team Space they are signed in to here (computer-link.ts): at app start and whenever the signed-in Spaces change
+  useEffect(() => { void linkComputer(catalogue); }, [catalogueKey, stored.token]);
   useEffect(() => {
     let off = false;
     let opened: RealSession | null = null;
@@ -200,6 +205,20 @@ export function ShellHost({ stored, open, onSignedOut, onHub, hub: given, initia
     return off;
   }, [session, hub]);
 
+  // the quiet dot on Chats: anything unread for this person (a chat, a channel, a thread they are in), from the same live reads the Chats list draws, so it clears when they read it
+  useEffect(() => {
+    if (!session) return undefined;
+    const recent = session.hooks.capQuery<RecentOut>("chat.recent", { filter: "all" });
+    const channels = session.hooks.capQuery<{ channels: readonly { unread: number }[] }>("channels.list", {});
+    const read = (): void => {
+      const r = recent.getSnapshot(), c = channels.getSnapshot();
+      hub.dot("chats", anyUnread(r.status === "ready" ? r.data : null, c.status === "ready" ? c.data.channels : []));
+    };
+    const offs = [recent.subscribe(read), channels.subscribe(read)];
+    read();
+    return () => { for (const off of offs) off(); };
+  }, [session, hub]);
+
   const purge = useMemo<ShellPurge | undefined>(() => (session ? {
     client: webPurgeClient({ deviceId: "web", call: session.call, wipe: () => { wipeBrowserStorage(); clearStored(); }, done: () => onSignedOut() }),
     subscribe: (l) => session.onPurge(l),
@@ -213,16 +232,16 @@ export function ShellHost({ stored, open, onSignedOut, onHub, hub: given, initia
   useEffect(() => { if (consoleDoor && location.place !== "console") hub.go("console"); }, [consoleDoor, location.place, hub]);
   const renderPlace = (ctx: PlaceContext): ReactElement => failed !== null && session === null
     ? <States kind="error" message={`Couldn't reach ${stored.def.name}`} cause={failed} next="Try again" retryable onRetry={() => setAttempt((n) => n + 1)} />
-    : <PlaceHost place={ctx.place} runtime={session?.runtime ?? null} hash={ctx.hash} opened={(t) => { const next = formatHash(t); if (next !== ctx.hash) hub.go(ctx.place, next); }} />;
+    : <PlaceHost place={ctx.place} runtime={session?.runtime ?? null} hash={ctx.hash} opened={(t) => { const next = formatHash(t); if (next !== ctx.hash) hub.move(ctx.place, next); }} />;
   const signOut = (): void => {
-    forgetKey(); void dropKeyOnOwnNode(stored.baseUrl, stored.token).catch(() => undefined);
+    forgetKey(); void dropKeyOnOwnNode(stored.baseUrl, stored.token).catch(() => undefined); void unlinkComputer(stored);
     void session?.call("identity.sign_out", {}).catch(() => undefined);
     onSignedOut("manual");
   };
   const lock=():void=>{
     const identity=lockedIdentity({...stored,name:session?.me.name??stored.def.name});
     storeLock(identity);clearStored();
-    forgetKey();void dropKeyOnOwnNode(stored.baseUrl,stored.token).catch(()=>undefined);
+    forgetKey();void dropKeyOnOwnNode(stored.baseUrl,stored.token).catch(()=>undefined);void unlinkComputer(stored);
     void session?.call("identity.sign_out",{}).catch(()=>undefined);
     if(onLocked)onLocked(identity);else onSignedOut("manual");
   };
@@ -233,9 +252,9 @@ export function ShellHost({ stored, open, onSignedOut, onHub, hub: given, initia
   const personalCall = useMemo(() => { const p = catalogue.find((item) => item.def.kind === "personal" && item.def.spaceId !== stored.def.spaceId && isLoopbackUrl(item.baseUrl)); return p ? createCapCaller({ baseUrl: p.baseUrl, token: () => p.token }) : null; }, [catalogueKey, stored.def.spaceId]);
   const wrap = (el: ReactElement): ReactElement => <OnboardingHost call={session?.call ?? null} space={{ kind: stored.def.kind === "personal" ? "personal" : "team", name: stored.def.name }} mac={isMacShell()} runtime={session?.runtime ?? null} person={session?.me.id ?? null} personName={session?.me.name ?? null} address={stored.baseUrl} personalCall={personalCall} onGo={(place, hash) => hub.go(place as PlaceId, hash ?? "")} {...(onAddSpace?{onAddSpace}:{})}><>{el}<VaultUnlockHost /><ReportHost call={session?.call ?? null} place={location.place} /></></OnboardingHost>;
   if (deadConsole) return <View testID="console-redirect" style={{ flex: 1, backgroundColor: "var(--win)" as string }} />;
-  // on a computer the Console is a place in the shell; on a phone and at its own address nothing surrounds it
+  // on a computer the Console is a place in the shell; at its own address nothing surrounds it. In the app on a phone it is not there (owner ruling, 3 Nov): PhoneHost draws the Chat-about-it line
   if (consoleDoor && location.place !== "console") return <View testID="console-redirect" style={{ flex: 1, backgroundColor: "var(--win)" as string }} />;
-  if (location.place === "console" && (narrow || consoleDoor)) return wrap(<ConsoleAlone value><HubProvider hub={hub}>{renderPlace({ place: "console", hash: location.hash } as PlaceContext)}</HubProvider></ConsoleAlone>);
+  if (location.place === "console" && consoleDoor) return wrap(<ConsoleAlone value><HubProvider hub={hub}>{renderPlace({ place: "console", hash: location.hash } as PlaceContext)}</HubProvider></ConsoleAlone>);
   if (narrow) return wrap(<Suspense fallback={<View style={{ flex: 1, backgroundColor: "var(--win)" as string }} />}><PhoneHost session={session} location={{ place: location.place, hash: location.hash }} needsYou={needsYou} registerGo={registerGo} onSignOut={signOut} onLock={lock} {...(onSwitchSpace?{onSwitchSpace:selectSpace}:{})} {...(onAddSpace?{onAddSpace}:{})} /></Suspense>);
   return wrap(
     <>

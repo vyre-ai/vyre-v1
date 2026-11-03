@@ -16,7 +16,7 @@ export const SAMPLE_NOW = Date.UTC(2025, 9, 24, 10, 0, 0);
 const MIN = 60_000;
 const DAY = 86_400_000;
 
-const SPACE_DEFAULTS: Readonly<Record<string, unknown>> = { "gate.drafted_by_label": true, "gate.timeout_hours": 24, "gate.email_backstop_hours": 4, "engine.agent_hops": 4, "tasks.review_loop_limit": 2, "access.review_every_days": 90, "git.protected_branches": ["main", "master"], "files.review_changes": { git: true, cloud_mount: true, plain: false }, "vault.export_expiry_max": "1d", "contacts.sms_requires_consent": true, "google.auto_connect": true, "microsoft.auto_connect": true };
+const SPACE_DEFAULTS: Readonly<Record<string, unknown>> = { "gate.drafted_by_label": true, "gate.timeout_hours": 24, "gate.email_backstop_hours": 4, "engine.agent_hops": 8, "tasks.review_loop_limit": 2, "access.review_every_days": 90, "git.protected_branches": ["main", "master"], "files.review_changes": { git: true, cloud_mount: true, plain: false }, "vault.export_expiry_max": "1d", "contacts.sms_requires_consent": true, "google.auto_connect": true, "microsoft.auto_connect": true };
 
 type Def = Omit<SettingRow, "value" | "source" | "floorable"> & { value?: unknown };
 const d = (key: string, scope: "space" | "person", page: string, title: string, def: unknown, value?: unknown): Def => ({ key, scope, page, title, default: def, ...(value !== undefined ? { value } : {}) }) as Def;

@@ -12,6 +12,7 @@ export const handlers: Handlers<HandlerCtx> = {
   "mounts.doc_insert_text": async (ctx) => { throw new VyreErr(notImplemented("mounts.doc_insert_text", ctx.trace)); },
   "mounts.doc_replace_text": async (ctx) => { throw new VyreErr(notImplemented("mounts.doc_replace_text", ctx.trace)); },
   "mounts.editors": async (ctx) => { throw new VyreErr(notImplemented("mounts.editors", ctx.trace)); },
+  "mounts.engine_folders": async (ctx) => { throw new VyreErr(notImplemented("mounts.engine_folders", ctx.trace)); },
   "mounts.file_link": async (ctx) => { throw new VyreErr(notImplemented("mounts.file_link", ctx.trace)); },
   "mounts.get": async (ctx) => { throw new VyreErr(notImplemented("mounts.get", ctx.trace)); },
   "mounts.history": async (ctx) => { throw new VyreErr(notImplemented("mounts.history", ctx.trace)); },

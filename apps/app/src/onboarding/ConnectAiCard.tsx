@@ -5,15 +5,16 @@ import type { ReactElement } from "react";
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import type { CapCall } from "../shell/session/caps.ts";
 import { SignInPanel } from "../ai-signin/SignInPanel.tsx";
-import { SIGNIN_BUTTONS } from "../ai-signin/flow.ts";
+import { LOCAL_SIGNINS, SIGNIN_BUTTONS, localNote, onMacDevice, takeLocalSignin } from "../ai-signin/flow.ts";
 import { API_KEYS, saveApiKey, startSubscription } from "./connect-ai.ts";
 import type { SignInFlow } from "./connect-ai.ts";
 import { Mark } from "./ProviderLogo.tsx";
 import { Row } from "../../../../ui/src/Row/index.tsx";
 import { checkKey } from "../ai-signin/key-prefix.ts";
 import { CARD } from "./card-style.ts";
+import type { AiHome } from "../ai-signin/own-ai.ts";
 
-export function ConnectAiCard({ call, connected, onConnected, initialFlow }: { call: CapCall; connected?: boolean; onConnected(providerId: string): void; /** Opens with this sign-in showing (screenshots and tests). */ initialFlow?: SignInFlow & { provider: string } }): ReactElement {
+export function ConnectAiCard({ call, connected, onConnected, initialFlow, home = "here", local = false, mac = onMacDevice() }: { call: CapCall; connected?: boolean; onConnected(providerId: string): void; /** Opens with this sign-in showing (screenshots and tests). */ initialFlow?: SignInFlow & { provider: string }; /** where the person's own key can be kept from here, for the words of a refusal (ai-signin/own-ai.ts) */ home?: AiHome; /** A Personal Space: offer the Claude Code or Codex sign-in already on this computer first (owner decision D2). */ local?: boolean; /** On a Mac the Claude button says the Keychain will ask once. */ mac?: boolean }): ReactElement {
   const attempt = useRef(globalThis.crypto?.randomUUID?.() ?? String(Date.now()));
   const [mode, setMode] = useState<"tiles" | "key">("tiles");
   const [flow, setFlow] = useState<(SignInFlow & { provider: string }) | null>(initialFlow ?? null);
@@ -47,7 +48,7 @@ export function ConnectAiCard({ call, connected, onConnected, initialFlow }: { c
         <Text testID="ai-key-note" style={s.dim}>The key goes straight into your Vault. I never see it.</Text>
         {error ? <Text testID="ai-error" style={s.err}>{error}</Text> : null}
         <View style={s.row}>
-          <Pressable testID="ai-key-save" accessibilityRole="button" disabled={busy || secret.trim() === ""} onPress={() => void run(async () => { const value = secret; setSecret(""); onConnected(await saveApiKey(call, provider, value, attempt.current)); })} style={[s.primary, (busy || secret.trim() === "") && s.off]}><Text style={[s.primaryText, (busy || secret.trim() === "") && s.offText]}>{busy ? "Saving" : "Save key"}</Text></Pressable>
+          <Pressable testID="ai-key-save" accessibilityRole="button" disabled={busy || secret.trim() === ""} onPress={() => void run(async () => { const value = secret; setSecret(""); onConnected(await saveApiKey(call, provider, value, attempt.current, home)); })} style={[s.primary, (busy || secret.trim() === "") && s.off]}><Text style={[s.primaryText, (busy || secret.trim() === "") && s.offText]}>{busy ? "Saving" : "Save key"}</Text></Pressable>
           <Pressable testID="ai-back" accessibilityRole="button" onPress={() => { setSecret(""); setMode("tiles"); setError(""); }} style={s.ghost}><Text style={s.tileText}>Back</Text></Pressable>
         </View>
       </View>
@@ -57,12 +58,21 @@ export function ConnectAiCard({ call, connected, onConnected, initialFlow }: { c
     <View testID="ai-tiles" style={s.col}>
       {/* ui-rows-lint: not a list (sign-in choices are tiles, not list rows) */}
       {flow ? (
-        <SignInPanel call={call as never} flow={flow} onCancel={() => { setFlow(null); setError(""); }} onDone={(p) => { setFlow(null); onConnected(p.id); }} />
+        <SignInPanel call={call as never} flow={flow} home={home} onCancel={() => { setFlow(null); setError(""); }} onDone={(p) => { setFlow(null); onConnected(p.id); }} />
       ) : (
         <View style={s.col}>
           {/* ui-rows-lint: not a list (sign-in choices are buttons, not list rows) */}
+          {local ? LOCAL_SIGNINS.map((o) => {
+            const note = localNote(o.key, mac);
+            return (
+              <View key={`local-${o.key}`} style={s.local}>
+                <Pressable testID={`ai-local-${o.key}`} accessibilityRole="button" accessibilityLabel={o.button} {...(note ? { accessibilityHint: note } : {})} disabled={busy} onPress={() => void run(async () => onConnected((await takeLocalSignin(call as never, o.key, `${attempt.current}:local:${o.key}:${Date.now()}`, home)).id))} style={[s.signin, busy && s.busyDim]}><Mark k={o.key} size={18} /><Text style={s.tileText}>{o.button}</Text></Pressable>
+                {note ? <Text testID={`ai-local-note-${o.key}`} style={s.dim}>{note}</Text> : null}
+              </View>
+            );
+          }) : null}
           {SIGNIN_BUTTONS.map((o) => (
-            <Pressable key={o.key} testID={`ai-sub-${o.key}`} accessibilityRole="button" accessibilityLabel={o.button} disabled={busy} onPress={() => void run(async () => setFlow({ ...(await startSubscription(call, o.key, `${attempt.current}:${o.key}:${Date.now()}`)), provider: o.key }))} style={[s.signin, busy && s.busyDim]}><Mark k={o.key} size={18} /><Text style={s.tileText}>{o.button}</Text></Pressable>
+            <Pressable key={o.key} testID={`ai-sub-${o.key}`} accessibilityRole="button" accessibilityLabel={o.button} disabled={busy} onPress={() => void run(async () => setFlow({ ...(await startSubscription(call, o.key, `${attempt.current}:${o.key}:${Date.now()}`, home)), provider: o.key }))} style={[s.signin, busy && s.busyDim]}><Mark k={o.key} size={18} /><Text style={s.tileText}>{o.button}</Text></Pressable>
           ))}
         </View>
       )}
@@ -74,6 +84,7 @@ export function ConnectAiCard({ call, connected, onConnected, initialFlow }: { c
 
 const s = StyleSheet.create({
   col: { gap: 10 },
+  local: { gap: 4 },
   row: { flexDirection: "row", flexWrap: "wrap", gap: 8, alignItems: "center" },
   tile: { minHeight: 40, paddingHorizontal: 16, borderRadius: 10, borderWidth: 1, borderColor: "var(--line-2)" as string, alignItems: "center", justifyContent: "center", backgroundColor: "var(--win)" as string },
   signin: { minHeight: 44, paddingHorizontal: 18, borderRadius: 10, flexDirection: "row", gap: 10, borderWidth: 1, borderColor: "var(--line-2)" as string, alignItems: "center", justifyContent: "flex-start", backgroundColor: "var(--win)" as string },

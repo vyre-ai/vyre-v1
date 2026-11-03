@@ -47,10 +47,12 @@ const accountRow = t.obj({
 const turnRow = t.obj({
   turnId: id.turn, threadId: id.thread, agentId: id.agent, asker: t.str(), accountRef: t.opt(accountRef), engine: t.str(), model: t.str(), state: turnState,
   traceId: id.trace, runId: t.opt(id.run), startedAt: t.ts(), endedAt: t.opt(t.ts()), tokensIn: t.int(), tokensOut: t.int(), costMicros: t.int(), error: t.opt(errShape), nodeId: t.opt(t.str({ description: 'The server of the asker\'s the turn ran on, when the chat was pinned to one' })),
+  ranOn: t.opt(t.arr(t.obj({ kind: t.enm('computer', 'server', 'space'), name: t.str({ examples: ['Dana\'s MacBook', 'the Northwind server'] }) }), { description: 'Where the turn ran, in order: two places when its computer went to sleep and it went on elsewhere' })),
 });
 const whatHappened = t.obj({
   turn: turnRow, machine: t.enm('host', 'device'), keyUsed: t.opt(t.str()), steps: t.arr(t.obj({ idx: t.int(), kind: t.str(), title: t.str(), durationMs: t.int(), ok: t.bool() })),
   denials: t.arr(t.obj({ cap: t.str(), reason: t.str() })), fallbacks: t.arr(t.obj({ kind: t.str(), to: t.str(), at: t.ts() })),
+  reached: t.opt(t.arr(t.str({ examples: ['github.com'] }), { description: 'Hosts the engine reached on the internet while the turn ran (a sample, at most 20)' })),
 });
 const incidentRow = t.obj({
   incidentId: t.id('inc'), kind: t.enm('label_denied', 'scrub_miss', 'runaway_spend', 'repeated_failure', 'person_report', 'other'), title: t.str(),
@@ -239,17 +241,18 @@ export default defineManifest({
     }),
     read('engine.placement.decide', 'Decide where a turn runs: host or the asker device (private chat rules, computers, routines, phone and web askers)', {
       in: { ...threadT, agentId: id.agent, kind: t.enm('message', 'interrupt', 'wake', 'handoff') },
-      out: { placement: t.enm('host', 'device', 'wait'), reason: t.str(), wakeLine: t.opt(t.str({ examples: ['Your computer is off'] })), nodeId: t.opt(t.str()) }, on: ['thread', '/threadId'],
+      out: { placement: t.enm('host', 'device', 'wait'), reason: t.str(), wakeLine: t.opt(t.str({ examples: ['Your computer is off'] })), nodeId: t.opt(t.str()), deviceId: t.opt(t.str({ description: 'The computer of the asker\'s the turn runs on, or the pinned one it waits for' })) }, on: ['thread', '/threadId'],
     }),
-    write('engine.placement.set', 'Pin a private chat to where it runs: this computer, the Space (Team Space), or one of your own servers, or auto to take the pin off. The next turn goes there; a teammate\'s machine is never a choice', {
-      in: { ...threadT, target: t.enm('auto', 'device', 'space', 'server'), serverId: t.opt(t.str()) }, out: { target: t.enm('auto', 'device', 'space', 'server'), serverId: t.opt(t.str()) },
+    write('engine.placement.set', 'Choose where a private chat runs: one of your computers, the Space, one of your own servers, or auto. Never a teammate\'s machine. once with space runs the next turn on the Space once', {
+      in: { ...threadT, target: t.enm('auto', 'device', 'space', 'server'), serverId: t.opt(t.str()), deviceId: t.opt(t.str()), once: t.opt(t.bool()) }, out: { target: t.enm('auto', 'device', 'space', 'server'), serverId: t.opt(t.str()), deviceId: t.opt(t.str()) },
       on: ['thread', '/threadId'], perm: null, level: 'use', tool: 'chats', errors: ['permission.no_grant', 'validation.precondition_failed', 'validation.bad_input'],
     }),
     read('engine.placement.options', 'What the runs-on chip of a chat offers: this computer, the Space in a Team Space and each of your servers, with whether each is on and why not; where the chat runs now, and whether the person pinned it (not pinned is Automatic)', {
       in: { ...threadT, agentId: t.opt(id.agent) },
       out: {
-        private: t.bool(), pinned: t.bool(), effective: t.obj({ target: t.enm('device', 'space', 'server'), serverId: t.opt(t.str()) }),
-        options: t.arr(t.obj({ target: t.enm('device', 'space', 'server'), serverId: t.opt(t.str()), name: t.str(), online: t.bool(), reason: t.opt(t.str()) })),
+        private: t.bool(), pinned: t.bool(), effective: t.obj({ target: t.enm('device', 'space', 'server'), serverId: t.opt(t.str()), deviceId: t.opt(t.str()) }),
+        automatic: t.opt(t.obj({ target: t.enm('device', 'space', 'server'), serverId: t.opt(t.str()), deviceId: t.opt(t.str()) }, { description: 'Where Automatic would run the next turn now, the pin set aside' })),
+        options: t.arr(t.obj({ target: t.enm('device', 'space', 'server'), serverId: t.opt(t.str()), deviceId: t.opt(t.str()), current: t.opt(t.bool()), name: t.str(), online: t.bool(), reason: t.opt(t.str()) })),
       },
       on: ['thread', '/threadId'], tool: 'chats', label: 'check',
     }),
@@ -465,10 +468,16 @@ export default defineManifest({
     health('engine', 'AI engine', 'engine.health', 'Open Settings > Models and usage and test the account, or switch model'),
   ],
   settings: [
-    setting('engine.agent_hops', 'space', 'Policies', 'Agent-to-agent hops before a person must reply', t.int({ minimum: 1, maximum: 20 }), 4, { floorable: true }),
+    // 8 agent turns since a person wrote, helpers and teammates counted, then a Continue card (owner ruling, 3 Nov 2026; was 4)
+    setting('engine.agent_hops', 'space', 'Policies', 'Agent turns, helpers and teammates counted, before a person must reply', t.int({ minimum: 1, maximum: 20 }), 8, { floorable: true }),
     setting('engine.allowed_accounts', 'space', 'Models and providers', 'Allowed AI accounts', t.enm('any', 'company'), 'any', { floorable: true }),
     setting('engine.review_sampling', 'space', 'Review sampling', 'Share of turns sampled for human review', t.obj({ percent: t.int({ minimum: 0, maximum: 100 }), labels: t.arr(label) }), { percent: 5, labels: ['confidential', 'restricted'] }),
     setting('engine.local_runs', 'person', 'Models and usage', 'Run my private chats on this computer', t.bool(), true),
+    // owner ruling 3 Nov: AI tools use the internet as they do in Claude Code and Codex. Read when each engine process starts, on Space servers and on members' computers (modules/engine/egress-log.ts)
+    setting('engine.egress', 'space', 'Internet access', 'What AI tools can reach on the internet', t.obj({
+      mode: t.enm('public', 'providers', 'list'),
+      hosts: t.arr(t.str({ pattern: '^(\\*\\.)?([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\\.)+[a-z]{2,63}$', maxLength: 253, examples: ['github.com'] }), { maxItems: 500 }),
+    }), { mode: 'public', hosts: [] }),
   ],
   screens: [
     screen('settings.models-usage', 'settings', 'ui:ModelsUsage', {
@@ -476,7 +485,9 @@ export default defineManifest({
         accounts: ['engine.accounts.list', {}, true], models: ['engine.models.list', { accountRef: '/state/accountRef' }, true], defaults: ['engine.defaults.get', {}, true],
         usage: ['engine.usage.query', { by: '/state/by', from: '/state/from', to: '/state/to' }, true],
       },
-      a: { probe: ['engine.probe_account', { accountRef: '/state/accountRef' }], setDefaults: ['engine.defaults.set', {}], shareSubscription: ['engine.subscription_share.set', {}], runtime: ['engine.runtime.opt_in', {}] },
+      // No "Let the Space continue my chats when my computer is off" toggle here (owner ruling, 3 Nov 2026): it is on by default and its screen comes back with sealed chats.
+      // engine.runtime.opt_in stays a capability; only the Settings action is gone.
+      a: { probe: ['engine.probe_account', { accountRef: '/state/accountRef' }], setDefaults: ['engine.defaults.set', {}], shareSubscription: ['engine.subscription_share.set', {}] },
       empty: 'No accounts yet', primary: 'Open Vault',
     }),
     screen('console.ai-models', 'console', 'ui:ConsoleAiModels', {

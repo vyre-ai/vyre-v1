@@ -154,8 +154,8 @@ export const AGENT_PATH = fileURLToPath(new URL("./agent.ts", import.meta.url).h
 
 /** Options the agent takes: plain data, so they cross into the VM as they are. */
 export interface AgentOptions {
-  /** startNetWall's options without functions: the same egress policy the Linux wall gets (modules/engine/sandbox-default.ts). */
-  wall: { allow: readonly string[] } & Record<string, unknown>;
+  /** The wall's egress, plain JSON (it crosses into the VM): the allow list and the shared rule (egress-policy.ts), the same the Linux wall gets (modules/engine/sandbox-default.ts). */
+  wall: { allow: readonly string[]; rule?: unknown };
   /** A folder in the VM's own file system for the wall and the MCP sockets (a unix socket cannot live on /mnt/c), the agent's user's own. */
   base: string;
   /** Tests only: these host names resolve to a public-looking address and connect to 127.0.0.1:<port> in the VM. */

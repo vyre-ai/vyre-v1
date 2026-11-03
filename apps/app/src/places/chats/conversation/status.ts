@@ -40,6 +40,8 @@ const STATUS_WORDS: Record<string, { message: string; cause?: string; next?: { k
   no_account: { message: "Connect your AI to get replies.", cause: "No AI account is saved for this chat yet.", next: [{ key: "connect_ai", label: "Connect your AI" }], retryable: false },
   account_unavailable: { message: "Your AI account could not be reached just now.", next: [{ key: "connect_ai", label: "Check your AI account" }], retryable: true },
   "engine.server_off": { message: "Your server is off, so this chat did not run.", retryable: true },
+  "engine.device_off": { message: "Your computer is off, so this chat did not run.", next: [{ key: "run_on_server", label: "Run it on the server instead" }], retryable: true },
+  "engine.device_gone": { message: "Your computer went away in the middle of this.", next: [{ key: "run_on_server", label: "Run it on the server instead" }], retryable: true },
   "engine.link_insecure": { message: "Your server needs a secure link (https) before it can run your chats.", retryable: true },
   "engine.cli_missing": { message: "The engine is not installed here.", next: [{ key: "connect_ai", label: "Connect an account" }], retryable: true },
   "engine.vault_locked": { message: "Your Vault is locked.", cause: "Unlock it to let this chat use your AI account.", next: [{ key: "unlock_vault", label: "Unlock" }], retryable: false },
@@ -99,12 +101,18 @@ export function wordsFor(code: string): { message: string; cause?: string; next?
 export const KNOWN_CODES: readonly string[] = Object.keys(STATUS_WORDS);
 
 /** How a turn_status block reads: a failed turn is the inline error row with a plain sentence and one action; a stopped or parked turn is a quiet line. */
-export type StatusView = { kind: "error"; block: MessageBlock } | { kind: "note"; id: string; text: string } | { kind: "approval"; id: string; taskId: string };
+export type StatusView = { kind: "error"; block: MessageBlock } | { kind: "note"; id: string; text: string } | { kind: "approval"; id: string; taskId: string } | { kind: "wait"; id: string; text: string; action: { key: string; label: string } };
+
+/** The line of a chat that waits for the person's computer (lane l-runson), and its one action. */
+export const DEVICE_WAIT_TEXT = "Your computer is off. This chat runs when it is back.";
+export const RUN_ON_SERVER = { key: "run_on_server", label: "Run it on the server instead" } as const;
 
 export function statusView(b: MessageBlock): StatusView {
   const d = dataOf(b);
   const state = str(d.state);
   if (state === "note" && str(d.text) !== "") return { kind: "note", id: b.id, text: str(d.text) };
+  // a chat pinned to the person's computer waits for it, quietly, with the way to run it on the server instead
+  if (state === "device_wait") return { kind: "wait", id: b.id, text: str(d.text) || DEVICE_WAIT_TEXT, action: { ...RUN_ON_SERVER } };
   if (state === "cancelled") return { kind: "note", id: b.id, text: "Stopped." };
   if (state === "waiting" && str(d.taskId) !== "") return { kind: "approval", id: b.id, taskId: str(d.taskId) };
   if (state === "waiting") return { kind: "note", id: b.id, text: "Waiting for your approval." };
@@ -124,3 +132,9 @@ export function statusView(b: MessageBlock): StatusView {
   return { kind: "error", block: { ...b, type: "error", data: { code: str(d.code), message: w.message, ...(w.cause ? { cause: w.cause } : {}), next: w.next ?? [], retryable: w.retryable, turnId: str(d.turnId), steps: [...(str(d.code) ? [["Code", str(d.code)]] : []), ["Reply", str(d.turnId)]] } } };
 }
 
+
+/** "Olivia's Mac, then the Northwind server": where a turn ran, in order, as its details say it. */
+export function ranOnText(ran: ReadonlyArray<{ kind: string; name: string }>): string {
+  const word = (r: { kind: string; name: string }): string => (r.kind === "space" && /^the /.test(r.name) ? r.name.charAt(0).toUpperCase() + r.name.slice(1) : r.name);
+  return ran.map((r, i) => (i === 0 ? word(r) : r.name)).join(", then ");
+}

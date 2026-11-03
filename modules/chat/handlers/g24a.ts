@@ -225,14 +225,23 @@ export async function membersRemove(ctx: ChatCtx, input: { threadId: string; per
 
 // ---- read cursor ------------------------------------------------------------------------------------------------------------------------------------
 
-export async function markRead(ctx: ChatCtx, input: { threadId: string; upto?: number }) {
+export async function markRead(ctx: ChatCtx, input: { threadId: string; upto?: number; unread?: boolean }) {
   const t = load(ctx, input.threadId);
   if (input.upto !== undefined && (!Number.isInteger(input.upto) || input.upto < 0)) raise(ctx, "validation.bad_input", "A sequence number is a whole number from 0.");
+  if (input.upto !== undefined && input.unread === true) raise(ctx, "validation.bad_input", "Mark as Unread takes no sequence number.");
   ensureReadTable(ctx);
   const person = askerOf(ctx);
   const top = Number((ctx.db.all('SELECT MAX(threadSeq) AS top FROM chat_message WHERE "thread" = ? AND deleted_at IS NULL', t.id) as Row[])[0]?.["top"] ?? 0);
-  // The cursor only moves forward, and never past the newest message.
-  const seq = Math.max(cursorOf(ctx, t.id, person), Math.min(input.upto ?? top, top));
+  const was = cursorOf(ctx, t.id, person);
+  let seq: number;
+  if (input.unread === true) {
+    // Mark as Unread: the newest message someone else wrote counts as new again. A chat with nothing from anyone else has nothing to be new, so the cursor stays.
+    const theirs = Number((ctx.db.all('SELECT MAX(threadSeq) AS s FROM chat_message WHERE "thread" = ? AND author <> ? AND deleted_at IS NULL', t.id, person) as Row[])[0]?.["s"] ?? 0);
+    seq = theirs > 0 ? Math.min(was, theirs - 1) : was;
+  } else {
+    // The cursor only moves forward, and never past the newest message.
+    seq = Math.max(was, Math.min(input.upto ?? top, top));
+  }
   if (ctx.db.run("UPDATE chat_thread_read SET seq = ? WHERE thread = ? AND principal = ?", seq, t.id, person).changes === 0) {
     ctx.db.run("INSERT INTO chat_thread_read (thread, principal, seq) VALUES (?, ?, ?)", t.id, person, seq);
   }

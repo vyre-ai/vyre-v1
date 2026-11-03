@@ -1,7 +1,7 @@
-// A place opens once in the tab bar: a place is one tab, an item is one tab by its subject, and a saved list with duplicates (rc.6) loads without them.
+// A place opens once in the tab bar: a place is one tab, an item is one tab by its subject, going somewhere inside a place moves its tab, and a saved list with duplicates (rc.6) loads without them.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { EMPTY_TABS, createTabsController, openTab, placeTab, readTabs, tabKey, tabsStorageKey, writeTabs } from "./store.ts";
+import { EMPTY_TABS, createTabsController, moveTab, openTab, placeTab, readTabs, tabKey, tabsStorageKey, writeTabs } from "./store.ts";
 import type { TabsStorage } from "./store.ts";
 
 const mem = (): TabsStorage & { data: Map<string, string> } => {
@@ -90,4 +90,53 @@ test("a saved Join tab is dropped on load and Join never opens as a tab", () => 
   assert.notEqual(c.state().active, "join");
   c.openPlace("join");
   assert.deepEqual(c.state().tabs.map((t) => t.place), ["files", "chats"]);
+});
+
+test("going somewhere inside the selected tab's place moves that tab: opening conversations in Inbox and chats in Chats never makes a second Inbox or Chats", () => {
+  const c = createTabsController({ deviceId: "web", personId: "p", spaceId: "s", storage: null, start: "chats" });
+  c.openPlace("inbox");
+  for (const id of ["cnv_1", "cnv_2", "cnv_3"]) c.move("inbox", `subject=conversation:${id}`);
+  c.move("inbox", "");
+  c.move("inbox", "subject=conversation:cnv_4");
+  c.select("chats");
+  for (const id of ["thr_1", "thr_2"]) c.move("chats", `subject=thread:${id}`);
+  c.move("chats", "screen=chats.threads");
+  c.move("chats", "subject=thread:thr_3");
+  const s = c.state();
+  assert.deepEqual(s.tabs.map((t) => [t.key, t.title]), [["chats", "Chats"], ["inbox", "Inbox"]], "one Inbox, one Chats");
+  assert.equal(s.tabs.find((t) => t.key === "inbox")?.hash, "subject=conversation:cnv_4", "the Inbox tab is where the person left it");
+  assert.equal(s.active, "chats");
+  // the rail: an open place focuses its tab and keeps where it was
+  c.openPlace("inbox");
+  assert.deepEqual([c.state().tabs.length, c.state().active, c.state().tabs.find((t) => t.key === "inbox")?.hash], [2, "inbox", "subject=conversation:cnv_4"]);
+  // a link to what a place's tab shows now selects that tab, never a copy of it
+  c.select("chats");
+  c.openPlace("inbox", "subject=conversation:cnv_4");
+  assert.deepEqual([c.state().tabs.length, c.state().active], [2, "inbox"]);
+});
+
+test("an item opened as a tab of its own stays one; inside it the tab follows the person, and where another tab holds the place, that tab is selected", () => {
+  let s = openTab(EMPTY_TABS, placeTab("files"));
+  s = openTab(s, placeTab("files", "subject=file:f1", "Plan"));
+  assert.deepEqual(s.tabs.map((t) => t.key), ["files", "files:subject=file:f1"]);
+  // inside the item's tab the person opens another file: the tab becomes that file's (its name arrives later)
+  s = moveTab(s, "files", "subject=file:f2");
+  assert.deepEqual(s.tabs.map((t) => [t.key, t.title]), [["files", "Files"], ["files:subject=file:f2", "Files"]]);
+  // and goes back to the folder list: the Files tab already shows Files, so it is selected and no second Files tab is made
+  s = moveTab(s, "files", "folderId=fld_1");
+  assert.deepEqual([s.tabs.map((t) => t.key), s.active, s.tabs[0]?.hash], [["files", "files:subject=file:f2"], "files", "folderId=fld_1"]);
+  // moving to another place, or from a "+" tab, is an ordinary open
+  s = moveTab(s, "chats", "subject=thread:t1");
+  assert.deepEqual(s.tabs.map((t) => t.key), ["files", "files:subject=file:f2", "chats:subject=thread:t1"]);
+  const same = moveTab(s, "chats", "subject=thread:t1");
+  assert.equal(same, s, "where it already is: nothing changes");
+});
+
+test("the controller's move keeps a pinned tab pinned and never opens a hidden place", () => {
+  const c = createTabsController({ deviceId: "web", personId: "p", spaceId: "s", storage: null, start: "chats", hidden: ["apps"] });
+  c.move("apps", "screen=apps.forms");
+  assert.deepEqual(c.state().tabs.map((t) => t.key), ["chats"]);
+  const pinned = { tabs: [{ ...placeTab("inbox"), pinned: true }], active: "inbox" };
+  const moved = moveTab(pinned, "inbox", "subject=conversation:c1");
+  assert.deepEqual([moved.tabs.length, moved.tabs[0]?.pinned, moved.tabs[0]?.key], [1, true, "inbox"]);
 });

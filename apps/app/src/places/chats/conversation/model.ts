@@ -308,16 +308,8 @@ export function stopLabel(working: readonly string[], nameOf: (id: string) => st
 
 export interface Candidate { id: string; name: string; kind: "person" | "agent" }
 
-/** The people and agents @mentioned in the text, by the first word of their name, as the composer line counts them. */
-export function mentionsIn(text: string, candidates: readonly Candidate[]): { kind: "person" | "agent"; id: string }[] {
-  const found: { at: number; kind: "person" | "agent"; id: string }[] = [];
-  for (const c of candidates) {
-    const first = (c.name.trim().split(/\s+/)[0] ?? c.name).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    const m = new RegExp(`(^|[^\\w])@${first}(?![\\p{L}\\p{N}_])`, "iu").exec(text);
-    if (m) found.push({ at: m.index + m[0].length, kind: c.kind, id: c.id });
-  }
-  return found.sort((a, b) => a.at - b.at).map(({ kind, id }) => ({ kind, id }));
-}
+/** The people and agents @mentioned in the text, by the first word of their name, as the composer line counts them (askagent.ts, which the server's tests read too). */
+export { mentionsIn } from "./askagent.ts";
 
 /** The agents that will answer a message, from the same function the engine uses (lib/route.ts), so the line under the field never disagrees. */
 export function respondersFor(t: Thread, mentions: readonly { kind: "person" | "agent"; id: string }[], meId: string, text?: string): string[] {
@@ -430,7 +422,7 @@ export function queueNote(n: number, leadName: string, steers = false, ownTurn =
 /** What the composer says when nothing is typed: the lead, or that nobody will answer. */
 export function whoLine(t: Thread, nameOf: (id: string) => string): string {
   const lead = leadOf(t);
-  return lead ? `${nameOf(lead.agentId)} will reply` : "No agent will reply · type @ to ask one";
+  return lead ? `${nameOf(lead.agentId)} will reply` : "No agent will reply. @mention one";
 }
 
 export function placeholderFor(t: Thread, nameOf: (id: string) => string, working = false, steers = false): string {
