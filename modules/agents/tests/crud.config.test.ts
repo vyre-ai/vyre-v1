@@ -105,6 +105,34 @@ test("without Edit an agent can be read and not changed", async () => {
   assert.equal(await failure(() => call(hn, "agents.restore_version", { agentId: id, versionId: "ver_000001" })), "permission.no_grant");
 });
 
+// ---- make a lesson an instruction -----------------------------------------------------------------------------------------------------------------
+
+test("a lesson becomes one bullet in AGENT.md under its own heading, as a new version with Undo; the same line twice adds nothing; it needs Edit", async () => {
+  const { hn, id, md } = await setup();
+  const v1 = hn.world.files.get(md.fileId)!.versions[0]!;
+  const out = await call(hn, "agents.instruction.append", { agentId: id, line: "Notes to Sara: three lines, the number first." });
+  assert.equal(out.added, true);
+  assert.equal(out.undoVersionId, v1.versionId);
+  const text = hn.world.text(md.fileId);
+  assert.match(text, /\n## Lessons from corrections\n\n- Notes to Sara: three lines, the number first\.\n$/);
+  assert.equal(hn.world.files.get(md.fileId)!.versions.length, 2);
+  assert.deepEqual(hn.named("agent.config_changed")[0]!.payload["fields"], ["AGENT.md"]);
+  // a second lesson joins the same section; the same one again changes nothing
+  await call(hn, "agents.instruction.append", { agentId: id, line: "Ask before sending to a client." });
+  assert.equal(hn.world.text(md.fileId).match(/## Lessons from corrections/g)!.length, 1);
+  assert.match(hn.world.text(md.fileId), /- Notes to Sara[^\n]*\n- Ask before sending to a client\.\n$/);
+  const same = await call(hn, "agents.instruction.append", { agentId: id, line: "Ask before sending to a client." });
+  assert.equal(same.added, false);
+  assert.equal(hn.world.files.get(md.fileId)!.versions.length, 3);
+  assert.equal(await failure(() => call(hn, "agents.instruction.append", { agentId: id, line: "   " })), "validation.bad_input");
+  // Undo is the same restore the role line uses
+  const undone = await call(hn, "agents.restore_version", { agentId: id, versionId: out.undoVersionId, file: "AGENT.md" });
+  assert.ok(undone.agent);
+  assert.equal(hn.world.text(md.fileId).includes("Lessons from corrections"), false);
+  hn.allowOnly((a) => a.level === "view");
+  assert.equal(await failure(() => call(hn, "agents.instruction.append", { agentId: id, line: "No." })), "permission.no_grant");
+});
+
 // ---- the role line ----------------------------------------------------------------------------------------------------------------------------------
 
 test("the role line edits agent.toml in place and hands back the version Undo goes to; Undo restores it", async () => {

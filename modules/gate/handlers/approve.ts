@@ -129,8 +129,17 @@ export async function deny(ctx: GateCtx, input: In): Promise<unknown> {
   // a send-back keeps the task for the requester's thread (tasks.act moves it); a drop closes it
   if (mode === "drop" && ctx.call) await ctx.call("tasks.withdraw", { taskId: h.taskId, note: note ?? "Dropped." });
   emitGate(ctx, "gate.denied", h, { by: ctx.principal.id, mode, note });
+  await learnFromDenial(ctx, h, note);
   await resumeRun(ctx, h);
   return { ok: true };
+}
+
+/** A person turned down what an agent was about to do: memory keeps a lesson from it (memory.corrections.record, as the person), when their switch is on. A failing memory never holds the denial up. */
+async function learnFromDenial(ctx: GateCtx, h: Hold, note: string | undefined): Promise<void> {
+  if (!ctx.call || h.principal.kind !== "agent" || ctx.principal.kind !== "person") return;
+  try {
+    await ctx.call("memory.corrections.record", { agentId: h.principal.id, how: "refuse", was: h.summary, ...(note ? { note } : {}), ...(h.threadId ? { threadId: h.threadId } : {}), ref: h.id });
+  } catch { /* the denial stands; the lesson is a courtesy */ }
 }
 
 /** A hold closed by the system, for example when its requester left: the call is dropped and never sent. Used by rejectAllOf. */

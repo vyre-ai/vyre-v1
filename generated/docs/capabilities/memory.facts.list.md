@@ -31,6 +31,7 @@ type In = {
   status?: Array<"proposed" | "current" | "closed" | "removed">;
   fromMe?: boolean;
   q?: string;
+  kind?: string;
   cursor?: string;
   limit?: number;
 };
@@ -59,6 +60,12 @@ type Out = {
       trashedAt?: number;
       trashReason?: string;
       archivedAt?: number;
+      kind?: string;
+      lesson?: {
+        how?: "edit" | "refuse" | "reverse" | "rewrite";
+        used: number;
+        scope: "you" | "proposed" | "space";
+      };
       subject?: {
         pageId: string;
         title: string;
@@ -91,6 +98,7 @@ type Out = {
     "agentId": "agt_a1b2c3",
     "cursor": "example",
     "fromMe": true,
+    "kind": "example",
     "layer": "person",
     "limit": 1,
     "projectId": "prj_a1b2c3",
@@ -108,8 +116,14 @@ type Out = {
         "byKind": "person",
         "closedAt": 1760000000000,
         "factId": "fct_a1b2c3",
+        "kind": "example",
         "layer": "person",
         "learnedAt": 1760000000000,
+        "lesson": {
+          "how": "edit",
+          "scope": "you",
+          "used": 1
+        },
         "lowRisk": true,
         "noteId": "not_a1b2c3",
         "ownerRef": "agt_a1b2c3",

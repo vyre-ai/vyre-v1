@@ -1469,6 +1469,52 @@ export type AgentsGuideGetOut = {
   path: ".vyre/guide.md";
   body: string;
 };
+export type AgentsInstructionAppendIn = {
+  agentId: string;
+  line: string;
+};
+export type AgentsInstructionAppendOut = {
+  agent: {
+    agentId: string;
+    name: string;
+    kind?: "assistant" | "teammate" | "agent";
+    runtime?: "vyre" | "outside";
+    face: string;
+    role?: string;
+    status: "awake" | "working" | "asleep" | "paused";
+    pausedReason?: string;
+    pausedBy?: string;
+    ownerId: string;
+    folderId: string;
+    model?: string;
+    fallbackModel?: string;
+    accountPolicy: "asker" | "key";
+    accountKey?: string;
+    accountFallback: Array<string>;
+    memoryKey?: string;
+    switchOnLimit?: boolean;
+    toolsAllowed: Array<string>;
+    toolsDenied: Array<string>;
+    vaultKeys: Array<string>;
+    limits: {
+      runCostMicros?: number;
+      dayCostMicros?: number;
+      monthCostMicros?: number;
+      turnsPerDay?: number;
+      minutesPerRun?: number;
+      tokensPerDay?: number;
+    };
+    captureMode: "auto" | "propose" | "auto_low_risk" | "off";
+    hasComputer: boolean;
+    templateVersion: number;
+    createdAt: number;
+    lastActiveAt?: number;
+    teammateOf?: string;
+  };
+  added: boolean;
+  versionId?: string;
+  undoVersionId?: string;
+};
 export type AgentsLimitsGetIn = {
   agentId: string;
 };
@@ -21506,6 +21552,54 @@ export type MemoryChatLearningSetOut = {
   by?: string;
   at?: number;
 };
+export type MemoryCorrectionsRecordIn = {
+  agentId: string;
+  how: "edit" | "refuse" | "reverse" | "rewrite";
+  was?: string;
+  now?: string;
+  note?: string;
+  threadId?: string;
+  ref?: string;
+};
+export type MemoryCorrectionsRecordOut = {
+  kept: boolean;
+  why?: "off" | "forgotten" | "nothing" | "duplicate";
+  lesson?: {
+    factId: string;
+    layer: "person" | "agent" | "project" | "space";
+    ownerRef: string;
+    agentId?: string;
+    noteId?: string;
+    text: string;
+    validFrom: number;
+    validTo?: number;
+    learnedAt: number;
+    closedAt?: number;
+    sourceKind: "chat" | "channel" | "task" | "record" | "run" | "journey" | "manual";
+    sourceRef: string;
+    sourceLink?: string;
+    status: "proposed" | "current" | "closed" | "removed";
+    lowRisk?: boolean;
+    trashedAt?: number;
+    trashReason?: string;
+    archivedAt?: number;
+    kind?: string;
+    lesson?: {
+      how?: "edit" | "refuse" | "reverse" | "rewrite";
+      used: number;
+      scope: "you" | "proposed" | "space";
+    };
+    subject?: {
+      pageId: string;
+      title: string;
+      kind: string;
+    };
+    sourceTitle?: string;
+    by?: string;
+    byKind?: "person" | "agent" | "upkeep" | "system";
+    versions?: number;
+  };
+};
 export type MemoryCountsIn = {
   agentId: string;
 };
@@ -21561,6 +21655,12 @@ export type MemoryFactAcceptOut = {
     trashedAt?: number;
     trashReason?: string;
     archivedAt?: number;
+    kind?: string;
+    lesson?: {
+      how?: "edit" | "refuse" | "reverse" | "rewrite";
+      used: number;
+      scope: "you" | "proposed" | "space";
+    };
     subject?: {
       pageId: string;
       title: string;
@@ -21597,6 +21697,12 @@ export type MemoryFactCorrectOut = {
     trashedAt?: number;
     trashReason?: string;
     archivedAt?: number;
+    kind?: string;
+    lesson?: {
+      how?: "edit" | "refuse" | "reverse" | "rewrite";
+      used: number;
+      scope: "you" | "proposed" | "space";
+    };
     subject?: {
       pageId: string;
       title: string;
@@ -21626,6 +21732,12 @@ export type MemoryFactCorrectOut = {
     trashedAt?: number;
     trashReason?: string;
     archivedAt?: number;
+    kind?: string;
+    lesson?: {
+      how?: "edit" | "refuse" | "reverse" | "rewrite";
+      used: number;
+      scope: "you" | "proposed" | "space";
+    };
     subject?: {
       pageId: string;
       title: string;
@@ -21660,6 +21772,12 @@ export type MemoryFactGetOut = {
     trashedAt?: number;
     trashReason?: string;
     archivedAt?: number;
+    kind?: string;
+    lesson?: {
+      how?: "edit" | "refuse" | "reverse" | "rewrite";
+      used: number;
+      scope: "you" | "proposed" | "space";
+    };
     subject?: {
       pageId: string;
       title: string;
@@ -21689,6 +21807,12 @@ export type MemoryFactGetOut = {
       trashedAt?: number;
       trashReason?: string;
       archivedAt?: number;
+      kind?: string;
+      lesson?: {
+        how?: "edit" | "refuse" | "reverse" | "rewrite";
+        used: number;
+        scope: "you" | "proposed" | "space";
+      };
       subject?: {
         pageId: string;
         title: string;
@@ -21723,6 +21847,12 @@ export type MemoryFactRejectOut = {
     trashedAt?: number;
     trashReason?: string;
     archivedAt?: number;
+    kind?: string;
+    lesson?: {
+      how?: "edit" | "refuse" | "reverse" | "rewrite";
+      used: number;
+      scope: "you" | "proposed" | "space";
+    };
     subject?: {
       pageId: string;
       title: string;
@@ -21741,6 +21871,7 @@ export type MemoryFactsListIn = {
   status?: Array<"proposed" | "current" | "closed" | "removed">;
   fromMe?: boolean;
   q?: string;
+  kind?: string;
   cursor?: string;
   limit?: number;
 };
@@ -21764,6 +21895,12 @@ export type MemoryFactsListOut = {
       trashedAt?: number;
       trashReason?: string;
       archivedAt?: number;
+      kind?: string;
+      lesson?: {
+        how?: "edit" | "refuse" | "reverse" | "rewrite";
+        used: number;
+        scope: "you" | "proposed" | "space";
+      };
       subject?: {
         pageId: string;
         title: string;
@@ -21817,6 +21954,12 @@ export type MemoryFactsAsOfOut = {
       trashedAt?: number;
       trashReason?: string;
       archivedAt?: number;
+      kind?: string;
+      lesson?: {
+        how?: "edit" | "refuse" | "reverse" | "rewrite";
+        used: number;
+        scope: "you" | "proposed" | "space";
+      };
       subject?: {
         pageId: string;
         title: string;
@@ -21856,6 +21999,12 @@ export type MemoryFindBySubjectOut = {
       trashedAt?: number;
       trashReason?: string;
       archivedAt?: number;
+      kind?: string;
+      lesson?: {
+        how?: "edit" | "refuse" | "reverse" | "rewrite";
+        used: number;
+        scope: "you" | "proposed" | "space";
+      };
       subject?: {
         pageId: string;
         title: string;
@@ -22097,6 +22246,12 @@ export type MemoryLearnedOut = {
         trashedAt?: number;
         trashReason?: string;
         archivedAt?: number;
+        kind?: string;
+        lesson?: {
+          how?: "edit" | "refuse" | "reverse" | "rewrite";
+          used: number;
+          scope: "you" | "proposed" | "space";
+        };
         subject?: {
           pageId: string;
           title: string;
@@ -22290,6 +22445,12 @@ export type MemoryPageGetOut = {
       trashedAt?: number;
       trashReason?: string;
       archivedAt?: number;
+      kind?: string;
+      lesson?: {
+        how?: "edit" | "refuse" | "reverse" | "rewrite";
+        used: number;
+        scope: "you" | "proposed" | "space";
+      };
       subject?: {
         pageId: string;
         title: string;
@@ -22492,6 +22653,12 @@ export type MemoryProfileAddOut = {
     trashedAt?: number;
     trashReason?: string;
     archivedAt?: number;
+    kind?: string;
+    lesson?: {
+      how?: "edit" | "refuse" | "reverse" | "rewrite";
+      used: number;
+      scope: "you" | "proposed" | "space";
+    };
     subject?: {
       pageId: string;
       title: string;
@@ -22549,6 +22716,12 @@ export type MemoryProfileGetOut = {
       trashedAt?: number;
       trashReason?: string;
       archivedAt?: number;
+      kind?: string;
+      lesson?: {
+        how?: "edit" | "refuse" | "reverse" | "rewrite";
+        used: number;
+        scope: "you" | "proposed" | "space";
+      };
       subject?: {
         pageId: string;
         title: string;
@@ -22581,6 +22754,12 @@ export type MemoryProfileGetOut = {
       trashedAt?: number;
       trashReason?: string;
       archivedAt?: number;
+      kind?: string;
+      lesson?: {
+        how?: "edit" | "refuse" | "reverse" | "rewrite";
+        used: number;
+        scope: "you" | "proposed" | "space";
+      };
       subject?: {
         pageId: string;
         title: string;
@@ -22619,6 +22798,12 @@ export type MemoryProfileMoveOut = {
     trashedAt?: number;
     trashReason?: string;
     archivedAt?: number;
+    kind?: string;
+    lesson?: {
+      how?: "edit" | "refuse" | "reverse" | "rewrite";
+      used: number;
+      scope: "you" | "proposed" | "space";
+    };
     subject?: {
       pageId: string;
       title: string;
@@ -22658,6 +22843,12 @@ export type MemoryProfileSuggestOut = {
     trashedAt?: number;
     trashReason?: string;
     archivedAt?: number;
+    kind?: string;
+    lesson?: {
+      how?: "edit" | "refuse" | "reverse" | "rewrite";
+      used: number;
+      scope: "you" | "proposed" | "space";
+    };
     subject?: {
       pageId: string;
       title: string;
@@ -22707,6 +22898,12 @@ export type MemoryPromotionApproveOut = {
     trashedAt?: number;
     trashReason?: string;
     archivedAt?: number;
+    kind?: string;
+    lesson?: {
+      how?: "edit" | "refuse" | "reverse" | "rewrite";
+      used: number;
+      scope: "you" | "proposed" | "space";
+    };
     subject?: {
       pageId: string;
       title: string;
@@ -22763,6 +22960,12 @@ export type MemoryProposeFactOut = {
     trashedAt?: number;
     trashReason?: string;
     archivedAt?: number;
+    kind?: string;
+    lesson?: {
+      how?: "edit" | "refuse" | "reverse" | "rewrite";
+      used: number;
+      scope: "you" | "proposed" | "space";
+    };
     subject?: {
       pageId: string;
       title: string;
@@ -22818,6 +23021,12 @@ export type MemoryQuestionsListOut = {
           trashedAt?: number;
           trashReason?: string;
           archivedAt?: number;
+          kind?: string;
+          lesson?: {
+            how?: "edit" | "refuse" | "reverse" | "rewrite";
+            used: number;
+            scope: "you" | "proposed" | "space";
+          };
           subject?: {
             pageId: string;
             title: string;
@@ -22915,6 +23124,12 @@ export type MemoryRememberOut = {
     trashedAt?: number;
     trashReason?: string;
     archivedAt?: number;
+    kind?: string;
+    lesson?: {
+      how?: "edit" | "refuse" | "reverse" | "rewrite";
+      used: number;
+      scope: "you" | "proposed" | "space";
+    };
     subject?: {
       pageId: string;
       title: string;
@@ -22951,6 +23166,12 @@ export type MemoryRestoreOut = {
     trashedAt?: number;
     trashReason?: string;
     archivedAt?: number;
+    kind?: string;
+    lesson?: {
+      how?: "edit" | "refuse" | "reverse" | "rewrite";
+      used: number;
+      scope: "you" | "proposed" | "space";
+    };
     subject?: {
       pageId: string;
       title: string;
@@ -23005,7 +23226,7 @@ export type MemorySearchIn = {
 };
 export type MemorySearchOut = {
   hits: Array<{
-      kind: "note" | "fact" | "page";
+      kind?: string;
       noteId?: string;
       factId?: string;
       pageId?: string;
@@ -23016,6 +23237,11 @@ export type MemorySearchOut = {
       layer: "person" | "agent" | "project" | "space";
       sourceLink?: string;
       score: number;
+      lesson?: {
+        how?: "edit" | "refuse" | "reverse" | "rewrite";
+        used: number;
+        scope: "you" | "proposed" | "space";
+      };
       subject?: {
         pageId: string;
         title: string;
@@ -23091,6 +23317,12 @@ export type MemoryTrashSearchOut = {
       trashedAt?: number;
       trashReason?: string;
       archivedAt?: number;
+      kind?: string;
+      lesson?: {
+        how?: "edit" | "refuse" | "reverse" | "rewrite";
+        used: number;
+        scope: "you" | "proposed" | "space";
+      };
       subject?: {
         pageId: string;
         title: string;
@@ -23145,6 +23377,12 @@ export type MemoryUndoOut = {
     trashedAt?: number;
     trashReason?: string;
     archivedAt?: number;
+    kind?: string;
+    lesson?: {
+      how?: "edit" | "refuse" | "reverse" | "rewrite";
+      used: number;
+      scope: "you" | "proposed" | "space";
+    };
     subject?: {
       pageId: string;
       title: string;
@@ -23225,6 +23463,12 @@ export type MemoryUsedOut = {
       trashedAt?: number;
       trashReason?: string;
       archivedAt?: number;
+      kind?: string;
+      lesson?: {
+        how?: "edit" | "refuse" | "reverse" | "rewrite";
+        used: number;
+        scope: "you" | "proposed" | "space";
+      };
       subject?: {
         pageId: string;
         title: string;
@@ -39518,6 +39762,7 @@ export interface CapMap {
   "agents.delete": { in: AgentsDeleteIn; out: AgentsDeleteOut };
   "agents.get": { in: AgentsGetIn; out: AgentsGetOut };
   "agents.guide.get": { in: AgentsGuideGetIn; out: AgentsGuideGetOut };
+  "agents.instruction.append": { in: AgentsInstructionAppendIn; out: AgentsInstructionAppendOut };
   "agents.limits.get": { in: AgentsLimitsGetIn; out: AgentsLimitsGetOut };
   "agents.list": { in: AgentsListIn; out: AgentsListOut };
   "agents.memory_key.get": { in: AgentsMemoryKeyGetIn; out: AgentsMemoryKeyGetOut };
@@ -40565,6 +40810,7 @@ export interface CapMap {
   "memory.capture": { in: MemoryCaptureIn; out: MemoryCaptureOut };
   "memory.chat_learning.get": { in: MemoryChatLearningGetIn; out: MemoryChatLearningGetOut };
   "memory.chat_learning.set": { in: MemoryChatLearningSetIn; out: MemoryChatLearningSetOut };
+  "memory.corrections.record": { in: MemoryCorrectionsRecordIn; out: MemoryCorrectionsRecordOut };
   "memory.counts": { in: MemoryCountsIn; out: MemoryCountsOut };
   "memory.erase": { in: MemoryEraseIn; out: MemoryEraseOut };
   "memory.export_markdown": { in: MemoryExportMarkdownIn; out: MemoryExportMarkdownOut };
