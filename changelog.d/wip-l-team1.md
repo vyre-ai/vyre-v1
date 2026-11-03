@@ -1,9 +1,0 @@
-- Every new Team Space has a channel named #vyre, and every new member is in it from day one. An older Space with neither #vyre nor #general gets #vyre; one with #general sees an offer in Console Overview to rename it or keep it, never a silent rename.
-- What a new member gets on day one is what the Space shares with Everyone: agents and Shared Vault items (admins add and remove them in Console > People > What everyone gets), record types open to everyone, Space folders and Space skills. Only an admin shares with everyone; restricted items and Mine items never are.
-- Invite People in the Space menu makes a real invite link for a Member (7 days) and copies it; it shows only to people who may invite, and never in a Personal Space. It no longer says "copied" when nothing was.
-- The invite sheet picks the new member's groups, channels, projects and agents; #vyre and the agents shared with everyone show ticked and fixed. An agent picked on an invite is now granted as the inviter's act (it used to fail at accept).
-- Join steps that fail (a group, a channel, a project, an agent, the first channel, their company mail and calendar) are tried again every two minutes; one that failed three times shows in Console Overview, in words, with Retry.
-- Set Yourself Away is stored and teammates see it as a steady amber ring; people who are around show a steady green dot (devices.presence). Last seen updates as you use the app, at most once a minute.
-- While you were away: coming back after four hours, or pressing I'm Back, writes the digest from what happened, by name; it shows as one quiet row at the top of Chats, and pressing it lists each item and Mark as Seen.
-- Team now: who is around and which agents are working, where and for whom, folded in the Chats sidebar and open on Console Overview (engine.now).
-- The join notice names the person and the Space, never their ids; an activity line names who changed a record.

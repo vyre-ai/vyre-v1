@@ -1,5 +1,0 @@
-- What Vyre remembers about you privately is now sealed under your own key, the same as your Mine items. The server can read it only while you are signed in there with your password, or on your own computer once it is unlocked. Admins and anyone holding the server's disk cannot read it. Before, it was sealed under a key the server could open on its own.
-- Vyre still learns from your chats while you are signed out: new facts are sealed to your key without being readable. Until you sign in again, your agents recall nothing private and say so in one line, instead of acting as if they know nothing about you.
-- Memory you saved before this release moves to your own key in the background the next time you sign in, and the old copies are overwritten. If you never sign in again, your old memory stays as it was.
-- Searching your own memory stays fast with tens of thousands of facts. The search index of your private memory exists only in the server's memory while you are signed in, and it is dropped when you sign out.
-- A repeated save no longer leaves the words of your private memory in the server's record of past requests.

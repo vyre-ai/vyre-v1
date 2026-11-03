@@ -1,4 +1,0 @@
-- The sign-in page names your Space as soon as the owner names it in setup. It showed the Space id until the server restarted.
-- An agent that asks for a Vault item it cannot use is told in plain words that there is no such item it can use, instead of "Input failed validation".
-- In a Team Space, the key request card an agent posts in a member's own chat stays there. It used to vanish for the member. The member can add their own key from it into their own Mine, and the agent then uses it on their turns only. A key the agent asks for a Shared or team folder still goes to owners and admins. One agent asking for two people keeps their requests apart.
-- When a key is added from a card, the agent is told its handle (for example #Fathom_2), so it uses that key and not another one with the same name.
