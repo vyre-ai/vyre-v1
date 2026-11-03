@@ -1441,6 +1441,17 @@ export function stubs(ctx: CallCtx) {
     meetings: {
       attach_recording: call("meetings.attach_recording"),
       cancel: call("meetings.cancel"),
+      closeout: {
+        approve: call("meetings.closeout.approve"),
+        edit: call("meetings.closeout.edit"),
+        get: call("meetings.closeout.get"),
+        list: call("meetings.closeout.list"),
+        prepare: call("meetings.closeout.prepare"),
+        propose: call("meetings.closeout.propose"),
+        share: call("meetings.closeout.share"),
+        skip: call("meetings.closeout.skip"),
+        sync: call("meetings.closeout.sync"),
+      },
       get: call("meetings.get"),
       ingest: call("meetings.ingest"),
       list: call("meetings.list"),

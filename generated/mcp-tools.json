@@ -31840,6 +31840,520 @@
     },
     {
       "blocks": [],
+      "cap": "meetings.closeout.approve",
+      "deferred": false,
+      "description": "Approve close-out items (all the proposed ones when none are named): create the tasks, apply the record updates, send or save the email, add the holds",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "itemIds": {
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1,
+            "type": "array"
+          },
+          "meetingId": {
+            "examples": [
+              "rec_a1b2c3"
+            ],
+            "pattern": "^rec_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "meetingId"
+        ],
+        "type": "object"
+      },
+      "name": "meetings_closeout_approve",
+      "planMode": "blocked",
+      "toolset": "inbox",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "meetings.closeout.edit",
+      "deferred": false,
+      "description": "Change one proposed close-out item before it is approved",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "assignee": {
+            "examples": [
+              "usr_a1b2c3"
+            ],
+            "pattern": "^usr_[a-z0-9]+$",
+            "type": "string"
+          },
+          "changes": {
+            "items": {
+              "properties": {
+                "field": {
+                  "type": "string"
+                },
+                "to": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "field",
+                "to"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "due": {
+            "anyOf": [
+              {
+                "description": "Milliseconds since the Unix epoch",
+                "examples": [
+                  1760000000000
+                ],
+                "minimum": 0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "endsAt": {
+            "description": "Milliseconds since the Unix epoch",
+            "examples": [
+              1760000000000
+            ],
+            "minimum": 0,
+            "type": "integer"
+          },
+          "itemId": {
+            "type": "string"
+          },
+          "meetingId": {
+            "examples": [
+              "rec_a1b2c3"
+            ],
+            "pattern": "^rec_[a-z0-9]+$",
+            "type": "string"
+          },
+          "note": {
+            "maxLength": 4000,
+            "type": "string"
+          },
+          "send": {
+            "enum": [
+              "send",
+              "draft"
+            ],
+            "type": "string"
+          },
+          "startsAt": {
+            "description": "Milliseconds since the Unix epoch",
+            "examples": [
+              1760000000000
+            ],
+            "minimum": 0,
+            "type": "integer"
+          },
+          "subject": {
+            "maxLength": 300,
+            "minLength": 1,
+            "type": "string"
+          },
+          "text": {
+            "maxLength": 20000,
+            "minLength": 1,
+            "type": "string"
+          },
+          "title": {
+            "maxLength": 300,
+            "minLength": 1,
+            "type": "string"
+          },
+          "to": {
+            "items": {
+              "properties": {
+                "address": {
+                  "examples": [
+                    "maya@example.com"
+                  ],
+                  "pattern": "^[^@\\s]+@[^@\\s]+$",
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "address"
+              ],
+              "type": "object"
+            },
+            "minItems": 1,
+            "type": "array"
+          },
+          "why": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "meetingId",
+          "itemId"
+        ],
+        "type": "object"
+      },
+      "name": "meetings_closeout_edit",
+      "planMode": "blocked",
+      "toolset": "inbox",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "meetings.closeout.get",
+      "deferred": false,
+      "description": "One meeting close-out: summary, decisions, open questions and the proposed tasks, record updates, follow-up email and calendar hold",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "meetingId": {
+            "examples": [
+              "rec_a1b2c3"
+            ],
+            "pattern": "^rec_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "meetingId"
+        ],
+        "type": "object"
+      },
+      "name": "meetings_closeout_get",
+      "planMode": "allowed",
+      "toolset": "inbox",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "meetings.closeout.list",
+      "deferred": false,
+      "description": "The Meetings tab of the Inbox: your meetings (and meetings shared to a project or channel you can read) with their close-out state",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "cursor": {
+            "type": "string"
+          },
+          "limit": {
+            "maximum": 500,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "recordId": {
+            "examples": [
+              "rec_a1b2c3"
+            ],
+            "pattern": "^rec_[a-z0-9]+$",
+            "type": "string"
+          },
+          "state": {
+            "enum": [
+              "preparing",
+              "ready",
+              "closed",
+              "nothing"
+            ],
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "name": "meetings_closeout_list",
+      "planMode": "allowed",
+      "toolset": "inbox",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "meetings.closeout.prepare",
+      "deferred": false,
+      "description": "Have the meeting owner's Assistant prepare the close-out from the transcript; redo starts it again without duplicating what was approved",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "meetingId": {
+            "examples": [
+              "rec_a1b2c3"
+            ],
+            "pattern": "^rec_[a-z0-9]+$",
+            "type": "string"
+          },
+          "redo": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "meetingId"
+        ],
+        "type": "object"
+      },
+      "name": "meetings_closeout_prepare",
+      "planMode": "blocked",
+      "toolset": "inbox",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "meetings.closeout.propose",
+      "deferred": false,
+      "description": "The Assistant's close-out of a meeting: summary, decisions, open questions, action items, record updates, the follow-up email and the next meeting",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "actions": {
+            "items": {
+              "properties": {
+                "due": {
+                  "description": "YYYY-MM-DD, only when a date was said",
+                  "type": "string"
+                },
+                "owner": {
+                  "description": "The name or email of who said they would do it",
+                  "type": "string"
+                },
+                "title": {
+                  "maxLength": 300,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "why": {
+                  "maxLength": 1000,
+                  "type": "string"
+                }
+              },
+              "required": [
+                "title"
+              ],
+              "type": "object"
+            },
+            "maxItems": 30,
+            "type": "array"
+          },
+          "decisions": {
+            "items": {
+              "maxLength": 500,
+              "type": "string"
+            },
+            "maxItems": 30,
+            "type": "array"
+          },
+          "email": {
+            "properties": {
+              "subject": {
+                "maxLength": 300,
+                "minLength": 1,
+                "type": "string"
+              },
+              "text": {
+                "maxLength": 20000,
+                "minLength": 1,
+                "type": "string"
+              }
+            },
+            "required": [
+              "subject",
+              "text"
+            ],
+            "type": "object"
+          },
+          "meetingId": {
+            "examples": [
+              "rec_a1b2c3"
+            ],
+            "pattern": "^rec_[a-z0-9]+$",
+            "type": "string"
+          },
+          "next": {
+            "properties": {
+              "minutes": {
+                "maximum": 600,
+                "minimum": 5,
+                "type": "integer"
+              },
+              "startsAt": {
+                "description": "The agreed date and time, ISO 8601 with its offset",
+                "type": "string"
+              },
+              "title": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "startsAt"
+            ],
+            "type": "object"
+          },
+          "questions": {
+            "items": {
+              "maxLength": 500,
+              "type": "string"
+            },
+            "maxItems": 30,
+            "type": "array"
+          },
+          "records": {
+            "items": {
+              "properties": {
+                "changes": {
+                  "items": {
+                    "properties": {
+                      "field": {
+                        "type": "string"
+                      },
+                      "value": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "field",
+                      "value"
+                    ],
+                    "type": "object"
+                  },
+                  "maxItems": 20,
+                  "type": "array"
+                },
+                "note": {
+                  "maxLength": 4000,
+                  "type": "string"
+                },
+                "recordId": {
+                  "examples": [
+                    "rec_a1b2c3"
+                  ],
+                  "pattern": "^rec_[a-z0-9]+$",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "recordId"
+              ],
+              "type": "object"
+            },
+            "maxItems": 20,
+            "type": "array"
+          },
+          "summary": {
+            "maxLength": 4000,
+            "type": "string"
+          }
+        },
+        "required": [
+          "meetingId",
+          "summary"
+        ],
+        "type": "object"
+      },
+      "name": "meetings_closeout_propose",
+      "planMode": "blocked",
+      "toolset": "inbox",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "meetings.closeout.share",
+      "deferred": false,
+      "description": "Share a meeting and its close-out with a project or channel (everyone who can read it sees it in their Meetings tab), or stop sharing",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "channelId": {
+            "examples": [
+              "chn_a1b2c3"
+            ],
+            "pattern": "^chn_[a-z0-9]+$",
+            "type": "string"
+          },
+          "meetingId": {
+            "examples": [
+              "rec_a1b2c3"
+            ],
+            "pattern": "^rec_[a-z0-9]+$",
+            "type": "string"
+          },
+          "on": {
+            "type": "boolean"
+          },
+          "projectId": {
+            "examples": [
+              "prj_a1b2c3"
+            ],
+            "pattern": "^prj_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "meetingId",
+          "on"
+        ],
+        "type": "object"
+      },
+      "name": "meetings_closeout_share",
+      "planMode": "blocked",
+      "toolset": "inbox",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "meetings.closeout.skip",
+      "deferred": false,
+      "description": "Skip a proposed close-out item, or bring a skipped one back",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "itemId": {
+            "type": "string"
+          },
+          "meetingId": {
+            "examples": [
+              "rec_a1b2c3"
+            ],
+            "pattern": "^rec_[a-z0-9]+$",
+            "type": "string"
+          },
+          "undo": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "meetingId",
+          "itemId"
+        ],
+        "type": "object"
+      },
+      "name": "meetings_closeout_skip",
+      "planMode": "blocked",
+      "toolset": "inbox",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "meetings.closeout.sync",
+      "deferred": false,
+      "description": "Prepare the close-out of each of your recent meetings that has a transcript and none yet",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "meetings_closeout_sync",
+      "planMode": "blocked",
+      "toolset": "inbox",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "meetings.get",
       "deferred": false,
       "description": "Read a meeting with recording, transcript, summary and decisions",
@@ -54016,6 +54530,7 @@
                   "run",
                   "gate",
                   "journey",
+                  "meeting",
                   "manual"
                 ],
                 "type": "string"

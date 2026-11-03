@@ -5979,6 +5979,63 @@ export const screens: ScreenIndexEntry[] = [
     }
   },
   {
+    "id": "meetings.closeout",
+    "module": "meetings",
+    "place": "inbox",
+    "slot": "main",
+    "builtin": "ui:MeetingsTab",
+    "caller": "principal",
+    "queries": {
+      "list": {
+        "cap": "meetings.closeout.list",
+        "input": {},
+        "live": true
+      },
+      "meeting": {
+        "cap": "meetings.closeout.get",
+        "input": {
+          "meetingId": "/state/meetingId"
+        },
+        "live": true
+      }
+    },
+    "actions": {
+      "approve": {
+        "cap": "meetings.closeout.approve",
+        "input": {
+          "meetingId": "/state/meetingId",
+          "itemIds": "/state/itemIds"
+        }
+      },
+      "edit": {
+        "cap": "meetings.closeout.edit",
+        "input": {
+          "meetingId": "/state/meetingId",
+          "itemId": "/state/itemId"
+        }
+      },
+      "skip": {
+        "cap": "meetings.closeout.skip",
+        "input": {
+          "meetingId": "/state/meetingId",
+          "itemId": "/state/itemId"
+        }
+      },
+      "redo": {
+        "cap": "meetings.closeout.prepare",
+        "input": {
+          "meetingId": "/state/meetingId",
+          "redo": true
+        }
+      }
+    },
+    "needs": [],
+    "perf": {
+      "firstPaintMs": 50,
+      "completeMs": 100
+    }
+  },
+  {
     "id": "meetings.panel",
     "module": "meetings",
     "place": "inbox",

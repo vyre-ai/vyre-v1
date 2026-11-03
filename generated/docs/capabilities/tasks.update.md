@@ -91,7 +91,7 @@ type Out = {
     recordId?: string;
     fileIds: Array<string>;
     source?: {
-      kind: "chat" | "run" | "gate" | "journey" | "manual";
+      kind: "chat" | "run" | "gate" | "journey" | "meeting" | "manual";
       id: string;
     };
     parentTaskId?: string;

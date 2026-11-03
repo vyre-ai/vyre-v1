@@ -19003,6 +19003,175 @@ const routes3: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/meetings/closeout/approve",
+    "cap": "meetings.closeout.approve",
+    "v": 1,
+    "module": "meetings",
+    "effects": "write",
+    "permission": "records.edit",
+    "level": "edit",
+    "resource": {
+      "type": "record",
+      "id": "/meetingId"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/meetings/closeout/edit",
+    "cap": "meetings.closeout.edit",
+    "v": 1,
+    "module": "meetings",
+    "effects": "write",
+    "permission": "records.edit",
+    "level": "edit",
+    "resource": {
+      "type": "record",
+      "id": "/meetingId"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": "patch",
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/meetings/closeout/get",
+    "cap": "meetings.closeout.get",
+    "v": 1,
+    "module": "meetings",
+    "effects": "read",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "record",
+      "id": "/meetingId"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/meetings/closeout/list",
+    "cap": "meetings.closeout.list",
+    "v": 1,
+    "module": "meetings",
+    "effects": "read",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/meetings/closeout/prepare",
+    "cap": "meetings.closeout.prepare",
+    "v": 1,
+    "module": "meetings",
+    "effects": "write",
+    "permission": "records.edit",
+    "level": "edit",
+    "resource": {
+      "type": "record",
+      "id": "/meetingId"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/meetings/closeout/propose",
+    "cap": "meetings.closeout.propose",
+    "v": 1,
+    "module": "meetings",
+    "effects": "write",
+    "permission": null,
+    "level": "edit",
+    "resource": {
+      "type": "record",
+      "id": "/meetingId"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/meetings/closeout/share",
+    "cap": "meetings.closeout.share",
+    "v": 1,
+    "module": "meetings",
+    "effects": "write",
+    "permission": "records.edit",
+    "level": "edit",
+    "resource": {
+      "type": "record",
+      "id": "/meetingId"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/meetings/closeout/skip",
+    "cap": "meetings.closeout.skip",
+    "v": 1,
+    "module": "meetings",
+    "effects": "write",
+    "permission": "records.edit",
+    "level": "edit",
+    "resource": {
+      "type": "record",
+      "id": "/meetingId"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/meetings/closeout/sync",
+    "cap": "meetings.closeout.sync",
+    "v": 1,
+    "module": "meetings",
+    "effects": "write",
+    "permission": null,
+    "level": "edit",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/meetings/get",
     "cap": "meetings.get",
     "v": 1,
@@ -21947,7 +22116,10 @@ const routes3: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes4: Route[] = [
   {
     "method": "POST",
     "path": "/v1/ms/mail/get_attachment",
@@ -22118,10 +22290,7 @@ const routes3: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": "none"
-  }
-];
-
-const routes4: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/ms/receive_notification",
@@ -27466,7 +27635,10 @@ const routes4: Route[] = [
     "offline": "queue",
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes5: Route[] = [
   {
     "method": "POST",
     "path": "/v1/settings/set_space",
@@ -27637,10 +27809,7 @@ const routes4: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  }
-];
-
-const routes5: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/sites/artifact_open",
@@ -33003,7 +33172,10 @@ const routes5: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes6: Route[] = [
   {
     "method": "POST",
     "path": "/v1/vault/item/history",
@@ -33173,10 +33345,7 @@ const routes5: Route[] = [
     "offline": "online",
     "teamOnly": false,
     "gate": "secret_export"
-  }
-];
-
-const routes6: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/vault/items/list",
