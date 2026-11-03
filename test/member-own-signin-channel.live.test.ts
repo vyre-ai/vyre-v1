@@ -30,13 +30,15 @@ test("Team server channel: a member's own Claude sign-in answers her message wit
     const ch = (await ok(d, d.token, "channels.create", { name: "team", visibility: "invite", memberIds: [rubab.personId, sara.personId], agentIds: [agentId] })).channel as { mainThreadId: string };
     const threadId = ch.mainThreadId;
     const replyTo = async (who: { token: string }, body: string): Promise<string> => {
-      const before = ((await ok(d, who.token, "chat.messages.list", { threadId })).messages as Array<{ id: string }>).map((m) => m.id);
+      const before = ((await ok(d, who.token, "chat.messages.list", { threadId })).messages as Array<{ messageId: string }>).map((m) => m.messageId);
       await ok(d, who.token, "chat.post", { threadId, body, mentions: [{ kind: "agent", id: agentId }] });
+      let seen: unknown = null;
       return waitFor(async () => {
         await d.hooks?.pump?.();
-        const ms = (await api(d, who.token, "chat.messages.list", { threadId })).data.messages as Array<{ id: string; author?: { kind?: string }; body?: string }> | undefined;
-        return ms?.find((m) => !before.includes(m.id) && m.author?.kind === "agent" && (m.body ?? "") !== "")?.body ?? null;
-      }, 40_000, () => hostLog(d));
+        const ms = (await api(d, who.token, "chat.messages.list", { threadId })).data.messages as Array<{ messageId: string; author?: { kind?: string; id?: string }; body?: string }> | undefined;
+        seen = ms;
+        return ms?.find((m) => !before.includes(m.messageId) && (m.author?.kind === "agent" || m.author?.id === agentId) && (m.body ?? "") !== "")?.body ?? null;
+      }, 40_000, () => `${JSON.stringify(seen).slice(0, 3000)}\n${hostLog(d)}`);
     };
 
     assert.equal(await replyTo(rubab, "hello from rubab"), `ran for ${rubab.personId} on subscription ${ref}`, "her own sign-in answered, with no extra switch");
