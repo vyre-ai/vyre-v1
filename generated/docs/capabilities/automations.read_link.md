@@ -44,6 +44,12 @@ type Out = {
       url: string;
     }>;
   truncated?: boolean;
+  meta?: {
+    title?: string;
+    image?: string;
+    siteName?: string;
+    description?: string;
+  };
 };
 ```
 
@@ -73,6 +79,12 @@ type Out = {
         "url": "example"
       }
     ],
+    "meta": {
+      "description": "example",
+      "image": "example",
+      "siteName": "example",
+      "title": "example"
+    },
     "ok": true,
     "reason": "example",
     "text": "example",

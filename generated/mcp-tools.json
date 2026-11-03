@@ -38215,6 +38215,60 @@
     },
     {
       "blocks": [],
+      "cap": "notes.get",
+      "deferred": false,
+      "description": "Read one note the asker may read. An agent reads a note only when everyone in its chat may read it",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "noteId": {
+            "examples": [
+              "nte_a1b2c3"
+            ],
+            "pattern": "^nte_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "noteId"
+        ],
+        "type": "object"
+      },
+      "name": "notes_get",
+      "planMode": "allowed",
+      "toolset": "memory",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "notes.search",
+      "deferred": false,
+      "description": "Search the notes the asker may read: title, text, labels, link and clipped page. An agent finds only notes everyone in its chat may read",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "limit": {
+            "maximum": 50,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "q": {
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "q"
+        ],
+        "type": "object"
+      },
+      "name": "notes_search",
+      "planMode": "allowed",
+      "toolset": "memory",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "notifications.away.clear",
       "deferred": false,
       "description": "I'm Back: end away and return what waited",

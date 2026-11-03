@@ -1727,6 +1727,22 @@ export function stubs(ctx: CallCtx) {
       servers: call("network.servers"),
       status: call("network.status"),
     },
+    notes: {
+      clip: call("notes.clip"),
+      create: call("notes.create"),
+      delete: call("notes.delete"),
+      get: call("notes.get"),
+      image: call("notes.image"),
+      label: call("notes.label"),
+      list: call("notes.list"),
+      pin: call("notes.pin"),
+      restore: call("notes.restore"),
+      search: call("notes.search"),
+      share: call("notes.share"),
+      to_record: call("notes.to_record"),
+      to_task: call("notes.to_task"),
+      update: call("notes.update"),
+    },
     notifications: {
       away: {
         clear: call("notifications.away.clear"),

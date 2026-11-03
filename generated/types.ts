@@ -3431,6 +3431,12 @@ export type AutomationsReadLinkOut = {
       url: string;
     }>;
   truncated?: boolean;
+  meta?: {
+    title?: string;
+    image?: string;
+    siteName?: string;
+    description?: string;
+  };
 };
 export type AutomationsReplayIn = {
   automationId: string;
@@ -21536,6 +21542,601 @@ export type NetworkStatusOut = {
       detail?: string;
     }>;
 };
+export type NotesClipIn = {
+  url: string;
+  title?: string;
+  selection?: string;
+  note?: string;
+  screenshot?: {
+    data: string;
+    contentType: "image/png" | "image/jpeg" | "image/gif" | "image/webp";
+  };
+  labels?: Array<string>;
+  idempotencyKey: string;
+};
+export type NotesClipOut = {
+  note: {
+    noteId: string;
+    owner: string;
+    title: string;
+    body: string;
+    color: "" | "rose" | "sand" | "sage" | "sky" | "lilac" | "slate";
+    pinned: boolean;
+    labels: Array<string>;
+    hasImage: boolean;
+    link?: {
+      url: string;
+      title?: string;
+      siteName?: string;
+      image?: string;
+      description?: string;
+    };
+    clip?: {
+      url: string;
+      title?: string;
+      selection?: string;
+      hasShot: boolean;
+      at: number;
+    };
+    linked: Array<{
+        kind: "task" | "record";
+        id: string;
+        title: string;
+        at: number;
+      }>;
+    share: {
+      people: Array<{
+          personId: string;
+          role: "edit" | "view";
+        }>;
+      space: "off" | "view" | "edit";
+    };
+    mine: boolean;
+    canEdit: boolean;
+    createdAt: number;
+    updatedAt: number;
+  };
+};
+export type NotesCreateIn = {
+  title?: string;
+  body?: string;
+  color?: "" | "rose" | "sand" | "sage" | "sky" | "lilac" | "slate";
+  pinned?: boolean;
+  labels?: Array<string>;
+  image?: {
+    data: string;
+    contentType: "image/png" | "image/jpeg" | "image/gif" | "image/webp";
+  };
+  link?: string;
+  idempotencyKey: string;
+};
+export type NotesCreateOut = {
+  note: {
+    noteId: string;
+    owner: string;
+    title: string;
+    body: string;
+    color: "" | "rose" | "sand" | "sage" | "sky" | "lilac" | "slate";
+    pinned: boolean;
+    labels: Array<string>;
+    hasImage: boolean;
+    link?: {
+      url: string;
+      title?: string;
+      siteName?: string;
+      image?: string;
+      description?: string;
+    };
+    clip?: {
+      url: string;
+      title?: string;
+      selection?: string;
+      hasShot: boolean;
+      at: number;
+    };
+    linked: Array<{
+        kind: "task" | "record";
+        id: string;
+        title: string;
+        at: number;
+      }>;
+    share: {
+      people: Array<{
+          personId: string;
+          role: "edit" | "view";
+        }>;
+      space: "off" | "view" | "edit";
+    };
+    mine: boolean;
+    canEdit: boolean;
+    createdAt: number;
+    updatedAt: number;
+  };
+};
+export type NotesDeleteIn = {
+  noteId: string;
+};
+export type NotesDeleteOut = {
+  deleted: boolean;
+  undo: {
+    noteId: string;
+  };
+};
+export type NotesGetIn = {
+  noteId: string;
+};
+export type NotesGetOut = {
+  note: {
+    noteId: string;
+    owner: string;
+    title: string;
+    body: string;
+    color: "" | "rose" | "sand" | "sage" | "sky" | "lilac" | "slate";
+    pinned: boolean;
+    labels: Array<string>;
+    hasImage: boolean;
+    link?: {
+      url: string;
+      title?: string;
+      siteName?: string;
+      image?: string;
+      description?: string;
+    };
+    clip?: {
+      url: string;
+      title?: string;
+      selection?: string;
+      hasShot: boolean;
+      at: number;
+    };
+    linked: Array<{
+        kind: "task" | "record";
+        id: string;
+        title: string;
+        at: number;
+      }>;
+    share: {
+      people: Array<{
+          personId: string;
+          role: "edit" | "view";
+        }>;
+      space: "off" | "view" | "edit";
+    };
+    mine: boolean;
+    canEdit: boolean;
+    createdAt: number;
+    updatedAt: number;
+  };
+};
+export type NotesImageIn = {
+  noteId: string;
+};
+export type NotesImageOut = {
+  contentType: string;
+  data: string;
+};
+export type NotesLabelIn = {
+  noteId: string;
+  add?: Array<string>;
+  remove?: Array<string>;
+};
+export type NotesLabelOut = {
+  note: {
+    noteId: string;
+    owner: string;
+    title: string;
+    body: string;
+    color: "" | "rose" | "sand" | "sage" | "sky" | "lilac" | "slate";
+    pinned: boolean;
+    labels: Array<string>;
+    hasImage: boolean;
+    link?: {
+      url: string;
+      title?: string;
+      siteName?: string;
+      image?: string;
+      description?: string;
+    };
+    clip?: {
+      url: string;
+      title?: string;
+      selection?: string;
+      hasShot: boolean;
+      at: number;
+    };
+    linked: Array<{
+        kind: "task" | "record";
+        id: string;
+        title: string;
+        at: number;
+      }>;
+    share: {
+      people: Array<{
+          personId: string;
+          role: "edit" | "view";
+        }>;
+      space: "off" | "view" | "edit";
+    };
+    mine: boolean;
+    canEdit: boolean;
+    createdAt: number;
+    updatedAt: number;
+  };
+};
+export type NotesListIn = {
+  label?: string;
+  q?: string;
+  from?: "all" | "mine" | "shared";
+  cursor?: string;
+  limit?: number;
+};
+export type NotesListOut = {
+  notes: Array<{
+      noteId: string;
+      owner: string;
+      title: string;
+      body: string;
+      color: "" | "rose" | "sand" | "sage" | "sky" | "lilac" | "slate";
+      pinned: boolean;
+      labels: Array<string>;
+      hasImage: boolean;
+      link?: {
+        url: string;
+        title?: string;
+        siteName?: string;
+        image?: string;
+        description?: string;
+      };
+      clip?: {
+        url: string;
+        title?: string;
+        selection?: string;
+        hasShot: boolean;
+        at: number;
+      };
+      linked: Array<{
+          kind: "task" | "record";
+          id: string;
+          title: string;
+          at: number;
+        }>;
+      share: {
+        people: Array<{
+            personId: string;
+            role: "edit" | "view";
+          }>;
+        space: "off" | "view" | "edit";
+      };
+      mine: boolean;
+      canEdit: boolean;
+      createdAt: number;
+      updatedAt: number;
+    }>;
+  labels: Array<{
+      name: string;
+      count: number;
+    }>;
+  next?: string;
+  total?: number;
+};
+export type NotesPinIn = {
+  noteId: string;
+  pinned: boolean;
+};
+export type NotesPinOut = {
+  note: {
+    noteId: string;
+    owner: string;
+    title: string;
+    body: string;
+    color: "" | "rose" | "sand" | "sage" | "sky" | "lilac" | "slate";
+    pinned: boolean;
+    labels: Array<string>;
+    hasImage: boolean;
+    link?: {
+      url: string;
+      title?: string;
+      siteName?: string;
+      image?: string;
+      description?: string;
+    };
+    clip?: {
+      url: string;
+      title?: string;
+      selection?: string;
+      hasShot: boolean;
+      at: number;
+    };
+    linked: Array<{
+        kind: "task" | "record";
+        id: string;
+        title: string;
+        at: number;
+      }>;
+    share: {
+      people: Array<{
+          personId: string;
+          role: "edit" | "view";
+        }>;
+      space: "off" | "view" | "edit";
+    };
+    mine: boolean;
+    canEdit: boolean;
+    createdAt: number;
+    updatedAt: number;
+  };
+};
+export type NotesRestoreIn = {
+  noteId: string;
+};
+export type NotesRestoreOut = {
+  note: {
+    noteId: string;
+    owner: string;
+    title: string;
+    body: string;
+    color: "" | "rose" | "sand" | "sage" | "sky" | "lilac" | "slate";
+    pinned: boolean;
+    labels: Array<string>;
+    hasImage: boolean;
+    link?: {
+      url: string;
+      title?: string;
+      siteName?: string;
+      image?: string;
+      description?: string;
+    };
+    clip?: {
+      url: string;
+      title?: string;
+      selection?: string;
+      hasShot: boolean;
+      at: number;
+    };
+    linked: Array<{
+        kind: "task" | "record";
+        id: string;
+        title: string;
+        at: number;
+      }>;
+    share: {
+      people: Array<{
+          personId: string;
+          role: "edit" | "view";
+        }>;
+      space: "off" | "view" | "edit";
+    };
+    mine: boolean;
+    canEdit: boolean;
+    createdAt: number;
+    updatedAt: number;
+  };
+};
+export type NotesSearchIn = {
+  q: string;
+  limit?: number;
+};
+export type NotesSearchOut = {
+  notes: Array<{
+      noteId: string;
+      title: string;
+      snippet: string;
+      labels: Array<string>;
+      owner: string;
+      updatedAt: number;
+    }>;
+};
+export type NotesShareIn = {
+  noteId: string;
+  people?: Array<{
+      personId: string;
+      role: "edit" | "view" | "remove";
+    }>;
+  space?: "off" | "view" | "edit";
+};
+export type NotesShareOut = {
+  note: {
+    noteId: string;
+    owner: string;
+    title: string;
+    body: string;
+    color: "" | "rose" | "sand" | "sage" | "sky" | "lilac" | "slate";
+    pinned: boolean;
+    labels: Array<string>;
+    hasImage: boolean;
+    link?: {
+      url: string;
+      title?: string;
+      siteName?: string;
+      image?: string;
+      description?: string;
+    };
+    clip?: {
+      url: string;
+      title?: string;
+      selection?: string;
+      hasShot: boolean;
+      at: number;
+    };
+    linked: Array<{
+        kind: "task" | "record";
+        id: string;
+        title: string;
+        at: number;
+      }>;
+    share: {
+      people: Array<{
+          personId: string;
+          role: "edit" | "view";
+        }>;
+      space: "off" | "view" | "edit";
+    };
+    mine: boolean;
+    canEdit: boolean;
+    createdAt: number;
+    updatedAt: number;
+  };
+};
+export type NotesToRecordIn = {
+  noteId: string;
+  type: string;
+  fields: Record<string, unknown>;
+  keep?: boolean;
+  idempotencyKey: string;
+};
+export type NotesToRecordOut = {
+  note: {
+    noteId: string;
+    owner: string;
+    title: string;
+    body: string;
+    color: "" | "rose" | "sand" | "sage" | "sky" | "lilac" | "slate";
+    pinned: boolean;
+    labels: Array<string>;
+    hasImage: boolean;
+    link?: {
+      url: string;
+      title?: string;
+      siteName?: string;
+      image?: string;
+      description?: string;
+    };
+    clip?: {
+      url: string;
+      title?: string;
+      selection?: string;
+      hasShot: boolean;
+      at: number;
+    };
+    linked: Array<{
+        kind: "task" | "record";
+        id: string;
+        title: string;
+        at: number;
+      }>;
+    share: {
+      people: Array<{
+          personId: string;
+          role: "edit" | "view";
+        }>;
+      space: "off" | "view" | "edit";
+    };
+    mine: boolean;
+    canEdit: boolean;
+    createdAt: number;
+    updatedAt: number;
+  };
+  recordId: string;
+};
+export type NotesToTaskIn = {
+  noteId: string;
+  title?: string;
+  assigned?: {
+    kind: "person" | "agent";
+    id: string;
+  };
+  due?: number;
+  keep?: boolean;
+  idempotencyKey: string;
+};
+export type NotesToTaskOut = {
+  note: {
+    noteId: string;
+    owner: string;
+    title: string;
+    body: string;
+    color: "" | "rose" | "sand" | "sage" | "sky" | "lilac" | "slate";
+    pinned: boolean;
+    labels: Array<string>;
+    hasImage: boolean;
+    link?: {
+      url: string;
+      title?: string;
+      siteName?: string;
+      image?: string;
+      description?: string;
+    };
+    clip?: {
+      url: string;
+      title?: string;
+      selection?: string;
+      hasShot: boolean;
+      at: number;
+    };
+    linked: Array<{
+        kind: "task" | "record";
+        id: string;
+        title: string;
+        at: number;
+      }>;
+    share: {
+      people: Array<{
+          personId: string;
+          role: "edit" | "view";
+        }>;
+      space: "off" | "view" | "edit";
+    };
+    mine: boolean;
+    canEdit: boolean;
+    createdAt: number;
+    updatedAt: number;
+  };
+  taskId: string;
+};
+export type NotesUpdateIn = {
+  noteId: string;
+  title?: string;
+  body?: string;
+  color?: "" | "rose" | "sand" | "sage" | "sky" | "lilac" | "slate";
+  image?: ({
+    data: string;
+    contentType: "image/png" | "image/jpeg" | "image/gif" | "image/webp";
+  }) | null;
+  link?: string | null;
+};
+export type NotesUpdateOut = {
+  note: {
+    noteId: string;
+    owner: string;
+    title: string;
+    body: string;
+    color: "" | "rose" | "sand" | "sage" | "sky" | "lilac" | "slate";
+    pinned: boolean;
+    labels: Array<string>;
+    hasImage: boolean;
+    link?: {
+      url: string;
+      title?: string;
+      siteName?: string;
+      image?: string;
+      description?: string;
+    };
+    clip?: {
+      url: string;
+      title?: string;
+      selection?: string;
+      hasShot: boolean;
+      at: number;
+    };
+    linked: Array<{
+        kind: "task" | "record";
+        id: string;
+        title: string;
+        at: number;
+      }>;
+    share: {
+      people: Array<{
+          personId: string;
+          role: "edit" | "view";
+        }>;
+      space: "off" | "view" | "edit";
+    };
+    mine: boolean;
+    canEdit: boolean;
+    createdAt: number;
+    updatedAt: number;
+  };
+};
 export type NotificationsAwayClearIn = Record<string, unknown>;
 export type NotificationsAwayClearOut = {
   waitedApprovals: number;
@@ -35239,6 +35840,20 @@ export interface CapMap {
   "network.server_remove": { in: NetworkServerRemoveIn; out: NetworkServerRemoveOut };
   "network.servers": { in: NetworkServersIn; out: NetworkServersOut };
   "network.status": { in: NetworkStatusIn; out: NetworkStatusOut };
+  "notes.clip": { in: NotesClipIn; out: NotesClipOut };
+  "notes.create": { in: NotesCreateIn; out: NotesCreateOut };
+  "notes.delete": { in: NotesDeleteIn; out: NotesDeleteOut };
+  "notes.get": { in: NotesGetIn; out: NotesGetOut };
+  "notes.image": { in: NotesImageIn; out: NotesImageOut };
+  "notes.label": { in: NotesLabelIn; out: NotesLabelOut };
+  "notes.list": { in: NotesListIn; out: NotesListOut };
+  "notes.pin": { in: NotesPinIn; out: NotesPinOut };
+  "notes.restore": { in: NotesRestoreIn; out: NotesRestoreOut };
+  "notes.search": { in: NotesSearchIn; out: NotesSearchOut };
+  "notes.share": { in: NotesShareIn; out: NotesShareOut };
+  "notes.to_record": { in: NotesToRecordIn; out: NotesToRecordOut };
+  "notes.to_task": { in: NotesToTaskIn; out: NotesToTaskOut };
+  "notes.update": { in: NotesUpdateIn; out: NotesUpdateOut };
   "notifications.away.clear": { in: NotificationsAwayClearIn; out: NotificationsAwayClearOut };
   "notifications.away.get": { in: NotificationsAwayGetIn; out: NotificationsAwayGetOut };
   "notifications.away.set": { in: NotificationsAwaySetIn; out: NotificationsAwaySetOut };
@@ -37809,6 +38424,39 @@ export type NetworkServerRequestedPayload = {
 export type NoteErasedPayload = {
   noteId: string;
 };
+export type NotesClippedPayload = {
+  noteId: string;
+  owner: string;
+};
+export type NotesCreatedPayload = {
+  noteId: string;
+  owner: string;
+};
+export type NotesDeletedPayload = {
+  noteId: string;
+  owner: string;
+};
+export type NotesLinkedPayload = {
+  noteId: string;
+  owner: string;
+  kind: "task" | "record";
+  id: string;
+};
+export type NotesRestoredPayload = {
+  noteId: string;
+  owner: string;
+};
+export type NotesSharedPayload = {
+  noteId: string;
+  owner: string;
+  people: Array<string>;
+  space: "off" | "view" | "edit";
+};
+export type NotesUpdatedPayload = {
+  noteId: string;
+  owner: string;
+  by: string;
+};
 export type NotificationCappedPayload = {
   person: string;
   agentId: string;
@@ -39849,6 +40497,13 @@ export interface EventMap {
   "network.server_removed": NetworkServerRemovedPayload;
   "network.server_requested": NetworkServerRequestedPayload;
   "note.erased": NoteErasedPayload;
+  "notes.clipped": NotesClippedPayload;
+  "notes.created": NotesCreatedPayload;
+  "notes.deleted": NotesDeletedPayload;
+  "notes.linked": NotesLinkedPayload;
+  "notes.restored": NotesRestoredPayload;
+  "notes.shared": NotesSharedPayload;
+  "notes.updated": NotesUpdatedPayload;
   "notification.capped": NotificationCappedPayload;
   "notification.delegate_changed": NotificationDelegateChangedPayload;
   "notification.delivered": NotificationDeliveredPayload;

@@ -1727,6 +1727,22 @@ export function createClient(transport: Transport) {
       servers: call("network.servers", 1),
       status: call("network.status", 1),
     },
+    notes: {
+      clip: call("notes.clip", 1),
+      create: call("notes.create", 1),
+      delete: call("notes.delete", 1),
+      get: call("notes.get", 1),
+      image: call("notes.image", 1),
+      label: call("notes.label", 1),
+      list: call("notes.list", 1),
+      pin: call("notes.pin", 1),
+      restore: call("notes.restore", 1),
+      search: call("notes.search", 1),
+      share: call("notes.share", 1),
+      to_record: call("notes.to_record", 1),
+      to_task: call("notes.to_task", 1),
+      update: call("notes.update", 1),
+    },
     notifications: {
       away: {
         clear: call("notifications.away.clear", 1),
