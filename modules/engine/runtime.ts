@@ -24,8 +24,10 @@ import { checkedOpen, createRunnableAccount } from "./runnable-account.ts";
 import { skipLocked } from "./locked-account.ts";
 import type { NodeCliProbe } from "./cli-programs.ts";
 import { configureEngines, engines, enginesRoot } from "./engine-install.ts";
-import { createContextBuilder, diskSkills, takeHandoff, withTurnContext } from "./context.ts";
+import { capabilitySkills, createContextBuilder, takeHandoff, withTurnContext } from "./context.ts";
 import { withTranscript } from "./transcript.ts";
+import { withNativeSkills } from "./skills-native.ts";
+import { workFolder } from "./sandbox.ts";
 import { createCompactor, withCompaction } from "./compact.ts";
 import type { Compactor } from "./compact.ts";
 import { keepEvery, keepsSession, resumeId, saveResumeId } from "./cli-sessions.ts";
@@ -84,7 +86,7 @@ export interface EngineHostSeam {
   postAs?: PostAs;
   /** May every one of these people do this on this resource, each on their own grants (the answer check, modules/engine/answer-audience.ts)? Absent: answers are posted unchecked, as before. */
   mayAll?(people: readonly string[], action: { perm: string | null; level: "view" | "use" | "edit" | "manage" }, resource: { type: string; id: string | null }): boolean;
-  /** The skills the turn context indexes and loads a focus skill from. Default: the built-in skills on disk (agent/skills). */
+  /** The skills the turn context indexes and loads a focus skill from. Default: the skills module's loader (skills.list and skills.load as the asker), with the built-ins on disk when it cannot answer. */
   skills?: import("./context.ts").SkillsPort;
   /** Live turn events (text as it is written, the end, the message it became) for the host to put on the live socket. */
   stream?: (e: StreamEvent) => void;
@@ -297,6 +299,9 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
     return o.openSession;
   };
   const openSession = host.session && h.nodes && !host.openSession ? routed(baseOpen, { call: h.call, relay: h.nodes, nodeOpener, db: ctx.db }) : baseOpen;
+  // a Claude Code or Codex chat gets the agent's skills in its own work folder (person/thread/agent) before every turn, so one added mid-chat reaches a running engine (the opener wrote them as it started)
+  const skillsDir = host.sandbox?.dataDir ?? host.dataDir;
+  const nativeSkills = (o: OpenSession): OpenSession => (!host.openSession && skillsDir ? withNativeSkills(o, { call: h.call, workOf: (spec) => workFolder(skillsDir, spec.asker, spec.threadId, spec.agent.id), ...(h.log ? { log: h.log } : {}) }) : o);
   closeOpener = opener ? async () => { await opener.close(); await Promise.all([...nodeOpeners.values()].map((o) => o.close())); } : null;
   building ??= (async () => {
     const now = h.now ?? Date.now;
@@ -307,7 +312,7 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
     // The turn context is built as the asker before each turn (modules/engine/context.ts); what the agent waits on is read off the engine once it exists.
     let running: TurnEngine | null = null;
     const turnContext = createContextBuilder({
-      call: h.call, skills: h.skills ?? diskSkills(), now, handoff: takeHandoff,
+      call: h.call, skills: h.skills ?? capabilitySkills(h.call), now, handoff: takeHandoff,
       waiting: (threadId, agentId) => (running?.waiting(threadId) ?? []).filter((w) => w.agentId === agentId).map((w) => `an answer to task ${w.taskId} (a held call needs approval)`),
     });
     const limitSwitch = createLimitSwitch({
@@ -322,7 +327,7 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
       },
     });
     const engine = createTurnEngine({
-      holder: h.holder, openSession: withChatSettings(withSpaceKeyTurns(withTurnContext(withCompaction(withTranscript(withRecall(bridge ? bridge.tap(openSession) : openSession, h.call), h.call, now), ctx.db), turnContext), { call: h.call, db: ctx.db, now }), h.call), now,
+      holder: h.holder, openSession: withChatSettings(withSpaceKeyTurns(withTurnContext(nativeSkills(withCompaction(withTranscript(withRecall(bridge ? bridge.tap(openSession) : openSession, h.call), h.call, now), ctx.db)), turnContext), { call: h.call, db: ctx.db, now }), h.call), now,
       queue: sqlQueue(ctx.db), leases: sqlLeases(ctx.db), messages: sqlMessages(ctx.db, now), waits: sqlWaits(ctx.db), newId: (p) => mintEngineId(p, now()),
       admit: (q) => admission(h, q),
       lostTurn: (row) => lostTurnId(ctx.db, row, () => mintEngineId("trn", now())),
