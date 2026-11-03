@@ -25,7 +25,6 @@ import process from "node:process";
 import fs from "node:fs";
 import path from "node:path";
 import { spawn } from "node:child_process";
-import { createHash } from "node:crypto";
 
 const argv = process.argv.slice(2);
 const flag = (name) => { const i = argv.indexOf(name); return i >= 0 ? argv[i + 1] : undefined; };
@@ -46,6 +45,12 @@ function keep(line) {
 }
 
 const init = () => out({ type: "system", subtype: "init", session_id: session, mcp_servers: [{ name: "vyre", status: "connected" }] });
+/** The first 12 hex of the SHA-256 of a text, through the platform's Web Crypto (no crypto import in a host fixture, boundary B3). */
+async function sha12(text) {
+  const d = await globalThis.crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
+  return Buffer.from(d).toString("hex").slice(0, 12);
+}
+
 function reply(parts) {
   init();
   out({ type: "stream_event", event: { type: "message_start", message: { id: `m_${Date.now()}` } } });
@@ -295,7 +300,7 @@ async function run(raw) {
   if (lastLine === "rawecho") { reply([raw]); return; }
   // where the engine ran (lane l-runson): FAKE_WHERE is set by the test's launcher on the person's computer; a turn that went on after the computer slept says so
   // "keycheck": which key the engine was started with, as a short hash (never the key), and where it ran: the Vault matrix (test/support/vault-matrix.ts) checks the right value was filled
-  if (lastLine === "keycheck") { reply([`key=${secret() === "" ? "none" : createHash("sha256").update(secret()).digest("hex").slice(0, 12)} ran-on=${process.env.FAKE_WHERE ?? "space"}`]); return; }
+  if (lastLine === "keycheck") { reply([`key=${secret() === "" ? "none" : await sha12(secret())} ran-on=${process.env.FAKE_WHERE ?? "space"}`]); return; }
   if (lastLine === "whereami") { reply([`ran-on=${process.env.FAKE_WHERE ?? "space"} handover=${raw.includes("which went to sleep") ? "yes" : "no"}`]); return; }
   // "slowwhere": the first words at once, the rest after FAKE_SLOW_MS (default 4 s): a turn that is in the middle when its computer goes away
   if (lastLine === "slowwhere") {

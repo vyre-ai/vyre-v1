@@ -2,9 +2,9 @@
 // unlocks, never with another person's, and a bundle that is not real gives no public key (the save then refuses as before instead of sealing to nothing).
 import test from "node:test";
 import assert from "node:assert/strict";
-import { makeBundle } from "../../client/src/crypto/keys.ts";
-import { privateKeyOf, publicKeyOf } from "../src/seams/person-keys.ts";
-import { openMineSealed, sealMineTo } from "../../modules/vault/handlers/crypto.ts";
+import { makeBundle } from "../client/src/crypto/keys.ts";
+import { privateKeyOf, publicKeyOf } from "../host/src/seams/person-keys.ts";
+import { openMineSealed, sealMineTo } from "../modules/vault/handlers/crypto.ts";
 
 const FAST = { memoryKiB: 8, iterations: 1, parallelism: 1 };
 const dbOf = (rows: Record<string, unknown>) => ({ all: (_sql: string, id: unknown) => (rows[String(id)] ? [{ keys_json: JSON.stringify(rows[String(id)]) }] : []) });
