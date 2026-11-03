@@ -53,6 +53,28 @@ test("a daemon that is already serving keeps its record store when a second daem
   } finally { await first.stop(); }
 });
 
+const TYPE = (name: string) => ({ ops: [{ op: "type.create", type: name, def: { title: name, plural: name + "s", icon: "user", titleField: "name", fields: [{ key: "name", type: "text", title: "Name", required: true }] } }] });
+const fixed = ["schema.types.list", "sources.list", "connectors.list"] as const;
+
+test("two daemons running at once each answer from their own Space store (records, schema, sources, connectors), and the first still works after the second stops", async () => {
+  const a = await boot(seededDir());
+  const b = await boot(seededDir());
+  try {
+    // a type made on A is A's alone: B has not got it, and each daemon's records.create goes to its own store
+    assert.equal((await post(a, "schema.apply", TYPE("rt_only_a"))).status, 200);
+    assert.equal((await post(a, "records.create", { type: "rt_only_a", fields: { name: "On A" } })).status, 200);
+    assert.notEqual((await post(b, "records.create", { type: "rt_only_a", fields: { name: "On B" } })).status, 200, "B does not know A's type");
+    assert.equal((await post(b, "schema.apply", TYPE("rt_only_b"))).status, 200);
+    assert.equal((await post(b, "records.create", { type: "rt_only_b", fields: { name: "On B" } })).status, 200);
+    const typesA = (await post(a, "schema.types.list", {})).data.types.map((t: { key: string }) => t.key);
+    assert.ok(typesA.includes("rt_only_a") && !typesA.includes("rt_only_b"), "A's schema lists A's type only");
+    await b.stop();
+    for (const cap of fixed) assert.equal((await post(a, cap, {})).status, 200, `${cap} on the first daemon after the second stopped`);
+    assert.equal((await post(a, "records.create", { type: "rt_only_a", fields: { name: "Again" } })).status, 200);
+    assert.equal((await post(a, "records.create", { type: "contact", fields: { name: "C", email: "c@x.test" } })).status, 200);
+  } finally { await a.stop(); await b.stop().catch(() => undefined); }
+});
+
 test("seams: when the later daemon stops, the earlier one that is still running gets its own driver back; the last one out clears it", () => {
   let held: unknown = "unset";
   const setters = { setEngineHost: (h: unknown) => { held = h; } } as unknown as SeamSetters;

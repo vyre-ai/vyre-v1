@@ -1278,7 +1278,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       const system = (cap: string, input: unknown, trace?: { traceId: string; spanId: string }): Promise<unknown> =>
         invoke(cap, input, { space: spaceId, principal: { ...SYSTEM_PRINCIPAL }, preAuth: true, origin: "hook", ...(trace ? { trace } : {}) }).then((r) => (r.status === "ok" ? r.output : Promise.reject(new Error(`${cap} was held for approval`))));
       // the Space record store the L3 data modules share (P-H_08): one file in the data directory, opened by the first module that needs it, closed at shutdown
-      const spaceStore = createSpaceStore({ path: spaceStorePath(paths.root), space: spaceId });
+      const spaceStore = createSpaceStore({ path: spaceStorePath(paths.root), space: spaceId, ours: (x: unknown) => { const r = rawDbOf(x); return r === null || r === db; } });
       closers.push(() => spaceStore.close());
       dispatchSystem = system;
       // The connectors that ship with the server (Google, Microsoft, Stripe, HubSpot...) are resources in the access projection so that a connection can be made under one: connections.create
