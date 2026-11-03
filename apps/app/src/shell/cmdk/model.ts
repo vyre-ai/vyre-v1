@@ -106,7 +106,7 @@ export function mergeHits(local: readonly Hit[], server: readonly Hit[]): Hit[] 
 
 export const GROUPS: readonly (readonly [HitKind, string])[] = [
   ["agent", "Agents"], ["chat", "Chats"], ["channel", "Channels"], ["person", "People"], ["inbox", "Inbox"], ["record", "Records"],
-  ["task", "Tasks"], ["file", "Files"], ["automation", "Automations"], ["app", "Apps"], ["setting", "Settings"], ["memory", "Memory"],
+  ["task", "Tasks"], ["file", "Files"], ["automation", "Automations"], ["app", "Apps"], ["setting", "Settings"], ["memory", "Memory"], ["note", "Notes"],
 ];
 
 export type RowModel =

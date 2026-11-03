@@ -2,3 +2,4 @@
 - Agents read notes with `notes_search` and `notes_get` only where everyone in the chat may read the note (`lib/audience.ts`). A private note is readable in its owner's own chats and Ask pane, never in a channel or a chat others are in. A shared note follows its share.
 - `automations.read_link` also returns an HTML page's meta (title, image address, site name, description) for link cards.
 - Vyre for Chrome may call `notes.clip` to clip a page into a private note with its address, title, selected text and a screenshot.
+- Notes show in the top search (Cmd-K) under Notes. `search.query` asks `notes.search` as the asker, so a person finds their own notes and the ones shared with them, never anyone else's private note. Notes are never written to the search index.
