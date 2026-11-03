@@ -17,6 +17,17 @@ export function classify(status: number, text: string, code?: string): { code: s
   return { code: "provider.bad_request", retryable: false };
 }
 
+/** OpenCode Go's refusal of a request without its session header (400 MissingSessionID, "Request is missing x-opencode-session"). */
+const OPENCODE_SESSION_MISSING = /MissingSessionID|missing x-opencode-session/i;
+
+/**
+ * A provider refusal in plain words, when Vyre knows what it means; null for the rest, which keep "The provider answered <status>: <text>".
+ */
+export function plainRefusal(status: number, text: string): string | null {
+  if (status === 400 && OPENCODE_SESSION_MISSING.test(text)) return "OpenCode Go turned the chat away because it carried no session id, which this version of Vyre should send. Update Vyre, or use another AI account until then.";
+  return null;
+}
+
 /** Retry-After in seconds or as a date; undefined when absent or unreadable. */
 export function retryAfterMs(header: string | null, now: number): number | undefined {
   if (!header) return undefined;
