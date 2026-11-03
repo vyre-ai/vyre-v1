@@ -12,7 +12,8 @@ function payerOf(req: ResolveRequest): { payer: string; reason: "starter" | "ste
   return { payer: req.starter, reason: "starter" };
 }
 
-const usable = (a: AccountRow): boolean => a.status === "ok" || a.status === "untested";
+/** A turn the account's owner asked for themselves: their message, or a wake of their own chat. A routine or an automation's step is not (it needs the standing switch). */
+const ownTurn = (row: AccountRow, req: ResolveRequest, payer: string): boolean => row.mine && row.ownerId === payer && (req.trigger === "message" || req.trigger === "wake");
 
 /** Why this row cannot pay for this turn, or null when it can. */
 export function skipReason(row: AccountRow | undefined, req: ResolveRequest, payer: string): SkipWhy | null {
@@ -20,7 +21,8 @@ export function skipReason(row: AccountRow | undefined, req: ResolveRequest, pay
   if (req.unavailable?.includes(row.ref)) return "failed_this_turn";
   if (req.policy === "company" && (row.mine || row.kind === "subscription")) return "policy_company";
   if (row.mine && row.ownerId !== payer) return "not_yours";
-  if (row.kind === "subscription" && req.onServer && !row.spaceMayUse) return "space_may_not_use";
+  // the standing switch is for others and for automations: a person's own sign-in always answers their own turns, wherever they run (owner ruling, member keys on the server)
+  if (row.kind === "subscription" && req.onServer && !row.spaceMayUse && !ownTurn(row, req, payer)) return "space_may_not_use";
   if (row.status === "expired") return "expired";
   if (row.status === "failed") return "failed";
   return null;

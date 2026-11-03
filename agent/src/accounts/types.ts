@@ -19,7 +19,7 @@ export interface AccountRow {
   ownerId: string | null;
   status: AccountStatus;
   lastProbeAt: number | null;
-  /** The standing switch "Let the Space run work on my subscription" (subscriptions only). */
+  /** The standing switch "Let the Space run work on my subscription": others and automations may use it. The owner's own turns never need it. */
   spaceMayUse: boolean;
   /** The Space AI key: one shared API key an owner or admin set for everyone. Any member's turn falls back to it after their own accounts. */
   spaceKey?: boolean;
@@ -57,7 +57,7 @@ export interface ResolveRequest {
   accounts: readonly AccountRow[];
   /** Refs that already failed during this turn. */
   unavailable?: readonly string[];
-  /** The turn runs on the Space host (not the person's own device). Subscriptions then need the standing switch. */
+  /** The turn runs on the Space host (not the person's own device). A subscription then needs the standing switch, unless it is the payer's own turn. */
   onServer: boolean;
 }
 

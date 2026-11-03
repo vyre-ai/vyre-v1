@@ -103,7 +103,8 @@ async function accountFor(ctx: EngineCtx, i: StepTurnIn, asker: string, service:
   const provider = agent?.model ? providerOfModel(agent.model) : undefined;
   const res = resolveAccount({
     starter: asker,
-    trigger: keyRef ? "task" : "message",
+    // an automation's step is not the person's own turn: their sign-in pays for it only with "Let the Space run work on my subscription" on
+    trigger: keyRef ? "task" : "routine", routineOwner: asker,
     ...(keyRef ? { stepKey: keyRef } : {}),
     agent: { accountPolicy: agent?.accountPolicy ?? "asker", ...(agent?.accountKey ? { accountKey: agent.accountKey } : {}), ...(provider ? { provider } : {}) },
     backupRefs: backupRef ? [backupRef] : [],

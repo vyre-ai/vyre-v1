@@ -1,0 +1,1 @@
+- Your own Claude, ChatGPT or Grok sign-in now answers your own chats on a Team Space server with nothing else to turn on. "Let the Space run work on my subscription" now only decides whether automations and other people's work may use it (owner ruling, 3 Nov).
