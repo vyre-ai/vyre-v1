@@ -1523,7 +1523,7 @@ const routes0: Route[] = [
     "module": "agents",
     "effects": "read",
     "permission": null,
-    "level": "view",
+    "level": "member",
     "resource": {
       "type": "space"
     },
@@ -4453,7 +4453,7 @@ const routes0: Route[] = [
     "module": "chat",
     "effects": "read",
     "permission": null,
-    "level": "view",
+    "level": "member",
     "resource": {
       "type": "space"
     },
@@ -5223,7 +5223,7 @@ const routes0: Route[] = [
     "module": "chat",
     "effects": "read",
     "permission": null,
-    "level": "view",
+    "level": "member",
     "resource": {
       "type": "space"
     },
@@ -7128,7 +7128,7 @@ const routes1: Route[] = [
     "module": "connectors",
     "effects": "read",
     "permission": null,
-    "level": "view",
+    "level": "member",
     "resource": {
       "type": "space"
     },
@@ -11606,7 +11606,7 @@ const routes2: Route[] = [
     "module": "files",
     "effects": "read",
     "permission": null,
-    "level": "view",
+    "level": "member",
     "resource": {
       "type": "space"
     },
@@ -11962,7 +11962,7 @@ const routes2: Route[] = [
     "module": "files",
     "effects": "read",
     "permission": null,
-    "level": "view",
+    "level": "member",
     "resource": {
       "type": "space"
     },
@@ -11980,7 +11980,7 @@ const routes2: Route[] = [
     "module": "files",
     "effects": "read",
     "permission": null,
-    "level": "view",
+    "level": "member",
     "resource": {
       "type": "space"
     },
@@ -16951,7 +16951,7 @@ const routes3: Route[] = [
     "module": "inbox",
     "effects": "read",
     "permission": null,
-    "level": "view",
+    "level": "member",
     "resource": {
       "type": "space"
     },
@@ -27792,7 +27792,7 @@ const routes5: Route[] = [
     "module": "schema",
     "effects": "read",
     "permission": null,
-    "level": "view",
+    "level": "member",
     "resource": {
       "type": "space"
     },
@@ -28296,7 +28296,7 @@ const routes5: Route[] = [
     "module": "settings",
     "effects": "read",
     "permission": null,
-    "level": "view",
+    "level": "member",
     "resource": {
       "type": "space"
     },
@@ -31381,7 +31381,7 @@ const routes5: Route[] = [
     "module": "tasks",
     "effects": "read",
     "permission": null,
-    "level": "view",
+    "level": "member",
     "resource": {
       "type": "space"
     },
@@ -31683,7 +31683,7 @@ const routes5: Route[] = [
     "module": "tasks",
     "effects": "read",
     "permission": null,
-    "level": "view",
+    "level": "member",
     "resource": {
       "type": "space"
     },
@@ -34062,7 +34062,7 @@ const routes6: Route[] = [
     "module": "vault",
     "effects": "read",
     "permission": null,
-    "level": "view",
+    "level": "member",
     "resource": {
       "type": "space"
     },
@@ -34399,7 +34399,7 @@ const routes6: Route[] = [
     "module": "vault",
     "effects": "read",
     "permission": null,
-    "level": "view",
+    "level": "member",
     "resource": {
       "type": "space"
     },

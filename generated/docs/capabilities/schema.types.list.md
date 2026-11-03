@@ -8,7 +8,7 @@ List record types in Personal, Shared with me or Space sections with folders and
 | Version | 1 (since 1.0.0) |
 | Effects | read |
 | Permission | grant only |
-| Grant level | view |
+| Grant level | member |
 | Risk | low |
 | Resource | space |
 | Gate | none |

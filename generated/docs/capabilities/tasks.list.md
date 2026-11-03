@@ -8,7 +8,7 @@ List tasks by scope (mine, assigned by me, following, a record, a run) and filte
 | Version | 1 (since 1.0.0) |
 | Effects | read |
 | Permission | grant only |
-| Grant level | view |
+| Grant level | member |
 | Risk | low |
 | Resource | space |
 | Gate | none |
