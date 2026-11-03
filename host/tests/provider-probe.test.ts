@@ -93,9 +93,19 @@ test("a provider key is only sent to its own provider, and a refused key says so
   const seen: string[] = [];
   const fetchFn = (async (url: string, init?: { headers?: Record<string, string> }) => { seen.push(`${url} ${JSON.stringify(init?.headers)}`); return new Response("{}", { status: 401 }); }) as unknown as typeof fetch;
   const r = await createProviderProbe({ fetch: fetchFn })({ providerKey: "anthropic", connection: "api_key", caller: "usr_a", apiKey: KEY });
-  assert.deepEqual([r.ok, r.detail], [false, "The provider did not accept this key."]);
+  assert.deepEqual([r.ok, r.detail, r.refused], [false, "The provider did not accept this key.", true]);
   assert.ok(!JSON.stringify(r).includes(KEY));
   assert.match(seen[0]!, /^https:\/\/api\.anthropic\.com\/v1\/models/);
+});
+
+test("only a 401 or 403 is a refused key; a 5xx or a provider it cannot reach is not", async () => {
+  const answering = (status: number) => (async () => new Response("{}", { status })) as unknown as typeof fetch;
+  const probe = (f: typeof fetch) => createProviderProbe({ fetch: f })({ providerKey: "anthropic", connection: "api_key", caller: "usr_a", apiKey: KEY });
+  assert.equal((await probe(answering(403))).refused, true);
+  const busy = await probe(answering(503));
+  assert.deepEqual([busy.ok, busy.refused, busy.detail], [false, undefined, "The provider answered 503."]);
+  const down = await probe((async () => { throw new Error("getaddrinfo ENOTFOUND"); }) as unknown as typeof fetch);
+  assert.deepEqual([down.ok, down.refused, down.detail], [false, undefined, "The provider could not be reached."]);
 });
 
 test("blockedAddress: the shared list refuses reserved and wrapped forms, on the own computer too where they are never right", () => {
@@ -118,5 +128,38 @@ test("a custom endpoint is probed at its own base (/models, its key as a bearer)
   const urls: string[] = [];
   const go = createProviderProbe({ fetch: (async (u: string) => { urls.push(u); return { status: 200, ok: true, json: async () => ({ data: [{ id: "glm-5.3" }] }) }; }) as unknown as typeof fetch });
   assert.deepEqual((await go({ providerKey: "opencode-go", connection: "api_key", caller: "usr_a", apiKey: KEY })).models, ["glm-5.3"]);
-  assert.deepEqual(urls, ["https://opencode.ai/inference/go/v1/models"]);
+  assert.deepEqual(urls, ["https://opencode.ai/inference/go/v1/models", "https://opencode.ai/inference/go/openai/v1/chat/completions"], "the list, then a one-token chat");
+});
+
+test("OpenCode Go's check is a real one-token chat with vyre's user agent and a session id: listing alone passed while every chat failed", async () => {
+  type Seen = { url: string; method: string; headers: Record<string, string>; body: unknown };
+  const run = async (chat: (n: number) => { status: number; text: string }) => {
+    const seen: Seen[] = [];
+    let n = 0;
+    const probe = createProviderProbe({
+      fetch: (async (u: string, init?: { method?: string; headers?: Record<string, string>; body?: string }) => {
+        seen.push({ url: u, method: init?.method ?? "GET", headers: init?.headers ?? {}, body: init?.body ? JSON.parse(init.body) : undefined });
+        if (u.endsWith("/v1/models")) return { status: 200, ok: true, json: async () => ({ data: [{ id: "kimi-k2" }, { id: "glm-5.3" }] }), text: async () => "" };
+        const a = chat(n++);
+        return { status: a.status, ok: a.status >= 200 && a.status < 300, json: async () => JSON.parse(a.text), text: async () => a.text };
+      }) as unknown as typeof fetch,
+    });
+    return { r: await probe({ providerKey: "opencode-go", connection: "api_key", caller: "usr_a", apiKey: KEY }), seen };
+  };
+  const good = await run(() => ({ status: 200, text: JSON.stringify({ choices: [{ message: { content: "ok" } }] }) }));
+  assert.deepEqual([good.r.ok, good.r.models], [true, ["kimi-k2", "glm-5.3"]]);
+  const list = good.seen[0]!, chat = good.seen[1]!;
+  assert.match(list.headers["user-agent"] ?? "", /^vyre\/[\w.+-]+$/, "the list carries vyre's user agent");
+  assert.equal(chat.method, "POST");
+  assert.match(chat.headers["user-agent"] ?? "", /^vyre\/[\w.+-]+$/);
+  assert.ok((chat.headers["x-opencode-session"] ?? "").length > 0, "and a session id");
+  assert.equal(chat.headers["authorization"], `Bearer ${KEY}`);
+  assert.deepEqual(chat.body, { model: "kimi-k2", max_tokens: 1, stream: false, messages: [{ role: "user", content: "Say ok." }] });
+
+  const missing = await run(() => ({ status: 400, text: JSON.stringify({ error: { type: "MissingSessionID", message: "Request is missing x-opencode-session" } }) }));
+  assert.deepEqual([missing.r.ok, missing.r.refused, missing.r.detail], [false, undefined, "OpenCode Go turned the chat away because it carried no session id."], "a failed chat fails the check, in words, without calling the key refused");
+  const refused = await run(() => ({ status: 401, text: "{}" }));
+  assert.deepEqual([refused.r.ok, refused.r.refused], [false, true]);
+  const second = await run((n) => (n === 0 ? { status: 404, text: "{}" } : { status: 200, text: "{}" }));
+  assert.equal(second.r.ok, true, "a model this endpoint does not serve is tried past");
 });

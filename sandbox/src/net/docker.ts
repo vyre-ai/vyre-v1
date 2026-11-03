@@ -87,7 +87,7 @@ function wrapApi(api: DockerApi, spec: SandboxSpec, roots: readonly string[], wa
 /** startDockerSandbox with the wall. Same spec, same roots, same Sandbox; `network` says "wall". */
 export async function startWalledDockerSandbox(spec: SandboxSpec, deps: WalledDockerDeps): Promise<WalledSandbox> {
   if (spec.kind !== "docker") throw new SandboxError("sandbox.policy", "this is the Docker sandbox");
-  const wall = await startNetWall({ allow: spec.egressHosts, ...(deps.egress ? { egress: deps.egress } : {}), ...(deps.baseDir ? { baseDir: deps.baseDir } : {}) });
+  const wall = await startNetWall({ allow: spec.egressHosts, ...(spec.egressRule ? { rule: spec.egressRule } : {}), ...(deps.egress ? { egress: deps.egress } : {}), ...(deps.baseDir ? { baseDir: deps.baseDir } : {}) });
   try {
     const { egress: _egress, baseDir: _baseDir, ...rest } = deps;
     const sandbox = await startDockerSandbox(spec, { ...rest, api: wrapApi(deps.api, spec, deps.roots.work, wall), startProxy: async () => ({ port: GUEST_PORT, close: () => wall.close() }) });

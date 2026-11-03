@@ -1,6 +1,7 @@
 // Identity module (lane L7a). The manifest stays `stub` until the lead regenerates the registry with status live (needs gen, which only CI runs).
 import { handlers } from "./handlers/index.ts";
 import { claimIssue } from "./handlers/claim.ts";
+import { carrySignIn, carryUse } from "./handlers/carry.ts";
 import { configureSessionTokens, sessionOfToken } from "./projections.ts";
 import type { IdentityCtx } from "./projections.ts";
 
@@ -10,12 +11,33 @@ export const hostSeams = { setSessionTokens: configureSessionTokens };
 export const projections = {};
 export const codecs = {};
 
+/** A name that is the Space's own: not empty and never an id (spc_...). */
+const ownName = (name: string): boolean => name !== "" && name.slice(0, 4).toLowerCase() !== "spc_";
+
+export const consumers = {
+  /**
+   * The sign-in page names the Space by what it is called now (3 Nov: the owner named the Space in setup and every sign-in page went on showing its id until the server restarted, because the row
+   * sign-in options reads was refreshed only at boot). A rename is copied here when it is committed; the profile is the spaces module's, read through spaces.get.
+   */
+  "identity.space_name": {
+    on: ["space.updated"],
+    async run(ctx: { space: string; db: { run(sql: string, ...a: unknown[]): unknown }; call(cap: string, input: unknown): Promise<unknown> }, event: { payload: { fields?: unknown } }): Promise<void> {
+      if (!Array.isArray(event.payload.fields) || !event.payload.fields.includes("name")) return;
+      const name = String(((await ctx.call("spaces.get", {})) as { space?: { name?: unknown } }).space?.name ?? "").trim();
+      if (ownName(name)) ctx.db.run(`UPDATE identity_space SET name = ? WHERE id = ?`, name, ctx.space);
+    },
+  },
+};
+
 /**
  * The Space row sign-in options and the join page read (name, fingerprint, which sign-in methods are on), made once at boot by the host. The fingerprint is the Space key's; the server holds no Space key
  * (the admin's device wraps it), so until a device sets it this is a stable placeholder derived from the Space id, which devices must not pin.
  * DECISION: the fingerprint is a placeholder (see host/src/seams/spaceadmin.ts).
  */
 export const hostCalls = {
+  /** rc.17: a sign-in from another Space's web page makes a carry token, never a session (handlers/carry.ts; the host's carry door is its only caller) */
+  "identity.carry_sign_in": (ctx: unknown, i: { username: string; password: string; totp?: string; origin: string }) => carrySignIn(ctx as IdentityCtx, i),
+  "identity.carry_use": (ctx: unknown, i: { token: string; origin: string; op: "keys_get" | "whoami" | "sign_out" }) => carryUse(ctx as IdentityCtx, i),
   /** ruling 71: a fresh one-time claim link for an owner who has no account yet (null once they have one) */
   "identity.claim_issue": (ctx: unknown, i: { personId: string }): { code: string; expiresAt: number } | null => claimIssue(ctx as IdentityCtx, i),
   "identity.ensure_space": (ctx: { space: string; db: { run(sql: string, ...a: unknown[]): unknown } }, i: { name: string; github: boolean }): void => {

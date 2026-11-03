@@ -19,6 +19,7 @@
 // Lag: stale_since is when the oldest unsynced change was first seen. A pass that leaves nothing waiting clears it, a failed pass starts it. The lag health reads it for every live mount.
 
 import { mintUuid } from "../../../lib/ids.ts";
+import { isHostService } from "../../../lib/trust.ts";
 import { ERROR_CODES, VyreErr } from "../../../packages/contracts/src/errors.ts";
 import type { Ctx } from "../../../packages/contracts/src/ctx.ts";
 import type { ErrorCode, NextStep, VyreError } from "../../../packages/contracts/src/types.ts";
@@ -966,6 +967,29 @@ async function mountsList(ctx: Ctx, input: unknown): Promise<Row> {
   return { mounts: page.map((r) => viewOf(ctx, r)), ...(offset + limit < all.length ? { next: String(offset + limit) } : {}), total: all.length };
 }
 
+/**
+ * A folder path as a computer names it, absolute: "/..." on a Mac or Linux; on Windows a drive letter (C:\ or C:/), a share (two backslashes, server, share) or the long form that starts
+ * with a backslash pair and a question mark (a drive or UNC after it). The sandbox's own check (sandbox/src/engine-access.ts addedFolder) decides on the machine what the engine may hold; this only
+ * drops what names no place.
+ */
+function absoluteLocal(p: string): boolean {
+  return p.startsWith("/") || /^[A-Za-z]:[\\/]/.test(p) || /^\\\\\?\\(?:[A-Za-z]:\\|UNC\\[^\\]+\\[^\\]+)/i.test(p) || /^[\\/]{2}[^\\/?.][^\\/]*[\\/][^\\/]+/.test(p);
+}
+
+/**
+ * The local folders a person added to this Space from their own computers, with the path on that computer, for their CLI engine's sandbox (owner ruling 3 Nov). Only the host asks (the engine, as each
+ * engine process starts); a person, an agent or an outside actor is refused, since the paths are of the person's machine. A folder the person mounted is theirs to work in, private or shared.
+ */
+async function engineFolders(ctx: Ctx, input: unknown): Promise<{ folders: Row[] }> {
+  if (!isHostService(ctx.principal)) fail(ctx, "permission.no_grant", "only Vyre itself reads where a person's folders are on their computer");
+  const o = record(ctx, input);
+  const person = optStr(o, "person");
+  if (person === undefined) fail(ctx, "validation.bad_input", "person is required");
+  const folders = liveMounts(ctx).filter((r) => str(r["kind"]) === "local" && str(r["owner"]) === person && typeof r["local_path"] === "string" && absoluteLocal(r["local_path"] as string))
+    .map((r) => ({ mountId: str(r["id"]), folderId: str(r["folder_id"]), ...(typeof r["device_id"] === "string" && r["device_id"] !== "" ? { deviceId: r["device_id"] } : {}), path: r["local_path"] as string }));
+  return { folders };
+}
+
 async function mountsGet(ctx: Ctx, input: unknown): Promise<{ mount: Row }> {
   const o = record(ctx, input);
   const row = mountRow(ctx, reqStr(ctx, o, "mountId"));
@@ -1398,6 +1422,7 @@ async function mountsLag(ctx: Ctx, _input: unknown): Promise<Row> {
 export const engineHandlers = {
   "mounts.browse": (ctx: Ctx, input: unknown) => mountsBrowse(ctx, input),
   "mounts.list": (ctx: Ctx, input: unknown) => mountsList(ctx, input),
+  "mounts.engine_folders": (ctx: Ctx, input: unknown) => engineFolders(ctx, input),
   "mounts.get": (ctx: Ctx, input: unknown) => mountsGet(ctx, input),
   "mounts.add": (ctx: Ctx, input: unknown) => mountsAdd(ctx, input),
   "mounts.update": (ctx: Ctx, input: unknown) => mountsUpdate(ctx, input),

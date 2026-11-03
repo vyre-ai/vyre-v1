@@ -1,6 +1,6 @@
 # vault.requests.fulfil
 
-Supply the key: attach an existing item, or save new fields as an item in the requested folder
+Supply the key: attach an existing item, or save new fields as an item in the requested folder; say who may use it through the agent that asked
 
 | | |
 |---|---|
@@ -32,6 +32,7 @@ type In = {
       value: string;
     }>;
   folderId?: string;
+  audience?: "asker" | "anyone";
 };
 ```
 
@@ -74,6 +75,7 @@ type Out = {
 {
   "name": "example",
   "input": {
+    "audience": "asker",
     "fields": [
       {
         "key": "api_key",

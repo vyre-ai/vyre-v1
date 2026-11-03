@@ -109,18 +109,18 @@ test("replies in an inline thread reach the author of the message above and the 
   assert.deepEqual(assertEventsConform(hn), []);
 });
 
-test("agents hand work to each other four times, then a person must reply; the limit is the Policies setting", async () => {
+test("agents hand work to each other eight times (owner ruling, 3 Nov; was four), then a person must reply; the limit is the Policies setting", async () => {
   const hn = harness();
   const c = await channel(hn);
   const t = c.mainThreadId as string;
   await say(hn.ctx, t, "Please handle this");
-  const chain = [INTAKE, DRAFTER, REVIEWER, INTAKE, DRAFTER];
+  const chain = [INTAKE, DRAFTER, REVIEWER, INTAKE, DRAFTER, REVIEWER, INTAKE, DRAFTER, REVIEWER];
   const depths: number[] = [];
   for (const a of chain) depths.push((await say(hn.agent(a), t, `${a} here`)).message.depth);
-  assert.deepEqual(depths, [0, 1, 2, 3, 4]);
-  const failed = await failure(() => say(hn.agent(REVIEWER), t, "one hop too far"));
+  assert.deepEqual(depths, [0, 1, 2, 3, 4, 5, 6, 7, 8]);
+  const failed = await failure(() => say(hn.agent(INTAKE), t, "one hop too far"));
   assert.equal(failed, "permission.limit");
-  assert.equal((await say(hn.agent(DRAFTER), t, "same agent adding more")).message.depth, 4, "an agent following itself is not another hop");
+  assert.equal((await say(hn.agent(REVIEWER), t, "same agent adding more")).message.depth, 8, "an agent following itself is not another hop");
   await say(hn.ctx, t, "carry on");
   assert.equal((await say(hn.agent(REVIEWER), t, "fresh start")).message.depth, 0, "a person's message starts the count again");
 

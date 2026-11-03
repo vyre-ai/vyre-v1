@@ -25,7 +25,7 @@ Recent items before typing (opened and edited by the caller)
 
 ```ts
 type In = {
-  types?: Array<"person" | "agent" | "chat" | "inbox" | "record" | "file" | "automation" | "app" | "setting" | "memory" | "task" | "channel">;
+  types?: Array<"person" | "agent" | "chat" | "inbox" | "record" | "file" | "automation" | "app" | "setting" | "memory" | "task" | "channel" | "note">;
   limit?: number;
 };
 ```
@@ -35,7 +35,7 @@ type In = {
 ```ts
 type Out = {
   hits: Array<{
-      kind: "person" | "agent" | "chat" | "inbox" | "record" | "file" | "automation" | "app" | "setting" | "memory" | "task" | "channel";
+      kind: "person" | "agent" | "chat" | "inbox" | "record" | "file" | "automation" | "app" | "setting" | "memory" | "task" | "channel" | "note";
       id: string;
       title: string;
       recordType?: string;

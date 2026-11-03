@@ -29,7 +29,9 @@ const script = (run: RunTool, input: any, heardFrom: (s: string) => void) => (as
 test("a question and a plan wait in Needs you, and the answer reaches the agent from either door", async () => {
   const dir = seededDir();
   const turns: string[] = [];
-  const d = await boot(dir, scriptedModel(async function* (input: any, run: RunTool) { yield* script(run, input, (s) => turns.push(s)); }));
+  // a chat turn counts; memory's learning one-shot after a turn (engine oneShot: its own oneshot_ thread, the memory-upkeep pseudo-agent) is a job of another kind and does not
+  const isOneShot = (input: any): boolean => String(input.threadId ?? "").startsWith("oneshot_") || input.agent?.id === "memory-upkeep";   // eslint-disable-line @typescript-eslint/no-explicit-any
+  const d = await boot(dir, scriptedModel(async function* (input: any, run: RunTool) { yield* script(run, input, (s) => { if (!isOneShot(input)) turns.push(s); }); }));
   try {
     await connect(d);
     const agentId = await makeAgent(d, "Asker");

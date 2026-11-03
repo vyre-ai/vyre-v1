@@ -1,4 +1,5 @@
 import { liveTurns } from "./bridge.ts";
+import { now as engineNow } from "./now.ts";
 // Handler table of the engine module for the capabilities this module implements so far. The rest of engine.* is served by the generated stubs
 // until the packets that own them land (the turn worker's engine.turn.*, the pool P-L2_04, models, policy and review).
 import { complete } from "./complete.ts";
@@ -6,7 +7,7 @@ import { compact } from "./compact.ts";
 import { accountProbe, accountResolve, accountsList } from "./accounts.ts";
 import { incidentAssign, incidentGet, incidentNote, incidentOpen, incidentResolve, incidentsList, dropQueued, interrupt, setMode, setModel, stop, stopAll, switchEngine } from "./control.ts";
 import { extraHandlers } from "./extra/index.ts";
-import { mcpCall, mcpTools, mcpOauthComplete, mcpOauthStart, mcpOauthStatus } from "./mcp.ts";
+import { mcpCall, mcpRead, mcpTools, mcpOauthComplete, mcpOauthStart, mcpOauthStatus } from "./mcp.ts";
 import { stepTurn } from "../step-turn.ts";
 import { usageGet } from "./usage.ts";
 import { list as crewList, merge as crewMerge, message as crewMessage, push as crewPush, repoGet as crewRepoGet, repoSet as crewRepoSet, start as crewStart, stop as crewStop, wait as crewWait, workspace as crewWorkspace } from "./crew.ts";
@@ -23,6 +24,7 @@ export const handlers = {
   "engine.stop": stop,
   "engine.stop_all": stopAll,
   "engine.live_turns": liveTurns,
+  "engine.now": engineNow,
   "engine.set_mode": setMode,
   "engine.set_model": setModel,
   "engine.switch": switchEngine,
@@ -52,7 +54,7 @@ export const handlers = {
   "engine.crew.merge": crewMerge,
   "engine.crew.push": crewPush,
   "engine.mcp.tools": mcpTools,
-  "engine.mcp.read": mcpCall,
+  "engine.mcp.read": mcpRead,
   "engine.mcp.call": mcpCall,
   "engine.mcp.oauth_start": mcpOauthStart,
   "engine.mcp.oauth_complete": mcpOauthComplete,

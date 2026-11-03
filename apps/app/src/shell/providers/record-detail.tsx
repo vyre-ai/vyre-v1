@@ -1,7 +1,6 @@
 // Resolve an incoming record link once, then mount the existing record or project page.
 import { useEffect, useMemo, useState } from "react";
 import type { ReactElement } from "react";
-import { attemptKey } from "./files-review.ts";
 import { States } from "../../../../../ui/src/States/index.tsx";
 import { RecordPage, RecordPageDataProvider } from "../../places/records/recordpage/index.ts";
 import type { RecordPageData } from "../../places/records/recordpage/index.ts";
@@ -11,7 +10,7 @@ import { listProjectImports, ProjectPageDataProvider } from "../../places/record
 import type { ImportedSessionTranscript, ProjectPageData } from "../../places/records/projectpage/data.tsx";
 import { capLive, nameLookup } from "./records-live.ts";
 import { attachToRecord, findRecordFolder, storeOnRecord } from "../../places/records/recordpane/files.ts";
-import { RecordsAssistant } from "./records-ask.tsx";
+import { openAskPane } from "../ask/pane.ts";
 import { askRequestFor, putAsk } from "../../places/inbox/contacttab/ask.ts";
 import { AgentRecord } from "./agent-record.tsx";
 import type { ShellRuntime } from "./runtime.tsx";
@@ -27,6 +26,11 @@ export async function resolveRecordType(call: ShellRuntime["call"], recordId: st
     }
   }
   throw new Error("That record is unavailable or you do not have access.");
+}
+
+/** The record page's Ask: the pane opens beside the page, about the record, the same thread the Inbox continues for a contact. */
+export function askAboutRecord(type: string, id: string, title: string): void {
+  openAskPane({ thing: { kind: "record", id, title }, context: { actions: ["read the record and its history", "answer questions about it"], filters: { recordType: type } } }, "records");
 }
 
 export function RecordDetail({ rt, recordId, type: hint, fields = false, tab = "overview" }: { rt: ShellRuntime; recordId: string; type?: string; fields?: boolean; tab?: TabKey }): ReactElement {
@@ -62,17 +66,19 @@ export function RecordDetail({ rt, recordId, type: hint, fields = false, tab = "
       const s = rt.principals.getSnapshot();
       return (s.status === "ready" ? s.data : []).filter((x) => x.id !== rt.me.id && (x.kind === "person" || x.kind === "agent")).map((x) => ({ id: x.id, name: x.name, kind: x.kind as "person" | "agent", ...(x.id === rt.assistant.id ? { sub: "Assistant" } : x.kind === "agent" ? { sub: "Agent" } : {}) }));
     },
-    renderChat: (type, id) => <RecordsAssistant rt={rt} about={{}} title={id} scope={{ type: "record", id, title: "Record", context: { title: `Record ${type}`, open: [{ type: "record", id }], actions: ["read the record and its history", "answer questions about it"], focus: "" } }} />,
     files: {
       folderOf: (t) => findRecordFolder(rt.call, t.type, t.recordId),
       attach: (files, t) => attachToRecord(rt.call, rt.putBlob, files, { type: t.type, recordId: t.recordId }, `record-attach:${t.recordId}:${Date.now().toString(36)}`),
       store: (files, t) => storeOnRecord(rt.call, rt.putBlob, files, { type: t.type, recordId: t.recordId }, `record-attach:${t.recordId}:${Date.now().toString(36)}`).then((r) => r.fileIds),
     },
+    ...(rt.changes ? { changes: rt.changes } : {}),
     nav: {
       openFile: (id) => rt.open({ subject: { type: "file", id } }),
       openSubject: (subject) => rt.open({ subject }),
+      openGoal: (goalId: string) => rt.open({ subject: { type: "goal", id: goalId } }),
       openRecord: (type, id) => rt.open({ subject: { type: "record", id }, args: { type } }),
-      openChat: (_type, id) => { void rt.call("chat.start", { kind: "ask", idempotencyKey: attemptKey(), agentIds: [rt.assistant.id], scopeType: "record", scopeId: id }).then((out: unknown) => { rt.open({ subject: { type: "thread", id: (out as { thread: { threadId: string } }).thread.threadId } }); }).catch(() => setActionError("Couldn’t open the record’s chat. Try again.")); },
+      openChat: (_type, id) => { openAskPane({ thing: { kind: "record", id } }); },
+      ask: askAboutRecord,
       askFor: (input) => {
         const first = (n: string): string => n.trim().split(/\s+/)[0] ?? n;
         const request = askRequestFor(input, { sender: first(rt.me.name), spaceKind: rt.space.kind, ...(rt.baseUrl ? { baseUrl: rt.baseUrl } : {}), deferred: (cap) => rt.isDeferred(cap) });
@@ -99,7 +105,8 @@ export function RecordDetail({ rt, recordId, type: hint, fields = false, tab = "
     openFolder: (id) => rt.open({ subject: { type: "folder", id } }), openFile: (id) => rt.open({ subject: { type: "file", id } }),
     openRecord: (type, id) => rt.open({ subject: { type: "record", id }, args: { type } }),
     openRecordPage: (type, id) => rt.open({ subject: { type: "record", id }, args: { type, recordView: "fields" } }),
-  } }), [rt]);
+    openGoal: (id) => rt.open({ subject: { type: "goal", id } }),
+  }, ...(rt.changes ? { changes: rt.changes } : {}) }), [rt]);
   if (actionError) return <States kind="error" message={actionError} retryable onRetry={() => setActionError("")} />;
   if (resolved.error) return <States kind="error" message={resolved.error} />;
   if (!resolved.type) return <States kind="empty" title="Opening record…" icon="records" />;

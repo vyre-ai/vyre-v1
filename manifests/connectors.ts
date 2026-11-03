@@ -200,13 +200,14 @@ export default defineManifest({
       out: { state: t.enm('healthy', 'degraded', 'down'), detail: t.opt(t.str()), latencyMs: t.opt(t.int()), failing: t.arr(id.connection) },
     }),
     // ---- connections
-    read('connections.list', 'List connections; mine, the Space ones or all the caller may see', {
+    read('connections.list', 'List connections; mine, the Space ones or all the caller may see', { level: 'member',
       in: { connector: t.opt(id.connector), whose: t.opt(t.enm('mine', 'space', 'all')), ...pageIn }, out: { connections: t.arr(connectionRow), ...pageOut }, tool: 'automations', label: 'filter',
     }),
     read('connections.get', 'Read one connection', { in: { connectionId: id.connection }, out: { connection: connectionRow }, on: ['connection', '/connectionId'], tool: 'automations' }),
-    create('connections.create', 'Plug an account into a connector; secrets are named Vault items, never values', {
+    // l-perms (owner 3 Nov): a person's own connection (ownerKind person) is theirs to make, like any Mine thing; a Space connection still needs connectors.manage, checked by the handler
+    create('connections.create', 'Plug an account into a connector; secrets are named Vault items, never values. Your own (person) needs no permission; a Space one needs connectors.manage', {
       in: { connector: id.connector, title: t.str(), ownerKind: t.enm('person', 'space'), secrets: t.opt(t.rec(id.handle)), scopes: t.opt(t.arr(t.str())) },
-      out: { connection: connectionRow, authUrl: t.opt(t.str()) }, make: ['connection', '/connector'], perm: 'connectors.manage', emits: ['connection.created', 'connection.pending'], audit: 'always', tool: 'automations',
+      out: { connection: connectionRow, authUrl: t.opt(t.str()) }, make: ['connection', '/connector'], perm: null, errors: ['permission.role_lacks_permission'], emits: ['connection.created', 'connection.pending'], audit: 'always', tool: 'automations',
     }),
     write('connections.update', 'Rename a connection or change its scopes', { in: { connectionId: id.connection, title: t.opt(t.str()), scopes: t.opt(t.arr(t.str())) }, out: { connection: connectionRow }, on: ['connection', '/connectionId'], level: 'manage', tool: 'engineer' }),
     write('connections.set_secret', 'Fill one empty secret slot of a connection from a Vault handle (a name such as #Resend_Webhook.secret, never a value). The last empty slot turns a pending API connection active.', { in: { connectionId: id.connection, slot: t.str(), handle: id.handle }, out: { connection: connectionRow }, on: ['connection', '/connectionId'], level: 'manage', audit: 'always', tool: 'automations' }),

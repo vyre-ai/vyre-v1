@@ -85,7 +85,7 @@ test("no lead: with several agents that only listen, an unaddressed message has 
   const w = whoAnswers("hello", { listening: ["Docs", "Ops"], agents: ["Docs", "Ops"], people: [] });
   const r = route({ agents: [{ id: "Docs", mode: "listen" }, { id: "Ops", mode: "listen" }] }, { author: person("me"), mentions: [] } satisfies RouteMessage);
   assert.deepEqual(w.responders, r.responders);
-  assert.equal(w.line, "No agent will reply · type @ to ask one");
+  assert.equal(w.line, "No agent will reply. @mention one");
   assert.equal(w.dim, true);
 });
 
@@ -296,4 +296,12 @@ test("a picked agent keeps its whole name, and the mention still counts", () => 
   const state = { text: "@Na", cursor: 3, active: 0, dismissedAt: -1 } as never;
   const r = applyPick(state, trigger as never, { group: "Agents", label: "Nadia’s Assistant", kind: "Agent" } as never);
   assert.equal(r.next.text.startsWith("@Nadia’s Assistant "), true);
+});
+
+test("in a channel a lone listening agent waits to be named, as the engine routes it (owner ruling, 3 Nov 2026)", () => {
+  const w = whoAnswers("hello", { listening: ["Docs"], agents: ["Docs"], people: [], kind: "channel" });
+  assert.deepEqual(w.responders, []);
+  assert.equal(w.line, "No agent will reply. @mention one");
+  assert.deepEqual(whoAnswers("@Docs hello", { listening: ["Docs"], agents: ["Docs"], people: [], kind: "channel" }).responders, ["Docs"]);
+  assert.deepEqual(whoAnswers("hello", { listening: ["Docs"], agents: ["Docs"], people: [] }).responders, ["Docs"], "in a person's own chat the only agent answers");
 });

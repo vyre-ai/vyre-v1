@@ -1,0 +1,13 @@
+{
+  "about": "List prices per million tokens, in US dollars, for the models whose turns Vyre prices itself (an API key whose provider does not send its own price). A turn keeps the price it was charged at, so a later change here never rewrites an old turn. A price that is not listed is not guessed: the turn says its cost was not reported. Cache writes are left out until the provider publishes an exact rate for them.",
+  "asOf": "2026-10-06",
+  "source": "Anthropic's model table (Claude API, first-party rates)",
+  "providers": {
+    "anthropic": {
+      "claude-fable-5-1": { "in": 10, "out": 50, "cacheRead": 0.25 },
+      "claude-opus-5-5": { "in": 4, "out": 20, "cacheRead": 0.2 },
+      "claude-sonnet-5-5": { "in": 2, "out": 10, "cacheRead": 0.2 },
+      "claude-haiku-5-5": { "in": 0.1, "out": 0.5, "longPrompt": { "over": 100000, "in": 0.5, "out": 2.5 } }
+    }
+  }
+}

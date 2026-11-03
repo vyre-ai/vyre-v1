@@ -654,7 +654,8 @@ export class RouteRelay {
     // Typed-code messages come from the Worker over the object binding (never from the internet: the
     // Worker routes no public path here).
     if (url.pathname.startsWith("/code/") && request.method === "POST") return this.onCodeRequest(url.pathname, request);
-    if (url.pathname === "/online" && request.method === "GET") return json(200, { online: Boolean(this.control()) });
+    // whether the box is on now, and when it was last on: the gateway lists every computer of a Personal Space with this on the asleep page
+    if (url.pathname === "/online" && request.method === "GET") { const on = Boolean(this.control()); return json(200, { online: on, seenAt: on ? Date.now() : ((await this.ctx.storage.get("seen")) || null) }); }
     if (url.pathname === "/p" && request.method === "POST") return this.onPublic(request);
     if (url.pathname === "/signin/ask" && request.method === "POST") {
       let body;
@@ -826,6 +827,7 @@ export class RouteRelay {
     if (kept && kept.exp <= Date.now()) await this.releaseCode();
     const ticket = b64url(random(18));
     ws.serializeAttachment({ k: "control", ticket, route: r.route });
+    await this.ctx.storage.put("seen", Date.now());
     const waiting = this.live("device", x => !(/** @type {any} */ (x).piped)).map(d => /** @type {any} */ (this.role(d)).c);
     this.json(ws, { t: "ready", ticket, waiting, features: [...FEATURES] });
   }
@@ -861,7 +863,7 @@ export class RouteRelay {
     if (message.includes('"host.')) {
       let c;
       try { c = JSON.parse(message); } catch { return; }
-      if (c && typeof c.t === "string" && /^host\.(claim|release|status)$/.test(c.t)) { if (this.ticketRegAllowed()) await hostControl(this, ws, c); return; }
+      if (c && typeof c.t === "string" && /^host\.(claim|release|status|members)$/.test(c.t)) { if (this.ticketRegAllowed()) await hostControl(this, ws, c); return; }
     }
     if (message.includes('"code.')) {
       let c;
@@ -993,6 +995,7 @@ export class RouteRelay {
 
   /** @param {any} ws */
   async webSocketClose(ws, code, reason) {
+    if (/** @type {any} */ (this.role(ws))?.k === "control") await this.ctx.storage.put("seen", Date.now());
     // The one thing a box may tell the device it was serving through its own close: "device removed"
     // (4401). Nothing else the box writes is forwarded, so a box cannot put words in a device's ear.
     await this.gone(ws, code === CLOSE.refused && reason === "device removed" ? { code, reason } : null);

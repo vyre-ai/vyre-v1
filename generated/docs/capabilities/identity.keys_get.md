@@ -40,6 +40,7 @@ type Out = {
         epoch: number;
         wrapped: string;
       }>;
+    formerKey?: string;
   };
 };
 ```
@@ -59,6 +60,7 @@ type Out = {
   "input": {},
   "output": {
     "keys": {
+      "formerKey": "d3JhcHBlZA==",
       "personKeyByPassword": "d3JhcHBlZA==",
       "personKeyByRecovery": "d3JhcHBlZA==",
       "privateKeyWrapped": "d3JhcHBlZA==",

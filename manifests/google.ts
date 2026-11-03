@@ -31,6 +31,8 @@ const driveFile = t.obj({ id: t.str(), name: t.str(), mimeType: t.str(), parents
 const gcalEvent = t.obj({
   id: t.str(), status: t.opt(t.str()), summary: t.opt(t.str()), start: t.rec(), end: t.rec(), location: t.opt(t.str()), hangoutLink: t.opt(t.str()),
   attendees: t.opt(t.arr(t.obj({ email, responseStatus: t.opt(t.str()), optional: t.opt(t.bool()) }))), organizer: t.opt(t.rec()), updated: t.opt(t.str()),
+  description: t.opt(t.str()), recurringEventId: t.opt(t.str({ description: 'The series an instance of a repeating event belongs to' })),
+  conferenceData: t.opt(t.rec()),
 });
 const eventWrite = {
   calendarId: t.str({ examples: ['primary'] }), summary: t.opt(t.str()), description: t.opt(t.str()), location: t.opt(t.str()), start: t.opt(t.rec()), end: t.opt(t.rec()),
@@ -123,7 +125,7 @@ in: {}, out: { email: t.opt(email), connectionId: t.opt(id.connection), files: t
   read('google.user.list', 'Your own signed-in Google accounts', { in: {}, out: { accounts: t.arr(t.obj({ accountId: t.str(), email })) } }),
   write('google.user.remove', 'Sign out of your own Google account: revoke it at Google and remove its token', { in: { accountId: t.str() }, out: { removed: t.bool() }, audit: 'always' }),
   outward('google.user.send_message', "Send a message from your own signed-in Gmail (mail.send_as uses it for a mailbox made by google.user.complete)", {
-    in: { accountId: t.str(), to: t.arr(email), cc: t.opt(t.arr(email)), bcc: t.opt(t.arr(email)), subject: t.str(), text: t.opt(t.str()), html: t.opt(t.str()), threadId: t.opt(t.str()), attachments: t.opt(t.arr(id.file)) },
+    in: { accountId: t.str(), to: t.arr(email), cc: t.opt(t.arr(email)), bcc: t.opt(t.arr(email)), subject: t.str(), text: t.opt(t.str()), html: t.opt(t.str()), threadId: t.opt(t.str()), inReplyTo: t.opt(t.str({ description: 'The Message-ID this answers, so the reply threads for everyone on it', examples: ['<c3@example.com>'] })), references: t.opt(t.str({ description: 'The thread\'s Message-IDs, oldest first, space separated' })), attachments: t.opt(t.arr(id.file)) },
     out: { id: t.str(), threadId: t.str() }, gate: 'send', errors: ['provider.rate_limited', 'provider.auth_failed', 'validation.not_found'],
   }),
   write('google.receive_push', 'Record a verified Google push (Gmail Pub/Sub, Calendar channel, Drive changes, Meet events) after dedupe', {
@@ -147,7 +149,7 @@ in: {}, out: { email: t.opt(email), connectionId: t.opt(id.connection), files: t
     { gate: quiet("Changes labels in the member's own Gmail; nothing is sent to anyone"), tool: 'inbox', deferred: true }),
   gw('google.gmail.create_draft', 'Create a draft in the member mailbox', { to: t.arr(email), subject: t.str(), text: t.opt(t.str()), html: t.opt(t.str()), threadId: t.opt(t.str()) }, { draftId: t.str() },
     { gate: quiet('The draft stays in the member Gmail; nothing is sent'), tool: 'inbox', deferred: true }),
-  gw('google.gmail.send_message', 'Send a message from the member mailbox', { to: t.arr(email), cc: t.opt(t.arr(email)), bcc: t.opt(t.arr(email)), subject: t.str(), text: t.opt(t.str()), html: t.opt(t.str()), threadId: t.opt(t.str()), attachments: t.opt(t.arr(id.file)) },
+  gw('google.gmail.send_message', 'Send a message from the member mailbox', { to: t.arr(email), cc: t.opt(t.arr(email)), bcc: t.opt(t.arr(email)), subject: t.str(), text: t.opt(t.str()), html: t.opt(t.str()), threadId: t.opt(t.str()), inReplyTo: t.opt(t.str({ description: 'The Message-ID this answers, so the reply threads for everyone on it', examples: ['<c3@example.com>'] })), references: t.opt(t.str({ description: 'The thread\'s Message-IDs, oldest first, space separated' })), attachments: t.opt(t.arr(id.file)) },
     { id: t.str(), threadId: t.str() }, { gate: 'send', errors: ['provider.rate_limited', 'provider.auth_failed'] }),
   gw('google.gmail.trash_message', 'Move a Gmail message to Trash', { messageId: t.str() }, { trashed: t.bool() }, { gate: 'delete', tool: 'inbox', deferred: true }),
   gw('google.gmail.watch', 'Start Gmail push notices through Pub/Sub for the member mailbox', { topicName: t.str(), labelIds: t.opt(t.arr(t.str())) }, { historyId: t.str(), expiration: t.ts() },

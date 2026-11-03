@@ -194,7 +194,7 @@ export function createSampleSidebar(space: SampleSpace = northwind, o: { online?
     refuse("tasks.needs_you", input);
     const rows = replica.rows("needs") as unknown as SampleSpace["needs"];
     const items = rows.map((n): NeedsItem => ({
-      reason: "ready",
+      reason: "ready", yourTurn: true,
       task: {
         id: n.taskId, kind: n.kind, title: n.title, state: "todo", blocked: n.kind === "unblock", blocks: [], assigned: { kind: "person", id: "usr_irfad" }, fileIds: [], dependsOn: [], followers: [], workingNotes: {},
         reviewLoops: 0, createdBy: n.by, createdAt: at(10, 24, 8), updatedAt: at(10, 24, 9),
@@ -202,6 +202,11 @@ export function createSampleSidebar(space: SampleSpace = northwind, o: { online?
       } as NeedsItem["task"],
     }));
     return { items: items.slice(0, input.limit ?? 50), total: Math.max(space.needsTotal, items.length) } as CapMap["tasks.needs_you"]["out"];
+  });
+  // the Tasks badge: every task whose next move is the person's, each once
+  replica.resolve("tasks.count_needs_you", (_t, input) => {
+    refuse("tasks.count_needs_you", input);
+    return { count: Math.max(space.needsTotal, (replica.rows("needs") as unknown[]).length) } as CapMap["tasks.count_needs_you"]["out"];
   });
 
   // the imported sessions: listed, renamed, archived and deleted here, every input checked against the contract

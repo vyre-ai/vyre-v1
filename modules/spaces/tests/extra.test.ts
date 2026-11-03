@@ -28,9 +28,9 @@ function ready(o: Parameters<typeof world>[0] = {}): World {
 
 afterEach(() => configureSpaceAdmin(null));
 
-test("exactly the eight capabilities that had no packet are handled", () => {
+test("exactly the nine capabilities that had no packet are handled", () => {
   assert.deepEqual(Object.keys(extraHandlers).sort(), [
-    "spaces.delete", "spaces.export", "spaces.get", "spaces.leave", "spaces.matrix", "spaces.switch_address", "spaces.transfer_ownership", "spaces.update",
+    "spaces.delete", "spaces.export", "spaces.get", "spaces.image", "spaces.leave", "spaces.matrix", "spaces.switch_address", "spaces.transfer_ownership", "spaces.update",
   ]);
 });
 

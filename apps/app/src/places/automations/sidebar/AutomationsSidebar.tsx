@@ -59,7 +59,7 @@ export function AutomationsSidebar({ selectedId = null, selectedJourneyId = null
   const autos: readonly AutoRow[] = list.status === "ready" ? list.data.automations : [];
   const groups: readonly GroupRow[] = groupsQ.status === "ready" ? groupsQ.data.groups : [];
   const journeys: readonly JourneyRow[] = journeysQ.status === "ready" ? journeysQ.data.journeys : [];
-  const sections = useMemo(() => sectionsOf(autos, groups, { me: data.me.id, q, ...(shared ? { shared } : {}), ...(reasons ? { reasons } : {}) }), [autos, groups, data.me.id, q, shared, reasons]);
+  const sections = useMemo(() => sectionsOf(autos, groups, { me: data.me.id, q, ...(shared ? { shared } : {}), ...(reasons ? { reasons } : {}), ...(data.canSpace === false ? { canSpace: false } : {}) }), [autos, groups, data.me.id, q, shared, reasons, data.canSpace]);
   const order = useMemo(() => visibleOrder(sections, q ? allGroupKeys(sections) : open, collapsed), [sections, open, collapsed, q]);
   const failed = failedTotal(autos);
 
@@ -84,6 +84,9 @@ export function AutomationsSidebar({ selectedId = null, selectedJourneyId = null
     const move: MenuEntry[] = [{ head: "Move to a group" }];
     for (const g of groups) move.push({ label: g.name, checked: a.groupId === g.id, onSelect: () => void data.call("automations.move", { automationId: a.id, groupId: g.id }).catch(fail) });
     move.push({ label: "No group", checked: !a.groupId, onSelect: () => void data.call("automations.move", { automationId: a.id }).catch(fail) });
+    // a Space automation is changed only by owners, admins and people given Edit on it: a member's menu offers Open and the failed runs
+    const readOnly = a.kind === "space" && data.canSpace === false;
+    if (readOnly) { show([{ label: "Open", onSelect: () => { data.nav.openAutomation(a.id); onChoose?.(); } }, ...(a.failedRuns > 0 ? [{ label: "Open failed runs", onSelect: () => data.nav.openFailedRuns() }] : [])], x, y, "context", { label: a.name }); return; }
     show([
       { label: "Open", onSelect: () => { data.nav.openAutomation(a.id); onChoose?.(); } },
       { label: "Move to a group", onSelect: () => show(move, x, y, "other") },

@@ -70,8 +70,9 @@ export function AskTab({ def, selectedId, accounts, steps, onChange, onOpenChat,
     const snapshot = values;
     try {
       const folders = await call("vault.folders.list", { scope: "mine" });
-      const folderId = firstFolderId(folders);
-      if (!folderId) throw new Error("Vault has no folder to put this in.");
+      // a person with no Mine folder yet gets one now (as Add to the Vault does), so the key is saved instead of refused
+      const folderId = firstFolderId(folders) ?? ((await call("vault.folders.create", { name: "Mine", scope: "mine", idempotencyKey: "vault-mine-default" })) as { folder?: { id?: string } }).folder?.id;
+      if (!folderId) throw new Error("Vyre could not make your Mine folder. Try again.");
       const built = vaultPutInput({ folderId, app: planned.app, slots: planned.slots, values: snapshot });
       if ("error" in built) throw new Error(built.error);
       const put = await call("vault.item.put", built.put);

@@ -25,6 +25,7 @@ import { Toolbar, crumbTrail } from "../Toolbar.tsx";
 import { DragWrap, dragAttrs, useDragDelegation } from "./DragWrap.tsx";
 import type { DragHandlers, DragRegistry } from "./DragWrap.tsx";
 import { StagedBanner } from "./StagedBanner.tsx";
+import { GoalFolderHead } from "../../chats/goals/GoalFolderHead.tsx";
 import { QuickLook } from "./QuickLook.tsx";
 import { DropZone } from "../../../../../../ui/src/FileDrop/index.tsx";
 import type { DroppedFile } from "../../../../../../ui/src/FileDrop/index.tsx";
@@ -308,6 +309,7 @@ function List(): ReactElement {
         pane={data.pane ? { open: data.pane.open, toggle: data.pane.toggle } : undefined}
       />
       {here ? <StagedBanner folderId={here} /> : null}
+      {here ? <GoalFolderHead folderId={here} parentName={path.length > 1 ? path[path.length - 2]?.name : undefined} call={data.call} {...(data.nav.openGoal ? { openGoal: data.nav.openGoal } : {})} /> : null}
       {ql ? <QuickLook line={ql} now={c.now} offsetMin={c.offsetMin} nameOf={data.nameOf} onClose={() => dispatch({ type: "quicklook", key: null })} onOpen={() => { dispatch({ type: "quicklook", key: null }); open(ql); }} /> : null}
       {online ? null : <Text style={styles.offline} accessibilityRole="alert" testID="files-offline">Offline, showing your saved copy</Text>}
       {src.status !== "ready" ? <ListLoading bare /> : lines.length === 0 ? (

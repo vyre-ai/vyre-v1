@@ -1,0 +1,11 @@
+{
+  "targets": [
+    { "id": "SPACEIMG_01-profile-empty", "route": "/m/SPACEIMG_01?part=profile-empty", "proto": "console,{skin}", "waitFor": "[data-testid='space-image-choose']", "note": "Console > Space profile with no image: the letter, Choose image… (the file picker), Choose from Files…, and the line that says drop or paste works." },
+    { "id": "SPACEIMG_01-crop", "route": "/m/SPACEIMG_01?part=crop", "proto": "console,{skin}", "waitFor": "[data-testid='space-image-editor']", "note": "A wide logo pasted in (Cmd-V): the square crop with zoom, and the preview on the rail, the sign-in page and the switcher, then Save image." },
+    { "id": "SPACEIMG_01-from-files", "route": "/m/SPACEIMG_01?part=from-files", "proto": "console,{skin}", "waitFor": "[data-testid='space-image-files']", "note": "Choose from Files…: every picture in the Space's folders the person can see, newest first, with a search (it used to list only the empty Space root)." },
+    { "id": "SPACEIMG_01-profile-saved", "route": "/m/SPACEIMG_01?part=profile-saved", "proto": "console,{skin}", "waitFor": "[data-testid='space-image-current']", "note": "The image saved: it shows in the Space image row, with Remove image." },
+    { "id": "SPACEIMG_01-rail", "route": "/m/SPACEIMG_01?part=rail", "proto": "home,{skin}", "waitFor": "[data-testid='space-tile-image']", "note": "The rail tile shows the Space image in place of the letter, and the switcher shows it beside the Space's name." },
+    { "id": "SPACEIMG_01-signin", "route": "/m/SPACEIMG_01?part=signin", "proto": "join,{skin}", "waitFor": "[data-testid='entry-space-image']", "note": "The sign-in page of a Space with an image: the image in place of the letter." },
+    { "id": "SPACEIMG_01-join", "route": "/m/SPACEIMG_01?part=join", "proto": "join,{skin}", "waitFor": "[data-testid='entry-space-image']", "note": "An invite's join page: the Space image above who invited you." }
+  ]
+}

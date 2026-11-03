@@ -80,9 +80,10 @@ export function toResponse(res) {
 
 /**
  * @typedef {{ fetch(path: string, init: { method?: string, headers?: Record<string, string>, body?: Uint8Array | null, signal?: AbortSignal }): Promise<any>, state?: string, lastError?: Error | null }} Box
- * @param {{ box: () => Promise<Box | null>, label: () => string, waitMs?: number, invite?: () => boolean }} o
+ * @param {{ box: () => Promise<Box | null>, label: () => string, waitMs?: number, invite?: () => boolean, asleep?: (request: Request, navigation: boolean) => Promise<Response | null> }} o
  *   `box` gives the connection (null when the phone has no pin yet); `waitMs` is how long a request waits for the box before the page says it is asleep; `invite` is true while the connection is an
- *   invite link's, so a box that is up but will not open it reads as an ended invite rather than a sleeping computer.
+ *   invite link's, so a box that is up but will not open it reads as an ended invite rather than a sleeping computer. `asleep` is asked before the asleep page: the service worker forgets
+ *   which computer it dialled and, for a page, lets the gateway answer (the shell from another computer of the Space that is awake, or the page that lists them all asleep).
  */
 export function createBridge(o) {
   const waitMs = o.waitMs ?? 8000;
@@ -108,6 +109,9 @@ export function createBridge(o) {
         if (o.invite?.() && box.state !== "open" && /box closed the connection|refused/.test(String(box.lastError?.message ?? ""))) {
           return navigation ? inviteGonePage(o.label()) : new Response(JSON.stringify({ error: "This invite has ended" }), { status: 410, headers: { "content-type": "application/json" } });
         }
+        // the computer this phone was talking to went to sleep: another computer of the same Space may be awake (lane l-multidevice), so the worker asks the gateway again
+        const other = o.asleep ? await o.asleep(request, navigation).catch(() => null) : null;
+        if (other) return other;
         return navigation ? asleepPage(o.label()) : new Response(JSON.stringify({ error: `${o.label()} is asleep` }), { status: 503, headers: { "content-type": "application/json", "retry-after": "20" } });
       } finally {
         clearTimeout(timer);

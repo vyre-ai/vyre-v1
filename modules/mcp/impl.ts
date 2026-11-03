@@ -1,7 +1,7 @@
 // mcp module entry (lane L2). The host loads the generated stubs while host/modules.json says `status: 'stub'` and this file once it says `live` (ruling 25).
 // Also here: the runtime that puts the MCP server (agent/src/mcp) on this module's tables. The host mounts `runtime.handle` at the Space's /mcp address and on loopback for CLI engines, and `runtime.oauth` at /oauth/* and the
 // /.well-known addresses a client signs in through. What an outside agent does is written here too: one activity row per call, its status, and its steps as a message in the chat it is working in.
-import { CONNECTOR_CHAT, CONNECTOR_TOOLS, CREW_TOOLS, CRM_CHAT, CRM_TOOLS } from "../../lib/connector-chat.ts";
+import { CONNECTION_TOOLS, CONNECTOR_CHAT, CONNECTOR_TOOLS, CREW_TOOLS, CRM_CHAT, CRM_TOOLS } from "../../lib/connector-chat.ts";
 import { ABOUT_VYRE_TOOLS } from "../../lib/about-vyre.ts";
 import { createMcpServer } from "../../agent/src/mcp/server.ts";
 import { modePair } from "../../agent/src/tools/local.ts";
@@ -54,9 +54,9 @@ export async function withChatMode(o: RuntimeOptions, caller: McpCaller): Promis
       const l = await o.invoke("chat.ask_level", { threadId: caller.threadId }, seed).catch(() => null);
       facts.askLevel = l?.status === "ok" ? ((l.output as { level?: McpCaller["askLevel"] } | null)?.level ?? null) : null;
     }
-    // a chat that builds a connector lists the builder's tools from the start: the CLI cannot pick up a tool found later with tool_search. A plain chat lists the crew tools and the reads
-    // that check this Space before the agent says what Vyre can do here (lib/about-vyre.ts).
-    const preload = typeof thread?.title === "string" && CONNECTOR_CHAT.test(thread.title) ? { preload: CONNECTOR_TOOLS } : typeof thread?.title === "string" && CRM_CHAT.test(thread.title) ? { preload: CRM_TOOLS } : thread?.kind === "chat" ? { preload: [...CREW_TOOLS, ...ABOUT_VYRE_TOOLS] } : {};
+    // a chat that builds a connector lists the builder's tools from the start: the CLI cannot pick up a tool found later with tool_search. A plain chat lists the crew tools, the reads
+    // that check this Space before the agent says what Vyre can do here (lib/about-vyre.ts), and the tools that call the agent's outside tool servers and connections.
+    const preload = typeof thread?.title === "string" && CONNECTOR_CHAT.test(thread.title) ? { preload: CONNECTOR_TOOLS } : typeof thread?.title === "string" && CRM_CHAT.test(thread.title) ? { preload: CRM_TOOLS } : thread?.kind === "chat" ? { preload: [...CREW_TOOLS, ...ABOUT_VYRE_TOOLS, ...CONNECTION_TOOLS] } : {};
     // the owner's floor on the terminal: a local tool in this session follows the chat's mode up to it
     const setting = await o.invoke("settings.get", { key: "security.terminal_mode" }, { space: o.space, principal: caller.principal, ...(caller.actingFor ? { actingFor: caller.actingFor } : {}), origin: "mcp" }).catch(() => null);
     const row = setting?.status === "ok" ? (setting.output as { row?: { value?: unknown; floor?: unknown } } | null)?.row : undefined;

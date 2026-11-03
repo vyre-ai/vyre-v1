@@ -35,6 +35,8 @@ export interface CallRequest {
   effort?: Effort;
   /** Hash of the stable system blocks and the tool list (prefix.ts). */
   prefixHash: string;
+  /** A stable id of the conversation (session.ts conversationId): the same for every turn of one agent in one chat. OpenCode Go refuses a request without it (x-opencode-session). */
+  conversation?: string;
 }
 
 export interface WireRequest {
@@ -44,7 +46,13 @@ export interface WireRequest {
   body: unknown;
 }
 
-export interface Usage { inputTokens: number; outputTokens: number; cacheReadTokens: number; cacheWriteTokens: number }
+export interface Usage {
+  inputTokens: number; outputTokens: number; cacheReadTokens: number; cacheWriteTokens: number;
+  /** Reasoning tokens inside outputTokens, when the provider counts them apart. */
+  reasoningTokens?: number;
+  /** The provider's own price for the call in dollars (OpenRouter's usage.cost). */
+  costUsd?: number;
+}
 
 /** What a decoder yields for one server-sent event. */
 export type Decoded =

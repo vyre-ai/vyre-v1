@@ -6,6 +6,7 @@ import type { ComponentType, ErrorInfo, LazyExoticComponent, ReactElement, React
 import { States } from "../../../../../ui/src/States/index.tsx";
 import { Quiet } from "../../../../../ui/src/States/Quiet.tsx";
 import { screenFromHash, screenOfAsk, setScreenContext } from "../ask/screen.ts";
+import { AskPaneHost } from "../ask/host.tsx";
 import { PlaceHashProvider } from "../hash/context.tsx";
 import type { PlaceHash } from "../hash/context.tsx";
 import { mark, takeStartupMs } from "../../startup/marks.ts";
@@ -87,7 +88,8 @@ export function PlaceHost({ place, runtime, hash = "", opened }: { place: PlaceI
       <PlaceBoundary key={routeId} place={routeId}>
         <Suspense fallback={<Quiet />}>
           <ScreenSignal place={place} hash={hash} />
-          <Place place={routeId} />
+          {/* Ask Vyre opens beside the place, in it (shell/ask/pane.ts): never a trip to Chats */}
+          <AskPaneHost place={place} rt={runtime}><Place place={routeId} /></AskPaneHost>
           <Usable place={routeId} spaceId={runtime?.space.id ?? null} />
         </Suspense>
       </PlaceBoundary>

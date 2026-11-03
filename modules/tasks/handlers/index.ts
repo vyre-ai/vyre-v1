@@ -8,11 +8,13 @@ import {
 
 import { byKey, index, rev } from "./index-read.ts";
 import { digest } from "./digest.ts";
+import { clock } from "./clock.ts";
 import { plan } from "./plan.ts";
 import { remove, restore } from "./remove.ts";
 
 export const handlers = {
   "tasks.by_key": byKey,
+  "tasks.clock": clock,
   "tasks.delete": remove,
   "tasks.digest": digest,
   "tasks.index": index,

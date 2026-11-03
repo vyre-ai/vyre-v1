@@ -5,6 +5,7 @@ import { createPluginRuntime } from "./plugin-runtime.ts";
 import type { PluginRuntime } from "./plugin-runtime.ts";
 import type { FetchPort } from "../../agent/src/mcp-client/index.ts";
 import { createMcpOauth } from "./mcp-oauth.ts";
+import { noteConnectionUse } from "./connection-watch.ts";
 import type { McpOauth } from "./mcp-oauth.ts";
 
 let runtime: PluginRuntime | null = null;
@@ -32,6 +33,7 @@ export function pluginRuntime(): PluginRuntime | null {
   runtime = createPluginRuntime({
     call: h.call, plan: sandboxPlan, dataDir, ...(session ? { source: session.source, reportMiss: session.reportMiss } : {}),
     ...(h.mcpFetch ? { fetch: h.mcpFetch as FetchPort } : {}), ...(oauthFor ? { oauth: oauthFor } : {}), ...(h.pluginLaunch ? { launch: h.pluginLaunch as NonNullable<Parameters<typeof createPluginRuntime>[0]["launch"]> } : {}),
+    onUse: (spec, who) => { void noteConnectionUse(spec, who.agentId); },
   });
   builtFor = h;
   return runtime;

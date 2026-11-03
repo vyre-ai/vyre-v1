@@ -1,6 +1,8 @@
 // The nightly job of memory (spec 2.15, ARCH 6.10): memory.maintain does the upkeep (merge, flag, learn, tidy) and rewrites each agent's MAP.md, then memory.archive_sweep moves facts untouched in Trash to Archive. Capture is not here: it needs a person in the chat,
 // so the engine module hands chats to memory.capture when they close or go quiet (modules/engine/handlers/capture.ts).
 import { rowsOf, num } from "./projections.ts";
+import { settlePersonal } from "./settle.ts";
+import type { MemCtx } from "./projections.ts";
 import type { Db } from "./projections.ts";
 
 const NIGHT_MIN_AGE = 20 * 3_600_000;
@@ -31,4 +33,6 @@ export async function nightly(ctx: HookCtx, hourOf: (t: number) => number = (t) 
 
 export const periodic = {
   "memory.nightly": { everyMs: 3_600_000, run: (ctx: unknown): Promise<string[]> => nightly(ctx as HookCtx) },
+  // personal keys (personal.ts, settle.ts): re-seal to each signed-in person's own key, fold what capture wrote while they were out, warm their in-memory index, drop what a sign-out left
+  "memory.personal_keys": { everyMs: 30_000, immediate: true, run: async (ctx: unknown): Promise<void> => { settlePersonal(ctx as MemCtx); } },
 };

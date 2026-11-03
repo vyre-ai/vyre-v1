@@ -18,7 +18,7 @@ const read = async <T,>(s: ReturnType<typeof createSampleViewer>, cap: string, i
 
 test("a file opens in the one Viewer: every kind maps to a layout, and the hash subject types are file, doc and document", () => {
   assert.deepEqual([...FILE_SUBJECT_TYPES], ["file", "doc", "document"]);
-  const kinds = { image: "image", markdown: "document", text: "document", code: "document", document: "document", spreadsheet: "csv", presentation: "plan", pdf: "other", video: "other", audio: "other", archive: "other", other: "other", google_native: "document" } as const;
+  const kinds = { image: "image", markdown: "document", text: "document", code: "document", document: "document", spreadsheet: "csv", presentation: "document", pdf: "other", video: "other", audio: "other", archive: "other", other: "other", google_native: "document" } as const;
   for (const [k, want] of Object.entries(kinds)) assert.equal(viewerKind(k as ViewerData["file"]["kind"]), want, k);
   assert.equal(kindLabel("Offer.png"), "PNG");
   assert.equal(kindLabel("Makefile"), "FILE");

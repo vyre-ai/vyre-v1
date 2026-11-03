@@ -6,7 +6,7 @@ import path from "node:path";
 import { dialPort } from "./port-fetch.ts";
 import type { PortRequest, PortSink } from "./port-fetch.ts";
 
-export interface SiteTarget { computerId?: string; port?: number; folderId?: string }
+export interface SiteTarget { computerId?: string; port?: number; folderId?: string; container?: string }
 export interface SitesHostDeps {
   origin(): { origin: string; relay: boolean } | null;
   /** the node a computer lives on, or null for this machine */
@@ -22,6 +22,10 @@ export interface SitesHostDeps {
   /** true when this daemon runs in a container */
   contained: boolean;
   artifacts?: { folder(siteId: string, title: string): Promise<string>; put(folderId: string, name: string, base64: string, mime: string): Promise<void> };
+  /** a deployed site's own container on this server: its address on the site's network (the sites module's runner answers) */
+  containerAddress?(containerId: string): Promise<string | null>;
+  /** what the sites module needs to build and run sites here: the Docker socket, values filled from the Vault, the sites' address, and Caddy */
+  deploy?: { runnerLink?: { socketPath: string; token(): string }; take(ref: string): string | undefined; tmp?: string; sitesDomain(): string | null; domainOf(siteId: string): string | null; hostRoute(siteId: string, up: boolean): Promise<void> };
 }
 
 const MIME: Readonly<Record<string, string>> = { ".html": "text/html", ".htm": "text/html", ".css": "text/css", ".js": "text/javascript", ".mjs": "text/javascript", ".json": "application/json", ".svg": "image/svg+xml", ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".gif": "image/gif", ".webp": "image/webp", ".ico": "image/x-icon", ".txt": "text/plain", ".md": "text/markdown", ".pdf": "application/pdf", ".woff2": "font/woff2" };
@@ -85,6 +89,12 @@ export function createDomainEdge(d: SitesHostDeps & { router: EdgeRouter | null;
 export function createSitesHost(d: SitesHostDeps) {
   async function fetchTarget(t: SiteTarget, request: PortRequest, sink: PortSink): Promise<void> {
     if (t.port === undefined) { sink.fail("It has no port."); return; }
+    if (t.container !== undefined) {
+      const address = d.containerAddress ? await d.containerAddress(t.container).catch(() => null) : null;
+      if (!address) { sink.fail("The app is not running. Deploy it again."); return; }
+      dialPort(address, t.port, request, sink);
+      return;
+    }
     if (t.computerId === undefined) {
       if (d.contained) { sink.fail("A port needs a computer on a server."); return; }
       dialPort("127.0.0.1", t.port, request, sink);
@@ -105,10 +115,11 @@ export function createSitesHost(d: SitesHostDeps) {
     host: {
       origin: d.origin,
       ...(d.artifacts ? { artifacts: d.artifacts } : {}),
-      probe: (t: SiteTarget): Promise<{ answering: boolean; detail?: string }> => new Promise((resolve) => {
+      ...(d.deploy ? { ...d.deploy, contained: d.contained } : {}),
+      probe: (t: SiteTarget, at = "/"): Promise<{ answering: boolean; detail?: string }> => new Promise((resolve) => {
         let settled = false;
         const done = (r: { answering: boolean; detail?: string }): void => { if (!settled) { settled = true; resolve(r); } };
-        void fetchTarget(t, { method: "GET", path: "/", headers: { "user-agent": "vyre-site-check" } }, {
+        void fetchTarget(t, { method: "GET", path: at.startsWith("/") ? at : `/${at}`, headers: { "user-agent": "vyre-site-check", host: "localhost" } }, {
           head: () => done({ answering: true }), data: () => undefined, end: () => undefined,
           fail: (reason) => done({ answering: false, detail: /ECONNREFUSED/.test(reason) ? `Nothing is listening on port ${t.port}.` : reason }),
         });

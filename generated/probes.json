@@ -276,6 +276,13 @@
     {
       "completeMs": 100,
       "firstPaintMs": 50,
+      "id": "screen.chats.threads",
+      "place": "chats",
+      "screen": "chats.threads"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
       "id": "screen.company.setup",
       "place": "console",
       "screen": "company.setup"
@@ -850,6 +857,13 @@
     {
       "completeMs": 100,
       "firstPaintMs": 50,
+      "id": "screen.meetings.closeout",
+      "place": "inbox",
+      "screen": "meetings.closeout"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
       "id": "screen.meetings.panel",
       "place": "inbox",
       "screen": "meetings.panel"
@@ -1077,6 +1091,13 @@
       "id": "screen.settings.search",
       "place": "settings",
       "screen": "settings.search"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
+      "id": "screen.settings.skills",
+      "place": "settings",
+      "screen": "settings.skills"
     },
     {
       "completeMs": 100,

@@ -383,7 +383,7 @@ Example: `mail.send_window`.
 | contacts.dnd_screening | contacts-link | space | comms | true |
 | contacts.optout_keywords | contacts-link | space | comms | ["STOP","STOPALL","UNSUBSCRIBE","CANCEL","END","QUIT"] |
 | contacts.sms_requires_consent | contacts-link | space | comms | true |
-| engine.agent_hops | engine | space | Policies | 4 |
+| engine.agent_hops | engine | space | Policies | 8 (owner ruling, 3 Nov 2026; was 4) |
 | engine.allowed_accounts | engine | space | Models and providers | any |
 | engine.ci_fix_loops | engine | space | Policies | 3 |
 | engine.local_runs | engine | person | This computer | true |

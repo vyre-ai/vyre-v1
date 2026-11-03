@@ -17,7 +17,7 @@ export interface UserOauthSeam {
   /** The address people reach this Space at (https://host), for the redirect the sign-in comes back to. */
   userPublicUrl(ctx: SeamCtx): Promise<string>;
   userExchange(ctx: SeamCtx, a: { appHandle: string; code: string; verifier: string; redirectUri: string }): Promise<{ refreshToken: string; accessToken: string; expiresAt: number }>;
-  userRefresh(ctx: SeamCtx, a: { appHandle: string; refreshToken: string; cacheKey: string; fresh?: boolean }): Promise<{ token: string; expiresAt: number }>;
+  userRefresh(ctx: SeamCtx, a: { appHandle: string; refreshToken: string; cacheKey: string; fresh?: boolean }): Promise<{ token: string; expiresAt: number; /** The new refresh token when the provider rotated it (Microsoft does on every refresh): the caller keeps it in place of the old one. */ refreshToken?: string }>;
 }
 
 export interface UserOauthDeps {
@@ -105,7 +105,9 @@ export function createUserOauth(d: UserOauthDeps, p: UserOauthProvider): UserOau
       const body = await tokenCall(ctx, a.appHandle, form);
       const fresh = { token: body["access_token"] as string, expiresAt: ctx.now() + lifeOf(body) };
       cache.set(key, fresh);
-      return fresh;
+      // Microsoft sends a new refresh token with every refresh and the old one stops working in about 90 days: hand it back so the module keeps it (vault audit, Broken 11). Never cached here.
+      const rotated = body["refresh_token"];
+      return typeof rotated === "string" && rotated !== "" && rotated !== a.refreshToken ? { ...fresh, refreshToken: rotated } : fresh;
     },
   };
 }

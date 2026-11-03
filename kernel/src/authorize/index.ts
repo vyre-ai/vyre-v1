@@ -6,6 +6,7 @@
 import { mintId } from "../../../lib/ids.ts";
 import { evalExpr } from "./expr.ts";
 import type { AccessSnapshot, GrantRec, SubjectInfo } from "./snapshot.ts";
+import { THROUGH_AGENT, THROUGH_ANYONE } from "../../../lib/through-agent.ts";
 import { LEVEL_BY_RANK, rankOf } from "./types.ts";
 import type { Decision, Expr, Obligation, ReasonCode, Req, ResourceRow, Scope, Step } from "./types.ts";
 
@@ -121,6 +122,29 @@ function evalSubject(snap: AccessSnapshot, s: SubjectInfo, req: Req, res: Resour
   return { level: LEVEL_BY_RANK[max]!, rowFilter, hiddenFields: hidden, labelCeiling: Math.min(clearance, ceiling) };
 }
 
+/**
+ * Does the agent hold a live Use grant on this vault item (or its folders) that a person approved for its key request, naming who may use it through the agent (owner ruling,
+ * 3 Nov 2026)? Then the person it acts for needs no access of their own here, up to Use. A vault item or folder only, never more than Use, and only the asker unless the approver chose
+ * anyone.
+ */
+function throughAgent(snap: AccessSnapshot, agent: SubjectInfo, req: Req, res: ResourceRow, chain: readonly ResourceRow[]): boolean {
+  if (res.type !== "vault_item" && res.type !== "vault_folder") return false;
+  if (res.id === "" || req.actingFor === undefined || rankOf(req.action.level) > rankOf("use")) return false;
+  const need = rankOf(req.action.level), now = req.now;
+  for (let i = 0; i < chain.length; i++) {
+    const list = snap.grantsOn(chain[i]!.id);
+    if (!list) continue;
+    for (const g of list) {
+      const src = g.row.source;
+      if (src === undefined || !src.startsWith(THROUGH_AGENT) || !agent.keys.has(g.key) || g.rank < need) continue;
+      if (g.exp <= now || now < g.nb || now > g.na) continue;
+      const who = src.slice(THROUGH_AGENT.length);
+      if (who === THROUGH_ANYONE || who === req.actingFor) return true;
+    }
+  }
+  return false;
+}
+
 function intersect(scopes: Scope[]): Scope {
   let level = rankOf(scopes[0]!.level), ceiling = scopes[0]!.labelCeiling;
   const filters: Expr[] = [], hidden = new Set<string>();
@@ -180,7 +204,8 @@ export function authorize(snap: AccessSnapshot, req: Req): Decision {
     if (!c) return denied(snap, "not_found", name, steps);
     chain = c; res = { id: "", type: ref.type, parent_id: ref.parent, label: c[0]!.label, owner_id: null, holds: 0 };
   }
-  let label = res.label;
+  // the effective label: the highest of the resource's own and every folder above it (a new child takes its container's), so a Restricted folder covers what is in it
+  let label = snap.effectiveLabel(ref.id ?? ref.parent!);
   if (req.fields) for (const f of req.fields) { const fl = snap.fieldLabel(res.type, f); if (fl > label) label = fl; }
 
   // An agent holds only its own role's permissions, never more through its person or a group (ARCH 4.5: agents never hold Owner or Admin, nor what only they carry). Building Journeys,
@@ -190,6 +215,11 @@ export function authorize(snap: AccessSnapshot, req: Req): Decision {
   const sendsAs = kind === "agent" && others !== null && (res.type === "mailbox" || res.type === "number") && res.id !== "" && req.action.level === "use" && first === "no_grant";
   if (typeof first === "string" && !sendsAs) return denied(snap, first, name, steps);
   let scope: Scope = typeof first === "string" ? ownerScope(0) : first;
+  // a key approved for this agent's request, for the person it acts for (or for anyone who asks it): that person's own access is not needed, up to Use
+  if (others && kind === "agent" && typeof first !== "string" && throughAgent(snap, me, req, res, chain)) {
+    if (steps) steps.push({ ok: true, text: `${name} may use this for the person it acts for: approved for its key request` });
+    others = null;
+  }
   if (others) {
     const all: Scope[] = typeof first === "string" ? [] : [first];
     for (const o of others) {

@@ -35,6 +35,7 @@ import { ActivityTab, ChatTab, CommentsTab, EverythingTab, FilesTab } from "../r
 import type { FieldDef, PaneKey, RecordRow, RelNode, Section, TypeDef, Undo } from "./model.ts";
 import { SealedField } from "./SealedField.tsx";
 import { DropZone } from "../../../../../../ui/src/FileDrop/index.tsx";
+import { GoalsOf } from "../../chats/goals/GoalsList.tsx";
 import type { DroppedFile } from "../../../../../../ui/src/FileDrop/index.tsx";
 
 export interface RecordPageStart {
@@ -421,6 +422,7 @@ function PageBody({ type, recordId, start = {} }: RecordPageProps): ReactElement
         <View style={p.grow} />
         {readOnly ? <View style={p.ro} testID="record-readonly" accessibilityLabel="You can view this record"><Glyph name="lock" size={12} color="var(--ink-3)" /><Text style={p.hbText}>Read only</Text></View> : null}
         {rs.sync?.synced && rs.sync.app ? <SyncChip app={rs.sync.app} openUrl={rs.sync.openUrl} onSync={data.nav.openSync ? () => data.nav.openSync!(type) : undefined} /> : null}
+        {data.nav.ask ? <Pressable accessibilityRole="button" accessibilityLabel={`Ask Vyre about ${title}`} testID="record-ask" onPress={() => data.nav.ask!(type, recordId, title)} style={({ hovered }: { hovered?: boolean }) => [p.hb, hovered === true && p.cardOver]}><Glyph name="spark" size={14} color="var(--ink-2)" />{wide ? <Text style={p.hbText}>Ask</Text> : null}</Pressable> : null}
         <ShareButton recordId={recordId} title={title} typeName={def.plural} wide={wide} />
         {late ? <><Pressable accessibilityRole="button" accessibilityLabel="Relationships" accessibilityState={{ selected: map }} testID="toggle-map" onPress={() => setMap(!map)} style={({ hovered }: { hovered?: boolean }) => [p.hb, hovered === true && p.cardOver, map && p.hbOn]}><Glyph name="map" size={14} color={map ? "var(--accent)" : "var(--ink-2)"} />{wide ? <Text style={[p.hbText, map && p.lit]}>Relationships</Text> : null}</Pressable>
         <Pressable accessibilityRole="button" accessibilityLabel="Details" accessibilityState={{ selected: paneOpen }} testID="toggle-pane" onPress={() => setPane(!paneOpen)} style={({ hovered }: { hovered?: boolean }) => [p.hb, hovered === true && p.cardOver, paneOpen && p.hbOn]}><Glyph name="expand" size={14} color={paneOpen ? "var(--accent)" : "var(--ink-2)"} />{wide ? <Text style={[p.hbText, paneOpen && p.lit]}>Details</Text> : null}</Pressable></> : null}
@@ -441,6 +443,7 @@ function PageBody({ type, recordId, start = {} }: RecordPageProps): ReactElement
               : <Text accessibilityRole="header" aria-level={2} style={p.title}>{title}</Text>}
           </Pressable>
           {summary ? <Text style={p.summary} testID="summary">{summary}</Text> : null}
+          {data.nav.openGoal ? <GoalsOf scope="record" id={recordId} call={data.call} changes={data.changes} now={data.now()} offsetMin={0} nameOf={data.nameOf} openGoal={data.nav.openGoal} testID="record-goals" /> : null}
           {ring && late ? (
             <View style={p.ringRow} testID="completeness">
               {Platform.OS === "web" ? createElement("svg", { viewBox: "0 0 24 24", width: 24, height: 24, role: "img", "aria-label": `Completeness ${ring.label}`, "data-testid": "ring" },

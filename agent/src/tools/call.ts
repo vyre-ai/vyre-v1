@@ -153,7 +153,7 @@ export function createToolSession(deps: CallDeps): ToolSession {
       ...(t.effects !== "read" && t.planMode === "blocked" ? { askable: true } : {}),
     };
     try {
-      const res = await deps.invoke(t.cap, isDynamic && deps.dynamic ? deps.dynamic.input(ctx, t, input) : input, seed);
+      const res = await deps.invoke(t.cap, isDynamic && deps.dynamic ? deps.dynamic.input(ctx, t, input) : unstringified(t.inputSchema, input), seed);
       if (res.status === "held") {
         recordWork(ctx.turnId, heldCard(t.cap, res.taskId, input));
         return {
@@ -192,4 +192,25 @@ export function createToolSession(deps: CallDeps): ToolSession {
     preload: (threadId, names) => { const set = loadedSet(threadId); for (const n of names) set.add(n); },
   };
   return api;
+}
+
+/**
+ * Some models send a list or an object argument as its JSON text ("[{...}]" where the schema says array). Read back only what the tool's own schema says is a list or an object, only at the top level, and
+ * only when the text parses to that very shape; anything else is passed on as given, so validation still says what is wrong.
+ */
+export function unstringified(schema: unknown, input: unknown): unknown {
+  const props = (schema as { properties?: Record<string, { type?: unknown }> } | null)?.properties;
+  if (!props || input === null || typeof input !== "object" || Array.isArray(input)) return input;
+  let out: Record<string, unknown> | null = null;
+  for (const [k, v] of Object.entries(input as Record<string, unknown>)) {
+    const want = props[k]?.type;
+    if (typeof v !== "string" || (want !== "array" && want !== "object")) continue;
+    const s = v.trim();
+    if (!(want === "array" ? s.startsWith("[") : s.startsWith("{"))) continue;
+    try {
+      const parsed = JSON.parse(s) as unknown;
+      if (want === "array" ? Array.isArray(parsed) : parsed !== null && typeof parsed === "object" && !Array.isArray(parsed)) (out ??= { ...(input as Record<string, unknown>) })[k] = parsed;
+    } catch { /* not JSON: validation says so */ }
+  }
+  return out ?? input;
 }

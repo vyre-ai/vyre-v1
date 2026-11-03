@@ -26,7 +26,8 @@ export const grok: CliAdapter = {
   id: "grok",
   bin: "grok",
   persistent: false,
-  models: [{ id: "grok-4", label: "Grok 4" }, { id: "grok-code-fast-1", label: "Grok Code Fast" }],
+  // the default the pinned CLI names; the account's own list comes from the CLI itself (models.ts, `grok models`)
+  models: [{ id: "grok-4.6", label: "Grok 4.6" }, { id: "grok-4.5", label: "Grok 4.5" }],
   systemFlag: false,
   env: () => ({ GROK_CLAUDE_MCPS_ENABLED: "0", GROK_CURSOR_MCPS_ENABLED: "0" }),
   command(o: CommandOptions) {

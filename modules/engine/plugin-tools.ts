@@ -77,7 +77,7 @@ export function createPluginTools(d: PluginToolsDeps): { extra(ctx: ToolCtx): Pr
       await Promise.all(servers.map(async (spec) => {
         try {
           const listed = await rt.tools(spec, { agentId: ctx.agentId, asker: ctx.asker });
-          await watchConnection(spec, "ok");
+          await watchConnection(spec, "ok", listed.length);
           for (const tool of listed) {
             const name = mcpToolName(spec.key, tool.name);
             const def: ToolDef = {

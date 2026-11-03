@@ -13,6 +13,8 @@ import type { TemplateItem } from "../operations/read.ts";
 import { ShellRuntimeProvider } from "../../../shell/providers/runtime.tsx";
 import { sampleRuntime } from "../../../shell/providers/misc-test-runtime.tsx";
 import AutomationsPlace from "../../../shell/providers/automations.tsx";
+import { AskPaneHost } from "../../../shell/ask/host.tsx";
+import { askPaneOf, resetAskPanes } from "../../../shell/ask/pane.ts";
 
 installDom();
 
@@ -111,13 +113,17 @@ test("Ask Vyre opens the assistant in a pane of the tab and does not open Chats"
   const asked: unknown[] = [];
   const real = rt.open;
   (rt as { open: typeof rt.open }).open = ((t: unknown) => { asked.push(t); return real(t as never); }) as typeof rt.open;
-  const root = await mount(createRoot, <ShellRuntimeProvider value={rt}><AutomationsPlace place="automations" /></ShellRuntimeProvider>);
+  resetAskPanes();
+  const root = await mount(createRoot, <ShellRuntimeProvider value={rt}><AskPaneHost place="automations" rt={rt}><AutomationsPlace place="automations" /></AskPaneHost></ShellRuntimeProvider>);
   await flush();
-  assert.equal(find(root, "automations-ask-pane"), null, "closed to begin with");
+  assert.equal(find(root, "ask-pane"), null, "closed to begin with");
   await press(find(root, "start-ask"));
-  await flush();
-  assert.ok(find(root, "automations-ask-pane"), "the pane opens beside the body");
-  assert.ok(textOf(find(root, "automations-ask-hint")).length > 0);
+  for (let i = 0; i < 4; i++) await flush();
+  assert.ok(find(root, "ask-pane"), "the shared pane opens beside the body");
+  assert.ok(find(root, "automations-place"), "the place stays");
+  assert.ok(textOf(find(root, "ask-pane-hint")).length > 0);
+  assert.equal(askPaneOf("automations")!.thing, null, "about Automations itself");
+  assert.equal(askPaneOf("automations")!.context?.focus, "focus-automations");
   assert.deepEqual(asked, [], "nothing navigated to Chats");
   assert.deepEqual(opened, []);
 });

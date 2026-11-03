@@ -18,7 +18,8 @@ const PERSON = "per_dana";
 const AGENT = "agt_intake";
 const ACTOR = "agt_outside";
 const LEVELS: Array<Level | null> = [null, "view", "use", "edit", "manage"];
-const rank = (l: Level | null): number => (l === null ? 0 : LEVEL_RANK[l]);
+// a capability at level 'member' (ruling 69) is checked at view: any role or grant in the Space is enough (host/src/invoke.ts)
+const rank = (l: Level | "member" | null): number => (l === null ? 0 : LEVEL_RANK[l === "member" ? "view" : l]);
 
 function world(levels: { person: Level | null; agent: Level | null; actor: Level | null }): AccessSnapshot {
   const snap = new AccessSnapshot();

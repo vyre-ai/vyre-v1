@@ -45,8 +45,32 @@ export interface NodeProc {
   kill(signal?: "SIGTERM" | "SIGKILL"): void;
 }
 /** Starts a CLI engine process here, inside this machine's sandbox. Rejects with an `error.code` of engine.* when it cannot (not installed, no sandbox). */
-export interface NodeLauncher { spawn(spec: { argv: readonly string[]; cwd?: string; env: Readonly<Record<string, string>> }): Promise<NodeProc> }
+export interface NodeLauncher {
+  spawn(spec: { argv: readonly string[]; cwd?: string; env: Readonly<Record<string, string>> }): Promise<NodeProc>;
+  /** The folder an engine for this person and process works in, made if missing, laid out the way this machine's sandbox requires (modules/engine/sandbox.ts workFolder: short hashed
+   *  segments on Windows). Without it: `<data dir>/work/<person>/<process>`, the Mac and Linux layout. */
+  workFolder?(person: string, proc: string): string;
+}
 const LOOPBACK = /https?:\/\/(?:127\.0\.0\.1|localhost|\[::1\]):\d+/g;
+/** The environment variable a spawn carries its network rule in (sandbox/src/egress-policy.ts RULE_ENV); kept as a string here, the host does not import the sandbox. */
+export const RULE_ENV = "VYRE_EGRESS_RULE";
+/** A person or thread id as a folder name, the way the engine's sandbox names them (modules/engine/sandbox.ts part). */
+const safePart = (id: string): string => { const s = id.replace(/[^a-zA-Z0-9_-]/g, "_"); return s === "" || s === "." || s === ".." ? "node" : s; };
+/** The Space's address as "host:port", the way a rule's `space` holds it. */
+export function spaceTargetOf(server: string): string | null {
+  try {
+    const u = new URL(server);
+    if (u.protocol !== "https:" && u.protocol !== "http:") return null;
+    return `${u.hostname.toLowerCase()}:${u.port !== "" ? u.port : u.protocol === "https:" ? "443" : "80"}`;
+  } catch { return null; }
+}
+/** The turn's network rule with the Space's own address added (or the default, anything public, with it). A rule that is not JSON is left as it is: the sandbox refuses it and the turn says why. */
+export function withSpace(rule: string | undefined, server: string): string {
+  const space = spaceTargetOf(server);
+  let r: Record<string, unknown> = { egress: "public" };
+  if (rule !== undefined && rule !== "") { try { const v = JSON.parse(rule) as unknown; if (v === null || typeof v !== "object" || Array.isArray(v)) return rule; r = v as Record<string, unknown>; } catch { return rule; } }
+  return JSON.stringify(space === null ? r : { ...r, space });
+}
 const MAX_PROCS = 16;
 /** Bytes of a response in one frame; base64 of this stays under the Space's frame limit. */
 const PORT_CHUNK = 2 * 1024 * 1024;
@@ -82,7 +106,7 @@ interface PlatformSocket {
   send(data: string | Uint8Array): void; close(): void;
   addEventListener(type: string, f: (ev: { data?: unknown }) => void): void;
 }
-function platformSocket(url: string, headers?: Record<string, string>): NodeSocket {
+export function platformSocket(url: string, headers?: Record<string, string>): NodeSocket {
   const WS = (globalThis as unknown as { WebSocket: new (url: string, opts?: unknown) => PlatformSocket }).WebSocket;
   const ws = new WS(url, headers ? { headers } : undefined);
   ws.binaryType = "arraybuffer";
@@ -142,6 +166,81 @@ async function loadKey(dir: string): Promise<{ key: KeyFile; sign(text: string):
   }
   const priv = await crypto.subtle.importKey("pkcs8", Buffer.from(key.privateKey, "base64"), { name: "Ed25519" }, false, ["sign"]);
   return { key, sign: async (text) => b64(await crypto.subtle.sign({ name: "Ed25519" }, priv, new TextEncoder().encode(text))) };
+}
+
+/**
+ * The engine processes a Space starts on this machine over its live socket (cli_spawn, cli_in, cli_end, cli_kill), shared by a server that joined (runComputeNode) and a person's own computer
+ * (device-link.ts). `person`, when given, is the only person whose turns this machine runs: a spawn naming anyone else is refused here, the second lock after the Space's own.
+ */
+export function cliRelay(o: { launcher?: NodeLauncher; dataDir: string; server: string; log(line: string): void; person?: () => string | null }): { frame(m: Record<string, unknown>, say: (m: Record<string, unknown>) => void): void; killAll(): void; stopAll(): Promise<void>; running(): number } {
+  const procs = new Map<string, NodeProc>();
+  // every engine's run, from its spawn to its folder removed: stopAll waits for them all
+  const runs = new Set<Promise<void>>();
+  let stopping = false;
+  /** The Space's loopback address means nothing here: its tools are reached at the address this computer joined by. */
+  const toSpace = (v: string): string => v.replace(LOOPBACK, o.server);
+  function frame(m: Record<string, unknown>, say: (m: Record<string, unknown>) => void): void {
+    const proc = typeof m["proc"] === "string" && /^prc_[a-f0-9]{24}$/.test(m["proc"]) ? m["proc"] : "";
+    if (!proc) return;
+    if (m["t"] === "cli_spawn") {
+      const argv = Array.isArray(m["argv"]) ? (m["argv"] as unknown[]).filter((x): x is string => typeof x === "string") : [];
+      const envIn = m["env"] && typeof m["env"] === "object" ? (m["env"] as Record<string, unknown>) : {};
+      const env: Record<string, string> = {};
+      for (const [k, v] of Object.entries(envIn)) if (typeof v === "string") env[k] = toSpace(v);
+      if (o.person) {
+        const mine = o.person();
+        if (mine === null || m["person"] !== mine) { say({ t: "cli_failed", proc, code: "permission.no_grant", reason: "This computer runs only its own person's chats." }); return; }
+      }
+      // the engine reaches Vyre's tools at the Space's own address: the turn's network rule always lets it reach exactly that address and port (sandbox/src/egress-policy.ts `space`)
+      env[RULE_ENV] = withSpace(env[RULE_ENV], o.server);
+      if (!o.launcher || argv.length === 0 || procs.has(proc) || procs.size >= MAX_PROCS) { say({ t: "cli_failed", proc, code: "engine.cli_failed", reason: "This computer cannot run an engine right now." }); return; }
+      if (stopping) { say({ t: "cli_failed", proc, code: "engine.cli_failed", reason: "This computer is stopping." }); return; }
+      const launcher = o.launcher;
+      const run = (async () => {
+        try {
+          // the folder the Space named is the Space's own; an engine here works in a folder of this computer's, made per process, laid out the way this machine's sandbox requires:
+          // the launcher's own (modules/engine/sandbox.ts workFolder: <data dir>\w\<hash>\<hash> on Windows, <data dir>/work/<person>/<process> elsewhere), so the engine module's own launcher
+          // accepts it and nothing else is reachable
+          const who = typeof m["person"] === "string" && m["person"] !== "" ? m["person"] : "node";
+          let cwd: string;
+          if (launcher.workFolder) cwd = launcher.workFolder(who, proc);
+          else { cwd = path.join(o.dataDir, "work", safePart(who), proc); fs.mkdirSync(cwd, { recursive: true, mode: 0o700 }); }
+          const p = await launcher.spawn({ argv: argv.map(toSpace), cwd, env });
+          procs.set(proc, p);
+          if (stopping) p.kill("SIGKILL");   // started while this computer was stopping: it ends at once
+          o.log(`engine ${proc} started: ${path.basename(String(argv[0]))}`);
+          say({ t: "cli_started", proc, ...(p.pid !== undefined ? { pid: p.pid } : {}) });
+          const out = (async () => { for await (const chunk of p.stdout) say({ t: "cli_out", proc, data: Buffer.from(typeof chunk === "string" ? chunk : chunk).toString("base64") }); })();
+          const exit = await p.exited;
+          await out.catch(() => undefined);
+          const tail = p.stderrTail();
+          if (tail) say({ t: "cli_out", proc, err: true, data: Buffer.from(tail).toString("base64") });
+          procs.delete(proc);
+          fs.rmSync(cwd, { recursive: true, force: true });
+          o.log(`engine ${proc} ended: ${exit.code ?? exit.signal ?? "unknown"}`);
+          say({ t: "cli_exit", proc, code: exit.code, signal: exit.signal });
+        } catch (e) {
+          procs.delete(proc);
+          const code = typeof (e as { code?: unknown }).code === "string" && String((e as { code: string }).code).startsWith("engine.") ? (e as { code: string }).code : "engine.cli_failed";
+          say({ t: "cli_failed", proc, code, reason: (e instanceof Error ? e.message : "The engine could not start.").slice(0, 300) });
+        }
+      })();
+      runs.add(run);
+      void run.finally(() => runs.delete(run));
+      return;
+    }
+    const p = procs.get(proc);
+    if (!p) return;
+    if (m["t"] === "cli_in" && typeof m["data"] === "string") void p.write(Buffer.from(m["data"], "base64").toString("utf8")).catch(() => undefined);
+    else if (m["t"] === "cli_end") p.endInput();
+    else if (m["t"] === "cli_kill") p.kill(m["signal"] === "SIGKILL" ? "SIGKILL" : "SIGTERM");
+  }
+  const killAll = (): void => { for (const p of procs.values()) p.kill("SIGKILL"); };
+  return {
+    frame, killAll, running: () => procs.size,
+    /** Ends every engine and waits until each has exited and its work folder is gone; no new one starts after. */
+    async stopAll() { stopping = true; killAll(); while (runs.size > 0) await Promise.all([...runs]); },
+  };
 }
 
 export async function runComputeNode(d: NodeDeps): Promise<NodeEnd> {
@@ -277,50 +376,8 @@ export async function runComputeNode(d: NodeDeps): Promise<NodeEnd> {
   let ended = false;   // the node's loop has returned: the view socket goes with it
   const openSocket = d.socket ?? platformSocket;
   // ---- engine processes: a turn pinned to this computer runs its CLI here, through the launcher this machine was given
-  const procs = new Map<string, NodeProc>();
-  /** The Space's loopback address means nothing here: its tools are reached at the address this computer joined by. */
-  const toSpace = (v: string): string => v.replace(LOOPBACK, server);
-  function cli(m: Record<string, unknown>, say: (m: Record<string, unknown>) => void): void {
-    const proc = typeof m["proc"] === "string" && /^prc_[a-f0-9]{24}$/.test(m["proc"]) ? m["proc"] : "";
-    if (!proc) return;
-    if (m["t"] === "cli_spawn") {
-      const argv = Array.isArray(m["argv"]) ? (m["argv"] as unknown[]).filter((x): x is string => typeof x === "string") : [];
-      const envIn = m["env"] && typeof m["env"] === "object" ? (m["env"] as Record<string, unknown>) : {};
-      const env: Record<string, string> = {};
-      for (const [k, v] of Object.entries(envIn)) if (typeof v === "string") env[k] = toSpace(v);
-      if (!d.cliLauncher || argv.length === 0 || procs.has(proc) || procs.size >= MAX_PROCS) { say({ t: "cli_failed", proc, code: "engine.cli_failed", reason: "This computer cannot run an engine right now." }); return; }
-      void (async () => {
-        try {
-          // the folder the Space named is the Space's own; an engine here works in a folder of this computer's, made per process
-          const cwd = path.join(d.dataDir, "turns", proc);
-          fs.mkdirSync(cwd, { recursive: true, mode: 0o700 });
-          const p = await d.cliLauncher!.spawn({ argv: argv.map(toSpace), cwd, env });
-          procs.set(proc, p);
-          d.log(`engine ${proc} started: ${path.basename(String(argv[0]))}`);
-          say({ t: "cli_started", proc, ...(p.pid !== undefined ? { pid: p.pid } : {}) });
-          const out = (async () => { for await (const chunk of p.stdout) say({ t: "cli_out", proc, data: Buffer.from(typeof chunk === "string" ? chunk : chunk).toString("base64") }); })();
-          const exit = await p.exited;
-          await out.catch(() => undefined);
-          const tail = p.stderrTail();
-          if (tail) say({ t: "cli_out", proc, err: true, data: Buffer.from(tail).toString("base64") });
-          procs.delete(proc);
-          fs.rmSync(cwd, { recursive: true, force: true });
-          d.log(`engine ${proc} ended: ${exit.code ?? exit.signal ?? "unknown"}`);
-          say({ t: "cli_exit", proc, code: exit.code, signal: exit.signal });
-        } catch (e) {
-          procs.delete(proc);
-          const code = typeof (e as { code?: unknown }).code === "string" && String((e as { code: string }).code).startsWith("engine.") ? (e as { code: string }).code : "engine.cli_failed";
-          say({ t: "cli_failed", proc, code, reason: (e instanceof Error ? e.message : "The engine could not start.").slice(0, 300) });
-        }
-      })();
-      return;
-    }
-    const p = procs.get(proc);
-    if (!p) return;
-    if (m["t"] === "cli_in" && typeof m["data"] === "string") void p.write(Buffer.from(m["data"], "base64").toString("utf8")).catch(() => undefined);
-    else if (m["t"] === "cli_end") p.endInput();
-    else if (m["t"] === "cli_kill") p.kill(m["signal"] === "SIGKILL" ? "SIGKILL" : "SIGTERM");
-  }
+  const engines = cliRelay({ ...(d.cliLauncher ? { launcher: d.cliLauncher } : {}), dataDir: d.dataDir, server, log: d.log });
+  const cli = (m: Record<string, unknown>, say: (m: Record<string, unknown>) => void): void => engines.frame(m, say);
   /** One request to a port on a computer here: the address comes from this machine's own Docker, never from the Space. */
   function portReq(m: Record<string, unknown>, say: (m: Record<string, unknown>) => void): void {
     const id = String(m["id"]);
@@ -357,7 +414,7 @@ export async function runComputeNode(d: NodeDeps): Promise<NodeEnd> {
     await new Promise<void>((resolve) => {
       let hb: ReturnType<typeof setInterval> | undefined;
       let watch: ReturnType<typeof setInterval> | undefined;
-      const end = (): void => { for (const p of procs.values()) p.kill("SIGKILL"); if (hb) clearInterval(hb); if (watch) clearInterval(watch); d.signal.removeEventListener("abort", end); for (const s of local.values()) s.close(); local.clear(); up.close(); resolve(); };
+      const end = (): void => { engines.killAll(); if (hb) clearInterval(hb); if (watch) clearInterval(watch); d.signal.removeEventListener("abort", end); for (const s of local.values()) s.close(); local.clear(); up.close(); resolve(); };
       d.signal.addEventListener("abort", end, { once: true });
       watch = setInterval(() => { if (removed || ended) end(); }, 500); watch.unref?.();
       up.onOpen(() => { hb = setInterval(() => say({ t: "hb" }), 15_000); hb.unref?.(); });

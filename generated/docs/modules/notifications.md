@@ -4,11 +4,12 @@ Lane L6. Kind module. Version 0.1.0.
 
 Requires: chat, runs, tasks, vault.
 
-## Capabilities (20)
+## Capabilities (21)
 
 - [notifications.away.clear](../capabilities/notifications.away.clear.md): I'm Back: end away and return what waited
 - [notifications.away.get](../capabilities/notifications.away.get.md): Am I away, until when, and who holds my approvals
 - [notifications.away.set](../capabilities/notifications.away.set.md): Set myself away until a time; approvals go to a person, a role or no one; only calls interrupt
+- [notifications.away.who](../capabilities/notifications.away.who.md): Who in the Space is away right now and until when (what a teammate sees as a steady away dot); never the delegate
 - [notifications.counts](../capabilities/notifications.counts.md): Counts for the rail (Needs you and direct conversations only) and a quiet dot per other place
 - [notifications.delegate.get](../capabilities/notifications.delegate.get.md): My standing approvals delegate chain (delegate, next delegate, role)
 - [notifications.delegate.resolve](../capabilities/notifications.delegate.resolve.md): Walk a person's delegate chain for an item and return the first holder who can act on it (access evaluated for each)

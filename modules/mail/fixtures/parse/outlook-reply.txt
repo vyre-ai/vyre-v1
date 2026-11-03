@@ -1,0 +1,21 @@
+Hi Irfad,
+
+Quick one before Wednesday. Our lead form also feeds a Google Sheet that Rachel's team works from, so the intake team sees each lead twice. Could Claude in Chrome check the sheet first and skip anything already in Clio Grow? If that is easy, we would also like it to tag the practice area, so the right attorney gets the lead the same morning.
+
+The second thing is the follow-up. Right now nobody writes after the consult, so the lead goes quiet and we lose about a third of them. A short email the next morning, then we will call on day three. Could the same setup draft that email for Rachel to send?
+
+Josh Cohen
+Managing Partner | Cohen & Shah Law
+(404) 555-0187 | cohenshah.example
+
+CONFIDENTIALITY NOTICE: This email and any attachments may contain privileged and confidential information intended only for the named recipient. If you received it in error, please tell the sender and delete it.
+
+From: Irfad Imtiaz <irfad@northwind.example>
+Sent: Thursday, October 22, 2026 1:30 PM
+To: Josh Cohen <josh@cohenshah.example>
+Cc: Maya Chen <maya@northwind.example>
+Subject: Re: Claude in Chrome for Clio Grow + follow-up
+
+Hi Josh,
+
+Happy to. The short version: Claude in Chrome reads each new lead in Clio Grow.

@@ -16,6 +16,12 @@
 //   node -> Space  {t:"cli_started", proc, pid?}  {t:"cli_out", proc, data, err?}  {t:"cli_exit", proc, code, signal}  {t:"cli_failed", proc, code, reason}
 // A frame naming a process that is not one of this socket's is dropped, like a view. A node that goes away ends its processes.
 //
+// A person's own computer joins the same way (lane l-runson, owner rulings 2 and 3 Nov: a chat runs on the computer the person chose): their Vyre app's device daemon holds one socket to
+// /compute/stream with the person's own signed-in session (`Authorization: Bearer vst_...`), not a node credential. Its node id is `device:<device id>`, it belongs to that person, and the Space
+// starts a process on it only for that person's own turns (spawnProc's `person`); the device refuses any other as the second lock. It says which engines it runs once, in its hello
+//   device -> Space  {t:"hello", engines:[...], name?}         Space -> device  {t:"ready", person, device}
+// A session that is signed out or revoked drops the socket within `recheckMs`, like a removed node.
+//
 // And one request to a port on a computer on this node, for a site or an artifact (portFetch), and one question for the machine (ask): no job row, so a read can use them.
 //   Space -> node  {t:"port_req", id, computerId, port, method, path, headers, body?}   {t:"ask", id, kind, input}
 //   node -> Space  {t:"port_res", id, status, headers}  {t:"port_data", id, b}  {t:"port_end", id}  {t:"port_fail", id, reason}   {t:"ask_res", id, ok, result?, reason?}
@@ -43,9 +49,17 @@ const BOUNDARY = "vyreframe";
 const OPEN_MS = 12_000;
 const INPUT_CHECK_MS = 500;
 
+/** A person's own computer linked to the Space: its node id, whose it is, what it calls itself and the engines it runs. */
+export interface DeviceLink { nodeId: string; deviceId: string; person: string; name?: string; engines: string[]; since: number }
+
+/** The node id of a person's own computer: never the shape of a server id (srv_...). */
+export const deviceNode = (deviceId: string): string => `device:${deviceId}`;
+
 export interface ComputeStreamDeps {
   /** Who holds this credential, if still admitted (the network module's node_poll). */
   poll(credential: string): Promise<{ serverId: string } | null>;
+  /** A person's signed-in session, for their own computer's link: the person and the device, if the session is live and the device is a computer (not a phone or a browser). Absent: no device links. */
+  device?(token: string): Promise<{ person: string; device: string; name?: string } | null>;
   /** Spend a viewer's ticket for this computer: the node it lives on, who the ticket was issued to, and whether that person holds the controls. Null when the ticket is not good. */
   open(ticket: string, computerId: string): Promise<{ nodeId: string; personId: string; input: boolean } | null>;
   /** Does this person still hold the controls of this computer? */
@@ -112,10 +126,14 @@ export interface ComputeStream {
   ask(nodeId: string, kind: string, input: unknown): Promise<unknown>;
   /** The address this node's socket came from. */
   peerAddress(nodeId: string): string | null;
+  /** The person's own computers linked right now (all people's when no person is named). */
+  devices(person?: string): DeviceLink[];
+  /** Told when a person's computer links or goes; returns the way to stop listening. */
+  onDevice(fn: (link: DeviceLink, up: boolean) => void): () => void;
   close(): void;
 }
 
-interface NodeConn { nodeId: string; credential: string; peer: Peer; views: Set<string>; procs: Set<string>; lastSeen: number; secure: boolean; address: string }
+interface NodeConn { nodeId: string; credential: string; peer: Peer; views: Set<string>; procs: Set<string>; lastSeen: number; secure: boolean; address: string; device?: DeviceLink }
 interface ProcState {
   id: string; nodeId: string; started(pid: number | undefined): void; failed(e: RelayError): void; out(bytes: Buffer, err: boolean): void; exit(x: RelayExit): void;
 }
@@ -167,21 +185,25 @@ export function createComputeStream(deps: ComputeStreamDeps): ComputeStream {
     if (tell && n?.peer.open) n.peer.send(JSON.stringify({ t: "close", view: id }));
     v.end();
   }
+  const deviceListeners = new Set<(link: DeviceLink, up: boolean) => void>();
+  const tellDevice = (link: DeviceLink, up: boolean): void => { for (const f of [...deviceListeners]) { try { f(link, up); } catch { /* a listener never stops the link */ } } };
   /** The node went away with processes running: each one ends as killed, so the turn fails and says so. */
   function dropProcs(n: NodeConn): void {
     for (const id of [...n.procs]) {
       const p = procs.get(id);
       procs.delete(id);
       n.procs.delete(id);
-      p?.failed(new RelayError("engine.server_off", "The server went away."));
+      p?.failed(n.device ? new RelayError("engine.device_gone", "The computer went away.") : new RelayError("engine.server_off", "The server went away."));
       p?.exit({ code: null, signal: "SIGKILL" });
     }
   }
   function dropNode(n: NodeConn, code: number): void {
-    if (nodes.get(n.nodeId) === n) nodes.delete(n.nodeId);
+    const was = nodes.get(n.nodeId) === n;
+    if (was) nodes.delete(n.nodeId);
     for (const id of [...n.views]) dropView(id, false);
     dropProcs(n);
     n.peer.close(code);
+    if (was && n.device) tellDevice(n.device, false);
   }
 
   // ---- the node's socket
@@ -192,17 +214,40 @@ export function createComputeStream(deps: ComputeStreamDeps): ComputeStream {
       const auth = req.headers["authorization"];
       const credential = typeof auth === "string" && auth.startsWith("Bearer ") ? auth.slice(7).trim() : "";
       const who = credential.startsWith("vcc_") ? await deps.poll(credential).catch(() => null) : null;
-      if (!who) { refuseUpgrade(socket, "401 Unauthorized"); return; }
+      // a person's own computer: their signed-in session, never a node credential
+      const mine = !who && credential !== "" && !credential.startsWith("vcc_") && deps.device ? await deps.device(credential).catch(() => null) : null;
+      if (!who && !mine) { refuseUpgrade(socket, "401 Unauthorized"); return; }
       const peer = accept(req, socket, head, MAX_NODE_FRAME);
       if (!peer) return;
-      const conn: NodeConn = { nodeId: who.serverId, credential, peer, views: new Set(), procs: new Set(), lastSeen: now(), secure: (deps.secure ?? linkIsSecure)(req), address: sourceFor(req) };
+      const nodeId = who ? who.serverId : deviceNode(mine!.device);
+      const device: DeviceLink | undefined = mine ? { nodeId, deviceId: mine.device, person: mine.person, ...(mine.name ? { name: mine.name } : {}), engines: [], since: now() } : undefined;
+      const conn: NodeConn = { nodeId, credential, peer, views: new Set(), procs: new Set(), lastSeen: now(), secure: (deps.secure ?? linkIsSecure)(req), address: sourceFor(req), ...(device ? { device } : {}) };
       const old = nodes.get(conn.nodeId);
       if (old) dropNode(old, 4000);
       nodes.set(conn.nodeId, conn);
-      peer.send(JSON.stringify({ t: "ready" }));
-      peer.onClose(() => { if (nodes.get(conn.nodeId) === conn) nodes.delete(conn.nodeId); for (const id of [...conn.views]) dropView(id, false); dropProcs(conn); });
+      peer.send(JSON.stringify(device ? { t: "ready", person: device.person, device: device.deviceId } : { t: "ready" }));
+      peer.onClose(() => {
+        const was = nodes.get(conn.nodeId) === conn;
+        if (was) nodes.delete(conn.nodeId);
+        for (const id of [...conn.views]) dropView(id, false);
+        dropProcs(conn);
+        if (was && conn.device) tellDevice(conn.device, false);
+      });
+      // a computer is told about once it has said which engines it runs (its hello), so a turn is never sent to one that cannot take it
+      let hello = false;
       peer.onMessage((data, binary) => {
         conn.lastSeen = now();
+        if (conn.device && !binary && !hello) {
+          let h: { t?: unknown; engines?: unknown; name?: unknown } = {};
+          try { h = JSON.parse(data.toString("utf8")) as typeof h; } catch { /* not a hello */ }
+          if (h.t === "hello") {
+            hello = true;
+            conn.device.engines = Array.isArray(h.engines) ? h.engines.filter((x): x is string => typeof x === "string" && /^[a-z_]{1,32}$/.test(x)).slice(0, 16) : [];
+            if (typeof h.name === "string" && h.name.trim() !== "") conn.device.name = h.name.trim().slice(0, 60);
+            if (nodes.get(conn.nodeId) === conn) tellDevice(conn.device, true);
+            return;
+          }
+        }
         if (binary) {
           const n = data[0] ?? 0;
           const id = data.subarray(1, 1 + n).toString("latin1");
@@ -354,15 +399,19 @@ export function createComputeStream(deps: ComputeStreamDeps): ComputeStream {
   const timer = setInterval(() => {
     for (const n of [...nodes.values()]) {
       if (now() - n.lastSeen > deadMs) { dropNode(n, 4001); continue; }
+      const dev = n.device;
+      if (dev) { void (deps.device?.(n.credential) ?? Promise.resolve(null)).then((who) => { if (!who || who.device !== dev.deviceId || who.person !== dev.person) dropNode(n, 4003); }).catch(() => undefined); continue; }
       void deps.poll(n.credential).then((who) => { if (!who || who.serverId !== n.nodeId) dropNode(n, 4003); }).catch(() => undefined);
     }
   }, deps.recheckMs ?? 2_000);
   timer.unref();
 
   /** One process on one node. Output is queued until the engine reads it; the end waits until the output is drained. */
-  async function spawnProc(nodeId: string, spec: { argv: readonly string[]; cwd?: string; env: Readonly<Record<string, string>> }): Promise<RelayProc> {
+  async function spawnProc(nodeId: string, spec: { argv: readonly string[]; cwd?: string; env: Readonly<Record<string, string>>; person?: string }): Promise<RelayProc> {
     const node = nodes.get(nodeId);
-    if (!node?.peer.open) throw new RelayError("engine.server_off", "The server is not connected to the Space right now.");
+    if (!node?.peer.open) throw node?.device || nodeId.startsWith("device:") ? new RelayError("engine.device_off", "Your computer is not connected to the Space right now.") : new RelayError("engine.server_off", "The server is not connected to the Space right now.");
+    // a person's computer runs that person's turns and nobody else's
+    if (node.device && spec.person !== node.device.person) throw new RelayError("permission.no_grant", "That computer runs only its own person's chats.");
     // the engine's environment holds the person's own account key: it goes only over a private link
     if (!node.secure) throw new RelayError("engine.link_insecure", "This server is connected over a link that is not private. Use an https address for the Space.");
     if (node.procs.size >= MAX_PROCS_PER_NODE) throw new RelayError("engine.server_busy", "The server is already running as many engines as it can.");
@@ -389,7 +438,7 @@ export function createComputeStream(deps: ComputeStreamDeps): ComputeStream {
     procs.set(id, state);
     node.procs.add(id);
     const send = (m: Record<string, unknown>): void => { const n = nodes.get(nodeId); if (n?.peer.open) n.peer.send(JSON.stringify({ ...m, proc: id })); };
-    send({ t: "cli_spawn", argv: [...spec.argv], ...(spec.cwd !== undefined ? { cwd: spec.cwd } : {}), env: { ...spec.env } });
+    send({ t: "cli_spawn", argv: [...spec.argv], ...(spec.cwd !== undefined ? { cwd: spec.cwd } : {}), env: { ...spec.env }, ...(node.device ? { person: node.device.person } : {}) });
     const timer = setTimeout(() => { settleStart.fail(new RelayError("engine.server_off", "The server did not start the engine in time.")); procs.delete(id); node.procs.delete(id); send({ t: "cli_kill", signal: "SIGKILL" }); }, PROC_START_MS);
     try { await startup; } finally { clearTimeout(timer); }
     async function* stdout(): AsyncGenerator<Uint8Array> {
@@ -424,6 +473,10 @@ export function createComputeStream(deps: ComputeStreamDeps): ComputeStream {
       n.peer.send(JSON.stringify({ t: "port_req", id, computerId: a.computerId, port: a.port, method: a.request.method, path: a.request.path, headers: a.request.headers, ...(a.request.body?.length ? { body: Buffer.from(a.request.body).toString("base64") } : {}) }));
     },
     peerAddress(nodeId) { return nodes.get(nodeId)?.address ?? null; },
+    devices(person) {
+      return [...nodes.values()].filter((n) => n.device && n.peer.open && (person === undefined || n.device.person === person)).map((n) => ({ ...n.device!, engines: [...n.device!.engines] }));
+    },
+    onDevice(fn) { deviceListeners.add(fn); return () => { deviceListeners.delete(fn); }; },
     ask(nodeId, kind, input) {
       return new Promise((ok, no) => {
         const n = nodes.get(nodeId);

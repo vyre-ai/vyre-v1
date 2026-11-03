@@ -23,6 +23,7 @@ HTTP 422. Retryable: no.
 - git.remote_add
 - google.user.complete
 - identity.claim_owner
+- identity.link_account
 - invites.accept_create_account
 - journeys.create
 - journeys.start
@@ -30,4 +31,3 @@ HTTP 422. Retryable: no.
 - mail.domain.add
 - mail.mailbox.create
 - members.accept
-- mounts.add

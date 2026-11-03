@@ -7,7 +7,9 @@
 //   caching    the stable system blocks and the sorted tool list are hashed and marked (prefix.ts); each call notes whether the prefix matched the one before
 import { windowFor } from "../../transcript/windows.ts";
 import type { DriverEvent, EngineSession, SessionSpec, StoredMessage, ToolResult, TurnInput } from "../../turn-engine/types.ts";
-import { classify, retryAfterMs, scrub } from "./errors.ts";
+import { classify, plainRefusal, retryAfterMs, scrub } from "./errors.ts";
+import { sha256b64 } from "../../../../kernel/src/seal/wire.ts";
+import { opencodeHeaders } from "./openai.ts";
 import { cap, compact, fixedTokens, threadMessages } from "./messages.ts";
 import type { Summarize } from "./messages.ts";
 import { createPrefixTracker, orderSystem, prefixHash } from "./prefix.ts";
@@ -73,11 +75,21 @@ async function nextWithin<T>(it: AsyncIterator<T>, ms: number, onIdle: () => voi
   try { return await Promise.race([it.next(), idle]); } finally { if (timer !== undefined) clearTimeout(timer); }
 }
 
+/**
+ * A stable id of the conversation: the same for every turn of one agent in one chat (thread ids are unique in the Space), so a provider that keys its cache or its session on it
+ * (OpenCode Go's x-opencode-session) sees one conversation. A one-shot job (memory learning, upkeep: a `oneshot_` thread per call) gets one id per job kind and person.
+ */
+export function conversationId(spec: Pick<SessionSpec, "threadId" | "agent" | "asker">): string {
+  const where = spec.threadId.startsWith("oneshot_") ? `oneshot|${spec.agent.id}|${spec.asker}` : `${spec.threadId}|${spec.agent.id}`;
+  return `vyre-${sha256b64(where).slice(0, 32)}`;
+}
+
 export function createApiSession(deps: SessionDeps, spec: SessionSpec): ApiSession {
   const policy: RetryPolicy = { ...RETRY_DEFAULTS, ...deps.retry };
   const rnd = deps.random ?? Math.random;
   const tracker = createPrefixTracker();
   const model = deps.adapter.modelName(spec.agent.model ?? "");
+  const conversation = conversationId(spec);
   let calls = 0;
   let retries = 0;
   let compactions = 0;
@@ -118,7 +130,7 @@ export function createApiSession(deps: SessionDeps, spec: SessionSpec): ApiSessi
       signal.addEventListener("abort", relay, { once: true });
       let res: FetchResponse;
       try {
-        res = await deps.fetch(url, { method: "POST", headers: { ...wire.headers, ...auth }, body: JSON.stringify(wire.body), signal: att.signal });
+        res = await deps.fetch(url, { method: "POST", headers: { ...wire.headers, ...opencodeHeaders(deps.base, req.conversation ?? req.prefixHash), ...auth }, body: JSON.stringify(wire.body), signal: att.signal });
       } catch (e) {
         signal.removeEventListener("abort", relay);
         if (signal.aborted) return;
@@ -133,7 +145,7 @@ export function createApiSession(deps: SessionDeps, spec: SessionSpec): ApiSessi
         if (await retryOrFail(res.status, text, res)) continue;
         const c = classify(res.status, text);
         const after = c.code === "provider.rate_limited" ? retryAfterMs(res.headers.get("retry-after"), deps.clock.now()) : undefined;
-        yield { type: "error", status: res.status, code: c.code, message: `The provider answered ${res.status}: ${text.slice(0, 200)}`, ...(after !== undefined ? { retryAfterMs: after } : {}) };
+        yield { type: "error", status: res.status, code: c.code, message: plainRefusal(res.status, text) ?? `The provider answered ${res.status}: ${text.slice(0, 200)}`, ...(after !== undefined ? { retryAfterMs: after } : {}) };
         return;
       }
       if (!res.body) { signal.removeEventListener("abort", relay); yield { type: "error", status: 200, code: "provider.bad_response", message: "The provider sent no stream." }; return; }
@@ -200,25 +212,33 @@ export function createApiSession(deps: SessionDeps, spec: SessionSpec): ApiSessi
         if (ac.signal.aborted || closed) return;
         const c = await compact(fixed, messages, window, deps.summarize, input.keep);
         if (c.dropped > 0) { compactions += 1; messages = c.messages; }
-        const req: CallRequest = { model, system, tools: ctx.tools, messages, maxOutputTokens: ctx.maxOutputTokens ?? deps.adapter.defaultMaxOutput, prefixHash: hash, ...(spec.agent.effort !== undefined ? { effort: spec.agent.effort } : {}) };
+        const req: CallRequest = { model, system, tools: ctx.tools, messages, maxOutputTokens: ctx.maxOutputTokens ?? deps.adapter.defaultMaxOutput, prefixHash: hash, conversation, ...(spec.agent.effort !== undefined ? { effort: spec.agent.effort } : {}) };
         tracker.note(hash);
         calls += 1;
         let text = "";
         const pending: ToolCall[] = [];
         const u = zero();
+        // the fields the provider actually sent: one it left out is "not reported", not 0
+        const told = new Set<string>();
         let stop: Extract<Decoded, { type: "stop" }>["reason"] = "end";
         for await (const d of call(req, ac.signal)) {
           if (d.type === "text") { text += d.text; yield { type: "text", text: d.text }; }
           else if (d.type === "thinking") yield { type: "thinking", text: d.text };
           else if (d.type === "tool_call") { pending.push(d.call); yield { type: "tool_call", id: d.call.id, name: d.call.name, input: d.call.input }; }
-          else if (d.type === "usage") Object.assign(u, d.usage);
+          else if (d.type === "usage") { Object.assign(u, d.usage); for (const k of Object.keys(d.usage)) told.add(k); }
           else if (d.type === "stop") stop = d.reason;
           else { yield { type: "error", code: d.code ?? "provider.error", message: d.message, ...(d.retryAfterMs !== undefined ? { resetsAt: deps.clock.now() + d.retryAfterMs } : {}) }; return; }
         }
         if (ac.signal.aborted) return;
         const inTokens = deps.adapter.inputIncludesCache ? u.inputTokens : u.inputTokens + u.cacheReadTokens + u.cacheWriteTokens;
         tracker.settle(u.cacheReadTokens, u.cacheWriteTokens);
-        if (inTokens > 0 || u.outputTokens > 0) yield { type: "usage", inputTokens: inTokens, outputTokens: u.outputTokens };
+        if (inTokens > 0 || u.outputTokens > 0) {
+          yield {
+            type: "usage", inputTokens: inTokens, outputTokens: u.outputTokens,
+            ...(told.has("cacheReadTokens") ? { cacheReadTokens: u.cacheReadTokens } : {}), ...(told.has("cacheWriteTokens") ? { cacheWriteTokens: u.cacheWriteTokens } : {}),
+            ...(u.reasoningTokens !== undefined ? { reasoningTokens: u.reasoningTokens } : {}), ...(u.costUsd !== undefined ? { costUsd: u.costUsd } : {}),
+          };
+        }
         if (stop === "filtered" && text === "" && pending.length === 0) { yield { type: "error", code: "provider.filtered", message: "The provider declined to answer." }; return; }
 
         if (pending.length > 0) {

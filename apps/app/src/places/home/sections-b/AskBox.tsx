@@ -15,6 +15,7 @@ import { useOptionalShellRuntime } from "../../../shell/providers/runtime.tsx";
 import { useExtras } from "./data.tsx";
 import { ASK_LOCKED, ASK_PLACEHOLDER, askText } from "./model.ts";
 import { Icon, QuickButton } from "./parts.tsx";
+import { offered } from "../../../shell/session/private-agents.ts";
 
 export function AskBox(): ReactElement {
   const data = useHomeData();
@@ -29,7 +30,7 @@ export function AskBox(): ReactElement {
   // the agent that answers is picked in the pill beside the box (the shared AskButton), the Space assistant until another is picked
   const agents = useMemo<AskAgent[]>(() => {
     const list: AskAgent[] = [];
-    for (const x of people.list) if (x.kind === "agent") list.push({ id: x.id, name: x.name, ...(x.id === assistant.id ? { assistant: true } : {}) });
+    for (const x of people.list) if (x.kind === "agent" && offered(x)) list.push({ id: x.id, name: x.name, ...(x.id === assistant.id ? { assistant: true } : {}) });
     return list.some((x) => x.id === assistant.id) ? list : [{ id: assistant.id, name: assistant.name, assistant: true }, ...list];
   }, [people.list, assistant.id, assistant.name]);
   const [pickedId, setPickedId] = useState(assistant.id);
@@ -39,7 +40,7 @@ export function AskBox(): ReactElement {
     const text = askText(p.text) ?? (p.files.length > 0 ? "" : null);
     if (text === null) return;
     // what the composer holds beyond the words travels with them: @names become mentions, # links become refs, and files (dropped, pasted or picked) are stored the way a chat stores its own.
-    const mentions = mentionsIn(p.text, people.list.filter((x) => (x.kind === "person" || x.kind === "agent") && x.id !== data.me.id).map((x) => ({ id: x.id, name: x.name, kind: x.kind as "person" | "agent" })));
+    const mentions = mentionsIn(p.text, people.list.filter((x) => (x.kind === "person" || x.kind === "agent") && x.id !== data.me.id && offered(x)).map((x) => ({ id: x.id, name: x.name, kind: x.kind as "person" | "agent" })));
     const refs = [...p.refs, ...p.chips.flatMap((c) => (c.id !== undefined ? [{ kind: c.kind.toLowerCase(), id: c.id, title: c.name }] : []))];
     const at = data.clock().now;
     const fresh = p.files.filter((f) => f.fileId === undefined);

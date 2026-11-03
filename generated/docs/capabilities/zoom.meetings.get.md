@@ -43,6 +43,10 @@ type Out = {
     password?: string;
     hostEmail?: string;
     timezone?: string;
+    dialIns?: Array<{
+        number: string;
+        country?: string;
+      }>;
   };
 };
 ```
@@ -64,6 +68,12 @@ type Out = {
   },
   "output": {
     "meeting": {
+      "dialIns": [
+        {
+          "country": "example",
+          "number": "example"
+        }
+      ],
       "durationMinutes": 1,
       "hostEmail": "maya@example.com",
       "id": "81234567890",

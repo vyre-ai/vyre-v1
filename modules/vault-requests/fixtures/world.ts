@@ -21,6 +21,8 @@ export interface Script {
   folderUnreadable?: boolean;
   /** capabilities that should fail, with the message */
   fail: Record<string, string>;
+  /** the chat the request's card was drawn in, with the person who asked (read back through tasks.get) */
+  card?: { threadId: string; agentId: string; asker: string };
 }
 
 export function world(over: Partial<Script> = {}) {
@@ -51,6 +53,11 @@ export function world(over: Partial<Script> = {}) {
       }
       case "vault.item.put": return { item: { id: "vit_new", fieldKeys: (i["fields"] as { key: string }[]).map((f) => f.key) } };
       case "vault.share": return { granted: true };
+      case "access.share": return { grant: { id: "gnt_through" } };
+      case "tasks.get": {
+        if (!script.card) throw new Error("no card");
+        return { task: { id: i["taskId"], blocks: [{ type: "vault_request", data: script.card }] } };
+      }
       case "vault.folders.list": return { folders: [] };
       case "vault.folders.create": return { folder: { id: "vfd_company" } };
       case "access.labels.set": return { ok: true };

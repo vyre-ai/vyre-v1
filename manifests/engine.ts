@@ -9,13 +9,13 @@
 // DECISION: the three hop and loop limits (agent_hops, review_loops, ci_fix_loops) are declared here; route() reads agent_hops and
 //   tasks.transition reads the other two.
 import { create, defineManifest, ev, health, outward, read, screen, setting, t, write } from '../packages/contracts/src/index.ts';
-import { id, label, pageIn, pageOut } from './_common.ts';
+import { id, label, pageIn, pageOut, replyTurn } from './_common.ts';
 
 const effort = t.enm('low', 'medium', 'high', 'max');
 // Outside tools (CHAT-DESIGN ruling 6): the MCP servers of plugins and connections, run in the sandbox. A call is one capability, so access, the Gate and the audit trail apply to it like any other.
 const mcpTool = t.obj({ name: t.str(), description: t.str(), inputSchema: t.json(), readOnly: t.bool() });
 const mcpServerRow = t.obj({ key: t.str({ examples: ['greeter/echo'] }), name: t.str(), from: t.enm('plugin', 'connection'), ok: t.bool(), error: t.opt(t.str()), tools: t.arr(mcpTool), hub: t.opt(t.enm('composio', 'pipedream')), oauth: t.opt(t.bool()) });
-const mcpCallIn = { agentId: id.agent, server: t.str({ examples: ['greeter/echo'] }), tool: t.str(), input: t.opt(t.json()) };
+const mcpCallIn = { agentId: id.agent, server: t.str({ examples: ['greeter/echo'], description: 'The server key mcp_tools lists' }), tool: t.str({ description: 'The tool name as the server lists it' }), input: t.opt(t.json()) };
 const mcpCallOut = { isError: t.bool(), text: t.str(), structured: t.opt(t.json()) };
 const agentMode = t.enm('lead', 'listen');
 // The crew (DESIGN-crew.md): a teammate working in its own copy of the project repository, on its own branch, in its own thread under the lead's chat.
@@ -35,6 +35,10 @@ const modelInfo = t.obj({
   provider: t.str({ examples: ['anthropic'] }), model: t.str({ examples: ['claude-sonnet-5-5'] }), title: t.str(), driver: driverId, contextTokens: t.opt(t.int()),
   allowed: t.bool(), reason: t.opt(t.enm('label_provider', 'policy_model', 'not_connected', 'usage_limit')),
   resetsAt: t.opt(t.ts()),
+  alias: t.opt(t.str({ description: "The engine's own name that resolves to this model today (Claude Code's opus); a pick saved as the alias is this model", examples: ['opus'] })),
+  isDefault: t.opt(t.bool()),
+  efforts: t.opt(t.arr(t.str({ description: 'A reasoning-effort level the vendor offers for this model, in its words', examples: ['high'] }))),
+  defaultEffort: t.opt(t.str({ examples: ['medium'] })),
 });
 const accountRow = t.obj({
   ref: accountRef, driver: driverId, kind: t.enm('api_key', 'subscription'), title: t.str(), name: t.opt(t.str({ description: 'The name the person gave this account in the Vault; title is the provider', examples: ['Dana Claude Max'] })), mine: t.bool(), ownerId: t.opt(id.user),
@@ -47,10 +51,21 @@ const accountRow = t.obj({
 const turnRow = t.obj({
   turnId: id.turn, threadId: id.thread, agentId: id.agent, asker: t.str(), accountRef: t.opt(accountRef), engine: t.str(), model: t.str(), state: turnState,
   traceId: id.trace, runId: t.opt(id.run), startedAt: t.ts(), endedAt: t.opt(t.ts()), tokensIn: t.int(), tokensOut: t.int(), costMicros: t.int(), error: t.opt(errShape), nodeId: t.opt(t.str({ description: 'The server of the asker\'s the turn ran on, when the chat was pinned to one' })),
+  ranOn: t.opt(t.arr(t.obj({ kind: t.enm('computer', 'server', 'space'), name: t.str({ examples: ['Dana\'s MacBook', 'the Northwind server'] }) }), { description: 'Where the turn ran, in order: two places when its computer went to sleep and it went on elsewhere' })),
+});
+// A reply's Details (chat.reply_details, reply-info.ts). A count that is absent was not reported by the provider: never shown as 0.
+const toolTrace = t.obj({ id: t.str(), name: t.str(), detail: t.opt(t.str()), startedAt: t.ts(), endedAt: t.opt(t.ts()), ok: t.opt(t.bool()), held: t.opt(id.task) });
+const turnInfoIn = t.obj({
+  effort: t.opt(t.str({ examples: ['high'] })),
+  account: t.opt(t.obj({ ref: accountRef, driver: t.str(), provider: t.str(), kind: t.enm('api_key', 'subscription'), shared: t.opt(t.bool()), spaceKey: t.opt(t.bool()) })),
+  firstTokenAt: t.opt(t.ts()), cacheReadTokens: t.opt(t.int()), cacheWriteTokens: t.opt(t.int()), reasoningTokens: t.opt(t.int()),
+  costUsd: t.opt(t.num({ description: 'The provider\'s own price for the turn, when every call reported one' })),
+  tools: t.arr(toolTrace), switches: t.arr(t.obj({ at: t.ts(), from: t.str(), to: t.str(), why: t.str() })),
 });
 const whatHappened = t.obj({
   turn: turnRow, machine: t.enm('host', 'device'), keyUsed: t.opt(t.str()), steps: t.arr(t.obj({ idx: t.int(), kind: t.str(), title: t.str(), durationMs: t.int(), ok: t.bool() })),
   denials: t.arr(t.obj({ cap: t.str(), reason: t.str() })), fallbacks: t.arr(t.obj({ kind: t.str(), to: t.str(), at: t.ts() })),
+  reached: t.opt(t.arr(t.str({ examples: ['github.com'] }), { description: 'Hosts the engine reached on the internet while the turn ran (a sample, at most 20)' })),
 });
 const incidentRow = t.obj({
   incidentId: t.id('inc'), kind: t.enm('label_denied', 'scrub_miss', 'runaway_spend', 'repeated_failure', 'person_report', 'other'), title: t.str(),
@@ -106,20 +121,22 @@ export default defineManifest({
     read('engine.mcp.tools', 'The MCP servers a chat with this agent connects to and the tools each offers (starts the server in the sandbox if it is not running)', {
       in: { agentId: id.agent, server: t.opt(t.str()) }, out: { servers: t.arr(mcpServerRow) }, perm: null, level: 'view', tool: 'agents', mcpName: 'mcp_tools', agent: { planMode: 'allowed' },
     }),
-    read('engine.mcp.read', 'Call an outside MCP tool that only reads (the server says so); runs in the sandbox or at the remote server', {
-      in: mcpCallIn, out: mcpCallOut, perm: null, level: 'use', errors: ['validation.not_found', 'provider.unavailable', 'permission.no_grant'],
+    read('engine.mcp.read', 'Call a tool of an outside tool server or connection (app hub, OAuth server, remote MCP) that only reads, as mcp_tools lists it with readOnly true; a tool that may change things goes through mcp_call', {
+      in: mcpCallIn, out: mcpCallOut, perm: null, level: 'use', tool: 'agents', mcpName: 'mcp_read', agent: { planMode: 'allowed' },
+      errors: ['validation.not_found', 'provider.unavailable', 'permission.no_grant', 'validation.precondition_failed'],
     }),
     write('engine.mcp.oauth_start', 'Begin signing a remote outside-tool connection in with OAuth (the MCP authorization flow). Answers the address to send the person to; the token that comes back is sealed and never answered.', {
-      in: { connectionId: t.str(), redirectUri: t.str() }, out: { authUrl: t.str(), state: t.str() }, perm: 'agents.manage', level: 'manage', audit: 'always', agent: false,
-      errors: ['validation.not_found', 'validation.precondition_failed', 'provider.unavailable'],
+      in: { connectionId: t.str(), redirectUri: t.str() }, out: { authUrl: t.str(), state: t.str() }, perm: null, level: 'member', audit: 'always', agent: false,
+      errors: ['validation.not_found', 'validation.precondition_failed', 'provider.unavailable', 'permission.role_lacks_permission'],
     }),
     write('engine.mcp.oauth_complete', 'Finish an OAuth sign-in with the state and code the server sent back, or the error it sent when the person declined. Only the person who started it can finish it.', {
-      in: { state: t.str(), code: t.opt(t.str()), error: t.opt(t.str()) }, out: { connectionId: t.str() }, perm: null, level: 'view', audit: 'always', agent: false,
+      in: { state: t.str(), code: t.opt(t.str()), error: t.opt(t.str()) }, out: { connectionId: t.str() }, perm: null, level: 'member', audit: 'always', agent: false,
       errors: ['auth.invalid_code', 'permission.no_grant', 'validation.bad_input', 'provider.unavailable'],
     }),
-    read('engine.mcp.oauth_status', 'Has this remote connection signed in? A yes or no, never the token.', { in: { connectionId: t.str() }, out: { signedIn: t.bool() }, perm: null, level: 'view', agent: false }),
-    outward('engine.mcp.call', 'Call an outside MCP tool that may change things; an agent\'s call goes through the Gate', {
-      in: mcpCallIn, out: mcpCallOut, perm: null, level: 'use', risk: 'medium', gate: { act: 'send', when: "actor.kind != 'person'" }, errors: ['validation.not_found', 'provider.unavailable', 'permission.no_grant', 'validation.precondition_failed'],
+    read('engine.mcp.oauth_status', 'Has this remote connection signed in? A yes or no, never the token.', { in: { connectionId: t.str() }, out: { signedIn: t.bool() }, perm: null, level: 'member', agent: false }),
+    outward('engine.mcp.call', 'Call a tool of an outside tool server or connection (app hub, OAuth server, remote MCP) that may change things, as mcp_tools lists it; an agent\'s call goes through the Gate', {
+      in: mcpCallIn, out: mcpCallOut, perm: null, level: 'use', risk: 'medium', gate: { act: 'send', when: "actor.kind != 'person'" }, tool: 'agents', mcpName: 'mcp_call', agent: { planMode: 'blocked', blocks: [] },
+      errors: ['validation.not_found', 'provider.unavailable', 'permission.no_grant', 'validation.precondition_failed'],
     }),
     // ---- control of a running thread (K list)
     write('engine.interrupt', 'Interrupt now: cancel the current turn and queue the message at top priority ("stop and send")', {
@@ -179,6 +196,9 @@ export default defineManifest({
     read('engine.turn.get', 'What happened: steps, durations, machine, model, key used and denials of one turn', {
       in: { turnId: id.turn }, out: { what: whatHappened }, label: 'check', tool: 'chats', errors: ['validation.not_found'],
     }),
+    read('engine.turn.of_message', 'The turn behind one reply in a chat: model, effort, account, where it ran, timing, tokens, cost and tool calls; the account, cost and tool arguments only for the asker and managers of AI spend', {
+      in: { ...threadT, messageId: id.message }, out: { turn: replyTurn }, on: ['thread', '/threadId'], label: 'check', errors: ['validation.not_found'],
+    }),
     read('engine.turns.list', 'Turns of a thread, newest first', {
       in: { ...threadT, state: t.opt(t.arr(turnState)), ...pageIn }, out: { turns: t.arr(turnRow), ...pageOut }, on: ['thread', '/threadId'], tool: 'chats',
     }),
@@ -211,6 +231,7 @@ export default defineManifest({
       in: {
         ...threadT, turnId: id.turn, agentId: id.agent, phase: t.enm('started', 'completed', 'failed', 'cancelled'), qseq: t.int(), asker: t.opt(t.str()), engine: t.opt(t.str()), model: t.opt(t.str()), accountRef: t.opt(accountRef),
         tokensIn: t.opt(t.int()), tokensOut: t.opt(t.int()), costMicros: t.opt(t.int()), code: t.opt(t.str()), message: t.opt(t.str()),
+        info: t.opt(turnInfoIn),
       },
       out: { turn: turnRow }, emits: ['turn.started', 'turn.completed', 'turn.failed', 'turn.cancelled', 'agent.task_finished'], idem: 'natural', risk: 'low',
     }),
@@ -239,23 +260,33 @@ export default defineManifest({
     }),
     read('engine.placement.decide', 'Decide where a turn runs: host or the asker device (private chat rules, computers, routines, phone and web askers)', {
       in: { ...threadT, agentId: id.agent, kind: t.enm('message', 'interrupt', 'wake', 'handoff') },
-      out: { placement: t.enm('host', 'device', 'wait'), reason: t.str(), wakeLine: t.opt(t.str({ examples: ['Your computer is off'] })), nodeId: t.opt(t.str()) }, on: ['thread', '/threadId'],
+      out: { placement: t.enm('host', 'device', 'wait'), reason: t.str(), wakeLine: t.opt(t.str({ examples: ['Your computer is off'] })), nodeId: t.opt(t.str()), deviceId: t.opt(t.str({ description: 'The computer of the asker\'s the turn runs on, or the pinned one it waits for' })) }, on: ['thread', '/threadId'],
     }),
-    write('engine.placement.set', 'Pin a private chat to where it runs: this computer, the Space (Team Space), or one of your own servers, or auto to take the pin off. The next turn goes there; a teammate\'s machine is never a choice', {
-      in: { ...threadT, target: t.enm('auto', 'device', 'space', 'server'), serverId: t.opt(t.str()) }, out: { target: t.enm('auto', 'device', 'space', 'server'), serverId: t.opt(t.str()) },
+    write('engine.placement.set', 'Choose where a private chat runs: one of your computers, the Space, one of your own servers, or auto. Never a teammate\'s machine. once with space runs the next turn on the Space once', {
+      in: { ...threadT, target: t.enm('auto', 'device', 'space', 'server'), serverId: t.opt(t.str()), deviceId: t.opt(t.str()), once: t.opt(t.bool()) }, out: { target: t.enm('auto', 'device', 'space', 'server'), serverId: t.opt(t.str()), deviceId: t.opt(t.str()) },
       on: ['thread', '/threadId'], perm: null, level: 'use', tool: 'chats', errors: ['permission.no_grant', 'validation.precondition_failed', 'validation.bad_input'],
     }),
     read('engine.placement.options', 'What the runs-on chip of a chat offers: this computer, the Space in a Team Space and each of your servers, with whether each is on and why not; where the chat runs now, and whether the person pinned it (not pinned is Automatic)', {
       in: { ...threadT, agentId: t.opt(id.agent) },
       out: {
-        private: t.bool(), pinned: t.bool(), effective: t.obj({ target: t.enm('device', 'space', 'server'), serverId: t.opt(t.str()) }),
-        options: t.arr(t.obj({ target: t.enm('device', 'space', 'server'), serverId: t.opt(t.str()), name: t.str(), online: t.bool(), reason: t.opt(t.str()) })),
+        private: t.bool(), pinned: t.bool(), effective: t.obj({ target: t.enm('device', 'space', 'server'), serverId: t.opt(t.str()), deviceId: t.opt(t.str()) }),
+        automatic: t.opt(t.obj({ target: t.enm('device', 'space', 'server'), serverId: t.opt(t.str()), deviceId: t.opt(t.str()) }, { description: 'Where Automatic would run the next turn now, the pin set aside' })),
+        options: t.arr(t.obj({ target: t.enm('device', 'space', 'server'), serverId: t.opt(t.str()), deviceId: t.opt(t.str()), current: t.opt(t.bool()), name: t.str(), online: t.bool(), reason: t.opt(t.str()) })),
       },
       on: ['thread', '/threadId'], tool: 'chats', label: 'check',
     }),
-    read('engine.account.resolve', 'Resolve the account that pays for a turn: starter, steerer, step key, backup key, else an Unblock', {
-      in: { ...threadT, agentId: id.agent, askerId: t.opt(id.user), stepKey: t.opt(t.str()), unavailable: t.opt(t.arr(t.str(), { description: 'Accounts that already failed this turn: the answer is the next one in the agent\'s order' })) },
-      out: { accountRef: t.nullable(accountRef), payer: t.nullable(id.user), reason: t.enm('starter', 'steerer', 'step_key', 'backup_key', 'none'), allowed: t.bool(), itemId: t.opt(id.vaultItem), fellBack: t.opt(t.bool()) }, on: ['thread', '/threadId'],
+    read('engine.account.resolve', 'Resolve the account that pays for a turn: a pin (the chat\'s account, the agent\'s key, the step\'s key), the person\'s own, the Space AI accounts whose uses cover the turn (cheapest that fits, not capped), the backups, else an Unblock', {
+      in: {
+        ...threadT, agentId: id.agent, askerId: t.opt(id.user), stepKey: t.opt(t.str()), unavailable: t.opt(t.arr(t.str(), { description: 'Accounts that already failed this turn: the answer is the next one in the agent\'s order' })),
+        dry: t.opt({ ...t.bool(), description: 'The composer\'s check before sending: would the caller\'s next message here find an account. The caller is the asker; nothing is recorded' }),
+        kind: t.opt({ ...t.enm('chat', 'wake', 'automation', 'goal', 'agent_work'), description: 'What caused the turn, which says which Space AI accounts may pay: a person\'s chat (team chats), a wake-up of a chat or a goal\'s turn (goals), an automation step (automations), or agent work with no asker (agent work). Default chat; a step key means automation' }),
+      },
+      out: {
+        accountRef: t.nullable(accountRef), payer: t.nullable(id.user), reason: t.enm('starter', 'steerer', 'step_key', 'backup_key', 'none'), allowed: t.bool(), itemId: t.opt(id.vaultItem), fellBack: t.opt(t.bool()),
+        pin: t.opt(t.obj({ ref: accountRef, used: t.bool(), why: t.opt(t.enm('unknown', 'expired', 'failed', 'policy_company', 'not_yours', 'space_may_not_use', 'failed_this_turn', 'capped', 'no_model')) }, { description: 'The account the chat, agent or step is pinned to; when it did not pay, why' })),
+        why: t.opt({ ...t.enm('no_account', 'expired', 'failed', 'policy'), description: 'When no account can pay: why. expired and failed name the person\'s own account' }),
+        modelFallback: t.opt(t.obj({ from: t.str({ description: 'The model the chat asked for' }), to: t.opt(t.str({ description: 'The account\'s default model the turn runs on instead; absent: the engine\'s own default for that account' })) }, { description: 'No account that serves the chat\'s model could pay: a team chat or agent work runs on this account\'s default model, and the chat says so' })),
+      }, on: ['thread', '/threadId'],
     }),
     write('engine.step_turn', 'Run one AI turn for an automation step: on the owner\'s own account (Personal) or a Space-shared key (Space), optionally as an agent, with no tools. A repeat of the same key returns the first answer.', {
       in: {
@@ -285,7 +316,21 @@ export default defineManifest({
       in: { accountRef }, out: { ok: t.bool(), models: t.opt(t.int()), error: t.opt(errShape) }, tool: 'meta', errors: ['provider.auth_failed', 'provider.unavailable', 'provider.network'],
     }),
     read('engine.models.list', 'Models the account can reach; models that the open labels or policy forbid are listed greyed with the reason', {
-      in: { accountRef: t.opt(accountRef), threadId: t.opt(id.thread), recordLabel: t.opt(label) }, out: { models: t.arr(modelInfo) }, tool: 'meta',
+      in: {
+        accountRef: t.opt(accountRef), threadId: t.opt(id.thread), recordLabel: t.opt(label),
+        refresh: t.opt(t.bool()),
+        wait: t.opt(t.bool()),
+        // false: the saved or shipped lists only, for a background reader (memory learning); no vendor is asked and no account state changes
+        probe: t.opt(t.bool()),
+      },
+      out: {
+        models: t.arr(modelInfo),
+        listed: t.opt(t.obj({
+          source: t.enm('live', 'saved', 'shipped'), updatedAt: t.opt(t.ts()), refreshing: t.bool(),
+          failed: t.bool(),
+        }, { description: 'How fresh the subscription engines\' lists are; left out when none is listed' })),
+      },
+      tool: 'meta',
     }),
     read('engine.providers.list', 'AI providers and engines (API and CLI) with whether each is connected and allowed for the open labels', {
       in: { threadId: t.opt(id.thread) },
@@ -379,6 +424,10 @@ export default defineManifest({
     read('engine.pool.status', 'Warm engine pool: sessions per driver, warm hits, evictions', {
       out: { sessions: t.arr(t.obj({ driver: driverId, warm: t.int(), max: t.int(), hits: t.int(), misses: t.int() })), totalWarm: t.int() }, perm: null, level: 'manage', tool: 'engineer',
     }),
+    read('engine.now', 'Which agents are working right now: the agent, the person it works for, where it runs (the Space, their computer, their server) and since when; the chat is named only to someone who may read it', {
+      in: {}, out: { working: t.arr(t.obj({ agentId: id.agent, forPerson: t.str(), where: t.enm('space', 'computer', 'server'), since: t.ts(), threadId: t.opt(id.thread), title: t.opt(t.str()), channelId: t.opt(id.channel), kind: t.opt(t.str()) })) },
+      perm: null, tool: 'chats', team: true,
+    }),
     read('engine.live_turns', 'The turns being written in a thread right now, with the text so far: what a chat opened or reconnected mid-turn shows before it follows the live stream', {
       in: { threadId: id.thread }, out: { turns: t.arr(t.obj({ turnId: t.str(), agentId: id.agent, text: t.str() })) }, on: ['thread', '/threadId'], perm: null, tool: 'chats',
     }),
@@ -465,10 +514,16 @@ export default defineManifest({
     health('engine', 'AI engine', 'engine.health', 'Open Settings > Models and usage and test the account, or switch model'),
   ],
   settings: [
-    setting('engine.agent_hops', 'space', 'Policies', 'Agent-to-agent hops before a person must reply', t.int({ minimum: 1, maximum: 20 }), 4, { floorable: true }),
+    // 8 agent turns since a person wrote, helpers and teammates counted, then a Continue card (owner ruling, 3 Nov 2026; was 4)
+    setting('engine.agent_hops', 'space', 'Policies', 'Agent turns, helpers and teammates counted, before a person must reply', t.int({ minimum: 1, maximum: 20 }), 8, { floorable: true }),
     setting('engine.allowed_accounts', 'space', 'Models and providers', 'Allowed AI accounts', t.enm('any', 'company'), 'any', { floorable: true }),
     setting('engine.review_sampling', 'space', 'Review sampling', 'Share of turns sampled for human review', t.obj({ percent: t.int({ minimum: 0, maximum: 100 }), labels: t.arr(label) }), { percent: 5, labels: ['confidential', 'restricted'] }),
     setting('engine.local_runs', 'person', 'Models and usage', 'Run my private chats on this computer', t.bool(), true),
+    // owner ruling 3 Nov: AI tools use the internet as they do in Claude Code and Codex. Read when each engine process starts, on Space servers and on members' computers (modules/engine/egress-log.ts)
+    setting('engine.egress', 'space', 'Internet access', 'What AI tools can reach on the internet', t.obj({
+      mode: t.enm('public', 'providers', 'list'),
+      hosts: t.arr(t.str({ pattern: '^(\\*\\.)?([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\\.)+[a-z]{2,63}$', maxLength: 253, examples: ['github.com'] }), { maxItems: 500 }),
+    }), { mode: 'public', hosts: [] }),
   ],
   screens: [
     screen('settings.models-usage', 'settings', 'ui:ModelsUsage', {
@@ -476,7 +531,9 @@ export default defineManifest({
         accounts: ['engine.accounts.list', {}, true], models: ['engine.models.list', { accountRef: '/state/accountRef' }, true], defaults: ['engine.defaults.get', {}, true],
         usage: ['engine.usage.query', { by: '/state/by', from: '/state/from', to: '/state/to' }, true],
       },
-      a: { probe: ['engine.probe_account', { accountRef: '/state/accountRef' }], setDefaults: ['engine.defaults.set', {}], shareSubscription: ['engine.subscription_share.set', {}], runtime: ['engine.runtime.opt_in', {}] },
+      // No "Let the Space continue my chats when my computer is off" toggle here (owner ruling, 3 Nov 2026): it is on by default and its screen comes back with sealed chats.
+      // engine.runtime.opt_in stays a capability; only the Settings action is gone.
+      a: { probe: ['engine.probe_account', { accountRef: '/state/accountRef' }], setDefaults: ['engine.defaults.set', {}], shareSubscription: ['engine.subscription_share.set', {}] },
       empty: 'No accounts yet', primary: 'Open Vault',
     }),
     screen('console.ai-models', 'console', 'ui:ConsoleAiModels', {

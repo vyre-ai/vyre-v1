@@ -5,7 +5,13 @@ import type { CalendarRow, MenuFacts } from "./model.ts";
 
 export interface EventMenuHandlers {
   open(): void;
+  edit(): void;
   join(): void;
+  /** Going? from the menu: only when the person is a guest who has not organised it and it is still to come */
+  respond?(response: "accepted" | "declined" | "tentative"): void;
+  prepare?(): void;
+  ask(): void;
+  copyLink(): void;
   openRecord(): void;
   openConversation(): void;
   moveTo(calendarId: string): void;
@@ -13,10 +19,19 @@ export interface EventMenuHandlers {
   remove(): void;
 }
 
-/** Open, Join, Open Record, Open Conversation, Move to a calendar, Duplicate, Delete (spec 3.3 flow 4). Join, Open Record and Open Conversation appear only when the event has them. */
-export function eventMenuEntries(f: MenuFacts, h: EventMenuHandlers): MenuEntry[] {
-  const out: MenuEntry[] = [{ label: "Open", onSelect: h.open }];
+/**
+ * The event menu, the same as the event pane offers (lane l-calevents): Open, Edit, Join, Going? (Yes, No, Maybe when you are a guest), Prepare, Ask About This, Copy Link, Open
+ * Record, Open Conversation, Move to a calendar, Duplicate, Delete (spec 3.3 flow 4). What an event does not have is left out.
+ */
+export function eventMenuEntries(f: MenuFacts, h: EventMenuHandlers, mine?: "accepted" | "declined" | "tentative" | "needs_action"): MenuEntry[] {
+  const out: MenuEntry[] = [{ label: "Open", onSelect: h.open }, { label: "Edit", onSelect: h.edit }];
   if (f.joinUrl) out.push({ label: "Join", onSelect: h.join });
+  if (h.respond && mine) {
+    const r = h.respond;
+    out.push({ separator: true }, { head: "Going?" }, ...([["accepted", "Yes"], ["declined", "No"], ["tentative", "Maybe"]] as const).map(([k, label]) => ({ label, checked: mine === k, onSelect: () => r(k) })), { separator: true });
+  }
+  if (h.prepare) out.push({ label: "Prepare", onSelect: h.prepare });
+  out.push({ label: "Ask About This", onSelect: h.ask }, { label: "Copy Link", onSelect: h.copyLink });
   if (f.record) out.push({ label: "Open Record", onSelect: h.openRecord });
   if (f.conversation) out.push({ label: "Open Conversation", onSelect: h.openConversation });
   out.push({ separator: true }, { head: "Move to a calendar" });

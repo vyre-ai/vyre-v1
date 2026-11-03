@@ -5,6 +5,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { fail } from "../../host/src/routes/errors.ts";
 import { mintUuid } from "../../lib/ids.ts";
+import { previewOfMessage } from "../../lib/mail-parse.ts";
 
 export interface MailDb {
   all(sql: string, ...args: unknown[]): unknown[];
@@ -139,9 +140,9 @@ export function readStrings(value: unknown): string[] {
   }
 }
 
-export function snippetOf(text: string | undefined, subject: string): string {
-  const raw = text && text.trim() ? text : subject;
-  return raw.replace(/\s+/g, " ").trim().slice(0, 160);
+/** The one-line preview of a message: the words the sender wrote this time (no greeting, quoted history or signature), at most 160 characters, cut at a word with "…". */
+export function snippetOf(text: string | undefined, subject: string, html?: string, sender?: string): string {
+  return previewOfMessage({ text: text ?? null, html: html ?? null, subject }, sender, 160);
 }
 
 // ---- read log (spec 2.18: every mailbox read writes a per-person log row)
@@ -156,7 +157,7 @@ export function logRead(ctx: MailCtx, mailboxId: string, actor: string, action: 
 // ---- schema
 
 const ready = new WeakSet<object>();
-const migrationSql = readFileSync(fileURLToPath(new URL("./migrations/0001_mail_core.sql", import.meta.url)), "utf8");
+const migrationSql = ["0001_mail_core.sql", "0005_mail_copy.sql"].map((f) => readFileSync(fileURLToPath(new URL(`./migrations/${f}`, import.meta.url)), "utf8")).join("\n");
 
 export function statements(sql: string): string[] {
   const out: string[] = [];
@@ -186,6 +187,7 @@ export function ensure(ctx: Pick<MailCtx, "db">): void {
   if (ready.has(ctx.db)) return;
   try {
     ctx.db.all(`SELECT "messageId" FROM mail_link WHERE "messageId" = ?`, "probe");
+    ctx.db.all(`SELECT "messageId" FROM mail_copy WHERE "messageId" = ?`, "probe");
   } catch {
     for (const statement of statements(migrationSql)) ctx.db.run(statement);
   }

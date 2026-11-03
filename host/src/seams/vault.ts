@@ -4,6 +4,7 @@
 import type { Ctx } from "../../../packages/contracts/src/ctx.ts";
 import type { CtxSeed, InvokeResult } from "../invoke.ts";
 import { fail } from "../routes/errors.ts";
+import { OPENCODE_SESSION, vyreUserAgent } from "../../../lib/user-agent.ts";
 
 export type VaultInvoke = (cap: string, input: unknown, seed: CtxSeed) => Promise<InvokeResult>;
 
@@ -66,7 +67,7 @@ export function createProviderProbe(o: { fetch?: typeof globalThis.fetch; own?: 
     openai: (k) => ({ url: "https://api.openai.com/v1/models", headers: { authorization: `Bearer ${k}` }, pick: ids("data", "id") }),
     openrouter: (k) => ({ url: "https://openrouter.ai/api/v1/auth/key", headers: { authorization: `Bearer ${k}` }, pick: () => [] }),
     xai: (k) => ({ url: "https://api.x.ai/v1/models", headers: { authorization: `Bearer ${k}` }, pick: ids("data", "id") }),
-    "opencode-go": (k) => ({ url: "https://opencode.ai/inference/go/v1/models", headers: { authorization: `Bearer ${k}` }, pick: ids("data", "id") }),
+    "opencode-go": (k) => ({ url: "https://opencode.ai/inference/go/v1/models", headers: { authorization: `Bearer ${k}`, "user-agent": vyreUserAgent() }, pick: ids("data", "id") }),
     google: (k) => ({ url: `https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(k)}`, headers: {}, pick: ids("models", "name") }),
   };
   function ids(list: string, key: string) {
@@ -75,7 +76,7 @@ export function createProviderProbe(o: { fetch?: typeof globalThis.fetch; own?: 
       return Array.isArray(rows) ? rows.map((r) => String((r as Record<string, unknown>)[key] ?? "")).filter(Boolean) : [];
     };
   }
-  return async (p: { providerKey: string; connection: string; caller: string; apiKey?: string; address?: string; engine?: string }): Promise<{ ok: boolean; models: string[]; detail?: string }> => {
+  return async (p: { providerKey: string; connection: string; caller: string; apiKey?: string; address?: string; engine?: string }): Promise<{ ok: boolean; models: string[]; detail?: string; refused?: boolean }> => {
     let url: string, headers: Record<string, string> = {}, pick: (j: unknown) => string[] = ids("data", "id");
     if (p.connection === "local_model" || (p.address && !LISTS[p.providerKey])) {
       if (!p.address) return { ok: false, models: [], detail: "This local model has no address." };
@@ -87,7 +88,7 @@ export function createProviderProbe(o: { fetch?: typeof globalThis.fetch; own?: 
         const tail = p.engine === "custom" || /\/v1\/?$/.test(checked.url.pathname) ? "/models" : "/v1/models";
         const base = new URL(`${checked.url.pathname.replace(/\/$/, "")}${tail}`, checked.url);
         const r = await (o.request ?? pinnedGet)(base, { headers, ips: checked.ips });
-        if (r.status === 401 || r.status === 403) return { ok: false, models: [], detail: "The model did not accept this key." };
+        if (r.status === 401 || r.status === 403) return { ok: false, models: [], detail: "The model did not accept this key.", refused: true };
         if (!r.ok) return { ok: false, models: [], detail: `The model answered ${r.status}.` };
         return { ok: true, models: ids("data", "id")(await r.json()) };
       } catch {
@@ -101,11 +102,40 @@ export function createProviderProbe(o: { fetch?: typeof globalThis.fetch; own?: 
     }
     try {
       const r = await fetchFn(url, { headers, redirect: "error", signal: AbortSignal.timeout(10_000) });
-      if (r.status === 401 || r.status === 403) return { ok: false, models: [], detail: "The provider did not accept this key." };
+      if (r.status === 401 || r.status === 403) return { ok: false, models: [], detail: "The provider did not accept this key.", refused: true };
       if (!r.ok) return { ok: false, models: [], detail: `The provider answered ${r.status}.` };
-      return { ok: true, models: pick(await r.json()) };
+      const models = pick(await r.json());
+      // OpenCode Go answers its model list to a request its chat refuses (rc.16 on MLA: every chat 400 MissingSessionID while the list passed): the check is a real one-token chat
+      if (p.providerKey === "opencode-go") return { ...(await opencodeChat(fetchFn, p.apiKey!, models)), models };
+      return { ok: true, models };
     } catch {
       return { ok: false, models: [], detail: "The provider could not be reached." };
     }
   };
+}
+
+/** The chat address of OpenCode Go (Chat Completions). */
+export const OPENCODE_CHAT_URL = "https://opencode.ai/inference/go/openai/v1/chat/completions";
+
+/**
+ * One chat completion of one token on OpenCode Go, sent the way a turn sends it (Vyre's user agent and a session id), on the first models the list names until one answers: ok when one does,
+ * refused when the key is refused. A model this endpoint does not serve is tried past; nothing is kept.
+ */
+async function opencodeChat(fetchFn: typeof globalThis.fetch, key: string, models: readonly string[]): Promise<{ ok: boolean; detail?: string; refused?: boolean }> {
+  if (models.length === 0) return { ok: false, detail: "OpenCode Go listed no models for this key, so no chat could be tried." };
+  let detail = "OpenCode Go did not answer a chat.";
+  for (const model of models.slice(0, 3)) {
+    const r = await fetchFn(OPENCODE_CHAT_URL, {
+      method: "POST", redirect: "error", signal: AbortSignal.timeout(20_000),
+      headers: { authorization: `Bearer ${key}`, "content-type": "application/json", "user-agent": vyreUserAgent(), [OPENCODE_SESSION]: "vyre-provider-check" },
+      body: JSON.stringify({ model, max_tokens: 1, stream: false, messages: [{ role: "user", content: "Say ok." }] }),
+    });
+    if (r.status === 401 || r.status === 403) return { ok: false, detail: "OpenCode Go did not accept this key for a chat.", refused: true };
+    if (r.ok) return { ok: true };
+    const text = (await r.text().catch(() => "")).slice(0, 300);
+    detail = /MissingSessionID|missing x-opencode-session/i.test(text)
+      ? "OpenCode Go turned the chat away because it carried no session id."
+      : `OpenCode Go answered ${r.status} to a chat with ${model}.`;
+  }
+  return { ok: false, detail };
 }

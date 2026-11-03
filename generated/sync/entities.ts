@@ -195,6 +195,16 @@ export const syncEntities: SyncEntityConfig[] = [
         "type": "datetime",
         "label": null,
         "required": false
+      },
+      "seriesId": {
+        "type": "text",
+        "label": null,
+        "required": false
+      },
+      "conference": {
+        "type": "text",
+        "label": null,
+        "required": false
       }
     },
     "fts": [

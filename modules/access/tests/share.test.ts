@@ -8,7 +8,7 @@ import { handlers } from "../impl.ts";
 import { putPrincipal } from "../handlers/roles.ts";
 import {
   dropShare, foldersCreate, foldersDelete, foldersList, foldersMove, foldersPlace, foldersRename, foldersUnplace, levelFor, lists,
-  automationSenders, deciders, myAccess, share, shareOf, sharesOf, unshare,
+  automationSenders, deciders, myAccess, share, shareOf, sharesOf, unshare, updateGrant,
 } from "../handlers/share.ts";
 import type { ShareCtx } from "../handlers/share.ts";
 import { MemoryDb } from "../fixtures/db.ts";
@@ -152,6 +152,26 @@ test("link grants: view only, expiry defaults to 30 days and caps at 90, the pol
   assert.equal(myAccess(r.ctx, "usr_b").some((x) => x.id === "sit_x"), false);
   const shown = await sharesOf(admin, { resource: { type: "site", id: "sit_x" } });
   assert.deepEqual(shown.shares.map((s) => s.through), ["owner", "direct"]);
+});
+
+test("link grants: none is made for anything Restricted, by its own label or a folder above it (lead ruling 3 Nov, l-labelinherit)", async () => {
+  const r = rig();
+  const admin = r.ctx;
+  const put = (id: string, type: string, parentId: string | null, label: "public" | "restricted" = "public") => { r.store.resources.set(id, { id, type, parentId, label, ownerId: "usr_admin", holds: 0 }); r.store.bump(); };
+  put("vfd_partners", "vault_folder", null, "restricted");
+  put("vfd_deals", "vault_folder", "vfd_partners");
+  put("vit_bank", "vault_item", "vfd_deals");
+  put("vfd_open", "vault_folder", null);
+  put("vit_open", "vault_item", "vfd_open");
+  const link = (id: string, token: string) => share(admin, { resource: { type: id.startsWith("vit") ? "vault_item" : "vault_folder", id }, subject: { kind: "link", id: token }, level: "view" });
+  for (const id of ["vfd_partners", "vfd_deals", "vit_bank"]) assert.equal(await code(link(id, "a1b2c3d4e5f60718")), "validation.precondition_failed", id);
+  put("vit_own", "vault_item", "vfd_open", "restricted");
+  assert.equal(await code(link("vit_own", "a1b2c3d4e5f60718")), "validation.precondition_failed", "its own label counts as well");
+  const { grant } = await link("vit_open", "a1b2c3d4e5f60718");
+  assert.equal(grant.subject.kind, "link", "outside a Restricted folder a link is made as before");
+  // the folder becomes Restricted: the link made before it cannot be renewed or changed
+  put("vfd_open", "vault_folder", null, "restricted");
+  assert.equal(await code(updateGrant(admin, { grantId: grant.id, conditions: { expiresAt: NOW + 10 * DAY } })), "validation.precondition_failed");
 });
 
 test("a Space folder is visible to everyone and only a person who may share can make one", async () => {
@@ -415,4 +435,32 @@ test("only a person's press reaches it: not a direct call, not an agent, not a s
   await assert.rejects(automationSenders(r.as("usr_a"), input), /turning it on/, "a direct call");
   await assert.rejects(automationSenders({ ...r.ctx, depth: 1, principal: { kind: "agent", id: "agt_a" } } as ShareCtx, input), /turning it on/, "an agent's save");
   await assert.rejects(automationSenders({ ...r.ctx, depth: 1, principal: { kind: "service", id: "svc_x" } } as ShareCtx, input), /turning it on/);
+});
+
+test("sharing with Everyone skips the admin check for the host's own service alone: any other svc_ principal, any other service and an id that only looks like the host's are refused", async () => {
+  const r = rig();
+  r.item("sit_all", null);
+  const asP = (kind: string, id: string): ShareCtx => ({ ...r.ctx, principal: { kind, id } as ShareCtx["principal"] });
+  const toEveryone = (ctx: ShareCtx) => share(ctx, { resource: { type: "site", id: "sit_all" }, subject: { kind: "group", id: EVERYONE }, level: "view" });
+  for (const [kind, id] of [["service", "svc_form_a1b2c3"], ["service", "svc_engine"], ["service", "svc_hostile"], ["service", "svc_host_2"], ["agent", "svc_host"], ["person", "svc_host"]] as const) {
+    assert.equal(await code(toEveryone(asP(kind, id))), "permission.role_lacks_permission", `${kind} ${id} is refused`);
+  }
+  assert.equal(await code(toEveryone(r.as("usr_a"))), "permission.role_lacks_permission", "a member is refused");
+  // the host's own service passes the Everyone gate; the share then needs the right to share the item, like any share (this rig gives the host no grant, so that is where it stops)
+  assert.equal(await code(toEveryone(asP("service", "svc_host"))), "permission.no_grant", "the host's own service is past the Everyone gate");
+});
+
+test("a guest never shares with Everyone, not even an item Everyone already holds at that level: refused before the existing-grant shortcut; an admin may repeat it", async () => {
+  const r = rig();
+  putPrincipal(r.store, { id: "usr_guest", kind: "person", name: "usr_guest" });
+  r.store.setRoles("usr_guest", ["rol_guest"]);
+  r.store.bump();
+  r.item("sit_open", "usr_admin");
+  const toEveryone = (ctx: ShareCtx, level: "view" | "use") => share(ctx, { resource: { type: "site", id: "sit_open" }, subject: { kind: "group", id: EVERYONE }, level });
+  await toEveryone(r.as("usr_admin"), "use");   // the admin shares it with Everyone first
+  assert.equal(await code(toEveryone(r.as("usr_guest"), "use")), "permission.role_lacks_permission", "the same level again: still refused for a guest");
+  assert.equal(await code(toEveryone(r.as("usr_guest"), "view")), "permission.role_lacks_permission", "a lower level: refused for a guest");
+  const agentForGuest: ShareCtx = { ...r.ctx, principal: { kind: "agent", id: "agt_guestbot" }, actingFor: "usr_guest" } as ShareCtx;
+  assert.equal(await code(toEveryone(agentForGuest, "use")), "permission.role_lacks_permission", "an agent acting for a guest: refused");
+  assert.equal(await code(toEveryone(r.as("usr_admin"), "use")), "no error", "an admin repeats it");
 });

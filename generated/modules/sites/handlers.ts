@@ -5,10 +5,13 @@ import type { CapMap, HandlerCtx } from '../../types.ts';
 export type Handler<C extends keyof CapMap, X extends HandlerCtx = HandlerCtx> = (ctx: X, input: CapMap[C]['in']) => Promise<CapMap[C]['out']>;
 
 export type Handlers<X extends HandlerCtx = HandlerCtx> = {
+  "sites.addon_add": Handler<"sites.addon_add", X>;
+  "sites.addon_remove": Handler<"sites.addon_remove", X>;
   "sites.artifact_open": Handler<"sites.artifact_open", X>;
   "sites.artifact_publish": Handler<"sites.artifact_publish", X>;
   "sites.build": Handler<"sites.build", X>;
   "sites.create": Handler<"sites.create", X>;
+  "sites.db_import": Handler<"sites.db_import", X>;
   "sites.delete": Handler<"sites.delete", X>;
   "sites.deploy": Handler<"sites.deploy", X>;
   "sites.deployments": Handler<"sites.deployments", X>;
@@ -22,6 +25,8 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "sites.host": Handler<"sites.host", X>;
   "sites.list": Handler<"sites.list", X>;
   "sites.logs": Handler<"sites.logs", X>;
+  "sites.password_set": Handler<"sites.password_set", X>;
+  "sites.plan": Handler<"sites.plan", X>;
   "sites.preview_rebuild": Handler<"sites.preview_rebuild", X>;
   "sites.preview_remove": Handler<"sites.preview_remove", X>;
   "sites.previews": Handler<"sites.previews", X>;
@@ -29,6 +34,7 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "sites.publish": Handler<"sites.publish", X>;
   "sites.rollback": Handler<"sites.rollback", X>;
   "sites.service_identity": Handler<"sites.service_identity", X>;
+  "sites.signin_link": Handler<"sites.signin_link", X>;
   "sites.staging_password_set": Handler<"sites.staging_password_set", X>;
   "sites.status": Handler<"sites.status", X>;
   "sites.stop": Handler<"sites.stop", X>;

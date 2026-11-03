@@ -48,6 +48,7 @@ type Out = {
       participants: Array<string>;
       unread: number;
       contactId?: string;
+      conversationId?: string;
     }>;
   showing: string;
   next?: string;
@@ -83,6 +84,7 @@ type Out = {
       {
         "channel": "email",
         "contactId": "rec_a1b2c3",
+        "conversationId": "cnv_a1b2c3",
         "lastAt": 1760000000000,
         "mailboxId": "mbx_a1b2c3",
         "participants": [

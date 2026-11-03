@@ -7,7 +7,7 @@ import { bootAgentGateSpace, LIVE_FOR_GATE_REPLY } from "../../golden/steps/07-a
 import { expectStatus } from "../../golden/steps/02-space.ts";
 import type { FlowSpace } from "../../golden/steps/02-space.ts";
 
-type Json = any;   // eslint-disable-line @typescript-eslint/no-explicit-any
+export type Json = any;   // eslint-disable-line @typescript-eslint/no-explicit-any
 
 /** One HTTP request with exact headers: fetch will not let a test set Host. */
 export function raw(url: string, o: { method?: string; headers?: Record<string, string>; body?: string } = {}): Promise<{ status: number; headers: http.IncomingHttpHeaders; text: string }> {

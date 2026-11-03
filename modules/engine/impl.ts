@@ -17,9 +17,14 @@ import { captureConsumers, capturePeriodic } from "./handlers/capture.ts";
 import { checkGroupAccount } from "./group-account.ts";
 import { closeNoAccountTasks, engineHost, ensureRuntime, openAs, recoverStale, setEngineHost, wakeAfterUnblock } from "./runtime.ts";
 import { onTaskEvent, sweepBaton } from "./handlers/task-baton.ts";
+import { onRoutineRun } from "./handlers/routine-run.ts";
+import type { RoutineRunEvent } from "./handlers/routine-run.ts";
+import { onGoalEvent } from "./handlers/goal-wake.ts";
 import { markLostJobs, ownerChanged, resumeAgent, stopAgent, stopPerson } from "./handlers/departures.ts";
 import type { EngineCtx } from "./projections.ts";
 import { installOnConnect } from "./engine-setup.ts";
+import { heldNote, queueHeldNote } from "./held-notes.ts";
+import { BRIDGE_PREFIX } from "./handlers/bridge.ts";
 
 // Every engine capability first makes sure the runtime exists on a daemon that wired the engine seam (the first call builds it; a daemon without the seam leaves it unbound).
 export const handlers: Record<string, Handler> = Object.fromEntries(
@@ -122,16 +127,37 @@ export const consumers = {
       return onTaskEvent(ctx, { call: host.call, now: () => ctx.now(), ...(host.log ? { log: host.log } : {}) }, engine, event);
     },
   },
+  /** A routine's run started (its time came, or Run Now): its agent acts on the routine's instructions in the routine's chat, for its owner (handlers/routine-run.ts). */
+  "engine.routine_run": {
+    on: ["agent.routine_run_started"],
+    run: async (ctx: EngineCtx, event: RoutineRunEvent): Promise<string[]> => {
+      const engine = await ensureRuntime(ctx);
+      const host = engineHost();
+      if (!engine || !host) return [];
+      return onRoutineRun(ctx, { call: host.call, ...(host.log ? { log: host.log } : {}) }, engine, async (threadId, person) => { await openAs(ctx, threadId, person); }, event);
+    },
+  },
+  /** A goal's lead is due a turn in the goal chat, or a paused goal goes on (handlers/goal-wake.ts). */
+  "engine.goal_wake": {
+    on: ["goal.woken", "goal.resumed"],
+    run: async (ctx: EngineCtx, event: Parameters<typeof onGoalEvent>[3]): Promise<string[]> => {
+      const engine = await ensureRuntime(ctx);
+      const host = engineHost();
+      if (!engine || !host) return [];
+      return onGoalEvent(ctx, { call: host.call, now: () => ctx.now(), ...(host.log ? { log: host.log } : {}) }, engine, event);
+    },
+  },
   /** A key an agent asked for in a chat was added or declined: the agent is told in that chat, as the person it asked for, and carries on. */
   "engine.key_request_answered": {
     on: ["vault.request_fulfilled", "vault.request_declined"],
-    run: async (ctx: EngineCtx, event: { name: string; payload: { requestId: string; name?: string; note?: string; threadId?: string; agentId?: string; asker?: string } }): Promise<string[]> => {
+    run: async (ctx: EngineCtx, event: { name: string; payload: { requestId: string; name?: string; handle?: string; note?: string; threadId?: string; agentId?: string; asker?: string } }): Promise<string[]> => {
       const p = event.payload;
       const host = engineHost();
       if (!host || !p.threadId || !p.agentId || !p.asker) return [];
       await ensureRuntime(ctx);
       const key = (p.name ?? "").replace(/_+/g, " ").replace(/\s+key$/i, "").trim();
-      const text = event.name === "vault.request_fulfilled" ? `I added the ${key} key. Carry on.` : `I did not add the ${key} key${p.note ? `: ${p.note}` : "."}`;
+      // the handle names this very item: another one may hold the name (a team key of the same name), and the handle is how the agent reaches it
+      const text = event.name === "vault.request_fulfilled" ? `I added the ${key} key${p.handle ? ` as ${p.handle}` : ""}. Carry on.` : `I did not add the ${key} key${p.note ? `: ${p.note}` : "."}`;
       try { await host.call("chat.post", { threadId: p.threadId, body: text, mentions: [{ kind: "agent", id: p.agentId }], idempotencyKey: `${p.requestId}:carry` }, p.asker); }
       catch (e) { host.log?.("the agent was not told its key was answered", { requestId: p.requestId, error: e instanceof Error ? e.message : String(e) }); return []; }
       return [p.requestId];
@@ -149,6 +175,38 @@ export const consumers = {
       try { await host.call("chat.post", { threadId: p.threadId, body: text, mentions: [{ kind: "agent", id: p.agentId }], idempotencyKey: `${p.requestId}:carry` }, p.requester); }
       catch (e) { host.log?.("the agent was not told its access was answered", { requestId: p.requestId, error: e instanceof Error ? e.message : String(e) }); return []; }
       return [p.requestId];
+    },
+  },
+  /**
+   * A call an agent's CLI engine made over MCP was held at the Gate and a person answered it (lane l-runson: on the Space's server and on a person's own computer alike). The engine was told at once
+   * that the call waits, and its turn ended. Now the agent's next turn starts in the chat the hold names, with a note from Vyre as its input (held-notes.ts): approved and what it gave back, or
+   * declined and why. Nothing is posted in the person's name; the chat gets a quiet line ("Approved by Olivia") as the agent's turn status. A turn parked on the hold (an API engine's) resumes by
+   * itself and is left alone.
+   */
+  "engine.hold_answered": {
+    on: ["gate.approved", "gate.denied"],
+    run: async (ctx: EngineCtx, event: { name: string; payload: { taskId?: string; holdId?: string; capName?: string; threadId?: string; agentId?: string; actingFor?: string; askedBy?: { kind?: string; id?: string }; by?: string; note?: string } }): Promise<string[]> => {
+      const p = event.payload;
+      const host = engineHost();
+      const agentId = p.agentId ?? (p.askedBy?.kind === "agent" ? p.askedBy.id : undefined);
+      const person = p.actingFor?.startsWith("usr_") ? p.actingFor : p.askedBy?.kind === "agent" && p.by?.startsWith("usr_") ? p.by : undefined;
+      if (!host || !p.taskId || !p.holdId || !p.threadId?.startsWith("thr_") || !agentId || !person) return [];
+      try { if (ctx.db.all("SELECT 1 AS x FROM engine_waits WHERE task_id = ?", p.taskId).length > 0) return []; } catch { /* no parked turns yet */ }
+      const engine = await ensureRuntime(ctx);
+      if (!engine) return [];
+      const approved = event.name === "gate.approved";
+      let by = "a person";
+      try { const n = ((await host.call("access.principals.get", { principal: { kind: "person", id: p.by ?? person } })) as { principal?: { name?: unknown } }).principal?.name; if (typeof n === "string" && n.trim() !== "") by = n.trim(); } catch { /* a person all the same */ }
+      let result: unknown;
+      if (approved) { try { const r = (await host.call("gate.result.take", { holdId: p.holdId })) as { found?: boolean; result?: unknown }; if (r.found) result = r.result; } catch { /* what it gave back is a convenience */ } }
+      queueHeldNote(p.threadId, agentId, heldNote({ approved, cap: p.capName ?? "call", by, ...(result !== undefined ? { result } : {}), ...(p.note ? { note: p.note } : {}) }));
+      if (host.postAs) {
+        await Promise.resolve(host.postAs(agentId, { actingFor: person, threadId: p.threadId, body: "", mentions: [], clientId: BRIDGE_PREFIX + mintEngineId("b", ctx.now()).slice(2), blocks: [{ type: "turn_status", v: 1, data: { state: "note", text: `${approved ? "Approved" : "Declined"} by ${by}` } }] }))
+          .catch((e: unknown) => host.log?.("the answer to a held call was not shown in the chat", { taskId: p.taskId, error: e instanceof Error ? e.message : String(e) }));
+      }
+      try { await openAs(ctx, p.threadId, person); engine.wake(p.threadId, agentId); }
+      catch (e) { host.log?.("the agent was not woken after its held call was answered", { taskId: p.taskId, error: e instanceof Error ? e.message : String(e) }); return []; }
+      return [p.taskId];
     },
   },
   "engine.unblock": {

@@ -97,7 +97,7 @@ test("Overview: what needs you, the server tiles and the last admin acts, each w
   assert.equal((out.match(/data-testid="row-act-\d"/g) ?? []).length, 5, "five admin acts");
   assert.ok(has(out, "Priya Raman role changed Omar Haddad") && has(out, "6 min ago"));
   assert.ok(has(out, 'data-testid="to-audit"'));
-  assert.deepEqual(Object.keys(ATTENTION_PAGE).sort(), ["access_review_due", "expiring_certificate", "failed_run", "failing_check", "limit_hit", "stuck_update"]);
+  assert.deepEqual(Object.keys(ATTENTION_PAGE).sort(), ["access_review_due", "expiring_certificate", "failed_run", "failing_check", "home_channel", "join_stuck", "limit_hit", "no_ai_account", "stuck_update"]);
   for (const id of Object.values(ATTENTION_PAGE)) assert.ok(PAGES.some((p) => p.id === id), `${id} is a page`);
 });
 

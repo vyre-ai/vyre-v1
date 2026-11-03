@@ -30,7 +30,7 @@ export default defineManifest({
 
   capabilities: [
     read('settings.pages', 'The settings pages a person has, with row counts', {
-      ...V, in: {}, out: { pages: t.arr(t.obj({ key: t.str(), title: t.str(), group: t.enm('you', 'space'), rows: t.int({ minimum: 0 }) })) }, tool: 'meta',
+      level: 'member', in: {}, out: { pages: t.arr(t.obj({ key: t.str(), title: t.str(), group: t.enm('you', 'space'), rows: t.int({ minimum: 0 }) })) }, tool: 'meta',
     }),
     read('settings.list', 'Rows of one page (or all) with the value that applies to me', { ...V, in: { page: t.opt(t.str()), scope: t.opt(scope) }, out: { rows: t.arr(settingRow) }, tool: 'meta' }),
     read('settings.get', 'One setting with its value, default and floor', { ...V, in: { key }, out: { row: settingRow }, tool: 'meta' }),
@@ -47,6 +47,11 @@ export default defineManifest({
       ...V, in: { key, floor: t.json() }, out: { row: settingRow }, perm: 'policy.manage', emits: ['settings.floor_changed'], audit: 'always', risk: 'high', tool: 'engineer', team: true,
     }),
 
+    // A teammate's time zone and working hours, as they set them (lane l-agentdm): public by nature, so an agent can tell when a message reaches them during their day. Nothing else of theirs.
+    read('settings.public_of', 'A teammate\'s time zone and working hours, only when they set them themselves', {
+      ...V, in: { personId: id.user }, out: { timezone: t.opt(t.str()), hours: t.opt(t.obj({ days: t.arr(t.int({ minimum: 0, maximum: 6 })), from: t.str(), to: t.str() })) },
+    }),
+
     // ---- Copy from another Space
     read('settings.copy_source', 'Profile values of mine that may be copied into another Space: photo, name, handle, time zone and hours, contact (title never)', {
       ...V, in: {}, out: { photoFileId: t.opt(id.file), name: t.opt(t.str()), handle: t.opt(t.str()), timezone: t.opt(t.str()), hours: t.opt(t.json()), contact: t.opt(t.obj({ email: t.opt(t.str()), phone: t.opt(t.str()) })) }, tool: 'meta',
@@ -56,7 +61,7 @@ export default defineManifest({
     }),
 
     // ---- Kit choice (chosen per Space or per person)
-    read('settings.kit.get', 'The Kit chosen for this Space, my own choice, and the one in effect', { ...V, in: {}, out: { kit: kitChoice }, tool: 'meta' }),
+    read('settings.kit.get', 'The Kit chosen for this Space, my own choice, and the one in effect', { level: 'member', in: {}, out: { kit: kitChoice }, tool: 'meta' }),
     write('settings.kit.set_mine', 'Choose my own Kit for this Space (null follows the Space)', { ...V, in: { kitId: t.nullable(id.kit) }, out: { kit: kitChoice }, emits: ['settings.changed'], tool: 'meta', offline: 'queue' }),
     write('settings.kit.set_space', 'Choose the Kit for the whole Space', { ...V, in: { kitId: id.kit }, out: { kit: kitChoice }, perm: 'kits.install', emits: ['settings.changed'], audit: 'always', tool: 'meta', team: true }),
   ],

@@ -7,6 +7,7 @@ import {
 } from "../projections.ts";
 import { fail } from "../../../host/src/routes/errors.ts";
 import type { Call, MsCtx } from "../projections.ts";
+import { htmlToText } from "../../../lib/mail-parse.ts";
 
 export interface Act { connectionId: string; as?: string }
 
@@ -197,13 +198,32 @@ export async function mailDraft(ctx: MsCtx, a: Act & Compose) {
 }
 
 /** conversationId is accepted for the contract; sendMail cannot join a conversation, so the reply threads by its subject and headers. */
-export async function mailSend(ctx: MsCtx, a: Act & Compose & { conversationId?: string; attachments?: string[] }) {
+/**
+ * Send from the member mailbox. A reply (replyTo: this mailbox's Graph id of the message it answers) goes through createReply, so Graph sets In-Reply-To,
+ * References and the conversation: the draft takes our subject, body and recipients, then sends. sendMail alone cannot join a conversation. When the message
+ * answered is gone from the mailbox, the reply still goes, as a new message.
+ */
+export async function mailSend(ctx: MsCtx, a: Act & Compose & { conversationId?: string; replyTo?: string; attachments?: string[] }) {
   const sub = await who(ctx, a, "ms.mail.send_message");
   const message = messageBody(ctx, a);
   const files: Record<string, unknown>[] = [];
   for (const id of a.attachments ?? []) {
     const f = await needHost(ctx).fileBytes(ctx, id);
     files.push({ "@odata.type": "#microsoft.graph.fileAttachment", name: f.name, contentType: f.mime || "application/octet-stream", contentBytes: Buffer.from(f.bytes).toString("base64") });
+  }
+  if (a.replyTo) {
+    let draftId: string | undefined;
+    try {
+      draftId = text((await call(ctx, a, "ms.mail.send_message", { method: "POST", url: userUrl(sub, `/messages/${enc(a.replyTo)}/createReply`), body: {} })).id);
+    } catch (e) {
+      ctx.log.warn("ms reply sent as a new message", { code: codeOf(e) });
+    }
+    if (draftId) {
+      await call(ctx, a, "ms.mail.send_message", { method: "PATCH", url: userUrl(sub, `/messages/${enc(draftId)}`), body: message });
+      for (const f of files) await call(ctx, a, "ms.mail.send_message", { method: "POST", url: userUrl(sub, `/messages/${enc(draftId)}/attachments`), body: f });
+      await call(ctx, a, "ms.mail.send_message", { method: "POST", url: userUrl(sub, `/messages/${enc(draftId)}/send`) });
+      return { sent: true };
+    }
   }
   if (files.length) message.attachments = files;
   await call(ctx, a, "ms.mail.send_message", { method: "POST", url: userUrl(sub, "/sendMail"), body: { message, saveToSentItems: true } });
@@ -219,6 +239,9 @@ export function mapEvent(e: Record<string, unknown>) {
   if (e.onlineMeeting && typeof e.onlineMeeting === "object") out.onlineMeeting = obj(e.onlineMeeting);
   if (e.organizer && typeof e.organizer === "object") out.organizer = obj(e.organizer);
   if (typeof e.isCancelled === "boolean") out.isCancelled = e.isCancelled;
+  if (text(e.bodyPreview)) out.bodyPreview = text(e.bodyPreview);
+  if (text(e.seriesMasterId)) out.seriesMasterId = text(e.seriesMasterId);
+  if (text(e.onlineMeetingProvider)) out.onlineMeetingProvider = text(e.onlineMeetingProvider);
   if (Array.isArray(e.attendees)) {
     out.attendees = e.attendees.map((x) => {
       const o = obj(x);
@@ -658,7 +681,8 @@ const party = (v: unknown): Party | null => {
 };
 const parties = (v: unknown): Party[] => list(v).map(party).filter((p): p is Party => p !== null);
 
-const plain = (html: string): string => html.replace(/<(script|style)[\s\S]*?<\/\1>/gi, " ").replace(/<br\s*\/?>|<\/p>|<\/div>/gi, "\n").replace(/<[^>]+>/g, "").replace(/&nbsp;/g, " ").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/[ \t]+/g, " ").replace(/\n\s*\n+/g, "\n").trim();
+/** An HTML body as text, keeping blank lines between paragraphs and every entity (the old regex strip merged paragraphs and knew four entities). */
+const plain = (html: string): string => htmlToText(html);
 
 /** The ingest input for one Graph message, or null for a draft or a message with no usable sender. */
 export async function toIngest(ctx: MsCtx, act: Act, mailbox: string, folder: string, m: Record<string, unknown>): Promise<Record<string, unknown> | null> {

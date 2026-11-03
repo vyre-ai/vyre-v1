@@ -1,7 +1,7 @@
 // Browser half of the existing kernel sealTo wire format. The account's private key proves that the saved code opened its recovery wrap.
 import {loadCryptoKeys} from './load.ts';
 import type {Options} from './keys.ts';
-export interface RecoveryCipherKeys{personKeyByRecovery:string;publicKey:string;privateKeyWrapped:string;spaceKeys:{epoch:number;wrapped:string}[]}
+export interface RecoveryCipherKeys{personKeyByRecovery:string;publicKey:string;privateKeyWrapped:string;spaceKeys:{epoch:number;wrapped:string}[];/** a linked Space only (rc.17): its earlier person key, under the person key */formerKey?:string}
 export interface RecoveryDownload{keys:RecoveryCipherKeys;challenge:{eph:string;iv:string;ct:string;tag:string};context:string}
 export async function recoverAccountKeys(code:string,password:string,download:RecoveryDownload,options:Options={}){
  const k=await loadCryptoKeys(),subtle=crypto.subtle;
@@ -20,7 +20,9 @@ export async function recoverAccountKeys(code:string,password:string,download:Re
   const cipher=new Uint8Array(ct.length+tag.length);cipher.set(ct);cipher.set(tag,ct.length);
   plain=new Uint8Array(await subtle.decrypt({name:'AES-GCM',iv:iv as BufferSource,additionalData:new TextEncoder().encode(download.context)},aes,cipher));if(plain.length!==32)throw invalid();
   const recoveryProof=k.toBase64(plain).replaceAll('+','-').replaceAll('/','_').replace(/=+$/,'');
-  const keys=await k.wrapPersonKeyWithPassword(opened.personKey,password,bundle,options);done=true;return{keys,recoveryProof,personKey:opened.personKey};
+  const keys=await k.wrapPersonKeyWithPassword(opened.personKey,password,bundle,options);done=true;
+  // a linked Space's data is under its earlier key: that is the one to hand the Space (keys.ts heldKeyOf)
+  return{keys,recoveryProof,personKey:opened.personKey,...(opened.dataKey?{dataKey:opened.dataKey}:{})};
  }catch(error){if(error instanceof k.KeyError)throw error;throw new k.KeyError('bad_secret','The saved code could not open this recovery request. Check it and try again.');}
- finally{k.wipe(opened.privateKey);if(shared)k.wipe(shared);if(plain)k.wipe(plain);if(!done)k.wipe(opened.personKey);}
+ finally{k.wipe(opened.privateKey);if(shared)k.wipe(shared);if(plain)k.wipe(plain);if(!done){k.wipe(opened.personKey);if(opened.dataKey)k.wipe(opened.dataKey);}}
 }

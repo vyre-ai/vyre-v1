@@ -4,12 +4,12 @@
 import { useCallback, useEffect, useState } from "react";
 import { useFollow } from "./use-follow.ts";
 import type { ReactElement } from "react";
-import { StyleSheet, Text, TextInput, View } from "react-native";
+import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import type { ConversationData } from "./data.tsx";
 import { Glyph, TextButton } from "./parts.tsx";
 import { Face } from "../needsyou/parts.tsx";
-import { keyWords, requestOf } from "./keyrequest-model.ts";
-import type { KeyRequest } from "./keyrequest-model.ts";
+import { AUDIENCES, keyWords, requestOf } from "./keyrequest-model.ts";
+import type { KeyAudience, KeyRequest } from "./keyrequest-model.ts";
 
 type Data = Pick<ConversationData, "call" | "changes">;
 
@@ -23,6 +23,8 @@ export function KeyRequestCard({ requestId, agent, agentId, data }: { requestId:
   const [reason, setReason] = useState("");
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState("");
+  // who may use the key through the agent (owner ruling, 3 Nov 2026): only the person who asked, unless the approver picks anyone who asks this agent
+  const [audience, setAudience] = useState<KeyAudience>("asker");
 
   const load = useCallback(async (): Promise<void> => {
     try {
@@ -59,7 +61,7 @@ export function KeyRequestCard({ requestId, agent, agentId, data }: { requestId:
     setBusy(true); setProblem("");
     try {
       const folderId = await folderFor();
-      await data.call("vault.requests.fulfil", { requestId, folderId, fields: req.fields.map((k) => ({ key: k, value: (values[k] ?? "").trim() })) });
+      await data.call("vault.requests.fulfil", { requestId, folderId, fields: req.fields.map((k) => ({ key: k, value: (values[k] ?? "").trim() })), audience });
       setValues({});
       await load();
     } catch (e) { setProblem((e as { message?: string }).message ?? "That did not save. Try again."); void load(); }
@@ -97,6 +99,16 @@ export function KeyRequestCard({ requestId, agent, agentId, data }: { requestId:
             <TextInput key={k} accessibilityLabel={req.fields.length === 1 ? `${words} value` : `${words}, ${k}`} testID={`keyreq-field-${requestId}-${k}`} value={values[k] ?? ""} onChangeText={(v) => setValues({ ...values, [k]: v })}
               placeholder={req.fields.length === 1 ? "Paste the key" : k} placeholderTextColor="var(--ink-4)" secureTextEntry autoCapitalize="none" autoCorrect={false} style={st.input} />
           ))}
+          <View accessibilityRole="radiogroup" accessibilityLabel={`Who can use it through ${agent}`} testID={`keyreq-audience-${requestId}`} style={st.col}>
+            <Text style={st.ask}>{`Who can use it through ${agent}?`}</Text>
+            {/* ui-rows-lint: not a list (the two choices of one question) */}
+            {AUDIENCES.map((a) => (
+              <Pressable key={a.key} accessibilityRole="radio" accessibilityState={{ checked: audience === a.key }} aria-checked={audience === a.key} accessibilityLabel={a.label} testID={`keyreq-audience-${a.key}-${requestId}`} onPress={() => setAudience(a.key)} style={st.choice}>
+                <View style={[st.dot, audience === a.key && st.dotOn]} />
+                <Text style={st.choiceText}>{a.label}</Text>
+              </Pressable>
+            ))}
+          </View>
           <View style={st.acts}>
             <TextButton label="Decline" onPress={() => setDeclining(true)} disabled={busy} testID={`keyreq-decline-${requestId}`} />
             <TextButton label="Add the key" primary disabled={busy || !ready} onPress={() => void add()} testID={`keyreq-add-${requestId}`} />
@@ -117,6 +129,11 @@ const st = StyleSheet.create({
   acts: { flexDirection: "row", justifyContent: "flex-end", gap: 8 },
   input: { minHeight: 36, paddingHorizontal: 10, paddingVertical: 8, borderRadius: 8, borderWidth: 1, borderColor: "var(--field-line)" as string, backgroundColor: "var(--field)" as string, fontSize: 13, color: "var(--ink)" as string },
   err: { fontSize: 12.5, color: "var(--danger)" as string },
+  ask: { fontSize: 13, color: "var(--ink-2)" as string },
+  choice: { flexDirection: "row", alignItems: "center", gap: 8, minHeight: 28 },
+  dot: { width: 14, height: 14, borderRadius: 7, borderWidth: 1.5, borderColor: "var(--ink-3)" as string },
+  dotOn: { borderWidth: 4.5, borderColor: "var(--accent)" as string },
+  choiceText: { fontSize: 13, color: "var(--ink)" as string },
   done: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 6 },
   doneText: { fontSize: 12.5, color: "var(--ink-3)" as string },
 });

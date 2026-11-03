@@ -12,7 +12,7 @@ import type { CapName, ErrorCode, VyreError } from "../../packages/contracts/src
 export type ViewCtx = Pick<Ctx, "space" | "principal" | "trace" | "now" | "call" | "authorize">;
 
 export type State = "healthy" | "degraded" | "down";
-export type AttentionKind = "failing_check" | "expiring_certificate" | "failed_run" | "stuck_update" | "limit_hit" | "access_review_due";
+export type AttentionKind = "failing_check" | "expiring_certificate" | "failed_run" | "stuck_update" | "limit_hit" | "access_review_due" | "join_stuck" | "home_channel" | "no_ai_account";
 export interface Attention { kind: AttentionKind; title: string; ref?: string; since: number; next: string }
 export interface ActivityRow { at: number; actor: string; action: string; resource?: string }
 
@@ -63,7 +63,7 @@ export async function ask(ctx: ViewCtx, cap: string, input: Record<string, unkno
 
 // ---- attention
 
-const KIND_ORDER: Record<AttentionKind, number> = { failing_check: 0, expiring_certificate: 1, stuck_update: 2, failed_run: 3, limit_hit: 4, access_review_due: 5 };
+const KIND_ORDER: Record<AttentionKind, number> = { no_ai_account: 0, failing_check: 1, expiring_certificate: 2, stuck_update: 3, failed_run: 4, join_stuck: 5, limit_hit: 6, access_review_due: 7, home_channel: 8 };
 
 function checkItems(health: Record<string, unknown> | null, now: number): Attention[] {
   const found: { item: Attention; state: State }[] = [];
@@ -126,22 +126,54 @@ function reviewItems(reviews: Record<string, unknown> | null): Attention[] {
   });
 }
 
+/** A new member whose join keeps failing (three tries or more): who, and the first step that did not work, in words. The retry keeps running every two minutes. */
+function joinItems(joins: Record<string, unknown> | null): Attention[] {
+  return asList(joins?.["joins"]).flatMap((j): Attention[] => {
+    const person = str(j["personId"]), at = num(j["joinedAt"]);
+    if (!person || at === undefined || j["stuck"] !== true) return [];
+    const steps = asList(j["steps"]);
+    const first = str(steps[0]?.["title"]) ?? "A step";
+    const more = steps.length > 1 ? ` and ${steps.length - 1} more` : "";
+    return [{ kind: "join_stuck", title: `${str(j["name"]) ?? "A new member"} is missing ${first}${more}`, ref: person, since: at, next: `${str(steps[0]?.["error"]) ?? "It did not work."} Retry, or fix it by hand.` }];
+  });
+}
+
+/** An older Space whose first channel is #general: new Spaces call it #vyre. Offered, never done silently. */
+function homeItems(home: Record<string, unknown> | null, now: number): Attention[] {
+  const c = asRow(home?.["channel"]);
+  if (!c || c["legacy"] !== true) return [];
+  return [{ kind: "home_channel", title: "Your first channel is #general", ref: str(c["channelId"]) ?? "general", since: now, next: "New Spaces call it #vyre. Rename it, or keep #general." }];
+}
+
+/** A Team Space with no AI account the team can use (no Space AI key, no key shared with the Space): members' chats get no reply until someone adds one. */
+function aiItems(space: Record<string, unknown> | null, providers: Record<string, unknown> | null, now: number): Attention[] {
+  if (!providers || asRow(space?.["space"])?.["kind"] === "personal") return [];
+  if (asList(providers["providers"]).some((p) => p["scope"] === "shared")) return [];
+  return [{ kind: "no_ai_account", title: "Your team has no AI account", since: now, next: "Set a Space AI key, or share a key with the Space, so every member's chats get replies." }];
+}
+
 export interface Gathered { health: State; attention: Attention[] }
 
 /** Health and attention in one pass, so the Overview and console.attention agree. */
 export async function gather(ctx: ViewCtx): Promise<Gathered> {
   const now = ctx.now();
-  const [health, net, up, runs, reviews] = await Promise.all([
+  const [health, net, up, runs, reviews, joins, home, keep, space, providers] = await Promise.all([
     ask(ctx, "health.status", {}),
     ask(ctx, "network.status", {}),
     ask(ctx, "updates.status", {}),
     ask(ctx, "runs.list", { scope: "all", statuses: ["failed"], since: now - FAILED_RUN_DAYS * DAY_MS, limit: 50 }),
     ask(ctx, "access.reviews.list", { state: "open", limit: 20 }),
+    ask(ctx, "members.joins.list", { stuck: true }),
+    ask(ctx, "channels.home", {}),
+    ask(ctx, "settings.get", { key: "chat.keep_general" }),
+    ask(ctx, "spaces.get", {}),
+    ask(ctx, "providers.list", {}),
   ]);
   const overall = health?.["overall"];
   // health.status unreadable is itself a reason to look: degraded, never silently healthy
   const state: State = isState(overall) ? overall : "degraded";
-  const items = [...checkItems(health, now), ...certItems(net, now), ...updateItems(up, now), ...runItems(runs), ...reviewItems(reviews)];
+  const kept = asRow(keep?.["row"])?.["value"] === true;
+  const items = [...checkItems(health, now), ...certItems(net, now), ...updateItems(up, now), ...runItems(runs), ...joinItems(joins), ...reviewItems(reviews), ...(kept ? [] : homeItems(home, now)), ...aiItems(space, providers, now)];
   const rank = (a: Attention): number => KIND_ORDER[a.kind];
   const attention = items.map((a, i) => ({ a, i })).sort((x, y) => rank(x.a) - rank(y.a) || x.i - y.i).map((x) => x.a).slice(0, ATTENTION_MAX);
   if (!health) attention.unshift({ kind: "failing_check", title: "Health could not be read", since: now, next: "Open Diagnostics and run the checks." });

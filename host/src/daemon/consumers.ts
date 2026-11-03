@@ -35,7 +35,7 @@ export const GUARDED_CALL_PERMISSION = "members.remove";
  * Host calls the host makes as itself and nobody else may: the save of a sign-in a CLI refreshed during a turn (`vault.signin_refreshed`, host/src/seams/signin-refresh.ts). The handler refuses unless the
  * call is the host's own top-level hook call as the host service: not a person's or an agent's call, not another module's ctx.call, not a gateway, session or MCP call.
  */
-export const HOST_ONLY_CALL = /^vault\.signin_refreshed$/;
+export const HOST_ONLY_CALL = /^(vault\.signin_refreshed|identity\.carry_(sign_in|use))$/;
 export function guardCall(name: string, ctx: Pick<Ctx, "origin" | "depth" | "trace"> & { principal?: { kind: string; id: string } }): void {
   if (HOST_ONLY_CALL.test(name)) {
     const host = ctx.principal?.kind === SYSTEM_PRINCIPAL.kind && ctx.principal.id === SYSTEM_PRINCIPAL.id;
@@ -59,6 +59,8 @@ export interface HookEvent {
   at: number;
   /** the Run whose step made this event, when one did */
   runId?: string;
+  /** the device the call that made it came from (the person's computer or phone), when one did */
+  device?: string;
 }
 
 export interface ConsumerDef { name: string; module: string; on: readonly string[]; run(ctx: Ctx, event: HookEvent): Promise<unknown> | unknown }
@@ -108,7 +110,7 @@ export function toHookEvent(e: StoredEvent): HookEvent {
   if (e.enc === 0) {
     try { const v: unknown = JSON.parse(new TextDecoder().decode(e.payload)); if (isRecord(v)) payload = v; } catch { /* a payload that is not JSON reads as empty */ }
   }
-  return { id: e.id, seq: e.seq, name: e.type, subject: e.entity_id ? `${e.entity ?? ""}/${e.entity_id}` : (e.entity ?? ""), payload, actor: e.actor, traceId: e.trace_id, at: e.at, ...(e.run_id ? { runId: e.run_id } : {}) };
+  return { id: e.id, seq: e.seq, name: e.type, subject: e.entity_id ? `${e.entity ?? ""}/${e.entity_id}` : (e.entity ?? ""), payload, actor: e.actor, traceId: e.trace_id, at: e.at, ...(e.run_id ? { runId: e.run_id } : {}), ...(e.device ? { device: e.device } : {}) };
 }
 
 export interface LogReader {

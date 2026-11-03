@@ -109,6 +109,8 @@ const threadSource: Source = async (ctx, id) => {
 const agentSource: Source = async (ctx, id) => {
   const a = (await read<{ agent?: Record<string, unknown> }>(ctx, "agents.get", { agentId: id }))?.agent;
   if (!a) return gone;
+  // a private agent (a person's assistant, an outside agent connected through /mcp) is its person's alone: the shared index never holds it, so no one else finds it in search
+  if (a["kind"] === "assistant" || a["runtime"] === "outside") return gone;
   const doc: IndexDoc = { entity: "agent", id, kind: "agent", title: text(a["name"]) || id, body: text(a["role"]), link: `vyre://agent/${id}`, label: 0, resource: { type: "agent", id }, ...(typeof a["lastActiveAt"] === "number" ? { updatedAt: a["lastActiveAt"] } : {}) };
   return { doc };
 };

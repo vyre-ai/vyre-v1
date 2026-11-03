@@ -34,7 +34,7 @@ function BannerCard({ b, onAction, onOpen, onDismiss, onHold }: { b: Banner; onA
       <Pressable accessibilityRole="button" accessibilityLabel={b.item.title} onPress={() => { onOpen(b.item); onDismiss(); }} style={styles.body}>
         <Text style={styles.title} numberOfLines={2}>{b.item.title}</Text>
         {b.item.body ? <Text style={styles.note} numberOfLines={2}>{b.item.body}</Text> : null}
-        {b.count > 1 ? <Text testID={`banner-count-${b.item.id}`} style={styles.note}>{`${b.count} new`}</Text> : null}
+        {b.count > 1 && !b.item.title.startsWith(`${b.count} `) ? <Text testID={`banner-count-${b.item.id}`} style={styles.note}>{`${b.count} new`}</Text> : null}
       </Pressable>
       {actions.length ? <View style={styles.actions}>{actions}</View> : null}
       <Pressable testID={`banner-close-${b.item.id}`} accessibilityRole="button" accessibilityLabel="Dismiss" onPress={onDismiss} style={styles.close}>

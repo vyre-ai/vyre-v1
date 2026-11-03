@@ -20,5 +20,9 @@ export const CRM_TOOLS: readonly string[] = [
   "automations_draft_connector", "automations_read_docs", "automations_connector_card", "schema_types_list", "vault_use", "vault_request", "runs_get",
 ];
 
+/** The tools that reach the agent's outside tool servers and connections (app hubs, OAuth and remote MCP servers), listed from the start in a chat: a CLI engine cannot pick up a tool found later, and
+ *  an API model gets each server's tools by name anyway. List with mcp_tools, then mcp_read for a tool marked readOnly and mcp_call for the rest (which waits at the Gate). */
+export const CONNECTION_TOOLS: readonly string[] = ["mcp_tools", "mcp_read", "mcp_call"];
+
 /** The crew tools, listed from the start in a chat inside a project: a person says "give it to a teammate", never a tool name, and the CLI cannot pick up a tool found later with tool_search. */
 export const CREW_TOOLS: readonly string[] = ["crew_start", "crew_list", "crew_message", "crew_stop", "crew_wait", "crew_merge", "crew_push", "projects_list", "projects_teammates_list"];

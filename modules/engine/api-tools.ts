@@ -38,6 +38,8 @@ export interface EngineApiToolsDeps {
 
 let catalog: ReturnType<typeof buildCatalog> | null = null;
 let defaults: Set<string> | null = null;
+/** Listed for every turn: an agent sees who is in and can message a teammate for its person (lane l-agentdm). */
+export const TEAMMATE_TOOLS: readonly string[] = ["people_status", "message_person"];
 
 export function createEngineApiTools(d: EngineApiToolsDeps): ApiTools {
   if (!catalog || !defaults) {
@@ -78,6 +80,8 @@ export function createEngineApiTools(d: EngineApiToolsDeps): ApiTools {
     rules.set(t.agentId, { ...(a?.toolsAllowed?.length ? { allow: a.toolsAllowed } : {}), ...(a?.toolsDenied?.length ? { deny: a.toolsDenied } : {}) });
     const th = thread?.thread;
     const scope = th?.scopeType && th.scopeId ? { type: th.scopeType, id: th.scopeId } : undefined;
+    // who is in and a message to a teammate are listed in every chat, without a tool_search (owner ruling 3 Nov, lane l-agentdm)
+    session.preload(t.threadId, TEAMMATE_TOOLS);
     facts.set(t.threadId, { kind: th?.kind ?? "chat", planMode: th?.planMode === true, ...(th?.mode === "ask" || th?.mode === "auto" || th?.mode === "plan" ? { mode: th.mode } : {}), ...(scope ? { scope } : {}) });
     if (th?.kind === "ask" && scope) {
       const lvl = await d.call("chat.ask_level", { threadId: t.threadId }, t.asker).catch(() => undefined) as { level?: Level | null } | undefined;

@@ -1,7 +1,7 @@
 // The mail capabilities no other mail packet owns (P-L5_01c): mailbox admin, message reads, attachment save, health, status updates,
 // auto-connect, sending domains and inbound routes. impl.ts merges `extraHandlers` into the module's handler table.
 import type { Handler } from "../../../../host/src/invoke.ts";
-import { attachmentSave, messageGet, messageList, messageSearch, messageSetPrivate } from "./messages.ts";
+import { attachmentSave, messageGet, messageList, messageSearch, messageSetPrivate, threadGet } from "./messages.ts";
 import {
   autoConnectMembers, memberPause, mailboxCreate, mailboxDisconnect, mailboxGet, mailboxList, mailboxPause, mailboxResume, mailboxSetPrivacy, mailboxSetSyncState, mailboxUpdate,
 } from "./mailboxes.ts";
@@ -26,6 +26,7 @@ export const extraHandlers: Record<string, Handler> = {
   "mail.message.list": (ctx, input) => messageList(ctx, input),
   "mail.message.search": (ctx, input) => messageSearch(ctx, input),
   "mail.message.set_private": (ctx, input) => messageSetPrivate(ctx, input),
+  "mail.thread.get": (ctx, input) => threadGet(ctx, input),
   "mail.attachment.save": (ctx, input) => attachmentSave(ctx, input),
   "mail.status_update": (ctx, input) => statusUpdate(ctx, input),
   "mail.domain.list": (ctx, input) => domainList(ctx, input),

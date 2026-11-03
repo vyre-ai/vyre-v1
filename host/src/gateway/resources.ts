@@ -61,6 +61,8 @@ export interface RegistrarDeps {
   events: readonly SubjectDef[];
   /** is this id already a resource in the access snapshot? */
   exists(id: string): boolean;
+  /** the access row of a known resource, so a move can register it again under its new folder (labels and grants follow the folder it is in) */
+  resource?(id: string): ResourceRow | undefined;
 }
 
 type EventLike = Pick<EventEnvelope, "type" | "payload">;
@@ -110,6 +112,17 @@ const ENTITY_BIRTHS: ReadonlyMap<string, SubjectDef["subject"]> = new Map([
   ["message.sent", { type: "mail_message", id: "/messageId" }],
 ]);
 
+/**
+ * Events that move a known object into another folder: the id, and the folder it is now in. The object is registered again under that folder in the same commit (its label, owner and holds kept),
+ * so the folder's grants and its label reach it at once: an item moved into a Restricted folder is Restricted the moment the call returns. Folders of the access module itself (folders.place) move
+ * their items in the module and are not here.
+ */
+const MOVES: ReadonlyMap<string, { id: string; to: string }> = new Map([
+  ["vault.item_moved", { id: "/itemId", to: "/toFolderId" }],
+  ["file.moved", { id: "/fileId", to: "/toFolderId" }],
+  ["folder.moved", { id: "/folderId", to: "/toParentId" }],
+]);
+
 export function createResourceRegistrar(deps: RegistrarDeps): ResourceRegistrar {
   const subjects = new Map<string, SubjectDef["subject"]>();
   for (const e of deps.events) if (e.subject.type !== "entity" && !ENDS.test(e.name)) subjects.set(e.name, e.subject);
@@ -124,6 +137,16 @@ export function createResourceRegistrar(deps: RegistrarDeps): ResourceRegistrar 
       const given = parentPtr === undefined ? null : pointer(a.input, parentPtr);
       const seen = new Set<string>();
       for (const ev of a.events) {
+        const move = MOVES.get(ev.type);
+        if (move && deps.resource) {
+          const id = pointer(ev.payload, move.id), to = pointer(ev.payload, move.to);
+          const cur = typeof id === "string" ? deps.resource(id) : undefined;
+          // a private root (a Mine folder, a person's own Files) has no parent and is never moved under another folder here
+          if (cur && typeof to === "string" && to !== cur.id && cur.parent_id !== null && cur.parent_id !== to && (deps.exists(to) || seen.has(to))) {
+            out.push({ id: cur.id, type: cur.type, parent_id: to, label: cur.label, owner_id: cur.owner_id, holds: cur.holds });
+          }
+          continue;
+        }
         const extra = births.get(ev.type);
         if (extra) {
           const xid = pointer(ev.payload, extra.id);
@@ -142,7 +165,8 @@ export function createResourceRegistrar(deps: RegistrarDeps): ResourceRegistrar 
         if (typeof id !== "string" || !idFits(s.type, id) || seen.has(id) || deps.exists(id)) continue;
         seen.add(id);
         // a Vault item lives in its folder (so a Mine folder's privacy covers what is in it), whatever the call's own input names
-        const inFolder = s.type === "vault_item" ? pointer(ev.payload, "/folderId") : undefined;
+        // and a Vault folder made inside another lives in that one, so the outer folder's label and grants cover it as Files folders do
+        const inFolder = s.type === "vault_item" ? pointer(ev.payload, "/folderId") : s.type === "vault_folder" ? pointer(a.input, "/parentId") : undefined;
         const holder = typeof inFolder === "string" && (deps.exists(inFolder) || seen.has(inFolder)) ? inFolder : given;
         const container = typeof holder === "string" && holder !== id && (deps.exists(holder) || seen.has(holder)) ? holder : a.space;
         // a birth event that names its owner (agent.created names ownerId) says whose the object is; otherwise the person the call acts for

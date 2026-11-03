@@ -28,6 +28,8 @@ export interface HarnessOptions {
   deny?: string[];
   /** Resources the caller may view but not edit, as "type:id". */
   readOnly?: string[];
+  /** Resources other people may not view, by person, as "type:id" (ctx.mayAll: may every person in a chat open this?). */
+  denyFor?: Record<string, string[]>;
   /** Answers for capabilities the handlers call; an unlisted capability throws. */
   respond?: Record<string, Responder>;
   /** Space settings by key. */
@@ -89,6 +91,10 @@ export function harness(o: HarnessOptions = {}) {
       if (deny.has(key)) return { effect: "deny" };
       if (action.level !== "view" && readOnly.has(key)) return { effect: "deny" };
       return { effect: "allow" };
+    },
+    mayAll(people, action, resource) {
+      const key = `${resource.type}:${resource.id}`;
+      return people.every((p) => !(o.denyFor?.[p] ?? []).includes(key) && !(action.level !== "view" && readOnly.has(key)));
     },
     seal: SEAL,
     log: { warn() {} },

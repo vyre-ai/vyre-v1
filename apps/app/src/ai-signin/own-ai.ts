@@ -23,7 +23,7 @@ export function aiHomeOf(address: string, ownComputer: boolean): AiHome {
 /** A key that is not open, where it can be unlocked from this screen. */
 export const LOCKED_LINE = "Your Mine Vault is locked on this device. Unlock it, then try again.";
 /** A key that is not open on a Space that runs elsewhere: signing in to it opens it. */
-export const SIGN_IN_AGAIN_LINE = "Your Mine Vault opens when you sign in to this Space. Sign out, sign in again, then try again.";
+export const SIGN_IN_AGAIN_LINE = "Your Mine items open while you are signed in to Vyre on this device. Sign in again here, then try again.";
 /** auth.unauthenticated that is not about the Vault: the session itself ended. */
 export const SIGNED_OUT_LINE = "You were signed out. Sign in again, then try again.";
 
@@ -38,7 +38,8 @@ const messageOf = (e: unknown): string => {
 
 /** The Space refused because the person's own key is not open where it asked: by its reason (vault_locked), or in the words older daemons and the connectors module use. */
 export function isOwnKeyRefusal(e: unknown): boolean {
-  return codeOf(e) === "auth.unauthenticated" && (isVaultLockedError(e) || /vault (key )?is locked/i.test(messageOf(e)));
+  // the reason when the error carries it; else the Vault's words, old ("vault key is locked") and new (modules/vault MINE_CLOSED: "Your Mine items open while you are signed in")
+  return codeOf(e) === "auth.unauthenticated" && (isVaultLockedError(e) || /vault (key )?is locked|Mine items open while you are signed in/i.test(messageOf(e)));
 }
 
 /**

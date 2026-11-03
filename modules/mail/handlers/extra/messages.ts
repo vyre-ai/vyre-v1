@@ -11,6 +11,7 @@ import {
   ensureAll, idemRef, MESSAGE_COLUMNS, messageRow, newestFirst, pageOf, parsePage, preconditionFailed, rememberIdem,
 } from "./common.ts";
 import type { MessageRow, PageIn } from "./common.ts";
+import { cleanMessage, gmailBodies, htmlToText, reactionOf } from "../../../../lib/mail-parse.ts";
 
 const STATUSES = new Set(["draft", "queued", "sent", "delivered", "bounced", "complained", "failed", "received"]);
 const TRACE = /^[0-9a-f]{32}$/;
@@ -360,4 +361,156 @@ export async function attachmentSave(
   );
   rememberIdem(ctx, input.idempotencyKey, "attsave", fileId);
   return { fileId };
+}
+
+// ---- mail.thread.get
+
+export interface ThreadParty { address: string; name?: string }
+export interface ThreadMessage {
+  id: string;
+  at: number;
+  direction: "in" | "out";
+  mailboxId: string;
+  /** Every mailbox that holds a copy: a reply is sent from one of these, answering this message. */
+  mailboxIds: string[];
+  from: ThreadParty;
+  to: ThreadParty[];
+  cc: ThreadParty[];
+  subject: string;
+  body: string;
+  quoted?: string;
+  signature?: string;
+  html?: string;
+  imagesHeld?: number;
+  reactions: { emoji: string; from: ThreadParty; at: number }[];
+  attachments: { attachmentId: string; name: string; mime: string; size: number }[];
+  isPrivate: boolean;
+  rfcMessageId?: string;
+  inReplyTo?: string;
+}
+export type ThreadRole = "started" | "to" | "cc" | "added_later" | "none";
+export interface ThreadOut { threadId: string; subject: string; role: ThreadRole; participants: ThreadParty[]; messages: ThreadMessage[] }
+
+const headersOf = (v: unknown): Record<string, string> => {
+  if (typeof v !== "string" || !v) return {};
+  try {
+    const o = JSON.parse(v) as Record<string, unknown>;
+    const out: Record<string, string> = {};
+    for (const [k, x] of Object.entries(o)) if (typeof x === "string") out[k.toLowerCase()] = x;
+    return out;
+  } catch { return {}; }
+};
+const rfcList = (v: string | undefined): string[] => (v ?? "").split(/\s+/).map((x) => x.trim().toLowerCase()).filter(Boolean);
+const stripRe = (s: string): string => s.replace(/^\s*((re|fwd?|aw|sv|wg)\s*:\s*)+/i, "").trim();
+const damaged = (s: string | null): boolean => s !== null && s.includes("�");
+
+/**
+ * A message stored with no body (a Gmail body part held as an attachment before sync fetched those) or a damaged one (read in the wrong charset before sync
+ * honoured it) is read again from the provider when its thread is opened, through the mailbox's own copy, and stored. A re-read that fails leaves it as it was.
+ */
+async function backfill(ctx: MailCtx, row: Row, body: Row | null): Promise<Row | null> {
+  const text = strOrNull(body, "text"), html = strOrNull(body, "html");
+  const empty = !(text && text.trim()) && !(html && html.trim()) && !str(row, "body").trim();
+  if (!empty && !damaged(text) && !damaged(html)) return body;
+  const id = str(row, "id");
+  for (const copy of rowsOf(ctx.db.all(`SELECT * FROM mail_copy WHERE "messageId" = ?`, id)).filter((c) => ["google", "microsoft"].includes(str(c, "source")))) {
+    const box = first(ctx.db.all(`SELECT * FROM mail_mailbox WHERE id = ? AND deleted_at IS NULL`, str(copy, "mailboxId")));
+    const connectionId = strOrNull(box, "connectionId");
+    if (!box || !connectionId || /^(gua|mua)_/.test(connectionId)) continue;   // a person's own sign-in has no re-read capability here
+    try {
+      let got: { text?: string; html?: string } = {};
+      if (str(copy, "source") === "google") {
+        const r = await ctx.call("google.gmail.get_message", { connectionId, as: str(box, "address"), messageId: str(copy, "providerId"), format: "full" });
+        got = gmailBodies(((r as { message?: { payload?: unknown } }).message ?? {}).payload);
+      } else {
+        const r = await ctx.call("ms.mail.get_message", { connectionId, as: str(box, "address"), messageId: str(copy, "providerId") }) as { body?: unknown };
+        if (typeof r.body === "string" && r.body.trim()) got = /<[a-z][\s\S]*>/i.test(r.body) ? { html: r.body, text: htmlToText(r.body) } : { text: r.body };
+      }
+      if (!got.text && !got.html) continue;
+      if (body) ctx.db.run(`UPDATE mail_body SET text = ?, html = ? WHERE "messageId" = ?`, got.text ?? null, got.html ?? null, id);
+      else ctx.db.run(`INSERT INTO mail_body ("messageId", text, html, "fromName", bcc, headers) VALUES (?, ?, ?, ?, ?, ?)`, id, got.text ?? null, got.html ?? null, null, null, null);
+      ctx.db.run(`UPDATE mail_message SET body = ?, updated_at = ? WHERE id = ?`, got.text ?? htmlToText(got.html ?? ""), ctx.now(), id);
+      return first(ctx.db.all(`SELECT * FROM mail_body WHERE "messageId" = ?`, id));
+    } catch (e) {
+      ctx.log.warn("mail.thread.get re-read failed", { messageId: id, code: codeOf(e) });
+    }
+  }
+  return body;
+}
+
+/**
+ * One email thread as a person reads it: every message of the thread the caller may see, oldest first, each with what the sender wrote this time and the quoted
+ * history, signature and sanitised HTML apart; Gmail reactions on the message they answer instead of as messages; and the caller's place in it.
+ */
+export async function threadGet(ctx: MailCtx, input: { threadId: string; images?: boolean }): Promise<ThreadOut> {
+  ensureAll(ctx);
+  if (typeof input.threadId !== "string" || input.threadId.trim() === "" || input.threadId.length > 500) bad(ctx, "Thread id is not valid.");
+  if (input.images !== undefined && typeof input.images !== "boolean") bad(ctx, "Images is true or false.");
+  const all = rowsOf(ctx.db.all(`SELECT * FROM mail_message WHERE "threadId" = ? AND deleted_at IS NULL`, input.threadId)).filter((r) => str(r, "status") !== "draft");
+  const viewer = new Viewer(ctx);
+  const seen = all.filter((r) => viewer.door(r) !== null).sort((a, b) => num(a, "sentAt") - num(b, "sentAt") || (str(a, "id") < str(b, "id") ? -1 : 1));
+  if (seen.length === 0) {
+    if (all[0]) refuse(ctx, all[0]);
+    missing(ctx, "Thread does not exist.");
+  }
+  for (const r of seen) viewer.read(viewer.door(r) ?? str(r, "mailboxId"));
+  viewer.flush();
+
+  const mine = new Set(rowsOf(ctx.db.all(`SELECT address FROM mail_mailbox WHERE "ownerId" = ? AND deleted_at IS NULL`, ctx.principal.id)).map((r) => str(r, "address").toLowerCase()));
+  const messages: ThreadMessage[] = [];
+  const reactions: { emoji: string; from: ThreadParty; at: number; target: string[] }[] = [];
+  const byRfc = new Map<string, ThreadMessage>();
+  for (const row of seen) {
+    const id = str(row, "id");
+    const body = await backfill(ctx, row, first(ctx.db.all(`SELECT * FROM mail_body WHERE "messageId" = ?`, id)));
+    const meta = messageRow(ctx, row);
+    const headers = headersOf(strOrNull(body, "headers"));
+    const text = strOrNull(body, "text") ?? (strOrNull(body, "html") === null ? str(row, "body") : null);
+    const html = strOrNull(body, "html");
+    const from: ThreadParty = meta.from.name ? { address: meta.from.address, name: meta.from.name } : { address: meta.from.address };
+    const reaction = reactionOf({ text, html, headers });
+    if (reaction) {
+      reactions.push({ emoji: reaction.emoji, from, at: num(row, "sentAt"), target: [...rfcList(headers["in-reply-to"]), ...rfcList(headers.references).reverse()] });
+      continue;
+    }
+    const clean = cleanMessage({ text, html }, from.name ?? from.address, { images: input.images === true });
+    const m: ThreadMessage = {
+      id, at: num(row, "sentAt"), direction: meta.direction, mailboxId: meta.mailboxId, mailboxIds: meta.inboxIds, from, to: meta.to, cc: meta.cc, subject: meta.subject,
+      body: clean.body, reactions: [], isPrivate: meta.isPrivate,
+      attachments: readAttachments(str(row, "attachments")).map((a) => ({ attachmentId: a.attachmentId, name: a.name || "Attachment", mime: a.mime, size: a.size })),
+    };
+    if (clean.quoted) m.quoted = clean.quoted;
+    if (clean.signature) m.signature = clean.signature;
+    if (clean.html) m.html = clean.html;
+    if (clean.imagesHeld) m.imagesHeld = clean.imagesHeld;
+    const rfc = strOrNull(row, "rfcMessageId");
+    if (rfc) { m.rfcMessageId = rfc; byRfc.set(rfc.toLowerCase(), m); }
+    const irt = rfcList(headers["in-reply-to"])[0];
+    if (irt) m.inReplyTo = irt;
+    messages.push(m);
+  }
+  // a reaction sits on the message it answers; one whose target is not here sits on the message before it
+  for (const r of reactions) {
+    const target = r.target.map((x) => byRfc.get(x)).find((x) => x !== undefined) ?? [...messages].reverse().find((m) => m.at <= r.at) ?? messages[0];
+    target?.reactions.push({ emoji: r.emoji, from: r.from, at: r.at });
+  }
+
+  const firstMsg = messages[0];
+  const isMine = (p: { address: string }): boolean => mine.has(p.address.toLowerCase());
+  let role: ThreadRole = "none";
+  if (firstMsg) {
+    const known = new Set(seen.map((r) => str(r, "rfcMessageId").toLowerCase()).filter(Boolean));
+    const firstHeaders = headersOf(strOrNull(first(ctx.db.all(`SELECT headers FROM mail_body WHERE "messageId" = ?`, firstMsg.id)), "headers"));
+    const answersUnseen = [...rfcList(firstHeaders["in-reply-to"]), ...rfcList(firstHeaders.references)].some((x) => !known.has(x));
+    if (isMine(firstMsg.from)) role = "started";
+    else if (answersUnseen && mine.size > 0) role = "added_later";
+    else if (firstMsg.to.some(isMine)) role = "to";
+    else if (firstMsg.cc.some(isMine)) role = "cc";
+  }
+  const people = new Map<string, ThreadParty>();
+  for (const m of messages) for (const p of [m.from, ...m.to, ...m.cc]) {
+    const k = p.address.toLowerCase();
+    if (!people.has(k) || (!people.get(k)?.name && p.name)) people.set(k, p);
+  }
+  return { threadId: input.threadId, subject: stripRe(firstMsg?.subject ?? "") || "(no subject)", role, participants: [...people.values()], messages };
 }

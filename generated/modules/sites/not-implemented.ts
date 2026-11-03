@@ -5,10 +5,13 @@ import type { Handlers } from './handlers.ts';
 
 /** Served while the module is a stub and no example answer is wanted: every capability fails with a typed error carrying the trace id. */
 export const handlers: Handlers<HandlerCtx> = {
+  "sites.addon_add": async (ctx) => { throw new VyreErr(notImplemented("sites.addon_add", ctx.trace)); },
+  "sites.addon_remove": async (ctx) => { throw new VyreErr(notImplemented("sites.addon_remove", ctx.trace)); },
   "sites.artifact_open": async (ctx) => { throw new VyreErr(notImplemented("sites.artifact_open", ctx.trace)); },
   "sites.artifact_publish": async (ctx) => { throw new VyreErr(notImplemented("sites.artifact_publish", ctx.trace)); },
   "sites.build": async (ctx) => { throw new VyreErr(notImplemented("sites.build", ctx.trace)); },
   "sites.create": async (ctx) => { throw new VyreErr(notImplemented("sites.create", ctx.trace)); },
+  "sites.db_import": async (ctx) => { throw new VyreErr(notImplemented("sites.db_import", ctx.trace)); },
   "sites.delete": async (ctx) => { throw new VyreErr(notImplemented("sites.delete", ctx.trace)); },
   "sites.deploy": async (ctx) => { throw new VyreErr(notImplemented("sites.deploy", ctx.trace)); },
   "sites.deployments": async (ctx) => { throw new VyreErr(notImplemented("sites.deployments", ctx.trace)); },
@@ -22,6 +25,8 @@ export const handlers: Handlers<HandlerCtx> = {
   "sites.host": async (ctx) => { throw new VyreErr(notImplemented("sites.host", ctx.trace)); },
   "sites.list": async (ctx) => { throw new VyreErr(notImplemented("sites.list", ctx.trace)); },
   "sites.logs": async (ctx) => { throw new VyreErr(notImplemented("sites.logs", ctx.trace)); },
+  "sites.password_set": async (ctx) => { throw new VyreErr(notImplemented("sites.password_set", ctx.trace)); },
+  "sites.plan": async (ctx) => { throw new VyreErr(notImplemented("sites.plan", ctx.trace)); },
   "sites.preview_rebuild": async (ctx) => { throw new VyreErr(notImplemented("sites.preview_rebuild", ctx.trace)); },
   "sites.preview_remove": async (ctx) => { throw new VyreErr(notImplemented("sites.preview_remove", ctx.trace)); },
   "sites.previews": async (ctx) => { throw new VyreErr(notImplemented("sites.previews", ctx.trace)); },
@@ -29,6 +34,7 @@ export const handlers: Handlers<HandlerCtx> = {
   "sites.publish": async (ctx) => { throw new VyreErr(notImplemented("sites.publish", ctx.trace)); },
   "sites.rollback": async (ctx) => { throw new VyreErr(notImplemented("sites.rollback", ctx.trace)); },
   "sites.service_identity": async (ctx) => { throw new VyreErr(notImplemented("sites.service_identity", ctx.trace)); },
+  "sites.signin_link": async (ctx) => { throw new VyreErr(notImplemented("sites.signin_link", ctx.trace)); },
   "sites.staging_password_set": async (ctx) => { throw new VyreErr(notImplemented("sites.staging_password_set", ctx.trace)); },
   "sites.status": async (ctx) => { throw new VyreErr(notImplemented("sites.status", ctx.trace)); },
   "sites.stop": async (ctx) => { throw new VyreErr(notImplemented("sites.stop", ctx.trace)); },

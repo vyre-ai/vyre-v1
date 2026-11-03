@@ -2,7 +2,8 @@
 //   engine.turn.enqueue/start/append/wait/finish/fallback, engine.turn.get, engine.turns.list, engine.turn.retry.
 // The worker in @vyre/agent calls these through invoke, so every turn event has an owning capability and a trace id. Each turn is one engine_turns row;
 // queue rows stay in engine_thread_queue (shared with the in-process engine). A write that repeats (same queue row, same outcome) answers with the first result.
-import { nodeOfTurn } from "../../node-turns.ts";
+import { nodeOfTurn, whereOfTurn } from "../../node-turns.ts";
+import { REFUSAL_WORDS, egressOfTurn } from "../../egress-log.ts";
 import { engines } from "../../engine-install.ts";
 import { PRIORITY_INTERRUPT } from "../../../../agent/src/turn-engine/queue.ts";
 import { actorOf, engineIfBound, mintId, raise, sqlQueue } from "../../projections.ts";
@@ -10,6 +11,8 @@ import { open } from "../control.ts";
 import type { EngineCtx } from "../../projections.ts";
 import { blockedBy, readPolicy } from "./config.ts";
 import { ensureExtra } from "./schema.ts";
+import { saveTurnInfo } from "./reply-info.ts";
+import type { TurnInfo } from "../../../../agent/src/turn-engine/types.ts";
 import { num, optStr, pageOf, rows, str, turnOf } from "./util.ts";
 import type { ErrShape, Row, TurnOut, TurnState } from "./util.ts";
 
@@ -20,13 +23,14 @@ export const LONG_TASK_MS = 60_000;
 const BLOCKING_CODES: ReadonlySet<string> = new Set(["provider.auth_failed", "auth.expired"]);
 const DEFAULT_SAMPLE_PERCENT = 5;
 
-/** The server a turn ran on, when its chat was pinned to one (node-turns.ts). */
+/** The server a turn ran on, when its chat was pinned to one, and every place it ran, in order (node-turns.ts). */
 function withNode(ctx: EngineCtx, r: Row): Row {
   const node = nodeOfTurn(ctx.db, str(r["turn_id"]));
-  return node === undefined ? r : { ...r, node_id: node };
+  const ran = whereOfTurn(ctx.db, str(r["turn_id"])).map((w) => ({ kind: w.kind, name: w.name }));
+  return { ...r, ...(node === undefined || node.startsWith("device:") ? {} : { node_id: node }), ...(ran.length > 0 ? { ran_on: ran } : {}) };
 }
 
-function loadTurn(ctx: EngineCtx, turnId: string): Row {
+export function loadTurn(ctx: EngineCtx, turnId: string): Row {
   ensureExtra(ctx.db);
   const r = rows(ctx, "SELECT * FROM engine_turns WHERE turn_id = ?", turnId)[0];
   if (!r) raise(ctx, "validation.not_found", "There is no such turn.", { turnId });
@@ -226,7 +230,7 @@ export async function turnFinish(
  */
 export async function turnRecord(
   ctx: EngineCtx,
-  input: { threadId: string; turnId: string; agentId: string; phase: "started" | "completed" | "failed" | "cancelled"; qseq: number; asker?: string; engine?: string; model?: string; accountRef?: string; tokensIn?: number; tokensOut?: number; costMicros?: number; code?: string; message?: string },
+  input: { threadId: string; turnId: string; agentId: string; phase: "started" | "completed" | "failed" | "cancelled"; qseq: number; asker?: string; engine?: string; model?: string; accountRef?: string; tokensIn?: number; tokensOut?: number; costMicros?: number; code?: string; message?: string; info?: TurnInfo },
 ): Promise<{ turn: TurnOut }> {
   ensureExtra(ctx.db);
   for (const [field, v] of [["tokensIn", input.tokensIn], ["tokensOut", input.tokensOut], ["costMicros", input.costMicros]] as const) {
@@ -255,7 +259,10 @@ export async function turnRecord(
   }
   if (input.phase === "started" || !isOpen(str(row["state"]))) return { turn: turnOf(row) };
 
-  const tokensIn = input.tokensIn ?? num(row["tokens_in"]), tokensOut = input.tokensOut ?? num(row["tokens_out"]), costMicros = input.costMicros ?? num(row["cost_micros"]);
+  const tokensIn = input.tokensIn ?? num(row["tokens_in"]), tokensOut = input.tokensOut ?? num(row["tokens_out"]);
+  // what the turn engine saw is kept for the reply's Details, and the turn is priced once, at today's price (reply-info.ts); a cost the caller gave wins
+  const priced = input.info ? saveTurnInfo(ctx.db, { turnId: input.turnId, threadId: input.threadId, model: input.model ?? str(row["model"]), ...(input.engine ? { driver: input.engine } : {}), tokensIn, tokensOut }, input.info, now) : undefined;
+  const costMicros = input.costMicros ?? priced?.micros ?? num(row["cost_micros"]);
   const error: ErrShape | undefined = input.phase === "failed" ? { code: input.code ?? "unknown", message: input.message ?? "The turn failed.", next: [], traceId: str(row["trace_id"]) } : undefined;
   ctx.db.run(
     "UPDATE engine_turns SET state = ?, ended_at = ?, tokens_in = ?, tokens_out = ?, cost_micros = ?, error = ?, engine = COALESCE(?, engine), model = COALESCE(?, model), account_ref = COALESCE(?, account_ref) WHERE turn_id = ?",
@@ -307,10 +314,14 @@ function stepOf(block: Row, prevAt: number): Step {
 export function turnGet(ctx: EngineCtx, input: { turnId: string }): {
   what: {
     turn: TurnOut; machine: "host" | "device"; keyUsed?: string; steps: Step[];
-    denials: Array<{ cap: string; reason: string }>; fallbacks: Array<{ kind: string; to: string; at: number }>;
+    denials: Array<{ cap: string; reason: string }>; fallbacks: Array<{ kind: string; to: string; at: number }>; reached?: string[];
   };
 } {
   const t = loadTurn(ctx, input.turnId);
+  // the turn of a chat you cannot open does not exist for you, as the chat itself does not (its id alone used to be enough to read it)
+  if (str(t["asker"]) !== actorOf(ctx) && ctx.authorize({ perm: null, level: "view" }, { type: "thread", id: str(t["thread_id"]) }).effect !== "allow") {
+    raise(ctx, "validation.not_found", "There is no such turn.", { turnId: input.turnId });
+  }
   const blocks = rows(ctx, "SELECT * FROM engine_turn_blocks WHERE turn_id = ? ORDER BY idx ASC", input.turnId);
   let prev = num(t["started_at"]);
   const steps: Step[] = [];
@@ -327,7 +338,11 @@ export function turnGet(ctx: EngineCtx, input: { turnId: string }): {
   }
   const fallbacks = rows(ctx, "SELECT kind, to_what, at FROM engine_turn_fallbacks WHERE turn_id = ? ORDER BY n ASC", input.turnId).map((f) => ({ kind: str(f["kind"]), to: str(f["to_what"]), at: num(f["at"]) }));
   const key = optStr(t["account_ref"]);
-  return { what: { turn: turnOf(t), machine: str(t["placement"]) === "device" ? "device" : "host", ...(key === undefined ? {} : { keyUsed: key }), steps, denials, fallbacks } };
+  // where its engine went on the internet while it ran (egress-log.ts): the hosts reached, and each refusal as a denial
+  const net = egressOfTurn(ctx.db, { threadId: str(t["thread_id"]), person: str(t["asker"]), from: num(t["started_at"]), to: t["ended_at"] === null || t["ended_at"] === undefined ? ctx.now() : num(t["ended_at"]) });
+  for (const r of net.refused) denials.push({ cap: "internet", reason: `${r.host}:${r.port} blocked: ${REFUSAL_WORDS[r.reason]}` });
+  const firstRan = (Array.isArray(t["ran_on"]) ? (t["ran_on"] as Array<{ kind?: string }>)[0]?.kind : undefined);
+  return { what: { turn: turnOf(t), machine: str(t["placement"]) === "device" || firstRan === "computer" ? "device" : "host", ...(key === undefined ? {} : { keyUsed: key }), steps, denials, fallbacks, ...(net.reached.length > 0 ? { reached: net.reached } : {}) } };
 }
 
 export function turnsList(ctx: EngineCtx, input: { threadId: string; state?: TurnState[]; cursor?: string; limit?: number }): { turns: TurnOut[]; next?: string; total?: number } {

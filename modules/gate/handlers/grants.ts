@@ -80,7 +80,8 @@ export async function grantsGiveBack(ctx: GateCtx, input: In): Promise<unknown> 
 
 /** An Always allow rule that reads on this call, live: a removed or expired rule stops at the next act. */
 function alwaysCovered(ctx: GateCtx, act: string, targets: readonly string[], a: { person: string; agentId: string; threads: string[]; cap: string }): boolean {
-  const rows = ctx.db.all("SELECT target, agent_id, thread_id FROM gate_grants WHERE kind = 'always' AND person = ? AND act = ? AND expires_at > ?", a.person, act, ctx.now()) as unknown as { target: string; agent_id: string | null; thread_id: string | null }[];
+  // a goal's grants read the same way: rows for the goal's own chats, written from the owner's press, live while the goal runs
+  const rows = ctx.db.all("SELECT target, agent_id, thread_id FROM gate_grants WHERE kind IN ('always', 'goal') AND person = ? AND act = ? AND expires_at > ?", a.person, act, ctx.now()) as unknown as { target: string; agent_id: string | null; thread_id: string | null }[];
   return rows.some((r) => (r.agent_id === null || r.agent_id === a.agentId) && (r.thread_id === null || a.threads.includes(r.thread_id))
     && (r.target === ANY_TARGET || r.target === a.cap || (targets.length > 0 && targets.every((t) => namedCovers(r.target, t)))));
 }
@@ -95,11 +96,38 @@ export async function grantsTake(ctx: GateCtx, input: In): Promise<unknown> {
   return spent.length > 0 ? { granted: true, spent } : { granted: false };
 }
 
+/**
+ * A goal's standing permissions. The owner's own press names them (`set`, kept as goal_def rows: what was pressed for, never matched). The goals module then says which of the goal's
+ * chats they hold in (`threads`, kept as goal rows that alwaysCovered matches), and ends them with an empty list when the goal pauses, stops or ends. A call without a press changes only the chats.
+ */
+export async function grantsGoal(ctx: GoalsGrantCtx, input: In): Promise<unknown> {
+  if ((ctx.depth ?? 0) === 0 && !isHostService(ctx.principal)) raise(ctx, "permission.role_lacks_permission", "A goal sets this when its owner starts or edits it.", { reason: "system_only" });
+  const now = ctx.now();
+  if (input.set !== undefined) {
+    if (!(isPersonPress(ctx) && ctx.principal.id === input.person)) raise(ctx, "permission.role_lacks_permission", "Only the owner's own press grants a goal a permission.", { reason: "press_only" });
+    ctx.db.run("DELETE FROM gate_grants WHERE kind = 'goal_def' AND subject_id = ?", input.goalId);
+    for (const s of input.set as { act: string; target: string }[]) {
+      if (s.act === "pay" || actOf(s.act).alwaysStops) continue;
+      ctx.db.run("INSERT INTO gate_grants (id, kind, person, act, target, subject_id, expires_at, created_at) VALUES (?, 'goal_def', ?, ?, ?, ?, ?, ?)", newGrantId(), input.person, s.act, s.target, input.goalId, input.until, now);
+    }
+  }
+  ctx.db.run("DELETE FROM gate_grants WHERE kind = 'goal' AND subject_id = ?", input.goalId);
+  const defs = ctx.db.all("SELECT person, act, target, expires_at FROM gate_grants WHERE kind = 'goal_def' AND subject_id = ?", input.goalId) as unknown as { person: string; act: string; target: string; expires_at: number }[];
+  let rows = 0;
+  for (const d of defs) for (const thread of new Set(input.threads as string[])) {
+    ctx.db.run("INSERT INTO gate_grants (id, kind, person, act, target, thread_id, subject_id, expires_at, created_at) VALUES (?, 'goal', ?, ?, ?, ?, ?, ?, ?)", newGrantId(), d.person, d.act, d.target, thread, input.goalId, Math.min(d.expires_at, input.until), now);
+    rows++;
+  }
+  return { acts: defs.length, rows };
+}
+type GoalsGrantCtx = GateCtx;
+
 const ALWAYS_DAYS = 30;
 const DAY_MS = 86_400_000;
 interface AllowRow { id: string; kind: string; act: string; target: string; agent_id: string | null; thread_id: string | null; subject_id: string | null; step_id: string | null; expires_at: number | null; person: string }
 const allowOut = (r: AllowRow): Record<string, unknown> => clean({
-  id: r.id, kind: r.kind, act: r.act, target: r.target, agentId: r.agent_id ?? undefined, threadId: r.thread_id ?? undefined, automationId: r.subject_id ?? undefined, stepId: r.step_id ?? undefined, expiresAt: r.expires_at ?? undefined,
+  id: r.id, kind: r.kind === "goal_def" ? "goal" : r.kind, act: r.act, target: r.target, agentId: r.agent_id ?? undefined, threadId: r.thread_id ?? undefined,
+  automationId: r.kind === "standing" ? r.subject_id ?? undefined : undefined, goalId: r.kind === "goal_def" ? r.subject_id ?? undefined : undefined, stepId: r.step_id ?? undefined, expiresAt: r.expires_at ?? undefined,
 });
 const isAdmin = (ctx: GateCtx): boolean => ctx.authorize?.({ perm: "policy.manage", level: "manage" }, { type: "space", id: ctx.space }).effect === "allow";
 
@@ -118,14 +146,16 @@ export async function allowSet(ctx: GateCtx, input: In): Promise<unknown> {
 
 export async function allowList(ctx: GateCtx): Promise<unknown> {
   const me = ctx.actingFor ?? ctx.principal.id;
-  const rows = ctx.db.all("SELECT id, kind, act, target, agent_id, thread_id, subject_id, step_id, expires_at, person FROM gate_grants WHERE person = ? AND kind IN ('always', 'standing') AND (expires_at IS NULL OR expires_at > ?) ORDER BY created_at DESC, id", me, ctx.now()) as unknown as AllowRow[];
+  const rows = ctx.db.all("SELECT id, kind, act, target, agent_id, thread_id, subject_id, step_id, expires_at, person FROM gate_grants WHERE person = ? AND kind IN ('always', 'standing', 'goal_def') AND (expires_at IS NULL OR expires_at > ?) ORDER BY created_at DESC, id", me, ctx.now()) as unknown as AllowRow[];
   return { rules: rows.map(allowOut) };
 }
 
 export async function allowRemove(ctx: GateCtx, input: In): Promise<unknown> {
-  const row = (ctx.db.all("SELECT person FROM gate_grants WHERE id = ?", input.id) as unknown as { person: string }[])[0];
+  const row = (ctx.db.all("SELECT person, kind, subject_id, act, target FROM gate_grants WHERE id = ?", input.id) as unknown as { person: string; kind: string; subject_id: string | null; act: string; target: string }[])[0];
   if (!row || (row.person !== ctx.principal.id && !isAdmin(ctx))) raise(ctx, "permission.not_found", "That rule is not available.");
   ctx.db.run("DELETE FROM gate_grants WHERE id = ?", input.id);
+  // taking back a goal's permission ends it in every chat of the goal at once
+  if (row.kind === "goal_def") ctx.db.run("DELETE FROM gate_grants WHERE kind = 'goal' AND subject_id = ? AND act = ? AND target = ?", row.subject_id, row.act, row.target);
   return { ok: true };
 }
 

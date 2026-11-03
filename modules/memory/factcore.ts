@@ -1,8 +1,10 @@
 // Writing a fact (shared by the fact handlers and by upkeep): the insert with its source links and trail line, the events that tell the feeds, and the text normal form that duplicate checks compare.
 import { trail, whoIs } from "./trail.ts";
 import type { TrailAction, Who } from "./trail.ts";
-import { loadFact, mintId, raise, sealText, sourceLinkOf } from "./projections.ts";
+import { loadFact, mintId, raise, rowsOf, sealText, sourceLinkOf } from "./projections.ts";
 import type { Fact, FactStatus, Layer, MemCtx, SourceKind } from "./projections.ts";
+import { audienceText } from "../../lib/audience.ts";
+import type { Audience } from "../../lib/audience.ts";
 
 export const normal = (s: string): string => s.toLowerCase().replace(/\s+/g, " ").trim();
 
@@ -12,13 +14,17 @@ export interface NewFact {
   promotedFrom?: string | null; promotedBy?: string | null; promotedAt?: number | null; links?: Array<[string, string]>;
   /** The trail line this insert writes: create (the default), learn (captured by memory itself), edit (a correction), promote. */
   how?: TrailAction; why?: string; who?: Who; runId?: string;
+  /** Learned in a chat other people read: kept for those people (lib/audience.ts). Undefined: what the fact it replaces or was promoted from was kept for, else open to its layer. */
+  audience?: Audience | null;
+  /** A link to the exact line the fact came from (a chat message), instead of the one the source kind and ref give. */
+  sourceLink?: string;
 }
 
 /** Insert one fact row (sealed when it is a person-layer fact) and its source links. */
 export function insertFact(ctx: MemCtx, n: NewFact): Fact {
   const id = mintId("fct", ctx.now());
   const sealed = n.layer === "person";
-  const link = sourceLinkOf(n.sourceKind, n.sourceRef);
+  const link = n.sourceLink ?? sourceLinkOf(n.sourceKind, n.sourceRef);
   const subject = n.sourceKind === "record" ? n.sourceRef : null;
   ctx.db.run(
     "INSERT INTO memory_facts (id, layer, owner_ref, agent_id, project_id, note_id, kind, text, sealed, enc, valid_from, valid_to, learned_at, closed_at, source_kind, source_ref, source_link, source_person, proposed_by, status, low_risk, subject, replaces, promoted_from, promoted_by, promoted_at) " +
@@ -26,6 +32,10 @@ export function insertFact(ctx: MemCtx, n: NewFact): Fact {
     id, n.layer, n.ownerRef, n.agentId, n.projectId, n.noteId ?? null, n.kind, sealed ? "" : n.text, sealed ? sealText(ctx, n.ownerRef, n.text) : null, sealed ? 2 : 0, n.validFrom,
     ctx.now(), n.sourceKind, n.sourceRef, link, n.sourcePerson, n.proposedBy, n.status, n.lowRisk ? 1 : 0, subject, n.replaces ?? null, n.promotedFrom ?? null, n.promotedBy ?? null, n.promotedAt ?? null,
   );
+  // a correction, a merge or a promotion keeps who the words were for: a fact never leaves its audience by being rewritten
+  const from = n.replaces ?? n.promotedFrom ?? null;
+  const kept = n.audience !== undefined ? (n.audience === null ? null : audienceText(n.audience)) : from ? (rowsOf(ctx.db, "SELECT audience FROM memory_facts WHERE id = ?", from)[0]?.["audience"] ?? null) : null;
+  if (kept !== null) ctx.db.run("UPDATE memory_facts SET audience = ? WHERE id = ?", kept, id);
   ctx.db.run("INSERT OR IGNORE INTO memory_fact_links (fact_id, kind, ref) VALUES (?, 'came_from', ?)", id, n.sourceRef);
   for (const [k, ref] of n.links ?? []) ctx.db.run("INSERT OR IGNORE INTO memory_fact_links (fact_id, kind, ref) VALUES (?, ?, ?)", id, k, ref);
   const f = loadFact(ctx, id);

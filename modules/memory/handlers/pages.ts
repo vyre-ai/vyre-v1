@@ -12,8 +12,9 @@ type Pg = { cursor?: string; limit?: number };
 
 const pageOut = pageRowOut;
 
-async function mayView(ctx: MemCtx, access: Access, p: Page): Promise<boolean> {
-  return p.layer === "person" ? p.ownerRef === actorOf(ctx) : access.can(p.layer, p.ownerRef, p.agentId, p.projectId, "view");
+/** The one memory read check (makeAccess): a personal page only for its owner and never into a chat others read; a shared one when everyone there may open its layer. */
+async function mayView(_ctx: MemCtx, access: Access, p: Page): Promise<boolean> {
+  return access.can(p.layer, p.ownerRef, p.agentId, p.projectId, "view");
 }
 async function mayEdit(ctx: MemCtx, access: Access, p: Page): Promise<boolean> {
   return p.layer === "person" ? p.ownerRef === actorOf(ctx) : access.can(p.layer, p.ownerRef, p.agentId, p.projectId, "edit");
@@ -141,8 +142,8 @@ function factsAbout(ctx: MemCtx, access: Access, p: Page): Promise<Fact[]> {
       if (!named) continue;
       const key = `${f.layer}|${f.ownerRef}|${f.agentId ?? ""}|${f.projectId ?? ""}`;
       let ok = memo.get(key);
-      if (ok === undefined) { ok = f.layer === "person" ? f.ownerRef === me : await access.can(f.layer, f.ownerRef, f.agentId, f.projectId, "view"); memo.set(key, ok); }
-      if (ok) out.push(f);
+      if (ok === undefined) { ok = await access.can(f.layer, f.ownerRef, f.agentId, f.projectId, "view"); memo.set(key, ok); }
+      if (ok && (f.audience === null || await access.can(f.layer, f.ownerRef, f.agentId, f.projectId, "view", f.audience))) out.push(f);
       if (out.length >= 100) break;
     }
     return out;
@@ -294,8 +295,8 @@ export async function exportMarkdown(ctx: MemCtx, input: { includePersonal?: boo
     if (f.text === "" || (f.layer === "person" && !personal)) continue;
     const key = `${f.layer}|${f.ownerRef}|${f.agentId ?? ""}|${f.projectId ?? ""}`;
     let ok = memo.get(key);
-    if (ok === undefined) { ok = f.layer === "person" ? f.ownerRef === me : await access.can(f.layer, f.ownerRef, f.agentId, f.projectId, "view"); memo.set(key, ok); }
-    if (ok) factRows.push(f);
+    if (ok === undefined) { ok = await access.can(f.layer, f.ownerRef, f.agentId, f.projectId, "view"); memo.set(key, ok); }
+    if (ok && (f.audience === null || await access.can(f.layer, f.ownerRef, f.agentId, f.projectId, "view", f.audience))) factRows.push(f);
   }
   const used = new Set<string>();
   const factLine = (f: Fact): string => `- ${f.text.replace(/\n+/g, " ")} (since ${day(f.validFrom)}${f.sourceLink ? `, from ${f.sourceLink}` : ""})`;

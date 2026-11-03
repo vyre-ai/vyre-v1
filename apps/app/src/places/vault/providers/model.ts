@@ -30,6 +30,17 @@ export const scopeWords = (p: Pick<Provider, "scope">): string => (p.scope === "
 /** A subscription sign-in is never shareable (spec 3.8); an API key and a local model can be. */
 export const canShare = (p: Pick<Provider, "connection">): boolean => p.connection !== "subscription";
 
+/** The engine a CLI sign-in runs on (the provider row's engine), as engine.providers.list names it. An API key is not a CLI engine. */
+const CLI_DRIVER: Readonly<Record<string, string>> = { "claude-code": "claude_code", claude_code: "claude_code", codex: "codex", grok: "grok" };
+export const cliDriverOf = (p: Pick<Provider, "engine" | "connection">): string | null => (p.connection === "subscription" ? CLI_DRIVER[p.engine] ?? null : null);
+
+/** What a CLI sign-in needs before it can run here ("Needs a sandbox ..."), from engine.providers.list, or null when it can run. */
+export function needsWords(p: Pick<Provider, "engine" | "connection">, engines: ReadonlyArray<{ driver: string; kind: string; allowed: boolean; reason?: string }>): string | null {
+  const driver = cliDriverOf(p);
+  const row = driver === null ? undefined : engines.find((e) => e.driver === driver && e.kind === "cli");
+  return row !== undefined && !row.allowed && row.reason?.startsWith("Needs ") ? row.reason : null;
+}
+
 export function stateWords(state: Provider["state"]): string {
   return state === "ok" ? "Working" : state === "needs_sign_in" ? "Needs you to sign in again" : "Failing, check the key";
 }

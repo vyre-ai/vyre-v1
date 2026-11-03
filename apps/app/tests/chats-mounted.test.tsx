@@ -154,15 +154,16 @@ test("the agent's computer opens as a popup over the chat from the pane's door",
 
 /* ---------- the pages and layers ---------- */
 
-test("Needs you: the sidebar's Needs you opens the two-column page on a request", () => {
+test("Needs you: the sidebar's Needs you is the one Tasks door (l-tasks): a request opens on its task, and with none the Tasks list", () => {
   const s = createMountSample();
-  const { go, acts, shown } = doors(s);
+  const { go, acts } = doors(s);
   wireSidebar(s.rt, go).nav.openNeedsYou("n1");
   wireSidebar(s.rt, go).nav.openNeedsYou();
   assert.deepEqual(acts, [{ t: "needs", taskId: "n1" }, { t: "needs" }]);
+  assert.deepEqual(step(START, { t: "needs", taskId: "n1" }).route, { view: "task", taskId: "n1" });
+  assert.deepEqual(step(START, { t: "needs" }).route, { view: "tasks" });
   const out = html(s, step(START, { t: "needs", taskId: "n1" }));
-  assert.ok(has(out, 'data-testid="needs-you"') && has(out, "Send 12 invoices"), "the list and the open request");
-  assert.deepEqual(shown().route, { view: "needs", taskId: null });
+  assert.ok(has(out, 'data-testid="task-detail'), "the request opens on its task page");
   assert.ok(!has(out, 'data-testid="conversation"'));
 });
 
@@ -419,7 +420,7 @@ test("terminal: the polled source delivers each answer as the next frame and sur
 test("a link from another place opens the screen it names, and an unknown link opens the start", () => {
   assert.deepEqual(fromHash("screen=chats.agent-page&agentId=agt_intake&tab=memory").route, { view: "agent", agentId: "agt_intake", tab: "memory" });
   assert.deepEqual(fromHash("screen=chats.agent-page&agentId=agt_intake&tab=nope").route, { view: "agent", agentId: "agt_intake", tab: null });
-  assert.deepEqual(fromHash("screen=tasks.needs-you&taskId=n1").route, { view: "needs", taskId: "n1" });
+  assert.deepEqual(fromHash("screen=tasks.needs-you&taskId=n1").route, { view: "task", taskId: "n1" });   // the old Needs you link opens the task (l-tasks)
   assert.deepEqual(fromHash("screen=chats.helper-chat&threadId=h1").route, { view: "helper", threadId: "h1" });
   assert.deepEqual(fromHash("screen=chats.conversation&threadId=c2").route, { view: "chat", threadId: "c2" });
   assert.deepEqual(fromHash("screen=chats.computer-popup&computerId=cmp_1").layer, { kind: "computer", computerId: "cmp_1", chat: false });
@@ -433,7 +434,7 @@ test("a link from another place opens the screen it names, and an unknown link o
   assert.deepEqual(fromHash(""), START);
   const s = createMountSample();
   assert.ok(has(html(s, undefined, "screen=chats.agent-page&agentId=agt_intake"), 'data-testid="agent-page"'), "the hash is the first thing shown");
-  assert.ok(has(html(s, undefined, "screen=tasks.needs-you"), 'data-testid="needs-you"'));
+  assert.ok(has(html(s, undefined, "screen=tasks.needs-you"), 'data-testid="tasks-page"'), "an old Needs you link with no request opens Tasks (l-tasks)");
 });
 
 test("every step changes only what it names: a page closes the layer, a layer keeps the page, the local row is never opened", () => {

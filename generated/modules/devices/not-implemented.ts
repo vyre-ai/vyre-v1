@@ -10,6 +10,7 @@ export const handlers: Handlers<HandlerCtx> = {
   "devices.get": async (ctx) => { throw new VyreErr(notImplemented("devices.get", ctx.trace)); },
   "devices.list": async (ctx) => { throw new VyreErr(notImplemented("devices.list", ctx.trace)); },
   "devices.mine": async (ctx) => { throw new VyreErr(notImplemented("devices.mine", ctx.trace)); },
+  "devices.presence": async (ctx) => { throw new VyreErr(notImplemented("devices.presence", ctx.trace)); },
   "devices.purge_ack": async (ctx) => { throw new VyreErr(notImplemented("devices.purge_ack", ctx.trace)); },
   "devices.register": async (ctx) => { throw new VyreErr(notImplemented("devices.register", ctx.trace)); },
   "devices.rename": async (ctx) => { throw new VyreErr(notImplemented("devices.rename", ctx.trace)); },

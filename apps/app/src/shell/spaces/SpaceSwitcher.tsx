@@ -1,9 +1,9 @@
 // The Space tile and its menu (spec 2.1, 3.0): the tile sits at the top of the rail with a red dot when another Space needs you; click or right-click opens the
-// switcher: your Spaces (the open one checked, a Space that needs you says so), then Add a Space, Invite People, Space Settings, Open Terminal (owner or
+// switcher: your Spaces (the open one checked, a Space that needs you says so), then Add a Space, Invite People (owner or admin, Team Space), Space Settings, Open Terminal (owner or
 // developer), Set Yourself Away, Your Profile and Sign Out. ui/Menu appends Report a problem.
 import { useState } from "react";
 import type { ReactElement } from "react";
-import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import { Image, Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import type { ViewStyle } from "react-native";
 import { menuTrigger, useMenu } from "../../../../../ui/src/Menu/index.tsx";
 import type { MenuEntry } from "../../../../../ui/src/Menu/index.tsx";
@@ -33,14 +33,16 @@ export function spaceMenuEntries(input: SpaceMenuInput): MenuEntry[] {
     const hint = s.spaceId === input.openId ? "" : s.needsYou ? ", needs you" : "";
     out.push({
       label: `${s.name}${hint}`,
-      icon: s.kind === "personal" ? iconMarkup("user") : dot,
+      // a Space with its own image shows it here, as on the tile, in the icon's own 16 px slot so every name lines up
+      icon: s.image ? imageIcon(s.image, s.spaceId) : s.kind === "personal" ? iconMarkup("user") : dot,
       checked: s.spaceId === input.openId,
       onSelect: () => input.onSwitch(s.spaceId),
     });
   });
   out.push({ separator: true });
   out.push({ label: "Add a Space", icon: iconMarkup("join"), onSelect: () => input.onAction("add") });
-  out.push({ label: "Invite People", icon: iconMarkup("userPlus"), onSelect: () => input.onAction("invite") });
+  // copies a real invite link (a Member, 7 days): only for someone who may invite, and never in a Personal Space
+  if (open !== undefined && open.kind !== "personal" && open.invite === true) out.push({ label: "Invite People", icon: iconMarkup("userPlus"), onSelect: () => input.onAction("invite") });
   out.push({ label: "Space Settings", icon: iconMarkup("settings"), onSelect: () => input.onAction("settings") });
   out.push({ label: "Add a Server", icon: iconMarkup("server"), onSelect: () => input.onAction("add-server") });
   if (open !== undefined && open.terminal) out.push({ label: "Open Terminal", icon: iconMarkup("terminal"), onSelect: () => input.onAction("terminal") });
@@ -57,6 +59,13 @@ export function spaceMenuEntries(input: SpaceMenuInput): MenuEntry[] {
   out.push({ label: "Lock Vyre", icon: iconMarkup("lock"), onSelect: () => input.onAction("lock") });
   out.push({ label: "Sign Out", icon: iconMarkup("signOut"), onSelect: () => input.onAction("sign-out") });
   return out;
+}
+
+/** A Space image as a menu icon: the picture in a rounded 16 px square. Only a data: picture is drawn; anything else falls back to the dot. */
+export function imageIcon(image: string, key: string): string {
+  if (!/^data:image\/(png|jpeg|webp|gif);base64,[A-Za-z0-9+/=]+$/.test(image)) return '<svg viewBox="0 0 16 16" width="15" height="15"><circle cx="8" cy="8" r="3.5" fill="currentColor"/></svg>';
+  const id = `space-face-${key.replace(/[^A-Za-z0-9_-]/g, "")}`;
+  return `<svg viewBox="0 0 16 16" width="16" height="16" data-space-image="${id}"><defs><clipPath id="${id}"><rect width="16" height="16" rx="4.5"/></clipPath></defs><image href="${image}" width="16" height="16" preserveAspectRatio="xMidYMid slice" clip-path="url(#${id})"/></svg>`;
 }
 
 export type SpaceTileProps = SpaceMenuInput;
@@ -85,10 +94,12 @@ export function SpaceTile(props: SpaceTileProps): ReactElement {
         onHoverOut={() => setOver(false)}
         {...menuTrigger(at)}
         {...web}
-        style={[styles.tile, { opacity: over ? 0.92 : 1 }, tintStyle(open)]}
+        style={[styles.tile, { opacity: over ? 0.92 : 1 }, open.image ? styles.imageTile : tintStyle(open)]}
         {...sq("tile")}
       >
-        <Text style={styles.letter}>{initialOf(open)}</Text>
+        {open.image
+          ? <Image testID="space-tile-image" source={{ uri: open.image }} accessibilityLabel={open.name} style={styles.image} resizeMode="cover" />
+          : <Text style={styles.letter}>{initialOf(open)}</Text>}
         {away ? <View testID="tile-away" style={styles.away}><ShellIcon name="moon" size={9} color="#fff" /></View> : null}
         {red ? <View testID="tile-dot" accessibilityLabel="Another Space needs you" style={styles.dot} /> : null}
       </Pressable>
@@ -106,6 +117,8 @@ const styles = StyleSheet.create({
   wrap: { marginBottom: 2 },
   tile: { width: 36, height: 36, borderRadius: 13, alignItems: "center", justifyContent: "center", ...(Platform.OS === "web" ? ({ boxShadow: "inset 0 1px 0 rgba(255,255,255,.22)" } as ViewStyle) : {}) },
   letter: { color: "var(--accent-ink)" as string, fontSize: 14, fontWeight: "600" },
+  imageTile: { backgroundColor: "var(--panel)" as string },
+  image: { width: 36, height: 36, borderRadius: 13 },
   dot: { position: "absolute", top: -2, right: -2, width: 9, height: 9, borderRadius: 5, backgroundColor: "var(--danger)" as string, borderWidth: 2, borderColor: "var(--rail)" as string },
   away: { position: "absolute", right: -3, bottom: -3, width: 14, height: 14, borderRadius: 7, alignItems: "center", justifyContent: "center", backgroundColor: "var(--warn)" as string, borderWidth: 2, borderColor: "var(--rail)" as string },
 });

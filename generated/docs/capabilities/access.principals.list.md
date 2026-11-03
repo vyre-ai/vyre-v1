@@ -42,6 +42,8 @@ type Out = {
       kind: "person" | "agent" | "actor" | "service";
       name: string;
       owner?: string;
+      private?: boolean;
+      agentName?: string;
       status: "invited" | "active" | "suspended" | "removed";
       roles: Array<string>;
       groups: Array<string>;
@@ -76,6 +78,7 @@ type Out = {
     "next": "example",
     "principals": [
       {
+        "agentName": "example",
         "createdAt": 1760000000000,
         "groups": [
           "grp_a1b2c3"
@@ -84,6 +87,7 @@ type Out = {
         "kind": "person",
         "name": "example",
         "owner": "usr_a1b2c3",
+        "private": true,
         "roles": [
           "rol_a1b2c3"
         ],

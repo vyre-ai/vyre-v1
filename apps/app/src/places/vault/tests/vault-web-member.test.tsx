@@ -34,7 +34,7 @@ test("a browser member's Vault: every section switches the list, and Shared item
     const root = await mount(createRoot, <Vault data={member()} />);
     assert.match(title(root), /^All/);
     assert.ok(textOf(root).includes("GoHighLevel"), "a Shared item the member can use is listed");
-    for (const [row, want] of [["nav-keys", /^Keys/], ["nav-logins", /^Logins/], ["nav-cards", /^Cards/], ["nav-mine", /^Mine/], ["nav-providers", /^AI providers/], ["nav-all", /^All/]] as const) {
+    for (const [row, want] of [["nav-keys", /^Keys/], ["nav-logins", /^Logins/], ["nav-cards", /^Cards/], ["nav-mine", /^Mine/], ["nav-providers", /^AI accounts/], ["nav-all", /^All/]] as const) {
       await press(find(root, `row-${row}`));
       assert.match(title(root), want, `${row} switches the list`);
     }

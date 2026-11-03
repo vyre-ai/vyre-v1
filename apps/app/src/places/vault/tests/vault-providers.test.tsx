@@ -58,7 +58,8 @@ test("providers: a subscription opens on the prototype's own page, with the sign
   assert.ok(has(out, ">Used by<") && has(out, ">Intake<") && has(out, ">Research<") && has(out, ">Recent use<"));
   assert.ok(has(out, "this month") && has(out, "4.2M tokens"), "the month's total line");
   assert.ok(has(out, 'data-testid="provider-ask"') && !has(out, 'data-testid="provider-share"'), "Ask in the header, nothing to share");
-  assert.deepEqual(["Claude", "OpenCode Go key", "OpenAI key"].map((n) => has(out, n)), [true, true, true], "the prototype's three providers");
+  // My AI accounts lists the person's own; the shared OpenAI key is under Space AI accounts (owner, 3 Nov)
+  assert.deepEqual(["Claude", "OpenCode Go key", "OpenAI key"].map((n) => has(out, n)), [true, true, false], "the person's own two; the Space's one is on its own tab");
 });
 
 test("providers: Sign in again shows only on an account that needs it", () => {
@@ -214,9 +215,9 @@ test("import: the file is read first, then the import runs with the choices made
 
 test("a person can reach all three from the place: More holds Add an AI provider and Import, and the plus adds a provider in that section", () => {
   const out = clean(renderToStaticMarkup(<Vault data={sample().data} initial={{ kind: "providers" }} />));
-  assert.ok(has(out, 'data-testid="vault-more"') && has(out, 'aria-label="Add an AI provider"'), "More, and a plus that says what it adds here");
+  assert.ok(has(out, 'data-testid="vault-more"') && has(out, 'aria-label="Add an AI account"'), "More, and a plus that says what it adds here");
   const all = clean(renderToStaticMarkup(<Vault data={sample().data} />));
-  assert.ok(has(all, 'aria-label="Add an item"'), "elsewhere the plus adds an item");
+  assert.ok(has(all, 'aria-label="Add"'), "in All the plus asks which of the four it adds");
   const sheets = [
     clean(renderToStaticMarkup(<Vault data={sample().data} sheet={{ addProvider: true }} />)),
     clean(renderToStaticMarkup(<Vault data={sample().data} sheet={{ importFrom: true }} />)),

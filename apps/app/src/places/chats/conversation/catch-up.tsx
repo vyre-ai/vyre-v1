@@ -43,7 +43,10 @@ export function catchUpLine(c: CatchUp, nameOf: (id: string) => string, mine: nu
 /** Is the page in front of the person? Anything without a document (a test, native) counts as showing. */
 const showing = (): boolean => (globalThis as { document?: { visibilityState?: string } }).document?.visibilityState !== "hidden";
 
-export function CatchUpLine({ onJump, newest }: { onJump: (messageId: string) => void; /** the last message on screen: a new one moves the read cursor again */ newest: string }): ReactElement | null {
+export function CatchUpLine({ onJump, newest, credit }: {
+  onJump: (messageId: string) => void; /** the last message on screen: a new one moves the read cursor again */ newest: string;
+  /** an agent that wrote here for its person goes by "<Person> (Agent)", never its own name (lane l-agentdm) */ credit?: (id: string) => string | undefined;
+}): ReactElement | null {
   const data = useConversationData();
   const [c, setC] = useState<CatchUp | null>(null);
   const read = useRef({ opened: false, marked: "", newest });
@@ -74,7 +77,7 @@ export function CatchUpLine({ onJump, newest }: { onJump: (messageId: string) =>
   if (!c) return null;
   const me = [{ kind: "person" as const, id: data.me.id, name: data.me.name }];
   const mine = c.at.filter((m) => m.author !== data.me.id && mentionsIn(m.text, me).length > 0).length;
-  const line = catchUpLine(c, data.nameOf, mine, { meId: data.me.id, meName: data.me.name, kindOf: data.kindOf });
+  const line = catchUpLine(c, (id) => credit?.(id) ?? data.nameOf(id), mine, { meId: data.me.id, meName: data.me.name, kindOf: data.kindOf });
   if (line === "") return null;
   return (
     <View testID="catch-up" accessibilityRole="summary" style={s.box}>

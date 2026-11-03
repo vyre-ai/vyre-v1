@@ -3,13 +3,14 @@
 // All of it is best effort: a task never fails to exist because its thread could not be made. The thread is made again by the next call that needs it (chat.start is one thread per task).
 import type { Task, TasksCtx } from "../projections.ts";
 
-type Slotted = Pick<Task, "assigned" | "reviewer" | "approver">;
+type Slotted = Pick<Task, "assigned" | "reviewer" | "approver"> & { takenBy?: string | undefined };
 
-/** The people and agents who hold a slot, by id. Groups and roles hold no thread seat: whoever takes the task is added then. */
+/** The people and agents who hold a slot, by id. Groups and roles hold no thread seat: whoever takes the task holds one from then on. */
 export function seatsOf(t: Slotted, extra: ReadonlyArray<{ kind: string; id: string }> = []): { people: string[]; agents: string[] } {
   const people = new Set<string>();
   const agents = new Set<string>();
-  for (const a of [t.assigned, t.reviewer, t.approver, ...extra]) {
+  const taker = t.takenBy ? [{ kind: t.takenBy.startsWith("agt_") ? "agent" : "person", id: t.takenBy }] : [];
+  for (const a of [t.assigned, t.reviewer, t.approver, ...taker, ...extra]) {
     if (!a) continue;
     if (a.kind === "person" && a.id.startsWith("usr_")) people.add(a.id);
     else if (a.kind === "agent" && a.id.startsWith("agt_")) agents.add(a.id);
@@ -39,6 +40,19 @@ export async function seat(ctx: TasksCtx, threadId: string, seats: { people: str
   if (!ctx.call) return;
   for (const personId of seats.people) await attempt(() => ctx.call!("threads.members.add", { threadId, personId }));
   for (const agentId of seats.agents) await attempt(() => ctx.call!("threads.add_agent", { threadId, agentId, mode: "listen" }));
+}
+
+/** A holder the task left: out of its thread, unless they still hold a slot, took it, made it, follow it or answer for its agent. Best effort, like every seat. */
+export async function unseat(ctx: TasksCtx, t: Task, gone: { kind: string; id: string } | null | undefined): Promise<void> {
+  if (!gone || t.threadId === undefined || !ctx.call) return;
+  const still = seatsOf(t);
+  if (gone.kind === "person" && gone.id.startsWith("usr_")) {
+    if (still.people.includes(gone.id) || gone.id === t.createdBy || gone.id === t.responsible || t.followers.includes(gone.id)) return;
+    await attempt(() => ctx.call!("threads.members.remove", { threadId: t.threadId, personId: gone.id }));
+  } else if (gone.kind === "agent" && gone.id.startsWith("agt_")) {
+    if (still.agents.includes(gone.id)) return;
+    await attempt(() => ctx.call!("threads.remove_agent", { threadId: t.threadId, agentId: gone.id }));
+  }
 }
 
 /** After a slot changed: the new holder is in the thread. */

@@ -17,6 +17,7 @@ import type { Expiry } from "./model.ts";
 import type { Folder, Health, Item, Provider, Selection } from "./model.ts";
 import { Btn, Glyph, IconBtn, QuietLine } from "./parts.tsx";
 import { Sidebar } from "./Sidebar.tsx";
+import { GATE, allows, useOptionalShellRuntime } from "../../../shell/providers/runtime.tsx";
 import { ResizableColumn } from "../../../../../../ui/src/SidePane/resize.tsx";
 import { Sheet } from "./Sheet.tsx";
 import { PolicyView } from "./PolicyView.tsx";
@@ -27,6 +28,13 @@ import { ImportSheet } from "../import/index.ts";
 import type { Source } from "../import/index.ts";
 import { AddProvider, ProviderPage, ProviderPanel } from "../providers/index.ts";
 import { ConnectHere } from "../providers/ConnectHere.tsx";
+import { ConnectionsView } from "../connections/ConnectionsView.tsx";
+import type { ConnectionsData } from "../connections/ConnectionsView.tsx";
+import type { AddInitial } from "../connections/AddConnection.tsx";
+import { AddChooser, ConnectionsPage, GoogleMicrosoftPage } from "./SectionPages.tsx";
+import { SpaceAiAccounts } from "../providers/SpaceAiAccounts.tsx";
+import { addTarget } from "./sections.ts";
+import type { Section } from "./sections.ts";
 import type { ConnectionKind } from "../providers/index.ts";
 import type { CapMap } from "../../../../../../generated/types.ts";
 
@@ -43,12 +51,13 @@ type ExportsOut = CapMap["vault.exports.list"]["out"];
 export const WIDE = 900;
 export const TWO_PANE = 720;
 
-const TITLES: Record<Exclude<Selection["kind"], "folder">, string> = { all: "All", providers: "AI providers", keys: "Keys", logins: "Logins", cards: "Cards", health: "Health", requested: "Requested", mine: "Mine" };
+const TITLES: Record<Exclude<Selection["kind"], "folder">, string> = { all: "All", providers: "AI accounts", google: "Google and Microsoft", connections: "Connections", keys: "Keys", logins: "Logins", cards: "Cards", health: "Health", requested: "Requested", mine: "Mine" };
 
 function titleOf(sel: Selection, folders: readonly Folder[]): string {
   return sel.kind === "folder" ? (folders.find((f) => f.id === sel.folderId)?.name ?? "Folder") : TITLES[sel.kind];
 }
 
+const ADD_LABEL: Record<Section | "ask", string> = { ask: "Add", ai: "Add an AI account", google: "Add Google or Microsoft", connections: "Add a connection", other: "Add a key, login or card" };
 const EMPTY_TITLE: Partial<Record<Selection["kind"], string>> = { keys: "No keys yet", logins: "No logins yet", cards: "No cards yet", mine: "Nothing of yours yet", folder: "This folder is empty" };
 
 interface QuietNote { id: number; text: string; undo: (() => Promise<void> | void) | undefined }
@@ -60,11 +69,13 @@ export type VaultRoute =
   | { surface: "export"; folderId: string }
   | { surface: "advanced" }
   | { surface: "policy" }
-  | { surface: "requests" };
+  | { surface: "requests" }
+  | { surface: "connections"; add?: true };
 
-function Page({ initial, sheet, view, route, onRouteClose }: { initial?: Selection | undefined; sheet?: InitialSheet | undefined; view?: "env" | "fields" | undefined; route: VaultRoute; onRouteClose(): void }): ReactElement {
+function Page({ initial, sheet, view, route, onRouteClose, connectionsInitial, connectionsAdd }: { initial?: Selection | undefined; sheet?: InitialSheet | undefined; view?: "env" | "fields" | undefined; route: VaultRoute; onRouteClose(): void; connectionsInitial?: ConnectionsData | undefined; connectionsAdd?: AddInitial | undefined }): ReactElement {
   const data = useVaultData();
   const online = useOnline();
+  const canShare = allows(useOptionalShellRuntime(), GATE.sharedVault);   // a guest keeps nothing in the Vault: no New shared folder to press
   const { width } = useWindowDimensions();
   const wide = width >= WIDE;
   const twoPane = width >= TWO_PANE;
@@ -82,6 +93,14 @@ function Page({ initial, sheet, view, route, onRouteClose }: { initial?: Selecti
   const [adding, setAdding] = useState<{ paste?: string; app?: string } | null>(sheet?.add ?? null);
   const [editing, setEditing] = useState<string | null>(sheet?.edit ?? null);
   // open, and the provider and way of connecting it starts on when a Connect row in the section picked one
+  // the + in All, Mine and the folders asks first which of the four (layout/sections.ts); the Connections page's own tab
+  const [choosing, setChoosing] = useState(false);
+  const [connTab, setConnTab] = useState<"my" | "space">("my");
+  // AI accounts in a Team Space: My AI accounts and Space AI accounts (the ones the Space pays with); a Personal Space has one list
+  const [aiTab, setAiTab] = useState<"my" | "space">("my");
+  const [mayManageAi, setMayManageAi] = useState(false);
+  useEffect(() => { if (data.personal === true) return; void (data.call("providers.space_key.get", {}) as Promise<{ mayManage?: boolean }>).then((k) => setMayManageAi(k.mayManage === true), () => undefined); }, [data]);
+  const spaceAi = selection.kind === "providers" && data.personal !== true && aiTab === "space";
   const [addingProvider, setAddingProvider] = useState<boolean | { providerKey: string; connection: ConnectionKind }>(typeof sheet?.addProvider === "object" ? sheet.addProvider : sheet?.addProvider !== undefined);
   // A link that asks for the sign-in (an agent with no AI account) opens the sheet even when the Vault is already showing.
   const routedAdd = route.surface === "layout" && route.addProvider === true;
@@ -107,8 +126,14 @@ function Page({ initial, sheet, view, route, onRouteClose }: { initial?: Selecti
   const signedIn = useMemo(() => new Set(providerList.filter((p) => p.connection === "subscription").map((p) => p.providerKey)), [providerList]);
   const healthIds = useMemo(() => new Set(health.status === "ready" ? health.data.items.map((i) => i.itemId) : []), [health]);
   const requested = requests.status === "ready" ? requests.data.requests.length : 0;
-  const counts = useMemo(() => countItems(all, providerIds, health.status === "ready" ? health.data : null, requested), [all, providerIds, health, requested]);
-  const visible = useMemo(() => visibleItems(all, selection, query, providerIds, healthIds), [all, selection, query, providerIds, healthIds]);
+  // each item is shown in its one primary section: the folder it is in is part of that (the company connection's, connections' tokens)
+  const folderName = useCallback((id: string): string | undefined => folderList.find((f) => f.id === id)?.name, [folderList]);
+  const counts = useMemo(() => countItems(all, providerIds, health.status === "ready" ? health.data : null, requested, folderName), [all, providerIds, health, requested, folderName]);
+  const visible = useMemo(() => {
+    const v = visibleItems(all, selection, query, providerIds, healthIds, folderName);
+    // My AI accounts (a Team Space): the person's own; the Space's are on the other tab
+    return selection.kind === "providers" && data.personal !== true && aiTab === "my" && !query ? v.filter((it) => it.scope === "mine") : v;
+  }, [all, selection, query, providerIds, healthIds, folderName, data.personal, aiTab]);
   const clock = data.clock();
 
   useEffect(() => {
@@ -133,7 +158,8 @@ function Page({ initial, sheet, view, route, onRouteClose }: { initial?: Selecti
   const select = useCallback((s: Selection) => {
     if (s.kind === "requested") { data.nav.openRequests(); return; }
     setSelection(s); setSelectedId(null); setDetailOpen(false);
-  }, [data.nav]);
+    if (route.surface === "connections") onRouteClose();
+  }, [data.nav, route.surface, onRouteClose]);
   const open = useCallback((id: string) => { setSelectedId(id); setDetailOpen(true); }, []);
 
   const moveSelection = useCallback((dir: 1 | -1) => {
@@ -180,6 +206,7 @@ function Page({ initial, sheet, view, route, onRouteClose }: { initial?: Selecti
       { separator: true },
       ...folderList.filter((f) => f.scope === "shared").map((f): MenuEntry => entry({ kind: "folder", folderId: f.id }, f.name, counts.folders.get(f.id) ?? f.itemCount)),
       entry({ kind: "mine" }, "Mine", counts.mine),
+      ...(data.nav.openConnections ? [{ separator: true } as MenuEntry, { label: "Connections", checked: route.surface === "connections", onSelect: () => data.nav.openConnections?.() } as MenuEntry] : []),
     ];
   };
 
@@ -218,13 +245,44 @@ function Page({ initial, sheet, view, route, onRouteClose }: { initial?: Selecti
       )}
       <View style={{ flex: 1 }} />
       <IconBtn icon="more" label="More" onPress={(e) => { const r = rectOf(e); menu.show([{ label: "Add an AI provider…", onSelect: () => setAddingProvider(true) }, { label: "Import from another manager…", onSelect: () => setImporting(true) }], r.x - 160, r.y, "other"); }} testID="vault-more" color="var(--ink-2)" />
-      <IconBtn icon="plus" label={selection.kind === "providers" ? "Add an AI provider" : "Add an item"} onPress={() => (selection.kind === "providers" ? setAddingProvider(true) : setAdding({}))} testID="add-item" color="var(--ink-2)" />
+      {addTarget(selection) === "connections" ? null : <IconBtn icon="plus" label={ADD_LABEL[addTarget(selection)]} onPress={() => addThe(addTarget(selection))} testID="add-item" color="var(--ink-2)" />}
     </View>
   );
 
-  const listBody = (
+  /** The + adds the page's own kind (an AI account, Google or Microsoft, a key, login or card); in All, Mine and the folders it asks first. */
+  function addThe(t: Section | "ask"): void {
+    setChoosing(false);
+    if (t === "ask") setChoosing(true);
+    else if (t === "ai") { if (spaceAi && !mayManageAi) return; setAddingProvider(true); }
+    else if (t === "google") { if (data.nav.openCompany) data.nav.openCompany(); else select({ kind: "google" }); }
+    else if (t === "connections") { if (data.nav.openConnections) data.nav.openConnections(); else select({ kind: "connections" }); }
+    else setAdding({});
+  }
+  const sectionPage = selection.kind === "connections"
+    ? <ConnectionsPage tab={connTab} onTab={setConnTab} />
+    : selection.kind === "google"
+      ? <GoogleMicrosoftPage {...(data.nav.openCompany ? { onOpenCompany: data.nav.openCompany } : {})} keys={visible.length ? <ItemList items={visible} selectedId={effectiveId} providerOf={providerOf} healthIds={healthIds} clock={clock} onSelect={(id) => { setSelectedId(id); if (!twoPane) setDetailOpen(true); }} onOpen={(id) => { setSelectedId(id); setEditing(id); }} onMenu={itemMenu} /> : null} />
+      : null;
+  const aiTabs = selection.kind === "providers" && data.personal !== true ? (
+    <View style={s.aiTabs} accessibilityRole="tablist" testID="ai-tabs">
+      {/* ui-rows-lint: not a list (two tabs) */}
+      {([["my", "My AI accounts"], ["space", "Space AI accounts"]] as const).map(([k, label]) => (
+        <Pressable key={k} accessibilityRole="tab" accessibilityState={{ selected: aiTab === k }} onPress={() => setAiTab(k)} style={[s.aiTab, aiTab === k ? s.aiTabOn : null]} testID={`ai-tab-${k}`}>
+          <Text style={[s.aiTabText, aiTab === k ? s.aiTabTextOn : null]}>{label}</Text>
+        </Pressable>
+      ))}
+    </View>
+  ) : null;
+  const listBody = spaceAi ? (
     <>
       {header}
+      {aiTabs}
+      <SpaceAiAccounts mayManage={mayManageAi} />
+    </>
+  ) : (
+    <>
+      {header}
+      {aiTabs}
       <View style={s.searchWrap}>
         <View style={s.search}>
           <Glyph name="search" size={14} />
@@ -278,13 +336,16 @@ function Page({ initial, sheet, view, route, onRouteClose }: { initial?: Selecti
       ? <PolicyView onClose={onRouteClose} />
     : route.surface === "requests"
       ? <RequestsView requests={requests} items={all} onClose={onRouteClose} />
+    : route.surface === "connections"
+      ? <ConnectionsView initialAdd={connectionsAdd ?? route.add === true} {...(wide ? {} : { onClose: onRouteClose })} {...(connectionsInitial ? { initialData: connectionsInitial } : {})} />
       : null;
 
   return (
     <View style={s.page} testID="vault-place">
       {menu.element}
-      {wide ? <Sidebar counts={counts} folders={folderList} selection={selection} onSelect={select} onAdvanced={data.nav.openAdvanced} advanced={route.surface === "advanced" || route.surface === "policy"} onNewFolder={createFolder} onFolderMenu={folderMenu} canCreateShared hideShared={data.personal === true} /> : null}
-      {routed ?? <>{twoPane || !showDetail ? listPane : null}{showDetail ? <View style={s.detail}>{detail}</View> : null}</>}
+      {wide ? <Sidebar counts={counts} folders={folderList} selection={selection} onSelect={select} onAdvanced={data.nav.openAdvanced} advanced={route.surface === "advanced" || route.surface === "policy"} {...(data.nav.openConnections ? { onConnections: data.nav.openConnections, connections: route.surface === "connections" } : {})} onNewFolder={createFolder} onFolderMenu={folderMenu} canCreateShared={canShare} hideShared={data.personal === true} /> : null}
+      {routed ?? (sectionPage ? <View style={[s.listPane, { flex: 1 }]} testID="vault-section-page">{header}{sectionPage}</View> : <>{twoPane || !showDetail ? listPane : null}{showDetail ? <View style={s.detail}>{detail}</View> : null}</>)}
+      {choosing ? <AddChooser onClose={() => setChoosing(false)} onPick={(t) => addThe(t)} /> : null}
       {route.surface === "export" ? <ExportSheet folderId={route.folderId} folderName={folderList.find((f) => f.id === route.folderId)?.name ?? "folder"} onClose={onRouteClose} /> : null}
       {adding ? (
         <AddAnything
@@ -299,7 +360,7 @@ function Page({ initial, sheet, view, route, onRouteClose }: { initial?: Selecti
       ) : null}
       {addingProvider ? (
         <AddProvider
-          {...(typeof addingProvider === "object" ? { initial: addingProvider } : {})} onClose={() => setAddingProvider(false)}
+          {...(typeof addingProvider === "object" ? { initial: addingProvider } : {})} {...(spaceAi ? { initialScope: "shared" as const } : {})} onClose={() => setAddingProvider(false)}
           onAdded={(p) => { setSelection({ kind: "providers" }); setSelectedId(p.itemId); showNote(`Connected ${p.name}`); }}
         />
       ) : null}
@@ -471,20 +532,29 @@ export interface VaultProps {
   route?: VaultRoute | undefined;
   /** Clears a routed sheet/page back to the Vault root. */
   onRouteClose?: (() => void) | undefined;
+  /** What Vault > Connections shows before its first read (tests that render once). */
+  connectionsInitial?: ConnectionsData | undefined;
+  /** Vault > Connections opens with the Add sheet at this step (screenshot mounts). */
+  connectionsAdd?: AddInitial | undefined;
 }
 
-export default function VaultLayout({ data, initial, sheet, view, route = { surface: "layout" }, onRouteClose = () => undefined }: VaultProps): ReactElement {
+export default function VaultLayout({ data, initial, sheet, view, route = { surface: "layout" }, onRouteClose = () => undefined, connectionsInitial, connectionsAdd }: VaultProps): ReactElement {
   const provided = useOptionalVaultData();
   const d = data ?? provided;
   if (!d) return <VaultLoading />;
   return (
     <VaultDataProvider value={d}>
-      <Page initial={initial} sheet={sheet} view={view} route={route} onRouteClose={onRouteClose} />
+      <Page initial={initial} sheet={sheet} view={view} route={route} onRouteClose={onRouteClose} connectionsInitial={connectionsInitial} connectionsAdd={connectionsAdd} />
     </VaultDataProvider>
   );
 }
 
 const s = StyleSheet.create({
+  aiTabs: { flexDirection: "row", gap: 18, marginHorizontal: 12, borderBottomWidth: 1, borderBottomColor: "var(--line)" as string },
+  aiTab: { height: 34, justifyContent: "center", borderBottomWidth: 2, borderBottomColor: "transparent", marginBottom: -1 },
+  aiTabOn: { borderBottomColor: "var(--ink)" as string },
+  aiTabText: { fontSize: 13, fontWeight: "500", color: "var(--ink-3)" as string },
+  aiTabTextOn: { color: "var(--ink)" as string },
   page: { flex: 1, flexDirection: "row", backgroundColor: "var(--win)" as string, position: "relative" },
   listPane: { minWidth: 0, backgroundColor: "var(--win)" as string },
   listPaneTwo: { width: 380, flexShrink: 0, borderRightWidth: 1, borderRightColor: "var(--line)" as string },

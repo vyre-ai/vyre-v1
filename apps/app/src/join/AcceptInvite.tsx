@@ -28,6 +28,8 @@ export interface AcceptInviteProps {
   newCode: () => string;
   onEmail?: (to: string) => void;
   onOpen?: () => void;
+  /** rc.17: the person has a Vyre account already (in another Space): bring it instead of making one */
+  onHaveAccount?: () => void;
 }
 
 const STEPS = 4;
@@ -132,7 +134,7 @@ function SignInStep({ state, dispatch, rules }: Pick<AcceptInviteProps, "invite"
   const line = u && !ok ? (taken ? (sugg.length ? `@${u} is taken.` : `@${u} is taken. Choose a different username.`) : "Use 3 to 24 letters or digits, starting with a letter.") : short ? "Use at least 8 characters." : mism ? "The passwords do not match." : state.refused ? "" : state.error;
   return (
     <Step id="signin-details" dir={state.dir}>
-      <Title title="Your account" sub="This creates your Vyre account, used for all your Spaces." />
+      <Title title="Your Vyre account" sub="This creates your Vyre account, used for all your Spaces." />
       <Group>
         <FieldRow testID="username" label="Username" value={state.user} onChange={(v) => set({ user: cleanUsername(v) })} autoComplete="username" onSubmit={next} error={!!u && !ok} trailing={ok ? <View testID="username-ok" style={{ paddingHorizontal: 6 }}><Check size={15} color={p.ok} /></View> : null} />
         <FieldRow testID="password" label="Password" value={state.pw} onChange={(v) => set({ pw: v })} placeholder="At least 8 characters" secure visibilityTestID="password-visibility" autoComplete="new-password" onSubmit={next} />
@@ -210,7 +212,9 @@ export function AcceptInvite(props: AcceptInviteProps) {
           {props.onOpenApp ? <View style={{ marginTop: 8 }}><Button quiet testID="open-app" label="Open in Vyre" onPress={props.onOpenApp} /></View> : null}
           <Links>
             {props.onDownload ? <TextButton testID="download" label="Get Vyre" onPress={props.onDownload} /> : null}
-            <TextButton testID="have-account" label="I have an account" onPress={() => dispatch({ t: "signin" })} />
+            {props.onHaveAccount
+              ? <TextButton testID="have-account" label="I already have a Vyre account" onPress={props.onHaveAccount} />
+              : <TextButton testID="have-account" label="I have an account" onPress={() => dispatch({ t: "signin" })} />}
           </Links>
         </>}
       >
@@ -245,7 +249,7 @@ export function AcceptInvite(props: AcceptInviteProps) {
   }
   return (
     <>
-      <Panel wait={running} {...(state.step === 0 || last ? { space: invite.space } : {})} bar={bar}>{body}</Panel>
+      <Panel wait={running} {...(state.step === 0 || last ? { space: invite.space } : {})} bar={bar} {...(props.onHaveAccount && (state.step === 0 || state.step === 1) && !last ? { below: <Links><TextButton testID="have-vyre-account" label="I already have a Vyre account" onPress={props.onHaveAccount} /></Links> } : {})}>{body}</Panel>
       {state.sheet ? <RecoverySheet invite={invite} state={state} dispatch={dispatch} onCopyCode={props.onCopyCode} onSaveCode={props.onSaveCode} /> : null}
     </>
   );

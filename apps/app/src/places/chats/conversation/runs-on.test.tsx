@@ -1,7 +1,7 @@
 // The runs-on chip: drawn for a private chat that has somewhere else to run, named for the place it runs now, with the others in a menu; off places are grey with the reason.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { currentOption, runsOnEntries, runsOptions, showsChip } from "./RunsOn.tsx";
+import { automaticNote, currentOption, runsOnEntries, runsOptions, showsChip } from "./RunsOn.tsx";
 import type { RunsOnOption, RunsOnState } from "./RunsOn.tsx";
 
 const device: RunsOnOption = { target: "device", name: "This computer", online: true };
@@ -32,8 +32,34 @@ test("the menu lists every place, ticks the current one, and greys an off place 
 
 test("Runs on leads with Automatic, which says where it lands, and no row says its own name twice", () => {
   const rows = runsOptions(state({ options: [device, space, home] }));
-  assert.deepEqual(rows.map((r) => [r.name, r.note ?? null]), [["Automatic", "This computer"], ["This computer", null], ["The Space", null], ["home-box", "Your server"]]);
+  assert.deepEqual(rows.map((r) => [r.name, r.note ?? null]), [["Automatic", "Now: this computer"], ["This computer", null], ["The Space", null], ["home-box", "Your server"]]);
   assert.ok(rows.every((r) => r.name !== r.note), "the source of the duplicate is gone");
   assert.equal(rows[0]!.online, true, "Automatic can always be picked");
-  assert.equal(runsOptions(state({ effective: { target: "server", serverId: "srv_home" } }))[0]!.note, "home-box");
+  assert.equal(runsOptions(state({ effective: { target: "server", serverId: "srv_home" } }))[0]!.note, "Now: home-box");
+});
+
+test("each computer is its own row: This computer for the one the person is on, the others by name; the pill names another computer", () => {
+  const s = {
+    private: true, pinned: true, effective: { target: "device" as const, deviceId: "dev_desk" },
+    options: [
+      { target: "device" as const, deviceId: "dev_mac", current: true, name: "This computer", online: false, reason: "Off" },
+      { target: "device" as const, deviceId: "dev_desk", name: "Desk", online: true },
+      { target: "space" as const, name: "The Space", online: true },
+    ],
+  };
+  assert.equal(currentOption(s).name, "Desk", "the pinned computer, by its id");
+  assert.deepEqual(runsOptions(s).map((o) => [o.key, o.name, o.note ?? "", o.online]), [["auto:", "Automatic", "Now: this computer", true], ["device:dev_mac", "This computer", "Off", false], ["device:dev_desk", "Desk", "Your computer", true], ["space:", "The Space", "", true]]);
+  assert.equal(currentOption({ ...s, effective: { target: "device" as const } }).name, "This computer", "a pin that names no computer is the one the person is on");
+});
+
+test("Automatic says where it would run now, from the engine's order, whatever the chat is pinned to", () => {
+  const options = [
+    { target: "device" as const, deviceId: "dev_mac", current: true, name: "This computer", online: false, reason: "Off" },
+    { target: "device" as const, deviceId: "dev_imac", name: "Office iMac", online: true },
+    { target: "space" as const, name: "The Space", online: true },
+  ];
+  const pinned = { private: true, pinned: true, effective: { target: "device" as const, deviceId: "dev_mac" }, options };
+  assert.equal(automaticNote({ ...pinned, automatic: { target: "device", deviceId: "dev_imac" } }), "Now: Office iMac", "pinned to the Mac that is off; Automatic would use the iMac");
+  assert.equal(automaticNote({ ...pinned, automatic: { target: "space" } }), "Now: The Space");
+  assert.equal(automaticNote({ ...pinned, automatic: { target: "device", deviceId: "dev_mac" } }), "Now: this computer");
 });

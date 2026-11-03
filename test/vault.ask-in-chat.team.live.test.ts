@@ -1,5 +1,5 @@
 // A key asked for in a chat, with two people (Team): Mia asks her agent to set up Fathom, the agent asks for the key in Mia's chat, the admin (Olivia) adds it from her own Needs you, and the agent carries on
-// in Mia's chat by itself. Mia is not a manager, so she cannot decide it; the secret reaches no message or log. Real chats on a booted daemon; only the model is scripted.
+// in Mia's chat by itself. Mia could add it to her own Mine from her card (owner ruling 3 Nov, test/member-first-hour.chats); here the admin adds it for the team. The secret reaches no message or log. Real chats on a booted daemon; only the model is scripted.
 import test from "node:test";
 import assert from "node:assert/strict";
 import { CORE_SPACE } from "../fixtures/seed/core/index.ts";
@@ -23,6 +23,12 @@ test("Team: a member's agent asks for a key in her chat; the admin adds it; the 
       yield { type: "text", text: r.ok ? "I asked for the Fathom key." : `FAILED ${JSON.stringify(r.content).slice(0, 200)}` };
     } else if (/Carry on/.test(ask)) yield { type: "text", text: "Thanks, carrying on with Fathom." };
   });
+  // memory learns after every turn (l-memlearn) and reads the account's model list once, which asks the vendor with the key (providers.test): answer that here, so the scripted key is not
+  // refused by the real vendor and the account marked failing before the agent carries on
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = ((url: string | URL | Request, init?: RequestInit) => (String(url) === "https://api.anthropic.com/v1/models"
+    ? Promise.resolve(new Response(JSON.stringify({ data: [{ id: "claude-haiku-4-5" }] }), { status: 200, headers: { "content-type": "application/json" } }))
+    : realFetch(url, init))) as typeof fetch;
   const ownerToken = { v: "" };
   const d = await boot(seededDir(), model, {
     vault: undefined,
@@ -57,8 +63,8 @@ test("Team: a member's agent asks for a key in her chat; the admin adds it; the 
     }, 60_000, () => hostLog(d));
     const requestId = card.data.requestId as string;
 
-    // Mia cannot decide it; the admin can, and has it in her own Needs you with the chat linked
-    assert.equal(((await api("usr_mia", "vault.requests.list", { mine: false })).data.requests ?? []).length, 0, "the asker never decides her own request");
+    // Mia may add it to her own Mine from her card (owner ruling 3 Nov); the admin may add it for the team, and has it in her own Needs you with the chat linked
+    assert.deepEqual(((await api("usr_mia", "vault.requests.list", { mine: false })).data.requests as Array<{ id: string }>).map((r) => r.id), [requestId], "her card lets her add her own key");
     assert.ok(((await api("usr_olivia", "vault.requests.list", { mine: false })).data.requests as Array<{ id: string }>).some((r) => r.id === requestId));
     const mine = async (who: string) => ((await api(who, "tasks.list", { scope: "mine", kinds: ["unblock"], states: ["todo", "doing"] })).data.tasks as Array<{ title: string; workingNotes: Record<string, string> }>).filter((t) => t.title === "Fathom key needed");
     const row = (await mine("usr_olivia"))[0];
@@ -80,5 +86,5 @@ test("Team: a member's agent asks for a key in her chat; the admin adds it; the 
     assert.ok(said);
     const all = JSON.stringify((await api("usr_mia", "chat.messages.list", { threadId })).data) + hostLog(d);
     assert.ok(!all.includes(SECRET), "the value reached no message, block or log");
-  } catch (e) { console.error("FAILED:", e instanceof Error ? e.message.slice(0, 1500) : e); throw e; } finally { await stop(d); }
+  } catch (e) { console.error("FAILED:", e instanceof Error ? e.message.slice(0, 1500) : e); throw e; } finally { await stop(d); globalThis.fetch = realFetch; }
 });

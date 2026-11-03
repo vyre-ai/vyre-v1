@@ -8,6 +8,8 @@ import { isTrustedService } from "../../../lib/trust.ts";
 import type { ChatCtx, MessageRec, ThreadRec } from "../projections.ts";
 import { unarchiveForMention } from "./archive-state.ts";
 import { saveScreen } from "./screen.ts";
+import { approveInChat } from "./agent-dm.ts";
+import { followersOf, joinThread } from "./follow.ts";
 
 export interface Mention { kind: "person" | "agent"; id: string }
 export interface PostInput {
@@ -20,6 +22,8 @@ export interface PostInput {
 const BLOCK_TYPE = /^[a-z][a-z0-9_]*$/;
 /** Blocks that wait for an answer have their own tools (they need a row to answer against); a plain post cannot carry them. */
 const OWN_TOOL = new Set(["question", "plan"]);
+/** Blocks only the server writes: who an agent's message to a teammate speaks for, a line that carries a teammate's reply back, the state of a message that waits (handlers/agent-dm.ts). */
+const SERVER_ONLY = new Set(["on_behalf", "relay", "agent_dm"]);
 
 /** The top of a thread chain: the chat, Ask pane or channel an inline thread hangs under. */
 export function rootOf(ctx: Pick<ChatCtx, "db">, t: ThreadRec): ThreadRec {
@@ -38,6 +42,11 @@ const isPrivateRoot = (root: ThreadRec): boolean => root.kind === "chat" || root
  * Governance of an invite-only channel: a person with manage on the channel (an admin) can see that it exists, archive it and change who is in it, and never reads or writes in it unless they are added.
  * The host's own authorize decides; a hand-built test context without it grants no one.
  */
+/** Does the caller see the Space as a whole (View on the Space)? A guest does not: they list only the channels they are in (l-perms). No authorize (module tests): yes. */
+export function seesSpace(ctx: ChatCtx): boolean {
+  const host = ctx as ChatCtx & { authorize?: (action: { perm: string | null; level: string }, resource: { type: string; id: string | null }) => { effect?: string } };
+  return typeof host.authorize !== "function" || host.authorize({ perm: null, level: "view" }, { type: "space", id: ctx.space }).effect === "allow";
+}
 export function mayGovernChannel(ctx: ChatCtx, channelId: string): boolean {
   const host = ctx as ChatCtx & { authorize?: (action: { perm: string | null; level: string }, resource: { type: string; id: string | null }) => { effect?: string } };
   return typeof host.authorize === "function" && host.authorize({ perm: null, level: "manage" }, { type: "channel", id: channelId }).effect === "allow";
@@ -89,6 +98,7 @@ function cleanBlocks(ctx: ChatCtx, raw: PostInput["blocks"]): Array<Record<strin
   return (raw ?? []).map((b) => {
     if (!BLOCK_TYPE.test(b.type)) raise(ctx, "validation.bad_input", "That is not a block type.", { type: b.type });
     if (OWN_TOOL.has(b.type)) raise(ctx, "validation.bad_input", "Questions and plans are made with ask_question and plan_propose, so they can be answered.", { type: b.type });
+    if (SERVER_ONLY.has(b.type)) raise(ctx, "validation.bad_input", "That card is written by Vyre itself. Use message_person to write to a teammate for your person.", { type: b.type });
     return { type: b.type, v: b.v, id: mintId("blk", ctx.now()), data: b.type === "link_card" ? inertCard(b.data) : b.data, state: "done", traceId: ctx.trace.traceId };
   });
 }
@@ -127,18 +137,16 @@ export function deliver(ctx: ChatCtx, thread: ThreadRec, m: MessageRec, mentions
     if (mention.kind === "person" && mention.id !== author.id) unarchiveForMention(ctx, root.id, mention.id);
     if (mention.kind !== "person" || mention.id === author.id || mention.id === direct) continue;
     if (isPrivateRoot(root) && !isMember(ctx.db, root.id, mention.id)) continue;
+    // a person @mentioned in a thread is in it from now on: its replies reach them, and it is on their Threads page
+    joinThread(ctx, thread, mention.id);
     ctx.emit("message.mentioned", thread.id, { messageId: m.id, threadId: thread.id, personId: mention.id, author, inThread: thread.kind === "thread" });
   }
   if (thread.kind === "thread") {
-    // The people who follow an inline thread: whoever wrote the message above it and everyone who already replied in it.
-    const follow = new Set<string>();
-    const parent = thread.parentMessageId ? messageBy(ctx.db, thread.parentMessageId) : null;
-    if (parent && refOf(parent.author).kind === "person") follow.add(parent.author);
-    for (const r of ctx.db.all("SELECT DISTINCT author FROM chat_message WHERE thread = ? AND deleted_at IS NULL", thread.id) as Array<Record<string, unknown>>) {
-      const a = String(r["author"]);
-      if (refOf(a).kind === "person") follow.add(a);
-    }
+    // The people who follow an inline thread (follow.ts): those in it, whoever wrote the message above it and everyone who replied, less anyone who muted or left it.
+    const follow = new Set(followersOf(ctx, thread));
     follow.delete(author.id);
+    // someone this message @mentions hears the mention, not the reply as well
+    for (const mention of mentions) if (mention.kind === "person") follow.delete(mention.id);
     for (const personId of follow) {
       ctx.emit("thread.replied", thread.id, { threadId: thread.id, ...(thread.parentThreadId !== undefined ? { parentThreadId: thread.parentThreadId } : {}), messageId: m.id, personId });
     }
@@ -201,10 +209,14 @@ export async function post(ctx: ChatCtx, input: PostInput) {
     if (!replyTo || replyTo.thread !== thread.id) raise(ctx, "validation.bad_input", "The message you reply to is not in this thread.");
   }
 
-  // Hops: an agent answering another agent is one hop further from the last person who spoke; a person's message starts again at 0.
+  // Hops: an agent answering another agent is one hop further from the last person who spoke; a person's message starts again at 0. A Job's line (a helper's or a teammate's
+  // result) is posted whatever the budget says, so the work lands, but it carries the next hop: the lead's answer to it parks at the limit (owner ruling, 3 Nov 2026).
   let depth = 0;
   const job = author.kind === "agent" && isJobResult(ctx, thread, author.id, blocks);
-  if (author.kind === "agent" && !job) {
+  if (job) {
+    const prev = lastMessage(ctx.db, thread.id);
+    depth = prev && refOf(prev.author).kind === "agent" ? prev.depth + 1 : 1;
+  } else if (author.kind === "agent") {
     const prev = replyTo ?? lastMessage(ctx.db, thread.id);
     if (prev && refOf(prev.author).kind === "agent") depth = prev.author === author.id ? prev.depth : prev.depth + 1;
     if (depth >= 1) {
@@ -230,7 +242,11 @@ export async function post(ctx: ChatCtx, input: PostInput) {
     ...(input.clientId !== undefined ? { id: input.clientId } : {}), author: author.id, kind: author.kind === "agent" ? "agent" : "text", body, blocks,
     ...(input.replyTo !== undefined ? { replyTo: input.replyTo } : {}), ...(input.via ? { via: { routineOwner: input.via.routineOwner } } : {}), ...(author.kind === "agent" && ctx.actingFor !== undefined && !ctx.sharedKey ? { paidBy: ctx.actingFor } : {}), depth, attachments,
   });
+  // a person who replies in a thread is in it: its later replies reach them and it counts on their Threads row
+  if (author.kind === "person") joinThread(ctx, thread, author.id);
   saveScreen(ctx, thread.id, m.id, input.screen);
   deliver(ctx, thread, m, mentions, { kind: author.kind, id: author.id }, { job });
+  // a person's own typed "send it" presses the "Send this to <name>?" card it answers (lane l-agentdm)
+  if (author.kind === "person" && ctx.depth === 0 && (ctx.origin === "user" || ctx.origin === "sync") && body.trim() !== "") await approveInChat(ctx, thread.id, body);
   return { message: messageOut(m, encOf(ctx.db, thread)) };
 }

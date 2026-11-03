@@ -30,6 +30,10 @@ export function ensureComposerCss(): void {
     "[data-cmp-card]:hover [data-cmp-rm]{opacity:1}",
     "@media (hover:none){[data-cmp-card] [data-cmp-rm]{opacity:1}}",
     "[data-cmp-field] textarea::placeholder{color:var(--ink-4)}",
+    // the token wash behind the field lays its text out exactly as the field does: one font, one spacing, one wrap, and no scrollbar narrowing the field's lines
+    "[data-cmp-field] textarea,[data-cmp-ghost]{font-family:inherit;font-weight:400;font-style:normal;letter-spacing:normal;word-spacing:normal;font-kerning:auto;font-variant-ligatures:normal;text-rendering:auto;tab-size:8;white-space:pre-wrap;overflow-wrap:break-word;word-break:break-word;text-indent:0}",
+    "[data-cmp-field] textarea{scrollbar-width:none}",
+    "[data-cmp-field] textarea::-webkit-scrollbar{display:none}",
     "[data-cmp-focus]{border-color:color-mix(in srgb,var(--accent) 45%,var(--line-2)) !important}",
     "[data-cmp-low]{background-color:color-mix(in srgb,var(--warn) 14%,transparent)}",
   ].join("\n"));

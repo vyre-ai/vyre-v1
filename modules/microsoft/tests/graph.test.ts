@@ -57,7 +57,7 @@ test("delta pages: new mail lands once, in both folders, with its parts; drafts 
     source: "microsoft", envelopeTo: MAYA, providerId: "g1", rfcMessageId: "<AAA111@acme.test>", threadKey: "conv1", direction: "in",
     from: { address: "pat@acme.test", name: "Pat Lee" }, to: [{ address: MAYA, name: "Maya" }, { address: "sam@vyre.test" }], cc: [{ address: "kim@acme.test" }],
     subject: "Can we talk?", receivedAt: Date.parse("2026-10-25T08:00:00Z"),
-    html: "<p>Hello&nbsp;Maya,</p><br>Thanks &amp; regards", text: "Hello Maya,\nThanks & regards",
+    html: "<p>Hello&nbsp;Maya,</p><br>Thanks &amp; regards", text: "Hello Maya,\n\nThanks & regards",
     headers: { "in-reply-to": "<prev@vyre.test>", references: "<first@vyre.test> <prev@vyre.test>" },
     attachments: [{ name: "terms.pdf", mime: "application/pdf", size: 5, blobId: "blb_5b" }],   // inline, oversized and item attachments stay in Outlook
   });

@@ -4,7 +4,7 @@ Lane L2. Kind module. Version 0.1.0.
 
 Requires: engine, mcp.
 
-## Capabilities (83)
+## Capabilities (90)
 
 - [channels.agent_watch.set](../capabilities/channels.agent_watch.set.md): Let an agent act unmentioned in a channel ("watches this channel"); every such act is logged like a routine
 - [channels.agents.add](../capabilities/channels.agents.add.md): Invite an agent into a channel; agents listen by default
@@ -13,6 +13,8 @@ Requires: engine, mcp.
 - [channels.create](../capabilities/channels.create.md): Create a channel: public to the Team Space or invite-only, with any mix of people and agents
 - [channels.erase](../capabilities/channels.erase.md): Erase one channel for good with all its messages (governance erase)
 - [channels.get](../capabilities/channels.get.md): Read one channel with members, agents and unread count
+- [channels.home](../capabilities/channels.home.md): The Space's first channel: #vyre, or an older Space's #general (legacy: Console offers to rename it). Null in a Personal Space
+- [channels.home_join](../capabilities/channels.home_join.md): System: the join step that puts a new member in the Space's first channel, making #vyre when the Space has none
 - [channels.join](../capabilities/channels.join.md): Join a public channel
 - [channels.leave](../capabilities/channels.leave.md): Leave a channel
 - [channels.list](../capabilities/channels.list.md): List channels by section and folder (the items capability of the Channels list)
@@ -23,6 +25,7 @@ Requires: engine, mcp.
 - [channels.stream_prefs.set](../capabilities/channels.stream_prefs.set.md): Hide or show People, Agents or Runs in one channel for myself (Hide Runs in This Channel); the header says what is hidden
 - [channels.unarchive](../capabilities/channels.unarchive.md): Bring an archived channel back
 - [channels.update](../capabilities/channels.update.md): Rename a channel or change its topic or visibility
+- [chat.agent_dm.mute](../capabilities/chat.agent_dm.mute.md): Mute agent messages from one person for the rest of my day; what their agents send waits until tomorrow and the person is told. undo lifts it
 - [chat.answer_block](../capabilities/chat.answer_block.md): Answer a question or plan block; the answer is queued as a wake so the parked turn continues
 - [chat.approve_plan](../capabilities/chat.approve_plan.md): Approve a plan, optionally with edits; clears plan mode for those steps and the agent executes
 - [chat.aside](../capabilities/chat.aside.md): Ask a side question (/btw) while an agent works: it runs as a separate short read-only turn on your own account with what this chat knows, in a hidden thread; nothing is written into this chat and the agent working here does not see it
@@ -42,9 +45,11 @@ Requires: engine, mcp.
 - [chat.history.search](../capabilities/chat.history.search.md): Word-for-word search over the chat messages and transcript rows (turns, tool calls and results) the asker could open themselves; used by memory for exact quotes. Returns the stored words, author, time and a link that opens the chat at that line
 - [chat.make_task](../capabilities/chat.make_task.md): Turn a message into a task: the title is its first line, the task points back at it and a "Task created" card in the thread links to the task. An agent may do it for the person it acts for
 - [chat.message.get](../capabilities/chat.message.get.md): Read one message with its blocks
+- [chat.message_person](../capabilities/chat.message_person.md): Message a teammate for the person you work for, in their direct chat, signed as them (Agent); the reply comes back to this chat. Can carry an approval, review or key card. Waits for away and after hours unless urgent; 3 an hour
 - [chat.messages.list](../capabilities/chat.messages.list.md): Messages of a thread by sequence window (last 50 first, older stream in)
 - [chat.open_as_chat](../capabilities/chat.open_as_chat.md): Open an Ask pane as a normal chat so it appears in Recent
 - [chat.open_tab](../capabilities/chat.open_tab.md): Open a side tab beside the chat for the person (a file, record, diff, terminal); respects the person tab setting and posts a line
+- [chat.people_status](../capabilities/chat.people_status.md): Your teammates as you see them: online, away or offline and when last seen, their local time and working hours, and when a message to them would go. Only people in this Space, never anything private
 - [chat.pin](../capabilities/chat.pin.md): Mark a message as pinned (a content marker, not a Star)
 - [chat.pins.list](../capabilities/chat.pins.list.md): Pinned messages of a thread
 - [chat.plan.propose](../capabilities/chat.plan.propose.md): Propose a plan with steps as a plan block; used when plan mode is on
@@ -55,6 +60,7 @@ Requires: engine, mcp.
 - [chat.react](../capabilities/chat.react.md): Add or remove a reaction
 - [chat.recent](../capabilities/chat.recent.md): Sidebar Recent: Starred, Today, Yesterday, Earlier with unread counts and the working pulse, then the chats I archived (they are in no other group)
 - [chat.remember](../capabilities/chat.remember.md): Remember a message as a fact in the memory of the project this chat belongs to (else your own), sourced to the message; a "Remembered for ..." card in the thread links to the fact. A shared layer keeps its review rule
+- [chat.reply_details](../capabilities/chat.reply_details.md): How one agent reply was made, for its hover card and Details tab: its turn, what the agent knew, and its own steps when no turn was kept. Account, cost and tool arguments are for the asker and AI-spend managers only
 - [chat.screen.get](../capabilities/chat.screen.get.md): The screen context the person sent with a message (or the latest in the thread): the place, open objects, selection, filters and a summary of visible rows
 - [chat.search](../capabilities/chat.search.md): Search the messages of every chat and channel you are in, by the words and by meaning; each hit names its message so a screen can jump to it
 - [chat.share](../capabilities/chat.share.md): Share a message to another chat (a channel or a person): a card there carries it, and a card here says where it went; both open the other chat. You must be able to write in the chat it goes to
@@ -74,9 +80,10 @@ Requires: engine, mcp.
 - [threads.close](../capabilities/threads.close.md): Close a thread (idle with nothing waiting, or done)
 - [threads.delete](../capabilities/threads.delete.md): Delete a chat only I am in (me and agents): hidden everywhere, running turns stop first, undone with threads.restore until the retention purge removes it. A chat with other people is left, not deleted
 - [threads.erase](../capabilities/threads.erase.md): Erase one chat thread for good: messages, blocks, pins, reactions, attachment links, transcript rows, summaries and search entries (governance erase)
+- [threads.follow](../capabilities/threads.follow.md): Follow a thread (its replies reach me), mute it (I stay in it, its replies are quiet and do not count as new) or leave it
 - [threads.get](../capabilities/threads.get.md): Read one thread with its members, agents, modes, plan mode and (for helpers) the address bar path
 - [threads.leave](../capabilities/threads.leave.md): Leave a chat that has other people in it: I stop being a member, they keep it. A channel is left with channels.leave
-- [threads.list](../capabilities/threads.list.md): List threads by kind, folder, scope or record
+- [threads.list](../capabilities/threads.list.md): List threads by kind, folder, scope or record; or the threads I am in, newest reply first
 - [threads.make_channel](../capabilities/threads.make_channel.md): Make a private chat into a channel with another person; the new channel links back to the chat
 - [threads.mark_read](../capabilities/threads.mark_read.md): Mark a thread read up to a sequence number, or unread again (the newest message from someone else counts as new)
 - [threads.members.add](../capabilities/threads.members.add.md): Add a person to a thread; a private chat never gains people, so this offers a channel instead

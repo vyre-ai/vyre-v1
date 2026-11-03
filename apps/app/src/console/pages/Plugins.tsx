@@ -1,20 +1,21 @@
 // Plugins and outside tools (CHAT-DESIGN ruling 6). An admin adds a marketplace (a git address or a folder), browses it and installs a plugin into the whole Space or into one agent. What a
 // plugin brings is listed by kind: skills, / commands, sub-agents (which can start an agent), hooks and MCP servers. Plugin code runs only in the agent's sandbox. A secret option takes a Vault
-// handle and never a value. Any MCP server can also be connected on its own, by URL or by command.
+// handle and never a value. Connections (app hubs and MCP servers made by hand) live in Vault > Connections (owner ruling D28); this page shows how many and links there.
 import { useState } from "react";
 import type { ReactElement } from "react";
 import { Text, View } from "react-native";
 import type { CapMap } from "../../../../../generated/types.ts";
 import { Row } from "../../../../../ui/src/Row/index.tsx";
 import { Empty, Group, Section } from "../shell/ui.tsx";
-import { Help,  Actions, Button, Field, FormSheet, Note, ReadState, Segmented, Select, attempt, useAction, useRead } from "./shared.tsx";
+import { Help,  Actions, Button, Field, FormSheet, Note, ReadState, Select, attempt, useAction, useRead } from "./shared.tsx";
 import { Tick } from "./ai-controls.tsx";
-import { AppHubsSection, OauthSignIn } from "./AppHubs.tsx";
+import { useConsoleData } from "../shell/data.tsx";
+import { useConnectionsSummary } from "../../places/vault/connections/summary.ts";
+import { connectionsTarget } from "../../places/vault/connections/links.ts";
 
 type Markets = CapMap["plugins.marketplaces.list"]["out"];
 type Browse = CapMap["plugins.browse"]["out"];
 type Installed = CapMap["plugins.list"]["out"];
-type Connections = CapMap["plugins.connections.list"]["out"];
 type Agents = CapMap["agents.list"]["out"];
 type Plugin = Installed["plugins"][number];
 
@@ -25,7 +26,6 @@ export const partsLine = (p: Plugin["parts"]): string =>
 export function PluginsPage(): ReactElement {
   const markets = useRead<Markets>("plugins.marketplaces.list");
   const installed = useRead<Installed>("plugins.list");
-  const connections = useRead<Connections>("plugins.connections.list");
   const agents = useRead<Agents>("agents.list", {});
   const [marketId, setMarketId] = useState<string | null>(null);
   const [q, setQ] = useState("");
@@ -35,9 +35,7 @@ export function PluginsPage(): ReactElement {
   const [target, setTarget] = useState("space");
   const [openPlugin, setOpenPlugin] = useState<string | null>(null);
   const [config, setConfig] = useState<Record<string, string>>({});
-  const [conn, setConn] = useState({ name: "", url: "", command: "", header: "" });
-  const [viaOauth, setViaOauth] = useState(false);
-  const refresh = (): void => { markets.refresh(); installed.refresh(); connections.refresh(); browse.refresh(); };
+  const refresh = (): void => { markets.refresh(); installed.refresh(); browse.refresh(); };
   const action = useAction(refresh);
   if (!markets.data || !installed.data) return <ReadState error={markets.error ?? installed.error} retry={refresh} />;
   const agentOptions = [{ key: "space", title: "The whole Space" }, ...(agents.data?.agents ?? []).map((a) => ({ key: a.agentId, title: `Only ${a.name}` }))];
@@ -90,17 +88,16 @@ export function PluginsPage(): ReactElement {
         <Button label="Remove plugin" danger testID="plugin-remove" disabled={action.busy} onPress={() => void action.run("plugins.uninstall", { pluginId: selected.pluginId, idempotencyKey: attempt() }, "Plugin removed").then(() => setOpenPlugin(null))} />
       </Actions>
     </Group></Section> : null}
-    <AppHubsSection />
-    <Section title="Outside tools" count={(connections.data?.connections ?? []).filter((c) => c.hub === undefined).length}><Group>
-      <Help>Connect an MCP server by its https address or a sandbox command.</Help>
-      {(connections.data?.connections ?? []).filter((c) => c.hub === undefined).map((c) => <Row key={c.connectionId} id={`conn-${c.name}`} title={c.name} note={c.url ?? `${c.command ?? ""} ${c.args.join(" ")}`.trim()} trailing={<Actions>{c.auth === "oauth" ? <OauthSignIn conn={c} refresh={refresh} /> : null}<Button label="Disconnect" disabled={action.busy} onPress={() => void action.run("plugins.connection.remove", { connectionId: c.connectionId, idempotencyKey: attempt() }, "Disconnected")} /></Actions>} />)}
-      <Field label="Name" testID="conn-name" value={conn.name} onChange={(v) => setConn({ ...conn, name: v })} />
-      <Field label="Address (https) or leave empty and give a command" testID="conn-url" value={conn.url} onChange={(v) => setConn({ ...conn, url: v })} />
-      <Field label="Command" testID="conn-command" value={conn.command} onChange={(v) => setConn({ ...conn, command: v })} />
-      {viaOauth ? null : <Field label="Authorization, as a Vault handle such as #Crm_Key.token" testID="conn-header" value={conn.header} onChange={(v) => setConn({ ...conn, header: v })} />}
-      {conn.url.trim() ? <Segmented options={[{ key: "key", title: "A key" }, { key: "oauth", title: "Sign in" }]} value={viaOauth ? "oauth" : "key"} onChange={(k) => setViaOauth(k === "oauth")} /> : null}
-      <Actions><Button label="Connect" testID="conn-add" disabled={action.busy || conn.name.trim() === "" || (conn.url.trim() === "") === (conn.command.trim() === "")}
-        onPress={() => void action.run("plugins.connection.add", { name: conn.name.trim(), scope: "space", ...(conn.url.trim() ? { url: conn.url.trim(), ...(viaOauth ? { auth: "oauth" } : {}), ...(!viaOauth && conn.header.trim() ? { headers: { Authorization: conn.header.trim() } } : {}) } : { command: conn.command.trim().split(/\s+/)[0], args: conn.command.trim().split(/\s+/).slice(1) }), idempotencyKey: attempt() }, "Connected").then((out) => { if (out) setConn({ name: "", url: "", command: "", header: "" }); })} /></Actions>
-    </Group></Section>
+    <ConnectionsInVault />
   </View>;
+}
+
+/** App hubs and outside tool servers moved to Vault > Connections (owner ruling D28): a short summary and the way there. The Space's rules (who may add, the allow-list) sit on that page for admins. */
+export function ConnectionsInVault(): ReactElement {
+  const data = useConsoleData();
+  const sum = useConnectionsSummary(data.call, data.me.id);
+  const open = (): void => data.nav.openApp(connectionsTarget());
+  return <Section title="Connections" count={sum.loaded ? sum.total : ""}><Group>
+    <Row id="console-open-connections" title="App hubs, tool servers and integrations" note={`${sum.loaded ? `${sum.line}. ` : ""}Add, test and share them, and set who may add them, in Vault > Connections.`} onPress={open} trailing={<Button label="Open in Vault" testID="console-connections-open" onPress={open} />} />
+  </Group></Section>;
 }

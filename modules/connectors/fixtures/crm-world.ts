@@ -22,6 +22,8 @@ export function world() {
     ...k.ctx,
     call: async (cap, input) => {
       calls.push({ cap, input });
+      // the Vault's Use check (lib/vault-check.ts): this world's person may use the keys its connections keep, as in the kit (fixtures/kit.ts)
+      if (cap === "vault.use") return k.ctx.call("vault.use", input);
       if (cap === "runs.start") return { runId: `run_${calls.filter((x) => x.cap === "runs.start").length}` };
       if (cap === "runs.finish") return { run: { id: (input as { runId: string }).runId } };
       if (cap === "schema.diff") return { previewToken: "tok", items: [], additive: 0, destructive: 0, problems: [] };

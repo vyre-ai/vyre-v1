@@ -106,7 +106,7 @@ export const kindOfAddress = (a: string): "email" | "phone" | "handle" => (EMAIL
 // ---- schema
 
 const ready = new WeakSet<object>();
-const migrationSql = ["0001_inbox.sql", "0002_inbox_private.sql"].map((f) => readFileSync(fileURLToPath(new URL(`./migrations/${f}`, import.meta.url)), "utf8")).join("\n");
+const migrationSql = ["0001_inbox.sql", "0002_inbox_private.sql", "0004_inbox_party.sql"].map((f) => readFileSync(fileURLToPath(new URL(`./migrations/${f}`, import.meta.url)), "utf8")).join("\n");
 
 export function statements(sql: string): string[] {
   const out: string[] = [];
@@ -135,6 +135,7 @@ export function ensure(ctx: Pick<InboxCtx, "db">): void {
     ctx.db.all(`SELECT "conversationId" FROM inbox_match_task WHERE "conversationId" = ?`, "probe");
     ctx.db.all(`SELECT "id" FROM inbox_item WHERE "id" = ?`, "probe");
     ctx.db.all(`SELECT "conversationId" FROM inbox_private WHERE "conversationId" = ?`, "probe");
+    ctx.db.all(`SELECT "itemId" FROM inbox_party WHERE "itemId" = ?`, "probe");
   } catch {
     for (const statement of statements(migrationSql)) ctx.db.run(statement);
   }
@@ -223,4 +224,34 @@ export async function getRecord(ctx: InboxCtx, type: RecordType, recordId: strin
 /** A contact, else a company, with this id. */
 export async function findRecord(ctx: InboxCtx, recordId: string): Promise<RecordLite | null> {
   return (await getRecord(ctx, "contact", recordId)) ?? (await getRecord(ctx, "company", recordId));
+}
+
+// ---- an email's other contacts
+
+/** The items a conversation shows: its own, and, for a contact's conversation, every email that contact is on through inbox_party. */
+export function itemsOf(ctx: Pick<InboxCtx, "db">, conv: Row, where = "", ...args: unknown[]): Row[] {
+  const extra = where ? ` AND ${where}` : "";
+  const out = rowsOf(ctx.db.all(`SELECT * FROM inbox_item WHERE "conversationId" = ?${extra}`, str(conv, "id"), ...args));
+  const contactId = strOrNull(conv, "contactId");
+  if (!contactId) return out;
+  const have = new Set(out.map((r) => str(r, "id")));
+  const party = rowsOf(ctx.db.all(`SELECT "itemId" FROM inbox_party WHERE "contactId" = ?`, contactId)).map((r) => str(r, "itemId")).filter((id) => !have.has(id));
+  for (let i = 0; i < party.length; i += 400) {
+    const part = party.slice(i, i + 400);
+    out.push(...rowsOf(ctx.db.all(`SELECT * FROM inbox_item WHERE id IN (${part.map(() => "?").join(", ")})${extra}`, ...part, ...args)));
+  }
+  return out;
+}
+
+/** Every conversation that shows any of these items: their own conversation and the conversations of the other contacts on them. */
+export function conversationsShowing(ctx: Pick<InboxCtx, "db">, itemIds: string[]): string[] {
+  const out = new Set<string>();
+  for (const id of itemIds) {
+    const own = strOrNull(first(ctx.db.all(`SELECT "conversationId" FROM inbox_item WHERE id = ?`, id)), "conversationId");
+    if (own) out.add(own);
+    for (const p of rowsOf(ctx.db.all(`SELECT "contactId" FROM inbox_party WHERE "itemId" = ?`, id))) {
+      for (const c of rowsOf(ctx.db.all(`SELECT id FROM inbox_conversation WHERE "contactId" = ? AND deleted_at IS NULL`, str(p, "contactId")))) out.add(str(c, "id"));
+    }
+  }
+  return [...out];
 }

@@ -55,7 +55,7 @@ test("who will reply comes from the engine's route(): the lead, a mention, a per
   assert.deepEqual(respondersFor(t, mentionsIn("@Docs check this", DIRECTORY), "usr_irfad"), ["agt_docs"]);
   assert.deepEqual(respondersFor(t, mentionsIn("@Maya can you look", DIRECTORY), "usr_irfad"), []);
   const none = createSample("nolead");
-  assert.equal(whoLine(thread(none), none.data.nameOf), "No agent will reply · type @ to ask one");
+  assert.equal(whoLine(thread(none), none.data.nameOf), "No agent will reply. @mention one");
   assert.equal(leadOf(thread(none)), undefined);
   assert.ok(has(html(none), "No agent will reply"));
 });

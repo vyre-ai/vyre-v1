@@ -9,12 +9,14 @@ import { States } from "../../../../../../ui/src/States/index.tsx";
 import { Viewer } from "../../../../../../ui/src/Viewer/index.tsx";
 import type { DocBlock, MarkupBox, Stroke } from "../../../../../../ui/src/Viewer/index.tsx";
 import type { CapMap } from "../../../../../../generated/types.ts";
-import { fileLink, openInWords } from "../open-in.ts";
+import { fileLink, noPreviewWords, openInWords } from "../open-in.ts";
 import type { FileLink } from "../open-in.ts";
 import { commentOnQuote, pinArea, resolveComment, saveMarkup, saveText } from "./actions.ts";
 import { useFilesViewerData } from "./data.tsx";
 import { useFileLinks } from "../links.ts";
-import { boxesOf, nodeFor, docCommentsOf, docsMarkdown, kindLabel, parseCsv, strokesOf, subtitleOf, textToBlocks, viewerKindOf } from "./model.ts";
+import { boxesOf, nodeFor, docCommentsOf, docsMarkdown, isEditable, isOffice, kindLabel, officeBlocks, parseCsv, strokesOf, subtitleOf, textToBlocks, viewerKindOf } from "./model.ts";
+import { TypeTile } from "../FileList.tsx";
+import { tileLabel } from "../tree/model.ts";
 import { GoogleTile, WithProviderMark, googleAppOf } from "../marks.tsx";
 import type { FileComment, ViewerData } from "./model.ts";
 
@@ -85,7 +87,9 @@ export function FileViewer({ fileId, pane = "main" }: FileViewerProps): ReactEle
   const app = ready ? googleAppOf(ready.data.file) : null;
   const text = app === "gdocs" ? docsMarkdown(ready?.data.text ?? "") : ready?.data.text ?? "";
   const fileLinks = useFileLinks(d, ready && app === null ? { folderId: ready.data.file.folderId } : null, kind === "document" ? text : "");
-  const blocks = useMemo(() => (ready && kind === "document" ? textToBlocks(text, app === "gdocs" ? "markdown" : ready.data.file.kind) : []), [ready, kind, text, app]);
+  // a Word file or a deck is read from its Markdown: headings, lists, tables, pictures, and a deck's slides with their notes
+  const office = ready !== null && isOffice(ready.data.file.kind);
+  const blocks = useMemo(() => (ready && kind === "document" ? (office ? officeBlocks(text) : textToBlocks(text, app === "gdocs" ? "markdown" : ready.data.file.kind)) : []), [ready, kind, text, app, office]);
   const sheet = useMemo(() => (kind === "csv" ? parseCsv(text) : undefined), [kind, text]);
   const boxes = useMemo(() => (ready ? boxesOf(ready.comments) : []), [ready]);
   const strokes = useMemo(() => (ready ? strokesOf(ready.markup.strokes) : []), [ready]);
@@ -109,6 +113,11 @@ export function FileViewer({ fileId, pane = "main" }: FileViewerProps): ReactEle
 
   const node = ready.graph ? nodeFor(ready.graph, file.name) : null;
   const siblings = file.kind === "image" ? d.siblings?.(file.folderId) : undefined;
+  // Word, Excel and PowerPoint files wear the list's own type tile (DOCX, XLSX, PPTX), with the provider's mark when they come from SharePoint or OneDrive
+  const label = office ? tileLabel(file.name, file.kind) : null;
+  // the list's tile keeps a 10 px gap after itself; here the header spaces it, so the provider's mark sits on the tile's corner
+  const tile = label !== null ? <View style={s.typeTile}><TypeTile label={label} icon="doc" folder={false} /></View> : <View style={s.tile}><Text style={s.tileText}>{kindLabel(file.name)}</Text></View>;
+  const mark = app !== null ? <GoogleTile app={app} size={28} /> : file.source ? <WithProviderMark provider={file.source.provider} size={12}>{tile}</WithProviderMark> : label !== null ? tile : undefined;
   const path = d.pathOf?.(file.folderId);
   return (
     <View testID="file-viewer" accessibilityLabel={`Viewer, ${file.name}`} style={s.frame}>
@@ -116,7 +125,8 @@ export function FileViewer({ fileId, pane = "main" }: FileViewerProps): ReactEle
         key={fileId}
         fileId={fileId} title={file.name} kind={kind} pane={pane}
         kindLabel={kindLabel(file.name)} subtitle={subtitleOf(ready.data, now, path)}
-        {...(app !== null ? { kindMark: <GoogleTile app={app} size={28} />, readOnly: true } : file.source ? { kindMark: <WithProviderMark provider={file.source.provider} size={12}><View style={s.tile}><Text style={s.tileText}>{kindLabel(file.name)}</Text></View></WithProviderMark> } : {})}
+        {...(mark !== undefined ? { kindMark: mark } : {})} {...(app !== null || office ? { readOnly: true } : {})}
+        {...(office ? { noPreview: noPreviewWords(file.name) ?? "No preview of this file here. Open it in its own app." } : {})}
         {...(kind === "image" && ready.data.previewUrl ? { src: ready.data.previewUrl } : {})}
         boxes={boxes} strokes={strokes} blocks={blocks} {...(fileLinks ? { fileLinks } : {})} {...(sheet ? { sheet } : {})}
         comments={docCommentsOf(ready.comments, d.name, now)}
@@ -124,7 +134,7 @@ export function FileViewer({ fileId, pane = "main" }: FileViewerProps): ReactEle
         {...(siblings ? { siblings, current: fileId, onSibling: (id: string) => d.openFile?.(id) } : {})}
         {...(ready.graph && node ? { graph: ready.graph, nodeId: node, onOpenLink: (id: string) => d.openFile?.(id) } : {})}
         agentName={d.agentFor?.(fileId) ?? d.agents.find((a) => a.assistant)?.name ?? "the agent"}
-        {...(ready.data.canMark ? { onBoxes: addBox, onStrokes: saveStrokes } : {})} {...(ready.data.canEdit ? { onEdit: edit } : {})}
+        {...(ready.data.canMark ? { onBoxes: addBox, onStrokes: saveStrokes } : {})} {...(isEditable(ready.data) ? { onEdit: edit } : {})}
         {...(link && d.openUrl ? { openIn: { label: openInWords(link.openIn), onOpen: () => d.openUrl?.(link.webUrl) } } : {})}
         onComment={(quote, textIn) => void commentOnQuote(d, fileId, quote, textIn).then(reload).catch(say)}
         onResolve={(id) => void resolveComment(d, id).then(reload).catch(say)}
@@ -141,5 +151,6 @@ const s = StyleSheet.create({
   skBody: { flex: 1, margin: 14, borderRadius: 12, backgroundColor: "var(--sunk)" as string },
   tile: { width: 28, height: 28, borderRadius: 6, backgroundColor: "var(--sunk)" as string, alignItems: "center", justifyContent: "center" },
   tileText: { color: "var(--ink-3)" as string, fontSize: 8.5, fontWeight: "700" },
+  typeTile: { marginRight: -10 },
   note: { position: "absolute", left: 16, bottom: 14, fontSize: 12.5, color: "var(--ink-2)" as string, backgroundColor: "var(--raised)" as string, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8 },
 });

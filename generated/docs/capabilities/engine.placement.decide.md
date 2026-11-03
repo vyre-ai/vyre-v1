@@ -39,6 +39,7 @@ type Out = {
   reason: string;
   wakeLine?: string;
   nodeId?: string;
+  deviceId?: string;
 };
 ```
 
@@ -61,6 +62,7 @@ type Out = {
     "threadId": "thr_a1b2c3"
   },
   "output": {
+    "deviceId": "example",
     "nodeId": "example",
     "placement": "host",
     "reason": "example",

@@ -13,6 +13,10 @@ const SHAPES = {
   siteRules: (v) => Array.isArray(v) && v.length <= 2000 && v.every((r) => r && typeof r.host === "string" && typeof r.neverFill === "boolean" && typeof r.neverSave === "boolean" && Object.keys(r).length === 3),
   suggestOnPages: (v) => typeof v === "boolean",
   offerToSave: (v) => typeof v === "boolean",
+  // Per-site privacy (privacy.js): what Vyre may read on a host. Hosts and a word, never page content.
+  sitePrivacy: (v) => Array.isArray(v) && v.length <= 2000 && v.every((r) => r && typeof r.host === "string" && r.host.length <= 253 && ["attach", "ask", "never"].includes(r.mode) && typeof r.records === "boolean" && Object.keys(r).length === 3),
+  // The side panel's last picks per Space: which agent and model. Ids only.
+  panelPicks: (v) => Array.isArray(v) && v.length <= 50 && v.every((r) => r && typeof r.space === "string" && typeof r.agent === "string" && typeof r.model === "string" && Object.keys(r).length === 3),
 };
 
 export const KEYS = Object.freeze(Object.keys(SHAPES));

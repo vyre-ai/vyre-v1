@@ -117,3 +117,16 @@ test("on boot with the people list not readable, the exact old shape '<First> As
   assert.equal((await get(hn.person(LEO), { agentId: leo! })).agent.name, "Leo Reyes Helper");
   assert.equal(periodic["agents.assistant_names"].everyMs, 15 * 60_000, "it retries, so a list that was not ready at boot is not missed for a week");
 });
+
+test("the server finds a person's Assistant (the meeting close-out a transcript starts); the person finds their own; nobody else learns it", async () => {
+  const { handlers } = await import("../impl.ts");
+  const of = handlers["agents.assistant_of"] as unknown as (c: unknown, i: unknown) => Promise<{ agentId?: string }>;
+  const hn = harness();
+  const [id] = await run(hn.person(DANA), born(DANA, "Dana Reyes"));
+  assert.deepEqual(await of(hn.as({ kind: "service", id: "svc_host" }), { personId: DANA }), { agentId: id }, "the host, with nobody at a screen");
+  assert.deepEqual(await of(hn.person(DANA), { personId: DANA }), { agentId: id }, "the person themself");
+  assert.deepEqual(await of(hn.as({ kind: "agent", id: "agt_other1" }, DANA), { personId: DANA }), { agentId: id }, "an agent acting for the person");
+  assert.deepEqual(await of(hn.person(LEO), { personId: DANA }), {}, "another member learns nothing");
+  assert.deepEqual(await of(hn.as({ kind: "service", id: "svc_form_x" }), { personId: DANA }), {}, "nor a tenant service");
+  assert.deepEqual(await of(hn.as({ kind: "service", id: "svc_host" }), { personId: LEO }), {}, "a person with no Assistant has none");
+});

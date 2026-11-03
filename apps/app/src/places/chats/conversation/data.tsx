@@ -17,14 +17,20 @@ export interface ConversationNav {
   openThread(threadId: string, messageId?: string): void;
   /** Search every chat (the page of results). Left out where the shell has no such page. */
   openSearch?(query: string): void;
+  /** A reply's Details: the right pane opens on its Details tab. Left out where the shell has no right pane. */
+  openDetails?(threadId: string, messageId: string): void;
   /** Shows or hides the pane on the right (Computer, Threads, Files, Memory, Routines). */
   togglePane(): void;
   /** A card's file, record or diff opens beside the chat. A "computer" card or the Computer chip passes the agent's id. */
   openBeside(kind: string, id: string): void;
+  /** A goal's page (a goal card's Open). Left out where the shell has no such page. */
+  openGoal?(goalId: string): void;
   /** The channel menu's "Connect an outside agent": the sheet for this channel (P-L9b_23). Left out where the shell has no such sheet. */
   openConnectOutsideAgent?(channelId: string): void;
   /** "Connect your AI" on a reply that could not start: the sign-in and key page. Left out where the shell has none. */
   openAiSetup?(): void;
+  /** "set a Space AI key" on the composer's no-AI line, for an owner or admin: Console, AI. Left out where the shell has no Console. */
+  openSpaceAiKey?(): void;
   /** "Unlock" on a reply that stopped because the Vault is locked: asks for the password in place. True once the key is open. Left out where the shell has no Vault key to open. */
   unlockVault?(): Promise<boolean>;
 }
@@ -57,6 +63,8 @@ export interface ConversationData {
   
   /** A message to open on and mark (from a memory quote's link `vyre://thread/<id>?m=<messageId>`, a search result or a fork's link back): the page loads the messages around it. */
   focus?: string;
+  /** Counts each time the same message is asked for again, so it is marked again. */
+  focusN?: number;
   /** The signed-in person: messages from them are the right-hand bubbles. */
   me: { id: string; name: string };
   nameOf(id: string): string;

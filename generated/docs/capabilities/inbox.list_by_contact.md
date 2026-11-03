@@ -8,7 +8,7 @@ Inbox default view: one row per person, newest message across email, text and ca
 | Version | 1 (since 1.0.0) |
 | Effects | read |
 | Permission | grant only |
-| Grant level | view |
+| Grant level | member |
 | Risk | low |
 | Resource | space |
 | Gate | none |

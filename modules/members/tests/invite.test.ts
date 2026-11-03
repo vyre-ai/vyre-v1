@@ -21,8 +21,8 @@ async function invite(h: ReturnType<typeof harness>, extra: Record<string, unkno
   return { ...out, code: codeFrom(out.link) };
 }
 
-test("the module answers all 31 capabilities and the migration names its tables", () => {
-  assert.equal(Object.keys(handlers).length, 31);
+test("the module answers all 33 capabilities and the migration names its tables", () => {
+  assert.equal(Object.keys(handlers).length, 33);
   for (const [k, fn] of Object.entries(handlers)) assert.equal(typeof fn, "function", k);
   const sql = readFileSync(new URL("../migrations/0001_members.sql", import.meta.url), "utf8");
   for (const t of ["members_invites", "members_joins", "members_status", "members_policy"]) assert.match(sql, new RegExp(`CREATE TABLE IF NOT EXISTS "${t}"`));
@@ -90,7 +90,7 @@ test("golden 2: accepting makes the account, the role, Everyone and the invite's
   // the trace: identity makes the person, then the effects run
   assert.deepEqual(h.calls.map((c) => c.cap), [
     "invites.accept_create_account",
-    "access.roles.assign", "access.groups.add_member", "access.groups.add_member", "projects.members.set", "channels.members.add", "access.share",
+    "access.roles.assign", "access.groups.add_member", "channels.home_join", "access.groups.add_member", "projects.members.set", "channels.members.add", "access.join_share",
   ]);
   assert.deepEqual(h.events.map((e) => e.name), ["principal.created", "member.joined"], "identity emits these once; members.accept does not repeat them");
   const dana = h.world.principals.get("usr_dana")!;
@@ -98,14 +98,15 @@ test("golden 2: accepting makes the account, the role, Everyone and the invite's
   assert.deepEqual(dana.groups.sort(), ["grp_everyone", "grp_sales"]);
   assert.deepEqual(h.calls.find((c) => c.cap === "projects.members.set")!.input, { projectId: "prj_a", principal: "usr_dana", role: "member", idempotencyKey: "join:usr_dana:project:prj_a" });
   assert.deepEqual(h.calls.find((c) => c.cap === "channels.members.add")!.input, { channelId: "chn_a", personIds: ["usr_dana"] });
-  assert.deepEqual((h.calls.find((c) => c.cap === "access.share")!.input as { resource: unknown; level: string }).level, "use");
+  assert.deepEqual((h.calls.find((c) => c.cap === "access.join_share")!.input as { resource: unknown; level: string; inviter: string }).level, "use");
+  assert.equal((h.calls.find((c) => c.cap === "access.join_share")!.input as { inviter: string }).inviter, "usr_admin", "the agent is the inviter's act");
   const row = h.raw.rows("members_invites")[0]!;
   assert.equal(row["state"], "accepted");
   assert.equal(row["accepted_by"], "usr_dana");
   const join = h.raw.rows("members_joins")[0]!;
   assert.equal(join["state"], "applied");
   const steps = JSON.parse(String(join["steps"])) as { k: string; state: string }[];
-  assert.deepEqual(steps.map((s) => s.k), ["role:rol_admin", "group:grp_everyone", "group:grp_sales", "project:prj_a", "channel:chn_a", "agent:agt_a", "checklist"]);
+  assert.deepEqual(steps.map((s) => s.k), ["role:rol_admin", "group:grp_everyone", "home", "group:grp_sales", "project:prj_a", "channel:chn_a", "agent:agt_a", "company", "checklist"]);
   assert.ok(steps.every((s) => s.state === "done"));
   // the code works once
   await assert.rejects(handlers["members.accept"](h.anon, { code, ...JOIN, username: "dana2" }), (e) => codeOf(e) === "auth.invalid_code");

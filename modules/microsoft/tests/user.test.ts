@@ -267,3 +267,18 @@ test("the removal wizard ends a person's sign-ins with their mailbox connections
   assert.notEqual(mine.accountId, theirs.accountId);
   assert.equal(await dropAccountsOf(h.ctx, "usr_maya01"), 0);
 });
+
+test("a refresh token Microsoft rotates is kept sealed in place of the old one, and the next refresh sends it (vault audit, Broken 11: Outlook no longer drops after about 90 days)", async () => {
+  const h = harness();
+  await app(h);
+  const out = await signIn(h);
+  h.userState.rotate = true;
+  walk(h);
+  await pullMailbox(h.ctx, { connectionId: out.accountId, mailbox: MAYA });
+  // Graph refuses the kept access token: the module refreshes again, with the refresh token the first refresh handed back
+  h.on("GET", /deltatoken=/, { status: 401, body: "{}" });
+  h.ctx.principal = { kind: "service", id: "svc_host" } as never;
+  await pullMailbox(h.ctx, { connectionId: out.accountId, mailbox: MAYA }).catch(() => undefined);
+  assert.deepEqual(h.refreshes.map((r) => r.refreshToken).slice(0, 2), ["refresh-for-c1", "rotated-1"], "the second refresh used the token the first one handed back");
+  assert.ok(!JSON.stringify(h.rows(`SELECT * FROM microsoft_user_account`)).includes("rotated-1"), "kept sealed, never in the clear");
+});

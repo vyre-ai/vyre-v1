@@ -5,6 +5,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { findProgram, nodeCliLauncher, nodeCliReport } from "../node-cli.ts";
+import { layoutRoots, workFolder, workParts } from "../sandbox.ts";
 
 function bin(names: string[]): { dir: string; env: { PATH: string } } {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "vyre-cli-bin-"));
@@ -27,7 +28,12 @@ test("the report says exactly what is missing, one sentence each", () => {
   assert.equal(r.programs.codex, null);
   assert.deepEqual(r.missing, ["codex is not installed on this server", "bubblewrap (bwrap) is not installed on this server"]);
   assert.deepEqual(nodeCliReport({ platform: "darwin", env: bin(["claude", "codex"]).env }).missing, [], "a Mac sandboxes with Seatbelt");
-  assert.deepEqual(nodeCliReport({ platform: "win32", env: bin(["claude", "codex"]).env }).missing, ["engines cannot be sandboxed on win32"]);
+  // Windows: this computer's engines serve Team Space turns, which run in Vyre's WSL2 Linux (B): the Linux builds, offered only when WSL is on (it is not, on this test computer)
+  const win = nodeCliReport({ platform: "win32", env: bin(["claude.exe", "codex.exe"]).env });
+  assert.equal(win.sandbox.kind, "wsl");
+  assert.equal(win.sandbox.ok, false, "no WSL here: no Team engine, so Automatic runs the turn on the server");
+  assert.match(win.sandbox.reason ?? "", /WSL is not turned on/);
+  assert.deepEqual([win.programs.claude, win.programs.codex], [null, null], "a Windows claude.exe cannot run in the VM");
 });
 
 test("the launcher refuses a missing engine or sandbox with the reason, and starts a found engine only inside the sandbox", async () => {
@@ -66,4 +72,14 @@ test("a server whose image lacks an engine (Grok, or any on an older image) inst
   await assert.rejects(() => node.spawn({ argv: ["codex", "exec"], env: {} }), (e) => (e as { code?: string }).code === "engine.cli_missing" && /codex is not installed on this server\.$/.test((e as Error).message), "no build here: the plain reason");
   const failing = nodeCliLauncher(dataDir, { probe: { platform: "linux", env: none.env, bwrapPaths: [bwrap(none.dir)] }, spawn, installer: { root: path.join(dataDir, "other"), supported: () => true, ensure: async () => { throw Object.assign(new Error("x"), {}); } } });
   await assert.rejects(() => failing.spawn({ argv: ["claude", "-p"], env: {} }), (e) => /claude is not installed on this server \(failed\)\./.test((e as Error).message));
+});
+
+test("a turn the Space sends to this computer works in the folder the sandbox accepts: the launcher names it, by this machine's layout", () => {
+  const dir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "vyre-nodecli-wf-")));
+  const l = nodeCliLauncher(dir);
+  const f = l.workFolder("usr_olivia", "p_1");
+  assert.equal(f, workFolder(dir, "usr_olivia", "p_1"));
+  assert.ok(fs.statSync(f).isDirectory());
+  assert.deepEqual(workParts(dir, f), { person: "usr_olivia", threadId: "p_1", workRoot: fs.realpathSync(path.join(dir, layoutRoots().work)), personSeg: path.basename(path.dirname(f)) });
+  fs.rmSync(dir, { recursive: true, force: true });
 });

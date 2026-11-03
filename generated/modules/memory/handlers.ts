@@ -8,6 +8,8 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "memory.archive_sweep": Handler<"memory.archive_sweep", X>;
   "memory.backlinks": Handler<"memory.backlinks", X>;
   "memory.capture": Handler<"memory.capture", X>;
+  "memory.chat_learning.get": Handler<"memory.chat_learning.get", X>;
+  "memory.chat_learning.set": Handler<"memory.chat_learning.set", X>;
   "memory.counts": Handler<"memory.counts", X>;
   "memory.erase": Handler<"memory.erase", X>;
   "memory.export_markdown": Handler<"memory.export_markdown", X>;
@@ -31,6 +33,7 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "memory.layout.get": Handler<"memory.layout.get", X>;
   "memory.layout.save": Handler<"memory.layout.save", X>;
   "memory.learned": Handler<"memory.learned", X>;
+  "memory.learning.today": Handler<"memory.learning.today", X>;
   "memory.maintain": Handler<"memory.maintain", X>;
   "memory.map.get": Handler<"memory.map.get", X>;
   "memory.meaning.rank": Handler<"memory.meaning.rank", X>;
@@ -45,6 +48,11 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "memory.page.set_visibility": Handler<"memory.page.set_visibility", X>;
   "memory.page.versions": Handler<"memory.page.versions", X>;
   "memory.pointer": Handler<"memory.pointer", X>;
+  "memory.profile.add": Handler<"memory.profile.add", X>;
+  "memory.profile.context": Handler<"memory.profile.context", X>;
+  "memory.profile.get": Handler<"memory.profile.get", X>;
+  "memory.profile.move": Handler<"memory.profile.move", X>;
+  "memory.profile.suggest": Handler<"memory.profile.suggest", X>;
   "memory.promote": Handler<"memory.promote", X>;
   "memory.promotion.approve": Handler<"memory.promotion.approve", X>;
   "memory.promotion.reject": Handler<"memory.promotion.reject", X>;

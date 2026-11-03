@@ -78,7 +78,10 @@ export function createCodexDecoder(): CliDecoder {
           const out: CliEvent[] = [];
           const input = num(u?.["input_tokens"]);
           const output = num(u?.["output_tokens"]);
-          if (input > 0 || output > 0) out.push({ type: "usage", inputTokens: input, outputTokens: output });
+          // cached_input_tokens is the part of input_tokens read from the cache; reasoning_output_tokens is inside output_tokens. Codex reports no cache writes and no price.
+          const cached = u && typeof u["cached_input_tokens"] === "number" ? num(u["cached_input_tokens"]) : undefined;
+          const reasoning = u && typeof u["reasoning_output_tokens"] === "number" ? num(u["reasoning_output_tokens"]) : undefined;
+          if (input > 0 || output > 0) out.push({ type: "usage", inputTokens: input, outputTokens: output, ...(cached !== undefined ? { cacheReadTokens: cached } : {}), ...(reasoning !== undefined ? { reasoningTokens: reasoning } : {}) });
           out.push({ type: "end" });
           return out;
         }
@@ -117,33 +120,134 @@ export function codexSandbox(o: Pick<CommandOptions, "mode" | "planMode" | "work
   const mode = o.mode ?? (o.planMode ? "plan" : "auto");   // no mode: the older rule, writable inside a granted folder unless plan mode
   return o.workFolder !== null && mode === "auto" && o.noTools !== true ? "workspace-write" : "read-only";
 }
+/**
+ * The leanest Codex call (a memory learning pass): ephemeral, no user config, rules, AGENTS.md, environment, permission, app, collaboration or skill text, no shell, web search, agents, goals,
+ * images, apps, plugins or hooks, and `instructions` replacing Codex's own instructions. CHECKED against codex-cli 0.166 with a recording endpoint: about 1,550 characters (some 500 tokens) besides
+ * our instructions and message, of which 1,357 are the request_user_input tool no switch removes; without these flags about 37,000 (some 11,000 tokens). `base_instructions` is ignored by this
+ * version and `model_instructions_file` needs a real file, so the instructions go in through `instructions`.
+ */
+export function codexLean(o: Pick<CommandOptions, "model" | "system">): string[] {
+  const toml = (v: string): string => JSON.stringify(v);
+  const off = ["shell_tool", "unified_exec", "multi_agent", "goals", "view_image", "apps", "plugins", "skill_search", "image_generation", "hooks", "shell_snapshot"];
+  return [
+    "codex", "exec", "--json", "--skip-git-repo-check", "--ephemeral", "--ignore-user-config", "--ignore-rules",
+    "-c", `sandbox_mode=${toml("read-only")}`, "-c", `approval_policy=${toml("never")}`,
+    "-c", `instructions=${toml(o.system ?? "")}`,
+    "-c", "include_environment_context=false", "-c", "include_permissions_instructions=false", "-c", "include_apps_instructions=false", "-c", "include_collaboration_mode_instructions=false",
+    "-c", "project_doc_max_bytes=0", "-c", `web_search=${toml("disabled")}`, "-c", "skills.include_instructions=false", "-c", "skills.bundled.enabled=false",
+    "-c", `model_reasoning_effort=${toml("low")}`,
+    ...off.flatMap((f) => ["--disable", f]),
+    ...(o.model !== null ? ["-m", o.model] : []),
+    "-",
+  ];
+}
+
 /** `model_reasoning_effort` is the config key Codex itself writes (low, medium, high are the values its config files show); max is high, as xhigh is not proven on every account. */
 export const codexEffort = (e: Effort | null | undefined): string | null => (e === undefined || e === null ? null : e === "max" ? "high" : e);
+
+const SECRET_REF = /^\$\{([A-Za-z_][A-Za-z0-9_]*)\}$/;
+const ENV_NAME = /^[A-Za-z_][A-Za-z0-9_]*$/;
+
+/**
+ * The launcher's helpers, plain JavaScript (they run inside `node -e`, and a test loads them with new Function). On Windows a program is found as cmd.exe finds it (the folder list in PATH, each
+ * extension in PATHEXT), and a batch file (npx.cmd, uvx.cmd) runs through cmd.exe with every argument quoted and its special characters escaped the way cross-spawn does it, since Node refuses to
+ * start a .cmd without a shell. `exists(file)` and the platform's path module are passed in.
+ */
+export const SERVER_SHIM_HELPERS = String.raw`
+function envGet(env, name) { const k = Object.keys(env).find((x) => x.toUpperCase() === name); return k === undefined ? undefined : env[k]; }
+function winResolve(cmd, env, exists, wpath) {
+  const exts = (envGet(env, "PATHEXT") || ".COM;.EXE;.BAT;.CMD").split(";").filter(Boolean);
+  const dirs = /[\\/:]/.test(cmd) ? [""] : (envGet(env, "PATH") || "").split(";").filter(Boolean);
+  for (const d of dirs) {
+    const base = d === "" ? cmd : wpath.join(d, cmd);
+    if (wpath.extname(base) !== "" && exists(base)) return base;
+    for (const e of exts) if (exists(base + e.toLowerCase())) return base + e.toLowerCase();
+  }
+  return cmd;
+}
+const META = /([()\][%!^"\x60<>&|;, *?])/g;
+function winLine(file, args, comspec) {
+  if (!/\.(cmd|bat)$/i.test(file)) return { command: file, args: args, verbatim: false };
+  const shim = /node_modules[\\/]\.bin[\\/][^\\/]+\.cmd$/i.test(file);
+  const arg = (a) => {
+    let s = String(a).replace(/(?=(\\+?)?)\1"/g, "$1$1\\\"").replace(/(?=(\\+?)?)\1$/, "$1$1");
+    s = ("\"" + s + "\"").replace(META, "^$1");
+    return shim ? s.replace(META, "^$1") : s;
+  };
+  const line = [file.replace(/\//g, "\\").replace(META, "^$1"), ...args.map(arg)].join(" ");
+  return { command: comspec || "cmd.exe", args: ["/d", "/s", "/c", "\"" + line + "\""], verbatim: true };
+}
+`;
+
+/** The launcher itself: moves each secret to the name the server reads, drops Vyre's name, starts the server with the same stdio and passes its exit on. argv: moves (JSON), command, args. */
+export const SERVER_SHIM = `${SERVER_SHIM_HELPERS}
+const cp = require("node:child_process"), fs = require("node:fs"), path = require("node:path");
+const [moves, cmd, ...args] = process.argv.slice(1);
+const env = { ...process.env };
+for (const [to, from] of JSON.parse(moves)) { const v = env[from]; delete env[from]; if (v !== undefined) env[to] = v; }
+let run = { command: cmd, args, verbatim: false };
+if (process.platform === "win32") run = winLine(winResolve(cmd, env, (f) => { try { return fs.statSync(f).isFile(); } catch { return false; } }, path.win32), args, envGet(env, "COMSPEC"));
+const child = cp.spawn(run.command, run.args, { stdio: "inherit", env, windowsHide: true, windowsVerbatimArguments: run.verbatim });
+child.on("error", (e) => { process.stderr.write(cmd + ": " + e.message + "\\n"); process.exit(127); });
+child.on("exit", (code, sig) => { if (sig) process.kill(process.pid, sig); else process.exit(code ?? 0); });
+for (const s of ["SIGINT", "SIGTERM", "SIGHUP"]) process.on(s, () => child.kill(s));
+`;
+
+/**
+ * A plugin's stdio server as Codex starts it. Codex gives a server only a short default environment, the plain values of its `env` table and the variables named in `env_vars`, by the same name, from
+ * Codex's own environment (it never expands "${NAME}" inside a value). A secret is filled into Codex's environment under Vyre's own name (VYRE_PLUGIN_<n>, never the server's name: a plugin naming
+ * OPENAI_API_KEY must not replace Codex's own key), so the server starts through a small Node launcher (SERVER_SHIM, run by `node`: the Node that runs Vyre, which every sandbox can read) that moves
+ * the value to the name the server reads and drops Vyre's. Node rather than /bin/sh: there is no /bin/sh on Windows. Null when a name cannot be passed safely.
+ * CHECKED against codex-cli 0.166 on a real run (see the overrides below).
+ */
+export function codexServer(m: { command: string; args: readonly string[]; env: Readonly<Record<string, string>> }, node: string = process.execPath): { command: string; args: string[]; env: Record<string, string>; envVars: string[] } | null {
+  const env: Record<string, string> = {};
+  const moves: Array<[string, string]> = [];
+  for (const [k, v] of Object.entries(m.env)) {
+    if (!ENV_NAME.test(k)) return null;
+    const ref = SECRET_REF.exec(v);
+    if (ref) moves.push([k, ref[1]!]); else env[k] = v;
+  }
+  if (moves.length === 0) return { command: m.command, args: [...m.args], env, envVars: [] };
+  return { command: node, args: ["-e", SERVER_SHIM, JSON.stringify(moves), m.command, ...m.args], env, envVars: moves.map(([, from]) => from) };
+}
 
 export const codex: CliAdapter = {
   id: "codex",
   bin: "codex",
   persistent: false,
-  models: [{ id: "gpt-5-codex", label: "GPT-5 Codex" }, { id: "gpt-5", label: "GPT-5" }],
+  // the default the pinned CLI names; the account's own list comes from the CLI itself (models.ts, `codex app-server` model/list)
+  models: [{ id: "gpt-6.1-sol", label: "GPT-6.1-Sol" }],
   systemFlag: false,
   env: () => ({}),
   command(o: CommandOptions) {
+    if (o.lean === true) return codexLean(o);
     const toml = (v: string): string => JSON.stringify(v);
     return [
       "codex", "exec", "--json", "--skip-git-repo-check",
       // Codex's own sandbox stays on inside ours: read-only unless a work folder was granted and the chat is not in plan mode.
       "-c", `sandbox_mode=${toml(codexSandbox(o))}`,
+      // Codex's workspace-write sandbox cuts its commands off the network unless told otherwise; Vyre's wall around it applies the Space's internet setting, so the commands may use the network
+      // the wall allows (npm install, git clone, curl). The key is from Codex's config reference ([sandbox_workspace_write] network_access); not yet seen on a live run.
+      "-c", "sandbox_workspace_write.network_access=true",
       ...(o.mode !== undefined ? ["-c", `approval_policy=${toml("never")}`] : []),
       ...(codexEffort(o.effort) !== null ? ["-c", `model_reasoning_effort=${toml(codexEffort(o.effort)!)}`] : []),
-      // ASSUMED until the live recording: Codex's stdio server block takes command, args and env_vars (names of variables to pass on), as its HTTP block takes bearer_token_env_var.
+      // Codex's stdio server block takes command, args, env (plain values) and env_vars (names of variables passed on from Codex's environment). CHECKED against codex-cli 0.166 (a real run on a build box,
+      // 3 Nov 2026): a plugin server started from these overrides saw its secret under its own name and its plain value, and neither Vyre's name for the secret nor Codex's own key. The HTTP form
+      // (url, bearer_token_env_var) is still unproven.
       ...(o.noTools === true ? [] : o.mcpStdio
         ? ["-c", `mcp_servers.vyre.command=${toml(o.mcpStdio.command)}`, "-c", `mcp_servers.vyre.args=[${o.mcpStdio.args.map(toml).join(", ")}]`, "-c", `mcp_servers.vyre.env_vars=[${toml(TOKEN_ENV)}]`]
         : ["-c", `mcp_servers.vyre.url=${toml(o.mcpUrl)}`, "-c", `mcp_servers.vyre.bearer_token_env_var=${toml(TOKEN_ENV)}`]),
-      // installed plugin MCP servers (same unproven -c form as vyre's); a secret is passed by variable name, the host fills it from the Vault
-      ...Object.entries(o.plugins?.mcpServers ?? {}).flatMap(([n, m]) => [
-        "-c", `mcp_servers.plugin_${n}.command=${toml(m.command)}`, "-c", `mcp_servers.plugin_${n}.args=[${m.args.map(toml).join(", ")}]`,
-        ...(Object.keys(m.env).length ? ["-c", `mcp_servers.plugin_${n}.env_vars=[${Object.keys(m.env).map(toml).join(", ")}]`] : []),
-      ]),
+      // installed plugin MCP servers: a plain value is set in the server's env, a secret reaches it through codexServer below; the host fills the secret from the Vault into Codex's environment
+      ...Object.entries(o.plugins?.mcpServers ?? {}).flatMap(([n, m0]) => {
+        const m = codexServer(m0);
+        if (!m) return [];
+        return [
+          "-c", `mcp_servers.plugin_${n}.command=${toml(m.command)}`, "-c", `mcp_servers.plugin_${n}.args=[${m.args.map(toml).join(", ")}]`,
+          ...Object.entries(m.env).flatMap(([k, v]) => ["-c", `mcp_servers.plugin_${n}.env.${k}=${toml(v)}`]),
+          ...(m.envVars.length ? ["-c", `mcp_servers.plugin_${n}.env_vars=[${m.envVars.map(toml).join(", ")}]`] : []),
+        ];
+      }),
       ...(o.model !== null ? ["-m", o.model] : []),
       ...(o.resume !== null ? ["resume", o.resume] : []),
       // The prompt comes on stdin.

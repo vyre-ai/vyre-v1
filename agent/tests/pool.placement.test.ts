@@ -1,4 +1,4 @@
-// Where a turn runs (ARCH 6.3, spec b8): private chats on the asker's own computer, group chats and everything the Space does on its own on the server.
+// Where a turn runs (ARCH 6.3, spec b8, owner order of 3 Nov): private chats on the asker's own computers or servers, else the Space's server; group chats and everything the Space does on its own on the server.
 import test from "node:test";
 import assert from "node:assert/strict";
 import { DEVICE_OFF_LINE, LOCAL_RUNS_OFF_LINE, isPrivate, placeTurn } from "../src/placement/index.ts";
@@ -15,12 +15,14 @@ function input(over: Over = {}): PlaceInput {
     item: over.item ?? { kind: "message" },
     agent: over.agent ?? { hasComputer: false },
     engine: over.engine ?? "claude_code",
-    asker: { devices: [laptop, phone], localRuns: true, runtimeOptIn: false, ...over.asker },
+    asker: { devices: [laptop, phone], localRuns: true, runtimeOptIn: true, ...over.asker },
+    ...(over.space ? { space: over.space } : {}),
   };
 }
 
 test("a private chat runs on the asker's own computer", () => {
-  assert.deepEqual(placeTurn(input()), { placement: "device", reason: "device", deviceId: "dev_laptop" });
+  assert.deepEqual(placeTurn(input()), { placement: "device", reason: "other_device", deviceId: "dev_laptop" }, "the person is not on it, but it is theirs and awake");
+  assert.deepEqual(placeTurn(input({ asker: { current: "dev_laptop" } })), { placement: "device", reason: "device", deviceId: "dev_laptop" });
   assert.deepEqual(placeTurn(input({ thread: { kind: "helper" } })).placement, "device", "a helper chat is the parent's private chat");
   assert.deepEqual(placeTurn(input({ thread: { kind: "ask" } })).placement, "device", "an Ask pane on something only they can see is a private chat");
   assert.deepEqual(placeTurn(input({ item: { kind: "wake", origin: "message" } })).placement, "device", "a private chat's wake follows the same rule");
@@ -31,6 +33,7 @@ test("the most recently seen eligible device wins, and a device that cannot run 
   const b: PlaceDevice = { id: "dev_b", role: "daemon", online: true, engines: ["codex", "claude_code"], lastSeen: 300 };
   const c: PlaceDevice = { id: "dev_c", role: "daemon", online: true, engines: ["claude_code"], lastSeen: 300 };
   assert.equal(placeTurn(input({ asker: { devices: [a, b, c] } })).deviceId, "dev_b", "a is newest but does not run claude_code; b and c tie, the lower id wins");
+  assert.equal(placeTurn(input({ asker: { devices: [a, b, c], current: "dev_c" } })).deviceId, "dev_c", "the one in use wins the tie and the age");
   assert.equal(placeTurn(input({ engine: "codex", asker: { devices: [a, b, c] } })).deviceId, "dev_a");
 });
 
@@ -53,27 +56,46 @@ test("an agent with a computer runs on the server", () => {
   assert.deepEqual(placeTurn(input({ agent: { hasComputer: true } })), { placement: "host", reason: "agent_computer" });
 });
 
-test("a phone or web asker has no daemon: the chat runs on the server", () => {
-  assert.deepEqual(placeTurn(input({ asker: { devices: [phone], runtimeOptIn: true } })), { placement: "host", reason: "no_daemon" });
-  assert.deepEqual(placeTurn(input({ asker: { devices: [], runtimeOptIn: false } })), { placement: "host", reason: "no_daemon", needsRuntimeOptIn: true }, "the server needs the key the person's device wraps for it");
+test("a phone or web asker has no computer joined: the chat runs on the Space's server, which is allowed by default", () => {
+  assert.deepEqual(placeTurn(input({ asker: { devices: [phone] } })), { placement: "host", reason: "space" });
+  assert.deepEqual(placeTurn(input({ asker: { devices: [] } })), { placement: "host", reason: "space" });
 });
 
-test("with the computer off a private chat continues on the server only for someone who opted in; otherwise it waits", () => {
+test("Automatic follows one order: the computer in use, another awake computer of theirs, a server of their own, the Space's server", () => {
+  const desk: PlaceDevice = { id: "dev_desk", role: "daemon", online: true, engines: ["claude_code"], lastSeen: 900 };
   const off: PlaceDevice = { ...laptop, online: false };
-  assert.deepEqual(placeTurn(input({ asker: { devices: [off, phone], runtimeOptIn: true } })), { placement: "host", reason: "device_off_runtime_opt_in" });
-  assert.deepEqual(placeTurn(input({ asker: { devices: [off, phone], runtimeOptIn: false } })), { placement: "wait", reason: "device_off", wakeLine: DEVICE_OFF_LINE });
+  const home = { serverId: "srv_home", name: "home-box", online: true };
+  // 1. the one in use wins over a more recently seen one
+  assert.deepEqual(placeTurn(input({ asker: { devices: [laptop, desk], current: "dev_laptop" } })), { placement: "device", reason: "device", deviceId: "dev_laptop" });
+  // 2. the one in use is off (or is a phone): another awake computer of theirs
+  assert.deepEqual(placeTurn(input({ asker: { devices: [off, desk, phone], current: "dev_laptop" } })), { placement: "device", reason: "other_device", deviceId: "dev_desk" });
+  assert.deepEqual(placeTurn(input({ asker: { devices: [desk, phone], current: "dev_phone" } })), { placement: "device", reason: "other_device", deviceId: "dev_desk" });
+  // 3. no computer awake: their own server
+  assert.deepEqual(placeTurn(input({ asker: { devices: [off], servers: [home] } })), { placement: "host", reason: "own_server", nodeId: "srv_home" });
+  assert.deepEqual(placeTurn(input({ asker: { devices: [off], servers: [{ ...home, online: false }] } })), { placement: "host", reason: "space" }, "a server that is off is passed over");
+  // 4. nothing of theirs: the Space's server, when the Space allows it
+  assert.deepEqual(placeTurn(input({ asker: { devices: [off] } })), { placement: "host", reason: "space" });
+  assert.deepEqual(placeTurn(input({ asker: { devices: [off] }, space: { shared: false } })), { placement: "wait", reason: "device_off", wakeLine: DEVICE_OFF_LINE }, "a Space that keeps its server for itself makes the turn wait");
+  assert.deepEqual(placeTurn(input({ asker: { devices: [off], runtimeOptIn: false } })), { placement: "wait", reason: "device_off", wakeLine: DEVICE_OFF_LINE }, "so does a person who turned off letting the Space continue their chats");
   assert.equal(DEVICE_OFF_LINE, "Your computer is off");
 });
 
-test("a computer that does not allow the engine counts as off", () => {
-  const other: PlaceDevice = { ...laptop, engines: ["codex"] };
-  assert.equal(placeTurn(input({ asker: { devices: [other], runtimeOptIn: false } })).placement, "wait");
-  assert.equal(placeTurn(input({ asker: { devices: [other], runtimeOptIn: true } })).placement, "host");
+test("a Personal Space has no step 4: its host is the person's own computer", () => {
+  const off: PlaceDevice = { ...laptop, online: false };
+  const personal = { shared: false, hostIsAsker: true };
+  assert.deepEqual(placeTurn(input({ asker: { devices: [off] }, space: personal })), { placement: "host", reason: "own_host" });
+  assert.deepEqual(placeTurn(input({ asker: { devices: [laptop], current: "dev_laptop" }, space: personal })), { placement: "device", reason: "device", deviceId: "dev_laptop" });
 });
 
-test("'run my private chats on this computer' off sends the chat to the server or makes it wait, with its own line", () => {
-  assert.deepEqual(placeTurn(input({ asker: { localRuns: false, runtimeOptIn: false } })), { placement: "wait", reason: "local_runs_off", wakeLine: LOCAL_RUNS_OFF_LINE });
-  assert.deepEqual(placeTurn(input({ asker: { localRuns: false, runtimeOptIn: true } })), { placement: "host", reason: "device_off_runtime_opt_in" });
+test("a computer that does not run the engine is passed over", () => {
+  const other: PlaceDevice = { ...laptop, engines: ["codex"] };
+  assert.equal(placeTurn(input({ asker: { devices: [other] } })).reason, "space");
+  assert.equal(placeTurn(input({ asker: { devices: [other] }, space: { shared: false } })).placement, "wait");
+});
+
+test("'run my private chats on my computers' off skips them, with its own line when nothing else may run it", () => {
+  assert.deepEqual(placeTurn(input({ asker: { localRuns: false } })), { placement: "host", reason: "space" });
+  assert.deepEqual(placeTurn(input({ asker: { localRuns: false }, space: { shared: false } })), { placement: "wait", reason: "device_off", wakeLine: LOCAL_RUNS_OFF_LINE });
 });
 
 test("what makes a thread private", () => {
@@ -87,12 +109,12 @@ test("what makes a thread private", () => {
 });
 
 test("the answer has the shape of engine.placement.decide", () => {
-  const all = [input(), input({ thread: { persons: 2 } }), input({ asker: { devices: [], runtimeOptIn: false } }), input({ asker: { devices: [{ ...laptop, online: false }], runtimeOptIn: false } })].map(placeTurn);
+  const all = [input(), input({ thread: { persons: 2 } }), input({ asker: { devices: [] } }), input({ asker: { devices: [{ ...laptop, online: false }] }, space: { shared: false } })].map(placeTurn);
   for (const p of all) {
     assert.ok(["host", "device", "wait"].includes(p.placement));
     assert.equal(typeof p.reason, "string");
     assert.equal(p.wakeLine !== undefined, p.placement === "wait", "only a waiting turn has a line");
-    assert.equal(p.deviceId !== undefined, p.placement === "device", "only a device placement names a device");
+    assert.equal(p.deviceId !== undefined, p.placement === "device", "only a device placement names a device (here: no pinned computer)");
   }
 });
 
@@ -104,11 +126,13 @@ test("a chat pinned to the Space runs on the Space; pinned to one of their serve
   assert.equal(placeTurn(input({ asker: { chosen: { target: "server", serverId: "srv_x", online: false } } })).wakeLine, "Your server is off");
 });
 
-test("a chat pinned to this computer waits for it, even when the Space may continue chats; the pin wins over an agent's own computer but never over what the Space runs by itself or a shared chat", () => {
+test("a chat pinned to a computer runs there and waits for it when it is off, even when the Space may run it; the pin wins over an agent's own computer but never over what the Space runs by itself or a shared chat", () => {
   const off = { ...laptop, online: false };
-  const pinned = { chosen: { target: "device" as const }, devices: [off], runtimeOptIn: true };
-  assert.deepEqual(placeTurn(input({ asker: pinned })), { placement: "wait", reason: "device_off", wakeLine: DEVICE_OFF_LINE });
-  assert.equal(placeTurn(input({ asker: { runtimeOptIn: true, devices: [off] } })).placement, "host", "unpinned, the general setting moves it as before");
+  const desk: PlaceDevice = { id: "dev_desk", role: "daemon", online: true, engines: ["claude_code"], lastSeen: 900 };
+  assert.deepEqual(placeTurn(input({ asker: { chosen: { target: "device", deviceId: "dev_laptop" }, devices: [off, desk] } })), { placement: "wait", reason: "device_off", deviceId: "dev_laptop", wakeLine: DEVICE_OFF_LINE }, "never moved to the other computer or the Space");
+  assert.deepEqual(placeTurn(input({ asker: { chosen: { target: "device", deviceId: "dev_laptop" }, devices: [laptop, desk] } })), { placement: "device", reason: "chosen_device", deviceId: "dev_laptop" });
+  assert.deepEqual(placeTurn(input({ asker: { chosen: { target: "device" }, devices: [off] } })), { placement: "wait", reason: "device_off", wakeLine: DEVICE_OFF_LINE });
+  assert.equal(placeTurn(input({ asker: { devices: [off] } })).placement, "host", "unpinned, Automatic moves it to the Space");
   assert.equal(placeTurn(input({ agent: { hasComputer: true }, asker: { chosen: { target: "device" } } })).placement, "device");
   assert.equal(placeTurn(input({ agent: { hasComputer: true } })).reason, "agent_computer");
   assert.equal(placeTurn(input({ item: { kind: "message", origin: "routine" }, asker: { chosen: { target: "device" } } })).reason, "routine");
@@ -117,7 +141,7 @@ test("a chat pinned to this computer waits for it, even when the Space may conti
 
 test("a crew teammate's thread runs on the host, whatever device is online and wherever the chat was pinned", () => {
   const device = { id: "dev_a", role: "daemon" as const, online: true, engines: ["claude_code"], lastSeen: 1 };
-  const base = input({ asker: { devices: [device], runtimeOptIn: false, chosen: { target: "device" } } });
+  const base = input({ asker: { devices: [device], chosen: { target: "device" } } });
   assert.equal(placeTurn(base).placement, "device", "an ordinary private chat runs on the device");
   assert.deepEqual(placeTurn({ ...base, thread: { ...base.thread, crew: true } }), { placement: "host", reason: "crew" });
 });

@@ -31,6 +31,15 @@ export function openInLabel(file: { source: string | null; name: string; kind: s
 
 export const openInWords = (label: string): string => `Open in ${label}`;
 
+/** The Office app a file opens in, from its name ("Word" for a .doc or .docx), or null for a file that is not Word, Excel or PowerPoint. */
+export const officeAppOf = (name: string): string | null => OFFICE[extOf(name)] ?? null;
+
+/** The viewer's line for an Office file it cannot show: the same "Open in Word" words as the button on a file from SharePoint or OneDrive. */
+export const noPreviewWords = (name: string): string | undefined => {
+  const app = officeAppOf(name);
+  return app === null ? undefined : `No preview of this file here. ${openInWords(app)} to see it.`;
+};
+
 /** The provider's address for a mounted file, or null when there is none for this person (or the file is not from a provider). */
 export async function fileLink(call: Call, fileId: string): Promise<FileLink | null> {
   try {

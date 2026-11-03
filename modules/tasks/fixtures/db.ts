@@ -16,6 +16,7 @@ const { DatabaseSync } = process.getBuiltinModule("node:sqlite");
 const schema = readFileSync(new URL("../../../generated/modules/tasks/schema.sql", import.meta.url), "utf8");
 const migration = readFileSync(new URL("../migrations/0001_tasks_state.sql", import.meta.url), "utf8");
 const tickets = readFileSync(new URL("../migrations/0002_ticket_fields.sql", import.meta.url), "utf8");
+const clockSql = readFileSync(new URL("../migrations/0003_clock.sql", import.meta.url), "utf8");
 export const TRACE = "0123456789abcdef0123456789abcdef";
 
 export interface Ev { name: string; subject: string; payload: Record<string, unknown>; opts?: Record<string, unknown> | undefined; id: string }
@@ -24,7 +25,7 @@ type Authorize = (who: { id: string }, action: { perm: string | null; level: str
 type Callee = (input: any, who: { id: string }) => unknown;   // eslint-disable-line @typescript-eslint/no-explicit-any
 
 /** The calls that only keep a task's thread (the work baton): they are logged apart in `threadCalls`, so a test about a release or a resume counts only the calls it is about. */
-const THREAD_CAPS: ReadonlySet<string> = new Set(["chat.start", "chat.post", "threads.members.add", "threads.add_agent"]);
+const THREAD_CAPS: ReadonlySet<string> = new Set(["chat.start", "chat.post", "threads.members.add", "threads.add_agent", "threads.members.remove", "threads.remove_agent"]);
 
 export interface HarnessOptions {
   now?: number;
@@ -41,6 +42,7 @@ export function harness(o: HarnessOptions = {}) {
   sqlite.exec(schema);
   sqlite.exec(migration);
   sqlite.exec(tickets);
+  sqlite.exec(clockSql);
   const raw: Db = {
     all: (sql, ...args) => sqlite.prepare(sql).all(...(args.map(norm) as never[])),
     run: (sql, ...args) => ({ changes: Number(sqlite.prepare(sql).run(...(args.map(norm) as never[])).changes) }),

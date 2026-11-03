@@ -38,22 +38,32 @@ function nwEvents(): EventRow[] {
   for (let d = -18; d <= 17; d++) {
     const wd = new Date(DAY0 + d * DAY).getUTCDay();
     if (wd === 0 || wd === 6) continue;
-    out.push(ev(`standup_${d}`, "cal_work", "Team standup", at(d, 9, 30), at(d, 10, 0), { attendees: att(ME, "maya@northwind.example", "omar@northwind.example", "lena@northwind.example") }));
+    out.push(ev(`standup_${d}`, "cal_work", "Team standup", at(d, 9, 30), at(d, 10, 0), { seriesId: "standup", organizer: "maya@northwind.example", attendees: att(ME, "maya@northwind.example", "omar@northwind.example", "lena@northwind.example") }));
   }
   out.push(
     ev("e_lease_review", "cal_work", "Lease review with Marcus", at(-4, 14), at(-4, 15), { attendees: att(ME, "omar@northwind.example") }),
-    ev("e_intake", "cal_work", "Intake call: Elena Rivera", at(-3, 10), at(-3, 11), { joinProvider: "zoom", joinUrl: "https://zoom.example/j/4415", recordIds: ["rec_elena"], attendees: [...att(ME), { email: OUTSIDE.email, name: OUTSIDE.name, contactId: "ct_elena", response: "accepted" }] }),
+    ev("e_intake", "cal_work", "Intake call: Elena Rivera", at(-3, 10), at(-3, 11), {
+      meetingId: "rec_m_intake", organizer: ME, description: "Booked from the Consult page. Intake form: https://forms.northwind.example/intake/elena", joinProvider: "zoom", joinUrl: "https://zoom.example/j/4415", recordIds: ["rec_elena"], attendees: [...att(ME), { email: OUTSIDE.email, name: OUTSIDE.name, contactId: "ct_elena", response: "accepted" }] }),
     ev("e_dentist", "cal_pers", "Dentist", at(-3, 13), at(-3, 13, 30)),
     ev("e_spring", "cal_ms", "Spring check-in review", at(-2, 11), at(-2, 12, 30), { attendees: att(ME, "lena@northwind.example") }),
     ev("e_ooo", "cal_work", "Lena out of office", at(-1, 0), at(0, 0), { allDay: true }),
     ev("e_renewal", "cal_work", "Renewal quote with Whitfield", at(-1, 15), at(-1, 16), { recordIds: ["rec_whitfield"], attendees: att(ME) }),
     ev("e_lease_call", "cal_work", "Lease call with Elena", at(0, 11), at(0, 11, 45), {
-      joinProvider: "zoom", joinUrl: "https://zoom.example/j/9902", recordIds: ["rec_elena", "rec_lease"], bookedByAgentId: "agt_intake", fromBookingPage: "Book a lease call",
+      joinProvider: "zoom", joinUrl: "https://us02web.zoom.us/j/84512345678?pwd=Q2x", recordIds: ["rec_elena", "rec_lease"], bookedByAgentId: "agt_intake", fromBookingPage: "Book a lease call", organizer: "maya@northwind.example",
+      conference: { provider: "zoom", url: "https://us02web.zoom.us/j/84512345678?pwd=Q2x", meetingId: "84512345678", passcode: "551203", dialIns: [{ number: "+1 669 444 9171", pin: "84512345678#", label: "US" }, { number: "+1 646 931 3860", pin: "84512345678#", label: "US" }] },
+      description: "Draft 3 of the lease, clause by clause. The draft: https://files.northwind.example/elena/lease-draft-3.pdf",
       attendees: [...att(ME), { email: OUTSIDE.email, name: OUTSIDE.name, contactId: "ct_elena", response: "needs_action" }],
     }),
-    ev("e_planning", "cal_work", "Quarterly planning", at(0, 14), at(0, 15), { attendees: att(ME, "maya@northwind.example") }),
-    ev("e_invoices", "cal_ms", "Invoice review", at(0, 14, 30), at(0, 15, 30), { attendees: att(ME, "omar@northwind.example") }),
-    ev("e_dinner", "cal_pers", "Dinner with Grace", at(0, 19), at(0, 20, 30)),
+    ev("e_planning", "cal_work", "Quarterly planning", at(0, 14), at(0, 15), {
+      organizer: ME, attendees: att(ME, "maya@northwind.example"), location: "Room 4, Northwind office, 410 Valencia St, San Francisco", joinProvider: "meet", joinUrl: "https://meet.google.com/abc-defg-hij",
+      conference: { provider: "meet", url: "https://meet.google.com/abc-defg-hij", meetingId: "abc-defg-hij", dialIns: [{ number: "+1 415-555-0161", pin: "264326521#", label: "US" }] },
+    }),
+    ev("e_invoices", "cal_ms", "Invoice review", at(0, 14, 30), at(0, 15, 30), {
+      attendees: att(ME, "omar@northwind.example"), organizer: "omar@northwind.example", joinProvider: "teams", joinUrl: "https://teams.microsoft.com/l/meetup-join/19%3ameeting_NjA4%40thread.v2/0",
+      conference: { provider: "teams", url: "https://teams.microsoft.com/l/meetup-join/19%3ameeting_NjA4%40thread.v2/0", meetingId: "482991733", dialIns: [{ number: "+1 323-555-0144", pin: "482991733#" }] },
+    }),
+    ev("e_vendor", "cal_work", "Supplier call: Harbor Freight", at(1, 11), at(1, 11, 30), { attendees: att(ME), organizer: "maya@northwind.example", location: "+1 415 555 0132", description: "Dial in and enter PIN 4471 when asked." }),
+    ev("e_dinner", "cal_pers", "Dinner with Grace", at(0, 19), at(0, 20, 30), { location: "Tartine Manufactory, 595 Alabama St, San Francisco" }),
     ev("e_sat", "cal_pers", "Farmers market", at(1, 9), at(1, 10)),
     ev("e_mon1", "cal_work", "Client intake: Priya Nair", at(3, 10, 30), at(3, 11, 30), { joinProvider: "meet", joinUrl: "https://meet.example/abc-defg", attendees: att(ME) }),
   );
@@ -127,17 +137,26 @@ export function createCalendarSample(space: SampleSpace = northwind, o: { online
 
   let n = 0;
   const w: Record<string, (i: never) => unknown> = {
-    "calendar.create_event": (i: { calendarId: string; title: string; startsAt: number; endsAt: number; attendees?: EventRow["attendees"]; joinProvider?: EventRow["joinProvider"] }) => {
-      const e = ev(`evt_new_${++n}`, i.calendarId, i.title, i.startsAt, i.endsAt, { attendees: i.attendees ?? [], joinProvider: i.joinProvider ?? "none", ...(i.joinProvider && i.joinProvider !== "none" ? { joinUrl: `https://zoom.example/j/${1000 + n}` } : {}) });
+    "calendar.create_event": (i: { calendarId: string; title: string; startsAt: number; endsAt: number; attendees?: EventRow["attendees"]; joinProvider?: EventRow["joinProvider"]; video?: "meet" | "zoom" | "teams" }) => {
+      // the server makes the call through the connection; here it answers with a link of that kind
+      const link = i.video === "meet" ? "https://meet.google.com/new-ewnt-abc" : i.video === "teams" ? "https://teams.microsoft.com/l/meetup-join/new" : i.video === "zoom" ? `https://us02web.zoom.us/j/8${1000 + n}` : undefined;
+      const e = ev(`evt_new_${++n}`, i.calendarId, i.title, i.startsAt, i.endsAt, { attendees: i.attendees ?? [], joinProvider: i.video ?? i.joinProvider ?? "none", ...(link ? { joinUrl: link, conference: { provider: i.video!, url: link, dialIns: [] } } : {}) });
       replica.put("events", [e as unknown as Row]);
       return { event: e };
     },
-    "calendar.update_event": (i: { eventId: string; startsAt?: number; endsAt?: number; title?: string; calendarId?: string }) => {
+    "calendar.update_event": (i: { eventId: string; startsAt?: number; endsAt?: number; title?: string; attendees?: EventRow["attendees"]; scope?: "this" | "all" }) => {
       const cur = rows().find((e) => e.id === i.eventId);
       if (!cur) throw new Error(`no such event ${i.eventId}`);
-      const next = { ...cur, ...(i.startsAt !== undefined ? { startsAt: i.startsAt } : {}), ...(i.endsAt !== undefined ? { endsAt: i.endsAt } : {}), ...(i.title !== undefined ? { title: i.title } : {}), ...(i.calendarId !== undefined ? { calendarId: i.calendarId } : {}) };
-      replica.put("events", [next as unknown as Row]);
-      return { event: next };
+      // All events of a series: every instance not yet ended takes the title and moves by the same amount (the server does the same, modules/calendar updateSeries)
+      const shift = i.startsAt !== undefined ? i.startsAt - cur.startsAt : 0;
+      const len = i.startsAt !== undefined && i.endsAt !== undefined ? i.endsAt - i.startsAt : cur.endsAt - cur.startsAt;
+      const series = i.scope === "all" && cur.seriesId ? rows().filter((e) => e.seriesId === cur.seriesId && (e.id === cur.id || e.endsAt > SAMPLE_NOW)) : [cur];
+      const out = series.map((e) => {
+        const startsAt = e.id === cur.id ? (i.startsAt ?? e.startsAt) : e.startsAt + shift;
+        return { ...e, ...(i.startsAt !== undefined || i.endsAt !== undefined ? { startsAt, endsAt: e.id === cur.id ? (i.endsAt ?? startsAt + len) : startsAt + len } : {}), ...(i.title !== undefined ? { title: i.title } : {}), ...(i.attendees !== undefined ? { attendees: i.attendees } : {}) };
+      });
+      replica.put("events", out as unknown as Row[]);
+      return { event: out.find((e) => e.id === cur.id), ...(i.scope === "all" ? { changed: out.length } : {}) };
     },
     "calendar.delete_event": (i: { eventId: string }) => {
       const cur = rows().find((e) => e.id === i.eventId);
@@ -152,10 +171,52 @@ export function createCalendarSample(space: SampleSpace = northwind, o: { online
       return { event: { ...cur, status: "confirmed" } };
     },
     "calendar.find_time": (i: { people: string[]; durationMinutes: number; from: number; to: number; limit?: number }) => ({ slots: slotsFor(i.people, i.durationMinutes, i.from, i.to, rows(), i.limit ?? 3) }),
+    "calendar.move_to_calendar": (i: { eventId: string; calendarId: string }) => {
+      const cur = rows().find((e) => e.id === i.eventId);
+      if (!cur) throw new Error(`no such event ${i.eventId}`);
+      const next = { ...cur, calendarId: i.calendarId };
+      replica.put("events", [next as unknown as Row]);
+      return { event: next };
+    },
+    // the event pane's reads and writes (lane l-calevents)
+    "calendar.respond": (i: { eventId: string; response: "accepted" | "declined" | "tentative" }) => {
+      const cur = rows().find((e) => e.id === i.eventId);
+      if (!cur) throw new Error(`no such event ${i.eventId}`);
+      const next = { ...cur, attendees: cur.attendees.map((a) => (a.email === ME ? { ...a, response: i.response } : a)) };
+      replica.put("events", [next as unknown as Row]);
+      return { event: next };
+    },
+    "meetings.prep.start": (i: { eventId: string }) => { prep.set(i.eventId, { state: "working", notes: [] }); return { state: "working" }; },
+  };
+  const prep = new Map<string, { state: "working" | "ready"; notes: string[] }>([["e_planning", { state: "ready", notes: ["Maya wants the Q1 numbers before the call.", "Open from last time: the hiring plan for spring.", "Decide the budget split today."] }]]);
+  const reads: Record<string, (i: never) => unknown> = {
+    "connections.list": () => ({ connections: [{ connector: "zoom", state: "active" }, { connector: "google", state: "active" }] }),
+    "calendar.get_event": (i: { eventId: string }) => {
+      const e = rows().find((x) => x.id === i.eventId);
+      if (!e) throw Object.assign(new Error("There is no such event."), { code: "validation.not_found" });
+      const me = e.attendees.find((a) => a.email === ME);
+      return { event: e, ...(me ? { mine: { email: ME, response: me.response ?? "needs_action" } } : {}), ...(e.seriesId ? { repeats: "weekday" } : {}) };
+    },
+    "meetings.prep.get": (i: { eventId: string }) => prep.get(i.eventId) ?? { state: "none", notes: [] },
+    "meetings.closeout.get": (i: { meetingId: string }) => {
+      if (i.meetingId !== "rec_m_intake") throw new Error("no close-out");
+      return {
+        meetingId: i.meetingId, title: "Intake call: Elena Rivera", startsAt: at(-3, 10), endsAt: at(-3, 11), attendees: [{ name: "Elena Rivera", email: OUTSIDE.email }], state: "ready",
+        summary: "Elena wants the lease reviewed before Friday and may add a second property in spring. Maya owns the first pass; Lena reviews.", decisions: [], questions: [], shared: [],
+        items: [
+          { itemId: "mci_a", kind: "task", status: "approved", title: "Review draft 3 of the lease", assignee: "usr_lena", made: [{ type: "task", id: "tsk_l3" }] },
+          { itemId: "mci_b", kind: "task", status: "proposed", title: "Send Elena the fee quote", assignee: "usr_maya" },
+        ],
+      };
+    },
+    "meetings.get": (i: { meetingId: string }) => ({ meeting: { id: i.meetingId, title: "Intake call", startsAt: at(-3, 10), provider: "zoom", status: "ended", attendeeIds: [], recordingState: "attached", hasTranscript: true, hasSummary: true }, recordingFileId: "fil_intake_rec" }),
+    "meetings.transcript.get": () => ({ segments: [{ startMs: 0, endMs: 4000, speaker: "Maya", text: "Thanks for booking, Elena." }, { startMs: 4000, endMs: 9000, speaker: "Elena", text: "The lease is the urgent part." }], total: 2 }),
   };
   const data: InboxData = {
     ...base.data,
     async call(cap, input) {
+      const r = reads[cap];
+      if (r) return r(input as never);
       const h = w[cap];
       if (!h) return base.data.call(cap, input);
       base.calls.push({ cap, input });

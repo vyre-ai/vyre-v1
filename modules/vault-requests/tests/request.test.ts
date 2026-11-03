@@ -129,6 +129,32 @@ test("a manager supplies the key by saving fields in the folder: the value goes 
   assert.equal(JSON.stringify(await handlers["vault.requests.get"](w.as("agt_helper", "agent"), { requestId: request.id })).includes(SECRET), false);
 });
 
+test("who can use the key through the agent (owner ruling, 3 Nov): only the person who asked by default, anyone who asks the agent when the approver says so", async () => {
+  const card = { threadId: "thr_chat", agentId: "agt_helper", asker: "usr_sam" };
+  const byDefault = world({ card });
+  const a = await ask(byDefault, "agt_helper", { fields: ["api_key"] });
+  await handlers["vault.requests.fulfil"](byDefault.as("usr_mira"), { requestId: a.request.id, fields: [{ key: "api_key", value: "sk_test_1" }] });
+  assert.deepEqual(byDefault.called("access.share").map((c) => c.input), [{ resource: { type: "vault_item", id: "vit_new" }, subject: { kind: "agent", id: "agt_helper" }, level: "use", source: "through-agent:usr_sam", idempotencyKey: `${a.request.id}:through` }]);
+
+  const anyone = world({ card });
+  const b = await ask(anyone, "agt_helper", { fields: ["api_key"] });
+  const input = { requestId: b.request.id, fields: [{ key: "api_key", value: "sk_test_2" }], audience: "anyone" as const };
+  const fulfilIn = registry.capabilities.find((x) => x.name === "vault.requests.fulfil")!.input;
+  assert.deepEqual(validate(fulfilIn, input, "", registry.$defs), [], "audience is part of the contract");
+  await handlers["vault.requests.fulfil"](anyone.as("usr_mira"), input);
+  assert.deepEqual(anyone.called("access.share").map((c) => c.input["source"]), ["through-agent:anyone"]);
+
+  // no chat to read the asker from: the agent alone, as before; a person who asked needs nothing more
+  const noCard = world();
+  const c = await ask(noCard, "agt_helper", { fields: ["api_key"] });
+  await handlers["vault.requests.fulfil"](noCard.as("usr_mira"), { requestId: c.request.id, fields: [{ key: "api_key", value: "sk_test_3" }] });
+  assert.deepEqual(noCard.called("access.share"), []);
+  const person = world({ card });
+  const d = await ask(person, "usr_sam", { fields: ["api_key"] });
+  await handlers["vault.requests.fulfil"](person.as("usr_mira"), { requestId: d.request.id, fields: [{ key: "api_key", value: "sk_test_4" }], audience: "anyone" });
+  assert.deepEqual(person.called("access.share"), [], "only an agent's request has a through");
+});
+
 test("a manager can attach an item that already exists; it must hold the fields asked for", async () => {
   const w = world();
   const { request } = await ask(w, "agt_helper", { fields: ["api_key"] });
@@ -233,6 +259,49 @@ test("get shows a request to the requester and the managers and to nobody else; 
   assert.equal(codeOf(await handlers["vault.requests.get"](w.as("usr_mira"), { requestId: "vrq_missing" }).catch((e: unknown) => e)), "validation.not_found");
 });
 
+test("a Team Space agent asking for two people keeps their requests apart, and each person reads their own card (3 Nov: a member's card vanished)", async () => {
+  const w = world();
+  const forDana = await handlers["vault.request"]({ ...w.as("agt_spark", "agent", "usr_dana"), thread: "thr_dana" } as never, { name: "Fathom", reason: "Read the meetings", idempotencyKey: "d1" } as never);
+  const forEli = await handlers["vault.request"]({ ...w.as("agt_spark", "agent", "usr_eli"), thread: "thr_eli" } as never, { name: "Fathom", reason: "Read the meetings", idempotencyKey: "e1" } as never);
+  assert.notEqual(forEli.request.id, forDana.request.id, "Eli's Fathom is not Dana's");
+  // the person asked for reads it, as the card in their chat does, and sees it among their own; the other person does not
+  assert.equal((await handlers["vault.requests.get"](w.as("usr_dana"), { requestId: forDana.request.id })).request.id, forDana.request.id);
+  assert.deepEqual((await handlers["vault.requests.list"](w.as("usr_dana"), { mine: true })).requests.map((r: { id: string }) => r.id), [forDana.request.id]);
+  assert.equal(codeOf(await handlers["vault.requests.get"](w.as("usr_eli"), { requestId: forDana.request.id }).catch((e: unknown) => e)), "validation.not_found", "nor the other person's");
+  assert.equal(codeOf(await handlers["vault.requests.fulfil"](w.as("usr_eli"), { requestId: forDana.request.id, fields: [{ key: "value", value: "x" }] }).catch((e: unknown) => e)), "validation.not_found");
+});
+
+test("owner ruling 3 Nov: the person an agent asked for adds their own key from their card into their own Mine; the agent gets no Use and nobody else's turn reaches it", async () => {
+  const w = world();
+  const { request } = await handlers["vault.request"]({ ...w.as("agt_spark", "agent", "usr_dana"), thread: "thr_dana" } as never, { name: "Fathom", fields: ["api_key"], reason: "Read the meetings", idempotencyKey: "d1" } as never);
+  assert.deepEqual((await handlers["vault.requests.list"](w.as("usr_dana"), { mine: false })).requests.map((r: { id: string }) => r.id), [request.id], "her card lets her add it");
+  w.calls.length = 0;
+  // the card offers the Team folder; her own key goes into her Mine all the same
+  const done = await handlers["vault.requests.fulfil"](w.as("usr_dana"), { requestId: request.id, folderId: FOLDER, fields: [{ key: "api_key", value: "fth_secret" }] });
+  assert.equal(done.request.state, "fulfilled");
+  assert.deepEqual(w.called("vault.folders.create").map((c) => c.input["scope"]), ["mine"], "her Mine, made when she has none");
+  assert.equal(w.called("vault.item.put")[0]!.input["folderId"], "vfd_company", "the item went into that Mine folder (the stand-in answers every create with one id)");
+  assert.deepEqual(w.called("vault.share"), [], "no Use is shared: an agent reaches her Mine only on her turns");
+  assert.deepEqual(w.called("tasks.get").concat(w.called("tasks.transition")), [], "she reads and closes no admin's row; those close from the event");
+  const ev = w.events.find((e) => e.name === "vault.request_fulfilled")!.payload as Record<string, unknown>;
+  assert.deepEqual([ev["threadId"], ev["agentId"], ev["asker"]], ["thr_dana", "agt_spark", "usr_dana"], "the agent carries on in her chat, for her");
+  assert.ok(!JSON.stringify(w.events).includes("fth_secret"));
+});
+
+test("owner ruling 3 Nov: a key that names a Shared folder, a company key and an outside agent's name-only ask still go to the owners and admins alone", async () => {
+  const w = world();
+  const team = await handlers["vault.request"]({ ...w.as("agt_spark", "agent", "usr_dana"), thread: "thr_1" } as never, { name: "Team_Fathom", reason: "For the team", folderId: FOLDER, idempotencyKey: "t1" } as never);
+  const company = await handlers["vault.request"]({ ...w.as("agt_spark", "agent", "usr_dana"), thread: "thr_2" } as never, { name: "Google_DWD", reason: "Connect", idempotencyKey: "c1" } as never);
+  const outside = await handlers["vault.request"]({ ...w.as("agt_out", "agent", "usr_dana"), thread: "thr_3" } as never, { name: "Zoom", reason: "Join", handleOnly: true, idempotencyKey: "o1" } as never);
+  assert.deepEqual((await handlers["vault.requests.list"](w.as("usr_dana"), { mine: false })).requests, []);
+  for (const r of [team, company, outside]) {
+    assert.equal(codeOf(await handlers["vault.requests.fulfil"](w.as("usr_dana"), { requestId: r.request.id, fields: [{ key: "value", value: "x" }] }).catch((e: unknown) => e)), "permission.no_grant", r.request.name);
+  }
+  // and the admins can still add the person's own key for them, as before
+  const own = await handlers["vault.request"]({ ...w.as("agt_spark", "agent", "usr_dana"), thread: "thr_4" } as never, { name: "Fathom", reason: "Read the meetings", idempotencyKey: "d2" } as never);
+  assert.equal((await handlers["vault.requests.fulfil"](w.as("usr_owner"), { requestId: own.request.id, folderId: FOLDER, fields: [{ key: "value", value: "x" }] })).request.state, "fulfilled");
+});
+
 test("a card that will not close is logged and the decision stands; a Run that will not resume is logged too", async () => {
   const w = world({ fail: { "tasks.transition": "tasks down", "runs.resume": "runs down" } });
   const { request } = await ask(w, "agt_helper", { forRun: "run_z" });
@@ -278,4 +347,13 @@ test("an outside agent's request (handleOnly) gets the key's name and no Use; th
   assert.deepEqual(w.events, [{ name: "vault.request_fulfilled", subject: request.id, payload: { requestId: request.id, itemId: "vit_new", name: "Google_Client_Secret", agentId: "agt_outside" } }]);
   const everywhere = JSON.stringify({ rows: w.db.dump(), events: w.events, warnings: w.warnings, others: w.calls.filter((c) => c.cap !== "vault.item.put") });
   assert.equal(everywhere.includes(SECRET), false, "the value is in the vault call only");
+});
+
+test("a request addressed to one teammate goes to that person alone, never to the folder's managers; not to yourself (lane l-agentdm)", async () => {
+  const w = world({ managers: { [FOLDER]: ["usr_mira", "usr_noah"] } });
+  const out = await ask(w, "agt_helper", { to: "usr_rubab" });
+  outputOk("vault.request", out);
+  assert.deepEqual(w.called("tasks.create").map((t) => t.input["assigned"]), [{ kind: "person", id: "usr_rubab" }]);
+  const self = world({ managers: { [FOLDER]: ["usr_mira"] } });
+  assert.equal(await failed(handlers["vault.request"](self.as("usr_dana", "person"), { name: "Dana_Lawmatics", reason: "x", to: "usr_dana", idempotencyKey: "k_self" } as never)), "validation.bad_input");
 });

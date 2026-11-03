@@ -57,6 +57,7 @@ export function filesData(rt: ShellRuntime, memory?: MemoryView, mounts?: MountD
     nameOf: nameLookup(rt),
     nav: {
       openFile: (fileId) => rt.open({ screen: "files.viewer", args: { fileId } }),
+      openGoal: (goalId: string) => rt.open({ subject: { type: "goal", id: goalId } }),
       ...(acts?.share ? { shareFolder: (folderId: string) => acts.share?.(folderId) } : {}),
       renameEntry: (kind, id, current) => acts?.rename(kind, id, current),
       ...(mounts ? { connectFolder: (into: string | null) => mounts.connect(into) } : {}),

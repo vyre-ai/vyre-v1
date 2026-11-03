@@ -7,7 +7,7 @@
 // Sealed bodies (enc2 envelopes) are not text the server holds, so they never match. The answer carries the exact stored words, the author, the time and a link that opens the chat at that moment.
 import { askerOf, ensure, membersOf, refOf, threadBy } from "../projections.ts";
 import type { ChatCtx, ThreadRec } from "../projections.ts";
-import { ensureTranscript } from "./g24d.ts";
+import { ensureTranscript, seenRows } from "./g24d.ts";
 import { rootOf } from "./post.ts";
 
 type Row = Record<string, unknown>;
@@ -130,10 +130,12 @@ export async function historySearch(ctx: ChatCtx, input: HistoryInput): Promise<
 
   // Transcript rows: the tool calls and results of turns are the steps; the user and assistant text rows repeat messages, so only those the messages do not already hold are kept.
   const twhere = terms.map(() => "lower(r.content) LIKE ? ESCAPE '\\'").join(" OR ");
+  // what a tool answered in someone else's turn is their private detail (g24d seenRows): only shared rows and the asker's own come back
+  const own = seenRows(ctx);
   for (let off = 0; off < SCAN_CAP; off += BATCH) {
     const rows = ctx.db.all(
-      `SELECT r.* FROM chat_transcript_row r WHERE (${twhere})${input.threadId ? " AND r.thread = ?" : ""} ORDER BY r.at DESC, r.idx DESC LIMIT ? OFFSET ?`,
-      ...args, ...(input.threadId ? [input.threadId] : []), BATCH, off,
+      `SELECT r.* FROM chat_transcript_row r WHERE (${twhere}) AND ${own.sql}${input.threadId ? " AND r.thread = ?" : ""} ORDER BY r.at DESC, r.idx DESC LIMIT ? OFFSET ?`,
+      ...args, ...own.args, ...(input.threadId ? [input.threadId] : []), BATCH, off,
     ) as Row[];
     for (const r of rows) {
       const thread = String(r["thread"]);
@@ -178,7 +180,8 @@ export async function historySearch(ctx: ChatCtx, input: HistoryInput): Promise<
 function byRef(ctx: ChatCtx, ref: string, open: (id: string) => ThreadRec | null): HistoryHit[] {
   const step = /^(thr_[a-z0-9]+)#(\d+)$/.exec(ref);
   if (step) {
-    const r = (ctx.db.all("SELECT * FROM chat_transcript_row WHERE thread = ? AND idx = ?", step[1], Number(step[2])) as Row[])[0];
+    const own = seenRows(ctx);
+    const r = (ctx.db.all(`SELECT * FROM chat_transcript_row r WHERE thread = ? AND idx = ? AND ${own.sql}`, step[1], Number(step[2]), ...own.args) as Row[])[0];
     const t = r ? open(String(r["thread"])) : null;
     if (!r || !t) return [];
     const text = jsonText(r["content"]);

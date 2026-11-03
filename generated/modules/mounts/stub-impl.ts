@@ -11,6 +11,7 @@ export const handlers: Handlers<HandlerCtx> = {
   "mounts.doc_insert_text": async () => ({"inserted":true} as unknown) as never,
   "mounts.doc_replace_text": async () => ({"replaced":1} as unknown) as never,
   "mounts.editors": async () => ({"editors":[{"at":1760000000000,"email":"example","fileId":"fil_a1b2c3","name":"example","provider":"example"}]} as unknown) as never,
+  "mounts.engine_folders": async () => ({"folders":[{"deviceId":"example","folderId":"fld_a1b2c3","mountId":"mnt_a1b2c3","path":"/Users/dana/code/site"}]} as unknown) as never,
   "mounts.file_link": async () => ({"link":{"edit":["replace_text"],"kind":"google_drive","mountId":"mnt_a1b2c3","openIn":"Google Docs","type":"google_doc","webUrl":"example"},"reason":"example"} as unknown) as never,
   "mounts.get": async () => ({"mount":{"conflicts":1,"error":"example","folderId":"fld_a1b2c3","fromDevice":"Irfad's MacBook","kind":"google_drive","lagSeconds":1,"lastSyncAt":1760000000000,"live":true,"liveVia":"push","mode":"server_copy","mountId":"mnt_a1b2c3","name":"example","pendingChanges":1,"provider":"Google Drive","ref":"example","reviewChanges":true,"state":"idle"}} as unknown) as never,
   "mounts.history": async () => ({"revisions":[{"at":1760000000000,"by":{"actor":"example","email":"example","name":"example"},"current":true,"revisionId":"example","size":1}]} as unknown) as never,

@@ -120,7 +120,8 @@ test("a place whose list is empty says so with the shared empty state", async ()
   (sample.replica as unknown as Loose).resolve("forms.list", () => ({ forms: [] }));
   (sample.replica as unknown as Loose).resolve("templates.list", () => ({ templates: [] }));
   const out = await mount("sites", rt);
-  assert.ok(out.includes("No forms yet."));
+  // Apps opens on Sites (l-sitesready), so the empty state it shows first is the Sites one
+  assert.ok(out.includes("No sites yet."));
   assert.ok(!out.includes("Northwind website"));
   assert.deepEqual(listItems({ files: [] }), []);
 });

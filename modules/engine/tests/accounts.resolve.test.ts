@@ -65,11 +65,18 @@ test("Company only: personal keys and subscriptions are out, shared keys stay", 
   assert.equal(none.unblock?.why, "policy");
 });
 
-test("a server run needs the standing switch for a subscription; the person's own device does not", () => {
+test("a person's own sign-in answers their own turns on a server with the standing switch off; a routine or a task of theirs still needs it", () => {
   const off = { ...danaSub, spaceMayUse: false };
-  assert.equal(resolveAccount(base({ accounts: [off], onServer: true })).accountRef, null);
-  assert.equal(skipReason(off, base(), "usr_dana"), "space_may_not_use");
+  assert.equal(resolveAccount(base({ accounts: [off], onServer: true })).accountRef, "sub_dana", "her message, on the Space server, runs on her sign-in");
+  assert.equal(skipReason(off, base(), "usr_dana"), null);
+  assert.equal(resolveAccount(base({ trigger: "wake", accounts: [off], onServer: true })).accountRef, "sub_dana", "a wake of her own chat is hers too");
   assert.equal(resolveAccount(base({ accounts: [off], onServer: false })).accountRef, "sub_dana");
+  // automations: the switch still decides
+  assert.equal(resolveAccount(base({ trigger: "routine", routineOwner: "usr_dana", accounts: [off], onServer: true })).accountRef, null);
+  assert.equal(skipReason(off, base({ trigger: "routine", routineOwner: "usr_dana" }), "usr_dana"), "space_may_not_use");
+  assert.equal(resolveAccount(base({ trigger: "routine", routineOwner: "usr_dana", accounts: [danaSub], onServer: true })).accountRef, "sub_dana", "with the switch on, her routine runs on it");
+  // a steerer never pays with the starter's sign-in
+  assert.equal(resolveAccount(base({ steerer: "usr_sam", accounts: [off], onServer: true })).accountRef, null);
 });
 
 test("an agent that needs another provider does not borrow the wrong account", () => {

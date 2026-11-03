@@ -11,7 +11,7 @@ const slot = t.enm('assigned', 'reviewer', 'approver');
 const taskState = t.enm('todo', 'doing', 'in_review', 'awaiting_approval', 'done', 'canceled');
 const taskKindKey = t.enm('work', 'approve', 'review', 'answer', 'unblock', 'signature');
 const blockIn = t.obj({ type: t.str({ examples: ['record_card'] }), v: t.opt(t.int({ minimum: 1 })), data: t.json() });
-const source = t.obj({ kind: t.enm('chat', 'run', 'gate', 'journey', 'manual'), id: t.str({ examples: ['run_a1b2c3'] }) });
+const source = t.obj({ kind: t.enm('chat', 'run', 'gate', 'journey', 'meeting', 'goal', 'manual'), id: t.str({ examples: ['run_a1b2c3'] }) });
 const action = t.obj({ key: t.str({ examples: ['approve'] }), label: t.str({ examples: ['Approve'] }), note: t.opt(t.enm('required', 'optional')) });
 
 const priority = t.enm('urgent', 'high', 'normal', 'low');
@@ -25,6 +25,7 @@ const taskRow = t.obj({
   recordId: t.opt(id.record), fileIds: t.arr(id.file), source: t.opt(source), parentTaskId: t.opt(id.task), dependsOn: t.arr(id.task),
   followers: t.arr(t.str()), workingNotes: t.rec(t.str()), threadId: t.opt(id.thread), reviewLoops: t.int({ minimum: 0 }),
   snoozedUntil: t.opt(t.ts()), createdBy: t.str(), createdAt: t.ts(), updatedAt: t.ts(),
+  yourTurn: t.opt(t.bool()),   // the next move is the reader's: their seat, or a group or role of theirs nobody took yet
   priority: t.opt(priority), labels: t.opt(t.arr(t.str())), start: t.opt(t.ts()), fields: t.opt(fieldValues), recur: t.opt(recur), workerThread: t.opt(id.thread),
 });
 // One row of a long list: everything a row, a card or a bar draws, and nothing it does not.
@@ -32,12 +33,13 @@ const indexRow = t.obj({
   id: id.task, key: t.opt(t.str()), kind: taskKindKey, title: t.str(), state: taskState, blocked: t.bool(),
   assigned: assignee, reviewer: t.opt(assignee), approver: t.opt(assignee), takenBy: t.opt(t.str()), due: t.opt(t.ts()), start: t.opt(t.ts()), effort: t.opt(t.int({ minimum: 0 })), priority: t.opt(priority), labels: t.arr(t.str()),
   recordId: t.opt(id.record), parentTaskId: t.opt(id.task), dependsOn: t.arr(id.task), threadId: t.opt(id.thread), workerThread: t.opt(id.thread), source: t.opt(source), snoozedUntil: t.opt(t.ts()),
-  children: t.opt(t.obj({ total: t.int(), done: t.int() })), createdBy: t.str(), createdAt: t.ts(), updatedAt: t.ts(),
+  children: t.opt(t.obj({ total: t.int(), done: t.int() })), createdBy: t.str(), createdAt: t.ts(), updatedAt: t.ts(), yourTurn: t.opt(t.bool()),
 });
 const planChild = t.obj({
   key: t.str({ minLength: 1, maxLength: 60, examples: ['draft'] }), title: t.str({ minLength: 1 }), brief: t.opt(t.str()), doneMeans: t.opt(t.arr(t.str({ minLength: 1 }), { maxItems: 20 })),
   assigned: assignee, reviewer: t.opt(assignee), approver: t.opt(assignee), dependsOn: t.opt(t.arr(t.str(), { maxItems: 50 })), due: t.opt(t.ts()), priority: t.opt(priority),
   worker: t.opt(t.enm('thread', 'crew')), projectId: t.opt(id.project),
+  notes: t.opt(t.rec(t.str())),   // working notes the child starts with, beside its brief (a goal tags its tasks with goal.id and who they run for)
 });
 const target = { taskId: id.task };
 const baton = t.enm('review', 'approval', 'done');
@@ -58,9 +60,9 @@ export default defineManifest({
   ],
   events: [
     ev('task.created', 'A task was created', { p: { taskId: id.task, kind: taskKindKey, title: t.str(), assigned: assignee, recordId: t.opt(id.record), source: t.opt(source) }, subject: ['task', '/taskId'], vis: 'participants', label: 'subject', trigger: { title: 'A task is created', fields: ['/kind'] } }),
-    ev('task.requested', 'A request (Approve, Review, Answer or Unblock) is waiting on someone', { p: { taskId: id.task, kind: taskKindKey, title: t.str(), assigned: assignee, expiresAt: t.opt(t.ts()) }, subject: ['task', '/taskId'], vis: 'participants', label: 'subject', notify: 'approval.requested' }),
+    ev('task.requested', 'A request (Approve, Review, Answer or Unblock) is waiting on someone, or the baton of a work task reached its next holder', { p: { taskId: id.task, kind: taskKindKey, title: t.str(), assigned: assignee, expiresAt: t.opt(t.ts()), step: t.opt(t.enm('work', 'review', 'approval')), by: t.opt(t.str()) }, subject: ['task', '/taskId'], vis: 'participants', label: 'subject', notify: 'approval.requested' }),
     ev('task.updated', 'Fields of a task changed (title, summary, why, due, effort, blocks, links)', { p: { taskId: id.task, fields: t.arr(t.str()) }, subject: ['task', '/taskId'], vis: 'participants', label: 'subject' }),
-    ev('task.assigned', 'A slot (Assigned, Reviewer or Approver) was set or changed', { p: { taskId: id.task, slot, to: t.nullable(assignee), from: t.nullable(assignee) }, subject: ['task', '/taskId'], vis: 'participants', label: 'subject', notify: 'task.assigned', trigger: { title: 'A task is assigned', fields: ['/slot'] } }),
+    ev('task.assigned', 'A slot (Assigned, Reviewer or Approver) was set or changed', { p: { taskId: id.task, slot, to: t.nullable(assignee), from: t.nullable(assignee), title: t.opt(t.str()), by: t.opt(t.str()) }, subject: ['task', '/taskId'], vis: 'participants', label: 'subject', notify: 'task.assigned', trigger: { title: 'A task is assigned', fields: ['/slot'] } }),
     ev('task.transitioned', 'A task changed status', { p: { taskId: id.task, kind: taskKindKey, from: taskState, to: taskState, note: t.opt(t.str()) }, subject: ['task', '/taskId'], vis: 'participants', label: 'subject', trigger: { title: 'A task changed status', fields: ['/to', '/from', '/kind'] } }),
     ev('task.completed', 'A task reached Done', { p: { taskId: id.task, kind: taskKindKey, recordId: t.opt(id.record), source: t.opt(source) }, subject: ['task', '/taskId'], vis: 'participants', label: 'subject', trigger: { title: 'A task is completed', fields: ['/kind'] } }),
     ev('task.sent_back', 'A reviewer or approver sent work back with a note', { p: { taskId: id.task, by: t.str(), note: t.str(), reviewLoops: t.int() }, subject: ['task', '/taskId'], vis: 'participants', label: 'subject' }),
@@ -80,6 +82,8 @@ export default defineManifest({
     ev('task.note_set', 'A working note (key and value) was written by a person or agent', { p: { taskId: id.task, key: t.str(), by: t.str() }, subject: ['task', '/taskId'], vis: 'participants', label: 'subject' }),
     ev('task.follower_added', 'A follower was added', { p: { taskId: id.task, follower: t.str() }, subject: ['task', '/taskId'], vis: 'participants', label: 'subject' }),
     ev('task.follower_removed', 'A follower was removed', { p: { taskId: id.task, follower: t.str() }, subject: ['task', '/taskId'], vis: 'participants', label: 'subject' }),
+    ev('task.due', 'A due date reached its holder: the day it is due began in their time zone, or the time passed', { p: { taskId: id.task, title: t.str(), due: t.ts(), at: t.enm('day', 'time'), holder: assignee }, subject: ['task', '/taskId'], vis: 'participants', label: 'subject', notify: 'task.due', trigger: { title: 'A task is due', fields: ['/at'] } }),
+    ev('task.nudged', 'A step sat with someone too long, so they (or the person behind it) were reminded', { p: { taskId: id.task, title: t.str(), why: t.enm('unblock_waiting', 'idle_agent', 'waiting_on_decision'), notify: t.str() }, subject: ['task', '/taskId'], vis: 'participants', label: 'subject' }),
     ev('task.link_changed', 'A record or file link, or a dependency, was added or removed', { p: { taskId: id.task, op: t.enm('added', 'removed'), linkKind: t.enm('record', 'file', 'dependency'), linkId: t.str() }, subject: ['task', '/taskId'], vis: 'participants', label: 'subject' }),
   ],
   capabilities: [
@@ -97,7 +101,7 @@ export default defineManifest({
       errors: ['validation.precondition_failed'],
     }),
     read('tasks.get', 'Read one task with its blocks, slots, links, notes and followers', { in: target, out: { task: taskRow }, on: ['task', '/taskId'], tool: 'tasks', label: 'check', cli: 'vyre tasks get' }),
-    read('tasks.list', 'List tasks by scope (mine, assigned by me, following, a record, a run) and filters', {
+    read('tasks.list', 'List tasks by scope (mine, assigned by me, following, a record, a run) and filters', { level: 'member',
       in: {
         scope: t.enm('mine', 'assigned_by_me', 'following', 'record', 'run', 'all'), states: t.opt(t.arr(taskState)), kinds: t.opt(t.arr(taskKindKey)),
         recordId: t.opt(id.record), runId: t.opt(id.run), assignee: t.opt(assignee), includeSnoozed: t.opt(t.bool()), ...pageIn,
@@ -106,19 +110,22 @@ export default defineManifest({
     }),
     read('tasks.needs_you', 'Needs you: my Ready tasks of kind Approve, Review, Answer or Unblock, plus due today, overdue or blocking others', {
       in: { limit: t.opt(t.int({ minimum: 1, maximum: 200 })) },
-      out: { items: t.arr(t.obj({ task: taskRow, reason: readyReason, handledBy: t.opt(t.str()) })), total: t.int() },
+      out: { items: t.arr(t.obj({ task: taskRow, reason: readyReason, handledBy: t.opt(t.str()), yourTurn: t.opt(t.bool()) })), total: t.int() },
       tool: 'tasks', label: 'filter', cli: 'vyre tasks needs-you',
     }),
     read('tasks.index', 'The long list of a scope in one read: a light row per task with its rollup, ordered newest first; pass the last rev and an unchanged list answers nothing', {
-      in: { scope: t.enm('mine', 'given', 'everyone'), recordId: t.opt(id.record), parentTaskId: t.opt(id.task), underThread: t.opt(id.thread), done: t.opt(t.bool()), rev: t.opt(t.str()) },
+      in: {
+        scope: t.enm('mine', 'given', 'everyone'), recordId: t.opt(id.record), parentTaskId: t.opt(id.task), underThread: t.opt(id.thread), done: t.opt(t.bool()), rev: t.opt(t.str()),
+        q: t.opt(t.str({ maxLength: 200, description: 'Words to find in the title, key, brief, notes and summary of every task the reader sees' })), snoozed: t.opt(t.bool()),   // only the open tasks that are snoozed
+      },
       out: { rev: t.str(), unchanged: t.bool(), rows: t.arr(indexRow), doneThisWeek: t.int(), total: t.int() }, tool: 'tasks', label: 'filter',
     }),
     read('tasks.rev', 'A short mark that changes whenever any task changes, for a screen that holds a long list', { in: {}, out: { rev: t.str() }, tool: 'tasks', label: 'check' }),
     read('tasks.by_key', 'Find a task by its short key, such as VY-123', { in: { key: t.str({ minLength: 3, examples: ['VY-123'] }) }, out: { taskId: t.nullable(id.task) }, tool: 'tasks', label: 'check' }),
-    read('tasks.digest', 'What an agent should keep in mind: the task bound to this thread, its parent and siblings in a line each, then its own open tasks, the top five and a count. About 300 tokens; detail stays one tasks_get away', {
-      in: { agentId: id.agent, threadId: t.opt(id.thread) }, out: { text: t.str(), hash: t.str(), boundTaskId: t.opt(id.task) }, label: 'check',
+    read('tasks.digest', 'What an agent should keep in mind: the task bound to this thread, its parent and siblings in a line each, then its own open tasks, the top five and a count. About 300 tokens; detail stays one tasks_get away. An agent asking for itself leaves out agentId', {
+      in: { agentId: t.opt(id.agent), threadId: t.opt(id.thread) }, out: { text: t.str(), hash: t.str(), boundTaskId: t.opt(id.task) }, tool: 'tasks', mcpName: 'task_digest', label: 'check',
     }),
-    read('tasks.count_needs_you', 'Count of Ready requests for the rail badge and the Space switcher dot', { in: {}, out: { count: t.int() }, tool: 'tasks' }),
+    read('tasks.count_needs_you', 'Count of Ready requests for the rail badge and the Space switcher dot', { level: 'member', in: {}, out: { count: t.int() }, tool: 'tasks' }),
     read('tasks.my_work', 'My work: the full list, with sections Open, Assigned by me, Done', {
       in: { section: t.opt(t.enm('open', 'assigned_by_me', 'done', 'all')), ...pageIn },
       out: { tasks: t.arr(taskRow), counts: t.obj({ open: t.int(), assignedByMe: t.int(), done: t.int() }), ...pageOut }, tool: 'tasks', label: 'filter',
@@ -132,18 +139,18 @@ export default defineManifest({
     }),
     write('tasks.transition', 'Move a task to a new status (the only writer of status); checks the 4.7 state table and the reviewer/approver rules', {
       in: { ...target, to: taskState, note: t.opt(t.str()), expectedFrom: t.opt(taskState) },
-      out: { task: taskRow }, on: ['task', '/taskId'], level: 'use', emits: ['task.transitioned', 'task.completed', 'task.sent_back', 'task.approved', 'task.rejected', 'task.updated', 'task.ready', 'task.children_settled'],
+      out: { task: taskRow }, on: ['task', '/taskId'], level: 'use', emits: ['task.transitioned', 'task.completed', 'task.sent_back', 'task.approved', 'task.rejected', 'task.updated', 'task.ready', 'task.children_settled', 'task.requested'],
       tool: 'tasks', offline: 'queue', hook: true, errors: ['validation.precondition_failed', 'validation.field_locked'],
     }),
     write('tasks.act', 'Act on a request at its source: approve, reject, send back, answer, resolve, with a note; continues the chat or run at once', {
       in: { ...target, action: t.str({ examples: ['approve'] }), note: t.opt(t.str()), answer: t.opt(t.json()), edits: t.opt(t.rec()) },
       out: { task: taskRow, result: t.opt(t.json()) }, on: ['task', '/taskId'], level: 'use',
-      emits: ['task.transitioned', 'task.completed', 'task.sent_back', 'task.approved', 'task.rejected', 'task.handled'], tool: 'tasks', offline: 'online',
+      emits: ['task.transitioned', 'task.completed', 'task.sent_back', 'task.approved', 'task.rejected', 'task.handled', 'task.requested'], tool: 'tasks', offline: 'online',
       errors: ['validation.precondition_failed', 'permission.expired'],
     }),
     write('tasks.submit', 'Hand in your part of a work task with its outputs and a one-line summary; it goes to the Reviewer, else the Approver, else Done', {
       in: { ...target, outputs: t.opt(t.rec()), summary: t.str({ minLength: 1, examples: ['Drafted the letter and checked the dates'] }) },
-      out: { task: taskRow, next: baton }, on: ['task', '/taskId'], level: 'use', emits: ['task.transitioned', 'task.completed'],
+      out: { task: taskRow, next: baton }, on: ['task', '/taskId'], level: 'use', emits: ['task.transitioned', 'task.completed', 'task.requested'],
       tool: 'tasks', mcpName: 'task_submit', offline: 'online', errors: ['validation.precondition_failed'],
     }),
     write('tasks.ask', 'Ask a question while you work on a task: an Answer task opens for the requester or a named person, the work waits, and the answer wakes you', {
@@ -159,12 +166,12 @@ export default defineManifest({
     write('tasks.review', 'Review submitted work: approve it, or send it back with numbered fixes (after the loop limit a person decides)', {
       in: { ...target, verdict: t.enm('approve', 'send_back'), fixes: t.opt(t.arr(t.str({ minLength: 1 }))), note: t.opt(t.str()) },
       out: { task: taskRow, next: t.enm('approval', 'done', 'fixes', 'person') }, on: ['task', '/taskId'], level: 'use',
-      emits: ['task.transitioned', 'task.completed', 'task.approved', 'task.sent_back', 'task.assigned'], tool: 'tasks', mcpName: 'task_review', offline: 'online',
+      emits: ['task.transitioned', 'task.completed', 'task.approved', 'task.sent_back', 'task.assigned', 'task.requested'], tool: 'tasks', mcpName: 'task_review', offline: 'online',
       errors: ['validation.precondition_failed'],
     }),
     write('tasks.decide', 'Decide on reviewed work: approve it (Done, held actions release) or reject it with a reason (back to the doer)', {
       in: { ...target, verdict: t.enm('approve', 'reject'), reason: t.opt(t.str()) },
-      out: { task: taskRow, next: t.enm('done', 'fixes') }, on: ['task', '/taskId'], level: 'use', emits: ['task.transitioned', 'task.completed', 'task.approved', 'task.rejected'],
+      out: { task: taskRow, next: t.enm('done', 'fixes') }, on: ['task', '/taskId'], level: 'use', emits: ['task.transitioned', 'task.completed', 'task.approved', 'task.rejected', 'task.requested'],
       tool: 'tasks', mcpName: 'task_decide', offline: 'online', errors: ['validation.precondition_failed'],
     }),
     write('tasks.assign', 'Set or clear a slot: Assigned, Reviewer or Approver (person, agent, group, role or automation)', {
@@ -221,6 +228,9 @@ export default defineManifest({
     }),
     write('tasks.dependencies.remove', 'Remove a dependency', {
       in: { ...target, dependsOnId: id.task }, out: { task: taskRow }, on: ['task', '/taskId'], emits: ['task.link_changed'], tool: 'tasks',
+    }),
+    write('tasks.clock', 'What the clock moves, once a minute: the day a task is due begins for its holder, a due time passes, a snooze ends, a step sat with someone too long', {
+      in: {}, out: { due: t.int(), woke: t.int(), nudged: t.int() }, emits: ['task.due', 'task.snoozed', 'task.nudged'],
     }),
     read('tasks.history', 'Activity of a task: transitions, hand-overs, notes and sends back, newest first', {
       in: { ...target, ...pageIn }, out: { entries: t.arr(t.obj({ at: t.ts(), type: t.str(), by: t.str(), note: t.opt(t.str()), eventId: id.event })), ...pageOut },
@@ -306,7 +316,7 @@ export default defineManifest({
       empty: 'Nothing needs you', needs: [],
     }),
     screen('tasks.my-work', 'chats', 'ui:MyWork', {
-      q: { list: ['tasks.my_work', { section: '/state/section' }, true], rev: ['tasks.rev', {}, true], needs: ['tasks.needs_you', { limit: '/state/limit' }, true] },
+      q: { list: ['tasks.my_work', { section: '/state/section' }, true], rev: ['tasks.rev', {}, true], needs: ['tasks.needs_you', { limit: '/state/limit' }, true], count: ['tasks.count_needs_you', {}, true] },
       a: {
         assign: ['tasks.assign', { taskId: '/state/taskId', slot: '/state/slot', to: '/state/to' }],
         create: ['tasks.create', { kind: '/draft/kind', title: '/draft/title', assigned: '/draft/assigned', recordId: '/draft/recordId' }],

@@ -67,6 +67,8 @@ export function harness() {
       if (misfit.length) throw new Error(`${cap} was called with input its contract refuses: ${misfit.join("; ")}`);
       if (cap === "access.share") return { grant: { id: "gnt_vault0001", subject: body["subject"], resource: body["resource"], level: body["level"], conditions: {}, by: ctx.principal.id, createdAt: clock } };
       if (cap === "access.unshare") return { revoked: 1 };
+      // a folder shared with the whole Space (lib/space-folder.ts): recorded so a test can see who it went to
+      if (cap === "vault.share") return { granted: true };
       if (cap === "engine.usage.query") return usage(body);
       if (cap === "access.labels.set") { const r = body["resource"] as { type: string; id: string }; labels.set(`${r.type}/${r.id}`, String(body["label"])); return { ok: true }; }
       // the vault's own capabilities a handler calls through the host (so the new folder and item are resources before they are labelled) run the vault's handlers as the same caller

@@ -1,5 +1,7 @@
 // Connections (spec 2.10, 4.18): one account plugged into a connector, owned by a person or the Space. The owner can pause it. It starts Pending until the sign-in or the first good
 // probe, and a provider that rejects the key sends it to needs_reconnect. A connection holds the NAME of the Vault item for each secret, never a value.
+import { mustUse } from "../../../lib/vault-check.ts";
+import { CONNECTION_KEY_LINE } from "../../../lib/vault-lines.ts";
 import { newPkce, oauthOf, OAUTH_TTL_MS } from "./oauth.ts";
 import { checkEgress, ensureTables, mintShort, nowOf, PAGE, refuse, scrubber, seedBuiltins } from "../projections.ts";
 import type { ConnectionDb, ConnectionState, ConnectorDef, ConnectorsCtx, ConnectorsDeps } from "../projections.ts";
@@ -40,8 +42,8 @@ export function createConnectionsHandlers(deps: ConnectorsDeps): ConnectionsHand
     ...(r.paused_by ? { pausedBy: r.paused_by } : {}), scopes: JSON.parse(r.scopes) as string[], ...(r.last_sync_at !== null ? { lastSyncAt: r.last_sync_at } : {}), createdAt: r.created_at,
     handles: Object.values(JSON.parse(r.secrets) as Record<string, string>).sort(), filled: Object.keys(JSON.parse(r.secrets) as Record<string, string>).sort(),
   });
-  /** A person sees their own connections and the Space's; nobody sees another person's. */
-  const visible = (ctx: ConnectorsCtx, r: ConnectionDb): boolean => r.owner_kind === "space" || r.owner_id === actorOf(ctx);
+  /** A person sees their own connections and the Space's (a guest, who does not see the Space, only their own); nobody sees another person's. */
+  const visible = (ctx: ConnectorsCtx, r: ConnectionDb): boolean => (r.owner_kind === "space" && (ctx.canViewSpace?.() ?? true)) || (r.owner_kind === "person" && r.owner_id === actorOf(ctx));
   const need = (ctx: ConnectorsCtx, id: string): ConnectionDb => {
     ready();
     const r = tx.get<ConnectionDb>("SELECT * FROM cn_connections WHERE connection_id = ?", id);
@@ -94,7 +96,7 @@ export function createConnectionsHandlers(deps: ConnectorsDeps): ConnectionsHand
       const me = actorOf(ctx);
       const whose = input.whose ?? "all";
       let rows = tx.all<ConnectionDb>(`SELECT * FROM cn_connections ${input.connector !== undefined ? "WHERE connector = ?" : ""} ORDER BY created_at, connection_id`, ...(input.connector !== undefined ? [input.connector] : []));
-      rows = rows.filter((r) => (whose === "mine" ? r.owner_kind === "person" && r.owner_id === me : whose === "space" ? r.owner_kind === "space" : visible(ctx, r)));
+      rows = rows.filter((r) => (whose === "mine" ? r.owner_kind === "person" && r.owner_id === me : whose === "space" ? r.owner_kind === "space" && visible(ctx, r) : visible(ctx, r)));
       const { start, limit } = PAGE(input);
       return { connections: rows.slice(start, start + limit).map(rowOf), ...(start + limit < rows.length ? { next: String(start + limit) } : {}), total: rows.length };
     },
@@ -107,6 +109,8 @@ export function createConnectionsHandlers(deps: ConnectorsDeps): ConnectionsHand
       const c = tx.get<{ state: string }>("SELECT state FROM cn_connectors WHERE key = ?", input.connector)!;
       if (c.state === "draft") refuse(ctx, "validation.precondition_failed", `${input.connector} is a draft: publish it before connecting an account.`);
       if (!input.title.trim()) refuse(ctx, "validation.bad_input", "A connection needs a title.");
+      // your own connection is yours to make (l-perms); one for the whole Space is an admin's
+      if (input.ownerKind === "space" && ctx.canManageSpace && !ctx.canManageSpace()) refuse(ctx, "permission.role_lacks_permission", "Connecting an app for the whole Space is for an owner or admin. Connect it as your own, or ask an admin.");
       if (def.scope === "space" && input.ownerKind !== "space") refuse(ctx, "validation.precondition_failed", `${def.title} connects to the Space, not to a person.`);
       if (def.scope === "person" && input.ownerKind !== "person") refuse(ctx, "validation.precondition_failed", `${def.title} connects to a person's own account.`);
       if (def.auth.type === "oauth2" && def.auth.authUrl) {
@@ -117,6 +121,8 @@ export function createConnectionsHandlers(deps: ConnectorsDeps): ConnectionsHand
       for (const [name, handle] of Object.entries(secrets)) {
         if (!def.secrets.some((s) => s.name === name)) refuse(ctx, "validation.bad_input", `${def.title} has no secret called ${name}.`);
         if (!HANDLE.test(handle)) refuse(ctx, "validation.bad_input", `${name} must be the name of a Vault item such as #Name, not a value.`);
+        // a Space connection's run fills its secrets as the Space: whoever connects must have Use on each (lib/vault-check.ts)
+        await mustUse((cap, i) => ctx.call(cap, i), handle, (m) => refuse(ctx, "permission.no_grant", m));
       }
       const now = nowOf(deps);
       const id = mintShort("con", now);
@@ -149,6 +155,7 @@ export function createConnectionsHandlers(deps: ConnectorsDeps): ConnectionsHand
       const def = defOf(ctx, r.connector);
       if (!def.secrets.some((x) => x.name === input.slot)) refuse(ctx, "validation.bad_input", `${def.title} has no secret called ${input.slot}.`);
       if (!HANDLE.test(input.handle)) refuse(ctx, "validation.bad_input", `${input.slot} must be the name of a Vault item such as #Name, not a value.`);
+      await mustUse((cap, i) => ctx.call(cap, i), input.handle, (m) => refuse(ctx, "permission.no_grant", m));
       const secrets = { ...secretsOf(r), [input.slot]: input.handle };
       const state = r.state === "pending" ? initialState(def, secrets) : r.state;
       tx.run("UPDATE cn_connections SET secrets = ?, state = ? WHERE connection_id = ?", JSON.stringify(secrets), state, r.connection_id);
@@ -224,7 +231,7 @@ export function createConnectionsHandlers(deps: ConnectorsDeps): ConnectionsHand
         if (code === "provider.auth_failed") return { state: "down" as const, detail: message };
         if (code === "provider.rate_limited" || code === "rate_limit.exceeded") return { state: "degraded" as const, detail: message };
         // a key this connection may not use (someone's Mine item) never reaches the provider: the connection is down, as when the Vault itself says no
-        if (code === "permission.no_grant" && (e as { error?: { details?: { cap?: string } } }).error?.details?.cap === "vault.fill") return { state: "down" as const, detail: "This connection cannot use that key." };
+        if (code === "permission.no_grant" && (e as { error?: { details?: { cap?: string } } }).error?.details?.cap === "vault.fill") return { state: "down" as const, detail: CONNECTION_KEY_LINE };
         if (code === "permission.no_grant" || code === "validation.precondition_failed" || code === "validation.bad_input") throw e;
         if (r.state === "active") tx.run("UPDATE cn_connections SET state = 'failing' WHERE connection_id = ?", r.connection_id);
         return { state: "down" as const, detail: message };

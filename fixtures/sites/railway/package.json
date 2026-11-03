@@ -1,0 +1,6 @@
+{
+  "name": "railway-fixture",
+  "private": true,
+  "scripts": { "compile": "mkdir -p dist && cp src/index.js dist/index.js" },
+  "dependencies": {}
+}

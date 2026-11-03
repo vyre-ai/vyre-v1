@@ -52,6 +52,9 @@ type Out = {
         }>;
       organizer?: Record<string, unknown>;
       isCancelled?: boolean;
+      bodyPreview?: string;
+      seriesMasterId?: string;
+      onlineMeetingProvider?: string;
     }>;
   nextSkipToken?: string;
 };
@@ -88,12 +91,15 @@ type Out = {
             "type": "example"
           }
         ],
+        "bodyPreview": "example",
         "end": {},
         "id": "example",
         "isCancelled": true,
         "location": {},
         "onlineMeeting": {},
+        "onlineMeetingProvider": "example",
         "organizer": {},
+        "seriesMasterId": "example",
         "start": {},
         "subject": "example"
       }

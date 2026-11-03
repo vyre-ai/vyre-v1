@@ -39,7 +39,7 @@ test("a person watches a crew build in the real app: the Crew tab, one result ca
   let dir = ""; let owner = ""; let teammate = ""; let project = ""; let lead = "";
   const model = scriptedModel(async function* (input, run) {
     if (input.agent.id === teammate) {
-      const work = workFolder(dir, owner, input.threadId);
+      const work = workFolder(dir, owner, input.threadId, teammate);
       await waitFor(async () => (fs.existsSync(path.join(work, "README.md")) ? true : null), 20_000);
       fs.writeFileSync(path.join(work, "dark-mode.txt"), "toggle: on\n");
       fs.writeFileSync(path.join(work, "dark-mode.test.txt"), "test: toggle is on\n");

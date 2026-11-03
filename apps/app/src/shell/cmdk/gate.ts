@@ -7,6 +7,10 @@ import { applySkinToWindow } from "../providers/settings-skin.ts";
 import type { CmdKData } from "./controller.ts";
 import type { CmdAction, Hit, HitKind } from "./model.ts";
 import { requestChannelSheet } from "../../places/chats/channels/request.ts";
+import { offered } from "../session/private-agents.ts";
+import { activePlace, openAskPane, placeTitle, thingOfScreen } from "../ask/pane.ts";
+import { currentScreen } from "../ask/screen.ts";
+import type { ScreenContext } from "../ask/screen.ts";
 
 /** The slice of the hub the search drives. */
 export interface GateNav {
@@ -24,17 +28,20 @@ export interface GateSearchDeps {
   state: { away: boolean; offline: boolean; terminal?: boolean; inbox?: boolean };
   /** The recent hits read ahead of the sheet (search.recent.list). */
   recent: () => readonly Hit[];
+  /** Set away for real (stored, seen by teammates). Left out: the action only shows it here. */
+  away?: (on: boolean) => void;
 }
 
 const PLACE_OF: Record<HitKind, PlaceId> = {
   person: "chats", agent: "chats", chat: "chats", channel: "chats", inbox: "inbox", record: "records", task: "records",
-  file: "files", automation: "automations", app: "apps", setting: "settings", memory: "home",
+  file: "files", automation: "automations", app: "apps", setting: "settings", memory: "home", note: "chats",
 };
 
 const SKIN = "appearance.skin";
 
 export const placeOfHit = (h: Hit): PlaceId => PLACE_OF[h.kind];
-export const hashOfHit = (h: Hit): string => `subject=${h.kind}:${h.id}`;
+/** A note opens in Notes, over the grid (its link is vyre://note/<id>); everything else opens as its subject. */
+export const hashOfHit = (h: Hit): string => (h.kind === "note" ? `screen=chats.notes&noteId=${encodeURIComponent(h.id)}` : `subject=${h.kind}:${h.id}`);
 
 const matches = (h: Hit, q: string): boolean => `${h.title} ${h.snippet ?? ""}`.toLowerCase().includes(q.toLowerCase());
 
@@ -44,7 +51,7 @@ export function replicaHits(rt: ShellRuntime): readonly Hit[] {
   const who = rt.principals.getSnapshot();
   if (who.status === "ready") {
     for (const p of who.data) {
-      if (p.kind === "person" || p.kind === "agent") out.push({ kind: p.kind, id: p.id, title: p.name, link: `vyre://${p.kind}/${p.id}`, score: 1 });
+      if ((p.kind === "person" || p.kind === "agent") && offered(p)) out.push({ kind: p.kind, id: p.id, title: p.name, link: `vyre://${p.kind}/${p.id}`, score: 1 });
     }
   }
   const recent = rt.screens.query("chats.sidebar", "recent", { filter: "all" }).getSnapshot();
@@ -91,6 +98,24 @@ export function gateActions(state: { away: boolean; offline: boolean; terminal?:
   ];
 }
 
+const SPARK = '<svg viewBox="0 0 16 16" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v3M8 11v3M2 8h3M11 8h3M4 4l2 2M10 10l2 2M12 4l-2 2M6 10l-2 2"/></svg>';
+export const ASK_HERE = "ask.here";
+
+/** Ask Vyre about this: in any place but Chats, the Ask pane opens beside what is on screen (the open object, else the place). */
+export function askActions(screen: ScreenContext | null): readonly CmdAction[] {
+  if (screen === null || screen.place === "chats") return [];
+  const thing = thingOfScreen(screen);
+  return [{ key: ASK_HERE, title: thing?.title ? `Ask Vyre about ${thing.title}` : thing ? "Ask Vyre about this" : `Ask Vyre about ${placeTitle(screen.place)}`, icon: SPARK }];
+}
+
+/** The press: the pane opens in the place the person is in, with the place's own screen context as what the agent is told. */
+export function askHere(screen: ScreenContext | null = currentScreen()): boolean {
+  const place = activePlace();
+  if (screen === null || place === null || place === "chats") return false;
+  const { place: _p, open: _o, ...rest } = screen;
+  return openAskPane({ thing: thingOfScreen(screen), context: rest }, place) !== null;
+}
+
 export function createGateSearch(d: GateSearchDeps): CmdKData {
   const { runtime: rt, nav, state } = d;
   const online = (): boolean => !state.offline && rt.connection.get() === "online";
@@ -111,7 +136,7 @@ export function createGateSearch(d: GateSearchDeps): CmdKData {
       return out.hits;
     },
     recent: d.recent,
-    actions: (text) => gateActions(state, rt.space.kind === "team").filter((a) => !text || a.title.toLowerCase().includes(text.toLowerCase())),
+    actions: (text) => [...askActions(currentScreen()), ...gateActions(state, rt.space.kind === "team")].filter((a) => !text || a.title.toLowerCase().includes(text.toLowerCase())),
     skins: () => [{ id: system.id, name: system.name }, ...skins.map((s) => ({ id: s.id, name: s.name, swatch: s.palette.accent }))],
     currentSkin: () => (globalThis as { document?: { documentElement?: { getAttribute(k: string): string | null } } }).document?.documentElement?.getAttribute("data-skin") ?? "system",
     previewSkin: () => undefined,
@@ -124,10 +149,11 @@ export function createGateSearch(d: GateSearchDeps): CmdKData {
       nav.flash("Link copied");
     },
     runAction: (a) => {
-      if (a.key === "presence.away") {
+      if (a.key === ASK_HERE) askHere();
+      else if (a.key === "presence.away") {
         state.away = !state.away;
-        nav.setAway(state.away);
-        nav.flash(state.away ? "You are set as away" : "Welcome back");
+        if (d.away) d.away(state.away);
+        else { nav.setAway(state.away); nav.flash(state.away ? "You are set as away" : "Welcome back"); }
       } else if (a.key === "network.offline") {
         state.offline = !state.offline;
         nav.setOnline(!state.offline && rt.connection.get() === "online", 0);

@@ -34,7 +34,7 @@ export function matches(a: AutoRow, q: string): boolean {
 }
 
 /** Sections in the order the sidebar shows them. `shared` rows are the ones other people own that were shared with this person; the caller says which. */
-export function sectionsOf(autos: readonly AutoRow[], groups: readonly GroupRow[], opts: { me: string; q?: string; shared?: ReadonlySet<string>; reasons?: Readonly<Record<string, string>> }): Section[] {
+export function sectionsOf(autos: readonly AutoRow[], groups: readonly GroupRow[], opts: { me: string; q?: string; shared?: ReadonlySet<string>; reasons?: Readonly<Record<string, string>>; canSpace?: boolean }): Section[] {
   const q = opts.q ?? "";
   const rows = autos.filter((a) => matches(a, q));
   const sharedIds = opts.shared ?? new Set<string>();
@@ -59,7 +59,8 @@ export function sectionsOf(autos: readonly AutoRow[], groups: readonly GroupRow[
   out.push({ key: "personal", title: "Personal", count: personal.length, ...p, canAdd: true });
   if (shared.length > 0 || q === "") { const sg = byGroup(shared); out.push({ key: "shared", title: "Shared with me", count: shared.length, ...sg, canAdd: false }); }
   const sp = byGroup(space, true);
-  out.push({ key: "space", title: "Space", count: space.length, ...sp, canAdd: true });
+  // only someone who holds automations.space adds to the Space (l-perms): a member's + made a draft and then was refused the promote
+  out.push({ key: "space", title: "Space", count: space.length, ...sp, canAdd: opts.canSpace !== false });
   if (running.length > 0) out.push({ key: "running", title: "Running", count: running.length, loose: running, groups: [], canAdd: false });
   return out;
 }

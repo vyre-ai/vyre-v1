@@ -41,7 +41,8 @@ test("invite-only channel: a member of the Space who is not in it can do nothing
     await refused("join", "channels.join", { channelId: secret.channelId });
     // lists and search
     const names = (body: any): string[] => ((body.data?.channels ?? []) as Array<{ name: string }>).map((c) => c.name);
-    assert.deepEqual(names((await s.call("channels.list", noah, {})).body), ["open"], "the list shows only the channel he may see");
+    // #vyre is every Space's own public channel (owner, 3 Nov), so he sees it and "open"; never "secret"
+    assert.deepEqual(names((await s.call("channels.list", noah, {})).body).sort(), ["open", "vyre"], "the list shows only the channels he may see");
     const threads = ((await s.call("threads.list", noah, {})).body.data?.threads ?? []) as Array<{ threadId: string }>;
     assert.ok(!threads.some((x) => x.threadId === T), "the channel is not among his threads");
     const hits = (await s.call("chat.search", noah, { q: "hush" })).body.data?.hits as unknown[] | undefined;
@@ -72,11 +73,11 @@ test("an admin governs an invite-only channel they are not in: sees it in Consol
     const names = (r: { body: any }): string[] => ((r.body.data?.channels ?? []) as Array<{ name: string }>).map((c) => c.name);
 
     // the sidebar list hides it from him; Console lists it, restricted
-    assert.deepEqual(names(await s.call("channels.list", adam, {})), []);
+    assert.deepEqual(names(await s.call("channels.list", adam, {})), ["vyre"], "his sidebar has the Space's #vyre and not the secret channel");
     const gov = (await s.call("channels.list", adam, { governance: true })).body.data.channels as Array<{ name: string; restricted?: boolean; unread: number }>;
-    assert.deepEqual(gov.map((c) => [c.name, c.restricted, c.unread]), [["secret", true, 0]]);
+    assert.deepEqual(gov.map((c) => [c.name, c.restricted, c.unread]), [["vyre", undefined, 0], ["secret", true, 0]], "Console lists #vyre as open and the secret channel as restricted");
     // an ordinary member asking the same gets nothing
-    assert.deepEqual(names(await s.call("channels.list", noah, { governance: true })), []);
+    assert.deepEqual(names(await s.call("channels.list", noah, { governance: true })), ["vyre"], "a member asking for the Console list gets only what he may see, never the secret channel");
 
     // he governs: sees it, changes who is in it, archives it, brings it back
     expectStatus(await s.call("channels.get", adam, { channelId: secret.channelId }), 200, "channels.get as admin");

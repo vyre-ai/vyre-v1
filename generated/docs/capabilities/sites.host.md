@@ -1,6 +1,6 @@
 # sites.host
 
-What this Space can host: its address, whether it is a phone address, and what a custom domain needs
+What this Space can host: its address, whether it is a phone address, whether Vyre can build and run apps here, the address sites get, and what a custom domain needs
 
 | | |
 |---|---|
@@ -36,6 +36,9 @@ type Out = {
   computers: boolean;
   domains: boolean;
   domainsNeed?: string;
+  deploy?: boolean;
+  deployNeed?: string;
+  sitesDomain?: string;
 };
 ```
 
@@ -54,10 +57,13 @@ type Out = {
   "input": {},
   "output": {
     "computers": true,
+    "deploy": true,
+    "deployNeed": "example",
     "domains": true,
     "domainsNeed": "example",
     "origin": "example",
-    "relay": true
+    "relay": true,
+    "sitesDomain": "mla.vyre.run"
   }
 }
 ```

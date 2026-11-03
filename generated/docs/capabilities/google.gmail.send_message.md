@@ -34,6 +34,8 @@ type In = {
   text?: string;
   html?: string;
   threadId?: string;
+  inReplyTo?: string;
+  references?: string;
   attachments?: Array<string>;
   idempotencyKey: string;
 };
@@ -79,6 +81,8 @@ type Out = {
     "connectionId": "con_a1b2c3",
     "html": "example",
     "idempotencyKey": "idem_1",
+    "inReplyTo": "<c3@example.com>",
+    "references": "example",
     "subject": "example",
     "text": "example",
     "threadId": "example",

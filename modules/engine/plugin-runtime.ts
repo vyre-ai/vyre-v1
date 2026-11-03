@@ -45,6 +45,8 @@ export interface PluginRuntimeDeps {
   now?: () => number;
   /** Idle connections close after this long. Default 10 minutes. */
   idleMs?: number;
+  /** A tool of a connection was called (Vault > Connections shows last use and which agents). Never awaited; a failure here never fails the call. */
+  onUse?: (spec: ServerSpec, who: Who) => void;
 }
 
 export class PluginError extends Error {
@@ -198,6 +200,7 @@ export function createPluginRuntime(d: PluginRuntimeDeps) {
       const hub = hubById(spec.hub);
       const ident: Identity = hub ? identityOfTool(hub, tool) : "space";
       let l = await connection(spec, who, false, ident);
+      try { d.onUse?.(spec, who); } catch { /* the record of use never fails the call */ }
       let r;
       try { r = await l.client.callTool(tool, args); }
       catch (e) {

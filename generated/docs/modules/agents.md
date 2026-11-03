@@ -4,11 +4,13 @@ Lane L2. Kind module. Version 0.1.0.
 
 Requires: chat, engine, mcp, memory, runs, terminal.
 
-## Capabilities (68)
+## Capabilities (93)
 
+- [agents.assistant_of](../capabilities/agents.assistant_of.md): A person's own Assistant, for the server's modules that work for them; only the server and the person themself are answered
 - [agents.builtin_skill.get](../capabilities/agents.builtin_skill.get.md): Read one built-in skill by name, the full SKILL.md: Working in Vyre, the focus skill of a place (focus-records, focus-files, focus-automations, focus-vault, focus-inbox, focus-apps, focus-console), agent-loops, agent-computer
 - [agents.builtin_skills.list](../capabilities/agents.builtin_skills.list.md): Skills every agent carries, led by "Working in Vyre": save facts to the asker layer, propose promotions, cite sources, use secrets only by name, never copy data across Spaces
 - [agents.config.get](../capabilities/agents.config.get.md): Parsed agent.toml and AGENT.md metadata as the next run will see them, with the last good version and any error
+- [agents.config.may_save](../capabilities/agents.config.may_save.md): May the caller save this agent.toml, which is an agent's settings? Files asks as the writer before it writes; a file that is no agent's agent.toml answers allowed
 - [agents.config.validate](../capabilities/agents.config.validate.md): Validate agent.toml text (app limits first, then precedence) without saving
 - [agents.create](../capabilities/agents.create.md): Create an agent (the create-agent skill ends in one Approve card): record, Agents/<name> folder with the decided file tree, template files
 - [agents.delete](../capabilities/agents.delete.md): Move an agent to Trash (its folder and memory follow the folder rules)
@@ -55,8 +57,15 @@ Requires: chat, engine, mcp, memory, runs, terminal.
 - [plugins.commands.list](../capabilities/plugins.commands.list.md): The / commands that plugins add for a chat with this agent (or the Space when no agent)
 - [plugins.config.set](../capabilities/plugins.config.set.md): Set the options a plugin asks for; a secret option takes a Vault handle, never a value
 - [plugins.connection.add](../capabilities/plugins.connection.add.md): Connect an MCP server by URL (remote) or by command (runs in the sandbox), for the Space or one agent; works for every model
+- [plugins.connection.add_mine](../capabilities/plugins.connection.add_mine.md): Connect an MCP server for you and your agents only (Mine): by https address, or by a command that runs in the sandbox (npx, uvx). A key is a Vault handle in env or a header.
+- [plugins.connection.checked](../capabilities/plugins.connection.checked.md): The host records what a connection last did: answered with N tools, wants a sign-in, refused its key, or did not answer; and which agent called it
+- [plugins.connection.forget](../capabilities/plugins.connection.forget.md): Remove a connection you may manage: your own (Mine), or a Space or agent one when you manage agents
 - [plugins.connection.remove](../capabilities/plugins.connection.remove.md): Disconnect an MCP server made by hand
+- [plugins.connection.update](../capabilities/plugins.connection.update.md): Rename a connection, turn it off or on, switch it to OAuth sign-in, or (admins) choose who in the Space can use it: Everyone or groups
+- [plugins.connections.home](../capabilities/plugins.connections.home.md): Every connection you can use, for Vault > Connections: yours (Mine), the Space's (for everyone or your groups), your agents' own, and the servers plugins bring, each with its health, who can use it, which agents used it and when
 - [plugins.connections.list](../capabilities/plugins.connections.list.md): MCP connections made by hand (a URL or a command)
+- [plugins.connections.policy](../capabilities/plugins.connections.policy.md): Who may add Space connections, and the allow-list that limits what anyone else may add
+- [plugins.connections.policy_set](../capabilities/plugins.connections.policy_set.md): Set who may add Space connections (admins, or whoever manages agents) and the allow-list (registry names, https hosts, packages) for everyone who is not an admin
 - [plugins.files](../capabilities/plugins.files.md): The text files of an installed plugin, for the sandbox to be given (its MCP servers and hooks run from them)
 - [plugins.get](../capabilities/plugins.get.md): One installed plugin with the skills, commands, sub-agents, hooks and MCP servers it brought
 - [plugins.hooks.list](../capabilities/plugins.hooks.list.md): The hooks of the plugins that apply to this agent. They run only in the sandbox.
@@ -67,15 +76,31 @@ Requires: chat, engine, mcp, memory, runs, terminal.
 - [plugins.marketplace.remove](../capabilities/plugins.marketplace.remove.md): Remove a marketplace; the plugins installed from it stay until they are removed
 - [plugins.marketplaces.list](../capabilities/plugins.marketplaces.list.md): Marketplaces added to this Space
 - [plugins.mcp.servers](../capabilities/plugins.mcp.servers.md): The MCP servers a chat with this agent connects to: from plugins in the Space, plugins in the agent and connections made by hand. Secrets are Vault handles.
+- [plugins.registry.search](../capabilities/plugins.registry.search.md): Search the MCP server catalog (the official MCP registry). Answers from the last fetch when the registry cannot be reached, and says so.
 - [plugins.set_enabled](../capabilities/plugins.set_enabled.md): Turn an installed plugin off or on without removing it
 - [plugins.uninstall](../capabilities/plugins.uninstall.md): Remove an installed plugin and what it brought
 - [skills.add](../capabilities/skills.add.md): Add or replace a skill in the Space library, or in one agent (SKILL.md text with name and description in its front matter, plus optional supporting files)
-- [skills.list](../capabilities/skills.list.md): Skills a chat with this agent can load: Vyre built-in, the Space library and the agent own skills/ folder, one line each. With no agentId, the Space library and built-in ones
+- [skills.list](../capabilities/skills.list.md): Skills a chat with this agent can load: Vyre built-in, the Space library and the agent own skills/ folder, one line each. Two with one name are both listed, the one not used marked shadowedBy; a broken one is marked broken. With no agentId, the Space library and built-in ones
 - [skills.load](../capabilities/skills.load.md): Load the full text of one skill by name (SKILL.md body and its supporting files); agent skills win over Space ones, Space ones over built-in
+- [skills.members](../capabilities/skills.members.md): Console: the skills each member keeps for themselves, by name only; contents only of the ones they shared
+- [skills.mine.add](../capabilities/skills.mine.add.md): Add a skill for yourself and your agents (Mine), or replace one of yours. A name already taken is kept, and this one is renamed with its source
+- [skills.mine.remove](../capabilities/skills.mine.remove.md): Remove one of your skills (and its shares), or take a shared one off your list
+- [skills.mine.set](../capabilities/skills.mine.set.md): Switch one of your skills (or one shared with you) on or off, pick the agents that use it, or give its tool servers their Vault keys
+- [skills.mine.update](../capabilities/skills.mine.update.md): Fetch one of your skills again from its link or repo; whoever it is shared with approves again if it can now touch more
+- [skills.page](../capabilities/skills.page.md): Settings > Skills for the person asking: cards for skills shared with them, their own skills (Mine), the Space skills an admin set, the built-in ones, and their agents to assign them to
+- [skills.policy.set](../capabilities/skills.policy.set.md): Console: who may add skills that run scripts or start tool servers (everyone, the default, or only admins)
+- [skills.preview](../capabilities/skills.preview.md): Read the skills in a link (a SKILL.md, a GitHub repo or folder, a zip), a dropped folder or a zip, with what each can touch. Nothing is saved
 - [skills.remove](../capabilities/skills.remove.md): Remove a skill from the Space library, or from one agent
 - [skills.set_enabled](../capabilities/skills.set_enabled.md): Turn a Space or agent skill off or on without removing it
+- [skills.share](../capabilities/skills.share.md): Share one of your skills with chosen people in this Space, or with everyone here. Each of them gets a card and decides
+- [skills.shared.decide](../capabilities/skills.shared.decide.md): Add a skill shared with you, so it applies to you and your agents, or say Not now
+- [skills.space.adopt](../capabilities/skills.space.adopt.md): Console: make a skill a member shared Space-wide, so it applies to everyone with no card
+- [skills.space.install](../capabilities/skills.space.install.md): Console: set a skill for everyone in the Space. It applies to every member and their agents at once, with no card
+- [skills.space.setup](../capabilities/skills.space.setup.md): Console: give the tool servers of a Space skill their Vault keys
+- [skills.space.update](../capabilities/skills.space.update.md): Console: fetch a Space skill again from its link or repo
+- [skills.view](../capabilities/skills.view.md): The full text and files of one skill: your own, one shared with you (before you add it, too), a Space one or a built-in one
 
-## Events (29)
+## Events (37)
 
 - [agent.config_changed](../events/agent.config_changed.md): AGENT.md, agent.toml or the agent record changed (a new version was saved)
 - [agent.config_error](../events/agent.config_error.md): An agent.toml failed validation; the last good version keeps running
@@ -85,6 +110,7 @@ Requires: chat, engine, mcp, memory, runs, terminal.
 - [agent.job_taken](../events/agent.job_taken.md): An outside agent took a job
 - [agent.owner_changed](../events/agent.owner_changed.md): An agent was handed to another person
 - [agent.paused](../events/agent.paused.md): An agent was paused
+- [agent.privacy_set](../events/agent.privacy_set.md): An agent became private to its person (their assistant, an outside agent) or stopped being so; access names it as its person to everyone else
 - [agent.restored](../events/agent.restored.md): An agent came back from Trash
 - [agent.resumed](../events/agent.resumed.md): An agent was resumed
 - [agent.routine_changed](../events/agent.routine_changed.md): A routine was created, changed or deleted
@@ -97,7 +123,10 @@ Requires: chat, engine, mcp, memory, runs, terminal.
 - [plugin.allowlist_changed](../events/plugin.allowlist_changed.md): The plugin allowlist changed
 - [plugin.changed](../events/plugin.changed.md): A plugin was turned on or off, configured, or used to make an agent
 - [plugin.connection_added](../events/plugin.connection_added.md): An MCP server was connected
+- [plugin.connection_changed](../events/plugin.connection_changed.md): A connection was renamed, turned off or on, switched to sign-in, or shared with other people
+- [plugin.connection_checked](../events/plugin.connection_checked.md): A connection's health changed
 - [plugin.connection_removed](../events/plugin.connection_removed.md): An MCP connection was removed
+- [plugin.connections_policy_changed](../events/plugin.connections_policy_changed.md): The Space's rules for adding connections changed
 - [plugin.installed](../events/plugin.installed.md): A plugin was installed
 - [plugin.marketplace_added](../events/plugin.marketplace_added.md): A marketplace was added
 - [plugin.marketplace_refreshed](../events/plugin.marketplace_refreshed.md): A marketplace was fetched again
@@ -105,4 +134,8 @@ Requires: chat, engine, mcp, memory, runs, terminal.
 - [plugin.uninstalled](../events/plugin.uninstalled.md): A plugin was removed
 - [skill.added](../events/skill.added.md): A skill was added to the Space library or to one agent
 - [skill.changed](../events/skill.changed.md): A skill was turned off or on
+- [skill.mine_changed](../events/skill.mine_changed.md): A person added, changed or removed one of their own skills
+- [skill.policy_changed](../events/skill.policy_changed.md): An admin changed who may add skills that run scripts
 - [skill.removed](../events/skill.removed.md): A skill was removed from the Space library or from one agent
+- [skill.share_decided](../events/skill.share_decided.md): A person added a skill shared with them, or said Not now
+- [skill.shared](../events/skill.shared.md): A person shared one of their skills, or stopped

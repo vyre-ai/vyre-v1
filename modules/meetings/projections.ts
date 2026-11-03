@@ -19,6 +19,10 @@ export interface MeetCtx {
   origin?: string;
   now(): number;
   db: MeetDb;
+  /** the person an agent or the host acts for, when it does */
+  actingFor?: string;
+  /** may the caller do this to that resource (the host Ctx has it; a hand-built test ctx may not) */
+  authorize?(action: { perm: string | null; level: "view" | "use" | "edit" | "manage" }, resource: { type: string; id: string | null }): { effect: "allow" | "deny" | "hold" };
   emit(name: string, subject: string, payload: unknown, opts?: { vis?: "space" | "participants" | "owner" | "private" }): unknown;
   call(cap: string, input: unknown): Promise<unknown>;
   schedule?(at: number, cap: string, input: unknown): Promise<string>;
@@ -105,7 +109,7 @@ export function paging(ctx: Pick<MeetCtx, "trace">, o: Json): { cursor: string |
 // ---- schema
 
 const ready = new WeakSet<object>();
-const migrationSql = ["0001_meetings.sql", "0002_meetings_watchers.sql"].map((f) => readFileSync(fileURLToPath(new URL(`./migrations/${f}`, import.meta.url)), "utf8")).join("\n");
+const migrationSql = ["0001_meetings.sql", "0002_meetings_watchers.sql", "0003_meetings_closeout.sql"].map((f) => readFileSync(fileURLToPath(new URL(`./migrations/${f}`, import.meta.url)), "utf8")).join("\n");
 
 export function statements(sql: string): string[] {
   const out: string[] = [];
@@ -131,7 +135,7 @@ export function statements(sql: string): string[] {
 export function ensure(ctx: Pick<MeetCtx, "db">): void {
   if (ready.has(ctx.db)) return;
   try {
-    ctx.db.all(`SELECT "key" FROM meetings_state WHERE "key" = ?`, "probe");
+    ctx.db.all(`SELECT "recordId" FROM meetings_share WHERE "recordId" = ?`, "probe");   // the newest table: a store from before it gets the rest (every statement is IF NOT EXISTS)
   } catch {
     for (const statement of statements(migrationSql)) ctx.db.run(statement);
   }
@@ -212,7 +216,7 @@ export function saveLink(ctx: MeetCtx, l: Link): void {
 export interface MeetingRecord { id: string; fields: Json }
 
 /** The person a call is made for, when it is one. */
-const personOf = (ctx: MeetCtx): string | null => {
+export const personOf = (ctx: MeetCtx): string | null => {
   const id = ctx.actingFor ?? ctx.principal.id;
   return /^usr_[a-z0-9]+$/.test(id) ? id : null;
 };
@@ -239,6 +243,12 @@ export function canSeeMeeting(ctx: MeetCtx, recordId: string): boolean {
 export async function meetingRecord(ctx: MeetCtx, recordId: string): Promise<MeetingRecord> {
   if (!isId("rec", recordId)) bad(ctx, "Meeting id is not valid.");
   if (!canSeeMeeting(ctx, recordId)) return missing(ctx, "That meeting is not in this Space.");
+  return fetchMeeting(ctx, recordId);
+}
+
+/** The Meeting record without the watcher check, for a caller that decided who may see it on its own terms (the close-out also shows meetings shared to a project or channel). */
+export async function fetchMeeting(ctx: MeetCtx, recordId: string): Promise<MeetingRecord> {
+  if (!isId("rec", recordId)) bad(ctx, "Meeting id is not valid.");
   let rec: Json;
   try {
     rec = obj(obj(await ctx.call("records.get", { type: "meeting", recordId })).record);

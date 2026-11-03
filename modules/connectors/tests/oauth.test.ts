@@ -79,7 +79,7 @@ test("a person's tokens are never put anywhere shared: with the vault locked the
   const k = kit(); const s = await started(k);
   tokens(k);
   k.vaultFault.next = { error: { code: "auth.unauthenticated", message: "Your vault key is locked. Sign in again to open your Mine items." } };
-  await assert.rejects(k.hs["connections.complete_auth"](k.ctx, { state: s.state, code: "c" }), (e: unknown) => (e as { error: { code: string } }).error.code === "auth.unauthenticated" && /vault is locked on this computer/.test((e as Error).message));
+  await assert.rejects(k.hs["connections.complete_auth"](k.ctx, { state: s.state, code: "c" }), (e: unknown) => (e as { error: { code: string } }).error.code === "auth.unauthenticated" && /vault is locked until you sign in to Vyre/.test((e as Error).message));
   assert.equal(k.stored.length, 0);
   assert.equal(k.vaultFolders.filter((f) => f.scope === "shared").length, 0, "never a Shared fallback");
   assert.equal((await k.hs["connections.get"](k.ctx, { connectionId: s.id })).connection.state, "pending");

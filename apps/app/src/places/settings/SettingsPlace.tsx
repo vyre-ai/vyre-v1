@@ -12,6 +12,9 @@ import type { Hit, PageKey, SettingRow, SpacePage } from "./model.ts";
 import { AppearancePage, ComputerPage, SignInPage } from "./pages-b.tsx";
 import { AiPage, ConnectedPage, NotificationsPage, ProfilePage } from "./pages-a.tsx";
 import { MailPage } from "./MailPage.tsx";
+import { MemoryPage } from "./AboutYou.tsx";
+import { SkillsPage } from "../../skills/SkillsView.tsx";
+import { openAskPane } from "../../shell/ask/pane.ts";
 import { SpacePageBody, useSpaceRows } from "./SpacePages.tsx";
 import { SavedBar, SavedProvider } from "./saved.tsx";
 import { Glyph, IconBox, Mark, pointer, webOnly } from "./ui.tsx";
@@ -139,8 +142,11 @@ function SettingsBody({ initialPage = "profile", initialQuery = "", initialView 
       case "notifications": return <NotificationsPage rows={rows} found={found} />;
       case "appearance": return <AppearancePage rows={rows} found={found} />;
       case "ai": return <AiPage rows={rows} found={found} />;
+      case "memory": return <MemoryPage found={found} />;
       case "connected": return <ConnectedPage rows={rows} found={found} />;
       case "mail": return <MailPage />;
+      // Skills is the same page in every Space; Ask the Assistant opens the Ask pane beside Settings with the install already asked
+      case "skills": return <SkillsPage call={data.call} mode="settings" ask={(first) => openAskPane({ thing: { kind: "settings", id: "skills", title: "Skills" }, first }, "settings")} />;
       case "signin": return <SignInPage />;
       case "computer": return <ComputerPage />;
       default:
@@ -153,6 +159,8 @@ function SettingsBody({ initialPage = "profile", initialQuery = "", initialView 
       <View style={n.head}>
         {phone ? <Pressable accessibilityRole="button" accessibilityLabel="Settings" testID="back" onPress={() => setView("nav")} style={[n.back, pointer]}><View style={{ transform: [{ rotate: "90deg" }] }}><Glyph name="chevD" size={14} color="var(--ink-2)" /></View></Pressable> : null}
         <Text accessibilityRole="header" aria-level={1} style={n.title}>{searching ? "Search" : def.title}</Text>
+        <View style={{ flex: 1 }} />
+        {data.ask && !searching ? <Pressable accessibilityRole="button" accessibilityLabel={`Ask Vyre about ${def.title}`} testID="settings-ask" onPress={() => data.ask?.({ key: page, title: def.title })} style={({ hovered }: { hovered?: boolean }) => [n.ask, pointer, hovered === true && n.askOver]}><Glyph name="spark" size={14} color="var(--ink-2)" /><Text style={n.askText}>Ask</Text></Pressable> : null}
       </View>
       <ScrollView style={{ flex: 1 }} contentContainerStyle={n.content}>
         <View style={n.column}>
@@ -192,6 +200,9 @@ const n = StyleSheet.create({
   head: { height: 48, flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 18, borderBottomWidth: 1, borderBottomColor: "var(--line)" as string },
   back: { width: 28, height: 28, alignItems: "center", justifyContent: "center", borderRadius: 7 },
   title: { fontSize: 14.5, fontWeight: "600", color: "var(--ink)" as string },
+  ask: { height: 28, flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 8, borderRadius: 7 },
+  askOver: { backgroundColor: "var(--hover)" as string },
+  askText: { fontSize: 12.5, fontWeight: "500", color: "var(--ink-2)" as string },
   content: { paddingTop: 16, paddingBottom: 24, paddingHorizontal: 20, alignItems: "center" },
   column: { width: "100%", maxWidth: 684 },
 });

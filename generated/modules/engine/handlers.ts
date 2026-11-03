@@ -41,6 +41,7 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "engine.mcp.read": Handler<"engine.mcp.read", X>;
   "engine.mcp.tools": Handler<"engine.mcp.tools", X>;
   "engine.models.list": Handler<"engine.models.list", X>;
+  "engine.now": Handler<"engine.now", X>;
   "engine.placement.decide": Handler<"engine.placement.decide", X>;
   "engine.placement.options": Handler<"engine.placement.options", X>;
   "engine.placement.set": Handler<"engine.placement.set", X>;
@@ -74,6 +75,7 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "engine.turn.fallback": Handler<"engine.turn.fallback", X>;
   "engine.turn.finish": Handler<"engine.turn.finish", X>;
   "engine.turn.get": Handler<"engine.turn.get", X>;
+  "engine.turn.of_message": Handler<"engine.turn.of_message", X>;
   "engine.turn.record": Handler<"engine.turn.record", X>;
   "engine.turn.record_usage": Handler<"engine.turn.record_usage", X>;
   "engine.turn.retry": Handler<"engine.turn.retry", X>;

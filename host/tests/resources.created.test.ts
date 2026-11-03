@@ -269,3 +269,38 @@ test("an agent that makes a record type for a person holds Manage on it, and no 
   const byPerson = await run(mk("person", "usr_adam"));
   assert.ok(!byPerson.may("usr_adam") && !byPerson.may(), "a person's own type gives no agent a grant");
 });
+
+test("registrar: a move registers the object again under its new folder, keeping its label, owner and holds; a Vault folder made inside another lives in it (l-labelinherit)", () => {
+  const events: SubjectDef[] = [
+    { name: "vault.item_moved", subject: { type: "vault_item", id: "/itemId" } },
+    { name: "file.moved", subject: { type: "file", id: "/fileId" } },
+    { name: "folder.moved", subject: { type: "folder", id: "/folderId" } },
+    { name: "vault.folder_created", subject: { type: "vault_folder", id: "/folderId" } },
+  ];
+  const rows = new Map<string, ResourceRow>([
+    ["spc_1", { id: "spc_1", type: "space", parent_id: null, label: 0, owner_id: "usr_owner", holds: 0 }],
+    ["vfd_open", { id: "vfd_open", type: "vault_folder", parent_id: "spc_1", label: 0, owner_id: "usr_owner", holds: 0 }],
+    ["vfd_partners", { id: "vfd_partners", type: "vault_folder", parent_id: "spc_1", label: 3, owner_id: "usr_owner", holds: 0 }],
+    ["vfd_mine", { id: "vfd_mine", type: "vault_folder", parent_id: null, label: 0, owner_id: "usr_dana", holds: 0 }],
+    ["vit_key", { id: "vit_key", type: "vault_item", parent_id: "vfd_open", label: 1, owner_id: "usr_dana", holds: 1 }],
+    ["fld_a", { id: "fld_a", type: "folder", parent_id: "spc_1", label: 0, owner_id: "usr_owner", holds: 0 }],
+    ["fld_hr", { id: "fld_hr", type: "folder", parent_id: "spc_1", label: 3, owner_id: "usr_owner", holds: 0 }],
+    ["fil_x", { id: "fil_x", type: "file", parent_id: "fld_a", label: 0, owner_id: "usr_dana", holds: 0 }],
+  ]);
+  const r = createResourceRegistrar({ events, exists: (id) => rows.has(id), resource: (id) => rows.get(id) });
+  const call = (name: string, payload: unknown, input: unknown = {}) => r.register({ cap: { name: "x.move", resource: { type: "space" } }, input, space: "spc_1", owner: "usr_owner", events: [ev(name, payload)] });
+  assert.deepEqual(call("vault.item_moved", { itemId: "vit_key", fromFolderId: "vfd_open", toFolderId: "vfd_partners" }),
+    [{ id: "vit_key", type: "vault_item", parent_id: "vfd_partners", label: 1, owner_id: "usr_dana", holds: 1 }]);
+  assert.deepEqual(call("file.moved", { fileId: "fil_x", fromFolderId: "fld_a", toFolderId: "fld_hr" }).map((x) => x.parent_id), ["fld_hr"]);
+  assert.deepEqual(call("folder.moved", { folderId: "fld_a", fromParentId: "spc_1", toParentId: "fld_hr" }).map((x) => x.parent_id), ["fld_hr"]);
+  assert.deepEqual(call("vault.item_moved", { itemId: "vit_key", fromFolderId: "vfd_open", toFolderId: "vfd_open" }), [], "already there");
+  assert.deepEqual(call("vault.item_moved", { itemId: "vit_key", toFolderId: "vfd_unknown" }), [], "a folder access does not know");
+  assert.deepEqual(call("folder.moved", { folderId: "vfd_mine", toParentId: "vfd_open" }), [], "a private root is never put under another folder");
+  assert.deepEqual(call("vault.item_moved", { itemId: "vit_unknown", toFolderId: "vfd_open" }), [], "an object access does not know");
+  // a Shared folder made inside another lives in it; a Mine folder stays a private root
+  assert.equal(call("vault.folder_created", { folderId: "vfd_deals", scope: "shared" }, { parentId: "vfd_partners", scope: "shared" })[0]?.parent_id, "vfd_partners");
+  assert.equal(call("vault.folder_created", { folderId: "vfd_top", scope: "shared" }, { scope: "shared" })[0]?.parent_id, "spc_1");
+  assert.equal(call("vault.folder_created", { folderId: "vfd_mine2", scope: "mine" }, { parentId: "vfd_mine", scope: "mine" })[0]?.parent_id, null);
+  // without the reader (an older wiring) a move registers nothing, as before
+  assert.deepEqual(createResourceRegistrar({ events, exists: (id) => rows.has(id) }).register({ cap: { name: "x", resource: { type: "space" } }, input: {}, space: "spc_1", owner: "usr_owner", events: [ev("file.moved", { fileId: "fil_x", toFolderId: "fld_hr" })] }), []);
+});

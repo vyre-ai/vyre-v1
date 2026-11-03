@@ -10,6 +10,7 @@ export const handlers: Handlers<HandlerCtx> = {
   "tasks.assign": async (ctx) => { throw new VyreErr(notImplemented("tasks.assign", ctx.trace)); },
   "tasks.block": async (ctx) => { throw new VyreErr(notImplemented("tasks.block", ctx.trace)); },
   "tasks.by_key": async (ctx) => { throw new VyreErr(notImplemented("tasks.by_key", ctx.trace)); },
+  "tasks.clock": async (ctx) => { throw new VyreErr(notImplemented("tasks.clock", ctx.trace)); },
   "tasks.count_needs_you": async (ctx) => { throw new VyreErr(notImplemented("tasks.count_needs_you", ctx.trace)); },
   "tasks.create": async (ctx) => { throw new VyreErr(notImplemented("tasks.create", ctx.trace)); },
   "tasks.decide": async (ctx) => { throw new VyreErr(notImplemented("tasks.decide", ctx.trace)); },

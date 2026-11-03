@@ -12,6 +12,7 @@ export const handlers: Handlers<HandlerCtx> = {
   "identity.github_unlink": async (ctx) => { throw new VyreErr(notImplemented("identity.github_unlink", ctx.trace)); },
   "identity.keys_get": async (ctx) => { throw new VyreErr(notImplemented("identity.keys_get", ctx.trace)); },
   "identity.keys_put": async (ctx) => { throw new VyreErr(notImplemented("identity.keys_put", ctx.trace)); },
+  "identity.link_account": async (ctx) => { throw new VyreErr(notImplemented("identity.link_account", ctx.trace)); },
   "identity.pair_create": async (ctx) => { throw new VyreErr(notImplemented("identity.pair_create", ctx.trace)); },
   "identity.pair_redeem": async (ctx) => { throw new VyreErr(notImplemented("identity.pair_redeem", ctx.trace)); },
   "identity.passkey_register": async (ctx) => { throw new VyreErr(notImplemented("identity.passkey_register", ctx.trace)); },

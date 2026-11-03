@@ -4,7 +4,7 @@
 import { useReducer, useState } from "react";
 import type { ReactElement } from "react";
 import { View } from "react-native";
-import { Bar, Button, CheckBox, CodeShown, ErrorLine, Field, Foot, Group, JoinFrame, Meter, Panel, Step, Title, Working } from "../join/kit.tsx";
+import { Bar, Button, CheckBox, CodeShown, ErrorLine, Field, Foot, Group, JoinFrame, Links, Meter, Panel, Step, TextButton, Title, Working } from "../join/kit.tsx";
 import { ContinueAs } from "../join/ContinueAs.tsx";
 import { FAILURE_LINE, PASSWORD_MIN, cleanUsername, isDeadLink, meter, problemOf, strength, usernameOk } from "./logic.ts";
 import type { ClaimFailure, Details, Problem } from "./logic.ts";
@@ -34,11 +34,15 @@ export interface ClaimOwnerProps {
   /** Leave before anything is claimed: back to the first screen. */
   onBack?(): void;
   /** The account this device already has (rc.14): the screen opens on "Continue as", which asks only for the current password. */
-  known?: { username: string; name: string } | null;
+  known?: { username: string; name: string; /** rc.17: known from a Google, Microsoft or GitHub sign-in: the field takes the password or the recovery code */ provider?: true } | null;
   /** Owns the Space with the known account: the same keys, no new password, no new recovery code. Rejects with a ClaimError or an error whose `line` (or message) is shown. */
   onClaimAs?(password: string): Promise<void>;
   /** A browser with the desktop app on this computer: hand the link to the app, where the account already is. */
   onOpenApp?(): void;
+  /** rc.17, a provider-known account: check a recovery code, then claim with it and a password chosen once. */
+  either?: { onCheckCode(code: string): Promise<void>; onRecovery(code: string, newPassword: string): Promise<void> };
+  /** rc.17: "I already have a Vyre account", for an account this device has no session for. */
+  onHaveAccount?(): void;
 }
 
 type Stage = "known" | "details" | "recovery" | "run" | "dead";
@@ -142,15 +146,19 @@ export function ClaimOwner(props: ClaimOwnerProps): ReactElement {
   if (s.stage === "known" && known && props.onClaimAs) {
     const claimAs = props.onClaimAs;
     // A spent or expired link ends the flow on its own line; anything else stays on "Continue as" with the reason.
-    const go = async (password: string): Promise<void> => {
-      try { await claimAs(password); } catch (e) {
+    const guard = async (work: () => Promise<void>): Promise<void> => {
+      try { await work(); } catch (e) {
         const failure = (e as { failure?: string }).failure as ClaimFailure | undefined;
         if (failure && isDeadLink(failure)) { dispatch({ t: "fail", failure, line: "" }); return; }
         if ((e as { line?: string }).line) throw e;
         throw new Error(failure && failure !== "other" && failure in FAILURE_LINE ? FAILURE_LINE[failure] : (e as Error).message || FAILURE_LINE.other);
       }
     };
-    return <ContinueAs prefix="claim-as" space={props.space} username={known.username} sub={props.space ? `Enter your Vyre password to set up ${props.space}` : "Enter your Vyre password to set up this Space"} working={props.space ? `Setting up ${props.space}` : "Setting up your Space"} onContinue={go} onOther={() => dispatch({ t: "to", stage: "details", dir: 1 })} {...(props.onBack ? { onBack: props.onBack } : {})} />;
+    const either = known.provider && props.either ? props.either : null;
+    const sub = either ? (props.space ? `Your Vyre password (the one you set when you joined), or your recovery code, to set up ${props.space}` : "Your Vyre password (the one you set when you joined), or your recovery code")
+      : props.space ? `Enter your Vyre password to set up ${props.space}` : "Enter your Vyre password to set up this Space";
+    return <ContinueAs prefix="claim-as" space={props.space} username={known.username} sub={sub} working={props.space ? `Setting up ${props.space}` : "Setting up your Space"} onContinue={(password) => guard(() => claimAs(password))} onOther={() => dispatch({ t: "to", stage: "details", dir: 1 })} {...(props.onBack ? { onBack: props.onBack } : {})}
+      {...(either ? { either: { onCheckCode: either.onCheckCode, onRecovery: (code: string, pw: string) => guard(() => either.onRecovery(code, pw)) } } : {})} />;
   }
   const onDetails = s.stage === "details";
   const cont = onDetails
@@ -159,7 +167,10 @@ export function ClaimOwner(props: ClaimOwnerProps): ReactElement {
   // Back from the details goes to "Continue as" when the person chose a different account there.
   const backFromDetails = known ? () => dispatch({ t: "to", stage: "known", dir: -1 }) : props.onBack;
   const bar = <Bar hideBack={onDetails && !backFromDetails} onBack={onDetails ? backFromDetails : () => dispatch({ t: "to", stage: "details", dir: -1 })} step={onDetails ? 0 : 1} steps={2} cont={cont} />;
-  const openApp = onDetails && props.onOpenApp ? <View style={{ marginTop: 8 }}><Button quiet testID="claim-open-app" label="Open in Vyre" onPress={props.onOpenApp} /><Foot top={6} testID="claim-open-app-note">Have Vyre on this computer? Open the link there to use the account you have.</Foot></View> : undefined;
+  const openApp = onDetails && (props.onOpenApp || props.onHaveAccount) ? <View style={{ marginTop: 8 }}>
+    {props.onOpenApp ? <><Button quiet testID="claim-open-app" label="Open in Vyre" onPress={props.onOpenApp} /><Foot top={6} testID="claim-open-app-note">Have Vyre on this computer? Open the link there to use the account you have.</Foot></> : null}
+    {props.onHaveAccount ? <Links><TextButton testID="claim-have-account" label="I already have a Vyre account" onPress={props.onHaveAccount} /></Links> : null}
+  </View> : undefined;
   return (
     <JoinFrame>
       <Panel bar={bar} {...(openApp ? { below: openApp } : {})}>

@@ -1,7 +1,7 @@
 // The AI provider panel above an item's card (spec 3.8): how it connects, Mine or Shared, how it is doing, what it cost this month, and the agents and Automations that use it. Test connection
 // asks the provider and says what came back. An API key can be shared and lets the Space use it; a subscription sign-in is yours and says so. Each action is one capability call; a refusal
 // shows as a quiet line.
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { ReactElement } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { Avatar } from "../../../../../../ui/src/Avatar/index.tsx";
@@ -10,7 +10,7 @@ import { useVaultData, usePrincipals } from "../layout/data.tsx";
 import type { Provider } from "../layout/model.ts";
 import { Btn, Glyph } from "../layout/parts.tsx";
 import { Info } from "../../../../../../ui/src/Tip/index.tsx";
-import { canShare, countWords, howConnected, scopeWords, stateWords, testWords, usageWords, userKind } from "./model.ts";
+import { canShare, cliDriverOf, countWords, howConnected, needsWords, scopeWords, stateWords, testWords, usageWords, userKind } from "./model.ts";
 
 export interface ProviderPanelProps {
   provider: Provider;
@@ -30,6 +30,16 @@ export function ProviderPanel({ provider, onNote, onRemoved }: ProviderPanelProp
   const [asking, setAsking] = useState(false);
   const [spaceMay, setSpaceMay] = useState(provider.spaceMayUse);
   const fail = (e: unknown): void => onNote(e instanceof Error ? e.message : "That did not work.");
+  // A CLI sign-in this computer cannot run (no sandbox for it here) says what it needs instead of "Working".
+  const [needs, setNeeds] = useState<string | null>(null);
+  const cli = cliDriverOf(provider) !== null;
+  useEffect(() => {
+    if (!cli) { setNeeds(null); return; }
+    let live = true;
+    void (data.call("engine.providers.list", {}) as Promise<{ providers: Array<{ driver: string; kind: string; allowed: boolean; reason?: string }> }>)
+      .then((o) => { if (live) setNeeds(needsWords(provider, o.providers)); }).catch(() => undefined);
+    return () => { live = false; };
+  }, [cli, provider.id]);
 
   const test = async (): Promise<void> => {
     setTesting(true); setResult(null);
@@ -51,7 +61,7 @@ export function ProviderPanel({ provider, onNote, onRemoved }: ProviderPanelProp
         <View style={s.facts}>
           <View style={s.fact}><Text style={s.k}>Connects with</Text><Text style={s.v} testID="provider-how">{howConnected(provider)}</Text></View>
           <View style={s.fact}><Text style={s.k}>Belongs to</Text><Text style={s.v} testID="provider-scope">{scopeWords(provider)}</Text></View>
-          <View style={s.fact}><Text style={s.k}>Right now</Text><View style={s.state}><View style={[s.dot, { backgroundColor: STATE_COLOR[provider.state] as string }]} /><Text style={s.v} testID="provider-state">{stateWords(provider.state)}</Text></View></View>
+          <View style={s.fact}><Text style={s.k}>Right now</Text><View style={s.state}><View style={[s.dot, { backgroundColor: (needs !== null ? STATE_COLOR.needs_sign_in : STATE_COLOR[provider.state]) as string }]} /><Text style={s.v} testID="provider-state">{needs ?? stateWords(provider.state)}</Text></View></View>
           <View style={s.fact}><Text style={s.k}>This month</Text><Text style={s.v} testID="provider-usage">{usageWords(provider)}</Text></View>
         </View>
 

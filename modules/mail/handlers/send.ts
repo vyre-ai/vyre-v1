@@ -461,7 +461,7 @@ async function deliver(ctx: SendCtx, p: Plan, c: Composed, parent: Row | null, p
   writeRow(ctx, p, final, parent, pending, id, "queued", now, rfcId);
   let providerId: string | null;
   try {
-    providerId = p.route === "space_domain" ? await viaSpaceDomain(ctx, p, final, parent, id, rfcId) : await viaMailbox(ctx, p.box, final, id);
+    providerId = p.route === "space_domain" ? await viaSpaceDomain(ctx, p, final, parent, id, rfcId) : await viaMailbox(ctx, p.box, final, id, parent);
   } catch (e) {
     ctx.db.run(`UPDATE mail_message SET status = ?, version = ?, updated_at = ? WHERE id = ?`, "failed", nextVersion(ctx, id), ctx.now(), id);
     ctx.log.warn("mail.send failed", { messageId: id, route: p.route, traceId: ctx.trace.traceId });
@@ -525,13 +525,27 @@ function writeRow(ctx: SendCtx, p: Plan, c: Composed, parent: Row | null, pendin
   );
 }
 
+/** In-Reply-To is the message answered; References is its References with it added, oldest first, so every mail program threads the reply. */
+function replyIds(ctx: SendCtx, parent: Row | null): { inReplyTo: string; references: string } | null {
+  const parentRfc = strOrNull(parent, "rfcMessageId");
+  if (!parent || !parentRfc) return null;
+  let refs: string[] = [];
+  try {
+    const h = JSON.parse(str(first(ctx.db.all(`SELECT headers FROM mail_body WHERE "messageId" = ?`, str(parent, "id"))), "headers") || "{}") as Record<string, unknown>;
+    const v = h.references ?? h.References;
+    if (typeof v === "string") refs = v.split(/\s+/).filter((x) => /^<[^<>\s]+>$/.test(x));
+  } catch { /* no stored headers: the parent alone */ }
+  const chain = [...refs.filter((x) => x.toLowerCase() !== parentRfc.toLowerCase()), parentRfc].slice(-20);
+  return { inReplyTo: parentRfc, references: chain.join(" ") };
+}
+
 function outHeaders(ctx: SendCtx, parent: Row | null, rfcId: string | null): Record<string, string> {
   const headers: Record<string, string> = { [TRACE_HEADER]: ctx.trace.traceId };
   if (rfcId) headers["Message-ID"] = rfcId;
-  const parentRfc = strOrNull(parent, "rfcMessageId");
-  if (parentRfc) {
-    headers["In-Reply-To"] = parentRfc;
-    headers.References = parentRfc;
+  const ids = replyIds(ctx, parent);
+  if (ids) {
+    headers["In-Reply-To"] = ids.inReplyTo;
+    headers.References = ids.references;
   }
   return headers;
 }
@@ -576,11 +590,26 @@ function acceptedId(ctx: SendCtx, result: unknown): string {
   return text(obj(result).providerId) ?? (() => { throw fail("provider.bad_response", ctx.trace.traceId, { message: "The sending provider did not return a message id." }); })();
 }
 
-/** Send through the member's own Gmail or Graph mailbox, as the member. IMAP has no send path in v1. */
-async function viaMailbox(ctx: SendCtx, box: Row, c: Composed, id: string): Promise<string | null> {
+/**
+ * Send through the member's own Gmail or Graph mailbox, as the member. IMAP has no send path in v1. A reply carries what the provider needs to keep it in the
+ * thread: Gmail gets the thread id of this mailbox's copy plus In-Reply-To and References; Graph gets this mailbox's id of the message answered (createReply).
+ */
+async function viaMailbox(ctx: SendCtx, box: Row, c: Composed, id: string, parent: Row | null): Promise<string | null> {
   const body: Record<string, unknown> = {
     connectionId: str(box, "connectionId"), as: str(box, "address"), to: c.to.map((x) => x.address), subject: c.subject, idempotencyKey: id,
   };
+  if (parent) {
+    const copy = first(ctx.db.all(`SELECT "providerId", "threadKey" FROM mail_copy WHERE "messageId" = ? AND "mailboxId" = ?`, str(parent, "id"), str(box, "id")));
+    if (str(box, "provider") === "google") {
+      const ids = replyIds(ctx, parent);
+      if (ids) { body.inReplyTo = ids.inReplyTo; body.references = ids.references; }
+      const thread = strOrNull(copy, "threadKey");
+      if (thread) body.threadId = thread;
+    } else if (str(box, "provider") === "microsoft") {
+      const graphId = strOrNull(copy, "providerId");
+      if (graphId) body.replyTo = graphId;
+    }
+  }
   if (c.cc.length) body.cc = c.cc.map((x) => x.address);
   if (c.bcc.length) body.bcc = c.bcc.map((x) => x.address);
   if (c.text !== undefined) body.text = c.text;
@@ -591,13 +620,20 @@ async function viaMailbox(ctx: SendCtx, box: Row, c: Composed, id: string): Prom
   if (own) {
     const { connectionId, as: _as, ...rest } = body;
     const mine = { ...rest, accountId: connectionId };
-    if (str(box, "provider") === "google") return text(obj(await ctx.call("google.user.send_message", mine)).id) ?? null;
+    if (str(box, "provider") === "google") return gmailSent(ctx, box, id, await ctx.call("google.user.send_message", mine));
     await ctx.call("ms.user.send_message", mine);
     return null;
   }
-  if (str(box, "provider") === "google") return text(obj(await ctx.call("google.gmail.send_message", body)).id) ?? null;
+  if (str(box, "provider") === "google") return gmailSent(ctx, box, id, await ctx.call("google.gmail.send_message", body));
   await ctx.call("ms.mail.send_message", body);   // Graph answers sent: true and no id; the Sent folder copy arrives through sync
   return null;
+}
+
+/** Gmail answers the sent message's id and thread: this mailbox's copy, so the next reply from here stays in the thread. */
+function gmailSent(ctx: SendCtx, box: Row, id: string, result: unknown): string | null {
+  const r = obj(result), providerId = text(r.id) ?? null, thread = text(r.threadId);
+  if (providerId) ctx.db.run(`INSERT OR IGNORE INTO mail_copy ("messageId", "mailboxId", source, "providerId", "threadKey") VALUES (?, ?, ?, ?, ?)`, id, str(box, "id"), "google", providerId, thread || null);
+  return providerId;
 }
 
 /** The provider accepted the message: the row becomes sent, the counters move, the event goes out. */

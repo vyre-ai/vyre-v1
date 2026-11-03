@@ -18,6 +18,14 @@ test("a request names its act and target", () => {
   assert.deepEqual(acts("deploy it"), ["site_promote:"]);
 });
 
+test("reaching a teammate: tell, ask, remind, ping and let ... know count only with a name", () => {
+  assert.deepEqual(acts("tell Andrey the deck is ready"), ["send:andrey"]);
+  assert.deepEqual(acts("please ask Rubab for the Fathom key"), ["send:rubab"]);
+  assert.deepEqual(acts("let Sam know I will be late"), ["send:sam"]);
+  assert.deepEqual(acts("remind Lee about Friday"), ["send:lee"]);
+  for (const s of ["tell me what you find", "let me know when it is done", "ask the team", "don't tell Andrey yet", "can you tell us more?"]) assert.deepEqual(acts(s), [], s);
+});
+
 test("a request with no target says so, and the Gate treats it more strictly", () => {
   assert.deepEqual(acts("send it"), ["send:"]);
   assert.deepEqual(acts("push it"), ["push_protected:"]);

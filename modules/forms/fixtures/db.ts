@@ -37,7 +37,7 @@ export function parseSchema(sql: string): Map<string, TableDef> {
     const body = m[2];
     if (name === undefined || body === undefined) continue;
     const def: TableDef = { columns: [], primary: [], unique: [], required: new Set(), defaults: new Map() };
-    for (const raw of body.split("\n")) {
+    for (const raw of body.split(/\r?\n/)) {
       const line = raw.trim().replace(/,$/, "");
       if (!line) continue;
       const pk = /^PRIMARY KEY \(([^)]+)\)$/.exec(line);

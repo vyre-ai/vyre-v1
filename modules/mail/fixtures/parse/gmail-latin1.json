@@ -1,0 +1,63 @@
+{
+ "id": "18c3f00000000l1",
+ "threadId": "18c3f00000000l1",
+ "labelIds": [
+  "INBOX",
+  "UNREAD"
+ ],
+ "internalDate": "1792857600000",
+ "snippet": "Hola Irfad, Gracias por la llamada.",
+ "payload": {
+  "mimeType": "multipart/alternative",
+  "headers": [
+   {
+    "name": "From",
+    "value": "José Ortega <jose@ortega.example>"
+   },
+   {
+    "name": "To",
+    "value": "irfad@northwind.example"
+   },
+   {
+    "name": "Subject",
+    "value": "Reunión del miércoles"
+   },
+   {
+    "name": "Message-ID",
+    "value": "<l1.jose@ortega.example>"
+   }
+  ],
+  "parts": [
+   {
+    "mimeType": "text/plain",
+    "headers": [
+     {
+      "name": "Content-Type",
+      "value": "text/plain; charset=ISO-8859-1"
+     },
+     {
+      "name": "Content-Transfer-Encoding",
+      "value": "quoted-printable"
+     }
+    ],
+    "body": {
+     "size": 104,
+     "data": "SG9sYSBJcmZhZCwKCkdyYWNpYXMgcG9yIGxhIGxsYW1hZGEuIExhIHJldW5p824gZXMgZWwgbWnpcmNvbGVzIGEgbGFzIDExOjAwLiBFbCBjYWbpIGVzdOEgcGFnYWRvLgoKSm9z6Qo"
+    }
+   },
+   {
+    "mimeType": "text/html",
+    "headers": [
+     {
+      "name": "Content-Type",
+      "value": "text/html; charset=windows-1252"
+     }
+    ],
+    "body": {
+     "size": 90,
+     "data": "PHA-R3JhY2lhcyBwb3IgbGEgbGxhbWFkYS4gTGEgcmV1bmnzbiBlcyBlbCBtaelyY29sZXMgliBhIGxhcyAxMTowMC48L3A-"
+    }
+   }
+  ]
+ }
+}

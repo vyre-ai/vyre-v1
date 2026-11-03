@@ -18,6 +18,7 @@ import { openKitBuilder, runAction } from "./actions.ts";
 import { AppsDataProvider, useAppsData, useOptionalAppsData, useScreenQuery } from "./data.tsx";
 import type { AppsData } from "./data.tsx";
 import { AppsSurface } from "./Surfaces.tsx";
+import { NewSiteSheet } from "./NewSiteSheet.tsx";
 import { ACTION_LABEL, GROUPS, NEEDS_YES, actionsFor, domainRow, formRow, groupOf, matches, siteRow, templateRow } from "./model.ts";
 import type { AppRow, DomainRow, GroupKey, RowAction } from "./model.ts";
 
@@ -57,11 +58,11 @@ function useLists(): Lists {
     const dom: AppRow[] = [];
     for (const x of domains ?? []) dom.push(domainRow(x));
     return {
-      sites: rows(sites, (o: CapMap["sites.list"]["out"]) => o.sites.filter((x) => x.kind !== "artifact"), siteRow), forms: rows(forms, (o: CapMap["forms.list"]["out"]) => [...o.forms], formRow),
+      sites: rows(sites, (o: CapMap["sites.list"]["out"]) => o.sites.filter((x) => x.kind !== "artifact"), (x) => siteRow(x, { now: d.clock().now, ...(d.nameOf ? { nameOf: d.nameOf } : {}), ...(d.me ? { me: d.me.id } : {}) })), forms: rows(forms, (o: CapMap["forms.list"]["out"]) => [...o.forms], formRow),
       templates: rows(templates, (o: CapMap["templates.list"]["out"]) => [...o.templates], templateRow),
       domains: { rows: dom, ready: domains !== null, ...(domainError ? { error: domainError } : {}) },
     };
-  }, [sites, forms, templates, domains, domainError]);
+  }, [sites, forms, templates, domains, domainError, d]);
 }
 
 const EMPTY_ICON = { sites: "files", forms: "doc", templates: "files", domains: "inbox" } as const;
@@ -73,7 +74,12 @@ function Page({ initial, route = { kind: "list" } }: { initial?: AppsStart | und
   const lists = useLists();
   const groups = GROUPS.filter((g) => !(d.deferred ?? []).includes(g.key));
   const { element, show } = useMenu();
-  const [group, setGroup] = useState<GroupKey>(route.group && !(d.deferred ?? []).includes(route.group) ? route.group : initial?.group && !(d.deferred ?? []).includes(initial.group) ? initial.group : "forms");
+  // Apps opens on Sites (owner, 3 Nov), or on the group this person had open last time
+  const usable = (g: GroupKey | undefined | null): g is GroupKey => !!g && groups.some((x) => x.key === g);
+  const remembered = lastGroup(d.me?.id);
+  const [group, setGroupState] = useState<GroupKey>(usable(route.group) ? route.group : usable(initial?.group) ? initial!.group! : usable(remembered) ? remembered : usable("sites") ? "sites" : groups[0]?.key ?? "forms");
+  const setGroup = useCallback((g: GroupKey): void => { setGroupState(g); rememberGroup(d.me?.id, g); }, [d.me?.id]);
+  const [sheet, setSheet] = useState(false);
   const [selected, setSelected] = useState<string | null>(initial?.selected ?? null);
   const [q, setQ] = useState(initial?.q ?? "");
   const [closed, setClosed] = useState<ReadonlySet<GroupKey>>(new Set(initial?.closed ?? []));
@@ -100,7 +106,7 @@ function Page({ initial, route = { kind: "list" } }: { initial?: AppsStart | und
   const newMenu = (x: number, y: number, only?: GroupKey): void => {
     const entries: MenuEntry[] = [];
     if (only === undefined || only === "templates") entries.push({ label: "Save as template", onSelect: () => d.nav.create("templates") });
-    if ((only === undefined || only === "sites") && groups.some((g) => g.key === "sites") && d.nav.newSite) entries.push({ label: "New site", onSelect: () => d.nav.newSite?.() });
+    if ((only === undefined || only === "sites") && groups.some((g) => g.key === "sites")) entries.push({ label: "New site", onSelect: () => setSheet(true) });
     for (const g of groups) if ((only === undefined || only === g.key) && (g.key === "forms" || g.key === "domains")) entries.push({ label: g.key === "domains" ? "Add sending domain" : `New ${g.one}`, onSelect: () => d.nav.create(g.key) });
     if ((only === undefined || only === "templates") && d.nav.openEmailDesign) entries.push({ label: "New email design", onSelect: () => d.nav.openEmailDesign?.() });
     if (only === undefined || only === "templates") entries.push({ separator: true }, { label: "Build a Kit with an agent", onSelect: () => void openKitBuilder(d).catch((e: unknown) => setNote({ text: e instanceof Error ? e.message : "That did not work." })) });
@@ -166,7 +172,7 @@ function Page({ initial, route = { kind: "list" } }: { initial?: AppsStart | und
         <Text style={s.mc}>{rows.length}</Text>
         <View style={s.grow} />
         {group === "templates" ? <Pressable accessibilityRole="button" testID="apps-kit" onPress={() => void openKitBuilder(d).catch((e: unknown) => setNote({ text: e instanceof Error ? e.message : "That did not work." }))} style={(state) => [s.btn, (state as { hovered?: boolean }).hovered === true && s.over]}><Text style={s.btnText}>Build a Kit</Text></Pressable> : null}
-        {group === "sites" && d.nav.newSite ? <Pressable accessibilityRole="button" accessibilityLabel="New site" testID="apps-new-site" onPress={() => d.nav.newSite?.()} style={(state) => [s.btn, s.btnPrimary, (state as { hovered?: boolean }).hovered === true && s.over]}><Text style={[s.btnText, s.btnPrimaryText]}>New site</Text></Pressable> : null}
+        {group === "sites" ? <Pressable accessibilityRole="button" accessibilityLabel="New site" testID="apps-new-site" onPress={() => setSheet(true)} style={(state) => [s.btn, s.btnPrimary, (state as { hovered?: boolean }).hovered === true && s.over]}><Text style={[s.btnText, s.btnPrimaryText]}>New site</Text></Pressable> : null}
         {group === "forms" || group === "domains" ? <Pressable accessibilityRole="button" accessibilityLabel={group === "domains" ? "Add sending domain" : `New ${g.one}`} testID="apps-new-group" onPress={(e) => { const p = pointOf(e); newMenu(p.x, p.y, group); }} style={(state) => [s.btn, s.btnPrimary, (state as { hovered?: boolean }).hovered === true && s.over]}><Text style={[s.btnText, s.btnPrimaryText]}>{group === "domains" ? "Add domain" : `New ${g.one}`}</Text></Pressable> : null}
       </View>
       {cur.error ? <States kind="error" message={cur.error} /> : !cur.ready ? <View testID="apps-loading" style={s.skeleton}>{skeleton()}</View> : rows.length === 0 ? (
@@ -203,6 +209,7 @@ function Page({ initial, route = { kind: "list" } }: { initial?: AppsStart | und
         </View>
       ) : null}
       {route.kind !== "list" ? <AppsSurface route={route} /> : wide || showList ? main : null}
+      {sheet ? <NewSiteSheet onClose={() => setSheet(false)} onMade={(siteId) => { setSheet(false); d.nav.open("sites", siteId); }} /> : null}
       {element}
     </View>
   );
@@ -218,6 +225,15 @@ function skeleton(): ReactElement[] {
   for (let i = 0; i < 6; i++) out.push(<View key={i} style={s.skRow} />);
   return out;
 }
+
+const TAB_KEY = "vyre.apps.tab.";
+type KV = { getItem(k: string): string | null; setItem(k: string, v: string): void };
+const store = (): KV | undefined => (globalThis as { localStorage?: KV }).localStorage;
+/** The group a person had open in Apps last, kept on this device per person. */
+export function lastGroup(person: string | undefined): GroupKey | null {
+  try { const v = person ? store()?.getItem(`${TAB_KEY}${person}`) : null; return v === "sites" || v === "forms" || v === "templates" || v === "domains" ? v : null; } catch { return null; }
+}
+export function rememberGroup(person: string | undefined, g: GroupKey): void { try { if (person) store()?.setItem(`${TAB_KEY}${person}`, g); } catch { /* storage blocked: the default next time */ } }
 
 export interface AppsStart { group?: GroupKey; selected?: string; q?: string; closed?: readonly GroupKey[]; /** On a phone: start on the list rather than the groups. */ open?: boolean }
 

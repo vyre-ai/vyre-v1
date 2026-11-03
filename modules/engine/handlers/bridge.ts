@@ -12,7 +12,9 @@ import { linksIn } from "../../../lib/grants.ts";
 import { redact } from "../../../agent/src/transcript/sanitize.ts";
 import { sessionWorkKey, workBlocks } from "../../../agent/src/tools/work-cards.ts";
 import { ALL_AGENTS } from "../../../lib/route.ts";
+import { hasReads } from "../../../host/src/seams/answer-reads.ts";
 import { sqlMessages, withMessageId, mintId } from "../projections.ts";
+import { setUsing } from "../node-turns.ts";
 import type { EngineCtx } from "../projections.ts";
 import type { TurnEngine } from "../../../agent/src/turn-engine/engine.ts";
 import type { DriverEvent, EngineAgent, EngineEvent, EngineSession, OpenSession, ThreadKind, TurnInput } from "../../../agent/src/turn-engine/types.ts";
@@ -38,10 +40,31 @@ export type PostAs = (agentId: string, post: AgentPost) => Promise<unknown>;
 /** Run a capability for a person through the real pipeline, so what a turn reads is what that person may read (the host builds the call; spec 6.3). */
 export type CallAs = (cap: string, input: unknown, personId: string) => Promise<unknown>;
 
+/**
+ * "Tell Andrey the deck is ready": a name the person typed is also the teammate it names (lane l-agentdm). For each send to a bare name, every active person in the Space whose first name, last name or full
+ * name is that name gets a row of their own (their id), so the Gate lets an agent's message_person to them through this turn. Read as the person who typed it; a name that matches nobody adds nothing.
+ */
+export async function withTeammates(call: (cap: string, input: unknown) => Promise<unknown>, asked: Array<{ act: string; target: string }>): Promise<Array<{ act: string; target: string }>> {
+  const out = [...asked];
+  for (const a of asked) {
+    if (a.act !== "send" || !/^[a-z][a-z'-]{1,40}$/.test(a.target)) continue;
+    try {
+      const r = (await call("access.principals.list", { kind: "person", status: "active", q: a.target, limit: 20 })) as { principals?: Array<{ id?: string; name?: string }> } | null;
+      for (const p of r?.principals ?? []) {
+        const parts = String(p.name ?? "").toLowerCase().split(/\s+/).filter(Boolean);
+        if (typeof p.id === "string" && (parts.includes(a.target) || parts.join(" ") === a.target)) out.push({ act: "send", target: p.id });
+      }
+    } catch { /* no directory here: the name alone stands */ }
+  }
+  return out;
+}
+
 /** What a reader of a live turn is told (the host turns each into one `turn` frame to the people who may read the thread): the turn opened, a piece of its text, the turn ended, and which chat message the finished turn became. */
 export type StreamEvent =
   | { kind: "start"; threadId: string; turnId: string; agentId: string; asker: string; /** the message that started the turn, so a screen puts the reply after it and before what is sent meanwhile */ triggerId?: string }
-  | { kind: "delta"; threadId: string; turnId: string; agentId: string; text: string; /** characters of the turn before this piece, so a reader who also fetched the text so far never doubles or drops a piece */ at: number }
+  | { kind: "delta"; threadId: string; turnId: string; agentId: string; text: string; /** characters of the turn before this piece, so a reader who also fetched the text so far never doubles or drops a piece */ at: number;
+      /** The turn read something (records, files, mail...): its text goes live to the asker only, until the answer is checked against everyone in the chat (answer-audience.ts). */
+      asker?: string; privately?: boolean }
   /** A step of the turn (a tool call or its result): what the agent is doing, for the line under its reply. Names only; no input. */
   | { kind: "step"; threadId: string; turnId: string; agentId: string; phase: "call" | "result" | "input"; id: string; name?: string; ok?: boolean; /** what the call touches, in safe words (a file name, a query): for the live line only */ detail?: string }
   /** Steps gathered to about one frame a second for the screens (live-coalesce.ts): what the fan-out sends instead of each `step`. */
@@ -66,7 +89,7 @@ export interface BridgeOptions {
 /** Does this agent run outside Vyre? Read as the server: an outside agent is hidden from everyone but its owner, and a teammate's message must not start a turn for it. */
 const runsOutside = (ctx: EngineCtx, agentId: string): Promise<boolean> => ctx.call("agents.get", { agentId }).then((r) => (r as { agent?: { runtime?: string } } | null)?.agent?.runtime === "outside", () => false);
 
-export interface BridgeEvent { name: string; subject?: string; payload: Record<string, unknown> }
+export interface BridgeEvent { name: string; subject?: string; payload: Record<string, unknown>; /** the device the message was sent from */ device?: string }
 
 export interface Bridge {
   /** Connect the engine built after the bridge (the engine needs `tap` for its openSession, the bridge needs the engine). */
@@ -81,7 +104,7 @@ export interface Bridge {
   liveTurns(threadId: string): Array<{ turnId: string; agentId: string; text: string }>;
 }
 
-interface Segment { blocks: PostBlock[]; text: string; mentions: number; t0?: number; calls?: Map<string, { name: string; at: number }> }
+interface Segment { blocks: PostBlock[]; text: string; mentions: number; t0?: number; calls?: Map<string, { name: string; at: number }>; /** its live text goes to the asker only */ private?: boolean }
 interface Ready { blocks: PostBlock[]; text: string; mentions: number; routineOwner: string | null; turnId: string }
 
 const str = (v: unknown): string => (typeof v === "string" ? v : "");
@@ -246,7 +269,10 @@ export function createBridge(o: BridgeOptions): Bridge {
           // words that come after a tool call are a new paragraph, not a continuation of the sentence before it
           const t = afterBlock && ev.text !== "" && seg.text !== "" && !/\s$/.test(seg.text) && !/^\s/.test(ev.text) ? `\n\n${ev.text}` : ev.text;
           if (ev.text !== "") afterBlock = false;
-          const at = seg.text.length; seg.text += t; if (ev.text !== "") emit({ kind: "delta", threadId: input.threadId, turnId: input.turnId, agentId: input.agent.id, text: t, at });
+          const at = seg.text.length; seg.text += t;
+          // once the turn has read something, what it writes may rest on what not everyone here may open: live, it goes to the asker only (gap 6); the checked answer is posted for all
+          if (hasReads(input.threadId, input.agent.id, input.asker)) seg.private = true;
+          if (ev.text !== "") emit({ kind: "delta", threadId: input.threadId, turnId: input.turnId, agentId: input.agent.id, text: t, at, ...(seg.private ? { asker: input.asker, privately: true } : {}) });
           if (t !== ev.text) { yield { ...ev, text: t }; continue; }
         }
         else if (ev.type === "thinking") { if (ev.text !== "") emit({ kind: "thinking", threadId: input.threadId, turnId: input.turnId, agentId: input.agent.id, text: ev.text, asker: input.asker }); }
@@ -378,11 +404,14 @@ export function createBridge(o: BridgeOptions): Bridge {
     return true;
   }
 
-  async function onReceived(ctx: EngineCtx, p: Record<string, unknown>): Promise<{ skipped?: string; receivedAs?: string[] }> {
+  async function onReceived(ctx: EngineCtx, p: Record<string, unknown>, device?: string): Promise<{ skipped?: string; receivedAs?: string[] }> {
     const messageId = str(p["messageId"]), threadId = str(p["threadId"]);
     if (!engine) return { skipped: "engine_not_running" };
     if (messageId === "" || threadId === "") return { skipped: "no_ids" };
     if (messageId.startsWith(BRIDGE_PREFIX)) return { skipped: "own_post" };
+    // the computer the person is using (step 1 of where a turn runs): the device their message came from
+    const sender = (p["author"] ?? {}) as { kind?: string; id?: string };
+    if (device && sender.kind === "person" && typeof sender.id === "string") { try { setUsing(ctx.db, threadId, sender.id, device, ctx.now()); } catch { /* where it was sent from is a hint, never a reason to drop the message */ } }
     const store = sqlMessages(ctx.db, ctx.now);
     if (store.get(messageId)) return { skipped: "known" };            // the engine stored it: its own reply echoing back, or a replay
     const a = (p["author"] ?? {}) as { kind?: string; id?: string };
@@ -395,7 +424,10 @@ export function createBridge(o: BridgeOptions): Bridge {
     const note = await pointers(reader(ctx, readAs, threadId), got.message);
     // The only door for "asked this turn": the words a person typed, read here before the turn starts. Never the pointers, never an agent's post, never a line the server posted in a person's name.
     if (a.kind === "person" && p["typed"] === true) {
-      try { await reader(ctx, authorId, threadId)("gate.grants.ask", { threadId, messageId, asked: askedIn(str(got.message.body)), links: linksIn(str(got.message.body)) }); }
+      try {
+        const ask = reader(ctx, authorId, threadId);
+        await ask("gate.grants.ask", { threadId, messageId, asked: await withTeammates(ask, askedIn(str(got.message.body))), links: linksIn(str(got.message.body)) });
+      }
       catch (e) { warn("the request in a message was not read, so outward acts will ask", { threadId, messageId, error: e instanceof Error ? e.message : String(e) }); }
     }
     const mentions = ((p["mentions"] ?? []) as RouteMention[]).map((m) => ({ kind: m.kind, id: m.id }));
@@ -426,8 +458,10 @@ export function createBridge(o: BridgeOptions): Bridge {
       }
     }
     const job = p["job"] === true ? str(p["actingFor"]) || authorId : undefined;
+    // an agent's post speaks for the person it acted for (chat.post's actingFor): a turn it sets off runs for that person, never for the chat's starter; with nobody behind it, it runs for no one
+    const speaksFor = a.kind === "agent" && str(p["actingFor"]).startsWith("usr_") ? str(p["actingFor"]) : undefined;
     const res = withMessageId(messageId, () => eng.receive({
-      threadId, author: { kind: a.kind === "agent" ? "agent" : "person", id: authorId }, mentions, depth: Number(p["depth"] ?? 0), body: got.message.body + note, replyToPerson, ...(job ? { job } : {}),
+      threadId, author: { kind: a.kind === "agent" ? "agent" : "person", id: authorId }, mentions, depth: Number(p["depth"] ?? 0), body: got.message.body + note, replyToPerson, ...(job ? { job } : {}), ...(speaksFor ? { asker: speaksFor } : {}),
     }));
     return { receivedAs: res.responders };
   }
@@ -451,10 +485,11 @@ export function createBridge(o: BridgeOptions): Bridge {
       if (spec.account?.shared) onSharedKey.add(key); else onSharedKey.delete(key);
       return wrap(await openSession(spec));
     },
-    onEvent: (ctx, event) => (event.name === "message.edited" ? onEdited(ctx, event.payload) : onReceived(ctx, event.payload)),
+    onEvent: (ctx, event) => (event.name === "message.edited" ? onEdited(ctx, event.payload) : onReceived(ctx, event.payload, event.device)),
     liveTurns(threadId) {
       const out: Array<{ turnId: string; agentId: string; text: string }> = [];
-      for (const [turnId, w] of writing) if (w.threadId === threadId) out.push({ turnId, agentId: w.agentId, text: live.get(turnId)?.text ?? "" });
+      // a turn whose text is the asker's alone for now shows no text to whoever opens the chat mid-turn: its answer arrives checked
+      for (const [turnId, w] of writing) if (w.threadId === threadId) out.push({ turnId, agentId: w.agentId, text: live.get(turnId)?.private ? "" : live.get(turnId)?.text ?? "" });
       return out;
     },
     async flush() {

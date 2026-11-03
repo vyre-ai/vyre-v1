@@ -1,6 +1,6 @@
 # search.query
 
-Search everything the caller may see: people, agents, chats, inbox, records, files, automations, apps, settings, memory
+Search everything the caller may see: people, agents, chats, inbox, records, files, automations, apps, settings, memory, and the caller's notes (answered by notes.search as the caller, never indexed)
 
 | | |
 |---|---|
@@ -26,7 +26,7 @@ Search everything the caller may see: people, agents, chats, inbox, records, fil
 ```ts
 type In = {
   q: string;
-  types?: Array<"person" | "agent" | "chat" | "inbox" | "record" | "file" | "automation" | "app" | "setting" | "memory" | "task" | "channel">;
+  types?: Array<"person" | "agent" | "chat" | "inbox" | "record" | "file" | "automation" | "app" | "setting" | "memory" | "task" | "channel" | "note">;
   mode?: "keyword" | "semantic" | "hybrid";
   folderId?: string;
   recordType?: string;
@@ -40,7 +40,7 @@ type In = {
 ```ts
 type Out = {
   hits: Array<{
-      kind: "person" | "agent" | "chat" | "inbox" | "record" | "file" | "automation" | "app" | "setting" | "memory" | "task" | "channel";
+      kind: "person" | "agent" | "chat" | "inbox" | "record" | "file" | "automation" | "app" | "setting" | "memory" | "task" | "channel" | "note";
       id: string;
       title: string;
       recordType?: string;

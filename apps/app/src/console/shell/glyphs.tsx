@@ -61,6 +61,10 @@ export const PATHS: Readonly<Record<string, readonly string[]>> = {
   braces: ["M6 3C4.600 3 4 3.700 4 5v1.500C4 7.400 3.500 8 2.500 8c1 0 1.500.600 1.500 1.500V11c0 1.300.600 2 2 2","M10 3c1.400 0 2 .700 2 2v1.500c0 .900.500 1.500 1.500 1.500-1 0-1.500.600-1.500 1.500V11c0 1.300-.600 2-2 2"],
   windows: ["M3 3h4v4H3zM9 3h4v4H9zM3 9h4v4H3zM9 9h4v4H9z"],
   pulse: ["M2 8h2.500L6 4.500 8.500 11.500 10 8h4"],
+  // memory learning: a page that grows a line at a time
+  // Internet access: a globe with an arrow out of it
+  internet: ["M7.500 13a5 5 0 110-10 5 5 0 014.800 3.600", "M2.600 8h9.800M7.500 3c1.300 1.400 2 3.100 2 5s-.700 3.600-2 5c-1.300-1.400-2-3.100-2-5s.700-3.600 2-5", "M11 11.500h3.500M12.800 9.800l1.700 1.700-1.700 1.700"],
+  learn: ["M3.500 2.500h6l3 3v8h-9z", "M5.500 7.500h5M5.500 10h3M11 11.500l1-1 1 1"],
 };
 
 export function Glyph({ name, size = 15, color = "var(--ink-3)" }: { name: string; size?: number; color?: string }): ReactElement | null {

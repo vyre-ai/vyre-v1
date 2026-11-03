@@ -9,7 +9,7 @@
 //   threads.make_channel channels.create; so no `chat.thread.*` names exist (prefix rule).
 // DECISION: capabilities backing agent tools carry mcpName equal to the tool name (see module agents agentTools); one tool is generated.
 import { block, create, defineManifest, entity, ev, list, read, screen, setting, t, write } from '../packages/contracts/src/index.ts';
-import { blockSchema, id, level, pageIn, pageOut, principalRef, purgeOut } from './_common.ts';
+import { blockSchema, id, level, pageIn, pageOut, principalRef, purgeOut, replyTurn } from './_common.ts';
 
 const threadKind = t.enm('chat', 'channel', 'thread', 'ask', 'run', 'helper', 'console');
 const agentMode = t.enm('lead', 'listen');
@@ -26,6 +26,12 @@ const threadRow = t.obj({
   members: t.arr(principalRef), agents: t.arr(threadAgent), createdAt: t.ts(), closedAt: t.opt(t.ts()),
   replyCount: t.opt(t.int({ minimum: 0, description: 'Messages in the thread that are not deleted' })), lastMessageAt: t.opt(t.ts()),
   path: t.opt(t.arr(t.obj({ title: t.str(), threadId: id.thread }), { description: 'Address bar parts for helper chats, each a link back' })),
+  // threads.list only, for the asker: what the Threads page and the line under a message show
+  unread: t.opt(t.int({ minimum: 0, description: 'Messages after my read cursor, from someone else' })),
+  following: t.opt(t.bool()), muted: t.opt(t.bool()),   // following: I am in it and its replies reach me; muted: I am in it, its replies are quiet and do not count as new
+  repliers: t.opt(t.arr(principalRef, { maxItems: 3, description: 'Who wrote in it, newest first, at most three' })),
+  parentTitle: t.opt(t.str({ description: 'The chat or channel the thread hangs under' })),
+  preview: t.opt(t.str({ description: 'The first line of the newest message; never for a private chat' })),
 });
 const historyHit = t.obj({
   source: t.enm('message', 'step'), ref: t.str({ examples: ['msg_a1b2c3'] }), messageId: t.opt(id.message), threadId: id.thread, threadTitle: t.opt(t.str()), threadKind: t.str(), seq: t.int(),
@@ -63,6 +69,11 @@ const searchHit = t.obj({
   messageId: id.message, threadId: id.thread, threadSeq: t.int({ minimum: 0 }), author: principalRef, snippet: t.str(), at: t.ts(),
   score: t.num({ description: '0 to 1; higher is a better match' }), found: t.enm('keyword', 'meaning', 'both'),
   thread: t.obj({ kind: threadKind, title: t.opt(t.str()), channelName: t.opt(t.str()), agentIds: t.arr(id.agent), memberIds: t.arr(t.str()) }),
+});
+const personStatus = t.obj({
+  personId: id.user, name: t.str(), state: t.enm('online', 'away', 'offline', 'unknown'), lastSeenAt: t.opt(t.ts()), awayUntil: t.opt(t.ts()),
+  timezone: t.opt(t.str({ examples: ['Asia/Karachi'] })), localTime: t.opt(t.str({ examples: ['3:40 PM'] })), hours: t.opt(t.str({ examples: ['Mon to Fri, 09:00 to 17:00'] })), inHours: t.bool(),
+  mutedUntil: t.opt(t.ts()), wouldGo: t.str({ description: 'When a message to them would go, in words' }),
 });
 const threadT = { threadId: id.thread };
 const channelT = { channelId: id.channel };
@@ -122,8 +133,12 @@ export default defineManifest({
     read('threads.get', 'Read one thread with its members, agents, modes, plan mode and (for helpers) the address bar path', {
       in: threadT, out: { thread: threadRow }, on: ['thread', '/threadId'], tool: 'chats', label: 'check',
     }),
-    read('threads.list', 'List threads by kind, folder, scope or record', {
-      in: { kind: t.opt(t.arr(threadKind)), folderId: t.opt(id.folder), recordId: t.opt(id.record), parentThreadId: t.opt(id.thread), ...pageIn },
+    read('threads.list', 'List threads by kind, folder, scope or record; or the threads I am in, newest reply first', {
+      in: {
+        kind: t.opt(t.arr(threadKind)), folderId: t.opt(id.folder), recordId: t.opt(id.record), parentThreadId: t.opt(id.thread),
+        mine: t.opt(t.bool()), order: t.opt(t.enm('created', 'latest')),
+        exceptScope: t.opt(t.arr(t.str({ examples: ['task'] }), { description: 'Leave out threads that belong to these kinds of object (a task keeps its own thread)' })), ...pageIn,
+      },
       out: { threads: t.arr(threadRow), ...pageOut }, tool: 'chats', label: 'filter',
     }),
     write('threads.update', 'Rename a thread', {
@@ -169,6 +184,10 @@ export default defineManifest({
     write('threads.leave', 'Leave a chat that has other people in it: I stop being a member, they keep it. A channel is left with channels.leave', {
       in: threadT, out: { ok: t.bool() }, on: ['thread', '/threadId'], level: 'view', emits: ['channel.member_removed'], audit: 'sensitive', risk: 'medium', idem: 'natural', offline: 'online',
       agent: false, errors: ['validation.bad_input'],
+    }),
+    write('threads.follow', 'Follow a thread (its replies reach me), mute it (I stay in it, its replies are quiet and do not count as new) or leave it', {
+      in: { ...threadT, mode: t.enm('follow', 'mute', 'leave') }, out: { mode: t.enm('follow', 'mute', 'none') }, on: ['thread', '/threadId'], level: 'view',
+      emits: ['channel.member_added', 'channel.member_removed'], tool: 'chats', offline: 'queue', idem: 'natural', risk: 'low', errors: ['validation.bad_input'],
     }),
     write('threads.mark_read', 'Mark a thread read up to a sequence number, or unread again (the newest message from someone else counts as new)', {
       in: { ...threadT, upto: t.opt(t.int()), unread: t.opt(t.bool()) }, out: { unread: t.int() }, on: ['thread', '/threadId'], level: 'view', tool: 'chats', offline: 'queue', idem: 'natural', risk: 'low',
@@ -281,10 +300,25 @@ export default defineManifest({
     read('chat.message.get', 'Read one message with its blocks', {
       in: { ...threadT, messageId: id.message }, out: { message: messageRow }, on: ['thread', '/threadId'], tool: 'chats', label: 'check',
     }),
+    read('chat.reply_details', 'How one agent reply was made, for its hover card and Details tab: its turn, what the agent knew, and its own steps when no turn was kept. Account, cost and tool arguments are for the asker and AI-spend managers only', {
+      in: { ...threadT, messageId: id.message },
+      out: {
+        details: t.obj({
+          messageId: id.message, threadId: id.thread, agentId: id.agent, at: t.ts(),
+          turn: t.opt(replyTurn),
+          memory: t.opt(t.obj({
+            facts: t.arr(t.obj({ factId: t.str(), text: t.str(), sourceTitle: t.opt(t.str()) })),
+            quotes: t.arr(t.obj({ ref: t.str(), text: t.str(), threadTitle: t.opt(t.str()), at: t.ts() })),
+          })),
+          steps: t.arr(t.obj({ name: t.str(), ok: t.opt(t.bool()), secs: t.opt(t.int()) }), { description: 'The tool steps saved on the reply itself: the fallback when no turn was recorded for it' }),
+        }),
+      },
+      on: ['thread', '/threadId'], tool: 'chats', label: 'check', errors: ['validation.not_found', 'validation.bad_input'],
+    }),
     read('chat.pins.list', 'Pinned messages of a thread', {
       in: threadT, out: { messages: t.arr(messageRow) }, on: ['thread', '/threadId'], tool: 'chats', label: 'filter',
     }),
-    read('chat.recent', 'Sidebar Recent: Starred, Today, Yesterday, Earlier with unread counts and the working pulse, then the chats I archived (they are in no other group)', {
+    read('chat.recent', 'Sidebar Recent: Starred, Today, Yesterday, Earlier with unread counts and the working pulse, then the chats I archived (they are in no other group)', { level: 'member',
       in: { filter: t.opt(t.enm('all', 'unread', 'people', 'agents')) },
       out: { starred: t.arr(recentRow), today: t.arr(recentRow), yesterday: t.arr(recentRow), earlier: t.arr(recentRow), archived: t.arr(recentRow), nextUnread: t.nullable(id.thread),
         threadsUnread: t.opt(t.int({ minimum: 0, description: 'Unread messages, from someone else, across the inline threads the asker is in (the Threads row)' })) }, tool: 'chats', label: 'filter',
@@ -354,6 +388,26 @@ export default defineManifest({
       in: { q: t.str(), mode: t.opt(t.enm('keyword', 'semantic', 'hybrid')), threadId: t.opt(id.thread), agentId: t.opt(id.agent), limit: t.opt(t.int({ minimum: 1, maximum: 50 })) },
       out: { hits: t.arr(transcriptHit) }, label: 'filter', tool: 'chats', mcpName: 'transcript_search', agent: { planMode: 'allowed' },
     }),
+    // ---- an agent reaches a teammate for its person (owner ruling 3 Nov, lane l-agentdm): who is in, a message in the person's own direct chat, the teammate's mute
+    read('chat.people_status', 'Your teammates as you see them: online, away or offline and when last seen, their local time and working hours, and when a message to them would go. Only people in this Space, never anything private', {
+      in: { personIds: t.opt(t.arr(id.user, { maxItems: 50 })), q: t.opt(t.str({ description: 'Part of a name; omitted: everyone' })) },
+      out: { people: t.arr(personStatus) }, level: 'view', tool: 'chats', mcpName: 'people_status', deferred: true, agent: { planMode: 'allowed' }, label: 'filter',
+    }),
+    write('chat.message_person', 'Message a teammate for the person you work for, in their direct chat, signed as them (Agent); the reply comes back to this chat. Can carry an approval, review or key card. Waits for away and after hours unless urgent; 3 an hour', {
+      in: {
+        to: id.user, body: t.str({ maxLength: 4000 }), timing: t.opt(t.enm('now', 'online', 'at')), at: t.opt(t.ts()), urgent: t.opt(t.bool()),
+        card: t.opt(t.obj({
+          kind: t.enm('approval', 'review', 'key'), title: t.str({ minLength: 1, maxLength: 200, description: 'What to approve or review, or the key\'s name' }), detail: t.opt(t.str({ maxLength: 2000 })),
+          fields: t.opt(t.arr(t.str({ pattern: '^[A-Za-z][A-Za-z0-9_]*$' }), { maxItems: 10, description: 'A key card: the field names wanted' })),
+        })),
+      },
+      out: { state: t.enm('sent', 'scheduled'), threadId: id.thread, messageId: t.opt(id.message), dueAt: t.opt(t.ts()), when: t.str(), taskId: t.opt(id.task), requestId: t.opt(t.str()) },
+      level: 'view', idem: 'key', gate: { act: 'send', when: "actor.kind != 'person'" }, emits: ['thread.started', 'message.received', 'message.direct', 'message.mentioned', 'thread.replied', 'thread.unarchived'], audit: 'always',
+      tool: 'chats', mcpName: 'message_person', deferred: true, agent: { planMode: 'blocked' }, errors: ['validation.not_found', 'validation.precondition_failed'],
+    }),
+    write('chat.agent_dm.mute', 'Mute agent messages from one person for the rest of my day; what their agents send waits until tomorrow and the person is told. undo lifts it', {
+      in: { personId: id.user, undo: t.opt(t.bool()) }, out: { until: t.nullable(t.ts()) }, level: 'view', idem: 'natural', risk: 'low', offline: 'online', emits: ['message.received'],
+    }),
     read('chat.history.search', 'Word-for-word search over the chat messages and transcript rows (turns, tool calls and results) the asker could open themselves; used by memory for exact quotes. Returns the stored words, author, time and a link that opens the chat at that line', {
       in: {
         q: t.opt(t.str()), ref: t.opt(t.str({ description: 'A message id, or <thread>#<index> for a transcript row: read that one line in full' })), threadId: t.opt(id.thread),
@@ -384,7 +438,13 @@ export default defineManifest({
       in: { name: t.str({ examples: ['intake'] }), visibility: t.enm('public', 'invite'), topic: t.opt(t.str()), memberIds: t.opt(t.arr(id.user)), agentIds: t.opt(t.arr(id.agent)), folderId: t.opt(id.folder), recordId: t.opt(id.record) },
       out: { channel: channelRow }, perm: 'channels.create', emits: ['channel.created', 'thread.started', 'channel.agent_added', 'channel.member_added'], tool: 'chats', offline: 'queue', cli: 'vyre channels create',
     }),
-    read('channels.list', 'List channels by section and folder (the items capability of the Channels list)', {
+    read('channels.home', "The Space's first channel: #vyre, or an older Space's #general (legacy: Console offers to rename it). Null in a Personal Space", {
+      in: {}, out: { channel: t.nullable(t.obj({ channelId: id.channel, name: t.str({ examples: ['vyre'] }), mainThreadId: id.thread, legacy: t.bool() })) }, perm: null, tool: 'chats',
+    }),
+    write('channels.home_join', "System: the join step that puts a new member in the Space's first channel, making #vyre when the Space has none", {
+      in: { personId: id.user }, out: { channelId: t.nullable(id.channel), added: t.bool() }, emits: ['channel.created', 'thread.started', 'channel.member_added'], idem: 'natural',
+    }),
+    read('channels.list', 'List channels by section and folder (the items capability of the Channels list)', { level: 'member',
       in: channelListIn, out: { channels: t.arr(channelRow), ...pageOut }, tool: 'chats', label: 'filter',
     }),
     read('channels.get', 'Read one channel with members, agents and unread count', {
@@ -543,6 +603,7 @@ export default defineManifest({
     block('checklist', { title: t.opt(t.str()), items: t.arr(t.obj({ text: t.str(), done: t.bool(), by: t.opt(t.str()) })) }, 'Checklist {{title}}'),
   ],
   settings: [
+    setting('chat.keep_general', 'space', 'Chats', "Keep #general as the Space's first channel (new Spaces call it #vyre)", t.bool(), false),
     setting('chat.agent_tabs', 'person', 'Chats', 'Let agents open and switch side tabs for me', t.bool(), true),
     setting('chat.ask_agent', 'person', 'Models and usage', 'Agent I last used in Ask panes', t.nullable(id.agent), null),
   ],
@@ -577,6 +638,11 @@ export default defineManifest({
     screen('chats.right-pane', 'chats', 'ui:ChatRightPane', {
       slot: 'side', q: { threads: ['threads.list', { parentThreadId: '/state/threadId' }, true], helpers: ['chat.helpers.list', { threadId: '/state/threadId' }, true], crew: ['engine.crew.list', { threadId: '/state/threadId' }, true] },
       a: { openThread: ['chat.thread', { threadId: '/state/threadId' }] }, empty: 'No threads yet',
+    }),
+    screen('chats.threads', 'chats', 'ui:ThreadsPage', {
+      q: { threads: ['threads.list', { kind: '/state/kind', mine: '/state/mine', order: '/state/order', exceptScope: '/state/exceptScope', limit: '/state/limit' }, true] },
+      a: { follow: ['threads.follow', { threadId: '/state/threadId', mode: '/state/mode' }], markRead: ['threads.mark_read', { threadId: '/state/threadId' }] },
+      empty: 'Threads you reply in or are mentioned in show here',
     }),
     screen('chats.connect-outside-agent', 'chats', 'ui:ConnectOutsideAgent', {
       slot: 'sheet', q: { link: ['mcp.connected.link', {}, true] },

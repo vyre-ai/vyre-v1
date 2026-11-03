@@ -80,14 +80,17 @@ export async function ask(d: Daemon, agentId: string, who: { token: string }, bo
   return { threadId, reply };
 }
 
-/** A member connects a Claude sign-in (the existing test path: the flow, then the item) into their own Mine, and lets the Space run it. Answers its account ref. */
-export async function connectClaude(d: Daemon, token: string, name: string): Promise<string> {
+/**
+ * A member connects a Claude sign-in (the existing test path: the flow, then the item) into their own Mine. Answers its account ref. By default it also lets the Space run it (automations and memory
+ * upkeep need that); `spaceUse: false` leaves the switch as the app leaves it, off.
+ */
+export async function connectClaude(d: Daemon, token: string, name: string, opts: { spaceUse?: boolean } = {}): Promise<string> {
   const folder = await ok(d, token, "vault.folders.create", { name: "Accounts", scope: "mine" });
   const flow = await ok(d, token, "providers.subscription_start", { providerKey: "claude-code" });
   await ok(d, token, "vault.item.put", { folderId: folder.folder.id, name, kind: "ai_subscription", fields: [{ key: "setup_token", value: SUB, secret: true }] });
   const provider = (await ok(d, token, "providers.subscription_complete", { flowId: flow.flowId })).provider as { id: string; scope: string; state: string };
   assert.deepEqual([provider.scope, provider.state], ["mine", "ok"]);
-  await ok(d, token, "providers.set_space_use", { providerId: provider.id, allow: true });
+  if (opts.spaceUse !== false) await ok(d, token, "providers.set_space_use", { providerId: provider.id, allow: true });
   const mine = ((await ok(d, token, "engine.accounts.list")).accounts as Array<{ ref: string; mine: boolean; kind: string }>).find((a) => a.mine && a.kind === "subscription");
   assert.ok(mine, "the sign-in is one of their accounts");
   return mine.ref;

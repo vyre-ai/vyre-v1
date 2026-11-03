@@ -1,6 +1,6 @@
 # automations.get
 
-Read an Automation with its definition, alerts and followers
+Read an Automation with its definition, alerts and followers, and whether the caller may change it (a Space one: owners, admins and people given Edit on it)
 
 | | |
 |---|---|
@@ -123,6 +123,7 @@ type Out = {
     createdAt: number;
     updatedAt: number;
   };
+  canEdit?: boolean;
 };
 ```
 
@@ -252,7 +253,8 @@ type Out = {
       "status": "on",
       "updatedAt": 1760000000000,
       "version": 1
-    }
+    },
+    "canEdit": true
   }
 }
 ```

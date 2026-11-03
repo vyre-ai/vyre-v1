@@ -55,6 +55,9 @@ type Out = {
         }>;
       organizer?: Record<string, unknown>;
       updated?: string;
+      description?: string;
+      recurringEventId?: string;
+      conferenceData?: Record<string, unknown>;
     }>;
   nextPageToken?: string;
   nextSyncToken?: string;
@@ -94,11 +97,14 @@ type Out = {
             "responseStatus": "example"
           }
         ],
+        "conferenceData": {},
+        "description": "example",
         "end": {},
         "hangoutLink": "example",
         "id": "example",
         "location": "example",
         "organizer": {},
+        "recurringEventId": "example",
         "start": {},
         "status": "example",
         "summary": "example",

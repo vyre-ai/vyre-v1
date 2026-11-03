@@ -6,7 +6,7 @@ import type { Assignee, Priority, Task, TasksCtx } from "../projections.ts";
 import { INITIAL_STATE, checkOutside, checkSlots, responsibleFor } from "./state.ts";
 
 type In = Record<string, any>;   // eslint-disable-line @typescript-eslint/no-explicit-any
-interface Child { key: string; title: string; brief?: string; doneMeans?: string[]; assigned: Assignee; reviewer?: Assignee; approver?: Assignee; dependsOn?: string[]; due?: number; priority?: Priority; worker?: "thread" | "crew"; projectId?: string }
+interface Child { key: string; title: string; brief?: string; doneMeans?: string[]; assigned: Assignee; reviewer?: Assignee; approver?: Assignee; dependsOn?: string[]; due?: number; priority?: Priority; worker?: "thread" | "crew"; projectId?: string; notes?: Record<string, string> }
 
 export const PLAN_KEY = "plan.key";
 /** A parent is held by whoever planned it, who is already at work: it wakes them when its children need them, not when it is made. */
@@ -101,7 +101,8 @@ export async function plan(ctx: TasksCtx, input: In): Promise<unknown> {
   for (const c of children) {
     const old = have.get(c.key);
     if (old) { ids.set(c.key, old); continue; }
-    const notes = notesOf(c.brief, c.doneMeans);
+    // the caller's own notes first, so the plan's keys (brief, done means, plan key, worker) always win
+    const notes: Record<string, string> = { ...(c.notes ?? {}), ...notesOf(c.brief, c.doneMeans) };
     notes[PLAN_KEY] = c.key;
     if (c.worker === "crew") { notes[WORKER_NOTE] = "crew"; if (c.projectId !== undefined) notes[CREW_PROJECT_NOTE] = c.projectId; }
     const t = fresh(ctx, c.title.trim(), c.assigned, notes);

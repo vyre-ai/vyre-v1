@@ -19,6 +19,41 @@ export interface Hit {
   updatedAt?: number;
 }
 
+/**
+ * Federated providers: a module that keeps its own search over private content answers the query itself, through its own capability called as the asker, so its rows never enter
+ * this index and its own access rule decides what comes back (notes: the asker's own notes and those shared with them; an agent, only what everyone in its chat may read).
+ * Their hits follow the indexed hits on the first page. A provider that fails or is missing leaves the answer as it was.
+ */
+export interface Federated { kind: Kind; cap: string; hits(out: unknown): Omit<Hit, "score">[] }
+type NoteHit = { noteId?: unknown; title?: unknown; snippet?: unknown; updatedAt?: unknown };
+export const FEDERATED: readonly Federated[] = [
+  {
+    kind: "note", cap: "notes.search",
+    hits: (out) => (((out as { notes?: NoteHit[] } | null)?.notes) ?? []).filter((n) => typeof n.noteId === "string").map((n) => ({
+      kind: "note" as const, id: n.noteId as string, title: typeof n.title === "string" && n.title ? n.title : "Untitled note",
+      ...(typeof n.snippet === "string" && n.snippet ? { snippet: n.snippet } : {}), link: `vyre://note/${n.noteId as string}`,
+      ...(typeof n.updatedAt === "number" ? { updatedAt: n.updatedAt } : {}),
+    })),
+  },
+];
+const FEDERATED_LIMIT = 5;
+
+async function federated(ctx: SearchCtx, input: QueryInput): Promise<Hit[]> {
+  if (input.cursor !== undefined && input.cursor !== "0") return [];
+  if (input.recordType || input.folderId || !input.q.trim()) return [];
+  const out: Hit[] = [];
+  for (const p of FEDERATED) {
+    if (input.types && input.types.length > 0 && !input.types.includes(p.kind)) continue;
+    try {
+      const got = p.hits(await ctx.call(p.cap, { q: input.q, limit: FEDERATED_LIMIT })).slice(0, FEDERATED_LIMIT);
+      got.forEach((h, i) => out.push({ ...h, score: 1 / (RRF + i) }));
+    } catch {
+      ctx.log.warn("search provider did not answer", { cap: p.cap });
+    }
+  }
+  return out;
+}
+
 /** A query whose longest word has this many characters or fewer is type-ahead: newest first, an early-stopped index scan. */
 export const SHORT_QUERY = 2;
 const RRF = 60;
@@ -145,7 +180,7 @@ export async function query(ctx: SearchCtx, input: QueryInput): Promise<{ hits: 
     if (hits.length === want) { more = true; break; }
     hits.push(hitOf(d, e.score, words));
   }
-  const page = hits.slice(offset, offset + limit);
+  const page = [...hits.slice(offset, offset + limit), ...(await federated(ctx, input))];
   return { hits: page, tookMs: Math.max(0, Math.round(performance.now() - t0)), ...(more ? { next: String(offset + limit) } : {}) };
 }
 

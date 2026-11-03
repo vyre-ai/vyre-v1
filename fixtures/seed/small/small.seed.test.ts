@@ -45,7 +45,8 @@ test("the first boot builds the small seed through capabilities; a second boot i
 test("it holds the target: records, channels, agents, and the 6 people of core with every role", async () => {
   const s = await first();
   assert.ok(count(s.dir, "type = 'record.created'") >= SMALL_TARGET.records, "about 500 records");
-  assert.equal(count(s.dir, "type = 'resource.created' AND json_extract(CAST(payload AS TEXT), '$.type') = 'channel'"), SMALL_TARGET.channels);
+  // the target's channels and #vyre, the home channel the host makes in every Space (l-team1, owner D23)
+  assert.equal(count(s.dir, "type = 'resource.created' AND json_extract(CAST(payload AS TEXT), '$.type') = 'channel'"), SMALL_TARGET.channels + 1);
   assert.equal(count(s.dir, "type = 'principal.created' AND json_extract(CAST(payload AS TEXT), '$.kind') = 'agent'"), SMALL_TARGET.agents, "core's two plus every agent made through agents.create, each a principal from the moment it is made, and the kernel principals that stand in for what the module could not make");
   assert.equal(count(s.dir, "type = 'principal.created' AND json_extract(CAST(payload AS TEXT), '$.kind') = 'person'"), SMALL_TARGET.people);
   assert.deepEqual([...new Set(PEOPLE.map((p) => p.role))].sort(), ["admin", "manager", "member", "owner", "temp"]);

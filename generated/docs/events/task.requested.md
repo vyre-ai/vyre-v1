@@ -1,6 +1,6 @@
 # task.requested
 
-A request (Approve, Review, Answer or Unblock) is waiting on someone
+A request (Approve, Review, Answer or Unblock) is waiting on someone, or the baton of a work task reached its next holder
 
 | | |
 |---|---|
@@ -26,5 +26,7 @@ type Payload = {
     id: string;
   };
   expiresAt?: number;
+  step?: "work" | "review" | "approval";
+  by?: string;
 };
 ```

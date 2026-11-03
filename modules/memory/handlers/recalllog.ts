@@ -57,8 +57,7 @@ export async function used(ctx: MemCtx, input: { threadId: string; messageId: st
       const row = rowsOf(ctx.db, "SELECT * FROM memory_facts WHERE id = ?", str(r["ref"]))[0];
       if (!row) continue;
       const f = readFact(ctx, row);
-      if (f.layer === "person" && f.ownerRef !== me) continue;
-      if (!(await access.can(f.layer, f.ownerRef, f.agentId, f.projectId, "view"))) continue;
+      if (!(await access.can(f.layer, f.ownerRef, f.agentId, f.projectId, "view", f.audience))) continue;
       const a = orNull(r["agent_id"]);
       let title: string | undefined;
       if ((f.sourceKind === "chat" || f.sourceKind === "channel") && f.sourceRef) {
@@ -67,7 +66,7 @@ export async function used(ctx: MemCtx, input: { threadId: string; messageId: st
       }
       facts.push({ ...factOut(f), ...(a ? { agentId: a } : {}), ...(title ? { sourceTitle: title } : {}) });
     } else {
-      quotes.push(...(await findQuotes(ctx, { ref: str(r["ref"]) })));
+      for (const q of await findQuotes(ctx, { ref: str(r["ref"]) })) if (await access.showsFrom(q.threadId)) quotes.push(q);
     }
   }
   return { messageId: t.id, at: t.at, facts, quotes };

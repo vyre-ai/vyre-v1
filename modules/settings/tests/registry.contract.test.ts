@@ -52,7 +52,7 @@ async function worldFor(cap: string): Promise<{ h: Harness; ctx: SettingsCtx }> 
 }
 
 test("a real handler exists for exactly the capabilities the registry declares for settings", () => {
-  assert.equal(caps.length, 14);
+  assert.equal(caps.length, 15);   // settings.public_of (l-agentdm): a teammate's own time zone and hours
   assert.deepEqual(Object.keys(handlers).sort(), caps.map((c) => c.name).sort());
 });
 

@@ -3,6 +3,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { fromGoogle, fromGraph, health, ingestEvent, pullProviderCalendars, syncNow } from "../handlers/index.ts";
+import { JOIN_ATTEMPTS, JOIN_BACKOFF_MS } from "../handlers/events.ts";
 import { at, codeOf, contractErrors, HOUR, harness, seedCalendar } from "../fixtures/harness.ts";
 import type { Harness } from "../fixtures/harness.ts";
 
@@ -295,4 +296,40 @@ test("the scheduled pull takes Google and Outlook calendars, skips local and pau
   assert.equal(h.calls("google.calendar.list_events").length, 1);
   assert.equal(h.calls("ms.calendar.delta").length, 1);
   await assert.rejects(pullProviderCalendars(h.ctx));   // a person does not run it
+});
+
+test("a meeting join that keeps failing backs off and gives up with one warning; a sync seeing the event many times a second does not retry it hot", async () => {
+  const h = world();
+  const warned: string[] = [];
+  h.ctx.log = { info() {}, warn(msg: string) { warned.push(msg); } };
+  h.fail("meetings.ingest");
+  const tries = (): number => h.called.filter((c) => c.cap === "meetings.ingest").length;
+  const sync = () => ingestEvent(h.ctx, { source: "google", calendarId: GOOG, providerId: "g-loop", title: "Intake", startsAt: at(1, 10), endsAt: at(1, 11), attendees: [{ email: "pat@acme.test" }] });
+  for (let i = 0; i < 20; i++) await sync();
+  assert.equal(tries(), 1, "one try, then it waits");
+  let gap = JOIN_BACKOFF_MS;
+  for (let n = 2; n <= JOIN_ATTEMPTS; n++) {
+    h.advance(gap - 1);
+    await sync();
+    assert.equal(tries(), n - 1, `not before the back-off (${gap} ms)`);
+    h.advance(1);
+    await sync();
+    assert.equal(tries(), n, `try ${n} after ${gap} ms`);
+    gap *= 2;
+  }
+  assert.deepEqual(warned.length, 1, "one warning, when it gives up");
+  h.advance(24 * HOUR);
+  for (let i = 0; i < 5; i++) await sync();
+  assert.equal(tries(), JOIN_ATTEMPTS, "given up: no more tries");
+  assert.equal(warned.length, 1);
+});
+
+test("a join that fails once and then works links the meeting and forgets the failure", async () => {
+  const h = world();
+  h.fail("meetings.ingest");
+  const sync = () => ingestEvent(h.ctx, { source: "google", calendarId: GOOG, providerId: "g-once", title: "Intake", startsAt: at(2, 10), endsAt: at(2, 11), attendees: [{ email: "pat@acme.test" }] });
+  assert.equal((await sync()).meetingId, undefined);
+  h.fail("meetings.ingest", false);
+  h.advance(JOIN_BACKOFF_MS);
+  assert.ok((await sync()).meetingId, "linked on the next try");
 });

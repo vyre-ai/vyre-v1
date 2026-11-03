@@ -47,7 +47,7 @@ export interface IdentityCtx {
   /** Roles and groups of a person, read through the access projection by the host. */
   /** The person key this node holds for the signed-in person (ruling 62, 63). Absent: nothing to clear. */
   keyring?: Keyring;
-  directory?: { of(personId: string): { roles: string[]; groups: string[] } };
+  directory?: { of(personId: string): { roles: string[]; groups: string[]; permissions?: string[] } };
   /**
    * Whether the Space still counts the person as an active member (the host reads it from the access projection): "refused" for a suspended, removed or unknown person, "unavailable"
    * while the host cannot vouch for its access snapshot. `joining` is the call that creates the person (invite accept, owner claim), the one place a person is not known yet.
@@ -95,6 +95,8 @@ export interface KeyBundle {
   publicKey: string;
   privateKeyWrapped: string;
   spaceKeys: { epoch: number; wrapped: string }[];
+  /** rc.17, a linked account only: this Space's earlier person key, wrapped by personKey. The client opens it and hands it to this Space, whose data stays under it. */
+  formerKey?: string;
 }
 export type Method = "password" | "github" | "sso" | "pair" | "recovery";
 export type Device = { deviceName: string; deviceClass: "desktop" | "phone" | "web" | "extension" | "daemon" };
@@ -205,7 +207,7 @@ export function newTotpSecret(): string { return base32(randomBytes(20)); }
 // ---- key bundle
 export function validBundle(k: KeyBundle): boolean {
   const ok = (s: unknown): boolean => typeof s === "string" && s.length > 0 && B64.test(s);
-  return ok(k.personKeyByPassword) && ok(k.privateKeyWrapped) && ok(k.publicKey) && (k.personKeyByRecovery === undefined || ok(k.personKeyByRecovery))
+  return ok(k.personKeyByPassword) && ok(k.privateKeyWrapped) && ok(k.publicKey) && (k.personKeyByRecovery === undefined || ok(k.personKeyByRecovery)) && (k.formerKey === undefined || ok(k.formerKey))
     && Array.isArray(k.spaceKeys) && k.spaceKeys.every((s) => Number.isInteger(s.epoch) && s.epoch >= 0 && ok(s.wrapped));
 }
 export function epochOf(k: KeyBundle): number { return k.spaceKeys.reduce((m, s) => Math.max(m, s.epoch), 0); }

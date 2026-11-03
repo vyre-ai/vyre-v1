@@ -9,7 +9,7 @@
 // @reads ../migrations/0004_viewer.sql
 
 import type { Ctx } from "../../../packages/contracts/src/ctx.ts";
-import { contentMime, fail, many, num, one, isNull, optInt, optStr, rec } from "./tree.ts";
+import { contentMime, fail, labelOfFolder, many, num, one, isNull, optInt, optStr, rec } from "./tree.ts";
 
 type Row = Record<string, unknown>;
 type Obj = Record<string, unknown>;
@@ -321,16 +321,12 @@ async function markupSave(ctx: Ctx, input: unknown): Promise<{ ok: boolean }> {
 
 // ---- outside links --------------------------------------------------------------------------------------------
 
-function folderLabel(ctx: Ctx, file: Row): number {
-  const f = one(ctx, "SELECT * FROM files_folder WHERE id = ?", str(file.folder_id));
-  return f ? num(f.label) : 0;
-}
-
 async function shareExternal(ctx: Ctx, input: unknown): Promise<Obj> {
   const o = rec(ctx, input);
   const fileId = reqStr(ctx, o, "fileId");
   const file = liveFileRow(ctx, fileId);
-  if (folderLabel(ctx, file) >= 3) fail(ctx, "permission.above_clearance", "Restricted files cannot be shared outside the Space.");
+  // the label of every folder above it counts, not only the one it sits in (lead ruling 3 Nov, l-labelinherit)
+  if (labelOfFolder(ctx, str(file.folder_id), { fresh: true }) >= 3) fail(ctx, "permission.above_clearance", "Restricted files cannot be shared outside the Space.");
   const now = ctx.now();
   let expiresAt = now + DEFAULT_LINK_DAYS * DAY;
   if (o.expiresAt !== undefined && o.expiresAt !== null) {

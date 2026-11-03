@@ -9,6 +9,7 @@ import { askerOf, ensure, raise, threadBy } from "../projections.ts";
 import type { ChatCtx } from "../projections.ts";
 import { composerSuggest, openTab, recent } from "./g24c.ts";
 import { unreadOf } from "./g24a.ts";
+import { mutedOf } from "./follow.ts";
 import { handoff, helperStart, planPropose, questionAsk } from "./g24d.ts";
 import { isDirect, rootOf } from "./post.ts";
 import { ensurePrivate, sealedBy } from "./private.ts";
@@ -38,12 +39,15 @@ export async function recentWithUnread(ctx: ChatCtx, input: { filter?: "all" | "
       if (nextUnread === null && unread > 0 && s !== "archived") nextUnread = String(row["threadId"]);
     }
   }
-  // the Threads row: what is new in the inline threads I am in (a reply or a mention joins me), counted by the same read cursor
+  // the Threads row: what is new in the inline threads I am in (a reply or a mention joins me), counted by the same read cursor. A task's thread is the task's (Tasks shows it, and its
+  // status lines are not conversation), and a thread I muted stays quiet
   let threadsUnread = 0;
+  const muted = mutedOf(ctx, asker);
   const mine = ctx.db.all(
-    `SELECT id FROM chat_thread WHERE kind = 'thread' AND deleted_at IS NULL AND id IN (SELECT thread FROM chat_thread_member WHERE principal = ? AND deleted_at IS NULL) ORDER BY rowid DESC LIMIT ?`, asker, THREADS_MAX,
+    `SELECT id FROM chat_thread WHERE kind = 'thread' AND deleted_at IS NULL AND (scopeType IS NULL OR scopeType <> 'task')
+       AND id IN (SELECT thread FROM chat_thread_member WHERE principal = ? AND deleted_at IS NULL) ORDER BY rowid DESC LIMIT ?`, asker, THREADS_MAX,
   ) as Row[];
-  for (const r of mine) threadsUnread += unreadOf(ctx, String(r["id"]), asker);
+  for (const r of mine) if (!muted.has(String(r["id"]))) threadsUnread += unreadOf(ctx, String(r["id"]), asker);
   return { ...out, nextUnread, threadsUnread };
 }
 

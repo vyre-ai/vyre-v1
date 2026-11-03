@@ -1,4 +1,5 @@
 // Chat Completions streaming: one adapter for OpenAI, OpenRouter and xAI (and, with a base address, OpenAI-compatible endpoints such as OpenCode Go or a local model).
+import { OPENCODE_SESSION, isOpencode, vyreUserAgent } from "../../../../lib/user-agent.ts";
 import { orderSystem, sortTools } from "./prefix.ts";
 import type { CallRequest, Decoded, ModelInfo, ProviderAdapter, ApiId, SseEvent, StreamDecoder, ToolCall, Usage, WireRequest } from "./types.ts";
 
@@ -16,6 +17,21 @@ export interface CompatOptions {
   defaultMaxOutput: number;
   /** Where the model list is read when it is not `<base>/models`. */
   modelsUrl?: string;
+  /**
+   * OpenCode Go: every request (chat and models) carries `user-agent: vyre/<version>`, and a chat carries `x-opencode-session`, a stable id of the conversation. Without both the
+   * provider answers 400 MissingSessionID (rc.16 on MLA; proved with curl by the lead, 3 Nov 2026), while the model list still answers.
+   */
+  opencode?: boolean;
+}
+
+export { OPENCODE_SESSION, vyreUserAgent, vyreVersion } from "../../../../lib/user-agent.ts";
+/**
+ * The headers OpenCode wants on a request to an address of its own, whichever adapter sends it (a custom OpenAI-compatible endpoint pointed at opencode.ai too): the user agent always, and the
+ * conversation's session id on a chat. Empty for any other address.
+ */
+export function opencodeHeaders(base: string, conversation?: string): Record<string, string> {
+  if (!isOpencode(base)) return {};
+  return { "user-agent": vyreUserAgent(), ...(conversation ? { [OPENCODE_SESSION]: conversation } : {}) };
 }
 
 function wireMessages(req: CallRequest, markPrefix: boolean): unknown[] {
@@ -104,6 +120,9 @@ function decoder(): StreamDecoder {
         const d = u["prompt_tokens_details"] as Record<string, any> | undefined;
         if (typeof d?.["cached_tokens"] === "number") usage.cacheReadTokens = d["cached_tokens"];
         if (typeof d?.["cache_write_tokens"] === "number") usage.cacheWriteTokens = d["cache_write_tokens"];
+        const c = u["completion_tokens_details"] as Record<string, any> | undefined;
+        if (typeof c?.["reasoning_tokens"] === "number") usage.reasoningTokens = c["reasoning_tokens"];
+        if (typeof u["cost"] === "number" && Number.isFinite(u["cost"])) usage.costUsd = u["cost"];
         out.push({ type: "usage", usage });
       }
       return out;
@@ -127,7 +146,10 @@ export function openaiCompatible(o: CompatOptions): ProviderAdapter {
       const mark = o.router && req.model.startsWith("anthropic/");
       return {
         path: "/chat/completions",
-        headers: { "content-type": "application/json", accept: "text/event-stream", ...(o.router ? { "x-title": "Vyre" } : {}) },
+        headers: {
+          "content-type": "application/json", accept: "text/event-stream", ...(o.router ? { "x-title": "Vyre" } : {}),
+          ...(o.opencode ? { "user-agent": vyreUserAgent(), [OPENCODE_SESSION]: req.conversation ?? req.prefixHash } : {}),
+        },
         body: {
           model: req.model, stream: true, stream_options: { include_usage: true },
           [o.tokenField]: req.maxOutputTokens,
@@ -140,7 +162,7 @@ export function openaiCompatible(o: CompatOptions): ProviderAdapter {
       };
     },
     decoder,
-    modelsRequest: () => ({ path: "/models", headers: {}, ...(o.modelsUrl ? { url: o.modelsUrl } : {}) }),
+    modelsRequest: () => ({ path: "/models", headers: o.opencode ? { "user-agent": vyreUserAgent() } : {}, ...(o.modelsUrl ? { url: o.modelsUrl } : {}) }),
     parseModels(json): ModelInfo[] {
       const rows = (json as { data?: Array<{ id?: unknown; name?: unknown }> } | null)?.data ?? [];
       return rows
@@ -156,7 +178,7 @@ export const xai = openaiCompatible({ id: "xai", base: "https://api.x.ai/v1", to
 
 // OpenCode Go (opencode.ai docs, 30 Oct 2026): chat completions at /inference/go/openai/v1/chat/completions, the model list at /inference/go/v1/models. Auth is a bearer key from the OpenCode Console (the docs
 // show the key being pasted into /connect and do not name the header; Bearer is the OpenAI-compatible default). Needs a real account to prove. Models behind other wire formats (Responses, Anthropic Messages) are not served by this adapter.
-export const opencodeGo = openaiCompatible({ id: "opencode_go", base: "https://opencode.ai/inference/go/openai/v1", tokenField: "max_tokens", cacheKey: false, router: false, defaultMaxOutput: 16_384, modelsUrl: "https://opencode.ai/inference/go/v1/models" });
+export const opencodeGo = openaiCompatible({ id: "opencode_go", base: "https://opencode.ai/inference/go/openai/v1", tokenField: "max_tokens", cacheKey: false, router: false, defaultMaxOutput: 16_384, modelsUrl: "https://opencode.ai/inference/go/v1/models", opencode: true });
 /** A server on this computer or network that speaks Chat Completions (Ollama at :11434, LM Studio at :1234, llama.cpp server at :8080). No key. The account names its own address. */
 export const local = openaiCompatible({ id: "local", base: "http://localhost:11434/v1", tokenField: "max_tokens", cacheKey: false, router: false, defaultMaxOutput: 8_192 });
 /** An endpoint a Space registered (providers.custom_add). The account names the address; the key, when there is one, comes from the Vault by handle. */

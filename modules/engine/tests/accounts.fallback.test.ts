@@ -103,6 +103,7 @@ test("the agent's ordered fallback list is walked in order, then the Space backu
   // an asker-policy agent: the asker's own account first, then the agent's list
   const own = resolveAccount({ ...req, agent: { accountPolicy: "asker", provider: "anthropic", accountFallback: ["#Fallback_B"] }, unavailable: ["#Dana_Anthropic"] });
   assert.equal(own.accountRef, "#Fallback_B");
-  // a task keeps to its step key and the Space backups
-  assert.equal(resolveAccount({ ...req, trigger: "task", unavailable: [] }).accountRef, "#Team_Backup_Key");
+  // a task with no step key honours the agent's pin (owner ruling 9: agents can pin a Space account), then the Space backups; never the agent's chat fallback list
+  assert.equal(resolveAccount({ ...req, trigger: "task", unavailable: [] }).accountRef, "#Team_Anthropic_Key");
+  assert.equal(resolveAccount({ ...req, trigger: "task", unavailable: ["#Team_Anthropic_Key"] }).accountRef, "#Team_Backup_Key");
 });

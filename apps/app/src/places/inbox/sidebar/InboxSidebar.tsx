@@ -1,4 +1,4 @@
-// Inbox > sidebar (spec 3.3): By contact and All inboxes, Calendar, then Mine, Shared and Agents with their unread counts, the Lists (Starred, Following) and the Calendars with
+// Inbox > sidebar (spec 3.3): By contact and All inboxes, Calendar, Meetings (with how many are ready to close), then Mine, Shared and Agents with their unread counts, the Lists (Starred, Following) and the Calendars with
 // a colour dot each. Every row is a ui/Row with a leading glyph and a trailing count. Click selects; right-click opens the row's menu; the calendar rows are ./CalendarRows.tsx
 // (click shows or hides, a menu, a status line, arrow keys). The dialer sits at the foot.
 import { useState } from "react";
@@ -16,6 +16,8 @@ import { Avatar } from "../../../../../../ui/src/Avatar/index.tsx";
 import { Glyph, IconButton, Unread } from "./parts.tsx";
 import type { IconName } from "./parts.tsx";
 import { useInboxState } from "./state.tsx";
+import { useMeetingsQuery } from "../meetings/MeetingsTab.tsx";
+import type { ListOut as MeetingsOut } from "../meetings/model.ts";
 
 type CountsOut = CapMap["inbox.counts"]["out"];
 type BoxesOut = CapMap["mail.mailbox.list"]["out"];
@@ -72,6 +74,7 @@ function Sidebar(): ReactElement {
   const boxes = useScreenQuery<BoxesOut>(SCREENS.sidebar, "mailboxes");
   const cals = useScreenQuery<CalsOut>(SCREENS.sidebar, "calendars");
   const rows = useScreenQuery<RowsOut>(SCREENS.list, "rows");
+  const meetings = useMeetingsQuery<MeetingsOut>("list");
 
   const mailboxes = boxes.status === "ready" ? boxes.data.mailboxes : [];
   const calendars = cals.status === "ready" ? cals.data.calendars : [];
@@ -89,7 +92,7 @@ function Sidebar(): ReactElement {
 
   const inboxMenu = (b: NavInbox, x: number, y: number): void => {
     const entries: MenuEntry[] = [
-      { label: "Open", onSelect: () => pick(b.scope) },
+      { label: "Open", onSelect: () => pick(b.scope, b.channel === "sms" ? undefined : "thread") },
       { label: b.channel === "sms" ? "Number Settings…" : "Mailbox Settings…", onSelect: () => data.nav.openInboxSettings(b.id) },
     ];
     menu.show(entries, x, y);
@@ -117,7 +120,8 @@ function Sidebar(): ReactElement {
           key={b.id} id={`inbox:${b.id}`} title={b.label} selected={scoped(b.scope)} count={b.unread}
           glyph={b.agent ? <Avatar name={b.label.replace(/@$/, "").replace(/\u2019?'?s number$/, "")} kind="agent" size={18} /> : <Glyph name={b.channel === "sms" ? "call" : "mail"} />}
           trailing={b.lock ? <Glyph name="lock" size={12} /> : null}
-          onPress={() => pick(b.scope)}
+          // a mailbox lists its mail by thread, the same grouping as All inboxes (owner, 3 Nov)
+          onPress={() => pick(b.scope, b.channel === "sms" ? undefined : "thread")}
           onMenu={(x, y) => inboxMenu(b, x, y)}
         />,
       );
@@ -159,6 +163,8 @@ function Sidebar(): ReactElement {
           glyph={<Glyph name="mix" />} onPress={() => pick({ kind: "all" }, "thread")} />
         <SideRow id="calendar" title="Calendar" selected={state.main === "calendar"} glyph={<Glyph name="cal" />}
           onPress={() => { dispatch({ type: "calendar" }); data.nav.openCalendar(); }} />
+        <SideRow id="meetings" title="Meetings" selected={state.main === "meetings"} glyph={<Glyph name="video" />} count={meetings.status === "ready" ? meetings.data.ready : 0}
+          onPress={() => dispatch({ type: "meetings" })} />
         {sections}
         {bare ? null : <SectionHead id="lists" label="Lists" closed={closed("lists")} onToggle={() => dispatch({ type: "section", key: "lists" })} />}
         {bare || closed("lists") ? null : [

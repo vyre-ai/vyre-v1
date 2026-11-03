@@ -15,23 +15,96 @@ export { buildPush } from "./handlers/push.ts";
 export type { PushMessage, PushPort } from "./handlers/push.ts";
 
 type Assignee = { kind: string; id: string } | null | undefined;
-interface Ev { name: string; subject?: string; payload: Record<string, unknown> }
+interface Ev { name: string; subject?: string; payload: Record<string, unknown>; actor?: string }
+type SendIn = Parameters<typeof send>[1];
 
-/** Who an event is for and what it says, for the events whose manifest names a notification kind. Undefined means this event files nothing. */
-export function plan(ctx: NotifCtx, e: Ev): Promise<Parameters<typeof send>[1] | undefined> | Parameters<typeof send>[1] | undefined {
+/** The name a person reads for whoever acted: the server's one resolver, so someone's private agent reads "Irfad Imtiaz (Agent)", never a raw id. */
+async function nameOf(ctx: NotifCtx, id: string | undefined): Promise<string> {
+  if (!id || !ctx.call || id.startsWith("svc_")) return "Someone";
+  const kind = id.startsWith("agt_") ? "agent" : id.startsWith("grp_") ? "group" : id.startsWith("rol_") ? "role" : "person";
+  try {
+    const n = ((await ctx.call("access.principals.get", { principal: { kind, id } })) as { principal?: { name?: unknown } } | null)?.principal?.name;
+    return typeof n === "string" && n !== "" && n !== id ? n : "Someone";
+  } catch { return "Someone"; }
+}
+
+/** The people a slot reaches: the person, or every person in the group or holding the role. Agents and automations are woken by the engine, not told. */
+async function peopleOf(ctx: NotifCtx, a: Assignee): Promise<string[]> {
+  if (!a) return [];
+  if (a.kind === "person") return [a.id];
+  if ((a.kind !== "group" && a.kind !== "role") || !ctx.call) return [];
+  try {
+    const members = a.kind === "group"
+      ? ((await ctx.call("access.groups.get", { groupId: a.id })) as { group?: { members?: Array<{ kind?: string; id?: string }> } }).group?.members
+      : ((await ctx.call("access.roles.get", { roleId: a.id })) as { holders?: Array<{ kind?: string; id?: string }> }).holders;
+    return (members ?? []).filter((m) => m.kind === "person" && typeof m.id === "string").map((m) => m.id as string).slice(0, 100);
+  } catch { return []; }
+}
+
+async function taskOf(ctx: NotifCtx, id: string): Promise<{ kind?: string; title?: string; createdBy?: string; assigned?: Assignee; workingNotes?: Record<string, string>; takenBy?: string } | undefined> {
+  if (!ctx.call) return undefined;
+  try { return ((await ctx.call("tasks.get", { taskId: id })) as { task?: Record<string, never> }).task; } catch { return undefined; }
+}
+
+const firstFix = (notes: Record<string, string> | undefined): string => { try { const f = JSON.parse(notes?.["fixes"] ?? "[]") as unknown; return Array.isArray(f) && typeof f[0] === "string" ? f[0] : "see the task"; } catch { return "see the task"; } };
+
+/** Who a task event is for and what it says (lane l-tasks). Every person whose turn it is hears it once, by name; whoever acted never hears about their own move. */
+async function planTask(ctx: NotifCtx, e: Ev): Promise<SendIn[]> {
   const p = e.payload;
+  const taskId = String(p.taskId ?? "");
+  const by = typeof p.by === "string" ? p.by : e.actor;
+  const subject = { type: "task", id: taskId };
+  const not = (ids: string[]): string[] => [...new Set(ids)].filter((id) => id !== by);
   if (e.name === "task.requested") {
-    const to = p.assigned as Assignee;
-    if (!to || to.kind !== "person") return undefined;   // a group, role or agent holder is reached through tasks.delegate and Needs you, not a personal banner
+    const to = not(await peopleOf(ctx, p.assigned as Assignee));
+    if (to.length === 0) return [];
+    const title = String(p.title ?? "");
+    if (p.kind === "work") {
+      const from = await nameOf(ctx, by);
+      if (p.step === "work") {
+        const t = await taskOf(ctx, taskId);
+        return to.map((id) => ({ to: id, kind: "task.returned", subject, title, data: { from, note: firstFix(t?.workingNotes) }, collapseKey: `task.turn:${taskId}` }));
+      }
+      return to.map((id) => ({ to: id, kind: "task.turn", subject, title, data: { from, step: p.step === "approval" ? "approval" : "review" }, collapseKey: `task.turn:${taskId}` }));
+    }
     // the words say what is asked: an answer, or something only this person can unblock, never "Approval needed"
     const kind = p.kind === "answer" ? "answer.requested" : p.kind === "unblock" ? "unblock.requested" : "approval.requested";
-    return { to: to.id, kind, subject: { type: "task", id: String(p.taskId) }, title: String(p.title ?? ""), collapseKey: `${kind}:${String(p.taskId)}` };
+    return to.map((id) => ({ to: id, kind, subject, title, collapseKey: `${kind}:${taskId}` }));
   }
   if (e.name === "task.assigned") {
-    const to = p.to as Assignee;
-    if (!to || to.kind !== "person" || p.slot !== "assigned") return undefined;
-    return { to: to.id, kind: "task.assigned", subject: { type: "task", id: String(p.taskId) }, title: "a task", data: { from: ctx.principal.kind === "person" ? ctx.principal.id : "someone" } };
+    const to = not(await peopleOf(ctx, p.to as Assignee));
+    if (to.length === 0) return [];
+    // a request made just now says so itself (task.requested): its holder is not told twice
+    const t = p.from === null || typeof p.title !== "string" ? await taskOf(ctx, taskId) : undefined;
+    if (p.from === null && t?.kind !== undefined && t.kind !== "work") return [];
+    const what = p.slot === "reviewer" ? "asked you to review" : p.slot === "approver" ? "asked you to approve" : "gave you a task";
+    const from = await nameOf(ctx, by);
+    return to.map((id) => ({ to: id, kind: "task.assigned", subject, title: String(p.title ?? t?.title ?? "a task"), data: { from, what }, collapseKey: `task.assigned:${taskId}` }));
   }
+  if (e.name === "task.completed") {
+    const t = await taskOf(ctx, taskId);
+    const creator = t?.createdBy;
+    if (!creator || !creator.startsWith("usr_") || creator === by) return [];
+    return [{ to: creator, kind: "task.finished", subject, title: t?.title ?? "a task", data: { from: await nameOf(ctx, by) } }];
+  }
+  if (e.name === "task.due") {
+    const to = await peopleOf(ctx, p.holder as Assignee);
+    return to.map((id) => ({ to: id, kind: "task.due", subject, title: String(p.title ?? ""), data: { when: p.at === "day" ? "Due today" : "Due now" }, collapseKey: `task.due:${taskId}` }));
+  }
+  if (e.name === "task.nudged") {
+    const to = typeof p.notify === "string" && p.notify.startsWith("usr_") ? p.notify : "";
+    if (to === "" || p.why === "idle_agent") return [];   // an agent that went quiet is the engine's to escalate, with an Unblock task
+    return [{ to, kind: "approval.backstop", subject, title: String(p.title ?? ""), collapseKey: `approval.backstop:${taskId}` }];
+  }
+  return [];
+}
+
+const TASK_EVENTS: ReadonlySet<string> = new Set(["task.requested", "task.assigned", "task.completed", "task.due", "task.nudged"]);
+
+/** Who an event is for and what it says, for the events whose manifest names a notification kind. Undefined means this event files nothing. */
+export function plan(ctx: NotifCtx, e: Ev): Promise<SendIn | SendIn[] | undefined> | SendIn | SendIn[] | undefined {
+  const p = e.payload;
+  if (TASK_EVENTS.has(e.name)) return planTask(ctx, e);
   if (e.name === "run.succeeded" && p.kind === "routine" && ctx.call) {
     // Alerts: a routine that succeeded is told only to people who asked for successes too (failures always come through run.failed)
     return ctx.call("runs.get", { runId: p.runId }).then((r) => {
@@ -45,19 +118,30 @@ export function plan(ctx: NotifCtx, e: Ev): Promise<Parameters<typeof send>[1] |
     return { to: p.requester, kind: "access.decided", title: r?.type ?? "this", data: { decision: e.name === "access.granted" ? "approved" : "declined" } };
   }
   if (e.name === "run.failed") return { to: String(p.owner), kind: "run.failed", subject: { type: "run", id: String(p.runId) }, data: { name: p.kind, message: p.message }, runId: String(p.runId) };
-  if (e.name === "member.joined") return { to: String(p.invitedBy), kind: "member.joined", data: { name: p.personId, space: ctx.space } };
+  if (e.name === "member.joined") {
+    // the line names the person, never their id: the directory answers, and "A new member" stands in when it cannot
+    const filed = (name: string, space: string) => ({ to: String(p.invitedBy), kind: "member.joined", title: name, data: { name, space } });
+    const call = ctx.call;
+    if (!call) return filed("A new member", "the Space");
+    const who = call("access.principals.get", { principal: { kind: "person", id: String(p.personId) } }).then((r) => (r as { principal?: { name?: string } } | null)?.principal?.name, () => undefined);
+    const where = call("spaces.get", {}).then((r) => (r as { space?: { name?: string } } | null)?.space?.name, () => undefined);
+    return Promise.all([who, where]).then(([name, space]) => filed(name && !/^usr_/.test(name) ? name : "A new member", space || "the Space"));
+  }
   return undefined;
 }
 
 /** Async consumers by name: the events each one reads and what it does with one. */
 export const consumers = {
   "notifications.fanout": {
-    on: ["task.requested", "task.assigned", "run.failed", "run.succeeded", "member.joined", "access.granted", "access.declined"],
+    on: ["task.requested", "task.assigned", "task.completed", "task.due", "task.nudged", "run.failed", "run.succeeded", "member.joined", "access.granted", "access.declined"],
     async run(ctx: NotifCtx, event: Ev): Promise<string[]> {
-      const input = await plan(ctx, event);
-      if (!input) return [];
-      const r = await send(ctx, input);
-      return r.notificationId ? [r.notificationId] : [];
+      const planned = await plan(ctx, event);
+      const out: string[] = [];
+      for (const input of planned === undefined ? [] : Array.isArray(planned) ? planned : [planned]) {
+        const r = await send(ctx, input);
+        if (r.notificationId) out.push(r.notificationId);
+      }
+      return out;
     },
   },
   /** A request that closed is nothing to be told about any more: its notification stops counting, whoever decided it and wherever. */

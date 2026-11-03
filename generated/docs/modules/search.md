@@ -12,7 +12,7 @@ Requires: nothing.
 - [search.index.apply](../capabilities/search.index.apply.md): Index consumer: apply one changed entity row to full text and vectors (durable cursor; never sees private rows)
 - [search.index.rebuild](../capabilities/search.index.rebuild.md): Rebuild the index for an entity or the whole Space from the projections
 - [search.index.stats](../capabilities/search.index.stats.md): Index size, consumer lag and vector backlog
-- [search.query](../capabilities/search.query.md): Search everything the caller may see: people, agents, chats, inbox, records, files, automations, apps, settings, memory
+- [search.query](../capabilities/search.query.md): Search everything the caller may see: people, agents, chats, inbox, records, files, automations, apps, settings, memory, and the caller's notes (answered by notes.search as the caller, never indexed)
 - [search.recent.list](../capabilities/search.recent.list.md): Recent items before typing (opened and edited by the caller)
 - [search.recent.record](../capabilities/search.recent.record.md): Note that the caller opened something so it shows under Recent
 - [search.related](../capabilities/search.related.md): Items related to one item by links, relations and shared terms

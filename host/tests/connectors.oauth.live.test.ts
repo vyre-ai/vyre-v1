@@ -94,7 +94,7 @@ test("OAuth connector: PKCE sign-in as the owner, tokens in the Vault, run, refr
     provider.expect(secretValues[1]!, new URL(second.authUrl).searchParams.get("code_challenge")!);
     assert.equal((await keyRoute("lock")).status, 204);
     const locked = await call("owner", "connections.complete_auth", { state: new URL(second.authUrl).searchParams.get("state")!, code: secretValues[1] });
-    assert.ok(locked.status >= 400 && /vault is locked on this computer/.test(JSON.stringify(locked.body)), JSON.stringify(locked.body));
+    assert.ok(locked.status >= 400 && /vault is locked until you sign in to Vyre/.test(JSON.stringify(locked.body)), JSON.stringify(locked.body));
     assert.equal((await keyRoute("unlock")).status, 204);
 
     // deleting the connection revokes both tokens at the app and removes the Vault items

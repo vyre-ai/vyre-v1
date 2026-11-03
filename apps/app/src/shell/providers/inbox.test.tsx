@@ -1,4 +1,5 @@
 // The Inbox place in the shell: the sidebar and the contact list drawn from the runtime's hooks, the loading frame without a runtime, and the nav a click reaches.
+import { askPaneOf, resetAskPanes } from "../ask/pane.ts";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
@@ -38,11 +39,14 @@ test("inbox: before the runtime exists the place draws its own loading frame", (
   assert.ok(out.includes('data-testid="inbox-place-loading"'));
 });
 
-test("inbox: New message is never a dead click: it opens an Ask chat with the assistant, not a screen that only reads", () => {
+test("inbox: New message is never a dead click: it opens the Ask pane beside the Inbox with the draft, not a chat in Chats", () => {
   const { rt, opened } = runtime();
+  resetAskPanes();
   inboxData(rt, () => undefined).nav.compose();
-  assert.equal(opened.length, 1);
-  assert.deepEqual(opened[0], { screen: "chats.conversation", args: { with: "agt_assistant", about: "compose:email", draft: "Draft an email to " } });
+  assert.equal(opened.length, 0, "nothing navigated");
+  const pane = askPaneOf("inbox");
+  assert.deepEqual(pane?.thing, { kind: "compose", id: "email", title: "A new email" });
+  assert.equal(pane?.draft, "Draft an email to ");
 });
 
 test("inbox: opening a contact reaches the place, and the sidebar's other doors ask the shell", () => {
@@ -53,7 +57,7 @@ test("inbox: opening a contact reaches the place, and the sidebar's other doors 
   data.nav.openCall("call_1");
   data.nav.compose();
   assert.deepEqual(picked, ["elena"]);
-  assert.deepEqual(opened, [{ subject: { type: "call", id: "call_1" } }, { screen: "chats.conversation", args: { with: "agt_assistant", about: "compose:email", draft: "Draft an email to " } }]);
+  assert.deepEqual(opened, [{ subject: { type: "call", id: "call_1" } }], "New message stays in the Inbox (the Ask pane)");
 });
 
 test("inbox: Match to a record opens the Unmatched screen in the Inbox body, not the contact list", () => {

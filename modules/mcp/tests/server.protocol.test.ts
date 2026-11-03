@@ -192,8 +192,9 @@ test("tools/list for an outside agent: common tools it may use, none of the vaul
 test("tools/list for a CLI engine's session is the whole default set (the agent's own rules apply), not the outside tool's cut", async () => {
   const r = rig();
   const names = new Set((await r.list("drv")).map((t) => t.name));
-  assert.equal(names.size, g.defaults.size + 4);
+  assert.equal(names.size, g.defaults.size + 6);   // and people_status, message_person: who is in and a message to a teammate (lane l-agentdm)
   assert.ok(names.has("terminal_run") && names.has("vault_use") && names.has("screen_screenshot") && names.has("use_tool") && names.has("files_create") && names.has("files_tree"));
+  assert.ok(names.has("people_status") && names.has("message_person"));
 });
 
 test("a CLI engine lists once, so use_tool calls what tool_search found; a tool it never searched for stays refused", async () => {
@@ -457,7 +458,8 @@ test("the setup grant's scope: setting the Space up, never what goes out, never 
     // groups and roles of people are in scope, each subject checked (setupRefusal); reading them, removing someone and deleting a group only narrow. The Space's name and logo are in scope.
     const peopleOnly = /^access\.(groups\.(create|update|add_member|remove_member|delete|list|get)|roles\.(assign|unassign|list|get))$|^spaces\.(update|get)$/;
     if (/^(access|gate|agents|mcp|devices|network|spaces|identity)\./.test(t.cap) && !peopleOnly.test(t.cap)) assert.equal(setupCovers(t), false, `${t.cap} could widen an agent or a sign-in`);
-    if (/^vault\.(item\.reveal|share|unshare|export|items\.export|use|fill|inject)/.test(t.cap)) assert.equal(setupCovers(t), false, `${t.cap} reads or shares a secret`);
+    // sharing a Vault item or folder with people or groups is setup (l-vaultmatrix; setupRefusal refuses an agent as the subject); reading a value back never is
+    if (/^vault\.(item\.reveal|export|items\.export|use|fill|inject)/.test(t.cap)) assert.equal(setupCovers(t), false, `${t.cap} reads a secret`);
   }
 });
 

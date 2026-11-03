@@ -4,7 +4,8 @@ import { handlers } from "./handlers/index.ts";
 export { handlers };
 import { countNeedsYou } from "./handlers/state.ts";
 import { resumeRunOf, settleFromSource } from "./handlers/resume.ts";
-import { syncPolicy } from "./projections.ts";
+import { syncPolicy, syncTz } from "./projections.ts";
+import { tick } from "./handlers/clock.ts";
 import { onAgentDeleted, onPersonLeft } from "./handlers/departures.ts";
 import { onCrewMerged, onRunStopped, onTaskChanged } from "./handlers/schedule.ts";
 import type { TasksCtx } from "./projections.ts";
@@ -18,12 +19,17 @@ export const hostCalls = {
   },
 };
 
+/** The clock (handlers/clock.ts): due days and times on each holder's own clock, snoozes that end, steps that sat too long. Once a minute. */
+export const periodic = {
+  "tasks.clock": { everyMs: 60_000, run: async (ctx: TasksCtx): Promise<unknown> => tick(ctx) },
+};
+
 /** A Run waiting on a task goes on when the task is Done or Canceled, whichever way it got there (handlers/resume.ts). */
 export const consumers = {
   /** The Space's tasks.* settings, copied here from settings.changed: a module reads only its own tables. */
   "tasks.settings_sync": {
     on: ["settings.changed"],
-    async run(ctx: TasksCtx, event: { payload: Record<string, unknown> }): Promise<string[]> { return syncPolicy(ctx.db, event.payload) ? [String(event.payload["key"])] : []; },
+    async run(ctx: TasksCtx, event: { payload: Record<string, unknown> }): Promise<string[]> { return syncPolicy(ctx.db, event.payload) || syncTz(ctx.db, event.payload) ? [String(event.payload["key"])] : []; },
   },
   /** Finishing a task starts what waited on it and tells a parent only what it has to hear (handlers/schedule.ts). */
   "tasks.schedule": { on: ["task.transitioned", "task.withdrawn", "task.deleted", "task.created"], run: (ctx: TasksCtx, event: Parameters<typeof onTaskChanged>[1]) => onTaskChanged(ctx, event) },

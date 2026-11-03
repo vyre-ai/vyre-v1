@@ -16,6 +16,8 @@ export interface Principal { kind: "person" | "agent" | "actor" | "service"; id:
 
 /** The part of the host Ctx these handlers read. A test passes a small object; the host passes the full Ctx. */
 export interface AgentsCtx {
+  /** The host's directory (host/src/seams/people.ts): a person's groups, for connections shared with groups. Absent in a bare harness. */
+  directory?: { of(personId: string): { roles: string[]; groups: string[] } };
   space: string;
   principal: Principal;
   actingFor?: string | undefined;
@@ -51,7 +53,7 @@ export const askerOf = (ctx: Pick<AgentsCtx, "principal" | "actingFor">): string
 
 // ---- schema -----------------------------------------------------------------------------------------------------------------------------------------
 
-const SCHEMA = ["0001_agents.sql", "0002_routine_watch.sql", "0003_skills.sql", "0004_plugins.sql", "0005_mcp_hub_auth.sql", "0006_agent_kind.sql", "0007_outside.sql"].map((f) => readFileSync(new URL(`./migrations/${f}`, import.meta.url), "utf8")).join("\n")
+const SCHEMA = ["0001_agents.sql", "0002_routine_watch.sql", "0003_skills.sql", "0004_plugins.sql", "0005_mcp_hub_auth.sql", "0006_agent_kind.sql", "0007_outside.sql", "0008_skill_scopes.sql", "0009_connections_home.sql", "0010_routine_by.sql"].map((f) => readFileSync(new URL(`./migrations/${f}`, import.meta.url), "utf8")).join("\n")
   .split("\n").filter((l) => !l.trimStart().startsWith("--")).join("\n")
   .split(";").map((s) => s.trim()).filter((s) => s.length > 0);
 const ready = new WeakSet<object>();
@@ -59,7 +61,7 @@ const ready = new WeakSet<object>();
 /** Make sure the agents tables exist. One cheap probe per handle; the IF NOT EXISTS statements run only when it fails. */
 export function ensure(db: Db): void {
   if (ready.has(db)) return;
-  try { db.all("SELECT key FROM agents_meta WHERE key = ?", "probe"); db.all("SELECT routineId FROM agents_routine_watch WHERE routineId = ?", "probe"); db.all("SELECT id FROM agents_skills WHERE id = ?", "probe"); db.all("SELECT id FROM agents_mcp_connections WHERE id = ?", "probe"); db.all("SELECT kind, runtime FROM agents_agent WHERE id = ?", "probe"); db.all("SELECT id FROM agents_outside_jobs WHERE id = ?", "probe"); } catch { for (const stmt of SCHEMA) db.run(stmt); }
+  try { db.all("SELECT key FROM agents_meta WHERE key = ?", "probe"); db.all("SELECT routineId FROM agents_routine_watch WHERE routineId = ?", "probe"); db.all("SELECT id FROM agents_skills WHERE id = ?", "probe"); db.all("SELECT id FROM agents_mcp_connections WHERE id = ?", "probe"); db.all("SELECT kind, runtime FROM agents_agent WHERE id = ?", "probe"); db.all("SELECT id FROM agents_outside_jobs WHERE id = ?", "probe"); db.all("SELECT owner, used_by_json FROM agents_mcp_connections WHERE id = ?", "probe"); db.all("SELECT id FROM agents_mcp_catalog WHERE id = ?", "probe"); db.all("SELECT id FROM agents_skill_receipts WHERE id = ?", "probe"); db.all("SELECT routineId FROM agents_routine_by WHERE routineId = ?", "probe"); db.all("SELECT routineId FROM agents_routine_last WHERE routineId = ?", "probe"); } catch { for (const stmt of SCHEMA) db.run(stmt); }
   ready.add(db);
 }
 
@@ -595,7 +597,7 @@ export function nextRun(expr: string, after: number): number | null {
 
 // ---- routines ------------------------------------------------------------------------------------------------------------------------------------------
 
-export interface RoutineRec { watchChannel?: string; id: string; agentId: string; ownerId: string; title: string; cron: string; prompt: string; channelId?: string; enabled: boolean; lastRunAt?: number; nextRunAt?: number; createdAt: number; updatedAt: number }
+export interface RoutineRec { watchChannel?: string; setBy?: { kind: "agent" | "person"; id: string }; lastRun?: { runId: string; status: string }; id: string; agentId: string; ownerId: string; title: string; cron: string; prompt: string; channelId?: string; enabled: boolean; lastRunAt?: number; nextRunAt?: number; createdAt: number; updatedAt: number }
 export function routineOf(r: Row): RoutineRec {
   const o: RoutineRec = { id: str(r["id"]), agentId: str(r["agentId"]), ownerId: str(r["ownerId"]), title: str(r["title"]), cron: str(r["cron"]), prompt: str(r["prompt"]), enabled: flag(r["enabled"]), createdAt: num(r["createdAt"]), updatedAt: num(r["updatedAt"]) };
   const ch = optStr(r["channelId"]); if (ch !== undefined) o.channelId = ch;
@@ -609,12 +611,17 @@ export function routineBy(db: Db, id: string): RoutineRec | null {
   const rec = routineOf(r);
   const w = (db.all("SELECT channelId FROM agents_routine_watch WHERE routineId = ?", id) as Row[])[0];
   if (w) rec.watchChannel = str(w["channelId"]);
+  const b = (db.all("SELECT byKind, byId FROM agents_routine_by WHERE routineId = ?", id) as Row[])[0];
+  if (b) rec.setBy = { kind: str(b["byKind"]) === "agent" ? "agent" : "person", id: str(b["byId"]) };
+  const l = (db.all("SELECT runId, status FROM agents_routine_last WHERE routineId = ?", id) as Row[])[0];
+  if (l) rec.lastRun = { runId: str(l["runId"]), status: str(l["status"]) };
   return rec;
 }
 export function routineOut(r: RoutineRec): Record<string, unknown> {
   return {
     routineId: r.id, agentId: r.agentId, title: r.title, ...(r.watchChannel === undefined ? { cron: r.cron } : { kind: "watch", watch: { on: "message", channelId: r.watchChannel } }), prompt: r.prompt, ...(r.channelId !== undefined ? { channelId: r.channelId } : {}), enabled: r.enabled, ownerId: r.ownerId,
     ...(r.lastRunAt !== undefined ? { lastRunAt: r.lastRunAt } : {}), ...(r.nextRunAt !== undefined ? { nextRunAt: r.nextRunAt } : {}),
+    ...(r.setBy !== undefined ? { setBy: r.setBy } : {}), ...(r.lastRun !== undefined ? { lastRun: r.lastRun } : {}),
   };
 }
 /** The line under a message an agent posts because of a routine: "Sent by Intake on a routine Dana set". */
@@ -622,11 +629,28 @@ export const routineLabel = (agentName: string, ownerName: string): string => `S
 /** What the post carries so the label can be drawn: chat.post `via`. Only the routine's owner can open the routine itself. */
 export const routineVia = (r: Pick<RoutineRec, "ownerId">): { routineOwner: string } => ({ routineOwner: r.ownerId });
 /** The scheduler calls this when it starts a routine: the run is recorded and the next one is worked out from now. */
-export function markRoutineRan(db: Db, id: string, at: number): RoutineRec | null {
+/** A routine started a run: it is the routine's last run, running until the runs module says how it ended. */
+export function noteRoutineRun(db: Db, routineId: string, runId: string, at: number): void {
+  ensure(db);
+  db.run(`INSERT INTO agents_routine_last (routineId, runId, status, at) VALUES (?, ?, 'running', ?) ON CONFLICT(routineId) DO UPDATE SET runId = excluded.runId, status = 'running', at = excluded.at`, routineId, runId, at);
+}
+/** How a routine's run ended (run.succeeded, run.failed, run.stopped). Only the routine's last run moves its line; an older run ending changes nothing. */
+export function noteRoutineOutcome(db: Db, runId: string, status: "succeeded" | "failed" | "stopped", at: number): string[] {
+  ensure(db);
+  const rows = db.all("SELECT routineId FROM agents_routine_last WHERE runId = ?", runId) as Row[];
+  if (rows.length === 0) return [];
+  db.run("UPDATE agents_routine_last SET status = ?, at = ? WHERE runId = ?", status, at, runId);
+  return rows.map((r) => str(r["routineId"]));
+}
+/** `ran` false: the time passed without a run (the agent was paused), so only the next time moves. */
+export function markRoutineRan(db: Db, id: string, at: number, ran = true): RoutineRec | null {
   ensure(db);
   const r = routineBy(db, id);
   if (!r) return null;
-  db.run("UPDATE agents_routine SET lastRunAt = ?, nextRunAt = ?, updatedAt = ? WHERE id = ?", at, r.enabled ? nextRun(r.cron, at) : null, at, id);
+  // the next run counts from now, so a routine that missed several times while the server was off runs once, not once per missed time
+  const next = r.enabled ? nextRun(r.cron, at) : null;
+  if (ran) db.run("UPDATE agents_routine SET lastRunAt = ?, nextRunAt = ?, updatedAt = ? WHERE id = ?", at, next, at, id);
+  else db.run("UPDATE agents_routine SET nextRunAt = ?, updatedAt = ? WHERE id = ?", next, at, id);
   return routineBy(db, id);
 }
 
@@ -1074,17 +1098,24 @@ export const isAssistant = (a: Pick<AgentRec, "kind">): boolean => a.kind === "a
 export function canSee(ctx: AgentsCtx, a: AgentRec): boolean {
   // the assistant is private even from the Space's admins and from anyone it was shared with: other people neither see, mention nor open it
   if (isAssistant(a)) return a.ownerId === askerOf(ctx);
-  // an outside agent runs on its owner's machine on its owner's access: a share does not change who may use it. An admin who turned on All in the Space may see it, to answer for it.
-  if (a.runtime === "outside") return a.ownerId === askerOf(ctx) || isHostService(ctx.principal) || seesAll(ctx);
+  // an outside agent runs on its owner's machine on its owner's access: it is theirs alone, like the assistant. A share does not change who may use it, and an admin's All in the Space does not list it:
+  // owners and admins answer for it in Console (mcp.connected.list with all), where they can take its setup grant back or remove it, never chat as it
+  if (isPrivateAgent(a)) return a.ownerId === askerOf(ctx) || (a.runtime === "outside" && isHostService(ctx.principal));
   return a.ownerId === askerOf(ctx) || allows(ctx, null, "view", "agent", a.id) || seesAll(ctx);
 }
-/** An agent the caller may see, or the same answer as for one that is not there (what exists is not leaked). */
+/** An agent only its person sees, uses and opens: their private assistant, and an outside agent they connected through /mcp. What it did in a shared place stays visible, attributed to it and its person. */
+export const isPrivateAgent = (a: Pick<AgentRec, "kind" | "runtime">): boolean => isAssistant(a) || a.runtime === "outside";
+/** What a person is told when they reach for someone else's private agent by its id. */
+export const PRIVATE_AGENT = "That agent is private to the person it belongs to. Only they can open it, chat with it or @mention it.";
+/** An agent the caller may see, or the same answer as for one that is not there (what exists is not leaked). Someone else's private agent is refused in plain words: its work in shared places already names it. */
 export function visible(ctx: AgentsCtx, id: string, code: ErrorCode = "validation.not_found"): AgentRec {
   ensure(ctx.db);
   const a = agentBy(ctx.db, id);
-  if (!a || !canSee(ctx, a)) raise(ctx, code, "That agent does not exist.");
+  if (!a || !canSee(ctx, a)) raise(ctx, code, a && isPrivateAgent(a) && ctx.principal.kind === "person" ? PRIVATE_AGENT : "That agent does not exist.", a && isPrivateAgent(a) ? { reason: "private" } : undefined);
   return a;
 }
+/** An owner or admin (access.manage) answers for every outside agent in the Space: they may remove one from Console, without seeing it anywhere else or chatting as it. */
+export const governs = (ctx: AgentsCtx, a: AgentRec): boolean => a.runtime === "outside" && ctx.authorize !== undefined && allows(ctx, "access.manage", "manage", "space", ctx.space);
 
 export async function makeFolder(ctx: AgentsCtx, parentId: string, name: string, key: string, subject?: { kind: "agent"; id: string }): Promise<FolderOut> {
   return (await call<{ folder: FolderOut }>(ctx, "files.folder.create", { parentId, name, idempotencyKey: key, ...(subject ? { subject } : {}) }, { idempotencyKey: key })).folder;
@@ -1105,6 +1136,29 @@ export function seesSetup(ctx: AgentsCtx, a: AgentRec): boolean {
   if ((ctx.depth ?? 0) >= 1 || (ctx.origin !== undefined && SERVER_ORIGINS.has(ctx.origin))) return true;
   return ctx.principal.id === a.id || a.ownerId === askerOf(ctx) || allows(ctx, null, "edit", "agent", a.id) || seesAll(ctx);
 }
+/**
+ * Who may change an agent's settings. agent.toml is the settings, so the rule is one, however the change arrives: agents.update, the role line, a restored version, an accepted suggestion, or a save of
+ * agent.toml itself in Files (files.write and files.restore_version ask agents.config.may_save before they write).
+ *   outside   an outside agent (signed in over MCP, runtime outside) or an outside actor never changes them. The MCP door keeps agents.update for people; this keeps every other way to the same change.
+ *   no_edit   anyone else needs Edit on the agent: a person with it, or one of the Space's own agents acting for one (both must allow, as on every call).
+ * Answers why not, or null when the caller may.
+ */
+export function settingsRefusal(ctx: AgentsCtx, a: AgentRec): "outside" | "no_edit" | null {
+  if (ctx.principal.kind === "actor") return "outside";
+  if (ctx.principal.kind === "agent" && agentBy(ctx.db, ctx.principal.id, true)?.runtime === "outside") return "outside";
+  return allows(ctx, null, "edit", "agent", a.id) ? null : "no_edit";
+}
+/** The words for a refused change of settings. */
+export const SETTINGS_REFUSED: Readonly<Record<"outside" | "no_edit", string>> = Object.freeze({
+  outside: "Only a person can change an agent's settings. Ask the person you act for.",
+  no_edit: "You can read this agent but not change it.",
+});
+/** Refuse the change when the caller may not change this agent's settings: permission.no_grant, with the reason (person_only for an outside caller). */
+export function mustChangeSettings(ctx: AgentsCtx, a: AgentRec): void {
+  const why = settingsRefusal(ctx, a);
+  if (why !== null) raise(ctx, "permission.no_grant", SETTINGS_REFUSED[why], why === "outside" ? { reason: "person_only" } : undefined);
+}
+
 /** An agent's shape without its setup: the fields the contract requires stay, empty. */
 export function withoutSetup<T extends object>(out: T): T {
   const { accountKey: _key, memoryKey: _memory, ...rest } = out as T & { accountKey?: unknown; memoryKey?: unknown };

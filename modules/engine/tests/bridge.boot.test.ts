@@ -60,6 +60,7 @@ test("whoever posts, the owner, a member or a hook (an agent), the bridge consum
     bindEngine(null);
     const h = harness({ threads: [{ threadId: T, kind: "chat", starter: "usr_owner", agents: [{ agentId: AGENT, mode: "lead" as const }] }] });
     const provider = scriptedProvider({ script: reply });
+    const askedFor: string[] = [];
     const chat = [{ messageId: "msg_9", threadId: T, threadSeq: 1, author, body: "hello", blocks: [], mentions: [{ kind: "agent", id: AGENT }], depth: author.kind === "agent" ? 1 : 0 }];
     const read = (cap: string, input: unknown): unknown => {
       const b = input as { messageId?: string };
@@ -73,7 +74,7 @@ test("whoever posts, the owner, a member or a hook (an agent), the bridge consum
       holder: "host:spc_boot", openSession: provider.openSession, now: () => 1_760_000_000_000,
       async call(cap, input) {
         const r = read(cap, input); if (r !== undefined) return r;
-        if (cap === "engine.account.resolve") return { accountRef: "#Owner_Anthropic", payer: "usr_owner", reason: "starter", allowed: true, itemId: "vit_aaaaaaaaaaaa" };
+        if (cap === "engine.account.resolve") { askedFor.push(String((input as { askerId?: unknown }).askerId)); return { accountRef: "#Owner_Anthropic", payer: "usr_owner", reason: "starter", allowed: true, itemId: "vit_aaaaaaaaaaaa" }; }
         if (cap === "engine.accounts.list") return { accounts: [{ ref: "#Owner_Anthropic", driver: "claude_code", kind: "subscription" }] };
         if (cap === "engine.turn.record_usage" || cap === "engine.turn.record") return {};
         throw new Error(`unexpected ${cap}`);
@@ -83,10 +84,12 @@ test("whoever posts, the owner, a member or a hook (an agent), the bridge consum
     try {
       const ctx: EngineCtx = { ...h.ctx, async call(cap: string, input: unknown) { return read(cap, input) ?? h.ctx.call(cap, input); } };
       const run = consumers["engine.bridge"].run as (ctx: EngineCtx, event: { name: string; payload: Record<string, unknown> }) => Promise<{ skipped?: string; receivedAs?: string[] }>;
-      const res = await run(ctx, { name: "message.received", payload: { messageId: "msg_9", threadId: T, author, mentions: [{ kind: "agent", id: AGENT }], depth: author.kind === "agent" ? 1 : 0 } });
+      const res = await run(ctx, { name: "message.received", payload: { messageId: "msg_9", threadId: T, author, mentions: [{ kind: "agent", id: AGENT }], depth: author.kind === "agent" ? 1 : 0, ...(author.kind === "agent" ? { actingFor: "usr_member" } : {}) } });
       assert.equal(res.skipped, undefined, `${author.id}: not skipped for want of an engine`);
       for (let i = 0; i < 100 && provider.specs.length === 0; i++) await new Promise((done) => setTimeout(done, 20));
       assert.equal(provider.specs.length, 1, `${author.id}: the agent's turn ran`);
+      // a hook's post speaks for the person it acted for: the turn it sets off runs for them, not for the chat's starter
+      if (author.kind === "agent") assert.deepEqual(askedFor, ["usr_member"]);
     } finally { hostSeams.setEngineHost(null); }
   }
 });

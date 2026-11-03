@@ -2,7 +2,7 @@
 // The open type and view are the place's own state (the sidebar chooses, the views follow). On a phone the sidebar is the list and the view opens when a row is chosen. Before the Space's runtime
 // exists the place draws its loading frames.
 import { adminTarget } from "./settings-admin.ts";
-import { useEffect, useMemo, useReducer, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactElement } from "react";
 import { View, useWindowDimensions } from "react-native";
 import { RecordsDataProvider, RecordsSidebarSlot, RecordsStateProvider, SidebarLoading } from "../../places/records/sidebar/index.ts";
@@ -22,8 +22,9 @@ import type { SchemaData } from "../../places/records/schemamap/index.ts";
 import { recordsData } from "./records-data.ts";
 import { SCHEMA_PAGE } from "../../places/records/typeedit/index.ts";
 import { useOptionalShellRuntime } from "./runtime.tsx";
-import { AskPane, ASK_CLOSED, askPaneReduce, makeAskVyre } from "../../places/records/askpane/index.ts";
-import { RecordsAssistant } from "./records-ask.tsx";
+import { ASK_SCOPE, makeAskVyre, openRecordsAsk } from "../../places/records/askpane/index.ts";
+import type { AskPaneAction } from "../../places/records/askpane/index.ts";
+import { closeAskPane, openAskPane } from "../ask/pane.ts";
 import { SyncPage, editMappingOpening } from "../../places/records/sync/index.ts";
 import { RecordShareSheet } from "../../places/records/sharing/index.ts";
 import type { RecordsShare, ShareTarget } from "../../places/records/sidebar/index.ts";
@@ -69,8 +70,12 @@ function RecordsBody({ rt, canEdit }: { rt: ShellRuntime; canEdit: boolean }): R
     if (previousType.current !== state.type && (id || schemaView || syncType)) opened({});
     previousType.current = state.type;
   }, [state.type, id, schemaView, syncType, opened]);
-  // Ask Vyre opens a pane beside the page, in this tab; it never goes to Chats.
-  const [pane, ask] = useReducer(askPaneReduce, ASK_CLOSED);
+  // Ask Vyre opens the shared pane beside the page, in this tab; it never goes to Chats. The record type's name is read when the button is pressed.
+  const typeTitle = useRef<(key: string) => string | undefined>(() => undefined);
+  const ask = useCallback((a: AskPaneAction): void => {
+    if (a.type === "close") closeAskPane("records");
+    else openRecordsAsk(a.about, a.about.type ? typeTitle.current(a.about.type) : undefined);
+  }, []);
   // Sharing: a Team Space only (a Personal Space has no one to share with). The sheet is the Files Share sheet with the Records line on top.
   const [sharing, setSharing] = useState<ShareTarget | null>(null);
   const directory = useDirectory(rt);
@@ -90,6 +95,7 @@ function RecordsBody({ rt, canEdit }: { rt: ShellRuntime; canEdit: boolean }): R
   }), [rt, dispatch, opened, canEdit, target.screen]);
   const types = useScreenQuery<CapMap["schema.types.list"]["out"]>(SCREENS.types, "types");
   const type = target.args.type ?? effectiveType(state, typeGroups(types.status === "ready" ? types.data.types : []));
+  typeTitle.current = (key) => (types.status === "ready" ? types.data.types.find((x) => x.key === key)?.plural : undefined);
   const canSync = useCanManageSync(rt);
   const data = useMemo(() => {
     const base = recordsData(rt, target.screen, canEdit);
@@ -103,7 +109,7 @@ function RecordsBody({ rt, canEdit }: { rt: ShellRuntime; canEdit: boolean }): R
       void agentOfRecord(rt.call, recordId).then((r) => { if ("agent" in r) openAgent(rt, r.agent.agentId); else open(); }, open);
     } } };
   }, [rt, type, target.screen, canEdit, canSync, share]);
-  return <RecordsDataProvider value={data}><View testID="records-place" style={{ flex: 1, flexDirection: "row", minHeight: 0 }}><RecordsSidebarSlot />{id ? <RecordDetail key={`${id}:${target.args.type ?? ""}`} rt={rt} recordId={id} {...(target.args.type ? { type: target.args.type } : {})} fields={target.screen === "records.record-page" || target.args.recordView === "fields"} tab={target.screen === "records.project-plan" || target.args.tab === "plan" ? "plan" : target.args.tab === "files" ? "files" : target.args.tab === "chat" ? "chat" : "overview"} /> : schemaView ? <SchemaDataProvider value={schema}>{schemaView === "types" ? <RecordTypesList /> : <SchemaMap />}</SchemaDataProvider> : syncType ? <SyncPage key={syncType} type={syncType} call={rt.call} title={(types.status === "ready" ? types.data.types.find((x) => x.key === syncType)?.plural : undefined) ?? syncType} nav={{ openRecords: (ty) => { dispatch({ type: "open", key: ty }); opened({}); }, editMapping: (a) => rt.open({ screen: "chats.conversation", args: { with: rt.assistant.id, first: editMappingOpening(a) } }), closed: () => opened({}) }} canManage /> : <RecordViews extraKinds={EXTRA_KINDS} {...(target.args.type ? { type: target.args.type } : {})} {...(target.args.kind ? { kind: target.args.kind } : {})} />}{pane.open ? <AskPane about={pane.about} onClose={() => ask({ type: "close" })}><RecordsAssistant rt={rt} about={pane.about} /></AskPane> : null}{sharing ? <RecordShareSheet target={sharing} directory={{ people: directory.people, groups: directory.groups, agents: directory.agents }} onClose={() => setSharing(null)} /> : null}</View></RecordsDataProvider>;
+  return <RecordsDataProvider value={data}><View testID="records-place" style={{ flex: 1, flexDirection: "row", minHeight: 0 }}><RecordsSidebarSlot />{id ? <RecordDetail key={`${id}:${target.args.type ?? ""}`} rt={rt} recordId={id} {...(target.args.type ? { type: target.args.type } : {})} fields={target.screen === "records.record-page" || target.args.recordView === "fields"} tab={target.screen === "records.project-plan" || target.args.tab === "plan" ? "plan" : target.args.tab === "files" ? "files" : target.args.tab === "chat" ? "chat" : "overview"} /> : schemaView ? <SchemaDataProvider value={schema}>{schemaView === "types" ? <RecordTypesList /> : <SchemaMap />}</SchemaDataProvider> : syncType ? <SyncPage key={syncType} type={syncType} call={rt.call} title={(types.status === "ready" ? types.data.types.find((x) => x.key === syncType)?.plural : undefined) ?? syncType} nav={{ openRecords: (ty) => { dispatch({ type: "open", key: ty }); opened({}); }, editMapping: (a) => openAskPane({ thing: { kind: ASK_SCOPE, id: `sync:${a.type}`, title: `How ${a.type} syncs` }, first: editMappingOpening(a) }, "records"), closed: () => opened({}) }} canManage /> : <RecordViews extraKinds={EXTRA_KINDS} {...(target.args.type ? { type: target.args.type } : {})} {...(target.args.kind ? { kind: target.args.kind } : {})} />}{sharing ? <RecordShareSheet target={sharing} directory={{ people: directory.people, groups: directory.groups, agents: directory.agents }} onClose={() => setSharing(null)} /> : null}</View></RecordsDataProvider>;
 }
 
 export default function RecordsPlace(_props: { place: string }): ReactElement {

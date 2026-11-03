@@ -351,10 +351,13 @@ export class LogSink implements SpanSink {
   close(): void {
     if (this.closed) return;
     this.observer = undefined;
-    this.rollDue(this.now(), true);
-    this.drain();
-    this.closed = true;
-    this.db.close();
+    // the file is let go even when the last rows cannot be written: a handle left open keeps logs.db from being moved or deleted on Windows (an update, an uninstall, the next start's repair)
+    try { this.rollDue(this.now(), true); this.drain(); }
+    finally {
+      this.closed = true;
+      if (this.timer) { clearTimeout(this.timer); this.timer = null; }
+      this.db.close();
+    }
   }
 }
 

@@ -35,7 +35,8 @@ export class BannerStack {
   private listeners = new Set<() => void>();
   private snap: { visible: readonly Banner[]; waiting: number } = { visible: [], waiting: 0 };
 
-  constructor(private readonly now: () => number = Date.now) {}
+  private readonly now: () => number;
+  constructor(now: () => number = Date.now) { this.now = now; }
 
   subscribe = (fn: () => void): (() => void) => { this.listeners.add(fn); return () => { this.listeners.delete(fn); }; };
   getSnapshot = (): { visible: readonly Banner[]; waiting: number } => this.snap;
@@ -52,7 +53,9 @@ export class BannerStack {
     const at = this.all.findIndex((b) => b.key === key);
     const prev = at >= 0 ? this.all[at] : undefined;
     if (at >= 0) this.all.splice(at, 1);
-    this.all.unshift({ key, item: n, count: (prev?.count ?? 0) + Math.max(1, n.count), shownAt: this.now() });
+    // the same row again (the server collapsed a burst into it) carries its own count; another row under the key adds to it
+    const count = prev && prev.item.id === n.id ? Math.max(1, n.count) : (prev?.count ?? 0) + Math.max(1, n.count);
+    this.all.unshift({ key, item: n, count, shownAt: this.now() });
     this.publish();
   }
 
@@ -123,4 +126,24 @@ export function queueLine(online: boolean, waiting: number, conflicts = 0): Queu
   if (!online) return { text: waiting > 0 ? `Offline, ${w} waiting` : "Offline", tone: "attention" };
   if (waiting > 0) return { text: `Sending ${w}`, tone: "quiet" };
   return null;
+}
+
+/* ---------- arrivals ---------- */
+
+/** The read the banners watch: my unseen Interrupt notifications, newest first. */
+export const BANNER_QUERY = { level: "interrupt", unseenOnly: true, limit: 20 } as const;
+
+/**
+ * The banners to raise from a fresh read of my unseen Interrupt notifications: only what arrived since the last read. The first read only learns what is already there (a launch does not
+ * replay old banners); a row that came back with a higher count (a burst in one thread) is raised again, collapsed into its banner.
+ */
+export function arrivals(known: ReadonlyMap<string, number> | null, items: readonly Notification[]): { raise: Notification[]; known: Map<string, number> } {
+  const next = new Map(items.map((n) => [n.id, n.count] as const));
+  if (known === null) return { raise: [], known: next };
+  return { raise: items.filter((n) => wantsBanner(n) && (known.get(n.id) ?? 0) < n.count), known: next };
+}
+
+/** What a banner's press opens: the thing it is about (a thread opens beside its message, a task on its page), else its place. */
+export function bannerTarget(n: Pick<Notification, "subject" | "place">): { subject: { type: string; id: string } } | { place: PlaceId } {
+  return n.subject ? { subject: n.subject } : { place: n.place };
 }

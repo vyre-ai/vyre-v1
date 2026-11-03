@@ -24,7 +24,7 @@ function runtime(mailboxes: unknown[]): { rt: ShellRuntime; opened: ShellTarget[
   const conv = createSample("idle");
   const opened: ShellTarget[] = [];
   const fixed: Record<string, LiveQuery<unknown>> = {
-    "home.needs-you-top3.items": ready({ items: [], total: 0 }),
+    "tasks.my-work.needs": ready({ items: [], total: 0 }),
     "chats.sidebar.recent": ready({ starred: [], today: [], yesterday: [], earlier: [], archived: [], nextUnread: null }),
     [INBOX_SOURCE_QUERIES[0].join(".")]: ready({ mailboxes }),
     [INBOX_SOURCE_QUERIES[1].join(".")]: ready({ calendars: [] }),

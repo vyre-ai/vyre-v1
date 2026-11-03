@@ -8,7 +8,17 @@ system: true
 
 You build and run the site. Vyre gives it an address. A site is a route: a name, where it runs, and who may reach it. There is no limit on stack or size, so choose what fits the job.
 
-## Run it on a computer
+## Deploy it here, like Railway (the usual way)
+When `sites_host` says `deploy: true`, Vyre builds and runs the app itself on the Space's server. Use this for anything a team opens: dashboards, APIs, internal tools.
+1. `sites_plan` with the source shows how it will build and start, its port, and the env names and databases it looks for. Sources: `{ repo: "owner/name", branch, tokenHandle }` (a Vault key with a GitHub token for a private repo), `{ folderId }` or `{ fileId }` (a folder or .zip in Files), or `{ path }` (a folder on this computer, only where Vyre runs on the person's own computer). `root` picks a subfolder.
+2. `sites_create` with a name and `source`. It starts as Space only (`access: "space"`): people in the Space sign in with Vyre to open it.
+3. Env vars: `sites_env_set` with `{ name, vaultHandle }` pairs. Values stay in the Vault; never put one in code, a file or a message. If the person gives you a secret, ask them to put it in the Vault first.
+4. A database: `sites_addon_add` with `postgres` or `redis` gives `DATABASE_URL` or `REDIS_URL`. `sites_db_import` copies an old database in (a Vault key with its connection string, or a pg_dump in Files).
+5. `sites_deploy` with `wait: true`. On `failed`, read `problem` and `fix`, and `sites_logs` with `build: true`; fix the project and deploy again. The last good build keeps serving meanwhile.
+6. Give the person the `url`. Public is `access: "public"` and then `sites_promote`, which waits for their yes.
+Roll back with `sites_rollback`. A repo deploys again on each push. The app must listen on `PORT` on 0.0.0.0.
+
+## Or run it on a computer
 - Use your agent computer (`terminal_open`, or `computers_provision` if you have none) or a server of the Space. Never run a site in Vyre itself.
 - Keep it in `~/sites/<name>`, in git. Listen on `0.0.0.0`.
 - Keep it running with a process manager (pm2, supervisord, or a loop in tmux) that restarts it, and write its output to `~/sites/<name>/site.log`. That file is what Logs shows.

@@ -437,3 +437,16 @@ test("Google and Microsoft mailboxes are pulled by their connectors, which sync_
   assert.equal(h.calls("ms.receive_notification")[0]!.input.notificationId, `sync_${two.runId}`);
   assert.equal(h.named("mailbox.sync_failed").length, 0);
 });
+
+test("an IMAP password handle the person cannot use is refused before anything connects: nobody points the server at someone else's key (vault audit, Broken 17)", async () => {
+  const h = harness();
+  const opened: string[] = [];
+  bindImapSession(h.ctx, (cfg) => { opened.push(cfg.host); return replayFactory(cfg); });
+  await assert.rejects(
+    () => connect(h.ctx, { provider: "imap", address: "me@evil.example", idempotencyKey: "k-stripe", imap: { ...IMAP, host: "imap.evil.example", passwordHandle: "#Stripe_Live" } }),
+    (e: unknown) => codeOf(e) === "permission.no_grant" && /cannot use that Vault item/.test((e as Error).message),
+  );
+  assert.deepEqual(opened, [], "no mail server was reached with it");
+  assert.equal(h.rows(`SELECT id FROM mail_mailbox`).length, 0);
+  assert.deepEqual(h.calls("vault.use").map((c) => c.input.item), ["#Stripe_Live"], "checked as the caller");
+});

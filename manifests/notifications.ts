@@ -12,7 +12,8 @@ const place = t.enm('home', 'chats', 'inbox', 'records', 'files', 'apps', 'autom
 const kindKey = t.enm(
   'approval.requested', 'answer.requested', 'unblock.requested', 'approval.backstop', 'dm', 'mention', 'call.incoming', 'agent.blocked', 'incident.owned', 'task.assigned', 'reply.followed',
   'agent.task_finished', 'digest.away', 'mention.thread', 'run.failed', 'conflict.needs_you', 'access.requested', 'access.decided',
-  'sync.attention', 'health.degraded', 'problem.report', 'member.joined', 'limit.hit', 'vault.rotation_due',
+  'sync.attention', 'health.degraded', 'problem.report', 'member.joined', 'limit.hit', 'vault.rotation_due', 'reply.thread',
+  'task.turn', 'task.returned', 'task.finished', 'task.due',
 );
 const notificationRow = t.obj({
   id: id.notification, kind: kindKey, level, place, title: t.str(), body: t.opt(t.str()), subject: t.opt(resourceRef), count: t.int({ minimum: 1 }),
@@ -51,7 +52,12 @@ export default defineManifest({
     notif('call.incoming', 'interrupt', 'inbox', 'Incoming call from {{from}}', { pushTitle: '{{space}} is calling', respectHours: false }),
     notif('agent.blocked', 'interrupt', 'chats', '{{agent}} is blocked: {{reason}}', { pushTitle: '{{space}} needs you', agentRateKey: 'agent_interrupt', actions: [{ label: 'Unblock', cap: 'tasks.act' }] }),
     notif('incident.owned', 'interrupt', 'console', 'Incident you own: {{title}}', { pushTitle: '{{space}} needs you', respectHours: false }),
-    notif('task.assigned', 'badge', 'home', '{{from}} gave you a task: {{title}}', { actions: [{ label: 'Start', cap: 'tasks.transition' }] }),
+    notif('task.assigned', 'badge', 'chats', '{{from}} {{what}}: {{title}}', { actions: [{ label: 'Start', cap: 'tasks.transition' }] }),
+    // the baton reached a person: their review, their approval, or work sent back to them (l-tasks)
+    notif('task.turn', 'interrupt', 'chats', '{{from}} handed in "{{title}}" for your {{step}}', { pushTitle: '{{space}} needs you', agentRateKey: 'agent_interrupt', actions: [{ label: 'Open', cap: 'tasks.act' }], backstopEmailAfterHours: 4 }),
+    notif('task.returned', 'interrupt', 'chats', '{{from}} sent "{{title}}" back: {{note}}', { pushTitle: '{{space}} needs you', agentRateKey: 'agent_interrupt', actions: [{ label: 'Open', cap: 'tasks.act' }] }),
+    notif('task.finished', 'badge', 'chats', '{{from}} finished "{{title}}"', { agentRateKey: 'agent_interrupt' }),
+    notif('task.due', 'badge', 'chats', '{{when}}: {{title}}', { actions: [{ label: 'Open', cap: 'tasks.act' }] }),
     notif('reply.followed', 'badge', 'inbox', 'New reply on {{where}}'),
     notif('agent.task_finished', 'badge', 'chats', '{{agent}} finished: {{title}}', { agentRateKey: 'agent_interrupt' }),
     notif('digest.away', 'digest', 'home', 'While you were away'),
@@ -66,6 +72,8 @@ export default defineManifest({
     notif('member.joined', 'digest', 'home', '{{name}} joined {{space}}'),
     notif('limit.hit', 'badge', 'chats', '{{title}} hit its limit', { actions: [{ label: 'Raise once', cap: 'tasks.act' }, { label: 'Stop', cap: 'tasks.act' }] }),
     notif('vault.rotation_due', 'badge', 'vault', 'Time to rotate {{title}}', { actions: [{ label: 'Mark rotated', cap: 'vault.item.mark_rotated' }] }),
+    // a reply in a chat thread you follow (you wrote the message it hangs off, replied in it, were mentioned in it or followed it). A burst collapses into one row per thread: "3 new replies in #intake"
+    notif('reply.thread', 'interrupt', 'chats', '{{from}} replied in {{where}}', { pushTitle: '{{space}} needs you', agentRateKey: 'agent_interrupt', actions: [{ label: 'Reply', cap: 'chat.post' }] }),
   ],
   events: [
     ev('notification.delivered', 'A notification was delivered to a person at its level', {
@@ -124,6 +132,7 @@ export default defineManifest({
       in: {}, out: { waitedApprovals: t.int(), waitedDigest: t.int(), digestId: t.opt(t.id('dgs')) }, level: 'use', emits: ['away.cleared'], tool: 'meta', cli: 'vyre away clear',
     }),
     read('notifications.away.get', 'Am I away, until when, and who holds my approvals', { in: {}, out: { away: t.bool(), until: t.opt(t.ts()), delegate: t.opt(delegateTo) }, tool: 'meta' }),
+    read('notifications.away.who', 'Who in the Space is away right now and until when (what a teammate sees as a steady away dot); never the delegate', { in: {}, out: { people: t.arr(t.obj({ person: t.str({ examples: ['usr_a1b2c3'] }), until: t.ts() })) }, perm: null, tool: 'meta' }),
     read('notifications.delegate.get', 'My standing approvals delegate chain (delegate, next delegate, role)', { in: {}, out: { chain: t.arr(delegateTo) }, tool: 'meta' }),
     write('notifications.delegate.set', 'Set my standing approvals delegate chain; a delegate never gains access', {
       in: { chain: t.arr(delegateTo, { maxItems: 5 }) }, out: { chain: t.arr(delegateTo) }, level: 'use', emits: ['notification.delegate_changed'], tool: 'meta',

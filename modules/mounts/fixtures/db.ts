@@ -19,9 +19,9 @@ const here = dirname(fileURLToPath(import.meta.url));
 
 /** The core migration with the later ADD COLUMN migrations folded into its CREATE TABLEs and their own CREATE TABLEs appended (the memory database reads CREATE TABLE only). */
 export function readMigration(): string {
-  let sql = readFileSync(join(here, "../migrations/0001_mounts_core.sql"), "utf8");
+  let sql = readFileSync(join(here, "../migrations/0001_mounts_core.sql"), "utf8").replace(/\r\n/g, "\n");   // a Windows checkout has CRLF; the folding below matches \n
   for (const file of readdirSync(join(here, "../migrations")).filter((f) => /^\d{4}_.*\.sql$/.test(f) && !f.startsWith("0001_")).sort()) {
-    const later = readFileSync(join(here, "../migrations", file), "utf8");
+    const later = readFileSync(join(here, "../migrations", file), "utf8").replace(/\r\n/g, "\n");
     for (const m of later.matchAll(/^ALTER TABLE (\w+) ADD COLUMN ([^;]+);/gm)) {
       sql = sql.replace(new RegExp(`(CREATE TABLE IF NOT EXISTS ${m[1]} \\([\\s\\S]*?)\\n\\);`), `$1,\n  ${m[2]}\n);`);
     }
@@ -45,7 +45,7 @@ export function parseSchema(sql: string): Map<string, TableDef> {
     const body = m[2];
     if (name === undefined || body === undefined) continue;
     const def: TableDef = { columns: [], primary: [], required: new Set(), defaults: new Map() };
-    for (const raw of body.split("\n")) {
+    for (const raw of body.split(/\r?\n/)) {
       const line = raw.trim().replace(/,$/, "");
       if (!line) continue;
       const pk = /^PRIMARY KEY \(([^)]+)\)$/.exec(line);
