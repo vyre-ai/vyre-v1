@@ -9,7 +9,8 @@ import { useAutomationsData } from "../canvas/data.tsx";
 import { Glyph } from "../canvas/icons.tsx";
 import { IconButton, pointer } from "../canvas/parts.tsx";
 import { EMPTY_WATCHING_NEXT, WATCHING_LINE } from "../chrome.ts";
-import { everyWords, lastWords, tellWords, watchItems, watchNote } from "./read.ts";
+import { possessive } from "../../home/sections-a/model.ts";
+import { everyShort, lastWords, tellWords, watchItems, watchNote } from "./read.ts";
 import type { WatchItem } from "./read.ts";
 import { Empty, Frame, Status, useCall, useRowMenu, v } from "./parts.tsx";
 
@@ -26,18 +27,16 @@ export function watchMenu(w: WatchItem, on: { toggle(): void; check(): void; rem
 }
 
 /** What a watch shows when it is opened. */
-export function WatchDetail({ w, agent, goal = "" }: { w: WatchItem; agent: string; goal?: string }): ReactElement {
+export function WatchDetail({ w, agent, goal = "", wide = false }: { w: WatchItem; agent: string; goal?: string; wide?: boolean }): ReactElement {
   return (
     <View testID={`watch-detail-${w.id}`} style={[v.detail, { marginLeft: 12 }]}>
       <Text style={v.dim}>{w.mode === "region" && w.region ? `Checks ${w.region.toLowerCase()} on ${w.host}.` : `Checks any change on ${w.host}.`}</Text>
       <Text style={v.dim}>{w.runsOn === "computer" ? `${agent} checks it on their computer, signed in with the Vault.` : "Your Chrome checks it in the background while it is open."}</Text>
       <Text style={v.dim}>{w.changes === 0 ? "It has not changed yet." : `It has changed ${w.changes} ${w.changes === 1 ? "time" : "times"}.`}</Text>
       {w.lastChange ? (
-        <View testID={`watch-change-${w.id}`} style={v.stack}>
-          <Text style={v.section}>Before</Text>
-          <Text style={v.row}>{w.lastChange.before || "(nothing)"}</Text>
-          <Text style={v.section}>Now</Text>
-          <Text style={v.row}>{w.lastChange.after || "(nothing)"}</Text>
+        <View testID={`watch-change-${w.id}`} style={wide ? { flexDirection: "row", gap: 24 } : v.stack}>
+          <View style={[v.stack, wide && { flex: 1 }]}><Text style={v.section}>Before</Text><Text style={v.row}>{w.lastChange.before || "(nothing)"}</Text></View>
+          <View style={[v.stack, wide && { flex: 1 }]}><Text style={v.section}>Now</Text><Text style={v.row}>{w.lastChange.after || "(nothing)"}</Text></View>
         </View>
       ) : <Text style={v.dim}>{w.value ? `It reads: ${w.value.slice(0, 160)}` : "It has not read the page yet."}</Text>}
       {goal ? <Text testID={`watch-goal-${w.id}`} style={v.dim}>{`Feeds the goal "${goal}": the number it reads is the goal's progress.`}</Text> : null}
@@ -82,7 +81,7 @@ export function Watching({ initialOpen = null }: { initialOpen?: string | null }
           {rows.flatMap((w) => {
             const isOpen = picked === w.id;
             const on = w.state === "on";
-            const where = w.runsOn === "computer" ? `${agent(w.agentId)}'s computer` : "My Chrome";
+            const where = w.runsOn === "computer" ? `${possessive(agent(w.agentId))} computer` : "My Chrome";
             const menu = (): MenuEntry[] => watchMenu(w, {
               open: () => setPicked(isOpen ? null : w.id),
               check: () => void run(() => data.call("automations.watches.check", { watchId: w.id }), w.runsOn === "computer" ? `${agent(w.agentId)} will check it now.` : "Your Chrome will check it within a minute."),
@@ -105,7 +104,7 @@ export function Watching({ initialOpen = null }: { initialOpen?: string | null }
                 {wide ? (
                   <>
                     <View style={[w2.cRun, w2.name]}><Glyph name={w.runsOn === "computer" ? "server" : "monitor"} size={13} color="var(--ink-3)" /><Text style={v.dim} numberOfLines={1}>{where}</Text></View>
-                    <Text style={[v.dim, w2.cEvery]} numberOfLines={1}>{on ? everyWords(w.everyMinutes).replace("Every ", "") : "Paused"}</Text>
+                    <Text style={[v.dim, w2.cEvery]} numberOfLines={1}>{on ? everyShort(w.everyMinutes) : "Paused"}</Text>
                     <Text style={[v.dim, w2.cLast]} numberOfLines={1}>{lastWords(w, now)}</Text>
                     <Text style={[v.dim, w2.cTell]} numberOfLines={1}>{tellWords(w, agent)}</Text>
                   </>
@@ -115,7 +114,7 @@ export function Watching({ initialOpen = null }: { initialOpen?: string | null }
                 </View>
               </Pressable>
             );
-            return isOpen ? [row, <WatchDetail key={`detail-${w.id}`} w={w} agent={agent(w.agentId)} goal={w.goalId ? goalTitle(w.goalId) : ""} />] : [row];
+            return isOpen ? [row, <WatchDetail key={`detail-${w.id}`} w={w} agent={agent(w.agentId)} wide={wide} goal={w.goalId ? goalTitle(w.goalId) : ""} />] : [row];
           })}
         </View>
       ) : null}

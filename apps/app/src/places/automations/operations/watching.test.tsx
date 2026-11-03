@@ -3,7 +3,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { MenuEntry, MenuItem } from "../../../../../../ui/src/Menu/index.tsx";
-import { everyWords, lastWords, tellWords, watchItems, watchNote } from "./read.ts";
+import { everyShort, everyWords, lastWords, tellWords, watchItems, watchNote } from "./read.ts";
 import { WatchDetail, watchMenu } from "./WatchingView.tsx";
 import { STUDIO_NAV } from "../chrome.ts";
 
@@ -38,6 +38,10 @@ test("the table's cells: when it last changed, and who hears of it", () => {
   assert.equal(tellWords(w!, (id) => (id === "usr_aliza" ? "Aliza" : id)), "You, Aliza, 2 channels");
   assert.equal(tellWords({ ...w!, tell: [], tellThreads: 0 }, (id) => id), "You");
   assert.equal(w!.goalId, "gol_1");
+});
+
+test("the Every column says the number and the unit", () => {
+  assert.deepEqual([everyShort(30), everyShort(60), everyShort(1440), everyShort(120), everyShort(2880)], ["30 minutes", "1 hour", "1 day", "2 hours", "2 days"]);
 });
 
 test("a row's menu: details, Check now (not while paused), Pause or Resume, the page, Remove", () => {

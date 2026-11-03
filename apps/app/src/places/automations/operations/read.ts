@@ -263,6 +263,13 @@ export function everyWords(min: number): string {
   return `Every ${min} minutes`;
 }
 
+/** The Every column: the number and its unit, "30 minutes", "1 hour", "1 day". */
+export function everyShort(min: number): string {
+  if (min === 60) return "1 hour";
+  if (min === 1440) return "1 day";
+  return everyWords(min).replace("Every ", "");
+}
+
 /** When a watch last changed, or why it is not running. */
 export function lastWords(w: WatchItem, now: number): string {
   if (w.state === "paused") return "Paused";
