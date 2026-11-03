@@ -1576,7 +1576,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         // runs before unwire (closers run last first): the engine ends its CLI sessions and saves the sign-ins they refreshed while the Vault, the hooks and the databases are still there; unwire
         // then finds it closed. Bounded, so a session that will not end cannot hold the stop.
         closers.push(async () => {
-          if (!seams?.wired.includes("setEngineHost")) return;
+          if (!seams?.wired.includes("setEngineHost") || !seams.owns("setEngineHost")) return;
           (setters as Record<string, ((d: unknown) => void) | undefined>)["setEngineHost"]?.(null);
           if (engineClosing) await Promise.race([engineClosing, new Promise<void>((r) => { setTimeout(r, 10_000).unref(); })]);
         });
