@@ -21,8 +21,10 @@ const deps = (s: Sample): { d: PaneDeps; notes: string[] } => {
 };
 
 test("the Crew tab sits after Threads, and only when teammates work for the chat", () => {
-  assert.deepEqual(tabsOf(false).map((t) => t.title), ["Computer", "Chats", "Files", "Knows", "Routines"]);
-  assert.deepEqual(tabsOf(false, true).map((t) => t.title), ["Computer", "Chats", "Crew", "Files", "Knows", "Routines"]);
+  assert.deepEqual(tabsOf(false).map((t) => t.title), ["About", "Computer", "Chats", "Files", "Knows", "Routines"]);
+  assert.deepEqual(tabsOf(true, false, false).map((t) => t.title), ["About", "Chats", "Files", "Knows", "Routines"], "no computer: no Computer and no Terminal");
+  assert.deepEqual(tabsOf(true).map((t) => t.title), ["About", "Computer", "Chats", "Files", "Terminal", "Knows", "Routines"]);
+  assert.deepEqual(tabsOf(false, true).map((t) => t.title), ["About", "Computer", "Chats", "Crew", "Files", "Knows", "Routines"]);
   assert.ok(!html(createSample(), "threads").includes(">Crew<"), "no crew, no tab");
   assert.ok(html(createSample("northwind", { crew: true }), "threads").includes(">Crew<"));
 });

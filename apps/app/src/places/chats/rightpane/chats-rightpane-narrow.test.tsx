@@ -33,7 +33,9 @@ const routineView = (s: Sample, routineId: string, mode: "view" | "delegate"): s
 test("at 340 px the strip shows what fits and folds the rest behind More; no tab is clipped", () => {
   assert.equal(PANE_WIDTH_GUESS, 340);
   const out = pane(createSample(), "computer");
-  for (const shown of ["Computer", "Chats", "Files", "Knows"]) assert.ok(has(out, `>${shown}<`), `${shown} is drawn`);
+  const fit = fitTabs(TABS, "computer", 340);
+  assert.ok(fit.shown.length >= 2 && fit.hidden.length >= 1, "at this width some fold");
+  for (const shown of fit.shown) assert.ok(has(out, `>${shown.title}<`), `${shown.title} is drawn`);
   assert.ok(has(out, ">More<"), "the fold is a More tab");
   assert.ok(!has(out, ">Routines<"), "the folded one is not drawn half-cut");
 });
@@ -54,8 +56,8 @@ test("the open tab is drawn even when it is the last one; the others keep their 
   const out = pane(createSample(), "routines");
   assert.ok(has(out, ">Routines<") && has(out, ">More<"));
   assert.ok(out.indexOf(">Computer<") < out.indexOf(">Routines<"), "tabs keep their order");
-  assert.deepEqual(fitTabs(TABS, "routines", 340).shown.map((t) => t.key), ["computer", "threads", "routines"]);
-  assert.deepEqual(fitTabs(TABS, "routines", 340).hidden.map((t) => t.key), ["files", "memory"]);
+  assert.deepEqual(fitTabs(TABS, "routines", 340).shown.map((t) => t.key), ["about", "computer", "routines"]);
+  assert.deepEqual(fitTabs(TABS, "routines", 340).hidden.map((t) => t.key), ["threads", "files", "memory"]);
 });
 
 test("wide enough, all five tabs show and there is no More", () => {

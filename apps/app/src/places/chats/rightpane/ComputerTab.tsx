@@ -5,7 +5,6 @@ import { useEffect, useState } from "react";
 import type { ReactElement } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import type { CapMap } from "../../../../../../generated/types.ts";
-import { useMenu } from "../../../../../../ui/src/Menu/index.tsx";
 import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
 import type { VirtualWindow } from "../../../../../../ui/src/VirtualList/index.tsx";
 import { LiveScreen } from "../computer/LiveScreen.tsx";
@@ -45,7 +44,7 @@ function Screen({ view, caption, onPress, name, online, live }: { view: ReturnTy
       {!dim ? <View style={st.cap}><Text numberOfLines={1} style={st.capText}>{view.screen === "mine" ? "You're typing" : caption}</Text></View> : null}
     </>
   );
-  const label = view.screen === "asleep" ? `Wake ${name}'s computer` : `${name}'s computer`;
+  const label = view.screen === "asleep" ? `Wake ${name}'s computer` : `Open ${name}'s computer`;
   const style = [st.screen, view.screen === "mine" && st.screenMine, !online && { opacity: 0.6 }];
   // Working or taken over: the real screen, live in the pane. While you are in control your clicks, wheel and keys go to it, here, without opening anything.
   if (live && (live.state === "working" || live.state === "takeover")) {
@@ -231,7 +230,6 @@ function ComputerBody({ deps, computerId, window, canTake }: { deps: PaneDeps; c
   const data = usePaneData();
   const online = useOnline();
   const [sel, setSel] = useState<number | null>(null);
-  const headMenu = useMenu();
   const hosts = useHosts();
   const q = useScreenQuery<ComputerOut>(COMPUTER_SCREEN, "computer", { computerId });
   const sq = useScreenQuery<SessionsOut>(COMPUTER_SCREEN, "sessions", { computerId });
@@ -256,12 +254,8 @@ function ComputerBody({ deps, computerId, window, canTake }: { deps: PaneDeps; c
   const shown = sel !== null ? steps[sel] : undefined;
   const caption = shown ? shown.caption : c.caption ?? view.label;
 
-  const moreItems = (): MenuEntry[] => view.screen === "asleep"
-    ? [{ label: "Wake", onSelect: () => void wake(deps, c.computerId, name) }, { label: "Pop Out", onSelect: () => data.nav.openComputer(c.computerId) }]
-    : view.screen === "mine"
-      ? [{ label: "Give Back", onSelect: () => void giveBack(deps, c.computerId, name, { threadId: data.threadId, agentId: data.agent.agentId }) }, { label: "Pop Out", onSelect: () => data.nav.openComputer(c.computerId) }, { separator: true }, { label: "Put to Sleep", onSelect: () => void sleep(deps, c.computerId, name) }]
-      : [...(canTake ? [{ label: "Take Over", onSelect: () => void takeOver(deps, c.computerId, name) }] : []), { label: "Pop Out", onSelect: () => data.nav.openComputer(c.computerId) }, { separator: true }, { label: "Put to Sleep", onSelect: () => void sleep(deps, c.computerId, name) }];
-
+  // the state is one quiet chip; Open is the picture, Sleep is in the header's "..." and the computer sleeps by itself when idle
+  const chipText = view.screen === "asleep" ? "Asleep · wakes when needed" : view.screen === "mine" ? "You're in control" : `Awake · ${c.caption ?? "idle"}`;
   const head = (
     <View testID="computer-head" style={st.head}>
       {shown ? (
@@ -269,16 +263,13 @@ function ComputerBody({ deps, computerId, window, canTake }: { deps: PaneDeps; c
           <Icon name="back" size={13} /><Text style={st.backText}>Live</Text>
         </Pressable>
       ) : null}
-      <View style={st.status}>
+      <View testID="computer-chip" style={st.chip}>
         <View testID="computer-state" accessibilityLabel={view.label} style={[st.statusDot, view.screen === "live" && st.dotLive, view.screen === "mine" && st.dotMine]} />
-        <Text numberOfLines={1} style={st.statusText}>{shown ? `Step ${(sel ?? 0) + 1} of ${steps.length}` : view.label}</Text>
+        <Text numberOfLines={1} style={st.statusText}>{shown ? `Step ${(sel ?? 0) + 1} of ${steps.length}` : chipText}</Text>
       </View>
-      {view.action === "wake" ? <TextButton label="Wake" onPress={() => void wake(deps, c.computerId, name)} testID="computer-wake" /> : null}
+      <View style={st.grow} />
       {view.action === "give" ? <TextButton label="Give back" primary onPress={() => void giveBack(deps, c.computerId, name, { threadId: data.threadId, agentId: data.agent.agentId })} testID="computer-give" /> : null}
       {canTake && (view.action === "take" || shown) ? <Tool icon="hand" label="Take over" onPress={() => void takeOver(deps, c.computerId, name)} testID="computer-take" /> : null}
-      {view.screen !== "asleep" ? <Tool icon="terminal" label="Open terminal" onPress={() => data.nav.openTerminal(c.computerId)} testID="computer-terminal" /> : null}
-      <Tool icon="expand" label="Pop out" onPress={() => data.nav.openComputer(c.computerId)} testID="computer-pop" />
-      <Tool icon="more" label="More" onPress={(x, y) => headMenu.show(moreItems(), x, y, "other")} testID="computer-more" />
     </View>
   );
 
@@ -288,16 +279,6 @@ function ComputerBody({ deps, computerId, window, canTake }: { deps: PaneDeps; c
       key: "screen", type: "block",
       node: <View style={st.padded}><Screen view={view} caption={caption} name={name} online={online} live={{ computerId: c.computerId, state: c.state, control: view.screen === "mine" }} onPress={() => (view.screen === "asleep" ? void wake(deps, c.computerId, name) : view.screen === "mine" ? undefined : data.nav.openComputer(c.computerId))} /></View>,
     },
-    {
-      key: "actions", type: "block",
-      node: (
-        <View testID="computer-actions" style={[st.padded, st.row2]}>
-          <TextButton label="Open" onPress={() => data.nav.openComputer(c.computerId)} testID="computer-open" />
-          {view.screen === "asleep" ? null : <TextButton label="Sleep" onPress={() => void sleep(deps, c.computerId, name)} testID="computer-sleep" />}
-        </View>
-      ),
-    },
-    ...(where ? [{ key: "runs-on", type: "row" as const, title: "Runs on", note: where, leading: <LeadIcon name="server" />, testID: "computer-runs-on" }] : []),
     { key: "l-session", type: "label", text: view.screen === "asleep" ? "Last session" : "Session", right: stepsLine(steps.length) },
   ];
   if (steps.length === 0) entries.push({ key: "no-steps", type: "empty", text: "Nothing yet. Steps appear as it works." });
@@ -326,7 +307,16 @@ function ComputerBody({ deps, computerId, window, canTake }: { deps: PaneDeps; c
       menu: [{ label: "Sign Out", danger: true, onSelect: () => void signOut(deps, c.computerId, x.site) }],
     });
   }
-  return <View style={st.fill}><PaneList entries={entries} {...(window ? { window } : {})} testID="computer-list" />{headMenu.element}</View>;
+  { const at = where || (c.host === "vm" ? "its own machine" : "the Space server"); entries.push({ key: "runs-on", type: "block", node: <RunsOn text={`On ${at} · ${view.screen === "asleep" ? "asleep" : `${c.tabs} of ${c.tabLimit} tabs`}`} {...(data.nav.openMachines ? { onPress: data.nav.openMachines } : {})} /> }); }
+  return <View style={st.fill}><PaneList entries={entries} {...(window ? { window } : {})} testID="computer-list" /></View>;
+}
+
+/** The one footer line: where the computer runs and how many tabs it has open; it opens Console, Machines where the shell can. */
+function RunsOn({ text, onPress }: { text: string; onPress?: () => void }): ReactElement {
+  const body = <><Icon name="server" size={14} /><Text numberOfLines={1} style={st.footText}>{text}</Text>{onPress ? <Icon name="chev" size={11} /> : null}</>;
+  return onPress
+    ? <Pressable role="button" accessibilityRole="button" accessibilityLabel={`${text}. Open Machines`} testID="computer-runs-on" onPress={onPress} style={st.foot}>{body}</Pressable>
+    : <View testID="computer-runs-on" style={st.foot}>{body}</View>;
 }
 
 /** m:ss from a number of milliseconds. */
@@ -387,6 +377,10 @@ const st = StyleSheet.create({
   fill: { flex: 1, minHeight: 0 },
   padded: { paddingHorizontal: 8, paddingVertical: 8 },
   none: { fontSize: 12.5, color: "var(--ink-3)" as string, lineHeight: 18 },
+  grow: { flex: 1 },
+  chip: { flexShrink: 1, height: 24, flexDirection: "row", alignItems: "center", gap: 7, paddingLeft: 9, paddingRight: 11, borderRadius: 12, backgroundColor: "var(--sunk)" as string },
+  foot: { flexDirection: "row", alignItems: "center", gap: 9, marginHorizontal: 14, marginTop: 6, paddingVertical: 11, borderTopWidth: 1, borderTopColor: "var(--line)" as string },
+  footText: { flex: 1, fontSize: 12.5, color: "var(--ink-3)" as string },
   head: { minHeight: 34, flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8, paddingTop: 6 },
   back: { height: 24, flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 4 },
   backText: { fontSize: 12.5, color: "var(--ink-2)" as string },

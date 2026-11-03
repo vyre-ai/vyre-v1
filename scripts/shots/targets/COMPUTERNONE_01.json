@@ -81,15 +81,29 @@
       "id": "COMPUTERNONE_01-ready",
       "route": "/m/COMPUTERNONE_01?part=ready",
       "proto": "chats,{skin}",
-      "waitFor": "[data-testid='computer-open']",
-      "note": "Ready: the whole pane, live thumbnail, Open, Sleep, Runs on; Chats, Files, Terminal tabs."
+      "waitFor": "[data-testid='computer-chip']",
+      "note": "Ready: the whole pane on Computer: the picture is the open, one state chip, one footer line; no Open or Sleep button."
     },
     {
       "id": "COMPUTERNONE_01-nocomputer",
       "route": "/m/COMPUTERNONE_01?part=nocomputer",
       "proto": "chats,{skin}",
-      "waitFor": "[data-testid='computer-provision']",
-      "note": "An agent without a computer: no Files or Terminal tabs; the role in two lines."
+      "waitFor": "[data-testid='about-no-computer']",
+      "note": "An agent without a computer: About with one quiet row and the offer; no Computer or Terminal tab."
+    },
+    {
+      "id": "COMPUTERNONE_01-asleep",
+      "route": "/m/COMPUTERNONE_01?part=asleep",
+      "proto": "chats,{skin}",
+      "waitFor": "[data-testid='computer-chip']",
+      "note": "Asleep: dimmed picture, chip says it wakes when needed."
+    },
+    {
+      "id": "COMPUTERNONE_01-about",
+      "route": "/m/COMPUTERNONE_01?part=about",
+      "proto": "chats,{skin}",
+      "waitFor": "[data-testid='about-tab']",
+      "note": "About of an agent with a computer: responsible for, right now, how it responds here, shared context."
     }
   ]
 }

@@ -1,8 +1,7 @@
 // Mount for the agent-computer job: an agent that has no computer yet, in the Chats right pane's Computer tab, in each state the Space can be in. The button is there only when a host can run a
 // computer; otherwise the real reason and the next step are, in words.
 //   ?part=can (a host can run one), checking (the Space is being asked), runner (the server's container runner is not running), mac (Docker is not running on this Mac), space (no machine can run
-//   one yet), picks (two machines, the one with most room preselected), setup1 / setup3 (setting up, at a step), failed (the real reason, Copy details), ready (the whole pane: live thumbnail,
-//   Open, Sleep, Runs on, Files and Terminal tabs), nocomputer (the whole pane for an agent without one: no Files or Terminal), member (a member: who sets it up), error (the Space did not answer)
+//   one yet), picks (two machines, the one with most room preselected), setup1 / setup3 (setting up, at a step), failed (the real reason, Copy details), ready / asleep (the whole pane on Computer: the picture is the open, one state chip, one footer line), about (About, with the Computer tab), nocomputer (About of an agent without one: one quiet row and the offer, no Computer or Terminal tab), member (a member: who sets it up), error (the Space did not answer)
 import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { View, useWindowDimensions } from "react-native";
@@ -29,14 +28,14 @@ const HOSTS = { available: true, hosts: [
   { hostId: "mac", kind: "this", name: "Maya's MacBook", canRun: true, detail: "16 GB, 8 cores", room: { fits: 1, freeMb: 2048, totalMb: 16384 } },
 ] };
 
-function Pane({ withComputer }: { withComputer: boolean }): ReactNode {
-  const s = useMemo(() => createSample(), []);
+function Pane({ withComputer, tab, asleep = false }: { withComputer: boolean; tab: "about" | "computer"; asleep?: boolean }): ReactNode {
+  const s = useMemo(() => createSample(asleep ? "asleep" : "northwind"), [asleep]);
   const data: ChatRightPaneData = useMemo(() => ({
     ...s.data,
     agent: withComputer ? s.data.agent : { agentId: s.data.agent.agentId, name: s.data.agent.name },
     call: ((cap: string, input: unknown) => cap === "computers.hosts" ? Promise.resolve(HOSTS) : s.data.call(cap as never, input as never)) as ChatRightPaneData["call"],
   }), [s, withComputer]);
-  return <View style={{ flex: 1, alignItems: "flex-end", backgroundColor: "var(--win)" as string }}><ChatRightPane data={data} open onToggle={() => undefined} window={{ start: 0, end: 500 }} /></View>;
+  return <View style={{ flex: 1, alignItems: "flex-end", backgroundColor: "var(--win)" as string }}><ChatRightPane data={data} open onToggle={() => undefined} initialTab={tab} window={{ start: 0, end: 500 }} /></View>;
 }
 
 export default function Mount(): ReactNode {
@@ -45,7 +44,8 @@ export default function Mount(): ReactNode {
   const { height, width } = useWindowDimensions();
   if (part === null) return <View style={{ flex: 1, backgroundColor: "var(--win)" as string }} />;
   const a = ANSWERS[part] ?? ANSWERS["can"]!;
-  if (part === "ready" || part === "nocomputer") return <Pane withComputer={part === "ready"} />;
+  if (part === "ready" || part === "asleep") return <Pane withComputer tab="computer" asleep={part === "asleep"} />;
+  if (part === "about" || part === "nocomputer") return <Pane withComputer={part === "about"} tab="about" />;
   const card = (n: ReactNode): ReactNode => (
     <View style={{ height, backgroundColor: "var(--win)" as string, alignItems: "center", paddingTop: 40 }}>
       <View style={{ width: Math.min(360, width - 24), borderWidth: 1, borderColor: "var(--line)" as string, borderRadius: 12, backgroundColor: "var(--side)" as string }}>{n}</View>
