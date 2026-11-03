@@ -8,7 +8,7 @@
 // DECISION: step cap lives in the engine (opts.maxSteps, default 500); runs.record_step has no cap field and only refuses a runaway log (HARD_STEP_ROWS).
 import {
   DEFAULT_WAIT_MS, HARD_STEP_ROWS, allSteps, allWaits, clean, clearWait, countRuns, countStepRows, emitRun, engineHealth, findRun, findStep, idemKeyFor, isActive,
-  isTerminalStep, latestSteps, listRuns, manageRun, mayManage, newRunId, newSpanId, newThreadId, page, patchExtra, raise, readExtra, readTrigger, readWait, runOut, saveRun, saveStep, saveWait, seeRun, stepOut, touch,
+  isTerminalStep, keyedRunIds, latestSteps, listRuns, manageRun, mayManage, newRunId, newSpanId, newThreadId, page, patchExtra, raise, readExtra, readTrigger, readWait, runOut, saveRun, saveStep, saveWait, seeRun, stepOut, touch,
 } from "../projections.ts";
 import { isSystemCall, isTrustedService } from "../../../lib/trust.ts";
 import type { Db, ResourceRef, Run, RunKind, RunStatus, RunsCtx, StepRow, StepState, WaitReason, WaitRow } from "../projections.ts";
@@ -40,11 +40,11 @@ function describeOn(on: unknown): string | undefined {
 
 // ---- start, wait, resume, finish ----
 
-function newRun(ctx: RunsCtx, i: { kind: RunKind; name?: string | undefined; owner: string; subject?: ResourceRef | undefined; definitionVersion?: number | undefined; parentRun?: string | undefined; threadId?: string | undefined; keyUsed?: string | undefined; modelUsed?: string | undefined }): Run {
+function newRun(ctx: RunsCtx, i: { kind: RunKind; name?: string | undefined; owner: string; subject?: ResourceRef | undefined; definitionVersion?: number | undefined; parentRun?: string | undefined; threadId?: string | undefined; keyUsed?: string | undefined; modelUsed?: string | undefined }, ids?: { id: string; threadId: string }): Run {
   const now = ctx.now();
   const run: Run = {
-    id: newRunId(), kind: i.kind, owner: i.owner, startedBy: ctx.principal.id, status: "queued", costMicros: 0, startedAt: now, traceId: ctx.trace.traceId,
-    threadId: i.threadId ?? newThreadId(), version: 0, updatedAt: now,
+    id: ids?.id ?? newRunId(), kind: i.kind, owner: i.owner, startedBy: ctx.principal.id, status: "queued", costMicros: 0, startedAt: now, traceId: ctx.trace.traceId,
+    threadId: i.threadId ?? ids?.threadId ?? newThreadId(), version: 0, updatedAt: now,
   };
   if (i.name !== undefined) run.name = i.name;
   if (i.subject !== undefined) run.subject = i.subject;
@@ -69,7 +69,7 @@ export async function start(ctx: RunsCtx, input: In): Promise<unknown> {
     if (have && findRun(ctx.db, have.run_id)) return { runId: have.run_id };
   }
   if (input.parentRun && !findRun(ctx.db, input.parentRun)) raise(ctx, "validation.not_found", "The parent run does not exist.", { reason: "no_parent" });
-  const run = newRun(ctx, input as Parameters<typeof newRun>[1]);
+  const run = newRun(ctx, input as Parameters<typeof newRun>[1], key ? await keyedRunIds(key) : undefined);
   const trig = input.trigger as { messageId: string; threadId: string; channelId?: string } | undefined;
   if (trig) ctx.db.run("INSERT OR REPLACE INTO runs_trigger (run_id, message_id, thread_id, channel_id) VALUES (?, ?, ?, ?)", run.id, trig.messageId, trig.threadId, trig.channelId ?? null);
   if (key) ctx.db.run("INSERT OR REPLACE INTO runs_idem (idem_key, run_id) VALUES (?, ?)", key, run.id);
@@ -519,10 +519,12 @@ function waitsForWorkingKey(step: PlanStep, code: string): boolean {
   if (code !== "provider.auth_failed") return false;
   return step.key === "ai" || (step.key === undefined && step.id === "ai");
 }
-interface Caught { code: string; message: string; retryable: boolean }
+/** How long a step that met "not the scheduling computer" waits before the lease holder tries it. */
+export const SCHEDULER_WAIT_MS = 10_000;
+interface Caught { code: string; message: string; retryable: boolean; reason?: string }
 function caught(e: unknown): Caught {
-  const he = (e as { error?: { code?: unknown; message?: unknown; retryable?: unknown } } | null)?.error;
-  if (he && typeof he.code === "string") return { code: he.code, message: typeof he.message === "string" ? he.message : he.code, retryable: he.retryable !== false };
+  const he = (e as { error?: { code?: unknown; message?: unknown; retryable?: unknown; details?: { reason?: unknown } } } | null)?.error;
+  if (he && typeof he.code === "string") return { code: he.code, message: typeof he.message === "string" ? he.message : he.code, retryable: he.retryable !== false, ...(typeof he.details?.reason === "string" ? { reason: he.details.reason } : {}) };
   const m = (e as { message?: unknown } | null)?.message;
   return { code: "step.failed", message: typeof m === "string" && m ? m : "The step failed.", retryable: true };
 }
@@ -683,6 +685,13 @@ export async function drive(ctx: RunsCtx, runId: string, plan: readonly PlanStep
         }
         saveStep(ctx.db, { ...rowOf(ctx.db, runId, cur, attempt), state: "waiting" });
         await markWaiting(ctx, run, { reason: "key", on: "a working key" });
+        return { status: "waiting" };
+      }
+      if (c.reason === "not_scheduling_computer") {
+        // a Personal Space on several computers: this computer no longer holds the schedule lease, so the send waits; the computer that does resumes the Run when the wait's time comes
+        // (runs.sweep_waits runs only there) and the step runs again with the same key
+        saveStep(ctx.db, { ...rowOf(ctx.db, runId, cur, attempt), state: "waiting" });
+        await markWaiting(ctx, run, { reason: "background", on: "the computer that runs scheduled work", wait: { on: { at: ctx.now() + SCHEDULER_WAIT_MS } } });
         return { status: "waiting" };
       }
       if (c.retryable && attempt <= policy.max) {

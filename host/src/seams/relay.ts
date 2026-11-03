@@ -119,7 +119,7 @@ const nonceOf = (n: number): Uint8Array => {
   return iv;
 };
 
-class CipherState {
+export class CipherState {
   n = 0;
   private k: CryptoKey | null;
   constructor(k: CryptoKey | null = null) { this.k = k; }
@@ -199,6 +199,51 @@ export class Responder {
     this.send = c2;
     this.hash = ss.h;
     return out;
+  }
+}
+
+/** The device's half, for a Space computer that reaches another computer of the same Space through the relay (host/src/peers/link.ts): -> e, es, s, ss  then  <- e, ee, se.
+ *  The same composition as relay/client/noise.js's Initiator; test/peers.link.test.mjs checks that each opens the other's channel. */
+export class Initiator {
+  private ss = new SymmetricState();
+  private e: { priv: string; pub: Uint8Array } | null = null;
+  send: CipherState | null = null;
+  recv: CipherState | null = null;
+  hash: Uint8Array = EMPTY;
+  private s: { priv: string; pub: Uint8Array };
+  private rs: Uint8Array;
+  private prologue: Uint8Array;
+  constructor(s: { priv: string; pub: Uint8Array }, rs: Uint8Array, prologue: Uint8Array) {
+    if (rs.length !== DHLEN) throw new Error("the responder's static key is 32 bytes");
+    this.s = s; this.rs = rs.slice(); this.prologue = prologue;
+  }
+  async writeMessage(payload: Uint8Array): Promise<Uint8Array> {
+    const ss = this.ss;
+    await ss.init();
+    await ss.mixHash(this.prologue);
+    await ss.mixHash(this.rs);
+    const e = x25519Pair();
+    this.e = { priv: e.priv, pub: fromB64u(e.pub) };
+    await ss.mixHash(this.e.pub);
+    await ss.mixKey(dh(this.e.priv, this.rs));
+    const sct = await ss.encryptAndHash(this.s.pub);
+    await ss.mixKey(dh(this.s.priv, this.rs));
+    return concat(this.e.pub, sct, await ss.encryptAndHash(payload));
+  }
+  async readMessage(message: Uint8Array): Promise<Uint8Array> {
+    if (!this.e) throw new Error("handshake out of order");
+    if (message.length < DHLEN + TAGLEN) throw new Error("handshake message too short");
+    const ss = this.ss;
+    const re = message.slice(0, DHLEN);
+    await ss.mixHash(re);
+    await ss.mixKey(dh(this.e.priv, re));
+    await ss.mixKey(dh(this.s.priv, re));
+    const payload = await ss.decryptAndHash(message.subarray(DHLEN));
+    const [c1, c2] = await ss.split();
+    this.send = c1;
+    this.recv = c2;
+    this.hash = ss.h;
+    return payload;
   }
 }
 
@@ -435,6 +480,8 @@ export interface RelayBoxOptions {
   WebSocket?: typeof WebSocket;
   /** The code hashes of the invites open right now, newest first. A device hello under one of their keys opens an invite channel (inviteKeyOf, inviteScopeOk). */
   invites?: () => readonly string[];
+  /** Sign in by name (host/src/peers): a new computer asked the relay about a name this box watches. `s` is that computer's one-time secret. */
+  onSigninAsk?: (loc: string, s: string) => void;
 }
 /** The relay's answer to a phone-address message: `{ t: "host", op, status, name?, label? }` with the fields it knows. */
 export interface HostReply { op: string; status: string; name?: string; label?: string }
@@ -446,12 +493,20 @@ export interface RelayBox {
     claim(name: string, label: string): Promise<HostReply>;
     release(): Promise<HostReply>;
     status(): Promise<HostReply>;
+    /** The other computers of the same Personal Space that serve this name (lane l-multidevice): the relay sends a phone to whichever is awake. Only the computer that holds the name may say. */
+    members(list: readonly { route: string; label: string; kind?: "computer" | "server" }[], selfKind?: "computer" | "server"): Promise<HostReply>;
   };
+  /** The name locators this box answers sign-in asks for (signin.watch). Sent at once when the link is up, again on every reconnect and every few minutes. */
+  watch(locs: readonly string[]): void;
+  /** Register a pairing ticket's sealed record under a locator (ADR 0045). 200, 409 (another box registered it first), or "unavailable" when the link is down or the relay says nothing. */
+  ticket(t: { loc: string; record: string; mac: string; exp: number }): Promise<200 | 409 | "unavailable">;
   stop(): void;
   readonly open: number;
 }
 
 const HOST_WAIT_MS = 15_000;
+/** The relay forgets a watch after ten minutes; renew well inside that. */
+const WATCH_RENEW_MS = 4 * 60_000;
 
 const BACKOFF_MIN = 1000, BACKOFF_MAX = 5 * 60_000, DIAL_MS = 30_000;
 
@@ -475,6 +530,13 @@ export function startRelayBox(o: RelayBoxOptions): RelayBox {
   const publicIn = new Map<string, { head: { id: string; method: string; path: string; ip: string; headers: unknown }; chunks: Buffer[] }>();
   let keys: Keys | null = null;
   let route = "";
+  let watched: readonly string[] = [];
+  let watchTimer: ReturnType<typeof setInterval> | null = null;
+  const registering = new Map<string, Array<(s: 200 | 409) => void>>();
+  const sendWatch = (): void => {
+    if (!control || control.readyState !== 1 || !connected) return;
+    for (const loc of watched) { try { control.send(JSON.stringify({ t: "signin.watch", loc })); } catch { /* closing */ } }
+  };
   const state = (s: RelayState): void => { connected = s === "healthy"; o.onState({ state: s, ...(rtt !== undefined ? { rttMs: rtt } : {}), at: Date.now() }); };
 
   function connect(): void {
@@ -527,6 +589,15 @@ export function startRelayBox(o: RelayBoxOptions): RelayBox {
         lastPingAt = Date.now();
         try { ws.send("ping"); } catch { /* closing */ }
         for (const c of Array.isArray(m.waiting) ? m.waiting : []) openData(String(c));
+        sendWatch();
+      } else if (m.t === "signin.ask") {
+        const a = m as unknown as { loc?: unknown; s?: unknown };
+        if (typeof a.loc === "string" && typeof a.s === "string" && watched.includes(a.loc)) { try { o.onSigninAsk?.(a.loc, a.s); } catch { /* the asker gets nothing */ } }
+      } else if (m.t === "registered") {
+        const r = m as unknown as { loc?: unknown; status?: unknown };
+        const q = registering.get(String(r.loc));
+        const next = q?.shift();
+        if (next) next(r.status === 200 ? 200 : 409);
       } else if (m.t === "host") {
         const r = m as unknown as HostReply;
         const waiting = asking.get(String(r.op));
@@ -623,7 +694,7 @@ export function startRelayBox(o: RelayBoxOptions): RelayBox {
   ready.catch((e: unknown) => log(`relay: could not start: ${(e as Error).message}`));
 
   /** One phone-address message on the control link, and the relay's one answer. The link may still be coming up (the first dial, a reconnect), so it waits a while for it. */
-  function askHost(op: "claim" | "release" | "status", extra: Record<string, string>): Promise<HostReply> {
+  function askHost(op: "claim" | "release" | "status" | "members", extra: Record<string, unknown>): Promise<HostReply> {
     const unavailable: HostReply = { op, status: "unavailable" };
     return new Promise((resolve) => {
       let settled = false;
@@ -648,10 +719,27 @@ export function startRelayBox(o: RelayBoxOptions): RelayBox {
       claim: (name, label) => askHost("claim", { name, label }),
       release: () => askHost("release", {}),
       status: () => askHost("status", {}),
+      members: (list, selfKind) => askHost("members", { selfKind: selfKind ?? "computer", members: list.map((m) => ({ route: m.route, label: m.label, ...(m.kind === "server" ? { kind: "server" } : {}) })) }),
+    },
+    watch(locs) {
+      watched = [...new Set(locs)].filter((l) => /^[A-Za-z0-9_-]{43}$/.test(l)).slice(0, 8);
+      sendWatch();
+      if (!watchTimer && watched.length) { watchTimer = setInterval(sendWatch, WATCH_RENEW_MS); watchTimer.unref?.(); }
+    },
+    ticket(t) {
+      return new Promise((resolve) => {
+        if (!control || control.readyState !== 1 || !connected) { resolve("unavailable"); return; }
+        let settled = false;
+        const done = (st: 200 | 409 | "unavailable"): void => { if (settled) return; settled = true; clearTimeout(timer); const q = registering.get(t.loc); if (q) { const i = q.indexOf(done); if (i >= 0) q.splice(i, 1); if (!q.length) registering.delete(t.loc); } resolve(st); };
+        const timer = setTimeout(() => done("unavailable"), 5_000);
+        registering.set(t.loc, [...(registering.get(t.loc) ?? []), done]);
+        try { control.send(JSON.stringify({ t: "ticket", loc: t.loc, record: t.record, mac: t.mac, exp: t.exp })); } catch { done("unavailable"); }
+      });
     },
     get open() { return data.size; },
     stop() {
       stopped = true;
+      if (watchTimer) clearInterval(watchTimer);
       if (retry) clearTimeout(retry);
       if (pinger) clearInterval(pinger);
       for (const d of data.values()) { try { d.close(1000, "node stopping"); } catch { /* closed */ } }

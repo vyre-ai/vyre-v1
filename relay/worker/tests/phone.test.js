@@ -363,3 +363,56 @@ test("the door: /mcp carries its token to the box and nowhere else, sign-in answ
   assert.equal(tab.status, 503);
   assert.match(await tab.text(), /asleep/);
 });
+
+test("one Personal Space on several computers: the name sends the phone to whichever computer is awake, and lists them all when every one sleeps", async t => {
+  const rt = world(t);
+  const laptop = await box(rt), office = await box(rt), stranger = await box(rt);
+  await laptop.say({ t: "host.claim", name: "alex-phone", label: "Home laptop" });
+  // only the computer that holds the name says which others serve it
+  assert.deepEqual(await stranger.say({ t: "host.members", members: [{ route: stranger.route, label: "Mine now" }] }), { t: "host", op: "members", status: "none" });
+  assert.deepEqual(await laptop.say({ t: "host.members", members: [{ route: office.route, label: "Office iMac" }, { route: "not-a-route", label: "x" }, { route: laptop.route, label: "self" }] }), { t: "host", op: "members", status: "ok", name: "alex-phone" });
+  // both awake: the name's own computer first
+  let info = await (await rt.fetch("https://alex-phone.vyre.run/__vyre/info.json")).json();
+  assert.equal(info.route, laptop.route);
+  assert.deepEqual(info.computers.map((/** @type {any} */ c) => [c.label, c.online]), [["Home laptop", true], ["Office iMac", true]]);
+  // the laptop sleeps: the phone goes to the office computer, and the shell opens
+  laptop.close();
+  await rt.settle();
+  const shell = await rt.fetch("https://alex-phone.vyre.run/");
+  assert.equal(shell.status, 200);
+  info = await (await rt.fetch("https://alex-phone.vyre.run/__vyre/info.json")).json();
+  assert.equal(info.route, office.route, "the phone dials the computer that is awake");
+  assert.equal(info.online, true);
+  assert.equal(info.computers[0].online, false);
+  assert.equal(typeof info.computers[0].seenAt, "number", "when the laptop was last seen");
+  // every computer sleeps: one page names each, with when it was last seen
+  office.close();
+  await rt.settle();
+  const asleep = await rt.fetch("https://alex-phone.vyre.run/");
+  assert.equal(asleep.status, 503);
+  const html = await asleep.text();
+  assert.match(html, /Your computers are asleep/);
+  assert.match(html, /Home laptop: last seen just now/);
+  assert.match(html, /Office iMac: last seen just now/);
+  assert.match(html, /Wake any of them/);
+  // a name with one computer keeps its old words
+  const solo = await box(rt);
+  await solo.say({ t: "host.claim", name: "solo-phone", label: "Mac mini" });
+  solo.close();
+  await rt.settle();
+  assert.match(await (await rt.fetch("https://solo-phone.vyre.run/")).text(), /Mac mini is asleep/);
+});
+
+test("a person's computers come before their server: a server that holds the name sends the phone to an awake computer first", async t => {
+  const rt = world(t);
+  const server = await box(rt), laptop = await box(rt);
+  await server.say({ t: "host.claim", name: "dana-phone", label: "Home server" });
+  assert.equal((await server.say({ t: "host.members", selfKind: "server", members: [{ route: laptop.route, label: "Laptop", kind: "computer" }] })).status, "ok");
+  let info = await (await rt.fetch("https://dana-phone.vyre.run/__vyre/info.json")).json();
+  assert.equal(info.route, laptop.route, "the computer that is awake first");
+  assert.deepEqual(info.computers.map((/** @type {any} */ c) => c.label), ["Laptop", "Home server"]);
+  laptop.close();
+  await rt.settle();
+  info = await (await rt.fetch("https://dana-phone.vyre.run/__vyre/info.json")).json();
+  assert.equal(info.route, server.route, "the laptop sleeps: the server answers");
+});

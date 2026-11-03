@@ -20,6 +20,8 @@ export const PHONE = Object.freeze({
   claimsPerDay: 10,
   /** the answer to a claim is cached nowhere; the names directory is asked once per new name */
   zone: "vyre.run",
+  /** other computers of one Personal Space a name can send a phone to */
+  members: 8,
 });
 
 /**
@@ -117,15 +119,30 @@ export class HostSlot {
     const url = new URL(request.url);
     const cur = (await this.ctx.storage.get("h")) || null;
     if (request.method === "GET" && url.pathname === "/info") {
-      return json(200, cur ? { route: cur.route, label: cur.label, released: Boolean(cur.released) } : {});
+      return json(200, cur ? { route: cur.route, label: cur.label, released: Boolean(cur.released), members: Array.isArray(cur.members) ? cur.members : [], ...(cur.kind === "server" ? { kind: "server" } : {}) } : {});
     }
     let body;
     try { body = await request.json(); } catch { return json(400, { error: "bad request" }); }
     const route = String(body && body.route || "");
     if (request.method === "PUT" && url.pathname === "/claim") {
       if (cur && cur.route !== route) return json(200, { status: "taken" });
-      await this.ctx.storage.put("h", { route, label: cleanLabel(body.label), at: cur ? cur.at : Date.now() });
+      await this.ctx.storage.put("h", { route, label: cleanLabel(body.label), at: cur ? cur.at : Date.now(), ...(cur && Array.isArray(cur.members) ? { members: cur.members } : {}) });
       return json(200, { status: "claimed" });
+    }
+    // The other computers of the same Personal Space (lane l-multidevice): they hold the same box key, so the phone's pin holds for each, and the gateway sends the phone to whichever is awake.
+    // Only the route that holds the name says who they are, over its own signed control socket.
+    if (request.method === "PUT" && url.pathname === "/members") {
+      if (!cur || cur.route !== route || cur.released) return json(200, { status: "none" });
+      const list = Array.isArray(body.members) ? body.members : [];
+      const members = [];
+      for (const m of list) {
+        const r = String(m && m.route || "");
+        if (!/^[a-z2-7]{26}$/.test(r) || r === route || members.some(x => x.route === r)) continue;
+        members.push({ route: r, label: cleanLabel(m.label), ...(m && m.kind === "server" ? { kind: "server" } : {}) });
+        if (members.length >= PHONE.members) break;
+      }
+      await this.ctx.storage.put("h", { ...cur, members, ...(body.selfKind === "server" ? { kind: "server" } : { kind: undefined }) });
+      return json(200, { status: "ok", count: members.length });
     }
     if (request.method === "POST" && url.pathname === "/release") {
       if (!cur || cur.route !== route) return json(200, { status: "none" });
@@ -190,6 +207,11 @@ export async function hostControl(relay, ws, m) {
     const info = await (await slotOf(env, mine.name).fetch("https://host/info")).json();
     return reply(op, info.route === route && !info.released ? "claimed" : "none", { name: mine.name, label: info.label || mine.label || "" });
   }
+  if (op === "members") {
+    if (!mine) return reply(op, "none");
+    const out = /** @type {any} */ (await (await slotOf(env, mine.name).fetch("https://host/members", { method: "PUT", body: JSON.stringify({ route, selfKind: m.selfKind === "server" ? "server" : "computer", members: Array.isArray(m.members) ? m.members.slice(0, 32) : [] }) })).json());
+    return reply(op, out.status, { name: mine.name });
+  }
   if (op === "release") {
     if (!mine) return reply(op, "none");
     const out = /** @type {any} */ (await (await slotOf(env, mine.name).fetch("https://host/release", { method: "POST", body: JSON.stringify({ route }) })).json());
@@ -231,10 +253,27 @@ const SHELL_HEADERS = (relayWss) => ({
 
 const PAGE_STYLE = "html{color-scheme:light dark}body{margin:0;min-height:100vh;display:grid;place-items:center;font:16px/1.5 system-ui,sans-serif;background:Canvas;color:CanvasText}main{max-width:26rem;padding:2rem 1.25rem;text-align:center}h1{font-size:1.25rem;margin:0 0 .5rem}p{margin:.25rem 0;opacity:.75}";
 
-/** @param {string} label @param {string} name */
-function asleepPage(label, name) {
+/** How long ago, in words. @param {number | null} at @param {number} now */
+export function agoText(at, now) {
+  if (!at) return "not seen yet";
+  const min = Math.max(0, Math.round((now - at) / 60_000));
+  if (min < 2) return "last seen just now";
+  if (min < 60) return `last seen ${min} minutes ago`;
+  const h = Math.round(min / 60);
+  if (h < 24) return `last seen ${h} ${h === 1 ? "hour" : "hours"} ago`;
+  const d = Math.round(h / 24);
+  return `last seen ${d} ${d === 1 ? "day" : "days"} ago`;
+}
+
+/** Every computer that serves the name is off. One computer: "<nickname> is asleep". Several: "Your computers are asleep", each with when it was last seen.
+ * @param {string} label @param {string} name @param {{ label: string, seenAt: number | null }[]} [computers] */
+function asleepPage(label, name, computers = []) {
   const who = esc(label || name);
-  return `<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="refresh" content="20"><title>${who} is asleep</title><style>${PAGE_STYLE}</style><body><main><h1>${who} is asleep</h1><p>Wake the computer and this page opens by itself.</p></main></body></html>`;
+  const many = computers.length > 1;
+  const title = many ? "Your computers are asleep" : `${who} is asleep`;
+  const list = many ? `<ul style="list-style:none;padding:0;margin:1rem 0 0">${computers.map(c => `<li>${esc(c.label || "A computer")}: ${esc(agoText(c.seenAt, Date.now()))}</li>`).join("")}</ul>` : "";
+  const line = many ? "Wake any of them and this page opens by itself." : "Wake the computer and this page opens by itself.";
+  return `<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="refresh" content="20"><title>${title}</title><style>${PAGE_STYLE}</style><body><main><h1>${title}</h1><p>${line}</p>${list}</main></body></html>`;
 }
 
 /** @param {string} label @param {string} name */
@@ -398,15 +437,32 @@ export async function onHost(request, env, name) {
   } catch { return passthrough(request, env); }
   if (!info.route || info.released) return passthrough(request, env);
   const relayWss = String(env.RELAY_PUBLIC_URL || "wss://relay.vyre.run");
-  const online = async () => {
-    try { return Boolean(((await (await env.ROUTES.get(env.ROUTES.idFromName(info.route)).fetch("https://route/online")).json())).online); } catch { return false; }
+  /** @param {string} route @returns {Promise<{ online: boolean, seenAt: number | null }>} */
+  const stateOf = async route => {
+    try { const j = /** @type {any} */ (await (await env.ROUTES.get(env.ROUTES.idFromName(route)).fetch("https://route/online")).json()); return { online: Boolean(j.online), seenAt: typeof j.seenAt === "number" ? j.seenAt : null }; } catch { return { online: false, seenAt: null }; }
   };
+  // One Personal Space on several computers: the person's computers first (the name's own route first among them), then their servers (the owner's order of 3 Nov: a computer of theirs that is
+  // awake, then their own server). The phone goes to the first that is awake, and so do public pages and the door; a phone's chat runs on the computer it reached.
+  const members = Array.isArray(info.members) ? info.members : [];
+  const all0 = [{ route: info.route, label: info.label || "", server: info.kind === "server" }, ...members.map((/** @type {any} */ m) => ({ route: String(m.route), label: String(m.label || ""), server: m.kind === "server" }))];
+  const routes = [...all0.filter(r => !r.server), ...all0.filter(r => r.server)];
+  let states = /** @type {{ online: boolean, seenAt: number | null }[] | null} */ (null);
+  const all = async () => (states ??= await Promise.all(routes.map(r => stateOf(r.route))));
+  if (members.length) {
+    const s = await all();
+    const awake = routes.findIndex((_, i) => s[i]?.online);
+    if (awake >= 0) info = { ...info, route: routes[awake].route };
+  }
+  const online = async () => (await all()).some(x => x.online);
   if (url.pathname === "/p" || url.pathname.startsWith("/p/") || ARTIFACT.test(url.pathname)) return onPublic(request, env, name, info, online);
   if (DOOR.test(url.pathname)) return onDoor(request, env, name, info, online);
   // an artifact's plain address: the app opens it for whoever is signed in
   const plain = /^\/a\/([a-z0-9_]{1,80})\/?$/.exec(url.pathname);
   if (plain && request.method === "GET") return new Response(null, { status: 302, headers: { location: `/#screen=apps.artifacts&selected=${plain[1]}`, "cache-control": "no-store" } });
-  if (url.pathname === "/__vyre/info.json") return json(200, { name, label: info.label || "", route: info.route, relay: relayWss, online: await online() });
+  if (url.pathname === "/__vyre/info.json") {
+    const s = await all();
+    return json(200, { name, label: info.label || "", route: info.route, relay: relayWss, online: await online(), ...(members.length ? { computers: routes.map((r, i) => ({ label: r.label, online: Boolean(s[i]?.online), seenAt: s[i]?.seenAt ?? null })) } : {}) });
+  }
   if (url.pathname.startsWith("/__vyre/")) {
     if (!env.ASSETS || (request.method !== "GET" && request.method !== "HEAD")) return new Response(null, { status: 404, headers: { "x-vyre-gateway": "no-assets" } });
     const res = await env.ASSETS.fetch(new Request(new URL(url.pathname, "https://assets.invalid"), { method: request.method }));
@@ -419,6 +475,9 @@ export async function onHost(request, env, name) {
   }
   if (request.method !== "GET" && request.method !== "HEAD") return new Response(null, { status: 405, headers: { allow: "GET, HEAD" } });
   const headers = SHELL_HEADERS(relayWss);
-  if (!(await online())) return new Response(request.method === "HEAD" ? null : asleepPage(info.label, name), { status: 503, headers: { ...headers, "retry-after": "20" } });
+  if (!(await online())) {
+    const s = await all();
+    return new Response(request.method === "HEAD" ? null : asleepPage(info.label, name, routes.map((r, i) => ({ label: r.label, seenAt: s[i]?.seenAt ?? null }))), { status: 503, headers: { ...headers, "retry-after": "20" } });
+  }
   return new Response(request.method === "HEAD" ? null : shellPage(info.label, name), { status: 200, headers });
 }
