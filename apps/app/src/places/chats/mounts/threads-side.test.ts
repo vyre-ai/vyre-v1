@@ -79,7 +79,8 @@ test("on the phone the Threads page sits on the Chats tab's history and draws as
 test("the message a thread goes back to is marked with room around it: the wash and the ring sit outside its text and face", async () => {
   const { MARK, MARK_GAP } = await import("../conversation/marks.ts");
   assert.ok(MARK_GAP >= 6, "room between the message and the mark's edge");
-  assert.equal(MARK.foundActive.boxShadow, `0 0 0 ${MARK_GAP}px var(--accent-wash), 0 0 0 ${MARK_GAP + 1}px var(--accent)`, "the ring is drawn outside the message");
-  assert.doesNotMatch(MARK.foundActive.boxShadow, /inset/, "never on the message's own edge");
+  assert.deepEqual([MARK.foundActive.outlineWidth, MARK.foundActive.outlineOffset, MARK.foundActive.outlineColor], [1, MARK_GAP, "var(--accent)"], "a thin ring drawn outside the message");
+  assert.equal(MARK.foundActive.boxShadow, `0 0 0 ${MARK_GAP}px var(--accent-wash)`, "the wash fills the room up to the ring");
+  assert.doesNotMatch(MARK.foundActive.boxShadow, /inset|var\(--accent\)/, "never on the message's own edge, never a thick band");
   assert.equal(MARK.found.backgroundColor, MARK.foundActive.backgroundColor);
 });
