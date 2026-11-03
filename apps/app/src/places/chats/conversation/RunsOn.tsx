@@ -71,7 +71,8 @@ export function useRunsOn({ call, threadId, agentId, spaceName, say }: { call(ca
     try { setState((await call("engine.placement.options", { threadId, ...(agentId ? { agentId } : {}) })) as RunsOnState); } catch { setState(null); }
   }, [call, threadId, agentId]);
   // the options are live state (a computer's link, a server's connection): read again while the chat is open
-  useEffect(() => { void load(); const t = setInterval(() => { void load(); }, 15_000); return () => clearInterval(t); }, [load]);
+  // (unref: a reader that is never unmounted, a test's render, does not keep Node running; a browser has no unref and nothing changes there)
+  useEffect(() => { void load(); const t = setInterval(() => { void load(); }, 15_000); (t as { unref?: () => void }).unref?.(); return () => clearInterval(t); }, [load]);
   if (state === null) return { runs: undefined, chip: undefined };
   if (!state.private) return { runs: { value: spaceName, current: null, options: [], fixed: { name: spaceName, note: "Space computer", line: "Chats with other people always run on the Space." }, onPick: () => undefined }, chip: undefined };
   const now = currentOption(state);
