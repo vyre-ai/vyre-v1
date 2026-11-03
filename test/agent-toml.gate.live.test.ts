@@ -45,10 +45,11 @@ test("an outside agent cannot change an agent's settings by writing its agent.to
     await c.rpc("initialize", { protocolVersion: "2025-06-18", capabilities: {}, clientInfo: { name: "x", version: "1" } });
     const use = async (name: string, args: Record<string, unknown>): Promise<Json> => (await c.tool("use_tool", { name, arguments: args })).json.result;
 
-    // the settings capability is closed to it at the door
+    // the settings capability is closed to it at the door: only the person it acts for may change settings, so the call waits for them (ask the person) and changes nothing
     const direct = await use("agents_update", { agentId, patch: { model: "claude-opus-5-5" } });
     assert.equal(direct.isError, true);
-    assert.equal(direct.structuredContent.error.details?.reason, "person_only");
+    assert.equal(direct.structuredContent.held, true, JSON.stringify(direct).slice(0, 400));
+    assert.equal(direct.structuredContent.asksPerson, true);
 
     // and so is the file: a richer model, a Vault key and an open tool list, written three ways
     const widened = before.text.replace("claude-sonnet-5-5", "claude-opus-5-5").replace(/\[vault\]\nkeys = \[\]/, '[vault]\nkeys = ["#Olivia_Key"]');
