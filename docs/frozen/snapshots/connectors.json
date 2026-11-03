@@ -2,7 +2,7 @@
   "module": "connectors",
   "capabilities": {
     "connections.complete_auth@1": "dfe0f4725533541c108b78af0896224db411a1b1776d42882d70d403159922d2",
-    "connections.create@1": "625d187025012e3a2ca758d6a54c408a7e754828bcabae24938209bb0f5a2431",
+    "connections.create@1": "f7b0b59d09cc0d14c22e46ec13f9da789efc457f399caae43c11b8e60713f1fb",
     "connections.delete@1": "f873bd7d73760f3232ba5218c03977b3255521a5823cacb9d72f0ad370e98149",
     "connections.get@1": "5795c8a85df7393ffaff024bab885c69796d94cca16d8107795ee12124cf1cf5",
     "connections.list@1": "19914cd8a2d4db628fe78b17005aafcbaa7d6314f6a7bab04535dc151e97f399",

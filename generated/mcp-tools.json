@@ -13143,7 +13143,7 @@
       "blocks": [],
       "cap": "connections.create",
       "deferred": false,
-      "description": "Plug an account into a connector; secrets are named Vault items, never values",
+      "description": "Plug an account into a connector; secrets are named Vault items, never values. Your own (person) needs no permission; a Space one needs connectors.manage",
       "effects": "write",
       "inputSchema": {
         "properties": {
