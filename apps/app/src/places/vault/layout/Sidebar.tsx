@@ -24,15 +24,22 @@ export interface SidebarProps {
   hideShared?: boolean;
   /** The Advanced page (or one under it) is open, so it, not the open list, carries the highlight. */
   advanced?: boolean;
+  /** Vault > Connections: every app and tool server you and your agents can use. Absent: no row. */
+  onConnections?: () => void;
+  /** Connections is open, so it carries the highlight. */
+  connections?: boolean;
+  /** Connections that need a look (a refused key, a sign-in, no answer): shown as the row's count. */
+  connectionsNeedYou?: number;
 }
 
 const Count = ({ n }: { n: number }): ReactElement => <Text style={s.count}>{n}</Text>;
 
-export function Sidebar({ counts, folders, selection, onSelect, onAdvanced, onNewFolder, onFolderMenu, canCreateShared, hideShared = false, advanced = false }: SidebarProps): ReactElement {
+export function Sidebar({ counts, folders, selection, onSelect, onAdvanced, onNewFolder, onFolderMenu, canCreateShared, hideShared = false, advanced = false, onConnections, connections = false, connectionsNeedYou = 0 }: SidebarProps): ReactElement {
+  const routed = advanced || connections;
   const [naming, setNaming] = useState<string | null>(null);
   const [folderError, setFolderError] = useState<string | null>(null);
   const item = (sel: Selection, key: string, label: string, icon: IconName, n?: number): ReactElement => (
-    <Row key={key} id={`nav-${key}`} title={label} selected={!advanced && sameSelection(sel, selection)} leading={<View style={s.lead}><Glyph name={icon} size={16} color={sameSelection(sel, selection) ? "var(--ink)" : "var(--ink-2)"} /></View>} trailing={n !== undefined ? <Count n={n} /> : undefined} onPress={() => onSelect(sel)} />
+    <Row key={key} id={`nav-${key}`} title={label} selected={!routed && sameSelection(sel, selection)} leading={<View style={s.lead}><Glyph name={icon} size={16} color={sameSelection(sel, selection) ? "var(--ink)" : "var(--ink-2)"} /></View>} trailing={n !== undefined ? <Count n={n} /> : undefined} onPress={() => onSelect(sel)} />
   );
   const shared = folders.filter((f) => f.scope === "shared");
   const depthOf = (f: Folder): number => { let d = 0; let cur: Folder | undefined = f; while (cur?.parentId && d < 4) { cur = shared.find((x) => x.id === cur!.parentId); d++; } return d; };
@@ -45,7 +52,7 @@ export function Sidebar({ counts, folders, selection, onSelect, onAdvanced, onNe
   for (const f of shared) {
     folderRows.push(
           <View key={f.id} {...menuTrigger((x, y) => onFolderMenu(f, x, y))}>
-            <Row id={`nav-folder-${f.id}`} title={f.name} selected={!advanced && selection.kind === "folder" && selection.folderId === f.id}
+            <Row id={`nav-folder-${f.id}`} title={f.name} selected={!routed && selection.kind === "folder" && selection.folderId === f.id}
               leading={<View style={[s.lead, { marginLeft: depthOf(f) * 12 }]}><Glyph name="folder" size={16} color="var(--ink-2)" /></View>} trailing={<Count n={counts.folders.get(f.id) ?? f.itemCount} />}
               onPress={() => onSelect({ kind: "folder", folderId: f.id })} />
           </View>
@@ -58,6 +65,7 @@ export function Sidebar({ counts, folders, selection, onSelect, onAdvanced, onNe
         {counts.requested > 0 ? item({ kind: "requested" }, "requested", "Requested", "requested", counts.requested) : null}
         {item({ kind: "all" }, "all", "All", "all", counts.all)}
         {item({ kind: "providers" }, "providers", "AI providers", "providers", counts.providers)}
+        {onConnections ? <Row id="nav-connections" title="Connections" selected={connections} leading={<View style={s.lead}><Glyph name="link" size={16} color={connections ? "var(--ink)" : "var(--ink-2)"} /></View>} trailing={connectionsNeedYou > 0 ? <Count n={connectionsNeedYou} /> : undefined} onPress={onConnections} /> : null}
         {item({ kind: "keys" }, "keys", "Keys", "keys", counts.keys)}
         {item({ kind: "logins" }, "logins", "Logins", "logins", counts.logins)}
         {item({ kind: "cards" }, "cards", "Cards", "cards", counts.cards)}

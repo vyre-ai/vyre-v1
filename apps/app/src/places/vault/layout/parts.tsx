@@ -39,6 +39,7 @@ export const ICON = {
   braces: ["M6 3C4.6 3 4 3.7 4 5v1.5C4 7.4 3.5 8 2.5 8c1 0 1.5.6 1.5 1.5V11c0 1.3.6 2 2 2", "M10 3c1.4 0 2 .7 2 2v1.5c0 .9.5 1.5 1.5 1.5-1 0-1.5.6-1.5 1.5V11c0 1.3-.6 2-2 2"],
   globe: ["M13.5 8a5.5 5.5 0 11-11 0 5.5 5.5 0 0111 0z", "M2.8 8h10.4M8 2.6c1.5 1.5 2.2 3.3 2.2 5.4S9.5 11.9 8 13.4C6.5 11.9 5.8 10.1 5.8 8S6.5 4.1 8 2.6z"],
   card: ["M3 4.5h10a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5a1 1 0 011-1z", "M2 7h12"],
+  link: ["M6.6 9.4l2.8-2.8", "M7.3 4.6l1.1-1.1a2.6 2.6 0 013.7 3.7L11 8.3", "M8.7 11.4l-1.1 1.1a2.6 2.6 0 01-3.7-3.7L5 7.7"],
 } as const;
 export type IconName = keyof typeof ICON;
 
@@ -60,7 +61,7 @@ export function LogoTile({ name, size = 32 }: { name: string; size?: number }): 
 }
 
 /** A small round-cornered button: quiet by default, accent when `primary`. */
-export function Btn({ label, onPress, icon, primary = false, danger = false, disabled = false, why, testID }: { label: string; onPress: (e?: unknown) => void; icon?: IconName | undefined; primary?: boolean; danger?: boolean; disabled?: boolean; why?: string | undefined; testID?: string | undefined }): ReactElement {
+export function Btn({ label, onPress, icon, trailingIcon, primary = false, danger = false, disabled = false, why, testID }: { label: string; onPress: (e?: unknown) => void; icon?: IconName | undefined; /** After the label: a picklist's chevron. */ trailingIcon?: IconName | undefined; primary?: boolean; danger?: boolean; disabled?: boolean; why?: string | undefined; testID?: string | undefined }): ReactElement {
   const [over, setOver] = useState(false);
   const color = danger ? "var(--danger)" : primary ? "var(--accent-ink)" : "var(--ink)";
   const button = (
@@ -71,6 +72,7 @@ export function Btn({ label, onPress, icon, primary = false, danger = false, dis
     >
       {icon ? <Glyph name={icon} size={14} color={color as string} /> : null}
       <Text style={[s.btnText, { color: color as string }]}>{label}</Text>
+      {trailingIcon ? <Glyph name={trailingIcon} size={12} color={color as string} /> : null}
     </Pressable>
   );
   return disabled && why ? <Tip help={why}>{button}</Tip> : button;

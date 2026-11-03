@@ -36,8 +36,8 @@ const withMarket = async (hn: Harness) => {
 const mine = registry.capabilities.filter((c) => c.module === "agents");
 const h = handlers as unknown as Record<string, (ctx: Harness["ctx"], input: any) => Promise<any>>;
 
-test("the handler table covers exactly the 69 capabilities of the agents manifest", () => {
-  assert.equal(mine.length, 69);
+test("the handler table covers exactly the 77 capabilities of the agents manifest", () => {
+  assert.equal(mine.length, 77);
   assert.deepEqual(Object.keys(h).sort(), mine.map((c) => c.name).sort());
   for (const c of mine) assert.equal(typeof h[c.name], "function", c.name);
 });
@@ -198,6 +198,27 @@ const scenarios: Scenario[] = [
   { cap: "plugins.connection.add", run: (hn) => h["plugins.connection.add"]!(hn.ctx, { name: "crm", scope: "space", url: "https://crm.example.com/mcp", idempotencyKey: k() }) },
   { cap: "plugins.connection.add", run: (hn) => h["plugins.connection.add"]!(hn.ctx, { name: "crm", scope: "space", idempotencyKey: k() }), expect: "validation.bad_input" },
   { cap: "plugins.connection.remove", setup: async (hn) => (await h["plugins.connection.add"]!(hn.ctx, { name: "crm", scope: "space", url: "https://crm.example.com/mcp", idempotencyKey: k() })).connection, run: (hn, s) => h["plugins.connection.remove"]!(hn.ctx, { connectionId: s.connectionId, idempotencyKey: k() }) },
+  // Vault > Connections (handlers/connections.ts)
+  { cap: "plugins.connections.home", run: (hn) => h["plugins.connections.home"]!(hn.ctx, {}) },
+  { cap: "plugins.registry.search", run: (hn) => h["plugins.registry.search"]!(hn.ctx, { q: "notion" }) },
+  { cap: "plugins.connection.add_mine", run: (hn) => h["plugins.connection.add_mine"]!(hn.ctx, { name: "notion", url: "https://mcp.notion.com/mcp", auth: "oauth", idempotencyKey: k() }) },
+  { cap: "plugins.connection.add_mine", run: (hn) => h["plugins.connection.add_mine"]!(hn.ctx, { name: "leaky", command: "npx", args: ["--token", "#Key.value"], idempotencyKey: k() }), expect: "validation.bad_input" },
+  {
+    cap: "plugins.connection.update", setup: async (hn) => (await h["plugins.connection.add"]!(hn.ctx, { name: "crm", scope: "space", url: "https://crm.example.com/mcp", idempotencyKey: k() })).connection,
+    run: (hn, s) => h["plugins.connection.update"]!(hn.ctx, { connectionId: s.connectionId, title: "CRM", share: ["everyone"], idempotencyKey: k() }),
+  },
+  { cap: "plugins.connection.update", run: (hn) => h["plugins.connection.update"]!(hn.ctx, { connectionId: "mcs_none", title: "x", idempotencyKey: k() }), expect: "validation.not_found" },
+  {
+    cap: "plugins.connection.forget", setup: async (hn) => (await h["plugins.connection.add_mine"]!(hn.ctx, { name: "mine", url: "https://m.example.com/mcp", idempotencyKey: k() })).connection,
+    run: (hn, s) => h["plugins.connection.forget"]!(hn.ctx, { connectionId: s.connectionId, idempotencyKey: k() }),
+  },
+  {
+    cap: "plugins.connection.checked", setup: async (hn) => (await h["plugins.connection.add_mine"]!(hn.ctx, { name: "mine", url: "https://m.example.com/mcp", idempotencyKey: k() })).connection,
+    run: (hn, s) => h["plugins.connection.checked"]!(hn.as({ kind: "service", id: "svc_host" }), { connectionId: s.connectionId, health: "ok", tools: 3 }),
+  },
+  { cap: "plugins.connection.checked", run: (hn) => h["plugins.connection.checked"]!(hn.ctx, { connectionId: "mcs_none", health: "ok" }), expect: "permission.no_grant" },
+  { cap: "plugins.connections.policy", run: (hn) => h["plugins.connections.policy"]!(hn.ctx, {}) },
+  { cap: "plugins.connections.policy_set", run: (hn) => h["plugins.connections.policy_set"]!(hn.ctx, { spaceAdders: "admins", allowListOn: false, idempotencyKey: k() }) },
   { cap: "skills.list", run: (hn) => h["skills.list"]!(hn.ctx, {}) },
   { cap: "skills.load", run: (hn) => h["skills.load"]!(hn.ctx, { name: "working-in-vyre" }) },
   { cap: "skills.load", run: (hn) => h["skills.load"]!(hn.ctx, { name: "no-such-skill" }), expect: "validation.not_found" },

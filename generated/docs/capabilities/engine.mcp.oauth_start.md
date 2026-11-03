@@ -7,8 +7,8 @@ Begin signing a remote outside-tool connection in with OAuth (the MCP authorizat
 | Module | engine |
 | Version | 1 (since 1.0.0) |
 | Effects | write |
-| Permission | agents.manage |
-| Grant level | manage |
+| Permission | grant only |
+| Grant level | member |
 | Risk | medium |
 | Resource | space |
 | Gate | none |

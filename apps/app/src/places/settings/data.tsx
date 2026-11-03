@@ -8,6 +8,8 @@ export interface SpaceTile { id: string; name: string; addr: string; kind: "pers
 
 export interface SettingsNav {
   openVault(): void;
+  /** Vault > Connections, where every connection lives (owner ruling D28). Absent: the Vault itself. */
+  openConnections?(): void;
   openSpace(id: string): void;
   /** Provider or mailbox sign-in lives in the Vault or the Connections flow. */
   connect(kind: "mailbox" | "calendar" | "twilio"): void;

@@ -1,6 +1,6 @@
 # engine.mcp.call
 
-Call an outside MCP tool that may change things; an agent's call goes through the Gate
+Call a tool of an outside tool server or connection (app hub, OAuth server, remote MCP) that may change things, as mcp_tools lists it; an agent's call goes through the Gate
 
 | | |
 |---|---|
@@ -17,7 +17,7 @@ Call an outside MCP tool that may change things; an agent's call goes through th
 | Audit | always |
 | Team Space only | no |
 | HTTP | POST /v1/engine/mcp/call |
-| MCP tool | none |
+| MCP tool | mcp_call (agents) |
 | CLI | none |
 | Emits | none |
 

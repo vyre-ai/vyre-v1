@@ -89,13 +89,20 @@ test("production Console: Skills and Plugins add, install, configure and connect
     await page.getByText("Options saved", { exact: true }).waitFor();
     const plugins = (await api("plugins.list", {}) as { plugins: Array<{ name: string; config: Record<string, string>; parts: { skills: string[]; commands: string[]; mcpServers: string[] } }> }).plugins;
     assert.deepEqual(plugins.map((p) => [p.name, p.config, p.parts.skills, p.parts.commands, p.parts.mcpServers]), [["greeter", { echo_token: "#Eco_Echo.token" }, ["greeting"], ["hello"], ["echo"]]]);
-    await page.getByTestId("conn-name").fill("crm");
-    await page.getByTestId("conn-url").fill("https://crm.example.com/mcp");
-    await page.getByTestId("conn-header").fill("#Crm_Key.token");
-    await page.getByTestId("conn-add").click();
-    await page.getByText("Connected", { exact: true }).waitFor();
-    const conns = (await api("plugins.connections.list", {}) as { connections: Array<{ name: string; headers: Record<string, string> }> }).connections;
-    assert.deepEqual(conns.map((c) => [c.name, c.headers]), [["crm", { Authorization: "#Crm_Key.token" }]]);
+    // outside tools live in Vault > Connections (owner ruling D28): the Console links there, and the server is added by its address for the whole Space
+    await page.getByTestId("console-connections-open").click();
+    await page.getByTestId("vault-connections").waitFor({ timeout: 20_000 });
+    await page.getByTestId("connections-add").click();
+    await page.getByTestId("connection-way-paste").click();
+    await page.getByTestId("paste-input").fill("https://crm.example.com/mcp");
+    await page.getByTestId("paste-continue").click();
+    await page.getByTestId("setup-name").fill("crm");
+    await page.getByTestId("scope-space").click();
+    await page.getByTestId("setup-add").click();
+    await page.getByTestId("connection-added").waitFor({ timeout: 20_000 });
+    const conns = (await api("plugins.connections.list", {}) as { connections: Array<{ name: string; scope: string; source?: string }> }).connections;
+    assert.deepEqual(conns.map((c) => [c.name, c.scope, c.source]), [["crm", "space", "paste"]]);
+    await open("console.plugins", '[data-testid="console-plugins"]');
     await shoot("plugins");
     await page.getByTestId("plugin-remove").click();
     await page.getByText("Plugin removed", { exact: true }).waitFor();

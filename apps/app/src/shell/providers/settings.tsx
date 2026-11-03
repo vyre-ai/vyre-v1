@@ -1,5 +1,6 @@
 // The Settings place in the shell: You, and for someone who can change it, the Space with the Console's pages. The open Space is the one Space the runtime knows; leaving Settings goes out
 // through the shell's door. Before the runtime exists the place draws its loading frame.
+import { connectionsTarget } from "../../places/vault/connections/links.ts";
 import { useEffect, useMemo, useState } from "react";
 import { desktopSessionImporter } from "../../../../../client/src/session-import/desktop.ts";
 import type { ReactElement } from "react";
@@ -61,6 +62,7 @@ export function settingsData(rt: ShellRuntime, manageSecurity?: SettingsNav["man
     },
     nav: {
       openVault: () => rt.open({ screen: "vault.layout" }),
+      openConnections: () => rt.open(connectionsTarget()),
       openSpace: (id) => rt.open({ screen: "spaces.switcher", args: { id } }),
       connect: (kind) => kind === "twilio" ? rt.open({ screen: "vault.layout", args: { add: "twilio" } }) : rt.open({ screen: "settings.page", args: { page: "mail" } }),
       openAgent: (agentId) => rt.open({ screen: "chats.agent-page", args: { agentId } }),

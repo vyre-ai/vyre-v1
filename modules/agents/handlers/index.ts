@@ -9,6 +9,7 @@ import {
   agentTemplateUse, agentTemplates, allowList, allowSet, browse, commandRender, commandsList, configSet, connectionAdd, connectionRemove, connectionsList, hooksList, install, marketplaceAdd, marketplaceRefresh, marketplaceRemove,
   marketplacesList, mcpServers, pluginFiles, pluginGet, pluginsList, setEnabled, uninstall,
 } from "./plugins.ts";
+import { connectionAddMine, connectionChecked, connectionForget, connectionUpdate, connectionsHome, policyGet, policySet, registrySearch } from "./connections.ts";
 import { enqueue, next, seen, usable } from "./outside.ts";
 import { skillsAdd, skillsList, skillsLoad, skillsRemove, skillsSetEnabled } from "./skills.ts";
 
@@ -41,6 +42,14 @@ export const handlers = {
   "plugins.agent_template.use": agentTemplateUse,
   "plugins.connection.add": connectionAdd,
   "plugins.connection.remove": connectionRemove,
+  "plugins.connections.home": connectionsHome,
+  "plugins.registry.search": registrySearch,
+  "plugins.connection.add_mine": connectionAddMine,
+  "plugins.connection.update": connectionUpdate,
+  "plugins.connection.forget": connectionForget,
+  "plugins.connection.checked": connectionChecked,
+  "plugins.connections.policy": policyGet,
+  "plugins.connections.policy_set": policySet,
   "skills.list": skillsList,
   "skills.load": skillsLoad,
   "skills.add": skillsAdd,

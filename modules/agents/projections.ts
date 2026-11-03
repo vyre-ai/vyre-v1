@@ -16,6 +16,8 @@ export interface Principal { kind: "person" | "agent" | "actor" | "service"; id:
 
 /** The part of the host Ctx these handlers read. A test passes a small object; the host passes the full Ctx. */
 export interface AgentsCtx {
+  /** The host's directory (host/src/seams/people.ts): a person's groups, for connections shared with groups. Absent in a bare harness. */
+  directory?: { of(personId: string): { roles: string[]; groups: string[] } };
   space: string;
   principal: Principal;
   actingFor?: string | undefined;
@@ -51,7 +53,7 @@ export const askerOf = (ctx: Pick<AgentsCtx, "principal" | "actingFor">): string
 
 // ---- schema -----------------------------------------------------------------------------------------------------------------------------------------
 
-const SCHEMA = ["0001_agents.sql", "0002_routine_watch.sql", "0003_skills.sql", "0004_plugins.sql", "0005_mcp_hub_auth.sql", "0006_agent_kind.sql", "0007_outside.sql"].map((f) => readFileSync(new URL(`./migrations/${f}`, import.meta.url), "utf8")).join("\n")
+const SCHEMA = ["0001_agents.sql", "0002_routine_watch.sql", "0003_skills.sql", "0004_plugins.sql", "0005_mcp_hub_auth.sql", "0006_agent_kind.sql", "0007_outside.sql", "0009_connections_home.sql"].map((f) => readFileSync(new URL(`./migrations/${f}`, import.meta.url), "utf8")).join("\n")
   .split("\n").filter((l) => !l.trimStart().startsWith("--")).join("\n")
   .split(";").map((s) => s.trim()).filter((s) => s.length > 0);
 const ready = new WeakSet<object>();
@@ -59,7 +61,7 @@ const ready = new WeakSet<object>();
 /** Make sure the agents tables exist. One cheap probe per handle; the IF NOT EXISTS statements run only when it fails. */
 export function ensure(db: Db): void {
   if (ready.has(db)) return;
-  try { db.all("SELECT key FROM agents_meta WHERE key = ?", "probe"); db.all("SELECT routineId FROM agents_routine_watch WHERE routineId = ?", "probe"); db.all("SELECT id FROM agents_skills WHERE id = ?", "probe"); db.all("SELECT id FROM agents_mcp_connections WHERE id = ?", "probe"); db.all("SELECT kind, runtime FROM agents_agent WHERE id = ?", "probe"); db.all("SELECT id FROM agents_outside_jobs WHERE id = ?", "probe"); } catch { for (const stmt of SCHEMA) db.run(stmt); }
+  try { db.all("SELECT key FROM agents_meta WHERE key = ?", "probe"); db.all("SELECT routineId FROM agents_routine_watch WHERE routineId = ?", "probe"); db.all("SELECT id FROM agents_skills WHERE id = ?", "probe"); db.all("SELECT id FROM agents_mcp_connections WHERE id = ?", "probe"); db.all("SELECT kind, runtime FROM agents_agent WHERE id = ?", "probe"); db.all("SELECT id FROM agents_outside_jobs WHERE id = ?", "probe"); db.all("SELECT owner, used_by_json FROM agents_mcp_connections WHERE id = ?", "probe"); db.all("SELECT id FROM agents_mcp_catalog WHERE id = ?", "probe"); } catch { for (const stmt of SCHEMA) db.run(stmt); }
   ready.add(db);
 }
 

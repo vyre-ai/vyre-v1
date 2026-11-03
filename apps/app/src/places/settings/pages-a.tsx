@@ -1,5 +1,5 @@
 // The pages of You that hold your own work: Profile (with Copy from another Space), Notifications, AI (models, how agents work with you, usage, memory) and Connected (Email and calendar is MailPage.tsx).
-import { AppHubsCard } from "../../hubs/AppHubs.tsx";
+import { useConnectionsSummary } from "../vault/connections/summary.ts";
 import { useEffect, useState, useSyncExternalStore } from "react";
 import type { ReactElement } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
@@ -316,16 +316,28 @@ export function AiPage({ rows, found }: PageProps): ReactElement {
 
 // ---------------------------------------------------------------- Connections
 
-/** The apps and agents you let in. Mail, calendars and numbers have their own page (Email and calendar, MailPage.tsx), which is where Inbox comes from. */
+/** The apps and agents you let in. Every connection lives in Vault > Connections (owner ruling D28): this page shows how many and links there. Mail, calendars and numbers have their own page
+ * (Email and calendar, MailPage.tsx), which is where Inbox comes from. */
 export function ConnectedPage({ rows, found }: PageProps): ReactElement {
-  const data = useSettingsData();
   return (
     <>
+      <ConnectionsLink />
       <OutsideAgents />
-      <Section title="App hubs"><AppHubsCard call={data.call} /></Section>
       <SignInApps />
       <RegistrySections page="connected" rows={rows} found={found} />
     </>
+  );
+}
+
+/** The summary of Vault > Connections, with the one way there. */
+function ConnectionsLink(): ReactElement {
+  const data = useSettingsData();
+  const sum = useConnectionsSummary(data.call, data.me.id);
+  const open = (): void => (data.nav.openConnections ? data.nav.openConnections() : data.nav.openVault());
+  return (
+    <Section title="Connections" testID="settings-connections">
+      <SettingsRow id="open-connections" label="Apps and tool servers" sub={sum.loaded ? `${sum.line}. Add, test, share and remove them in the Vault.` : "Add, test, share and remove them in the Vault."} lead={<Glyph name="link" size={15} />} first onPress={open} control={<SmallButton label="Open in Vault" onPress={open} testID="settings-open-connections" />} />
+    </Section>
   );
 }
 
