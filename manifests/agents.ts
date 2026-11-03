@@ -106,6 +106,10 @@ export default defineManifest({
     read('agents.memory_key.get', 'The Vault handle that pays for an agent memory upkeep, for the memory module and the nightly job (the server reads it without seeing the agent page)', {
       in: target, out: { memoryKey: t.opt(t.str({ description: 'Vault handle, never a value' })), ownerId: id.user }, on: ['agent', '/agentId'], label: 'check', errors: ['validation.not_found'],
     }),
+    // the host seam a module working for a person uses to reach that person's Assistant (a meeting close-out when a transcript lands): the host and the person themself get it; anyone else, nothing
+    read('agents.assistant_of', "A person's own Assistant, for the server's modules that work for them; only the server and the person themself are answered", {
+      in: { personId: id.user }, out: { agentId: t.opt(id.agent) }, label: 'check',
+    }),
     read('agents.status', 'Live status of an agent: Awake (idle 2 minutes), Working, Asleep or Paused with reason and who', {
       in: target, out: { status: agentStatus, since: t.ts(), reason: t.opt(t.str()), by: t.opt(t.str()) }, on: ['agent', '/agentId'], tool: 'agents',
     }),

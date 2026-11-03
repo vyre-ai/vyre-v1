@@ -54,6 +54,17 @@ export async function memoryKeyGet(ctx: AgentsCtx, input: { agentId: string }) {
   return { ...(a.config.memoryKey !== undefined && (isHostService(ctx.principal) || seesSetup(ctx, a)) ? { memoryKey: a.config.memoryKey } : {}), ownerId: a.ownerId };
 }
 
+/**
+ * A person's own Assistant, for the server: a module that works for a person when nobody is at a screen (the meeting close-out a transcript starts) finds it here. The host and the person
+ * themself are answered; anyone else gets nothing, the same as for a person with no Assistant, so whose Assistant exists is not leaked.
+ */
+export async function assistantOf(ctx: AgentsCtx, input: { personId: string }) {
+  ensure(ctx.db);
+  if (!isHostService(ctx.principal) && askerOf(ctx) !== input.personId) return {};
+  const a = allAgents(ctx.db).find((x) => x.ownerId === input.personId && isAssistant(x) && teammateOf(x) === undefined);
+  return a ? { agentId: a.id } : {};
+}
+
 export async function status(ctx: AgentsCtx, input: { agentId: string }) {
   const a = visible(ctx, input.agentId);
   const s = statusOf(a, ctx.now());

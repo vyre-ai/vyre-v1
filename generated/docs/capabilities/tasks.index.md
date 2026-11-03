@@ -71,7 +71,7 @@ type Out = {
       threadId?: string;
       workerThread?: string;
       source?: {
-        kind: "chat" | "run" | "gate" | "journey" | "manual";
+        kind: "chat" | "run" | "gate" | "journey" | "meeting" | "manual";
         id: string;
       };
       snoozedUntil?: number;

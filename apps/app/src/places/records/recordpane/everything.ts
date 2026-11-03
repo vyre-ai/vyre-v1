@@ -1,4 +1,4 @@
-// Right pane > Everything: one feed of what has happened around this record, newest first: edits, comments, mail and texts, files, tasks, runs and chats. Each source is an ordinary read made as the
+// Right pane > Everything: one feed of what has happened around this record, newest first: edits, comments, mail and texts, files, tasks, runs, chats and meetings. Each source is an ordinary read made as the
 // person, so what they may not see never arrives (a source that answers no is left out, and the feed says nothing about it). This file is the pure part: turning each answer into feed items and merging them.
 import type { CapMap } from "../../../../../../generated/types.ts";
 import type { TypeDef } from "../recordpage/model.ts";
@@ -59,6 +59,15 @@ type Thread = CapMap["threads.list"]["out"]["threads"][number];
 export const fromThreads = (rows: readonly Thread[]): Item[] =>
   rows.map((t) => ({ id: `chat:${t.threadId}`, kind: "chat", at: t.lastMessageAt ?? t.createdAt, title: t.title ?? "Chat", ...(t.replyCount ? { note: `${t.replyCount} ${t.replyCount === 1 ? "message" : "messages"}` } : {}), subject: { type: "thread", id: t.threadId } }));
 
+type Meeting = CapMap["meetings.closeout.list"]["out"]["meetings"][number];
+const MEETING_STATE: Readonly<Record<Meeting["state"], string>> = { ready: "Ready to close", closed: "Closed", nothing: "Nothing to do", preparing: "Preparing" };
+/** The meetings this record was in (or that proposed something for it), with where their close-out stands; a tap opens the close-out in the Inbox's Meetings tab. */
+export const fromMeetings = (rows: readonly Meeting[]): Item[] =>
+  rows.map((m) => ({
+    id: `meeting:${m.meetingId}`, kind: "meeting", at: m.startsAt, title: m.title,
+    note: `${MEETING_STATE[m.state]}${m.done ? ` · ${m.done} done` : ""}${m.state === "ready" && m.proposed ? ` · ${m.proposed} to approve` : ""}`, subject: { type: "meeting", id: m.meetingId },
+  }));
+
 /** Newest first, one item per id, at most `limit`. */
 export function merge(lists: readonly (readonly Item[])[], limit = 100): Item[] {
   const seen = new Set<string>();
@@ -80,7 +89,7 @@ export type Call = (cap: string, input: unknown) => Promise<unknown>;
  */
 export async function loadEverything(o: { call: Call; type: string; recordId: string; def?: TypeDef | undefined; names: (id: string) => string; folderOf: () => Promise<string | null> }): Promise<Item[]> {
   const ask = async <T,>(cap: string, input: unknown): Promise<T | null> => { try { return (await o.call(cap, input)) as T; } catch { return null; } };
-  const [activity, comments, thread, tasks, runs, threads, files] = await Promise.all([
+  const [activity, comments, thread, tasks, runs, threads, files, meetings] = await Promise.all([
     ask<CapMap["records.activity"]["out"]>("records.activity", { type: o.type, recordId: o.recordId, limit: 50 }),
     ask<CapMap["records.comments.list"]["out"]>("records.comments.list", { type: o.type, recordId: o.recordId, includeResolved: true }),
     ask<CapMap["inbox.thread"]["out"]>("inbox.thread", { contactId: o.recordId, limit: 50 }),
@@ -88,9 +97,10 @@ export async function loadEverything(o: { call: Call; type: string; recordId: st
     ask<CapMap["runs.list"]["out"]>("runs.list", { scope: "subject", subject: { type: "record", id: o.recordId }, limit: 50 }),
     ask<CapMap["threads.list"]["out"]>("threads.list", { recordId: o.recordId, limit: 50 }),
     (async () => { const folder = await o.folderOf().catch(() => null); return folder ? ask<CapMap["files.list"]["out"]>("files.list", { folder, limit: 50 }) : null; })(),
+    ask<CapMap["meetings.closeout.list"]["out"]>("meetings.closeout.list", { recordId: o.recordId, limit: 50 }),
   ]);
   return merge([
     fromActivity(activity?.entries ?? [], o.def, o.names), fromComments(comments?.comments ?? [], o.names), fromConversation(thread?.items ?? []), fromFiles(files?.files ?? [], o.names),
-    fromTasks(tasks?.tasks ?? []), fromRuns(runs?.runs ?? []), fromThreads(threads?.threads ?? []),
+    fromTasks(tasks?.tasks ?? []), fromRuns(runs?.runs ?? []), fromThreads(threads?.threads ?? []), fromMeetings(meetings?.meetings ?? []),
   ]);
 }
