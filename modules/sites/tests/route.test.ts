@@ -139,3 +139,13 @@ test("a site cannot point at what its maker could not use: the server reads for 
     await assert.rejects(() => h["sites.update"]!(ctx, { siteId: made.site.siteId, folderId: "fld_private" }), /cannot read that folder/);
   } finally { configureRoutes(null); }
 });
+
+test("artifact_publish's result says whether it was opened for the person (required), and the agent's words follow it", async () => {
+  const { readFileSync } = await import("node:fs");
+  const out = (registry.capabilities.find((c) => c.name === "sites.artifact_publish") as unknown as { output: { properties: Record<string, unknown>; required: string[] } }).output;
+  assert.ok("opened" in out.properties && out.required.includes("opened"));
+  const words = [readFileSync(new URL("../../../agent/skills/working-in-vyre/SKILL.md", import.meta.url), "utf8"), readFileSync(new URL("../../../agent/skills/artifacts/SKILL.md", import.meta.url), "utf8"), readFileSync(new URL("../../engine/context.ts", import.meta.url), "utf8")].join("\n");
+  assert.ok(!/opens in a tab/.test(words), "no text promises a tab that nothing opens");
+  assert.match(words, /only when the result says `opened: true`/);
+  assert.match(words, /Report only what a tool result confirms/);
+});

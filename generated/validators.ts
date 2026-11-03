@@ -81763,9 +81763,11 @@ if (g5200 === "object") {
 if (g5200 === 'object') { const o5200 = x5200 as Record<string, unknown>;
 if (!("artifactId" in o5200)) e.push(p + "/artifactId" + ': required');
 if (!("updated" in o5200)) e.push(p + "/updated" + ': required');
+if (!("opened" in o5200)) e.push(p + "/opened" + ': required');
 if ("artifactId" in o5200) lf(o5200["artifactId"], p + "/artifactId", e, L21);
 if ("url" in o5200) lf(o5200["url"], p + "/url", e, L1);
 if ("updated" in o5200) lf(o5200["updated"], p + "/updated", e, L3);
+if ("opened" in o5200) lf(o5200["opened"], p + "/opened", e, L3);
 }
 }
 }

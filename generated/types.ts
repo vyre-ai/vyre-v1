@@ -31012,6 +31012,7 @@ export type SitesArtifactPublishOut = {
   artifactId: string;
   url?: string;
   updated: boolean;
+  opened: boolean;
 };
 export type SitesBuildIn = {
   siteId: string;

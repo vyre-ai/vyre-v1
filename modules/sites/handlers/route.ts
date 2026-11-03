@@ -393,7 +393,7 @@ async function sitesLogs(ctx: Ctx, input: unknown): Promise<{ lines: string[]; s
 
 // ---- artifacts
 
-async function artifactPublish(ctx: Ctx, input: unknown): Promise<{ artifactId: string; url?: string; updated: boolean }> {
+async function artifactPublish(ctx: Ctx, input: unknown): Promise<{ artifactId: string; url?: string; updated: boolean; opened: boolean }> {
   const o = rec(ctx, input);
   const title = cleanName(ctx, reqStr(ctx, o, "title"));
   const html = optStr(ctx, o, "html");
@@ -454,7 +454,8 @@ async function artifactPublish(ctx: Ctx, input: unknown): Promise<{ artifactId: 
   const url = urlOf(fresh);
   ctx.emit("site.published", `site/${id}`, { siteId: id, ...(url ? { url } : {}), access: "private" });
   await announce(ctx, id, title);
-  return { artifactId: id, ...(url ? { url } : {}), updated };
+  // nothing opens a tab for the person yet: the card in the chat has Open. The result says so, and an agent says only what a result confirms
+  return { artifactId: id, ...(url ? { url } : {}), updated, opened: false };
 }
 
 /** A card in the chat the work was asked in. Nothing to say it in is not a failure of the publish. */
