@@ -98,7 +98,9 @@ export type ListItem = string | { t: string; s?: string; kind?: string; sealed?:
   /** A command that takes words after its name: the hint for them. Picking it writes "/name " and waits instead of running. */
   arg?: string;
   /** Other words it is found by, past its name: a connected folder's provider ("Google Drive", "SharePoint"), so typing the provider finds it. */
-  find?: string };
+  find?: string;
+  /** In the @ menu: the group it is listed under (the place knows who is in the chat). Without it an agent is under Agents and a person under People. */
+  group?: string };
 
 export interface ComposerLists {
   people?: readonly ListItem[];
@@ -196,7 +198,7 @@ function ranked(items: readonly ListItem[] | undefined, query: string, group: st
     const ref = typeof x === "string" ? undefined : x.ref;
     const arg = typeof x === "string" ? undefined : x.arg;
     const data = typeof x === "string" ? undefined : x.data;
-    scored.push({ at, q, item: { group, label, kind: kindOf(x, kind), ...(note === undefined ? {} : { note }), ...(sealed === undefined ? {} : { sealed }), ...(body === undefined ? {} : { body }), ...(ref === undefined ? {} : { ref }), ...(arg === undefined ? {} : { arg }), ...(data === undefined ? {} : { data }) } });
+    scored.push({ at, q, item: { group: (typeof x === "string" ? undefined : x.group) ?? group, label, kind: kindOf(x, kind), ...(note === undefined ? {} : { note }), ...(sealed === undefined ? {} : { sealed }), ...(body === undefined ? {} : { body }), ...(ref === undefined ? {} : { ref }), ...(arg === undefined ? {} : { arg }), ...(data === undefined ? {} : { data }) } });
   });
   scored.sort((a, b) => b.q - a.q || a.at - b.at);
   return scored.slice(0, limit).map((s) => s.item);
@@ -222,10 +224,14 @@ export function popupFor(trigger: Trigger, lists: ComposerLists, _agentChat = tr
     const mention = (x: ListItem): boolean => nameOf(x) !== "Report a problem";
     const agents = ranked((lists.agents ?? []).filter(mention), q, "Agents", "Agent", MENTION_LIMIT);
     const people = ranked((lists.people ?? []).filter(mention), q, "People", "Person", MENTION_LIMIT);
+    // groups in the order the menu draws them; each keeps the ranking it had
     const out: PopupEntry[] = [];
     let left = MENTION_LIMIT;
-    for (const [name, items] of [["Agents", agents], ["People", people]] as const) {
-      const take = items.slice(0, left);
+    const all = [...agents, ...people];
+    const order = ["Agents in this chat", "Agents", "People", "Bring in"];
+    for (const name of [...order, ...all.map((x) => x.group).filter((g) => !order.includes(g))]) {
+      if (out.some((e) => "head" in e && e.head === name)) continue;
+      const take = all.filter((x) => x.group === name).slice(0, left);
       if (take.length === 0) continue;
       out.push({ head: name }, ...take);
       left -= take.length;

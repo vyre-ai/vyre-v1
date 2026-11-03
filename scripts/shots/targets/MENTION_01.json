@@ -13,6 +13,13 @@
       "proto": "chat,at:mention,{skin}",
       "waitFor": "[id='pop-1']",
       "note": "The same menu for a guest: only the agents this chat allows, then people."
+    },
+    {
+      "id": "MENTION_01-ask",
+      "route": "/m/MENTION_01?view=ask",
+      "proto": "chat,at:mention,{skin}",
+      "waitFor": "[data-testid='menu-item-Docs']",
+      "note": "The Ask an agent picker under an unanswered message: your own Assistant first, named Assistant with its face, then the room's agents. Another person's Assistant is not offered and there is no Report a problem row."
     }
   ]
 }

@@ -301,16 +301,18 @@ function SourceChip({ task, rt, openChat }: { task: TaskFull; rt: ShellRuntime; 
 
 /** Whose hands it passes through: faces and names, the holder lit. */
 function BatonPath({ steps, nameOf }: { steps: ReturnType<typeof stepsOf>; nameOf(id: string): string }): ReactElement {
+  // on a phone the path keeps to one line: short connectors, no indent
+  const tight = useWindowDimensions().width < 640;
   const out: ReactElement[] = [];
   for (const [i, s] of steps.entries()) {
-    if (i > 0) out.push(<View key={`j${i}`} style={st.pathLine} />);
+    if (i > 0) out.push(<View key={`j${i}`} style={[st.pathLine, tight && st.pathLineTight]} />);
     const title = s.key === "assigned" ? "Assigned" : s.key === "review" ? "Reviewer" : s.key === "approve" ? "Approver" : "Done";
     out.push(<View key={s.key} testID={`baton-step-${s.key}`} {...webProps({ title: s.who ? `${title}: ${nameOf(s.who.id)}` : title })} style={[st.path, s.lit === "now" ? null : s.lit === "past" ? { opacity: 0.8 } : { opacity: 0.5 }]}>
       {s.who ? <Avatar name={nameOf(s.who.id)} seedId={s.who.id} kind={faceKind(s.who)} size={24} /> : <View style={st.pathDone}><Glyph name="check" size={12} /></View>}
       <View><Text style={st.pathTitle}>{title}</Text>{s.who ? <Text style={st.pathName}>{nameOf(s.who.id)}</Text> : null}</View>
     </View>);
   }
-  return <View testID="baton-path" style={st.pathRow}>{out}</View>;
+  return <View testID="baton-path" style={[st.pathRow, tight && st.pathRowTight]}>{out}</View>;
 }
 
 /** The one action that is yours: what your seat does next. Take for a team task nobody took. Nothing when it is not your move. */
@@ -649,6 +651,8 @@ const st = StyleSheet.create({
   h1: { flex: 1, minWidth: 0, fontSize: 27, lineHeight: 34, fontWeight: "600", letterSpacing: -0.5, color: "var(--ink)" as string, outlineStyle: "none", outlineWidth: 0 } as object,
   pathRow: { flexDirection: "row", flexWrap: "wrap", rowGap: 8, alignItems: "center", marginTop: 18, paddingLeft: 36 },
   path: { flexDirection: "row", alignItems: "center", gap: 8 },
+  pathRowTight: { paddingLeft: 0, flexWrap: "nowrap" },
+  pathLineTight: { width: 12, marginHorizontal: 4 },
   pathLine: { width: 34, height: 1, marginHorizontal: 10, backgroundColor: "var(--line-2)" as string },
   pathDone: { width: 26, height: 26, borderRadius: 13, alignItems: "center", justifyContent: "center", backgroundColor: "var(--sunk)" as string },
   pathTitle: { fontSize: 11, lineHeight: 14, color: "var(--ink-3)" as string },

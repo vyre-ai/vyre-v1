@@ -11,6 +11,7 @@ import type { ReactElement } from "react";
 import { Platform, Pressable, StyleSheet, Text, TextInput, useWindowDimensions, View } from "react-native";
 import type { ComposerSend, ListItem } from "../../../../../../ui/src/Composer/index.tsx";
 import { DeferredComposer as Composer } from "../../../../../../ui/src/Composer/Deferred.tsx";
+import { Avatar } from "../../../../../../ui/src/Avatar/index.tsx";
 import { useMenu } from "../../../../../../ui/src/Menu/index.tsx";
 import { DropRoute } from "../../../../../../ui/src/FileDrop/index.tsx";
 import type { TransferLike } from "../../../../../../ui/src/FileDrop/index.tsx";
@@ -322,7 +323,8 @@ function ConversationView(): ReactElement {
   const openAskPicker = (messageId: string, x: number, y: number): void => {
     const show = (): void => {
       const agents = pickerAgents(thread, agentMeta.current ?? [], data.me.id, nameOf);
-      menu.show(agents.map((a) => ({ label: a.label, onSelect: () => askAbout(messageId, a.id) })), x, y, "context", { label: "Ask an agent" });
+      // a mention-style picker, not a context menu: Report a problem belongs on message menus
+      menu.show(agents.map((a) => ({ label: a.label, leading: <Avatar name={a.label} seedId={a.id} kind="agent" size={16} />, onSelect: () => askAbout(messageId, a.id) })), x, y, "other", { label: "Ask an agent" });
     };
     if (agentMeta.current !== null) { show(); return; }
     void data.call("agents.list", {}).then((out) => { agentMeta.current = ((out as { agents?: AgentMeta[] } | null)?.agents ?? []); show(); }, () => { agentMeta.current = []; show(); });
@@ -553,10 +555,11 @@ function ConversationView(): ReactElement {
     const name = typeof x === "string" ? x : x.t;
     const id = (typeof x === "string" ? undefined : x.ref) ?? dirId(name, kind);
     const base = typeof x === "string" ? { t: x } : x;
-    const where = kind === "agent"
-      ? (id && inThread.has(id) ? (inThread.size === 1 ? "In this chat" : inThread.get(id) === "lead" ? "Replies to everything" : "Only when @mentioned") : "Not in this chat yet")
-      : (id && thread.members.some((m) => m.id === id) ? "In this chat" : "Not in this chat");
-    return { ...base, kind: kind === "agent" ? "Agent" : "Person", ...(id ? { ref: id } : {}), s: base.s ? `${base.s} \u00b7 ${where}` : where };
+    // the menu groups as the prototype draws them: the agents in this chat (Lead, Teammate), People (Member), and the agents to Bring in
+    const inChat = kind === "agent" ? id !== undefined && inThread.has(id) : id !== undefined && thread.members.some((m) => m.id === id);
+    const group = kind === "agent" ? (inChat ? "Agents in this chat" : "Bring in") : "People";
+    const where = kind === "agent" ? (inChat ? (inThread.get(id!) === "lead" ? "Lead" : "Teammate") : "Agent") : (inChat ? "Member" : "Space");
+    return { ...base, group, kind: kind === "agent" ? "Agent" : "Person", ...(id ? { ref: id } : {}), s: base.s ? `${base.s} \u00b7 ${where}` : where };
   };
   // a guest is offered only the agents this chat allows (mentionable)
   const lists = { ...data.lists, agents: (data.lists.agents ?? []).map((x) => noteFor(x, "agent")).filter((x) => mentionable(x, data.me.guest === true, inThread)), people: (data.lists.people ?? []).map((x) => noteFor(x, "person")), commands: commandItems(data.pluginCommands?.()) };

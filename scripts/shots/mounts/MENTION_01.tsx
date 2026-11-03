@@ -1,6 +1,6 @@
 // Mount for MENTION_01 (lane l-learn2): the @ menu of a shared channel, over the real Conversation with the lists the shell builds (composerLists, candidates) from one directory of people and agents.
 // ?who=owner|member: Assistant (the viewer's own, with the V mark), then the other agents of the Space, each with its face, then people. Another person's Assistant ("Maya Lin (Agent)"), the owner's own
-// Claude Code ("Irfad Imtiaz (Agent)") and an agent kept from the viewer are not in it, and there is no Report a problem row. ?who=guest: only the agents this chat allows.
+// Claude Code ("Irfad Imtiaz (Agent)") and an agent kept from the viewer are not in it, and there is no Report a problem row. ?who=guest: only the agents this chat allows. ?view=ask: the Ask an agent picker the quiet line under your unanswered message opens: your Assistant first, named Assistant, with the agents of the room; another person's Assistant is not in it, and neither is a Report a problem row.
 import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { View } from "react-native";
@@ -22,31 +22,40 @@ const PRINCIPALS = [
   { id: "agt_irfad_cc", name: "Irfad Imtiaz (Agent)", kind: "agent" as const, owner: ME },
 ];
 interface RootLike { setAttribute(name: string, value: string): void; style: { setProperty(name: string, value: string): void; removeProperty(name: string): void } }
-type Pick1 = { focus?: () => void; value?: string; setSelectionRange?: (a: number, b: number) => void; dispatchEvent?: (e: unknown) => boolean };
+type Pick1 = { click?: () => void; focus?: () => void; value?: string; setSelectionRange?: (a: number, b: number) => void; dispatchEvent?: (e: unknown) => boolean };
 type Doc = { querySelector(s: string): Pick1 | null; documentElement?: RootLike };
 
 export default function Mount(): ReactNode {
   const [q, setQ] = useState<URLSearchParams | null>(null);
   useEffect(() => { setQ(new URLSearchParams((globalThis as { location?: { search?: string } }).location?.search ?? "")); }, []);
-  return q ? <Page who={q.get("who") ?? "owner"} skin={q.get("skin") ?? "paper"} /> : <View testID="mention-wait" style={{ flex: 1 }} />;
+  return q ? <Page who={q.get("who") ?? "owner"} view={q.get("view") ?? "at"} skin={q.get("skin") ?? "paper"} /> : <View testID="mention-wait" style={{ flex: 1 }} />;
 }
 
-function Page({ who, skin }: { who: string; skin: string }): ReactNode {
+function Page({ who, view, skin }: { who: string; view: string; skin: string }): ReactNode {
   useMemo(() => {
     const root = (globalThis as { document?: Doc }).document?.documentElement;
     const themeRoot: ThemeRoot = { setAttribute: (n, v) => { root?.setAttribute(n, v); }, setProperty: (n, v) => { root?.style.setProperty(n, v); }, removeProperty: (n) => { root?.style.removeProperty(n); } };
     return createThemeController({ personId: "irfad", spaceId: "nw", spaceSkin: { nw: skin }, prefersDark: skin === "graphite", root: themeRoot, storage: null });
   }, [skin]);
   const guest = who === "guest";
+  const ask = view === "ask";
   const sample = useMemo(() => {
-    const s = createSample("idle");
+    const s = createSample(ask ? "channel" : "idle");
     const me = guest ? "usr_gus" : ME;
     const list = guest ? [...PRINCIPALS, { id: "usr_gus", name: "Gus Guest", kind: "person" as const, guest: true }] : PRINCIPALS;
     const own = guest ? { id: "agt_gus_assistant", name: "Assistant" } : MY_ASSISTANT;
-    return { ...s.data, me: { id: me, name: guest ? "Gus Guest" : "Irfad Imtiaz", ...(guest ? { guest: true } : {}) }, lists: composerLists(list, me, own), directory: candidates(list, me, own) };
-  }, [guest]);
+    const call: typeof s.data.call = async (cap, input) => {
+      if (cap === "agents.list") return { agents: [{ agentId: "agt_docs", name: "Docs", kind: "agent" }, { agentId: "agt_intake", name: "Assistant", ownerId: ME, kind: "assistant" }, { agentId: "agt_maya_assistant", name: "Assistant", ownerId: "usr_maya", kind: "assistant" }] };
+      return s.data.call(cap, input);
+    };
+    return { ...s.data, ...(ask ? { call } : {}), me: { id: me, name: guest ? "Gus Guest" : "Irfad Imtiaz", ...(guest ? { guest: true } : {}) }, lists: composerLists(list, me, own), directory: candidates(list, me, own) };
+  }, [guest, ask]);
   // type the @ a person would, once the page has drawn
   useEffect(() => {
+    if (ask) {
+      const t = setTimeout(() => (globalThis as { document?: Doc }).document?.querySelector("[data-testid='no-agent-ask']")?.click?.(), 800);
+      return () => clearTimeout(t);
+    }
     const t = setTimeout(() => {
       const el = (globalThis as { document?: Doc }).document?.querySelector("[data-testid='composer-field']");
       if (!el) return;
@@ -57,6 +66,6 @@ function Page({ who, skin }: { who: string; skin: string }): ReactNode {
       el.dispatchEvent?.(new (globalThis as unknown as { Event: new (t: string, i: object) => unknown }).Event("input", { bubbles: true }));
     }, 800);
     return () => clearTimeout(t);
-  }, []);
+  }, [ask]);
   return <View testID="mention-mount" style={{ flex: 1, backgroundColor: "var(--win)" as string }}><Conversation data={sample} /></View>;
 }

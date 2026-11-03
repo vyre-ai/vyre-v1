@@ -9,6 +9,8 @@ import type { Clash, ClashRow, Pick } from "./conflict.ts";
 export interface ConflictProps { clash: Clash; by: string; now: number; offsetMin: number; busy?: boolean; onChange(c: Clash): void; onSave(): void }
 
 export function ConflictCard({ clash, by, now, offsetMin, busy, onChange, onSave }: ConflictProps): ReactElement {
+  const { width } = useWindowDimensions();
+  const narrow = width < 640;
   const mine = clash.rows.filter((r) => r.pick === "mine").length;
   const theirs = clash.rows.length - mine;
   return (
@@ -21,11 +23,13 @@ export function ConflictCard({ clash, by, now, offsetMin, busy, onChange, onSave
         </View>
       </View>
       {clash.rows.map((r) => <Row key={r.key} row={r} by={by} now={now} offsetMin={offsetMin} onPick={(p) => onChange(setPick(clash, r.key, p))} />)}
-      <View style={st.foot}>
-        <Pressable accessibilityRole="button" accessibilityLabel="Save" testID="task-conflict-save" disabled={busy} onPress={onSave} style={[st.btn, st.btnPrimary]}><Text style={[st.btnText, st.btnPrimaryText]}>Save</Text></Pressable>
-        <Pressable accessibilityRole="button" accessibilityLabel={`Use all of ${by}'s`} testID="task-conflict-all-current" onPress={() => onChange(setAll(clash, "current"))} style={st.btn}><Text style={st.btnText}>{`Use all of ${by}'s`}</Text></Pressable>
-        <Pressable accessibilityRole="button" accessibilityLabel="Keep all of mine" testID="task-conflict-all-mine" onPress={() => onChange(setAll(clash, "mine"))} style={st.btn}><Text style={st.btnText}>Keep all of mine</Text></Pressable>
-        <Text testID="task-conflict-count" style={st.count}>{`${mine} yours, ${theirs} ${by}'s`}</Text>
+      <View style={[st.foot, narrow && st.footNarrow]}>
+        <Pressable accessibilityRole="button" accessibilityLabel="Save" testID="task-conflict-save" disabled={busy} onPress={onSave} style={[st.btn, st.btnPrimary, narrow && st.btnFull]}><Text style={[st.btnText, st.btnPrimaryText, narrow && st.btnCenter]}>Save</Text></Pressable>
+        <View style={[st.textBtns, narrow && st.textBtnsNarrow]}>
+          <Pressable accessibilityRole="button" accessibilityLabel={`Use all of ${by}'s`} testID="task-conflict-all-current" onPress={() => onChange(setAll(clash, "current"))} style={[st.btn, narrow && st.btnHalf]}><Text style={[st.btnText, narrow && st.btnCenter]}>{`Use all of ${by}'s`}</Text></Pressable>
+          <Pressable accessibilityRole="button" accessibilityLabel="Keep all of mine" testID="task-conflict-all-mine" onPress={() => onChange(setAll(clash, "mine"))} style={[st.btn, narrow && st.btnHalf]}><Text style={[st.btnText, narrow && st.btnCenter]}>Keep all of mine</Text></Pressable>
+        </View>
+        <Text testID="task-conflict-count" style={[st.count, narrow && st.countNarrow]}>{`${mine} yours, ${theirs} ${by}'s`}</Text>
       </View>
     </View>
   );
@@ -89,5 +93,12 @@ const st = StyleSheet.create({
   btnPrimary: { backgroundColor: "var(--accent)" as string },
   btnText: { fontSize: 13.5, fontWeight: "600", color: "var(--ink-2)" as string },
   btnPrimaryText: { color: "var(--accent-ink)" as string },
+  footNarrow: { flexDirection: "column", alignItems: "stretch", gap: 4 },
+  textBtns: { flexDirection: "row", alignItems: "center", gap: 8 },
+  textBtnsNarrow: { width: "100%" },
+  btnFull: { width: "100%", alignItems: "center" },
+  btnHalf: { flex: 1 },
+  btnCenter: { textAlign: "center" },
+  countNarrow: { marginLeft: 0, width: "100%", paddingTop: 4 },
   count: { marginLeft: "auto", fontSize: 12.5, color: "var(--ink-3)" as string },
 });

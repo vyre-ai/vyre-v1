@@ -26,7 +26,7 @@ import {
   FLASH, KNOWS_SCOPE, NO_SUBJECTS, USED_FOOT, appendLine, asOfFilter, groupKnows, hasSubject, knowRowKey, linkSubjects, quoteDate, rememberText, splitSubjects, subjectIndex, subjectKey, subjectOfHref, usedCount, usedLabel,
 } from "./model.ts";
 import type { ChatFact, LearnedRow } from "./model.ts";
-import { learnedExact, learnedWhen } from "./model.ts";
+import { LAYER_SCOPE, learnedExact, learnedWhen } from "./model.ts";
 import { ASSISTANT, MESSAGE_IDS, createChatMemorySample } from "./sample.ts";
 import type { ChatMemorySample } from "./sample.ts";
 import { ChatMemoryProvider } from "./thread.tsx";
@@ -487,4 +487,10 @@ test("the context carries no state of its own: a provider without memory draws i
   const out = renderToStaticMarkup(<ChatMemoryProvider memory={undefined} threadId="c1"><span>plain</span></ChatMemoryProvider>);
   assert.equal(out, "<span>plain</span>");
   assert.ok(typeof ChatMemoryContext === "function");
+});
+
+test("every Learned line says who can read it: a lesson its scope, any other fact its layer", () => {
+  assert.equal(LAYER_SCOPE.person, "Only you");
+  assert.equal(LAYER_SCOPE.space, "The Space");
+  assert.deepEqual(Object.keys(LAYER_SCOPE).sort(), ["agent", "person", "project", "space"]);
 });

@@ -173,7 +173,7 @@ export function learnedExact(at: number): string {
   return `${MONTHS[d.getUTCMonth()]} ${d.getUTCDate()}, ${d.getUTCFullYear()} ${d.getUTCHours()}:${String(d.getUTCMinutes()).padStart(2, "0")}`;
 }
 
-export interface LearnedRow { factId: string; text: string; subjectTitle?: string; pageId?: string; sourceRef: string; at: number; lesson?: LessonInfo }
+export interface LearnedRow { factId: string; text: string; subjectTitle?: string; pageId?: string; sourceRef: string; at: number; lesson?: LessonInfo; layer?: Layer }
 
 /** The message a learned fact came from: the line its link names (`/chats/<thread>#<message>`), else its source ref (a fact remembered from one message carries that message). */
 export const messageOf = (f: { sourceRef: string; sourceLink?: string | undefined }): string => { const at = f.sourceLink?.indexOf("#") ?? -1; return f.sourceLink && at >= 0 ? f.sourceLink.slice(at + 1) : f.sourceRef; };
@@ -214,6 +214,8 @@ export function appendLine(notes: string, line: string): string {
 // ---------------------------------------------------------------- the Knows tab
 
 export const LAYER_ORDER: readonly Layer[] = ["space", "project", "agent", "person"];
+/** Who can read a fact under its message in the chat: every Learned line says it. */
+export const LAYER_SCOPE: Record<Layer, string> = { person: "Only you", agent: "Whoever uses this agent", project: "This project", space: "The Space" };
 export const LAYER_HEAD: Record<Layer, string> = { space: "Space", project: "Project", agent: "Agent", person: "You" };
 
 export interface KnowsGroup { layer: Layer; head: string; facts: ChatFact[] }

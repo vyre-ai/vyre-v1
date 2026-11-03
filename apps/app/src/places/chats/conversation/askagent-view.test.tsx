@@ -38,7 +38,7 @@ function rig(): { data: ConversationData; calls: Call[] } {
 const walk = (n: Node, out: Node[] = []): Node[] => { out.push(n); for (const c of n.children ?? []) if (typeof c === "object") walk(c, out); return out; };
 const idOf = (n: Node): unknown => n.props["data-testid"] ?? n.props.testID;
 
-test("the quiet line under your unanswered message opens the picker, your own agents first; picking one asks it about that exact message as you", async () => {
+test("the quiet line under your unanswered message opens the picker, the room's agents; picking one asks it about that exact message as you", async () => {
   const restore = installDom();
   try {
     const { data, calls } = rig();
@@ -49,7 +49,7 @@ test("the quiet line under your unanswered message opens the picker, your own ag
     await press(line);
     await flush();
     const items = [...new Set(walk(root).map(idOf).filter((id): id is string => typeof id === "string" && id.startsWith("menu-item-") && id !== "menu-item-report"))];
-    assert.deepEqual(items, ["menu-item-Docs", "menu-item-Maya Chen (Agent)"], "your own agent first, a private agent as <Person> (Agent)");
+    assert.deepEqual(items, ["menu-item-Docs"], "Maya's Assistant is hers alone and is not offered");
     await press(find(root, "menu-item-Docs"));
     await flush();
     const post = calls.find((c) => c.cap === "chat.post")!;
