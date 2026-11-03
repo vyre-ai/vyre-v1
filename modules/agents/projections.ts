@@ -1091,7 +1091,7 @@ export function visible(ctx: AgentsCtx, id: string, code: ErrorCode = "validatio
   return a;
 }
 /** An owner or admin (access.manage) answers for every outside agent in the Space: they may remove one from Console, without seeing it anywhere else or chatting as it. */
-export const governs = (ctx: AgentsCtx, a: AgentRec): boolean => a.runtime === "outside" && allows(ctx, "access.manage", "manage", "space", null) && ctx.authorize !== undefined;
+export const governs = (ctx: AgentsCtx, a: AgentRec): boolean => a.runtime === "outside" && ctx.authorize !== undefined && allows(ctx, "access.manage", "manage", "space", ctx.space);
 
 export async function makeFolder(ctx: AgentsCtx, parentId: string, name: string, key: string, subject?: { kind: "agent"; id: string }): Promise<FolderOut> {
   return (await call<{ folder: FolderOut }>(ctx, "files.folder.create", { parentId, name, idempotencyKey: key, ...(subject ? { subject } : {}) }, { idempotencyKey: key })).folder;
