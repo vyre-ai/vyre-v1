@@ -25,12 +25,12 @@ test("the pane is the prototype's 340 px, its tabs are pinned (no close slot) an
   assert.ok(PANE_TAB_EXTRA < TAB_EXTRA, "a pane tab has no close slot");
   const out = pane({ width: AGENT_PANE_W });
   assert.ok(!out.includes('data-testid="tab-close-computer"'), "no close button on a pane tab");
-  for (const t of ["Computer", "Threads"]) assert.ok(out.includes(t), t);
+  for (const t of ["Computer", "Chats"]) assert.ok(out.includes(t), t);
 });
 
 test("a roomy pane draws every tab, Knows with its count, and no More", () => {
   const out = pane({ width: 640 });
-  for (const t of ["Computer", "Threads", "Files", "Knows 4", "Routines"]) assert.ok(out.includes(t), t);
+  for (const t of ["Computer", "Chats", "Knows 4", "Routines"]) assert.ok(out.includes(t), t);
   assert.ok(!out.includes(">More<"), "no More when everything fits");
 });
 

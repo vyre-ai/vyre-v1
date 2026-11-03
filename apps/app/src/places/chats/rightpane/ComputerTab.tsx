@@ -68,7 +68,7 @@ export function ComputerTab({ deps, window }: { deps: PaneDeps; window?: Virtual
   return <ComputerBody deps={deps} computerId={computerId} canTake={allows(rt, GATE.takeOver)} {...(window ? { window } : {})} />;
 }
 
-export interface HostRowOut { hostId: string; name: string; canRun: boolean; reason?: string }
+export interface HostRowOut { hostId: string; kind?: string; name: string; online?: boolean; canRun: boolean; reason?: string; detail?: string; room?: { fits: number; freeMb: number; totalMb: number } }
 export type HostsAnswer = { state: "loading" } | { state: "error"; message: string } | { state: "ready"; available: boolean; hosts: readonly HostRowOut[] };
 
 /** What the "no computer yet" pane offers, from what the Space says about where a computer can run. The button is there only when a host can run one; otherwise the real reason is. */
@@ -80,24 +80,133 @@ export function setupView(h: HostsAnswer): { kind: "checking" } | { kind: "can" 
   return { kind: "cannot", reasons: reasons.length > 0 ? [...new Set(reasons)] : ["No machine in this Space can run an agent computer yet. Add a server with Docker."] };
 }
 
-/** The pane of an agent that has no computer: the way to make one when one can run, the reason when none can. */
-export function NoneBody({ hosts, canProvision, onProvision }: { hosts: HostsAnswer; canProvision: boolean; onProvision(): void }): ReactElement {
-  const v = setupView(hosts);
+/** The machine that has the most room among those that can run one; the first when they tie. */
+export function bestHost(hosts: readonly HostRowOut[]): HostRowOut | undefined {
+  let best: HostRowOut | undefined;
+  for (const h of hosts) if (h.canRun && (!best || (h.room?.fits ?? 0) > (best.room?.fits ?? 0))) best = h;
+  return best;
+}
+
+/** "Room for 3 more", "Room for 1 more", "Full": what a machine has left, in words. */
+export function roomWords(h: HostRowOut): string {
+  if (!h.canRun) return h.reason ?? "Cannot run one";
+  if (!h.room) return "Ready";
+  return h.room.fits === 0 ? "Full: no room for another" : `Room for ${h.room.fits} more`;
+}
+
+/** The small desktop the computer will look like: the wallpaper, a browser window and the dock of Chrome, Terminal and Files. */
+export function DeskPicture({ height = 124 }: { height?: number }): ReactElement {
   return (
-    <View testID="computer-none" style={st.padded}>
-      <Text style={st.none}>No computer yet</Text>
-      {v.kind === "checking" ? <Text style={st.none} testID="computer-checking">Checking where its computer can run</Text> : null}
-      {v.kind === "cannot" ? <View testID="computer-cannot" style={{ marginTop: 6, gap: 4 }}>{v.reasons.map((r) => <Text key={r} style={st.none}>{r}</Text>)}</View> : null}
-      {v.kind === "can"
-        ? (canProvision
-          ? <View style={{ alignItems: "flex-start", marginTop: 8 }}><TextButton label="Set up its computer" primary onPress={onProvision} testID="computer-provision" /></View>
-          : <Text style={st.none} testID="computer-provision-admin">An owner or admin sets up an agent's computer.</Text>)
-        : null}
+    <View aria-hidden testID="computer-picture" style={[st.pic, { height }]}>
+      <View style={st.picWin}><View style={st.picBar} /><View style={[st.line, { width: "70%", margin: 8 }]} /><View style={[st.line, { width: "50%", marginHorizontal: 8 }]} /></View>
+      <View style={st.dock}>{(["globe", "terminal", "folder"] as const).map((n) => <View key={n} style={st.dockItem}><Icon name={n} size={9} color="#fff" /></View>)}</View>
     </View>
   );
 }
 
-function ComputerNone({ deps, agentId, name, canProvision }: { deps: PaneDeps; agentId: string; name: string; canProvision: boolean }): ReactElement {
+/** The pane of an agent that has no computer: what it gets, where it will run (the best machine chosen), and one button. When no machine can run one, the real reason and the next step, never a button. */
+export function NoneBody({ hosts, canProvision, onProvision, name = "this agent", picked = null, onPick }: { hosts: HostsAnswer; canProvision: boolean; onProvision(hostId: string | null): void; name?: string; picked?: string | null; onPick?(hostId: string): void }): ReactElement {
+  const v = setupView(hosts);
+  const list = hosts.state === "ready" ? hosts.hosts : [];
+  const chosen = list.find((h) => h.hostId === picked && h.canRun) ?? bestHost(list);
+  return (
+    <View testID="computer-none" style={st.padded}>
+      <DeskPicture />
+      <Text accessibilityRole="header" style={st.headline}>{`Give ${name} its own computer`}</Text>
+      <View testID="computer-gets" style={st.gets}>
+        {([["globe", "Its own Chrome, with Vyre for Chrome in it"], ["terminal", "A terminal to run commands in"], ["folder", "A files folder it shares with Vyre Files"]] as const).map(([i, w]) => (
+          <View key={w} style={st.get}><Icon name={i} size={14} color="var(--accent)" /><Text style={st.getText}>{w}</Text></View>
+        ))}
+      </View>
+      {v.kind === "checking" ? <Text style={st.none} testID="computer-checking">Checking where its computer can run</Text> : null}
+      {v.kind === "cannot" ? (
+        <View testID="computer-cannot" style={st.cannot}>
+          <View style={st.cannotHead}><Icon name="warn" size={14} color="var(--warn)" /><Text style={st.cannotTitle}>It cannot run here yet</Text></View>
+          {v.reasons.map((r) => <Text key={r} style={st.none}>{r}</Text>)}
+        </View>
+      ) : null}
+      {v.kind === "can" ? (
+        <>
+          <Text style={st.label}>Where it runs</Text>
+          <View testID="computer-hosts" style={{ gap: 6 }}>
+            {list.map((h) => {
+              const on = chosen?.hostId === h.hostId;
+              return (
+                <Pressable key={h.hostId} testID={`host-${h.hostId}`} accessibilityRole="radio" accessibilityState={{ checked: on, disabled: !h.canRun }} disabled={!h.canRun} onPress={() => onPick?.(h.hostId)} style={[st.host, on && st.hostOn, !h.canRun && { opacity: 0.55 }]}>
+                  <View style={[st.radio, on && st.radioOn]} />
+                  <View style={{ flex: 1, minWidth: 0 }}>
+                    <View style={st.hostTitle}><Text numberOfLines={1} style={st.hostName}>{h.name}</Text>{h.hostId === bestHost(list)?.hostId && h.canRun ? <Text style={st.best}>Best</Text> : null}</View>
+                    {h.detail ? <Text numberOfLines={1} style={st.hostDetail}>{h.detail}</Text> : null}
+                    {h.room && h.canRun ? <View style={st.room}><View style={[st.roomFill, { width: `${Math.max(4, Math.min(100, Math.round((h.room.freeMb / Math.max(1, h.room.totalMb)) * 100)))}%` }]} /></View> : null}
+                    <Text style={st.hostDetail}>{roomWords(h)}</Text>
+                  </View>
+                </Pressable>
+              );
+            })}
+          </View>
+          {canProvision
+            ? <Pressable accessibilityRole="button" testID="computer-provision" onPress={() => onProvision(chosen && chosen.kind === "server" ? chosen.hostId : null)} style={st.go}><Text style={st.goText}>Set up its computer</Text></Pressable>
+            : <Text style={st.none} testID="computer-provision-admin">An owner or admin sets up an agent's computer.</Text>}
+        </>
+      ) : null}
+    </View>
+  );
+}
+
+/** The steps a computer goes through to be ready, from what it reports: the machine, the start, Chrome, and Vyre for Chrome signing in. */
+export const SETUP_STEPS = ["Getting the machine ready", "Starting the computer", "Installing Chrome", "Signing in to Vyre"] as const;
+export function setupStep(c: Pick<Computer, "state" | "tabs" | "lastFrameAt" | "caption">): number {
+  if (c.state === "provisioning") return 0;
+  if (c.state === "waking") return 1;
+  // awake, but nothing has been seen of it yet: no caption, no frame, and the browser is still coming up
+  if (c.state === "working" && c.caption === undefined && c.lastFrameAt === undefined) return c.tabs > 0 ? 3 : 2;
+  return c.state === "working" ? SETUP_STEPS.length : 1;
+}
+export const isSettingUp = (c: Pick<Computer, "state" | "tabs" | "lastFrameAt" | "caption">): boolean => c.state === "provisioning" || c.state === "waking" || (c.state === "working" && setupStep(c) < SETUP_STEPS.length);
+
+/** Real progress, never a bare spinner. */
+export function SettingUp({ name, step, where }: { name: string; step: number; where?: string }): ReactElement {
+  return (
+    <View testID="computer-setting-up" style={st.padded}>
+      <Text accessibilityRole="header" style={st.headline}>{`Setting up ${name}'s computer`}</Text>
+      <Text style={st.none}>{`${where ? `On ${where}. ` : ""}This takes a minute or two.`}</Text>
+      <View style={{ marginTop: 8 }}>
+        {SETUP_STEPS.map((w, i) => (
+          <View key={w} testID={`setup-step-${i}`} accessibilityLabel={`${w}: ${i < step ? "done" : i === step ? "now" : "waiting"}`} style={st.step}>
+            <View style={[st.stepDot, i < step && st.stepDone, i === step && st.stepNow]}>{i < step ? <Icon name="check" size={11} color="#fff" width={2} /> : null}</View>
+            <Text style={[st.stepText, i === step && { color: "var(--ink)", fontWeight: "500" }]}>{w}</Text>
+          </View>
+        ))}
+      </View>
+    </View>
+  );
+}
+
+/** The real reason and the next step, and a way to keep the details. */
+export function FailedBody({ name, reason, details, onCopy, onAgain }: { name: string; reason: string; details: string; onCopy(text: string): void; onAgain(): void }): ReactElement {
+  return (
+    <View testID="computer-failed" style={st.padded}>
+      <Text accessibilityRole="header" style={st.headline}>{`${name}'s computer`}</Text>
+      <View style={st.fail}>
+        <View style={st.cannotHead}><Icon name="warn" size={14} color="var(--danger)" /><Text style={st.failTitle}>The computer could not be set up</Text></View>
+        <Text testID="computer-fail-reason" style={st.failText}>{reason}</Text>
+      </View>
+      <View style={st.row2}>
+        <TextButton label="Copy details" onPress={() => onCopy(details)} testID="computer-copy-details" />
+        <TextButton label="Set up again" primary onPress={onAgain} testID="computer-again" />
+      </View>
+    </View>
+  );
+}
+
+/** The name of the machine a computer runs on: the server it was placed on, or the Space's own. */
+export function hostName(h: HostsAnswer, nodeId: string | null): string {
+  if (h.state !== "ready") return "";
+  return (nodeId ? h.hosts.find((x) => x.hostId === nodeId) : h.hosts.find((x) => x.kind === "space" || x.kind === "this"))?.name ?? "";
+}
+
+/** The hosts the Space offers, read once for the pane. */
+function useHosts(): HostsAnswer {
   const data = usePaneData();
   const [hosts, setHosts] = useState<HostsAnswer>({ state: "loading" });
   useEffect(() => {
@@ -108,8 +217,14 @@ function ComputerNone({ deps, agentId, name, canProvision }: { deps: PaneDeps; a
       setHosts({ state: "ready", available: out.available === true, hosts: Array.isArray(out.hosts) ? out.hosts : [] });
     }).catch((e: unknown) => { if (live) setHosts({ state: "error", message: e instanceof Error ? e.message : "no answer" }); });
     return () => { live = false; };
-  }, [data, agentId]);
-  return <NoneBody hosts={hosts} canProvision={canProvision} onProvision={() => void provision(deps, agentId, name)} />;
+  }, [data]);
+  return hosts;
+}
+
+function ComputerNone({ deps, agentId, name, canProvision }: { deps: PaneDeps; agentId: string; name: string; canProvision: boolean }): ReactElement {
+  const hosts = useHosts();
+  const [picked, setPicked] = useState<string | null>(null);
+  return <NoneBody hosts={hosts} canProvision={canProvision} name={name} picked={picked} onPick={setPicked} onProvision={(nodeId) => void provision(deps, agentId, name, nodeId ?? undefined)} />;
 }
 
 function ComputerBody({ deps, computerId, window, canTake }: { deps: PaneDeps; computerId: string; window?: VirtualWindow; canTake: boolean }): ReactElement {
@@ -117,6 +232,7 @@ function ComputerBody({ deps, computerId, window, canTake }: { deps: PaneDeps; c
   const online = useOnline();
   const [sel, setSel] = useState<number | null>(null);
   const headMenu = useMenu();
+  const hosts = useHosts();
   const q = useScreenQuery<ComputerOut>(COMPUTER_SCREEN, "computer", { computerId });
   const sq = useScreenQuery<SessionsOut>(COMPUTER_SCREEN, "sessions", { computerId });
   const tq = useScreenQuery<TimelineOut>(POPUP_SCREEN, "timeline", { computerId });
@@ -128,6 +244,12 @@ function ComputerBody({ deps, computerId, window, canTake }: { deps: PaneDeps; c
   }
 
   const c: Computer = q.data.computer;
+  const where = c.nodeId ? hostName(hosts, c.nodeId) : hostName(hosts, null);
+  if (c.state === "error") {
+    const reason = c.error ?? "It could not start. Look at the server's logs for the reason.";
+    return <FailedBody name={name} reason={reason} details={`${name}'s computer ${c.computerId}\nstate: error\nreason: ${reason}${where ? `\nruns on: ${where}` : ""}`} onCopy={(text) => void copyText(deps, text)} onAgain={() => void wake(deps, c.computerId, name)} />;
+  }
+  if (isSettingUp(c)) return <SettingUp name={name} step={setupStep(c)} {...(where ? { where } : {})} />;
   const view = computerView(c);
   const steps: Step[] = tq.status === "ready" ? stepRows(tq.data.steps) : [];
   const sessions: Session[] = sq.status === "ready" ? sq.data.sessions : [];
@@ -166,6 +288,16 @@ function ComputerBody({ deps, computerId, window, canTake }: { deps: PaneDeps; c
       key: "screen", type: "block",
       node: <View style={st.padded}><Screen view={view} caption={caption} name={name} online={online} live={{ computerId: c.computerId, state: c.state, control: view.screen === "mine" }} onPress={() => (view.screen === "asleep" ? void wake(deps, c.computerId, name) : view.screen === "mine" ? undefined : data.nav.openComputer(c.computerId))} /></View>,
     },
+    {
+      key: "actions", type: "block",
+      node: (
+        <View testID="computer-actions" style={[st.padded, st.row2]}>
+          <TextButton label="Open" onPress={() => data.nav.openComputer(c.computerId)} testID="computer-open" />
+          {view.screen === "asleep" ? null : <TextButton label="Sleep" onPress={() => void sleep(deps, c.computerId, name)} testID="computer-sleep" />}
+        </View>
+      ),
+    },
+    ...(where ? [{ key: "runs-on", type: "row" as const, title: "Runs on", note: where, leading: <LeadIcon name="server" />, testID: "computer-runs-on" }] : []),
     { key: "l-session", type: "label", text: view.screen === "asleep" ? "Last session" : "Session", right: stepsLine(steps.length) },
   ];
   if (steps.length === 0) entries.push({ key: "no-steps", type: "empty", text: "Nothing yet. Steps appear as it works." });
@@ -213,6 +345,40 @@ function Thumb({ dark, person }: { dark: boolean; person: boolean }): ReactEleme
 }
 
 const st = StyleSheet.create({
+  pic: { borderRadius: 12, backgroundColor: "#211f33" as string, overflow: "hidden", marginBottom: 12, borderWidth: 1, borderColor: "var(--line-2)" as string },
+  picWin: { position: "absolute", left: "12%", right: "12%", top: 14, bottom: 22, borderRadius: 6, backgroundColor: "#f4f3f8" as string, overflow: "hidden" },
+  picBar: { height: 10, backgroundColor: "#dcdbe6" as string },
+  dock: { position: "absolute", bottom: 5, left: 0, right: 0, flexDirection: "row", justifyContent: "center", gap: 5 },
+  dockItem: { width: 15, height: 15, borderRadius: 5, backgroundColor: "rgba(255,255,255,0.22)" as string, alignItems: "center", justifyContent: "center" },
+  headline: { fontSize: 16.5, fontWeight: "600", color: "var(--ink)" as string, marginBottom: 8 },
+  gets: { gap: 7, marginBottom: 14 },
+  get: { flexDirection: "row", gap: 9, alignItems: "flex-start" },
+  getText: { flex: 1, fontSize: 13, lineHeight: 18, color: "var(--ink-2)" as string },
+  label: { fontSize: 11.5, color: "var(--ink-3)" as string, marginBottom: 6, marginTop: 2 },
+  host: { flexDirection: "row", gap: 10, alignItems: "center", padding: 10, borderRadius: 10, borderWidth: 1, borderColor: "var(--line-2)" as string },
+  hostOn: { borderColor: "var(--accent)" as string, backgroundColor: "var(--accent-wash)" as string },
+  radio: { width: 15, height: 15, borderRadius: 8, borderWidth: 1.5, borderColor: "var(--line-2)" as string },
+  radioOn: { borderWidth: 5, borderColor: "var(--accent)" as string },
+  hostTitle: { flexDirection: "row", alignItems: "center", gap: 6 },
+  hostName: { fontSize: 13, fontWeight: "500", color: "var(--ink)" as string, flexShrink: 1 },
+  best: { fontSize: 10.5, fontWeight: "600", color: "var(--accent)" as string, backgroundColor: "var(--accent-wash)" as string, paddingHorizontal: 6, borderRadius: 6, overflow: "hidden" },
+  hostDetail: { fontSize: 11.5, color: "var(--ink-3)" as string },
+  room: { height: 4, borderRadius: 2, backgroundColor: "var(--line-2)" as string, marginVertical: 5, overflow: "hidden" },
+  roomFill: { height: 4, borderRadius: 2, backgroundColor: "var(--accent)" as string },
+  go: { height: 38, borderRadius: 11, backgroundColor: "var(--accent)" as string, alignItems: "center", justifyContent: "center", marginTop: 12 },
+  goText: { fontSize: 13.5, fontWeight: "600", color: "var(--accent-ink)" as string },
+  cannot: { gap: 4, padding: 10, borderRadius: 10, backgroundColor: "var(--sunk)" as string },
+  cannotHead: { flexDirection: "row", alignItems: "center", gap: 7 },
+  cannotTitle: { fontSize: 13, fontWeight: "600", color: "var(--ink)" as string },
+  step: { flexDirection: "row", alignItems: "center", gap: 11, paddingVertical: 8 },
+  stepDot: { width: 20, height: 20, borderRadius: 10, borderWidth: 1.5, borderColor: "var(--line-2)" as string, alignItems: "center", justifyContent: "center" },
+  stepDone: { backgroundColor: "var(--ok)" as string, borderColor: "var(--ok)" as string },
+  stepNow: { borderColor: "var(--accent)" as string },
+  stepText: { fontSize: 13, color: "var(--ink-3)" as string },
+  fail: { padding: 12, borderRadius: 12, backgroundColor: "var(--sunk)" as string, gap: 7, borderWidth: 1, borderColor: "var(--danger)" as string, marginBottom: 10 },
+  failTitle: { fontSize: 13.5, fontWeight: "600", color: "var(--danger)" as string },
+  failText: { fontSize: 13, lineHeight: 18, color: "var(--ink)" as string },
+  row2: { flexDirection: "row", gap: 8 },
   thumb: { width: 38, height: 26, marginRight: 10, borderRadius: 4, paddingHorizontal: 4, paddingTop: 4, gap: 3, backgroundColor: "#1c1d21" as string, borderWidth: 1, borderColor: "var(--line)" as string, overflow: "hidden" },
   thumbDark: { backgroundColor: "#0c0d0f" as string },
   thumbMine: { borderColor: "var(--accent)" as string },

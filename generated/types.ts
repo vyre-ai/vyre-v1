@@ -7762,6 +7762,7 @@ export type ComputersConfigureOut = {
     lastActiveAt?: number;
     takeoverBy?: string;
     recording: boolean;
+    error?: string;
   };
 };
 export type ComputersFilesDeleteIn = {
@@ -7830,6 +7831,7 @@ export type ComputersGetOut = {
     lastActiveAt?: number;
     takeoverBy?: string;
     recording: boolean;
+    error?: string;
   };
 };
 export type ComputersGiveBackIn = {
@@ -7850,6 +7852,7 @@ export type ComputersGiveBackOut = {
     lastActiveAt?: number;
     takeoverBy?: string;
     recording: boolean;
+    error?: string;
   };
 };
 export type ComputersHealthIn = Record<string, unknown>;
@@ -7872,6 +7875,12 @@ export type ComputersHostsOut = {
       canRun: boolean;
       runs: number;
       reason?: string;
+      detail?: string;
+      room?: {
+        fits: number;
+        freeMb: number;
+        totalMb: number;
+      };
     }>;
 };
 export type ComputersListIn = {
@@ -7894,6 +7903,7 @@ export type ComputersListOut = {
       lastActiveAt?: number;
       takeoverBy?: string;
       recording: boolean;
+      error?: string;
     }>;
   next?: string;
   total?: number;
@@ -7919,6 +7929,7 @@ export type ComputersProvisionOut = {
     lastActiveAt?: number;
     takeoverBy?: string;
     recording: boolean;
+    error?: string;
   };
 };
 export type ComputersRecordStartIn = {
@@ -8125,6 +8136,7 @@ export type ComputersSleepOut = {
     lastActiveAt?: number;
     takeoverBy?: string;
     recording: boolean;
+    error?: string;
   };
 };
 export type ComputersStreamIn = {
@@ -8154,6 +8166,7 @@ export type ComputersTakeOverOut = {
     lastActiveAt?: number;
     takeoverBy?: string;
     recording: boolean;
+    error?: string;
   };
   ticket: string;
 };
@@ -8212,6 +8225,7 @@ export type ComputersWakeOut = {
     lastActiveAt?: number;
     takeoverBy?: string;
     recording: boolean;
+    error?: string;
   };
 };
 export type ConflictsAssistIn = {

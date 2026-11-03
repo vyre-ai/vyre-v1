@@ -49,6 +49,7 @@ type Out = {
       lastActiveAt?: number;
       takeoverBy?: string;
       recording: boolean;
+      error?: string;
     }>;
   next?: string;
   total?: number;
@@ -82,6 +83,7 @@ type Out = {
         "caption": "example",
         "computerId": "cmt_a1b2c3",
         "diskBytes": 1,
+        "error": "example",
         "host": "server",
         "lastActiveAt": 1760000000000,
         "lastFrameAt": 1760000000000,

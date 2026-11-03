@@ -92,8 +92,10 @@ function PaneView({ open, onToggle, tab: controlled, initialTab, onTab, window, 
   const narrow = win.width > 0 && win.width < NARROW;
   // no capable host, no agent computers: there is no Computer tab to show and the pane opens on Threads
   const noComputers = !hasComputers(data.space);
+  const hasComputer = (data.agent.computerId ?? "") !== "";
   const [own, setOwn] = useState<TabKey>(initialTab ?? (noComputers ? "threads" : DEFAULT_TAB));
-  const tab = noComputers && (controlled ?? own) === "computer" ? "threads" : controlled ?? own;
+  const wanted = noComputers && (controlled ?? own) === "computer" ? "threads" : controlled ?? own;
+  const tab = !hasComputer && (wanted === "files" || wanted === "terminal") ? "computer" : wanted;
   useKnowsRequest(data.memory?.store, (): void => { setOwn("memory"); onTab?.("memory"); });
   const [paneW, setPaneW] = useState(PANE_WIDTH_GUESS);
   const [notice, setNotice] = useState<{ text: string; undo?: () => Promise<void> | void } | null>(null);
@@ -114,11 +116,11 @@ function PaneView({ open, onToggle, tab: controlled, initialTab, onTab, window, 
   // the Crew tab appears once teammates work for this chat
   const crewQ = useScreenQuery<CapMap["engine.crew.list"]["out"]>(PANE_SCREEN, "crew", { threadId: data.threadId });
   const hasCrew = crewQ.status === "ready" && crewQ.data.jobs.length > 0;
-  const tabs = useMemo(() => tabsOf(data.terminal !== undefined, hasCrew).filter((t) => !(noComputers && t.key === "computer")).map((t) => ({ ...t, pinned: true, ...(t.key === "memory" && facts > 0 ? { title: `Knows ${facts}` } : {}) })), [facts, noComputers, data.terminal, hasCrew]);
+  const tabs = useMemo(() => tabsOf(data.terminal !== undefined, hasCrew, hasComputer).filter((t) => !(noComputers && t.key === "computer")).map((t) => ({ ...t, pinned: true, ...(t.key === "memory" && facts > 0 ? { title: `Knows ${facts}` } : {}) })), [facts, noComputers, data.terminal, hasCrew, hasComputer]);
   const titles = useTitleWidths();
   const paneNow = paneWidth ?? (narrow ? win.width : paneW);
   const { strip, select } = useFittedTabs(tabs, tab, paneNow, {
-    extra: PANE_TAB_EXTRA, chrome: PANE_CHROME, ...(titles.widths.size > 0 ? { chevron: true } : {}), menu, left: Math.max(0, win.width - paneNow) + 40, top: 118, measured: withMore(titles.widths),
+    extra: PANE_TAB_EXTRA, chrome: PANE_CHROME, menu, left: Math.max(0, win.width - paneNow) + 40, top: 118, measured: withMore(titles.widths),
     pick: (key) => { setOwn(key); onTab?.(key); },
   });
   /** The pane's top row: the open item as a tab, the agent with its face and a close x, as the prototype draws it above the agent's header. */
@@ -142,7 +144,7 @@ function PaneView({ open, onToggle, tab: controlled, initialTab, onTab, window, 
           <Face name={data.agent.name} seedId={data.agent.agentId} size={30} pulse={agent?.status === "working"} />
           <View style={st.whoText}>
             <Text numberOfLines={1} style={st.name}>{data.agent.name}</Text>
-            {agent?.role ? <Text numberOfLines={1} style={st.role}>{agent.role}</Text> : null}
+            {agent?.role ? <Text numberOfLines={2} style={st.role} {...({ title: agent.role } as object)}>{agent.role}</Text> : null}
           </View>
           <Tool icon="more" label="More" onPress={moreMenu} testID="pane-more" />
         </View>

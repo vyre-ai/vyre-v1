@@ -5,7 +5,7 @@ import type { CapMap } from "../../../../../../generated/types.ts";
 export type TabKey = "computer" | "threads" | "files" | "terminal" | "memory" | "routines" | "crew";
 export const TABS: readonly { key: TabKey; title: string }[] = [
   { key: "computer", title: "Computer" },
-  { key: "threads", title: "Threads" },
+  { key: "threads", title: "Chats" },
   { key: "files", title: "Files" },
   { key: "memory", title: "Knows" },
   { key: "routines", title: "Routines" },
@@ -13,8 +13,11 @@ export const TABS: readonly { key: TabKey; title: string }[] = [
 /** The sixth tab, shown only where the shell has a terminal; it sits after Files. */
 export const TERMINAL_TAB: { key: TabKey; title: string } = { key: "terminal", title: "Terminal" };
 /** The tabs of a pane: the five, with Terminal after Files when the shell has one. */
-export const tabsOf = (terminal: boolean, crew = false): readonly { key: TabKey; title: string }[] => {
-  const base = terminal ? [...TABS.slice(0, 3), TERMINAL_TAB, ...TABS.slice(3)] : TABS;
+export const tabsOf = (terminal: boolean, crew = false, computer = true): readonly { key: TabKey; title: string }[] => {
+  // Files and Terminal are the computer's: they appear once the agent has one
+  const own = TABS.filter((t) => computer || t.key !== "files");
+  const at = own.findIndex((t) => t.key === "files") + 1;
+  const base = terminal && computer ? [...own.slice(0, at), TERMINAL_TAB, ...own.slice(at)] : own;
   return crew ? [...base.slice(0, 2), CREW_TAB, ...base.slice(2)] : base;
 };
 /** The Crew tab: shown only in a chat that has teammates working for it, right after Threads. */
