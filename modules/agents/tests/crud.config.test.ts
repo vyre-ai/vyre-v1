@@ -312,6 +312,18 @@ test("the chat key, the ordered fallback list and the memory key are settings of
   assert.deepEqual([cleared.agent.accountFallback, cleared.agent.memoryKey], [[], undefined]);
 });
 
+test("a late event for an older agent.toml version does not undo a newer save: the memory key set after it stays", async () => {
+  const { hn, id, toml } = await setup();
+  const first = hn.world.files.get(toml.fileId)!.versions[0]!;
+  const v1 = { payload: { fileId: toml.fileId, versionId: first.versionId, n: first.n, by: DANA } };
+  await call(hn, "agents.update", { agentId: id, patch: { memoryKey: "#Team_M" } });
+  // the host delivers consumers after commit, at least once: the event for the version agents.create wrote can arrive after the update
+  await watch.run(hn.ctx, v1);
+  assert.equal((await call(hn, "agents.get", { agentId: id })).agent.memoryKey, "#Team_M");
+  assert.deepEqual(await h["agents.memory_key.get"]!(hn.as({ kind: "service", id: "svc_host" }), { agentId: id }), { memoryKey: "#Team_M", ownerId: DANA });
+  assert.equal(hn.named("agent.config_changed").filter((e) => e.payload["versionId"] === first.versionId).length, 0, "nothing announces the old version");
+});
+
 test("switch when limits run out is a setting of the agent, on until set to false, kept in agent.toml and checked as true or false", async () => {
   const hn = harness();
   const a = (await h["agents.create"]!(hn.ctx, { name: "Switchy", role: "Use me when a limit runs out.", idempotencyKey: "sw1" })).agent;
