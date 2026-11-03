@@ -6,6 +6,8 @@ export { createEgressProxy } from "./egress.ts";
 export { PUBLIC_RULE, RULE_ENV, VYRE_PORTS, addressRefusal, inCidr, ownNetworks, ruleFromEnv, toolProxyEnv, validateRule } from "./egress-policy.ts";
 export type { Cidr, EgressRule } from "./egress-policy.ts";
 export { CONNECT_SOURCE, GUEST_CONNECT } from "./net/guest.ts";
+export { ACCESS_ENV, accessFromEnv, addedFolder, engineAccess, homeDenies, packageLocations, sshFiles } from "./engine-access.ts";
+export type { AccessAsked, EngineAccess, EngineAccessInput, EngineWhere } from "./engine-access.ts";
 export type { EgressEvent, EgressOptions, EgressProxy } from "./egress.ts";
 export { CRED_DIR, DEFAULT_IMAGE, HOME, containerConfig, createDockerApi, demux, networkName, proxyEnv, reviewContainerConfig, unixSocketHttp } from "./docker.ts";
 export type { ContainerConfig, DockerApi, DockerHttp, DockerRequest, DockerResponse, DockerSandboxDeps, ProxyHandle } from "./docker.ts";

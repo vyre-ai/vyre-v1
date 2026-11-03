@@ -11,6 +11,8 @@ import type { PolicyOptions } from "../policy.ts";
 import { SandboxError } from "../types.ts";
 import type { CredentialFile, ExecResult, ExecSpec, Roots, Sandbox, SandboxSpec } from "../types.ts";
 import { toolProxyEnv } from "../egress-policy.ts";
+import { sshFiles } from "../engine-access.ts";
+import type { EngineAccess } from "../engine-access.ts";
 import { GUEST_BRIDGE, GUEST_CONNECT, GUEST_DIR, GUEST_PORT, GUEST_SOCKET } from "./guest.ts";
 import { startNetWall } from "./host.ts";
 import type { NetWall, NetWallOptions } from "./host.ts";
@@ -29,6 +31,10 @@ export interface BwrapWallOptions {
   programRead?: readonly string[];
   /** A folder inside the scratch folder that is bound where the sandbox's home is, instead of an empty one: the engine's sign-in files are in it. */
   home?: string;
+  /** What the engine may touch besides its work folder (engine-access.ts). */
+  access?: EngineAccess;
+  /** The PATH the program would have outside, which access.pathAdd goes in front of. Default: the sandbox's own. */
+  basePath?: string;
 }
 
 export interface WalledCommand {
@@ -59,13 +65,26 @@ export function bwrapWallCommand(spec: SandboxSpec, roots: Roots, argv: readonly
     if (checked.scratch === undefined || !(o.home === checked.scratch || o.home.startsWith(`${checked.scratch}${path.sep}`))) throw new SandboxError("sandbox.policy", "the home folder must be inside the scratch folder");
     a.push("--bind", o.home, HOME);
   } else a.push("--tmpfs", HOME);
+  const acc = o.access;
+  if (acc) {
+    // the person's folders and package locations; then over them what stays closed (an empty folder over a folder, /dev/null over a file); then the configs; the work folder and scratch follow
+    for (const p of acc.rw) a.push("--bind-try", p, p);
+    const opened = [...acc.rw, ...(o.programRead ?? [])];
+    for (const d of acc.deny) {
+      if (!opened.some((r) => d === r || d.startsWith(`${r}/`) || r.startsWith(`${d}/`)) || !fs.existsSync(d)) continue;
+      if (fs.statSync(d).isDirectory()) a.push("--tmpfs", d); else a.push("--ro-bind", "/dev/null", d);
+    }
+    for (const p of acc.roFiles) a.push("--ro-bind-try", p, p);
+    if (acc.sshAuthSock && fs.existsSync(acc.sshAuthSock)) a.push("--bind", acc.sshAuthSock, acc.sshAuthSock);
+  }
   for (const m of checked.mounts) a.push(m.mode === "rw" ? "--bind" : "--ro-bind", m.host, m.host);
   if (checked.scratch !== undefined) a.push("--bind", checked.scratch, checked.scratch);
   a.push("--ro-bind", o.wallDir, GUEST_DIR);
+  const basePath = o.basePath ?? `${prefix ? `${prefix}/bin:` : ""}/usr/local/bin:/usr/bin:/bin`;
   const env: Record<string, string> = {
-    ...(spec.env ?? {}), HOME, PATH: `${prefix ? `${prefix}/bin:` : ""}/usr/local/bin:/usr/bin:/bin`, LANG: "C.UTF-8",
+    ...(spec.env ?? {}), ...(acc?.env ?? {}), ...(acc?.sshAuthSock ? { SSH_AUTH_SOCK: acc.sshAuthSock } : {}), HOME, PATH: [...(acc?.pathAdd ?? []), basePath].join(":"), LANG: "C.UTF-8",
     // the proxy for every tool, and git+ssh through the bridge's CONNECT helper (the wall has no other way out)
-    ...toolProxyEnv(`http://127.0.0.1:${GUEST_PORT}`, { node, helper: GUEST_CONNECT, port: GUEST_PORT, knownHosts: `${HOME}/.vyre-known-hosts` }),
+    ...toolProxyEnv(`http://127.0.0.1:${GUEST_PORT}`, { node, helper: GUEST_CONNECT, port: GUEST_PORT, ...sshFiles(acc, `${HOME}/.vyre-known-hosts`) }),
   };
   // bwrap builds the new root as a writable tmpfs; nothing may be written on it. The binds above are their own mounts and stay as asked.
   a.push("--remount-ro", "/");

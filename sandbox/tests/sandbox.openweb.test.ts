@@ -158,6 +158,6 @@ test("the tools' variables: every proxy name the usual tools read, and git's ssh
   for (const k of ["HTTP_PROXY", "HTTPS_PROXY", "http_proxy", "https_proxy", "ALL_PROXY", "npm_config_proxy", "npm_config_https_proxy", "PIP_PROXY", "CARGO_HTTP_PROXY"]) assert.equal(env[k], "http://127.0.0.1:3128", k);
   assert.equal(env["NODE_USE_ENV_PROXY"], "1");
   assert.equal(env["NO_PROXY"], "localhost,127.0.0.1");
-  assert.match(env["GIT_SSH_COMMAND"] ?? "", /^ssh -F \/dev\/null -o 'ProxyCommand="\/usr\/bin\/node" "\/run\/vyre-net\/connect\.mjs" 3128 %h %p' -o StrictHostKeyChecking=accept-new/);
+  assert.match(env["GIT_SSH_COMMAND"] ?? "", /^ssh -F '\/dev\/null' -o 'ProxyCommand="\/usr\/bin\/node" "\/run\/vyre-net\/connect\.mjs" 3128 %h %p' -o StrictHostKeyChecking=accept-new/);
   assert.equal(toolProxyEnv("http://127.0.0.1:1")["GIT_SSH_COMMAND"], undefined, "no helper, no ssh command");
 });

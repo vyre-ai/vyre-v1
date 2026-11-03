@@ -121,7 +121,7 @@ export function addressRefusal(ip: string, own: readonly Cidr[]): "private_addre
  * own web tools. `ssh` is given to git as a command that tunnels through the proxy (CONNECT host:22), so a git+ssh remote on a public host works when the rule lets it. `ssh` needs the bridge's
  * connect helper and the Node that runs it, which only the walled sandboxes have.
  */
-export function toolProxyEnv(proxyUrl: string, ssh?: { node: string; helper: string; port: number; knownHosts: string }): Record<string, string> {
+export function toolProxyEnv(proxyUrl: string, ssh?: { node: string; helper: string; port: number; knownHosts: string; config?: string }): Record<string, string> {
   const env: Record<string, string> = {
     HTTP_PROXY: proxyUrl, HTTPS_PROXY: proxyUrl, ALL_PROXY: proxyUrl, http_proxy: proxyUrl, https_proxy: proxyUrl, all_proxy: proxyUrl,
     NO_PROXY: "localhost,127.0.0.1", no_proxy: "localhost,127.0.0.1",
@@ -134,9 +134,9 @@ export function toolProxyEnv(proxyUrl: string, ssh?: { node: string; helper: str
   if (ssh) {
     const q = (s: string): string => `"${s.replace(/(["\\$`])/g, "\\$1")}"`;
     const proxyCommand = `ProxyCommand=${q(ssh.node)} ${q(ssh.helper)} ${ssh.port} %h %p`;
-    // single quotes for git's shell, double quotes inside for the shell ssh runs the ProxyCommand with; -F /dev/null so ssh reads no config the sandbox cannot open
+    // single quotes for git's shell, double quotes inside for the shell ssh runs the ProxyCommand with; -F the person's own config when the sandbox may read it, else /dev/null so ssh reads none
     const sq = (s: string): string => `'${s.replace(/'/g, "'\\''")}'`;
-    env["GIT_SSH_COMMAND"] = ["ssh", "-F", "/dev/null", "-o", sq(proxyCommand), "-o", "StrictHostKeyChecking=accept-new", "-o", sq(`UserKnownHostsFile=${ssh.knownHosts}`), "-o", "BatchMode=yes", "-o", "ConnectTimeout=20"].join(" ");
+    env["GIT_SSH_COMMAND"] = ["ssh", "-F", sq(ssh.config ?? "/dev/null"), "-o", sq(proxyCommand), "-o", "StrictHostKeyChecking=accept-new", "-o", sq(`UserKnownHostsFile=${ssh.knownHosts}`), "-o", "BatchMode=yes", "-o", "ConnectTimeout=20"].join(" ");
   }
   return env;
 }

@@ -56,3 +56,16 @@ test("the record: a turn's details show the hosts reached while it ran and its r
   assert.equal(audits.length, 1);
   assert.deepEqual(audits[0], { action: "engine.egress_denied", class: "deny", resource: { type: "thread", id: "thr_1" }, onBehalfOf: { kind: "person", id: "usr_dana" }, detail: { host: "169.254.169.254", port: 80, reason: "private_address", why: "it points to a private or local address" } });
 });
+
+test("engineAccessFor: the person's own computer gets their added folders; a Team Space server, or someone else's computer hosting the Space, gets the server rules", async () => {
+  const { engineAccessFor } = await import("../runtime.ts");
+  const call = (space: unknown) => async (cap: string, input: unknown) => {
+    if (cap === "spaces.get") return { space };
+    if (cap === "mounts.engine_folders") { assert.deepEqual(input, { person: "usr_dana" }); return { folders: [{ path: "/Users/dana/code" }, { path: 3 }] }; }
+    throw new Error(cap);
+  };
+  assert.deepEqual(await engineAccessFor(call({ kind: "personal", owner: "usr_dana", address: { mode: "device" } }), "usr_dana"), { where: "own", folders: ["/Users/dana/code"] });
+  assert.deepEqual(await engineAccessFor(call({ kind: "team", owner: "usr_dana", address: { mode: "device" } }), "usr_dana"), { where: "own", folders: ["/Users/dana/code"] }, "a Team Space on the owner's own computer");
+  assert.deepEqual(await engineAccessFor(call({ kind: "team", owner: "usr_dana", address: { mode: "device" } }), "usr_ravi"), { where: "server", folders: [] }, "a member's turn on the owner's computer is not on their own computer");
+  assert.deepEqual(await engineAccessFor(call({ kind: "team", owner: "usr_dana", address: { mode: "relay" } }), "usr_dana"), { where: "server", folders: [] });
+});

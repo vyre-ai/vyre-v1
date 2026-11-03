@@ -3,8 +3,9 @@
 // agent's tools run through the invoke pipeline. An API-key driver gets the agent's role as its system prompt and no tools yet: running its tools needs the engine's tool runner (callTool),
 // which is a separate packet; until then a chat on an API key answers in words only.
 import { LaunchError, createLocalLauncher } from "../../agent/src/drivers/cli/launcher.ts";
-import { RULE_ENV, SandboxError, ruleFromEnv } from "../../sandbox/src/index.ts";
-import type { EgressEvent, EgressRule } from "../../sandbox/src/index.ts";
+import { ACCESS_ENV, RULE_ENV, SandboxError, accessFromEnv, engineAccess, ruleFromEnv } from "../../sandbox/src/index.ts";
+import type { AccessAsked, EgressEvent, EgressRule, EngineAccess } from "../../sandbox/src/index.ts";
+import os from "node:os";
 import { openMcpBridge } from "./mcp-bridge.ts";
 import { enginePath, wallEgress, wallEgressOfRule } from "./sandbox-default.ts";
 import { CLI_NAME, findProgram, isOwned, ownedDirs } from "./cli-programs.ts";
@@ -72,6 +73,11 @@ export interface OpenerHost {
    * A rule that cannot be read is "Only the AI providers": a failed read never opens more than the Space chose.
    */
   egress?: { rule(): Promise<EgressRule>; record?: EgressWatch };
+  /**
+   * What the engine may touch on files (owner ruling 3 Nov), asked as each process starts: the place ("own": the person's own computer; "server": a Space server) and the folders the person added
+   * from their computer. Absent: the work folder only, as before. A failed read is the work folder and the toolbox only (server), never more.
+   */
+  access?: (asker: string, on: "space") => Promise<AccessAsked>;
   own?: (person: string) => boolean;
   now?: () => number;
   /** Set false to keep installed plugins out of a CLI engine's own config. Default: they are written there. */
@@ -214,8 +220,9 @@ export async function signinsSettled(): Promise<void> {
  */
 export async function spawnCli(planned: SandboxPlan, spec: LaunchSpec, argv: readonly string[], o: { wrapOf?: typeof sandboxWrap; onEgress?: EgressWatch } = {}): Promise<CliProcess> {
   const { signinBack, ...launch } = spec;
-  const { [RULE_ENV]: ruleText, ...rest } = launch.env;
+  const { [RULE_ENV]: ruleText, [ACCESS_ENV]: accessText, ...rest } = launch.env;
   const rule = ruleFromEnv(ruleText);
+  const asked = accessFromEnv(accessText);
   const { env, files } = takeCredentialFiles(rest);
   let placed: Placed | undefined;
   if (files !== undefined) {
@@ -234,11 +241,54 @@ export async function spawnCli(planned: SandboxPlan, spec: LaunchSpec, argv: rea
     }
     // The engine's home is always the person's scratch home: the CLI keeps its sessions there (Claude Code ~/.claude/projects, Codex ~/.codex/sessions, Grok ~/.grok/sessions), and a chat resumes
     // them after a restart (cli-sessions.ts). An empty home per process would lose them between Codex and Grok turns. Sign-in files placed there are still removed when the process ends.
-    const proc = await createLocalLauncher({ wrap: (o.wrapOf ?? sandboxWrap)(plan, { homeFromScratch: true }), baseEnv: launcherEnv() }).spawn({ ...launch, env, argv });
+    const base = launcherEnv();
+    const access = asked ? withSudoShim(accessHere(planned.dataDir, launch.cwd, asked), planned.dataDir, launch.cwd) : undefined;
+    const proc = await createLocalLauncher({ wrap: (o.wrapOf ?? sandboxWrap)(plan, { homeFromScratch: true, ...(access ? { access, ...(base["PATH"] ? { basePath: base["PATH"] } : {}) } : {}) }), baseEnv: base }).spawn({ ...launch, env, argv });
     if (placed) { const p = placed; const end = (): void => settleSignin(p, signinBack); void proc.exited.then(end, end); }
     if (wall) { const w = wall; const end = (): void => { void w.close().catch(() => undefined); }; void proc.exited.then(end, end); }
     return proc;
   } catch (e) { placed?.release(); await wall?.close().catch(() => undefined); throw e; }
+}
+
+/**
+ * What the engine may touch on this machine (engine-access.ts), from what the Space decided (the place, the person's folders) and what only this machine knows: its home, its data folder, which of
+ * the folders are here, the SSH agent. A server's toolbox is made on first use and kept, so what an agent installs for the Space is there the next turn.
+ */
+export function accessHere(dataDir: string, cwd: string | undefined, asked: AccessAsked, o: { home?: string; platform?: NodeJS.Platform; sshAuthSock?: string | undefined } = {}): EngineAccess {
+  const real = (p: string): string => { try { return fs.realpathSync(p); } catch { return p; } };
+  const data = real(dataDir);
+  const where = workOf(dataDir, cwd);
+  const own = [...(cwd ? [cwd] : []), ...(where ? [scratchFolder(dataDir, where.person)] : [])];
+  const toolbox = path.join(data, "toolbox");
+  if (asked.where === "server") fs.mkdirSync(toolbox, { recursive: true });
+  const sock = Object.hasOwn(o, "sshAuthSock") ? o.sshAuthSock : process.env["SSH_AUTH_SOCK"];
+  return engineAccess({
+    where: asked.where, home: o.home ?? os.homedir(), dataDir: data, platform: o.platform ?? process.platform, folders: asked.folders.filter((f) => fs.existsSync(f)).map(real), own, toolbox,
+    ...(asked.where === "own" && sock ? { sshAuthSock: sock } : {}), exists: fs.existsSync,
+  });
+}
+
+/**
+ * The `sudo` an engine finds first on its PATH: administrator rights never pass silently (owner ruling 3 Nov), so it says how to hand the command to the person instead, through the Terminal card
+ * (terminal_request: "Run in my terminal", Copy, Decline). It exits 126, the shell's "cannot run", so a script stops there rather than going on without the step.
+ */
+export const SUDO_SHIM = `#!/bin/sh
+echo "sudo: AI tools in Vyre do not get administrator rights. Ask the person to run it: call the terminal_request tool with command \\"sudo $*\\" and why it is needed; they can run it in their terminal with one click." >&2
+exit 126
+`;
+
+function withSudoShim(a: EngineAccess, dataDir: string, cwd: string | undefined): EngineAccess {
+  const who = workOf(dataDir, cwd);
+  if (!who) return a;
+  const bin = path.join(scratchFolder(dataDir, who.person), "bin");
+  fs.mkdirSync(bin, { recursive: true });
+  for (const name of ["sudo", "doas"]) fs.writeFileSync(path.join(bin, name), SUDO_SHIM, { mode: 0o755 });
+  return { ...a, pathAdd: [bin, ...a.pathAdd] };
+}
+
+/** The spawn as the opener hands it on, with what the engine may touch (the place and the person's folders) set last, like the rule. */
+export function withAccess(spec: LaunchSpec, asked: AccessAsked): LaunchSpec {
+  return { ...spec, env: { ...spec.env, [ACCESS_ENV]: JSON.stringify(asked) } };
 }
 
 /** Where an engine process went on the network: one call per host and verdict per process (at most 40 of each), with the person and thread of its work folder. */
@@ -279,7 +329,15 @@ export function withRule(spec: LaunchSpec, rule: EgressRule): LaunchSpec {
 export function buildNodeOpener(h: OpenerHost, launcher: Launcher): SessionOpener {
   const system = roleBlocks(h.call);
   // the Space's network rule travels with the spawn to the person's computer, whose own sandbox applies it (node-cli.ts)
-  const ruled: Launcher = h.egress ? { ...launcher, spawn: async (spec) => launcher.spawn(withRule(spec, await ruleOf(h.egress!))) } : launcher;
+  const ruled: Launcher = h.egress || h.access ? {
+    ...launcher,
+    spawn: async (spec) => {
+      let s = h.egress ? withRule(spec, await ruleOf(h.egress)) : spec;
+      // the person's own server: package locations, configs and the SSH agent there. Their added folders are on the computer they added them from, which is the Space's own (accessOf below).
+      if (h.access) s = withAccess(s, { where: "own", folders: [] });
+      return launcher.spawn(s);
+    },
+  } : launcher;
   return createSessionOpener({
     source: h.session.source, reportMiss: h.session.reportMiss, mcp: h.session.mcp, ...(h.own ? { own: h.own } : {}),
     launcher: ruled, where: "device", placement: "device",
@@ -324,7 +382,9 @@ export function buildOpener(h: OpenerHost): SessionOpener {
       spawn: async (spec) => {
         const swap = spec.argv[0] !== undefined ? h.cliCommand?.[spec.argv[0]] : undefined;
         if (swap === undefined) refuseMissingProgram(spec.argv[0] ?? "", h.cliProbe);
-        const ruled = h.egress ? withRule(spec, await ruleOf(h.egress)) : spec;
+        let ruled = h.egress ? withRule(spec, await ruleOf(h.egress)) : spec;
+        const who = dataDir ? workOf(dataDir, spec.cwd) : null;
+        if (h.access && who) ruled = withAccess(ruled, await h.access(who.person, "space").catch(() => ({ where: "server" as const, folders: [] })));
         return spawnCli(await plan(), ruled, swap ? [...swap, ...spec.argv.slice(1)] : ownedArgv(spec.argv, h.cliProbe), h.egress?.record ? { onEgress: h.egress.record } : {});
       },
     },
