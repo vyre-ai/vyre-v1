@@ -31,7 +31,10 @@ test("the words follow the act: Send, Post, Pay or Delete, and the matching Don'
 test("the held card draws the four fields and three buttons; once answered it says what happened and has no buttons", () => {
   const open = renderToStaticMarkup(<HeldSendCard id="b1" data={HELD} agentId="agt_scout" actions={{ send() {}, drop() {}, edit() {}, watch() {}, takeOver() {} }} />);
   const t = flat(open);
+  assert.match(t, /Held: send this/);
   assert.match(t, /Scout wants to send this/);
+  assert.match(t, /Where mail\.google\.com, in your Chrome/);
+  assert.match(t, /Scout stopped before Send/);
   for (const w of ["To", "dana@client.test", "From", "olivia@firm.test", "Subject", "Your signed deed", "Message", "Hi Dana, the signed deed is attached."]) assert.ok(t.includes(w), w);
   for (const id of ["send", "edit", "drop"]) assert.match(open, new RegExp(`chrome-held-${id}-b1`));
   assert.match(t, /Don't send/);

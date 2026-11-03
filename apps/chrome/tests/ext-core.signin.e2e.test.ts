@@ -90,3 +90,37 @@ test("Save to Vault?: Mine by default; Shared lists the folders you may add to a
     assert.equal(r.callsTo("vault.folders.list").filter((c) => c.input["scope"] === "mine").length, 0, "the Mine folder was never needed");
   } finally { await r.close(); await srv.close(); }
 });
+
+test("a page script cannot read the Save card, the picker or the password, even while Peek shows it", { skip: !found && "no Chromium on this machine", timeout: 60_000 }, async () => {
+  const srv = await site({ "/login": LOGIN, "/dashboard": DASH });
+  let push: (m: Record<string, unknown>) => void = () => {};
+  const r = await launch(found!, { caps: vaultCaps((m) => push(m)), ops: { "agents.list": () => AGENTS, "login.check": () => ({ state: "new", name: "Acme Portal" }) } });
+  push = (m) => r.bridge.push(m);
+  /** Everything a hostile page script can reach: the whole document, every open shadow root, every attribute, and what a script can call on the extension's host elements. */
+  const probe = () => ({
+    html: document.documentElement.outerHTML,
+    roots: [...document.querySelectorAll("*")].map((e) => (e as Element).shadowRoot).filter(Boolean).length,
+    text: document.documentElement.innerText,
+    forms: [...document.querySelectorAll("input")].map((i) => (i as HTMLInputElement).value),
+  });
+  try {
+    await r.worker.evaluate(() => (globalThis as any).chrome.storage.local.set({ activeSpace: "spc_mla" }));
+    const page = await r.context.newPage();
+    await page.goto(srv.url + "/login");
+    await page.fill("#em", USERNAME);
+    await page.fill("#pw", PASSWORD);
+    await page.click("button[type=submit]");
+    await boxOf(page, "button", "Peek");
+    await press(page, "button", "Peek");
+    await new Promise((x) => setTimeout(x, 200));
+    const seen = await page.evaluate(probe);
+    assert.equal(seen.roots, 0, "no open shadow root: the card's is closed");
+    assert.ok(!seen.html.includes(PASSWORD) && !seen.text.includes(PASSWORD), "the password is not in anything the page can read");
+    assert.ok(!JSON.stringify(seen.forms).includes(PASSWORD));
+    // and a click the page makes cannot press the card's buttons: it has no way to reach them
+    const reached = await page.evaluate(() => document.elementFromPoint(window.innerWidth - 100, 60)?.tagName ?? "");
+    assert.ok(reached !== "BUTTON" && reached !== "INPUT", "the page sees the host element, not the card's controls");
+    const shot = await boxOf(page, "button", "Peek");
+    assert.ok(shot.x > 0, "while the person can");
+  } finally { await r.close(); await srv.close(); }
+});

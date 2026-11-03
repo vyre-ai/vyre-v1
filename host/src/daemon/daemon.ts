@@ -124,6 +124,8 @@ import { createWebhookRoute } from "../routes/webhooks.ts";
 import { createComputeRoute } from "../routes/compute.ts";
 import { createComputeStream } from "../routes/compute-stream.ts";
 import { createLocalWork, createLocalWorkRoute } from "../routes/local-work.ts";
+import { createChromeAgentsRoute } from "../routes/chrome-agents.ts";
+import { bindPersonalChrome } from "../../../modules/computers/projections.ts";
 import { createTeamLinksRoute } from "../routes/team-links.ts";
 import type { TeamLink } from "../routes/team-links.ts";
 import type { ComputeStream } from "../routes/compute-stream.ts";
@@ -419,7 +421,10 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   // teamLinks below), through that Space's gateway. Never as the owner, never with this daemon's admin token; with nobody signed in they are refused.
   let chromeApp: { invoke(cap: string, input: Record<string, unknown>): Promise<unknown>; op(op: string, input: Record<string, unknown>): Promise<unknown> } | null = null;
   const chromeNotReady = (): Promise<never> => Promise.reject(Object.assign(new Error("The Vyre app cannot answer that yet."), { code: "not_available" }));
-  const chromeBridge = createChromeBridge({ token, invoke: (cap, input) => (chromeApp ? chromeApp.invoke(cap, input) : chromeNotReady()), op: (op, input) => (chromeApp ? chromeApp.op(op, input) : chromeNotReady()), onEvent: (e) => sink.log({ space: "-", level: 20, msg: "chrome.agent_event", place: "chrome-bridge", attrs: { event: e.event, agent: typeof e["agent"] === "string" ? e["agent"] : "" } }) });
+  // What the extension said about held items and the agent's tab, kept in memory for the chat's cards (modules/computers PersonalChrome.held and .frame).
+  const chromeHeld = new Map<string, { site?: string; kind?: string; summary?: string; card?: Record<string, string> }>();
+  const chromeFrames = new Map<string, { site: string; thumb: string }>();
+  const chromeBridge = createChromeBridge({ token, invoke: (cap, input) => (chromeApp ? chromeApp.invoke(cap, input) : chromeNotReady()), op: (op, input) => (chromeApp ? chromeApp.op(op, input) : chromeNotReady()), onEvent: (e) => { if (e.event === "held" && typeof e["id"] === "string") { chromeHeld.set(e["id"], { site: String((e["card"] as { site?: unknown } | undefined)?.site ?? ""), kind: String(e["kind"] ?? ""), summary: String(e["summary"] ?? ""), card: (e["card"] ?? {}) as Record<string, string> }); if (chromeHeld.size > 100) chromeHeld.delete(chromeHeld.keys().next().value as string); } if (e.event === "frame" && typeof e["agent"] === "string" && typeof e["thumb"] === "string") chromeFrames.set(e["agent"], { site: String(e["site"] ?? ""), thumb: e["thumb"] }); sink.log({ space: "-", level: 20, msg: "chrome.agent_event", place: "chrome-bridge", attrs: { event: e.event, agent: typeof e["agent"] === "string" ? e["agent"] : "" } }); } });
   closers.push(() => { chromeBridge.failAll(); chromeBridge.closeStreams(); });
   const fetchFn: FetchFn | null = o.fetch ?? (typeof fetch === "function" ? (fetch as unknown as FetchFn) : null);
 
@@ -583,6 +588,25 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
     call: (s, cap, input) => gatewayCall(s, cap, input),
     push: (m) => { chromeBridge.push(m); },
   });
+  // The person's own Chrome as a place the Chrome tools can run: only for an agent working for the person signed in to it, in the Space they picked, once they opened Chrome to agents (POST /local/chrome/agents).
+  const agentNames = new Map<string, string>();
+  bindPersonalChrome({
+    async available({ space, person }) {
+      const open = chromeBridge.opened;
+      if (!chromeApp || chromeBridge.connected === 0 || !open || open.mode !== "personal" || !open.spaces.includes(space)) return false;
+      try { const w = (await chromeApp.op("whoami", {})) as { person?: string; spaceId?: string }; return w.person === person && w.spaceId === space; } catch { return false; }
+    },
+    async call({ tool, args, agent, space, thread, timeoutMs }) {
+      if (chromeApp && !agentNames.has(agent.id)) {
+        try { for (const a of ((await chromeApp.op("agents.list", {})) as { agents?: { id: string; name: string }[] }).agents ?? []) agentNames.set(a.id, a.name); } catch { /* the id will do */ }
+      }
+      return (await chromeBridge.callTool({ tool, input: args, agent: { id: agent.id, name: agentNames.get(agent.id) ?? agent.id }, space, ...(thread ? { thread } : {}), timeoutMs })) as Record<string, unknown>;
+    },
+    held: (id) => chromeHeld.get(id) ?? null,
+    frame: (agentId) => chromeFrames.get(agentId) ?? null,
+  });
+  closers.push(() => bindPersonalChrome(null));
+  const chromeAgentsRoute = createChromeAgentsRoute({ token, optIn: (spaces) => chromeBridge.optIn(spaces, "personal"), opened: () => chromeBridge.opened?.spaces ?? [], sameToken });
   let computeRecording: (nodeId: string, a: { token: string; computerId: string; url: string; bytes: Buffer }) => Promise<boolean> = () => Promise.resolve(false);
   // GET /local/daemon/busy and POST /local/daemon/drain: what runs on this computer now, asked by the desktop shell before it stops this daemon to update the app (routes/local-work.ts).
   // The engine module reports its running turns through its seam (turns below); a link that runs a person's Team Space turns here adds itself as a source that hands over on drain.
@@ -2236,7 +2260,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       }
       if (siteHostRoute.handle(req, res)) return;
       if (peerService?.handle(req, res)) return;
-      if (liveTicketRoute.handle(req, res) || publicPath.handle(req, res) || siteSigninPage.handle(req, res) || mcpRoute.handle(req, res) || chromeBridge.handle(req, res) || githubSignInRoute.handle(req, res) || ssoSignInRoute.handle(req, res) || blobRoute?.handle(req, res) || formsPageRoute?.handle(req, res) || unsubscribeRoute.handle(req, res) || shareRoute?.handle(req, res) || portalLinkRoute?.handle(req, res) || exportRoute.handle(req, res) || webhookRoute.handle(req, res) || computeRoute.handle(req, res) || computeStream.handle(req, res) || localWorkRoute.handle(req, res) || teamLinks.handle(req, res) || fillRoute.handle(req, res) || localKeyRoute.handle(req, res) || appFiles.handle(req, res)) return;
+      if (liveTicketRoute.handle(req, res) || publicPath.handle(req, res) || siteSigninPage.handle(req, res) || mcpRoute.handle(req, res) || chromeBridge.handle(req, res) || chromeAgentsRoute.handle(req, res) || githubSignInRoute.handle(req, res) || ssoSignInRoute.handle(req, res) || blobRoute?.handle(req, res) || formsPageRoute?.handle(req, res) || unsubscribeRoute.handle(req, res) || shareRoute?.handle(req, res) || portalLinkRoute?.handle(req, res) || exportRoute.handle(req, res) || webhookRoute.handle(req, res) || computeRoute.handle(req, res) || computeStream.handle(req, res) || localWorkRoute.handle(req, res) || teamLinks.handle(req, res) || fillRoute.handle(req, res) || localKeyRoute.handle(req, res) || appFiles.handle(req, res)) return;
       listener(req, res);
     });
     await new Promise<void>((resolve, reject) => {

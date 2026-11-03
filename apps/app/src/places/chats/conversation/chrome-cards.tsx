@@ -61,41 +61,50 @@ export function verbOf(kind: string): { do: string; dont: string; what: string }
 
 export const stepWords = (s: StepCardData): string => (s.state === "done" ? `Used your Chrome · ${s.site}` : s.state === "stopped" ? `Stopped in your Chrome · ${s.site}` : s.state === "paused" ? `Paused in your Chrome · ${s.site}` : s.state === "waiting" ? `Waiting for you · ${s.site}` : `Using your Chrome · ${s.site}`);
 
-export function HeldSendCard({ id, data, agentId, actions }: { id: string; data: unknown; agentId: string; actions?: ChromeCardActions | undefined }): ReactElement | null {
-  const h = heldCardOf(data);
-  if (!h) return null;
+export function HeldSendCard({ id, data, agentId, agentName, actions }: { id: string; data: unknown; agentId: string; agentName?: string | undefined; actions?: ChromeCardActions | undefined }): ReactElement | null {
+  const found = heldCardOf(data);
+  if (!found) return null;
+  const h = { ...found, agent: found.agent === "An agent" && agentName ? agentName : found.agent };
   const v = verbOf(h.kind);
   const rows: Array<[string, string]> = ([["To", h.to], ["From", h.from], ["Subject", h.subject], ["Message", h.message]] as Array<[string, string]>).filter(([, t]) => t !== "");
   const open = h.state === "waiting";
   void agentId;
+  const where = h.site ? `${h.site}, in your Chrome` : "";
+  const heldTitle = h.kind === "send" ? "Held: send this" : h.kind === "post" ? "Held: post this" : h.kind === "payment" ? "Held: make this payment" : h.kind === "delete" ? "Held: delete this" : "Held: waiting for you";
   return (
     <View testID={`chrome-held-${id}`} accessibilityRole="summary" accessibilityLabel={`${h.agent} wants to ${v.what}`} style={s.card}>
-      <View style={s.head}>
-        <Glyph name="lock" color="var(--warn)" />
-        <Text style={s.title} numberOfLines={2}>{`${h.agent} wants to ${v.what}`}</Text>
-        {h.site ? <Text style={s.site} numberOfLines={1}>{h.site}</Text> : null}
+      <View style={s.band}>
+        <Glyph name="lock" color="var(--ink-2)" />
+        <Text style={s.bandTitle} numberOfLines={1}>{heldTitle}</Text>
+        <Text style={s.needs}>{open ? "Needs you" : h.state === "sent" ? "Sent" : "Done"}</Text>
       </View>
+      <Text style={s.who}>{`${h.agent} wants to ${v.what}`}</Text>
       {rows.length > 0 ? (
         <View style={s.rows}>
           {rows.map(([label, text]) => (
             <View key={label} style={s.row}><Text style={s.label}>{label}</Text><Text style={[s.value, label === "Message" && s.message]} numberOfLines={label === "Message" ? 8 : 2}>{text}</Text></View>
           ))}
+          {where ? <View style={s.row}><Text style={s.label}>Where</Text><Text style={s.value}>{where}</Text></View> : null}
         </View>
       ) : <Text style={s.summary}>{h.summary || "Something is waiting for you in Chrome."}</Text>}
-      {open ? (
-        <View style={s.actions}>
-          <TextButton label={v.do} primary onPress={() => { void actions?.send(h.heldId); }} disabled={!actions} testID={`chrome-held-send-${id}`} />
-          <TextButton label="Edit" onPress={() => { void actions?.edit(h.heldId); }} disabled={!actions} testID={`chrome-held-edit-${id}`} />
-          <TextButton label={v.dont} danger onPress={() => { void actions?.drop(h.heldId); }} disabled={!actions} testID={`chrome-held-drop-${id}`} />
-        </View>
-      ) : <Text style={s.state} testID={`chrome-held-state-${id}`}>{h.state === "sent" ? "Sent" : h.state === "dropped" ? "Not sent" : "No longer waiting"}</Text>}
+      <View style={s.foot}>
+        {open ? (
+          <View style={s.actions}>
+            <TextButton label={v.do} primary icon="check" onPress={() => { void actions?.send(h.heldId); }} disabled={!actions} testID={`chrome-held-send-${id}`} />
+            <TextButton label="Edit" ring icon="edit" onPress={() => { void actions?.edit(h.heldId); }} disabled={!actions} testID={`chrome-held-edit-${id}`} />
+            <TextButton label={v.dont} onPress={() => { void actions?.drop(h.heldId); }} disabled={!actions} testID={`chrome-held-drop-${id}`} />
+          </View>
+        ) : <Text style={s.state} testID={`chrome-held-state-${id}`}>{h.state === "sent" ? "Sent" : h.state === "dropped" ? "Not sent" : "No longer waiting"}</Text>}
+        {open ? <Text style={s.stopped}>{`${h.agent} stopped before ${v.do}`}</Text> : null}
+      </View>
     </View>
   );
 }
 
-export function ChromeStepCard({ id, data, agentId, actions }: { id: string; data: unknown; agentId: string; actions?: ChromeCardActions | undefined }): ReactElement | null {
-  const c = stepCardOf(data);
-  if (!c) return null;
+export function ChromeStepCard({ id, data, agentId, agentName, actions }: { id: string; data: unknown; agentId: string; agentName?: string | undefined; actions?: ChromeCardActions | undefined }): ReactElement | null {
+  const found = stepCardOf(data);
+  if (!found) return null;
+  const c = { ...found, agent: found.agent === "An agent" && agentName ? agentName : found.agent };
   const live = c.state === "using" || c.state === "waiting";
   const [showSaw, setShowSaw] = useState(c.open);
   return (
@@ -122,16 +131,22 @@ export function ChromeStepCard({ id, data, agentId, actions }: { id: string; dat
 }
 
 const s = StyleSheet.create({
-  card: { marginTop: 6, maxWidth: 520, padding: 12, gap: 10, borderRadius: 12, borderWidth: 1, borderColor: "var(--line)" as string, backgroundColor: "var(--raised)" as string },
+  card: { marginTop: 6, maxWidth: 666, alignSelf: "stretch", gap: 10, paddingBottom: 12, borderRadius: 10, borderWidth: 1, borderColor: "var(--accent-line)" as string, backgroundColor: "var(--raised)" as string, overflow: "hidden" },
+  band: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 12, paddingVertical: 9, backgroundColor: "var(--sel)" as string },
+  bandTitle: { flex: 1, fontSize: 13.5, fontWeight: "500", color: "var(--ink)" as string },
+  needs: { fontSize: 12, color: "var(--ink-3)" as string },
+  who: { paddingHorizontal: 12, fontSize: 12.5, color: "var(--ink-3)" as string },
+  foot: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8, paddingHorizontal: 12, paddingTop: 4 },
+  stopped: { fontSize: 12, color: "var(--ink-3)" as string },
   head: { flexDirection: "row", alignItems: "center", gap: 8 },
   title: { flexShrink: 1, fontSize: 13.5, fontWeight: "500", color: "var(--ink)" as string },
   site: { fontSize: 11.5, color: "var(--ink-3)" as string },
-  rows: { gap: 6 },
+  rows: { gap: 6, paddingHorizontal: 12 },
   row: { flexDirection: "row", gap: 10 },
-  label: { width: 60, fontSize: 12, color: "var(--ink-3)" as string, paddingTop: 1 },
+  label: { width: 72, fontSize: 12, color: "var(--ink-3)" as string, paddingTop: 1 },
   value: { flex: 1, minWidth: 0, fontSize: 13, color: "var(--ink)" as string },
   message: { lineHeight: 19, color: "var(--ink-2)" as string },
-  summary: { fontSize: 13, color: "var(--ink-2)" as string },
+  summary: { paddingHorizontal: 12, fontSize: 13, color: "var(--ink-2)" as string },
   actions: { flexDirection: "row", gap: 8, flexWrap: "wrap", marginTop: 2 },
   state: { fontSize: 12.5, color: "var(--ink-3)" as string },
   step: { flexDirection: "row", alignItems: "center", gap: 12, marginTop: 6, padding: 8, paddingRight: 14, maxWidth: 520, alignSelf: "stretch", minWidth: 0, borderRadius: 12, borderWidth: 1, borderColor: "var(--line)" as string, backgroundColor: "var(--raised)" as string },

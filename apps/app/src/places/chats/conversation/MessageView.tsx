@@ -420,8 +420,8 @@ function Theirs({ item, actions, stream, openWork, mark, meId, replies }: Messag
         if (isChecklist(b.type)) return <ChecklistCard key={b.id} id={b.id} data={b.data} />;
         if (isWebPage(b.type)) return <WebPageCard key={b.id} id={b.id} data={b.data} />;
         if (isQuote(b.type)) return <QuoteCard key={b.id} id={b.id} data={b.data} />;
-        if (isChromeHeld(b.type)) return <HeldSendCard key={b.id} id={b.id} data={b.data} agentId={item.who.id} actions={actions.chrome} />;
-        if (isChromeStep(b.type)) return <ChromeStepCard key={b.id} id={b.id} data={b.data} agentId={item.who.id} actions={actions.chrome} />;
+        if (isChromeHeld(b.type)) return <HeldSendCard key={b.id} id={b.id} data={b.data} agentId={item.who.id} agentName={item.who.name} actions={actions.chrome} />;
+        if (isChromeStep(b.type)) return <ChromeStepCard key={b.id} id={b.id} data={b.data} agentId={item.who.id} agentName={item.who.name} actions={actions.chrome} />;
         if (isPartOneType(b.type)) return <BlockViewA key={b.id} block={b} host={actions.host} />;
         return <Card key={b.id} line={cardLine(b)} actions={actions} />;
       })}

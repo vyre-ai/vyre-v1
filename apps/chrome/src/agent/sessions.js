@@ -9,6 +9,8 @@ import { HELD_TTL_MS, IDLE_MS, OVERLAY_PORT, fail } from "./protocol.js";
 export const BEACON = "●";
 /** Chrome's tab group colours, without grey (grey reads as "no agent"). */
 export const GROUP_COLORS = Object.freeze(["blue", "purple", "cyan", "green", "orange", "pink", "yellow", "red"]);
+/** Chrome's own tab group colours, so the frame matches the group. */
+export const GROUP_HEX = Object.freeze({ blue: "#1a73e8", purple: "#9334e6", cyan: "#12b5cb", green: "#188038", orange: "#fa7b17", pink: "#d01884", yellow: "#f9ab00", red: "#d93025" });
 /** The same agent always gets the same colour. @param {string} agentId */
 export function groupColor(agentId) { let h = 7; for (const c of String(agentId)) h = (h * 31 + c.charCodeAt(0)) >>> 0; return GROUP_COLORS[h % GROUP_COLORS.length]; }
 /** @param {string} name */
@@ -82,7 +84,7 @@ export function createSessions({ ext, cdp, traffic, emit, now = Date.now, setTim
 
   /** @param {number} tabId @param {AgentRef} agent @param {boolean} [isPaused] */
   async function draw(tabId, agent, isPaused = false) {
-    await quiet(() => ext.scripting.executeScript({ target: { tabId }, func: overlayShow, args: [{ name: agent.name, goal: goals.get(agent.id) ?? "", paused: isPaused, waiting: !isPaused && waitingOn(tabId), port: OVERLAY_PORT }] }));
+    await quiet(() => ext.scripting.executeScript({ target: { tabId }, func: overlayShow, args: [{ name: agent.name, goal: goals.get(agent.id) ?? "", paused: isPaused, waiting: !isPaused && waitingOn(tabId), color: GROUP_HEX[/** @type {keyof typeof GROUP_HEX} */ (groupColor(agent.id))], port: OVERLAY_PORT }] }));
     if (ext.action) {
       const a = ext.action;
       await quiet(async () => { await a.setBadgeText({ tabId, text: BEACON }); await a.setBadgeBackgroundColor({ tabId, color: BEACON_COLOR }); if (a.setTitle) await a.setTitle({ tabId, title: `Vyre: ${agent.name} is using this tab` }); });

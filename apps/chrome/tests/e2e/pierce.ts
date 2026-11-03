@@ -21,7 +21,7 @@ async function once(page: any, tag: string, label: string) {
         const kid = (n.children ?? []).find((c: any) => c.nodeType === 3);
         const attrs = n.attributes ?? [];
         const aria = attrs[attrs.indexOf("aria-label") + 1];
-        if ((kid && kid.nodeValue === label) || (attrs.includes("aria-label") && aria === label)) return n;
+        if ((kid && String(kid.nodeValue).trim() === label) || (attrs.includes("aria-label") && aria === label)) return n;
       }
       for (const c of [...(n.children ?? []), ...(n.shadowRoots ?? []), ...(n.contentDocument ? [n.contentDocument] : [])]) { const hit = walk(c); if (hit) return hit; }
       return null;

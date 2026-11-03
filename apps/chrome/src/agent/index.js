@@ -119,6 +119,7 @@ export function createAgentControl(ext, o = {}) {
     const tabId = port.sender.tab.id;
     port.onMessage.addListener((/** @type {any} */ m) => {
       const agent = sessions.driverOf(tabId);
+      if (m && m.type === "openvyre") { void transport.call("bridge", "app.open", { place: "chats" }).catch(() => {}); return; }
       if (!agent || !m) return;
       if (m.type === "stop") void sessions.pause(agent.id, "person");
       else if (m.type === "takeover") void sessions.pause(agent.id, "takeover");

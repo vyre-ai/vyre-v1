@@ -6,7 +6,7 @@
 
 /**
  * Show or update the frame and bar. Returns true when drawn.
- * @param {{ name: string, goal?: string, paused?: boolean, waiting?: boolean, port: string }} o
+ * @param {{ name: string, goal?: string, paused?: boolean, waiting?: boolean, color?: string, port: string }} o
  */
 export function overlayShow(o) {
   const g = /** @type {any} */ (globalThis);
@@ -20,27 +20,23 @@ export function overlayShow(o) {
     host.style.cssText = "all:initial;position:fixed;inset:0;z-index:2147483647;pointer-events:none;";
     const root = host.attachShadow({ mode: "closed" });
     const style = doc.createElement("style");
+    // Matches the approved prototype's in-Chrome bar (prototype/vyre-chrome.html .vov, .abar): a 2px inset frame in the agent's group colour, a bar 18px from the bottom with a dark 92% panel, 12px
+    // corners, the agent's initial, bold name, 26px translucent buttons and an Esc key cap.
     style.textContent = [
-      ".frame{position:fixed;inset:0;box-sizing:border-box;border:2px solid #4f46e5;box-shadow:inset 0 0 0 1px rgba(255,255,255,.4);pointer-events:none}",
-      ".frame.paused{border:2px dashed #6b7280}",
-      ".frame.waiting{border-color:#d97706}",
-      ".bar{position:fixed;bottom:16px;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:10px;max-width:calc(100vw - 32px);padding:6px 6px 6px 12px;background:#1e1b4b;color:#fff;border-radius:999px;font:13px/1.2 system-ui,-apple-system,Segoe UI,sans-serif;box-shadow:0 4px 18px rgba(30,27,75,.35);pointer-events:auto;white-space:nowrap}",
-      ".dot{flex:none;width:8px;height:8px;border-radius:50%;background:#818cf8}",
+      ".frame{position:fixed;inset:0;box-sizing:border-box;box-shadow:inset 0 0 0 2px var(--grp,#4f46e5);pointer-events:none}",
+      ".frame.paused{box-shadow:none;border:2px dashed #6b7280}",
+      ".bar{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:10px;max-width:calc(100vw - 32px);padding:6px 6px 6px 8px;background:rgba(23,20,31,.92);backdrop-filter:blur(8px);color:#F2F0F7;border-radius:12px;font:12.5px/1.2 system-ui,-apple-system,Segoe UI,sans-serif;box-shadow:0 8px 28px rgba(0,0,0,.28);pointer-events:auto;white-space:nowrap}",
+      ".dot{flex:none;width:20px;height:20px;border-radius:50%;background:var(--grp,#4f46e5);color:#fff;font:600 11px/20px system-ui,-apple-system,Segoe UI,sans-serif;text-align:center}",
       ".paused .dot{background:#9ca3af}",
-      "@media (prefers-reduced-motion:no-preference){.dot{animation:pulse 1.6s ease-in-out infinite}.paused .dot{animation:none}}",
-      "@keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}",
       ".t{overflow:hidden;text-overflow:ellipsis}",
-      ".goal{color:#c7d2fe;overflow:hidden;text-overflow:ellipsis;max-width:36ch}",
-      ".stop,.take{flex:none;border:0;border-radius:999px;padding:5px 13px;background:#fff;color:#1e1b4b;font:600 12px/1 system-ui,-apple-system,Segoe UI,sans-serif;cursor:pointer}",
-      ".take{background:transparent;color:#fff;box-shadow:inset 0 0 0 1px rgba(255,255,255,.55)}",
-      ".take:hover{background:rgba(255,255,255,.14)}",
-      ".stop:hover{background:#e0e7ff}.stop:focus-visible,.take:focus-visible{outline:2px solid #a5b4fc;outline-offset:2px}",
-      ".hint{color:#a5b4fc;font-size:11px}",
-      "@media (max-width:560px){.goal,.hint{display:none}.bar{gap:8px;padding-left:10px}.t{flex:0 1 auto}}",
-      ".waiting .dot{background:#fbbf24}",
+      ".goal{color:#c9c5d6;overflow:hidden;text-overflow:ellipsis;max-width:36ch}",
+      ".stop,.take,.open{flex:none;display:inline-flex;align-items:center;gap:6px;border:0;border-radius:8px;height:26px;padding:0 10px;background:rgba(255,255,255,.1);color:#fff;font:500 12.5px/1 system-ui,-apple-system,Segoe UI,sans-serif;cursor:pointer}",
+      ".stop:hover,.take:hover,.open:hover{background:rgba(255,255,255,.18)}.stop:focus-visible,.take:focus-visible,.open:focus-visible{outline:2px solid #a5b4fc;outline-offset:2px}",
+      ".hint{background:rgba(255,255,255,.12);color:#ddd;border-radius:4px;padding:1px 5px;font-size:11px}",
+      "@media (max-width:560px){.goal{display:none}.bar{gap:8px}}",
       ".cursor{position:fixed;left:0;top:0;display:none;pointer-events:none;will-change:transform}",
       "@media (prefers-reduced-motion:no-preference){.cursor.go{transition:transform .14s ease-out}}",
-      ".chip{position:absolute;left:14px;top:16px;padding:2px 7px;border-radius:6px;background:#4f46e5;color:#fff;font:600 11px/1.3 system-ui,-apple-system,Segoe UI,sans-serif;white-space:nowrap}",
+      ".chip{position:absolute;left:14px;top:16px;padding:2px 7px;border-radius:6px;background:var(--grp,#4f46e5);color:#fff;font:600 11px/1.3 system-ui,-apple-system,Segoe UI,sans-serif;white-space:nowrap}",
     ].join("");
     const frame = doc.createElement("div");
     frame.className = "frame";
@@ -49,6 +45,7 @@ export function overlayShow(o) {
     bar.setAttribute("role", "status");
     const dot = doc.createElement("span");
     dot.className = "dot";
+    dot.textContent = String(o.name || "?").trim().charAt(0).toUpperCase();
     const text = doc.createElement("span");
     text.className = "t";
     const goal = doc.createElement("span");
@@ -60,11 +57,16 @@ export function overlayShow(o) {
     const stop = doc.createElement("button");
     stop.className = "stop";
     stop.type = "button";
-    stop.textContent = "Stop";
-    const hint = doc.createElement("span");
+    stop.append("Stop ");
+    const hint = doc.createElement("kbd");
     hint.className = "hint";
-    hint.textContent = "Esc stops";
-    bar.append(dot, text, goal, hint, take, stop);
+    hint.textContent = "Esc";
+    stop.append(hint);
+    const open = doc.createElement("button");
+    open.className = "open";
+    open.type = "button";
+    open.textContent = "Open in Vyre";
+    bar.append(dot, text, goal, take, stop, open);
     const cursor = doc.createElement("div");
     cursor.className = "cursor";
     const svgNs = "http://www.w3.org/2000/svg";
@@ -87,19 +89,22 @@ export function overlayShow(o) {
 
     const port = g.chrome && g.chrome.runtime && g.chrome.runtime.connect ? g.chrome.runtime.connect({ name: o.port }) : null;
     stop.addEventListener("click", (/** @type {any} */ e) => { e.preventDefault(); e.stopPropagation(); if (port) port.postMessage({ type: "stop" }); });
+    open.addEventListener("click", (/** @type {any} */ e) => { e.preventDefault(); e.stopPropagation(); if (port) port.postMessage({ type: "openvyre" }); });
     take.addEventListener("click", (/** @type {any} */ e) => { e.preventDefault(); e.stopPropagation(); if (port) port.postMessage({ type: "takeover" }); });
     const onKey = (/** @type {any} */ e) => { if (e.key === "Escape" && !s.paused && port) port.postMessage({ type: "esc" }); };
     g.addEventListener("keydown", onKey, true);
-    s = { host, frame, bar, text, goal, stop, take, hint, cursor, chip, port, onKey, paused: false, moved: false };
+    s = { host, frame, bar, text, goal, stop, take, hint, open, cursor, chip, port, onKey, paused: false, moved: false };
     g[KEY] = s;
   }
   s.paused = Boolean(o.paused);
   const waiting = !s.paused && Boolean(o.waiting);
-  s.frame.className = s.paused ? "frame paused" : waiting ? "frame waiting" : "frame";
+  s.frame.className = s.paused ? "frame paused" : "frame";
+  if (o.color) s.host.style.setProperty("--grp", String(o.color));
   s.bar.className = s.paused ? "bar paused" : waiting ? "bar waiting" : "bar";
   s.text.textContent = s.paused ? `${o.name} is paused` : waiting ? "Waiting for you in Vyre" : `${o.name} is using this tab`;
-  s.take.style.display = s.paused ? "none" : "";
-  s.hint.style.display = s.paused ? "none" : "";
+  s.take.style.display = s.paused || waiting ? "none" : "";
+  s.stop.style.display = s.paused ? "none" : "";
+  s.open.style.display = waiting ? "" : "none";
   s.goal.textContent = o.goal ? String(o.goal).slice(0, 80) : "";
   s.goal.style.display = o.goal ? "" : "none";
   s.stop.style.display = s.paused ? "none" : "";

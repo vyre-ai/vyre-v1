@@ -115,6 +115,22 @@ export function hostFor(ctx: Pick<CompCtx, "db" | "now">, computerId: string): C
   return hostPort;
 }
 
+/**
+ * The person's own Chrome, as a place the Chrome tools can run (Chrome step 2). The daemon that has the extension's bridge binds it; nothing else does. It answers only for an agent working for the
+ * person signed in to the Chrome on this computer, in the Space that person picked there, and only after they opened Chrome to agents.
+ */
+export interface PersonalChrome {
+  available(a: { space: string; person: string }): Promise<boolean>;
+  call(a: { tool: string; args: Record<string, unknown>; agent: { id: string; name: string }; space: string; thread?: string; timeoutMs: number }): Promise<Record<string, unknown>>;
+  /** What the extension said about a held item (the page's own To, From, Subject, Message), not what the agent said. */
+  held(heldId: string): { site?: string; kind?: string; summary?: string; card?: Record<string, string> } | null;
+  /** The newest small masked picture of the agent's tab, if there is one. */
+  frame(agentId: string): { site: string; thumb: string } | null;
+}
+let personalPort: PersonalChrome | null = null;
+export function bindPersonalChrome(p: PersonalChrome | null): void { personalPort = p; }
+export const personalChrome = (): PersonalChrome | null => personalPort;
+
 let hostPort: ComputerHost | null = null;
 export function bindHost(h: ComputerHost | null): void { hostPort = h; }
 export const boundHost = (): ComputerHost | null => hostPort;

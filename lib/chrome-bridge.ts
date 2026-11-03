@@ -151,6 +151,9 @@ export function createChromeBridge(deps: ChromeBridgeDeps) {
       push({ type: "agent.optin", spaces, mode });
     },
 
+    /** The Spaces whose agents the person opened this Chrome to, and in what mode; null until the app says. */
+    get opened(): { spaces: string[]; mode: "personal" | "computer" } | null { return lastOptIn ? { spaces: [...lastOptIn.spaces], mode: lastOptIn.mode } : null; },
+
     /** Run one chrome_* tool for an agent in a Space, in the extension that owns the tab. Rejects with ChromeToolError (code from the extension, or "offline" / "timeout"). */
     callTool(call: { tool: string; input?: Record<string, unknown>; agent: AgentRef; space: string; thread?: string; timeoutMs?: number }): Promise<unknown> {
       if (!TOOL.test(call.tool)) return Promise.reject(new ChromeToolError("unknown_tool", `${call.tool} is not a Chrome tool.`));
