@@ -4549,6 +4549,7 @@ export type CalendarCreateEventOut = {
     status: "confirmed" | "tentative" | "canceled";
     bookedByAgentId?: string;
     fromBookingPage?: string;
+    seriesId?: string;
   };
 };
 export type CalendarDeleteCalendarIn = {
@@ -4594,6 +4595,7 @@ export type CalendarDuplicateEventOut = {
     status: "confirmed" | "tentative" | "canceled";
     bookedByAgentId?: string;
     fromBookingPage?: string;
+    seriesId?: string;
   };
 };
 export type CalendarFindTimeIn = {
@@ -4639,7 +4641,13 @@ export type CalendarGetEventOut = {
     status: "confirmed" | "tentative" | "canceled";
     bookedByAgentId?: string;
     fromBookingPage?: string;
+    seriesId?: string;
   };
+  mine?: {
+    email: string;
+    response: "needs_action" | "accepted" | "declined" | "tentative";
+  };
+  repeats?: "day" | "weekday" | "week" | "two_weeks" | "month" | "other";
 };
 export type CalendarHealthIn = Record<string, unknown>;
 export type CalendarHealthOut = {
@@ -4667,6 +4675,7 @@ export type CalendarIngestEventIn = {
       response?: "needs_action" | "accepted" | "declined" | "tentative";
     }>;
   description?: string;
+  seriesId?: string;
 };
 export type CalendarIngestEventOut = {
   eventId: string;
@@ -4704,6 +4713,7 @@ export type CalendarLinkRecordOut = {
     status: "confirmed" | "tentative" | "canceled";
     bookedByAgentId?: string;
     fromBookingPage?: string;
+    seriesId?: string;
   };
 };
 export type CalendarListCalendarsIn = {
@@ -4756,6 +4766,7 @@ export type CalendarListEventsOut = {
       status: "confirmed" | "tentative" | "canceled";
       bookedByAgentId?: string;
       fromBookingPage?: string;
+      seriesId?: string;
     }>;
   next?: string;
   total?: number;
@@ -4790,6 +4801,7 @@ export type CalendarMoveToCalendarOut = {
     status: "confirmed" | "tentative" | "canceled";
     bookedByAgentId?: string;
     fromBookingPage?: string;
+    seriesId?: string;
   };
 };
 export type CalendarRespondIn = {
@@ -4823,6 +4835,7 @@ export type CalendarRespondOut = {
     status: "confirmed" | "tentative" | "canceled";
     bookedByAgentId?: string;
     fromBookingPage?: string;
+    seriesId?: string;
   };
 };
 export type CalendarRestoreEventIn = {
@@ -4854,6 +4867,7 @@ export type CalendarRestoreEventOut = {
     status: "confirmed" | "tentative" | "canceled";
     bookedByAgentId?: string;
     fromBookingPage?: string;
+    seriesId?: string;
   };
 };
 export type CalendarSyncNowIn = {
@@ -4897,6 +4911,7 @@ export type CalendarUpdateEventIn = {
       response?: "needs_action" | "accepted" | "declined" | "tentative";
     }>;
   joinProvider?: "zoom" | "meet" | "teams" | "none";
+  scope?: "this" | "all";
 };
 export type CalendarUpdateEventOut = {
   event: {
@@ -4924,7 +4939,9 @@ export type CalendarUpdateEventOut = {
     status: "confirmed" | "tentative" | "canceled";
     bookedByAgentId?: string;
     fromBookingPage?: string;
+    seriesId?: string;
   };
+  changed?: number;
 };
 export type ChangesetsApproveIn = {
   changesetId: string;
@@ -13460,6 +13477,8 @@ export type GoogleCalendarCreateEventOut = {
       }>;
     organizer?: Record<string, unknown>;
     updated?: string;
+    description?: string;
+    recurringEventId?: string;
   };
 };
 export type GoogleCalendarDeleteEventIn = {
@@ -13509,6 +13528,8 @@ export type GoogleCalendarGetEventOut = {
       }>;
     organizer?: Record<string, unknown>;
     updated?: string;
+    description?: string;
+    recurringEventId?: string;
   };
 };
 export type GoogleCalendarListCalendarsIn = {
@@ -13550,6 +13571,8 @@ export type GoogleCalendarListEventsOut = {
         }>;
       organizer?: Record<string, unknown>;
       updated?: string;
+      description?: string;
+      recurringEventId?: string;
     }>;
   nextPageToken?: string;
   nextSyncToken?: string;
@@ -13578,6 +13601,8 @@ export type GoogleCalendarRespondOut = {
       }>;
     organizer?: Record<string, unknown>;
     updated?: string;
+    description?: string;
+    recurringEventId?: string;
   };
 };
 export type GoogleCalendarStopWatchIn = {
@@ -13624,6 +13649,8 @@ export type GoogleCalendarUpdateEventOut = {
       }>;
     organizer?: Record<string, unknown>;
     updated?: string;
+    description?: string;
+    recurringEventId?: string;
   };
 };
 export type GoogleCalendarWatchIn = {
@@ -18652,6 +18679,29 @@ export type MeetingsMergeIn = {
 export type MeetingsMergeOut = {
   meetingId: string;
 };
+export type MeetingsPrepGetIn = {
+  eventId: string;
+};
+export type MeetingsPrepGetOut = {
+  state: "none" | "working" | "ready";
+  notes: Array<string>;
+  taskId?: string;
+  preparedAt?: number;
+};
+export type MeetingsPrepSaveIn = {
+  eventId: string;
+  notes: Array<string>;
+};
+export type MeetingsPrepSaveOut = {
+  state: "none" | "working" | "ready";
+};
+export type MeetingsPrepStartIn = {
+  eventId: string;
+};
+export type MeetingsPrepStartOut = {
+  state: "none" | "working" | "ready";
+  taskId?: string;
+};
 export type MeetingsScheduleIn = {
   title: string;
   startsAt: number;
@@ -21234,6 +21284,8 @@ export type MsCalendarCreateEventOut = {
       }>;
     organizer?: Record<string, unknown>;
     isCancelled?: boolean;
+    bodyPreview?: string;
+    seriesMasterId?: string;
   };
 };
 export type MsCalendarDeleteEventIn = {
@@ -21268,6 +21320,8 @@ export type MsCalendarDeltaOut = {
         }>;
       organizer?: Record<string, unknown>;
       isCancelled?: boolean;
+      bodyPreview?: string;
+      seriesMasterId?: string;
     }>;
   removed: Array<string>;
   deltaLink: string;
@@ -21307,6 +21361,8 @@ export type MsCalendarGetEventOut = {
       }>;
     organizer?: Record<string, unknown>;
     isCancelled?: boolean;
+    bodyPreview?: string;
+    seriesMasterId?: string;
   };
 };
 export type MsCalendarGetScheduleIn = {
@@ -21359,6 +21415,8 @@ export type MsCalendarListEventsOut = {
         }>;
       organizer?: Record<string, unknown>;
       isCancelled?: boolean;
+      bodyPreview?: string;
+      seriesMasterId?: string;
     }>;
   nextSkipToken?: string;
 };
@@ -21425,6 +21483,8 @@ export type MsCalendarUpdateEventOut = {
       }>;
     organizer?: Record<string, unknown>;
     isCancelled?: boolean;
+    bodyPreview?: string;
+    seriesMasterId?: string;
   };
 };
 export type MsConsentCheckAppIn = {
@@ -36739,6 +36799,9 @@ export interface CapMap {
   "meetings.list": { in: MeetingsListIn; out: MeetingsListOut };
   "meetings.match_attendees": { in: MeetingsMatchAttendeesIn; out: MeetingsMatchAttendeesOut };
   "meetings.merge": { in: MeetingsMergeIn; out: MeetingsMergeOut };
+  "meetings.prep.get": { in: MeetingsPrepGetIn; out: MeetingsPrepGetOut };
+  "meetings.prep.save": { in: MeetingsPrepSaveIn; out: MeetingsPrepSaveOut };
+  "meetings.prep.start": { in: MeetingsPrepStartIn; out: MeetingsPrepStartOut };
   "meetings.schedule": { in: MeetingsScheduleIn; out: MeetingsScheduleOut };
   "meetings.set_state": { in: MeetingsSetStateIn; out: MeetingsSetStateOut };
   "meetings.set_summary": { in: MeetingsSetSummaryIn; out: MeetingsSetSummaryOut };

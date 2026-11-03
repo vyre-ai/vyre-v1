@@ -58,6 +58,7 @@ type Out = {
     status: "confirmed" | "tentative" | "canceled";
     bookedByAgentId?: string;
     fromBookingPage?: string;
+    seriesId?: string;
   };
 };
 ```
@@ -104,6 +105,7 @@ type Out = {
       "recordIds": [
         "rec_a1b2c3"
       ],
+      "seriesId": "example",
       "startsAt": 1760000000000,
       "status": "confirmed",
       "title": "example"

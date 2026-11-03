@@ -1471,6 +1471,11 @@ export function createClient(transport: Transport) {
       list: call("meetings.list", 1),
       match_attendees: call("meetings.match_attendees", 1),
       merge: call("meetings.merge", 1),
+      prep: {
+        get: call("meetings.prep.get", 1),
+        save: call("meetings.prep.save", 1),
+        start: call("meetings.prep.start", 1),
+      },
       schedule: call("meetings.schedule", 1),
       set_state: call("meetings.set_state", 1),
       set_summary: call("meetings.set_summary", 1),

@@ -14,7 +14,7 @@ Requires: nothing.
 - [calendar.delete_event](../capabilities/calendar.delete_event.md): Delete an event (Undo in the title bar restores it)
 - [calendar.duplicate_event](../capabilities/calendar.duplicate_event.md): Duplicate an event
 - [calendar.find_time](../capabilities/calendar.find_time.md): Find a time: the next free slots for a set of people
-- [calendar.get_event](../capabilities/calendar.get_event.md): Read one event with attendees, agenda, linked records and meeting
+- [calendar.get_event](../capabilities/calendar.get_event.md): Read one event with attendees, agenda, linked records and meeting, your own answer and how it repeats
 - [calendar.health](../capabilities/calendar.health.md): Calendar sync health: age of the last successful sync per calendar
 - [calendar.ingest_event](../capabilities/calendar.ingest_event.md): Land one provider event: upsert by provider id, then merge with a meeting on time plus attendees or on link
 - [calendar.link_record](../capabilities/calendar.link_record.md): Link an event to records, or remove a link (Open Record, Open Conversation)

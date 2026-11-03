@@ -1017,7 +1017,7 @@
     {
       "deferred": false,
       "name": "calendar_get_event",
-      "summary": "Read one event with attendees, agenda, linked records and meeting",
+      "summary": "Read one event with attendees, agenda, linked records and meeting, your own answer and how it repeats",
       "toolset": "inbox"
     },
     {
@@ -4864,6 +4864,24 @@
       "deferred": false,
       "name": "meetings_merge",
       "summary": "Merge two meetings that describe one call",
+      "toolset": "inbox"
+    },
+    {
+      "deferred": false,
+      "name": "meetings_prep_get",
+      "summary": "Your prep notes for an event: whether your Assistant is still working on them, and the notes",
+      "toolset": "inbox"
+    },
+    {
+      "deferred": false,
+      "name": "meetings_prep_save",
+      "summary": "The Assistant's prep notes for an event, a few short lines",
+      "toolset": "inbox"
+    },
+    {
+      "deferred": false,
+      "name": "meetings_prep_start",
+      "summary": "Ask your Assistant to prepare for an event from the attendees' records and your past meetings with them",
       "toolset": "inbox"
     },
     {

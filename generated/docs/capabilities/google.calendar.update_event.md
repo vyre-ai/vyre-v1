@@ -63,6 +63,8 @@ type Out = {
       }>;
     organizer?: Record<string, unknown>;
     updated?: string;
+    description?: string;
+    recurringEventId?: string;
   };
 };
 ```
@@ -111,11 +113,13 @@ type Out = {
           "responseStatus": "example"
         }
       ],
+      "description": "example",
       "end": {},
       "hangoutLink": "example",
       "id": "example",
       "location": "example",
       "organizer": {},
+      "recurringEventId": "example",
       "start": {},
       "status": "example",
       "summary": "example",

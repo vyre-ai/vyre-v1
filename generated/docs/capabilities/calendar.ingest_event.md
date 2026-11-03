@@ -44,6 +44,7 @@ type In = {
       response?: "needs_action" | "accepted" | "declined" | "tentative";
     }>;
   description?: string;
+  seriesId?: string;
 };
 ```
 
@@ -88,6 +89,7 @@ type Out = {
     "location": "example",
     "organizer": "maya@example.com",
     "providerId": "example",
+    "seriesId": "example",
     "source": "google",
     "startsAt": 1760000000000,
     "title": "example"

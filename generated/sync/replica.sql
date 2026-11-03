@@ -49,6 +49,7 @@ CREATE TABLE IF NOT EXISTS "calendar_event" (
   "bookedByAgentId" TEXT,
   "fromBookingPage" TEXT,
   "deletedAt" INTEGER,
+  "seriesId" TEXT,
   "version" INTEGER NOT NULL DEFAULT 0,
   "updated_at" INTEGER,
   "deleted_at" INTEGER

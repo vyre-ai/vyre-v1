@@ -1,6 +1,6 @@
 # calendar.get_event
 
-Read one event with attendees, agenda, linked records and meeting
+Read one event with attendees, agenda, linked records and meeting, your own answer and how it repeats
 
 | | |
 |---|---|
@@ -58,7 +58,13 @@ type Out = {
     status: "confirmed" | "tentative" | "canceled";
     bookedByAgentId?: string;
     fromBookingPage?: string;
+    seriesId?: string;
   };
+  mine?: {
+    email: string;
+    response: "needs_action" | "accepted" | "declined" | "tentative";
+  };
+  repeats?: "day" | "weekday" | "week" | "two_weeks" | "month" | "other";
 };
 ```
 
@@ -104,10 +110,16 @@ type Out = {
       "recordIds": [
         "rec_a1b2c3"
       ],
+      "seriesId": "example",
       "startsAt": 1760000000000,
       "status": "confirmed",
       "title": "example"
-    }
+    },
+    "mine": {
+      "email": "maya@example.com",
+      "response": "needs_action"
+    },
+    "repeats": "day"
   }
 }
 ```

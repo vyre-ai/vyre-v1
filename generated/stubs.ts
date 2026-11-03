@@ -1471,6 +1471,11 @@ export function stubs(ctx: CallCtx) {
       list: call("meetings.list"),
       match_attendees: call("meetings.match_attendees"),
       merge: call("meetings.merge"),
+      prep: {
+        get: call("meetings.prep.get"),
+        save: call("meetings.prep.save"),
+        start: call("meetings.prep.start"),
+      },
       schedule: call("meetings.schedule"),
       set_state: call("meetings.set_state"),
       set_summary: call("meetings.set_summary"),

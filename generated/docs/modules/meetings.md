@@ -4,7 +4,7 @@ Lane L5. Kind module. Version 0.1.0.
 
 Requires: nothing.
 
-## Capabilities (22)
+## Capabilities (25)
 
 - [meetings.attach_recording](../capabilities/meetings.attach_recording.md): Download a provider recording into the meeting folder, store the transcript text and show them in the conversation
 - [meetings.cancel](../capabilities/meetings.cancel.md): Cancel a meeting and its calendar event
@@ -22,6 +22,9 @@ Requires: nothing.
 - [meetings.list](../capabilities/meetings.list.md): List meetings by time, contact or status
 - [meetings.match_attendees](../capabilities/meetings.match_attendees.md): Link attendee emails to contact records (sure matches link, unsure go to Needs you)
 - [meetings.merge](../capabilities/meetings.merge.md): Merge two meetings that describe one call
+- [meetings.prep.get](../capabilities/meetings.prep.get.md): Your prep notes for an event: whether your Assistant is still working on them, and the notes
+- [meetings.prep.save](../capabilities/meetings.prep.save.md): The Assistant's prep notes for an event, a few short lines
+- [meetings.prep.start](../capabilities/meetings.prep.start.md): Ask your Assistant to prepare for an event from the attendees' records and your past meetings with them
 - [meetings.schedule](../capabilities/meetings.schedule.md): Schedule a meeting: calendar event, provider link and Meeting record in one step
 - [meetings.set_state](../capabilities/meetings.set_state.md): Mark a meeting live or ended from a provider or calendar signal
 - [meetings.set_summary](../capabilities/meetings.set_summary.md): Write or correct the summary and decisions of a meeting

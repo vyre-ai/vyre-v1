@@ -19482,6 +19482,60 @@ const routes3: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/meetings/prep/get",
+    "cap": "meetings.prep.get",
+    "v": 1,
+    "module": "meetings",
+    "effects": "read",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/meetings/prep/save",
+    "cap": "meetings.prep.save",
+    "v": 1,
+    "module": "meetings",
+    "effects": "write",
+    "permission": null,
+    "level": "edit",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/meetings/prep/start",
+    "cap": "meetings.prep.start",
+    "v": 1,
+    "module": "meetings",
+    "effects": "write",
+    "permission": null,
+    "level": "edit",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/meetings/schedule",
     "cap": "meetings.schedule",
     "v": 1,
@@ -22048,7 +22102,10 @@ const routes3: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes4: Route[] = [
   {
     "method": "POST",
     "path": "/v1/ms/consent/policy_snippet",
@@ -22102,10 +22159,7 @@ const routes3: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": "connection_change"
-  }
-];
-
-const routes4: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/ms/consent/setup",
@@ -27575,7 +27629,10 @@ const routes4: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes5: Route[] = [
   {
     "method": "POST",
     "path": "/v1/schema/gap_rules/set",
@@ -27631,10 +27688,7 @@ const routes4: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  }
-];
-
-const routes5: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/schema/layout/set",
@@ -33094,7 +33148,10 @@ const routes5: Route[] = [
     "offline": "online",
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes6: Route[] = [
   {
     "method": "POST",
     "path": "/v1/threads/erase",
@@ -33150,10 +33207,7 @@ const routes5: Route[] = [
     "offline": "online",
     "teamOnly": false,
     "gate": null
-  }
-];
-
-const routes6: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/threads/list",

@@ -41,6 +41,7 @@ type In = {
       response?: "needs_action" | "accepted" | "declined" | "tentative";
     }>;
   joinProvider?: "zoom" | "meet" | "teams" | "none";
+  scope?: "this" | "all";
 };
 ```
 
@@ -73,7 +74,9 @@ type Out = {
     status: "confirmed" | "tentative" | "canceled";
     bookedByAgentId?: string;
     fromBookingPage?: string;
+    seriesId?: string;
   };
+  changed?: number;
 };
 ```
 
@@ -106,10 +109,12 @@ type Out = {
     "eventId": "cev_a1b2c3",
     "joinProvider": "zoom",
     "location": "example",
+    "scope": "this",
     "startsAt": 1760000000000,
     "title": "example"
   },
   "output": {
+    "changed": 1,
     "event": {
       "agenda": "example",
       "allDay": true,
@@ -136,6 +141,7 @@ type Out = {
       "recordIds": [
         "rec_a1b2c3"
       ],
+      "seriesId": "example",
       "startsAt": 1760000000000,
       "status": "confirmed",
       "title": "example"

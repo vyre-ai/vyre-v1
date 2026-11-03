@@ -7949,7 +7949,7 @@
       "blocks": [],
       "cap": "calendar.get_event",
       "deferred": false,
-      "description": "Read one event with attendees, agenda, linked records and meeting",
+      "description": "Read one event with attendees, agenda, linked records and meeting, your own answer and how it repeats",
       "effects": "read",
       "inputSchema": {
         "properties": {
@@ -8330,6 +8330,13 @@
             "type": "string"
           },
           "location": {
+            "type": "string"
+          },
+          "scope": {
+            "enum": [
+              "this",
+              "all"
+            ],
             "type": "string"
           },
           "startsAt": {
@@ -32688,6 +32695,95 @@
         "type": "object"
       },
       "name": "meetings_merge",
+      "planMode": "blocked",
+      "toolset": "inbox",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "meetings.prep.get",
+      "deferred": false,
+      "description": "Your prep notes for an event: whether your Assistant is still working on them, and the notes",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "eventId": {
+            "examples": [
+              "cev_a1b2c3"
+            ],
+            "pattern": "^cev_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "eventId"
+        ],
+        "type": "object"
+      },
+      "name": "meetings_prep_get",
+      "planMode": "allowed",
+      "toolset": "inbox",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "meetings.prep.save",
+      "deferred": false,
+      "description": "The Assistant's prep notes for an event, a few short lines",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "eventId": {
+            "examples": [
+              "cev_a1b2c3"
+            ],
+            "pattern": "^cev_[a-z0-9]+$",
+            "type": "string"
+          },
+          "notes": {
+            "items": {
+              "maxLength": 600,
+              "minLength": 1,
+              "type": "string"
+            },
+            "maxItems": 12,
+            "minItems": 1,
+            "type": "array"
+          }
+        },
+        "required": [
+          "eventId",
+          "notes"
+        ],
+        "type": "object"
+      },
+      "name": "meetings_prep_save",
+      "planMode": "blocked",
+      "toolset": "inbox",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "meetings.prep.start",
+      "deferred": false,
+      "description": "Ask your Assistant to prepare for an event from the attendees' records and your past meetings with them",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "eventId": {
+            "examples": [
+              "cev_a1b2c3"
+            ],
+            "pattern": "^cev_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "eventId"
+        ],
+        "type": "object"
+      },
+      "name": "meetings_prep_start",
       "planMode": "blocked",
       "toolset": "inbox",
       "v": 1

@@ -21,6 +21,9 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "meetings.list": Handler<"meetings.list", X>;
   "meetings.match_attendees": Handler<"meetings.match_attendees", X>;
   "meetings.merge": Handler<"meetings.merge", X>;
+  "meetings.prep.get": Handler<"meetings.prep.get", X>;
+  "meetings.prep.save": Handler<"meetings.prep.save", X>;
+  "meetings.prep.start": Handler<"meetings.prep.start", X>;
   "meetings.schedule": Handler<"meetings.schedule", X>;
   "meetings.set_state": Handler<"meetings.set_state", X>;
   "meetings.set_summary": Handler<"meetings.set_summary", X>;
