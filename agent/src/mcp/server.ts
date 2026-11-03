@@ -4,6 +4,7 @@
 //   tools/call  one capability invoke, as the agent acting for the person; outside.ts narrows an outside agent first, then the same ToolSession the API drivers use refuses
 //               what was never offered, and the invoke pipeline intersects access, applies the Gate and writes the audit row
 // Nothing here decides access. A tool being listed grants nothing.
+import { safeContent } from "../tools/model-error.ts";
 import { createToolSession } from "../tools/call.ts";
 import { decideLocal, dialFor } from "../tools/local.ts";
 import { localFacts } from "../tools/local-facts.ts";
@@ -163,11 +164,16 @@ export function createMcpServer(deps: McpServerDeps): McpServer {
   const toolViews = (s: Session): unknown[] => [...listTools(s).map(toolView), ...(s.caller.kind === "outside" || !s.ctx.thread.planMode ? [USE_TOOL_VIEW] : [])];
 
   /** The text a model reads. The same data also travels as structuredContent unless it had to be cut: a cut answer is never sent twice. */
-  const textResult = (value: unknown, isError: boolean, structured?: unknown): Record<string, unknown> => {
+  const textResult = (value0: unknown, isError: boolean, structured0?: unknown): Record<string, unknown> => {
+    // an error reaches the model as a code and a plain sentence: no trace and no internal id (tools/model-error.ts)
+    const value = isError && typeof value0 === "object" ? safeContent(value0) : value0;
+    const structured = isError && structured0 !== undefined ? safeContent(structured0) : structured0;
     let text = typeof value === "string" ? value : JSON.stringify(value);
     const cut = text.length > MAX_RESULT_CHARS;
     if (cut) text = `${text.slice(0, MAX_RESULT_CHARS)}\n[cut: ${text.length - MAX_RESULT_CHARS} more characters]`;
-    return { content: [{ type: "text", text }], isError, ...(structured === undefined || cut ? {} : { structuredContent: structured }) };
+    // the trace id goes in _meta, for the turn's Details: it is not part of what the model reads
+    const trace = isError && value0 !== null && typeof value0 === "object" ? (value0 as { error?: { traceId?: unknown } }).error?.traceId : undefined;
+    return { content: [{ type: "text", text }], isError, ...(structured === undefined || cut ? {} : { structuredContent: structured }), ...(typeof trace === "string" ? { _meta: { "vyre/traceId": trace } } : {}) };
   };
 
   async function callTool(s: Session, params: unknown): Promise<{ result: Record<string, unknown> } | { invalid: string }> {
@@ -259,7 +265,7 @@ export function createMcpServer(deps: McpServerDeps): McpServer {
     let out: Awaited<ReturnType<Invoke>> | "gone";
     try { out = await Promise.race([s.invoke(t.cap, args, seed), s.gone]); }
     catch (e) {
-      let error = e instanceof HostError ? e.error : makeError("internal.unexpected", traceId, { message: "Something went wrong on our side." });
+      let error = e instanceof HostError ? e.error : makeError("internal.unexpected", traceId, { message: `${t.name} could not finish on the server just now, and nothing was changed. Try it once more; if it fails again, tell the person in plain words that it did not work. Do not paste ids or traces.`, details: { tool: t.name, reason: "server_error" } });
       // a Mine item needs the person's own key, held on the server only while they are signed in: say so plainly (owner ruling 3 Nov)
       if ((error.details as { reason?: unknown } | undefined)?.reason === "vault_locked") error = { ...error, message: "Their Mine items open while they are signed in to Vyre. Ask the person you act for to sign in on this Space, in the app or the browser, then try again. Saving a new item works now." };
       deps.onCall?.(s.caller, t.name, "error", { cap: t.cap, threadId });
@@ -306,7 +312,7 @@ export function createMcpServer(deps: McpServerDeps): McpServer {
     let out: Awaited<ReturnType<Invoke>>;
     try { out = await s.invoke("vault.request", input, seed); }
     catch (e) {
-      const error = e instanceof HostError ? e.error : makeError("internal.unexpected", traceId, { message: "Something went wrong on our side." });
+      const error = e instanceof HostError ? e.error : makeError("internal.unexpected", traceId, { message: `${t.name} could not finish on the server just now, and nothing was changed. Try it once more; if it fails again, tell the person in plain words that it did not work. Do not paste ids or traces.`, details: { tool: t.name, reason: "server_error" } });
       deps.onCall?.(s.caller, t.name, "error", { cap: "vault.request", threadId });
       return { result: textResult({ error }, true, { error }) };
     }
