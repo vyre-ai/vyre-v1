@@ -42,8 +42,8 @@ function populated(cap: string): World {
 
 afterEach(() => configureSpaceAdmin(null));
 
-test("the registry declares exactly the eight capabilities this packet handles", () => {
-  assert.equal(caps.length, 8);
+test("the registry declares exactly the nine capabilities this packet handles", () => {
+  assert.equal(caps.length, 9);
   assert.deepEqual(caps.map((c) => c.name).sort(), [...mine].sort());
 });
 

@@ -18,6 +18,8 @@ export const MAX_INLINE = 256 * 1024;
 export const MAX_UPLOAD = 25 * 1024 * 1024;
 const UPLOAD_MS = 15 * 60 * 1000;
 const PAGE_DEFAULT = 100;
+/** A deep list reads at most this many files, newest first, before access and paging. */
+const DEEP_MAX = 2000;
 
 export const TREE_ROOTS: { key: string; title: string; kind: "folder" | "virtual" }[] = [
   { key: "personal", title: "Personal", kind: "folder" },
@@ -38,6 +40,11 @@ export const TREE_ROOTS: { key: string; title: string; kind: "folder" | "virtual
 export const KNOWLEDGE_CHILDREN: { key: string; title: string }[] = [
   { key: "memory", title: "Memory" },
   { key: "graph", title: "Graph" },
+];
+
+/** System folders inside Shared knowledge. Branding holds the Space's own pictures: the Space image Console uploads lands here. */
+export const SHARED_KNOWLEDGE_CHILDREN: { key: string; title: string }[] = [
+  { key: "branding", title: "Branding" },
 ];
 
 export const KINDS = new Set([
@@ -555,8 +562,9 @@ function ensureSpaceRoots(ctx: Ctx): void {
       });
       row = mustFolder(ctx, id);
     }
-    if (root.key !== "knowledge" || !row) continue;
-    for (const child of KNOWLEDGE_CHILDREN) {
+    const children = root.key === "knowledge" ? KNOWLEDGE_CHILDREN : root.key === "shared_knowledge" ? SHARED_KNOWLEDGE_CHILDREN : [];
+    if (children.length === 0 || !row) continue;
+    for (const child of children) {
       const have = one(ctx, "SELECT * FROM files_folder WHERE system_key = ?", child.key);
       if (have) continue;
       const id = nid(ctx, "fld");
@@ -855,6 +863,10 @@ async function filesList(ctx: Ctx, input: unknown): Promise<{ files: FileOut[]; 
   if (!["name", "updated", "size", "kind"].includes(sort)) fail(ctx, "validation.bad_input", "The input is not valid.", { field: "sort" });
   if (!["asc", "desc"].includes(dir)) fail(ctx, "validation.bad_input", "The input is not valid.", { field: "dir" });
   if (section !== undefined && !["personal", "shared", "space"].includes(section)) fail(ctx, "validation.bad_input", "The input is not valid.", { field: "section" });
+  const deep = o["deep"] === true;
+  if (o["deep"] !== undefined && typeof o["deep"] !== "boolean") fail(ctx, "validation.bad_input", "The input is not valid.", { field: "deep" });
+  if (deep && (section !== "space" || folderId !== undefined)) fail(ctx, "validation.bad_input", "deep lists the whole Space section: give section space and no folder.", { field: "deep" });
+  const q = optStr(ctx, o, "q")?.trim().toLowerCase() ?? "";
   const { offset, limit } = pageArgs(ctx, o, PAGE_DEFAULT);
 
   let folderRows: Row[] = [];
@@ -869,6 +881,9 @@ async function filesList(ctx: Ctx, input: unknown): Promise<{ files: FileOut[]; 
   } else if (section === "shared") {
     folderRows = [];
     fileRows = [];
+  } else if (section === "space" && deep) {
+    // every file in a Space folder (not anyone's Personal), newest first unless asked otherwise; what the caller may not see is filtered below like any list
+    fileRows = many(ctx, `SELECT f.* FROM files_file f JOIN files_folder d ON d.id = f.folder_id WHERE f.deleted_at IS NULL AND d.deleted_at IS NULL AND d.scope = 'space'${kind ? " AND f.kind = ?" : ""} ORDER BY f.updated_at DESC LIMIT ${DEEP_MAX}`, ...(kind ? [kind] : []));
   } else if (section === "space") {
     preserveOrder = sort === "name" && dir === "asc" && optStr(ctx, o, "sort") === undefined;
     for (const root of TREE_ROOTS) {
@@ -886,6 +901,10 @@ async function filesList(ctx: Ctx, input: unknown): Promise<{ files: FileOut[]; 
   if (kind) {
     fileRows = fileRows.filter((row) => String(row.kind) === kind);
     folderRows = [];
+  }
+  if (q !== "") {
+    fileRows = fileRows.filter((row) => String(row.name).toLowerCase().includes(q));
+    folderRows = folderRows.filter((row) => String(row.name).toLowerCase().includes(q));
   }
 
   // Listing a container is not permission to reveal every child in it. Children
@@ -1349,6 +1368,7 @@ async function filesWrite(ctx: Ctx, input: unknown): Promise<{ file: FileOut; ve
   const reason = optStr(ctx, o, "reason");
   const content = parseContent(ctx, o.content);
   if (content.kind === "empty" && o.content === undefined) fail(ctx, "validation.bad_input", "The input is not valid.", { field: "content" });
+  await guardAgentSettings(ctx, file);
   const mime = String(file.mime);
   const blob = await resolveBlob(ctx, content, mime);
   const n = num(file.version) + 1;
@@ -1371,6 +1391,29 @@ async function filesWrite(ctx: Ctx, input: unknown): Promise<{ file: FileOut; ve
   ctx.emit("file.version_added", `file/${String(file.id)}`, payload);
   ctx.log.info("files.write", { fileId: String(file.id), version: n, bytes: blob.size });
   return { file: fileOutC(ctx, mustFile(ctx, String(file.id))), versionId };
+}
+
+/**
+ * agent.toml in an agent's folder is that agent's settings: saving it changes the model the agent runs, the Vault keys it holds, the tools it may use and what it may spend. So a new version of a file
+ * named agent.toml is written only by someone who may change that agent's settings, the same right agents.update takes (a person with Edit on the agent, or one of the Space's own agents acting for one;
+ * never an outside agent). The agents module answers that, asked as the writer, before anything is written: refusing here means the file never holds settings its writer could not set, so the text in
+ * Files and what the agent runs never part. A Space without the agents module has nothing that reads the file as settings, so the write goes on.
+ */
+export async function guardAgentSettings(ctx: Ctx, file: Row): Promise<void> {
+  if (String(file.name) !== "agent.toml") return;
+  const fileId = String(file.id);
+  let answer: { agentId?: unknown; allowed?: unknown; reason?: unknown; message?: unknown } | null;
+  try {
+    answer = (await ctx.call("agents.config.may_save", { fileId })) as typeof answer;
+  } catch (e) {
+    const code = (e as { error?: { code?: unknown } } | null)?.error?.code ?? (e as { code?: unknown } | null)?.code;
+    if (code === "internal.not_implemented" || code === "validation.unknown_capability") return;
+    fail(ctx, "permission.no_grant", "agent.toml is this agent's settings, and Vyre could not check that you may change them. Nothing was saved. Try again.", { fileId, reason: "agent_settings" });
+  }
+  if (answer?.allowed !== false) return;
+  fail(ctx, "permission.no_grant", typeof answer.message === "string" && answer.message !== "" ? answer.message : "agent.toml is this agent's settings, and you may not change them. Nothing was saved.", {
+    fileId, reason: "agent_settings", ...(typeof answer.agentId === "string" ? { agentId: answer.agentId } : {}), ...(typeof answer.reason === "string" ? { why: answer.reason } : {}),
+  });
 }
 
 /** The two files an agent is made of. They stay in the agent's own folder under their own names: renaming, moving or deleting either would leave an agent with no configuration or no instructions. */
@@ -1581,6 +1624,7 @@ async function filesRestoreVersion(ctx: Ctx, input: unknown): Promise<{ file: Fi
   const versionId = reqStr(ctx, o, "versionId");
   const version = one(ctx, "SELECT * FROM files_file_version WHERE id = ?", versionId);
   if (!version || String(version.file_id) !== String(file.id)) fail(ctx, "validation.not_found", "That version is not on this file.", { versionId });
+  await guardAgentSettings(ctx, file);
   const n = num(file.version) + 1;
   const blobId = String(version.blob);
   const now = ctx.now();

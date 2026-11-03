@@ -308,6 +308,8 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
 
   // a Space that never learnt its name answers its id: it is called by its address instead (spaces/space-label.ts)
   const shownName = spaceLabel(space.name, o.baseUrl);
+  // the Space image for the tile and the switcher; a Space too old to have spaces.image shows its letter
+  const face = space.logoFileId ? await (reach("spaces.image", {}) as Promise<{ logoFileId?: string; image?: string }>).catch(() => null) : null;
   const def: SpaceDef = {
     spaceId: space.id,
     name: shownName,
@@ -315,6 +317,7 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
     address: o.baseUrl.replace(/^https?:\/\//, ""),
     role: switcher?.role ?? "Member",
     tint: ["#6E5CF0", "#9B6BE8"],
+    ...(face?.image && face.logoFileId ? { image: face.image, imageKey: face.logoFileId } : {}),
     kit: space.kind === "personal" ? "personal" : kitChoice?.kit.effective ?? "northwind",
     skinDefault: typeof space.defaults.skin==="string"?space.defaults.skin:"system",
     starred: true,

@@ -321,6 +321,8 @@ async function agentFolder(): Promise<{ k: ReturnType<typeof open>; agentId: str
   const k = open({
     "settings.get": { row: { value: { amber: 150, red: 200 } } },
     "agents.list": { agents: [{ name: "Billing" }] },
+    // agent.toml is written only after the agents module says the writer may change that agent's settings (agent-settings.guard.test.ts); here the writer may
+    "agents.config.may_save": { agentId: null, allowed: true },
   });
   const tree = await handlers["files.tree"](k.ctx, {});
   const personal = tree.roots.find((r) => r.key === "personal")?.folderId;

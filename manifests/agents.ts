@@ -170,7 +170,11 @@ export default defineManifest({
     read('agents.config.validate', 'Validate agent.toml text (app limits first, then precedence) without saving', {
       in: { ...target, toml: t.str() }, out: { ok: t.bool(), errors: t.arr(t.obj({ line: t.opt(t.int()), message: t.str() })), widens: t.arr(t.str()) }, on: ['agent', '/agentId'], tool: 'agents',
     }),
-    read('agents.limits.get', 'Effective limits of an agent: agent.toml capped by Space caps', {
+    // Files asks this, as the writer, before it writes a new version of a file named agent.toml: saving an agent's agent.toml is changing its settings, so it takes the right agents.update takes. No tool.
+    read('agents.config.may_save', 'May the caller save this agent.toml, which is an agent\'s settings? Files asks as the writer before it writes; a file that is no agent\'s agent.toml answers allowed', {
+      in: { fileId: id.file }, out: { agentId: t.nullable(id.agent), allowed: t.bool(), reason: t.opt(t.enm('person_only', 'no_edit')), message: t.opt(t.str()) }, level: 'member',
+    }),
+    read('agents.limits.get','Effective limits of an agent: agent.toml capped by Space caps', {
       in: target, out: { limits, source: t.rec(t.enm('agent', 'person', 'space')) }, on: ['agent', '/agentId'], tool: 'agents',
     }),
     write('agents.snapshot.take', 'Take the file snapshot a run uses; changes to the files apply between runs', {

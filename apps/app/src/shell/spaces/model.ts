@@ -14,6 +14,10 @@ export interface SpaceDef {
   role: string;
   /** The tile gradient. */
   tint: readonly [string, string];
+  /** The Space image (a data: address from spaces.image), shown on the tile and in the switcher in place of the letter. */
+  image?: string;
+  /** The file the image was made from (logoFileId): asking spaces.image with it again costs nothing until it changes. */
+  imageKey?: string;
   /** Which Kit draws the rail (rail/kits.ts). */
   kit: string;
   /** The Space's default skin; a person's own choice wins (3.9). */

@@ -36,8 +36,8 @@ const withMarket = async (hn: Harness) => {
 const mine = registry.capabilities.filter((c) => c.module === "agents");
 const h = handlers as unknown as Record<string, (ctx: Harness["ctx"], input: any) => Promise<any>>;
 
-test("the handler table covers exactly the 68 capabilities of the agents manifest", () => {
-  assert.equal(mine.length, 68);
+test("the handler table covers exactly the 69 capabilities of the agents manifest", () => {
+  assert.equal(mine.length, 69);
   assert.deepEqual(Object.keys(h).sort(), mine.map((c) => c.name).sort());
   for (const c of mine) assert.equal(typeof h[c.name], "function", c.name);
 });
@@ -103,6 +103,7 @@ const scenarios: Scenario[] = [
   { cap: "agents.config.get", run: (hn) => h["agents.config.get"]!(hn.ctx, { agentId: "agt_none" }), expect: "validation.not_found" },
   { cap: "agents.config.validate", setup: withAgent, run: (hn, s) => h["agents.config.validate"]!(hn.ctx, { agentId: s.id, toml: 'name = "Intake"\n' }) },
   { cap: "agents.config.validate", run: (hn) => h["agents.config.validate"]!(hn.ctx, { agentId: "agt_none", toml: "" }), expect: "validation.not_found" },
+  { cap: "agents.config.may_save", setup: withAgent, run: (hn) => h["agents.config.may_save"]!(hn.ctx, { fileId: "fil_notanagentfile" }) },
   { cap: "agents.limits.get", setup: withAgent, run: (hn, s) => h["agents.limits.get"]!(hn.ctx, { agentId: s.id }) },
   { cap: "agents.limits.get", run: (hn) => h["agents.limits.get"]!(hn.ctx, { agentId: "agt_none" }), expect: "validation.not_found" },
   { cap: "agents.snapshot.take", setup: withAgent, run: (hn, s) => h["agents.snapshot.take"]!(hn.ctx, { agentId: s.id, runId: "run_a1" }) },
