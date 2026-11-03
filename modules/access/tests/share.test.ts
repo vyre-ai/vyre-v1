@@ -436,3 +436,16 @@ test("only a person's press reaches it: not a direct call, not an agent, not a s
   await assert.rejects(automationSenders({ ...r.ctx, depth: 1, principal: { kind: "agent", id: "agt_a" } } as ShareCtx, input), /turning it on/, "an agent's save");
   await assert.rejects(automationSenders({ ...r.ctx, depth: 1, principal: { kind: "service", id: "svc_x" } } as ShareCtx, input), /turning it on/);
 });
+
+test("sharing with Everyone skips the admin check for the host's own service alone: any other svc_ principal, any other service and an id that only looks like the host's are refused", async () => {
+  const r = rig();
+  r.item("sit_all", null);
+  const asP = (kind: string, id: string): ShareCtx => ({ ...r.ctx, principal: { kind, id } as ShareCtx["principal"] });
+  const toEveryone = (ctx: ShareCtx) => share(ctx, { resource: { type: "site", id: "sit_all" }, subject: { kind: "group", id: EVERYONE }, level: "view" });
+  for (const [kind, id] of [["service", "svc_form_a1b2c3"], ["service", "svc_engine"], ["service", "svc_hostile"], ["service", "svc_host_2"], ["agent", "svc_host"], ["person", "svc_host"]] as const) {
+    assert.equal(await code(toEveryone(asP(kind, id))), "permission.role_lacks_permission", `${kind} ${id} is refused`);
+  }
+  assert.equal(await code(toEveryone(r.as("usr_a"))), "permission.role_lacks_permission", "a member is refused");
+  // the host's own service passes the Everyone gate; the share then needs the right to share the item, like any share (this rig gives the host no grant, so that is where it stops)
+  assert.equal(await code(toEveryone(asP("service", "svc_host"))), "permission.no_grant", "the host's own service is past the Everyone gate");
+});
