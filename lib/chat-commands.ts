@@ -28,6 +28,7 @@ export const CHAT_COMMANDS: readonly ChatCommandDef[] = Object.freeze([
   { id: "search", detail: "Search every chat you can read", arg: "words" },
   { id: "model", detail: "Choose the model this chat answers with" },
   { id: "compact", detail: "Free up context, keeping what you name", arg: "what to keep" },
+  { id: "usage", detail: "The model and account this chat runs on, what else you can use, what is left" },
   { id: "stop", detail: "Stop what the agent is doing" },
 ] satisfies readonly ChatCommandDef[]);
 

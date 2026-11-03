@@ -17097,10 +17097,33 @@
       "blocks": [],
       "cap": "engine.accounts.list",
       "deferred": false,
-      "description": "Accounts the caller can run on: API keys by handle and subscription sign-ins (Mine), with status",
+      "description": "Accounts the caller can run on: API keys by handle and subscription sign-ins (Mine), with status. With a place (chat, automation, agent, space) each says whether it can run there and why not",
       "effects": "read",
       "inputSchema": {
-        "properties": {},
+        "properties": {
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          },
+          "explicit": {
+            "type": "boolean"
+          },
+          "model": {
+            "type": "string"
+          },
+          "place": {
+            "enum": [
+              "chat",
+              "automation",
+              "agent",
+              "space"
+            ],
+            "type": "string"
+          }
+        },
         "type": "object"
       },
       "name": "engine_accounts_list",
@@ -41153,6 +41176,36 @@
       "name": "ms_workbook_update_range",
       "planMode": "blocked",
       "toolset": "files",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "engine.my_ai",
+      "deferred": false,
+      "description": "What AI this chat runs on and what else the person may use now: model, account and who paid, each usable account with models and limits (or not readable), and use today and this month. Ask it for what model, what else, what is left, /usage",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          },
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "name": "my_ai",
+      "planMode": "allowed",
+      "toolset": "meta",
       "v": 1
     },
     {

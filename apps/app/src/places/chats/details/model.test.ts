@@ -107,3 +107,9 @@ test("the card counts new input and cached input apart, and the tab says what th
   // a provider that gave no split: the total as it is
   assert.equal(kv(cardLines(details({ ...signin, tokens: { in: 41_280, out: 1904 } }), me("usr_irfad")).lines, "tokens"), "41k in · 1.9k out");
 });
+
+test("an estimated cost says so in the card and the tab", () => {
+  const t: ReplyTurn = { ...signin, accountKind: "api_key", cost: { source: "estimate", micros: 41_668, priceAsOf: "2026-10-06" } };
+  assert.equal(kv(cardLines(details(t), me("usr_irfad")).lines, "cost"), "About $0.042 (an estimate)");
+  assert.ok(detailLines(details(t), me("usr_irfad")).some((l) => l.kind === "note" && /so it is an estimate/.test(l.text)));
+});

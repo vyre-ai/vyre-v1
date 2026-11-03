@@ -33,12 +33,7 @@ function entryOf(l: Line, p: ReplyDetailsPaneProps): Entry {
         key: l.key, type: "row", title: l.label, testID: `details-${l.key}`,
         trailing: (
           <View style={st.trail}>
-            {l.note ? (
-              <View style={st.col}>
-                <Text numberOfLines={2} style={st.value}>{l.value}</Text>
-                <Text numberOfLines={2} style={[st.value, st.muted]}>{l.note}</Text>
-              </View>
-            ) : <Text numberOfLines={1} style={[st.value, l.muted ? st.muted : null, copy ? st.mono : null]}>{l.value}</Text>}
+            <Text numberOfLines={l.note ? 2 : 1} style={[st.value, l.muted ? st.muted : null, copy ? st.mono : null]}>{l.value}{l.note ? <Text style={st.muted}>{` \u00b7 ${l.note}`}</Text> : null}</Text>
             {copy ? <Tool icon="copy" label={`Copy the ${copy} id`} testID={`details-copy-${l.key}`} onPress={() => p.copy(l.value, `${copy} id`)} /> : null}
           </View>
         ),
@@ -98,7 +93,6 @@ const st = StyleSheet.create({
   sub: { fontSize: 12.5, color: "var(--ink-3)" as string },
   trail: { flexDirection: "row", alignItems: "center", gap: 4, maxWidth: 240, flexShrink: 1 },
   value: { fontSize: 13, color: "var(--ink)" as string, textAlign: "right" },
-  col: { alignItems: "flex-end", flexShrink: 1 },
   muted: { color: "var(--ink-4)" as string },
   mono: { fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace", fontSize: 12, color: "var(--ink-2)" as string },
   note: { fontSize: 12.5, lineHeight: 18, color: "var(--ink-3)" as string, paddingHorizontal: 12, paddingVertical: 6 },

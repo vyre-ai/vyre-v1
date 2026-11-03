@@ -27,3 +27,10 @@ test("an unlocked sign-in answers, and with nothing picked the Space's account a
   assert.equal((await wrapped(q))?.ref, "#Team");
   assert.deepEqual(posts, ["Your own AI account opens when you sign in to this Space, so the Space AI key answered."]);
 });
+
+test("a turn that runs on the person's own computer keeps their sign-in even though the server does not hold the key", async () => {
+  const wrapped = skipLocked({ resolve: async (x) => (x.unavailable?.includes("#Claude_Code") ? TEAM : CLAUDE), held: () => false, onDevice: async () => true });
+  assert.equal((await wrapped(q))?.ref, "#Claude_Code", "their Mac holds the sign-in: the turn goes there, not to the Space's key");
+  const server = skipLocked({ resolve: async (x) => (x.unavailable?.includes("#Claude_Code") ? TEAM : CLAUDE), held: () => false, onDevice: async () => false });
+  assert.equal((await server(q))?.ref, "#Team", "on the server the key is not there, so the next account answers");
+});

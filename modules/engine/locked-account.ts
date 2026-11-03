@@ -11,6 +11,8 @@ export interface LockedDeps {
   resolve(q: AccountQuery): Promise<ResolvedAccount | null>;
   /** Does this server hold the person's key now. Absent: not a Space server, nothing is skipped. */
   held?: (person: string) => boolean;
+  /** Will this turn run on the person's own computer (placement)? Their sign-in lives there, so the server not holding it does not matter. */
+  onDevice?: (q: AccountQuery) => Promise<boolean>;
   postAs?: PostAs;
   log?: (msg: string, attrs?: Record<string, unknown>) => void;
 }
@@ -32,6 +34,8 @@ export function skipLocked(d: LockedDeps): (q: AccountQuery) => Promise<Resolved
     // a key of the Space is not the person's own: it never needs their key
     if (!first || first.shared === true) return first;
     // open again: the next time it closes, the chat says so again
+    // a turn that runs on the person's own computer uses the sign-in that lives there: a server that does not hold the key is no reason to pass it over (owner ruling 3 Nov: own computer first)
+    if (!held(first.payer) && d.onDevice && await d.onDevice(q).catch(() => false)) return first;
     if (held(first.payer)) { for (const k of [...said]) if (k.startsWith(`${q.threadId}|${q.agentId}|`)) said.delete(k); return first; }
     const skipped = [first.ref];
     for (let i = 0; i < 8; i++) {

@@ -2,7 +2,7 @@
 // value the provider did not send says "Not reported by <provider>", never 0. In a shared chat the account, the cost and the tool arguments come back only for the asker and the
 // people who manage AI spend; everyone else reads "On <asker>'s account".
 
-export interface ReplyCost { source: "subscription" | "reported" | "catalog" | "unknown"; micros?: number; lines?: Array<{ kind: "input" | "output" | "cache_read" | "cache_write"; tokens: number; perMillion: number; micros: number }>; priceAsOf?: string; missing?: string[] }
+export interface ReplyCost { source: "subscription" | "reported" | "catalog" | "estimate" | "unknown"; micros?: number; lines?: Array<{ kind: "input" | "output" | "cache_read" | "cache_write"; tokens: number; perMillion: number; micros: number }>; priceAsOf?: string; missing?: string[] }
 export interface ReplyTurn {
   turnId: string; traceId: string; agentId: string; asker: string; model: string; effort?: string; engine: string; provider?: string;
   accountKind?: "api_key" | "subscription"; shared?: boolean; accountRef?: string; paid?: string; state: string;
@@ -109,6 +109,7 @@ export function costLine(t: ReplyTurn, c: DetailsContext): string {
   if (!k) return "Not recorded";
   if (k.source === "subscription") return `Included in ${t.asker === c.meId ? "your" : `${first(c.nameOf(t.asker))}'s`} ${PLANS[t.engine] ?? providerName(t.provider)} plan`;
   if (k.source === "unknown" || k.micros === undefined) return notReported(t);
+  if (k.source === "estimate") return `About ${usd(k.micros)} (an estimate)`;
   return k.missing && k.missing.length > 0 ? `${usd(k.micros)} and unpriced cache writes` : usd(k.micros);
 }
 
@@ -199,7 +200,7 @@ export function detailLines(d: ReplyDetails, c: DetailsContext): Line[] {
     for (const l of t.cost.lines ?? []) kv(`cost-${l.kind}`, COST_KIND[l.kind]!, `${usd(l.micros)} · ${count(l.tokens)} at $${l.perMillion.toFixed(2)}/M`);
     for (const m of t.cost.missing ?? []) kv(`cost-${m}`, COST_KIND[m] ?? m, "Not in the price list", { muted: true });
     kv("cost-total", "Total", t.cost.micros !== undefined ? usd(t.cost.micros) : rep);
-    out.push({ kind: "note", key: "cost-src", text: t.cost.source === "reported" ? `Priced by ${reporterOf(t)} itself.` : `${providerName(t.provider)} list price on ${t.cost.priceAsOf ?? "the day of the turn"}.` });
+    out.push({ kind: "note", key: "cost-src", text: t.cost.source === "reported" ? `Priced by ${reporterOf(t)} itself.` : t.cost.source === "estimate" ? `${providerName(t.provider)} gave no price. This is the model's own list price on ${t.cost.priceAsOf ?? "the day of the turn"} times the token counts, so it is an estimate.` : `${providerName(t.provider)} list price on ${t.cost.priceAsOf ?? "the day of the turn"}.` });
   }
 
   out.push({ kind: "label", key: "tools", text: "Tools used", right: String(t.tools.length) });

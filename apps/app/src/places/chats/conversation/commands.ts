@@ -1,6 +1,8 @@
 // The slash commands of a chat, run. The list itself is lib/chat-commands.ts (one list for the composer menu, the server's table and this code); a plugin adds its own on top and never replaces a
 // name that is already taken. Every command here does something real or says why it could not: nothing is picked and then dropped.
 import { CHAT_COMMANDS, chatCommand, parseSlash } from "../../../../../../lib/chat-commands.ts";
+import { usageText } from "../../../../../../lib/usage-text.ts";
+import type { MyAi } from "../../../../../../lib/usage-text.ts";
 import type { ListItem } from "../../../../../../ui/src/Composer/index.tsx";
 import * as act from "./actions.ts";
 import { compactChat, setChatMode } from "./brain.tsx";
@@ -78,6 +80,13 @@ async function run(id: string, arg: string, env: CommandEnv, plugins: readonly P
     }
     case "permissions": await act.showPermissions(data, arg, say); return;
     case "btw": env.aside(arg); return;
+    case "usage": {
+      // the words come from engine.my_ai (the one place that knows), never from the model
+      const lead = thread.agents.find((a) => a.mode === "lead");
+      const out = (await data.call("engine.my_ai", { threadId: thread.threadId, ...(lead ? { agentId: lead.agentId } : {}) })) as MyAi;
+      say(usageText(out));
+      return;
+    }
     case "compact": {
       // the server says it in the chat in one line; only a server without engine.compact leaves it to this line
       const lead = thread.agents.find((a) => a.mode === "lead");

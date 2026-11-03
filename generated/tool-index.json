@@ -5966,6 +5966,12 @@
     },
     {
       "deferred": false,
+      "name": "my_ai",
+      "summary": "What AI this chat runs on and what else the person may use now: model, account and who paid, each usable account with models and limits (or not readable), and use today and this month. Ask it for what model, what else, what is left, /usage",
+      "toolset": "meta"
+    },
+    {
+      "deferred": false,
       "name": "network_certificate_renew",
       "summary": "Renew a certificate now",
       "toolset": "engineer"

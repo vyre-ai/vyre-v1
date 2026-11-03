@@ -40,6 +40,7 @@ const modelInfo = t.obj({
   efforts: t.opt(t.arr(t.str({ description: 'A reasoning-effort level the vendor offers for this model, in its words', examples: ['high'] }))),
   defaultEffort: t.opt(t.str({ examples: ['medium'] })),
 });
+const myUse = t.obj({ turns: t.int(), input: t.int({ description: 'New input tokens: what the provider did not serve from its cache' }), cachedInput: t.int(), output: t.int(), costMicros: t.int() });
 const accountRow = t.obj({
   ref: accountRef, driver: driverId, kind: t.enm('api_key', 'subscription'), title: t.str(), name: t.opt(t.str({ description: 'The name the person gave this account in the Vault; title is the provider', examples: ['Dana Claude Max'] })), mine: t.bool(), ownerId: t.opt(id.user),
   status: t.enm('ok', 'expired', 'failed', 'untested'), lastProbeAt: t.opt(t.ts()),
@@ -326,6 +327,18 @@ export default defineManifest({
         }, { description: 'What the latest turn of this chat ran on, which can differ from the account shown above when the account that would pay now is not the one that paid then' })),
       },
       on: ['thread', '/threadId'], tool: 'meta', errors: ['validation.not_found'],
+    }),
+    read('engine.my_ai', 'What AI this chat runs on and what else the person may use now: model, account and who paid, each usable account with models and limits (or not readable), and use today and this month. Ask it for what model, what else, what is left, /usage', {
+      in: { threadId: t.opt(id.thread), agentId: t.opt(id.agent) },
+      out: {
+        running: t.opt(t.rec()),
+        accounts: t.arr(t.obj({
+          ref: accountRef, name: t.str(), provider: t.str(), kind: t.enm('api_key', 'subscription'), usable: t.bool(), why: t.opt(t.str()), models: t.arr(t.str()),
+          limits: t.obj({ state: t.enm('read', 'not_readable'), session: t.opt(t.obj({ pct: t.num(), resetsAt: t.opt(t.ts()) })), week: t.opt(t.obj({ pct: t.num(), resetsAt: t.opt(t.ts()) })), note: t.opt(t.str()) }),
+        })),
+        use: t.obj({ today: myUse, month: myUse }),
+      },
+      tool: 'meta', mcpName: 'my_ai',
     }),
     read('engine.probe_account', 'Test an account: reachable, signed in, models it can use', {
       in: { accountRef }, out: { ok: t.bool(), models: t.opt(t.int()), error: t.opt(errShape) }, tool: 'meta', errors: ['provider.auth_failed', 'provider.unavailable', 'provider.network'],

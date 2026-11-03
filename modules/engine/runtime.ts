@@ -4,7 +4,7 @@
 import path from "node:path";
 import { createTurnEngine } from "../../agent/src/turn-engine/engine.ts";
 import type { TurnEngine } from "../../agent/src/turn-engine/engine.ts";
-import type { AccountQuery, EngineEvent, OpenSession, ResolvedAccount, TurnRow } from "../../agent/src/turn-engine/types.ts";
+import type { SessionSpec, AccountQuery, EngineEvent, OpenSession, ResolvedAccount, TurnRow } from "../../agent/src/turn-engine/types.ts";
 import { open } from "./handlers/control.ts";
 import { BRIDGE_PREFIX, bindBridge, createBridge } from "./handlers/bridge.ts";
 import { screenAnswer, settleAnswer } from "./answer-audience.ts";
@@ -30,7 +30,7 @@ import { checkedOpen, createRunnableAccount } from "./runnable-account.ts";
 import { skipLocked } from "./locked-account.ts";
 import type { NodeCliProbe } from "./cli-programs.ts";
 import { configureEngines, engines, enginesRoot } from "./engine-install.ts";
-import { capabilitySkills, createContextBuilder, takeHandoff, withTurnContext } from "./context.ts";
+import { capabilitySkills, createContextBuilder, runningLine, takeHandoff, withTurnContext } from "./context.ts";
 import { withTranscript } from "./transcript.ts";
 import { withNativeSkills } from "./skills-native.ts";
 import { withGoalFolder } from "./goal-folder.ts";
@@ -182,7 +182,7 @@ export async function resolveOne(h: Pick<EngineHostSeam, "call" | "log">, q: Acc
 /** An account whose engine can run on this computer: the pick, or another account of the person when the pick's program is not installed (runnable-account.ts). */
 function runnableAccount(h: EngineHostSeam): (q: AccountQuery) => Promise<ResolvedAccount | null> {
   // On a Space server a person's own account pays only while the server holds their key (locked-account.ts); the next account answers otherwise, said in the chat.
-  const resolve = skipLocked({ resolve: (q) => resolveOne(h, q), ...(h.keyHeld ? { held: h.keyHeld } : {}), ...(h.postAs ? { postAs: h.postAs } : {}), ...(h.log ? { log: h.log } : {}) });
+  const resolve = skipLocked({ resolve: (q) => resolveOne(h, q), ...(h.keyHeld ? { held: h.keyHeld } : {}), onDevice: async (q) => ((await h.call("engine.placement.decide", { threadId: q.threadId, agentId: q.agentId, kind: "message" }, q.askerId)) as { placement?: string }).placement === "device", ...(h.postAs ? { postAs: h.postAs } : {}), ...(h.log ? { log: h.log } : {}) });
   // A host that hands in its own opener (a test's scripted one) starts no program of ours: nothing to check, and one resolve per turn.
   if (h.openSession) return resolve;
   return createRunnableAccount({
@@ -432,6 +432,13 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
   // a Claude Code or Codex chat gets the agent's skills in its own work folder (person/thread/agent) before every turn, so one added mid-chat reaches a running engine (the opener wrote them as it started)
   const skillsDir = host.sandbox?.dataDir ?? host.dataDir;
   const nativeSkills = (o: OpenSession): OpenSession => (!host.openSession && skillsDir ? withNativeSkills(o, { call: h.call, workOf: (spec) => workFolder(skillsDir, spec.asker, spec.threadId, spec.agent.id), ...(h.log ? { log: h.log } : {}) }) : o);
+  // where a turn runs, in words, for the turn's own context line (one placement read, only for a chat of a person)
+  const placeWords = async (spec: SessionSpec): Promise<string | undefined> => {
+    try {
+      const p = (await h.call("engine.placement.decide", { threadId: spec.threadId, agentId: spec.agent.id, kind: "message" }, spec.asker)) as { placement?: string };
+      return p.placement === "device" ? "on the asker's own computer" : p.placement === "host" ? "on the Space's server" : undefined;
+    } catch { return undefined; }
+  };
   // a goal's Files folder as goal/ in a terminal engine's work folder (goal-folder.ts): read as the asker (the read gate holds), written as the agent acting for the asker
   const goalFolder = (o: OpenSession): OpenSession => (skillsDir
     ? withGoalFolder(o, {
@@ -481,7 +488,7 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
       },
     });
     const engine = createTurnEngine({
-      holder: h.holder, openSession: withHeldNotes(withChatSettings(withSpaceKeyTurns(withTurnContext(goalFolder(nativeSkills(withCompaction(withTranscript(withRecall(withAudienceReset(bridge ? bridge.tap(openSession) : openSession, { db: ctx.db, call: h.call, now, ...(opener ? { drop: (threadId: string) => opener.pool.drop(threadId) } : {}), ...(h.log ? { log: h.log } : {}) }), h.call), h.call, now), ctx.db))), turnContext), { call: h.call, db: ctx.db, now, ...(h.postAs ? { postAs: h.postAs } : {}), ...(h.log ? { log: h.log } : {}) }), h.call)), now,
+      holder: h.holder, openSession: withHeldNotes(withChatSettings(withSpaceKeyTurns(withTurnContext(goalFolder(nativeSkills(withCompaction(withTranscript(withRecall(withAudienceReset(bridge ? bridge.tap(openSession) : openSession, { db: ctx.db, call: h.call, now, ...(opener ? { drop: (threadId: string) => opener.pool.drop(threadId) } : {}), ...(h.log ? { log: h.log } : {}) }), h.call), h.call, now), ctx.db))), turnContext, async (spec) => runningLine(spec, await placeWords(spec))), { call: h.call, db: ctx.db, now, ...(h.postAs ? { postAs: h.postAs } : {}), ...(h.log ? { log: h.log } : {}) }), h.call)), now,
       queue: sqlQueue(ctx.db), leases: sqlLeases(ctx.db), messages: sqlMessages(ctx.db, now), waits: sqlWaits(ctx.db), newId: (p) => mintEngineId(p, now()),
       admit: (q) => admission(h, q),
       lostTurn: (row) => lostTurnId(ctx.db, row, () => mintEngineId("trn", now())),

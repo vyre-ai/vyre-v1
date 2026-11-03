@@ -780,6 +780,7 @@ export function stubs(ctx: CallCtx) {
       models: {
         list: call("engine.models.list"),
       },
+      my_ai: call("engine.my_ai"),
       now: call("engine.now"),
       placement: {
         decide: call("engine.placement.decide"),
