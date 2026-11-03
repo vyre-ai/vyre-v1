@@ -159,7 +159,8 @@ export function roomOf(m: RoomIn): Room {
 
 export interface Candidate { serverId: string; name: string; room: Room; turns: number; maxTurns: number | null }
 export interface Placement { chosen: Candidate | null; skipped: { serverId: string; name: string; why: string }[] }
-const busyWhy = (c: Candidate): string => (c.room.why === "offline" ? "it is offline" : c.room.why === "draining" ? "it is draining" : c.room.why === "turn limit" ? `it was busy, ${c.turns} of ${c.maxTurns} turns running` : `it was busy, ${c.room.why} nearly full`);
+export const busyText = (room: Room, turns: number, maxTurns: number | null): string => (room.why === "offline" ? "it is offline" : room.why === "draining" ? "it is draining" : room.why === "turn limit" ? `it was busy, ${turns} of ${maxTurns} turns running` : `it was busy, ${room.why} nearly full`);
+const busyWhy = (c: Candidate): string => busyText(c.room, c.turns, c.maxTurns);
 
 /** The first machine in the person's order with room. A busy one is skipped for the next. If none has room the first that is online and not draining takes it anyway, queued. */
 export function place(order: readonly Candidate[]): Placement {

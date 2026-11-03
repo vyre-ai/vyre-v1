@@ -86,6 +86,12 @@ type Out = {
     }>;
   admin: boolean;
   now: number;
+  spaceRoom?: {
+    n: number;
+    why: string;
+    turns: number;
+    maxTurns: number | null;
+  };
 };
 ```
 
@@ -165,7 +171,13 @@ type Out = {
         }
       }
     ],
-    "now": 1760000000000
+    "now": 1760000000000,
+    "spaceRoom": {
+      "maxTurns": 1,
+      "n": 1,
+      "turns": 1,
+      "why": "example"
+    }
   }
 }
 ```

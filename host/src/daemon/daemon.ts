@@ -123,6 +123,7 @@ import { createVaultExportRoute } from "../routes/vault-export.ts";
 import { createWebhookRoute } from "../routes/webhooks.ts";
 import { createComputeRoute } from "../routes/compute.ts";
 import { createComputeStream } from "../routes/compute-stream.ts";
+import { createReporter, recordLinkedReport, recordSpaceReport } from "./machines.ts";
 import { createLocalWork, createLocalWorkRoute } from "../routes/local-work.ts";
 import { createTeamLinksRoute } from "../routes/team-links.ts";
 import type { TeamLink } from "../routes/team-links.ts";
@@ -332,7 +333,7 @@ export interface DaemonOptions {
   now?: () => number;
   sleep?: (ms: number) => Promise<void>;
   /** intervals in ms; tests shorten them */
-  intervals?: { tick?: number; commands?: number; fast?: number; slow?: number; encryption?: number; hooks?: number; sweep?: number; sitesPush?: number };
+  intervals?: { machines?: number; tick?: number; commands?: number; fast?: number; slow?: number; encryption?: number; hooks?: number; sweep?: number; sitesPush?: number };
 }
 
 export interface Daemon {
@@ -532,7 +533,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   let computeStreamInput: (computerId: string, personId: string) => Promise<boolean> = () => Promise.resolve(false);
   // a person's own computer links with their signed-in session (lane l-runson); who it is comes from the same resolver as the gateway, once the Space is open
   let deviceOfToken: (token: string) => Promise<{ person: string; device: string; name?: string } | null> = () => Promise.resolve(null);
-  const computeStream = createComputeStream({ poll: (c) => computePoll(c, {}), device: (t) => deviceOfToken(t), open: (t, c) => computeStreamOpen(t, c), mayInput: (c, p) => computeStreamInput(c, p), ...(o.computeStreamRecheckMs !== undefined ? { recheckMs: o.computeStreamRecheckMs } : {}), ...(o.computeStreamSecure ? { secure: o.computeStreamSecure } : {}) });
+  const computeStream = createComputeStream({ poll: (c) => computePoll(c, {}), device: (t) => deviceOfToken(t), report: (from, r) => { if (db) recordLinkedReport(db, { ...(from.serverId ? { serverId: from.serverId } : {}), ...(from.device ? { device: from.device } : {}) }, r, now()); }, open: (t, c) => computeStreamOpen(t, c), mayInput: (c, p) => computeStreamInput(c, p), ...(o.computeStreamRecheckMs !== undefined ? { recheckMs: o.computeStreamRecheckMs } : {}), ...(o.computeStreamSecure ? { secure: o.computeStreamSecure } : {}) });
   closers.push(() => computeStream.close());
   // A device-role daemon (the Vyre app's, on the person's own computer) links to each Team Space its person is signed in to here, so their chats there can run on this computer (lane l-runson).
   // A daemon that hosts a Space does not: its Space is here, and its turns already run here.
@@ -555,7 +556,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
     // the CLI engines: Vyre installs a missing one the first time a turn needs it, so what decides is whether this computer can sandbox an engine at all (Windows waits for lane l-winengine)
     const engines = o.deviceLink?.engines ?? (engine?.nodeCliReport?.().sandbox.ok === true ? ["claude_code", "codex", "grok"] : []);
     await runDeviceLink({
-      server: l.address, token: l.token, dataDir: paths.root, name: o.deviceLink?.name ?? platform.hostname, engines, launcher,
+      server: l.address, token: l.token, dataDir: paths.root, name: o.deviceLink?.name ?? platform.hostname, engines, launcher, report: () => ({ ...machineReporter.report(), can: [...engines, ...(fs.existsSync("/var/run/docker.sock") ? ["docker"] : [])] }) as unknown as Record<string, unknown>,
       socket: o.deviceLink?.socket ?? platformSocket, signal, ...(o.deviceLink?.retryMs !== undefined ? { retryMs: o.deviceLink.retryMs } : {}), ...(o.deviceLink?.homes ? { homes: o.deviceLink.homes } : {}),
       sleep: (ms, sig) => new Promise<void>((resolve, reject) => { const t = setTimeout(resolve, ms); t.unref?.(); sig.addEventListener("abort", () => { clearTimeout(t); reject(new Error("stopped")); }, { once: true }); }),
       log: (line) => sink.log({ space: l.id, level: 20, msg: "team.link", place: "device-link", attrs: { line } }),
@@ -2043,6 +2044,11 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
     return out;
   };
 
+  // Machines: what this computer says about itself every 30 s. The Space server stores its own report; a device-role daemon sends it over the link (linkDevice below).
+  const appVersion = ((): string => { try { return String((JSON.parse(fs.readFileSync(path.join(codeRoot, "package.json"), "utf8")) as { version?: unknown }).version ?? "unknown"); } catch { return "unknown"; } })();
+  const machineReporter = createReporter({ dir: paths.root, version: appVersion, runs: () => ({ turns: engineTurns }), can: () => [...(cfg.roles.includes("device") ? [] : ["claude_code", "codex"]), ...(fs.existsSync("/var/run/docker.sock") || fs.existsSync("/.dockerenv") ? ["docker"] : [])] });
+  const reportMachine = (): void => { if (db) recordSpaceReport(db, machineReporter.report(), now()); };
+
   // What the host knows about itself goes into the network module's tables so Console, Infrastructure, Network has something true to show: the address, this server, the direct endpoint.
   const reportNetwork = (): void => {
     if (!db) return;
@@ -2157,6 +2163,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   } });
   scheduler.add({ name: "probes.fast", schedule: { everyMs: fast }, run: async () => { await runProbes(group(["events_db", "index_db", "scheduler", "disk_space"]), false); } });
   scheduler.add({ name: "probes.slow", schedule: { everyMs: slow }, run: async () => { await runProbes(group(["docker", "caddy", "time_skew"]), false); reportNetwork(); await ensureIngress(false); await refreshNetworkCertificate(); } });
+  scheduler.add({ name: "machines.report", schedule: { everyMs: o.intervals?.machines ?? 30_000, immediate: true }, run: () => { if (hasSpace) reportMachine(); } });
   scheduler.add({ name: "probes.encryption", schedule: { everyMs: o.intervals?.encryption ?? 300_000 }, run: async () => { await runProbes(group(["disk_encrypted"]), false); } });
   if (hasSpace) {
     scheduler.add({ name: "commands.poll", schedule: { everyMs: o.intervals?.commands ?? 1000 }, run: async () => { await runCommands(); } });

@@ -51,6 +51,7 @@ type Out = {
     ranOn: Array<{
         kind: string;
         name: string;
+        note?: string;
       }>;
     timing: {
       queuedAt?: number;
@@ -167,7 +168,8 @@ type Out = {
       "ranOn": [
         {
           "kind": "example",
-          "name": "example"
+          "name": "example",
+          "note": "example"
         }
       ],
       "shared": true,

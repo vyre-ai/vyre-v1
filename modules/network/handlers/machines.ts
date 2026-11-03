@@ -82,7 +82,9 @@ export async function machines(ctx: NetworkCtx, _input: In) {
   const built = all.map((s) => build(ctx, s, admin)).filter((b): b is Built => b !== null);
   const latest = admin ? await latestVersion(ctx) : null;
   const alerts = alertsFor(ctx, built, latest, ctx.now());
-  return { machines: built.map((b) => b.row), alerts, admin, now: ctx.now() };
+  // the Space server's room is no secret: a member's turns may be sent there, and placement needs to know whether it has room
+  const sp = admin ? built.find((b) => b.row.kind === "space") : servers(ctx).filter((s) => s.role === "space").map((s) => build(ctx, s, true)).find((b) => b !== null) ?? undefined;
+  return { machines: built.map((b) => b.row), alerts, admin, now: ctx.now(), ...(sp ? { spaceRoom: { n: sp.row.room.n, why: sp.row.room.why, turns: sp.row.runs.turns, maxTurns: sp.row.limits.maxTurns } } : {}) };
 }
 
 export async function machine(ctx: NetworkCtx, input: { serverId: string; range?: unknown }) {

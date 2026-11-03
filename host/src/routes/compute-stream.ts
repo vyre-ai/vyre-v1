@@ -20,6 +20,7 @@
 // /compute/stream with the person's own signed-in session (`Authorization: Bearer vst_...`), not a node credential. Its node id is `device:<device id>`, it belongs to that person, and the Space
 // starts a process on it only for that person's own turns (spawnProc's `person`); the device refuses any other as the second lock. It says which engines it runs once, in its hello
 //   device -> Space  {t:"hello", engines:[...], name?}         Space -> device  {t:"ready", person, device}
+//   node or device -> Space  {t:"report", report}  every 30 s: its specs, load, what Vyre runs on it and what it can run (machines, lib/machines.ts)
 // A session that is signed out or revoked drops the socket within `recheckMs`, like a removed node.
 //
 // And one request to a port on a computer on this node, for a site or an artifact (portFetch), and one question for the machine (ask): no job row, so a read can use them.
@@ -64,6 +65,8 @@ export interface ComputeStreamDeps {
   open(ticket: string, computerId: string): Promise<{ nodeId: string; personId: string; input: boolean } | null>;
   /** Does this person still hold the controls of this computer? */
   mayInput(computerId: string, personId: string): Promise<boolean>;
+  /** A computer's report of its load, specs and what it runs, every 30 s (machines: lib/machines.ts). `serverId` is set for a node that joined with a credential; `device` for a person's own computer. The host stores it. */
+  report?(from: { nodeId: string; serverId?: string; device?: DeviceLink }, report: unknown): void;
   now?: () => number;
   /** How often a connected node's credential is checked again. Default 2 s. */
   recheckMs?: number;
@@ -258,6 +261,11 @@ export function createComputeStream(deps: ComputeStreamDeps): ComputeStream {
         let m: { t?: unknown; view?: unknown; reason?: unknown; data?: unknown; proc?: unknown; pid?: unknown; err?: unknown; code?: unknown; signal?: unknown };
         try { m = JSON.parse(data.toString("utf8")) as typeof m; } catch { return; }
         if (m.t === "hb") return;
+        if (m.t === "report") {
+          // the load of this computer, reported by it: kept as it came (made safe by lib/machines.ts cleanReport), only from the socket it belongs to
+          try { deps.report?.({ nodeId: conn.nodeId, ...(who ? { serverId: who.serverId } : {}), ...(conn.device ? { device: conn.device } : {}) }, (m as unknown as { report?: unknown }).report); } catch { /* a report that cannot be stored is dropped; the next one comes in 30 s */ }
+          return;
+        }
         if (typeof m.t === "string" && m.t.startsWith("port_")) {
           const r = m as unknown as { id?: unknown; status?: unknown; headers?: unknown; b?: unknown; reason?: unknown };
           const id = typeof r.id === "string" ? r.id : "";

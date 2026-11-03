@@ -32,6 +32,10 @@ export interface DeviceLinkDeps {
   sleep(ms: number, signal: AbortSignal): Promise<void>;
   signal: AbortSignal;
   log(line: string): void;
+  /** What this computer reports of itself (specs, load, what runs here: lib/machines.ts Report). Sent as a {t:"report"} frame at once and every `reportMs`. Absent: nothing is sent. */
+  report?: () => Record<string, unknown>;
+  /** Pause between reports. Default 30 s. */
+  reportMs?: number;
   /** Pause between dials after a drop. Default 2 s. */
   retryMs?: number;
   /** Where the person's own engine homes are looked for (tests). Default: this computer's home and environment. */
@@ -197,6 +201,7 @@ export async function runDeviceLink(d: DeviceLinkDeps): Promise<"stopped"> {
     return new Promise((resolve) => {
       let opened = false;
       let hb: ReturnType<typeof setInterval> | undefined;
+      let rp: ReturnType<typeof setInterval> | undefined;
       const up = d.socket(url, { authorization: `Bearer ${d.token}` });
       const say = (m: Record<string, unknown>): void => { try { up.send(JSON.stringify(m)); } catch { /* the socket is going away */ } };
       const end = (): void => {
@@ -204,6 +209,7 @@ export async function runDeviceLink(d: DeviceLinkDeps): Promise<"stopped"> {
         engines.killAll();
         person = null;
         if (hb) clearInterval(hb);
+        if (rp) clearInterval(rp);
         d.signal.removeEventListener("abort", stop);
         resolve(opened ? "closed" : "refused");
       };
@@ -213,6 +219,11 @@ export async function runDeviceLink(d: DeviceLinkDeps): Promise<"stopped"> {
         opened = true;
         say({ t: "hello", engines: [...d.engines], name: d.name });
         hb = setInterval(() => say({ t: "hb" }), 15_000); hb.unref?.();
+        if (d.report) {
+          const send = (): void => { try { say({ t: "report", report: d.report!() }); } catch { /* a report that cannot be made is skipped; the next is in 30 s */ } };
+          send();
+          rp = setInterval(send, d.reportMs ?? 30_000); rp.unref?.();
+        }
       });
       up.onClose(end);
       up.onMessage((data) => {

@@ -6939,6 +6939,7 @@ export type ChatReplyDetailsOut = {
       ranOn: Array<{
           kind: string;
           name: string;
+          note?: string;
         }>;
       timing: {
         queuedAt?: number;
@@ -10633,6 +10634,10 @@ export type EnginePlacementDecideOut = {
   wakeLine?: string;
   nodeId?: string;
   deviceId?: string;
+  moved?: {
+    from: string;
+    why: string;
+  };
 };
 export type EnginePlacementOptionsIn = {
   threadId: string;
@@ -11026,6 +11031,7 @@ export type EngineTurnFinishOut = {
     ranOn?: Array<{
         kind: "computer" | "server" | "space";
         name: string;
+        note?: string;
       }>;
   };
 };
@@ -11063,6 +11069,7 @@ export type EngineTurnGetOut = {
       ranOn?: Array<{
           kind: "computer" | "server" | "space";
           name: string;
+          note?: string;
         }>;
     };
     machine: "host" | "device";
@@ -11109,6 +11116,7 @@ export type EngineTurnOfMessageOut = {
     ranOn: Array<{
         kind: string;
         name: string;
+        note?: string;
       }>;
     timing: {
       queuedAt?: number;
@@ -11240,6 +11248,7 @@ export type EngineTurnRecordOut = {
     ranOn?: Array<{
         kind: "computer" | "server" | "space";
         name: string;
+        note?: string;
       }>;
   };
 };
@@ -11289,6 +11298,7 @@ export type EngineTurnRetryOut = {
     ranOn?: Array<{
         kind: "computer" | "server" | "space";
         name: string;
+        note?: string;
       }>;
   };
 };
@@ -11332,6 +11342,7 @@ export type EngineTurnStartOut = {
     ranOn?: Array<{
         kind: "computer" | "server" | "space";
         name: string;
+        note?: string;
       }>;
   };
 };
@@ -11381,6 +11392,7 @@ export type EngineTurnsListOut = {
       ranOn?: Array<{
           kind: "computer" | "server" | "space";
           name: string;
+          note?: string;
         }>;
     }>;
   next?: string;
@@ -25545,6 +25557,12 @@ export type NetworkMachinesOut = {
     }>;
   admin: boolean;
   now: number;
+  spaceRoom?: {
+    n: number;
+    why: string;
+    turns: number;
+    maxTurns: number | null;
+  };
 };
 export type NetworkMyComputerApproveIn = {
   serverId: string;
