@@ -120,10 +120,11 @@ function deployedOut(ctx: Ctx, r: Row): Record<string, unknown> {
   const last = one(ctx, "SELECT * FROM sites_deployment WHERE site_id = ? AND env = ? ORDER BY at DESC", r.id, "production");
   const addons = many(ctx, "SELECT * FROM sites_addon WHERE site_id = ?", r.id).map((a) => ({ kind: str(a.kind), state: str(a.state), envName: str(a.env_name), ...(isNull(a.detail) ? {} : { detail: str(a.detail) }) }));
   // building shows while a deploy runs, even with an older build still serving
-  const state = last && (last.state === "queued" || last.state === "building") ? "building" : flag(r.live) ? "ready" : last?.state === "failed" && isNull(r.container_id) ? "failed" : "stopped";
+  const lastOut = last ? depRow(last, isNull(r.current_deployment) ? null : str(r.current_deployment)) : null;
+  const state = lastOut && lastOut.state === "building" || lastOut?.state === "queued" ? "building" : flag(r.live) ? "ready" : lastOut?.state === "failed" && isNull(r.container_id) ? "failed" : "stopped";
   return {
     deployed: true, source, limits: limitsOf(r), addons, autoDeploy: flag(r.auto_deploy), passwordSet: !isNull(r.password_hash), state,
-    ...(last ? { lastDeploy: depRow(last, isNull(r.current_deployment) ? null : str(r.current_deployment)) } : {}),
+    ...(lastOut ? { lastDeploy: lastOut } : {}),
   };
 }
 

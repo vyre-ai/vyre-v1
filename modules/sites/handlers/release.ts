@@ -45,6 +45,9 @@ export function parseJson<T>(text: unknown, fallback: T): T {
 }
 
 export function depRow(r: Row, currentId: string | null): Record<string, unknown> {
+  // a deploy this process is not running, still marked as running, was cut off by a restart of the server: it says so, with the fix
+  const orphan = (r.state === "queued" || r.state === "building") && !done.has(str(r.id));
+  if (orphan) return { ...depRow({ ...r, state: "failed", problem: "The server restarted during this deploy. Deploy again.", fix: "retry" }, currentId) };
   return {
     deploymentId: str(r.id), siteId: str(r.site_id), env: str(r.env), state: str(r.state), at: num(r.at),
     ...(isNull(r.url) ? {} : { url: str(r.url) }), ...(isNull(r.branch) ? {} : { branch: str(r.branch) }), ...(isNull(r.commit_sha) ? {} : { commit: str(r.commit_sha) }),

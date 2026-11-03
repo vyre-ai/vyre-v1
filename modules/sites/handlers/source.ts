@@ -198,7 +198,9 @@ async function fromArchive(dir: string, fileId: string, d: SourceDeps): Promise<
 
 /** Fetch the code into a new folder. The caller removes it with cleanup() once the build has read it. */
 export async function fetchSource(s: SourceSpec, d: SourceDeps): Promise<Fetched> {
-  const base = fs.mkdtempSync(path.join(d.tmp ?? os.tmpdir(), "vyre-site-src-"));
+  const parent = d.tmp ?? os.tmpdir();
+  fs.mkdirSync(parent, { recursive: true, mode: 0o700 });
+  const base = fs.mkdtempSync(path.join(parent, "vyre-site-src-"));
   const dir = path.join(base, "src");
   fs.mkdirSync(dir);
   const cleanup = (): void => { fs.rmSync(base, { recursive: true, force: true }); fs.rmSync(`${dir}.lift`, { recursive: true, force: true }); };
