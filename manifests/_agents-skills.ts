@@ -71,7 +71,7 @@ export const skillScopeCapabilities: CapabilityDef[] = [
     perm: null, level: 'edit', idem: 'key', audit: 'always', emits: ['skill.mine_changed'], tool: 'agents', mcpName: 'skills_mine_set', errors: ['validation.not_found', 'validation.bad_input'],
   }),
   write('skills.mine.remove', 'Remove one of your skills (and its shares), or take a shared one off your list', {
-    in: { skillId: skoId }, out: { removed: t.bool() }, perm: null, level: 'edit', idem: 'key', audit: 'always', emits: ['skill.mine_changed'], tool: 'agents', mcpName: 'skills_mine_remove',
+    in: { skillId: skoId }, out: { removed: t.bool() }, perm: null, level: 'edit', idem: 'key', audit: 'always', emits: ['skill.mine_changed', 'skill.share_decided'], tool: 'agents', mcpName: 'skills_mine_remove',
   }),
   write('skills.mine.update', 'Fetch one of your skills again from its link or repo; whoever it is shared with approves again if it can now touch more', {
     in: { skillId: skoId }, out: { skill: ownRow, changed: t.bool(), growth: t.arr(t.str()) },

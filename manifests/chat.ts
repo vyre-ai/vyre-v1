@@ -373,7 +373,7 @@ export default defineManifest({
         })),
       },
       out: { state: t.enm('sent', 'scheduled'), threadId: id.thread, messageId: t.opt(id.message), dueAt: t.opt(t.ts()), when: t.str(), taskId: t.opt(id.task), requestId: t.opt(t.str()) },
-      level: 'view', idem: 'key', gate: { act: 'send', when: "actor.kind != 'person'" }, emits: ['thread.started', 'message.received', 'message.direct'], audit: 'always',
+      level: 'view', idem: 'key', gate: { act: 'send', when: "actor.kind != 'person'" }, emits: ['thread.started', 'message.received', 'message.direct', 'message.mentioned', 'thread.replied', 'thread.unarchived'], audit: 'always',
       tool: 'chats', mcpName: 'message_person', deferred: true, agent: { planMode: 'blocked' }, errors: ['validation.not_found', 'validation.precondition_failed'],
     }),
     write('chat.agent_dm.mute', 'Mute agent messages from one person for the rest of my day; what their agents send waits until tomorrow and the person is told. undo lifts it', {
