@@ -39,6 +39,37 @@ type In = {
   costMicros?: number;
   code?: string;
   message?: string;
+  info?: {
+    effort?: string;
+    account?: {
+      ref: string;
+      driver: string;
+      provider: string;
+      kind: "api_key" | "subscription";
+      shared?: boolean;
+      spaceKey?: boolean;
+    };
+    firstTokenAt?: number;
+    cacheReadTokens?: number;
+    cacheWriteTokens?: number;
+    reasoningTokens?: number;
+    costUsd?: number;
+    tools: Array<{
+        id: string;
+        name: string;
+        detail?: string;
+        startedAt: number;
+        endedAt?: number;
+        ok?: boolean;
+        held?: string;
+      }>;
+    switches: Array<{
+        at: number;
+        from: string;
+        to: string;
+        why: string;
+      }>;
+  };
 };
 ```
 
@@ -99,6 +130,41 @@ type Out = {
     "code": "example",
     "costMicros": 1,
     "engine": "example",
+    "info": {
+      "account": {
+        "driver": "example",
+        "kind": "api_key",
+        "provider": "example",
+        "ref": "#Team_Anthropic_Key",
+        "shared": true,
+        "spaceKey": true
+      },
+      "cacheReadTokens": 1,
+      "cacheWriteTokens": 1,
+      "costUsd": 1,
+      "effort": "high",
+      "firstTokenAt": 1760000000000,
+      "reasoningTokens": 1,
+      "switches": [
+        {
+          "at": 1760000000000,
+          "from": "example",
+          "to": "example",
+          "why": "example"
+        }
+      ],
+      "tools": [
+        {
+          "detail": "example",
+          "endedAt": 1760000000000,
+          "held": "tsk_a1b2c3",
+          "id": "example",
+          "name": "example",
+          "ok": true,
+          "startedAt": 1760000000000
+        }
+      ]
+    },
     "message": "example",
     "model": "example",
     "phase": "started",

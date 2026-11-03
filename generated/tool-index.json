@@ -1400,6 +1400,12 @@
     },
     {
       "deferred": false,
+      "name": "chat_reply_details",
+      "summary": "How one agent reply was made, for its hover card and Details tab: its turn, what the agent knew, and its own steps when no turn was kept. Account, cost and tool arguments are for the asker and AI-spend managers only",
+      "toolset": "chats"
+    },
+    {
+      "deferred": false,
       "name": "chat_screen_get",
       "summary": "The screen context the person sent with a message (or the latest in the thread): the place, open objects, selection, filters and a summary of visible rows",
       "toolset": "chats"
