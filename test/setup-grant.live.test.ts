@@ -81,10 +81,13 @@ withSpace("without the grant the same calls are cards; a member cannot give the 
   assert.equal((await s.call("mcp.setup.set", noah, { agentId: noahsId, setup: true })).body?.error?.code, "permission.role_lacks_permission", "nor later in Settings");
 
   // granted, then taken back: the next call is a card again
+  // the sign-in secret is a Vault item the setting person can use (members.sso.set checks it as vault.use)
+  const sf = expectStatus(await s.call("vault.folders.create", owner, { idempotencyKey: "sg2-folder", name: "Sign-in", scope: "shared" }), 200, "vault.folders.create").folder.id as string;
+  expectStatus(await s.call("vault.item.put", owner, { folderId: sf, name: "Google_Client_Secret", kind: "api_key", fields: [{ key: "value", value: SECRET, secret: true }], idempotencyKey: "sg2-put" }), 200, "vault.item.put");
   const c = new Client(`${s.d.url}/mcp`, {}, "Simba (Claude Code)");
   const { agentId } = await signIn(s, c, owner, { setup: true });
   await c.rpc("initialize", INIT);
-  assert.equal((await tool(c, "members_sso_set", { provider: google({ clientId: "granted-1" }) })).isError, false);
+  { const g = await tool(c, "members_sso_set", { provider: google({ clientId: "granted-1" }) }); assert.equal(g.isError, false, JSON.stringify(g).slice(0, 600)); }
   expectStatus(await s.call("mcp.setup.set", owner, { agentId, setup: false }), 200, "mcp.setup.set");
   const back = (await tool(c, "members_sso_set", { provider: google({ clientId: "after-revoke" }) })).structuredContent;
   assert.deepEqual([back.held, back.asksPerson], [true, true], JSON.stringify(back));

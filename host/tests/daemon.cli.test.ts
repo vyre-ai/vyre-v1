@@ -5,6 +5,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import http from "node:http";
 import os from "node:os";
+import net from "node:net";
 import path from "node:path";
 import { fakePlatform } from "../src/platform/index.ts";
 import { loadConfig, readInfo } from "../src/daemon/config.ts";
@@ -14,6 +15,7 @@ import { main, helpText } from "../src/cli/index.ts";
 import type { CliIo } from "../src/cli/index.ts";
 import type { FetchLike } from "../src/cli/io.ts";
 import { commandRows, resolveRow, buildInput, capInfo, coerceValue } from "../src/cli/table.ts";
+import { scrubber } from "../src/cli/runenv.ts";
 import { parseArgs, camel, kebab } from "../src/cli/args.ts";
 
 interface Seen { method: string; path: string; headers: http.IncomingHttpHeaders; body: unknown }
@@ -213,15 +215,17 @@ test("`vyre run --env` puts the folder's values in the child's environment only"
   } finally { await s.close(); fs.rmSync(dir, { recursive: true, force: true }); }
 });
 
-test("`vyre run --env` runs nothing when there is no filler, when the lists disagree, or when the folder is refused", async () => {
+test("`vyre run --env` runs nothing when the lists disagree, when the folder is refused, or when the server will not hand a value over", async () => {
   const dir = dirOf();
   const ok = await fakeServer(() => ({ body: { data: { handles: ["hdl_1"], keys: ["A", "B"] } } }));
   const refused = await fakeServer(() => ({ status: 403, body: { error: { code: "permission.no_grant", message: "No access to that folder.", retryable: false, traceId: "b".repeat(32), next: [] } } }));
   try {
-    const noFiller = mkIo(target(ok.url, dir));
-    assert.equal(await main(["run", "--env", "fld_x", "--", process.execPath, "-e", "0"], noFiller.io), 1);
-    assert.match(noFiller.err(), /vault filler is not running/);
-    assert.equal(ok.seen.length, 0, "asked nothing of the server before it knew it could fill");
+    const noValue = await fakeServer((req) => req.path.endsWith("/inject_env") ? { body: { data: { handles: ["#A.k"], keys: ["A"] } } } : { status: 403, body: { error: { code: "permission.no_grant", message: "Only a person at View level can have the value back.", retryable: false, traceId: "c".repeat(32), next: [] } } });
+    const nope = mkIo(target(noValue.url, dir));
+    assert.equal(await main(["run", "--env", "fld_x", "--", process.execPath, "-e", "require('node:fs').writeFileSync(process.argv[1], 'ran')", path.join(dir, "ran")], nope.io), 1);
+    assert.match(nope.err(), /permission\.no_grant/);
+    assert.equal(fs.existsSync(path.join(dir, "ran")), false, "the command did not run");
+    await noValue.close();
     const mismatch = mkIo(target(ok.url, dir), { filler: () => Promise.resolve("v") });
     assert.equal(await main(["run", "--env", "fld_x", "--", process.execPath, "-e", "0"], mismatch.io), 1);
     assert.match(mismatch.err(), /different number of keys and handles/);
@@ -231,6 +235,60 @@ test("`vyre run --env` runs nothing when there is no filler, when the lists disa
     const usage = mkIo(target(ok.url, dir), { filler: () => Promise.resolve("v") });
     assert.equal(await main(["run", "--env", "fld_x"], usage.io), 2);
   } finally { await ok.close(); await refused.close(); fs.rmSync(dir, { recursive: true, force: true }); }
+});
+
+test("`vyre run --env` with no filler process asks the server for each value as the caller, and scrubs the child's output", async () => {
+  const dir = dirOf();
+  const s = await fakeServer((req) => {
+    if (req.path.endsWith("/inject_env")) return { body: { data: { handles: ["#Dana.api_key", "#Stripe.api_key"], keys: ["api_key", "Stripe__api_key"] } } };
+    const handle = (req.body as { handle: string }).handle;
+    return { body: { data: { filled: false, field: "api_key", where: "host", value: handle === "#Dana.api_key" ? "sk-dana-1234" : "sk-stripe-9876" } } };
+  });
+  try {
+    const t = mkIo({ ...target(s.url, dir), VYRE_FILLER_SOCKET: "" });
+    const code = await main(["run", "--env", "fld_prod", "--", process.execPath, "-e", "process.stdout.write('a=' + process.env.api_key + ' b=' + process.env.Stripe__api_key); process.stderr.write('e=' + process.env.api_key)"], t.io);
+    assert.equal(code, 0);
+    assert.equal(t.out(), "a=[vault] b=[vault]");
+    assert.equal(t.err(), "e=[vault]");
+    const fills = s.seen.filter((x) => x.path.endsWith("/fill"));
+    assert.deepEqual(fills.map((x) => (x.body as { handle: string; returnValue: boolean }).handle), ["#Dana.api_key", "#Stripe.api_key"]);
+    assert.ok(fills.every((x) => (x.body as { returnValue: boolean }).returnValue === true));
+    assert.equal(process.env["api_key"], undefined);
+  } finally { await s.close(); fs.rmSync(dir, { recursive: true, force: true }); }
+});
+
+test("`vyre run --env` reads values from the filler socket named by VYRE_FILLER_SOCKET", async () => {
+  const dir = dirOf();
+  const sockPath = path.join(dir, "filler.sock");
+  const asked: string[] = [];
+  const srv = net.createServer((c) => {
+    c.setEncoding("utf8");
+    let buf = "";
+    c.on("data", (d: string) => {
+      buf += d;
+      if (!buf.includes("\n")) return;
+      const m = JSON.parse(buf.slice(0, buf.indexOf("\n"))) as { op: string; handle: string };
+      asked.push(m.handle);
+      c.end(`${JSON.stringify({ value: `v-of-${m.handle}` })}\n`);
+    });
+  });
+  await new Promise<void>((r) => srv.listen(sockPath, () => r()));
+  const s = await fakeServer(() => ({ body: { data: { handles: ["#A.k"], keys: ["A_K"] } } }));
+  try {
+    const t = mkIo({ ...target(s.url, dir), VYRE_FILLER_SOCKET: sockPath }, { inherit: false });
+    assert.equal(await main(["run", "--env", "fld_x", "--", process.execPath, "-e", "process.stdout.write(process.env.A_K)"], t.io), 0);
+    assert.equal(t.out(), "v-of-#A.k", "the socket's value reached the child");
+    assert.deepEqual(asked, ["#A.k"]);
+    assert.equal(s.seen.filter((x) => x.path.endsWith("/fill")).length, 0, "the server was not asked for the value");
+  } finally { srv.close(); await s.close(); fs.rmSync(dir, { recursive: true, force: true }); }
+});
+
+test("the output scrubber removes a value that arrives in two pieces", () => {
+  const out: string[] = [];
+  const sc = scrubber(["sk-secret-123"], (t) => out.push(t));
+  for (const piece of ["token sk-sec", "ret-123 and more ", "sk-secret", "-123", " end"]) sc.push(piece);
+  sc.end();
+  assert.equal(out.join(""), "token [vault] and more [vault] end");
 });
 
 // ---- connector

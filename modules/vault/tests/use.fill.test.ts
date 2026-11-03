@@ -111,9 +111,21 @@ test("inject_env names the keys and handles of a folder, never a value", async (
   const r = out(await u.injectEnv(h.ctx, { folderId: f, purpose: "vyre run --env" }));
   assert.deepEqual(contractErrors("vault.inject_env", "out", r), []);
   assert.deepEqual(r.handles, ["#Dana_Lawmatics.username", "#Dana_Lawmatics.api_key", "#Stripe_live.username", "#Stripe_live.api_key"]);
-  assert.deepEqual(r.keys, ["username", "api_key"]);
+  assert.deepEqual(r.keys, ["username", "api_key", "Stripe_live__username", "Stripe_live__api_key"], "a second item with the same field names gets its own name in front");
+  assert.equal(r.handles.length, r.keys.length);
   assert.equal(h.named("vault.used").length, 2);
   assert.ok(!h.everything().includes("sk-stripe-AAAA") && !h.everything().includes(SECRET));
+  h.cleanup();
+});
+
+test("inject_env refuses, naming both items, when the prefixed name is taken too", async () => {
+  const h = harness();
+  const f = await folder(h);
+  const mk = (name: string, fieldKey: string) => v.itemPut(h.ctx, { folderId: f, name, kind: "api_key", fields: [{ key: fieldKey, value: "value-" + name }], idempotencyKey: key() } as Parameters<typeof v.itemPut>[1]);
+  await mk("Aa", "k");
+  await mk("Bb", "Cc__k");
+  await mk("Cc", "k"); // Cc's second "k" would become Cc__k, which Bb already holds
+  await assert.rejects(u.injectEnv(h.ctx, { folderId: f }), (e) => (e as { error?: { code?: string; message?: string } }).error?.code === "validation.precondition_failed" && /#Cc/.test(String((e as { error: { message: string } }).error.message)) && /#Bb/.test(String((e as { error: { message: string } }).error.message)));
   h.cleanup();
 });
 

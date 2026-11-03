@@ -2,3 +2,6 @@
 - A failed backup now starts the server again instead of leaving it stopped. `vyre-server backup` takes the update lock and uses the same path as the scheduled update.
 - An update that is killed or cut off now goes back to the previous release (at once on a signal, at the next command after a crash), and compose.env is rewritten whole instead of with sed.
 - A lock left by a dead update process is reclaimed.
+- `vyre run --env` works without a separate filler process: when VYRE_FILLER_SOCKET is not set it asks the server for each value as the caller (a person at View level), and scrubs those values from the command's output. With the socket set it reads from the socket as before.
+- Two items in one folder with the same field name no longer break `vyre run --env`: the first keeps the plain name, a later one gets its item name in front (Stripe_live__api_key). If that name is taken too, the call is refused and names both items.
+- `members.sso.set` now checks that the caller can use the Vault item that holds the client secret (vault.use), as connections and mail do. The item must exist in the Vault first, as the Console already does.
