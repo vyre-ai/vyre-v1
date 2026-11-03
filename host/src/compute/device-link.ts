@@ -129,11 +129,20 @@ export function ownSignin(argv: readonly string[], env: Readonly<Record<string, 
   return out;
 }
 
-function macKeychain(): OwnHomes["keychain"] {
+/** How the Keychain is reached: one program run, its arguments, and what it is given on stdin. */
+export type RunSecurity = (args: readonly string[], input?: string) => string;
+const runSecurity: RunSecurity = (args, input) => execFileSync("/usr/bin/security", [...args], { encoding: "utf8", timeout: 10_000, ...(input !== undefined ? { input } : {}), stdio: [input !== undefined ? "pipe" : "ignore", "pipe", "ignore"] });
+
+/**
+ * The Mac login Keychain. The write goes through `security -i`, with the command (and the token, as hex) on its stdin: nothing of the sign-in is ever in a process's arguments, where another
+ * program could read it.
+ */
+export function macKeychain(run: RunSecurity = runSecurity, user: string = os.userInfo().username): NonNullable<OwnHomes["keychain"]> {
+  const quote = (v: string): string => `"${v.replace(/[\\"]/g, (c) => `\\${c}`)}"`;
   return {
-    read(service) { try { return execFileSync("/usr/bin/security", ["find-generic-password", "-s", service, "-w"], { encoding: "utf8", timeout: 10_000, stdio: ["ignore", "pipe", "ignore"] }).trim() || null; } catch { return null; } },
-    // -U updates the entry Claude Code made, for this login user, as Claude Code itself names it
-    write(service, text) { execFileSync("/usr/bin/security", ["add-generic-password", "-U", "-s", service, "-a", os.userInfo().username, "-w", text], { timeout: 10_000, stdio: "ignore" }); },
+    read(service) { try { return run(["find-generic-password", "-s", service, "-w"]).trim() || null; } catch { return null; } },
+    // -U updates the entry Claude Code made, for this login user, as Claude Code itself names it; -X takes the secret as hex, so no quoting can break the line
+    write(service, text) { run(["-i"], `add-generic-password -U -s ${quote(service)} -a ${quote(user)} -X ${Buffer.from(text, "utf8").toString("hex")}\n`); },
   };
 }
 const thisComputer = (): OwnHomes => ({ home: os.homedir(), env: process.env, platform: process.platform, exists: (p) => fs.existsSync(p), ...(process.platform === "darwin" ? { keychain: macKeychain() } : {}) });

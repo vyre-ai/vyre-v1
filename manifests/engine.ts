@@ -251,6 +251,7 @@ export default defineManifest({
       in: { ...threadT, agentId: t.opt(id.agent) },
       out: {
         private: t.bool(), pinned: t.bool(), effective: t.obj({ target: t.enm('device', 'space', 'server'), serverId: t.opt(t.str()), deviceId: t.opt(t.str()) }),
+        automatic: t.opt(t.obj({ target: t.enm('device', 'space', 'server'), serverId: t.opt(t.str()), deviceId: t.opt(t.str()) }, { description: 'Where Automatic would run the next turn now, the pin set aside' })),
         options: t.arr(t.obj({ target: t.enm('device', 'space', 'server'), serverId: t.opt(t.str()), deviceId: t.opt(t.str()), current: t.opt(t.bool()), name: t.str(), online: t.bool(), reason: t.opt(t.str()) })),
       },
       on: ['thread', '/threadId'], tool: 'chats', label: 'check',

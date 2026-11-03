@@ -211,6 +211,7 @@ test("with a relay, the live link decides: the computer in use first, then anoth
     connected.clear();
     assert.deepEqual(await decide(ctx), { placement: "host", reason: "space" }, "a teammate's linked computer is never theirs");
     const opts = await placementOptions(Object.assign(Object.create(ctx), { device: "dev_mac" }), { threadId: "thr_1", agentId: "agt_1" });
+    assert.deepEqual(opts.automatic, { target: "space" }, "Automatic would run it on the Space now");
     assert.deepEqual(opts.options.filter((o) => o.target === "device").map((o) => [o.name, o.online]), [["This computer", false], ["Desk", false]]);
     assert.deepEqual(opts.options.find((o) => o.target === "server"), { target: "server", serverId: "srv_home", name: "home-box", online: false, reason: "Off" }, "a server that is not connected is off");
   } finally { bindRelay(null); }

@@ -269,7 +269,7 @@ export function createSample(variant: Variant = "idle", o: SampleOptions = {}): 
     "engine.turn.retry": () => ({ turn: { turnId: "turn_10" } }),
     // where the chat runs: each of the person's computers with its real state, the Space, their server (lane l-runson)
     "engine.placement.options": () => ({
-      private: true, pinned: true, effective: { target: "device", deviceId: "dev_mac" },
+      private: true, pinned: true, effective: { target: "device", deviceId: "dev_mac" }, automatic: { target: "device", deviceId: "dev_imac" },
       options: [
         { target: "device", deviceId: "dev_mac", current: true, name: "This computer", online: false, reason: "Off" },
         { target: "device", deviceId: "dev_imac", name: "Office iMac", online: true },

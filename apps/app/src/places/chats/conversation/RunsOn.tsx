@@ -11,7 +11,7 @@ import { iconMarkup } from "../../../shell/rail/icons.tsx";
 
 export type Target = "device" | "space" | "server";
 export interface RunsOnOption { target: Target; serverId?: string; deviceId?: string; current?: boolean; name: string; online: boolean; reason?: string }
-export interface RunsOnState { private: boolean; pinned?: boolean; effective: { target: Target; serverId?: string; deviceId?: string }; options: readonly RunsOnOption[] }
+export interface RunsOnState { private: boolean; pinned?: boolean; effective: { target: Target; serverId?: string; deviceId?: string }; /** where Automatic would run the next turn now */ automatic?: { target: Target; serverId?: string; deviceId?: string }; options: readonly RunsOnOption[] }
 
 type Place = { target: Target; serverId?: string; deviceId?: string };
 /** Two places are the same machine. A place that names no computer (an older pin) is the computer the person is on. */
@@ -43,10 +43,18 @@ export function runsOnEntries(s: RunsOnState, pick: (o: RunsOnOption) => void): 
 const keyOf = (o: Place): string => `${o.target}:${o.serverId ?? o.deviceId ?? ""}`;
 const AUTOMATIC = "auto:";
 
+/** Where Automatic lands now, as its row says it: "Now: Office iMac", "Now: The Space", "Now: this computer". Read from the engine's own order, whatever the chat is pinned to. */
+export function automaticNote(s: RunsOnState): string {
+  const at = s.automatic ?? (s.pinned === true ? undefined : s.effective);
+  const o = at ? s.options.find((x) => same(x, at)) : undefined;
+  if (!o) return at?.target === "space" ? "Now: The Space" : "Now: this computer";
+  return `Now: ${o.target === "device" && (o.current === true || o.deviceId === undefined) ? "this computer" : o.name}`;
+}
+
 /** The rows of the Runs on menu. Automatic comes first and says where it lands now; each place says only what its name does not. */
 export function runsOptions(s: RunsOnState): PanelRuns["options"] {
   return [
-    { key: AUTOMATIC, name: "Automatic", note: currentOption(s).name, online: true },
+    { key: AUTOMATIC, name: "Automatic", note: automaticNote(s), online: true },
     ...s.options.map((o) => {
       const what = o.target === "server" ? "Your server" : o.target === "device" && o.deviceId !== undefined && o.current !== true ? "Your computer" : "";
       // an off place says so on its row, beside what it is: the menu never shows a machine as ready when it is not

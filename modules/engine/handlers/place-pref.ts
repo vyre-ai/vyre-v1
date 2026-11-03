@@ -8,7 +8,7 @@ import { isPrivate } from "../../../agent/src/placement/index.ts";
 import { ensure, raise } from "../projections.ts";
 import { relayOf } from "../relay.ts";
 import type { Db, EngineCtx } from "../projections.ts";
-import { askerOf, devicesFrom, serversOf, spaceOf } from "./place.ts";
+import { askerOf, devicesFrom, placementDecide, serversOf, spaceOf } from "./place.ts";
 import { setOnce } from "../node-turns.ts";
 import { engineIfBound } from "../projections.ts";
 
@@ -110,7 +110,11 @@ export interface Option { target: Target; serverId?: string; deviceId?: string; 
  * The chip's options, each with its real state: the person's computers ("This computer" for the one they are choosing from, the others by name), on when their link to the Space is up; the Space
  * in a Team Space; each of their servers, on when connected. `effective` is where the next turn goes, from the same decide the engine asks.
  */
-export async function placementOptions(ctx: CallCtx, input: { threadId: string; agentId?: string }): Promise<{ private: boolean; pinned: boolean; effective: { target: Target; serverId?: string; deviceId?: string }; options: Option[] }> {
+type Where = { target: Target; serverId?: string; deviceId?: string };
+const whereOf = (dec: { placement?: string; nodeId?: string; deviceId?: string } | null, team: boolean): Where =>
+  dec?.placement === "device" ? { target: "device", ...(dec.deviceId ? { deviceId: dec.deviceId } : {}) } : dec?.nodeId ? { target: "server", serverId: dec.nodeId } : dec?.placement === "host" || !team ? { target: team ? "space" : "device" } : { target: "device" };
+
+export async function placementOptions(ctx: CallCtx, input: { threadId: string; agentId?: string }): Promise<{ private: boolean; pinned: boolean; effective: Where; automatic?: Where; options: Option[] }> {
   ensurePlace(ctx.db);
   const asker = askerOf(ctx);
   const priv = await privateThread(ctx, input.threadId);
@@ -129,12 +133,11 @@ export async function placementOptions(ctx: CallCtx, input: { threadId: string; 
   if (space.team) options.push({ target: "space", name: "The Space", online: space.shared, ...(space.shared ? {} : { reason: "Not allowed" }) });
   for (const s of await serversOf(ctx)) options.push({ target: "server", serverId: s.serverId, name: s.name, online: s.online, ...(s.online ? {} : { reason: "Off" }) });
   const pin = await chosenFor(ctx, input.threadId);
-  let effective: { target: Target; serverId?: string; deviceId?: string };
+  // where Automatic would put the next turn now, from the same order the engine uses, the pin set aside: the menu's Automatic row says it ("Now: Office iMac")
+  const auto = priv && input.agentId !== undefined ? whereOf((await placementDecide(ctx, { threadId: input.threadId, agentId: input.agentId, kind: "message" }, { automatic: true }).catch(() => null)) as { placement?: string; nodeId?: string; deviceId?: string } | null, space.team) : undefined;
+  let effective: Where;
   if (!priv) effective = { target: "space" };
   else if (pin) effective = { target: pin.target, ...(pin.serverId ? { serverId: pin.serverId } : {}), ...(pin.deviceId ? { deviceId: pin.deviceId } : {}) };
-  else {
-    const dec = input.agentId === undefined ? null : (await ctx.call("engine.placement.decide", { threadId: input.threadId, agentId: input.agentId, kind: "message" }).catch(() => null)) as { placement?: string; nodeId?: string; deviceId?: string } | null;
-    effective = dec?.placement === "device" ? { target: "device", ...(dec.deviceId ? { deviceId: dec.deviceId } : {}) } : dec?.nodeId ? { target: "server", serverId: dec.nodeId } : dec?.placement === "host" || !space.team ? { target: space.team ? "space" : "device" } : { target: "device" };
-  }
-  return { private: priv, pinned: priv && pin !== undefined, effective, options };
+  else effective = auto ?? { target: "device" };
+  return { private: priv, pinned: priv && pin !== undefined, effective, ...(auto ? { automatic: auto } : {}), options };
 }

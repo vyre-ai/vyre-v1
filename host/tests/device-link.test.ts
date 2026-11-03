@@ -81,3 +81,17 @@ test("Claude Code on a Mac: the Keychain sign-in is handed over as a file in a p
   assert.equal(macClaude({}, { ...homes, keychain: { read: () => null, write: () => undefined } }, dir, "usr_dana", "prc_3"), null, "no Keychain sign-in: as the Space sent it");
   fs.rmSync(dir, { recursive: true, force: true });
 });
+
+test("the Keychain write-back puts nothing of the sign-in in a process's arguments: security -i, the command and the token as hex on stdin", async () => {
+  const { macKeychain, CLAUDE_KEYCHAIN } = await import("../src/compute/device-link.ts");
+  const runs: Array<{ args: readonly string[]; input?: string }> = [];
+  const kc = macKeychain((args, input) => { runs.push({ args, ...(input !== undefined ? { input } : {}) }); return "stored\n"; }, "dana");
+  const secret = JSON.stringify({ claudeAiOauth: { accessToken: "sk-ant-oat01-REFRESHEDtoken", refreshToken: "sk-ant-ort01-R" } });   // secret-scan: fake
+  kc.write(CLAUDE_KEYCHAIN, secret);
+  assert.deepEqual(runs[0]!.args, ["-i"], "the arguments are only -i");
+  assert.ok(!runs[0]!.args.join(" ").includes("sk-ant"), "no token in argv");
+  assert.equal(runs[0]!.input, `add-generic-password -U -s "Claude Code-credentials" -a "dana" -X ${Buffer.from(secret).toString("hex")}\n`);
+  assert.ok(!runs[0]!.input!.includes("sk-ant"), "even on stdin it travels as hex");
+  assert.equal(kc.read(CLAUDE_KEYCHAIN), "stored");
+  assert.deepEqual(runs[1]!.args, ["find-generic-password", "-s", "Claude Code-credentials", "-w"]);
+});

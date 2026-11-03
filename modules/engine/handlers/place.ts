@@ -91,7 +91,8 @@ function isCrewJob(ctx: EngineCtx, threadId: string): boolean {
   try { return ctx.db.all("SELECT 1 AS x FROM engine_crew_job WHERE thread_id = ?", threadId).length > 0; } catch { return false; }
 }
 
-export async function placementDecide(ctx: CallCtx, input: { threadId: string; agentId: string; kind: "message" | "interrupt" | "wake" | "handoff" }) {
+/** `o.automatic`: where Automatic would put the turn now, the chat's own pin set aside (the Runs-on menu's "Now: ..."). */
+export async function placementDecide(ctx: CallCtx, input: { threadId: string; agentId: string; kind: "message" | "interrupt" | "wake" | "handoff" }, o: { automatic?: boolean } = {}) {
   const asker = askerOf(ctx);
   const [t, a, d] = await Promise.all([
     ctx.call("threads.get", { threadId: input.threadId }) as Promise<ThreadOut>,
@@ -100,7 +101,7 @@ export async function placementDecide(ctx: CallCtx, input: { threadId: string; a
   ]);
   const kind = (KINDS.has(t.thread.kind) ? t.thread.kind : "chat") as ThreadKind;
   const persons = new Set((t.thread.members ?? []).filter((m) => m.kind === "person").map((m) => m.id)).size;
-  const chosen = await chosenFor(ctx, input.threadId);
+  const chosen = o.automatic === true ? undefined : await chosenFor(ctx, input.threadId);
   const [servers, space] = await Promise.all([serversOf(ctx), spaceOf(ctx)]);
   const current = usingIn(ctx.db, input.threadId, asker);
   // the Space menu's "Chats run on": off means new chats run on the Space instead of this computer (engine.local_runs)
