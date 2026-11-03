@@ -1,13 +1,13 @@
 # connections.create
 
-Plug an account into a connector; secrets are named Vault items, never values
+Plug an account into a connector; secrets are named Vault items, never values. Your own (person) needs no permission; a Space one needs connectors.manage
 
 | | |
 |---|---|
 | Module | connectors |
 | Version | 1 (since 1.0.0) |
 | Effects | write |
-| Permission | connectors.manage |
+| Permission | grant only |
 | Grant level | edit |
 | Risk | medium |
 | Resource | connection (create under /connector) |

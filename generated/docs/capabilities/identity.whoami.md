@@ -8,7 +8,7 @@ Who the caller is here: person, roles, clearance, device, epoch
 | Version | 1 (since 1.0.0) |
 | Effects | read |
 | Permission | grant only |
-| Grant level | view |
+| Grant level | member |
 | Risk | low |
 | Resource | space |
 | Gate | none |
@@ -38,6 +38,7 @@ type Out = {
   name: string;
   roles: Array<string>;
   groups: Array<string>;
+  permissions?: Array<string>;
   deviceId?: string;
   epoch: number;
   spaceId: string;
@@ -68,6 +69,9 @@ type Out = {
       "grp_a1b2c3"
     ],
     "name": "example",
+    "permissions": [
+      "example"
+    ],
     "principal": {
       "id": "usr_a1b2c3",
       "kind": "person"

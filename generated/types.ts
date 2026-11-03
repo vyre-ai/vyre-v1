@@ -17653,6 +17653,7 @@ export type IdentityWhoamiOut = {
   name: string;
   roles: Array<string>;
   groups: Array<string>;
+  permissions?: Array<string>;
   deviceId?: string;
   epoch: number;
   spaceId: string;
