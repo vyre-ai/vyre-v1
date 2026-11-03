@@ -4,6 +4,8 @@ import { handlers as table } from "./handlers/index.ts";
 import { recentWithUnread } from "./handlers/g26.ts";
 import { onAgentDeleted, onPersonLeft } from "./handlers/departures.ts";
 import type { ChatCtx } from "./projections.ts";
+import { NOTIFY_EVENTS, notify } from "./handlers/notify.ts";
+import type { NotifyEvent } from "./handlers/notify.ts";
 
 export const handlers: Record<string, Handler> = table as unknown as Record<string, Handler>;
 
@@ -12,6 +14,8 @@ export const consumers = {
   "chat.person_left": { on: ["member.removed"], run: (ctx: ChatCtx, event: Parameters<typeof onPersonLeft>[1]) => onPersonLeft(ctx, event) },
   /** An agent was deleted: it comes off the chats it was in, and each gets one line. */
   "chat.agent_deleted": { on: ["agent.deleted"], run: (ctx: ChatCtx, event: Parameters<typeof onAgentDeleted>[1]) => onAgentDeleted(ctx, event) },
+  /** A direct message, an @mention or a reply in a thread someone follows: a notification for that person (and, in a task's thread, a mention makes them a follower of the task). */
+  "chat.notify": { on: [...NOTIFY_EVENTS], run: (ctx: ChatCtx, event: NotifyEvent) => notify(ctx, event) },
 };
 
 /**

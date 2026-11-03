@@ -1,0 +1,4 @@
+- Threads notify you. A reply in a thread you follow arrives as a banner and a push with Reply ("Maya replied in #intake"). Several replies in one thread make one notice ("3 new replies in #intake"). An @mention and a direct message notify you too. Quiet hours, working hours and mutes apply.
+- You follow a thread when you wrote the message it hangs off, replied in it, were @mentioned in it or chose Follow. Mute keeps you in the thread but quiet: its replies don't notify you or count as new. Leave takes you out until you reply again.
+- A mention in a task's thread makes that person a follower of the task.
+- Threads lists the threads you are in, newest reply first, a page at a time, with each one's unread count. Task threads stay with their tasks and no longer light the Threads dot.

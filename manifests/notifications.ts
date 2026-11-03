@@ -12,7 +12,7 @@ const place = t.enm('home', 'chats', 'inbox', 'records', 'files', 'apps', 'autom
 const kindKey = t.enm(
   'approval.requested', 'answer.requested', 'unblock.requested', 'approval.backstop', 'dm', 'mention', 'call.incoming', 'agent.blocked', 'incident.owned', 'task.assigned', 'reply.followed',
   'agent.task_finished', 'digest.away', 'mention.thread', 'run.failed', 'conflict.needs_you', 'access.requested', 'access.decided',
-  'sync.attention', 'health.degraded', 'problem.report', 'member.joined', 'limit.hit', 'vault.rotation_due',
+  'sync.attention', 'health.degraded', 'problem.report', 'member.joined', 'limit.hit', 'vault.rotation_due', 'reply.thread',
 );
 const notificationRow = t.obj({
   id: id.notification, kind: kindKey, level, place, title: t.str(), body: t.opt(t.str()), subject: t.opt(resourceRef), count: t.int({ minimum: 1 }),
@@ -66,6 +66,8 @@ export default defineManifest({
     notif('member.joined', 'digest', 'home', '{{name}} joined {{space}}'),
     notif('limit.hit', 'badge', 'chats', '{{title}} hit its limit', { actions: [{ label: 'Raise once', cap: 'tasks.act' }, { label: 'Stop', cap: 'tasks.act' }] }),
     notif('vault.rotation_due', 'badge', 'vault', 'Time to rotate {{title}}', { actions: [{ label: 'Mark rotated', cap: 'vault.item.mark_rotated' }] }),
+    // a reply in a chat thread you follow (you wrote the message it hangs off, replied in it, were mentioned in it or followed it). A burst collapses into one row per thread: "3 new replies in #intake"
+    notif('reply.thread', 'interrupt', 'chats', '{{from}} replied in {{where}}', { pushTitle: '{{space}} needs you', agentRateKey: 'agent_interrupt', actions: [{ label: 'Reply', cap: 'chat.post' }] }),
   ],
   events: [
     ev('notification.delivered', 'A notification was delivered to a person at its level', {
