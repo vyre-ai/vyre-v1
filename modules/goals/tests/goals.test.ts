@@ -376,7 +376,7 @@ test("a watched page is a source: the number it last read, or how many times it 
   const watched = (path?: string, id = "wch_lab8") => labGoal({ idempotencyKey: `k${path ?? "n"}${id}${w.state.watch.error ?? ""}`, finish: { kind: "number", line: "Luma shows 300 registrations", target: 300, unit: "registrations", source: { kind: "watch", watchId: id, ...(path ? { path } : {}) } } });
   const { goal } = await w.call("goals.create", watched());
   assert.equal(goal.progress.value, 212, "the number written on the watched page");
-  assert.deepEqual(w.state.calls.filter((c) => c.cap === "browser.watches.list").map((c) => c.input), [{ watchId: "wch_lab8", person: OWNER }], "asked for the owner's watch");
+  assert.deepEqual(w.state.calls.filter((c) => c.cap === "automations.watches.list").map((c) => c.input), [{ watchId: "wch_lab8", person: OWNER }], "asked for the owner's watch");
   const changes = (await w.call("goals.create", watched("changes"))).goal;
   assert.equal(changes.progress.value, 3);
   w.state.watch = { changes: 0, error: "timed out" };

@@ -1,5 +1,5 @@
 // Watching (Vyre for Chrome): the pages, and the parts of pages, that an agent or the person's own Chrome checks on a rhythm. A row shows the page, how often and when it last changed;
-// opening it shows what it was and what it is now, who checks it and where. Check now, Pause and Remove are real calls (browser.watches.*). A watch can feed a goal as its progress.
+// opening it shows what it was and what it is now, who checks it and where. Check now, Pause and Remove are real calls (automations.watches.*). A watch can feed a goal as its progress.
 import { useState } from "react";
 import type { ReactElement } from "react";
 import { Text, View } from "react-native";
@@ -50,7 +50,7 @@ export function Watching({ initialOpen = null }: { initialOpen?: string | null }
   const [picked, setPicked] = useState<string | null>(initialOpen);
   const [note, setNote] = useState<string | null>(null);
   const rm = useRowMenu();
-  const list = useCall("browser.watches.list", {}, watchItems, again);
+  const list = useCall("automations.watches.list", {}, watchItems, again);
   const rows = list.phase === "ready" ? list.value : [];
   const agent = (id: string): string => (id ? data.name(id) : "An agent");
   const refresh = (): void => setAgain((n) => n + 1);
@@ -78,9 +78,9 @@ export function Watching({ initialOpen = null }: { initialOpen?: string | null }
                 "aria-label": `${w.title}. ${watchNote(w, now)}. ${isOpen ? "Hide" : "Show"} details`,
                 ...rm.rowDom(w.title, () => watchMenu(w, {
                   open: () => setPicked(isOpen ? null : w.id),
-                  check: () => void run(() => data.call("browser.watches.check", { watchId: w.id }), w.runsOn === "computer" ? `${agent(w.agentId)} will check it now.` : "Your Chrome will check it within a minute."),
-                  toggle: () => void run(() => data.call("browser.watches.remove", { watchId: w.id, op: w.state === "paused" ? "resume" : "pause" })),
-                  remove: () => void run(() => data.call("browser.watches.remove", { watchId: w.id, op: "remove" }), "Removed."),
+                  check: () => void run(() => data.call("automations.watches.check", { watchId: w.id }), w.runsOn === "computer" ? `${agent(w.agentId)} will check it now.` : "Your Chrome will check it within a minute."),
+                  toggle: () => void run(() => data.call("automations.watches.remove", { watchId: w.id, op: w.state === "paused" ? "resume" : "pause" })),
+                  remove: () => void run(() => data.call("automations.watches.remove", { watchId: w.id, op: "remove" }), "Removed."),
                   page: () => { const g = globalThis as { open?: (u: string) => unknown }; if (/^https?:/i.test(w.url)) g.open?.(w.url); },
                 }, isOpen)),
               }}

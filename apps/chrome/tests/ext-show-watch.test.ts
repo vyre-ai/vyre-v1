@@ -277,9 +277,9 @@ function watchWorld(o: { hosts?: string[]; read?: any; list?: any[] } = {}) {
   const bridge = {
     async invoke(c: string, i: any) {
       calls.push({ c, i });
-      if (c === "browser.watches.list") return { watches: o.list ?? [] };
-      if (c === "browser.watches.report") return { changed: i.value === "3,500 going", watch: {} };
-      if (c === "browser.watches.save") return { watch: { watchId: "wch_1", ...i } };
+      if (c === "automations.watches.list") return { watches: o.list ?? [] };
+      if (c === "automations.watches.report") return { changed: i.value === "3,500 going", watch: {} };
+      if (c === "automations.watches.save") return { watch: { watchId: "wch_1", ...i } };
       return {};
     },
     async op() { return {}; },
@@ -293,7 +293,7 @@ test("a watch in this Chrome: the due ones are read in a background tab that is 
   const { w, calls, removed } = await watchWorld({ list: [{ ...W }, { ...W, watchId: "wch_2", state: "paused" }, { ...W, watchId: "wch_3", nextDueAt: 9_000_000 }, { ...W, watchId: "wch_4", nextDueAt: 9_000_000, checkNow: true }] });
   const r = await w.look();
   assert.equal(r.checked, 2);
-  assert.deepEqual(calls.filter((c) => c.c === "browser.watches.report").map((c) => c.i), [{ watchId: "wch_1", value: "3,412 going" }, { watchId: "wch_4", value: "3,412 going" }]);
+  assert.deepEqual(calls.filter((c) => c.c === "automations.watches.report").map((c) => c.i), [{ watchId: "wch_1", value: "3,412 going" }, { watchId: "wch_4", value: "3,412 going" }]);
   assert.deepEqual(removed, [41, 41], "each background tab is closed");
   assert.deepEqual(calls.find((c) => c.c === "script")!.i.args, [{ selector: "#going" }, 6000, 20000]);
   assert.deepEqual(calls[0]!.i, { runsOn: "chrome" });
@@ -302,17 +302,17 @@ test("a watch in this Chrome: the due ones are read in a background tab that is 
 test("a page that cannot be read is reported with the reason; a never-site is not opened at all", async () => {
   const bad = await watchWorld({ read: { ok: false, error: "The part to watch is not on the page. It may have moved: pick it again." }, list: [{ ...W }] });
   await bad.w.look();
-  assert.deepEqual(bad.calls.find((c) => c.c === "browser.watches.report")!.i, { watchId: "wch_1", error: "The part to watch is not on the page. It may have moved: pick it again." });
+  assert.deepEqual(bad.calls.find((c) => c.c === "automations.watches.report")!.i, { watchId: "wch_1", error: "The part to watch is not on the page. It may have moved: pick it again." });
   const nv = await watchWorld({ hosts: ["lu.ma"], list: [{ ...W }] });
   await nv.w.look();
   assert.equal(nv.calls.some((c) => c.c === "script"), false);
-  assert.match(nv.calls.find((c) => c.c === "browser.watches.report")!.i.error, /never sent to Vyre/);
+  assert.match(nv.calls.find((c) => c.c === "automations.watches.report")!.i.error, /never sent to Vyre/);
 });
 
 test("the Watch sheet saves with the part, the rhythm and where it runs, and a baseline read from the page the person is on; incognito and never-sites are refused", async () => {
   const { w, calls } = await watchWorld();
   const out: any = await w.save({ id: 5, url: "https://lu.ma/mla-ai-lab-8", title: "AI Lab 8", incognito: false }, { mode: "region", region: { label: "Guest count", selector: "#going" }, everyMinutes: 30, agentId: "agt_ops", runsOn: "computer" });
-  const save = calls.find((c) => c.c === "browser.watches.save")!.i;
+  const save = calls.find((c) => c.c === "automations.watches.save")!.i;
   assert.deepEqual(save, { title: "AI Lab 8", url: "https://lu.ma/mla-ai-lab-8", mode: "region", region: { label: "Guest count", selector: "#going" }, everyMinutes: 30, runsOn: "computer", agentId: "agt_ops", value: "3,412 going" });
   assert.equal(out.watch.watchId, "wch_1");
   await assert.rejects(w.save({ id: 5, url: "https://lu.ma/x", incognito: true }, { mode: "page", everyMinutes: 60, runsOn: "chrome" }), (e: any) => e.code === "incognito");
@@ -324,10 +324,10 @@ test("the Watch sheet saves with the part, the rhythm and where it runs, and a b
 test("Check now: here for a watch that runs here, else the app wakes the agent", async () => {
   const here = await watchWorld({ list: [{ ...W }] });
   assert.equal(((await here.w.checkNow("wch_1")) as any).ok, true);
-  assert.equal(here.calls.some((c) => c.c === "browser.watches.check"), false);
+  assert.equal(here.calls.some((c) => c.c === "automations.watches.check"), false);
   const there = await watchWorld({ list: [{ ...W, runsOn: "computer" }] });
   assert.deepEqual(await there.w.checkNow("wch_1"), { ok: true, changed: false, woke: true });
-  assert.deepEqual(there.calls.find((c) => c.c === "browser.watches.check")!.i, { watchId: "wch_1" });
+  assert.deepEqual(there.calls.find((c) => c.c === "automations.watches.check")!.i, { watchId: "wch_1" });
 });
 
 test("picking a part: the answer from the page comes back once, trimmed", async () => {
@@ -356,6 +356,6 @@ test("rhythms, where a watch runs, and the line a watch gets in the list", () =>
 });
 
 test("the extension asks only for the capabilities the app declares for this", () => {
-  for (const c of ["skills.mine.add", "skills.mine.set", "skills.share", "browser.watches.list", "browser.watches.save", "browser.watches.remove", "browser.watches.check", "browser.watches.report"]) assert.ok(c in CAPABILITIES, c);
-  assert.throws(() => request("r", "invoke", "browser.watches.delete"));
+  for (const c of ["skills.mine.add", "skills.mine.set", "skills.share", "automations.watches.list", "automations.watches.save", "automations.watches.remove", "automations.watches.check", "automations.watches.report"]) assert.ok(c in CAPABILITIES, c);
+  assert.throws(() => request("r", "invoke", "automations.watches.delete"));
 });

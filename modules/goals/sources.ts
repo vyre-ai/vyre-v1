@@ -57,7 +57,7 @@ async function readAutomation(ctx: GoalsCtx, s: Source): Promise<Reading> {
 
 async function readWatch(ctx: GoalsCtx, g: Goal, s: Source): Promise<Reading> {
   if (!s.watchId) return { ok: false, error: "the source names no watch" };
-  const out = (await ctx.call!("browser.watches.list", { watchId: s.watchId, person: g.owner })) as { watches?: Array<{ state?: string; value?: string; changes?: number; error?: string }> };
+  const out = (await ctx.call!("automations.watches.list", { watchId: s.watchId, person: g.owner })) as { watches?: Array<{ state?: string; value?: string; changes?: number; error?: string }> };
   const w = out?.watches?.[0];
   if (!w) return { ok: false, error: "the watch is gone or is not the owner's" };
   if (s.path === "changes") return { ok: true, value: Number(w.changes ?? 0) };

@@ -6,8 +6,8 @@
 - A goal can use a watched page as its progress: the number on the page, or how many times it has changed.
 
 ## Behind the scenes
-- Watching lives in the Automations module: `browser.watches.list`, `.save`, `.remove`, `.report` and `.check`, with the table `automations_watches`. A watch on an agent's computer wakes the agent every minute it is due.
-- Goals read a `watch` source through `browser.watches.list`. Only a call made by another capability may name the person, so the gateway cannot read someone else's watch.
+- Watching lives in the Automations module: `automations.watches.list`, `.save`, `.remove`, `.report` and `.check`, with the table `automations_watches`. A watch on an agent's computer wakes the agent every minute it is due.
+- Goals read a `watch` source through `automations.watches.list`. Only a call made by another capability may name the person, so the gateway cannot read someone else's watch.
 - A recording becomes SKILL.md plus `replay.json`, a list of the agent browsing tools to call (chrome_open, chrome_click, chrome_type and so on). It is data, not a script file, so adding it needs no admin approval.
 - Recorded addresses drop the fragment, any login in the address and query values that look like secrets. Recordings are kept in session storage and go when Chrome closes.
 - The extension asks Chrome for the `alarms` permission (a once-a-minute look at the watches that run in your Chrome). `agents.list` now says which agents have a computer.

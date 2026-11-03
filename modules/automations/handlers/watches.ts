@@ -1,5 +1,5 @@
 // Watching (Vyre for Chrome): a page, or a region of one, checked on a rhythm. Where it runs is a choice made on the Watch sheet: in the person's Chrome (the extension reads the page and reports)
-// or on an agent's computer (this module wakes the agent on the rhythm; the agent reads the page with its browsing tools and reports). Both come back through browser.watches.report.
+// or on an agent's computer (this module wakes the agent on the rhythm; the agent reads the page with its browsing tools and reports). Both come back through automations.watches.report.
 // DECISION: a watch belongs to the person who made it; nobody else reads it. An agent that reports acts for that person (actingFor), never for itself.
 // DECISION: the first reading is the baseline, never a change. A change is a different reading after whitespace is collapsed; the alert keeps what it was and what it is now.
 // DECISION: the alert goes to a chat (one per watch, made on the first change) with the person and whoever they asked to tell; the words hold both readings, so a client with no card for it still shows them.
@@ -109,7 +109,7 @@ export async function save(ctx: AutoCtx, input: SaveIn): Promise<{ watch: WatchO
   // the chat is made now, by the person: an agent woken in it acts for them, which is what lets it report what it read
   if (!r["thread_id"] && r["agent_id"]) await alertThread(ctx, r);
   put(ctx, r);
-  ctx.emit("browser.watch.saved", String(r["id"]), { watchId: String(r["id"]), owner: person, op: prior ? "changed" : "added" }, { vis: "owner" });
+  ctx.emit("automations.watch.saved", String(r["id"]), { watchId: String(r["id"]), owner: person, op: prior ? "changed" : "added" }, { vis: "owner" });
   return { watch: watchOut(r) };
 }
 
@@ -130,14 +130,14 @@ export async function remove(ctx: AutoCtx, input: { watchId: string; op: "remove
   else if (input.op === "pause") r["state"] = "paused";
   else { r["state"] = "on"; r["next_due_at"] = now; r["error"] = null; r["errors_in_row"] = 0; }
   put(ctx, r);
-  ctx.emit("browser.watch.saved", input.watchId, { watchId: input.watchId, owner: person, op: input.op === "remove" ? "removed" : input.op === "pause" ? "paused" : "resumed" }, { vis: "owner" });
+  ctx.emit("automations.watch.saved", input.watchId, { watchId: input.watchId, owner: person, op: input.op === "remove" ? "removed" : input.op === "pause" ? "paused" : "resumed" }, { vis: "owner" });
   return input.op === "remove" ? { removed: true } : { removed: false, watch: watchOut(r) };
 }
 
 /** The words an agent is woken with for a watch that runs on its computer. */
 export function wakeWords(w: WatchOut): string {
   const what = w.mode === "region" ? `the part called "${w.region?.label ?? "the region"}"${w.region?.selector ? ` (${w.region.selector})` : ""}` : "the whole page";
-  return `Time to check a watch: ${w.title}.\nOpen ${w.url} on your computer and read ${what}. Then call browser_watches_report with watchId ${w.watchId} and the text you read. `
+  return `Time to check a watch: ${w.title}.\nOpen ${w.url} on your computer and read ${what}. Then call automations_watches_report with watchId ${w.watchId} and the text you read. `
     + "If the page will not load or what you were asked to read is gone, report that in error instead. Do not tell the person anything yourself: Vyre tells them if it changed.";
 }
 
@@ -199,7 +199,7 @@ export async function report(ctx: AutoCtx, input: ReportIn): Promise<{ changed: 
     if (thread) await tryCall(ctx, "chat.post", { threadId: thread, body: changeWords(w, String(r["was"]), String(r["now_text"])), idempotencyKey: `watch-change:${w.watchId}:${w.changes}` });
   }
   put(ctx, r);
-  if (changed) ctx.emit("browser.watch.changed", input.watchId, { watchId: input.watchId, owner: person, changes: Number(r["changes"]) }, { vis: "owner" });
+  if (changed) ctx.emit("automations.watch.changed", input.watchId, { watchId: input.watchId, owner: person, changes: Number(r["changes"]) }, { vis: "owner" });
   return { changed, watch: watchOut(r) };
 }
 

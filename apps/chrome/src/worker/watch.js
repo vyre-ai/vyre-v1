@@ -1,9 +1,9 @@
 // @ts-check
-// Watch a page (prototype "Watch a page"): the worker's half. A watch is kept by the Vyre app (browser.watches.*, in Automations > Watching); this file makes and changes them from
+// Watch a page (prototype "Watch a page"): the worker's half. A watch is kept by the Vyre app (automations.watches.*, in Automations > Watching); this file makes and changes them from
 // the Watch sheet, picks the part of a page to watch, and checks the ones that run in this Chrome.
 //
 //   * Where it runs: an agent's computer when the agent has one (the app wakes the agent on the rhythm), else My Chrome. A watch in this Chrome is read every minute the alarm
-//     fires and it is due: the page is opened in a background tab, the part is read as text, the tab is closed, and the reading goes to the app (browser.watches.report). The app
+//     fires and it is due: the page is opened in a background tab, the part is read as text, the tab is closed, and the reading goes to the app (automations.watches.report). The app
 //     compares it with the last reading and, when it differs, tells the watch's chat with what it was and what it is.
 //   * Privacy: a site that is never sent is not watched, and incognito is off. What leaves Chrome is the text of the watched part (or of the page for "any change"); no field value
 //     is ever read, and a screenshot is not part of a reading.
@@ -98,13 +98,13 @@ export function createWatches({ ext, bridge, privacy, now = Date.now }) {
   /** Check one watch that runs here and report what it read. @param {any} w */
   async function check(w) {
     const r = await read(String(w.url), w.mode === "region" && w.region ? { selector: w.region.selector } : null);
-    const out = await bridge.invoke("browser.watches.report", r.ok ? { watchId: w.watchId, value: r.text } : { watchId: w.watchId, error: r.error });
+    const out = await bridge.invoke("automations.watches.report", r.ok ? { watchId: w.watchId, value: r.text } : { watchId: w.watchId, error: r.error });
     return { ok: r.ok, changed: Boolean(out && out.changed), error: r.ok ? null : r.error };
   }
 
   /** The watches that run in this Chrome and are due (or asked for). */
   async function due() {
-    const out = await bridge.invoke("browser.watches.list", { runsOn: "chrome" });
+    const out = await bridge.invoke("automations.watches.list", { runsOn: "chrome" });
     const t = now();
     return (Array.isArray(out && out.watches) ? out.watches : []).filter((/** @type {any} */ w) => w.state !== "paused" && (w.checkNow || w.nextDueAt === undefined || w.nextDueAt <= t));
   }
@@ -139,7 +139,7 @@ export function createWatches({ ext, bridge, privacy, now = Date.now }) {
 
     /** The person's watches, for the panel's Watching list. */
     async list() {
-      const out = await bridge.invoke("browser.watches.list", {});
+      const out = await bridge.invoke("automations.watches.list", {});
       return { watches: Array.isArray(out && out.watches) ? out.watches : [] };
     },
     /**
@@ -163,21 +163,21 @@ export function createWatches({ ext, bridge, privacy, now = Date.now }) {
           if (r && r.result && r.result.ok) value = r.result.text;
         } catch { /* the first look will set the baseline */ }
       }
-      const out = await bridge.invoke("browser.watches.save", { ...input, ...(value !== undefined ? { value } : {}) });
+      const out = await bridge.invoke("automations.watches.save", { ...input, ...(value !== undefined ? { value } : {}) });
       return { watch: out && out.watch ? out.watch : null };
     },
     /** @param {string} watchId @param {"remove" | "pause" | "resume"} op */
     async change(watchId, op) {
-      const out = await bridge.invoke("browser.watches.remove", { watchId: String(watchId).slice(0, 80), op });
+      const out = await bridge.invoke("automations.watches.remove", { watchId: String(watchId).slice(0, 80), op });
       return { removed: Boolean(out && out.removed), watch: out && out.watch ? out.watch : null };
     },
     /** Check now, from the list: here for a watch that runs here, else the app wakes the agent. @param {string} watchId */
     async checkNow(watchId) {
-      const out = await bridge.invoke("browser.watches.list", { watchId });
+      const out = await bridge.invoke("automations.watches.list", { watchId });
       const w = out && Array.isArray(out.watches) ? out.watches[0] : null;
       if (!w) throw new BridgeFailure("not_available", "That watch is gone.");
       if (w.runsOn === "chrome") return await check(w);
-      await bridge.invoke("browser.watches.check", { watchId });
+      await bridge.invoke("automations.watches.check", { watchId });
       return { ok: true, changed: false, woke: true };
     },
 

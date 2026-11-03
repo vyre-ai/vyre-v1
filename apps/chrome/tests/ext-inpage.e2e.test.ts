@@ -10,7 +10,7 @@ for (const [scheme, tone] of [["light", "paper"], ["dark", "graphite"]] as const
   test(`the step bar and the part picker drawn in the page, ${tone}`, { skip: !found, timeout: 40_000 }, async () => {
     lab.going = "3,412 going";
     const s = await site({ "/lab": () => LAB() });
-    const r = await launch(found!, { colorScheme: scheme, ops: { "agents.list": AGENTS }, caps: { "browser.watches.list": () => ({ watches: [] }) } });
+    const r = await launch(found!, { colorScheme: scheme, ops: { "agents.list": AGENTS }, caps: { "automations.watches.list": () => ({ watches: [] }) } });
     try {
       const page = await r.context.newPage();
       await page.goto(`${s.url}/lab`);

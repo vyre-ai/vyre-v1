@@ -73,7 +73,7 @@ export function world(o: { count?: number; failRead?: string; fakes?: Record<str
     "access.share": (i) => { if (!state.shares.some((s) => s.resource.id === i.resource.id && s.subject.id === i.subject.id && s.source === i.source)) state.shares.push({ resource: i.resource, subject: i.subject, level: i.level, source: i.source }); return { grant: {} }; },
     "access.unshare": (i) => { const before = state.shares.length; state.shares = state.shares.filter((s) => !(s.resource.id === i.resource.id && s.source === i.source)); return { revoked: before - state.shares.length }; },
     "gate.grants.goal": (i) => { state.grants.push(i); return { acts: (i.set ?? []).length, rows: 0 }; },
-    "browser.watches.list": (i) => ({ watches: i.watchId === "wch_lab8" ? [{ watchId: "wch_lab8", ...state.watch }] : [] }),
+    "automations.watches.list": (i) => ({ watches: i.watchId === "wch_lab8" ? [{ watchId: "wch_lab8", ...state.watch }] : [] }),
     "records.counts": () => { if (state.failRead) throw new Error(state.failRead); return { count: state.count }; },
     "memory.remember": (i) => { state.memory.push(i); return {}; },
     "projects.get": () => ({ project: { folderId: "fld_project" } }),

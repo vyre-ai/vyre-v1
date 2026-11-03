@@ -28,11 +28,11 @@ import { check as watchCheck, list as watchesList, remove as watchRemove, report
 import { fire, replay, retry, run, stop, test } from "./triggers.ts";
 
 export const handlers = {
-  "browser.watches.check": watchCheck,
-  "browser.watches.list": watchesList,
-  "browser.watches.remove": watchRemove,
-  "browser.watches.report": watchReport,
-  "browser.watches.save": watchSave,
+  "automations.watches.check": watchCheck,
+  "automations.watches.list": watchesList,
+  "automations.watches.remove": watchRemove,
+  "automations.watches.report": watchReport,
+  "automations.watches.save": watchSave,
   "automations.account_picks": accountPicks,
   "automations.analytics": analytics,
   "automations.dependencies": dependencies,

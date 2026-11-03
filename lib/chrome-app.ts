@@ -20,11 +20,11 @@
 export const CHROME_CAPABILITIES = Object.freeze([
   "vault.items.match", "vault.use", "vault.fill", "vault.item.put", "vault.item.update", "vault.folders.list", "vault.site_rules.list", "vault.site_rules.set", "vault.share",
   "notes.clip", "skills.mine.add", "skills.mine.set", "skills.share", "engine.models.list",
-  "browser.sites.list", "browser.watches.list", "browser.watches.save", "browser.watches.remove", "browser.watches.check", "browser.watches.report",
+  "browser.sites.list", "automations.watches.list", "automations.watches.save", "automations.watches.remove", "automations.watches.check", "automations.watches.report",
 ]);
 
 /** Capabilities whose gateway route takes an idempotency key (generated/routes.ts "key"); a test holds this list to the route table. */
-export const KEYED = Object.freeze(["vault.item.put", "vault.share", "chat.start", "chat.post", "notes.clip", "skills.mine.add", "skills.mine.set", "skills.share", "browser.watches.save", "browser.watches.remove"]);
+export const KEYED = Object.freeze(["vault.item.put", "vault.share", "chat.start", "chat.post", "notes.clip", "skills.mine.add", "skills.mine.set", "skills.share", "automations.watches.save", "automations.watches.remove"]);
 
 /** A capability's gateway path: /v1/ and the name with its dots as slashes (the route table's rule). */
 export const routeOf = (cap: string): string => `/v1/${cap.split(".").join("/")}`;

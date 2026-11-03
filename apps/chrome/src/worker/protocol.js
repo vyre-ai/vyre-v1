@@ -36,11 +36,11 @@ export const CAPABILITIES = Object.freeze({
   "skills.share": "share that skill with people in the Space, who each get a card (lane l-skills2)",
   "engine.models.list": "the live models the person's AI account can reach, for the side panel's model picker (lane l-livemodels; never a list kept here)",
   "browser.sites.list": "the Space's Browser connections: sites agents may use, where they run, each agent's rights",
-  "browser.watches.list": "the person's watches that run in this Chrome",
-  "browser.watches.save": "create or change a watch from the Watch sheet",
-  "browser.watches.remove": "remove or pause a watch",
-  "browser.watches.check": "Check now for a watch that runs on an agent's computer (wakes the agent) or in this Chrome",
-  "browser.watches.report": "a My Chrome watch checked a page: what it read, and the before and after when it changed",
+  "automations.watches.list": "the person's watches that run in this Chrome",
+  "automations.watches.save": "create or change a watch from the Watch sheet",
+  "automations.watches.remove": "remove or pause a watch",
+  "automations.watches.check": "Check now for a watch that runs on an agent's computer (wakes the agent) or in this Chrome",
+  "automations.watches.report": "a My Chrome watch checked a page: what it read, and the before and after when it changed",
 });
 
 /** Bridge-level operations that are not capabilities: they are about this computer and this browser, not a Space's data. */

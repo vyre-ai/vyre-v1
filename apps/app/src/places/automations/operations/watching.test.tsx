@@ -1,4 +1,4 @@
-// Watching in Automations: the list is read from browser.watches.list and drawn as it came; a row's menu makes the real calls; an opened row shows what a page was and what it is.
+// Watching in Automations: the list is read from automations.watches.list and drawn as it came; a row's menu makes the real calls; an opened row shows what a page was and what it is.
 import test from "node:test";
 import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";

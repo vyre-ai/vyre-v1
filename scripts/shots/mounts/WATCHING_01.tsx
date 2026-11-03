@@ -1,4 +1,4 @@
-// Mount for lane l-chrome2b: Automations > Watching, the pages and parts of pages that an agent or the person's own Chrome checks, over scripted browser.watches.list answers.
+// Mount for lane l-chrome2b: Automations > Watching, the pages and parts of pages that an agent or the person's own Chrome checks, over scripted automations.watches.list answers.
 //   ?part=list (the list), open (a watch opened: what the page was and what it is, who checks it), empty (nothing watched yet), paused (one paused, one that cannot be read)
 // The query is read after mount (the static export keeps the first frame's markup), so the first frame is empty and the client draws the same one.
 import { useEffect, useMemo, useState } from "react";
@@ -30,7 +30,7 @@ export default function Mount(): ReactNode {
     clock: () => ({ now: NOW }),
     name: (id: string) => ({ agt_ops: "Ops", agt_scout: "Scout", agt_research: "Research" } as Record<string, string>)[id] ?? sample.data.name(id),
     call: async (cap: string, input: unknown): Promise<unknown> => {
-      if (cap === "browser.watches.list") {
+      if (cap === "automations.watches.list") {
         const rows = part === "empty" ? [] : part === "paused" ? [ROWS[3]!, W({ watchId: "wch_5", title: "Weinberger intake form", url: "https://weinberger.example/intake", host: "weinberger.example", mode: "page", everyMinutes: 60, agentId: "agt_scout", runsOn: "chrome", state: "error", error: "The page did not finish loading." }), ROWS[0]!] : ROWS;
         return { watches: rows };
       }

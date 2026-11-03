@@ -28,16 +28,16 @@ test("a watch: pick a part of the page, start it, a change tells the chat what i
   const r = await launch(found!, {
     ops: { "agents.list": AGENTS, "app.open": () => ({ opened: "app" }), "chat.ask": () => ({ threadId: "thr_pc", turnId: "m" }) },
     caps: {
-      "browser.watches.list": (i) => ({ watches: store.filter((w) => (!i.watchId || w.watchId === i.watchId) && (!i.runsOn || w.runsOn === i.runsOn)) }),
-      "browser.watches.save": (i) => {
+      "automations.watches.list": (i) => ({ watches: store.filter((w) => (!i.watchId || w.watchId === i.watchId) && (!i.runsOn || w.runsOn === i.runsOn)) }),
+      "automations.watches.save": (i) => {
         const now = Date.now();
         const w = { watchId: `wch_${store.length + 1}`, title: i.title, url: i.url, host: new URL(i.url).hostname, mode: i.mode, region: i.region, everyMinutes: i.everyMinutes, tell: [], agentId: i.agentId, runsOn: i.runsOn, state: "on", checkNow: false, value: i.value === undefined ? undefined : normalize(i.value), lastCheckedAt: now, nextDueAt: now + i.everyMinutes * 60_000, changes: 0, createdAt: now, updatedAt: now };
         store.push(w);
         return { watch: w };
       },
-      "browser.watches.report": report,
-      "browser.watches.check": (i) => { store.find((w) => w.watchId === i.watchId)!.checkNow = true; return { watch: store[0] }; },
-      "browser.watches.remove": (i) => { const w = store.find((x) => x.watchId === i.watchId)!; if (i.op === "remove") { store.splice(store.indexOf(w), 1); return { removed: true }; } w.state = i.op === "pause" ? "paused" : "on"; return { removed: false, watch: w }; },
+      "automations.watches.report": report,
+      "automations.watches.check": (i) => { store.find((w) => w.watchId === i.watchId)!.checkNow = true; return { watch: store[0] }; },
+      "automations.watches.remove": (i) => { const w = store.find((x) => x.watchId === i.watchId)!; if (i.op === "remove") { store.splice(store.indexOf(w), 1); return { removed: true }; } w.state = i.op === "pause" ? "paused" : "on"; return { removed: false, watch: w }; },
     },
   });
   try {
@@ -101,7 +101,7 @@ test("a watch: pick a part of the page, start it, a change tells the chat what i
     await shootAll(r, panel, "chrome2b-watching-changed");
     await panel.click('[data-a="wMore"]');
     await panel.click("#menu .mi:has-text('Check now')");
-    await r.waitFor(() => r.callsTo("browser.watches.report").length >= 2, 15_000, "a second report");
+    await r.waitFor(() => r.callsTo("automations.watches.report").length >= 2, 15_000, "a second report");
     assert.equal(alerts.length, 1);
     await panel.click('[data-a="wPause"]');
     await r.waitFor(() => store[0].state === "paused", 4000, "paused");
@@ -111,7 +111,7 @@ test("a watch: pick a part of the page, start it, a change tells the chat what i
 
 test("recording and watching are off on a site that is never sent", { skip: !found, timeout: 30_000 }, async () => {
   const s = await site({ "/lab": () => LAB() });
-  const r = await launch(found!, { ops: { "agents.list": AGENTS }, caps: { "browser.watches.list": () => ({ watches: [] }) } });
+  const r = await launch(found!, { ops: { "agents.list": AGENTS }, caps: { "automations.watches.list": () => ({ watches: [] }) } });
   try {
     const page = await r.context.newPage();
     await page.goto(`${s.url}/lab`);
