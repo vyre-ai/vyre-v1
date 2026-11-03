@@ -13,7 +13,7 @@ import { useConsoleData, useScreenQuery } from "../../shell/data.tsx";
 import { ago } from "../../shell/format.ts";
 import { Glyph } from "../../shell/glyphs.tsx";
 import { Empty, Lead, pointer } from "../../shell/ui.tsx";
-import { CLASSES, NO_FILTER, classIcon, classLabel, isFiltered, rowTitle, snapshotLines, stateOf } from "./model.ts";
+import { CLASSES, NO_FILTER, classIcon, classLabel, isFiltered, rowTitle, snapshotLines, stateOf, agentDetails } from "./model.ts";
 import type { AuditClass, AuditFilter, AuditRow } from "./model.ts";
 
 type ListOut = CapMap["audit.list"]["out"];
@@ -141,6 +141,7 @@ function EntrySheet({ id, onClose, onTrace }: { id: string; onClose: () => void;
       {r === null ? <Text style={s.loading} accessibilityRole="progressbar">Loading</Text> : (
         <View style={s.sheetBody}>
           <Line k="Who" v={data.name(r.actor.id)} />
+          {r.actor.kind === "agent" ? <Line k="Agent" v={agentDetails(r, data.agentName?.(r.actor.id)) ?? ""} /> : null}
           {r.onBehalfOf ? <Line k="On behalf of" v={data.name(r.onBehalfOf.id)} /> : null}
           <Line k="Did" v={rowTitle(r, data.name)} />
           <Line k="Kind" v={classLabel(r.class)} />

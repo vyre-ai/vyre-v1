@@ -15,7 +15,7 @@ import { KNOW_SCREEN, routeToArgs } from "../../places/files/memory/know.ts";
 import { nameLookup } from "./records-live.ts";
 import type { ShellRuntime } from "./runtime.tsx";
 import { nameOr } from "../../places/chats/names.ts";
-import { attributed, offered } from "../session/private-agents.ts";
+import { offered } from "../session/private-agents.ts";
 import { requestChannelSheet } from "../../places/chats/channels/request.ts";
 
 export interface ChatsActions {
@@ -151,7 +151,7 @@ export function conversationData(rt: ShellRuntime, a: ChatsActions, threadId: st
   };
   return {
     screens: rt.screens, call: rt.call, connection: rt.connection, ...(rt.changes ? { changes: rt.changes } : {}), threadId, me: { id: rt.me.id, name: rt.me.name },
-    nameOf: (id) => nameOr(attributed(byId.get(id), (o) => byId.get(o)?.name), id),
+    nameOf: (id) => nameOr(byId.get(id)?.name, id),
     kindOf: (id) => kindOf(byId.get(id)),
     nav, clock: rt.clock, spaceName: rt.space.name, ...(rt.baseUrl ? { spaceUrl: rt.baseUrl } : {}), ...(rt.space.kind === "personal" ? { personal: true } : {}),
     ...(fill ? { fill } : {}),

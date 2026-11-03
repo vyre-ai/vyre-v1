@@ -1,28 +1,41 @@
-// Private agents in the shell's directory. A person's assistant and an outside agent they connected through /mcp are theirs alone: the agents module answers agents.list with only the agents this
-// person may use, so any other agent principal is someone else's private one. It keeps its name, with its person's, so what it did in a shared place stays attributed ("Simba · Irfad's agent"),
-// but it is never offered: not in the @mention picker, not in Cmd-K, not as a chat to open.
+// Private agents in the shell's directory, the one place every screen turns an id into a name and a face. A person's assistant and an outside agent they connected through /mcp are theirs
+// alone: agents.list answers each person with only the agents they may use, so any other agent principal with an owner is someone else's private one. Owner ruling (3 Nov): to everyone else,
+// whatever it did is credited to its person, "Irfad Imtiaz (Agent)", with the person's face; its own name never shows. It is never offered: not to @mention, not in Cmd-K, not as a chat.
+// The person themselves sees their agents by name. Logs (Console audit) add which agent it was in a details line, from `agentName`.
 import type { Principal } from "../../places/home/sections-a/data.tsx";
 
 export interface PrincipalIn { id: string; name: string; kind: string; owner?: string }
 
-/** One access principal as the shell's directory holds it. `usable` is the set agents.list answered, or null while it loads (nothing is marked private until it is known). */
-export function principalOf(x: PrincipalIn, own: { id: string; name: string }, meId: string, usable: ReadonlySet<string> | null): Principal {
-  const kind = x.kind === "person" ? "person" : "agent";
-  const out: Principal = { id: x.id, name: x.id === own.id ? own.name : x.name, kind };
-  if (kind === "agent" && x.owner !== undefined) out.owner = x.owner;
-  if (kind === "agent" && x.id.startsWith("agt_") && usable !== null && !usable.has(x.id) && x.owner !== meId) out.private = true;
-  return out;
+/** How someone else's private agent is named: its person, marked as their agent. */
+export const asAgentOf = (personName: string): string => `${personName} (Agent)`;
+
+/**
+ * The shell's directory from access.principals.list and the set agents.list answered (`usable`, null while it loads: nothing is marked private until it is known).
+ * `own` is this person's assistant, named as the shell names it.
+ */
+export function directoryOf(rows: readonly PrincipalIn[], own: { id: string; name: string }, meId: string, usable: ReadonlySet<string> | null): Principal[] {
+  const people = new Map<string, string>();
+  for (const x of rows) if (x.kind === "person") people.set(x.id, x.name);
+  return rows.map((x) => {
+    const kind = x.kind === "person" ? "person" : "agent";
+    const out: Principal = { id: x.id, name: x.id === own.id ? own.name : x.name, kind };
+    if (kind !== "agent" || x.owner === undefined) return out;
+    out.owner = x.owner;
+    if (x.id.startsWith("agt_") && usable !== null && !usable.has(x.id) && x.owner !== meId) {
+      out.private = true;
+      out.agentName = x.name;
+      out.name = asAgentOf(people.get(x.owner) ?? "Someone");
+    }
+    return out;
+  });
 }
 
 /** May this person be offered this principal (a mention, a Cmd-K hit, a chat to start)? */
 export const offered = (p: object): boolean => (p as { private?: boolean }).private !== true;
 
-/** How a principal is named where it acted: someone else's private agent carries its person, "Simba · Irfad's agent". */
-export function attributed(p: Principal | undefined, nameOf: (id: string) => string | undefined): string | undefined {
-  if (p === undefined) return undefined;
-  if (p.private !== true || p.owner === undefined) return p.name;
-  const owner = nameOf(p.owner);
-  if (owner === undefined || owner === "") return p.name;
-  const first = owner.split(" ")[0] ?? owner;
-  return `${p.name} · ${first}’s agent`;
+/** Agent id to person id, for the faces of private agents (ui/Avatar setStandIns). */
+export function standInsOf(list: readonly Principal[]): Map<string, string> {
+  const out = new Map<string, string>();
+  for (const p of list) if (p.private === true && p.owner !== undefined) out.set(p.id, p.owner);
+  return out;
 }
