@@ -3,6 +3,8 @@
 // Durable rows and shared helpers of the memory module (spec 2.15, 4.15; ARCH 6.10): the context type the handlers use, the schema bootstrap, fact rows and their
 // contract shape, the sealing of person-layer text, layer access, and the local ranking (BM25 over words, trigram similarity, recency) that search and the pointer block share.
 // Every statement names a memory_* table, which is all ctx.db lets a module touch. The migration file is the one source of the schema.
+import { audienceFrom, chatAudience, othersRead, within } from "../../lib/audience.ts";
+import type { Audience } from "../../lib/audience.ts";
 import { readFileSync } from "node:fs";
 import { fail } from "../../host/src/routes/errors.ts";
 import { mintUuid } from "../../lib/ids.ts";
@@ -33,6 +35,8 @@ export interface MemCtx {
   emit(name: EventName, subject: string, payload: unknown): unknown;
   call(cap: string, input: unknown): Promise<unknown>;
   authorize(action: { perm: string | null; level: Level }, resource: { type: string; id: string | null }): { effect: "allow" | "deny" | "hold" };
+  /** May every one of these people do this (the host's authorize for each)? What shared memory a chat may hear is what every person in it may open. Absent on a hand-built test ctx. */
+  mayAll?(people: readonly string[], action: { perm: string | null; level: Level }, resource: { type: string; id: string | null }): boolean;
   seal: { seal(v: Uint8Array, scope: string): Sealed; unseal(s: Sealed): Uint8Array };
   log: { warn(msg: string, attrs?: Record<string, unknown>): void };
 }
@@ -45,13 +49,14 @@ export function raise(ctx: Pick<MemCtx, "trace">, code: ErrorCode, message: stri
 /**
  * Does anyone but the asker read this chat? A channel always counts, as does any chat with two people in it. A chat that cannot be read counts too: private memory stays out unless we know it is safe (hole 8).
  */
-export async function seenByOthers(ctx: Pick<MemCtx, "call">, threadId: string): Promise<boolean> {
-  try {
-    const t = ((await ctx.call("threads.get", { threadId })) as { thread?: { kind?: string; members?: Array<{ kind?: string }> } }).thread;
-    if (!t || t.kind === "channel") return true;
-    return (t.members ?? []).filter((m) => m.kind === "person").length > 1;
-  } catch { return true; }
+export async function seenByOthers(ctx: Pick<MemCtx, "call" | "principal" | "actingFor">, threadId: string): Promise<boolean> {
+  return othersRead(await chatAudience((cap, input) => ctx.call(cap, input), threadId), actorOf(ctx));
 }
+
+/**
+ * The chat a memory read answers into: the one an agent's tool call came from, or the one a caller names (recall, quotes). Undefined outside a chat: a person reading their own Memory panel.
+ */
+export const hereOf = (ctx: Pick<MemCtx, "principal" | "thread">, thread?: string): string | undefined => thread ?? (ctx.principal.kind === "agent" ? ctx.thread : undefined);
 
 /** Who did it: the person an agent acts for, else the caller. */
 export const actorOf = (ctx: Pick<MemCtx, "principal" | "actingFor">): string => ctx.actingFor ?? ctx.principal.id;
@@ -66,6 +71,8 @@ const ready = new WeakSet<object>();
 
 /** Columns the trail, Trash and Archive added to memory_facts after the first schema. */
 const FACT_COLUMNS = [
+  // the people a fact learned in a chat others read is kept for (lib/audience.ts, JSON); null: whoever may open its layer
+  '"audience" TEXT',
   '"trashed_at" INTEGER', '"trash_reason" TEXT', '"trashed_by" TEXT', '"prev_status" TEXT', '"prev_valid_to" INTEGER', '"merged_into" TEXT', '"touched_at" INTEGER', '"archived_at" INTEGER', '"archived_by" TEXT',
 ];
 /** Columns added to the page and link tables after their first version. */
@@ -146,6 +153,8 @@ export interface Fact {
   mergedInto: string | null;
   /** Moved from Trash to Archive at this time (out of all search, restorable by an admin). */
   archivedAt: number | null;
+  /** Learned in a chat other people read: kept for those people (lib/audience.ts). Null: whoever may open its layer. */
+  audience: Audience | null;
 }
 
 /** Row to Fact. A person-layer row opens only for its owner; for anyone else its text stays empty and callers drop it before it reaches an answer. */
@@ -165,6 +174,7 @@ export function readFact(ctx: Pick<MemCtx, "seal" | "principal" | "actingFor">, 
     sourceKind: str(r["source_kind"]) as SourceKind, sourceRef: str(r["source_ref"]), sourceLink: orNull(r["source_link"]), sourcePerson: str(r["source_person"]),
     proposedBy: str(r["proposed_by"]), status: str(r["status"]) as FactStatus, lowRisk: num(r["low_risk"]) === 1, subject: orNull(r["subject"]), replaces: orNull(r["replaces"]),
     promotedFrom: orNull(r["promoted_from"]), trashedAt: numOrNull(r["trashed_at"]), trashReason: orNull(r["trash_reason"]), mergedInto: orNull(r["merged_into"]), archivedAt: numOrNull(r["archived_at"]),
+    audience: audienceFrom(r["audience"]),
   };
 }
 
@@ -211,8 +221,13 @@ export function ownerOfLayer(ctx: MemCtx, layer: Layer, actor: string, agentId: 
 type Resource = { type: string; id: string | null };
 
 export interface Access {
-  /** May the caller see (view) or change (edit) this layer of this agent or project? A person layer belongs to its owner alone. */
-  can(layer: Layer, ownerRef: string, agentId: string | null, projectId: string | null, level: "view" | "edit"): Promise<boolean>;
+  /**
+   * May the caller see (view) or change (edit) this layer of this agent or project? A person layer belongs to its owner alone. A view inside a chat is also held to the chat's audience: the one check
+   * every memory read goes through. `kept` is the audience a fact was kept for (learned in a chat others read).
+   */
+  can(layer: Layer, ownerRef: string, agentId: string | null, projectId: string | null, level: "view" | "edit", kept?: Audience | null): Promise<boolean>;
+  /** May words from this chat be shown here? Everyone who reads the chat being answered must also read the chat they came from. Always true outside a chat. */
+  showsFrom(threadId: string): Promise<boolean>;
   /** May the caller administer memory (memory.admin at manage)? */
   isAdmin(): boolean;
 }
@@ -220,9 +235,32 @@ export interface Access {
 /**
  * Layer access is decided by authorize on the layer's folder resource (the agent's folder, the project's folder, the Space), memoised per call.
  * DECISION: the agent's memory folder sits inside the agent folder and folder grants flow down, so authorize runs on the agent folder.
+ *
+ * The audience rule (agent-visibility gaps 3 and 4, memory audit items 1 and 2). A read made into a chat (an agent's tool call carries it, recall and quotes name it) answers to everyone who reads that
+ * chat, not only the asker:
+ *   - a person's own memory only when nobody else reads the chat;
+ *   - agent, project and Space memory only when every person in the chat may open it (ctx.mayAll), so a guest never hears a project fact through a teammate's turn;
+ *   - a fact kept for a channel's people only in a chat whose people are all among them, and outside a chat only for one of them.
+ * Every memory read goes through `can`, so no tool can reach around it.
  */
-export function makeAccess(ctx: MemCtx): Access {
+export function makeAccess(ctx: MemCtx, o: { thread?: string; /** a write's own permission check: where the words go next is not this call's answer */ write?: boolean } = {}): Access {
   const me = actorOf(ctx);
+  const here = o.write === true ? undefined : hereOf(ctx, o.thread);
+  let heard: Promise<Audience> | null = null;
+  const audience = (): Promise<Audience> => (heard ??= here === undefined ? Promise.resolve({ space: false, people: [me] }) : chatAudience((cap, input) => ctx.call(cap, input), here));
+  const sources = new Map<string, Promise<Audience>>();
+  const everyone = async (resource: Resource): Promise<boolean> => {
+    if (here === undefined) return true;
+    const a = await audience();
+    const others = a.people.filter((p) => p !== me);
+    if (others.length === 0) return true;
+    return ctx.mayAll ? ctx.mayAll(others, { perm: null, level: "view" }, resource) : true;
+  };
+  const keptFor = async (kept: Audience | null | undefined): Promise<boolean> => {
+    if (!kept || kept.space) return true;
+    if (!kept.people.includes(me)) return false;
+    return here === undefined || within(await audience(), kept);
+  };
   const folders = new Map<string, Promise<string | null>>();
   const memo = new Map<string, boolean>();
   const folderOf = (kind: "agent" | "project", id: string): Promise<string | null> => {
@@ -258,17 +296,18 @@ export function makeAccess(ctx: MemCtx): Access {
   };
   const allow = (level: "view" | "edit", res: Resource): boolean => ctx.authorize({ perm: null, level }, res).effect === "allow";
   return {
-    async can(layer, ownerRef, agentId, projectId, level) {
-      if (layer === "person") return ownerRef === me;
+    async can(layer, ownerRef, agentId, projectId, level, kept) {
+      if (level === "view" && !(await keptFor(kept))) return false;
+      if (layer === "person") return ownerRef === me && (level !== "view" || here === undefined || !othersRead(await audience(), me));
       const key = `${layer}:${ownerRef}:${agentId ?? ""}:${projectId ?? ""}:${level}`;
       const hit = memo.get(key);
       if (hit !== undefined) return hit;
       let ok = false;
-      if (layer === "space") ok = allow(level, { type: "space", id: ctx.space });
+      if (layer === "space") ok = allow(level, { type: "space", id: ctx.space }) && (level !== "view" || await everyone({ type: "space", id: ctx.space }));
       else {
         const target = layer === "agent" ? agentId ?? ownerRef : projectId ?? ownerRef;
         const folder = target ? await folderOf(layer, target) : null;
-        ok = folder !== null && allow(level, { type: "folder", id: folder });
+        ok = folder !== null && allow(level, { type: "folder", id: folder }) && (level !== "view" || await everyone({ type: "folder", id: folder }));
         // an agent's memory is not every member's to edit (ruling 88): a member's Space-wide Edit reaches the folder by inheritance, and that alone does not count. Editing is for the agent's
         // owner, an admin (memory.admin), and anyone the owner shared the folder with (a direct Edit or Manage grant of their own, or one given to a group they are in).
         if (ok && layer === "agent" && level === "edit" && folder !== null) ok = (await ownsOrShared(target as string, folder)) || ctx.authorize({ perm: "memory.admin", level: "manage" }, { type: "space", id: ctx.space }).effect === "allow";
@@ -277,6 +316,12 @@ export function makeAccess(ctx: MemCtx): Access {
       return ok;
     },
     isAdmin: () => ctx.authorize({ perm: "memory.admin", level: "manage" }, { type: "space", id: ctx.space }).effect === "allow",
+    async showsFrom(threadId) {
+      if (here === undefined || threadId === here) return true;
+      let from = sources.get(threadId);
+      if (!from) { from = chatAudience((cap, input) => ctx.call(cap, input), threadId); sources.set(threadId, from); }
+      return within(await audience(), await from);
+    },
   };
 }
 

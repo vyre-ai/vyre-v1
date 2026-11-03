@@ -361,7 +361,8 @@ export async function maintain(ctx: MemCtx, input: { agentId?: string; rulesOnly
   let maps = 0;
   for (const a of [...agents].sort()) {
     const notes = rowsOf(ctx.db, "SELECT title, path, file_id FROM memory_notes WHERE layer = 'agent' AND agent_id = ? AND LOWER(path) NOT LIKE '%/map.md' ORDER BY title", a);
-    const agentFacts = rowsOf(ctx.db, "SELECT * FROM memory_facts WHERE layer = 'agent' AND agent_id = ? AND status = 'current' ORDER BY learned_at DESC, id", a).map((r) => readFact(ctx, r));
+    // MAP.md goes in front of every turn in every chat: a fact kept for one channel's people (audience) stays out of it
+    const agentFacts = rowsOf(ctx.db, "SELECT * FROM memory_facts WHERE layer = 'agent' AND agent_id = ? AND status = 'current' AND audience IS NULL ORDER BY learned_at DESC, id", a).map((r) => readFact(ctx, r));
     const body = mapBody(a, notes, agentFacts, now);
     const lines = body.split("\n").length;
     const known = rowsOf(ctx.db, "SELECT file_id FROM memory_notes WHERE layer = 'agent' AND agent_id = ? AND LOWER(path) LIKE '%/map.md'", a)[0];

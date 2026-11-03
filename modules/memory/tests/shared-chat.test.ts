@@ -40,9 +40,18 @@ test("an agent's own search from a shared chat cannot reach the person layer eit
   assert.equal(JSON.stringify(out).includes("Dana had"), false);
 });
 
-test("words from the asker's private chat stay out of a shared chat; words from a channel may come", async () => {
+test("words from the asker's private chat stay out of a shared chat; words from a channel everyone there reads may come", async () => {
   const hit = (threadKind: string, text: string, threadId: string) => ({ source: "message", ref: `r_${threadId}`, threadId, threadKind, seq: 1, role: "user", author: { kind: "person", id: DANA }, text, at: 1, link: "/x", score: 1 });
-  const h = harness({ respond: { ...two, "chat.history.search": () => ({ hits: [hit("chat", "My knee surgery is booked for March.", "thr_p"), hit("channel", "The clinic moved to March.", "thr_c")] }), "search.resolve": () => ({}) } });
+  // each chat's own people: Dana's private chat, a public channel, and the shared chat being answered (lib/audience.ts)
+  const threads: Record<string, unknown> = {
+    thr_p: { thread: { kind: "chat", starter: DANA, members: [{ kind: "person", id: DANA }] } },
+    thr_c: { thread: { kind: "channel", channelId: "chn_c", members: [{ kind: "person", id: DANA }] } },
+    thr_shared: two["threads.get"](),
+  };
+  const h = harness({ respond: {
+    "threads.get": (b) => threads[String(b["threadId"])], "channels.get": () => ({ channel: { visibility: "public", members: [{ kind: "person", id: DANA }] } }),
+    "chat.history.search": () => ({ hits: [hit("chat", "My knee surgery is booked for March.", "thr_p"), hit("channel", "The clinic moved to March.", "thr_c")] }), "search.resolve": () => ({}),
+  } });
   const out = await quote(h.ctx, { q: "March", excludeThreadId: "thr_shared" });
   assert.deepEqual(out.quotes.map((q) => q.threadId), ["thr_c"]);
   const alone = harness({ respond: { "chat.history.search": () => ({ hits: [hit("chat", "My knee surgery is booked for March.", "thr_p")] }), "search.resolve": () => ({}) } });
