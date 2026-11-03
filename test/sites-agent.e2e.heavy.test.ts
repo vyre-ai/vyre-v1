@@ -27,18 +27,21 @@ test("an agent in a chat plans, creates and deploys a site, and says where it is
   process.env["VYRE_SITES_DOMAIN"] = DOMAIN;
   const fixture = path.join(CODE_ROOT, "fixtures", "sites", "static");
   const seen: Array<{ name: string; ok: boolean; content: unknown }> = [];
+  // a tool answers { data } (or { error }); the model reads the data
+  const data = (r: { content: unknown }): any => (r.content as { data?: unknown })?.data ?? r.content; // eslint-disable-line @typescript-eslint/no-explicit-any
   const dir = seededDir();
   const d = await boot(dir, scriptedModel(async function* (_input: unknown, run) {
     // what a model does with "put this folder online for the team": read the plan, make the site, deploy it, say where it is
+    const found = yield* run("tool_search", { query: "deploy a site" });
+    seen.push({ name: "tool_search", ...found });
     const plan = yield* run("sites_plan", { source: { path: fixture } });
     seen.push({ name: "sites_plan", ...plan });
     const made = yield* run("sites_create", { name: "Team page", source: { path: fixture }, idempotencyKey: "agent-site-create" });
     seen.push({ name: "sites_create", ...made });
-    const siteId = (made.content as { site?: { siteId?: string } })?.site?.siteId;
+    const siteId = data(made)?.site?.siteId;
     const dep = yield* run("sites_deploy", { siteId, wait: true });
     seen.push({ name: "sites_deploy", ...dep });
-    const got = yield* run("sites_get", { siteId });
-    const url = (got.content as { site?: { url?: string } })?.site?.url;
+    const url = data(made)?.site?.url;
     yield { type: "text", text: `It is live for the Space at ${url}.` };
   }));
   let siteId = "";
@@ -56,11 +59,11 @@ test("an agent in a chat plans, creates and deploys a site, and says where it is
   await connect(d);
   const agentId = await makeAgent(d, "Builder", "You build and deploy the team's sites.");
   const { reply } = await sayAuto(d, agentId, "Put the team page folder online for the Space.", "agent-deploy");
-  process.stdout.write(`tools: ${JSON.stringify(seen).slice(0, 1500)}\nreply: ${reply}\n`);
-  assert.ok(seen.every((s) => s.ok), JSON.stringify(seen).slice(0, 2000));
-  const dep = (seen.find((s) => s.name === "sites_deploy")?.content as { deployment?: { state?: string; by?: string; problem?: string } })?.deployment;
+  process.stdout.write(`tools: ${JSON.stringify(seen.filter((x) => x.name !== "tool_search")).slice(0, 2500)}\nreply: ${reply}\n`);
+  assert.ok(seen.every((s) => s.ok), JSON.stringify(seen.filter((x) => !x.ok)).slice(0, 2000));
+  const dep = data(seen.find((s) => s.name === "sites_deploy")!)?.deployment as { state?: string; by?: string; problem?: string } | undefined;
   assert.equal(dep?.state, "ready", JSON.stringify(dep));
-  const site = (seen.find((s) => s.name === "sites_create")?.content as { site: { siteId: string; slug: string; access: string } }).site;
+  const site = data(seen.find((s) => s.name === "sites_create")!).site as { siteId: string; slug: string; access: string };
   siteId = site.siteId;
   assert.equal(site.access, "space");
   assert.match(reply, new RegExp(`https://${site.slug}\\.${DOMAIN.replace(/\./g, "\\.")}`));
