@@ -25,7 +25,7 @@ export async function mcpTools(ctx: EngineCtx, input: { agentId: string; server?
   for (const spec of list) {
     try {
       const tools = await runtime.tools(spec, { agentId: input.agentId, asker: actorOf(ctx) });
-      await watchConnection(spec, "ok");
+      await watchConnection(spec, "ok", tools.length);
       out.push({ key: spec.key, name: spec.name, from: spec.from, ...(spec.hub ? { hub: spec.hub as "composio" | "pipedream" } : {}), ...(spec.oauth ? { oauth: true } : {}), ok: true, tools: tools.map((t) => ({ name: t.name, description: t.description, inputSchema: t.inputSchema, readOnly: t.readOnly })) });
     } catch (e) {
       await watchConnection(spec, { error: e instanceof Error ? e.message : "" });
@@ -92,12 +92,17 @@ const asOauthError = (ctx: EngineCtx, e: unknown): never => {
   throw e;
 };
 
-/** The address to send the person to. Whoever manages connections may start it; the token that comes back is sealed and never answered. */
+/** The address to send the person to. A person signs their own (Mine) connection in; a Space or agent one is signed in by whoever manages connections. The token that comes back is sealed and never answered. */
 export async function mcpOauthStart(ctx: EngineCtx, input: { connectionId: string; redirectUri: string }): Promise<{ authUrl: string; state: string }> {
   const o = oauth(ctx);
-  const conn = ((await ctx.call("plugins.connections.list", {})) as { connections: { connectionId: string; url?: string; auth?: string }[] }).connections.find((c) => c.connectionId === input.connectionId);
+  const conn = ((await ctx.call("plugins.connections.list", {})) as { connections: { connectionId: string; url?: string; auth?: string; scope?: string }[] }).connections.find((c) => c.connectionId === input.connectionId);
   if (!conn || !conn.url) raise(ctx, "validation.not_found", "There is no such remote connection.");
   if (conn.auth !== "oauth") raise(ctx, "validation.precondition_failed", "This connection does not sign in with OAuth.");
+  if (conn.scope !== "mine") {
+    const home = (await ctx.call("plugins.connections.home", {})) as { space: { connectionId?: string; canManage: boolean }[]; agents: { connectionId?: string; canManage: boolean }[] };
+    const row = [...home.space, ...home.agents].find((r) => r.connectionId === input.connectionId);
+    if (!row?.canManage) raise(ctx, "permission.role_lacks_permission", "Only someone who manages agents signs a Space connection in.");
+  }
   try { return await o.start({ connectionId: input.connectionId, url: conn.url!, redirectUri: input.redirectUri, by: actorOf(ctx) }); } catch (e) { return asOauthError(ctx, e); }
 }
 

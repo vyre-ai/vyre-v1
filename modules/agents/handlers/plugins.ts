@@ -6,6 +6,8 @@ import { expandVars, inside, parseMarketplace, readPlugin } from "../../../lib/p
 import type { MarketplaceEntry, PluginContents } from "../../../lib/plugin-format.ts";
 import { parseSkill, withSkillName } from "../../../lib/skill-md.ts";
 import { hubById } from "../../../lib/mcp-hubs.ts";
+import { looksSecret, secretInArgs } from "../../../lib/mcp-import.ts";
+import { checkPolicy, cleanShare, groupsOfAsker, shareOf, sharedWith } from "./connections.ts";
 import { agentBy, askerOf, canSee, ensure, mintId, raise } from "../projections.ts";
 import type { AgentsCtx } from "../projections.ts";
 import { create as createAgent } from "./crud.ts";
@@ -22,7 +24,11 @@ const HANDLE = /^#[A-Za-z0-9_]+(\.[A-Za-z0-9_]+)?$/;
 export interface TreeSource { kind: "git" | "local"; url?: string; path?: string; ref?: string; subdir?: string }
 export interface TreeResult { files: Record<string, string>; revision: string; skipped: string[] }
 /** The host half: reads a git repository (https) or a folder into a map of text files. Never follows a symlink, skips binary files, bounds the size. */
-export interface PluginsHost { fetchTree(src: TreeSource): Promise<TreeResult> }
+export interface PluginsHost {
+  fetchTree(src: TreeSource): Promise<TreeResult>;
+  /** One JSON document over https, through the network guard (the MCP server catalog, handlers/connections.ts). Absent: the catalog answers from what it kept. */
+  fetchJson?(url: string): Promise<unknown>;
+}
 let pluginsHost: PluginsHost | null = null;
 export function setPluginsHost(h: PluginsHost | null): void { pluginsHost = h; }
 
@@ -31,6 +37,11 @@ const need = (ctx: AgentsCtx): PluginsHost => {
   const h = pluginsHost ?? raise(ctx, "provider.unavailable", "This server cannot fetch plugins right now.");
   return { fetchTree: (src) => h.fetchTree(src).catch((e: unknown) => raise(ctx, "provider.unavailable", `Could not read it: ${e instanceof Error ? e.message.replace(/^ENOENT: no such file or directory, \w+ /, "no such folder ") : "unknown error"}.`)) };
 };
+/** The catalog's fetch: rejects when this server has no way to reach it, and the caller answers from what it kept. */
+export async function registryFetch(url: string): Promise<unknown> {
+  if (!pluginsHost?.fetchJson) throw new Error("This server cannot reach the catalog.");
+  return pluginsHost.fetchJson(url);
+}
 const sum = (files: Record<string, string>): number => Object.values(files).reduce((n, t) => n + Buffer.byteLength(t, "utf8"), 0);
 
 /** A source the admin typed: an https git URL, owner/repo on GitHub, or a folder on this server. */
@@ -394,9 +405,19 @@ export async function mcpServers(ctx: AgentsCtx, input: { agentId?: string }) {
       out[out.length - 1]!.needs = [...needs];
     }
   }
-  for (const r of ctx.db.all("SELECT * FROM agents_mcp_connections WHERE enabled = 1 ORDER BY name") as Row[]) {
+  // a Mine connection is its owner's alone (their chats, their agents' turns for them); a Space one reaches everyone or the groups it is shared with; on one name, the nearest wins
+  const asker = askerOf(ctx);
+  const rank = (scope: string): number => (scope === "mine" ? 0 : scope === "agent" ? 1 : 2);
+  const rows = (ctx.db.all("SELECT * FROM agents_mcp_connections WHERE enabled = 1 ORDER BY name") as Row[]).sort((a, b) => rank(str(a["scope"])) - rank(str(b["scope"])));
+  const taken = new Set<string>();
+  const groups = await groupsOfAsker(ctx, rows);
+  for (const r of rows) {
     const scope = str(r["scope"]), aid = str(r["agent_id"]);
     if (scope === "agent" && aid !== input.agentId) continue;
+    if (scope === "mine" && str(r["owner"] ?? "") !== asker) continue;
+    if (scope === "space" && !sharedWith(shareOf(r), groups)) continue;
+    if (taken.has(str(r["name"]))) continue;
+    taken.add(str(r["name"]));
     out.push({
       key: str(r["name"]), name: str(r["name"]), from: "connection", transport: str(r["transport"]) as McpSpecOut["transport"], args: parse<string[]>(r["args_json"], []), env: parse<Record<string, string>>(r["env_json"], {}), headers: parse<Record<string, string>>(r["headers_json"], {}), needs: [],
       ...(str(r["command"]) !== "" ? { command: str(r["command"]) } : {}), ...(str(r["url"]) !== "" ? { url: str(r["url"]) } : {}),
@@ -425,13 +446,28 @@ function connectionOut(r: Row) {
     ...(str(r["url"]) !== "" ? { url: str(r["url"]) } : {}), ...(str(r["command"]) !== "" ? { command: str(r["command"]) } : {}), args: parse<string[]>(r["args_json"], []),
     env: parse<Record<string, string>>(r["env_json"], {}), headers: parse<Record<string, string>>(r["headers_json"], {}), enabled: Number(r["enabled"]) === 1, createdAt: Number(r["at"]),
     ...(str(r["hub"] ?? "") !== "" ? { hub: str(r["hub"]) as "composio" | "pipedream" } : {}), ...(str(r["auth"] ?? "") === "oauth" ? { auth: "oauth" as const } : {}),
+    ...(str(r["owner"] ?? "") !== "" ? { owner: str(r["owner"]) } : {}), ...(str(r["scope"]) === "space" ? { share: shareOf(r) } : {}),
+    ...(str(r["source"] ?? "") !== "" ? { source: str(r["source"]) } : {}), ...(str(r["source_ref"] ?? "") !== "" ? { sourceRef: str(r["source_ref"]) } : {}), ...(str(r["title"] ?? "") !== "" ? { title: str(r["title"]) } : {}),
   };
 }
 export async function connectionsList(ctx: AgentsCtx, input: { agentId?: string }) {
   ensure(ctx.db);
-  return { connections: (ctx.db.all("SELECT * FROM agents_mcp_connections ORDER BY name") as Row[]).filter((r) => str(r["scope"]) === "space" || input.agentId === undefined || str(r["agent_id"]) === input.agentId).map(connectionOut) };
+  const asker = askerOf(ctx);
+  return {
+    connections: (ctx.db.all("SELECT * FROM agents_mcp_connections ORDER BY name") as Row[])
+      .filter((r) => (str(r["scope"]) === "mine" ? str(r["owner"] ?? "") === asker : str(r["scope"]) === "space" || input.agentId === undefined || str(r["agent_id"]) === input.agentId)).map(connectionOut),
+  };
 }
-export async function connectionAdd(ctx: AgentsCtx, input: { name: string; scope: "space" | "agent"; agentId?: string; url?: string; command?: string; args?: string[]; env?: Record<string, string>; headers?: Record<string, string>; hub?: "composio" | "pipedream"; auth?: "oauth"; idempotencyKey: string }) {
+export type ConnectionSource = "registry" | "paste" | "import" | "hub" | "skill" | "kit" | "hand";
+export interface ConnectionIn {
+  name: string; scope: "space" | "agent" | "mine"; agentId?: string; url?: string; command?: string; args?: string[]; env?: Record<string, string>; headers?: Record<string, string>; hub?: "composio" | "pipedream"; auth?: "oauth";
+  title?: string; share?: string[]; source?: ConnectionSource; sourceRef?: string; idempotencyKey: string;
+}
+export async function connectionAdd(ctx: AgentsCtx, input: ConnectionIn & { scope: "space" | "agent" }) {
+  return addConnection(ctx, input);
+}
+/** Every check first, then the one write (raise-after-write): the shape, the hub, the keys, the Space's rules, a name not taken. */
+export async function addConnection(ctx: AgentsCtx, input: ConnectionIn) {
   ensure(ctx.db);
   const name = input.name.trim();
   if (!/^[A-Za-z0-9][A-Za-z0-9_.-]{0,40}$/.test(name)) raise(ctx, "validation.bad_input", "Name the connection with letters, digits, dash and underscore.");
@@ -440,7 +476,12 @@ export async function connectionAdd(ctx: AgentsCtx, input: { name: string; scope
     let u: URL;
     try { u = new URL(input.url); } catch { return raise(ctx, "validation.bad_input", "That is not a URL."); }
     if (u.protocol !== "https:" && u.protocol !== "http:") raise(ctx, "validation.bad_input", "A remote MCP server is reached over https.");
+    if (u.username || u.password) raise(ctx, "validation.bad_input", "Do not put a password in the address. Put the key in the Vault and give its handle in a header.");
   }
+  if (input.command !== undefined && !/^[A-Za-z0-9_./~-]+$/.test(input.command)) raise(ctx, "validation.bad_input", "The command is one program, such as npx or uvx; its words go in args.");
+  // a key never sits in a command line, where any process listing would show it: only env and headers carry one
+  const bad = secretInArgs(input.args ?? []);
+  if (bad >= 0) raise(ctx, "validation.bad_input", "A key is in the command's arguments. Put it in an environment value or a header as a Vault handle, so it never shows in a command line.");
   // an app hub is a remote server at the hub's own address, with its key in the header the hub names, as a Vault handle
   const hub = input.hub === undefined ? undefined : hubById(input.hub);
   if (input.hub !== undefined) {
@@ -455,12 +496,18 @@ export async function connectionAdd(ctx: AgentsCtx, input: { name: string; scope
   // a secret is a handle: a value that is not one goes in as a plain value only for env and headers that are not credentials; a header named like a credential must be a handle
   for (const [k, v] of Object.entries({ ...(input.headers ?? {}), ...(input.env ?? {}) })) {
     if (/(authorization|api[-_]?key|token|secret|password|cookie)/i.test(k) && !HANDLE.test(v) && !/^Bearer\s+#/.test(v)) raise(ctx, "validation.bad_input", `${k} looks like a credential. Put it in the Vault and give its handle, such as #Name.field.`);
+    if (!HANDLE.test(v) && !/^Bearer\s+#/.test(v) && looksSecret(k, v)) raise(ctx, "validation.bad_input", `The value of ${k} looks like a key. Put it in the Vault and give its handle, such as #Name.field.`);
   }
-  if ((ctx.db.all("SELECT id FROM agents_mcp_connections WHERE name = ? AND scope = ? AND agent_id = ?", name, input.scope, agentId) as Row[]).length > 0) raise(ctx, "validation.duplicate", `A connection called ${name} already exists here.`);
+  const owner = input.scope === "mine" ? askerOf(ctx) : "";
+  if (input.scope === "mine" && ctx.principal.kind !== "person" && ctx.actingFor === undefined) raise(ctx, "validation.precondition_failed", "A Mine connection belongs to a person.");
+  checkPolicy(ctx, input);
+  const share = input.scope === "space" ? cleanShare(input.share) : [];
+  if ((ctx.db.all("SELECT id FROM agents_mcp_connections WHERE name = ? AND scope = ? AND agent_id = ? AND owner = ?", name, input.scope, agentId, owner) as Row[]).length > 0) raise(ctx, "validation.duplicate", `A connection called ${name} already exists here.`);
   const now = ctx.now();
   const id = mintId("mcs", now);
-  ctx.db.run("INSERT INTO agents_mcp_connections (id, name, scope, agent_id, transport, url, command, args_json, env_json, headers_json, enabled, author, at, hub, auth) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?)",
-    id, name, input.scope, agentId, input.url ? "http" : "stdio", input.url ?? "", input.command ?? "", JSON.stringify(input.args ?? []), JSON.stringify(input.env ?? {}), JSON.stringify(input.headers ?? {}), by(ctx), now, hub?.id ?? "", input.auth === "oauth" ? "oauth" : "");
+  ctx.db.run("INSERT INTO agents_mcp_connections (id, name, scope, agent_id, transport, url, command, args_json, env_json, headers_json, enabled, author, at, hub, auth, owner, share_json, source, source_ref, title) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+    id, name, input.scope, agentId, input.url ? "http" : "stdio", input.url ?? "", input.command ?? "", JSON.stringify(input.args ?? []), JSON.stringify(input.env ?? {}), JSON.stringify(input.headers ?? {}), by(ctx), now, hub?.id ?? "", input.auth === "oauth" ? "oauth" : "",
+    owner, JSON.stringify(share), input.source ?? (hub ? "hub" : "hand"), (input.sourceRef ?? "").slice(0, 200), (input.title ?? "").trim().slice(0, 80));
   ctx.emit("plugin.connection_added", id, { connectionId: id, name, scope: input.scope, ...(agentId !== "" ? { agentId } : {}), by: by(ctx) });
   return { connection: connectionOut((ctx.db.all("SELECT * FROM agents_mcp_connections WHERE id = ?", id) as Row[])[0]!) };
 }
@@ -470,7 +517,7 @@ export async function connectionRemove(ctx: AgentsCtx, input: { connectionId?: s
   const r = (input.connectionId !== undefined
     ? ctx.db.all("SELECT * FROM agents_mcp_connections WHERE id = ?", input.connectionId)
     : ctx.db.all("SELECT * FROM agents_mcp_connections WHERE name = ? AND scope = ? AND agent_id = ?", input.name, input.scope ?? "space", input.scope === "agent" ? input.agentId ?? "" : "") as Row[])[0];
-  if (!r) return { removed: false };
+  if (!r || (str(r["scope"]) === "mine" && str(r["owner"] ?? "") !== askerOf(ctx))) return { removed: false };
   ctx.db.run("DELETE FROM agents_mcp_connections WHERE id = ?", str(r["id"]));
   ctx.emit("plugin.connection_removed", str(r["id"]), { connectionId: str(r["id"]), name: str(r["name"]), by: by(ctx) });
   return { removed: true };

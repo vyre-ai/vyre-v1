@@ -27,6 +27,9 @@ import { ImportSheet } from "../import/index.ts";
 import type { Source } from "../import/index.ts";
 import { AddProvider, ProviderPage, ProviderPanel } from "../providers/index.ts";
 import { ConnectHere } from "../providers/ConnectHere.tsx";
+import { ConnectionsView } from "../connections/ConnectionsView.tsx";
+import type { ConnectionsData } from "../connections/ConnectionsView.tsx";
+import type { AddInitial } from "../connections/AddConnection.tsx";
 import type { ConnectionKind } from "../providers/index.ts";
 import type { CapMap } from "../../../../../../generated/types.ts";
 
@@ -60,9 +63,10 @@ export type VaultRoute =
   | { surface: "export"; folderId: string }
   | { surface: "advanced" }
   | { surface: "policy" }
-  | { surface: "requests" };
+  | { surface: "requests" }
+  | { surface: "connections"; add?: true };
 
-function Page({ initial, sheet, view, route, onRouteClose }: { initial?: Selection | undefined; sheet?: InitialSheet | undefined; view?: "env" | "fields" | undefined; route: VaultRoute; onRouteClose(): void }): ReactElement {
+function Page({ initial, sheet, view, route, onRouteClose, connectionsInitial, connectionsAdd }: { initial?: Selection | undefined; sheet?: InitialSheet | undefined; view?: "env" | "fields" | undefined; route: VaultRoute; onRouteClose(): void; connectionsInitial?: ConnectionsData | undefined; connectionsAdd?: AddInitial | undefined }): ReactElement {
   const data = useVaultData();
   const online = useOnline();
   const { width } = useWindowDimensions();
@@ -133,7 +137,8 @@ function Page({ initial, sheet, view, route, onRouteClose }: { initial?: Selecti
   const select = useCallback((s: Selection) => {
     if (s.kind === "requested") { data.nav.openRequests(); return; }
     setSelection(s); setSelectedId(null); setDetailOpen(false);
-  }, [data.nav]);
+    if (route.surface === "connections") onRouteClose();
+  }, [data.nav, route.surface, onRouteClose]);
   const open = useCallback((id: string) => { setSelectedId(id); setDetailOpen(true); }, []);
 
   const moveSelection = useCallback((dir: 1 | -1) => {
@@ -180,6 +185,7 @@ function Page({ initial, sheet, view, route, onRouteClose }: { initial?: Selecti
       { separator: true },
       ...folderList.filter((f) => f.scope === "shared").map((f): MenuEntry => entry({ kind: "folder", folderId: f.id }, f.name, counts.folders.get(f.id) ?? f.itemCount)),
       entry({ kind: "mine" }, "Mine", counts.mine),
+      ...(data.nav.openConnections ? [{ separator: true } as MenuEntry, { label: "Connections", checked: route.surface === "connections", onSelect: () => data.nav.openConnections?.() } as MenuEntry] : []),
     ];
   };
 
@@ -278,12 +284,14 @@ function Page({ initial, sheet, view, route, onRouteClose }: { initial?: Selecti
       ? <PolicyView onClose={onRouteClose} />
     : route.surface === "requests"
       ? <RequestsView requests={requests} items={all} onClose={onRouteClose} />
+    : route.surface === "connections"
+      ? <ConnectionsView initialAdd={connectionsAdd ?? route.add === true} {...(wide ? {} : { onClose: onRouteClose })} {...(connectionsInitial ? { initialData: connectionsInitial } : {})} />
       : null;
 
   return (
     <View style={s.page} testID="vault-place">
       {menu.element}
-      {wide ? <Sidebar counts={counts} folders={folderList} selection={selection} onSelect={select} onAdvanced={data.nav.openAdvanced} advanced={route.surface === "advanced" || route.surface === "policy"} onNewFolder={createFolder} onFolderMenu={folderMenu} canCreateShared hideShared={data.personal === true} /> : null}
+      {wide ? <Sidebar counts={counts} folders={folderList} selection={selection} onSelect={select} onAdvanced={data.nav.openAdvanced} advanced={route.surface === "advanced" || route.surface === "policy"} {...(data.nav.openConnections ? { onConnections: data.nav.openConnections, connections: route.surface === "connections" } : {})} onNewFolder={createFolder} onFolderMenu={folderMenu} canCreateShared hideShared={data.personal === true} /> : null}
       {routed ?? <>{twoPane || !showDetail ? listPane : null}{showDetail ? <View style={s.detail}>{detail}</View> : null}</>}
       {route.surface === "export" ? <ExportSheet folderId={route.folderId} folderName={folderList.find((f) => f.id === route.folderId)?.name ?? "folder"} onClose={onRouteClose} /> : null}
       {adding ? (
@@ -471,15 +479,19 @@ export interface VaultProps {
   route?: VaultRoute | undefined;
   /** Clears a routed sheet/page back to the Vault root. */
   onRouteClose?: (() => void) | undefined;
+  /** What Vault > Connections shows before its first read (tests that render once). */
+  connectionsInitial?: ConnectionsData | undefined;
+  /** Vault > Connections opens with the Add sheet at this step (screenshot mounts). */
+  connectionsAdd?: AddInitial | undefined;
 }
 
-export default function VaultLayout({ data, initial, sheet, view, route = { surface: "layout" }, onRouteClose = () => undefined }: VaultProps): ReactElement {
+export default function VaultLayout({ data, initial, sheet, view, route = { surface: "layout" }, onRouteClose = () => undefined, connectionsInitial, connectionsAdd }: VaultProps): ReactElement {
   const provided = useOptionalVaultData();
   const d = data ?? provided;
   if (!d) return <VaultLoading />;
   return (
     <VaultDataProvider value={d}>
-      <Page initial={initial} sheet={sheet} view={view} route={route} onRouteClose={onRouteClose} />
+      <Page initial={initial} sheet={sheet} view={view} route={route} onRouteClose={onRouteClose} connectionsInitial={connectionsInitial} connectionsAdd={connectionsAdd} />
     </VaultDataProvider>
   );
 }

@@ -12,6 +12,7 @@ import { connectorOpening } from "../../places/vault/itemenv/automations.ts";
 import { syncOpening } from "../../places/records/sync/opening.ts";
 import { openAsk } from "./ask.ts";
 import { attemptKey } from "./files-review.ts";
+import { connectionsRoute, connectionsTarget } from "../../places/vault/connections/links.ts";
 import type { ShellRuntime } from "./runtime.tsx";
 
 export function vaultRoute(target: HashTarget): VaultRoute {
@@ -21,6 +22,8 @@ export function vaultRoute(target: HashTarget): VaultRoute {
   if (target.args["export"]) return { surface: "export", folderId: target.args["export"] };
   if (target.args["advanced"] === "true") return { surface: "advanced" };
   if (target.args["policy"] === "true") return { surface: "policy" };
+  const conns = connectionsRoute(target.args);
+  if (conns) return conns;
   if (target.args["addProvider"] === "true") return { surface: "layout", addProvider: true };
   if (target.args["add"]) return { surface: "layout", addApp: target.args["add"] };
   return { surface: "layout" };
@@ -73,6 +76,7 @@ export function vaultData(rt: ShellRuntime, browsers: VaultBrowsers | undefined 
       syncToRecords: (item) => openAsk(rt, "assistant", { kind: "vault_item", id: item.id, title: item.name }, undefined, syncOpening(item)),
       openAutomation: (automationId) => rt.open({ screen: "automations.canvas", args: { automationId } }),
       openAddProvider: () => rt.open({ screen: "vault.layout", args: { addProvider: "true" } }),
+      openConnections: () => rt.open(connectionsTarget()),
     },
     clock: () => ({ now: rt.clock().now }),
     ...(browsers ? { browsers } : {}),
