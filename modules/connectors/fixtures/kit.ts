@@ -48,6 +48,7 @@ export function kit(o: { builtins?: BuiltinRow[] } = {}) {
         items[id] = { handle, name: i["name"], value: i["fields"][0].value, folderId: i["folderId"] }; vault[handle] = i["fields"][0].value; stored.push({ name: i["name"], value: i["fields"][0].value });
         return { item: { id, handle } };
       }
+      if (cap === "vault.share") return { granted: true };
       if (cap === "vault.item.update") { const it = items[i["itemId"]]; if (!it) throw new Error("no item"); it.value = i["fieldsSet"][0].value; vault[it.handle] = it.value; stored.push({ name: it.name, value: it.value }); return { item: { id: i["itemId"], handle: it.handle } }; }
       if (cap === "vault.item.delete") { const it = items[i["itemId"]]; if (it) { delete vault[it.handle]; delete items[i["itemId"]]; } return { ok: true }; }
       throw new Error(`no ${cap}`);
