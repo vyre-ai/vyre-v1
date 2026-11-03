@@ -476,7 +476,9 @@ export default defineManifest({
         accounts: ['engine.accounts.list', {}, true], models: ['engine.models.list', { accountRef: '/state/accountRef' }, true], defaults: ['engine.defaults.get', {}, true],
         usage: ['engine.usage.query', { by: '/state/by', from: '/state/from', to: '/state/to' }, true],
       },
-      a: { probe: ['engine.probe_account', { accountRef: '/state/accountRef' }], setDefaults: ['engine.defaults.set', {}], shareSubscription: ['engine.subscription_share.set', {}], runtime: ['engine.runtime.opt_in', {}] },
+      // No "Let the Space continue my chats when my computer is off" toggle here (owner ruling, 3 Nov 2026): it is on by default and its screen comes back with sealed chats.
+      // engine.runtime.opt_in stays a capability; only the Settings action is gone.
+      a: { probe: ['engine.probe_account', { accountRef: '/state/accountRef' }], setDefaults: ['engine.defaults.set', {}], shareSubscription: ['engine.subscription_share.set', {}] },
       empty: 'No accounts yet', primary: 'Open Vault',
     }),
     screen('console.ai-models', 'console', 'ui:ConsoleAiModels', {

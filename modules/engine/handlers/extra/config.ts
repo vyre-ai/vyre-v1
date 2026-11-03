@@ -156,9 +156,15 @@ function setFlag(ctx: EngineCtx, person: string, flag: string, enabled: boolean,
   ctx.db.run("INSERT OR REPLACE INTO engine_person_flags (person_id, flag, enabled, wrapped_key, updated_at) VALUES (?, ?, ?, ?, ?)", person, flag, enabled ? 1 : 0, wrappedKey, ctx.now());
 }
 
+/** What a person switch is when they never set it. "Let the Space continue my chats when my computer is off" is on (owner ruling, 3 Nov 2026; spec b7): Automatic falls back to the
+ *  Space when their computer is off. A row is written only by the person's own engine.runtime.opt_in call (no screen, seed or migration writes one), so a stored off is a choice they
+ *  made and stays off; everyone who never chose has no row, and the new default reaches them with no data migration. */
+export const FLAG_DEFAULT: Readonly<Record<"subscription_share" | "runtime_opt_in", boolean>> = { subscription_share: false, runtime_opt_in: true };
+
 export function flagOn(ctx: EngineCtx, person: string, flag: "subscription_share" | "runtime_opt_in"): boolean {
   ensureExtra(ctx.db);
-  return Number(rows(ctx, "SELECT enabled FROM engine_person_flags WHERE person_id = ? AND flag = ?", person, flag)[0]?.["enabled"] ?? 0) === 1;
+  const r = rows(ctx, "SELECT enabled FROM engine_person_flags WHERE person_id = ? AND flag = ?", person, flag)[0];
+  return r === undefined ? FLAG_DEFAULT[flag] : Number(r["enabled"]) === 1;
 }
 
 type SandboxStopper = (personId: string) => Promise<boolean>;

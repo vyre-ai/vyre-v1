@@ -1,7 +1,7 @@
 // Policy, defaults, the person switches, the use-policy export, models and providers, route preview and review (engine capabilities left over from P-L2_13).
 import test from "node:test";
 import assert from "node:assert/strict";
-import { bindSandboxStopper, flagOn, wrappedRuntimeKey } from "../handlers/extra/config.ts";
+import { FLAG_DEFAULT, bindSandboxStopper, flagOn, wrappedRuntimeKey } from "../handlers/extra/config.ts";
 import { extraHandlers } from "../handlers/extra/index.ts";
 import { assertEventsConform, codeOf, contractErrors, harness } from "../fixtures/harness.ts";
 import type { Harness } from "../fixtures/harness.ts";
@@ -121,11 +121,44 @@ test("the person switches: sharing a subscription kills the sandbox when turned 
   assert.throws(() => H["engine.runtime.opt_in"](h.ctx, { enabled: true }), (e) => codeOf(e) === "validation.bad_input");
   assert.deepEqual(H["engine.runtime.opt_in"](h.ctx, { enabled: true, wrappedRuntimeKey: "ciphertext-1" }), { enabled: true });
   assert.equal(wrappedRuntimeKey(h.ctx, "usr_dana"), "ciphertext-1");
+  assert.equal(h.named("engine.runtime_opt_in_changed").length, 0, "it was already on by default: storing the key changes nothing anyone sees");
   assert.deepEqual(H["engine.runtime.opt_in"](h.ctx, { enabled: false }), { enabled: false });
   assert.equal(wrappedRuntimeKey(h.ctx, "usr_dana"), null, "turning it off deletes the key");
-  assert.equal(h.named("engine.runtime_opt_in_changed").length, 2);
+  assert.equal(h.named("engine.runtime_opt_in_changed").length, 1);
   assert.ok(!JSON.stringify(h.emitted).includes("ciphertext"), "no key material in any event");
   assert.deepEqual(assertEventsConform(h), []);
+});
+
+test("Let the Space continue my chats when my computer is off is on by default (owner ruling, 3 Nov); a person who turned it off stays off", () => {
+  const h = harness();
+  assert.deepEqual(FLAG_DEFAULT, { subscription_share: false, runtime_opt_in: true });
+  assert.equal(flagOn(h.ctx, "usr_dana", "runtime_opt_in"), true, "never set: on");
+  assert.equal(flagOn(h.ctx, "usr_never_seen", "runtime_opt_in"), true, "anyone who never chose: on");
+  assert.equal(flagOn(h.ctx, "usr_dana", "subscription_share"), false, "the other switch keeps its own default");
+  H["engine.runtime.opt_in"](h.ctx, { enabled: false });
+  assert.equal(flagOn(h.ctx, "usr_dana", "runtime_opt_in"), false, "their own choice is kept");
+  assert.equal(h.named("engine.runtime_opt_in_changed").length, 1);
+  assert.equal(flagOn(h.ctx, "usr_never_seen", "runtime_opt_in"), true, "one person's choice is theirs alone");
+});
+
+test("the opt-in has no Settings toggle until sealed chats ship: the Models and usage screen offers no runtime action, and no app code calls it", async () => {
+  const { screens } = await import("../../../generated/screens.ts");
+  const caps = screens.flatMap((sc) => Object.values(sc.actions).map((a) => `${sc.id}:${a.cap}`));
+  assert.ok(screens.some((sc) => sc.id === "settings.models-usage"), "the screen is still there");
+  assert.deepEqual(caps.filter((c) => c.endsWith(":engine.runtime.opt_in")), []);
+  const { readdirSync, readFileSync, statSync } = await import("node:fs");
+  const { join } = await import("node:path");
+  const root = new URL("../../../apps/app/src/", import.meta.url).pathname;
+  const hits: string[] = [];
+  const walk = (dir: string): void => {
+    for (const name of readdirSync(dir)) {
+      const at = join(dir, name);
+      if (statSync(at).isDirectory()) walk(at);
+      else if (/\.(ts|tsx)$/.test(name) && !/\.test\./.test(name) && readFileSync(at, "utf8").includes("engine.runtime.opt_in")) hits.push(at);
+    }
+  };
+  walk(root);
+  assert.deepEqual(hits, []);
 });
 
 test("use_policy.export writes the policy as a Markdown file in the shared knowledge folder", async () => {

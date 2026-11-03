@@ -7426,10 +7426,6 @@ export const screens: ScreenIndexEntry[] = [
       "shareSubscription": {
         "cap": "engine.subscription_share.set",
         "input": {}
-      },
-      "runtime": {
-        "cap": "engine.runtime.opt_in",
-        "input": {}
       }
     },
     "needs": [],
