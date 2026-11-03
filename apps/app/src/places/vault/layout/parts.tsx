@@ -61,7 +61,7 @@ export function LogoTile({ name, size = 32 }: { name: string; size?: number }): 
 }
 
 /** A small round-cornered button: quiet by default, accent when `primary`. */
-export function Btn({ label, onPress, icon, primary = false, danger = false, disabled = false, why, testID }: { label: string; onPress: (e?: unknown) => void; icon?: IconName | undefined; primary?: boolean; danger?: boolean; disabled?: boolean; why?: string | undefined; testID?: string | undefined }): ReactElement {
+export function Btn({ label, onPress, icon, trailingIcon, primary = false, danger = false, disabled = false, why, testID }: { label: string; onPress: (e?: unknown) => void; icon?: IconName | undefined; /** After the label: a picklist's chevron. */ trailingIcon?: IconName | undefined; primary?: boolean; danger?: boolean; disabled?: boolean; why?: string | undefined; testID?: string | undefined }): ReactElement {
   const [over, setOver] = useState(false);
   const color = danger ? "var(--danger)" : primary ? "var(--accent-ink)" : "var(--ink)";
   const button = (
@@ -72,6 +72,7 @@ export function Btn({ label, onPress, icon, primary = false, danger = false, dis
     >
       {icon ? <Glyph name={icon} size={14} color={color as string} /> : null}
       <Text style={[s.btnText, { color: color as string }]}>{label}</Text>
+      {trailingIcon ? <Glyph name={trailingIcon} size={12} color={color as string} /> : null}
     </Pressable>
   );
   return disabled && why ? <Tip help={why}>{button}</Tip> : button;

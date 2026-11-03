@@ -193,7 +193,8 @@ function pointOf(e: unknown): { x: number; y: number } {
 }
 
 const s = StyleSheet.create({
-  frame: { flex: 1, minWidth: 0, position: "relative" },
+  // static, not relative: the Add and Share sheets are absolute, so they cover and centre on the whole Vault place (sidebar included), as the Vault's own sheets do
+  frame: { flex: 1, minWidth: 0, position: "static" as "relative" },
   scroll: { flex: 1 },
   page: { width: "100%", maxWidth: 860, paddingHorizontal: 24, paddingTop: 12, paddingBottom: 24, gap: 6 },
   head: { height: 48, flexDirection: "row", alignItems: "center", gap: 8 },

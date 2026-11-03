@@ -13,7 +13,7 @@ const row = (o: Partial<HomeRow> & Pick<HomeRow, "key" | "title" | "scope">): Ho
   kind: "mcp", name: o.key, share: o.scope === "space" ? ["everyone"] : [], transport: "http", address: "", source: "registry", enabled: true, health: "ok", usedBy: [], keys: [], needs: [], canManage: true, ...o,
 });
 
-export function sampleHome(o: { admin?: boolean; personal?: boolean } = {}): Home {
+export function sampleHome(o: { admin?: boolean; personal?: boolean; fresh?: boolean } = {}): Home {
   const admin = o.admin ?? true;
   return {
     mine: [
@@ -29,7 +29,8 @@ export function sampleHome(o: { admin?: boolean; personal?: boolean } = {}): Hom
       row({ key: "skill:skl_contracts/contracts", title: "contracts", kind: "skill", name: "contracts", scope: "space", transport: "stdio", address: "uvx contracts-mcp", source: "skill", sourceRef: "contract-review", health: "needs_setup", needs: ["CLIO_TOKEN"], canManage: false }),
     ],
     agents: o.personal ? [] : [row({ key: "billing-db", title: "Billing database", scope: "agent", agentId: "agt_billing", connectionId: "mcs_billing", transport: "stdio", address: "npx -y @acme/postgres-mcp", source: "hand", health: "not_answering", healthNote: "billing-db did not start: no answer", canManage: admin })],
-    policy: { spaceAdders: "managers", allowListOn: true, allowList: ["com.notion/mcp", "mcp.linear.app", "@modelcontextprotocol/server-github"] },
+    // this sample's admin turned the allow-list on, to show the lock; a fresh Space has none (o.fresh, and the agents module's own default)
+    policy: o.fresh ? { spaceAdders: "managers", allowListOn: false, allowList: [] } : { spaceAdders: "managers", allowListOn: true, allowList: ["com.notion/mcp", "mcp.linear.app", "@modelcontextprotocol/server-github"] },
     canAddSpace: admin && !o.personal, admin,
   };
 }
@@ -50,12 +51,12 @@ export const SAMPLE_CATALOG: Array<CatalogEntry & { allowed: boolean }> = [
   { id: "official:com.mcparmory/notion", source: "official", name: "com.mcparmory/notion", title: "Notion (MCP Armory)", description: "Notion tools packaged for uvx.", version: "1.0.2", package: { registry: "pypi", runner: "uvx", identifier: "mcparmory-notion", version: "1.0.2", env: [] }, signIn: "none", allowed: false },
 ];
 
-export function sampleConnectionsData(o: { admin?: boolean; personal?: boolean } = {}): ConnectionsData {
+export function sampleConnectionsData(o: { admin?: boolean; personal?: boolean; fresh?: boolean } = {}): ConnectionsData {
   return { home: sampleHome(o), accounts: SAMPLE_ACCOUNTS, connectors: SAMPLE_CONNECTORS, groups: new Map(SAMPLE_GROUPS.map((g) => [g.id, g.name] as const)), error: null, loaded: true };
 }
 
 /** Answers the calls the page and the sheet make; anything else goes to `rest` (the sample Vault). */
-export function sampleConnectionsCall(rest: (cap: string, input: unknown) => Promise<unknown>, o: { admin?: boolean; personal?: boolean; offline?: boolean } = {}): (cap: string, input: unknown) => Promise<unknown> {
+export function sampleConnectionsCall(rest: (cap: string, input: unknown) => Promise<unknown>, o: { admin?: boolean; personal?: boolean; offline?: boolean; fresh?: boolean } = {}): (cap: string, input: unknown) => Promise<unknown> {
   const home = sampleHome(o);
   return async (cap, input) => {
     const i = (input ?? {}) as Record<string, unknown>;
@@ -66,7 +67,9 @@ export function sampleConnectionsCall(rest: (cap: string, input: unknown) => Pro
       case "access.groups.list": return { groups: SAMPLE_GROUPS };
       case "plugins.registry.search": {
         const q = String(i["q"] ?? "").toLowerCase();
-        return { entries: SAMPLE_CATALOG.filter((e) => !q || `${e.name} ${e.title} ${e.description}`.toLowerCase().includes(q)), offline: o.offline === true, fetchedAt: h(20), source: "official" };
+        const found = SAMPLE_CATALOG.filter((e) => !q || `${e.name} ${e.title} ${e.description}`.toLowerCase().includes(q));
+        // no allow-list (a fresh Space): everything may be added
+        return { entries: o.fresh ? found.map((e) => ({ ...e, allowed: true })) : found, offline: o.offline === true, fetchedAt: h(20), source: "official" };
       }
       case "plugins.connection.add_mine": case "plugins.connection.add": return { connection: { connectionId: "mcs_new", name: i["name"], scope: cap.endsWith("mine") ? "mine" : "space", owner: "usr_irfad" } };
       case "plugins.connection.update": case "plugins.connection.forget": return { connectionId: i["connectionId"], removed: true };

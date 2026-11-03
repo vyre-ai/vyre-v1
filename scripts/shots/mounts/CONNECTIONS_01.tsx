@@ -2,7 +2,8 @@
 //   vault           a Team Space admin: Mine, Space (everyone or Legal), agents' own, plugin and skill servers, built-in integrations, app hubs and the Space's rules
 //   member          the same Space as a member: no rules, no hub card, nothing to share
 //   personal        a Personal Space: Mine only
-//   browse          Add a connection, Browse the MCP registry for "notion"
+//   browse          Add a connection, Browse the MCP registry for "notion", in this sample's Space whose admin turned the allow-list on (locks)
+//   browse-open     the same in a fresh Space: no allow-list, so every result can be added
 //   paste           Add a connection, Paste an address: a command with its key in front
 //   import          Add a connection, Import a config: a Codex config.toml
 //   setup           Add a connection, a registry server that needs a key: where the key goes and who can use it
@@ -27,13 +28,14 @@ import { PluginsPage } from "../../../apps/app/src/console/pages/Plugins.tsx";
 
 export const title = "Vault > Connections";
 
-function vaultFor(o: { admin?: boolean; personal?: boolean }): VaultData {
+function vaultFor(o: { admin?: boolean; personal?: boolean; fresh?: boolean }): VaultData {
   const v = createSampleVault();
   return { ...v.data, assistantId: "agt_assistant", call: sampleConnectionsCall(v.data.call, o), nav: { ...v.data.nav, openConnections: () => undefined }, ...(o.personal ? { personal: true } : {}) };
 }
 
 const ADD: Record<string, AddInitial> = {
   browse: { way: "browse", query: "notion" },
+  "browse-open": { way: "browse", query: "notion" },
   paste: { way: "paste", text: "GITHUB_PERSONAL_ACCESS_TOKEN=ghp_9f3kQe7LmZt2Vb8N npx -y @modelcontextprotocol/server-github" },
   import: { way: "import", text: '# ~/.codex/config.toml\n[mcp_servers.context7]\ncommand = "npx"\nargs = ["-y", "@upstash/context7-mcp"]\n\n[mcp_servers.figma]\nurl = "https://mcp.figma.com/mcp"\nbearer_token_env_var = "FIGMA_OAUTH_TOKEN"\n\n[mcp_servers.brave]\ncommand = "npx"\nargs = ["-y", "@brave/brave-search-mcp-server"]\nenv = { BRAVE_API_KEY = "BSAq8Lr2Tz5Wm9Xc3Vb7Nk1Jh4Gf6Dd0Ss", REGION = "eu" }\n' },
   setup: { pending: [pendingFromEntry(SAMPLE_CATALOG[1]!)] },
@@ -57,13 +59,14 @@ export default function Mount(): ReactNode {
   const admin = useMemo(() => vaultFor({ admin: true }), []);
   const member = useMemo(() => vaultFor({ admin: false }), []);
   const personal = useMemo(() => vaultFor({ personal: true }), []);
+  const fresh = useMemo(() => vaultFor({ admin: true, fresh: true }), []);
   const settings = useMemo(() => { const s = createSampleSettings(); return { ...s.data, call: sampleConnectionsCall(s.data.call) }; }, []);
   const cons = useMemo(() => consoleData(), []);
   if (part === null) return <View style={{ flex: 1, backgroundColor: "var(--win)" as string }} />;
   if (part === "settings") return <SettingsDataProvider value={settings}><View style={{ flex: 1, minHeight: 760 }}><SettingsPlace initialPage="connected" /></View></SettingsDataProvider>;
   if (part === "console") return <ConsoleDataProvider value={cons}><View style={{ flex: 1, minHeight: 760, padding: 24 }}><PluginsPage /></View></ConsoleDataProvider>;
-  const o = part === "member" ? { admin: false } : part === "personal" ? { personal: true } : { admin: true };
-  const data = part === "member" ? member : part === "personal" ? personal : admin;
+  const o = part === "member" ? { admin: false } : part === "personal" ? { personal: true } : part === "browse-open" ? { admin: true, fresh: true } : { admin: true };
+  const data = part === "member" ? member : part === "personal" ? personal : part === "browse-open" ? fresh : admin;
   return (
     <View style={{ flex: 1, minHeight: 760 }}>
       <Vault data={data} route={{ surface: "connections" }} connectionsInitial={sampleConnectionsData(o)} {...(ADD[part] ? { connectionsAdd: ADD[part] } : {})} />

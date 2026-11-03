@@ -74,6 +74,9 @@ test("the Add sheet: three ways in, the registry results with how each signs in,
   assert.ok(has(setup, 'data-testid="scope-mine"') && has(setup, 'data-testid="scope-space"'));
   assert.ok(has(setup, "npx -y notion-mcp-server@3.3.0"), "the command shows, with no key in it");
   assert.ok(!has(draw({ pending: [pendingFromEntry(SAMPLE_CATALOG[0]!)] }, false), 'data-testid="scope-space"'), "someone who may not add Space connections adds their own");
+  // a fresh Space has no allow-list: its page says so and the sample's rules start Off
+  const fresh = renderToStaticMarkup(<Vault data={{ ...data, call: sampleConnectionsCall(v.data.call, { fresh: true }), nav: { ...v.data.nav, openConnections: () => undefined } }} route={{ surface: "connections" }} connectionsInitial={sampleConnectionsData({ fresh: true })} />);
+  assert.ok(has(fresh, "Off: people can add any server") && !has(fresh, 'data-testid="rules-allow-list"'));
 });
 
 test("Settings and the Console open Vault > Connections, and the address opens the page", () => {

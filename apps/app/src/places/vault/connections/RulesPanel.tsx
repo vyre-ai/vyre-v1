@@ -30,7 +30,7 @@ export function RulesPanel({ policy, onSaved }: { policy: Policy; onSaved(text: 
       <Text style={s.head} accessibilityRole="header">Rules for this Space</Text>
       <Row
         id="rules-adders" title="Who can add Space connections" note="Anyone can add their own. These people can also add one for everyone."
-        trailing={<Btn label={ADDERS[policy.spaceAdders]} icon="chevd" onPress={(e) => { const r = (e as { currentTarget?: { getBoundingClientRect?: () => { left: number; bottom: number } } })?.currentTarget?.getBoundingClientRect?.(); menu.show([
+        trailing={<Btn label={ADDERS[policy.spaceAdders]} trailingIcon="chevd" onPress={(e) => { const r = (e as { currentTarget?: { getBoundingClientRect?: () => { left: number; bottom: number } } })?.currentTarget?.getBoundingClientRect?.(); menu.show([
           { label: ADDERS.admins, checked: policy.spaceAdders === "admins", onSelect: () => { void save({ spaceAdders: "admins" }, "Only admins add Space connections now"); } },
           { label: ADDERS.managers, checked: policy.spaceAdders === "managers", onSelect: () => { void save({ spaceAdders: "managers" }, "Admins and developers add Space connections now"); } },
         ], r?.left ?? 0, (r?.bottom ?? 0) + 4, "other"); }} testID="rules-adders-pick" />}

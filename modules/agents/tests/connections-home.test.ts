@@ -163,6 +163,19 @@ test("a Space connection is for Everyone or the groups an admin picks; a member 
   assert.deepEqual(assertEventsConform(hn), []);
 });
 
+test("a fresh Space is open: no allow-list, Space connections by whoever manages agents, every catalog result addable by a member", async () => {
+  const hn = world();
+  assert.deepEqual((await call(hn, "plugins.connections.policy")).policy, { spaceAdders: "managers", allowListOn: false, allowList: [] });
+  // a member (no admin, no agents.manage): still nothing locked
+  hn.allowOnly((action) => action.perm !== "policy.manage" && action.perm !== "agents.manage");
+  const found = await call(hn, "plugins.registry.search", { q: "notion" });
+  assert.equal(found.entries.length, 8);
+  assert.ok(found.entries.every((e: any) => e.allowed === true), "no lock until an admin turns the allow-list on");
+  await call(hn, "plugins.connection.add_mine", { name: "anything", url: "https://random.example.com/mcp" });
+  const home = await call(hn, "plugins.connections.home");
+  assert.deepEqual([home.policy.allowListOn, home.policy.allowList], [false, []]);
+});
+
 test("the Space's rules: admins only for Space connections, and an allow-list for everyone else's additions", async () => {
   const hn = world();
   await call(hn, "plugins.connections.policy_set", { spaceAdders: "admins", allowListOn: true, allowList: ["mcp.notion.com", "@acme/approved-mcp", "com.notion/mcp"] });
