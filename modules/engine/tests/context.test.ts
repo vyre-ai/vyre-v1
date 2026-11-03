@@ -2,7 +2,7 @@
 // the screen comes from the message that caused the turn, and nothing in the context is a secret value.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createContextBuilder, diskSkills, routineLine, timeLine, withTurnContext } from "../context.ts";
+import { SKILL_INDEX_MAX, capabilitySkills, createContextBuilder, diskSkills, routineLine, timeLine, withTurnContext } from "../context.ts";
 import type { SkillsPort } from "../context.ts";
 import type { StoredMessage, TurnInput } from "../../../agent/src/turn-engine/types.ts";
 import type { EngineSession, OpenSession } from "../../../agent/src/turn-engine/types.ts";
@@ -64,7 +64,8 @@ test("the context holds identity, where, skills, what the agent can do and the t
   assert.match(text("where"), /Also here: Omar Haddad\./);
   assert.match(text("where"), /Agents here: Docs \(listen\)\./);
   assert.match(text("skills"), /^Working in Vyre \(always loaded\):\n# Working in Vyre\nThe manual\./);
-  assert.match(text("skills"), /Load one with agents_builtin_skill_get[^\n]*:\n- focus-records: Work in Records\./);
+  assert.match(text("skills"), /load it with load_skill \{name\}[^\n]*:\n- focus-records: Work in Records\./, "the index names the tool that loads every tier");
+  assert.doesNotMatch(text("skills"), /agents_builtin_skill_get/);
   assert.doesNotMatch(text("skills"), /- working-in-vyre:/, "the manual is not also listed as a skill to load");
   assert.match(text("can"), /Tools you may not use: mail_send\./);
   assert.match(text("can"), /#Dana_Lawmatics/);
@@ -266,4 +267,49 @@ test("an Ask or comment thread about a record, file, folder, automation or agent
   // an object the asker cannot read gives no name, and a record with no name field is known by its type
   assert.match(await where(scoped("file", "fil_9", {})), /about file fil_9(?! ")/);
   assert.match(await where(scoped("record", "rec_2", { "schema.describe": { types: [{ key: "contact" }] }, "records.get": { record: { id: "rec_2", type: "contact", fields: {} } } })), /about record rec_2 "contact"/);
+});
+
+// ---- the skills module's loader, as the turn sees it
+
+const listed = (extra: unknown[] = []) => ({ skills: [
+  { name: "triage", description: "The intake agent's own triage.", tier: "agent", agentId: "agt_intake", note: "Used here. The Space's skill of this name is not." },
+  ...extra,
+  { name: "intake-rules", description: "How we take a new matter at intake.", tier: "space" },
+  { name: "triage", description: "Space copy of triage.", tier: "space", shadowedBy: "agent", note: "Not used here: the agent's own skill of this name is used instead." },
+  { name: "half-written", description: "Never shown.", tier: "space", broken: "Its SKILL.md cannot be read: no front matter" },
+  { name: "working-in-vyre", description: "How an agent works inside Vyre.", tier: "builtin" },
+  { name: "focus-records", description: "Work in Records.", tier: "builtin" },
+] });
+const loads = (i: unknown) => {
+  const name = (i as { name: string }).name;
+  if (name === "working-in-vyre") return { skill: { name, body: "# Working in Vyre\nThe manual." } };
+  if (name === "intake-rules") return { skill: { name, body: "Ask for the conflict names first." } };
+  throw new Error("validation.not_found");
+};
+
+test("the index lists every skill this agent uses for the person (its own and the Space's, not only Vyre's), read as the asker, and names load_skill; a beaten or broken one is left out", async () => {
+  const f = fake({ ...FULL, "skills.list": listed(), "skills.load": loads });
+  const ctx = await createContextBuilder({ call: f.call, skills: capabilitySkills(f.call), now: () => at }).build(input());
+  const text = ctx.sections.find((s) => s.id === "skills")?.text ?? "";
+  assert.match(text, /^Working in Vyre \(always loaded\):\n# Working in Vyre\nThe manual\./);
+  assert.match(text, /load it with load_skill \{name\} and follow it:\n- triage: The intake agent's own triage\. \(Used here\. The Space's skill of this name is not\.\)\n- intake-rules: How we take a new matter at intake\.\n- focus-records: Work in Records\.$/);
+  assert.doesNotMatch(text, /Space copy of triage|half-written/);
+  const asked = f.log.filter((l) => l.cap === "skills.list");
+  assert.deepEqual(asked.map((l) => [l.input, l.as]), [[{ agentId: "agt_intake" }, "usr_maya"]]);
+  assert.ok(f.log.filter((l) => l.cap === "skills.load").every((l) => l.as === "usr_maya" && (l.input as { agentId: string }).agentId === "agt_intake"));
+});
+
+test("a long index is cut, nearest first, and says how many more there are; a loader that cannot answer leaves the built-ins on disk", async () => {
+  const many = Array.from({ length: SKILL_INDEX_MAX + 5 }, (_, i) => ({ name: `space-skill-${String(i).padStart(3, "0")}`, description: `Skill ${i}.`, tier: "space" }));
+  const f = fake({ ...FULL, "skills.list": listed(many), "skills.load": loads });
+  const ctx = await createContextBuilder({ call: f.call, skills: capabilitySkills(f.call), now: () => at }).build(input());
+  const text = ctx.sections.find((s) => s.id === "skills")?.text ?? "";
+  assert.equal((text.match(/^- /gm) ?? []).length, SKILL_INDEX_MAX);
+  assert.match(text, /^- triage: /m, "the agent's own come first");
+  assert.match(text, /\.\.\. and 8 more: skills_list names them all\.$/);
+  const down = fake({ ...FULL, "skills.list": () => { throw new Error("internal.unexpected"); }, "skills.load": () => { throw new Error("internal.unexpected"); } });
+  const ctx2 = await createContextBuilder({ call: down.call, skills: capabilitySkills(down.call), now: () => at }).build(input());
+  const t2 = ctx2.sections.find((s) => s.id === "skills")?.text ?? "";
+  assert.match(t2, /^Working in Vyre \(always loaded\):/, "the manual comes from disk");
+  assert.match(t2, /- focus-records: /);
 });

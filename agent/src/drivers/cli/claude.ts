@@ -218,7 +218,8 @@ export const claudeCode: CliAdapter = {
     const folderTools = o.mode === "ask" || o.mode === "plan" ? READ_ONLY_FOLDER_TOOLS : WORK_FOLDER_TOOLS;
     // WebSearch runs on the vendor's side. WebFetch goes out through the sandbox's wall, which applies the Space's internet setting (owner ruling 3 Nov: anything public by default); under
     // "Only the AI providers" the wall refuses the page and the tool says so.
-    const allowed = tools ? ["mcp__vyre__*", "WebSearch", "WebFetch", ...Object.keys(o.plugins?.mcpServers ?? {}).map((n) => `mcp__plugin_${n}__*`), ...(o.workFolder !== null ? folderTools : [])] : [];
+    // Skill opens one of the skills Vyre wrote into the work folder (.claude/skills) or a plugin brought: it only reads instructions, so every mode allows it; what the skill then does goes through the other tools
+    const allowed = tools ? ["mcp__vyre__*", "WebSearch", "WebFetch", ...Object.keys(o.plugins?.mcpServers ?? {}).map((n) => `mcp__plugin_${n}__*`), ...(o.workFolder !== null ? [...folderTools, "Skill"] : [])] : [];
     const effort = claudeEffort(o.effort);
     return [
       "claude", "-p", "--input-format", "stream-json", "--output-format", "stream-json", "--verbose", "--include-partial-messages", "--replay-user-messages",

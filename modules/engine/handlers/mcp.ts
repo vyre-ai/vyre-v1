@@ -35,9 +35,48 @@ export async function mcpTools(ctx: EngineCtx, input: { agentId: string; server?
   return { servers: out };
 }
 
-export async function mcpCall(ctx: EngineCtx, input: { agentId: string; server: string; tool: string; input?: unknown }) {
+/** An agent calls the outside tools of the agent it is: a call naming another agent's servers is refused. A person (or the host) may name any agent they can see, as before. */
+function ownAgent(ctx: EngineCtx, agentId: string): void {
+  if (ctx.principal.kind === "agent" && ctx.principal.id !== agentId) raise(ctx, "permission.no_grant", "An agent calls its own outside tools: use your own agentId.");
+}
+
+/** Which tools of a server only read, as the server last said; kept a minute so a read is not two round trips. */
+const READ_ONLY_MS = 60_000;
+const readOnlyCache = new Map<string, { at: number; tools: Map<string, boolean> }>();
+async function readOnlyTool(ctx: EngineCtx, spec: ServerSpec, agentId: string, tool: string): Promise<boolean | undefined> {
+  const key = `${spec.key}|${agentId}|${actorOf(ctx)}`;
+  const hit = readOnlyCache.get(key);
+  if (hit && Date.now() - hit.at < READ_ONLY_MS && hit.tools.has(tool)) return hit.tools.get(tool);
+  const listed = await rt(ctx).tools(spec, { agentId, asker: actorOf(ctx) });
+  const tools = new Map(listed.map((t) => [t.name, t.readOnly === true] as const));
+  readOnlyCache.set(key, { at: Date.now(), tools });
+  return tools.get(tool);
+}
+
+/**
+ * engine.mcp.read: the same call, for a tool the server says only reads. It skips the Gate, so it checks that itself: a tool the server does not mark read-only is refused here and goes through
+ * engine.mcp.call (mcp_call), which waits at the Gate for an agent. An API model reaches this through its mcp__<server>__<tool> tools; a CLI engine through mcp_read on Vyre's MCP.
+ */
+export async function mcpRead(ctx: EngineCtx, input: { agentId: string; server: string; tool: string; input?: unknown }) {
+  ownAgent(ctx, input.agentId);
   const spec = (await servers(ctx, input.agentId)).find((s) => s.key === input.server);
   if (!spec) raise(ctx, "validation.not_found", `This agent has no outside tool server called ${input.server}.`);
+  let readOnly: boolean | undefined;
+  try { readOnly = await readOnlyTool(ctx, spec!, input.agentId, input.tool); } catch (e) { await watchConnection(spec!, { error: e instanceof Error ? e.message : "" }); return asError(ctx, e); }
+  if (readOnly === undefined) raise(ctx, "validation.not_found", `${input.server} has no tool called ${input.tool}. mcp_tools lists them.`);
+  if (!readOnly) raise(ctx, "validation.precondition_failed", `${input.tool} may change things, so it is not a read: call it with mcp_call.`);
+  return callOn(ctx, spec!, input);
+}
+
+/** engine.mcp.call: one tool call at an outside server, as the person asking. An agent's call has passed the Gate (the capability's gate) before it gets here. */
+export async function mcpCall(ctx: EngineCtx, input: { agentId: string; server: string; tool: string; input?: unknown }) {
+  ownAgent(ctx, input.agentId);
+  const spec = (await servers(ctx, input.agentId)).find((s) => s.key === input.server);
+  if (!spec) raise(ctx, "validation.not_found", `This agent has no outside tool server called ${input.server}.`);
+  return callOn(ctx, spec!, input);
+}
+
+async function callOn(ctx: EngineCtx, spec: ServerSpec, input: { agentId: string; tool: string; input?: unknown }) {
   try {
     const r = await rt(ctx).callTool(spec, { agentId: input.agentId, asker: actorOf(ctx) }, input.tool, input.input ?? {});
     await watchConnection(spec, r.isError && /answered 401/.test(r.text) ? { error: r.text } : "ok");
