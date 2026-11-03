@@ -8,6 +8,7 @@ import type { ReactElement, ReactNode } from "react";
 import { Image, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { AskButton } from "../AskButton/index.tsx";
 import type { AskButtonProps } from "../AskButton/index.tsx";
+import { MarkdownText } from "../stream/MarkdownText.tsx";
 import { MenuIcon } from "../Menu/index.tsx";
 import { MONO_VAR } from "../theme/fonts.ts";
 import { Row } from "../Row/index.tsx";
@@ -301,6 +302,11 @@ export interface ViewerViewProps extends ViewerProps {
   onEdit?: (blocks: readonly DocBlock[]) => void;
   /** The editor a Markdown file is edited in (ui/RichEditor MarkdownEditor with its own autosave). While Edit is on, it takes the page in place of the editable blocks. */
   docEditor?: ReactElement;
+  /**
+   * The file's Markdown, for the chat's block renderer: while the page is only being read (no Edit, no find, no redaction marks, no comments to pin) it is drawn by the same blocks as a chat reply, so tables, checklists,
+   * callouts, code and diagrams read the same here. Find, redaction and comments work on the viewer's own blocks, so the page returns to them the moment one is used.
+   */
+  markdown?: string;
   onZoom?: (zoom: number) => void;
   /**
    * Redaction for AI: the file's redactions and highlights (and, with `preview`, the agent's text in the blocks). With `onLayer` a selection offers Highlight, Redact, Comment and Ask, and an image
@@ -646,7 +652,10 @@ export function Viewer(props: ViewerViewProps): ReactElement {
     );
   };
 
-  const docBody = props.docEditor !== undefined && editing ? (
+  const plainRead = props.markdown !== undefined && !editing && find === "" && props.kind === "document" && (props.layer?.marks ?? []).length === 0 && props.layer?.preview !== true && (props.comments ?? []).length === 0 && quoted === null;
+  const docBody = plainRead ? (
+    <ScrollView style={s.scroll} contentContainerStyle={s.docWrap} testID="vw-doc"><View style={s.doc} testID="vw-markdown"><MarkdownText text={props.markdown ?? ""} {...(props.fileLinks ? { renderText: (t: string) => withFileLinks(splitRefs(t), props.fileLinks as FileLinks) } : {})} /></View></ScrollView>
+  ) : props.docEditor !== undefined && editing ? (
     <View style={s.scroll} testID="vw-doc-editor">{props.docEditor}</View>
   ) : (
     <ScrollView style={s.scroll} contentContainerStyle={s.docWrap} testID="vw-doc">

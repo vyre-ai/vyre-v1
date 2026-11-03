@@ -1,6 +1,6 @@
 // Draws the blocks of a streaming message. A final block is a memoised component keyed by its position and handed the same object every frame, so React skips it; only the open block (and its
 // caret) is drawn again. Typography is the prototype's message body: 15 px on a 24 px line, 10 px between blocks, code in the mono face on `--sunk`.
-import { Fragment, memo, useState } from "react";
+import { Fragment, createContext, memo, useContext, useState } from "react";
 import type { ReactNode } from "react";
 import { Linking, Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import type { Block, Inline } from "./markdown.ts";
@@ -13,6 +13,16 @@ export type RenderCode = (block: Extract<Block, { kind: "code" }>) => ReactNode 
 
 export type RenderLink = (href: string, children: ReactNode, key: number) => ReactNode | null;
 
+/** Draws a run of plain words its own way (a note turns the file names in it into links); return the words unchanged to leave them. */
+export type RenderText = (text: string) => ReactNode;
+
+const TextCtx = createContext<RenderText | null>(null);
+/** A run of plain words: as written, or as the page's renderText draws it. */
+function RunText({ v }: { v: string }): ReactNode {
+  const r = useContext(TextCtx);
+  return <Fragment>{r ? r(v) : v}</Fragment>;
+}
+
 function inlineNodes(items: readonly Inline[], onLink?: (href: string) => void, renderLink?: RenderLink): ReactNode {
   // Plain loops, not .map: these are runs of text inside one block, not list rows (lint ui-rows is about lists of rows).
   const out: ReactNode[] = [];
@@ -21,7 +31,7 @@ function inlineNodes(items: readonly Inline[], onLink?: (href: string) => void, 
     if (!n) continue;
     switch (n.t) {
       case "text":
-        out.push(<Fragment key={i}>{n.v}</Fragment>);
+        out.push(<RunText key={i} v={n.v} />);
         break;
       case "code":
         out.push(<Text key={i} style={styles.code}>{n.v}</Text>);
@@ -231,10 +241,12 @@ export interface MarkdownBlocksProps {
   renderLink?: RenderLink;
   /** Draws a bar under a finished code block (Run); leave it out and a code block is just the code. */
   renderCode?: RenderCode;
+  /** Draws plain words its own way (file names that open a tab); leave it out and words are words. */
+  renderText?: RenderText;
 }
 
 /** Final blocks first (same objects every frame, so they do not re-render), then the open ones. */
-export function MarkdownBlocks({ blocks, streaming = false, onLink, renderLink, renderCode }: MarkdownBlocksProps) {
+export function MarkdownBlocks({ blocks, streaming = false, onLink, renderLink, renderCode, renderText }: MarkdownBlocksProps) {
   const last = blocks.length - 1;
   const views: ReactNode[] = [];
   for (let i = 0; i < blocks.length; i++) {
@@ -242,10 +254,12 @@ export function MarkdownBlocks({ blocks, streaming = false, onLink, renderLink, 
     if (b) views.push(<BlockView key={b.key} block={b} caret={streaming && i === last} {...(onLink ? { onLink } : {})} {...(renderLink ? { renderLink } : {})} {...(renderCode ? { renderCode } : {})} />);
   }
   return (
-    <View testID="markdown-blocks" style={styles.root}>
-      {views}
-      {streaming && blocks.length === 0 ? <Text style={styles.p}>{CARET}</Text> : null}
-    </View>
+    <TextCtx.Provider value={renderText ?? null}>
+      <View testID="markdown-blocks" style={styles.root}>
+        {views}
+        {streaming && blocks.length === 0 ? <Text style={styles.p}>{CARET}</Text> : null}
+      </View>
+    </TextCtx.Provider>
   );
 }
 

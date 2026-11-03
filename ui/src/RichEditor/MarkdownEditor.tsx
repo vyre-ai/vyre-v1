@@ -9,6 +9,7 @@ import type { ReactElement } from "react";
 import { Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions } from "react-native";
 import type { LayoutChangeEvent } from "react-native";
 import { MenuIcon, useMenu } from "../Menu/index.tsx";
+import { MarkdownText } from "../stream/MarkdownText.tsx";
 import { blockOfLine, dedentPaste, docToMarkdown, looksLikeMarkdown, markdownToDoc } from "./mdtree.ts";
 import type { PMNode } from "./mdtree.ts";
 
@@ -300,7 +301,13 @@ const rectOf = (e: unknown): { x: number; y: number } => {
 
 /* ---------- the component ---------- */
 
+/** Read-only text is the chat's block renderer, so a note read and a reply read the same; editing is the editor. */
 export function MarkdownEditor(props: MarkdownEditorProps): ReactElement {
+  if (props.mode === "read") return <View testID={props.testID ?? "markdown-editor"} accessibilityLabel={props.label} style={props.bare === true ? undefined : st.page}><MarkdownText text={props.value} /></View>;
+  return <MarkdownEditorEdit {...props} />;
+}
+
+function MarkdownEditorEdit(props: MarkdownEditorProps): ReactElement {
   ensureMarkdownCss();
   const mode = props.mode ?? "edit";
   const editable = mode === "edit";

@@ -167,7 +167,7 @@ export function FileViewer({ fileId, pane = "main" }: FileViewerProps): ReactEle
         {...(siblings ? { siblings, current: fileId, onSibling: (id: string) => d.openFile?.(id) } : {})}
         {...(ready.graph && node ? { graph: ready.graph, nodeId: node, onOpenLink: (id: string) => d.openFile?.(id) } : {})}
         agentName={d.agentFor?.(fileId) ?? d.agents.find((a) => a.assistant)?.name ?? "the agent"}
-        {...(ready.data.canMark ? { onBoxes: addBox, onStrokes: saveStrokes } : {})} {...(isEditable(ready.data) && !mdEditor ? { onEdit: edit } : {})} {...(mdEditor ? { docEditor: <FileMarkdownEditor call={d.call} fileId={fileId} name={file.name} text={rawText} version={version.current} onText={setLiveText} /> } : {})}
+        {...(ready.data.canMark ? { onBoxes: addBox, onStrokes: saveStrokes } : {})} {...(isEditable(ready.data) && !mdEditor ? { onEdit: edit } : {})} {...(file.kind === "markdown" && app === null && !office && !(layer.preview && layer.view?.text) ? { markdown: rawText } : {})} {...(mdEditor ? { docEditor: <FileMarkdownEditor call={d.call} fileId={fileId} name={file.name} text={rawText} version={version.current} onText={setLiveText} /> } : {})}
         {...(link && d.openUrl ? { openIn: { label: openInWords(link.openIn), onOpen: () => d.openUrl?.(link.webUrl) } } : {})}
         layer={{ marks: viewerMarks(layer.list, d.name, now), preview: layer.preview }}
         onLayer={layer.mark}
