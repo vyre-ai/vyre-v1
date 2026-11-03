@@ -124,3 +124,26 @@ test("someone who does not own the goal sees it read-only", async () => {
   assert.equal(find(p, "goal-add-helper"), null);
   assert.equal(find(p, "goal-step-new-field"), null);
 });
+
+test("the Details pane: every setting edits in place and saves through goals.update; nothing repeats the page", async () => {
+  installDom();
+  const { sampleGoals } = await import("./sample.ts");
+  const { GoalSettings } = await import("./GoalSettings.tsx");
+  const g = sampleGoals(NOW, "active").page.goal;
+  const saved: Array<Record<string, unknown>> = [];
+  const root = await mount(createRoot as never, <GoalSettings g={g} nameOf={(id) => NAMES[id] ?? id} offsetMin={300} canEdit patch={(i) => saved.push(i)} pick={() => undefined} removeHelper={() => undefined} />);
+  await flush();
+  const d = find(root!, "goal-details")!;
+  assert.doesNotMatch(textOf(d), /Finish line/);
+  assert.match(textOf(d), /Pauses and asks you at 100%/);
+  await press(find(d, "goal-set-budget-change"));
+  await typeInto(find(d, "goal-budget-cap"), "40");
+  await press(find(d, "goal-budget-save"));
+  assert.deepEqual(saved.at(-1)?.["budget"], { spendMicros: 40_000_000, turns: 200 });
+  await press(find(d, "goal-perm-remove-mail.send"));
+  assert.deepEqual((saved.at(-1)?.["permissions"] as Array<{ target: string }>).map((p) => p.target), ["skool"]);
+  await press(find(d, "goal-set-checkins-change"));
+  await press(find(d, "goal-quiet-toggle"));
+  await press(find(d, "goal-rhythm-save"));
+  assert.equal(saved.at(-1)?.["quiet"], null, "quiet hours switched off");
+});

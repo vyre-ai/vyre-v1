@@ -17,7 +17,8 @@ import type { Changes } from "../conversation/use-follow.ts";
 import { useGoal } from "./data.ts";
 import type { Call } from "./data.ts";
 import { Bar, TONE } from "./GoalRow.tsx";
-import { ENDED, LIVE, bareLine, budgetOf, byDay, canEdit as mayEdit, chartOf, dueWords, fmt, fractionOf, leftWords, nameList, numberOf, rhythmWords, statusOf, taskWord, whenWords } from "./model.ts";
+import { ENDED, LIVE, bareLine, budgetOf, byDay, canEdit as mayEdit, chartOf, dueWords, fmt, fractionOf, leftWords, nameList, numberOf, statusOf, taskWord, whenWords } from "./model.ts";
+import { GoalSettings } from "./GoalSettings.tsx";
 import { AddLine, ChecklistEdit, DeadlineEdit, DraftPlanEdit, EditText, HelpersRow, Mini, PeopleDialog, newId } from "./GoalEdit.tsx";
 import type { PickEntry } from "../../../../../../ui/src/PeoplePicker/index.tsx";
 import type { Goal, GoalPageData, PlanStep, TaskLine, Tone, WaitLine, Who } from "./model.ts";
@@ -118,8 +119,8 @@ export function GoalPage({ goalId, call, changes, me, nameOf, clock, conversatio
     <View testID="goal-page" style={st.row}>
       <View style={st.main}>{feed}</View>
       {paneOpen && !phone ? (
-        <SidePane paneKey="goal-pane" toggle={{ open: true, onPress: () => setPaneOpen(false) }} title="Goal" tabs={[{ key: "activity", title: "Activity" }, { key: "details", title: "Details" }, { key: "files", title: "Files" }]} activeTab={tab} onSelectTab={(k) => setTab(k as PaneTab)} defaultWidth={340} onCloseTab={() => setPaneOpen(false)}>
-          {tab === "activity" ? <Activity data={data} nameOf={nameOf} now={now} offsetMin={offsetMin} openTask={openTask} /> : tab === "details" ? <Details g={g} nameOf={nameOf} offsetMin={offsetMin} now={now} run={run} menu={menu} /> : <Files g={g} call={call} changes={changes} {...(openFolder ? { openFolder } : {})} {...(openFile ? { openFile } : {})} />}
+        <SidePane paneKey="goal-pane" toggle={{ open: true, onPress: () => setPaneOpen(false) }} title="Goal" tabs={[{ key: "activity", title: "Activity" }, { key: "details", title: "Details" }, { key: "files", title: "Files" }]} activeTab={tab} onSelectTab={(k) => setTab(k as PaneTab)} defaultWidth={340}>
+          {tab === "activity" ? <Activity data={data} nameOf={nameOf} now={now} offsetMin={offsetMin} openTask={openTask} /> : tab === "details" ? <GoalSettings g={g} nameOf={nameOf} offsetMin={offsetMin} canEdit={edit} patch={(i, said, back) => void run("goals.update", i, said, back)} pick={setPicker} removeHelper={(id) => saveHelpers(g.helpers.filter((h) => h.id !== id), `${nameOf(id)} is no longer a helper.`)} /> : <Files g={g} call={call} changes={changes} {...(openFolder ? { openFolder } : {})} {...(openFile ? { openFile } : {})} />}
         </SidePane>
       ) : null}
       {menu.element}
@@ -429,43 +430,6 @@ function credit(by: string, nameOf: (id: string) => string): string {
   if (forWho) return `${nameOf(forWho)} (Agent)`;
   if (actor?.startsWith("svc_")) return "Vyre";
   return nameOf(actor ?? by);
-}
-
-function Details({ g, nameOf, offsetMin, now, run, menu }: { g: Goal; nameOf(id: string): string; offsetMin: number; now: number; run: Run; menu: Menu }): ReactElement {
-  const b = budgetOf(g);
-  const [editing, setEditing] = useState(false);
-  const [target, setTarget] = useState(String(g.finish.target ?? ""));
-  const people: Array<{ id: string; kind: string; role: string }> = [{ id: g.owner, kind: "person", role: "Owner" }, { id: g.leadAgentId, kind: "agent", role: "Lead" }, ...g.helpers.map((h) => ({ id: h.id, kind: h.kind, role: "Helper" }))];
-  return (
-    <ScrollView testID="goal-details" contentContainerStyle={st.pad}>
-      <Text style={st.label}>Finish line</Text>
-      <Text style={st.body}>{g.finish.line}</Text>
-      {g.finish.kind === "number" ? (editing ? (
-        <View style={st.cardActions}>
-          <Text style={st.small}>Target</Text>
-          {createElement("input", { "aria-label": "Target", value: target, onChange: (e: { target: { value: string } }) => setTarget(e.target.value), style: { width: 90, font: "inherit", fontSize: 13, padding: "4px 6px", border: "1px solid var(--field-line)", borderRadius: 6, background: "var(--field)", color: "var(--ink)" } })}
-          <Btn label="Save" primary onPress={() => { const n = Number(target); if (Number.isFinite(n)) void run("goals.update", { finish: { ...g.finish, target: n } }, "Finish line changed").then(() => setEditing(false)); }} testID="goal-target-save" />
-          <Btn label="Cancel" onPress={() => setEditing(false)} />
-        </View>
-      ) : <Btn label="Change the target" icon="edit" onPress={() => setEditing(true)} testID="goal-target-edit" />) : null}
-      <Text style={st.small}>{`Read from ${g.finish.source?.label ?? g.finish.source?.kind ?? "the goal itself"}. Progress comes from the source only, never from what an agent says.`}</Text>
-      <Text style={st.label}>Deadline</Text>
-      <Text style={st.body}>{dueWords(g.deadline, offsetMin)}</Text>
-      <Btn label="Extend" onPress={(e) => { const at = pointAt(e); menu.show(extendEntries(g, run), at.x, at.y, "other", { label: "Extend" }); }} />
-      <Text style={st.label}>Check-ins</Text>
-      <Text style={st.body}>{rhythmWords(g)}</Text>
-      <Text style={st.small}>Also wakes when a task finishes, the number moves, or you answer.</Text>
-      <Text style={st.label}>Budget</Text>
-      <Bar value={b.used} tone={b.warn ? "need" : "plain"} width="100%" testID="goal-budget" />
-      <Text testID="goal-budget-text" style={[st.body, b.warn && { color: "var(--warn)" as string }]}>{b.text}</Text>
-      <Text style={st.small}>Warns at 80%. Pauses and asks at 100%. Runs on the owner's AI account.</Text>
-      <Text style={st.label}>May do without asking</Text>
-      {g.permissions.length === 0 ? <Text style={st.small}>Nothing. Every outward act waits on the owner.</Text> : g.permissions.map((p) => <Row key={p.label} id={`gp-${p.label}`} title={p.label} note={p.granted ? "Granted" : "Waiting for the owner's press"} leading={<View style={{ marginRight: 8 }}><Icon name="check" color={p.granted ? "var(--ok)" : "var(--ink-4)"} /></View>} />)}
-      <Text style={st.small}>Anything else that leaves the Space waits on you.</Text>
-      <Text style={st.label}>People</Text>
-      {people.map((p) => <Row key={`${p.role}-${p.id}`} id={`gpp-${p.id}`} title={nameOf(p.id)} trailing={<Text style={st.small}>{p.role}</Text>} leading={<View style={{ marginRight: 8 }}><Avatar {...avatarOf({ id: p.id, name: nameOf(p.id), kind: p.kind === "agent" ? "agent" : "person" })} size={20} /></View>} />)}
-    </ScrollView>
-  );
 }
 
 function Files({ g, call, changes, openFolder, openFile }: { g: Goal; call: Call; changes: Changes | undefined; openFolder?: (id: string) => void; openFile?: (id: string) => void }): ReactElement {
