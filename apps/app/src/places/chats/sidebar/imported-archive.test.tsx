@@ -3,7 +3,11 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { createRoot } from "test-renderer";
 import { press, find, flush, textOf } from "../../../onboarding/test-dom.ts";
-import { IMPORTED, ids, drawn, rightClick } from "./chats-open.support.tsx";
+import { IMPORTED, ids, drawn, fireUp } from "./chats-open.support.tsx";
+import type { Node } from "../../../onboarding/test-dom.ts";
+
+/** A right-click on a row: its menu opens. */
+const rightClick = (root: Node, rowId: string): Promise<void> => fireUp(root, rowId, "onContextMenu", { preventDefault() {}, clientX: 10, clientY: 10, nativeEvent: {} });
 
 test("Archive moves an imported session into the Archived section, and Unarchive puts it back", async () => {
   const { s, root } = await drawn(createRoot, { imported: IMPORTED });

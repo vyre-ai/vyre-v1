@@ -46,10 +46,10 @@ export async function drawn(make: () => { render(el: ReactElement): void; contai
 
 /* ---------- what is open, as a key ---------- */
 
-/** A right-click on a row's own handler, as the browser sends it: the row's menu opens. */
-export const rightClick = async (root: Node, rowId: string): Promise<void> => {
-  const w = [...(chainTo(root, rowId) ?? [])].reverse().find((n) => typeof n.props.onContextMenu === "function");
-  assert.ok(w, `${rowId} opens a menu on right-click`);
-  await act(async () => { (w.props.onContextMenu as (e: unknown) => void)({ preventDefault() {}, clientX: 10, clientY: 10, nativeEvent: {} }); });
+/** Calls the nearest handler named `prop` on the way up to `rowId` with `event`, then lets the tree settle (a test binds it to the event it sends, as the browser would). */
+export const fireUp = async (root: Node, rowId: string, prop: string, event: unknown): Promise<void> => {
+  const w = [...(chainTo(root, rowId) ?? [])].reverse().find((n) => typeof n.props[prop] === "function");
+  assert.ok(w, `${rowId} has ${prop}`);
+  await act(async () => { (w.props[prop] as (e: unknown) => void)(event); });
   await flush();
 };

@@ -6,7 +6,11 @@ import { act } from "react";
 import { press, find, flush, textOf, typeInto } from "../../../onboarding/test-dom.ts";
 import { importedDeleteConfirm, importedMenuEntries } from "./chat-menu.ts";
 import { importedRows } from "../imported/model.ts";
-import { IMPORTED, chainTo, drawn, rightClick } from "./chats-open.support.tsx";
+import { IMPORTED, chainTo, drawn, fireUp } from "./chats-open.support.tsx";
+import type { Node } from "../../../onboarding/test-dom.ts";
+
+/** A right-click on a row: its menu opens. */
+const rightClick = (root: Node, rowId: string): Promise<void> => fireUp(root, rowId, "onContextMenu", { preventDefault() {}, clientX: 10, clientY: 10, nativeEvent: {} });
 
 test("an imported row's menu is Open, Rename, Archive or Unarchive, and Delete session; delete asks first and says the chat stays when there is one", () => {
   const noop = { open() {}, rename() {}, archive() {}, unarchive() {}, deleteSession() {} };
