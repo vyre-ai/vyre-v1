@@ -3,6 +3,7 @@
 // Private content never reaches the index: a source answers `e2e` (the name of the row's encryption label, not a claim about the chat) for a private chat, a Restricted row or a sealed message, and apply then removes whatever was there.
 import { askerOf, embed, ensure, mintId, num, putDoc, removeDoc, rowsOf, str, vectorsOf, writeVector, sourceFor } from "../projections.ts";
 import type { IndexDoc, Resolved, SearchCtx, Source } from "../projections.ts";
+import { ask } from "./ask.ts";
 import { actionsList, query, recentList, related, resolveItem } from "./query.ts";
 
 const NOT_FOUND = new Set(["validation.not_found", "permission.not_found"]);
@@ -351,6 +352,7 @@ export async function recentRecord(ctx: SearchCtx, input: { kind: string; itemId
 
 export const handlers = {
   "search.query": query,
+  "search.ask": ask,
   "search.resolve": resolveItem,
   "search.recent.list": recentList,
   "search.recent.record": recentRecord,

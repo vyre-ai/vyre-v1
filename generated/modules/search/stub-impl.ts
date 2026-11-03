@@ -5,6 +5,7 @@ import type { Handlers } from './handlers.ts';
 /** Example answers: the first example output of each capability (used when the host serves a stub module). */
 export const handlers: Handlers<HandlerCtx> = {
   "search.actions.list": async () => ({"actions":[{"cap":"example","icon":"example","key":"task.new","keys":"example","title":"New task"}]} as unknown) as never,
+  "search.ask": async () => ({"account":{"mine":true,"title":"example"},"answer":"example","cited":[1],"sources":[{"id":"example","kind":"person","label":"public","link":"vyre://record/rec_a1b2c3","n":1,"path":"example","recordType":"example","score":1,"snippet":"example","title":"example","updatedAt":1760000000000,"where":"File"}],"state":"answered"} as unknown) as never,
   "search.embed.run": async () => ({"embedded":1,"pending":1} as unknown) as never,
   "search.health": async () => ({"detail":"example","latencyMs":1,"state":"healthy"} as unknown) as never,
   "search.index.apply": async () => ({"indexed":true} as unknown) as never,

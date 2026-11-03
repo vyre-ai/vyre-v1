@@ -3,9 +3,9 @@
 // in when they arrive; a late answer for an older query is dropped. Everything the sheet does (move, choose, skin preview, filters,
 // Esc) is a method here, so it is tested in node without a DOM.
 import {
-  SKIN_ACTION, actionRows, effectiveTypes, filterCounts, groupRows, isSelectable, isSkinQuery, mergeHits, parseQuery, stepActive,
+  SKIN_ACTION, actionRows, answerParts, answerText, askable, effectiveTypes, filterCounts, groupRows, isQuestion, isSelectable, isSkinQuery, mergeHits, parseQuery, plainLength, searchText, stepActive,
 } from "./model.ts";
-import type { CmdAction, Hit, HitKind, ParsedQuery, RowModel } from "./model.ts";
+import type { AskAnswer, AskSource, CmdAction, Hit, HitKind, ParsedQuery, RowModel } from "./model.ts";
 
 export interface SkinChoice {
   id: string;
@@ -36,6 +36,12 @@ export interface CmdKData {
   runAction(action: CmdAction): void;
   /** search.recent.record */
   recordOpened(hit: Hit): void;
+  /** Ask the Space (search.ask): the question answered from what the person may read, on their own AI account. Absent: the search offers no Ask row (a device with no Space to ask). */
+  ask?(question: string): Promise<AskAnswer>;
+  /** Continue in a chat: a real chat with the assistant, seeded with the question and the answer, opened where the person is. */
+  continueInChat?(chat: { question: string; answer: string }): void;
+  /** Copy the answer's text. */
+  copyText?(text: string): void;
 }
 
 export type ServerStatus = "idle" | "loading" | "done" | "offline" | "error";
@@ -45,6 +51,18 @@ export interface Timings {
   localMs: number | null;
   /** Keystroke to server hits merged, ms. Budget 300. */
   mergedMs: number | null;
+}
+
+/** The answer view (Ask the Space). "working": the question is out; "streaming": the answer is being written onto the page; then it stands. */
+export interface AskState {
+  question: string;
+  phase: "working" | "streaming" | "answered" | "no_access" | "no_account" | "failed";
+  text: string;
+  /** Characters of the text shown so far. */
+  shown: number;
+  sources: readonly AskSource[];
+  cited: readonly number[];
+  account?: { title: string; mine: boolean };
 }
 
 export interface CmdKState {
@@ -58,6 +76,8 @@ export interface CmdKState {
   scope: "space" | "device";
   timings: Timings;
   open: boolean;
+  /** Set while the answer view is showing; null in the ordinary results. */
+  ask: AskState | null;
 }
 
 export interface CmdKOptions {
@@ -67,11 +87,16 @@ export interface CmdKOptions {
   onClose?: () => void;
   /** Called with each timing as it is measured (the perf proof reads this). */
   onTiming?: (name: "local" | "merged", ms: number) => void;
+  /** Milliseconds between steps of the answer being written onto the page; 0 shows it whole at once. */
+  revealMs?: number;
 }
 
 const defaultNow = (): number => (typeof performance !== "undefined" ? performance.now() : Date.now());
 
 export const SERVER_PAUSE_MS = 40;
+/** The answer is written onto the page a few characters at a time, so it reads as it arrives. */
+export const REVEAL_MS = 24;
+const REVEAL_STEP = 2;
 
 export class CmdKController {
   private s: CmdKState;
@@ -84,13 +109,15 @@ export class CmdKController {
   private previewing = false;
   private readonly now: () => number;
   private readonly pause: number;
+  private reveal: ReturnType<typeof setInterval> | null = null;
+  private askSeq = 0;
 
   constructor(private readonly data: CmdKData, private readonly opts: CmdKOptions = {}) {
     this.now = opts.now ?? defaultNow;
     this.pause = opts.pauseMs ?? SERVER_PAUSE_MS;
     this.s = {
       raw: "", parsed: parseQuery(""), filter: [], rows: [], active: -1, counts: {}, serverStatus: "idle",
-      scope: data.scope(), timings: { localMs: null, mergedMs: null }, open: true,
+      scope: data.scope(), timings: { localMs: null, mergedMs: null }, open: true, ask: null,
     };
     this.rebuild(true);
   }
@@ -112,6 +139,15 @@ export class CmdKController {
     const prevKey = this.s.rows[this.s.active]?.key;
     let rows: RowModel[] = [];
     let counts: Record<string, number> = {};
+    if (this.s.ask) {
+      // the answer view lists the sources once the answer has been written (the arrows move through them, Enter opens one)
+      const a = this.s.ask;
+      const settled = a.phase === "answered" || a.phase === "no_account" || a.phase === "failed";
+      rows = settled && a.sources.length > 0 ? [{ type: "head", key: "h-sources", title: "Sources" }, ...a.sources.map((source): RowModel => ({ type: "source", key: `src-${source.n}`, source }))] : [];
+      const keep0 = prevKey ? rows.findIndex((r) => r.key === prevKey) : -1;
+      this.set({ rows, active: keep0 >= 0 ? keep0 : stepActive(rows, -1, "first"), counts: {} });
+      return;
+    }
     if (parsed.prefix === ">") {
       if (isSkinQuery(parsed.text)) {
         const cur = this.data.currentSkin();
@@ -126,11 +162,17 @@ export class CmdKController {
       const kinds = effectiveTypes({ ...parsed, types: null }, filter);
       const shown = kinds ? merged.filter((h) => kinds.includes(h.kind)) : merged;
       rows = groupRows(shown, parsed.prefix || filter.length ? 20 : 6);
+      // Ask the Space sits with the hits: first, and the highlighted row, for a question; last for a plain phrase. Never with a type filter or without a Space to ask.
+      if (this.data.ask && filter.length === 0 && askable(parsed) && this.data.scope() === "space" && this.data.online()) {
+        const ask: RowModel[] = [{ type: "head", key: "h-ask", title: "Ask" }, { type: "ask", key: "ask", question: parsed.text.trim() }];
+        rows = isQuestion(parsed.text) || rows.length === 0 ? [...ask, ...rows] : [...rows, ...ask];
+      }
     }
     // Nothing typed and nothing recent is not a search with no results: the field stands alone until there is something to say.
     const asked = parsed.prefix !== null || parsed.text !== "" || filter.length > 0;
     if (!rows.length && asked) rows = [{ type: "empty", key: "empty", title: "No results" }];
-    const keep = prevKey ? rows.findIndex((r) => r.key === prevKey) : -1;
+    // the Ask row is not a place to stay: the highlight starts again at the top, where Ask is for a question and the best hit is not
+    const keep = prevKey && prevKey !== "ask" ? rows.findIndex((r) => r.key === prevKey) : -1;
     const active = keep >= 0 ? keep : stepActive(rows, -1, "first");
     this.set({ rows, active, counts });
     if (!first) this.syncPreview();
@@ -148,13 +190,14 @@ export class CmdKController {
   }
 
   setRaw(raw: string): void {
+    if (this.s.ask) this.endAsk();
     const t0 = this.now();
     this.started = t0;
     this.seq += 1;
     if (this.timer) clearTimeout(this.timer);
     const parsed = parseQuery(raw);
     const types = parsed.types;
-    this.local = parsed.prefix === ">" || (parsed.prefix === null && parsed.text === "") ? [] : this.data.local(parsed.text, types);
+    this.local = parsed.prefix === ">" || (parsed.prefix === null && parsed.text === "") ? [] : this.data.local(searchText(parsed), types);
     this.server = [];
     this.set({ raw, parsed, serverStatus: "idle", timings: { localMs: null, mergedMs: null } });
     this.rebuild();
@@ -173,7 +216,7 @@ export class CmdKController {
     const mine = this.seq;
     this.set({ serverStatus: "loading" });
     this.timer = setTimeout(() => {
-      this.data.server(parsed.text, parsed.types).then((hits) => {
+      this.data.server(searchText(parsed), parsed.types).then((hits) => {
         if (mine !== this.seq || !this.s.open) return;
         this.server = hits;
         const mergedMs = this.now() - this.started;
@@ -241,6 +284,13 @@ export class CmdKController {
       this.data.runAction(r.action);
       return;
     }
+    if (r.type === "ask") { void this.startAsk(r.question); return; }
+    if (r.type === "source") {
+      this.close();
+      this.data.recordOpened(r.source);
+      this.data.open(r.source, { newTab });
+      return;
+    }
     if (r.type === "hit") {
       this.close();
       this.data.recordOpened(r.hit);
@@ -248,9 +298,79 @@ export class CmdKController {
     }
   }
 
+  /** Enter on the Ask the Space row: the question goes out, and the view turns into the answer. */
+  async startAsk(question: string): Promise<void> {
+    const ask = this.data.ask;
+    if (!ask || this.s.ask) return;
+    const mine = ++this.askSeq;
+    this.set({ ask: { question, phase: "working", text: "", shown: 0, sources: [], cited: [] } });
+    this.rebuild();
+    this.emit();
+    let out: AskAnswer;
+    try { out = await ask(question); } catch { out = { state: "failed", sources: [], cited: [] }; }
+    if (mine !== this.askSeq || !this.s.ask) return;
+    const text = out.answer ?? "";
+    const base = { question, text, shown: 0, sources: out.sources, cited: out.cited, ...(out.account ? { account: out.account } : {}) };
+    if (out.state !== "answered") {
+      this.set({ ask: { ...base, phase: out.state, shown: text.length } });
+    } else if ((this.opts.revealMs ?? REVEAL_MS) === 0) {
+      this.set({ ask: { ...base, phase: "answered", shown: plainLength(answerParts(text)) } });
+    } else {
+      this.set({ ask: { ...base, phase: "streaming" } });
+      const total = plainLength(answerParts(text));
+      this.reveal = setInterval(() => {
+        const a = this.s.ask;
+        if (!a || mine !== this.askSeq) { this.stopReveal(); return; }
+        const shown = Math.min(total, a.shown + REVEAL_STEP);
+        this.set({ ask: shown >= total ? { ...a, phase: "answered", shown } : { ...a, shown } });
+        if (shown >= total) { this.stopReveal(); this.rebuild(); }
+        this.emit();
+      }, this.opts.revealMs ?? REVEAL_MS);
+    }
+    this.rebuild();
+    this.emit();
+  }
+
+  private stopReveal(): void { if (this.reveal) { clearInterval(this.reveal); this.reveal = null; } }
+
+  private endAsk(): void {
+    this.askSeq += 1;
+    this.stopReveal();
+    this.set({ ask: null });
+  }
+
+  /** Esc: from the answer back to the results with the question still in the field; from the results, close. */
+  escape(): void {
+    if (!this.s.ask) { this.close(); return; }
+    this.endAsk();
+    this.rebuild();
+    this.emit();
+  }
+
+  /** The number on a citation: open that source. */
+  openCitation(n: number): void {
+    const i = this.s.rows.findIndex((r) => r.type === "source" && r.source.n === n);
+    if (i >= 0) this.choose(i, false);
+    else { const src = this.s.ask?.sources.find((x) => x.n === n); if (src) { this.close(); this.data.recordOpened(src); this.data.open(src, { newTab: false }); } }
+  }
+
+  copyAnswer(): void {
+    const a = this.s.ask;
+    if (a && a.phase === "answered") this.data.copyText?.(answerText({ answer: a.text, sources: [...a.sources], cited: [...a.cited] }));
+  }
+
+  /** Continue in a chat: the question and the answer open as a real chat with the assistant. */
+  continueInChat(): void {
+    const a = this.s.ask;
+    if (!a || a.phase !== "answered" || !this.data.continueInChat) return;
+    const chat = { question: a.question, answer: answerText({ answer: a.text, sources: [...a.sources], cited: [...a.cited] }) };
+    this.close();
+    this.data.continueInChat(chat);
+  }
+
   hitAt(index: number): Hit | null {
     const r = this.s.rows[index];
-    return r?.type === "hit" ? r.hit : null;
+    return r?.type === "hit" ? r.hit : r?.type === "source" ? r.source : null;
   }
 
   copyLink(index: number): void {
@@ -264,12 +384,14 @@ export class CmdKController {
     this.endPreview();
     if (this.timer) clearTimeout(this.timer);
     this.seq += 1;
+    this.endAsk();
     this.set({ open: false });
     this.opts.onClose?.();
     this.emit();
   }
 
   dispose(): void {
+    this.stopReveal();
     if (this.timer) clearTimeout(this.timer);
     this.seq += 1;
     this.endPreview();
