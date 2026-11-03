@@ -5,6 +5,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { findProgram, nodeCliLauncher, nodeCliReport } from "../node-cli.ts";
+import { layoutRoots, workFolder, workParts } from "../sandbox.ts";
 
 function bin(names: string[]): { dir: string; env: { PATH: string } } {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "vyre-cli-bin-"));
@@ -71,4 +72,14 @@ test("a server whose image lacks an engine (Grok, or any on an older image) inst
   await assert.rejects(() => node.spawn({ argv: ["codex", "exec"], env: {} }), (e) => (e as { code?: string }).code === "engine.cli_missing" && /codex is not installed on this server\.$/.test((e as Error).message), "no build here: the plain reason");
   const failing = nodeCliLauncher(dataDir, { probe: { platform: "linux", env: none.env, bwrapPaths: [bwrap(none.dir)] }, spawn, installer: { root: path.join(dataDir, "other"), supported: () => true, ensure: async () => { throw Object.assign(new Error("x"), {}); } } });
   await assert.rejects(() => failing.spawn({ argv: ["claude", "-p"], env: {} }), (e) => /claude is not installed on this server \(failed\)\./.test((e as Error).message));
+});
+
+test("a turn the Space sends to this computer works in the folder the sandbox accepts: the launcher names it, by this machine's layout", () => {
+  const dir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "vyre-nodecli-wf-")));
+  const l = nodeCliLauncher(dir);
+  const f = l.workFolder("usr_olivia", "p_1");
+  assert.equal(f, workFolder(dir, "usr_olivia", "p_1"));
+  assert.ok(fs.statSync(f).isDirectory());
+  assert.deepEqual(workParts(dir, f), { person: "usr_olivia", threadId: "p_1", workRoot: fs.realpathSync(path.join(dir, layoutRoots().work)), personSeg: path.basename(path.dirname(f)) });
+  fs.rmSync(dir, { recursive: true, force: true });
 });

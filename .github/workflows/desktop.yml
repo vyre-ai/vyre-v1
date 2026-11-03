@@ -357,12 +357,16 @@ jobs:
           VYRE_HEAVY_WINFIX: "1"
         timeout-minutes: 30
         run: node --test --test-force-exit --test-reporter=spec --test-timeout=1800000 modules/engine/tests/winfix.heavy.test.ts
-  # Windows parity for the features of 3 Nov (lane l-winengine): each lane's own tests on real Windows, one step per feature so the table reads off the run. The sandbox proofs (E, B, a
+  # Windows parity for the features of 3 Nov (lane l-winengine): each lane's own tests on real Windows and, beside it, the same steps on a Mac, one step per feature so the table reads off the run. The sandbox proofs (E, B, a
   # Team turn under B) are in sandbox-windows; the real engines with skills, model lists, folders and ssh are in winfix-windows. Run alone with only=parity-windows.
   parity-windows:
     if: ${{ !inputs.only || inputs.only == 'parity-windows' }}
-    name: parity (windows-latest)
-    runs-on: windows-latest
+    name: parity (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
     timeout-minutes: 45
     defaults:
       run:
@@ -376,17 +380,10 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm ci --no-audit --no-fund
-      - name: Sysinternals handle (DIAG, lane l-winengine)
-        shell: pwsh
-        run: |
-          Invoke-WebRequest https://download.sysinternals.com/files/Handle.zip -OutFile "$env:RUNNER_TEMP\handle.zip"
-          Expand-Archive "$env:RUNNER_TEMP\handle.zip" -DestinationPath "$env:RUNNER_TEMP\handle"
-          "HANDLE_EXE=$env:RUNNER_TEMP\handle\handle64.exe" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
-          "VYRE_PEERS_TRACE=1" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
       - name: "runson: Runs on, Automatic, the device link and handover"
         id: runson
         continue-on-error: true
-        run: node --test --test-force-exit --test-reporter=spec test/runson.device.live.test.ts test/runson.handover.live.test.ts test/runson.pinned.live.test.ts test/runson.approvals.device.live.test.ts test/runson.approvals.space.live.test.ts modules/engine/tests/place.test.ts agent/tests/pool.placement.test.ts
+        run: node --test --test-force-exit --test-reporter=spec test/runson.device.live.test.ts test/runson.handover.live.test.ts test/runson.pinned.live.test.ts test/runson.approvals.device.live.test.ts test/runson.approvals.space.live.test.ts modules/engine/tests/place.test.ts agent/tests/pool.placement.test.ts modules/engine/tests/node-cli.test.ts
       - name: "skills: native skills written for Claude Code and Codex"
         id: skills
         continue-on-error: true
@@ -406,7 +403,7 @@ jobs:
       - name: The parity table
         if: always()
         run: |
-          printf '| feature | windows |\n|---|---|\n| runson | %s |\n| skills | %s |\n| livemodels | %s |\n| openweb | %s |\n| multidevice | %s |\n' "${{ steps.runson.outcome }}" "${{ steps.skills.outcome }}" "${{ steps.livemodels.outcome }}" "${{ steps.openweb.outcome }}" "${{ steps.multidevice.outcome }}" | tee -a "$GITHUB_STEP_SUMMARY"
+          printf '| feature | ${{ matrix.os }} |\n|---|---|\n| runson | %s |\n| skills | %s |\n| livemodels | %s |\n| openweb | %s |\n| multidevice | %s |\n' "${{ steps.runson.outcome }}" "${{ steps.skills.outcome }}" "${{ steps.livemodels.outcome }}" "${{ steps.openweb.outcome }}" "${{ steps.multidevice.outcome }}" | tee -a "$GITHUB_STEP_SUMMARY"
           for o in "${{ steps.runson.outcome }}" "${{ steps.skills.outcome }}" "${{ steps.livemodels.outcome }}" "${{ steps.openweb.outcome }}" "${{ steps.multidevice.outcome }}"; do [ "$o" = success ] || exit 1; done
   # The Mac server installer on a real macOS runner: BSD tar, shasum, diskutil, plutil and the system LibreSSL beside Homebrew's OpenSSL 3. No Docker and no launchd changes.
   # Its unit tests (scripts/install/macos/install.test.ts) also run on the Linux runners with the main suite. There is no self-hosted macOS runner. A tag run skips it:

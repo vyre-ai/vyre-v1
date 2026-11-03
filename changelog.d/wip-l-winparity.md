@@ -1,2 +1,5 @@
 - Windows parity check: a desktop CI job runs each of today's features on a real Windows runner and reports one row per feature: where chats run, native skills, the engines' own model lists, open internet with folders and ssh, and a Personal Space on several computers.
 - Windows Personal Space: an engine can no longer read the person's key stores (Credential Manager, DPAPI keys, the browsers' cookies and saved passwords, Firefox, 1Password, ~/.ssh private keys). Vyre labels them as it labels its own files; the rest of the profile stays readable.
+- A Personal Space on several computers: a change made on one computer reliably shows on the other within about a second. Before, a change made just after the computers linked, or picked up between two checks, could wait for the next timed sync.
+- Windows: a turn that a Team Space runs on a member's computer now works in a folder that the computer's sandbox accepts. Before, every one of these turns failed with "the work folder is not one of the Space's person-and-thread folders".
+- Stopping Vyre releases every file in its data folder, including logs.db, so updates and uninstalls on Windows can replace or remove it.

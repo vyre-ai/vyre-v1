@@ -500,14 +500,19 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   const linkDevice = async (l: TeamLink, signal: AbortSignal): Promise<void> => {
     const { runDeviceLink } = await import("../compute/device-link.ts");
     const { platformSocket } = await import("../compute/node.ts");
-    type EngineExports = { nodeCliLauncher?: (dataDir: string, deps?: { install?: boolean }) => import("../compute/node.ts").NodeLauncher; nodeCliReport?: () => { sandbox: { ok: boolean } } };
+    type EngineLauncher = import("../compute/node.ts").NodeLauncher & { workFolder(person: string, proc: string): string };
+    type EngineExports = { nodeCliLauncher?: (dataDir: string, deps?: { install?: boolean }) => EngineLauncher; nodeCliReport?: () => { sandbox: { ok: boolean } } };
     const engine = o.deviceLink?.launcher && o.deviceLink.engines ? undefined : ((await fileExportsImporter(codeRoot)("engine")) as EngineExports | undefined);
-    let made: import("../compute/node.ts").NodeLauncher | undefined;
-    const launcher = o.deviceLink?.launcher ?? { spawn: (spec: Parameters<import("../compute/node.ts").NodeLauncher["spawn"]>[0]) => {
-      if (!engine?.nodeCliLauncher) return Promise.reject(Object.assign(new Error("this computer has no engine module"), { code: "engine.cli_failed" }));
-      made ??= engine.nodeCliLauncher(paths.root, { install: o.engineInstall === true });
-      return made.spawn(spec);
-    } };
+    let made: EngineLauncher | undefined;
+    const launcher: import("../compute/node.ts").NodeLauncher = o.deviceLink?.launcher ?? {
+      spawn: (spec) => {
+        if (!engine?.nodeCliLauncher) return Promise.reject(Object.assign(new Error("this computer has no engine module"), { code: "engine.cli_failed" }));
+        made ??= engine.nodeCliLauncher(paths.root, { install: o.engineInstall === true });
+        return made.spawn(spec);
+      },
+      // the engine module's folder layout (short hashed folders on Windows), which its own sandbox accepts
+      ...(engine?.nodeCliLauncher ? { workFolder: (person: string, proc: string) => { made ??= engine.nodeCliLauncher!(paths.root, { install: o.engineInstall === true }); return made.workFolder(person, proc); } } : {}),
+    };
     // the CLI engines: Vyre installs a missing one the first time a turn needs it, so what decides is whether this computer can sandbox an engine at all (Windows waits for lane l-winengine)
     const engines = o.deviceLink?.engines ?? (engine?.nodeCliReport?.().sandbox.ok === true ? ["claude_code", "codex", "grok"] : []);
     await runDeviceLink({

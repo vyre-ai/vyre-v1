@@ -84,8 +84,6 @@ export interface PeerSync {
 interface PeerRow { id: string; name: string; route: string; relay: string }
 export interface RunnerState { holder: string | null; mine: boolean; expiresAt: number }
 
-// DIAG (lane l-winengine, Windows wake): VYRE_PEERS_TRACE=1 writes the live path to stderr. Removed once the Windows cause is known.
-const trace = (m: string, a: Record<string, unknown> = {}): void => { if (process.env["VYRE_PEERS_TRACE"]) process.stderr.write(`[peers ${Date.now() % 100000}] ${m} ${JSON.stringify(a)}\n`); };
 export function createPeerSync(d: PeerSyncDeps): PeerSync {
   let cells: Record<StoreName, CellsLike> | null = null;
   let spaceDb: HostDb | null = null;
@@ -113,10 +111,9 @@ export function createPeerSync(d: PeerSyncDeps): PeerSync {
     const h = d.db(), me = d.selfId(), token = d.token();
     if (!h || !me || !token) return;
     for (const p of peers(h)) {
-      if (p.id === me || !p.route || (backoff.get(p.id) ?? 0) > d.now()) { trace("poke.skip", { me, p: p.id, route: Boolean(p.route), backoff: backoff.get(p.id) ?? 0 }); continue; }
-      const t0 = Date.now();
-      try { const ch = await channel(p); const r = await ch.request({ method: "POST", path: "/v1/peers/poke", headers: { authorization: `Peer ${token}` }, timeoutMs: 5_000 }); trace("poke.sent", { me, p: p.id, status: r.status, ms: Date.now() - t0 }); }
-      catch (e) { trace("poke.failed", { me, p: p.id, why: (e as Error).message, ms: Date.now() - t0 }); channels.get(p.id)?.close(); channels.delete(p.id); }
+      if (p.id === me || !p.route || (backoff.get(p.id) ?? 0) > d.now()) continue;
+      try { const ch = await channel(p); await ch.request({ method: "POST", path: "/v1/peers/poke", headers: { authorization: `Peer ${token}` }, timeoutMs: 5_000 }); }
+      catch { channels.get(p.id)?.close(); channels.delete(p.id); }
     }
   }
   function watch(): void {
@@ -124,9 +121,8 @@ export function createPeerSync(d: PeerSyncDeps): PeerSync {
     watcher = setInterval(() => {
       if (!cells) return;
       const m = dirtyMark();
-      if (lastDirty === null) { lastDirty = m; trace("watch.base", { me: d.selfId(), m }); return; }
+      if (lastDirty === null) { lastDirty = m; return; }
       if (m === lastDirty) return;
-      trace("watch.dirty", { me: d.selfId(), m, was: lastDirty });
       lastDirty = m;
       if (wakeTimer) clearTimeout(wakeTimer);
       wakeTimer = setTimeout(() => { wakeTimer = null; void poke(); }, d.wakeMs ?? WAKE_DEBOUNCE_MS);
@@ -136,8 +132,7 @@ export function createPeerSync(d: PeerSyncDeps): PeerSync {
   /** Another computer wrote something: take it now rather than at the next round. */
   function soon(): void {
     if (soonTimer) return;
-    trace("soon", { me: d.selfId() });
-    soonTimer = setTimeout(() => { soonTimer = null; wokeBlobs = true; wokeTrees = true; const t0 = Date.now(); void round().then((o) => trace("soon.round", { me: d.selfId(), ...o, ms: Date.now() - t0 })).catch((e) => trace("soon.round_failed", { why: (e as Error).message })); }, 50);
+    soonTimer = setTimeout(() => { soonTimer = null; wokeBlobs = true; wokeTrees = true; void round().catch(() => {}); }, 50);
     soonTimer.unref?.();
   }
 
@@ -267,7 +262,6 @@ export function createPeerSync(d: PeerSyncDeps): PeerSync {
   }
   async function roundOnce(): Promise<{ reached: string[]; applied: number }> {
     const out = { reached: [] as string[], applied: 0 };
-    trace("round.start", { me: d.selfId(), running, cells: Boolean(cells) });
     if (running || !ensure() || !cells) return out;
     running = true;
     try {
@@ -301,9 +295,7 @@ export function createPeerSync(d: PeerSyncDeps): PeerSync {
               if (!page.more) break;
             }
           }
-          trace("round.cells", { me, p: p.id, applied: out.applied });
           if (rounds % BLOBS_EVERY === 1 || wokeBlobs) out.applied += await fetchBlobs(ch, auth);
-          trace("round.blobs", { me, p: p.id });
           if (rounds % TREES_EVERY === 1 || wokeTrees) {
             try { const t = await syncTrees(d.root, ch, auth, { id: p.id, name: p.name }); if (t.created.length || t.moved.length || t.kept.length) d.log("peers.trees", { from: p.id, ...t }); }
             catch (e) { d.log("peers.trees_failed", { from: p.id, why: (e as Error).message.slice(0, 120) }); }

@@ -45,7 +45,12 @@ export interface NodeProc {
   kill(signal?: "SIGTERM" | "SIGKILL"): void;
 }
 /** Starts a CLI engine process here, inside this machine's sandbox. Rejects with an `error.code` of engine.* when it cannot (not installed, no sandbox). */
-export interface NodeLauncher { spawn(spec: { argv: readonly string[]; cwd?: string; env: Readonly<Record<string, string>> }): Promise<NodeProc> }
+export interface NodeLauncher {
+  spawn(spec: { argv: readonly string[]; cwd?: string; env: Readonly<Record<string, string>> }): Promise<NodeProc>;
+  /** The folder an engine for this person and process works in, made if missing, laid out the way this machine's sandbox requires (modules/engine/sandbox.ts workFolder: short hashed
+   *  segments on Windows). Without it: `<data dir>/work/<person>/<process>`, the Mac and Linux layout. */
+  workFolder?(person: string, proc: string): string;
+}
 const LOOPBACK = /https?:\/\/(?:127\.0\.0\.1|localhost|\[::1\]):\d+/g;
 /** The environment variable a spawn carries its network rule in (sandbox/src/egress-policy.ts RULE_ENV); kept as a string here, the host does not import the sandbox. */
 export const RULE_ENV = "VYRE_EGRESS_RULE";
@@ -190,10 +195,12 @@ export function cliRelay(o: { launcher?: NodeLauncher; dataDir: string; server: 
       void (async () => {
         try {
           // the folder the Space named is the Space's own; an engine here works in a folder of this computer's, made per process, laid out the way this machine's sandbox requires:
-          // <data dir>/work/<person>/<process> (modules/engine/sandbox.ts workFolder), so the engine module's own launcher accepts it and nothing else is reachable
+          // the launcher's own (modules/engine/sandbox.ts workFolder: <data dir>\w\<hash>\<hash> on Windows, <data dir>/work/<person>/<process> elsewhere), so the engine module's own launcher
+          // accepts it and nothing else is reachable
           const who = typeof m["person"] === "string" && m["person"] !== "" ? m["person"] : "node";
-          const cwd = path.join(o.dataDir, "work", safePart(who), proc);
-          fs.mkdirSync(cwd, { recursive: true, mode: 0o700 });
+          let cwd: string;
+          if (launcher.workFolder) cwd = launcher.workFolder(who, proc);
+          else { cwd = path.join(o.dataDir, "work", safePart(who), proc); fs.mkdirSync(cwd, { recursive: true, mode: 0o700 }); }
           const p = await launcher.spawn({ argv: argv.map(toSpace), cwd, env });
           procs.set(proc, p);
           o.log(`engine ${proc} started: ${path.basename(String(argv[0]))}`);

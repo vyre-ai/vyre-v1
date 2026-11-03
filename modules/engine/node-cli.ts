@@ -13,6 +13,7 @@ import type { EngineInstaller } from "./engine-install.ts";
 import { defaultPlan } from "./runtime.ts";
 import { cliSandboxGap, defaultSandbox } from "./sandbox-default.ts";
 import type { DefaultSandbox } from "./sandbox-default.ts";
+import { workFolder } from "./sandbox.ts";
 import type { SandboxPlan } from "./sandbox.ts";
 import { ownedArgv, spawnCli } from "./session.ts";
 
@@ -75,7 +76,7 @@ export interface NodeLauncherDeps {
 }
 
 /** The node's launcher: installs a missing engine when it can, refuses with the exact reason when the engine or the sandbox is still missing, else starts the engine inside the sandbox. */
-export function nodeCliLauncher(dataDir: string, deps: NodeLauncherDeps = {}): { spawn(spec: LaunchSpec): Promise<CliProcess> } {
+export function nodeCliLauncher(dataDir: string, deps: NodeLauncherDeps = {}): { spawn(spec: LaunchSpec): Promise<CliProcess>; workFolder(person: string, proc: string): string } {
   const team = teamOnWindows();
   const vm = team ? wslEngines(dataDir) : null;
   const root = deps.installer ? deps.installer.root : deps.install ? (vm ? vm.root : enginesRoot({ dataDir })) : null;
@@ -85,6 +86,8 @@ export function nodeCliLauncher(dataDir: string, deps: NodeLauncherDeps = {}): {
   // the engines folder is readable inside the sandbox, so an engine installed there can run; on Windows the sandbox is the WSL one (B), built once for this computer's Team turns
   const plan = vm ? containedPlan(dataDir, installer ? [installer.root] : undefined) : defaultPlan(dataDir, installer ? [installer.root] : undefined);
   return {
+    // a turn the Space sends here works in this computer's own folder for the person and the process, laid out as the sandbox requires (host/src/compute/node.ts cliRelay asks)
+    workFolder: (person, proc) => workFolder(dataDir, person, proc),
     async spawn(spec) {
       const prog = spec.argv[0] ?? "";
       const name = path.basename(prog);
