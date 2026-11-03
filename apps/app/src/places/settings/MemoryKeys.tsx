@@ -16,11 +16,11 @@ export const LEARNING_LINE = "Learning uses the AI account you chat with, on its
 /** memory.learning.today (lane l-memlearn): what learning used today against the daily limit. */
 export interface LearningToday { passes: number; capPasses: number; tokensIn: number; capTokens: number; state: "learning" | "rules_only" }
 
-/** The line under the row: how learning is paid for, or why it is on simple notes today. The count of model passes today is the row's value. */
+/** The line under the row: model passes today, or why learning is on simple notes today. The count is the row's value. */
 export function todaySub(t: LearningToday): string {
-  if (t.capPasses === 0 || t.capTokens === 0) return "Your Space turned model learning off. Vyre keeps simple notes from your chats instead.";
-  if (t.state === "rules_only") return "Today's limit is reached. Vyre keeps simple notes until midnight, then learns as usual.";
-  return LEARNING_LINE;
+  if (t.capPasses === 0 || t.capTokens === 0) return "Your Space turned model learning off. Vyre keeps simple notes instead.";
+  if (t.state === "rules_only") return "Today's limit is reached. Simple notes until midnight.";
+  return "Model passes, of your daily limit";
 }
 
 /** Today's use, read once; a server without memory.learning.today leaves it out. */
@@ -83,10 +83,10 @@ export function MemoryKeys({ tier = "you" }: { tier?: "you" | "space" }): ReactE
   }
   return (
     <>
-      {showYou || (showSpace && k.space) ? <Section title="Who pays for memory" help={showYou ? "Nothing to set up: learning runs on the account that answered you. Your Space sets the daily limit." : "Memory upkeep merges duplicates, dates facts and tidies pages. With no account it follows rules only; nothing is sent to a model."}>
+      {showYou || (showSpace && k.space) ? <Section title="Who pays for memory" {...(showYou ? { note: LEARNING_LINE } : {})} help={showYou ? "Nothing to set up: learning runs on the account that answered you. Your Space sets the daily limit." : "Memory upkeep merges duplicates, dates facts and tidies pages. With no account it follows rules only; nothing is sent to a model."}>
         {showYou ? <SettingsRow
-          id="memory.key.person" label="Your memory" first sub={today ? todaySub(today) : LEARNING_LINE}
-          {...(today ? { control: <Value text={`${today.passes} of ${today.capPasses} today`} accent={today.state === "rules_only"} testID="memory-learning-today" /> } : {})}
+          id="memory.key.person" label={today ? "Your learning today" : "Your memory"} first sub={today ? todaySub(today) : "Nothing to set up"}
+          {...(today ? { control: <Value text={`${today.passes} of ${today.capPasses}`} accent={today.state === "rules_only"} testID="memory-learning-today" /> } : {})}
         /> : null}
         {showSpace && k.space ? (
           <SettingsRow

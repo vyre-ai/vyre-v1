@@ -127,9 +127,9 @@ test("Who pays for memory: nothing to pick for your own memory, the plain line a
   const root = await mount(createRoot, <SavedProvider><SettingsDataProvider value={s.data}><MemoryPage /></SettingsDataProvider></SavedProvider>);
   await flush();
   const text = textOf(root);
-  assert.match(text, /Your memory/);
   assert.match(text, /Learning uses the AI account you chat with, on its cheapest model, up to your daily limit\./);
-  assert.match(textOf(find(root, "memory-learning-today")), /14 of 200 today/);
+  assert.match(textOf(find(root, "memory-learning-today")), /14 of 200/);
+  assert.match(text, /Your learning today/);
   assert.equal(find(root, "ctl-memory-key-person"), null);
   assert.ok(s.calls.some((c) => c.cap === "memory.learning.today"));
 });
