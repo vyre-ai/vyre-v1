@@ -429,3 +429,11 @@ test("the owner edits a draft in place: title, finish line, deadline, lead, owne
   const live = await w.call("goals.create", labGoal({ idempotencyKey: "k2" }));
   await assert.rejects(w.call("goals.update", { goalId: live.goal.id, plan: [step("z", "Nope")] }, owner), /Only a draft/);
 });
+
+test("the agent that drafted a goal may add to its plan before Start; another agent may not", async () => {
+  const w = world({ count: 10 });
+  const { goal } = await w.call("goals.create", labGoal(), { id: "agt_drafter", kind: "agent", actingFor: OWNER });
+  const added = await w.call("goals.plan", { goalId: goal.id, children: [step("x", "A step")] }, { id: "agt_drafter", kind: "agent", actingFor: OWNER });
+  assert.equal(added.drafted, 1);
+  await assert.rejects(w.call("goals.plan", { goalId: goal.id, children: [step("y", "Another")] }, { id: "agt_other", kind: "agent", actingFor: OWNER }), /lead agent or the owner/);
+});
