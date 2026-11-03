@@ -21,7 +21,8 @@ export { CONNECTOR_CHAT, CONNECTOR_SKILL, CRM_CHAT, CRM_SKILL };
 
 /** The skills a turn can see: an index line each, and the body of one by name. The loader is the skills module's; this is the port the context binds to. */
 export interface SkillsPort {
-  index(agentId: string, asker: string): Promise<ReadonlyArray<{ name: string; description: string; tier: "builtin" | "space" | "agent" }>>;
+  /** The skills this agent uses for this person, nearest tier first, one per name. `note` says what a skill wins over when another has its name. */
+  index(agentId: string, asker: string): Promise<ReadonlyArray<{ name: string; description: string; tier: "builtin" | "space" | "agent"; note?: string }>>;
   load(name: string, agentId: string, asker: string): Promise<{ name: string; body: string } | null>;
 }
 
@@ -69,6 +70,33 @@ export function diskSkills(root: URL = new URL("../../agent/skills/", import.met
     },
   };
 }
+
+type SkillRow = { name?: unknown; description?: unknown; tier?: unknown; shadowedBy?: unknown; broken?: unknown; enabled?: unknown; note?: unknown };
+/**
+ * The skills module's own loader, reached through skills.list and skills.load as the asker: built-in, the Space library, the agent's library and its own skills/ folder (and a person's own skills,
+ * once that tier exists, with no change here). A skill another one of the same name beats, or one that cannot be read, is left out. When the module cannot answer, the built-ins on disk stand in.
+ */
+export function capabilitySkills(call: Call, fallback: SkillsPort = diskSkills()): SkillsPort {
+  return {
+    async index(agentId, asker) {
+      let rows: SkillRow[];
+      try { rows = arr<SkillRow>(((await call("skills.list", { agentId }, asker)) as { skills?: unknown } | null)?.skills); } catch { return fallback.index(agentId, asker); }
+      return rows.filter((r) => typeof r.name === "string" && r.name !== "" && r.shadowedBy === undefined && r.broken === undefined && r.enabled !== false).map((r) => ({
+        name: String(r.name), description: typeof r.description === "string" ? r.description : "", tier: r.tier === "agent" || r.tier === "space" ? r.tier : "builtin" as const,
+        ...(typeof r.note === "string" && r.note !== "" ? { note: r.note } : {}),
+      }));
+    },
+    async load(name, agentId, asker) {
+      try {
+        const s = ((await call("skills.load", { name, agentId }, asker)) as { skill?: { name?: string; body?: string } } | null)?.skill;
+        return s && typeof s.body === "string" ? { name: s.name ?? name, body: s.body } : null;
+      } catch { return fallback.load(name, agentId, asker); }
+    },
+  };
+}
+
+/** The index lists at most this many skills; the rest are named by count and skills_list has them all. */
+export const SKILL_INDEX_MAX = 60;
 
 const cutTo = (s: string, n: number): string => (s.length <= n ? s : `${s.slice(0, n - 1)}…`);
 const one = (s: unknown, n = 140): string => cutTo(String(s ?? "").replace(/\s+/g, " ").trim(), n);
@@ -394,7 +422,12 @@ export function createContextBuilder(d: ContextDeps) {
       const others = idx.filter((s) => s.name !== "working-in-vyre");
       const parts: string[] = [];
       if (manual) parts.push(`Working in Vyre (always loaded):\n${manual.body.trim()}`);
-      if (others.length > 0) parts.push(`Other skills, by name. Load one with agents_builtin_skill_get when it fits what you are doing:\n${others.map((s) => `- ${s.name}: ${one(s.description, 130)}`).join("\n")}`);
+      if (others.length > 0) {
+        // nearest first (the agent's own, then the Space's, then Vyre's), so a long list keeps the ones this Space added
+        const shown = others.slice(0, SKILL_INDEX_MAX);
+        const more = others.length - shown.length;
+        parts.push(`Other skills, by name. When one fits what you are doing, load it with load_skill {name} and follow it:\n${shown.map((s) => `- ${s.name}: ${one(s.description, 130)}${s.note ? ` (${one(s.note, 120)})` : ""}`).join("\n")}${more > 0 ? `\n... and ${more} more: skills_list names them all.` : ""}`);
+      }
       add("skills", true, parts.join("\n\n"));
       if (focusName && idx.some((s) => s.name === focusName)) {
         const f = await d.skills.load(focusName, agentId, asker).catch(() => null);

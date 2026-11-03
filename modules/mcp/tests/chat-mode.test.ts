@@ -62,6 +62,12 @@ test("a chat lists the reads that check this Space from its first turn, so a que
   assert.equal((await withChatMode(scoped("helper"), caller())).preload, undefined);
 });
 
+test("a chat lists the tools that call the agent's outside tool servers and connections from its first turn: a CLI engine cannot pick one up later", async () => {
+  const scoped = (kind: string) => ({ ...runtime("auto"), invoke: (async () => ({ status: "ok", output: { thread: { mode: "auto", title: "Hello", kind } } })) as Invoke });
+  const pre = (await withChatMode(scoped("chat"), caller())).preload ?? [];
+  for (const n of ["mcp_tools", "mcp_read", "mcp_call"]) assert.ok(pre.includes(n), n);
+});
+
 test("a CLI session knows the chat the way an API turn does: an Ask's scope and the person's level on it, a task thread's scope", async () => {
   const facts = (thread: Record<string, unknown>, level: unknown) => ({ ...runtime("auto"), invoke: (async (cap: string) => ({ status: "ok", output: cap === "chat.ask_level" ? { level } : { thread: { mode: "auto", ...thread } } })) as unknown as Invoke });
   const ask = await withChatMode(facts({ kind: "ask", scopeType: "record", scopeId: "rec_1" }, "view"), caller());

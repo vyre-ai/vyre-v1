@@ -54,6 +54,9 @@ const skillRow = t.obj({
   name: t.str({ examples: ['deploy-checks'] }), description: t.str(), tier: t.enm('builtin', 'space', 'agent'),
   source: t.str({ description: 'vyre, upload, agent, plugin:<name> or kit:<key>', examples: ['upload'] }), agentId: t.opt(id.agent),
   system: t.bool(), enabled: t.bool(), bytes: t.int({ minimum: 0 }), updatedAt: t.opt(t.ts()),
+  hash: t.opt(t.str({ description: 'A fingerprint of the text and files; it changes when the skill does' })),
+  shadowedBy: t.opt(t.enm('builtin', 'space', 'agent')), note: t.opt(t.str({ description: 'Which of two skills with this name is used, and why' })),
+  broken: t.opt(t.str({ description: 'Why this skill cannot be used; it stays listed and is never in a turn' })),
 });
 const skillFiles = t.rec(t.str());
 
@@ -241,12 +244,12 @@ export default defineManifest({
     read('agents.builtin_skills.list', 'Skills every agent carries, led by "Working in Vyre": save facts to the asker layer, propose promotions, cite sources, use secrets only by name, never copy data across Spaces', {
       out: { skills: t.arr(t.obj({ key: t.str({ examples: ['working_in_vyre'] }), title: t.str(), version: t.str({ examples: ['1.0.0'] }), summary: t.str() })) }, perm: null, level: 'view', tool: 'agents',
     }),
-    read('skills.list', 'Skills a chat with this agent can load: Vyre built-in, the Space library and the agent own skills/ folder, one line each. With no agentId, the Space library and built-in ones', {
+    read('skills.list', 'Skills a chat with this agent can load: Vyre built-in, the Space library and the agent own skills/ folder, one line each. Two with one name are both listed, the one not used marked shadowedBy; a broken one is marked broken. With no agentId, the Space library and built-in ones', {
       in: { agentId: t.opt(id.agent), includeOff: t.opt(t.bool()) }, out: { skills: t.arr(skillRow) }, perm: null, level: 'view', tool: 'agents', mcpName: 'skills_list', agent: { planMode: 'allowed' },
     }),
     read('skills.load', 'Load the full text of one skill by name (SKILL.md body and its supporting files); agent skills win over Space ones, Space ones over built-in', {
       in: { name: t.str({ examples: ['deploy-checks'] }), agentId: t.opt(id.agent) },
-      out: { skill: t.obj({ name: t.str(), description: t.str(), tier: t.enm('builtin', 'space', 'agent'), source: t.str(), body: t.str(), files: t.arr(t.obj({ path: t.str(), text: t.str() })) }) },
+      out: { skill: t.obj({ name: t.str(), description: t.str(), tier: t.enm('builtin', 'space', 'agent'), source: t.str(), body: t.str(), files: t.arr(t.obj({ path: t.str(), text: t.str() })), text: t.opt(t.str({ description: 'The whole SKILL.md, front matter included' })), hash: t.opt(t.str()) }) },
       perm: null, level: 'view', tool: 'meta', mcpName: 'load_skill', agent: { planMode: 'allowed' }, errors: ['validation.not_found'],
     }),
     write('skills.add', 'Add or replace a skill in the Space library, or in one agent (SKILL.md text with name and description in its front matter, plus optional supporting files)', {
@@ -254,10 +257,11 @@ export default defineManifest({
         text: t.str({ description: 'The SKILL.md text' }), name: t.opt(t.str({ description: 'Used when the front matter has no name' })), agentId: t.opt(id.agent),
         source: t.opt(t.str({ description: 'upload (default), plugin:<name> or kit:<key>' })), files: t.opt(skillFiles),
       },
-      out: { skill: skillRow }, perm: 'agents.manage', level: 'manage', risk: 'medium', idem: 'key', emits: ['skill.added'], audit: 'always', tool: 'agents', mcpName: 'skills_add', errors: ['validation.too_large'],
+      out: { skill: skillRow, kept: t.opt(t.bool()), note: t.opt(t.str({ description: 'Set with kept: a Kit tried to add a skill whose name is taken by one it did not install, and that one was kept' })) },
+      perm: 'agents.manage', level: 'manage', risk: 'medium', idem: 'key', emits: ['skill.added'], audit: 'always', tool: 'agents', mcpName: 'skills_add', errors: ['validation.too_large'],
     }),
     write('skills.remove', 'Remove a skill from the Space library, or from one agent', {
-      in: { name: t.str(), agentId: t.opt(id.agent) }, out: { removed: t.bool() }, perm: 'agents.manage', level: 'manage', idem: 'key', emits: ['skill.removed'], audit: 'always', tool: 'agents', mcpName: 'skills_remove',
+      in: { name: t.str(), agentId: t.opt(id.agent), source: t.opt(t.str({ description: 'Remove it only when this source added it (a Kit undo names its own)' })) }, out: { removed: t.bool() }, perm: 'agents.manage', level: 'manage', idem: 'key', emits: ['skill.removed'], audit: 'always', tool: 'agents', mcpName: 'skills_remove',
     }),
     ...pluginCapabilities,
     write('skills.set_enabled', 'Turn a Space or agent skill off or on without removing it', {
