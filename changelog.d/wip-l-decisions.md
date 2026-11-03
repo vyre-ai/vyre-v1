@@ -2,3 +2,4 @@
 - "Let the Space continue my chats when my computer is off" is on by default for everyone who has not turned it off (owner ruling, 3 Nov), so Automatic runs a chat on the Space while your computer is off. Its Settings toggle is hidden until sealed chats ship.
 - The Console stays in the app rail for owners, admins and developers on a computer (owner ruling, 3 Nov); a plain member never sees it.
 - Agents get 8 turns since a person last wrote (was 4), and helpers and teammates now count. At the limit the chat shows a Continue card (owner ruling, 3 Nov).
+- When an AI vendor says it is overloaded, Vyre tries the same account once more, then moves to your backup account and says so in the chat. Overloaded no longer counts as a limit (owner ruling, 3 Nov).
