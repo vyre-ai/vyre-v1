@@ -1,3 +1,4 @@
+// Part 1 of 2; part 2 is askpane-more.test.tsx (split to keep each file inside the 30 s watchdog).
 // The Ask pane drawn (owner rule, rc.17): every door opens the one pane beside the place it was pressed in, with the thing as its chip, and the route never moves to Chats. The pane keeps
 // the place mounted, its width is remembered per place, Escape closes it, the chip's x makes it about the place, New starts fresh and Open in Chats is the one way to Chats.
 import test from "node:test";
@@ -193,72 +194,5 @@ test("the agent dropdown lists the person's agents, Assistant first, and another
     await settle();
     assert.equal(textOf(find(root, "ask-pane-agent-name")), "Billing");
     assert.deepEqual(calls.filter((c) => c.cap === "chat.start").map((c) => (c.input["agentIds"] as string[])[0]), ["agt_assistant", "agt_billing"]);
-  } finally { await unmountAll(); restore(); }
-});
-
-test("the pane's width is remembered per place", async () => {
-  const restore = installDom();
-  try {
-    Dimensions.set({ window: { width: 1400, height: 900, scale: 1, fontScale: 1 } });
-    resetAskPanes();
-    paneWidths.reset(askPaneKey("records"));
-    paneWidths.reset(askPaneKey("files"));
-    const { rt } = runtime();
-    const root = await mount(createRoot, host(rt, "records", <View />));
-    openAskPane({ thing: null }, "records");
-    await settle();
-    const edge = (): Node => find(root, "side-pane-resize")!;
-    assert.equal(edge().props["aria-valuenow"], 380, "the first width");
-    (edge().props["onKeyDown"] as (e: unknown) => void)({ key: "ArrowLeft", preventDefault: () => undefined });
-    await settle();
-    assert.equal(paneWidths.get(askPaneKey("records")), 404, "remembered for Records");
-    assert.equal(paneWidths.get(askPaneKey("files")), null, "not for Files");
-    closeAskPane("records");
-    await settle();
-    openAskPane({ thing: null }, "records");
-    await settle();
-    assert.equal(edge().props["aria-valuenow"], 404, "opened again at the width the person left");
-  } finally { await unmountAll(); restore(); }
-});
-
-test("a record page's Ask opens the pane beside the record, about it, and the page stays", async () => {
-  const restore = installDom();
-  try {
-    resetAskPanes();
-    const { rt, opened } = runtime();
-    const page = createSamplePage();
-    setScreenContext(screenFromHash("records", "subject=record:cl_0"));
-    const data = { ...page.data, nav: { ...page.data.nav, ask: askAboutRecord } };
-    const root = await mount(createRoot, host(rt, "records", <RecordPageDataProvider value={data}><RecordPage type="clients" recordId="cl_0" start={{ all: true, pane: false }} /></RecordPageDataProvider>));
-    await settle();
-    await press(find(root, "record-ask"));
-    await settle();
-    assert.ok(find(root, "ask-pane"));
-    assert.ok(find(root, "record-page"), "the record page is still there");
-    const s = askPaneOf("records")!;
-    assert.equal(s.thing?.kind, "record");
-    assert.equal(s.thing?.id, "cl_0");
-    assert.equal(textOf(find(root, "ask-pane-chip")).trim(), s.thing?.title);
-    assert.deepEqual(opened, []);
-    assert.deepEqual(page.opened, []);
-  } finally { await unmountAll(); restore(); }
-});
-
-test("Chats keeps every Ask under Ask history on the Threads page, so one can be opened there as a full chat", async () => {
-  const restore = installDom();
-  try {
-    const { rt } = runtime((cap, input) => {
-      if (cap === "threads.list") return (input["kind"] as string[])[0] === "ask"
-        ? { threads: [{ threadId: "thr_a1", kind: "ask", title: "Ask about Lease.pdf", agents: [{ agentId: "agt_assistant", mode: "lead" }] }], total: 1 }
-        : { threads: [], total: 0 };
-      throw new Error(cap);
-    });
-    const chosen: string[] = [];
-    const root = await mount(createRoot, <ThreadsPage rt={rt} nameOf={(id) => (id === "agt_assistant" ? "Assistant" : id)} openChat={(id) => chosen.push(id)} />);
-    await settle();
-    assert.ok(find(root, "ask-history"));
-    assert.match(textOf(find(root, "ask-history")), /Ask about Lease\.pdf/);
-    await press(find(root, "row-ask-thr_a1"));
-    assert.deepEqual(chosen, ["thr_a1"]);
   } finally { await unmountAll(); restore(); }
 });
