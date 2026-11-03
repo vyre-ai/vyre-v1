@@ -477,7 +477,7 @@ test("no string shown to people holds an em dash or a section sign", async () =>
 
 /* ---------- accessView: the rules behind the Dex sheet ---------- */
 
-import { accessCount, accessView, levelHint, rowSub } from "./model.ts";
+import { accessCount, accessSubtitle, accessView, levelDefs, levelHint, rowSub } from "./model.ts";
 import type { ShareRow as Row } from "./props.ts";
 
 const r = (o: Partial<Row> & Pick<Row, "subjectKind" | "subjectId">): Row => ({ name: o.subjectId, level: "view", via: "grant", fromFolderId: null, ...o });
@@ -544,7 +544,12 @@ test("accessView: the count behind the sheet is the same deduped list", () => {
 });
 
 test("levelHint: every level of every item has a one line description", () => {
-  for (const type of ["note", "file", "record", "rtype", "artifact", "project", "vault", "agent"] as const) {
+  for (const type of ["note", "file", "record", "rtype", "artifact", "project", "vault", "agent", "automation"] as const) {
     for (const l of ["view", "use", "edit", "manage"] as const) assert.ok(levelHint(type, l).length > 0 && !/\n/.test(levelHint(type, l)));
   }
+});
+
+test("an automation offers View, Edit and Manage", () => {
+  assert.deepEqual(levelDefs("automation").map((l) => l.label), ["Can view", "Can edit", "Can manage"]);
+  assert.equal(accessSubtitle("automation", 3), "Automation · 3 with access");
 });

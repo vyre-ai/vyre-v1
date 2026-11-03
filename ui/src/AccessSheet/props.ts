@@ -113,7 +113,7 @@ export type ShareLevel = "view" | "use" | "edit" | "manage";
 export type ShareSubjectKind = "person" | "group" | "role" | "agent" | "link";
 export type ShareVia = "owner" | "grant" | "folder" | "space";
 
-export type ShareItemType = "note" | "file" | "record" | "rtype" | "artifact" | "project" | "vault" | "agent";
+export type ShareItemType = "note" | "file" | "record" | "rtype" | "artifact" | "project" | "vault" | "agent" | "automation";
 
 /** One row of "Who has access". */
 export interface ShareRow {
@@ -236,6 +236,8 @@ export interface ShareSheetProps extends CommonProps {
   spaceName?: string;
   /** Agents in the Space may call this item: left out, the line is shown as it is and cannot be flipped. */
   onAgents?(on: boolean): void;
+  /** Whether agents in the Space may call this item, when the server says (access.shares_of agentsCanCall). Left out: read from the rows. */
+  agentsOn?: boolean;
 }
 
 export type AccessSheetProps = AddSheetProps | ShareSheetProps;

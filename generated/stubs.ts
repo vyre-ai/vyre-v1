@@ -20,6 +20,10 @@ export function stubs(ctx: CallCtx) {
         set_engineer_mcp: call("access.actors.set_engineer_mcp"),
         update: call("access.actors.update"),
       },
+      agents_can_call: {
+        get: call("access.agents_can_call.get"),
+        set: call("access.agents_can_call.set"),
+      },
       audience_set: call("access.audience_set"),
       automation_senders: call("access.automation_senders"),
       check: call("access.check"),

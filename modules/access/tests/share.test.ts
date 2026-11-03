@@ -7,7 +7,7 @@ import { authorize } from "../../../kernel/src/authorize/index.ts";
 import { handlers } from "../impl.ts";
 import { putPrincipal } from "../handlers/roles.ts";
 import {
-  dropShare, foldersCreate, foldersDelete, foldersList, foldersMove, foldersPlace, foldersRename, foldersUnplace, levelFor, lists,
+  agentsCanCallGet, agentsCanCallSet, dropShare, foldersCreate, foldersDelete, foldersList, foldersMove, foldersPlace, foldersRename, foldersUnplace, levelFor, lists,
   automationSenders, deciders, myAccess, share, shareOf, sharesOf, unshare, updateGrant,
 } from "../handlers/share.ts";
 import type { ShareCtx } from "../handlers/share.ts";
@@ -490,4 +490,26 @@ test("a guest never shares with Everyone, not even an item Everyone already hold
   const agentForGuest: ShareCtx = { ...r.ctx, principal: { kind: "agent", id: "agt_guestbot" }, actingFor: "usr_guest" } as ShareCtx;
   assert.equal(await code(toEveryone(agentForGuest, "use")), "permission.role_lacks_permission", "an agent acting for a guest: refused");
   assert.equal(await code(toEveryone(r.as("usr_admin"), "use")), "no error", "an admin repeats it");
+});
+
+test("agents can call: On unless a person with Manage turns it Off; an agent, a Viewer and a stranger cannot change it", async () => {
+  const r = rig();
+  r.item("agt_dex", "usr_a", "agent");
+  putPrincipal(r.store, { id: "agt_x", kind: "agent", name: "X", owner: "usr_a" });
+  const res = { type: "agent" as const, id: "agt_dex" };
+  const a = r.as("usr_a");
+  assert.deepEqual(await agentsCanCallGet(a, { agentId: "agt_dex" }), { on: true }, "On by default");
+  assert.equal((await sharesOf(a, { resource: res })).agentsCanCall, true);
+  await share(a, { resource: res, subject: { kind: "person", id: "usr_b" }, level: "view" });
+  assert.equal(await code(agentsCanCallSet(r.as("usr_b"), { agentId: "agt_dex", on: false })), "permission.no_grant", "a Viewer cannot");
+  assert.equal(await code(agentsCanCallSet(r.as("usr_c"), { agentId: "agt_dex", on: false })), "permission.no_grant", "a stranger cannot");
+  const agent: ShareCtx = { ...a, principal: { kind: "agent", id: "agt_x" } };
+  assert.equal(await code(agentsCanCallSet(agent, { agentId: "agt_dex", on: false })), "permission.no_grant", "an agent never does");
+  assert.deepEqual(await agentsCanCallGet(a, { agentId: "agt_dex" }), { on: true }, "nothing changed");
+  assert.deepEqual(await agentsCanCallSet(a, { agentId: "agt_dex", on: false }), { on: false });
+  assert.deepEqual(await agentsCanCallGet(r.as("usr_c"), { agentId: "agt_dex" }), { on: false }, "anyone can read it");
+  assert.equal((await sharesOf(a, { resource: res })).agentsCanCall, false);
+  assert.deepEqual(await agentsCanCallSet(a, { agentId: "agt_dex", on: true }), { on: true });
+  assert.equal((await sharesOf(a, { resource: res })).agentsCanCall, true);
+  assert.equal(await code(agentsCanCallGet(a, { agentId: "sit_none" })), "validation.not_found");
 });

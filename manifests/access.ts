@@ -165,7 +165,15 @@ export default defineManifest({
       emits: ['grant.created', 'access.changed'], audit: 'always', errors: ['permission.not_contained'],
     }),
     write('access.unshare', 'Remove a grant, or every grant of one source on a resource', { ...V, in: { grantId: t.opt(id.grant), resource: t.opt(resourceRef), subject: t.opt(subjectRef), source: t.opt(t.str()) }, out: { revoked: t.int({ minimum: 0 }) }, emits: ['grant.revoked', 'access.changed', 'folder.shared'], audit: 'always', tool: 'meta', team: true }),
-    read('access.shares_of', 'Who has access to a resource, through what (direct, group, role, folder), with conditions and expiry; for a record type or a record also who it is open to and who may export', { ...V, in: { resource: resourceRef }, out: { shares: t.arr(t.obj({ grant: grantRow, through: t.enm('direct', 'group', 'role', 'folder', 'owner') })), mine: t.opt(level), audience: t.opt(audience), exporters: t.opt(exporters), inherits: t.opt(t.str({ description: 'The container this resource follows (the record type of a record), when it follows it' })), outside: t.opt(t.bool()), can: t.opt(rights) }, tool: 'meta' }),
+    read('access.shares_of', 'Who has access to a resource, through what (direct, group, role, folder), with conditions and expiry; for a record type or a record also who it is open to and who may export', { ...V, in: { resource: resourceRef }, out: { shares: t.arr(t.obj({ grant: grantRow, through: t.enm('direct', 'group', 'role', 'folder', 'owner') })), mine: t.opt(level), agentsCanCall: t.opt(t.bool()), audience: t.opt(audience), exporters: t.opt(exporters), inherits: t.opt(t.str({ description: 'The container this resource follows (the record type of a record), when it follows it' })), outside: t.opt(t.bool()), can: t.opt(rights) }, tool: 'meta' }),
+    // DECISION (owner, 4 Nov): "Agents in this Space can call X" is a flag on the agent, On unless a person turns it Off. A real group would need a join event at every agent creation; the flag reads the same everywhere (the Share sheet, the handoff check).
+    write('access.agents_can_call.set', 'A person with Manage on an agent says whether other agents in the Space may hand work to it (On unless turned Off)', {
+      ...V, in: { agentId: id.agent, on: t.bool() }, out: { on: t.bool() },
+      emits: ['access.changed'], audit: 'always', team: true, agent: false, errors: ['permission.no_grant', 'validation.not_found'],
+    }),
+    read('access.agents_can_call.get', 'Whether other agents may hand work to this agent (On unless a person turned it Off); engine and chat check it before one agent calls another', {
+      level: 'member', in: { agentId: id.agent }, out: { on: t.bool() }, tool: 'meta', errors: ['validation.not_found'],
+    }),
     write('access.audience_set', 'Choose who a record type or one record is open to: everyone, only people added or only me; a type also says who may export; a record\'s Files folder can follow its record', {
       ...V, in: { resource: resourceRef, audience: t.opt(audience), exporters: t.opt(exporters), outside: t.opt(t.bool()), follows: t.opt(id.record) }, out: { audience, exporters, outside: t.bool() },
       emits: ['grant.created', 'grant.revoked', 'access.changed'], audit: 'always', tool: 'meta', team: true, errors: ['permission.not_contained', 'validation.precondition_failed'],

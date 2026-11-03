@@ -357,7 +357,7 @@ export function AccessList({ p, offered, cleared, onCleared }: { p: ShareSheetPr
   const type = p.itemType;
   const [apart, setApart] = useState(false);
   const shares = p.shares.filter((r) => !cleared.includes(`${r.subjectKind}:${r.subjectId}`));
-  const v = accessView({ shares, itemType: type, resourceId: p.resourceId, ownerId: p.ownerId, ownerName: p.ownerName, folderName: p.folderName });
+  const v = accessView({ shares, itemType: type, resourceId: p.resourceId, ownerId: p.ownerId, ownerName: p.ownerName, folderName: p.folderName, agentsOn: p.agentsOn });
   const { link } = v;
   const lname = (l: ShareLevel): string => (rec ? RECORD_LEVEL_NAMES[l] : undefined) ?? levelName(type, l);
   const say = (kind: ShareSubjectKind, id: string, level: ShareLevel): void => p.onShare?.(shareInput(p, { kind, id }, level, p.newKey?.()));

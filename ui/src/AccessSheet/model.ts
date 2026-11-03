@@ -78,6 +78,7 @@ export const ITEM_DEFS: Readonly<Record<ShareItemType, ItemDef>> = {
   },
   artifact: { label: "artifact", levels: L3, def: "view", tail: "They see the latest version and its comments." },
   project: { label: "project", levels: L3, def: "view", tail: "They see the project's chats, files folder and records." },
+  automation: { label: "automation", levels: L3, def: "view", tail: "View sees it, its runs and its history. Edit changes and pauses it. Manage also shares and deletes it." },
   vault: {
     label: "Vault item",
     levels: [{ id: "use", label: "Can use without seeing" }, { id: "view", label: "Can view" }, { id: "edit", label: "Can edit" }],
@@ -731,6 +732,8 @@ export interface AccessViewInput {
   ownerId?: string | undefined;
   ownerName: string;
   folderName?: string | undefined;
+  /** The server's answer to "agents in the Space can call this", when it gives one. */
+  agentsOn?: boolean | undefined;
 }
 
 export interface AccessView {
@@ -785,7 +788,7 @@ export function accessView(i: AccessViewInput): AccessView {
   return {
     owner: { id: i.ownerId ?? null, name: i.ownerName },
     general: { level: everyone ? everyone.level : null, row: everyone },
-    people, agents: { on: inherited || specific.length > 0, inherited, specific }, link,
+    people, agents: { on: i.agentsOn ?? (inherited || specific.length > 0), inherited, specific }, link,
     inheritedFrom: i.folderName ? `From the folder ${i.folderName}` : "From the Space",
     count, empty: people.length === 0 && specific.length === 0 && everyone === null && !inherited,
   };
@@ -800,5 +803,6 @@ export function accessCount(i: AccessViewInput): number {
 export function levelHint(type: ShareItemType, level: ShareLevel): string {
   if (type === "agent") return ({ view: "Chat with it. It works with what they can see.", use: "Give it tasks and put it in their own work.", edit: "Change how it works.", manage: "Share it, pause it and delete it." } as Record<ShareLevel, string>)[level];
   if (type === "vault") return ({ use: "Agents and automations use it. The value stays hidden.", view: "See the value and use it.", edit: "See, use and change it.", manage: "Also share it." } as Record<ShareLevel, string>)[level];
+  if (type === "automation") return ({ view: "See it, its runs and its history.", use: "Run it.", edit: "Change it and pause it.", manage: "Also share it and delete it." } as Record<ShareLevel, string>)[level];
   return ({ view: "Open it and read it.", use: "Open it and use it.", edit: "Change it.", manage: "Also share it, move it and delete it." } as Record<ShareLevel, string>)[level];
 }

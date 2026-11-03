@@ -1,0 +1,6 @@
+{
+  "targets": [
+    { "id": "SHARE2_01-before", "route": "/m/SHARE2_01?part=before", "proto": "chats,{skin}", "waitFor": "[role='dialog'], [data-testid]", "note": "Before: the rc.20 Share sheet for Dex." },
+    { "id": "SHARE2_01-after", "route": "/m/SHARE2_01?part=after", "proto": "chats,{skin}", "waitFor": "[data-testid='as-access']", "note": "After: General access on top, people once, agents on one line, no legend." }
+  ]
+}

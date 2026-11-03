@@ -559,3 +559,14 @@ test("Dex: the count in the subtitle is the deduped list", () => {
   // owner + everyone (the general row); Dex itself, the private agent and the owner's repeat do not count
   assert.match(html, /Agent · 2 with access/);
 });
+
+test("Dex: the agents line follows the server's answer and flips through onAgents", async () => {
+  await withDom(async () => {
+    const flips: boolean[] = [];
+    const root = await mount(createRoot, <AccessSheet {...dex({ shares: [], agentsOn: false, onAgents: (on) => flips.push(on) })} />);
+    assert.match(textOf(root), /Off/);
+    await press(find(root, "as-agents-toggle"));
+    assert.deepEqual(flips, [true]);
+  });
+  assert.match(ssr(<AccessSheet {...dex({ shares: [], agentsOn: true })} />), /On/);
+});

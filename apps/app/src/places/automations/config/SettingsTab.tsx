@@ -8,8 +8,8 @@ import type { ReactElement } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { Row } from "../../../../../../ui/src/Row/index.tsx";
 import { useMenu } from "../../../../../../ui/src/Menu/index.tsx";
-import { ShareSheet } from "../../../../../../ui/src/ShareSheet/index.tsx";
-import type { ShareInput, ShareRow, UnshareInput } from "../../../../../../ui/src/ShareSheet/index.tsx";
+import { AccessSheet } from "../../../../../../ui/src/AccessSheet/index.tsx";
+import type { AccessEntry, ShareInput, ShareRow, UnshareInput } from "../../../../../../ui/src/AccessSheet/index.tsx";
 import type { CapMap } from "../../../../../../generated/types.ts";
 import { useAutomationsData } from "../canvas/data.tsx";
 import { Face, IconButton, TextButton } from "../canvas/parts.tsx";
@@ -25,6 +25,8 @@ import { Overlay } from "./Overlay.tsx";
 import { Group, Hint, IconLine, Lab, PickButton, SRow, Switch } from "./parts.tsx";
 import { PromoteSheet, usePromotePreview } from "./PromoteSheet.tsx";
 import { useSaved } from "./saved.ts";
+
+const entries = (list: readonly { id: string; name: string; sub?: string }[], kind: AccessEntry["kind"]): AccessEntry[] => list.map((e) => ({ id: e.id, name: e.name, kind, ...(e.sub ? { sub: e.sub } : {}) }));
 
 type SharesOut = CapMap["access.shares_of"]["out"];
 
@@ -241,9 +243,10 @@ export function SettingsTab({ automation, openPromote = false, openShare = false
       ) : null}
       {share && shares.phase === "ready" ? (
         <Overlay label="Share" onClose={() => setShare(false)} testID="share-overlay">
-          <ShareSheet
-            resourceType="automation" resourceId={a.id} resourceName={a.name} target="item" ownerName={data.name(a.ownerId)} levels={["view", "edit", "manage"]} shares={shareRows(shares.out, data.name)} allowExternal={false} density="regular"
-            directory={{ people: extras.directory.people, groups: extras.directory.groups, roles: extras.directory.roles, agents: extras.directory.agents }}
+          <AccessSheet
+            mode="share" itemType="automation" resourceType="automation" resourceId={a.id} itemName={a.name} target="item" ownerName={data.name(a.ownerId)} ownerId={a.ownerId} levels={["view", "edit", "manage"]}
+            shares={shareRows(shares.out, data.name, a.id)} allowExternal={false} density="regular"
+            directory={{ people: entries(extras.directory.people, "person"), groups: entries(extras.directory.groups, "group"), roles: entries(extras.directory.roles, "role"), agents: entries(extras.directory.agents, "agent") }}
             onShare={(i: ShareInput) => { void saved.run("Access changed", async () => { await data.call("access.share", i); shares.reload(); }); }}
             onUnshare={(i: UnshareInput) => { void saved.run("Access removed", async () => { await data.call("access.unshare", i); shares.reload(); }); }}
             onClose={() => setShare(false)}

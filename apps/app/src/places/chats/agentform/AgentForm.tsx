@@ -247,6 +247,8 @@ export function AgentForm({ agentId, call, newKey, onDone, onCancel, say, sharin
           <AccessSheet
             mode="share" itemType="agent" resourceType="agent" resourceId={agentId} itemName={d.name} target="item" ownerName={sharing.meName} ownerId={sharing.meId} levels={["view", "use", "edit", "manage"]}
             shares={shareRows(shares, sharing.nameOf, agentId)} allowExternal={false} density="compact" newKey={newKey}
+            {...(shares.agentsCanCall === undefined ? {} : { agentsOn: shares.agentsCanCall })}
+            onAgents={(on) => { void Promise.resolve(call("access.agents_can_call.set", { agentId, on, idempotencyKey: newKey() })).then(loadShares, () => say("Could not change who can call this agent.")); }}
             directory={{ people: entries(sharing.directory.people, "person"), groups: entries(sharing.directory.groups, "group"), roles: entries(sharing.directory.roles, "role"), agents: entries(sharing.directory.agents, "agent") }}
             onShare={(i: ShareInput) => { void Promise.resolve(call("access.share", i)).then(loadShares, () => say("Could not change access.")); }}
             onUnshare={(i: UnshareInput) => { void Promise.resolve(call("access.unshare", i)).then(loadShares, () => say("Could not change access.")); }}
