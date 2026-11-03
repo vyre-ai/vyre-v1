@@ -246,7 +246,7 @@ export async function signInFrom(d: Daemon, p: Person, from: Exclude<From, "mcp"
 }
 
 /** A person who joins with an invite, the way the invite page does it: a real bundle under their password; the key their client unwrapped goes to the Space's door. */
-export async function joinAs(d: Daemon, owner: string, username: string, role: string, email?: string): Promise<Person> {
+export async function joinAs(d: Daemon, owner: string, username: string, role: string, email?: string, handOver = true): Promise<Person> {
   const roles = (await ok(d, owner, "access.roles.list")).roles as { id: string; name: string }[];
   const inv = await ok(d, owner, "members.invites.create", { role: roles.find((r) => r.name === role)!.id, ...(email ? { email } : {}) });
   const code = decodeURIComponent(new URL(inv.link).pathname.split("/").pop()!);
@@ -258,7 +258,7 @@ export async function joinAs(d: Daemon, owner: string, username: string, role: s
   const out = ((await r.json()) as { data: { personId: string; token: string } }).data;
   const p: Person = { id: out.personId, username, personKey: Uint8Array.from(personKey), tokens: {} };
   // the new member's session is good once the Space has folded the join in
-  await waitFor(async () => ((await door(d, out.token, "unlock", p.personKey)).status === 204 ? true : null), 5_000, `${username}'s key at the door`);
+  if (handOver) await waitFor(async () => { await d.hooks?.pump?.(); return (await door(d, out.token, "unlock", p.personKey)).status === 204 ? true : null; }, 10_000, `${username}'s key at the door`);
   return p;
 }
 
@@ -267,7 +267,8 @@ export async function passwordSignIn(d: Daemon, p: Person, from: Exclude<From, "
   const r = await api(d, null, "identity.sign_in", { username: p.username, password: PASSWORD, deviceName: `${p.username} ${from}`, deviceClass: CLASS[from] });
   assert.equal(r.status, 200, JSON.stringify(r.data));
   const token = r.data.session.token as string;
-  assert.equal((await door(d, token, "unlock", p.personKey)).status, 204);
+  // this rig runs the module hooks by hand (its timers are an hour): the join is folded into access before the door is asked
+  await waitFor(async () => { await d.hooks?.pump?.(); return (await door(d, token, "unlock", p.personKey)).status === 204 ? true : null; }, 10_000, `${p.username}'s key at the door`);
   p.tokens[from] = token;
   return token;
 }

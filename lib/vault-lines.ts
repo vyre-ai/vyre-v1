@@ -12,7 +12,7 @@ export const VAULT_ROLE_LINE = "Your role here does not keep items in the Vault.
 export function roleLine(cap: string): string | null {
   if (cap === "chat.start" || cap === "chat.post") return CHAT_ROLE_LINE;
   if (cap === "engine.step_turn" || cap.startsWith("automations.")) return AUTOMATION_ROLE_LINE;
-  if (cap.startsWith("mcp.")) return OUTSIDE_AGENT_ROLE_LINE;
+  if (cap.startsWith("mcp.") || cap.startsWith("agents.outside.")) return OUTSIDE_AGENT_ROLE_LINE;
   if (cap === "providers.space_key.set" || cap === "providers.space_key.remove") return SPACE_KEY_ROLE_LINE;
   if (cap.startsWith("connections.") || cap.startsWith("connectors.")) return CONNECTION_ROLE_LINE;
   if (cap.startsWith("vault.") || cap.startsWith("providers.")) return VAULT_ROLE_LINE;
