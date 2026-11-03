@@ -11,3 +11,5 @@
 - Add a server is one flow with one command and the fingerprint to compare. It opens from Console, Machines for a server the Space holds and from Settings, This device for a server only you use.
 - Settings is seven pages: You, Your AI, Notifications, Appearance, Connected, This device and Privacy and security. This device shows your own computers and servers in full; Memory, Skills, Email and calendar and About moved into the pages that fit them.
 - The Console shows machine alerts among what needs you, with a count on Machines.
+- An admin's agent list no longer includes another person's own agents, even with All in the Space on. A person's Assistant and the agents they keep private are never named to an admin: the Console shows one summary row per person with a count, the spend against their cap, a Spend cap and Pause all (which is audited and tells the person).
+- Usage by agent folds agents you may not see into one People's own agents line.

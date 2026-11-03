@@ -136,6 +136,8 @@ export function stubs(ctx: CallCtx) {
         usable: call("agents.outside.usable"),
       },
       pause: call("agents.pause"),
+      pause_person: call("agents.pause_person"),
+      people_summary: call("agents.people_summary"),
       restore: call("agents.restore"),
       restore_version: call("agents.restore_version"),
       resume: call("agents.resume"),

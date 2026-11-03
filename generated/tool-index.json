@@ -416,6 +416,18 @@
     },
     {
       "deferred": false,
+      "name": "agents_pause_person",
+      "summary": "Pause every agent of one person, or let them run again. Audited, and the person is told. Answers how many changed, never which",
+      "toolset": "agents"
+    },
+    {
+      "deferred": false,
+      "name": "agents_people_summary",
+      "summary": "For each person whose agents you cannot see (their Assistant, the agents they keep private): how many, what they spent this month against their cap, and whether they are paused. Never names or content",
+      "toolset": "agents"
+    },
+    {
+      "deferred": false,
       "name": "agents_restore",
       "summary": "Restore an agent from Trash",
       "toolset": "agents"
