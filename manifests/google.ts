@@ -31,6 +31,8 @@ const driveFile = t.obj({ id: t.str(), name: t.str(), mimeType: t.str(), parents
 const gcalEvent = t.obj({
   id: t.str(), status: t.opt(t.str()), summary: t.opt(t.str()), start: t.rec(), end: t.rec(), location: t.opt(t.str()), hangoutLink: t.opt(t.str()),
   attendees: t.opt(t.arr(t.obj({ email, responseStatus: t.opt(t.str()), optional: t.opt(t.bool()) }))), organizer: t.opt(t.rec()), updated: t.opt(t.str()),
+  description: t.opt(t.str()), recurringEventId: t.opt(t.str({ description: 'The series an instance of a repeating event belongs to' })),
+  conferenceData: t.opt(t.rec()),
 });
 const eventWrite = {
   calendarId: t.str({ examples: ['primary'] }), summary: t.opt(t.str()), description: t.opt(t.str()), location: t.opt(t.str()), start: t.opt(t.rec()), end: t.opt(t.rec()),

@@ -100,7 +100,7 @@ const sharesOf = (ctx: MeetCtx, recordId: string): Array<{ type: "project" | "ch
  * May the caller open this meeting's close-out: their own meeting, or one shared to a project or channel they can read. An agent acting for a person is that person here; an agent acting for
  * nobody opens only the close-out it was asked to prepare (another person's meetings never reach an agent's chat through it). The host opens any.
  */
-function canOpen(ctx: MeetCtx, recordId: string): boolean {
+export function canOpen(ctx: MeetCtx, recordId: string): boolean {
   const me = personOf(ctx);
   if (me === null) return ctx.principal.kind === "agent" ? closeOf(ctx, recordId)?.agentId === ctx.principal.id : true;
   if (watchersOf(ctx, recordId).includes(me)) return true;
@@ -125,7 +125,7 @@ function ownerOf(ctx: MeetCtx, fields: Json, recordId: string): string | null {
 }
 
 /** The person's Assistant, through the agents module's host seam (agents.assistant_of): the host finds it the moment a transcript lands, with nobody at a screen. */
-async function assistantFor(ctx: MeetCtx, person: string): Promise<string | null> {
+export async function assistantFor(ctx: MeetCtx, person: string): Promise<string | null> {
   try {
     const id = text(obj(await ctx.call("agents.assistant_of", { personId: person }))["agentId"]);
     return isId("agt", id) ? id : null;
@@ -236,7 +236,7 @@ function valueFor(f: FieldDef, raw: string): string | number | boolean | undefin
 const when = (ms: number): string => new Date(ms).toISOString().replace("T", " ").slice(0, 16) + " UTC";
 const clip = (s: string, n: number): string => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
 
-async function spacePeople(ctx: MeetCtx): Promise<Array<{ id: string; name: string }>> {
+export async function spacePeople(ctx: MeetCtx): Promise<Array<{ id: string; name: string }>> {
   try {
     return list(obj(await ctx.call("access.principals.list", { kind: "person", status: "active", limit: 500 }))["principals"]).map(obj).map((p) => ({ id: text(p["id"]), name: text(p["name"]) })).filter((p) => p.id && p.name);
   } catch {

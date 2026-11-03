@@ -250,6 +250,8 @@ export interface Draft {
   people: string[];
   /** The event this draft was copied from (Duplicate), so its own busy time does not count against it. */
   from?: string;
+  /** The video call Vyre makes with the event (Meet, Teams or Zoom through the connection), or none. */
+  video?: "meet" | "teams" | "zoom" | "none";
 }
 
 export function newDraft(span: Span, calendarId: string, people: readonly string[] = [], title = ""): Draft {
@@ -286,7 +288,7 @@ export function freeLine(d: Draft, c: { busy: string[]; mine: boolean }, names: 
 export function createInput(d: Draft, key: string): CapMap["calendar.create_event"]["in"] {
   const attendees = d.people.map((email) => ({ email }));
   return {
-    calendarId: d.calendarId, title: d.title.trim() || "New event", startsAt: d.startsAt, endsAt: d.endsAt, ...(attendees.length ? { attendees, joinProvider: "zoom" as const } : {}), idempotencyKey: key,
+    calendarId: d.calendarId, title: d.title.trim() || "New event", startsAt: d.startsAt, endsAt: d.endsAt, ...(attendees.length ? { attendees } : {}), ...(d.video && d.video !== "none" ? { video: d.video } : {}), idempotencyKey: key,
   };
 }
 

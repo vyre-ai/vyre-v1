@@ -239,6 +239,9 @@ export function mapEvent(e: Record<string, unknown>) {
   if (e.onlineMeeting && typeof e.onlineMeeting === "object") out.onlineMeeting = obj(e.onlineMeeting);
   if (e.organizer && typeof e.organizer === "object") out.organizer = obj(e.organizer);
   if (typeof e.isCancelled === "boolean") out.isCancelled = e.isCancelled;
+  if (text(e.bodyPreview)) out.bodyPreview = text(e.bodyPreview);
+  if (text(e.seriesMasterId)) out.seriesMasterId = text(e.seriesMasterId);
+  if (text(e.onlineMeetingProvider)) out.onlineMeetingProvider = text(e.onlineMeetingProvider);
   if (Array.isArray(e.attendees)) {
     out.attendees = e.attendees.map((x) => {
       const o = obj(x);

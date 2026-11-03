@@ -41,6 +41,8 @@ type In = {
       response?: "needs_action" | "accepted" | "declined" | "tentative";
     }>;
   joinProvider?: "zoom" | "meet" | "teams" | "none";
+  scope?: "this" | "all";
+  video?: "meet" | "zoom" | "teams";
 };
 ```
 
@@ -73,7 +75,21 @@ type Out = {
     status: "confirmed" | "tentative" | "canceled";
     bookedByAgentId?: string;
     fromBookingPage?: string;
+    seriesId?: string;
+    conference?: {
+      provider: "meet" | "zoom" | "teams" | "webex" | "whereby" | "around" | "other";
+      url?: string;
+      meetingId?: string;
+      passcode?: string;
+      dialIns: Array<{
+          number: string;
+          pin?: string;
+          label?: string;
+        }>;
+    };
   };
+  changed?: number;
+  notice?: string;
 };
 ```
 
@@ -106,10 +122,13 @@ type Out = {
     "eventId": "cev_a1b2c3",
     "joinProvider": "zoom",
     "location": "example",
+    "scope": "this",
     "startsAt": 1760000000000,
-    "title": "example"
+    "title": "example",
+    "video": "meet"
   },
   "output": {
+    "changed": 1,
     "event": {
       "agenda": "example",
       "allDay": true,
@@ -124,6 +143,19 @@ type Out = {
       ],
       "bookedByAgentId": "agt_a1b2c3",
       "calendarId": "cld_a1b2c3",
+      "conference": {
+        "dialIns": [
+          {
+            "label": "example",
+            "number": "example",
+            "pin": "example"
+          }
+        ],
+        "meetingId": "example",
+        "passcode": "example",
+        "provider": "meet",
+        "url": "example"
+      },
       "description": "example",
       "endsAt": 1760000000000,
       "fromBookingPage": "frm_a1b2c3",
@@ -136,10 +168,12 @@ type Out = {
       "recordIds": [
         "rec_a1b2c3"
       ],
+      "seriesId": "example",
       "startsAt": 1760000000000,
       "status": "confirmed",
       "title": "example"
-    }
+    },
+    "notice": "example"
   }
 }
 ```

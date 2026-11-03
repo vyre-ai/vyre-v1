@@ -223,7 +223,7 @@ const FROZEN: readonly Frozen[] = [
       'calendarId|text||', 'title|text||', 'startsAt|datetime||', 'endsAt|datetime||', 'allDay|checkbox||', 'location|text||',
       'joinUrl|url||', 'joinProvider|choice||', 'description|longtext||', 'agenda|longtext||', 'attendees|text||',
       'organizer|email||', 'recordIds|text||', 'meetingId|text||', 'providerId|text||', 'status|status||',
-      'bookedByAgentId|text||', 'fromBookingPage|text||', 'deletedAt|datetime||',
+      'bookedByAgentId|text||', 'fromBookingPage|text||', 'deletedAt|datetime||', 'seriesId|text||', 'conference|text||',
     ],
   },
   {

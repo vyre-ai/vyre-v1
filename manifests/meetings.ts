@@ -186,6 +186,17 @@ export default defineManifest({
     write('meetings.closeout.skip', 'Skip a proposed close-out item, or bring a skipped one back', {
       in: { meetingId: id.record, itemId: t.str(), undo: t.opt(t.bool()) }, out: { item: closeItem, state: closeState }, on: ['record', '/meetingId'], perm: 'records.edit', emits: ['meeting.closed'], tool: 'inbox', idem: 'natural',
     }),
+    // Prepare (lane l-calevents): the person's Assistant drafts prep notes for an event from the attendees' records and the past meetings with them; the notes are the person's own
+    read('meetings.prep.get', 'Your prep notes for an event: whether your Assistant is still working on them, and the notes', {
+      in: { eventId: cevId }, out: { state: t.enm('none', 'working', 'ready'), notes: t.arr(t.str()), taskId: t.opt(id.task), preparedAt: t.opt(t.ts()) }, tool: 'inbox', label: 'check',
+    }),
+    write('meetings.prep.start', "Ask your Assistant to prepare for an event from the attendees' records and your past meetings with them", {
+      in: { eventId: cevId }, out: { state: t.enm('none', 'working', 'ready'), taskId: t.opt(id.task) }, tool: 'inbox', idem: 'natural', errors: ['validation.precondition_failed'],
+    }),
+    write('meetings.prep.save', "The Assistant's prep notes for an event, a few short lines", {
+      in: { eventId: cevId, notes: t.arr(t.str({ minLength: 1, maxLength: 600 }), { minItems: 1, maxItems: 12 }) }, out: { state: t.enm('none', 'working', 'ready') }, tool: 'inbox', idem: 'natural',
+      errors: ['validation.precondition_failed'],
+    }),
     write('meetings.closeout.share', 'Share a meeting and its close-out with a project or channel (everyone who can read it sees it in their Meetings tab), or stop sharing', {
       in: { meetingId: id.record, projectId: t.opt(id.project), channelId: t.opt(id.channel), on: t.bool() }, out: { meetingId: id.record }, on: ['record', '/meetingId'], perm: 'records.edit', tool: 'inbox', idem: 'natural',
     }),

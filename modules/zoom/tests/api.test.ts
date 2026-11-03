@@ -99,10 +99,15 @@ test("meetings: create, list, get, update and delete map Zoom's fields to the co
   assert.deepEqual(contractErrors("zoom.meetings.create", "out", made), []);
   assert.deepEqual(made.meeting, { id: ZOOM_ID, uuid: "abc==", topic: "Estate consult", startTime: Date.parse(START), durationMinutes: 60, joinUrl: "https://us02web.zoom.us/j/81234567890?pwd=abc", password: "123456", hostEmail: "dana@firm.example", timezone: "America/New_York" });
   assert.deepEqual(h.api()[0]?.body, { topic: "Estate consult", type: 2, settings: { auto_recording: "cloud", join_before_host: false, waiting_room: true }, start_time: "2025-10-09T10:00:00Z", duration: 60, timezone: "America/New_York", agenda: "Goals" });
+  // Zoom's global dial-in list comes back as the meeting's dial-in numbers (the calendar writes them into the event)
+  h.on("POST api.zoom.us/v2/users/me/meetings", { status: 201, body: { ...RECORDED.meeting, settings: { global_dial_in_numbers: [{ number: "+1 669 444 9171", country_name: "US", type: "toll" }, { number: "+1 646 931 3860", country: "US" }, { country: "GB" }] } } });
+  const dial = out(await z.meetingsCreate(h.ctx, { topic: "Dial in" }));
+  assert.deepEqual(contractErrors("zoom.meetings.create", "out", dial), []);
+  assert.deepEqual((dial.meeting as Json).dialIns, [{ number: "+1 669 444 9171", country: "US" }, { number: "+1 646 931 3860" }]);
   h.on("POST api.zoom.us/v2/users/rob%40firm.example/meetings", { status: 201, body: RECORDED.meeting });
   await z.meetingsCreate(h.ctx, { topic: "Instant", hostEmail: "rob@firm.example", autoRecord: "none" });
-  assert.equal(h.api()[1]?.path, "/v2/users/rob%40firm.example/meetings");
-  assert.deepEqual([(h.api()[1]?.body as Json).type, ((h.api()[1]?.body as Json).settings as Json).auto_recording], [1, "none"]);
+  assert.equal(h.api()[2]?.path, "/v2/users/rob%40firm.example/meetings");
+  assert.deepEqual([(h.api()[2]?.body as Json).type, ((h.api()[2]?.body as Json).settings as Json).auto_recording], [1, "none"]);
 
   h.on("GET api.zoom.us/v2/users/me/meetings?page_size=30&type=upcoming", { status: 200, body: RECORDED.meetings });
   const listed = out(await z.meetingsList(h.ctx, { type: "upcoming" }));
