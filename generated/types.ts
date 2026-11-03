@@ -14552,6 +14552,7 @@ export type GoalsCompleteOut = {
 export type GoalsConfirmIn = {
   goalId: string;
   permissions?: Array<string>;
+  messageId?: string;
 };
 export type GoalsConfirmOut = {
   goal: {

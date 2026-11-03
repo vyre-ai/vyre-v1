@@ -24239,7 +24239,7 @@
       "blocks": [],
       "cap": "goals.confirm",
       "deferred": false,
-      "description": "Start a drafted goal: the owner presses Start on its card. The standing permissions it names hold from this press",
+      "description": "Start a drafted goal: the owner presses Start on its card, or an agent acting for the owner starts it with messageId, the message in which the owner asked for it, in the goal chat and under 15 minutes old. An agent start grants no permission. The standing permissions it names hold from this press",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -24248,6 +24248,13 @@
               "gol_a1b2c3"
             ],
             "pattern": "^gol_[a-z0-9]+$",
+            "type": "string"
+          },
+          "messageId": {
+            "examples": [
+              "msg_a1b2c3"
+            ],
+            "pattern": "^msg_[a-z0-9]+$",
             "type": "string"
           },
           "permissions": {
