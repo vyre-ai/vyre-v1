@@ -80,7 +80,7 @@ test("a Windows Personal Space: a Claude Code Bash turn, git over HTTPS, and no 
     console.log(`claude: exit ${turn.code}\n${turn.out.slice(-500)}\n${turn.err.slice(-1500)}\napi: ${log.join(" | ").slice(-1500)}`);
     assert.equal(turn.code, 0, turn.err.slice(-800));
     assert.equal(fs.readFileSync(path.join(cwd, "tool.txt"), "utf8").trim(), "low-tool-ok", "the Bash tool ran in the work folder");
-    assert.ok(log.some((l) => l.startsWith("toolResult") && l.includes("low-tool-ok") && l.includes('\\"is_error\\":false')));
+    assert.ok(log.some((l) => l.startsWith("toolResult") && l.includes("low-tool-ok") && l.includes('"is_error":false')));
     persons.kill();
 
     // 2. git over HTTPS, through the proxy
