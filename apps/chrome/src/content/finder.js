@@ -77,5 +77,32 @@
     return attrs(fields.password).auto === "new-password";
   }
 
-  ns.finder = { classify, isVisible, findLoginFields, looksLikeSignup };
+  const CARD_AUTO = { "cc-number": "number", "cc-name": "name", "cc-exp": "exp", "cc-csc": "cvc", "cc-exp-month": "expMonth", "cc-exp-year": "expYear" };
+  const CARD_HINT = [
+    ["number", /(card.?(number|no)|cc.?num|ccnumber|pan\b)/i],
+    ["cvc", /(cvc|cvv|csc|security.?code|card.?code)/i],
+    ["exp", /(exp(iry|iration)?.?(date)?|valid.?(thru|until)|mm.?\/?.?yy)/i],
+    ["name", /(card.?holder|name.?on.?card|cc.?name)/i],
+  ];
+
+  /**
+   * The payment card fields on a page, by what they are for: number, name, exp (or expMonth and expYear) and cvc. Found by the page's own autocomplete hints first, then by names.
+   * @param {any} root document or form
+   * @returns {{ number: any | null, name: any | null, exp: any | null, expMonth: any | null, expYear: any | null, cvc: any | null }}
+   */
+  function findCardFields(root) {
+    /** @type {Record<string, any>} */
+    const out = { number: null, name: null, exp: null, expMonth: null, expYear: null, cvc: null };
+    for (const el of Array.from(root.querySelectorAll("input")).filter(isVisible)) {
+      const a = attrs(el);
+      if (a.type === "password") continue;
+      const role = /** @type {Record<string, string>} */ (CARD_AUTO)[a.auto.split(/\s+/).pop() || ""];
+      let key = role;
+      if (!key) { const words = `${a.name} ${a.id} ${a.placeholder} ${a.label}`; const hit = CARD_HINT.find(([, re]) => /** @type {RegExp} */ (re).test(words)); key = hit ? /** @type {string} */ (hit[0]) : ""; }
+      if (key && !out[key]) out[key] = el;
+    }
+    return /** @type {any} */ (out);
+  }
+
+  ns.finder = { classify, isVisible, findLoginFields, findCardFields, looksLikeSignup };
 })();

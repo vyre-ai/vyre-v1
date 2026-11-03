@@ -18,7 +18,7 @@
 //   app.open       answered "not_available" here: the desktop app opens places itself; the extension then opens the web app
 
 export const CHROME_CAPABILITIES = Object.freeze([
-  "vault.items.match", "vault.use", "vault.fill", "vault.item.put", "vault.item.update", "vault.folders.list", "vault.site_rules.list", "vault.site_rules.set", "vault.share",
+  "vault.items.match", "vault.items.list", "vault.use", "vault.fill", "vault.item.put", "vault.item.update", "vault.folders.list", "vault.site_rules.list", "vault.site_rules.set", "vault.share",
   "notes.clip", "skills.mine.add", "skills.mine.set", "skills.share", "engine.models.list",
   "browser.sites.list", "automations.watches.list", "automations.watches.save", "automations.watches.remove", "automations.watches.check", "automations.watches.report",
 ]);

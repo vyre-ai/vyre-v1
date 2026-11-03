@@ -22,10 +22,11 @@ export const HOST_NAME = "run.vyre.bridge";
 export const CAPABILITIES = Object.freeze({
   "vault.items.match": "items that fit a page address: names and field keys, never values",
   "vault.use": "ask for an item by name or id and get a handle",
+  "vault.items.list": "the person's card items, names only, for the popup's Cards list (never values)",
   "vault.fill": "fill a handle field into a browser ref; the filler pushes the value to the page",
   "vault.item.put": "save a new login (with login.check, the only calls that carry a password out of the page)",
   "vault.item.update": "change the password of a saved login the person chose to update",
-  "vault.folders.list": "find the person's Mine folder to save into",
+  "vault.folders.list": "find the folder to save into: the person's Mine folder, or the shared folders they may add to",
   "vault.site_rules.list": "Never Fill and Never Save sites",
   "vault.site_rules.set": "set or clear one site's rule",
   "notes.clip": "clip the page into a private note: its address, title, the selected text and a screenshot",

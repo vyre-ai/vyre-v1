@@ -9,7 +9,8 @@
 //   * secrets: a value goes into a page only as a Vault handle the app's filler substitutes; fields filled that way stay masked, are blurred in screenshots and scrubbed
 //     from anything read back.
 
-import { callExpression, blurSecrets, collectPage, describeElement, focusElement, markSecret, pageRequest, pointInfo, probe, revealElement, scrollTo, scrubSecrets, selectOption } from "./page.js";
+import { acts } from "./rights.js";
+import { callExpression, blurSecrets, collectPage, composeFacts, describeElement, focusElement, markSecret, pageRequest, pointInfo, probe, revealElement, scrollTo, scrubSecrets, selectOption } from "./page.js";
 import { AgentFailure, BATCHABLE, TAB_LIMIT, checkInput, errorOf, fail } from "./protocol.js";
 import { bareUrl, maskBody, maskHeaders, maskJson, maskUrl, scrub } from "./mask.js";
 import { refMap, renderTree, toSnapshot } from "./snapshot.js";
@@ -19,6 +20,9 @@ import * as verify from "./verify.js";
 
 const HANDLE = /^#[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/;
 const ACTIVATORS = new Set(["button", "link", "menuitem", "menuitemcheckbox", "menuitemradio", "tab", "treeitem", "option"]);
+/** Tools that say nothing about the page, so they never take a picture. */
+const QUIET = new Set(["chrome_status", "chrome_stop", "chrome_resume", "chrome_plan", "chrome_tabs", "chrome_screenshot"]);
+const FRAME_EVERY_MS = 4000;
 const ALLOWED_WHILE_PAUSED = new Set(["chrome_status", "chrome_resume", "chrome_stop"]);
 const MAX_BODY = 120_000;
 const FORBIDDEN_HEADERS = /^(cookie|host|origin|referer|content-length|connection|user-agent|accept-encoding|sec-.*|proxy-.*)$/i;
@@ -86,6 +90,7 @@ const miss = (why) => ({ ok: false, why: why === "tied" ? "More than one control
  *   mode: () => "personal" | "computer",
  *   connected: (call: Call) => boolean,
  *   vaultFill: (call: Call, handle: string) => Promise<string | null>,
+ *   rights?: ReturnType<typeof import("./rights.js").createRights>,
  *   emit: (event: Record<string, any>) => void,
  *   now?: () => number, sleep?: (ms: number) => Promise<void>, settleMs?: number,
  * }} kit
@@ -204,10 +209,16 @@ export function createTools(kit) {
     if (tab.id === undefined) fail("no_tab");
     sessions.own(call.agent.id, tab.id);
     sessions.setCurrent(call.agent.id, tab.id);
+    await sessions.group(call.agent, tab.id);
     return tab.id;
   }
 
   // ---------- acting on a control
+
+  /** What the approval card shows for a held item; empty when the page cannot be read. @param {number} tabId @param {number | null} idx */
+  async function cardOf(tabId, idx) {
+    try { return /** @type {Record<string, string>} */ (await evalPage(tabId, composeFacts, idx)) || undefined; } catch { return undefined; }
+  }
 
   /** Press (click, double click, hover) a control, chosen by selector, against a fresh look. @param {Call} call @param {number} tabId @param {selector.Selector} sel @param {{ verb: "click" | "hover", button?: "left" | "right" | "middle", double?: boolean, mode?: "normal" | "approved", wantChecked?: boolean }} o */
   async function pressControl(call, tabId, sel, o) {
@@ -221,7 +232,7 @@ export function createTools(kit) {
     if (o.verb === "click" && o.mode !== "approved") {
       const v = consequence.of(c);
       if (v.consequential) {
-        const heldId = sessions.hold(call, tabId, { kind: v.kind, why: v.why, summary: `${v.kind}: ${label(c)} on ${bareUrl(before.url)}`, selector: sel, action: { type: "click", button, double: Boolean(o.double) } });
+        const heldId = sessions.hold(call, tabId, { kind: v.kind, why: v.why, summary: `${v.kind}: ${label(c)} on ${bareUrl(before.url)}`, card: await cardOf(tabId, c.idx), selector: sel, action: { type: "click", button, double: Boolean(o.double) } });
         return { ok: false, heldId, why: `${v.why}. It is held until the person approves it.` };
       }
     }
@@ -250,7 +261,7 @@ export function createTools(kit) {
       const activator = Boolean(ctl && ACTIVATORS.has(ctl.role));
       const v = activator && ctl ? consequence.of(ctl) : k.key === "Enter" && ctl ? consequence.ofEnter(ctl) : { consequential: false, kind: "none", why: "" };
       if (v.consequential) {
-        const heldId = sessions.hold(call, tabId, { kind: v.kind, why: v.why, summary: `${v.kind}: ${spec} on ${ctl ? label(ctl) : "the page"}`, selector: ctl ? selector.of(ctl) : null, action: { type: "press", key: spec } });
+        const heldId = sessions.hold(call, tabId, { kind: v.kind, why: v.why, summary: `${v.kind}: ${spec} on ${ctl ? label(ctl) : "the page"}`, card: await cardOf(tabId, ctl ? ctl.idx : null), selector: ctl ? selector.of(ctl) : null, action: { type: "press", key: spec } });
         return { ok: false, heldId, why: `${v.why}. It is held until the person approves it.` };
       }
     }
@@ -304,6 +315,8 @@ export function createTools(kit) {
         await cdp.send(tabId, "Input.insertText", { text: v });
       } finally { v = ""; }
       await evalPage(tabId, markSecret, target.idx);
+      // "Show what <agent> saw": the chat lists the handles the agent was given, never what they hold.
+      kit.emit({ event: "saw", agent: call.agent.id, name: call.agent.name, space: call.space, handle: text.slice(0, 120) });
       return { ok: true, why: `filled ${label(target)} from the Vault` };
     }
     if (replace) await selectAll(tabId);
@@ -391,7 +404,7 @@ export function createTools(kit) {
         if (under && under.actionable) {
           const v = consequence.of({ name: under.name, nameless: under.nameless, role: under.role, submit: under.submit, href: under.href });
           if (v.consequential) {
-            const heldId = sessions.hold(call, tabId, { kind: v.kind, why: v.why, summary: `${v.kind}: click at ${x},${y} on ${bareUrl((await ext.tabs.get(tabId)).url ?? "")}`, selector: null, action: { type: "click", button, double: false } });
+            const heldId = sessions.hold(call, tabId, { kind: v.kind, why: v.why, summary: `${v.kind}: click at ${x},${y} on ${bareUrl((await ext.tabs.get(tabId)).url ?? "")}`, card: await cardOf(tabId, null), selector: null, action: { type: "click", button, double: false } });
             return { ok: false, heldId, why: `${v.why}. It is held until the person approves it.` };
           }
         }
@@ -763,12 +776,23 @@ export function createTools(kit) {
       await kit.authorize(call);
       if (!ALLOWED_WHILE_PAUSED.has(call.tool) && sessions.pausedFor(call.agent.id)) fail("paused");
     }
+    if (kit.rights && acts(call.tool, input)) {
+      // Acting needs the Act right on this site (Vault > Connections > Browser). Reading never does.
+      let tabId = input["tabId"] !== undefined ? Number(input["tabId"]) : sessions.currentTab(call.agent.id);
+      let host = "";
+      try {
+        if (tabId === null && kit.mode() === "computer") { const [t] = await ext.tabs.query({ active: true, currentWindow: true }); tabId = t && t.id !== undefined ? t.id : null; }
+        if (tabId !== null && Number.isInteger(tabId)) host = new URL(String((await ext.tabs.get(tabId)).url ?? "")).hostname;
+      } catch { host = ""; }
+      if (host && (await kit.rights.of(call, host)) === "read") fail("read_only", `(${host})`);
+    }
     const impl = table[call.tool];
     if (!impl) return fail("unknown_tool");
     let summary = "";
     let ok = true;
     try {
       const out = await impl({ ...call, input }, input, (s) => { summary = scrub(s); });
+      if (!nested && kit.mode() === "personal" && !QUIET.has(call.tool)) void frame(call);
       ok = !(out && out.ok === false);
       return out;
     } catch (e) {
@@ -778,6 +802,26 @@ export function createTools(kit) {
     } finally {
       if (call.tool !== "chrome_status") kit.emit({ event: "acted", agent: call.agent.id, tool: call.tool, ok, summary });
     }
+  }
+
+  /** The agent's tab as a small, masked picture for the "Using your Chrome" step in the chat: at most one every few seconds per agent, never while paused, and never a field that holds a secret. @type {Map<string, number>} */
+  const framed = new Map();
+  /** @param {Call} call */
+  async function frame(call) {
+    const tabId = sessions.currentTab(call.agent.id);
+    const last = framed.get(call.agent.id);
+    if (tabId === null || !sessions.driverOf(tabId) || (last !== undefined && now() - last < FRAME_EVERY_MS)) return;
+    framed.set(call.agent.id, now());
+    try {
+      const url = String((await ext.tabs.get(tabId)).url ?? "");
+      const m = await cdp.send(tabId, "Page.getLayoutMetrics");
+      const v = m.cssVisualViewport ?? m.visualViewport ?? { clientWidth: 1280, clientHeight: 800 };
+      await evalPage(tabId, blurSecrets, true);
+      try {
+        const shot = await cdp.send(tabId, "Page.captureScreenshot", { format: "jpeg", quality: 45, clip: { x: 0, y: 0, width: Math.max(1, Math.round(v.clientWidth)), height: Math.max(1, Math.round(v.clientHeight)), scale: 0.4 } });
+        if (shot && typeof shot.data === "string") kit.emit({ event: "frame", agent: call.agent.id, name: call.agent.name, space: call.space, tab: tabId, site: new URL(url).hostname.replace(/^www\./, ""), url: maskUrl(url), thumb: `data:image/jpeg;base64,${shot.data}` });
+      } finally { await evalPage(tabId, blurSecrets, false); }
+    } catch { /* a closed tab or a restricted page: no picture this time */ }
   }
 
   return { run, tools: Object.keys(table), look, tabFor };

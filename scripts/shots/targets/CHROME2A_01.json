@@ -1,0 +1,10 @@
+{
+  "targets": [
+    { "id": "CHROME2A_01-conn", "route": "/m/CHROME2A_01?part=conn", "proto": "vault,{skin}", "waitFor": "[data-testid='connections-add-site']", "note": "Vault > Connections with Browser connections in Mine: each site, where it runs (My Chrome, agent computers, both) and what each agent may do (acts, reads)." },
+    { "id": "CHROME2A_01-site", "route": "/m/CHROME2A_01?part=site", "proto": "vault,{skin}", "waitFor": "[data-testid='browser-sheet']", "note": "Add a site: the site, where it runs, a right for each agent (No access, Read only, Act), and that a send, a post, a payment and a delete are always held." },
+    { "id": "CHROME2A_01-held", "route": "/m/CHROME2A_01?part=held", "proto": "chat,{skin}", "waitFor": "[data-testid^='chrome-held-']", "note": "The approval card in a chat: To, From, Subject and Message read from the page, with Send, Edit and Don't send." },
+    { "id": "CHROME2A_01-held-done", "route": "/m/CHROME2A_01?part=held-done", "proto": "chat,{skin}", "waitFor": "[data-testid^='chrome-held-']", "note": "The same card after Send: it says Sent and has no buttons." },
+    { "id": "CHROME2A_01-step", "route": "/m/CHROME2A_01?part=step", "proto": "chat,{skin}", "waitFor": "[data-testid^='chrome-step-']", "note": "Using your Chrome with a masked picture of the tab, Watch and Take over." },
+    { "id": "CHROME2A_01-step-saw", "route": "/m/CHROME2A_01?part=step-saw", "proto": "chat,{skin}", "waitFor": "[data-testid^='chrome-step-']", "note": "The step with Show what Scout saw: the Vault handles it was given, names only." }
+  ]
+}

@@ -41,6 +41,13 @@ export const SAMPLE_ACCOUNTS: Account[] = [
   { connectionId: "con_zoom", connector: "zoom", title: "Northwind Zoom", owner: { kind: "space", id: "spc_northwind" }, state: "needs_reconnect", scopes: [], createdAt: 1, handles: [], filled: [] },
 ];
 export const SAMPLE_CONNECTORS = [{ key: "google", title: "Google Workspace" }, { key: "slack", title: "Slack" }, { key: "zoom", title: "Zoom" }] as unknown as Connector[];
+/** The agents the Browser sheet lists, and the sites the Browser kind shows. */
+export const SAMPLE_AGENTS = [{ agentId: "agt_research", name: "Scout" }, { agentId: "agt_intake", name: "Intake" }, { agentId: "agt_billing", name: "Ledger" }];
+export const SAMPLE_SITES = [
+  { id: "bsi_ghl", host: "app.gohighlevel.com", runsIn: "chrome", rights: [{ agentId: "agt_research", right: "act" }, { agentId: "agt_intake", right: "read" }], at: m(900), updatedAt: m(60) },
+  { id: "bsi_clio", host: "app.clio.com", runsIn: "both", rights: [{ agentId: "agt_intake", right: "act" }], at: m(2000), updatedAt: m(500) },
+  { id: "bsi_irs", host: "sa.www4.irs.gov", runsIn: "computers", rights: [{ agentId: "agt_billing", right: "read" }], at: m(3000), updatedAt: m(3000) },
+] as const as unknown as import("./browser.ts").BrowserSite[];
 export const SAMPLE_GROUPS: Array<{ id: string; name: string }> = [{ id: "grp_legal", name: "Legal" }, { id: "grp_ops", name: "Operations" }, { id: "grp_sales", name: "Sales" }];
 
 /** A recorded slice of the official MCP registry, as plugins.registry.search answers it. */
@@ -52,7 +59,7 @@ export const SAMPLE_CATALOG: Array<CatalogEntry & { allowed: boolean }> = [
 ];
 
 export function sampleConnectionsData(o: { admin?: boolean; personal?: boolean; fresh?: boolean } = {}): ConnectionsData {
-  return { home: sampleHome(o), accounts: SAMPLE_ACCOUNTS, connectors: SAMPLE_CONNECTORS, groups: new Map(SAMPLE_GROUPS.map((g) => [g.id, g.name] as const)), error: null, loaded: true };
+  return { home: sampleHome(o), accounts: SAMPLE_ACCOUNTS, connectors: SAMPLE_CONNECTORS, groups: new Map(SAMPLE_GROUPS.map((g) => [g.id, g.name] as const)), error: null, loaded: true, sites: SAMPLE_SITES };
 }
 
 /** Answers the calls the page and the sheet make; anything else goes to `rest` (the sample Vault). */
@@ -65,6 +72,10 @@ export function sampleConnectionsCall(rest: (cap: string, input: unknown) => Pro
       case "connections.list": return { connections: SAMPLE_ACCOUNTS };
       case "connectors.list": return { connectors: SAMPLE_CONNECTORS };
       case "access.groups.list": return { groups: SAMPLE_GROUPS };
+      case "browser.sites.list": return { sites: SAMPLE_SITES };
+      case "browser.sites.set": return { site: { ...SAMPLE_SITES[0]!, host: String(i["host"]), runsIn: i["runsIn"], rights: i["rights"] } };
+      case "browser.sites.remove": return { ok: true };
+      case "agents.list": return { agents: SAMPLE_AGENTS };
       case "plugins.registry.search": {
         const q = String(i["q"] ?? "").toLowerCase();
         const found = SAMPLE_CATALOG.filter((e) => !q || `${e.name} ${e.title} ${e.description}`.toLowerCase().includes(q));

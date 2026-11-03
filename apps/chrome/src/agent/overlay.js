@@ -6,7 +6,7 @@
 
 /**
  * Show or update the frame and bar. Returns true when drawn.
- * @param {{ name: string, goal?: string, paused?: boolean, port: string }} o
+ * @param {{ name: string, goal?: string, paused?: boolean, waiting?: boolean, port: string }} o
  */
 export function overlayShow(o) {
   const g = /** @type {any} */ (globalThis);
@@ -21,17 +21,23 @@ export function overlayShow(o) {
     const root = host.attachShadow({ mode: "closed" });
     const style = doc.createElement("style");
     style.textContent = [
-      ".frame{position:fixed;inset:0;box-sizing:border-box;border:3px solid #4f46e5;box-shadow:inset 0 0 0 1px rgba(255,255,255,.4);pointer-events:none}",
-      ".frame.paused{border:3px dashed #6b7280}",
-      ".bar{position:fixed;top:10px;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:10px;max-width:calc(100vw - 32px);padding:6px 6px 6px 12px;background:#1e1b4b;color:#fff;border-radius:999px;font:13px/1.2 system-ui,-apple-system,Segoe UI,sans-serif;box-shadow:0 4px 18px rgba(30,27,75,.35);pointer-events:auto;white-space:nowrap}",
+      ".frame{position:fixed;inset:0;box-sizing:border-box;border:2px solid #4f46e5;box-shadow:inset 0 0 0 1px rgba(255,255,255,.4);pointer-events:none}",
+      ".frame.paused{border:2px dashed #6b7280}",
+      ".frame.waiting{border-color:#d97706}",
+      ".bar{position:fixed;bottom:16px;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:10px;max-width:calc(100vw - 32px);padding:6px 6px 6px 12px;background:#1e1b4b;color:#fff;border-radius:999px;font:13px/1.2 system-ui,-apple-system,Segoe UI,sans-serif;box-shadow:0 4px 18px rgba(30,27,75,.35);pointer-events:auto;white-space:nowrap}",
       ".dot{flex:none;width:8px;height:8px;border-radius:50%;background:#818cf8}",
       ".paused .dot{background:#9ca3af}",
       "@media (prefers-reduced-motion:no-preference){.dot{animation:pulse 1.6s ease-in-out infinite}.paused .dot{animation:none}}",
       "@keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}",
       ".t{overflow:hidden;text-overflow:ellipsis}",
       ".goal{color:#c7d2fe;overflow:hidden;text-overflow:ellipsis;max-width:36ch}",
-      ".stop{flex:none;border:0;border-radius:999px;padding:5px 13px;background:#fff;color:#1e1b4b;font:600 12px/1 system-ui,-apple-system,Segoe UI,sans-serif;cursor:pointer}",
-      ".stop:hover{background:#e0e7ff}.stop:focus-visible{outline:2px solid #a5b4fc;outline-offset:2px}",
+      ".stop,.take{flex:none;border:0;border-radius:999px;padding:5px 13px;background:#fff;color:#1e1b4b;font:600 12px/1 system-ui,-apple-system,Segoe UI,sans-serif;cursor:pointer}",
+      ".take{background:transparent;color:#fff;box-shadow:inset 0 0 0 1px rgba(255,255,255,.55)}",
+      ".take:hover{background:rgba(255,255,255,.14)}",
+      ".stop:hover{background:#e0e7ff}.stop:focus-visible,.take:focus-visible{outline:2px solid #a5b4fc;outline-offset:2px}",
+      ".hint{color:#a5b4fc;font-size:11px}",
+      "@media (max-width:560px){.goal,.hint{display:none}.bar{gap:8px;padding-left:10px}.t{flex:0 1 auto}}",
+      ".waiting .dot{background:#fbbf24}",
       ".cursor{position:fixed;left:0;top:0;display:none;pointer-events:none;will-change:transform}",
       "@media (prefers-reduced-motion:no-preference){.cursor.go{transition:transform .14s ease-out}}",
       ".chip{position:absolute;left:14px;top:16px;padding:2px 7px;border-radius:6px;background:#4f46e5;color:#fff;font:600 11px/1.3 system-ui,-apple-system,Segoe UI,sans-serif;white-space:nowrap}",
@@ -47,11 +53,18 @@ export function overlayShow(o) {
     text.className = "t";
     const goal = doc.createElement("span");
     goal.className = "goal";
+    const take = doc.createElement("button");
+    take.className = "take";
+    take.type = "button";
+    take.textContent = "Take over";
     const stop = doc.createElement("button");
     stop.className = "stop";
     stop.type = "button";
     stop.textContent = "Stop";
-    bar.append(dot, text, goal, stop);
+    const hint = doc.createElement("span");
+    hint.className = "hint";
+    hint.textContent = "Esc stops";
+    bar.append(dot, text, goal, hint, take, stop);
     const cursor = doc.createElement("div");
     cursor.className = "cursor";
     const svgNs = "http://www.w3.org/2000/svg";
@@ -74,15 +87,19 @@ export function overlayShow(o) {
 
     const port = g.chrome && g.chrome.runtime && g.chrome.runtime.connect ? g.chrome.runtime.connect({ name: o.port }) : null;
     stop.addEventListener("click", (/** @type {any} */ e) => { e.preventDefault(); e.stopPropagation(); if (port) port.postMessage({ type: "stop" }); });
+    take.addEventListener("click", (/** @type {any} */ e) => { e.preventDefault(); e.stopPropagation(); if (port) port.postMessage({ type: "takeover" }); });
     const onKey = (/** @type {any} */ e) => { if (e.key === "Escape" && !s.paused && port) port.postMessage({ type: "esc" }); };
     g.addEventListener("keydown", onKey, true);
-    s = { host, frame, bar, text, goal, stop, cursor, chip, port, onKey, paused: false, moved: false };
+    s = { host, frame, bar, text, goal, stop, take, hint, cursor, chip, port, onKey, paused: false, moved: false };
     g[KEY] = s;
   }
   s.paused = Boolean(o.paused);
-  s.frame.className = s.paused ? "frame paused" : "frame";
-  s.bar.className = s.paused ? "bar paused" : "bar";
-  s.text.textContent = s.paused ? `${o.name} is paused` : `${o.name} is using this tab`;
+  const waiting = !s.paused && Boolean(o.waiting);
+  s.frame.className = s.paused ? "frame paused" : waiting ? "frame waiting" : "frame";
+  s.bar.className = s.paused ? "bar paused" : waiting ? "bar waiting" : "bar";
+  s.text.textContent = s.paused ? `${o.name} is paused` : waiting ? "Waiting for you in Vyre" : `${o.name} is using this tab`;
+  s.take.style.display = s.paused ? "none" : "";
+  s.hint.style.display = s.paused ? "none" : "";
   s.goal.textContent = o.goal ? String(o.goal).slice(0, 80) : "";
   s.goal.style.display = o.goal ? "" : "none";
   s.stop.style.display = s.paused ? "none" : "";
