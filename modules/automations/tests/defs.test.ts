@@ -154,14 +154,14 @@ type Prov = { id: string; handle?: string; itemId: string; name: string; connect
 const prov = (over: Partial<Prov> = {}): Prov => ({ id: "prv_1", handle: "#Mine_Anthropic", itemId: "vit_1", name: "Mine Anthropic", connection: "api_key", scope: "mine", spaceMayUse: false, state: "ok", ...over });
 const shared = (over: Partial<Prov> = {}): Prov => prov({ id: "prv_s", handle: "#Team_Key", itemId: "vit_s", name: "Team key", scope: "shared", ...over });
 /** The engine's answer to engine.accounts.list { place }: the Vault's rows turned into accounts and judged by the resolver's own rule (agent/src/accounts/usable.ts). */
-function accountsFrom(providers: Prov[], place: "chat" | "automation" | "agent" | "space", explicit = false) {
+function accountsFrom(providers: Prov[], place: "chat" | "automation" | "agent" | "space", explicit = false, runsAs?: "person" | "space") {
   return providers.map((p) => {
     const row = {
       ref: p.handle, driver: "anthropic", provider: "anthropic", kind: (p.connection === "subscription" ? "subscription" : "api_key") as "subscription" | "api_key", title: p.name, mine: p.scope === "mine", ownerId: p.scope === "mine" ? "usr_alice" : null,
       status: (p.state === "ok" ? "ok" : p.state === "needs_sign_in" ? "expired" : "failed") as "ok" | "expired" | "failed", lastProbeAt: null, spaceMayUse: p.spaceMayUse,
       ...(p.scope === "shared" && p.uses ? { uses: p.uses } : {}), ...(p.capped === true ? { capped: true } : {}),
     };
-    return { ref: row.ref, providerId: p.id, title: row.title, mine: row.mine, status: row.status, ...usableHere(row, place, { me: "usr_alice", policy: "any", onServer: true, ...(explicit ? { explicit: true } : {}) }) };
+    return { ref: row.ref, providerId: p.id, title: row.title, mine: row.mine, status: row.status, ...usableHere(row, place, { me: "usr_alice", policy: "any", onServer: true, ...(explicit ? { explicit: true } : {}), ...(runsAs ? { runsAs } : {}) }) };
   });
 }
 function liveHarness(opts: { code?: boolean | string; providers?: Prov[] } = {}) {
@@ -169,7 +169,7 @@ function liveHarness(opts: { code?: boolean | string; providers?: Prov[] } = {})
   const code = opts.code ?? true;
   let providers = opts.providers ?? [];
   h.callee("steps.support", () => ({ code: code === true ? { available: true } : { available: false, reason: code === false ? "No sandbox." : code }, ai: { available: true } }));
-  h.callee("engine.accounts.list", (i) => ({ accounts: accountsFrom(providers, ((i as { place?: "chat" | "automation" | "agent" | "space" } | undefined)?.place) ?? "automation", (i as { explicit?: boolean } | undefined)?.explicit === true) }));
+  h.callee("engine.accounts.list", (i) => ({ accounts: accountsFrom(providers, ((i as { place?: "chat" | "automation" | "agent" | "space" } | undefined)?.place) ?? "automation", (i as { explicit?: boolean } | undefined)?.explicit === true, (i as { runsAs?: "person" | "space" } | undefined)?.runsAs) }));
   return Object.assign(h, { setProviders(p: Prov[]) { providers = p; } });
 }
 const aiNode = (over: Record<string, unknown> = {}, ai?: Record<string, unknown>) => node("a", "ai", { prompt: "Summarise", ...over }, ai ? { ai } : {});
@@ -211,6 +211,13 @@ test("a Personal AI step with no working account is refused, and the message say
   assert.equal((await turnOn(subOk, await draftWith(subOk, aiNode()))).automation.status, "on");
   const broken = liveHarness({ providers: [prov({ state: "needs_sign_in" })] });
   await assert.rejects(turnOn(broken, await draftWith(broken, aiNode())), (e) => { assert.match(messageOf(e), /your own AI account/); return true; });
+});
+
+test("a Personal AI step runs as its owner: a shared account not kept for automations still counts, as before", async () => {
+  const h = liveHarness({ providers: [shared({ uses: { teamChats: { who: "everyone" } } })] });
+  assert.equal((await turnOn(h, await draftWith(h, aiNode()))).automation.status, "on", "Automatic: any account the person may use");
+  const named = liveHarness({ providers: [shared({ uses: { teamChats: { who: "everyone" } } })] });
+  assert.equal((await turnOn(named, await draftWith(named, aiNode({}, { keyId: "#Team_Key" })))).automation.status, "on");
 });
 
 test("a Personal AI step may name one of its owner's accounts, and an unknown one is refused", async () => {

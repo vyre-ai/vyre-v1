@@ -249,7 +249,7 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
   // goes again. No password is asked for on a Space server (owner ruling 3 Nov): a member signed in through Google, Microsoft or GitHub gets it back from the server's own wrap, and anyone else
   // whose app no longer has it (a reloaded tab) signs in again. Only the Space on this computer asks, as its lock screen always has.
   const door = keyDoor(o.baseUrl) !== null;
-  const gated: CapCall = withVaultGate(once, aiHome === "here" ? unlockVault : undefined, () => rehandKey(o.baseUrl, token ?? ""));
+  const gated: CapCall = withVaultGate(once, aiHome === "here" || door ? unlockVault : undefined, () => rehandKey(o.baseUrl, token ?? ""));
   // one idempotency key per logical call: the gate's retry after the password, and any other send of the same call, carries the same opts and so the same key
   const call: CapCall = (cap, input, given) => gated(cap, input, given?.idempotencyKey ? given : { ...given, idempotencyKey: attemptKey() });
 
@@ -406,7 +406,7 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
       const r = await send(new URL(path, o.baseUrl).toString(), { method: "PUT", headers: { authorization: `Bearer ${token}`, "content-type": "application/octet-stream" }, body: bytes as unknown as BodyInit });
       if (!r.ok) throw new Error(r.status === 413 ? "The file is over the size limit" : "The upload did not go through");
     },
-    ...(aiHome === "here" ? { unlockVault } : {}),
+    ...(aiHome === "here" || door ? { unlockVault } : {}),
     aiHome,
     // a Space server keeps a wrap of the person's key for their Google or GitHub sign-ins: the Vault shows it, with Forget on this server
     serverKey: { state: () => serverKeyState(o.baseUrl, token ?? ""), keep: (keep: boolean) => setServerKeyKept(o.baseUrl, token ?? "", keep) },

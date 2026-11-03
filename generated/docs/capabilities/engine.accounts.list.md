@@ -29,6 +29,7 @@ type In = {
   model?: string;
   agentId?: string;
   explicit?: boolean;
+  runsAs?: "person" | "space";
 };
 ```
 
@@ -58,6 +59,9 @@ type Out = {
       providerId?: string;
       models?: Array<string>;
       usable?: boolean;
+      code?: string;
+      capped?: boolean;
+      capCents?: number | null;
       why?: string;
     }>;
 };
@@ -79,7 +83,8 @@ type Out = {
     "agentId": "agt_a1b2c3",
     "explicit": true,
     "model": "example",
-    "place": "chat"
+    "place": "chat",
+    "runsAs": "person"
   },
   "output": {
     "accounts": [
@@ -88,6 +93,9 @@ type Out = {
           "#Team_Anthropic_Key"
         ],
         "base": "example",
+        "capCents": 1,
+        "capped": true,
+        "code": "example",
         "driver": "anthropic",
         "keyless": true,
         "kind": "api_key",

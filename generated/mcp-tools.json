@@ -17122,6 +17122,13 @@
               "space"
             ],
             "type": "string"
+          },
+          "runsAs": {
+            "enum": [
+              "person",
+              "space"
+            ],
+            "type": "string"
           }
         },
         "type": "object"

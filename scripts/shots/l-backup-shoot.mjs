@@ -23,8 +23,8 @@ const real = await serve(path.join(appDir, "dist"), { spa: true });
 const { createRequire } = await import("node:module");
 const { chromium } = createRequire(path.join(REPO, "package.json"))("playwright-core");
 const browser = await chromium.launch({ args: ["--no-sandbox"] });
-const targets = loadTargets(path.join(REPO, "scripts/shots")).filter((t) => t.id === "P-L9f_04-vault-northwind" && (only.length === 0 || only.includes(t.id.replace("P-L9f_04-", ""))));
-for (const t of targets) for (const state of ["all", "search"]) for (const skin of ["paper", "graphite"]) for (const [size, vp] of Object.entries(SIZES)) {
+const targets = loadTargets(path.join(REPO, "scripts/shots")).filter((t) => (process.env.TARGET || "P-L9f_04-vault-northwind").split(",").includes(t.id) && (only.length === 0 || only.includes(t.id.replace("P-L9f_04-", ""))));
+for (const t of targets) for (const state of (process.env.STATES || "all,search").split(",")) for (const skin of ["paper", "graphite"]) for (const [size, vp] of Object.entries(SIZES)) {
   if (sizeOnly && size !== sizeOnly) continue;
   const ctx = await browser.newContext({ viewport: vp, deviceScaleFactor: 1, colorScheme: skin === "graphite" ? "dark" : "light", reducedMotion: "reduce" });
   const page = await ctx.newPage();
@@ -36,9 +36,10 @@ for (const t of targets) for (const state of ["all", "search"]) for (const skin 
   await page.waitForTimeout(500);
   let found = true;
   if (t.waitFor) await page.waitForSelector(t.waitFor, { timeout: 8000 }).catch(() => { found = false; });
+  if (t.click) await page.click(t.click, { timeout: 8000 }).catch(() => {});
   if (state === "search") { await page.fill("input[aria-label^='Search']", "stripe").catch(() => {}); }
   await page.waitForTimeout(900);
-  const file = path.join(out, `vault-${state}-${skin}-${size}.png`);
+  const file = path.join(out, `${t.id}-${state}-${skin}-${size}.png`);
   await page.screenshot({ path: file });
   console.log(`shot ${path.basename(file)} waitFor=${found}${errs.length ? " errors=" + errs.join(" | ").slice(0, 400) : ""}`);
   await ctx.close();

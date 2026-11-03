@@ -10063,6 +10063,7 @@ export type EngineAccountsListIn = {
   model?: string;
   agentId?: string;
   explicit?: boolean;
+  runsAs?: "person" | "space";
 };
 export type EngineAccountsListOut = {
   accounts: Array<{
@@ -10087,6 +10088,9 @@ export type EngineAccountsListOut = {
       providerId?: string;
       models?: Array<string>;
       usable?: boolean;
+      code?: string;
+      capped?: boolean;
+      capCents?: number | null;
       why?: string;
     }>;
 };
