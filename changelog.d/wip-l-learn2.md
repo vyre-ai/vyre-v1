@@ -49,3 +49,4 @@
 - A chat is named automatically after the first real request, never from a greeting ("Heyy", "hi", "test"): 2 to 5 plain words from a cheap model on the account that ran the turn, or from the request's own words when no model is at hand. A title made from a very short first request is made again once, from the first fuller one. After you rename a chat, from the header or the sidebar, it is never renamed for you.
 - chat.title_make names a chat from its first real request. Notifications say where in the chat's one name, never "a chat".
 - The cheapest-model pick moved to lib/cheap-model.ts so chat and memory share it.
+- Inbox > Replies on a phone is a two-line row: who replied and the chat name with the time, then the words with the count or Muted. A chat that is not a direct message shows the other people's faces in its header.

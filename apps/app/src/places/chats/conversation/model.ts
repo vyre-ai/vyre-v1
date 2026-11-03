@@ -331,6 +331,11 @@ export function directWith(t: Thread, meId: string | undefined): string | null {
   return others.length === 1 && t.members.some((m) => m.id === meId) ? others[0]!.id : null;
 }
 
+/** The other people in a chat (never the viewer): their faces sit in the header of a chat that is not a direct message. */
+export function otherPeople(t: Pick<Thread, "members">, meId: string | undefined): string[] {
+  return [...new Set(t.members.filter((m) => m.kind === "person" && m.id !== meId).map((m) => m.id))];
+}
+
 /** The one name of a chat (lib/chat-name.ts), the same as the list shows: a direct message is the person, any other chat its title, else who is in it. */
 export function titleOf(t: Thread, nameOf: (id: string) => string, meId?: string): string {
   return chatName({

@@ -62,7 +62,7 @@ import type { AiReady } from "./ai-ready.ts";
 import { useOpenConnect } from "../../../shell/connect/context.ts";
 import {
   WINDOW, beforeCursor, byOrder, collect, faces, ghostMessages, findMatches, isClosed, lastMessages, leadOf, matchLine, mentionsIn, mergePages, modeTitle, modelLabel, participants, pendingMessage, placeholderFor, queueNote, queuedCount, queuedIds, sendKind, stillPending, stopLabel, swapNeeded,
-  directWith, mentionable, muteOfferFor, onBehalfOf, threadKindNote, timeline, titleOf, whoLine, workingAgents, withoutAnswered } from "./model.ts";
+  directWith, mentionable, muteOfferFor, onBehalfOf, threadKindNote, timeline, otherPeople, titleOf, whoLine, workingAgents, withoutAnswered } from "./model.ts";
 import type { Face as FaceModel, Message, Pending, SendKind, Thread } from "./model.ts";
 import { LoadFailed, failureOf } from "../../../../../../ui/src/States/Loads.tsx";
 
@@ -585,6 +585,7 @@ function ConversationView(): ReactElement {
   const title = titleOf(thread, nameOf, data.me.id);
   // a direct chat is named for the other person and wears their face
   const dmWith = directWith(thread, data.me.id);
+  const others = otherPeople(thread, data.me.id);
   const q = queueNote(queued, lead ? nameOf(lead.agentId) : "", canSteer, ownTurn);
 
   // A mounted folder or file dragged from Files is shared with this chat's agents (desktop); the line says so and can take it back
@@ -619,6 +620,12 @@ function ConversationView(): ReactElement {
             <Text numberOfLines={1} testID="conversation-title" style={st.title}>{title}</Text>
           </Pressable>
         )}
+        {!dmWith && !narrow && others.length > 0 ? (
+          <View testID="conversation-people" accessibilityLabel={`With ${others.map((p) => nameOf(p)).join(", ")}`} style={st.faces}>
+            {others.slice(0, 4).map((p) => <Face key={p} name={nameOf(p)} seedId={p} kind="person" size={20} />)}
+            {others.length > 4 ? <Text style={st.meta}>{`+${others.length - 4}`}</Text> : null}
+          </View>
+        ) : null}
         {leadFace && !narrow ? <FaceButton key={leadFace.agentId} name={leadFace.name} seedId={leadFace.agentId} mode={leadFace.mode} working={leadFace.working} title={modeTitle(leadFace)} testID={`face-${leadFace.agentId}`} {...(title !== leadFace.name ? { label: leadFace.name } : {})} size={20} onPress={(x, y) => modeMenu(leadFace, x, y)} /> : null}
         <View testID="conversation-faces" accessibilityRole="toolbar" accessibilityLabel="Agents in this chat" style={st.faces}>
           {collect(narrow ? [] : otherFaces, (f) => <FaceButton key={f.agentId} name={f.name} seedId={f.agentId} mode={f.mode} working={f.working} title={modeTitle(f)} testID={`face-${f.agentId}`} onPress={(x, y) => modeMenu(f, x, y)} />)}
