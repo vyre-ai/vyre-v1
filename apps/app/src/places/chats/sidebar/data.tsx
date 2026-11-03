@@ -24,7 +24,6 @@ export interface ChatsNav {
   openGoal?(goalId: string): void;
   /** The two rows at the top of the list: everything you owe, and the threads you are in. */
   openTasks?(): void;
-  openThreads?(): void;
   /** Notes: the grid of your notes; the same in a tab behind this one; the grid with Take a note open. Left out where the shell has no Notes page. */
   openNotes?(): void;
   openNotesTab?(): void;

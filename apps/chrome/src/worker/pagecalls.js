@@ -25,6 +25,14 @@ export function forgetInPage() {
   return true;
 }
 
+/** Does this frame have payment card fields? */
+export function cardFieldsInPage() {
+  const x = /** @type {any} */ (globalThis).__vyreExt;
+  if (!x || !x.finder) return false;
+  const f = x.finder.findCardFields(/** @type {any} */ (globalThis).document);
+  return Boolean(f.number);
+}
+
 /** @param {any} card */
 export function showPromptInPage(card) {
   const x = /** @type {any} */ (globalThis).__vyreExt;

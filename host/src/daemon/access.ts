@@ -15,6 +15,7 @@ export function foldEvent(snap: AccessSnapshot, e: FoldableEvent): void {
   switch (e.type) {
     case "role.defined": snap.putRole(body<RoleRow>(e)); return;
     case "principal.created": snap.putPrincipal(body<PrincipalRow>(e)); return;
+    case "agent.privacy_set": { const b = body<{ agentId: string; private?: boolean; assistant?: boolean }>(e); snap.setAssistant(b.agentId, b.private === true && b.assistant === true); return; }
     case "principal.role_set": snap.addPrincipalRole(body<PrincipalRoleRow>(e)); return;
     case "group.member_added": snap.addMember(body<{ group: string; member: string }>(e)); return;
     case "space.ownership_transferred": {

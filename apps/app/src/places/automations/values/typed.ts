@@ -99,18 +99,25 @@ export interface ProviderKey {
   kind: "subscription" | "api";
   /** Shared with the Space (true) or one person's own (false); absent when the list did not say. A Space automation can run only on a shared key. */
   shared?: boolean;
+  /** Whether the account can run an automation here, and when not why, in plain words (engine.accounts.list with place "automation": the rule the resolver itself applies). */
+  usable?: boolean;
+  why?: string;
 }
 
-/** Provider rows become key choices. Handles and secret material are not copied. */
-export function keysFromProviders(out: unknown): ProviderKey[] | null {
-  if (!out || typeof out !== "object" || !Array.isArray((out as { providers?: unknown }).providers)) return null;
+/** Account rows (engine.accounts.list, place "automation") become key choices. Handles and secret material are not copied. */
+export function keysFromAccounts(out: unknown): ProviderKey[] | null {
+  if (!out || typeof out !== "object" || !Array.isArray((out as { accounts?: unknown }).accounts)) return null;
   const keys: ProviderKey[] = [];
-  for (const row of (out as { providers: unknown[] }).providers) {
+  for (const row of (out as { accounts: unknown[] }).accounts) {
     if (!row || typeof row !== "object") continue;
     const rec = row as Record<string, unknown>;
-    if (typeof rec["id"] !== "string") continue;
-    const kind = rec["connection"] === "api_key" ? "api" : "subscription";
-    keys.push({ id: rec["id"], name: typeof rec["name"] === "string" ? rec["name"] : rec["id"], kind, ...(typeof rec["scope"] === "string" ? { shared: rec["scope"] === "shared" } : {}) });
+    const id = typeof rec["providerId"] === "string" ? rec["providerId"] : typeof rec["ref"] === "string" ? rec["ref"] : null;
+    if (id === null) continue;
+    const name = typeof rec["name"] === "string" ? rec["name"] : typeof rec["title"] === "string" ? rec["title"] : id;
+    keys.push({
+      id, name, kind: rec["kind"] === "api_key" ? "api" : "subscription", ...(typeof rec["mine"] === "boolean" ? { shared: !rec["mine"] } : {}),
+      ...(typeof rec["usable"] === "boolean" ? { usable: rec["usable"] } : {}), ...(typeof rec["why"] === "string" ? { why: rec["why"] } : {}),
+    });
   }
   return keys;
 }

@@ -33,6 +33,14 @@ export function ProviderPanel({ provider, onNote, onRemoved }: ProviderPanelProp
   // A CLI sign-in this computer cannot run (no sandbox for it here) says what it needs instead of "Working".
   const [needs, setNeeds] = useState<string | null>(null);
   const cli = cliDriverOf(provider) !== null;
+  // "Working" is the key answering a test; a chat may still not be able to use it (locked on the server, off for this kind of work): the same list the chat's resolver reads says why
+  const [chatWhy, setChatWhy] = useState<string | null>(null);
+  useEffect(() => {
+    let live = true;
+    void (data.call("engine.accounts.list", { place: "chat" }) as Promise<{ accounts: Array<{ providerId?: string; usable?: boolean; why?: string }> }>)
+      .then((o) => { const row = o.accounts.find((a) => a.providerId === provider.id); if (live) setChatWhy(row && row.usable === false ? row.why ?? "A chat cannot use it here." : null); }).catch(() => undefined);
+    return () => { live = false; };
+  }, [provider.id]);
   useEffect(() => {
     if (!cli) { setNeeds(null); return; }
     let live = true;
@@ -61,7 +69,7 @@ export function ProviderPanel({ provider, onNote, onRemoved }: ProviderPanelProp
         <View style={s.facts}>
           <View style={s.fact}><Text style={s.k}>Connects with</Text><Text style={s.v} testID="provider-how">{howConnected(provider)}</Text></View>
           <View style={s.fact}><Text style={s.k}>Belongs to</Text><Text style={s.v} testID="provider-scope">{scopeWords(provider)}</Text></View>
-          <View style={s.fact}><Text style={s.k}>Right now</Text><View style={s.state}><View style={[s.dot, { backgroundColor: (needs !== null ? STATE_COLOR.needs_sign_in : STATE_COLOR[provider.state]) as string }]} /><Text style={s.v} testID="provider-state">{needs ?? stateWords(provider.state)}</Text></View></View>
+          <View style={s.fact}><Text style={s.k}>Right now</Text><View style={s.state}><View style={[s.dot, { backgroundColor: (needs !== null || chatWhy !== null ? STATE_COLOR.needs_sign_in : STATE_COLOR[provider.state]) as string }]} /><Text style={s.v} testID="provider-state">{needs ?? (chatWhy !== null ? `Works, but not in chats: ${chatWhy}` : stateWords(provider.state))}</Text></View></View>
           <View style={s.fact}><Text style={s.k}>This month</Text><Text style={s.v} testID="provider-usage">{usageWords(provider)}</Text></View>
         </View>
 

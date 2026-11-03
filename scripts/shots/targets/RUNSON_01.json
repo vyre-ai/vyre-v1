@@ -1,7 +1,5 @@
 {
   "targets": [
-    { "id": "RUNSON_01-chat", "route": "/m/RUNSON_01?part=chat", "proto": "chat,{skin}", "waitFor": "[data-testid='status-run_on_server']", "note": "A chat pinned to this computer: it went to sleep mid-turn once (Your computer went to sleep; continuing on the Northwind server, then the reply), and now it is off, so the next message waits quietly with Run it on the server instead. No Working line." },
-    { "id": "RUNSON_01-menu", "route": "/m/RUNSON_01?part=menu", "proto": "chat,{skin}", "waitFor": "[data-testid='model-runs']", "note": "The model panel on Runs on: Automatic first (saying where it lands), This computer (off), Office iMac (another computer of yours, on), The Space, and home-box (your server, off)." },
-    { "id": "RUNSON_01-details", "route": "/m/RUNSON_01?part=details", "proto": "chat,{skin}", "waitFor": "[data-testid='err-what']", "note": "A turn's Details say where it ran, in order: Irfad's MacBook, then the Northwind server." }
+    { "id": "RUNSON_01-menu", "route": "/m/RUNSON_01?part=menu", "proto": "automations,{skin}", "waitFor": "[data-testid='choose-key']", "click": "[data-testid='choose-key']", "note": "An automation's AI step, Runs on: the accounts that cannot run it here are greyed, each with its reason as hover text; the ones that can are pickable." }
   ]
 }

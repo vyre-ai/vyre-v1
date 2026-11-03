@@ -1,0 +1,25 @@
+{
+  "targets": [
+    {
+      "id": "TASKCONFLICT_01-conflict",
+      "route": "/m/TASKCONFLICT_01?view=conflict",
+      "proto": "chat,at:task-conflict,{skin}",
+      "waitFor": "[data-testid='task-conflict-count']",
+      "note": "Two people edited one task: Sara changed it while Irfad was editing. The card above the task says so, and for each field he changed (Due, Priority, Title, Description) shows his value next to what the task holds now, with a choice per field, Save, Use all of Sara's and Keep all of mine. Nothing is saved until he saves."
+    },
+    {
+      "id": "TASKCONFLICT_01-saved",
+      "route": "/m/TASKCONFLICT_01?view=saved",
+      "proto": "chat,at:task-conflict,{skin}",
+      "waitFor": "[data-testid='task-conflict-left']",
+      "note": "After Save: the card is gone, only the fields he kept were written, and one quiet line says what was not kept from him."
+    },
+    {
+      "id": "TASKCONFLICT_01-long",
+      "route": "/m/TASKCONFLICT_01?view=long",
+      "proto": "chat,at:task-conflict,{skin}",
+      "waitFor": "[data-testid='task-conflict-more-brief']",
+      "note": "A long text clash (the description): both sides are cut to the part that differs, with context, and Show all opens them in full."
+    }
+  ]
+}

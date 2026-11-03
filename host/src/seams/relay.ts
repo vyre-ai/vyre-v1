@@ -361,19 +361,32 @@ export function publicPathOk(p: string): boolean {
   return !/(^|\/)(\.|%2e){1,2}(\/|$)/i.test(bare) && !/%2f|%5c|\\/i.test(bare);
 }
 
+/**
+ * The artifact host's paths (host/src/routes/artifact-host.ts): the one-time code /x/<code> and an artifact's own address /sit_.../. They are served only for a request the relay marks as the artifact host's
+ * (`a`: the Worker sets it for the <name>-a.vyre.run hostname and for nothing else), never on the app's origin.
+ */
+export function artifactPathOk(p: string): boolean {
+  if (p.length > 4096 || !/^\/(x\/[0-9a-f]{48}\/?|sit_[a-z0-9]{1,64}(\/|$))/.test(p)) return false;
+  const bare = p.split("?")[0] as string;
+  return !/(^|\/)(\.|%2e){1,2}(\/|$)/i.test(bare) && !/%2f|%5c|\\/i.test(bare);
+}
+
 /** One visitor request: to the daemon's own gateway on loopback, with no Cookie and no Authorization whatever the relay sent (an outside agent's token on /mcp alone is the exception: it is that request's whole point), and the answer back over the control socket. */
-export function servePublic(send: (m: unknown) => void, m: { id: string; method: string; path: string; ip: string; headers: unknown }, body: Uint8Array, localPort: number): void {
+export function servePublic(send: (m: unknown) => void, m: { id: string; method: string; path: string; ip: string; headers: unknown; /** the artifact host's request: its own paths, with its own cookie going in and its Set-Cookie coming out, and its host name */ a?: unknown; host?: unknown }, body: Uint8Array, localPort: number): void {
   const fail = (status: number): void => { send({ t: "p.res", id: m.id, status, headers: {} }); send({ t: "p.end", id: m.id }); };
   const door = doorPath(m.path);
-  if (!(door ? DOOR_METHODS : PUBLIC_METHODS).has(m.method) || !publicPathOk(m.path)) { fail(400); return; }
+  // the artifact host is a different origin from the app: only its own request carries a cookie, and only for its own paths; every other request is cookie-free as ever
+  const art = m.a === true && typeof m.host === "string" && /^[a-z0-9.-]{3,253}$/.test(m.host);
+  if (!(door ? DOOR_METHODS : PUBLIC_METHODS).has(m.method) || !(art ? artifactPathOk(m.path) : publicPathOk(m.path))) { fail(400); return; }
   const headers = cleanHeaders(m.headers);
-  delete headers["cookie"];
+  if (art) headers["host"] = m.host as string; else delete headers["cookie"];
   if (m.path.split("?")[0] !== "/mcp") delete headers["authorization"];
   headers["x-vyre-visitor"] = m.ip.slice(0, 64);
   if (body.length) headers["content-length"] = String(body.length);
   const req = http.request({ host: "127.0.0.1", port: localPort, method: m.method, path: m.path, headers, timeout: door ? DOOR_MS : PUBLIC_MS }, (res) => {
     const out: Record<string, string> = {};
     for (const [k, v] of Object.entries(res.headers)) if (typeof v === "string") out[k] = v;
+    if (art && res.headers["set-cookie"]?.[0]) out["set-cookie"] = res.headers["set-cookie"][0];   // the artifact session, for the artifact host only
     send({ t: "p.res", id: m.id, status: res.statusCode ?? 502, headers: out });
     res.on("data", (c: Buffer) => { for (let at = 0; at < c.length; at += PUBLIC_CHUNK) send({ t: "p.data", id: m.id, b: c.subarray(at, at + PUBLIC_CHUNK).toString("base64") }); });
     res.on("end", () => send({ t: "p.end", id: m.id }));

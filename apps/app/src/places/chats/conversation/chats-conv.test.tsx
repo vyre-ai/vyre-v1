@@ -281,7 +281,7 @@ test("the header has the agent chip with a face and mode mark, the participants 
   const s = createSample("idle");
   const out = html(s);
   inOrder(out, ['data-testid="conversation-title"', 'data-testid="face-agt_intake"', ">Intake<", 'data-testid="participants-button"', 'data-testid="find-button"', 'data-testid="pane-button"', 'data-testid="more-button"']);
-  assert.ok(has(out, "3 in this thread"));
+  assert.ok(has(out, "3 in this chat"));
   assert.deepEqual(participants(thread(s), s.data.nameOf).map((p) => [p.name, p.role]), [["You", "Person"], ["Intake", "Replies to everything"], ["Docs", "Only when @mentioned"]]);
 });
 

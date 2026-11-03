@@ -201,3 +201,19 @@ test("a limit window an engine reports during a real turn is stored for the payi
   const out = await usageGet({ ...h.ctx, async call(cap: string, input: unknown) { return cap === "engine.accounts.list" ? { accounts: [CLAUDE] } : h.ctx.call(cap, input); } } as EngineCtx, { threadId: T, agentId: A, accountRef: "#Dana_Claude" });
   assert.deepEqual(out.session, { pct: 43, resetsAt: NOW + 3_600_000 });
 });
+
+test("context used is what the model was shown in the turn's last call, not the sum of its calls: 1.0M of input over twenty calls is a 61k context", async () => {
+  const { h, ctx } = setup();
+  turn(h, { tokensIn: 1_000_000, at: NOW - 1000 });
+  h.db.run("CREATE TABLE IF NOT EXISTS engine_turn_info (turn_id TEXT PRIMARY KEY, thread_id TEXT NOT NULL, reply_message_id TEXT, info TEXT, cost TEXT, updated_at INTEGER NOT NULL)");
+  h.db.run("INSERT INTO engine_turn_info (turn_id, thread_id, info, updated_at) VALUES (?, ?, ?, ?)", `trn_u${n}`, T, JSON.stringify({ tools: [], switches: [], contextTokens: 61_000 }), NOW);
+  assert.deepEqual((await usageGet(ctx, { threadId: T, agentId: A })).context, { used: 61_000, window: 200_000 });
+});
+
+test("an engine that reports only a turn's total (Codex) does not read a sum of requests as the context: with tool calls it is estimated from the number of requests", async () => {
+  const { h, ctx } = setup();
+  turn(h, { tokensIn: 400_000, at: NOW - 1000 });
+  h.db.run("CREATE TABLE IF NOT EXISTS engine_turn_info (turn_id TEXT PRIMARY KEY, thread_id TEXT NOT NULL, reply_message_id TEXT, info TEXT, cost TEXT, updated_at INTEGER NOT NULL)");
+  h.db.run("INSERT INTO engine_turn_info (turn_id, thread_id, info, updated_at) VALUES (?, ?, ?, ?)", `trn_u${n}`, T, JSON.stringify({ tools: Array.from({ length: 7 }, (_, i) => ({ id: `t${i}`, name: "Bash", startedAt: 1 })), switches: [] }), NOW);
+  assert.deepEqual((await usageGet(ctx, { threadId: T, agentId: A })).context, { used: 100_000, window: 200_000, approximate: true }, "7 tool calls and the answer: 8 requests, the last about 2 x 400k / 8");
+});

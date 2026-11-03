@@ -26,7 +26,7 @@ const DAY = 86_400_000;
 /** You, in every sample Space. */
 export const ME = "usr_irfad";
 
-export interface SampleThread { threadId: string; title: string; agents: string[]; unread: number; working: boolean; starred: boolean; lastAt: number; preview?: string; /** in my Archived section */ archived?: boolean; /** deleted, waiting for Undo */ deleted?: boolean; /** left */ left?: boolean }
+export interface SampleThread { /** unread replies, from threads I follow, under this chat */ repliesUnread?: number; threadId: string; title: string; agents: string[]; unread: number; working: boolean; starred: boolean; lastAt: number; preview?: string; /** in my Archived section */ archived?: boolean; /** deleted, waiting for Undo */ deleted?: boolean; /** left */ left?: boolean }
 export interface SampleSpace {
   id: "northwind" | "harbor" | "personal";
   name: string;
@@ -171,7 +171,7 @@ export function createSampleSidebar(space: SampleSpace = northwind, o: { online?
 
   const threads = (): SampleThread[] => replica.rows("threads") as unknown as SampleThread[];
   const dayOf = (ts: number): number => Math.floor(ts / DAY);
-  const item = (x: SampleThread): RecentItem => ({ threadId: x.threadId, kind: "chat", title: x.title, agents: x.agents, unread: x.unread, working: x.working, starred: x.starred, lastAt: x.lastAt });
+  const item = (x: SampleThread): RecentItem => ({ threadId: x.threadId, kind: "chat", title: x.title, agents: x.agents, unread: x.unread, working: x.working, starred: x.starred, lastAt: x.lastAt, ...(x.repliesUnread ? { repliesUnread: x.repliesUnread } : {}) });
 
   replica.resolve("chat.recent", (_t, input) => {
     refuse("chat.recent", input);

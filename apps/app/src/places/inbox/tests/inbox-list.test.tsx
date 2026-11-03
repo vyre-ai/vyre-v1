@@ -1,4 +1,4 @@
-// Inbox sidebar and contact list: the screen. Three views (By contact, By thread, Calls only), the header and filter menus with checkmarks and counts, the sidebar groups with
+// Inbox sidebar and contact list: the screen. Three views (By contact, By conversation, Calls only), the header and filter menus with checkmarks and counts, the sidebar groups with
 // their unread counts and the calendars with colour dots. Every line is a ui/Row with slots; the list opens offline and draws a frame of the right size before data.
 import test from "node:test";
 import assert from "node:assert/strict";
@@ -44,7 +44,7 @@ test("screen: every line is a ui/Row with a leading face and a trailing time and
   assert.ok(!has(out, "row-line:elena-overlay"), "no overlay layer sits on the row");
 });
 
-test("screen: By thread lists one line per conversation with the subject under the person", () => {
+test("screen: By conversation lists one line per conversation with the subject under the person", () => {
   const out = list({ view: "thread" });
   assert.deepEqual(lines(out), ["thr_1041", "thr_lease", "thr_spring", "thr_login", "thr_partner", "thr_nda", "thr_intake"]);
   assert.ok(has(out, "Lease documents for Thursday") && has(out, "Elena Rivera") && has(out, "Client intake form"));
@@ -64,7 +64,7 @@ test("screen: Calls only lists calls with who, what and how long", () => {
 test("the View menu has the three views with a checkmark on the current one", () => {
   const picked: string[] = [];
   const e = items(viewMenuEntries({ ...INITIAL_STATE, view: "thread" }, (v) => void picked.push(v)));
-  assert.deepEqual(e.map((x) => [x.label, x.checked]), [["By contact", false], ["By thread", true], ["Calls only", false]]);
+  assert.deepEqual(e.map((x) => [x.label, x.checked]), [["By contact", false], ["By conversation", true], ["Calls only", false]]);
   e[2]!.onSelect?.();
   assert.deepEqual(picked, ["calls"]);
 });

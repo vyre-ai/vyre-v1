@@ -3,6 +3,8 @@
 // API callers pass base_version and receive version_conflict. Sync passes a field hlc and baseSeq and merges per field.
 // The migration is read by the selector so a data file does not select every test in the repo.
 import { canonical } from "../../lib/canonical.ts";
+import { withReversals } from "../../lib/reversal.ts";
+import { REVERSALS } from "./reversals.ts";
 import { compareHlc, parseHlc } from "../../lib/hlc.ts";
 import { openRecordStore, recordWriter } from "../../kernel/src/store/records.ts";
 import type { RecordWriter } from "../../kernel/src/store/records.ts";
@@ -435,10 +437,10 @@ type AnyCtx = { principal?: { id: string }; actingFor?: string | undefined; trac
 /** Every write a call makes names who made it, as every other module's events do: the person or agent, the person an agent acts for, the trace and the run (never svc_records). */
 export const writerOf = (ctx: AnyCtx): RecordWriter | null =>
   ctx.principal?.id ? { actor: ctx.principal.id, ...(ctx.actingFor !== undefined ? { onBehalf: ctx.actingFor } : {}), ...(ctx.trace?.traceId !== undefined ? { traceId: ctx.trace.traceId } : {}), ...(ctx.run !== undefined ? { runId: ctx.run } : {}) } : null;
-export const handlers: LiveRecordsHandlers = Object.fromEntries(Object.entries(table).map(([name, f]) => [name, (ctx: AnyCtx, input: unknown) => {
+export const handlers: LiveRecordsHandlers = withReversals(Object.fromEntries(Object.entries(table).map(([name, f]) => [name, (ctx: AnyCtx, input: unknown) => {
   const w = writerOf(ctx);
   return w ? recordWriter.run(w, () => (f as (c: unknown, i: unknown) => unknown)(ctx, input)) : (f as (c: unknown, i: unknown) => unknown)(ctx, input);
-}])) as unknown as LiveRecordsHandlers;
+}])) as unknown as LiveRecordsHandlers, REVERSALS);
 
 /** The site tables (P-L3_ST): the sites module announces a table, this module makes the record type. The host runs it once per event after commit (ruling 32). */
 export const consumers = {

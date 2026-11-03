@@ -26,6 +26,7 @@ import {
   FLASH, KNOWS_SCOPE, NO_SUBJECTS, USED_FOOT, appendLine, asOfFilter, groupKnows, hasSubject, knowRowKey, linkSubjects, quoteDate, rememberText, splitSubjects, subjectIndex, subjectKey, subjectOfHref, usedCount, usedLabel,
 } from "./model.ts";
 import type { ChatFact, LearnedRow } from "./model.ts";
+import { LAYER_SCOPE, learnedExact, learnedWhen } from "./model.ts";
 import { ASSISTANT, MESSAGE_IDS, createChatMemorySample } from "./sample.ts";
 import type { ChatMemorySample } from "./sample.ts";
 import { ChatMemoryProvider } from "./thread.tsx";
@@ -173,6 +174,25 @@ test("the message that taught something has 'Learned: <fact> · Undo · Edit'", 
   inOrder(out, ["Held. It will go out", "Learned:", "Ian Brooks: Prefers updates on Fridays.", 'data-testid="learned-undo-', 'data-testid="learned-edit-btn-']);
   assert.ok(has(out, `aria-label="Undo: Prefers updates on Fridays."`) && has(out, `aria-label="Edit: Prefers updates on Fridays."`));
   assert.equal(count(out, 'data-testid="learned-line-'), 1, "only the message it was learned from");
+});
+
+test("the Learned line says when, in the words used elsewhere (the exact time is its hover title, drawn on the web only)", async () => {
+  const s = await withWarm();
+  const out = html(s);
+  const id = await taughtFact(s);
+  const when = new RegExp(`data-testid="learned-when-${id}"[^>]*>([^<]*)<`).exec(out);
+  assert.ok(when, "a time on the line");
+  assert.match(when[1]!, /^(just now|\d+ min ago|\d+ h ago|today|yesterday|\d+ days ago|1 month ago|\d+ months ago)$/);
+});
+
+test("learnedWhen counts minutes and hours, then falls back to days", () => {
+  const NOW = Date.UTC(2026, 10, 3, 12, 0);
+  assert.equal(learnedWhen(NOW - 20_000, NOW), "just now");
+  assert.equal(learnedWhen(NOW - 12 * 60_000, NOW), "12 min ago");
+  assert.equal(learnedWhen(NOW - 3 * 3_600_000, NOW), "3 h ago");
+  assert.equal(learnedWhen(NOW - 30 * 3_600_000, NOW), "yesterday");
+  assert.equal(learnedWhen(NOW - 4 * 86_400_000, NOW), "4 days ago");
+  assert.equal(learnedExact(Date.UTC(2026, 10, 3, 9, 5)), "Nov 3, 2026 9:05");
 });
 
 test("Undo moves the fact to Trash and the line becomes 'Moved to Trash. Restore'; Restore brings it back", async () => {
@@ -467,4 +487,10 @@ test("the context carries no state of its own: a provider without memory draws i
   const out = renderToStaticMarkup(<ChatMemoryProvider memory={undefined} threadId="c1"><span>plain</span></ChatMemoryProvider>);
   assert.equal(out, "<span>plain</span>");
   assert.ok(typeof ChatMemoryContext === "function");
+});
+
+test("every Learned line says who can read it: a lesson its scope, any other fact its layer", () => {
+  assert.equal(LAYER_SCOPE.person, "Only you");
+  assert.equal(LAYER_SCOPE.space, "The Space");
+  assert.deepEqual(Object.keys(LAYER_SCOPE).sort(), ["agent", "person", "project", "space"]);
 });

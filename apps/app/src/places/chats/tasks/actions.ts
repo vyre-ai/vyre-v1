@@ -19,7 +19,8 @@ export function withVersion(cap: string, input: Record<string, unknown>, version
   if (cap !== "tasks.update" || version === undefined) return input;
   const keys = Object.keys(input).filter((k) => k !== "taskId" && k !== "idempotencyKey");
   if (keys.length === 0 || keys.every((k) => k === "threadId")) return input;
-  return { ...input, expectedVersion: version };
+  // a save that already names the version it started on (the title, saved from the version it was focused on) keeps it
+  return { expectedVersion: version, ...input };
 }
 
 /** The status change of one task, from any door. */

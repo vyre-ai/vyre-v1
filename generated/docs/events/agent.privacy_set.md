@@ -21,5 +21,6 @@ type Payload = {
   agentId: string;
   ownerId: string;
   private: boolean;
+  assistant?: boolean;
 };
 ```

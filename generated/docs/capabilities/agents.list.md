@@ -98,7 +98,7 @@ type Out = {
     "cursor": "example",
     "folderId": "fld_a1b2c3",
     "limit": 1,
-    "projectId": "prj_a1b2c3",
+    "projectId": "example",
     "section": "personal",
     "status": [
       "awake"
@@ -140,7 +140,7 @@ type Out = {
         "runtime": "vyre",
         "status": "awake",
         "switchOnLimit": true,
-        "teammateOf": "prj_a1b2c3",
+        "teammateOf": "example",
         "templateVersion": 1,
         "toolsAllowed": [
           "example"

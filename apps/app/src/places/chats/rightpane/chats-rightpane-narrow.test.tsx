@@ -81,7 +81,7 @@ test("Run now calls the routine's run capability once and says so; a failure is 
   assert.equal(notes.at(-1)?.text, `Running ${r.title}`);
   s.failNext("agents.routine.run_now");
   assert.equal(await runNow(d, r), false);
-  assert.equal(notes.at(-1)?.text, "Could not run it. Try again.");
+  assert.equal(notes.at(-1)?.text, "Could not run it: agents.routine.run_now failed");
 });
 
 test("the routine page offers Run Now beside Change by Asking", () => {
@@ -129,6 +129,6 @@ test("delegating to the current owner does nothing; a failed hand-over is one qu
   assert.equal(s.calls.length, 0);
   s.failNext("agents.routine.delegate");
   assert.equal(await delegateRoutine(d, r, "usr_maya", "Maya Chen"), false);
-  assert.equal(notes.at(-1)?.text, "Could not hand it over. Try again.");
+  assert.equal(notes.at(-1)?.text, "Could not hand it over: agents.routine.delegate failed");
   assert.equal(routinesNow(s).find((x) => x.routineId === "r3")!.ownerId, "usr_omar");
 });

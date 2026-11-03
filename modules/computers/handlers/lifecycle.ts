@@ -102,15 +102,17 @@ export async function hosts(ctx: CompCtx, _input: Record<string, never>) {
   const out: HostRow[] = [];
   const bound = boundHost();
   let ready = false;
-  if (bound) { try { ready = (await bound.health()).ok; } catch { ready = false; } }
-  out.push({ hostId: team ? "space" : "this", kind: team ? "space" : "this", name: team ? "The Space" : "This computer", online: true, canRun: ready, runs: placed.filter((n) => n === null).length, ...(ready ? {} : { reason: "No Docker" }) });
+  let why = "";
+  if (!bound) why = team ? "This Space's server has no container runner, so it cannot run agent computers. Run the server from its compose file (it starts the runner), or add a server that has Docker." : "Agent computers are not set up on this computer. Install Docker, or add a server that has it.";
+  else { try { const h = await bound.health(); ready = h.ok; if (!ready) why = h.detail ?? "The container runtime did not answer."; } catch (e) { why = e instanceof Error ? `The container runtime failed: ${e.message.slice(0, 160)}` : "The container runtime did not answer."; } }
+  out.push({ hostId: team ? "space" : "this", kind: team ? "space" : "this", name: team ? "The Space" : "This computer", online: true, canRun: ready, runs: placed.filter((n) => n === null).length, ...(ready ? {} : { reason: why }) });
   let mine: Array<{ serverId: string; name: string; state: string; enrollment: string; facts?: { docker?: boolean } }> = [];
   try { mine = ((await ctx.call("network.my_computers", {})) as { computers?: typeof mine }).computers ?? []; } catch { /* the network module is not running: no servers */ }
   for (const m of mine) {
     if (m.enrollment !== "approved") continue;
     const online = m.state !== "down";
     const docker = m.facts?.docker === true;
-    out.push({ hostId: m.serverId, kind: "server", name: m.name, online, canRun: online && docker, runs: placed.filter((n) => n === m.serverId).length, ...(!docker ? { reason: "No Docker" } : !online ? { reason: "Offline" } : {}) });
+    out.push({ hostId: m.serverId, kind: "server", name: m.name, online, canRun: online && docker, runs: placed.filter((n) => n === m.serverId).length, ...(!docker ? { reason: `${m.name} has no Docker. Install and start Docker on it.` } : !online ? { reason: `${m.name} is offline. Start it and let it reconnect.` } : {}) });
   }
   return { available: out.some((h) => h.canRun), hosts: out };
 }
@@ -138,6 +140,12 @@ export async function provision(ctx: CompCtx, input: { agentId: string; tabLimit
   ensure(ctx.db);
   needTeam(ctx);
   const host = input.nodeId === undefined ? hostOf(ctx) : null;
+  // say why before anything is made: a host that cannot run containers refuses with its own reason, in words, not a row that is made and unmade
+  if (host) {
+    let h: { ok: boolean; detail?: string } = { ok: true };
+    try { h = await host.health(); } catch (e) { h = { ok: false, detail: e instanceof Error ? e.message.slice(0, 160) : "The container runtime did not answer." }; }
+    if (!h.ok) raise(ctx, "provider.unavailable", h.detail ?? "The container runtime did not answer.", { reason: h.detail ?? "no runtime" });
+  }
   try {
     await ctx.call("agents.get", { agentId: input.agentId });
   } catch {
@@ -156,7 +164,8 @@ export async function provision(ctx: CompCtx, input: { agentId: string; tabLimit
     setComputer(ctx.db, computerId, { state: "asleep", ...(made.diskBytes !== undefined ? { disk_bytes: made.diskBytes } : {}) });
   } catch (e) {
     ctx.db.run("DELETE FROM computers_computers WHERE computer_id = ?", computerId);
-    raise(ctx, "provider.unavailable", "The computer could not be created on this host.", { reason: e instanceof Error ? e.message.slice(0, 200) : "unknown" });
+    const reason = e instanceof Error ? e.message.slice(0, 200) : "unknown";
+    raise(ctx, "provider.unavailable", `The computer could not be created: ${reason}`, { reason });
   }
   ctx.emit("computer.provisioned", computerId, { computerId, agentId: input.agentId });
   return { computer: computerOut(needComputer(ctx, computerId)) };
@@ -243,8 +252,9 @@ export async function awaken(ctx: CompCtx, c: ComputerRow, by: string): Promise<
   try {
     await host.start({ computerId: c.computerId, tabLimit: c.tabLimit, agentId: c.agentId });
   } catch (e) {
-    setComputer(ctx.db, c.computerId, { state: "error", error: e instanceof Error ? e.message.slice(0, 200) : "The computer did not start." });
-    raise(ctx, "internal.unexpected", "The computer did not start. Try again.");
+    const reason = e instanceof Error ? e.message.slice(0, 200) : "The computer did not start.";
+    setComputer(ctx.db, c.computerId, { state: "error", error: reason });
+    raise(ctx, "internal.unexpected", `The computer did not start: ${reason}`, { reason });
   }
   await connectFill(ctx, host, c);
   setComputer(ctx.db, c.computerId, { state: "working", last_active_at: ctx.now() });
@@ -266,7 +276,7 @@ async function putToSleep(ctx: CompCtx, c: ComputerRow, reason: "idle" | "reques
     out = await host.stop({ computerId: c.computerId, reason, agentId: c.agentId });
   } catch (e) {
     setComputer(ctx.db, c.computerId, { state: "error", error: e instanceof Error ? e.message.slice(0, 200) : "The computer did not stop." });
-    raise(ctx, "internal.unexpected", "The computer did not go to sleep. Try again.");
+    raise(ctx, "internal.unexpected", `The computer did not go to sleep: ${e instanceof Error ? e.message.slice(0, 200) : "no reason given"}`);
   }
   dropFill(c.computerId);
   if (out.sessions) storeSessions(ctx, c.computerId, out.sessions);
@@ -332,8 +342,9 @@ export async function takeOver(ctx: CompCtx, input: { computerId: string }) {
   const host = hostOf(ctx, c.computerId);
   try {
     await host.takeover({ computerId: c.computerId, personId: person });
-  } catch {
-    raise(ctx, "internal.unexpected", "The computer did not hand over the controls. Try again.");
+  } catch (e) {
+    const reason = e instanceof Error ? e.message.slice(0, 200) : "no reason given";
+    raise(ctx, "internal.unexpected", `The computer did not hand over the controls: ${reason}`, { reason });
   }
   const step = addStep(ctx.db, c.computerId, ctx.now(), { by: "person", caption: "You took over", tool: "take_over" });
   setComputer(ctx.db, c.computerId, { state: "takeover", takeover_by: person, takeover_at: ctx.now(), takeover_step: step.stepId, last_active_at: ctx.now(), caption: null });
@@ -355,8 +366,9 @@ export async function giveBack(ctx: CompCtx, input: { computerId: string }) {
   if (c.recordingId) await finishRecording(ctx, c);
   try {
     await hostOf(ctx, c.computerId).giveBack(c.computerId);
-  } catch {
-    raise(ctx, "internal.unexpected", "The computer did not take the controls back. Try again.");
+  } catch (e) {
+    const reason = e instanceof Error ? e.message.slice(0, 200) : "no reason given";
+    raise(ctx, "internal.unexpected", `The computer did not take the controls back: ${reason}`, { reason });
   }
   if (c.takeoverStep) setStepCaption(ctx.db, c.takeoverStep, `You took over for ${minutesOf(ctx.now() - (c.takeoverAt ?? ctx.now()))}`);
   setComputer(ctx.db, c.computerId, { state: "working", takeover_by: null, takeover_at: null, takeover_step: null, last_active_at: ctx.now() });
@@ -389,7 +401,7 @@ export async function sessionSignOut(ctx: CompCtx, input: { computerId: string; 
   if (site === "") raise(ctx, "validation.bad_input", "Name the site to sign out of.");
   const c = await awaken(ctx, needComputer(ctx, input.computerId), actorOf(ctx));
   let ok: boolean;
-  try { ok = await hostOf(ctx, c.computerId).signOut({ computerId: c.computerId, site }); } catch { raise(ctx, "internal.unexpected", "The computer did not sign out. Try again."); }
+  try { ok = await hostOf(ctx, c.computerId).signOut({ computerId: c.computerId, site }); } catch (e) { raise(ctx, "internal.unexpected", `The computer did not sign out: ${e instanceof Error ? e.message.slice(0, 200) : "no reason given"}`); }
   if (!ok) return { ok: false };
   ctx.db.run("DELETE FROM computers_sessions WHERE computer_id = ? AND site = ?", c.computerId, site);
   ctx.emit("computer.session_signed_out", c.computerId, { computerId: c.computerId, site, by: actorOf(ctx) });

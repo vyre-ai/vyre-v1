@@ -27,8 +27,10 @@
     "scripting",
     "nativeMessaging",
     "sidePanel",
+    "tabGroups",
     "contextMenus",
-    "favicon"
+    "favicon",
+    "alarms"
   ],
   "optional_permissions": [
     "debugger"
@@ -47,12 +49,17 @@
         "src/content/finder.js",
         "src/content/autofill.js",
         "src/content/capture.js",
+        "src/content/artifact.js",
+        "src/content/badge.js",
         "src/content/prompt.js",
         "src/content/select.js"
       ],
       "run_at": "document_idle",
       "all_frames": true
     }
+  ],
+  "web_accessible_resources": [
+    { "resources": ["_favicon/*"], "matches": ["<all_urls>"] }
   ],
   "content_security_policy": {
     "extension_pages": "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data: chrome-extension:; object-src 'none'; base-uri 'none'; form-action 'none'"

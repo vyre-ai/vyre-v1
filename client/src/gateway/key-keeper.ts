@@ -17,3 +17,23 @@ export async function rehandKey(baseUrl: string, token: string, f?: typeof fetch
   if (!kept) return false;
   try { return await holdKeyOnOwnNode(baseUrl, token, kept, f); } catch { return false; }
 }
+
+/**
+ * Whether a change of the Space link means "hand the key again": the link has just become live (the first time after the session opened, or back after a drop: a restart, a deploy, a sleep)
+ * and this Space is reached through a key door. Cheap to say yes: rehandKey asks the server first and sends nothing when it already holds the key.
+ */
+export const handOnLive = (was: string, now: string, door: boolean): boolean => door && now === "live" && was !== "live";
+
+/** How often an open app asks a Space server whether it still holds the person's key (a server that restarted under an open link, a key swept away). */
+export const KEY_WATCH_MS = 30_000;
+
+/**
+ * While the app is open and holds the key, a Space server that lost it gets it again within one beat, with no prompt. Does nothing for a device that holds no key (a resumed session after a relaunch:
+ * it was never unlocked here) and asks nothing of an address with no key door. Returns the stop function.
+ */
+export function watchKey(baseUrl: string, token: () => string | null, o: { every?: number; rehand?: typeof rehandKey; set?: typeof setInterval; clear?: typeof clearInterval } = {}): () => void {
+  if (keyDoor(baseUrl) === null) return () => undefined;
+  const rehand = o.rehand ?? rehandKey;
+  const timer = (o.set ?? setInterval)(() => { const t = token(); if (kept && t) void rehand(baseUrl, t).catch(() => false); }, o.every ?? KEY_WATCH_MS);
+  return () => (o.clear ?? clearInterval)(timer);
+}

@@ -5,6 +5,7 @@
 //   retries    429 with a short Retry-After, 5xx and network errors before the first byte, with backoff; after the first byte an error is surfaced, never replayed
 //   cancel     aborts the request in flight and releases any wait for a tool result; the generator ends without an error event
 //   caching    the stable system blocks and the sorted tool list are hashed and marked (prefix.ts); each call notes whether the prefix matched the one before
+import { slimTool } from "./slim.ts";
 import { windowFor } from "../../transcript/windows.ts";
 import type { DriverEvent, EngineSession, SessionSpec, StoredMessage, ToolResult, TurnInput } from "../../turn-engine/types.ts";
 import { classify, plainRefusal, retryAfterMs, scrub } from "./errors.ts";
@@ -201,7 +202,8 @@ export function createApiSession(deps: SessionDeps, spec: SessionSpec): ApiSessi
     abort = ac;
     results.clear();
     try {
-      const ctx = await deps.context(spec, input);
+      const asked = await deps.context(spec, input);
+      const ctx = { ...asked, tools: asked.tools.map(slimTool) };   // the copy the model reads is trimmed (slim.ts); calls are still validated against the full schema
       const system = orderSystem(ctx.system);
       const hash = prefixHash(system, ctx.tools, model);
       const fixed = fixedTokens(system, ctx.tools);
@@ -234,7 +236,7 @@ export function createApiSession(deps: SessionDeps, spec: SessionSpec): ApiSessi
         tracker.settle(u.cacheReadTokens, u.cacheWriteTokens);
         if (inTokens > 0 || u.outputTokens > 0) {
           yield {
-            type: "usage", inputTokens: inTokens, outputTokens: u.outputTokens,
+            type: "usage", inputTokens: inTokens, outputTokens: u.outputTokens, contextTokens: inTokens,
             ...(told.has("cacheReadTokens") ? { cacheReadTokens: u.cacheReadTokens } : {}), ...(told.has("cacheWriteTokens") ? { cacheWriteTokens: u.cacheWriteTokens } : {}),
             ...(u.reasoningTokens !== undefined ? { reasoningTokens: u.reasoningTokens } : {}), ...(u.costUsd !== undefined ? { costUsd: u.costUsd } : {}),
           };

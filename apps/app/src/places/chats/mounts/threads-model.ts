@@ -1,5 +1,5 @@
 // The Threads page as plain data (audit Threads 4, 6): one row per thread I am in, newest reply first, with where it hangs, the newest line and who wrote it, when, and how much is new.
-// J and K move the selection, Enter opens it. Pure: ThreadsPage draws what these return.
+// J and K move the selection, Enter opens it. Pure: RepliesPage draws what these return.
 import { chatWhen } from "../rightpane/model.ts";
 import type { Clock } from "../rightpane/model.ts";
 
@@ -18,7 +18,7 @@ export function threadView(t: ThreadLike, nameOf: (id: string) => string, c: Clo
   const line = t.preview ? `${who ? `${nameOf(who.id)}: ` : ""}${t.preview}` : t.replyCount ? `${t.replyCount} ${t.replyCount === 1 ? "reply" : "replies"}` : "No replies yet";
   const unread = t.muted ? 0 : t.unread ?? 0;
   return {
-    threadId: t.threadId, title: t.parentTitle ?? t.title ?? "Thread", note: line, when: chatWhen(t.lastMessageAt ?? t.createdAt, c), unread, bold: unread > 0, muted: t.muted === true,
+    threadId: t.threadId, title: t.parentTitle ?? t.title ?? "A chat", note: line, when: chatWhen(t.lastMessageAt ?? t.createdAt, c), unread, bold: unread > 0, muted: t.muted === true,
     faces: (t.repliers ?? []).slice(0, 3).map((r) => ({ id: r.id, kind: r.kind === "agent" ? "agent" : "person" })),
   };
 }

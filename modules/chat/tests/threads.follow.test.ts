@@ -162,3 +162,18 @@ test("chat.notify: a reply, a mention and a direct message become notices with w
   assert.deepEqual(sent.map((s) => [s["to"], s["kind"], (s["data"] as Record<string, unknown>)["where"]]), [[LEO, "mention", "Call Rivera"]], "the mention is told; the task's own status lines are not replies to tell Dana about");
   assert.equal(await planNotice(svc, { name: "thread.replied", payload: { threadId: thread, messageId: said, personId: DANA } }), undefined, "nobody hears about their own message");
 });
+
+test("the chat the replies hang off carries their count, for its bold row; a muted reply and a chat with no new replies carry none; the Unread filter keeps the chat", async () => {
+  const { hn, main, thread } = await world();
+  const rowOf = async (filter?: "unread"): Promise<Record<string, unknown> | undefined> => {
+    const out = (await h["chat.recent"]!(hn.ctx, filter ? { filter } : {})) as unknown as Record<string, Record<string, unknown>[]>;
+    return [...out["starred"]!, ...out["today"]!, ...out["yesterday"]!, ...out["earlier"]!].find((r) => r["threadId"] === main);
+  };
+  assert.equal((await rowOf())?.["repliesUnread"], undefined, "nothing new yet");
+  await h["chat.post"]!(hn.person(MAYA), { threadId: thread, body: "first", idempotencyKey: key() });
+  await h["chat.post"]!(hn.person(MAYA), { threadId: thread, body: "second", idempotencyKey: key() });
+  assert.equal((await rowOf())?.["repliesUnread"], 2, "two new replies, counted on the chat they hang off");
+  assert.ok(await rowOf("unread"), "an otherwise read chat with new replies is in the Unread filter");
+  await follow(hn.ctx, thread, "mute");
+  assert.equal((await rowOf())?.["repliesUnread"], undefined, "muted replies are quiet");
+});

@@ -27,7 +27,7 @@ function visible(ctx: ChatCtx, threadId: string): ThreadRec {
 }
 function open(ctx: ChatCtx, threadId: string): ThreadRec {
   const t = visible(ctx, threadId);
-  if (t.closedAt !== undefined) raise(ctx, "validation.bad_input", "This thread is closed. Reopen it to write in it.");
+  if (t.closedAt !== undefined) raise(ctx, "validation.bad_input", "This chat is closed. Reopen it to write in it.");
   return t;
 }
 const authorKind = (ctx: ChatCtx): "agent" | "text" => (ctx.principal.kind === "agent" ? "agent" : "text");

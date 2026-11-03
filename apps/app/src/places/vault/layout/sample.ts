@@ -144,6 +144,14 @@ export interface SampleVault {
 
 const ISSUE_AGE = (days: number): number => SAMPLE_NOW - days * DAY_MS;
 
+/** The Vault sample's providers as engine.accounts.list answers them (the Space AI tab and the pickers read that), without a place's verdict: the rows' own uses decide. */
+function accountsOf(providers: readonly Provider[]): { accounts: Array<Record<string, unknown>> } {
+  return { accounts: providers.map((p) => ({
+    ref: p.handle ?? p.itemId, providerId: p.id, provider: p.providerKey, driver: p.engine, kind: p.connection === "api_key" ? "api_key" : "subscription", title: p.name, name: p.name, mine: p.scope === "mine",
+    status: p.state === "ok" ? "ok" : p.state === "needs_sign_in" ? "expired" : "failed", ...(p.spaceKey ? { spaceKey: true } : {}), ...(p.uses ? { uses: p.uses } : {}), ...(p.capCents !== undefined ? { capCents: p.capCents } : {}), ...(p.capped ? { capped: true } : {}),
+  })) };
+}
+
 export function createSampleVault(space: SampleSpace = northwind, o: { online?: boolean; extraItems?: number } = {}): SampleVault {
   const replica = createFakeReplica(space.id);
   const calls: { cap: string; input: unknown }[] = [];
@@ -203,6 +211,7 @@ export function createSampleVault(space: SampleSpace = northwind, o: { online?: 
     return { folders: folders.map((f) => ({ ...f, itemCount: items.filter((i) => i.folderId === f.id).length }) as Folder) };
   });
   replica.resolve("providers.list", () => ({ providers: rows<Provider & Row>("providers") as Provider[] }));
+  replica.resolve("engine.accounts.list", () => accountsOf(rows<Provider & Row>("providers") as Provider[]) as never);
   replica.resolve("vault.health", () => {
     const flagged = itemRows().filter((i) => i.rotateEveryDays !== undefined && Math.floor((SAMPLE_NOW - (i.lastRotatedAt ?? i.createdAt)) / DAY_MS) >= i.rotateEveryDays);
     return { total: itemRows().length, weak: 0, reused: 0, stale: 0, rotationDue: flagged.length, items: flagged.map((i) => ({ itemId: i.id, name: i.name, issues: ["rotation_due" as const] })) };
@@ -290,6 +299,7 @@ export function createSampleVault(space: SampleSpace = northwind, o: { online?: 
     "vault.item.delete": (i: { itemId: string }) => { touch(i.itemId, { trashed: true } as Partial<ItemRow>); log(i.itemId, "deleted"); return { ok: true }; },
     "vault.item.restore": (i: { itemId: string }) => { touch(i.itemId, { trashed: false } as Partial<ItemRow>); log(i.itemId, "restored"); return { item: strip(find(i.itemId)) }; },
     "providers.list": () => ({ providers: rows<Provider & Row>("providers") as Provider[] }),
+    "engine.accounts.list": () => accountsOf(rows<Provider & Row>("providers") as Provider[]),
     // two Automations whose HTTP steps name the GoHighLevel key by handle; every other handle is unused
     "automations.vault_usage": (i: { handle?: string }) => ({
       uses: i.handle === "#Northwind_GHL" ? [{ handle: "#Northwind_GHL", automations: [

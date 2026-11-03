@@ -145,3 +145,12 @@ test("Ask about this note opens the person's own Ask thread scoped to that note,
   assert.deepEqual(order, ["notes-ask-about", "notes-ask-vis"], "the note on top, the privacy line at the foot");
   assert.match(textOf(find(root, "notes-ask-vis")), /Your own chat, so Vyre can read this private note here/);
 });
+
+import { fromLine } from "./model.ts";
+test("the opened note says where it was saved from, with a way to the message; a chat its owner can no longer read keeps only the time", () => {
+  const now = Date.UTC(2026, 10, 3, 12, 0);
+  const at = Date.UTC(2026, 10, 3, 9, 12);
+  assert.deepEqual(fromLine({ from: { threadId: "thr_1", messageId: "msg_1", title: "Weinberger Law prep", at, readable: true } }, now), { text: "From: Weinberger Law prep, 9:12", open: { threadId: "thr_1", messageId: "msg_1" } });
+  assert.deepEqual(fromLine({ from: { at, readable: false } }, now), { text: "From a chat you can no longer read, 9:12", open: null });
+  assert.equal(fromLine({}, now), null);
+});
