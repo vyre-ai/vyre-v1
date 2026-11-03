@@ -5,7 +5,6 @@ import type { Level, Req } from "../../../kernel/src/authorize/index.ts";
 import type { AccessCtx, ActorRec, Label, PKind, PolicyKind, PolicyRec, Ref, ResourceRef } from "../projections.ts";
 import { changed, kindFor, LABELS, nid, page, pkey, raise, storeOf } from "../projections.ts";
 import { putPrincipal, rolesAssign } from "./roles.ts";
-import { withRoleGrants } from "../consumers.ts";
 
 const DESTRUCTIVE = new Set(["records.delete", "files.delete", "members.remove"]);
 const TOKEN_MS = 10 * 60 * 1000;
@@ -45,8 +44,7 @@ export function toReq(ctx: AccessCtx, input: CheckIn): Req {
 
 export async function check(ctx: AccessCtx, input: CheckIn) {
   const store = storeOf(ctx);
-  // the same snapshot the gateway answers from: with each role's grant on the Space (consumers.ts), so a member's Space-wide access is checked as it is enforced
-  const d = authorize(withRoleGrants(store.snapshot(), store, ctx.space), toReq(ctx, input));
+  const d = authorize(store.snapshot(), toReq(ctx, input));
   return {
     decision: {
       effect: d.effect,

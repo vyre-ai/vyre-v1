@@ -117,9 +117,10 @@ test("Own only: an admin keeps her own sites and loses production; it is one exc
 });
 
 test("an agent acting for a person follows her Allow exception, within what an agent may ever hold", async () => {
-  const space = (await h.owner.call("identity.whoami")).spaceId as string;
+  // checked on something both hold: an agent Aina owns (the outside agent holds Edit on the Space; she owns it), so only the permission decides
+  const mine = (await m.call("agents.create", { name: "Aina's checker", role: "Checks." })).agent.agentId as string;
   const agent = await outsideAgent(h.d, m.token!, false);
-  const check = async (perm: string) => (await h.owner.call("access.check", { principal: { kind: "agent", id: agent.agentId }, actingFor: { kind: "person", id: m.personId }, resource: { type: "space", id: space }, action: { level: "view", perm } })).decision.effect as string;
+  const check = async (perm: string) => (await h.owner.call("access.check", { principal: { kind: "agent", id: agent.agentId }, actingFor: { kind: "person", id: m.personId }, resource: { type: "agent", id: mine }, action: { level: "view", perm } })).decision.effect as string;
   assert.equal(await check("journeys.manage"), "deny", "neither her role nor her agent's carries it");
   await set(h.owner, { subject: { kind: "person", id: m.personId }, perms: ["journeys.manage"], effect: "allow" });
   assert.equal(await check("journeys.manage"), "allow", "her agent follows her Allow exception");

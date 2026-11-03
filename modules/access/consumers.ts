@@ -201,7 +201,7 @@ const BUILT_IN_LEVEL: Readonly<Record<string, "manage" | "edit">> = { rol_owner:
  * those. The built-in rol_* roles get their standard level (BUILT_IN_LEVEL). A role made through access.roles.create has none, so one that holds permissions gets an Edit grant on the Space
  * (Manage when it is an elevated role or holds access.manage). A role with no permissions confers nothing.
  */
-export function withRoleGrants(snap: AccessSnapshot, store: AccessStore, space: string): AccessSnapshot {
+function withRoleGrants(snap: AccessSnapshot, store: AccessStore, space: string): AccessSnapshot {
   if (GRANTED.has(snap)) return snap;
   GRANTED.add(snap);
   const have = new Set<string>();

@@ -144,7 +144,7 @@ export default defineManifest({
       ...V, in: { exceptionId: t.id('exc') }, out: { removed: t.bool() }, perm: 'access.manage', emits: ['access.exception_removed', 'access.changed'], audit: 'always', tool: 'engineer', errors: ['validation.not_found'],
     }),
     write('access.exceptions.lapse', 'The server ends a permission exception whose end has come (the periodic job); audited', {
-      ...V, in: { exceptionId: t.id('exc') }, out: { removed: t.bool() }, emits: ['access.exception_removed', 'access.changed'], audit: 'always', agent: false, errors: ['permission.role_lacks_permission'],
+      ...V, in: { exceptionId: t.id('exc') }, out: { removed: t.bool() }, emits: ['access.exception_removed', 'access.changed'], audit: 'always', errors: ['permission.role_lacks_permission'],
     }),
     read('access.exceptions.explain', 'May this person (or the agent acting for them) do what a permission covers, and why, in plain words: the Owner, their own exception, a group exception or their role', {
       ...V, in: { principal: t.str(), perm: t.str() }, out: { allowed: t.bool(), source: t.enm('owner', 'person', 'group', 'role'), words: t.str(), exception: t.opt(exceptionRow) }, perm: 'access.manage', tool: 'engineer',

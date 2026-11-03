@@ -3,4 +3,3 @@
 - People > a person > Access lists their exceptions (and their groups') with Remove and Add, then What they can do: the matrix's rows in plain words with their value, those an exception decided marked; the Access checker's In the app says why: "Exception set by Irfad on 3 Nov, overrides Member: Allowed".
 - Opening a Space automation no longer logs a refused inner read (a direct kernel check for Edit given on it).
 - A menu opened in a sheet or dialog is drawn above it and inside the window (a test pins every layer below the menu's).
-- The Access checker's resource check answers from the same snapshot the gateway uses (each role's grant on the Space included), so a member's Space-wide access is checked as it is enforced.
