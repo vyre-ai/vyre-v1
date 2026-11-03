@@ -1,6 +1,6 @@
 # engine.accounts.list
 
-Accounts the caller can run on: API keys by handle and subscription sign-ins (Mine), with status
+Accounts the caller can run on: API keys by handle and subscription sign-ins (Mine), with status. With a place (chat, automation, agent, space) each says whether it can run there and why not
 
 | | |
 |---|---|
@@ -24,7 +24,13 @@ Accounts the caller can run on: API keys by handle and subscription sign-ins (Mi
 ## Input
 
 ```ts
-type In = Record<string, unknown>;
+type In = {
+  place?: "chat" | "automation" | "agent" | "space";
+  model?: string;
+  agentId?: string;
+  explicit?: boolean;
+  runsAs?: "person" | "space";
+};
 ```
 
 ## Output
@@ -50,6 +56,13 @@ type Out = {
           providerId: string;
           name: string;
         }>;
+      providerId?: string;
+      models?: Array<string>;
+      usable?: boolean;
+      code?: string;
+      capped?: boolean;
+      capCents?: number | null;
+      why?: string;
     }>;
 };
 ```
@@ -66,7 +79,13 @@ type Out = {
 ```json
 {
   "name": "example",
-  "input": {},
+  "input": {
+    "agentId": "agt_a1b2c3",
+    "explicit": true,
+    "model": "example",
+    "place": "chat",
+    "runsAs": "person"
+  },
   "output": {
     "accounts": [
       {
@@ -74,11 +93,17 @@ type Out = {
           "#Team_Anthropic_Key"
         ],
         "base": "example",
+        "capCents": 1,
+        "capped": true,
+        "code": "example",
         "driver": "anthropic",
         "keyless": true,
         "kind": "api_key",
         "lastProbeAt": 1760000000000,
         "mine": true,
+        "models": [
+          "example"
+        ],
         "name": "Dana Claude Max",
         "older": [
           {
@@ -88,10 +113,13 @@ type Out = {
           }
         ],
         "ownerId": "usr_a1b2c3",
+        "providerId": "prv_a1b2c3",
         "ref": "#Team_Anthropic_Key",
         "spaceKey": true,
         "status": "ok",
-        "title": "example"
+        "title": "example",
+        "usable": true,
+        "why": "example"
       }
     ]
   }

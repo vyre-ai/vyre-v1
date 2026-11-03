@@ -167,7 +167,7 @@ export function AiForm({ def, node, onChange, openMenu, kind, keys, agents, who,
   const pickKey = (field: "keyId" | "backupKeyId", none: string) => (x: number, y: number): void => {
     const entries: MenuEntry[] = [{ label: none, checked: !ai[field], onSelect: () => writeAi(withAi(ai, field, undefined)) }];
     if (pickable.length > 0) entries.push({ separator: true });
-    for (const k of pickable) entries.push({ label: `${k.name}${k.kind === "subscription" ? " (sign-in)" : " (API key)"}`, checked: ai[field] === k.id, onSelect: () => writeAi(withAi(ai, field, k.id)) });
+    for (const k of pickable) entries.push({ label: `${k.name}${k.kind === "subscription" ? " (sign-in)" : " (API key)"}`, checked: ai[field] === k.id, onSelect: () => writeAi(withAi(ai, field, k.id)), ...(k.usable === false ? { disabled: true, ...(k.why ? { reason: k.why } : {}) } : {}) });
     // the connect item ends the menu; when the flow finishes the new account is the one this field takes
     openMenu(connectEntries(entries, { kind: "ai" }, openConnect, (made) => writeAi(withAi(ai, field, made.id)), pickable.length === 0), x, y, "other");
   };

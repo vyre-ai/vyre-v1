@@ -10058,7 +10058,13 @@ export type EngineAccountResolveOut = {
     to?: string;
   };
 };
-export type EngineAccountsListIn = Record<string, unknown>;
+export type EngineAccountsListIn = {
+  place?: "chat" | "automation" | "agent" | "space";
+  model?: string;
+  agentId?: string;
+  explicit?: boolean;
+  runsAs?: "person" | "space";
+};
 export type EngineAccountsListOut = {
   accounts: Array<{
       ref: string;
@@ -10079,6 +10085,13 @@ export type EngineAccountsListOut = {
           providerId: string;
           name: string;
         }>;
+      providerId?: string;
+      models?: Array<string>;
+      usable?: boolean;
+      code?: string;
+      capped?: boolean;
+      capCents?: number | null;
+      why?: string;
     }>;
 };
 export type EngineCompactIn = {
