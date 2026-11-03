@@ -102,14 +102,24 @@ export function checkSql(moduleId: string, sql: string): { ok: true; tables: str
   return { ok: true, tables };
 }
 
+// the daemon database under each module handle, so a seam can tell its own daemon's calls from another's (two daemons share one process in the two-computer tests)
+const rawOf = new WeakMap<object, RawDb>();
+
+/** The daemon database a module's db handle reads, or null for a handle scopedDb did not make. */
+export function rawDbOf(db: unknown): RawDb | null {
+  return typeof db === "object" && db !== null ? rawOf.get(db) ?? null : null;
+}
+
 /** A db handle limited to one module's tables. */
 export function scopedDb(moduleId: string, raw: RawDb, traceId: string): RawDb {
   const guard = (sql: string): void => {
     const r = checkSql(moduleId, sql);
     if (!r.ok) throw fail("permission.no_grant", traceId, { message: "A module may only use its own tables.", details: { module: moduleId, why: r.why } });
   };
-  return {
+  const scoped: RawDb = {
     all(sql, ...args) { guard(sql); return raw.all(sql, ...args); },
     run(sql, ...args) { guard(sql); return raw.run(sql, ...args); },
   };
+  rawOf.set(scoped, raw);
+  return scoped;
 }

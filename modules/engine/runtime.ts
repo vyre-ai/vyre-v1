@@ -82,6 +82,8 @@ export interface EngineHostSeam {
   own?: (person: string) => boolean;
   /** A Space server only: does it hold this person's key now (locked-account.ts). Absent on a person's own computer. */
   keyHeld?: (person: string) => boolean;
+  /** Is this module db handle this daemon's own? Two daemons in one process (the two-computer tests) share the engine module, and only the daemon whose host half it holds builds its runtime. */
+  ours?: (db: unknown) => boolean;
   /** CLI engines: swap a program for a command (a fake CLI in a test), and extra read-only folders the sandbox must expose for it. Default: the real CLI, nothing extra. */
   cli?: { command?: Readonly<Record<string, readonly string[]>>; programRead?: readonly string[]; /** Where programs are looked for (a test's own folders); default: this computer's PATH. */ probe?: NodeCliProbe; /** A test's stand-in for the providers the API drivers call. */ apiFetch?: typeof fetch };
   /** The Space data directory. With it and no `sandbox`, the module builds the default sandbox for this platform on the first CLI turn (sandbox-default.ts). */
@@ -347,6 +349,10 @@ export async function closeDefaultSandbox(): Promise<void> { const d = defaultBu
  * (a daemon without the engine seam, or a unit test), in which case the control handlers keep raising internal.unavailable.
  */
 export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | null> {
+  // Built and bound only on the database of the daemon this host half belongs to. Where two daemons share the process (the two-computer tests), the other's periodic job or consumer reached here too and
+  // built the runtime on its own database with this host half; when that daemon stopped, its database closed under the runtime and every message after it failed ("database is not open").
+  // The check comes first so that daemon binds nothing, the MCP sign-in store included.
+  if (host?.ours && !host.ours(ctx.db)) return Promise.resolve(null);
   bindOauthStore(ctx as never);   // the sealed MCP sign-in tokens are read through the module's own ctx (db, seal, clock)
   if (!host || (!host.openSession && !host.session)) return Promise.resolve(null);   // no way to open a session: the control handlers keep answering internal.unavailable
   // One runtime per host: every call after the first answers with it. The opener below is part of it; building another on each call left the first one, the one with the live CLI sessions, unreachable

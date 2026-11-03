@@ -8,6 +8,7 @@ import { handlers, consumers, hostSeams } from "../impl.ts";
 import { ensureRuntime, resolveOne, wakeAfterUnblock } from "../runtime.ts";
 import { boundEngine, bindEngine, sqlMessages, sqlQueue } from "../projections.ts";
 import { ensureExtra } from "../handlers/extra/schema.ts";
+import { createMcpOauth } from "../mcp-oauth.ts";
 import { harness, openRaw } from "../fixtures/harness.ts";
 import { scriptedProvider } from "../../../agent/src/turn-engine/scripted-session.ts";
 import { until } from "../../../agent/src/turn-engine/harness.ts";
@@ -50,6 +51,35 @@ test("a daemon without the host half leaves the engine unbound; with it, the fir
   assert.equal(boundEngine(h.ctx), a);
   hostSeams.setEngineHost(null);
   assert.throws(() => boundEngine(h.ctx));
+});
+
+test("two daemons in one process: only the daemon whose host half the module holds builds the runtime, on its own database", async () => {
+  // the two-computer tests boot both computers' daemons in one process; the first one's periodic job built the runtime on its own database with the second's host half, and once the first
+  // stopped every message on the second failed with "database is not open" and no turn ran (vault-matrix.personal-second, about one run in five)
+  // each daemon's module ctx, with a seal (so the MCP sign-in store binds) and a db that says which daemon was asked
+  const asked: string[] = [];
+  const daemon = (name: string) => {
+    const h = harness({ threads: THREADS });
+    const db = { all: (sql: string, ...a: unknown[]) => { asked.push(name); return h.ctx.db.all(sql, ...a); }, run: (sql: string, ...a: unknown[]) => { asked.push(name); return h.ctx.db.run(sql, ...a); } };
+    const seal = { seal: (v: Uint8Array) => ({ keyId: "k", nonce: "", bytes: Buffer.from(v).toString("base64") }), unseal: (x: { bytes: string }) => new Uint8Array(Buffer.from(x.bytes, "base64")) };
+    return { ...h.ctx, db, seal } as unknown as typeof h.ctx;
+  };
+  bindEngine(null);
+  const first = daemon("first");
+  const second = daemon("second");
+  const f: Fake = { calls: [], haveKey: true, accountsDown: false };
+  hostSeams.setEngineHost({ ...hostFor(scriptedProvider({ script: say }), f), ours: (db) => db === second.db });
+  assert.equal(await ensureRuntime(first), null, "the first daemon's call builds nothing");
+  assert.throws(() => boundEngine(second), "and binds nothing");
+  const built = await ensureRuntime(second);
+  assert.ok(built);
+  assert.equal(boundEngine(second), built);
+  assert.equal(await ensureRuntime(first), null, "nor is it handed the second daemon's runtime");
+  // the MCP sign-in store stays on the second daemon's database after the first daemon's call
+  asked.length = 0;
+  try { createMcpOauth({ fetch: (() => Promise.reject(new Error("no network"))) as never }).forget("con_twodaemons"); } catch { /* the harness has no sign-in table; which database was asked is what counts */ }
+  assert.deepEqual(asked, ["second"], "the sign-in store reads the second daemon's database");
+  hostSeams.setEngineHost(null);
 });
 
 test("a turn runs on the account engine.account.resolve names, for the payer, and its usage is metered against the Vault item", async () => {

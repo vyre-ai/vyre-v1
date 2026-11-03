@@ -10,6 +10,7 @@ import { makeUse } from "./support/bench.ts";
 test("a second question asked in the turn an answer started is answered, and the agent goes on", async () => {
   const dir = seededDir();
   let turns = 0;
+  // only the chat's turns reach this plan: scriptedModel answers memory's learning one-shot itself (test/support/live.ts)
   const d = await boot(dir, scriptedModel(async function* (input: any, run: RunTool) {
     const use = makeUse(run, { calls: 0, log: [] });
     turns++;
