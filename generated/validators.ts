@@ -39010,6 +39010,7 @@ if ("why" in o2396) lf(o2396["why"], p + "/pin" + "/why", e, L562);
 }
 }
 }
+if ("cappedFrom" in o2393) lf(o2393["cappedFrom"], p + "/cappedFrom", e, L1);
 if ("via" in o2393) lf(o2393["via"], p + "/via", e, L563);
 if ("why" in o2393) lf(o2393["why"], p + "/why", e, L564);
 if ("modelFallback" in o2393) {

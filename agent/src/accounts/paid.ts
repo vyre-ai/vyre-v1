@@ -1,7 +1,8 @@
 // Who paid and why, in one plain line for a turn's Details (owner, 3 Nov, the Chat key ruling). Written from the resolver's decision when the turn ends, and read back from the stored turn.
 import type { AccountKind, Via } from "./types.ts";
 
-export function payLine(a: { via?: Via; kind: AccountKind; fellBack?: boolean }): string {
+export function payLine(a: { via?: Via; kind: AccountKind; fellBack?: boolean; cappedFrom?: string }): string {
+  if (a.cappedFrom) return `Backup after ${a.cappedFrom} hit its cap`;
   const base = ((): string => {
     switch (a.via) {
       case "chat_key": return "The agent's Chat key";

@@ -186,3 +186,10 @@ test("account.resolve: the Chat key is off unless set: the asker's own account a
   const on = await accountResolve(fake(routes([mine, team], agent({ accountPolicy: "key", accountKey: "#Team_Credits" }))).ctx, { threadId: "thr_1", agentId: "agt_1" });
   assert.deepEqual([on.accountRef, on.pin], ["#Team_Credits", { ref: "#Team_Credits", used: true }]);
 });
+
+test("account.resolve: a backup that pays because the account ahead hit its cap says which one", async () => {
+  const team = prov({ id: "prv_t", handle: "#Team_Credits", scope: "shared", capped: true, uses: { teamChats: { who: "everyone" } } });
+  const mine = prov({ id: "prv_2", handle: "#Other_Team", scope: "shared", uses: { teamChats: { who: "everyone" } }, models: ["claude-sonnet-5-5"] });
+  const r = await accountResolve(fake(routes([mine, team], { "agents.get": () => ({ agent: { accountPolicy: "key", accountKey: "#Team_Credits" } }), "engine.defaults.get": () => ({ fallback: [] }) })).ctx, { threadId: "thr_1", agentId: "agt_1" });
+  assert.deepEqual([r.accountRef, r.cappedFrom, r.fellBack], ["#Other_Team", "#Team_Credits", true]);
+});

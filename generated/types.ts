@@ -10003,6 +10003,7 @@ export type EngineAccountResolveOut = {
     used: boolean;
     why?: "unknown" | "expired" | "failed" | "policy_company" | "not_yours" | "space_may_not_use" | "failed_this_turn" | "capped" | "no_model" | "not_used_for";
   };
+  cappedFrom?: string;
   via?: "thread" | "chat_key" | "work" | "step" | "space" | "backup";
   why?: "no_account" | "expired" | "failed" | "policy";
   modelFallback?: {

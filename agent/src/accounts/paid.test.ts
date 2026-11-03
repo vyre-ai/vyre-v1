@@ -13,6 +13,7 @@ test("the line says who paid and why, from the rule that chose the account", () 
   assert.equal(payLine({ kind: "api_key" }), "The asker's own key");
   assert.equal(payLine({ kind: "subscription" }), "The asker's own sign-in");
   assert.match(payLine({ via: "chat_key", kind: "api_key" }), /^The agent's Chat key/);
+  assert.equal(payLine({ kind: "api_key", via: "space", fellBack: true, cappedFrom: "#Team_Credits" }), "Backup after #Team_Credits hit its cap");
   assert.equal(payLine({ via: "space", kind: "api_key", fellBack: true }), "A Space AI account, after another could not pay");
 });
 

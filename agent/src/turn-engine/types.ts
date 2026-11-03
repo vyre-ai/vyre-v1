@@ -239,6 +239,8 @@ export interface EngineSession {
 export interface ResolvedAccount { ref: string; driver: string; provider: string; kind: AccountKind; payer: string; reason: ResolveReason; itemId?: string;
   /** Which rule chose it (the Chat key, the chat's pick, an own-work account, a step's account, a Space account, a backup); absent for the asker's own. */
   via?: "thread" | "chat_key" | "work" | "step" | "space" | "backup";
+  /** The account ahead of this one that had hit its monthly cap. */
+  cappedFrom?: string;
   /** An account ahead of this one could not pay (signed out, failing, out of its limit): this is a fallback, not the person's first choice. */
   fellBack?: boolean;
   /** A key of the Space, not the person's own: `payer` is only whose turn it was. */

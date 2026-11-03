@@ -731,7 +731,7 @@ function noteBlock(info: TurnInfo, kind: string, payload: unknown, at: number): 
 
 /** At the end of a turn: the account that paid last, and the provider's dollar figure only when every call gave one. */
 function settleInfo(info: TurnInfo, paying: ResolvedAccount | null, usages: number, priced: number): void {
-  if (paying) info.paid = payLine({ ...(paying.via ? { via: paying.via } : {}), kind: paying.kind, ...(paying.fellBack ? { fellBack: true } : {}) });
+  if (paying) info.paid = payLine({ ...(paying.via ? { via: paying.via } : {}), kind: paying.kind, ...(paying.fellBack ? { fellBack: true } : {}), ...(paying.cappedFrom ? { cappedFrom: paying.cappedFrom } : {}) });
   if (paying) info.account = { ref: paying.ref, driver: paying.driver, provider: paying.provider, kind: paying.kind, ...(paying.shared ? { shared: true } : {}), ...(paying.spaceKey ? { spaceKey: true } : {}) };
   if (usages === 0 || priced !== usages) delete info.costUsd;
 }

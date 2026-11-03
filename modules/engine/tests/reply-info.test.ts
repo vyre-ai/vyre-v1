@@ -143,6 +143,9 @@ test("who paid and why is stored with the turn and read back synchronously: Chat
   const on = H["engine.turn.get"](h2.ctx, { turnId: "trn_on" });
   assert.equal(on.what.paid, "The agent's Chat key");
   assert.deepEqual(contractErrors("engine.turn.of_message", "out", H["engine.turn.of_message"](h2.ctx, { threadId: T, messageId: MSG })), []);
+  // the line is the one stored when the turn ended: changing the agent's Chat key or the accounts afterwards does not change it
+  const later = { ...h2.ctx, call: async (cap: string) => { throw new Error(`the stored line must not ask ${cap}`); } };
+  assert.equal(H["engine.turn.get"](later as never, { turnId: "trn_on" }).what.paid, "The agent's Chat key");
   // a turn recorded before this was kept has no line
   const h3 = harness();
   await recordTurn(h3, apiInfo(), { turnId: "trn_old" });
