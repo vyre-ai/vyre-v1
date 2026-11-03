@@ -5,11 +5,19 @@ import { createFakeReplica, createScreenHooks } from "../../../../../../client/s
 import type { FakeReplica, Row } from "../../../../../../client/src/index.ts";
 import { screensById } from "../../../../../../generated/screens.ts";
 import type { CapMap } from "../../../../../../generated/types.ts";
-import { validateInput } from "../../../../../../generated/validators.ts";
+// only the modules whose capabilities this sample checks (chat, agents, tasks, import), not the whole validators.ts: loading that took 2.2 s of a cold test run
+import { checkIn } from "../../../../../../generated/validators/core.ts";
+import { validators as chatChecks } from "../../../../../../generated/validators/chat.ts";
+import { validators as agentsChecks } from "../../../../../../generated/validators/agents.ts";
+import { validators as tasksChecks } from "../../../../../../generated/validators/tasks.ts";
+import { validators as importChecks } from "../../../../../../generated/validators/import.ts";
 import { fixtureFor } from "../../../fixtures/index.ts";
 import type { FixtureChannel } from "../../../fixtures/index.ts";
 import type { Agent, Channel, NeedsItem, RecentItem, RecentOut } from "./model.ts";
 import type { ChatsNav, ChatsSidebarData, Connection } from "./data.tsx";
+
+const CHECKS = { ...chatChecks, ...agentsChecks, ...tasksChecks, ...importChecks };
+const validateInput = (cap: string, v: number, input: unknown): string[] => checkIn(CHECKS, "in", cap, v, input);
 
 /** Friday 24 October 2025, 10:00 (UTC, so every machine prints the same times). */
 export const SAMPLE_NOW = Date.UTC(2025, 9, 24, 10, 0, 0);
