@@ -128,24 +128,22 @@ test("errors from invoke come back as tool errors with their code; an unexpected
   assert.ok(!JSON.stringify(b).includes("postgres://"));
 });
 
-test("a crash inside the server reaches the agent as a plain sentence naming the tool and the trace, never a bare 500, and the log is told the cause", async () => {
+test("a crash inside the server reaches the agent as a plain sentence naming the tool, never a bare 500; the trace is in the error's fields, not in the words", async () => {
   const loaded = loadGenerated();
-  const told: Array<{ cap: string; why: string; trace: string }> = [];
   const session = createToolSession({
     catalog: loaded.catalog, defaults: loaded.defaults, levelFor: () => "manage", traceId: () => "trace_fixed",
     invoke: async () => { throw new TypeError("Cannot read properties of undefined (reading 'length')"); },
-    onUnexpected: (cap, e, trace) => { told.push({ cap, why: e instanceof Error ? e.message : String(e), trace }); },
   });
   const out = await session.call(ctx(), "memory_search", { q: "notes" });
   assert.equal(out.kind === "error" && out.error.code, "internal.unexpected");
-  const message = out.kind === "error" ? out.error.message : "";
-  assert.match(message, /memory_search could not finish on the server just now/);
-  assert.match(message, /nothing was changed/);
-  assert.match(message, /trace_fixed/);
+  const error = out.kind === "error" ? out.error : null;
+  assert.match(error?.message ?? "", /memory_search could not finish on the server just now/);
+  assert.match(error?.message ?? "", /nothing was changed/);
+  assert.match(error?.message ?? "", /Do not paste ids or traces/);
+  assert.ok(!/trace_fixed/.test(error?.message ?? ""), "no trace id in the words the agent would repeat");
+  assert.equal(error?.traceId, "trace_fixed", "the trace id is in the error's own field");
   assert.ok(!/\b500\b/.test(JSON.stringify(out)), "no bare status code");
-  assert.ok(!JSON.stringify(out).includes("reading 'length'"), "the cause stays in the log");
-  assert.deepEqual(told.map((x) => [x.cap, x.trace]), [["memory.search", "trace_fixed"]]);
-  assert.match(told[0]!.why, /reading 'length'/);
+  assert.ok(!JSON.stringify(out).includes("reading 'length'"), "the cause stays in the server log");
 });
 
 test("an unknown tool is a validation error and never reaches invoke", async () => {
