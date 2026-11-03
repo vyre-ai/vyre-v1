@@ -14274,6 +14274,8 @@ export type GoogleGmailSendMessageIn = {
   text?: string;
   html?: string;
   threadId?: string;
+  inReplyTo?: string;
+  references?: string;
   attachments?: Array<string>;
   idempotencyKey: string;
 };
@@ -14507,6 +14509,8 @@ export type GoogleUserSendMessageIn = {
   text?: string;
   html?: string;
   threadId?: string;
+  inReplyTo?: string;
+  references?: string;
   attachments?: Array<string>;
   idempotencyKey: string;
 };
@@ -16079,6 +16083,95 @@ export type InboxThreadOut = {
       preview?: string;
       recordId?: string;
       ref?: unknown;
+    }>;
+  next?: string;
+  total?: number;
+};
+export type InboxThreadsIn = {
+  conversationId?: string;
+  contactId?: string;
+  images?: boolean;
+  cursor?: string;
+  limit?: number;
+};
+export type InboxThreadsOut = {
+  conversation: {
+    id: string;
+    contactId?: string;
+    address: string;
+    displayName: string;
+    lastMessageAt: number;
+    lastChannel: "email" | "sms" | "call" | "meeting";
+    lastPreview: string;
+    unreadCount: number;
+    needsMatch: boolean;
+    ownerId?: string;
+    mailboxIds: Array<string>;
+    followed: boolean;
+    alertOnReplies: boolean;
+    starred?: boolean;
+    organisation?: string;
+    dnd?: boolean;
+    bounced?: boolean;
+    unmatched?: boolean;
+    draftReady?: boolean;
+  };
+  threads: Array<{
+      threadId: string;
+      subject: string;
+      role: "started" | "to" | "cc" | "added_later" | "none";
+      participants: Array<{
+          address: string;
+          name?: string;
+        }>;
+      lastAt: number;
+      messageCount: number;
+      unread: number;
+      messages: Array<{
+          unread: boolean;
+          message: {
+            id: string;
+            at: number;
+            direction: "in" | "out";
+            mailboxId: string;
+            mailboxIds: Array<string>;
+            from: {
+              address: string;
+              name?: string;
+            };
+            to: Array<{
+                address: string;
+                name?: string;
+              }>;
+            cc: Array<{
+                address: string;
+                name?: string;
+              }>;
+            subject: string;
+            body: string;
+            quoted?: string;
+            signature?: string;
+            html?: string;
+            imagesHeld?: number;
+            reactions: Array<{
+                emoji: string;
+                from: {
+                  address: string;
+                  name?: string;
+                };
+                at: number;
+              }>;
+            attachments: Array<{
+                attachmentId: string;
+                name: string;
+                mime: string;
+                size: number;
+              }>;
+            isPrivate: boolean;
+            rfcMessageId?: string;
+            inReplyTo?: string;
+          };
+        }>;
     }>;
   next?: string;
   total?: number;
@@ -17896,6 +17989,61 @@ export type MailSyncNowIn = {
 };
 export type MailSyncNowOut = {
   runId: string;
+};
+export type MailThreadGetIn = {
+  threadId: string;
+  images?: boolean;
+};
+export type MailThreadGetOut = {
+  threadId: string;
+  subject: string;
+  role: "started" | "to" | "cc" | "added_later" | "none";
+  participants: Array<{
+      address: string;
+      name?: string;
+    }>;
+  messages: Array<{
+      id: string;
+      at: number;
+      direction: "in" | "out";
+      mailboxId: string;
+      mailboxIds: Array<string>;
+      from: {
+        address: string;
+        name?: string;
+      };
+      to: Array<{
+          address: string;
+          name?: string;
+        }>;
+      cc: Array<{
+          address: string;
+          name?: string;
+        }>;
+      subject: string;
+      body: string;
+      quoted?: string;
+      signature?: string;
+      html?: string;
+      imagesHeld?: number;
+      reactions: Array<{
+          emoji: string;
+          from: {
+            address: string;
+            name?: string;
+          };
+          at: number;
+        }>;
+      attachments: Array<{
+          attachmentId: string;
+          name: string;
+          mime: string;
+          size: number;
+        }>;
+      isPrivate: boolean;
+      rfcMessageId?: string;
+      inReplyTo?: string;
+    }>;
 };
 export type MailUnsubscribeIn = {
   token: string;
@@ -21957,6 +22105,7 @@ export type MsMailSendMessageIn = {
   text?: string;
   html?: string;
   conversationId?: string;
+  replyTo?: string;
   attachments?: Array<string>;
   idempotencyKey: string;
 };
@@ -22119,6 +22268,7 @@ export type MsUserSendMessageIn = {
   text?: string;
   html?: string;
   conversationId?: string;
+  replyTo?: string;
   attachments?: Array<string>;
   idempotencyKey: string;
 };
@@ -36610,6 +36760,7 @@ export interface CapMap {
   "inbox.recipients_search": { in: InboxRecipientsSearchIn; out: InboxRecipientsSearchOut };
   "inbox.send_options": { in: InboxSendOptionsIn; out: InboxSendOptionsOut };
   "inbox.thread": { in: InboxThreadIn; out: InboxThreadOut };
+  "inbox.threads": { in: InboxThreadsIn; out: InboxThreadsOut };
   "inbox.unmatch": { in: InboxUnmatchIn; out: InboxUnmatchOut };
   "inbox.unmatched": { in: InboxUnmatchedIn; out: InboxUnmatchedOut };
   "invites.accept_create_account": { in: InvitesAcceptCreateAccountIn; out: InvitesAcceptCreateAccountOut };
@@ -36692,6 +36843,7 @@ export interface CapMap {
   "mail.send_preview": { in: MailSendPreviewIn; out: MailSendPreviewOut };
   "mail.status_update": { in: MailStatusUpdateIn; out: MailStatusUpdateOut };
   "mail.sync_now": { in: MailSyncNowIn; out: MailSyncNowOut };
+  "mail.thread.get": { in: MailThreadGetIn; out: MailThreadGetOut };
   "mail.unsubscribe": { in: MailUnsubscribeIn; out: MailUnsubscribeOut };
   "mailgun.domains.create": { in: MailgunDomainsCreateIn; out: MailgunDomainsCreateOut };
   "mailgun.domains.delete": { in: MailgunDomainsDeleteIn; out: MailgunDomainsDeleteOut };

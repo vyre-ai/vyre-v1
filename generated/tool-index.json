@@ -4292,6 +4292,12 @@
     },
     {
       "deferred": false,
+      "name": "inbox_threads",
+      "summary": "One contact's email threads, each whole: every thread they are on (From, To or Cc), newest first, with everyone's messages, quoted history and signatures apart, reactions, what is new and your role",
+      "toolset": "inbox"
+    },
+    {
+      "deferred": false,
       "name": "inbox_unmatch",
       "summary": "Undo a match; the sender goes back to Unmatched",
       "toolset": "inbox"
@@ -4714,6 +4720,12 @@
       "deferred": false,
       "name": "mail_sync_now",
       "summary": "Sync a mailbox now",
+      "toolset": "inbox"
+    },
+    {
+      "deferred": false,
+      "name": "mail_thread_get",
+      "summary": "Read one email thread whole: every message you may see, oldest first, with quoted history and signatures apart, Gmail reactions on the message they answer, and your role (you started it, To, Cc, or added later)",
       "toolset": "inbox"
     },
     {

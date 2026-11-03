@@ -1286,6 +1286,7 @@ export function stubs(ctx: CallCtx) {
       recipients_search: call("inbox.recipients_search"),
       send_options: call("inbox.send_options"),
       thread: call("inbox.thread"),
+      threads: call("inbox.threads"),
       unmatch: call("inbox.unmatch"),
       unmatched: call("inbox.unmatched"),
     },
@@ -1392,6 +1393,9 @@ export function stubs(ctx: CallCtx) {
       send_preview: call("mail.send_preview"),
       status_update: call("mail.status_update"),
       sync_now: call("mail.sync_now"),
+      thread: {
+        get: call("mail.thread.get"),
+      },
       unsubscribe: call("mail.unsubscribe"),
     },
     mailgun: {

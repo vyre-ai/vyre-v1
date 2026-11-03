@@ -28250,6 +28250,47 @@
     },
     {
       "blocks": [],
+      "cap": "inbox.threads",
+      "deferred": false,
+      "description": "One contact's email threads, each whole: every thread they are on (From, To or Cc), newest first, with everyone's messages, quoted history and signatures apart, reactions, what is new and your role",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "contactId": {
+            "examples": [
+              "rec_a1b2c3"
+            ],
+            "pattern": "^rec_[a-z0-9]+$",
+            "type": "string"
+          },
+          "conversationId": {
+            "examples": [
+              "cnv_a1b2c3"
+            ],
+            "pattern": "^cnv_[a-z0-9]+$",
+            "type": "string"
+          },
+          "cursor": {
+            "type": "string"
+          },
+          "images": {
+            "type": "boolean"
+          },
+          "limit": {
+            "maximum": 500,
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "name": "inbox_threads",
+      "planMode": "allowed",
+      "toolset": "inbox",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "inbox.unmatch",
       "deferred": false,
       "description": "Undo a match; the sender goes back to Unmatched",
@@ -31651,6 +31692,34 @@
       },
       "name": "mail_sync_now",
       "planMode": "blocked",
+      "toolset": "inbox",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "mail.thread.get",
+      "deferred": false,
+      "description": "Read one email thread whole: every message you may see, oldest first, with quoted history and signatures apart, Gmail reactions on the message they answer, and your role (you started it, To, Cc, or added later)",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "images": {
+            "type": "boolean"
+          },
+          "threadId": {
+            "examples": [
+              "18c2a1f04e9b"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "threadId"
+        ],
+        "type": "object"
+      },
+      "name": "mail_thread_get",
+      "planMode": "allowed",
       "toolset": "inbox",
       "v": 1
     },

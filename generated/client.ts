@@ -1286,6 +1286,7 @@ export function createClient(transport: Transport) {
       recipients_search: call("inbox.recipients_search", 1),
       send_options: call("inbox.send_options", 1),
       thread: call("inbox.thread", 1),
+      threads: call("inbox.threads", 1),
       unmatch: call("inbox.unmatch", 1),
       unmatched: call("inbox.unmatched", 1),
     },
@@ -1392,6 +1393,9 @@ export function createClient(transport: Transport) {
       send_preview: call("mail.send_preview", 1),
       status_update: call("mail.status_update", 1),
       sync_now: call("mail.sync_now", 1),
+      thread: {
+        get: call("mail.thread.get", 1),
+      },
       unsubscribe: call("mail.unsubscribe", 1),
     },
     mailgun: {

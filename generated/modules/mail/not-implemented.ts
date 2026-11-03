@@ -42,5 +42,6 @@ export const handlers: Handlers<HandlerCtx> = {
   "mail.send_preview": async (ctx) => { throw new VyreErr(notImplemented("mail.send_preview", ctx.trace)); },
   "mail.status_update": async (ctx) => { throw new VyreErr(notImplemented("mail.status_update", ctx.trace)); },
   "mail.sync_now": async (ctx) => { throw new VyreErr(notImplemented("mail.sync_now", ctx.trace)); },
+  "mail.thread.get": async (ctx) => { throw new VyreErr(notImplemented("mail.thread.get", ctx.trace)); },
   "mail.unsubscribe": async (ctx) => { throw new VyreErr(notImplemented("mail.unsubscribe", ctx.trace)); },
 };
