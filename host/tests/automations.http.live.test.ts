@@ -3,12 +3,13 @@
 // automations.http.send.live.test.ts; both share the booted host in automations-http-rig.ts.
 import test from "node:test";
 import assert from "node:assert/strict";
+import { bootCore } from "../../fixtures/seed/core/index.ts";
 import { SECRET, boot, dump, keyed, noSecret, ok, promoted, seededDir, until } from "./automations-http-rig.ts";
 import type { HoldRow, Seen, StepRow } from "./automations-http-rig.ts";
 
 test("a GET reads through the installed network with the key in a header; the key is nowhere in the log", async () => {
   const seen: Seen[] = [];
-  const d = await boot(seededDir(), seen);
+  const d = await boot(seededDir(bootCore), seen);
   try {
     const handle = await keyed(d);
     const id = await promoted(d, "http-get", "Read items", [{ id: "look", key: "http_request", input: { method: "GET", url: "https://api.example.com/v1/items", query: { page: 2 }, auth: { kind: "bearer", handle } } }]);
@@ -37,7 +38,7 @@ test("a GET reads through the installed network with the key in a header; the ke
 
 test("a private address, a rebinding name and plain http are refused by name and nothing is sent", async () => {
   const seen: Seen[] = [];
-  const d = await boot(seededDir(), seen);
+  const d = await boot(seededDir(bootCore), seen);
   try {
     const urls = ["https://127.0.0.1/", "https://10.1.2.3/v1", "https://169.254.169.254/latest/meta-data", "https://rebind.example.com/x"];
     for (const [i, url] of urls.entries()) {
@@ -62,7 +63,7 @@ test("a private address, a rebinding name and plain http are refused by name and
 
 test("a POST with Ask before sending On is held by the Gate, then released: it is sent once, with the attempt key as its Idempotency-Key", async () => {
   const seen: Seen[] = [];
-  const d = await boot(seededDir(), seen);
+  const d = await boot(seededDir(bootCore), seen);
   try {
     const handle = await keyed(d);
     const id = await promoted(d, "http-post", "Post order", [{ id: "order", key: "http_request", askBeforeSending: true, input: { method: "POST", url: "https://api.example.com/v1/orders", json: { sku: "A-1", qty: 2 }, auth: { kind: "bearer", handle } } }]);
@@ -98,7 +99,7 @@ test("a POST with Ask before sending On is held by the Gate, then released: it i
 
 test("a sandbox test reads a GET for real and records a POST without sending it", async () => {
   const seen: Seen[] = [];
-  const d = await boot(seededDir(), seen);
+  const d = await boot(seededDir(bootCore), seen);
   try {
     const made = await ok(d, "/v1/automations/create", {
       idempotencyKey: "http-sbx", name: "Sandbox http",

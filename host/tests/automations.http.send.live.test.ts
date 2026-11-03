@@ -2,12 +2,13 @@
 // sends a POST at once; a Space rule holds it anyway; a GET is a read and never held. The first file is automations.http.live.test.ts; both share automations-http-rig.ts.
 import test from "node:test";
 import assert from "node:assert/strict";
+import { bootCore } from "../../fixtures/seed/core/index.ts";
 import { boot, dump, keyed, noSecret, ok, postNode, promoted, seededDir, sendOutcome, until } from "./automations-http-rig.ts";
 import type { Seen, StepRow } from "./automations-http-rig.ts";
 
 test("an automation that was not given the key cannot use its handle: the request is refused and nothing is sent", async () => {
   const seen: Seen[] = [];
-  const d = await boot(seededDir(), seen);
+  const d = await boot(seededDir(bootCore), seen);
   try {
     const handle = await keyed(d);
     const id = await promoted(d, "http-nokey", "No key", [{ id: "look", key: "http_request", input: { method: "GET", url: "https://api.example.com/v1/items", auth: { kind: "bearer", handle } } }], false);
@@ -26,7 +27,7 @@ test("an automation that was not given the key cannot use its handle: the reques
 test("Ask before sending Off, or unset, sends a POST at once with no hold", async () => {
   for (const [name, ask] of [["off", false], ["unset", undefined]] as const) {
     const seen: Seen[] = [];
-    const d = await boot(seededDir(), seen);
+    const d = await boot(seededDir(bootCore), seen);
     try {
       const handle = await keyed(d);
       const id = await promoted(d, `http-ask-${name}`, `Ask ${name}`, postNode(handle, ask));
@@ -39,7 +40,7 @@ test("Ask before sending Off, or unset, sends a POST at once with no hold", asyn
 
 test("a Space rule that requires approval for sends holds a POST even when the step is Off", async () => {
   const seen: Seen[] = [];
-  const d = await boot(seededDir(), seen);
+  const d = await boot(seededDir(bootCore), seen);
   try {
     const handle = await keyed(d);
     const id = await promoted(d, "http-ask-rule", "Ask rule", postNode(handle, false));
@@ -51,7 +52,7 @@ test("a Space rule that requires approval for sends holds a POST even when the s
 
 test("a GET is a read: it is never held, whatever the setting", async () => {
   const seen: Seen[] = [];
-  const d = await boot(seededDir(), seen);
+  const d = await boot(seededDir(bootCore), seen);
   try {
     const handle = await keyed(d);
     const id = await promoted(d, "http-ask-get", "Ask get", [{ id: "look", key: "http_request", askBeforeSending: true, input: { method: "GET", url: "https://api.example.com/v1/items", auth: { kind: "bearer", handle } } }]);

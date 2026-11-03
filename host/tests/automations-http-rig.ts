@@ -4,7 +4,6 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { bootCore } from "../../fixtures/seed/core/index.ts";
 import { fakePlatform } from "../src/platform/index.ts";
 import type { FetchFn } from "../src/platform/probes.ts";
 import { loadConfig } from "../src/daemon/config.ts";
@@ -17,7 +16,8 @@ export const SECRET = "sk_live_HTTPSTEP_7f3a91c2d4e8";
 
 export interface Seen { url: string; method: string; headers: Record<string, string>; body?: string }
 
-export function seededDir(): string {
+/** `bootCore` is the seeded Space of fixtures/seed/core (a test passes it: only a test file may import the fixtures). */
+export function seededDir(bootCore: () => { store: { db: { exec(sql: string): void } }; file: string; close(): void }): string {
   const core = bootCore();
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "vyre-http-step-"));
   core.store.db.exec("PRAGMA wal_checkpoint(TRUNCATE); PRAGMA journal_mode = DELETE");
