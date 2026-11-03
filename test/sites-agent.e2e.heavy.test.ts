@@ -17,7 +17,6 @@ const DOMAIN = "agent-sites.test";
 const docker = (...a: string[]) => spawnSync("docker", a, { encoding: "utf8", timeout: 120_000 });
 
 test("an agent in a chat plans, creates and deploys a site, and says where it is", { skip: SKIP, timeout: 600_000 }, async (t) => {
-  if (docker("network", "inspect", "vyre-sites").status !== 0) assert.equal(docker("network", "create", "vyre-sites").status, 0);
   const work = fs.mkdtempSync(path.join(os.tmpdir(), "vyre-sites-agent-"));
   const sock = path.join(work, "run", "runner.sock");
   const proc = spawn(process.execPath, [path.join(CODE_ROOT, "host", "src", "sites-runner", "main.ts")], { env: { ...process.env, VYRE_SITES_RUNNER_SOCKET: sock }, stdio: "ignore" });

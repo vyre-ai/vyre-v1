@@ -2,8 +2,9 @@
 #   docker compose -f compose.server.yml up -d
 # Caddy shares vyred's network namespace, so its admin API stays on loopback and the ports below are published once, on vyred.
 # The sites runner (owner, 3 Nov) is the only service that holds the Docker socket. It has no network; vyred reaches it over a Unix socket in the vyre-sites-run volume with a token
-# it writes there at each start, and it builds and runs only site containers, on the vyre-sites network, inside fixed limits (host/src/sites-runner/policy.ts). vyred joins vyre-sites
-# to serve them.
+# it writes there at each start, and it builds and runs only site containers, each site on a network of its own, inside fixed limits (host/src/sites-runner/policy.ts). vyred (labelled
+# vyre.ingress, with Caddy in its network namespace) is the one other container that joins a site's network, so Caddy can proxy to the site; vyred closes any connection that arrives on a
+# site network's address, so sites never reach it, and sites never reach each other.
 name: vyre-server
 
 services:
@@ -32,9 +33,8 @@ services:
       - "80:80"
       - "443:443"
       - "127.0.0.1:${VYRE_PORT:-8420}:8420"
-    networks:
-      - default
-      - vyre-sites
+    labels:
+      vyre.ingress: "1"
     depends_on:
       sites-runner:
         condition: service_started
@@ -92,8 +92,3 @@ volumes:
   caddy-data:
   caddy-config:
   vyre-sites-run:
-
-networks:
-  # the sites' own network: site containers, their databases, and vyred to serve them; nothing else is put on it
-  vyre-sites:
-    name: vyre-sites

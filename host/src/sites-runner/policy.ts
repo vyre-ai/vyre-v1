@@ -1,8 +1,11 @@
 // What the sites runner lets through to Docker (owner, 3 Nov: Vyre never holds the full Docker socket). Every request from vyred is judged here before the runner forwards it; anything
-// not named below is refused. Allowed: build an image tagged vyre-site/<site>:<deployment>; fetch the two database images; create a container that carries vyre.site=<site>, sits on the
-// vyre-sites network, runs with every capability dropped, no new privileges, a CPU, memory and process cap, rotated logs, and no host path, device, port or namespace; start, stop, read,
-// remove and log only containers that carry vyre.site; exec only into those, as their own user; remove only vyre-site images and volumes.
-export const NETWORK = "vyre-sites";
+// not named below is refused. Allowed: build an image tagged vyre-site/<site>:<deployment>; fetch the two database images; make a site's own network vyre-site-<site> and join to it only
+// that site's containers and the ingress (the vyred and Caddy service, labelled vyre.ingress); create a container that carries vyre.site=<site>, sits on its site's network only, runs with
+// every capability dropped, no new privileges, a CPU, memory and process cap, rotated logs, and no host path, device, port or namespace; start, stop, read, remove and log only containers
+// that carry vyre.site; exec only into those, as their own user; remove only vyre-site images, volumes and networks. So one site cannot reach another site or its database.
+/** A site's own network: its app, its Postgres and Redis, and the ingress. */
+export const networkOf = (siteId: string): string => `vyre-site-${siteId.replace(/^sit_/, "").slice(-16)}`;
+const NET_NAME = /^vyre-site-[a-z0-9]{1,16}$/;
 export const SITE_ID = /^sit_[a-z0-9]{1,64}$/;
 export const ADDON_IMAGES: Readonly<Record<string, string>> = { postgres: "postgres:16-alpine", redis: "redis:7-alpine" };
 export const MAX = { nanoCpus: 4e9, memory: 8 * 1024 ** 3, pids: 1024, buildMemory: 4 * 1024 ** 3, buildCpuQuota: 400_000 };
@@ -53,6 +56,7 @@ export function containerBody(name: string, body: unknown): { body: Record<strin
   const hex = hexOf(siteId);
   const kind = String(labels["vyre.kind"] ?? "");
   if (!["app", "postgres", "redis"].includes(kind)) return { why: "a site container is an app, postgres or redis" };
+  if ("vyre.ingress" in labels) return { why: "a site container cannot be the ingress" };
   if (!name.startsWith(`vyre-site-${hex.slice(-12)}-`)) return { why: "a site container is named vyre-site-<its site>-..." };
   const image = String(body["Image"] ?? "");
   if (kind === "app" ? !image.startsWith(`vyre-site/${hex}:`) : image !== ADDON_IMAGES[kind]) return { why: kind === "app" ? "an app runs its own site's image" : `${kind} runs ${ADDON_IMAGES[kind]}` };
@@ -60,7 +64,7 @@ export function containerBody(name: string, body: unknown): { body: Record<strin
   if (!h) return { why: "a site container needs its limits" };
   if (h["Privileged"] === true) return { why: "privileged containers are refused" };
   for (const k of Object.keys(h)) if (!HOST_KEYS.has(k) && h[k] !== undefined && h[k] !== null && h[k] !== false && !(Array.isArray(h[k]) && (h[k] as unknown[]).length === 0) && !(isObj(h[k]) && Object.keys(h[k] as object).length === 0)) return { why: `a site container may not set ${k}` };
-  if (h["NetworkMode"] !== NETWORK) return { why: `a site container is on the ${NETWORK} network only` };
+  if (h["NetworkMode"] !== networkOf(siteId)) return { why: "a site container is on its own site's network only" };
   const nano = Number(h["NanoCpus"]), mem = Number(h["Memory"]), pids = Number(h["PidsLimit"]);
   if (!(nano > 0 && nano <= MAX.nanoCpus)) return { why: "a site container needs a CPU cap of at most 4 CPUs" };
   if (!(mem > 0 && mem <= MAX.memory) || Number(h["MemorySwap"]) !== mem) return { why: "a site container needs a memory cap of at most 8 GB and no swap" };
@@ -79,8 +83,20 @@ export function containerBody(name: string, body: unknown): { body: Record<strin
   const rp = isObj(h["RestartPolicy"]) ? String(h["RestartPolicy"]["Name"] ?? "") : "";
   if (rp !== "" && !["unless-stopped", "no", "on-failure"].includes(rp)) return { why: "that restart policy is refused" };
   const net = isObj(body["NetworkingConfig"]) && isObj(body["NetworkingConfig"]["EndpointsConfig"]) ? Object.keys(body["NetworkingConfig"]["EndpointsConfig"]) : [];
-  if (net.some((n) => n !== NETWORK)) return { why: `a site container joins the ${NETWORK} network only` };
+  if (net.some((n) => n !== networkOf(siteId))) return { why: "a site container joins its own site's network only" };
   return { body: { ...body, HostConfig: { ...h, CapDrop: ["ALL"], SecurityOpt: ["no-new-privileges"], LogConfig: LOGS, Privileged: false } } };
+}
+
+/** A site's network: a plain bridge with its label, nothing else (no host access, no IP ranges, no driver options). */
+export function networkBody(body: unknown): { body: Record<string, unknown> } | { why: string } {
+  if (!isObj(body)) return { why: "the network config is not an object" };
+  for (const k of Object.keys(body)) if (!["Name", "Driver", "Labels", "CheckDuplicate"].includes(k)) return { why: `a site network may not set ${k}` };
+  const labels = isObj(body["Labels"]) ? body["Labels"] : {};
+  const siteId = String(labels["vyre.site"] ?? "");
+  if (!SITE_ID.test(siteId)) return { why: "a site network carries vyre.site=<site>" };
+  if (body["Name"] !== networkOf(siteId)) return { why: "a site network is named vyre-site-<its site>" };
+  if (body["Driver"] !== undefined && body["Driver"] !== "bridge") return { why: "a site network is a bridge" };
+  return { body: { Name: body["Name"], Driver: "bridge", CheckDuplicate: true, Labels: { "vyre.site": siteId } } };
 }
 
 /** An exec into a site container: a command, its env, its output; never another user, privileged or a TTY. */
@@ -92,7 +108,7 @@ export function execBody(body: unknown): { body: Record<string, unknown> } | { w
 }
 
 /** The first look at a request: what kind it is, or why it is refused. Requests on a container are checked again once its labels are read (siteContainer). */
-export function judge(r: Request): Verdict | { ok: true; kind: "container"; id: string; action: string } | { ok: true; kind: "exec-start" | "exec-inspect"; id: string } {
+export function judge(r: Request): Verdict | { ok: true; kind: "container"; id: string; action: string } | { ok: true; kind: "exec-start" | "exec-inspect"; id: string } | { ok: true; kind: "network-create" } | { ok: true; kind: "network-connect"; network: string } {
   const p = bare(r.path);
   const m = r.method.toUpperCase();
   if ((m === "GET" || m === "HEAD") && (p === "/_ping" || p === "/version")) return { ok: true, kind: "plain" };
@@ -126,7 +142,14 @@ export function judge(r: Request): Verdict | { ok: true; kind: "container"; id: 
   }
   const e = /^\/exec\/([a-f0-9]{64})\/(start|json)$/.exec(p);
   if (e) return m === "POST" && e[2] === "start" ? { ok: true, kind: "exec-start", id: e[1] as string } : m === "GET" && e[2] === "json" ? { ok: true, kind: "exec-inspect", id: e[1] as string } : no("that exec call is refused");
-  if (m === "GET" && p === `/networks/${NETWORK}`) return { ok: true, kind: "plain" };
+  if (m === "POST" && p === "/networks/create") return { ok: true, kind: "network-create" };
+  const net = /^\/networks\/([a-z0-9-]{1,40})(?:\/(connect))?$/.exec(p);
+  if (net && NET_NAME.test(net[1] as string)) {
+    if (m === "GET" && !net[2]) return { ok: true, kind: "plain" };
+    if (m === "DELETE" && !net[2]) return { ok: true, kind: "plain" };
+    if (m === "POST" && net[2] === "connect") return { ok: true, kind: "network-connect", network: net[1] as string };
+  }
+  if (net) return no("only a site's own network may be read, made, joined or removed");
   if (m === "DELETE" && /^\/volumes\/vyre-site-[a-z0-9]{1,12}-(postgres|redis)-data$/.test(p)) return { ok: true, kind: "plain" };
   return no("the sites runner does not do that");
 }

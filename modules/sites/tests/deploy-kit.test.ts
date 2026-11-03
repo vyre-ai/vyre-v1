@@ -1,6 +1,6 @@
 // The deploy tests' world, real pieces only where they matter: real SQLite with the sites migrations, the real sites module handlers and host seam, the real sites runner (the restricted
 // sidecar, host/src/sites-runner) in front of the box's Docker engine, and the real site-host route behind a small HTTP server that answers for <slug>.sites.test. Files, the Vault and
-// access are scripted. The test process reaches the vyre-sites network the way vyred does on a server, so the box needs it (made here when missing).
+// access are scripted. Each site gets its own network; the test process reaches them from the host, and closes connections from them the way vyred does on a server.
 // A test file uses one of these per app kind and cleans up every container, image, volume and network it made (by the vyre.site label).
 import { spawnSync } from "node:child_process";
 import fs from "node:fs";
@@ -12,10 +12,10 @@ import { DatabaseSync } from "node:sqlite";
 import { fileURLToPath } from "node:url";
 import { harness } from "../fixtures/world.ts";
 import { createSitesHost } from "../../../host/src/seams/sites-host.ts";
-import { createSiteHostRoute } from "../../../host/src/routes/site-host.ts";
+import { createSiteHostRoute, inSubnets } from "../../../host/src/routes/site-host.ts";
 import { createSitesRunner } from "../../../host/src/sites-runner/server.ts";
 import { configureRoutes, containerAddress, routeByHost, routeByTicket } from "../handlers/route.ts";
-import { checkPassword, newTicket, SESSION_MS } from "../handlers/release.ts";
+import { checkPassword, newTicket, SESSION_MS, siteSubnets } from "../handlers/release.ts";
 import { handlers } from "../impl.ts";
 
 export const HEAVY = process.env["VYRE_HEAVY_DOCKER"] === "1";
@@ -60,7 +60,6 @@ export function deployWorld(o: { vault?: Record<string, string>; members?: strin
     },
   };
   // the restricted runner on a socket of its own: the module never sees the Docker socket
-  if (HEAVY && docker("network", "inspect", "vyre-sites").status !== 0) docker("network", "create", "vyre-sites");
   const runnerDir = fs.mkdtempSync(path.join(os.tmpdir(), "vyre-sites-runner-"));
   const runnerToken = Array.from(globalThis.crypto.getRandomValues(new Uint8Array(16)), (b) => b.toString(16).padStart(2, "0")).join("");
   const runner = createSitesRunner({ dockerSocket: "/var/run/docker.sock", listen: path.join(runnerDir, "runner.sock"), token: runnerToken });
@@ -77,7 +76,9 @@ export function deployWorld(o: { vault?: Record<string, string>; members?: strin
     address: (c) => containerAddress(c), origin: () => "https://space.test",
   });
   const server = http.createServer((q, s) => { if (!route.handle(q, s)) { s.writeHead(599); s.end("not a site"); } });
-  const ready = runner.listening.then(() => new Promise<number>((r) => server.listen(0, "127.0.0.1", () => r((server.address() as AddressInfo).port))));
+  // as on a server: open on every address, and a connection that comes from a site's network is closed (sites never reach Vyre)
+  server.on("connection", (sock) => { if (inSubnets(sock.localAddress, siteSubnets({ db: sdb }))) sock.destroy(); });
+  const ready = runner.listening.then(() => new Promise<number>((r) => server.listen(0, "0.0.0.0", () => r((server.address() as AddressInfo).port))));
   const sites: string[] = [];
 
   /** One request to a site's own address through the route, with the Host header a browser would send. */
@@ -117,6 +118,7 @@ export function deployWorld(o: { vault?: Record<string, string>; members?: strin
       if (imgs.length) docker("rmi", "-f", ...new Set(imgs));
       const hex = id.replace(/^sit_/, "");
       docker("volume", "rm", "-f", `vyre-site-${hex.slice(-12)}-postgres-data`, `vyre-site-${hex.slice(-12)}-redis-data`);
+      docker("network", "rm", `vyre-site-${hex.slice(-16)}`);
     }
   }
 
@@ -137,5 +139,5 @@ export function deployWorld(o: { vault?: Record<string, string>; members?: strin
     return String(r.headers["set-cookie"]).split(";")[0] as string;
   }
 
-  return { runnerSocket: path.join(runnerDir, "runner.sock"), runnerToken, ctx, h, db, sdb, vault, files, folders, members, get, deploy, create, signIn, buildLog, cleanup, track: (id: string) => sites.push(id), as: (p: string) => ({ ...ctx, principal: { kind: "person" as const, id: p } }) };
+  return { port: () => ready, runnerSocket: path.join(runnerDir, "runner.sock"), runnerToken, ctx, h, db, sdb, vault, files, folders, members, get, deploy, create, signIn, buildLog, cleanup, track: (id: string) => sites.push(id), as: (p: string) => ({ ...ctx, principal: { kind: "person" as const, id: p } }) };
 }

@@ -3,7 +3,7 @@
 // Staging and preview routes carry basic auth whose password is a sealed Vault key: the password is read at call time, hashed to bcrypt by the injected hasher, and only the
 // hash reaches Caddy.
 import { CaddyAdmin, CaddyError } from "./admin.ts";
-import { baseConfig, BASIC_USER, hostOf, normalizeHost, normalizeUpstream, RouteError, routeId, routesOf, SERVER, siteRoute, withServer } from "./routes.ts";
+import { baseConfig, BASIC_USER, deployedSiteRoute, hostOf, normalizeHost, normalizeUpstream, RouteError, routeId, routesOf, SERVER, siteRoute, withServer } from "./routes.ts";
 import type { BaseOptions, BasicAuth, RouteJson } from "./routes.ts";
 import { connectPeer, judgeCert } from "./tls.ts";
 import type { CertInfo, PeerFn } from "./tls.ts";
@@ -56,6 +56,13 @@ export class CaddyRouter {
   async setIngress(host: string, upstream: string): Promise<void> {
     const h = normalizeHost(host);
     await this.write(siteRoute(h, normalizeUpstream(upstream), null));
+    if (!this.added.has(h)) this.added.set(h, this.now());
+  }
+
+  /** A site Vyre deploys: auth at vyred (`auth`), then straight to its container (`app`), WebSockets included (routes.ts deployedSiteRoute). */
+  async setDeployedSite(host: string, auth: string, app: string): Promise<void> {
+    const h = normalizeHost(host);
+    await this.write(deployedSiteRoute(h, auth, app));
     if (!this.added.has(h)) this.added.set(h, this.now());
   }
 

@@ -3,11 +3,13 @@
 // talks to it as to Docker, and anything outside its policy comes back 403.
 //   build   the source folder goes as a tar; the builder (the repo's own Dockerfile, or a standard one from images/site-builders) runs with a memory and CPU cap, and every line it prints
 //           reaches onLine as it comes
-//   run     vyre-site-<site>-<deployment> on the vyre-sites network with PORT and the env given, every capability dropped, a CPU, memory, process and disk cap and rotated logs; the
+//   network vyre-site-<site>: the site's own, joined by its app, its databases and the ingress (vyred and Caddy) and nothing else, so sites cannot reach each other
+//   run     vyre-site-<site>-<deployment> on its site's network with PORT and the env given, every capability dropped, a CPU, memory, process and disk cap and rotated logs; the
 //           image stays after the container goes, so a rollback starts it again without a build
 //   addons  vyre-site-<site>-postgres / -redis, the official images run as their own user, a named volume each, reached as <kind>-<site> on the network
 import fs from "node:fs";
 import http from "node:http";
+import os from "node:os";
 import path from "node:path";
 import { tarFiles } from "./tar.ts";
 import type { TarEntry } from "./tar.ts";
@@ -36,6 +38,9 @@ export interface Runner {
   freeMb(): Promise<number | null>;
   build(a: { siteId: string; deploymentId: string; dir: string; plan: SitePlan; onLine(line: string): void }): Promise<{ ok: true; image: string } | { ok: false; reason: string }>;
   run(a: { siteId: string; deploymentId: string; image: string; port: number; env: Record<string, string>; limits: Limits }): Promise<{ containerId: string; name: string; note?: string }>;
+  /** the site's own network, made when missing and joined by the ingress when this process runs in a container; its subnet is what the gateway refuses connections on */
+  network(siteId: string): Promise<{ name: string; subnet: string | null }>;
+  removeNetwork(siteId: string): Promise<void>;
   /** the address of a container on the vyre-sites network */
   address(containerId: string): Promise<string | null>;
   /** running, or how it ended: oom when the memory cap stopped it */
@@ -101,7 +106,8 @@ export function frames(body: Uint8Array): string[] {
   return out.map((l) => l.replace(/\r$/, ""));
 }
 
-export const NETWORK = "vyre-sites";
+/** A site's own network (host/src/sites-runner/policy.ts names it the same). */
+export const networkName = (siteId: string): string => `vyre-site-${hex(siteId).slice(-16)}`;
 export const addonHost = (siteId: string, kind: AddonKind): string => `${kind}-${hex(siteId).slice(-12)}`;
 
 export interface RunnerLink {
@@ -113,8 +119,40 @@ export interface RunnerLink {
 
 interface Req { method: string; path: string; query?: Record<string, string>; json?: unknown; body?: Uint8Array; contentType?: string; timeoutMs?: number }
 
+/** The container this process runs in, if it does (the ingress: vyred, with Caddy in its network namespace). */
+function selfContainer(): string | null {
+  if (!fs.existsSync("/.dockerenv")) return null;
+  try {
+    const m = /\/docker\/containers\/([0-9a-f]{64})\//.exec(fs.readFileSync("/proc/self/mountinfo", "utf8"));
+    if (m) return m[1] as string;
+  } catch { /* not readable */ }
+  return os.hostname();
+}
+
 export function dockerRunner(link: RunnerLink): Runner {
   let quota: boolean | null = null;
+  const self = selfContainer();
+  const nets = new Map<string, { name: string; subnet: string | null }>();
+
+  async function ensureNetwork(siteId: string): Promise<{ name: string; subnet: string | null }> {
+    const name = networkName(siteId);
+    const had = nets.get(name);
+    if (had) return had;
+    let info = await call({ method: "GET", path: `/networks/${name}` });
+    if (info.status === 404) {
+      const made = await call({ method: "POST", path: "/networks/create", json: { Name: name, Driver: "bridge", CheckDuplicate: true, Labels: { "vyre.site": siteId } } });
+      if (made.status !== 201 && made.status !== 409) throw new Error(`Could not make the site's network: ${message(made.body, made.status)}`);
+      info = await call({ method: "GET", path: `/networks/${name}` });
+    }
+    const j = parse(info.body) as { IPAM?: { Config?: Array<{ Subnet?: string }> }; Containers?: Record<string, unknown> } | null;
+    if (self && !Object.keys(j?.Containers ?? {}).some((id) => id.startsWith(self) || self.startsWith(id.slice(0, 12)))) {
+      const joined = await call({ method: "POST", path: `/networks/${name}/connect`, json: { Container: self } });
+      if (joined.status !== 200 && !/already exists|already attached|endpoint with name/i.test(dec.decode(joined.body))) throw new Error(`Vyre could not join the site's network: ${message(joined.body, joined.status)}`);
+    }
+    const out = { name, subnet: j?.IPAM?.Config?.find((c) => c.Subnet)?.Subnet ?? null };
+    nets.set(name, out);
+    return out;
+  }
 
   /** One call to the runner, answered in full. */
   function call(r: Req): Promise<{ status: number; body: Uint8Array }> {
@@ -185,8 +223,8 @@ export function dockerRunner(link: RunnerLink): Runner {
     return note ? { id, note } : { id };
   }
 
-  const hostConfig = (limits: Limits, extra: Record<string, unknown> = {}): Record<string, unknown> => ({
-    NetworkMode: NETWORK, RestartPolicy: { Name: "unless-stopped" }, LogConfig: LOGS,
+  const hostConfig = (network: string, limits: Limits, extra: Record<string, unknown> = {}): Record<string, unknown> => ({
+    NetworkMode: network, RestartPolicy: { Name: "unless-stopped" }, LogConfig: LOGS,
     NanoCpus: Math.round(limits.cpus * 1e9), Memory: limits.memoryMb * 1024 * 1024, MemorySwap: limits.memoryMb * 1024 * 1024, PidsLimit: 512,
     SecurityOpt: ["no-new-privileges"], Init: true, CapDrop: ["ALL"],
     ...(limits.diskMb && quota !== false ? { StorageOpt: { size: `${limits.diskMb}M` } } : {}),
@@ -236,13 +274,18 @@ export function dockerRunner(link: RunnerLink): Runner {
       return { ok: true, image };
     },
 
+    network: (siteId) => ensureNetwork(siteId),
+
+    async removeNetwork(siteId) { nets.delete(networkName(siteId)); await call({ method: "DELETE", path: `/networks/${networkName(siteId)}` }); },
+
     async run(a) {
+      const net = await ensureNetwork(a.siteId);
       const name = containerName(a.siteId, a.deploymentId);
       const env = { ...a.env, PORT: String(a.port), HOST: "0.0.0.0" };
       const made = await create(name, {
         Image: a.image, Env: Object.entries(env).map(([k, v]) => `${k}=${v}`), ExposedPorts: { [`${a.port}/tcp`]: {} },
         Labels: { "vyre.site": a.siteId, "vyre.deployment": a.deploymentId, "vyre.kind": "app" },
-        HostConfig: hostConfig(a.limits, { CapAdd: ["NET_BIND_SERVICE"], Tmpfs: { "/tmp": `rw,nosuid,size=${Math.min(512, Math.max(64, Math.floor(a.limits.memoryMb / 2)))}m` } }),
+        HostConfig: hostConfig(net.name, a.limits, { CapAdd: ["NET_BIND_SERVICE"], Tmpfs: { "/tmp": `rw,nosuid,size=${Math.min(512, Math.max(64, Math.floor(a.limits.memoryMb / 2)))}m` } }),
       });
       return { containerId: made.id, name, ...(made.note ? { note: made.note } : {}) };
     },
@@ -250,9 +293,9 @@ export function dockerRunner(link: RunnerLink): Runner {
     async address(containerId) {
       const r = await call({ method: "GET", path: `/containers/${containerId}/json` });
       if (r.status !== 200) return null;
-      const info = parse(r.body) as { State?: { Running?: boolean }; NetworkSettings?: { Networks?: Record<string, { IPAddress?: string }> } };
+      const info = parse(r.body) as { State?: { Running?: boolean }; HostConfig?: { NetworkMode?: string }; NetworkSettings?: { Networks?: Record<string, { IPAddress?: string }> } };
       if (info.State?.Running !== true) return null;
-      return info.NetworkSettings?.Networks?.[NETWORK]?.IPAddress || null;
+      return info.NetworkSettings?.Networks?.[info.HostConfig?.NetworkMode ?? ""]?.IPAddress || null;
     },
 
     async state(containerId) {
@@ -278,6 +321,7 @@ export function dockerRunner(link: RunnerLink): Runner {
     async imageExists(image) { return (await call({ method: "GET", path: `/images/${image}/json` })).status === 200; },
 
     async addon(a) {
+      const net = await ensureNetwork(a.siteId);
       const name = addonName(a.siteId, a.kind);
       const image = ADDON_IMAGE[a.kind];
       await pull(image);
@@ -289,8 +333,8 @@ export function dockerRunner(link: RunnerLink): Runner {
         : { Env: [], mount: "/data", user: "redis", cmd: ["redis-server", "--appendonly", "yes", "--requirepass", a.password, "--maxmemory", `${Math.floor(ADDON_LIMITS.redis.memoryMb * 0.8)}mb`, "--maxmemory-policy", "allkeys-lru"] };
       const made = await create(name, {
         Image: image, Env: cfg.Env, User: cfg.user, ...(cfg.cmd ? { Cmd: cfg.cmd } : {}), Labels: { "vyre.site": a.siteId, "vyre.kind": a.kind },
-        HostConfig: hostConfig(ADDON_LIMITS[a.kind], { Binds: [`${name}-data:${cfg.mount}`] }),
-        NetworkingConfig: { EndpointsConfig: { [NETWORK]: { Aliases: [addonHost(a.siteId, a.kind)] } } },
+        HostConfig: hostConfig(net.name, ADDON_LIMITS[a.kind], { Binds: [`${name}-data:${cfg.mount}`] }),
+        NetworkingConfig: { EndpointsConfig: { [net.name]: { Aliases: [addonHost(a.siteId, a.kind)] } } },
       });
       return { containerId: made.id, host: addonHost(a.siteId, a.kind), port: ADDON_PORT[a.kind] };
     },

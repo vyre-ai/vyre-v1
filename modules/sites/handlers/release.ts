@@ -297,6 +297,7 @@ async function runJob(j: Job): Promise<void> {
       return;
     }
     j.db.run("UPDATE sites_deployment SET image = ? WHERE id = ?", built.image, j.depId);
+    await keepNetwork(j.db, r, siteId);
     say(`Starting it with ${j.limits.cpus} CPU and ${j.limits.memoryMb} MB`);
     const started = await r.run({ siteId, deploymentId: j.depId, image: built.image, port: plan.port, env: j.env, limits: j.limits });
     if (started.note) say(started.note);
@@ -344,6 +345,25 @@ async function switchTo(db: Db, r: Runner, siteId: string, depId: string, contai
     db.run("UPDATE sites_deployment SET image = NULL WHERE id = ?", old.id);
   }
   await routesHost()?.hostRoute?.(siteId, true).catch(() => undefined);
+}
+
+/** The site's own network, made when missing; its subnet is kept so the gateway refuses connections that come from it (sites never reach vyred). */
+async function keepNetwork(db: Db, r: Runner, siteId: string): Promise<void> {
+  const net = await r.network(siteId);
+  const row = (db.all("SELECT settings FROM sites_site WHERE id = ?", siteId) as Row[])[0];
+  const settings = parseJson<Record<string, unknown>>(row?.settings, {});
+  if ((settings["network"] as { subnet?: string } | undefined)?.subnet === net.subnet) return;
+  db.run("UPDATE sites_site SET settings = ? WHERE id = ?", JSON.stringify({ ...settings, network: net }), siteId);
+}
+
+/** Every site network's subnet, for the gateway: a connection that arrives on one of these addresses came from a site, and is closed. */
+export function siteSubnets(ctx: Pick<Ctx, "db">): string[] {
+  const out: string[] = [];
+  for (const r of ctx.db.all("SELECT settings FROM sites_site WHERE source IS NOT NULL") as Row[]) {
+    const subnet = (parseJson<Record<string, unknown>>(r.settings, {})["network"] as { subnet?: string } | undefined)?.subnet;
+    if (typeof subnet === "string" && subnet) out.push(subnet);
+  }
+  return out;
 }
 
 // ---- capabilities
@@ -505,6 +525,7 @@ async function sitesAddonAdd(ctx: Ctx, input: unknown): Promise<{ addon: unknown
   const envName = kind === "postgres" ? "DATABASE_URL" : "REDIS_URL";
   const had = one(ctx, "SELECT * FROM sites_addon WHERE site_id = ? AND kind = ?", siteId, kind);
   const password = had ? await secretOf(ctx, had) : randomPassword();
+  await keepNetwork(ctx.db, r, siteId);
   if (!had) ctx.db.run("INSERT INTO sites_addon (site_id, kind, container_id, state, env_name, secret, detail, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)", siteId, kind, null, "starting", envName, JSON.stringify(ctx.seal.seal(new TextEncoder().encode(password), `site-addon:${siteId}:${kind}`)), null, ctx.now());
   try {
     const made = await r.addon({ siteId, kind, password });
@@ -672,6 +693,7 @@ export async function stopDeployed(ctx: Ctx, site: Row, removeAll: boolean): Pro
   if (removeAll) {
     for (const d of many(ctx, "SELECT * FROM sites_deployment WHERE site_id = ? AND image IS NOT NULL", site.id)) await r.removeImage(str(d.image)).catch(() => undefined);
     for (const a of many(ctx, "SELECT * FROM sites_addon WHERE site_id = ?", site.id)) await r.removeAddon(str(site.id), str(a.kind) as AddonKind).catch(() => undefined);
+    await r.removeNetwork(str(site.id)).catch(() => undefined);
     ctx.db.run("DELETE FROM sites_addon WHERE site_id = ?", site.id);
     ctx.db.run("UPDATE sites_site SET container_id = NULL WHERE id = ?", site.id);
   }

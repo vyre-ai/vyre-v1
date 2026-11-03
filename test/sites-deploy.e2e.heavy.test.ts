@@ -45,7 +45,6 @@ function runner(sock: string, token: string, method: string, p: string, body?: u
 test("a real daemon behind the sites runner deploys a repo with Space-only access, env from the Vault and its own Postgres, at an HTTPS address of its own, and again on a push", { skip: SKIP, timeout: 1_200_000 }, async (t) => {
   // another web server on 443 (a Caddy left by an earlier run) would take half the connections: SO_REUSEPORT shares the port
   assert.doesNotMatch(spawnSync("ss", ["-ltn"], { encoding: "utf8" }).stdout, /:443\s/, "ports 80 and 443 must be free");
-  if (docker("network", "inspect", "vyre-sites").status !== 0) assert.equal(docker("network", "create", "vyre-sites").status, 0);
   const work = fs.mkdtempSync(path.join(os.tmpdir(), "vyre-sites-e2e-work-"));
   t.after(() => fs.rmSync(work, { recursive: true, force: true }));
 
@@ -73,9 +72,9 @@ test("a real daemon behind the sites runner deploys a repo with Space-only acces
   const token = fs.readFileSync(path.join(work, "run", "token"), "utf8").trim();
 
   // what it refuses on the real engine: a privileged container, a host folder, exec into a container that is not a site's (Caddy's)
-  const priv = await runner(sock, token, "POST", "/containers/create?name=vyre-site-000000000001-x", { Image: "alpine:3.20", Labels: { "vyre.site": "sit_000000000001", "vyre.kind": "app" }, HostConfig: { Privileged: true, NetworkMode: "vyre-sites" } });
+  const priv = await runner(sock, token, "POST", "/containers/create?name=vyre-site-000000000001-x", { Image: "alpine:3.20", Labels: { "vyre.site": "sit_000000000001", "vyre.kind": "app" }, HostConfig: { Privileged: true, NetworkMode: "vyre-site-000000000001" } });
   assert.equal(priv.status, 403, priv.body);
-  const mount = await runner(sock, token, "POST", "/containers/create?name=vyre-site-000000000001-x", { Image: "vyre-site/000000000001:x", Labels: { "vyre.site": "sit_000000000001", "vyre.kind": "app" }, HostConfig: { NetworkMode: "vyre-sites", NanoCpus: 1e9, Memory: 1e8, MemorySwap: 1e8, PidsLimit: 10, Binds: ["/:/host"] } });
+  const mount = await runner(sock, token, "POST", "/containers/create?name=vyre-site-000000000001-x", { Image: "vyre-site/000000000001:x", Labels: { "vyre.site": "sit_000000000001", "vyre.kind": "app" }, HostConfig: { NetworkMode: "vyre-site-000000000001", NanoCpus: 1e9, Memory: 1e8, MemorySwap: 1e8, PidsLimit: 10, Binds: ["/:/host"] } });
   assert.equal(mount.status, 403, mount.body);
   const exec = await runner(sock, token, "POST", `/containers/${CADDY}/exec`, { Cmd: ["id"] });
   assert.equal(exec.status, 403, exec.body);
@@ -173,6 +172,11 @@ test("a real daemon behind the sites runner deploys a repo with Space-only acces
   assert.deepEqual(parse(await curl("-b", jar, `${url}/api/whoami`), "whoami"), { user: "usr_noah" });
   assert.equal((parse(await curl("-b", jar, `${url}/api/db`), "db") as { db: string }).db, "ok");
   assert.equal((await curl("-b", jar, `${url}/`)).stdout, "express-fixture-ok");
+  // a WebSocket through Caddy, straight to the app, with the member's cookie: the upgrade answers 101 and the app's first frame names who is asking
+  const ws = await curl("-i", "-N", "--http1.1", "--max-time", "6", "-b", jar, "-H", "Connection: Upgrade", "-H", "Upgrade: websocket", "-H", "Sec-WebSocket-Version: 13", "-H", "Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==", `${url}/ws`);
+  process.stdout.write(`websocket: ${ws.stdout.replace(/[^\x20-\x7e\n]/g, ".").slice(0, 400)}\n`);
+  assert.match(ws.stdout, /^HTTP\/1\.1 101 /, ws.stdout.slice(0, 300) + ws.stderr);
+  assert.match(ws.stdout, /ws-hello usr_noah/);
   const row = (await call("sites.list", {})).sites.find((s: { siteId: string }) => s.siteId === siteId);
   assert.equal(row.lastDeploy.by, "usr_olivia");
   assert.equal(row.state, "ready");

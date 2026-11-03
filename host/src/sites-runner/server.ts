@@ -3,7 +3,7 @@
 // Requests on a container are checked against the container's own labels, read from Docker at the time, so a name or id of a container that is not a site's is refused whatever it says.
 import fs from "node:fs";
 import http from "node:http";
-import { bare, buildQuery, containerBody, execBody, judge, SITE_ID } from "./policy.ts";
+import { bare, buildQuery, containerBody, execBody, judge, networkBody, networkOf, SITE_ID } from "./policy.ts";
 
 export interface RunnerOptions { dockerSocket: string; listen: string; token: string; log?: (line: string) => void }
 
@@ -108,6 +108,28 @@ export function createSitesRunner(o: RunnerOptions): { server: http.Server; clos
       }
       const body = method === "PUT" ? req : method === "POST" ? await readBody(req, 1024 * 1024) : null;
       await docker(method, `${url.pathname}${url.search}`, body, { ...fwdHeaders, ...(method === "PUT" && req.headers["content-length"] ? { "content-length": req.headers["content-length"] } : method === "PUT" ? { "transfer-encoding": "chunked" } : {}) }, res);
+      return;
+    }
+    if (v.kind === "network-create" || v.kind === "network-connect") {
+      const raw = await readBody(req, 64 * 1024);
+      let parsed: unknown;
+      try { parsed = JSON.parse((raw ?? Buffer.alloc(0)).toString("utf8")); } catch { refuse(res, 400, "the network config is not JSON"); return; }
+      let body: Record<string, unknown>;
+      if (v.kind === "network-create") {
+        const n = networkBody(parsed);
+        if ("why" in n) { say(`refused network: ${n.why}`); refuse(res, 403, `Refused by the sites runner: ${n.why}.`); return; }
+        body = n.body;
+      } else {
+        // only the site's own containers and the ingress (vyred and Caddy, labelled vyre.ingress) join a site's network
+        const who = (parsed as { Container?: unknown })?.Container;
+        const labels = typeof who === "string" ? await labelsOf(who) : null;
+        const own = labels !== null && SITE_ID.test(labels["vyre.site"] ?? "") && networkOf(labels["vyre.site"] as string) === v.network;
+        if (!labels || !(own || labels["vyre.ingress"] === "1")) { say(`refused joining ${v.network}`); refuse(res, 403, "Refused by the sites runner: only that site's containers and the ingress join a site's network."); return; }
+        const aliases = (parsed as { EndpointConfig?: { Aliases?: unknown } })?.EndpointConfig?.Aliases;
+        body = { Container: who, ...(Array.isArray(aliases) && aliases.every((a) => typeof a === "string") ? { EndpointConfig: { Aliases: aliases } } : {}) };
+      }
+      const data = Buffer.from(JSON.stringify(body));
+      await docker("POST", `${url.pathname}`, data, { "content-type": "application/json", "content-length": data.length }, res);
       return;
     }
     if (v.kind === "exec-start" || v.kind === "exec-inspect") {

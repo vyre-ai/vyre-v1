@@ -509,10 +509,10 @@ export function routeByHost(ctx: Pick<Ctx, "db">, hostName: string, sitesDomain:
 }
 
 /** Every address of the sites Vyre deploys, for the host to write into Caddy. */
-export function deployedHosts(ctx: Pick<Ctx, "db">, sitesDomain: string | null, siteId?: string): { siteId: string; hosts: string[]; live: boolean }[] {
+export function deployedHosts(ctx: Pick<Ctx, "db">, sitesDomain: string | null, siteId?: string): { siteId: string; hosts: string[]; live: boolean; container?: string; port?: number }[] {
   const rows = (ctx.db.all("SELECT * FROM sites_site WHERE deleted_at IS NULL AND source IS NOT NULL") as Row[]).filter((r) => siteId === undefined || r.id === siteId);
   return rows.map((r) => ({
-    siteId: str(r.id), live: flag(r.live),
+    siteId: str(r.id), live: flag(r.live), ...(isNull(r.container_id) ? {} : { container: str(r.container_id) }), ...(isNull(r.port) ? {} : { port: num(r.port) }),
     hosts: [...(sitesDomain && !isNull(r.slug) ? [`${str(r.slug)}.${sitesDomain}`] : []), ...(ctx.db.all("SELECT domain FROM sites_domain WHERE site_id = ?", r.id) as Row[]).map((d) => str(d.domain))],
   }));
 }

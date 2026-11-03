@@ -40,7 +40,7 @@ import { createFormsPageRoute } from "../routes/forms-page.ts";
 import { createPublicPathRoute } from "../routes/public-path.ts";
 import type { PublicPathDeps, ServedSite } from "../routes/public-path.ts";
 import { createDomainEdge, createSitesHost, dnsPointsAt, mimeOf } from "../seams/sites-host.ts";
-import { createSiteHostRoute, createSiteSigninPage } from "../routes/site-host.ts";
+import { createSiteHostRoute, createSiteSigninPage, inSubnets } from "../routes/site-host.ts";
 import type { SiteHostDeps } from "../routes/site-host.ts";
 import { CaddyAdmin, CaddyError, CaddyRouter, ingressHostOf } from "../caddy/index.ts";
 import type { PublicFormView } from "../routes/forms-page.ts";
@@ -450,6 +450,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   let refreshDomains: () => Promise<void> = () => Promise.resolve();
   // sites Vyre deploys, at addresses of their own: set once the sites module is loaded (configureRoutes); until then no host is a site
   let siteHosts: SiteHostDeps | null = null;
+  let siteGuard: (localAddress: string | undefined) => boolean = () => false;
   let sitesTick: () => Promise<void> = () => Promise.resolve();
   const siteHostRoute = createSiteHostRoute({
     own: (h) => siteHosts?.own(h) ?? true, site: (h) => siteHosts?.site(h) ?? null, ticket: (id, t) => siteHosts?.ticket(id, t) ?? Promise.resolve(null), may: (p, x) => siteHosts?.may(p, x) ?? false,
@@ -1346,13 +1347,34 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
             wildcard = { host: a, ok: await dnsPointsAt(probe, { hostname: a }).catch(() => false), at: Date.now() };
           };
           const sitesDomain = (): string | null => process.env["VYRE_SITES_DOMAIN"]?.trim().toLowerCase() || (wildcard?.ok ? wildcard.host : null);
-          const hostsOf = (siteId?: string): { siteId: string; hosts: string[]; live: boolean }[] => (sitesExports?.["deployedHosts"] as ((c: { db: unknown }, d: string | null, id?: string) => { siteId: string; hosts: string[]; live: boolean }[]) | undefined)?.({ db: db! }, sitesDomain(), siteId) ?? [];
-          const written = new Set<string>();
+          type Hosted = { siteId: string; hosts: string[]; live: boolean; container?: string; port?: number };
+          const hostsOf = (siteId?: string): Hosted[] => (sitesExports?.["deployedHosts"] as ((c: { db: unknown }, d: string | null, id?: string) => Hosted[]) | undefined)?.({ db: db! }, sitesDomain(), siteId) ?? [];
+          const containerAddress = (c: string): Promise<string | null> => (sitesExports?.["containerAddress"] as ((c: string) => Promise<string | null>) | undefined)?.(c) ?? Promise.resolve(null);
+          // what each site name points at in Caddy now: auth at this daemon, then the container itself (WebSockets go through); written again when a container's address changes
+          const written = new Map<string, string>();
+          const writeHost = async (x: Hosted): Promise<void> => {
+            if (!sitesCaddy) return;
+            const address = x.container ? await containerAddress(x.container) : null;
+            const app = address && x.port ? `${address}:${x.port}` : null;
+            for (const h of x.hosts) {
+              const want = app ?? "vyred";
+              if (written.get(h) === want) continue;
+              // a site with nothing running yet still answers at its name: this daemon says what is wrong
+              if (app) await sitesCaddy.setDeployedSite(h, `127.0.0.1:${boundPort}`, app); else await sitesCaddy.setIngress(h, `127.0.0.1:${boundPort}`);
+              written.set(h, want);
+            }
+          };
           const hostRoute = async (siteId: string, up: boolean): Promise<void> => {
             if (!sitesCaddy) return;
-            for (const x of hostsOf(siteId)) for (const h of x.hosts) {
-              if (up) { await sitesCaddy.setIngress(h, `127.0.0.1:${boundPort}`); written.add(h); } else { await sitesCaddy.removeRoute(h).catch(() => undefined); written.delete(h); }
+            for (const x of hostsOf(siteId)) {
+              if (up) await writeHost(x); else for (const h of x.hosts) { await sitesCaddy.removeRoute(h).catch(() => undefined); written.delete(h); }
             }
+          };
+          // sites never reach this daemon: a connection that arrives on a site network's address is closed (the ingress sits on every site's network to proxy to it)
+          let subnets: { at: number; list: string[] } = { at: 0, list: [] };
+          siteGuard = (address) => {
+            if (Date.now() - subnets.at > 10_000) subnets = { at: Date.now(), list: (sitesExports?.["siteSubnets"] as ((c: { db: unknown }) => string[]) | undefined)?.({ db: db! }) ?? [] };
+            return inSubnets(address, subnets.list);
           };
           const ownHosts = (): Set<string> => {
             const out = new Set(["localhost", "127.0.0.1", "[::1]"]);
@@ -1376,7 +1398,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           void checkWildcard().catch(() => undefined);
           sitesTick = async () => {
             await checkWildcard();
-            if (sitesCaddy) for (const x of hostsOf()) for (const h of x.hosts) if (!written.has(h)) { try { await sitesCaddy.setIngress(h, `127.0.0.1:${boundPort}`); written.add(h); } catch (e) { sink.log({ space: spaceId, level: 40, msg: "sites.host_route_pending", place: "sites", attrs: { host: h, why: e instanceof Error ? e.message.slice(0, 160) : "" } }); } }
+            if (sitesCaddy) for (const x of hostsOf()) { try { await writeHost(x); } catch (e) { sink.log({ space: spaceId, level: 40, msg: "sites.host_route_pending", place: "sites", attrs: { site: x.siteId, why: e instanceof Error ? e.message.slice(0, 160) : "" } }); } }
             const autos = (sitesExports?.["autoDeploySites"] as ((c: { db: unknown }) => { siteId: string; as: string }[]) | undefined)?.({ db: db! }) ?? [];
             for (const a of autos) {
               const r = await invoke("sites.deploy", { siteId: a.siteId, onlyIfChanged: true }, { space: spaceId, principal: { kind: a.as.startsWith("agt_") ? "agent" : "person", id: a.as }, origin: "sites-push" }).catch((e: unknown) => ({ status: "error", e }));
@@ -1960,6 +1982,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
     const server = h.server;
     if (hubFactory) server.on("upgrade", (req, socket, head) => { if (computeStream.claims(req)) computeStream.upgrade(req, socket, head); });
     server.removeAllListeners("request");
+    // a site's container reaches this machine only through its own network; a connection on that network's address is a site trying the Space's API, and is closed at once
+    server.on("connection", (sock) => { if (siteGuard(sock.localAddress)) sock.destroy(); });
     const listener = requestListener({
       health, coerce,
       gateway: gateway ?? (() => Promise.resolve({ status: 404, headers: {}, body: { error: makeError("validation.unknown_capability", ZERO_TRACE, { message: "This daemon runs the device role only; it has no Space API." }) } })),

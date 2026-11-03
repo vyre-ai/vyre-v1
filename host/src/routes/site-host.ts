@@ -4,7 +4,8 @@
 //   space     anyone signed in to this Space: the site sends them to the Space's /sites/signin, which asks the app (where they are signed in) for a two-minute link back, traded here for a day-long cookie
 //   private   the owner, and whoever the site is shared with
 // Access is asked again on every request, so a removed member or an ended share is out at once. The cookie (__vyre_site) and any x-vyre-* header never reach the app; x-vyre-user tells it who
-// is asking on a Space or private site. Then the request goes to the site's container as it came: any method, the app's own cookies, its Set-Cookie back, streamed both ways.
+// is asking on a Space or private site. On a server Caddy asks /__vyre/auth (forward auth) and proxies to the site's container itself, WebSockets included; this route answers 2xx with
+// x-vyre-user to let the visitor in, or the sign-in redirect, password form or refusal Caddy sends back. Where no Caddy is in front, this route proxies the request itself (no WebSockets).
 import http from "node:http";
 
 export interface HostSite { siteId: string; name: string; access: string; live: boolean; blocked: boolean; owner: string; passwordHash: string | null; target: { container?: string; port?: number } }
@@ -38,6 +39,15 @@ function page(res: http.ServerResponse, status: number, title: string, body: str
 
 function passwordForm(res: http.ServerResponse, site: HostSite, next: string, wrong: boolean): void {
   page(res, wrong ? 401 : 200, site.name, `<h1>${esc(site.name)}</h1><p>This site has a password.</p>${wrong ? '<p class="e">That password is not right.</p>' : ""}<form method="post" action="/__vyre/password"><input type="hidden" name="next" value="${esc(next)}"><input name="password" type="password" autocomplete="current-password" aria-label="Password" placeholder="Password" autofocus required><button type="submit">Open</button></form>`);
+}
+
+/** Is this address inside one of these IPv4 subnets (a.b.c.d/n)? A connection that arrives on a site network's address came from a site. */
+export function inSubnets(address: string | undefined, subnets: readonly string[]): boolean {
+  const ip = (address ?? "").replace(/^::ffff:/, "");
+  const n = (a: string): number | null => { const p = a.split(".").map(Number); return p.length === 4 && p.every((x) => Number.isInteger(x) && x >= 0 && x <= 255) ? ((p[0]! << 24) | (p[1]! << 16) | (p[2]! << 8) | p[3]!) >>> 0 : null; };
+  const v = n(ip);
+  if (v === null) return false;
+  return subnets.some((c) => { const [base, bits] = c.split("/"); const b = n(base ?? ""); const k = Number(bits); if (b === null || !(k >= 0 && k <= 32)) return false; const mask = k === 0 ? 0 : (~0 << (32 - k)) >>> 0; return ((v & mask) >>> 0) === ((b & mask) >>> 0); });
 }
 
 export function cookieOf(header: string | undefined, name: string): string | null {
@@ -103,8 +113,13 @@ export function createSiteHostRoute(d: SiteHostDeps) {
       const site = d.site(hostName);
       if (!site) return false;
       void (async () => {
-        const url = new URL(req.url ?? "/", `https://${hostName}`);
-        const method = (req.method ?? "GET").toUpperCase();
+        // forward auth from Caddy: the visitor's own method and address come in headers, and the answer is a yes or the page to send back
+        const asked = new URL(req.url ?? "/", `https://${hostName}`);
+        const authOnly = asked.pathname === "/__vyre/auth";
+        const fwdUri = String(req.headers["x-forwarded-uri"] ?? "/");
+        const url = authOnly ? new URL(fwdUri.startsWith("/") ? fwdUri : "/", `https://${hostName}`) : asked;
+        const method = authOnly ? String(req.headers["x-forwarded-method"] ?? "GET").toUpperCase() : (req.method ?? "GET").toUpperCase();
+        if (authOnly && url.pathname.startsWith("/__vyre/")) { page(res, 404, "Not found", "<h1>Not found</h1>"); return; }
         if (url.pathname === "/__vyre/signin" && method === "GET") {
           const t = url.searchParams.get("t") ?? "";
           const who = TOKEN.test(t) ? await d.ticket(site.siteId, t) : null;
@@ -152,6 +167,11 @@ export function createSiteHostRoute(d: SiteHostDeps) {
             return;
           }
           principal = who;
+        }
+        if (authOnly) {
+          res.writeHead(204, { "x-vyre-user": principal && !principal.startsWith("visitor:") ? principal : "", "cache-control": "no-store" });
+          res.end();
+          return;
         }
         const address = await d.address(site.target.container);
         if (!address) { page(res, 503, "Starting", "<h1>Not running</h1><p>The app is not running right now. Its owner can deploy it again in Vyre.</p>"); return; }

@@ -67,6 +67,30 @@ export function siteRoute(host: string, upstream: string, auth: BasicAuth | null
   return { "@id": routeId(h), match: [{ host: [h] }], handle, terminal: true };
 }
 
+/**
+ * A site Vyre deploys, at its own name: Caddy asks vyred whether this visitor may come in (forward auth: vyred answers 2xx with X-Vyre-User, or the sign-in redirect, password form or
+ * refusal that is sent back as it is), then proxies straight to the site's container on the site's own network, WebSockets included. /__vyre/* (sign-in, password, sign-out) goes to
+ * vyred. The Space's own session cookie never reaches the app.
+ */
+export function deployedSiteRoute(host: string, auth: string, app: string): RouteJson {
+  const h = normalizeHost(host);
+  const a = normalizeUpstream(auth), u = normalizeUpstream(app);
+  const forwardAuth = {
+    handler: "reverse_proxy", upstreams: [{ dial: a }], rewrite: { method: "GET", uri: "/__vyre/auth" },
+    // the question is a plain GET: a WebSocket's Upgrade headers stay off it, or vyred would see an upgrade instead of a request
+    headers: { request: { set: { "X-Forwarded-Method": ["{http.request.method}"], "X-Forwarded-Uri": ["{http.request.uri}"] }, delete: ["Connection", "Upgrade", "Sec-WebSocket-Key", "Sec-WebSocket-Version", "Sec-WebSocket-Extensions", "Sec-WebSocket-Protocol"] } },
+    handle_response: [{ match: { status_code: [2] }, routes: [{ handle: [{ handler: "headers", request: { set: { "X-Vyre-User": ["{http.reverse_proxy.header.X-Vyre-User}"] } } }] }] }],
+  };
+  const stripCookie = { handler: "headers", request: { replace: { Cookie: [{ search_regexp: "__vyre_site=[^;]*;?\\s*", replace: "" }] } } };
+  return {
+    "@id": routeId(h), match: [{ host: [h] }], terminal: true,
+    handle: [{ handler: "subroute", routes: [
+      { match: [{ path: ["/__vyre/*"] }], handle: [{ handler: "reverse_proxy", upstreams: [{ dial: a }] }] },
+      { handle: [forwardAuth, stripCookie, { handler: "reverse_proxy", upstreams: [{ dial: u }] }] },
+    ] }],
+  };
+}
+
 export interface BaseOptions {
   /** listen addresses, default [":443"]; Caddy opens :80 itself for challenges and redirects */
   listen?: string[];
