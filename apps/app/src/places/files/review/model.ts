@@ -204,7 +204,7 @@ export interface LintPlace { line: number; msg: string }
 export interface LintItem { k: string; sev: Sev; label: string; tip: string; line: number; list: readonly LintPlace[] }
 
 /** The words the Space's check accepts as "this agent follows VYRE.md" (modules/files/handlers/lint.ts INHERITS; the app does not import modules, so the same words are here). */
-const INHERITS_LINE = /\b(?:inherits?|follows?|extends?|builds?\s+on|based\s+on)\b[\s:,-]*(?:the\s+)?(?:space['\u2019]s\s+)?VYRE\.md/i;
+export const INHERITS_LINE = /\b(?:inherits?|follows?|extends?|builds?\s+on|based\s+on)\b[\s:,-]*(?:the\s+)?(?:space['\u2019]s\s+)?VYRE\.md/i;
 
 export const LINE_LIMITS: Readonly<Record<LintOut["file"], number | null>> = { vyre_md: 120, agent_md: 150, agent_toml: null, routine_prompt: 150, other: null };
 

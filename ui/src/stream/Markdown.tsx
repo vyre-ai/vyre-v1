@@ -1,8 +1,8 @@
 // Draws the blocks of a streaming message. A final block is a memoised component keyed by its position and handed the same object every frame, so React skips it; only the open block (and its
 // caret) is drawn again. Typography is the prototype's message body: 15 px on a 24 px line, 10 px between blocks, code in the mono face on `--sunk`.
-import { Fragment, memo } from "react";
+import { Fragment, memo, useState } from "react";
 import type { ReactNode } from "react";
-import { Linking, StyleSheet, Text, View } from "react-native";
+import { Linking, Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import type { Block, Inline } from "./markdown.ts";
 import { BLOCK_GAP, BODY_LINE, BODY_SIZE } from "./Reserved.tsx";
 
@@ -75,12 +75,55 @@ function listItems(block: Extract<Block, { kind: "ul" | "ol" }>, caret: boolean,
   for (let i = 0; i < block.items.length; i++) {
     out.push(
       <View key={i} style={styles.item}>
-        <Text style={styles.marker}>{block.kind === "ul" ? "\u2022" : `${block.start + i}.`}</Text>
+        {block.checks && block.checks[i] !== null && block.checks[i] !== undefined
+          ? <View testID={`check-${block.key}-${i}`} accessibilityRole="checkbox" accessibilityState={{ checked: block.checks[i] === true, disabled: true }} accessibilityLabel={block.checks[i] === true ? "Done" : "Not done"} style={[styles.box, block.checks[i] === true && styles.boxOn]}>{block.checks[i] === true ? <Text style={styles.tick}>{"\u2713"}</Text> : null}</View>
+          : <Text style={styles.marker}>{block.kind === "ul" ? "\u2022" : `${block.start + i}.`}</Text>}
         <Text style={styles.itemText}>{inlineNodes(caret && i === block.items.length - 1 ? withCaret(block.items[i] ?? []) : (block.items[i] ?? []), onLink, renderLink)}</Text>
       </View>,
     );
   }
   return out;
+}
+
+/** The copy control on a finished code block: the code goes to the clipboard, and the control says so for a moment. */
+function CopyCode({ text, lang, id }: { text: string; lang: string; id: string }) {
+  const [done, setDone] = useState(false);
+  const copy = (): void => {
+    const clip = (globalThis as { navigator?: { clipboard?: { writeText?: (t: string) => Promise<void> } } }).navigator?.clipboard;
+    void clip?.writeText?.(text)?.catch(() => undefined);
+    setDone(true);
+    setTimeout(() => setDone(false), 1500);
+  };
+  return (
+    <View style={styles.codeHead}>
+      <Text style={styles.lang}>{lang}</Text>
+      <Pressable accessibilityRole="button" accessibilityLabel="Copy the code" testID={`copy-${id}`} onPress={copy} style={styles.copy}><Text style={styles.copyText}>{done ? "Copied" : "Copy"}</Text></Pressable>
+    </View>
+  );
+}
+
+/** A table: its own horizontal scroll inside the message, so a wide table never widens the page. The header is bold on a quiet ground, columns keep a readable width, and each column aligns as the separator row said. */
+function TableView({ block, onLink, renderLink }: { block: Extract<Block, { kind: "table" }>; onLink?: (href: string) => void; renderLink?: RenderLink }) {
+  const row = (cs: readonly (readonly Inline[])[], head: boolean, r: number): ReactNode => {
+    const out: ReactNode[] = [];
+    for (let c = 0; c < block.head.length; c++) {
+      out.push(
+        <View key={c} testID={`cell-${block.key}-${head ? "h" : r}-${c}`} style={[styles.cell, head && styles.cellHead, c === block.head.length - 1 && styles.cellLast]}>
+          <Text style={[styles.cellText, head && styles.cellTextHead, { textAlign: block.align[c] ?? "left" }]}>{inlineNodes(cs[c] ?? [], onLink, renderLink)}</Text>
+        </View>,
+      );
+    }
+    return <View key={head ? "h" : r} style={[styles.tr, head && styles.trHead, !head && r % 2 === 1 && styles.trAlt]} testID={head ? `thead-${block.key}` : `row-${block.key}-${r}`} accessibilityRole={head ? "header" : undefined}>{out}</View>;
+  };
+  const body: ReactNode[] = [];
+  for (let r = 0; r < block.rows.length; r++) body.push(row(block.rows[r] ?? [], false, r));
+  return (
+    <View testID={`block-${block.key}`} style={styles.tableWrap} accessibilityRole={Platform.OS === "web" ? ("table" as never) : undefined}>
+      <ScrollView horizontal showsHorizontalScrollIndicator contentContainerStyle={styles.tableScroll} testID={`table-scroll-${block.key}`}>
+        <View style={styles.table}>{row(block.head, true, 0)}{body}</View>
+      </ScrollView>
+    </View>
+  );
 }
 
 export const BlockView = memo(function BlockView({ block, caret = false, onLink, renderLink, renderCode }: BlockViewProps) {
@@ -101,11 +144,14 @@ export const BlockView = memo(function BlockView({ block, caret = false, onLink,
       return (
         <View testID={`block-${block.key}`}>
           <View style={styles.pre}>
+            {block.closed && !caret ? <CopyCode text={block.text} lang={block.lang} id={block.key} /> : null}
             <Text style={styles.preText}>{caret ? block.text + CARET : block.text}</Text>
           </View>
           {renderCode && !caret && block.closed ? renderCode(block) : null}
         </View>
       );
+    case "table":
+      return <TableView block={block} {...(onLink ? { onLink } : {})} {...(renderLink ? { renderLink } : {})} />;
     case "ul":
     case "ol":
       return (
@@ -166,6 +212,24 @@ const styles = StyleSheet.create({
   pre: { backgroundColor: "var(--sunk)" as string, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, marginBottom: BLOCK_GAP },
   preText: { color: "var(--ink)" as string, fontFamily: MONO, fontSize: 13, lineHeight: 20 },
   list: { marginBottom: BLOCK_GAP },
+  box: { width: 16, height: 16, borderRadius: 4, borderWidth: 1.5, borderColor: "var(--ink-4)" as string, marginRight: 6, marginTop: 4, alignItems: "center", justifyContent: "center" },
+  boxOn: { backgroundColor: "var(--accent)" as string, borderColor: "var(--accent)" as string },
+  tick: { color: "var(--accent-ink)" as string, fontSize: 11, lineHeight: 13, fontWeight: "700" },
+  codeHead: { flexDirection: "row", alignItems: "center", marginBottom: 6 },
+  lang: { flex: 1, color: "var(--ink-3)" as string, fontSize: 11.5 },
+  copy: { paddingHorizontal: 8, height: 22, borderRadius: 5, justifyContent: "center" },
+  copyText: { color: "var(--ink-3)" as string, fontSize: 12 },
+  tableWrap: { marginBottom: BLOCK_GAP, maxWidth: "100%", borderRadius: 8, borderWidth: 1, borderColor: "var(--line)" as string, overflow: "hidden" },
+  tableScroll: { flexGrow: 1 },
+  table: { minWidth: "100%" as unknown as number },
+  tr: { flexDirection: "row", borderTopWidth: 1, borderTopColor: "var(--line)" as string },
+  trHead: { borderTopWidth: 0 },
+  trAlt: { backgroundColor: "var(--sunk)" as string },
+  cell: { flexGrow: 1, flexShrink: 0, flexBasis: 120, minWidth: 96, paddingHorizontal: 12, paddingVertical: 8, borderRightWidth: 1, borderRightColor: "var(--line)" as string },
+  cellLast: { borderRightWidth: 0 },
+  cellHead: { backgroundColor: "var(--sunk)" as string },
+  cellText: { color: "var(--ink)" as string, fontSize: 14, lineHeight: 20 },
+  cellTextHead: { fontWeight: "600" },
   item: { flexDirection: "row", paddingLeft: 4, marginVertical: 3 },
   marker: { width: 22, color: "var(--ink-2)" as string, fontSize: BODY_SIZE, lineHeight: BODY_LINE },
   itemText: { flex: 1, minWidth: 0, color: "var(--ink)" as string, fontSize: BODY_SIZE, lineHeight: BODY_LINE },

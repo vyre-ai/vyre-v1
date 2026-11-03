@@ -6,7 +6,7 @@ import type { FakeReplica, LiveQuery } from "../../../../../../client/src/index.
 import type { CapMap } from "../../../../../../generated/types.ts";
 import { namesFor } from "../../../fixtures/index.ts";
 import type { ReviewCap, ReviewData, ReviewNav } from "./data.tsx";
-import { LINE_LIMITS, applySuggestion, tomlKind } from "./model.ts";
+import { INHERITS_LINE, LINE_LIMITS, applySuggestion, tomlKind } from "./model.ts";
 import type { Changeset, ChangesetFile, DiffOut, LintOut } from "./model.ts";
 
 export const SAMPLE_NOW = Date.UTC(2025, 9, 24, 10, 0, 0);
@@ -277,7 +277,7 @@ const lintOf = (fileId: string, text: string): LintOut => {
   const limit = LINE_LIMITS[file];
   const errors = secrets.length > 0 || problems.some((p) => p.severity === "error") || lines > 200;
   const state: LintOut["state"] = errors ? "red" : limit !== null && lines > limit ? "amber" : "ok";
-  return { file, lines, state, ...(file === "agent_md" ? { inherits: /Inherits VYRE\.md/i.test(text) } : {}), overrides, secrets, problems };
+  return { file, lines, state, ...(file === "agent_md" ? { inherits: text.split("\n").some((l) => INHERITS_LINE.test(l)) } : {}), overrides, secrets, problems };
 };
 
 export function createSampleReview(o: SampleOptions = {}): SampleReview {
