@@ -46417,8 +46417,8 @@ export interface EventMap {
   "automation.trigger_dropped": AutomationTriggerDroppedPayload;
   "automation.updated": AutomationUpdatedPayload;
   "automation.version_restored": AutomationVersionRestoredPayload;
-  "automations.watch.changed": AutomationsWatchChangedPayload;
-  "automations.watch.saved": AutomationsWatchSavedPayload;
+  "automations.watch_changed": AutomationsWatchChangedPayload;
+  "automations.watch_saved": AutomationsWatchSavedPayload;
   "away.cleared": AwayClearedPayload;
   "away.set": AwaySetPayload;
   "backup.completed": BackupCompletedPayload;

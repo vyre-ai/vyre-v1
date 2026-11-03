@@ -166,8 +166,8 @@ export default defineManifest({
     ev('automation.group_created', 'A Group was created', { p: { groupId, name: t.str() }, subject: ['entity', '/groupId'] }),
     ev('automation.group_renamed', 'A Group was renamed', { p: { groupId, name: t.str() }, subject: ['entity', '/groupId'] }),
     ev('automation.group_deleted', 'A Group was deleted; its Automations became ungrouped', { p: { groupId }, subject: ['entity', '/groupId'] }),
-    ev('automations.watch.saved', 'A watch was made, changed, paused, resumed or removed', { p: { watchId, owner: id.user, op: t.enm('added', 'changed', 'paused', 'resumed', 'removed') }, subject: ['entity', '/watchId'], vis: 'owner' }),
-    ev('automations.watch.changed', 'A watched page changed since its last reading', { p: { watchId, owner: id.user, changes: t.int({ minimum: 1 }) }, subject: ['entity', '/watchId'], vis: 'owner' }),
+    ev('automations.watch_saved', 'A watch was made, changed, paused, resumed or removed', { p: { watchId, owner: id.user, op: t.enm('added', 'changed', 'paused', 'resumed', 'removed') }, subject: ['entity', '/watchId'], vis: 'owner' }),
+    ev('automations.watch_changed', 'A watched page changed since its last reading', { p: { watchId, owner: id.user, changes: t.int({ minimum: 1 }) }, subject: ['entity', '/watchId'], vis: 'owner' }),
   ],
   capabilities: [
     read('automations.list', 'List Automations by section (Personal, Shared with me, Space), folder and Group', {
@@ -489,14 +489,14 @@ export default defineManifest({
         everyMinutes: t.int({ minimum: 5, maximum: 10_080 }), tell: t.opt(t.arr(id.user, { maxItems: 20 })), tellThreads: t.opt(t.arr(id.thread, { maxItems: 20 })), goalId: t.opt(t.nullable(t.id('gol'))), agentId: t.opt(id.agent), runsOn: t.enm('computer', 'chrome'), computerId: t.opt(t.str()),
         paused: t.opt(t.bool()), value: t.opt(t.str({ maxLength: 20_000, description: 'The first reading, taken when the sheet was filled in: the baseline' })),
       },
-      out: { watch: watchRow }, emits: ['automations.watch.saved'], offline: 'online', agent: false, errors: ['validation.not_found', 'validation.bad_input'],
+      out: { watch: watchRow }, emits: ['automations.watch_saved'], offline: 'online', agent: false, errors: ['validation.not_found', 'validation.bad_input'],
     }),
     write('automations.watches.remove', 'Vyre for Chrome: remove a watch, or pause or resume it', {
-      level: 'member', idem: 'key', in: { watchId, op: t.enm('remove', 'pause', 'resume') }, out: { removed: t.bool(), watch: t.opt(watchRow) }, emits: ['automations.watch.saved'], offline: 'online', agent: false, errors: ['validation.not_found'],
+      level: 'member', idem: 'key', in: { watchId, op: t.enm('remove', 'pause', 'resume') }, out: { removed: t.bool(), watch: t.opt(watchRow) }, emits: ['automations.watch_saved'], offline: 'online', agent: false, errors: ['validation.not_found'],
     }),
     write('automations.watches.report', 'A check of a watched page: what it read now (or why it could not read). The first reading is the baseline; a different one is a change and is told in the watch\'s chat with before and after', {
       level: 'member', in: { watchId, value: t.opt(t.str({ maxLength: 20_000 })), error: t.opt(t.str({ maxLength: 300 })) }, out: { changed: t.bool(), watch: watchRow },
-      emits: ['automations.watch.changed'], offline: 'online', tool: 'automations', mcpName: 'automations_watches_report', agent: { planMode: 'blocked' }, errors: ['validation.not_found'],
+      emits: ['automations.watch_changed'], offline: 'online', tool: 'automations', mcpName: 'automations_watches_report', agent: { planMode: 'blocked' }, errors: ['validation.not_found'],
     }),
     write('automations.watches.check', 'Vyre for Chrome: check a watch now. One in the person\'s Chrome is read at the extension\'s next look; one on an agent\'s computer wakes the agent', {
       level: 'member', in: { watchId }, out: { watch: watchRow }, offline: 'online', agent: false, errors: ['validation.not_found', 'validation.precondition_failed'],

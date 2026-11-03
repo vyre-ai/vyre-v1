@@ -3,8 +3,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { findChromium, launch, site } from "./e2e/rig.ts";
-import { changeWords, normalize } from "../../../modules/automations/handlers/watches.ts";
 import { AGENTS, LAB, lab, openPanelFor, shootAll } from "./e2e/show-watch.ts";
+
+// the fake host's own copies of the two helpers the real host uses (an app may not import a module; the real ones are tested in modules/automations)
+const normalize = (v: string): string => v.replace(/\s+/g, " ").trim();
+const changeWords = (w: { title: string; url: string; mode: string; region?: { label?: string } | undefined }, before: string, after: string): string => `${w.title} changed${w.mode === "region" && w.region?.label ? ` (${w.region.label})` : ""}.\n\nBefore: ${before}\nNow: ${after}\n\n${w.url}`;
 
 const found = await findChromium();
 

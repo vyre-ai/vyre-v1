@@ -1,4 +1,4 @@
-# automations.watch.saved
+# automations.watch_saved
 
 A watch was made, changed, paused, resumed or removed
 

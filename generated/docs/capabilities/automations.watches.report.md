@@ -19,7 +19,7 @@ A check of a watched page: what it read now (or why it could not read). The firs
 | HTTP | POST /v1/automations/watches/report |
 | MCP tool | automations_watches_report (automations) |
 | CLI | none |
-| Emits | automations.watch.changed |
+| Emits | automations.watch_changed |
 
 ## Input
 

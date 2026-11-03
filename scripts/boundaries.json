@@ -335,6 +335,13 @@
     },
     {
       "rule": "B6",
+      "file": "apps/chrome/tests/e2e/agent-rig.ts",
+      "spec": "playwright-core",
+      "reason": "test-only: the extension's end-to-end agent rig drives Chromium like rig.ts; it is imported only by the e2e tests",
+      "until": "2027-01-31"
+    },
+    {
+      "rule": "B6",
       "file": "apps/chrome/tests/e2e/rig.ts",
       "spec": "playwright-core",
       "reason": "test-only: the extension's end-to-end rig drives Chromium; it is imported only by the e2e test",

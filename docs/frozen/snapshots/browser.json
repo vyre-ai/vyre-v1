@@ -1,0 +1,11 @@
+{
+  "module": "browser",
+  "capabilities": {
+    "browser.sites.list@1": "e31fe61d4aaa49f4525b78992fe7555efdc23b1de19fec63c8cdbbf50e36103f",
+    "browser.sites.remove@1": "66fca67e37aa4954f27b87d96ef14449346ed2b997bfce9e5c32f89322a5f859",
+    "browser.sites.set@1": "a9f98d226af14f357339b4624e45b6ab5c07672424cad115b6c2193180a2bb13"
+  },
+  "events": {
+    "browser.site_changed": "4457df88c7daa4bc24a4665ad431d7d35b4b5120807649530e6357ff61cf5f9d"
+  }
+}
