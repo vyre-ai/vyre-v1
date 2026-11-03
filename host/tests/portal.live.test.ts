@@ -1,7 +1,7 @@
 // P-L8_17: the portal module is live on a booted daemon and an invitation goes out as email through the host's portal mailer (host/src/seams/comms.ts createPortalHost), which calls
 // mail.mailbox.list and mail.send through the invoke pipeline. Mail is still a stub module, so the test supplies those two handlers (daemon option extra.handlers); everything else is
 // the real thing: the portal handlers, the seam, the pipeline and the gateway with a real token.
-import test from "node:test";
+import test, { after } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
@@ -67,7 +67,16 @@ async function post(d: Daemon, token: string, cap: string, body: Record<string, 
   return { status: r.status, data: json.data ?? json };
 }
 
-async function serviceMailbox(d: Daemon): Promise<string> {
+// One booted daemon serves every test but the rate limit one (a daemon boots in 3 s of migrations; eight boots took the file past 100 s on a loaded host). The tests keep apart by using their own
+// invitation email, and the mailbox is made once, by the first test that needs it: the test that wants no mailbox runs before that. `sent` is emptied by each test as it starts.
+const sharedSent: Sent[] = [];
+let shared: Promise<Daemon> | null = null;
+const sharedDaemon = (): Promise<Daemon> => (shared ??= boot(seededDir(), sharedSent));
+after(async () => { if (shared) await (await shared).stop(); });
+const mailboxes = new WeakMap<Daemon, Promise<string>>();
+const serviceMailbox = (d: Daemon): Promise<string> => { let m = mailboxes.get(d); if (!m) { m = makeMailbox(d); mailboxes.set(d, m); } return m; };
+
+async function makeMailbox(d: Daemon): Promise<string> {
   const r = await post(d, OWNER_TOKEN, "mail.mailbox.create", { kind: "service", address: "portal@space.example", title: "Portal", provider: "inbound_only" });
   assert.equal(r.status, 200, JSON.stringify(r.data));
   return r.data.mailbox.id as string;
@@ -87,16 +96,28 @@ const get = async (d: Daemon, p: string) => { const r = await fetch(`${d.url}${p
 test("portal live: portal is live in host/modules.json and the daemon wires its mailer", async () => {
   const list = JSON.parse(fs.readFileSync(new URL("../modules.json", import.meta.url), "utf8")) as { modules: { id: string; status: string }[] };
   assert.equal(list.modules.find((m) => m.id === "portal")?.status, "live");
-  const d = await boot(seededDir(), []);
+  const d = await sharedDaemon();
   try {
     assert.ok(d.seams?.wired.includes("configurePortal"), "configurePortal is wired by the generic loader and daemon");
     assert.deepEqual((d.seams?.missing ?? []).filter((m) => m.module === "portal"), [], "portal is not reported as not set up");
-  } finally { await d.stop(); }
+  } finally { /* the shared daemon stops after the last test */ }
+});
+
+test("portal live: with no service mailbox the invitation fails with a message that says what to create, and no account is left behind", async () => {
+  const sent = sharedSent; sent.length = 0;
+  const d = await sharedDaemon();
+  try {
+    const r = await invite(d);
+    assert.notEqual(r.status, 200);
+    assert.equal(sent.length, 0);
+    const listed = await post(d, OWNER_TOKEN, "portal.accounts", { siteId: SITE });
+    assert.equal(listed.data.accounts?.length, 0, `the account made for the invitation was removed: ${JSON.stringify(listed.data)}`);
+  } finally { /* the shared daemon stops after the last test */ }
 });
 
 test("portal live: an invitation is emailed from the real service mailbox with a link that carries a one-use token", async () => {
-  const sent: Sent[] = [];
-  const d = await boot(seededDir(), sent);
+  const sent = sharedSent; sent.length = 0;
+  const d = await sharedDaemon();
   try {
     const mailbox = await serviceMailbox(d);
     const r = await invite(d);
@@ -110,15 +131,15 @@ test("portal live: an invitation is emailed from the real service mailbox with a
     assert.match(sent[0]?.text ?? "", /\?purpose=invite/);
     const listed = await post(d, OWNER_TOKEN, "portal.accounts", { siteId: SITE });
     assert.equal(listed.data.accounts?.length, 1, JSON.stringify(listed.data));
-  } finally { await d.stop(); }
+  } finally { /* the shared daemon stops after the last test */ }
 });
 
 test("portal live: the invitation link opens a landing page for the invited client, and a bad, wrong-site or used token is a 404", async () => {
-  const sent: Sent[] = [];
-  const d = await boot(seededDir(), sent);
+  const sent = sharedSent; sent.length = 0;
+  const d = await sharedDaemon();
   try {
     await serviceMailbox(d);
-    const made = await invite(d);
+    const made = await invite(d, OWNER_TOKEN, "pat3@client.test");
     assert.equal(made.status, 200, `${JSON.stringify(made.data)} ${made.status === 200 ? "" : await whyMail()}`);
     const link = linkOf(sent);
     const token = link.split("/").at(-1) ?? "";
@@ -128,7 +149,7 @@ test("portal live: the invitation link opens a landing page for the invited clie
     assert.match(page.headers.get("content-type") ?? "", /text\/html/);
     assert.match(page.headers.get("cache-control") ?? "", /no-store/);
     assert.match(page.headers.get("content-security-policy") ?? "", /script-src 'nonce-[^']+'/);
-    assert.match(page.text, /pat@client\.test/);
+    assert.match(page.text, /pat3@client\.test/);
     assert.match(page.text, /Shared with you/);
     assert.match(page.text, /Nothing has been shared with you yet/);
     assert.match(page.text, /Open my portal/);
@@ -146,15 +167,15 @@ test("portal live: the invitation link opens a landing page for the invited clie
     assert.equal(again.status, 404, "a used link cannot be claimed twice");
     const wrong = await fetch(`${d.url}/portal/${SITE}/link/not-a-token`, { method: "POST", headers: { "content-type": "application/json" }, body: "{}" });
     assert.equal(wrong.status, 404);
-  } finally { await d.stop(); }
+  } finally { /* the shared daemon stops after the last test */ }
 });
 
 test("portal live: the session a claim makes is the client's portal session only: the gateway does not know it as a Space caller", async () => {
-  const sent: Sent[] = [];
-  const d = await boot(seededDir(), sent);
+  const sent = sharedSent; sent.length = 0;
+  const d = await sharedDaemon();
   try {
     await serviceMailbox(d);
-    assert.equal((await invite(d)).status, 200);
+    assert.equal((await invite(d, OWNER_TOKEN, "pat4@client.test")).status, 200);
     const link = linkOf(sent);
     const done = await fetch(`${d.url}${link}`, { method: "POST", headers: { "content-type": "application/json" }, body: "{}" });
     const session = ((await done.json()) as { data?: { session?: string } }).data?.session ?? "";
@@ -167,7 +188,7 @@ test("portal live: the session a claim makes is the client's portal session only
       const portal = await as(session, cap, body);
       assert.ok(portal.status === 401 || portal.status === 403, `${cap} refuses the portal session (got ${portal.status})`);
     }
-  } finally { await d.stop(); }
+  } finally { /* the shared daemon stops after the last test */ }
 });
 
 test("portal live: a source that tries many tokens on the link is turned away with 429", async () => {
@@ -181,11 +202,12 @@ test("portal live: a source that tries many tokens on the link is turned away wi
 });
 
 test("portal live: the landing page shows what is shared with the client once their record is linked", async () => {
+  // its own daemon: a type made by schema.apply on the shared daemon, after the earlier tests had used it, was not found by records.create (open question for the lead), so this one starts clean
   const sent: Sent[] = [];
   const d = await boot(seededDir(), sent);
   try {
     await serviceMailbox(d);
-    const made = await invite(d);
+    const made = await invite(d, OWNER_TOKEN, "pat@client.test");
     const typed = await post(d, OWNER_TOKEN, "schema.apply", { ops: [{ op: "type.create", type: "rt_client", def: { title: "Client", plural: "Clients", icon: "user", titleField: "name", fields: [{ key: "name", type: "text", title: "Name", required: true }] } }] });
     assert.equal(typed.status, 200, JSON.stringify(typed.data));
     const rec = await post(d, OWNER_TOKEN, "records.create", { type: "rt_client", fields: { name: "Pat Client" } });
@@ -199,25 +221,13 @@ test("portal live: the landing page shows what is shared with the client once th
   } finally { await d.stop(); }
 });
 
-test("portal live: with no service mailbox the invitation fails with a message that says what to create, and no account is left behind", async () => {
-  const sent: Sent[] = [];
-  const d = await boot(seededDir(), sent);
-  try {
-    const r = await invite(d);
-    assert.notEqual(r.status, 200);
-    assert.equal(sent.length, 0);
-    const listed = await post(d, OWNER_TOKEN, "portal.accounts", { siteId: SITE });
-    assert.equal(listed.data.accounts?.length, 0, `the account made for the invitation was removed: ${JSON.stringify(listed.data)}`);
-  } finally { await d.stop(); }
-});
-
 test("portal live: a temporary guest without sites.deploy cannot invite", async () => {
-  const sent: Sent[] = [];
-  const d = await boot(seededDir(), sent);
+  const sent = sharedSent; sent.length = 0;
+  const d = await sharedDaemon();
   try {
     await serviceMailbox(d);
     const r = await invite(d, TEMP_TOKEN);
     assert.equal(r.status, 403, JSON.stringify(r.data));
     assert.equal(sent.length, 0);
-  } finally { await d.stop(); }
+  } finally { /* the shared daemon stops after the last test */ }
 });
