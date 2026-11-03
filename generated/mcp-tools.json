@@ -45616,7 +45616,7 @@
       "blocks": [],
       "cap": "search.query",
       "deferred": false,
-      "description": "Search everything the caller may see: people, agents, chats, inbox, records, files, automations, apps, settings, memory",
+      "description": "Search everything the caller may see: people, agents, chats, inbox, records, files, automations, apps, settings, memory, and the caller's notes (answered by notes.search as the caller, never indexed)",
       "effects": "read",
       "inputSchema": {
         "properties": {
@@ -45667,7 +45667,8 @@
                 "setting",
                 "memory",
                 "task",
-                "channel"
+                "channel",
+                "note"
               ],
               "type": "string"
             },
@@ -45711,7 +45712,8 @@
                 "setting",
                 "memory",
                 "task",
-                "channel"
+                "channel",
+                "note"
               ],
               "type": "string"
             },
@@ -45749,7 +45751,8 @@
               "setting",
               "memory",
               "task",
-              "channel"
+              "channel",
+              "note"
             ],
             "type": "string"
           }
@@ -45789,7 +45792,8 @@
               "setting",
               "memory",
               "task",
-              "channel"
+              "channel",
+              "note"
             ],
             "type": "string"
           },
@@ -45834,7 +45838,8 @@
               "setting",
               "memory",
               "task",
-              "channel"
+              "channel",
+              "note"
             ],
             "type": "string"
           }

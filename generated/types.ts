@@ -25952,7 +25952,7 @@ export type SearchIndexStatsOut = {
 };
 export type SearchQueryIn = {
   q: string;
-  types?: Array<"person" | "agent" | "chat" | "inbox" | "record" | "file" | "automation" | "app" | "setting" | "memory" | "task" | "channel">;
+  types?: Array<"person" | "agent" | "chat" | "inbox" | "record" | "file" | "automation" | "app" | "setting" | "memory" | "task" | "channel" | "note">;
   mode?: "keyword" | "semantic" | "hybrid";
   folderId?: string;
   recordType?: string;
@@ -25961,7 +25961,7 @@ export type SearchQueryIn = {
 };
 export type SearchQueryOut = {
   hits: Array<{
-      kind: "person" | "agent" | "chat" | "inbox" | "record" | "file" | "automation" | "app" | "setting" | "memory" | "task" | "channel";
+      kind: "person" | "agent" | "chat" | "inbox" | "record" | "file" | "automation" | "app" | "setting" | "memory" | "task" | "channel" | "note";
       id: string;
       title: string;
       recordType?: string;
@@ -25977,12 +25977,12 @@ export type SearchQueryOut = {
   total?: number;
 };
 export type SearchRecentListIn = {
-  types?: Array<"person" | "agent" | "chat" | "inbox" | "record" | "file" | "automation" | "app" | "setting" | "memory" | "task" | "channel">;
+  types?: Array<"person" | "agent" | "chat" | "inbox" | "record" | "file" | "automation" | "app" | "setting" | "memory" | "task" | "channel" | "note">;
   limit?: number;
 };
 export type SearchRecentListOut = {
   hits: Array<{
-      kind: "person" | "agent" | "chat" | "inbox" | "record" | "file" | "automation" | "app" | "setting" | "memory" | "task" | "channel";
+      kind: "person" | "agent" | "chat" | "inbox" | "record" | "file" | "automation" | "app" | "setting" | "memory" | "task" | "channel" | "note";
       id: string;
       title: string;
       recordType?: string;
@@ -25995,20 +25995,20 @@ export type SearchRecentListOut = {
     }>;
 };
 export type SearchRecentRecordIn = {
-  kind: "person" | "agent" | "chat" | "inbox" | "record" | "file" | "automation" | "app" | "setting" | "memory" | "task" | "channel";
+  kind: "person" | "agent" | "chat" | "inbox" | "record" | "file" | "automation" | "app" | "setting" | "memory" | "task" | "channel" | "note";
   itemId: string;
 };
 export type SearchRecentRecordOut = {
   ok: boolean;
 };
 export type SearchRelatedIn = {
-  kind: "person" | "agent" | "chat" | "inbox" | "record" | "file" | "automation" | "app" | "setting" | "memory" | "task" | "channel";
+  kind: "person" | "agent" | "chat" | "inbox" | "record" | "file" | "automation" | "app" | "setting" | "memory" | "task" | "channel" | "note";
   itemId: string;
   limit?: number;
 };
 export type SearchRelatedOut = {
   hits: Array<{
-      kind: "person" | "agent" | "chat" | "inbox" | "record" | "file" | "automation" | "app" | "setting" | "memory" | "task" | "channel";
+      kind: "person" | "agent" | "chat" | "inbox" | "record" | "file" | "automation" | "app" | "setting" | "memory" | "task" | "channel" | "note";
       id: string;
       title: string;
       recordType?: string;
@@ -26021,12 +26021,12 @@ export type SearchRelatedOut = {
     }>;
 };
 export type SearchResolveIn = {
-  kind: "person" | "agent" | "chat" | "inbox" | "record" | "file" | "automation" | "app" | "setting" | "memory" | "task" | "channel";
+  kind: "person" | "agent" | "chat" | "inbox" | "record" | "file" | "automation" | "app" | "setting" | "memory" | "task" | "channel" | "note";
   itemId: string;
 };
 export type SearchResolveOut = {
   hit?: {
-    kind: "person" | "agent" | "chat" | "inbox" | "record" | "file" | "automation" | "app" | "setting" | "memory" | "task" | "channel";
+    kind: "person" | "agent" | "chat" | "inbox" | "record" | "file" | "automation" | "app" | "setting" | "memory" | "task" | "channel" | "note";
     id: string;
     title: string;
     recordType?: string;

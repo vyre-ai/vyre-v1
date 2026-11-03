@@ -6873,7 +6873,7 @@
     {
       "deferred": false,
       "name": "search_query",
-      "summary": "Search everything the caller may see: people, agents, chats, inbox, records, files, automations, apps, settings, memory",
+      "summary": "Search everything the caller may see: people, agents, chats, inbox, records, files, automations, apps, settings, memory, and the caller's notes (answered by notes.search as the caller, never indexed)",
       "toolset": "meta"
     },
     {
