@@ -51,7 +51,7 @@ export function site(pages: Record<string, string | ((req: http.IncomingMessage,
  * Start the fake app (the daemon's bridge with handlers) and a Chromium with the extension. `ops` answers bridge operations by name, `caps` answers capability calls by name.
  * Every call is recorded in `calls`. Returns the browser context, the extension's service worker, and helpers.
  */
-export async function launch(found: { chromium: any; exe: string }, o: { ops?: Record<string, Handler>; caps?: Record<string, Handler>; colorScheme?: "light" | "dark"; incognito?: boolean } = {}) {
+export async function launch(found: { chromium: any; exe: string }, o: { ops?: Record<string, Handler>; caps?: Record<string, Handler>; colorScheme?: "light" | "dark"; incognito?: boolean; agent?: boolean; daemon?: { url: string; token: string } } = {}) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "vyre-e2e-"));
   const data = path.join(dir, "data");
   const profile = path.join(dir, "profile");
@@ -74,8 +74,9 @@ export async function launch(found: { chromium: any; exe: string }, o: { ops?: R
   const server = http.createServer((req, res) => { if (!bridge.handle(req, res)) { res.writeHead(404); res.end(); } });
   await new Promise<void>((r) => server.listen(0, "127.0.0.1", () => r()));
   const url = `http://127.0.0.1:${(server.address() as { port: number }).port}`;
-  fs.writeFileSync(path.join(data, "vyred.json"), JSON.stringify({ url, pid: process.pid, roles: ["space"] }));
-  fs.writeFileSync(path.join(data, "admin.token"), token);
+  // with `daemon` the native host reaches a booted daemon's own bridge instead of this rig's fake app
+  fs.writeFileSync(path.join(data, "vyred.json"), JSON.stringify({ url: o.daemon?.url ?? url, pid: process.pid, roles: ["space"] }));
+  fs.writeFileSync(path.join(data, "admin.token"), o.daemon?.token ?? token);
 
   // The native host, as the desktop app installs it: a launcher Chromium starts, which runs host.js with node.
   const launcher = path.join(dir, "run-vyre-bridge");
@@ -90,9 +91,20 @@ export async function launch(found: { chromium: any; exe: string }, o: { ops?: R
     fs.writeFileSync(path.join(profile, "Default", "Preferences"), prefs);
     fs.writeFileSync(path.join(profile, "Default", "Secure Preferences"), prefs);
   }
+  // Agent browsing needs chrome.debugger, which the product asks the person for when they open Chrome to an agent (an optional permission). A test cannot click that prompt, so with
+  // `agent` the extension is loaded from a copy whose manifest holds the permission from the start. Same key, same id, same code.
+  let extRoot = ROOT;
+  if (o.agent) {
+    extRoot = path.join(dir, "ext");
+    fs.cpSync(ROOT, extRoot, { recursive: true, filter: (src) => !/[\\/]tests([\\/]|$)/.test(src) });
+    const m = JSON.parse(fs.readFileSync(path.join(extRoot, "manifest.json"), "utf8"));
+    m.permissions = [...m.permissions, "debugger"];
+    delete m.optional_permissions;
+    fs.writeFileSync(path.join(extRoot, "manifest.json"), JSON.stringify(m));
+  }
   const context = await found.chromium.launchPersistentContext(profile, {
     executablePath: found.exe, headless: true, channel: "chromium", viewport: { width: 1280, height: 800 }, colorScheme: o.colorScheme ?? "light",
-    args: [`--disable-extensions-except=${ROOT}`, `--load-extension=${ROOT}`, "--no-first-run", "--no-default-browser-check", "--disable-features=DisableLoadExtensionCommandLineSwitch", "--enable-unsafe-extension-debugging"],
+    args: [`--disable-extensions-except=${extRoot}`, `--load-extension=${extRoot}`, "--no-first-run", "--no-default-browser-check", "--disable-features=DisableLoadExtensionCommandLineSwitch", "--enable-unsafe-extension-debugging"],
   });
   let worker = context.serviceWorkers().find((w: any) => w.url().startsWith(`chrome-extension://${EXT_ID}/`));
   if (!worker) worker = await context.waitForEvent("serviceworker", { predicate: (w: any) => w.url().startsWith(`chrome-extension://${EXT_ID}/`), timeout: 10_000 });

@@ -20,6 +20,7 @@ Without one you still run commands: `terminal_run` with no host runs them on the
   Prefer it to screenshots. Act with `chrome_act` (click, press, select, scroll) or `chrome_click`, `chrome_type`, `chrome_fill`, then `chrome_wait`.
 - `chrome_screenshot` shows the person what you see. `chrome_state` gives the URL and title. `chrome_console` and `chrome_net` help when a page misbehaves.
 - A send, post or payment is held and returns an id. Say what is waiting; the person approves with `chrome_send`. Do not retry. Esc stops everything until the person answers; then `chrome_resume`.
+- In the person's own Chrome, see the your-chrome skill: the same tools, with Read only, tab groups, and what is held for them.
 - Prefer a capability to driving a page. If Vyre has a tool for the thing (records, mail, calendar), use it. Use the browser for sites that have no API.
 - Sites with a recorded recipe: look in your Files `recipes/` first; a recorded backend call is faster and steadier than clicking.
 

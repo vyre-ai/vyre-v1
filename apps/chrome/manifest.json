@@ -27,6 +27,7 @@
     "scripting",
     "nativeMessaging",
     "sidePanel",
+    "tabGroups",
     "contextMenus",
     "favicon"
   ],
@@ -47,6 +48,7 @@
         "src/content/finder.js",
         "src/content/autofill.js",
         "src/content/capture.js",
+        "src/content/badge.js",
         "src/content/prompt.js",
         "src/content/select.js"
       ],

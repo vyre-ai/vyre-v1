@@ -223,7 +223,7 @@ export async function itemsMatch(ctx: VaultCtx, input: { url: string }) {
   if (!host) bad(ctx, "Match needs an http or https address.");
   const who = personOf(ctx);
   if (who && siteRule(ctx, who, host as string)?.["neverFill"] === 1) return { items: [] };
-  const found: { r: Row; exact: boolean }[] = [];
+  const found: { r: Row; exact: boolean; username?: string }[] = [];
   for (const r of rowsOf(ctx.db.all(`SELECT * FROM vault_meta`))) {
     if (!visible(ctx, r) || str(r, "kind") === "ai_subscription") continue;
     const keys = parseJson<string[]>(r["fieldKeys"], []);
@@ -232,13 +232,16 @@ export async function itemsMatch(ctx: VaultCtx, input: { url: string }) {
     try { fields = await openFields(ctx, r); } catch { continue; }
     const hosts = fields.filter((f) => !f.secret && URL_KEYS.includes(f.key)).map((f) => pageHost(f.value)).filter((h): h is string => h !== null && h.includes("."));
     const hit = hosts.find((h) => h === host || (host as string).endsWith(`.${h}`));
-    if (hit) found.push({ r, exact: hit === host });
+    // the username shows under the item's name when the person has more than one login for a site; a username kept as a secret is never shown
+    const userKeys = parseJson<string[]>(r["fieldKeys"], []).filter((k) => USER_KEYS.includes(k));
+    const uf = fields.find((f) => !f.secret && userKeys.includes(f.key) && typeof f.value === "string" && f.value.length > 0 && f.value.length <= 120);
+    if (hit) found.push({ r, exact: hit === host, ...(uf ? { username: uf.value } : {}) });
   }
   found.sort((a, b) => Number(b.exact) - Number(a.exact) || str(a.r, "name").toLowerCase().localeCompare(str(b.r, "name").toLowerCase(), "en") || str(a.r, "id").localeCompare(str(b.r, "id")));
   return {
-    items: found.map(({ r }) => {
+    items: found.map(({ r, username }) => {
       const u = parseJson<string[]>(r["fieldKeys"], []).find((k) => USER_KEYS.includes(k));
-      return { item: metaOut(ctx, r), ...(u ? { usernameField: u } : {}) };
+      return { item: metaOut(ctx, r), ...(u ? { usernameField: u } : {}), ...(username ? { username } : {}) };
     }),
   };
 }

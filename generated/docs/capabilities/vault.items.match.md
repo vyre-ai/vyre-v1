@@ -54,6 +54,7 @@ type Out = {
         updatedAt: number;
       };
       usernameField?: string;
+      username?: string;
     }>;
 };
 ```
@@ -97,6 +98,7 @@ type Out = {
           "updatedAt": 1760000000000,
           "yourLevel": "view"
         },
+        "username": "example",
         "usernameField": "api_key"
       }
     ]
