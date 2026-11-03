@@ -2,7 +2,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { placementDecide, poolStatus, warm } from "../handlers/place.ts";
-import { runtimeOptIn } from "../handlers/extra/config.ts";
 import { bindOpener, ensure } from "../projections.ts";
 import { harness } from "../fixtures/harness.ts";
 

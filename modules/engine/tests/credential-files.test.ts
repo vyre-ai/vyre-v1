@@ -8,7 +8,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { CRED_FILES_ENV, CredentialFilesError, engineHome, parseCredentialFiles, placeCredentialFiles, takeCredentialFiles } from "../credential-files.ts";
 import { signinsSettled, spawnCli } from "../session.ts";
-import { workFolder } from "../sandbox.ts";
+import { scratchFolder, workFolder } from "../sandbox.ts";
 import type { SandboxPlan } from "../sandbox.ts";
 import { cliCredential } from "../../../agent/src/drivers/open/credentials.ts";
 import { credentialLeaves } from "../../../agent/src/drivers/open/fill-launcher.ts";
@@ -44,6 +44,15 @@ async function run(cli: "codex" | "grok", files: string | undefined, prompt: str
   await new Promise((r) => setTimeout(r, 50));
   return { text, stderr: proc.stderrTail(), cwd: w.cwd, dir: w.dir, exited: proc.exited, env };
 }
+
+test("the engine's home is the person's, from an agent's own work folder (person/thread/agent) and from the older person/thread one; any other folder is refused", () => {
+  const dir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "vyre-credfiles-home-")));
+  const own = engineHome(dir, workFolder(dir, "usr_dana", "thr_1", "agt_intake"));
+  assert.equal(own, path.join(scratchFolder(dir, "usr_dana"), "home"));
+  assert.equal(engineHome(dir, workFolder(dir, "usr_dana", "thr_1")), own);
+  assert.throws(() => engineHome(dir, path.join(dir, "work")), /not in one of the Space's work folders/);
+  fs.rmSync(dir, { recursive: true, force: true });
+});
 
 test("a file map is checked: relative paths in the home, a few small files, nothing that climbs", () => {
   assert.deepEqual(parseCredentialFiles(CODEX_FILES), JSON.parse(CODEX_FILES));

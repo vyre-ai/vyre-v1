@@ -44,7 +44,8 @@ export function parseCredentialFiles(json: string): Record<string, string> {
 export function engineHome(dataDir: string, cwd: string): string {
   const workRoot = fs.realpathSync(path.join(dataDir, "work"));
   const rel = path.relative(workRoot, cwd).split(path.sep);
-  if (rel.length !== 2 || rel.some((x) => x === "" || x === "..")) throw new CredentialFilesError("The engine is not in one of the Space's work folders.");
+  // `<person>/<thread>/<agent>` (the layout since rc.17), or the older `<person>/<thread>`
+  if ((rel.length !== 2 && rel.length !== 3) || rel.some((x) => x === "" || x === "..")) throw new CredentialFilesError("The engine is not in one of the Space's work folders.");
   const home = path.join(scratchFolder(dataDir, rel[0] as string), "home");
   fs.mkdirSync(home, { recursive: true, mode: 0o700 });
   return home;
