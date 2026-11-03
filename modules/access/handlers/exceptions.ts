@@ -8,11 +8,12 @@ import type { AccessCtx } from "../projections.ts";
 import type { GrantRec } from "../projections.ts";
 import { catalogueSource, nid, raise, storeOf } from "../projections.ts";
 import { isOwnerRole } from "../../../kernel/src/authorize/snapshot.ts";
+import { ownOnly, pairsFor } from "../../../lib/own-pairs.ts";
 
-export type Effect = "allow" | "deny";
+export type Effect = "allow" | "deny" | "own";
 export interface ExceptionIn { subject: { kind: "person" | "group"; id: string }; perms?: string[]; area?: string; effect: Effect; until?: number; why?: string }
 export interface ExceptionRow {
-  exceptionId: string; subject: { kind: "person" | "group"; id: string; name: string }; perms: string[]; area?: string; effect: Effect;
+  exceptionId: string; subject: { kind: "person" | "group"; id: string; name: string }; perms: string[]; own?: string[]; area?: string; effect: Effect;
   until?: number; why?: string; by: { id: string; name: string }; at: number;
 }
 
@@ -37,7 +38,7 @@ const nameOf = (ctx: AccessCtx, id: string): string => {
 function rowOf(ctx: AccessCtx, g: GrantRec): ExceptionRow {
   const x = g.conditions.exception!;
   return {
-    exceptionId: g.id, subject: { kind: g.subject.kind === "group" ? "group" : "person", id: g.subject.id, name: nameOf(ctx, g.subject.id) }, perms: [...x.perms], ...(x.area ? { area: x.area } : {}),
+    exceptionId: g.id, subject: { kind: g.subject.kind === "group" ? "group" : "person", id: g.subject.id, name: nameOf(ctx, g.subject.id) }, perms: [...x.perms], ...(x.own ? { own: [...x.own] } : {}), ...(x.area ? { area: x.area } : {}),
     effect: x.effect, ...(g.conditions.expiresAt !== undefined ? { until: g.conditions.expiresAt } : {}), ...(x.why ? { why: x.why } : {}),
     by: { id: g.by, name: nameOf(ctx, g.by) }, at: x.at ?? g.createdAt,
   };
@@ -68,7 +69,15 @@ export async function exceptionsSet(ctx: AccessCtx, input: ExceptionIn & { idemp
     if (!p || p.kind !== "person") raise(trace, "validation.not_found", "That person is not in this Space.");
   }
   let perms = [...new Set(input.perms ?? [])];
-  if (input.area) {
+  let own: string[] | undefined;
+  if (input.effect === "own") {
+    // Own only: Allow on the own-scope permission, Not allowed on the Space one (lib/own-pairs.ts); only where the action has both parts
+    const pairs = pairsFor({ area: input.area, perms });
+    if (!pairs.length) raise(trace, "validation.bad_input", "Own only is for an action with a part of their own and a part for the Space.");
+    const o = ownOnly(pairs);
+    own = o.allow;
+    perms = [...new Set([...o.allow, ...o.deny])];
+  } else if (input.area) {
     const inArea = [...areas].filter(([, a]) => a === input.area).map(([k]) => k);
     if (!inArea.length) raise(trace, "validation.bad_input", "There is no such area of permissions.");
     perms = [...new Set([...perms, ...inArea])];
@@ -78,17 +87,18 @@ export async function exceptionsSet(ctx: AccessCtx, input: ExceptionIn & { idemp
   if (unknown.length) raise(trace, "validation.bad_input", "One of those is not a permission in this Space.");
   if (input.until !== undefined && input.until <= ctx.now()) raise(trace, "validation.bad_input", "The end has to be in the future.");
   // the Owner is never restricted
-  if (input.effect === "deny" && subject.kind === "person" && holdsOwner(ctx, subject.id)) raise(trace, "permission.role_lacks_permission", "The Owner can't be restricted.");
+  if (input.effect !== "allow" && subject.kind === "person" && holdsOwner(ctx, subject.id)) raise(trace, "permission.role_lacks_permission", "The Owner can't be restricted.");
   // an admin gives only what they hold: every key allowed here must be one the caller holds now (their own exceptions count)
-  if (input.effect === "allow") {
+  const given = input.effect === "allow" ? perms : input.effect === "own" ? (own ?? []) : [];
+  if (given.length) {
     const mine = store.snapshot().info(ctx.actingFor ?? ctx.principal.id)?.perms ?? new Set<string>();
-    const over = perms.filter((k) => !mine.has(k));
+    const over = given.filter((k) => !mine.has(k));
     if (over.length) raise(trace, "permission.role_lacks_permission", `You can give only what you hold yourself. You don't hold ${over.length === 1 ? `"${permTitle(over[0]!)}"` : `${over.length} of these`}.`);
   }
   const why = input.why?.trim();
   const g: GrantRec = {
     id: nid("exc"), subject: { kind: subject.kind === "group" ? "group" : "person", id: subject.id }, resource: { type: "exception", id: "" }, level: "view",
-    conditions: { exception: { perms: perms.sort(), effect: input.effect, at: ctx.now(), ...(input.area ? { area: input.area } : {}), ...(why ? { why } : {}) }, ...(input.until !== undefined ? { expiresAt: input.until } : {}) },
+    conditions: { exception: { perms: perms.sort(), effect: input.effect, ...(own ? { own } : {}), at: ctx.now(), ...(input.area ? { area: input.area } : {}), ...(why ? { why } : {}) }, ...(input.until !== undefined ? { expiresAt: input.until } : {}) },
     by: ctx.actingFor ?? ctx.principal.id, createdAt: ctx.now(), source: "exception",
   };
   g.resource.id = g.id;
@@ -140,7 +150,7 @@ export async function exceptionsExplain(ctx: AccessCtx, input: { principal: stri
   if (!catalogueAreas().has(input.perm)) raise(trace, "validation.bad_input", "There is no such permission.");
   const snap = store.snapshot();
   const person = p.kind === "agent" && p.owner ? p.owner : p.id;
-  const holds = snap.info(person)?.perms.has(input.perm) === true && (person === p.id || snap.info(p.id)?.perms.has(input.perm) === true);
+  const holds = snap.info(person)?.perms.has(input.perm) === true && (person === p.id || snap.info(p.id)?.perms.has(input.perm) === true || snap.agentFollows(person, input.perm));
   const roleIds = new Set(store.rolesOf(person));
   for (const g of store.groups.values()) if (g.members.some((m) => m.id === person)) for (const r of store.rolesOf(g.id)) roleIds.add(r);
   const roles = [...roleIds].map((r) => store.roles.get(r)).filter((r): r is NonNullable<typeof r> => !!r);

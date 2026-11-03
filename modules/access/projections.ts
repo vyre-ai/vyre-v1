@@ -33,7 +33,7 @@ export interface Cond {
   /** The holder may share it further, up to their own level, without Manage. */
   reshare?: boolean;
   /** A permission exception (handlers/exceptions.ts): not a grant on a resource; it changes which permissions the subject holds. */
-  exception?: { perms: string[]; effect: "allow" | "deny"; at?: number; area?: string; why?: string };
+  exception?: { perms: string[]; effect: "allow" | "deny" | "own"; own?: string[]; at?: number; area?: string; why?: string };
 }
 export interface RoleRec {
   id: string;
@@ -586,7 +586,7 @@ function kernelGrant(g: GrantRec): GrantRow {
     by: g.by,
   };
   if (g.source?.startsWith(THROUGH_AGENT)) row.source = g.source;
-  if (c.exception) row.exception = { perms: c.exception.perms, effect: c.exception.effect };
+  if (c.exception) row.exception = { perms: c.exception.perms, effect: c.exception.effect, ...(c.exception.own ? { own: c.exception.own } : {}) };
   return row;
 }
 

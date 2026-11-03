@@ -12,11 +12,11 @@ import { useConsoleData } from "../shell/data.tsx";
 import { Group, Section } from "../shell/ui.tsx";
 import { Button, Help, Note, ReadState, Select, useAction, useRead } from "./shared.tsx";
 import { AddExceptionSheet, ExceptionsList, PERMS, useExceptions } from "./exceptions.tsx";
-import { CELL_WORD, areasOf, columns, differ, exceptionFor, isOwnerRole, roleCell } from "./permissions-model.ts";
+import { CELL_WORD, allowsKey, areaWord, areasOf, columns, differ, exceptionFor, isGuestRole, isOwnerRole, roleCell } from "./permissions-model.ts";
 import type { Cell, ExceptionLite, PersonLite, RoleLite } from "./permissions-model.ts";
 
-const MARK: Readonly<Record<Cell, string>> = { allow: "✓", ask: "✋", no: "–" };
-const INK: Readonly<Record<Cell, string>> = { allow: "var(--ok)", ask: "var(--warn)", no: "var(--ink-4)" };
+export const MARK: Readonly<Record<Cell, string>> = { allow: "✓", own: "◐", ask: "✋", no: "–" };
+export const INK: Readonly<Record<Cell, string>> = { allow: "var(--ok)", own: "var(--accent)", ask: "var(--warn)", no: "var(--ink-4)" };
 const COL = 112;
 
 export function Permissions(): ReactElement {
@@ -38,6 +38,9 @@ export function Permissions(): ReactElement {
   const now = Date.now();
   const all = roles.data?.roles ?? [], folks = people.data?.principals ?? [], exceptions = ex.data?.exceptions ?? [];
   const cols = columns(all, custom);
+  const previewRole = preview.startsWith("role:") ? all.find((r) => r.id === preview.slice(5)) : undefined;
+  const previewPerson = preview.startsWith("person:") ? folks.find((p) => p.id === preview.slice(7)) : undefined;
+  const previewName = previewRole?.name ?? previewPerson?.name ?? "";
   const areas = useMemo(() => areasOf(PERMS).map((a) => ({ ...a, perms: a.perms.filter((p) => !q.trim() || `${a.title} ${p.title} ${p.key}`.toLowerCase().includes(q.trim().toLowerCase())) })).filter((a) => a.perms.length), [q]);
   if (!roles.data) return <ReadState error={roles.error} retry={roles.refresh} />;
 
@@ -51,7 +54,7 @@ export function Permissions(): ReactElement {
     const items: MenuEntry[] = [{ head: title }];
     if (d.length) {
       items.push({ head: `${d.length} ${d.length === 1 ? "person differs" : "people differ"}` });
-      for (const { person, ex: e } of d) items.push({ label: person.name, hint: `${e.effect === "allow" ? "Allowed" : "Not allowed"} · exception${e.subject.kind === "group" ? ` for ${e.subject.name}` : ""}`, onSelect: () => data.nav.openPage("people", { personId: person.id }) });
+      for (const { person, ex: e } of d) items.push({ label: person.name, hint: `${allowsKey(e, key) ? "Allowed" : "Not allowed"}${e.effect === "own" ? " (Own only)" : ""} · exception${e.subject.kind === "group" ? ` for ${e.subject.name}` : ""}`, onSelect: () => data.nav.openPage("people", { personId: person.id }) });
       items.push({ separator: true }, { head: `${r.name}, everyone else` });
     }
     const cur = roleCell(r, key);
@@ -67,7 +70,12 @@ export function Permissions(): ReactElement {
     {phone ? null : <Button label={`Exceptions ${exceptions.length}`} onPress={() => setList(!list)} testID="perms-exceptions" />}
     <View style={{ flex: 1 }} />
     {phone || !all.some((r) => !r.builtIn) ? null : <Button label={`${custom ? "Hide" : "Show"} ${all.filter((r) => !r.builtIn).length} custom roles`} onPress={() => setCustom(!custom)} testID="perms-custom" />}
-    {phone ? null : <Select label="Preview as" value={preview} options={[{ key: "", title: "Nobody" }, ...folks.filter((p) => p.kind === "person" && !p.roles.includes("rol_owner")).map((p) => ({ key: p.id, title: p.name }))]} onChange={setPreview} />}
+    {phone ? null : <Button label={previewName ? `Preview as ${previewName}` : "Preview as…"} testID="perms-preview-as" onPress={() => {
+      const items: MenuEntry[] = [{ head: "Roles" }, ...columns(all, true).filter((r) => !isOwnerRole(r)).map((r) => ({ label: r.name, checked: preview === `role:${r.id}`, onSelect: () => setPreview(`role:${r.id}`) })),
+        { head: "People" }, ...folks.filter((p) => p.kind === "person" && !p.roles.includes("rol_owner")).map((p) => ({ label: p.name, checked: preview === `person:${p.id}`, ...(exceptions.some((e) => e.subject.kind === "person" && e.subject.id === p.id) ? { hint: "Has exceptions" } : {}), onSelect: () => setPreview(`person:${p.id}`) })),
+        ...(preview ? [{ separator: true } as MenuEntry, { label: "Stop previewing", onSelect: () => setPreview("") }] : [])];
+      menu.show(items, Math.max(8, width - 320), 200, "other");
+    }} />}
   </View>;
 
   if (phone) {
@@ -89,12 +97,13 @@ export function Permissions(): ReactElement {
       onPress={(ev) => { const rect = (ev?.currentTarget as unknown as { getBoundingClientRect?(): { left: number; bottom: number } })?.getBoundingClientRect?.(); cellMenu(r, key, rect?.left ?? 40, rect?.bottom ?? 120); }}
       style={({ hovered }: { hovered?: boolean }) => ({ width: COL, height: 30, alignItems: "center", justifyContent: "center", borderRadius: 6, backgroundColor: hovered ? "var(--hover)" as string : "transparent" })}>{face}</Pressable>;
   };
-  const areaCell = (r: RoleLite, keys: readonly string[]): ReactElement => {
-    const cs = keys.map((k) => roleCell(r, k)), same = cs.every((c) => c === cs[0]);
+  const areaCell = (r: RoleLite, area: string, keys: readonly string[]): ReactElement => {
+    const cs = keys.map((k) => roleCell(r, k)), word = isOwnerRole(r) ? "allow" : areaWord(area, (k) => roleCell(r, k) === "allow", cs);
+    const allowed = cs.filter((c) => c === "allow").length;
     return <View key={r.id} style={{ width: COL, alignItems: "center", justifyContent: "center" }}>
-      {same || cs.length > 6 ? (same ? <Text style={{ fontSize: 12.5, color: "var(--ink-2)" as string }}><Text style={{ color: INK[cs[0]!] as string }}>{isOwnerRole(r) ? "🔒" : MARK[cs[0]!]}</Text>{` ${CELL_WORD[cs[0]!]}`}</Text>
-        : <Text style={{ fontSize: 12.5, color: "var(--ink-2)" as string }}>{`${cs.filter((c) => c === "allow").length} of ${cs.length} allowed`}</Text>)
-        : <Text accessibilityLabel={`${r.name}: ${cs.filter((c) => c === "allow").length} of ${cs.length} allowed`} numberOfLines={1} style={{ fontSize: 11, letterSpacing: 1 }}>{cs.map((c, i) => <Text key={i} style={{ color: INK[c] as string }}>{MARK[c]}</Text>)}</Text>}
+      {word ? <Text style={{ fontSize: 12.5, color: "var(--ink-2)" as string }}><Text style={{ color: INK[word] as string }}>{isOwnerRole(r) ? "🔒" : MARK[word]}</Text>{` ${CELL_WORD[word]}`}</Text>
+        : cs.length > 6 ? <Text style={{ fontSize: 12.5, color: "var(--ink-2)" as string }}>{`${allowed} of ${cs.length} allowed`}</Text>
+        : <Text accessibilityLabel={`${r.name}: ${allowed} of ${cs.length} allowed`} numberOfLines={1} style={{ fontSize: 11, letterSpacing: 1 }}>{cs.map((c, i) => <Text key={i} style={{ color: INK[c] as string }}>{MARK[c]}</Text>)}</Text>}
     </View>;
   };
   const rows: ReactElement[] = [];
@@ -104,17 +113,17 @@ export function Permissions(): ReactElement {
       <Pressable accessibilityRole="button" accessibilityState={{ expanded: isOpen }} accessibilityLabel={`${a.title}, ${a.perms.length} permissions`} testID={`perm-area-${a.area}`} onPress={() => setOpen((s) => { const n = new Set(s); if (n.has(a.area)) n.delete(a.area); else n.add(a.area); return n; })} style={{ flex: 1, minWidth: 220, flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12 }}>
         <Text style={{ color: "var(--ink-3)" as string, fontSize: 11 }}>{isOpen ? "▾" : "▸"}</Text><Text style={{ fontWeight: "600", color: "var(--ink)" as string, fontSize: 13 }}>{a.title}</Text><Text style={{ color: "var(--ink-3)" as string, fontSize: 12 }}>{String(a.perms.length)}</Text>
       </Pressable>
-      {cols.map((r) => areaCell(r, a.perms.map((p) => p.key)))}
+      {cols.map((r) => areaCell(r, a.area, a.perms.map((p) => p.key)))}
     </View>);
     if (isOpen) for (const p of a.perms) rows.push(<View key={p.key} style={{ flexDirection: "row", alignItems: "center", minHeight: 34, borderTopWidth: 1, borderTopColor: "var(--line)" as string }}>
       <View style={{ flex: 1, minWidth: 220, paddingLeft: 34, paddingRight: 8, paddingVertical: 4 }}><Text style={{ fontSize: 13, color: "var(--ink-2)" as string }}>{p.title}</Text></View>
       {cols.map((r) => cell(r, p.key))}
     </View>);
   }
-  const previewed = folks.find((p) => p.id === preview);
+
   return <View testID="console-permissions">
     {toolbar}
-    {previewed ? <PreviewAs person={previewed} roles={all} exceptions={exceptions} now={now} /> : null}
+    {previewPerson || previewRole ? <PreviewAs {...(previewPerson ? { person: previewPerson } : {})} {...(previewRole ? { role: previewRole } : {})} roles={all} exceptions={exceptions} now={now} /> : null}
     {list ? <ExceptionsList onAdd={() => setAdding({})} /> : null}
     <ScrollView horizontal>
       <View style={{ minWidth: 220 + COL * cols.length, flexGrow: 1, borderRadius: 12, backgroundColor: "var(--raised)" as string, borderWidth: 1, borderColor: "var(--line)" as string }} testID="perms-grid">
@@ -132,18 +141,23 @@ export function Permissions(): ReactElement {
   </View>;
 }
 
-/** Preview as a person: what their role and exceptions give, area by area, marked where an exception decides it. Their Records, as they see them, open from the Access checker. */
-function PreviewAs({ person, roles, exceptions, now }: { person: PersonLite; roles: readonly RoleLite[]; exceptions: readonly ExceptionLite[]; now: number }): ReactElement {
-  const held = roles.filter((r) => person.roles.includes(r.id));
-  const value = (key: string): { c: Cell; ex: ExceptionLite | null } => {
-    const e = exceptionFor(person, key, exceptions, now);
-    if (e) return { c: e.effect === "allow" ? "allow" : (held.some((r) => r.name.toLowerCase() === "guest") ? "no" : "ask"), ex: e };
-    const best = held.map((r) => roleCell(r, key)).sort((a, b) => ["allow", "ask", "no"].indexOf(a) - ["allow", "ask", "no"].indexOf(b))[0] ?? "no";
-    return { c: best, ex: null };
+/** Preview as a role or a person: what they get, area by area, with Own only where it applies and the areas an exception decides marked. */
+function PreviewAs({ person, role, roles, exceptions, now }: { person?: PersonLite; role?: RoleLite; roles: readonly RoleLite[]; exceptions: readonly ExceptionLite[]; now: number }): ReactElement {
+  const held = person ? roles.filter((r) => person.roles.includes(r.id)) : role ? [role] : [];
+  const guest = held.length > 0 && held.every(isGuestRole);
+  const value = (key: string): { c: Cell; ex: boolean } => {
+    const e = person ? exceptionFor(person, key, exceptions, now) : null;
+    if (e) return { c: allowsKey(e, key) ? "allow" : "no", ex: true };
+    const order: Cell[] = ["allow", "ask", "no"];
+    return { c: held.map((r) => roleCell(r, key)).sort((a, b) => order.indexOf(a) - order.indexOf(b))[0] ?? "no", ex: false };
   };
-  return <Section title={`${person.name} sees`} testID="perms-preview">
-    <Group>{areasOf(PERMS).map((a) => { const vs = a.perms.map((p) => ({ p, ...value(p.key) })), on = vs.filter((v) => v.c === "allow").length, marked = vs.filter((v) => v.ex).length;
-      return <Row key={a.area} id={`preview-${a.area}`} title={a.title} note={`${on} of ${vs.length} allowed${marked ? ` · ${marked} by exception` : ""}`}
-        trailing={<Text style={{ fontSize: 12, letterSpacing: 2 }}>{vs.map((v, i) => <Text key={i} style={{ color: INK[v.c] as string }}>{MARK[v.c]}</Text>)}</Text>} />; })}</Group>
+  const name = person?.name ?? role?.name ?? "";
+  return <Section title={`${name} sees`} right={<Text style={{ fontSize: 12, color: "var(--ink-3)" as string }}>{person ? "Their role plus their exceptions" : "Everyone with this role, before exceptions"}</Text>} testID="perms-preview">
+    <Group>{areasOf(PERMS).map((a) => {
+      const vs = a.perms.map((p) => ({ p, ...value(p.key) })), on = vs.filter((v) => v.c === "allow").length, marked = vs.filter((v) => v.ex).length;
+      const word = areaWord(a.area, (k) => value(k).c === "allow", vs.map((v) => v.c));
+      return <Row key={a.area} id={`preview-${a.area}`} title={a.title} note={`${word ? CELL_WORD[word] : `${on} of ${vs.length} allowed`}${marked ? ` · ${marked} by exception` : ""}`}
+        trailing={<Text style={{ fontSize: 12, letterSpacing: 2 }}>{vs.map((v, i) => <Text key={i} style={{ color: INK[v.c] as string }}>{MARK[v.c]}</Text>)}</Text>} />;
+    })}</Group>
   </Section>;
 }

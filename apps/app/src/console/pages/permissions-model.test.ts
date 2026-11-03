@@ -2,7 +2,7 @@
 // never differs), what an admin may give, and the five built-in columns with custom roles on request.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { areasOf, columns, differ, endAt, exceptionFor, exceptionLine, mayGive, roleCell } from "./permissions-model.ts";
+import { allowsKey, areaWord, areasOf, columns, differ, endAt, exceptionFor, exceptionLine, mayGive, offersOwnOnly, roleCell, whatOf } from "./permissions-model.ts";
 import type { ExceptionLite, PersonLite, RoleLite } from "./permissions-model.ts";
 
 const role = (id: string, name: string, permissions: string[], builtIn = true): RoleLite => ({ id, name, builtIn, permissions });
@@ -53,4 +53,17 @@ test("ends and words", () => {
   assert.ok((endAt("day", NOW) ?? 0) > NOW);
   assert.match(exceptionLine({ ...ex("x", { kind: "person", id: "a", name: "A" }, ["k"], "deny", Date.UTC(2026, 10, 10)), why: "First week" }), /^Exception set by Irfad on 3 Nov, until 10 Nov · First week$/);
   assert.ok(areasOf([{ key: "a.b", area: "space", title: "T", risk: "low" }, { key: "c.d", area: "chats", title: "U", risk: "low" }])[0]!.area === "chats", "areas in the matrix's order");
+});
+
+test("Own only: an area whose own part is allowed and Space part is not reads Own only; it is offered only where an action has both parts", () => {
+  const has = (k: string) => ["automations.personal"].includes(k);
+  assert.equal(areaWord("automations", has, ["allow", "ask", "ask"]), "own");
+  assert.equal(areaWord("automations", () => false, ["ask", "ask", "ask"]), "ask");
+  assert.equal(areaWord("records", (k) => k === "records.create", ["allow", "ask"]), null, "no own and Space pair in Records");
+  assert.ok(offersOwnOnly({ area: "automations" }) && offersOwnOnly({ perms: ["automations.space"] }) && offersOwnOnly({ perms: ["connectors.manage"] }));
+  assert.ok(!offersOwnOnly({ area: "records" }) && !offersOwnOnly({ perms: ["records.create"] }) && !offersOwnOnly({ area: "space" }));
+  const own = { exceptionId: "o", subject: { kind: "person" as const, id: "maya", name: "Maya" }, perms: ["sites.deploy", "sites.promote"], own: ["sites.deploy"], effect: "own" as const, by: { id: "o", name: "Irfad" }, at: 0 };
+  assert.ok(allowsKey(own, "sites.deploy") && !allowsKey(own, "sites.promote"));
+  assert.equal(whatOf(own, []), "Sites");
+  assert.deepEqual(mayGive("own", ["sites.deploy", "sites.promote"], new Set(["sites.deploy"]), ["sites.deploy"]), { ok: true }, "Own only gives only the own part");
 });

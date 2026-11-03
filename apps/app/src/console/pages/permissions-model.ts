@@ -3,12 +3,14 @@
 // The engine answers a permission yes or no. A role without it reads "Ask an admin" where its people can ask for it (anyone but a Guest, who works inside what was shared with them), and
 // "Not allowed" otherwise. An exception is Allowed or Not allowed on a permission or a whole area, for a person or a group.
 
-export type Effect = "allow" | "deny";
-export type Cell = "allow" | "ask" | "no";
+import { pairsFor } from "../../../../../lib/own-pairs.ts";
+
+export type Effect = "allow" | "deny" | "own";
+export type Cell = "allow" | "own" | "ask" | "no";
 export interface PermissionDef { key: string; area: string; title: string; risk: string }
 export interface RoleLite { id: string; name: string; builtIn: boolean; permissions: readonly string[] }
 export interface PersonLite { id: string; name: string; kind: string; status: string; roles: readonly string[]; groups: readonly string[] }
-export interface ExceptionLite { exceptionId: string; subject: { kind: "person" | "group"; id: string; name: string }; perms: readonly string[]; area?: string; effect: Effect; until?: number; why?: string; by: { id: string; name: string }; at: number }
+export interface ExceptionLite { exceptionId: string; subject: { kind: "person" | "group"; id: string; name: string }; perms: readonly string[]; own?: readonly string[]; area?: string; effect: Effect; until?: number; why?: string; by: { id: string; name: string }; at: number }
 
 /** The areas of the catalogue in the words the matrix uses, in its order. */
 export const AREA_TITLE: Readonly<Record<string, string>> = {
@@ -30,8 +32,23 @@ export function roleCell(r: RoleLite, key: string): Cell {
   if (isOwnerRole(r) || r.permissions.includes(key)) return "allow";
   return isGuestRole(r) ? "no" : "ask";
 }
-export const CELL_WORD: Readonly<Record<Cell, string>> = { allow: "Allowed", ask: "Ask an admin", no: "Not allowed" };
-export const EFFECT_WORD: Readonly<Record<Effect, string>> = { allow: "Allowed", deny: "Not allowed" };
+export const CELL_WORD: Readonly<Record<Cell, string>> = { allow: "Allowed", own: "Own only", ask: "Ask an admin", no: "Not allowed" };
+export const EFFECT_WORD: Readonly<Record<Effect, string>> = { allow: "Allowed", own: "Own only", deny: "Not allowed" };
+/** An exception's answer for one permission: Own only allows the own part and refuses the Space part. */
+export const allowsKey = (e: Pick<ExceptionLite, "effect" | "own">, key: string): boolean => e.effect === "allow" || (e.effect === "own" && (e.own ?? []).includes(key));
+
+/**
+ * One area row's word for a set of values (permission key to Allowed or not): all the same; Own only where the area has an own and a Space part (lib/own-pairs.ts) and the own part is
+ * allowed while the Space part is not; otherwise mixed (null: the row shows its marks).
+ */
+export function areaWord(area: string, has: (key: string) => boolean, cells: readonly Cell[]): Cell | null {
+  if (cells.every((c) => c === cells[0])) return cells[0] ?? null;
+  const pairs = pairsFor({ area });
+  if (pairs.length && pairs.every((p) => (p.own === null || has(p.own)) && !has(p.space))) return "own";
+  return null;
+}
+/** Own only is offered only where the chosen area or permission has an own and a Space part. */
+export const offersOwnOnly = (sel: { area?: string | undefined; perms?: readonly string[] | undefined }): boolean => pairsFor(sel).length > 0;
 
 /** The built-in roles always shown, in order; custom roles follow when asked for. */
 const BUILT_ORDER = ["owner", "admin", "developer", "member", "guest"];
@@ -43,7 +60,7 @@ export function columns(roles: readonly RoleLite[], withCustom: boolean): RoleLi
 /** A person's own exception on a key beats a group's; among peers Allow wins. Null when none applies. */
 export function exceptionFor(person: PersonLite, key: string, ex: readonly ExceptionLite[], now: number): ExceptionLite | null {
   const live = ex.filter((e) => e.perms.includes(key) && (e.until === undefined || e.until > now));
-  const pick = (list: ExceptionLite[]) => list.find((e) => e.effect === "allow") ?? list[0] ?? null;
+  const pick = (list: ExceptionLite[]) => list.find((e) => allowsKey(e, key)) ?? list[0] ?? null;
   return pick(live.filter((e) => e.subject.kind === "person" && e.subject.id === person.id)) ?? pick(live.filter((e) => e.subject.kind === "group" && person.groups.includes(e.subject.id)));
 }
 
@@ -55,7 +72,7 @@ export function differ(role: RoleLite, key: string, people: readonly PersonLite[
   for (const p of people) {
     if (p.kind !== "person" || p.status === "removed" || !p.roles.includes(role.id)) continue;
     const e = exceptionFor(p, key, ex, now);
-    if (e && (e.effect === "allow") !== has) out.push({ person: p, ex: e });
+    if (e && allowsKey(e, key) !== has) out.push({ person: p, ex: e });
   }
   return out;
 }
@@ -72,9 +89,9 @@ export function endAt(key: string, now: number): number | undefined {
 }
 
 /** Values the signed-in admin may give: Not allowed always (a restriction is never more than you hold); Allowed only on keys they hold themselves. */
-export function mayGive(effect: Effect, keys: readonly string[], mine: ReadonlySet<string> | undefined): { ok: boolean; why?: string } {
+export function mayGive(effect: Effect, keys: readonly string[], mine: ReadonlySet<string> | undefined, ownKeys: readonly string[] = []): { ok: boolean; why?: string } {
   if (effect === "deny" || !mine) return { ok: true };
-  const over = keys.filter((k) => !mine.has(k));
+  const over = (effect === "own" ? ownKeys : keys).filter((k) => !mine.has(k));
   return over.length ? { ok: false, why: "More than you hold yourself" } : { ok: true };
 }
 
@@ -86,5 +103,7 @@ export function exceptionLine(e: ExceptionLite): string {
 export function whatOf(e: Pick<ExceptionLite, "area" | "perms">, perms: readonly PermissionDef[]): string {
   if (e.area) return `All of ${areaTitle(e.area)}`;
   if (e.perms.length === 1) return perms.find((p) => p.key === e.perms[0])?.title ?? e.perms[0]!;
+  const pairs = pairsFor({ perms: e.perms });
+  if (pairs.length && pairs.every((p) => e.perms.includes(p.space))) return pairs.map((p) => p.title.split(":")[0]).join(", ");
   return `${e.perms.length} permissions`;
 }

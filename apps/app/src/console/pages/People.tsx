@@ -15,8 +15,8 @@ import { EMPTY_START, InviteStart, startInput } from "./InviteStart.tsx";
 import { EveryoneGets } from "./EveryoneGets.tsx";
 import type { StartSet } from "./InviteStart.tsx";
 import { Help,  Actions, Button, Field, FormSheet, Note, ReadState, Select, attempt, useAction, useRead } from "./shared.tsx";
-import { PERMS, PersonExceptions, useExceptions } from "./exceptions.tsx";
-import { whatOf } from "./permissions-model.ts";
+import { PersonExceptions, WhatTheyCanDo, useExceptions } from "./exceptions.tsx";
+import type { PersonLite } from "./permissions-model.ts";
 
 type Roles = CapMap["access.roles.list"]["out"];
 type Groups = CapMap["access.groups.list"]["out"];
@@ -165,15 +165,11 @@ function PersonObject({ person, roles, groups, onBack, refresh }: { person: Pers
   if (tab === "access") {
     body = <>
     <PersonExceptions person={person} owner={person.roles.includes("rol_owner")} />
+    <Section title="What they can do" right={<Text style={{ fontSize: 12, color: "var(--ink-3)" as string }}>{mineEx.length ? "Their role plus exceptions" : "What their role gives"}</Text>} testID="person-what">{effective.data ? <WhatTheyCanDo person={person as unknown as PersonLite} permissions={effective.data.permissions} guest={person.roles.length > 0 && person.roles.every((r) => r === "rol_guest")} /> : <ReadState error={effective.error} retry={effective.refresh} />}</Section>
     <ObjectSection title="Effective access" count={effective.data?.permissions.length ?? 0} testID="person-effective">
       {effective.data ? <>
         <Row id="person-eff-roles" title="Roles" note={effective.data.roles.map(roleName).join(", ") || "No roles"} />
-        <View testID="person-eff-permissions" style={{ paddingHorizontal: 8, paddingVertical: 6, gap: 4 }}>
-          <Text style={{ fontSize: 13, color: "var(--ink)" as string }}>Permissions</Text>
-          {/* ui-rows-lint: not a list (one wrapping line per permission area; a Row would cut the actions off) */}
-          {permissionAreas(effective.data.permissions).map(([area, actions]) => <Text key={area} style={{ fontSize: 12, color: "var(--ink-3)" as string }}><Text style={{ fontWeight: "600", color: "var(--ink-2)" as string }}>{area}</Text>{`  ${actions.join(", ")}`}</Text>)}
-          {mineEx.length ? <Text testID="person-eff-exceptions" style={{ fontSize: 12, color: "var(--accent)" as string }}>{`Role plus ${mineEx.length === 1 ? "an exception" : `${mineEx.length} exceptions`}: ${mineEx.map((e) => `${whatOf(e, PERMS)} is ${e.effect === "allow" ? "Allowed" : "Not allowed"}`).join("; ")}.`}</Text> : null}
-        </View>
+
         {effective.data.grants.map((grant) => <Row key={grant.id} id={`person-grant-${grant.id}`} title={names.resource(grant.resource)} note={`${grant.level} · direct grant`} />)}
         {effective.data.owns.map((own) => <Row key={`${own.type}:${own.id}`} id={`person-owns-${own.id}`} title={names.resource(own)} note="Owns" />)}
         {effective.data.grants.length + effective.data.owns.length === 0 ? <Empty icon="doc">No direct grants and nothing owned</Empty> : null}

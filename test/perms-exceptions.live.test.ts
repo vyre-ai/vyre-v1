@@ -107,3 +107,23 @@ test("an outside agent acting for a restricted person is refused what she is ref
   assert.equal(t.isError, true, t.text);
   assert.match(t.text, /person you act for cannot do this either/i, t.text);
 });
+
+test("Own only: an admin keeps her own sites and loses production; it is one exception, Allow on the own part and Not allowed on the Space part", async () => {
+  const x = (await set(h.owner, { subject: { kind: "person", id: a.personId }, area: "sites", effect: "own", why: "Staging only this month" })).exception;
+  assert.deepEqual([x.effect, x.own], ["own", ["sites.deploy"]]);
+  const mine = await perms(a);
+  assert.ok(mine.includes("sites.deploy") && !mine.includes("sites.promote"), "her own sites stay, production is refused");
+  await h.owner.refused("access.exceptions.set", { subject: { kind: "person", id: a.personId }, area: "records", effect: "own", idempotencyKey: "own-none" }, /^validation\.bad_input$/, "Own only is offered only where an action has an own and a Space part");
+});
+
+test("an agent acting for a person follows her Allow exception, within what an agent may ever hold", async () => {
+  const space = (await h.owner.call("identity.whoami")).spaceId as string;
+  const agent = await outsideAgent(h.d, m.token!, false);
+  const check = async (perm: string) => (await h.owner.call("access.check", { principal: { kind: "agent", id: agent.agentId }, actingFor: { kind: "person", id: m.personId }, resource: { type: "space", id: space }, action: { level: "view", perm } })).decision.effect as string;
+  assert.equal(await check("journeys.manage"), "deny", "neither her role nor her agent's carries it");
+  await set(h.owner, { subject: { kind: "person", id: m.personId }, perms: ["journeys.manage"], effect: "allow" });
+  assert.equal(await check("journeys.manage"), "allow", "her agent follows her Allow exception");
+  await set(h.owner, { subject: { kind: "person", id: m.personId }, perms: ["access.manage"], effect: "allow" });
+  assert.ok((await perms(m)).includes("access.manage"), "Aina holds it herself");
+  assert.equal(await check("access.manage"), "deny", "an agent never holds what only an owner or admin carries, whatever its person holds");
+});

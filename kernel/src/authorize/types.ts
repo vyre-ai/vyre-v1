@@ -46,7 +46,7 @@ export interface GrantRow {
    * A permission exception (owner, 3 Nov 2026): this person or group differs from their role on these permission keys. It is never a grant on a resource: it reaches no chain and only
    * changes which permissions the subject holds (SubjectInfo.perms). A person's own exception beats a group's, which beats the role; among peers Allow wins; the Owner is never restricted.
    */
-  exception?: { readonly perms: readonly string[]; readonly effect: "allow" | "deny" } | undefined;
+  exception?: { readonly perms: readonly string[]; readonly effect: "allow" | "deny" | "own"; /** effect own: these keys are allowed, the rest of `perms` refused (Own only) */ readonly own?: readonly string[] | undefined } | undefined;
 }
 
 export { THROUGH_AGENT, THROUGH_ANYONE } from "../../../lib/through-agent.ts";

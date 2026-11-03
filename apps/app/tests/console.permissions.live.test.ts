@@ -49,6 +49,8 @@ test("production Console Permissions: matrix, exceptions, the person page, the c
     await api("access.exceptions.set", { subject: { kind: "group", id: delivery }, perms: ["sites.domains"], effect: "allow", why: "Delivery ships the client sites", idempotencyKey: "x2" });
     await api("access.exceptions.set", { subject: { kind: "person", id: dana }, area: "agents", effect: "deny", until: Date.now() + 7 * 86_400_000, why: "First week: the Space's agents only", idempotencyKey: "x3" });
     await api("access.exceptions.set", { subject: { kind: "person", id: elena }, perms: ["files.write"], effect: "allow", why: "Uploads signed documents", idempotencyKey: "x4" });
+    const maya = (await api("access.principals.list", { kind: "person" })).principals.find((p: { name: string }) => p.name === "Maya Chen").id as string;
+    await api("access.exceptions.set", { subject: { kind: "person", id: maya }, area: "sites", effect: "own", why: "Staging only this month", idempotencyKey: "x5" });
 
     const open = async (p: Page, nav: string, testId: string, skin = "vyre-light"): Promise<void> => {
       await p.goto(`${web.origin}/console?skin=${skin}`, { waitUntil: "load" }); await p.getByTestId("console").waitFor({ timeout: 30_000 });
@@ -67,8 +69,23 @@ test("production Console Permissions: matrix, exceptions, the person page, the c
       await view.getByTestId("perm-cell-rol_member-automations.space").click();
       await view.getByRole("menuitem", { name: /Omar Haddad/ }).waitFor();
       await shot(view, `perms-cell-${skin}.png`);
+      await view.keyboard.press("Escape");
+      // Preview as a role, then as a person
+      await view.getByTestId("perms-preview-as").click(); await view.getByRole("menuitem", { name: /^Member/ }).click();
+      await view.getByTestId("perms-preview").waitFor(); await view.getByText("Member sees", { exact: true }).waitFor();
+      await shot(view, `perms-preview-role-${skin}.png`);
+      await view.getByTestId("perms-preview-as").click(); await view.getByRole("menuitem", { name: /^Dana Whitfield/ }).click();
+      await view.getByText("Dana Whitfield sees", { exact: true }).waitFor();
+      await shot(view, `perms-preview-person-${skin}.png`);
+      await view.getByTestId("perms-preview-as").click(); await view.getByRole("menuitem", { name: /Stop previewing/ }).click();
+      // Add an exception from a cell; Own only is offered on an area with an own and a Space part
+      await view.getByTestId("perm-cell-rol_member-automations.space").click();
       await view.getByRole("menuitem", { name: /Add an exception/ }).click();
       await view.getByTestId("exception-sheet").waitFor();
+      await view.getByTestId("exception-sheet").getByRole("button", { name: "What", exact: true }).click(); await view.getByRole("menuitem", { name: "All of Automations", exact: true }).click();
+      await view.getByTestId("exception-sheet").getByText("Own only", { exact: true }).click();
+      await view.getByText(/^Own only: Automations/).waitFor();
+      await shot(view, `perms-add-own-${skin}.png`);
       await view.getByRole("button", { name: "Who", exact: true }).click();
       const item = view.getByRole("menuitem", { name: /Lena Ortiz/ });
       await item.waitFor();
@@ -83,8 +100,11 @@ test("production Console Permissions: matrix, exceptions, the person page, the c
       await open(view, "people", "console-people", skin);
       await view.getByText("Dana Whitfield", { exact: true }).first().click();
       await view.getByRole("tab", { name: /Access/ }).click().catch(async () => { await view.getByText("Access", { exact: true }).first().click(); });
-      await view.getByTestId("person-exceptions").waitFor();
+      await view.getByTestId("person-exceptions").waitFor(); await view.getByTestId("person-can-do").waitFor();
+      assert.equal(await view.getByText("automations personal").count(), 0, "no permission keys on the person's page");
       await shot(view, `perms-person-${skin}.png`);
+      await view.getByTestId("person-what").scrollIntoViewIfNeeded(); await view.mouse.wheel(0, 500);
+      await shot(view, `perms-person-more-${skin}.png`);
       await open(view, "checker", "console-checker", skin);
       await view.getByTestId("checker-in-app").waitFor();
       await shot(view, `perms-checker-${skin}.png`);

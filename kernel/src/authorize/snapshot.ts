@@ -57,6 +57,10 @@ export class AccessSnapshot {
   private infoUntil = Infinity;
   /** The exception rows, read once per change (most Spaces have none, so a SubjectInfo pays nothing for them). */
   private excRows: GrantRow[] | null = null;
+  /** Per person, the permissions an Allow exception (their own or a group's) gives them: what an agent acting for them may follow. */
+  private exAllowed = new Map<string, Set<string>>();
+  /** Permissions some role an agent may hold carries (never Owner or Admin only): an agent never exceeds itself. */
+  private agentKeys: Set<string> | null = null;
   /** Time for exception ends; a test sets it. */
   clock: () => number = () => Date.now();
   private grantsOnCache: Map<string, GrantRec[]> | null = null;
@@ -70,7 +74,7 @@ export class AccessSnapshot {
   /** `access.changed`: drop every derived view and bump the epoch. A label or a parent changes only through putResource, so the effective labels are dropped with the rest. */
   changed(): void {
     this.epoch++;
-    this.infoCache.clear(); this.infoUntil = Infinity; this.excRows = null; this.chainCache.clear(); this.labelCache.clear(); this.labelWalks = 0;
+    this.infoCache.clear(); this.infoUntil = Infinity; this.excRows = null; this.exAllowed.clear(); this.agentKeys = null; this.chainCache.clear(); this.labelCache.clear(); this.labelWalks = 0;
     this.grantsOnCache = null; this.typeWideCache = null; this.cutCache = null;
   }
 
@@ -121,7 +125,7 @@ export class AccessSnapshot {
 
   /** Roles of a subject: its own plus its groups' roles; an agent loses owner and admin. Null for an unknown principal. */
   info(id: string): SubjectInfo | null {
-    if (this.infoUntil !== Infinity && this.clock() >= this.infoUntil) { this.infoCache.clear(); this.infoUntil = Infinity; }
+    if (this.infoUntil !== Infinity && this.clock() >= this.infoUntil) { this.infoCache.clear(); this.exAllowed.clear(); this.infoUntil = Infinity; }
     const hit = this.infoCache.get(id);
     if (hit !== undefined) return hit;
     const p = this.principals.get(id);
@@ -175,12 +179,34 @@ export class AccessSnapshot {
       if (!mine && !group) continue;
       if (end !== null && end < this.infoUntil) this.infoUntil = end;
       const into = mine ? own : viaGroup;
-      for (const k of g.exception.perms) if (into.get(k) !== "allow") into.set(k, g.exception.effect);
+      for (const k of g.exception.perms) {
+        const v: "allow" | "deny" = g.exception.effect === "own" ? (g.exception.own?.includes(k) ? "allow" : "deny") : g.exception.effect;
+        if (into.get(k) !== "allow") into.set(k, v);
+      }
     }
     if (!own.size && !viaGroup.size) return;
     const owner = [...roleIds].some((r) => isOwnerRole(r, this.roles.get(r)?.name));
     for (const [k, e] of viaGroup) if (!own.has(k)) own.set(k, e);
-    for (const [k, e] of own) { if (e === "allow") perms.add(k); else if (!owner) perms.delete(k); }
+    const allowed = new Set<string>();
+    for (const [k, e] of own) { if (e === "allow") { perms.add(k); allowed.add(k); } else if (!owner) perms.delete(k); }
+    if (allowed.size) this.exAllowed.set(id, allowed);
+  }
+
+  /**
+   * May an agent acting for this person use what the person's Allow exception gives them (owner ruling, 3 Nov 2026)? Only a permission some role an agent can hold carries: an agent
+   * never exceeds itself, and authorize checks the person too, so it never exceeds them either.
+   */
+  agentFollows(personId: string, perm: string): boolean {
+    if (!this.info(personId)) return false;
+    if (!this.exAllowed.get(personId)?.has(perm)) return false;
+    if (!this.agentKeys) {
+      this.agentKeys = new Set();
+      for (const r of this.roles.values()) {
+        if (isElevatedRole(r.id, r.name) || isOwnerRole(r.id, r.name) || r.assignableToAgents === false) continue;
+        for (const k of r.perms) this.agentKeys.add(k);
+      }
+    }
+    return this.agentKeys.has(perm);
   }
 
   private buildGrantIndex(): void {
