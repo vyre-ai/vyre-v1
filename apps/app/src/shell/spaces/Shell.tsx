@@ -72,6 +72,8 @@ export interface ShellProps {
   phone?: { device: PhoneDeviceLike; data: InboxData };
   /** The purge client and the connection's purge signals: a purged device wipes itself and tells the server with devices.purge_ack. */
   purge?: ShellPurge;
+  /** The Space menu's two acts that reach the Space: Invite People copies a real invite link, Set Yourself Away is stored and teammates see it. Left out in a sample shell. */
+  team?: { invite(): void; away(on: boolean): void };
   /** Where new chats run by default in a Team Space (the Space menu's "Chats run on"). */
   runsOn?: SpaceMenuInput["runsOn"];
   /** The person signed in: their own face sits at the foot of the rail and opens their profile. */
@@ -194,10 +196,13 @@ export function Shell(props: ShellProps): ReactElement {
     else if (action === "add-server") { requestAddServer(); hub.go("settings"); }
     else if (action === "profile") hub.go("settings", "profile");
     else if (action === "away") {
-      hub.setAway(!state.away);
-      hub.flash(state.away ? "Welcome back" : "You are set as away");
-    } else if (action === "invite") hub.flash(`Invite link copied for ${name}`);
-    else if (action === "add") hub.flash("Join with a link, or connect a server");
+      // a session sets away for real (stored, seen by teammates); a sample shell with no Space behind it only shows it here
+      if (props.team) props.team.away(!state.away);
+      else { hub.setAway(!state.away); hub.flash(state.away ? "Welcome back" : "You are set as away"); }
+    } else if (action === "invite") {
+      if (props.team) props.team.invite();
+      else hub.flash(`Inviting people needs ${name} to be open`);
+    } else if (action === "add") hub.flash("Join with a link, or connect a server");
   };
 
   const switchBy = (spaceId: string): void => {

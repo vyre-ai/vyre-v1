@@ -378,6 +378,7 @@ export function harness(now = NOW) {
       case "access.groups.remove_member": { const p = world.principals.get(i.member.id) ?? gone(TRACE, "validation.not_found"); p.groups = p.groups.filter((g) => g !== i.groupId); return { group: {} }; }
       case "access.share": case "projects.members.set": case "channels.members.add": return { ok: true };
       case "channels.home_join": return { channelId: "chn_vyre", added: true };
+      case "access.join_share": return { grant: { id: "gnt_join" } };
       case "devices.list": return { devices: (world.devices.get(i.person) ?? []).map((d) => ({ ...d })) };
       case "devices.revoke": { for (const list of world.devices.values()) for (const d of list) if (d.id === i.deviceId) d.revokedAt = clock; return { ok: true }; }
       case "gate.holds.list": return { holds: world.holds.map((h) => ({ ...h })) };

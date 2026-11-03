@@ -473,6 +473,30 @@ function assertEveryone(ctx: ShareCtx, store: AccessStore, res: ResourceRec, lev
   if (!store.snapshot().info(ctx.principal.id)?.perms.has("access.manage")) raise(trace, "permission.role_lacks_permission", "Only an admin shares with everyone in the Space. Ask an admin, or share it with the people who need it.");
 }
 
+/**
+ * The join step of an invite that picked an agent (members' drainJoins): the new member gets the level on it as the inviter's act, never the joiner's (who could give nothing) and never
+ * the host's. It holds only while the inviter could still give it, it is tagged with the invite as its source, and a second run finds it and changes nothing. Only another capability calls it.
+ */
+export async function joinShare(ctx: ShareCtx, input: { resource: ResourceRef; person: string; level: Level; inviter: string; source: string }) {
+  const trace = ctx.trace.traceId;
+  if (((ctx as { depth?: number }).depth ?? 0) === 0 && !(ctx.principal.kind === "service" && ctx.principal.id === "svc_host")) raise(trace, "permission.role_lacks_permission", "This is the join step of an invite, not a direct call.");
+  const store = storeOf(ctx);
+  const ss = shareOf(ctx);
+  const res = resourceOf(ctx, store, input.resource);
+  const subject: SubjectRef = { kind: "person", id: input.person };
+  checkSubject(ctx, store, subject);
+  if (!atLeast(res.type, levelFor(store, input.inviter, res, ctx.now()), input.level)) raise(trace, "permission.not_contained", "The person who sent the invite can no longer give this.");
+  const have = [...store.grants.values()].find((g) => g.subject.kind === "person" && g.subject.id === input.person && g.resource.id === res.id && g.source === input.source);
+  if (have) return { grant: grantView(have) };
+  const wasFresh = isFresh(ctx, store, ss);
+  const grant: GrantRec = { id: nid("gnt"), subject, resource: { type: res.type, id: res.id }, level: input.level, conditions: {}, by: input.inviter, createdAt: ctx.now(), source: input.source };
+  store.grants.set(grant.id, grant);
+  ctx.emit("grant.created", grant.id, { grantId: grant.id, subject, resource: grant.resource, level: grant.level, source: input.source });
+  changed(ctx, store, "assignment");
+  commit(ctx, store, ss, wasFresh, [res.id], false);
+  return { grant: grantView(grant) };
+}
+
 export async function share(ctx: ShareCtx, input: {
   resource: ResourceRef; subject: SubjectRef; level: Level; conditions?: Cond; source?: string; idempotencyKey?: string; export?: boolean; reshare?: boolean;
 }) {

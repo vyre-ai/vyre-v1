@@ -161,7 +161,7 @@ function stepsFor(r: InviteRow): JoinStep[] {
   return keys.map((k) => ({ k, state: "pending" as const, tries: 0 }));
 }
 
-async function runStep(ctx: MembersCtx, personId: string, step: JoinStep): Promise<void> {
+async function runStep(ctx: MembersCtx, personId: string, step: JoinStep, inviteId?: string): Promise<void> {
   const who = { kind: "person", id: personId };
   const colon = step.k.indexOf(":");
   const kind = colon < 0 ? step.k : step.k.slice(0, colon);
@@ -170,7 +170,12 @@ async function runStep(ctx: MembersCtx, personId: string, step: JoinStep): Promi
   else if (kind === "group") await ctx.call("access.groups.add_member", { groupId: arg, member: who });
   else if (kind === "project") await ctx.call("projects.members.set", { projectId: arg, principal: personId, role: "member", idempotencyKey: `join:${personId}:project:${arg}` });
   else if (kind === "channel") await ctx.call("channels.members.add", { channelId: arg, personIds: [personId] });
-  else if (kind === "agent") await ctx.call("access.share", { resource: { type: "agent", id: arg }, subject: who, level: "use", idempotencyKey: `join:${personId}:${arg}` });
+  // the agent is the inviter's to give: the grant is their act, tagged with the invite (the joiner could give nothing, and the host never gives on its own)
+  else if (kind === "agent") {
+    const inv = inviteId ? inviteById(ctx, inviteId) : undefined;
+    if (!inv) throw new Error("the invite is gone");
+    await ctx.call("access.join_share", { resource: { type: "agent", id: arg }, person: personId, level: "use", inviter: inv.created_by, source: `invite:${inv.id}` });
+  }
   else if (kind === "home") await ctx.call("channels.home_join", { personId });
   else if (kind === "company") {
     const provider = companyConnected(ctx as never);
@@ -196,7 +201,7 @@ export async function drainJoins(ctx: MembersCtx, personId?: string, opts: { per
       if (s.state === "done") continue;
       if (opts.periodic === true && s.tries >= JOIN_MAX_TRIES) continue;
       try {
-        await runStep(ctx, j.person_id, s);
+        await runStep(ctx, j.person_id, s, j.invite_id);
         s.state = "done";
         delete s.error;
       } catch (e) {

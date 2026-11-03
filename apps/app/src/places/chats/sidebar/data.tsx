@@ -29,6 +29,8 @@ export interface ChatsNav {
   openNewAgent?(): void;
   /** Hides the sidebar (the panel button in its header). Left out where the shell keeps the sidebar always. */
   toggleSidebar?(): void;
+  /** Open anything by what it is (a run, a record, a task): the place it lives in decides how. Left out where the shell has no such door. */
+  openSubject?(subject: { type: string; id: string }): void;
 }
 
 export interface Connection { get(): "online" | "offline"; subscribe(l: () => void): () => void }
@@ -37,6 +39,8 @@ export interface ChatsSidebarData {
   screens: ScreenHooks;
   /** One capability call as the signed-in person; rejects with the capability's error. */
   call(cap: string, input: unknown): Promise<unknown>;
+  /** Something changed in the Space (the same tick that re-reads the live queries). Left out where nothing announces changes. */
+  changes?: { subscribe(listener: () => void): () => void } | undefined;
   connection: Connection;
   /** The Space's name and whether another Space needs you (the red dot). */
   space: { name: string; otherNeedsYou: boolean; /** A Personal Space: no channels */ personal?: boolean; /** your assistant: the new-chat icon starts a chat with it */ assistant: { agentId: string; name: string } };

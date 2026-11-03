@@ -2,6 +2,7 @@
 // No React and no I/O here, so grouping, filters, the Cmd-digit map, next unread and the local new-chat row are tested without a renderer.
 import type { CapMap } from "../../../../../../generated/types.ts";
 import type { ImportedRow } from "../imported/model.ts";
+import type { TeamNow } from "../../../shell/team/now.ts";
 
 export type RecentOut = CapMap["chat.recent"]["out"];
 export type RecentItem = RecentOut["today"][number];
@@ -33,7 +34,7 @@ export const GROUPS: readonly { key: GroupKey; label: string }[] = [
   { key: "earlier", label: "Earlier" },
 ];
 
-export type SectionKey = "now" | "people" | "faces" | "recent" | "channels" | "imported" | "archived";
+export type SectionKey = "now" | "team" | "people" | "faces" | "recent" | "channels" | "imported" | "archived";
 
 /** A recent row as the sidebar draws it. `person` marks a chat with one person; `local` marks one made on this device that the server has not answered yet. */
 export interface ChatRow {
@@ -211,8 +212,12 @@ export type Entry =
   | { key: string; type: "more"; label: string; to: "agents" | "unread" | "recent" | "people" | "faces" }
   /** The two rows at the top: Tasks and Threads. */
   | { key: string; type: "nav"; to: "tasks" | "threads"; label: string; count: number; dot?: boolean }
-  /** A person of the Space: a press opens your chat with them. */
-  | { key: string; type: "person"; id: string; name: string; unread: number }
+  /** A person of the Space: a press opens your chat with them. `presence` is their steady dot (online, away). */
+  | { key: string; type: "person"; id: string; name: string; unread: number; presence?: "online" | "away" }
+  /** While you were away (owner D21): one quiet row at the very top, only after an absence that had something in it; a press shows what happened. */
+  | { key: string; type: "digest"; count: number }
+  /** A line of Team now (owner D24): a teammate who is around, or an agent at work with where and for whom. */
+  | { key: string; type: "pulse"; kind: "person" | "agent"; id: string; name: string; line: string; presence?: "online" | "away"; threadId?: string }
   | { key: string; type: "group"; label: string }
   | { key: string; type: "chat"; row: ChatRow }
   | { key: string; type: "channel"; channel: Channel; project: boolean }
@@ -237,6 +242,12 @@ export function refetch(screens: object): boolean {
 
 export interface SidebarInput {
   faces: readonly Agent[];
+  /** The unseen While you were away digest, by its item count; null or absent draws no row. */
+  digest?: { count: number } | null;
+  /** Team now: who is around and what agents are doing. Absent in a Personal Space. */
+  team?: TeamNow | null;
+  /** The steady dot on each person (online or away), by person id. */
+  presence?: ReadonlyMap<string, "online" | "away">;
   /** Your own Assistant, first under Agents. */
   assistant?: { agentId: string; name: string };
   /** What you owe, on the Tasks row. */
@@ -297,6 +308,7 @@ export function buildEntries(i: SidebarInput): Entry[] {
   const out: Entry[] = [];
   const open = (s: SectionKey): boolean => !i.closed.has(s);
   const err = (s: SectionKey): Entry[] => { const e = i.errors?.[s]; return e ? [{ key: `x:${s}`, type: "error", section: s, text: e.text, cause: e.cause, ...(e.code ? { code: e.code } : {}), ...(e.traceId ? { traceId: e.traceId } : {}) }] : []; };
+  if (!i.searching && i.digest && i.digest.count > 0) out.push({ key: "digest", type: "digest", count: i.digest.count });
   if (!i.searching) {
     out.push({ key: "nav:tasks", type: "nav", to: "tasks", label: "Tasks", count: i.tasksCount ?? 0 });
     out.push({ key: "nav:threads", type: "nav", to: "threads", label: "Threads", count: 0, dot: i.threadsDot === true });
@@ -309,6 +321,15 @@ export function buildEntries(i: SidebarInput): Entry[] {
   if (now.length) {
     out.push({ key: "h:now", type: "head", section: "now", label: "Now", count: now.length, open: open("now") });
     if (open("now")) for (const r of now) out.push({ key: `c:${r.threadId}`, type: "chat", row: r });
+  }
+  // Team now: collapsed until opened (the sidebar starts with it closed); a head with nobody around and no agent at work is not drawn
+  const team = i.team;
+  if (team && !i.personal && !i.searching && i.filter === "all" && (team.people.length || team.agents.length)) {
+    out.push({ key: "h:team", type: "head", section: "team", label: "Team now", count: team.people.length + team.agents.length, open: open("team") });
+    if (open("team")) {
+      for (const a of team.agents) out.push({ key: `w:${a.id}`, type: "pulse", kind: "agent", id: a.id, name: a.name, line: a.line, ...(a.threadId ? { threadId: a.threadId } : {}) });
+      for (const p of team.people) out.push({ key: `o:${p.id}`, type: "pulse", kind: "person", id: p.id, name: p.name, line: p.state === "away" ? "Away" : "Online", presence: p.state });
+    }
   }
   out.push({ key: "h:recent", type: "head", section: "recent", label: "Recent", count: rest.length, open: open("recent") });
   if (open("recent")) {
@@ -337,7 +358,7 @@ export function buildEntries(i: SidebarInput): Entry[] {
       out.push({ key: "h:people", type: "head", section: "people", label: "People", count: people.length, open: open("people") });
       if (open("people")) {
         const shown = i.morePeople === true || i.searching ? people : people.slice(0, LIST_SHOWN);
-        for (const p of shown) out.push({ key: `p:${p.id}`, type: "person", id: p.id, name: p.name, unread: p.unread ?? 0 });
+        for (const p of shown) { const mark = i.presence?.get(p.id); out.push({ key: `p:${p.id}`, type: "person", id: p.id, name: p.name, unread: p.unread ?? 0, ...(mark ? { presence: mark } : {}) }); }
         if (shown.length < people.length) out.push({ key: "m:people", type: "more", label: `${people.length - shown.length} more`, to: "people" });
       }
     }

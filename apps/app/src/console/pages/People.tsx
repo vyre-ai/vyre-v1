@@ -11,6 +11,9 @@ import type { ObjectListRow } from "../objects/ObjectList.tsx";
 import { useObjectNames } from "../objects/names.ts";
 import { PersonLifecycle } from "./PersonLifecycle.tsx";
 import { EXPIRY_CHOICES, OpenInvites, emailInvite } from "./Invites.tsx";
+import { EMPTY_START, InviteStart, startInput } from "./InviteStart.tsx";
+import { EveryoneGets } from "./EveryoneGets.tsx";
+import type { StartSet } from "./InviteStart.tsx";
 import { Help,  Actions, Button, Field, FormSheet, Note, ReadState, Select, attempt, useAction, useRead } from "./shared.tsx";
 
 type Roles = CapMap["access.roles.list"]["out"];
@@ -46,6 +49,7 @@ export function People({ initialPersonId }: { initialPersonId?: string } = {}): 
   const [link, setLink] = useState("");
   const [inviting, setInviting] = useState(false);
   const [days, setDays] = useState("7");
+  const [start, setStart] = useState<StartSet>(EMPTY_START);
   const [mailNote, setMailNote] = useState("");
   const [inviteRev, setInviteRev] = useState(0);
   const [selected, setSelected] = useState<string | null>(initialPersonId ?? null);
@@ -106,12 +110,13 @@ export function People({ initialPersonId }: { initialPersonId?: string } = {}): 
     </Section> : null}
     {report ? <Note>{report}</Note> : null}
     <OpenInvites key={inviteRev} roleName={roleName} />
-    {inviting ? <FormSheet title="Invite a person" testID="invite-sheet" onClose={() => { setInviting(false); setLink(""); setMailNote(""); }} submit={link ? "Done" : "Create invite"} disabled={!link && (!chosenRole || action.busy)} why={!chosenRole ? "Pick a role first" : undefined}
-      onSubmit={() => { if (link) { setInviting(false); setLink(""); setEmail(""); setMailNote(""); return; } void action.run<CapMap["members.invites.create"]["out"]>("members.invites.create", { role: chosenRole, ...(email.trim() ? { email: email.trim() } : {}), expiresInDays: Number(days), idempotencyKey: attempt() }, "Invite created").then((out) => { if (out) { setLink(out.link); setInviteRev((n) => n + 1); } }); }}>
+    <EveryoneGets />
+    {inviting ? <FormSheet title="Invite a person" testID="invite-sheet" onClose={() => { setInviting(false); setLink(""); setMailNote(""); setStart(EMPTY_START); }} submit={link ? "Done" : "Create invite"} disabled={!link && (!chosenRole || action.busy)} why={!chosenRole ? "Pick a role first" : undefined}
+      onSubmit={() => { if (link) { setInviting(false); setLink(""); setEmail(""); setMailNote(""); setStart(EMPTY_START); return; } void action.run<CapMap["members.invites.create"]["out"]>("members.invites.create", { role: chosenRole, ...(email.trim() ? { email: email.trim() } : {}), ...startInput(start), expiresInDays: Number(days), idempotencyKey: attempt() }, "Invite created").then((out) => { if (out) { setLink(out.link); setInviteRev((n) => n + 1); } }); }}>
       {link ? <><Note>Copy this one-time invite link:</Note><Text selectable testID="console-invite-link">{link}</Text>
         {email.trim() ? <Actions><Button label={`Email it to ${email.trim()}`} testID="console-invite-mail" disabled={mailNote === "Sending"} onPress={() => { setMailNote("Sending"); void emailInvite(consoleData.call, { to: email.trim(), link, by: consoleData.me.name, space: consoleData.space.name }).then((line) => setMailNote(line ?? "Connect your own mailbox in Inbox to send from here. Copy the link instead."), () => setMailNote("Could not send. Copy the link and send it yourself.")); }} /></Actions> : null}
         {mailNote ? <Note>{mailNote}</Note> : null}</>
-        : <><Field label="Email (optional)" testID="console-invite-email" value={email} onChange={setEmail} /><Select label="Role" value={chosenRole} options={inviteRoles.map((r) => ({ key: r.id, title: r.name }))} onChange={setRole} /><Select label="Ends after" value={days} options={EXPIRY_CHOICES} onChange={setDays} /></>}
+        : <><Field label="Email (optional)" testID="console-invite-email" value={email} onChange={setEmail} /><Select label="Role" value={chosenRole} options={inviteRoles.map((r) => ({ key: r.id, title: r.name }))} onChange={setRole} /><Select label="Ends after" value={days} options={EXPIRY_CHOICES} onChange={setDays} /><InviteStart value={start} onChange={setStart} groups={groups.data.groups} /></>}
     </FormSheet> : null}
     {action.note && !report ? <Note>{action.note}</Note> : null}
   </View>;

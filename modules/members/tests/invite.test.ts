@@ -90,7 +90,7 @@ test("golden 2: accepting makes the account, the role, Everyone and the invite's
   // the trace: identity makes the person, then the effects run
   assert.deepEqual(h.calls.map((c) => c.cap), [
     "invites.accept_create_account",
-    "access.roles.assign", "access.groups.add_member", "channels.home_join", "access.groups.add_member", "projects.members.set", "channels.members.add", "access.share",
+    "access.roles.assign", "access.groups.add_member", "channels.home_join", "access.groups.add_member", "projects.members.set", "channels.members.add", "access.join_share",
   ]);
   assert.deepEqual(h.events.map((e) => e.name), ["principal.created", "member.joined"], "identity emits these once; members.accept does not repeat them");
   const dana = h.world.principals.get("usr_dana")!;
@@ -98,7 +98,8 @@ test("golden 2: accepting makes the account, the role, Everyone and the invite's
   assert.deepEqual(dana.groups.sort(), ["grp_everyone", "grp_sales"]);
   assert.deepEqual(h.calls.find((c) => c.cap === "projects.members.set")!.input, { projectId: "prj_a", principal: "usr_dana", role: "member", idempotencyKey: "join:usr_dana:project:prj_a" });
   assert.deepEqual(h.calls.find((c) => c.cap === "channels.members.add")!.input, { channelId: "chn_a", personIds: ["usr_dana"] });
-  assert.deepEqual((h.calls.find((c) => c.cap === "access.share")!.input as { resource: unknown; level: string }).level, "use");
+  assert.deepEqual((h.calls.find((c) => c.cap === "access.join_share")!.input as { resource: unknown; level: string; inviter: string }).level, "use");
+  assert.equal((h.calls.find((c) => c.cap === "access.join_share")!.input as { inviter: string }).inviter, "usr_admin", "the agent is the inviter's act");
   const row = h.raw.rows("members_invites")[0]!;
   assert.equal(row["state"], "accepted");
   assert.equal(row["accepted_by"], "usr_dana");

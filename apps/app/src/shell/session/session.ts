@@ -86,6 +86,8 @@ export interface RealSession {
   close(why?: string): void;
 }
 
+/** Last seen is sent at most this often while the person is doing something in the app. */
+export const TOUCH_EVERY_MS = 60_000;
 /** How often a hidden window re-reads what is on screen. */
 export const HIDDEN_REFRESH_MS = 30_000;
 /** Is the window hidden (minimized, another desktop, a background tab)? Without a document (tests, native) it counts as showing. */
@@ -244,6 +246,21 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
     ready: () => !closed && token !== null && reachable,
     upload: async (samples) => { await reach("logs.client_upload", { device: who.deviceId ?? "web", entries: [], samples }); },
   });
+  // Last seen follows what the person does here (devices.touch, at most once a minute): opening the Space, a press, a key, the window showing again. Never a timer, so an idle window
+  // goes quiet and teammates see the dot clear. Coming back after a long absence answers `back`, and the re-read brings the While you were away row.
+  let touchedAt = -Infinity;
+  const touch = (): void => {
+    if (closed || token === null) return;
+    const t = (o.now ?? Date.now)();
+    if (t - touchedAt < TOUCH_EVERY_MS) return;
+    touchedAt = t;
+    void reach("devices.touch", typeof who.deviceId === "string" && who.deviceId.startsWith("dev_") ? { deviceId: who.deviceId } : {}).then((out) => { if ((out as { back?: boolean } | null)?.back === true && !closed) hooks.invalidate(); }, () => undefined);
+  };
+  const touchShown = (): void => { if (!hidden()) touch(); };
+  page?.addEventListener?.("pointerdown", touch);
+  page?.addEventListener?.("keydown", touch);
+  page?.addEventListener?.("visibilitychange", touchShown);
+  touch();
   // while the link is down: every pollMs, or every HIDDEN_REFRESH_MS while the window is hidden
   let polledAt = 0;
   const poll = setInterval(() => {
@@ -319,6 +336,8 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
     console: roleOpensConsole(who.roles) || (roleAsksServer(who.roles) && await reach("console.nav", {}).then(() => true, () => false)),
     // a Personal Space has one person and their own computer: the terminal is always theirs. A Team Space gives it to owners and developers
     terminal: space.kind === "personal" || holdsRole(who.roles, "owner", "developer"),
+    // members.invite is the Owner's and Admins' (manifests/permissions.ts); a Personal Space has nobody to invite
+    invite: space.kind === "team" && holdsRole(who.roles, "owner", "admin"),
     counts: {},   // the Chats badge is Needs you, live: ShellHost follows tasks.count_needs_you
     dots: {},
   };
@@ -387,6 +406,9 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
       for (const t of warmTimers) clearTimeout(t);
       if (refreshTimer !== null) clearTimeout(refreshTimer);
       page?.removeEventListener?.("visibilitychange", shown);
+      page?.removeEventListener?.("pointerdown", touch);
+      page?.removeEventListener?.("keydown", touch);
+      page?.removeEventListener?.("visibilitychange", touchShown);
       offRetry();
       link.stop();
       turns.dispose();
