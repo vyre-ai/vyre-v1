@@ -282,12 +282,17 @@ echo "sudo: AI tools in Vyre do not get administrator rights. Ask the person to 
 exit 126
 `;
 
-function withSudoShim(a: EngineAccess, dataDir: string, cwd: string | undefined): EngineAccess {
+/** The same answer for cmd.exe and PowerShell on Windows. */
+export const SUDO_CMD_SHIM = "@echo off\r\necho sudo: AI tools in Vyre do not get administrator rights. Ask the person to run it: call the terminal_request tool with command \"sudo %*\" and why it is needed; they can run it in their terminal with one click. 1>&2\r\nexit /b 126\r\n";
+
+export function withSudoShim(a: EngineAccess, dataDir: string, cwd: string | undefined, platform: NodeJS.Platform = process.platform): EngineAccess {
   const who = workOf(dataDir, cwd);
   if (!who) return a;
   const bin = path.join(scratchFolder(dataDir, who.person), "bin");
   fs.mkdirSync(bin, { recursive: true });
   for (const name of ["sudo", "doas"]) fs.writeFileSync(path.join(bin, name), SUDO_SHIM, { mode: 0o755 });
+  // Windows: cmd.exe and PowerShell find sudo.cmd before Windows' own sudo.exe when this folder is first on PATH; Git Bash runs the script above
+  if (platform === "win32") for (const name of ["sudo", "doas"]) fs.writeFileSync(path.join(bin, `${name}.cmd`), SUDO_CMD_SHIM);
   return { ...a, pathAdd: [bin, ...a.pathAdd] };
 }
 

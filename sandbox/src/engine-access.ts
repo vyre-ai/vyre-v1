@@ -17,6 +17,8 @@ export interface EngineAccess {
   where: EngineWhere;
   /** Read and write: the person's folders, the package locations, the toolbox. */
   rw: string[];
+  /** The person's added folders alone, as checked (addedFolder): the first entries of `rw`. A Windows engine at Low integrity may change exactly these besides its own folders (sandbox.ts lowWrap). */
+  added: string[];
   /** Read only: single files (configs) and folders (known_hosts lives in a closed folder). */
   roFiles: string[];
   /** Never, even inside an rw folder. */
@@ -171,7 +173,7 @@ export function engineAccess(i: EngineAccessInput): EngineAccess {
     const toolbox = i.toolbox ?? P.join(i.dataDir, "toolbox");
     const t = (p: string): string => P.join(toolbox, p);
     return {
-      where: "server", rw: [toolbox], roFiles: [], deny: [], reopen: own,
+      where: "server", rw: [toolbox], added: [], roFiles: [], deny: [], reopen: own,
       env: { npm_config_prefix: t("npm"), npm_config_cache: t("npm-cache"), PYTHONUSERBASE: t("python"), PIP_CACHE_DIR: t("pip-cache"), CARGO_HOME: t("cargo"), RUSTUP_HOME: t("rustup"), GOPATH: t("go"), GOCACHE: t("go-cache"), BUN_INSTALL: t("bun"), DENO_DIR: t("deno"), GEM_HOME: t("gem") },
       pathAdd: [t("npm/bin"), t("python/bin"), t("cargo/bin"), t("go/bin"), t("bun/bin"), t("gem/bin")],
     };
@@ -184,6 +186,7 @@ export function engineAccess(i: EngineAccessInput): EngineAccess {
   return {
     where: "own",
     rw: [...folders, ...packageLocations(i.home, i.platform).filter((p) => insideFolder(p, i.home, i.platform) || exists(p))],
+    added: folders,
     roFiles: [h(".gitconfig"), h(".config/git"), h(".npmrc"), h(".ssh/known_hosts"), h(".ssh/known_hosts2"), h(".ssh/config")].filter(exists),
     deny: [i.dataDir, ...homeDenies(i.home, i.platform)],
     reopen: own,
