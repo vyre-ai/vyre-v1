@@ -83,7 +83,7 @@ export default defineManifest({
     read('schema.describe', 'Describe one record type or all of them: fields, field types, options, labels, relations', {
       in: { type: t.opt(id.recordType) }, out: { types: t.arr(typeDetail) }, tool: 'records', label: 'filter', cli: 'vyre schema describe',
     }),
-    read('schema.types.list', 'List record types in Personal, Shared with me or Space sections with folders and counts', {
+    read('schema.types.list', 'List record types in Personal, Shared with me or Space sections with folders and counts', { level: 'member',
       in: { section, folder: t.opt(id.folder), group: t.opt(t.str()), ...pageIn }, out: { types: t.arr(typeSummary), ...pageOut },
       tool: 'records', label: 'filter',
     }),

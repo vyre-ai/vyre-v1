@@ -94,6 +94,7 @@ export function AutomationCanvas({ automationId, tabBodies, initialTab = "steps"
     <CanvasBody
       key={a.id}
       a={a}
+      {...(typeof (q.data as { canEdit?: boolean }).canEdit === "boolean" ? { canEdit: (q.data as { canEdit?: boolean }).canEdit } : {})}
       tab={tab}
       setTab={setTab}
       failedRuns={failed.status === "ready" ? failed.data.runs.length : 0}
@@ -122,8 +123,10 @@ const PICKER = { search: "Search steps", width: 320 } as const;
 
 type CatalogPhase = { phase: "loading" } | { phase: "ready"; steps: CatalogStep[]; triggers: CatalogTrigger[] } | { phase: "unavailable"; message: string };
 
-function CanvasBody({ a, tab, setTab, failedRuns, versions, tabBodies, run, onClearRun, paneOpen, onTogglePane, initialZoom, initialSelected, initialPanel, initialPromote, data }: {
+function CanvasBody({ a, canEdit, tab, setTab, failedRuns, versions, tabBodies, run, onClearRun, paneOpen, onTogglePane, initialZoom, initialSelected, initialPanel, initialPromote, data }: {
   a: GetOut["automation"];
+  /** the server's answer to whether this person may change it (automations.get); absent: their role decides (canSpace) */
+  canEdit?: boolean;
   tab: CanvasTab;
   setTab(t: CanvasTab): void;
   failedRuns: number;
@@ -142,7 +145,7 @@ function CanvasBody({ a, tab, setTab, failedRuns, versions, tabBodies, run, onCl
   const winW = useWindowDimensions().width;
   const tight = winW > 0 && winW < 1180;
   // a Space Automation is changed by whoever holds automations.space (l-perms): anyone else reads it, runs and tests it, copies it, or asks an admin
-  const locked = a.kind === "space" && data.canSpace === false;
+  const locked = a.kind === "space" && (canEdit === undefined ? data.canSpace === false : !canEdit);
   const phone = winW > 0 && winW < 720;   // a phone reads an Automation and runs it; building it is for a bigger window   // beside the sidebar a 1024 window has no room for labelled buttons: icons only
   const { element, show } = useMenu();
   const [draft, setDraft] = useState<Definition | null>(null);

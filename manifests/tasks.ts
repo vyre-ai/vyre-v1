@@ -97,7 +97,7 @@ export default defineManifest({
       errors: ['validation.precondition_failed'],
     }),
     read('tasks.get', 'Read one task with its blocks, slots, links, notes and followers', { in: target, out: { task: taskRow }, on: ['task', '/taskId'], tool: 'tasks', label: 'check', cli: 'vyre tasks get' }),
-    read('tasks.list', 'List tasks by scope (mine, assigned by me, following, a record, a run) and filters', {
+    read('tasks.list', 'List tasks by scope (mine, assigned by me, following, a record, a run) and filters', { level: 'member',
       in: {
         scope: t.enm('mine', 'assigned_by_me', 'following', 'record', 'run', 'all'), states: t.opt(t.arr(taskState)), kinds: t.opt(t.arr(taskKindKey)),
         recordId: t.opt(id.record), runId: t.opt(id.run), assignee: t.opt(assignee), includeSnoozed: t.opt(t.bool()), ...pageIn,
@@ -118,7 +118,7 @@ export default defineManifest({
     read('tasks.digest', 'What an agent should keep in mind: the task bound to this thread, its parent and siblings in a line each, then its own open tasks, the top five and a count. About 300 tokens; detail stays one tasks_get away', {
       in: { agentId: id.agent, threadId: t.opt(id.thread) }, out: { text: t.str(), hash: t.str(), boundTaskId: t.opt(id.task) }, label: 'check',
     }),
-    read('tasks.count_needs_you', 'Count of Ready requests for the rail badge and the Space switcher dot', { in: {}, out: { count: t.int() }, tool: 'tasks' }),
+    read('tasks.count_needs_you', 'Count of Ready requests for the rail badge and the Space switcher dot', { level: 'member', in: {}, out: { count: t.int() }, tool: 'tasks' }),
     read('tasks.my_work', 'My work: the full list, with sections Open, Assigned by me, Done', {
       in: { section: t.opt(t.enm('open', 'assigned_by_me', 'done', 'all')), ...pageIn },
       out: { tasks: t.arr(taskRow), counts: t.obj({ open: t.int(), assignedByMe: t.int(), done: t.int() }), ...pageOut }, tool: 'tasks', label: 'filter',

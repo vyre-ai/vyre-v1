@@ -28,6 +28,12 @@ export function allows(rt: { readonly permissions?: ReadonlySet<string> | undefi
   return rt.permissions.has(perm);
 }
 
+/** Places a role without their first permission cannot use, so they are off the rail: Automations needs Mine automations, the Vault keeping items of one's own. */
+export const PLACE_GATE = { automations: "automations.personal", vault: "vault.shared_create" } as const;
+export function hiddenPlaces(permissions: readonly string[]): Array<keyof typeof PLACE_GATE> {
+  return (Object.keys(PLACE_GATE) as Array<keyof typeof PLACE_GATE>).filter((p) => !permissions.includes(PLACE_GATE[p]));
+}
+
 /** The controls a person with these permissions sees, in a Team Space. */
 export function shownGates(permissions: readonly string[]): Gate[] {
   const rt = { permissions: new Set(permissions), space: { kind: "team" } };

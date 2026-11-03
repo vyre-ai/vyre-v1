@@ -84,6 +84,8 @@ export interface RailInput {
   kit: KitDef;
   /** console.access in this Space. */
   console: boolean;
+  /** Places the person's role cannot use (SpaceDef.hidden): not on the rail. */
+  hidden?: readonly PlaceId[];
   /** This person has a mailbox, calendar or number flowing in. False takes Inbox off the rail; absent (not known yet) leaves it where the Kit puts it. */
   inbox?: boolean;
   counts: Readonly<Partial<Record<PlaceId, number>>>;
@@ -97,7 +99,7 @@ export function railFor(input: RailInput): RailGroups {
     const count = input.counts[place] ?? 0;
     return { place, title: PLACE_TITLE[place], count, dot: count === 0 && input.dots[place] === true && input.active !== place };
   };
-  const keep = (place: PlaceId): boolean => (place !== "console" || input.console) && (place !== "inbox" || input.inbox !== false);
+  const keep = (place: PlaceId): boolean => (place !== "console" || input.console) && (place !== "inbox" || input.inbox !== false) && !(input.hidden ?? []).includes(place);
   return { top: input.kit.top.filter(keep).map(entry), bottom: input.kit.bottom.filter(keep).map(entry) };
 }
 

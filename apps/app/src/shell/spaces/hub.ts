@@ -275,7 +275,7 @@ export function createShellHub(options: HubOptions): ShellHub {
     session: (spaceId) => (spaceId === undefined ? open() : (sessions.get(spaceId) ?? open())),
     rail() {
       const s = open();
-      return railFor({ kit: s.kit, console: s.def.console, ...(s.def.inbox === undefined ? {} : { inbox: s.def.inbox }), counts: s.def.counts, dots: s.def.dots, active: s.place });
+      return railFor({ kit: s.kit, console: s.def.console, ...(s.def.hidden ? { hidden: s.def.hidden } : {}), ...(s.def.inbox === undefined ? {} : { inbox: s.def.inbox }), counts: s.def.counts, dots: s.def.dots, active: s.place });
     },
     switchTo(spaceId) {
       const next = sessions.get(spaceId);

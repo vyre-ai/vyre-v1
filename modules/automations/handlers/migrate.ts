@@ -5,7 +5,7 @@ import { registry } from "../../../generated/registry.ts";
 import { isTrustedService } from "../../../lib/trust.ts";
 import { planMigration, previewCohorts } from "../migration.ts";
 import type { Cohort, MigrationNode, MigrationRun } from "../migration.ts";
-import { canView } from "./defs.ts";
+import { canView, mustChange } from "./defs.ts";
 import {
   clean, emitAuto, findRunLink, getAutomation, isOwner, raise, saveRunLink, versionDefinition,
 } from "../projections.ts";
@@ -131,6 +131,7 @@ export async function migrationPreview(ctx: AutoCtx, input: In): Promise<unknown
 /** Apply a reviewed move. Runs move only between steps and only inside a safe group. */
 export async function migrateRuns(ctx: AutoCtx, input: In): Promise<unknown> {
   const a = editable(ctx, getAutomation(ctx, input.automationId));
+  await mustChange(ctx, a);
   const toVersion = input.toVersion;
   if (typeof toVersion !== "number" || !Number.isInteger(toVersion) || toVersion < 1) raise(ctx, "validation.bad_input", "A definition version is a whole number.");
   const requested = Array.isArray(input.runIds) ? input.runIds.filter((id: unknown): id is string => typeof id === "string") : [];

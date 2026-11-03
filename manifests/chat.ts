@@ -289,7 +289,7 @@ export default defineManifest({
     read('chat.pins.list', 'Pinned messages of a thread', {
       in: threadT, out: { messages: t.arr(messageRow) }, on: ['thread', '/threadId'], tool: 'chats', label: 'filter',
     }),
-    read('chat.recent', 'Sidebar Recent: Starred, Today, Yesterday, Earlier with unread counts and the working pulse, then the chats I archived (they are in no other group)', {
+    read('chat.recent', 'Sidebar Recent: Starred, Today, Yesterday, Earlier with unread counts and the working pulse, then the chats I archived (they are in no other group)', { level: 'member',
       in: { filter: t.opt(t.enm('all', 'unread', 'people', 'agents')) },
       out: { starred: t.arr(recentRow), today: t.arr(recentRow), yesterday: t.arr(recentRow), earlier: t.arr(recentRow), archived: t.arr(recentRow), nextUnread: t.nullable(id.thread),
         threadsUnread: t.opt(t.int({ minimum: 0, description: 'Unread messages, from someone else, across the inline threads the asker is in (the Threads row)' })) }, tool: 'chats', label: 'filter',
@@ -415,7 +415,7 @@ export default defineManifest({
     write('channels.home_join', "System: the join step that puts a new member in the Space's first channel, making #vyre when the Space has none", {
       in: { personId: id.user }, out: { channelId: t.nullable(id.channel), added: t.bool() }, emits: ['channel.created', 'thread.started', 'channel.member_added'], idem: 'natural',
     }),
-    read('channels.list', 'List channels by section and folder (the items capability of the Channels list)', {
+    read('channels.list', 'List channels by section and folder (the items capability of the Channels list)', { level: 'member',
       in: channelListIn, out: { channels: t.arr(channelRow), ...pageOut }, tool: 'chats', label: 'filter',
     }),
     read('channels.get', 'Read one channel with members, agents and unread count', {

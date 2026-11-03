@@ -200,7 +200,7 @@ export default defineManifest({
       out: { state: t.enm('healthy', 'degraded', 'down'), detail: t.opt(t.str()), latencyMs: t.opt(t.int()), failing: t.arr(id.connection) },
     }),
     // ---- connections
-    read('connections.list', 'List connections; mine, the Space ones or all the caller may see', {
+    read('connections.list', 'List connections; mine, the Space ones or all the caller may see', { level: 'member',
       in: { connector: t.opt(id.connector), whose: t.opt(t.enm('mine', 'space', 'all')), ...pageIn }, out: { connections: t.arr(connectionRow), ...pageOut }, tool: 'automations', label: 'filter',
     }),
     read('connections.get', 'Read one connection', { in: { connectionId: id.connection }, out: { connection: connectionRow }, on: ['connection', '/connectionId'], tool: 'automations' }),

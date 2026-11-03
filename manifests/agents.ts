@@ -101,7 +101,7 @@ export default defineManifest({
     list('agent', 'Agent', 'Agents', 'agents.list'),
   ],
   capabilities: [
-    read('agents.list', 'List agents you are in or that are shared with you (admins may toggle All in the Space)', {
+    read('agents.list', 'List agents you are in or that are shared with you (admins may toggle All in the Space)', { level: 'member',
       in: listIn, out: { agents: t.arr(agentRow), ...pageOut }, tool: 'agents', label: 'filter', cli: 'vyre agents list',
     }),
     read('agents.get', 'Read one agent: record, status, limits and the effective configuration', {

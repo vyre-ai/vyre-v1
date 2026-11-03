@@ -435,7 +435,8 @@ export function createInvoke(deps: InvokeDeps): Invoke {
         const askShare = d.reason === "no_grant" && seed.principal.kind === "agent" && seed.actingFor !== undefined && resource !== null && (resource.type === "folder" || resource.type === "file");
         // a role that does not reach a Vault, AI key or connection call: plain words with what to do instead (lib/vault-lines.ts)
         // (a person whose access to the Space itself is too low for the call is the same thing said another way)
-        const plain = seed.principal.kind === "person" && (d.reason === "role_lacks_permission" || (d.reason === "no_grant" && resource?.type === "space")) ? roleLine(c.name) : null;
+        // (so is a guest making their own connection: they hold no grant on the app's connector, which hangs off the Space)
+        const plain = seed.principal.kind === "person" && (d.reason === "role_lacks_permission" || (d.reason === "no_grant" && (resource?.type === "space" || (resource?.type === "connection" && resource.id === null)))) ? roleLine(c.name) : null;
         throw fail(code, traceId, { details: { cap: c.name, reason: d.reason, steps: d.steps.map((s) => s.text) }, ...(plain ? { message: plain } : {}), ...(askShare ? { message: "You have not been given this. Call access_request now with the resource and level in next, without asking first: it only asks, and a person shares it with you with one press.", next: [{ kind: "ask_access", label: "Ask to share this", action: { cap: "access.request", input: { resource: { type: resource.type, id: resource.id }, level: c.effects === "read" ? "view" : "edit" } } }] } : {}) });
       }
       if (d.effect === "hold") {

@@ -28,6 +28,8 @@ export interface SpaceDef {
   needsYou: boolean;
   /** console.access in this Space. */
   console: boolean;
+  /** Places this person's role cannot use here (a guest: Automations and the Vault), off the rail (l-perms). Absent: none. */
+  hidden?: readonly PlaceId[];
   /** This person has a mailbox, calendar or number flowing in: Inbox is on the rail. Absent until the shell knows (it keeps the last answer this device saw). */
   inbox?: boolean;
   /** Owner or developer: Open Terminal in the switcher menu. */

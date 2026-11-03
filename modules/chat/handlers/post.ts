@@ -41,6 +41,11 @@ const isPrivateRoot = (root: ThreadRec): boolean => root.kind === "chat" || root
  * Governance of an invite-only channel: a person with manage on the channel (an admin) can see that it exists, archive it and change who is in it, and never reads or writes in it unless they are added.
  * The host's own authorize decides; a hand-built test context without it grants no one.
  */
+/** Does the caller see the Space as a whole (View on the Space)? A guest does not: they list only the channels they are in (l-perms). No authorize (module tests): yes. */
+export function seesSpace(ctx: ChatCtx): boolean {
+  const host = ctx as ChatCtx & { authorize?: (action: { perm: string | null; level: string }, resource: { type: string; id: string | null }) => { effect?: string } };
+  return typeof host.authorize !== "function" || host.authorize({ perm: null, level: "view" }, { type: "space", id: ctx.space }).effect === "allow";
+}
 export function mayGovernChannel(ctx: ChatCtx, channelId: string): boolean {
   const host = ctx as ChatCtx & { authorize?: (action: { perm: string | null; level: string }, resource: { type: string; id: string | null }) => { effect?: string } };
   return typeof host.authorize === "function" && host.authorize({ perm: null, level: "manage" }, { type: "channel", id: channelId }).effect === "allow";
