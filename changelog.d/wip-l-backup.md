@@ -18,3 +18,4 @@
 - A personal automation runs as its owner: any account the person may use counts for its AI steps, as before; "kept for automations" applies only to Space accounts paying for Space automations. The Space AI pickers (agent, automation, Chat key) read the same place-aware answer instead of their own rule.
 - The Vault Space AI accounts tab reads engine.accounts.list too (the rows now carry what each account pays for and its provider), so the Space AI pickers and the tab share one answer.
 - The shots app draws each mount after hydration, so a mount that lays itself out by the window (the Vault at 1440, the Runs on menu) no longer differs from the pre-rendered page: React error 418 is gone from those mounts.
+- A live test of the launch lock on a Space server: held goes straight in; relaunched with the key lost shows the lock; Not now leaves her chat on the Space key with its one line; Unlock brings her Mine sign-in back.
