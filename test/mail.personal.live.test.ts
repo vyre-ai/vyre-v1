@@ -81,7 +81,7 @@ test("Team: two members sign in to their own Gmail; each mailbox is private to i
 
     // an assistant acts with the access of whoever asked: Ana's reads Ana's mailbox and never Bo's; the admin's reads the admin's and never a member's
     const list = (mailboxId: string | undefined) => `TOOL mail_message_list ${JSON.stringify({ mailboxId })}`;
-    const anaHelper = await makeAgent(ana, "Ana helper", account);
+    const anaHelper = await makeAgent(ana, "Ana helper", account, w.owner);
     const own = await ask(w, ana, anaHelper, list(anaIn.mailboxId));
     assert.ok(own.includes("For Ana"), `Ana's assistant reads Ana's mailbox: ${own.slice(0, 300)}`);
     const other = await ask(w, ana, anaHelper, list(boIn.mailboxId));

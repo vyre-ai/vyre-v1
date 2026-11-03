@@ -197,10 +197,10 @@ export async function connectClaude(w: MailWorld): Promise<string> {
   return added.provider.handle as string;
 }
 
-/** An assistant of this person, pinned to the Space's AI account so its turns are paid for. */
-export async function makeAgent(who: Person, name: string, account: string): Promise<string> {
+/** An assistant of this person, pinned to the Space's AI account so its turns are paid for. Pinning an agent to a Space account is an admin's call (the Chat key, owner 3 Nov), so `admin` pins it when `who` is a member. */
+export async function makeAgent(who: Person, name: string, account: string, admin: Person = who): Promise<string> {
   const agentId = (await who.ok("agents.create", { name, role: `You help ${who.username} with their mail.` })).agent.agentId as string;
-  await who.ok("agents.update", { agentId, patch: { accountPolicy: "key", accountKey: account } });
+  await admin.ok("agents.update", { agentId, patch: { accountPolicy: "key", accountKey: account } });
   return agentId;
 }
 
