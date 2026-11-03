@@ -42,7 +42,10 @@ function fakeApi(steps: Array<{ name: string; input: Record<string, unknown> }>,
       if (String(req.url).includes("count_tokens")) { res.writeHead(200, { "content-type": "application/json" }).end('{"input_tokens":1}'); return; }
       if (!String(req.url).startsWith("/v1/messages")) { res.writeHead(200, { "content-type": "application/json" }).end("{}"); return; }
       bodies.push(body);
-      const results = [...JSON.stringify(j.messages ?? []).matchAll(/"type":"tool_result".{0,600}/g)].map((m) => m[0]);
+      // count every result (a match that runs on to the next result would hide it), then keep each one's text
+      const text = JSON.stringify(j.messages ?? []);
+      const at = [...text.matchAll(/"type":"tool_result"/g)].map((m) => m.index ?? 0);
+      const results = at.map((i, n) => text.slice(i, Math.min(at[n + 1] ?? text.length, i + 600)));
       for (const r of results) if (!log.includes(`toolResult ${r}`)) log.push(`toolResult ${r}`);
       // side requests (a title, a summary) are answered with text: only the conversation that carries the prompt gets the tool calls
       const main = body.includes(MAIN_PROMPT);
@@ -146,8 +149,8 @@ describe("Windows parity (lane l-winfix)", { skip: !ON && "VYRE_HEAVY_WINFIX=1 o
     try {
       const env = { ANTHROPIC_API_KEY: "sk-ant-fake", ANTHROPIC_BASE_URL: `http://127.0.0.1:${api.port}`, CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: "1", DISABLE_AUTOUPDATER: "1" };
       const wrap = sandboxWrap(d.plan, { homeFromScratch: true });
-      const turn = await run(wrap([claude, "-p", MAIN_PROMPT, "--output-format", "text", "--permission-mode", "bypassPermissions", "--model", "claude-sonnet-4-5", "--debug"], { cwd, env }), { cwd, env, ms: 180_000 });
-      console.log(`claude: exit ${turn.code}\n${turn.out.slice(-400)}\n${turn.err.slice(-6000)}\nresults: ${log.join("\n").slice(-4000)}`);
+      const turn = await run(wrap([claude, "-p", MAIN_PROMPT, "--output-format", "text", "--permission-mode", "bypassPermissions", "--model", "claude-sonnet-4-5"], { cwd, env }), { cwd, env, ms: 180_000 });
+      console.log(`claude: exit ${turn.code}\n${turn.out.slice(-400)}\n${turn.err.slice(-1500)}\nresults: ${log.filter((l) => l.startsWith("toolResult")).join("\n").slice(-3000)}`);
       assert.equal(turn.code, 0, turn.err.slice(-800));
       assert.ok(api.bodies.some((b) => b.includes("winfix-proof") && b.includes("WINFIX-DESC-51a")), "claude.exe lists the skill from .claude/skills of its folder");
       for (const marker of ["BADNAME-CONTENT-7f3", "DEVICE-NAME-CONTENT-2c1", "DEEP-CONTENT-9b4"]) assert.ok(log.some((l) => l.includes(marker)), `claude.exe read ${marker}`);
@@ -212,8 +215,10 @@ describe("Windows parity (lane l-winfix)", { skip: !ON && "VYRE_HEAVY_WINFIX=1 o
             const stream = ok();
             seen.push(`exec ${info.command}`);
             const p = spawn("git", ["upload-pack", repo], { windowsHide: true });
-            stream.pipe(p.stdin); p.stdout.pipe(stream); p.stderr.pipe(stream.stderr);
-            p.on("exit", (code) => { stream.exit(code ?? 1); stream.end(); });
+            // the channel ends after the exit status is sent: piping stdout would end it first, and ssh would see no status
+            stream.pipe(p.stdin); p.stdout.pipe(stream, { end: false }); p.stderr.pipe(stream.stderr, { end: false });
+            p.on("error", (e) => { seen.push(`spawn ${e.message}`); stream.exit(127); stream.end(); });
+            p.on("close", (code) => { seen.push(`upload-pack exit ${code}`); stream.exit(code ?? 1); stream.end(); });
           });
         });
       }).on("error", (e: Error) => { seen.push(`error ${e.message}`); });
