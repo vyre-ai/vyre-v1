@@ -109,6 +109,10 @@ const st = StyleSheet.create({
 
 
 export type AddScope = "space" | "mine";
+/** The capabilities behind the one flow: an admin adds a server the Space holds, a person adds one only they use (in a Personal Space it joins through the relay, with no address). */
+export const addCalls = (scope: AddScope, personal: boolean): { code: string; approve: string; decline: string } =>
+  scope === "space" ? { code: "network.server_join_code", approve: "network.server_approve", decline: "network.server_decline" }
+  : { code: personal ? "network.peer_server_code" : "network.my_computer_code", approve: "network.my_computer_approve", decline: "network.my_computer_decline" };
 export interface AddServerState { sheet: Sheet | null; busy: boolean; error: string; now: number; open(): void; close(): void; setNickname(v: string): void; make(): void; approve(id: string): void; decline(id: string): void }
 
 /**
@@ -137,14 +141,14 @@ export function useAddServer(o: { call(cap: string, input: Record<string, unknow
   const make = (): void => void guarded(async () => {
     const nick = sheet!.nickname.trim();
     if (scope === "mine" && personal) {
-      const got = await call("network.peer_server_code", { idempotencyKey: key(), nickname: nick }) as { code: string; expiresAt: number };
+      const got = await call(addCalls(scope, personal).code, { idempotencyKey: key(), nickname: nick }) as { code: string; expiresAt: number };
       setSheet((s) => s && { ...s, nickname: nick, code: got.code, expiresAt: got.expiresAt, address: null, peer: true });
       return;
     }
-    const made = await call(scope === "space" ? "network.server_join_code" : "network.my_computer_code", { idempotencyKey: key(), ...(scope === "mine" || nick ? { nickname: nick } : {}) }) as { code: string; expiresAt: number; address?: string };
+    const made = await call(addCalls(scope, personal).code, { idempotencyKey: key(), ...(scope === "mine" || nick ? { nickname: nick } : {}) }) as { code: string; expiresAt: number; address?: string };
     setSheet((s) => s && { ...s, nickname: nick, code: made.code, expiresAt: made.expiresAt, address: made.address ?? null });
   }, "Couldn't make a command. Try again.");
-  const approve = (serverId: string): void => void guarded(async () => { await call(scope === "space" ? "network.server_approve" : "network.my_computer_approve", { serverId }); setSheet((s) => s && { ...s, approved: true, serverId }); await reload(); }, "Couldn't approve it. Try again.");
-  const decline = (serverId: string): void => void guarded(async () => { await call(scope === "space" ? "network.server_decline" : "network.my_computer_decline", { serverId }); setSheet(null); await reload(); }, "Couldn't decline it.");
+  const approve = (serverId: string): void => void guarded(async () => { await call(addCalls(scope, personal).approve, { serverId }); setSheet((s) => s && { ...s, approved: true, serverId }); await reload(); }, "Couldn't approve it. Try again.");
+  const decline = (serverId: string): void => void guarded(async () => { await call(addCalls(scope, personal).decline, { serverId }); setSheet(null); await reload(); }, "Couldn't decline it.");
   return { sheet, busy, error, now, open: () => { setError(""); setSheet(emptySheet()); }, close: () => { setSheet(null); void reload(); }, setNickname: (v) => setSheet((s) => s && { ...s, nickname: v }), make, approve, decline };
 }
