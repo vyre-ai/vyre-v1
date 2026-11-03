@@ -71,6 +71,7 @@ export function ConnectAiCard({ call, connected, onConnected, initialFlow, home 
               </View>
             );
           }) : null}
+          {/* ui-rows-lint: not a list (sign-in choices are buttons, not list rows) */}
           {SIGNIN_BUTTONS.map((o) => (
             <Pressable key={o.key} testID={`ai-sub-${o.key}`} accessibilityRole="button" accessibilityLabel={o.button} disabled={busy} onPress={() => void run(async () => setFlow({ ...(await startSubscription(call, o.key, `${attempt.current}:${o.key}:${Date.now()}`, home)), provider: o.key }))} style={[s.signin, busy && s.busyDim]}><Mark k={o.key} size={18} /><Text style={s.tileText}>{o.button}</Text></Pressable>
           ))}
