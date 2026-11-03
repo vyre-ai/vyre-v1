@@ -69,6 +69,11 @@ test("a Windows Personal Space: a Claude Code Bash turn, git over HTTPS, and no 
   fs.writeFileSync(path.join(dataDir, "logs", "claim-link.txt"), "claim-link-secret-xyz");
   const log: string[] = [];
   const api = await fakeApi(log);
+  // a Windows computer in a Team Space reports its engines (node-cli.ts), so Automatic can run a member's turn on it
+  const { nodeCliReport } = await import("../node-cli.ts");
+  const report = nodeCliReport({ enginesRoot: path.join(dataDir, "engines") });
+  console.log(`node report: ${JSON.stringify(report)}`);
+  assert.deepEqual([report.sandbox.ok, report.sandbox.kind, report.programs.claude !== null], [true, "lowil", true]);
   const d = await defaultSandbox({ platform: "win32", dataDir, winBin: path.join(box, "bin"), egressHosts: ["github.com", "*.github.com", "codeload.github.com"], writable: [added] });
   assert.equal(d.plan.sandbox.kind, "lowil");
   try {

@@ -27,7 +27,10 @@ test("the report says exactly what is missing, one sentence each", () => {
   assert.equal(r.programs.codex, null);
   assert.deepEqual(r.missing, ["codex is not installed on this server", "bubblewrap (bwrap) is not installed on this server"]);
   assert.deepEqual(nodeCliReport({ platform: "darwin", env: bin(["claude", "codex"]).env }).missing, [], "a Mac sandboxes with Seatbelt");
-  assert.deepEqual(nodeCliReport({ platform: "win32", env: bin(["claude.exe", "codex.exe"]).env }).missing, ["engines cannot be sandboxed on win32"], "Windows finds claude.exe and codex.exe");
+  const win = nodeCliReport({ platform: "win32", env: bin(["claude.exe", "codex.exe"]).env });
+  assert.ok(win.programs.claude !== null && win.programs.codex !== null, "Windows finds claude.exe and codex.exe");
+  assert.equal(win.sandbox.kind, "lowil", "a Windows computer runs its engines at Low integrity");
+  assert.deepEqual(win.missing, win.sandbox.ok ? [] : [win.sandbox.reason], "and reports what it lacks only when it cannot");
 });
 
 test("the launcher refuses a missing engine or sandbox with the reason, and starts a found engine only inside the sandbox", async () => {
