@@ -328,7 +328,8 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
   const baseOpen = host.openSession ?? checkedOpen((opener as NonNullable<typeof opener>).openSession, { ...(host.cli?.command ? { command: host.cli.command } : {}), ...(host.cli?.probe ? { probe: host.cli.probe } : {}), ...(installer ? { engines: installer } : {}), ...(host.sandbox ? {} : { unsandboxed: () => cliSandboxGap() }), live: (e) => setupLine?.(e) });
   // a turn the person pinned to one of their servers opens through that server's opener; everything else opens as before
   const nodeOpeners = new Map<string, ReturnType<typeof buildNodeOpener>>();
-  const openerHost = { ...(h.own ? { own: h.own } : {}), ...(apiTools ? { apiTools } : {}), session: host.session as EngineSessionPorts, call: h.call, egress: { rule: egress.rule }, access };
+  // a test's stand-in network for the API drivers (engineCli.apiFetch) reaches a turn on one of the person's servers too, as it does a turn on the Space; absent, the real network
+  const openerHost = { ...(h.own ? { own: h.own } : {}), ...(apiTools ? { apiTools } : {}), ...(host.cli?.apiFetch ? { apiFetch: host.cli.apiFetch } : {}), session: host.session as EngineSessionPorts, call: h.call, egress: { rule: egress.rule }, access };
   // a person's own computer (node device:<id>): their turns only, and the engine there works in the folders they added to Vyre from that computer (mounts.engine_folders, lane l-openweb's list)
   const deviceFolders = (person: string, deviceId: string) => async (): Promise<string[]> => {
     const out = (await h.call("mounts.engine_folders", { person }).catch(() => ({ folders: [] }))) as { folders?: Array<{ path?: unknown; deviceId?: unknown }> };
