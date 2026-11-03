@@ -23,7 +23,7 @@ export function aiHomeOf(address: string, ownComputer: boolean): AiHome {
 /** A key that is not open, where it can be unlocked from this screen. */
 export const LOCKED_LINE = "Your Mine Vault is locked on this device. Unlock it, then try again.";
 /** A key that is not open on a Space that runs elsewhere: signing in to it opens it. */
-export const SIGN_IN_AGAIN_LINE = "Your Mine items open while you are signed in to Vyre. Type your password when Vyre asks for it, then try again.";
+export const SIGN_IN_AGAIN_LINE = "Your Mine items open while you are signed in to Vyre on this device. Sign in again here, then try again.";
 /** auth.unauthenticated that is not about the Vault: the session itself ended. */
 export const SIGNED_OUT_LINE = "You were signed out. Sign in again, then try again.";
 
