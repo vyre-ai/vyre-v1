@@ -23,7 +23,11 @@ export interface PanelAccount {
   aliases?: readonly string[];
 }
 
-export interface PanelModel { id: string; title: string; note?: string; window?: number; allowed?: boolean; reason?: string }
+export interface PanelModel {
+  id: string; title: string; note?: string; window?: number; allowed?: boolean; reason?: string;
+  /** Effort levels the vendor offers for this model (its words); Effort shows only the ones Vyre has that it offers. Left out: the provider's usual set. */
+  efforts?: readonly string[];
+}
 
 export interface UsageMeter { pct: number; resetsAt?: string | number | null }
 export interface PanelUsage {
@@ -58,6 +62,8 @@ export interface ModelPanelProps {
   onAccount(ref: string): void;
   /** The selected account's models (with Auto first when the engine offers it); null while they load. */
   models: readonly PanelModel[] | null;
+  /** A quiet word under the models on how fresh the list is ("Updated just now", "Couldn't refresh, showing saved list"). */
+  modelsLine?: string;
   model: string | null;
   onModel(id: string): void;
   effort: Effort | undefined;
@@ -195,7 +201,10 @@ export function ModelPanel(p: ModelPanelProps): ReactElement {
   const week = usage?.week ?? null;
   const better = lowSuggestion(accounts, p.accountRef, session?.pct ?? account?.session);
   const agentName = p.agent.name;
-  const efforts = effortsFor(account?.provider ?? p.agent.provider);
+  const usual = effortsFor(account?.provider ?? p.agent.provider);
+  // a model whose vendor names its levels shows the ones of the usual set it offers (never none)
+  const offered = model?.efforts ? usual.filter((e) => model.efforts!.includes(e.id)) : usual;
+  const efforts = offered.length > 0 ? offered : usual;
   const words = limitWords(account?.provider ?? p.agent.provider);
   const scopeLabel = p.scope === "chat" ? "This chat" : `Default for ${agentName.split(/[\s’']/)[0] ?? agentName}`;
   const noMeters = !ctx && !session && !week;
@@ -247,6 +256,7 @@ export function ModelPanel(p: ModelPanelProps): ReactElement {
               return <Row key={m.id} id={`model-${m.id}`} title={m.title} selected={on} {...(off ? { note: m.reason ?? "Not available on this account" } : m.note ? { note: m.note } : {})} trailing={on ? CHECK : null} {...(off ? {} : { onPress: () => { p.onModel(m.id); setSub(null); } })} />;
             })}
           </ScrollView>
+          {p.modelsLine && p.models !== null ? <Text style={st.quiet} testID="model-models-line">{p.modelsLine}</Text> : null}
         </View>
       );
     }

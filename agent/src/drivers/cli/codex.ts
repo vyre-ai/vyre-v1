@@ -124,7 +124,8 @@ export const codex: CliAdapter = {
   id: "codex",
   bin: "codex",
   persistent: false,
-  models: [{ id: "gpt-5-codex", label: "GPT-5 Codex" }, { id: "gpt-5", label: "GPT-5" }],
+  // the default the pinned CLI names; the account's own list comes from the CLI itself (models.ts, `codex app-server` model/list)
+  models: [{ id: "gpt-6.1-sol", label: "GPT-6.1-Sol" }],
   systemFlag: false,
   env: () => ({}),
   command(o: CommandOptions) {

@@ -35,6 +35,7 @@ import { coalesceLive } from "./live-coalesce.ts";
 import { defaultSandbox } from "./sandbox-default.ts";
 import { closePluginRuntime, pluginRuntime } from "./plugin-host.ts";
 import { bindOauthStore } from "./mcp-oauth.ts";
+import { bindModelLister } from "./live-models.ts";
 import { createPluginTools } from "./plugin-tools.ts";
 import type { DefaultSandbox } from "./sandbox-default.ts";
 import type { SandboxPlan } from "./sandbox.ts";
@@ -113,7 +114,7 @@ export function setEngineHost(h: EngineHostSeam | null): void {
   building = null;
   const root = h?.engines?.install ? enginesRoot({ dataDir: h.dataDir }) : null;
   configureEngines(root !== null ? { root, ...(h?.log ? { log: h.log } : {}) } : null);
-  if (h === null) { bindEngine(null); bindBridge(null); bindOpener(null); completer = null; compactor = null; bindStepOpen(null); }
+  if (h === null) { bindEngine(null); bindBridge(null); bindOpener(null); completer = null; compactor = null; bindStepOpen(null); bindModelLister(null); }
 }
 
 export function engineHost(): EngineHostSeam | null { return host; }
@@ -276,6 +277,8 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
     keep: (threadId: string) => keepEvery(ctx.db, threadId),
   };
   const opener = host.openSession ? null : buildOpener({ sessions, ...(h.own ? { own: h.own } : {}), ...(apiTools ? { apiTools } : {}), session: host.session as EngineSessionPorts, call: h.call, ...(host.sandbox ? { sandbox: host.sandbox } : {}), ...(host.cli?.command ? { cliCommand: host.cli.command } : {}), ...(host.cli?.probe ? { cliProbe: host.cli.probe } : {}), ...(host.dataDir ? { dataDir: host.dataDir, defaultSandbox: defaultPlan(host.dataDir, cliRead(host)) } : {}) });
+  // the composer's model menu asks each subscription engine for its own list, through this opener: the person's sandbox and sign-in, as a turn would run (live-models.ts)
+  bindModelLister(opener ? (account, asker, o) => opener.models(account, asker, o) : null);
   // a turn whose engine Vyre is installing says so on its live line ("Setting up Codex"); the line is the bridge's, which exists once the runtime is built below
   let setupLine: ((e: StreamEvent) => void) | null = null;
   const installer = engines();
