@@ -1,0 +1,1 @@
+Tagging an agent onto a message that was already sent is now proven end to end: Ask an Agent, the clickable "No agent will reply" line and an edit that adds an @mention each make the agent answer once, on the account of the person who asked, and never again on later edits. New tests drive the edit through the conversation and run it on a real Space.
