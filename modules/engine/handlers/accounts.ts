@@ -4,7 +4,7 @@
 // so the worker calls engine.account.resolve acting for the payer (the steerer or the starter): a Mine account of anyone else is never in the list.
 import type { Ctx } from "../../../packages/contracts/src/ctx.ts";
 import { VyreErr } from "../../../packages/contracts/src/errors.ts";
-import { resolveAccount, probeAccount, providerOfModel, UnknownAccount } from "../../../agent/src/accounts/index.ts";
+import { resolveAccount, probeAccount, providerOfModel, UnknownAccount, usableHere } from "../../../agent/src/accounts/index.ts";
 import type { AccountRow, AccountStatus, ProbeResult, SpaceUses, Trigger } from "../../../agent/src/accounts/index.ts";
 import { costTier } from "../../../agent/src/accounts/cost.ts";
 import { savedTested } from "../live-models.ts";
@@ -86,8 +86,16 @@ export async function load(ctx: Pick<Ctx, "actingFor" | "principal" | "call">): 
 }
 
 /** One entry per account: older sign-ins of a provider whose account cannot be read are listed under the row they show as (and can be removed there), and a pin to a folded handle or an older sign-in shows that row. */
-export async function accountsList(ctx: Ctx, _input: Record<string, never>) {
+export async function accountsList(ctx: Ctx, input: { place?: "chat" | "automation" | "agent" | "space"; model?: string; agentId?: string }) {
   const { rows, where, names, idByRef, aliasOf, underOf } = await load(ctx);
+  // with a place, every account says whether it can run there and why not (the same rule the resolver applies), so every picker lists the same accounts
+  const place = input?.place;
+  const me = ctx.actingFor ?? ctx.principal.id;
+  const checks = place ? await (async () => {
+    const policy = (await (ctx.call("engine.policy.get", {}) as Promise<PolicyOut>).catch(() => ({ allowedAccounts: "any" as const }))).allowedAccounts;
+    const personal = await (ctx.call("spaces.get", {}) as Promise<{ space?: { kind?: string } }>).then((r) => r.space?.kind === "personal", () => false);
+    return { policy, onServer: !personal };
+  })() : null;
   return {
     accounts: rows.filter((r) => !underOf.has(r.ref)).map((r) => {
       const older = rows.filter((o) => underOf.get(o.ref) === r.ref).map((o) => ({ ref: o.ref, providerId: idByRef.get(o.ref)!, name: names.get(o.ref) ?? o.title }));
@@ -97,6 +105,8 @@ export async function accountsList(ctx: Ctx, _input: Record<string, never>) {
         ref: r.ref, driver: r.driver, kind: r.kind, title: r.title, ...(names.has(r.ref) ? { name: names.get(r.ref) } : {}), mine: r.mine, ...(r.ownerId ? { ownerId: r.ownerId } : {}), status: r.status,
         ...(r.lastProbeAt !== null ? { lastProbeAt: r.lastProbeAt } : {}), ...(r.spaceKey === true ? { spaceKey: true } : {}),
         ...(aliases.length > 0 ? { aliases } : {}), ...(older.length > 0 ? { older } : {}),
+        ...(r.models?.length ? { models: [...r.models] } : {}),
+        ...(place && checks ? usableHere(r, place, { me, policy: checks.policy, onServer: checks.onServer, ...(input.model ? { model: input.model } : {}), ...(input.agentId ? { agentId: input.agentId } : {}) }) : {}),
       };
     }),
   };

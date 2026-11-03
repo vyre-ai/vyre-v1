@@ -2511,7 +2511,7 @@
     {
       "deferred": false,
       "name": "engine_accounts_list",
-      "summary": "Accounts the caller can run on: API keys by handle and subscription sign-ins (Mine), with status",
+      "summary": "Accounts the caller can run on: API keys by handle and subscription sign-ins (Mine), with status. With a place (chat, automation, agent, space) each says whether it can run there and why not",
       "toolset": "meta"
     },
     {

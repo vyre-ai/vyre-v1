@@ -10,3 +10,4 @@
 - New `vyre-server restore FILE [--yes]`: it checks the file (readable, only space/ and caddy/, no links, every database passes integrity_check) before touching anything, asks for confirmation, backs up the current data, stops, restores, starts and checks health, and puts the old data back if the server is not healthy.
 - `vyre run --env` never prints a fetched value, also not inside an error message from the server or a failed launch; each value fetched is a Vault use with the person as the actor.
 - Vault search finds an item by name, handle, kind, field name or folder name, across Mine, Shared with me and the Space (never by a value).
+- engine.accounts.list takes a place (chat, automation, agent, space) and then says for every account whether it can run there and why not, with its models, by the rule the resolver itself applies. Every picker can read the same list.
