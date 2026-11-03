@@ -219,8 +219,10 @@ export async function onTaskEvent(ctx: Pick<EngineCtx, "db">, host: BatonHost, e
   const worker = task.workingNotes["worker.kind"];
   if (task.kind === "work" && holder.role === "assigned" && worker !== undefined) return startWorker(ctx, host, task, holder.who, worker, sig, before);
   const targets = await agentsToWake(host, task, holder.who);
-  // the baton left an agent that was woken for it: its turn on this task stops, so two agents never work the same step
-  if (fresh && before?.threadId) {
+  // the step was given to someone else (the same seat, another holder): the agent woken for it stops, so two agents never work the same step. A baton that moved on because the agent
+  // handed it in, reviewed or decided is not this: that agent's turn is still finishing its own tool call and must end by itself.
+  const sameSeat = before !== undefined && before.sig.split("|")[0] === holder.role;
+  if (fresh && sameSeat && before?.threadId) {
     for (const was of before.woken) {
       if (targets.includes(was)) continue;
       try { await engine.stop(before.threadId, { agentId: was }); } catch (e) { host.log?.("the agent the task left could not be stopped", { taskId: task.id, agentId: was, error: e instanceof Error ? e.message : String(e) }); }

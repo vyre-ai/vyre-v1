@@ -6,7 +6,7 @@ export const NOW = 1_700_000_000_000;
 /** The primary key of each table the store persists, as the migrations declare them: an upsert replaces the row with the same key. */
 const PKS: Readonly<Record<string, readonly string[]>> = {
   access_meta: ["id"], access_roles: ["id"], access_role_changes: ["role_id"], access_groups: ["id"], access_principals: ["id"], access_assignments: ["holder", "role_id"],
-  access_grants: ["id"], access_resources: ["id"], access_policies: ["key", "scope"], access_actors: ["id"], access_fields: ["k"],
+  access_grants: ["id"], access_resources: ["id"], access_policies: ["key", "scope"], access_actors: ["id"], access_fields: ["k"], access_local_cursor: ["id"],
 };
 
 const unquote = (c: string): string => c.trim().replace(/^"(.*)"$/, "$1");

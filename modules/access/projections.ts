@@ -129,6 +129,7 @@ const SHAPES: Readonly<Record<string, { pk: string[]; cols: string[] }>> = {
   access_policies: { pk: ["key", "scope"], cols: ["key", "scope", "kind", "value", "updated_at"] },
   access_actors: { pk: ["id"], cols: ["id", "provider", "status", "engineer", "token_hash", "token_expires", "token_used", "cred_hash", "last_seen"] },
   access_fields: { pk: ["k"], cols: ["k", "rank"] },
+  access_local_cursor: { pk: ["id"], cols: ["id", "seq"] },
 };
 
 /** The field row that holds the cursor of the events folded into the store (modules/access/consumers.ts). */
@@ -246,6 +247,8 @@ export class AccessStore {
   actors = new Map<string, ActorRec>();
   assignments = new Map<string, string[]>();
   fieldLabels = new Map<string, number>();
+  /** access_local_cursor exists here (migrations/0004): the cursor is kept there, not in access_fields */
+  localCursor = false;
   idem = new Map<string, unknown>();
   private snap: AccessSnapshot | null = null;
   private snapEpoch = -1;
@@ -415,7 +418,11 @@ export class AccessStore {
     for (const r of this.resources.values()) add("access_resources", ["id"], ["id", "type", "parent_id", "label", "owner_id", "holds", "row_json"], [r.id, r.type, r.parentId, r.label, r.ownerId, r.holds, r.row ? JSON.stringify(r.row) : null]);
     for (const p of this.policies.values()) add("access_policies", ["key", "scope"], ["key", "scope", "kind", "value", "updated_at"], [p.key, p.scope, p.kind, JSON.stringify(p.value), p.updatedAt]);
     for (const a of this.actors.values()) add("access_actors", ["id"], ["id", "provider", "status", "engineer", "token_hash", "token_expires", "token_used", "cred_hash", "last_seen"], [a.id, a.provider, a.status, a.engineerMcp ? 1 : 0, a.tokenHash ?? null, a.tokenExpires ?? null, a.tokenUsed ? 1 : 0, a.credHash ?? null, a.lastSeenAt ?? null]);
-    for (const [k, n] of this.fieldLabels) add("access_fields", ["k"], ["k", "rank"], [k, n]);
+    // the cursor of the folded log events is this computer's own (migrations/0004_local_cursor.sql): kept in access_local_cursor, which never travels, where that table exists
+    for (const [k, n] of this.fieldLabels) {
+      if (k === CURSOR_KEY && this.localCursor) add("access_local_cursor", ["id"], ["id", "seq"], [k, n]);
+      else add("access_fields", ["k"], ["k", "rank"], [k, n]);
+    }
     return out;
   }
 
@@ -460,6 +467,7 @@ export class AccessStore {
         // a counter only moves forward, whichever store writes last: the epoch, and the cursor of the events folded in
         if (table === "access_meta") db.run(`INSERT INTO access_meta (id,epoch) VALUES (?,?) ON CONFLICT(id) DO UPDATE SET epoch = max(epoch, excluded.epoch)`, ...vals);
         else if (table === "access_fields" && vals[0] === CURSOR_KEY) db.run(`INSERT INTO access_fields (k,rank) VALUES (?,?) ON CONFLICT(k) DO UPDATE SET rank = max(rank, excluded.rank)`, ...vals);
+        else if (table === "access_local_cursor") db.run(`INSERT INTO access_local_cursor (id,seq) VALUES (?,?) ON CONFLICT(id) DO UPDATE SET seq = max(seq, excluded.seq)`, ...vals);
         else db.run(`INSERT OR REPLACE INTO ${table} (${cols}) VALUES (${marks})`, ...vals);
       }
     }
@@ -553,7 +561,12 @@ export class AccessStore {
       if (a.last_seen != null) rec.lastSeenAt = Number(a.last_seen);
       this.actors.set(rec.id, rec);
     }
-    for (const f of read("access_fields") as { k: string; rank: number }[]) this.fieldLabels.set(f.k, Number(f.rank));
+    // the cursor: this computer's own row; one in access_fields (a Space from before 0004, or a copy from another computer) counts only where the local table does not exist yet
+    let local: { id: string; seq: number }[] | null = null;
+    try { local = read("access_local_cursor") as { id: string; seq: number }[]; } catch { local = null; }
+    this.localCursor = local !== null;
+    for (const f of read("access_fields") as { k: string; rank: number }[]) if (f.k !== CURSOR_KEY || !this.localCursor) this.fieldLabels.set(f.k, Number(f.rank));
+    for (const c of local ?? []) if (c.id === CURSOR_KEY) this.fieldLabels.set(CURSOR_KEY, Number(c.seq));
     this.epoch = meta[0]?.epoch ?? 1;
     this.snap = null;
     this.snapEpoch = -1;
@@ -598,6 +611,7 @@ export function storeOf(ctx: AccessCtx): AccessStore {
   try { rows = ctx.db.all("SELECT * FROM access_roles"); } catch { rows = []; }
   if (rows.length) s.hydrate(ctx.db);
   else {
+    try { ctx.db.all("SELECT id FROM access_local_cursor LIMIT 1"); s.localCursor = true; } catch { /* a Space from before migration 0004 */ }
     s.seed();
     try { s.persist(ctx.db); } catch { /* a db that cannot take the tables still serves the memory snapshot */ }
   }

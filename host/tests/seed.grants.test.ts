@@ -50,7 +50,7 @@ function dataDir(): string {
   return dir;
 }
 
-test("seed grants: through the gateway of a booted daemon, the owner and a member are let through, the member cannot apply schema, a temp person is refused", async () => {
+test("seed grants: through the gateway of a booted daemon, the owner and a member are let through, the member cannot apply schema, a temp person sees no record type", async () => {
   const dir = dataDir();
   const tokens: Record<string, string> = { "tok-usr_olivia": "usr_olivia", "tok-usr_noah": "usr_noah", "tok-usr_tess": "usr_tess" };
   const d = await startDaemon({
@@ -74,8 +74,10 @@ test("seed grants: through the gateway of a booted daemon, the owner and a membe
   try {
     assert.notEqual((await post("tok-usr_olivia", "/v1/schema/types/list", {})).status, 403, "the owner is let through");
     assert.notEqual((await post("tok-usr_noah", "/v1/schema/types/list", {})).status, 403, "a member is let through");
-    const refused = await post("tok-usr_tess", "/v1/schema/types/list", {});
-    assert.equal(refused.status, 403, "a temp person with no grant is refused");
+    const temp = await post("tok-usr_tess", "/v1/schema/types/list", {});
+    // a temp person holds nothing on the Space, so the list (level member, l-perms: a guest's places list what is shared with them) answers with nothing in it
+    assert.equal(temp.status, 200, "a temp person may ask");
+    assert.deepEqual(((await temp.json()) as { data: { types: unknown[]; total: number } }).data, { types: [], total: 0 }, "and sees no record type: nothing is shared with them");
     const apply = (token: string, key: string) => post(token, "/v1/schema/apply", { idempotencyKey: key, ops: [{ op: "type.create", type: "rt_seedgrants", def: { title: "Probe", plural: "Probes", icon: "box", titleField: "name", fields: [{ key: "name", type: "text", title: "Name", required: true }] } }] });
     assert.equal((await apply("tok-usr_noah", "sg-noah")).status, 403, "a member cannot change record types");
     assert.notEqual((await apply("tok-usr_olivia", "sg-olivia")).status, 403, "the owner is let through");
