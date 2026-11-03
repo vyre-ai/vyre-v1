@@ -27,10 +27,12 @@ test("the report says exactly what is missing, one sentence each", () => {
   assert.equal(r.programs.codex, null);
   assert.deepEqual(r.missing, ["codex is not installed on this server", "bubblewrap (bwrap) is not installed on this server"]);
   assert.deepEqual(nodeCliReport({ platform: "darwin", env: bin(["claude", "codex"]).env }).missing, [], "a Mac sandboxes with Seatbelt");
+  // Windows: this computer's engines serve Team Space turns, which run in Vyre's WSL2 Linux (B): the Linux builds, offered only when WSL is on (it is not, on this test computer)
   const win = nodeCliReport({ platform: "win32", env: bin(["claude.exe", "codex.exe"]).env });
-  assert.ok(win.programs.claude !== null && win.programs.codex !== null, "Windows finds claude.exe and codex.exe");
-  assert.equal(win.sandbox.kind, "lowil", "a Windows computer runs its engines at Low integrity");
-  assert.deepEqual(win.missing, win.sandbox.ok ? [] : [win.sandbox.reason], "and reports what it lacks only when it cannot");
+  assert.equal(win.sandbox.kind, "wsl");
+  assert.equal(win.sandbox.ok, false, "no WSL here: no Team engine, so Automatic runs the turn on the server");
+  assert.match(win.sandbox.reason ?? "", /WSL is not turned on/);
+  assert.deepEqual([win.programs.claude, win.programs.codex], [null, null], "a Windows claude.exe cannot run in the VM");
 });
 
 test("the launcher refuses a missing engine or sandbox with the reason, and starts a found engine only inside the sandbox", async () => {

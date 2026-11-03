@@ -25,3 +25,13 @@ test("This computer on the Windows desktop app says how the AI runs there; elsew
   assert.equal(engineLine({ desktop: false, userAgent: "Mozilla/5.0 (Windows NT 10.0)" }), "", "a browser on Windows is not this computer's engine");
   assert.equal(engineLine({ desktop: true, userAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_0)" }), "");
 });
+
+test("Windows: the one-time 'Set up the Windows sandbox for team chats' shows only while WSL is off", async () => {
+  const { WIN_SANDBOX, winSandboxRow } = await import("../../settings/computers-model.ts");
+  assert.deepEqual(winSandboxRow({ supported: true, on: false }), { kind: "offer" });
+  assert.deepEqual(winSandboxRow({ supported: true, on: true }), { kind: "hidden" }, "WSL is on: nothing to set up");
+  assert.deepEqual(winSandboxRow({ supported: false, on: false }), { kind: "hidden" }, "not Windows");
+  assert.deepEqual(winSandboxRow(null), { kind: "hidden" }, "not the desktop app");
+  assert.equal(WIN_SANDBOX.label, "Set up the Windows sandbox for team chats");
+  assert.match(WIN_SANDBOX.help, /administrator consent once/);
+});

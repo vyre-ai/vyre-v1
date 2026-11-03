@@ -4,6 +4,7 @@
 //   desktop_info()        platform, app version and the sidecar status (address once it answers /healthz)
 //   take_pending_link()   a Vyre link that arrived before the page was listening, once
 //   page_report(kind, text)  what the shell's own load hook (lib.rs PAGE_PROBE) tells us: script errors and the rendered size, to the log only
+//   windows_sandbox_state(), setup_windows_sandbox()   Windows: is WSL on, and turn it on for team chats (winsandbox.rs)
 // Events: "vyre://sidecar" (Status) and "vyre://deep-link" (DeepLink).
 
 use crate::links::{self, DeepLink};

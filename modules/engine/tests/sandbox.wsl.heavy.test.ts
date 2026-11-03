@@ -138,3 +138,45 @@ test("the Windows sandbox: a Claude Code turn with a Bash tool call, and nothing
     api.kill();
   }
 });
+
+// A Team Space turn that a member's Windows computer runs (lane l-runson, RULINGS 15): node-cli.ts, as the device link starts it, reports the computer's engines only because WSL is on, installs
+// the Linux Claude Code, and runs the turn under B, the Space's network rule travelling with the spawn. One Bash tool call, against a fake model API in the VM.
+test("a Team Space turn on a member's Windows computer runs under B (WSL2 + bwrap)", { skip: !ON && "VYRE_HEAVY_WSL=1 on a Windows runner with WSL2", timeout: 30 * 60_000 }, async () => {
+  const { nodeCliLauncher, nodeCliReport, setContainedOptions, wslEngines } = await import("../node-cli.ts");
+  const { RULE_ENV } = await import("../../../sandbox/src/index.ts");
+  const box = fs.mkdtempSync(path.join(process.env["LOCALAPPDATA"] as string, "vyre-team-proof-"));
+  const dataDir = path.join(box, "data");
+  fs.mkdirSync(dataDir, { recursive: true });
+  const report = nodeCliReport({ enginesRoot: wslEngines(dataDir).root });
+  console.log(`team report: ${JSON.stringify(report)}`);
+  assert.deepEqual([report.sandbox.ok, report.sandbox.kind], [true, "wsl"], "WSL is on: this computer offers its engines to a Team Space");
+  const apiDir = path.join(box, "api");
+  fs.mkdirSync(apiDir);
+  fs.writeFileSync(path.join(apiDir, "api.mjs"), FAKE_API);
+  const portFile = path.join(apiDir, "port.txt");
+  const logFile = path.join(apiDir, "log.jsonl");
+  const api = spawn(wslExe(), ["-d", DISTRO_PIN.name, "-u", DISTRO_PIN.user, "--exec", "/usr/bin/node", toWslPath(path.join(apiDir, "api.mjs")), toWslPath(portFile), toWslPath(logFile)], { windowsHide: true, stdio: "ignore" });
+  for (let i = 0; i < 300 && !fs.existsSync(portFile); i++) await new Promise((r) => setTimeout(r, 200));
+  setContainedOptions({ wslTestRoutes: { "api.fake.test": Number(fs.readFileSync(portFile, "utf8")) } });
+  try {
+    const cwd = workFolder(dataDir, "usr_dana", "prc_team1");
+    const launcher = nodeCliLauncher(dataDir, { install: true });
+    const proc = await launcher.spawn({
+      argv: ["claude", "-p", "Run the tool once.", "--output-format", "text", "--permission-mode", "bypassPermissions", "--model", "claude-sonnet-4-5"], cwd,
+      env: { ANTHROPIC_API_KEY: "sk-ant-fake", ANTHROPIC_BASE_URL: "http://api.fake.test", CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: "1", DISABLE_AUTOUPDATER: "1", [RULE_ENV]: JSON.stringify({ egress: "list", allow: ["api.fake.test"] }) },
+    });
+    proc.endInput();
+    let out = "";
+    const reading = (async () => { for await (const c of proc.stdout) out += String(c); })();
+    const exit = await proc.exited;
+    await reading.catch(() => undefined);
+    const log = fs.existsSync(logFile) ? fs.readFileSync(logFile, "utf8") : "";
+    console.log(`team turn: ${JSON.stringify(exit)}\n${out.slice(-400)}\n${proc.stderrTail().slice(-1200)}\napi log:\n${log.slice(-1200)}`);
+    assert.equal(exit.code, 0, proc.stderrTail().slice(-600));
+    assert.equal(fs.readFileSync(path.join(cwd, "tool.txt"), "utf8").trim(), "wsl-tool-ok", "the Bash tool ran in the Team turn's work folder, in the VM");
+    assert.match(log, /"toolResult".*wsl-tool-ok/);
+  } finally {
+    setContainedOptions({});
+    api.kill();
+  }
+});

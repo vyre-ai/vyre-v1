@@ -46,6 +46,22 @@ export function engineLine(o: { desktop: boolean; userAgent: string }): string {
   return o.desktop && /\bWindows\b/.test(o.userAgent) ? PERSONAL_WINDOWS_LINE : "";
 }
 
+/** Where the one-time Windows sandbox setup is: not offered, offered, asked (Windows is asking for consent), done (restart to finish), or what Windows answered. */
+export type WinSandboxPhase = { kind: "hidden" } | { kind: "offer" } | { kind: "asking" } | { kind: "restart" } | { kind: "failed"; why: string };
+
+/**
+ * The one-time action under This computer on Windows (RULINGS 15): team chats run in Vyre's WSL2 Linux, which needs WSL turned on once (administrator consent and a restart). Offered only when WSL
+ * is off; until it is on, this computer takes no Team turns and Automatic runs them on the server.
+ */
+export function winSandboxRow(state: { supported: boolean; on: boolean } | null): WinSandboxPhase {
+  return state !== null && state.supported && !state.on ? { kind: "offer" } : { kind: "hidden" };
+}
+export const WIN_SANDBOX = {
+  label: "Set up the Windows sandbox for team chats",
+  help: "Team chats can run on this computer in a sealed Linux sandbox. Windows asks for administrator consent once, then a restart finishes it. Until then they run on the Space's server.",
+  restart: "Restart your computer to finish. Team chats then run on this computer.",
+} as const;
+
 export function runsLine(h: Pick<HostInfo, "runs" | "canRun" | "reason">): string {
   if (h.runs > 0) return h.runs === 1 ? "1 agent computer" : `${h.runs} agent computers`;
   return h.canRun ? "" : h.reason ?? "";
