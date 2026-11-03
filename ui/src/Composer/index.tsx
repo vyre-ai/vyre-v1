@@ -681,6 +681,16 @@ function AgentStrip({ list, narrow, onPress, open, face, mode, runsChip, ring }:
   );
 }
 
+/**
+ * How far the field's text has scrolled. React Native Web hands a multiline TextInput's onScroll the DOM scroll event, which carries no `contentOffset` (that is a native-only field), so the
+ * wash behind a long draft stayed at 0 while the text scrolled under it and the boxes slid onto the wrong words (owner report, rc.20). The textarea's own scrollTop is the truth.
+ */
+export function scrollTopOf(e: unknown): number {
+  const ev = e as { nativeEvent?: { contentOffset?: { y?: number }; target?: { scrollTop?: number } }; target?: { scrollTop?: number }; currentTarget?: { scrollTop?: number } } | null;
+  const y = ev?.nativeEvent?.contentOffset?.y ?? ev?.currentTarget?.scrollTop ?? ev?.target?.scrollTop ?? ev?.nativeEvent?.target?.scrollTop ?? 0;
+  return Number.isFinite(y) ? Math.max(0, y) : 0;
+}
+
 /** The field's tokens, drawn behind the text: a wash under each #link, @mention and [[link]]. The text itself stays the field's own. */
 function TokenBackdrop({ text, ranges, scrollY, style, pad }: { text: string; ranges: readonly TokenRange[]; scrollY: number; style: TextStyle; pad: readonly (ViewStyle | false)[] }): ReactElement {
   const parts: ReactElement[] = [];
@@ -856,6 +866,12 @@ export function Composer(props: ComposerProps): ReactElement {
     typeSymbol("#");
   };
   const cycleMode = (): void => { if (props.mode && props.onMode) props.onMode(nextMode(props.mode)); };
+
+  // a draft that shrinks or grows moves the text under the wash without always raising a scroll event: read the field's own scrollTop after every change
+  useEffect(() => {
+    const el = input.current as unknown as { scrollTop?: number } | null;
+    if (web && el && typeof el.scrollTop === "number") setScrollY(el.scrollTop);
+  }, [state.text, web]);
 
   const names = useMemo(() => [...(lists.agents ?? []), ...(lists.people ?? [])].map((x) => (typeof x === "string" ? x : x.t)), [lists.agents, lists.people]);
   const ranges = useMemo(() => tokenRanges(state.text, state.refs, names), [state.text, state.refs, names]);
@@ -1118,7 +1134,7 @@ export function Composer(props: ComposerProps): ReactElement {
         onSelectionChange={(e) => patch({ cursor: e.nativeEvent.selection.start })}
         onKeyPress={onKeyPress as never}
         onContentSizeChange={(e) => setHeight(Math.max(MIN_FIELD, Math.min(MAX_FIELD, Math.ceil(e.nativeEvent.contentSize.height))))}
-        onScroll={(e) => setScrollY(e.nativeEvent.contentOffset?.y ?? 0)}
+        onScroll={(e) => setScrollY(scrollTopOf(e))}
         onFocus={onFocus}
         onBlur={onBlur}
         testID="composer-field"
