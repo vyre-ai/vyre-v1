@@ -81,3 +81,15 @@ test("an outside agent that sits on its task is nudged once, then a person gets 
   assert.equal(made[0]!.kind, "unblock");
   assert.deepEqual(made[0]!.assigned, { kind: "person", id: OWNER });
 });
+
+test("an agent that hands its work in is not stopped: the baton moved because of its own call, which is still finishing", async () => {
+  const t: BatonTask = { id: "tsk_w2", kind: "work", title: "Draft", state: "doing", assigned: agent(DOER), reviewer: agent(CHECK), createdBy: OWNER, reviewLoops: 0, workingNotes: {}, threadId: "thr_t1" };
+  const s = scene({ tsk_w2: t });
+  const stopped: string[] = [];
+  const real = s.engine.stop.bind(s.engine);
+  (s.engine as { stop: typeof s.engine.stop }).stop = async (threadId, opts) => { stopped.push(opts?.agentId ?? ""); return real(threadId, opts); };
+  assert.deepEqual(await s.run("task.created", "tsk_w2"), [DOER]);
+  t.state = "in_review";
+  assert.deepEqual(await s.run("task.transitioned", "tsk_w2"), [CHECK]);
+  assert.deepEqual(stopped, [], "the doer's turn ends by itself");
+});
