@@ -279,3 +279,12 @@ test("an outside agent's request (handleOnly) gets the key's name and no Use; th
   const everywhere = JSON.stringify({ rows: w.db.dump(), events: w.events, warnings: w.warnings, others: w.calls.filter((c) => c.cap !== "vault.item.put") });
   assert.equal(everywhere.includes(SECRET), false, "the value is in the vault call only");
 });
+
+test("a request addressed to one teammate goes to that person alone, never to the folder's managers; not to yourself (lane l-agentdm)", async () => {
+  const w = world({ managers: { [FOLDER]: ["usr_mira", "usr_noah"] } });
+  const out = await ask(w, "agt_helper", { to: "usr_rubab" });
+  outputOk("vault.request", out);
+  assert.deepEqual(w.called("tasks.create").map((t) => t.input["assigned"]), [{ kind: "person", id: "usr_rubab" }]);
+  const self = world({ managers: { [FOLDER]: ["usr_mira"] } });
+  assert.equal(await failed(handlers["vault.request"](self.as("usr_dana", "person"), { name: "Dana_Lawmatics", reason: "x", to: "usr_dana", idempotencyKey: "k_self" } as never)), "validation.bad_input");
+});

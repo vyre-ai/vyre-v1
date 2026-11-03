@@ -3,6 +3,7 @@ import type { Handler } from "../../host/src/invoke.ts";
 import { handlers as table } from "./handlers/index.ts";
 import { recentWithUnread } from "./handlers/g26.ts";
 import { onAgentDeleted, onPersonLeft } from "./handlers/departures.ts";
+import { onCardAnswered, onDirectReply, sendDue } from "./handlers/agent-dm.ts";
 import type { ChatCtx } from "./projections.ts";
 
 export const handlers: Record<string, Handler> = table as unknown as Record<string, Handler>;
@@ -12,6 +13,18 @@ export const consumers = {
   "chat.person_left": { on: ["member.removed"], run: (ctx: ChatCtx, event: Parameters<typeof onPersonLeft>[1]) => onPersonLeft(ctx, event) },
   /** An agent was deleted: it comes off the chats it was in, and each gets one line. */
   "chat.agent_deleted": { on: ["agent.deleted"], run: (ctx: ChatCtx, event: Parameters<typeof onAgentDeleted>[1]) => onAgentDeleted(ctx, event) },
+  /** A teammate wrote in a direct chat an agent messaged them in: it goes back to the chat the person asked in (lane l-agentdm). */
+  "chat.agent_dm_reply": { on: ["message.received"], run: (ctx: ChatCtx, event: Parameters<typeof onDirectReply>[1]) => onDirectReply(ctx, event) },
+  /** A teammate answered a card an agent sent them (an Approve or Review task, a key request): the answer goes back to the agent. */
+  "chat.agent_dm_answer": {
+    on: ["task.approved", "task.rejected", "task.sent_back", "vault.request_fulfilled", "vault.request_declined"],
+    run: (ctx: ChatCtx, event: Parameters<typeof onCardAnswered>[1]) => onCardAnswered(ctx, event),
+  },
+};
+
+export const periodic = {
+  /** Agent messages to teammates whose time came: checked again and sent, or moved to their new time (lane l-agentdm). */
+  "chat.agent_dm_due": { everyMs: 30_000, run: (ctx: ChatCtx) => sendDue(ctx) },
 };
 
 /**

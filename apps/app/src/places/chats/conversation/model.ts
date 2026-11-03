@@ -98,7 +98,8 @@ export const isToolStep = (b: MessageBlock): boolean => b.type === "tool_call" |
 export const isErrorBlock = (b: MessageBlock): boolean => b.type === "error";
 /** Everything else is a native card: terminal, changeset, question, plan, deploy, file, and so on. */
 /** Blocks that are data for the page, not a card: the links of a message (drawn inside its text) and the line a fork starts with (drawn as a link). */
-const QUIET_BLOCKS = new Set(["refs", "fork_origin"]);
+// on_behalf, relay and agent_dm say who an agent's message to a teammate speaks for and carry a reply back (lane l-agentdm): they shape the header and the line, never a card of their own
+const QUIET_BLOCKS = new Set(["refs", "fork_origin", "on_behalf", "relay", "agent_dm"]);
 export const isCard = (b: MessageBlock): boolean => !isStep(b) && !isToolStep(b) && !isErrorBlock(b) && !isTurnStatus(b) && !QUIET_BLOCKS.has(b.type);
 export { isTurnStatus, statusView, withoutAnswered } from "./status.ts";
 export type { StatusView } from "./status.ts";
@@ -206,7 +207,23 @@ export function bodyBlocks(messageId: string, body: string): readonly MdBlock[] 
 
 /* ---------- the timeline ---------- */
 
-export type Who = { id: string; name: string; kind: "person" | "agent" };
+/** `face`: the person whose face the row wears (an agent writing to a teammate for its person reads as "<Person> (Agent)"); `forPerson` is that person. */
+export type Who = { id: string; name: string; kind: "person" | "agent"; face?: string; forPerson?: string };
+
+/** An agent's message to a teammate for its person (lane l-agentdm): who it speaks for and to whom. Null for any other message. Only the server writes the block. */
+export function onBehalfOf(m: Pick<Message, "author" | "blocks">): { person: string; agentId: string; teammate: string } | null {
+  if (m.author.kind !== "agent") return null;
+  const b = m.blocks.find((x) => x.type === "on_behalf");
+  const d = (b?.data ?? null) as { person?: unknown; agentId?: unknown; teammate?: unknown } | null;
+  return d && typeof d.person === "string" && typeof d.teammate === "string" ? { person: d.person, agentId: typeof d.agentId === "string" ? d.agentId : m.author.id, teammate: d.teammate } : null;
+}
+
+/** The header of a row: its author, or for an agent writing for its person, that person marked as their agent and wearing their face. */
+export function whoOf(m: Pick<Message, "author" | "blocks">, ctx: Pick<TimelineCtx, "nameOf" | "kindOf">): Who {
+  const ob = onBehalfOf(m);
+  if (ob) return { id: m.author.id, name: `${ctx.nameOf(ob.person)} (Agent)`, kind: "agent", face: ob.person, forPerson: ob.person };
+  return { id: m.author.id, name: ctx.nameOf(m.author.id), kind: ctx.kindOf(m.author.id) };
+}
 
 export interface TimelineCtx {
   meId: string;
@@ -252,7 +269,7 @@ export function timeline(messages: readonly Message[], ctx: TimelineCtx): Item[]
     }
     const newgroup = prev === null || prev.author.id !== m.author.id || prev.author.kind !== m.author.kind;
     if (m.author.id === ctx.meId && m.author.kind === "person") out.push({ kind: "me", key: m.messageId, message: m, time, newgroup });
-    else out.push({ kind: "other", key: m.messageId, message: m, who: { id: m.author.id, name: ctx.nameOf(m.author.id), kind: ctx.kindOf(m.author.id) }, time, newgroup, ...(ctx.shared && m.paidBy ? { paidLine: paidLine(m.paidBy, ctx) } : {}) });
+    else out.push({ kind: "other", key: m.messageId, message: m, who: whoOf(m, ctx), time, newgroup, ...(ctx.shared && m.paidBy ? { paidLine: paidLine(m.paidBy, ctx) } : {}) });
     prev = m;
   }
   return out;

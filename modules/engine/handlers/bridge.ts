@@ -38,6 +38,25 @@ export type PostAs = (agentId: string, post: AgentPost) => Promise<unknown>;
 /** Run a capability for a person through the real pipeline, so what a turn reads is what that person may read (the host builds the call; spec 6.3). */
 export type CallAs = (cap: string, input: unknown, personId: string) => Promise<unknown>;
 
+/**
+ * "Tell Andrey the deck is ready": a name the person typed is also the teammate it names (lane l-agentdm). For each send to a bare name, every active person in the Space whose first name, last name or full
+ * name is that name gets a row of their own (their id), so the Gate lets an agent's message_person to them through this turn. Read as the person who typed it; a name that matches nobody adds nothing.
+ */
+export async function withTeammates(call: (cap: string, input: unknown) => Promise<unknown>, asked: Array<{ act: string; target: string }>): Promise<Array<{ act: string; target: string }>> {
+  const out = [...asked];
+  for (const a of asked) {
+    if (a.act !== "send" || !/^[a-z][a-z'-]{1,40}$/.test(a.target)) continue;
+    try {
+      const r = (await call("access.principals.list", { kind: "person", status: "active", q: a.target, limit: 20 })) as { principals?: Array<{ id?: string; name?: string }> } | null;
+      for (const p of r?.principals ?? []) {
+        const parts = String(p.name ?? "").toLowerCase().split(/\s+/).filter(Boolean);
+        if (typeof p.id === "string" && (parts.includes(a.target) || parts.join(" ") === a.target)) out.push({ act: "send", target: p.id });
+      }
+    } catch { /* no directory here: the name alone stands */ }
+  }
+  return out;
+}
+
 /** What a reader of a live turn is told (the host turns each into one `turn` frame to the people who may read the thread): the turn opened, a piece of its text, the turn ended, and which chat message the finished turn became. */
 export type StreamEvent =
   | { kind: "start"; threadId: string; turnId: string; agentId: string; asker: string; /** the message that started the turn, so a screen puts the reply after it and before what is sent meanwhile */ triggerId?: string }
@@ -395,7 +414,10 @@ export function createBridge(o: BridgeOptions): Bridge {
     const note = await pointers(reader(ctx, readAs, threadId), got.message);
     // The only door for "asked this turn": the words a person typed, read here before the turn starts. Never the pointers, never an agent's post, never a line the server posted in a person's name.
     if (a.kind === "person" && p["typed"] === true) {
-      try { await reader(ctx, authorId, threadId)("gate.grants.ask", { threadId, messageId, asked: askedIn(str(got.message.body)), links: linksIn(str(got.message.body)) }); }
+      try {
+        const ask = reader(ctx, authorId, threadId);
+        await ask("gate.grants.ask", { threadId, messageId, asked: await withTeammates(ask, askedIn(str(got.message.body))), links: linksIn(str(got.message.body)) });
+      }
       catch (e) { warn("the request in a message was not read, so outward acts will ask", { threadId, messageId, error: e instanceof Error ? e.message : String(e) }); }
     }
     const mentions = ((p["mentions"] ?? []) as RouteMention[]).map((m) => ({ kind: m.kind, id: m.id }));

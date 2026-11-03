@@ -40,3 +40,11 @@ test("a turn's cards come out in the order made, once each, and are gone once ta
   assert.ok(blocks.every((b) => b.type === "link_card" && !("key" in (b.data as object))));
   assert.deepEqual(takeWork("trn_a"), []);
 });
+
+test("a message to a teammate (lane l-agentdm): sent or scheduled, the card opens the direct chat; held, it is a Message card named by its words", () => {
+  const sent = workCardOf("chat.message_person", { to: "usr_maya", body: "The draft is ready" }, { state: "sent", threadId: "thr_dm1", messageId: "msg_1" });
+  assert.deepEqual([sent?.lead, sent?.title, sent?.target], ["Sent", "The draft is ready", { type: "thread", id: "thr_dm1" }]);
+  assert.equal(workCardOf("chat.message_person", { to: "usr_maya", body: "Later" }, { state: "scheduled", threadId: "thr_dm1" })?.lead, "Scheduled");
+  const held = heldCard("chat.message_person", "tsk_7", { to: "usr_maya", body: "Can you sign off on Friday?" });
+  assert.deepEqual([held.icon, held.lead, held.title], ["approval", "Message", "Can you sign off on Friday?"]);
+});

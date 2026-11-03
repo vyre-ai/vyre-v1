@@ -28,7 +28,9 @@ export default defineManifest({
   capabilities: [
     // handleOnly: fulfilled, the requester gets the key's name only, never Use on it. The MCP door sets it for an outside agent (docs/ask-the-person.md).
     write('vault.request', 'Ask for a missing key: creates a request task for the managers of the folder (or the Space vault managers) and tells the requester its status', {
-      ...V, idem: 'key', in: { name: t.str({ examples: ['Dana_Lawmatics'] }), fields: t.opt(t.arr(fieldKey)), reason: t.str(), forRun: t.opt(id.run), folderId: t.opt(id.vaultFolder), handleOnly: t.opt(t.bool()) },
+      ...V, idem: 'key', in: { name: t.str({ examples: ['Dana_Lawmatics'] }), fields: t.opt(t.arr(fieldKey)), reason: t.str(), forRun: t.opt(id.run), folderId: t.opt(id.vaultFolder), handleOnly: t.opt(t.bool()),
+        // to: one teammate decides it instead of the folder managers (an agent asking a teammate in their direct chat, lane l-agentdm)
+        to: t.opt(id.user) },
       out: { request: requestRow }, emits: ['vault.requested'], audit: 'sensitive', agent: { planMode: 'allowed' }, tool: 'vault', offline: 'online', errors: ['validation.duplicate'],
     }),
     read('vault.requests.list', 'Key requests I made, or waiting on me as a folder manager', { ...V, in: { mine: t.opt(t.bool()), state: t.opt(t.enm('waiting', 'fulfilled', 'declined', 'canceled')), ...pageIn }, out: { requests: t.arr(requestRow), ...pageOut }, tool: 'vault' }),

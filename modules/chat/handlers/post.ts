@@ -20,6 +20,8 @@ export interface PostInput {
 const BLOCK_TYPE = /^[a-z][a-z0-9_]*$/;
 /** Blocks that wait for an answer have their own tools (they need a row to answer against); a plain post cannot carry them. */
 const OWN_TOOL = new Set(["question", "plan"]);
+/** Blocks only the server writes: who an agent's message to a teammate speaks for, a line that carries a teammate's reply back, the state of a message that waits (handlers/agent-dm.ts). */
+const SERVER_ONLY = new Set(["on_behalf", "relay", "agent_dm"]);
 
 /** The top of a thread chain: the chat, Ask pane or channel an inline thread hangs under. */
 export function rootOf(ctx: Pick<ChatCtx, "db">, t: ThreadRec): ThreadRec {
@@ -89,6 +91,7 @@ function cleanBlocks(ctx: ChatCtx, raw: PostInput["blocks"]): Array<Record<strin
   return (raw ?? []).map((b) => {
     if (!BLOCK_TYPE.test(b.type)) raise(ctx, "validation.bad_input", "That is not a block type.", { type: b.type });
     if (OWN_TOOL.has(b.type)) raise(ctx, "validation.bad_input", "Questions and plans are made with ask_question and plan_propose, so they can be answered.", { type: b.type });
+    if (SERVER_ONLY.has(b.type)) raise(ctx, "validation.bad_input", "That card is written by Vyre itself. Use message_person to write to a teammate for your person.", { type: b.type });
     return { type: b.type, v: b.v, id: mintId("blk", ctx.now()), data: b.type === "link_card" ? inertCard(b.data) : b.data, state: "done", traceId: ctx.trace.traceId };
   });
 }

@@ -5,14 +5,18 @@ type Obj = Record<string, unknown>;
 const obj = (v: unknown): Obj => (v !== null && typeof v === "object" && !Array.isArray(v) ? (v as Obj) : {});
 const text = (v: unknown): string => (typeof v === "string" ? v : typeof v === "number" || typeof v === "boolean" ? String(v) : "");
 
-export interface Held { cap: string; act: string; input: Obj; /** An outside agent asked the person (docs/ask-the-person.md): what happens, in the capability's own words. */ what?: string }
+export interface Held { cap: string; act: string; input: Obj; /** An outside agent asked the person (docs/ask-the-person.md): what happens, in the capability's own words. */ what?: string; /** a plain yes or no from an agent of a teammate (lane l-agentdm): nothing runs as the reader */ plain?: true; detail?: string }
 
 /** The capability and input a hold's task carries in its first block, or an empty hold when it carries none. */
 export function heldOf(blocks: readonly { type: string; data: unknown }[]): Held {
   const d = obj(blocks[0]?.data);
   const what = text(obj(d["ask"])["what"]);
-  return { cap: text(d["cap"]), act: text(d["act"]), input: obj(d["input"]), ...(what ? { what } : {}) };
+  // an agent asking a teammate in their direct chat to approve something (lane l-agentdm): a plain yes or no, nothing runs as them
+  return { cap: text(d["cap"]), act: text(d["act"]), input: obj(d["input"]), ...(what ? { what } : {}), ...(d["plain"] === true ? { plain: true, detail: text(d["text"]) } : {}) };
 }
+
+/** The lines of a plain ask: its detail, when it has one. */
+export const plainRows = (h: Held): Array<{ label: string; text: string }> => (h.detail ? [{ label: "Detail", text: h.detail }] : []);
 
 /** The first line of an ask: who asks and what happens, in the capability's own words. */
 export function askLine(agent: string, what: string): string {
@@ -27,6 +31,7 @@ export function askRows(blocks: readonly { type: string; data: unknown }[]): Arr
 }
 
 const WANTS: Record<string, string> = {
+  "chat.message_person": "send a message to a teammate",
   "engine.mcp.call": "use an outside tool", "engine.mcp.read": "read from an outside tool",
   "files.write": "edit", "files.create": "create", "files.delete": "delete", "files.move": "move", "files.rename": "rename", "files.folder.create": "create the folder",
   "records.update": "change", "records.create": "add a record", "records.delete": "delete",
@@ -51,6 +56,8 @@ function capPhrase(cap: string): string {
 export function wantsPhrase(cap: string, subject?: string, input?: Obj): string {
   const outside = cap === "engine.mcp.call" && input ? outsideTool(input) : null;
   if (outside) return outside.phrase;
+  // "Send this to Rubab?": the teammate's name, read when the card opens (lane l-agentdm)
+  if (cap === "chat.message_person" && subject) return `send this to ${subject}`;
   const base = WANTS[cap] ?? (cap === "" ? "do a step" : capPhrase(cap));
   const fileStep = cap.startsWith("files.") && cap !== "files.folder.create";
   return subject && (fileStep || cap === "records.update" || cap === "records.delete") ? `${base} ${subject}` : base;

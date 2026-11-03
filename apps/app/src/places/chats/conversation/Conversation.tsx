@@ -417,6 +417,14 @@ function ConversationView(): ReactElement {
       void act.makeTask(data, thread, m, data.newKey()).then(() => undefined, fail("Could not make the task."));  // the card in the thread says it and opens it; the person stays where they are
     },
     files: data,
+    // an agent's message for its person, read by the teammate it went to: they can mute that person's agents for the rest of their day (lane l-agentdm)
+    agentMute: {
+      me: data.me.id,
+      mute: (personId: string) => void Promise.resolve(data.call("chat.agent_dm.mute", { personId })).then(
+        () => { const first = nameOf(personId).split(" ")[0]; say(`Muted for today. ${first ? `${first}'s agents wait` : "Their agents wait"} until tomorrow.`); },
+        fail("Could not mute them."),
+      ),
+    },
     ...(data.activityOf ? { activityOf: (id: string) => data.activityOf!(id) } : {}),
     nameOf,
     openMessage: (threadId, messageId) => (messageId === "" ? data.nav.openThread(threadId) : data.nav.openThread(threadId, messageId)),

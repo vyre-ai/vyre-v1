@@ -144,6 +144,10 @@ export default defineManifest({
     write('vault.inject_env', 'Inject a folder into one child process environment (vyre run --env folder -- command); returns key names only', {
       in: { folderId: id.vaultFolder, purpose: t.opt(t.str()) }, out: { handles: t.arr(id.handle), keys: t.arr(fieldKey) }, on: ['vault_folder', '/folderId'], level: 'use', emits: ['vault.used'], audit: 'sensitive', tool: 'vault', cli: 'vyre run --env', offline: 'online',
     }),
+    // Before an agent's words go to a teammate (lane l-agentdm): which of the person's own Mine items have a value in this text. Names only, never a value; the person's key must be held.
+    read('vault.text_check', 'Which of my own Mine items have a value in this text: their handles, never a value', {
+      ...V, in: { text: t.str({ maxLength: 20000 }) }, out: { handles: t.arr(t.str()), checked: t.bool() },
+    }),
     write('vault.report_scrub_miss', 'System: the filler reports a value it could not scrub from an output stream', {
       ...V, in: { itemId: id.vaultItem, place: t.enm('terminal', 'http', 'browser', 'file', 'chat'), traceId: id.trace }, out: ok, emits: ['vault.scrub_miss'], audit: 'always',
     }),

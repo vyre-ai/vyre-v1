@@ -48,7 +48,7 @@ import { AttachmentChips, LinkedText, MountRefs, refsOf } from "./attachments.ts
 import { unnamed } from "../names.ts";
 import type { ConversationData } from "./data.tsx";
 import type { GlyphName } from "./parts.tsx";
-import { reportLabel, bodyBlocks, cardLine, collect, errorRow, isCard, isErrorBlock, isTurnStatus, planSteps, questionOptions, statusView, terminalAskOf, workOf } from "./model.ts";
+import { reportLabel, bodyBlocks, cardLine, collect, errorRow, isCard, isErrorBlock, isTurnStatus, onBehalfOf, planSteps, questionOptions, statusView, terminalAskOf, workOf } from "./model.ts";
 import type { CardLine, Item, Message } from "./model.ts";
 
 export interface MessageActions {
@@ -81,6 +81,8 @@ export interface MessageActions {
   fork?(messageId: string): void;
   /** Make a task from this message, linked back to it. */
   makeTask?(messageId: string): void;
+  /** The reader's side of an agent's message for its person (lane l-agentdm): who reads, and mute that person's agents for the rest of the day. Absent where the shell cannot. */
+  agentMute?: { me: string; mute(personId: string): void };
   /** Share this message to a channel or a person: opens the list of places at the point given. */
   share?(messageId: string, x: number, y: number): void;
   /** What the turn behind a reply being written is doing: the live line under it (steps, thinking). */
@@ -170,6 +172,8 @@ export const MessageView = memo(function MessageView(props: MessageViewProps): R
 
 /* ---------- the hover bar and the menu: the same list in both ---------- */
 
+const firstName = (name: string): string => name.split(" ")[0] || name;
+
 export function menuFor(m: Message, mine: boolean, a: MessageActions, onEdit: () => void, at: { x: number; y: number } = { x: 0, y: 0 }): MenuEntry[] {
   const items: MenuEntry[] = [{ label: "Copy", onSelect: () => a.copy(m.body) }];
   if (mine && m.kind === "text") items.push({ label: "Edit", onSelect: onEdit });
@@ -180,6 +184,8 @@ export function menuFor(m: Message, mine: boolean, a: MessageActions, onEdit: ()
   items.push({ label: m.pinned ? "Unpin Message" : "Pin Message", onSelect: () => a.setPinned(m.messageId, !m.pinned) });
   items.push({ label: "Add Reaction", onSelect: () => (a.pickReaction ? a.pickReaction(m.messageId, at.x, at.y) : a.react(m.messageId, "👍", false)) });
   if (m.kind !== "quiet" && a.memoryEntries) items.push(...a.memoryEntries({ messageId: m.messageId, body: m.body, createdAt: m.createdAt }, at.x, at.y, a.showMenu));
+  const ob = onBehalfOf(m);
+  if (ob && a.agentMute && ob.teammate === a.agentMute.me) items.push({ label: `Mute Agent Messages From ${firstName(a.nameOf ? a.nameOf(ob.person) : "Them")} for Today`, onSelect: () => a.agentMute!.mute(ob.person) });
   if (mine) items.push({ separator: true }, { label: "Delete", danger: true, onSelect: () => a.remove(m.messageId) });
   return items;
 }
@@ -328,7 +334,7 @@ function Theirs({ item, actions, stream, openWork, mark, meId }: MessageViewProp
       {h.phone ? <ActionSheet open={sheet} entries={menuFor(m, false, actions, () => undefined)} onClose={() => setSheet(false)} /> : <HoverBar byAgent={!person} m={m} mine={false} a={actions} onEdit={() => undefined} visible={h.over || h.focus} />}
       {item.newgroup ? (
         <View style={st.by}>
-          <Face name={item.who.name} seedId={item.who.id} kind={person ? "person" : "agent"} size={20} />
+          <Face name={item.who.name} seedId={item.who.face ?? item.who.id} kind={person || item.who.face !== undefined ? "person" : "agent"} size={20} />
           <Pressable accessibilityRole="link" accessibilityLabel={`Open ${item.who.name}`} testID={`who-${m.messageId}`} onPress={() => actions.openAgent(item.who.id)}>
             <Text style={st.who}>{item.who.name}</Text>
           </Pressable>
@@ -337,6 +343,11 @@ function Theirs({ item, actions, stream, openWork, mark, meId }: MessageViewProp
         </View>
       ) : <Text style={st.whenLeft}>{item.time}</Text>}
       {item.paidLine ? <Text testID={`paid-${m.messageId}`} style={st.via}>{item.paidLine}</Text> : null}
+      {item.who.forPerson && actions.agentMute && onBehalfOf(m)?.teammate === actions.agentMute.me ? (
+        <Pressable accessibilityRole="button" testID={`agent-mute-${m.messageId}`} onPress={() => actions.agentMute!.mute(item.who.forPerson!)}>
+          <Text style={st.via}>{`Mute agent messages from ${firstName(item.who.name.replace(/ \(Agent\)$/, ""))} for today`}</Text>
+        </Pressable>
+      ) : null}
       {m.via ? <Text testID={`via-${m.messageId}`} style={st.via}>{`Sent by ${item.who.name} on a routine ${m.via.routineOwner === meId ? "you" : actions.nameOf ? actions.nameOf(m.via.routineOwner) : unnamed(m.via.routineOwner)} set`}</Text> : null}
       {work && (!work.short || !item.newgroup || workOpen) ? (
         <Fold testID={`work-${m.messageId}`} label={work.live ? `Working${work.now ? ` · ${work.now}` : ""}` : work.summary} open={work.live || workOpen} live={work.live} onToggle={() => setWorkOpen((o) => !o)}>

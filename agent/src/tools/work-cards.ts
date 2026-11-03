@@ -46,6 +46,13 @@ export function workCardOf(cap: string, input: unknown, output: unknown): WorkCa
       const id = s(t["threadId"]);
       return id ? { key: `thread:${id}`, icon: "thread", lead: "Handoff", title: clip(first(t["title"], "A linked thread")), target: { type: "thread", id } } : null;
     }
+    case "chat.message_person": {
+      // a message to a teammate for the person (lane l-agentdm): sent, or scheduled for later; the card opens the direct chat it went to
+      const id = s(o["threadId"]);
+      if (!id) return null;
+      const later = o["state"] === "scheduled";
+      return { key: `dm:${s(o["messageId"]) || id}:${clip(s(i["body"]), 40)}`, icon: "thread", lead: later ? "Scheduled" : "Sent", title: clip(first(i["body"], rec(i["card"])["title"], "A message")), target: { type: "thread", id } };
+    }
     case "computers.provision": {
       const c = rec(o["computer"]);
       return s(c["computerId"]) ? { key: `computer:${s(c["computerId"])}`, icon: "computer", lead: "Computer", title: clip(first(c["name"], "Agent computer")), target: { type: "computer", id: s(c["computerId"]) } } : null;
@@ -57,9 +64,9 @@ export function workCardOf(cap: string, input: unknown, output: unknown): WorkCa
 /** A call a person must say yes to: the card is the one place in the chat that names it and opens the task. A send is named by its subject (else its recipient); anything else by the capability in words. */
 export function heldCard(cap: string, taskId: string, input?: unknown): WorkCard {
   const i = rec(input);
-  const send = /(^|\.)send($|_)/.test(cap) || cap.startsWith("mail.");
+  const send = /(^|\.)send($|_)/.test(cap) || cap.startsWith("mail.") || cap === "chat.message_person";
   const to = Array.isArray(i["to"]) ? s(rec((i["to"] as unknown[])[0])["address"]) : "";
-  const title = send ? clip(first(i["subject"], to ? `To ${to}` : "", "Message to send")) : clip(cap.replace(/[._]/g, " "));
+  const title = send ? clip(first(i["subject"], to ? `To ${to}` : "", i["body"], "Message to send")) : clip(cap.replace(/[._]/g, " "));
   return { key: `task:${taskId}`, icon: "approval", lead: send ? "Message" : "Approval", title, target: { type: "task", id: taskId } };
 }
 
