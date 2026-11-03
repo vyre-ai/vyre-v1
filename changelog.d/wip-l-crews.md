@@ -1,0 +1,3 @@
+- Making a project from a chat no longer fails on the Manage grant. The person who makes a project, and their own assistant acting for them, hold Manage on it; the Space owner's assistant can add teammates and give an agent a computer for them.
+- A project that fails half way is removed, so no second "Crew test" is left behind and Projects only lists a project that Open can open.
+- The people a new project starts with now get their role on it (the host step that writes them was being refused).

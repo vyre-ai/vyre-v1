@@ -58,13 +58,34 @@ export async function applyRole(ctx: ProjectsCtx, p: Project, principal: string,
     // a project that is being made is not a resource yet: it becomes one when this call commits, so the grants on it follow (grantOnProject)
     if (deferProject && r.type === "project") continue;
     if (before) await call(ctx, "access.unshare", { resource: r, subject: subjectOf(member), source: sourceTag(p.projectId) });
-    await call(ctx, "access.share", { resource: r, subject: subjectOf(member), level: LEVEL_OF[role], source: sourceTag(p.projectId) }, { idempotencyKey: `prj-share:${p.projectId}:${principal}:${role}:${r.type}` });
+    await shareRole(ctx, p, r, member, role);
   }
   saveMember(ctx.db, p.projectId, member);
   if (role === "lead") await writeRecord(ctx, p, { lead: principal });
   // projects.create and projects.from_channel declare project.created, not project.member_set: the first people on a project are part of its creation
   if (announce) emitP(ctx, "project.member_set", p.projectId, { principal, role, previous: before?.role });
   return { member, ...(before ? { previous: before.role } : {}) };
+}
+
+/**
+ * One role grant. A person's own assistant holds at most Edit on what it makes, so it cannot hand out Manage, but the person who made the project already owns its folder and its channel and
+ * holds Manage through that. A grant the owner does not need is skipped for the owner, never an error: making a project is all or nothing, and the maker is not the one to be refused.
+ */
+async function shareRole(ctx: ProjectsCtx, p: Project, r: { type: string; id: string }, member: Member, role: Role): Promise<void> {
+  try {
+    await call(ctx, "access.share", { resource: r, subject: subjectOf(member), level: LEVEL_OF[role], source: sourceTag(p.projectId) }, { idempotencyKey: `prj-share:${p.projectId}:${member.principal}:${role}:${r.type}` });
+  } catch (e) {
+    const code = codeOf(e);
+    if (code !== "permission.not_contained" && code !== "permission.no_grant") throw e;
+    if (member.kind === "person" && await ownsResource(ctx, r, member.principal)) return;
+    throw e;
+  }
+}
+
+/** Does this person own the resource (and so hold Manage on it whatever is granted)? */
+async function ownsResource(ctx: ProjectsCtx, r: { type: string; id: string }, person: string): Promise<boolean> {
+  const got = await tolerant<{ shares?: Array<{ through?: string; grant?: { subject?: { id?: string } } }> }>(ctx, "access.shares_of", { resource: r }, {});
+  return (got.shares ?? []).some((s) => s.through === "owner" && s.grant?.subject?.id === person);
 }
 
 export async function membersList(ctx: ProjectsCtx, input: In): Promise<unknown> {
@@ -204,12 +225,20 @@ export async function makeProject(ctx: ProjectsCtx, o: Plan): Promise<Made> {
 
   const p: Project = { projectId, recordId, type: o.type, channelId, folderId, threadId, source: o.source, createdBy: maker, createdAt: now };
   saveProject(ctx.db, p);
-  replaceStages(ctx.db, projectId, o.stages.map((s, order) => ({ key: s.key, title: s.title, order })));
-  await writeRecord(ctx, p, { channel: channelId, folder: folderId });
-  // the project's folder follows its record: a project record set apart takes its files with it (the roles on the folder still add their people)
-  await tolerant(ctx, "access.audience_set", { resource: { type: "folder", id: folderId }, follows: recordId }, {});
-  emitP(ctx, "project.created", projectId, { recordId, type: o.type, channelId, folderId, source: o.source });
-  for (const [principal, role] of members) await applyRole(ctx, p, principal, role, false, true);
+  try {
+    replaceStages(ctx.db, projectId, o.stages.map((s, order) => ({ key: s.key, title: s.title, order })));
+    await writeRecord(ctx, p, { channel: channelId, folder: folderId });
+    // the project's folder follows its record: a project record set apart takes its files with it (the roles on the folder still add their people)
+    await tolerant(ctx, "access.audience_set", { resource: { type: "folder", id: folderId }, follows: recordId }, {});
+    emitP(ctx, "project.created", projectId, { recordId, type: o.type, channelId, folderId, source: o.source });
+    for (const [principal, role] of members) await applyRole(ctx, p, principal, role, false, true);
+  } catch (e) {
+    // all or nothing: a project that failed half way must not be listed, found or counted. What this call made in other modules goes to Trash where it can; the project's own rows go.
+    for (const t of ["projects_member", "projects_stage", "projects_project"]) { try { ctx.db.run(`DELETE FROM ${t} WHERE projectId = ?`, projectId); } catch { /* the rows are gone or were never made */ } }
+    // (an agent deleting a record is held at the Gate for a person; a half-made project is not worth a card, so only a person's own call tidies the record)
+    if (!o.existing && ctx.principal.kind === "person") await tolerant(ctx, "records.delete", { type: o.type, recordId }, {});
+    throw e;
+  }
   return { projectId, recordId, channelId, folderId };
 }
 
@@ -297,9 +326,11 @@ export async function list(ctx: ProjectsCtx, input: In): Promise<unknown> {
   ensure(ctx.db);
   const who = me(ctx);
   const mine = input.mine === true;
+  // a project is listed only when projects.get would open it: the same test, so an id that list gives always resolves (a member row without the grant behind it is not a project the caller can see)
   const rows = allProjects(ctx.db).filter((p) =>
     (input.type === undefined || p.type === input.type)
-    && (mine ? isMember(ctx.db, p.projectId, who) || p.createdBy === who : isMember(ctx.db, p.projectId, who) || p.createdBy === who || allows(ctx, "view", p.projectId)));
+    && allows(ctx, "view", p.projectId)
+    && (mine ? isMember(ctx.db, p.projectId, who) || p.createdBy === who : true));
   // a status lives on the record, so a status filter reads the records first; without one only the page is read
   const out = async (ps: Project[]) => Promise.all(ps.map(async (p) => projectRow(ctx, p, await readRecord(ctx, p), await tasksOrNone(ctx, p))));
   if (input.status !== undefined) {
