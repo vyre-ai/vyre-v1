@@ -40,6 +40,7 @@ export const handlers: Handlers<HandlerCtx> = {
   "engine.mcp.read": async () => ({"isError":true,"structured":{},"text":"example"} as unknown) as never,
   "engine.mcp.tools": async () => ({"servers":[{"error":"example","from":"plugin","hub":"composio","key":"greeter/echo","name":"example","oauth":true,"ok":true,"tools":[{"description":"example","inputSchema":{},"name":"example","readOnly":true}]}]} as unknown) as never,
   "engine.models.list": async () => ({"models":[{"allowed":true,"contextTokens":1,"driver":"anthropic","model":"claude-sonnet-5-5","provider":"anthropic","reason":"label_provider","resetsAt":1760000000000,"title":"example"}]} as unknown) as never,
+  "engine.now": async () => ({"working":[{"agentId":"agt_a1b2c3","channelId":"chn_a1b2c3","forPerson":"example","kind":"example","since":1760000000000,"threadId":"thr_a1b2c3","title":"example","where":"space"}]} as unknown) as never,
   "engine.placement.decide": async () => ({"nodeId":"example","placement":"host","reason":"example","wakeLine":"Your computer is off"} as unknown) as never,
   "engine.placement.options": async () => ({"effective":{"serverId":"example","target":"device"},"options":[{"name":"example","online":true,"reason":"example","serverId":"example","target":"device"}],"pinned":true,"private":true} as unknown) as never,
   "engine.placement.set": async () => ({"serverId":"example","target":"auto"} as unknown) as never,

@@ -27,7 +27,7 @@ See all: the full activity for the digest period on records I follow, my agents,
 type In = {
   since: number;
   until?: number;
-  kinds?: Array<"decision" | "finished" | "record_change" | "routine" | "waiting">;
+  kinds?: Array<"decision" | "finished" | "record_change" | "routine" | "notice" | "waiting">;
   cursor?: string;
   limit?: number;
 };
@@ -38,7 +38,7 @@ type In = {
 ```ts
 type Out = {
   items: Array<{
-      kind: "decision" | "finished" | "record_change" | "routine" | "waiting";
+      kind: "decision" | "finished" | "record_change" | "routine" | "notice" | "waiting";
       title: string;
       line: string;
       subject?: {

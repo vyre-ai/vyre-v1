@@ -8,6 +8,8 @@
     "channels.create@1": "4a7b11c41b024fee9089a01f487396768dc25d64eba38bdecfe00e2e41b9cba9",
     "channels.erase@1": "b083984203fe8622c39f25922ab9033c043473d82e7142845e1181a516b04afc",
     "channels.get@1": "4f54e67d1d777470b078908512f9ff9b938f1dd3d937b7a447bbe4bf5973bcf4",
+    "channels.home@1": "0c2da460a92c416be66c304cd76e40785e7b577a95a0f325199709ff3a9c62d1",
+    "channels.home_join@1": "bb1140e1236653d91d82d42cd30523a259fffe46e17350006d9f5fb4859ae914",
     "channels.join@1": "d3f57587916c762aaac343812c44fb78cb18ba70191b7318c55dc238b8801d86",
     "channels.leave@1": "61659cf90ca9ebcfe323df41b2c604eec031523aed80298afed66ebf52db0bcf",
     "channels.list@1": "358b24e7bfd6cfcd286b493480d1d2ac8cdfc195ff737819584ec6b8f02817b0",

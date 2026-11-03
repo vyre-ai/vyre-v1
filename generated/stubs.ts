@@ -329,6 +329,8 @@ export function stubs(ctx: CallCtx) {
       create: call("channels.create"),
       erase: call("channels.erase"),
       get: call("channels.get"),
+      home: call("channels.home"),
+      home_join: call("channels.home_join"),
       join: call("channels.join"),
       leave: call("channels.leave"),
       list: call("channels.list"),
@@ -608,6 +610,7 @@ export function stubs(ctx: CallCtx) {
       get: call("devices.get"),
       list: call("devices.list"),
       mine: call("devices.mine"),
+      presence: call("devices.presence"),
       purge_ack: call("devices.purge_ack"),
       register: call("devices.register"),
       rename: call("devices.rename"),
@@ -758,6 +761,7 @@ export function stubs(ctx: CallCtx) {
       models: {
         list: call("engine.models.list"),
       },
+      now: call("engine.now"),
       placement: {
         decide: call("engine.placement.decide"),
         options: call("engine.placement.options"),
@@ -1193,6 +1197,7 @@ export function stubs(ctx: CallCtx) {
     home: {
       activity: call("home.activity"),
       at_risk: call("home.at_risk"),
+      away_digest: call("home.away_digest"),
       checklist: call("home.checklist"),
       digest: call("home.digest"),
       dismiss_checklist: call("home.dismiss_checklist"),
@@ -1464,6 +1469,10 @@ export function stubs(ctx: CallCtx) {
         preview: call("members.invites.preview"),
         revoke: call("members.invites.revoke"),
       },
+      joins: {
+        list: call("members.joins.list"),
+        retry: call("members.joins.retry"),
+      },
       reactivate: call("members.reactivate"),
       remove: call("members.remove"),
       remove_preview: call("members.remove_preview"),
@@ -1732,6 +1741,7 @@ export function stubs(ctx: CallCtx) {
         clear: call("notifications.away.clear"),
         get: call("notifications.away.get"),
         set: call("notifications.away.set"),
+        who: call("notifications.away.who"),
       },
       counts: call("notifications.counts"),
       delegate: {

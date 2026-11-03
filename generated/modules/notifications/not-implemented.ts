@@ -8,6 +8,7 @@ export const handlers: Handlers<HandlerCtx> = {
   "notifications.away.clear": async (ctx) => { throw new VyreErr(notImplemented("notifications.away.clear", ctx.trace)); },
   "notifications.away.get": async (ctx) => { throw new VyreErr(notImplemented("notifications.away.get", ctx.trace)); },
   "notifications.away.set": async (ctx) => { throw new VyreErr(notImplemented("notifications.away.set", ctx.trace)); },
+  "notifications.away.who": async (ctx) => { throw new VyreErr(notImplemented("notifications.away.who", ctx.trace)); },
   "notifications.counts": async (ctx) => { throw new VyreErr(notImplemented("notifications.counts", ctx.trace)); },
   "notifications.delegate.get": async (ctx) => { throw new VyreErr(notImplemented("notifications.delegate.get", ctx.trace)); },
   "notifications.delegate.resolve": async (ctx) => { throw new VyreErr(notImplemented("notifications.delegate.resolve", ctx.trace)); },

@@ -9059,6 +9059,21 @@
     },
     {
       "blocks": [],
+      "cap": "channels.home",
+      "deferred": false,
+      "description": "The Space's first channel: #vyre, or an older Space's #general (legacy: Console offers to rename it). Null in a Personal Space",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "channels_home",
+      "planMode": "allowed",
+      "toolset": "chats",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "channels.join",
       "deferred": false,
       "description": "Join a public channel",
@@ -15504,6 +15519,32 @@
     },
     {
       "blocks": [],
+      "cap": "devices.presence",
+      "deferred": false,
+      "description": "Who is around: for each person, online (a device seen in the last five minutes), away (they set themselves away) or offline, with when they were last seen. Says when, never where",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "people": {
+            "items": {
+              "examples": [
+                "usr_a1b2c3"
+              ],
+              "pattern": "^usr_[a-z0-9]+$",
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "name": "devices_presence",
+      "planMode": "allowed",
+      "toolset": "meta",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "devices.rename",
       "deferred": false,
       "description": "Rename one of my devices",
@@ -17247,6 +17288,21 @@
       "name": "engine_models_list",
       "planMode": "allowed",
       "toolset": "meta",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "engine.now",
+      "deferred": false,
+      "description": "Which agents are working right now: the agent, the person it works for, where it runs (the Space, their computer, their server) and since when; the chat is named only to someone who may read it",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "engine_now",
+      "planMode": "allowed",
+      "toolset": "chats",
       "v": 1
     },
     {
@@ -26713,6 +26769,7 @@
                 "finished",
                 "record_change",
                 "routine",
+                "notice",
                 "waiting"
               ],
               "type": "string"
@@ -26769,6 +26826,33 @@
       },
       "name": "home_at_risk",
       "planMode": "allowed",
+      "toolset": "meta",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "home.away_digest",
+      "deferred": false,
+      "description": "Write my While you were away digest for the time since I was last here: what my agents and routines did, changes on records I follow and the quiet notices that waited (an agent past its interrupt cap, a person who joined), by name. Writes nothing when nothing happened",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "since": {
+            "description": "Milliseconds since the Unix epoch",
+            "examples": [
+              1760000000000
+            ],
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "since"
+        ],
+        "type": "object"
+      },
+      "name": "home_away_digest",
+      "planMode": "blocked",
       "toolset": "meta",
       "v": 1
     },
@@ -32393,6 +32477,51 @@
         "type": "object"
       },
       "name": "members_invites_revoke",
+      "planMode": "blocked",
+      "toolset": "meta",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "members.joins.list",
+      "deferred": false,
+      "description": "Joins that have not finished: each new member with the steps that did not work yet, in words, how often each was tried, and whether it is stuck (three tries or more)",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "stuck": {
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
+      "name": "members_joins_list",
+      "planMode": "allowed",
+      "toolset": "meta",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "members.joins.retry",
+      "deferred": false,
+      "description": "Retry a new member's join steps that did not work, now",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "personId": {
+            "examples": [
+              "usr_a1b2c3"
+            ],
+            "pattern": "^usr_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "personId"
+        ],
+        "type": "object"
+      },
+      "name": "members_joins_retry",
       "planMode": "blocked",
       "toolset": "meta",
       "v": 1
@@ -38290,6 +38419,21 @@
       },
       "name": "notifications_away_set",
       "planMode": "blocked",
+      "toolset": "meta",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "notifications.away.who",
+      "deferred": false,
+      "description": "Who in the Space is away right now and until when (what a teammate sees as a steady away dot); never the delegate",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "notifications_away_who",
+      "planMode": "allowed",
       "toolset": "meta",
       "v": 1
     },

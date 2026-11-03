@@ -6,6 +6,7 @@ import type { Handlers } from './handlers.ts';
 export const handlers: Handlers<HandlerCtx> = {
   "home.activity": async () => ({"items":[{"at":1760000000000,"kind":"decision","line":"example","subject":{"id":"rec_a1b2c3","type":"space"},"title":"example","undo":{"cap":"runs.undo","input":{}}}],"next":"example","total":1} as unknown) as never,
   "home.at_risk": async () => ({"projects":[{"blockedTasks":1,"dueAt":1760000000000,"lead":"example","overdueTasks":1,"reasons":["overdue"],"recordId":"rec_a1b2c3","title":"example","type":"contact"}],"rule":"A project is at risk when it is overdue, has a blocked task, or its plan has slipped past a milestone"} as unknown) as never,
+  "home.away_digest": async () => ({"digestId":"dgs_a1b2c3","items":1} as unknown) as never,
   "home.checklist": async () => ({"items":[{"done":true,"key":"photo_and_title","title":"example"}],"visible":true} as unknown) as never,
   "home.digest": async () => ({"digest":{"builtBy":"example","headline":["example"],"id":"dgs_a1b2c3","items":[{"at":1760000000000,"kind":"decision","line":"example","subject":{"id":"rec_a1b2c3","type":"space"},"title":"example","undo":{"cap":"runs.undo","input":{}}}],"periodEnd":1760000000000,"periodStart":1760000000000,"person":"usr_a1b2c3","seenAt":1760000000000}} as unknown) as never,
   "home.dismiss_checklist": async () => ({"ok":true} as unknown) as never,

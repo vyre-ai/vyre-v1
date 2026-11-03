@@ -329,6 +329,8 @@ export function createClient(transport: Transport) {
       create: call("channels.create", 1),
       erase: call("channels.erase", 1),
       get: call("channels.get", 1),
+      home: call("channels.home", 1),
+      home_join: call("channels.home_join", 1),
       join: call("channels.join", 1),
       leave: call("channels.leave", 1),
       list: call("channels.list", 1),
@@ -608,6 +610,7 @@ export function createClient(transport: Transport) {
       get: call("devices.get", 1),
       list: call("devices.list", 1),
       mine: call("devices.mine", 1),
+      presence: call("devices.presence", 1),
       purge_ack: call("devices.purge_ack", 1),
       register: call("devices.register", 1),
       rename: call("devices.rename", 1),
@@ -758,6 +761,7 @@ export function createClient(transport: Transport) {
       models: {
         list: call("engine.models.list", 1),
       },
+      now: call("engine.now", 1),
       placement: {
         decide: call("engine.placement.decide", 1),
         options: call("engine.placement.options", 1),
@@ -1193,6 +1197,7 @@ export function createClient(transport: Transport) {
     home: {
       activity: call("home.activity", 1),
       at_risk: call("home.at_risk", 1),
+      away_digest: call("home.away_digest", 1),
       checklist: call("home.checklist", 1),
       digest: call("home.digest", 1),
       dismiss_checklist: call("home.dismiss_checklist", 1),
@@ -1464,6 +1469,10 @@ export function createClient(transport: Transport) {
         preview: call("members.invites.preview", 1),
         revoke: call("members.invites.revoke", 1),
       },
+      joins: {
+        list: call("members.joins.list", 1),
+        retry: call("members.joins.retry", 1),
+      },
       reactivate: call("members.reactivate", 1),
       remove: call("members.remove", 1),
       remove_preview: call("members.remove_preview", 1),
@@ -1732,6 +1741,7 @@ export function createClient(transport: Transport) {
         clear: call("notifications.away.clear", 1),
         get: call("notifications.away.get", 1),
         set: call("notifications.away.set", 1),
+        who: call("notifications.away.who", 1),
       },
       counts: call("notifications.counts", 1),
       delegate: {

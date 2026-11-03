@@ -119,7 +119,7 @@ Events:
 
 ### devices
 
-Capabilities to implement: 14. Events to emit: 6. Contract tests that must go green: `generated/tests/devices/`.
+Capabilities to implement: 15. Events to emit: 6. Contract tests that must go green: `generated/tests/devices/`.
 
 Capabilities:
 - devices.epoch (read, grant only, level view)
@@ -127,6 +127,7 @@ Capabilities:
 - devices.get (read, grant only, level view)
 - devices.list (read, access.manage, level view)
 - devices.mine (read, grant only, level view)
+- devices.presence (read, grant only, level view)
 - devices.purge_ack (write, grant only, level view)
 - devices.register (write, grant only, level view)
 - devices.rename (write, grant only, level view)
@@ -225,7 +226,7 @@ Events:
 
 ### members
 
-Capabilities to implement: 31. Events to emit: 5. Contract tests that must go green: `generated/tests/members/`.
+Capabilities to implement: 33. Events to emit: 6. Contract tests that must go green: `generated/tests/members/`.
 
 Capabilities:
 - company.access_log (read, connectors.manage, level view)
@@ -245,6 +246,8 @@ Capabilities:
 - members.invites.list (read, members.invite, level view)
 - members.invites.preview (read, grant only, level view)
 - members.invites.revoke (write, members.invite, level view)
+- members.joins.list (read, members.invite, level view)
+- members.joins.retry (write, members.invite, level view)
 - members.reactivate (write, members.remove, level view)
 - members.remove (write, members.remove, level view, gate delete)
 - members.remove_preview (read, members.remove, level view)
@@ -263,6 +266,7 @@ Capabilities:
 Events:
 - member.invite_revoked
 - member.invited
+- member.join_stuck
 - member.joined
 - member.removal_plan_applied
 - member.removed
