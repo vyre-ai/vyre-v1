@@ -5,6 +5,13 @@ import { createRoot } from "test-renderer";
 import { find, flush, installDom, mount, press, textOf } from "../../../../../ui/src/testing/dom.ts";
 import { ShellHost } from "./ShellHost.tsx";
 import type { StoredSession } from "./stored.ts";
+import { registerShellPlaces } from "../places.ts";
+import { registerPlace } from "../../startup/places.ts";
+
+// The Space never opens here, so the Chats place never draws; a stand-in loader keeps the test from compiling the whole place in the background (cold, that was half the
+// file's time, and on a loaded runner it ran past the 30 s watchdog).
+registerShellPlaces();
+registerPlace("chat", async () => ({ default: () => null }));
 
 test("with the Space unreachable, the shell's error panel Report a problem opens the report sheet", async () => {
   const win = Object.assign(new EventTarget(), { Image: class { set src(_v: string) { /* never loads */ } } });
