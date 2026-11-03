@@ -7,6 +7,7 @@ import { useState } from "react";
 import type { ReactElement } from "react";
 import { StyleSheet, Text, TextInput, View } from "react-native";
 import { useMenu } from "../../../../../../ui/src/Menu/index.tsx";
+import { Row } from "../../../../../../ui/src/Row/index.tsx";
 import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
 import { ageText } from "../../files/memory/know.ts";
 import { each } from "../../files/memory/model.ts";
@@ -28,6 +29,12 @@ import type { VirtualWindow } from "../../../../../../ui/src/VirtualList/index.t
 
 type MessagesOut = CapMap["chat.messages.list"]["out"];
 const GROUP_LIMIT = 6;
+/** Lines of About you shown at the top of the tab; the rest are in Settings > Memory and privacy. */
+const ABOUT_LIMIT = 4;
+export const ABOUT_PRIVATE = "Only you and your agents are in this chat, so agents here use your public and private profile.";
+export const ABOUT_SHARED = "Other people can see this chat, so agents here use only your public profile.";
+interface AboutFact { factId: string; text: string; place: "public" | "private"; suggested?: boolean; lineLink?: string; sourceLink?: string }
+interface AboutOut { audience: "private" | "shared"; public: AboutFact[]; private: AboutFact[] }
 /** How many of the newest agent replies are asked what they used, to find the last one that used memory. */
 const LAST_REPLIES = 3;
 const lastReplies = (messages: MessagesOut["messages"], n: number): MessagesOut["messages"] => [...messages].filter((m) => m.author.kind === "agent" && m.body !== "").sort((a, b) => b.threadSeq - a.threadSeq).slice(0, n);
@@ -60,6 +67,8 @@ export function KnowsTab({ deps, memory, spaceName, window }: { deps: PaneDeps; 
   const proposedQ = useRead<{ facts: RawFact[] }>(store, "memory.facts.list", { status: ["proposed"], layer: "agent", agentId });
   const replacedQ = useRead<{ facts: RawFact[] }>(store, "memory.facts.list", filter.replaced ? { status: ["closed"], layer: "agent", agentId } : null);
   const mapQ = useRead<{ map?: { body: string; lines: number } | null }>(store, "memory.map.get", { agentId });
+  // About you: the person's profile as this chat's audience allows (the private part only where nobody else reads it), the same answer the agent's context gets
+  const aboutQ = useRead<AboutOut>(store, "memory.profile.get", { threadId });
   // what the last reply used, or the pinned one
   const messagesQ = useScreenQuery<MessagesOut>("chats.conversation", "messages", { threadId });
   const replies = messagesQ.status === "ready" ? lastReplies(messagesQ.data.messages, LAST_REPLIES) : [];
@@ -138,6 +147,25 @@ export function KnowsTab({ deps, memory, spaceName, window }: { deps: PaneDeps; 
           <Icon name="bulb" size={14} color="var(--ink-3)" />
           <Text style={st.asofText}>{`As of ${learnedWhen(focus.asOf, clock)}, this reply. Newer facts are hidden.`}</Text>
           <LinkButton label="Back to now" testID="knows-now" onPress={() => store.pinKnows(null, null)} />
+        </View>
+      ),
+    });
+  }
+  const about = aboutQ.status === "ready" && !pinned ? aboutQ.data : null;
+  if (about) {
+    const priv = about.audience === "private";
+    const lines = [...about.public.map((f) => ({ f, place: "Public" })), ...about.private.map((f) => ({ f, place: f.suggested ? "Private, suggested for public" : "Private" }))];
+    entries.push({ key: "l-about", type: "label", text: "About you", right: priv ? "Public and private" : "Public only" });
+    entries.push({
+      key: "about", type: "block",
+      node: (
+        <View testID="knows-about" style={st.about}>
+          <Text testID="knows-about-scope" style={st.hint}>{priv ? ABOUT_PRIVATE : ABOUT_SHARED}</Text>
+          {lines.slice(0, ABOUT_LIMIT).map(({ f, place }) => (
+            <Row key={f.factId} id={`about-${f.factId}`} title={f.text} note={place} {...(f.lineLink ?? f.sourceLink ? { onPress: () => memory.nav.openLink((f.lineLink ?? f.sourceLink)!) } : {})} />
+          ))}
+          {lines.length === 0 ? <Text testID="knows-about-empty" style={st.hint}>{priv ? "Nothing about you yet." : "Nothing on your public profile yet."}</Text> : null}
+          {memory.nav.openAboutYou ? <LinkButton label={lines.length > ABOUT_LIMIT ? `See all ${lines.length} in Memory and privacy` : "Edit in Memory and privacy"} testID="knows-about-open" onPress={() => memory.nav.openAboutYou?.()} /> : null}
         </View>
       ),
     });
@@ -288,6 +316,7 @@ const st = StyleSheet.create({
   asof: { flexDirection: "row", alignItems: "center", gap: 8, marginHorizontal: 8, marginTop: 8, paddingHorizontal: 10, paddingVertical: 8, borderRadius: 9, backgroundColor: "var(--sunk)" as string, boxShadow: "inset 0 0 0 1px var(--line)" } as object,
   asofText: { flex: 1, fontSize: 12, color: "var(--ink-2)" as string },
   map: { paddingHorizontal: 8, paddingTop: 8, paddingBottom: 4, gap: 8 },
+  about: { paddingHorizontal: 8, paddingBottom: 6, gap: 2 },
   mapHead: { flexDirection: "row", alignItems: "center", gap: 10 },
   mapIcon: { width: 30, height: 30, borderRadius: 8, borderWidth: 1, borderColor: "var(--line)" as string, alignItems: "center", justifyContent: "center", backgroundColor: "var(--raised)" as string },
   mapName: { fontSize: 13, fontWeight: "600", color: "var(--ink)" as string },

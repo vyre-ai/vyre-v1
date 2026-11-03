@@ -7,6 +7,7 @@
 import { IMPORTED_PREAMBLE } from "../../../lib/recall-intent.ts";
 import { extrasFor, factRows } from "../enrich.ts";
 import { meaningScores } from "../meaning.ts";
+import { carryPlace } from "../profile.ts";
 import { reviewRequired } from "../policy.ts";
 import { trail, whoIs } from "../trail.ts";
 import type { Who } from "../trail.ts";
@@ -156,6 +157,7 @@ export async function factCorrect(ctx: MemCtx, input: { factId: string; text: st
     sourceKind: "manual", sourceRef: old.id, sourcePerson: actorOf(ctx), proposedBy: ctx.principal.id, status: "current", lowRisk: false, replaces: old.id,
     how: "edit", why: "corrected",
   });
+  carryPlace(ctx, old.id, fresh);
   ctx.emit("memory.fact_corrected", fresh.id, { factId: fresh.id, closedFactId: old.id, by: actorOf(ctx) });
   return { fact: factOut(fresh), closed: factOut({ ...old, status: "closed", validTo: now, closedAt: now }) };
 }
@@ -228,12 +230,13 @@ export async function erase(ctx: MemCtx, input: { factIds?: string[]; pageIds?: 
     if (mine || admin) ids.push(str(r["id"]));
   }
   if (rows.length > 0 && ids.length === 0) raise(ctx, "permission.no_grant", "Only the person the fact came from, or an admin, can erase it.");
-  // A promoted copy goes with its source.
+  // A promoted copy goes with its source, and every earlier version of it (the rows it replaced, which still hold the old words) goes with it too.
   const all = new Set(ids);
   for (let grew = true; grew;) {
     grew = false;
     for (const id of [...all]) {
-      for (const c of rowsOf(ctx.db, "SELECT id FROM memory_facts WHERE promoted_from = ?", id)) {
+      const linked = [...rowsOf(ctx.db, "SELECT id FROM memory_facts WHERE promoted_from = ?", id), ...rowsOf(ctx.db, "SELECT replaces AS id FROM memory_facts WHERE id = ? AND replaces IS NOT NULL", id)];
+      for (const c of linked) {
         if (!all.has(str(c["id"]))) { all.add(str(c["id"])); grew = true; }
       }
     }
@@ -249,6 +252,9 @@ export async function erase(ctx: MemCtx, input: { factIds?: string[]; pageIds?: 
     ctx.db.run("DELETE FROM memory_promotions WHERE fact_id = ?", id);
     ctx.db.run("DELETE FROM memory_vectors WHERE doc_kind = 'fact' AND doc_id = ?", id);
     ctx.db.run("DELETE FROM memory_questions WHERE fact_a = ? OR fact_b = ?", id, id);
+    // where recall quoted it: the per-message record behind "Used N memories" and the thread's pointer log (the recall log is made on first use, so it may not be there yet)
+    ctx.db.run("DELETE FROM memory_pointer_log WHERE ref = ?", id);
+    try { ctx.db.run("DELETE FROM memory_recall_log WHERE kind = 'fact' AND ref = ?", id); } catch { /* no recall yet */ }
     ctx.db.run("DELETE FROM memory_facts WHERE id = ?", id);
   }
   ctx.emit("memory.erased", me, { count: all.size + pagesErased, by: me, ...(input.scope ? { scope: input.scope.layer } : {}) });

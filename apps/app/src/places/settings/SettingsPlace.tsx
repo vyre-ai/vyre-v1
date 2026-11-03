@@ -12,6 +12,7 @@ import type { Hit, PageKey, SettingRow, SpacePage } from "./model.ts";
 import { AppearancePage, ComputerPage, SignInPage } from "./pages-b.tsx";
 import { AiPage, ConnectedPage, NotificationsPage, ProfilePage } from "./pages-a.tsx";
 import { MailPage } from "./MailPage.tsx";
+import { MemoryPage } from "./AboutYou.tsx";
 import { SpacePageBody, useSpaceRows } from "./SpacePages.tsx";
 import { SavedBar, SavedProvider } from "./saved.tsx";
 import { Glyph, IconBox, Mark, pointer, webOnly } from "./ui.tsx";
@@ -139,6 +140,7 @@ function SettingsBody({ initialPage = "profile", initialQuery = "", initialView 
       case "notifications": return <NotificationsPage rows={rows} found={found} />;
       case "appearance": return <AppearancePage rows={rows} found={found} />;
       case "ai": return <AiPage rows={rows} found={found} />;
+      case "memory": return <MemoryPage found={found} />;
       case "connected": return <ConnectedPage rows={rows} found={found} />;
       case "mail": return <MailPage />;
       case "signin": return <SignInPage />;
