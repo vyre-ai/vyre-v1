@@ -50,7 +50,7 @@ test("sidebar: sections in the prototype's order with counts, Requested and Heal
   const out = html(createSampleVault());
   const order = ["nav-requested", "nav-all", "nav-providers", "nav-keys", "nav-logins", "nav-cards", "nav-health", "nav-folder-fld_marketing", "nav-folder-fld_finance", "nav-folder-fld_ops", "nav-mine", "nav-advanced"].map((id) => at(out, `data-testid="row-${id}"`));
   assert.deepEqual([...order].sort((a, b) => a - b), order, "Requested, All, AI providers, Keys, Logins, Cards, Health, Shared folders, Mine, Advanced");
-  for (const label of ["All", "AI providers", "Keys", "Logins", "Cards", "Health", "Marketing", "Finance", "Operations", "Mine", "Advanced", "Shared"]) assert.ok(has(out, label), label);
+  for (const label of ["All", "AI accounts", "Google and Microsoft", "Connections", "Everything else", "Keys", "Logins", "Cards", "Health", "Marketing", "Finance", "Operations", "Mine", "Advanced", "Shared"]) assert.ok(has(out, label), label);
   const nav = (id: string): string => out.slice(at(out, `data-testid="row-${id}-trailing"`), at(out, `data-testid="row-${id}-trailing"`) + 400);
   assert.ok(has(nav("nav-all"), ">16<"), "16 items in All");
   assert.ok(has(nav("nav-providers"), ">3<"), "three providers");
@@ -205,7 +205,9 @@ test("sections filter the list: Keys, Logins, Cards, AI providers, a folder, Min
   const keys = list({ kind: "keys" });
   assert.ok(has(keys, "GoHighLevel") && has(keys, "Postgres · Northwind prod") && !has(keys, "Northwind Forms") && !has(keys, "Northwind Visa"));
   const logins = list({ kind: "logins" });
-  assert.ok(has(logins, "Google Workspace") && has(logins, "GitHub") && !has(logins, "GoHighLevel"));
+  assert.ok(has(logins, "GitHub") && !has(logins, "GoHighLevel"));
+  // an item is shown in its one primary section: the Google Workspace login is under Google and Microsoft, not Logins
+  assert.ok(!has(logins, "Google Workspace") && has(html(v, { initial: { kind: "google" } }), "Google Workspace"));
   assert.ok(has(list({ kind: "cards" }), "Northwind Visa"));
   const prov = list({ kind: "providers" });
   assert.ok(has(prov, "Claude") && has(prov, "OpenCode Go key") && has(prov, "OpenAI key") && !has(prov, "Stripe"));
@@ -253,7 +255,8 @@ test("copy and design rules: no em dash, no emoji, every control labelled", () =
   const out = html(createSampleVault());
   assert.ok(!out.includes(String.fromCharCode(0x2014)), "no em dash in any copy");
   assert.ok(!/[\u{1F300}-\u{1FAFF}]/u.test(out), "no emoji");
-  for (const label of ["Add an item", "More", "Edit"]) assert.ok(has(out, `aria-label="${label}"`), `${label} is labelled`);
+  // in All the + asks which of the four it adds (layout/sections.ts), so it is labelled Add
+  for (const label of ["Add", "More", "Edit"]) assert.ok(has(out, `aria-label="${label}"`), `${label} is labelled`);
   assert.ok(has(out, 'role="menu"') || has(out, "Vault sections"), "the sidebar is a labelled menu");
 });
 
@@ -263,5 +266,6 @@ test("a Personal Space has no Shared section and no sharing: sharing has no mean
   assert.ok(has(team, 'data-testid="vault-folders"') && has(team, ">Shared<"), "a team Space shows the Shared section");
   const solo = clean(renderToStaticMarkup(<Vault data={{ ...v.data, personal: true }} />));
   assert.ok(!has(solo, 'data-testid="vault-folders"') && !has(solo, ">Shared<") && !has(solo, "New shared folder"), "a Personal Space draws no Shared section");
-  assert.ok(has(solo, ">Mine<"), "Mine stays");
+  assert.ok(!has(solo, 'data-testid="row-nav-mine"'), "and no Mine: everything in a Personal Space is yours");
+  assert.ok(has(solo, ">AI accounts<") && has(solo, ">Keys<"), "the sections stay");
 });

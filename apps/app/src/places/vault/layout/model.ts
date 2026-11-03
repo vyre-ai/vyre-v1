@@ -1,5 +1,6 @@
 // Vault layout: the pure part. What the sidebar counts, which items a section shows, how a row reads (name, field names, "Used 14 min ago") and in what order.
 // Types come from the generated capability map. Names and metadata only: no value of any item is ever in these shapes (spec 3.8, 2.17).
+import { sectionOf } from "./sections.ts";
 import type { CapMap } from "../../../../../../generated/types.ts";
 
 export type Item = CapMap["vault.items.list"]["out"]["items"][number];
@@ -14,7 +15,7 @@ export const MIN_MS = 60_000;
 
 /** What the sidebar can select. A folder carries its id. */
 export type Selection =
-  | { kind: "all" } | { kind: "providers" } | { kind: "keys" } | { kind: "logins" } | { kind: "cards" }
+  | { kind: "all" } | { kind: "providers" } | { kind: "google" } | { kind: "connections" } | { kind: "keys" } | { kind: "logins" } | { kind: "cards" }
   | { kind: "health" } | { kind: "requested" } | { kind: "mine" } | { kind: "folder"; folderId: string };
 
 export const ALL: Selection = { kind: "all" };
@@ -32,16 +33,22 @@ export const KIND_LABEL: Record<ItemKind, string> = {
 /** The clock every date rule reads (minutes east of UTC for the person's day). */
 export interface Clock { now: number }
 
-export interface Counts { all: number; providers: number; keys: number; logins: number; cards: number; mine: number; health: number; requested: number; folders: Map<string, number> }
+export interface Counts { all: number; providers: number; google: number; connections: number; keys: number; logins: number; cards: number; mine: number; health: number; requested: number; folders: Map<string, number> }
 
 /** Sidebar counts, worked out once over the whole list. `providerItemIds` are the items that are AI provider connections. */
-export function countItems(items: readonly Item[], providerItemIds: ReadonlySet<string>, health: Health | null, requested: number): Counts {
-  const c: Counts = { all: items.length, providers: 0, keys: 0, logins: 0, cards: 0, mine: 0, health: health ? health.weak + health.reused + health.stale + health.rotationDue : 0, requested, folders: new Map() };
+export function countItems(items: readonly Item[], providerItemIds: ReadonlySet<string>, health: Health | null, requested: number, folderName: (id: string) => string | undefined = () => undefined): Counts {
+  const c: Counts = { all: items.length, providers: 0, google: 0, connections: 0, keys: 0, logins: 0, cards: 0, mine: 0, health: health ? health.weak + health.reused + health.stale + health.rotationDue : 0, requested, folders: new Map() };
   for (const it of items) {
-    if (providerItemIds.has(it.id) || it.kind === "ai_subscription") c.providers++;
-    if (KEY_KINDS.includes(it.kind)) c.keys++;
-    if (LOGIN_KINDS.includes(it.kind)) c.logins++;
-    if (it.kind === "card") c.cards++;
+    // each item is counted in its one primary section (layout/sections.ts); Keys, Logins and Cards are everything else
+    const sec = sectionOf(it, providerItemIds, folderName);
+    if (sec === "ai") c.providers++;
+    else if (sec === "google") c.google++;
+    else if (sec === "connections") c.connections++;
+    else {
+      if (KEY_KINDS.includes(it.kind)) c.keys++;
+      if (LOGIN_KINDS.includes(it.kind)) c.logins++;
+      if (it.kind === "card") c.cards++;
+    }
     if (it.scope === "mine") c.mine++;
     else c.folders.set(it.folderId, (c.folders.get(it.folderId) ?? 0) + 1);
   }
@@ -49,13 +56,16 @@ export function countItems(items: readonly Item[], providerItemIds: ReadonlySet<
 }
 
 /** Whether one item belongs to a sidebar selection. */
-export function inSelection(it: Item, sel: Selection, providerItemIds: ReadonlySet<string>, healthIds: ReadonlySet<string>): boolean {
+export function inSelection(it: Item, sel: Selection, providerItemIds: ReadonlySet<string>, healthIds: ReadonlySet<string>, folderName: (id: string) => string | undefined = () => undefined): boolean {
+  const sec = (): ReturnType<typeof sectionOf> => sectionOf(it, providerItemIds, folderName);
   switch (sel.kind) {
     case "all": return true;
-    case "providers": return providerItemIds.has(it.id) || it.kind === "ai_subscription";
-    case "keys": return KEY_KINDS.includes(it.kind);
-    case "logins": return LOGIN_KINDS.includes(it.kind);
-    case "cards": return it.kind === "card";
+    case "providers": return sec() === "ai";
+    case "google": return sec() === "google";
+    case "connections": return sec() === "connections";
+    case "keys": return sec() === "other" && KEY_KINDS.includes(it.kind);
+    case "logins": return sec() === "other" && LOGIN_KINDS.includes(it.kind);
+    case "cards": return sec() === "other" && it.kind === "card";
     case "mine": return it.scope === "mine";
     case "health": return healthIds.has(it.id);
     case "folder": return it.folderId === sel.folderId;
@@ -70,11 +80,11 @@ export function byRecent(a: Item, b: Item): number {
 }
 
 /** What the list shows for a selection and a search text: filtered, searched on name and field names (never values), sorted. */
-export function visibleItems(items: readonly Item[], sel: Selection, query: string, providerItemIds: ReadonlySet<string>, healthIds: ReadonlySet<string>): Item[] {
+export function visibleItems(items: readonly Item[], sel: Selection, query: string, providerItemIds: ReadonlySet<string>, healthIds: ReadonlySet<string>, folderName: (id: string) => string | undefined = () => undefined): Item[] {
   const q = query.trim().toLowerCase();
   const out: Item[] = [];
   for (const it of items) {
-    if (!inSelection(it, sel, providerItemIds, healthIds)) continue;
+    if (!inSelection(it, sel, providerItemIds, healthIds, folderName)) continue;
     if (q && !it.name.toLowerCase().includes(q) && !it.handle.toLowerCase().includes(q) && !it.fieldKeys.some((k) => k.toLowerCase().includes(q))) continue;
     out.push(it);
   }

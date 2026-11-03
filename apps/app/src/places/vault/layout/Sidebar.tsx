@@ -1,5 +1,5 @@
-// Vault sidebar (Apple Passwords layout): Requested (only when something waits), All, AI providers, Keys, Logins, Cards, Health (only when something needs a look), then Shared with its
-// folders, Mine and Advanced. Each has a count. Rows are the shared ui/Row with a leading icon and a trailing count.
+// Vault sidebar (Apple Passwords layout; the four sections, owner 3 Nov): Requested (only when something waits), All, AI accounts, Google and Microsoft, Connections, then Everything else (Keys,
+// Logins, Cards, Health when something needs a look), then Shared with its folders, Mine and Advanced. Each has a count. A Personal Space has no Shared and no Mine: everything there is yours. Rows are the shared ui/Row with a leading icon and a trailing count.
 import { useState } from "react";
 import type { ReactElement } from "react";
 import { StyleSheet, Text, TextInput, View } from "react-native";
@@ -24,17 +24,19 @@ export interface SidebarProps {
   hideShared?: boolean;
   /** The Advanced page (or one under it) is open, so it, not the open list, carries the highlight. */
   advanced?: boolean;
-  /** Vault > Connections: every app and tool server you and your agents can use. Absent: no row. */
+  /** Vault > Connections opens the Connections page (every app and tool server you and your agents can use). Absent: the Connections section lists the Vault's connection items. */
   onConnections?: () => void;
   /** Connections is open, so it carries the highlight. */
   connections?: boolean;
   /** Connections that need a look (a refused key, a sign-in, no answer): shown as the row's count. */
   connectionsNeedYou?: number;
+  /** How many connections there are (apps and tool servers), when known. */
+  connectionCount?: number;
 }
 
 const Count = ({ n }: { n: number }): ReactElement => <Text style={s.count}>{n}</Text>;
 
-export function Sidebar({ counts, folders, selection, onSelect, onAdvanced, onNewFolder, onFolderMenu, canCreateShared, hideShared = false, advanced = false, onConnections, connections = false, connectionsNeedYou = 0 }: SidebarProps): ReactElement {
+export function Sidebar({ counts, folders, selection, onSelect, onAdvanced, onNewFolder, onFolderMenu, canCreateShared, hideShared = false, advanced = false, onConnections, connections = false, connectionsNeedYou = 0, connectionCount }: SidebarProps): ReactElement {
   const routed = advanced || connections;
   const [naming, setNaming] = useState<string | null>(null);
   const [folderError, setFolderError] = useState<string | null>(null);
@@ -64,8 +66,15 @@ export function Sidebar({ counts, folders, selection, onSelect, onAdvanced, onNe
       <View style={s.group}>
         {counts.requested > 0 ? item({ kind: "requested" }, "requested", "Requested", "requested", counts.requested) : null}
         {item({ kind: "all" }, "all", "All", "all", counts.all)}
-        {item({ kind: "providers" }, "providers", "AI providers", "providers", counts.providers)}
-        {onConnections ? <Row id="nav-connections" title="Connections" selected={connections} leading={<View style={s.lead}><Glyph name="link" size={16} color={connections ? "var(--ink)" : "var(--ink-2)"} /></View>} trailing={connectionsNeedYou > 0 ? <Count n={connectionsNeedYou} /> : undefined} onPress={onConnections} /> : null}
+        {item({ kind: "providers" }, "providers", "AI accounts", "providers", counts.providers)}
+        {item({ kind: "google" }, "google", "Google and Microsoft", "google", counts.google)}
+        {/* one Connections row: the Connections page where the Space has it (l-connections), else the Vault's own section */}
+        {onConnections
+          ? <Row id="nav-connections" title="Connections" selected={connections} leading={<View style={s.lead}><Glyph name="link" size={16} color={connections ? "var(--ink)" : "var(--ink-2)"} /></View>} trailing={connectionsNeedYou > 0 ? <Count n={connectionsNeedYou} /> : undefined} onPress={onConnections} />
+          : item({ kind: "connections" }, "connections", "Connections", "connections", connectionCount ?? counts.connections)}
+      </View>
+      <View style={s.head}><Text style={s.headText}>Everything else</Text></View>
+      <View style={s.group}>
         {item({ kind: "keys" }, "keys", "Keys", "keys", counts.keys)}
         {item({ kind: "logins" }, "logins", "Logins", "logins", counts.logins)}
         {item({ kind: "cards" }, "cards", "Cards", "cards", counts.cards)}
@@ -91,7 +100,7 @@ export function Sidebar({ counts, folders, selection, onSelect, onAdvanced, onNe
         </>
       )}
       <View style={[s.group, { marginTop: 8 }]}>
-        {item({ kind: "mine" }, "mine", "Mine", "mine", counts.mine)}
+        {hideShared ? null : item({ kind: "mine" }, "mine", "Mine", "mine", counts.mine)}
         <Row id="nav-advanced" title="Advanced" selected={advanced} leading={<View style={s.lead}><Glyph name="advanced" size={16} color="var(--ink-2)" /></View>} onPress={onAdvanced} />
       </View>
     </ResizableColumn>

@@ -8,6 +8,7 @@ import Vault from "../layout/index.tsx";
 import { createSampleVault, northwind } from "../layout/sample.ts";
 import type { SampleVault } from "../layout/sample.ts";
 import { searchRing } from "../itemenv/AddAnything.tsx";
+import { otherTemplates } from "../layout/sections.ts";
 import { TEMPLATES, MASK, understandPaste, mergeFields, fieldsFor, templateById } from "../itemenv/env.ts";
 
 Dimensions.set({ window: { width: 1280, height: 800, scale: 1, fontScale: 1 }, screen: { width: 1280, height: 800, scale: 1, fontScale: 1 } });
@@ -17,8 +18,9 @@ const has = (s: string, n: string): boolean => s.includes(n);
 test("Add: a search and a reel of app icons with Custom first, one hint line, folder footer", () => {
   const out = html(createSampleVault(), { sheet: { add: {} } });
   assert.ok(has(out, 'data-testid="add-sheet"') && has(out, 'aria-label="Add to the Vault"'));
-  const order = TEMPLATES.map((t) => out.indexOf(`data-testid="add-app-${t.id}"`));
-  assert.ok(order.every((i) => i >= 0), "every app is in the reel");
+  const order = otherTemplates(TEMPLATES).map((t) => out.indexOf(`data-testid="add-app-${t.id}"`));
+  assert.ok(order.every((i) => i >= 0), "every app of this section is in the reel");
+  assert.ok(TEMPLATES.filter((t) => !otherTemplates(TEMPLATES).includes(t)).every((t) => !out.includes(`data-testid="add-app-${t.id}"`)), "AI providers are added under AI accounts, not here");
   assert.deepEqual([...order].sort((a, b) => a - b), order, "Custom first, then the apps in order");
   assert.equal(TEMPLATES[0]!.id, "custom");
   assert.ok(has(out, 'data-testid="add-hint"') && has(out, "Paste a key or .env, or pick an app"), "one hint line, no paste box");

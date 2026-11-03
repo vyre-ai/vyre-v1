@@ -100,6 +100,7 @@ import { createKitsHost } from "../seams/kits.ts";
 import { createTelemetryRecorder } from "../seams/telemetry.ts";
 import { connectorReadSender } from "../seams/connector-read.ts";
 import { documentPin } from "../seams/document-pin.ts";
+import type { DocumentFetch } from "../seams/document-pin.ts";
 import { createConnectorsHost } from "../seams/connectors.ts";
 import { createProviderSignin } from "../seams/provider-signin.ts";
 import type { SigninProvider } from "../seams/provider-signin.ts";
@@ -129,6 +130,7 @@ import { createLocalKeyRoute } from "../routes/local-key.ts";
 import { createMcpRoute } from "../routes/mcp.ts";
 import type { McpRuntime } from "../routes/mcp.ts";
 import { createKeyring } from "../seams/keyring.ts";
+import { privateKeyOf, publicKeyOf } from "../seams/person-keys.ts";
 import { WRAP_POLICY, createKeyWraps } from "../seams/key-wraps.ts";
 import { createCarryDoor } from "../routes/carry-door.ts";
 import { createGithubSignInRoute } from "../routes/github-signin.ts";
@@ -259,6 +261,10 @@ export interface DaemonOptions {
   http?: FetchLike;
   /** Replace only DNS/pinned transport in connector fixtures; policy checks remain active. */
   connectorNetwork?: ConnectorNetwork;
+  /** A test's stand-in for the public internet of automation steps (an HTTP request step, a document fetch). Absent: the real network, pinned (seams/document-pin.ts). */
+  documentNetwork?: DocumentFetch;
+  /** A test's stand-in for the providers an AI key is checked against (providers.test, the Space AI key). Absent: the real network. */
+  providerFetch?: typeof fetch;
   /** The Vault, as the connector seams use it. Without one the seams that need a secret refuse, which is right until the Vault module is live. */
   vault?: VaultPort;
   /** The Space ports the Google, Microsoft and IMAP seams read, and (for tests) setters that replace the ones the modules export as `hostSeams`. Omitted ports refuse. */
@@ -1507,11 +1513,16 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           },
         }),
         configureSync: () => createSyncSeam({ store: spaceStore, ...(loaded.serving.get("conflicts") === "live" ? { conflicts: { open: (c) => hookRunner.call("conflicts.park", c) as Promise<string>, history: async (e) => { await hookRunner.call("conflicts.record_history", e); } } } : {}), access: () => access.snap, space: spaceId, now, registryHash, liveHub: syncLive.seam, invoke: (c, i, seed) => invoke(c, i, seed), keyed: (c, v) => capIndex?.get(c, v)?.idempotency === "key", ...(cfg.address ? { endpoints: () => { const url=syncEndpointOrigin(cfg.address!);return url?[{kind:"direct" as const,url}]:[]; } } : {}) }),
-        setVaultKeyPort: () => ({ personKey: async (personId: string) => keyring.get(personId) }),
+        setVaultKeyPort: () => ({
+          personKey: async (personId: string) => keyring.get(personId),
+          // a Mine item saved while the person's key is not here is sealed to their public key; it opens with their private key once their own client has handed the person key over (enc=3)
+          publicKey: async (personId: string) => publicKeyOf(db, personId),
+          privateKey: async (personId: string) => { const k = keyring.get(personId); if (!k) return null; try { return privateKeyOf(db, personId, k); } finally { k.fill(0); } },
+        }),
         setVaultFillerKey: () => Buffer.from(sealKeyFile(path.join(paths.root, "vault-filler.key")), "hex"),
-        configureVault: (d) => ({ signin: createProviderSignin({ fetch: d.fetch, ...(cfg.spaceKind === "personal" ? { localSignin: (p: SigninProvider) => readLocalSignin(p) } : {}) }), refreshed: { take: (t: string, itemId: string) => signinRefresh.take(t, itemId) }, sinks: { ...o.seams?.vaultSinks, http_header: (filled:Parameters<typeof connectorPort.sink>[0],execution?:Parameters<typeof connectorPort.sink>[1]) => { if(connectorPort.accepts(filled.ref))return connectorPort.sink(filled,execution);const existing=o.seams?.vaultSinks?.['http_header'];if(existing)return existing(filled);throw new Error("This HTTP fill reference is unavailable.");} }, db: db!, probe: createProviderProbe({ own: ownNode }), refuse: ({ address, caller }) => refuseModelAddress(address, ownNode(caller)), origin: () => { const a = cfg.address ?? `http://${cfg.host}:${boundPort}`; return /^https?:\/\//.test(a) ? a : `https://${a}`; }, provide: (p: VaultPort & { pullExport?(exportId: string, token: string): string }) => { vaultImpl = p; if (p.pullExport) pullVaultExport = p.pullExport; } }),
+        configureVault: (d) => ({ signin: createProviderSignin({ fetch: d.fetch, ...(cfg.spaceKind === "personal" ? { localSignin: (p: SigninProvider) => readLocalSignin(p) } : {}) }), refreshed: { take: (t: string, itemId: string) => signinRefresh.take(t, itemId) }, sinks: { ...o.seams?.vaultSinks, http_header: (filled:Parameters<typeof connectorPort.sink>[0],execution?:Parameters<typeof connectorPort.sink>[1]) => { if(connectorPort.accepts(filled.ref))return connectorPort.sink(filled,execution);const existing=o.seams?.vaultSinks?.['http_header'];if(existing)return existing(filled);throw new Error("This HTTP fill reference is unavailable.");} }, db: db!, probe: createProviderProbe({ own: ownNode, ...(o.providerFetch ? { fetch: o.providerFetch } : {}) }), refuse: ({ address, caller }) => refuseModelAddress(address, ownNode(caller)), origin: () => { const a = cfg.address ?? `http://${cfg.host}:${boundPort}`; return /^https?:\/\//.test(a) ? a : `https://${a}`; }, provide: (p: VaultPort & { pullExport?(exportId: string, token: string): string }) => { vaultImpl = p; if (p.pullExport) pullVaultExport = p.pullExport; } }),
         setConnectorsHost: () => connectorPort,
-        setDocumentNetwork: () => documentPin(),
+        setDocumentNetwork: () => o.documentNetwork ?? documentPin(),
         setConnectorReadSender: (d) => connectorReadSender(d),
         // the HTTP request step's key: the Vault fills the handle for one call through the same per-execution port connectors use (access is checked by vault.fill as the Run's principal)
         // Run code runs in bubblewrap under the data directory; where bwrap is missing the step is refused, never run in the daemon

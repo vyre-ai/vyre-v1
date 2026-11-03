@@ -67,6 +67,8 @@ export interface OpenerHost {
   cliCommand?: Readonly<Record<string, readonly string[]>>;
   /** Where programs are looked for (a test's folders). Default: this computer's PATH. */
   cliProbe?: NodeCliProbe;
+  /** A test's own network for the API drivers (engineCli.apiFetch): it stands in for the provider, so the address guard is not in the way. Absent: the real network. */
+  apiFetch?: typeof fetch;
   /** Tools for API-key chats (modules/engine/api-tools.ts). Without them an API chat answers in words only. */
   apiTools?: ApiTools;
   /**
@@ -395,6 +397,7 @@ export function buildOpener(h: OpenerHost): SessionOpener {
     mcp: h.session.mcp,
     ...(save ? { saveSignin: save } : {}),
     ...(h.own ? { own: h.own } : {}),
+    ...(h.apiFetch ? { fetch: h.apiFetch } : {}),
     launcher: {
       spawn: async (spec) => {
         const swap = spec.argv[0] !== undefined ? h.cliCommand?.[spec.argv[0]] : undefined;

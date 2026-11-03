@@ -261,7 +261,7 @@ export function createMcpServer(deps: McpServerDeps): McpServer {
     catch (e) {
       let error = e instanceof HostError ? e.error : makeError("internal.unexpected", traceId, { message: "Something went wrong on our side." });
       // a Mine item needs the person's own key, held on the server only while they are signed in: say so plainly (owner ruling 3 Nov)
-      if ((error.details as { reason?: unknown } | undefined)?.reason === "vault_locked") error = { ...error, message: "The person you act for has to sign in to Vyre once so their Vault key is open on the server. Then try again." };
+      if ((error.details as { reason?: unknown } | undefined)?.reason === "vault_locked") error = { ...error, message: "Their Mine items open while they are signed in to Vyre. Ask the person you act for to sign in on this Space, in the app or the browser, then try again. Saving a new item works now." };
       deps.onCall?.(s.caller, t.name, "error", { cap: t.cap, threadId });
       return { result: textResult({ error }, true, { error }) };
     }

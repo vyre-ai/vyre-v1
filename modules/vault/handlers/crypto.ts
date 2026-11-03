@@ -1,25 +1,29 @@
 // Vault crypto (spec 2.17 Encryption split; ARCH 7.8, 4.4). Two ways to hold a value, one random key per item either way:
 //   enc=2  Mine. The item's own key seals the fields (AES-256-GCM, the item id and revision bound in as context). The item key is wrapped by the owner's wrap key, which comes from the owner's person
 //          key (HKDF) and is handed over for one call by the host's key port: the server keeps only the wrapped key, so an admin, a backup or a stolen database cannot open a Mine item.
+//   enc=3  Mine, saved while the owner's key was not on this node (an outside agent acting for them, a server that restarted under an open session, a sign-in whose key was never handed over). The
+//          item key is sealed to the owner's X25519 public key from their key bundle, so the server can save the item and still cannot open it: opening takes the private key, which only their person key
+//          unlocks. The first time it is opened with their key it moves to enc=2. Saving never has to wait for an unlock.
 //   enc=1  Shared. The fields are sealed under the filler's key. The Filler is a separate in-process service: it holds its own key ring, never exposes a key, never indexes or logs a value, and is the only
 //          code that can open a Shared row. The handlers ask it to seal at write time and to open at reveal or fill time.
 // Argon2id (RFC 9106, 19 MiB, 2 passes, one lane: the kernel's stretch parameters) turns a password into a wrap key when a person changes it: rewrapMine moves the item key to the new wrap
 // key without touching the sealed fields. Key rotation of the filler re-seals Shared rows under the new key; the old key stays in the ring only until the last row has moved.
 import crypto from "node:crypto";
 import { inspect } from "node:util";
-import { aesUnwrap, aesWrap, argon2id, hkdf32 } from "../../../kernel/src/seal/index.ts";
+import { aesUnwrap, aesWrap, argon2id, hkdf32, openSeal, sealTo } from "../../../kernel/src/seal/index.ts";
 import type { Box } from "../../../kernel/src/seal/index.ts";
 
 export const ENC_SHARED = 1;
 export const ENC_MINE = 2;
-export type Enc = typeof ENC_SHARED | typeof ENC_MINE;
+export const ENC_MINE_SEALED = 3;
+export type Enc = typeof ENC_SHARED | typeof ENC_MINE | typeof ENC_MINE_SEALED;
 
 /** The kernel's stretch parameters, used unchanged for every password-derived vault key. */
 export const VAULT_STRETCH = Object.freeze({ memoryKiB: 19456, passes: 2, lanes: 1, tagLength: 32 });
 
 export interface Field { key: string; value: string; secret: boolean }
 /** What is stored for one item: never a plain value. `wrapped` exists for Mine only. */
-export interface SealedFields { enc: Enc; keyId: string; wrapped?: Box; box: Box; rev: number }
+export interface SealedFields { enc: Enc; keyId: string; wrapped?: Box & { eph?: string }; box: Box; rev: number }
 
 const te = new TextEncoder();
 const td = new TextDecoder();
@@ -53,6 +57,21 @@ export function openMine(itemId: string, sealed: SealedFields, wrapKey: Uint8Arr
   if (sealed.enc !== ENC_MINE || !sealed.wrapped) throw new Error("not a Mine row");
   const itemKey = aesUnwrap(wrapKey, sealed.wrapped, wrapAad(itemId));
   return decode(aesUnwrap(itemKey, sealed.box, aadOf(itemId, ENC_MINE, sealed.rev)));
+}
+
+/** A Mine item saved without the owner's key on this node: the item key is sealed to their public key (raw X25519, base64url), which anyone may seal to and only they can open. */
+export function sealMineTo(itemId: string, fields: Field[], publicKey: string, rev = 1): SealedFields {
+  const itemKey = crypto.randomBytes(32);
+  try {
+    return { enc: ENC_MINE_SEALED, keyId: `pk_${hkdf32(Buffer.from(publicKey), "vyre:vault:keyid", "pub").subarray(0, 6).toString("hex")}`, wrapped: sealTo(publicKey, itemKey, wrapAad(itemId)), box: aesWrap(itemKey, encode(fields), aadOf(itemId, ENC_MINE_SEALED, rev)), rev };
+  } finally { itemKey.fill(0); }
+}
+
+/** Opens an enc=3 row with the owner's private key (raw X25519, base64url). Throws when it is not theirs. */
+export function openMineSealed(itemId: string, sealed: SealedFields, privateKey: string): Field[] {
+  if (sealed.enc !== ENC_MINE_SEALED || !sealed.wrapped?.eph) throw new Error("not a sealed Mine row");
+  const itemKey = openSeal(privateKey, sealed.wrapped as Box & { eph: string }, wrapAad(itemId));
+  try { return decode(aesUnwrap(itemKey, sealed.box, aadOf(itemId, ENC_MINE_SEALED, sealed.rev))); } finally { itemKey.fill(0); }
 }
 
 /** A new wrap key (a password change, a new person key): the item key moves, the sealed fields do not. */
@@ -128,6 +147,10 @@ export function currentFiller(): Filler | null { return filler; }
 export interface KeyPort {
   /** The person key of the signed-in person, only for that person; null for anyone else or when the session did not unlock it. */
   personKey(personId: string): Promise<Uint8Array | null>;
+  /** The person's X25519 public key from their key bundle (raw, base64url), to seal a Mine item to them while their key is not here; null when they have no real bundle. */
+  publicKey?(personId: string): Promise<string | null>;
+  /** Their X25519 private key (raw, base64url), opened with the person key this node holds for them; null when it does not hold it. The caller does not keep it. */
+  privateKey?(personId: string): Promise<string | null>;
 }
 let port: KeyPort | null = null;
 export function setKeyPort(p: KeyPort | null): void { port = p; }

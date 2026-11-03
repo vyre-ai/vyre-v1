@@ -17,7 +17,7 @@ The Space AI key for the Space: whether one is set, its provider and the models 
 | Audit | none |
 | Team Space only | no |
 | HTTP | POST /v1/providers/space_key/get |
-| MCP tool | none |
+| MCP tool | providers_space_key_get (vault) |
 | CLI | none |
 | Emits | none |
 

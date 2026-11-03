@@ -222,10 +222,10 @@ export default defineManifest({
     }),
     // ---- the Space AI key: one API key an owner or admin sets for everyone. It sits in a Restricted Shared folder, so no member, agent or process can read, fill or export it; the engine alone uses it for turns.
     read('providers.space_key.get', 'The Space AI key for the Space: whether one is set, its provider and the models it unlocks (read live from the provider and kept for a while). Never the key', {
-      in: { refresh: t.opt(t.bool()) }, out: spaceKeyRow, level: 'member', offline: 'online',
+      in: { refresh: t.opt(t.bool()) }, out: spaceKeyRow, level: 'member', offline: 'online', tool: 'vault',
     }),
-    write('providers.space_key.set', 'An owner or admin sets or replaces the Space AI key: it is checked with the provider at once (its model list), then kept in a Restricted Shared folder. A person does this, never an agent', {
-      idem: 'key', in: { providerKey: t.str({ examples: ['opencode-go'] }), apiKey: t.str() }, out: spaceKeyRow, perm: 'policy.manage', audit: 'always', offline: 'online',
+    write('providers.space_key.set', 'An owner or admin sets or replaces the Space AI key: it is checked with the provider at once (its model list), then kept in a Restricted Shared folder. A person does this, or their outside agent under the setup grant; never an agent on its own', {
+      idem: 'key', in: { providerKey: t.str({ examples: ['opencode-go'] }), apiKey: t.str() }, out: spaceKeyRow, perm: 'policy.manage', audit: 'always', offline: 'online', tool: 'vault',
       emits: ['provider.added', 'provider.removed', 'vault.item_created', 'vault.item_deleted', 'vault.folder_created'], errors: ['provider.auth_failed', 'provider.unavailable'],
     }),
     write('providers.space_key.remove', 'Remove the Space AI key; people with their own accounts keep working', {
