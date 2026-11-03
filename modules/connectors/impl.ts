@@ -89,6 +89,7 @@ function adapt(name: keyof ConnectorsHandlers): (ctx: HostCtx, input: never) => 
       trace: ctx.trace, emit: (n, s, p, o) => ctx.emit(n, s, p, o), call: (c, i) => ctx.call(c, i),
       http: (url,init) => port&&definition&&stored?.state==='live'?port.http(execution,definition.domains,url,init):ctx.http(url,init),
       ...(ctx.log ? { log: ctx.log } : {}), ...(ctx.schedule ? { schedule: (at, cap, input) => ctx.schedule!(at, cap, input) } : {}), ...((ctx.actingFor??ctx.principal?.id)?{actor:ctx.actingFor??ctx.principal!.id}:{}),
+      canManageSpace: () => ctx.authorize({ perm: 'connectors.manage', level: 'edit' }, { type: 'space', id: ctx.space }).effect === 'allow',
     };
     const bound = createConnectorsHandlers({ ...handle.deps, writeFolder: (key, files) => writeConnectorFolder(cc, key, files), writeSource: (key, files, register) => writeSourceFolder(cc, key, files, register),
       // the editable source is read through the original caller's Files access, so what they may not open is never compiled

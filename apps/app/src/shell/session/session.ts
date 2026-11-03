@@ -36,6 +36,7 @@ import { createRemoteScreenHooks } from "./remote-hooks.ts";
 import type { RemoteHooks } from "./remote-hooks.ts";
 import { onRetryLoads } from "../../../../../ui/src/States/retry.ts";
 import { speed } from "../../speed/recorder.ts";
+import { GATE } from "./gates.ts";
 
 export interface OpenSessionOptions {
   /** The sign-in name this device typed, when it did. */
@@ -353,7 +354,7 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
     // a Personal Space has one person and their own computer: the terminal is always theirs. A Team Space gives it to owners and developers
     terminal: space.kind === "personal" || holdsRole(who.roles, "owner", "developer"),
     // members.invite is the Owner's and Admins' (manifests/permissions.ts); a Personal Space has nobody to invite
-    invite: space.kind === "team" && holdsRole(who.roles, "owner", "admin"),
+    invite: space.kind === "team" && (who.permissions ? who.permissions.includes(GATE.invite) : holdsRole(who.roles, "owner", "admin")),
     counts: {},   // the Chats badge is Needs you, live: ShellHost follows tasks.count_needs_you
     dots: {},
   };
@@ -398,6 +399,7 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
     get aiConnected() { return connected(AI_CONNECTORS); },
     get calendarConnected() { return connected(CALENDAR_CONNECTORS); },
     plainRole: plainRoleOnly(who.roles, space.kind),
+    ...(who.permissions ? { permissions: new Set(who.permissions) } : {}),
     deferredModules: deferred.deferredModules,
     isDeferred: deferred.isDeferred,
     open,

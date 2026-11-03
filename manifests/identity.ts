@@ -74,7 +74,8 @@ export default defineManifest({
     }),
     write('identity.sign_out', 'End this session; the device keeps nothing it should not', { ...V, in: { sessionId: t.opt(id.session) }, out: ok, offline: 'online', tool: 'meta' }),
     read('identity.whoami', 'Who the caller is here: person, roles, clearance, device, epoch', {
-      ...V, out: { principal: principalRef, name: t.str(), roles: t.arr(id.role), groups: t.arr(id.group), deviceId: t.opt(id.device), epoch: t.int({ minimum: 0 }), spaceId: id.space, deferred: t.opt(t.arr(t.str())) }, tool: 'meta',
+      // level 'member': a guest holds no Space-wide grant, and still has to know who they are to open the app
+      level: 'member', out: { principal: principalRef, name: t.str(), roles: t.arr(id.role), groups: t.arr(id.group), permissions: t.opt(t.arr(t.str({ description: 'The permission keys my roles carry here (manifests/permissions.ts), so the app hides what I cannot do' }))), deviceId: t.opt(id.device), epoch: t.int({ minimum: 0 }), spaceId: id.space, deferred: t.opt(t.arr(t.str())) }, tool: 'meta',
     }),
     read('identity.security.get', 'My sign-in in this Space: when the password last changed, the linked GitHub account, whether an authenticator app is set and the passkeys (Settings > Sign-in and devices)', {
       ...V, out: { passwordChangedAt: t.ts(), github: t.opt(t.str({ description: 'The linked GitHub login', examples: ['maya-chen'] })), totp: t.bool(), passkeys: t.arr(t.str()), username: t.opt(t.str({ description: 'My username here, the one a password sign-in takes (rc.17: a device that signed in with Google learns it here)', examples: ['maya'] })), carried: t.opt(t.arr(t.obj({ origin: t.str({ description: 'The web address of the Space the account was brought to', examples: ['https://beacon.vyre.run'] }), at: t.ts() }))) }, tool: 'meta',

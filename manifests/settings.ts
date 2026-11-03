@@ -61,7 +61,7 @@ export default defineManifest({
     }),
 
     // ---- Kit choice (chosen per Space or per person)
-    read('settings.kit.get', 'The Kit chosen for this Space, my own choice, and the one in effect', { ...V, in: {}, out: { kit: kitChoice }, tool: 'meta' }),
+    read('settings.kit.get', 'The Kit chosen for this Space, my own choice, and the one in effect', { level: 'member', in: {}, out: { kit: kitChoice }, tool: 'meta' }),
     write('settings.kit.set_mine', 'Choose my own Kit for this Space (null follows the Space)', { ...V, in: { kitId: t.nullable(id.kit) }, out: { kit: kitChoice }, emits: ['settings.changed'], tool: 'meta', offline: 'queue' }),
     write('settings.kit.set_space', 'Choose the Kit for the whole Space', { ...V, in: { kitId: id.kit }, out: { kit: kitChoice }, perm: 'kits.install', emits: ['settings.changed'], audit: 'always', tool: 'meta', team: true }),
   ],

@@ -141,6 +141,8 @@ function CanvasBody({ a, tab, setTab, failedRuns, versions, tabBodies, run, onCl
 }): ReactElement {
   const winW = useWindowDimensions().width;
   const tight = winW > 0 && winW < 1180;
+  // a Space Automation is changed by whoever holds automations.space (l-perms): anyone else reads it, runs and tests it, copies it, or asks an admin
+  const locked = a.kind === "space" && data.canSpace === false;
   const phone = winW > 0 && winW < 720;   // a phone reads an Automation and runs it; building it is for a bigger window   // beside the sidebar a 1024 window has no room for labelled buttons: icons only
   const { element, show } = useMenu();
   const [draft, setDraft] = useState<Definition | null>(null);
@@ -215,15 +217,23 @@ function CanvasBody({ a, tab, setTab, failedRuns, versions, tabBodies, run, onCl
   const agentOf = (n: CardNode): string | undefined => (n.node?.ai?.agentId ? data.name(n.node.ai.agentId) : n.node?.ai ? "Assistant" : undefined);
 
   const edit = useCallback((next: Definition): void => {
+    if (locked) return;
     undo.current.push(def);
     setDraft(next);
-  }, [def]);
+  }, [def, locked]);
   const undoEdit = useCallback((): void => {
     const prev = undo.current.pop();
     if (prev) setDraft(JSON.stringify(prev) === JSON.stringify(a.definition) ? null : prev);
   }, [a.definition]);
 
   const flash = (text: string): void => { setNote(text); };
+  const askAdmin = (): void => {
+    void data.call("access.request", { resource: { type: "automation", id: a.id }, level: "edit", note: `May I change the Space automation ${a.name}?`, idempotencyKey: `ask-edit-${a.id}` })
+      .then(() => flash("Asked an admin. You will hear back in Chats."), (x: unknown) => flash(x instanceof Error ? x.message : "The ask did not go."));
+  };
+  const personalCopy = (): void => {
+    void data.call("automations.make_personal_copy", { automationId: a.id, name: `${a.name} (mine)` }).then(() => flash("A personal copy is in your Automations")).catch((x: unknown) => flash(x instanceof Error ? x.message : "No copy was made"));
+  };
   const save = useCallback(async (): Promise<void> => {
     if (!draft || saving) return;
     setSaving(true);
@@ -437,12 +447,15 @@ function CanvasBody({ a, tab, setTab, failedRuns, versions, tabBodies, run, onCl
   const openMore = (e: unknown): void => {
     const p = rect(e);
     show([
-      ...(a.kind === "space" ? [{ label: "Make a personal copy", onSelect: () => void data.call("automations.make_personal_copy", { automationId: a.id, name: `${a.name} (mine)` }).then(() => flash("A personal copy is in your Automations")).catch((x: unknown) => flash(x instanceof Error ? x.message : "No copy was made")) }] : [{ label: "Promote to the Space", onSelect: () => setPromoteOpen(true) }]),
+      ...(a.kind === "space" ? [{ label: "Make a personal copy", onSelect: personalCopy }] : data.canSpace === false ? [] : [{ label: "Promote to the Space", onSelect: () => setPromoteOpen(true) }]),
+      ...(locked ? [{ label: "Ask an admin to change it", onSelect: askAdmin }] : []),
       { label: "Analytics", onSelect: () => setTab("analytics") },
       ...(phone ? [] : [{ label: "Live events", onSelect: () => setEventsOpen(true) }]),
-      { label: "Undo last edit", onSelect: undoEdit },
-      { separator: true },
-      { label: "Move to Trash", danger: true, onSelect: () => void data.call("automations.delete", { automationId: a.id }).catch((x: unknown) => flash(x instanceof Error ? x.message : "That did not move")) },
+      ...(locked ? [] : [
+        { label: "Undo last edit", onSelect: undoEdit },
+        { separator: true } as MenuEntry,
+        { label: "Move to Trash", danger: true, onSelect: () => void data.call("automations.delete", { automationId: a.id }).catch((x: unknown) => flash(x instanceof Error ? x.message : "That did not move")) },
+      ]),
     ], p.x - 160, p.y, "context");
   };
   const openStatus = (e: unknown): void => {
@@ -536,6 +549,8 @@ function CanvasBody({ a, tab, setTab, failedRuns, versions, tabBodies, run, onCl
               accessibilityLabel="Name" testID="rename" autoFocus value={renaming} onChangeText={setRenaming} onBlur={() => void rename(renaming)} onSubmitEditing={() => void rename(renaming)}
               onKeyPress={((e: { key?: string }) => { if (e.key === "Escape") setRenaming(null); }) as never} style={s.titleInput}
             />
+          ) : locked ? (
+            <Text testID="title" accessibilityRole="header" aria-level={1} numberOfLines={1} style={s.title}>{a.name}</Text>
           ) : (
             <Pressable accessibilityRole="button" accessibilityLabel={`${a.name}. Rename`} testID="title" onPress={() => setRenaming(a.name)} style={pointer}>
               <Text accessibilityRole="header" aria-level={1} numberOfLines={1} style={s.title}>{a.name}</Text>
@@ -548,7 +563,7 @@ function CanvasBody({ a, tab, setTab, failedRuns, versions, tabBodies, run, onCl
         </View></>) : null}
         {sendsFrom ? (<><View style={s.sep} /><Text testID="sends-from" numberOfLines={1} style={[s.sendsFrom, !sendsFrom.ok && { color: "var(--warn)" as string }]}>{sendsFrom.text}</Text></>) : null}
         <View style={{ flex: 1 }} />
-        {phone ? null : <View accessibilityLabel="Builder mode" testID="builder-mode" style={s.seg} {...webOnly({ title: "Basic shows each step as a form. Advanced adds the step or trigger as JSON under the form." })}>
+        {phone || locked ? null : <View accessibilityLabel="Builder mode" testID="builder-mode" style={s.seg} {...webOnly({ title: "Basic shows each step as a form. Advanced adds the step or trigger as JSON under the form." })}>
           {/* ui-rows-lint: not a list (Basic and Advanced toggle) */}
           {BUILDER_MODES.map((label) => {
             const on = (label === "Advanced") === (mode === "advanced");
@@ -564,12 +579,19 @@ function CanvasBody({ a, tab, setTab, failedRuns, versions, tabBodies, run, onCl
         {hasManual ? <TextButton label="Run now" icon="bolt" bare={tight} testID="run-now" onPress={() => void runNow()} /> : null}
         <TextButton label="Test" icon="flask" bare={tight} testID="test-run" onPress={() => void test()} />
         {dirty ? <TextButton label={saving ? "Saving" : "Save"} primary disabled={saving || errors.length > 0} testID="save" onPress={() => void save()} /> : null}
-        <Pressable accessibilityRole="button" accessibilityLabel={`Status: ${statusLabel}`} testID="status" onPress={openStatus} style={[s.status, pointer]}>
-          <Dot tone={a.status === "on" ? "ok" : a.status === "paused" ? "warn" : "muted"} />
-          <Text style={s.statusText}>{statusLabel}</Text>
-          <Glyph name="chevD" size={11} color="var(--ink-3)" />
-        </Pressable>
-        {phone ? null : <TextButton label="Ask" icon="sparkle" bare={tight} testID="ask" onPress={() => setTab("ask")} />}
+        {locked ? (
+          <View testID="status" accessibilityLabel={`Status: ${statusLabel}`} style={s.status}>
+            <Dot tone={a.status === "on" ? "ok" : a.status === "paused" ? "warn" : "muted"} />
+            <Text style={s.statusText}>{statusLabel}</Text>
+          </View>
+        ) : (
+          <Pressable accessibilityRole="button" accessibilityLabel={`Status: ${statusLabel}`} testID="status" onPress={openStatus} style={[s.status, pointer]}>
+            <Dot tone={a.status === "on" ? "ok" : a.status === "paused" ? "warn" : "muted"} />
+            <Text style={s.statusText}>{statusLabel}</Text>
+            <Glyph name="chevD" size={11} color="var(--ink-3)" />
+          </Pressable>
+        )}
+        {phone || locked ? null : <TextButton label="Ask" icon="sparkle" bare={tight} testID="ask" onPress={() => setTab("ask")} />}
         {phone ? null : <IconButton icon="panel" label={paneOpen ? "Hide the side pane" : "Show the side pane"} on={paneOpen} testID="toggle-pane" onPress={onTogglePane} />}
         <IconButton icon="more" label={moreLabel(a.name)} testID="more" onPress={openMore} />
       </View>
@@ -587,7 +609,16 @@ function CanvasBody({ a, tab, setTab, failedRuns, versions, tabBodies, run, onCl
               {errors[0] ? <AskVyre bundle={askBundle(errors[0])} onOpen={(safe) => data.nav.ask(a.id, safe)} /> : null}
             </View>
           ) : null}
-          <View testID="tool-row" style={s.tool}>
+          {locked ? (
+            <View testID="locked" style={s.tool}>
+              <Glyph name="shield" size={13} color="var(--ink-3)" />
+              <Text style={s.toolText} numberOfLines={1}>A Space automation. Owners and admins change it; you can run it or make your own copy.</Text>
+              <View style={{ flex: 1 }} />
+              <TextButton label="Make a personal copy" testID="locked-copy" onPress={personalCopy} />
+              <TextButton label="Ask an admin" testID="locked-ask" onPress={askAdmin} />
+            </View>
+          ) : null}
+          <View testID="tool-row" style={[s.tool, locked && { display: "none" }]}>
             <Text testID="definition-crumb" style={s.toolText}>{definitionCrumb({ status: a.status, dirty, pinned })}</Text>
             <Text testID="build-hint" numberOfLines={1} style={[s.toolText, { color: "var(--ink-4)" as string }]}>
               {dirty ? "Unsaved changes. Save to keep them." : def.nodes.length === 0 ? "Press + under the trigger to add the first step." : "Click a card to set it up. Press + under a card to add a step."}
@@ -604,15 +635,17 @@ function CanvasBody({ a, tab, setTab, failedRuns, versions, tabBodies, run, onCl
           </View>
           <View testID="builder-body" accessibilityLabel={compactRegionLabel(studioLayout) ?? undefined} style={[s.body, stack && s.stack]} onLayout={(e: LayoutChangeEvent) => setBodyW(e.nativeEvent.layout.width)}>
             <View testID="region-canvas" accessibilityLabel={ordered ? COMPACT_REGIONS[0] : undefined} style={s.surfaceWrap} onLayout={onSurface}>
+              <View pointerEvents={locked ? "none" : "auto"} style={{ flex: 1 }}>
               <Surface lay={lay} zoom={canvasScale(ordered, zoom)} view={view}>
                 <TriggerCard
                   card={lay.cards[0]!} triggers={def.triggers} selected={trigSel} hovered={hover === "trigger"} onHover={setHover} handlers={handlers}
                   selectedIndex={trigSel ? sel?.trigger ?? null : null} onSelectTrigger={(i) => select("trigger", i)} onOpenTrigger={(i) => openPanel("trigger", i)} onAddTrigger={openTriggerAdd} onTriggerMenu={openTriggerMenu} describe={describe}
                 />
                 {stepCards}
-                {addDots}
-                {def.nodes.length === 0 ? <AddDot x={lay.cards[0]!.x + lay.cards[0]!.w / 2} y={lay.cards[0]!.y + lay.cards[0]!.h + 6} label={insertLabel(null)} onPress={(px, py) => openAdd(null, px, py)} /> : null}
+                {locked ? null : addDots}
+                {def.nodes.length === 0 && !locked ? <AddDot x={lay.cards[0]!.x + lay.cards[0]!.w / 2} y={lay.cards[0]!.y + lay.cards[0]!.h + 6} label={insertLabel(null)} onPress={(px, py) => openAdd(null, px, py)} /> : null}
               </Surface>
+              </View>
               <View style={s.zoom} testID="zoom">
                 <IconButton icon="x" label="Zoom out" testID="zoom-out" onPress={() => setZoom((z) => canvasScale(ordered, clampZoom(z - 0.1)))} />
                 <Text style={s.zoomText} testID="zoom-level">{`${Math.round(canvasScale(ordered, zoom) * 100)}%`}</Text>

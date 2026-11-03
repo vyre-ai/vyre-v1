@@ -108,6 +108,8 @@ export function createConnectionsHandlers(deps: ConnectorsDeps): ConnectionsHand
       const c = tx.get<{ state: string }>("SELECT state FROM cn_connectors WHERE key = ?", input.connector)!;
       if (c.state === "draft") refuse(ctx, "validation.precondition_failed", `${input.connector} is a draft: publish it before connecting an account.`);
       if (!input.title.trim()) refuse(ctx, "validation.bad_input", "A connection needs a title.");
+      // your own connection is yours to make (l-perms); one for the whole Space is an admin's
+      if (input.ownerKind === "space" && ctx.canManageSpace && !ctx.canManageSpace()) refuse(ctx, "permission.role_lacks_permission", "Connecting an app for the whole Space is for an owner or admin. Connect it as your own, or ask an admin.");
       if (def.scope === "space" && input.ownerKind !== "space") refuse(ctx, "validation.precondition_failed", `${def.title} connects to the Space, not to a person.`);
       if (def.scope === "person" && input.ownerKind !== "person") refuse(ctx, "validation.precondition_failed", `${def.title} connects to a person's own account.`);
       if (def.auth.type === "oauth2" && def.auth.authUrl) {

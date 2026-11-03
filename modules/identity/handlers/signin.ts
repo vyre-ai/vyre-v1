@@ -155,6 +155,7 @@ export async function whoami(ctx: IdentityCtx, _input: Record<string, never>) {
     name: a.name,
     roles: dir.roles,
     groups: dir.groups,
+    ...(dir.permissions ? { permissions: dir.permissions } : {}),
     ...((ctx.session?.deviceId ?? ctx.device) ? { deviceId: (ctx.session?.deviceId ?? ctx.device) as string } : {}),
     epoch: a.epoch,
     spaceId: ctx.space,

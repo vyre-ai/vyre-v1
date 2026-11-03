@@ -30,11 +30,11 @@ import { AutomationsSidebar } from "../../places/automations/sidebar/Automations
 import type { StudioView } from "../../places/automations/sidebar/AutomationsSidebarSlot.tsx";
 import { keysFromProviders } from "../../places/automations/values/typed.ts";
 import { nameOf } from "./misc-common.ts";
-import { useOptionalShellRuntime } from "./runtime.tsx";
+import { GATE, allows, useOptionalShellRuntime } from "./runtime.tsx";
 import type { ShellRuntime } from "./runtime.tsx";
 
 export function automationsData(rt: ShellRuntime, nav: AutomationsData["nav"], keys: readonly KeyChoice[] = [], keysStatus?: KeysStatus, accounts?: readonly AccountOption[], lastPicks?: Readonly<Record<string, string>>): AutomationsData {
-  return { screens: rt.screens, call: rt.call, me: { id: rt.me.id, name: rt.me.name }, name: nameOf(rt), keys, ...(keysStatus ? { keysStatus } : {}), ...(accounts ? { accounts } : {}), ...(lastPicks ? { lastPicks } : {}), nav, clock: () => ({ now: rt.clock().now }) };
+  return { screens: rt.screens, call: rt.call, me: { id: rt.me.id, name: rt.me.name }, name: nameOf(rt), keys, ...(keysStatus ? { keysStatus } : {}), ...(accounts ? { accounts } : {}), ...(lastPicks ? { lastPicks } : {}), nav, clock: () => ({ now: rt.clock().now }), canSpace: allows(rt, GATE.spaceAutomations) };
 }
 
 type Overlay = { kind: "failed" } | { kind: "run"; id: string } | { kind: "journey"; id: string } | { kind: "journeyNew" };
