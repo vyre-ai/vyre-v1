@@ -3,6 +3,7 @@
 import type { CapMap } from "../../../../../../generated/types.ts";
 import type { ImportedRow } from "../imported/model.ts";
 import type { TeamNow } from "../../../shell/team/now.ts";
+import type { GoalLine } from "../goals/model.ts";
 
 export type RecentOut = CapMap["chat.recent"]["out"];
 export type RecentItem = RecentOut["today"][number];
@@ -34,7 +35,7 @@ export const GROUPS: readonly { key: GroupKey; label: string }[] = [
   { key: "earlier", label: "Earlier" },
 ];
 
-export type SectionKey = "now" | "team" | "people" | "faces" | "recent" | "channels" | "imported" | "archived";
+export type SectionKey = "now" | "goals" | "team" | "people" | "faces" | "recent" | "channels" | "imported" | "archived";
 
 /** A recent row as the sidebar draws it. `person` marks a chat with one person; `local` marks one made on this device that the server has not answered yet. */
 export interface ChatRow {
@@ -209,9 +210,11 @@ export function needsKind(item: NeedsItem): { label: string; tone: "accent" | "w
 export type Entry =
   | { key: string; type: "head"; section: SectionKey; label: string; count?: number; open: boolean }
   | { key: string; type: "face"; agent: Agent; digit?: number; working: boolean; waiting: boolean; assistant?: boolean; unread?: number }
-  | { key: string; type: "more"; label: string; to: "agents" | "unread" | "recent" | "people" | "faces" }
+  | { key: string; type: "more"; label: string; to: "agents" | "unread" | "recent" | "people" | "faces" | "goals" }
   /** The two rows at the top: Tasks and Threads. */
   | { key: string; type: "nav"; to: "tasks" | "threads"; label: string; count: number; dot?: boolean }
+  /** A goal: its lead's face, its title, a steady bar and what changes what you do (a two-line row, GOAL_ROW_H). */
+  | { key: string; type: "goal"; goal: GoalLine }
   /** A person of the Space: a press opens your chat with them. `presence` is their steady dot (online, away). */
   | { key: string; type: "person"; id: string; name: string; unread: number; presence?: "online" | "away" }
   /** While you were away (owner D21): one quiet row at the very top, only after an absence that had something in it; a press shows what happened. */
@@ -257,6 +260,9 @@ export interface SidebarInput {
   agentUnread?: ReadonlyMap<string, number>;
   /** Chats with something waiting on you: they rise to Now. */
   waitingThreads?: ReadonlySet<string>;
+  /** Your goals and the ones you help with, in the order the Goals group shows them (goals/model.ts sidebarGoals). */
+  goals?: readonly GoalLine[];
+  moreGoals?: boolean;
   people?: readonly { id: string; name: string; unread?: number }[];
   moreRecent?: boolean;
   morePeople?: boolean;
@@ -298,6 +304,8 @@ export function splitChannels(channels: readonly Channel[]): { plain: Channel[];
   return { plain: live.filter((c) => !isProject(c)), projects: live.filter(isProject) };
 }
 
+/** The Goals group shows this many, then "N more". */
+export const GOALS_SHOWN = 5;
 /** Recent shows this many, then "N more". */
 export const RECENT_SHOWN = 3;
 /** People and Agents show this many, then "N more". */
@@ -312,6 +320,16 @@ export function buildEntries(i: SidebarInput): Entry[] {
   if (!i.searching) {
     out.push({ key: "nav:tasks", type: "nav", to: "tasks", label: "Tasks", count: i.tasksCount ?? 0 });
     out.push({ key: "nav:threads", type: "nav", to: "threads", label: "Threads", count: 0, dot: i.threadsDot === true });
+  }
+  // Goals sit under Tasks and Threads: what needs you first. A Space with none shows no group.
+  if (!i.searching && (i.goals?.length ?? 0) > 0) {
+    const goals = i.goals!;
+    out.push({ key: "h:goals", type: "head", section: "goals", label: "Goals", count: goals.length, open: open("goals") });
+    if (open("goals")) {
+      const shown = i.moreGoals === true ? goals : goals.slice(0, GOALS_SHOWN);
+      for (const g of shown) out.push({ key: `g:${g.id}`, type: "goal", goal: g });
+      if (shown.length < goals.length) out.push({ key: "m:goals", type: "more", label: `${goals.length - shown.length} more`, to: "goals" });
+    }
   }
   const rows = i.groups.flatMap((g) => g.rows);
   const unique = rows.filter((r, n) => rows.findIndex((x) => x.threadId === r.threadId) === n);
@@ -404,6 +422,7 @@ export function openEntry(entries: readonly Entry[], open: string | null): strin
   const has = (k: string): string | null => (entries.some((e) => e.key === k) ? k : null);
   if (open === "artifacts") return "artifacts";
   if (open === "tasks" || open === "threads") return has(`nav:${open}`);
+  if (open.startsWith("g:")) return has(open);
   if (open.startsWith("i:")) return has(open);
   if (open.startsWith("a:")) return has(`f:${open.slice(2)}`);
   if (open.startsWith("t:")) {

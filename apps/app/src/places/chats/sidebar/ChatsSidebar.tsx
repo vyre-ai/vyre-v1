@@ -34,6 +34,10 @@ import { Mark } from "../../../onboarding/ProviderLogo.tsx";
 import { dayLabel, importedRows, importedStartsOpen, providerMark, providerName } from "../imported/model.ts";
 import type { ImportedRow } from "../imported/model.ts";
 import { importedChanged, onImportedChange } from "../imported/changes.ts";
+import { useGoals } from "../goals/data.ts";
+import { sidebarGoals } from "../goals/model.ts";
+import type { GoalLine } from "../goals/model.ts";
+import { GOAL_ROW_H, GoalRow } from "../goals/GoalRow.tsx";
 import { RenameField } from "../conversation/parts.tsx";
 import { ChannelSheets } from "../channels/Sheets.tsx";
 import { onChannelRequest, takeChannelRequest } from "../channels/request.ts";
@@ -45,6 +49,7 @@ export const AGENTS_SCREEN = "chats.all-agents";
 /** Tasks is the one door to what needs you: the sidebar reads its Needs you and its count (tasks.my-work), never the Home screen. */
 export const NEEDS_SCREEN = "tasks.my-work";
 export const ROW_H = 34;
+const NO_GOALS: GoalLine[] = [];
 /** A section head sits a little apart from the rows above it. */
 const WORK_SCREEN = "tasks.my-work";
 
@@ -99,7 +104,10 @@ function Sidebar({ window, query, slot, open: shown }: { window?: VirtualWindow;
   const width = useWindowDimensions().width;
   const narrow = width > 0 && width < 560;
   const [filter, setFilter] = useState<SideFilter>("all");
-  const [more, setMore] = useState<{ recent?: boolean; people?: boolean; faces?: boolean }>({});
+  const [more, setMore] = useState<{ recent?: boolean; people?: boolean; faces?: boolean; goals?: boolean }>({});
+  // Goals: yours and the ones you help with, what needs you first (goals/model.ts). They follow the Space's changes, as a card that reads by capability does.
+  const goalsQ = useGoals(data.call, data.changes);
+  const goalRows = useMemo(() => (goalsQ.state.status === "ready" ? sidebarGoals(goalsQ.state.data, data.clock().now) : NO_GOALS), [goalsQ.state, data]);
   // Team now starts folded (owner D24: collapsed in Chats, open in Console); a press opens it
   const [closed, setClosed] = useState<ReadonlySet<SectionKey>>(new Set<SectionKey>(["team"]));
   // The imported coding sessions (sessions.list): read on open and again when the chats change, so a continued session shows its chat. A Space that cannot list them shows no group.
@@ -210,8 +218,8 @@ function Sidebar({ window, query, slot, open: shown }: { window?: VirtualWindow;
   }, [groups, agents]);
 
   const entries = useMemo(
-    () => buildEntries({ digest: digestCount > 0 ? { count: digestCount } : null, team: pulse.team, presence: pulse.presence, tasksCount, threadsDot, agentUnread: byAgent, waitingThreads, assistant: { agentId: data.space.assistant.agentId, name: data.space.assistant.name }, people, moreRecent: more.recent === true, morePeople: more.people === true, moreAgents: more.faces === true, faces, workingAgents: working, waitingAgents: waiting, groups, channels, filter, archived: archivedChats, archivedOpen, closed: (importedOpen ?? importedStartsOpen(liveImported)) ? closed : new Set([...closed, "imported" as const]), facesMore, errors, imported, archivedImported, personal, searching: query.trim() !== "" }),
-    [digestCount, pulse.team, pulse.presence, personal, query, tasksCount, threadsDot, byAgent, waitingThreads, people, more, data.space.assistant.agentId, data.space.assistant.name, faces, facesMore, recentQ, channelsQ, agentsQ, working, waiting, groups, channels, filter, closed, imported, archivedImported, importedOpen, liveImported, archivedChats, archivedOpen],
+    () => buildEntries({ goals: goalRows, moreGoals: more.goals === true, digest: digestCount > 0 ? { count: digestCount } : null, team: pulse.team, presence: pulse.presence, tasksCount, threadsDot, agentUnread: byAgent, waitingThreads, assistant: { agentId: data.space.assistant.agentId, name: data.space.assistant.name }, people, moreRecent: more.recent === true, morePeople: more.people === true, moreAgents: more.faces === true, faces, workingAgents: working, waitingAgents: waiting, groups, channels, filter, archived: archivedChats, archivedOpen, closed: (importedOpen ?? importedStartsOpen(liveImported)) ? closed : new Set([...closed, "imported" as const]), facesMore, errors, imported, archivedImported, personal, searching: query.trim() !== "" }),
+    [goalRows, digestCount, pulse.team, pulse.presence, personal, query, tasksCount, threadsDot, byAgent, waitingThreads, people, more, data.space.assistant.agentId, data.space.assistant.name, faces, facesMore, recentQ, channelsQ, agentsQ, working, waiting, groups, channels, filter, closed, imported, archivedImported, importedOpen, liveImported, archivedChats, archivedOpen],
   );
   const order = useMemo(() => selectable(entries), [entries]);
   const byKey = useMemo(() => new Map(entries.map((e) => [e.key, e])), [entries]);
@@ -321,6 +329,7 @@ function Sidebar({ window, query, slot, open: shown }: { window?: VirtualWindow;
     else if (e.type === "face") data.nav.openAgentChat(e.agent.agentId);
     else if (e.type === "channel") data.nav.openChannel(e.channel.channelId);
     else if (e.type === "nav") { (e.to === "tasks" ? data.nav.openTasks : data.nav.openThreads)?.(); }
+    else if (e.type === "goal") data.nav.openGoal?.(e.goal.id);
     else if (e.type === "person") void api.chatWithPerson(e.id);
     else if (e.type === "pulse") { if (e.kind === "person") void api.chatWithPerson(e.id); else if (e.threadId) data.nav.openChat(e.threadId); else data.nav.openAgentChat(e.id); }
     else if (e.type === "digest") { digestMenu(8, 48); return; }
@@ -407,6 +416,7 @@ function Sidebar({ window, query, slot, open: shown }: { window?: VirtualWindow;
           </SectionHead>
         );
       }
+      case "goal": return <GoalRow goal={e.goal} selected={sel} hovered={lit} now={data.clock().now} offsetMin={data.clock().offsetMin} me={data.me?.id} leadName={agentName(e.goal.leadAgentId)} onPress={() => open(e)} />;
       case "group": return <GroupLabel label={e.label} />;
       case "action": return (
         <Row id={e.key} title={e.label} selected={sel} hovered={lit} onPress={() => open(e)} leading={<LeadGlyph name="plus" />} />
@@ -543,7 +553,7 @@ function Sidebar({ window, query, slot, open: shown }: { window?: VirtualWindow;
       {data.nav.openArtifacts ? <View style={{ height: ROW_H }}><Row id="artifacts" testID="chats-artifacts" title="Artifacts" selected={selected === "artifacts"} hovered={follows && cursor === "artifacts" && selected !== "artifacts"} leading={<LeadGlyph name="project" />} onPress={() => { setCursor("artifacts"); data.nav.openArtifacts?.(); leave(); }} /></View> : null}
       <View style={st.list}>
         {loading ? <ChatsSidebarLoading /> : (
-          <VirtualList data={entries} rowHeight={ROW_H} keyOf={(e) => e.key} renderItem={(e) => renderEntry(e)} {...(window ? { window } : {})} />
+          <VirtualList data={entries} rowHeight={ROW_H} heightOf={(e) => (e.type === "goal" ? GOAL_ROW_H : ROW_H)} keyOf={(e) => e.key} renderItem={(e) => renderEntry(e)} {...(window ? { window } : {})} />
         )}
       </View>
       {undo ? (

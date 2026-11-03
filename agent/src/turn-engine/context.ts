@@ -26,9 +26,9 @@
 import type { SystemBlock } from "../drivers/api/types.ts";
 import { fingerprint } from "../drivers/api/prefix.ts";
 
-export type SectionId = "identity" | "rules" | "where" | "person" | "memory" | "skills" | "can" | "task" | "parent" | "digest" | "earlier" | "results" | "compacted" | "handoff" | "screen" | "focus" | "about" | "now" | "waiting";
+export type SectionId = "identity" | "rules" | "where" | "person" | "memory" | "skills" | "can" | "task" | "goal" | "parent" | "digest" | "earlier" | "results" | "compacted" | "handoff" | "screen" | "focus" | "about" | "now" | "waiting";
 
-export const SECTION_ORDER: readonly SectionId[] = ["identity", "rules", "where", "person", "memory", "skills", "can", "task", "parent", "digest", "earlier", "results", "compacted", "handoff", "screen", "focus", "about", "now", "waiting"];
+export const SECTION_ORDER: readonly SectionId[] = ["identity", "rules", "where", "person", "memory", "skills", "can", "task", "goal", "parent", "digest", "earlier", "results", "compacted", "handoff", "screen", "focus", "about", "now", "waiting"];
 
 export interface ContextSection {
   id: SectionId;
@@ -150,7 +150,7 @@ export function ordered(sections: readonly ContextSection[]): ContextSection[] {
 
 /** The title a section is shown under in a prompt. */
 const TITLE: Readonly<Record<SectionId, string>> = {
-  identity: "", rules: "", where: "Where you are", person: "", memory: "", skills: "", can: "What you can do here", task: "Your task", earlier: "Earlier in this chat (a summary of turns before the recent ones below; search the transcript for exact words)",
+  identity: "", rules: "", where: "Where you are", person: "", memory: "", skills: "", can: "What you can do here", task: "Your task", goal: "Your goal", earlier: "Earlier in this chat (a summary of turns before the recent ones below; search the transcript for exact words)",
   results: "What your tools returned in your recent turns here for this same person (theirs alone: others in this chat do not see it, so do not repeat it to them without care)",
   compacted: "This chat was compacted (this stands for everything before the messages below; search the transcript for exact words)", handoff: "You are taking over this chat",
   screen: "On the person's screen", focus: "Focus for this place", about: "About Vyre (the person asked about Vyre itself: answer from this, and check this Space with tools where it says to)", now: "", waiting: "You are waiting on",

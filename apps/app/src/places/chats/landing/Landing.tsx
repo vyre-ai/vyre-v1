@@ -5,6 +5,7 @@ import { useCallback, useMemo, useState } from "react";
 import type { ReactElement, ReactNode } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import { Avatar, avatarOf } from "../../../../../../ui/src/Avatar/index.tsx";
+import { GoalsNow } from "../goals/GoalsList.tsx";
 import type { ComposerSend } from "../../../../../../ui/src/Composer/index.tsx";
 import type { ChatMode } from "../../../../../../ui/src/Composer/brain.ts";
 import { DeferredComposer as Composer } from "../../../../../../ui/src/Composer/Deferred.tsx";
@@ -140,6 +141,7 @@ export function Landing(p: LandingProps): ReactElement {
               {moreLine(total, items.length) ? <Pressable role="button" testID="landing-more" onPress={p.openTasks} style={st.more}><Text style={st.moreText}>{moreLine(total, items.length)}</Text></Pressable> : null}
             </>
           )}
+          {firstDay ? null : <GoalsNow call={rt.call as (cap: string, input: unknown) => Promise<unknown>} changes={rt.changes} now={rt.clock().now} offsetMin={rt.clock().offsetMin} me={rt.me.id} nameOf={p.nameOf} openGoal={(id) => rt.open({ subject: { type: "goal", id } })} testID="landing-goals" />}
           {each(working, (w) => (
             <Pressable key={w.threadId} role="button" testID={`landing-working-${w.threadId}`} aria-label={workingLine(w)} onPress={() => p.openChat(w.threadId)} style={({ hovered }: { hovered?: boolean }) => [st.work, hovered === true && st.hover]}>
               <View style={st.workFaces}>

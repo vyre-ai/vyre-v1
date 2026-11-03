@@ -18,6 +18,8 @@ export type Route =
   /** Tasks and one task's page: the routes the Tasks lane fills. */
   | { view: "tasks" }
   | { view: "task"; taskId: string }
+  /** One goal's page, with its chat under it. */
+  | { view: "goal"; goalId: string }
   /** The threads you are in. */
   | { view: "threads" }
   /** What models made to show you. */
@@ -65,6 +67,7 @@ export type Act =
   | { t: "new" }
   | { t: "tasks" }
   | { t: "task"; taskId: string }
+  | { t: "goal"; goalId: string }
   | { t: "threads" }
   | { t: "artifacts" }
   | { t: "agent-form"; agentId?: string }
@@ -102,6 +105,7 @@ export function step(s: Shown, a: Act): Shown {
     }
     case "side-close": return { ...s, side: null };
     case "new": return { ...s, route: { view: "new" }, layer: null };
+    case "goal": return { ...s, route: { view: "goal", goalId: a.goalId }, pane: false, terminalId: null, layer: null };
     case "threads": return { ...s, route: { view: "threads" }, layer: null };
     case "artifacts": return { ...s, route: { view: "artifacts" }, layer: null };
     case "agent-form": return { ...s, route: { view: "agent-form", agentId: a.agentId ?? null }, layer: null };
@@ -134,6 +138,7 @@ export function openKeyOf(r: Route): string | null {
   switch (r.view) {
     case "chat": return r.threadId ? `t:${r.threadId}` : null;
     case "tasks": case "threads": case "artifacts": return r.view;
+    case "goal": return `g:${r.goalId}`;
     case "imported": return `i:${r.conversationId}`;
     case "agent": return `a:${r.agentId}`;
     case "agent-form": return r.agentId ? `a:${r.agentId}` : null;
@@ -158,6 +163,7 @@ export const SCREEN = {
   needs: "tasks.needs-you",
   tasks: "tasks.my-work",
   task: "tasks.page",
+  goal: "goals.page",
   threads: "chats.threads",
   artifacts: "chats.artifacts",
   agentForm: "chats.agent-form",
@@ -198,11 +204,13 @@ export function fromHash(hash: string): Shown {
   const screen = p.get("screen") ?? "";
   const arg = (k: string): string => p.get(k) ?? "";
   const fixed = { x: 8, y: 48 };
-  const subject = /^(thread|chat|channel|task):(.+)$/.exec(arg("subject"));
+  const subject = /^(thread|chat|channel|task|goal):(.+)$/.exec(arg("subject"));
+  if (subject?.[1] === "goal") return step(START, { t: "goal", goalId: subject[2]! });
   if (subject) return subject[1] === "task" ? step(START, { t: "task", taskId: subject[2]! }) : step(START, { t: "chat", threadId: subject[2]! });
   switch (screen) {
     case SCREEN.tasks: return step(START, { t: "tasks" });
     case SCREEN.task: return arg("taskId") === "" ? step(START, { t: "tasks" }) : step(START, { t: "task", taskId: arg("taskId") });
+    case SCREEN.goal: return arg("goalId") === "" ? START : step(START, { t: "goal", goalId: arg("goalId") });
     case SCREEN.threads: return step(START, { t: "threads" });
     case SCREEN.artifacts: return step(START, { t: "artifacts" });
     case SCREEN.agentForm: return step(START, { t: "agent-form", ...(arg("agentId") === "" ? {} : { agentId: arg("agentId") }) });

@@ -32,6 +32,7 @@ import { Fold, Glyph, IconButton, TextButton } from "./parts.tsx";
 import { ApprovalCard } from "./approval.tsx";
 import { useFollow } from "./use-follow.ts";
 import { CrewResultCard, CrewStartLine, isCrewResult, isCrewStart } from "./crew-card.tsx";
+import { GoalCard, goalBlockOf } from "../goals/GoalCard.tsx";
 import { KeyRequestCard, isKeyRequest } from "./keyrequest.tsx";
 import { AccessRequestCard, isAccessRequest } from "./accessrequest.tsx";
 import { ChecklistCard, isChecklist } from "./checklist.tsx";
@@ -68,6 +69,8 @@ export interface MessageActions {
   remove(messageId: string): void;
   openAgent(agentId: string): void;
   openBeside(kind: string, id: string): void;
+  /** A goal's page, from a goal card in the chat. Left out where the shell has no such page. */
+  openGoal?(goalId: string): void;
   answer(blockId: string, answer: unknown): void;
   approvePlan(planId: string): void;
   retryTurn(turnId: string): void;
@@ -381,6 +384,8 @@ function Theirs({ item, actions, stream, openWork, mark, meId, replies }: Messag
       {actions.files && refsOf(m).length > 0 ? <MountRefs refs={refsOf(m)} data={actions.files} /> : null}
       {actions.files && m.attachments.length > 0 ? <AttachmentChips ids={m.attachments} data={actions.files} menu={(items, x, y, label) => actions.showMenu(items, x, y, label)} /> : null}
       {collect(cards, (b) => {
+        const goal = goalBlockOf(b);
+        if (goal && actions.files) return <GoalCard key={b.id} block={goal} call={actions.files.call} changes={actions.files.changes} {...(actions.openGoal ? { openGoal: actions.openGoal } : {})} me={meId} />;
         if (isCrewResult(b) && actions.files) return <CrewResultCard key={b.id} block={b} leadThreadId={m.threadId} data={actions.files} />;
         if (isProposal(b)) return <AgentFileProposal key={b.id} block={b} host={actions.host} changes={actions.files?.changes} />;
         if (isPlanFile(b)) return <PlanFileCard key={b.id} block={b} onOpen={(id) => actions.openBeside("file", id)} />;

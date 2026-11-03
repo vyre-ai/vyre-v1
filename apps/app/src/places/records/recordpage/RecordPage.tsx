@@ -35,6 +35,7 @@ import { ActivityTab, ChatTab, CommentsTab, EverythingTab, FilesTab } from "../r
 import type { FieldDef, PaneKey, RecordRow, RelNode, Section, TypeDef, Undo } from "./model.ts";
 import { SealedField } from "./SealedField.tsx";
 import { DropZone } from "../../../../../../ui/src/FileDrop/index.tsx";
+import { GoalsOf } from "../../chats/goals/GoalsList.tsx";
 import type { DroppedFile } from "../../../../../../ui/src/FileDrop/index.tsx";
 
 export interface RecordPageStart {
@@ -442,6 +443,7 @@ function PageBody({ type, recordId, start = {} }: RecordPageProps): ReactElement
               : <Text accessibilityRole="header" aria-level={2} style={p.title}>{title}</Text>}
           </Pressable>
           {summary ? <Text style={p.summary} testID="summary">{summary}</Text> : null}
+          {data.nav.openGoal ? <GoalsOf scope="record" id={recordId} call={data.call} changes={data.changes} now={data.now()} offsetMin={0} nameOf={data.nameOf} openGoal={data.nav.openGoal} testID="record-goals" /> : null}
           {ring && late ? (
             <View style={p.ringRow} testID="completeness">
               {Platform.OS === "web" ? createElement("svg", { viewBox: "0 0 24 24", width: 24, height: 24, role: "img", "aria-label": `Completeness ${ring.label}`, "data-testid": "ring" },

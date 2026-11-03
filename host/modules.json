@@ -317,6 +317,11 @@
       "status": "live"
     },
     {
+      "id": "goals",
+      "owner": "L6",
+      "status": "live"
+    },
+    {
       "id": "tasks",
       "owner": "L6",
       "status": "live"

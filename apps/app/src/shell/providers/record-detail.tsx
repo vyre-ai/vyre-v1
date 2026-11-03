@@ -71,9 +71,11 @@ export function RecordDetail({ rt, recordId, type: hint, fields = false, tab = "
       attach: (files, t) => attachToRecord(rt.call, rt.putBlob, files, { type: t.type, recordId: t.recordId }, `record-attach:${t.recordId}:${Date.now().toString(36)}`),
       store: (files, t) => storeOnRecord(rt.call, rt.putBlob, files, { type: t.type, recordId: t.recordId }, `record-attach:${t.recordId}:${Date.now().toString(36)}`).then((r) => r.fileIds),
     },
+    ...(rt.changes ? { changes: rt.changes } : {}),
     nav: {
       openFile: (id) => rt.open({ subject: { type: "file", id } }),
       openSubject: (subject) => rt.open({ subject }),
+      openGoal: (goalId: string) => rt.open({ subject: { type: "goal", id: goalId } }),
       openRecord: (type, id) => rt.open({ subject: { type: "record", id }, args: { type } }),
       openChat: (_type, id) => { openAskPane({ thing: { kind: "record", id } }); },
       ask: askAboutRecord,
@@ -103,7 +105,8 @@ export function RecordDetail({ rt, recordId, type: hint, fields = false, tab = "
     openFolder: (id) => rt.open({ subject: { type: "folder", id } }), openFile: (id) => rt.open({ subject: { type: "file", id } }),
     openRecord: (type, id) => rt.open({ subject: { type: "record", id }, args: { type } }),
     openRecordPage: (type, id) => rt.open({ subject: { type: "record", id }, args: { type, recordView: "fields" } }),
-  } }), [rt]);
+    openGoal: (id) => rt.open({ subject: { type: "goal", id } }),
+  }, ...(rt.changes ? { changes: rt.changes } : {}) }), [rt]);
   if (actionError) return <States kind="error" message={actionError} retryable onRetry={() => setActionError("")} />;
   if (resolved.error) return <States kind="error" message={resolved.error} />;
   if (!resolved.type) return <States kind="empty" title="Opening record…" icon="records" />;

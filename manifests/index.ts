@@ -63,6 +63,7 @@ import m_spaces from './spaces.ts';
 import m_steps_core from './steps-core.ts';
 import m_stripe from './stripe.ts';
 import m_sync from './sync.ts';
+import m_goals from './goals.ts';
 import m_tasks from './tasks.ts';
 import m_telephony from './telephony.ts';
 import m_templates from './templates.ts';
@@ -145,6 +146,7 @@ export const all: Manifest[] = [
   m_steps_core,
   m_stripe,
   m_sync,
+  m_goals,
   m_tasks,
   m_telephony,
   m_templates,

@@ -39,6 +39,7 @@ const planChild = t.obj({
   key: t.str({ minLength: 1, maxLength: 60, examples: ['draft'] }), title: t.str({ minLength: 1 }), brief: t.opt(t.str()), doneMeans: t.opt(t.arr(t.str({ minLength: 1 }), { maxItems: 20 })),
   assigned: assignee, reviewer: t.opt(assignee), approver: t.opt(assignee), dependsOn: t.opt(t.arr(t.str(), { maxItems: 50 })), due: t.opt(t.ts()), priority: t.opt(priority),
   worker: t.opt(t.enm('thread', 'crew')), projectId: t.opt(id.project),
+  notes: t.opt(t.rec(t.str())),   // working notes the child starts with, beside its brief (a goal tags its tasks with goal.id and who they run for)
 });
 const target = { taskId: id.task };
 const baton = t.enm('review', 'approval', 'done');

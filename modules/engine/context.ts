@@ -202,6 +202,9 @@ export function profileSection(p: ProfileContext | undefined, who: (id: string) 
   return out.join("\n\n");
 }
 
+/** The built-in skill a goal's lead and helpers work by (agent/skills/working-on-goals). */
+export const GOAL_SKILL = "working-on-goals";
+
 const handoffs = new Map<string, string>();
 /** Remember what the next turn of a thread is told after a model switch. Taken once. */
 export function noteHandoff(threadId: string, text: string): void { handoffs.set(threadId, text); }
@@ -453,7 +456,8 @@ export function createContextBuilder(d: ContextDeps) {
     // skills: the manual is always in front of the agent; the other skills are an index, and the place's focus skill is loaded for it
     // A chat that Add to Automations or Build a connector started is a connector build whatever screen it was sent from: that skill is the focus. Anywhere else it is in the skills index by its description.
     const connectorChat = CONNECTOR_CHAT.test(str(th?.["title"]) ?? "");
-    const focusName = taskId ? "working-on-tasks" : connectorChat ? CONNECTOR_SKILL : CRM_CHAT.test(str(th?.["title"]) ?? "") ? CRM_SKILL : COMPANY_INTENT.test(str(th?.["title"]) ?? "") ? "connect-company" : screen?.focus ?? (screen ? `focus-${screen.place}` : undefined);
+    const goalId = str(th?.["scopeType"]) === "goal" ? str(th?.["scopeId"]) : undefined;
+    const focusName = goalId ? GOAL_SKILL : taskId ? "working-on-tasks" : connectorChat ? CONNECTOR_SKILL : CRM_CHAT.test(str(th?.["title"]) ?? "") ? CRM_SKILL : COMPANY_INTENT.test(str(th?.["title"]) ?? "") ? "connect-company" : screen?.focus ?? (screen ? `focus-${screen.place}` : undefined);
     if (d.skills) {
       const idx = await d.skills.index(agentId, asker).catch(() => []);
       const manual = await d.skills.load("working-in-vyre", agentId, asker).catch(() => null);
@@ -501,9 +505,19 @@ export function createContextBuilder(d: ContextDeps) {
     }
     add("can", true, can.join("\n"));
 
+    // the goal this chat or this task belongs to: the finish line, where the number stands, why the lead was woken, the plan and the rules (goals.brief, read as the owner)
+    let goalTask: Obj | undefined;
     if (taskId) {
       const t = await taskOf(taskId, asker);
       if (t) add("task", false, taskSection(t, agentId, nameMap, await answersOf(t, asker)));
+      goalTask = t;
+    }
+    const goalOfTask = str(((goalTask?.["workingNotes"] ?? {}) as Obj)["goal.id"]);
+    const theGoal = goalId ?? goalOfTask;
+    if (theGoal) {
+      const b = await read<Obj>("goals.brief", { goalId: theGoal, agentId }, asker);
+      const text = str(b?.["text"]);
+      if (text) add("goal", false, goalId ? `Your goal. You lead it: you own the outcome, not just the next message.\n${text}` : `This task is part of a goal. Work toward its finish line; the lead agent plans it. Load the ${GOAL_SKILL} skill if you have not.\n${cutTo(text, 3_000)}`);
     }
     if (str(digest?.["text"])) sections.push({ id: "digest", stable: false, once: true, text: `Tasks in hand (tasks_get has the detail):\n${str(digest?.["text"])}` });
 

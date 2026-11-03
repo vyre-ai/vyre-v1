@@ -13,8 +13,8 @@ import { all } from '../../../manifests/index.ts';
 
 const hostModules = JSON.parse(readFileSync(new URL('../../../host/modules.json', import.meta.url), 'utf8')) as { modules: Array<{ id: string; owner: string; status: string }> };
 
-test('host/modules.json lists the 72 modules with the manifest owner and status stub', () => {
-  assert.equal(hostModules.modules.length, 72);
+test('host/modules.json lists the 73 modules with the manifest owner and status stub', () => {
+  assert.equal(hostModules.modules.length, 73);
   for (const m of hostModules.modules) {
     const man = all.find((x) => x.id === m.id);
     assert.ok(man, `${m.id} has a manifest`);
