@@ -5,7 +5,7 @@
 // A turn shows the index (name and one line) and load_skill returns the full text. Reads run as the asker, so the agent folder is only read when the asker may see it.
 // Two skills with one name are both listed: the nearer one is used and says what it wins over, the other says what it loses to. A row that cannot be read is listed as broken and left out of
 // every turn; the rest of the list still answers. A Kit never replaces a skill it did not install, and undoing a Kit removes only its own.
-import { createHash } from "node:crypto";
+import { sha256b64 } from "../../../kernel/src/seal/wire.ts";
 import { readFileSync, readdirSync, existsSync, statSync } from "node:fs";
 import { parseSkill, SKILL_MAX_BYTES } from "../../../lib/skill-md.ts";
 import { agentBy, askerOf, canSee, ensure, mintId, raise, tolerant } from "../projections.ts";
@@ -30,7 +30,7 @@ const str = (v: unknown): string => (typeof v === "string" ? v : String(v ?? "")
 const by = (ctx: AgentsCtx): string => askerOf(ctx);
 export const MAX_FILES_BYTES = 400_000;
 const BUILTIN = new URL("../../../agent/skills/", import.meta.url);
-const fingerprint = (text: string, files: ReadonlyArray<{ path: string; text: string }>): string => createHash("sha256").update(text).update("\0").update(JSON.stringify(files)).digest("hex").slice(0, 16);
+const fingerprint = (text: string, files: ReadonlyArray<{ path: string; text: string }>): string => sha256b64(`${text}\0${JSON.stringify(files)}`).slice(0, 16);
 
 // ---- built-in -------------------------------------------------------------------------------------------------------------------------------------------
 

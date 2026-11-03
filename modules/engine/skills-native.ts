@@ -11,7 +11,7 @@
 // CHECKED on a build box, 3 Nov 2026, with the real binaries and the argv the drivers build (Ask first, a granted work folder, a fake model API): Claude Code 2.1.316 lists .claude/skills/<name> of its
 // folder and a --plugin-dir's skills under "The following skills are available for use with the Skill tool", offers Skill, opens one headless without a prompt ("Launching skill: ..."), and lists
 // a skill written between two turns of the same process on the next turn. Codex 0.166 lists .agents/skills/<name> of its folder in its skills instructions, with no git repository there.
-import { createHash } from "node:crypto";
+import { sha256b64 } from "../../kernel/src/seal/wire.ts";
 import fs from "node:fs";
 import path from "node:path";
 import type { EngineSession, OpenSession, SessionSpec, TurnInput } from "../../agent/src/turn-engine/types.ts";
@@ -60,7 +60,7 @@ function excludeFromGit(work: string, rel: string[]): void {
 export async function syncNativeSkills(d: NativeSkillsDeps, driver: NativeSkillDriver, agentId: string, asker: string, work: string): Promise<{ written: string[] } | "same"> {
   const rows = (((await d.call("skills.list", { agentId }, asker)) as { skills?: Row[] } | null)?.skills ?? [])
     .filter((r) => typeof r.name === "string" && r.name !== "" && r.tier !== "builtin" && !String(r.source ?? "").startsWith("plugin:") && r.shadowedBy === undefined && r.broken === undefined && r.enabled !== false);
-  const fingerprint = createHash("sha256").update(JSON.stringify(rows.map((r) => [r.name, r.hash ?? ""]).sort())).digest("hex").slice(0, 24);
+  const fingerprint = sha256b64(JSON.stringify(rows.map((r) => [r.name, r.hash ?? ""]).sort())).slice(0, 24);
   const base = path.join(work, SKILL_BASES[driver]);
   const before = readManifest(base);
   if (before?.fingerprint === fingerprint) return "same";

@@ -3,12 +3,12 @@
 // account, the usual audience checks apply, and a fixed message id makes it happen once.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { handlers } from "../impl.ts";
-import { DANA, INTAKE, LEO, MAYA, harness } from "../fixtures/harness.ts";
-import type { Harness } from "../fixtures/harness.ts";
-import { route } from "../../../lib/route.ts";
-import { createTurnEngine, scriptedProvider } from "../../../agent/src/turn-engine/index.ts";
-import { askPost } from "../../../apps/app/src/places/chats/conversation/askagent.ts";
+import { handlers } from "../modules/chat/impl.ts";
+import { DANA, INTAKE, LEO, MAYA, harness } from "../modules/chat/fixtures/harness.ts";
+import type { Harness } from "../modules/chat/fixtures/harness.ts";
+import { route } from "../lib/route.ts";
+import { createTurnEngine, scriptedProvider } from "../agent/src/turn-engine/index.ts";
+import { askPost } from "../apps/app/src/places/chats/conversation/askagent.ts";
 
 const h = handlers as unknown as Record<string, (ctx: Harness["ctx"], input: any) => Promise<any>>;
 let n = 0;
