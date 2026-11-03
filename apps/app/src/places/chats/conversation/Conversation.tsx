@@ -190,27 +190,6 @@ function ConversationView(): ReactElement {
   /** A rejected write: say what did not happen and that it can be tried again. The page keeps what it showed. */
   const fail = (what: string) => (e?: unknown): void => say(isDecided(e) ? DECIDED_LINE : `${what} Try again.`);
 
-  // "Don't remember this chat" (memory learning): read once per chat; the More menu turns it on and off, and the header says so while it is on
-  const [remembered, setRemembered] = useState<boolean | null>(null);
-  useEffect(() => {
-    let gone = false;
-    setRemembered(null);
-    let asked: Promise<unknown>;
-    try { asked = Promise.resolve(data.call("memory.chat_learning.get", { threadId: data.threadId })); } catch (e) { asked = Promise.reject(e); }
-    // a chat memory cannot answer for shows no switch rather than a wrong one
-    void asked.then((r) => { const v = (r as { remember?: unknown } | null)?.remember; if (!gone && typeof v === "boolean") setRemembered(v); }, () => undefined);
-    return () => { gone = true; };
-  }, [data, data.threadId]);
-  const setRemember = (remember: boolean): void => {
-    setRemembered(remember);
-    let asked: Promise<unknown>;
-    try { asked = Promise.resolve(data.call("memory.chat_learning.set", { threadId: data.threadId, remember })); } catch (e) { asked = Promise.reject(e); }
-    void asked.then(
-      () => say(remember ? "Vyre learns from this chat again." : "Vyre will not learn anything from this chat."),
-      (e: unknown) => { setRemembered(!remember); fail(remember ? "Could not turn learning back on." : "Could not turn learning off.")(e); },
-    );
-  };
-
   /* ---------- sending: the message is on the page before chat.post answers ---------- */
   const run = useCallback((p: Pending) => {
     // the first message sent from this device names the chat on this device (the server never puts message text in a title)
@@ -386,7 +365,6 @@ function ConversationView(): ReactElement {
   const moreMenu = (x: number, y: number): void => {
     const items: MenuEntry[] = [
       { label: "Plan Mode", checked: mode === "plan", onSelect: () => chooseChatMode(mode === "plan" ? "ask" : "plan") },
-      ...(remembered === null ? [] : [{ label: "Don't Remember This Chat", checked: !remembered, onSelect: () => setRemember(!remembered) } as MenuEntry]),
       ...(lead ? [{ label: `Open ${nameOf(lead.agentId)}'s Page`, onSelect: () => data.nav.openAgent(lead.agentId) } as MenuEntry] : []),
       ...connectEntries(thread, data.nav),
       { separator: true } as MenuEntry,
@@ -519,7 +497,6 @@ function ConversationView(): ReactElement {
         </View>
         {isWorking ? <View testID="conversation-live" accessibilityLabel="Working" style={st.live}><View style={st.liveDot} /></View> : null}
         <View style={{ flex: 1 }} />
-        {remembered === false ? <Text testID="conversation-not-remembered" style={st.meta}>Not remembered</Text> : null}
         {online ? null : <Text testID="conversation-offline" style={st.meta}>Offline</Text>}
         {helpers.length > 0 ? <IconButton icon="helper" label={`${helpers.length} ${helpers.length === 1 ? "helper" : "helpers"} running`} badge={helpers.length} testID="helpers-button" onPress={helpersMenu} /> : null}
         {isWorking ? <IconButton icon="stop" label={stopLabel(working, nameOf)} danger testID="stop-button" onPress={stopMenu} /> : null}
