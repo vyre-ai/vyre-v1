@@ -92,3 +92,4 @@ test("a banner for a burst of replies says the count once, in its title, with Re
   assert.deepEqual(opened, ["Reply:ntf_1"]);
   await act(async () => { r.unmount(); });   // the banners' expiry clock stops with them
 });
+

@@ -75,3 +75,11 @@ test("on the phone the Threads page sits on the Chats tab's history and draws as
   assert.deepEqual(e, { tab: "chats", screen: "threads:list", title: "Threads" });
   assert.deepEqual(placeOf(e!), { place: "chats", hash: "screen=chats.threads" });
 });
+
+test("the message a thread goes back to is marked with room around it: the wash and the ring sit outside its text and face", async () => {
+  const { MARK, MARK_GAP } = await import("../conversation/marks.ts");
+  assert.ok(MARK_GAP >= 6, "room between the message and the mark's edge");
+  assert.equal(MARK.foundActive.boxShadow, `0 0 0 ${MARK_GAP}px var(--accent-wash), 0 0 0 ${MARK_GAP + 1}px var(--accent)`, "the ring is drawn outside the message");
+  assert.doesNotMatch(MARK.foundActive.boxShadow, /inset/, "never on the message's own edge");
+  assert.equal(MARK.found.backgroundColor, MARK.foundActive.backgroundColor);
+});

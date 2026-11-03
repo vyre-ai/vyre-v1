@@ -51,6 +51,7 @@ import type { GlyphName } from "./parts.tsx";
 import { reportLabel, bodyBlocks, cardLine, collect, errorRow, isCard, isErrorBlock, isTurnStatus, planSteps, questionOptions, statusView, terminalAskOf, workOf } from "./model.ts";
 import type { CardLine, Item, Message } from "./model.ts";
 import { ReplyLine } from "./ReplyLine.tsx";
+import { MARK } from "./marks.ts";
 import type { ReplySummary } from "./replies.ts";
 import type { Clock } from "../rightpane/model.ts";
 
@@ -567,8 +568,9 @@ export const st = StyleSheet.create({
   eventLink: { color: "var(--accent)" as string, textDecorationLine: "underline", cursor: "pointer" } as object,
   eventTime: { fontSize: 11.5, color: "var(--ink-4)" as string },
   gapTop: { marginTop: 18 },
-  found: { backgroundColor: "var(--accent-wash)" as string, borderRadius: 8 },
-  foundActive: { backgroundColor: "var(--accent-wash)" as string, borderRadius: 8, boxShadow: "inset 0 0 0 1px var(--accent)" } as object,
+  // the mark sits outside the message (marks.ts), so nothing touches its edge
+  found: MARK.found as object,
+  foundActive: MARK.foundActive as object,
   me: { alignItems: "flex-end", paddingVertical: 2, marginTop: 4, position: "relative" },
   when: { position: "absolute", left: 0, top: 10, fontSize: 11, color: "var(--ink-4)" as string, opacity: 0 },
   whenLeft: { position: "absolute", left: -44, top: 4, fontSize: 11, color: "var(--ink-4)" as string, opacity: 0 },
