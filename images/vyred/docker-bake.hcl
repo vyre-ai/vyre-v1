@@ -11,4 +11,6 @@ target "vyred" {
   dockerfile = "images/vyred/Dockerfile"
   platforms  = ["linux/amd64", "linux/arm64"]
   tags       = ["${REGISTRY}/vyred:${TAG}"]
+  // the image knows its own version (Dockerfile ARG VYRE_VERSION): the release passes the tag it builds
+  args       = { VYRE_VERSION = "${TAG}" }
 }

@@ -120,3 +120,14 @@ test("the files the desktop bundle check needs for an agent are in the server im
   for (const p of need) assert.ok(isFile(p), `${p} is in the repository`);
   assert.deepEqual(need.filter((p) => excluded(rules, p)), [], "Dockerfile.dockerignore leaves out files the bundle check needs");
 });
+
+test("the image carries the release's own version: the bake passes the tag as VYRE_VERSION, the Dockerfile sets it in the environment the daemon reads, and the release bakes with its version", () => {
+  const dockerfile = fs.readFileSync(path.join(repo, "images/vyred/Dockerfile"), "utf8");
+  const bake = fs.readFileSync(path.join(repo, "images/vyred/docker-bake.hcl"), "utf8");
+  const release = fs.readFileSync(path.join(repo, ".github/workflows/release.yml"), "utf8");
+  assert.match(dockerfile, /^ARG VYRE_VERSION=\S+$/m, "the build takes the version");
+  assert.match(dockerfile, /^ENV VYRE_VERSION=\$\{VYRE_VERSION\}/m, "and sets it where host/src/daemon/main.ts and lib/user-agent.ts read it");
+  assert.ok(dockerfile.indexOf("ARG VYRE_VERSION") < dockerfile.indexOf("ENV VYRE_VERSION"), "declared before it is used");
+  assert.match(bake, /args\s*=\s*\{\s*VYRE_VERSION\s*=\s*"\$\{TAG\}"\s*\}/, "the bake passes the tag it builds");
+  assert.match(release, /TAG="\$VERSION" docker buildx bake -f images\/vyred\/docker-bake\.hcl/, "the release bakes with its own version as the tag");
+});

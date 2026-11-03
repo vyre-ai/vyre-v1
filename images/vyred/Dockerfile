@@ -29,7 +29,10 @@ RUN npm ci --omit=dev --no-audit --no-fund --ignore-scripts \
 # filled in for the length of a turn. Bump the pins there, on purpose.
 RUN node /opt/vyre/modules/engine/bake-engines.ts /usr/local/lib/vyre/engines /usr/local/bin
 
-ENV CLAUDE_CODE_DISABLE_AUTOUPDATE=1 \
+# the release's own version (docker-bake.hcl passes the tag): /healthz, the daemon's info and the user agent AI providers see (vyre/<version>) all read it
+ARG VYRE_VERSION=0.0.0-dev
+ENV VYRE_VERSION=${VYRE_VERSION} \
+    CLAUDE_CODE_DISABLE_AUTOUPDATE=1 \
     DISABLE_AUTOUPDATER=1 \
     VYRE_DATA_DIR=/data \
     VYRE_ROLE=space \
