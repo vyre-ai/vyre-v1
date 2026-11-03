@@ -35,7 +35,7 @@ test("the ci perf Space is built through capabilities and holds its sizes", asyn
   assert.equal(s.hit, false);
   assert.ok(count(s.dir, "type = 'record.created'") >= PERF_SIZES.ci.contacts, "the contacts");
   assert.equal(count(s.dir, "type = 'task.created'"), PERF_SIZES.ci.tasks, "the tasks");
-  assert.equal(count(s.dir, "type = 'resource.created' AND json_extract(CAST(payload AS TEXT), '$.type') = 'channel'"), PERF_SIZES.ci.channels, "the channels");
+  assert.equal(count(s.dir, "type = 'resource.created' AND json_extract(CAST(payload AS TEXT), '$.type') = 'channel'"), PERF_SIZES.ci.channels + 1, "the channels, and #vyre, the home channel the host makes in every Space");
   assert.equal(count(s.dir, "type = 'principal.created' AND json_extract(CAST(payload AS TEXT), '$.kind') = 'agent'"), PERF_SIZES.ci.agents, "the agents");
   assert.ok(s.gaps.some((g) => g.startsWith("messages")) && s.gaps.some((g) => g.startsWith("files")), `what could not be built is recorded: ${s.gaps.join(" | ")}`);
 });
