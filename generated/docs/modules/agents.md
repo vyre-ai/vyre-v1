@@ -4,11 +4,12 @@ Lane L2. Kind module. Version 0.1.0.
 
 Requires: chat, engine, mcp, memory, runs, terminal.
 
-## Capabilities (68)
+## Capabilities (69)
 
 - [agents.builtin_skill.get](../capabilities/agents.builtin_skill.get.md): Read one built-in skill by name, the full SKILL.md: Working in Vyre, the focus skill of a place (focus-records, focus-files, focus-automations, focus-vault, focus-inbox, focus-apps, focus-console), agent-loops, agent-computer
 - [agents.builtin_skills.list](../capabilities/agents.builtin_skills.list.md): Skills every agent carries, led by "Working in Vyre": save facts to the asker layer, propose promotions, cite sources, use secrets only by name, never copy data across Spaces
 - [agents.config.get](../capabilities/agents.config.get.md): Parsed agent.toml and AGENT.md metadata as the next run will see them, with the last good version and any error
+- [agents.config.may_save](../capabilities/agents.config.may_save.md): May the caller save this agent.toml, which is an agent's settings? Files asks as the writer before it writes; a file that is no agent's agent.toml answers allowed
 - [agents.config.validate](../capabilities/agents.config.validate.md): Validate agent.toml text (app limits first, then precedence) without saving
 - [agents.create](../capabilities/agents.create.md): Create an agent (the create-agent skill ends in one Approve card): record, Agents/<name> folder with the decided file tree, template files
 - [agents.delete](../capabilities/agents.delete.md): Move an agent to Trash (its folder and memory follow the folder rules)

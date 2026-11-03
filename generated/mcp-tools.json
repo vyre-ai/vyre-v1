@@ -19601,12 +19601,15 @@
       "blocks": [],
       "cap": "files.list",
       "deferred": false,
-      "description": "List files and folders in a folder or a section (Personal, Shared with me, Space)",
+      "description": "List files and folders in a folder or a section (Personal, Shared with me, Space). deep with section space lists every file in every Space folder the caller may see; q keeps names that contain it",
       "effects": "read",
       "inputSchema": {
         "properties": {
           "cursor": {
             "type": "string"
+          },
+          "deep": {
+            "type": "boolean"
           },
           "dir": {
             "enum": [
@@ -19644,6 +19647,10 @@
             "maximum": 500,
             "minimum": 1,
             "type": "integer"
+          },
+          "q": {
+            "maxLength": 200,
+            "type": "string"
           },
           "section": {
             "enum": [
@@ -49146,9 +49153,6 @@
             "type": "string"
           }
         },
-        "required": [
-          "logoFileId"
-        ],
         "type": "object"
       },
       "name": "spaces_update",

@@ -8,6 +8,7 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "agents.builtin_skill.get": Handler<"agents.builtin_skill.get", X>;
   "agents.builtin_skills.list": Handler<"agents.builtin_skills.list", X>;
   "agents.config.get": Handler<"agents.config.get", X>;
+  "agents.config.may_save": Handler<"agents.config.may_save", X>;
   "agents.config.validate": Handler<"agents.config.validate", X>;
   "agents.create": Handler<"agents.create", X>;
   "agents.delete": Handler<"agents.delete", X>;

@@ -2931,7 +2931,7 @@
     {
       "deferred": false,
       "name": "files_list",
-      "summary": "List files and folders in a folder or a section (Personal, Shared with me, Space)",
+      "summary": "List files and folders in a folder or a section (Personal, Shared with me, Space). deep with section space lists every file in every Space folder the caller may see; q keeps names that contain it",
       "toolset": "files"
     },
     {

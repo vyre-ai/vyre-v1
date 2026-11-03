@@ -100,6 +100,7 @@ export function createClient(transport: Transport) {
       },
       config: {
         get: call("agents.config.get", 1),
+        may_save: call("agents.config.may_save", 1),
         validate: call("agents.config.validate", 1),
       },
       create: call("agents.create", 1),
@@ -2176,6 +2177,7 @@ export function createClient(transport: Transport) {
       delete: call("spaces.delete", 1),
       export: call("spaces.export", 1),
       get: call("spaces.get", 1),
+      image: call("spaces.image", 1),
       leave: call("spaces.leave", 1),
       matrix: call("spaces.matrix", 1),
       onboarding: {

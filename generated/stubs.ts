@@ -100,6 +100,7 @@ export function stubs(ctx: CallCtx) {
       },
       config: {
         get: call("agents.config.get"),
+        may_save: call("agents.config.may_save"),
         validate: call("agents.config.validate"),
       },
       create: call("agents.create"),
@@ -2176,6 +2177,7 @@ export function stubs(ctx: CallCtx) {
       delete: call("spaces.delete"),
       export: call("spaces.export"),
       get: call("spaces.get"),
+      image: call("spaces.image"),
       leave: call("spaces.leave"),
       matrix: call("spaces.matrix"),
       onboarding: {

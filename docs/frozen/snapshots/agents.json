@@ -4,6 +4,7 @@
     "agents.builtin_skill.get@1": "de9bb1bd075309115c15b2ad3bda15b6a7ebb9c89418be4a3663c401aa7950ab",
     "agents.builtin_skills.list@1": "fada42b5765e04fac26dccec17664c551dd93a16b0f8aaf8db5f898607f8201f",
     "agents.config.get@1": "655b9f721b63a24e8f232e33c8b6ec7f9fbb4b758b35daa96b34e8a5bd2cff7c",
+    "agents.config.may_save@1": "b02e68711442283dea3d92398956e38776912c70cf0704ccd843db58a64d854d",
     "agents.config.validate@1": "60557ddf901d19480e0b7aae9e468dbf4e98ffd796f3641b158efcda5f8cc396",
     "agents.create@1": "765c73cf71fb23e8fbcc382f35bf47c6d4f88acff19faaddff4df152e3511654",
     "agents.delete@1": "4c44e983897fb6a1f80c88085cf6a4b4b2f66869137dcd3a49f6452c4a125ef1",

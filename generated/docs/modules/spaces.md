@@ -4,13 +4,14 @@ Lane L7a. Kind module. Version 0.1.0.
 
 Requires: access, members.
 
-## Capabilities (19)
+## Capabilities (20)
 
 - [follows.list](../capabilities/follows.list.md): What I follow
 - [follows.toggle](../capabilities/follows.toggle.md): Follow or unfollow something so its updates reach my Inbox
 - [spaces.delete](../capabilities/spaces.delete.md): Owner only: delete the Space after typing its legal name
 - [spaces.export](../capabilities/spaces.export.md): Owner one-click export: a zip of records, files, chats and settings; never secret values, never others' private chats or personal memory
 - [spaces.get](../capabilities/spaces.get.md): The Space profile: name, legal name, logo, address, hosting, defaults, kind
+- [spaces.image](../capabilities/spaces.image.md): The Space image for its faces (the rail tile, the switcher, the join and sign-in pages, invites): a data: address of the picture, sent only when it differs from the logoFileId the caller already shows
 - [spaces.leave](../capabilities/spaces.leave.md): Leave this Space; the local folder is wiped and the server stops serving this person (the owner must transfer first)
 - [spaces.matrix](../capabilities/spaces.matrix.md): Which features work in this Space and which need a Team Space (the Personal matrix)
 - [spaces.onboarding.complete](../capabilities/spaces.onboarding.complete.md): Mark a checklist step done (steps also complete themselves when the event happens)

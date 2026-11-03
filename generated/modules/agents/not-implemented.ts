@@ -8,6 +8,7 @@ export const handlers: Handlers<HandlerCtx> = {
   "agents.builtin_skill.get": async (ctx) => { throw new VyreErr(notImplemented("agents.builtin_skill.get", ctx.trace)); },
   "agents.builtin_skills.list": async (ctx) => { throw new VyreErr(notImplemented("agents.builtin_skills.list", ctx.trace)); },
   "agents.config.get": async (ctx) => { throw new VyreErr(notImplemented("agents.config.get", ctx.trace)); },
+  "agents.config.may_save": async (ctx) => { throw new VyreErr(notImplemented("agents.config.may_save", ctx.trace)); },
   "agents.config.validate": async (ctx) => { throw new VyreErr(notImplemented("agents.config.validate", ctx.trace)); },
   "agents.create": async (ctx) => { throw new VyreErr(notImplemented("agents.create", ctx.trace)); },
   "agents.delete": async (ctx) => { throw new VyreErr(notImplemented("agents.delete", ctx.trace)); },

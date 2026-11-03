@@ -1183,6 +1183,15 @@ export type AgentsConfigGetOut = {
     vyreMd: number;
   };
 };
+export type AgentsConfigMaySaveIn = {
+  fileId: string;
+};
+export type AgentsConfigMaySaveOut = {
+  agentId: string | null;
+  allowed: boolean;
+  reason?: "person_only" | "no_edit";
+  message?: string;
+};
 export type AgentsConfigValidateIn = {
   agentId: string;
   toml: string;
@@ -11320,6 +11329,8 @@ export type FilesListIn = {
   kind?: "text" | "markdown" | "document" | "spreadsheet" | "presentation" | "pdf" | "image" | "video" | "audio" | "code" | "archive" | "google_native" | "other";
   sort?: "name" | "updated" | "size" | "kind";
   dir?: "asc" | "desc";
+  deep?: boolean;
+  q?: string;
   cursor?: string;
   limit?: number;
 };
@@ -26730,6 +26741,13 @@ export type SpacesGetOut = {
     createdAt: number;
   };
 };
+export type SpacesImageIn = {
+  known?: string;
+};
+export type SpacesImageOut = {
+  logoFileId?: string;
+  image?: string;
+};
 export type SpacesLeaveIn = {
   confirm: true;
 };
@@ -26828,7 +26846,7 @@ export type SpacesTransferOwnershipOut = {
 export type SpacesUpdateIn = {
   name?: string;
   legalName?: string;
-  logoFileId: string | null;
+  logoFileId?: string | null;
   defaults?: Record<string, unknown>;
 };
 export type SpacesUpdateOut = {
@@ -34026,6 +34044,7 @@ export interface CapMap {
   "agents.builtin_skill.get": { in: AgentsBuiltinSkillGetIn; out: AgentsBuiltinSkillGetOut };
   "agents.builtin_skills.list": { in: AgentsBuiltinSkillsListIn; out: AgentsBuiltinSkillsListOut };
   "agents.config.get": { in: AgentsConfigGetIn; out: AgentsConfigGetOut };
+  "agents.config.may_save": { in: AgentsConfigMaySaveIn; out: AgentsConfigMaySaveOut };
   "agents.config.validate": { in: AgentsConfigValidateIn; out: AgentsConfigValidateOut };
   "agents.create": { in: AgentsCreateIn; out: AgentsCreateOut };
   "agents.delete": { in: AgentsDeleteIn; out: AgentsDeleteOut };
@@ -35517,6 +35536,7 @@ export interface CapMap {
   "spaces.delete": { in: SpacesDeleteIn; out: SpacesDeleteOut };
   "spaces.export": { in: SpacesExportIn; out: SpacesExportOut };
   "spaces.get": { in: SpacesGetIn; out: SpacesGetOut };
+  "spaces.image": { in: SpacesImageIn; out: SpacesImageOut };
   "spaces.leave": { in: SpacesLeaveIn; out: SpacesLeaveOut };
   "spaces.matrix": { in: SpacesMatrixIn; out: SpacesMatrixOut };
   "spaces.onboarding.complete": { in: SpacesOnboardingCompleteIn; out: SpacesOnboardingCompleteOut };
