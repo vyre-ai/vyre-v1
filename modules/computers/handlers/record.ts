@@ -119,8 +119,9 @@ export async function recordStart(ctx: CompCtx, input: { computerId: string }) {
   const folderPath = `work/recordings/${recordingId}`;
   try {
     await hostOf(ctx, c.computerId).record({ computerId: c.computerId, recordingId, action: "start" });
-  } catch {
-    raise(ctx, "internal.unexpected", "The computer could not start recording. Try again.");
+  } catch (e) {
+    const reason = e instanceof Error ? e.message.slice(0, 200) : "no reason given";
+    raise(ctx, "internal.unexpected", `The computer could not start recording: ${reason}`, { reason });
   }
   ctx.db.run(
     "INSERT INTO computers_recordings (recording_id, computer_id, agent_id, started_at, ended_at, duration_ms, folder_path, state, intents, by_person, task_id) VALUES (?, ?, ?, ?, NULL, NULL, ?, 'recording', '[]', ?, NULL)",
@@ -140,16 +141,18 @@ export async function finishRecording(ctx: CompCtx, c: ComputerRow): Promise<Rec
   let got: RecordResult;
   try {
     got = await host.record({ computerId: c.computerId, recordingId: id, action: "stop" });
-  } catch {
-    raise(ctx, "internal.unexpected", "The computer could not stop recording. Try again.");
+  } catch (e) {
+    const reason = e instanceof Error ? e.message.slice(0, 200) : "no reason given";
+    raise(ctx, "internal.unexpected", `The computer could not stop recording: ${reason}`, { reason });
   }
   const events = maskEvents(c.computerId, got.events ?? "");
   const har = maskHar(c.computerId, got.har ?? JSON.stringify({ log: { version: "1.2", entries: [] } }));
   if (!har.readable) ctx.log.warn("the network log of a recording could not be read and was not kept", { recordingId: id });
   try {
     await host.saveRecording({ computerId: c.computerId, recordingId: id, folderPath: rec.folderPath, events, har: har.text });
-  } catch {
-    raise(ctx, "internal.unexpected", "The recording could not be saved. Try again.");
+  } catch (e) {
+    const reason = e instanceof Error ? e.message.slice(0, 200) : "no reason given";
+    raise(ctx, "internal.unexpected", `The recording could not be saved: ${reason}`, { reason });
   }
   const now = ctx.now();
   const durationMs = got.durationMs ?? Math.max(0, now - rec.startedAt);
@@ -250,7 +253,7 @@ async function clearFilesCopy(ctx: CompCtx, r: RecordingRow): Promise<void> {
     target = ((await ctx.call("files.resolve", { path: `${home.folder.path}/${r.folderPath}` })) as { folderId?: string }).folderId;
   } catch { return; }
   if (!target) return;
-  try { await ctx.call("files.folder.delete", { folderId: target }); } catch { raise(ctx, "internal.unexpected", "The recording could not be deleted. Try again."); }
+  try { await ctx.call("files.folder.delete", { folderId: target }); } catch (e) { raise(ctx, "internal.unexpected", `The recording could not be deleted: ${e instanceof Error ? e.message.slice(0, 200) : "no reason given"}`); }
 }
 
 export async function recordingDelete(ctx: CompCtx, input: { recordingId: string }) {
@@ -262,8 +265,9 @@ export async function recordingDelete(ctx: CompCtx, input: { recordingId: string
   if (r.state === "recording") raise(ctx, "validation.bad_input", "The recording is still running.");
   try {
     await hostOf(ctx, r.computerId).removeRecording({ computerId: r.computerId, recordingId: r.recordingId, folderPath: r.folderPath });
-  } catch {
-    raise(ctx, "internal.unexpected", "The recording could not be deleted. Try again.");
+  } catch (e) {
+    const reason = e instanceof Error ? e.message.slice(0, 200) : "no reason given";
+    raise(ctx, "internal.unexpected", `The recording could not be deleted: ${reason}`, { reason });
   }
   // A computer on a node keeps a working copy; Files holds the recording, and nothing on the node's machine clears that, so the Space does.
   if (nodeOf(ctx.db, r.computerId)) await clearFilesCopy(ctx, r);
@@ -289,8 +293,9 @@ export async function screenshot(ctx: CompCtx, input: { computerId: string }) {
   let shot: Awaited<ReturnType<ComputerHost["screenshot"]>>;
   try {
     shot = await hostOf(ctx, c.computerId).screenshot(c.computerId);
-  } catch {
-    raise(ctx, "internal.unexpected", "The computer did not give a picture. Try again.");
+  } catch (e) {
+    const reason = e instanceof Error ? e.message.slice(0, 200) : "no reason given";
+    raise(ctx, "internal.unexpected", `The computer did not give a picture: ${reason}`, { reason });
   }
   const at = ctx.now();
   const made = (await ctx.call("files.create", {
@@ -309,8 +314,9 @@ export async function stream(ctx: CompCtx, input: { computerId: string }) {
   let target: Awaited<ReturnType<ComputerHost["stream"]>>;
   try {
     target = await hostOf(ctx, c.computerId).stream({ computerId: c.computerId, ticket: t.ticket });
-  } catch {
-    raise(ctx, "internal.unexpected", "The live view could not be opened. Try again.");
+  } catch (e) {
+    const reason = e instanceof Error ? e.message.slice(0, 200) : "no reason given";
+    raise(ctx, "internal.unexpected", `The live view could not be opened: ${reason}`, { reason });
   }
   return { transport: target.transport, url: target.url, ticket: t.ticket, expiresAt: t.expiresAt };
 }

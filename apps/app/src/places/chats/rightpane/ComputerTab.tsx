@@ -1,7 +1,7 @@
 // Right pane > Computer (spec 2.7, 3.2): the agent's screen, what it is doing, the steps of its session, and the sites it is signed in to. Asleep shows the last frame dimmed
 // with Wake; working shows a small live view with the caption; after you take over it says "You're in control" with Give back. Click the screen and the computer opens at 90
 // percent of the window (P-L9b_08). A Personal Space has no agent computers: one sentence says so.
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { ReactElement } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import type { CapMap } from "../../../../../../generated/types.ts";
@@ -64,17 +64,52 @@ export function ComputerTab({ deps, window }: { deps: PaneDeps; window?: Virtual
   const canProvision = allows(rt, GATE.provisionComputer);
   const name = data.agent.name;
   const computerId = data.agent.computerId ?? "";
-  if (computerId === "") {
-    return (
-      <View testID="computer-none" style={st.padded}>
-        <Text style={st.none}>No computer yet</Text>
-        {canProvision
-          ? <View style={{ alignItems: "flex-start", marginTop: 8 }}><TextButton label="Set up its computer" primary onPress={() => void provision(deps, data.agent.agentId, name)} testID="computer-provision" /></View>
-          : <Text style={st.none} testID="computer-provision-admin">An owner or admin sets up an agent's computer.</Text>}
-      </View>
-    );
-  }
+  if (computerId === "") return <ComputerNone deps={deps} agentId={data.agent.agentId} name={name} canProvision={canProvision} />;
   return <ComputerBody deps={deps} computerId={computerId} canTake={allows(rt, GATE.takeOver)} {...(window ? { window } : {})} />;
+}
+
+export interface HostRowOut { hostId: string; name: string; canRun: boolean; reason?: string }
+export type HostsAnswer = { state: "loading" } | { state: "error"; message: string } | { state: "ready"; available: boolean; hosts: readonly HostRowOut[] };
+
+/** What the "no computer yet" pane offers, from what the Space says about where a computer can run. The button is there only when a host can run one; otherwise the real reason is. */
+export function setupView(h: HostsAnswer): { kind: "checking" } | { kind: "can" } | { kind: "cannot"; reasons: string[] } {
+  if (h.state === "loading") return { kind: "checking" };
+  if (h.state === "error") return { kind: "cannot", reasons: [`Vyre could not ask where an agent computer can run: ${h.message}`] };
+  if (h.available) return { kind: "can" };
+  const reasons = h.hosts.map((x) => x.reason).filter((r): r is string => typeof r === "string" && r !== "");
+  return { kind: "cannot", reasons: reasons.length > 0 ? [...new Set(reasons)] : ["No machine in this Space can run an agent computer yet. Add a server with Docker."] };
+}
+
+/** The pane of an agent that has no computer: the way to make one when one can run, the reason when none can. */
+export function NoneBody({ hosts, canProvision, onProvision }: { hosts: HostsAnswer; canProvision: boolean; onProvision(): void }): ReactElement {
+  const v = setupView(hosts);
+  return (
+    <View testID="computer-none" style={st.padded}>
+      <Text style={st.none}>No computer yet</Text>
+      {v.kind === "checking" ? <Text style={st.none} testID="computer-checking">Checking where its computer can run</Text> : null}
+      {v.kind === "cannot" ? <View testID="computer-cannot" style={{ marginTop: 6, gap: 4 }}>{v.reasons.map((r) => <Text key={r} style={st.none}>{r}</Text>)}</View> : null}
+      {v.kind === "can"
+        ? (canProvision
+          ? <View style={{ alignItems: "flex-start", marginTop: 8 }}><TextButton label="Set up its computer" primary onPress={onProvision} testID="computer-provision" /></View>
+          : <Text style={st.none} testID="computer-provision-admin">An owner or admin sets up an agent's computer.</Text>)
+        : null}
+    </View>
+  );
+}
+
+function ComputerNone({ deps, agentId, name, canProvision }: { deps: PaneDeps; agentId: string; name: string; canProvision: boolean }): ReactElement {
+  const data = usePaneData();
+  const [hosts, setHosts] = useState<HostsAnswer>({ state: "loading" });
+  useEffect(() => {
+    let live = true;
+    void data.call("computers.hosts", {}).then((o) => {
+      if (!live) return;
+      const out = o as { available?: boolean; hosts?: HostRowOut[] };
+      setHosts({ state: "ready", available: out.available === true, hosts: Array.isArray(out.hosts) ? out.hosts : [] });
+    }).catch((e: unknown) => { if (live) setHosts({ state: "error", message: e instanceof Error ? e.message : "no answer" }); });
+    return () => { live = false; };
+  }, [data, agentId]);
+  return <NoneBody hosts={hosts} canProvision={canProvision} onProvision={() => void provision(deps, agentId, name)} />;
 }
 
 function ComputerBody({ deps, computerId, window, canTake }: { deps: PaneDeps; computerId: string; window?: VirtualWindow; canTake: boolean }): ReactElement {
