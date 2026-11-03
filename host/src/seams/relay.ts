@@ -493,6 +493,8 @@ export interface RelayBox {
     claim(name: string, label: string): Promise<HostReply>;
     release(): Promise<HostReply>;
     status(): Promise<HostReply>;
+    /** The other computers of the same Personal Space that serve this name (lane l-multidevice): the relay sends a phone to whichever is awake. Only the computer that holds the name may say. */
+    members(list: readonly { route: string; label: string }[]): Promise<HostReply>;
   };
   /** The name locators this box answers sign-in asks for (signin.watch). Sent at once when the link is up, again on every reconnect and every few minutes. */
   watch(locs: readonly string[]): void;
@@ -692,7 +694,7 @@ export function startRelayBox(o: RelayBoxOptions): RelayBox {
   ready.catch((e: unknown) => log(`relay: could not start: ${(e as Error).message}`));
 
   /** One phone-address message on the control link, and the relay's one answer. The link may still be coming up (the first dial, a reconnect), so it waits a while for it. */
-  function askHost(op: "claim" | "release" | "status", extra: Record<string, string>): Promise<HostReply> {
+  function askHost(op: "claim" | "release" | "status" | "members", extra: Record<string, unknown>): Promise<HostReply> {
     const unavailable: HostReply = { op, status: "unavailable" };
     return new Promise((resolve) => {
       let settled = false;
@@ -717,6 +719,7 @@ export function startRelayBox(o: RelayBoxOptions): RelayBox {
       claim: (name, label) => askHost("claim", { name, label }),
       release: () => askHost("release", {}),
       status: () => askHost("status", {}),
+      members: (list) => askHost("members", { members: list.map((m) => ({ route: m.route, label: m.label })) }),
     },
     watch(locs) {
       watched = [...new Set(locs)].filter((l) => /^[A-Za-z0-9_-]{43}$/.test(l)).slice(0, 8);

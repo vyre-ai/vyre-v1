@@ -184,10 +184,26 @@ export function createPeerService(d: PeerServiceDeps): PeerService {
     selfRoute = ready.route;
     try { await ensureSelf(h, ready.route); } catch (e) { d.log("peers.self_failed", { why: (e as Error).message }); }
     box.watch(await Promise.all(owners(h).map((o) => nameLocator(o.username))));
+    await tellMembers(h, box, ready.route);
     if (peerSync.ensure()) peerSync.start();
     const cut = d.now() - ASK_TTL_MS;
     for (const [s, at] of asks) if (at < cut) asks.delete(s);
     try { h.run("UPDATE network_peer_request SET state = 'expired' WHERE state IN ('pending', 'allowed') AND expires_at <= ?", d.now()); } catch { /* not migrated yet */ }
+  }
+
+  // The phone name this computer holds (network_phone) sends a phone to any computer of the Space that is awake: the relay is told which the others are whenever that list changes.
+  let toldMembers = "";
+  async function tellMembers(h: HostDb, box: RelayBox, route: string): Promise<void> {
+    let held = false;
+    try { held = (h.all("SELECT state FROM network_phone WHERE id = 1")[0] as { state?: string } | undefined)?.state === "claimed"; } catch { /* no phone table */ }
+    if (!held) { toldMembers = ""; return; }
+    const list = (h.all("SELECT route, name FROM network_peer WHERE removed_at IS NULL ORDER BY added_at, id") as { route: string; name: string }[])
+      .filter((p) => p.route && p.route !== route).map((p) => ({ route: p.route, label: p.name }));
+    const sig = JSON.stringify(list);
+    if (sig === toldMembers) return;
+    const r = await box.host.members(list);
+    if (r.status === "ok") toldMembers = sig;
+    d.log("peers.members_told", { n: list.length, status: r.status });
   }
 
   function onAsk(_loc: string, s: string): void {

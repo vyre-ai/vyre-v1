@@ -51,7 +51,13 @@ async function adopt(res) {
 }
 
 const pages = createLive({ conn: () => (live ? live.conn : null) });
-const bridge = createBridge({ box, label: () => info ? info.label : "This computer", invite: () => Boolean(live && live.invite) });
+/** The computer this phone dialled is asleep. Forget it, so the next request reads /__vyre/info.json again and dials whichever computer of the Space is awake; a page goes to the gateway now. */
+async function asleep(/** @type {Request} */ request, /** @type {boolean} */ navigation) {
+  info = null;
+  if (live) { live.conn.close(); live = null; }
+  return navigation && request.method === "GET" ? fetch(request.url, { cache: "no-store", redirect: "manual" }) : null;
+}
+const bridge = createBridge({ box, label: () => info ? info.label : "This computer", invite: () => Boolean(live && live.invite), asleep });
 
 sw.addEventListener("install", () => { sw.skipWaiting(); });
 sw.addEventListener("activate", (/** @type {any} */ e) => { e.waitUntil(sw.clients.claim()); });
