@@ -25,6 +25,7 @@ import { Toolbar, crumbTrail } from "../Toolbar.tsx";
 import { DragWrap, dragAttrs, useDragDelegation } from "./DragWrap.tsx";
 import type { DragHandlers, DragRegistry } from "./DragWrap.tsx";
 import { StagedBanner } from "./StagedBanner.tsx";
+import { AccessControl, AccessPopover, FolderBadge, LayerBadge, ReviewLine, useAgentStates } from "./AgentAccess.tsx";
 import { GoalFolderHead } from "../../chats/goals/GoalFolderHead.tsx";
 import { QuickLook } from "./QuickLook.tsx";
 import { DropZone } from "../../../../../../ui/src/FileDrop/index.tsx";
@@ -107,6 +108,8 @@ function List(): ReactElement {
   const online = useOnline();
   const nodes = useFolderNodes();
   const src = useSource(sourceOf(state.where));
+  const agentStates = useAgentStates(state.where.kind === "folder" && state.where.id ? state.where.id : undefined);
+  const [accessOpen, setAccessOpen] = useState(data.accessOpen === true);
   const treeRoots = useLive("files.tree", {});
   const trashCount = treeRoots.status === "ready" ? treeRoots.data.roots.find((r) => r.key === "trash")?.count ?? 0 : 0;
   const mods = useRef({ meta: false, shift: false });
@@ -225,6 +228,13 @@ function List(): ReactElement {
   const sizeOfLine = (l: Line): string => (l.type === "folder" ? `${l.items} item${l.items === 1 ? "" : "s"}` : sizeText(l.size));
   const kindOfLine = (l: Line): string => { const app = l.type === "file" ? googleAppOf(l) : null; return `${app !== null ? GOOGLE_KIND_WORD[app] : kindLabel(l.kind)}${l.source ? ` \u00b7 ${l.source}` : ""}`; };
 
+  // Redaction for AI: each line's badge, read from files.agent_states for the open folder
+  const layerOf = (l: Line): ReactElement | null => {
+    if (!agentStates) return null;
+    if (l.type === "file") { const f = agentStates.files.find((x) => x.fileId === l.id); return f && f.state !== "clear" ? <LayerBadge state={f.state} waiting={f.waiting} name={data.nameOf} compact={phone} /> : null; }
+    const fo = agentStates.folders.find((x) => x.folderId === l.id);
+    return fo && (fo.own || fo.needs > 0) ? <FolderBadge value={fo.value} own={fo.own} needs={fo.needs} compact={phone} /> : null;
+  };
   // on the web the line is the shared Row (one plain element) carrying the drag attributes and the menu trigger; the drag itself is delegated from the list's box
   const renderLine = (l: Line): ReactElement => {
     registry.current.set(l.key, handlersOf(l));
@@ -232,7 +242,7 @@ function List(): ReactElement {
       <Row
         id={`line:${l.key}`}
         title={l.name}
-        {...(l.starred === true || l.conflict === true ? { titleMarks: <LineMarks starred={l.starred === true} conflict={l.conflict === true} onResolve={data.nav.resolveConflict ? () => data.nav.resolveConflict?.(l.id) : undefined} /> } : {})}
+        {...(l.starred === true || l.conflict === true || layerOf(l) !== null ? { titleMarks: <View style={styles.marksRow}><LineMarks starred={l.starred === true} conflict={l.conflict === true} onResolve={data.nav.resolveConflict ? () => data.nav.resolveConflict?.(l.id) : undefined} />{layerOf(l)}</View> } : {})}
         selected={state.selection.includes(l.key)}
         hovered={over === l.key}
         leading={<SourcedLead line={l} gap={10} base={l.type === "file" && l.thumb ? <ThumbTile fileId={l.id} label={tileLabel(l.name, l.kind)} icon={iconOfKind(l.kind)} /> : <TypeTile label={tileLabel(l.name, l.kind)} icon={iconOfKind(l.kind)} folder={l.type === "folder"} />} />}
@@ -307,8 +317,10 @@ function List(): ReactElement {
         onMore={phone ? phoneMenu : moreMenu}
         compact={phone}
         pane={data.pane ? { open: data.pane.open, toggle: data.pane.toggle } : undefined}
+        access={here && agentStates && !phone ? <AccessControl states={agentStates} open={accessOpen} onToggle={() => setAccessOpen((o) => !o)} /> : undefined}
       />
       {here ? <StagedBanner folderId={here} /> : null}
+      <ReviewLine states={agentStates} onNext={(id) => data.nav.openFile(id)} compact={phone} />
       {here ? <GoalFolderHead folderId={here} parentName={path.length > 1 ? path[path.length - 2]?.name : undefined} call={data.call} {...(data.nav.openGoal ? { openGoal: data.nav.openGoal } : {})} /> : null}
       {ql ? <QuickLook line={ql} now={c.now} offsetMin={c.offsetMin} nameOf={data.nameOf} onClose={() => dispatch({ type: "quicklook", key: null })} onOpen={() => { dispatch({ type: "quicklook", key: null }); open(ql); }} /> : null}
       {online ? null : <Text style={styles.offline} accessibilityRole="alert" testID="files-offline">Offline, showing your saved copy</Text>}
@@ -327,6 +339,7 @@ function List(): ReactElement {
         </View>
       )}
       {menu.element}
+      {accessOpen && here && agentStates && !phone ? <AccessPopover folderId={here} folderName={path[path.length - 1]?.name ?? "This folder"} parentName={path[path.length - 2]?.name ?? "Files"} states={agentStates} onClose={() => setAccessOpen(false)} /> : null}
     </View>
     </DropZone>
   );
@@ -341,6 +354,7 @@ export function FilesList(): ReactElement {
 }
 
 const styles = StyleSheet.create({
+  marksRow: { flexDirection: "row", alignItems: "center" },
   main: { flex: 1, minWidth: 0, backgroundColor: "var(--win)" as string },
   head: { height: 48, flexDirection: "row", alignItems: "center", gap: 4, paddingLeft: 18, paddingRight: 10, borderBottomWidth: 1, borderBottomColor: "var(--line)" as string },
   lineSlot: { height: LIST_ROW, justifyContent: "center", paddingHorizontal: 6 },

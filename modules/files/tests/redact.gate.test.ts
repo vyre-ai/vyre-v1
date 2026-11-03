@@ -213,3 +213,19 @@ test("Find things to redact runs pattern checks only and suggests the file's own
   assert.ok(d.suggestions.some((s: Obj) => s.kind === "file_name" && s.text === "Rivera"));
   c.w.done();
 });
+
+test("a folder's list reads each file's badge, each subfolder's own setting and what waits below, and the files to review next", async () => {
+  const c = await claim();
+  await c.w.call(c.ctx, "files.review", { fileId: c.intake });
+  await gate(c.w, "files.read", { fileId: c.retainer, as: "text" }, await readRaw(c.w, c.retainer));   // Intake asks for the retainer
+  const st = await c.w.call(c.ctx, "files.agent_states", { folderId: c.claimId });
+  const badge = (id: string) => st.files.find((f: Obj) => f.fileId === id);
+  assert.equal(badge(c.intake).state, "reviewed");
+  assert.equal(badge(c.retainer).state, "needs_review");
+  assert.deepEqual(badge(c.retainer).waiting, ["agt_intake"]);
+  assert.deepEqual(st.folders.map((f: Obj) => [f.value, f.own, f.needs]).sort(), [["off", true, 0], ["redact", false, 1]], "Billing is set Not available here; Medical records inherits and holds one to review");
+  assert.equal(st.needs, 2, "the retainer and the ER record");
+  assert.deepEqual(st.queue, [c.retainer, c.er], "the folder's own files first");
+  assert.equal(st.access.value, "redact");
+  c.w.done();
+});
