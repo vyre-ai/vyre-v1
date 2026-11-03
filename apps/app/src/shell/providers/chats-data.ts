@@ -173,6 +173,7 @@ export function conversationData(rt: ShellRuntime, a: ChatsActions, threadId: st
     nav, clock: rt.clock, spaceName: rt.space.name, ...(rt.baseUrl ? { spaceUrl: rt.baseUrl } : {}), ...(rt.space.kind === "personal" ? { personal: true } : {}),
     ...(fill ? { fill } : {}),
     memory: chatMemory(rt, a),
+    assistantId: rt.assistant.id,
     lists: composerLists(principals, rt.me.id, { id: rt.assistant.id, name: rt.assistant.name }),
     directory: candidates(principals, rt.me.id, { id: rt.assistant.id, name: rt.assistant.name }),
     newKey,

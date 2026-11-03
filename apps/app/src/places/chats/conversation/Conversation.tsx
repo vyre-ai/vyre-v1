@@ -557,8 +557,9 @@ function ConversationView(): ReactElement {
     const base = typeof x === "string" ? { t: x } : x;
     // the menu groups as the prototype draws them: the agents in this chat (Lead, Teammate), People (Member), and the agents to Bring in
     const inChat = kind === "agent" ? id !== undefined && inThread.has(id) : id !== undefined && thread.members.some((m) => m.id === id);
-    const group = kind === "agent" ? (inChat ? "Agents in this chat" : "Bring in") : "People";
-    const where = kind === "agent" ? (inChat ? (inThread.get(id!) === "lead" ? "Lead" : "Teammate") : "Agent") : (inChat ? "Member" : "Space");
+    const mineAssistant = kind === "agent" && id !== undefined && id === data.assistantId;
+    const group = kind === "agent" ? (inChat || mineAssistant ? "Agents in this chat" : "Bring in") : "People";
+    const where = kind === "agent" ? (mineAssistant ? "Yours" : inChat ? (inThread.get(id!) === "lead" ? "Lead" : "Teammate") : "Agent") : (inChat ? "Member" : "Space");
     return { ...base, group, kind: kind === "agent" ? "Agent" : "Person", ...(id ? { ref: id } : {}), s: base.s ? `${base.s} \u00b7 ${where}` : where };
   };
   // a guest is offered only the agents this chat allows (mentionable)

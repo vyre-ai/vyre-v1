@@ -55,3 +55,11 @@ test("a guest is offered only the agents the chat allows", () => {
   assert.deepEqual(all.filter((x) => mentionable(x as { t: string; ref?: string }, true, inThread)).map((x) => (typeof x === "string" ? x : x.t)), ["Scout"]);
   assert.deepEqual(all.filter((x) => mentionable(x as { t: string; ref?: string }, false, inThread)).length, all.length, "an owner or member is offered them all");
 });
+
+test("the menu lists the viewer's own Assistant first, as Yours, even when it is not in the chat", async () => {
+  const { popupFor } = await import("../../../../../ui/src/Composer/index.tsx");
+  const lists = composerLists(principals, ME, ASSISTANT);
+  const noted = { ...lists, agents: (lists.agents ?? []).map((x) => (typeof x === "string" || x.ref !== ASSISTANT.id ? x : { ...x, group: "Agents in this chat", s: "Yours" })) };
+  const first = popupFor({ ch: "@", query: "", start: 0, end: 1 } as never, noted).filter((e) => "group" in e)[0] as { label: string; note?: string; group: string };
+  assert.deepEqual([first.label, first.note, first.group], ["Assistant", "Yours", "Agents in this chat"]);
+});

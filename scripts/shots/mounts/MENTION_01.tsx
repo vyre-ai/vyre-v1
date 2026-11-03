@@ -48,7 +48,7 @@ function Page({ who, view, skin }: { who: string; view: string; skin: string }):
       if (cap === "agents.list") return { agents: [{ agentId: "agt_docs", name: "Docs", kind: "agent" }, { agentId: "agt_intake", name: "Assistant", ownerId: ME, kind: "assistant" }, { agentId: "agt_maya_assistant", name: "Assistant", ownerId: "usr_maya", kind: "assistant" }] };
       return s.data.call(cap, input);
     };
-    return { ...s.data, ...(ask ? { call } : {}), me: { id: me, name: guest ? "Gus Guest" : "Irfad Imtiaz", ...(guest ? { guest: true } : {}) }, lists: composerLists(list, me, own), directory: candidates(list, me, own) };
+    return { ...s.data, ...(ask ? { call } : {}), assistantId: own.id, me: { id: me, name: guest ? "Gus Guest" : "Irfad Imtiaz", ...(guest ? { guest: true } : {}) }, lists: composerLists(list, me, own), directory: candidates(list, me, own) };
   }, [guest, ask]);
   // type the @ a person would, once the page has drawn
   useEffect(() => {
