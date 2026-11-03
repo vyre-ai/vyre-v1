@@ -33,6 +33,7 @@ export function GoogleMicrosoftPage({ keys, onOpenCompany }: { keys: ReactElemen
       <View style={s.card} testID={`gm-${which}`}>
         <View style={s.cardHead}><LogoTile name={name} size={30} /><Text style={s.cardTitle}>{name}</Text></View>
         <Text style={s.quiet}>{company === null ? "Checking" : on ? `Connected${company.domain ? ` to ${company.domain}` : company.tenant ? ` to ${company.tenant}` : ""}` : "Not connected"}</Text>
+        {/* ui-rows-lint: not a list (the card's feature checklist, not rows to pick) */}
         <View style={{ gap: 7 }}>{rows.map((r) => <View key={r} style={s.check}><Text style={[s.mark, on ? s.on : null]}>{on ? "✓" : "○"}</Text><Text style={s.checkText}>{r}</Text></View>)}</View>
         <View style={{ flex: 1 }} />
         <View style={{ flexDirection: "row" }}><Btn label={on ? "Manage" : `Connect ${name}`} primary={!on} onPress={() => onOpenCompany?.()} testID={`gm-${which}-go`} /></View>
@@ -68,6 +69,7 @@ export function ConnectionsPage({ tab, onTab }: { tab: "my" | "space"; onTab: (t
       <Text style={s.sub}>{`Apps and tool servers your agents can use.${team ? (tab === "my" ? " These are yours and your agents'." : " These are shared with everyone or a group, and admins manage them.") : ""}`}</Text>
       {team ? (
         <View style={s.tabs} accessibilityRole="tablist">
+          {/* ui-rows-lint: not a list (a two-tab bar) */}
           {tabs.map(([k, label, n]) => (
             <Pressable key={k} accessibilityRole="tab" accessibilityState={{ selected: tab === k }} onPress={() => onTab(k)} style={[s.tab, tab === k ? s.tabOn : null]} testID={`conn-tab-${k}`}>
               <Text style={[s.tabText, tab === k ? s.tabTextOn : null]}>{label}<Text style={s.tabCount}>{`  ${n}`}</Text></Text>
