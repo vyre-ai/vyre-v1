@@ -72,7 +72,8 @@ function evalSubject(snap: AccessSnapshot, s: SubjectInfo, req: Req, res: Resour
   const p = s.p, perm = req.action.perm;
   if (p.status !== "active") return "suspended";
   // rule 1: a role of its own or of its groups carries the permission. Agents never hold owner or admin (stripped when the SubjectInfo is built).
-  const viaGrant = perm !== null && !s.perms.has(perm);
+  // an agent acting for a person also holds what that person's Allow exception gives them, within what an agent may hold (agentFollows)
+  const viaGrant = perm !== null && !s.perms.has(perm) && !(p.kind === "agent" && req.actingFor !== undefined && snap.agentFollows(req.actingFor, perm));
   if (viaGrant && !GRANT_PERMS.has(perm!)) return "role_lacks_permission";
   if (steps) steps.push({ ok: true, text: `${p.name ?? p.id}: role ${s.roleNames} allows ${perm ?? "this action"}` });
   // owning the thing is owning it; for a create (no id yet) it is owning the container or any container above it: the Space owner can create anywhere in the Space, a member in a record they own
@@ -86,8 +87,9 @@ function evalSubject(snap: AccessSnapshot, s: SubjectInfo, req: Req, res: Resour
   // rule 2: grants on the resource, an ancestor, or the whole type
   const need = rankOf(req.action.level);
   scratch.length = 0; sawExpired = false; max = 0;
-  for (let i = 0; i < chain.length; i++) { const l = snap.grantsOn(chain[i]!.id); if (l) collect(l, s, need, req, res, label); }
-  const tw = snap.typeWide(res.type);
+  const reach = req.action.direct === true ? Math.min(1, chain.length) : chain.length;
+  for (let i = 0; i < reach; i++) { const l = snap.grantsOn(chain[i]!.id); if (l) collect(l, s, need, req, res, label); }
+  const tw = req.action.direct === true ? undefined : snap.typeWide(res.type);
   if (tw) collect(tw, s, need, req, res, label);
   const matched = scratch.length;
   // a permission the role lacks may come with the grant (export), or with a setting on the thing itself (anyone who can view may export)

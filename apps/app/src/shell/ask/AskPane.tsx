@@ -20,7 +20,9 @@ import { ASK_SIDE, askChip, askLine, askPaneKey, askScreen, closeAskPane, dropAs
 import type { AskPaneState } from "./pane.ts";
 import { openAskInChats, resolveAskThread } from "./thread.ts";
 
-const ChatsConversation = lazy(() => import("../providers/chats.tsx").then((m) => ({ default: m.ChatsConversation })));
+// the conversation alone, not the whole Chats place (providers/chats.tsx pulls in ChatsMounted: the sidebar, the agent pane, the computer popup): the pane's lazy chunk stays small, so
+// the first Ask loads in a fraction of the time (askpane tests sat at the 30 s watchdog on a loaded CI shard compiling the whole place)
+const ChatsConversation = lazy(() => import("../../places/chats/conversation/Conversation.tsx").then((m) => ({ default: m.Conversation })));
 
 /** What a message sent in the pane carries: where the person is in the place (rows, a selection), with the pane's thing and context on top. Without a thing nothing names an open object. */
 export function paneScreen(state: AskPaneState, here: ScreenContext | null = currentScreen()): ScreenContext {

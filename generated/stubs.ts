@@ -28,6 +28,13 @@ export function stubs(ctx: CallCtx) {
         status: call("access.connector_builder.status"),
       },
       deciders: call("access.deciders"),
+      exceptions: {
+        explain: call("access.exceptions.explain"),
+        lapse: call("access.exceptions.lapse"),
+        list: call("access.exceptions.list"),
+        remove: call("access.exceptions.remove"),
+        set: call("access.exceptions.set"),
+      },
       grants: {
         list: call("access.grants.list"),
         update: call("access.grants.update"),

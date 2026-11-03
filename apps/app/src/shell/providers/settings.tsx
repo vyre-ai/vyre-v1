@@ -6,7 +6,8 @@ import { desktopSessionImporter } from "../../../../../client/src/session-import
 import type { ReactElement } from "react";
 import { StyleSheet, View } from "react-native";
 import { SettingsDataProvider } from "../../places/settings/data.tsx";
-import type { DesktopUpdater, SettingsData } from "../../places/settings/data.tsx";
+import type { SettingsData } from "../../places/settings/data.tsx";
+import { desktopUpdates } from "../../startup/update/store.ts";
 import { SecuritySheet } from "../../places/settings/SecuritySheet.tsx";
 import { LinkSheet } from "../../places/settings/LinkSheet.tsx";
 import { readStoredSpace, writeStored } from "../session/stored.ts";
@@ -27,22 +28,7 @@ import { useOptionalShellRuntime } from "./runtime.tsx";
 import { addServerAsked, useAddServerNonce } from "../computers-available.ts";
 import type { ShellRuntime } from "./runtime.tsx";
 
-type Invoke = (command: string, args?: Record<string, unknown>) => Promise<unknown>;
-
 // the Console's pages load the first time one opens, so Settings itself stays light
-
-/** The desktop shell's two fixed update commands (src-tauri/src/updater.rs); undefined in a browser. */
-export function desktopUpdater(invoke: Invoke | undefined = (globalThis as { __TAURI__?: { core?: { invoke?: Invoke } } }).__TAURI__?.core?.invoke): DesktopUpdater | undefined {
-  if (!invoke) return undefined;
-  return {
-    async check() {
-      const r = (await invoke("check_desktop_update")) as Record<string, unknown> | null;
-      if (!r || typeof r["current"] !== "string" || typeof r["channel"] !== "string") throw new Error("The update server gave an answer Vyre could not read.");
-      return { current: r["current"], channel: r["channel"], version: typeof r["version"] === "string" ? r["version"] : null, notes: typeof r["notes"] === "string" ? r["notes"] : null };
-    },
-    async install() { await invoke("install_desktop_update"); },
-  };
-}
 
 export function settingsData(rt: ShellRuntime, manageSecurity?: SettingsNav["manageSecurity"], security?: SettingsData["security"], consoleAllowed = false): SettingsData {
   return {
@@ -54,7 +40,7 @@ export function settingsData(rt: ShellRuntime, manageSecurity?: SettingsNav["man
     spaces: rt.knownSpaces?.map(space=>({id:space.spaceId,name:space.name,addr:space.address,kind:space.kind,role:space.role,needsYou:space.needsYou?1:0,current:space.spaceId===rt.space.id}))??[{ id: rt.space.id, name: rt.space.name, addr: "", kind: rt.space.kind, role: "", needsYou: 0, current: true }],
     name: nameOf(rt),
     sessionImporter: rt.space.kind === "personal" ? desktopSessionImporter() : undefined,
-    desktopUpdater: desktopUpdater(),
+    desktopUpdater: desktopUpdates(),
     async continueSession(conversationId) {
       if (rt.space.kind !== "personal") throw new Error("Open your Personal Space to continue this session.");
       const out = await rt.call("sessions.continue", { conversationId, destinationSpaceId: rt.space.id, destinationScope: "personal", agentId: rt.assistant.id }) as { threadId: string };

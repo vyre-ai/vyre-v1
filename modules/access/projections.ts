@@ -32,6 +32,8 @@ export interface Cond {
   export?: boolean;
   /** The holder may share it further, up to their own level, without Manage. */
   reshare?: boolean;
+  /** A permission exception (handlers/exceptions.ts): not a grant on a resource; it changes which permissions the subject holds. */
+  exception?: { perms: string[]; effect: "allow" | "deny" | "own" | "ask"; own?: string[]; at?: number; area?: string; why?: string };
 }
 export interface RoleRec {
   id: string;
@@ -394,8 +396,9 @@ export class AccessStore {
     return out;
   }
 
+  /** The grants a subject holds; a permission exception is not one (handlers/exceptions.ts lists those). */
   grantsFor(subject: SubjectRef): GrantRec[] {
-    return [...this.grants.values()].filter((g) => g.subject.kind === subject.kind && g.subject.id === subject.id);
+    return [...this.grants.values()].filter((g) => g.subject.kind === subject.kind && g.subject.id === subject.id && g.conditions.exception === undefined);
   }
 
   /**
@@ -596,6 +599,7 @@ function kernelGrant(g: GrantRec): GrantRow {
     by: g.by,
   };
   if (g.source?.startsWith(THROUGH_AGENT)) row.source = g.source;
+  if (c.exception) row.exception = { perms: c.exception.perms, effect: c.exception.effect, ...(c.exception.own ? { own: c.exception.own } : {}) };
   return row;
 }
 

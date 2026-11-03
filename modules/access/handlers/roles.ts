@@ -295,7 +295,7 @@ export async function defaultsGet(ctx: AccessCtx, _input: Record<string, unknown
 
 export async function defaultsSet(ctx: AccessCtx, input: { grants: { resource: ResourceRef; level: Level }[] }) {
   const store = storeOf(ctx);
-  for (const g of [...store.grants.values()]) if (g.subject.kind === "group" && g.subject.id === EVERYONE) store.grants.delete(g.id);
+  for (const g of [...store.grants.values()]) if (g.subject.kind === "group" && g.subject.id === EVERYONE && g.conditions.exception === undefined) store.grants.delete(g.id);
   const grants: { resource: ResourceRef; level: Level }[] = [];
   for (const g of input.grants) {
     const rec: GrantRec = {
@@ -315,6 +315,7 @@ export async function defaultsSet(ctx: AccessCtx, input: { grants: { resource: R
 export async function grantsList(ctx: AccessCtx, input: { resource?: ResourceRef; subject?: SubjectRef; source?: string; cursor?: string; limit?: number }) {
   const store = storeOf(ctx);
   const all = [...store.grants.values()].filter((g) => {
+    if (g.conditions.exception !== undefined) return false;   // permission exceptions are on the Permissions page
     if (input.resource && (g.resource.type !== input.resource.type || g.resource.id !== input.resource.id)) return false;
     if (input.subject && (g.subject.kind !== input.subject.kind || g.subject.id !== input.subject.id)) return false;
     if (input.source && g.source !== input.source) return false;
@@ -361,6 +362,7 @@ export async function principalsEffective(ctx: AccessCtx, input: { principal: Re
   const roleIds = new Set(store.rolesOf(p.id));
   for (const g of store.groups.values()) if (g.members.some((m) => m.id === p.id)) for (const r of store.rolesOf(g.id)) roleIds.add(r);
   const grants = [...store.grants.values()].filter((g) => {
+    if (g.conditions.exception !== undefined) return false;
     if (g.subject.kind === p.kind && g.subject.id === p.id) return true;
     if (g.subject.kind === "role" && roleIds.has(g.subject.id)) return true;
     if (g.subject.kind === "group" && store.groups.get(g.subject.id)?.members.some((m) => m.id === p.id)) return true;

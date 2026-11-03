@@ -2,6 +2,7 @@ import{sessionTheme}from'./space-theme.ts';
 import{sessionCatalogue}from'./space-catalog.ts';
 // The authenticated application shell. Kept behind SessionGate's lazy boundary so a signed-out
 // first paint does not parse the screen registry, virtual lists, command surface, or place chrome.
+import { subscribeUpdates, updateState, updateWaiting } from "../../startup/update/store.ts";
 import { ConsoleAlone, onConsoleHost } from "../console-host.ts";
 import { speed } from "../../speed/recorder.ts";
 import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
@@ -273,6 +274,14 @@ export function ShellHost({ stored, open, onSignedOut, onHub, hub: given, initia
     read();
     return () => { for (const off of offs) off(); };
   }, [session, hub]);
+
+  // the quiet dot on Settings: a newer Vyre waits to install (the person turned automatic updates off, or the start did not hear in time); it clears when it installs
+  useEffect(() => {
+    const read = (): void => hub.dot("settings", updateWaiting(updateState()));
+    const off = subscribeUpdates(read);
+    read();
+    return off;
+  }, [hub]);
 
   const purge = useMemo<ShellPurge | undefined>(() => (session ? {
     client: webPurgeClient({ deviceId: "web", call: session.call, wipe: () => { wipeBrowserStorage(); clearStored(); }, done: () => onSignedOut() }),

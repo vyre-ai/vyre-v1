@@ -42,6 +42,11 @@ export interface GrantRow {
   level: Level; conditions?: Conditions | undefined; expires_at?: number | null | undefined; by?: string | undefined;
   /** Where the grant came from ('project:prj_...', 'through-agent:...'). Only a key approved for an agent's request reads it here (THROUGH_AGENT). */
   source?: string | undefined;
+  /**
+   * A permission exception (owner, 3 Nov 2026): this person or group differs from their role on these permission keys. It is never a grant on a resource: it reaches no chain and only
+   * changes which permissions the subject holds (SubjectInfo.perms). A person's own exception beats a group's, which beats the role; among peers Allow wins; the Owner is never restricted.
+   */
+  exception?: { readonly perms: readonly string[]; readonly effect: "allow" | "deny" | "own" | "ask"; /** effect own: these keys are allowed, the rest of `perms` refused (Own only) */ readonly own?: readonly string[] | undefined } | undefined;
 }
 
 export { THROUGH_AGENT, THROUGH_ANYONE } from "../../../lib/through-agent.ts";
@@ -64,7 +69,8 @@ export type RowCtx = Readonly<Record<string, unknown>>;
 export interface Req {
   principal: string;
   actingFor?: string | undefined;
-  action: { perm: string | null; level: Level; destructive?: boolean | undefined };
+  /** direct: only a grant on the resource itself (or owning it) counts, not one on a container or the Space (was this person given Edit on this automation?) */
+  action: { perm: string | null; level: Level; destructive?: boolean | undefined; direct?: boolean | undefined };
   resource: ResourceRef;
   fields?: readonly string[] | undefined;
   row?: RowCtx | undefined;

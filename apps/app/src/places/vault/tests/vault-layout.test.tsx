@@ -15,8 +15,6 @@ import type { ReactElement, ReactNode } from "react";
 import { ItemEnv } from "../itemenv/index.ts";
 import { createSampleVault, harbor, northwind } from "../layout/sample.ts";
 import type { SampleSpace, SampleVault } from "../layout/sample.ts";
-import { visibleItems, countItems } from "../layout/model.ts";
-import type { Item } from "../layout/model.ts";
 import { MASK, createRevealStore } from "../itemenv/index.ts";
 
 const VaultProviderWrapper = ({ data, children }: { data: VaultData; children: ReactNode }): ReactElement => <VaultDataProvider value={data}>{children}</VaultDataProvider>;
@@ -237,20 +235,7 @@ test("writes change what the next render shows: new folder, move to Trash and ba
   assert.ok(put.item.id.startsWith("vit_new"));
 });
 
-test("speed: 10,000 keys filter and count fast and the list renders only a window", async () => {
-  const v = createSampleVault(northwind, { extraItems: 10_000 });
-  const items = queryOf<{ items: Item[] }>(v, "vault.layout", "items").items;
-  assert.equal(items.length, 10_016);
-  const samples: number[] = [];
-  for (let i = 0; i < 3; i++) { const t0 = performance.now(); visibleItems(items, { kind: "keys" }, "sample", new Set(), new Set()); countItems(items, new Set(), null, 0); samples.push(performance.now() - t0); }
-  samples.sort((a, b) => a - b);
-  assert.ok(samples[1]! < 100, `median filter plus count ${samples[1]!.toFixed(1)} ms is under the 100 ms complete-paint budget`);
-  const out = html(v);
-  const rowsDrawn = out.split('data-testid="row-vit_').length - 1;
-  assert.ok(rowsDrawn > 5 && rowsDrawn < 60, `only a window of rows is drawn (${rowsDrawn})`);
-  assert.ok(has(out, "10016"), "the count is the whole list");
-});
-
+// the 10,000-key speed test is vault-layout.perf.test.tsx: a speed budget counts only on the perf runners (ruling 46)
 test("copy and design rules: no em dash, no emoji, every control labelled", () => {
   const out = html(createSampleVault());
   assert.ok(!out.includes(String.fromCharCode(0x2014)), "no em dash in any copy");

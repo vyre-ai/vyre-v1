@@ -7,6 +7,13 @@ import { fileURLToPath } from "node:url";
 import { renderToStaticMarkup } from "react-dom/server";
 import { PhoneHost } from "./PhoneHost.tsx";
 import { CHAT_ABOUT_IT } from "../../mobile/shell/index.ts";
+import { registerShellPlaces } from "../places.ts";
+import { registerPlace } from "../../startup/places.ts";
+
+// A static render draws a lazy place as its fallback, so the Chats place never shows here; a stand-in loader keeps the test from compiling the whole place in the background
+// (cold, that was most of the file's time, and on a loaded runner it ran past the 30 s watchdog).
+registerShellPlaces();
+registerPlace("chat", async () => ({ default: () => null }));
 
 const html = (place: "automations" | "console" | "chats", hash = ""): string =>
   renderToStaticMarkup(<PhoneHost session={null} location={{ place, hash }} needsYou={0} registerGo={() => undefined} onSignOut={() => undefined} />).replaceAll("<!-- -->", "");

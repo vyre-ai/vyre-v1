@@ -22,7 +22,10 @@ export function bootScript(): string {
   // which compiled them again alongside startup. So the worker waits for load and for app.usable (the "vyre:usable" event mark() sends), or 5 s after load at the latest.
   // On a phone address (<name>.vyre.run) the relay's phone shell has its own worker at /__vyre/sw.js that carries every request to the Space; registering /sw.js over the same scope would replace it
   // and cut the page off from the Space, so the app's worker stays out of that page.
-  const sw = `(function(){var l=0,u=0,d=0;function go(){if(d||!("serviceWorker" in navigator))return;d=1;var c=navigator.serviceWorker.controller;if(c&&/\\/__vyre\\/sw\\.js$/.test(new URL(c.scriptURL).pathname))return;navigator.serviceWorker.register("/sw.js").catch(function(){});}`
+  // The desktop app never has one: its files are its own, and on Windows (page origin http://tauri.localhost) WebView2 accepts the worker, whose network fetch cannot reach the app's asset
+  // handler, so from the second start every page load fell back to the cached shell and the app drew nothing (desktop.yml update-proof, run 41627777786). The shell also removes a worker an
+  // earlier version registered (apps/desktop/src-tauri/src/lib.rs NO_SERVICE_WORKER).
+  const sw = `(function(){var l=0,u=0,d=0;function go(){if(d||!("serviceWorker" in navigator))return;d=1;if(window.__TAURI__||window.__TAURI_INTERNALS__||location.protocol==="tauri:"||location.hostname==="tauri.localhost")return;var c=navigator.serviceWorker.controller;if(c&&/\\/__vyre\\/sw\\.js$/.test(new URL(c.scriptURL).pathname))return;navigator.serviceWorker.register("/sw.js").catch(function(){});}`
     + `addEventListener("vyre:usable",function(){u=1;if(l)setTimeout(go,0);});addEventListener("load",function(){l=1;if(u)setTimeout(go,0);else setTimeout(go,5000);});})();`;
   // Android installs the web app (owner decision D18): Chrome's install offer is kept from the first frame, so the phone's You screen can offer Install Vyre (install.ts)
   return theme + sw + INSTALL_BOOT;

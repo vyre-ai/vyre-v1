@@ -17,6 +17,11 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "access.connector_builder.grant": Handler<"access.connector_builder.grant", X>;
   "access.connector_builder.status": Handler<"access.connector_builder.status", X>;
   "access.deciders": Handler<"access.deciders", X>;
+  "access.exceptions.explain": Handler<"access.exceptions.explain", X>;
+  "access.exceptions.lapse": Handler<"access.exceptions.lapse", X>;
+  "access.exceptions.list": Handler<"access.exceptions.list", X>;
+  "access.exceptions.remove": Handler<"access.exceptions.remove", X>;
+  "access.exceptions.set": Handler<"access.exceptions.set", X>;
   "access.grants.list": Handler<"access.grants.list", X>;
   "access.grants.update": Handler<"access.grants.update", X>;
   "access.groups.add_member": Handler<"access.groups.add_member", X>;

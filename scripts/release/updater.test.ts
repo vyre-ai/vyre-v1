@@ -4,7 +4,7 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { UPDATE_ARTIFACTS, blake2b512, checkDesktopArtifacts, desktopFeed, digestLine, keyIdBytes, minisignPublicKey, minisignPublicKeyBase64, minisignSign, minisignVerify, readDigests, signDesktop, signatureAsset } from "./updater.ts";
+import { UPDATE_ARTIFACTS, blake2b512, checkDesktopArtifacts, desktopFeed, digestLine, keyIdBytes, minisignPublicKey, minisignPublicKeyBase64, minisignSign, minisignVerify, readDigests, feedNotes, signDesktop, signatureAsset } from "./updater.ts";
 import { publicKeyBytes, publicKeyHexOf } from "./sign.ts";
 import { feedBase } from "./feed.ts";
 
@@ -108,4 +108,32 @@ test("nothing unexplained is signed: an unknown or malformed digest, no digest a
   assert.deepEqual(fs.readdirSync(dist), ["VyreSetup.exe.b2"], "nothing was written");
   assert.throws(() => desktopFeed({ version: "1", channel: "stable", notes: "", pubDate: "", platforms: {} }), /at least one platform/);
   assert.equal(signatureAsset("a\nb\n"), Buffer.from("a\nb\n").toString("base64"));
+});
+
+test("the feed's notes are the release's What's new lines when they are for this version, else the plain version line", () => {
+  assert.equal(feedNotes("1.0.0-rc.17", { version: "1.0.0-rc.17", lines: ["Vyre updates itself.", " Calmer start. ", ""] }), "Vyre updates itself.\nCalmer start.");
+  assert.equal(feedNotes("1.0.0-rc.17", { version: "1.0.0-rc.16", lines: ["Old news."] }), "Vyre 1.0.0-rc.17", "last release's lines never ride on this one");
+  assert.equal(feedNotes("1.0.0-rc.17", { version: "1.0.0-rc.17", lines: [] }), "Vyre 1.0.0-rc.17");
+  assert.equal(feedNotes("1.0.0-rc.17", null), "Vyre 1.0.0-rc.17");
+  assert.equal(feedNotes("1", { version: "1", lines: ["1", "2", "3", "4", "5", "6", "7"] }).split("\n").length, 6);
+  const { pem, pub } = pair();
+  const dist = tmp(), artifacts = tmp();
+  fs.writeFileSync(path.join(artifacts, "VyreSetup.exe"), "installer");
+  fs.writeFileSync(path.join(dist, "VyreSetup.exe.b2"), digestLine(path.join(artifacts, "VyreSetup.exe")));
+  signDesktop({ dir: dist, version: "1.0.0-rc.17", channel: "beta", tag: "v1.0.0-rc.17", repo: "r/r", privateKeyPem: pem, pinnedPublicKey: pub, now: () => new Date(0), notes: "Vyre updates itself." });
+  assert.equal((JSON.parse(fs.readFileSync(path.join(dist, "desktop-beta.json"), "utf8")) as { notes: string }).notes, "Vyre updates itself.");
+});
+
+test("each desktop signature names the release it is for in its trusted comment, so a feed cannot pair a new version with an older bundle", () => {
+  const { pem, pub } = pair();
+  const dist = tmp(), artifacts = tmp();
+  fs.writeFileSync(path.join(artifacts, "Vyre.app.tar.gz"), "mac bundle");
+  fs.writeFileSync(path.join(dist, "Vyre.app.tar.gz.b2"), digestLine(path.join(artifacts, "Vyre.app.tar.gz")));
+  signDesktop({ dir: dist, version: "1.0.0-rc.17", channel: "beta", tag: "v1.0.0-rc.17", repo: "r/r", privateKeyPem: pem, pinnedPublicKey: pub, now: () => new Date(0) });
+  const text = Buffer.from(fs.readFileSync(path.join(dist, "Vyre.app.tar.gz.sig"), "utf8").trim(), "base64").toString();
+  assert.match(text, /^trusted comment: timestamp:0\tfile:Vyre\.app\.tar\.gz\tversion:1\.0\.0-rc\.17$/m);
+  assert.equal(minisignVerify({ digestHex: blake2b512(Buffer.from("mac bundle")).toString("hex"), signatureText: text, publicKey: pub }), true, "the comment is covered by the global signature");
+  const forged = text.replace("version:1.0.0-rc.17", "version:9.9.9");
+  assert.equal(minisignVerify({ digestHex: blake2b512(Buffer.from("mac bundle")).toString("hex"), signatureText: forged, publicKey: pub }), false, "and cannot be changed");
+  assert.throws(() => minisignSign({ digestHex: "a".repeat(128), fileName: "x", privateKeyPem: pem, pinnedPublicKey: pub, seconds: 0, version: "1\tfile:evil" }), /plain version/);
 });

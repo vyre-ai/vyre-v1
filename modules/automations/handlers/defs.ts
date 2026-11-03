@@ -428,17 +428,8 @@ export async function canChangeSpace(ctx: AutoCtx, a: Automation): Promise<boole
   if (a.kind !== "space" || isTrustedService(ctx.principal) || isOwner(ctx, a) || !ctx.authorize) return true;
   if (ctx.authorize({ perm: null, level: "manage" }, { type: "space", id: ctx.space }).effect === "allow") return true;
   if (ctx.authorize({ perm: null, level: "manage" }, { type: "automation", id: a.id }).effect === "allow") return true;
-  // Edit given on the automation itself: only the access module tells it from the Edit every member holds on the Space. It lists shares only to someone with a grant of their own here,
-  // so a member with none is refused that read, which is the answer.
-  if (!ctx.call) return false;
-  const who = me(ctx);
-  let groups: string[] = [];
-  try { groups = ((await ctx.call("identity.whoami", {})) as { groups?: string[] }).groups ?? []; } catch { /* a person with no directory row holds no group grant */ }
-  try {
-    const out = (await ctx.call("access.shares_of", { resource: { type: "automation", id: a.id } })) as { shares?: Array<{ grant: { subject: { kind: string; id: string }; level: string }; through: string }> };
-    return (out.shares ?? []).some(({ grant, through }) => (through === "direct" || through === "group") && (grant.level === "edit" || grant.level === "manage")
-      && (grant.subject.kind === "group" ? groups.includes(grant.subject.id) : grant.subject.id === who));
-  } catch { return false; }
+  // Edit given on that automation itself (a person or one of their groups), not the Edit every member holds on the Space: the kernel's direct check, no inner read to be refused
+  return ctx.authorize({ perm: null, level: "edit", direct: true }, { type: "automation", id: a.id }).effect === "allow";
 }
 /** Refuse a change to a Space Automation the caller may not change, before anything is written. */
 export async function mustChange(ctx: AutoCtx, a: Automation): Promise<void> {

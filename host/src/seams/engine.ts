@@ -63,10 +63,14 @@ export interface EngineHostSeam {
   own?: (person: string) => boolean;
   /** A Space server only: does it hold this person's key right now (they are signed in and opened it)? Absent on a person's own computer, where a turn waits for the key instead. */
   keyHeld?: (person: string) => boolean;
+  /** Is this module db handle this daemon's own? Two daemons in one process (the two-computer tests) share the engine module, and only the daemon whose host half it holds builds its runtime. */
+  ours?: (db: unknown) => boolean;
   /** The computers that joined the Space, for a turn pinned to one of them: start the engine process there over its live socket. Absent: no turn runs on a node. */
   nodes?: EngineNodes;
   /** The module calls it at shutdown with the promise of its close (sessions ended, refreshed sign-ins saved), so the daemon waits before the databases close. */
   closing?: (done: Promise<void>) => void;
+  /** The module says how many turns run here now, each time it changes: the desktop shell waits for 0 before it stops the daemon to update the app (routes/local-work.ts). */
+  turns?: (running: number) => void;
 }
 
 /** Start a process on a node (host/src/routes/compute-stream.ts spawnProc), structural here. A rejection carries an engine.* `code`. */
@@ -104,6 +108,7 @@ export interface EngineHostDeps {
   publishTurn?: () => PublishTurn | null;
   own?: (person: string) => boolean;
   keyHeld?: (person: string) => boolean;
+  ours?: (db: unknown) => boolean;
   openSession?: unknown;
   nodes?: EngineNodes;
   /** See EngineHostSeam.mcpFetch and pluginLaunch (modules/engine/runtime.ts). */
@@ -113,6 +118,8 @@ export interface EngineHostDeps {
   saveSignin?: SigninRefresh["save"];
   /** Told at shutdown when the engine has closed its sessions and saved what their CLIs refreshed, so the daemon waits for it before the databases close. */
   closing?: (done: Promise<void>) => void;
+  /** See EngineHostSeam.turns. */
+  turns?: (running: number) => void;
 }
 
 /** A backstop only: the answer is also dropped the moment an event says a member or a grant went away (forgetReaders). */
@@ -159,5 +166,5 @@ export function createEngineHost(d: EngineHostDeps): EngineHostSeam {
     pub({ t: "turn", turn: turnId, delta: { kind, ...rest } }, (person) => (onlyAsker !== null ? person === onlyAsker : mayRead(e.threadId, person)));
   };
   const session = d.vault ? createEngineSessionHost({ invoke: d.invoke, vault: d.vault, space: d.space, ...(d.log ? { log: d.log } : {}), ...(d.saveSignin ? { saveSignin: d.saveSignin } : {}) }) : undefined;
-  return { ...(d.closing ? { closing: d.closing } : {}), ...(d.mayAll ? { mayAll: d.mayAll } : {}), holder: `host:${d.space}`, call, postAs, ...(d.publishTurn ? { stream, forgetReaders: () => { epoch++; seen.clear(); } } : {}), ...(d.now ? { now: d.now } : {}), ...(d.log ? { log: d.log } : {}), ...(session ? { session } : {}), ...(d.sandbox !== undefined ? { sandbox: d.sandbox } : {}), ...(d.dataDir ? { dataDir: d.dataDir } : {}), ...(d.cli !== undefined ? { cli: d.cli } : {}), ...(d.engineInstall ? { engines: { install: true } } : {}), ...(d.openSession !== undefined ? { openSession: d.openSession } : {}), invoke: d.invoke, space: d.space, ...(d.own ? { own: d.own } : {}), ...(d.keyHeld ? { keyHeld: d.keyHeld } : {}), ...(d.nodes ? { nodes: d.nodes } : {}), mcpFetch: d.mcpFetch ?? createGuardedFetch({ own: false }), ...(d.pluginLaunch !== undefined ? { pluginLaunch: d.pluginLaunch } : {}) };
+  return { ...(d.closing ? { closing: d.closing } : {}), ...(d.turns ? { turns: d.turns } : {}), ...(d.mayAll ? { mayAll: d.mayAll } : {}), holder: `host:${d.space}`, call, postAs, ...(d.publishTurn ? { stream, forgetReaders: () => { epoch++; seen.clear(); } } : {}), ...(d.now ? { now: d.now } : {}), ...(d.log ? { log: d.log } : {}), ...(session ? { session } : {}), ...(d.sandbox !== undefined ? { sandbox: d.sandbox } : {}), ...(d.dataDir ? { dataDir: d.dataDir } : {}), ...(d.cli !== undefined ? { cli: d.cli } : {}), ...(d.engineInstall ? { engines: { install: true } } : {}), ...(d.openSession !== undefined ? { openSession: d.openSession } : {}), invoke: d.invoke, space: d.space, ...(d.own ? { own: d.own } : {}), ...(d.keyHeld ? { keyHeld: d.keyHeld } : {}), ...(d.ours ? { ours: d.ours } : {}), ...(d.nodes ? { nodes: d.nodes } : {}), mcpFetch: d.mcpFetch ?? createGuardedFetch({ own: false }), ...(d.pluginLaunch !== undefined ? { pluginLaunch: d.pluginLaunch } : {}) };
 }

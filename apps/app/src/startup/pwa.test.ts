@@ -111,6 +111,31 @@ test("the service worker registers once the app is usable after load, not at loa
   assert.equal(await run(["load", "usable", "usable"], 5000), 1, "registered once");
 });
 
+test("the desktop app never registers the service worker: the window has the shell, or the page is the app's own origin", async () => {
+  const { bootScript } = await import("./boot.ts");
+  const run = (extra: Record<string, unknown>, loc: Record<string, string>): number => {
+    const on = new Map<string, () => void>();
+    let registered = 0;
+    const timers: Array<() => void> = [];
+    const win: Record<string, unknown> = {
+      performance: { mark() {}, now: () => 0 }, location: { search: "", ...loc }, URLSearchParams,
+      document: { documentElement: { style: { setProperty() {} }, setAttribute() {} } },
+      navigator: { serviceWorker: { register: () => { registered++; return { catch() {} }; } } },
+      addEventListener: (type: string, fn: () => void) => on.set(type, fn),
+      setTimeout: (fn: () => void) => timers.push(fn),
+    };
+    const window = { ...win, ...extra };
+    new Function(...Object.keys(win), "window", bootScript())(...Object.values(win), window);
+    on.get("load")?.(); on.get("vyre:usable")?.();
+    for (const t of timers.splice(0)) t();
+    return registered;
+  };
+  assert.equal(run({}, { protocol: "https:", hostname: "team.example.com" }), 1, "a browser registers it");
+  assert.equal(run({ __TAURI__: {} }, { protocol: "http:", hostname: "tauri.localhost" }), 0, "Windows app");
+  assert.equal(run({ __TAURI_INTERNALS__: {} }, { protocol: "tauri:", hostname: "localhost" }), 0, "Mac app");
+  assert.equal(run({}, { protocol: "http:", hostname: "tauri.localhost" }), 0, "the app's own origin even before the shell's globals");
+});
+
 test("on a phone address the relay shell's worker carries the page, and the app does not register its own over it", async () => {
   const { bootScript } = await import("./boot.ts");
   const run = (controller: { scriptURL: string } | null): number => {
