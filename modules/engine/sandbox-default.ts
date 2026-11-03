@@ -155,7 +155,9 @@ export async function defaultSandbox(o: DefaultSandboxOptions): Promise<DefaultS
     const helper = await ensureLowrun(bin);
     const msys = path.win32.join(path.win32.dirname(bin), "msys");
     const bash = await privateBash(msys).catch(() => null);
-    protectVyreData(helper, bin, o.privateDirs ?? vyrePrivateDirs(o.dataDir), [path.join(o.dataDir, "engines"), ...(bash ? [msys] : [])]);
+    // Vyre's folders (and the data folder itself, which the work folders are under) private; the roots an engine works under, its engines and its Git Bash readable
+    const priv = [...new Set([...(o.privateDirs ?? vyrePrivateDirs(o.dataDir)), o.dataDir])];
+    protectVyreData(helper, bin, priv, [path.join(o.dataDir, "work"), path.join(o.dataDir, "scratch"), path.join(o.dataDir, "engines"), ...(bash ? [msys] : [])]);
     const proxy = createEgressProxy({ ...policy });
     const { port } = await proxy.listen();
     return done({ kind: "lowil", helper, proxyPort: port, ...(o.writable ? { writable: o.writable } : {}), ...(bash ? { bash } : {}) }, () => proxy.close());

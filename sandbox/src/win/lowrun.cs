@@ -43,7 +43,8 @@ public static class LowRun {
     IntPtr sd, sacl; uint size; bool present, defaulted;
     if (!ConvertStringSecurityDescriptorToSecurityDescriptor(sddl, 1, out sd, out size)) return Fail("the label " + sddl);
     if (!GetSecurityDescriptorSacl(sd, out present, out sacl, out defaulted) || !present) return Fail("the label's SACL");
-    uint err = SetNamedSecurityInfo(path, 1, 0x10, IntPtr.Zero, IntPtr.Zero, IntPtr.Zero, sacl);
+    // LABEL_SECURITY_INFORMATION, protected: this label stands, whatever the parent passes on
+    uint err = SetNamedSecurityInfo(path, 1, 0x10 | 0x40000000, IntPtr.Zero, IntPtr.Zero, IntPtr.Zero, sacl);
     if (err != 0) { Console.Error.WriteLine("vyre-lowrun: could not label " + path + ": " + new Win32Exception((int)err).Message); return 1; }
     return 0;
   }
