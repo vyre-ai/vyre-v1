@@ -10,9 +10,9 @@ import { Menu, MenuIcon, menuTrigger } from "../../../../../ui/src/Menu/index.ts
 import type { MenuEntry } from "../../../../../ui/src/Menu/index.tsx";
 import { Row } from "../../../../../ui/src/Row/index.tsx";
 import { CmdKController } from "./controller.ts";
-import type { CmdKData, CmdKOptions, CmdKState } from "./controller.ts";
+import type { AskState, CmdKData, CmdKOptions, CmdKState } from "./controller.ts";
 import { filterEntries, filterLabels } from "./view.ts";
-import { GROUPS } from "./model.ts";
+import { GROUPS, answerParts, revealed } from "./model.ts";
 import type { CmdAction, Hit, RowModel } from "./model.ts";
 import { formatCombo } from "../keyboard/map.ts";
 import type { Platform as KeyPlatform } from "../keyboard/map.ts";
@@ -26,6 +26,7 @@ const KIND_LABEL: ReadonlyMap<Hit["kind"], string> = new Map(GROUPS);
 // The highlighted row takes the accent with white text (the prototype palette, ruling 82); the tokens the row reads are re-pointed inside it.
 // A plain object, not StyleSheet.create, like the shared Row's own wash: it is written inline, so it is in the markup and not behind a generated class.
 const LIT = { backgroundColor: "var(--accent)", borderRadius: 6, "--ink": "#FFFFFF", "--ink-2": "rgba(255,255,255,0.86)", "--ink-3": "rgba(255,255,255,0.74)" } as object;
+const SPARK = SVG('<path d="M8 2v3M8 11v3M2 8h3M11 8h3M4 4l2 2M10 10l2 2M12 4l-2 2M6 10l-2 2"/>');
 const KIND_ICON: Partial<Record<Hit["kind"], string>> = {
   file: SVG('<path d="M4 2.500h5l3 3v8H4z"/><path d="M9 2.500v3h3"/>'),
   record: SVG('<rect x="2.500" y="3" width="11" height="10" rx="1.800"/><path d="M2.500 6.500h11M6.500 6.500v6.500"/>'),
@@ -123,7 +124,7 @@ export function CmdKBody({ controller, placeholder = "Search agents, chats, peop
     else if (e.key === "ArrowUp") { stop(); controller.move(-1); }
     else if (e.key === "Tab") { stop(); controller.move(e.shiftKey === true ? -1 : 1); }
     else if (e.key === "Enter") { stop(); controller.choose(state.active, e.metaKey === true || e.ctrlKey === true); }
-    else if (e.key === "Escape") { stop(); controller.close(); }
+    else if (e.key === "Escape") { stop(); controller.escape(); }
   };
 
   const openFilters = (x: number, y: number): void => {
@@ -190,19 +191,28 @@ export function CmdKBody({ controller, placeholder = "Search agents, chats, peop
           </Pressable>
         ) : null}
       </View>
-      {line ? <View testID="cmdk-scope" style={styles.scopes}><Text style={styles.scopesText} numberOfLines={2}>{line}</Text></View> : null}
+      {state.ask ? <AnswerView ask={state.ask} controller={controller} /> : null}
+      {line && !state.ask ? <View testID="cmdk-scope" style={styles.scopes}><Text style={styles.scopesText} numberOfLines={2}>{line}</Text></View> : null}
       {rowNodes.length === 0 ? null : (
         <ScrollView nativeID="cmdk-list" testID="cmdk-list" style={[styles.list, listMax ? { maxHeight: listMax } : null]} keyboardShouldPersistTaps="handled" {...webOnly({ role: "listbox" })}>
           {rowNodes}
         </ScrollView>
       )}
       {!inline && Platform.OS === "web" ? (
-        <View style={styles.foot}>
-          <Text style={styles.footText}>{"↑↓ to move"}</Text>
-          <Text style={styles.footText}>{"⏎ to open"}</Text>
-          <Text style={styles.footText}>{`${formatCombo("Cmd", platform)}⏎ new tab`}</Text>
-          <Text style={styles.footText}>esc to close</Text>
-        </View>
+        state.ask ? (
+          <View style={styles.foot} testID="cmdk-foot-ask">
+            {state.rows.some((r) => r.type === "source") ? <Text style={styles.footText}>{"⏎ open source"}</Text> : null}
+            {state.rows.some((r) => r.type === "source") ? <Text style={styles.footText}>{"↑↓ to move"}</Text> : null}
+            <Text style={[styles.footText, { marginLeft: "auto" }]}>esc back to results</Text>
+          </View>
+        ) : (
+          <View style={styles.foot}>
+            <Text style={styles.footText}>{"↑↓ to move"}</Text>
+            <Text style={styles.footText}>{state.rows[state.active]?.type === "ask" ? "⏎ to ask" : "⏎ to open"}</Text>
+            <Text style={styles.footText}>{`${formatCombo("Cmd", platform)}⏎ new tab`}</Text>
+            <Text style={styles.footText}>esc to close</Text>
+          </View>
+        )
       ) : null}
       {menu ? <Menu items={menu.items} x={menu.x} y={menu.y} source="context" onClose={() => setMenu(null)} /> : null}
     </View>
@@ -217,7 +227,12 @@ function renderRow(
   if (r.type === "empty") return <Text key={r.key} testID="cmdk-empty" style={styles.none}>{r.title}</Text>;
   const on = i === state.active;
   let row: ReactElement;
-  if (r.type === "hit") {
+  if (r.type === "ask") {
+    row = <Row id={r.key} title="Ask the Space" titleSuffix={r.question} leading={<View style={styles.tile}><MenuIcon icon={SPARK} color={on ? "#FFFFFF" : "var(--accent)"} size={16} /></View>} trailing={<Text style={styles.kind}>Answer</Text>} onPress={() => ctl.choose(i, false)} />;
+  } else if (r.type === "source") {
+    const meta = r.source.path ?? r.source.snippet;
+    row = <Row id={r.key} title={r.source.title} {...(meta ? { titleSuffix: meta } : {})} leading={<View style={styles.tile}><View style={[styles.num, on ? { backgroundColor: "rgba(255,255,255,0.22)" } : null]}><Text style={[styles.numText, on ? { color: "#FFFFFF" } : null]}>{r.source.n}</Text></View></View>} trailing={<Text style={styles.kind}>{r.source.where}</Text>} onPress={() => ctl.choose(i, false)} />;
+  } else if (r.type === "hit") {
     // One line, as the prototype draws it: the title, the grey meta after it, the kind right aligned.
     const meta = r.hit.snippet ?? r.hit.path;
     row = <Row id={r.key} title={r.hit.title} {...(meta ? { titleSuffix: meta } : {})} leading={<Tile hit={r.hit} />} trailing={<Text style={styles.kind}>{KIND_LABEL.get(r.hit.kind) ?? ""}</Text>} onPress={() => ctl.choose(i, false)} />;
@@ -226,10 +241,62 @@ function renderRow(
   } else {
     row = <Row id={r.key} title={r.name} leading={<View style={styles.tile}><View style={[styles.dot, { backgroundColor: r.swatch ?? "var(--accent)" }]} /></View>} trailing={r.current ? <Text style={styles.keys}>Current</Text> : undefined} onPress={() => ctl.choose(i, false)} />;
   }
-  const trigger = r.type === "hit" ? menuTrigger((x, y) => rowMenu(i, x, y)) : {};
+  const trigger = r.type === "hit" || r.type === "source" ? menuTrigger((x, y) => rowMenu(i, x, y)) : {};
   return (
     <View key={r.key} style={on ? LIT : null} {...webOnly({ onPointerMove: () => ctl.hover(i), role: "option", "aria-selected": on })} {...(trigger as object)}>
       {row}
+    </View>
+  );
+}
+
+/* ---------- the answer view (Ask the Space) ---------- */
+
+const WORKING = "Looking through chats, records, files, tasks, notes and meetings";
+
+function accountLine(a: AskState): string {
+  if (!a.account) return "Asked of the Space";
+  return a.account.mine ? `Asked of the Space, on your ${a.account.title} account` : `Asked of the Space, on the Space's ${a.account.title} account`;
+}
+
+/** The question stays in the field; this is the answer under it: the streamed text with numbered citation chips that open the source, a quiet line saying what it was drawn from, Copy and Continue in a chat. */
+function AnswerView({ ask, controller }: { ask: AskState; controller: CmdKController }): ReactElement {
+  const parts = revealed(answerParts(ask.text), ask.phase === "answered" ? Number.MAX_SAFE_INTEGER : ask.shown);
+  const writing = ask.phase === "working" || ask.phase === "streaming";
+  const answered = ask.phase === "answered";
+  return (
+    <View testID="cmdk-answer" style={styles.answer} {...webOnly({ "aria-live": "polite" })}>
+      <View style={styles.askedRow}>
+        <MenuIcon icon={SPARK} color="var(--accent)" size={14} />
+        <Text style={styles.asked} testID="cmdk-asked">{accountLine(ask)}</Text>
+      </View>
+      {ask.phase === "working" ? <Text style={styles.working} testID="cmdk-working">{WORKING}</Text> : null}
+      {ask.phase === "no_access" ? (
+        <View>
+          <Text style={styles.answerText} testID="cmdk-noaccess">{"I can't see anything about that you can read."}</Text>
+          <Text style={styles.note}>It may be private to someone else, or not in this Space. Ask whoever owns it to share it with you.</Text>
+        </View>
+      ) : null}
+      {ask.phase === "no_account" ? <View><Text style={styles.answerText} testID="cmdk-noaccount">Connect an AI account to get an answer. These are what I found.</Text></View> : null}
+      {ask.phase === "failed" ? <View><Text style={styles.answerText} testID="cmdk-failed">I could not get an answer just now. These are what I found.</Text></View> : null}
+      {(ask.phase === "streaming" || answered) ? (
+        <Text style={styles.answerText} testID="cmdk-answer-text">
+          {parts.map((p, i) => "text" in p
+            ? <Text key={`t${i}`}>{p.text}</Text>
+            : (
+              <Text key={`c${i}`} testID={`cmdk-cite-${p.cite}`} accessibilityRole="button" accessibilityLabel={`Source ${p.cite}: ${ask.sources.find((s) => s.n === p.cite)?.title ?? ""}`} onPress={() => controller.openCitation(p.cite)} style={styles.cite}>{` ${p.cite} `}</Text>
+            ))}
+          {writing ? <Text style={styles.caret}>{" ▍"}</Text> : null}
+        </Text>
+      ) : null}
+      {answered ? (
+        <View>
+          <Text style={styles.note} testID="cmdk-from">{`From ${ask.sources.length} ${ask.sources.length === 1 ? "thing" : "things"} you can read. Nothing private to someone else is used.`}</Text>
+          <View style={styles.actions}>
+            <Pressable accessibilityRole="button" testID="cmdk-copy" onPress={() => controller.copyAnswer()} style={({ hovered }: { hovered?: boolean }) => [styles.act, hovered === true ? { backgroundColor: "var(--hover)" } : null]}><Text style={styles.actText}>Copy</Text></Pressable>
+            <Pressable accessibilityRole="button" testID="cmdk-continue" onPress={() => controller.continueInChat()} style={({ hovered }: { hovered?: boolean }) => [styles.act, hovered === true ? { backgroundColor: "var(--hover)" } : null]}><Text style={styles.actText}>Continue in a chat</Text></Pressable>
+          </View>
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -294,6 +361,19 @@ const styles = StyleSheet.create({
   dot: { width: 12, height: 12, borderRadius: 6 },
   kind: { fontSize: 11.5, color: "var(--ink-3)" },
   keys: { fontSize: 11.5, color: "var(--ink-3)" },
+  answer: { paddingTop: 14, paddingHorizontal: 18, paddingBottom: 8 },
+  askedRow: { flexDirection: "row", alignItems: "center", gap: 7, marginBottom: 8 },
+  asked: { fontSize: 12, color: "var(--ink-3)" },
+  working: { fontSize: 12.5, color: "var(--ink-3)" },
+  answerText: { fontSize: 14, lineHeight: 22, color: "var(--ink)" },
+  cite: { fontSize: 10.5, fontWeight: "600", color: "var(--accent)", backgroundColor: "var(--accent-wash)", borderRadius: 9, overflow: "hidden", paddingHorizontal: 3 } as object,
+  caret: { color: "var(--accent)", opacity: 0.6 },
+  note: { marginTop: 8, fontSize: 12.5, lineHeight: 18, color: "var(--ink-3)" },
+  actions: { flexDirection: "row", gap: 6, marginTop: 10 },
+  act: { height: 26, paddingHorizontal: 9, borderRadius: 7, justifyContent: "center" },
+  actText: { fontSize: 12, fontWeight: "500", color: "var(--ink-2)" },
+  num: { width: 18, height: 18, borderRadius: 9, alignItems: "center", justifyContent: "center", backgroundColor: "var(--accent-wash)" },
+  numText: { fontSize: 11, fontWeight: "600", color: "var(--accent)" },
   foot: { flexDirection: "row", gap: 14, paddingVertical: 8, paddingHorizontal: 14, borderTopWidth: 1, borderTopColor: "var(--line)" },
   footText: { fontSize: 11.5, color: "var(--ink-3)" },
 });

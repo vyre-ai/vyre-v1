@@ -1,0 +1,32 @@
+{
+  "targets": [
+    {
+      "id": "P-ASK_1-typing",
+      "route": "/m/P-ASK_1?scene=typing",
+      "proto": "cmdk,q:what+did+Elena+say+about+the+lease,{skin}",
+      "waitFor": "[data-testid='row-ask']",
+      "note": "Ask the Space: a question typed in the top search. The Ask the Space row is first and highlighted, the hits it found follow. Paper and graphite, 1280 and 390 wide."
+    },
+    {
+      "id": "P-ASK_1-done",
+      "route": "/m/P-ASK_1?scene=done",
+      "proto": "cmdk,q:what+did+Elena+say+about+the+lease,ask,askdone,{skin}",
+      "waitFor": "[data-testid='cmdk-from']",
+      "note": "Ask the Space answered: the question kept in the field, the account line, the answer with numbered citation chips, the quiet From line, Copy and Continue in a chat, and the Sources list. Paper and graphite, 1280 and 390 wide."
+    },
+    {
+      "id": "P-ASK_1-noaccess",
+      "route": "/m/P-ASK_1?scene=noaccess",
+      "proto": "cmdk,q:what+is+the+Pruitt+settlement+offer,ask,askdone,{skin}",
+      "waitFor": "[data-testid='cmdk-noaccess']",
+      "note": "Nothing the asker may read: I can't see anything about that you can read, and no sources. Paper and graphite, 1280 and 390 wide."
+    },
+    {
+      "id": "P-ASK_1-working",
+      "route": "/m/P-ASK_1?scene=working",
+      "proto": "cmdk,q:what+did+Elena+say+about+the+lease,ask,askmid,{skin}",
+      "waitFor": "[data-testid='cmdk-working']",
+      "note": "Enter pressed, the answer not back yet (the prototype shows it mid-stream). Paper and graphite, 1280 and 390 wide."
+    }
+  ]
+}
