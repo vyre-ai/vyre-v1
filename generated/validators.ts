@@ -45010,6 +45010,7 @@ if ("statusReason" in o2806) lf(o2806["statusReason"], p + "/goals" + '/' + i280
 if ("owner" in o2806) lf(o2806["owner"], p + "/goals" + '/' + i2805 + "/owner", e, L23);
 if ("leadAgentId" in o2806) lf(o2806["leadAgentId"], p + "/goals" + '/' + i2805 + "/leadAgentId", e, L4);
 if ("threadId" in o2806) lf(o2806["threadId"], p + "/goals" + '/' + i2805 + "/threadId", e, L19);
+if ("folderId" in o2806) lf(o2806["folderId"], p + "/goals" + '/' + i2805 + "/folderId", e, L33);
 if ("deadline" in o2806) lf(o2806["deadline"], p + "/goals" + '/' + i2805 + "/deadline", e, L8);
 if ("nextCheckinAt" in o2806) lf(o2806["nextCheckinAt"], p + "/goals" + '/' + i2805 + "/nextCheckinAt", e, L8);
 if ("progress" in o2806) d_s_b1f011d31f(o2806["progress"], p + "/goals" + '/' + i2805 + "/progress", e);
