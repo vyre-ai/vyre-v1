@@ -6,8 +6,9 @@ import { spawnSync } from "node:child_process";
 import path from "node:path";
 import { PUBLIC_RULE, createEgressProxy, startNetWall, validHostPattern } from "../../sandbox/src/index.ts";
 import type { EgressEvent, EgressRule } from "../../sandbox/src/index.ts";
-import { LABELS, ensureLowrun, lowrunPossible, setLabel } from "../../sandbox/src/win/lowrun.ts";
+import { LABELS, ensureLowrun, ensureSshShim, lowrunPossible, setLabel } from "../../sandbox/src/win/lowrun.ts";
 import { privateBash } from "../../sandbox/src/win/msys.ts";
+import { layoutRoots } from "./sandbox.ts";
 import type { EngineSandbox, SandboxPlan } from "./sandbox.ts";
 
 /** The AI providers' API and sign-in hosts: what a CLI engine needs to work at all, and all it may reach under "Only the AI providers". */
@@ -195,8 +196,11 @@ export async function defaultSandbox(o: DefaultSandboxOptions): Promise<DefaultS
     const bash = await privateBash(msys).catch(() => null);
     // Vyre's folders (and the data folder itself, which the work folders are under) private; the roots an engine works under, its engines and its Git Bash readable
     const priv = [...new Set([...(o.privateDirs ?? vyrePrivateDirs(o.dataDir)), o.dataDir])];
-    protectVyreData(helper, bin, priv, [path.join(o.dataDir, "work"), path.join(o.dataDir, "scratch"), path.join(o.dataDir, "engines"), ...(bash ? [msys] : [])]);
-    const low = (port: number): EngineSandbox => ({ kind: "lowil", helper, proxyPort: port, ...(o.writable ? { writable: o.writable } : {}), ...(bash ? { bash } : {}) });
+    const roots = layoutRoots("win32");
+    protectVyreData(helper, bin, priv, [path.join(o.dataDir, roots.work), path.join(o.dataDir, roots.scratch), path.join(o.dataDir, "engines"), ...(bash ? [msys] : [])]);
+    // git's ssh (no shell, Vyre's config), where the engine may run it and not change it: beside the engines Vyre installed, which are labelled readable
+    const ssh = ensureSshShim(helper, path.join(o.dataDir, "engines", "vyre-ssh"));
+    const low = (port: number): EngineSandbox => ({ kind: "lowil", helper, proxyPort: port, ssh, ...(o.writable ? { writable: o.writable } : {}), ...(bash ? { bash } : {}) });
     const proxy = createEgressProxy({ ...egress });
     const { port } = await proxy.listen();
     // a turn's own proxy: the rule it carries and its own record of where it went, as on a Mac

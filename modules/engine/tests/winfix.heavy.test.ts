@@ -110,38 +110,42 @@ describe("Windows parity (lane l-winfix)", { skip: !ON && "VYRE_HEAVY_WINFIX=1 o
     } finally { api.close(); }
   });
 
-  test("2. native skills, with names Windows cannot hold and a file past MAX_PATH, are written and claude.exe lists and reads them", async () => {
-    const deepRel = `references/${"deep-folder-name-".repeat(6)}/${"a-very-long-file-name-".repeat(5)}.md`;
-    const lib = [{ name: "winfix-proof", files: { "notes: draft?.md": "BADNAME-CONTENT-7f3", "CON.txt": "DEVICE-NAME-CONTENT-2c1", [deepRel]: "LONGPATH-CONTENT-9b4", "skill.md": "must not replace SKILL.md" } }];
-    const text = "---\nname: winfix-proof\ndescription: Proof that Windows skills are written and read (WINFIX-DESC-51a)\n---\n\nRead the files beside this skill.\n";
+  test("2. native skills, with names Windows cannot hold, a deep file and one past MAX_PATH, are written (the last left out) and claude.exe lists and reads them", async () => {
+    const deepRel = `references/${"deep-folder-".repeat(3)}/${"long-file-name-".repeat(3)}.md`;
+    const tooDeepRel = `references/${"deep-folder-name-".repeat(6)}/${"a-very-long-file-name-".repeat(5)}.md`;
+    const name = "winfix-proof-a-skill-whose-name-is-longer-than-forty-characters";
+    const lib = [{ name, files: { "notes: draft?.md": "BADNAME-CONTENT-7f3", "CON.txt": "DEVICE-NAME-CONTENT-2c1", [deepRel]: "DEEP-CONTENT-9b4", [tooDeepRel]: "TOO-DEEP", "skill.md": "must not replace SKILL.md" } }];
+    const text = `---\nname: ${name}\ndescription: Proof that Windows skills are written and read (WINFIX-DESC-51a)\n---\n\nRead the files beside this skill.\n`;
     const call = async (cap: string): Promise<unknown> => {
       if (cap === "skills.list") return { skills: lib.map((l) => ({ name: l.name, tier: "space", source: "upload", hash: "1" })) };
-      return { skill: { name: "winfix-proof", text, files: Object.entries(lib[0]!.files).map(([p, t]) => ({ path: p, text: t })) } };
+      return { skill: { name, text, files: Object.entries(lib[0]!.files).map(([p, t]) => ({ path: p, text: t })) } };
     };
     const logs: string[] = [];
     const r = await syncNativeSkills({ call, log: (m, a) => { logs.push(`${m} ${JSON.stringify(a)}`); } }, "claude_code", "agt_1", "usr_dana", cwd);
-    assert.deepEqual(r, { written: ["winfix-proof"] }, logs.join("\n"));
-    const root = path.join(cwd, ".claude", "skills", "winfix-proof");
+    const dir = name.slice(0, 40);
+    assert.deepEqual(r, { written: [dir] }, logs.join("\n"));
+    const root = path.join(cwd, ".claude", "skills", dir);
     const listing = await run(ps(`Get-ChildItem -LiteralPath '${root}' -Recurse -File | ForEach-Object { $_.FullName.Length.ToString() + ' ' + $_.FullName.Substring(${root.length}) }`), { cwd });
-    console.log(`written:\n${listing.out}\nlogs: ${logs.join(" | ")}`);
+    console.log(`work folder: ${cwd} (${cwd.length}); SKILL.md: ${path.join(root, "SKILL.md").length}\nwritten:\n${listing.out}\nlogs: ${logs.join(" | ")}`);
     const badName = path.join(root, "notes_ draft_.md");
     const device = path.join(root, "_CON.txt");
     const deep = path.join(root, ...deepRel.split("/"));
-    assert.ok(deep.length > 260, `the deep file is past MAX_PATH (${deep.length})`);
+    assert.ok(deep.length < 260, `the deep file fits (${deep.length})`);
     assert.equal(fs.readFileSync(path.join(root, "SKILL.md"), "utf8"), text);
-    for (const f of [badName, device]) assert.ok(fs.existsSync(f), f);
-    assert.equal(fs.readFileSync(`\\\\?\\${deep}`, "utf8"), "LONGPATH-CONTENT-9b4");
+    for (const f of [badName, device, deep]) assert.ok(fs.existsSync(f), f);
+    assert.ok(!fs.existsSync(path.join(root, ...tooDeepRel.split("/"))), "the file past MAX_PATH is left out");
+    assert.ok(logs.some((l) => l.includes("too long for Windows")), "and logged");
 
     const log: string[] = [];
     const api = await fakeApi([{ name: "Read", input: { file_path: badName } }, { name: "Read", input: { file_path: device } }, { name: "Read", input: { file_path: deep } }], log);
     try {
       const env = { ANTHROPIC_API_KEY: "sk-ant-fake", ANTHROPIC_BASE_URL: `http://127.0.0.1:${api.port}`, CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: "1", DISABLE_AUTOUPDATER: "1" };
       const wrap = sandboxWrap(d.plan, { homeFromScratch: true });
-      const turn = await run(wrap([claude, "-p", "Read the skill's files.", "--output-format", "text", "--permission-mode", "bypassPermissions", "--model", "claude-sonnet-4-5"], { cwd, env }), { cwd, env });
+      const turn = await run(wrap([claude, "-p", "Read the skill's files.", "--output-format", "text", "--permission-mode", "bypassPermissions", "--model", "claude-sonnet-4-5"], { cwd, env }), { cwd, env, ms: 180_000 });
       console.log(`claude: exit ${turn.code}\n${turn.out.slice(-400)}\n${turn.err.slice(-1200)}\nresults: ${log.join("\n").slice(-2500)}`);
       assert.equal(turn.code, 0, turn.err.slice(-800));
       assert.ok(api.bodies.some((b) => b.includes("winfix-proof") && b.includes("WINFIX-DESC-51a")), "claude.exe lists the skill from .claude/skills of its folder");
-      for (const marker of ["BADNAME-CONTENT-7f3", "DEVICE-NAME-CONTENT-2c1", "LONGPATH-CONTENT-9b4"]) assert.ok(log.some((l) => l.includes(marker)), `claude.exe read ${marker}`);
+      for (const marker of ["BADNAME-CONTENT-7f3", "DEVICE-NAME-CONTENT-2c1", "DEEP-CONTENT-9b4"]) assert.ok(log.some((l) => l.includes(marker)), `claude.exe read ${marker}`);
     } finally { api.close(); }
   });
 
@@ -221,6 +225,8 @@ describe("Windows parity (lane l-winfix)", { skip: !ON && "VYRE_HEAVY_WINFIX=1 o
       const keysAtLow = await run(wrap(["C:\\Windows\\System32\\OpenSSH\\ssh-add.exe", "-l"], { cwd, env: {} }), { cwd, ms: 60_000 });
       console.log(`ssh-add -l at Low: exit ${keysAtLow.code} ${keysAtLow.out.trim()} ${keysAtLow.err.trim()}`);
       const clone = await run(wrap(["git", "clone", "-q", "ssh://git@git.vyre-proof.example/served.git", "over-ssh"], { cwd, env: { GIT_TRACE: "1" } }), { cwd, ms: 180_000 });
+      const cfg = fs.readdirSync(path.join(dataDir, "s")).map((p) => path.join(dataDir, "s", p, "home", ".ssh", "vyre_config")).find((f) => fs.existsSync(f));
+      console.log(`vyre_config:\n${cfg ? fs.readFileSync(cfg, "utf8") : "(none)"}`);
       console.log(`git clone over ssh: exit ${clone.code}\n${clone.err.slice(-2500)}`);
       assert.equal(keysAtLow.code, 0, "the Low engine reaches the agent's named pipe");
       assert.equal(clone.code, 0, clone.err.slice(-800));

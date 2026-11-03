@@ -8,11 +8,11 @@
 //     unwrapped launcher.
 import fs from "node:fs";
 import path from "node:path";
-import { sha256Hex } from "../../kernel/src/log/hash.ts";
-import { CONNECT_SOURCE, SandboxError, bwrapWallCommand, seatbeltCommand, sshFiles, toolProxyEnv } from "../../sandbox/src/index.ts";
+import { randomHex, sha256Hex } from "../../kernel/src/log/hash.ts";
+import { CONNECT_SOURCE, SandboxError, bwrapWallCommand, seatbeltCommand, sshConfig, sshFiles, toolProxyEnv } from "../../sandbox/src/index.ts";
 import type { EgressEvent, EgressRule, EngineAccess, Roots, SandboxSpec } from "../../sandbox/src/index.ts";
 import type { LocalLauncherOptions } from "../../agent/src/drivers/cli/launcher.ts";
-import { labelLow, lowrunArgv } from "../../sandbox/src/win/lowrun.ts";
+import { labelLow, lowrunArgv, pipeName } from "../../sandbox/src/win/lowrun.ts";
 
 /** What the host knows about the sandbox it runs a CLI engine in. The wall (egress proxy) is started by the host and outlives the turns. */
 export type EngineSandbox =
@@ -22,7 +22,7 @@ export type EngineSandbox =
    * Windows, Personal Space (owner ruling 3 Nov 2026): the engine at Low integrity in a Job Object (sandbox/src/win/lowrun.cs). It may change only its work folder, its scratch home and temp, and
    * `writable` (the folders the person added to Vyre); it reads the computer as Claude Code does. Its network is the egress proxy on loopback, by its variables.
    */
-  | { kind: "lowil"; helper: string; proxyPort: number; writable?: readonly string[]; bash?: string }
+  | { kind: "lowil"; helper: string; proxyPort: number; writable?: readonly string[]; bash?: string; ssh?: string }
   /** The engine belongs in the person's container, which has no local launcher yet. */
   | { kind: "docker" | "server"; reason?: string };
 
@@ -138,7 +138,7 @@ export function sandboxWrap(plan: SandboxPlan, o: { homeFromScratch?: boolean; a
       egressHosts: plan.egressHosts,
       env: start.env,
     };
-    if (s.kind === "lowil") return lowWrap(s, plan, start, argv, person, scratch, o);
+    if (s.kind === "lowil") return lowWrap(s, plan, start, argv, where.personSeg, scratch, o);
     if (s.kind === "bwrap") {
       // a turn on a sign-in kept in files sees them as its home: the scratch folder's own home is bound where the sandbox's home would be
       const home = o.homeFromScratch ? path.join(scratch, "home") : undefined;
@@ -170,27 +170,35 @@ export function sandboxWrap(plan: SandboxPlan, o: { homeFromScratch?: boolean; a
  * folders, their scratch folder (the engine's home, config and temp) and the folders they added. Its home, config and temp point into the scratch folder, so the CLI's own state is somewhere it
  * may write; its proxy variables name the egress proxy.
  */
-function lowWrap(s: Extract<EngineSandbox, { kind: "lowil" }>, plan: SandboxPlan, start: { env: Record<string, string>; cwd?: string }, argv: readonly string[], person: string, scratch: string, o: { access?: EngineAccess; basePath?: string } = {}): string[] {
+function lowWrap(s: Extract<EngineSandbox, { kind: "lowil" }>, plan: SandboxPlan, start: { env: Record<string, string>; cwd?: string }, argv: readonly string[], personSeg: string, scratch: string, o: { access?: EngineAccess; basePath?: string } = {}): string[] {
   const home = path.join(scratch, "home");
   const tmp = path.join(scratch, "tmp");
   // the folders the person added (engine-access.ts, checked: never a drive's root, a system folder or Vyre's data) are labelled with the rest
-  for (const dir of [path.join(plan.dataDir, "work", person), scratch, ...(s.writable ?? []), ...(o.access?.added ?? [])]) labelLow(dir);
-  fs.mkdirSync(home, { recursive: true });
-  fs.mkdirSync(tmp, { recursive: true });
+  for (const dir of [path.join(plan.dataDir, layoutRoots().work, personSeg), scratch, ...(s.writable ?? []), ...(o.access?.added ?? [])]) labelLow(dir);
   const own = {
     HOME: home, USERPROFILE: home, APPDATA: path.join(home, "AppData", "Roaming"), LOCALAPPDATA: path.join(home, "AppData", "Local"), TEMP: tmp, TMP: tmp,
     CLAUDE_CONFIG_DIR: path.join(home, ".claude"), CLAUDE_CODE_TMPDIR: tmp, CODEX_HOME: path.join(home, ".codex"), XDG_CONFIG_HOME: path.join(home, ".config"), XDG_CACHE_HOME: path.join(home, ".cache"),
   };
-  for (const d of [own.APPDATA, own.LOCALAPPDATA]) fs.mkdirSync(d, { recursive: true });
+  // every folder the variables name is there before the engine starts: codex.exe refuses a CODEX_HOME that does not exist
+  for (const d of [home, tmp, own.APPDATA, own.LOCALAPPDATA, own.CLAUDE_CONFIG_DIR, own.CODEX_HOME]) fs.mkdirSync(d, { recursive: true });
   // the engine's own copy of Git Bash (sandbox/src/win/msys.ts): a person's Git Bash window must not stop the engine's Bash tool
   if (s.bash) (own as Record<string, string>)["CLAUDE_CODE_GIT_BASH_PATH"] = s.bash;
   void start;
-  // git over SSH as on a Mac: Windows OpenSSH (it reaches the agent's named pipe; Git's own ssh cannot) tunnels through the proxy with the CONNECT helper, which lives in the scratch folder the
-  // engine may read. The package managers keep the engine's own home here: the person's install folders are not labelled Low, so the engine could not write their caches.
-  const helper = path.join(scratch, "net", "connect.mjs");
-  fs.mkdirSync(path.dirname(helper), { recursive: true });
-  fs.writeFileSync(helper, CONNECT_SOURCE);
-  const net = toolProxyEnv(`http://127.0.0.1:${s.proxyPort}`, { node: process.execPath, helper, port: s.proxyPort, platform: "win32", ...sshFiles(o.access, path.join(home, ".vyre-known-hosts")) });
-  const acc = o.access ? { ...(o.access.sshAuthSock ? { SSH_AUTH_SOCK: o.access.sshAuthSock } : {}), ...(o.basePath ? { PATH: [...o.access.pathAdd, o.basePath].join(";") } : {}) } : {};
-  return lowrunArgv(s.helper, argv, { ...net, ...own, ...acc });
+  const net = toolProxyEnv(`http://127.0.0.1:${s.proxyPort}`);
+  // git over SSH with no shell: GIT_SSH is Vyre's ssh helper, which runs Windows OpenSSH with the config written here (the turn's proxy through the CONNECT helper, the known-hosts files, the agent
+  // relay). The relay is this job's own pipe, labelled so a Low process may use it, passing on to the person's agent (Windows OpenSSH's service), whose pipe a Low process cannot open.
+  const target = pipeName(o.access?.sshAuthSock);
+  const relay = target !== null ? `vyre-agent-${process.pid}-${randomHex(6)}` : null;
+  let ssh: Record<string, string> = {};
+  if (s.ssh) {
+    const helper = path.join(scratch, "net", "connect.mjs");
+    fs.mkdirSync(path.dirname(helper), { recursive: true });
+    fs.writeFileSync(helper, CONNECT_SOURCE);
+    const config = path.join(home, ".ssh", "vyre_config");
+    fs.mkdirSync(path.dirname(config), { recursive: true });
+    fs.writeFileSync(config, sshConfig({ node: process.execPath, helper, port: s.proxyPort, platform: "win32", ...sshFiles(o.access, path.join(home, ".vyre-known-hosts")), ...(relay ? { agent: `\\\\.\\pipe\\${relay}` } : {}) }));
+    ssh = { GIT_SSH: s.ssh, GIT_SSH_VARIANT: "ssh", VYRE_SSH_CONFIG: config };
+  }
+  const acc = o.access && o.basePath ? { PATH: [...o.access.pathAdd, o.basePath].join(";") } : {};
+  return lowrunArgv(s.helper, argv, { ...net, ...own, ...ssh, ...acc }, relay && target ? { agentRelay: { pipe: relay, target } } : {});
 }
