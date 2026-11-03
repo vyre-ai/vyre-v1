@@ -23,6 +23,12 @@ test("Team: a member's agent asks for a key in her chat; the admin adds it; the 
       yield { type: "text", text: r.ok ? "I asked for the Fathom key." : `FAILED ${JSON.stringify(r.content).slice(0, 200)}` };
     } else if (/Carry on/.test(ask)) yield { type: "text", text: "Thanks, carrying on with Fathom." };
   });
+  // memory learns after every turn (l-memlearn) and reads the account's model list once, which asks the vendor with the key (providers.test): answer that here, so the scripted key is not
+  // refused by the real vendor and the account marked failing before the agent carries on
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = ((url: string | URL | Request, init?: RequestInit) => (String(url) === "https://api.anthropic.com/v1/models"
+    ? Promise.resolve(new Response(JSON.stringify({ data: [{ id: "claude-haiku-4-5" }] }), { status: 200, headers: { "content-type": "application/json" } }))
+    : realFetch(url, init))) as typeof fetch;
   const ownerToken = { v: "" };
   const d = await boot(seededDir(), model, {
     vault: undefined,
@@ -80,5 +86,5 @@ test("Team: a member's agent asks for a key in her chat; the admin adds it; the 
     assert.ok(said);
     const all = JSON.stringify((await api("usr_mia", "chat.messages.list", { threadId })).data) + hostLog(d);
     assert.ok(!all.includes(SECRET), "the value reached no message, block or log");
-  } catch (e) { console.error("FAILED:", e instanceof Error ? e.message.slice(0, 1500) : e); throw e; } finally { await stop(d); }
+  } catch (e) { console.error("FAILED:", e instanceof Error ? e.message.slice(0, 1500) : e); throw e; } finally { await stop(d); globalThis.fetch = realFetch; }
 });
