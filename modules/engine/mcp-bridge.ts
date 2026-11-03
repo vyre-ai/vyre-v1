@@ -4,22 +4,24 @@
 // The first line on a connection is {"auth": "<token>"}; a wrong token closes the connection before anything is posted.
 import fs from "node:fs";
 import net from "node:net";
-import os from "node:os";
 import path from "node:path";
+import { localSocket } from "../../sandbox/src/sock.ts";
 
-/** The program the CLI starts. Plain Node, no imports beyond the standard library. argv[2] is the socket; the token comes from VYRE_MCP_TOKEN. */
+/** The program the CLI starts. Plain Node, no imports beyond the standard library. argv[2] is the socket (a pipe on Windows); the token comes from VYRE_MCP_TOKEN. */
 export const SHIM_SOURCE = `import net from "node:net";
+import path from "node:path";
 const sock = process.argv[2];
 const token = process.env.VYRE_MCP_TOKEN ?? "";
 if (!sock || !token) { process.stderr.write("vyre mcp shim: no socket or token\\n"); process.exit(2); }
-const c = net.connect(sock);
+// a pipe (Windows) or a short path is connected as it is; a path too long for a unix socket is reached from its own folder
+let c;
+if (sock.startsWith("\\\\") || Buffer.byteLength(sock) <= 100) c = net.connect(sock);
+else { process.chdir(path.dirname(sock)); c = net.connect(path.basename(sock)); }
 c.on("error", (e) => { process.stderr.write("vyre mcp shim: " + e.message + "\\n"); process.exit(1); });
 c.on("connect", () => { c.write(JSON.stringify({ auth: token }) + "\\n"); process.stdin.pipe(c); });
 c.pipe(process.stdout);
 c.on("close", () => process.exit(0));
 `;
-
-const MAX_SOCKET_PATH = 100;
 
 export interface McpBridgeOptions {
   /** The person's scratch folder: the sandbox holds it read-write, so the socket and the shim live there. */
@@ -46,16 +48,11 @@ export async function openMcpBridge(m: { url: string; token: string }, o: McpBri
   const shim = path.join(o.scratch, "mcp-shim.mjs");
   fs.writeFileSync(shim, SHIM_SOURCE, { mode: 0o644 });
   const name = `mcp-${Array.from(globalThis.crypto.getRandomValues(new Uint8Array(6)), (b) => b.toString(16).padStart(2, "0")).join("")}.sock`;
-  let socket = path.join(o.scratch, name);
-  // A unix socket path holds about 100 bytes. A Mac's data folder ("~/Library/Application Support/<app>/personal/scratch/<person>") is already longer than that, so there the socket is reached through a
-  // short link: a private (0700, random-named) folder in the temp area holds one symlink to the scratch folder. Seatbelt resolves the link, so the profile's rule for the scratch folder still decides.
-  let alias: string | undefined;
-  if (Buffer.byteLength(socket) > MAX_SOCKET_PATH && process.platform === "darwin") {
-    alias = fs.mkdtempSync(path.join(fs.realpathSync("/tmp"), "vyre-"));
-    fs.symlinkSync(fs.realpathSync(o.scratch), path.join(alias, "s"));
-    socket = path.join(alias, "s", name);
-  }
-  if (Buffer.byteLength(socket) > MAX_SOCKET_PATH) throw new Error(`the MCP socket path is too long for a unix socket: ${socket.length} characters`);
+  // The socket lives in the scratch folder, so the sandbox's rule for that folder decides who reaches it. A data folder can be longer than a unix socket path holds (a Mac's Application Support, a
+  // Windows profile): sandbox/src/sock.ts listens through a short private link there, and on Windows on a named pipe. Seatbelt resolves the link, so a Mac's shim is given the link; inside
+  // bubblewrap /tmp is its own, so a Linux shim is given the real path and connects from the folder.
+  const sock = localSocket(o.scratch, name, "mcp");
+  const socket = process.platform === "linux" ? sock.real : sock.connect;
   const live = new Set<net.Socket>();
   const server = net.createServer({ allowHalfOpen: true }, (c) => {
     live.add(c);
@@ -109,16 +106,20 @@ export async function openMcpBridge(m: { url: string; token: string }, o: McpBri
       }
     });
   });
-  await new Promise<void>((ok, bad) => { server.once("error", bad); server.listen(socket, () => ok()); });
-  fs.chmodSync(socket, 0o600);
+  try {
+    await new Promise<void>((ok, bad) => { server.once("error", bad); server.listen(sock.listen, () => ok()); });
+    if (process.platform !== "win32") fs.chmodSync(sock.listen, 0o600);
+  } catch (e) {
+    sock.remove();
+    throw e;
+  }
   return {
     stdio: { command: o.node ?? process.execPath, args: [shim, socket] },
     socket,
     async close() {
       for (const c of live) c.destroy();
       await new Promise<void>((ok) => server.close(() => ok()));
-      fs.rmSync(socket, { force: true });
-      if (alias !== undefined) fs.rmSync(alias, { recursive: true, force: true });
+      sock.remove();
     },
   };
 }

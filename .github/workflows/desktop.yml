@@ -2,7 +2,18 @@ name: desktop
 
 on:
   workflow_call:
+    inputs:
+      only:
+        description: "Run one job only (sandbox-windows)"
+        required: false
+        type: string
+        default: ""
   workflow_dispatch:
+    inputs:
+      only:
+        description: "Run one job only (sandbox-windows), to prove a lane's change without the full build"
+        required: false
+        default: ""
   pull_request:
     paths:
       - "apps/desktop/**"
@@ -32,6 +43,7 @@ permissions:
 
 jobs:
   desktop:
+    if: ${{ !inputs.only }}
     name: desktop (${{ matrix.os }})
     strategy:
       fail-fast: false
@@ -248,6 +260,7 @@ jobs:
   # long socket path, a write outside the work folder is refused, and the real CLIs (installed on this runner only) start under the profile and do not die on a signal. Blocks the release because
   # release.yml calls this whole workflow.
   sandbox-macos:
+    if: ${{ !inputs.only }}
     name: sandbox (macos-latest)
     runs-on: macos-latest
     timeout-minutes: 20
@@ -277,11 +290,30 @@ jobs:
           set -euo pipefail
           node --test --test-force-exit --test-reporter=spec modules/engine/tests/sandbox.mac.heavy.test.ts modules/engine/tests/cli.heavy.test.ts modules/engine/tests/sandbox.test.ts sandbox/tests/sandbox.escape.test.ts
           VYRE_HEAVY_DOCKER=1 node --test --test-force-exit --test-reporter=spec golden/steps/07-reply.heavy.test.ts
+  # CLI engines on Windows: the local sockets the daemon makes (a named pipe, never a unix socket path a long profile folder breaks) and the MCP shim reaching Vyre over one from a
+  # 120-character data folder. Blocks the release because release.yml calls this whole workflow.
+  sandbox-windows:
+    if: ${{ !inputs.only || inputs.only == 'sandbox-windows' }}
+    name: sandbox (windows-latest)
+    runs-on: windows-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Local sockets and the MCP bridge
+        run: node --test --test-force-exit --test-reporter=spec sandbox/tests/sock.test.ts modules/engine/tests/mcp-bridge.test.ts
   # The Mac server installer on a real macOS runner: BSD tar, shasum, diskutil, plutil and the system LibreSSL beside Homebrew's OpenSSL 3. No Docker and no launchd changes.
   # Its unit tests (scripts/install/macos/install.test.ts) also run on the Linux runners with the main suite. There is no self-hosted macOS runner. A tag run skips it:
   # the release already ran it on the commit that was merged.
   installer-macos:
-    if: github.ref_type != 'tag'
+    if: ${{ github.ref_type != 'tag' && !inputs.only }}
     runs-on: macos-latest
     timeout-minutes: 15
     steps:

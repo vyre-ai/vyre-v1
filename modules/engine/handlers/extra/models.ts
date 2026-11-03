@@ -11,6 +11,8 @@ import type { LiveModel, ModelsState } from "../../live-models.ts";
 import type { EngineCtx } from "../../projections.ts";
 import { blockedBy, readPolicy } from "./config.ts";
 import { modelLimits } from "../usage.ts";
+import { cliSandboxGap } from "../../sandbox-default.ts";
+import { engineHost } from "../../runtime.ts";
 import type { Label, Policy } from "./config.ts";
 
 interface ProviderRow {
@@ -161,10 +163,19 @@ function reasonText(why: "label_provider" | "policy_model", label: Label | undef
 
 export async function providersList(ctx: EngineCtx, input: { threadId?: string }): Promise<{ providers: ProviderOut[] }> {
   const [all, policy, label] = await Promise.all([myProviders(ctx), readPolicy(ctx), threadLabel(ctx, input.threadId)]);
-  return { providers: DRIVERS.map((driver) => providerState(driver, all, policy, label)) };
+  const gap = sandboxGap();
+  return { providers: DRIVERS.map((driver) => providerState(driver, all, policy, label, gap)) };
 }
 
-function providerState(driver: Driver, all: readonly ProviderRow[], policy: Policy, label: Label | undefined): ProviderOut {
+/** What a CLI account needs before it can run turns here, in one line with what to do, or null. The host's own sandbox plan, when it gave one, decides; otherwise this computer's (sandbox-default.ts). */
+export const NEEDS_SANDBOX = "Needs a sandbox Vyre cannot set up on this computer yet. Use an API key for now.";
+function sandboxGap(): string | null {
+  const h = engineHost();
+  if (h?.sandbox) return null;
+  return cliSandboxGap() === null ? null : NEEDS_SANDBOX;
+}
+
+export function providerState(driver: Driver, all: readonly ProviderRow[], policy: Policy, label: Label | undefined, gap: string | null = null): ProviderOut {
   const mine = all.filter((p) => driverOf(p) === driver);
   const connected = mine.some((p) => p.state === "ok");
   // The policy names providers by key (anthropic, openai); a CLI engine is allowed when its own name or its provider key is.
@@ -175,6 +186,8 @@ function providerState(driver: Driver, all: readonly ProviderRow[], policy: Poli
     if (w === null) { why = null; break; }
     why = w;
   }
+  // a CLI engine this computer cannot sandbox never runs here: the account is listed with what it needs
+  if (CLI.has(driver) && gap !== null) return { driver, kind: "cli", title: DRIVER_TITLE[driver], connected, allowed: false, reason: gap };
   return {
     driver, kind: CLI.has(driver) ? "cli" : "api", title: DRIVER_TITLE[driver], connected, allowed: why === null,
     ...(why === null ? {} : { reason: reasonText(why, label) }),

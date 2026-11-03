@@ -86,9 +86,15 @@ test("the default sandbox: Linux without bwrap and an unknown platform say so an
   assert.throws(() => sandboxWrap(noBwrap.plan)(["claude"], { env, cwd: workFolder(data, "usr_dana", "thr_1") }), (e: Error & { code?: string }) => e.code === "sandbox.unavailable");
   const win = await defaultSandbox({ dataDir: data, platform: "win32" });
   assert.equal(win.plan.sandbox.kind, "server");
-  assert.match((win.plan.sandbox as { reason?: string }).reason ?? "", /win32/);
+  assert.match((win.plan.sandbox as { reason?: string }).reason ?? "", /Windows/);
+  const bsd = await defaultSandbox({ dataDir: data, platform: "freebsd" });
+  assert.match((bsd.plan.sandbox as { reason?: string }).reason ?? "", /freebsd/);
+  const { cliSandboxGap } = await import("../sandbox-default.ts");
+  assert.equal(cliSandboxGap({ platform: "darwin" }), null);
+  assert.equal(cliSandboxGap({ platform: "win32" }), (win.plan.sandbox as { reason?: string }).reason, "one reason, wherever it is shown");
   await noBwrap.close();
   await win.close();
+  await bsd.close();
 });
 
 test("PATH for a CLI engine: an app from the Finder gets the folders a shell would add, only the ones that exist, and other platforms keep their PATH", () => {

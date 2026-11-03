@@ -3,6 +3,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { FLAG_DEFAULT, bindSandboxStopper, flagOn, wrappedRuntimeKey } from "../handlers/extra/config.ts";
 import { extraHandlers } from "../handlers/extra/index.ts";
+import { NEEDS_SANDBOX, providerState } from "../handlers/extra/models.ts";
 import { assertEventsConform, codeOf, contractErrors, harness } from "../fixtures/harness.ts";
 import type { Harness } from "../fixtures/harness.ts";
 import type { EngineCtx } from "../projections.ts";
@@ -100,6 +101,16 @@ test("providers.list names every API and CLI engine with connected and allowed, 
   const openai = restricted.providers.find((p) => p.driver === "openai");
   assert.equal(openai?.allowed, false);
   assert.match(openai?.reason ?? "", /restricted records may not go/);
+});
+
+test("providers.list: where CLI engines cannot be sandboxed, a connected CLI account says what it needs and is not offered; API engines are unchanged", () => {
+  const rows = [{ id: "p1", providerKey: "anthropic", name: "Claude Code", connection: "subscription", scope: "mine", itemId: "i1", engine: "claude-code", spaceMayUse: false, state: "ok" }] as never;
+  const policy = { allowedAccounts: "any", allowedModels: [], allowedProviders: [], labelProviders: {} } as never;
+  const cli = providerState("claude_code", rows, policy, undefined, NEEDS_SANDBOX);
+  assert.deepEqual([cli.connected, cli.allowed, cli.reason], [true, false, NEEDS_SANDBOX]);
+  assert.match(NEEDS_SANDBOX, /^Needs .*\. Use an API key/);
+  assert.equal(providerState("anthropic", rows, policy, undefined, NEEDS_SANDBOX).allowed, true);
+  assert.equal(providerState("claude_code", rows, policy, undefined, null).allowed, true, "a computer that can sandbox offers it");
 });
 
 test("the person switches: sharing a subscription kills the sandbox when turned off, and the runtime opt-in keeps a wrapped key only while on", async () => {

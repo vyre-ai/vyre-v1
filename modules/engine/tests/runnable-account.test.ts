@@ -21,13 +21,13 @@ function installed(...programs: string[]): NodeCliProbe {
   return { platform: "darwin", env: { PATH: "/usr/bin:/bin", HOME: dir } };
 }
 
-function chain(o: { order: ResolvedAccount[]; connected?: string[]; probe: NodeCliProbe; placement?: string; command?: Record<string, string[]> }) {
+function chain(o: { order: ResolvedAccount[]; connected?: string[]; probe: NodeCliProbe; placement?: string; command?: Record<string, string[]>; unsandboxed?: () => string | null }) {
   const posted: string[] = [];
   const resolved: AccountQuery[] = [];
   const fn = createRunnableAccount({
     call: async (cap) => (cap === "engine.accounts.list" ? { accounts: (o.connected ?? o.order.map((a) => a.ref)).map((ref) => ({ ref })) } : { placement: "host", reason: o.placement ?? "default" }),
     resolve: async (q) => { resolved.push(q); return o.order.find((a) => !(q.unavailable ?? []).includes(a.ref)) ?? null; },
-    probe: o.probe, ...(o.command ? { command: o.command } : {}),
+    probe: o.probe, ...(o.command ? { command: o.command } : {}), ...(o.unsandboxed ? { unsandboxed: o.unsandboxed } : {}),
     postAs: async (_a, post) => { posted.push(((post as { blocks: Array<{ data: { text: string } }> }).blocks[0]?.data.text) ?? ""); return undefined as never; },
   });
   return { fn, posted, resolved };
@@ -161,4 +161,32 @@ test("checkedOpen: an install that fails ends the turn with engine.cli_missing n
   const none = setupOf({ supported: [] });
   await assert.rejects(checkedOpen(async () => undefined as never, { probe: installed(), engines: none.engines })(spec), (e: unknown) => (e as Error).message === "grok is not installed on this computer (unsupported).");
   assert.deepEqual(none.asked, []);
+});
+
+// A computer that cannot sandbox CLI engines (Windows until it has one): a CLI account is never offered for a turn there. Another account of the person answers and the chat says why in one line;
+// with none, the start refuses with sandbox.unavailable before anything is installed, filled or started.
+const NO_SANDBOX = (): string => "Vyre cannot sandbox Claude Code, Codex or Grok on Windows yet, so they do not run on this computer";
+
+test("where CLI engines cannot be sandboxed, an installed CLI account gives way to an API key, said once", async () => {
+  const c = chain({ order: [CLAUDE, KEY], probe: installed("claude"), unsandboxed: NO_SANDBOX });
+  assert.equal((await c.fn(Q))?.ref, "#Key");
+  assert.deepEqual(c.posted, ["Claude cannot run safely on this computer yet, so Anthropic answered."]);
+  const only = chain({ order: [CLAUDE, CODEX], probe: installed("claude", "codex"), unsandboxed: NO_SANDBOX });
+  assert.equal((await only.fn(Q))?.ref, "#Claude", "with nothing that can run, the pick stays and its start says why");
+  assert.deepEqual(only.posted, []);
+  const pinned = chain({ order: [CLAUDE, KEY], probe: installed(), placement: "chosen_server", unsandboxed: NO_SANDBOX });
+  assert.equal((await pinned.fn(Q))?.ref, "#Claude", "a turn pinned to a server is that server's to check");
+});
+
+test("where CLI engines cannot be sandboxed, a CLI start refuses with sandbox.unavailable before any install", async () => {
+  let opened = 0;
+  let ensured = 0;
+  const engines = { supported: () => true, failedRecently: () => false, ensure: async () => { ensured++; return "/x"; } };
+  const open = checkedOpen(async () => { opened++; return {} as never; }, { probe: installed(), engines, unsandboxed: NO_SANDBOX });
+  const spec = { threadId: "T1", turnId: "t1", agent: { id: "A1" }, asker: "dana", account: { ref: "#Claude", driver: "claude_code", kind: "subscription" } } as never;
+  await assert.rejects(open(spec), (e: { code?: string; message?: string }) => e.code === "sandbox.unavailable" && /Windows/.test(e.message ?? ""));
+  assert.equal(opened + ensured, 0);
+  const api = checkedOpen(async () => { opened++; return {} as never; }, { probe: installed(), engines, unsandboxed: NO_SANDBOX });
+  await api({ ...(spec as object), account: { ref: "#Key", driver: "anthropic", kind: "api_key" } } as never);
+  assert.equal(opened, 1, "an API account is not a CLI engine and opens as usual");
 });
