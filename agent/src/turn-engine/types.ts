@@ -215,10 +215,14 @@ export interface ResolvedAccount { ref: string; driver: string; provider: string
   shared?: boolean;
   /** The Space AI key everyone falls back to: the turn runs on one of the models it unlocks. */
   spaceKey?: boolean;
+  /** No account serving the chat's model could pay: the turn runs on this account's default model (`to`, else the engine's default), and the chat says so (owner ruling 9). */
+  modelFallback?: { from: string; to?: string };
   /** An OpenAI-compatible endpoint names its own address (custom, local); `keyless` is a local server with no key. */
   base?: string; keyless?: boolean }
 export interface AccountQuery {
   threadId: string; agentId: string; askerId: string; stepKey?: string; /** Accounts that already failed this turn: the answer skips them and follows the agent's order. */ unavailable?: readonly string[];
+  /** What caused the turn, so the right Space AI accounts may pay (owner ruling 9): a chat message, a wake-up, or an agent acting unasked (a watcher: agent work). Absent: a chat. */
+  kind?: "chat" | "wake" | "agent_work";
   /** Why the last account was left: "overloaded" is the vendor being busy, not a limit, so it is not set aside to rest and the chat says it was busy. */
   why?: "overloaded";
 }

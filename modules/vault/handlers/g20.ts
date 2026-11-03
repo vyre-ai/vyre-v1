@@ -280,7 +280,7 @@ export async function exportMine(ctx: VaultCtx, input: { expiresIn: string }) {
   // the person themselves and nobody else: a turn run for them would put a link to every Mine value in front of the model, and agents never see values
   if (ctx.principal.kind !== "person") return denied(ctx, "Only a person can export their own Mine items.");
   const who = ctx.principal.id;
-  if (!(await currentKeyPort()?.personKey(who))) throw fail("auth.unauthenticated", ctx.trace.traceId, { message: "Your vault key is locked on this computer. Unlock it to export your Mine items.", details: { reason: "vault_locked" } });
+  if (!(await currentKeyPort()?.personKey(who))) throw fail("auth.unauthenticated", ctx.trace.traceId, { message: "Exporting your Mine items needs them open, and they open while you are signed in to Vyre. Sign in on this Space, in the app or the browser, then export again.", details: { reason: "vault_locked" } });
   if (PULL_MAX.indexOf(input.expiresIn) > PULL_MAX.indexOf(readPolicy(ctx).pullExpiryMax)) refuse(ctx, `This Space limits pull links to ${readPolicy(ctx).pullExpiryMax}.`);
   const mine = rowsOf(ctx.db.all(`SELECT * FROM vault_meta WHERE "owner" = ?`, who)).filter((r) => str(r, "scope") === "mine"
     && (live(r) || ctx.now() - num(r, "deleted_at") <= REMOVED_KEPT));

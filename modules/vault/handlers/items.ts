@@ -9,7 +9,7 @@
 // DECISION: Trash keeps the sealed row; restore brings it back whole. Deleting a folder, Space policy, export and import are other packets.
 import { isCompanyKey } from "../../../lib/company-keys.ts";
 import { fail } from "../../../host/src/routes/errors.ts";
-import { ENC_MINE, ENC_SHARED, currentFiller, currentKeyPort, openMine, sealMine, wrapKeyFromPersonKey } from "./crypto.ts";
+import { ENC_MINE, ENC_MINE_SEALED, ENC_SHARED, currentFiller, currentKeyPort, openMine, openMineSealed, sealMine, sealMineTo, wrapKeyFromPersonKey } from "./crypto.ts";
 import type { Field, SealedFields } from "./crypto.ts";
 import { NEVER_SHARED, isKind, secretByDefault } from "../kinds/index.ts";
 import {
@@ -30,21 +30,42 @@ export function filler(ctx: VaultCtx) {
   return f;
 }
 
+/** The words of a Mine item that cannot open because its owner's key is not on this node: they open when the owner is signed in, and nothing else needs doing. */
+export const MINE_CLOSED = "Your Mine items open while you are signed in to Vyre. Sign in on this Space, in the app or the browser, and this goes on by itself.";
+
 /** The wrap key of the signed-in owner, or a refusal. */
 async function ownerWrap(ctx: VaultCtx, owner: string): Promise<Buffer> {
   // the owner themselves, or a turn run for them: the key exists only on a node where they unlocked it (ruling 62), so another person's turn never reaches it
   const theirs = (ctx.principal.id === owner && ctx.principal.kind === "person") || ctx.actingFor === owner;
   if (!theirs) return denied(ctx, "A Mine item belongs to one person. Only they can read or change it.");
   const key = await currentKeyPort()?.personKey(owner);
-  if (!key) throw fail("auth.unauthenticated", ctx.trace.traceId, { message: "Your vault key is locked on this computer. Unlock it to open your Mine items.", details: { reason: "vault_locked" } });
+  if (!key) throw fail("auth.unauthenticated", ctx.trace.traceId, { message: MINE_CLOSED, details: { reason: "vault_locked" } });
   return wrapKeyFromPersonKey(key);
+}
+
+/** The owner's own key when this node holds it, else their public key to seal to: saving a Mine item never waits for an unlock. Null: neither (a person with no key bundle here). */
+async function ownerSeal(ctx: VaultCtx, owner: string): Promise<{ wrap: Buffer } | { publicKey: string } | null> {
+  const theirs = (ctx.principal.id === owner && ctx.principal.kind === "person") || ctx.actingFor === owner;
+  if (!theirs) return denied(ctx, "A Mine item belongs to one person. Only they can read or change it.");
+  const port = currentKeyPort();
+  const key = await port?.personKey(owner);
+  if (key) return { wrap: wrapKeyFromPersonKey(key) };
+  const pub = await port?.publicKey?.(owner).catch(() => null);
+  return pub ? { publicKey: pub } : null;
+}
+
+/** Whether a Mine item can be saved for this person now: their key is here, or their public key is known. */
+export async function maySealMine(owner: string): Promise<boolean> {
+  const port = currentKeyPort();
+  if (await port?.personKey(owner)) return true;
+  return Boolean(await port?.publicKey?.(owner).catch(() => null));
 }
 
 function sealedOf(ctx: VaultCtx, itemId: string): SealedFields {
   const r = first(ctx.db.all(`SELECT * FROM vault_secret WHERE "itemId" = ?`, itemId));
   if (!r) throw fail("internal.unexpected", ctx.trace.traceId, { message: "This item has no stored value." });
   return {
-    enc: num(r, "enc") === ENC_MINE ? ENC_MINE : ENC_SHARED, keyId: str(r, "keyId"), box: parseJson(r["box"], { iv: "", ct: "", tag: "" }), rev: num(r, "rev"),
+    enc: num(r, "enc") === ENC_MINE ? ENC_MINE : num(r, "enc") === ENC_MINE_SEALED ? ENC_MINE_SEALED : ENC_SHARED, keyId: str(r, "keyId"), box: parseJson(r["box"], { iv: "", ct: "", tag: "" }), rev: num(r, "rev"),
     ...(strOrNull(r, "wrapped") ? { wrapped: parseJson(r["wrapped"], { iv: "", ct: "", tag: "" }) } : {}),
   };
 }
@@ -58,7 +79,7 @@ function storeSealed(ctx: VaultCtx, itemId: string, s: SealedFields): void {
 /** The wrap key of a Mine item's owner as this node holds it, with no principal check: for the host's save of a refreshed sign-in only, whose caller has checked the item and its owner. */
 async function heldWrap(ctx: VaultCtx, owner: string): Promise<Buffer> {
   const key = await currentKeyPort()?.personKey(owner);
-  if (!key) throw fail("auth.unauthenticated", ctx.trace.traceId, { message: "The owner's vault key is locked on this computer.", details: { reason: "vault_locked" } });
+  if (!key) throw fail("auth.unauthenticated", ctx.trace.traceId, { message: "The owner's Mine items open while they are signed in to Vyre.", details: { reason: "vault_locked" } });
   return wrapKeyFromPersonKey(key);
 }
 
@@ -70,28 +91,42 @@ export async function resealOwn(ctx: VaultCtx, r: Row, next: (fields: Field[]) =
   if (str(r, "scope") !== "mine") return false;
   const id = str(r, "id"), owner = str(r, "owner");
   const sealed = sealedOf(ctx, id);
-  if (sealed.enc !== ENC_MINE) return false;
+  if (sealed.enc !== ENC_MINE && sealed.enc !== ENC_MINE_SEALED) return false;
   const wrap = await heldWrap(ctx, owner);
-  const fields = next(openMine(id, sealed, wrap));
+  const fields = next(sealed.enc === ENC_MINE ? openMine(id, sealed, wrap) : await openSealedAs(ctx, id, sealed, owner));
   if (fields === null) return false;
   storeSealed(ctx, id, sealMine(id, fields, wrap, sealed.rev + 1));
   ctx.db.run(`UPDATE vault_item_x SET "lastRotatedAt" = ? WHERE "itemId" = ?`, ctx.now(), id);
   return true;
 }
 
+/** An enc=3 row opened with the owner's private key (their person key must be on this node), then moved to enc=2 under their wrap key, so it opens the usual way from then on. */
+async function openSealedAs(ctx: VaultCtx, id: string, sealed: SealedFields, owner: string): Promise<Field[]> {
+  const wrap = await heldWrap(ctx, owner);
+  const priv = await currentKeyPort()?.privateKey?.(owner);
+  if (!priv) throw fail("auth.unauthenticated", ctx.trace.traceId, { message: MINE_CLOSED, details: { reason: "vault_locked" } });
+  const fields = openMineSealed(id, sealed, priv);
+  try { storeSealed(ctx, id, sealMine(id, fields, wrap, sealed.rev + 1)); } catch { /* it opens as it is next time too */ }
+  return fields;
+}
+
 export async function openFields(ctx: VaultCtx, item: Row): Promise<Field[]> {
   const sealed = sealedOf(ctx, str(item, "id"));
   try {
     if (sealed.enc === ENC_MINE) return openMine(str(item, "id"), sealed, await ownerWrap(ctx, str(item, "owner")));
+    if (sealed.enc === ENC_MINE_SEALED) { await ownerWrap(ctx, str(item, "owner")); return await openSealedAs(ctx, str(item, "id"), sealed, str(item, "owner")); }
     return filler(ctx).open(str(item, "id"), sealed);
   } catch (e) {
     if (e instanceof Error && "error" in e) throw e;   // a refusal above
-    throw fail("internal.unexpected", ctx.trace.traceId, { message: "This item could not be opened with the keys the vault has." });
+    throw fail("internal.unexpected", ctx.trace.traceId, { message: "This item could not be opened with the keys this Space has. If it was saved before a password reset, add it again." });
   }
 }
 
 async function sealFor(ctx: VaultCtx, itemId: string, scope: string, owner: string, fields: Field[], rev: number): Promise<SealedFields> {
-  return scope === "mine" ? sealMine(itemId, fields, await ownerWrap(ctx, owner), rev) : filler(ctx).seal(itemId, fields, rev);
+  if (scope !== "mine") return filler(ctx).seal(itemId, fields, rev);
+  const to = await ownerSeal(ctx, owner);
+  if (to === null) throw fail("auth.unauthenticated", ctx.trace.traceId, { message: MINE_CLOSED, details: { reason: "vault_locked" } });
+  return "wrap" in to ? sealMine(itemId, fields, to.wrap, rev) : sealMineTo(itemId, fields, to.publicKey, rev);
 }
 
 // ---- visibility
@@ -263,7 +298,7 @@ export async function itemPut(ctx: VaultCtx, input: {
   if (scope === "mine" && str(folder, "owner") !== ctx.principal.id) throw fail("validation.not_found", ctx.trace.traceId, { message: "That folder is not in this Vault." });
   if (scope === "shared" && !atLeast(levelOn(ctx, "vault_folder", str(folder, "id")), "edit") && str(folder, "owner") !== ctx.principal.id) return denied(ctx, "Adding to this folder needs edit access.");
   if (scope === "shared" && NEVER_SHARED.has(input.kind)) refuse(ctx, "A subscription sign-in is yours alone. Put it in a Mine folder.");
-  if (ctx.principal.kind === "agent" && scope === "mine") return denied(ctx, "An agent cannot put items in someone's Mine folder.");
+  if (ctx.principal.kind === "agent" && scope === "mine") return denied(ctx, "An agent cannot put items in someone's Mine folder. Ask for the key with vault_request; the person pastes it in their own app.");
   if (nameTaken(ctx, str(folder, "id"), name)) throw fail("validation.duplicate", ctx.trace.traceId, { message: "This folder already has an item with that name." });
 
   const now = ctx.now();

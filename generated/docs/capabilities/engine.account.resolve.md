@@ -1,6 +1,6 @@
 # engine.account.resolve
 
-Resolve the account that pays for a turn: starter, steerer, step key, backup key, else an Unblock
+Resolve the account that pays for a turn: a pin (the chat's account, the agent's key, the step's key), the person's own, the Space AI accounts whose uses cover the turn (cheapest that fits, not capped), the backups, else an Unblock
 
 | | |
 |---|---|
@@ -30,6 +30,7 @@ type In = {
   askerId?: string;
   stepKey?: string;
   unavailable?: Array<string>;
+  kind?: "chat" | "wake" | "automation" | "goal" | "agent_work";
 };
 ```
 
@@ -43,6 +44,15 @@ type Out = {
   allowed: boolean;
   itemId?: string;
   fellBack?: boolean;
+  pin?: {
+    ref: string;
+    used: boolean;
+    why?: "unknown" | "expired" | "failed" | "policy_company" | "not_yours" | "space_may_not_use" | "failed_this_turn" | "capped" | "no_model";
+  };
+  modelFallback?: {
+    from: string;
+    to?: string;
+  };
 };
 ```
 
@@ -62,6 +72,7 @@ type Out = {
   "input": {
     "agentId": "agt_a1b2c3",
     "askerId": "usr_a1b2c3",
+    "kind": "chat",
     "stepKey": "example",
     "threadId": "thr_a1b2c3",
     "unavailable": [
@@ -73,7 +84,16 @@ type Out = {
     "allowed": true,
     "fellBack": true,
     "itemId": "vit_a1b2c3",
+    "modelFallback": {
+      "from": "example",
+      "to": "example"
+    },
     "payer": "usr_a1b2c3",
+    "pin": {
+      "ref": "#Team_Anthropic_Key",
+      "used": true,
+      "why": "unknown"
+    },
     "reason": "starter"
   }
 }

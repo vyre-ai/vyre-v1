@@ -458,7 +458,8 @@ test("the setup grant's scope: setting the Space up, never what goes out, never 
     // groups and roles of people are in scope, each subject checked (setupRefusal); reading them, removing someone and deleting a group only narrow. The Space's name and logo are in scope.
     const peopleOnly = /^access\.(groups\.(create|update|add_member|remove_member|delete|list|get)|roles\.(assign|unassign|list|get))$|^spaces\.(update|get)$/;
     if (/^(access|gate|agents|mcp|devices|network|spaces|identity)\./.test(t.cap) && !peopleOnly.test(t.cap)) assert.equal(setupCovers(t), false, `${t.cap} could widen an agent or a sign-in`);
-    if (/^vault\.(item\.reveal|share|unshare|export|items\.export|use|fill|inject)/.test(t.cap)) assert.equal(setupCovers(t), false, `${t.cap} reads or shares a secret`);
+    // sharing a Vault item or folder with people or groups is setup (l-vaultmatrix; setupRefusal refuses an agent as the subject); reading a value back never is
+    if (/^vault\.(item\.reveal|export|items\.export|use|fill|inject)/.test(t.cap)) assert.equal(setupCovers(t), false, `${t.cap} reads a secret`);
   }
 });
 

@@ -3,8 +3,9 @@
 // never reaches a turn. The values stay in the items; the engine asks for a handle and the filler fills it. providers.test asks the host to reach the provider (the module has no network of its own) and only
 // ever sees the key for that one call.
 // DECISION: a Shared provider is an API key or a local model; a subscription sign-in is Mine for ever (the kind cannot be shared). The Space may use a Mine provider only when its owner says so.
+import { AI_ACCOUNTS, pickSpaceFolder } from "../../../lib/space-folder.ts";
 import { fail } from "../../../host/src/routes/errors.ts";
-import { itemDelete, itemPut, itemUpdate, openFields, resealOwn } from "./items.ts";
+import { MINE_CLOSED, itemDelete, itemPut, itemUpdate, maySealMine, openFields, resealOwn } from "./items.ts";
 import { atLeast, bad, denied, ensure, first, isId, levelOn, newId, num, patchMeta, record, rowsOf, statements, str } from "../projections.ts";
 import type { Row, VaultCtx } from "../projections.ts";
 import { hostOf } from "./use.ts";
@@ -12,7 +13,8 @@ import { currentKeyPort } from "./crypto.ts";
 import type { SigninPort } from "./use.ts";
 import { readFileSync } from "node:fs";
 import { addressProblem, builtinDefs } from "./provider-defs.ts";
-import { forget as forgetSpaceKey, spaceKeyProviderId } from "./space-key.ts";
+import { forget as forgetSpaceKey, spaceKeyModels, spaceKeyProviderId } from "./space-key.ts";
+import { isSpaceAccount, keepModels, setUses, spaceFields } from "./space-accounts.ts";
 import type { CatalogEntry } from "./provider-defs.ts";
 import { identityOfFields } from "../../../host/src/seams/signin-identity.ts";
 import { decideRefresh } from "../../../host/src/seams/signin-refresh.ts";
@@ -130,8 +132,10 @@ export async function list(ctx: VaultCtx, _input: Record<string, never>) {
   for (const p of rowsOf(ctx.db.all(`SELECT * FROM vault_provider`)).filter(live).sort((a, b) => num(a, "createdAt") - num(b, "createdAt") || str(a, "id").localeCompare(str(b, "id")))) {
     if (!itemOf(ctx, str(p, "itemId"))) continue;
     if (str(p, "scope") === "mine") { if (str(p, "owner") !== me(ctx)) continue; }
-    else if (str(p, "owner") !== me(ctx) && str(p, "id") !== spaceKey && !atLeast(levelOn(ctx, "vault_item", str(p, "itemId")), "use")) continue;
-    out.push(rowOut(ctx, p, await usageThisMonth(ctx, str(p, "itemId")), spaceKey, older));
+    // a Space AI account (uses set by an owner or admin) is every member's to reach through its uses, like the Space AI key: listed for all (a handle and a name, never a value)
+    else if (str(p, "owner") !== me(ctx) && str(p, "id") !== spaceKey && !isSpaceAccount(ctx, str(p, "id")) && !atLeast(levelOn(ctx, "vault_item", str(p, "itemId")), "use")) continue;
+    const used = await usageThisMonth(ctx, str(p, "itemId"));
+    out.push({ ...rowOut(ctx, p, used, spaceKey, older), ...await spaceFields(ctx, p, used.costCents, str(p, "id") === spaceKey ? spaceKeyModels(ctx) : undefined) });
   }
   return { providers: out };
 }
@@ -146,6 +150,24 @@ async function mineFolder(ctx: VaultCtx): Promise<string> {
   const id = newId("vfd", ctx.now());
   ctx.db.run(`INSERT INTO vault_folder ("id", "name", "parentId", "scope", "owner", "whoCanExport", "createdAt") VALUES (?, ?, ?, ?, ?, ?, ?)`, id, "AI providers", null, "mine", ctx.principal.id, "[]", ctx.now());
   ctx.emit("vault.folder_created", `vault_folder/${id}`, { folderId: id, scope: "mine" }, { vis: "participants" });
+  return id;
+}
+
+/** A name no live item of the folder has (a shared folder holds several people's keys for one provider): "OpenRouter", else "OpenRouter 2", and so on. */
+function freeName(ctx: VaultCtx, folderId: string, want: string): string {
+  const taken = new Set(rowsOf(ctx.db.all(`SELECT * FROM vault_meta WHERE "folderId" = ?`, folderId)).filter((r) => live(r)).map((r) => str(r, "name").toLowerCase()));
+  if (!taken.has(want.toLowerCase())) return want;
+  for (let i = 2; ; i++) if (!taken.has(`${want} ${i}`.toLowerCase())) return `${want} ${i}`;
+}
+
+/** The shared folder a Space-wide key goes in when none was chosen: pickSpaceFolder's rule over the shared folders this person can add to; "AI accounts" is made on first use and shared with
+ * Everyone at Use (a Personal Space has nobody to share with, so there it is just made). */
+export async function spaceFolder(ctx: VaultCtx, idem: string): Promise<string> {
+  const shared = rowsOf(ctx.db.all(`SELECT * FROM vault_folder`)).filter((f) => live(f) && str(f, "scope") === "shared");
+  const pick = pickSpaceFolder(shared.map((f) => ({ id: str(f, "id"), name: str(f, "name"), canAdd: str(f, "owner") === me(ctx) || atLeast(levelOn(ctx, "vault_folder", str(f, "id")), "edit") })));
+  if (pick.id) return pick.id;
+  const id = String(((await ctx.call("vault.folders.create", { name: AI_ACCOUNTS, scope: "shared", idempotencyKey: `${idem}:ai-folder` })) as { folder: { id: string } }).folder.id);
+  try { await ctx.call("vault.share", { resource: { type: "vault_folder", id }, subject: { kind: "group", id: "grp_everyone" }, level: "use", idempotencyKey: `${idem}:ai-folder-share` }); } catch { /* a Personal Space: nobody else to share with */ }
   return id;
 }
 
@@ -164,11 +186,11 @@ export async function add(ctx: VaultCtx, input: { providerKey: string; connectio
     const why = addressProblem(address, input.connection === "api_key") ?? await refusedByHost(ctx, address);
     if (why) return bad(ctx, why);
   }
-  if (input.scope === "shared" && !input.folderId) return bad(ctx, "Choose the shared folder to keep it in.");
-  const folderId = input.folderId ?? await mineFolder(ctx);
+  // shared with the Space and no folder chosen: the Space's one shared folder, else "AI accounts" made now and shared with Everyone (lib/space-folder.ts)
+  const folderId = input.folderId ?? (input.scope === "shared" ? await spaceFolder(ctx, input.idempotencyKey) : await mineFolder(ctx));
   const n = rowsOf(ctx.db.all(`SELECT * FROM vault_provider`)).filter((p) => live(p) && entry(ctx, str(p, "providerKey"))?.name === c.name && str(p, "owner") === me(ctx)).length;
   const made = await itemPut(ctx, {
-    folderId, name: n === 0 ? c.name : `${c.name} ${n + 1}`, kind: input.connection === "api_key" ? "api_key" : "other",
+    folderId, name: freeName(ctx, folderId, n === 0 ? c.name : `${c.name} ${n + 1}`), kind: input.connection === "api_key" ? "api_key" : "other",
     fields: [
       ...(input.apiKey ? [{ key: "api_key", value: input.apiKey.trim(), secret: true }] : []),
       ...(address ? [{ key: "address", value: address.trim(), secret: false }] : []),
@@ -198,6 +220,17 @@ export async function remove(ctx: VaultCtx, input: { providerId: string }) {
   forgetSpaceKey(ctx, str(p, "id"));
   ctx.emit("provider.removed", `entity/${str(p, "id")}`, { providerId: str(p, "id") }, { vis: "participants" });
   return { ok: true };
+}
+
+/** providers.uses.set (owner ruling 9): what a shared provider may pay for in this Space, and its monthly cap. The capability is gated on policy.manage (owners and admins). */
+export async function usesSet(ctx: VaultCtx, input: { providerId: string; uses: unknown; capCents?: number | null }) {
+  ensureProviders(ctx);
+  const p = providerById(ctx, input.providerId);
+  setUses(ctx, p, input);
+  // the models it serves, so a turn can tell whether it fits (a provider that does not answer leaves the list as it was)
+  if (hostOf()?.probe) { try { await test(ctx, { providerId: str(p, "id") }); } catch { /* listed again on the next test */ } }
+  const used = await usageThisMonth(ctx, str(p, "itemId"));
+  return { provider: { ...rowOut(ctx, providerById(ctx, str(p, "id")), used), ...await spaceFields(ctx, p, used.costCents) } };
 }
 
 export async function setSpaceUse(ctx: VaultCtx, input: { providerId: string; allow: boolean }) {
@@ -260,7 +293,7 @@ export async function subscriptionComplete(ctx: VaultCtx, input: { flowId: strin
   if (port?.active(input.flowId) && !pasted && saved()) port.cancel(input.flowId);
   if (port?.active(input.flowId)) {
     // the credential is sealed with the person's own key: a locked key is asked for before the provider is, so a pasted code is not spent on a save that cannot happen
-    if (!(await currentKeyPort()?.personKey(me(ctx)))) throw fail("auth.unauthenticated", ctx.trace.traceId, { message: "Your vault key is locked. Unlock it to save the sign-in.", details: { reason: "vault_locked" } });
+    if (!(await maySealMine(me(ctx)))) throw fail("auth.unauthenticated", ctx.trace.traceId, { message: MINE_CLOSED, details: { reason: "vault_locked" } });
     const step = await port.step({ id: input.flowId, person: me(ctx), ...(pasted ? { code: input.code as string } : {}) });
     if (step.state === "waiting") return { waiting: true };
     if (step.state === "failed") throw fail("provider.auth_failed", ctx.trace.traceId, { message: step.message });
@@ -431,6 +464,7 @@ export async function test(ctx: VaultCtx, input: { providerId: string }) {
   try {
     const r = await probe({ providerKey: str(p, "providerKey"), connection: str(p, "connection"), caller: me(ctx), ...(value("api_key") ? { apiKey: value("api_key")! } : {}), ...(value("address") ? { address: value("address")! } : extra ? { address: str(extra, "address") } : {}), engine: c?.engine ?? str(p, "providerKey") });
     // only the vendor refusing the key (401 or 403) marks the account failing; any other miss leaves it usable
+    if (r.ok) keepModels(ctx, str(p, "id"), r.models);
     if (r.ok || r.refused === true) return done(r.ok, r.models, r.detail);
     return unchecked(r.detail ?? "The provider did not answer.");
   } catch (e) {

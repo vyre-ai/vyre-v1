@@ -15,6 +15,7 @@ import { LOCAL_SIGNINS, localNote, onMacDevice, startFlow, takeLocalSignin } fro
 import type { Flow as SignFlow } from "../../../ai-signin/flow.ts";
 import { ownAiRefusal } from "../../../ai-signin/own-ai.ts";
 import { CONNECTION_NAME, CONNECTION_NOTE, connectionList, normalizeAddress, testWords } from "./model.ts";
+import { AI_ACCOUNTS, SYSTEM_FOLDERS, pickSpaceFolder } from "../../../../../../lib/space-folder.ts";
 import type { Catalog, ConnectionKind } from "./model.ts";
 
 export interface AddProviderProps {
@@ -46,7 +47,18 @@ export function AddProvider({ onClose, onAdded, initial, initialFlow }: AddProvi
   const [busy, setBusy] = useState(false);
   const [line, setLine] = useState<string | null>(null);
   const [added, setAdded] = useState<Provider | null>(null);
+  // shared with the Space: the folder it goes in, picked for the person (the Space's one shared folder, else "AI accounts", made on first use) and shown so it can be changed
+  const [shared, setShared] = useState<Array<{ id: string; name: string; canAdd: boolean }> | null>(null);
+  const [folder, setFolder] = useState<{ id?: string; name: string } | null>(null);
   const n = useRef(0);
+  useEffect(() => {
+    if (scope !== "shared" || shared !== null) return;
+    let live = true;
+    void (data.call("vault.folders.list", { scope: "shared" }) as Promise<{ folders: Array<{ id: string; name: string; yourLevel?: string }> }>)
+      .then((out) => { if (!live) return; const rows = out.folders.map((f) => ({ id: f.id, name: f.name, canAdd: f.yourLevel === "edit" || f.yourLevel === "manage" })); setShared(rows); setFolder((cur) => cur ?? pickSpaceFolder(rows)); })
+      .catch(() => { if (live) { setShared([]); setFolder((cur) => cur ?? { name: AI_ACCOUNTS }); } });
+    return () => { live = false; };
+  }, [data, scope, shared]);
   const first = useRef(initial);
 
   useEffect(() => {
@@ -80,7 +92,7 @@ export function AddProvider({ onClose, onAdded, initial, initialFlow }: AddProvi
     if (out.provider) done(out.provider); else setLine("Not finished yet. Approve the sign-in, then try again.");
   });
   const addKey = (): Promise<void> => run(async () => {
-    const out = (await data.call("providers.add", { providerKey: pick!.key, connection: "api_key", apiKey: secret.trim(), scope, idempotencyKey: key(pick!.key) })) as { provider: Provider };
+    const out = (await data.call("providers.add", { providerKey: pick!.key, connection: "api_key", apiKey: secret.trim(), scope, ...(scope === "shared" && folder?.id ? { folderId: folder.id } : {}), idempotencyKey: key(pick!.key) })) as { provider: Provider };
     done(out.provider);
   });
   const addLocal = (): Promise<void> => run(async () => {
@@ -92,6 +104,12 @@ export function AddProvider({ onClose, onAdded, initial, initialFlow }: AddProvi
     done(out.provider);
   });
 
+  const folderMenu = (e: unknown): void => {
+    const r = (e as { currentTarget?: { getBoundingClientRect?: () => { left: number; bottom: number } } }).currentTarget?.getBoundingClientRect?.();
+    const open = (shared ?? []).filter((f) => f.canAdd && !SYSTEM_FOLDERS.has(f.name));
+    const rows = open.some((f) => f.name.toLowerCase() === AI_ACCOUNTS.toLowerCase()) ? open : [...open, { id: "", name: AI_ACCOUNTS, canAdd: true }];
+    show([{ head: "Keep it in" }, ...rows.map((f) => ({ label: f.id ? f.name : `${f.name} (new, shared with everyone)`, checked: folder?.name === f.name, onSelect: () => setFolder(f.id ? { id: f.id, name: f.name } : { name: f.name }) }))], r?.left ?? 0, (r?.bottom ?? 0) + 4, "other");
+  };
   const scopeMenu = (e: unknown): void => {
     const ev = e as { currentTarget?: { getBoundingClientRect?: () => { left: number; bottom: number } } };
     const r = ev.currentTarget?.getBoundingClientRect?.();
@@ -151,6 +169,11 @@ export function AddProvider({ onClose, onAdded, initial, initialFlow }: AddProvi
             <Pressable accessibilityRole="button" accessibilityLabel={`Belongs to ${scope === "mine" ? "me" : "the Space"}. Change`} testID="provider-scope" onPress={scopeMenu} style={s.scopeBtn}>
               <Text style={s.scopeText}>{scope === "mine" ? "Mine" : "Shared with the Space"}</Text><Glyph name="chevron" size={10} />
             </Pressable>
+            {scope === "shared" && folder ? (
+              <Pressable accessibilityRole="button" accessibilityLabel={`Kept in ${folder.name}. Change`} testID="provider-folder" onPress={folderMenu} style={s.scopeBtn}>
+                <Text style={s.scopeText}>{`In ${folder.name}${folder.id ? "" : " (new)"}`}</Text><Glyph name="chevron" size={10} />
+              </Pressable>
+            ) : null}
           </View>
         </View>
       ) : (

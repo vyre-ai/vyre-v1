@@ -24,6 +24,7 @@ import { withRecall } from "./recall.ts";
 import { withAudienceReset } from "./audience-reset.ts";
 import { withChatSettings } from "./chat-settings.ts";
 import { withSpaceKeyTurns } from "./space-key-turns.ts";
+import { noteModelFallback } from "./model-fallback.ts";
 import { createLimitSwitch } from "./switch-on-limit.ts";
 import { checkedOpen, createRunnableAccount } from "./runnable-account.ts";
 import { skipLocked } from "./locked-account.ts";
@@ -78,7 +79,7 @@ export interface EngineHostSeam {
   /** A Space server only: does it hold this person's key now (locked-account.ts). Absent on a person's own computer. */
   keyHeld?: (person: string) => boolean;
   /** CLI engines: swap a program for a command (a fake CLI in a test), and extra read-only folders the sandbox must expose for it. Default: the real CLI, nothing extra. */
-  cli?: { command?: Readonly<Record<string, readonly string[]>>; programRead?: readonly string[]; /** Where programs are looked for (a test's own folders); default: this computer's PATH. */ probe?: NodeCliProbe };
+  cli?: { command?: Readonly<Record<string, readonly string[]>>; programRead?: readonly string[]; /** Where programs are looked for (a test's own folders); default: this computer's PATH. */ probe?: NodeCliProbe; /** A test's stand-in for the providers the API drivers call. */ apiFetch?: typeof fetch };
   /** The Space data directory. With it and no `sandbox`, the module builds the default sandbox for this platform on the first CLI turn (sandbox-default.ts). */
   dataDir?: string;
   /** Vyre installs a missing CLI engine into its own engines folder (engine-install.ts). The daemon's entry turns it on; a test daemon leaves it off and never downloads anything. */
@@ -105,7 +106,7 @@ export interface EngineHostSeam {
 }
 
 interface AccountRow { ref: string; driver: string; kind: "api_key" | "subscription"; mine?: boolean; base?: string; keyless?: boolean; spaceKey?: boolean }
-interface ResolveOut { accountRef: string | null; payer: string | null; reason: ResolvedAccount["reason"]; allowed: boolean; itemId?: string; fellBack?: boolean }
+interface ResolveOut { accountRef: string | null; payer: string | null; reason: ResolvedAccount["reason"]; allowed: boolean; itemId?: string; fellBack?: boolean; modelFallback?: { from: string; to?: string } }
 
 /** The provider a driver belongs to, for the session spec; the CLI engines run their vendor's models. */
 const PROVIDER_OF_DRIVER: Readonly<Record<string, string>> = Object.freeze({ claude_code: "anthropic", codex: "openai", grok: "xai" });
@@ -144,7 +145,7 @@ export function sandboxPlan(): Promise<SandboxPlan> {
 }
 
 export async function resolveOne(h: Pick<EngineHostSeam, "call" | "log">, q: AccountQuery): Promise<ResolvedAccount | null> {
-  const res = (await h.call("engine.account.resolve", { threadId: q.threadId, agentId: q.agentId, askerId: q.askerId, ...(q.stepKey ? { stepKey: q.stepKey } : {}), ...(q.unavailable?.length ? { unavailable: [...q.unavailable] } : {}) }, q.askerId)) as ResolveOut;
+  const res = (await h.call("engine.account.resolve", { threadId: q.threadId, agentId: q.agentId, askerId: q.askerId, ...(q.stepKey ? { stepKey: q.stepKey } : {}), ...(q.unavailable?.length ? { unavailable: [...q.unavailable] } : {}), ...(q.kind ? { kind: q.kind } : {}) }, q.askerId)) as ResolveOut;
   if (!res.allowed || !res.accountRef || !res.payer) {
     h.log?.("no account can pay for this turn", { threadId: q.threadId, agentId: q.agentId, asker: q.askerId, allowed: res.allowed, reason: res.reason, accountRef: res.accountRef ?? null });
     return null;
@@ -152,13 +153,14 @@ export async function resolveOne(h: Pick<EngineHostSeam, "call" | "log">, q: Acc
   const list = (await h.call("engine.accounts.list", {}, res.payer)) as { accounts: AccountRow[] };
   const row = list.accounts.find((a) => a.ref === res.accountRef);
   if (!row) { h.log?.("the account the turn resolved is not in the payer's list", { threadId: q.threadId, accountRef: res.accountRef, payer: res.payer }); return null; }   // the key vanished between the two calls: treat as none, the next turn asks again
-  return { ref: row.ref, driver: row.driver, provider: providerOfDriver(row.driver), kind: row.kind, payer: res.payer, reason: res.reason, ...(row.mine ? {} : { shared: true }), ...(res.itemId ? { itemId: res.itemId } : {}), ...(res.fellBack ? { fellBack: true } : {}), ...(row.base ? { base: row.base } : {}), ...(row.keyless ? { keyless: true } : {}), ...(row.spaceKey ? { spaceKey: true } : {}) };
+  return { ref: row.ref, driver: row.driver, provider: providerOfDriver(row.driver), kind: row.kind, payer: res.payer, reason: res.reason, ...(row.mine ? {} : { shared: true }), ...(res.itemId ? { itemId: res.itemId } : {}), ...(res.fellBack ? { fellBack: true } : {}), ...(row.base ? { base: row.base } : {}), ...(row.keyless ? { keyless: true } : {}), ...(row.spaceKey ? { spaceKey: true } : {}), ...(res.modelFallback ? { modelFallback: res.modelFallback } : {}) };
 }
 
 /** An account whose engine can run on this computer: the pick, or another account of the person when the pick's program is not installed (runnable-account.ts). */
 function runnableAccount(h: EngineHostSeam): (q: AccountQuery) => Promise<ResolvedAccount | null> {
   // On a Space server a person's own account pays only while the server holds their key (locked-account.ts); the next account answers otherwise, said in the chat.
-  const resolve = skipLocked({ resolve: (q) => resolveOne(h, q), ...(h.keyHeld ? { held: h.keyHeld } : {}), ...(h.postAs ? { postAs: h.postAs } : {}), ...(h.log ? { log: h.log } : {}) });
+  // a team chat whose model no Space account serves runs on the account's default, said in one line (model-fallback.ts)
+  const resolve = noteModelFallback({ resolve: skipLocked({ resolve: (q) => resolveOne(h, q), ...(h.keyHeld ? { held: h.keyHeld } : {}), ...(h.postAs ? { postAs: h.postAs } : {}), ...(h.log ? { log: h.log } : {}) }), ...(h.postAs ? { postAs: h.postAs } : {}), ...(h.log ? { log: h.log } : {}) });
   // A host that hands in its own opener (a test's scripted one) starts no program of ours: nothing to check, and one resolve per turn.
   if (h.openSession) return resolve;
   return createRunnableAccount({
@@ -317,7 +319,7 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
   // the Space's internet setting, read as each engine process starts, and where the process went (the turn's details, and the audit log for a refusal)
   const egress = { rule: () => spaceRule(h.call), record: (where: { person: string; threadId: string }, e: Parameters<typeof recordEgress>[3]) => recordEgress(ctx.db, h.call, where, e, now0, h.log) };
   const access = (asker: string) => engineAccessFor(h.call, asker);
-  const opener = host.openSession ? null : buildOpener({ sessions, egress, access, ...(h.own ? { own: h.own } : {}), ...(apiTools ? { apiTools } : {}), session: host.session as EngineSessionPorts, call: h.call, ...(host.sandbox ? { sandbox: host.sandbox } : {}), ...(host.cli?.command ? { cliCommand: host.cli.command } : {}), ...(host.cli?.probe ? { cliProbe: host.cli.probe } : {}), ...(host.dataDir ? { dataDir: host.dataDir, defaultSandbox: defaultPlan(host.dataDir, cliRead(host)) } : {}) });
+  const opener = host.openSession ? null : buildOpener({ sessions, egress, access, ...(h.own ? { own: h.own } : {}), ...(apiTools ? { apiTools } : {}), session: host.session as EngineSessionPorts, call: h.call, ...(host.sandbox ? { sandbox: host.sandbox } : {}), ...(host.cli?.command ? { cliCommand: host.cli.command } : {}), ...(host.cli?.probe ? { cliProbe: host.cli.probe } : {}), ...(host.cli?.apiFetch ? { apiFetch: host.cli.apiFetch } : {}), ...(host.dataDir ? { dataDir: host.dataDir, defaultSandbox: defaultPlan(host.dataDir, cliRead(host)) } : {}) });
   // the composer's model menu asks each subscription engine for its own list, through this opener: the person's sandbox and sign-in, as a turn would run (live-models.ts)
   bindModelLister(opener ? (account, asker, o) => opener.models(account, asker, o) : null);
   // a turn whose engine Vyre is installing says so on its live line ("Setting up Codex"); the line is the bridge's, which exists once the runtime is built below
