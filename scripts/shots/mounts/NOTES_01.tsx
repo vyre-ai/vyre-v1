@@ -14,6 +14,10 @@ import { createMountSample, PEOPLE } from "../../../apps/app/src/places/chats/mo
 import { START, step } from "../../../apps/app/src/places/chats/mounts/route.ts";
 import type { Note } from "../../../apps/app/src/places/chats/notes/model.ts";
 import type { ShellRuntime } from "../../../apps/app/src/shell/providers/runtime.tsx";
+import { createFakeReplica, createScreenHooks } from "../../../client/src/index.ts";
+import type { ScreenHooks } from "../../../client/src/index.ts";
+import { screensById } from "../../../generated/screens.ts";
+import type { CapMap } from "../../../generated/types.ts";
 
 export const title = "Notes";
 
@@ -63,6 +67,28 @@ const PEOPLE_MLA = [
   { id: "usr_aliza", name: "Aliza", kind: "person" as const }, { id: "usr_andrey", name: "Andrey", kind: "person" as const }, { id: "usr_jason", name: "Jason", kind: "person" as const },
 ];
 
+/** The note's own Ask thread, as the prototype shows it: the question, the assistant reading the note, its answer. */
+const ASK = "t_note_ask";
+type Msg = CapMap["chat.messages.list"]["out"]["messages"][number];
+type Thr = CapMap["threads.get"]["out"]["thread"];
+function askScreens(): ScreenHooks {
+  const replica = createFakeReplica("mla");
+  const thread: Thr = { threadId: ASK, kind: "ask", title: "Weinberger intake call, 31 Oct", listed: false, planMode: false, members: [{ kind: "person", id: ME }, { kind: "agent", id: "agt_assistant" }], agents: [{ agentId: "agt_assistant", mode: "lead" }], createdAt: NOW - 120_000 } as Thr;
+  const m = (id: string, seq: number, author: { kind: "person" | "agent"; id: string }, body: string, o: Partial<Msg> = {}): Msg => ({ messageId: id, threadId: ASK, threadSeq: seq, author, kind: author.kind === "agent" ? "agent" : "text", body, blocks: [], depth: 0, attachments: [], reactions: [], pinned: false, createdAt: NOW - 60_000 + seq * 1000, ...o } as Msg);
+  const messages = [
+    m("q1", 1, { kind: "person", id: ME }, "What did Joe ask for, and what is still open?"),
+    m("a1", 2, { kind: "agent", id: "agt_assistant" }, "Joe asked for three things: PI leads routed by county (Kings and Queens to Sarah, the rest to the front desk), the Lawmatics custom field list by Wednesday, and a flag for Spanish speakers on the form.\n\nStill open: the field list has not gone out, and nobody owns the Spanish flag. He pays the DFY balance after the first live week.", {
+      blocks: [{ type: "step", v: 1, id: "s1", data: { title: "Read your note Weinberger intake call, 31 Oct", sub: "notes_get", secs: 1 }, state: "done", traceId: "tr_s1" }] as Msg["blocks"],
+    }),
+  ];
+  replica.put("threads", [{ id: ASK, ...thread }]);
+  replica.put("messages", messages.map((x) => ({ id: x.messageId, ...x })));
+  replica.resolve("threads.get", () => ({ thread }));
+  replica.resolve("chat.messages.list", () => ({ messages, hasMore: false }));
+  replica.resolve("chat.helpers.list", () => ({ helpers: [] }));
+  return createScreenHooks(replica, screensById);
+}
+
 /** The sample runtime with the notes capabilities answered from memory, as the notes module would for Irfad. */
 function notesRuntime(part: string): ShellRuntime {
   const sample = createMountSample({ who: "member" });
@@ -107,8 +133,11 @@ function notesRuntime(part: string): ShellRuntime {
     }
   };
   const people = { status: "ready" as const, data: PEOPLE_MLA };
+  const ask = askScreens();
+  // the note's Ask thread reads from its own copy; everything else from the sample
+  const screens: ScreenHooks = { ...base.screens, query: (id, name, state) => ((state as { threadId?: string } | undefined)?.threadId === ASK ? ask : base.screens).query(id, name, state) };
   return {
-    ...base, call: call as ShellRuntime["call"], me: { ...base.me, id: ME, name: "Irfad Imtiaz" }, space: { id: "mla", kind: "team", name: "My Legal Academy" },
+    ...base, screens, call: call as ShellRuntime["call"], me: { ...base.me, id: ME, name: "Irfad Imtiaz" }, space: { id: "mla", kind: "team", name: "My Legal Academy" },
     principals: { subscribe: () => () => undefined, getSnapshot: () => people }, clock: () => ({ now: NOW, offsetMin: 300 }),
   };
 }

@@ -29,6 +29,9 @@ function scripted(): { rt: ShellRuntime; calls: { cap: string; input: Record<str
     if (cap === "notes.pin") { rows = rows.map((n) => (n.noteId === i.noteId ? { ...n, pinned: i["pinned"] === true } : n)); return { note: rows.find((n) => n.noteId === i.noteId) }; }
     if (cap === "notes.delete") return { deleted: true, undo: { noteId: i.noteId } };
     if (cap === "notes.restore") return { note: rows.find((n) => n.noteId === i.noteId) };
+    if (cap === "agents.list") return { agents: [{ agentId: "agt_assistant", ownerId: "usr_me", kind: "assistant", name: "Assistant" }] };
+    // the thread never answers here: the test reads what was asked for, and the conversation itself has its own tests
+    if (cap === "chat.start") return new Promise(() => undefined);
     if (cap === "notes.create") { const made = note("n9", { title: String(i["title"] ?? ""), body: String(i["body"] ?? "") }); rows = [made, ...rows]; return { note: made }; }
     throw new Error(`no answer for ${cap}`);
   };
@@ -122,4 +125,23 @@ test("an opened note offers Ask about this note, Turn into task and Turn into re
   await press(find(root, "note-dialog-close"));
   await flush();
   assert.equal(find(root, "note-dialog"), null);
+});
+
+test("Ask about this note opens the person's own Ask thread scoped to that note, with the note on top and the privacy line at the foot", async () => {
+  installDom();
+  const { rt, calls } = scripted();
+  const store = createNotesStore((c, i) => rt.call(c, i), () => undefined, () => T0);
+  const root = await mount(createRoot, <NotesPage rt={rt} nameOf={(id) => id} store={store} initial={{ ask: "n2" }} />);
+  await flush();
+  await flush();
+  const start = calls.find((c) => c.cap === "chat.start");
+  assert.ok(start, "an Ask thread is started, not the chat open elsewhere");
+  assert.equal(start!.input["kind"], "ask");
+  assert.deepEqual(start!.input["agentIds"], ["agt_assistant"]);
+  assert.equal(start!.input["scopeType"], "note");
+  assert.equal(start!.input["scopeId"], "n2");
+  assert.equal(start!.input["idempotencyKey"], "note-ask-usr_me-n2", "one thread per person and note, so asking again returns to it");
+  const order = ids(root, "notes-ask-").filter((t) => t === "notes-ask-about" || t === "notes-ask-vis");
+  assert.deepEqual(order, ["notes-ask-about", "notes-ask-vis"], "the note on top, the privacy line at the foot");
+  assert.match(textOf(find(root, "notes-ask-vis")), /Your own chat, so Vyre can read this private note here/);
 });

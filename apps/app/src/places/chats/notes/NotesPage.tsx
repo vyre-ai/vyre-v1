@@ -10,9 +10,7 @@ import { useMenu } from "../../../../../../ui/src/Menu/index.tsx";
 import type { MenuEntry, MenuItem } from "../../../../../../ui/src/Menu/index.tsx";
 import type { CapMap } from "../../../../../../generated/types.ts";
 import type { ShellRuntime } from "../../../shell/providers/runtime.tsx";
-import { AskPane } from "../../records/askpane/AskPane.tsx";
-import { RecordsAssistant } from "../../../shell/providers/records-ask.tsx";
-import type { AskScope } from "../../../shell/providers/records-ask.tsx";
+import { NoteAsk } from "./NoteAsk.tsx";
 import { notesStoreFor } from "./data.ts";
 import type { NotesStore } from "./data.ts";
 import { Ico, icoSvg } from "./icons.tsx";
@@ -648,20 +646,7 @@ export function NotesPage({ rt, nameOf, noteId = null, initial, store: given, ph
   );
   const askPane = askNote ? (
     <View style={phone ? st.askPhone : st.ask} testID="notes-ask-pane">
-      <AskPane about={{}} paneKey="notes-ask" idPrefix="notes-ask" hint={askWords(askNote)} onClose={() => { setAskId(null); focusCard(askNote.noteId); }}>
-        <View style={st.about} testID="notes-ask-about">
-          <View style={[st.aboutIcon, { backgroundColor: noteFill(askNote.color) }]}><Ico name="note" size={15} color="var(--ink-3)" /></View>
-          <View style={{ flex: 1, minWidth: 0 }}>
-            <Text style={st.aboutK}>About this note</Text>
-            <Text numberOfLines={1} style={st.aboutT}>{noteName(askNote)}</Text>
-            {firstLine(askNote) ? <Text numberOfLines={1} style={st.aboutS}>{firstLine(askNote)}</Text> : null}
-          </View>
-          <IconBtn icon="note" label="Open the note" iconSize={14} onPress={() => openNote(askNote.noteId)} testID="notes-ask-open" />
-        </View>
-        <View style={{ flex: 1, minHeight: 0, overflow: "hidden" }}>
-          <RecordsAssistant rt={rt} about={{}} scope={askScope(askNote)} />
-        </View>
-      </AskPane>
+      <NoteAsk rt={rt} note={askNote} onClose={() => { setAskId(null); focusCard(askNote.noteId); }} onOpen={() => openNote(askNote.noteId)} onTask={() => toTask(askNote.noteId)} />
     </View>
   ) : null;
   const toast = bar ? (
@@ -761,15 +746,6 @@ export function NotesPage({ rt, nameOf, noteId = null, initial, store: given, ph
       {menu.element}
     </View>
   );
-}
-
-/** What the assistant is told in Ask about this note: the note, by id and name. It reads the note itself with notes_get, which follows the note's audience. */
-function askScope(n: Note): AskScope {
-  const name = noteName(n);
-  return {
-    type: "note", id: n.noteId, title: name,
-    context: { title: `Notes, ${name}`, open: [{ type: "note", id: n.noteId, title: name }], actions: ["read the note with notes_get", "sum it up", "say what is still open", "draft a reply from it", "suggest a task"] } as AskScope["context"],
-  };
 }
 
 function Empty(): ReactElement {
