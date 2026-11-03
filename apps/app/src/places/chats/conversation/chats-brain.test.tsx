@@ -151,3 +151,13 @@ test("the model menu shows the saved list at once, then the vendor's new model b
     assert.doesNotMatch(textOf(find(root, "model-models")), /Latest/);
   } finally { restore(); resetMissing(); }
 });
+
+test("the composer offers only accounts that can run a chat here: one the list marks unusable for the place is left out", () => {
+  const rows = [
+    { ref: "#Mine", driver: "claude_code", kind: "subscription", title: "Claude Code", status: "ok", usable: true },
+    { ref: "#Team", driver: "anthropic", kind: "api_key", title: "Team key", status: "ok", usable: false, why: "An admin has not kept this account for this kind of work." },
+    { ref: "#Old", driver: "codex", kind: "subscription", title: "Codex", status: "expired" },
+    { ref: "#Plain", driver: "openai", kind: "api_key", title: "OpenAI", status: "ok" },
+  ];
+  assert.deepEqual(connectedAccounts(rows).map((a) => a.ref), ["#Mine", "#Plain"]);
+});
