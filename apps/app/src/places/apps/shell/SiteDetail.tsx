@@ -6,6 +6,7 @@ import { Text, TextInput, View } from "react-native";
 import { Row } from "../../../../../../ui/src/Row/index.tsx";
 import type { CapMap } from "../../../../../../generated/types.ts";
 import { useAppsData } from "./data.tsx";
+import { GATE, allows, useOptionalShellRuntime } from "../../../shell/providers/runtime.tsx";
 import { actionKey, errorMessage, mutate } from "./mutations.ts";
 import { Button, Card, Frame, Select, s, useOnline, useRead } from "./editor-ui.tsx";
 import { DeployedSite } from "./DeployedSite.tsx";
@@ -25,13 +26,16 @@ export function siteLine(site: Pick<Site, "live" | "blocked">, status: { answeri
   return status.answering ? "Live and answering." : status.detail ?? "Published, but it is not answering.";
 }
 
-export function DomainRow({ siteId, domain, online }: { siteId: string; domain: string; online: boolean }): ReactElement {
+/** A domain of a site. Removing it is an owner's or admin's (GATE.siteDomains): anyone else sees it without the button. A caller that knows already passes canDomains. */
+export function DomainRow({ siteId, domain, online, canDomains: given }: { siteId: string; domain: string; online: boolean; canDomains?: boolean }): ReactElement {
+  const gate = allows(useOptionalShellRuntime(), GATE.siteDomains);
+  const canDomains = given ?? gate;
   const d = useAppsData();
   const check = useRead<CapMap["sites.domain_check"]["out"]>("sites.domain_check", { siteId, domain }, "sites");
   const [error, setError] = useState<string | null>(null);
   const remove = (): void => { void d.call("sites.domain_set", { siteId, domain, remove: true }).then(() => check.refresh(), (e: unknown) => setError(errorMessage(e))); };
   return <View testID={`site-domain-${domain}`}>
-    <Row id={domain} title={domain} note={check.data ? STATE_WORD[check.data.state] : check.error ?? "Checking"} trailing={<Button title="Remove" disabled={!online} onPress={remove} />} />
+    <Row id={domain} title={domain} note={check.data ? STATE_WORD[check.data.state] : check.error ?? "Checking"} {...(canDomains ? { trailing: <Button title="Remove" disabled={!online} onPress={remove} /> } : {})} />
     {check.data && check.data.state === "waiting_dns" ? check.data.records.map((r) => <Row key={`${r.type}${r.name}`} id={`${r.type}${r.name}`} title={`${r.type} ${r.name}`} note={r.value} trailing={<Button title="Copy" onPress={() => copy(r.value)} />} />) : null}
     {error ? <Text style={s.text}>{error}</Text> : null}
   </View>;
@@ -39,6 +43,7 @@ export function DomainRow({ siteId, domain, online }: { siteId: string; domain: 
 
 export function SiteDetail({ id, back }: { id: string; back(): void }): ReactElement {
   const d = useAppsData(), online = useOnline();
+  const canDomains = allows(useOptionalShellRuntime(), GATE.siteDomains);   // site domains are an owner's or admin's (manifests/permissions.ts): anyone else sees them, without Add or Remove
   const site = useRead<CapMap["sites.get"]["out"]>("sites.get", { siteId: id }, "sites");
   const status = useRead<CapMap["sites.status"]["out"]>("sites.status", { siteId: id }, "sites");
   const host = useRead<CapMap["sites.host"]["out"]>("sites.host", {}, "sites");
@@ -56,7 +61,7 @@ export function SiteDetail({ id, back }: { id: string; back(): void }): ReactEle
   };
   const x = site.data?.site;
   const domainRows: ReactElement[] = [];
-  for (const row of domains.data?.domains ?? []) domainRows.push(<DomainRow key={row.domain} siteId={id} domain={row.domain} online={online} />);
+  for (const row of domains.data?.domains ?? []) domainRows.push(<DomainRow key={row.domain} siteId={id} domain={row.domain} online={online} canDomains={canDomains} />);
   const publish = (): void => { if (x) void run(x.access === "public" ? "sites.promote" : "sites.publish", { siteId: id }); };
   // a site Vyre builds and runs has its own page: deploys, build log, env vars, database
   if (x?.deployed) return <DeployedSite site={x} refresh={site.refresh} back={back} />;
@@ -80,7 +85,7 @@ export function SiteDetail({ id, back }: { id: string; back(): void }): ReactEle
       </Card>
       <Card title="Domains">
         {domainRows}
-        {host.data && !host.data.domains ? <><Text style={s.text} testID="site-domains-need">{host.data.domainsNeed}</Text><View style={s.actions}><Button title="Add a server" onPress={() => d.nav.openComputers?.()} /></View></> : <View style={s.actions}>
+        {!canDomains ? <Text style={s.text} testID="site-domains-admin">An owner or admin adds domains to this site.</Text> : host.data && !host.data.domains ? <><Text style={s.text} testID="site-domains-need">{host.data.domainsNeed}</Text><View style={s.actions}><Button title="Add a server" onPress={() => d.nav.openComputers?.()} /></View></> : <View style={s.actions}>
           <TextInput accessibilityLabel="Domain" value={domain} onChangeText={setDomain} placeholder="www.example.com" placeholderTextColor="var(--ink-4)" style={[s.input, { flex: 1 }]} />
           <Button title="Add domain" testID="site-add-domain" disabled={busy || !online || domain.trim() === ""} onPress={() => { void run("sites.domain_add", { siteId: id, domain: domain.trim() }).then(() => setDomain("")); }} />
         </View>}

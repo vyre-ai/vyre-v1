@@ -1,0 +1,4 @@
+- Permissions defaults (l-perms): a member's + on the Space section of Automations no longer makes a draft and then fails the promote; Space + and Promote show only to people who hold automations.space, and a Space automation opens read-only for anyone else, with Make a personal copy and Ask an admin.
+- Your own connection (connections.create for a person) no longer needs connectors.manage; a Space connection still does, refused in plain words.
+- identity.whoami carries the person's permissions, and the app hides what they cannot do: New chat, channel and agent, New shared folder, site domains, setting up or taking over an agent's computer, Invite People (now for any role holding members.invite).
+- Guests can open the app: who they are, the Space, its switcher tile and Kit answer for any role (level member).

@@ -47,7 +47,7 @@ export interface IdentityCtx {
   /** Roles and groups of a person, read through the access projection by the host. */
   /** The person key this node holds for the signed-in person (ruling 62, 63). Absent: nothing to clear. */
   keyring?: Keyring;
-  directory?: { of(personId: string): { roles: string[]; groups: string[] } };
+  directory?: { of(personId: string): { roles: string[]; groups: string[]; permissions?: string[] } };
   /**
    * Whether the Space still counts the person as an active member (the host reads it from the access projection): "refused" for a suspended, removed or unknown person, "unavailable"
    * while the host cannot vouch for its access snapshot. `joining` is the call that creates the person (invite accept, owner claim), the one place a person is not known yet.

@@ -48,6 +48,8 @@ export interface AutomationsData {
   keysStatus?: KeysStatus;
   nav: AutomationsNav;
   clock(): { now: number };
+  /** May this person make and change Space Automations (automations.space)? False: Space ones open read-only with Ask an admin, and nothing offers to promote. Absent: yes. */
+  canSpace?: boolean;
 }
 
 const Ctx = createContext<AutomationsData | null>(null);

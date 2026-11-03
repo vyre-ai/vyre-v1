@@ -59,7 +59,7 @@ export function AutomationsSidebar({ selectedId = null, selectedJourneyId = null
   const autos: readonly AutoRow[] = list.status === "ready" ? list.data.automations : [];
   const groups: readonly GroupRow[] = groupsQ.status === "ready" ? groupsQ.data.groups : [];
   const journeys: readonly JourneyRow[] = journeysQ.status === "ready" ? journeysQ.data.journeys : [];
-  const sections = useMemo(() => sectionsOf(autos, groups, { me: data.me.id, q, ...(shared ? { shared } : {}), ...(reasons ? { reasons } : {}) }), [autos, groups, data.me.id, q, shared, reasons]);
+  const sections = useMemo(() => sectionsOf(autos, groups, { me: data.me.id, q, ...(shared ? { shared } : {}), ...(reasons ? { reasons } : {}), ...(data.canSpace === false ? { canSpace: false } : {}) }), [autos, groups, data.me.id, q, shared, reasons, data.canSpace]);
   const order = useMemo(() => visibleOrder(sections, q ? allGroupKeys(sections) : open, collapsed), [sections, open, collapsed, q]);
   const failed = failedTotal(autos);
 

@@ -37,6 +37,11 @@ export interface ShellRuntime extends Omit<HomeData, "nav"> {
    * never asks the server for what it would refuse (console.nav, connectors.list): it already knows the answer. Absent: unknown, ask.
    */
   readonly plainRole?: boolean;
+  /**
+   * The permission keys the person's roles carry here (identity.whoami, manifests/permissions.ts), so a place hides a control the person may not use instead of showing one the server
+   * refuses (l-perms, owner 3 Nov: "What you aren't allowed to do, you shouldn't be able to see"). Absent: unknown (a server that does not say), so nothing is hidden.
+   */
+  readonly permissions?: ReadonlySet<string>;
   /** A Personal Space draws Today only when a calendar is connected on this computer. */
   calendarConnected: boolean;
   /** The modules the server defers whole (ruling 60); a place of one hides itself. Empty until the server says. */
@@ -64,6 +69,8 @@ export interface ShellRuntime extends Omit<HomeData, "nav"> {
 export interface ServerKeyPort { state(): Promise<{ held: boolean; remembered: boolean; forgotten: boolean } | null>; keep(keep: boolean): Promise<boolean> }
 
 const Ctx = createContext<ShellRuntime | null>(null);
+
+export { allows, GATE } from "../session/gates.ts";
 
 export function ShellRuntimeProvider({ value, children }: { value: ShellRuntime; children: ReactNode }): ReactElement {
   // The assistant wears the Vyre mark in every face below; say which agent it is before they draw.

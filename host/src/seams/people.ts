@@ -175,7 +175,7 @@ export function createPeopleExtras(d: PeopleDeps): (module: string, ctx: { devic
   const directory = {
     of(personId: string) {
       const info = d.access().info(personId);
-      return { roles: info && info.roleNames !== "no role" ? info.roleNames.split(", ") : [], groups: d.access().groupsOf(personId) };
+      return { roles: info && info.roleNames !== "no role" ? info.roleNames.split(", ") : [], groups: d.access().groupsOf(personId), permissions: info ? [...info.perms].sort() : [] };
     },
     roleName(personId: string) { return d.access().info(personId)?.roleNames.split(", ")[0] ?? "member"; },
   };

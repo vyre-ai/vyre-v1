@@ -17,6 +17,7 @@ import type { Expiry } from "./model.ts";
 import type { Folder, Health, Item, Provider, Selection } from "./model.ts";
 import { Btn, Glyph, IconBtn, QuietLine } from "./parts.tsx";
 import { Sidebar } from "./Sidebar.tsx";
+import { GATE, allows, useOptionalShellRuntime } from "../../../shell/providers/runtime.tsx";
 import { ResizableColumn } from "../../../../../../ui/src/SidePane/resize.tsx";
 import { Sheet } from "./Sheet.tsx";
 import { PolicyView } from "./PolicyView.tsx";
@@ -74,6 +75,7 @@ export type VaultRoute =
 function Page({ initial, sheet, view, route, onRouteClose, connectionsInitial, connectionsAdd }: { initial?: Selection | undefined; sheet?: InitialSheet | undefined; view?: "env" | "fields" | undefined; route: VaultRoute; onRouteClose(): void; connectionsInitial?: ConnectionsData | undefined; connectionsAdd?: AddInitial | undefined }): ReactElement {
   const data = useVaultData();
   const online = useOnline();
+  const canShare = allows(useOptionalShellRuntime(), GATE.sharedVault);   // a guest keeps nothing in the Vault: no New shared folder to press
   const { width } = useWindowDimensions();
   const wide = width >= WIDE;
   const twoPane = width >= TWO_PANE;
@@ -341,7 +343,7 @@ function Page({ initial, sheet, view, route, onRouteClose, connectionsInitial, c
   return (
     <View style={s.page} testID="vault-place">
       {menu.element}
-      {wide ? <Sidebar counts={counts} folders={folderList} selection={selection} onSelect={select} onAdvanced={data.nav.openAdvanced} advanced={route.surface === "advanced" || route.surface === "policy"} {...(data.nav.openConnections ? { onConnections: data.nav.openConnections, connections: route.surface === "connections" } : {})} onNewFolder={createFolder} onFolderMenu={folderMenu} canCreateShared hideShared={data.personal === true} /> : null}
+      {wide ? <Sidebar counts={counts} folders={folderList} selection={selection} onSelect={select} onAdvanced={data.nav.openAdvanced} advanced={route.surface === "advanced" || route.surface === "policy"} {...(data.nav.openConnections ? { onConnections: data.nav.openConnections, connections: route.surface === "connections" } : {})} onNewFolder={createFolder} onFolderMenu={folderMenu} canCreateShared={canShare} hideShared={data.personal === true} /> : null}
       {routed ?? (sectionPage ? <View style={[s.listPane, { flex: 1 }]} testID="vault-section-page">{header}{sectionPage}</View> : <>{twoPane || !showDetail ? listPane : null}{showDetail ? <View style={s.detail}>{detail}</View> : null}</>)}
       {choosing ? <AddChooser onClose={() => setChoosing(false)} onPick={(t) => addThe(t)} /> : null}
       {route.surface === "export" ? <ExportSheet folderId={route.folderId} folderName={folderList.find((f) => f.id === route.folderId)?.name ?? "folder"} onClose={onRouteClose} /> : null}

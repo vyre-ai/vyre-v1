@@ -42,6 +42,7 @@ import { RenameField } from "../conversation/parts.tsx";
 import { ChannelSheets } from "../channels/Sheets.tsx";
 import { onChannelRequest, takeChannelRequest } from "../channels/request.ts";
 import { usePulse } from "./pulse.ts";
+import { GATE, allows, useOptionalShellRuntime } from "../../../shell/providers/runtime.tsx";
 import type { ChannelSheetKind } from "../channels/request.ts";
 
 export const SIDEBAR_SCREEN = "chats.sidebar";
@@ -123,6 +124,9 @@ function Sidebar({ window, query, slot, open: shown }: { window?: VirtualWindow;
   const [renaming, setRenaming] = useState<string | null>(null);
   // The New channel and Browse channels sheets: opened from this sidebar, or by a request from Cmd-K or the new menu (one waiting before this mounted is taken now). A Personal Space has none.
   const personal = data.space.personal === true;
+  // New chat, channel and agent each need their permission (a guest holds none): what the person cannot make is not offered (l-perms)
+  const rtPerms = useOptionalShellRuntime();
+  const canChat = allows(rtPerms, GATE.newChat), canChannel = allows(rtPerms, GATE.newChannel), canAgent = allows(rtPerms, GATE.newAgent);
   const [sheet, setSheet] = useState<ChannelSheetKind | null>(null);
   useEffect(() => {
     const take = (): void => { const k = takeChannelRequest(); if (k && !personal) setSheet(k); };
@@ -417,8 +421,8 @@ function Sidebar({ window, query, slot, open: shown }: { window?: VirtualWindow;
         return (
           <SectionHead id={e.section} label={e.label} count={!e.open ? e.count : undefined} open={e.open} onToggle={() => toggle(e.section)}>
             {e.section === "channels" ? <Tool icon="search" label="Browse channels" onPress={() => setSheet("browse")} testID="browse-channels-tool" /> : null}
-            {e.section === "channels" ? <Tool icon="plus" label="New channel" onPress={() => setSheet("new")} testID="new-channel" /> : null}
-            {e.section === "faces" ? <Tool icon="plus" label="New agent" onPress={() => { (data.nav.openNewAgent ?? data.nav.openAllAgents)(); leave(); }} testID="all-agents" /> : null}
+            {e.section === "channels" && canChannel ? <Tool icon="plus" label="New channel" onPress={() => setSheet("new")} testID="new-channel" /> : null}
+            {e.section === "faces" && canAgent ? <Tool icon="plus" label="New agent" onPress={() => { (data.nav.openNewAgent ?? data.nav.openAllAgents)(); leave(); }} testID="all-agents" /> : null}
           </SectionHead>
         );
       }
@@ -542,9 +546,9 @@ function Sidebar({ window, query, slot, open: shown }: { window?: VirtualWindow;
   const headBusy = dot || !online;
   // Filter, then New: a chat, a channel, an agent. A Personal Space has no channels.
   const newMenu = (x: number, y: number): void => menu.show([
-    { label: "New chat", onSelect: () => { (data.nav.openNew ?? (() => void api.newChat()))(); leave(); } },
-    ...(personal ? [] : [{ label: "New channel", onSelect: () => setSheet("new") }, { label: "Browse channels", onSelect: () => setSheet("browse") }]),
-    { label: "New agent", onSelect: () => { (data.nav.openNewAgent ?? data.nav.openAllAgents)(); leave(); } },
+    ...(canChat ? [{ label: "New chat", onSelect: () => { (data.nav.openNew ?? (() => void api.newChat()))(); leave(); } }] : []),
+    ...(personal ? [] : [...(canChannel ? [{ label: "New channel", onSelect: () => setSheet("new") }] : []), { label: "Browse channels", onSelect: () => setSheet("browse") }]),
+    ...(canAgent ? [{ label: "New agent", onSelect: () => { (data.nav.openNewAgent ?? data.nav.openAllAgents)(); leave(); } }] : []),
   ], x, y, "other");
   const newButton = <Tool icon="plus" label="New" onPress={newMenu} testID="new-menu" />;
   const newChatButton = <Tool icon="filter" label="Filter" active={filter !== "all"} onPress={filterMenu} testID="filter-chats" />;
