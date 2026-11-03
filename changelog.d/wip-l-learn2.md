@@ -32,3 +32,8 @@
 - Old links to the Threads page open Inbox > Replies.
 - chat.recent rows carry repliesUnread (the unread replies hanging off that chat). The Unread filter and the next-unread jump count them.
 - The phone note shows its "From" line like the desktop note.
+
+## What's new (Agent tools)
+
+- When a tool crashes on the server, the agent is told in plain words which tool failed, that nothing was changed, and the trace to give the person, instead of a bare 500.
+- Tests for an agent's memory search: a fresh agent, an agent with lessons, a person key held and gone, awkward notes, and the read gate on a search answer.

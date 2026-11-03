@@ -77,11 +77,11 @@ export function useSidebarApi(onLocal: (row: ChatRow) => void, onSettled: (local
  * screenshots draw them all); the shell leaves it out and the list windows by scroll. `query` is the slot's search field; `slot` lets the phone leave the list for the chat.
  * `open` is what the place's middle shows (`openKeyOf` in mounts/route.ts): its row is the one drawn selected, whatever opened it (a click here, a tab, a link, Cmd-K), and no row is when
  * the page has none. Left out (a sidebar drawn alone, with no page beside it), the row last pressed is the selected one. */
-export function ChatsSidebar({ data, window, query = "", slot, open }: { data?: ChatsSidebarData; window?: VirtualWindow; query?: string; slot?: SidebarSlotApi | undefined; open?: string | null }): ReactElement {
+export function ChatsSidebar({ data, window, query = "", slot, open, startFilter }: { data?: ChatsSidebarData; window?: VirtualWindow; query?: string; slot?: SidebarSlotApi | undefined; open?: string | null; startFilter?: SideFilter }): ReactElement {
   const ctx = useOptionalSidebarData();
   const value = data ?? ctx;
   if (!value) return <ChatsSidebarLoading />;
-  return <ChatsSidebarDataProvider value={value}><Sidebar query={query} slot={slot} {...(window ? { window } : {})} {...(open !== undefined ? { open } : {})} /></ChatsSidebarDataProvider>;
+  return <ChatsSidebarDataProvider value={value}><Sidebar query={query} slot={slot} {...(window ? { window } : {})} {...(open !== undefined ? { open } : {})} {...(startFilter ? { startFilter } : {})} /></ChatsSidebarDataProvider>;
 }
 
 /** Put this inside the Chats place: it registers the Chats sidebar in the shell's shared slot, so it collapses, searches and lands on the phone like every place. */
@@ -98,13 +98,13 @@ export function ChatsSidebarLoading(): ReactElement {
   return <View testID="chats-sidebar-loading" accessibilityLabel="Loading" style={st.root} />;
 }
 
-function Sidebar({ window, query, slot, open: shown }: { window?: VirtualWindow; query: string; slot: SidebarSlotApi | undefined; open?: string | null }): ReactElement {
+function Sidebar({ window, query, slot, open: shown, startFilter }: { window?: VirtualWindow; query: string; slot: SidebarSlotApi | undefined; open?: string | null; startFilter?: SideFilter }): ReactElement {
   const data = useSidebarData();
   const online = useOnline();
   const menu = useMenu();
   const width = useWindowDimensions().width;
   const narrow = width > 0 && width < 560;
-  const [filter, setFilter] = useState<SideFilter>("all");
+  const [filter, setFilter] = useState<SideFilter>(startFilter ?? "all");
   const [more, setMore] = useState<{ recent?: boolean; people?: boolean; faces?: boolean; goals?: boolean }>({});
   // Goals: yours and the ones you help with, what needs you first (goals/model.ts). They follow the Space's changes, as a card that reads by capability does.
   const goalsQ = useGoals(data.call, data.changes);
