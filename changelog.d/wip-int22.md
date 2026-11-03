@@ -1,0 +1,1 @@
+- Integration: the MCP parity test names the new agent opt-outs (Chrome watches save, remove and check; answering a Save as a note offer) with the reason each is the person's own act.
