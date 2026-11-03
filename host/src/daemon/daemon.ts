@@ -2099,14 +2099,16 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
     throw e;
   }
 
-  let stopped = false;
-  const stop = async (): Promise<void> => {
-    if (stopped) return;
-    stopped = true;
-    sink.log({ space: space ?? "-", level: 20, msg: "daemon.stopping", place: "boot" });
-    for (const c of closers.reverse()) await Promise.resolve(c()).catch(() => {});
-    clearInfo(paths);
-    o.onStopped?.();
+  // a second stop (the stop route, then the app quitting) waits for the first: it returns only once every closer has run and every file is let go
+  let stopping: Promise<void> | null = null;
+  const stop = (): Promise<void> => {
+    stopping ??= (async () => {
+      sink.log({ space: space ?? "-", level: 20, msg: "daemon.stopping", place: "boot" });
+      for (const c of closers.reverse()) await Promise.resolve().then(c).catch(() => {});
+      clearInfo(paths);
+      o.onStopped?.();
+    })();
+    return stopping;
   };
   requestStop = () => { void stop(); };
 

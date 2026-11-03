@@ -56,7 +56,10 @@ export async function call(d: Daemon, cap: string, input: unknown): Promise<{ st
 
 export function hostLog(d: Daemon): string {
   d.sink.flush();
-  const rows = new DatabaseSync(d.paths.logs, { readOnly: true }).prepare("SELECT level, place, cap, msg, attrs FROM logs WHERE level >= 30 OR msg LIKE '%consumer%' OR msg LIKE '%bridge%' OR msg LIKE '%engine%' ORDER BY id DESC LIMIT 30").all() as Array<{ level: number; place: string | null; cap: string | null; msg: string; attrs: string | null }>;
+  const ro = new DatabaseSync(d.paths.logs, { readOnly: true });
+  let rows: Array<{ level: number; place: string | null; cap: string | null; msg: string; attrs: string | null }>;
+  // closed again at once: an open reader keeps the folder from being removed on Windows when the test ends
+  try { rows = ro.prepare("SELECT level, place, cap, msg, attrs FROM logs WHERE level >= 30 OR msg LIKE '%consumer%' OR msg LIKE '%bridge%' OR msg LIKE '%engine%' ORDER BY id DESC LIMIT 30").all() as typeof rows; } finally { ro.close(); }
   return JSON.stringify(rows.map((r) => `${r.level} ${r.place ?? ""} ${r.cap ?? ""} ${r.msg} ${String(r.attrs ?? "").slice(0, 300)}`));
 }
 
