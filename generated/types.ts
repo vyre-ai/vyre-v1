@@ -487,6 +487,45 @@ export type AccessGroupsUpdateOut = {
     builtIn: boolean;
   };
 };
+export type AccessJoinShareIn = {
+  resource: {
+    type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
+    id: string;
+  };
+  person: string;
+  level: "view" | "use" | "edit" | "manage";
+  inviter: string;
+  source: string;
+};
+export type AccessJoinShareOut = {
+  grant: {
+    id: string;
+    subject: {
+      kind: "person" | "agent" | "actor" | "service" | "group" | "role" | "link";
+      id: string;
+    };
+    resource: {
+      type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
+      id: string;
+    };
+    level: "view" | "use" | "edit" | "manage";
+    conditions: {
+      rowFilter?: unknown;
+      hiddenFields?: Array<string>;
+      labelCeiling?: "public" | "internal" | "confidential" | "restricted";
+      window?: {
+        from: number;
+        to: number;
+      };
+      expiresAt?: number;
+      export?: boolean;
+      reshare?: boolean;
+    };
+    by: string;
+    source?: string;
+    createdAt: number;
+  };
+};
 export type AccessLabelsListIn = Record<string, unknown>;
 export type AccessLabelsListOut = {
   labels: Array<{
@@ -5303,6 +5342,22 @@ export type ChannelsGetOut = {
     restricted?: boolean;
   };
 };
+export type ChannelsHomeIn = Record<string, unknown>;
+export type ChannelsHomeOut = {
+  channel: {
+    channelId: string;
+    name: string;
+    mainThreadId: string;
+    legacy: boolean;
+  } | null;
+};
+export type ChannelsHomeJoinIn = {
+  personId: string;
+};
+export type ChannelsHomeJoinOut = {
+  channelId: string | null;
+  added: boolean;
+};
 export type ChannelsJoinIn = {
   channelId: string;
 };
@@ -5551,6 +5606,13 @@ export type ChannelsUpdateOut = {
     createdAt: number;
     restricted?: boolean;
   };
+};
+export type ChatAgentDmMuteIn = {
+  personId: string;
+  undo?: boolean;
+};
+export type ChatAgentDmMuteOut = {
+  until: number | null;
 };
 export type ChatAnswerBlockIn = {
   threadId: string;
@@ -5989,6 +6051,29 @@ export type ChatMessageGetOut = {
     enc?: number;
   };
 };
+export type ChatMessagePersonIn = {
+  to: string;
+  body: string;
+  timing?: "now" | "online" | "at";
+  at?: number;
+  urgent?: boolean;
+  card?: {
+    kind: "approval" | "review" | "key";
+    title: string;
+    detail?: string;
+    fields?: Array<string>;
+  };
+  idempotencyKey: string;
+};
+export type ChatMessagePersonOut = {
+  state: "sent" | "scheduled";
+  threadId: string;
+  messageId?: string;
+  dueAt?: number;
+  when: string;
+  taskId?: string;
+  requestId?: string;
+};
 export type ChatMessagesListIn = {
   threadId: string;
   before?: number;
@@ -6083,6 +6168,25 @@ export type ChatOpenTabIn = {
 export type ChatOpenTabOut = {
   opened: boolean;
   reason?: "disabled_by_person" | "no_device";
+};
+export type ChatPeopleStatusIn = {
+  personIds?: Array<string>;
+  q?: string;
+};
+export type ChatPeopleStatusOut = {
+  people: Array<{
+      personId: string;
+      name: string;
+      state: "online" | "away" | "offline" | "unknown";
+      lastSeenAt?: number;
+      awayUntil?: number;
+      timezone?: string;
+      localTime?: string;
+      hours?: string;
+      inHours: boolean;
+      mutedUntil?: number;
+      wouldGo: string;
+    }>;
 };
 export type ChatPinIn = {
   messageId: string;
@@ -8184,7 +8288,7 @@ export type ConsoleAssistantToolsOut = {
 export type ConsoleAttentionIn = Record<string, unknown>;
 export type ConsoleAttentionOut = {
   items: Array<{
-      kind: "failing_check" | "expiring_certificate" | "failed_run" | "stuck_update" | "limit_hit" | "access_review_due";
+      kind: "failing_check" | "expiring_certificate" | "failed_run" | "stuck_update" | "limit_hit" | "access_review_due" | "join_stuck" | "home_channel";
       title: string;
       ref?: string;
       since: number;
@@ -8249,7 +8353,7 @@ export type ConsoleOverviewIn = Record<string, unknown>;
 export type ConsoleOverviewOut = {
   health: "healthy" | "degraded" | "down";
   attention: Array<{
-      kind: "failing_check" | "expiring_certificate" | "failed_run" | "stuck_update" | "limit_hit" | "access_review_due";
+      kind: "failing_check" | "expiring_certificate" | "failed_run" | "stuck_update" | "limit_hit" | "access_review_due" | "join_stuck" | "home_channel";
       title: string;
       ref?: string;
       since: number;
@@ -8637,6 +8741,17 @@ export type DevicesMineOut = {
       current?: boolean;
     }>;
 };
+export type DevicesPresenceIn = {
+  people?: Array<string>;
+};
+export type DevicesPresenceOut = {
+  people: Array<{
+      personId: string;
+      state: "online" | "away" | "offline";
+      lastSeenAt?: number;
+      awayUntil?: number;
+    }>;
+};
 export type DevicesPurgeAckIn = {
   deviceId: string;
 };
@@ -8726,11 +8841,13 @@ export type DevicesSessionsRevokeOut = {
   ok: boolean;
 };
 export type DevicesTouchIn = {
-  deviceId: string;
+  deviceId?: string;
   location?: string;
 };
 export type DevicesTouchOut = {
   ok: boolean;
+  lastSeenAt?: number;
+  back?: boolean;
 };
 export type DocumensoCancelIn = {
   remoteId: string;
@@ -9897,6 +10014,19 @@ export type EngineModelsListOut = {
       allowed: boolean;
       reason?: "label_provider" | "policy_model" | "not_connected" | "usage_limit";
       resetsAt?: number;
+    }>;
+};
+export type EngineNowIn = Record<string, unknown>;
+export type EngineNowOut = {
+  working: Array<{
+      agentId: string;
+      forPerson: string;
+      where: "space" | "computer" | "server";
+      since: number;
+      threadId?: string;
+      title?: string;
+      channelId?: string;
+      kind?: string;
     }>;
 };
 export type EnginePlacementDecideIn = {
@@ -14660,13 +14790,13 @@ export type HealthTimeSkewOut = {
 export type HomeActivityIn = {
   since: number;
   until?: number;
-  kinds?: Array<"decision" | "finished" | "record_change" | "routine" | "waiting">;
+  kinds?: Array<"decision" | "finished" | "record_change" | "routine" | "notice" | "waiting">;
   cursor?: string;
   limit?: number;
 };
 export type HomeActivityOut = {
   items: Array<{
-      kind: "decision" | "finished" | "record_change" | "routine" | "waiting";
+      kind: "decision" | "finished" | "record_change" | "routine" | "notice" | "waiting";
       title: string;
       line: string;
       subject?: {
@@ -14698,6 +14828,13 @@ export type HomeAtRiskOut = {
       overdueTasks: number;
     }>;
 };
+export type HomeAwayDigestIn = {
+  since: number;
+};
+export type HomeAwayDigestOut = {
+  digestId?: string;
+  items: number;
+};
 export type HomeChecklistIn = Record<string, unknown>;
 export type HomeChecklistOut = {
   visible: boolean;
@@ -14716,7 +14853,7 @@ export type HomeDigestOut = {
     periodEnd: number;
     headline: Array<string>;
     items: Array<{
-        kind: "decision" | "finished" | "record_change" | "routine" | "waiting";
+        kind: "decision" | "finished" | "record_change" | "routine" | "notice" | "waiting";
         title: string;
         line: string;
         subject?: {
@@ -14761,7 +14898,7 @@ export type HomeWriteDigestIn = {
   periodEnd: number;
   headline: Array<string>;
   items: Array<{
-      kind: "decision" | "finished" | "record_change" | "routine" | "waiting";
+      kind: "decision" | "finished" | "record_change" | "routine" | "notice" | "waiting";
       title: string;
       line: string;
       subject?: {
@@ -18289,6 +18426,36 @@ export type MembersInvitesRevokeIn = {
 export type MembersInvitesRevokeOut = {
   ok: boolean;
 };
+export type MembersJoinsListIn = {
+  stuck?: boolean;
+};
+export type MembersJoinsListOut = {
+  joins: Array<{
+      personId: string;
+      name: string;
+      joinedAt: number;
+      stuck: boolean;
+      steps: Array<{
+          key: string;
+          title: string;
+          error: string;
+          tries: number;
+        }>;
+    }>;
+};
+export type MembersJoinsRetryIn = {
+  personId: string;
+};
+export type MembersJoinsRetryOut = {
+  applied: number;
+  pending: number;
+  steps: Array<{
+      key: string;
+      title: string;
+      error: string;
+      tries: number;
+    }>;
+};
 export type MembersReactivateIn = {
   personId: string;
 };
@@ -21769,6 +21936,13 @@ export type NotificationsAwaySetIn = {
 };
 export type NotificationsAwaySetOut = {
   until: number;
+};
+export type NotificationsAwayWhoIn = Record<string, unknown>;
+export type NotificationsAwayWhoOut = {
+  people: Array<{
+      person: string;
+      until: number;
+    }>;
 };
 export type NotificationsCountsIn = Record<string, unknown>;
 export type NotificationsCountsOut = {
@@ -25890,6 +26064,17 @@ export type SettingsPagesOut = {
       group: "you" | "space";
       rows: number;
     }>;
+};
+export type SettingsPublicOfIn = {
+  personId: string;
+};
+export type SettingsPublicOfOut = {
+  timezone?: string;
+  hours?: {
+    days: Array<number>;
+    from: string;
+    to: string;
+  };
 };
 export type SettingsResetIn = {
   key: string;
@@ -33563,6 +33748,7 @@ export type VaultRequestIn = {
   forRun?: string;
   folderId?: string;
   handleOnly?: boolean;
+  to?: string;
   idempotencyKey: string;
 };
 export type VaultRequestOut = {
@@ -33717,6 +33903,13 @@ export type VaultSiteRulesSetOut = {
   host: string;
   neverFill: boolean;
   neverSave: boolean;
+};
+export type VaultTextCheckIn = {
+  text: string;
+};
+export type VaultTextCheckOut = {
+  handles: Array<string>;
+  checked: boolean;
 };
 export type VaultUnshareIn = {
   resource: {
@@ -34237,6 +34430,7 @@ export interface CapMap {
   "access.groups.list": { in: AccessGroupsListIn; out: AccessGroupsListOut };
   "access.groups.remove_member": { in: AccessGroupsRemoveMemberIn; out: AccessGroupsRemoveMemberOut };
   "access.groups.update": { in: AccessGroupsUpdateIn; out: AccessGroupsUpdateOut };
+  "access.join_share": { in: AccessJoinShareIn; out: AccessJoinShareOut };
   "access.labels.list": { in: AccessLabelsListIn; out: AccessLabelsListOut };
   "access.labels.set": { in: AccessLabelsSetIn; out: AccessLabelsSetOut };
   "access.lists": { in: AccessListsIn; out: AccessListsOut };
@@ -34437,6 +34631,8 @@ export interface CapMap {
   "channels.create": { in: ChannelsCreateIn; out: ChannelsCreateOut };
   "channels.erase": { in: ChannelsEraseIn; out: ChannelsEraseOut };
   "channels.get": { in: ChannelsGetIn; out: ChannelsGetOut };
+  "channels.home": { in: ChannelsHomeIn; out: ChannelsHomeOut };
+  "channels.home_join": { in: ChannelsHomeJoinIn; out: ChannelsHomeJoinOut };
   "channels.join": { in: ChannelsJoinIn; out: ChannelsJoinOut };
   "channels.leave": { in: ChannelsLeaveIn; out: ChannelsLeaveOut };
   "channels.list": { in: ChannelsListIn; out: ChannelsListOut };
@@ -34447,6 +34643,7 @@ export interface CapMap {
   "channels.stream_prefs.set": { in: ChannelsStreamPrefsSetIn; out: ChannelsStreamPrefsSetOut };
   "channels.unarchive": { in: ChannelsUnarchiveIn; out: ChannelsUnarchiveOut };
   "channels.update": { in: ChannelsUpdateIn; out: ChannelsUpdateOut };
+  "chat.agent_dm.mute": { in: ChatAgentDmMuteIn; out: ChatAgentDmMuteOut };
   "chat.answer_block": { in: ChatAnswerBlockIn; out: ChatAnswerBlockOut };
   "chat.approve_plan": { in: ChatApprovePlanIn; out: ChatApprovePlanOut };
   "chat.aside": { in: ChatAsideIn; out: ChatAsideOut };
@@ -34466,9 +34663,11 @@ export interface CapMap {
   "chat.history.search": { in: ChatHistorySearchIn; out: ChatHistorySearchOut };
   "chat.make_task": { in: ChatMakeTaskIn; out: ChatMakeTaskOut };
   "chat.message.get": { in: ChatMessageGetIn; out: ChatMessageGetOut };
+  "chat.message_person": { in: ChatMessagePersonIn; out: ChatMessagePersonOut };
   "chat.messages.list": { in: ChatMessagesListIn; out: ChatMessagesListOut };
   "chat.open_as_chat": { in: ChatOpenAsChatIn; out: ChatOpenAsChatOut };
   "chat.open_tab": { in: ChatOpenTabIn; out: ChatOpenTabOut };
+  "chat.people_status": { in: ChatPeopleStatusIn; out: ChatPeopleStatusOut };
   "chat.pin": { in: ChatPinIn; out: ChatPinOut };
   "chat.pins.list": { in: ChatPinsListIn; out: ChatPinsListOut };
   "chat.plan.propose": { in: ChatPlanProposeIn; out: ChatPlanProposeOut };
@@ -34644,6 +34843,7 @@ export interface CapMap {
   "devices.get": { in: DevicesGetIn; out: DevicesGetOut };
   "devices.list": { in: DevicesListIn; out: DevicesListOut };
   "devices.mine": { in: DevicesMineIn; out: DevicesMineOut };
+  "devices.presence": { in: DevicesPresenceIn; out: DevicesPresenceOut };
   "devices.purge_ack": { in: DevicesPurgeAckIn; out: DevicesPurgeAckOut };
   "devices.register": { in: DevicesRegisterIn; out: DevicesRegisterOut };
   "devices.rename": { in: DevicesRenameIn; out: DevicesRenameOut };
@@ -34744,6 +34944,7 @@ export interface CapMap {
   "engine.mcp.read": { in: EngineMcpReadIn; out: EngineMcpReadOut };
   "engine.mcp.tools": { in: EngineMcpToolsIn; out: EngineMcpToolsOut };
   "engine.models.list": { in: EngineModelsListIn; out: EngineModelsListOut };
+  "engine.now": { in: EngineNowIn; out: EngineNowOut };
   "engine.placement.decide": { in: EnginePlacementDecideIn; out: EnginePlacementDecideOut };
   "engine.placement.options": { in: EnginePlacementOptionsIn; out: EnginePlacementOptionsOut };
   "engine.placement.set": { in: EnginePlacementSetIn; out: EnginePlacementSetOut };
@@ -35055,6 +35256,7 @@ export interface CapMap {
   "health.time_skew": { in: HealthTimeSkewIn; out: HealthTimeSkewOut };
   "home.activity": { in: HomeActivityIn; out: HomeActivityOut };
   "home.at_risk": { in: HomeAtRiskIn; out: HomeAtRiskOut };
+  "home.away_digest": { in: HomeAwayDigestIn; out: HomeAwayDigestOut };
   "home.checklist": { in: HomeChecklistIn; out: HomeChecklistOut };
   "home.digest": { in: HomeDigestIn; out: HomeDigestOut };
   "home.dismiss_checklist": { in: HomeDismissChecklistIn; out: HomeDismissChecklistOut };
@@ -35254,6 +35456,8 @@ export interface CapMap {
   "members.invites.list": { in: MembersInvitesListIn; out: MembersInvitesListOut };
   "members.invites.preview": { in: MembersInvitesPreviewIn; out: MembersInvitesPreviewOut };
   "members.invites.revoke": { in: MembersInvitesRevokeIn; out: MembersInvitesRevokeOut };
+  "members.joins.list": { in: MembersJoinsListIn; out: MembersJoinsListOut };
+  "members.joins.retry": { in: MembersJoinsRetryIn; out: MembersJoinsRetryOut };
   "members.reactivate": { in: MembersReactivateIn; out: MembersReactivateOut };
   "members.remove": { in: MembersRemoveIn; out: MembersRemoveOut };
   "members.remove_preview": { in: MembersRemovePreviewIn; out: MembersRemovePreviewOut };
@@ -35456,6 +35660,7 @@ export interface CapMap {
   "notifications.away.clear": { in: NotificationsAwayClearIn; out: NotificationsAwayClearOut };
   "notifications.away.get": { in: NotificationsAwayGetIn; out: NotificationsAwayGetOut };
   "notifications.away.set": { in: NotificationsAwaySetIn; out: NotificationsAwaySetOut };
+  "notifications.away.who": { in: NotificationsAwayWhoIn; out: NotificationsAwayWhoOut };
   "notifications.counts": { in: NotificationsCountsIn; out: NotificationsCountsOut };
   "notifications.delegate.get": { in: NotificationsDelegateGetIn; out: NotificationsDelegateGetOut };
   "notifications.delegate.resolve": { in: NotificationsDelegateResolveIn; out: NotificationsDelegateResolveOut };
@@ -35701,6 +35906,7 @@ export interface CapMap {
   "settings.kit.set_space": { in: SettingsKitSetSpaceIn; out: SettingsKitSetSpaceOut };
   "settings.list": { in: SettingsListIn; out: SettingsListOut };
   "settings.pages": { in: SettingsPagesIn; out: SettingsPagesOut };
+  "settings.public_of": { in: SettingsPublicOfIn; out: SettingsPublicOfOut };
   "settings.reset": { in: SettingsResetIn; out: SettingsResetOut };
   "settings.reset_space": { in: SettingsResetSpaceIn; out: SettingsResetSpaceOut };
   "settings.search": { in: SettingsSearchIn; out: SettingsSearchOut };
@@ -36034,6 +36240,7 @@ export interface CapMap {
   "vault.share": { in: VaultShareIn; out: VaultShareOut };
   "vault.site_rules.list": { in: VaultSiteRulesListIn; out: VaultSiteRulesListOut };
   "vault.site_rules.set": { in: VaultSiteRulesSetIn; out: VaultSiteRulesSetOut };
+  "vault.text_check": { in: VaultTextCheckIn; out: VaultTextCheckOut };
   "vault.unshare": { in: VaultUnshareIn; out: VaultUnshareOut };
   "vault.use": { in: VaultUseIn; out: VaultUseOut };
   "views.delete": { in: ViewsDeleteIn; out: ViewsDeleteOut };
@@ -37701,6 +37908,12 @@ export type MemberInvitedPayload = {
   inviteId: string;
   role: string;
   expiresAt: number;
+};
+export type MemberJoinStuckPayload = {
+  personId: string;
+  step: string;
+  error: string;
+  tries: number;
 };
 export type MemberJoinedPayload = {
   personId: string;
@@ -40013,6 +40226,7 @@ export interface EventMap {
   "meeting.unmerged": MeetingUnmergedPayload;
   "member.invite_revoked": MemberInviteRevokedPayload;
   "member.invited": MemberInvitedPayload;
+  "member.join_stuck": MemberJoinStuckPayload;
   "member.joined": MemberJoinedPayload;
   "member.removal_plan_applied": MemberRemovalPlanAppliedPayload;
   "member.removed": MemberRemovedPayload;
