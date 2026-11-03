@@ -2,7 +2,7 @@
 // never differs), what an admin may give, and the five built-in columns with custom roles on request.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { allowsKey, areaWord, areasOf, columns, differ, endAt, exceptionFor, exceptionLine, mayGive, offersOwnOnly, roleCell, whatOf } from "./permissions-model.ts";
+import { allowsKey, refusedCell, areaWord, areasOf, columns, differ, endAt, exceptionFor, exceptionLine, mayGive, offersOwnOnly, roleCell, whatOf } from "./permissions-model.ts";
 import type { ExceptionLite, PersonLite, RoleLite } from "./permissions-model.ts";
 
 const role = (id: string, name: string, permissions: string[], builtIn = true): RoleLite => ({ id, name, builtIn, permissions });
@@ -66,4 +66,11 @@ test("Own only: an area whose own part is allowed and Space part is not reads Ow
   assert.ok(allowsKey(own, "sites.deploy") && !allowsKey(own, "sites.promote"));
   assert.equal(whatOf(own, []), "Sites");
   assert.deepEqual(mayGive("own", ["sites.deploy", "sites.promote"], new Set(["sites.deploy"]), ["sites.deploy"]), { ok: true }, "Own only gives only the own part");
+});
+
+test("Ask an admin as an exception: the permission is not given, and the cell reads Ask an admin, not Not allowed", () => {
+  const ask = { exceptionId: "a", subject: { kind: "person" as const, id: "omar", name: "Omar" }, perms: ["records.create"], effect: "ask" as const, by: { id: "o", name: "Irfad" }, at: 0 };
+  assert.equal(allowsKey(ask, "records.create"), false);
+  assert.equal(refusedCell(ask), "ask");
+  assert.equal(refusedCell({ effect: "deny" }), "no");
 });

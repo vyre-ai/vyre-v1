@@ -127,3 +127,10 @@ test("an agent acting for a person follows her Allow exception, within what an a
   assert.ok((await perms(m)).includes("access.manage"), "Aina holds it herself");
   assert.equal(await check("access.manage"), "deny", "an agent never holds what only an owner or admin carries, whatever its person holds");
 });
+
+test("Ask an admin: held as a role holds it (the permission not given, labelled Ask an admin); never for a Guest", async () => {
+  const x = (await set(h.owner, { subject: { kind: "person", id: b.personId }, perms: ["records.create"], effect: "ask", why: "Ask before adding clients" })).exception;
+  assert.equal(x.effect, "ask");
+  assert.ok(!(await perms(b)).includes("records.create"), "he no longer holds it");
+  await h.owner.refused("access.exceptions.set", { subject: { kind: "person", id: g.personId }, perms: ["files.write"], effect: "ask", idempotencyKey: "ask-guest" }, /^validation\.bad_input$/, "a Guest cannot ask an admin");
+});

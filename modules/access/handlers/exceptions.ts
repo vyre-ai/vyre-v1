@@ -10,7 +10,7 @@ import { catalogueSource, nid, raise, storeOf } from "../projections.ts";
 import { isOwnerRole } from "../../../kernel/src/authorize/snapshot.ts";
 import { ownOnly, pairsFor } from "../../../lib/own-pairs.ts";
 
-export type Effect = "allow" | "deny" | "own";
+export type Effect = "allow" | "deny" | "own" | "ask";
 export interface ExceptionIn { subject: { kind: "person" | "group"; id: string }; perms?: string[]; area?: string; effect: Effect; until?: number; why?: string }
 export interface ExceptionRow {
   exceptionId: string; subject: { kind: "person" | "group"; id: string; name: string }; perms: string[]; own?: string[]; area?: string; effect: Effect;
@@ -85,6 +85,8 @@ export async function exceptionsSet(ctx: AccessCtx, input: ExceptionIn & { idemp
   if (!perms.length) raise(trace, "validation.bad_input", "Pick a permission or an area.");
   const unknown = perms.filter((k) => !areas.has(k));
   if (unknown.length) raise(trace, "validation.bad_input", "One of those is not a permission in this Space.");
+  // a Guest works inside what was shared with them and cannot ask for more (access.request), so Ask an admin is not theirs to have
+  if (input.effect === "ask" && subject.kind === "person" && store.rolesOf(subject.id).length > 0 && store.rolesOf(subject.id).every((r) => r === "rol_guest")) raise(trace, "validation.bad_input", "A Guest can't ask an admin. Choose Not allowed.");
   if (input.until !== undefined && input.until <= ctx.now()) raise(trace, "validation.bad_input", "The end has to be in the future.");
   // the Owner is never restricted
   if (input.effect !== "allow" && subject.kind === "person" && holdsOwner(ctx, subject.id)) raise(trace, "permission.role_lacks_permission", "The Owner can't be restricted.");

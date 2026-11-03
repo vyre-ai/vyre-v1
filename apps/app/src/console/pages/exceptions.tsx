@@ -8,7 +8,8 @@ import { permissions as CATALOGUE } from "../../../../../generated/permissions.t
 import { useConsoleData } from "../shell/data.tsx";
 import { Empty, Group, Section } from "../shell/ui.tsx";
 import { Button, Field, FormSheet, Help, Note, ReadState, Segmented, Select, useAction, useRead } from "./shared.tsx";
-import { CELL_WORD, EFFECT_WORD, ENDS, allowsKey, areaTitle, areaWord, areasOf, endAt, exceptionFor, exceptionLine, mayGive, offersOwnOnly, whatOf } from "./permissions-model.ts";
+import { CELL_WORD, EFFECT_WORD, ENDS, allowsKey, areaTitle, areaWord, areasOf, endAt, exceptionFor, exceptionLine, mayGive, offersOwnOnly, refusedCell, whatOf } from "./permissions-model.ts";
+import { Tooltip } from "../../../../../ui/src/Tooltip/index.tsx";
 import type { Cell, Effect, ExceptionLite, PermissionDef, PersonLite } from "./permissions-model.ts";
 import { ownOnly, pairsFor } from "../../../../../lib/own-pairs.ts";
 
@@ -54,11 +55,24 @@ export function AddExceptionSheet({ preset, onClose, onDone }: { preset?: { who?
   const keys = what.startsWith("area:") ? PERMS.filter((p) => p.area === what.slice(5)).map((p) => p.key) : what.startsWith("perm:") ? [what.slice(5)] : [];
   const sel = what.startsWith("area:") ? { area: what.slice(5) } : { perms: keys };
   const ownOffered = keys.length > 0 && offersOwnOnly(sel);
-  const effective: Effect = effect === "own" && !ownOffered ? "allow" : effect;
+  const effective: Effect = (effect === "own" && !ownOffered) || (effect === "ask" && guestPicked) ? "allow" : effect;
   const give = mayGive(effective, keys, mine, ownOffered ? ownOnly(pairsFor(sel)).allow : []);
   const ownerPicked = who.startsWith("person:") && owners.has(who.slice(7));
+  const picked = who.startsWith("person:") ? (people.data?.principals ?? []).find((p) => p.id === who.slice(7)) : undefined;
+  const pickedGroup = who.startsWith("group:") ? (groups.data?.groups ?? []).find((g) => g.id === who.slice(6)) : undefined;
+  // a Guest cannot ask for more (access.request), so Ask an admin is offered only where the role side can show it
+  const guestPicked = !!picked && picked.roles.length > 0 && picked.roles.every((r) => r === "rol_guest");
+  const subjectName = picked ? (picked.name.split(" ")[0] ?? picked.name) : pickedGroup ? `Everyone in ${pickedGroup.name}` : "";
   const ready = who !== "" && keys.length > 0 && give.ok && !(ownerPicked && effective !== "allow");
   const why_ = who === "" ? "Pick who first" : keys.length === 0 ? "Pick an area or a permission" : !give.ok ? give.why : ownerPicked && effective !== "allow" ? "The Owner is never restricted" : undefined;
+  // the value in a plain sentence about this person or group: "Omar can build their own automations, not the Space's."
+  const lower = (t: string): string => (t ? t.charAt(0).toLowerCase() + t.slice(1) : t);
+  const what1 = lower(what.startsWith("perm:") ? (PERMS.find((p) => p.key === what.slice(5))?.title ?? "") : what.startsWith("area:") ? areaTitle(what.slice(5)) : "");
+  const valueNote = who === "" ? "Pick who first." : !give.ok ? `That is more than you hold yourself for ${keys.length === 1 ? "this permission" : "some of these"}.` : keys.length === 0 ? "" :
+    effective === "own" ? `${subjectName} ${pairsFor(sel).map((p) => p.says).join(", and ")}.` :
+    effective === "allow" ? `${subjectName} can ${what.startsWith("area:") ? `do everything in ${what1}` : what1}${ownerPicked ? "" : ", whatever their role says"}.` :
+    effective === "ask" ? `${subjectName} sees ${what.startsWith("area:") ? what1 : `"${what1}"`} read-only and can ask an admin for it.` :
+    `${subjectName} won't see ${what.startsWith("area:") ? what1 : `"${what1}"`} at all.`;
   const submit = async (): Promise<void> => {
     if (!ready) return;
     const [kind, id] = who.split(":") as ["person" | "group", string];
@@ -66,18 +80,18 @@ export function AddExceptionSheet({ preset, onClose, onDone }: { preset?: { who?
     const out = await action.run("access.exceptions.set", { subject: { kind, id }, ...(what.startsWith("area:") ? { area: what.slice(5) } : { perms: keys }), effect: effective, ...(until !== undefined ? { until } : {}), ...(why.trim() ? { why: why.trim() } : {}), idempotencyKey: "x" }, "Exception added");
     if (out) { onDone(); onClose(); } else setNote(action.note);
   };
-  return <FormSheet title="Add an exception" onClose={onClose} onSubmit={() => void submit()} submit="Add exception" disabled={!ready || action.busy} why={why_} testID="exception-sheet"
-    note="You can give up to what you hold yourself. A restriction is never more than you hold. The Owner is never restricted. Agents acting for this person follow it too. When it ends it lapses on its own and the Audit log says so.">
+  return <FormSheet title="Add an exception" onClose={onClose} onSubmit={() => void submit()} submit="Add exception" disabled={!ready || action.busy} why={why_} testID="exception-sheet">
     <Select label="Who" value={who} options={whoOptions} onChange={setWho} />
     <Select label="What" value={what} options={whatOptions} onChange={setWhat} />
     <View style={{ gap: 4 }}>
       <Text style={{ fontSize: 12, color: "var(--ink-2)" as string }}>Value</Text>
-      <Segmented options={[{ key: "allow", title: "Allowed" }, ...(ownOffered ? [{ key: "own", title: "Own only" }] : []), { key: "deny", title: "Not allowed" }]} value={effective} onChange={(k) => setEffect(k as Effect)} />
+      <Segmented options={[{ key: "allow", title: "Allowed" }, ...(ownOffered ? [{ key: "own", title: "Own only" }] : []), ...(guestPicked ? [] : [{ key: "ask", title: "Ask an admin" }]), { key: "deny", title: "Not allowed" }]} value={effective} onChange={(k) => setEffect(k as Effect)} />
       {/* visible words under the value, not a tooltip: what the choice does, or why it can't be made */}
-      {who === "" || !give.ok || effective === "own" ? <Text testID="exception-value-note" style={{ fontSize: 12, color: "var(--ink-3)" as string }}>{who === "" ? "Pick who first." : !give.ok ? `That is more than you hold yourself for ${keys.length === 1 ? "this permission" : "some of these"}.` : `Own only: ${pairsFor(sel).map((p) => p.title).join("; ")}. Their own part stays; the Space part is not allowed.`}</Text> : null}
+      {valueNote ? <Text testID="exception-value-note" style={{ fontSize: 12, color: "var(--ink-3)" as string }}>{valueNote}</Text> : null}
     </View>
     <Select label="Ends" value={ends} options={ENDS.map((e) => ({ key: e.key, title: e.title }))} onChange={setEnds} />
     <Field label="Reason (optional, shown to admins)" value={why} onChange={setWhy} testID="exception-why" />
+    <Text testID="exception-rules" style={{ fontSize: 12, color: "var(--ink-3)" as string }}>You can give up to what you hold yourself. The Owner is never restricted. Agents acting for them follow it too. When it ends, it lapses on its own and the Audit log says so.</Text>
     {note || action.note ? <Note>{note || action.note}</Note> : null}
   </FormSheet>;
 }
@@ -120,7 +134,7 @@ export function WhatTheyCanDo({ person, permissions, guest }: { person: PersonLi
   const ex = all.data?.exceptions ?? [];
   const now = Date.now(), held = new Set(permissions);
   // a permission an exception refuses reads Not allowed: an admin chose it, there is nothing to ask for
-  const value = (key: string): Cell => { const e = exceptionFor(person, key, ex, now); return held.has(key) ? "allow" : (e && !allowsKey(e, key)) || guest ? "no" : "ask"; };
+  const value = (key: string): Cell => { const e = exceptionFor(person, key, ex, now); return held.has(key) ? "allow" : e && !allowsKey(e, key) ? refusedCell(e) : guest ? "no" : "ask"; };
   return <View testID="person-can-do" style={{ gap: 8 }}>
     {/* ui-rows-lint: not a list (one section per permission area; the rows inside are ui/Row) */}
     {areasOf(PERMS).map((a) => {
@@ -128,8 +142,8 @@ export function WhatTheyCanDo({ person, permissions, guest }: { person: PersonLi
       const on = cells.filter((c) => c === "allow").length;
       return <Section key={a.area} title={a.title} right={<Text style={{ fontSize: 12, color: "var(--ink-3)" as string }}>{word ? CELL_WORD[word] : `${on} of ${cells.length} allowed`}</Text>}>
         <Group>{a.perms.map((p) => { const e = exceptionFor(person, p.key, ex, now), c = value(p.key);
-          return <Row key={p.key} id={`can-${p.key}`} title={p.title} {...(e ? { note: `Exception${e.subject.kind === "group" ? ` for ${e.subject.name}` : ""}: ${allowsKey(e, p.key) ? "Allowed" : "Not allowed"}` } : {})}
-            trailing={<View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>{e ? <Text style={{ fontSize: 11, color: "var(--accent)" as string }}>exception</Text> : null}<Text style={{ fontSize: 12.5, color: "var(--ink-2)" as string }}>{CELL_WORD[c]}</Text></View>} />; })}</Group>
+          return <Row key={p.key} id={`can-${p.key}`} title={p.title}
+            trailing={<View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>{e ? <Tooltip text={`${e.subject.kind === "group" ? `For ${e.subject.name}. ` : ""}${exceptionLine(e)}`}><Text accessibilityLabel={`Exception. ${exceptionLine(e)}`} style={{ fontSize: 11, color: "var(--accent)" as string }}>exception</Text></Tooltip> : null}<Text style={{ fontSize: 12.5, color: "var(--ink-2)" as string }}>{CELL_WORD[c]}</Text></View>} />; })}</Group>
       </Section>;
     })}
   </View>;

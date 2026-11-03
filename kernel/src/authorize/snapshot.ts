@@ -180,7 +180,8 @@ export class AccessSnapshot {
       if (end !== null && end < this.infoUntil) this.infoUntil = end;
       const into = mine ? own : viaGroup;
       for (const k of g.exception.perms) {
-        const v: "allow" | "deny" = g.exception.effect === "own" ? (g.exception.own?.includes(k) ? "allow" : "deny") : g.exception.effect;
+        // Ask an admin is held the way a role holds it: the permission is not given (the app shows it read-only with Ask an admin); only the label differs from Not allowed
+        const v: "allow" | "deny" = g.exception.effect === "own" ? (g.exception.own?.includes(k) ? "allow" : "deny") : g.exception.effect === "allow" ? "allow" : "deny";
         if (into.get(k) !== "allow") into.set(k, v);
       }
     }

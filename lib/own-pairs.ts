@@ -11,14 +11,16 @@ export interface OwnPair {
   space: string;
   /** What the pair is, in the matrix's words. */
   title: string;
+  /** Own only for one person, after their name: "can build their own automations, not the Space's". */
+  says: string;
 }
 
 export const OWN_PAIRS: readonly OwnPair[] = [
-  { area: "automations", own: "automations.personal", space: "automations.space", title: "Automations: their own, or the Space's" },
-  { area: "agents", own: "agents.create", space: "agents.manage", title: "Agents: their own, or any agent" },
-  { area: "sites", own: "sites.deploy", space: "sites.promote", title: "Sites: their own to staging, or production for the Space" },
-  { area: "vault", own: null, space: "vault.shared_create", title: "Vault: their own items, or shared folders" },
-  { area: "space", own: null, space: "connectors.manage", title: "Connections: their own apps, or apps for the Space" },
+  { area: "automations", own: "automations.personal", space: "automations.space", title: "Automations: their own, or the Space's", says: "can build their own automations, not the Space's" },
+  { area: "agents", own: "agents.create", space: "agents.manage", title: "Agents: their own, or any agent", says: "can make their own agents, not change anyone else's" },
+  { area: "sites", own: "sites.deploy", space: "sites.promote", title: "Sites: their own to staging, or production for the Space", says: "can deploy their own sites to staging, not promote one to production" },
+  { area: "vault", own: null, space: "vault.shared_create", title: "Vault: their own items, or shared folders", says: "can keep their own Vault items, not make shared folders" },
+  { area: "space", own: null, space: "connectors.manage", title: "Connections: their own apps, or apps for the Space", says: "can connect their own apps, not apps for the whole Space" },
 ];
 
 /** The pairs an area or a set of permissions touches (either part of a pair counts). */

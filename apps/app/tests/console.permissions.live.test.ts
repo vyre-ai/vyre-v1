@@ -84,7 +84,8 @@ test("production Console Permissions: matrix, exceptions, the person page, the c
       await view.getByTestId("exception-sheet").waitFor();
       await view.getByTestId("exception-sheet").getByRole("button", { name: "What", exact: true }).click(); await view.getByRole("menuitem", { name: "All of Automations", exact: true }).click();
       await view.getByTestId("exception-sheet").getByText("Own only", { exact: true }).click();
-      await view.getByText(/^Own only: Automations/).waitFor();
+      await view.getByTestId("exception-value-note").getByText("Omar can build their own automations, not the Space's.", { exact: true }).waitFor();
+      assert.equal(await view.getByTestId("exception-sheet").getByText("Ask an admin", { exact: true }).count(), 1, "four values for a member: Allowed, Own only, Ask an admin, Not allowed");
       await shot(view, `perms-add-own-${skin}.png`);
       await view.getByRole("button", { name: "Who", exact: true }).click();
       const item = view.getByRole("menuitem", { name: /Lena Ortiz/ });

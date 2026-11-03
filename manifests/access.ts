@@ -27,7 +27,8 @@ const audience = t.enm('space', 'added', 'me');
 // permission exceptions (owner, 3 Nov 2026): a person or group differs from their role; handlers/exceptions.ts
 const excSubject = t.obj({ kind: t.enm('person', 'group'), id: t.str({ pattern: '^(usr|grp)_[a-z0-9_]+$', examples: ['usr_a1b2c3'] }) });
 // own: Own only (lib/own-pairs.ts), Allow on the own-scope permission plus Not allowed on the Space one, only where an action has both
-const excEffect = t.enm('allow', 'deny', 'own');
+// ask: Ask an admin, held as a role holds it (the permission not given, the app read-only with Ask an admin); never for a Guest
+const excEffect = t.enm('allow', 'deny', 'own', 'ask');
 const exceptionRow = t.obj({
   exceptionId: t.id('exc'), subject: t.obj({ kind: t.enm('person', 'group'), id: t.str(), name: t.str() }), perms: t.arr(t.str()), own: t.opt(t.arr(t.str())), area: t.opt(t.str()), effect: excEffect,
   until: t.opt(t.ts()), why: t.opt(t.str()), by: t.obj({ id: t.str(), name: t.str() }), at: t.ts(),

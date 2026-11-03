@@ -12,7 +12,7 @@ import { useConsoleData } from "../shell/data.tsx";
 import { Group, Section } from "../shell/ui.tsx";
 import { Button, Help, Note, ReadState, Select, useAction, useRead } from "./shared.tsx";
 import { AddExceptionSheet, ExceptionsList, PERMS, useExceptions } from "./exceptions.tsx";
-import { CELL_WORD, allowsKey, areaWord, areasOf, columns, differ, exceptionFor, isGuestRole, isOwnerRole, roleCell } from "./permissions-model.ts";
+import { CELL_WORD, allowsKey, areaWord, refusedCell, areasOf, columns, differ, exceptionFor, isGuestRole, isOwnerRole, roleCell } from "./permissions-model.ts";
 import type { Cell, ExceptionLite, PersonLite, RoleLite } from "./permissions-model.ts";
 
 export const MARK: Readonly<Record<Cell, string>> = { allow: "✓", own: "◐", ask: "✋", no: "–" };
@@ -54,7 +54,7 @@ export function Permissions(): ReactElement {
     const items: MenuEntry[] = [{ head: title }];
     if (d.length) {
       items.push({ head: `${d.length} ${d.length === 1 ? "person differs" : "people differ"}` });
-      for (const { person, ex: e } of d) items.push({ label: person.name, hint: `${allowsKey(e, key) ? "Allowed" : "Not allowed"}${e.effect === "own" ? " (Own only)" : ""} · exception${e.subject.kind === "group" ? ` for ${e.subject.name}` : ""}`, onSelect: () => data.nav.openPage("people", { personId: person.id }) });
+      for (const { person, ex: e } of d) items.push({ label: person.name, hint: `${allowsKey(e, key) ? "Allowed" : e.effect === "ask" ? "Ask an admin" : "Not allowed"}${e.effect === "own" ? " (Own only)" : ""} · exception${e.subject.kind === "group" ? ` for ${e.subject.name}` : ""}`, onSelect: () => data.nav.openPage("people", { personId: person.id }) });
       items.push({ separator: true }, { head: `${r.name}, everyone else` });
     }
     const cur = roleCell(r, key);
@@ -147,7 +147,7 @@ function PreviewAs({ person, role, roles, exceptions, now }: { person?: PersonLi
   const guest = held.length > 0 && held.every(isGuestRole);
   const value = (key: string): { c: Cell; ex: boolean } => {
     const e = person ? exceptionFor(person, key, exceptions, now) : null;
-    if (e) return { c: allowsKey(e, key) ? "allow" : "no", ex: true };
+    if (e) return { c: allowsKey(e, key) ? "allow" : refusedCell(e), ex: true };
     const order: Cell[] = ["allow", "ask", "no"];
     return { c: held.map((r) => roleCell(r, key)).sort((a, b) => order.indexOf(a) - order.indexOf(b))[0] ?? "no", ex: false };
   };

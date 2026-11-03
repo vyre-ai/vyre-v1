@@ -5,7 +5,7 @@
 
 import { pairsFor } from "../../../../../lib/own-pairs.ts";
 
-export type Effect = "allow" | "deny" | "own";
+export type Effect = "allow" | "deny" | "own" | "ask";
 export type Cell = "allow" | "own" | "ask" | "no";
 export interface PermissionDef { key: string; area: string; title: string; risk: string }
 export interface RoleLite { id: string; name: string; builtIn: boolean; permissions: readonly string[] }
@@ -33,7 +33,9 @@ export function roleCell(r: RoleLite, key: string): Cell {
   return isGuestRole(r) ? "no" : "ask";
 }
 export const CELL_WORD: Readonly<Record<Cell, string>> = { allow: "Allowed", own: "Own only", ask: "Ask an admin", no: "Not allowed" };
-export const EFFECT_WORD: Readonly<Record<Effect, string>> = { allow: "Allowed", own: "Own only", deny: "Not allowed" };
+export const EFFECT_WORD: Readonly<Record<Effect, string>> = { allow: "Allowed", own: "Own only", ask: "Ask an admin", deny: "Not allowed" };
+/** A permission an exception does not give, as a cell: Ask an admin when the exception says so, Not allowed otherwise. */
+export const refusedCell = (e: Pick<ExceptionLite, "effect">): Cell => (e.effect === "ask" ? "ask" : "no");
 /** An exception's answer for one permission: Own only allows the own part and refuses the Space part. */
 export const allowsKey = (e: Pick<ExceptionLite, "effect" | "own">, key: string): boolean => e.effect === "allow" || (e.effect === "own" && (e.own ?? []).includes(key));
 
