@@ -1,0 +1,12 @@
+- Inbox: emails are no longer cut off. Sync always stored the full body, but a contact's history showed a 160-character preview as the message. The open message now shows every word. A one-line preview stops at a whole word and ends in "…".
+- Mail sync reads each part in its own character set, so accented and other non-English text arrives intact. A long Gmail body that Gmail keeps as a separate part is fetched, where before it arrived empty. An HTML-only email gets a text version. Outlook mail keeps its blank lines between paragraphs.
+- A message stored empty or with broken characters is read again from Gmail or Outlook when you open its thread, and the fixed copy is kept.
+- Email threads are one thing for everyone on them. A reply joins the thread of the message it answers through In-Reply-To and References, even when it came in through another mailbox or from another sender. Later Gmail or Outlook messages in that thread land there too.
+- Every contact on an email gets it, not only the sender. Andrey writes to Josh with you on Cc and Josh replies: the whole thread shows under Andrey and under Josh. Reading it under one marks it read under the other.
+- New inbox.threads gives one contact's email threads whole, newest first. Each thread has everyone's messages, which are new, and your role: you started it, you are on To or Cc, or you were added later. Agents get the same threads, not a flat list.
+- New mail.thread.get reads one thread whole:
+  - each body is what the sender wrote that time;
+  - quoted history (Gmail, Outlook and Apple formats) and signatures, mobile footers and legal notices are kept apart;
+  - a Gmail emoji reaction shows on the message it reacts to (❤️ You), not as a message.
+- HTML email is made safe to show: no scripts, styles, forms or frames. Remote images wait until you allow them, and tracking pixels are dropped. Each link shows the site it goes to.
+- Replies stay in their thread for everyone. A reply from Gmail carries the mailbox's Gmail thread, In-Reply-To and the full References chain. A reply from Outlook goes through Outlook's own reply, so it joins the conversation. A reply through a Space sending domain carries the full References chain.

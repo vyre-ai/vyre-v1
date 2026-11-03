@@ -5,6 +5,7 @@ import {
   api, apiRaw, bad, codeOf, enc, EMAIL, ensure, first, GMAIL, int, list, needHost, normalizeEmail, num, obj, refusal, strOrNull, text,
 } from "../projections.ts";
 import type { Call, GoogleCtx } from "../projections.ts";
+import { charsetOf, decodePart, REACTION_TYPE, reactionEmoji } from "../../../lib/mail-parse.ts";
 
 export interface Act { connectionId: string; as?: string }
 
@@ -130,7 +131,8 @@ export async function trashMessage(ctx: GoogleCtx, a: Act & { messageId: string 
   return { trashed: true };
 }
 
-interface Compose { to: string[]; cc?: string[]; bcc?: string[]; subject: string; text?: string; html?: string; threadId?: string }
+/** inReplyTo and references make a reply thread for everyone on it; threadId (this mailbox's Gmail thread) puts it in the sender's own thread too. */
+interface Compose { to: string[]; cc?: string[]; bcc?: string[]; subject: string; text?: string; html?: string; threadId?: string; inReplyTo?: string; references?: string }
 
 export async function createDraft(ctx: GoogleCtx, a: Act & Compose) {
   const raw = await buildRaw(ctx, a, a.as ?? "me", []);
@@ -215,6 +217,9 @@ export async function buildRaw(ctx: GoogleCtx, a: Compose, from: string, files: 
   if (cc.length) lines.push(`Cc: ${cc.join(", ")}`);
   if (bcc.length) lines.push(`Bcc: ${bcc.join(", ")}`);
   lines.push(`Subject: ${subjectHeader(header(a.subject))}`, "MIME-Version: 1.0");
+  const ids = (v: string | undefined): string => (v ?? "").split(/\s+/).filter((x) => /^<[^<>\s]+>$/.test(x)).join(" ");
+  if (ids(a.inReplyTo)) lines.push(`In-Reply-To: ${ids(a.inReplyTo).split(" ")[0]}`);
+  if (ids(a.references)) lines.push(`References: ${ids(a.references)}`);
 
   const text_ = a.text !== undefined ? part("text/plain", a.text) : null;
   const html_ = a.html !== undefined ? part("text/html", a.html) : null;
@@ -375,20 +380,52 @@ export function parseAddresses(value: string | undefined): Party[] {
   return out;
 }
 
-function decode(data: unknown): string | undefined {
-  const s = text(data);
-  return s === undefined ? undefined : Buffer.from(s, "base64url").toString("utf8");
+/** A part's own header (Content-Type, Content-Transfer-Encoding), lowercased name, first value. */
+function partHeader(p: Record<string, unknown>, name: string): string | undefined {
+  for (const h of list(p.headers)) { const o = obj(h); if (text(o.name)?.toLowerCase() === name) return text(o.value); }
+  return undefined;
 }
 
-interface Walked { text?: string; html?: string; files: { name: string; mime: string; size: number; attachmentId: string }[] }
+/** A body part as text in its own charset. Gmail has already removed the transfer encoding: body.data is the part's bytes, base64url. */
+function decode(data: unknown, charset?: string): string | undefined {
+  const s = text(data);
+  return s === undefined ? undefined : decodePart(s, { base64url: true, charset: charset ?? null });
+}
+
+interface Pending { kind: "text" | "html" | "reaction"; attachmentId: string; charset?: string }
+interface Walked { text?: string; html?: string; reaction?: string; files: { name: string; mime: string; size: number; attachmentId: string }[]; pending: Pending[] }
+/**
+ * The first text/plain and text/html parts, a Gmail reaction part, and the attachments. A large body part has no data, only an attachmentId (Gmail moves
+ * bodies over a few MB out of the message), so it is fetched after the walk: dropping it is how a long email arrived with no body.
+ */
 function walk(p: Record<string, unknown>, out: Walked): void {
   const mime = (text(p.mimeType) ?? "").toLowerCase();
   const body = obj(p.body);
   const name = text(p.filename) ?? "";
-  if (name && text(body.attachmentId)) out.files.push({ name, mime: mime || "application/octet-stream", size: int(body.size) ?? 0, attachmentId: text(body.attachmentId)! });
-  else if (mime === "text/plain" && out.text === undefined) out.text = decode(body.data);
-  else if (mime === "text/html" && out.html === undefined) out.html = decode(body.data);
+  const charset = charsetOf(partHeader(p, "content-type"));
+  const later = text(body.attachmentId);
+  const kind = mime === "text/plain" ? "text" : mime === "text/html" ? "html" : mime === REACTION_TYPE ? "reaction" : null;
+  if (name && later) out.files.push({ name, mime: mime || "application/octet-stream", size: int(body.size) ?? 0, attachmentId: later });
+  else if (kind && out[kind] === undefined && !out.pending.some((x) => x.kind === kind)) {
+    const v = body.data !== undefined ? decode(body.data, charset) : undefined;
+    if (v !== undefined) out[kind] = v;
+    else if (later) out.pending.push({ kind, attachmentId: later, ...(charset ? { charset } : {}) });
+  }
   for (const child of list(p.parts)) walk(obj(child), out);
+}
+
+/** The large body parts the walk could not read inline. A part that will not come stays empty; the rest of the message still lands. */
+async function fetchPending(ctx: GoogleCtx, act: Act, messageId: string, w: Walked): Promise<void> {
+  for (const x of w.pending) {
+    try {
+      const r = await call(ctx, act, "google.gmail.get_attachment", { url: `${GMAIL}/messages/${enc(messageId)}/attachments/${enc(x.attachmentId)}` });
+      const v = decode(r.data, x.charset);
+      if (v !== undefined) w[x.kind] = v;
+    } catch (e) {
+      ctx.log.warn("google body part skipped", { messageId, code: codeOf(e) });
+    }
+  }
+  w.pending = [];
 }
 
 /** The ingest input for one Gmail message, or null for a draft, spam, trash or a message with no usable sender. */
@@ -403,8 +440,9 @@ export async function toIngest(ctx: GoogleCtx, act: Act, mailbox: string, m: Gma
   }
   const from = parseAddresses(headers.get("from"))[0];
   if (!from) return null;
-  const walked: Walked = { files: [] };
+  const walked: Walked = { files: [], pending: [] };
   walk(payload, walked);
+  await fetchPending(ctx, act, m.id, walked);
   const attachments: { name: string; mime: string; size: number; blobId: string }[] = [];
   for (const f of walked.files) {
     if (f.size > ATTACHMENT_MAX) continue;
@@ -427,6 +465,9 @@ export async function toIngest(ctx: GoogleCtx, act: Act, mailbox: string, m: Gma
   if (attachments.length) out.attachments = attachments;
   const refs: Record<string, string> = {};
   for (const k of ["in-reply-to", "references"]) { const v = headers.get(k); if (v) refs[k] = v; }
+  // a Gmail emoji reaction: its JSON part names the emoji; the reader shows it on the message it answers, never as a message
+  const emoji = walked.reaction ? reactionEmoji(walked.reaction) : null;
+  if (emoji) refs["x-vyre-reaction"] = emoji;
   if (Object.keys(refs).length) out.headers = refs;
   return out;
 }

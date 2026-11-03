@@ -7,7 +7,7 @@
 // DECISION: inbox.thread takes a conversationId or a contactId (the record Conversation tab); the handler requires one of them.
 // An unmatched conversation has no contact: its ACL falls back to the mailbox it arrived in (acl.fallback).
 import { defineManifest, entity, ev, read, screen, setting, t, write } from '../packages/contracts/src/index.ts';
-import { id, pageIn, pageOut } from './_common.ts';
+import { id, pageIn, pageOut, threadMessage, threadParty, threadRole } from './_common.ts';
 
 const cnvId = t.id('cnv');
 const channel = t.enm('email', 'sms', 'call');
@@ -81,6 +81,33 @@ const manifest = defineManifest({
       in: { ...listFilter, ...pageIn },
       out: { threads: t.arr(t.obj({ threadId: t.str(), channel, subject: t.opt(t.str()), mailboxId: t.opt(id.mailbox), lastAt: t.ts(), participants: t.arr(t.str()), unread: t.int(), contactId: t.opt(id.record) })), showing: t.str(), ...pageOut },
       tool: 'inbox', label: 'filter',
+    }),
+    read('inbox.threads', "One contact's email threads, each whole: every thread they are on (From, To or Cc), newest first, with everyone's messages, quoted history and signatures apart, reactions, what is new and your role", {
+      in: { conversationId: t.opt(cnvId), contactId: t.opt(id.record), images: t.opt(t.bool({ description: 'Load remote images in HTML mail' })), ...pageIn },
+      out: {
+        conversation: conversationRow,
+        threads: t.arr(t.obj({
+          threadId: t.str(), subject: t.str(), role: threadRole, participants: t.arr(threadParty), lastAt: t.ts(), messageCount: t.int({ minimum: 0 }), unread: t.int({ minimum: 0 }),
+          messages: t.arr(t.obj({ unread: t.bool(), message: threadMessage })),
+        })),
+        ...pageOut,
+      },
+      tool: 'inbox', label: 'check', errors: ['validation.bad_input'],
+      ex: {
+        input: { contactId: 'rec_josh01' },
+        output: {
+          conversation: { id: 'cnv_josh01', contactId: 'rec_josh01', address: 'josh@example.com', displayName: 'Josh Cohen', lastMessageAt: 1792857600000, lastChannel: 'email', lastPreview: 'One more: Rachel is out Wednesday afternoon.', unreadCount: 1, needsMatch: false, mailboxIds: ['mbx_a1b2c3'], followed: false, alertOnReplies: false },
+          threads: [{
+            threadId: '18c39f7b2d10', subject: 'Welcome to Scout, Josh', role: 'cc', participants: [{ address: 'andrey@example.com', name: 'Andrey Volkov' }, { address: 'josh@example.com', name: 'Josh Cohen' }],
+            lastAt: 1792857600000, messageCount: 1, unread: 1,
+            messages: [{ unread: true, message: {
+              id: 'eml_a1b2c3', at: 1792857600000, direction: 'in', mailboxId: 'mbx_a1b2c3', mailboxIds: ['mbx_a1b2c3'], from: { address: 'josh@example.com', name: 'Josh Cohen' }, to: [{ address: 'andrey@example.com' }], cc: [{ address: 'irfad@example.com' }],
+              subject: 'RE: Welcome to Scout, Josh', body: 'Thanks Andrey. I am in and the team is set up.', quoted: 'From: Andrey Volkov <andrey@example.com>', signature: 'Josh Cohen', reactions: [{ emoji: '❤️', from: { address: 'irfad@example.com' }, at: 1792857700000 }], attachments: [], isPrivate: false,
+            } }],
+          }],
+          total: 1,
+        },
+      },
     }),
     read('inbox.thread', 'The whole history of one contact: emails, texts, calls, meetings and record chips', {
       in: { conversationId: t.opt(cnvId), contactId: t.opt(id.record), before: t.opt(t.ts()), ...pageIn }, out: { conversation: conversationRow, items: t.arr(timelineItem), ...pageOut },

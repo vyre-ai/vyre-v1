@@ -32,7 +32,7 @@ export interface Contact {
 export interface Emitted { name: string; subject: string; payload: Record<string, unknown>; vis?: string | undefined }
 export interface Called { cap: string; input: Record<string, unknown> }
 export interface Mailbox { id: string; kind: "personal" | "shared" | "agent" | "service"; address: string; title: string; provider: "google" | "microsoft" | "imap" | "inbound_only"; privacy: "private" | "space" | "people"; state: "pending" | "syncing" | "paused" | "error" | "disconnected" }
-export interface Mail { id: string; threadId: string; subject: string; from: string; to: string[]; cc?: string[]; attachments?: { attachmentId: string; name: string; mime: string; size: number; fileId?: string }[] }
+export interface Mail { id: string; threadId: string; subject: string; from: string; to: string[]; cc?: string[]; attachments?: { attachmentId: string; name: string; mime: string; size: number; fileId?: string }[]; body?: string; at?: number; mailboxId?: string; role?: "started" | "to" | "cc" | "added_later" | "none" }
 
 export interface HarnessOptions {
   principal?: InboxCtx["principal"];
@@ -164,6 +164,19 @@ export function harness(opts: HarnessOptions = {}) {
           const m = mail.get(String(body.messageId));
           if (!m || mailGetFails) throw fail("validation.not_found", trace);
           return { message: { id: m.id, threadId: m.threadId, subject: m.subject, from: { address: m.from }, to: m.to.map((address) => ({ address })), cc: (m.cc ?? []).map((address) => ({ address })) }, attachments: m.attachments ?? [] };
+        }
+        case "mail.thread.get": {
+          // mail reads a thread whole, whichever contact each message was filed under
+          const ms = [...mail.values()].filter((m) => m.threadId === body.threadId).sort((a, b) => (a.at ?? NOW) - (b.at ?? NOW));
+          if (!ms.length || mailGetFails) throw fail("validation.not_found", trace);
+          const people = [...new Set(ms.flatMap((m) => [m.from, ...m.to, ...(m.cc ?? [])]))].map((address) => ({ address }));
+          return {
+            threadId: body.threadId, subject: (ms[0]?.subject ?? "").replace(/^(re|fwd?):\s*/i, ""), role: ms[0]?.role ?? "none", participants: people,
+            messages: ms.map((m) => ({
+              id: m.id, at: m.at ?? NOW, direction: "in", mailboxId: m.mailboxId ?? "mbx_work", mailboxIds: [m.mailboxId ?? "mbx_work"], from: { address: m.from },
+              to: m.to.map((address) => ({ address })), cc: (m.cc ?? []).map((address) => ({ address })), subject: m.subject, body: m.body ?? "", reactions: [], attachments: [], isPrivate: false,
+            })),
+          };
         }
         case "mail.drafts.list": {
           const c = typeof body.contactId === "string" ? contacts.get(body.contactId) : undefined;

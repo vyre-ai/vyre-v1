@@ -24,6 +24,8 @@ export interface HarnessOptions {
   /** mailbox ids the caller may not read or use */
   denied?: Set<string>;
   run?: string;
+  /** stand-ins for other capabilities a test needs (a provider re-read, say) */
+  answers?: Record<string, (input: Record<string, unknown>) => unknown>;
 }
 
 export function harness(opts: HarnessOptions = {}) {
@@ -63,6 +65,8 @@ export function harness(opts: HarnessOptions = {}) {
       }
       if (cap === "google.receive_push" || cap === "ms.receive_notification") return { accepted: true };
       if (cap === "google.dwd.my_account" || cap === "ms.consent.my_account") return matched === undefined ? {} : { email: matched };
+      const answer = opts.answers?.[cap];
+      if (answer) return answer(body);
       throw new Error(`unexpected capability ${cap}`);
     },
     authorize(_action, resource) {

@@ -49,18 +49,34 @@ function quoteStart(lines: string[]): number {
   return -1;
 }
 
-/** Where the signature starts in the body (quoted history already removed), as a line index, or -1. */
+/** Where the signature starts in the body (quoted history already removed), as a line index, or -1. `sender` is a display name, or an address when there is none. */
 function signatureStart(lines: string[], sender?: string): number {
-  const name = (sender ?? "").trim().toLowerCase();
+  const who = (sender ?? "").trim().toLowerCase();
+  const name = who.includes("@") ? "" : who;
+  const local = who.includes("@") ? (who.split("@")[0] ?? "").split(/[._+-]/)[0] ?? "" : "";
+  const blank = (i: number): boolean => !(lines[i] ?? "").trim();
+  const goesOn = (i: number): boolean => lines.length - i <= 16 && lines.slice(i + 1).some((l) => l.trim());
   for (let i = 1; i < lines.length; i++) {
     const raw = lines[i] ?? "";
     const x = raw.trim();
-    const afterBlank = !(lines[i - 1] ?? "").trim();
+    const low = x.toLowerCase().replace(/,$/, "");
     if (raw === "-- " || x === "--") return i;
     if (MOBILE.test(x)) return i;
-    if (afterBlank && NOTICE.test(x)) return i;
+    if (blank(i - 1) && NOTICE.test(x)) {
+      // the block just above a legal notice (name, title, phone: short lines, no sentences) is the signature too
+      let k = i - 1;
+      while (k > 0 && blank(k)) k--;
+      let top = k;
+      while (top > 0 && !blank(top - 1)) top--;
+      const block = lines.slice(top, k + 1).map((l) => l.trim());
+      return top > 0 && block.length >= 2 && block.length <= 8 && block.every((l) => l.length <= 70 && !/[.?!]$/.test(l)) ? top : i;
+    }
     // A block that starts with the sender's full name and goes on (title, firm, phone) is a signature; the name alone is a sign-off and stays.
-    if (name && name.includes(" ") && x.toLowerCase().replace(/,$/, "") === name && lines.length - i <= 16 && lines.slice(i + 1).some((l) => l.trim())) return i;
+    if (name && name.includes(" ") && low === name && goesOn(i)) return i;
+    if (!name && local.length > 1 && blank(i - 1) && goesOn(i)) {
+      const words = x.split(/\s+/);
+      if (words.length >= 2 && words.length <= 4 && words[0]?.toLowerCase() === local && words.every((w) => /^[A-Z]/.test(w))) return i;
+    }
   }
   return -1;
 }
@@ -90,7 +106,7 @@ export function previewOf(text: string, max = 160): string {
   const room = Math.max(1, max - 1);
   const cut = flat.lastIndexOf(" ", room);
   const head = cut > room * 0.5 ? flat.slice(0, cut) : flat.slice(0, room);
-  return `${head.replace(/[\s,.;:–—-]+$/u, "")}…`;
+  return `${head.replace(/[\s,.;:\u2013\u2014-]+$/u, "")}…`;
 }
 
 /** The preview a list row shows: the first words the sender wrote this time, past a greeting. */
@@ -176,7 +192,7 @@ export function decodePart(data: string, o: { encoding?: string | null; charset?
 
 // ---- HTML
 
-const NAMED: Record<string, string> = { amp: "&", lt: "<", gt: ">", quot: '"', apos: "'", nbsp: " ", ndash: "–", mdash: "—", hellip: "…", rsquo: "’", lsquo: "‘", rdquo: "”", ldquo: "“", copy: "©", reg: "®", trade: "™", bull: "•", middot: "·", zwnj: "", zwj: "", shy: "" };
+const NAMED: Record<string, string> = { amp: "&", lt: "<", gt: ">", quot: '"', apos: "'", nbsp: " ", ndash: "–", mdash: "\u2014", hellip: "…", rsquo: "’", lsquo: "‘", rdquo: "”", ldquo: "“", copy: "©", reg: "®", trade: "™", bull: "•", middot: "·", zwnj: "", zwj: "", shy: "" };
 
 export function decodeEntities(s: string): string {
   return s.replace(/&(#x[0-9a-f]+|#\d+|[a-z]+);?/gi, (all, k: string) => {
@@ -389,4 +405,27 @@ export function cleanMessage(m: { text?: string | null; html?: string | null }, 
     return { ...out, body: tt.body, quoted: tt.quoted || out.quoted, signature: tt.signature || out.signature };
   }
   return cleanText(m.text ?? "", sender);
+}
+
+// ---- a Gmail API payload (format=full), for a re-read of one message
+
+type Json = Record<string, unknown>;
+const asObj = (v: unknown): Json => (v && typeof v === "object" && !Array.isArray(v) ? (v as Json) : {});
+const asStr = (v: unknown): string | undefined => (typeof v === "string" ? v : undefined);
+
+/** The inline text, HTML and reaction parts of a Gmail payload, each decoded in its own charset. Parts held as attachments are not read here. */
+export function gmailBodies(payload: unknown): { text?: string; html?: string; reaction?: string } {
+  const out: { text?: string; html?: string; reaction?: string } = {};
+  const walk = (p: Json): void => {
+    const mime = (asStr(p.mimeType) ?? "").toLowerCase();
+    const data = asStr(asObj(p.body).data);
+    const kind = mime === "text/plain" ? "text" : mime === "text/html" ? "html" : mime === REACTION_TYPE ? "reaction" : null;
+    if (kind && out[kind] === undefined && data !== undefined && !asStr(p.filename)) {
+      const ct = (Array.isArray(p.headers) ? p.headers : []).map(asObj).find((h) => asStr(h.name)?.toLowerCase() === "content-type");
+      out[kind] = decodePart(data, { base64url: true, charset: charsetOf(asStr(ct?.value)) ?? null });
+    }
+    for (const c of Array.isArray(p.parts) ? p.parts : []) walk(asObj(c));
+  };
+  walk(asObj(payload));
+  return out;
 }

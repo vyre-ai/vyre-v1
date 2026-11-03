@@ -8,7 +8,7 @@
 // (inboxIds), any inbox that grants is enough, and the private flag removes it from the linked record.
 // DECISION: snippets and templates for the composer belong to the templates and email-builder-api modules.
 import { bindInputs, defineManifest, entity, ev, health, outward, read, screen, setting, t, write } from '../packages/contracts/src/index.ts';
-import { email, id, pageIn, pageOut } from './_common.ts';
+import { email, id, pageIn, pageOut, threadMessage, threadParty, threadRole } from './_common.ts';
 
 const emlId = t.id('eml');
 const cnvId = t.id('cnv');
@@ -167,6 +167,11 @@ const manifest = defineManifest({
     }),
     // ---- messages
     read('mail.message.get', 'Read one message with attachments, provider id, DNS check state and trace id', { in: { messageId: emlId }, out: messageDetail, tool: 'inbox', label: 'check' }),
+    read('mail.thread.get', 'Read one email thread whole: every message you may see, oldest first, with quoted history and signatures apart, Gmail reactions on the message they answer, and your role (you started it, To, Cc, or added later)', {
+      in: { threadId: t.str({ examples: ['18c2a1f04e9b'] }), images: t.opt(t.bool({ description: 'Load remote images in the HTML' })) },
+      out: { threadId: t.str(), subject: t.str(), role: threadRole, participants: t.arr(threadParty), messages: t.arr(threadMessage) },
+      tool: 'inbox', label: 'check', errors: ['validation.bad_input'],
+    }),
     read('mail.message.list', 'List messages of a mailbox, thread or contact', {
       in: { mailboxId: t.opt(id.mailbox), threadId: t.opt(t.str()), contactId: t.opt(id.record), status: t.opt(msgStatus), ...pageIn }, out: { messages: t.arr(messageRow), ...pageOut }, tool: 'inbox', label: 'filter',
     }),

@@ -8,7 +8,7 @@
 // contact reaches you through the other reasons or through the record's own Conversation tab, which asks inbox.thread for one contact.
 // DECISION: recipient search returns contacts, companies, inboxes and groups. Space members have no list capability in the frozen contract, so kind member returns nothing.
 import { fail } from "../../../host/src/routes/errors.ts";
-import { bad, codeOf, ensure, first, getConversation, privateIds, getRecord, nameOf, jsonList, list, missing, num, obj, rowsOf, str, strOrNull, strings, text, toConversation } from "../projections.ts";
+import { bad, codeOf, ensure, first, getConversation, itemsOf, privateIds, getRecord, nameOf, jsonList, list, missing, num, obj, rowsOf, str, strOrNull, strings, text, toConversation } from "../projections.ts";
 import type { Channel, ConversationRow, InboxCtx, Json, Row } from "../projections.ts";
 import { candidatesFor } from "./match.ts";
 
@@ -282,7 +282,7 @@ export async function thread(
   // inbox it arrived in); one they know and deny stays closed. Without this a person could see a line in the list and not open it.
   await mustSee(ctx, conv);
 
-  const all: TimelineItem[] = rowsOf(ctx.db.all(`SELECT * FROM inbox_item WHERE "conversationId" = ?`, id)).map(timelineOf);
+  const all: TimelineItem[] = itemsOf(ctx, conv).map(timelineOf);
   const contactId = strOrNull(conv, "contactId");
   if (contactId) {
     try {
@@ -491,3 +491,73 @@ export async function recipientsSearch(
 }
 
 
+
+// ---- inbox.threads
+
+interface ThreadParty { address: string; name?: string }
+interface ThreadMessageOut { id: string; at: number; [k: string]: unknown }
+interface ContactThread {
+  threadId: string;
+  subject: string;
+  role: "started" | "to" | "cc" | "added_later" | "none";
+  participants: ThreadParty[];
+  lastAt: number;
+  messageCount: number;
+  unread: number;
+  messages: { unread: boolean; message: ThreadMessageOut }[];
+}
+
+const ROLES = new Set(["started", "to", "cc", "added_later", "none"]);
+const THREADS_LIMIT = 20;
+
+/**
+ * One contact's email threads, each whole (owner, 3 Nov): every thread the contact is on (the contact's own emails and the emails they are on through
+ * inbox_party), newest activity first. Each thread is read from mail as one object (mail.thread.get), so it holds everyone's messages, including yours and
+ * other people's replies, whichever contact they were filed under; a message's unread mark is its item's, the same under every contact.
+ */
+export async function threads(
+  ctx: InboxCtx, input: { conversationId?: string; contactId?: string; images?: boolean; cursor?: string; limit?: number },
+): Promise<{ conversation: ConversationRow; threads: ContactThread[]; next?: string; total?: number }> {
+  ensure(ctx);
+  if (!input.conversationId && !input.contactId) bad(ctx, "Name a conversation or a contact.");
+  if (input.images !== undefined && typeof input.images !== "boolean") bad(ctx, "Images is true or false.");
+  const w = windowOf(ctx, { ...input, limit: input.limit ?? THREADS_LIMIT });
+  const conv = input.conversationId
+    ? getConversation(ctx, input.conversationId)
+    : first(ctx.db.all(`SELECT * FROM inbox_conversation WHERE "contactId" = ? AND deleted_at IS NULL`, input.contactId));
+  if (!conv) missing(ctx, "There is no conversation with that person yet.");
+  await mustSee(ctx, conv);
+
+  const latest = new Map<string, number>();
+  for (const item of itemsOf(ctx, conv, "kind = ?", "email")) {
+    const t = strOrNull(item, "threadId");
+    if (t) latest.set(t, Math.max(latest.get(t) ?? 0, num(item, "at")));
+  }
+  const ids = [...latest.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).map(([t]) => t);
+  const page = pageOf(ids, w);
+  const out: ContactThread[] = [];
+  for (const threadId of page.rows) {
+    let got: Json;
+    try {
+      got = obj(await ctx.call("mail.thread.get", { threadId, ...(input.images === true ? { images: true } : {}) }));
+    } catch (e) {
+      // a thread whose mail the caller may not read, or one erased since, is left out; the rest of the page still answers
+      ctx.log.warn("inbox: a thread was not read", { code: codeOf(e) });
+      continue;
+    }
+    const messages = list(got.messages).map(obj).map((m) => {
+      const unread = num(first(ctx.db.all(`SELECT unread FROM inbox_item WHERE id = ?`, `mail_message:${text(m.id)}`)), "unread") === 1;
+      return { unread, message: m as ThreadMessageOut };
+    });
+    if (!messages.length) continue;
+    const last = messages[messages.length - 1];
+    const role = text(got.role);
+    out.push({
+      threadId, subject: text(got.subject) || "(no subject)", role: (ROLES.has(role) ? role : "none") as ContactThread["role"],
+      participants: list(got.participants).map(obj).map((p) => (text(p.name) ? { address: text(p.address), name: text(p.name) } : { address: text(p.address) })),
+      lastAt: typeof last?.message.at === "number" ? last.message.at : latest.get(threadId) ?? 0,
+      messageCount: messages.length, unread: messages.filter((m) => m.unread).length, messages,
+    });
+  }
+  return { conversation: toConversation(ctx, conv), threads: out, total: page.total, ...(page.next ? { next: page.next } : {}) };
+}

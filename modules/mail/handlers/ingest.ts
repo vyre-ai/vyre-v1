@@ -10,6 +10,7 @@ import {
   bad, ensure, EMAIL, first, isId, logRead, missing, newId, normalizeEmail, num, partyJson, snippetOf, str, strOrNull,
 } from "../projections.ts";
 import type { MailCtx, Party, Row } from "../projections.ts";
+import { htmlToText } from "../../../lib/mail-parse.ts";
 
 const SOURCES = new Set(["google", "microsoft", "imap", "resend", "mailgun"]);
 const PULL_SOURCES = new Set(["google", "microsoft", "imap"]);
@@ -172,14 +173,16 @@ export async function ingest(ctx: MailCtx, input: IngestIn): Promise<IngestOut> 
       parsed.source, parsed.providerId, known,
     );
     addInbox(ctx, known, mailboxId);
+    noteCopy(ctx, known, mailboxId, parsed);
     notePull(ctx, box, parsed);
     const link = await settleLink(ctx, known, parsed, box);
     return result(known, true, link);
   }
 
   const messageId = newId("eml", ctx.now());
-  const reply = replyContext(ctx, parsed);
+  const reply = replyContext(ctx, parsed, mailboxId);
   insertMessage(ctx, messageId, parsed, box, reply);
+  noteCopy(ctx, messageId, mailboxId, parsed);
   ctx.db.run(`INSERT INTO mail_seen (source, "providerId", "messageId") VALUES (?, ?, ?)`, parsed.source, parsed.providerId, messageId);
   ctx.db.run(`INSERT INTO mail_rfc ("rfcMessageId", "messageId") VALUES (?, ?)`, parsed.rfc, messageId);
   notePull(ctx, box, parsed);
@@ -279,19 +282,35 @@ interface ReplyContext {
   threadId?: string;
 }
 
-/** A reply keeps the thread of the message it answers (In-Reply-To, then the last References entry). */
-function replyContext(ctx: MailCtx, p: Parsed): ReplyContext {
-  const out: ReplyContext = {};
-  const refs = (p.headers?.references ?? "").split(/\s+/).filter(Boolean);
-  const candidates = [p.headers?.["in-reply-to"], refs[refs.length - 1]].filter((v): v is string => !!v).map(normalizeRfc);
-  for (const rfc of candidates) {
-    const parent = first(ctx.db.all(`SELECT "threadId" FROM mail_message WHERE "rfcMessageId" = ? AND deleted_at IS NULL`, rfc));
-    if (!parent) continue;
-    const thread = strOrNull(parent, "threadId");
-    if (thread) out.threadId = thread;
-    break;
+/**
+ * The thread a message belongs to. One thread is one object for everyone on it, so a reply joins the thread of the message it answers even when that message came in
+ * through another mailbox or from another sender (In-Reply-To, then References, newest first). A provider thread (Gmail threadId, Graph conversationId) that already
+ * joined a thread keeps every later message there. With neither, the provider's thread key, else the message's own id.
+ */
+function replyContext(ctx: MailCtx, p: Parsed, mailboxId: string): ReplyContext {
+  if (p.threadKey) {
+    for (const copy of ctx.db.all(`SELECT "messageId" FROM mail_copy WHERE "mailboxId" = ? AND source = ? AND "threadKey" = ?`, mailboxId, p.source, p.threadKey)) {
+      const known = first(ctx.db.all(`SELECT "threadId" FROM mail_message WHERE id = ? AND deleted_at IS NULL`, str(copy as Row, "messageId")));
+      const thread = strOrNull(known, "threadId");
+      if (thread) return { threadId: thread };
+    }
   }
-  return out;
+  const refs = (p.headers?.references ?? "").split(/\s+/).filter(Boolean).reverse();
+  const candidates = [p.headers?.["in-reply-to"], ...refs].filter((v): v is string => !!v).map((v) => normalizeRfc(v.trim()));
+  for (const rfc of [...new Set(candidates)]) {
+    const parent = first(ctx.db.all(`SELECT "threadId" FROM mail_message WHERE "rfcMessageId" = ? AND deleted_at IS NULL`, rfc));
+    const thread = strOrNull(parent, "threadId");
+    if (thread) return { threadId: thread };
+  }
+  return {};
+}
+
+/** This mailbox's copy: the provider id and thread key a reply from this mailbox needs. */
+function noteCopy(ctx: MailCtx, messageId: string, mailboxId: string, p: Parsed): void {
+  ctx.db.run(
+    `INSERT OR IGNORE INTO mail_copy ("messageId", "mailboxId", source, "providerId", "threadKey") VALUES (?, ?, ?, ?, ?)`,
+    messageId, mailboxId, p.source, p.providerId, p.threadKey ?? null,
+  );
 }
 
 function insertMessage(ctx: MailCtx, messageId: string, p: Parsed, box: Row, reply: ReplyContext): void {
@@ -303,9 +322,9 @@ function insertMessage(ctx: MailCtx, messageId: string, p: Parsed, box: Row, rep
       "isPrivate", attachments, "draftedByAgent", "traceId", version, updated_at, deleted_at
     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     messageId, mailboxId, JSON.stringify([mailboxId]), p.providerId, p.rfc,
-    p.threadKey ?? reply.threadId ?? p.rfc,
+    reply.threadId ?? p.threadKey ?? p.rfc,
     p.direction, p.direction === "out" ? "sent" : "received",
-    p.from.address, partyJson(p.to), partyJson(p.cc), p.subject, snippetOf(p.text, p.subject), p.text ?? p.html ?? "", p.receivedAt,
+    p.from.address, partyJson(p.to), partyJson(p.cc), p.subject, snippetOf(p.text, p.subject, p.html, p.from.name ?? p.from.address), p.text ?? (p.html ? htmlToText(p.html) : ""), p.receivedAt,
     null,
     str(box, "privacy") === "private" ? 1 : 0,   // mail in a private mailbox is private-marked: it never leaves the mailbox view
     JSON.stringify(p.attachments), null, ctx.trace.traceId, 1, ctx.now(), null,
@@ -362,7 +381,7 @@ async function settleLink(ctx: MailCtx, messageId: string, p: Parsed, box: Row):
       direction: p.direction,
       at: p.receivedAt,
       mailboxId: str(box, "id"),
-      preview: snippetOf(p.text, p.subject),
+      preview: snippetOf(p.text, p.subject, p.html, p.from.name ?? p.from.address),
       subject: p.subject,
       participants: [p.from.address, ...p.to.map((x) => x.address), ...p.cc.map((x) => x.address)],
     };
