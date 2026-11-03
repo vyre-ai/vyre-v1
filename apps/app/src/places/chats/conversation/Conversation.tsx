@@ -44,7 +44,7 @@ import { ThreadParent } from "./ThreadParent.tsx";
 import { replySummaries } from "./replies.ts";
 import type { ReplySummary } from "./replies.ts";
 import type { LiveQuery } from "../../../../../../client/src/index.ts";
-import { isAssistantRow } from "../../../../../../lib/agent-kind.ts";
+import { useAddSheet } from "../addsheet/index.ts";
 import { ChatBrain, compactChat, entryOf, modeOf, prettyModel, setChatMode, stripAgents, useAccounts, useUsage } from "./brain.tsx";
 import type { ChatMode } from "../../../../../../ui/src/Composer/index.tsx";
 import { useConnectVersion } from "../../../shell/connect/context.ts";
@@ -61,7 +61,7 @@ import { CONNECT_YOURS, NO_AI_LINE, SET_SPACE_KEY, aiReady } from "./ai-ready.ts
 import type { AiReady } from "./ai-ready.ts";
 import { useOpenConnect } from "../../../shell/connect/context.ts";
 import {
-  WINDOW, beforeCursor, byOrder, collect, faces, ghostMessages, findMatches, isClosed, lastMessages, leadOf, matchLine, mentionsIn, mergePages, modeTitle, modelLabel, participants, pendingMessage, placeholderFor, queueNote, queuedCount, queuedIds, sendKind, stillPending, stopLabel, swapNeeded,
+  WINDOW, beforeCursor, byOrder, collect, faces, ghostMessages, findMatches, isClosed, lastMessages, leadOf, matchLine, mentionsIn, mergePages, modeTitle, modelLabel, pendingMessage, placeholderFor, queueNote, queuedCount, queuedIds, sendKind, stillPending, stopLabel,
   directWith, muteOfferFor, onBehalfOf, threadKindNote, timeline, titleOf, whoLine, workingAgents, withoutAnswered } from "./model.ts";
 import type { Face as FaceModel, Message, Pending, SendKind, Thread } from "./model.ts";
 import { LoadFailed, failureOf } from "../../../../../../ui/src/States/Loads.tsx";
@@ -188,6 +188,7 @@ function ConversationView(): ReactElement {
     return () => { gone = true; off(); };
   }, [data, data.threadId, online]);
   const menu = useMenu();
+  const add = useAddSheet({ call: data.call, me: data.me, nameOf: data.nameOf, newKey: data.newKey, toast: data.toast }, { copy: data.copy });
   const memoryEntries = useMemoryEntries();
   const threadQ = useScreenQuery<ThreadOut>(CONVERSATION_SCREEN, "thread", { threadId: data.threadId });
   const messagesQ = useScreenQuery<MessagesOut>(CONVERSATION_SCREEN, "messages", { threadId: data.threadId });
@@ -385,46 +386,15 @@ function ConversationView(): ReactElement {
     const many = faceList.length > 1;
     const items: MenuEntry[] = [
       { head: f.name },
-      // with one agent there is nothing to choose: it answers everything
-      ...(many ? [
-        { label: "Replies to everything", checked: f.mode === "lead", onSelect: () => chooseMode(f, "lead", x, y) },
-        { label: "Only when @mentioned", checked: f.mode === "listen", onSelect: () => chooseMode(f, "listen", x, y) },
-        { separator: true },
-      ] as MenuEntry[] : []),
+      // how it answers, when, and in what style: one popover, saved for this chat (threads.agent_settings.set)
+      { label: "How and When It Answers…", onSelect: () => add.showSettings({ thread, agentId: f.agentId, x, y }) },
+      { separator: true },
       ...(f.model ? [{ head: `Model · ${prettyModel(f.model)}` } as MenuEntry] : []),
       { label: `Ask ${f.name} to Review This`, onSelect: () => void act.askToReview(data, thread, f.agentId, data.newKey()).catch(fail("Could not ask.")) },
       { label: `Open ${f.name}'s Page`, onSelect: () => data.nav.openAgent(f.agentId) },
       ...(many ? [{ separator: true } as MenuEntry, { label: "Remove From Thread", danger: true, onSelect: () => void act.removeAgent(data, f.agentId).catch(fail("Could not remove it.")) } as MenuEntry] : []),
     ];
     menu.show(items, x, y, "other", { label: f.name });
-  };
-  const chooseMode = (f: FaceModel, mode: "lead" | "listen", x: number, y: number): void => {
-    if (mode === f.mode) return;
-    const old = mode === "lead" ? swapNeeded(thread, f.agentId) : null;
-    if (old) {
-      menu.show([
-        { head: `${nameOf(old.agentId)} leads this thread. Make ${f.name} lead instead? ${nameOf(old.agentId)} will keep listening.` },
-        { label: "Swap", onSelect: () => void act.setMode(data, f.agentId, "lead").then(() => data.toast(`${f.name} now replies to everything. ${nameOf(old.agentId)} replies only when @mentioned.`), fail("Could not change the mode.")) },
-        { label: "Cancel" },
-      ], x, y, "other", { label: f.name });
-      return;
-    }
-    void act.setMode(data, f.agentId, mode).then(() => data.toast(mode === "lead" ? `${f.name} replies to everything` : `${f.name} replies only when @mentioned`), fail("Could not change the mode."));
-  };
-  const addMenu = (x: number, y: number): void => { void addMenuAt(x, y); };
-  const addMenuAt = async (x: number, y: number): Promise<void> => {
-    const inThread = new Set(collect(thread.agents, (a) => a.agentId));
-    // the agents this person may add, read now (one made a moment ago is there): another person's Assistant is theirs alone and never offered
-    const listed = await Promise.resolve(data.call("agents.list", {})).then((o) => (o as { agents?: { agentId: string; name: string; kind?: string; role?: string; ownerId?: string }[] }).agents ?? null, () => null);
-    const choices = listed
-      ? listed.filter((a) => !inThread.has(a.agentId) && !(isAssistantRow(a) && a.ownerId !== data.me.id)).map((a) => ({ id: a.agentId, name: a.name }))
-      : data.directory.filter((c) => c.kind === "agent" && !inThread.has(c.id));
-    menu.show(
-      choices.length > 0
-        ? [{ head: "Add as listening" } as MenuEntry, ...collect(choices, (c): MenuEntry => ({ label: c.name, onSelect: () => void act.addAgent(data, c.id).then(() => say(`${c.name} is listening`), fail("Could not add it.")) }))]
-        : [{ head: "Every agent is already here" } as MenuEntry],
-      x, y, "other", { label: "Add an agent" },
-    );
   };
   const stopMenu = (x: number, y: number): void => {
     if (working.length === 1) { void act.stopAgent(data, working[0]).then(() => say("Stopped. The steps so far are kept."), fail("Could not stop it.")); return; }
@@ -440,13 +410,7 @@ function ConversationView(): ReactElement {
       x, y, "other", { label: "Helpers" },
     );
   };
-  const peopleMenu = (x: number, y: number): void => {
-    const list = participants(thread, nameOf);
-    menu.show(
-      [{ head: `${list.length} in this thread` } as MenuEntry, ...collect(list, (p): MenuEntry => ({ label: p.kind === "person" ? p.name : `${p.name} · ${p.role}`, onSelect: () => { if (p.kind === "agent") data.nav.openAgent(p.id); } }))],
-      x, y, "other", { label: "People in this thread" },
-    );
-  };
+  const peopleMenu = (x: number, y: number): void => add.showPeople({ thread, x, y, onOpenAgent: data.nav.openAgent });
   const modelMenu = (x: number, y: number): void => {
     if (!lead) return;
     void act.listModels(data).then(
@@ -618,7 +582,7 @@ function ConversationView(): ReactElement {
         {leadFace && !narrow ? <FaceButton key={leadFace.agentId} name={leadFace.name} seedId={leadFace.agentId} mode={leadFace.mode} working={leadFace.working} title={modeTitle(leadFace)} testID={`face-${leadFace.agentId}`} {...(title !== leadFace.name ? { label: leadFace.name } : {})} size={20} onPress={(x, y) => modeMenu(leadFace, x, y)} /> : null}
         <View testID="conversation-faces" accessibilityRole="toolbar" accessibilityLabel="Agents in this thread" style={st.faces}>
           {collect(narrow ? [] : otherFaces, (f) => <FaceButton key={f.agentId} name={f.name} seedId={f.agentId} mode={f.mode} working={f.working} title={modeTitle(f)} testID={`face-${f.agentId}`} onPress={(x, y) => modeMenu(f, x, y)} />)}
-          {narrow ? null : <IconButton icon="plus" label="Add an agent" size={24} testID="add-agent" onPress={addMenu} />}
+          {narrow ? null : <IconButton icon="plus" label="Add people and agents" size={24} testID="add-agent" onPress={() => add.open({ threadId: thread.threadId })} />}
         </View>
         {isWorking ? <View testID="conversation-live" accessibilityLabel="Working" style={st.live}><View style={st.liveDot} /></View> : null}
         <View style={{ flex: 1 }} />
@@ -727,6 +691,7 @@ function ConversationView(): ReactElement {
             barExtra={<MemorySwitch threadId={thread.threadId} call={data.call} say={say} />}
             suggest={composerSuggest(data)} preview={(item) => previewOf(data, item)}
             renderPanel={(agent, close, narrowPanel) => <ChatBrain data={data} thread={thread} agent={agent} accounts={accounts} mode={mode} onMode={chooseChatMode} close={close} narrow={narrowPanel} say={say} {...(place.runs ? { runs: place.runs } : {})} onCompact={(keep, always) => void compactChat(data, keep, always, agent.id).then((line) => { if (line === null) say(keep ? `Compacted, keeping ${keep}` : "Compacted"); }, fail("Could not compact."))} />}
+            onAddPeople={() => add.open({ threadId: thread.threadId })}
             {...(lead ? { lead: nameOf(lead.agentId) } : {})} listening={collect(thread.agents.filter((a) => a.mode === "listen"), (a) => nameOf(a.agentId))}
             lists={lists} agentChat={thread.kind !== "channel"} onChange={(t) => { typedRef.current = t; setTyped(t); }} onCommand={(name) => void runSlash(`/${name}`, commandEnv())}
             onSubmit={(p) => submit(p, "queue")} onInterrupt={(p) => submit(p, "interrupt")}
@@ -736,6 +701,7 @@ function ConversationView(): ReactElement {
       )}
       {picker ? <ReactionPicker x={picker.x} y={picker.y} onPick={(e) => { actions.react(picker.id, e, false); setPicker(null); }} onClose={() => setPicker(null)} /> : null}
       {menu.element}
+      {add.element}
     </View>
     </DropRoute>
   );
