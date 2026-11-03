@@ -325,10 +325,10 @@ export function summaryLine(a: ActDef, capName: string, input: unknown): string 
 }
 
 /** The exact preview (spec 2.14): the whole input, as the act kind's block, so the approver sees what will go out. */
-export function previewBlocks(a: ActDef, capName: string, input: unknown, edited?: { by: string; at: number }): { type: string; v: number; data: unknown }[] {
+export function previewBlocks(a: ActDef, capName: string, input: unknown, edited?: { by: string; at: number }, holdId?: string): { type: string; v: number; data: unknown }[] {
   // a held message in a person's words: who, by which channel, when, and what it says as Markdown (lib/outward.ts). The raw input stays beside it, because it is the exact act that was held.
   const outward = outwardOf(capName, input);
-  return [{ type: a.block, v: 1, data: { act: a.key, cap: capName, input, ...(outward ? { outward: { ...outward, ...(edited ? { edited } : {}) } } : {}) } }];
+  return [{ type: a.block, v: 1, data: { act: a.key, cap: capName, input, ...(holdId ? { holdId } : {}), ...(outward ? { outward: { ...outward, ...(edited ? { edited } : {}) } } : {}) } }];
 }
 
 // ---- the payload hash (bound at park, carried by the approval token): made by the host, see lib/payload-hasher.ts ----

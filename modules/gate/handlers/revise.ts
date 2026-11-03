@@ -26,7 +26,7 @@ export async function holdsRevise(ctx: GateCtx, input: In): Promise<unknown> {
   const at = ctx.now();
   const a = actOf(h.act);
   // the card first: if the task refuses, the hold is as it was
-  await (ctx.call as NonNullable<typeof ctx.call>)("tasks.held_revise", { taskId: h.taskId, blocks: previewBlocks(a, h.capName, next, { by: ctx.principal.id, at }), payloadHash });
+  await (ctx.call as NonNullable<typeof ctx.call>)("tasks.held_revise", { taskId: h.taskId, blocks: previewBlocks(a, h.capName, next, { by: ctx.principal.id, at }, h.id), payloadHash });
   reviseHoldInput(ctx.db, h, next, inputHash, payloadHash);
   ctx.emit("gate.revised", `task/${h.taskId}`, { holdId: h.id, act: h.act, taskId: h.taskId, by: ctx.principal.id }, { vis: "participants" });
   return { ok: true, edited: at };

@@ -16,6 +16,8 @@ export interface Outward {
   /** Only when it does not go now. */
   schedule?: Schedule;
   urgent?: boolean;
+  /** Set by the Gate when the person edited the words before sending. */
+  edited?: { by: string; at: number };
 }
 
 const OBJ = (v: unknown): Record<string, unknown> => (v !== null && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : {});
