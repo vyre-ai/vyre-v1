@@ -25,7 +25,7 @@ import { withRecall } from "./recall.ts";
 import { withAudienceReset } from "./audience-reset.ts";
 import { withChatSettings } from "./chat-settings.ts";
 import { withSpaceKeyTurns } from "./space-key-turns.ts";
-import { noteModelFallback } from "./model-fallback.ts";
+import { noteModelFallback, noModelWords } from "./model-fallback.ts";
 import { createLimitSwitch } from "./switch-on-limit.ts";
 import { checkedOpen, createRunnableAccount } from "./runnable-account.ts";
 import { skipLocked } from "./locked-account.ts";
@@ -114,7 +114,7 @@ export interface EngineHostSeam {
 }
 
 interface AccountRow { ref: string; driver: string; kind: "api_key" | "subscription"; mine?: boolean; base?: string; keyless?: boolean; spaceKey?: boolean }
-interface ResolveOut { accountRef: string | null; payer: string | null; reason: ResolvedAccount["reason"]; allowed: boolean; itemId?: string; fellBack?: boolean; via?: ResolvedAccount["via"]; cappedFrom?: string; modelFallback?: { from: string; to?: string } }
+interface ResolveOut { why?: string; model?: string; servedModels?: string[]; accountRef: string | null; payer: string | null; reason: ResolvedAccount["reason"]; allowed: boolean; itemId?: string; fellBack?: boolean; via?: ResolvedAccount["via"]; cappedFrom?: string; modelFallback?: { from: string; to?: string } }
 
 /** The provider a driver belongs to, for the session spec; the CLI engines run their vendor's models. */
 const PROVIDER_OF_DRIVER: Readonly<Record<string, string>> = Object.freeze({ claude_code: "anthropic", codex: "openai", grok: "xai" });
@@ -164,6 +164,7 @@ export function sandboxPlan(): Promise<SandboxPlan> {
 
 export async function resolveOne(h: Pick<EngineHostSeam, "call" | "log">, q: AccountQuery): Promise<ResolvedAccount | null> {
   const res = (await h.call("engine.account.resolve", { threadId: q.threadId, agentId: q.agentId, askerId: q.askerId, ...(q.stepKey ? { stepKey: q.stepKey } : {}), ...(q.unavailable?.length ? { unavailable: [...q.unavailable] } : {}), ...(q.kind ? { kind: q.kind } : {}) }, q.askerId)) as ResolveOut;
+  if (res.why === "no_model") throw Object.assign(new Error(noModelWords(res.model ?? null, res.servedModels ?? [])), { code: "engine.model_unavailable" });
   if (!res.allowed || !res.accountRef || !res.payer) {
     h.log?.("no account can pay for this turn", { threadId: q.threadId, agentId: q.agentId, asker: q.askerId, allowed: res.allowed, reason: res.reason, accountRef: res.accountRef ?? null });
     return null;

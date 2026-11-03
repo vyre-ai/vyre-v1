@@ -10052,7 +10052,9 @@ export type EngineAccountResolveOut = {
   };
   cappedFrom?: string;
   via?: "thread" | "chat_key" | "work" | "step" | "space" | "backup";
-  why?: "no_account" | "expired" | "failed" | "policy";
+  why?: "no_account" | "expired" | "failed" | "policy" | "no_model";
+  model?: string;
+  servedModels?: Array<string>;
   modelFallback?: {
     from: string;
     to?: string;
