@@ -4,7 +4,7 @@ import type { CapMap } from "../../../../../generated/types.ts";
 
 export type SettingRow = CapMap["settings.list"]["out"]["rows"][number];
 export type PageInfo = CapMap["settings.pages"]["out"]["pages"][number];
-export type YouPage = "profile" | "notifications" | "appearance" | "ai" | "connected" | "mail" | "signin" | "computer";
+export type YouPage = "profile" | "notifications" | "appearance" | "ai" | "skills" | "connected" | "mail" | "signin" | "computer";
 export type SpacePage = "space" | "people" | "agents" | "data" | "apps" | "advanced";
 export type PageKey = YouPage | SpacePage;
 
@@ -15,6 +15,7 @@ export const PAGES: readonly PageDef[] = [
   { key: "notifications", title: "Notifications", group: "you", icon: "bell", pages: ["Notifications"] },
   { key: "appearance", title: "Appearance", group: "you", icon: "palette", pages: [] },
   { key: "ai", title: "AI", group: "you", icon: "chip", pages: ["Models and usage", "Chats", "Memory and privacy"] },
+  { key: "skills", title: "Skills", group: "you", icon: "spark", pages: ["Skills"] },
   { key: "connected", title: "Connected", group: "you", icon: "link", pages: ["Connections"] },
   { key: "mail", title: "Email and calendar", group: "you", icon: "mail", pages: [] },
   { key: "signin", title: "Sign-in and devices", group: "you", icon: "key", pages: ["Sign-in and devices"] },
@@ -62,6 +63,7 @@ export const SECTIONS: Readonly<Record<YouPage, readonly SectionDef[]>> = {
   notifications: [{ title: "Delivery", keys: ["notifications.email_backstop", "notifications.alert_replies", "notifications.routines_all"] }],
   appearance: [],
   ai: [{ title: "Working with agents", keys: ["engine.local_runs", "chat.agent_tabs"] }],
+  skills: [],
   connected: [],
   mail: [],
   signin: [],

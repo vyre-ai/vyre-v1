@@ -7,11 +7,12 @@ import { readFileSync, readdirSync, existsSync, statSync } from "node:fs";
 import { parseSkill, SKILL_MAX_BYTES } from "../../../lib/skill-md.ts";
 import { agentBy, askerOf, canSee, ensure, mintId, raise, tolerant } from "../projections.ts";
 import type { AgentsCtx } from "../projections.ts";
+import { personalSkills, renameClashes } from "./skill-scopes.ts";
 
 type Row = Record<string, unknown>;
-export type Tier = "builtin" | "space" | "agent";
-export interface SkillOut { name: string; description: string; tier: Tier; source: string; agentId?: string; system: boolean; enabled: boolean; bytes: number; updatedAt?: number }
-interface Found extends SkillOut { text: string; body: string; files: Array<{ path: string; text: string }> }
+export type Tier = "builtin" | "space" | "agent" | "mine" | "shared";
+export interface SkillOut { name: string; description: string; tier: Tier; source: string; agentId?: string; system: boolean; enabled: boolean; bytes: number; updatedAt?: number; label?: string }
+interface Found extends SkillOut { text: string; body: string; files: Array<{ path: string; text: string }>; at?: number }
 
 const str = (v: unknown): string => (typeof v === "string" ? v : String(v ?? ""));
 const by = (ctx: AgentsCtx): string => askerOf(ctx);
@@ -62,7 +63,7 @@ function fromRow(r: Row): Found {
   const parsed = parseSkill(str(r["text"]), str(r["name"]));
   return {
     name: str(r["name"]), description: str(r["description"]), tier: agentId === "" ? "space" : "agent", source: str(r["source"]), system: false, enabled: Number(r["enabled"]) === 1,
-    bytes: Buffer.byteLength(str(r["text"]), "utf8"), updatedAt: Number(r["updated_at"]), text: str(r["text"]), body: parsed.ok ? parsed.skill.body : str(r["text"]),
+    bytes: Buffer.byteLength(str(r["text"]), "utf8"), updatedAt: Number(r["updated_at"]), at: Number(r["at"]), text: str(r["text"]), body: parsed.ok ? parsed.skill.body : str(r["text"]),
     files: Object.entries(files).map(([path, text]) => ({ path, text })), ...(agentId === "" ? {} : { agentId }),
   };
 }
@@ -120,10 +121,12 @@ export async function visibleSkills(ctx: AgentsCtx, agentId: string | undefined,
     const a = agentBy(ctx.db, agentId);
     if (a && canSee(ctx, a)) { tiers.push(await folderSkills(ctx, agentId)); tiers.push(library(ctx, agentId)); }
   }
-  tiers.push(library(ctx, ""), built);
+  // the asker's own skills and the shared ones they added sit after the agent's and before the Space's; a later one with a taken name carries its source (D27)
+  tiers.push(personalSkills(ctx, agentId) as Found[], library(ctx, ""), built);
+  const named = renameClashes(tiers.flat() as Found[]) as Found[];
   const seen = new Set<string>();
   const out: Found[] = [];
-  for (const tier of tiers) {
+  for (const tier of [named]) {
     for (const s of tier) {
       if (seen.has(s.name) || (s.tier !== "builtin" && system.has(s.name))) continue;
       if (!s.enabled && !includeOff) continue;
@@ -133,7 +136,7 @@ export async function visibleSkills(ctx: AgentsCtx, agentId: string | undefined,
   }
   return out;
 }
-const outOf = (f: Found): SkillOut => ({ name: f.name, description: f.description, tier: f.tier, source: f.source, system: f.system, enabled: f.enabled, bytes: f.bytes, ...(f.agentId ? { agentId: f.agentId } : {}), ...(f.updatedAt !== undefined ? { updatedAt: f.updatedAt } : {}) });
+const outOf = (f: Found): SkillOut => ({ name: f.name, description: f.description, tier: f.tier, source: f.source, system: f.system, enabled: f.enabled, bytes: f.bytes, ...(f.agentId ? { agentId: f.agentId } : {}), ...(f.updatedAt !== undefined ? { updatedAt: f.updatedAt } : {}), ...(f.label ? { label: f.label } : {}) });
 
 export async function skillsList(ctx: AgentsCtx, input: { agentId?: string; includeOff?: boolean }) {
   return { skills: (await visibleSkills(ctx, input.agentId, input.includeOff === true)).map(outOf) };

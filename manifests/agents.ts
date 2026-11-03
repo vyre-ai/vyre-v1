@@ -12,6 +12,7 @@
 import { atool, create, defineManifest, ev, field, list, read, rtype, screen, setting, t, write } from '../packages/contracts/src/index.ts';
 import { id, pageIn, pageOut, versionRow } from './_common.ts';
 import { pluginCapabilities, pluginEvents, pluginScreens } from './_agents-plugins.ts';
+import { skillScopeCapabilities, skillScopeEvents, skillScopeScreens } from './_agents-skills.ts';
 
 const agentStatus = t.enm('awake', 'working', 'asleep', 'paused');
 const captureMode = t.enm('auto', 'propose', 'auto_low_risk', 'off');
@@ -51,7 +52,7 @@ const effort = t.enm('low', 'medium', 'high', 'max');
 // Skills (CHAT-DESIGN ruling 4): SKILL.md files in three tiers. builtin ships with Vyre (agent/skills), space is the Space library an admin keeps, agent is the agent's own skills/ folder
 // (and what a plugin installed into one agent brings). The turn shows an index of name and one line; load_skill returns the full text.
 const skillRow = t.obj({
-  name: t.str({ examples: ['deploy-checks'] }), description: t.str(), tier: t.enm('builtin', 'space', 'agent'),
+  name: t.str({ examples: ['deploy-checks'] }), description: t.str(), tier: t.enm('builtin', 'space', 'agent', 'mine', 'shared'), label: t.opt(t.str({ description: 'pdf (from acme/skills): a skill renamed because its name was taken first' })),
   source: t.str({ description: 'vyre, upload, agent, plugin:<name> or kit:<key>', examples: ['upload'] }), agentId: t.opt(id.agent),
   system: t.bool(), enabled: t.bool(), bytes: t.int({ minimum: 0 }), updatedAt: t.opt(t.ts()),
 });
@@ -246,7 +247,7 @@ export default defineManifest({
     }),
     read('skills.load', 'Load the full text of one skill by name (SKILL.md body and its supporting files); agent skills win over Space ones, Space ones over built-in', {
       in: { name: t.str({ examples: ['deploy-checks'] }), agentId: t.opt(id.agent) },
-      out: { skill: t.obj({ name: t.str(), description: t.str(), tier: t.enm('builtin', 'space', 'agent'), source: t.str(), body: t.str(), files: t.arr(t.obj({ path: t.str(), text: t.str() })) }) },
+      out: { skill: t.obj({ name: t.str(), description: t.str(), tier: t.enm('builtin', 'space', 'agent', 'mine', 'shared'), source: t.str(), body: t.str(), files: t.arr(t.obj({ path: t.str(), text: t.str() })) }) },
       perm: null, level: 'view', tool: 'meta', mcpName: 'load_skill', agent: { planMode: 'allowed' }, errors: ['validation.not_found'],
     }),
     write('skills.add', 'Add or replace a skill in the Space library, or in one agent (SKILL.md text with name and description in its front matter, plus optional supporting files)', {
@@ -263,6 +264,7 @@ export default defineManifest({
     write('skills.set_enabled', 'Turn a Space or agent skill off or on without removing it', {
       in: { name: t.str(), agentId: t.opt(id.agent), enabled: t.bool() }, out: { skill: skillRow }, perm: 'agents.manage', level: 'manage', idem: 'key', emits: ['skill.changed'], audit: 'always', tool: 'agents', mcpName: 'skills_set_enabled', errors: ['validation.not_found'],
     }),
+    ...skillScopeCapabilities,
   ],
   events: [
     ev('skill.added', 'A skill was added to the Space library or to one agent', { p: { name: t.str(), tier: t.enm('space', 'agent'), agentId: t.opt(id.agent), source: t.str(), by: t.str() }, subject: ['entity', '/name'] }),
@@ -288,6 +290,7 @@ export default defineManifest({
     ev('agent.suggestion_proposed', 'A change to an agent was suggested', { p: { suggestionId: t.id('sug'), agentId: id.agent, kind: t.str(), by: t.str() }, subject: ['agent', '/agentId'], vis: 'participants' }),
     ev('agent.suggestion_resolved', 'A suggestion was accepted or dismissed', { p: { suggestionId: t.id('sug'), agentId: id.agent, accepted: t.bool(), by: t.str() }, subject: ['agent', '/agentId'], vis: 'participants' }),
     ev('agent.template_applied', 'The Agent template was applied', { p: { scope: t.str(), agents: t.int(), suggestions: t.int(), by: t.str() }, subject: ['entity', '/scope'] }),
+    ...skillScopeEvents,
   ],
   agentTools: [
     atool('tool_search', 'Find tools by what you want to do; returns names and schemas, then they are callable', {
@@ -371,5 +374,6 @@ export default defineManifest({
       a: { apply: ['agents.template.apply', { scope: '/state/scope', agentId: '/state/agentId' }, 'Apply the template?'], accept: ['agents.suggestion.accept', { suggestionId: '/state/suggestionId' }], dismiss: ['agents.suggestion.dismiss', { suggestionId: '/state/suggestionId' }] },
       empty: 'The template has no changes to apply', primary: 'Close', needs: ['agents.manage'],
     }),
+    ...skillScopeScreens,
   ],
 });

@@ -1,4 +1,4 @@
-// Handler table of the agents module: all 33 capabilities of manifests/agents.ts. The record, lifecycle, configuration and versions are in crud.ts; routines, suggestions, the Agent template and
+// Handler table of the agents module: all the capabilities of manifests/agents.ts. The record, lifecycle, configuration and versions are in crud.ts; routines, suggestions, the Agent template and
 // Vyre's own text are in routines.ts.
 import {
   configGet, configValidate, connectOutside, create, get, limitsGet, list, memoryKeyGet, pause, remove, restore, setOwner, restoreVersion, resume, roleLineSet, snapshotTake, status, summary, update, versions, visibilitySet,
@@ -11,6 +11,7 @@ import {
 } from "./plugins.ts";
 import { enqueue, next, seen, usable } from "./outside.ts";
 import { skillsAdd, skillsList, skillsLoad, skillsRemove, skillsSetEnabled } from "./skills.ts";
+import { mineAdd, mineRemove, mineSet, mineUpdate, policySet, share, sharedDecide, skillsMembers, skillsPage, skillsPreview, skillsView, spaceAdopt, spaceInstall, spaceSetup, spaceUpdate } from "./skill-scopes.ts";
 
 export const handlers = {
   "agents.outside.connect": connectOutside,
@@ -46,6 +47,21 @@ export const handlers = {
   "skills.add": skillsAdd,
   "skills.remove": skillsRemove,
   "skills.set_enabled": skillsSetEnabled,
+  "skills.page": skillsPage,
+  "skills.view": skillsView,
+  "skills.preview": skillsPreview,
+  "skills.members": skillsMembers,
+  "skills.mine.add": mineAdd,
+  "skills.mine.set": mineSet,
+  "skills.mine.remove": mineRemove,
+  "skills.mine.update": mineUpdate,
+  "skills.share": share,
+  "skills.shared.decide": sharedDecide,
+  "skills.space.install": spaceInstall,
+  "skills.space.update": spaceUpdate,
+  "skills.space.adopt": spaceAdopt,
+  "skills.space.setup": spaceSetup,
+  "skills.policy.set": policySet,
   "agents.list": list,
   "agents.get": get,
   "agents.memory_key.get": memoryKeyGet,
