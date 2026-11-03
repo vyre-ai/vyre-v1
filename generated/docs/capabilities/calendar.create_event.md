@@ -1,6 +1,6 @@
 # calendar.create_event
 
-Create an event (drag in 15 minute steps); the provider invites attendees
+Create an event (drag in 15 minute steps) on its Google or Microsoft calendar, with a Meet, Teams or Zoom call when asked; the provider invites attendees
 
 | | |
 |---|---|
@@ -19,7 +19,7 @@ Create an event (drag in 15 minute steps); the provider invites attendees
 | HTTP | POST /v1/calendar/create_event |
 | MCP tool | calendar_create_event (inbox) |
 | CLI | vyre calendar create |
-| Emits | calendar_event.created |
+| Emits | calendar_event.created, calendar_event.updated |
 
 ## Input
 
@@ -44,6 +44,7 @@ type In = {
   joinProvider?: "zoom" | "meet" | "teams" | "none";
   bookedByAgentId?: string;
   fromBookingPage?: string;
+  video?: "meet" | "zoom" | "teams" | "none";
   idempotencyKey: string;
 };
 ```
@@ -78,6 +79,17 @@ type Out = {
     bookedByAgentId?: string;
     fromBookingPage?: string;
     seriesId?: string;
+    conference?: {
+      provider: "meet" | "zoom" | "teams" | "webex" | "whereby" | "around" | "other";
+      url?: string;
+      meetingId?: string;
+      passcode?: string;
+      dialIns: Array<{
+          number: string;
+          pin?: string;
+          label?: string;
+        }>;
+    };
   };
 };
 ```
@@ -118,7 +130,8 @@ type Out = {
       "rec_a1b2c3"
     ],
     "startsAt": 1760000000000,
-    "title": "example"
+    "title": "example",
+    "video": "meet"
   },
   "output": {
     "event": {
@@ -135,6 +148,19 @@ type Out = {
       ],
       "bookedByAgentId": "agt_a1b2c3",
       "calendarId": "cld_a1b2c3",
+      "conference": {
+        "dialIns": [
+          {
+            "label": "example",
+            "number": "example",
+            "pin": "example"
+          }
+        ],
+        "meetingId": "example",
+        "passcode": "example",
+        "provider": "meet",
+        "url": "example"
+      },
       "description": "example",
       "endsAt": 1760000000000,
       "fromBookingPage": "frm_a1b2c3",

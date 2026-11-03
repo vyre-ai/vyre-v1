@@ -200,6 +200,11 @@ export const syncEntities: SyncEntityConfig[] = [
         "type": "text",
         "label": null,
         "required": false
+      },
+      "conference": {
+        "type": "text",
+        "label": null,
+        "required": false
       }
     },
     "fts": [

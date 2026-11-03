@@ -54,6 +54,7 @@ type Out = {
       isCancelled?: boolean;
       bodyPreview?: string;
       seriesMasterId?: string;
+      onlineMeetingProvider?: string;
     }>;
   removed: Array<string>;
   deltaLink: string;
@@ -97,6 +98,7 @@ type Out = {
         "isCancelled": true,
         "location": {},
         "onlineMeeting": {},
+        "onlineMeetingProvider": "example",
         "organizer": {},
         "seriesMasterId": "example",
         "start": {},

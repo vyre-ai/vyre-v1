@@ -7656,7 +7656,7 @@
       "blocks": [],
       "cap": "calendar.create_event",
       "deferred": false,
-      "description": "Create an event (drag in 15 minute steps); the provider invites attendees",
+      "description": "Create an event (drag in 15 minute steps) on its Google or Microsoft calendar, with a Meet, Teams or Zoom call when asked; the provider invites attendees",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -7776,6 +7776,15 @@
             "type": "integer"
           },
           "title": {
+            "type": "string"
+          },
+          "video": {
+            "enum": [
+              "meet",
+              "zoom",
+              "teams",
+              "none"
+            ],
             "type": "string"
           }
         },
@@ -8168,7 +8177,7 @@
       "blocks": [],
       "cap": "calendar.restore_event",
       "deferred": false,
-      "description": "Restore a deleted event",
+      "description": "Restore a deleted event (made again on its provider calendar)",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -8348,6 +8357,14 @@
             "type": "integer"
           },
           "title": {
+            "type": "string"
+          },
+          "video": {
+            "enum": [
+              "meet",
+              "zoom",
+              "teams"
+            ],
             "type": "string"
           }
         },

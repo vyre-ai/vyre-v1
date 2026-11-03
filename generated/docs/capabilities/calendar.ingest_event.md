@@ -45,6 +45,17 @@ type In = {
     }>;
   description?: string;
   seriesId?: string;
+  conference?: {
+    provider: "meet" | "zoom" | "teams" | "webex" | "whereby" | "around" | "other";
+    url?: string;
+    meetingId?: string;
+    passcode?: string;
+    dialIns: Array<{
+        number: string;
+        pin?: string;
+        label?: string;
+      }>;
+  };
 };
 ```
 
@@ -82,6 +93,19 @@ type Out = {
       }
     ],
     "calendarId": "cld_a1b2c3",
+    "conference": {
+      "dialIns": [
+        {
+          "label": "example",
+          "number": "example",
+          "pin": "example"
+        }
+      ],
+      "meetingId": "example",
+      "passcode": "example",
+      "provider": "meet",
+      "url": "example"
+    },
     "deleted": true,
     "description": "example",
     "endsAt": 1760000000000,

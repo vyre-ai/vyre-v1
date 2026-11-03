@@ -1,6 +1,6 @@
 # calendar.restore_event
 
-Restore a deleted event
+Restore a deleted event (made again on its provider calendar)
 
 | | |
 |---|---|
@@ -19,7 +19,7 @@ Restore a deleted event
 | HTTP | POST /v1/calendar/restore_event |
 | MCP tool | calendar_restore_event (inbox) |
 | CLI | none |
-| Emits | calendar_event.restored |
+| Emits | calendar_event.restored, calendar_event.updated |
 
 ## Input
 
@@ -59,6 +59,17 @@ type Out = {
     bookedByAgentId?: string;
     fromBookingPage?: string;
     seriesId?: string;
+    conference?: {
+      provider: "meet" | "zoom" | "teams" | "webex" | "whereby" | "around" | "other";
+      url?: string;
+      meetingId?: string;
+      passcode?: string;
+      dialIns: Array<{
+          number: string;
+          pin?: string;
+          label?: string;
+        }>;
+    };
   };
 };
 ```
@@ -93,6 +104,19 @@ type Out = {
       ],
       "bookedByAgentId": "agt_a1b2c3",
       "calendarId": "cld_a1b2c3",
+      "conference": {
+        "dialIns": [
+          {
+            "label": "example",
+            "number": "example",
+            "pin": "example"
+          }
+        ],
+        "meetingId": "example",
+        "passcode": "example",
+        "provider": "meet",
+        "url": "example"
+      },
       "description": "example",
       "endsAt": 1760000000000,
       "fromBookingPage": "frm_a1b2c3",

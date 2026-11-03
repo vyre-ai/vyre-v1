@@ -65,6 +65,7 @@ type Out = {
     updated?: string;
     description?: string;
     recurringEventId?: string;
+    conferenceData?: Record<string, unknown>;
   };
 };
 ```
@@ -113,6 +114,7 @@ type Out = {
           "responseStatus": "example"
         }
       ],
+      "conferenceData": {},
       "description": "example",
       "end": {},
       "hangoutLink": "example",

@@ -987,7 +987,7 @@
     {
       "deferred": false,
       "name": "calendar_create_event",
-      "summary": "Create an event (drag in 15 minute steps); the provider invites attendees",
+      "summary": "Create an event (drag in 15 minute steps) on its Google or Microsoft calendar, with a Meet, Teams or Zoom call when asked; the provider invites attendees",
       "toolset": "inbox"
     },
     {
@@ -1053,7 +1053,7 @@
     {
       "deferred": false,
       "name": "calendar_restore_event",
-      "summary": "Restore a deleted event",
+      "summary": "Restore a deleted event (made again on its provider calendar)",
       "toolset": "inbox"
     },
     {

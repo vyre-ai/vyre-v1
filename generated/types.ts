@@ -4521,6 +4521,7 @@ export type CalendarCreateEventIn = {
   joinProvider?: "zoom" | "meet" | "teams" | "none";
   bookedByAgentId?: string;
   fromBookingPage?: string;
+  video?: "meet" | "zoom" | "teams" | "none";
   idempotencyKey: string;
 };
 export type CalendarCreateEventOut = {
@@ -4550,6 +4551,17 @@ export type CalendarCreateEventOut = {
     bookedByAgentId?: string;
     fromBookingPage?: string;
     seriesId?: string;
+    conference?: {
+      provider: "meet" | "zoom" | "teams" | "webex" | "whereby" | "around" | "other";
+      url?: string;
+      meetingId?: string;
+      passcode?: string;
+      dialIns: Array<{
+          number: string;
+          pin?: string;
+          label?: string;
+        }>;
+    };
   };
 };
 export type CalendarDeleteCalendarIn = {
@@ -4596,6 +4608,17 @@ export type CalendarDuplicateEventOut = {
     bookedByAgentId?: string;
     fromBookingPage?: string;
     seriesId?: string;
+    conference?: {
+      provider: "meet" | "zoom" | "teams" | "webex" | "whereby" | "around" | "other";
+      url?: string;
+      meetingId?: string;
+      passcode?: string;
+      dialIns: Array<{
+          number: string;
+          pin?: string;
+          label?: string;
+        }>;
+    };
   };
 };
 export type CalendarFindTimeIn = {
@@ -4642,6 +4665,17 @@ export type CalendarGetEventOut = {
     bookedByAgentId?: string;
     fromBookingPage?: string;
     seriesId?: string;
+    conference?: {
+      provider: "meet" | "zoom" | "teams" | "webex" | "whereby" | "around" | "other";
+      url?: string;
+      meetingId?: string;
+      passcode?: string;
+      dialIns: Array<{
+          number: string;
+          pin?: string;
+          label?: string;
+        }>;
+    };
   };
   mine?: {
     email: string;
@@ -4676,6 +4710,17 @@ export type CalendarIngestEventIn = {
     }>;
   description?: string;
   seriesId?: string;
+  conference?: {
+    provider: "meet" | "zoom" | "teams" | "webex" | "whereby" | "around" | "other";
+    url?: string;
+    meetingId?: string;
+    passcode?: string;
+    dialIns: Array<{
+        number: string;
+        pin?: string;
+        label?: string;
+      }>;
+  };
 };
 export type CalendarIngestEventOut = {
   eventId: string;
@@ -4714,6 +4759,17 @@ export type CalendarLinkRecordOut = {
     bookedByAgentId?: string;
     fromBookingPage?: string;
     seriesId?: string;
+    conference?: {
+      provider: "meet" | "zoom" | "teams" | "webex" | "whereby" | "around" | "other";
+      url?: string;
+      meetingId?: string;
+      passcode?: string;
+      dialIns: Array<{
+          number: string;
+          pin?: string;
+          label?: string;
+        }>;
+    };
   };
 };
 export type CalendarListCalendarsIn = {
@@ -4767,6 +4823,17 @@ export type CalendarListEventsOut = {
       bookedByAgentId?: string;
       fromBookingPage?: string;
       seriesId?: string;
+      conference?: {
+        provider: "meet" | "zoom" | "teams" | "webex" | "whereby" | "around" | "other";
+        url?: string;
+        meetingId?: string;
+        passcode?: string;
+        dialIns: Array<{
+            number: string;
+            pin?: string;
+            label?: string;
+          }>;
+      };
     }>;
   next?: string;
   total?: number;
@@ -4802,6 +4869,17 @@ export type CalendarMoveToCalendarOut = {
     bookedByAgentId?: string;
     fromBookingPage?: string;
     seriesId?: string;
+    conference?: {
+      provider: "meet" | "zoom" | "teams" | "webex" | "whereby" | "around" | "other";
+      url?: string;
+      meetingId?: string;
+      passcode?: string;
+      dialIns: Array<{
+          number: string;
+          pin?: string;
+          label?: string;
+        }>;
+    };
   };
 };
 export type CalendarRespondIn = {
@@ -4836,6 +4914,17 @@ export type CalendarRespondOut = {
     bookedByAgentId?: string;
     fromBookingPage?: string;
     seriesId?: string;
+    conference?: {
+      provider: "meet" | "zoom" | "teams" | "webex" | "whereby" | "around" | "other";
+      url?: string;
+      meetingId?: string;
+      passcode?: string;
+      dialIns: Array<{
+          number: string;
+          pin?: string;
+          label?: string;
+        }>;
+    };
   };
 };
 export type CalendarRestoreEventIn = {
@@ -4868,6 +4957,17 @@ export type CalendarRestoreEventOut = {
     bookedByAgentId?: string;
     fromBookingPage?: string;
     seriesId?: string;
+    conference?: {
+      provider: "meet" | "zoom" | "teams" | "webex" | "whereby" | "around" | "other";
+      url?: string;
+      meetingId?: string;
+      passcode?: string;
+      dialIns: Array<{
+          number: string;
+          pin?: string;
+          label?: string;
+        }>;
+    };
   };
 };
 export type CalendarSyncNowIn = {
@@ -4912,6 +5012,7 @@ export type CalendarUpdateEventIn = {
     }>;
   joinProvider?: "zoom" | "meet" | "teams" | "none";
   scope?: "this" | "all";
+  video?: "meet" | "zoom" | "teams";
 };
 export type CalendarUpdateEventOut = {
   event: {
@@ -4940,8 +5041,20 @@ export type CalendarUpdateEventOut = {
     bookedByAgentId?: string;
     fromBookingPage?: string;
     seriesId?: string;
+    conference?: {
+      provider: "meet" | "zoom" | "teams" | "webex" | "whereby" | "around" | "other";
+      url?: string;
+      meetingId?: string;
+      passcode?: string;
+      dialIns: Array<{
+          number: string;
+          pin?: string;
+          label?: string;
+        }>;
+    };
   };
   changed?: number;
+  notice?: string;
 };
 export type ChangesetsApproveIn = {
   changesetId: string;
@@ -13479,6 +13592,7 @@ export type GoogleCalendarCreateEventOut = {
     updated?: string;
     description?: string;
     recurringEventId?: string;
+    conferenceData?: Record<string, unknown>;
   };
 };
 export type GoogleCalendarDeleteEventIn = {
@@ -13530,6 +13644,7 @@ export type GoogleCalendarGetEventOut = {
     updated?: string;
     description?: string;
     recurringEventId?: string;
+    conferenceData?: Record<string, unknown>;
   };
 };
 export type GoogleCalendarListCalendarsIn = {
@@ -13573,6 +13688,7 @@ export type GoogleCalendarListEventsOut = {
       updated?: string;
       description?: string;
       recurringEventId?: string;
+      conferenceData?: Record<string, unknown>;
     }>;
   nextPageToken?: string;
   nextSyncToken?: string;
@@ -13603,6 +13719,7 @@ export type GoogleCalendarRespondOut = {
     updated?: string;
     description?: string;
     recurringEventId?: string;
+    conferenceData?: Record<string, unknown>;
   };
 };
 export type GoogleCalendarStopWatchIn = {
@@ -13651,6 +13768,7 @@ export type GoogleCalendarUpdateEventOut = {
     updated?: string;
     description?: string;
     recurringEventId?: string;
+    conferenceData?: Record<string, unknown>;
   };
 };
 export type GoogleCalendarWatchIn = {
@@ -21286,6 +21404,7 @@ export type MsCalendarCreateEventOut = {
     isCancelled?: boolean;
     bodyPreview?: string;
     seriesMasterId?: string;
+    onlineMeetingProvider?: string;
   };
 };
 export type MsCalendarDeleteEventIn = {
@@ -21322,6 +21441,7 @@ export type MsCalendarDeltaOut = {
       isCancelled?: boolean;
       bodyPreview?: string;
       seriesMasterId?: string;
+      onlineMeetingProvider?: string;
     }>;
   removed: Array<string>;
   deltaLink: string;
@@ -21363,6 +21483,7 @@ export type MsCalendarGetEventOut = {
     isCancelled?: boolean;
     bodyPreview?: string;
     seriesMasterId?: string;
+    onlineMeetingProvider?: string;
   };
 };
 export type MsCalendarGetScheduleIn = {
@@ -21417,6 +21538,7 @@ export type MsCalendarListEventsOut = {
       isCancelled?: boolean;
       bodyPreview?: string;
       seriesMasterId?: string;
+      onlineMeetingProvider?: string;
     }>;
   nextSkipToken?: string;
 };
@@ -21485,6 +21607,7 @@ export type MsCalendarUpdateEventOut = {
     isCancelled?: boolean;
     bodyPreview?: string;
     seriesMasterId?: string;
+    onlineMeetingProvider?: string;
   };
 };
 export type MsConsentCheckAppIn = {
@@ -35611,6 +35734,10 @@ export type ZoomMeetingsCreateOut = {
     password?: string;
     hostEmail?: string;
     timezone?: string;
+    dialIns?: Array<{
+        number: string;
+        country?: string;
+      }>;
   };
 };
 export type ZoomMeetingsDeleteIn = {
@@ -35634,6 +35761,10 @@ export type ZoomMeetingsGetOut = {
     password?: string;
     hostEmail?: string;
     timezone?: string;
+    dialIns?: Array<{
+        number: string;
+        country?: string;
+      }>;
   };
 };
 export type ZoomMeetingsListIn = {
@@ -35654,6 +35785,10 @@ export type ZoomMeetingsListOut = {
       password?: string;
       hostEmail?: string;
       timezone?: string;
+      dialIns?: Array<{
+          number: string;
+          country?: string;
+        }>;
     }>;
   nextPageToken?: string;
 };
@@ -35676,6 +35811,10 @@ export type ZoomMeetingsUpdateOut = {
     password?: string;
     hostEmail?: string;
     timezone?: string;
+    dialIns?: Array<{
+        number: string;
+        country?: string;
+      }>;
   };
 };
 export type ZoomReceiveWebhookIn = {

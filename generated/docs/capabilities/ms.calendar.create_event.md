@@ -62,6 +62,7 @@ type Out = {
     isCancelled?: boolean;
     bodyPreview?: string;
     seriesMasterId?: string;
+    onlineMeetingProvider?: string;
   };
 };
 ```
@@ -114,6 +115,7 @@ type Out = {
       "isCancelled": true,
       "location": {},
       "onlineMeeting": {},
+      "onlineMeetingProvider": "example",
       "organizer": {},
       "seriesMasterId": "example",
       "start": {},
