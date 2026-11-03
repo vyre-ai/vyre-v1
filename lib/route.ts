@@ -9,7 +9,13 @@
 // at the agent_hops limit (default 8, owner ruling 3 Nov 2026) nothing runs until a person replies or presses Continue. Helpers and teammates count: a helper's brief and the result
 // it brings back (a Job's line) each carry the next hop, so an agent that starts a helper after every result stops at the same budget.
 
-export interface RouteAgent { id: string; mode: "lead" | "listen"; /** a watcher acts unasked as a routine and is never the one agent that answers */ watching?: boolean }
+export interface RouteAgent {
+  id: string; mode: "lead" | "listen"; /** a watcher acts unasked as a routine and is never the one agent that answers */ watching?: boolean;
+  /** Listening: reads the chat and never answers, not even when tagged. Only a poke makes it speak. */
+  quiet?: boolean;
+  /** When it answers a message nobody tagged: always (absent), only when the message is about its topics, or only inside its hours. A tag always reaches it, quiet agents aside. */
+  when?: "always" | "topics" | "hours"; topics?: string; hoursFrom?: string; hoursTo?: string;
+}
 export interface RouteThread { agents: readonly RouteAgent[]; /** the thread kind when known: only a person's chat has a lone agent that answers whatever its mode says */ kind?: string }
 export interface RouteMention { kind: "agent" | "person"; id: string }
 export interface RouteMessage {
@@ -23,6 +29,10 @@ export interface RouteMessage {
   job?: boolean;
   /** The words, when known: a person who speaks to all the agents gets an answer from each. */
   text?: string;
+  /** A poke: this agent answers now, whatever its mode, hours or topics say, even when it is Listening. */
+  poke?: string;
+  /** Minutes since midnight where the speaker is: for agents set to answer only inside hours. When unknown, hours do not hold anyone back. */
+  minutes?: number;
 }
 export interface RoutePolicy { agentHops?: number }
 export type RouteReason = "mention" | "person_addressed" | "all" | "lead" | "no_lead" | "hop_limit";
@@ -34,6 +44,27 @@ export interface RouteResult {
 }
 
 export const DEFAULT_AGENT_HOPS = 8;
+
+const clock = (v: string | undefined): number | null => { const m = /^([01]\d|2[0-3]):([0-5]\d)$/.exec(v ?? ""); return m ? Number(m[1]) * 60 + Number(m[2]) : null; };
+/** Is the time inside the hours? From a later time to an earlier one runs through midnight. Hours that are not set hold nobody back. */
+export function insideHours(from: string | undefined, to: string | undefined, minutes: number | undefined): boolean {
+  const a = clock(from), b = clock(to);
+  if (a === null || b === null || minutes === undefined || a === b) return true;
+  return a < b ? minutes >= a && minutes < b : minutes >= a || minutes < b;
+}
+/** Is the message about one of the topics? The topics are a few words or phrases, split at commas, semicolons and line breaks; a plural or singular of one counts. No topics match nothing. */
+export function aboutTopics(topics: string | undefined, text: string | undefined): boolean {
+  const body = (text ?? "").toLowerCase();
+  if (body === "") return false;
+  return (topics ?? "").toLowerCase().split(/[,;\n]/).map((x) => x.trim()).filter((x) => x.length > 0).some((x) => body.includes(x) || (x.endsWith("s") && x.length > 3 && body.includes(x.slice(0, -1))) || (!x.endsWith("s") && body.includes(`${x}s`)));
+}
+/** May this agent answer a message nobody tagged it in, by its own When setting? */
+export function mayAnswerUntagged(a: RouteAgent, text: string | undefined, minutes: number | undefined): boolean {
+  if (a.quiet === true) return false;
+  if (a.when === "topics") return aboutTopics(a.topics, text);
+  if (a.when === "hours") return insideHours(a.hoursFrom, a.hoursTo, minutes);
+  return true;
+}
 /** Words that speak to every agent in the chat. */
 export const ALL_AGENTS = /\b(both of you|each of you|all of you|you two|you both|you all|everyone|everybody|all agents)\b/i;
 const PERSON_CHATS: ReadonlySet<string> = new Set(["chat", "ask"]);
@@ -48,7 +79,11 @@ export function route(thread: RouteThread, m: RouteMessage, policy: RoutePolicy 
   // one budget for the whole chat: a Job's line (a helper's or a teammate's result) counts like any agent turn
   if (fromAgent && (m.depth ?? 0) >= limit) return done([], "hop_limit");
 
-  const mentionedAgents = [...new Set(m.mentions.filter((x) => x.kind === "agent").map((x) => x.id))].filter((id) => job || !(fromAgent && id === m.author.id));
+  // a poke starts a turn for that agent now, Listening or not
+  if (m.poke !== undefined && thread.agents.some((a) => a.id === m.poke)) return done([m.poke], "mention");
+
+  const quietIds = new Set(thread.agents.filter((a) => a.quiet === true).map((a) => a.id));
+  const mentionedAgents = [...new Set(m.mentions.filter((x) => x.kind === "agent").map((x) => x.id))].filter((id) => (job || !(fromAgent && id === m.author.id)) && !quietIds.has(id));
   if (mentionedAgents.length) return done(mentionedAgents, "mention");
   if (m.mentions.some((x) => x.kind === "agent")) return done([], "mention");   // only self-mentions: an agent never answers itself
 
@@ -57,15 +92,19 @@ export function route(thread: RouteThread, m: RouteMessage, policy: RoutePolicy 
   if (m.replyToPerson !== undefined && m.replyToPerson !== m.author.id) return done([], "person_addressed");
 
   // a person speaks to all the agents: each answers alone, on its own, never one relaying the others
-  const answering = thread.agents.filter((a) => a.watching !== true).map((a) => a.id);
+  const answering = thread.agents.filter((a) => a.watching !== true && a.quiet !== true).map((a) => a.id);
   if (!fromAgent && answering.length > 1 && typeof m.text === "string" && ALL_AGENTS.test(m.text)) return done(answering, "all");
 
   // the only agent in a person's chat answers that person whatever its mode says: listening means nothing with no one else to lead. Not a message the host posts (a nudge, a baton line, svc_...),
   // not an agent's, not a run, helper, channel or console thread, and never a watcher.
-  const solo = thread.agents.length === 1 && thread.agents[0]!.watching !== true && (!fromAgent || job) && !m.author.id.startsWith("svc_") && (thread.kind === undefined || PERSON_CHATS.has(thread.kind));
-  const lead = thread.agents.find((a) => a.mode === "lead") ?? (solo ? thread.agents[0] : undefined);
-  if (!lead || (fromAgent && !job && lead.id === m.author.id)) return done([], "no_lead");
-  return done([lead.id], "lead");
+  const solo = thread.agents.length === 1 && thread.agents[0]!.watching !== true && thread.agents[0]!.quiet !== true && (!fromAgent || job) && !m.author.id.startsWith("svc_") && (thread.kind === undefined || PERSON_CHATS.has(thread.kind));
+  const lead = thread.agents.find((a) => a.mode === "lead" && a.quiet !== true) ?? (solo ? thread.agents[0] : undefined);
+  const leads = lead && !(fromAgent && !job && lead.id === m.author.id) && mayAnswerUntagged(lead, m.text, m.minutes) ? [lead.id] : [];
+  // an agent set to Only on topics speaks up, tagged or not, when a person's message is about them (the lead is not asked twice)
+  const volunteers = fromAgent ? [] : thread.agents.filter((a) => a.mode === "listen" && a.when === "topics" && a.quiet !== true && a.watching !== true && !leads.includes(a.id) && aboutTopics(a.topics, m.text)).map((a) => a.id);
+  const responders = [...leads, ...volunteers];
+  if (responders.length === 0) return done([], "no_lead");
+  return done(responders, "lead");
 }
 
 /** The depth a reply to `m` carries: agent messages add a hop, person messages reset to zero. */

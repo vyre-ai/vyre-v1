@@ -57,6 +57,10 @@ export default defineManifest({
       out: { invite: inviteRow, link: t.str({ description: 'Shown once; the code is stored only as a hash', examples: ['https://team.example.com/join/K7P2-9QXA'] }) },
       perm: 'members.invite', emits: ['member.invited'], audit: 'always', tool: 'meta', team: true,
     }),
+    write('members.invites.guest', 'System: an email invite as a guest of one chat only, called by threads.invite_guest as the person inviting. The role is guest and the one place is the channel; a guest reads (view) or also writes (reply). No Everyone group, no home channel, no files or records', {
+      ...V, idem: 'key', in: { email: email, scope: t.obj({ type: t.lit('channel'), id: id.channel }), level: t.opt(t.enm('view', 'reply')) },
+      out: { invite: inviteRow, link: t.str({ description: 'Shown once; the code is stored only as a hash' }) }, perm: null, level: 'member', emits: ['member.invited'], audit: 'always', team: true, errors: ['permission.no_grant', 'validation.bad_input', 'validation.duplicate'],
+    }),
     write('members.invites.extend', 'Give an open invite a new expiry', { ...V, in: { inviteId: id.invite, expiresInDays: t.int({ minimum: 1, maximum: 90 }) }, out: { invite: inviteRow }, perm: 'members.invite', tool: 'meta', team: true }),
     write('members.invites.revoke', 'Revoke an open invite', { ...V, in: { inviteId: id.invite }, out: ok, perm: 'members.invite', emits: ['member.invite_revoked'], audit: 'always', tool: 'meta', team: true }),
     read('members.joins.list', 'Joins that have not finished: each new member with the steps that did not work yet, in words, how often each was tried, and whether it is stuck (three tries or more)', {

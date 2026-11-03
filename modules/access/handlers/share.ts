@@ -11,7 +11,7 @@ import type { AccessSnapshot } from "../../../kernel/src/authorize/index.ts";
 import { ladderFor, levelIncludes } from "../../../packages/contracts/src/levels.ts";
 import type { ResourceType } from "../../../packages/contracts/src/types.ts";
 import type { AccessCtx, AccessStore, Cond, Db, GrantRec, Level, Ref, ResourceRec, ResourceRef, SubjectRef } from "../projections.ts";
-import { changed, EVERYONE, fnv, grantView, isExpr, labelRank, nid, page, pkey, raise, storeOf } from "../projections.ts";
+import { changed, EVERYONE, fnv, grantView, isExpr, isPrivateAgent, labelRank, nid, page, pkey, raise, storeOf } from "../projections.ts";
 import { isHostService } from "../../../lib/trust.ts";
 
 export type Via = "owner" | "grant" | "folder" | "space";
@@ -398,6 +398,8 @@ function assertFlags(ctx: ShareCtx, store: AccessStore, res: ResourceRec, next: 
 
 /** Sharing a record or a record type needs Manage, or Edit with the right to share it on. */
 function mayShareOn(ctx: ShareCtx, store: AccessStore, res: ResourceRec, have: Level): boolean {
+  // an agent is shared by whoever manages it (Share's fourth level: share, rename, delete), not by an editor
+  if (res.type === "agent") return atLeast(res.type, have, "manage");
   if (!RECORDS.has(res.type) || atLeast(res.type, have, "manage")) return true;
   const snap = store.snapshot();
   const acting = actingId(ctx);
@@ -517,6 +519,8 @@ export async function share(ctx: ShareCtx, input: {
   const key = input.idempotencyKey ? `share:${ctx.principal.id}:${input.idempotencyKey}` : "";
   if (key) { const hit = ss.idem.get(key); if (hit) return hit as { grant: GrantRec }; }
   const res = resourceOf(ctx, store, input.resource);
+  // a person's Assistant (and an outside agent they connected) is theirs alone: nobody else can be given it, whatever the level
+  if (res.type === "agent" && isPrivateAgent(store, res.id)) raise(trace, "validation.precondition_failed", "This agent is private: it is your Assistant or an outside agent you connected, and it stays yours alone. Share a shared agent instead.");
   checkSubject(ctx, store, input.subject);
   let cond = checkConditions(ctx, input.conditions);
   if (input.subject.kind === "link") cond = checkLink(ctx, store, res, input.subject, input.level, cond);

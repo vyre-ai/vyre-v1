@@ -19,6 +19,7 @@ export const handlers: Handlers<HandlerCtx> = {
   "members.accept": async (ctx) => { throw new VyreErr(notImplemented("members.accept", ctx.trace)); },
   "members.invites.create": async (ctx) => { throw new VyreErr(notImplemented("members.invites.create", ctx.trace)); },
   "members.invites.extend": async (ctx) => { throw new VyreErr(notImplemented("members.invites.extend", ctx.trace)); },
+  "members.invites.guest": async (ctx) => { throw new VyreErr(notImplemented("members.invites.guest", ctx.trace)); },
   "members.invites.list": async (ctx) => { throw new VyreErr(notImplemented("members.invites.list", ctx.trace)); },
   "members.invites.preview": async (ctx) => { throw new VyreErr(notImplemented("members.invites.preview", ctx.trace)); },
   "members.invites.revoke": async (ctx) => { throw new VyreErr(notImplemented("members.invites.revoke", ctx.trace)); },
