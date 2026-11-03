@@ -1,0 +1,7 @@
+- Every new Team Space has a channel named #vyre, and every new member is in it from day one. An older Space with neither #vyre nor #general gets #vyre; one with #general sees an offer to rename it in Console Overview, never a silent rename.
+- Sharing an item with Everyone is for admins, and a restricted item is never shared with everyone; new members get what the Space shares with Everyone through the Everyone group.
+- Join steps that fail (a group, a channel, a project, an agent, the first channel, their mail and calendar) are tried again every two minutes; one that failed three times shows in Console Overview with Retry.
+- Last seen updates as you use the app, and teammates see a steady dot: online, away, or nothing (devices.presence).
+- Coming back after four hours, or pressing I'm Back, writes the While you were away digest from what happened, by name; it shows as one quiet row at the top of Chats.
+- The join notice names the person and the Space, never their ids; an activity line names who changed a record.
+- engine.now says which agents are working right now, for whom and where.

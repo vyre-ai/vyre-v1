@@ -3,6 +3,7 @@
 // The accept is the pre-auth path: members.accept checks the invite, asks identity to make the account (ruling 23, identity emits member.joined and principal.created once),
 // then runs the join effects. The same effects run from the seam identity calls when a host drives identity directly, so they never depend on which door the person used.
 import { currentPolicy, enabledProviders } from "./policy.ts";
+import { companyConnected } from "./company.ts";
 import type { MembersCtx, InviteRow, SeamInvite } from "../projections.ts";
 import {
   DAY_MS, DEFAULT_EXPIRY_DAYS, EVERYONE, OWNER_ROLE, hashCode, inviteById, inviteByCode, inviteView, invitesAll, listOf, mustInvite, newCode, nid, normCode, page, raise, stateOf,
@@ -147,11 +148,14 @@ export async function invitesPreview(ctx: MembersCtx, input: { code: string }) {
 export interface JoinStep { k: string; state: "pending" | "done" | "failed"; error?: string; tries: number }
 
 function stepsFor(r: InviteRow): JoinStep[] {
-  const keys = [`role:${r.role}`, `group:${EVERYONE}`];
+  // Everyone carries what the Space shares with everyone (agents, records, files, skills, Vault items: owner D22); the Space's first channel (#vyre) is a step of its own
+  const keys = [`role:${r.role}`, `group:${EVERYONE}`, "home"];
   for (const g of listOf(r.groups)) if (g !== EVERYONE) keys.push(`group:${g}`);
   for (const p of listOf(r.projects)) keys.push(`project:${p}`);
   for (const c of listOf(r.channels)) keys.push(`channel:${c}`);
   for (const a of listOf(r.agents)) keys.push(`agent:${a}`);
+  // their own mail and calendar, when the company is connected (Google Workspace or Microsoft 365): matched by the address they were invited at
+  keys.push("company");
   // The first-run checklist is a function of the person's events (spaces.onboarding.get), so it exists the moment the person does; the step records that it was seen.
   keys.push("checklist");
   return keys.map((k) => ({ k, state: "pending" as const, tries: 0 }));
@@ -167,10 +171,20 @@ async function runStep(ctx: MembersCtx, personId: string, step: JoinStep): Promi
   else if (kind === "project") await ctx.call("projects.members.set", { projectId: arg, principal: personId, role: "member", idempotencyKey: `join:${personId}:project:${arg}` });
   else if (kind === "channel") await ctx.call("channels.members.add", { channelId: arg, personIds: [personId] });
   else if (kind === "agent") await ctx.call("access.share", { resource: { type: "agent", id: arg }, subject: who, level: "use", idempotencyKey: `join:${personId}:${arg}` });
+  else if (kind === "home") await ctx.call("channels.home_join", { personId });
+  else if (kind === "company") {
+    const provider = companyConnected(ctx as never);
+    if (provider) await ctx.call(provider === "google" ? "google.dwd.sync_members" : "ms.consent.sync_members", {});
+  }
 }
 
+/** Steps tried this many times without working show to admins in Console Overview (they are still tried again). */
+export const JOIN_SURFACE_AFTER = 3;
+/** The periodic retry stops trying a step after this many failures; an admin's Retry starts it again. */
+export const JOIN_MAX_TRIES = 50;
+
 /** Run every pending join step, for one person or for all. A step that fails is kept with its error and tried again next time; a step that worked is never run twice. */
-export async function drainJoins(ctx: MembersCtx, personId?: string): Promise<{ applied: number; pending: number }> {
+export async function drainJoins(ctx: MembersCtx, personId?: string, opts: { periodic?: boolean } = {}): Promise<{ applied: number; pending: number }> {
   const rows = (personId
     ? ctx.db.all(`SELECT * FROM members_joins WHERE person_id = ?`, personId)
     : ctx.db.all(`SELECT * FROM members_joins WHERE state = ?`, "pending")) as { person_id: string; invite_id: string; steps: string; state: string }[];
@@ -180,6 +194,7 @@ export async function drainJoins(ctx: MembersCtx, personId?: string): Promise<{ 
     const steps = JSON.parse(j.steps) as JoinStep[];
     for (const s of steps) {
       if (s.state === "done") continue;
+      if (opts.periodic === true && s.tries >= JOIN_MAX_TRIES) continue;
       try {
         await runStep(ctx, j.person_id, s);
         s.state = "done";
@@ -191,10 +206,67 @@ export async function drainJoins(ctx: MembersCtx, personId?: string): Promise<{ 
       }
     }
     const left = steps.filter((s) => s.state !== "done").length;
+    const before = JSON.parse(j.steps) as JoinStep[];
     ctx.db.run(`UPDATE members_joins SET steps = ?, state = ?, applied_at = ? WHERE person_id = ?`, JSON.stringify(steps), left === 0 ? "applied" : "pending", left === 0 ? ctx.now() : null, j.person_id);
+    // a step that has failed JOIN_SURFACE_AFTER times now shows to admins; say so once, as it crosses
+    for (const s of steps) {
+      const was = before.find((b) => b.k === s.k);
+      if (s.state === "failed" && s.tries === JOIN_SURFACE_AFTER && (was?.tries ?? 0) < JOIN_SURFACE_AFTER) ctx.emit("member.join_stuck", j.person_id, { personId: j.person_id, step: s.k, error: s.error ?? "failed", tries: s.tries });
+    }
     if (left === 0) applied++; else pending++;
   }
   return { applied, pending };
+}
+
+// ---- what admins see of joins that have not finished
+
+const STEP_TITLE: Record<string, string> = { role: "Role", group: "Group", home: "The first channel", project: "Project", channel: "Channel", agent: "Agent", company: "Their mail and calendar", checklist: "First-run checklist" };
+
+/** A step in words: "Channel #sales", "Group Sales", never an id when the directory can name it. */
+async function stepTitle(ctx: MembersCtx, k: string): Promise<string> {
+  const colon = k.indexOf(":");
+  const kind = colon < 0 ? k : k.slice(0, colon);
+  const arg = colon < 0 ? "" : k.slice(colon + 1);
+  const head = STEP_TITLE[kind] ?? "A step";
+  if (!arg) return head;
+  const name = async (cap: string, input: unknown, pick: (o: Record<string, any>) => unknown): Promise<string | null> => {   // eslint-disable-line @typescript-eslint/no-explicit-any
+    try { const v = pick((await ctx.call(cap, input)) as Record<string, any>); return typeof v === "string" && v ? v : null; } catch { return null; }   // eslint-disable-line @typescript-eslint/no-explicit-any
+  };
+  let n: string | null = null;
+  if (kind === "role") n = await name("access.roles.get", { roleId: arg }, (o) => o["role"]?.name);
+  else if (kind === "group") n = await name("access.groups.get", { groupId: arg }, (o) => o["group"]?.name);
+  else if (kind === "channel") n = await name("channels.get", { channelId: arg }, (o) => (o["channel"]?.name ? `#${o["channel"].name}` : null));
+  else if (kind === "agent") n = await name("agents.get", { agentId: arg }, (o) => o["agent"]?.name);
+  return n ? `${head} ${n}` : head;
+}
+
+const PLAIN_ERROR: Record<string, string> = {
+  "validation.not_found": "It no longer exists.", "permission.no_grant": "Vyre was not allowed to do it.", "permission.role_lacks_permission": "Vyre was not allowed to do it.",
+  "permission.not_contained": "Vyre was not allowed to do it.", "validation.precondition_failed": "It was not ready.", "internal.unavailable": "That part of the Space was not answering.",
+};
+
+export async function joinsList(ctx: MembersCtx, input: { stuck?: boolean }) {
+  const rows = ctx.db.all(`SELECT * FROM members_joins WHERE state = ? ORDER BY joined_at`, "pending") as { person_id: string; invite_id: string; steps: string; joined_at: number }[];
+  const out: { personId: string; name: string; joinedAt: number; steps: { key: string; title: string; error: string; tries: number }[]; stuck: boolean }[] = [];
+  for (const j of rows) {
+    const failed = (JSON.parse(j.steps) as JoinStep[]).filter((st) => st.state === "failed");
+    if (failed.length === 0) continue;
+    const stuck = failed.some((st) => st.tries >= JOIN_SURFACE_AFTER);
+    if (input.stuck === true && !stuck) continue;
+    let name = "A new member";
+    try { const p = (await ctx.call("access.principals.get", { principal: { kind: "person", id: j.person_id } })) as { principal: { name?: string } }; if (p.principal.name) name = p.principal.name; } catch { /* the line keeps "A new member" */ }
+    const steps = [];
+    for (const st of failed) steps.push({ key: st.k, title: await stepTitle(ctx, st.k), error: PLAIN_ERROR[st.error ?? ""] ?? "It did not work.", tries: st.tries });
+    out.push({ personId: j.person_id, name, joinedAt: j.joined_at, steps, stuck });
+  }
+  return { joins: out };
+}
+
+/** An admin's Retry: run the person's steps that have not worked now, whatever their count. */
+export async function joinsRetry(ctx: MembersCtx, input: { personId: string }) {
+  const r = await drainJoins(ctx, input.personId);
+  const left = (await joinsList(ctx, {})).joins.find((j) => j.personId === input.personId);
+  return { ...r, steps: left?.steps ?? [] };
 }
 
 // ---- the seam identity calls

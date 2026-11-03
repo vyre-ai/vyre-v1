@@ -1,6 +1,6 @@
 // Capability handlers for devices (14). One file holds them all: sessions.ts.
 import {
-  epoch, epochBump, get, list, mine, purgeAck, rename, revoke, revokeOthers, rotateSpaceKey, sessionsList, sessionsRevoke, touch,
+  epoch, epochBump, get, list, mine, presence, purgeAck, rename, revoke, revokeOthers, rotateSpaceKey, sessionsList, sessionsRevoke, touch,
 } from "./sessions.ts";
 import { register } from "./register.ts";
 
@@ -12,6 +12,7 @@ export const handlers = {
   "devices.get": get,
   "devices.list": list,
   "devices.mine": mine,
+  "devices.presence": presence,
   "devices.purge_ack": purgeAck,
   "devices.register": register,
   "devices.rename": rename,

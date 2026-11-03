@@ -44,6 +44,7 @@ export default defineManifest({
     ev('member.invited', 'An invite was made', { p: { inviteId: id.invite, role: id.role, expiresAt: t.ts() }, subject: ['entity', '/inviteId'], retention: 'audit' }),
     ev('member.invite_revoked', 'An invite was revoked', { p: { inviteId: id.invite }, subject: ['entity', '/inviteId'], retention: 'audit' }),
     ev('member.joined', 'A person accepted an invite and is active; the inviter gets a quiet line', { p: { personId: id.user, inviteId: id.invite, role: id.role, invitedBy: id.user }, subject: ['entity', '/personId'], notify: 'member.joined', trigger: { title: 'A person joins', fields: ['/role'] }, retention: 'audit' }),
+    ev('member.join_stuck', 'A join step (a group, a channel, a project, an agent, the first channel, their mail and calendar) failed three times; it is still tried every two minutes and shows in Console Overview', { p: { personId: id.user, step: t.str(), error: t.str(), tries: t.int({ minimum: 0 }) }, subject: ['entity', '/personId'], retention: 'audit' }),
     ev('member.removed', 'A person was removed or left; devices purge, the Space key epoch rotates', { p: { personId: id.user, by: t.str(), reason: t.opt(t.str()) }, subject: ['entity', '/personId'], trigger: { title: 'A person is removed' }, retention: 'audit' }),
     ev('member.removal_plan_applied', 'The removal wizard reassigned or paused the things the person owned (counts only)', { p: { personId: id.user, kinds: t.arr(t.obj({ kind: removalKind, action: removalAction, count: t.int({ minimum: 0 }) })) }, subject: ['entity', '/personId'], retention: 'audit' }),
   ],
@@ -58,13 +59,21 @@ export default defineManifest({
     }),
     write('members.invites.extend', 'Give an open invite a new expiry', { ...V, in: { inviteId: id.invite, expiresInDays: t.int({ minimum: 1, maximum: 90 }) }, out: { invite: inviteRow }, perm: 'members.invite', tool: 'meta', team: true }),
     write('members.invites.revoke', 'Revoke an open invite', { ...V, in: { inviteId: id.invite }, out: ok, perm: 'members.invite', emits: ['member.invite_revoked'], audit: 'always', tool: 'meta', team: true }),
+    read('members.joins.list', 'Joins that have not finished: each new member with the steps that did not work yet, in words, how often each was tried, and whether it is stuck (three tries or more)', {
+      ...V, in: { stuck: t.opt(t.bool()) }, out: { joins: t.arr(t.obj({ personId: id.user, name: t.str(), joinedAt: t.ts(), stuck: t.bool(), steps: t.arr(t.obj({ key: t.str(), title: t.str(), error: t.str(), tries: t.int({ minimum: 0 }) })) })) },
+      perm: 'members.invite', tool: 'meta', team: true,
+    }),
+    write('members.joins.retry', "Retry a new member's join steps that did not work, now", {
+      ...V, in: { personId: id.user }, out: { applied: t.int({ minimum: 0 }), pending: t.int({ minimum: 0 }), steps: t.arr(t.obj({ key: t.str(), title: t.str(), error: t.str(), tries: t.int({ minimum: 0 }) })) },
+      perm: 'members.invite', emits: ['member.join_stuck'], audit: 'always', tool: 'meta', team: true,
+    }),
     read('members.invites.preview', 'Join page: the public Space routing id, name and logo, who invited, expiry and display fingerprint for a code', {
       ...V, caller: 'pending', in: { code: t.str() }, out: { spaceId: id.space, spaceName: t.str(), logoFileId: t.opt(id.file), invitedBy: t.str(), role: t.str(), expiresAt: t.ts(), fingerprint: t.str({ examples: ['ab12 cd34 ef56 7890'] }), ssoRequired: t.opt(t.arr(t.obj({ key: t.str(), title: t.str() }))) }, errors: ['auth.invalid_code', 'auth.expired'],
     }),
     write('members.accept', 'Accept an invite: pick a username and password, the device makes its keys; the person becomes active', {
       ...V, caller: 'pending', in: { code: t.str(), username: t.str({ pattern: '^[a-z0-9_.-]{2,32}$', examples: ['maya'] }), displayName: t.opt(t.str()), password: t.str(), deviceName: t.str(), deviceClass, keys: keyBundle, ssoProvider: t.opt(t.str()) },
       out: { personId: id.user, sessionId: id.session, token: t.str({ description: 'Session credential, returned once' }), epoch: t.int({ minimum: 0 }) },
-      emits: ['member.joined', 'principal.created'], audit: 'always', offline: 'online', rate: { n: 10, perSeconds: 60, scope: 'space' }, errors: ['auth.invalid_code', 'auth.expired', 'validation.duplicate'], team: true,
+      emits: ['member.joined', 'principal.created', 'member.join_stuck'], audit: 'always', offline: 'online', rate: { n: 10, perSeconds: 60, scope: 'space' }, errors: ['auth.invalid_code', 'auth.expired', 'validation.duplicate'], team: true,
     }),
 
     // ---- suspend and remove

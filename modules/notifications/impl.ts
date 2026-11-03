@@ -45,7 +45,15 @@ export function plan(ctx: NotifCtx, e: Ev): Promise<Parameters<typeof send>[1] |
     return { to: p.requester, kind: "access.decided", title: r?.type ?? "this", data: { decision: e.name === "access.granted" ? "approved" : "declined" } };
   }
   if (e.name === "run.failed") return { to: String(p.owner), kind: "run.failed", subject: { type: "run", id: String(p.runId) }, data: { name: p.kind, message: p.message }, runId: String(p.runId) };
-  if (e.name === "member.joined") return { to: String(p.invitedBy), kind: "member.joined", data: { name: p.personId, space: ctx.space } };
+  if (e.name === "member.joined") {
+    // the line names the person, never their id: the directory answers, and "A new member" stands in when it cannot
+    const filed = (name: string, space: string) => ({ to: String(p.invitedBy), kind: "member.joined", title: name, data: { name, space } });
+    const call = ctx.call;
+    if (!call) return filed("A new member", "the Space");
+    const who = call("access.principals.get", { principal: { kind: "person", id: String(p.personId) } }).then((r) => (r as { principal?: { name?: string } } | null)?.principal?.name, () => undefined);
+    const where = call("spaces.get", {}).then((r) => (r as { space?: { name?: string } } | null)?.space?.name, () => undefined);
+    return Promise.all([who, where]).then(([name, space]) => filed(name && !/^usr_/.test(name) ? name : "A new member", space || "the Space"));
+  }
   return undefined;
 }
 

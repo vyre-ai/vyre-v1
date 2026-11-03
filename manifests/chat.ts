@@ -384,6 +384,12 @@ export default defineManifest({
       in: { name: t.str({ examples: ['intake'] }), visibility: t.enm('public', 'invite'), topic: t.opt(t.str()), memberIds: t.opt(t.arr(id.user)), agentIds: t.opt(t.arr(id.agent)), folderId: t.opt(id.folder), recordId: t.opt(id.record) },
       out: { channel: channelRow }, perm: 'channels.create', emits: ['channel.created', 'thread.started', 'channel.agent_added', 'channel.member_added'], tool: 'chats', offline: 'queue', cli: 'vyre channels create',
     }),
+    read('channels.home', "The Space's first channel: #vyre, or an older Space's #general (legacy: Console offers to rename it). Null in a Personal Space", {
+      in: {}, out: { channel: t.nullable(t.obj({ channelId: id.channel, name: t.str({ examples: ['vyre'] }), mainThreadId: id.thread, legacy: t.bool() })) }, perm: null, tool: 'chats',
+    }),
+    write('channels.home_join', "System: the join step that puts a new member in the Space's first channel, making #vyre when the Space has none", {
+      in: { personId: id.user }, out: { channelId: t.nullable(id.channel), added: t.bool() }, emits: ['channel.created', 'thread.started', 'channel.member_added'], idem: 'natural',
+    }),
     read('channels.list', 'List channels by section and folder (the items capability of the Channels list)', {
       in: channelListIn, out: { channels: t.arr(channelRow), ...pageOut }, tool: 'chats', label: 'filter',
     }),
@@ -543,6 +549,7 @@ export default defineManifest({
     block('checklist', { title: t.opt(t.str()), items: t.arr(t.obj({ text: t.str(), done: t.bool(), by: t.opt(t.str()) })) }, 'Checklist {{title}}'),
   ],
   settings: [
+    setting('chat.keep_general', 'space', 'Chats', "Keep #general as the Space's first channel (new Spaces call it #vyre)", t.bool(), false),
     setting('chat.agent_tabs', 'person', 'Chats', 'Let agents open and switch side tabs for me', t.bool(), true),
     setting('chat.ask_agent', 'person', 'Models and usage', 'Agent I last used in Ask panes', t.nullable(id.agent), null),
   ],

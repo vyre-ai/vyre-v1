@@ -153,7 +153,7 @@ test("See all: runs, decisions with Undo, followed records and what waits, ranke
   ]);
   assert.equal(r.total, 7);
   assert.deepEqual(r.items[0].undo, { cap: "runs.undo", input: { runId: hex("run", 3) } });
-  assert.deepEqual(r.items[2], { kind: "record_change", title: "Smith matter", line: "Changed by usr_dan.", subject: { type: "record", id: hex("rec", 1) }, at: NOW - 4 * HOUR });
+  assert.deepEqual(r.items[2], { kind: "record_change", title: "Smith matter", line: "Changed by someone.", subject: { type: "record", id: hex("rec", 1) }, at: NOW - 4 * HOUR });
   assert.equal(r.items[3].line, "12 emails sorted");
   assert.equal(r.items[4].line, "Mail was down", "every routine result is here, not one per routine");
   const runsCall = h.calls.find((c) => c.cap === "runs.list")!;

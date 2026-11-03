@@ -76,6 +76,13 @@ async function statusOf(ctx: Ctx) {
 }
 
 export async function companyStatus(ctx: Ctx) { return statusOf(ctx); }
+/** The provider whose members sync with this Space, when Connect your company is done; null before. The join step reads it. */
+export function companyConnected(ctx: Ctx): "google" | "microsoft" | null {
+  let f: Row | null;
+  try { f = flowOf(ctx); } catch { return null; }   // no flow table yet: never connected
+  if (!f || typeof f["connectedAt"] !== "number") return null;
+  return f["provider"] === "google" ? "google" : f["provider"] === "microsoft" ? "microsoft" : null;
+}
 
 /** Starts the flow, or picks it up where it stands. A second start with another provider changes nothing once a provider is connected. */
 export async function companyStart(ctx: Ctx, input: { provider: CompanyProvider; data?: Data }) {

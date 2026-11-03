@@ -461,6 +461,18 @@ export async function updateGrant(ctx:ShareCtx,input:{grantId:string;level?:Leve
  ctx.emit("grant.updated",grant.id,updated);changed(ctx,store,"assignment");commit(ctx,store,ss,wasFresh,[res.id],false);return {grant:grantView(grant)};
 }
 
+/**
+ * Sharing with Everyone (owner D22) is what every member gets on day one, so admins manage it: a person who may manage access (or the host's own services) gives it or raises it; anyone
+ * may lower or remove it on what they manage. A restricted item never goes to everyone. Mine Vault items are refused by the Vault's own front before this.
+ */
+function assertEveryone(ctx: ShareCtx, store: AccessStore, res: ResourceRec, level: Level, grant: GrantRec | undefined): void {
+  const trace = ctx.trace.traceId;
+  if (res.label === "restricted") raise(trace, "validation.precondition_failed", "A restricted item is never shared with everyone. Share it with the people who need it.");
+  if (ctx.principal.kind === "service" || ctx.principal.id.startsWith("svc_")) return;
+  if (grant && rank(res.type, level) <= rank(res.type, grant.level)) return;
+  if (!store.snapshot().info(ctx.principal.id)?.perms.has("access.manage")) raise(trace, "permission.role_lacks_permission", "Only an admin shares with everyone in the Space. Ask an admin, or share it with the people who need it.");
+}
+
 export async function share(ctx: ShareCtx, input: {
   resource: ResourceRef; subject: SubjectRef; level: Level; conditions?: Cond; source?: string; idempotencyKey?: string; export?: boolean; reshare?: boolean;
 }) {
@@ -484,6 +496,7 @@ export async function share(ctx: ShareCtx, input: {
     if (kept) cond[flag] = true; else delete cond[flag];
   }
   assertFlags(ctx,store,res,cond,grant?.conditions);
+  if (input.subject.kind === "group" && input.subject.id === EVERYONE) assertEveryone(ctx, store, res, input.level, grant);
   assertDelegation(ctx,store,res,input.subject,input.level,cond,grant?.id);
   const created = !grant;
   if (grant) { grant.level = input.level; grant.conditions = cond; }

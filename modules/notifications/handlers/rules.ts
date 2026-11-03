@@ -287,7 +287,7 @@ export async function awaySet(ctx: NotifCtx, input: { until: number; delegate: D
   ctx.emit("away.set", `entity/${me}`, { person: me, until: input.until, delegate });
   return { until: input.until };
 }
-export async function awayClear(ctx: NotifCtx): Promise<{ waitedApprovals: number; waitedDigest: number }> {
+export async function awayClear(ctx: NotifCtx): Promise<{ waitedApprovals: number; waitedDigest: number; digestId?: string }> {
   const me = meOf(ctx);
   const r = ctx.db.all("SELECT since FROM notifications_away WHERE person = ?", me)[0] as { since: number } | undefined;
   if (!r) return { waitedApprovals: 0, waitedDigest: 0 };
@@ -297,7 +297,20 @@ export async function awayClear(ctx: NotifCtx): Promise<{ waitedApprovals: numbe
   const waitedDigest = n("SELECT COUNT(*) AS n FROM notifications_items WHERE person = ? AND at >= ? AND level = 'digest' AND deleted_at IS NULL");
   ctx.db.run("DELETE FROM notifications_away WHERE person = ?", me);
   ctx.emit("away.cleared", `entity/${me}`, { person: me, waitedApprovals, waitedDigest });
-  return { waitedApprovals, waitedDigest };
+  // I'm Back after real time away: home writes the While you were away digest for it (it writes nothing when nothing happened); a failure there never keeps the person away
+  let digestId: string | undefined;
+  if (ctx.call && ctx.now() - since >= AWAY_DIGEST_MIN_MS) {
+    try { digestId = ((await ctx.call("home.away_digest", { since })) as { digestId?: string } | null)?.digestId; } catch { /* the digest is a courtesy */ }
+  }
+  return { waitedApprovals, waitedDigest, ...(digestId ? { digestId } : {}) };
+}
+/** Away shorter than this writes no digest on I'm Back. */
+export const AWAY_DIGEST_MIN_MS = 30 * 60_000;
+/** Who is away right now and until when: what a teammate's dot shows. Never the delegate, never why. Every member may read it. */
+export async function awayWho(ctx: NotifCtx): Promise<{ people: { person: string; until: number }[] }> {
+  const now = ctx.now();
+  const rows = ctx.db.all("SELECT person, until FROM notifications_away WHERE until > ? ORDER BY person", now) as { person: string; until: number }[];
+  return { people: rows.map((r) => ({ person: String(r.person), until: Number(r.until) })) };
 }
 export async function awayGet(ctx: NotifCtx): Promise<Record<string, unknown>> {
   const a = readAway(ctx.db, meOf(ctx), ctx.now());
