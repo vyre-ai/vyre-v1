@@ -212,7 +212,11 @@ export interface ResolvedAccount { ref: string; driver: string; provider: string
   spaceKey?: boolean;
   /** An OpenAI-compatible endpoint names its own address (custom, local); `keyless` is a local server with no key. */
   base?: string; keyless?: boolean }
-export interface AccountQuery { threadId: string; agentId: string; askerId: string; stepKey?: string; /** Accounts that already failed this turn: the answer skips them and follows the agent's order. */ unavailable?: readonly string[] }
+export interface AccountQuery {
+  threadId: string; agentId: string; askerId: string; stepKey?: string; /** Accounts that already failed this turn: the answer skips them and follows the agent's order. */ unavailable?: readonly string[];
+  /** Why the last account was left: "overloaded" is the vendor being busy, not a limit, so it is not set aside to rest and the chat says it was busy. */
+  why?: "overloaded";
+}
 export interface SessionSpec {
   threadId: string; agent: EngineAgent; asker: string; turnId: string; traceId: string; account?: ResolvedAccount;
   /** The chat's mode for this turn. Absent: the driver's older behaviour (a session of a step or a one-shot job has no chat mode). */

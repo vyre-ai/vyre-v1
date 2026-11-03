@@ -201,10 +201,14 @@ export async function post(ctx: ChatCtx, input: PostInput) {
     if (!replyTo || replyTo.thread !== thread.id) raise(ctx, "validation.bad_input", "The message you reply to is not in this thread.");
   }
 
-  // Hops: an agent answering another agent is one hop further from the last person who spoke; a person's message starts again at 0.
+  // Hops: an agent answering another agent is one hop further from the last person who spoke; a person's message starts again at 0. A Job's line (a helper's or a teammate's
+  // result) is posted whatever the budget says, so the work lands, but it carries the next hop: the lead's answer to it parks at the limit (owner ruling, 3 Nov 2026).
   let depth = 0;
   const job = author.kind === "agent" && isJobResult(ctx, thread, author.id, blocks);
-  if (author.kind === "agent" && !job) {
+  if (job) {
+    const prev = lastMessage(ctx.db, thread.id);
+    depth = prev && refOf(prev.author).kind === "agent" ? prev.depth + 1 : 1;
+  } else if (author.kind === "agent") {
     const prev = replyTo ?? lastMessage(ctx.db, thread.id);
     if (prev && refOf(prev.author).kind === "agent") depth = prev.author === author.id ? prev.depth : prev.depth + 1;
     if (depth >= 1) {

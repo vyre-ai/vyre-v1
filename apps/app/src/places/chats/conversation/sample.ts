@@ -12,7 +12,7 @@ import type { Candidate, Helper, Message, MessageBlock, Thread } from "./model.t
 export const SAMPLE_NOW = Date.UTC(2025, 9, 24, 10, 0, 0);
 const at = (h: number, min: number, sec = 0, dayOffset = 0): number => Date.UTC(2025, 9, 24 + dayOffset, h, min, sec);
 
-export type Variant = "idle" | "streaming" | "busy" | "errors" | "plan" | "long" | "nolead" | "closed";
+export type Variant = "idle" | "streaming" | "busy" | "errors" | "plan" | "long" | "nolead" | "closed" | "channel";
 
 export const NAMES: Record<string, string> = {
   agt_intake: "Intake", agt_docs: "Docs", agt_research: "Research", agt_scout: "Scout", agt_billing: "Billing",
@@ -34,10 +34,10 @@ const INTAKE_REPLY = "Tuesday has two openings, **2:00** and **4:00**, and Thurs
 
 function build(variant: Variant): { thread: Thread; messages: Message[]; helpers: Helper[] } {
   const base: Omit<Thread, "agents"> = { threadId: "c1", kind: "chat", title: "Rivera intake", listed: true, planMode: false, members: [{ kind: "person", id: "usr_irfad" }, { kind: "agent", id: "agt_intake" }, { kind: "agent", id: "agt_docs" }], createdAt: at(9, 24) };
-  const agents: Thread["agents"] = variant === "nolead"
+  const agents: Thread["agents"] = variant === "nolead" || variant === "channel"
     ? [{ agentId: "agt_intake", mode: "listen", model: "opus" }, { agentId: "agt_docs", mode: "listen", model: "sonnet" }]
     : [{ agentId: "agt_intake", mode: "lead", model: "opus" }, { agentId: "agt_docs", mode: "listen", model: "sonnet" }];
-  const thread: Thread = { ...base, agents, ...(variant === "closed" ? { closedAt: at(9, 50) } : {}) };
+  const thread: Thread = { ...base, agents, ...(variant === "closed" ? { closedAt: at(9, 50) } : {}), ...(variant === "channel" ? { kind: "channel" as Thread["kind"], title: "intake" } : {}) };
   let seq = 0;
   const m = (id: string, author: { kind: "person" | "agent"; id: string }, body: string, createdAt: number, o: Partial<Message> = {}): Message => ({
     messageId: id, threadId: "c1", threadSeq: ++seq, author, kind: author.kind === "agent" ? "agent" : "text", body, blocks: [], depth: 0, attachments: [], reactions: [], pinned: false, createdAt, ...o,
@@ -46,6 +46,15 @@ function build(variant: Variant): { thread: Thread; messages: Message[]; helpers
   const intake = { kind: "agent" as const, id: "agt_intake" };
   const docs = { kind: "agent" as const, id: "agt_docs" };
   const messages: Message[] = [];
+  if (variant === "channel") {
+    // a channel where agents listen until named: Maya asked without naming one, then so did you (owner ruling, 3 Nov 2026)
+    thread.members = [...thread.members, { kind: "person", id: "usr_maya" }];
+    messages.push(
+      m("c1", { kind: "person", id: "usr_maya" }, "Did the Rivera intake form come back?", at(9, 20)),
+      m("c2", me, "Can someone check the Rivera dates before Tuesday?", at(9, 21)),
+    );
+    return { thread, messages, helpers: [] };
+  }
   if (variant === "long") {
     for (let i = 0; i < 150; i++) {
       const t = at(8, 0, 0) + i * 60_000;

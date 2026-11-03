@@ -467,7 +467,8 @@ export default defineManifest({
     health('engine', 'AI engine', 'engine.health', 'Open Settings > Models and usage and test the account, or switch model'),
   ],
   settings: [
-    setting('engine.agent_hops', 'space', 'Policies', 'Agent-to-agent hops before a person must reply', t.int({ minimum: 1, maximum: 20 }), 4, { floorable: true }),
+    // 8 agent turns since a person wrote, helpers and teammates counted, then a Continue card (owner ruling, 3 Nov 2026; was 4)
+    setting('engine.agent_hops', 'space', 'Policies', 'Agent turns, helpers and teammates counted, before a person must reply', t.int({ minimum: 1, maximum: 20 }), 8, { floorable: true }),
     setting('engine.allowed_accounts', 'space', 'Models and providers', 'Allowed AI accounts', t.enm('any', 'company'), 'any', { floorable: true }),
     setting('engine.review_sampling', 'space', 'Review sampling', 'Share of turns sampled for human review', t.obj({ percent: t.int({ minimum: 0, maximum: 100 }), labels: t.arr(label) }), { percent: 5, labels: ['confidential', 'restricted'] }),
     setting('engine.local_runs', 'person', 'Models and usage', 'Run my private chats on this computer', t.bool(), true),
@@ -483,7 +484,9 @@ export default defineManifest({
         accounts: ['engine.accounts.list', {}, true], models: ['engine.models.list', { accountRef: '/state/accountRef' }, true], defaults: ['engine.defaults.get', {}, true],
         usage: ['engine.usage.query', { by: '/state/by', from: '/state/from', to: '/state/to' }, true],
       },
-      a: { probe: ['engine.probe_account', { accountRef: '/state/accountRef' }], setDefaults: ['engine.defaults.set', {}], shareSubscription: ['engine.subscription_share.set', {}], runtime: ['engine.runtime.opt_in', {}] },
+      // No "Let the Space continue my chats when my computer is off" toggle here (owner ruling, 3 Nov 2026): it is on by default and its screen comes back with sealed chats.
+      // engine.runtime.opt_in stays a capability; only the Settings action is gone.
+      a: { probe: ['engine.probe_account', { accountRef: '/state/accountRef' }], setDefaults: ['engine.defaults.set', {}], shareSubscription: ['engine.subscription_share.set', {}] },
       empty: 'No accounts yet', primary: 'Open Vault',
     }),
     screen('console.ai-models', 'console', 'ui:ConsoleAiModels', {

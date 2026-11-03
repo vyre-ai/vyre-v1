@@ -9,7 +9,7 @@ Requires: nothing.
 - [vault.request](../capabilities/vault.request.md): Ask for a missing key: creates a request task for the managers of the folder (or the Space vault managers) and tells the requester its status
 - [vault.requests.cancel](../capabilities/vault.requests.cancel.md): Withdraw my own key request
 - [vault.requests.decline](../capabilities/vault.requests.decline.md): Decline a key request with a note
-- [vault.requests.fulfil](../capabilities/vault.requests.fulfil.md): Supply the key: attach an existing item, or save new fields as an item in the requested folder
+- [vault.requests.fulfil](../capabilities/vault.requests.fulfil.md): Supply the key: attach an existing item, or save new fields as an item in the requested folder; say who may use it through the agent that asked
 - [vault.requests.get](../capabilities/vault.requests.get.md): One key request with its task and status
 - [vault.requests.list](../capabilities/vault.requests.list.md): Key requests I made, or waiting on me as a folder manager
 

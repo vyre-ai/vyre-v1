@@ -4,7 +4,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
 import { NORTHWIND } from "./model.ts";
-import { kitById, railFor } from "../rail/kits.ts";
+import { kitById, phoneMore, railFor } from "../rail/kits.ts";
 import { Rail } from "../rail/Rail.tsx";
 import { Toolbar } from "../../places/files/Toolbar.tsx";
 
@@ -35,4 +35,15 @@ test("the Files header on a phone is the title, New and a More options button; t
   assert.ok(phone.includes("Agents") && !phone.includes('data-testid="files-crumb-root"'));
   const desk = html(<Toolbar {...props} />);
   for (const kept of ["files-sort", "files-view", "files-upload", "files-count", "files-back"]) assert.ok(desk.includes(`data-testid="${kept}"`), kept);
+});
+
+test("the phone's More menu has no Automations or Console (owner ruling, 3 Nov); the computer's rail keeps both", () => {
+  assert.ok(groups.top.some((e) => e.place === "automations") && groups.bottom.some((e) => e.place === "console"), "the sample Space has both");
+  const more = phoneMore(groups).map((e) => e.place);
+  assert.ok(!more.includes("automations") && !more.includes("console"), more.join());
+  assert.ok(more.includes("vault") && more.includes("settings"));
+  const desk = html(<Rail groups={groups} active="files" onSelect={noop} />);
+  assert.ok(desk.includes('data-testid="rail-automations') && desk.includes('data-testid="rail-console'), "desktop is unchanged");
+  const phone = html(<Rail bottom groups={groups} active="files" onSelect={noop} />);
+  assert.ok(!phone.includes("rail-automations") && !phone.includes("rail-console"));
 });

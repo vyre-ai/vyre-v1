@@ -23,9 +23,39 @@ const words = (e: unknown, fallback: string): string => {
   return m !== "" && m.length < 240 && !/^[a-z_.]+$/.test(m) ? m : fallback;
 };
 
-export async function startFlow(call: Call, providerKey: string, idempotencyKey: string, home: AiHome = "here"): Promise<Flow> {
+/** The sign-ins a Personal Space can take from this computer instead of a fresh sign-in (owner decision D2, 3 Nov 2026). */
+export const LOCAL_SIGNINS: readonly { key: string; button: string }[] = [
+  { key: "claude-code", button: "Use the Claude Code sign-in on this computer" },
+  { key: "codex", button: "Use the Codex sign-in on this computer" },
+];
+
+/**
+ * On a Mac, Claude Code keeps its sign-in in the login Keychain, and the first read shows the Mac's own "allow access" prompt. It is read only when the person presses the button, never on
+ * load, so the button says what is about to happen.
+ */
+export const KEYCHAIN_NOTE = "Your Mac will ask once; choose Always Allow.";
+
+/** This browser or app runs on a Mac (a Personal Space's server is this same computer). */
+export function onMacDevice(nav: { platform?: string; userAgent?: string } | undefined = (globalThis as { navigator?: { platform?: string; userAgent?: string } }).navigator): boolean {
+  return /mac/i.test(nav?.platform ?? "") || /Macintosh|Mac OS X/.test(nav?.userAgent ?? "");
+}
+
+/** The note under a local sign-in button: only Claude Code on a Mac reads the Keychain. */
+export function localNote(providerKey: string, mac: boolean): string | null {
+  return mac && providerKey === "claude-code" ? KEYCHAIN_NOTE : null;
+}
+
+/** Use the sign-in already on this computer: the server reads it and saves it in one go, so the account comes back at once. Rejects with the server's plain line (none there, or not a Personal Space). */
+export async function takeLocalSignin(call: Call, providerKey: string, idempotencyKey: string, home: AiHome = "here"): Promise<{ id: string } & Record<string, unknown>> {
+  const flow = await startFlow(call, providerKey, idempotencyKey, home, true);
+  const done = await checkFlow(call, flow.flowId, undefined, home);
+  if (done.state !== "done") throw new Error("The sign-in on this computer could not be saved. Sign in instead.");
+  return done.provider;
+}
+
+export async function startFlow(call: Call, providerKey: string, idempotencyKey: string, home: AiHome = "here", local = false): Promise<Flow> {
   try {
-    const out = await call("providers.subscription_start", { providerKey, idempotencyKey }) as { flowId: string; instruction: string; url?: string; userCode?: string; needsCode?: boolean };
+    const out = await call("providers.subscription_start", { providerKey, idempotencyKey, ...(local ? { local: true } : {}) }) as { flowId: string; instruction: string; url?: string; userCode?: string; needsCode?: boolean };
     return { flowId: out.flowId, instruction: out.instruction, ...(out.url ? { url: out.url } : {}), ...(out.userCode ? { userCode: out.userCode } : {}), needsCode: out.needsCode === true };
   } catch (e) { throw new Error(ownAiRefusal(e, home) ?? words(e, "The sign-in could not start. Check the connection and try again.")); }
 }

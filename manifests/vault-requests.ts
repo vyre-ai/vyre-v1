@@ -33,8 +33,9 @@ export default defineManifest({
     }),
     read('vault.requests.list', 'Key requests I made, or waiting on me as a folder manager', { ...V, in: { mine: t.opt(t.bool()), state: t.opt(t.enm('waiting', 'fulfilled', 'declined', 'canceled')), ...pageIn }, out: { requests: t.arr(requestRow), ...pageOut }, tool: 'vault' }),
     read('vault.requests.get', 'One key request with its task and status', { ...V, in: { requestId: reqId }, out: { request: requestRow }, tool: 'vault' }),
-    write('vault.requests.fulfil', 'Supply the key: attach an existing item, or save new fields as an item in the requested folder', {
-      ...V, in: { requestId: reqId, itemId: t.opt(id.vaultItem), fields: t.opt(t.arr(t.obj({ key: fieldKey, value: t.str() }))), folderId: t.opt(id.vaultFolder) },
+    // audience (owner ruling, 3 Nov 2026): who may use the key through the agent that asked. "asker" (default): only the person who asked; "anyone": anyone who asks this agent.
+    write('vault.requests.fulfil', 'Supply the key: attach an existing item, or save new fields as an item in the requested folder; say who may use it through the agent that asked', {
+      ...V, in: { requestId: reqId, itemId: t.opt(id.vaultItem), fields: t.opt(t.arr(t.obj({ key: fieldKey, value: t.str() }))), folderId: t.opt(id.vaultFolder), audience: t.opt(t.enm('asker', 'anyone')) },
       out: { request: requestRow }, emits: ['vault.request_fulfilled'], audit: 'always', tool: 'vault', offline: 'online', errors: ['permission.no_grant', 'validation.precondition_failed'],
     }),
     write('vault.requests.decline', 'Decline a key request with a note', { ...V, in: { requestId: reqId, note: t.opt(t.str()) }, out: ok, emits: ['vault.request_declined'], audit: 'sensitive', tool: 'vault' }),
@@ -44,7 +45,7 @@ export default defineManifest({
   screens: [
     screen('vault_requests.list', 'vault', 'ui:VaultRequests', {
       q: { requests: ['vault.requests.list', { mine: '/state/mine', state: '/state/state' }] },
-      a: { decline: ['vault.requests.decline', { requestId: '/state/requestId', note: '/state/note' }], fulfil: ['vault.requests.fulfil', { requestId: '/state/requestId', itemId: '/state/itemId', fields: '/state/fields', folderId: '/state/folderId' }], cancel: ['vault.requests.cancel', { requestId: '/state/requestId' }, 'Withdraw this request?'] },
+      a: { decline: ['vault.requests.decline', { requestId: '/state/requestId', note: '/state/note' }], fulfil: ['vault.requests.fulfil', { requestId: '/state/requestId', itemId: '/state/itemId', fields: '/state/fields', folderId: '/state/folderId', audience: '/state/audience' }], cancel: ['vault.requests.cancel', { requestId: '/state/requestId' }, 'Withdraw this request?'] },
       empty: 'No key requests',
     }),
   ],

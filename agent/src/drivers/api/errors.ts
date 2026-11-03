@@ -8,8 +8,11 @@ export function classify(status: number, text: string, code?: string): { code: s
   if (CONTEXT.test(text)) return { code: "provider.context_too_long", retryable: false };
   if (status === 401 || status === 403) return { code: "provider.auth_failed", retryable: false };
   if (status === 429 || status === 402) return { code: "provider.rate_limited", retryable: status === 429 };
+  // "Overloaded" (Anthropic 529, overloaded_error) is the vendor being busy, not a limit (owner ruling, 3 Nov 2026). The session does not retry it: the engine tries the same account once
+  // more, then the backup, and the chat says so.
+  if (status === 529 || code === "overloaded_error") return { code: "provider.overloaded", retryable: false };
   if (status === 408 || status === 409 || status >= 500 || status === 0) return { code: "provider.unavailable", retryable: true };
-  if (code === "overloaded_error" || code === "rate_limit_error") return { code: code === "overloaded_error" ? "provider.unavailable" : "provider.rate_limited", retryable: true };
+  if (code === "rate_limit_error") return { code: "provider.rate_limited", retryable: true };
   if (code === "authentication_error" || code === "permission_error") return { code: "provider.auth_failed", retryable: false };
   return { code: "provider.bad_request", retryable: false };
 }

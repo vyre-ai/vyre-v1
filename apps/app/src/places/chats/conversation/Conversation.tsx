@@ -46,6 +46,10 @@ import { useConnectVersion } from "../../../shell/connect/context.ts";
 import { windowAround } from "./focus.ts";
 import type { MessageActions } from "./MessageView.tsx";
 import { FaceButton, Glyph, IconButton, RenameField, TextButton } from "./parts.tsx";
+import { CONTINUE_TEXT, DEFAULT_AGENT_HOPS, limitOf, parkedAtLimit, parkedLine } from "./hops.ts";
+import { addedAgentMentions, askPost, pickerAgents, unansweredOwn } from "./askagent.ts";
+import { MemorySwitch } from "./memory-switch.tsx";
+import type { AgentMeta } from "./askagent.ts";
 import { useMobileBack } from "../../../mobile/shell/back.ts";
 import { offlineLine } from "../agentpage/model.ts";
 import {
@@ -215,6 +219,15 @@ function ConversationView(): ReactElement {
   // what the server says wins once it changes (a /plan, another device); a local choice holds until then
   useEffect(() => { setModeOver(null); }, [serverMode]);
   const failed = failureOf(threadQ, messagesQ);
+  // the chat's budget of agent turns: the Space's Policies setting, else 8 (owner ruling, 3 Nov)
+  const [hopLimit, setHopLimit] = useState(DEFAULT_AGENT_HOPS);
+  useEffect(() => {
+    let live = true;
+    data.call("settings.get", { key: "engine.agent_hops" }).then((out) => { if (live) setHopLimit(limitOf((out as { row?: { value?: unknown } } | null)?.row?.value)); }, () => undefined);
+    return () => { live = false; };
+  }, [data.threadId]);  // eslint-disable-line react-hooks/exhaustive-deps
+  // the agents.list rows the Ask-an-agent picker labels its agents from, read when it first opens
+  const agentMeta = useRef<readonly AgentMeta[] | null>(null);
   if (failed) return <LoadFailed what="this chat" failure={failed} testID="conversation-failed" />;
   if (threadQ.status === "loading" || messagesQ.status === "loading") return <ConversationLoading />;
   const thread: Thread = threadQ.data.thread;
@@ -232,6 +245,21 @@ function ConversationView(): ReactElement {
   const nameOf = data.nameOf;
   const lead = leadOf(thread);
   const hasEarlier = win.hiddenLocal > 0 || (olderMore ?? messagesQ.data.hasMore);
+
+  // Ask an agent about one message (owner ruling, 3 Nov): the channel's agents, your own first, a private agent as "<Person> (Agent)". The ask is the presser's own short reply to that
+  // message naming the agent, so the turn runs on the presser's account and chat.post's audience checks apply.
+  const askAbout = (messageId: string, agentId: string): void => {
+    const label = pickerAgents(thread, agentMeta.current ?? [], data.me.id, nameOf).find((a) => a.id === agentId)?.label ?? nameOf(agentId);
+    void data.call("chat.post", askPost(thread.threadId, messageId, { id: agentId, name: nameOf(agentId) }, data.me.id, data.newKey())).then(() => say(`Asked ${label}`), fail(`Could not ask ${label}.`));
+  };
+  const openAskPicker = (messageId: string, x: number, y: number): void => {
+    const show = (): void => {
+      const agents = pickerAgents(thread, agentMeta.current ?? [], data.me.id, nameOf);
+      menu.show(agents.map((a) => ({ label: a.label, onSelect: () => askAbout(messageId, a.id) })), x, y, "context", { label: "Ask an agent" });
+    };
+    if (agentMeta.current !== null) { show(); return; }
+    void data.call("agents.list", {}).then((out) => { agentMeta.current = ((out as { agents?: AgentMeta[] } | null)?.agents ?? []); show(); }, () => { agentMeta.current = []; show(); });
+  };
 
   const commandEnv = (): CommandEnv => ({
     data, thread, rows: win.rows, say, newKey: data.newKey,
@@ -386,7 +414,12 @@ function ConversationView(): ReactElement {
   const actions: MessageActions = {
     host,
     copy: (t) => { data.copy(t); say("Copied"); },
-    edit: (id, body) => void act.editMessage(data, id, body).catch(fail("Could not save the edit.")),
+    edit: (id, body) => {
+      // an edit that adds an @mention asks that agent once, as if it had been named when sent (owner ruling, 3 Nov); the fixed ask id keeps a second edit from asking again
+      const before = all.find((x) => x.messageId === id)?.body ?? "";
+      const added = addedAgentMentions(before, body, data.directory, thread.agents.map((a) => a.agentId));
+      void act.editMessage(data, id, body).then(() => { for (const agentId of added) askAbout(id, agentId); }, fail("Could not save the edit."));
+    },
     setPinned: (id, pinned) => void act.setPinned(data, id, pinned).catch(fail("Could not pin it.")),
     react: (id, emoji, remove) => void act.react(data, id, emoji, remove).catch(fail("Could not react.")),
     openThread: (id) => void act.openMessageThread(data, id).then((tid) => data.nav.openThread(tid), fail("Could not open the thread.")),
@@ -411,6 +444,7 @@ function ConversationView(): ReactElement {
     humanChat: thread.agents.length === 0,
     ...(thread.agents.length === 0 || thread.kind === "channel" ? {} : { fork: (id: string) => void act.forkChat(data, id, data.newKey()).then((next) => { say("Branched into a new chat, linked back to this one"); data.nav.openThread(next); }, fail("Could not fork it.")) }),
     withPeople: thread.members.filter((p) => p.kind === "person").length >= 2,
+    ...(thread.kind === "channel" && thread.agents.length > 0 ? { askAgent: (id: string, x: number, y: number) => openAskPicker(id, x, y) } : {}),
     makeTask: (id) => {
       const m = all.find((x) => x.messageId === id);
       if (!m) return;
@@ -455,6 +489,8 @@ function ConversationView(): ReactElement {
     ? mentionsIn(typed, data.directory.filter((c) => c.kind === "person" && c.id !== data.me.id))[0]
     : undefined;
   const closed = isClosed(thread);
+  const parked = !closed && parkedAtLimit(win.rows[win.rows.length - 1], hopLimit, isWorking);
+  const unanswered = closed || isWorking ? null : unansweredOwn(thread, win.rows, data.me.id, data.directory);
   const note = data.head ? "" : threadKindNote(thread, nameOf);
   const title = titleOf(thread, nameOf);
   const q = queueNote(queued, lead ? nameOf(lead.agentId) : "", canSteer, ownTurn);
@@ -568,6 +604,17 @@ function ConversationView(): ReactElement {
       {data.waitingLine ?? null}
       <AsideList items={asides} onDismiss={(id) => setAsides((cur) => cur.filter((x) => x.id !== id))} />
       <QueueWaiting ids={queuedIdsNow} call={data.call} threadId={thread.threadId}>{(waiting) => (q && waiting.length > 0 ? (<View testID="queue-row" style={st.queueRow}><Text testID="queue-note" accessibilityLiveRegion="polite" style={st.queue}>{queueNote(waiting.length, lead ? nameOf(lead.agentId) : "", canSteer)}</Text>{waiting.length > 0 ? <TextButton link label="Edit" testID="queue-edit" onPress={() => { const id = waiting[waiting.length - 1]!; const words = timelineMessages.find((m) => m.messageId === id)?.body ?? ""; void act.takeBackQueued(data, thread.threadId, id).then((ok) => { if (ok) { setPending((cur) => cur.filter((p) => p.messageId !== id)); setSeed((s) => ({ n: s.n + 1, value: words })); } else say("It was already read, so it cannot be edited now."); }, fail("Could not take it back.")); }} /> : null}{waiting.length > 0 ? <TextButton link label="Stop and send" testID="queue-send-now" onPress={() => void act.sendQueuedNow(data, thread.threadId, waiting[0]!).catch(fail("Could not send it now."))} /> : null}</View>) : null)}</QueueWaiting>
+      {unanswered ? (
+        <View testID="no-agent-line" style={st.lineBox}>
+          <Pressable
+            accessibilityRole="button" accessibilityLabel="No agent will reply. Ask an agent about your message" accessibilityHint="Opens the list of this channel's agents" testID="no-agent-ask"
+            onPress={(e) => { const box = (e as unknown as { currentTarget?: { getBoundingClientRect?: () => { left: number; top: number } } }).currentTarget?.getBoundingClientRect?.(); openAskPicker(unanswered.messageId, box?.left ?? 16, box?.top ?? 0); }}
+          >
+            <Text style={[st.lineText, { textDecorationLine: "underline" }]}>No agent will reply. @mention one</Text>
+          </Pressable>
+        </View>
+      ) : null}
+      {parked ? <View testID="hop-parked" accessibilityLiveRegion="polite" style={st.lineBox}><Text style={st.lineText}>{parkedLine(hopLimit)}</Text><TextButton label="Continue" testID="hop-continue" onPress={() => commandEnv().send(CONTINUE_TEXT)} /></View> : null}
       {line ? <View testID="conversation-line" accessibilityLiveRegion="polite" style={st.lineBox}><Text style={st.lineText}>{line}</Text>{undo ? <TextButton link label="Undo" testID="conversation-undo" onPress={undo} /> : null}</View> : null}
       {personMention ? (
         <View testID="channel-offer" style={st.offer}>
@@ -586,6 +633,7 @@ function ConversationView(): ReactElement {
             testID="composer" whoWillAnswer={whoLine(thread, nameOf)} placeholder={data.placeholder ?? placeholderFor(thread, nameOf, isWorking, canSteer)} working={isWorking}
             {...(place.chip ? { runsChip: place.chip } : {})}
             agents={composerAgents} mode={mode} onMode={chooseChatMode}
+            barExtra={<MemorySwitch threadId={thread.threadId} call={data.call} say={say} />}
             suggest={composerSuggest(data)} preview={(item) => previewOf(data, item)}
             renderPanel={(agent, close, narrowPanel) => <ChatBrain data={data} thread={thread} agent={agent} accounts={accounts} mode={mode} onMode={chooseChatMode} close={close} narrow={narrowPanel} say={say} {...(place.runs ? { runs: place.runs } : {})} onCompact={(keep, always) => void compactChat(data, keep, always, agent.id).then((line) => { if (line === null) say(keep ? `Compacted, keeping ${keep}` : "Compacted"); }, fail("Could not compact."))} />}
             {...(lead ? { lead: nameOf(lead.agentId) } : {})} listening={collect(thread.agents.filter((a) => a.mode === "listen"), (a) => nameOf(a.agentId))}

@@ -6,11 +6,13 @@ import type { ReactElement, ReactNode } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { MobileBackContext } from "./back.ts";
 import { Icon } from "./icons.tsx";
-import { MOBILE_TABS, back, canBack, current, initialNav, open, origin, selectTab } from "./model.ts";
+import { MOBILE_TABS, back, canBack, current, initialNav, open, origin, replace, selectTab } from "./model.ts";
 import type { Entry, NavState, TabId } from "./model.ts";
 
 export interface MobileNav {
   open(entry: Entry): void;
+  /** Put a screen in place of the one on show. */
+  replace(entry: Entry): void;
   back(): void;
   selectTab(tab: TabId): void;
   /** What Back would return to, for the bar's label. */
@@ -40,6 +42,7 @@ export function MobileShell({ renderScreen, needsYou = 0, initialTab = "chats", 
   const from = origin(nav);
   const api: MobileNav = {
     open: (e) => move((s) => open(s, e)),
+    replace: (e) => move((s) => replace(s, e)),
     back: () => move(back),
     selectTab: (t) => move((s) => selectTab(s, t)),
     origin: from,

@@ -6,7 +6,8 @@
 //   3. else a person speaks to every agent in the chat ("both of you", "each of you", "everyone"): every agent answers, each on its own (a discussion).
 //   4. else: the one lead agent of the thread, if any.
 // Listeners never run inference per message: no rule above ever returns one unless it was @mentioned. A message from an agent counts one hop (message.depth);
-// at the agent_hops limit (default 4) nothing runs until a person replies.
+// at the agent_hops limit (default 8, owner ruling 3 Nov 2026) nothing runs until a person replies or presses Continue. Helpers and teammates count: a helper's brief and the result
+// it brings back (a Job's line) each carry the next hop, so an agent that starts a helper after every result stops at the same budget.
 
 export interface RouteAgent { id: string; mode: "lead" | "listen"; /** a watcher acts unasked as a routine and is never the one agent that answers */ watching?: boolean }
 export interface RouteThread { agents: readonly RouteAgent[]; /** the thread kind when known: only a person's chat has a lone agent that answers whatever its mode says */ kind?: string }
@@ -18,7 +19,7 @@ export interface RouteMessage {
   depth?: number;
   /** The person whose message this replies to, when it is a reply to a person. */
   replyToPerson?: string | undefined;
-  /** A Job's own line, verified by chat.post: its brief or its result. It is work coming back, not agents talking, so it is no hop, and it reaches the lead even when the lead wrote it. */
+  /** A Job's own line, verified by chat.post: its brief or its result. It reaches the lead even when the lead wrote it, and it counts against the hop budget like any agent turn. */
   job?: boolean;
   /** The words, when known: a person who speaks to all the agents gets an answer from each. */
   text?: string;
@@ -32,7 +33,7 @@ export interface RouteResult {
   listeners: string[];
 }
 
-export const DEFAULT_AGENT_HOPS = 4;
+export const DEFAULT_AGENT_HOPS = 8;
 /** Words that speak to every agent in the chat. */
 export const ALL_AGENTS = /\b(both of you|each of you|all of you|you two|you both|you all|everyone|everybody|all agents)\b/i;
 const PERSON_CHATS: ReadonlySet<string> = new Set(["chat", "ask"]);
@@ -44,7 +45,8 @@ export function route(thread: RouteThread, m: RouteMessage, policy: RoutePolicy 
 
   const fromAgent = m.author.kind === "agent";
   const job = m.job === true;
-  if (fromAgent && !job && (m.depth ?? 0) >= limit) return done([], "hop_limit");
+  // one budget for the whole chat: a Job's line (a helper's or a teammate's result) counts like any agent turn
+  if (fromAgent && (m.depth ?? 0) >= limit) return done([], "hop_limit");
 
   const mentionedAgents = [...new Set(m.mentions.filter((x) => x.kind === "agent").map((x) => x.id))].filter((id) => job || !(fromAgent && id === m.author.id));
   if (mentionedAgents.length) return done(mentionedAgents, "mention");

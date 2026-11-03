@@ -28,7 +28,7 @@ test("PWA manifest declares an installable standalone Vyre app", () => {
     assert.match(icon?.src ?? "", /^\/icons\//);
     assert.ok(fs.existsSync(path.join(PUBLIC, (icon?.src ?? "").replace(/^\//, ""))), `${size} icon file exists`);
   }
-  assert.ok(icons.some((entry) => entry.purpose?.includes("maskable")), "one icon must support Android masking");
+  assert.ok(icons.some((entry) => entry.purpose === "maskable"), "Android masking has its own icon (install.test.ts checks the sizes)");
 });
 
 test("web document advertises the install surface and iPhone safe-area contract", () => {

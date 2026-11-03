@@ -91,10 +91,10 @@ export function ensure(db: Db): void {
 export const MAX_BODY = 100_000;
 export const MAX_MENTIONS = 50;
 export const MAX_BLOCKS = 20;
-export const DEFAULT_HOPS = 4;
+export const DEFAULT_HOPS = 8;
 export const MAX_NAME = 80;
 
-/** Agent-to-agent hops before a person must reply: the Policies setting engine.agent_hops, 4 when it cannot be read. */
+/** Agent turns since a person last wrote before a person must reply or press Continue: the Policies setting engine.agent_hops, 8 when it cannot be read (owner ruling, 3 Nov 2026). */
 export async function hopLimit(ctx: ChatCtx): Promise<number> {
   if (!ctx.call) return DEFAULT_HOPS;
   try {

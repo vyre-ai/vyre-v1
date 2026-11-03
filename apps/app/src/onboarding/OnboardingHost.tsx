@@ -112,7 +112,7 @@ export function OnboardingHost({ call, space, children, cards, onAddSpace, mac =
     if (card === "connect_ai" && call) return (
       <View style={s.aiCol}>
         {space.kind === "team" ? <SpaceAiStatus call={call} {...(person ? { me: person } : {})} /> : null}
-        <ConnectAiCard home={home} call={call} connected={aiProvider !== null || progress["ai"] === "done"} onConnected={(id) => { setAiProvider(id); ctx.done(); }} />
+        <ConnectAiCard home={home} call={call} local={space.kind === "personal"} connected={aiProvider !== null || progress["ai"] === "done"} onConnected={(id) => { setAiProvider(id); ctx.done(); }} />
       </View>
     );
     if (card === "bridge_team" && onAddSpace) return <TeamBridgeCard mac={mac} onCreate={() => { onAddSpace(); ctx.later(); }} />;
