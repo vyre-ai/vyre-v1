@@ -129,3 +129,36 @@ test("an account that is refused before the turn said anything hands the turn to
   await e3.idle("T");
   assert.equal(r.sessions.length, 1, "no repeat after output");
 });
+
+test("overloaded is not a limit (owner ruling, 3 Nov): the same account is tried once more, and only then the backup takes the turn, told why", async () => {
+  // busy once, then fine: the same account serves and no other account is looked for
+  let busy = 1;
+  const once = scriptedProvider({ script: () => (busy-- > 0 ? [{ type: "error" as const, code: "provider.overloaded", message: "Overloaded" }] : say) });
+  const asked: unknown[] = [];
+  const e1 = createTurnEngine({ holder: "host:s", openSession: once.openSession, resolveAccount: async () => account({ ref: "#A" }), nextAccount: async (q) => { asked.push(q); return account({ ref: "#B" }); } });
+  e1.openThread(thread());
+  e1.receive({ threadId: "T", author: person, body: "hello" });
+  await e1.idle("T");
+  assert.deepEqual(once.specs.map((s) => s.account?.ref), ["#A", "#A"]);
+  assert.deepEqual(asked, []);
+  assert.deepEqual(e1.turns("T").map((t) => t.state), ["completed"]);
+
+  // busy twice on the same account: the backup takes it, and the query says it was overloaded
+  const always = scriptedProvider({ script: (_i, spec) => (spec.account?.ref === "#A" ? [{ type: "error" as const, code: "provider.overloaded", message: "Overloaded" }] : say) });
+  const queries: Array<{ unavailable?: readonly string[]; why?: string }> = [];
+  const e2 = createTurnEngine({ holder: "host:s", openSession: always.openSession, resolveAccount: async () => account({ ref: "#A" }), nextAccount: async (q) => { queries.push(q); return account({ ref: "#B", reason: "backup_key" }); } });
+  e2.openThread(thread());
+  e2.receive({ threadId: "T", author: person, body: "hello" });
+  await e2.idle("T");
+  assert.deepEqual(always.specs.map((s) => s.account?.ref), ["#A", "#A", "#B"], "one retry on the same account, then the backup");
+  assert.deepEqual(queries.map((q) => [q.unavailable, q.why]), [[["#A"], "overloaded"]]);
+  assert.deepEqual(e2.turns("T").map((t) => t.state), ["completed"]);
+
+  // a rate limit still moves at once
+  const limited = scriptedProvider({ script: (_i, spec) => (spec.account?.ref === "#A" ? [{ type: "error" as const, code: "provider.rate_limited", message: "limit" }] : say) });
+  const e3 = createTurnEngine({ holder: "host:s", openSession: limited.openSession, resolveAccount: async () => account({ ref: "#A" }), nextAccount: async () => account({ ref: "#B" }) });
+  e3.openThread(thread());
+  e3.receive({ threadId: "T", author: person, body: "hello" });
+  await e3.idle("T");
+  assert.deepEqual(limited.specs.map((s) => s.account?.ref), ["#A", "#B"]);
+});

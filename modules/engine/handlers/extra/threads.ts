@@ -77,7 +77,7 @@ export async function routePreview(ctx: EngineCtx, input: { threadId: string; me
   }
   const agents = out.thread.agents.map((a) => ({ id: a.agentId, mode: a.mode, ...(a.name === undefined ? {} : { name: a.name }) }));
   const res = preview(agents, { kind: "person", id: actorOf(ctx) }, input.mentions ?? [], 0);
-  return { responders: res.responders, line: res.line === "" ? "No agent will reply, type @ to ask one" : res.line };
+  return { responders: res.responders, line: res.line === "" ? "No agent will reply. @mention one" : res.line };
 }
 
 // ---- health

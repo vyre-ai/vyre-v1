@@ -19,5 +19,8 @@ HTTP 422. Retryable: no.
 - plugins.install
 - sheets.append_rows
 - skills.add
+- skills.mine.add
+- skills.preview
+- skills.space.install
 - sources.ingest
 - sync.push

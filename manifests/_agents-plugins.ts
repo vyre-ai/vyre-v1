@@ -27,7 +27,7 @@ const browseRow = t.obj({
 const commandRow = t.obj({ name: t.str({ examples: ['deploy-tools:status'] }), description: t.str(), argumentHint: t.opt(t.str()), plugin: t.str(), pluginId: plgId });
 const mcpSpec = t.obj({
   key: t.str({ description: 'plugin:<plugin>/<server> or <name> for a connection made by hand', examples: ['deploy-tools/api'] }), name: t.str(),
-  from: t.enm('plugin', 'connection'), pluginId: t.opt(plgId), transport: t.enm('stdio', 'http', 'sse', 'ws'),
+  from: t.enm('plugin', 'connection'), pluginId: t.opt(t.str({ pattern: '^(plg|sko|skl)_[a-z0-9]+$', examples: ['plg_a1b2c3'], description: 'The plugin, or the skill (sko_ a person\'s, skl_ a Space one) whose .mcp.json it came from' })), transport: t.enm('stdio', 'http', 'sse', 'ws'),
   command: t.opt(t.str()), args: t.arr(t.str()), env: t.rec(t.str()), url: t.opt(t.str()), headers: t.rec(t.str()),
   files: t.opt(t.str({ description: 'Plugin id whose files the command runs from; the folder is ${CLAUDE_PLUGIN_ROOT}' })),
   needs: t.arr(t.str({ description: 'Options of the plugin that have no value yet; the server is not started until they do' })),
@@ -35,9 +35,11 @@ const mcpSpec = t.obj({
 });
 const hookRow = t.obj({ pluginId: plgId, plugin: t.str(), event: t.str({ examples: ['PostToolUse'] }), matcher: t.str(), command: t.str(), args: t.arr(t.str()), timeoutSec: t.opt(t.int({ minimum: 1 })) });
 const connectionRow = t.obj({
-  connectionId: mcsId, name: t.str(), scope: t.enm('space', 'agent'), agentId: t.opt(id.agent), transport: t.enm('stdio', 'http'), url: t.opt(t.str()), command: t.opt(t.str()), args: t.arr(t.str()),
+  connectionId: mcsId, name: t.str(), scope: t.enm('space', 'agent', 'mine'), agentId: t.opt(id.agent), transport: t.enm('stdio', 'http'), url: t.opt(t.str()), command: t.opt(t.str()), args: t.arr(t.str()),
   env: t.rec(t.str()), headers: t.rec(t.str()), enabled: t.bool(), createdAt: t.ts(),
   hub: t.opt(t.enm('composio', 'pipedream')), auth: t.opt(t.enm('oauth')),
+  // Vault > Connections (_agents-connections.ts): whose a Mine one is, who a Space one is for, where it came from, its name for people
+  owner: t.opt(t.str()), share: t.opt(t.arr(t.str())), source: t.opt(t.str()), sourceRef: t.opt(t.str()), title: t.opt(t.str()),
 });
 const allowRow = t.obj({ kind: t.enm('marketplace', 'plugin'), marketplace: t.str(), plugin: t.opt(t.str()), by: t.str(), at: t.ts() });
 const handleMap = t.rec(t.str({ description: 'A value, or a Vault handle such as #Dana_Api.token for a secret' }));
@@ -65,7 +67,7 @@ export const pluginCapabilities: CapabilityDef[] = [
   }),
   read('plugins.hooks.list', 'The hooks of the plugins that apply to this agent. They run only in the sandbox.', { in: { agentId: t.opt(id.agent) }, out: { hooks: t.arr(hookRow) }, perm: null, level: 'view' }),
   read('plugins.files', 'The text files of an installed plugin, for the sandbox to be given (its MCP servers and hooks run from them)', {
-    in: { pluginId: plgId }, out: { files: t.rec(t.str()) }, perm: null, level: 'view', errors: ['validation.not_found'],
+    in: { pluginId: t.str({ pattern: '^(plg|sko|skl)_[a-z0-9]+$', examples: ['plg_a1b2c3'], description: 'A plugin, or a skill whose bundled servers run from its files (sko_ a person\'s, skl_ a Space one)' }) }, out: { files: t.rec(t.str()) }, perm: null, level: 'view', errors: ['validation.not_found'],
   }),
   read('plugins.connections.list', 'MCP connections made by hand (a URL or a command)', { in: { agentId: t.opt(id.agent) }, out: { connections: t.arr(connectionRow) }, perm: null, level: 'view', tool: 'agents', mcpName: 'plugins_connections' }),
 
@@ -105,8 +107,9 @@ export const pluginCapabilities: CapabilityDef[] = [
   write('plugins.connection.add', 'Connect an MCP server by URL (remote) or by command (runs in the sandbox), for the Space or one agent; works for every model', {
     in: {
       name: t.str({ examples: ['crm'] }), scope: t.enm('space', 'agent'), agentId: t.opt(id.agent), url: t.opt(t.str()), command: t.opt(t.str()), args: t.opt(t.arr(t.str())), env: t.opt(handleMap), headers: t.opt(handleMap), hub: t.opt(t.enm('composio', 'pipedream')), auth: t.opt(t.enm('oauth')),
+      title: t.opt(t.str()), share: t.opt(t.arr(t.str({ description: 'everyone (the default), or group ids' }))), source: t.opt(t.enm('registry', 'paste', 'import', 'hub', 'skill', 'kit', 'hand')), sourceRef: t.opt(t.str({ description: 'The registry name, the file kind, or the skill whose bundled server this is' })),
     },
-    out: { connection: connectionRow }, perm: 'agents.manage', level: 'manage', risk: 'high', idem: 'key', audit: 'always', emits: ['plugin.connection_added'], tool: 'agents', mcpName: 'plugins_connection_add', errors: ['validation.duplicate'],
+    out: { connection: connectionRow }, perm: 'agents.manage', level: 'manage', risk: 'high', idem: 'key', audit: 'always', emits: ['plugin.connection_added'], tool: 'agents', mcpName: 'plugins_connection_add', errors: ['validation.duplicate', 'validation.precondition_failed', 'permission.role_lacks_permission'],
   }),
   write('plugins.connection.remove', 'Disconnect an MCP server made by hand', {
     in: { connectionId: t.opt(mcsId), name: t.opt(t.str()), scope: t.opt(t.enm('space', 'agent')), agentId: t.opt(id.agent) }, out: { removed: t.bool() }, perm: 'agents.manage', level: 'manage', idem: 'key', audit: 'always', emits: ['plugin.connection_removed'], tool: 'agents', mcpName: 'plugins_connection_remove',
@@ -121,7 +124,7 @@ export const pluginEvents: EventDef[] = [
   ev('plugin.installed', 'A plugin was installed', { p: { pluginId: plgId, name: t.str(), marketplace: t.str(), scope: t.enm('space', 'agent'), agentId: t.opt(id.agent), by: t.str() }, subject: ['entity', '/pluginId'] }),
   ev('plugin.uninstalled', 'A plugin was removed', { p: { pluginId: plgId, name: t.str(), by: t.str() }, subject: ['entity', '/pluginId'] }),
   ev('plugin.changed', 'A plugin was turned on or off, configured, or used to make an agent', { p: { pluginId: plgId, name: t.str(), by: t.str() }, subject: ['entity', '/pluginId'] }),
-  ev('plugin.connection_added', 'An MCP server was connected', { p: { connectionId: mcsId, name: t.str(), scope: t.enm('space', 'agent'), agentId: t.opt(id.agent), by: t.str() }, subject: ['entity', '/connectionId'] }),
+  ev('plugin.connection_added', 'An MCP server was connected', { p: { connectionId: mcsId, name: t.str(), scope: t.enm('space', 'agent', 'mine'), agentId: t.opt(id.agent), by: t.str() }, subject: ['entity', '/connectionId'] }),
   ev('plugin.connection_removed', 'An MCP connection was removed', { p: { connectionId: mcsId, name: t.str(), by: t.str() }, subject: ['entity', '/connectionId'] }),
 ];
 

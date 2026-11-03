@@ -38,7 +38,7 @@ Requires: mounts.
 - [files.health](../capabilities/files.health.md): Blob store and tree health: free space, orphaned blobs, index lag
 - [files.knowledge](../capabilities/files.knowledge.md): The Knowledge section of the tree: the knowledge folders and files the caller may read, plus the Memory and Graph entries
 - [files.lint](../capabilities/files.lint.md): Lint a guidance file: line counts against the limits, Inherits VYRE.md, Override lines, secret scan, agent.toml schema, routine prompt files, handoff names, repeated facts
-- [files.list](../capabilities/files.list.md): List files and folders in a folder or a section (Personal, Shared with me, Space)
+- [files.list](../capabilities/files.list.md): List files and folders in a folder or a section (Personal, Shared with me, Space). deep with section space lists every file in every Space folder the caller may see; q keeps names that contain it
 - [files.markup.get](../capabilities/files.markup.get.md): Read freehand markup (Draw) saved on an image or page
 - [files.markup.save](../capabilities/files.markup.save.md): Save freehand markup on an image or page
 - [files.move](../capabilities/files.move.md): Move a file to another folder (grants of the new folder apply, nothing is copied)

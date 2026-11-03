@@ -1,0 +1,32 @@
+{
+  "targets": [
+    {
+      "id": "MEETINGS_01-list",
+      "route": "/m/MEETINGS_01?view=list",
+      "proto": "inbox,{skin}",
+      "waitFor": "[data-testid='meetings-list']",
+      "note": "Inbox > Meetings: the sidebar's Meetings row (under Calendar) says one is ready to close. Each meeting is a row with its time, who was there and its state: Preparing, Ready to close, Nothing to do, Closed. No chips."
+    },
+    {
+      "id": "MEETINGS_01-package",
+      "route": "/m/MEETINGS_01?view=package",
+      "proto": "inbox,{skin}",
+      "waitFor": "[data-testid='meeting-package']",
+      "note": "The renewal call's close-out: summary, decision, open question; two tasks (one created, with Open task), two record updates with the field change and a meeting note, the follow-up email with Send it, the skipped hold with Undo. Approve all 4 at the top right; Approve, Edit and Skip on each waiting item."
+    },
+    {
+      "id": "MEETINGS_01-email",
+      "route": "/m/MEETINGS_01?view=package&at=email",
+      "proto": "inbox,{skin}",
+      "waitFor": "[data-testid='section-email']",
+      "note": "Further down the same close-out: the follow-up email to Pat (To, subject, the words, Send it with its menu) and the next-meeting hold, skipped, with Undo."
+    },
+    {
+      "id": "MEETINGS_01-edit",
+      "route": "/m/MEETINGS_01?view=package&at=email&edit=mci_e1",
+      "proto": "inbox,{skin}",
+      "waitFor": "[data-testid='edit-text-mci_e1']",
+      "note": "Edit on the follow-up email: the subject and the words become fields in place, with Cancel and Save; nothing else on the page moves."
+    }
+  ]
+}

@@ -133,7 +133,9 @@ export async function openAsChat(ctx: ChatCtx, input: { threadId: string }) {
 
 const LEVELS = ["manage", "edit", "use", "view"] as const;
 /** An Ask about a place, not one object: nothing narrows it, so the person's own access is the bound, the same on every driver. */
-const PLACE_SCOPES: ReadonlySet<string> = new Set(["records", "console", "onboarding", "automations", "vault_item"]);
+// The Ask pane of every place (rc.17) asks about the place itself when no object is named (its chip removed, a start page): Files, Vault, Inbox, Settings, Apps and Home are places like
+// Records. A Settings page is a page of the person's own settings, not an object anyone else holds.
+const PLACE_SCOPES: ReadonlySet<string> = new Set(["records", "console", "onboarding", "automations", "vault_item", "files", "vault", "inbox", "settings", "settings_page", "apps", "home"]);
 
 /** The caller's level on the object the pane is about, the highest of manage, edit, use, view they hold. An object with no resource of its own is read through its capability, so it is view. */
 export async function askLevel(ctx: ChatCtx, input: { threadId: string }): Promise<{ level: (typeof LEVELS)[number] | null }> {

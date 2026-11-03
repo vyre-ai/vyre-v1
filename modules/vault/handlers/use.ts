@@ -59,7 +59,8 @@ export interface SigninPort {
   has(provider: string): boolean;
   /** True while the host holds this flow (it is lost when the server restarts). */
   active(id: string): boolean;
-  start(p: { id: string; provider: string; person: string }): Promise<{ url: string; userCode?: string; needsCode: boolean; expiresInSec: number }>;
+  /** `local`: the sign-in already on this computer (Personal Space only): the flow is done at once and has no link. */
+  start(p: { id: string; provider: string; person: string; local?: boolean }): Promise<{ url: string; userCode?: string; needsCode: boolean; expiresInSec: number }>;
   /** `identity` names the account the provider says this is (an id compared, a label shown); absent when the answer names nobody. */
   step(p: { id: string; person: string; code?: string }): Promise<{ state: "waiting" } | { state: "done"; fields: { key: string; value: string; secret: boolean }[]; identity?: { id: string; label?: string } } | { state: "failed"; message: string }>;
   cancel(id: string): void;

@@ -38,6 +38,7 @@ import type { IndexOut, TaskFull, TaskRow, Who } from "./model.ts";
 import { faceKind, LiveWords, TextMenu, useLiveTurn, webProps } from "./parts.tsx";
 import { activityOf } from "./activity.ts";
 import type { ActivityShow } from "./activity.ts";
+import { offered } from "../../../shell/session/private-agents.ts";
 
 type History = CapMap["tasks.history"]["out"];
 type TaskOut = CapMap["tasks.get"]["out"];
@@ -177,7 +178,7 @@ function TaskHead({ task, rt, nameOf, run, line, menu, kids, list, openTask, ope
     {turn ? <View style={st.liveLine}><LiveWords turn={turn} turns={rt.turns} name={nameOf(turn.agentId)} /></View> : null}
     <YourAction task={task} view={view} me={rt.me.id} run={run} menu={menu} list={list} />
     {line ? <Text accessibilityRole="alert" testID="task-line" style={st.error}>{line}</Text> : null}
-    <TaskBody task={task} rt={rt} nameOf={nameOf} run={run} kids={kids} people={list} openTask={openTask} openAgent={openAgent} onKids={onKids} />
+    <TaskBody task={task} rt={rt} nameOf={nameOf} run={run} kids={kids} people={list.filter(offered)} openTask={openTask} openAgent={openAgent} onKids={onKids} />
     <View style={st.feedHead}>
       <Text style={st.blockTitle}>Activity</Text>
       <TextMenu label={show === "all" ? "Everything" : show === "comments" ? "Comments" : "Updates"} testID="task-activity-filter" onPress={(at) => menu.show([
@@ -194,7 +195,7 @@ function Chip({ label, onPress, icon }: { label: string; onPress(): void; icon?:
   </Pressable>;
 }
 
-/** Where the task came from, and the way back to it: the chat, the Run and its step, the held act. */
+/** Where the task came from, and the way back to it: the chat, the Run and its step, the held act, the meeting. */
 function SourceChip({ task, rt, openChat }: { task: TaskFull; rt: ShellRuntime; openChat(id: string): void }): ReactElement | null {
   const s = task.source;
   const [name, setName] = useState("");
@@ -207,11 +208,14 @@ function SourceChip({ task, rt, openChat }: { task: TaskFull; rt: ShellRuntime; 
       setName(`${run?.name ?? run?.automation ?? "An automation"}${at >= 0 ? ` · step ${at + 1}` : ""}`);
     }, () => setName("An automation"));
     if (s.kind === "chat") void rt.call("threads.get", { threadId: s.id }).then((o) => setName((o as { thread?: { title?: string } }).thread?.title ?? "A chat"), () => setName("A chat"));
+    if (s.kind === "meeting") void rt.call("meetings.closeout.get", { meetingId: s.id }).then((o) => setName((o as { title?: string }).title ?? ""), () => setName(""));
   }, [rt, s?.kind, s?.id, task.workingNotes["run.step"]]);  // eslint-disable-line react-hooks/exhaustive-deps
   if (!s || s.kind === "manual") return null;
   if (s.kind === "run") return <Chip label={name || "An automation"} icon="flow" onPress={() => rt.open({ subject: { type: "run", id: s.id } })} />;
   if (s.kind === "chat") return <Chip label={name || "A chat"} icon="chat" onPress={() => openChat(s.id)} />;
   if (s.kind === "gate") return <Chip label="Held before sending" icon="lock" onPress={() => rt.open({ screen: "tasks.needs-you", args: { taskId: task.id } })} />;
+  // a task from a meeting close-out says which meeting, and opens its close-out in the Inbox's Meetings tab
+  if (s.kind === "meeting") return <Chip label={name ? `From ${name}` : "From a meeting"} icon="task" onPress={() => rt.open({ subject: { type: "meeting", id: s.id } })} />;
   return <Chip label="From a journey" icon="flow" onPress={() => rt.open({ subject: { type: "journey", id: s.id } })} />;
 }
 

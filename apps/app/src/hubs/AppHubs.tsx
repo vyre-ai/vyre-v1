@@ -7,6 +7,7 @@ import type { ReactElement } from "react";
 import { AppState, Linking, Pressable, Text, View } from "react-native";
 import { HUBS, appName, connectLink, hubById, hubLine, identityOfApp } from "../../../../lib/mcp-hubs.ts";
 import type { HubTemplate } from "../../../../lib/mcp-hubs.ts";
+import { fileHubKey } from "./hub-key.ts";
 import { AppIcon } from "../../../../ui/src/AppIcon/index.tsx";
 import { Dialog } from "../../../../ui/src/Dialog/index.tsx";
 import { useMenu } from "../../../../ui/src/Menu/index.tsx";
@@ -151,11 +152,9 @@ export function AppHubsCard({ call }: { call: Call }): ReactElement {
   useComeBack(() => { void load(true); });
   const onConnect: AppHubsViewProps["onConnect"] = async ({ hub, url, key }) => {
     try {
-      const folders = ((await call("vault.folders.list", {})) as { folders: { id: string; scope: string }[] }).folders;
-      const folderId = folders.find((f) => f.scope === "mine")?.id ?? ((await call("vault.folders.create", { name: "Mine", scope: "mine", idempotencyKey: crypto.randomUUID() })) as { folder: { id: string } }).folder.id;
-      const itemName = `${hub.name}_key`;
-      await call("vault.item.put", { folderId, name: itemName, kind: "api_key", fields: [{ key: "api_key", value: key, secret: true }], idempotencyKey: crypto.randomUUID() });
-      await call("plugins.connection.add", { name: hub.id, scope: "space", url, headers: hubHeaders(hub, `#${itemName}.api_key`), hub: hub.id, idempotencyKey: crypto.randomUUID() });
+      // the hub is Space-wide, so its key goes in a Shared folder every member's call can fill from (hub-key.ts)
+      const handle = await fileHubKey(call, hub.name, key);
+      await call("plugins.connection.add", { name: hub.id, scope: "space", url, headers: hubHeaders(hub, handle), hub: hub.id, idempotencyKey: crypto.randomUUID() });
       await load(true);
       return undefined;
     } catch (e) {

@@ -86,9 +86,15 @@ test("the default sandbox: Linux without bwrap and an unknown platform say so an
   assert.throws(() => sandboxWrap(noBwrap.plan)(["claude"], { env, cwd: workFolder(data, "usr_dana", "thr_1") }), (e: Error & { code?: string }) => e.code === "sandbox.unavailable");
   const win = await defaultSandbox({ dataDir: data, platform: "win32" });
   assert.equal(win.plan.sandbox.kind, "server");
-  assert.match((win.plan.sandbox as { reason?: string }).reason ?? "", /win32/);
+  assert.match((win.plan.sandbox as { reason?: string }).reason ?? "", /Windows/);
+  const bsd = await defaultSandbox({ dataDir: data, platform: "freebsd" });
+  assert.match((bsd.plan.sandbox as { reason?: string }).reason ?? "", /freebsd/);
+  const { cliSandboxGap } = await import("../sandbox-default.ts");
+  assert.equal(cliSandboxGap({ platform: "darwin" }), null);
+  assert.equal(cliSandboxGap({ platform: "win32" }), (win.plan.sandbox as { reason?: string }).reason, "one reason, wherever it is shown");
   await noBwrap.close();
   await win.close();
+  await bsd.close();
 });
 
 test("PATH for a CLI engine: an app from the Finder gets the folders a shell would add, only the ones that exist, and other platforms keep their PATH", () => {
@@ -150,4 +156,32 @@ test("Apple's git under Seatbelt needs the developer folders open for reading: t
   assert.deepEqual(appleDeveloperRoots((p) => there.has(p), "/Applications/Xcode_26.6.app/Contents/Developer"), ["/Applications/Xcode_26.6.app/Contents", "/Library/Developer/CommandLineTools", "/Applications/Xcode.app/Contents", "/Library/Preferences/com.apple.dt.Xcode.plist"], "a hosted runner's Xcode is named by version");
   assert.deepEqual(appleDeveloperRoots(() => false, "/x/Contents/Developer"), []);
   assert.deepEqual(appleDeveloperRoots((p) => p === "/Library/Developer/CommandLineTools", "/Library/Developer/CommandLineTools"), ["/Library/Developer/CommandLineTools"]);
+});
+
+test("two CLI agents working for one person in one chat get a folder each: neither reads the other's memory guide; the chat's shared folder is common to both", async () => {
+  const { prepareWorkFolder } = await import("../session.ts");
+  const maps: Record<string, string> = { agt_a: "A: the Rivera file is closed", agt_b: "B: the Patel lease renews in May" };
+  const call = async (cap: string, input: unknown): Promise<unknown> => {
+    const agentId = (input as { agentId?: string }).agentId ?? "";
+    if (cap === "agents.get") return { agent: { name: agentId === "agt_a" ? "Ada" : "Bo" } };
+    if (cap === "memory.map.get") return { map: { body: maps[agentId] } };
+    if (cap === "threads.get") return { thread: { kind: "chat" } };
+    throw new Error(`unexpected ${cap}`);
+  };
+  await prepareWorkFolder(call as never, data, { agent: { id: "agt_a" }, asker: "usr_dana", threadId: "thr_two" });
+  await prepareWorkFolder(call as never, data, { agent: { id: "agt_b" }, asker: "usr_dana", threadId: "thr_two" });
+  const a = workFolder(data, "usr_dana", "thr_two", "agt_a");
+  const b = workFolder(data, "usr_dana", "thr_two", "agt_b");
+  assert.notEqual(a, b, "each agent has its own folder");
+  assert.match(fs.readFileSync(path.join(a, "CLAUDE.md"), "utf8"), /Rivera/);
+  assert.doesNotMatch(fs.readFileSync(path.join(a, "CLAUDE.md"), "utf8"), /Patel/, "the agent that opened second did not overwrite the first one's guide");
+  assert.match(fs.readFileSync(path.join(b, "AGENTS.md"), "utf8"), /Patel/);
+  // the sandbox of one mounts its own folder and the chat's shared folder, never the other agent's
+  const argv = sandboxWrap(bw)(["claude", "-p"], { env, cwd: a });
+  const binds = argv.flatMap((x, i) => (x === "--bind" ? [argv[i + 1]] : []));
+  assert.equal(binds[0], a, "its own folder is where it starts");
+  assert.ok(binds.includes(path.join(data, "work", "usr_dana", "thr_two", "shared")), "the chat's shared folder is mounted too");
+  assert.ok(!binds.some((x) => x === b || x === path.join(data, "work", "usr_dana", "thr_two")), "neither the other agent's folder nor the chat folder above both");
+  // an agent's folder cannot be named "shared", and an agent cannot start in the shared folder
+  assert.throws(() => sandboxWrap(bw)(["claude"], { env, cwd: path.join(data, "work", "usr_dana", "thr_two", "shared") }), /not one of the Space's/);
 });

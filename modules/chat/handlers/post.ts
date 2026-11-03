@@ -8,6 +8,7 @@ import { isTrustedService } from "../../../lib/trust.ts";
 import type { ChatCtx, MessageRec, ThreadRec } from "../projections.ts";
 import { unarchiveForMention } from "./archive-state.ts";
 import { saveScreen } from "./screen.ts";
+import { approveInChat } from "./agent-dm.ts";
 
 export interface Mention { kind: "person" | "agent"; id: string }
 export interface PostInput {
@@ -20,6 +21,8 @@ export interface PostInput {
 const BLOCK_TYPE = /^[a-z][a-z0-9_]*$/;
 /** Blocks that wait for an answer have their own tools (they need a row to answer against); a plain post cannot carry them. */
 const OWN_TOOL = new Set(["question", "plan"]);
+/** Blocks only the server writes: who an agent's message to a teammate speaks for, a line that carries a teammate's reply back, the state of a message that waits (handlers/agent-dm.ts). */
+const SERVER_ONLY = new Set(["on_behalf", "relay", "agent_dm"]);
 
 /** The top of a thread chain: the chat, Ask pane or channel an inline thread hangs under. */
 export function rootOf(ctx: Pick<ChatCtx, "db">, t: ThreadRec): ThreadRec {
@@ -89,6 +92,7 @@ function cleanBlocks(ctx: ChatCtx, raw: PostInput["blocks"]): Array<Record<strin
   return (raw ?? []).map((b) => {
     if (!BLOCK_TYPE.test(b.type)) raise(ctx, "validation.bad_input", "That is not a block type.", { type: b.type });
     if (OWN_TOOL.has(b.type)) raise(ctx, "validation.bad_input", "Questions and plans are made with ask_question and plan_propose, so they can be answered.", { type: b.type });
+    if (SERVER_ONLY.has(b.type)) raise(ctx, "validation.bad_input", "That card is written by Vyre itself. Use message_person to write to a teammate for your person.", { type: b.type });
     return { type: b.type, v: b.v, id: mintId("blk", ctx.now()), data: b.type === "link_card" ? inertCard(b.data) : b.data, state: "done", traceId: ctx.trace.traceId };
   });
 }
@@ -201,10 +205,14 @@ export async function post(ctx: ChatCtx, input: PostInput) {
     if (!replyTo || replyTo.thread !== thread.id) raise(ctx, "validation.bad_input", "The message you reply to is not in this thread.");
   }
 
-  // Hops: an agent answering another agent is one hop further from the last person who spoke; a person's message starts again at 0.
+  // Hops: an agent answering another agent is one hop further from the last person who spoke; a person's message starts again at 0. A Job's line (a helper's or a teammate's
+  // result) is posted whatever the budget says, so the work lands, but it carries the next hop: the lead's answer to it parks at the limit (owner ruling, 3 Nov 2026).
   let depth = 0;
   const job = author.kind === "agent" && isJobResult(ctx, thread, author.id, blocks);
-  if (author.kind === "agent" && !job) {
+  if (job) {
+    const prev = lastMessage(ctx.db, thread.id);
+    depth = prev && refOf(prev.author).kind === "agent" ? prev.depth + 1 : 1;
+  } else if (author.kind === "agent") {
     const prev = replyTo ?? lastMessage(ctx.db, thread.id);
     if (prev && refOf(prev.author).kind === "agent") depth = prev.author === author.id ? prev.depth : prev.depth + 1;
     if (depth >= 1) {
@@ -232,5 +240,7 @@ export async function post(ctx: ChatCtx, input: PostInput) {
   });
   saveScreen(ctx, thread.id, m.id, input.screen);
   deliver(ctx, thread, m, mentions, { kind: author.kind, id: author.id }, { job });
+  // a person's own typed "send it" presses the "Send this to <name>?" card it answers (lane l-agentdm)
+  if (author.kind === "person" && ctx.depth === 0 && (ctx.origin === "user" || ctx.origin === "sync") && body.trim() !== "") await approveInChat(ctx, thread.id, body);
   return { message: messageOut(m, encOf(ctx.db, thread)) };
 }

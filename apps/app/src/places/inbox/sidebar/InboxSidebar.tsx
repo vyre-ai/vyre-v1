@@ -1,4 +1,4 @@
-// Inbox > sidebar (spec 3.3): By contact and All inboxes, Calendar, then Mine, Shared and Agents with their unread counts, the Lists (Starred, Following) and the Calendars with
+// Inbox > sidebar (spec 3.3): By contact and All inboxes, Calendar, Meetings (with how many are ready to close), then Mine, Shared and Agents with their unread counts, the Lists (Starred, Following) and the Calendars with
 // a colour dot each. Every row is a ui/Row with a leading glyph and a trailing count. Click selects; right-click opens the row's menu; the calendar rows are ./CalendarRows.tsx
 // (click shows or hides, a menu, a status line, arrow keys). The dialer sits at the foot.
 import { useState } from "react";
@@ -16,6 +16,8 @@ import { Avatar } from "../../../../../../ui/src/Avatar/index.tsx";
 import { Glyph, IconButton, Unread } from "./parts.tsx";
 import type { IconName } from "./parts.tsx";
 import { useInboxState } from "./state.tsx";
+import { useMeetingsQuery } from "../meetings/MeetingsTab.tsx";
+import type { ListOut as MeetingsOut } from "../meetings/model.ts";
 
 type CountsOut = CapMap["inbox.counts"]["out"];
 type BoxesOut = CapMap["mail.mailbox.list"]["out"];
@@ -72,6 +74,7 @@ function Sidebar(): ReactElement {
   const boxes = useScreenQuery<BoxesOut>(SCREENS.sidebar, "mailboxes");
   const cals = useScreenQuery<CalsOut>(SCREENS.sidebar, "calendars");
   const rows = useScreenQuery<RowsOut>(SCREENS.list, "rows");
+  const meetings = useMeetingsQuery<MeetingsOut>("list");
 
   const mailboxes = boxes.status === "ready" ? boxes.data.mailboxes : [];
   const calendars = cals.status === "ready" ? cals.data.calendars : [];
@@ -159,6 +162,8 @@ function Sidebar(): ReactElement {
           glyph={<Glyph name="mix" />} onPress={() => pick({ kind: "all" }, "thread")} />
         <SideRow id="calendar" title="Calendar" selected={state.main === "calendar"} glyph={<Glyph name="cal" />}
           onPress={() => { dispatch({ type: "calendar" }); data.nav.openCalendar(); }} />
+        <SideRow id="meetings" title="Meetings" selected={state.main === "meetings"} glyph={<Glyph name="video" />} count={meetings.status === "ready" ? meetings.data.ready : 0}
+          onPress={() => dispatch({ type: "meetings" })} />
         {sections}
         {bare ? null : <SectionHead id="lists" label="Lists" closed={closed("lists")} onToggle={() => dispatch({ type: "section", key: "lists" })} />}
         {bare || closed("lists") ? null : [

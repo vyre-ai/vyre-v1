@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
 import { AddServerSheet, ComputersBody, ComputersSection } from "./Computers.tsx";
 import { SettingsDataProvider } from "./data.tsx";
-import { addressKind, emptySheet, factsLine, joinCommand, phaseOf, runsLine, validNickname } from "./computers-model.ts";
+import { addressKind, emptySheet, factsLine, joinCommand, peerServerCommand, phaseOf, runsLine, validNickname } from "./computers-model.ts";
 import type { HostInfo, ServerInfo } from "./computers-model.ts";
 import { createSampleSettings, northwind } from "./sample.ts";
 
@@ -97,4 +97,17 @@ test("asked for from the Space menu or an agent's page, Computers opens with the
   assert.ok(draw().includes('data-testid="add-server-sheet"'), "the sheet is open");
   assert.equal(addServerAsked(), false, "taken: a redraw does not open it again");
   assert.equal(takeAddServerRequest(), false);
+});
+
+test("a Personal Space adds a server with no address: the line carries the one-time code, and the server is in once it is one of the Space's computers", () => {
+  const cmd = peerServerCommand("VYRE-PS-abc123");
+  assert.ok(cmd.startsWith("VYRE_PEER_JOIN=VYRE-PS-abc123 sh -c '") && cmd.includes('env VYRE_PEER_JOIN="$VYRE_PEER_JOIN"'), cmd);
+  assert.ok(!/--server|--role/.test(cmd), "no address and no compute role: the server joins through the relay and holds the whole Space");
+  const sheet = { ...emptySheet(), nickname: "home-server", code: "VYRE-PS-abc123", expiresAt: 30 * 60_000, peer: true };
+  const waiting = renderToStaticMarkup(<AddServerSheet sheet={sheet} servers={[]} busy={false} error="" now={0} onNickname={() => undefined} onMake={() => undefined} onApprove={() => undefined} onDecline={() => undefined} onCopy={() => undefined} onClose={() => undefined} />);
+  assert.ok(waiting.includes("VYRE_PEER_JOIN=VYRE-PS-abc123"), "the line is shown");
+  assert.ok(!waiting.includes("Needs an address"), "a Personal Space needs no address for its server");
+  assert.equal(phaseOf(sheet, []).phase, "waiting");
+  const joined: ServerInfo = { serverId: "peer_srv", name: "home-server", state: "healthy", enrollment: "approved" };
+  assert.equal(phaseOf(sheet, [joined]).phase, "done", "no fingerprint to compare: the code was the yes");
 });

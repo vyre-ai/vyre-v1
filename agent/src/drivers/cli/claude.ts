@@ -204,6 +204,20 @@ export function claudePermission(o: Pick<CommandOptions, "mode" | "planMode">): 
 /** Claude Code takes the four efforts under the same names (`--effort`: low, medium, high, xhigh, max). */
 export const claudeEffort = (e: Effort | null | undefined): string | null => (e === undefined || e === null ? null : e);
 
+/**
+ * The leanest Claude Code call (a memory learning pass): its own short system prompt instead of Claude Code's, no tools, no MCP server, no settings and so no CLAUDE.md (`--setting-sources ""`),
+ * no skills or slash commands, nothing saved to resume. CHECKED against Claude Code 2.1.316 with a recording endpoint: about 1,000 characters (some 300 tokens) besides our system prompt and
+ * message, against 9,000 of system prompt alone without these flags and more again with a CLAUDE.md. Not --bare: it reads only ANTHROPIC_API_KEY and would refuse a subscription sign-in.
+ */
+export function claudeLean(o: Pick<CommandOptions, "model" | "system">): string[] {
+  return [
+    "claude", "-p", "--input-format", "stream-json", "--output-format", "stream-json", "--verbose", "--include-partial-messages", "--replay-user-messages",
+    "--strict-mcp-config", "--tools", "", "--setting-sources", "", "--disable-slash-commands", "--no-session-persistence", "--permission-mode", "default",
+    ...(o.model !== null ? ["--model", o.model] : []),
+    "--system-prompt", o.system ?? "",
+  ];
+}
+
 export const claudeCode: CliAdapter = {
   id: "claude_code",
   bin: "claude",
@@ -213,11 +227,14 @@ export const claudeCode: CliAdapter = {
   systemFlag: true,
   env: () => ({}),
   command(o: CommandOptions) {
+    if (o.lean === true) return claudeLean(o);
     const tools = o.noTools !== true;
     // Only a chat mode narrows the folder tools; the older planMode flag alone changes the permission mode and nothing else, as before.
     const folderTools = o.mode === "ask" || o.mode === "plan" ? READ_ONLY_FOLDER_TOOLS : WORK_FOLDER_TOOLS;
-    // WebSearch runs on the vendor's side, through the API host the sandbox already allows, so a lead and its helpers can research on the web; WebFetch would open the sandbox to any host and stays off.
-    const allowed = tools ? ["mcp__vyre__*", "WebSearch", ...Object.keys(o.plugins?.mcpServers ?? {}).map((n) => `mcp__plugin_${n}__*`), ...(o.workFolder !== null ? folderTools : [])] : [];
+    // WebSearch runs on the vendor's side. WebFetch goes out through the sandbox's wall, which applies the Space's internet setting (owner ruling 3 Nov: anything public by default); under
+    // "Only the AI providers" the wall refuses the page and the tool says so.
+    // Skill opens one of the skills Vyre wrote into the work folder (.claude/skills) or a plugin brought: it only reads instructions, so every mode allows it; what the skill then does goes through the other tools
+    const allowed = tools ? ["mcp__vyre__*", "WebSearch", "WebFetch", ...Object.keys(o.plugins?.mcpServers ?? {}).map((n) => `mcp__plugin_${n}__*`), ...(o.workFolder !== null ? [...folderTools, "Skill"] : [])] : [];
     const effort = claudeEffort(o.effort);
     return [
       "claude", "-p", "--input-format", "stream-json", "--output-format", "stream-json", "--verbose", "--include-partial-messages", "--replay-user-messages",

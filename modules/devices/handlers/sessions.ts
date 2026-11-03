@@ -12,6 +12,8 @@ import type { DeviceRec, SessionRec } from "../projections.ts";
 const ok = { ok: true } as const;
 /** The host's Ctx has `call`; a hand-built test ctx may not, and then there is no sync module to tell. */
 type RevokeCtx = DevicesCtx & { call?: Ctx["call"] };
+/** touch and presence ask other modules (home writes the digest, notifications says who is away); a hand-built test ctx may not have call. */
+type TouchCtx = DevicesCtx & { call?: Ctx["call"] };
 
 /** Tell sync that this device was revoked, so its replica purges on next contact and its live sockets close (sync.epoch.bump, device scope). A failure stops the revoke call loudly: a revoked device must not keep its copy. */
 async function purgeOnSync(ctx: RevokeCtx, d: DeviceRec): Promise<void> {
@@ -108,14 +110,72 @@ export async function register(ctx: DevicesCtx, input: { person: string; name: s
   return { device: deviceOut(deviceById(ctx, id)!, ctx.device), sessionId };
 }
 
-export async function touch(ctx: DevicesCtx, input: { deviceId: string; location?: string }) {
-  const d = deviceById(ctx, input.deviceId);
+/** How long a person may be gone before their next touch counts as coming back (and writes the While you were away digest). */
+export const ABSENCE_MS = 4 * 3_600_000;
+/** A touch inside this window of the last one changes nothing: the app touches on activity at most once a minute, and two devices or a quick retry never write twice. */
+export const TOUCH_QUIET_MS = 30_000;
+/** Seen within this window reads as online (the engine's placement uses the same five minutes). */
+export const ONLINE_MS = 5 * 60_000;
+
+/** Last seen of a device. The app calls it on activity (a press, a key, the window coming back), throttled; the device is the caller's current one when none is named. Coming back after
+ * ABSENCE_MS or more asks home to write the While you were away digest for the time away (a failure there never fails the touch). */
+export async function touch(ctx: TouchCtx, input: { deviceId?: string; location?: string }) {
+  const id = input.deviceId ?? ctx.device;
+  if (!id) raise(ctx, "validation.bad_input", "name the device");
+  const d = deviceById(ctx, id);
   if (!d || (d.person !== ctx.principal.id && !isSystemCall(ctx))) raise(ctx, "validation.not_found", "no such device");   // a person touches only their own devices; a stranger's reads as missing
   if (d.revokedAt !== null) raise(ctx, "auth.device_revoked");
   const now = ctx.now();
+  if (d.lastSeenAt !== null && now - d.lastSeenAt < TOUCH_QUIET_MS && (input.location === undefined || input.location === d.location)) return { ...ok, lastSeenAt: d.lastSeenAt };
+  const before = lastSeenOf(ctx, d.person);
   ctx.db.run(`UPDATE devices_device SET lastSeenAt = ?, location = ?, updated_at = ? WHERE id = ?`, now, input.location ?? d.location, now, d.id);
   for (const s of sessionsOfDevice(ctx, d.id)) ctx.db.run(`UPDATE devices_session SET last_seen_at = ?, location = ? WHERE id = ?`, now, input.location ?? s.location, s.id);
-  return ok;
+  let back = false;
+  if (before !== null && now - before >= ABSENCE_MS && d.person === ctx.principal.id && typeof ctx.call === "function") {
+    back = true;
+    try { await ctx.call("home.away_digest" as never, { since: before }); } catch { /* the digest is a courtesy: last seen is what was asked */ }
+  }
+  return { ...ok, lastSeenAt: now, ...(back ? { back: true } : {}) };
+}
+
+/** The newest contact over a person's live devices, or null when none has been seen. */
+function lastSeenOf(ctx: DevicesCtx, person: string): number | null {
+  let at: number | null = null;
+  for (const d of devicesOf(ctx, person, true)) if (d.lastSeenAt !== null && (at === null || d.lastSeenAt > at)) at = d.lastSeenAt;
+  return at;
+}
+
+type Presence = { personId: string; state: "online" | "away" | "offline"; lastSeenAt?: number; awayUntil?: number };
+
+/** Who is around (D23: on, a steady dot, Appear away): for each person with a device, online when a device was seen in the last ONLINE_MS, away when they set themselves away
+ * (notifications.away.who), else offline. Every member may read it; it says when, never where or on what. */
+export async function presence(ctx: TouchCtx, input: { people?: string[] }) {
+  if (!ctx.principal || (ctx.principal.kind !== "person" && ctx.principal.kind !== "agent" && !isSystemCall(ctx))) raise(ctx, "auth.unauthenticated");
+  const now = ctx.now();
+  const seen = new Map<string, number | null>();
+  for (const d of ctx.db.all(`SELECT * FROM devices_device WHERE deleted_at IS NULL`) as DeviceRec[]) {
+    if (d.revokedAt !== null) continue;
+    const was = seen.get(d.person);
+    if (was === undefined || (d.lastSeenAt !== null && (was === null || d.lastSeenAt > was))) seen.set(d.person, d.lastSeenAt);
+  }
+  const away = new Map<string, number>();
+  if (typeof ctx.call === "function") {
+    try {
+      const out = (await ctx.call("notifications.away.who" as never, {})) as { people?: { person: string; until: number }[] } | null;
+      for (const a of out?.people ?? []) away.set(a.person, a.until);
+    } catch { /* nobody reads as away when the list cannot be read */ }
+  }
+  const want = input.people ? new Set(input.people) : null;
+  for (const p of away.keys()) if (!seen.has(p)) seen.set(p, null);
+  const people: Presence[] = [];
+  for (const [personId, at] of seen) {
+    if (want && !want.has(personId)) continue;
+    const until = away.get(personId);
+    const state: Presence["state"] = until !== undefined ? "away" : at !== null && now - at < ONLINE_MS ? "online" : "offline";
+    people.push({ personId, state, ...(at !== null ? { lastSeenAt: at } : {}), ...(until !== undefined ? { awayUntil: until } : {}) });
+  }
+  people.sort((a, b) => a.personId.localeCompare(b.personId));
+  return { people };
 }
 
 export async function epoch(ctx: DevicesCtx, _input: Record<string, never>) {

@@ -27,6 +27,7 @@ import { Shell } from "../spaces/Shell.tsx";
 import type { PlaceContext } from "../spaces/Shell.tsx";
 import { CapError, createCapCaller } from "./caps.ts";
 import { isLoopbackUrl } from "../../../../../client/src/gateway/local-key.ts";
+import { linkComputer, unlinkComputer } from "./computer-link.ts";
 import { PHONE_BELOW } from "./mobile-map.ts";
 import { openPhone } from "./phone.ts";
 import { readUrlIntoHub } from "./url.ts";
@@ -37,6 +38,7 @@ import type { OpenSessionOptions, RealSession } from "./session.ts";
 import { clearStored, readStored, verifyStoredSession, writeStored } from "./stored.ts";
 import type { StoredSession } from "./stored.ts";
 import { VaultUnlockHost } from "./VaultUnlockHost.tsx";
+import { teamActions } from "./team-actions.ts";
 import { ReportHost } from "../report/ReportHost.tsx";
 import { isMacShell, lockedIdentity, storeLock } from "./entry.ts";
 import { anyUnread } from "../../places/chats/sidebar/model.ts";
@@ -73,7 +75,7 @@ export function ShellHost({ stored, open, onSignedOut, onHub, hub: given, initia
   const [openedSession, setSession] = useState<RealSession | null>(null);
   const session=openedSession?.def.spaceId===stored.def.spaceId&&openedSession.baseUrl===stored.baseUrl?openedSession:null;
   const activeStored=session?{...stored,def:session.def}:stored;
-  const catalogue=sessionCatalogue(activeStored);const catalogueKey=JSON.stringify(catalogue.map(item=>[item.baseUrl,item.personId,item.def]));
+  const catalogue=sessionCatalogue(activeStored);const catalogueKey=JSON.stringify(catalogue.map(item=>{const{image:_image,...def}=item.def;return[item.baseUrl,item.personId,def];}));// the image's file id (imageKey) stands for its bytes, so the key stays small
   const hub = useMemo(() => {
     if (given) { navRef.current = given; return given; }
     // Inbox starts where this device last saw it for this person and Space, so the rail does not jump while the reads answer
@@ -95,6 +97,8 @@ export function ShellHost({ stored, open, onSignedOut, onHub, hub: given, initia
   const flags = useRef<{ away: boolean; offline: boolean; terminal?: boolean; inbox?: boolean }>({ away: false, offline: false });
 
   useEffect(() => { onHub(hub); return () => onHub(null); }, [hub, onHub]);
+  // this computer runs the person's own chats in each Team Space they are signed in to here (computer-link.ts): at app start and whenever the signed-in Spaces change
+  useEffect(() => { void linkComputer(catalogue); }, [catalogueKey, stored.token]);
   useEffect(() => {
     let off = false;
     let opened: RealSession | null = null;
@@ -124,17 +128,41 @@ export function ShellHost({ stored, open, onSignedOut, onHub, hub: given, initia
 
   useEffect(() => {
     if (!session) return undefined;
-    const sync = (): void => hub.setOnline(session.runtime.connection.get() === "online", 0);
+    // A Personal Space on several computers (lane l-multidevice): changes made here that no other computer of the Space has taken yet are the ones waiting. While this computer reaches
+    // another one they are being sent; when it has reached none for a minute, the title bar says it is offline with them waiting.
+    let peers = { waiting: 0, reached: true };
+    const sync = (): void => { const up = session.runtime.connection.get() === "online"; hub.setOnline(up && peers.reached, peers.waiting); };
     sync();
-    return session.runtime.connection.subscribe(sync);
-  }, [session, hub]);
+    const offConn = session.runtime.connection.subscribe(sync);
+    if (stored.def.kind !== "personal") return offConn;
+    let off = false;
+    const read = (): void => { void session.call("network.peers", {}).then((out) => {
+      if (off) return;
+      const o = out as { waiting?: number; syncedAt?: number; computers?: unknown[] };
+      peers = { waiting: o.waiting ?? 0, reached: (o.computers?.length ?? 0) < 2 || (o.waiting ?? 0) === 0 || (typeof o.syncedAt === "number" && Date.now() - o.syncedAt < 60_000) };
+      sync();
+    }, () => undefined); };
+    read();
+    const t = setInterval(read, 10_000);
+    return () => { off = true; clearInterval(t); offConn(); };
+  }, [session, hub, stored.def.kind]);
   useEffect(() => {
     if (!session) return;
     let off = false;
     void loadRecent(session.runtime).then((hits) => { if (!off) recent.current = hits; });
     return () => { off = true; };
   }, [session]);
-  const search = useMemo(() => (session ? (flags.current.terminal = session.def.terminal, createGateSearch({ runtime: session.runtime, nav: hub, state: flags.current, recent: () => recent.current })) : null), [session, hub]);
+  // Invite People and Set Yourself Away reach the Space: a real link on the clipboard, and away stored where teammates see it (team-actions.ts)
+  const team = useMemo(() => (session ? teamActions({ call: session.call, hub, space: session.def.name }) : null), [session, hub]);
+  useEffect(() => {
+    if (!team) return undefined;
+    let off = false;
+    void team.load().then((a) => { if (!off) flags.current.away = a; });
+    return () => { off = true; };
+  }, [team]);
+  const setAway = useCallback((on: boolean): void => { flags.current.away = on; void team?.away(on); }, [team]);
+  const teamProp = useMemo(() => (team ? { invite: () => { void team.invite(); }, away: setAway } : undefined), [team, setAway]);
+  const search = useMemo(() => (session ? (flags.current.terminal = session.def.terminal, createGateSearch({ runtime: session.runtime, nav: hub, state: flags.current, recent: () => recent.current, ...(team ? { away: setAway } : {}) })) : null), [session, hub, team, setAway]);
 
   useEffect(() => {
     if (!session || stored.def.kind !== "team") return undefined;
@@ -191,6 +219,34 @@ export function ShellHost({ stored, open, onSignedOut, onHub, hub: given, initia
     });
   }, [session, hub]);
 
+  // the Space image follows Console: the tile's own read (spaces.switcher) names the image file, and only a different file fetches the picture (spaces.image); this device keeps it for the next launch
+  useEffect(() => {
+    if (!session) return undefined;
+    const q = session.hooks.capQuery<{ logoFileId?: string }>("spaces.switcher");
+    let asked: string | null | undefined;
+    const read = (): void => {
+      const s = q.getSnapshot();
+      if (s.status !== "ready") return;
+      const want = s.data.logoFileId ?? null;
+      const have = hub.session().def.imageKey ?? null;
+      if (want === have || want === asked) return;
+      asked = want;
+      const keep = (face: { image: string; imageKey: string } | null): void => {
+        hub.setFace(face);
+        const now = readStored(undefined, stored.baseUrl);
+        if (now && now.token === stored.token) { const { image: _i, imageKey: _k, ...def } = now.def; writeStored({ ...now, def: face ? { ...def, ...face } : def }); }
+      };
+      if (want === null) { keep(null); return; }
+      void (session.call("spaces.image", { known: have ?? undefined }) as Promise<{ logoFileId?: string; image?: string }>).then((out) => {
+        if (out.logoFileId === undefined) keep(null);
+        else if (typeof out.image === "string") keep({ image: out.image, imageKey: out.logoFileId });
+      }, () => { asked = undefined; });
+    };
+    const off = q.subscribe(read);
+    read();
+    return off;
+  }, [session, hub, stored.baseUrl, stored.token]);
+
   // the one badge: what waits on this person, from the one count, on the same tick as everything else on screen
   const [needsYou, setNeedsYou] = useState(0);
   useEffect(() => {
@@ -231,14 +287,14 @@ export function ShellHost({ stored, open, onSignedOut, onHub, hub: given, initia
     ? <States kind="error" message={`Couldn't reach ${stored.def.name}`} cause={failed} next="Try again" retryable onRetry={() => setAttempt((n) => n + 1)} />
     : <PlaceHost place={ctx.place} runtime={session?.runtime ?? null} hash={ctx.hash} opened={(t) => { const next = formatHash(t); if (next !== ctx.hash) hub.move(ctx.place, next); }} />;
   const signOut = (): void => {
-    forgetKey(); void dropKeyOnOwnNode(stored.baseUrl, stored.token).catch(() => undefined);
+    forgetKey(); void dropKeyOnOwnNode(stored.baseUrl, stored.token).catch(() => undefined); void unlinkComputer(stored);
     void session?.call("identity.sign_out", {}).catch(() => undefined);
     onSignedOut("manual");
   };
   const lock=():void=>{
     const identity=lockedIdentity({...stored,name:session?.me.name??stored.def.name});
     storeLock(identity);clearStored();
-    forgetKey();void dropKeyOnOwnNode(stored.baseUrl,stored.token).catch(()=>undefined);
+    forgetKey();void dropKeyOnOwnNode(stored.baseUrl,stored.token).catch(()=>undefined);void unlinkComputer(stored);
     void session?.call("identity.sign_out",{}).catch(()=>undefined);
     if(onLocked)onLocked(identity);else onSignedOut("manual");
   };
@@ -249,13 +305,13 @@ export function ShellHost({ stored, open, onSignedOut, onHub, hub: given, initia
   const personalCall = useMemo(() => { const p = catalogue.find((item) => item.def.kind === "personal" && item.def.spaceId !== stored.def.spaceId && isLoopbackUrl(item.baseUrl)); return p ? createCapCaller({ baseUrl: p.baseUrl, token: () => p.token }) : null; }, [catalogueKey, stored.def.spaceId]);
   const wrap = (el: ReactElement): ReactElement => <OnboardingHost call={session?.call ?? null} space={{ kind: stored.def.kind === "personal" ? "personal" : "team", name: stored.def.name }} mac={isMacShell()} runtime={session?.runtime ?? null} person={session?.me.id ?? null} personName={session?.me.name ?? null} address={stored.baseUrl} personalCall={personalCall} onGo={(place, hash) => hub.go(place as PlaceId, hash ?? "")} {...(onAddSpace?{onAddSpace}:{})}><>{el}<VaultUnlockHost /><ReportHost call={session?.call ?? null} place={location.place} /></></OnboardingHost>;
   if (deadConsole) return <View testID="console-redirect" style={{ flex: 1, backgroundColor: "var(--win)" as string }} />;
-  // on a computer the Console is a place in the shell; on a phone and at its own address nothing surrounds it
+  // on a computer the Console is a place in the shell; at its own address nothing surrounds it. In the app on a phone it is not there (owner ruling, 3 Nov): PhoneHost draws the Chat-about-it line
   if (consoleDoor && location.place !== "console") return <View testID="console-redirect" style={{ flex: 1, backgroundColor: "var(--win)" as string }} />;
-  if (location.place === "console" && (narrow || consoleDoor)) return wrap(<ConsoleAlone value><HubProvider hub={hub}>{renderPlace({ place: "console", hash: location.hash } as PlaceContext)}</HubProvider></ConsoleAlone>);
+  if (location.place === "console" && consoleDoor) return wrap(<ConsoleAlone value><HubProvider hub={hub}>{renderPlace({ place: "console", hash: location.hash } as PlaceContext)}</HubProvider></ConsoleAlone>);
   if (narrow) return wrap(<Suspense fallback={<View style={{ flex: 1, backgroundColor: "var(--win)" as string }} />}><PhoneHost session={session} location={{ place: location.place, hash: location.hash }} needsYou={needsYou} registerGo={registerGo} onSignOut={signOut} onLock={lock} {...(onSwitchSpace?{onSwitchSpace:selectSpace}:{})} {...(onAddSpace?{onAddSpace}:{})} /></Suspense>);
   return wrap(
     <>
-      <Shell hub={hub} {...(session ? { me: { id: session.me.id, name: session.me.name } } : {})} onOpenMe={() => hub.go("settings", "profile")} {...(runsOnProp ? { runsOn: runsOnProp } : {})} {...(theme?{theme}:{})} {...(onSwitchSpace?{onSwitchSpace:selectSpace}:{})} renderPlace={renderPlace} renderNewTab={renderNewTab} onSearch={() => setSearchOpen(true)} onSpaceAction={(a) => { if (a === "sign-out") signOut(); else if(a==='lock')lock();else if(a==='add')onAddSpace?.(); }} {...(phone ? { phone: { device: phone.device, data: phone.data } } : {})} {...(purge ? { purge } : {})} />
+      <Shell hub={hub} {...(teamProp ? { team: teamProp } : {})} {...(session ? { me: { id: session.me.id, name: session.me.name } } : {})} onOpenMe={() => hub.go("settings", "profile")} {...(runsOnProp ? { runsOn: runsOnProp } : {})} {...(theme?{theme}:{})} {...(onSwitchSpace?{onSwitchSpace:selectSpace}:{})} renderPlace={renderPlace} renderNewTab={renderNewTab} onSearch={() => setSearchOpen(true)} onSpaceAction={(a) => { if (a === "sign-out") signOut(); else if(a==='lock')lock();else if(a==='add')onAddSpace?.(); }} {...(phone ? { phone: { device: phone.device, data: phone.data } } : {})} {...(purge ? { purge } : {})} />
       {searchOpen && search ? <CmdK data={search} onClose={() => setSearchOpen(false)} onTiming={(name, ms) => { if (name === "local" && session) speed.record(session.runtime.space.id, "search", ms); }} /> : null}
     </>
   );

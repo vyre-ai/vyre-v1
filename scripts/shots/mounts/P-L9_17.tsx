@@ -1,6 +1,6 @@
 // Mount for P-L9_17 (phone shell): the phone shell over the Northwind sample Space (?space=harbor for Harbor Studio). ?tab=chats (default), inbox, records, files or you opens that tab. The Chats tab is the real
 // Chats sidebar as a full-screen list: tap a chat and the conversation opens on top (Back returns to the list), tap a Needs you row for the same. You is the real You screen. Swipe a chat row left
-// (or right-click it) for Star and Mark read.
+// (or right-click it) for Star and Mark read. ?link=automations or ?link=console (with ?hash=...) opens a deep link the way the production phone does: the Chat-about-it line (owner ruling, 3 Nov).
 import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { Text, View } from "react-native";
@@ -8,7 +8,8 @@ import { Conversation } from "../../../apps/app/src/places/chats/conversation/Co
 import { createSample as createConversationSample } from "../../../apps/app/src/places/chats/conversation/sample.ts";
 import { ChatsSidebar } from "../../../apps/app/src/places/chats/sidebar/ChatsSidebar.tsx";
 import { createSampleSidebar, harbor, northwind } from "../../../apps/app/src/places/chats/sidebar/sample.ts";
-import { MobileShell, YouScreen } from "../../../apps/app/src/mobile/shell/index.ts";
+import { DesktopOnly, MobileShell, YouScreen } from "../../../apps/app/src/mobile/shell/index.ts";
+import { desktopLine, desktopOnly, entryFor } from "../../../apps/app/src/shell/session/mobile-map.ts";
 import type { Entry, MobileNav, TabId } from "../../../apps/app/src/mobile/shell/index.ts";
 
 export const title = "Phone shell";
@@ -29,6 +30,7 @@ export default function Mount(): ReactNode {
   const team = params.get("space") === "harbor" ? harbor : northwind;
   const tabParam = params.get("tab") ?? "";
   const tab: TabId = TABS.find((t) => t === tabParam) ?? "chats";
+  const link = params.get("link");
   const sidebar = useMemo(() => createSampleSidebar(team), [team]);
   // the conversation sample is made when a chat is opened, not at start (startup draws the tab bar and the first list only)
   const conversation = useMemo(() => ({ get data() { return createConversationSample("idle").data; } }), []);
@@ -43,13 +45,15 @@ export default function Mount(): ReactNode {
       return <ChatsSidebar data={data} {...(params.get("all") === "1" ? { window: { start: 0, end: 500 } } : {})} />;
     }
     if (e.screen.startsWith("chat:")) return <ChatOpen make={() => conversation.data} />;
+    const away = desktopOnly(e);
+    if (away) return <DesktopOnly line={desktopLine(away.place)} onChat={() => nav.open({ tab: "chats", screen: "chat:assistant", title: "Assistant" })} />;
     if (e.screen === "you") return <YouScreen nav={nav} data={{ name: "Irfad Imtiaz", space: team.name, workOpen: 4, starred: 3 }} />;
     return <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}><Text style={{ color: "var(--ink-3)" as string, fontSize: 14 }}>{e.title ?? e.screen}</Text></View>;
   };
   return (
     <View style={{ flex: 1, alignItems: "center", backgroundColor: "var(--win)" as string }}>
       <View style={{ flex: 1, width: "100%", maxWidth: 480 }}>
-        <MobileShell renderScreen={render} needsYou={team.needsTotal} initialTab={tab} />
+        <MobileShell renderScreen={render} needsYou={team.needsTotal} initialTab={tab} {...(link === "automations" || link === "console" ? { initialEntry: entryFor(link, params.get("hash") ?? "") } : {})} />
       </View>
     </View>
   );

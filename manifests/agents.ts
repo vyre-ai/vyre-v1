@@ -12,6 +12,8 @@
 import { atool, create, defineManifest, ev, field, list, read, rtype, screen, setting, t, write } from '../packages/contracts/src/index.ts';
 import { id, pageIn, pageOut, versionRow } from './_common.ts';
 import { pluginCapabilities, pluginEvents, pluginScreens } from './_agents-plugins.ts';
+import { connectionCapabilities, connectionEvents } from './_agents-connections.ts';
+import { skillScopeCapabilities, skillScopeEvents, skillScopeScreens } from './_agents-skills.ts';
 
 const agentStatus = t.enm('awake', 'working', 'asleep', 'paused');
 const captureMode = t.enm('auto', 'propose', 'auto_low_risk', 'off');
@@ -51,9 +53,12 @@ const effort = t.enm('low', 'medium', 'high', 'max');
 // Skills (CHAT-DESIGN ruling 4): SKILL.md files in three tiers. builtin ships with Vyre (agent/skills), space is the Space library an admin keeps, agent is the agent's own skills/ folder
 // (and what a plugin installed into one agent brings). The turn shows an index of name and one line; load_skill returns the full text.
 const skillRow = t.obj({
-  name: t.str({ examples: ['deploy-checks'] }), description: t.str(), tier: t.enm('builtin', 'space', 'agent'),
+  name: t.str({ examples: ['deploy-checks'] }), description: t.str(), tier: t.enm('builtin', 'space', 'agent', 'mine', 'shared'), label: t.opt(t.str({ description: 'pdf (from acme/skills): a skill renamed because its name was taken first' })),
   source: t.str({ description: 'vyre, upload, agent, plugin:<name> or kit:<key>', examples: ['upload'] }), agentId: t.opt(id.agent),
   system: t.bool(), enabled: t.bool(), bytes: t.int({ minimum: 0 }), updatedAt: t.opt(t.ts()),
+  hash: t.opt(t.str({ description: 'A fingerprint of the text and files; it changes when the skill does' })),
+  shadowedBy: t.opt(t.enm('builtin', 'space', 'agent', 'mine', 'shared')), note: t.opt(t.str({ description: 'Which of two skills with this name is used, and why' })),
+  broken: t.opt(t.str({ description: 'Why this skill cannot be used; it stays listed and is never in a turn' })),
 });
 const skillFiles = t.rec(t.str());
 
@@ -101,6 +106,10 @@ export default defineManifest({
     read('agents.memory_key.get', 'The Vault handle that pays for an agent memory upkeep, for the memory module and the nightly job (the server reads it without seeing the agent page)', {
       in: target, out: { memoryKey: t.opt(t.str({ description: 'Vault handle, never a value' })), ownerId: id.user }, on: ['agent', '/agentId'], label: 'check', errors: ['validation.not_found'],
     }),
+    // the host seam a module working for a person uses to reach that person's Assistant (a meeting close-out when a transcript lands): the host and the person themself get it; anyone else, nothing
+    read('agents.assistant_of', "A person's own Assistant, for the server's modules that work for them; only the server and the person themself are answered", {
+      in: { personId: id.user }, out: { agentId: t.opt(id.agent) }, label: 'check',
+    }),
     read('agents.status', 'Live status of an agent: Awake (idle 2 minutes), Working, Asleep or Paused with reason and who', {
       in: target, out: { status: agentStatus, since: t.ts(), reason: t.opt(t.str()), by: t.opt(t.str()) }, on: ['agent', '/agentId'], tool: 'agents',
     }),
@@ -131,7 +140,7 @@ export default defineManifest({
     }),
     // ---- outside agents: an app that signed in from outside Vyre is a normal agent that runs elsewhere. Work waits for it here, because it is not running all the time.
     write('agents.outside.connect', 'System: make the agent an app becomes when a person allows it. Called by mcp.oauth.allow, never by a client', {
-      in: { clientName: t.str() }, out: { agentId: id.agent, name: t.str() }, perm: 'agents.create', emits: ['agent.created'], audit: 'always', idem: 'none', risk: 'high', offline: 'online',
+      in: { clientName: t.str() }, out: { agentId: id.agent, name: t.str() }, perm: 'agents.create', emits: ['agent.created', 'agent.privacy_set'], audit: 'always', idem: 'none', risk: 'high', offline: 'online',
     }),
     write('agents.outside.enqueue', 'System: a mention or a task for an outside agent waits in its queue until it asks', {
       in: { agentId: id.agent, kind: t.enm('mention', 'task', 'answer'), threadId: t.opt(id.thread), taskId: t.opt(id.task), messageId: t.opt(id.message), asker: t.str(), title: t.opt(t.str()), text: t.opt(t.str()) },
@@ -170,7 +179,11 @@ export default defineManifest({
     read('agents.config.validate', 'Validate agent.toml text (app limits first, then precedence) without saving', {
       in: { ...target, toml: t.str() }, out: { ok: t.bool(), errors: t.arr(t.obj({ line: t.opt(t.int()), message: t.str() })), widens: t.arr(t.str()) }, on: ['agent', '/agentId'], tool: 'agents',
     }),
-    read('agents.limits.get', 'Effective limits of an agent: agent.toml capped by Space caps', {
+    // Files asks this, as the writer, before it writes a new version of a file named agent.toml: saving an agent's agent.toml is changing its settings, so it takes the right agents.update takes. No tool.
+    read('agents.config.may_save', 'May the caller save this agent.toml, which is an agent\'s settings? Files asks as the writer before it writes; a file that is no agent\'s agent.toml answers allowed', {
+      in: { fileId: id.file }, out: { agentId: t.nullable(id.agent), allowed: t.bool(), reason: t.opt(t.enm('person_only', 'no_edit')), message: t.opt(t.str()) }, level: 'member',
+    }),
+    read('agents.limits.get','Effective limits of an agent: agent.toml capped by Space caps', {
       in: target, out: { limits, source: t.rec(t.enm('agent', 'person', 'space')) }, on: ['agent', '/agentId'], tool: 'agents',
     }),
     write('agents.snapshot.take', 'Take the file snapshot a run uses; changes to the files apply between runs', {
@@ -241,12 +254,12 @@ export default defineManifest({
     read('agents.builtin_skills.list', 'Skills every agent carries, led by "Working in Vyre": save facts to the asker layer, propose promotions, cite sources, use secrets only by name, never copy data across Spaces', {
       out: { skills: t.arr(t.obj({ key: t.str({ examples: ['working_in_vyre'] }), title: t.str(), version: t.str({ examples: ['1.0.0'] }), summary: t.str() })) }, perm: null, level: 'view', tool: 'agents',
     }),
-    read('skills.list', 'Skills a chat with this agent can load: Vyre built-in, the Space library and the agent own skills/ folder, one line each. With no agentId, the Space library and built-in ones', {
+    read('skills.list', 'Skills a chat with this agent can load: Vyre built-in, the Space library and the agent own skills/ folder, one line each. Two with one name are both listed, the one not used marked shadowedBy; a broken one is marked broken. With no agentId, the Space library and built-in ones', {
       in: { agentId: t.opt(id.agent), includeOff: t.opt(t.bool()) }, out: { skills: t.arr(skillRow) }, perm: null, level: 'view', tool: 'agents', mcpName: 'skills_list', agent: { planMode: 'allowed' },
     }),
     read('skills.load', 'Load the full text of one skill by name (SKILL.md body and its supporting files); agent skills win over Space ones, Space ones over built-in', {
       in: { name: t.str({ examples: ['deploy-checks'] }), agentId: t.opt(id.agent) },
-      out: { skill: t.obj({ name: t.str(), description: t.str(), tier: t.enm('builtin', 'space', 'agent'), source: t.str(), body: t.str(), files: t.arr(t.obj({ path: t.str(), text: t.str() })) }) },
+      out: { skill: t.obj({ name: t.str(), description: t.str(), tier: t.enm('builtin', 'space', 'agent', 'mine', 'shared'), source: t.str(), body: t.str(), files: t.arr(t.obj({ path: t.str(), text: t.str() })), text: t.opt(t.str({ description: 'The whole SKILL.md, front matter included' })), hash: t.opt(t.str()) }) },
       perm: null, level: 'view', tool: 'meta', mcpName: 'load_skill', agent: { planMode: 'allowed' }, errors: ['validation.not_found'],
     }),
     write('skills.add', 'Add or replace a skill in the Space library, or in one agent (SKILL.md text with name and description in its front matter, plus optional supporting files)', {
@@ -254,22 +267,28 @@ export default defineManifest({
         text: t.str({ description: 'The SKILL.md text' }), name: t.opt(t.str({ description: 'Used when the front matter has no name' })), agentId: t.opt(id.agent),
         source: t.opt(t.str({ description: 'upload (default), plugin:<name> or kit:<key>' })), files: t.opt(skillFiles),
       },
-      out: { skill: skillRow }, perm: 'agents.manage', level: 'manage', risk: 'medium', idem: 'key', emits: ['skill.added'], audit: 'always', tool: 'agents', mcpName: 'skills_add', errors: ['validation.too_large'],
+      out: { skill: skillRow, kept: t.opt(t.bool()), note: t.opt(t.str({ description: 'Set with kept: a Kit tried to add a skill whose name is taken by one it did not install, and that one was kept' })) },
+      perm: 'agents.manage', level: 'manage', risk: 'medium', idem: 'key', emits: ['skill.added'], audit: 'always', tool: 'agents', mcpName: 'skills_add', errors: ['validation.too_large'],
     }),
     write('skills.remove', 'Remove a skill from the Space library, or from one agent', {
-      in: { name: t.str(), agentId: t.opt(id.agent) }, out: { removed: t.bool() }, perm: 'agents.manage', level: 'manage', idem: 'key', emits: ['skill.removed'], audit: 'always', tool: 'agents', mcpName: 'skills_remove',
+      in: { name: t.str(), agentId: t.opt(id.agent), source: t.opt(t.str({ description: 'Remove it only when this source added it (a Kit undo names its own)' })) }, out: { removed: t.bool() }, perm: 'agents.manage', level: 'manage', idem: 'key', emits: ['skill.removed'], audit: 'always', tool: 'agents', mcpName: 'skills_remove',
     }),
     ...pluginCapabilities,
+    ...connectionCapabilities,
     write('skills.set_enabled', 'Turn a Space or agent skill off or on without removing it', {
       in: { name: t.str(), agentId: t.opt(id.agent), enabled: t.bool() }, out: { skill: skillRow }, perm: 'agents.manage', level: 'manage', idem: 'key', emits: ['skill.changed'], audit: 'always', tool: 'agents', mcpName: 'skills_set_enabled', errors: ['validation.not_found'],
     }),
+    ...skillScopeCapabilities,
   ],
   events: [
     ev('skill.added', 'A skill was added to the Space library or to one agent', { p: { name: t.str(), tier: t.enm('space', 'agent'), agentId: t.opt(id.agent), source: t.str(), by: t.str() }, subject: ['entity', '/name'] }),
     ev('skill.removed', 'A skill was removed from the Space library or from one agent', { p: { name: t.str(), agentId: t.opt(id.agent), by: t.str() }, subject: ['entity', '/name'] }),
     ...pluginEvents,
+    ...connectionEvents,
     ev('skill.changed', 'A skill was turned off or on', { p: { name: t.str(), agentId: t.opt(id.agent), enabled: t.bool(), by: t.str() }, subject: ['entity', '/name'] }),
-    ev('agent.created', 'An agent was created', { p: { agentId: id.agent, name: t.str(), ownerId: id.user, folderId: t.str(), templateVersion: t.int() }, subject: ['agent', '/agentId'], trigger: { title: 'An agent is created' } }),
+    // private: the person's own assistant or an outside agent they connected (owner ruling 3 Nov): to everyone else it is named as its person, "Irfad Imtiaz (Agent)", never by its own name
+    ev('agent.created', 'An agent was created', { p: { agentId: id.agent, name: t.str(), ownerId: id.user, folderId: t.str(), templateVersion: t.int(), private: t.opt(t.bool()) }, subject: ['agent', '/agentId'], trigger: { title: 'An agent is created' } }),
+    ev('agent.privacy_set', 'An agent became private to its person (their assistant, an outside agent) or stopped being so; access names it as its person to everyone else', { p: { agentId: id.agent, ownerId: id.user, private: t.bool() }, subject: ['agent', '/agentId'], retention: 'audit' }),
     ev('agent.paused', 'An agent was paused', { p: { agentId: id.agent, reason: t.opt(t.str()), by: t.str() }, subject: ['agent', '/agentId'], trigger: { title: 'An agent is paused' } }),
     ev('agent.resumed', 'An agent was resumed', { p: { agentId: id.agent, by: t.str() }, subject: ['agent', '/agentId'] }),
     ev('agent.owner_changed', 'An agent was handed to another person', { p: { agentId: id.agent, from: id.user, to: id.user, by: t.str() }, subject: ['agent', '/agentId'] }),
@@ -288,6 +307,7 @@ export default defineManifest({
     ev('agent.suggestion_proposed', 'A change to an agent was suggested', { p: { suggestionId: t.id('sug'), agentId: id.agent, kind: t.str(), by: t.str() }, subject: ['agent', '/agentId'], vis: 'participants' }),
     ev('agent.suggestion_resolved', 'A suggestion was accepted or dismissed', { p: { suggestionId: t.id('sug'), agentId: id.agent, accepted: t.bool(), by: t.str() }, subject: ['agent', '/agentId'], vis: 'participants' }),
     ev('agent.template_applied', 'The Agent template was applied', { p: { scope: t.str(), agents: t.int(), suggestions: t.int(), by: t.str() }, subject: ['entity', '/scope'] }),
+    ...skillScopeEvents,
   ],
   agentTools: [
     atool('tool_search', 'Find tools by what you want to do; returns names and schemas, then they are callable', {
@@ -371,5 +391,6 @@ export default defineManifest({
       a: { apply: ['agents.template.apply', { scope: '/state/scope', agentId: '/state/agentId' }, 'Apply the template?'], accept: ['agents.suggestion.accept', { suggestionId: '/state/suggestionId' }], dismiss: ['agents.suggestion.dismiss', { suggestionId: '/state/suggestionId' }] },
       empty: 'The template has no changes to apply', primary: 'Close', needs: ['agents.manage'],
     }),
+    ...skillScopeScreens,
   ],
 });

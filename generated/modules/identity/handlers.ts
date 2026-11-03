@@ -12,6 +12,7 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "identity.github_unlink": Handler<"identity.github_unlink", X>;
   "identity.keys_get": Handler<"identity.keys_get", X>;
   "identity.keys_put": Handler<"identity.keys_put", X>;
+  "identity.link_account": Handler<"identity.link_account", X>;
   "identity.pair_create": Handler<"identity.pair_create", X>;
   "identity.pair_redeem": Handler<"identity.pair_redeem", X>;
   "identity.passkey_register": Handler<"identity.passkey_register", X>;

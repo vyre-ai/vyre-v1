@@ -53,6 +53,11 @@ export interface Ctx {
   emit<T>(name: EventName, subject: string, payload: T, opts?: EmitOpts): EventEnvelope<T>;
   call<C extends CapName>(cap: C, input: unknown, opts?: CallOpts): Promise<unknown>;
   authorize(action: { perm: string | null; level: Level }, resource: ResourceRef): Decision;
+  /**
+   * May every one of these people do this on this resource? Their own grants, checked one by one, never the caller's. What goes into a chat other people read is held to what every one of them may
+   * open (lib/audience.ts). Answers yes or no only. Present on a booted daemon; a hand-built test ctx may omit it.
+   */
+  mayAll?(people: readonly string[], action: { perm: string | null; level: Level }, resource: ResourceRef): boolean;
   vault: { fill(handle: string, into: { kind: string; ref: string }): Promise<void>; use(handle: string): { handle: string } };
   http: (url: string, init?: { method?: string; headers?: Record<string, string>; body?: string }) => Promise<{ status: number; text(): Promise<string> }>;
   log: Logger;

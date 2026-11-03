@@ -3,11 +3,13 @@
 // the memory key's provider can stand in for it (setting memory.meaning_search: local, key or off). With no model, a model still loading, or a model that fails, search is keyword search and says so
 // in `meaning`; "not set up" reads healthy.
 // Vectors of shared text (agent, project and Space layers, notes) are kept in memory_vectors keyed by the text's hash, so an edit is re-embedded and nothing else is. A personal layer is never kept as
-// vectors: its text is embedded for the question and dropped, so nothing derived from personal text sits in a table.
+// vectors: its text is embedded for the question and dropped, so nothing derived from personal text sits in a table. While the person's key is held, the vectors of their own facts are kept in
+// their in-memory index (personal.ts) and dropped with it, so a search does not embed the same words again.
 import { createLocalEmbedder } from "./local-embedder.ts";
 import type { ModelFiles } from "./local-embedder.ts";
 import { meaningMode } from "./policy.ts";
-import { num, rowsOf, str } from "./projections.ts";
+import { actorOf, num, rowsOf, str } from "./projections.ts";
+import { indexOf } from "./personal.ts";
 import type { MemCtx } from "./projections.ts";
 
 export type EmbedderState = "ready" | "loading" | "not_set_up" | "failed";
@@ -124,11 +126,16 @@ export async function meaningScores(ctx: MemCtx, docs: MeaningDoc[], query: stri
         });
       }
     }
-    // personal text: embedded for this question and dropped
-    const personal = docs.filter((d) => !d.shared && d.text.trim() !== "").slice(0, PERSONAL_PER_CALL);
+    // personal text: from the person's in-memory index while their key is held, else embedded for this question and dropped
+    const ix = indexOf(ctx, actorOf(ctx));
+    const vkey = (d: MeaningDoc): string => `${embedder.name}|${keyOf(d)}|${hashOf(d.text)}`;
+    const own = docs.filter((d) => !d.shared && d.text.trim() !== "");
+    const fresh: MeaningDoc[] = [];
+    for (const d of own) { const v = ix?.vecs.get(vkey(d)); if (v) vecs.set(keyOf(d), v); else fresh.push(d); }
+    const personal = fresh.slice(0, PERSONAL_PER_CALL);
     if (personal.length > 0) {
       const out = await embedder.embed(personal.map((d) => d.text));
-      personal.forEach((d, i) => { const v = out[i]; if (v) vecs.set(keyOf(d), v); });
+      personal.forEach((d, i) => { const v = out[i]; if (v) { vecs.set(keyOf(d), v); ix?.vecs.set(vkey(d), v); } });
     }
     const min = embedder.minScore ?? MEANING_MIN;
     for (const d of docs) { const v = vecs.get(keyOf(d)); if (v) scores.set(keyOf(d), calibrated(cosine(q, v), min)); }

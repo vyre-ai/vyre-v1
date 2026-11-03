@@ -75,6 +75,8 @@ export interface CommandOptions {
   workFolder: string | null;
   /** Vyre's guide for this agent (AGENT.md and the rest), for engines that take it as a flag. */
   system: string | null;
+  /** The leanest command the engine allows (SessionSpec.lean): `system` replaces the engine's own system prompt, and no tools, MCP, settings, memory files, skills or saved session load. */
+  lean?: boolean;
 }
 
 /** What a decoder makes of one output line. The driver turns these into DriverEvents. */

@@ -22,8 +22,11 @@ export function ownedDirs(o: NodeCliProbe = {}): string[] {
 export function findProgram(name: string, o: NodeCliProbe = {}): string | null {
   const exists = o.exists ?? ((p: string): boolean => { try { fs.accessSync(p, fs.constants.X_OK); return fs.statSync(p).isFile(); } catch { return false; } });
   const env = o.env ?? process.env;
-  for (const dir of enginePath(env, env.HOME ?? "/", o.platform ?? process.platform, o.exists ?? fs.existsSync, undefined, ownedDirs(o)).split(path.delimiter)) {
-    const p = path.join(dir, name);
+  const platform = o.platform ?? process.platform;
+  // Windows starts only a program whose name ends in .exe without a shell (a .cmd shim from npm needs one, and is never run that way): Vyre's own copy is claude.exe, codex.exe, grok.exe
+  const file = platform === "win32" ? `${name}.exe` : name;
+  for (const dir of enginePath(env, env.HOME ?? "/", platform, o.exists ?? fs.existsSync, undefined, ownedDirs(o)).split(path.delimiter)) {
+    const p = path.join(dir, file);
     if (dir !== "" && exists(p)) return p;
   }
   return null;

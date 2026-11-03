@@ -36,7 +36,7 @@ type Out = {
   connections: Array<{
       connectionId: string;
       name: string;
-      scope: "space" | "agent";
+      scope: "space" | "agent" | "mine";
       agentId?: string;
       transport: "stdio" | "http";
       url?: string;
@@ -48,6 +48,11 @@ type Out = {
       createdAt: number;
       hub?: "composio" | "pipedream";
       auth?: "oauth";
+      owner?: string;
+      share?: Array<string>;
+      source?: string;
+      sourceRef?: string;
+      title?: string;
     }>;
 };
 ```
@@ -83,7 +88,14 @@ type Out = {
         "headers": {},
         "hub": "composio",
         "name": "example",
+        "owner": "example",
         "scope": "space",
+        "share": [
+          "example"
+        ],
+        "source": "example",
+        "sourceRef": "example",
+        "title": "example",
         "transport": "stdio",
         "url": "example"
       }

@@ -293,6 +293,8 @@ export interface WhoContext {
   listening?: readonly string[];
   agents?: readonly ListItem[];
   people?: readonly ListItem[];
+  /** The thread kind when known: in a channel a lone listening agent still waits to be named, as the engine routes it (lib/route.ts). */
+  kind?: string;
 }
 
 function mentionsIn(text: string, items: readonly ListItem[] | undefined): string[] {
@@ -314,11 +316,15 @@ export interface WhoAnswer {
   reason: string;
 }
 
+/** What the composer says when nobody is named and no agent leads (owner ruling, 3 Nov 2026). */
+export const NO_AGENT_LINE = "No agent will reply. @mention one";
+
 /** The composer's who-will-answer line for the text typed so far, from lib/route.ts. */
 export function whoAnswers(text: string, ctx: WhoContext): WhoAnswer {
   const agentNames = mentionsIn(text, ctx.agents);
   const personNames = mentionsIn(text, ctx.people);
   const thread: RouteThread = {
+    ...(ctx.kind === undefined ? {} : { kind: ctx.kind }),
     agents: [
       ...(ctx.lead === undefined ? [] : [{ id: ctx.lead, mode: "lead" as const }]),
       ...(ctx.listening ?? []).filter((n) => n !== ctx.lead).map((id) => ({ id, mode: "listen" as const })),
@@ -334,7 +340,8 @@ export function whoAnswers(text: string, ctx: WhoContext): WhoAnswer {
     const who = firstWord(personNames[0] ?? "They");
     return { line: `${who} will see this · no agent will reply`, responders: [], dim: true, reason: result.reason };
   }
-  return { line: "No agent will reply · type @ to ask one", responders: [], dim: true, reason: result.reason };
+  // owner ruling, 3 Nov 2026: agents listen until named, and the line says so plainly
+  return { line: NO_AGENT_LINE, responders: [], dim: true, reason: result.reason };
 }
 
 /** The line to show: computed when the text addresses someone or the caller gave a thread; otherwise the caller's own line. */
@@ -675,7 +682,7 @@ function AgentStrip({ list, narrow, onPress, open, face, mode, runsChip, ring }:
 }
 
 /** The field's tokens, drawn behind the text: a wash under each #link, @mention and [[link]]. The text itself stays the field's own. */
-function TokenBackdrop({ text, ranges, scrollY, style }: { text: string; ranges: readonly TokenRange[]; scrollY: number; style: TextStyle }): ReactElement {
+function TokenBackdrop({ text, ranges, scrollY, style, pad }: { text: string; ranges: readonly TokenRange[]; scrollY: number; style: TextStyle; pad: readonly (ViewStyle | false)[] }): ReactElement {
   const parts: ReactElement[] = [];
   let at = 0;
   ranges.forEach((r, i) => {
@@ -685,7 +692,7 @@ function TokenBackdrop({ text, ranges, scrollY, style }: { text: string; ranges:
   });
   if (at < text.length) parts.push(<Text key="rest">{text.slice(at)}</Text>);
   return (
-    <View pointerEvents="none" style={[styles.backdrop, { transform: [{ translateY: -scrollY }] }]} testID="composer-tokens" aria-hidden>
+    <View pointerEvents="none" style={[styles.backdrop, ...pad, { transform: [{ translateY: -scrollY }] }]} testID="composer-tokens" aria-hidden>
       <Text style={[style, styles.ghost]} {...webProps({ dataSet: { cmpGhost: "1" } })}>{parts}{"​"}</Text>
     </View>
   );
@@ -735,7 +742,7 @@ export function Composer(props: ComposerProps): ReactElement {
   const lists = props.lists ?? {};
   const hasLead = props.lead !== undefined && props.lead.length > 0;
   const whoCtx: WhoContext | undefined = hasLead || lists.agents !== undefined || lists.people !== undefined
-    ? { ...(hasLead ? { lead: props.lead as string } : {}), ...(props.listening === undefined ? {} : { listening: props.listening }), ...(lists.agents === undefined ? {} : { agents: lists.agents }), ...(lists.people === undefined ? {} : { people: lists.people }) }
+    ? { ...(hasLead ? { lead: props.lead as string } : {}), ...(props.listening === undefined ? {} : { listening: props.listening }), ...(lists.agents === undefined ? {} : { agents: lists.agents }), ...(lists.people === undefined ? {} : { people: lists.people }), ...(props.agentChat === false ? { kind: "channel" } : {}) }
     : undefined;
   const who = answerLine(state.text, props.whoWillAnswer, whoCtx);
   const answerers = props.sendsOutside === true || props.hideWho === true ? [] : answering(who.responders, props.agents);
@@ -1087,6 +1094,8 @@ export function Composer(props: ComposerProps): ReactElement {
   const fieldText = compact ? styles.fieldCompact : styles.fieldRegular;
   // an email keeps its own two rows: its bar holds sender and format buttons; everything else is the one-line pill
   const oneLine = props.sendsOutside !== true;
+  // the field's padding, which the token wash behind it takes too: the same box, so a wash sits on its word in the one-line pill, the compact field and the regular one
+  const fieldPad: readonly (ViewStyle | false)[] = [styles.padRegular, oneLine && styles.padLine, !oneLine && compact && styles.padCompact];
   const plusNode_ = (
     <View ref={plusBtn as never}>
       <Pressable accessibilityRole="button" accessibilityLabel="Attach a file" accessibilityState={{ expanded: plusOpen }} testID="composer-attach" onPress={() => { setPanelOpen(false); setPlusOpen((x) => !x); }} {...webProps({ title: "Add" })}
@@ -1096,8 +1105,8 @@ export function Composer(props: ComposerProps): ReactElement {
     </View>
   );
   const fieldNode = (
-    <View style={[styles.fieldWrap, oneLine && styles.fieldLine, !oneLine && compact && styles.fieldWrapCompact]} {...webProps({ dataSet: { cmpField: "1" } })}>
-      {web && ranges.length > 0 ? <TokenBackdrop text={state.text} ranges={ranges} scrollY={scrollY} style={fieldText} /> : null}
+    <View style={[styles.fieldWrap, ...fieldPad, oneLine && styles.fieldLine]} {...webProps({ dataSet: { cmpField: "1" } })}>
+      {web && ranges.length > 0 ? <TokenBackdrop text={state.text} ranges={ranges} scrollY={scrollY} style={fieldText} pad={fieldPad} /> : null}
       <TextInput
         ref={input}
         multiline
@@ -1219,13 +1228,15 @@ const styles = StyleSheet.create({
   cardRm: { position: "absolute", top: -6, right: -6, width: 18, height: 18, borderRadius: 9, backgroundColor: "var(--ink)" as string, alignItems: "center", justifyContent: "center" },
   cardRmText: { color: "var(--win)" as string, fontSize: 12, lineHeight: 14 },
   engine: { color: "var(--ink-3)" as string, fontSize: 11.5, lineHeight: 16, paddingTop: 8, paddingHorizontal: 16 },
-  fieldWrap: { position: "relative", paddingTop: 12, paddingHorizontal: 16, paddingBottom: 4, overflow: "hidden" },
-  fieldWrapCompact: { paddingTop: 10, paddingHorizontal: 12 },
-  fieldLine: { flex: 1, minWidth: 0, paddingTop: 6, paddingBottom: 6, paddingHorizontal: 6 },
+  fieldWrap: { position: "relative", overflow: "hidden" },
+  padRegular: { paddingTop: 12, paddingHorizontal: 16, paddingBottom: 4 },
+  padCompact: { paddingTop: 10, paddingHorizontal: 12 },
+  padLine: { paddingTop: 6, paddingBottom: 6, paddingHorizontal: 6 },
+  fieldLine: { flex: 1, minWidth: 0 },
   field: { width: "100%", color: "var(--ink)" as string, padding: 0, margin: 0, borderWidth: 0 },
   fieldRegular: { fontSize: 15, lineHeight: 22 },
   fieldCompact: { fontSize: 14, lineHeight: 22 },
-  backdrop: { position: "absolute", left: 16, right: 16, top: 12 },
+  backdrop: { position: "absolute", left: 0, right: 0, top: 0 },
   ghost: { color: "transparent", whiteSpace: "pre-wrap", wordBreak: "break-word", overflowWrap: "break-word" } as object,
   tok: { backgroundColor: "var(--accent-wash)" as string, borderRadius: 5, boxShadow: "0 0 0 2px var(--accent-wash)" } as object,
   srOnly: { position: "absolute", width: 1, height: 1, overflow: "hidden", opacity: 0 },

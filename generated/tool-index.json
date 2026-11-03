@@ -1178,6 +1178,12 @@
     },
     {
       "deferred": false,
+      "name": "channels_home",
+      "summary": "The Space's first channel: #vyre, or an older Space's #general (legacy: Console offers to rename it). Null in a Personal Space",
+      "toolset": "chats"
+    },
+    {
+      "deferred": false,
       "name": "channels_join",
       "summary": "Join a public channel",
       "toolset": "chats"
@@ -2246,6 +2252,12 @@
     },
     {
       "deferred": false,
+      "name": "devices_presence",
+      "summary": "Who is around: for each person, online (a device seen in the last five minutes), away (they set themselves away) or offline, with when they were last seen. Says when, never where",
+      "toolset": "meta"
+    },
+    {
+      "deferred": false,
       "name": "devices_rename",
       "summary": "Rename one of my devices",
       "toolset": "meta"
@@ -2552,6 +2564,12 @@
     },
     {
       "deferred": false,
+      "name": "engine_now",
+      "summary": "Which agents are working right now: the agent, the person it works for, where it runs (the Space, their computer, their server) and since when; the chat is named only to someone who may read it",
+      "toolset": "chats"
+    },
+    {
+      "deferred": false,
       "name": "engine_placement_options",
       "summary": "What the runs-on chip of a chat offers: this computer, the Space in a Team Space and each of your servers, with whether each is on and why not; where the chat runs now, and whether the person pinned it (not pinned is Automatic)",
       "toolset": "chats"
@@ -2559,7 +2577,7 @@
     {
       "deferred": false,
       "name": "engine_placement_set",
-      "summary": "Pin a private chat to where it runs: this computer, the Space (Team Space), or one of your own servers, or auto to take the pin off. The next turn goes there; a teammate's machine is never a choice",
+      "summary": "Choose where a private chat runs: one of your computers, the Space, one of your own servers, or auto. Never a teammate's machine. once with space runs the next turn on the Space once",
       "toolset": "chats"
     },
     {
@@ -2931,7 +2949,7 @@
     {
       "deferred": false,
       "name": "files_list",
-      "summary": "List files and folders in a folder or a section (Personal, Shared with me, Space)",
+      "summary": "List files and folders in a folder or a section (Personal, Shared with me, Space). deep with section space lists every file in every Space folder the caller may see; q keeps names that contain it",
       "toolset": "files"
     },
     {
@@ -3998,6 +4016,12 @@
     },
     {
       "deferred": false,
+      "name": "home_away_digest",
+      "summary": "Write my While you were away digest for the time since I was last here: what my agents and routines did, changes on records I follow and the quiet notices that waited (an agent past its interrupt cap, a person who joined), by name. Writes nothing when nothing happened",
+      "toolset": "meta"
+    },
+    {
+      "deferred": false,
       "name": "home_checklist",
       "summary": "The first-run checklist: five items, hidden once all are done or dismissed",
       "toolset": "meta"
@@ -4700,9 +4724,21 @@
     },
     {
       "deferred": false,
+      "name": "mcp_call",
+      "summary": "Call a tool of an outside tool server or connection (app hub, OAuth server, remote MCP) that may change things, as mcp_tools lists it; an agent's call goes through the Gate",
+      "toolset": "agents"
+    },
+    {
+      "deferred": false,
       "name": "mcp_connected_link",
       "summary": "The address to paste into an MCP app, and the one line for Claude Code",
       "toolset": "meta"
+    },
+    {
+      "deferred": false,
+      "name": "mcp_read",
+      "summary": "Call a tool of an outside tool server or connection (app hub, OAuth server, remote MCP) that only reads, as mcp_tools lists it with readOnly true; a tool that may change things goes through mcp_call",
+      "toolset": "agents"
     },
     {
       "deferred": false,
@@ -4750,6 +4786,60 @@
       "deferred": false,
       "name": "meetings_cancel",
       "summary": "Cancel a meeting and its calendar event",
+      "toolset": "inbox"
+    },
+    {
+      "deferred": false,
+      "name": "meetings_closeout_approve",
+      "summary": "Approve close-out items (all the proposed ones when none are named): create the tasks, apply the record updates, send or save the email, add the holds",
+      "toolset": "inbox"
+    },
+    {
+      "deferred": false,
+      "name": "meetings_closeout_edit",
+      "summary": "Change one proposed close-out item before it is approved",
+      "toolset": "inbox"
+    },
+    {
+      "deferred": false,
+      "name": "meetings_closeout_get",
+      "summary": "One meeting close-out: summary, decisions, open questions and the proposed tasks, record updates, follow-up email and calendar hold",
+      "toolset": "inbox"
+    },
+    {
+      "deferred": false,
+      "name": "meetings_closeout_list",
+      "summary": "The Meetings tab of the Inbox: your meetings (and meetings shared to a project or channel you can read) with their close-out state",
+      "toolset": "inbox"
+    },
+    {
+      "deferred": false,
+      "name": "meetings_closeout_prepare",
+      "summary": "Have the meeting owner's Assistant prepare the close-out from the transcript; redo starts it again without duplicating what was approved",
+      "toolset": "inbox"
+    },
+    {
+      "deferred": false,
+      "name": "meetings_closeout_propose",
+      "summary": "The Assistant's close-out of a meeting: summary, decisions, open questions, action items, record updates, the follow-up email and the next meeting",
+      "toolset": "inbox"
+    },
+    {
+      "deferred": false,
+      "name": "meetings_closeout_share",
+      "summary": "Share a meeting and its close-out with a project or channel (everyone who can read it sees it in their Meetings tab), or stop sharing",
+      "toolset": "inbox"
+    },
+    {
+      "deferred": false,
+      "name": "meetings_closeout_skip",
+      "summary": "Skip a proposed close-out item, or bring a skipped one back",
+      "toolset": "inbox"
+    },
+    {
+      "deferred": false,
+      "name": "meetings_closeout_sync",
+      "summary": "Prepare the close-out of each of your recent meetings that has a transcript and none yet",
       "toolset": "inbox"
     },
     {
@@ -4828,6 +4918,18 @@
       "deferred": false,
       "name": "members_invites_revoke",
       "summary": "Revoke an open invite",
+      "toolset": "meta"
+    },
+    {
+      "deferred": false,
+      "name": "members_joins_list",
+      "summary": "Joins that have not finished: each new member with the steps that did not work yet, in words, how often each was tried, and whether it is stuck (three tries or more)",
+      "toolset": "meta"
+    },
+    {
+      "deferred": false,
+      "name": "members_joins_retry",
+      "summary": "Retry a new member's join steps that did not work, now",
       "toolset": "meta"
     },
     {
@@ -5096,6 +5198,24 @@
     },
     {
       "deferred": false,
+      "name": "memory_profile",
+      "summary": "Your profile in this Space, as a chat may use it: the public part always, the private part only where nobody else reads the chat (your own chats, your private Ask); with personId, that teammate's public part",
+      "toolset": "memory"
+    },
+    {
+      "deferred": false,
+      "name": "memory_profile_move",
+      "summary": "Move a fact about you between your public and private profile; only you can make one public (an agent suggests it instead)",
+      "toolset": "memory"
+    },
+    {
+      "deferred": false,
+      "name": "memory_profile_suggest",
+      "summary": "Suggest a fact for the person's public profile (\"Add to your public profile?\"); it stays private until they say yes in About you; with text, it is remembered privately first",
+      "toolset": "memory"
+    },
+    {
+      "deferred": false,
       "name": "memory_promote",
       "summary": "Promote a fact to the agent, a project or the Space layer; a task for the right approver carries the name and time, no admin needed when the person can edit the target",
       "toolset": "memory"
@@ -5207,6 +5327,12 @@
       "name": "memory_write_page",
       "summary": "Write the Notes of a page as a new version (making the page when it is new); [[links]] in the Notes become labelled edges, each with the line it was written in",
       "toolset": "memory"
+    },
+    {
+      "deferred": true,
+      "name": "message_person",
+      "summary": "Message a teammate for the person you work for, in their direct chat, signed as them (Agent); the reply comes back to this chat. Can carry an approval, review or key card. Waits for away and after hours unless urgent; 3 an hour",
+      "toolset": "chats"
     },
     {
       "deferred": false,
@@ -5672,6 +5798,54 @@
     },
     {
       "deferred": false,
+      "name": "network_peer_allow",
+      "summary": "Let a new computer use this Personal Space: it gets a full copy of your chats, files, records and Vault (still locked by your password) and stays in sync",
+      "toolset": "engineer"
+    },
+    {
+      "deferred": false,
+      "name": "network_peer_conflicts",
+      "summary": "What syncing between your computers had to settle: the same name made on two computers while apart (one copy is renamed, both are kept), or an item kept aside whole",
+      "toolset": "engineer"
+    },
+    {
+      "deferred": false,
+      "name": "network_peer_decline",
+      "summary": "Turn away a computer that asked to use this Personal Space",
+      "toolset": "engineer"
+    },
+    {
+      "deferred": false,
+      "name": "network_peer_remove",
+      "summary": "Take a computer out of this Personal Space: it stops syncing with your other computers",
+      "toolset": "engineer"
+    },
+    {
+      "deferred": false,
+      "name": "network_peer_requests",
+      "summary": "New computers asking to use this Personal Space, each with the six-digit code its own screen shows",
+      "toolset": "engineer"
+    },
+    {
+      "deferred": false,
+      "name": "network_peer_runner",
+      "summary": "Which of your computers runs scheduled automations, routines and nightly jobs now (one at a time)",
+      "toolset": "engineer"
+    },
+    {
+      "deferred": false,
+      "name": "network_peer_server_code",
+      "summary": "Add a server to your Personal Space: a one-time code for the install line. The server joins through Vyre's relay (no address needed), keeps a full copy in sync, keeps the Space going and runs scheduled work while your computers sleep",
+      "toolset": "engineer"
+    },
+    {
+      "deferred": false,
+      "name": "network_peers",
+      "summary": "The computers that hold this Personal Space: each keeps a full copy and syncs with the others through the relay. This computer, whether each is awake, and when it was last seen",
+      "toolset": "engineer"
+    },
+    {
+      "deferred": false,
       "name": "network_phone",
       "summary": "Your phone address on vyre.run: the name this computer holds, whether it is online, and the link that opens it on a phone",
       "toolset": "engineer"
@@ -5758,6 +5932,12 @@
       "deferred": false,
       "name": "notifications_away_set",
       "summary": "Set myself away until a time; approvals go to a person, a role or no one; only calls interrupt",
+      "toolset": "meta"
+    },
+    {
+      "deferred": false,
+      "name": "notifications_away_who",
+      "summary": "Who in the Space is away right now and until when (what a teammate sees as a steady away dot); never the delegate",
       "toolset": "meta"
     },
     {
@@ -5857,6 +6037,12 @@
       "toolset": "chats"
     },
     {
+      "deferred": true,
+      "name": "people_status",
+      "summary": "Your teammates as you see them: online, away or offline and when last seen, their local time and working hours, and when a message to them would go. Only people in this Space, never anything private",
+      "toolset": "chats"
+    },
+    {
       "deferred": false,
       "name": "plan_propose",
       "summary": "Propose a plan with steps as a plan block; used when plan mode is on",
@@ -5918,14 +6104,38 @@
     },
     {
       "deferred": false,
+      "name": "plugins_connection_add_mine",
+      "summary": "Connect an MCP server for you and your agents only (Mine): by https address, or by a command that runs in the sandbox (npx, uvx). A key is a Vault handle in env or a header.",
+      "toolset": "agents"
+    },
+    {
+      "deferred": false,
+      "name": "plugins_connection_forget",
+      "summary": "Remove a connection you may manage: your own (Mine), or a Space or agent one when you manage agents",
+      "toolset": "agents"
+    },
+    {
+      "deferred": false,
       "name": "plugins_connection_remove",
       "summary": "Disconnect an MCP server made by hand",
       "toolset": "agents"
     },
     {
       "deferred": false,
+      "name": "plugins_connection_update",
+      "summary": "Rename a connection, turn it off or on, switch it to OAuth sign-in, or (admins) choose who in the Space can use it: Everyone or groups",
+      "toolset": "agents"
+    },
+    {
+      "deferred": false,
       "name": "plugins_connections",
       "summary": "MCP connections made by hand (a URL or a command)",
+      "toolset": "agents"
+    },
+    {
+      "deferred": false,
+      "name": "plugins_connections_home",
+      "summary": "Every connection you can use, for Vault > Connections: yours (Mine), the Space's (for everyone or your groups), your agents' own, and the servers plugins bring, each with its health, who can use it, which agents used it and when",
       "toolset": "agents"
     },
     {
@@ -5974,6 +6184,12 @@
       "deferred": false,
       "name": "plugins_mcp_servers",
       "summary": "The MCP servers a chat with this agent connects to: from plugins in the Space, plugins in the agent and connections made by hand. Secrets are Vault handles.",
+      "toolset": "agents"
+    },
+    {
+      "deferred": false,
+      "name": "plugins_registry_search",
+      "summary": "Search the MCP server catalog (the official MCP registry). Answers from the last fetch when the registry cannot be reached, and says so.",
       "toolset": "agents"
     },
     {
@@ -7245,7 +7461,49 @@
     {
       "deferred": false,
       "name": "skills_list",
-      "summary": "Skills a chat with this agent can load: Vyre built-in, the Space library and the agent own skills/ folder, one line each. With no agentId, the Space library and built-in ones",
+      "summary": "Skills a chat with this agent can load: Vyre built-in, the Space library and the agent own skills/ folder, one line each. Two with one name are both listed, the one not used marked shadowedBy; a broken one is marked broken. With no agentId, the Space library and built-in ones",
+      "toolset": "agents"
+    },
+    {
+      "deferred": false,
+      "name": "skills_members",
+      "summary": "Console: the skills each member keeps for themselves, by name only; contents only of the ones they shared",
+      "toolset": "agents"
+    },
+    {
+      "deferred": false,
+      "name": "skills_mine_add",
+      "summary": "Add a skill for yourself and your agents (Mine), or replace one of yours. A name already taken is kept, and this one is renamed with its source",
+      "toolset": "agents"
+    },
+    {
+      "deferred": false,
+      "name": "skills_mine_remove",
+      "summary": "Remove one of your skills (and its shares), or take a shared one off your list",
+      "toolset": "agents"
+    },
+    {
+      "deferred": false,
+      "name": "skills_mine_set",
+      "summary": "Switch one of your skills (or one shared with you) on or off, pick the agents that use it, or give its tool servers their Vault keys",
+      "toolset": "agents"
+    },
+    {
+      "deferred": false,
+      "name": "skills_mine_update",
+      "summary": "Fetch one of your skills again from its link or repo; whoever it is shared with approves again if it can now touch more",
+      "toolset": "agents"
+    },
+    {
+      "deferred": false,
+      "name": "skills_page",
+      "summary": "Settings > Skills for the person asking: cards for skills shared with them, their own skills (Mine), the Space skills an admin set, the built-in ones, and their agents to assign them to",
+      "toolset": "agents"
+    },
+    {
+      "deferred": false,
+      "name": "skills_preview",
+      "summary": "Read the skills in a link (a SKILL.md, a GitHub repo or folder, a zip), a dropped folder or a zip, with what each can touch. Nothing is saved",
       "toolset": "agents"
     },
     {
@@ -7258,6 +7516,30 @@
       "deferred": false,
       "name": "skills_set_enabled",
       "summary": "Turn a Space or agent skill off or on without removing it",
+      "toolset": "agents"
+    },
+    {
+      "deferred": false,
+      "name": "skills_share",
+      "summary": "Share one of your skills with chosen people in this Space, or with everyone here. Each of them gets a card and decides",
+      "toolset": "agents"
+    },
+    {
+      "deferred": false,
+      "name": "skills_shared_decide",
+      "summary": "Add a skill shared with you, so it applies to you and your agents, or say Not now",
+      "toolset": "agents"
+    },
+    {
+      "deferred": false,
+      "name": "skills_space_install",
+      "summary": "Console: set a skill for everyone in the Space. It applies to every member and their agents at once, with no card",
+      "toolset": "agents"
+    },
+    {
+      "deferred": false,
+      "name": "skills_view",
+      "summary": "The full text and files of one skill: your own, one shared with you (before you add it, too), a Space one or a built-in one",
       "toolset": "agents"
     },
     {
@@ -8619,7 +8901,7 @@
     {
       "deferred": false,
       "name": "vault_requests_fulfil",
-      "summary": "Supply the key: attach an existing item, or save new fields as an item in the requested folder",
+      "summary": "Supply the key: attach an existing item, or save new fields as an item in the requested folder; say who may use it through the agent that asked",
       "toolset": "vault"
     },
     {

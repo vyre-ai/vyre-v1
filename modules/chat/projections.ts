@@ -63,8 +63,11 @@ export async function refuseUnseenAgents(ctx: ChatCtx, ids: readonly string[]): 
   if (!ctx.call || ctx.principal.kind !== "person") return;
   for (const agentId of new Set(ids)) {
     try { await ctx.call("agents.get", { agentId }); } catch (e) {
-      const code = (e as { code?: string; error?: { code?: string } }).code ?? (e as { error?: { code?: string } }).error?.code;
-      if (code === "validation.not_found") raise(ctx, "validation.not_found", "That agent does not exist.", { agentId });
+      const x = e as { code?: string; message?: string; details?: { reason?: string }; error?: { code?: string; message?: string; details?: { reason?: string } } };
+      const code = x.code ?? x.error?.code;
+      // someone else's private agent (their assistant, an outside agent they connected) is refused in the agents module's own plain words
+      const priv = (x.details ?? x.error?.details)?.reason === "private";
+      if (code === "validation.not_found") raise(ctx, "validation.not_found", priv ? (x.error?.message ?? x.message ?? "That agent is private to the person it belongs to.") : "That agent does not exist.", { agentId, ...(priv ? { reason: "private" } : {}) });
     }
   }
 }
@@ -91,10 +94,10 @@ export function ensure(db: Db): void {
 export const MAX_BODY = 100_000;
 export const MAX_MENTIONS = 50;
 export const MAX_BLOCKS = 20;
-export const DEFAULT_HOPS = 4;
+export const DEFAULT_HOPS = 8;
 export const MAX_NAME = 80;
 
-/** Agent-to-agent hops before a person must reply: the Policies setting engine.agent_hops, 4 when it cannot be read. */
+/** Agent turns since a person last wrote before a person must reply or press Continue: the Policies setting engine.agent_hops, 8 when it cannot be read (owner ruling, 3 Nov 2026). */
 export async function hopLimit(ctx: ChatCtx): Promise<number> {
   if (!ctx.call) return DEFAULT_HOPS;
   try {

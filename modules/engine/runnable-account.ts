@@ -3,6 +3,7 @@
 // does another usable account of the person answer (the one connected most recently), said in the chat in one line. When nothing can run, the pick stays and the start fails with engine.cli_missing,
 // which the chat draws as an Install card (status.ts) whose button tries again. A turn pinned to a server is checked on that server (node-cli.ts), never here.
 import { LaunchError } from "../../agent/src/drivers/cli/launcher.ts";
+import { SandboxError } from "../../sandbox/src/types.ts";
 import type { AccountQuery, OpenSession, ResolvedAccount } from "../../agent/src/turn-engine/types.ts";
 import { BRIDGE_PREFIX } from "./handlers/bridge.ts";
 import type { PostAs, StreamEvent } from "./handlers/bridge.ts";
@@ -34,6 +35,8 @@ export interface RunnableDeps {
   log?: (msg: string, attrs?: Record<string, unknown>) => void;
   /** Vyre's installer on this computer. Absent: a missing program is never installed, and another account answers as before. */
   engines?: EngineSetup;
+  /** Why this computer cannot sandbox a CLI engine (sandbox-default.ts cliSandboxGap), or null. A CLI account is then passed over like a missing program, and its start refuses with sandbox.unavailable. */
+  unsandboxed?: () => string | null;
 }
 
 /** Will a turn that needs this program wait for Vyre to install it? Yes when there is a build for this computer and the last try did not just fail. */
@@ -47,14 +50,23 @@ export function missingProgram(driver: string, d: Pick<RunnableDeps, "command" |
 }
 
 const WORDS = (program: string, to: string, tried: boolean): string => `${CLI_NAME[program] ?? program} ${tried ? "could not be set up" : "is not installed"} here, so ${to} answered.`;
+const UNSAFE_WORDS = (program: string, to: string): string => `${CLI_NAME[program] ?? program} cannot run safely on this computer yet, so ${to} answered.`;
+
+/** Why a CLI account cannot run here: no sandbox for CLI engines on this computer, or its program is missing. Null for an API account or one that can run. */
+export function cannotRun(driver: string, d: Pick<RunnableDeps, "command" | "probe" | "unsandboxed">): "sandbox" | "missing" | null {
+  if (CLI_PROGRAM[driver] === undefined) return null;
+  if ((d.unsandboxed?.() ?? null) !== null) return "sandbox";
+  return missingProgram(driver, d) !== null ? "missing" : null;
+}
 
 export function createRunnableAccount(d: RunnableDeps): (q: AccountQuery) => Promise<ResolvedAccount | null> {
   const said = new Set<string>();
 
   async function pinnedToServer(q: AccountQuery): Promise<boolean> {
     try {
-      const p = (await d.call("engine.placement.decide", { threadId: q.threadId, agentId: q.agentId, kind: "message" }, q.askerId)) as { reason?: string };
-      return p.reason === "chosen_server" || p.reason === "server_off";
+      const p = (await d.call("engine.placement.decide", { threadId: q.threadId, agentId: q.agentId, kind: "message" }, q.askerId)) as { reason?: string; placement?: string };
+      // a turn on one of the person's servers or computers is checked there (node-cli.ts), never against this server's programs
+      return p.reason === "chosen_server" || p.reason === "server_off" || p.reason === "own_server" || p.placement === "device";
     } catch { return false; }
   }
 
@@ -69,9 +81,10 @@ export function createRunnableAccount(d: RunnableDeps): (q: AccountQuery) => Pro
   return async (q) => {
     const first = await d.resolve(q);
     if (!first) return first;
-    const lacking = missingProgram(first.driver, d);
-    if (lacking === null || await pinnedToServer(q)) return first;
-    if (willInstall(lacking, d)) {
+    const why = cannotRun(first.driver, d);
+    if (why === null || await pinnedToServer(q)) return first;
+    const lacking = CLI_PROGRAM[first.driver] as string;
+    if (why === "missing" && willInstall(lacking, d)) {
       // the download starts now, while the turn is being set up; the opener waits for this same install (checkedOpen)
       d.engines?.ensure(lacking).catch(() => undefined);
       return first;
@@ -83,11 +96,11 @@ export function createRunnableAccount(d: RunnableDeps): (q: AccountQuery) => Pro
     for (let i = 0; i < 8; i++) {
       const next = await d.resolve({ ...q, unavailable: [...(q.unavailable ?? []), ...skipped, ...options.map((o) => o.ref)] });
       if (!next) break;
-      if (missingProgram(next.driver, d) === null) options.push(next); else skipped.push(next.ref);
+      if (cannotRun(next.driver, d) === null) options.push(next); else skipped.push(next.ref);
     }
     if (options.length === 0) {
-      d.log?.("no account of this person can run on this computer", { threadId: q.threadId, program: lacking });
-      return first;   // the start fails with engine.cli_missing, precisely
+      d.log?.("no account of this person can run on this computer", { threadId: q.threadId, program: lacking, why });
+      return first;   // the start fails with sandbox.unavailable or engine.cli_missing, precisely
     }
     let pick = options[0] as ResolvedAccount;
     if (options.length > 1) {
@@ -96,7 +109,7 @@ export function createRunnableAccount(d: RunnableDeps): (q: AccountQuery) => Pro
       pick = options.reduce((best, o) => (order.indexOf(o.ref) > order.indexOf(best.ref) ? o : best), pick);
     }
     const to = CLI_NAME[CLI_PROGRAM[pick.driver] ?? ""] ?? pick.provider.charAt(0).toUpperCase() + pick.provider.slice(1);
-    await say(q, WORDS(lacking, to, d.engines?.failedRecently(lacking) === true), `${q.threadId}|${q.agentId}|${first.ref}|${pick.ref}`);
+    await say(q, why === "sandbox" ? UNSAFE_WORDS(lacking, to) : WORDS(lacking, to, d.engines?.failedRecently(lacking) === true), `${q.threadId}|${q.agentId}|${first.ref}|${pick.ref}`);
     return pick;
   };
 }
@@ -106,8 +119,10 @@ export function createRunnableAccount(d: RunnableDeps): (q: AccountQuery) => Pro
  * and then opens as usual. Where it cannot be installed, or the install fails, the turn fails with engine.cli_missing before the Vault is asked for the account's key and before any sandbox starts; the
  * message names the program and, in brackets, why (offline, checksum, unsupported, disk, failed), which the chat turns into a sentence. A turn pinned to a server never gets here (node-turns.ts routes it first).
  */
-export function checkedOpen(open: OpenSession, d: Pick<RunnableDeps, "command" | "probe" | "engines"> & { live?: (e: StreamEvent) => void; beatMs?: number }): OpenSession {
+export function checkedOpen(open: OpenSession, d: Pick<RunnableDeps, "command" | "probe" | "engines" | "unsandboxed"> & { live?: (e: StreamEvent) => void; beatMs?: number }): OpenSession {
   return async (spec) => {
+    // a computer that cannot sandbox a CLI engine refuses before anything is downloaded, filled or started
+    if (spec.account && cannotRun(spec.account.driver, d) === "sandbox") throw new SandboxError("sandbox.unavailable", d.unsandboxed?.() ?? "CLI engines cannot be sandboxed on this computer");
     const lacking = spec.account ? missingProgram(spec.account.driver, d) : null;
     if (lacking === null) return open(spec);
     const setup = d.engines;

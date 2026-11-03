@@ -42,6 +42,8 @@ export interface CliSessionDeps {
   plugins?: NativePlugins;
   /** No Vyre tools and none of the CLI's own (SessionSpec.tools "none"). */
   noTools?: boolean;
+  /** The leanest command (SessionSpec.lean): `system` is the whole system prompt, given to the engine by flag (or config override) and never folded into the first prompt. */
+  lean?: boolean;
   prompt?: (input: TurnInput, ctx: { fresh: boolean }) => string;
   /** No output for this long ends the turn. Default 10 minutes. */
   idleMs?: number;
@@ -126,7 +128,7 @@ export function createCliSession(deps: CliSessionDeps, spec: SessionSpec): CliSe
   async function start(): Promise<Run> {
     const argv = a.command({
       model: deps.model, resume: sessionId, mcpUrl: deps.endpoint.url, ...(deps.endpoint.stdio ? { mcpStdio: deps.endpoint.stdio } : {}), ...(deps.plugins ? { plugins: deps.plugins } : {}), planMode: deps.mode !== undefined ? deps.mode === "plan" : deps.planMode?.() ?? false, ...(deps.mode !== undefined ? { mode: deps.mode } : {}), ...(deps.effort !== undefined ? { effort: deps.effort } : {}), ...(deps.noTools ? { noTools: true } : {}),
-      workFolder: deps.workFolder, system: a.systemFlag ? deps.system : null,
+      workFolder: deps.workFolder, system: a.systemFlag || deps.lean === true ? deps.system : null, ...(deps.lean ? { lean: true } : {}),
     });
     const proc = await deps.launcher.spawn({
       argv, ...(deps.workFolder !== null ? { cwd: deps.workFolder } : {}),
@@ -165,7 +167,7 @@ export function createCliSession(deps: CliSessionDeps, spec: SessionSpec): CliSe
     let r: Run | null = a.persistent && run !== null && run.alive ? run : null;
     if (r === null) r = await start();
     if (signal.aborted) { await stop(r, false); return "stop"; }
-    const text = !compacting && !a.systemFlag && !systemSent && deps.system !== null && deps.system !== "" ? `${deps.system}\n\n${prompt}` : prompt;
+    const text = !compacting && !a.systemFlag && deps.lean !== true && !systemSent && deps.system !== null && deps.system !== "" ? `${deps.system}\n\n${prompt}` : prompt;
     systemSent = true;
     /** Something reached the person this turn: a gone session is then an error like any other, never a silent start-over. */
     let said = false;

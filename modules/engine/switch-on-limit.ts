@@ -33,6 +33,10 @@ export const LIMIT_REST_MS = 10 * 60_000;
 export const isPaid = (a: Pick<ResolvedAccount, "kind" | "keyless">): boolean => a.kind === "api_key" && a.keyless !== true;
 /** The turn ends with this: the next account would cost money and nobody has said yes. */
 export const PAID_FALLBACK = "paid_fallback";
+/** What the model_switch card says when the first account ran out. */
+export const LIMIT_LINE = "The first account ran out of its limit, so this answer came from the next one.";
+/** What it says when the vendor was busy (owner ruling, 3 Nov 2026: overloaded is not a limit; Vyre tried the same account once more first). */
+export const OVERLOADED_LINE = "The first account's service was overloaded, so after one more try this answer came from the next one.";
 
 export function createLimitSwitch(d: LimitSwitchDeps): { resolve(q: AccountQuery): Promise<ResolvedAccount | null>; next(q: AccountQuery): Promise<ResolvedAccount | null> } {
   const now = d.now ?? Date.now;
@@ -71,6 +75,7 @@ export function createLimitSwitch(d: LimitSwitchDeps): { resolve(q: AccountQuery
   }
 
   async function announce(q: AccountQuery, failed: string, to: ResolvedAccount): Promise<void> {
+    const reason = q.why === "overloaded" ? OVERLOADED_LINE : LIMIT_LINE;
     if (!d.postAs) return;
     try {
       const s = await chatSettings(d.call, q.threadId, q.agentId, q.askerId);
@@ -79,7 +84,7 @@ export function createLimitSwitch(d: LimitSwitchDeps): { resolve(q: AccountQuery
       const side = (provider: string) => ({ provider, model, ...(s.effort !== undefined ? { effort: s.effort } : {}) });
       await d.postAs(q.agentId, {
         actingFor: q.askerId, threadId: q.threadId, body: "", mentions: [], clientId: BRIDGE_PREFIX + mintId("b").slice(2),
-        blocks: [{ type: "model_switch", v: 1, data: { threadId: q.threadId, agentId: q.agentId, scope: "thread", from: side(fromProvider), to: side(to.provider), reason: "The first account ran out of its limit, so this answer came from the next one." } }],
+        blocks: [{ type: "model_switch", v: 1, data: { threadId: q.threadId, agentId: q.agentId, scope: "thread", from: side(fromProvider), to: side(to.provider), reason } }],
       });
     } catch (e) { d.log?.("the account switch could not be shown in the chat", { threadId: q.threadId, error: e instanceof Error ? e.message : String(e) }); }
   }
@@ -100,9 +105,12 @@ export function createLimitSwitch(d: LimitSwitchDeps): { resolve(q: AccountQuery
       const to = await d.accountFor(withResting(q));
       if (!to) return null;
       if (await mustAsk(q, to)) return stopFor(q, { ...to, fellBack: true });
-      const m = resting.get(key(q)) ?? new Map<string, number>();
-      m.set(failed, now() + LIMIT_REST_MS);
-      resting.set(key(q), m);
+      // a busy vendor is not a limit: the account is not set aside, so the next turn tries it first again
+      if (q.why !== "overloaded") {
+        const m = resting.get(key(q)) ?? new Map<string, number>();
+        m.set(failed, now() + LIMIT_REST_MS);
+        resting.set(key(q), m);
+      }
       await announce(q, failed, to);
       return to;
     },

@@ -27,6 +27,7 @@ Remove a skill from the Space library, or from one agent
 type In = {
   name: string;
   agentId?: string;
+  source?: string;
   idempotencyKey: string;
 };
 ```
@@ -55,7 +56,8 @@ type Out = {
   "input": {
     "agentId": "agt_a1b2c3",
     "idempotencyKey": "idem_1",
-    "name": "example"
+    "name": "example",
+    "source": "example"
   },
   "output": {
     "removed": true

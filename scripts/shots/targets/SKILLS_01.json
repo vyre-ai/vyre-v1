@@ -1,0 +1,10 @@
+{
+  "targets": [
+    { "id": "SKILLS_01-settings", "route": "/m/SKILLS_01?part=settings", "proto": "settings,{skin}", "waitFor": "[data-testid='skills-waiting']", "note": "Settings > Skills in a Team Space: two cards waiting (Maya shared pdf with you; Leo's crm-notes is back because an update starts a tool server), then Mine, From your Space, Built in and Your agents." },
+    { "id": "SKILLS_01-personal", "route": "/m/SKILLS_01?part=personal", "proto": "settings,{skin}", "waitFor": "[data-testid='skills-mine']", "note": "The same page in a Personal Space, with nothing of your own yet." },
+    { "id": "SKILLS_01-add", "route": "/m/SKILLS_01?part=settings", "proto": "settings,{skin}", "waitFor": "[data-testid='skills-waiting']", "steps": [{ "click": "[data-testid='skill-add']" }, { "wait": "[data-testid='skill-add-sheet']" }], "note": "Add a skill: Paste a link, Folder or zip, Marketplace, Ask the Assistant." },
+    { "id": "SKILLS_01-review", "route": "/m/SKILLS_01?part=settings", "proto": "settings,{skin}", "waitFor": "[data-testid='skills-waiting']", "steps": [{ "click": "[data-testid='skill-add']" }, { "fill": "[data-testid='skill-link']", "text": "https://github.com/anthropics/skills/tree/main/document-skills" }, { "click": "[data-testid='skill-link-read']" }, { "wait": "[data-testid='skill-review']" }], "note": "The review before anything is saved: two skills found, what each can touch, and the name pdf takes because one is already yours." },
+    { "id": "SKILLS_01-sheet", "route": "/m/SKILLS_01?part=settings", "proto": "settings,{skin}", "waitFor": "[data-testid='skills-mine']", "steps": [{ "click": "[data-testid='row-skill-mine-notion-notes']" }, { "wait": "[data-testid='skill-sheet']" }], "note": "A skill with a tool server: Needs NOTION_TOKEN with Add to Vault, Used by, Sharing, Update." },
+    { "id": "SKILLS_01-console", "route": "/m/SKILLS_01?part=console", "proto": "console,{skin}", "waitFor": "[data-testid='skills-members']", "note": "Console > Skills: Space-wide skills, the scripts rule (off), members' skills by name with Make Space-wide on shared ones, Built in." }
+  ]
+}

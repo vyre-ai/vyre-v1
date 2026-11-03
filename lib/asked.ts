@@ -7,9 +7,12 @@ export interface Asked { act: string; /** an address, repo, host, channel or nam
 const LEAD = String.raw`(?:^|\b(?:please|pls|kindly|then|and|also|now|ok|okay|yes|yep|sure|just|go ahead and|can you|could you|would you|will you|you can|you may|i need you to|i want you to|i'd like you to|make sure to|be sure to|remember to|let'?s|lets)\s+)`;
 const NEVER = /\b(don'?t|do not|never|not|no need to|without|stop|cancel|avoid|won'?t|shouldn'?t|wouldn'?t)\b/i;
 
-const VERBS: ReadonlyArray<readonly [RegExp, readonly string[]]> = [
+const VERBS: ReadonlyArray<readonly [RegExp, readonly string[], "named"?]> = [
   [new RegExp(`${LEAD}(send)\\b[^.]*\\b(signature|e-?sign)\\b`, "i"), ["signature_send"]],
   [new RegExp(`${LEAD}(send|email|e-mail|mail|text|sms|message|dm|reply|respond|forward|share|call|invite|schedule|book)\\b`, "i"), ["send"]],
+  // a teammate reached in Vyre for the person (lane l-agentdm): "tell Andrey the deck is ready", "ask Rubab for the key", "let Sam know", "remind Lee", "ping Mia". These count only with a name:
+  // "tell me", "let me know" and "ask around" are not a request to send anything, and a request that names nobody would cover any target.
+  [new RegExp(`${LEAD}(tell|ask|remind|ping|nudge|notify|let)\\b`, "i"), ["send"], "named"],
   [new RegExp(`${LEAD}(post|tweet|comment|upload)\\b`, "i"), ["post"]],
   [new RegExp(`${LEAD}(publish)\\b`, "i"), ["post", "site_promote"]],
   [new RegExp(`${LEAD}(?:open|create|file|raise|make)\\s+(?:a|an|the)\\s+(?:new\\s+)?(pull request|pr|issue)\\b`, "i"), ["post"]],
@@ -59,14 +62,14 @@ function targetsIn(rest: string, act: string): string[] {
   return [...out];
 }
 
-interface Hit { at: number; end: number; acts: readonly string[] }
+interface Hit { at: number; end: number; acts: readonly string[]; named: boolean }
 /** Every verb of a clause that is a request. What follows a verb up to the next one is its own: "email lee, then push to main" gives main to the push alone. */
 function hitsIn(clause: string): Hit[] {
   const hits: Hit[] = [];
-  for (const [verb, acts] of VERBS) {
+  for (const [verb, acts, named] of VERBS) {
     for (const m of clause.matchAll(new RegExp(verb.source, "gi"))) {
       const at = m.index + m[0].lastIndexOf(m[1]!);
-      if (!NEVER.test(clause.slice(0, at))) hits.push({ at, end: at + m[1]!.length, acts });
+      if (!NEVER.test(clause.slice(0, at))) hits.push({ at, end: at + m[1]!.length, acts, named: named === "named" });
     }
   }
   return hits.sort((a, b) => a.at - b.at);
@@ -82,6 +85,7 @@ export function askedIn(body: string): Asked[] {
       const rest = clause.slice(h.end, next?.at ?? clause.length);
       for (const act of h.acts) {
         const targets = targetsIn(rest, act);
+        if (h.named && targets.length === 0) continue;
         for (const target of targets.length > 0 ? targets : [""]) seen.set(`${act}\n${target}`, { act, target });
       }
     }

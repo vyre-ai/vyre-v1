@@ -4,3 +4,4 @@ export { aesWrap, aesUnwrap, hkdf32, x25519Pair, x25519Public, x25519Shared, sea
 export type { Box, KernelSeal } from "./box.ts";
 export { argon2id, STRETCH, STRETCH_SALT } from "../identity/stretch.ts";
 
+export { PersonMemoryKey, sealToMemoryKey, memorySealForm, memorySealTag, memoryKeyTag } from "./person-memory.ts";

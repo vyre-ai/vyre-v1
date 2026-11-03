@@ -404,10 +404,14 @@ function mayShareOn(ctx: ShareCtx, store: AccessStore, res: ResourceRec, have: L
   return who.every((id) => { const i = snap.info(id); return i !== null && matched(snap, store, i, res, ctx.now()).some((g) => g.row.conditions?.reshare === true); });
 }
 
-function checkLink(ctx: ShareCtx, store: AccessStore, subject: SubjectRef, level: Level, cond: Cond): Cond {
+/** Lead ruling 3 Nov (l-labelinherit): no public link is made for anything Restricted, by its own label or by a folder above it. */
+export const LINK_LABEL_MAX = labelRank("confidential");
+
+function checkLink(ctx: ShareCtx, store: AccessStore, res: ResourceRec, subject: SubjectRef, level: Level, cond: Cond): Cond {
   const trace = ctx.trace.traceId;
   if (!TOKEN.test(subject.id)) raise(trace, "validation.bad_input", "a link grant names the token hash");
   if (level !== "view") raise(trace, "validation.precondition_failed", "a public link is view only");
+  if (store.snapshot().effectiveLabel(res.id) > LINK_LABEL_MAX) raise(trace, "validation.precondition_failed", "Restricted material, or anything in a Restricted folder, never gets a public link");
   const policy = store.policies.get(pkey("sharing.public_links", "space"))?.value;
   if (policy === "off") raise(trace, "validation.precondition_failed", "public links are off in this Space");
   if (policy === "admins" || policy === undefined) {
@@ -454,11 +458,47 @@ function assertDelegation(ctx:ShareCtx,store:AccessStore,res:ResourceRec,subject
 export async function updateGrant(ctx:ShareCtx,input:{grantId:string;level?:Level;conditions?:Cond}) {
  const store=storeOf(ctx),grant=store.grants.get(input.grantId);if(!grant)raise(ctx.trace.traceId,"validation.not_found","no such grant");
  const res=resourceOf(ctx,store,grant.resource),level=input.level??grant.level;let conditions=checkConditions(ctx,input.conditions??grant.conditions);checkSubject(ctx,store,grant.subject);
- if(grant.subject.kind==="link")conditions=checkLink(ctx,store,grant.subject,level,conditions);
+ if(grant.subject.kind==="link")conditions=checkLink(ctx,store,res,grant.subject,level,conditions);
  assertFlags(ctx,store,res,conditions,grant.conditions);assertDelegation(ctx,store,res,grant.subject,level,conditions,grant.id);
  const ss=shareOf(ctx),wasFresh=isFresh(ctx,store,ss);grant.level=level;grant.conditions=conditions;
  const updated:{grantId:string;level:Level;expiresAt?:number}={grantId:grant.id,level};if(conditions.expiresAt!==undefined)updated.expiresAt=conditions.expiresAt;
  ctx.emit("grant.updated",grant.id,updated);changed(ctx,store,"assignment");commit(ctx,store,ss,wasFresh,[res.id],false);return {grant:grantView(grant)};
+}
+
+/**
+ * Sharing with Everyone (owner D22) is what every member gets on day one, so admins manage it: a person who may manage access (or the host's own services) gives it or raises it; anyone
+ * may lower or remove it on what they manage. A restricted item never goes to everyone. Mine Vault items are refused by the Vault's own front before this.
+ */
+function assertEveryone(ctx: ShareCtx, store: AccessStore, res: ResourceRec, level: Level, grant: GrantRec | undefined): void {
+  const trace = ctx.trace.traceId;
+  if (res.label === "restricted") raise(trace, "validation.precondition_failed", "A restricted item is never shared with everyone. Share it with the people who need it.");
+  if (ctx.principal.kind === "service" || ctx.principal.id.startsWith("svc_")) return;
+  if (grant && rank(res.type, level) <= rank(res.type, grant.level)) return;
+  if (!store.snapshot().info(ctx.principal.id)?.perms.has("access.manage")) raise(trace, "permission.role_lacks_permission", "Only an admin shares with everyone in the Space. Ask an admin, or share it with the people who need it.");
+}
+
+/**
+ * The join step of an invite that picked an agent (members' drainJoins): the new member gets the level on it as the inviter's act, never the joiner's (who could give nothing) and never
+ * the host's. It holds only while the inviter could still give it, it is tagged with the invite as its source, and a second run finds it and changes nothing. Only another capability calls it.
+ */
+export async function joinShare(ctx: ShareCtx, input: { resource: ResourceRef; person: string; level: Level; inviter: string; source: string }) {
+  const trace = ctx.trace.traceId;
+  if (((ctx as { depth?: number }).depth ?? 0) === 0 && !(ctx.principal.kind === "service" && ctx.principal.id === "svc_host")) raise(trace, "permission.role_lacks_permission", "This is the join step of an invite, not a direct call.");
+  const store = storeOf(ctx);
+  const ss = shareOf(ctx);
+  const res = resourceOf(ctx, store, input.resource);
+  const subject: SubjectRef = { kind: "person", id: input.person };
+  checkSubject(ctx, store, subject);
+  if (!atLeast(res.type, levelFor(store, input.inviter, res, ctx.now()), input.level)) raise(trace, "permission.not_contained", "The person who sent the invite can no longer give this.");
+  const have = [...store.grants.values()].find((g) => g.subject.kind === "person" && g.subject.id === input.person && g.resource.id === res.id && g.source === input.source);
+  if (have) return { grant: grantView(have) };
+  const wasFresh = isFresh(ctx, store, ss);
+  const grant: GrantRec = { id: nid("gnt"), subject, resource: { type: res.type, id: res.id }, level: input.level, conditions: {}, by: input.inviter, createdAt: ctx.now(), source: input.source };
+  store.grants.set(grant.id, grant);
+  ctx.emit("grant.created", grant.id, { grantId: grant.id, subject, resource: grant.resource, level: grant.level, source: input.source });
+  changed(ctx, store, "assignment");
+  commit(ctx, store, ss, wasFresh, [res.id], false);
+  return { grant: grantView(grant) };
 }
 
 export async function share(ctx: ShareCtx, input: {
@@ -472,7 +512,7 @@ export async function share(ctx: ShareCtx, input: {
   const res = resourceOf(ctx, store, input.resource);
   checkSubject(ctx, store, input.subject);
   let cond = checkConditions(ctx, input.conditions);
-  if (input.subject.kind === "link") cond = checkLink(ctx, store, input.subject, input.level, cond);
+  if (input.subject.kind === "link") cond = checkLink(ctx, store, res, input.subject, input.level, cond);
   const wasFresh = isFresh(ctx, store, ss);
   const sameSource = input.source ?? undefined;
   let grant = [...store.grants.values()].find((g) =>
@@ -484,6 +524,7 @@ export async function share(ctx: ShareCtx, input: {
     if (kept) cond[flag] = true; else delete cond[flag];
   }
   assertFlags(ctx,store,res,cond,grant?.conditions);
+  if (input.subject.kind === "group" && input.subject.id === EVERYONE) assertEveryone(ctx, store, res, input.level, grant);
   assertDelegation(ctx,store,res,input.subject,input.level,cond,grant?.id);
   const created = !grant;
   if (grant) { grant.level = input.level; grant.conditions = cond; }

@@ -19,7 +19,7 @@ Accept an invite: pick a username and password, the device makes its keys; the p
 | HTTP | POST /v1/members/accept |
 | MCP tool | none |
 | CLI | none |
-| Emits | member.joined, principal.created |
+| Emits | member.joined, principal.created, member.join_stuck |
 
 ## Input
 

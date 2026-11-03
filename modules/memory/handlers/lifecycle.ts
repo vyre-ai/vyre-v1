@@ -15,10 +15,9 @@ type Page = { cursor?: string; limit?: number };
 
 const scopeOf = (f: Fact) => ({ layer: f.layer, ownerRef: f.ownerRef, agentId: f.agentId, projectId: f.projectId });
 
-/** May the caller see this fact: a personal fact only its owner, a shared one by access on its layer. */
-export async function canSee(ctx: MemCtx, access: Access, f: Fact): Promise<boolean> {
-  if (f.layer === "person") return f.ownerRef === actorOf(ctx);
-  return access.can(f.layer, f.ownerRef, f.agentId, f.projectId, "view");
+/** May the caller see this fact: a personal fact only its owner, a shared one by access on its layer, and inside a chat only what everyone there may see (makeAccess). */
+export async function canSee(_ctx: MemCtx, access: Access, f: Fact): Promise<boolean> {
+  return access.can(f.layer, f.ownerRef, f.agentId, f.projectId, "view", f.audience);
 }
 
 export interface TrashOpts { reason: string; action?: "delete" | "merge" | "undo" | "reject"; source?: string; who?: Who; mergedInto?: string; runId?: string }
@@ -104,8 +103,8 @@ export async function trashSearch(ctx: MemCtx, input: Page & { q?: string; area?
   for (const r of rowsOf(ctx.db, sql, ...args)) {
     const f = readFact(ctx, r);
     // An admin reads Archive without opening anyone's personal memory: the owner's own rows are the only personal ones listed.
-    if (f.layer === "person") { if (f.ownerRef !== actorOf(ctx)) continue; }
-    else if (area === "trash" && !(await access.can(f.layer, f.ownerRef, f.agentId, f.projectId, "view"))) continue;
+    if (f.layer === "person") { if (!(await access.can(f.layer, f.ownerRef, f.agentId, f.projectId, "view"))) continue; }
+    else if (area === "trash" && !(await access.can(f.layer, f.ownerRef, f.agentId, f.projectId, "view", f.audience))) continue;
     pool.push(f);
   }
   let facts = pool;
@@ -136,7 +135,7 @@ export async function trashSearch(ctx: MemCtx, input: Page & { q?: string; area?
     psql += " ORDER BY trashed_at DESC, page_id";
     for (const r of rowsOf(ctx.db, psql, ...pargs)) {
       const pg = readPage(ctx, r);
-      if (pg.layer === "person" ? pg.ownerRef !== actorOf(ctx) : area === "trash" && !(await access.can(pg.layer, pg.ownerRef, pg.agentId, pg.projectId, "view"))) continue;
+      if (pg.layer === "person" ? !(await access.can(pg.layer, pg.ownerRef, pg.agentId, pg.projectId, "view")) : area === "trash" && !(await access.can(pg.layer, pg.ownerRef, pg.agentId, pg.projectId, "view"))) continue;
       if (q !== "" && !pg.subject.includes(q.toLowerCase()) && !pg.notes.toLowerCase().includes(q.toLowerCase())) continue;
       pages.push(pageRowOut(pg));
     }

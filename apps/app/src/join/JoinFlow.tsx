@@ -45,6 +45,8 @@ export interface JoinFlowProps {
   newCode?: () => string;
   onBackFromSignIn?: () => void;
   unlock?: boolean;
+  /** rc.17: "I already have a Vyre account", for a person with an account in another Space and no session for it on this device */
+  onHaveAccount?: () => void;
 }
 
 export { makeRecoveryCode };
@@ -179,7 +181,7 @@ function JoinFlowForHost(props: JoinFlowProps) {
         invite={invite} state={state} dispatch={dispatch} rules={rules} {...(props.expired===undefined?{}:{expired:props.expired})}
         {...(props.onOpenApp?{onOpenApp:props.onOpenApp}:{})} {...(props.onDownload?{onDownload:props.onDownload}:{})} {...(props.onPickPhoto?{onPickPhoto:props.onPickPhoto}:{})}
         onCopyCode={props.onCopyCode ?? copyText} onSaveCode={props.onSaveCode ?? ((c) => saveText(`${invite.host}-recovery-code.txt`, `${invite.space} recovery code\n${c}\n`))}
-        newCode={props.newCode ?? makeRecoveryCode} {...(props.onEmail?{onEmail:props.onEmail}:{})} {...(props.onOpen?{onOpen:props.onOpen}:{})}
+        newCode={props.newCode ?? makeRecoveryCode} {...(props.onEmail?{onEmail:props.onEmail}:{})} {...(props.onOpen?{onOpen:props.onOpen}:{})} {...(props.onHaveAccount?{onHaveAccount:props.onHaveAccount}:{})}
       />
     );
   return <JoinFrame>{page}</JoinFrame>;

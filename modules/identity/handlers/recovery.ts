@@ -10,7 +10,8 @@ import type {Account,Device,IdentityCtx,KeyBundle,SignInOut} from "../projection
 const TTL=5*60_000;
 export type RecoveryKeys=Required<Pick<KeyBundle,"personKeyByRecovery"|"publicKey"|"privateKeyWrapped"|"spaceKeys">>;
 export function recoveryContext(space:string,username:string,keys:KeyBundle):string{return`vyre/recovery-challenge/v1|${space}|${username}|${sha(canonical(keys))}`;}
-function recoveryOnly(keys:KeyBundle):RecoveryKeys{return{personKeyByRecovery:keys.personKeyByRecovery!,publicKey:keys.publicKey,privateKeyWrapped:keys.privateKeyWrapped,spaceKeys:keys.spaceKeys.map(key=>({...key}))};}
+// a linked Space's earlier key goes along (rc.17): the code opens the person key, which opens it, and that is the key this Space's data is under
+function recoveryOnly(keys:KeyBundle):RecoveryKeys&{formerKey?:string}{return{personKeyByRecovery:keys.personKeyByRecovery!,publicKey:keys.publicKey,privateKeyWrapped:keys.privateKeyWrapped,spaceKeys:keys.spaceKeys.map(key=>({...key})),...(keys.formerKey?{formerKey:keys.formerKey}:{})};}
 function membership(ctx:IdentityCtx,person:string):void{
  const state=ctx.membership?.check(person);
  if(state==="unavailable")raise(ctx.trace.traceId,"internal.unavailable","Space access is being checked. Try again.");
@@ -52,6 +53,13 @@ function recoveryFetchFake(ctx:IdentityCtx,username:string,keys:KeyBundle,person
  try{const challenge=sealTo(Buffer.from(keys.publicKey,"base64").toString("base64url"),nonce,context);quota(ctx,person);ctx.db.run("INSERT INTO identity_codes (code_hash, kind, person_id, purpose, expires_at, used_at) VALUES (?, ?, ?, ?, ?, ?)",sha(`recovery:${nonce.toString("base64url")}`),"recovery",person,context,expiresAt,null);return{keys:recoveryOnly(keys),challenge,context,expiresAt};}finally{nonce.fill(0);}
 }
 function invalid(ctx:IdentityCtx,username:string):never{ctx.emit("signin.failed",username,{username,reason:"bad_code"},{afterFailure:true});return raise(ctx.trace.traceId,"auth.invalid_code");}
+/** A recovery proof from identity.recovery_fetch, spent once: proves this device opened the account's private key with its recovery code (rc.17: the other side of an account link). */
+export function spendRecoveryProof(ctx:IdentityCtx,account:Account,keys:KeyBundle,proof:string):void{
+ if(!keys.personKeyByRecovery||!/^[A-Za-z0-9_-]{43}$/.test(proof))invalid(ctx,account.username);
+ const proven=challenge(ctx,account,keys,proof);
+ const used=ctx.db.run("UPDATE identity_codes SET used_at = ? WHERE code_hash = ? AND kind = ? AND person_id = ? AND used_at IS NULL",ctx.now(),proven.hash,"recovery",account.person_id);
+ if(used.changes!==1)invalid(ctx,account.username);
+}
 function challenge(ctx:IdentityCtx,account:Account,keys:KeyBundle,proof:string):{hash:string;purpose:string}{
  const hash=sha(`recovery:${proof}`),purpose=recoveryContext(ctx.space,account.username,keys);
  const row=ctx.db.all("SELECT person_id, purpose, expires_at, used_at FROM identity_codes WHERE code_hash = ? AND kind = ?",hash,"recovery")[0] as {person_id:string;purpose:string|null;expires_at:number;used_at:number|null}|undefined;

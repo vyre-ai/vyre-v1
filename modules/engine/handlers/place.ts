@@ -3,7 +3,9 @@
 //   engine.pool.status       the pool the session opener keeps (agent/src/pool): sessions per driver, hits and misses.
 //   engine.warm              agent/src/pool warmHint through the opener: start the engine ahead of the first message; answers at once.
 import { placeTurn } from "../../../agent/src/placement/index.ts";
-import type { PlaceDevice, PlaceInput } from "../../../agent/src/placement/index.ts";
+import type { PlaceDevice, PlaceInput, PlaceServer } from "../../../agent/src/placement/index.ts";
+import { relayOf } from "../relay.ts";
+import { usingIn } from "../node-turns.ts";
 import type { ResolvedAccount, SessionSpec, ThreadKind } from "../../../agent/src/turn-engine/types.ts";
 import { flagOn } from "./extra/config.ts";
 import { ensure, mintEngineId, openerOf, raise } from "../projections.ts";
@@ -13,6 +15,9 @@ import type { EngineCtx } from "../projections.ts";
 type Row = Record<string, unknown>;
 interface CallCtx extends EngineCtx { call(cap: string, input: unknown): Promise<unknown> }
 
+// Lane l-runson (owner order of 3 Nov): a computer is online when its link to the Space is up (relayOf: the person's Vyre app linked as `device:<id>`), not when it was last seen; the one it is "using"
+// is the device the person's last message in the chat came from; their servers count when connected; the Space's server runs a turn when the Space allows it (engine.space_runs, default on).
+// Without a relay (an older host, a unit test) the stored last-seen time stands in, as before.
 // DECISION: a device's role comes from its class. Desktop apps and daemons are daemons (they run CLI engines); phones, browsers and extensions are clients (they run none), so their private chats run on the Space.
 // DECISION: a device is online when the server heard from it in the last two minutes (ONLINE_MS below).
 // DECISION: until a device reports which engines it runs, every daemon device counts as running the three CLI drivers (claude_code, codex, grok).
@@ -24,17 +29,45 @@ const ONLINE_MS = 120_000;
 
 interface ThreadOut { thread: { kind: string; members?: Array<{ kind: string; id: string }>; scopeType?: string } }
 interface AgentOut { agent: { hasComputer?: boolean } }
-interface DevicesOut { devices: Array<{ id: string; class: string; lastSeenAt?: number; revokedAt?: number }> }
+interface DevicesOut { devices: Array<{ id: string; class: string; name?: string; lastSeenAt?: number; revokedAt?: number }> }
 
-/** The devices of the person the call acts for, as the placement rules see them: desktop apps and daemons run engines, phones, browsers and extensions do not. */
-function devicesFrom(out: DevicesOut, now: number): PlaceDevice[] {
-  return out.devices.filter((d) => d.revokedAt === undefined).map((d) => {
+/** The devices of the person the call acts for, as the placement rules see them: desktop apps and daemons run engines, phones, browsers and extensions do not. Online is the live link when there is a relay. */
+export function devicesFrom(out: DevicesOut, now: number, person?: string): PlaceDevice[] {
+  const relay = relayOf();
+  const links = relay?.devices && person !== undefined ? relay.devices(person) : null;
+  const rows = out.devices.filter((d) => d.revokedAt === undefined).map((d): PlaceDevice => {
     const daemon = d.class === "desktop" || d.class === "daemon";
+    const link = links?.find((l) => l.deviceId === d.id);
     return {
-      id: d.id, role: daemon ? "daemon" as const : "client" as const, online: d.lastSeenAt !== undefined && now - d.lastSeenAt <= ONLINE_MS,
-      engines: daemon ? CLI_ENGINES : [], ...(d.lastSeenAt !== undefined ? { lastSeen: d.lastSeenAt } : {}),
+      id: d.id, role: daemon ? "daemon" as const : "client" as const,
+      online: links ? link !== undefined : d.lastSeenAt !== undefined && now - d.lastSeenAt <= ONLINE_MS,
+      engines: links ? (daemon && link ? link.engines : []) : daemon ? CLI_ENGINES : [],
+      ...(d.lastSeenAt !== undefined ? { lastSeen: d.lastSeenAt } : {}), ...(link?.name ?? d.name ? { name: link?.name ?? d.name } : {}),
     };
   });
+  // a computer linked under a session whose device row this list does not show (a test's injected session) is still one of theirs
+  for (const l of links ?? []) if (!rows.some((r) => r.id === l.deviceId)) rows.push({ id: l.deviceId, role: "daemon", online: true, engines: l.engines, ...(l.name ? { name: l.name } : {}) });
+  return rows;
+}
+
+interface MyServer { serverId: string; name: string; state: string; enrollment: string }
+
+/** The person's own approved servers, online when connected (with a relay) and not down. */
+export async function serversOf(ctx: CallCtx): Promise<Array<PlaceServer & { state: string }>> {
+  let list: MyServer[] = [];
+  try { list = ((await ctx.call("network.my_computers", {})) as { computers?: MyServer[] }).computers ?? []; } catch { return []; }
+  const relay = relayOf();
+  return list.filter((x) => x.enrollment === "approved").map((x) => ({ serverId: x.serverId, name: x.name, state: x.state, online: x.state !== "down" && (relay ? relay.connected(x.serverId) : true), engines: CLI_ENGINES }));
+}
+
+/** Whether this is a Team Space (default) and whether its own server may run members' turns (engine.space_runs, default on). */
+export async function spaceOf(ctx: CallCtx): Promise<{ team: boolean; shared: boolean }> {
+  let team = true;
+  try { team = ((await ctx.call("spaces.matrix", {})) as { kind?: string }).kind !== "personal"; } catch { /* a Team Space */ }
+  if (!team) return { team, shared: false };
+  let allowed = true;
+  try { allowed = ((await ctx.call("settings.get", { key: "engine.space_runs" })) as { row?: { value?: unknown } }).row?.value !== false; } catch { /* the default stands */ }
+  return { team, shared: allowed };
 }
 
 /** The engine driver this agent runs in this thread: the one saved for it, else Claude Code. */
@@ -58,7 +91,18 @@ function isCrewJob(ctx: EngineCtx, threadId: string): boolean {
   try { return ctx.db.all("SELECT 1 AS x FROM engine_crew_job WHERE thread_id = ?", threadId).length > 0; } catch { return false; }
 }
 
-export async function placementDecide(ctx: CallCtx, input: { threadId: string; agentId: string; kind: "message" | "interrupt" | "wake" | "handoff" }) {
+/**
+ * A Personal Space on several computers (lane l-multidevice): each computer holds the whole Space and is the person's own, so a chat runs on the computer it reached (own_host): the desktop app's
+ * own computer, or for a phone the awake computer the relay sent it to (the relay tries the person's computers before their server). The device rows of the person's other computers are copies
+ * from those computers, and their stored last-seen time says nothing about this one: only a computer with a live link here counts as one this computer could hand a turn to.
+ */
+export function personalDevices(team: boolean, devices: PlaceDevice[]): PlaceDevice[] {
+  if (team || relayOf()?.devices) return devices;
+  return devices.map((x) => ({ ...x, online: false }));
+}
+
+/** `o.automatic`: where Automatic would put the turn now, the chat's own pin set aside (the Runs-on menu's "Now: ..."). */
+export async function placementDecide(ctx: CallCtx, input: { threadId: string; agentId: string; kind: "message" | "interrupt" | "wake" | "handoff" }, o: { automatic?: boolean } = {}) {
   const asker = askerOf(ctx);
   const [t, a, d] = await Promise.all([
     ctx.call("threads.get", { threadId: input.threadId }) as Promise<ThreadOut>,
@@ -67,7 +111,9 @@ export async function placementDecide(ctx: CallCtx, input: { threadId: string; a
   ]);
   const kind = (KINDS.has(t.thread.kind) ? t.thread.kind : "chat") as ThreadKind;
   const persons = new Set((t.thread.members ?? []).filter((m) => m.kind === "person").map((m) => m.id)).size;
-  const chosen = await chosenFor(ctx, input.threadId);
+  const chosen = o.automatic === true ? undefined : await chosenFor(ctx, input.threadId);
+  const [servers, space] = await Promise.all([serversOf(ctx), spaceOf(ctx)]);
+  const current = usingIn(ctx.db, input.threadId, asker);
   // the Space menu's "Chats run on": off means new chats run on the Space instead of this computer (engine.local_runs)
   let localRuns = true;
   try { localRuns = ((await ctx.call("settings.get", { key: "engine.local_runs" })) as { row?: { value?: unknown } }).row?.value !== false; } catch { /* the default stands */ }
@@ -76,10 +122,11 @@ export async function placementDecide(ctx: CallCtx, input: { threadId: string; a
     item: { kind: input.kind === "message" ? "message" : input.kind },
     agent: { hasComputer: a.agent.hasComputer === true },
     engine: engineOf(ctx, input.threadId, input.agentId),
-    asker: { devices: devicesFrom(d, ctx.now()), localRuns, runtimeOptIn: flagOn(ctx, asker, "runtime_opt_in"), ...(chosen ? { chosen } : {}) },
+    asker: { devices: personalDevices(space.team, devicesFrom(d, ctx.now(), asker)), ...(current ? { current } : {}), servers, localRuns, runtimeOptIn: flagOn(ctx, asker, "runtime_opt_in"), ...(chosen ? { chosen } : {}) },
+    space: space.team ? { shared: space.shared } : { shared: false, hostIsAsker: true },
   };
   const p = placeTurn(place);
-  return { placement: p.placement, reason: p.reason, ...(p.wakeLine ? { wakeLine: p.wakeLine } : {}), ...(p.nodeId ? { nodeId: p.nodeId } : {}) };
+  return { placement: p.placement, reason: p.reason, ...(p.wakeLine ? { wakeLine: p.wakeLine } : {}), ...(p.nodeId ? { nodeId: p.nodeId } : {}), ...(p.deviceId ? { deviceId: p.deviceId } : {}) };
 }
 
 export function poolStatus(ctx: EngineCtx, _input: Record<string, never>) {

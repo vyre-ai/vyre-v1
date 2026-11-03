@@ -101,6 +101,12 @@ export function newSpanId(): string {
   return Array.from(globalThis.crypto.getRandomValues(new Uint8Array(8)), (b) => b.toString(16).padStart(2, "0")).join("");
 }
 export function newThreadId(): string { return makeId("thr", globalThis.crypto.getRandomValues(new Uint8Array(14))); }
+/** The Run and thread ids of a Run started with an idempotency key, made from the key: two computers of one Personal Space that start the same scheduled tick while they cannot reach each other
+ *  make the same Run, and when they sync the two are one row (lane l-multidevice). */
+export async function keyedRunIds(key: string): Promise<{ id: string; threadId: string }> {
+  const h = new Uint8Array(await globalThis.crypto.subtle.digest("SHA-256", new TextEncoder().encode(`vyre-run-key\n${key}`)));
+  return { id: makeId("run", h.slice(0, 14)), threadId: makeId("thr", h.slice(14, 28)) };
+}
 
 // ---- the Run row ----
 

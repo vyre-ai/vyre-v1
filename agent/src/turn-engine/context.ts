@@ -5,12 +5,14 @@
 //   identity    who the agent is: its name, its role line and its AGENT.md
 //   rules       how it works with memory and secrets in short
 //   where       the Space, the project, what this chat is for, who is in it by name
+//   person      the profile of the person who asked: public always, private only when nobody else reads the chat; the public profile of the others here (memory.profile.context)
 //   memory      the agent's MAP.md as the nightly job wrote it
 //   skills      the index of skills it may load, one line each
 //   can         a map of what it can do here: grants, routines and watchers, its computer, the Vault handles it may use
 //   task        in a task thread: your seat, the brief, what counts as done, the fixes asked for and the baton tools to finish with (modules/engine/context.ts)
 //   digest      the tasks in hand in about 300 tokens (tasks.digest): after every stable section so the prefix cache holds, and a resumed session gets it only when it changed
 //   earlier     a summary of the turns older than the recent ones shown word for word
+//   results     on an API engine: what its own tools returned in its recent turns for this same person here (theirs alone; tool results are not in the shared transcript)
 //   compacted   the chat was compacted (engine.compact): what the person asked to keep, then the summary that stands for everything before the compaction
 //   handoff    one turn only: the chat moved to this engine, with the summary it starts from
 //   screen      what the person has open (ScreenContext)
@@ -24,9 +26,9 @@
 import type { SystemBlock } from "../drivers/api/types.ts";
 import { fingerprint } from "../drivers/api/prefix.ts";
 
-export type SectionId = "identity" | "rules" | "where" | "memory" | "skills" | "can" | "task" | "parent" | "digest" | "earlier" | "compacted" | "handoff" | "screen" | "focus" | "about" | "now" | "waiting";
+export type SectionId = "identity" | "rules" | "where" | "person" | "memory" | "skills" | "can" | "task" | "parent" | "digest" | "earlier" | "results" | "compacted" | "handoff" | "screen" | "focus" | "about" | "now" | "waiting";
 
-export const SECTION_ORDER: readonly SectionId[] = ["identity", "rules", "where", "memory", "skills", "can", "task", "parent", "digest", "earlier", "compacted", "handoff", "screen", "focus", "about", "now", "waiting"];
+export const SECTION_ORDER: readonly SectionId[] = ["identity", "rules", "where", "person", "memory", "skills", "can", "task", "parent", "digest", "earlier", "results", "compacted", "handoff", "screen", "focus", "about", "now", "waiting"];
 
 export interface ContextSection {
   id: SectionId;
@@ -148,7 +150,8 @@ export function ordered(sections: readonly ContextSection[]): ContextSection[] {
 
 /** The title a section is shown under in a prompt. */
 const TITLE: Readonly<Record<SectionId, string>> = {
-  identity: "", rules: "", where: "Where you are", memory: "", skills: "", can: "What you can do here", task: "Your task", earlier: "Earlier in this chat (a summary of turns before the recent ones below; search the transcript for exact words)",
+  identity: "", rules: "", where: "Where you are", person: "", memory: "", skills: "", can: "What you can do here", task: "Your task", earlier: "Earlier in this chat (a summary of turns before the recent ones below; search the transcript for exact words)",
+  results: "What your tools returned in your recent turns here for this same person (theirs alone: others in this chat do not see it, so do not repeat it to them without care)",
   compacted: "This chat was compacted (this stands for everything before the messages below; search the transcript for exact words)", handoff: "You are taking over this chat",
   screen: "On the person's screen", focus: "Focus for this place", about: "About Vyre (the person asked about Vyre itself: answer from this, and check this Space with tools where it says to)", now: "", waiting: "You are waiting on",
 };

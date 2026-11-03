@@ -1,0 +1,14 @@
+{
+  "targets": [
+    { "id": "CONNECTIONS_01-vault", "route": "/m/CONNECTIONS_01?part=vault", "proto": "vault,{skin}", "waitFor": "[data-testid='vault-connections']", "note": "Vault > Connections for an admin: Mine, Space (everyone or Legal), agents' own, plugin and skill servers, built-in integrations, app hubs and the Space's rules; a steady dot per row." },
+    { "id": "CONNECTIONS_01-member", "route": "/m/CONNECTIONS_01?part=member", "proto": "vault,{skin}", "waitFor": "[data-testid='vault-connections']", "note": "The same Space as a member: no rules, no hub card, nothing to share." },
+    { "id": "CONNECTIONS_01-personal", "route": "/m/CONNECTIONS_01?part=personal", "proto": "vault,{skin}", "waitFor": "[data-testid='vault-connections']", "note": "A Personal Space: Mine only." },
+    { "id": "CONNECTIONS_01-browse", "route": "/m/CONNECTIONS_01?part=browse", "proto": "vault,{skin}", "waitFor": "[data-testid='catalog-results']", "note": "Add a connection, Browse the official MCP registry: how each server signs in and runs, and what the Space's list allows." },
+    { "id": "CONNECTIONS_01-browse-open", "route": "/m/CONNECTIONS_01?part=browse-open", "proto": "vault,{skin}", "waitFor": "[data-testid='catalog-results']", "note": "Browse in a fresh Space: no allow-list by default, so every registry result can be added; the lock shows only once an admin turns the list on." },
+    { "id": "CONNECTIONS_01-paste", "route": "/m/CONNECTIONS_01?part=paste", "proto": "vault,{skin}", "waitFor": "[data-testid='draft-rows']", "note": "Paste an address: a command with its key in front; the key goes to the Vault." },
+    { "id": "CONNECTIONS_01-import", "route": "/m/CONNECTIONS_01?part=import", "proto": "vault,{skin}", "waitFor": "[data-testid='draft-rows']", "note": "Import a Codex config.toml: three servers, a key split out, a token the config left to the environment." },
+    { "id": "CONNECTIONS_01-setup", "route": "/m/CONNECTIONS_01?part=setup", "proto": "vault,{skin}", "waitFor": "[data-testid='connection-setup']", "note": "A registry server that needs a key: the key goes into the Vault, Me and my agents or Everyone in the Space." },
+    { "id": "CONNECTIONS_01-settings", "route": "/m/CONNECTIONS_01?part=settings", "proto": "settings,{skin}", "waitFor": "[data-testid='settings-open-connections']", "note": "Settings > Connected: the summary and Open in Vault." },
+    { "id": "CONNECTIONS_01-console", "route": "/m/CONNECTIONS_01?part=console", "proto": "console,{skin}", "waitFor": "[data-testid='console-connections-open']", "note": "Console > Plugins and tools: the Connections summary and Open in Vault." }
+  ]
+}

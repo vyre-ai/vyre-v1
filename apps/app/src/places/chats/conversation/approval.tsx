@@ -9,7 +9,7 @@ import type { CapMap } from "../../../../../../generated/types.ts";
 import type { ConversationData } from "./data.tsx";
 import { Glyph, TextButton } from "./parts.tsx";
 import { collect } from "./model.ts";
-import { askLine, askRows, denyNote, diffLines, doneLine, excerptLines, heldOf, outcomeOf, wantsLine } from "./approval-model.ts";
+import { askLine, askRows, denyNote, diffLines, doneLine, excerptLines, heldOf, outcomeOf, plainRows, sentLine, wantsLine } from "./approval-model.ts";
 import type { DiffLine } from "./approval-model.ts";
 import { Face } from "../needsyou/parts.tsx";
 import { useFollow } from "./use-follow.ts";
@@ -20,6 +20,10 @@ type Data = Pick<ConversationData, "call" | "nav" | "threadId" | "changes">;
 
 /** The name of the file or record a step is about, for the line that says what it wants. Empty when it cannot be read. */
 async function subjectOf(data: Data, cap: string, input: Record<string, unknown>): Promise<string | undefined> {
+  // a message to a teammate names them: "Send this to Rubab Khan?" (lane l-agentdm)
+  if (cap === "chat.message_person" && typeof input["to"] === "string") {
+    try { return ((await data.call("access.principals.get", { principal: { kind: "person", id: input["to"] } })) as { principal?: { name?: string } }).principal?.name || undefined; } catch { return undefined; }
+  }
   const fileId = input["fileId"];
   if (cap.startsWith("files.") && typeof fileId === "string") {
     try { return ((await data.call("files.get", { fileId })) as CapMap["files.get"]["out"]).file.name; } catch { return undefined; }
@@ -27,7 +31,7 @@ async function subjectOf(data: Data, cap: string, input: Record<string, unknown>
   return undefined;
 }
 
-export function ApprovalCard({ taskId, agent, agentId, data }: { taskId: string; agent: string; agentId: string; data: Data }): ReactElement | null {
+export function ApprovalCard({ taskId, agent, agentId, data, face }: { taskId: string; agent: string; agentId: string; data: Data; /** an agent asking for its person wears that person's face (lane l-agentdm) */ face?: string }): ReactElement | null {
   const [task, setTask] = useState<Task | null | undefined>(undefined);
   const [subject, setSubject] = useState<string | undefined>(undefined);
   /** For an edit of a file that exists: what is taken out and put in, instead of the new text alone. */
@@ -73,7 +77,7 @@ export function ApprovalCard({ taskId, agent, agentId, data }: { taskId: string;
     return (
       <View testID={`approval-done-${taskId}`} style={st.done} accessibilityRole="text">
         <Glyph name={ended === "allowed" ? "check" : "x"} size={13} color={ended === "allowed" ? "var(--ok)" : "var(--ink-3)"} />
-        <Text style={st.doneText}>{doneLine(ended, held.cap, subject, held.input)}</Text>
+        <Text style={st.doneText}>{held.plain ? `${ended === "allowed" ? "Approved" : "Sent back"} · ${task.title}` : held.cap === "chat.message_person" ? sentLine(ended, subject, (task.workingNotes as Record<string, string> | undefined)?.["approved_in"] === "chat") : doneLine(ended, held.cap, subject, held.input)}</Text>
       </View>
     );
   }
@@ -93,12 +97,12 @@ export function ApprovalCard({ taskId, agent, agentId, data }: { taskId: string;
     );
   };
   // an outside agent asking its person: what happens, that it runs as them, and every input
-  const rows = held.what ? askRows(task.blocks) : excerptLines(held.input, 5, held.cap);
+  const rows = held.plain ? plainRows(held) : held.what ? askRows(task.blocks) : excerptLines(held.input, 5, held.cap);
   const headline = held.what ? askLine(agent, held.what) : wantsLine(agent, held.cap, subject, held.input);
   return (
     <View testID={`approval-${taskId}`} style={st.card} accessibilityRole="summary" accessibilityLabel={headline}>
       <View style={st.head}>
-        <Face name={agent} seedId={agentId} kind="agent" size={20} />
+        <Face name={agent} seedId={face ?? agentId} kind={face ? "person" : "agent"} size={20} />
         <Text style={st.title}>{headline}</Text>
       </View>
       {diff && diff.lines.length > 0 ? (
@@ -126,14 +130,14 @@ export function ApprovalCard({ taskId, agent, agentId, data }: { taskId: string;
           <TextInput accessibilityLabel="Why not (optional)" testID={`approval-reason-${taskId}`} value={reason} onChangeText={setReason} placeholder="Reason (optional)" placeholderTextColor="var(--ink-4)" multiline style={st.input} />
           <View style={st.acts}>
             <TextButton label="Back" onPress={() => setDenying(false)} testID={`approval-back-${taskId}`} />
-            <TextButton label="Deny" danger disabled={busy} onPress={() => act("reject", denyNote(reason))} testID={`approval-deny-go-${taskId}`} />
+            <TextButton label={held.plain ? "Send back" : "Deny"} danger disabled={busy} onPress={() => act("reject", denyNote(reason))} testID={`approval-deny-go-${taskId}`} />
           </View>
         </View>
       ) : (
         <View style={st.acts}>
-          <TextButton label="Deny" onPress={() => setDenying(true)} disabled={busy} testID={`approval-deny-${taskId}`} />
+          <TextButton label={held.plain ? "Send back" : "Deny"} onPress={() => setDenying(true)} disabled={busy} testID={`approval-deny-${taskId}`} />
           {allowable ? <TextButton label="Always allow" disabled={busy} onPress={always} testID={`approval-always-${taskId}`} /> : null}
-          <TextButton label="Allow" primary disabled={busy} onPress={() => act("approve")} testID={`approval-allow-${taskId}`} />
+          <TextButton label={held.plain ? "Approve" : "Allow"} primary disabled={busy} onPress={() => act("approve")} testID={`approval-allow-${taskId}`} />
         </View>
       )}
       {line ? <Text accessibilityRole="alert" style={st.err}>{line}</Text> : null}

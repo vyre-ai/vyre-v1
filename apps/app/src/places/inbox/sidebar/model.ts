@@ -10,7 +10,7 @@ export type Scope =
   | { kind: "number"; id: string }
   | { kind: "starred" }
   | { kind: "follow" }
-export type MainView = "list" | "calendar" | "connect";
+export type MainView = "list" | "calendar" | "connect" | "meetings";
 
 export interface InboxState {
   main: MainView;
@@ -273,6 +273,7 @@ export type Action =
   | { type: "select"; key: string | null }
   | { type: "section"; key: string }
   | { type: "calendar" }
+  | { type: "meetings" }
   | { type: "connect" }
   | { type: "calendarVisible"; id: string }
   | { type: "calendarOnly"; id: string; all: readonly string[] };
@@ -289,6 +290,7 @@ export function reduce(s: InboxState, a: Action): InboxState {
     case "select": return { ...s, selected: a.key };
     case "section": return { ...s, closed: toggled(s.closed, a.key) };
     case "calendar": return { ...s, main: "calendar", selected: null };
+    case "meetings": return { ...s, main: "meetings", selected: null };
     case "connect": return { ...s, main: "connect", selected: null };
     case "calendarVisible": return { ...s, hiddenCalendars: toggled(s.hiddenCalendars, a.id) };
     case "calendarOnly": return { ...s, hiddenCalendars: a.all.filter((id) => id !== a.id) };

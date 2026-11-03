@@ -9,6 +9,7 @@ export const handlers: Handlers<HandlerCtx> = {
   "spaces.delete": async () => ({"ok":true} as unknown) as never,
   "spaces.export": async () => ({"runId":"run_a1b2c3"} as unknown) as never,
   "spaces.get": async () => ({"space":{"address":{"host":"example","mode":"relay"},"createdAt":1760000000000,"defaults":{},"fingerprint":"ab12 cd34 ef56 7890","hostedOn":"example","id":"spc_a1b2c3","kind":"personal","legalName":"example","logoFileId":"fil_a1b2c3","name":"example","owner":"usr_a1b2c3"}} as unknown) as never,
+  "spaces.image": async () => ({"image":"example","logoFileId":"fil_a1b2c3"} as unknown) as never,
   "spaces.leave": async () => ({"ok":true} as unknown) as never,
   "spaces.matrix": async () => ({"features":[{"available":true,"key":"apps_public","line":"Needs a Team Space"}],"kind":"personal"} as unknown) as never,
   "spaces.onboarding.complete": async () => ({"ok":true} as unknown) as never,

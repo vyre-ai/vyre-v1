@@ -7,7 +7,7 @@ const headers=new Set(['accept','authorization','content-type','idempotency-key'
 export function packagedOrigin(value:string|undefined):value is string{return typeof value==='string'&&origins.has(value);}
 export function desktopCors(req:IncomingMessage,res:ServerResponse):boolean{
  const pathname=(req.url??'').split('?')[0]??'';
- if(pathname!=='/healthz'&&!pathname.startsWith('/v1/')&&!pathname.startsWith('/sync/')&&!pathname.startsWith('/local/vault/key/')&&!pathname.startsWith('/vault/key/'))return false;
+ if(pathname!=='/healthz'&&!pathname.startsWith('/v1/')&&!pathname.startsWith('/sync/')&&!pathname.startsWith('/local/vault/key/')&&!pathname.startsWith('/vault/key/')&&!pathname.startsWith('/local/peers/'))return false;
  res.setHeader('vary','Origin');const origin=req.headers.origin;
  if(!packagedOrigin(origin))return false;
  if(req.method==='OPTIONS'){

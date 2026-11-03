@@ -28,6 +28,7 @@ export const handlers: Handlers<HandlerCtx> = {
   "access.groups.list": async (ctx) => { throw new VyreErr(notImplemented("access.groups.list", ctx.trace)); },
   "access.groups.remove_member": async (ctx) => { throw new VyreErr(notImplemented("access.groups.remove_member", ctx.trace)); },
   "access.groups.update": async (ctx) => { throw new VyreErr(notImplemented("access.groups.update", ctx.trace)); },
+  "access.join_share": async (ctx) => { throw new VyreErr(notImplemented("access.join_share", ctx.trace)); },
   "access.labels.list": async (ctx) => { throw new VyreErr(notImplemented("access.labels.list", ctx.trace)); },
   "access.labels.set": async (ctx) => { throw new VyreErr(notImplemented("access.labels.set", ctx.trace)); },
   "access.lists": async (ctx) => { throw new VyreErr(notImplemented("access.lists", ctx.trace)); },

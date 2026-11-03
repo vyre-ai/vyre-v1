@@ -3,10 +3,15 @@ export { DEFAULT_LIMITS, SandboxError } from "./types.ts";
 export { hostAllowed, isPrivateAddress, normalizePath, validHostPattern, validateSpec, within } from "./policy.ts";
 export type { Checked, PolicyOptions } from "./policy.ts";
 export { createEgressProxy } from "./egress.ts";
+export { PUBLIC_RULE, RULE_ENV, VYRE_PORTS, addressRefusal, inCidr, ownNetworks, ruleFromEnv, spaceTarget, targetOf, toolProxyEnv, validateRule } from "./egress-policy.ts";
+export type { Cidr, EgressRule } from "./egress-policy.ts";
+export { CONNECT_SOURCE, GUEST_CONNECT } from "./net/guest.ts";
+export { ACCESS_ENV, accessFromEnv, addedFolder, engineAccess, homeDenies, packageLocations, sshFiles } from "./engine-access.ts";
+export type { AccessAsked, EngineAccess, EngineAccessInput, EngineWhere } from "./engine-access.ts";
 export type { EgressEvent, EgressOptions, EgressProxy } from "./egress.ts";
 export { CRED_DIR, DEFAULT_IMAGE, HOME, containerConfig, createDockerApi, demux, networkName, proxyEnv, reviewContainerConfig, unixSocketHttp } from "./docker.ts";
 export type { ContainerConfig, DockerApi, DockerHttp, DockerRequest, DockerResponse, DockerSandboxDeps, ProxyHandle } from "./docker.ts";
-export { ROOT_DIR_LITERAL, SYSTEM_READ, sbplString, seatbeltCommand, seatbeltProfile } from "./seatbelt.ts";
+export { HIDDEN_SANDBOX_EXEC, ROOT_DIR_LITERAL, SYSTEM_READ, sbplString, seatbeltCommand, seatbeltProfile } from "./seatbelt.ts";
 export type { SeatbeltOptions } from "./seatbelt.ts";
 // The unwalled starters (startDockerSandbox, bwrapCommand) are not exported: a sandbox started through them keeps a network path to the host that the wall closes (P-L2_HEAVY found it). The
 // only starters are the walled ones below (ruling: security sign-off S8). Their own unit tests import ./docker.ts and ./bwrap.ts directly.

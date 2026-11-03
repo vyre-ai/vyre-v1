@@ -18,6 +18,8 @@ export const MAX_INLINE = 256 * 1024;
 export const MAX_UPLOAD = 25 * 1024 * 1024;
 const UPLOAD_MS = 15 * 60 * 1000;
 const PAGE_DEFAULT = 100;
+/** A deep list reads at most this many files, newest first, before access and paging. */
+const DEEP_MAX = 2000;
 
 export const TREE_ROOTS: { key: string; title: string; kind: "folder" | "virtual" }[] = [
   { key: "personal", title: "Personal", kind: "folder" },
@@ -38,6 +40,11 @@ export const TREE_ROOTS: { key: string; title: string; kind: "folder" | "virtual
 export const KNOWLEDGE_CHILDREN: { key: string; title: string }[] = [
   { key: "memory", title: "Memory" },
   { key: "graph", title: "Graph" },
+];
+
+/** System folders inside Shared knowledge. Branding holds the Space's own pictures: the Space image Console uploads lands here. */
+export const SHARED_KNOWLEDGE_CHILDREN: { key: string; title: string }[] = [
+  { key: "branding", title: "Branding" },
 ];
 
 export const KINDS = new Set([
@@ -226,7 +233,10 @@ function guessMime(name: string, asText: boolean): string {
     pdf: "application/pdf", csv: "text/csv", html: "text/html",
     js: "text/javascript", ts: "text/plain", py: "text/plain",
     docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    pptx: "application/vnd.openxmlformats-officedocument.presentationml.presentation", yml: "text/plain", yaml: "text/plain", toml: "text/plain", sql: "text/plain", sh: "text/plain",
+    pptx: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    // the older and OpenDocument formats: an empty placeholder of a mounted .doc is not a text file
+    doc: "application/msword", xls: "application/vnd.ms-excel", ppt: "application/vnd.ms-powerpoint", rtf: "application/rtf",
+    odt: "application/vnd.oasis.opendocument.text", ods: "application/vnd.oasis.opendocument.spreadsheet", odp: "application/vnd.oasis.opendocument.presentation", yml: "text/plain", yaml: "text/plain", toml: "text/plain", sql: "text/plain", sh: "text/plain",
     heic: "image/heic", bmp: "image/bmp", avif: "image/avif", tiff: "image/tiff",
   };
   if (known[ext]) return known[ext];
@@ -397,12 +407,42 @@ function fileFlags(ctx: Ctx): FileFlags {
 
 export function fileOutC(ctx: Ctx, row: Row): FileOut {
   const out = fileOut(row);
+  out.label = labelOfFolder(ctx, String(row.folder_id));
   const flags = fileFlags(ctx);
   out.starred = flags.starred.has(out.fileId);
   out.conflict = flags.conflict.has(out.fileId);
   const source = sourceOfFolder(ctx, String(row.folder_id));
   if (source) out.source = source;
   return out;
+}
+
+// ---- how sensitive a folder is ----
+
+const labelCache = new WeakMap<object, Map<string, number>>();
+
+/**
+ * The label a folder carries for what is in it: the highest of its own and every folder above it, so a file anywhere below a Restricted folder is Restricted (lane l-labelinherit; authorize
+ * reads the same chain in the access snapshot). A file has no label of its own here: it reports this one. Read once per folder per call; `fresh` reads the rows again (a refusal decides on them).
+ */
+export function labelOfFolder(ctx: Ctx, folderId: string, opts: { fresh?: boolean } = {}): number {
+  let cache = opts.fresh ? undefined : labelCache.get(ctx);
+  if (!cache) { cache = new Map(); if (!opts.fresh) labelCache.set(ctx, cache); }
+  const seen: Row[] = [];
+  let top = 0;
+  let at: string | null = folderId;
+  for (let hops = 0; at !== null && hops < 64; hops += 1) {
+    const hit = cache.get(at);
+    if (hit !== undefined) { top = hit; break; }
+    const row: Row | undefined = one(ctx, "SELECT * FROM files_folder WHERE id = ?", at);
+    if (!row) break;
+    seen.push(row);
+    at = isNull(row.parent_id) ? null : String(row.parent_id);
+  }
+  for (let i = seen.length - 1; i >= 0; i -= 1) {
+    top = Math.max(top, Math.min(3, Math.max(0, num(seen[i]!.label))));
+    cache.set(String(seen[i]!.id), top);
+  }
+  return top;
 }
 
 // ---- where a folder comes from ----
@@ -522,8 +562,9 @@ function ensureSpaceRoots(ctx: Ctx): void {
       });
       row = mustFolder(ctx, id);
     }
-    if (root.key !== "knowledge" || !row) continue;
-    for (const child of KNOWLEDGE_CHILDREN) {
+    const children = root.key === "knowledge" ? KNOWLEDGE_CHILDREN : root.key === "shared_knowledge" ? SHARED_KNOWLEDGE_CHILDREN : [];
+    if (children.length === 0 || !row) continue;
+    for (const child of children) {
       const have = one(ctx, "SELECT * FROM files_folder WHERE system_key = ?", child.key);
       if (have) continue;
       const id = nid(ctx, "fld");
@@ -822,6 +863,10 @@ async function filesList(ctx: Ctx, input: unknown): Promise<{ files: FileOut[]; 
   if (!["name", "updated", "size", "kind"].includes(sort)) fail(ctx, "validation.bad_input", "The input is not valid.", { field: "sort" });
   if (!["asc", "desc"].includes(dir)) fail(ctx, "validation.bad_input", "The input is not valid.", { field: "dir" });
   if (section !== undefined && !["personal", "shared", "space"].includes(section)) fail(ctx, "validation.bad_input", "The input is not valid.", { field: "section" });
+  const deep = o["deep"] === true;
+  if (o["deep"] !== undefined && typeof o["deep"] !== "boolean") fail(ctx, "validation.bad_input", "The input is not valid.", { field: "deep" });
+  if (deep && (section !== "space" || folderId !== undefined)) fail(ctx, "validation.bad_input", "deep lists the whole Space section: give section space and no folder.", { field: "deep" });
+  const q = optStr(ctx, o, "q")?.trim().toLowerCase() ?? "";
   const { offset, limit } = pageArgs(ctx, o, PAGE_DEFAULT);
 
   let folderRows: Row[] = [];
@@ -836,6 +881,9 @@ async function filesList(ctx: Ctx, input: unknown): Promise<{ files: FileOut[]; 
   } else if (section === "shared") {
     folderRows = [];
     fileRows = [];
+  } else if (section === "space" && deep) {
+    // every file in a Space folder (not anyone's Personal), newest first unless asked otherwise; what the caller may not see is filtered below like any list
+    fileRows = many(ctx, `SELECT f.* FROM files_file f JOIN files_folder d ON d.id = f.folder_id WHERE f.deleted_at IS NULL AND d.deleted_at IS NULL AND d.scope = 'space'${kind ? " AND f.kind = ?" : ""} ORDER BY f.updated_at DESC LIMIT ${DEEP_MAX}`, ...(kind ? [kind] : []));
   } else if (section === "space") {
     preserveOrder = sort === "name" && dir === "asc" && optStr(ctx, o, "sort") === undefined;
     for (const root of TREE_ROOTS) {
@@ -853,6 +901,10 @@ async function filesList(ctx: Ctx, input: unknown): Promise<{ files: FileOut[]; 
   if (kind) {
     fileRows = fileRows.filter((row) => String(row.kind) === kind);
     folderRows = [];
+  }
+  if (q !== "") {
+    fileRows = fileRows.filter((row) => String(row.name).toLowerCase().includes(q));
+    folderRows = folderRows.filter((row) => String(row.name).toLowerCase().includes(q));
   }
 
   // Listing a container is not permission to reveal every child in it. Children
@@ -946,6 +998,35 @@ async function extractedText(ctx: Ctx, fileId: string, versionId: string | undef
   }
 }
 
+const OOXML_EXT = new Set(["docx", "pptx", "xlsx"]);
+const LEGACY_EXT = new Set(["doc", "ppt", "xls", "rtf"]);
+/** The previews module reads at most this much of a file (previews MAX_BYTES); a larger one has no text. */
+const EXTRACT_MAX_BYTES = 30 * 1024 * 1024;
+const OFFICE_APP: Readonly<Record<string, string>> = { doc: "Word", docx: "Word", rtf: "Word", odt: "Word", ppt: "PowerPoint", pptx: "PowerPoint", odp: "PowerPoint", xls: "Excel", xlsx: "Excel", ods: "Excel" };
+
+/**
+ * An Office file with no words is either empty or one Vyre cannot read. A file saved with a password, a damaged one, one too large to read and an old binary one with no converter on the
+ * server are refused with what to do instead, so an agent is never handed an empty string as if it were the file. A Word file that is really empty reads as "".
+ */
+function unreadable(ctx: Ctx, name: string, size: number, bytes: () => Uint8Array): void {
+  const ext = extOf(name);
+  const app = OFFICE_APP[ext];
+  const openIt = app === undefined ? "Open it in its own app." : `Open it in ${app}.`;
+  // an empty file (or a placeholder its provider could not fill) is read as the empty file it is
+  if (size === 0) return;
+  if (size > EXTRACT_MAX_BYTES) fail(ctx, "validation.too_large", `This file is too large for its text to be read here. ${openIt}`);
+  if (LEGACY_EXT.has(ext)) fail(ctx, "validation.unsupported", `The text of this file cannot be read here right now. ${openIt}`);
+  if (!OOXML_EXT.has(ext)) return;
+  const b = bytes();
+  if (b.length >= 4 && b[0] === 0x50 && b[1] === 0x4b) return;
+  // a password-protected Office file is a compound file (D0 CF 11 E0 ...) holding an EncryptedPackage stream, not a zip file
+  const cfb = b.length >= 8 && b[0] === 0xd0 && b[1] === 0xcf && b[2] === 0x11 && b[3] === 0xe0;
+  if (cfb && Buffer.from(b.buffer, b.byteOffset, b.byteLength).indexOf(Buffer.from("EncryptedPackage", "utf16le")) >= 0) {
+    fail(ctx, "validation.unsupported", `This file is password-protected, so its text cannot be read. ${openIt}`);
+  }
+  fail(ctx, "validation.unsupported", `This file is damaged, so its text cannot be read. ${openIt}`);
+}
+
 async function filesRead(ctx: Ctx, input: unknown): Promise<{ text?: string; base64?: string; url?: string; mime: string; size: number; version: number; truncated: boolean }> {
   ensureReady(ctx);
   const o = rec(ctx, input);
@@ -984,8 +1065,10 @@ async function filesRead(ctx: Ctx, input: unknown): Promise<{ text?: string; bas
   if (offset < 0) fail(ctx, "validation.bad_input", "The input is not valid.", { field: "offset" });
   if (length !== undefined && length < 1) fail(ctx, "validation.bad_input", "The input is not valid.", { field: "length" });
   // As text, a PDF or an Office file is read through its extracted text (previews.text), the way an agent or a person reads it, not as the bytes of a zip file. Offset and length then count characters.
-  if (as === "text" && !textLike(mime) && extractable(String(file.name), mime)) {
+  // An Office or PDF file is extracted even when an older placeholder recorded it as text/plain; a Google export is read as the export it is.
+  if (as === "text" && extractable(String(file.name), mime) && (!textLike(mime) || (!native && EXTRACT_EXT.has(extOf(String(file.name)))))) {
     const out = await extractedText(ctx, String(file.id), versionId);
+    if (out.text.trim() === "") unreadable(ctx, String(file.name), size, () => openBlob(ctx, blobId));
     const text = out.text.slice(Math.min(offset, out.text.length), length === undefined ? undefined : offset + length);
     return { text, mime, size, version: n, truncated: out.truncated || offset > 0 || (length !== undefined && offset + length < out.text.length) };
   }
@@ -1133,6 +1216,7 @@ async function folderMove(ctx: Ctx, input: unknown): Promise<{ folder: FolderOut
   const newPath = `${String(dest.path)}/${String(row.name)}`;
   const now = ctx.now();
   ctx.db.run("UPDATE files_folder SET parent_id = ?, path = ?, updated_at = ? WHERE id = ?", dest.id, newPath, now, row.id);
+  labelCache.delete(ctx);
   rewritePaths(ctx, oldPath, newPath);
   applyScope(ctx, mustFolder(ctx, String(row.id)), scopeOf(dest));
   const payload: { folderId: string; fromParentId?: string; toParentId: string } = { folderId: String(row.id), toParentId: String(dest.id) };
@@ -1233,6 +1317,7 @@ async function folderSettings(ctx: Ctx, input: unknown): Promise<{ folder: Folde
   }
   if (labelName !== undefined && rank !== undefined) {
     await setFolderLabel(String(row.id), labelName as "public" | "internal" | "confidential" | "restricted");
+    labelCache.delete(ctx);
     label = rank;
     fields.push("label");
   }
@@ -1283,6 +1368,7 @@ async function filesWrite(ctx: Ctx, input: unknown): Promise<{ file: FileOut; ve
   const reason = optStr(ctx, o, "reason");
   const content = parseContent(ctx, o.content);
   if (content.kind === "empty" && o.content === undefined) fail(ctx, "validation.bad_input", "The input is not valid.", { field: "content" });
+  await guardAgentSettings(ctx, file);
   const mime = String(file.mime);
   const blob = await resolveBlob(ctx, content, mime);
   const n = num(file.version) + 1;
@@ -1305,6 +1391,29 @@ async function filesWrite(ctx: Ctx, input: unknown): Promise<{ file: FileOut; ve
   ctx.emit("file.version_added", `file/${String(file.id)}`, payload);
   ctx.log.info("files.write", { fileId: String(file.id), version: n, bytes: blob.size });
   return { file: fileOutC(ctx, mustFile(ctx, String(file.id))), versionId };
+}
+
+/**
+ * agent.toml in an agent's folder is that agent's settings: saving it changes the model the agent runs, the Vault keys it holds, the tools it may use and what it may spend. So a new version of a file
+ * named agent.toml is written only by someone who may change that agent's settings, the same right agents.update takes (a person with Edit on the agent, or one of the Space's own agents acting for one;
+ * never an outside agent). The agents module answers that, asked as the writer, before anything is written: refusing here means the file never holds settings its writer could not set, so the text in
+ * Files and what the agent runs never part. A Space without the agents module has nothing that reads the file as settings, so the write goes on.
+ */
+export async function guardAgentSettings(ctx: Ctx, file: Row): Promise<void> {
+  if (String(file.name) !== "agent.toml") return;
+  const fileId = String(file.id);
+  let answer: { agentId?: unknown; allowed?: unknown; reason?: unknown; message?: unknown } | null;
+  try {
+    answer = (await ctx.call("agents.config.may_save", { fileId })) as typeof answer;
+  } catch (e) {
+    const code = (e as { error?: { code?: unknown } } | null)?.error?.code ?? (e as { code?: unknown } | null)?.code;
+    if (code === "internal.not_implemented" || code === "validation.unknown_capability") return;
+    fail(ctx, "permission.no_grant", "agent.toml is this agent's settings, and Vyre could not check that you may change them. Nothing was saved. Try again.", { fileId, reason: "agent_settings" });
+  }
+  if (answer?.allowed !== false) return;
+  fail(ctx, "permission.no_grant", typeof answer.message === "string" && answer.message !== "" ? answer.message : "agent.toml is this agent's settings, and you may not change them. Nothing was saved.", {
+    fileId, reason: "agent_settings", ...(typeof answer.agentId === "string" ? { agentId: answer.agentId } : {}), ...(typeof answer.reason === "string" ? { why: answer.reason } : {}),
+  });
 }
 
 /** The two files an agent is made of. They stay in the agent's own folder under their own names: renaming, moving or deleting either would leave an agent with no configuration or no instructions. */
@@ -1515,6 +1624,7 @@ async function filesRestoreVersion(ctx: Ctx, input: unknown): Promise<{ file: Fi
   const versionId = reqStr(ctx, o, "versionId");
   const version = one(ctx, "SELECT * FROM files_file_version WHERE id = ?", versionId);
   if (!version || String(version.file_id) !== String(file.id)) fail(ctx, "validation.not_found", "That version is not on this file.", { versionId });
+  await guardAgentSettings(ctx, file);
   const n = num(file.version) + 1;
   const blobId = String(version.blob);
   const now = ctx.now();

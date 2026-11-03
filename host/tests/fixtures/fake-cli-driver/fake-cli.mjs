@@ -11,10 +11,13 @@
 //   send      "send <address> [mailboxId]": calls the mail_send tool over the Vyre MCP server named in --mcp-config (stdio shim or loopback URL, the same ways the real CLI would) and answers with
 //             what the tool said, "mail_send answered: <text>" or "mail_send refused: <text>" (a Gate hold, a refusal) or "mcp error: <message>". Lets a test drive the Gate path end to end.
 //   tool      "tool <name> <json arguments>": calls any tool over the Vyre MCP server and answers "<name> answered: <text>" or "<name> refused: <text>" (or "mcp error: ..."). A model that reads memory through its tools.
+//   skillscheck  lists the skills in .claude/skills of its folder, where Claude Code looks for its own: "skills: <name>=<description>=<files>; ..." and whether Skill is an allowed tool
 //   anything else answers with the prompt it was given
 // These are picked by the prompt's last line (the person's message comes last, after the turn context and any recent messages a fresh session is given):
 //   resumecheck  "resumed=<the --resume id or none> session=<this session's id>"
 //   rawecho      answers with the whole prompt it was given, turn context included
+//   whereami     "ran-on=<FAKE_WHERE or space> handover=<yes when the turn went on after its computer slept>"
+//   slowwhere    "first part. " at once, then after FAKE_SLOW_MS the same as whereami
 //   /compact ... compacts the way Claude Code does: a compact_boundary line (42000 tokens before, 2500 after), then an empty success result
 // Sessions are kept the way the real CLI keeps them: a file per session id under $HOME/.fake-claude/sessions, with the last line of every prompt it was sent. `--resume <id>` of a session with no file
 // says so in the real CLI's words on stderr and exits 1 before reading anything.
@@ -142,6 +145,22 @@ async function callTool(prompt) {
   } catch (e) {
     reply([`mcp error: ${e instanceof Error ? e.message : "the call failed"}`]);
   } finally { mcp?.close(); }
+}
+
+/** What Claude Code would find of its own skills in its folder, and whether it may open one. */
+function skillsCheck() {
+  const base = path.join(process.cwd(), ".claude", "skills");
+  let dirs = [];
+  try { dirs = fs.readdirSync(base, { withFileTypes: true }).filter((e) => e.isDirectory()).map((e) => e.name).sort(); } catch { /* none */ }
+  const walk = (d, rel = "") => { try { return fs.readdirSync(d, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? walk(path.join(d, e.name), `${rel}${e.name}/`) : [`${rel}${e.name}`])); } catch { return []; } };
+  const rows = dirs.map((n) => {
+    let desc = "";
+    try { desc = (fs.readFileSync(path.join(base, n, "SKILL.md"), "utf8").split("\n").find((l) => l.startsWith("description:")) ?? "").replace(/^description:\s*/, ""); } catch { desc = "NO SKILL.md"; }
+    return `${n}=${desc}=${walk(path.join(base, n)).filter((f) => f !== "SKILL.md").sort().join(",")}`;
+  });
+  const i = argv.indexOf("--allowedTools");
+  const allowed = i >= 0 ? argv.slice(i + 1).filter((a, k, all) => !all.slice(0, k + 1).some((x) => x.startsWith("--"))) : [];
+  return `skills: ${rows.join("; ") || "none"} | Skill allowed: ${allowed.includes("Skill")}`;
 }
 
 // A real claude merges a user message that arrives while it is mid-turn into that turn (one result for both) instead of answering it as a turn of its own. `holding` is the part of a turn where the fake does the same:
@@ -273,6 +292,19 @@ async function run(raw) {
   keep(lastLine);
   if (lastLine === "resumecheck") { reply([`resumed=${resumed ?? "none"} session=${session}`]); return; }
   if (lastLine === "rawecho") { reply([raw]); return; }
+  // where the engine ran (lane l-runson): FAKE_WHERE is set by the test's launcher on the person's computer; a turn that went on after the computer slept says so
+  if (lastLine === "whereami") { reply([`ran-on=${process.env.FAKE_WHERE ?? "space"} handover=${raw.includes("which went to sleep") ? "yes" : "no"}`]); return; }
+  // "slowwhere": the first words at once, the rest after FAKE_SLOW_MS (default 4 s): a turn that is in the middle when its computer goes away
+  if (lastLine === "slowwhere") {
+    init();
+    out({ type: "stream_event", event: { type: "message_start", message: { id: `m_sw_${process.pid}` } } });
+    out({ type: "stream_event", event: { type: "content_block_delta", index: 0, delta: { type: "text_delta", text: "first part. " } } });
+    await new Promise((res) => setTimeout(res, Number(process.env.FAKE_SLOW_MS ?? 4000)));
+    const rest = `ran-on=${process.env.FAKE_WHERE ?? "space"} handover=${raw.includes("which went to sleep") ? "yes" : "no"}`;
+    out({ type: "stream_event", event: { type: "content_block_delta", index: 0, delta: { type: "text_delta", text: rest } } });
+    out({ type: "result", subtype: "success", is_error: false, result: `first part. ${rest}`, session_id: session, usage: { input_tokens: 5, output_tokens: 5 } });
+    return;
+  }
   if (/^\/compact\b/.test(prompt.trim())) {
     out({ type: "system", subtype: "compact_boundary", session_id: session, compact_metadata: { trigger: "manual", pre_tokens: 42_000, post_tokens: 2_500 } });
     out({ type: "result", subtype: "success", is_error: false, result: "", session_id: session, usage: { input_tokens: 42_000, output_tokens: 700 } });
@@ -281,6 +313,7 @@ async function run(raw) {
   // a "tool" line is the person's message, which comes last and may follow context or memory the engine put in front of it
   const toolLine = prompt.split("\n").reverse().find((l) => /^tool\s+\S+/.test(l));
   if (toolLine) { await callTool(toolLine); return; }
+  if (prompt.split("\n").some((l) => l.trim() === "skillscheck")) { reply([skillsCheck()]); return; }
   const first = prompt.trim().split(/\s+/)[0];
   // a side question (/btw): its first message carries "The question: ..."; the answer streams a few words
   const asked = /The question: ([^\n]*)/.exec(prompt);

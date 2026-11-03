@@ -10,6 +10,7 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "devices.get": Handler<"devices.get", X>;
   "devices.list": Handler<"devices.list", X>;
   "devices.mine": Handler<"devices.mine", X>;
+  "devices.presence": Handler<"devices.presence", X>;
   "devices.purge_ack": Handler<"devices.purge_ack", X>;
   "devices.register": Handler<"devices.register", X>;
   "devices.rename": Handler<"devices.rename", X>;

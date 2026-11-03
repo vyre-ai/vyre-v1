@@ -8,6 +8,7 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "notifications.away.clear": Handler<"notifications.away.clear", X>;
   "notifications.away.get": Handler<"notifications.away.get", X>;
   "notifications.away.set": Handler<"notifications.away.set", X>;
+  "notifications.away.who": Handler<"notifications.away.who", X>;
   "notifications.counts": Handler<"notifications.counts", X>;
   "notifications.delegate.get": Handler<"notifications.delegate.get", X>;
   "notifications.delegate.resolve": Handler<"notifications.delegate.resolve", X>;

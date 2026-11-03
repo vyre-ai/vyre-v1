@@ -29,5 +29,5 @@ HTTP 422. Retryable: no.
 - chat.aside_keep
 - chat.fork
 - chat.handoff
+- chat.message_person
 - chat.share
-- comms.senders.set_default

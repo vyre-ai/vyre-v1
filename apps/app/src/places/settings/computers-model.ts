@@ -19,6 +19,14 @@ export function joinCommand(address: string, code: string): string {
   return `VYRE_JOIN=${code} sh -c 'if [ "$(uname)" = Darwin ]; then s=install-mac.sh; r=; else s=install.sh; r=sudo; fi; curl -fsSL ${RELEASES}/$s | $r env VYRE_JOIN="$VYRE_JOIN" sh -s -- --role compute --server ${address}'`;
 }
 
+/**
+ * The one line for a server of a Personal Space (lane l-multidevice): the same installers, with VYRE_PEER_JOIN in the environment instead of an address. The server joins through Vyre's relay,
+ * so the Space needs no address; it copies the whole Space, stays in sync, keeps the Space going while the computers sleep and runs its scheduled work. The code works once for 30 minutes.
+ */
+export function peerServerCommand(code: string): string {
+  return `VYRE_PEER_JOIN=${code} sh -c 'if [ "$(uname)" = Darwin ]; then s=install-mac.sh; r=; else s=install.sh; r=sudo; fi; curl -fsSL ${RELEASES}/$s | $r env VYRE_PEER_JOIN="$VYRE_PEER_JOIN" sh -s --'`;
+}
+
 export type AddressKind = "none" | "loopback" | "lan" | "public";
 
 /** What the Space's address means to another machine: nothing, only this computer, this network, or anywhere. */
@@ -39,6 +47,13 @@ export function factsLine(f: ServerInfo["facts"]): string {
 }
 
 /** The note under a row: how many agent computers it holds, or why it cannot hold one. */
+/** How Claude Code, Codex and Grok run on this computer, in the computer's details, where it is not the Mac's or Linux's full sandbox (owner ruling 3 Nov 2026). */
+export const PERSONAL_WINDOWS_LINE = "Personal: the AI can read this computer like Claude Code does; it can only change your added folders.";
+/** The line for This computer: the desktop app on Windows runs a Personal Space's CLI engines at Low integrity (sandbox/src/win). */
+export function engineLine(o: { desktop: boolean; userAgent: string }): string {
+  return o.desktop && /\bWindows\b/.test(o.userAgent) ? PERSONAL_WINDOWS_LINE : "";
+}
+
 export function runsLine(h: Pick<HostInfo, "runs" | "canRun" | "reason">): string {
   if (h.runs > 0) return h.runs === 1 ? "1 agent computer" : `${h.runs} agent computers`;
   return h.canRun ? "" : h.reason ?? "";
@@ -46,7 +61,7 @@ export function runsLine(h: Pick<HostInfo, "runs" | "canRun" | "reason">): strin
 
 export type Phase = "name" | "waiting" | "compare" | "done";
 
-export interface Sheet { nickname: string; code: string | null; expiresAt: number | null; address: string | null; serverId: string | null; approved: boolean }
+export interface Sheet { nickname: string; code: string | null; expiresAt: number | null; address: string | null; serverId: string | null; approved: boolean; /** a server for a Personal Space: it joins through the relay with its code, and is in once it shows among the Space's computers */ peer?: boolean }
 export const emptySheet = (): Sheet => ({ nickname: "", code: null, expiresAt: null, address: null, serverId: null, approved: false });
 
 /**
@@ -55,6 +70,8 @@ export const emptySheet = (): Sheet => ({ nickname: "", code: null, expiresAt: n
  */
 export function phaseOf(sheet: Sheet, mine: readonly ServerInfo[]): { phase: Phase; arrived: ServerInfo | null } {
   if (sheet.code === null) return { phase: "name", arrived: null };
+  // a Personal Space's server needs no approval: the code was the yes; it is in once it is one of the Space's computers
+  if (sheet.peer) { const got = mine.find((s) => s.enrollment === "approved" && s.name === sheet.nickname) ?? null; return got ? { phase: "done", arrived: got } : { phase: "waiting", arrived: null }; }
   const named = mine.filter((s) => s.enrollment === "pending" && (sheet.nickname === "" || s.name === sheet.nickname));
   const arrived = named[0] ?? null;
   if (sheet.approved) return { phase: "done", arrived: mine.find((s) => s.serverId === sheet.serverId) ?? arrived };

@@ -6,7 +6,8 @@
 //   layer are therefore bound to the Space resource, not to one pointer.
 // DECISION: the spec names "low-risk fact kinds" without listing them; the setting memory.auto_merge_kinds defaults to preferences only.
 // DECISION: memory_saved block actions are limited to Propose for team; correcting or removing needs a fact id array, which a block cannot pass.
-// NOT EXPRESSIBLE: person-layer rows are end-to-end (enc=2) per row while the same entity also holds shared layers; EntityDef e2e is per entity, so it stays 'none'.
+// NOT EXPRESSIBLE: person-layer rows are sealed per row under the person's own key (enc=2; owner ruling 3 Nov 2026, modules/memory/personal.ts) while the same entity also holds shared layers;
+//   EntityDef e2e is per entity, so it stays 'none'.
 import { block, create, defineManifest, entity, ev, read, screen, setting, t, write } from '../packages/contracts/src/index.ts';
 import { id, pageIn, pageOut, versionRow } from './_common.ts';
 
@@ -82,7 +83,18 @@ const graphIn = {
   focus: t.opt(t.str({ description: 'A node id: draw only it and the nodes near it' })), hops: t.opt(t.int({ minimum: 1, maximum: 6, description: 'How far from the focus, two by default' })),
 };
 const graphOut = { nodes: t.arr(node), edges: t.arr(edge), clusters: t.arr(t.obj({ name: t.str(), hub: t.str(), size: t.int() })) };
+const profilePlace = t.enm('public', 'private');
+const profileFact = t.obj({
+  ...factFields, place: profilePlace, suggested: t.opt(t.bool()),
+  lineLink: t.opt(t.str({ description: 'The chat line it was learned from', examples: ['vyre://thread/thr_a1b2c3?m=msg_a1b2c3'] })),
+});
+const profileBasic = t.obj({ key: t.str({ description: 'The Profile setting it comes from', examples: ['profile.timezone'] }), label: t.str(), value: t.str() });
+const profilePerson = t.obj({
+  personId: t.str(), self: t.bool(), basics: t.arr(t.str()), public: t.arr(t.str({ description: 'One fact a line, with its id' })), private: t.arr(t.str()),
+});
 const factT = { factId: id.fact };
+/** Why the asker's own memory is missing from an answer: it is sealed under their own key and this server does not hold the key now (owner ruling 3 Nov 2026). */
+const locked = t.opt(t.str({ description: 'Set when your private memory is sealed under your own key and this server does not hold it right now, so nothing personal came back; the reason in plain words' }));
 const promotionId = t.id('prm');
 
 export default defineManifest({
@@ -101,7 +113,7 @@ export default defineManifest({
     // ---- read tools
     read('memory.search', 'Search notes and current facts the asker may read; BM25, vectors and recency; snippets carry the source link', {
       in: { q: t.str(), layers: t.opt(t.arr(layer)), agentId: t.opt(id.agent), projectId: t.opt(id.project), mode: t.opt(t.enm('keyword', 'semantic', 'hybrid')), limit: t.opt(t.int({ minimum: 1, maximum: 50 })) },
-      out: { hits: t.arr(hit), tookMs: t.int(), meaning: t.opt(meaningInfo) }, label: 'filter', tool: 'memory', mcpName: 'memory_search', agent: { planMode: 'allowed' }, cli: 'vyre memory search',
+      out: { hits: t.arr(hit), tookMs: t.int(), meaning: t.opt(meaningInfo), locked }, label: 'filter', tool: 'memory', mcpName: 'memory_search', agent: { planMode: 'allowed' }, cli: 'vyre memory search',
     }),
     read('memory.quote', 'Exact words of a chat message or run step, word for word, with author, time and a link that opens the chat at that line; only chats, channels and runs the asker could open themselves', {
       in: {
@@ -127,12 +139,12 @@ export default defineManifest({
       in: { noteId: id.note }, out: { note: noteRow, markdown: t.str() }, on: ['note', '/noteId'], label: 'check', tool: 'memory', mcpName: 'read_note', agent: { planMode: 'allowed' },
     }),
     read('memory.facts_as_of', 'Facts that were true on a date (valid_from and valid_to), for "what did it believe on 3 March"', {
-      in: { date: t.ts(), agentId: t.opt(id.agent), layer: t.opt(layer), q: t.opt(t.str()), ...pageIn }, out: { facts: t.arr(factRow), ...pageOut },
+      in: { date: t.ts(), agentId: t.opt(id.agent), layer: t.opt(layer), q: t.opt(t.str()), ...pageIn }, out: { facts: t.arr(factRow), ...pageOut, locked },
       label: 'filter', tool: 'memory', mcpName: 'facts_as_of', agent: { planMode: 'allowed' },
     }),
     read('memory.facts.list', 'List facts by layer, agent, status or "From you"; proposed facts wait here for acceptance', {
       in: { layer: t.opt(layer), agentId: t.opt(id.agent), projectId: t.opt(id.project), status: t.opt(t.arr(factStatus)), fromMe: t.opt(t.bool()), q: t.opt(t.str()), ...pageIn },
-      out: { facts: t.arr(factRow), ...pageOut }, label: 'filter', tool: 'memory',
+      out: { facts: t.arr(factRow), ...pageOut, locked }, label: 'filter', tool: 'memory',
     }),
     read('memory.fact.get', 'Read one fact with its history of closed versions', {
       in: factT, out: { fact: factRow, history: t.arr(factRow) }, label: 'check', tool: 'memory', errors: ['validation.not_found'],
@@ -153,7 +165,7 @@ export default defineManifest({
     }),
     read('memory.pointer', 'Pointer block for a message: up to about 5 lines from a local lookup, no model call, deduplicated against the thread', {
       in: { threadId: id.thread, agentId: id.agent, text: t.str(), sinceIdx: t.opt(t.int()) },
-      out: { lines: t.arr(t.obj({ title: t.str(), fact: t.opt(t.str()), trueSince: t.opt(t.ts()), path: t.str(), sourceLink: t.opt(t.str({ description: 'Link to the exact chat, task or record the fact came from' })), ref: t.opt(t.str({ description: 'The fact id, for memory_forget' })) })), tokens: t.int(), skipped: t.opt(t.enm('short_ack', 'mid_tool_loop', 'no_match', 'duplicate')) },
+      out: { lines: t.arr(t.obj({ title: t.str(), fact: t.opt(t.str()), trueSince: t.opt(t.ts()), path: t.str(), sourceLink: t.opt(t.str({ description: 'Link to the exact chat, task or record the fact came from' })), ref: t.opt(t.str({ description: 'The fact id, for memory_forget' })) })), tokens: t.int(), skipped: t.opt(t.enm('short_ack', 'mid_tool_loop', 'no_match', 'duplicate')), locked },
       label: 'filter',
     }),
     // ---- write: facts
@@ -175,6 +187,25 @@ export default defineManifest({
     write('memory.forget', 'Forget facts by id: they stop being recalled and stay in history', {
       in: { factIds: t.arr(id.fact, { minItems: 1 }) }, out: { removed: t.int() }, emits: ['memory.removed'], tool: 'memory', mcpName: 'memory_forget', agent: { planMode: 'allowed' }, audit: 'sensitive', risk: 'medium',
       cli: 'vyre memory forget', idem: 'natural',
+    }),
+    // ---- the person profile (owner ruling 3 Nov): public is what teammates' chats may hear, private only the person's own chats; every agent of the person reads it
+    read('memory.profile.get', 'Your profile in this Space, as a chat may use it: the public part always, the private part only where nobody else reads the chat (your own chats, your private Ask); with personId, that teammate\'s public part', {
+      in: { threadId: t.opt(id.thread), personId: t.opt(t.str({ description: 'A teammate: their public profile only', examples: ['usr_a1b2c3'] })) },
+      out: { audience: t.enm('private', 'shared'), basics: t.arr(profileBasic), public: t.arr(profileFact), private: t.arr(profileFact) },
+      label: 'check', tool: 'memory', mcpName: 'memory_profile', agent: { planMode: 'allowed' },
+    }),
+    read('memory.profile.context', 'The profile lines a turn loads, as the person who asked: their public part, their private part only when nobody else reads the chat, and the public part of the other people in it', {
+      in: { threadId: id.thread }, out: { audience: t.enm('private', 'shared'), people: t.arr(profilePerson) }, label: 'check',
+    }),
+    write('memory.profile.move', 'Move a fact about you between your public and private profile; only you can make one public (an agent suggests it instead)', {
+      in: { factId: id.fact, to: profilePlace }, out: { fact: profileFact }, tool: 'memory', mcpName: 'memory_profile_move', agent: { planMode: 'allowed' }, audit: 'sensitive', idem: 'natural',
+    }),
+    write('memory.profile.suggest', 'Suggest a fact for the person\'s public profile ("Add to your public profile?"); it stays private until they say yes in About you; with text, it is remembered privately first', {
+      in: { factId: t.opt(id.fact), text: t.opt(t.str()), threadId: t.opt(id.thread) }, out: { fact: profileFact }, emits: ['memory.fact_proposed', 'memory.fact_accepted', 'memory.learned'],
+      tool: 'memory', mcpName: 'memory_profile_suggest', agent: { planMode: 'allowed' }, idem: 'natural',
+    }),
+    write('memory.profile.add', 'Add a fact about yourself to your public or private profile', {
+      in: { text: t.str({ minLength: 1 }), to: profilePlace, kind: t.opt(t.str({ examples: ['preference'] })) }, out: { fact: profileFact }, emits: ['memory.fact_proposed', 'memory.fact_accepted', 'memory.learned'], idem: 'natural',
     }),
     write('memory.recall.record', 'Record which facts and quotes recall handed the agent for one message (ids only), for memory.used; the engine writes this as the person whose message it was', {
       in: { threadId: id.thread, messageId: id.message, agentId: t.opt(id.agent), lines: t.arr(t.obj({ kind: t.enm('fact', 'quote'), ref: t.str() }), { maxItems: 50 }) },
@@ -216,9 +247,34 @@ export default defineManifest({
       in: { promotionId }, out: { ok: t.bool() }, emits: ['memory.promotion_undone'], tool: 'memory', audit: 'sensitive',
     }),
     // ---- write: system
-    write('memory.capture', 'Capture at chat end: a cheap-model pass proposes facts to the person layer; channel facts go to the project layer, Automation facts to proposed/', {
-      in: { threadId: id.thread, reason: t.enm('closed', 'idle') }, out: { proposed: t.int(), merged: t.int() },
-      emits: ['memory.captured', 'memory.fact_proposed', 'memory.fact_accepted', 'memory.learned'], idem: 'natural', risk: 'low', errors: ['permission.provider_label'],
+    write('memory.capture', 'Learn from a chat: after each turn on the asker\'s own account and cheapest model inside their daily quota, else by rules; at chat end or when quiet, by rules over what no turn pass read', {
+      in: {
+        threadId: id.thread, reason: t.enm('closed', 'idle', 'turn'), turnId: t.opt(t.str()), agentId: t.opt(id.agent),
+        account: t.opt(t.obj({
+          ref: t.str(), driver: t.str(), kind: t.opt(t.str()), payer: t.opt(t.str({ description: 'Who pays for the turn; learning uses the account only when this is the asker' })),
+          spaceKey: t.opt(t.bool()),
+        }, { description: 'The account the turn ran on' })),
+      },
+      out: {
+        proposed: t.int(), merged: t.int(), updated: t.opt(t.int()), closed: t.opt(t.int()), via: t.opt(t.enm('model', 'rules', 'none')),
+        skipped: t.opt(t.enm('forgotten', 'off', 'nothing_new')),
+      },
+      emits: ['memory.captured', 'memory.fact_proposed', 'memory.fact_accepted', 'memory.learned'], idem: 'natural', risk: 'low', errors: ['permission.provider_label', 'permission.no_grant'],
+    }),
+    read('memory.learning.today', 'What learning from your chats used today against your daily quota (model passes and input tokens), when it resets, and whether it learns with a model or by rules until then', {
+      in: {},
+      out: {
+        day: t.str({ examples: ['2026-11-03'] }), passes: t.int({ minimum: 0 }), tokensIn: t.int({ minimum: 0 }), tokensOut: t.int({ minimum: 0 }), rulePasses: t.int({ minimum: 0 }),
+        capPasses: t.int({ minimum: 0 }), capTokens: t.int({ minimum: 0 }), resetsAt: t.ts(), timezone: t.str(), state: t.enm('learning', 'rules_only'),
+      },
+      label: 'check',
+    }),
+    read('memory.chat_learning.get', 'Whether a chat is remembered: off means nothing is learned from it', {
+      in: { threadId: id.thread }, out: { threadId: id.thread, remember: t.bool(), by: t.opt(t.str()), at: t.opt(t.ts()) }, errors: ['validation.not_found'],
+    }),
+    write('memory.chat_learning.set', "Don't remember this chat: anyone in it turns learning off; who turned it off, or who started the chat, turns it back on", {
+      in: { threadId: id.thread, remember: t.bool() }, out: { threadId: id.thread, remember: t.bool(), by: t.opt(t.str()), at: t.opt(t.ts()) },
+      emits: ['memory.chat_learning_changed'], idem: 'natural', risk: 'low', errors: ['validation.not_found', 'permission.no_grant'],
     }),
     write('memory.maintain', 'Upkeep, nightly or on demand: merge duplicates into Trash, flag contradictions and old facts as questions, close expired facts, and with a memory key let a model do the rest; rewrite MAP.md for each agent', {
       in: { agentId: t.opt(id.agent), rulesOnly: t.opt(t.bool()) },
@@ -369,6 +425,7 @@ export default defineManifest({
     ev('memory.promotion_undone', 'A promotion was undone', { p: { promotionId, factId: id.fact, by: t.str() }, subject: ['entity', '/factId'], retention: 'memory' }),
     ev('memory.removed', 'Facts were removed from answers (kept in history)', { p: { factIds: t.arr(id.fact), by: t.str() }, subject: ['entity', '/by'], vis: 'participants', retention: 'memory' }),
     ev('memory.erased', 'Facts were erased from history (who and when only)', { p: { count: t.int(), by: t.str(), scope: t.opt(t.str()) }, subject: ['entity', '/by'], vis: 'participants', retention: 'memory' }),
+    ev('memory.chat_learning_changed', "Don't remember this chat was turned on or off", { p: { threadId: id.thread, remember: t.bool(), by: t.str() }, subject: ['thread', '/threadId'], vis: 'participants', retention: 'memory' }),
     ev('memory.captured', 'Capture ran for a thread', { p: { threadId: id.thread, proposed: t.int(), merged: t.int() }, subject: ['thread', '/threadId'], vis: 'participants', retention: 'memory' }),
     ev('memory.map_rewritten', 'MAP.md of an agent was rewritten by the nightly job', { p: { agentId: id.agent, lines: t.int() }, subject: ['agent', '/agentId'], retention: 'memory' }),
     ev('memory.note_restored', 'A shared memory note was restored to an earlier version', { p: { noteId: id.note, versionId: id.version, by: t.str() }, subject: ['note', '/noteId'], retention: 'memory' }),
@@ -399,6 +456,8 @@ export default defineManifest({
     setting('memory.trash_days', 'space', 'Policies', 'Days in Trash before Archive (30 to 90)', t.int({ minimum: 30, maximum: 90 }), 60),
     setting('memory.upkeep_monthly_cap', 'space', 'Policies', 'Monthly spend cap for model upkeep, in US dollars', t.num({ minimum: 0 }), 5),
     setting('memory.meaning_search', 'space', 'Policies', 'Meaning search: local model, the memory key, or off', t.enm('local', 'key', 'off'), 'local'),
+    setting('memory.learn_daily_passes', 'space', 'Policies', 'Memory learning: model passes per person per day', t.int({ minimum: 0, maximum: 5000 }), 150),
+    setting('memory.learn_daily_tokens', 'space', 'Policies', 'Memory learning: input tokens per person per day', t.int({ minimum: 0, maximum: 50000000 }), 400000),
   ],
   screens: [
     screen('chats.agent-memory', 'chats', 'ui:AgentMemory', {

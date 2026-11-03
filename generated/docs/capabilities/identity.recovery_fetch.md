@@ -41,6 +41,7 @@ type Out = {
         epoch: number;
         wrapped: string;
       }>;
+    formerKey?: string;
   };
   challenge: {
     eph: string;
@@ -79,6 +80,7 @@ type Out = {
     "context": "example",
     "expiresAt": 1760000000000,
     "keys": {
+      "formerKey": "d3JhcHBlZA==",
       "personKeyByRecovery": "d3JhcHBlZA==",
       "privateKeyWrapped": "d3JhcHBlZA==",
       "publicKey": "example",

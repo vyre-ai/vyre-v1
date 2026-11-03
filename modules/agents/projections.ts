@@ -16,6 +16,8 @@ export interface Principal { kind: "person" | "agent" | "actor" | "service"; id:
 
 /** The part of the host Ctx these handlers read. A test passes a small object; the host passes the full Ctx. */
 export interface AgentsCtx {
+  /** The host's directory (host/src/seams/people.ts): a person's groups, for connections shared with groups. Absent in a bare harness. */
+  directory?: { of(personId: string): { roles: string[]; groups: string[] } };
   space: string;
   principal: Principal;
   actingFor?: string | undefined;
@@ -51,7 +53,7 @@ export const askerOf = (ctx: Pick<AgentsCtx, "principal" | "actingFor">): string
 
 // ---- schema -----------------------------------------------------------------------------------------------------------------------------------------
 
-const SCHEMA = ["0001_agents.sql", "0002_routine_watch.sql", "0003_skills.sql", "0004_plugins.sql", "0005_mcp_hub_auth.sql", "0006_agent_kind.sql", "0007_outside.sql"].map((f) => readFileSync(new URL(`./migrations/${f}`, import.meta.url), "utf8")).join("\n")
+const SCHEMA = ["0001_agents.sql", "0002_routine_watch.sql", "0003_skills.sql", "0004_plugins.sql", "0005_mcp_hub_auth.sql", "0006_agent_kind.sql", "0007_outside.sql", "0008_skill_scopes.sql", "0009_connections_home.sql"].map((f) => readFileSync(new URL(`./migrations/${f}`, import.meta.url), "utf8")).join("\n")
   .split("\n").filter((l) => !l.trimStart().startsWith("--")).join("\n")
   .split(";").map((s) => s.trim()).filter((s) => s.length > 0);
 const ready = new WeakSet<object>();
@@ -59,7 +61,7 @@ const ready = new WeakSet<object>();
 /** Make sure the agents tables exist. One cheap probe per handle; the IF NOT EXISTS statements run only when it fails. */
 export function ensure(db: Db): void {
   if (ready.has(db)) return;
-  try { db.all("SELECT key FROM agents_meta WHERE key = ?", "probe"); db.all("SELECT routineId FROM agents_routine_watch WHERE routineId = ?", "probe"); db.all("SELECT id FROM agents_skills WHERE id = ?", "probe"); db.all("SELECT id FROM agents_mcp_connections WHERE id = ?", "probe"); db.all("SELECT kind, runtime FROM agents_agent WHERE id = ?", "probe"); db.all("SELECT id FROM agents_outside_jobs WHERE id = ?", "probe"); } catch { for (const stmt of SCHEMA) db.run(stmt); }
+  try { db.all("SELECT key FROM agents_meta WHERE key = ?", "probe"); db.all("SELECT routineId FROM agents_routine_watch WHERE routineId = ?", "probe"); db.all("SELECT id FROM agents_skills WHERE id = ?", "probe"); db.all("SELECT id FROM agents_mcp_connections WHERE id = ?", "probe"); db.all("SELECT kind, runtime FROM agents_agent WHERE id = ?", "probe"); db.all("SELECT id FROM agents_outside_jobs WHERE id = ?", "probe"); db.all("SELECT owner, used_by_json FROM agents_mcp_connections WHERE id = ?", "probe"); db.all("SELECT id FROM agents_mcp_catalog WHERE id = ?", "probe"); db.all("SELECT id FROM agents_skill_receipts WHERE id = ?", "probe"); } catch { for (const stmt of SCHEMA) db.run(stmt); }
   ready.add(db);
 }
 
@@ -1074,17 +1076,24 @@ export const isAssistant = (a: Pick<AgentRec, "kind">): boolean => a.kind === "a
 export function canSee(ctx: AgentsCtx, a: AgentRec): boolean {
   // the assistant is private even from the Space's admins and from anyone it was shared with: other people neither see, mention nor open it
   if (isAssistant(a)) return a.ownerId === askerOf(ctx);
-  // an outside agent runs on its owner's machine on its owner's access: a share does not change who may use it. An admin who turned on All in the Space may see it, to answer for it.
-  if (a.runtime === "outside") return a.ownerId === askerOf(ctx) || isHostService(ctx.principal) || seesAll(ctx);
+  // an outside agent runs on its owner's machine on its owner's access: it is theirs alone, like the assistant. A share does not change who may use it, and an admin's All in the Space does not list it:
+  // owners and admins answer for it in Console (mcp.connected.list with all), where they can take its setup grant back or remove it, never chat as it
+  if (isPrivateAgent(a)) return a.ownerId === askerOf(ctx) || (a.runtime === "outside" && isHostService(ctx.principal));
   return a.ownerId === askerOf(ctx) || allows(ctx, null, "view", "agent", a.id) || seesAll(ctx);
 }
-/** An agent the caller may see, or the same answer as for one that is not there (what exists is not leaked). */
+/** An agent only its person sees, uses and opens: their private assistant, and an outside agent they connected through /mcp. What it did in a shared place stays visible, attributed to it and its person. */
+export const isPrivateAgent = (a: Pick<AgentRec, "kind" | "runtime">): boolean => isAssistant(a) || a.runtime === "outside";
+/** What a person is told when they reach for someone else's private agent by its id. */
+export const PRIVATE_AGENT = "That agent is private to the person it belongs to. Only they can open it, chat with it or @mention it.";
+/** An agent the caller may see, or the same answer as for one that is not there (what exists is not leaked). Someone else's private agent is refused in plain words: its work in shared places already names it. */
 export function visible(ctx: AgentsCtx, id: string, code: ErrorCode = "validation.not_found"): AgentRec {
   ensure(ctx.db);
   const a = agentBy(ctx.db, id);
-  if (!a || !canSee(ctx, a)) raise(ctx, code, "That agent does not exist.");
+  if (!a || !canSee(ctx, a)) raise(ctx, code, a && isPrivateAgent(a) && ctx.principal.kind === "person" ? PRIVATE_AGENT : "That agent does not exist.", a && isPrivateAgent(a) ? { reason: "private" } : undefined);
   return a;
 }
+/** An owner or admin (access.manage) answers for every outside agent in the Space: they may remove one from Console, without seeing it anywhere else or chatting as it. */
+export const governs = (ctx: AgentsCtx, a: AgentRec): boolean => a.runtime === "outside" && ctx.authorize !== undefined && allows(ctx, "access.manage", "manage", "space", ctx.space);
 
 export async function makeFolder(ctx: AgentsCtx, parentId: string, name: string, key: string, subject?: { kind: "agent"; id: string }): Promise<FolderOut> {
   return (await call<{ folder: FolderOut }>(ctx, "files.folder.create", { parentId, name, idempotencyKey: key, ...(subject ? { subject } : {}) }, { idempotencyKey: key })).folder;
@@ -1105,6 +1114,29 @@ export function seesSetup(ctx: AgentsCtx, a: AgentRec): boolean {
   if ((ctx.depth ?? 0) >= 1 || (ctx.origin !== undefined && SERVER_ORIGINS.has(ctx.origin))) return true;
   return ctx.principal.id === a.id || a.ownerId === askerOf(ctx) || allows(ctx, null, "edit", "agent", a.id) || seesAll(ctx);
 }
+/**
+ * Who may change an agent's settings. agent.toml is the settings, so the rule is one, however the change arrives: agents.update, the role line, a restored version, an accepted suggestion, or a save of
+ * agent.toml itself in Files (files.write and files.restore_version ask agents.config.may_save before they write).
+ *   outside   an outside agent (signed in over MCP, runtime outside) or an outside actor never changes them. The MCP door keeps agents.update for people; this keeps every other way to the same change.
+ *   no_edit   anyone else needs Edit on the agent: a person with it, or one of the Space's own agents acting for one (both must allow, as on every call).
+ * Answers why not, or null when the caller may.
+ */
+export function settingsRefusal(ctx: AgentsCtx, a: AgentRec): "outside" | "no_edit" | null {
+  if (ctx.principal.kind === "actor") return "outside";
+  if (ctx.principal.kind === "agent" && agentBy(ctx.db, ctx.principal.id, true)?.runtime === "outside") return "outside";
+  return allows(ctx, null, "edit", "agent", a.id) ? null : "no_edit";
+}
+/** The words for a refused change of settings. */
+export const SETTINGS_REFUSED: Readonly<Record<"outside" | "no_edit", string>> = Object.freeze({
+  outside: "Only a person can change an agent's settings. Ask the person you act for.",
+  no_edit: "You can read this agent but not change it.",
+});
+/** Refuse the change when the caller may not change this agent's settings: permission.no_grant, with the reason (person_only for an outside caller). */
+export function mustChangeSettings(ctx: AgentsCtx, a: AgentRec): void {
+  const why = settingsRefusal(ctx, a);
+  if (why !== null) raise(ctx, "permission.no_grant", SETTINGS_REFUSED[why], why === "outside" ? { reason: "person_only" } : undefined);
+}
+
 /** An agent's shape without its setup: the fields the contract requires stay, empty. */
 export function withoutSetup<T extends object>(out: T): T {
   const { accountKey: _key, memoryKey: _memory, ...rest } = out as T & { accountKey?: unknown; memoryKey?: unknown };

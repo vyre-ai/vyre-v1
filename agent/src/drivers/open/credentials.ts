@@ -27,6 +27,16 @@ function handleOf(ref: string, field: string | undefined): string {
 
 export interface CliCredential { env: string; handle: string }
 
+/**
+ * A Claude Code sign-in kept as its own files (the one "Use the sign-in on this computer" saves, owner decision D2) travels like Codex's: the file map in VYRE_CRED_FILES, written into the
+ * engine's config folder for the turn. `has` says whether the item holds a field (a lookup that never leaves the process); a setup token, when there is one, still wins.
+ */
+export async function claudeSigninSlot(cred: CliCredential, ref: string, has: (handle: string) => Promise<boolean>): Promise<CliCredential> {
+  if (ref.includes(".") || await has(cred.handle)) return cred;
+  const files = `${ref}.credentials`;
+  return (await has(files)) ? { env: CRED_FILES_ENV, handle: files } : cred;
+}
+
 /** Null when this engine cannot take this kind of account through its environment. */
 export function cliCredential(cli: CliId, kind: CredentialKind, ref: string): CliCredential | null {
   const slot = CLI_ENV[cli][kind];

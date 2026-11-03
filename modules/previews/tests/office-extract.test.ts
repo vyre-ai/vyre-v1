@@ -1,6 +1,6 @@
 // @reads /modules/previews/handlers/render.ts
 // What an agent reads from an Excel or PowerPoint file (live folders L3): a date cell reads as a date and not as a serial number, a formula nothing calculated reads as the formula, a deck reads in the
-// order it shows its slides with each slide's speaker notes. Files are built in the test; no converter is needed.
+// order it shows its slides, each under "# Slide n: title", with each slide's speaker notes. Files are built in the test; no converter is needed.
 import test from "node:test";
 import assert from "node:assert/strict";
 import { excelDate, officeExtract } from "../handlers/render.ts";
@@ -76,20 +76,20 @@ test("a deck reads in the order it shows its slides, not the order of its file n
   };
   const p = officeExtract(zip(files), "pptx");
   assert.equal(p?.pages, 3);
-  assert.deepEqual((p?.text ?? "").split("\f"), ["Title", "Pricing\n\nNotes: Say the number first.\nThen the discount.", "Roadmap"], "the speaker notes are the body placeholder only: no slide image, no slide number");
+  assert.deepEqual((p?.text ?? "").split("\f"), ["# Slide 1: Title", "# Slide 2: Pricing\n\nNotes: Say the number first.\nThen the discount.", "# Slide 3: Roadmap"], "the speaker notes are the body placeholder only: no slide image, no slide number");
 });
 
 test("a deck without a slide list, or with a list that misses slides, reads by file number", () => {
   const base = { "ppt/slides/slide2.xml": slide("Two"), "ppt/slides/slide1.xml": slide("One") };
-  assert.deepEqual((officeExtract(zip(base), "pptx")?.text ?? "").split("\f"), ["One", "Two"]);
+  assert.deepEqual((officeExtract(zip(base), "pptx")?.text ?? "").split("\f"), ["# Slide 1: One", "# Slide 2: Two"]);
   const partial = { ...base, "ppt/presentation.xml": `<p:presentation xmlns:r="x"><p:sldIdLst><p:sldId id="1" r:id="rId2"/></p:sldIdLst></p:presentation>`, "ppt/_rels/presentation.xml.rels": `<Relationships><Relationship Id="rId2" Type="x" Target="slides/slide2.xml"/></Relationships>` };
-  assert.deepEqual((officeExtract(zip(partial), "pptx")?.text ?? "").split("\f"), ["One", "Two"], "a list that would lose a slide is not trusted");
+  assert.deepEqual((officeExtract(zip(partial), "pptx")?.text ?? "").split("\f"), ["# Slide 1: One", "# Slide 2: Two"], "a list that would lose a slide is not trusted");
 });
 
 test("a notes page that is missing, empty, or points nowhere adds nothing", () => {
   const files = { "ppt/slides/slide1.xml": slide("One"), "ppt/slides/_rels/slide1.xml.rels": rel("notesSlide", "../notesSlides/notesSlide9.xml") };
-  assert.equal(officeExtract(zip(files), "pptx")?.text, "One");
+  assert.equal(officeExtract(zip(files), "pptx")?.text, "# Slide 1: One");
   const empty = { ...files, "ppt/notesSlides/notesSlide9.xml": notes() };
-  assert.equal(officeExtract(zip(empty), "pptx")?.text, "One");
-  assert.equal(officeExtract(zip({ "ppt/slides/slide1.xml": slide("One"), "ppt/slides/_rels/slide1.xml.rels": rel("image", "../media/a.png") }), "pptx")?.text, "One");
+  assert.equal(officeExtract(zip(empty), "pptx")?.text, "# Slide 1: One");
+  assert.equal(officeExtract(zip({ "ppt/slides/slide1.xml": slide("One"), "ppt/slides/_rels/slide1.xml.rels": rel("image", "../media/a.png") }), "pptx")?.text, "# Slide 1: One");
 });

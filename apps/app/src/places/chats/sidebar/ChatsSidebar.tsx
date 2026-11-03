@@ -37,6 +37,7 @@ import { importedChanged, onImportedChange } from "../imported/changes.ts";
 import { RenameField } from "../conversation/parts.tsx";
 import { ChannelSheets } from "../channels/Sheets.tsx";
 import { onChannelRequest, takeChannelRequest } from "../channels/request.ts";
+import { usePulse } from "./pulse.ts";
 import type { ChannelSheetKind } from "../channels/request.ts";
 
 export const SIDEBAR_SCREEN = "chats.sidebar";
@@ -98,7 +99,8 @@ function Sidebar({ window, query, slot, open: shown }: { window?: VirtualWindow;
   const narrow = width > 0 && width < 560;
   const [filter, setFilter] = useState<SideFilter>("all");
   const [more, setMore] = useState<{ recent?: boolean; people?: boolean; faces?: boolean }>({});
-  const [closed, setClosed] = useState<ReadonlySet<SectionKey>>(new Set());
+  // Team now starts folded (owner D24: collapsed in Chats, open in Console); a press opens it
+  const [closed, setClosed] = useState<ReadonlySet<SectionKey>>(new Set<SectionKey>(["team"]));
   // The imported coding sessions (sessions.list): read on open and again when the chats change, so a continued session shows its chat. A Space that cannot list them shows no group.
   const [archive, setArchive] = useState<ImportedRow[]>([]);
   // null: the group follows its default (open unless long); a press on its head decides.
@@ -149,6 +151,9 @@ function Sidebar({ window, query, slot, open: shown }: { window?: VirtualWindow;
   const agentName = useCallback((id: string) => nameOr(names.get(id), id), [names]);
   const personNames = useMemo(() => new Map(peopleQ.map((p) => [p.id, p.name])), [peopleQ]);
   const personName = useCallback((id: string) => nameOr(personNames.get(id), id), [personNames]);
+  // the While you were away row, who is around and what agents are doing (pulse.ts)
+  const { pulse, reread: rereadPulse } = usePulse({ call: data.call, changes: data.changes, personal, me: data.me?.id, personName: (id) => (id === data.me?.id ? "you" : personName(id)), agentName });
+  const digestCount = pulse.digest ? pulse.digest.items.length : 0;
   // The Agents group is the Space's agents (agents.list takes no "starred" input; starring becomes its own packet): the first FACES_SHOWN of them, the rest behind All agents.
   // Not the assistant (its mark sits beside New chat). An agent waiting on you always comes first, so the cap can never hide one; everyone else keeps the Space's order.
   // Next come the agents with something new for you, so "N more" never hides an unread chat either.
@@ -203,8 +208,8 @@ function Sidebar({ window, query, slot, open: shown }: { window?: VirtualWindow;
   }, [groups, agents]);
 
   const entries = useMemo(
-    () => buildEntries({ tasksCount, threadsDot, agentUnread: byAgent, waitingThreads, assistant: { agentId: data.space.assistant.agentId, name: data.space.assistant.name }, people, moreRecent: more.recent === true, morePeople: more.people === true, moreAgents: more.faces === true, faces, workingAgents: working, waitingAgents: waiting, groups, channels, filter, archived: archivedChats, archivedOpen, closed: (importedOpen ?? importedStartsOpen(liveImported)) ? closed : new Set([...closed, "imported" as const]), facesMore, errors, imported, archivedImported, personal, searching: query.trim() !== "" }),
-    [personal, query, tasksCount, threadsDot, byAgent, waitingThreads, people, more, data.space.assistant.agentId, data.space.assistant.name, faces, facesMore, recentQ, channelsQ, agentsQ, working, waiting, groups, channels, filter, closed, imported, archivedImported, importedOpen, liveImported, archivedChats, archivedOpen],
+    () => buildEntries({ digest: digestCount > 0 ? { count: digestCount } : null, team: pulse.team, presence: pulse.presence, tasksCount, threadsDot, agentUnread: byAgent, waitingThreads, assistant: { agentId: data.space.assistant.agentId, name: data.space.assistant.name }, people, moreRecent: more.recent === true, morePeople: more.people === true, moreAgents: more.faces === true, faces, workingAgents: working, waitingAgents: waiting, groups, channels, filter, archived: archivedChats, archivedOpen, closed: (importedOpen ?? importedStartsOpen(liveImported)) ? closed : new Set([...closed, "imported" as const]), facesMore, errors, imported, archivedImported, personal, searching: query.trim() !== "" }),
+    [digestCount, pulse.team, pulse.presence, personal, query, tasksCount, threadsDot, byAgent, waitingThreads, people, more, data.space.assistant.agentId, data.space.assistant.name, faces, facesMore, recentQ, channelsQ, agentsQ, working, waiting, groups, channels, filter, closed, imported, archivedImported, importedOpen, liveImported, archivedChats, archivedOpen],
   );
   const order = useMemo(() => selectable(entries), [entries]);
   const byKey = useMemo(() => new Map(entries.map((e) => [e.key, e])), [entries]);
@@ -315,11 +320,37 @@ function Sidebar({ window, query, slot, open: shown }: { window?: VirtualWindow;
     else if (e.type === "channel") data.nav.openChannel(e.channel.channelId);
     else if (e.type === "nav") { (e.to === "tasks" ? data.nav.openTasks : data.nav.openThreads)?.(); }
     else if (e.type === "person") void api.chatWithPerson(e.id);
+    else if (e.type === "pulse") { if (e.kind === "person") void api.chatWithPerson(e.id); else if (e.threadId) data.nav.openChat(e.threadId); else data.nav.openAgentChat(e.id); }
+    else if (e.type === "digest") { digestMenu(8, 48); return; }
     else if (e.type === "action") { setSheet("new"); return; }
     else if (e.type === "more") { if (e.to === "agents") data.nav.openAllAgents(); else { setMore((m) => ({ ...m, [e.to]: true })); return; } }
     else if (e.type === "head") { toggle(e.section); return; }
     leave();
   };
+  // While you were away: what happened, in the order the digest ranks it; choosing a line opens it and the row goes (the digest resets once seen)
+  const seenDigest = (): void => {
+    const d = pulse.digest;
+    if (d) void data.call("home.mark_digest_seen", { digestId: d.id }).then(rereadPulse, () => undefined);
+  };
+  const openDigestItem = (subject: { type: string; id: string }): void => {
+    if (subject.type === "thread") data.nav.openChat(subject.id);
+    else if (subject.type === "task") data.nav.openNeedsYou(subject.id);
+    else data.nav.openSubject?.(subject);
+    seenDigest();
+    leave();
+  };
+  const digestMenu = (x: number, y: number): void => {
+    const d = pulse.digest;
+    if (!d) return;
+    const items: MenuEntry[] = d.headline.map((h): MenuEntry => ({ head: h }));
+    for (const it of d.items) {
+      const subject = it.subject;
+      items.push({ label: `${it.title}: ${it.line}`, ...(subject && (subject.type === "thread" || subject.type === "task" || data.nav.openSubject) ? { onSelect: () => openDigestItem(subject) } : {}) });
+    }
+    items.push({ separator: true }, { label: "Mark as Seen", onSelect: seenDigest });
+    menu.show(items, x, y, "other", { label: "While you were away" });
+  };
+  const at = (ev: unknown): [number, number] => { const n = (ev as { nativeEvent?: { pageX?: number; pageY?: number } } | undefined)?.nativeEvent; return [n?.pageX ?? 8, n?.pageY ?? 48]; };
   // a person: Message, and Mark as Read or Unread once you have a direct message with them
   const personMenu = (e: Extract<Entry, { type: "person" }>): MenuEntry[] => {
     const dm = dms.get(e.id);
@@ -405,9 +436,21 @@ function Sidebar({ window, query, slot, open: shown }: { window?: VirtualWindow;
           trailing={e.count > 0 ? <Text testID={`count-${e.to}`} style={st.navCount}>{e.count}</Text> : e.dot ? <UnreadDot /> : null}
         />
       );
+      case "digest": return (
+        <View style={{ height: ROW_H }} testID="away-digest-row">
+          <Row id={e.key} title="While you were away" selected={sel} hovered={lit} onPress={(ev) => { setCursor(e.key); const [x, y] = at(ev); digestMenu(x, y); }} leading={<LeadGlyph name="clock" />}
+            trailing={<Text testID="away-digest-count" style={st.navCount}>{e.count}</Text>} />
+        </View>
+      );
+      case "pulse": return (
+        <View style={{ height: ROW_H }} testID={`pulse-${e.kind}-${e.id}`}>
+          <Row id={e.key} title={e.name} titleSuffix={e.line} selected={sel} hovered={lit} onPress={() => open(e)}
+            leading={<View style={{ marginRight: 9 }}><Face name={e.name} seedId={e.id} kind={e.kind} size={18} presence={e.presence} /></View>} />
+        </View>
+      );
       case "person": return wrap(
         <Row id={e.key} title={e.name} selected={sel} hovered={lit} emphasis={e.unread > 0 && !sel} onPress={() => open(e)}
-          leading={<View style={{ marginRight: 9 }}><Face name={e.name} seedId={e.id} kind="person" size={18} /></View>}
+          leading={<View style={{ marginRight: 9 }}><Face name={e.name} seedId={e.id} kind="person" size={18} presence={e.presence} /></View>}
           trailing={e.unread > 0 && !sel ? <UnreadDot /> : null} />,
       );
       case "face": return wrap(

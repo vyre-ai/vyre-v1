@@ -30,6 +30,8 @@ import type { Store as KStore } from "../../kernel/src/store/types.ts";
 import type { SeamSetters } from "../../host/src/seams/index.ts";
 export type { SyncHostSeam, SyncEndpoint, SyncStoreSeam } from "./handlers/host.ts";
 export { blankErased } from "./erase.ts";
+/** The cells one computer of a Personal Space exchanges with the others (sync/src/peers/cells.ts). The host takes it from here at start: host may not import sync. */
+export { createCells as createPeerCells } from "../../sync/src/peers/cells.ts";
 
 export interface SyncOpts {
   /** The in-memory access projections (grants, roles, resources). */

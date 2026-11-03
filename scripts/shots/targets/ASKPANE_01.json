@@ -1,0 +1,8 @@
+{
+  "targets": [
+    { "id": "ASKPANE_01-records", "route": "/m/ASKPANE_01?part=records", "proto": "records,{skin}", "waitFor": "[data-testid='ask-pane-chat'] [data-testid='conversation']", "note": "A client's record page with Ask Vyre open on the right, about Elena Rivera: the agent dropdown, New, Open in Chats, the chip with its x, and the conversation. The record stays where it was." },
+    { "id": "ASKPANE_01-file", "route": "/m/ASKPANE_01?part=file", "proto": "files,{skin}", "waitFor": "[data-testid='ask-pane-chat'] [data-testid='conversation']", "note": "The Files viewer with Ask Vyre open on the right, about Consult fee.md." },
+    { "id": "ASKPANE_01-vault", "route": "/m/ASKPANE_01?part=vault", "proto": "vault,{skin}", "waitFor": "[data-testid='ask-pane-chat'] [data-testid='conversation']", "note": "The Vault with Ask Vyre open on the right, about the GoHighLevel key." },
+    { "id": "ASKPANE_01-settings", "route": "/m/ASKPANE_01?part=settings", "proto": "settings,{skin}", "waitFor": "[data-testid='ask-pane-chat'] [data-testid='conversation']", "note": "Settings > Appearance with its new Ask button in the head and Ask Vyre open on the right, about the page." }
+  ]
+}

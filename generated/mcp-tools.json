@@ -9059,6 +9059,21 @@
     },
     {
       "blocks": [],
+      "cap": "channels.home",
+      "deferred": false,
+      "description": "The Space's first channel: #vyre, or an older Space's #general (legacy: Console offers to rename it). Null in a Personal Space",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "channels_home",
+      "planMode": "allowed",
+      "toolset": "chats",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "channels.join",
       "deferred": false,
       "description": "Join a public channel",
@@ -15504,6 +15519,32 @@
     },
     {
       "blocks": [],
+      "cap": "devices.presence",
+      "deferred": false,
+      "description": "Who is around: for each person, online (a device seen in the last five minutes), away (they set themselves away) or offline, with when they were last seen. Says when, never where",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "people": {
+            "items": {
+              "examples": [
+                "usr_a1b2c3"
+              ],
+              "pattern": "^usr_[a-z0-9]+$",
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "name": "devices_presence",
+      "planMode": "allowed",
+      "toolset": "meta",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "devices.rename",
       "deferred": false,
       "description": "Rename one of my devices",
@@ -17225,6 +17266,9 @@
             ],
             "type": "string"
           },
+          "probe": {
+            "type": "boolean"
+          },
           "recordLabel": {
             "enum": [
               "public",
@@ -17234,12 +17278,18 @@
             ],
             "type": "string"
           },
+          "refresh": {
+            "type": "boolean"
+          },
           "threadId": {
             "examples": [
               "thr_a1b2c3"
             ],
             "pattern": "^thr_[a-z0-9]+$",
             "type": "string"
+          },
+          "wait": {
+            "type": "boolean"
           }
         },
         "type": "object"
@@ -17247,6 +17297,21 @@
       "name": "engine_models_list",
       "planMode": "allowed",
       "toolset": "meta",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "engine.now",
+      "deferred": false,
+      "description": "Which agents are working right now: the agent, the person it works for, where it runs (the Space, their computer, their server) and since when; the chat is named only to someone who may read it",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "engine_now",
+      "planMode": "allowed",
+      "toolset": "chats",
       "v": 1
     },
     {
@@ -17286,10 +17351,16 @@
       "blocks": [],
       "cap": "engine.placement.set",
       "deferred": false,
-      "description": "Pin a private chat to where it runs: this computer, the Space (Team Space), or one of your own servers, or auto to take the pin off. The next turn goes there; a teammate's machine is never a choice",
+      "description": "Choose where a private chat runs: one of your computers, the Space, one of your own servers, or auto. Never a teammate's machine. once with space runs the next turn on the Space once",
       "effects": "write",
       "inputSchema": {
         "properties": {
+          "deviceId": {
+            "type": "string"
+          },
+          "once": {
+            "type": "boolean"
+          },
           "serverId": {
             "type": "string"
           },
@@ -19601,12 +19672,15 @@
       "blocks": [],
       "cap": "files.list",
       "deferred": false,
-      "description": "List files and folders in a folder or a section (Personal, Shared with me, Space)",
+      "description": "List files and folders in a folder or a section (Personal, Shared with me, Space). deep with section space lists every file in every Space folder the caller may see; q keeps names that contain it",
       "effects": "read",
       "inputSchema": {
         "properties": {
           "cursor": {
             "type": "string"
+          },
+          "deep": {
+            "type": "boolean"
           },
           "dir": {
             "enum": [
@@ -19644,6 +19718,10 @@
             "maximum": 500,
             "minimum": 1,
             "type": "integer"
+          },
+          "q": {
+            "maxLength": 200,
+            "type": "string"
           },
           "section": {
             "enum": [
@@ -26713,6 +26791,7 @@
                 "finished",
                 "record_change",
                 "routine",
+                "notice",
                 "waiting"
               ],
               "type": "string"
@@ -26769,6 +26848,33 @@
       },
       "name": "home_at_risk",
       "planMode": "allowed",
+      "toolset": "meta",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "home.away_digest",
+      "deferred": false,
+      "description": "Write my While you were away digest for the time since I was last here: what my agents and routines did, changes on records I follow and the quiet notices that waited (an agent past its interrupt cap, a person who joined), by name. Writes nothing when nothing happened",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "since": {
+            "description": "Milliseconds since the Unix epoch",
+            "examples": [
+              1760000000000
+            ],
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "since"
+        ],
+        "type": "object"
+      },
+      "name": "home_away_digest",
+      "planMode": "blocked",
       "toolset": "meta",
       "v": 1
     },
@@ -31584,6 +31690,56 @@
     },
     {
       "blocks": [],
+      "cap": "engine.mcp.call",
+      "deferred": false,
+      "description": "Call a tool of an outside tool server or connection (app hub, OAuth server, remote MCP) that may change things, as mcp_tools lists it; an agent's call goes through the Gate",
+      "effects": "outward",
+      "inputSchema": {
+        "properties": {
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          },
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "input": {
+            "description": "Any JSON value"
+          },
+          "server": {
+            "description": "The server key mcp_tools lists",
+            "examples": [
+              "greeter/echo"
+            ],
+            "type": "string"
+          },
+          "tool": {
+            "description": "The tool name as the server lists it",
+            "type": "string"
+          }
+        },
+        "required": [
+          "agentId",
+          "server",
+          "tool",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "name": "mcp_call",
+      "planMode": "blocked",
+      "toolset": "agents",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "mcp.connected.link",
       "deferred": false,
       "description": "The address to paste into an MCP app, and the one line for Claude Code",
@@ -31595,6 +31751,48 @@
       "name": "mcp_connected_link",
       "planMode": "allowed",
       "toolset": "meta",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "engine.mcp.read",
+      "deferred": false,
+      "description": "Call a tool of an outside tool server or connection (app hub, OAuth server, remote MCP) that only reads, as mcp_tools lists it with readOnly true; a tool that may change things goes through mcp_call",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          },
+          "input": {
+            "description": "Any JSON value"
+          },
+          "server": {
+            "description": "The server key mcp_tools lists",
+            "examples": [
+              "greeter/echo"
+            ],
+            "type": "string"
+          },
+          "tool": {
+            "description": "The tool name as the server lists it",
+            "type": "string"
+          }
+        },
+        "required": [
+          "agentId",
+          "server",
+          "tool"
+        ],
+        "type": "object"
+      },
+      "name": "mcp_read",
+      "planMode": "allowed",
+      "toolset": "agents",
       "v": 1
     },
     {
@@ -31834,6 +32032,520 @@
         "type": "object"
       },
       "name": "meetings_cancel",
+      "planMode": "blocked",
+      "toolset": "inbox",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "meetings.closeout.approve",
+      "deferred": false,
+      "description": "Approve close-out items (all the proposed ones when none are named): create the tasks, apply the record updates, send or save the email, add the holds",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "itemIds": {
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1,
+            "type": "array"
+          },
+          "meetingId": {
+            "examples": [
+              "rec_a1b2c3"
+            ],
+            "pattern": "^rec_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "meetingId"
+        ],
+        "type": "object"
+      },
+      "name": "meetings_closeout_approve",
+      "planMode": "blocked",
+      "toolset": "inbox",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "meetings.closeout.edit",
+      "deferred": false,
+      "description": "Change one proposed close-out item before it is approved",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "assignee": {
+            "examples": [
+              "usr_a1b2c3"
+            ],
+            "pattern": "^usr_[a-z0-9]+$",
+            "type": "string"
+          },
+          "changes": {
+            "items": {
+              "properties": {
+                "field": {
+                  "type": "string"
+                },
+                "to": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "field",
+                "to"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "due": {
+            "anyOf": [
+              {
+                "description": "Milliseconds since the Unix epoch",
+                "examples": [
+                  1760000000000
+                ],
+                "minimum": 0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "endsAt": {
+            "description": "Milliseconds since the Unix epoch",
+            "examples": [
+              1760000000000
+            ],
+            "minimum": 0,
+            "type": "integer"
+          },
+          "itemId": {
+            "type": "string"
+          },
+          "meetingId": {
+            "examples": [
+              "rec_a1b2c3"
+            ],
+            "pattern": "^rec_[a-z0-9]+$",
+            "type": "string"
+          },
+          "note": {
+            "maxLength": 4000,
+            "type": "string"
+          },
+          "send": {
+            "enum": [
+              "send",
+              "draft"
+            ],
+            "type": "string"
+          },
+          "startsAt": {
+            "description": "Milliseconds since the Unix epoch",
+            "examples": [
+              1760000000000
+            ],
+            "minimum": 0,
+            "type": "integer"
+          },
+          "subject": {
+            "maxLength": 300,
+            "minLength": 1,
+            "type": "string"
+          },
+          "text": {
+            "maxLength": 20000,
+            "minLength": 1,
+            "type": "string"
+          },
+          "title": {
+            "maxLength": 300,
+            "minLength": 1,
+            "type": "string"
+          },
+          "to": {
+            "items": {
+              "properties": {
+                "address": {
+                  "examples": [
+                    "maya@example.com"
+                  ],
+                  "pattern": "^[^@\\s]+@[^@\\s]+$",
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "address"
+              ],
+              "type": "object"
+            },
+            "minItems": 1,
+            "type": "array"
+          },
+          "why": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "meetingId",
+          "itemId"
+        ],
+        "type": "object"
+      },
+      "name": "meetings_closeout_edit",
+      "planMode": "blocked",
+      "toolset": "inbox",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "meetings.closeout.get",
+      "deferred": false,
+      "description": "One meeting close-out: summary, decisions, open questions and the proposed tasks, record updates, follow-up email and calendar hold",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "meetingId": {
+            "examples": [
+              "rec_a1b2c3"
+            ],
+            "pattern": "^rec_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "meetingId"
+        ],
+        "type": "object"
+      },
+      "name": "meetings_closeout_get",
+      "planMode": "allowed",
+      "toolset": "inbox",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "meetings.closeout.list",
+      "deferred": false,
+      "description": "The Meetings tab of the Inbox: your meetings (and meetings shared to a project or channel you can read) with their close-out state",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "cursor": {
+            "type": "string"
+          },
+          "limit": {
+            "maximum": 500,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "recordId": {
+            "examples": [
+              "rec_a1b2c3"
+            ],
+            "pattern": "^rec_[a-z0-9]+$",
+            "type": "string"
+          },
+          "state": {
+            "enum": [
+              "preparing",
+              "ready",
+              "closed",
+              "nothing"
+            ],
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "name": "meetings_closeout_list",
+      "planMode": "allowed",
+      "toolset": "inbox",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "meetings.closeout.prepare",
+      "deferred": false,
+      "description": "Have the meeting owner's Assistant prepare the close-out from the transcript; redo starts it again without duplicating what was approved",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "meetingId": {
+            "examples": [
+              "rec_a1b2c3"
+            ],
+            "pattern": "^rec_[a-z0-9]+$",
+            "type": "string"
+          },
+          "redo": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "meetingId"
+        ],
+        "type": "object"
+      },
+      "name": "meetings_closeout_prepare",
+      "planMode": "blocked",
+      "toolset": "inbox",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "meetings.closeout.propose",
+      "deferred": false,
+      "description": "The Assistant's close-out of a meeting: summary, decisions, open questions, action items, record updates, the follow-up email and the next meeting",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "actions": {
+            "items": {
+              "properties": {
+                "due": {
+                  "description": "YYYY-MM-DD, only when a date was said",
+                  "type": "string"
+                },
+                "owner": {
+                  "description": "The name or email of who said they would do it",
+                  "type": "string"
+                },
+                "title": {
+                  "maxLength": 300,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "why": {
+                  "maxLength": 1000,
+                  "type": "string"
+                }
+              },
+              "required": [
+                "title"
+              ],
+              "type": "object"
+            },
+            "maxItems": 30,
+            "type": "array"
+          },
+          "decisions": {
+            "items": {
+              "maxLength": 500,
+              "type": "string"
+            },
+            "maxItems": 30,
+            "type": "array"
+          },
+          "email": {
+            "properties": {
+              "subject": {
+                "maxLength": 300,
+                "minLength": 1,
+                "type": "string"
+              },
+              "text": {
+                "maxLength": 20000,
+                "minLength": 1,
+                "type": "string"
+              }
+            },
+            "required": [
+              "subject",
+              "text"
+            ],
+            "type": "object"
+          },
+          "meetingId": {
+            "examples": [
+              "rec_a1b2c3"
+            ],
+            "pattern": "^rec_[a-z0-9]+$",
+            "type": "string"
+          },
+          "next": {
+            "properties": {
+              "minutes": {
+                "maximum": 600,
+                "minimum": 5,
+                "type": "integer"
+              },
+              "startsAt": {
+                "description": "The agreed date and time, ISO 8601 with its offset",
+                "type": "string"
+              },
+              "title": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "startsAt"
+            ],
+            "type": "object"
+          },
+          "questions": {
+            "items": {
+              "maxLength": 500,
+              "type": "string"
+            },
+            "maxItems": 30,
+            "type": "array"
+          },
+          "records": {
+            "items": {
+              "properties": {
+                "changes": {
+                  "items": {
+                    "properties": {
+                      "field": {
+                        "type": "string"
+                      },
+                      "value": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "field",
+                      "value"
+                    ],
+                    "type": "object"
+                  },
+                  "maxItems": 20,
+                  "type": "array"
+                },
+                "note": {
+                  "maxLength": 4000,
+                  "type": "string"
+                },
+                "recordId": {
+                  "examples": [
+                    "rec_a1b2c3"
+                  ],
+                  "pattern": "^rec_[a-z0-9]+$",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "recordId"
+              ],
+              "type": "object"
+            },
+            "maxItems": 20,
+            "type": "array"
+          },
+          "summary": {
+            "maxLength": 4000,
+            "type": "string"
+          }
+        },
+        "required": [
+          "meetingId",
+          "summary"
+        ],
+        "type": "object"
+      },
+      "name": "meetings_closeout_propose",
+      "planMode": "blocked",
+      "toolset": "inbox",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "meetings.closeout.share",
+      "deferred": false,
+      "description": "Share a meeting and its close-out with a project or channel (everyone who can read it sees it in their Meetings tab), or stop sharing",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "channelId": {
+            "examples": [
+              "chn_a1b2c3"
+            ],
+            "pattern": "^chn_[a-z0-9]+$",
+            "type": "string"
+          },
+          "meetingId": {
+            "examples": [
+              "rec_a1b2c3"
+            ],
+            "pattern": "^rec_[a-z0-9]+$",
+            "type": "string"
+          },
+          "on": {
+            "type": "boolean"
+          },
+          "projectId": {
+            "examples": [
+              "prj_a1b2c3"
+            ],
+            "pattern": "^prj_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "meetingId",
+          "on"
+        ],
+        "type": "object"
+      },
+      "name": "meetings_closeout_share",
+      "planMode": "blocked",
+      "toolset": "inbox",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "meetings.closeout.skip",
+      "deferred": false,
+      "description": "Skip a proposed close-out item, or bring a skipped one back",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "itemId": {
+            "type": "string"
+          },
+          "meetingId": {
+            "examples": [
+              "rec_a1b2c3"
+            ],
+            "pattern": "^rec_[a-z0-9]+$",
+            "type": "string"
+          },
+          "undo": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "meetingId",
+          "itemId"
+        ],
+        "type": "object"
+      },
+      "name": "meetings_closeout_skip",
+      "planMode": "blocked",
+      "toolset": "inbox",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "meetings.closeout.sync",
+      "deferred": false,
+      "description": "Prepare the close-out of each of your recent meetings that has a transcript and none yet",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "meetings_closeout_sync",
       "planMode": "blocked",
       "toolset": "inbox",
       "v": 1
@@ -32393,6 +33105,51 @@
         "type": "object"
       },
       "name": "members_invites_revoke",
+      "planMode": "blocked",
+      "toolset": "meta",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "members.joins.list",
+      "deferred": false,
+      "description": "Joins that have not finished: each new member with the steps that did not work yet, in words, how often each was tried, and whether it is stuck (three tries or more)",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "stuck": {
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
+      "name": "members_joins_list",
+      "planMode": "allowed",
+      "toolset": "meta",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "members.joins.retry",
+      "deferred": false,
+      "description": "Retry a new member's join steps that did not work, now",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "personId": {
+            "examples": [
+              "usr_a1b2c3"
+            ],
+            "pattern": "^usr_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "personId"
+        ],
+        "type": "object"
+      },
+      "name": "members_joins_retry",
       "planMode": "blocked",
       "toolset": "meta",
       "v": 1
@@ -34020,6 +34777,103 @@
       "v": 1
     },
     {
+      "blocks": [],
+      "cap": "memory.profile.get",
+      "deferred": false,
+      "description": "Your profile in this Space, as a chat may use it: the public part always, the private part only where nobody else reads the chat (your own chats, your private Ask); with personId, that teammate's public part",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "personId": {
+            "description": "A teammate: their public profile only",
+            "examples": [
+              "usr_a1b2c3"
+            ],
+            "type": "string"
+          },
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "name": "memory_profile",
+      "planMode": "allowed",
+      "toolset": "memory",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "memory.profile.move",
+      "deferred": false,
+      "description": "Move a fact about you between your public and private profile; only you can make one public (an agent suggests it instead)",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "factId": {
+            "examples": [
+              "fct_a1b2c3"
+            ],
+            "pattern": "^fct_[a-z0-9]+$",
+            "type": "string"
+          },
+          "to": {
+            "enum": [
+              "public",
+              "private"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "factId",
+          "to"
+        ],
+        "type": "object"
+      },
+      "name": "memory_profile_move",
+      "planMode": "allowed",
+      "toolset": "memory",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "memory.profile.suggest",
+      "deferred": false,
+      "description": "Suggest a fact for the person's public profile (\"Add to your public profile?\"); it stays private until they say yes in About you; with text, it is remembered privately first",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "factId": {
+            "examples": [
+              "fct_a1b2c3"
+            ],
+            "pattern": "^fct_[a-z0-9]+$",
+            "type": "string"
+          },
+          "text": {
+            "type": "string"
+          },
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "name": "memory_profile_suggest",
+      "planMode": "allowed",
+      "toolset": "memory",
+      "v": 1
+    },
+    {
       "blocks": [
         "memory_saved"
       ],
@@ -34864,6 +35718,100 @@
       "name": "memory_write_page",
       "planMode": "blocked",
       "toolset": "memory",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "chat.message_person",
+      "deferred": true,
+      "description": "Message a teammate for the person you work for, in their direct chat, signed as them (Agent); the reply comes back to this chat. Can carry an approval, review or key card. Waits for away and after hours unless urgent; 3 an hour",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "at": {
+            "description": "Milliseconds since the Unix epoch",
+            "examples": [
+              1760000000000
+            ],
+            "minimum": 0,
+            "type": "integer"
+          },
+          "body": {
+            "maxLength": 4000,
+            "type": "string"
+          },
+          "card": {
+            "properties": {
+              "detail": {
+                "maxLength": 2000,
+                "type": "string"
+              },
+              "fields": {
+                "description": "A key card: the field names wanted",
+                "items": {
+                  "pattern": "^[A-Za-z][A-Za-z0-9_]*$",
+                  "type": "string"
+                },
+                "maxItems": 10,
+                "type": "array"
+              },
+              "kind": {
+                "enum": [
+                  "approval",
+                  "review",
+                  "key"
+                ],
+                "type": "string"
+              },
+              "title": {
+                "description": "What to approve or review, or the key's name",
+                "maxLength": 200,
+                "minLength": 1,
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind",
+              "title"
+            ],
+            "type": "object"
+          },
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "timing": {
+            "enum": [
+              "now",
+              "online",
+              "at"
+            ],
+            "type": "string"
+          },
+          "to": {
+            "examples": [
+              "usr_a1b2c3"
+            ],
+            "pattern": "^usr_[a-z0-9]+$",
+            "type": "string"
+          },
+          "urgent": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "to",
+          "body",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "name": "message_person",
+      "planMode": "blocked",
+      "toolset": "chats",
       "v": 1
     },
     {
@@ -37952,6 +38900,165 @@
     },
     {
       "blocks": [],
+      "cap": "network.peer_allow",
+      "deferred": false,
+      "description": "Let a new computer use this Personal Space: it gets a full copy of your chats, files, records and Vault (still locked by your password) and stays in sync",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "requestId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "requestId"
+        ],
+        "type": "object"
+      },
+      "name": "network_peer_allow",
+      "planMode": "blocked",
+      "toolset": "engineer",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "network.peer_conflicts",
+      "deferred": false,
+      "description": "What syncing between your computers had to settle: the same name made on two computers while apart (one copy is renamed, both are kept), or an item kept aside whole",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "network_peer_conflicts",
+      "planMode": "allowed",
+      "toolset": "engineer",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "network.peer_decline",
+      "deferred": false,
+      "description": "Turn away a computer that asked to use this Personal Space",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "requestId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "requestId"
+        ],
+        "type": "object"
+      },
+      "name": "network_peer_decline",
+      "planMode": "blocked",
+      "toolset": "engineer",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "network.peer_remove",
+      "deferred": false,
+      "description": "Take a computer out of this Personal Space: it stops syncing with your other computers",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "peerId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "peerId"
+        ],
+        "type": "object"
+      },
+      "name": "network_peer_remove",
+      "planMode": "blocked",
+      "toolset": "engineer",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "network.peer_requests",
+      "deferred": false,
+      "description": "New computers asking to use this Personal Space, each with the six-digit code its own screen shows",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "network_peer_requests",
+      "planMode": "allowed",
+      "toolset": "engineer",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "network.peer_runner",
+      "deferred": false,
+      "description": "Which of your computers runs scheduled automations, routines and nightly jobs now (one at a time)",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "network_peer_runner",
+      "planMode": "allowed",
+      "toolset": "engineer",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "network.peer_server_code",
+      "deferred": false,
+      "description": "Add a server to your Personal Space: a one-time code for the install line. The server joins through Vyre's relay (no address needed), keeps a full copy in sync, keeps the Space going and runs scheduled work while your computers sleep",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "nickname": {
+            "examples": [
+              "home-server"
+            ],
+            "maxLength": 40,
+            "type": "string"
+          }
+        },
+        "required": [
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "name": "network_peer_server_code",
+      "planMode": "blocked",
+      "toolset": "engineer",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "network.peers",
+      "deferred": false,
+      "description": "The computers that hold this Personal Space: each keeps a full copy and syncs with the others through the relay. This computer, whether each is awake, and when it was last seen",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "network_peers",
+      "planMode": "allowed",
+      "toolset": "engineer",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "network.phone",
       "deferred": false,
       "description": "Your phone address on vyre.run: the name this computer holds, whether it is online, and the link that opens it on a phone",
@@ -38290,6 +39397,21 @@
       },
       "name": "notifications_away_set",
       "planMode": "blocked",
+      "toolset": "meta",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "notifications.away.who",
+      "deferred": false,
+      "description": "Who in the Space is away right now and until when (what a teammate sees as a steady away dot); never the delegate",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "notifications_away_who",
+      "planMode": "allowed",
       "toolset": "meta",
       "v": 1
     },
@@ -38994,6 +40116,37 @@
       "v": 1
     },
     {
+      "blocks": [],
+      "cap": "chat.people_status",
+      "deferred": true,
+      "description": "Your teammates as you see them: online, away or offline and when last seen, their local time and working hours, and when a message to them would go. Only people in this Space, never anything private",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "personIds": {
+            "items": {
+              "examples": [
+                "usr_a1b2c3"
+              ],
+              "pattern": "^usr_[a-z0-9]+$",
+              "type": "string"
+            },
+            "maxItems": 50,
+            "type": "array"
+          },
+          "q": {
+            "description": "Part of a name; omitted: everyone",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "name": "people_status",
+      "planMode": "allowed",
+      "toolset": "chats",
+      "v": 1
+    },
+    {
       "blocks": [
         "plan"
       ],
@@ -39372,6 +40525,32 @@
             ],
             "type": "string"
           },
+          "share": {
+            "items": {
+              "description": "everyone (the default), or group ids",
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "source": {
+            "enum": [
+              "registry",
+              "paste",
+              "import",
+              "hub",
+              "skill",
+              "kit",
+              "hand"
+            ],
+            "type": "string"
+          },
+          "sourceRef": {
+            "description": "The registry name, the file kind, or the skill whose bundled server this is",
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
           "url": {
             "type": "string"
           }
@@ -39384,6 +40563,124 @@
         "type": "object"
       },
       "name": "plugins_connection_add",
+      "planMode": "blocked",
+      "toolset": "agents",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "plugins.connection.add_mine",
+      "deferred": false,
+      "description": "Connect an MCP server for you and your agents only (Mine): by https address, or by a command that runs in the sandbox (npx, uvx). A key is a Vault handle in env or a header.",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "args": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "auth": {
+            "enum": [
+              "oauth"
+            ],
+            "type": "string"
+          },
+          "command": {
+            "type": "string"
+          },
+          "env": {
+            "additionalProperties": {
+              "description": "A value, or a Vault handle such as #Notion_key.value for a secret",
+              "type": "string"
+            },
+            "type": "object"
+          },
+          "headers": {
+            "additionalProperties": {
+              "description": "A value, or a Vault handle such as #Notion_key.value for a secret",
+              "type": "string"
+            },
+            "type": "object"
+          },
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "name": {
+            "examples": [
+              "notion"
+            ],
+            "type": "string"
+          },
+          "source": {
+            "enum": [
+              "registry",
+              "paste",
+              "import",
+              "hub",
+              "skill",
+              "kit",
+              "hand",
+              "plugin"
+            ],
+            "type": "string"
+          },
+          "sourceRef": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "name": "plugins_connection_add_mine",
+      "planMode": "blocked",
+      "toolset": "agents",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "plugins.connection.forget",
+      "deferred": false,
+      "description": "Remove a connection you may manage: your own (Mine), or a Space or agent one when you manage agents",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "connectionId": {
+            "examples": [
+              "mcs_a1b2c3"
+            ],
+            "pattern": "^mcs_[a-z0-9]+$",
+            "type": "string"
+          },
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "connectionId",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "name": "plugins_connection_forget",
       "planMode": "blocked",
       "toolset": "agents",
       "v": 1
@@ -39440,6 +40737,60 @@
     },
     {
       "blocks": [],
+      "cap": "plugins.connection.update",
+      "deferred": false,
+      "description": "Rename a connection, turn it off or on, switch it to OAuth sign-in, or (admins) choose who in the Space can use it: Everyone or groups",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "auth": {
+            "enum": [
+              "oauth",
+              "none"
+            ],
+            "type": "string"
+          },
+          "connectionId": {
+            "examples": [
+              "mcs_a1b2c3"
+            ],
+            "pattern": "^mcs_[a-z0-9]+$",
+            "type": "string"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "share": {
+            "items": {
+              "description": "everyone, or a group id",
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "connectionId",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "name": "plugins_connection_update",
+      "planMode": "blocked",
+      "toolset": "agents",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "plugins.connections.list",
       "deferred": false,
       "description": "MCP connections made by hand (a URL or a command)",
@@ -39457,6 +40808,21 @@
         "type": "object"
       },
       "name": "plugins_connections",
+      "planMode": "allowed",
+      "toolset": "agents",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "plugins.connections.home",
+      "deferred": false,
+      "description": "Every connection you can use, for Vault > Connections: yours (Mine), the Space's (for everyone or your groups), your agents' own, and the servers plugins bring, each with its health, who can use it, which agents used it and when",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "plugins_connections_home",
       "planMode": "allowed",
       "toolset": "agents",
       "v": 1
@@ -39717,6 +41083,40 @@
         "type": "object"
       },
       "name": "plugins_mcp_servers",
+      "planMode": "allowed",
+      "toolset": "agents",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "plugins.registry.search",
+      "deferred": false,
+      "description": "Search the MCP server catalog (the official MCP registry). Answers from the last fetch when the registry cannot be reached, and says so.",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "cursor": {
+            "type": "string"
+          },
+          "limit": {
+            "maximum": 100,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "q": {
+            "type": "string"
+          },
+          "source": {
+            "enum": [
+              "official",
+              "smithery"
+            ],
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "name": "plugins_registry_search",
       "planMode": "allowed",
       "toolset": "agents",
       "v": 1
@@ -41662,6 +43062,9 @@
             ],
             "minLength": 1,
             "type": "string"
+          },
+          "local": {
+            "type": "boolean"
           },
           "providerKey": {
             "examples": [
@@ -47940,7 +49343,7 @@
       "blocks": [],
       "cap": "skills.list",
       "deferred": false,
-      "description": "Skills a chat with this agent can load: Vyre built-in, the Space library and the agent own skills/ folder, one line each. With no agentId, the Space library and built-in ones",
+      "description": "Skills a chat with this agent can load: Vyre built-in, the Space library and the agent own skills/ folder, one line each. Two with one name are both listed, the one not used marked shadowedBy; a broken one is marked broken. With no agentId, the Space library and built-in ones",
       "effects": "read",
       "inputSchema": {
         "properties": {
@@ -47958,6 +49361,281 @@
         "type": "object"
       },
       "name": "skills_list",
+      "planMode": "allowed",
+      "toolset": "agents",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "skills.members",
+      "deferred": false,
+      "description": "Console: the skills each member keeps for themselves, by name only; contents only of the ones they shared",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "skills_members",
+      "planMode": "allowed",
+      "toolset": "agents",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "skills.mine.add",
+      "deferred": false,
+      "description": "Add a skill for yourself and your agents (Mine), or replace one of yours. A name already taken is kept, and this one is renamed with its source",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "agents": {
+            "items": {
+              "description": "\"*\" for all of my agents, or agent ids",
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "files": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object"
+          },
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "projectId": {
+            "examples": [
+              "prj_a1b2c3"
+            ],
+            "pattern": "^prj_[a-z0-9]+$",
+            "type": "string"
+          },
+          "replaces": {
+            "examples": [
+              "sko_a1b2c3"
+            ],
+            "pattern": "^sko_[a-z0-9]+$",
+            "type": "string"
+          },
+          "source": {
+            "type": "string"
+          },
+          "text": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "text",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "name": "skills_mine_add",
+      "planMode": "blocked",
+      "toolset": "agents",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "skills.mine.remove",
+      "deferred": false,
+      "description": "Remove one of your skills (and its shares), or take a shared one off your list",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "skillId": {
+            "examples": [
+              "sko_a1b2c3"
+            ],
+            "pattern": "^sko_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "skillId",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "name": "skills_mine_remove",
+      "planMode": "blocked",
+      "toolset": "agents",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "skills.mine.set",
+      "deferred": false,
+      "description": "Switch one of your skills (or one shared with you) on or off, pick the agents that use it, or give its tool servers their Vault keys",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "agents": {
+            "items": {
+              "description": "\"*\" for all of my agents, or agent ids",
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "setup": {
+            "additionalProperties": {
+              "description": "A Vault handle such as #Notion_key.api_key",
+              "type": "string"
+            },
+            "type": "object"
+          },
+          "skillId": {
+            "examples": [
+              "sko_a1b2c3"
+            ],
+            "pattern": "^sko_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "skillId",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "name": "skills_mine_set",
+      "planMode": "blocked",
+      "toolset": "agents",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "skills.mine.update",
+      "deferred": false,
+      "description": "Fetch one of your skills again from its link or repo; whoever it is shared with approves again if it can now touch more",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "skillId": {
+            "examples": [
+              "sko_a1b2c3"
+            ],
+            "pattern": "^sko_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "skillId",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "name": "skills_mine_update",
+      "planMode": "blocked",
+      "toolset": "agents",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "skills.page",
+      "deferred": false,
+      "description": "Settings > Skills for the person asking: cards for skills shared with them, their own skills (Mine), the Space skills an admin set, the built-in ones, and their agents to assign them to",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "projectId": {
+            "examples": [
+              "prj_a1b2c3"
+            ],
+            "pattern": "^prj_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "name": "skills_page",
+      "planMode": "allowed",
+      "toolset": "agents",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "skills.preview",
+      "deferred": false,
+      "description": "Read the skills in a link (a SKILL.md, a GitHub repo or folder, a zip), a dropped folder or a zip, with what each can touch. Nothing is saved",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "files": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object"
+          },
+          "hint": {
+            "description": "The folder name, for a lone AGENTS.md",
+            "type": "string"
+          },
+          "link": {
+            "examples": [
+              "https://github.com/anthropics/skills/tree/main/pdf"
+            ],
+            "type": "string"
+          },
+          "marketplace": {
+            "properties": {
+              "marketplaceId": {
+                "examples": [
+                  "mkt_a1b2c3"
+                ],
+                "pattern": "^mkt_[a-z0-9]+$",
+                "type": "string"
+              },
+              "plugin": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "marketplaceId",
+              "plugin"
+            ],
+            "type": "object"
+          },
+          "zip": {
+            "description": "The zip, base64",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "name": "skills_preview",
       "planMode": "allowed",
       "toolset": "agents",
       "v": 1
@@ -47985,6 +49663,10 @@
             "type": "string"
           },
           "name": {
+            "type": "string"
+          },
+          "source": {
+            "description": "Remove it only when this source added it (a Kit undo names its own)",
             "type": "string"
           }
         },
@@ -48037,6 +49719,162 @@
       },
       "name": "skills_set_enabled",
       "planMode": "blocked",
+      "toolset": "agents",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "skills.share",
+      "deferred": false,
+      "description": "Share one of your skills with chosen people in this Space, or with everyone here. Each of them gets a card and decides",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "skillId": {
+            "examples": [
+              "sko_a1b2c3"
+            ],
+            "pattern": "^sko_[a-z0-9]+$",
+            "type": "string"
+          },
+          "space": {
+            "type": "boolean"
+          },
+          "stop": {
+            "type": "boolean"
+          },
+          "to": {
+            "items": {
+              "examples": [
+                "usr_a1b2c3"
+              ],
+              "pattern": "^usr_[a-z0-9]+$",
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "skillId",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "name": "skills_share",
+      "planMode": "blocked",
+      "toolset": "agents",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "skills.shared.decide",
+      "deferred": false,
+      "description": "Add a skill shared with you, so it applies to you and your agents, or say Not now",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "decision": {
+            "enum": [
+              "add",
+              "not_now"
+            ],
+            "type": "string"
+          },
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "skillId": {
+            "examples": [
+              "sko_a1b2c3"
+            ],
+            "pattern": "^sko_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "skillId",
+          "decision",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "name": "skills_shared_decide",
+      "planMode": "blocked",
+      "toolset": "agents",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "skills.space.install",
+      "deferred": false,
+      "description": "Console: set a skill for everyone in the Space. It applies to every member and their agents at once, with no card",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "files": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object"
+          },
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "source": {
+            "type": "string"
+          },
+          "text": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "text",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "name": "skills_space_install",
+      "planMode": "blocked",
+      "toolset": "agents",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "skills.view",
+      "deferred": false,
+      "description": "The full text and files of one skill: your own, one shared with you (before you add it, too), a Space one or a built-in one",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "skillId": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "name": "skills_view",
+      "planMode": "allowed",
       "toolset": "agents",
       "v": 1
     },
@@ -49146,9 +50984,6 @@
             "type": "string"
           }
         },
-        "required": [
-          "logoFileId"
-        ],
         "type": "object"
       },
       "name": "spaces_update",
@@ -54016,6 +55851,7 @@
                   "run",
                   "gate",
                   "journey",
+                  "meeting",
                   "manual"
                 ],
                 "type": "string"
@@ -59138,6 +60974,13 @@
           },
           "reason": {
             "type": "string"
+          },
+          "to": {
+            "examples": [
+              "usr_a1b2c3"
+            ],
+            "pattern": "^usr_[a-z0-9]+$",
+            "type": "string"
           }
         },
         "required": [
@@ -59211,10 +61054,17 @@
       "blocks": [],
       "cap": "vault.requests.fulfil",
       "deferred": false,
-      "description": "Supply the key: attach an existing item, or save new fields as an item in the requested folder",
+      "description": "Supply the key: attach an existing item, or save new fields as an item in the requested folder; say who may use it through the agent that asked",
       "effects": "write",
       "inputSchema": {
         "properties": {
+          "audience": {
+            "enum": [
+              "asker",
+              "anyone"
+            ],
+            "type": "string"
+          },
           "fields": {
             "items": {
               "properties": {

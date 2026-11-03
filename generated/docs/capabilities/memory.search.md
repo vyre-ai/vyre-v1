@@ -66,6 +66,7 @@ type Out = {
     model?: string;
     hint?: string;
   };
+  locked?: string;
 };
 ```
 
@@ -116,6 +117,7 @@ type Out = {
         "versions": 1
       }
     ],
+    "locked": "example",
     "meaning": {
       "hint": "example",
       "model": "example",

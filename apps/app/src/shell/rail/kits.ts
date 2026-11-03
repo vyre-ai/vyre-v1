@@ -101,6 +101,16 @@ export function railFor(input: RailInput): RailGroups {
   return { top: input.kit.top.filter(keep).map(entry), bottom: input.kit.bottom.filter(keep).map(entry) };
 }
 
+/** The phone-width rail: these places are the bar, the rest sit behind More. */
+export const PHONE_BAR: readonly PlaceId[] = ["chats", "inbox", "records", "files"];
+/** Places a phone never offers (owner ruling, 3 Nov 2026): you chat about Automations and the Console in Chats instead. */
+export const NOT_ON_PHONE_PLACES: readonly PlaceId[] = ["automations", "console"];
+
+/** What the phone-width rail's More menu lists: every place off the bar, less the ones the phone does not have. */
+export function phoneMore(groups: RailGroups): RailEntry[] {
+  return [...groups.top.filter((e) => !PHONE_BAR.includes(e.place)), ...groups.bottom].filter((e) => !NOT_ON_PHONE_PLACES.includes(e.place));
+}
+
 /** The rail is the places you can reach; a place outside the Kit (opened from a link) still opens, it just has no rail button. */
 export function railPlaces(groups: RailGroups): PlaceId[] {
   return [...groups.top, ...groups.bottom].map((e) => e.place);

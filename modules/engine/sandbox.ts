@@ -1,30 +1,44 @@
 // The sandbox around a CLI engine (P-L2_23, security review S8 finding 1). A CLI engine (Claude Code, Codex, Grok) is a program the daemon starts; without a wrap it can read every file the
 // daemon's user can read. This builds the `wrap` the local launcher takes, so the engine runs in the person's sandbox: Seatbelt on a Mac, bubblewrap with the network wall on Linux. It lives here
 // because agent code may not import the sandbox package.
-//   - The working folder is one folder per person and thread under the Space data directory. It is the first read-write mount (bwrap does --chdir to the first mount) and the process's cwd.
+//   - The working folder is one folder per person, thread and agent under the Space data directory. It is the first read-write mount (bwrap does --chdir to the first mount) and the process's cwd.
+//     Two agents working for one person in one chat never share it, so neither reads the other's memory guide; the chat's `shared` folder beside them is the one place both see.
 //   - bwrap starts with --clearenv, so the spawn's environment (the key, VYRE_MCP_TOKEN) is copied into the sandbox spec and travels as --setenv. Seatbelt inherits the environment, so the proxy
 //     variables are put in front of the command with env(1).
 //   - Where the engine has to run in the person's container (host placement, Windows without WSL) there is no local wrap: the spawn fails with sandbox.unavailable and never falls back to the
 //     unwrapped launcher.
 import fs from "node:fs";
 import path from "node:path";
-import { SandboxError, bwrapWallCommand, proxyEnv, seatbeltCommand } from "../../sandbox/src/index.ts";
-import type { Roots, SandboxSpec } from "../../sandbox/src/index.ts";
+import { CONNECT_SOURCE, SandboxError, bwrapWallCommand, seatbeltCommand, sshFiles, toolProxyEnv } from "../../sandbox/src/index.ts";
+import type { EgressEvent, EgressRule, EngineAccess, Roots, SandboxSpec } from "../../sandbox/src/index.ts";
 import type { LocalLauncherOptions } from "../../agent/src/drivers/cli/launcher.ts";
+import { labelLow, lowrunArgv } from "../../sandbox/src/win/lowrun.ts";
 
 /** What the host knows about the sandbox it runs a CLI engine in. The wall (egress proxy) is started by the host and outlives the turns. */
 export type EngineSandbox =
   | { kind: "bwrap"; wallDir: string; programRead?: readonly string[]; node?: string }
   | { kind: "seatbelt"; proxyPort: number; programRead?: readonly string[] }
+  /**
+   * Windows, Personal Space (owner ruling 3 Nov 2026): the engine at Low integrity in a Job Object (sandbox/src/win/lowrun.cs). It may change only its work folder, its scratch home and temp, and
+   * `writable` (the folders the person added to Vyre); it reads the computer as Claude Code does. Its network is the egress proxy on loopback, by its variables.
+   */
+  | { kind: "lowil"; helper: string; proxyPort: number; writable?: readonly string[]; bash?: string }
   /** The engine belongs in the person's container, which has no local launcher yet. */
   | { kind: "docker" | "server"; reason?: string };
 
 export interface SandboxPlan {
   sandbox: EngineSandbox;
-  /** The Space data directory; work folders live under `<dataDir>/work/<person>/<thread>`, scratch under `<dataDir>/scratch/<person>`. */
+  /** The Space data directory; work folders live under `<dataDir>/work/<person>/<thread>/<agent>` (beside the chat's `shared` folder), scratch under `<dataDir>/scratch/<person>`. */
   dataDir: string;
-  /** Hosts the engine may reach through the proxy (its provider's API). */
+  /** Hosts the engine may reach through the proxy (its provider's API), when the wall runs a list. */
   egressHosts: readonly string[];
+  /** The rule of the plan's own wall (egress-policy.ts). Absent: the list above. */
+  egressRule?: EgressRule;
+  /**
+   * Open a wall for one engine process, with the rule its turn carries and a watcher for where it went (sandbox-default.ts). Absent (a host's own plan, a test's): the process uses the plan's wall.
+   * The wall is stopped when the process ends.
+   */
+  openWall?: (egress: { allow: string[]; rule: EgressRule }, onEvent?: (e: EgressEvent) => void) => Promise<{ sandbox: EngineSandbox; close(): Promise<void> }>;
 }
 
 const SAFE = /[^a-zA-Z0-9_-]/g;
@@ -34,9 +48,23 @@ const part = (id: string): string => {
   return s;
 };
 
-/** The folder one person's one thread works in. It is made if it is not there. Different people and different threads never share one. */
-export function workFolder(dataDir: string, person: string, thread: string): string {
-  const dir = path.join(dataDir, "work", part(person), part(thread));
+/** The name of the folder of a chat that every agent working there for the same person may read and write. No agent's own folder is ever named this. */
+export const SHARED_FOLDER = "shared";
+
+/**
+ * The folder one agent works in for one person in one thread. It is made if it is not there. Different people, threads and agents never share one: two agents in one chat each get their own,
+ * with the chat's shared folder beside them. Without an agent it is the person's folder for the thread (plugins keep theirs there).
+ */
+export function workFolder(dataDir: string, person: string, thread: string, agent?: string): string {
+  if (agent !== undefined && part(agent) === SHARED_FOLDER) throw new SandboxError("sandbox.policy", "an agent id cannot name the shared folder");
+  const dir = agent === undefined ? path.join(dataDir, "work", part(person), part(thread)) : path.join(dataDir, "work", part(person), part(thread), part(agent));
+  fs.mkdirSync(dir, { recursive: true });
+  return fs.realpathSync(dir);
+}
+
+/** The folder of one person's thread that all the agents working there for that person share: the chat's shared files, and nothing of any one agent's own. */
+export function sharedFolder(dataDir: string, person: string, thread: string): string {
+  const dir = path.join(dataDir, "work", part(person), part(thread), SHARED_FOLDER);
   fs.mkdirSync(dir, { recursive: true });
   return fs.realpathSync(dir);
 }
@@ -50,10 +78,11 @@ export function scratchFolder(dataDir: string, person: string): string {
 const sandboxId = (person: string): string => `vyre-sbx-${part(person).toLowerCase().replace(/_/g, "-")}`;
 
 /**
- * `wrap` for createLocalLauncher. The work folder arrives as `start.cwd` (the opener's workFolder, made by workFolder() above) and names the person: `<dataDir>/work/<person>/<thread>`. A spawn
- * with any other folder is refused: the engine must never run in the daemon's own folder or anywhere else.
+ * `wrap` for createLocalLauncher. The work folder arrives as `start.cwd` (the opener's workFolder, made by workFolder() above) and names the person: `<dataDir>/work/<person>/<thread>/<agent>`,
+ * or `<dataDir>/work/<person>/<thread>` for a folder of the person's own. A spawn with any other folder is refused: the engine must never run in the daemon's own folder or anywhere else. An agent's
+ * folder is mounted with the chat's shared folder and nothing else of the chat: another agent's folder beside it stays closed.
  */
-export function sandboxWrap(plan: SandboxPlan, o: { homeFromScratch?: boolean } = {}): NonNullable<LocalLauncherOptions["wrap"]> {
+export function sandboxWrap(plan: SandboxPlan, o: { homeFromScratch?: boolean; access?: EngineAccess; basePath?: string } = {}): NonNullable<LocalLauncherOptions["wrap"]> {
   return (argv, start) => {
     const s = plan.sandbox;
     if (s.kind === "docker" || s.kind === "server") {
@@ -62,32 +91,63 @@ export function sandboxWrap(plan: SandboxPlan, o: { homeFromScratch?: boolean } 
     if (start.cwd === undefined) throw new SandboxError("sandbox.policy", "a CLI engine needs a work folder");
     const workRoot = fs.realpathSync(path.join(plan.dataDir, "work"));
     const rel = path.relative(workRoot, start.cwd).split(path.sep);
-    if (rel.length !== 2 || rel.some((x) => x === "" || x === "..")) throw new SandboxError("sandbox.policy", "the work folder is not one of the Space's person-and-thread folders");
+    if ((rel.length !== 2 && rel.length !== 3) || rel.some((x) => x === "" || x === "..") || rel[2] === SHARED_FOLDER) throw new SandboxError("sandbox.policy", "the work folder is not one of the Space's person-and-thread folders");
     const person = rel[0] as string;
+    const shared = rel.length === 3 ? sharedFolder(plan.dataDir, person, rel[1] as string) : null;
     const scratch = scratchFolder(plan.dataDir, person);
     // The roots are the real paths of the folders: a data folder reached through a symlink (/var is /private/var on a Mac) must name the same folders the work and scratch helpers returned.
     const roots: Roots = { work: [workRoot], scratch: [fs.realpathSync(path.join(plan.dataDir, "scratch"))] };
     const spec: SandboxSpec = {
-      id: sandboxId(person), person, kind: s.kind, scratch,
-      mounts: [{ host: start.cwd, mode: "rw" }],
+      id: sandboxId(person), person, kind: s.kind === "lowil" ? "seatbelt" : s.kind, scratch,
+      mounts: [{ host: start.cwd, mode: "rw" }, ...(shared ? [{ host: shared, mode: "rw" as const }] : [])],
       egressHosts: plan.egressHosts,
       env: start.env,
     };
+    if (s.kind === "lowil") return lowWrap(s, plan, start, argv, person, scratch);
     if (s.kind === "bwrap") {
       // a turn on a sign-in kept in files sees them as its home: the scratch folder's own home is bound where the sandbox's home would be
       const home = o.homeFromScratch ? path.join(scratch, "home") : undefined;
       if (home) fs.mkdirSync(home, { recursive: true, mode: 0o700 });
-      const w = bwrapWallCommand(spec, roots, argv, { wallDir: s.wallDir, ...(s.node ? { node: s.node } : {}), ...(s.programRead ? { programRead: s.programRead } : {}), ...(home ? { home } : {}) });
+      const w = bwrapWallCommand(spec, roots, argv, { wallDir: s.wallDir, ...(s.node ? { node: s.node } : {}), ...(s.programRead ? { programRead: s.programRead } : {}), ...(home ? { home } : {}), ...(o.access ? { access: o.access } : {}), ...(o.basePath ? { basePath: o.basePath } : {}) });
       return [w.cmd, ...w.args];
     }
-    const w = seatbeltCommand(spec, roots, argv, { proxyPort: s.proxyPort, ...(s.programRead ? { programRead: s.programRead } : {}) });
+    const w = seatbeltCommand(spec, roots, argv, { proxyPort: s.proxyPort, ...(s.programRead ? { programRead: s.programRead } : {}), ...(o.access ? { access: o.access } : {}) });
     // sandbox-exec keeps the caller's environment, so the proxy variables go in front with env(1). The CLI's own state (Claude Code's ~/.claude, Codex's ~/.codex), its temp files and its HOME live in the
     // scratch folder, the one place besides the work folder the profile lets it write: the person's real home stays closed, and the key travels in the environment, not in a file under it.
     const home = path.join(scratch, "home");
     const tmp = path.join(scratch, "tmp");
     fs.mkdirSync(home, { recursive: true });
     fs.mkdirSync(tmp, { recursive: true });
+    // the CONNECT helper ssh runs as its ProxyCommand (git+ssh to a public host), in the scratch folder the profile lets the engine read
+    const helper = path.join(scratch, "net", "connect.mjs");
+    fs.mkdirSync(path.dirname(helper), { recursive: true });
+    fs.writeFileSync(helper, CONNECT_SOURCE, { mode: 0o644 });
     const own = { HOME: home, TMPDIR: tmp, CLAUDE_CODE_TMPDIR: tmp, CLAUDE_CONFIG_DIR: path.join(home, ".claude"), CODEX_HOME: path.join(home, ".codex"), XDG_CONFIG_HOME: path.join(home, ".config"), XDG_CACHE_HOME: path.join(home, ".cache") };
-    return ["/usr/bin/env", ...Object.entries({ ...proxyEnv(`http://127.0.0.1:${s.proxyPort}`), ...own }).map(([k, v]) => `${k}=${v}`), w.cmd, ...w.args];
+    const net = toolProxyEnv(`http://127.0.0.1:${s.proxyPort}`, { node: process.execPath, helper, port: s.proxyPort, ...sshFiles(o.access, path.join(home, ".vyre-known-hosts")) });
+    // what the engine may touch (engine-access.ts): the package managers pointed at the person's own install locations, the SSH agent, and their bin folders first on PATH
+    const acc = o.access ? { ...o.access.env, ...(o.access.sshAuthSock ? { SSH_AUTH_SOCK: o.access.sshAuthSock } : {}), ...(o.basePath ? { PATH: [...o.access.pathAdd, o.basePath].join(":") } : {}) } : {};
+    return ["/usr/bin/env", ...Object.entries({ ...net, ...own, ...acc }).map(([k, v]) => `${k}=${v}`), w.cmd, ...w.args];
   };
+}
+
+/**
+ * The argv of a CLI engine in a Windows Personal Space: vyre-lowrun starts it at Low integrity in a Job Object. The folders it may change are labelled Low first (once each): this person's work
+ * folders, their scratch folder (the engine's home, config and temp) and the folders they added. Its home, config and temp point into the scratch folder, so the CLI's own state is somewhere it
+ * may write; its proxy variables name the egress proxy.
+ */
+function lowWrap(s: Extract<EngineSandbox, { kind: "lowil" }>, plan: SandboxPlan, start: { env: Record<string, string>; cwd?: string }, argv: readonly string[], person: string, scratch: string): string[] {
+  const home = path.join(scratch, "home");
+  const tmp = path.join(scratch, "tmp");
+  for (const dir of [path.join(plan.dataDir, "work", person), scratch, ...(s.writable ?? [])]) labelLow(dir);
+  fs.mkdirSync(home, { recursive: true });
+  fs.mkdirSync(tmp, { recursive: true });
+  const own = {
+    HOME: home, USERPROFILE: home, APPDATA: path.join(home, "AppData", "Roaming"), LOCALAPPDATA: path.join(home, "AppData", "Local"), TEMP: tmp, TMP: tmp,
+    CLAUDE_CONFIG_DIR: path.join(home, ".claude"), CLAUDE_CODE_TMPDIR: tmp, CODEX_HOME: path.join(home, ".codex"), XDG_CONFIG_HOME: path.join(home, ".config"), XDG_CACHE_HOME: path.join(home, ".cache"),
+  };
+  for (const d of [own.APPDATA, own.LOCALAPPDATA]) fs.mkdirSync(d, { recursive: true });
+  // the engine's own copy of Git Bash (sandbox/src/win/msys.ts): a person's Git Bash window must not stop the engine's Bash tool
+  if (s.bash) (own as Record<string, string>)["CLAUDE_CODE_GIT_BASH_PATH"] = s.bash;
+  void start;
+  return lowrunArgv(s.helper, argv, { ...proxyEnv(`http://127.0.0.1:${s.proxyPort}`), ...own });
 }

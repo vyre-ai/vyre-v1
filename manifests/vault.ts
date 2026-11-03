@@ -144,6 +144,10 @@ export default defineManifest({
     write('vault.inject_env', 'Inject a folder into one child process environment (vyre run --env folder -- command); returns key names only', {
       in: { folderId: id.vaultFolder, purpose: t.opt(t.str()) }, out: { handles: t.arr(id.handle), keys: t.arr(fieldKey) }, on: ['vault_folder', '/folderId'], level: 'use', emits: ['vault.used'], audit: 'sensitive', tool: 'vault', cli: 'vyre run --env', offline: 'online',
     }),
+    // Before an agent's words go to a teammate (lane l-agentdm): which of the person's own Mine items have a value in this text. Names only, never a value; the person's key must be held.
+    read('vault.text_check', 'Which of my own Mine items have a value in this text: their handles, never a value', {
+      ...V, in: { text: t.str({ maxLength: 20000 }) }, out: { handles: t.arr(t.str()), checked: t.bool() },
+    }),
     write('vault.report_scrub_miss', 'System: the filler reports a value it could not scrub from an output stream', {
       ...V, in: { itemId: id.vaultItem, place: t.enm('terminal', 'http', 'browser', 'file', 'chat'), traceId: id.trace }, out: ok, emits: ['vault.scrub_miss'], audit: 'always',
     }),
@@ -198,7 +202,8 @@ export default defineManifest({
       out: { provider: providerRow }, emits: ['provider.added', 'vault.item_created', 'vault.folder_created'], audit: 'sensitive', tool: 'vault', offline: 'online', errors: ['validation.duplicate', 'provider.auth_failed'],
     }),
     write('providers.subscription_start', 'Start a subscription sign-in (Claude, ChatGPT through Codex, Grok): the server starts the provider\'s own sign-in and answers its link, and the code to type where the provider shows one. A person does this, never an agent.', {
-      ...V, idem: 'key', in: { providerKey: t.str({ examples: ['claude-code'] }) }, out: { flowId: t.id('sub'), instruction: t.str(), url: t.opt(url), userCode: t.opt(t.str()), needsCode: t.opt(t.bool()) }, audit: 'sensitive', tool: 'vault', offline: 'online',
+      // local (owner decision D2, 3 Nov 2026): use the Claude Code or Codex sign-in already on this computer; a Personal Space only. The flow is done at once and has no link.
+      ...V, idem: 'key', in: { providerKey: t.str({ examples: ['claude-code'] }), local: t.opt(t.bool()) }, out: { flowId: t.id('sub'), instruction: t.str(), url: t.opt(url), userCode: t.opt(t.str()), needsCode: t.opt(t.bool()) }, audit: 'sensitive', tool: 'vault', offline: 'online',
     }),
     write('providers.subscription_complete', 'Finish a subscription sign-in. Pass the pasted code where the provider shows one; call again until it answers a provider (waiting means the person has not approved yet). The credential goes straight into a Mine item of kind ai_subscription and is never returned.', {
       ...V, in: { flowId: t.id('sub'), code: t.opt(t.str({ description: 'The code the provider\'s page showed, pasted back' })) }, out: { provider: t.opt(providerRow), waiting: t.opt(t.bool()) }, emits: ['provider.added', 'provider.updated', 'provider.removed', 'vault.item_created', 'vault.item_updated', 'vault.item_deleted', 'vault.folder_created'], audit: 'sensitive', tool: 'vault', offline: 'online', errors: ['provider.auth_failed', 'timeout.deadline'],

@@ -15,3 +15,5 @@ export { CLI_IDS, TOKEN_ENV } from "./types.ts";
 export type {
   CliAdapter, CliCheckpoint, CliDecoder, CliEvent, CliExit, CliId, CliProcess, CommandOptions, LaunchSpec, Launcher, McpEndpoint,
 } from "./types.ts";
+export { MODEL_DIALOGS, ModelListError, claudeModels, codexModel, grokModels, grokTitle, listCliModels } from "./models.ts";
+export type { LiveModel, ModelDialog } from "./models.ts";

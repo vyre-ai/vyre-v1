@@ -19,6 +19,8 @@ const holdRow = t.obj({
   actingFor: t.opt(t.str()), state: holdState, payloadHash: t.str(), createdAt: t.ts(), expiresAt: t.ts(), askedBy: t.opt(principalRef),
 });
 const holdId = t.id('hld');
+/** Where a held call came from, recorded at hold time: the capability, the chat, the agent that made it and the person it acted for (an answer wakes that agent there). */
+const heldFrom = { capName: t.opt(t.str()), threadId: t.opt(t.str()), agentId: t.opt(t.str()), actingFor: t.opt(t.str()) };
 const stepRef = t.obj({ automationId: id.automation, nodeId: t.str(), defHash: t.str(), ask: t.opt(t.bool()) });
 const allowRow = t.obj({ id: t.str(), kind: t.enm('standing', 'always'), act: actKey, target: t.str(), agentId: t.opt(id.agent), threadId: t.opt(id.thread), automationId: t.opt(id.automation), stepId: t.opt(t.str()), expiresAt: t.opt(t.ts()) });
 const grantRow = t.obj({ id: t.str(), act: actKey, target: t.str(), stepId: t.opt(t.str()) });
@@ -46,8 +48,8 @@ export default defineManifest({
   ],
   events: [
     ev('gate.requested', 'A gated act stopped and became an Approve task with the exact preview', { p: { holdId, act: actKey, capName: t.str(), taskId: id.task, principal: principalRef, actingFor: t.opt(t.str()), runId: t.opt(id.run), expiresAt: t.ts(), askedBy: t.opt(principalRef) }, subject: ['task', '/taskId'], vis: 'participants', retention: 'audit', label: 'subject' }),
-    ev('gate.approved', 'A gated act was approved and released', { p: { holdId, act: actKey, taskId: id.task, by: t.str(), forPerson: t.opt(t.str()), askedBy: t.opt(principalRef) }, subject: ['task', '/taskId'], vis: 'participants', retention: 'audit', label: 'subject' }),
-    ev('gate.denied', 'A gated act was sent back or dropped', { p: { holdId, act: actKey, taskId: id.task, by: t.str(), mode: t.enm('send_back', 'drop'), note: t.opt(t.str()), askedBy: t.opt(principalRef) }, subject: ['task', '/taskId'], vis: 'participants', retention: 'audit', label: 'subject' }),
+    ev('gate.approved', 'A gated act was approved and released', { p: { holdId, act: actKey, taskId: id.task, by: t.str(), forPerson: t.opt(t.str()), askedBy: t.opt(principalRef), ...heldFrom }, subject: ['task', '/taskId'], vis: 'participants', retention: 'audit', label: 'subject' }),
+    ev('gate.denied', 'A gated act was sent back or dropped', { p: { holdId, act: actKey, taskId: id.task, by: t.str(), mode: t.enm('send_back', 'drop'), note: t.opt(t.str()), askedBy: t.opt(principalRef), ...heldFrom }, subject: ['task', '/taskId'], vis: 'participants', retention: 'audit', label: 'subject' }),
     ev('gate.expired', 'A hold timed out: dropped or escalated to a delegate or role', { p: { holdId, act: actKey, taskId: id.task, outcome: t.enm('dropped', 'escalated'), escalatedTo: t.opt(t.str()), askedBy: t.opt(principalRef) }, subject: ['task', '/taskId'], vis: 'participants', retention: 'audit', label: 'subject', trigger: { title: 'A gated act expires', fields: ['/act'] } }),
     ev('gate.rule_changed', 'A Gate rule changed (Space default, owner floor or per-agent override)', { p: { act: actKey, scope: t.enm('space', 'floor', 'agent'), agentId: t.opt(id.agent), by: t.str() }, subject: ['entity', '/act'], retention: 'audit' }),
   ],

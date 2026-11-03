@@ -40,7 +40,7 @@ async function worldFor(cap: string): Promise<{ h: Harness; ctx: DevicesCtx }> {
 }
 
 test("a real handler exists for exactly the capabilities the registry declares for devices", () => {
-  assert.equal(caps.length, 14);
+  assert.equal(caps.length, 15);
   assert.deepEqual(Object.keys(handlers).sort(), caps.map((c) => c.name).sort());
 });
 

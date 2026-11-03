@@ -7,6 +7,7 @@ export const handlers: Handlers<HandlerCtx> = {
   "notifications.away.clear": async () => ({"digestId":"dgs_a1b2c3","waitedApprovals":1,"waitedDigest":1} as unknown) as never,
   "notifications.away.get": async () => ({"away":true,"delegate":{"id":"usr_a1b2c3","kind":"person"},"until":1760000000000} as unknown) as never,
   "notifications.away.set": async () => ({"until":1760000000000} as unknown) as never,
+  "notifications.away.who": async () => ({"people":[{"person":"usr_a1b2c3","until":1760000000000}]} as unknown) as never,
   "notifications.counts": async () => ({"dots":{},"otherSpaces":[{"needsYou":1,"spaceId":"spc_a1b2c3"}],"rail":{"directConversations":1,"needsYou":1}} as unknown) as never,
   "notifications.delegate.get": async () => ({"chain":[{"id":"usr_a1b2c3","kind":"person"}]} as unknown) as never,
   "notifications.delegate.resolve": async () => ({"delegate":{"id":"example","kind":"person"},"walked":1} as unknown) as never,

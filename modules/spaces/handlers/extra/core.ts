@@ -35,7 +35,19 @@ export const SCHEMA: readonly string[] = [
   created_at INTEGER NOT NULL,
   deleted_at INTEGER
 )`,
+  // the Space image as it was when it was chosen: a copy of the picture, so the join and sign-in pages can show it to someone who is not signed in yet (they cannot read Files)
+  `CREATE TABLE IF NOT EXISTS spaces_image (
+  id TEXT PRIMARY KEY,
+  file_id TEXT NOT NULL,
+  mime TEXT NOT NULL,
+  data TEXT NOT NULL,
+  updated_at INTEGER NOT NULL
+)`,
 ];
+
+/** What a Space image may be: a picture a browser draws everywhere, small enough to travel with the join and sign-in pages. Console crops and shrinks it to a square first. */
+export const IMAGE_TYPES: readonly string[] = ["image/png", "image/jpeg", "image/webp", "image/gif"];
+export const IMAGE_MAX_BYTES = 256 * 1024;
 
 // ---- the drivers the host supplies
 
@@ -171,9 +183,36 @@ export async function get(ctx: ExtraCtx, _input: Record<string, unknown>) {
   return { space: await spaceRow(ctx, live(ctx)) };
 }
 
+/**
+ * The picture a file holds, read as the caller (who must be able to read it), checked before anything is written: a PNG, JPEG, WebP or GIF of at most IMAGE_MAX_BYTES. SVG is not taken: it can carry script,
+ * and the join and sign-in pages show the image to people who are not signed in.
+ */
+async function pictureOf(ctx: ExtraCtx, fileId: string): Promise<{ mime: string; data: string }> {
+  const bad = (message: string): never => failWith(ctx.trace.traceId, "validation.bad_input", message, { errors: ["logoFileId: image"] });
+  let got: { base64?: unknown; mime?: unknown; size?: unknown; truncated?: unknown };
+  try {
+    got = (await ctx.call("files.read", { fileId, as: "base64" })) as typeof got;
+  } catch (e) {
+    const code = (e as { error?: { code?: unknown } } | null)?.error?.code;
+    if (code === "validation.too_large") return bad(`The Space image must be under ${IMAGE_MAX_BYTES / 1024} KB. Choose image… crops and shrinks it for you.`);
+    return bad("That file cannot be read. Choose an image you can open.");
+  }
+  const mime = typeof got.mime === "string" ? got.mime.split(";")[0]!.trim().toLowerCase() : "";
+  if (!IMAGE_TYPES.includes(mime)) return bad("The Space image is a PNG, JPEG, WebP or GIF picture.");
+  const data = typeof got.base64 === "string" ? got.base64 : "";
+  const bytes = typeof got.size === "number" ? got.size : Math.floor((data.length * 3) / 4);
+  if (got.truncated === true) return bad(`The Space image must be under ${IMAGE_MAX_BYTES / 1024} KB. Choose image… crops and shrinks it for you.`);
+  if (data === "") return bad("That image is empty.");
+  if (bytes > IMAGE_MAX_BYTES) return bad(`The Space image must be under ${IMAGE_MAX_BYTES / 1024} KB. Choose image… crops and shrinks it for you.`);
+  return { mime, data };
+}
+
 export async function update(ctx: ExtraCtx, input: { name?: string; legalName?: string; logoFileId?: string | null; defaults?: Record<string, unknown> }) {
   const p = live(ctx);
   const fields: string[] = [];
+  // the picture is read and checked before anything is written, so a refused image changes nothing
+  // (the same file again keeps what is there: a profile save that repeats the logo never fails on it)
+  const picture = typeof input.logoFileId === "string" && input.logoFileId !== (p.logoFileId ?? null) ? await pictureOf(ctx, input.logoFileId) : null;
   if (input.name !== undefined) {
     const name = input.name.trim();
     if (name.length < 1 || name.length > NAME_MAX) return failWith(ctx.trace.traceId, "validation.bad_input", `The name is 1 to ${NAME_MAX} characters.`, { errors: ["name: length"] });
@@ -186,6 +225,10 @@ export async function update(ctx: ExtraCtx, input: { name?: string; legalName?: 
   }
   if (input.logoFileId !== undefined) {
     if (input.logoFileId !== (p.logoFileId ?? null)) { ctx.db.run("UPDATE spaces_profile SET logo_file_id = ? WHERE id = ?", input.logoFileId, ctx.space); fields.push("logoFileId"); }
+    if (input.logoFileId === null) ctx.db.run("DELETE FROM spaces_image WHERE id = ?", ctx.space);
+    else if (picture) {
+      ctx.db.run("INSERT OR REPLACE INTO spaces_image (id, file_id, mime, data, updated_at) VALUES (?, ?, ?, ?, ?)", ctx.space, input.logoFileId, picture.mime, picture.data, ctx.now());
+    }
   }
   if (input.defaults !== undefined) {
     // a merge: a key set to null is removed, any other value replaces the old one
@@ -199,6 +242,29 @@ export async function update(ctx: ExtraCtx, input: { name?: string; legalName?: 
   }
   if (fields.length > 0) ctx.emit("space.updated" as never, `entity/${ctx.principal.id}`, { fields, by: ctx.principal.id });
   return { space: await spaceRow(ctx, readProfile(ctx)) };
+}
+
+function imageRow(ctx: ExtraCtx): { fileId: string; mime: string; data: string } | null {
+  ensureSchema(ctx);
+  const r = asRow(ctx.db.all("SELECT file_id, mime, data FROM spaces_image WHERE id = ?", ctx.space)[0]);
+  const fileId = str(r?.["file_id"]), mime = str(r?.["mime"]), data = str(r?.["data"]);
+  return fileId && mime && data ? { fileId, mime, data } : null;
+}
+
+/**
+ * The Space image for its faces: the rail tile, the switcher, the join and sign-in pages and invites. Anyone may ask, signed in or not: the join and sign-in pages show it before sign-in, the way
+ * they show the Space's name. The picture comes as a data: address, and only when it differs from `known` (the logoFileId the caller already shows), so a tile that re-asks costs a few bytes.
+ */
+export async function image(ctx: ExtraCtx, input: { known?: string }) {
+  ensureSchema(ctx);
+  const base = asRow(ctx.db.all("SELECT logo_file_id FROM spaces_profile WHERE id = ?", ctx.space)[0]);
+  const extra = asRow(ctx.db.all("SELECT deleted_at FROM spaces_profile_extra WHERE id = ?", ctx.space)[0]);
+  const logoFileId = typeof extra?.["deleted_at"] === "number" ? undefined : str(base?.["logo_file_id"]);
+  const row = logoFileId ? imageRow(ctx) : null;
+  // a logo chosen before the picture was kept with it has no copy: no image, and the letter shows until it is chosen again
+  if (!logoFileId || !row || row.fileId !== logoFileId) return {};
+  if (input.known === logoFileId) return { logoFileId };
+  return { logoFileId, image: `data:${row.mime};base64,${row.data}` };
 }
 
 /** Features the Personal Space does not have (spec 2.1): public apps, the Console, webhooks, always-on runs, and the two that need other people. */

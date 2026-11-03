@@ -18,7 +18,7 @@ import { ownedArgv } from "../session.ts";
 
 const sha = (b: Buffer): string => crypto.createHash("sha256").update(b).digest("hex");
 const zstd = (b: Buffer): Buffer => (zlib as unknown as { zstdCompressSync(b: Buffer): Buffer }).zstdCompressSync(b);
-const PLATFORMS: EnginePlatform[] = ["darwin-arm64", "darwin-x64", "linux-x64", "linux-arm64", "linux-x64-musl", "linux-arm64-musl"];
+const PLATFORMS: EnginePlatform[] = ["darwin-arm64", "darwin-x64", "linux-x64", "linux-arm64", "linux-x64-musl", "linux-arm64-musl", "win32-x64", "win32-arm64"];
 
 /** A pin for a tiny program (a shell script that prints its version), served zstd-compressed from a vendor host. */
 function fakePin(program = "codex", body = "#!/bin/sh\necho \"codex-cli 0.166.0\"\n"): { pins: Record<string, EnginePin>; packed: Buffer; program: Buffer } {
@@ -84,7 +84,9 @@ test("the engines folder: on a Mac under the desktop app's folder in Application
   assert.equal(enginePlatform("darwin", "x64", false), "darwin-x64");
   assert.equal(enginePlatform("linux", "x64", false), "linux-x64");
   assert.equal(enginePlatform("linux", "arm64", true), "linux-arm64-musl");
-  assert.equal(enginePlatform("win32", "x64", false), null);
+  assert.equal(enginePlatform("win32", "x64", false), "win32-x64");
+  assert.equal(enginePlatform("win32", "arm64", false), "win32-arm64");
+  assert.equal(ownedProgram("/e", "claude", "win32"), "/e/claude/2.1.316/claude.exe", "Windows runs a program named .exe");
   assert.equal(enginePlatform("linux", "ia32", false), null);
   assert.equal(ownedProgram("/e", "codex"), "/e/codex/0.166.0/codex");
   assert.equal(ownedProgram("/e", "node"), null, "only the pinned engines");
@@ -109,6 +111,20 @@ test("an install downloads from the vendor (following its redirect), checks the 
   const again = fakeFetch({});
   assert.equal(await installEngine("codex", { root, platform: "linux-x64", pins: f.pins, fetch: again.fetch }), at);
   assert.deepEqual(again.asked, []);
+});
+
+test("Windows: the pinned builds are the vendors' .exe files, and an install puts <program>.exe in place", async () => {
+  for (const pin of Object.values(ENGINE_PINS)) for (const p of ["win32-x64", "win32-arm64"] as const) assert.match(pin.builds[p]?.url ?? "", /\.exe\.zst$/, `${pin.program} ${p}`);
+  const root = tmp();
+  const f = fakePin();
+  const build = f.pins.codex!.builds["linux-x64"]!;
+  const pins: Record<string, EnginePin> = { codex: { ...f.pins.codex!, builds: { "win32-x64": build } } };
+  const at = await installEngine("codex", { root, platform: "win32-x64", pins, fetch: fakeFetch({ [build.url]: f.packed }).fetch });
+  assert.equal(at, path.join(root, "codex", "0.166.0", "codex.exe"));
+  assert.deepEqual(tree(root), ["codex", "codex/0.166.0", "codex/0.166.0/codex.exe"]);
+  const installer = createEngineInstaller({ root, platform: "win32-x64", pins });
+  assert.equal(installer.supported("codex"), true);
+  assert.equal(installer.installed("codex"), at);
 });
 
 test("a download that is not the pinned file is refused and nothing is left: no program, no folder a lookup would find", async () => {

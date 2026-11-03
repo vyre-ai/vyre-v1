@@ -16,7 +16,7 @@ export const SAMPLE_NOW = Date.UTC(2025, 9, 24, 10, 0, 0);
 const MIN = 60_000;
 const DAY = 86_400_000;
 
-const SPACE_DEFAULTS: Readonly<Record<string, unknown>> = { "gate.drafted_by_label": true, "gate.timeout_hours": 24, "gate.email_backstop_hours": 4, "engine.agent_hops": 4, "tasks.review_loop_limit": 2, "access.review_every_days": 90, "git.protected_branches": ["main", "master"], "files.review_changes": { git: true, cloud_mount: true, plain: false }, "vault.export_expiry_max": "1d", "contacts.sms_requires_consent": true, "google.auto_connect": true, "microsoft.auto_connect": true };
+const SPACE_DEFAULTS: Readonly<Record<string, unknown>> = { "gate.drafted_by_label": true, "gate.timeout_hours": 24, "gate.email_backstop_hours": 4, "engine.agent_hops": 8, "tasks.review_loop_limit": 2, "access.review_every_days": 90, "git.protected_branches": ["main", "master"], "files.review_changes": { git: true, cloud_mount: true, plain: false }, "vault.export_expiry_max": "1d", "contacts.sms_requires_consent": true, "google.auto_connect": true, "microsoft.auto_connect": true };
 
 type Def = Omit<SettingRow, "value" | "source" | "floorable"> & { value?: unknown };
 const d = (key: string, scope: "space" | "person", page: string, title: string, def: unknown, value?: unknown): Def => ({ key, scope, page, title, default: def, ...(value !== undefined ? { value } : {}) }) as Def;
@@ -167,6 +167,25 @@ export function createSampleSettings(space: SampleSpace = northwind): SampleSett
     const k = replica.rows("memkeys")[0] as unknown as { person: string | null; space: string | null; projects: Record<string, string> };
     return { personal: picker(k.person, false), admin: space.id === "northwind", ...(space.id === "northwind" ? { space: picker(k.space, true), projectKeys: k.projects } : {}) } as unknown as CapMap["memory.keys.get"]["out"];
   });
+  // About you: the person's profile, public and private, learned by several agents (memory.profile.get as the person on their own page: both parts)
+  const lp = (factId: string, text: string, place: "public" | "private", extra: Record<string, unknown> = {}): Row => ({
+    id: factId, factId, text, place, layer: "person", ownerRef: space.me.id, status: "current", sourceKind: "chat", sourceRef: "thr_sample", validFrom: SAMPLE_NOW - 9 * DAY, learnedAt: SAMPLE_NOW - 9 * DAY, ...extra,
+  }) as unknown as Row;
+  replica.put("profile", [
+    lp("fct_pub1", "Prefers short client emails with no exclamation marks.", "public", { agentId: "agt_intake", lineLink: "vyre://thread/thr_sample?m=msg_1", learnedAt: SAMPLE_NOW - 12 * DAY }),
+    lp("fct_pub2", "Leads intake and billing for the Harlow team.", "public", { sourceKind: "manual", sourceRef: "profile", learnedAt: SAMPLE_NOW - 20 * DAY }),
+    lp("fct_sug", "Out of office every second Friday.", "private", { agentId: "agt_docs", suggested: true, lineLink: "vyre://thread/thr_sample?m=msg_4", learnedAt: SAMPLE_NOW - 1 * DAY }),
+    lp("fct_priv1", "Picks up the kids at 3:30 on Tuesdays and Thursdays.", "private", { agentId: "agt_intake", lineLink: "vyre://thread/thr_sample?m=msg_2", learnedAt: SAMPLE_NOW - 3 * DAY }),
+    lp("fct_priv2", "Saving for a house; keep the billing raise talk out of team channels.", "private", { agentId: "agt_docs", learnedAt: SAMPLE_NOW - 6 * DAY }),
+  ]);
+  (replica.resolve as unknown as (cap: string, f: () => unknown) => void)("memory.profile.get", () => {
+    const all = replica.rows("profile") as unknown as Array<{ place: string }>;
+    return {
+      audience: "private",
+      basics: [{ key: "profile.title", label: "Title", value: "Director of Technology" }, { key: "profile.timezone", label: "Time zone", value: "Asia/Karachi" }, { key: "profile.working_hours", label: "Working hours", value: "Mon, Tue, Wed, Thu, Fri 09:00 to 17:00" }],
+      public: all.filter((f) => f.place === "public"), private: all.filter((f) => f.place === "private"),
+    };
+  });
   replica.resolve("memory.upkeep.status", () => {
     const cap = (replica.rows("memcap")[0] as unknown as { dollars: number } | undefined)?.dollars ?? 5;
     return { month: "2025-10", spentMicros: 1_240_000, capMicros: cap * 1_000_000, capReached: false, modelAvailable: true, openQuestions: 1, runs: [], nights: [{ day: "2025-10-24", runs: 1, costMicros: 42_000, tokensIn: 9_100, tokensOut: 1_200 }], lastNight: { day: "2025-10-24", runs: 1, costMicros: 42_000, tokensIn: 9_100, tokensOut: 1_200 } } as unknown as CapMap["memory.upkeep.status"]["out"];
@@ -252,6 +271,13 @@ export function createSampleSettings(space: SampleSpace = northwind): SampleSett
       replica.put("memkeys", [next as unknown as Row]);
       return { layer: i.layer, accountRef: i.accountRef };
     },
+    "memory.profile.move": (i: { factId: string; to: "public" | "private" }) => { const f = replica.rows("profile").find((x) => x.id === i.factId); if (!f) throw new Error("That fact is not there."); const next = { ...f, place: i.to } as Row; delete (next as Record<string, unknown>)["suggested"]; replica.put("profile", [next]); return { fact: next }; },
+    "memory.profile.add": (i: { text: string; to: "public" | "private" }) => { const id = `fct_new${replica.rows("profile").length}`; const f = { id, factId: id, text: i.text, place: i.to, layer: "person", ownerRef: space.me.id, status: "current", sourceKind: "manual", sourceRef: "profile", validFrom: SAMPLE_NOW, learnedAt: SAMPLE_NOW } as unknown as Row; replica.put("profile", [f]); return { fact: f }; },
+    "memory.fact.correct": (i: { factId: string; text: string }) => { const f = replica.rows("profile").find((x) => x.id === i.factId); if (!f) throw new Error("That fact is not there."); replica.put("profile", [{ ...f, text: i.text } as Row]); return { fact: { ...f, text: i.text } }; },
+    "memory.forget": (i: { factIds: string[] }) => { const gone = replica.rows("profile").filter((x) => i.factIds.includes(String(x.id))); replica.put("forgotten", gone); replica.remove("profile", i.factIds); return { removed: gone.length }; },
+    "memory.restore": (i: { factId: string }) => { const f = replica.rows("forgotten").find((x) => x.id === i.factId); if (f) replica.put("profile", [f]); return { restoredFrom: "trash" }; },
+    "memory.erase": (i: { factIds: string[] }) => { replica.remove("profile", i.factIds); return { erased: i.factIds.length }; },
+    "memory.learning.today": () => ({ day: "2025-10-25", passes: 14, tokensIn: 38_000, tokensOut: 4_100, rulePasses: 0, capPasses: 200, capTokens: 2_000_000, resetsAt: SAMPLE_NOW + DAY, timezone: "Asia/Karachi", state: "learning" }),
     "spaces.leave": () => ({ ok: true }),
   };
 

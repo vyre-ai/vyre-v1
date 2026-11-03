@@ -49,6 +49,11 @@ export interface IncomingMessage {
   replyToPerson?: string | undefined;
   /** A Job's own line, verified by chat.post, and the person the Job works for: it wakes the lead even when the lead wrote it, and that person pays for the turn. The author stays the agent: a Job's words never count as a person's. */
   job?: string | undefined;
+  /**
+   * An agent's message: the person it speaks for, the asker of the turn that wrote it (or chat.post's actingFor). A turn it sets off runs for that person, so a chain of @mentions keeps the
+   * person whose message started it. An agent's message without one has no person behind it: a turn it would set off stops with no_asker instead of running as the chat's starter.
+   */
+  asker?: string | undefined;
   mentions?: readonly RouteMention[];
   /** Agent-to-agent hops since the last person message. Persons reset it to 0. */
   depth?: number;
@@ -176,6 +181,13 @@ export interface TurnInput {
   compact?: { keep: string };
   /** What the person asked to keep through every compaction of this chat ("Keep this every time"): an engine that shortens the conversation by itself puts it at the head of what stands for the dropped part. */
   keep?: string;
+  /**
+   * The same turn going on after the computer it started on went away (modules/engine/device-turns.ts): where it started, what it had already said, and the steps it had already taken (tool names,
+   * in order). The engine continues from there and does not repeat a step that is done.
+   */
+  handover?: { from: string; said: string; steps: readonly string[] };
+  /** A note from Vyre for this turn (a held call was answered: modules/engine/held-notes.ts). The engine's input only; never a chat message. */
+  notice?: string;
 }
 
 export interface ResumedCall { taskId: string; callId: string; toolName: string; approved: boolean; result: ToolResult }
@@ -205,13 +217,22 @@ export interface ResolvedAccount { ref: string; driver: string; provider: string
   spaceKey?: boolean;
   /** An OpenAI-compatible endpoint names its own address (custom, local); `keyless` is a local server with no key. */
   base?: string; keyless?: boolean }
-export interface AccountQuery { threadId: string; agentId: string; askerId: string; stepKey?: string; /** Accounts that already failed this turn: the answer skips them and follows the agent's order. */ unavailable?: readonly string[] }
+export interface AccountQuery {
+  threadId: string; agentId: string; askerId: string; stepKey?: string; /** Accounts that already failed this turn: the answer skips them and follows the agent's order. */ unavailable?: readonly string[];
+  /** Why the last account was left: "overloaded" is the vendor being busy, not a limit, so it is not set aside to rest and the chat says it was busy. */
+  why?: "overloaded";
+}
 export interface SessionSpec {
   threadId: string; agent: EngineAgent; asker: string; turnId: string; traceId: string; account?: ResolvedAccount;
   /** The chat's mode for this turn. Absent: the driver's older behaviour (a session of a step or a one-shot job has no chat mode). */
   mode?: ChatMode;
   /** "none": the session has no Vyre tools and no tools of its own (an automation's AI step answers in words and sends nothing). Absent: the agent's tools. */
   tools?: "none";
+  /**
+   * A one-shot model call (memory learning, upkeep): the agent's role is the whole system prompt, and nothing else goes with it. No tools, no MCP, no settings files, no CLAUDE.md or AGENTS.md,
+   * no skills, no saved session. A CLI engine runs its leanest command (CommandOptions.lean); an API driver sends the role alone. Implies tools "none".
+   */
+  lean?: boolean;
 }
 export type OpenSession = (spec: SessionSpec) => Promise<EngineSession>;
 

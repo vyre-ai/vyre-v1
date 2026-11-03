@@ -8,6 +8,7 @@ import type { CrewSummary } from "./crew-git.ts";
 import type { StreamEvent } from "./handlers/bridge.ts";
 import { ensure } from "./projections.ts";
 import { workFolder } from "./sandbox.ts";
+import { agentDisplay } from "./agent-names.ts";
 
 type Row = Record<string, unknown>;
 const str = (v: unknown): string => (typeof v === "string" ? v : "");
@@ -54,13 +55,12 @@ export function createCrewWatcher(o: { db: Db; host: EngineHostSeam; now: () => 
     let summary: CrewSummary | undefined;
     const dataDir = o.host.dataDir;
     if (dataDir && state === "done") {
-      const dir = workFolder(dataDir, asker, thread);
+      const dir = workFolder(dataDir, asker, thread, str(job["agent_id"]));
       try { await commitLeftovers(dir, `Work in progress by ${str(job["agent_id"])}`); summary = await summarize(dir, str(job["base_branch"])); } catch (e) { warn("the teammate's branch could not be summarised", { jobId: str(job["job_id"]), error: e instanceof Error ? e.message : String(e) }); }
     }
     let text = "";
     if (messageId) { try { text = str(((await o.host.call("chat.message.get", { threadId: thread, messageId }, asker)) as { message?: { body?: string } }).message?.body).trim(); } catch { /* the card goes without the words */ } }
-    let name = str(job["agent_id"]);
-    try { name = str(((await o.host.call("agents.get", { agentId: str(job["agent_id"]) }, asker)) as { agent?: { name?: string } }).agent?.name) || name; } catch { /* the id stands */ }
+    const name = (await agentDisplay((cap, i) => o.host.call(cap, i, asker), str(job["agent_id"]))).name;
     const result = { text, ...(summary ? { summary } : {}) };
     o.db.run("UPDATE engine_crew_job SET state = ?, ended_at = ?, result_json = ? WHERE job_id = ? AND state != 'merged'", state, o.now(), JSON.stringify(result), str(job["job_id"]));
     let lead: string | undefined;

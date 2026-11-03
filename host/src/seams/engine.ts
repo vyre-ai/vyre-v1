@@ -20,7 +20,7 @@ export type EngineSessionPorts = EngineSessionHost;
 /** A live turn event as the bridge reports it (modules/engine/handlers/bridge.ts StreamEvent), structural here. */
 export type EngineStreamEvent =
   | { kind: "start"; threadId: string; turnId: string; agentId: string; asker: string }
-  | { kind: "delta"; threadId: string; turnId: string; agentId: string; text: string }
+  | { kind: "delta"; threadId: string; turnId: string; agentId: string; text: string; /** the turn read something: its live text goes to the asker only until the answer is checked (gap 6) */ asker?: string; privately?: boolean }
   | { kind: "steps"; threadId: string; turnId: string; agentId: string; steps: unknown[] }
   | { kind: "thinking"; threadId: string; turnId: string; agentId: string; text: string; asker?: string }
   | { kind: "end"; threadId: string; turnId: string; agentId: string; state: "done" | "failed" | "cancelled" | "waiting"; code?: string }
@@ -30,6 +30,8 @@ export type EngineStreamEvent =
 export type PublishTurn = (frame: { t: "turn"; turn: string; delta: Record<string, unknown> }, allow: (personId: string) => boolean | Promise<boolean>) => void;
 
 export interface EngineHostSeam {
+  /** May every one of these people do this on this resource, each on their own grants? The engine checks an answer against everyone in the chat with it (gap 6). */
+  mayAll?(people: readonly string[], action: { perm: string | null; level: "view" | "use" | "edit" | "manage" }, resource: { type: string; id: string | null }): boolean;
   /** Forget who was allowed to watch turns, so the next piece of text asks again (a member left, a grant was revoked). */
   forgetReaders?: () => void;
   /** Live turn events, already filtered to who may read the thread. Absent: nothing streams and the reply lands whole, as before. */
@@ -69,17 +71,23 @@ export interface EngineHostSeam {
 
 /** Start a process on a node (host/src/routes/compute-stream.ts spawnProc), structural here. A rejection carries an engine.* `code`. */
 export interface EngineNodes {
-  spawn(nodeId: string, spec: { argv: readonly string[]; cwd?: string; env: Readonly<Record<string, string>> }): Promise<{
+  spawn(nodeId: string, spec: { argv: readonly string[]; cwd?: string; env: Readonly<Record<string, string>>; person?: string }): Promise<{
     readonly pid: number | undefined; readonly stdout: AsyncIterable<Uint8Array>; write(data: string): Promise<void>; endInput(): void;
     readonly exited: Promise<{ code: number | null; signal: string | null }>; stderrTail(): string; kill(signal?: "SIGTERM" | "SIGKILL"): void;
   }>;
   connected(nodeId: string): boolean;
   /** Is the node's link private? An account key is sent only over one that is. */
   secure(nodeId: string): boolean;
+  /** The person's own computers linked to the Space right now (their Vyre app): node id `device:<id>`, the engines each runs (routes/compute-stream.ts DeviceLink). */
+  devices?(person?: string): Array<{ nodeId: string; deviceId: string; person: string; name?: string; engines: string[]; since: number }>;
+  /** Told when one of them links or goes. */
+  onDevice?(fn: (link: { nodeId: string; deviceId: string; person: string; name?: string; engines: string[] }, up: boolean) => void): () => void;
 }
 
 export interface EngineHostDeps {
   space: string;
+  /** Each person's own authorize, for the answer check (EngineHostSeam.mayAll). */
+  mayAll?: EngineHostSeam["mayAll"];
   /** The daemon's invoke pipeline. */
   invoke: Invoke;
   now?: () => number;
@@ -146,9 +154,10 @@ export function createEngineHost(d: EngineHostDeps): EngineHostSeam {
     if (!pub) return;
     const { turnId, kind, ...rest } = e;
     // what the model thought may rest on what only the person who asked can read: in a shared chat it goes to them and nobody else (hole 8)
-    const onlyAsker = kind === "thinking" ? e.asker ?? "" : null;
+    // so may the text of a turn that read something, until its answer is checked against everyone who reads the chat (gap 6): the checked answer is posted for all
+    const onlyAsker = kind === "thinking" || (kind === "delta" && e.privately === true) ? e.asker ?? "" : null;
     pub({ t: "turn", turn: turnId, delta: { kind, ...rest } }, (person) => (onlyAsker !== null ? person === onlyAsker : mayRead(e.threadId, person)));
   };
   const session = d.vault ? createEngineSessionHost({ invoke: d.invoke, vault: d.vault, space: d.space, ...(d.log ? { log: d.log } : {}), ...(d.saveSignin ? { saveSignin: d.saveSignin } : {}) }) : undefined;
-  return { ...(d.closing ? { closing: d.closing } : {}), holder: `host:${d.space}`, call, postAs, ...(d.publishTurn ? { stream, forgetReaders: () => { epoch++; seen.clear(); } } : {}), ...(d.now ? { now: d.now } : {}), ...(d.log ? { log: d.log } : {}), ...(session ? { session } : {}), ...(d.sandbox !== undefined ? { sandbox: d.sandbox } : {}), ...(d.dataDir ? { dataDir: d.dataDir } : {}), ...(d.cli !== undefined ? { cli: d.cli } : {}), ...(d.engineInstall ? { engines: { install: true } } : {}), ...(d.openSession !== undefined ? { openSession: d.openSession } : {}), invoke: d.invoke, space: d.space, ...(d.own ? { own: d.own } : {}), ...(d.keyHeld ? { keyHeld: d.keyHeld } : {}), ...(d.nodes ? { nodes: d.nodes } : {}), mcpFetch: d.mcpFetch ?? createGuardedFetch({ own: false }), ...(d.pluginLaunch !== undefined ? { pluginLaunch: d.pluginLaunch } : {}) };
+  return { ...(d.closing ? { closing: d.closing } : {}), ...(d.mayAll ? { mayAll: d.mayAll } : {}), holder: `host:${d.space}`, call, postAs, ...(d.publishTurn ? { stream, forgetReaders: () => { epoch++; seen.clear(); } } : {}), ...(d.now ? { now: d.now } : {}), ...(d.log ? { log: d.log } : {}), ...(session ? { session } : {}), ...(d.sandbox !== undefined ? { sandbox: d.sandbox } : {}), ...(d.dataDir ? { dataDir: d.dataDir } : {}), ...(d.cli !== undefined ? { cli: d.cli } : {}), ...(d.engineInstall ? { engines: { install: true } } : {}), ...(d.openSession !== undefined ? { openSession: d.openSession } : {}), invoke: d.invoke, space: d.space, ...(d.own ? { own: d.own } : {}), ...(d.keyHeld ? { keyHeld: d.keyHeld } : {}), ...(d.nodes ? { nodes: d.nodes } : {}), mcpFetch: d.mcpFetch ?? createGuardedFetch({ own: false }), ...(d.pluginLaunch !== undefined ? { pluginLaunch: d.pluginLaunch } : {}) };
 }

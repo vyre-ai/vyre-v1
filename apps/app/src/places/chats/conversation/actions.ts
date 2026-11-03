@@ -1,13 +1,13 @@
 // What the conversation writes: one capability per action, each through `call` as the signed-in person. Nothing here touches the screen; the components decide what to show while
 // a write is out (the message is already on the page before chat.post answers) and what to say when it fails.
 import { isAssistantRow } from "../../../../../../lib/agent-kind.ts";
-import { installProgram } from "./status.ts";
+import { installProgram, ranOnText } from "./status.ts";
 import type { CapMap } from "../../../../../../generated/types.ts";
 import type { ConversationData } from "./data.tsx";
 import { exportAs } from "./export.ts";
 import type { ExportFormat } from "./export.ts";
 import { mentionsIn, postInput } from "./model.ts";
-import { carriesScreen, currentScreen } from "../../../shell/ask/screen.ts";
+import { screenForThread } from "../../../shell/ask/screen.ts";
 import type { AgentMode, Message, SendKind, Thread } from "./model.ts";
 
 type Mention = { kind: "person" | "agent"; id: string };
@@ -40,7 +40,7 @@ export async function sendMessage(data: ConversationData, input: { text: string;
   if (input.attachments && input.attachments.length > 0) post.attachments = [...input.attachments];
   if (input.refs && input.refs.length > 0) post.blocks = [{ type: REFS_BLOCK, v: 1, data: { refs: input.refs.map((r) => ({ kind: r.kind, id: r.id, title: r.title })) } }];
   // An Ask pane is about a place: its messages carry where the person is, so "this" means the object on screen.
-  const screen = carriesScreen(data.threadId) ? currentScreen() : null;
+  const screen = screenForThread(data.threadId);
   const out = (await data.call("chat.post", { ...post, ...(screen ? { screen } : {}) })) as CapMap["chat.post"]["out"];
   if (input.kind === "interrupt" && input.working) await data.call("engine.interrupt", { threadId: data.threadId, messageId: out.message.messageId } satisfies CapMap["engine.interrupt"]["in"]);
   return { messageId: out.message.messageId, threadSeq: out.message.threadSeq };
@@ -135,9 +135,15 @@ export async function turnDetail(data: ConversationData, turnId: string): Promis
   const rows: Array<[string, string]> = [];
   if (t.error?.message) rows.push(["Reason", t.error.message]);
   if (t.model !== "") rows.push(["Model", t.model]);
-  rows.push(["Ran on", what.machine === "device" ? "This computer" : "This Space"]);
+  // where it ran, in order: her computer, then the server it went on to when the computer slept
+  const ran = t.ranOn ?? [];
+  rows.push(["Ran on", ran.length > 0 ? ranOnText(ran) : what.machine === "device" ? "This computer" : "This Space"]);
   if (secs !== null) rows.push(["Took", `${secs} s`]);
   if (t.error?.code) rows.push(["Code", t.error.code]);
+  // where the engine went on the internet while it ran (a sample), and what this Space's internet setting blocked
+  if (what.reached?.length) rows.push(["Reached", what.reached.join(", ")]);
+  const blocked = what.denials.filter((d) => d.cap === "internet").map((d) => d.reason);
+  if (blocked.length > 0) rows.push(["Blocked", blocked.slice(0, 5).join("; ")]);
   rows.push(["Trace", t.traceId]);
   return rows;
 }
@@ -152,6 +158,12 @@ export async function retryTurn(data: ConversationData, turnId: string): Promise
  * points to the model switcher.
  */
 export async function errorAction(data: ConversationData, key: string, turnId: string | undefined, say: (text: string) => void): Promise<void> {
+  // "Run it on the server instead": the next turn of this chat runs on the Space, once; the chat stays where the person chose. A turn that failed for it runs again.
+  if (key === "run_on_server") {
+    await data.call("engine.placement.set", { threadId: data.threadId, target: "space", once: true } satisfies CapMap["engine.placement.set"]["in"]);
+    if (turnId) await retryTurn(data, turnId);
+    return;
+  }
   if (key === "connect_ai" || key === "open_vault") { if (data.nav.openAiSetup) data.nav.openAiSetup(); else say("Open the Vault and add an AI account."); return; }
   if (installProgram(key) !== undefined) { if (turnId) await retryTurn(data, turnId); else say("Send your message again to set it up."); return; }
   if (key === "unlock_vault") {
@@ -173,12 +185,15 @@ export async function startChannel(data: ConversationData, personId: string, key
   await data.call("threads.make_channel", { threadId: data.threadId, personId, idempotencyKey: key } satisfies CapMap["threads.make_channel"]["in"]);
 }
 
-export interface ModelChoice { provider: string; model: string; title: string; allowed: boolean }
+export interface ModelChoice { provider: string; model: string; title: string; allowed: boolean; alias?: string; isDefault?: boolean }
 
-/** The models this thread may use (the Space's policy and the asker's accounts decide which are allowed). */
+/** The models this thread may use (the Space's policy and the asker's accounts decide which are allowed). The menu opening asks the subscription engines for their lists again (live-models.ts). */
 export async function listModels(data: ConversationData): Promise<ModelChoice[]> {
-  const out = (await data.call("engine.models.list", { threadId: data.threadId } satisfies CapMap["engine.models.list"]["in"])) as CapMap["engine.models.list"]["out"];
-  return out.models.map((m) => ({ provider: m.provider, model: m.model, title: m.title, allowed: m.allowed }));
+  const out = (await data.call("engine.models.list", { threadId: data.threadId, refresh: true } as CapMap["engine.models.list"]["in"])) as CapMap["engine.models.list"]["out"];
+  return out.models.map((m) => {
+    const x = m as typeof m & { alias?: string; isDefault?: boolean };
+    return { provider: m.provider, model: m.model, title: m.title, allowed: m.allowed, ...(x.alias ? { alias: x.alias } : {}), ...(x.isDefault ? { isDefault: true } : {}) };
+  });
 }
 
 /** Switches the model the lead answers with. The engine writes the switch into the chat as a quiet line. */

@@ -1,7 +1,7 @@
 // memory.quote (memory ruling 1B and 3): exact recall, line by line. It asks the chat module for the words of every message and transcript row (turns, tool calls and results, which is what a run
 // step is) that the ASKER could open themselves, and answers with the stored text, who wrote it, when, and a link that opens the chat scrolled to that line. Nothing is stored here and nothing
 // is paraphrased: no card, no recall. Access is the chat module's (chat.history.search), run as the asker, so a person who was not in a chat never gets a line from it, not even through an agent.
-import { actorOf, ensure, raise, seenByOthers } from "../projections.ts";
+import { actorOf, ensure, makeAccess, raise } from "../projections.ts";
 import { recallable } from "../../../lib/recall-intent.ts";
 import type { MemCtx } from "../projections.ts";
 
@@ -60,8 +60,10 @@ export async function quote(ctx: MemCtx, input: { q?: string; ref?: string; thre
   if ((input.q === undefined || input.q.trim() === "") && !input.ref) raise(ctx, "validation.bad_input", "Say what to quote: some words to look for, or the ref of a line you were given.");
   actorOf(ctx);
   const quotes = await findQuotes(ctx, input);
-  // words from a private chat of the asker do not go into a chat other people read (hole 8): recall names the chat it is for, and an agent's own tool call carries it
-  const here = input.excludeThreadId ?? (ctx.principal.kind === "agent" ? ctx.thread : undefined);
-  if (here === undefined || input.ref !== undefined || quotes.length === 0 || !(await seenByOthers(ctx, here))) return { quotes };
-  return { quotes: quotes.filter((q) => q.threadKind === "channel") };
+  // words go into a chat only from a chat everyone there also reads (hole 8, the one memory check in makeAccess): recall names the chat it is for, and an agent's own tool call carries it.
+  // A line asked for by its ref is held to the same rule: a ref is no way around it.
+  const access = makeAccess(ctx, { ...(input.excludeThreadId !== undefined ? { thread: input.excludeThreadId } : {}) });
+  const shown: Quote[] = [];
+  for (const q of quotes) if (await access.showsFrom(q.threadId)) shown.push(q);
+  return { quotes: shown };
 }

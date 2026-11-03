@@ -5,6 +5,7 @@ import { proxyEnv } from "./docker.ts";
 import { validateSpec } from "./policy.ts";
 import type { Checked, PolicyOptions } from "./policy.ts";
 import { SandboxError } from "./types.ts";
+import type { EngineAccess } from "./engine-access.ts";
 import type { Roots, SandboxSpec } from "./types.ts";
 
 /** Folders every program needs to start and run. Read only. */
@@ -27,6 +28,8 @@ export interface SeatbeltOptions {
   proxyPort: number;
   /** Extra read-only folders for the program being run (the CLI's own install folder). Validated like a mount. */
   programRead?: readonly string[];
+  /** What the engine may touch besides its work folder (engine-access.ts): the person's folders, package locations, configs, the SSH agent, and what stays closed. */
+  access?: EngineAccess;
 }
 
 export function seatbeltProfile(checked: Checked, o: SeatbeltOptions): string {
@@ -47,8 +50,16 @@ export function seatbeltProfile(checked: Checked, o: SeatbeltOptions): string {
     `(allow file-read* ${[...new Set([...SYSTEM_READ, ...(o.programRead ?? [])])].map((p) => `(subpath ${sbplString(p)})`).join(" ")})`,
     `(allow file-read* ${DEVICES_READ.map((p) => `(literal ${sbplString(p)})`).join(" ")})`,
     "(allow file-write* (literal \"/dev/null\") (literal \"/dev/tty\"))",
-    ";; the person's folders",
   ];
+  const a = o.access;
+  if (a) {
+    // later rules win: the folders and package locations open, then what stays closed inside them, then the configs read inside a closed folder (known_hosts), then the turn's own folders below
+    if (a.rw.length > 0) lines.push(";; the person's added folders and package locations", `(allow file-read* file-write* ${a.rw.map((p) => `(subpath ${sbplString(p)})`).join(" ")})`);
+    if (a.deny.length > 0) lines.push(";; closed whatever else is open: Vyre's data folder, key stores, credential stores, browser profiles", `(deny file-read* file-write* ${a.deny.map((p) => `(subpath ${sbplString(p)})`).join(" ")})`);
+    if (a.roFiles.length > 0) lines.push(";; configs, read only", `(allow file-read* ${a.roFiles.map((p) => `(subpath ${sbplString(p)})`).join(" ")})`);
+    if (a.sshAuthSock) lines.push(";; the SSH agent: git over SSH signs with the person's keys, which stay with the agent", `(allow network-outbound (remote unix-socket (subpath ${sbplString(a.sshAuthSock)})))`);
+  }
+  lines.push(";; the person's folders");
   for (const m of checked.mounts) lines.push(m.mode === "rw" ? `(allow file-read* file-write* (subpath ${sbplString(m.host)}))` : `(allow file-read* (subpath ${sbplString(m.host)}))`);
   if (checked.scratch !== undefined) lines.push(`(allow file-read* file-write* (subpath ${sbplString(checked.scratch)}))`);
   // A unix socket in the scratch folder is how the engine reaches Vyre's MCP endpoint from inside (ruling 61): no network hole, one path.
@@ -56,10 +67,17 @@ export function seatbeltProfile(checked: Checked, o: SeatbeltOptions): string {
   lines.push(
     ";; the only way out: the egress proxy, on loopback",
     `(allow network-outbound (remote ip ${sbplString(`localhost:${o.proxyPort}`)}))`,
+    // A sandbox inside this one cannot start (sandbox_apply: Operation not permitted), and a tool that finds sandbox-exec tries it and fails: Homebrew does, so `brew install` failed on a
+    // person's own Mac. Hidden, a tool sees no sandbox to nest and runs as it does elsewhere, still inside this profile (lane l-runson, found on the desktop CI's macOS run).
+    ";; no sandbox inside this one: sandbox-exec is not there",
+    `(deny file-read* process-exec (literal ${sbplString(HIDDEN_SANDBOX_EXEC)}))`,
     "",
   );
   return lines.join("\n");
 }
+
+/** What the profile hides (a deny, never an allow): the sandbox-exec a tool would try to nest a sandbox with. */
+export const HIDDEN_SANDBOX_EXEC = "/usr/bin/sandbox-exec";
 
 export interface WrappedCommand { cmd: string; args: string[]; env: Record<string, string>; enforcement: { files: "kernel"; network: "kernel" } }
 

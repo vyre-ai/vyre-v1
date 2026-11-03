@@ -78,7 +78,7 @@ test("only the person it runs as releases it, by their own press: not an admin, 
   assert.equal(hold.state, "approved");
   assert.equal(hold.decidedBy, alice.id);
   assert.deepEqual(hold.result, SSO, "the answer waits for the agent that asked, though it has no chat");
-  assert.deepEqual(h.events.find((e) => e.name === "gate.approved")!.payload, { holdId: p.holdId, act: "signin_change", taskId: p.taskId, askedBy: bot, by: alice.id });
+  assert.deepEqual(h.events.find((e) => e.name === "gate.approved")!.payload, { holdId: p.holdId, act: "signin_change", taskId: p.taskId, capName: "members.sso.set", askedBy: bot, by: alice.id });
   await refused(release(h, p), "validation.precondition_failed", "not_held");
   assert.equal(h.callsTo("members.sso.set").length, 1, "single use");
 });
@@ -88,7 +88,7 @@ test("declined, the agent's ask is closed and the event names it", async () => {
   const p = await parkAsk(h);
   await h.call("gate.deny", { holdId: p.holdId, taskId: p.taskId, mode: "send_back", note: "Not yet" }, { id: alice.id, kind: "person" });
   assert.equal(findHold(h.db, p.holdId)!.state, "denied");
-  assert.deepEqual(h.events.find((e) => e.name === "gate.denied")!.payload, { holdId: p.holdId, act: "signin_change", taskId: p.taskId, askedBy: bot, by: alice.id, mode: "send_back", note: "Not yet" });
+  assert.deepEqual(h.events.find((e) => e.name === "gate.denied")!.payload, { holdId: p.holdId, act: "signin_change", taskId: p.taskId, capName: "members.sso.set", askedBy: bot, by: alice.id, mode: "send_back", note: "Not yet" });
 });
 
 test("an ask names a person: an agent principal with ask is refused", async () => {

@@ -147,13 +147,14 @@ for (const hibernateEveryEvent of [false, true]) {
     const open = await b.s.json();
     assert.equal(open.t, "open");
     await rt.settle();
-    assert.ok([...rt.object(b.route).ctx.storage.map.keys()].every(k => k.startsWith(`b/${open.c}/`)));
+    // besides buffered frames a route keeps one number: when its box was last seen (the asleep page of a name with several computers lists it)
+    assert.ok([...rt.object(b.route).ctx.storage.map.keys()].every(k => k.startsWith(`b/${open.c}/`) || k === "seen"));
 
     const data = sock(rt, `/v1/box?route=${b.route}&c=${open.c}&t=${ready.ticket}`);
     await data.open();
     assert.deepEqual([...await data.next()], [1, 2, 3]);
     assert.deepEqual([...await data.next()], [4]);
-    assert.equal(rt.object(b.route).ctx.storage.map.size, 0, "delivered frames leave storage");
+    assert.deepEqual([...rt.object(b.route).ctx.storage.map.keys()].filter(k => k !== "seen"), [], "delivered frames leave storage");
     data.ws.send(new Uint8Array([9]));
     assert.deepEqual([...await dev.next()], [9]);
     dev.ws.send(new Uint8Array([7, 7]));
@@ -279,7 +280,7 @@ for (const hibernateEveryEvent of [false, true]) {
     assert.equal((await dev.closed()).code, CLOSE.busy);
     assert.deepEqual(await b.s.json(), { t: "close", c });
     await rt.settle();
-    assert.equal(rt.object(b.route).ctx.storage.map.size, 0, "the buffer is gone with the device");
+    assert.deepEqual([...rt.object(b.route).ctx.storage.map.keys()].filter(k => k !== "seen"), [], "the buffer is gone with the device");
   });
 
   test(`a frame of 1 MiB is buffered in parts and delivered whole; a bigger one closes with 1009${mode}`, async t => {

@@ -56,12 +56,15 @@ export class AccessSnapshot {
   private grantsOnCache: Map<string, GrantRec[]> | null = null;
   private typeWideCache: Map<string, GrantRec[]> | null = null;
   private chainCache = new Map<string, readonly ResourceRow[] | null>();
+  private labelCache = new Map<string, number>();
   private cutCache: Map<string, number> | null = null;
+  /** Resource rows read to work out effective labels since the last change (a test reads it to prove each folder is walked once). */
+  labelWalks = 0;
 
-  /** `access.changed`: drop every derived view and bump the epoch. */
+  /** `access.changed`: drop every derived view and bump the epoch. A label or a parent changes only through putResource, so the effective labels are dropped with the rest. */
   changed(): void {
     this.epoch++;
-    this.infoCache.clear(); this.chainCache.clear();
+    this.infoCache.clear(); this.chainCache.clear(); this.labelCache.clear(); this.labelWalks = 0;
     this.grantsOnCache = null; this.typeWideCache = null; this.cutCache = null;
   }
 
@@ -169,6 +172,31 @@ export class AccessSnapshot {
       this.cutCache = m;
     }
     return this.cutCache.get(container) ?? 0;
+  }
+
+  /**
+   * The label that decides who may see a resource: the highest of its own and every folder above it, so a Restricted folder covers what is put in it, moved into it, or was in it before it was
+   * labelled. A resource cut off from its container (Only people added, Only me) still carries the container's label: the cut stops grants flowing down, not sensitivity. An unknown id is 0.
+   * Memoised per resource until the next change, so a list of n items in one folder reads n rows plus the folder's chain once.
+   */
+  effectiveLabel(id: string): number {
+    const hit = this.labelCache.get(id);
+    if (hit !== undefined) return hit;
+    const path: ResourceRow[] = [], seen = new Set<string>();
+    let cur: string | null = id, top = 0;
+    while (cur !== null) {
+      const known = this.labelCache.get(cur);
+      if (known !== undefined) { top = known; break; }
+      if (seen.has(cur)) break;
+      seen.add(cur);
+      const r = this.resources.get(cur);
+      if (!r) break;
+      this.labelWalks++;
+      path.push(r);
+      cur = r.parent_id ?? r.home ?? null;
+    }
+    for (let i = path.length - 1; i >= 0; i--) { const r = path[i]!; if (r.label > top) top = r.label; this.labelCache.set(r.id, top); }
+    return this.labelCache.get(id) ?? 0;
   }
 
   /** The resource followed by its ancestors up to the root, or null when the resource (or an ancestor) is unknown. A cycle ends the walk. */

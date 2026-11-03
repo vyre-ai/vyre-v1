@@ -17,7 +17,7 @@ test("catalog: every generated tool joins its capability; the frozen default lis
   for (const t of catalog.all) assert.ok(caps.has(t.cap), t.name);
   const stricter = catalog.all.filter((t) => t.effects === "outward").length;
   // 77 until rc.8 added twelve gated outward tools: Dropbox files (create_folder, delete, restore, upload), Google Docs insert/replace text, mounts doc/sheet edits and Excel workbook writes.
-  assert.equal(stricter, 88);  // campaigns_launch left with Campaigns
+  assert.equal(stricter, 89);  // campaigns_launch left with Campaigns; mcp_call (a connection's tool called from a CLI engine, l-skills1) is gated outward
 });
 
 test("catalog: a tool whose capability is missing, or a duplicate name, is a build error not a quiet gap", () => {

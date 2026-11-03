@@ -55,6 +55,7 @@ type Out = {
         epoch: number;
         wrapped: string;
       }>;
+    formerKey?: string;
   };
 };
 ```
@@ -84,6 +85,7 @@ type Out = {
   "output": {
     "challengeId": "chl_a1b2c3",
     "keys": {
+      "formerKey": "d3JhcHBlZA==",
       "personKeyByPassword": "d3JhcHBlZA==",
       "personKeyByRecovery": "d3JhcHBlZA==",
       "privateKeyWrapped": "d3JhcHBlZA==",

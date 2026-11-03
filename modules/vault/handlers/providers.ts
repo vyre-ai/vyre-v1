@@ -35,7 +35,8 @@ function customDefs(ctx: VaultCtx): CatalogEntry[] {
 export const entry = (ctx: VaultCtx, key: unknown): CatalogEntry | undefined => CATALOG.find((c) => c.key === key) ?? customDefs(ctx).find((c) => c.key === key);
 
 /** What the host does with a key to see whether the provider takes it (omitted: the module cannot say). */
-export interface ProviderProbe { (p: { providerKey: string; connection: string; caller: string; apiKey?: string; address?: string; engine?: string }): Promise<{ ok: boolean; models: string[]; detail?: string }> }
+/** `refused`: the vendor answered 401 or 403 to the key. Only that marks an account failing (providers.test); a network error, a timeout or a 5xx is "couldn't check". */
+export interface ProviderProbe { (p: { providerKey: string; connection: string; caller: string; apiKey?: string; address?: string; engine?: string }): Promise<{ ok: boolean; models: string[]; detail?: string; refused?: boolean }> }
 
 const providersSql = readFileSync(new URL("../migrations/0003_providers.sql", import.meta.url), "utf8");
 const defsSql = readFileSync(new URL("../migrations/0004_provider_defs.sql", import.meta.url), "utf8");
@@ -212,7 +213,7 @@ export async function setSpaceUse(ctx: VaultCtx, input: { providerId: string; al
 
 // ---- subscription sign-in
 
-export async function subscriptionStart(ctx: VaultCtx, input: { providerKey: string; idempotencyKey: string }) {
+export async function subscriptionStart(ctx: VaultCtx, input: { providerKey: string; idempotencyKey: string; local?: boolean }) {
   ensureProviders(ctx);
   const c = entry(ctx, input.providerKey);
   if (!c || !c.connections.includes("subscription")) return bad(ctx, "That provider does not sign in with a subscription.");
@@ -222,13 +223,16 @@ export async function subscriptionStart(ctx: VaultCtx, input: { providerKey: str
   const port = hostOf()?.signin;
   if (port?.has(c.key)) {
     let started: Awaited<ReturnType<SigninPort["start"]>>;
-    try { started = await port.start({ id, provider: c.key, person: me(ctx) }); } catch (e) { return bad(ctx, e instanceof Error ? e.message : "The sign-in could not start. Try again."); }
+    try { started = await port.start({ id, provider: c.key, person: me(ctx), ...(input.local === true ? { local: true } : {}) }); } catch (e) { return bad(ctx, e instanceof Error ? e.message : "The sign-in could not start. Try again."); }
     ctx.db.run(`INSERT INTO vault_provider_flow ("id", "person", "providerKey", "startedAt", "doneAt") VALUES (?, ?, ?, ?, ?)`, id, me(ctx), c.key, ctx.now(), null);
+    // the sign-in on this computer (owner decision D2): read already, so finishing it saves it; there is no link to open
+    if (input.local === true) return { flowId: id, needsCode: false, instruction: `Using the ${c.name} sign-in on this computer.` };
     return {
       flowId: id, url: started.url, ...(started.userCode ? { userCode: started.userCode } : {}), needsCode: started.needsCode,
       instruction: started.needsCode ? `Open the sign-in, approve it, then paste the code ${c.name} shows.` : `Open the sign-in and enter the code ${started.userCode ?? ""}. This page finishes by itself.`.replace("  ", " "),
     };
   }
+  if (input.local === true) return bad(ctx, "The sign-in on this computer can be used in your Personal Space only. Sign in instead.");
   ctx.db.run(`INSERT INTO vault_provider_flow ("id", "person", "providerKey", "startedAt", "doneAt") VALUES (?, ?, ?, ?, ?)`, id, me(ctx), c.key, ctx.now(), null);
   return { flowId: id, needsCode: false, instruction: c.instruction ?? `Sign in to ${c.name} on your computer, then press Done.` };
 }
@@ -413,20 +417,24 @@ export async function test(ctx: VaultCtx, input: { providerId: string }) {
     ctx.db.run(`UPDATE vault_provider SET "state" = ? WHERE "id" = ?`, ok ? "ok" : str(p, "connection") === "subscription" ? "needs_sign_in" : "failing", str(p, "id"));
     return { ok, models, latencyMs: Math.max(0, Date.now() - started), ...(detail ? { detail } : {}) };
   };
+  // the vendor could not be asked (no network, a timeout, a 5xx, no way to reach it from here): nothing is known about the key, so its state stays as it was
+  const unchecked = (detail: string) => ({ ok: false, models: [] as string[], latencyMs: Math.max(0, Date.now() - started), detail: `Couldn't check: ${detail}` });
   if (!item) return done(false, [], "The item that holds this account is gone. Add it again.");
   if (str(p, "connection") === "subscription") {
     // a subscription is proved by a turn; here the sign-in is there and the models are the ones it offers
     return done(true, c?.models ?? []);
   }
   const probe = hostOf()?.probe;
-  if (!probe) return done(false, [], "This server cannot reach the provider to test it yet.");
+  if (!probe) return unchecked("This server cannot reach the provider to test it yet.");
   const fields = await openFields(ctx, item);
   const value = (k: string): string | undefined => fields.find((f) => f.key === k)?.value;
   try {
     const r = await probe({ providerKey: str(p, "providerKey"), connection: str(p, "connection"), caller: me(ctx), ...(value("api_key") ? { apiKey: value("api_key")! } : {}), ...(value("address") ? { address: value("address")! } : extra ? { address: str(extra, "address") } : {}), engine: c?.engine ?? str(p, "providerKey") });
-    return done(r.ok, r.models, r.detail);
+    // only the vendor refusing the key (401 or 403) marks the account failing; any other miss leaves it usable
+    if (r.ok || r.refused === true) return done(r.ok, r.models, r.detail);
+    return unchecked(r.detail ?? "The provider did not answer.");
   } catch (e) {
-    return done(false, [], e instanceof Error ? e.message.replace(/sk-[A-Za-z0-9_-]+/g, "[key]").slice(0, 200) : "The provider did not answer.");
+    return unchecked(e instanceof Error ? e.message.replace(/sk-[A-Za-z0-9_-]+/g, "[key]").slice(0, 200) : "The provider did not answer.");
   }
 }
 

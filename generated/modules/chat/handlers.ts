@@ -12,6 +12,8 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "channels.create": Handler<"channels.create", X>;
   "channels.erase": Handler<"channels.erase", X>;
   "channels.get": Handler<"channels.get", X>;
+  "channels.home": Handler<"channels.home", X>;
+  "channels.home_join": Handler<"channels.home_join", X>;
   "channels.join": Handler<"channels.join", X>;
   "channels.leave": Handler<"channels.leave", X>;
   "channels.list": Handler<"channels.list", X>;
@@ -22,6 +24,7 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "channels.stream_prefs.set": Handler<"channels.stream_prefs.set", X>;
   "channels.unarchive": Handler<"channels.unarchive", X>;
   "channels.update": Handler<"channels.update", X>;
+  "chat.agent_dm.mute": Handler<"chat.agent_dm.mute", X>;
   "chat.answer_block": Handler<"chat.answer_block", X>;
   "chat.approve_plan": Handler<"chat.approve_plan", X>;
   "chat.aside": Handler<"chat.aside", X>;
@@ -41,9 +44,11 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "chat.history.search": Handler<"chat.history.search", X>;
   "chat.make_task": Handler<"chat.make_task", X>;
   "chat.message.get": Handler<"chat.message.get", X>;
+  "chat.message_person": Handler<"chat.message_person", X>;
   "chat.messages.list": Handler<"chat.messages.list", X>;
   "chat.open_as_chat": Handler<"chat.open_as_chat", X>;
   "chat.open_tab": Handler<"chat.open_tab", X>;
+  "chat.people_status": Handler<"chat.people_status", X>;
   "chat.pin": Handler<"chat.pin", X>;
   "chat.pins.list": Handler<"chat.pins.list", X>;
   "chat.plan.propose": Handler<"chat.plan.propose", X>;
