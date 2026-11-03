@@ -1,6 +1,6 @@
 # providers.space_key.set
 
-An owner or admin sets or replaces the Space AI key: it is checked with the provider at once (its model list), then kept in a Restricted Shared folder. A person does this, never an agent
+An owner or admin sets or replaces the Space AI key: it is checked with the provider at once (its model list), then kept in a Restricted Shared folder. A person does this, or their outside agent under the setup grant; never an agent on its own
 
 | | |
 |---|---|
@@ -17,7 +17,7 @@ An owner or admin sets or replaces the Space AI key: it is checked with the prov
 | Audit | always |
 | Team Space only | no |
 | HTTP | POST /v1/providers/space_key/set |
-| MCP tool | none |
+| MCP tool | providers_space_key_set (vault) |
 | CLI | none |
 | Emits | provider.added, provider.removed, vault.item_created, vault.item_deleted, vault.folder_created |
 

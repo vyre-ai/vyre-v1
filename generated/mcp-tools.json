@@ -37958,6 +37958,102 @@
     },
     {
       "blocks": [],
+      "cap": "network.peer_allow",
+      "deferred": false,
+      "description": "Let a new computer use this Personal Space: it gets a full copy of your chats, files, records and Vault (still locked by your password) and stays in sync",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "requestId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "requestId"
+        ],
+        "type": "object"
+      },
+      "name": "network_peer_allow",
+      "planMode": "blocked",
+      "toolset": "engineer",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "network.peer_decline",
+      "deferred": false,
+      "description": "Turn away a computer that asked to use this Personal Space",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "requestId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "requestId"
+        ],
+        "type": "object"
+      },
+      "name": "network_peer_decline",
+      "planMode": "blocked",
+      "toolset": "engineer",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "network.peer_remove",
+      "deferred": false,
+      "description": "Take a computer out of this Personal Space: it stops syncing with your other computers",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "peerId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "peerId"
+        ],
+        "type": "object"
+      },
+      "name": "network_peer_remove",
+      "planMode": "blocked",
+      "toolset": "engineer",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "network.peer_requests",
+      "deferred": false,
+      "description": "New computers asking to use this Personal Space, each with the six-digit code its own screen shows",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "network_peer_requests",
+      "planMode": "allowed",
+      "toolset": "engineer",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "network.peers",
+      "deferred": false,
+      "description": "The computers that hold this Personal Space: each keeps a full copy and syncs with the others through the relay. This computer, whether each is awake, and when it was last seen",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "network_peers",
+      "planMode": "allowed",
+      "toolset": "engineer",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "network.phone",
       "deferred": false,
       "description": "Your phone address on vyre.run: the name this computer holds, whether it is online, and the link that opens it on a phone",
@@ -41620,6 +41716,62 @@
         "type": "object"
       },
       "name": "providers_set_space_use",
+      "planMode": "blocked",
+      "toolset": "vault",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "providers.space_key.get",
+      "deferred": false,
+      "description": "The Space AI key for the Space: whether one is set, its provider and the models it unlocks (read live from the provider and kept for a while). Never the key",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "refresh": {
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
+      "name": "providers_space_key_get",
+      "planMode": "allowed",
+      "toolset": "vault",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "providers.space_key.set",
+      "deferred": false,
+      "description": "An owner or admin sets or replaces the Space AI key: it is checked with the provider at once (its model list), then kept in a Restricted Shared folder. A person does this, or their outside agent under the setup grant; never an agent on its own",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "apiKey": {
+            "type": "string"
+          },
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "providerKey": {
+            "examples": [
+              "opencode-go"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "providerKey",
+          "apiKey",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "name": "providers_space_key_set",
       "planMode": "blocked",
       "toolset": "vault",
       "v": 1
