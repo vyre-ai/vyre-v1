@@ -9245,6 +9245,13 @@
             "minLength": 1,
             "type": "string"
           },
+          "leadAgentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          },
           "memberIds": {
             "items": {
               "examples": [

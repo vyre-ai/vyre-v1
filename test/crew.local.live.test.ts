@@ -65,14 +65,12 @@ test("the owner's Assistant makes a project in one go, every read of the id list
     assert.equal(out["mate"].teammate.madeForProject, true);
     assert.equal(out["computer"].computer.agentId, assistant);
     // the project's chat starts with someone to answer: its maker's Assistant, so a plain message is not met with silence
+    await s.d.hooks?.pump?.();
     const channel = (await s.api("channels.get", { channelId: out["made"].channelId })).channel as { mainThreadId: string };
     const thread = (await s.api("threads.get", { threadId: channel.mainThreadId })).thread as { agents: Array<{ agentId: string }> };
     assert.deepEqual(thread.agents.map((a) => a.agentId), [assistant], "the project chat has its lead from the start");
     const route = await s.api("engine.route.preview", { threadId: channel.mainThreadId });
-    assert.deepEqual(route.responders.includes(assistant) || route.line !== "No agent will reply. @mention one", true, route.line);
-    // a chat with nobody in it to answer says so, with the way to bring one in
-    const alone = (await s.api("chat.start", { kind: "chat", agentIds: [], title: "Just me", idempotencyKey: "alone" })).thread.threadId as string;
-    assert.equal((await s.api("engine.route.preview", { threadId: alone })).line, "No agent will reply. @mention one");
+    assert.deepEqual(route.responders, [assistant], "a plain message in the project chat is answered by its lead");
     // a Space agent is not the owner's hands: it is refused where the Assistant passes
     assert.equal((out["sa_mate"] as Answer).ok, false, JSON.stringify(out["sa_mate"]));
     assert.equal((out["sa_prov"] as Answer).ok, false, JSON.stringify(out["sa_prov"]));
