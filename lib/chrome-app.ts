@@ -15,11 +15,13 @@
 //   chat.search    chat.search (words) or chat.recent (empty search), one row per chat
 //   chat.thread    threads.get and chat.messages.list
 //   records.match  search.query for the email addresses and phone numbers on the page, then search.related for the record's chats
+//   artifact.open  sites.artifact_open as the person (a 60 second single-use code for the artifact host), answered as the address to open: https://<artifact host>/x/<code>. With no artifact host
+//                  the answer is the Space's plain /a/<id>, which the web app opens after its own sign-in. A token never rides in a URL here.
 //   app.open       answered "not_available" here: the desktop app opens places itself; the extension then opens the web app
 
 export const CHROME_CAPABILITIES = Object.freeze([
   "vault.items.match", "vault.items.list", "vault.use", "vault.fill", "vault.item.put", "vault.item.update", "vault.folders.list", "vault.site_rules.list", "vault.site_rules.set", "vault.share",
-  "notes.clip", "skills.mine.add", "skills.mine.set", "skills.share", "engine.models.list",
+  "notes.clip", "skills.mine.add", "skills.mine.set", "skills.share", "engine.models.list", "sites.artifact_open",
   "browser.sites.list", "automations.watches.list", "automations.watches.save", "automations.watches.remove", "automations.watches.check", "automations.watches.report",
 ]);
 
@@ -231,6 +233,25 @@ export function createChromeApp(deps: ChromeAppDeps) {
     return { records };
   }
 
+  async function artifactOpen(input: Record<string, unknown>) {
+    const s = session();
+    const id = str(input["artifactId"], 80);
+    if (!/^sit_[a-z0-9_]{1,76}$/.test(id)) throw new AppError("validation.invalid", "That is not an artifact.");
+    const base = (() => { try { return new URL(s.address).origin; } catch { return ""; } })();
+    const plain = base ? { url: `${base}/a/${id}`, plain: true } : null;
+    let out: any;
+    try { out = await call("sites.artifact_open", { artifactId: id }); } catch (e) {
+      // not shared with this person, or stopped: the plain address shows the app's own page for that
+      if (plain && (e as { code?: string }).code !== "auth.unauthenticated") return plain;
+      throw e;
+    }
+    const u = typeof out?.url === "string" ? out.url : "";
+    // only the one-time code on the artifact host is opened here; a keyed address (a token in the URL) is never handed to a browser tab
+    if (/^https:\/\/[a-z0-9.-]{3,253}\/x\/[0-9a-f]{48}$/.test(u) || /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?\/x\/[0-9a-f]{48}$/.test(u)) return { url: u, plain: false };
+    if (plain) return plain;
+    throw new AppError("not_available", "This artifact has no address to open here.");
+  }
+
   return {
     /** A capability call from the extension. */
     async invoke(cap: string, input: Record<string, unknown>): Promise<unknown> {
@@ -283,6 +304,7 @@ export function createChromeApp(deps: ChromeAppDeps) {
         case "chat.search": return chatSearch(input);
         case "chat.thread": return chatThread(input);
         case "records.match": return recordsMatch(input);
+        case "artifact.open": return artifactOpen(input);
         default: throw new AppError("not_available", "The Vyre app cannot answer that here.");
       }
     },

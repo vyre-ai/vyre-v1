@@ -678,13 +678,14 @@ function AgentStrip({ list, narrow, onPress, open, face, mode, runsChip, ring }:
   const a = list[0] as ComposerAgent;
   const name = stripName(list);
   const title = a.modelTitle ?? "Auto";
-  const label = `${name} will answer on ${title}${a.effort ? `, ${a.effort} effort` : ""}${onPress ? ". Mode, model, effort and limits" : ""}`;
+  const label = `${name} will answer on ${title}${a.unavailable === true ? ", not available here" : ""}${a.effort ? `, ${a.effort} effort` : ""}${onPress ? ". Mode, model, effort and limits" : ""}`;
   const body = (
     <>
       {face ? <Avatar {...avatarOf({ id: a.id, name: a.name, kind: a.kind === "assistant" ? "assistant" : "agent" })} size={20} /> : null}
       {mode !== undefined && mode !== "auto" ? <View style={styles.mchip} testID="composer-mode"><Text style={styles.mchipText}>{modeInfo(mode).label}</Text></View> : null}
       {runsChip !== undefined ? <View style={styles.rchip} testID="composer-runs"><Text numberOfLines={1} style={styles.rchipText}>{`On ${runsChip}`}</Text></View> : null}
       {narrow ? null : <Text numberOfLines={1} style={styles.stripModelText}>{`${title}${a.accountName ? ` · ${a.accountName}` : ""}`}</Text>}
+      {a.unavailable === true ? <Text numberOfLines={1} style={styles.stripNote} testID="composer-unavailable">Not available here</Text> : null}
       <EffortBars effort={a.effort} levels={effortsFor(a.provider).length} testID="composer-effort" />
       {ring ? <ContextRing pct={ring.pct} warn={ring.warn} size={18} /> : null}
     </>
@@ -1279,6 +1280,7 @@ const styles = StyleSheet.create({
   stripWrap: { flexShrink: 1, minWidth: 0 },
   strip: { flexDirection: "row", alignItems: "center", gap: 7, height: 34, paddingHorizontal: 9, borderRadius: 17, minWidth: 0 },
   stripModelText: { fontSize: 12.5, color: "var(--ink-3)" as string, flexShrink: 1 },
+  stripNote: { fontSize: 11.5, color: "var(--ink-3)" as string, flexShrink: 1, fontStyle: "italic" as const },
   mchip: { height: 20, paddingHorizontal: 7, borderRadius: 10, justifyContent: "center", backgroundColor: "var(--accent-wash)" as string },
   mchipText: { fontSize: 11.5, lineHeight: 20, color: "var(--accent)" as string },
   rchip: { height: 20, paddingHorizontal: 7, borderRadius: 10, justifyContent: "center", backgroundColor: "var(--sunk)" as string, flexShrink: 1 },

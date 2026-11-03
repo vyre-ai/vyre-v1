@@ -8,7 +8,7 @@ A short-lived address that opens an artifact for the person asking, in a tab or 
 | Version | 1 (since 1.0.0) |
 | Effects | write |
 | Permission | grant only |
-| Grant level | edit |
+| Grant level | view |
 | Risk | medium |
 | Resource | site (/artifactId) |
 | Gate | none |

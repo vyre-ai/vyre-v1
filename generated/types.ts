@@ -11790,6 +11790,7 @@ export type EngineUsageGetOut = {
   context: {
     used: number;
     window: number;
+    approximate?: boolean;
   } | null;
   session: {
     pct: number;
@@ -11801,6 +11802,7 @@ export type EngineUsageGetOut = {
   } | null;
   source: "provider" | "estimate" | "none";
   keepEvery?: string;
+  model?: string;
   lastTurn?: {
     model?: string;
     account?: {
@@ -31366,6 +31368,7 @@ export type SitesArtifactPublishOut = {
   artifactId: string;
   url?: string;
   updated: boolean;
+  opened: boolean;
 };
 export type SitesBuildIn = {
   siteId: string;

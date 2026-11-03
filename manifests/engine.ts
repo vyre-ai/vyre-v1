@@ -321,11 +321,12 @@ export default defineManifest({
       in: { ...threadT, agentId: id.agent, accountRef: t.opt(accountRef) },
       out: {
         account: t.nullable(t.obj({ ref: accountRef, name: t.str({ description: 'The name the person gave the account in the Vault', examples: ['Dana Claude Max'] }), provider: t.str({ examples: ['anthropic'] }), plan: t.opt(t.str()) })),
-        context: t.nullable(t.obj({ used: t.int({ minimum: 0 }), window: t.int({ minimum: 1 }) })),
+        context: t.nullable(t.obj({ used: t.int({ minimum: 0 }), window: t.int({ minimum: 1 }), approximate: t.opt(t.bool({ description: 'The engine reported only a turn\'s total, so used is estimated from the number of requests the turn made' })) })),
         session: t.nullable(t.obj({ pct: t.num({ minimum: 0, maximum: 100 }), resetsAt: t.opt(t.ts()) })),
         week: t.nullable(t.obj({ pct: t.num({ minimum: 0, maximum: 100 }), resetsAt: t.opt(t.ts()) })),
         source: t.enm('provider', 'estimate', 'none'),
         keepEvery: t.opt(t.str({ description: 'What every compaction of this chat keeps ("Keep this every time"), when set' })),
+        model: t.opt(t.str({ description: 'The model this chat\'s agent is set to answer with now: the chat\'s own pick (a new chat starts on the person\'s last pick), else the agent\'s' })),
         lastTurn: t.opt(t.obj({
           model: t.opt(t.str({ description: 'The model the latest turn really ran on, as its engine said' })),
           account: t.opt(t.obj({ ref: accountRef, name: t.opt(t.str()), provider: t.str(), shared: t.opt(t.bool()) })),

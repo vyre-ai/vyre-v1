@@ -4060,7 +4060,7 @@
       "blocks": [],
       "cap": "sites.artifact_publish",
       "deferred": false,
-      "description": "THE way to show something you made: publish it privately to a link that opens in a tab. Give html, a file or folder in Files, a path on this machine, or a running port. Same title or artifactId updates the same link",
+      "description": "THE way to show something you made: publish it privately; the person gets a card in the chat to open it. The result says whether it was opened for them (opened). Give html, a file or folder in Files, a path on this machine, or a running port. Same title or artifactId updates the same link",
       "effects": "write",
       "inputSchema": {
         "properties": {

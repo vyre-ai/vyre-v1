@@ -96,7 +96,7 @@ test("the extension may call only the listed capabilities and bridge operations"
   }
   assert.throws(() => request("r", "bridge", "shell.exec"), BridgeFailure);
   assert.ok(!("vault.item.reveal" in CAPABILITIES), "an extension can never ask to see a value");
-  assert.ok(Object.keys(CAPABILITIES).every((c) => /^(vault|notes|skills|engine|browser|automations)\./.test(c)), "the Vault, Notes clips, skills from a recording, the model list, and Browser connections and watches");
+  assert.ok(Object.keys(CAPABILITIES).every((c) => /^(vault|notes|skills|engine|browser|automations)\.|^sites\.artifact_open$/.test(c)), "the Vault, Notes clips, skills from a recording, the model list, Browser connections and watches, and opening an artifact");
   assert.ok(Object.keys(BRIDGE_OPS).length >= 6);
 });
 

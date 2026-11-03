@@ -10,6 +10,7 @@
 //   app -> worker   { type: "spaces", spaces, active }             the Space list or the active Space changed
 //   app -> worker   { type: "chat.delta", threadId, turnId, text, done, error? }   a side panel reply streaming in (text is the whole reply so far)
 //   app -> worker   { type: "watch.run", watchId }                 check one My Chrome watch now (Check now in Automations)
+//   app -> worker   { type: "artifact.open", artifactId }          open an artifact in a tab (the worker asks the app for the address, as the person)
 //   app -> worker   { type: "tab.open", url }                      "Open the page" from a chat that started in Chrome
 //
 // Capabilities the extension may call are listed here and nowhere else; anything else is refused before it is sent.
@@ -35,6 +36,7 @@ export const CAPABILITIES = Object.freeze({
   "skills.mine.add": "save a recording the person reviewed as one of their skills: SKILL.md and its replay script (lane l-skills2)",
   "skills.mine.set": "put a saved skill on the person's agents (the share card's Add to my agents) (lane l-skills2)",
   "skills.share": "share that skill with people in the Space, who each get a card (lane l-skills2)",
+  "sites.artifact_open": "mint the one-time code that opens an artifact on its own host, for the person signed in here (the artifact.open op answers with the address)",
   "engine.models.list": "the live models the person's AI account can reach, for the side panel's model picker (lane l-livemodels; never a list kept here)",
   "browser.sites.list": "the Space's Browser connections: sites agents may use, where they run, each agent's rights",
   "automations.watches.list": "the person's watches that run in this Chrome",
@@ -57,6 +59,7 @@ export const BRIDGE_OPS = Object.freeze({
   "chat.thread": "one chat's messages, to show it in the side panel",
   "people.list": "the people and channels the signed-in person may pick to tell or to share with (their own view of the Space, nothing more)",
   "goals.pick": "the signed-in person's own open goals that have a number, for Counts toward a goal",
+  "artifact.open": "open an artifact in a tab as the signed-in person: the app mints a one-time code for the artifact host (or answers the plain address); no token is ever in the URL",
   "records.match": "records that match a page: from its address and the email addresses and phone numbers written on it, with their recent chats and goals",
 });
 
@@ -87,7 +90,7 @@ export function request(id, type, name, input = {}) {
 /**
  * Check a message from the app. Returns the message when it is one the extension understands, else null (and the caller drops it).
  * @param {unknown} m
- * @returns {Reply | { type: "fill", ref: string, value: string } | { type: "spaces", spaces: any[], active: string | null } | { type: "chat.delta", threadId: string, turnId: string, text: string, done: boolean, error: string | null } | { type: "watch.run", watchId: string } | { type: "tab.open", url: string } | null}
+ * @returns {Reply | { type: "artifact.open", artifactId: string } | { type: "fill", ref: string, value: string } | { type: "spaces", spaces: any[], active: string | null } | { type: "chat.delta", threadId: string, turnId: string, text: string, done: boolean, error: string | null } | { type: "watch.run", watchId: string } | { type: "tab.open", url: string } | null}
  */
 export function parseIncoming(m) {
   if (!isObject(m)) return null;
@@ -101,6 +104,7 @@ export function parseIncoming(m) {
     return { type: "chat.delta", threadId: m["threadId"], turnId: m["turnId"], text: m["text"].slice(0, 200_000), done: m["done"] === true, error: typeof m["error"] === "string" ? m["error"].slice(0, 500) : null };
   }
   if (m["type"] === "watch.run" && typeof m["watchId"] === "string") return { type: "watch.run", watchId: m["watchId"] };
+  if (m["type"] === "artifact.open" && typeof m["artifactId"] === "string" && /^sit_[a-z0-9_]{1,76}$/.test(m["artifactId"])) return { type: "artifact.open", artifactId: m["artifactId"] };
   if (m["type"] === "tab.open" && typeof m["url"] === "string" && /^https?:\/\//i.test(m["url"])) return { type: "tab.open", url: m["url"] };
   return null;
 }

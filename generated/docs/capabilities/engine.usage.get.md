@@ -44,6 +44,7 @@ type Out = {
   context: {
     used: number;
     window: number;
+    approximate?: boolean;
   } | null;
   session: {
     pct: number;
@@ -55,6 +56,7 @@ type Out = {
   } | null;
   source: "provider" | "estimate" | "none";
   keepEvery?: string;
+  model?: string;
   lastTurn?: {
     model?: string;
     account?: {
@@ -94,6 +96,7 @@ type Out = {
       "ref": "#Team_Anthropic_Key"
     },
     "context": {
+      "approximate": true,
       "used": 1,
       "window": 1
     },
@@ -108,6 +111,7 @@ type Out = {
       "model": "example",
       "paid": "example"
     },
+    "model": "example",
     "session": {
       "pct": 1,
       "resetsAt": 1760000000000

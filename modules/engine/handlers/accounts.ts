@@ -8,6 +8,7 @@ import { resolveAccount, probeAccount, providerOfModel, UnknownAccount, usableHe
 import type { AccountRow, AccountStatus, ProbeResult, SpaceUses, Trigger } from "../../../agent/src/accounts/index.ts";
 import { costTier } from "../../../agent/src/accounts/cost.ts";
 import { savedTested } from "../live-models.ts";
+import { applyRememberedPick, stateOf } from "./control.ts";
 
 interface ProviderRow {
   id: string; providerKey: string; name: string; connection: "subscription" | "api_key" | "local_model"; scope: "mine" | "shared"; handle?: string; itemId: string;
@@ -134,13 +135,17 @@ export async function accountResolve(ctx: Ctx, input: { threadId: string; agentI
   const member = t.thread.agents.find((x) => x.agentId === input.agentId);
   // a pin, a key or a fallback that names a handle folded into another row of the same account pays with that row
   const c = (ref: string): string => canonical(accounts, ref);
-  const provider = member?.provider ?? providerOfModel(member?.model ?? a.agent.model);
+  // the model this chat's person picked: the chat's own record, or what Set model saved for the chat (the composer's pick reaches the engine first)
+  let chosen = (() => { try { return stateOf(ctx as never, input.threadId, input.agentId)?.model ?? undefined; } catch { return undefined; } })();
+  // a new chat starts on the model its person last picked (last-pick.ts), as this chat's own pick
+  if (!member?.model && !chosen && (input.kind === undefined || input.kind === "chat") && input.askerId) chosen = await applyRememberedPick(ctx as never, input.threadId, input.agentId, input.askerId);
+  const provider = member?.provider ?? providerOfModel(member?.model ?? chosen ?? a.agent.model);
   // a Personal Space runs on the person's own computer, so a turn on its host is a turn on their computer: their sign-in needs no "the Space may use it" switch there
   const personal = await (ctx.call("spaces.get", {}) as Promise<{ space?: { kind?: string } }>).then((r) => r.space?.kind === "personal", () => false);
   // a Space account fits when its provider lists the turn's model: the Vault's kept list, else the one this engine saved from its last test
   for (const r of accounts.rows) if (!r.mine && !r.models?.length) { try { const m = savedTested(ctx.db as never, r.ref); if (m.length > 0) r.models = m; } catch { /* nothing saved */ } }
   const trigger: Trigger = input.stepKey ? "task" : TRIGGER[input.kind ?? "chat"];
-  const model = member?.model ?? a.agent.model;
+  const model = member?.model ?? chosen ?? a.agent.model;
   // the composer's check before sending: the caller is the one who would ask (their own accounts, their team chats)
   const asker = input.askerId ?? (input.dry === true ? ctx.actingFor ?? ctx.principal.id : undefined);
   const res = resolveAccount({
@@ -151,7 +156,7 @@ export async function accountResolve(ctx: Ctx, input: { threadId: string; agentI
     ...(model ? { model } : {}),
     // the person chose the chat's account and its model together: a list that does not have the model fails the turn rather than run elsewhere
     ...(member?.accountRef && member?.model ? { modelPinned: true } : {}),
-    ...(member?.model ? { modelPicked: true } : {}),
+    ...(member?.model || chosen ? { modelPicked: true } : {}),
     ...(member?.accountRef ? { threadAccountRef: c(member.accountRef) } : {}),
     agent: { agentId: input.agentId, accountPolicy: a.agent.accountPolicy, ...(a.agent.accountKey ? { accountKey: c(a.agent.accountKey) } : {}), ...(a.agent.workKey ? { workKey: c(a.agent.workKey) } : {}), ...(a.agent.accountFallback?.length ? { accountFallback: a.agent.accountFallback.map(c) } : {}), ...(provider ? { provider } : {}) },
     ...(input.stepKey ? { stepKey: c(input.stepKey) } : {}),

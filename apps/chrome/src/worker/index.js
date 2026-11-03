@@ -15,6 +15,7 @@ import { createStore } from "./store.js";
 import { createContext } from "./context.js";
 import { createMenus } from "./menus.js";
 import { createNotes } from "./notes.js";
+import { createArtifacts } from "./artifacts.js";
 import { createPanel, PANEL_PORT } from "./panel.js";
 import { createPrivacy } from "./privacy.js";
 import { createRecorder } from "./record.js";
@@ -53,6 +54,7 @@ export function createWorker(ext) {
   const views = new Map();
   const panel = createPanel({ ext, bridge, store, privacy, context, views });
   const notes = createNotes({ ext, bridge, privacy, context });
+  const artifacts = createArtifacts({ ext, bridge, store });
   const menus = createMenus({ ext, notes, panel, views, privacy });
   const recorder = createRecorder({ ext, bridge, privacy });
   const watches = createWatches({ ext, bridge, privacy });
@@ -65,6 +67,7 @@ export function createWorker(ext) {
     }
     if (m && m.type === "tab.open" && ext.tabs) void ext.tabs.create({ url: m.url });
     if (m && m.type === "watch.run") void watches.look();
+    if (m && m.type === "artifact.open" && ext.tabs) void artifacts.open(m.artifactId).catch(() => { /* the app shows its own card */ });
   });
 
   async function activeTab() {
@@ -125,6 +128,7 @@ export function createWorker(ext) {
     const tab = await activeTab();
     switch (msg.type) {
       case "popup.state": return { data: await popupState() };
+      case "popup.artifact": return { data: await artifacts.open(String(msg.artifactId || "")) };
       case "popup.fill": {
         if (!tab) return failure(new BridgeFailure("no_page", ""));
         const r = await fill.fill({ tabId: tab.id, url: tab.url, itemId: String(msg.itemId), usernameField: msg.usernameField ? String(msg.usernameField) : undefined, kind: msg.kind === "otp" ? "otp" : msg.kind === "card" ? "card" : "login", signIn: Boolean(msg.signIn) });
