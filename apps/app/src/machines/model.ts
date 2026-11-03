@@ -11,7 +11,7 @@ export type Point = Series["points"][number];
 export type Finding = MachineOut["findings"][number];
 export type Range = Series["range"];
 
-export const RANGES: readonly { key: Range; label: string }[] = [{ key: "1h", label: "1 h" }, { key: "24h", label: "24 h" }, { key: "7d", label: "7 d" }, { key: "30d", label: "30 d" }];
+export const RANGES: readonly { key: Range; label: string }[] = [{ key: "1h", label: "1\u00a0h" }, { key: "24h", label: "24\u00a0h" }, { key: "7d", label: "7\u00a0d" }, { key: "30d", label: "30\u00a0d" }];
 export const RANGE_NOTE: Readonly<Record<Range, string>> = { "1h": "1-minute points", "24h": "10-minute points", "7d": "Downsampled after 24 hours", "30d": "Downsampled after 24 hours" };
 
 const CAN: Readonly<Record<string, string>> = { claude_code: "Claude Code", codex: "Codex", grok: "Grok", docker: "Docker", chrome: "Chrome" };

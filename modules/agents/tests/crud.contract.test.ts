@@ -36,8 +36,8 @@ const withMarket = async (hn: Harness) => {
 const mine = registry.capabilities.filter((c) => c.module === "agents");
 const h = handlers as unknown as Record<string, (ctx: Harness["ctx"], input: any) => Promise<any>>;
 
-test("the handler table covers exactly the 93 capabilities of the agents manifest", () => {
-  assert.equal(mine.length, 94);   // 68, agents.config.may_save (l-agenttoml), the eight Connections of l-connections, agents.assistant_of (l-meetings) and the fifteen skill scopes of l-skills2, agents.instruction.append (lessons)
+test("the handler table covers exactly the 96 capabilities of the agents manifest", () => {
+  assert.equal(mine.length, 96);   // agents.people_summary and agents.pause_person (l-consolidate), then 68, agents.config.may_save (l-agenttoml), the eight Connections of l-connections, agents.assistant_of (l-meetings) and the fifteen skill scopes of l-skills2, agents.instruction.append (lessons)
   assert.deepEqual(Object.keys(h).sort(), mine.map((c) => c.name).sort());
   for (const c of mine) assert.equal(typeof h[c.name], "function", c.name);
 });
@@ -116,6 +116,8 @@ const scenarios: Scenario[] = [
   { cap: "agents.restore", setup: async (hn) => { const s = await withAgent(hn); await h["agents.delete"]!(hn.ctx, { agentId: s.id }); return s; }, run: (hn, s) => h["agents.restore"]!(hn.ctx, { agentId: s.id }) },
   { cap: "agents.restore", run: (hn) => h["agents.restore"]!(hn.ctx, { agentId: "agt_none" }), expect: "validation.not_found" },
   { cap: "agents.visibility.set", run: (hn) => h["agents.visibility.set"]!(hn.ctx, { all: true }) },
+  { cap: "agents.people_summary", run: (hn) => h["agents.people_summary"]!(hn.ctx, {}) },
+  { cap: "agents.pause_person", run: (hn) => h["agents.pause_person"]!(hn.ctx, { personId: "usr_dana", paused: true }) },
   { cap: "agents.config.get", setup: withAgent, run: (hn, s) => h["agents.config.get"]!(hn.ctx, { agentId: s.id }) },
   { cap: "agents.config.get", run: (hn) => h["agents.config.get"]!(hn.ctx, { agentId: "agt_none" }), expect: "validation.not_found" },
   { cap: "agents.config.validate", setup: withAgent, run: (hn, s) => h["agents.config.validate"]!(hn.ctx, { agentId: s.id, toml: 'name = "Intake"\n' }) },

@@ -21,6 +21,8 @@
     "agents.outside.seen@1": "d35f51893e9991544a888f79372e71cb9841624c27071dfa0888976cc7e9be1d",
     "agents.outside.usable@1": "48a9a796fcc0c57cc4e9d16f08a06bff5b0585b7b75ccf1919247f86f9cd74bb",
     "agents.pause@1": "63b1f32b8be0a023b5c07df04cd6036fabd15f0743890b2b7b56f866c9b9f935",
+    "agents.pause_person@1": "bb0abd119d21394b32c56d55f5d9d852843b00da8a4a9269a66efe32988ab3b9",
+    "agents.people_summary@1": "f443053fa75ab3d60dd16e3f08695bb48cd874ac4b2f8d70b67dbb6f7e47df40",
     "agents.restore@1": "13386855ae29bbecb736985cad0a51cab4165b30b847a1c79ece6bd56ac80665",
     "agents.restore_version@1": "1006d16c83af5519cf620365b3778a9f3f48558de63b8a358e43ebecffc55735",
     "agents.resume@1": "91769f291545330f8095c168150ce86e663698d1f05a504551fd4f8d419a02a1",
