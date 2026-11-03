@@ -24,33 +24,33 @@ jobs:
       - name: rc16 installed with /S on a fresh profile and opened through Explorer
         continue-on-error: true
         run: |
-          set -u
+          set +e
           echo "=================== rc16"
-          taskkill //F //T //IM vyre-desktop.exe >/dev/null 2>&1; taskkill //F //T //IM vyred.exe >/dev/null 2>&1; sleep 2
+          taskkill //F //T //IM vyre-desktop.exe >/dev/null 2>&1 || true; taskkill //F //T //IM vyred.exe >/dev/null 2>&1 || true; sleep 2
           rm -rf "$LOCALAPPDATA/ai.vyre.desktop" "$APPDATA/ai.vyre.desktop"
           ./rc16/VyreSetup.exe //S; sleep 8
           app="$LOCALAPPDATA/Vyre/vyre-desktop.exe"; ls -la "$app"
           cmd //c start "" explorer.exe "$(cygpath -w "$app")"
           sleep 30
           powershell -NoProfile -ExecutionPolicy Bypass -File ci-winlook/uia.ps1 -Shot "$(cygpath -w "$PWD/out/rc16-person.png")"
-          taskkill //F //IM vyre-desktop.exe >/dev/null 2>&1; taskkill //F //IM vyred.exe >/dev/null 2>&1; sleep 3
+          taskkill //F //IM vyre-desktop.exe >/dev/null 2>&1 || true; taskkill //F //IM vyred.exe >/dev/null 2>&1 || true; sleep 3
       - name: rc18 installed with /S on a fresh profile and opened through Explorer
         continue-on-error: true
         run: |
-          set -u
+          set +e
           echo "=================== rc18"
-          taskkill //F //T //IM vyre-desktop.exe >/dev/null 2>&1; taskkill //F //T //IM vyred.exe >/dev/null 2>&1; sleep 2
+          taskkill //F //T //IM vyre-desktop.exe >/dev/null 2>&1 || true; taskkill //F //T //IM vyred.exe >/dev/null 2>&1 || true; sleep 2
           rm -rf "$LOCALAPPDATA/ai.vyre.desktop" "$APPDATA/ai.vyre.desktop"
           ./rc18/VyreSetup.exe //S; sleep 8
           app="$LOCALAPPDATA/Vyre/vyre-desktop.exe"; ls -la "$app"
           cmd //c start "" explorer.exe "$(cygpath -w "$app")"
           sleep 30
           powershell -NoProfile -ExecutionPolicy Bypass -File ci-winlook/uia.ps1 -Shot "$(cygpath -w "$PWD/out/rc18-person.png")"
-          taskkill //F //IM vyre-desktop.exe >/dev/null 2>&1; taskkill //F //IM vyred.exe >/dev/null 2>&1; sleep 3
+          taskkill //F //IM vyre-desktop.exe >/dev/null 2>&1 || true; taskkill //F //IM vyred.exe >/dev/null 2>&1 || true; sleep 3
           for m in clean clean-off heavy; do
             node ci-winlook/launch.mjs "$app" $m
             powershell -NoProfile -ExecutionPolicy Bypass -File ci-winlook/uia.ps1 -Shot "$(cygpath -w "$PWD/out/rc18-$m.png")"
-            taskkill //F //IM vyre-desktop.exe >/dev/null 2>&1; taskkill //F //IM vyred.exe >/dev/null 2>&1; sleep 3
+            taskkill //F //IM vyre-desktop.exe >/dev/null 2>&1 || true; taskkill //F //IM vyred.exe >/dev/null 2>&1 || true; sleep 3
           done
       - uses: actions/upload-artifact@v4
         if: always()
