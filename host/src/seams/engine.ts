@@ -82,6 +82,8 @@ export interface EngineNodes {
   connected(nodeId: string): boolean;
   /** Is the node's link private? An account key is sent only over one that is. */
   secure(nodeId: string): boolean;
+  /** Turns running on a node now (all nodes' when none is named): placement's "4 of 4 turns" (lane l-machines). */
+  running?(nodeId?: string): number;
   /** The person's own computers linked to the Space right now (their Vyre app): node id `device:<id>`, the engines each runs (routes/compute-stream.ts DeviceLink). */
   devices?(person?: string): Array<{ nodeId: string; deviceId: string; person: string; name?: string; engines: string[]; since: number }>;
   /** Told when one of them links or goes. */

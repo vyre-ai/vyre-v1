@@ -12,6 +12,8 @@
 //                default, owner ruling 3 Nov, spec b7). A Personal Space has no step 4.
 //           Nothing of theirs is there and step 4 is not allowed: the turn waits, "Your computer is off".
 //   Never another member's computer or another member's server: the caller passes only the asker's own.
+//   Room (lane l-machines): a machine with no room left (busy at its turn limit, CPU or memory, low disk, draining) is skipped for the next one in the same order; the answer says which one was skipped and why,
+//   so the turn can show "Moved from X because it was busy: 4 of 4 turns". When no machine in the order has room, the first of them keeps the turn (it queues there). A pin is never moved.
 import type { QueueKind, ThreadKind } from "../turn-engine/types.ts";
 
 /** Why a turn started: a message in a chat, or something the Space did on a person's behalf. */
@@ -63,9 +65,16 @@ export interface PlaceInput {
     /** Where this person pinned this chat. A device or server is one of theirs; `online` and `name` are what the Space knows of it. */
     chosen?: { target: "device" | "space" | "server"; deviceId?: string; serverId?: string; online?: boolean; name?: string };
   };
+  /** How much room each machine has (key: a device id, a server id, or "space"). A machine that is not listed has room. See roomLeft in room.ts. */
+  rooms?: Readonly<Record<string, PlaceRoom>>;
   /** The Space: whether it has a shared server that may run members' turns (step 4). Absent: a Team Space that allows it, the default. A Personal Space passes { shared: false, hostIsAsker: true }. */
   space?: { shared: boolean; hostIsAsker?: boolean };
 }
+
+/** What a machine has free, 0 to 100, and the plain words for why it has none ("4 of 4 turns", "CPU at 97%", "draining"). */
+export interface PlaceRoom { score: number; why: string }
+/** Below this a machine is busy: the turn goes to the next machine with room. */
+export const BUSY_BELOW = 10;
 
 export type PlaceReason =
   | "shared_thread" | "routine" | "agent_computer" | "wake_shared" | "crew"
@@ -80,7 +89,12 @@ export interface Placement {
   nodeId?: string;
   /** The line the chat shows when the turn waits. */
   wakeLine?: string;
+  /** The machine the order would have used first, skipped because it had no room: what it is called and why. */
+  movedFrom?: { id: string; name: string; why: string };
 }
+
+/** The line a turn keeps when it was moved: "Moved from Berlin box because it was busy: 4 of 4 turns". */
+export const movedLine = (m: { name: string; why: string }): string => `Moved from ${m.name} because it was ${m.why}`;
 
 export const DEVICE_OFF_LINE = "Your computer is off";
 export const LOCAL_RUNS_OFF_LINE = "Running chats on your computer is off";
@@ -122,18 +136,34 @@ export function placeTurn(i: PlaceInput): Placement {
 
   // Automatic: the one order
   const localRuns = i.asker.localRuns !== false;
-  if (localRuns) {
-    const list = ordered(i).filter((d) => able(d, i.engine));
+  const rooms = i.rooms ?? {};
+  const has = (id: string): boolean => (rooms[id]?.score ?? 100) >= BUSY_BELOW;
+  /** The first of the order that has room; when none does the first keeps the turn, and nothing is "moved". */
+  const take = (list: Cand[]): Placement | null => {
     const first = list[0];
-    if (first) return { placement: "device", reason: first.id === i.asker.current ? "device" : "other_device", deviceId: first.id };
+    if (!first) return null;
+    const pick = list.find((c) => has(c.id)) ?? first;
+    const skipped = pick === first ? undefined : { id: first.id, name: first.name, why: rooms[first.id] ? whyBusy(rooms[first.id]!.why) : "busy" };
+    return { ...pick.out, ...(skipped ? { movedFrom: skipped } : {}) };
+  };
+  const order: Cand[] = [];
+  if (localRuns) {
+    for (const d of ordered(i).filter((x) => able(x, i.engine))) order.push({ id: d.id, name: d.name ?? "Your computer", out: { placement: "device", reason: d.id === i.asker.current ? "device" : "other_device", deviceId: d.id } });
     // a Personal Space lives on the person's own computer: the host is one of their computers
-    if (space.hostIsAsker === true) return { placement: "host", reason: "own_host" };
+    if (order.length === 0 && space.hostIsAsker === true) return { placement: "host", reason: "own_host" };
   }
-  const server = (i.asker.servers ?? []).filter((s) => s.online && (s.engines === undefined || s.engines.includes(i.engine))).sort((a, b) => (a.serverId < b.serverId ? -1 : 1))[0];
-  if (server) return { placement: "host", reason: "own_server", nodeId: server.serverId };
-  if (space.shared && i.asker.runtimeOptIn) return { placement: "host", reason: "space" };
+  for (const s of (i.asker.servers ?? []).filter((x) => x.online && (x.engines === undefined || x.engines.includes(i.engine))).sort((a, b) => (a.serverId < b.serverId ? -1 : 1))) {
+    order.push({ id: s.serverId, name: s.name, out: { placement: "host", reason: "own_server", nodeId: s.serverId } });
+  }
+  if (space.shared && i.asker.runtimeOptIn) order.push({ id: "space", name: "The Space server", out: { placement: "host", reason: "space" } });
+  const got = take(order);
+  if (got) return got;
   return { placement: "wait", reason: "device_off", wakeLine: localRuns ? DEVICE_OFF_LINE : LOCAL_RUNS_OFF_LINE };
 }
+
+interface Cand { id: string; name: string; out: Placement }
+/** "4 of 4 turns" reads as "busy: 4 of 4 turns"; "draining" and "offline" stand as they are. */
+const whyBusy = (why: string): string => (why === "draining" || why === "offline" ? why : `busy: ${why}`);
 
 /** The person's computers in the order steps 1 and 2 take them: the one in use first, then the most recently seen (ties by id). */
 function ordered(i: PlaceInput): PlaceDevice[] {

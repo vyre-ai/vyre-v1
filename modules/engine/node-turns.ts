@@ -18,6 +18,8 @@ export interface NodeRelay {
   spawn(nodeId: string, spec: { argv: readonly string[]; cwd?: string; env: Readonly<Record<string, string>>; person?: string }): Promise<CliProcess>;
   connected(nodeId: string): boolean;
   secure(nodeId: string): boolean;
+  /** Turns running on a node now (all nodes' when none is named). Absent: unknown, the machine's last report stands. */
+  running?(nodeId?: string): number;
   /** The person's own computers linked to the Space now. Absent: none ever link (an older host). */
   devices?(person?: string): DeviceLink[];
   onDevice?(fn: (link: DeviceLink, up: boolean) => void): () => void;

@@ -1,6 +1,7 @@
 // A computer that joins a Space for compute (`vyred --role compute --server <address> --join <code>`). It is a guest: it dials out, holds no event log, no replica and no Vault, and keeps only two small
 // files in its data directory, its own key and what the Space handed it. First run: make an Ed25519 key, ask to join with the one-time code, print the name and the 8-character fingerprint a person
 // compares when they approve, then wait. Once approved it holds one credential and reports in on a short cycle; a 401 means it was removed, so it forgets everything and stops.
+import { REPORT_EVERY_MS } from "../machines/report.ts";
 import { AsyncLocalStorage } from "node:async_hooks";
 import fs from "node:fs";
 import path from "node:path";
@@ -31,6 +32,8 @@ export interface NodeDeps {
    * environment lives only in this process's environment, never on disk here. Without it this computer takes no turns.
    */
   cliLauncher?: NodeLauncher;
+  /** This server's 30-second report (specs, load, what Vyre runs, what it can run), sent over the live socket. Absent: none is sent. */
+  report?: (now: { turns: number }) => unknown;
 }
 export type NodeEnd = "stopped" | "declined" | "removed";
 
@@ -414,16 +417,25 @@ export async function runComputeNode(d: NodeDeps): Promise<NodeEnd> {
     await new Promise<void>((resolve) => {
       let hb: ReturnType<typeof setInterval> | undefined;
       let watch: ReturnType<typeof setInterval> | undefined;
-      const end = (): void => { engines.killAll(); if (hb) clearInterval(hb); if (watch) clearInterval(watch); d.signal.removeEventListener("abort", end); for (const s of local.values()) s.close(); local.clear(); up.close(); resolve(); };
+      let rep: ReturnType<typeof setInterval> | undefined;
+      const end = (): void => { engines.killAll(); if (hb) clearInterval(hb); if (rep) clearInterval(rep); if (watch) clearInterval(watch); d.signal.removeEventListener("abort", end); for (const s of local.values()) s.close(); local.clear(); up.close(); resolve(); };
       d.signal.addEventListener("abort", end, { once: true });
       watch = setInterval(() => { if (removed || ended) end(); }, 500); watch.unref?.();
-      up.onOpen(() => { hb = setInterval(() => say({ t: "hb" }), 15_000); hb.unref?.(); });
+      up.onOpen(() => {
+        hb = setInterval(() => say({ t: "hb" }), 15_000); hb.unref?.();
+        if (d.report) {
+          const send = (): void => { try { const r = d.report!({ turns: engines.running() }); if (r) say({ t: "report", ...(r as Record<string, unknown>) }); } catch { /* skipped this time */ } };
+          send();
+          rep = setInterval(send, REPORT_EVERY_MS); rep.unref?.();
+        }
+      });
       up.onClose(end);
       up.onMessage((data) => {
         if (typeof data !== "string") return;
         let m: { t?: unknown; view?: unknown; computerId?: unknown; data?: unknown };
         try { m = JSON.parse(data) as typeof m; } catch { return; }
         const view = typeof m.view === "string" && VIEW_ID.test(m.view) ? m.view : "";
+        if (m.t === "ping") { say({ t: "pong", at: (m as { at?: unknown }).at }); return; }
         if (typeof m.t === "string" && m.t.startsWith("cli_")) { cli(m as Record<string, unknown>, say); return; }
         if (m.t === "port_req") { portReq(m as Record<string, unknown>, say); return; }
         if (m.t === "ask") { ask(m as Record<string, unknown>, say); return; }

@@ -1406,6 +1406,12 @@ export function createClient(transport: Transport) {
       tail: call("logs.tail", 1),
       trace: call("logs.trace", 1),
     },
+    machines: {
+      alerts: call("machines.alerts", 1),
+      get: call("machines.get", 1),
+      list: call("machines.list", 1),
+      set: call("machines.set", 1),
+    },
     mail: {
       attachment: {
         save: call("mail.attachment.save", 1),

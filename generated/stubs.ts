@@ -1406,6 +1406,12 @@ export function stubs(ctx: CallCtx) {
       tail: call("logs.tail"),
       trace: call("logs.trace"),
     },
+    machines: {
+      alerts: call("machines.alerts"),
+      get: call("machines.get"),
+      list: call("machines.list"),
+      set: call("machines.set"),
+    },
     mail: {
       attachment: {
         save: call("mail.attachment.save"),
