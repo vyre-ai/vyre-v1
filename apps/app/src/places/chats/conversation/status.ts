@@ -65,6 +65,7 @@ const STATUS_WORDS: Record<string, { message: string; cause?: string; next?: { k
   "provider.filtered": { message: "Your AI provider declined to answer this.", retryable: false },
   "engine.timeout": { message: "The engine did not answer in time.", retryable: true },
   "engine.session_gone": { message: "The engine lost this chat's earlier session.", cause: "Try again: it starts from the chat's summary.", retryable: true },
+  "engine.model_unavailable": { message: "That model cannot run here.", next: [{ key: "pick_model", label: "Choose another model" }, { key: "run_on_my_computer", label: "Run it on my computer" }], retryable: false },
   "engine.no_account": { message: "Connect your AI to get replies.", cause: "No AI account is saved for this chat yet.", next: [{ key: "connect_ai", label: "Connect your AI" }], retryable: false },
   "engine.account_unavailable": { message: "Your AI account could not be reached just now.", next: [{ key: "connect_ai", label: "Check your AI account" }], retryable: true },
   "engine.account_unsupported": { message: "This engine cannot run on this kind of account yet.", cause: "Use an API key for it.", next: [{ key: "connect_ai", label: "Use an API key" }], retryable: false },
@@ -118,6 +119,7 @@ export function statusView(b: MessageBlock): StatusView {
   if (state === "waiting" && str(d.taskId) !== "") return { kind: "approval", id: b.id, taskId: str(d.taskId) };
   if (state === "waiting") return { kind: "note", id: b.id, text: "Waiting for your approval." };
   let w = wordsFor(str(d.code));
+  if (str(d.code) === "engine.model_unavailable" && str(d.detail) !== "") w = { ...w, message: str(d.detail) };
   // The engine that is missing is named with one button that installs it, and why the last try did not finish; one that has no build for this computer offers another account only. The reason the
   // Vault refused is the one it gave.
   const engine = Object.hasOwn(ENGINES, str(d.program)) ? ENGINES[str(d.program)] : undefined;

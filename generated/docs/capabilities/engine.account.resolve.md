@@ -52,7 +52,9 @@ type Out = {
   };
   cappedFrom?: string;
   via?: "thread" | "chat_key" | "work" | "step" | "space" | "backup";
-  why?: "no_account" | "expired" | "failed" | "policy";
+  why?: "no_account" | "expired" | "failed" | "policy" | "no_model";
+  model?: string;
+  servedModels?: Array<string>;
   modelFallback?: {
     from: string;
     to?: string;
@@ -90,6 +92,7 @@ type Out = {
     "cappedFrom": "#Team_Anthropic_Key",
     "fellBack": true,
     "itemId": "vit_a1b2c3",
+    "model": "example",
     "modelFallback": {
       "from": "example",
       "to": "example"
@@ -101,6 +104,9 @@ type Out = {
       "why": "unknown"
     },
     "reason": "starter",
+    "servedModels": [
+      "example"
+    ],
     "via": "thread",
     "why": "no_account"
   }

@@ -14,6 +14,21 @@ export function modelWords(model: string): string {
   return tail.split(/[-_]/).filter((p) => p !== "").map((p) => (/^[a-z]{2,4}$/.test(p) && !/[aeiou]/.test(p.slice(1)) ? p.toUpperCase() : p.charAt(0).toUpperCase() + p.slice(1))).join(" ");
 }
 
+/** A model as a person says it: claude-sonnet-5-5 is Claude Sonnet 5.5. */
+export function modelName(id: string): string {
+  const c = /^claude-([a-z]+)-(\d+)(?:-(\d+))?$/.exec(id);
+  if (c) return `Claude ${c[1]!.charAt(0).toUpperCase()}${c[1]!.slice(1)} ${c[2]}${c[3] ? `.${c[3]}` : ""}`;
+  const g = /^gpt-([\d.]+)(?:-([a-z]+))?$/.exec(id);
+  return g ? `GPT-${g[1]}${g[2] ? ` ${g[2]!.charAt(0).toUpperCase()}${g[2]!.slice(1)}` : ""}` : modelWords(id);
+}
+
+/** The line for a turn whose picked model no account that can pay serves: it says so and names what can run. It never runs another model in its place. */
+export function noModelWords(model: string | null, served: readonly string[]): string {
+  const what = model ? modelName(model) : "That model";
+  const list = served.slice(0, 6).map(modelName);
+  return `${what} cannot run here: none of the AI accounts you can use on this server serve it.${list.length > 0 ? ` Models that can: ${list.join(", ")}.` : ""} Pick another model, or run this chat on the computer where your own sign-in is.`;
+}
+
 /** The chat's line for a swap. */
 export function fallbackLine(f: { from: string; to?: string }): string {
   const asked = MAKER[providerOfModel(f.from) ?? ""] ?? modelWords(f.from);

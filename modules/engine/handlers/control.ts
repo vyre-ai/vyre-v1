@@ -28,7 +28,7 @@ const DRIVER_TITLE: Readonly<Record<string, string>> = {
 
 interface AgentState { mode: string | null; model: string | null; provider: string | null; effort: string | null; accountRef: string | null; engine: string | null }
 
-function stateOf(ctx: EngineCtx, threadId: string, agentId: string): AgentState | null {
+export function stateOf(ctx: EngineCtx, threadId: string, agentId: string): AgentState | null {
   const r = rows(ctx, "SELECT * FROM engine_agent_state WHERE thread_id = ? AND agent_id = ?", threadId, agentId)[0];
   if (!r) return null;
   const s = (v: unknown): string | null => (v === null || v === undefined ? null : String(v));
