@@ -95,3 +95,15 @@ test("a paused routine, a watcher and a paused agent's routine do not fire", asy
   const r = (await h["agents.routines.list"]!(hn.ctx, { agentId: paused.agentId })).routines[0];
   assert.ok(r.nextRunAt > hn.clock.t, "the paused agent's routine waits for its next time instead of piling up");
 });
+
+test("a routine an agent saved for its person says so (setBy): the panel reads it through the one credit resolver; one the person saved has none", async () => {
+  const hn = harness();
+  const agent = (await h["agents.create"]!(hn.ctx, { name: "Helper", role: "Sets routines.", idempotencyKey: `c${++n}` })).agent;
+  const viaAgent = hn.as({ kind: "agent", id: agent.agentId }, hn.ctx.principal.id);
+  const set = (await h["agents.routine.save"]!(viaAgent, { agentId: agent.agentId, title: "Hi every minute", cron: "* * * * *", prompt: "Post Hi.", idempotencyKey: `r${++n}` })).routine;
+  assert.deepEqual(set.setBy, { kind: "agent", id: agent.agentId });
+  assert.equal(set.ownerId, hn.ctx.principal.id, "it is still the person's routine");
+  assert.deepEqual(contractErrors("agents.routine.save", "out", { routine: set }), []);
+  const mine = (await h["agents.routine.save"]!(hn.ctx, { agentId: agent.agentId, routineId: set.routineId, title: "Hi every minute", cron: "* * * * *", prompt: "Post Hi.", idempotencyKey: `r${++n}` })).routine;
+  assert.equal(mine.setBy, undefined, "saved again by the person by hand: they set it");
+});

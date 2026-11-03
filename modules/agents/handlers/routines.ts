@@ -67,6 +67,9 @@ export async function routineSave(ctx: AgentsCtx, input: { agentId: string; rout
   }
   ctx.db.run("DELETE FROM agents_routine_watch WHERE routineId = ?", id);
   if (watcher) ctx.db.run("INSERT INTO agents_routine_watch (routineId, channelId) VALUES (?, ?)", id, input.watch!.channelId);
+  // who set it: an agent saving it for its person (the person asked their Assistant) is kept, so the routine reads "You, through Assistant" to them and "<Person> (Agent)" to anyone else
+  ctx.db.run("DELETE FROM agents_routine_by WHERE routineId = ?", id);
+  if (ctx.principal.kind === "agent" && ctx.principal.id !== owner) ctx.db.run("INSERT INTO agents_routine_by (routineId, byKind, byId) VALUES (?, 'agent', ?)", id, ctx.principal.id);
   ctx.emit("agent.routine_changed", agent.id, { agentId: agent.id, routineId: id, op: input.routineId !== undefined ? "updated" : "created" });
   return { routine: routineOut(routineBy(ctx.db, id) as RoutineRec) };
 }
@@ -78,6 +81,7 @@ export async function routineDelete(ctx: AgentsCtx, input: { agentId: string; ro
   if (!agent || !canSee(ctx, agent) || !r || r.agentId !== agent.id || r.ownerId !== askerOf(ctx)) raise(ctx, "validation.not_found", "That routine does not exist.");
   ctx.db.run("DELETE FROM agents_routine WHERE id = ?", r.id);
   ctx.db.run("DELETE FROM agents_routine_watch WHERE routineId = ?", r.id);
+  ctx.db.run("DELETE FROM agents_routine_by WHERE routineId = ?", r.id);
   ctx.emit("agent.routine_changed", agent.id, { agentId: agent.id, routineId: r.id, op: "deleted" });
   return { deleted: true };
 }

@@ -41,3 +41,16 @@ export function standInsOf(list: readonly Principal[]): Map<string, string> {
   for (const p of list) if (p.private === true && p.owner !== undefined) out.set(p.id, p.owner);
   return out;
 }
+
+/**
+ * Who did something, in the one way every "Set by", "Created by" and "Made by" line says it (owner ruling 3 Nov). `by` is who acted; `for` is the person an agent acted for (absent: the agent's
+ * own person from the directory). A person: "You" or their name. An agent for a person: "You, through Assistant" to that person, "Irfad Imtiaz (Agent)" to everyone else. An agent for nobody:
+ * its name. Nothing known: a plain word, never an id.
+ */
+export function creditLine(by: { kind: string; id: string }, o: { me: string; nameOf(id: string): string; ownerOf?(id: string): string | undefined; for?: string | undefined }): string {
+  if (by.kind !== "agent") return by.id === o.me ? "You" : o.nameOf(by.id);
+  const person = o.for ?? o.ownerOf?.(by.id);
+  if (person === undefined || !person.startsWith("usr_")) return o.nameOf(by.id);
+  if (person === o.me) return `You, through ${o.nameOf(by.id)}`;
+  return asAgentOf(o.nameOf(person));
+}

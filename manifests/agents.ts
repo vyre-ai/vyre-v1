@@ -10,7 +10,7 @@
 // NOT EXPRESSIBLE: executor placement (host, device, agentd) for terminal, chrome, screen and files tools is stated on AgentToolDef.local only;
 //   CapabilityDef has no such field, so the computers and terminal capabilities do not carry it.
 import { atool, create, defineManifest, ev, field, list, read, rtype, screen, setting, t, write } from '../packages/contracts/src/index.ts';
-import { id, pageIn, pageOut, versionRow } from './_common.ts';
+import { id, pageIn, pageOut, principalRef, versionRow } from './_common.ts';
 import { pluginCapabilities, pluginEvents, pluginScreens } from './_agents-plugins.ts';
 import { connectionCapabilities, connectionEvents } from './_agents-connections.ts';
 import { skillScopeCapabilities, skillScopeEvents, skillScopeScreens } from './_agents-skills.ts';
@@ -37,6 +37,8 @@ const routineRow = t.obj({
   // kind absent means schedule; a watcher runs when something happens (a new message in watch.channelId), not at a time
   kind: t.opt(t.enm('schedule', 'watch')),
   watch: t.opt(t.obj({ on: t.enm('message'), channelId: id.channel })),
+  // who set it when that was not the owner by hand: the agent that saved it for them. Absent: the owner set it
+  setBy: t.opt(principalRef),
 });
 const suggestionRow = t.obj({
   suggestionId: t.id('sug'), agentId: id.agent, kind: t.enm('agent_md', 'template'), file: t.str({ examples: ['AGENT.md'] }), diff: t.str(), reason: t.opt(t.str()),
