@@ -67,6 +67,7 @@ type Out = {
     };
     machine: "host" | "device";
     keyUsed?: string;
+    paid?: string;
     steps: Array<{
         idx: number;
         kind: string;
@@ -121,6 +122,7 @@ type Out = {
       ],
       "keyUsed": "example",
       "machine": "host",
+      "paid": "example",
       "reached": [
         "github.com"
       ],

@@ -26,7 +26,9 @@ export interface Node {
   id: string; key: string; title?: string; input: Record<string, unknown>; next?: string[]; branches?: Branch[]; onError?: OnError; ai?: AiBlock; askBeforeSending?: boolean;
 }
 export interface TriggerRef { key: string; config?: Record<string, unknown>; filter?: unknown }
-export interface Definition { triggers: TriggerRef[]; nodes: Node[]; start?: string[]; allowSelfTrigger?: boolean }
+/** The automation's own AI account: the Space account every AI step runs on unless the step chooses its own, and the one that takes over when it cannot pay. Absent: Automatic (the cheapest Space AI account kept for automations). */
+export interface DefinitionAi { keyId?: string; backupKeyId?: string }
+export interface Definition { triggers: TriggerRef[]; nodes: Node[]; start?: string[]; allowSelfTrigger?: boolean; ai?: DefinitionAi }
 export interface Alerts {
   who: Subject[]; when: { mode: "every" | "after_n"; n?: number }; where: { needsYou: boolean; dm: boolean; channelId?: string };
   escalation: { to: Subject; afterHours: number }[];

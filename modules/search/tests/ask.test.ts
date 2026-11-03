@@ -3,6 +3,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { NO_ACCESS, ask, citations, keywords } from "../handlers/ask.ts";
 import { contractErrors, harness, seed } from "../fixtures/harness.ts";
+import { query } from "../handlers/query.ts";
 import type { Harness } from "../fixtures/harness.ts";
 
 const ACCOUNTS = [
@@ -63,4 +64,19 @@ test("citations keep only marks that name a listed source, in the order first ci
   assert.deepEqual(citations("A [2]. B [1][2]. C [7].", 3), { text: "A [2]. B [1][2]. C.", cited: [2, 1] });
   assert.equal(keywords("What did Elena say about the lease?"), "elena lease");
   assert.equal(keywords("what is the"), "what is the");
+});
+
+test("Ask the Space searches as an agent does: a redacted word in a file is neither found, quoted nor sent to the model, though the person's own search finds it", async () => {
+  const { h, sent } = rig();
+  seed(h, { id: "fil_knee", title: "knee-notes.txt", kind: "file", body: "The meniscus tear needs surgery in March.", path: "Clinic/knee-notes.txt", agent: { title: "knee-notes.txt", path: "Clinic/knee-notes.txt", body: "The [REDACTED] tear needs surgery in March." } });
+  const person = await query(h.ctx, { q: "meniscus" });
+  assert.ok(person.hits.some((x) => x.id === "fil_knee"), "a person's search keeps the whole text");
+  const gone = await ask(h.ctx, { q: "what does the knee note say about the meniscus" });
+  assert.deepEqual([gone.state, gone.sources.some((x) => x.id === "fil_knee")], ["no_access", false]);
+  assert.ok(sent.every((i) => !/meniscus/i.test(`${i["prompt"]}`)), "the word never reaches the model");
+  const other = await ask(h.ctx, { q: "what does the knee note say about surgery" });
+  assert.equal(other.state, "answered");
+  const prompt = String(sent[sent.length - 1]!["prompt"]);
+  assert.ok(prompt.includes("REDACTED tear") && !/meniscus/i.test(prompt), "the file is read as an agent reads it");
+  assert.ok(!/meniscus/i.test(JSON.stringify(other)), "nor in the sources or snippets");
 });

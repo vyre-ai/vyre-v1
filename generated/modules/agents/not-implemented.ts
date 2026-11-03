@@ -15,6 +15,7 @@ export const handlers: Handlers<HandlerCtx> = {
   "agents.delete": async (ctx) => { throw new VyreErr(notImplemented("agents.delete", ctx.trace)); },
   "agents.get": async (ctx) => { throw new VyreErr(notImplemented("agents.get", ctx.trace)); },
   "agents.guide.get": async (ctx) => { throw new VyreErr(notImplemented("agents.guide.get", ctx.trace)); },
+  "agents.instruction.append": async (ctx) => { throw new VyreErr(notImplemented("agents.instruction.append", ctx.trace)); },
   "agents.limits.get": async (ctx) => { throw new VyreErr(notImplemented("agents.limits.get", ctx.trace)); },
   "agents.list": async (ctx) => { throw new VyreErr(notImplemented("agents.list", ctx.trace)); },
   "agents.memory_key.get": async (ctx) => { throw new VyreErr(notImplemented("agents.memory_key.get", ctx.trace)); },

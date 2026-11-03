@@ -22,7 +22,7 @@ interface ProviderRow {
   uses?: SpaceUses; teamChatsForMe?: boolean; capped?: boolean; models?: string[];
 }
 interface ThreadOut { thread: { starter: string; agents: Array<{ agentId: string; accountRef?: string; provider?: string; model?: string }> } }
-interface AgentOut { agent: { accountPolicy: "asker" | "key"; accountKey?: string; accountFallback?: string[]; model?: string } }
+interface AgentOut { agent: { accountPolicy: "asker" | "key"; accountKey?: string; workKey?: string; accountFallback?: string[]; model?: string } }
 interface PolicyOut { allowedAccounts: "any" | "company" }
 interface DefaultsOut { fallback: Array<{ accountRef?: string }> }
 interface PlacementOut { placement: "host" | "device" | "wait" }
@@ -136,7 +136,7 @@ export async function accountResolve(ctx: Ctx, input: { threadId: string; agentI
     // the person chose the chat's account and its model together: a list that does not have the model fails the turn rather than run elsewhere
     ...(member?.accountRef && member?.model ? { modelPinned: true } : {}),
     ...(member?.accountRef ? { threadAccountRef: c(member.accountRef) } : {}),
-    agent: { agentId: input.agentId, accountPolicy: a.agent.accountPolicy, ...(a.agent.accountKey ? { accountKey: c(a.agent.accountKey) } : {}), ...(a.agent.accountFallback?.length ? { accountFallback: a.agent.accountFallback.map(c) } : {}), ...(provider ? { provider } : {}) },
+    agent: { agentId: input.agentId, accountPolicy: a.agent.accountPolicy, ...(a.agent.accountKey ? { accountKey: c(a.agent.accountKey) } : {}), ...(a.agent.workKey ? { workKey: c(a.agent.workKey) } : {}), ...(a.agent.accountFallback?.length ? { accountFallback: a.agent.accountFallback.map(c) } : {}), ...(provider ? { provider } : {}) },
     ...(input.stepKey ? { stepKey: c(input.stepKey) } : {}),
     backupRefs: defaults.fallback.flatMap((f) => (f.accountRef ? [c(f.accountRef)] : [])),
     policy: policy.allowedAccounts,
@@ -148,7 +148,7 @@ export async function accountResolve(ctx: Ctx, input: { threadId: string; agentI
   const itemId = res.accountRef ? accounts.itemByRef.get(res.accountRef) : undefined;
   // an account ahead of this one was passed over: what pays is a fallback, whatever the reason word says
   const fellBack = res.accountRef !== null && res.tried.some((a) => !a.used && (a.why === "expired" || a.why === "failed" || a.why === "failed_this_turn" || a.why === "capped"));
-  return { accountRef: res.accountRef, payer: res.payer, reason: res.reason, allowed: res.allowed, ...(itemId ? { itemId } : {}), ...(fellBack ? { fellBack: true } : {}), ...(res.pin ? { pin: res.pin } : {}), ...(!res.allowed && res.unblock ? { why: res.unblock.why } : {}),
+  return { accountRef: res.accountRef, payer: res.payer, reason: res.reason, allowed: res.allowed, ...(itemId ? { itemId } : {}), ...(fellBack ? { fellBack: true } : {}), ...(res.pin ? { pin: res.pin } : {}), ...(fellBack ? (() => { const c = res.tried.find((a) => !a.used && a.why === "capped"); return c ? { cappedFrom: c.ref } : {}; })() : {}), ...(res.via && ["chat_key", "thread", "work", "step", "space"].includes(res.via) ? { via: res.via } : {}), ...(!res.allowed && res.unblock ? { why: res.unblock.why } : {}),
     ...(res.modelFallback && res.accountRef && model ? { modelFallback: { from: model, ...(accounts.rows.find((r) => r.ref === res.accountRef)?.models?.[0] ? { to: accounts.rows.find((r) => r.ref === res.accountRef)!.models![0]! } : {}) } } : {}) };
 }
 

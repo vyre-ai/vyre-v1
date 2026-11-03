@@ -4,6 +4,7 @@
 // and `mergeHits`, which the client uses to put the server's answer after the local one.
 import { DIM, LABELS, askerOf, docOf, embed, ensure, matchText, rowsOf, str, vectorsOf, wordsOf } from "../projections.ts";
 import type { DocRow, Kind, SearchCtx } from "../projections.ts";
+import { agentBound } from "../../../lib/redact.ts";
 
 export interface Hit {
   kind: Kind;
@@ -88,6 +89,48 @@ async function readable(ctx: SearchCtx, d: DocRow, seen: Map<string, boolean> = 
   } catch { ok = false; }
   seen.set(k, ok);
   return ok;
+}
+
+// ---- Redaction for AI: what an agent's search sees
+
+/**
+ * A person's search reads the index as it is. An agent-bound caller (an agent, or a person's turn run by an agent: Ask, MCP, the engine) sees a file with a redaction layer only as an agent may
+ * read it: its title, path and body from search_agent_docs, a file agents may not see not at all, and a match only when every typed word is in that text (the full text index and the vectors were
+ * built from the whole file, so a redacted word or a meaning near it would otherwise find it).
+ */
+interface AgentDoc { title: string; path: string | null; body: string; withheld: boolean }
+type AgentDocs = Map<number, AgentDoc> | null;
+
+function agentDocs(ctx: SearchCtx, ns: readonly number[]): AgentDocs {
+  if (!agentBound(ctx)) return null;
+  const out = new Map<number, AgentDoc>();
+  for (let i = 0; i < ns.length; i += 400) {
+    const chunk = ns.slice(i, i + 400).filter((n) => Number.isInteger(n));
+    if (chunk.length === 0) continue;
+    for (const r of rowsOf(ctx.db, `SELECT * FROM search_agent_docs WHERE n IN (${chunk.join(",")})`)) {
+      out.set(Number(r["n"]), { title: str(r["title"]), path: r["path"] === null ? null : str(r["path"]), body: str(r["body"]), withheld: Number(r["withheld"]) === 1 });
+    }
+  }
+  return out;
+}
+
+/** The document as this caller may see it: itself for a person, the agent's view for an agent-bound caller, null when agents may not see it. */
+function asSeen(d: DocRow, agent: AgentDocs): DocRow | null {
+  const a = agent?.get(d.n);
+  if (!a) return d;
+  if (a.withheld) return null;
+  return { ...d, title: a.title, path: a.path, body: a.body };
+}
+
+const fold = (s: string): string => s.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
+
+/** Is every typed word the start of a word of the title or body, as the full text index matches it (prefix, case and accents folded)? `any` asks for one word instead (Related). */
+function wordsIn(d: Pick<DocRow, "title" | "body">, words: readonly string[], any = false): boolean {
+  const have = new Set(wordsOf(fold(`${d.title}\n${d.body}`)));
+  const has = (w: string): boolean => { const f = fold(w); for (const h of have) if (h.startsWith(f)) return true; return false; };
+  const want = words.filter((w) => w.length > 0);
+  if (want.length === 0) return true;
+  return any ? want.some(has) : want.every(has);
 }
 
 const WORD_CHAR = /[\p{L}\p{N}_]/u;
@@ -188,12 +231,16 @@ export async function query(ctx: SearchCtx, input: QueryInput): Promise<{ hits: 
   const order = [...fused.entries()].sort((a, b) => b[1].score - a[1].score || b[0] - a[0]);
 
   const kinds = input.types && input.types.length > 0 ? new Set<string>(input.types) : null;
+  const agent = agentDocs(ctx, [...docs.keys()]);
   const hits: Hit[] = [];
   const opened = new Map<string, boolean>();
   let more = false;
   for (const [n, e] of order) {
-    const d = docs.get(n);
+    const raw = docs.get(n);
+    if (!raw) continue;
+    const d = asSeen(raw, agent);
     if (!d) continue;
+    if (d !== raw && !wordsIn(d, words)) continue;
     if (kinds && !kinds.has(d.kind)) continue;
     if (input.recordType && d.recordType !== input.recordType) continue;
     if (input.folderId && d.folderId !== input.folderId) continue;
@@ -216,8 +263,9 @@ export async function recentList(ctx: SearchCtx, input: { types?: readonly Kind[
     if (kinds && !kinds.has(str(r["kind"]))) continue;
     const d = rowsOf(ctx.db, "SELECT * FROM search_docs WHERE kind = ? AND id = ?", str(r["kind"]), str(r["item_id"]))[0];
     if (!d) continue;
-    const doc = docOf(d);
-    if (!(await readable(ctx, doc))) continue;
+    const raw = docOf(d);
+    const doc = asSeen(raw, agentDocs(ctx, [raw.n]));
+    if (!doc || !(await readable(ctx, doc))) continue;
     hits.push(hitOf(doc, 1 / (RRF + hits.length), []));
     if (hits.length === limit) break;
   }
@@ -231,8 +279,9 @@ export async function resolveItem(ctx: SearchCtx, input: { kind: Kind; itemId: s
   ensure(ctx.db);
   const row = rowsOf(ctx.db, "SELECT * FROM search_docs WHERE kind = ? AND id = ?", input.kind, input.itemId)[0];
   if (!row) return {};
-  const doc = docOf(row);
-  return (await readable(ctx, doc)) ? { hit: hitOf(doc, 1, []) } : {};
+  const raw = docOf(row);
+  const doc = asSeen(raw, agentDocs(ctx, [raw.n]));
+  return doc && (await readable(ctx, doc)) ? { hit: hitOf(doc, 1, []) } : {};
 }
 
 // ---- Related
@@ -253,8 +302,9 @@ export async function related(ctx: SearchCtx, input: { kind: Kind; itemId: strin
   const limit = input.limit ?? 10;
   const row = rowsOf(ctx.db, "SELECT * FROM search_docs WHERE kind = ? AND id = ?", input.kind, input.itemId)[0];
   if (!row) return { hits: [] };
-  const self = docOf(row);
-  if (!(await readable(ctx, self))) return { hits: [] };
+  const selfRaw = docOf(row);
+  const self = asSeen(selfRaw, agentDocs(ctx, [selfRaw.n]));
+  if (!self || !(await readable(ctx, self))) return { hits: [] };
   const terms = termsOf(self);
   if (terms.length === 0) return { hits: [] };
   const cands = rowsOf(
@@ -263,10 +313,13 @@ export async function related(ctx: SearchCtx, input: { kind: Kind; itemId: strin
     `{title body} : (${terms.map(quoted).join(" OR ")})`, MIN_CANDIDATES,
   );
   const docs = docsByRowid(ctx, cands.map((c) => Number(c["n"])));
+  const agent = agentDocs(ctx, [...docs.keys()]);
   const hits: Hit[] = [];
   for (const c of cands) {
-    const d = docs.get(Number(c["n"]));
-    if (!d || d.n === self.n || !(await readable(ctx, d))) continue;
+    const raw = docs.get(Number(c["n"]));
+    if (!raw || raw.n === self.n) continue;
+    const d = asSeen(raw, agent);
+    if (!d || (d !== raw && !wordsIn(d, terms, true)) || !(await readable(ctx, d))) continue;
     hits.push(hitOf(d, 1 / (RRF + hits.length), terms));
     if (hits.length === limit) break;
   }

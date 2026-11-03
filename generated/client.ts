@@ -118,6 +118,9 @@ export function createClient(transport: Transport) {
       guide: {
         get: call("agents.guide.get", 1),
       },
+      instruction: {
+        append: call("agents.instruction.append", 1),
+      },
       limits: {
         get: call("agents.limits.get", 1),
       },
@@ -874,6 +877,12 @@ export function createClient(transport: Transport) {
       types: call("events.types", 1),
     },
     files: {
+      agent_access: {
+        get: call("files.agent_access.get", 1),
+        set: call("files.agent_access.set", 1),
+      },
+      agent_states: call("files.agent_states", 1),
+      agent_view: call("files.agent_view", 1),
       comments: {
         add: call("files.comments.add", 1),
         delete: call("files.comments.delete", 1),
@@ -900,6 +909,12 @@ export function createClient(transport: Transport) {
       knowledge: call("files.knowledge", 1),
       lint: call("files.lint", 1),
       list: call("files.list", 1),
+      marks: {
+        add: call("files.marks.add", 1),
+        list: call("files.marks.list", 1),
+        place: call("files.marks.place", 1),
+        remove: call("files.marks.remove", 1),
+      },
       markup: {
         get: call("files.markup.get", 1),
         save: call("files.markup.save", 1),
@@ -909,10 +924,16 @@ export function createClient(transport: Transport) {
       purge: call("files.purge", 1),
       read: call("files.read", 1),
       recent: call("files.recent", 1),
+      redact: {
+        detect: call("files.redact.detect", 1),
+        later: call("files.redact.later", 1),
+        request: call("files.redact.request", 1),
+      },
       rename: call("files.rename", 1),
       resolve: call("files.resolve", 1),
       restore: call("files.restore", 1),
       restore_version: call("files.restore_version", 1),
+      review: call("files.review", 1),
       revoke_external: call("files.revoke_external", 1),
       save: call("files.save", 1),
       share: call("files.share", 1),
@@ -1574,6 +1595,9 @@ export function createClient(transport: Transport) {
       chat_learning: {
         get: call("memory.chat_learning.get", 1),
         set: call("memory.chat_learning.set", 1),
+      },
+      corrections: {
+        record: call("memory.corrections.record", 1),
       },
       counts: call("memory.counts", 1),
       erase: call("memory.erase", 1),

@@ -12,6 +12,7 @@ import {
 } from "../projections.ts";
 import type { AgentConfig, AgentKind, AgentRec, AgentRuntime, AgentsCtx, FolderOut, Limits, VersionOut } from "../projections.ts";
 import { isOutside, outsideFace, outsideName } from "./outside.ts";
+import { isAdmin } from "./connections.ts";
 import { readTemplate, templateVersion } from "./routines.ts";
 import { isHostService } from "../../../lib/trust.ts";
 
@@ -228,6 +229,8 @@ export async function update(ctx: AgentsCtx, input: { agentId: string; patch: Re
   const res = applyPatch(doc, a.config, input.patch);
   if (!res.ok) raise(ctx, res.code, res.message);
   if (res.fields.length === 0) return { agent: agentOut(a, ctx.now()) };
+  // The Chat key (owner, 3 Nov): paying for every person's chats with one Space account instead of each person's own is an override that only people who manage the Space's AI accounts set
+  if ((res.fields.includes("accountPolicy") || res.fields.includes("accountKey")) && !isHostService(ctx.principal) && !isAdmin(ctx)) raise(ctx, "permission.no_grant", "Only people who manage the Space's AI accounts can make an agent pay for chats with one account.", { reason: "chat_key_admin" });
   const newName = res.config.name;
   if (nameKey(newName) !== nameKey(a.name) && agentByName(ctx.db, newName)) raise(ctx, "validation.bad_input", "An agent with that name already exists.", { name: newName });
   const text = tomlFor(res.doc);
@@ -265,6 +268,37 @@ export async function roleLineSet(ctx: AgentsCtx, input: { agentId: string; desc
   storeConfig(ctx.db, a.id, { name: a.name, text: toml, config: res.config, versionId: saved.versionId, at: ctx.now() });
   ctx.emit("agent.config_changed", a.id, { agentId: a.id, fields: ["role"], versionId: saved.versionId, by: by(ctx) });
   return { agent: agentOut(agentBy(ctx.db, a.id)!, ctx.now()), undoVersionId: undo.versionId };
+}
+
+/** Under this heading in AGENT.md: what the person taught the agent by correcting it, made an instruction. */
+export const LESSONS_HEADING = "## Lessons from corrections";
+const MAX_LESSON_LINE = 240;
+
+/** "Make it an instruction": a lesson (or any one-line rule) is added to the agent's AGENT.md as a bullet under its own heading, as a new version with an inline Undo. Same rule as the role line: Edit on the agent. */
+export async function instructionAppend(ctx: AgentsCtx, input: { agentId: string; line: string }) {
+  const a = visible(ctx, input.agentId);
+  mustChangeSettings(ctx, a);
+  const line = input.line.replace(/\s+/g, " ").trim();
+  if (line === "" || line.length > MAX_LESSON_LINE) raise(ctx, "validation.bad_input", `An instruction is one line of up to ${MAX_LESSON_LINE} characters.`);
+  if (a.agentMdFileId === undefined) raise(ctx, "validation.bad_input", "This agent has no AGENT.md yet.");
+  const before = await versionsOf(ctx, a.agentMdFileId);
+  const undo = [...before].sort((x, y) => y.n - x.n)[0];
+  const text = ((await call<{ text?: string }>(ctx, "files.read", { fileId: a.agentMdFileId, as: "text" })).text) ?? "";
+  const bullet = `- ${line}`;
+  if (text.split("\n").some((l) => l.trim() === bullet)) return { agent: agentOut(a, ctx.now()), added: false, ...(undo ? { undoVersionId: undo.versionId } : {}) };
+  const at = text.indexOf(LESSONS_HEADING);
+  let next: string;
+  if (at < 0) next = `${text.replace(/\s+$/, "")}\n\n${LESSONS_HEADING}\n\n${bullet}\n`;
+  else {
+    // the section runs to the next heading or the end: the bullet goes after its last line
+    const rest = text.slice(at + LESSONS_HEADING.length);
+    const stop = rest.search(/\n#{1,6} /);
+    const end = stop < 0 ? text.length : at + LESSONS_HEADING.length + stop;
+    next = `${text.slice(0, end).replace(/\s+$/, "")}\n${bullet}\n${stop < 0 ? "" : text.slice(end)}`;
+  }
+  const saved = await saveFile(ctx, a.agentMdFileId, next, "Made a lesson an instruction");
+  ctx.emit("agent.config_changed", a.id, { agentId: a.id, fields: ["AGENT.md"], versionId: saved.versionId, by: by(ctx) });
+  return { agent: agentOut(agentBy(ctx.db, a.id)!, ctx.now()), added: true, versionId: saved.versionId, ...(undo ? { undoVersionId: undo.versionId } : {}) };
 }
 
 // ---- lifecycle -----------------------------------------------------------------------------------------------------------------------------------------------
@@ -505,7 +539,7 @@ export function changedFields(a: AgentConfig, b: AgentConfig): string[] {
   const out: string[] = [];
   const diff = (k: string, x: unknown, y: unknown): void => { if (JSON.stringify(x) !== JSON.stringify(y)) out.push(k); };
   diff("name", a.name, b.name); diff("role", a.description, b.description); diff("model", a.model, b.model); diff("fallbackModel", a.fallbackModel, b.fallbackModel);
-  diff("accountPolicy", a.accountPolicy, b.accountPolicy); diff("accountKey", a.accountKey, b.accountKey); diff("accountFallback", (a.accountFallback ?? []).join(", "), (b.accountFallback ?? []).join(", ")); diff("memoryKey", a.memoryKey, b.memoryKey); diff("handoffs", a.handoffs, b.handoffs);
+  diff("accountPolicy", a.accountPolicy, b.accountPolicy); diff("accountKey", a.accountKey, b.accountKey); diff("accountFallback", (a.accountFallback ?? []).join(", "), (b.accountFallback ?? []).join(", ")); diff("memoryKey", a.memoryKey, b.memoryKey); diff("workKey", a.workKey, b.workKey); diff("handoffs", a.handoffs, b.handoffs);
   diff("toolsAllowed", a.toolsAllowed, b.toolsAllowed); diff("toolsDenied", a.toolsDenied, b.toolsDenied); diff("vaultKeys", a.vaultKeys, b.vaultKeys);
   diff("limits", a.limits, b.limits); diff("captureMode", a.captureMode, b.captureMode);
   return out.length > 0 ? out : ["agent.toml"];

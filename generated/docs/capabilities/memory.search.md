@@ -39,7 +39,7 @@ type In = {
 ```ts
 type Out = {
   hits: Array<{
-      kind: "note" | "fact" | "page";
+      kind?: string;
       noteId?: string;
       factId?: string;
       pageId?: string;
@@ -50,6 +50,11 @@ type Out = {
       layer: "person" | "agent" | "project" | "space";
       sourceLink?: string;
       score: number;
+      lesson?: {
+        how?: "edit" | "refuse" | "reverse" | "rewrite";
+        used: number;
+        scope: "you" | "proposed" | "space";
+      };
       subject?: {
         pageId: string;
         title: string;
@@ -98,8 +103,13 @@ type Out = {
         "by": "example",
         "byKind": "person",
         "factId": "fct_a1b2c3",
-        "kind": "note",
+        "kind": "example",
         "layer": "person",
+        "lesson": {
+          "how": "edit",
+          "scope": "you",
+          "used": 1
+        },
         "noteId": "not_a1b2c3",
         "pageId": "example",
         "path": "example",

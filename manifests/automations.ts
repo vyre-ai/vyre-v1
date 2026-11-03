@@ -48,6 +48,7 @@ const node = t.obj({
 });
 const definition = t.obj({
   triggers: t.arr(triggerRef, { minItems: 1 }), nodes: t.arr(node), start: t.opt(t.arr(t.str())), allowSelfTrigger: t.opt(t.bool()),
+  ai: t.opt(t.obj({ keyId: t.opt(t.str({ description: 'Vault handle of the AI account every AI step runs on unless it chooses its own; absent is Automatic' })), backupKeyId: t.opt(t.str({ description: 'Takes over when the main account is capped, out of credits or not answering' })) })),
 });
 const alertWhere = t.obj({ needsYou: t.bool(), dm: t.bool(), channelId: t.opt(id.channel) });
 const alerts = t.obj({

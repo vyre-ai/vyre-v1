@@ -83,3 +83,36 @@ export async function forgetMessage(mem: ChatMemoryData, taught: readonly Learne
 }
 
 export const isMine = (f: Pick<ChatFact, "by">, me: { id: string }): boolean => f.by === me.id;
+
+// ---------------------------------------------------------------- lessons (learn from every correction)
+
+/** "Share with the Space" on a lesson: it goes through the ordinary promotion, so it lands in Proposed and a person accepts it (or, for someone who may edit the agent, it is done at once). */
+export async function shareLesson(mem: ChatMemoryData, factId: string, agentId: string, say: Say): Promise<void> {
+  try {
+    const out = await mem.store.write<{ promoted: boolean }>("memory.promote", { factId, toLayer: "agent", agentId });
+    say(out.promoted ? "Shared with the Space." : "Sent to Proposed. A person accepts it first.");
+  } catch (e) {
+    say(errorLine(e, "Could not share it"));
+  }
+}
+
+/** "Make it an instruction": one line in the agent's AGENT.md under Lessons from corrections, as a new version; Undo restores the version before. */
+export async function makeInstruction(mem: ChatMemoryData, agentId: string, text: string, say: Say): Promise<void> {
+  try {
+    const out = await mem.store.write<{ added: boolean; undoVersionId?: string }>("agents.instruction.append", { agentId, line: text });
+    const back = out.undoVersionId;
+    say(out.added ? "Added to the agent's instructions as a new version." : "It is already in the agent's instructions.", out.added && back ? () => mem.store.write("agents.restore_version", { agentId, versionId: back, file: "AGENT.md" }) : undefined);
+  } catch (e) {
+    say(errorLine(e, "Could not add it to the instructions"));
+  }
+}
+
+/** The switch "Learn from my corrections": a person setting, on unless turned off. Undo puts it back. */
+export async function setLessonSwitch(mem: ChatMemoryData, on: boolean, say: Say): Promise<void> {
+  try {
+    await mem.store.write("settings.set", { key: "memory.lessons", value: on });
+    say(on ? "The agent keeps lessons from your corrections." : "The agent stops keeping lessons.", () => mem.store.write("settings.set", { key: "memory.lessons", value: !on }));
+  } catch (e) {
+    say(errorLine(e, "Could not change it"));
+  }
+}

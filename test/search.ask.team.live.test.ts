@@ -65,7 +65,24 @@ test("Team: Ask the Space answers Mia from what she may read, with real citation
     await waitFor(async () => { await pump(); const r = await api("usr_mia", "search.query", { q: "Rivera lease deposit" }); return r.data.hits?.length ? true : null; }, 20_000, () => hostLog(d));
     await waitFor(async () => { await pump(); const r = await api("usr_olivia", "search.query", { q: "Zephyr acquisition" }); return r.data.hits?.length ? true : null; }, 20_000, () => hostLog(d));
 
+    // a file whose word "meniscus" Olivia hid from AI: her own search finds it, Ask the Space neither cites the file for that word nor says it
+    const roots = ((await api("usr_olivia", "files.tree", {})).data as { roots: { key: string; folderId?: string }[] }).roots.filter((r) => r.folderId);
+    const clinic = (await api("usr_olivia", "files.folder.create", { parentId: roots[0]!.folderId, name: "Clinic", idempotencyKey: "ask-clinic" })).data.folder.folderId as string;
+    const knee = (await api("usr_olivia", "files.create", { folderId: clinic, name: "knee-notes.txt", mime: "text/plain", content: { text: "Dr Park says the meniscus tear needs surgery in March." }, idempotencyKey: "ask-knee" })).data.file.fileId as string;
+    assert.equal((await api("usr_olivia", "files.agent_access.set", { target: { type: "folder", id: clinic }, value: "redact" })).status, 200);
+    assert.equal((await api("usr_olivia", "files.marks.add", { target: { type: "file", id: knee }, kind: "redact", shape: "span", text: "meniscus" })).status, 200);
+    await waitFor(async () => { await pump(); const r = await api("usr_olivia", "search.query", { q: "meniscus" }); return r.data.hits?.some((x: { id: string }) => x.id === knee) ? true : null; }, 20_000, () => hostLog(d));
+    const askedBefore = requests.length;
+    const red = await api("usr_olivia", "search.ask", { q: "what does the knee note say about the meniscus" });
+    assert.equal(red.status, 200, JSON.stringify(red.data));
+    assert.ok(!red.data.sources.some((s: { id: string }) => s.id === knee), "the file is not cited for a word an agent may not read");
+    assert.ok(!/meniscus/i.test(JSON.stringify(red.data)), "nor is the word said");
+    assert.ok(requests.slice(askedBefore).every((r) => !/meniscus/i.test(r.prompt)), "the word never reached the model");
+    const surgery = await api("usr_olivia", "search.ask", { q: "what does the knee note say about surgery" });
+    assert.ok(!/meniscus/i.test(JSON.stringify(surgery.data)) && requests.slice(askedBefore).every((r) => !/meniscus/i.test(r.prompt)), "asked another way, the file is read only as an agent reads it");
+
     // Mia asks about what she may read: answered, cited, on her account (the Space's, she has no Mine one), and the prompt holds her sources only
+    const base = requests.length;
     const a = await api("usr_mia", "search.ask", { q: "what is the Rivera lease deposit" });
     assert.equal(a.status, 200, JSON.stringify(a.data));
     assert.equal(a.data.state, "answered", JSON.stringify(a.data));
@@ -77,11 +94,11 @@ test("Team: Ask the Space answers Mia from what she may read, with real citation
       const hit = await api("usr_mia", "search.resolve", { kind: s.kind, itemId: s.id });
       assert.equal(hit.data.hit?.id, s.id, "every cited source is one Mia can open");
     }
-    assert.equal(requests.length, 1);
-    assert.deepEqual([requests[0]!.asker, requests[0]!.account], ["usr_mia", teamRef], "Mia's request runs for Mia, on the Space account, never on Olivia's own");
-    assert.ok(requests[0]!.prompt.includes("4200 dollars"));
+    assert.equal(requests.length, base + 1);
+    assert.deepEqual([requests[base]!.asker, requests[base]!.account], ["usr_mia", teamRef], "Mia's request runs for Mia, on the Space account, never on Olivia's own");
+    assert.ok(requests[base]!.prompt.includes("4200 dollars"));
     assert.ok(!JSON.stringify((await api("usr_mia", "search.query", { q: "Zephyr acquisition" })).data).includes("founders"), "Cmd-K search itself does not show an invite-only channel to someone who was not invited");
-    assert.ok(!/Zephyr|9100000|Skylark/.test(requests[0]!.prompt + JSON.stringify(a.data)), "nothing of the private channel or profile");
+    assert.ok(!/Zephyr|9100000|Skylark/.test(requests[base]!.prompt + JSON.stringify(a.data)), "nothing of the private channel or profile");
 
     // Mia asks about what she may not read: the no-access answer, no source, no leaked word (the model saw only what she may read, and says it sees nothing)
     const before = requests.length;

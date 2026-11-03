@@ -166,6 +166,7 @@ import type { HookRunner, ModuleHooks } from "./consumers.ts";
 import { createSpaceStore, spaceStoreDrivers, spaceStorePath } from "./store.ts";
 import { createViewAs } from "./view-as.ts";
 import { createRecordAccess } from "./record-access.ts";
+import { createAgentGate } from "../seams/agent-read.ts";
 import { createSourceGuard } from "./connector-source-guard.ts";
 import { coreOf, createSyncEngine } from "./syncengine.ts";
 import { collectProjections, createProjectionRunner } from "./projections.ts";
@@ -1040,6 +1041,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           return authorize(access.snap, r);
         },
         membership: (principal, actingFor) => isMemberOrGuest(access.snap, principal) && (actingFor === undefined || isMemberOrGuest(access.snap, actingFor)),
+        // the read gate (Redaction for AI): every call an agent is behind hands back the redacted rendition of a file, or a refusal
+        agentGate: createAgentGate({ call: (n, i) => hookRunner.call(n, i), warn: (msg, attrs) => sink.log({ space: spaceId, level: 40, msg, place: "agent-read", attrs }) }),
         sourceGuard: createSourceGuard({ db: { all: (sql, ...args) => db!.all(sql, ...args) }, connectors: { all: (sql, ...args) => spaceStore.open().tx.all(sql, ...args) }, authorize: (r) => authorize(access.snap, r), space: spaceId }),
         recordAccess: createRecordAccess({store:()=>spaceStore.open().store,snapshot:()=>access.snap,now,fresh:()=>!accessStale,refresh:()=>syncAccess(true),warn:(info)=>sink.log({ space: spaceId, level: 40, msg: "records.read_mismatch", place: "read", attrs: { ...info } })}),
         preview: { read: (token, cap, input, trace) => {
@@ -1917,6 +1920,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         allow: (c, r) => !staleFor(c.principal.id) && authorize(access.snap, { principal: c.principal.id, ...(c.actingFor ? { actingFor: c.actingFor } : {}), action: { perm: null, level: "view" }, resource: { type: r.type, id: r.id } }).effect === "allow",
         // the bytes of an upload slot (files.upload_url): the Files module seals them; the slot's one-time token is the authority
         put: async (a) => (await hookRunner.call("files.put_upload", { blobId: a.blobId, token: a.token, base64: Buffer.from(a.bytes).toString("base64") })) as { hash: string; size: number },
+        // a picture of a file an agent asks for goes through the read gate like the file itself (Redaction for AI)
+        agentRead: async (c, r) => { const g = (await hookRunner.call("files.agent_gate", { phase: "after", cap: "previews.get", input: { fileId: r.id }, output: {}, who: { principal: c.principal, ...(c.actingFor ? { actingFor: c.actingFor } : {}) } })) as { refuse?: unknown } | null; return !(g && g.refuse); },
       });
       // the landing page of a portal invitation or sign-in link (P-L8_17): sites is deferred, so the Space host serves it; null while the portal module is not live
       const peekLink = loaded.moduleExports.get("portal")?.["peekLink"] as ((ctx: { db: unknown }, now: number, siteId: string, token: string) => Promise<never>) | undefined;

@@ -11,6 +11,7 @@
 import type http from "node:http";
 import type { BlobResource, BlobStore } from "../ctx/blobs.ts";
 import { makeError } from "./errors.ts";
+import { agentBound } from "../../../lib/redact.ts";
 import type { ErrorCode } from "../../../packages/contracts/src/types.ts";
 
 export interface BlobCaller { space: string; principal: { kind: string; id: string }; actingFor?: string | undefined }
@@ -26,6 +27,11 @@ export interface BlobRouteDeps {
   allow(caller: BlobCaller, resource: BlobResource): boolean | Promise<boolean>;
   /** Store the bytes of an upload slot (files.upload_url): PUT /spaces/<space>/blobs/<id>?token=<token>. The slot's one-time token is the authority; the caller must be signed in. */
   put?(a: { blobId: string; token: string; bytes: Uint8Array; caller: BlobCaller }): Promise<{ hash: string; size: number }>;
+  /**
+   * The read gate for a picture of a file (Redaction for AI): an agent or an outside actor asking for a preview, page or thumbnail of a file that is Not available, waits for review, or has parts hidden
+   * from AI is refused, since a picture cannot carry [REDACTED]. False refuses. Absent: no such check, as before.
+   */
+  agentRead?(caller: BlobCaller, resource: BlobResource): Promise<boolean>;
 }
 const MAX_PUT = 25 * 1024 * 1024 + 1024;
 
@@ -55,6 +61,7 @@ export function createBlobRoute(deps: BlobRouteDeps): { handle(req: http.Incomin
     // an id nobody stored is absent for everyone who is signed in; a stored one is 403 unless the caller may read the resource it belongs to
     if (!own) return reply(res, "validation.not_found", 404, "That file does not exist.");
     if (!own.resource || !(await deps.allow(caller, own.resource))) return reply(res, "permission.no_grant", 403, "You do not have access to this.");
+    if (deps.agentRead && own.resource.type === "file" && agentBound({ principal: caller.principal }) && !(await deps.agentRead(caller, own.resource).catch(() => false))) return reply(res, "permission.no_grant", 403, "This is hidden from AI.");
     const blobs = deps.store.forModule(own.module);
     const meta = await blobs.stat(id);
     if (!meta) return reply(res, "validation.not_found", 404, "That file does not exist.");

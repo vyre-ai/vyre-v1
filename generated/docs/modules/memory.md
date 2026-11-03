@@ -4,13 +4,14 @@ Lane L2. Kind module. Version 0.1.0.
 
 Requires: projects.
 
-## Capabilities (68)
+## Capabilities (69)
 
 - [memory.archive_sweep](../capabilities/memory.archive_sweep.md): Daily job: move facts untouched in Trash for the Space setting (30 to 90 days, default 60) to Archive
 - [memory.backlinks](../capabilities/memory.backlinks.md): Where a page is linked from: other pages, chats, runs and records, each with the line that names it; only places the reader can open
 - [memory.capture](../capabilities/memory.capture.md): Learn from a chat: after each turn on the asker's own account and cheapest model inside their daily quota, else by rules; at chat end or when quiet, by rules over what no turn pass read
 - [memory.chat_learning.get](../capabilities/memory.chat_learning.get.md): Whether a chat is remembered: off means nothing is learned from it
 - [memory.chat_learning.set](../capabilities/memory.chat_learning.set.md): Don't remember this chat: anyone in it turns learning off; who turned it off, or who started the chat, turns it back on
+- [memory.corrections.record](../capabilities/memory.corrections.record.md): Keep a lesson from a correction made outside the chat's own words: an edit of the agent's draft, a declined or sent-back action, an undo. Called as the person who corrected; kept only when their switch Learn from my corrections is on
 - [memory.counts](../capabilities/memory.counts.md): Counts for the agent strip: current facts, proposed facts, facts from the caller and facts merged on their own
 - [memory.erase](../capabilities/memory.erase.md): Erase completely: delete facts from history; open to the source person or an admin; the audit entry records who and when, never what
 - [memory.export_markdown](../capabilities/memory.export_markdown.md): The whole brain the reader can see as one Markdown document: pages with their facts, Notes and links, then the facts no page names; personal memory only when asked, and only the reader's own

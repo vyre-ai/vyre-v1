@@ -3,7 +3,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
 import { AgentForm } from "./AgentForm.tsx";
-import { createInput, draftInstructions, faceChoices, faceSeed, grantsFor, reachOffers, updatePatch } from "./model.ts";
+import { createInput, draftInstructions, faceChoices, faceSeed, grantsFor, reachOffers, updatePatch, workPatch, chatKeyPatch } from "./model.ts";
 import type { AgentDraft, VaultItem } from "./model.ts";
 
 const draft: AgentDraft = { name: " Collector ", does: "Chases unpaid invoices", face: "f1", instructions: "", model: "", fallbackModel: "", computer: "own" };
@@ -52,4 +52,42 @@ test("the page draws its sections in order", () => {
 
 test("Who can use it is hidden in a Personal Space", () => {
   assert.ok(!page(false).includes("Who can use it"));
+});
+
+test("AI account sits after Who can use it and before Preferred model, says Automatic, and what it pays for; a Personal Space has none", () => {
+  const out = page(true).replaceAll("<!-- -->", "");
+  let at = 0;
+  for (const s of ["Who can use it", "AI account", "Preferred model"]) { const i = out.indexOf(s, at); assert.ok(i >= at, s); at = i; }
+  assert.match(out, /aria-label="AI account: Automatic. Change"[^>]*data-testid="agent-ai-account"/);
+  assert.ok(out.includes("Cheapest that fits"));
+  assert.ok(out.includes("Pays for its own work: routines, watchers and helpers that run with nobody asking."));
+  assert.ok(out.includes("In a chat, the person&#x27;s own account comes first."));
+  assert.ok(!page(false).includes("agent-ai-account"), "a Personal agent runs on its person's own account");
+});
+
+test("the AI account is sent only when it changed: a pick on a new agent, a pick on a saved one, back to Automatic, and nothing when untouched", () => {
+  assert.deepEqual(workPatch("#Team_Credits", ""), { workKey: "#Team_Credits" });
+  assert.deepEqual(workPatch("", ""), {}, "a new agent left on Automatic sends nothing");
+  assert.deepEqual(workPatch(undefined, ""), {});
+  assert.deepEqual(workPatch("#Team_Credits", "#Team_Credits"), {});
+  assert.deepEqual(workPatch("#Other", "#Team_Credits"), { workKey: "#Other" });
+  assert.deepEqual(workPatch("", "#Team_Credits"), { workKey: null });
+  assert.deepEqual(updatePatch({ ...draft, workKey: "#X" }), { name: "Collector", role: "Chases unpaid invoices", face: "f1", model: null, fallbackModel: null }, "the form sends the account through workPatch, not updatePatch");
+});
+
+test("the Chat key sits under AI account as its own choice, off by default, with its own words", () => {
+  const out = page(true).replaceAll("<!-- -->", "");
+  assert.ok(out.indexOf("AI account") < out.indexOf("Chat key") && out.indexOf("Chat key") < out.indexOf("Preferred model"));
+  assert.ok(out.includes("Pay for chats with this account instead of each person&#x27;s own"));
+  assert.match(out, /role="switch"[^>]*aria-checked="false"[^>]*data-testid="agent-chat-key"|aria-checked="false"[^>]*data-testid="agent-chat-key"/, "a switch, off");
+  assert.ok(!out.includes("agent-chat-key-account"), "the account menu is there only when it is on");
+  assert.ok(out.includes("Only people who manage the Space&#x27;s AI accounts can turn this on."), "a person who cannot manage the Space's AI accounts sees it off and why");
+});
+
+test("the Chat key is sent only when it changed: on names the account, off hands chats back to each person's own", () => {
+  assert.deepEqual(chatKeyPatch("", ""), {});
+  assert.deepEqual(chatKeyPatch(undefined, ""), {});
+  assert.deepEqual(chatKeyPatch("#Team_Credits", ""), { accountPolicy: "key", accountKey: "#Team_Credits" });
+  assert.deepEqual(chatKeyPatch("#Team_Credits", "#Team_Credits"), {});
+  assert.deepEqual(chatKeyPatch("", "#Team_Credits"), { accountPolicy: "asker", accountKey: null });
 });

@@ -218,6 +218,13 @@ export type RecordCardBlockData = {
       value: unknown;
     }>;
 };
+export type RedactRequestBlockData = {
+  requestId: string;
+  fileId: string;
+  name: string;
+  agentId?: string;
+  state: "waiting" | "done" | "later";
+};
 export type ScreenshotBlockData = {
   computerId: string;
   fileId: string;
@@ -292,6 +299,7 @@ export interface BlockDataMap {
   "plan": PlanBlockData;
   "question": QuestionBlockData;
   "record_card": RecordCardBlockData;
+  "redact_request": RedactRequestBlockData;
   "screenshot": ScreenshotBlockData;
   "secret_input": SecretInputBlockData;
   "tab_opened": TabOpenedBlockData;
@@ -720,6 +728,30 @@ export const blockRegistry = [
       "tab": "record",
       "input": {
         "recordId": "/recordId"
+      }
+    }
+  },
+  {
+    "type": "redact_request",
+    "v": 1,
+    "module": "files",
+    "component": "ui:BlockRedactRequest",
+    "fallback": "Redact before I can read: {{name}} is in a Redacted folder.",
+    "waitsForAnswer": false,
+    "actions": [
+      {
+        "key": "later",
+        "label": "Not now",
+        "cap": "files.redact.later",
+        "input": {
+          "requestId": "/requestId"
+        }
+      }
+    ],
+    "opens": {
+      "tab": "viewer",
+      "input": {
+        "fileId": "/fileId"
       }
     }
   },

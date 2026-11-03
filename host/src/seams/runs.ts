@@ -327,7 +327,7 @@ export function createRunsHost(d: { call: HostCall; max?: number; log?: (msg: st
         ...(scope?.item !== undefined || scope?.iterationKey !== undefined ? { item: scope.item, index: scope.iterationIndex } : {}),
       };
       return (await d.call("steps-core.run_step", {
-        node, call: withItem, run: { id: run.id, automation: p.link.automationId, defHash, ...(typeof p.link.depth === "number" ? { depth: p.link.depth } : {}) },
+        node, call: withItem, run: { id: run.id, automation: p.link.automationId, defHash, ...(typeof p.link.depth === "number" ? { depth: p.link.depth } : {}), ...(p.definition.ai && (p.definition.ai.keyId || p.definition.ai.backupKeyId) ? { ai: p.definition.ai } : {}) },
       }, { principal: p.link.principal, run: run.id })) as StepResult;
     };
     const finish = (node: GNode, r: StepResult): StepResult => {

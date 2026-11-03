@@ -105,6 +105,34 @@ test("without Edit an agent can be read and not changed", async () => {
   assert.equal(await failure(() => call(hn, "agents.restore_version", { agentId: id, versionId: "ver_000001" })), "permission.no_grant");
 });
 
+// ---- make a lesson an instruction -----------------------------------------------------------------------------------------------------------------
+
+test("a lesson becomes one bullet in AGENT.md under its own heading, as a new version with Undo; the same line twice adds nothing; it needs Edit", async () => {
+  const { hn, id, md } = await setup();
+  const v1 = hn.world.files.get(md.fileId)!.versions[0]!;
+  const out = await call(hn, "agents.instruction.append", { agentId: id, line: "Notes to Sara: three lines, the number first." });
+  assert.equal(out.added, true);
+  assert.equal(out.undoVersionId, v1.versionId);
+  const text = hn.world.text(md.fileId);
+  assert.match(text, /\n## Lessons from corrections\n\n- Notes to Sara: three lines, the number first\.\n$/);
+  assert.equal(hn.world.files.get(md.fileId)!.versions.length, 2);
+  assert.deepEqual(hn.named("agent.config_changed")[0]!.payload["fields"], ["AGENT.md"]);
+  // a second lesson joins the same section; the same one again changes nothing
+  await call(hn, "agents.instruction.append", { agentId: id, line: "Ask before sending to a client." });
+  assert.equal(hn.world.text(md.fileId).match(/## Lessons from corrections/g)!.length, 1);
+  assert.match(hn.world.text(md.fileId), /- Notes to Sara[^\n]*\n- Ask before sending to a client\.\n$/);
+  const same = await call(hn, "agents.instruction.append", { agentId: id, line: "Ask before sending to a client." });
+  assert.equal(same.added, false);
+  assert.equal(hn.world.files.get(md.fileId)!.versions.length, 3);
+  assert.equal(await failure(() => call(hn, "agents.instruction.append", { agentId: id, line: "   " })), "validation.bad_input");
+  // Undo is the same restore the role line uses
+  const undone = await call(hn, "agents.restore_version", { agentId: id, versionId: out.undoVersionId, file: "AGENT.md" });
+  assert.ok(undone.agent);
+  assert.equal(hn.world.text(md.fileId).includes("Lessons from corrections"), false);
+  hn.allowOnly((a) => a.level === "view");
+  assert.equal(await failure(() => call(hn, "agents.instruction.append", { agentId: id, line: "No." })), "permission.no_grant");
+});
+
 // ---- the role line ----------------------------------------------------------------------------------------------------------------------------------
 
 test("the role line edits agent.toml in place and hands back the version Undo goes to; Undo restores it", async () => {
@@ -347,4 +375,34 @@ test("the server reads an agent's memory key for the nightly job without seeing 
   assert.deepEqual(await h["agents.memory_key.get"]!(host, { agentId: a.agentId }), { memoryKey: "#Team_M", ownerId: "usr_dana" });
   const other = hn.as({ kind: "service", id: "svc_deadbeefdeadbeefdeadbeefdeadbeef" });
   assert.equal(await failure(() => h["agents.memory_key.get"]!(other, { agentId: a.agentId })), "validation.not_found", "a tenant's service is not the server");
+});
+
+test("an agent's AI account for its own work is a setting: set, kept in agent.toml, checked as a Vault name, cleared back to Automatic, and hidden from a person who cannot see the setup", async () => {
+  const hn = harness();
+  const a = (await h["agents.create"]!(hn.ctx, { name: "Worker", role: "Use me for routines.", idempotencyKey: "wk1" })).agent;
+  assert.equal(a.workKey, undefined, "absent is Automatic");
+  const set = await h["agents.update"]!(hn.ctx, { agentId: a.agentId, patch: { workKey: "#Team_Credits" } });
+  assert.equal(set.agent.workKey, "#Team_Credits");
+  assert.equal(set.agent.accountPolicy, "asker", "the chat key is not touched: a chat still runs on the asker's own account");
+  const toml = String(hn.rows("SELECT tomlText FROM agents_agent WHERE id = ?", a.agentId)[0]!["tomlText"]);
+  assert.match(toml, /work_key = "#Team_Credits"/);
+  assert.equal((await h["agents.get"]!(hn.ctx, { agentId: a.agentId })).agent.workKey, "#Team_Credits");
+  await assert.rejects(() => h["agents.update"]!(hn.ctx, { agentId: a.agentId, patch: { workKey: "nope" } }), /Vault name/);
+  const cleared = await h["agents.update"]!(hn.ctx, { agentId: a.agentId, patch: { workKey: null } });
+  assert.equal(cleared.agent.workKey, undefined);
+  assert.doesNotMatch(String(hn.rows("SELECT tomlText FROM agents_agent WHERE id = ?", a.agentId)[0]!["tomlText"]), /work_key/);
+});
+
+test("the Chat key is off for a new agent and set only by someone who manages the Space's AI accounts", async () => {
+  const hn = harness();
+  const a = (await h["agents.create"]!(hn.ctx, { name: "Plain", role: "Use me for chats.", idempotencyKey: "ck1" })).agent;
+  assert.deepEqual([a.accountPolicy, a.accountKey], ["asker", undefined], "off by default: the asker's own account answers");
+  assert.equal((await h["agents.get"]!(hn.ctx, { agentId: a.agentId })).agent.accountPolicy, "asker");
+  const on = await h["agents.update"]!(hn.ctx, { agentId: a.agentId, patch: { accountPolicy: "key", accountKey: "#Team_A" } });
+  assert.deepEqual([on.agent.accountPolicy, on.agent.accountKey], ["key", "#Team_A"]);
+  const member = harness({ allow: (act) => act.perm !== "policy.manage" });
+  const b = (await h["agents.create"]!(member.ctx, { name: "Plain2", role: "Use me for chats.", idempotencyKey: "ck2" })).agent;
+  await assert.rejects(() => h["agents.update"]!(member.ctx, { agentId: b.agentId, patch: { accountPolicy: "key", accountKey: "#Team_A" } }), /manage the Space's AI accounts/);
+  const stillOff = await h["agents.update"]!(member.ctx, { agentId: b.agentId, patch: { workKey: "#Team_A" } });
+  assert.equal(stillOff.agent.accountPolicy, "asker", "the AI account for its own work is not the Chat key, and anyone who edits the agent may set it");
 });

@@ -48,8 +48,10 @@ type Out = {
   pin?: {
     ref: string;
     used: boolean;
-    why?: "unknown" | "expired" | "failed" | "policy_company" | "not_yours" | "space_may_not_use" | "failed_this_turn" | "capped" | "no_model";
+    why?: "unknown" | "expired" | "failed" | "policy_company" | "not_yours" | "space_may_not_use" | "failed_this_turn" | "capped" | "no_model" | "not_used_for";
   };
+  cappedFrom?: string;
+  via?: "thread" | "chat_key" | "work" | "step" | "space" | "backup";
   why?: "no_account" | "expired" | "failed" | "policy";
   modelFallback?: {
     from: string;
@@ -85,6 +87,7 @@ type Out = {
   "output": {
     "accountRef": "#Team_Anthropic_Key",
     "allowed": true,
+    "cappedFrom": "#Team_Anthropic_Key",
     "fellBack": true,
     "itemId": "vit_a1b2c3",
     "modelFallback": {
@@ -98,6 +101,7 @@ type Out = {
       "why": "unknown"
     },
     "reason": "starter",
+    "via": "thread",
     "why": "no_account"
   }
 }

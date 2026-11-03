@@ -65,7 +65,7 @@ export function profileFacts(ctx: MemCtx, owner: string, which: "public" | "all"
   const onlyPublic = which === "public" || !mine;
   const rows = rowsOf(
     ctx.db,
-    `SELECT * FROM memory_facts WHERE layer = 'person' AND owner_ref = ? AND status = 'current' AND (valid_to IS NULL OR valid_to > ?)${onlyPublic ? " AND profile = 'public'" : ""} ORDER BY ${ORDER}`,
+    `SELECT * FROM memory_facts WHERE layer = 'person' AND owner_ref = ? AND status = 'current' AND (valid_to IS NULL OR valid_to > ?) AND COALESCE(kind, '') <> 'lesson'${onlyPublic ? " AND profile = 'public'" : ""} ORDER BY ${ORDER}`,
     owner, ctx.now(),
   );
   const out: ProfileFact[] = [];

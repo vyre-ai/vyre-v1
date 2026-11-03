@@ -1,7 +1,11 @@
 // files (lane L4). The host loads generated stub handlers while status is stub, and this module once the manifest is live.
 
 export { handlers } from "./handlers/index.ts";
-export { inline, consumers } from "./projections.ts";
+export { inline } from "./projections.ts";
+import { consumers as projectionConsumers } from "./projections.ts";
+import { agentGate, redactConsumers } from "./handlers/redact.ts";
+/** The module's consumers: Redaction for AI's (a Review task for a request to read with no chat, closed on Done). */
+export const consumers = { ...projectionConsumers, ...redactConsumers };
 export { putUploadedBytes, MAX_INLINE, MAX_UPLOAD, TRASH_MS } from "./handlers/tree.ts";
 export { configureSheets, configureFilesHost } from "./handlers/index.ts";
 export type { SheetsDrivers } from "./handlers/index.ts";
@@ -21,6 +25,9 @@ type OwnedRow = Record<string, unknown>;
 const ownedRows = (ctx: { db: { all(sql: string, ...a: unknown[]): unknown[] } }, sql: string, ...a: unknown[]): OwnedRow[] => { try { return ctx.db.all(sql, ...a) as OwnedRow[]; } catch { return []; } };
 const ownedKept = (r: OwnedRow[], type: string, title: string) => ({ count: r.length, sample: r.slice(0, 5).map((x) => ({ type, id: String(x["id"]), title: String(x[title] ?? x["id"]) })), ids: r.slice(0, 500).map((x) => String(x["id"])) });
 export const hostCalls = {
+  /** The read gate's files half (Redaction for AI): the host asks before and after every call an agent is behind (host/src/seams/agent-read.ts). Never throws a refusal: it answers one, so the request it
+   * makes ("Redact before I can read") is committed with its event. */
+  "files.agent_gate": (ctx: unknown, i: unknown) => agentGate(ctx as never, i),
   /** The bytes for an upload slot from files.upload_url (the blob route's PUT): sealed into the blob store like any upload. */
   "files.put_upload": (ctx: unknown, i: { blobId: string; token: string; base64: string }) => putUploadedBytes(ctx as never, i.blobId, i.token, Buffer.from(i.base64, "base64")),
   "files.owned_by": (ctx: HostCallCtx, i: { person: string }) => ({

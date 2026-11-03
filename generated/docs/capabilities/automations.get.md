@@ -96,6 +96,10 @@ type Out = {
         }>;
       start?: Array<string>;
       allowSelfTrigger?: boolean;
+      ai?: {
+        keyId?: string;
+        backupKeyId?: string;
+      };
     };
     followers: Array<string>;
     alerts: {
@@ -173,6 +177,10 @@ type Out = {
       },
       "createdAt": 1760000000000,
       "definition": {
+        "ai": {
+          "backupKeyId": "example",
+          "keyId": "example"
+        },
         "allowSelfTrigger": true,
         "nodes": [
           {

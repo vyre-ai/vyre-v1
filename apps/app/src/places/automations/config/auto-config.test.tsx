@@ -14,6 +14,7 @@ import { PromoteSheet } from "./PromoteSheet.tsx";
 import { createConfigSample, harbor, northwind } from "./sample.ts";
 import type { ConfigSample } from "./sample.ts";
 import { shareRows } from "./SettingsTab.tsx";
+import { withAutomationAi } from "./model.ts";
 import { ESCALATE_AFTER_HOURS, MAX_ESCALATION_STEPS, addStep, addWho, alertSentence, canPromote, choiceFor, escalationWords, hoursWords, initialChoices, nextStepHours, promoteInput, removeStep, removeWho, setChoice, setStepHours, setStepTo, setWhen, setWhere, whoWords, withoutChannel } from "./model.ts";
 import type { Alerts, PromoteDiff } from "./model.ts";
 import { JourneyDesigner } from "../journeys/JourneyDesigner.tsx";
@@ -500,4 +501,34 @@ test("no copy in the config pane or the designer uses an em dash or a section si
     designer(s), designer(s, "jrn_onboard", { initialTab: "settings" }), pane(s, null), pane(s, { stage: "intake" }), pane(s, { stage: "intake", task: "t_review" }),
   ];
   for (const out of outs) { assert.ok(!has(out, String.fromCharCode(0x2014)), "no em dash"); assert.ok(!has(out, String.fromCharCode(0xa7)), "no section sign"); }
+});
+
+/* ---------- the automation's AI account (owner, 3 Nov) ---------- */
+
+test("a Space automation with an AI step has an AI account group in Settings: Automatic by default, a main and a backup; one without an AI step has none", () => {
+  const s = nw();
+  const out = config(s, "aut_lead", "settings");
+  assert.ok(has(out, 'data-testid="ai-account"') && has(out, ">AI account<"));
+  assert.ok(has(out, "An account the Space&#x27;s rules allow for automations, the cheapest that fits each step."), "Automatic says what it does");
+  assert.match(tag(out, "ai-main"), /aria-label="Main AI account, Automatic"/);
+  assert.match(tag(out, "ai-backup"), /aria-label="Backup AI account, None"/);
+  assert.ok(has(out, "Takes over when the main one is out of credits or not answering"));
+  const order = ["Loops", "AI account", "Runs on access given to it"].map((t) => at(out, `>${t}<`));
+  assert.deepEqual([...order].sort((a, b) => a - b), order, "between Loops and the access it runs on");
+  // an automation with no AI step has no AI account to choose
+  const none = config(s, "aut_flag", "settings");
+  assert.equal(has(none, 'data-testid="ai-account"'), false);
+});
+
+test("choosing the main and the backup writes them on the definition; clearing both is Automatic again and leaves no block behind", () => {
+  const s = nw();
+  const def = (autoOf(s, "aut_lead")["definition"]) as Parameters<typeof withAutomationAi>[0];
+  const main = withAutomationAi(def, "keyId", "#Team_Credits");
+  assert.deepEqual(main.ai, { keyId: "#Team_Credits" });
+  const both = withAutomationAi(main, "backupKeyId", "#Backup_Credits");
+  assert.deepEqual(both.ai, { keyId: "#Team_Credits", backupKeyId: "#Backup_Credits" });
+  assert.deepEqual(withAutomationAi(both, "keyId", undefined).ai, { backupKeyId: "#Backup_Credits" }, "Automatic main, backup kept");
+  const cleared = withAutomationAi(withAutomationAi(both, "keyId", undefined), "backupKeyId", undefined);
+  assert.equal("ai" in cleared, false);
+  assert.deepEqual(cleared.nodes, def.nodes, "the steps are not touched");
 });

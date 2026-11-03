@@ -96,7 +96,7 @@ export async function copyText(d: PageDeps, text: string): Promise<boolean> {
 }
 
 /** The accounts of an agent as agents.update takes them. */
-export interface AccountPatch { accountPolicy?: "asker" | "key"; accountKey?: string | null; accountFallback?: string[]; memoryKey?: string | null }
+export interface AccountPatch { accountPolicy?: "asker" | "key"; accountKey?: string | null; accountFallback?: string[]; memoryKey?: string | null; workKey?: string | null }
 
 /**
  * Save the chat key, the ordered fallback list or the memory key. The line below says what changed and offers Undo, which writes the values from before. A refusal (an account that

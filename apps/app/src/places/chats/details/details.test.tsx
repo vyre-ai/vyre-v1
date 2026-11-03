@@ -85,3 +85,13 @@ test("another member's Details: whose account it was, and no account name, cost,
   assert.ok(out.includes("Only Irfad and the people who manage AI spend see the account and the cost."));
   assert.ok(!out.includes("Irfad's Claude (Max)") && !out.includes("upload-spec.md") && !out.includes("Included in"));
 });
+
+test("the hover card and the Details tab say who paid and why when the turn kept it, and say nothing when it did not", async () => {
+  const paid = "The agent's Chat key";
+  const { cardLines, detailLines } = await import("./model.ts");
+  const ctx = { meId: "usr_irfad", nameOf: (id: string) => NAMES[id] ?? id };
+  const d = DETAILS({ ...TURN, paid });
+  assert.deepEqual(cardLines(d, ctx as never).lines.filter((l) => l.key === "paid").map((l) => "value" in l ? l.value : ""), [paid]);
+  assert.deepEqual(detailLines(d, ctx as never).filter((l) => l.key === "paid").map((l) => "label" in l ? l.label : ""), ["Paid because"]);
+  assert.equal(cardLines(DETAILS(TURN), ctx as never).lines.some((l) => l.key === "paid"), false);
+});

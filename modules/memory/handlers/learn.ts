@@ -12,6 +12,8 @@
 import { IMPORTED_PREAMBLE } from "../../../lib/recall-intent.ts";
 import { emitAccepted, emitLearned, emitProposed, insertFact, normal } from "../factcore.ts";
 import { cheapestModel } from "../learn-model.ts";
+import { HOWS, correctionOf, groundedIn, lessonsOn, writeLesson } from "../lessons.ts";
+import type { How } from "../lessons.ts";
 import type { ListedModel } from "../learn-model.ts";
 import {
   accountFailed, accountOf, accountServed, capsOf, chatForgotten, countRulePass, cursorOf, isLimitError, learnTables, localDay, MODEL_TTL_MS, moveCursor, rememberModel, reservationFor, reserve,
@@ -79,7 +81,12 @@ export const LEARN_SYSTEM = "You keep one person's private memory. You are given
   "Learn only from lines marked You; N is that line's number. Skip questions, small talk, one-off requests and anything you are unsure of. Use only ids you were given. " +
   "When nothing is worth keeping answer {\"ops\":[]}.";
 
-export interface LearnOp { op: "add" | "update" | "close"; line: number; text?: string; kind?: string; id?: string }
+/** What a pass is also told when the person keeps lessons (setting memory.lessons): a line that corrects the agent becomes a short rule for next time. */
+export const LESSON_SYSTEM = " When a You line corrects what the Agent just did (it edits or rewrites the Agent's draft, says no, undoes or refuses something, asks for it another way), also add " +
+  "{\"op\":\"lesson\",\"line\":N,\"text\":the rule the Agent should follow next time, one short sentence using only words from the chat,\"how\":\"edit\"|\"refuse\"|\"reverse\"|\"rewrite\"}. " +
+  "A lesson is about how the Agent should work for this person, never a fact about someone else.";
+
+export interface LearnOp { op: "add" | "update" | "close" | "lesson"; line: number; text?: string; kind?: string; id?: string; how?: How }
 /** The ops in a model's answer: the first JSON object in the text, each op checked for the fields it needs. Anything else is dropped. */
 export function parseOps(text: string): LearnOp[] {
   const start = text.indexOf("{");
@@ -99,6 +106,7 @@ export function parseOps(text: string): LearnOp[] {
     if (o["op"] === "add" && words.length >= 3) out.push({ op: "add", line, text: words.slice(0, 300), kind });
     else if (o["op"] === "update" && id !== "" && words.length >= 3) out.push({ op: "update", line, id, text: words.slice(0, 300) });
     else if (o["op"] === "close" && id !== "") out.push({ op: "close", line, id });
+    else if (o["op"] === "lesson" && words.length >= 8) out.push({ op: "lesson", line, text: words.slice(0, 200), how: typeof o["how"] === "string" && HOWS.has(o["how"]) ? (o["how"] as How) : "rewrite" });
   }
   return out;
 }
@@ -122,7 +130,7 @@ const worthAPass = (lines: Line[]): boolean => lines.some((l) => l.mine && l.m.b
 const sealedBody = (m: CaptureMessage): boolean => Boolean(m.enc) && /^enc2\.\d+\./.test(m.body);
 
 type CaptureMode = "auto" | "propose" | "auto_low_risk" | "off";
-async function modeOf(ctx: MemCtx, agentId: string | null): Promise<CaptureMode | null> {
+export async function modeOf(ctx: MemCtx, agentId: string | null): Promise<CaptureMode | null> {
   if (!agentId) return null;
   try {
     const m = ((await ctx.call("agents.get", { agentId })) as { agent?: { captureMode?: string } }).agent?.captureMode;
@@ -193,12 +201,14 @@ export async function learnTurn(ctx: MemCtx, input: LearnIn): Promise<LearnOut> 
   const who: Who = agentId ? { actor: agentId, kind: "agent" } : whoIs(ctx);
   const sourceKind: SourceKind = t.kind === "channel" ? "channel" : "chat";
   const known = liveFacts(ctx, target);
-  const w: Writer = { ctx, threadId: input.threadId, target, audience, who, sourceKind, statusFor, low: (kind) => kinds.includes(kind), known, mode };
+  const keepLessons = await lessonsOn(ctx);
+  const w: Writer = { ctx, threadId: input.threadId, target, audience, who, sourceKind, statusFor, low: (kind) => kinds.includes(kind), known, mode, lessons: keepLessons, shared, agentId };
   const tally: Tally = { proposed: 0, merged: 0, updated: 0, closed: 0 };
 
   const tz = await timezoneOf(ctx);
   const { day } = localDay(ctx.now(), tz);
-  const ran = await modelPass(ctx, input, { asker, day, shared, lines, known: relatedOf(known, mineOnly), w, tally });
+  const taught = new Set<string>();
+  const ran = await modelPass(ctx, input, { asker, day, shared, lines, known: relatedOf(known, mineOnly), w, tally, taught });
   if (!ran) {
     // the free rules: the quota is spent, the account is paused or out, or no cheap model is there
     countRulePass(ctx, asker, day);
@@ -207,13 +217,15 @@ export async function learnTurn(ctx: MemCtx, input: LearnIn): Promise<LearnOut> 
       addFact(w, { text: c.text, kind: c.kind, messageId: c.messageId, key: `${input.threadId}:${c.messageId}:${c.index}` }, tally);
     }
   }
+  // the free rules also catch a correction the model passed over; a line the model already made a lesson from is not counted twice
+  if (keepLessons) lessonRules(w, lines, taught, tally, from >= 0);
   ctx.emit("memory.captured", input.threadId, { threadId: input.threadId, proposed: tally.proposed, merged: tally.merged });
   return { proposed: tally.proposed, merged: tally.merged, updated: tally.updated, closed: tally.closed, via: ran ? "model" : "rules" };
 }
 
 /** One model pass on the asker's account, inside the day's quota. False when it did not run (the caller then uses the rules); a provider's limit or fault never leaves this function. */
 async function modelPass(
-  ctx: MemCtx, input: LearnIn, p: { asker: string; day: string; shared: boolean; lines: Line[]; known: Fact[]; w: Writer; tally: Tally },
+  ctx: MemCtx, input: LearnIn, p: { asker: string; day: string; shared: boolean; lines: Line[]; known: Fact[]; w: Writer; tally: Tally; taught: Set<string> },
 ): Promise<boolean> {
   const acct = input.account;
   // the account that ran this turn, and only when it is the asker's to spend: someone else's account never pays for this person's memory
@@ -223,13 +235,14 @@ async function modelPass(
   const model = await modelFor(ctx, acct, now);
   if (!model) return false;
   const prompt = promptOf({ today: p.day, shared: p.shared, known: p.known, lines: p.lines });
-  const chars = prompt.length + LEARN_SYSTEM.length;
+  const system = p.w.lessons ? LEARN_SYSTEM + LESSON_SYSTEM : LEARN_SYSTEM;
+  const chars = prompt.length + system.length;
   const caps = await capsOf(ctx);
   const held = reservationFor(ctx, acct.ref, acct.driver, chars);
   if (reserve(ctx, p.asker, p.day, caps, held) !== null) return false;
   let out: { text: string; tokensIn: number; tokensOut: number };
   try {
-    out = (await ctx.call("engine.complete", { accountRef: acct.ref, model, system: LEARN_SYSTEM, prompt })) as typeof out;
+    out = (await ctx.call("engine.complete", { accountRef: acct.ref, model, system, prompt })) as typeof out;
   } catch (e) {
     settle(ctx, p.asker, p.day, held, null);
     accountFailed(ctx, acct.ref, ctx.now(), isLimitError(e));
@@ -245,7 +258,8 @@ async function modelPass(
     const line = byLine.get(op.line);
     if (!line?.mine) continue;   // a fact comes from something the asker said, never from an agent's reply or another person
     const key = `${input.threadId}:${line.m.messageId}:learn`;
-    if (op.op === "add") addFact(p.w, { text: op.text!, kind: op.kind ?? "note", messageId: line.m.messageId, key }, p.tally);
+    if (op.op === "lesson") { if (p.w.lessons && addLesson(p.w, { text: op.text!, how: op.how ?? "rewrite", messageId: line.m.messageId, key: `${input.threadId}:${line.m.messageId}:lesson` }, p.lines, p.tally)) p.taught.add(line.m.messageId); }
+    else if (op.op === "add") addFact(p.w, { text: op.text!, kind: op.kind ?? "note", messageId: line.m.messageId, key }, p.tally);
     else {
       const old = knownById.get(op.id!);
       if (!old || old.status !== "current") continue;
@@ -279,7 +293,7 @@ export function relatedOf(known: Fact[], said: CaptureMessage[]): Fact[] {
 
 interface Writer {
   ctx: MemCtx; threadId: string; target: LearnTarget; audience: Array<[string, string]>; who: Who; sourceKind: SourceKind; statusFor(kind: string): FactStatus; low(kind: string): boolean;
-  known: Fact[]; mode: CaptureMode | null;
+  known: Fact[]; mode: CaptureMode | null; lessons: boolean; shared: boolean; agentId: string | null;
 }
 
 const lineLink = (threadId: string, messageId: string): string => `/chats/${threadId}#${messageId}`;
@@ -306,6 +320,33 @@ function addFact(w: Writer, f: { text: string; kind: string; messageId: string; 
   write(w, f, status);
   tally.proposed++;
   if (status === "current") tally.merged++;
+}
+
+// ---- lessons: a correction of the agent's work, kept as a fact of kind lesson (lessons.ts)
+
+/** Keep one lesson from a line. In a chat other people read its words must already be on screen. False when nothing was kept. */
+function addLesson(w: Writer, f: { text: string; how: How; messageId: string; key: string }, lines: Line[], tally: Tally): boolean {
+  if (!w.agentId) return false;
+  if (w.shared && !groundedIn(f.text, lines.map((l) => l.m.body))) return false;
+  const made = writeLesson(w.ctx, {
+    agentId: w.agentId, how: f.how, text: f.text, who: w.who, key: f.key, threadId: w.threadId, messageId: f.messageId, sourceKind: w.sourceKind === "channel" ? "channel" : "chat", audience: w.audience,
+    propose: w.mode === "propose",
+  });
+  if (!made) return false;
+  tally.proposed++;
+  if (made.status === "current") tally.merged++;
+  return true;
+}
+
+/** The rules for lessons: a line of the person's straight after the agent's that says no, undoes, or asks for it another way. */
+function lessonRules(w: Writer, lines: Line[], taught: Set<string>, tally: Tally, hadBefore: boolean): void {
+  lines.forEach((l, i) => {
+    // straight after the agent's line; the first line of a pass follows whatever an earlier pass read, which is the agent's last word when the chat had one
+    const afterAgent = i === 0 ? hadBefore : lines[i - 1]?.mine === false;
+    if (!l.mine || taught.has(l.m.messageId) || !afterAgent) return;
+    const spot = correctionOf(l.m.body);
+    if (spot) addLesson(w, { text: spot.text, how: spot.how, messageId: l.m.messageId, key: `${w.threadId}:${l.m.messageId}:lesson` }, lines, tally);
+  });
 }
 
 /** A line changed something known. With saving on, the old fact closes now (its end date is this moment) and the new one replaces it; otherwise the new one waits with a question beside it. */

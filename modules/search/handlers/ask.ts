@@ -5,6 +5,7 @@
 // (engine.complete as the asker: a Mine account first, else the Space's shared account they may use), never anyone else's. Citations the model writes that name no source are dropped.
 import { askerOf, docOf, ensure, rowsOf } from "../projections.ts";
 import type { Kind, SearchCtx } from "../projections.ts";
+import { agentBound } from "../../../lib/redact.ts";
 import { query } from "./query.ts";
 import type { Hit } from "./query.ts";
 
@@ -38,11 +39,23 @@ const SYSTEM = [
 
 const clip = (s: string): string => (s.length > PER_SOURCE ? `${s.slice(0, PER_SOURCE)}...` : s);
 
-/** The text of a source as the index holds it (the row the query just passed), else the snippet the query gave. Notes are answered by notes.search as the asker and are not indexed: their snippet is all there is. */
+/**
+ * The text of a source as an agent may read it: the index row the query just passed, and for a file with a redaction layer the agent's view of it (search_agent_docs: [REDACTED] where a part is
+ * hidden), never the whole text a person sees. Else the snippet the query gave. Notes are answered by notes.search as the asker and are not indexed: their snippet is all there is.
+ */
 function textOf(ctx: SearchCtx, h: Hit): string {
   const r = rowsOf(ctx.db, "SELECT * FROM search_docs WHERE kind = ? AND id = ?", h.kind, h.id)[0];
-  const body = r ? docOf(r).body : "";
+  const doc = r ? docOf(r) : null;
+  const view = doc ? rowsOf(ctx.db, "SELECT * FROM search_agent_docs WHERE n = ?", doc.n)[0] : undefined;
+  if (view && Number(view["withheld"]) === 1) return "";
+  const body = view ? String(view["body"] ?? "") : (doc?.body ?? "");
   return clip((body || h.snippet || "").replace(/\[|\]/g, ""));
+}
+
+/** An AI reads what this search returns, so the question is searched as an agent would search (Redaction for AI): the agent's view of a file, not the person's whole text, though the answer is for the person. */
+function asAgent(ctx: SearchCtx): SearchCtx {
+  if (agentBound(ctx)) return ctx;
+  return Object.assign(Object.create(ctx) as SearchCtx, { origin: "engine" });
 }
 
 function pickAccount(rows: readonly AccountRow[]): AccountRow | null {
@@ -74,7 +87,7 @@ export function keywords(q: string): string {
 export async function ask(ctx: SearchCtx, input: { q: string }): Promise<AskOut> {
   ensure(ctx.db);
   const q = input.q.trim();
-  const found = q ? (await query(ctx, { q: keywords(q), types: ASK_KINDS, mode: "hybrid", limit: SOURCES })).hits.filter((h) => ASK_KINDS.includes(h.kind)).slice(0, SOURCES) : [];
+  const found = q ? (await query(asAgent(ctx), { q: keywords(q), types: ASK_KINDS, mode: "hybrid", limit: SOURCES })).hits.filter((h) => ASK_KINDS.includes(h.kind)).slice(0, SOURCES) : [];
   if (found.length === 0) return { state: "no_access", answer: NO_ACCESS, sources: [], cited: [] };
   const sources: AskSource[] = found.map((h, i) => ({ ...h, n: i + 1, where: WHERE[h.kind] ?? "Item" }));
   const list = (await ctx.call("engine.accounts.list", {}).catch(() => ({ accounts: [] }))) as { accounts: AccountRow[] };

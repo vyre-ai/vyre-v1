@@ -4,8 +4,10 @@
 // DECISION: where a fact lands follows "who accepts what" in spec 2.15: channel facts go straight to the project layer, run and Journey facts wait in proposed for the agent owner,
 //   everything from a chat goes to the asker's own layer and merges on its own only for a kind in the setting memory.auto_merge_kinds (default preference), or when the person typed it themselves.
 // DECISION: search is local and has no model call: BM25 over words, character trigrams for the "semantic" side, a small recency lift. The vector table of ARCH 6.10 is the same call shape and slots in later.
+import { agentBound } from "../../../lib/redact.ts";
 import { IMPORTED_PREAMBLE } from "../../../lib/recall-intent.ts";
 import { extrasFor, factRows } from "../enrich.ts";
+import { LESSON } from "../lessons.ts";
 import { meaningScores } from "../meaning.ts";
 import { carryPlace } from "../profile.ts";
 import { reviewRequired } from "../policy.ts";
@@ -297,7 +299,7 @@ export async function factGet(ctx: MemCtx, input: { factId: string }) {
 
 export async function factsList(
   ctx: MemCtx,
-  input: Page & { layer?: Layer; agentId?: string; projectId?: string; status?: FactStatus[]; fromMe?: boolean; q?: string },
+  input: Page & { layer?: Layer; agentId?: string; projectId?: string; status?: FactStatus[]; fromMe?: boolean; q?: string; kind?: string },
 ) {
   ensure(ctx.db);
   const me = actorOf(ctx);
@@ -309,6 +311,7 @@ export async function factsList(
   if (input.agentId) { sql += " AND agent_id = ?"; args.push(input.agentId); }
   if (input.projectId) { sql += " AND project_id = ?"; args.push(input.projectId); }
   if (input.fromMe) { sql += " AND source_person = ?"; args.push(me); }
+  if (input.kind) { sql += " AND kind = ?"; args.push(input.kind); }
   sql += " ORDER BY learned_at DESC, id";
   let facts = await readableFacts(ctx, makeAccess(ctx), rowsOf(ctx.db, sql, ...args));
   if (input.q && input.q.trim() !== "") {
@@ -495,7 +498,8 @@ async function factDocs(ctx: MemCtx, access: Access, agentId: string | undefined
   for (const m of mine ?? []) {
     if ((m.validTo !== null && m.validTo <= now) || (agentId && m.agentId !== agentId)) continue;
     const known = only && ix ? ix.toks.get(m.id) as DocTok | undefined : undefined;
-    if (known && only && !only.words.some((w) => known.tf.has(w))) { only.ghost.n++; only.ghost.len += known.len; continue; }
+    // a lesson is not matched against the words of the question: it is for every turn of the agent it was kept by
+    if (known && only && m.kind !== LESSON && !only.words.some((w) => known.tf.has(w))) { only.ghost.n++; only.ghost.len += known.len; continue; }
     take({
       kind: "fact", id: m.id, title: factTitle(m.kind), text: ix?.texts.get(m.id) ?? "", layer: "person", path: pathOf(m.noteId), since: m.validFrom, link: m.sourceLink, learnedAt: m.learnedAt, shared: false,
     });
@@ -594,6 +598,7 @@ const ACK = new Set(["ok", "okay", "k", "thanks", "thank", "thx", "ty", "yes", "
 export const POINTER_MIN_COVERAGE = 0.3;
 export const POINTER_MIN_MASS = 0.8;
 export const POINTER_MAX_LINES = 5;
+export const POINTER_MAX_LESSONS = 3;
 export const POINTER_MAX_TOKENS = 350;
 
 export interface PointerLine { title: string; fact?: string; trueSince?: number; path: string; sourceLink?: string; ref?: string }
@@ -621,10 +626,14 @@ export async function pointer(ctx: MemCtx, input: { threadId: string; agentId: s
   // the asker's own memory is sealed under their key and the key is not held here: say so in a private chat, so the agent does not take "nothing recalled" for "nothing known"
   const lock: { locked?: string } = personalLocked(ctx, actorOf(ctx)) && !(await seenByOthers(ctx, input.threadId)) ? { locked: LOCKED_LINE } : {};
   const ranked = bm25(docs, text, ghost);
-  const order = docs
+  const isLesson = (d: Doc): boolean => d.kind === "fact" && d.layer === "person" && d.title === factTitle(LESSON);
+  const matched = docs
     .map((d, i) => ({ d, r: ranked[i]! }))
-    .filter(({ r }) => r.matched >= 1 && r.coverage >= POINTER_MIN_COVERAGE && r.mass >= POINTER_MIN_MASS)
+    .filter(({ d, r }) => !isLesson(d) && r.matched >= 1 && r.coverage >= POINTER_MIN_COVERAGE && r.mass >= POINTER_MIN_MASS)
     .sort((a, b) => b.r.score - a.r.score || a.d.id.localeCompare(b.d.id));
+  // the asker's lessons for this agent come first, newest first, whatever the question says (a switch turned off keeps none of them out: they stop being made, and Forget removes them)
+  const lessons = docs.filter(isLesson).sort((a, b) => b.learnedAt - a.learnedAt || a.id.localeCompare(b.id)).slice(0, POINTER_MAX_LESSONS).map((d) => ({ d }));
+  const order = [...lessons, ...matched];
   if (order.length === 0) return { lines: [], tokens: 0, skipped: "no_match" as const, ...lock };
   const shown = new Set(rowsOf(ctx.db, "SELECT ref FROM memory_pointer_log WHERE thread_id = ?", input.threadId).map((r) => str(r["ref"])));
   const lines: PointerLine[] = [];
@@ -694,6 +703,11 @@ export async function readNote(ctx: MemCtx, input: { noteId: string }) {
   const r = await readableNote(ctx, makeAccess(ctx), input.noteId, "validation.not_found");
   const note = noteRowOut(ctx, r);
   if (!note) raise(ctx, "validation.not_found", "There is no such note.", { noteId: input.noteId });
+  // an agent reads the note as an agent may (Redaction for AI): files.agent_view, [REDACTED] where a part is hidden; a person reads it as it is
+  if (agentBound(ctx as unknown as { principal: { kind: string }; origin?: string })) {
+    const v = (await ctx.call("files.agent_view", { fileId: str(r["file_id"]) })) as { text?: string | null };
+    return { note, markdown: v.text ?? "" };
+  }
   const file = (await ctx.call("files.read", { fileId: str(r["file_id"]), as: "text" })) as { text?: string };
   return { note, markdown: file.text ?? "" };
 }

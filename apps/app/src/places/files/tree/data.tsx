@@ -69,6 +69,8 @@ export interface FilesData {
   personal?: boolean;
   /** The side pane's state, when the shell has one. */
   pane?: PaneControl;
+  /** Redaction for AI: open the folder's Agent access popover at once (the screenshot mount). */
+  accessOpen?: boolean;
 }
 
 const DataCtx = createContext<FilesData | null>(null);
