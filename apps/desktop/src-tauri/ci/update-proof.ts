@@ -1,5 +1,5 @@
 // The app updating itself, on a real Mac and a real Windows runner (desktop.yml). The installed app is started with a feed of the proof's own (VYRE_UPDATE_FEED, only an address in this
-// repository is taken: updater.rs feed_override) that offers the published 1.0.0-rc.16 bundles as a newer version. Their signatures are the release key's own, so nothing here holds a key.
+// repository is taken: updater.rs feed_override) that offers the published 1.0.0-rc.18 bundles as a newer version. Their signatures are the release key's own, so nothing here holds a key.
 //
 //   1. bad signature: each bundle carries the other platform's signature. The app downloads it, refuses it, installs nothing, keeps running, and the page says so in one line.
 //   2. the real update: the page sees a newer version with "Update Vyre automatically" on (the default) and installs on start. The log must show, in order: the version found, the download,
@@ -13,8 +13,7 @@ import path from "node:path";
 
 const args = process.argv.slice(2);
 if (args.length !== 5 || args.some((a) => !a)) { console.error("usage: update-proof.ts <app to run> <installed program the update replaces> <out> <good feed> <bad feed>"); process.exit(2); }
-// On a Mac the two are the same file (the bundle swap replaces the app it runs from). On Windows the NSIS updater installs into the folder VyreSetup.exe installed to, whichever copy of the app
-// asked for it; the proof runs the build-folder copy, since the copy VyreSetup.exe /S installs opens a blank page on the hosted runner even with updates off (the control below says so).
+// desktop.yml passes the same file twice: the installed app is both what runs and what the update replaces (the Mac bundle swap, or the NSIS updater on Windows).
 const [RUN, APP, OUT, GOOD, BAD] = args as [string, string, string, string, string];
 fs.mkdirSync(OUT, { recursive: true });
 const win = process.platform === "win32";
@@ -39,8 +38,8 @@ function killAll(): void {
 function launch(feed: string, tag: string, off = false): { child: ChildProcess; log: () => string; waitFor(re: RegExp, ms: number): Promise<boolean> } {
   const env: Record<string, string | undefined> = { ...process.env, VYRE_UPDATE_FEED: feed };
   if (!off) delete env["VYRE_NO_AUTO_UPDATE"];
-  // the default stdio, as apps/desktop/tests/shell.heavy.test.ts starts it: started with stdin "ignore" the Windows app's page draws nothing (tmp-winlook run 41596151473, where the same
-// installed rc.18 opened from Explorer draws its Welcome screen)
+  // the default stdio, as apps/desktop/tests/shell.heavy.test.ts starts it: started with stdin "ignore" the Windows app's page draws nothing (tmp-winlook run 41596151473, where the
+  // same installed rc.18 opened from Explorer draws its Welcome screen)
   const child = spawn(RUN, [], { env });
   let text = "";
   const file = path.join(OUT, `${process.platform}-${tag}.log`);

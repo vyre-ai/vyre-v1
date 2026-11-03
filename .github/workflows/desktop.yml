@@ -263,8 +263,7 @@ jobs:
           for d in "$LOCALAPPDATA/Vyre" "$LOCALAPPDATA/Programs/Vyre"; do if [ -f "$d/vyre-desktop.exe" ]; then app="$d/vyre-desktop.exe"; fi; done
           [ -n "$app" ] || { echo "VyreSetup.exe /S installed no vyre-desktop.exe"; find "$LOCALAPPDATA" -maxdepth 3 -iname 'vyre-desktop.exe' || true; exit 1; }
           raw="https://raw.githubusercontent.com/${{ github.repository }}/${{ github.sha }}/apps/desktop/src-tauri/ci"
-          # the build-folder copy asks for the update; the NSIS updater replaces the installed copy (update-proof.ts says why)
-          node apps/desktop/src-tauri/ci/update-proof.ts "$PWD/apps/desktop/src-tauri/target/release/vyre-desktop.exe" "$app" "$PWD/out/update-proof" "$raw/update-proof.json" "$raw/update-proof-badsig.json"
+          node apps/desktop/src-tauri/ci/update-proof.ts "$app" "$app" "$PWD/out/update-proof" "$raw/update-proof.json" "$raw/update-proof-badsig.json"
       - uses: actions/upload-artifact@v4
         if: runner.os == 'Windows'
         with: { name: desktop-Windows-exe, path: win-exe, if-no-files-found: error }
