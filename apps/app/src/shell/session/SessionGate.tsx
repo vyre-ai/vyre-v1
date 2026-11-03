@@ -20,6 +20,7 @@ import { Welcome } from "../../join/Welcome.tsx";
 import { completeReset } from "../../join/reset.ts";
 import {completeRecovery} from "../../join/recover.ts";
 import { SpaceEntry } from "../../join/SpaceEntry.tsx";
+import { OtherComputer } from "../../join/OtherComputer.tsx";
 import { FirstLaunch } from "../../onboarding/FirstLaunch.tsx";
 import { deviceOf } from "../../onboarding/doors.ts";
 import { wantTeamNext } from "../../onboarding/doors.ts";
@@ -196,6 +197,13 @@ function SignInScreen({ baseUrl, open, onSignedIn, notice, onBack, unlock }: { b
   }, [anonymous, baseUrl, onSignedIn, open, options]);
   if (recoveryHelp) return <RecoverScreen baseUrl={baseUrl} space={invite.space} open={open} onBack={() => setRecoveryHelp(false)} onSignedIn={onSignedIn} />;
   return <JoinFlow key={`${baseUrl}|${githubLine ?? ""}|${ssoLine ?? ""}|${unreachable ? "offline" : ""}`} invite={invite} initial={{ stage: "signin", ...(githubLine ?? ssoLine ? { error: (githubLine ?? ssoLine) as string } : notice ? { error: SIGNED_OUT_LINE } : unreachable ? { error: OFFLINE_SPACE } : {}) }} onSignIn={signIn} onGithub={startGithub} onSso={startSso} onRecoveryCode={() => setRecoveryHelp(true)} {...(onBack?{onBackFromSignIn:onBack}:{})} {...(unlock?{unlock:true}:{})} />;
+}
+
+/** Sign in on a desktop with no Space yet: first the person's own Personal Space from their other computer (OtherComputer), or a Space by its address. */
+function DesktopSignInDoor({ invoke, back, connect, onJoined }: { invoke: Invoke; back: () => void; connect: (back: () => void) => ReactElement; onJoined: (o: { space: string; username: string }) => void }): ReactElement {
+  const [byAddress, setByAddress] = useState(false);
+  if (byAddress) return connect(() => setByAddress(false));
+  return <JoinFrame><OtherComputer startLocal={async () => ({ address: (await ensurePersonalSpace(invoke)).address })} onJoined={onJoined} onAddress={() => setByAddress(true)} onBack={back} /></JoinFrame>;
 }
 
 export function ConnectSpaceWelcome({ onConnect, onGetStarted, onBack }: { onConnect: (address: string) => void; onGetStarted?:()=>void; onBack?:()=>void }): ReactElement {
@@ -429,10 +437,13 @@ export function SessionGate(props: SessionGateProps): ReactElement {
   const createMacServer=async():Promise<void>=>{if(!invoke)throw new Error('Desktop shell required');const local=await ensureMacServer(invoke);if(local.claimUrl){const link=new URL(local.claimUrl);setPersonalClaim({address:local.address,token:link.pathname.slice('/claim/'.length),fragment:link.hash});setEntry(false);}else await chooseEntry({kind:'signin',address:local.address});};
   // first launch on the desktop app: three doors; elsewhere (and for a person who already has a Space) the plain connect screen
   const connectScreen=(back?:()=>void):ReactElement=><ConnectSpaceWelcome onConnect={connectSpace} onGetStarted={()=>{setEntryStart('choice');setEntry(true);}} {...(back?{onBack:back}:{})} />;
+  // the Personal Space this computer just joined restarts on its copy: wait for it to answer as that Space, then sign in there
+  const joinedPersonal=async({space}:{space:string;username:string}):Promise<void>=>{if(!invoke)return;for(let i=0;i<120;i++){try{const local=await ensurePersonalSpace(invoke);if(local.spaceId===space&&!local.claimUrl){await chooseEntry({kind:'signin',address:local.address});return;}}catch{/* restarting */}await new Promise(r=>setTimeout(r,500));}setPhase({kind:'signin'});};
+  const existingScreen=invoke?((back:()=>void):ReactElement=><DesktopSignInDoor invoke={invoke} back={back} connect={connectScreen} onJoined={o=>void joinedPersonal(o)} />):connectScreen;
   const device=windowKnown?deviceOf({desktop:!!invoke,mac:isMacShell(),width:windowWidth}):deviceOf({desktop:false,mac:false,width:1280});
   const getApp=():void=>{(globalThis as {open?:(url:string,target?:string)=>unknown}).open?.(VYRE_DOWNLOADS,'_blank');};
   const emailApp=():void=>{(globalThis as {location?:{assign(url:string):void}}).location?.assign(`mailto:?subject=${encodeURIComponent('Get Vyre')}&body=${encodeURIComponent(VYRE_DOWNLOADS)}`);};
-  const firstScreen=<FirstLaunch device={device} existing={connectScreen} {...(device==='web'?{onGetApp:getApp}:{})} onDoor={async door=>{if(door==='invited'){setEntryStart('join');setEntry(true);return;}if(door==='server'){setEntryStart('team');setEntry(true);return;}if(door==='app'){emailApp();return;}wantTeamNext(door==='team');await createPersonal();}} />;
+  const firstScreen=<FirstLaunch device={device} existing={existingScreen} {...(device==='web'?{onGetApp:getApp}:{})} onDoor={async door=>{if(door==='invited'){setEntryStart('join');setEntry(true);return;}if(door==='server'){setEntryStart('team');setEntry(true);return;}if(door==='app'){emailApp();return;}wantTeamNext(door==='team');await createPersonal();}} />;
   if(personalClaim)return <Suspense fallback={<Opening />}><LocalClaim deviceClass="desktop" local={personalClaim.local!==false} token={personalClaim.token} address={personalClaim.address} fragment={personalClaim.fragment} onBack={()=>setPersonalClaim(null)} onDone={()=>{const address=personalClaim.address,stored=readStored(undefined,address);setPersonalClaim(null);if(stored){setConnectedAddress(address);signedIn(stored);}else void chooseEntry({kind:'signin',address});}} onSignIn={()=>{const address=personalClaim.address;setPersonalClaim(null);void chooseEntry({kind:'signin',address});}}/></Suspense>;
   if(entry)return <SpaceEntry startAt={entryStart} {...(invoke?{onCreatePersonal:createPersonal}:{})} {...(invoke&&isMacShell()?{onCreateMacServer:createMacServer}:{})} onTarget={chooseEntry} onBack={()=>{setEntry(false);setDesktopRoute(null);const previous=returnSession??readStored(undefined,baseUrl??undefined);if(previous){activateAddress(previous,true);setConnectedAddress(previous.baseUrl);consumeBrowserInvite();setDesktopRoute(null);setPhase({kind:'shell',stored:previous});}setReturnSession(null);}}/>;
   if (allow) {
