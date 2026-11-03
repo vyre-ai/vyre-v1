@@ -83,13 +83,13 @@ export function lowrunArgv(helper: string, argv: readonly string[], env: Readonl
 
 /**
  * The labels that keep Vyre's own files from an engine that runs at Low integrity. A Low process can read whatever the person can, unless the file says "no read up":
- *   private  the folder itself readable, not writable; everything in it (inherit-only) no read up, no write up: Vyre's data (admin.token, seal.key, vault-filler.key, relay.key, the
- *            databases, the logs, the webview's profile). The folder itself stays readable because programs check every folder above the one they work in (git does, for each folder it makes:
- *            the windows-latest proof, "C:/.git: Permission denied"), and the work folders are below it.
+ *   private  every FILE under the folder, at any depth, no read up and no write up (object-inherit, inherit-only): Vyre's data (admin.token, seal.key, vault-filler.key, relay.key, the
+ *            databases, the logs, the webview's profile). The folders keep their default label and stay readable: programs check every folder above the one they work in (git does, for
+ *            each folder it makes: "C:/.git: Permission denied" on windows-latest), and the work folders are below. A folder holds one mandatory label, so this is a single ACE.
  *   read     the folder and everything in it readable, not writable: the work and scratch roots, the engines Vyre installed, the engine's Git Bash.
- * Each is set protected (the parent's label is not passed on to it). The folders an engine may change are labelled Low afterwards (labelLow).
+ * Each is set protected and reset over what is already there. The folders an engine may change are labelled Low afterwards (labelLow).
  */
-export const LABELS = { private: "S:(ML;;NW;;;ME)(ML;OICIIO;NRNW;;;ME)", read: "S:(ML;OICI;NW;;;ME)" } as const;
+export const LABELS = { private: "S:(ML;OIIO;NRNW;;;ME)", read: "S:(ML;OICI;NW;;;ME)" } as const;
 
 /** Sets one of LABELS on a folder with the helper. Throws sandbox.policy when Windows refuses. */
 export function setLabel(helper: string, dir: string, label: keyof typeof LABELS, run: typeof spawnSync = spawnSync): void {
