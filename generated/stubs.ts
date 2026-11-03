@@ -2287,6 +2287,7 @@ export function stubs(ctx: CallCtx) {
       artifact_open: call("sites.artifact_open"),
       artifact_publish: call("sites.artifact_publish"),
       build: call("sites.build"),
+      chat_viewing: call("sites.chat_viewing"),
       create: call("sites.create"),
       db_import: call("sites.db_import"),
       delete: call("sites.delete"),

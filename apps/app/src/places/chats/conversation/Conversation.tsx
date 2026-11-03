@@ -45,6 +45,7 @@ import { replySummaries } from "./replies.ts";
 import type { ReplySummary } from "./replies.ts";
 import type { LiveQuery } from "../../../../../../client/src/index.ts";
 import { isAssistantRow } from "../../../../../../lib/agent-kind.ts";
+import { useChatViewing, useOpenPublished } from "./artifact-open.ts";
 import { ChatBrain, compactChat, entryOf, modeOf, prettyModel, setChatMode, stripAgents, useAccounts, usePickUnavailable, useUsage } from "./brain.tsx";
 import type { ChatMode } from "../../../../../../ui/src/Composer/index.tsx";
 import { useConnectVersion } from "../../../shell/connect/context.ts";
@@ -287,6 +288,9 @@ function ConversationView(): ReactElement {
   const muteSeen = useRef<ReadonlySet<string>>(readMuteSeen());
   const [mutedHere, setMutedHere] = useState<ReadonlySet<string>>(new Set());
   const failed = failureOf(threadQ, messagesQ);
+  // an artifact an agent publishes in a turn this person asked opens in a tab while this chat is open: say it is open, and open the cards marked for this person (lane l-engine21)
+  useChatViewing(data.call, data.threadId);
+  useOpenPublished(messagesQ.status === "loading" ? undefined : messagesQ.data.messages, data.me.id, (artifactId) => data.nav.openBeside("artifact", artifactId));
   // the chat's budget of agent turns: the Space's Policies setting, else 8 (owner ruling, 3 Nov)
   const [hopLimit, setHopLimit] = useState(DEFAULT_AGENT_HOPS);
   useEffect(() => {

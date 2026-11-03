@@ -2287,6 +2287,7 @@ export function createClient(transport: Transport) {
       artifact_open: call("sites.artifact_open", 1),
       artifact_publish: call("sites.artifact_publish", 1),
       build: call("sites.build", 1),
+      chat_viewing: call("sites.chat_viewing", 1),
       create: call("sites.create", 1),
       db_import: call("sites.db_import", 1),
       delete: call("sites.delete", 1),

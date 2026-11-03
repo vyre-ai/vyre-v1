@@ -32,6 +32,7 @@
 - Relay Worker: `<name>-a.vyre.run` is the artifact host. It passes its own host-only cookie to the box and one safe Set-Cookie back, serves only `/x/<code>` and `/sit_.../`, and keeps the sandbox. The app origin still drops cookies. A name ending in `-a` can no longer be claimed.
 - Vyre for Chrome: `artifact.open` opens an artifact as the signed-in person. The app mints the one-time code for the artifact host and the tab opens `/x/<code>`; with nobody signed in it opens the plain `/a/<id>`. No token is put in a URL.
 - The composer says "Not available here" in one quiet line when the model a chat starts with (the person's remembered pick) cannot run on this server. Auto and a model that can run say nothing.
+- An artifact an agent publishes during your turn opens in a new tab when that chat is open in your app; otherwise the card says Open. `artifact_publish` returns `opened` only when it was marked for you, and the agent's wording follows it.
 
 ## What's new
 - Agents on Claude Code or Codex can work in a goal's folder: it shows as goal/ and their changes are saved to Vyre.

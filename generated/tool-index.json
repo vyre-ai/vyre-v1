@@ -7562,6 +7562,12 @@
     },
     {
       "deferred": false,
+      "name": "sites_chat_viewing",
+      "summary": "The app says a chat is open for the person right now (every half minute while it stays open). An artifact an agent publishes in a turn that person asked opens in their app only while this holds",
+      "toolset": "sites"
+    },
+    {
+      "deferred": false,
       "name": "sites_create",
       "summary": "Create a site: a name, and where it runs (a port on a computer, or a folder in Files), or its source (a GitHub repo, an uploaded folder or zip) for Vyre to build and run with sites_deploy. Nothing is served until it is published or deployed",
       "toolset": "sites"
