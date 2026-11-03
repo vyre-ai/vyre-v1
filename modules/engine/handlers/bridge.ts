@@ -12,6 +12,7 @@ import { linksIn } from "../../../lib/grants.ts";
 import { redact } from "../../../agent/src/transcript/sanitize.ts";
 import { sessionWorkKey, workBlocks } from "../../../agent/src/tools/work-cards.ts";
 import { ALL_AGENTS } from "../../../lib/route.ts";
+import { localClock, readPublicTime } from "../../../lib/presence.ts";
 import { hasReads } from "../../../host/src/seams/answer-reads.ts";
 import { sqlMessages, withMessageId, mintId } from "../projections.ts";
 import { setUsing } from "../node-turns.ts";
@@ -100,6 +101,8 @@ export interface Bridge {
   onEvent(ctx: EngineCtx, event: BridgeEvent): Promise<{ skipped?: string; receivedAs?: string[] }>;
   /** Resolves when every chat post queued so far is done (tests, shutdown). */
   flush(): Promise<void>;
+  /** The agents of a chat changed (added, removed, Listening, topics, hours, style): the engine reads the line-up again before the next message. */
+  rosterChanged(threadId: string): void;
   /** The turns being written in a thread right now, with the text so far (a chat opened or reconnected mid-turn). */
   liveTurns(threadId: string): Array<{ turnId: string; agentId: string; text: string }>;
 }
@@ -108,6 +111,8 @@ interface Segment { blocks: PostBlock[]; text: string; mentions: number; t0?: nu
 interface Ready { blocks: PostBlock[]; text: string; mentions: number; routineOwner: string | null; turnId: string }
 
 const str = (v: unknown): string => (typeof v === "string" ? v : "");
+/** What a poked agent is told, after the line that poked it. Only the agent reads this copy. */
+const POKE_NOTE = "\n\n[You were poked: answer the person who poked you, from the last 12 messages and tool calls above. To read further back in this chat, call chat_history_page with the number of the oldest message you can see.]";
 
 /** An engine error can echo a key or a token. It goes to the log only: it passes the shared credential redactor (agent/src/transcript/sanitize.ts, the same rules as every transcript) and is cut to 300 characters. The key is `why`: the sink drops a key named message. */
 export const scrub = (text: string): string => redact(text.slice(0, 600)).text.slice(0, 300);
@@ -146,6 +151,9 @@ export function createBridge(o: BridgeOptions): Bridge {
   const onSharedKey = new Set<string>();                 // threadId|agentId: the account of this agent's turn here is a key of the Space
   const chains = new Map<string, Promise<void>>();       // per thread: posts go out one after another, in the order the events arrived
   const warn = (msg: string, attrs?: Record<string, unknown>): void => o.log?.warn(msg, attrs);
+  const dirty = new Set<string>();                        // threads whose agents changed in the chat since the engine last read them
+  const withSettings = new Set<string>();                 // threads where some agent has Listening, topics, hours or a style set: read the line-up before every message
+  const pokedBy = new Map<string, string>();              // `${thread}:${agent}` -> the person who poked it: the reply says so
 
   const askerMention = (threadId: string, agentId: string): AgentPost["mentions"] => {
     const who = askerOf.get(threadId);
@@ -216,6 +224,9 @@ export function createBridge(o: BridgeOptions): Bridge {
         emit({ kind: "end", threadId: e.threadId, turnId: e.turnId, agentId: e.agentId, state: "done" });
         // what the turn started (a task, a Run, a file...) goes under its reply as cards, one group
         seg.blocks.push(...workBlocks(e.turnId), ...workBlocks(sessionWorkKey(e.threadId, e.agentId)));
+        // a poked agent's reply carries the quiet line "Poked by <person>"
+        const by = pokedBy.get(`${e.threadId}:${e.agentId}`);
+        if (by !== undefined) { pokedBy.delete(`${e.threadId}:${e.agentId}`); seg.blocks.push({ type: "poked", v: 1, data: { by, agentId: e.agentId } }); }
         // how long the whole turn took (thinking and writing too), for "Worked for 14s" under the reply
         if (seg.t0 !== undefined) { const last = [...seg.blocks].reverse().find((x) => x.type === "tool_result" || x.type === "tool_call"); if (last) last.data = { ...(last.data as Record<string, unknown>), turnSecs: Math.max(0, Math.round(((o.now ?? Date.now)() - seg.t0) / 1000)) }; }
         if (seg.text !== "" || seg.mentions > 0) {
@@ -233,6 +244,7 @@ export function createBridge(o: BridgeOptions): Bridge {
         if (e.type === "turn.failed" && e.asker) askerOf.set(e.threadId, e.asker);
         if (e.type === "turn.failed") warn("a turn failed", { threadId: e.threadId, turnId: e.turnId, agentId: e.agentId, code: e.code, ...(e.message ? { why: scrub(e.message) } : {}) });
         const parked = e.type === "turn.waiting";
+        if (!parked) pokedBy.delete(`${e.threadId}:${e.agentId}`);   // a poke that failed or was stopped does not mark a later reply
         const seg = live.get(e.turnId);
         const routineOwner = turns.get(e.turnId)?.routineOwner ?? null;
         if (!parked) { live.delete(e.turnId); turns.delete(e.turnId); }
@@ -323,7 +335,13 @@ export function createBridge(o: BridgeOptions): Bridge {
     });
   }
 
-  type ThreadGet = { thread: { kind?: string; starter?: string; agents: Array<{ agentId: string; mode: "lead" | "listen"; model?: string; accountRef?: string; watches?: unknown }> } };
+  type RosterAgent = { agentId: string; mode: "lead" | "listen"; model?: string; accountRef?: string; watches?: unknown; quiet?: boolean; when?: "always" | "topics" | "hours"; topics?: string; hoursFrom?: string; hoursTo?: string; style?: "short" | "full" };
+  type ThreadGet = { thread: { kind?: string; starter?: string; agents: RosterAgent[] } };
+  /** How and when an agent answers in this chat, as the chat holds it, for the engine's routing and for the turn. */
+  const settingsOf = (a: RosterAgent): Pick<EngineAgent, "quiet" | "when" | "topics" | "hoursFrom" | "hoursTo" | "style"> => ({
+    ...(a.quiet === true ? { quiet: true as const } : {}), ...(a.when && a.when !== "always" ? { when: a.when } : {}), ...(a.topics ? { topics: a.topics } : {}),
+    ...(a.hoursFrom ? { hoursFrom: a.hoursFrom } : {}), ...(a.hoursTo ? { hoursTo: a.hoursTo } : {}), ...(a.style ? { style: a.style } : {}),
+  });
   type Row = { messageId: string; threadSeq?: number; author: { kind: string; id: string }; body: string; depth?: number; replyTo?: string; attachments?: string[]; blocks?: Array<{ type: string; data?: unknown }> };
 
   /**
@@ -381,7 +399,7 @@ export function createBridge(o: BridgeOptions): Bridge {
       } catch { /* an agent that cannot be read runs on the account's default */ }
     }
     const agents: EngineAgent[] = got.thread.agents.map((a) => ({
-      id: a.agentId, mode: a.mode, ...(a.model || own.get(a.agentId) ? { model: a.model ?? own.get(a.agentId) as string } : {}), ...(a.accountRef ? { accountRef: a.accountRef } : {}), ...(a.watches !== undefined ? { watching: true } : {}), ...(outside.has(a.agentId) ? { outside: true } : {}),
+      id: a.agentId, mode: a.mode, ...(a.model || own.get(a.agentId) ? { model: a.model ?? own.get(a.agentId) as string } : {}), ...(a.accountRef ? { accountRef: a.accountRef } : {}), ...(a.watches !== undefined ? { watching: true } : {}), ...(outside.has(a.agentId) ? { outside: true } : {}), ...settingsOf(a),
     }));
     const store = sqlMessages(ctx.db, ctx.now);
     if (store.recent(threadId, 1).length === 0) {
@@ -409,6 +427,8 @@ export function createBridge(o: BridgeOptions): Bridge {
     if (!engine) return { skipped: "engine_not_running" };
     if (messageId === "" || threadId === "") return { skipped: "no_ids" };
     if (messageId.startsWith(BRIDGE_PREFIX)) return { skipped: "own_post" };
+    // a poke of an outside agent went to its own queue when it was made (threads.poke): nothing runs here for it
+    if ((p["poke"] as { outside?: unknown } | undefined)?.outside === true) return { skipped: "poke_outside" };
     // the computer the person is using (step 1 of where a turn runs): the device their message came from
     const sender = (p["author"] ?? {}) as { kind?: string; id?: string };
     if (device && sender.kind === "person" && typeof sender.id === "string") { try { setUsing(ctx.db, threadId, sender.id, device, ctx.now()); } catch { /* where it was sent from is a hint, never a reason to drop the message */ } }
@@ -445,23 +465,34 @@ export function createBridge(o: BridgeOptions): Bridge {
     const named = mentions.filter((m) => m.kind === "agent").map((m) => m.id);
     // a person speaking to all the agents ("both of you") reaches every agent in the chat, so each must be known to the engine, listeners added since included
     const toAll = a.kind !== "agent" && ALL_AGENTS.test(got.message.body);
-    if (named.length > 0 || toAll) {
-      const known = new Set(eng.agents(threadId).map((a) => a.id));
-      if (toAll || named.some((id) => !known.has(id))) {
-        try {
-          const now = (await reader(ctx, authorId, threadId)("threads.get", { threadId })) as ThreadGet;
-          for (const a of now.thread.agents) {
-            if ((!toAll && !named.includes(a.agentId)) || known.has(a.agentId)) continue;
-            eng.engage(threadId, { id: a.agentId, mode: a.mode, ...(a.model ? { model: a.model } : {}), ...(a.accountRef ? { accountRef: a.accountRef } : {}), ...((await runsOutside(ctx, a.agentId)) ? { outside: true } : {}) });
-          }
-        } catch (e) { ctx.log.warn("the bridge could not read who joined the chat", { traceId: ctx.trace.traceId, threadId, error: e instanceof Error ? e.message : String(e) }); }
-      }
+    const poke = typeof (p["poke"] as { agentId?: unknown } | undefined)?.agentId === "string" ? (p["poke"] as { agentId: string; by?: string }) : undefined;
+    // How and when each agent answers (Listening, topics, hours) is the chat's to change at any time: the engine's copy is made current before the message is routed, whenever the chat has any of it or it changed
+    const known = new Set(eng.agents(threadId).map((a) => a.id));
+    if (named.length > 0 || toAll || poke !== undefined || dirty.delete(threadId) || withSettings.has(threadId)) {
+      try {
+        const now = (await reader(ctx, authorId, threadId)("threads.get", { threadId })) as ThreadGet;
+        withSettings.delete(threadId);
+        for (const a of now.thread.agents) {
+          if (Object.keys(settingsOf(a)).length > 0) withSettings.add(threadId);
+          if (known.has(a.agentId)) { eng.setSettings(threadId, a.agentId, settingsOf(a)); continue; }
+          if (!toAll && !named.includes(a.agentId) && a.agentId !== poke?.agentId) continue;
+          eng.engage(threadId, { id: a.agentId, mode: a.mode, ...(a.model ? { model: a.model } : {}), ...(a.accountRef ? { accountRef: a.accountRef } : {}), ...((await runsOutside(ctx, a.agentId)) ? { outside: true } : {}), ...settingsOf(a) });
+        }
+      } catch (e) { ctx.log.warn("the bridge could not read who joined the chat", { traceId: ctx.trace.traceId, threadId, error: e instanceof Error ? e.message : String(e) }); }
     }
+    // where the speaker is, for agents set to answer only inside hours
+    let minutes: number | undefined;
+    if (a.kind === "person" && eng.agents(threadId).some((x) => x.when === "hours")) {
+      try { minutes = localClock((o.now ?? Date.now)(), (await readPublicTime(reader(ctx, authorId, threadId), authorId)).timezone ?? "UTC").minutes; } catch { /* unknown hours hold nobody back */ }
+    }
+    // a poke: the agent answers now, from the last 12 messages, and its reply says who poked it. It reads further back with chat_history_page.
+    if (poke !== undefined && poke.by) pokedBy.set(`${threadId}:${poke.agentId}`, poke.by);
     const job = p["job"] === true ? str(p["actingFor"]) || authorId : undefined;
     // an agent's post speaks for the person it acted for (chat.post's actingFor): a turn it sets off runs for that person, never for the chat's starter; with nobody behind it, it runs for no one
     const speaksFor = a.kind === "agent" && str(p["actingFor"]).startsWith("usr_") ? str(p["actingFor"]) : undefined;
     const res = withMessageId(messageId, () => eng.receive({
-      threadId, author: { kind: a.kind === "agent" ? "agent" : "person", id: authorId }, mentions, depth: Number(p["depth"] ?? 0), body: got.message.body + note, replyToPerson, ...(job ? { job } : {}), ...(speaksFor ? { asker: speaksFor } : {}),
+      threadId, author: { kind: a.kind === "agent" ? "agent" : "person", id: authorId }, mentions, depth: Number(p["depth"] ?? 0), body: got.message.body + note + (poke ? POKE_NOTE : ""), replyToPerson, ...(job ? { job } : {}), ...(speaksFor ? { asker: speaksFor } : {}),
+      ...(poke ? { poke: { agentId: poke.agentId, by: poke.by ?? authorId } } : {}), ...(minutes === undefined ? {} : { minutes }),
     }));
     return { receivedAs: res.responders };
   }
@@ -485,6 +516,7 @@ export function createBridge(o: BridgeOptions): Bridge {
       if (spec.account?.shared) onSharedKey.add(key); else onSharedKey.delete(key);
       return wrap(await openSession(spec));
     },
+    rosterChanged: (threadId) => { dirty.add(threadId); },
     onEvent: (ctx, event) => (event.name === "message.edited" ? onEdited(ctx, event.payload) : onReceived(ctx, event.payload, event.device)),
     liveTurns(threadId) {
       const out: Array<{ turnId: string; agentId: string; text: string }> = [];
@@ -511,6 +543,17 @@ export async function liveTurns(ctx: EngineCtx, input: { threadId: string }): Pr
 
 /** The consumer the engine module exports from impl.ts. A host without a running engine skips the event (nothing reads it later; the chat itself is untouched). */
 export const bridgeConsumers = {
+  /** The agents of a chat changed in the chat (threads.agent_settings.set, add, remove): the next message is routed by the new line-up. */
+  "engine.bridge_roster": {
+    on: ["thread.updated", "agent.engaged", "agent.disengaged"],
+    run: async (_ctx: EngineCtx, event: BridgeEvent): Promise<{ skipped?: string }> => {
+      const fields = event.payload["fields"];
+      const threadId = str(event.payload["threadId"]);
+      if (event.name === "thread.updated" && !(Array.isArray(fields) && fields.includes("agents"))) return { skipped: "not_agents" };
+      if (bound && threadId !== "") bound.rosterChanged(threadId);
+      return {};
+    },
+  },
   "engine.bridge": {
     on: ["message.received", "message.edited"],
     run: async (ctx: EngineCtx, event: BridgeEvent): Promise<{ skipped?: string; receivedAs?: string[] }> => {

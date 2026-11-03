@@ -8,6 +8,7 @@ import type { ChatCtx, Mode, ThreadKind, ThreadRec } from "../projections.ts";
 import { canSpeak, mayGovernChannel, rootOf } from "./post.ts";
 import { applyMode } from "./modes.ts";
 import { followMode, placeOf } from "./follow.ts";
+import { grantsOf, revokeGrants, trashOwned } from "./owned.ts";
 
 type Row = Record<string, unknown>;
 const MAX_AGENTS = 20;
@@ -191,7 +192,7 @@ export async function setPlanMode(ctx: ChatCtx, input: { threadId: string; planM
 // ---- agents -----------------------------------------------------------------------------------------------------------------------------------------
 
 /** An agent changes the line-up only as the lead of the thread (and may always remove itself). */
-function agentMayChange(ctx: ChatCtx, t: ThreadRec, removing?: string): boolean {
+export function agentMayChange(ctx: ChatCtx, t: ThreadRec, removing?: string): boolean {
   if (ctx.principal.kind !== "agent") return true;
   if (removing === ctx.principal.id) return true;
   return agentsOf(ctx.db, t.id).some((a) => a.agentId === ctx.principal.id && a.mode === "lead");
@@ -228,9 +229,14 @@ export async function removeAgent(ctx: ChatCtx, input: { threadId: string; agent
   const t = load(ctx, input.threadId);
   if (!input.agentId.startsWith("agt_")) raise(ctx, "validation.bad_input", "That is not an agent.", { agentId: input.agentId });
   if (!agentMayChange(ctx, t, input.agentId)) raise(ctx, "permission.role_lacks_permission", "Only the lead agent of a thread removes agents from it.");
-  if (!agentsOf(ctx.db, t.id).some((a) => a.agentId === input.agentId)) raise(ctx, "validation.not_found", "That agent is not in this thread.");
+  const have = agentsOf(ctx.db, t.id).find((a) => a.agentId === input.agentId);
+  if (!have) raise(ctx, "validation.not_found", "That agent is not in this thread.");
+  // an outside agent loses what bringing it in gave it first, at once: if that cannot be done the agent stays, so no access is left behind
+  await revokeGrants(ctx, t.id, input.agentId, grantsOf(ctx, t.id, input.agentId));
   ctx.db.run("UPDATE chat_thread_agent SET deleted_at = ?, version = version + 1, updated_at = ? WHERE thread = ? AND agentId = ? AND deleted_at IS NULL", ctx.now(), ctx.now(), t.id, input.agentId);
   ctx.emit("agent.disengaged", t.id, { threadId: t.id, agentId: input.agentId, by: askerOf(ctx) });
+  // an agent the chat made for itself goes with its place in it
+  if (have.owned === true) await trashOwned(ctx, [input.agentId]);
   return out(ctx, t.id);
 }
 

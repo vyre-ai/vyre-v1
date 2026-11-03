@@ -19,6 +19,7 @@ import { historySearch } from "./history.ts";
 import { g27Handlers } from "./g27.ts";
 import { followHandlers } from "./follow.ts";
 import { modesHandlers } from "./modes.ts";
+import { addsheetHandlers } from "./addsheet.ts";
 import { post } from "./post.ts";
 import { screenHandlers } from "./screen.ts";
 import { guardPrivate } from "./private.ts";
@@ -65,6 +66,7 @@ export const handlers = {
   ...screenHandlers,
   ...g24aHandlers,
   ...modesHandlers,
+  ...addsheetHandlers,
   ...g24bHandlers,
   ...g24cHandlers,
   ...g24dHandlers,
