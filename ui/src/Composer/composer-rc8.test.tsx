@@ -165,7 +165,7 @@ test("usage follows the selected account and model, and a meter the engine did n
   const usage: Record<string, PanelUsage | null> = {
     "#cl_personal": { context: { used: 84_000, window: 200_000 }, session: { pct: 0.88, resetsAt: 3_600_000 }, week: { pct: 0.41, resetsAt: 5 * 86_400_000 } },
     "#cl_work": { context: { used: 84_000, window: 200_000 }, session: { pct: 0.22 }, week: null },
-    "#gpt": { context: { used: 10_000, window: 400_000 }, session: null, week: null },
+    "#gpt": { context: { used: 10_000, window: 400_000, approximate: true }, session: null, week: null },
   };
   await withDom(async () => {
     const log: string[] = [];
@@ -185,7 +185,7 @@ test("usage follows the selected account and model, and a meter the engine did n
     await press(find(root, "model-account"));
     await press(find(root, "row-model-account-#gpt"));
     assert.equal(find(root, "meter-session"), null, "Codex reports no session: hidden, not faked");
-    assert.ok(find(root, "meter-context"));
+    assert.match(textOf(find(root, "meter-context")), /about 10k.*400k/, "Codex reports only a turn's total: the figure is estimated and says about");
   });
   assert.deepEqual(contextFor({ context: { used: 1, window: 10 }, session: null, week: null }, { id: "x", title: "X", window: 99 }), { used: 1, window: 99 });
   assert.equal(contextFor({ context: null, session: null, week: null }, undefined), null);

@@ -79,7 +79,7 @@ export async function configureAgent(data: Pick<ConversationData, "call" | "thre
 interface AccountRow { ref: string; driver: string; kind: string; title: string; name?: string; status: string; aliases?: string[]; usable?: boolean; why?: string }
 interface UsageOut {
   account: { ref: string; name: string; provider: string; plan?: string } | null;
-  context: { used: number; window: number } | null;
+  context: { used: number; window: number; approximate?: boolean } | null;
   session: { pct: number; resetsAt?: number } | null;
   week: { pct: number; resetsAt?: number } | null;
   source?: string;

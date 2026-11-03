@@ -315,7 +315,7 @@ export default defineManifest({
       in: { ...threadT, agentId: id.agent, accountRef: t.opt(accountRef) },
       out: {
         account: t.nullable(t.obj({ ref: accountRef, name: t.str({ description: 'The name the person gave the account in the Vault', examples: ['Dana Claude Max'] }), provider: t.str({ examples: ['anthropic'] }), plan: t.opt(t.str()) })),
-        context: t.nullable(t.obj({ used: t.int({ minimum: 0 }), window: t.int({ minimum: 1 }) })),
+        context: t.nullable(t.obj({ used: t.int({ minimum: 0 }), window: t.int({ minimum: 1 }), approximate: t.opt(t.bool({ description: 'The engine reported only a turn\'s total, so used is estimated from the number of requests the turn made' })) })),
         session: t.nullable(t.obj({ pct: t.num({ minimum: 0, maximum: 100 }), resetsAt: t.opt(t.ts()) })),
         week: t.nullable(t.obj({ pct: t.num({ minimum: 0, maximum: 100 }), resetsAt: t.opt(t.ts()) })),
         source: t.enm('provider', 'estimate', 'none'),

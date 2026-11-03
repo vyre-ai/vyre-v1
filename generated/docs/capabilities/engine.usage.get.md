@@ -44,6 +44,7 @@ type Out = {
   context: {
     used: number;
     window: number;
+    approximate?: boolean;
   } | null;
   session: {
     pct: number;
@@ -94,6 +95,7 @@ type Out = {
       "ref": "#Team_Anthropic_Key"
     },
     "context": {
+      "approximate": true,
       "used": 1,
       "window": 1
     },

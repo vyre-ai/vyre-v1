@@ -11530,6 +11530,7 @@ export type EngineUsageGetOut = {
   context: {
     used: number;
     window: number;
+    approximate?: boolean;
   } | null;
   session: {
     pct: number;
