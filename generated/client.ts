@@ -43,6 +43,7 @@ export function createClient(transport: Transport) {
         remove_member: call("access.groups.remove_member", 1),
         update: call("access.groups.update", 1),
       },
+      join_share: call("access.join_share", 1),
       labels: {
         list: call("access.labels.list", 1),
         set: call("access.labels.set", 1),
@@ -329,6 +330,8 @@ export function createClient(transport: Transport) {
       create: call("channels.create", 1),
       erase: call("channels.erase", 1),
       get: call("channels.get", 1),
+      home: call("channels.home", 1),
+      home_join: call("channels.home_join", 1),
       join: call("channels.join", 1),
       leave: call("channels.leave", 1),
       list: call("channels.list", 1),
@@ -345,6 +348,9 @@ export function createClient(transport: Transport) {
       update: call("channels.update", 1),
     },
     chat: {
+      agent_dm: {
+        mute: call("chat.agent_dm.mute", 1),
+      },
       answer_block: call("chat.answer_block", 1),
       approve_plan: call("chat.approve_plan", 1),
       aside: call("chat.aside", 1),
@@ -374,11 +380,13 @@ export function createClient(transport: Transport) {
       message: {
         get: call("chat.message.get", 1),
       },
+      message_person: call("chat.message_person", 1),
       messages: {
         list: call("chat.messages.list", 1),
       },
       open_as_chat: call("chat.open_as_chat", 1),
       open_tab: call("chat.open_tab", 1),
+      people_status: call("chat.people_status", 1),
       pin: call("chat.pin", 1),
       pins: {
         list: call("chat.pins.list", 1),
@@ -608,6 +616,7 @@ export function createClient(transport: Transport) {
       get: call("devices.get", 1),
       list: call("devices.list", 1),
       mine: call("devices.mine", 1),
+      presence: call("devices.presence", 1),
       purge_ack: call("devices.purge_ack", 1),
       register: call("devices.register", 1),
       rename: call("devices.rename", 1),
@@ -758,6 +767,7 @@ export function createClient(transport: Transport) {
       models: {
         list: call("engine.models.list", 1),
       },
+      now: call("engine.now", 1),
       placement: {
         decide: call("engine.placement.decide", 1),
         options: call("engine.placement.options", 1),
@@ -1193,6 +1203,7 @@ export function createClient(transport: Transport) {
     home: {
       activity: call("home.activity", 1),
       at_risk: call("home.at_risk", 1),
+      away_digest: call("home.away_digest", 1),
       checklist: call("home.checklist", 1),
       digest: call("home.digest", 1),
       dismiss_checklist: call("home.dismiss_checklist", 1),
@@ -1463,6 +1474,10 @@ export function createClient(transport: Transport) {
         list: call("members.invites.list", 1),
         preview: call("members.invites.preview", 1),
         revoke: call("members.invites.revoke", 1),
+      },
+      joins: {
+        list: call("members.joins.list", 1),
+        retry: call("members.joins.retry", 1),
       },
       reactivate: call("members.reactivate", 1),
       remove: call("members.remove", 1),
@@ -1739,6 +1754,7 @@ export function createClient(transport: Transport) {
         clear: call("notifications.away.clear", 1),
         get: call("notifications.away.get", 1),
         set: call("notifications.away.set", 1),
+        who: call("notifications.away.who", 1),
       },
       counts: call("notifications.counts", 1),
       delegate: {
@@ -2099,6 +2115,7 @@ export function createClient(transport: Transport) {
       },
       list: call("settings.list", 1),
       pages: call("settings.pages", 1),
+      public_of: call("settings.public_of", 1),
       reset: call("settings.reset", 1),
       reset_space: call("settings.reset_space", 1),
       search: call("settings.search", 1),
@@ -2556,6 +2573,7 @@ export function createClient(transport: Transport) {
         list: call("vault.site_rules.list", 1),
         set: call("vault.site_rules.set", 1),
       },
+      text_check: call("vault.text_check", 1),
       unshare: call("vault.unshare", 1),
       use: call("vault.use", 1),
     },

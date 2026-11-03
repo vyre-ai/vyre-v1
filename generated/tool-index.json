@@ -1178,6 +1178,12 @@
     },
     {
       "deferred": false,
+      "name": "channels_home",
+      "summary": "The Space's first channel: #vyre, or an older Space's #general (legacy: Console offers to rename it). Null in a Personal Space",
+      "toolset": "chats"
+    },
+    {
+      "deferred": false,
       "name": "channels_join",
       "summary": "Join a public channel",
       "toolset": "chats"
@@ -2246,6 +2252,12 @@
     },
     {
       "deferred": false,
+      "name": "devices_presence",
+      "summary": "Who is around: for each person, online (a device seen in the last five minutes), away (they set themselves away) or offline, with when they were last seen. Says when, never where",
+      "toolset": "meta"
+    },
+    {
+      "deferred": false,
       "name": "devices_rename",
       "summary": "Rename one of my devices",
       "toolset": "meta"
@@ -2549,6 +2561,12 @@
       "name": "engine_models_list",
       "summary": "Models the account can reach; models that the open labels or policy forbid are listed greyed with the reason",
       "toolset": "meta"
+    },
+    {
+      "deferred": false,
+      "name": "engine_now",
+      "summary": "Which agents are working right now: the agent, the person it works for, where it runs (the Space, their computer, their server) and since when; the chat is named only to someone who may read it",
+      "toolset": "chats"
     },
     {
       "deferred": false,
@@ -3998,6 +4016,12 @@
     },
     {
       "deferred": false,
+      "name": "home_away_digest",
+      "summary": "Write my While you were away digest for the time since I was last here: what my agents and routines did, changes on records I follow and the quiet notices that waited (an agent past its interrupt cap, a person who joined), by name. Writes nothing when nothing happened",
+      "toolset": "meta"
+    },
+    {
+      "deferred": false,
       "name": "home_checklist",
       "summary": "The first-run checklist: five items, hidden once all are done or dismissed",
       "toolset": "meta"
@@ -4832,6 +4856,18 @@
     },
     {
       "deferred": false,
+      "name": "members_joins_list",
+      "summary": "Joins that have not finished: each new member with the steps that did not work yet, in words, how often each was tried, and whether it is stuck (three tries or more)",
+      "toolset": "meta"
+    },
+    {
+      "deferred": false,
+      "name": "members_joins_retry",
+      "summary": "Retry a new member's join steps that did not work, now",
+      "toolset": "meta"
+    },
+    {
+      "deferred": false,
       "name": "members_reactivate",
       "summary": "Reactivate a suspended person",
       "toolset": "meta"
@@ -5225,6 +5261,12 @@
       "name": "memory_write_page",
       "summary": "Write the Notes of a page as a new version (making the page when it is new); [[links]] in the Notes become labelled edges, each with the line it was written in",
       "toolset": "memory"
+    },
+    {
+      "deferred": true,
+      "name": "message_person",
+      "summary": "Message a teammate for the person you work for, in their direct chat, signed as them (Agent); the reply comes back to this chat. Can carry an approval, review or key card. Waits for away and after hours unless urgent; 3 an hour",
+      "toolset": "chats"
     },
     {
       "deferred": false,
@@ -5780,6 +5822,12 @@
     },
     {
       "deferred": false,
+      "name": "notifications_away_who",
+      "summary": "Who in the Space is away right now and until when (what a teammate sees as a steady away dot); never the delegate",
+      "toolset": "meta"
+    },
+    {
+      "deferred": false,
       "name": "notifications_counts",
       "summary": "Counts for the rail (Needs you and direct conversations only) and a quiet dot per other place",
       "toolset": "meta"
@@ -5872,6 +5920,12 @@
       "deferred": false,
       "name": "open_tab",
       "summary": "Open a side tab beside the chat for the person (a file, record, diff, terminal); respects the person tab setting and posts a line",
+      "toolset": "chats"
+    },
+    {
+      "deferred": true,
+      "name": "people_status",
+      "summary": "Your teammates as you see them: online, away or offline and when last seen, their local time and working hours, and when a message to them would go. Only people in this Space, never anything private",
       "toolset": "chats"
     },
     {
