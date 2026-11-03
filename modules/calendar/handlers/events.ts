@@ -900,9 +900,85 @@ export async function syncNow(ctx: CalCtx, input: { calendarId: string }): Promi
  * is not one of those people. Authority came when the admin connected the calendar (calendar.connect_provider needs connectors.manage). The pull reads the provider
  * as the calendar's account (the `as` the connect step stored), which only the server may do for a named member.
  */
+/**
+ * Fold the duplicate calendars an earlier reconnect left (the same account's calendar, imported again under a new calendar id each time) into the oldest one. Idempotent: with no duplicate it reads
+ * and changes nothing. Per provider calendar (provider, owner, remote id, account): the oldest row is kept with its sync cursor; each other row's events move to it, and where both hold the same
+ * provider event the newest version wins (a newer delete wins too); records and the meeting the event became are carried over; the duplicate calendars are removed; the direct grants on them
+ * are given again on the kept calendar. One audit row says what was folded. Answers the number of calendars folded away.
+ */
+export async function mergeDuplicateCalendars(ctx: CalCtx): Promise<{ merged: number; events: number; grants: number }> {
+  ensure(ctx);
+  const accountOf = new Map(rowsOf(ctx.db.all(`SELECT * FROM calendar_account`)).map((r) => [str(r, "calendarId"), normalizeEmail(str(r, "account"))] as const));
+  const rows = rowsOf(ctx.db.all(`SELECT * FROM calendar_list WHERE deleted_at IS NULL`))
+    .filter((l) => strOrNull(l, "provider") !== null && str(l, "provider") !== "local").map((l) => ({ ...l, account: accountOf.get(str(l, "id")) ?? null }) as Row)
+    .sort((x, y) => str(x, "id").localeCompare(str(y, "id")));
+  const groups = new Map<string, Row[]>();
+  for (const r of rows) {
+    const account = strOrNull(r, "account");
+    if (account === null || strOrNull(r, "ownerId") === null || strOrNull(r, "remoteId") === null) continue;
+    const key = [str(r, "provider"), str(r, "ownerId"), str(r, "remoteId"), account].join("|");
+    groups.set(key, [...(groups.get(key) ?? []), r]);
+  }
+  const KEEP = new Set(["id", "calendarId", "providerId", "version", "updated_at", "meetingId", "recordIds"]);
+  const now = ctx.now();
+  let merged = 0, moved = 0, grants = 0;
+  const detail: Array<{ kept: string; folded: string[]; events: number }> = [];
+  for (const group of groups.values()) {
+    if (group.length < 2) continue;
+    const keeper = group[0]!, kid = str(keeper, "id");
+    let eventsHere = 0;
+    for (const dup of group.slice(1)) {
+      const did = str(dup, "id");
+      for (const e of rowsOf(ctx.db.all(`SELECT * FROM calendar_event WHERE "calendarId" = ?`, did))) {
+        const pid = strOrNull(e, "providerId");
+        const twin = pid === null ? undefined : first(ctx.db.all(`SELECT * FROM calendar_event WHERE "calendarId" = ? AND "providerId" = ?`, kid, pid));
+        if (!twin) { ctx.db.run(`UPDATE calendar_event SET "calendarId" = ? WHERE id = ?`, kid, str(e, "id")); eventsHere++; continue; }
+        const newer = num(e, "updated_at") > num(twin, "updated_at") || (num(e, "updated_at") === num(twin, "updated_at") && num(e, "version") > num(twin, "version"));
+        const set = new Map<string, string | number | null>();
+        if (newer) for (const [k, v] of Object.entries(e)) if (!KEEP.has(k)) set.set(k, v);
+        const ids = [...new Set([...readStrings(twin.recordIds), ...readStrings(e.recordIds)])];
+        if (ids.length && JSON.stringify(ids) !== JSON.stringify(readStrings(twin.recordIds))) set.set("recordIds", JSON.stringify(ids));
+        if (strOrNull(twin, "meetingId") === null && strOrNull(e, "meetingId") !== null) set.set("meetingId", strOrNull(e, "meetingId"));
+        if (set.size) {
+          const names = [...set.keys()];
+          ctx.db.run(`UPDATE calendar_event SET ${names.map((n) => `"${n}" = ?`).join(", ")}, version = ?, updated_at = ? WHERE id = ?`, ...names.map((n) => set.get(n) ?? null), num(twin, "version") + 1, newer ? num(e, "updated_at") : num(twin, "updated_at"), str(twin, "id"));
+        }
+        ctx.db.run(`DELETE FROM calendar_event WHERE id = ?`, str(e, "id"));
+        eventsHere++;
+      }
+      // the grants given on the duplicate are given again on the calendar that stays
+      try {
+        const out = obj(await ctx.call("access.shares_of", { resource: { type: "calendar", id: did } }));
+        for (const sh of Array.isArray(out["shares"]) ? out["shares"] : []) {
+          const row = obj(sh), g = obj(row["grant"]);
+          if (row["through"] !== "direct" || typeof g["id"] !== "string") continue;
+          try {
+            await ctx.call("access.share", { resource: { type: "calendar", id: kid }, subject: g["subject"], level: g["level"], idempotencyKey: `calmerge-${did}-${g["id"]}` });
+            grants++;
+          } catch { /* a grant that cannot be given again stays on the removed calendar's record in the audit row */ }
+        }
+      } catch { /* shares are read when the access module answers; the calendars are folded either way */ }
+      ctx.db.run(`UPDATE calendar_list SET deleted_at = ?, version = ?, updated_at = ? WHERE id = ?`, now, num(dup, "version") + 1, now, did);
+      ctx.db.run(`DELETE FROM calendar_sync WHERE "calendarId" = ?`, did);
+      ctx.db.run(`DELETE FROM calendar_account WHERE "calendarId" = ?`, did);
+      merged++;
+    }
+    moved += eventsHere;
+    detail.push({ kept: kid, folded: group.slice(1).map((d) => str(d, "id")), events: eventsHere });
+    ctx.db.run(`UPDATE calendar_list SET version = ?, updated_at = ? WHERE id = ?`, num(keeper, "version") + 1, now, kid);
+  }
+  if (merged > 0) {
+    try { await ctx.call("audit.append", { action: "calendar.duplicates_merged", class: "admin", detail: { calendars: detail, merged, events: moved, grants } }); } catch { ctx.log.warn("calendar duplicates were merged; the audit row could not be written", { merged }); }
+    ctx.log.info("calendar duplicates merged", { merged, events: moved, grants });
+  }
+  return { merged, events: moved, grants };
+}
+
 export async function pullProviderCalendars(ctx: CalCtx): Promise<{ pulled: number }> {
   ensure(ctx);
   if (!isTrustedService(ctx.principal)) bad(ctx, "The scheduled calendar pull is the server's own job.");
+  // duplicates an earlier reconnect left are folded before anything is pulled (a no-op once there are none)
+  await mergeDuplicateCalendars(ctx).catch((e: unknown) => ctx.log.warn("calendar duplicate merge failed", { error: e instanceof Error ? e.message.slice(0, 200) : String(e) }));
   const due = rowsOf(ctx.db.all(`SELECT * FROM calendar_list WHERE deleted_at IS NULL AND provider != ? AND state != ? ORDER BY id ASC`, "local", "paused"));
   for (const cal of due) await pullCalendar(ctx, cal);
   return { pulled: due.length };
@@ -1055,26 +1131,35 @@ export async function connectProvider(ctx: CalCtx, input: ConnectProviderIn): Pr
   const account = normalizeEmail(input.account ?? "");
   if (!EMAIL.test(account)) bad(ctx, "The account is an email address.");
   const remoteId = input.remoteId === undefined ? (input.provider === "google" ? "primary" : GRAPH_DEFAULT) : (clean(ctx, input.remoteId, "The remote id", 500, true) ?? "");
-  const have = first(ctx.db.all(
-    `SELECT * FROM calendar_list WHERE provider = ? AND "ownerId" = ? AND "connectionId" = ? AND "remoteId" = ? AND deleted_at IS NULL`, input.provider, input.ownerId, input.connectionId, remoteId,
-  ));
+  // One calendar per account and provider calendar: a reconnect (a new connection id for the same Google account) answers the calendar that is already here instead of making another one and
+  // importing every event again. The oldest row is the one kept; its connection becomes the new one.
+  const accounts = new Map(rowsOf(ctx.db.all(`SELECT * FROM calendar_account`)).map((r) => [str(r, "calendarId"), normalizeEmail(str(r, "account"))] as const));
+  const matches = rowsOf(ctx.db.all(`SELECT * FROM calendar_list WHERE deleted_at IS NULL`))
+    .filter((l) => str(l, "provider") === input.provider && strOrNull(l, "ownerId") === input.ownerId && strOrNull(l, "remoteId") === remoteId && (strOrNull(l, "connectionId") === input.connectionId || accounts.get(str(l, "id")) === account))
+    .sort((x, y) => str(x, "id").localeCompare(str(y, "id")));
+  const have = matches[0];
   const now = ctx.now();
   if (input.connected === false) {
     if (!have) return { created: false };
-    const id = str(have, "id");
-    for (const e of rowsOf(ctx.db.all(`SELECT * FROM calendar_event WHERE "calendarId" = ? AND deleted_at IS NULL`, id))) {
-      ctx.db.run(`UPDATE calendar_event SET "deletedAt" = ?, deleted_at = ?, version = ?, updated_at = ? WHERE id = ?`, now, now, num(e, "version") + 1, now, str(e, "id"));
-      ctx.emit("calendar_event.deleted", `entity/${str(e, "id")}`, { eventId: str(e, "id"), calendarId: id });
+    // every copy of this account's calendar goes (older duplicates included)
+    for (const cal of matches) {
+      const id = str(cal, "id");
+      for (const e of rowsOf(ctx.db.all(`SELECT * FROM calendar_event WHERE "calendarId" = ? AND deleted_at IS NULL`, id))) {
+        ctx.db.run(`UPDATE calendar_event SET "deletedAt" = ?, deleted_at = ?, version = ?, updated_at = ? WHERE id = ?`, now, now, num(e, "version") + 1, now, str(e, "id"));
+        ctx.emit("calendar_event.deleted", `entity/${str(e, "id")}`, { eventId: str(e, "id"), calendarId: id });
+      }
+      ctx.db.run(`UPDATE calendar_list SET deleted_at = ?, version = ?, updated_at = ? WHERE id = ?`, now, num(cal, "version") + 1, now, id);
+      ctx.db.run(`DELETE FROM calendar_sync WHERE "calendarId" = ?`, id);
     }
-    ctx.db.run(`UPDATE calendar_list SET deleted_at = ?, version = ?, updated_at = ? WHERE id = ?`, now, num(have, "version") + 1, now, id);
-    ctx.db.run(`DELETE FROM calendar_sync WHERE "calendarId" = ?`, id);
-    return { calendarId: id, created: false };
+    return { calendarId: str(have, "id"), created: false };
   }
   // a calendar is named for the account it is read as (maya@firm.test), not "Google Calendar": a member with two connected accounts can tell them apart
   const given = clean(ctx, input.title, "The title", 100, false);
   if (have) {
     if (first(ctx.db.all(`SELECT "calendarId" FROM calendar_account WHERE "calendarId" = ?`, str(have, "id")))) ctx.db.run(`UPDATE calendar_account SET account = ? WHERE "calendarId" = ?`, account, str(have, "id"));
     else ctx.db.run(`INSERT INTO calendar_account ("calendarId", account) VALUES (?, ?)`, str(have, "id"), account);
+    // a reconnect brings a new connection: the pull reads through it from now on
+    if (str(have, "connectionId") !== input.connectionId) ctx.db.run(`UPDATE calendar_list SET "connectionId" = ?, version = ?, updated_at = ? WHERE id = ?`, input.connectionId, num(have, "version") + 1, now, str(have, "id"));
     // one connected before it was named for its account takes the account's name the next time it is connected (a title the person gave it stays)
     if (!given && GENERIC_TITLES.has(str(have, "title"))) ctx.db.run(`UPDATE calendar_list SET title = ?, version = ?, updated_at = ? WHERE id = ?`, account, num(have, "version") + 1, now, str(have, "id"));
     return { calendarId: str(have, "id"), created: false };
