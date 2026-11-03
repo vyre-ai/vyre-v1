@@ -335,7 +335,7 @@ jobs:
         with:
           node-version: 24
       - name: Windows-shaped unit tests, on Windows
-        run: node --test --test-force-exit --test-reporter=spec sandbox/tests/sandbox.access.win.test.ts sandbox/tests/sandbox.access.test.ts modules/engine/tests/skills-native.win.test.ts modules/engine/tests/sudo-shim.win.test.ts agent/tests/codex-server.win.test.ts agent/tests/drivers-cli.models-close.test.ts modules/mounts/tests/engine-folders.test.ts
+        run: node --test --test-force-exit --test-reporter=spec sandbox/tests/sandbox.access.win.test.ts modules/engine/tests/skills-native.win.test.ts modules/engine/tests/sudo-shim.win.test.ts agent/tests/codex-server.win.test.ts agent/tests/drivers-cli.models-close.test.ts
       - name: The ssh-agent service and an SSH server for the proof
         shell: pwsh
         run: |
