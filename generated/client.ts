@@ -43,6 +43,7 @@ export function createClient(transport: Transport) {
         remove_member: call("access.groups.remove_member", 1),
         update: call("access.groups.update", 1),
       },
+      join_share: call("access.join_share", 1),
       labels: {
         list: call("access.labels.list", 1),
         set: call("access.labels.set", 1),
@@ -92,6 +93,7 @@ export function createClient(transport: Transport) {
       view_as: call("access.view_as", 1),
     },
     agents: {
+      assistant_of: call("agents.assistant_of", 1),
       builtin_skill: {
         get: call("agents.builtin_skill.get", 1),
       },
@@ -100,6 +102,7 @@ export function createClient(transport: Transport) {
       },
       config: {
         get: call("agents.config.get", 1),
+        may_save: call("agents.config.may_save", 1),
         validate: call("agents.config.validate", 1),
       },
       create: call("agents.create", 1),
@@ -329,6 +332,8 @@ export function createClient(transport: Transport) {
       create: call("channels.create", 1),
       erase: call("channels.erase", 1),
       get: call("channels.get", 1),
+      home: call("channels.home", 1),
+      home_join: call("channels.home_join", 1),
       join: call("channels.join", 1),
       leave: call("channels.leave", 1),
       list: call("channels.list", 1),
@@ -345,6 +350,9 @@ export function createClient(transport: Transport) {
       update: call("channels.update", 1),
     },
     chat: {
+      agent_dm: {
+        mute: call("chat.agent_dm.mute", 1),
+      },
       answer_block: call("chat.answer_block", 1),
       approve_plan: call("chat.approve_plan", 1),
       aside: call("chat.aside", 1),
@@ -374,11 +382,13 @@ export function createClient(transport: Transport) {
       message: {
         get: call("chat.message.get", 1),
       },
+      message_person: call("chat.message_person", 1),
       messages: {
         list: call("chat.messages.list", 1),
       },
       open_as_chat: call("chat.open_as_chat", 1),
       open_tab: call("chat.open_tab", 1),
+      people_status: call("chat.people_status", 1),
       pin: call("chat.pin", 1),
       pins: {
         list: call("chat.pins.list", 1),
@@ -608,6 +618,7 @@ export function createClient(transport: Transport) {
       get: call("devices.get", 1),
       list: call("devices.list", 1),
       mine: call("devices.mine", 1),
+      presence: call("devices.presence", 1),
       purge_ack: call("devices.purge_ack", 1),
       register: call("devices.register", 1),
       rename: call("devices.rename", 1),
@@ -758,6 +769,7 @@ export function createClient(transport: Transport) {
       models: {
         list: call("engine.models.list", 1),
       },
+      now: call("engine.now", 1),
       placement: {
         decide: call("engine.placement.decide", 1),
         options: call("engine.placement.options", 1),
@@ -1193,6 +1205,7 @@ export function createClient(transport: Transport) {
     home: {
       activity: call("home.activity", 1),
       at_risk: call("home.at_risk", 1),
+      away_digest: call("home.away_digest", 1),
       checklist: call("home.checklist", 1),
       digest: call("home.digest", 1),
       dismiss_checklist: call("home.dismiss_checklist", 1),
@@ -1442,6 +1455,17 @@ export function createClient(transport: Transport) {
     meetings: {
       attach_recording: call("meetings.attach_recording", 1),
       cancel: call("meetings.cancel", 1),
+      closeout: {
+        approve: call("meetings.closeout.approve", 1),
+        edit: call("meetings.closeout.edit", 1),
+        get: call("meetings.closeout.get", 1),
+        list: call("meetings.closeout.list", 1),
+        prepare: call("meetings.closeout.prepare", 1),
+        propose: call("meetings.closeout.propose", 1),
+        share: call("meetings.closeout.share", 1),
+        skip: call("meetings.closeout.skip", 1),
+        sync: call("meetings.closeout.sync", 1),
+      },
       get: call("meetings.get", 1),
       ingest: call("meetings.ingest", 1),
       list: call("meetings.list", 1),
@@ -1464,6 +1488,10 @@ export function createClient(transport: Transport) {
         list: call("members.invites.list", 1),
         preview: call("members.invites.preview", 1),
         revoke: call("members.invites.revoke", 1),
+      },
+      joins: {
+        list: call("members.joins.list", 1),
+        retry: call("members.joins.retry", 1),
       },
       reactivate: call("members.reactivate", 1),
       remove: call("members.remove", 1),
@@ -1492,6 +1520,10 @@ export function createClient(transport: Transport) {
       archive_sweep: call("memory.archive_sweep", 1),
       backlinks: call("memory.backlinks", 1),
       capture: call("memory.capture", 1),
+      chat_learning: {
+        get: call("memory.chat_learning.get", 1),
+        set: call("memory.chat_learning.set", 1),
+      },
       counts: call("memory.counts", 1),
       erase: call("memory.erase", 1),
       export_markdown: call("memory.export_markdown", 1),
@@ -1527,6 +1559,9 @@ export function createClient(transport: Transport) {
         save: call("memory.layout.save", 1),
       },
       learned: call("memory.learned", 1),
+      learning: {
+        today: call("memory.learning.today", 1),
+      },
       maintain: call("memory.maintain", 1),
       map: {
         get: call("memory.map.get", 1),
@@ -1549,6 +1584,13 @@ export function createClient(transport: Transport) {
         versions: call("memory.page.versions", 1),
       },
       pointer: call("memory.pointer", 1),
+      profile: {
+        add: call("memory.profile.add", 1),
+        context: call("memory.profile.context", 1),
+        get: call("memory.profile.get", 1),
+        move: call("memory.profile.move", 1),
+        suggest: call("memory.profile.suggest", 1),
+      },
       promote: call("memory.promote", 1),
       promotion: {
         approve: call("memory.promotion.approve", 1),
@@ -1590,6 +1632,7 @@ export function createClient(transport: Transport) {
       doc_insert_text: call("mounts.doc_insert_text", 1),
       doc_replace_text: call("mounts.doc_replace_text", 1),
       editors: call("mounts.editors", 1),
+      engine_folders: call("mounts.engine_folders", 1),
       file_link: call("mounts.file_link", 1),
       get: call("mounts.get", 1),
       history: call("mounts.history", 1),
@@ -1715,6 +1758,14 @@ export function createClient(transport: Transport) {
       my_computer_decline: call("network.my_computer_decline", 1),
       my_computer_remove: call("network.my_computer_remove", 1),
       my_computers: call("network.my_computers", 1),
+      peer_allow: call("network.peer_allow", 1),
+      peer_conflicts: call("network.peer_conflicts", 1),
+      peer_decline: call("network.peer_decline", 1),
+      peer_remove: call("network.peer_remove", 1),
+      peer_requests: call("network.peer_requests", 1),
+      peer_runner: call("network.peer_runner", 1),
+      peer_server_code: call("network.peer_server_code", 1),
+      peers: call("network.peers", 1),
       phone: call("network.phone", 1),
       phone_claim: call("network.phone_claim", 1),
       phone_release: call("network.phone_release", 1),
@@ -1733,6 +1784,7 @@ export function createClient(transport: Transport) {
         clear: call("notifications.away.clear", 1),
         get: call("notifications.away.get", 1),
         set: call("notifications.away.set", 1),
+        who: call("notifications.away.who", 1),
       },
       counts: call("notifications.counts", 1),
       delegate: {
@@ -1789,10 +1841,17 @@ export function createClient(transport: Transport) {
       },
       connection: {
         add: call("plugins.connection.add", 1),
+        add_mine: call("plugins.connection.add_mine", 1),
+        checked: call("plugins.connection.checked", 1),
+        forget: call("plugins.connection.forget", 1),
         remove: call("plugins.connection.remove", 1),
+        update: call("plugins.connection.update", 1),
       },
       connections: {
+        home: call("plugins.connections.home", 1),
         list: call("plugins.connections.list", 1),
+        policy: call("plugins.connections.policy", 1),
+        policy_set: call("plugins.connections.policy_set", 1),
       },
       files: call("plugins.files", 1),
       get: call("plugins.get", 1),
@@ -1811,6 +1870,9 @@ export function createClient(transport: Transport) {
       },
       mcp: {
         servers: call("plugins.mcp.servers", 1),
+      },
+      registry: {
+        search: call("plugins.registry.search", 1),
       },
       set_enabled: call("plugins.set_enabled", 1),
       uninstall: call("plugins.uninstall", 1),
@@ -1889,6 +1951,9 @@ export function createClient(transport: Transport) {
       subscription_complete: call("providers.subscription_complete", 1),
       subscription_start: call("providers.subscription_start", 1),
       test: call("providers.test", 1),
+      uses: {
+        set: call("providers.uses.set", 1),
+      },
     },
     records: {
       activity: call("records.activity", 1),
@@ -2093,6 +2158,7 @@ export function createClient(transport: Transport) {
       },
       list: call("settings.list", 1),
       pages: call("settings.pages", 1),
+      public_of: call("settings.public_of", 1),
       reset: call("settings.reset", 1),
       reset_space: call("settings.reset_space", 1),
       search: call("settings.search", 1),
@@ -2146,8 +2212,31 @@ export function createClient(transport: Transport) {
       add: call("skills.add", 1),
       list: call("skills.list", 1),
       load: call("skills.load", 1),
+      members: call("skills.members", 1),
+      mine: {
+        add: call("skills.mine.add", 1),
+        remove: call("skills.mine.remove", 1),
+        set: call("skills.mine.set", 1),
+        update: call("skills.mine.update", 1),
+      },
+      page: call("skills.page", 1),
+      policy: {
+        set: call("skills.policy.set", 1),
+      },
+      preview: call("skills.preview", 1),
       remove: call("skills.remove", 1),
       set_enabled: call("skills.set_enabled", 1),
+      share: call("skills.share", 1),
+      shared: {
+        decide: call("skills.shared.decide", 1),
+      },
+      space: {
+        adopt: call("skills.space.adopt", 1),
+        install: call("skills.space.install", 1),
+        setup: call("skills.space.setup", 1),
+        update: call("skills.space.update", 1),
+      },
+      view: call("skills.view", 1),
     },
     source_rules: {
       list: call("source_rules.list", 1),
@@ -2180,6 +2269,7 @@ export function createClient(transport: Transport) {
       delete: call("spaces.delete", 1),
       export: call("spaces.export", 1),
       get: call("spaces.get", 1),
+      image: call("spaces.image", 1),
       leave: call("spaces.leave", 1),
       matrix: call("spaces.matrix", 1),
       onboarding: {
@@ -2550,6 +2640,7 @@ export function createClient(transport: Transport) {
         list: call("vault.site_rules.list", 1),
         set: call("vault.site_rules.set", 1),
       },
+      text_check: call("vault.text_check", 1),
       unshare: call("vault.unshare", 1),
       use: call("vault.use", 1),
     },

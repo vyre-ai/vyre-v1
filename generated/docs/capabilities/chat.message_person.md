@@ -19,7 +19,7 @@ Message a teammate for the person you work for, in their direct chat, signed as 
 | HTTP | POST /v1/chat/message_person |
 | MCP tool | message_person (chats, deferred) |
 | CLI | none |
-| Emits | thread.started, message.received, message.direct |
+| Emits | thread.started, message.received, message.direct, message.mentioned, thread.replied, thread.unarchived |
 
 ## Input
 

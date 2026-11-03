@@ -23,5 +23,11 @@ Area: agents. Risk: medium. Applies to: agent.
 - plugins.set_enabled
 - plugins.uninstall
 - skills.add
+- skills.members
+- skills.policy.set
 - skills.remove
 - skills.set_enabled
+- skills.space.adopt
+- skills.space.install
+- skills.space.setup
+- skills.space.update
