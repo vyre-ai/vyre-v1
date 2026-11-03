@@ -18,7 +18,7 @@ export const owner: Caller = { id: OWNER, kind: "person", origin: "app" };
 export const lead: Caller = { id: LEAD, kind: "agent", actingFor: OWNER };
 export const host: Caller = { id: "svc_host", kind: "service" };
 
-export function world(o: { count?: number; failRead?: string } = {}) {
+export function world(o: { count?: number; failRead?: string; fakes?: Record<string, (i: Obj, who: Caller) => unknown> } = {}) {
   const sqlite = new DatabaseSync(":memory:");
   const norm = (a: unknown): unknown => (a === undefined ? null : a);
   const raw: Db = {
@@ -78,6 +78,8 @@ export function world(o: { count?: number; failRead?: string } = {}) {
     "memory.remember": (i) => { state.memory.push(i); return {}; },
     "projects.get": () => ({ project: { folderId: "fld_project" } }),
   };
+
+  Object.assign(fake, o.fakes ?? {});
 
   function ctx(who: Caller): GoalsCtx {
     return {

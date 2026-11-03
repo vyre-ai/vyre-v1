@@ -21,7 +21,7 @@ import { connectionRoute } from "../../places/automations/connect/route.ts";
 import { ConfigExtrasProvider } from "../../places/automations/config/data.tsx";
 import { RunsDataProvider } from "../../places/automations/runs/data.tsx";
 import { AutomationRuns, FailedView, JourneyNewView, JourneyView, RunView, configExtras, runsData, useDirectory } from "./automations-parts.tsx";
-import { AllRuns, Dependencies, LiveEvents, NeedsYou, Packages, SpaceAnalytics, TemplateGallery } from "../../places/automations/operations/StudioViews.tsx";
+import { AllRuns, Dependencies, LiveEvents, NeedsYou, Packages, SpaceAnalytics, TemplateGallery, Watching } from "../../places/automations/operations/StudioViews.tsx";
 import { AutomationsStart } from "../../places/automations/start/AutomationsStart.tsx";
 import { openAskPane } from "../ask/pane.ts";
 import { AutomationsSidebarSlot, StudioNav } from "../../places/automations/sidebar/AutomationsSidebarSlot.tsx";
@@ -46,7 +46,8 @@ function Body({ rt }: { rt: ShellRuntime }): ReactElement {
   const { opened } = usePlaceHash();
   const hashed = useOpenedId(["automation"], ["automationId"]);
   const [picked, setOpenId] = useState<string | null>(null);
-  const [view, setViewRaw] = useState<StudioView>("automations");
+  // Vyre for Chrome opens /automations/watching from its Watching list
+  const [view, setViewRaw] = useState<StudioView>(() => (typeof location !== "undefined" && /\/automations\/watching\/?$/.test(location.pathname) ? "watching" : "automations"));
   const [overlay, setOverlay] = useState<Overlay | null>(null);
   const [step, setStep] = useState<string | null>(null);
   const [sideRun, setSideRun] = useState<string | null>(null);
@@ -179,6 +180,7 @@ function Body({ rt }: { rt: ShellRuntime }): ReactElement {
     : view === "analytics" ? <SpaceAnalytics />
     : view === "dependencies" ? <Dependencies />
     : view === "packages" ? <Packages />
+    : view === "watching" ? <Watching />
     : view === "templates" ? <TemplateGallery />
     : openId && missing ? <NotFound what="automation" />
     : canvas

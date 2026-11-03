@@ -16,6 +16,8 @@ import { createMenus } from "./menus.js";
 import { createNotes } from "./notes.js";
 import { createPanel, PANEL_PORT } from "./panel.js";
 import { createPrivacy } from "./privacy.js";
+import { createRecorder } from "./record.js";
+import { createWatches } from "./watch.js";
 // Agent control (P-L10_06): starts itself in the extension when Chrome has granted the optional debugger permission, and does nothing otherwise.
 import "../agent/index.js";
 
@@ -51,6 +53,8 @@ export function createWorker(ext) {
   const panel = createPanel({ ext, bridge, store, privacy, context, views });
   const notes = createNotes({ ext, bridge, privacy, context });
   const menus = createMenus({ ext, notes, panel, views, privacy });
+  const recorder = createRecorder({ ext, bridge, privacy });
+  const watches = createWatches({ ext, bridge, privacy });
 
   bridge.onPush((m) => {
     if (m && m.type === "spaces") {
@@ -59,6 +63,7 @@ export function createWorker(ext) {
       rules.forget();
     }
     if (m && m.type === "tab.open" && ext.tabs) void ext.tabs.create({ url: m.url });
+    if (m && m.type === "watch.run") void watches.look();
   });
 
   async function activeTab() {
@@ -178,10 +183,68 @@ export function createWorker(ext) {
         menus.openPanel(sender.tab, "chat").catch(() => {});
         return { data: { asked: await panel.ask(sender.tab, String(msg.selection || "")) } };
       }
+      case "vyre.rec.hello": return { data: await recorder.hello(tabId) };
+      case "vyre.rec.step": { void recorder.step(tabId, sender.tab, msg); return { data: { ok: true } }; }
+      case "vyre.rec.ctl": {
+        const op = msg.op === "stop" ? "stop" : msg.op === "pause" ? ((await recorder.state()).paused ? "resume" : "pause") : null;
+        return op ? { data: await recorder.control(op) } : failure(new BridgeFailure("not_allowed", ""));
+      }
+      case "vyre.pick": return { data: { ok: watches.picked(tabId, msg) } };
       case "vyre.openNote": return { data: await bridge.op("app.open", { place: "notes", id: String(msg.noteId || "").slice(0, 80) }) };
       case "vyre.submit": return { data: await save.submitted({ tabId, origin }, { username: String(msg.username || ""), password: String(msg.password || ""), kind: msg.kind === "signup" ? "signup" : "signin" }) };
       case "vyre.save": return { data: await save.save({ tabId, origin }, { name: String(msg.name || ""), username: String(msg.username || ""), password: String(msg.password || ""), share: Boolean(msg.share), mode: msg.mode === "update" ? "update" : "save" }) };
       case "vyre.dismiss": return { data: await save.dismissed({ tabId, origin }, { never: Boolean(msg.never) }) };
+      default: return failure(new BridgeFailure("not_allowed", String(msg.type)));
+    }
+  }
+
+  /** The tab a panel works for: the active tab of its window. @param {any} msg */
+  async function panelTab(msg) {
+    const [tab] = await ext.tabs.query(typeof msg.windowId === "number" ? { active: true, windowId: msg.windowId } : { active: true, lastFocusedWindow: true });
+    if (!tab || tab.id === undefined) throw new BridgeFailure("no_page", "");
+    return tab;
+  }
+
+  /** The side panel's recording and watching messages. @param {any} msg */
+  async function fromPanelExtra(msg) {
+    switch (msg.type) {
+      case "panel.rec.state": return { data: await recorder.state() };
+      case "panel.rec.start": return { data: await recorder.start(await panelTab(msg), { name: typeof msg.name === "string" ? msg.name : "" }) };
+      case "panel.rec.control": return { data: await recorder.control(msg.op === "stop" ? "stop" : msg.op === "resume" ? "resume" : "pause") };
+      case "panel.watch.list": return { data: await watches.list() };
+      case "panel.watch.save": return { data: await watches.save(await panelTab(msg), msg.watch || {}) };
+      case "panel.watch.change": return { data: await watches.change(String(msg.watchId || ""), msg.op === "remove" ? "remove" : msg.op === "resume" ? "resume" : "pause") };
+      case "panel.watch.check": return { data: await watches.checkNow(String(msg.watchId || "")) };
+      case "panel.watch.givePc": {
+        // The agent sets up its own computer (it has the tool for it); the person's click is the yes. The chat is where they follow it.
+        const agentId = String(msg.agentId || "").slice(0, 80);
+        if (!agentId) throw new BridgeFailure("not_allowed", "");
+        const out = await bridge.op("chat.ask", { agentId, text: "Please set up your own computer. I want to give you pages to watch and check for me while my computer is off.", from: "chrome" });
+        return { data: { threadId: out && out.threadId ? String(out.threadId) : null } };
+      }
+      case "panel.watch.pick": {
+        const tab = await panelTab(msg);
+        // the picker answers when the person clicks; the panel is told by its port so the sheet can show the choice
+        void watches.pick(tab).then((region) => panel.tell({ type: "picked", region }, tab.windowId));
+        return { data: { picking: true } };
+      }
+      default: return failure(new BridgeFailure("not_allowed", String(msg.type)));
+    }
+  }
+
+  /** The review page: read and edit a recording, save it as a skill, share it, try it. @param {any} msg */
+  async function fromReview(msg) {
+    const id = String(msg.id || "").slice(0, 80);
+    switch (msg.type) {
+      case "rec.get": return { data: await recorder.get(id) };
+      case "rec.edit": return { data: await recorder.edit(id, msg.edit || {}) };
+      case "rec.discard": return { data: await recorder.discard(id) };
+      case "rec.agents": return { data: await bridge.op("agents.list", {}) };
+      case "rec.save": return { data: await recorder.save(id, { agents: Array.isArray(msg.agents) ? msg.agents : [] }) };
+      case "rec.add": return { data: await recorder.addToAgents(id) };
+      case "rec.share": return { data: await recorder.share(id, { space: Boolean(msg.space), stop: Boolean(msg.stop) }) };
+      case "rec.try": return { data: await recorder.tryIt(id, String(msg.agentId || "")) };
+      case "rec.open": return { data: await bridge.op("app.open", { place: msg.place === "chats" ? "chats" : "skill", id: String(msg.skillId || "").slice(0, 80) }) };
       default: return failure(new BridgeFailure("not_allowed", String(msg.type)));
     }
   }
@@ -201,6 +264,9 @@ export function createWorker(ext) {
         if (!tab) return failure(new BridgeFailure("no_page", ""));
         return { data: await notes.clip(tab, "") };
       }
+      const reviewPage = typeof sender.url === "string" && sender.url.startsWith(`chrome-extension://${ext.runtime.id}/src/review/`);
+      if (msg.type.startsWith("rec.")) return reviewPage ? await fromReview(msg) : failure(new BridgeFailure("not_allowed", ""));
+      if (ownPage && (msg.type.startsWith("panel.rec.") || msg.type.startsWith("panel.watch."))) return await fromPanelExtra(msg);
       if (msg.type.startsWith("panel.")) return ownPage ? await panel.handle(msg) : failure(new BridgeFailure("not_allowed", ""));
       if (msg.type.startsWith("vyre.")) return sender.tab ? await fromPage(msg, sender) : failure(new BridgeFailure("not_allowed", ""));
       return failure(new BridgeFailure("not_allowed", ""));
@@ -210,15 +276,16 @@ export function createWorker(ext) {
   }
 
   return {
-    bridge, store, rules, fill, save, privacy, context, panel, notes, menus, popupState, refreshBadge, onMessage,
+    bridge, store, rules, fill, save, privacy, context, panel, notes, menus, recorder, watches, popupState, refreshBadge, onMessage,
     /** @param {number} tabId @param {{ status?: string, url?: string }} info @param {any} tab */
     async onTabUpdated(tabId, info, tab) {
       await save.tabUpdated(tabId, info);
+      await recorder.tabUpdated(tabId, info, tab);
       if ((info.status === "complete" || info.url) && tab && tab.active) panel.tabChanged(tab);
       if (info.status === "complete" && tab) await refreshBadge(tab);
     },
     /** @param {number} tabId */
-    onTabRemoved(tabId) { save.tabClosed(tabId); panel.tabClosed(tabId); },
+    onTabRemoved(tabId) { save.tabClosed(tabId); panel.tabClosed(tabId); void recorder.tabClosed(tabId); },
     /** @param {{ tabId: number }} info */
     async onTabActivated(info) {
       const tab = await ext.tabs.get(info.tabId);
@@ -240,6 +307,12 @@ function start() {
   ext.tabs.onUpdated.addListener((/** @type {number} */ id, /** @type {any} */ info, /** @type {any} */ tab) => { void w.onTabUpdated(id, info, tab); });
   ext.tabs.onRemoved.addListener((/** @type {number} */ id) => w.onTabRemoved(id));
   ext.tabs.onActivated.addListener((/** @type {any} */ info) => { void w.onTabActivated(info); });
+  ext.tabs.onCreated.addListener((/** @type {any} */ tab) => { void w.recorder.tabCreated(tab); });
+  // Watches that run in this Chrome are looked at once a minute.
+  if (ext.alarms) {
+    w.watches.schedule();
+    ext.alarms.onAlarm.addListener((/** @type {any} */ a) => { if (a && a.name === "vyre.watch") void w.watches.look(); });
+  }
   // The side panel opens from the toolbar icon and Cmd+Shift+L (the action's command), one per window.
   if (ext.sidePanel && ext.sidePanel.setPanelBehavior) void ext.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }).catch(() => {});
   ext.runtime.onConnect.addListener((/** @type {any} */ port) => {

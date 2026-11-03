@@ -28,7 +28,8 @@
     "nativeMessaging",
     "sidePanel",
     "contextMenus",
-    "favicon"
+    "favicon",
+    "alarms"
   ],
   "optional_permissions": [
     "debugger"

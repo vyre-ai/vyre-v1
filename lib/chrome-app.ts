@@ -19,12 +19,12 @@
 
 export const CHROME_CAPABILITIES = Object.freeze([
   "vault.items.match", "vault.use", "vault.fill", "vault.item.put", "vault.item.update", "vault.folders.list", "vault.site_rules.list", "vault.site_rules.set", "vault.share",
-  "notes.clip", "skills.mine.add", "skills.share", "engine.models.list",
-  "browser.sites.list", "browser.watches.list", "browser.watches.save", "browser.watches.remove", "browser.watches.report",
+  "notes.clip", "skills.mine.add", "skills.mine.set", "skills.share", "engine.models.list",
+  "browser.sites.list", "browser.watches.list", "browser.watches.save", "browser.watches.remove", "browser.watches.check", "browser.watches.report",
 ]);
 
 /** Capabilities whose gateway route takes an idempotency key (generated/routes.ts "key"); a test holds this list to the route table. */
-export const KEYED = Object.freeze(["vault.item.put", "vault.share", "chat.start", "chat.post", "notes.clip", "skills.mine.add", "skills.share", "browser.watches.save", "browser.watches.remove"]);
+export const KEYED = Object.freeze(["vault.item.put", "vault.share", "chat.start", "chat.post", "notes.clip", "skills.mine.add", "skills.mine.set", "skills.share", "browser.watches.save", "browser.watches.remove"]);
 
 /** A capability's gateway path: /v1/ and the name with its dots as slashes (the route table's rule). */
 export const routeOf = (cap: string): string => `/v1/${cap.split(".").join("/")}`;
@@ -187,10 +187,14 @@ export function createChromeApp(deps: ChromeAppDeps) {
   async function agentsById(section?: string) {
     session(); // signed out is an answer, not an empty list
     const out = await call("agents.list", { limit: 100, ...(section === "personal" ? { section } : {}) }).catch(() => ({ agents: [] }));
-    const map = new Map<string, { id: string; name: string; role: string; assistant: boolean }>();
+    // which agents have a computer: a watch or a recorded skill runs there when it can (computers.list needs the person to see computers; without it nobody is marked)
+    const computers = new Set<string>();
+    const cl = await call("computers.list", {}).catch(() => null);
+    for (const c of Array.isArray(cl?.computers) ? cl.computers : []) if (c?.agentId) computers.add(String(c.agentId));
+    const map = new Map<string, { id: string; name: string; role: string; assistant: boolean; computer: boolean }>();
     for (const a of Array.isArray(out?.agents) ? out.agents : []) {
       const assistant = a.role === "assistant" || a.kind === "assistant";
-      map.set(String(a.agentId), { id: String(a.agentId), name: String(a.name ?? "Agent"), role: str(a.roleLine ?? a.description ?? "", 60), assistant });
+      map.set(String(a.agentId), { id: String(a.agentId), name: String(a.name ?? "Agent"), role: str(a.roleLine ?? a.description ?? "", 60), assistant, computer: computers.has(String(a.agentId)) });
     }
     return map;
   }

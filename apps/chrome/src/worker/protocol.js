@@ -32,12 +32,14 @@ export const CAPABILITIES = Object.freeze({
   "vault.share": "share a saved login with the person's agent at Use level",
   "notes.clip": "Save to Notes from a page: the address, title, the selection and a masked screenshot (lane l-notes)",
   "skills.mine.add": "save a recording the person reviewed as one of their skills: SKILL.md and its replay script (lane l-skills2)",
+  "skills.mine.set": "put a saved skill on the person's agents (the share card's Add to my agents) (lane l-skills2)",
   "skills.share": "share that skill with people in the Space, who each get a card (lane l-skills2)",
   "engine.models.list": "the live models the person's AI account can reach, for the side panel's model picker (lane l-livemodels; never a list kept here)",
   "browser.sites.list": "the Space's Browser connections: sites agents may use, where they run, each agent's rights",
   "browser.watches.list": "the person's watches that run in this Chrome",
   "browser.watches.save": "create or change a watch from the Watch sheet",
   "browser.watches.remove": "remove or pause a watch",
+  "browser.watches.check": "Check now for a watch that runs on an agent's computer (wakes the agent) or in this Chrome",
   "browser.watches.report": "a My Chrome watch checked a page: what it read, and the before and after when it changed",
 });
 
