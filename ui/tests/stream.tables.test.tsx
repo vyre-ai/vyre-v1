@@ -119,3 +119,17 @@ test("a finished code block has a Copy control, an open one does not", () => {
   const open = clean(renderToStaticMarkup(<MarkdownBlocks blocks={p.view().blocks} streaming />));
   assert.ok(!open.includes('data-testid="copy-b0"'), "none while it is still being written");
 });
+
+test("a table sorts on its header and copies as CSV: numbers by value with $ and % set aside, words by letters, a second press reverses", async () => {
+  const { sortRows, inlineText } = await import("../src/stream/index.ts");
+  const [b] = parseChunk("| Option | Monthly | Uptime |\n|---|---:|---:|\n| Railway | $48 | 99.9% |\n| Fly.io | $39 | 99.95% |\n| Self-hosted | $1,022 | 99.5% |\n", 0);
+  assert.equal(b?.kind, "table");
+  if (b?.kind !== "table") return;
+  assert.deepEqual(sortRows(b.rows, 1, 1), [1, 0, 2], "by money, not by letters ($1,022 is the largest)");
+  assert.deepEqual(sortRows(b.rows, 1, -1), [2, 0, 1]);
+  assert.deepEqual(sortRows(b.rows, 0, 1), [1, 0, 2], "words: Fly.io, Railway, Self-hosted");
+  assert.deepEqual(sortRows(b.rows, 2, -1), [1, 0, 2]);
+  assert.equal(inlineText(b.rows[0]![0]!), "Railway");
+  const html = draw("| A | B |\n|---|---|\n| x | y |\n");
+  assert.ok(html.includes('data-testid="sort-b0-0"') && html.includes('data-testid="csv-b0"') && html.includes("Copy as CSV"));
+});

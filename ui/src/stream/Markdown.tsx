@@ -101,26 +101,74 @@ function listItems(block: Extract<Block, { kind: "ul" | "ol" }>, caret: boolean,
   return out;
 }
 
-/** A table: its own horizontal scroll inside the message, so a wide table never widens the page. The header is bold on a quiet ground, columns keep a readable width, and each column aligns as the separator row said. */
+/** The plain words of inline runs: what a sort compares and what Copy as CSV writes. */
+export function inlineText(items: readonly Inline[]): string {
+  let out = "";
+  for (const n of items) {
+    if (n.t === "text" || n.t === "code") out += n.v;
+    else if (n.t === "math") out += n.v;
+    else if (n.t === "br") out += " ";
+    else if (n.t === "fnref") out += `[${n.id}]`;
+    else if (n.t === "strong" || n.t === "em" || n.t === "del" || n.t === "link" || n.t === "html") out += inlineText(n.c);
+  }
+  return out;
+}
+
+const asNumber = (s: string): number | null => {
+  const t = s.replace(/[$\u20AC\u00A3%,\s]/g, "");
+  return t !== "" && /^-?\d+(\.\d+)?$/.test(t) ? Number(t) : null;
+};
+
+/** The row order after sorting on a column: numbers by value (with $, % and commas set aside), anything else by its words; the same click again reverses it. */
+export function sortRows(rows: readonly (readonly (readonly Inline[])[])[], col: number, dir: 1 | -1): number[] {
+  const idx = rows.map((_, i) => i);
+  const cell = (i: number): string => inlineText(rows[i]?.[col] ?? []);
+  idx.sort((a, b) => {
+    const x = asNumber(cell(a));
+    const y = asNumber(cell(b));
+    const c = x !== null && y !== null ? x - y : cell(a).localeCompare(cell(b), undefined, { numeric: true, sensitivity: "base" });
+    return (c === 0 ? a - b : c) * dir;
+  });
+  return idx;
+}
+
+/** A table: sortable on a header press, Copy as CSV, and its own horizontal scroll inside the message, so a wide table never widens the page. The header is bold on a quiet ground, columns keep a readable width, and each column aligns as the separator row said. */
 function TableView({ block, onLink, renderLink }: { block: Extract<Block, { kind: "table" }>; onLink?: (href: string) => void; renderLink?: RenderLink }) {
+  const [sort, setSort] = useState<{ col: number; dir: 1 | -1 } | null>(null);
+  const [copied, setCopied] = useState(false);
+  const order = sort ? sortRows(block.rows, sort.col, sort.dir) : block.rows.map((_, i) => i);
+  const press = (c: number): void => setSort(sort && sort.col === c ? (sort.dir === 1 ? { col: c, dir: -1 } : null) : { col: c, dir: 1 });
   const row = (cs: readonly (readonly Inline[])[], head: boolean, r: number): ReactNode => {
     const out: ReactNode[] = [];
     for (let c = 0; c < block.head.length; c++) {
+      const cell = (
+        <Text style={[styles.cellText, head && styles.cellTextHead, { textAlign: block.align[c] ?? "left" }]}>
+          {inlineNodes(cs[c] ?? [], onLink, renderLink)}{head && sort && sort.col === c ? (sort.dir === 1 ? " \u25B2" : " \u25BC") : ""}
+        </Text>
+      );
       out.push(
-        <View key={c} testID={`cell-${block.key}-${head ? "h" : r}-${c}`} style={[styles.cell, head && styles.cellHead, c === block.head.length - 1 && styles.cellLast]}>
-          <Text style={[styles.cellText, head && styles.cellTextHead, { textAlign: block.align[c] ?? "left" }]}>{inlineNodes(cs[c] ?? [], onLink, renderLink)}</Text>
-        </View>,
+        head
+          ? <Pressable key={c} accessibilityRole="button" accessibilityLabel={`Sort by ${inlineText(cs[c] ?? [])}`} testID={`sort-${block.key}-${c}`} onPress={() => press(c)} style={[styles.cell, styles.cellHead, c === block.head.length - 1 && styles.cellLast]}>{cell}</Pressable>
+          : <View key={c} testID={`cell-${block.key}-${r}-${c}`} style={[styles.cell, c === block.head.length - 1 && styles.cellLast]}>{cell}</View>,
       );
     }
     return <View key={head ? "h" : r} style={[styles.tr, head && styles.trHead, !head && r % 2 === 1 && styles.trAlt]} testID={head ? `thead-${block.key}` : `row-${block.key}-${r}`} accessibilityRole={head ? "header" : undefined}>{out}</View>;
   };
   const body: ReactNode[] = [];
-  for (let r = 0; r < block.rows.length; r++) body.push(row(block.rows[r] ?? [], false, r));
+  order.forEach((ri, pos) => body.push(row(block.rows[ri] ?? [], false, pos)));
+  const csv = (): string => [block.head, ...block.rows.map((r) => block.head.map((_, c) => r[c] ?? []))].map((r) => r.map((c) => `"${inlineText(c).replace(/"/g, '""')}"`).join(",")).join("\n");
+  const copy = (): void => {
+    const clip = (globalThis as { navigator?: { clipboard?: { writeText?: (t: string) => Promise<void> } } }).navigator?.clipboard;
+    void clip?.writeText?.(csv())?.catch(() => undefined);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  };
   return (
     <View testID={`block-${block.key}`} style={styles.tableWrap} accessibilityRole={Platform.OS === "web" ? ("table" as never) : undefined}>
       <ScrollView horizontal showsHorizontalScrollIndicator contentContainerStyle={styles.tableScroll} testID={`table-scroll-${block.key}`}>
         <View style={styles.table}>{row(block.head, true, 0)}{body}</View>
       </ScrollView>
+      <View style={styles.tableFoot}><Pressable accessibilityRole="button" accessibilityLabel="Copy as CSV" testID={`csv-${block.key}`} onPress={copy} style={styles.csvBtn}><Text style={styles.csvText}>{copied ? "Copied" : "Copy as CSV"}</Text></Pressable></View>
     </View>
   );
 }
@@ -244,6 +292,9 @@ const styles = StyleSheet.create({
   table: { minWidth: "100%" as unknown as number },
   tr: { flexDirection: "row", borderTopWidth: 1, borderTopColor: "var(--line)" as string },
   trHead: { borderTopWidth: 0 },
+  tableFoot: { flexDirection: "row", justifyContent: "flex-end", borderTopWidth: 1, borderTopColor: "var(--line)" as string },
+  csvBtn: { paddingHorizontal: 10, height: 26, justifyContent: "center" },
+  csvText: { color: "var(--ink-3)" as string, fontSize: 12 },
   trAlt: { backgroundColor: "var(--sunk)" as string },
   cell: { flexGrow: 1, flexShrink: 0, flexBasis: 120, minWidth: 96, paddingHorizontal: 12, paddingVertical: 8, borderRightWidth: 1, borderRightColor: "var(--line)" as string },
   cellLast: { borderRightWidth: 0 },
