@@ -2,10 +2,10 @@
 // list of what the goal may do without asking, the people). It repeats nothing the page already shows (the finish line). Saving is the page's: each row hands back the new value.
 import { createElement, useState } from "react";
 import type { ReactElement, ReactNode } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { ScrollView, StyleSheet, Text, View } from "react-native";
 import { Avatar, avatarOf } from "../../../../../../ui/src/Avatar/index.tsx";
 import { TextField } from "../../../../../../ui/src/TextField/index.tsx";
-import { Mini } from "./GoalEdit.tsx";
+import { Mini, RemoveX } from "./GoalEdit.tsx";
 import { budgetOf, dueWords, fromLocalInput, rhythmWords, toLocalInput } from "./model.ts";
 import type { Goal, Permission } from "./model.ts";
 
@@ -87,7 +87,7 @@ function PermissionsBlock({ g, canEdit, patch }: { g: Goal; canEdit: boolean; pa
       {g.permissions.map((p) => (
         <View key={`${p.act}-${p.target}-${p.label}`} style={st.perm}>
           <View style={{ flex: 1, minWidth: 0 }}><Text style={st.value}>{p.label}</Text><Text style={st.note}>{p.granted ? "Allowed" : "Allowed once you start the goal"}</Text></View>
-          {canEdit ? <Pressable accessibilityRole="button" accessibilityLabel={`Remove ${p.label}`} testID={`goal-perm-remove-${p.target}`} onPress={() => save(g.permissions.filter((x) => x !== p), "Removed.")}><Text style={st.x}>x</Text></Pressable> : null}
+          {canEdit ? <RemoveX label={`Remove ${p.label}`} testID={`goal-perm-remove-${p.target}`} onPress={() => save(g.permissions.filter((x) => x !== p), "Removed.")} /> : null}
         </View>
       ))}
       {g.permissions.length > 0 ? <Text style={st.note}>Anything not listed asks you first.</Text> : null}
@@ -137,7 +137,7 @@ export function GoalSettings({ g, nameOf, offsetMin, canEdit, patch, pick, remov
             <Text style={st.note}>{p.role}</Text>
             {canEdit && p.role === "Owner" ? <Mini label="Change" onPress={() => pick("owner")} /> : null}
             {canEdit && p.role === "Leads" ? <Mini label="Change" onPress={() => pick("lead")} /> : null}
-            {canEdit && p.role === "Helps" ? <Pressable accessibilityRole="button" accessibilityLabel={`Remove ${nameOf(p.id)}`} onPress={() => removeHelper(p.id)}><Text style={st.x}>x</Text></Pressable> : null}
+            {canEdit && p.role === "Helps" ? <RemoveX label={`Remove ${nameOf(p.id)}`} onPress={() => removeHelper(p.id)} /> : null}
           </View>
         ))}
         {canEdit ? <Mini label="Add helper" testID="goal-details-add-helper" onPress={() => pick("helpers")} /> : null}

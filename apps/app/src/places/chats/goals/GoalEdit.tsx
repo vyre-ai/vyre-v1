@@ -9,6 +9,7 @@ import { Avatar, avatarOf } from "../../../../../../ui/src/Avatar/index.tsx";
 import { Dialog } from "../../../../../../ui/src/Dialog/index.tsx";
 import { PeoplePicker } from "../../../../../../ui/src/PeoplePicker/index.tsx";
 import type { PickEntry } from "../../../../../../ui/src/PeoplePicker/index.tsx";
+import { Tooltip } from "../../../../../../ui/src/Tooltip/index.tsx";
 import { TextField } from "../../../../../../ui/src/TextField/index.tsx";
 import { fromLocalInput, moved, toLocalInput } from "./model.ts";
 import type { PlanStep, Who } from "./model.ts";
@@ -104,11 +105,22 @@ export function HelpersRow({ helpers, nameOf, canEdit, onRemove, onAdd }: { help
         <View key={`${h.kind}-${h.id}`} testID={`goal-helper-${h.id}`} style={st.helper}>
           <Avatar {...avatarOf({ id: h.id, name: nameOf(h.id), kind: h.kind === "agent" ? "agent" : "person" })} size={18} />
           <Text style={st.helperName}>{nameOf(h.id)}</Text>
-          {canEdit ? <Pressable accessibilityRole="button" accessibilityLabel={`Remove ${nameOf(h.id)}`} testID={`goal-helper-remove-${h.id}`} onPress={() => onRemove(h.id)}><Text style={st.x}>x</Text></Pressable> : null}
+          {canEdit ? <RemoveX label={`Remove ${nameOf(h.id)}`} testID={`goal-helper-remove-${h.id}`} onPress={() => onRemove(h.id)} /> : null}
         </View>
       ))}
       {canEdit ? <Mini label="Add helper" testID="goal-add-helper" onPress={onAdd} /> : null}
     </View>
+  );
+}
+
+/** The shared close mark as a remove control, with its tooltip ("Remove Aliza"). */
+export function RemoveX({ label, onPress, testID }: { label: string; onPress(): void; testID?: string }): ReactElement {
+  return (
+    <Tooltip text={label}>
+      <Pressable accessibilityRole="button" accessibilityLabel={label} testID={testID} onPress={onPress} style={({ hovered }: { hovered?: boolean }) => [st.rm, hovered === true && st.rmOver]}>
+        {web ? createElement("svg", { viewBox: "0 0 16 16", width: 12, height: 12, "aria-hidden": true, style: { display: "block", fill: "none", stroke: "currentColor", strokeWidth: 1.6, strokeLinecap: "round" } }, createElement("path", { d: "M4 4l8 8M12 4l-8 8" })) : <Text style={st.x}>x</Text>}
+      </Pressable>
+    </Tooltip>
   );
 }
 
@@ -157,7 +169,7 @@ export function ChecklistEdit({ items, onChange }: { items: ReadonlyArray<{ id: 
           <View style={st.rowBody}>
             <EditText value={it.text} canEdit label="this item" testID={`goal-item-text-${it.id}`} textStyle={st.rowText} onSave={(text) => onChange(items.map((x) => (x.id === it.id ? { ...x, text } : x)))} />
           </View>
-          {items.length > 1 ? <Pressable accessibilityRole="button" accessibilityLabel="Remove this item" testID={`goal-item-remove-${it.id}`} onPress={() => onChange(items.filter((x) => x.id !== it.id))}><Text style={st.x}>x</Text></Pressable> : null}
+          {items.length > 1 ? <RemoveX label="Remove this item" testID={`goal-item-remove-${it.id}`} onPress={() => onChange(items.filter((x) => x.id !== it.id))} /> : null}
         </DragRow>
       ))}
       <AddLine label="a new item" placeholder="Add an item" testID="goal-item-new" onAdd={(text) => onChange([...items, { id: newId("ci"), text }])} />
@@ -186,7 +198,7 @@ export function DraftPlanEdit({ steps, leadAgentId, canEdit, nameOf, onChange }:
               <EditText value={s.why} canEdit label="why" testID={`goal-step-why-${s.key}`} textStyle={st.why} placeholder="Add why" onSave={(why) => onChange(steps.map((x) => (x.key === s.key ? { ...x, why } : x)))} />
             </View>
             {face}
-            <Pressable accessibilityRole="button" accessibilityLabel="Remove this step" testID={`goal-step-remove-${s.key}`} onPress={() => onChange(steps.filter((x) => x.key !== s.key))}><Text style={st.x}>x</Text></Pressable>
+            <RemoveX label="Remove this step" testID={`goal-step-remove-${s.key}`} onPress={() => onChange(steps.filter((x) => x.key !== s.key))} />
           </DragRow>
         );
       })}
@@ -210,6 +222,8 @@ const st = StyleSheet.create({
   helpersNone: { color: "var(--ink-4)" as string, fontSize: 12.5 },
   helper: { flexDirection: "row", alignItems: "center", gap: 5, paddingVertical: 2, paddingLeft: 3, paddingRight: 8, borderRadius: 12, backgroundColor: "var(--sunk)" as string },
   helperName: { color: "var(--ink-2)" as string, fontSize: 12.5 },
+  rm: { width: 20, height: 20, borderRadius: 10, alignItems: "center", justifyContent: "center" },
+  rmOver: { backgroundColor: "var(--hover)" as string },
   x: { color: "var(--ink-3)" as string, fontSize: 12, paddingHorizontal: 4 },
   list: { marginTop: 6, gap: 2 },
   dragRow: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 5, paddingHorizontal: 4, minHeight: 32 },
