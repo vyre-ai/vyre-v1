@@ -6,6 +6,7 @@ import { spawnSync } from "node:child_process";
 import path from "node:path";
 import { createEgressProxy, startNetWall } from "../../sandbox/src/index.ts";
 import { LABELS, ensureLowrun, lowrunPossible, setLabel } from "../../sandbox/src/win/lowrun.ts";
+import { privateBash } from "../../sandbox/src/win/msys.ts";
 import type { EngineSandbox, SandboxPlan } from "./sandbox.ts";
 
 /** What a CLI engine may reach through the proxy: its vendor's API and sign-in hosts, and nothing else. */
@@ -45,11 +46,11 @@ export function vyrePrivateDirs(dataDir: string, env: Readonly<Record<string, st
  * private folders get "no read up"; the engines folder is readable but not writable; the folders an engine may change are labelled Low when it starts (sandbox.ts lowWrap). Once per computer and
  * label version: a marker beside the helper says it was done.
  */
-export function protectVyreData(helper: string, binDir: string, dirs: readonly string[], engines: string): void {
-  const marker = path.join(binDir, `protected-${Buffer.from(JSON.stringify([LABELS, dirs, engines])).toString("base64url").slice(0, 40)}`);
+export function protectVyreData(helper: string, binDir: string, dirs: readonly string[], readable: readonly string[]): void {
+  const marker = path.join(binDir, `protected-${Buffer.from(JSON.stringify([LABELS, dirs, readable])).toString("base64url").slice(0, 40)}`);
   if (fs.existsSync(marker)) return;
   for (const d of dirs) setLabel(helper, d, "private");
-  setLabel(helper, engines, "read");
+  for (const d of readable) setLabel(helper, d, "read");
   fs.writeFileSync(marker, "");
 }
 
@@ -152,10 +153,12 @@ export async function defaultSandbox(o: DefaultSandboxOptions): Promise<DefaultS
   if (platform === "win32") {
     const bin = o.winBin ?? winBinDir();
     const helper = await ensureLowrun(bin);
-    protectVyreData(helper, bin, o.privateDirs ?? vyrePrivateDirs(o.dataDir), path.join(o.dataDir, "engines"));
+    const msys = path.win32.join(path.win32.dirname(bin), "msys");
+    const bash = await privateBash(msys).catch(() => null);
+    protectVyreData(helper, bin, o.privateDirs ?? vyrePrivateDirs(o.dataDir), [path.join(o.dataDir, "engines"), ...(bash ? [msys] : [])]);
     const proxy = createEgressProxy({ ...policy });
     const { port } = await proxy.listen();
-    return done({ kind: "lowil", helper, proxyPort: port, ...(o.writable ? { writable: o.writable } : {}) }, () => proxy.close());
+    return done({ kind: "lowil", helper, proxyPort: port, ...(o.writable ? { writable: o.writable } : {}), ...(bash ? { bash } : {}) }, () => proxy.close());
   }
   if (platform === "linux") {
     const wall = await startNetWall({ ...policy });

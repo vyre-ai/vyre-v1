@@ -34,3 +34,12 @@ test("the helper's argv: the engine after --, its variables in one base64 argume
   assert.deepEqual(Buffer.from(a[2] as string, "base64").toString("utf8").split("\0"), ["HTTPS_PROXY=http://127.0.0.1:9", "HOME=C:\\s\\home"]);
   assert.deepEqual(lowrunArgv("h.exe", ["x"], {}), ["h.exe", "--", "x"]);
 });
+
+test("Git for Windows is found from git.exe on PATH (cmd or mingw64\\bin), else the usual folder; none without an MSYS runtime", async () => {
+  const { gitRoot } = await import("../src/win/msys.ts");
+  const files = new Set(["D:\\Tools\\Git\\cmd\\git.exe", "D:\\Tools\\Git\\usr\\bin\\msys-2.0.dll", "D:\\Tools\\Git\\usr\\bin\\bash.exe"]);
+  assert.equal(gitRoot({ PATH: "C:\\Windows;D:\\Tools\\Git\\cmd" }, (p) => files.has(p)), "D:\\Tools\\Git");
+  const std = new Set(["C:\\Program Files\\Git\\usr\\bin\\msys-2.0.dll", "C:\\Program Files\\Git\\usr\\bin\\bash.exe"]);
+  assert.equal(gitRoot({ PATH: "C:\\Windows", ProgramFiles: "C:\\Program Files" }, (p) => std.has(p)), "C:\\Program Files\\Git");
+  assert.equal(gitRoot({ PATH: "C:\\Windows" }, () => false), null);
+});

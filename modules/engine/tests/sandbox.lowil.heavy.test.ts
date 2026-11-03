@@ -72,13 +72,16 @@ test("a Windows Personal Space: a Claude Code Bash turn, git over HTTPS, and no 
     const cwd = workFolder(dataDir, "usr_dana", "thr_1");
     const wrap = sandboxWrap(d.plan, { homeFromScratch: true });
 
-    // 1. a Claude Code turn with one Bash tool call
+    // 1. a Claude Code turn with one Bash tool call, while the person has Git's MSYS running at normal integrity (a Git Bash window): the engine's private copy keeps them apart
+    assert.equal(d.plan.sandbox.kind === "lowil" && typeof d.plan.sandbox.bash === "string", true, "the engine has its own Git Bash");
+    const persons = spawn("C:\\Program Files\\Git\\usr\\bin\\sleep.exe", ["300"], { windowsHide: true, stdio: "ignore" });
     const env = { ANTHROPIC_API_KEY: "sk-ant-fake", ANTHROPIC_BASE_URL: `http://127.0.0.1:${api.port}`, CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: "1", DISABLE_AUTOUPDATER: "1" };
     const turn = await run(wrap([claude, "-p", "Run the tool once.", "--output-format", "text", "--permission-mode", "bypassPermissions", "--model", "claude-sonnet-4-5"], { cwd, env }), { cwd, env });
     console.log(`claude: exit ${turn.code}\n${turn.out.slice(-500)}\n${turn.err.slice(-1500)}\napi: ${log.join(" | ").slice(-1500)}`);
     assert.equal(turn.code, 0, turn.err.slice(-800));
     assert.equal(fs.readFileSync(path.join(cwd, "tool.txt"), "utf8").trim(), "low-tool-ok", "the Bash tool ran in the work folder");
     assert.ok(log.some((l) => l.startsWith("toolResult") && l.includes("low-tool-ok") && l.includes('\\"is_error\\":false')));
+    persons.kill();
 
     // 2. git over HTTPS, through the proxy
     const git = await run(wrap(["git", "clone", "--depth", "1", "https://github.com/octocat/Hello-World.git", "hello"], { cwd, env: {} }), { cwd, ms: 180_000 });

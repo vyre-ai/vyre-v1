@@ -21,7 +21,7 @@ export type EngineSandbox =
    * Windows, Personal Space (owner ruling 3 Nov 2026): the engine at Low integrity in a Job Object (sandbox/src/win/lowrun.cs). It may change only its work folder, its scratch home and temp, and
    * `writable` (the folders the person added to Vyre); it reads the computer as Claude Code does. Its network is the egress proxy on loopback, by its variables.
    */
-  | { kind: "lowil"; helper: string; proxyPort: number; writable?: readonly string[] }
+  | { kind: "lowil"; helper: string; proxyPort: number; writable?: readonly string[]; bash?: string }
   /** The engine belongs in the person's container, which has no local launcher yet. */
   | { kind: "docker" | "server"; reason?: string };
 
@@ -115,6 +115,8 @@ function lowWrap(s: Extract<EngineSandbox, { kind: "lowil" }>, plan: SandboxPlan
     CLAUDE_CONFIG_DIR: path.join(home, ".claude"), CLAUDE_CODE_TMPDIR: tmp, CODEX_HOME: path.join(home, ".codex"), XDG_CONFIG_HOME: path.join(home, ".config"), XDG_CACHE_HOME: path.join(home, ".cache"),
   };
   for (const d of [own.APPDATA, own.LOCALAPPDATA]) fs.mkdirSync(d, { recursive: true });
+  // the engine's own copy of Git Bash (sandbox/src/win/msys.ts): a person's Git Bash window must not stop the engine's Bash tool
+  if (s.bash) (own as Record<string, string>)["CLAUDE_CODE_GIT_BASH_PATH"] = s.bash;
   void start;
   return lowrunArgv(s.helper, argv, { ...proxyEnv(`http://127.0.0.1:${s.proxyPort}`), ...own });
 }
