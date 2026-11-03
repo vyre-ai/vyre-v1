@@ -2,9 +2,9 @@
 // what Preview as agent shows, and the Activity lines and credits of the Files Viewer.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { layerRuns, layerSpans, previewRuns } from "./layer.tsx";
-import type { ViewerMark } from "./layer.tsx";
-import { activityOf, creditOf, viewerMarks } from "../../../apps/app/src/places/files/viewer/redact.tsx";
+import { layerRuns, layerSpans, previewRuns } from "../../../../../../ui/src/Viewer/layer.tsx";
+import type { ViewerMark } from "../../../../../../ui/src/Viewer/layer.tsx";
+import { activityOf, creditOf, viewerMarks } from "./redact.tsx";
 
 const m = (id: string, kind: "redact" | "highlight", text: string, occurrence?: number): ViewerMark => ({ id, kind, shape: "span", text, ...(occurrence !== undefined ? { occurrence } : {}), by: "Irfad Imtiaz", when: "9:41 am today" });
 

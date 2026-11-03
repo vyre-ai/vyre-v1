@@ -5,13 +5,13 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { DatabaseSync } from "node:sqlite";
-import { AccessSnapshot, authorize } from "../../kernel/src/authorize/index.ts";
-import { createInvoke, indexCapabilities } from "../src/invoke.ts";
-import type { CtxSeed, InvokeDeps } from "../src/invoke.ts";
-import { createAgentGate, gated } from "../src/seams/agent-read.ts";
-import type { CapabilityDef } from "../../packages/contracts/src/types.ts";
-import { agentGate } from "../../modules/files/handlers/redact.ts";
-import { redactWorld, INTAKE, SECRETS } from "../../modules/files/fixtures/redact-world.ts";
+import { AccessSnapshot, authorize } from "../kernel/src/authorize/index.ts";
+import { createInvoke, indexCapabilities } from "../host/src/invoke.ts";
+import type { CtxSeed, InvokeDeps } from "../host/src/invoke.ts";
+import { createAgentGate, gated } from "../host/src/seams/agent-read.ts";
+import type { CapabilityDef } from "../packages/contracts/src/types.ts";
+import { agentGate } from "../modules/files/handlers/redact.ts";
+import { redactWorld, INTAKE, SECRETS } from "../modules/files/fixtures/redact-world.ts";
 
 const cap = (name: string, effects: "read" | "write"): CapabilityDef => ({
   v: 1, name, summary: "s", input: { type: "object" }, output: { type: "object" }, errors: [], resource: { type: "space" }, permission: null, level: "view",
