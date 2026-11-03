@@ -1788,10 +1788,17 @@ export function stubs(ctx: CallCtx) {
       },
       connection: {
         add: call("plugins.connection.add"),
+        add_mine: call("plugins.connection.add_mine"),
+        checked: call("plugins.connection.checked"),
+        forget: call("plugins.connection.forget"),
         remove: call("plugins.connection.remove"),
+        update: call("plugins.connection.update"),
       },
       connections: {
+        home: call("plugins.connections.home"),
         list: call("plugins.connections.list"),
+        policy: call("plugins.connections.policy"),
+        policy_set: call("plugins.connections.policy_set"),
       },
       files: call("plugins.files"),
       get: call("plugins.get"),
@@ -1810,6 +1817,9 @@ export function stubs(ctx: CallCtx) {
       },
       mcp: {
         servers: call("plugins.mcp.servers"),
+      },
+      registry: {
+        search: call("plugins.registry.search"),
       },
       set_enabled: call("plugins.set_enabled"),
       uninstall: call("plugins.uninstall"),

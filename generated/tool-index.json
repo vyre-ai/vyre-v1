@@ -4700,9 +4700,21 @@
     },
     {
       "deferred": false,
+      "name": "mcp_call",
+      "summary": "Call a tool of an outside tool server or connection (app hub, OAuth server, remote MCP) that may change things, as mcp_tools lists it; an agent's call goes through the Gate",
+      "toolset": "agents"
+    },
+    {
+      "deferred": false,
       "name": "mcp_connected_link",
       "summary": "The address to paste into an MCP app, and the one line for Claude Code",
       "toolset": "meta"
+    },
+    {
+      "deferred": false,
+      "name": "mcp_read",
+      "summary": "Call a tool of an outside tool server or connection (app hub, OAuth server, remote MCP) that only reads, as mcp_tools lists it with readOnly true; a tool that may change things goes through mcp_call",
+      "toolset": "agents"
     },
     {
       "deferred": false,
@@ -5918,14 +5930,38 @@
     },
     {
       "deferred": false,
+      "name": "plugins_connection_add_mine",
+      "summary": "Connect an MCP server for you and your agents only (Mine): by https address, or by a command that runs in the sandbox (npx, uvx). A key is a Vault handle in env or a header.",
+      "toolset": "agents"
+    },
+    {
+      "deferred": false,
+      "name": "plugins_connection_forget",
+      "summary": "Remove a connection you may manage: your own (Mine), or a Space or agent one when you manage agents",
+      "toolset": "agents"
+    },
+    {
+      "deferred": false,
       "name": "plugins_connection_remove",
       "summary": "Disconnect an MCP server made by hand",
       "toolset": "agents"
     },
     {
       "deferred": false,
+      "name": "plugins_connection_update",
+      "summary": "Rename a connection, turn it off or on, switch it to OAuth sign-in, or (admins) choose who in the Space can use it: Everyone or groups",
+      "toolset": "agents"
+    },
+    {
+      "deferred": false,
       "name": "plugins_connections",
       "summary": "MCP connections made by hand (a URL or a command)",
+      "toolset": "agents"
+    },
+    {
+      "deferred": false,
+      "name": "plugins_connections_home",
+      "summary": "Every connection you can use, for Vault > Connections: yours (Mine), the Space's (for everyone or your groups), your agents' own, and the servers plugins bring, each with its health, who can use it, which agents used it and when",
       "toolset": "agents"
     },
     {
@@ -5974,6 +6010,12 @@
       "deferred": false,
       "name": "plugins_mcp_servers",
       "summary": "The MCP servers a chat with this agent connects to: from plugins in the Space, plugins in the agent and connections made by hand. Secrets are Vault handles.",
+      "toolset": "agents"
+    },
+    {
+      "deferred": false,
+      "name": "plugins_registry_search",
+      "summary": "Search the MCP server catalog (the official MCP registry). Answers from the last fetch when the registry cannot be reached, and says so.",
       "toolset": "agents"
     },
     {
@@ -7245,7 +7287,7 @@
     {
       "deferred": false,
       "name": "skills_list",
-      "summary": "Skills a chat with this agent can load: Vyre built-in, the Space library and the agent own skills/ folder, one line each. With no agentId, the Space library and built-in ones",
+      "summary": "Skills a chat with this agent can load: Vyre built-in, the Space library and the agent own skills/ folder, one line each. Two with one name are both listed, the one not used marked shadowedBy; a broken one is marked broken. With no agentId, the Space library and built-in ones",
       "toolset": "agents"
     },
     {

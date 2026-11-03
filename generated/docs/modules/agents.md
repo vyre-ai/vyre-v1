@@ -4,7 +4,7 @@ Lane L2. Kind module. Version 0.1.0.
 
 Requires: chat, engine, mcp, memory, runs, terminal.
 
-## Capabilities (68)
+## Capabilities (76)
 
 - [agents.builtin_skill.get](../capabilities/agents.builtin_skill.get.md): Read one built-in skill by name, the full SKILL.md: Working in Vyre, the focus skill of a place (focus-records, focus-files, focus-automations, focus-vault, focus-inbox, focus-apps, focus-console), agent-loops, agent-computer
 - [agents.builtin_skills.list](../capabilities/agents.builtin_skills.list.md): Skills every agent carries, led by "Working in Vyre": save facts to the asker layer, propose promotions, cite sources, use secrets only by name, never copy data across Spaces
@@ -55,8 +55,15 @@ Requires: chat, engine, mcp, memory, runs, terminal.
 - [plugins.commands.list](../capabilities/plugins.commands.list.md): The / commands that plugins add for a chat with this agent (or the Space when no agent)
 - [plugins.config.set](../capabilities/plugins.config.set.md): Set the options a plugin asks for; a secret option takes a Vault handle, never a value
 - [plugins.connection.add](../capabilities/plugins.connection.add.md): Connect an MCP server by URL (remote) or by command (runs in the sandbox), for the Space or one agent; works for every model
+- [plugins.connection.add_mine](../capabilities/plugins.connection.add_mine.md): Connect an MCP server for you and your agents only (Mine): by https address, or by a command that runs in the sandbox (npx, uvx). A key is a Vault handle in env or a header.
+- [plugins.connection.checked](../capabilities/plugins.connection.checked.md): The host records what a connection last did: answered with N tools, wants a sign-in, refused its key, or did not answer; and which agent called it
+- [plugins.connection.forget](../capabilities/plugins.connection.forget.md): Remove a connection you may manage: your own (Mine), or a Space or agent one when you manage agents
 - [plugins.connection.remove](../capabilities/plugins.connection.remove.md): Disconnect an MCP server made by hand
+- [plugins.connection.update](../capabilities/plugins.connection.update.md): Rename a connection, turn it off or on, switch it to OAuth sign-in, or (admins) choose who in the Space can use it: Everyone or groups
+- [plugins.connections.home](../capabilities/plugins.connections.home.md): Every connection you can use, for Vault > Connections: yours (Mine), the Space's (for everyone or your groups), your agents' own, and the servers plugins bring, each with its health, who can use it, which agents used it and when
 - [plugins.connections.list](../capabilities/plugins.connections.list.md): MCP connections made by hand (a URL or a command)
+- [plugins.connections.policy](../capabilities/plugins.connections.policy.md): Who may add Space connections, and the allow-list that limits what anyone else may add
+- [plugins.connections.policy_set](../capabilities/plugins.connections.policy_set.md): Set who may add Space connections (admins, or whoever manages agents) and the allow-list (registry names, https hosts, packages) for everyone who is not an admin
 - [plugins.files](../capabilities/plugins.files.md): The text files of an installed plugin, for the sandbox to be given (its MCP servers and hooks run from them)
 - [plugins.get](../capabilities/plugins.get.md): One installed plugin with the skills, commands, sub-agents, hooks and MCP servers it brought
 - [plugins.hooks.list](../capabilities/plugins.hooks.list.md): The hooks of the plugins that apply to this agent. They run only in the sandbox.
@@ -67,15 +74,16 @@ Requires: chat, engine, mcp, memory, runs, terminal.
 - [plugins.marketplace.remove](../capabilities/plugins.marketplace.remove.md): Remove a marketplace; the plugins installed from it stay until they are removed
 - [plugins.marketplaces.list](../capabilities/plugins.marketplaces.list.md): Marketplaces added to this Space
 - [plugins.mcp.servers](../capabilities/plugins.mcp.servers.md): The MCP servers a chat with this agent connects to: from plugins in the Space, plugins in the agent and connections made by hand. Secrets are Vault handles.
+- [plugins.registry.search](../capabilities/plugins.registry.search.md): Search the MCP server catalog (the official MCP registry). Answers from the last fetch when the registry cannot be reached, and says so.
 - [plugins.set_enabled](../capabilities/plugins.set_enabled.md): Turn an installed plugin off or on without removing it
 - [plugins.uninstall](../capabilities/plugins.uninstall.md): Remove an installed plugin and what it brought
 - [skills.add](../capabilities/skills.add.md): Add or replace a skill in the Space library, or in one agent (SKILL.md text with name and description in its front matter, plus optional supporting files)
-- [skills.list](../capabilities/skills.list.md): Skills a chat with this agent can load: Vyre built-in, the Space library and the agent own skills/ folder, one line each. With no agentId, the Space library and built-in ones
+- [skills.list](../capabilities/skills.list.md): Skills a chat with this agent can load: Vyre built-in, the Space library and the agent own skills/ folder, one line each. Two with one name are both listed, the one not used marked shadowedBy; a broken one is marked broken. With no agentId, the Space library and built-in ones
 - [skills.load](../capabilities/skills.load.md): Load the full text of one skill by name (SKILL.md body and its supporting files); agent skills win over Space ones, Space ones over built-in
 - [skills.remove](../capabilities/skills.remove.md): Remove a skill from the Space library, or from one agent
 - [skills.set_enabled](../capabilities/skills.set_enabled.md): Turn a Space or agent skill off or on without removing it
 
-## Events (29)
+## Events (32)
 
 - [agent.config_changed](../events/agent.config_changed.md): AGENT.md, agent.toml or the agent record changed (a new version was saved)
 - [agent.config_error](../events/agent.config_error.md): An agent.toml failed validation; the last good version keeps running
@@ -97,7 +105,10 @@ Requires: chat, engine, mcp, memory, runs, terminal.
 - [plugin.allowlist_changed](../events/plugin.allowlist_changed.md): The plugin allowlist changed
 - [plugin.changed](../events/plugin.changed.md): A plugin was turned on or off, configured, or used to make an agent
 - [plugin.connection_added](../events/plugin.connection_added.md): An MCP server was connected
+- [plugin.connection_changed](../events/plugin.connection_changed.md): A connection was renamed, turned off or on, switched to sign-in, or shared with other people
+- [plugin.connection_checked](../events/plugin.connection_checked.md): A connection's health changed
 - [plugin.connection_removed](../events/plugin.connection_removed.md): An MCP connection was removed
+- [plugin.connections_policy_changed](../events/plugin.connections_policy_changed.md): The Space's rules for adding connections changed
 - [plugin.installed](../events/plugin.installed.md): A plugin was installed
 - [plugin.marketplace_added](../events/plugin.marketplace_added.md): A marketplace was added
 - [plugin.marketplace_refreshed](../events/plugin.marketplace_refreshed.md): A marketplace was fetched again
