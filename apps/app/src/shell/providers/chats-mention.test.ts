@@ -1,3 +1,4 @@
+// @tsx
 // The @ menu's data (owner rule, 3 Nov 2026): the viewer's own Assistant as "Assistant"; every other agent of the Space and the chat's teammates, each as itself; never another person's Assistant or anyone's
 // outside agent ("<person> (Agent)"); people as usual; nothing that is not a mention. Picking Assistant names the viewer's own. A guest sees only the agents the chat allows.
 import test from "node:test";
