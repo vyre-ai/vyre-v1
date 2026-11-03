@@ -4,7 +4,7 @@
 // send queues for its next step and Interrupt sends it now.
 import { DECIDED_LINE, isDecided } from "../../../shell/decided.ts";
 import { rememberFirstLine } from "../sidebar/titles.ts";
-import { createContext, useCallback, useContext, useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import type { ReactElement } from "react";
 import { Platform, Pressable, StyleSheet, Text, TextInput, useWindowDimensions, View } from "react-native";
 import type { ComposerSend, ListItem } from "../../../../../../ui/src/Composer/index.tsx";
@@ -39,6 +39,9 @@ import { parseSlash } from "../../../../../../lib/chat-commands.ts";
 import { pluginNames } from "./commands.ts";
 import { composerSuggest, previewOf } from "./suggest.ts";
 import { ThreadParent } from "./ThreadParent.tsx";
+import { replySummaries } from "./replies.ts";
+import type { ReplySummary } from "./replies.ts";
+import type { LiveQuery } from "../../../../../../client/src/index.ts";
 import { isAssistantRow } from "../../../../../../lib/agent-kind.ts";
 import { ChatBrain, compactChat, entryOf, modeOf, prettyModel, setChatMode, stripAgents, useAccounts, useUsage } from "./brain.tsx";
 import type { ChatMode } from "../../../../../../ui/src/Composer/index.tsx";
@@ -64,8 +67,21 @@ import { LoadFailed, failureOf } from "../../../../../../ui/src/States/Loads.tsx
 type ThreadOut = CapMap["threads.get"]["out"];
 type MessagesOut = CapMap["chat.messages.list"]["out"];
 type HelpersOut = CapMap["chat.helpers.list"]["out"];
+type ThreadsOut = CapMap["threads.list"]["out"];
 
 export const CONVERSATION_SCREEN = "chats.conversation";
+/** The threads hanging off a chat, read once per chat and live: the line under each message that has one. */
+export const REPLIES_SCREEN = "chats.right-pane";
+
+const NO_REPLIES: Map<string, ReplySummary> = new Map();
+const NOT_READ: LiveQuery<never> = { subscribe: () => () => undefined, getSnapshot: () => ({ status: "loading" }) };
+/** The reply threads of this chat by message. A host whose kept copy cannot read them (a test double) draws no lines. */
+function useReplies(threadId: string): Map<string, ReplySummary> {
+  const { screens } = useConversationData();
+  const q = useMemo(() => { try { return screens.query(REPLIES_SCREEN, "threads", { threadId }) as LiveQuery<ThreadsOut>; } catch { return NOT_READ; } }, [screens, threadId]);
+  const snap = useSyncExternalStore(q.subscribe, q.getSnapshot, q.getSnapshot);
+  return useMemo(() => (snap.status === "ready" ? replySummaries(snap.data.threads) : NO_REPLIES), [snap]);
+}
 
 /** `compact` is for a conversation inside another screen (the onboarding Assistant): just the messages and the composer, no title bar with members, search and side-panel buttons. */
 const CompactContext = createContext(false);
@@ -197,7 +213,17 @@ function ConversationView(): ReactElement {
   const [focusId, setFocusId] = useState<string | null>(data.focus ?? null);
   /** Messages read around a marked one that is older than the page holds: shown instead of the newest, until "Jump to latest". */
   const [around, setAround] = useState<Message[] | null>(null);
+  // asked for again (the box at the top of a thread, pressed twice), the same message is marked again
   useEffect(() => { setFocusId(data.focus ?? null); }, [data.focus]);
+  const askedN = useRef(data.focusN);
+  useEffect(() => {
+    if (data.focusN === askedN.current) return undefined;
+    askedN.current = data.focusN;
+    setFocusId(null);
+    const t = setTimeout(() => setFocusId(data.focus ?? null), 0);
+    return () => clearTimeout(t);
+  }, [data.focusN, data.focus]);
+  const replies = useReplies(data.threadId);
   const accounts = useAccounts(data, useConnectVersion());
   const [modeOver, setModeOver] = useState<ChatMode | null>(null);
   const [picker, setPicker] = useState<{ id: string; x: number; y: number } | null>(null);
@@ -617,7 +643,7 @@ function ConversationView(): ReactElement {
       ) : null}
       <CatchUpLine onJump={(id) => setFocusId(id)} newest={live[live.length - 1]?.messageId ?? ""} credit={(id) => { const m = all.find((x) => x.author.id === id && onBehalfOf(x)); const ob = m ? onBehalfOf(m) : null; return ob ? `${nameOf(ob.person)} (Agent)` : undefined; }} />
       {note ? <Text testID="conversation-note" style={st.noteLine}>{note}</Text> : null}
-      {thread.kind === "thread" ? <ThreadParent threadId={thread.parentThreadId} messageId={thread.parentMessageId} call={data.call as never} nameOf={nameOf} /> : null}
+      {thread.kind === "thread" ? <ThreadParent threadId={thread.parentThreadId} messageId={thread.parentMessageId} call={data.call as never} nameOf={nameOf} onOpen={thread.parentThreadId && thread.parentMessageId ? () => data.nav.openThread(thread.parentThreadId!, thread.parentMessageId!) : undefined} /> : null}
 
       {liveView ? null : (
         <View testID="viewing-earlier" accessibilityRole="alert" style={st.earlierBar}>
@@ -639,7 +665,8 @@ function ConversationView(): ReactElement {
               const key = it.key;
               const stream = it.kind === "other" ? data.streamOf(it.message.messageId) : undefined;
               const sending = it.kind === "me" ? pendingState.get(it.message.messageId) : undefined;
-              return <MessageView key={key} item={it} actions={actions} meId={data.me.id} stream={stream} sending={sending} mark={markOf(it, matches, activeId)} />;
+              const under = it.kind === "me" || it.kind === "other" ? replies.get(it.message.messageId) : undefined;
+              return <MessageView key={key} item={it} actions={actions} meId={data.me.id} stream={stream} sending={sending} mark={markOf(it, matches, activeId)} replies={under ? { s: under, clock: data.clock() } : undefined} />;
             })}
             {data.tail ?? null}
           </View>

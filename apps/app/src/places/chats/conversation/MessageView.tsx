@@ -50,6 +50,10 @@ import type { ConversationData } from "./data.tsx";
 import type { GlyphName } from "./parts.tsx";
 import { reportLabel, bodyBlocks, cardLine, collect, errorRow, isCard, isErrorBlock, isTurnStatus, onBehalfOf, planSteps, questionOptions, statusView, terminalAskOf, workOf } from "./model.ts";
 import type { CardLine, Item, Message } from "./model.ts";
+import { ReplyLine } from "./ReplyLine.tsx";
+import { MARK } from "./marks.ts";
+import type { ReplySummary } from "./replies.ts";
+import type { Clock } from "../rightpane/model.ts";
 
 export interface MessageActions {
   copy(text: string): void;
@@ -123,6 +127,8 @@ export interface MessageViewProps {
   openWork?: boolean;
   /** Find in chat: this message matches, or is the match the person is on. */
   mark?: "match" | "active" | undefined;
+  /** The thread under this message, when anyone has replied in it: the line that opens it. */
+  replies?: { s: ReplySummary; clock: Clock } | undefined;
 }
 
 /** Where a forked chat came from: the first line of a fork carries the chat, the message and the chat's title. */
@@ -258,7 +264,13 @@ function ActionSheet({ open, entries, onClose }: { open: boolean; entries: reado
 
 /* ---------- yours ---------- */
 
-function Mine({ item, actions, sending, mark }: MessageViewProps & { item: Extract<Item, { kind: "me" }> }): ReactElement {
+/** The line under a message with a thread; a press opens the thread beside the chat. */
+function Replies({ m, replies, actions, mine }: { m: Message; replies: MessageViewProps["replies"]; actions: MessageActions; mine: boolean }): ReactElement | null {
+  if (!replies) return null;
+  return <ReplyLine s={replies.s} clock={replies.clock} nameOf={actions.nameOf ?? unnamed} mine={mine} testID={`replies-${m.messageId}`} onOpen={() => actions.openThread(m.messageId)} />;
+}
+
+function Mine({ item, actions, sending, mark, replies }: MessageViewProps & { item: Extract<Item, { kind: "me" }> }): ReactElement {
   const m = item.message;
   const [sheet, setSheet] = useState(false);
   const h = useHover(() => setSheet(true));
@@ -307,6 +319,7 @@ function Mine({ item, actions, sending, mark }: MessageViewProps & { item: Extra
         </View>
       ) : null}
       <Reactions m={m} a={actions} mine />
+      <Replies m={m} replies={replies} actions={actions} mine />
       <LearnedLines messageId={m.messageId} />
     </View>
   );
@@ -314,7 +327,7 @@ function Mine({ item, actions, sending, mark }: MessageViewProps & { item: Extra
 
 /* ---------- anyone else's ---------- */
 
-function Theirs({ item, actions, stream, openWork, mark, meId }: MessageViewProps & { item: Extract<Item, { kind: "other" }> }): ReactElement {
+function Theirs({ item, actions, stream, openWork, mark, meId, replies }: MessageViewProps & { item: Extract<Item, { kind: "other" }> }): ReactElement {
   const m = item.message;
   const [sheet, setSheet] = useState(false);
   const h = useHover(() => setSheet(true));
@@ -392,6 +405,7 @@ function Theirs({ item, actions, stream, openWork, mark, meId }: MessageViewProp
         </Pressable>
       ) : null}
       <Reactions m={m} a={actions} mine={false} />
+      <Replies m={m} replies={replies} actions={actions} mine={false} />
       <LearnedLines messageId={m.messageId} />
       {m.pinned ? <Text testID={`pinned-${m.messageId}`} style={st.edited}>pinned</Text> : null}
     </View>
@@ -572,8 +586,9 @@ export const st = StyleSheet.create({
   eventLink: { color: "var(--accent)" as string, textDecorationLine: "underline", cursor: "pointer" } as object,
   eventTime: { fontSize: 11.5, color: "var(--ink-4)" as string },
   gapTop: { marginTop: 18 },
-  found: { backgroundColor: "var(--accent-wash)" as string, borderRadius: 8 },
-  foundActive: { backgroundColor: "var(--accent-wash)" as string, borderRadius: 8, boxShadow: "inset 0 0 0 1px var(--accent)" } as object,
+  // the mark sits outside the message (marks.ts), so nothing touches its edge
+  found: MARK.found as object,
+  foundActive: MARK.foundActive as object,
   me: { alignItems: "flex-end", paddingVertical: 2, marginTop: 4, position: "relative" },
   when: { position: "absolute", left: 0, top: 10, fontSize: 11, color: "var(--ink-4)" as string, opacity: 0 },
   whenLeft: { position: "absolute", left: -44, top: 4, fontSize: 11, color: "var(--ink-4)" as string, opacity: 0 },

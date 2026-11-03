@@ -6,6 +6,8 @@ import { onAgentDeleted, onPersonLeft } from "./handlers/departures.ts";
 import { onCardAnswered, onDirectReply, sendDue } from "./handlers/agent-dm.ts";
 import type { ChatCtx } from "./projections.ts";
 import { ensureHome } from "./handlers/home-channel.ts";
+import { NOTIFY_EVENTS, notify } from "./handlers/notify.ts";
+import type { NotifyEvent } from "./handlers/notify.ts";
 
 export const handlers: Record<string, Handler> = table as unknown as Record<string, Handler>;
 
@@ -28,6 +30,8 @@ export const consumers = {
     on: ["task.approved", "task.rejected", "task.sent_back", "vault.request_fulfilled", "vault.request_declined"],
     run: (ctx: ChatCtx, event: Parameters<typeof onCardAnswered>[1]) => onCardAnswered(ctx, event),
   },
+  /** A direct message, an @mention or a reply in a thread someone follows: a notification for that person (and, in a task's thread, a mention makes them a follower of the task). */
+  "chat.notify": { on: [...NOTIFY_EVENTS], run: (ctx: ChatCtx, event: NotifyEvent) => notify(ctx, event) },
 };
 
 /**

@@ -2,11 +2,12 @@
 //   The pipeline has already checked the capability level on the thread. Here a private chat (or Ask pane) also answers to its members, so another person gets "not found", never "not yours".
 //   The read cursor lives in chat_thread_read (one row per thread and person). Channels count unread messages from it through unreadOf.
 import {
-  addAgent, addMember, agentsOf, askerOf, ensure, isMember, membersOf, raise, threadBy, threadOut,
+  addAgent, addMember, agentsOf, askerOf, encOf, ensure, isMember, membersOf, raise, refOf, threadBy, threadOut,
 } from "../projections.ts";
 import type { ChatCtx, Mode, ThreadKind, ThreadRec } from "../projections.ts";
 import { canSpeak, mayGovernChannel, rootOf } from "./post.ts";
 import { applyMode } from "./modes.ts";
+import { followMode, placeOf } from "./follow.ts";
 
 type Row = Record<string, unknown>;
 const MAX_AGENTS = 20;
@@ -63,20 +64,39 @@ export async function get(ctx: ChatCtx, input: { threadId: string }) {
   return out(ctx, load(ctx, input.threadId).id);
 }
 
-export async function list(ctx: ChatCtx, input: { kind?: string[]; folderId?: string; parentThreadId?: string; recordId?: string; limit?: number; cursor?: string }) {
+export interface ListInput {
+  kind?: string[]; folderId?: string; parentThreadId?: string; recordId?: string; limit?: number; cursor?: string;
+  /** only the threads the asker is in */
+  mine?: boolean;
+  /** newest first by when the thread started (the default), or by its latest message */
+  order?: "created" | "latest";
+  /** leave out threads tied to these kinds of object (scopeType) */
+  exceptScope?: string[];
+}
+
+export async function list(ctx: ChatCtx, input: ListInput) {
   ensure(ctx.db);
   for (const k of input.kind ?? []) if (!KINDS.includes(k as ThreadKind)) raise(ctx, "validation.bad_input", "That is not a thread kind.", { kind: k });
   const limit = input.limit ?? DEFAULT_LIMIT;
   if (!Number.isInteger(limit) || limit < 1 || limit > 500) raise(ctx, "validation.bad_input", "The limit is between 1 and 500.");
-  const where = ["deleted_at IS NULL"];
+  if (input.order !== undefined && input.order !== "created" && input.order !== "latest") raise(ctx, "validation.bad_input", "Order by created or latest.");
+  const asker = askerOf(ctx);
+  const where = ["t.deleted_at IS NULL"];
   const args: unknown[] = [];
-  if (input.kind !== undefined && input.kind.length > 0) { where.push(`kind IN (${input.kind.map(() => "?").join(", ")})`); args.push(...input.kind); }
-  if (input.folderId !== undefined) { where.push("folderId = ?"); args.push(input.folderId); }
-  if (input.parentThreadId !== undefined) { where.push("parentThreadId = ?"); args.push(input.parentThreadId); }
-  if (input.recordId !== undefined) { where.push("recordId = ?"); args.push(input.recordId); }
+  if (input.kind !== undefined && input.kind.length > 0) { where.push(`t.kind IN (${input.kind.map(() => "?").join(", ")})`); args.push(...input.kind); }
+  if (input.folderId !== undefined) { where.push("t.folderId = ?"); args.push(input.folderId); }
+  if (input.parentThreadId !== undefined) { where.push("t.parentThreadId = ?"); args.push(input.parentThreadId); }
+  if (input.recordId !== undefined) { where.push("t.recordId = ?"); args.push(input.recordId); }
+  if (input.mine === true) { where.push("t.id IN (SELECT thread FROM chat_thread_member WHERE principal = ? AND deleted_at IS NULL)"); args.push(asker); }
+  const except = (input.exceptScope ?? []).filter((x) => x !== "");
+  if (except.length > 0) { where.push(`(t.scopeType IS NULL OR t.scopeType NOT IN (${except.map(() => "?").join(", ")}))`); args.push(...except); }
   // With no filter the list is the sidebar: only listed threads. A filter reaches the unlisted ones (Ask panes, runs, inline threads).
-  if (args.length === 0) where.push("listed = 1");
-  const rows = ctx.db.all(`SELECT * FROM chat_thread WHERE ${where.join(" AND ")} ORDER BY createdAt DESC, id DESC LIMIT 5000`, ...args) as Row[];
+  if (args.length === 0) where.push("t.listed = 1");
+  // the latest message decides the order of the Threads page: a thread with a new reply comes to the top
+  const order = input.order === "latest"
+    ? 'COALESCE((SELECT MAX(m."createdAt") FROM chat_message m WHERE m."thread" = t.id AND m.deleted_at IS NULL), t.createdAt) DESC, t.id DESC'
+    : "t.createdAt DESC, t.id DESC";
+  const rows = ctx.db.all(`SELECT t.id AS id FROM chat_thread t WHERE ${where.join(" AND ")} ORDER BY ${order} LIMIT 5000`, ...args) as Row[];
   const seen: ThreadRec[] = [];
   for (const r of rows) {
     const t = threadBy(ctx.db, String(r["id"]))!;
@@ -90,7 +110,28 @@ export async function list(ctx: ChatCtx, input: { kind?: string[]; folderId?: st
   }
   const page = seen.slice(from, from + limit);
   const more = from + limit < seen.length;
-  return { threads: page.map((t) => threadOut(ctx.db, t)), total: seen.length, ...(more ? { next: page[page.length - 1]!.id } : {}) };
+  return { threads: page.map((t) => listRow(ctx, t, asker)), total: seen.length, ...(more ? { next: page[page.length - 1]!.id } : {}) };
+}
+
+/** One row of threads.list: the thread, and for an inline thread what the asker sees of it (what is new, who wrote, where it hangs, the newest line). */
+function listRow(ctx: ChatCtx, t: ThreadRec, asker: string): Record<string, unknown> {
+  const row = threadOut(ctx.db, t);
+  if (t.kind !== "thread") return row;
+  const inIt = isMember(ctx.db, t.id, asker);
+  const mode = followMode(ctx, t.id, asker);
+  row["unread"] = mode === "mute" ? 0 : unreadOf(ctx, t.id, asker);
+  row["following"] = inIt && mode !== "mute";
+  if (inIt && mode === "mute") row["muted"] = true;
+  const authors = ctx.db.all('SELECT author FROM chat_message WHERE "thread" = ? AND deleted_at IS NULL GROUP BY author ORDER BY MAX(threadSeq) DESC LIMIT 3', t.id) as Row[];
+  row["repliers"] = authors.map((r) => refOf(String(r["author"])));
+  if (t.parentThreadId !== undefined) row["parentTitle"] = placeOf(ctx, t);
+  // the newest line, where the server may read it: never a private chat's
+  if (encOf(ctx.db, t) === 0) {
+    const last = (ctx.db.all('SELECT body FROM chat_message WHERE "thread" = ? AND deleted_at IS NULL ORDER BY threadSeq DESC LIMIT 1', t.id) as Row[])[0];
+    const line = last ? String(last["body"] ?? "").split("\n").map((x) => x.trim()).find((x) => x !== "") : undefined;
+    if (line) row["preview"] = line.length > 140 ? `${line.slice(0, 139)}…` : line;
+  }
+  return row;
 }
 
 // ---- close and reopen -------------------------------------------------------------------------------------------------------------------------------

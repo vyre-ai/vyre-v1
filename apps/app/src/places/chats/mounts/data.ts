@@ -15,7 +15,8 @@ import type { ComposerFill, ConversationData } from "../conversation/data.tsx";
 import type { ChatRightPaneData } from "../rightpane/data.tsx";
 import { LOCAL_PREFIX } from "../sidebar/model.ts";
 import { openSession } from "../terminal/session.ts";
-import { anchorOfFocus } from "./route.ts";
+import { anchorOfFocus, threadDoor } from "./route.ts";
+export { threadDoor } from "./route.ts";
 import { broughtSummary, openingTitle } from "./opening.ts";
 export { broughtSummary, openingTitle } from "./opening.ts";
 import type { Act } from "./route.ts";
@@ -58,8 +59,10 @@ export interface Go {
   /** Search every chat; the words start the box. */
   search(query?: string): void;
   closeSearch(): void;
-  /** A thread of any kind: a helper opens as the helper chat, anything else as a chat. */
+  /** A thread of any kind: a helper opens as the helper chat, a reply thread beside the message it hangs off, a task's thread on its task, anything else as a chat. */
   thread(threadId: string): void;
+  /** Close the reply thread beside the chat. */
+  closeSide(): void;
   agent(agentId: string, tab?: TabKey): void;
   needs(taskId?: string): void;
   tasks(): void;
@@ -264,10 +267,16 @@ export function createGo(rt: ShellRuntime, act: (a: Act) => void, nameOf: (id: s
     thread: (threadId) => {
       if (threadId.startsWith(LOCAL_PREFIX)) return;
       void rt.call("threads.get", { threadId }).then(
-        (out) => act({ t: (out as ThreadOut).thread.kind === "helper" ? "helper" : "chat", threadId }),
+        (out) => {
+          const t = (out as ThreadOut).thread;
+          const where = threadDoor(t);
+          if (where.t === "task") rt.open({ subject: { type: "task", id: where.taskId } });
+          else act(where.t === "side" ? { t: "chat", threadId: where.parent, focus: where.messageId, side: threadId } : { t: where.t, threadId });
+        },
         () => act({ t: "chat", threadId }),
       );
     },
+    closeSide: () => act({ t: "side-close" }),
     agent: (agentId, tab) => act({ t: "agent", agentId, ...(tab ? { tab } : {}) }),
     needs: (taskId) => act({ t: "needs", ...(taskId ? { taskId } : {}) }),
     tasks: () => rt.open({ screen: "tasks.my-work" }),
@@ -322,11 +331,12 @@ export function wireSidebar(rt: ShellRuntime, go: Go, toggleSidebar?: () => void
 }
 
 /** The open chat: a face's page, a helper, the Computer chip, a channel's Connect sheet and the Waiting on line are all this place's doors. */
-export function wireConversation(rt: ShellRuntime, go: Go, o: { threadId: string; list: readonly Principal[]; nameOf: (id: string) => string; leadId: string; fill?: ComposerFill; focus?: string }): ConversationData {
+export function wireConversation(rt: ShellRuntime, go: Go, o: { threadId: string; list: readonly Principal[]; nameOf: (id: string) => string; leadId: string; fill?: ComposerFill; focus?: string; focusN?: number }): ConversationData {
   const base = conversationData(rt, chatsActions(go, o.fill), o.threadId, o.list, o.fill);
   return {
     ...base,
     ...(o.focus ? { focus: o.focus } : {}),
+    ...(o.focusN ? { focusN: o.focusN } : {}),
     nav: {
       ...base.nav, openAgent: (id: string) => go.agent(id), openThread: (id: string, messageId?: string) => (messageId ? go.message(id, messageId) : go.thread(id)), openSearch: (q: string) => go.search(q), togglePane: () => go.togglePane(),
       openBeside: (kind: string, id: string) => (kind === "computer" ? go.computerOfAgent(id) : base.nav.openBeside(kind, id)),

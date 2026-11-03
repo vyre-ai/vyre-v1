@@ -9,6 +9,7 @@ import type { ChatCtx, MessageRec, ThreadRec } from "../projections.ts";
 import { unarchiveForMention } from "./archive-state.ts";
 import { saveScreen } from "./screen.ts";
 import { approveInChat } from "./agent-dm.ts";
+import { followersOf, joinThread } from "./follow.ts";
 
 export interface Mention { kind: "person" | "agent"; id: string }
 export interface PostInput {
@@ -131,18 +132,16 @@ export function deliver(ctx: ChatCtx, thread: ThreadRec, m: MessageRec, mentions
     if (mention.kind === "person" && mention.id !== author.id) unarchiveForMention(ctx, root.id, mention.id);
     if (mention.kind !== "person" || mention.id === author.id || mention.id === direct) continue;
     if (isPrivateRoot(root) && !isMember(ctx.db, root.id, mention.id)) continue;
+    // a person @mentioned in a thread is in it from now on: its replies reach them, and it is on their Threads page
+    joinThread(ctx, thread, mention.id);
     ctx.emit("message.mentioned", thread.id, { messageId: m.id, threadId: thread.id, personId: mention.id, author, inThread: thread.kind === "thread" });
   }
   if (thread.kind === "thread") {
-    // The people who follow an inline thread: whoever wrote the message above it and everyone who already replied in it.
-    const follow = new Set<string>();
-    const parent = thread.parentMessageId ? messageBy(ctx.db, thread.parentMessageId) : null;
-    if (parent && refOf(parent.author).kind === "person") follow.add(parent.author);
-    for (const r of ctx.db.all("SELECT DISTINCT author FROM chat_message WHERE thread = ? AND deleted_at IS NULL", thread.id) as Array<Record<string, unknown>>) {
-      const a = String(r["author"]);
-      if (refOf(a).kind === "person") follow.add(a);
-    }
+    // The people who follow an inline thread (follow.ts): those in it, whoever wrote the message above it and everyone who replied, less anyone who muted or left it.
+    const follow = new Set(followersOf(ctx, thread));
     follow.delete(author.id);
+    // someone this message @mentions hears the mention, not the reply as well
+    for (const mention of mentions) if (mention.kind === "person") follow.delete(mention.id);
     for (const personId of follow) {
       ctx.emit("thread.replied", thread.id, { threadId: thread.id, ...(thread.parentThreadId !== undefined ? { parentThreadId: thread.parentThreadId } : {}), messageId: m.id, personId });
     }
@@ -238,6 +237,8 @@ export async function post(ctx: ChatCtx, input: PostInput) {
     ...(input.clientId !== undefined ? { id: input.clientId } : {}), author: author.id, kind: author.kind === "agent" ? "agent" : "text", body, blocks,
     ...(input.replyTo !== undefined ? { replyTo: input.replyTo } : {}), ...(input.via ? { via: { routineOwner: input.via.routineOwner } } : {}), ...(author.kind === "agent" && ctx.actingFor !== undefined && !ctx.sharedKey ? { paidBy: ctx.actingFor } : {}), depth, attachments,
   });
+  // a person who replies in a thread is in it: its later replies reach them and it counts on their Threads row
+  if (author.kind === "person") joinThread(ctx, thread, author.id);
   saveScreen(ctx, thread.id, m.id, input.screen);
   deliver(ctx, thread, m, mentions, { kind: author.kind, id: author.id }, { job });
   // a person's own typed "send it" presses the "Send this to <name>?" card it answers (lane l-agentdm)

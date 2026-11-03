@@ -71,6 +71,15 @@ type Out = {
         title: string;
         threadId: string;
       }>;
+    unread?: number;
+    following?: boolean;
+    muted?: boolean;
+    repliers?: Array<{
+        kind: "person" | "agent" | "actor" | "service";
+        id: string;
+      }>;
+    parentTitle?: string;
+    preview?: string;
   };
   depth: number;
 };
@@ -113,6 +122,7 @@ type Out = {
       "closedAt": 1760000000000,
       "createdAt": 1760000000000,
       "folderId": "fld_a1b2c3",
+      "following": true,
       "kind": "chat",
       "lastMessageAt": 1760000000000,
       "listed": true,
@@ -123,8 +133,10 @@ type Out = {
         }
       ],
       "mode": "ask",
+      "muted": true,
       "parentMessageId": "msg_a1b2c3",
       "parentThreadId": "thr_a1b2c3",
+      "parentTitle": "example",
       "path": [
         {
           "threadId": "thr_a1b2c3",
@@ -132,13 +144,21 @@ type Out = {
         }
       ],
       "planMode": true,
+      "preview": "example",
       "recordId": "rec_a1b2c3",
+      "repliers": [
+        {
+          "id": "usr_a1b2c3",
+          "kind": "person"
+        }
+      ],
       "replyCount": 1,
       "scopeId": "example",
       "scopeType": "record",
       "starter": "example",
       "threadId": "thr_a1b2c3",
-      "title": "example"
+      "title": "example",
+      "unread": 1
     }
   }
 }

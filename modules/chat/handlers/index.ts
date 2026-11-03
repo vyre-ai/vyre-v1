@@ -16,6 +16,7 @@ import { g24dHandlers } from "./g24d.ts";
 import { g26Handlers } from "./g26.ts";
 import { historySearch } from "./history.ts";
 import { g27Handlers } from "./g27.ts";
+import { followHandlers } from "./follow.ts";
 import { modesHandlers } from "./modes.ts";
 import { post } from "./post.ts";
 import { screenHandlers } from "./screen.ts";
@@ -68,5 +69,6 @@ export const handlers = {
   // P-L2_26 replaces the group entries that had reported limits
   ...g26Handlers,
   ...g27Handlers,
+  ...followHandlers,
 };
 

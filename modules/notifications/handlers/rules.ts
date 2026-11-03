@@ -11,6 +11,8 @@ import { deliverPush, pushPort } from "./push.ts";
 import { levelOverride, readChoice } from "./kinds.ts";
 import { alertLevel, heldByQuiet, readSettings, scheduleQuietSummary } from "./deliver.ts";
 
+/** The title of a reply.thread row that holds more than one reply. */
+const REPLIES_TITLE = "{{count}} new replies in {{where}}";
 const RANK: Record<Level, number> = { digest: 0, badge: 1, interrupt: 2 };
 /** In the contract's kind enum: a kind outside it can be neither sent nor listed. */
 const LISTED = KINDS.filter((k) => k.key !== "vault.rotation_due");
@@ -84,7 +86,9 @@ export async function send(ctx: NotifCtx, input: SendIn, handed = false): Promis
   let collapsed = false;
   if (prior) {
     collapsed = true;
-    row = { ...prior, level, title, count: prior.count + 1, at: now, ...(input.body !== undefined ? { body: input.body } : {}) };
+    // a burst of replies in one thread is one row that says how many: "3 new replies in #intake"
+    const many = def.key === "reply.thread" ? render(REPLIES_TITLE, { ...vars, count: prior.count + 1 }) : title;
+    row = { ...prior, level, title: many, count: prior.count + 1, at: now, ...(input.body !== undefined ? { body: input.body } : {}) };
     ctx.db.run("UPDATE notifications_items SET level = ?, title = ?, body = ?, count = ?, at = ?, updated_at = ?, version = version + 1 WHERE id = ?",
       row.level, row.title, row.body ?? null, row.count, now, now, row.id);
   } else {

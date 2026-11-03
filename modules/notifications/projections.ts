@@ -9,7 +9,7 @@ export type Place = "home" | "chats" | "inbox" | "records" | "files" | "apps" | 
 export type KindKey =
   | "approval.requested" | "answer.requested" | "unblock.requested" | "approval.backstop" | "dm" | "mention" | "call.incoming" | "agent.blocked" | "incident.owned" | "task.assigned" | "reply.followed"
   | "agent.task_finished" | "digest.away" | "mention.thread" | "run.failed" | "conflict.needs_you" | "access.requested" | "access.decided"
-  | "sync.attention" | "health.degraded" | "problem.report" | "member.joined" | "limit.hit" | "vault.rotation_due"
+  | "sync.attention" | "health.degraded" | "problem.report" | "member.joined" | "limit.hit" | "vault.rotation_due" | "reply.thread"
   | "task.turn" | "task.returned" | "task.finished" | "task.due";
 export type Action = { label: string; cap: string };
 export interface KindDef {
@@ -49,6 +49,7 @@ export const KINDS: readonly KindDef[] = [
   kind("member.joined", "digest", "home", "{{name}} joined {{space}}"),
   kind("limit.hit", "badge", "chats", "{{title}} hit its limit", { actions: [a("Raise once", "tasks.act"), a("Stop", "tasks.act")] }),
   kind("vault.rotation_due", "badge", "vault", "Time to rotate {{title}}", { actions: [a("Mark rotated", "vault.item.mark_rotated")] }),
+  kind("reply.thread", "interrupt", "chats", "{{from}} replied in {{where}}", { ...needsYou(), actions: [a("Reply", "chat.post")] }),
 ];
 export const kindOf = (k: string): KindDef | undefined => KINDS.find((x) => x.key === k);
 
