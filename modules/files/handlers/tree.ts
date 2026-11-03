@@ -397,12 +397,42 @@ function fileFlags(ctx: Ctx): FileFlags {
 
 export function fileOutC(ctx: Ctx, row: Row): FileOut {
   const out = fileOut(row);
+  out.label = labelOfFolder(ctx, String(row.folder_id));
   const flags = fileFlags(ctx);
   out.starred = flags.starred.has(out.fileId);
   out.conflict = flags.conflict.has(out.fileId);
   const source = sourceOfFolder(ctx, String(row.folder_id));
   if (source) out.source = source;
   return out;
+}
+
+// ---- how sensitive a folder is ----
+
+const labelCache = new WeakMap<object, Map<string, number>>();
+
+/**
+ * The label a folder carries for what is in it: the highest of its own and every folder above it, so a file anywhere below a Restricted folder is Restricted (lane l-labelinherit; authorize
+ * reads the same chain in the access snapshot). A file has no label of its own here: it reports this one. Read once per folder per call; `fresh` reads the rows again (a refusal decides on them).
+ */
+export function labelOfFolder(ctx: Ctx, folderId: string, opts: { fresh?: boolean } = {}): number {
+  let cache = opts.fresh ? undefined : labelCache.get(ctx);
+  if (!cache) { cache = new Map(); if (!opts.fresh) labelCache.set(ctx, cache); }
+  const seen: Row[] = [];
+  let top = 0;
+  let at: string | null = folderId;
+  for (let hops = 0; at !== null && hops < 64; hops += 1) {
+    const hit = cache.get(at);
+    if (hit !== undefined) { top = hit; break; }
+    const row: Row | undefined = one(ctx, "SELECT * FROM files_folder WHERE id = ?", at);
+    if (!row) break;
+    seen.push(row);
+    at = isNull(row.parent_id) ? null : String(row.parent_id);
+  }
+  for (let i = seen.length - 1; i >= 0; i -= 1) {
+    top = Math.max(top, Math.min(3, Math.max(0, num(seen[i]!.label))));
+    cache.set(String(seen[i]!.id), top);
+  }
+  return top;
 }
 
 // ---- where a folder comes from ----
@@ -1133,6 +1163,7 @@ async function folderMove(ctx: Ctx, input: unknown): Promise<{ folder: FolderOut
   const newPath = `${String(dest.path)}/${String(row.name)}`;
   const now = ctx.now();
   ctx.db.run("UPDATE files_folder SET parent_id = ?, path = ?, updated_at = ? WHERE id = ?", dest.id, newPath, now, row.id);
+  labelCache.delete(ctx);
   rewritePaths(ctx, oldPath, newPath);
   applyScope(ctx, mustFolder(ctx, String(row.id)), scopeOf(dest));
   const payload: { folderId: string; fromParentId?: string; toParentId: string } = { folderId: String(row.id), toParentId: String(dest.id) };
@@ -1233,6 +1264,7 @@ async function folderSettings(ctx: Ctx, input: unknown): Promise<{ folder: Folde
   }
   if (labelName !== undefined && rank !== undefined) {
     await setFolderLabel(String(row.id), labelName as "public" | "internal" | "confidential" | "restricted");
+    labelCache.delete(ctx);
     label = rank;
     fields.push("label");
   }

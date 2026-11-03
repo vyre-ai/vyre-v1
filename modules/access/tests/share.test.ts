@@ -8,7 +8,7 @@ import { handlers } from "../impl.ts";
 import { putPrincipal } from "../handlers/roles.ts";
 import {
   dropShare, foldersCreate, foldersDelete, foldersList, foldersMove, foldersPlace, foldersRename, foldersUnplace, levelFor, lists,
-  automationSenders, deciders, myAccess, share, shareOf, sharesOf, unshare,
+  automationSenders, deciders, myAccess, share, shareOf, sharesOf, unshare, updateGrant,
 } from "../handlers/share.ts";
 import type { ShareCtx } from "../handlers/share.ts";
 import { MemoryDb } from "../fixtures/db.ts";
@@ -152,6 +152,26 @@ test("link grants: view only, expiry defaults to 30 days and caps at 90, the pol
   assert.equal(myAccess(r.ctx, "usr_b").some((x) => x.id === "sit_x"), false);
   const shown = await sharesOf(admin, { resource: { type: "site", id: "sit_x" } });
   assert.deepEqual(shown.shares.map((s) => s.through), ["owner", "direct"]);
+});
+
+test("link grants: none is made for anything Restricted, by its own label or a folder above it (lead ruling 3 Nov, l-labelinherit)", async () => {
+  const r = rig();
+  const admin = r.ctx;
+  const put = (id: string, type: string, parentId: string | null, label: "public" | "restricted" = "public") => { r.store.resources.set(id, { id, type, parentId, label, ownerId: "usr_admin", holds: 0 }); r.store.bump(); };
+  put("vfd_partners", "vault_folder", null, "restricted");
+  put("vfd_deals", "vault_folder", "vfd_partners");
+  put("vit_bank", "vault_item", "vfd_deals");
+  put("vfd_open", "vault_folder", null);
+  put("vit_open", "vault_item", "vfd_open");
+  const link = (id: string, token: string) => share(admin, { resource: { type: id.startsWith("vit") ? "vault_item" : "vault_folder", id }, subject: { kind: "link", id: token }, level: "view" });
+  for (const id of ["vfd_partners", "vfd_deals", "vit_bank"]) assert.equal(await code(link(id, "a1b2c3d4e5f60718")), "validation.precondition_failed", id);
+  put("vit_own", "vault_item", "vfd_open", "restricted");
+  assert.equal(await code(link("vit_own", "a1b2c3d4e5f60718")), "validation.precondition_failed", "its own label counts as well");
+  const { grant } = await link("vit_open", "a1b2c3d4e5f60718");
+  assert.equal(grant.subject.kind, "link", "outside a Restricted folder a link is made as before");
+  // the folder becomes Restricted: the link made before it cannot be renewed or changed
+  put("vfd_open", "vault_folder", null, "restricted");
+  assert.equal(await code(updateGrant(admin, { grantId: grant.id, conditions: { expiresAt: NOW + 10 * DAY } })), "validation.precondition_failed");
 });
 
 test("a Space folder is visible to everyone and only a person who may share can make one", async () => {

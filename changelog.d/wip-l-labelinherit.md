@@ -1,0 +1,2 @@
+- A Restricted folder now covers everything in it, in the Vault and in Files. An item added to a Restricted Vault folder, an item or file moved into one, a subfolder, and items that were in a folder before it was labelled are all Restricted. Members used to see and open them.
+- Nothing inside a Restricted folder gets a public link, and Files reports the label a file takes from its folders.

@@ -404,10 +404,14 @@ function mayShareOn(ctx: ShareCtx, store: AccessStore, res: ResourceRec, have: L
   return who.every((id) => { const i = snap.info(id); return i !== null && matched(snap, store, i, res, ctx.now()).some((g) => g.row.conditions?.reshare === true); });
 }
 
-function checkLink(ctx: ShareCtx, store: AccessStore, subject: SubjectRef, level: Level, cond: Cond): Cond {
+/** Lead ruling 3 Nov (l-labelinherit): no public link is made for anything Restricted, by its own label or by a folder above it. */
+export const LINK_LABEL_MAX = labelRank("confidential");
+
+function checkLink(ctx: ShareCtx, store: AccessStore, res: ResourceRec, subject: SubjectRef, level: Level, cond: Cond): Cond {
   const trace = ctx.trace.traceId;
   if (!TOKEN.test(subject.id)) raise(trace, "validation.bad_input", "a link grant names the token hash");
   if (level !== "view") raise(trace, "validation.precondition_failed", "a public link is view only");
+  if (store.snapshot().effectiveLabel(res.id) > LINK_LABEL_MAX) raise(trace, "validation.precondition_failed", "Restricted material, or anything in a Restricted folder, never gets a public link");
   const policy = store.policies.get(pkey("sharing.public_links", "space"))?.value;
   if (policy === "off") raise(trace, "validation.precondition_failed", "public links are off in this Space");
   if (policy === "admins" || policy === undefined) {
@@ -454,7 +458,7 @@ function assertDelegation(ctx:ShareCtx,store:AccessStore,res:ResourceRec,subject
 export async function updateGrant(ctx:ShareCtx,input:{grantId:string;level?:Level;conditions?:Cond}) {
  const store=storeOf(ctx),grant=store.grants.get(input.grantId);if(!grant)raise(ctx.trace.traceId,"validation.not_found","no such grant");
  const res=resourceOf(ctx,store,grant.resource),level=input.level??grant.level;let conditions=checkConditions(ctx,input.conditions??grant.conditions);checkSubject(ctx,store,grant.subject);
- if(grant.subject.kind==="link")conditions=checkLink(ctx,store,grant.subject,level,conditions);
+ if(grant.subject.kind==="link")conditions=checkLink(ctx,store,res,grant.subject,level,conditions);
  assertFlags(ctx,store,res,conditions,grant.conditions);assertDelegation(ctx,store,res,grant.subject,level,conditions,grant.id);
  const ss=shareOf(ctx),wasFresh=isFresh(ctx,store,ss);grant.level=level;grant.conditions=conditions;
  const updated:{grantId:string;level:Level;expiresAt?:number}={grantId:grant.id,level};if(conditions.expiresAt!==undefined)updated.expiresAt=conditions.expiresAt;
@@ -472,7 +476,7 @@ export async function share(ctx: ShareCtx, input: {
   const res = resourceOf(ctx, store, input.resource);
   checkSubject(ctx, store, input.subject);
   let cond = checkConditions(ctx, input.conditions);
-  if (input.subject.kind === "link") cond = checkLink(ctx, store, input.subject, input.level, cond);
+  if (input.subject.kind === "link") cond = checkLink(ctx, store, res, input.subject, input.level, cond);
   const wasFresh = isFresh(ctx, store, ss);
   const sameSource = input.source ?? undefined;
   let grant = [...store.grants.values()].find((g) =>
