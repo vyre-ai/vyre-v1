@@ -12,10 +12,10 @@ import { cachedFace, currentSkin, faceKey, requestFace } from "./cache.ts";
 import { loadNotionists } from "./load.ts";
 import { injectCss } from "../theme/css.ts";
 import type { AvatarKind, AvatarProps, FaceState } from "./props.ts";
-import { assistantLook, isAssistantId, pickedFace, subscribeAssistant } from "./assistant.ts";
+import { assistantLook, isAssistantId, pickedFace, standInOf, subscribeAssistant } from "./assistant.ts";
 
 export type { AvatarKind, AvatarProps, FaceState } from "./props.ts";
-export { assistantId, assistantLook, avatarOf, isAssistantId, pickedFace, resetAssistant, setAgentFaces, setAssistantId, setAssistantLook, subscribeAssistant } from "./assistant.ts";
+export { assistantId, assistantLook, avatarOf, isAssistantId, pickedFace, resetAssistant, setAgentFaces, setAssistantId, setAssistantLook, setStandIns, standInOf, subscribeAssistant } from "./assistant.ts";
 export type { AvatarEntity } from "./assistant.ts";
 export { faceTint, hash, hueOf, initialsOf, marbleGradient, marbleInner, marbleSpec } from "./faces.ts";
 export { cachedFace, cachedFaceCount, clearFaceCache, currentSkin, faceKey, requestFace, wrapSvg } from "./cache.ts";
@@ -74,7 +74,11 @@ function FaceRing({ state, round, id }: { state: FaceState; round: boolean; id: 
   return createElement("span", { className: `vyre-face-ring vyre-${state}${round ? " vyre-round" : ""}`, "data-testid": `${id}-ring`, "data-state": state, "aria-hidden": true });
 }
 
-export const Avatar = memo(function Avatar({ name, seedId, kind: kindProp, size = AVATAR_DEFAULT_SIZE, photo, running = false, present = false, state, testID }: AvatarProps): ReactElement {
+export const Avatar = memo(function Avatar({ name, seedId: ownId, kind: ownKind, size = AVATAR_DEFAULT_SIZE, photo, running = false, present = false, state, testID }: AvatarProps): ReactElement {
+  // someone else's private agent wears its person's face: their marble, seeded by their id
+  const standIn = useSyncExternalStore(subscribeAssistant, () => standInOf(ownId), () => standInOf(ownId));
+  const seedId = standIn !== "" ? standIn : ownId;
+  const kindProp = standIn !== "" ? "person" : ownKind;
   const kind = kindOf(name, kindProp, seedId);
   // A look the person picked in Settings turns the assistant into a drawn face from the agent library; with none it stays the Vyre mark.
   const look = useSyncExternalStore(subscribeAssistant, assistantLook, assistantLook);

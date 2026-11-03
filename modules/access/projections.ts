@@ -649,15 +649,37 @@ export function grantView(g: GrantRec): GrantRec {
   return out;
 }
 
-export function principalView(store: AccessStore, p: PrincipalRec): {
-  id: string; kind: PKind; name: string; owner?: string; status: Status; roles: string[]; groups: string[]; title?: string; createdAt: number;
-} {
+type PrincipalOut = { id: string; kind: PKind; name: string; owner?: string; private?: boolean; agentName?: string; status: Status; roles: string[]; groups: string[]; title?: string; createdAt: number };
+
+/** The access_fields key that marks an agent private to its person (no dot: never a field label). */
+const PRIVATE_KEY = (id: string): string => `private:${id}`;
+/** Mark or unmark an agent as private to its person. True when it changed. */
+export function setPrivate(store: AccessStore, id: string, on: boolean): boolean {
+  const had = store.fieldLabels.has(PRIVATE_KEY(id));
+  if (had === on) return false;
+  if (on) store.fieldLabels.set(PRIVATE_KEY(id), 1); else store.fieldLabels.delete(PRIVATE_KEY(id));
+  return true;
+}
+export const isPrivateAgent = (store: AccessStore, id: string): boolean => store.fieldLabels.has(PRIVATE_KEY(id));
+/** How someone else's private agent is named: its person, marked as their agent (owner ruling 3 Nov). */
+export const asAgentOf = (personName: string): string => `${personName} (Agent)`;
+
+/**
+ * A principal as `viewer` sees it. Someone else's private agent (their assistant, an outside agent they connected) is named as its person, "Irfad Imtiaz (Agent)", wears its person's face (`owner`),
+ * and never carries its own name, except for an owner or admin (`agentName`, for the audit details line). Its person sees it as it is. No viewer (the server's own reads) sees it as it is.
+ */
+export function principalView(store: AccessStore, p: PrincipalRec, viewer?: { id: string; admin: boolean }): PrincipalOut {
   const groups = [...store.groups.values()].filter((g) => g.members.some((m) => m.id === p.id)).map((g) => g.id);
-  const out: { id: string; kind: PKind; name: string; owner?: string; status: Status; roles: string[]; groups: string[]; title?: string; createdAt: number } = {
+  const out: PrincipalOut = {
     id: p.id, kind: p.kind, name: p.name, status: p.status, roles: store.rolesOf(p.id), groups, createdAt: p.createdAt,
   };
   if (p.owner) out.owner = p.owner;
   if (p.title) out.title = p.title;
+  if (viewer !== undefined && p.kind === "agent" && p.owner !== undefined && p.owner !== viewer.id && isPrivateAgent(store, p.id)) {
+    out.private = true;
+    out.name = asAgentOf(store.principals.get(p.owner)?.name ?? "Someone");
+    if (viewer.admin) out.agentName = p.name;
+  }
   return out;
 }
 

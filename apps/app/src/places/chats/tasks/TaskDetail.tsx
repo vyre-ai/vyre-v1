@@ -38,6 +38,7 @@ import type { IndexOut, TaskFull, TaskRow, Who } from "./model.ts";
 import { faceKind, LiveWords, TextMenu, useLiveTurn, webProps } from "./parts.tsx";
 import { activityOf } from "./activity.ts";
 import type { ActivityShow } from "./activity.ts";
+import { offered } from "../../../shell/session/private-agents.ts";
 
 type History = CapMap["tasks.history"]["out"];
 type TaskOut = CapMap["tasks.get"]["out"];
@@ -177,7 +178,7 @@ function TaskHead({ task, rt, nameOf, run, line, menu, kids, list, openTask, ope
     {turn ? <View style={st.liveLine}><LiveWords turn={turn} turns={rt.turns} name={nameOf(turn.agentId)} /></View> : null}
     <YourAction task={task} view={view} me={rt.me.id} run={run} menu={menu} list={list} />
     {line ? <Text accessibilityRole="alert" testID="task-line" style={st.error}>{line}</Text> : null}
-    <TaskBody task={task} rt={rt} nameOf={nameOf} run={run} kids={kids} people={list} openTask={openTask} openAgent={openAgent} onKids={onKids} />
+    <TaskBody task={task} rt={rt} nameOf={nameOf} run={run} kids={kids} people={list.filter(offered)} openTask={openTask} openAgent={openAgent} onKids={onKids} />
     <View style={st.feedHead}>
       <Text style={st.blockTitle}>Activity</Text>
       <TextMenu label={show === "all" ? "Everything" : show === "comments" ? "Comments" : "Updates"} testID="task-activity-filter" onPress={(at) => menu.show([

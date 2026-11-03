@@ -63,8 +63,11 @@ export async function refuseUnseenAgents(ctx: ChatCtx, ids: readonly string[]): 
   if (!ctx.call || ctx.principal.kind !== "person") return;
   for (const agentId of new Set(ids)) {
     try { await ctx.call("agents.get", { agentId }); } catch (e) {
-      const code = (e as { code?: string; error?: { code?: string } }).code ?? (e as { error?: { code?: string } }).error?.code;
-      if (code === "validation.not_found") raise(ctx, "validation.not_found", "That agent does not exist.", { agentId });
+      const x = e as { code?: string; message?: string; details?: { reason?: string }; error?: { code?: string; message?: string; details?: { reason?: string } } };
+      const code = x.code ?? x.error?.code;
+      // someone else's private agent (their assistant, an outside agent they connected) is refused in the agents module's own plain words
+      const priv = (x.details ?? x.error?.details)?.reason === "private";
+      if (code === "validation.not_found") raise(ctx, "validation.not_found", priv ? (x.error?.message ?? x.message ?? "That agent is private to the person it belongs to.") : "That agent does not exist.", { agentId, ...(priv ? { reason: "private" } : {}) });
     }
   }
 }

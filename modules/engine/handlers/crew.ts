@@ -8,6 +8,7 @@ import { GUIDE_FILES } from "../../../lib/memory-guide.ts";
 import fs from "node:fs";
 import path from "node:path";
 import type { EngineCtx } from "../projections.ts";
+import { agentDisplay } from "../agent-names.ts";
 
 type Row = Record<string, unknown>;
 const str = (v: unknown): string => (typeof v === "string" ? v : "");
@@ -139,7 +140,7 @@ export async function list(ctx: EngineCtx, input: { threadId: string }) {
   for (const r of rows) {
     const id = str(r["agent_id"]);
     if (names.has(id)) continue;
-    try { const a = (await ctx.call("agents.get", { agentId: id })) as { agent?: { name?: string } }; if (a.agent?.name) names.set(id, a.agent.name); } catch { /* the id stands */ }
+    names.set(id, (await agentDisplay((cap, i) => ctx.call(cap, i), id)).name);
   }
   const waits = ctx.db.all("SELECT * FROM engine_crew_wait WHERE lead_thread_id = ? AND state = 'pending' ORDER BY started_at DESC, rowid DESC", input.threadId) as Row[];
   return { jobs: rows.map((r) => jobOut(r, names.get(str(r["agent_id"])))), waits: waits.map(waitOut) };
@@ -165,8 +166,7 @@ export async function workspace(ctx: EngineCtx, input: { threadId: string }) {
   ensure(ctx.db);
   const r = ctx.db.all("SELECT * FROM engine_crew_job WHERE thread_id = ?", input.threadId)[0] as Row | undefined;
   if (!r) return { workspace: null };
-  let name = str(r["agent_id"]);
-  try { const a = (await ctx.call("agents.get", { agentId: str(r["agent_id"]) })) as { agent?: { name?: string } }; if (a.agent?.name) name = a.agent.name; } catch { /* the id stands */ }
+  const name = (await agentDisplay((cap, i) => ctx.call(cap, i), str(r["agent_id"]))).name;
   return { workspace: { jobId: str(r["job_id"]), repo: str(r["repo_path"]), base: str(r["base_branch"]), branch: str(r["branch"]), name } };
 }
 

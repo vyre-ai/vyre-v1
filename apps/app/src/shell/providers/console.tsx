@@ -112,7 +112,7 @@ function consoleData(rt: ShellRuntime, allowed: ReadonlySet<string>, openPage: C
   return {
     screens: rt.screens, call: rt.call, connection: rt.connection, ...(rt.createRecordsPreview?{createRecordsPreview:rt.createRecordsPreview}:{}), me: { id: rt.me.id, name: rt.me.name, role: "" }, space: { id: rt.space.id, name: rt.space.name, address: "" },
     can: (permission) => permission === "console.access" || PAGES.some((page) => page.needs === permission && allowed.has(page.screen)), allowedScreens: allowed,
-    name: nameLookup(rt), clock: rt.clock,
+    name: nameLookup(rt), agentName: (id: string) => { const q = rt.principals.getSnapshot(); const p = q.status === "ready" ? q.data.find((x) => x.id === id) : undefined; return p ? p.agentName ?? p.name : undefined; }, clock: rt.clock,
     nav: { openApp: (target) => rt.open(target ?? { screen: "chats.conversation" }), openPage },
   };
 }

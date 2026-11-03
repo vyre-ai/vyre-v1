@@ -7,6 +7,7 @@ import { applySkinToWindow } from "../providers/settings-skin.ts";
 import type { CmdKData } from "./controller.ts";
 import type { CmdAction, Hit, HitKind } from "./model.ts";
 import { requestChannelSheet } from "../../places/chats/channels/request.ts";
+import { offered } from "../session/private-agents.ts";
 
 /** The slice of the hub the search drives. */
 export interface GateNav {
@@ -44,7 +45,7 @@ export function replicaHits(rt: ShellRuntime): readonly Hit[] {
   const who = rt.principals.getSnapshot();
   if (who.status === "ready") {
     for (const p of who.data) {
-      if (p.kind === "person" || p.kind === "agent") out.push({ kind: p.kind, id: p.id, title: p.name, link: `vyre://${p.kind}/${p.id}`, score: 1 });
+      if ((p.kind === "person" || p.kind === "agent") && offered(p)) out.push({ kind: p.kind, id: p.id, title: p.name, link: `vyre://${p.kind}/${p.id}`, score: 1 });
     }
   }
   const recent = rt.screens.query("chats.sidebar", "recent", { filter: "all" }).getSnapshot();

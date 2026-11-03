@@ -37,6 +37,7 @@ import { parseQuick } from "./quick.ts";
 import type { QuickPerson } from "./quick.ts";
 import { storeFor } from "./store.ts";
 import { CalendarView, Timeline } from "./Timeline.tsx";
+import { offered } from "../../../shell/session/private-agents.ts";
 
 export const TASKS_SCREEN = "tasks.my-work";
 type NeedsOut = CapMap["tasks.needs_you"]["out"];
@@ -187,7 +188,7 @@ export function TasksPage({ rt, openTask, openAgent, openChat, window }: TasksPa
   }, [doneRows, key, rt, say]);
 
   const addTask = useCallback((): void => {
-    const q = parseQuick(quick, list as readonly QuickPerson[], rt.clock().now, rt.clock().offsetMin);
+    const q = parseQuick(quick, list.filter(offered) as readonly QuickPerson[], rt.clock().now, rt.clock().offsetMin);
     const files = quickFiles;
     // a file dropped with no words names the task after itself
     const title = q.title !== "" ? q.title : files[0]?.name ?? "";
@@ -299,7 +300,7 @@ export function TasksPage({ rt, openTask, openAgent, openChat, window }: TasksPa
       case "need": return <NeedLine item={e.item} env={env} />;
       case "task": { const cur = e.row.id === currentRow?.id; return <TaskLine row={e.row} env={env} selected={selected.has(e.row.id)} current={cur} />; }
       case "quiet": return <QuietLine rows={e.rows} open={quietOpen} onToggle={() => setQuietOpen((o) => !o)} assistant={rt.assistant} act={act} />;
-      case "add": return <View style={st.wrap}><DropZone testID="task-quick-drop" onFiles={(f) => setQuickFiles((cur) => [...cur, ...f])} style={QUICK_DROP} radius={8}><View style={st.addRow}><View style={st.addDot} /><QuickField ref={addRef} testID="task-quick-add" label="Add a task" placeholder="Add a task: Call Omar friday @sara #portal" value={quick} onChangeText={setQuick} onSubmit={addTask} people={list as readonly QuickPerson[]} style={rowStyles.add} /><HeldFiles testID="task-quick-files" files={quickFiles} onRemove={(i) => setQuickFiles((cur) => cur.filter((_, j) => j !== i))} /></View></DropZone></View>;
+      case "add": return <View style={st.wrap}><DropZone testID="task-quick-drop" onFiles={(f) => setQuickFiles((cur) => [...cur, ...f])} style={QUICK_DROP} radius={8}><View style={st.addRow}><View style={st.addDot} /><QuickField ref={addRef} testID="task-quick-add" label="Add a task" placeholder="Add a task: Call Omar friday @sara #portal" value={quick} onChangeText={setQuick} onSubmit={addTask} people={list.filter(offered) as readonly QuickPerson[]} style={rowStyles.add} /><HeldFiles testID="task-quick-files" files={quickFiles} onRemove={(i) => setQuickFiles((cur) => cur.filter((_, j) => j !== i))} /></View></DropZone></View>;
       case "done": return <View style={st.wrap}><Pressable accessibilityRole="button" accessibilityLabel={`${e.count} done this week`} accessibilityState={{ expanded: e.open }} testID="tasks-done" onPress={toggleDone} style={st.done}><Text style={st.doneText}>{e.open ? "Hide what is done" : `${e.count} done this week`}</Text></Pressable></View>;
       case "empty": return <View style={st.wrap}><Text style={st.empty}>{e.text}</Text></View>;
     }
