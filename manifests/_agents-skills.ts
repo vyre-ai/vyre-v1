@@ -32,7 +32,8 @@ const spaceRow = t.obj({
   from: t.opt(t.str({ description: 'The member it was made Space-wide from' })), updatedAt: t.opt(t.ts()),
 });
 const preview = t.obj({ name: t.str(), description: t.str(), text: t.str(), files: t.rec(t.str()), path: t.str(), source: t.str({ description: 'What to keep as its source, so Update can fetch this one skill again' }), kind: t.enm('skill', 'plugin', 'codex'), version: t.opt(t.str()), perms, taken: t.opt(t.str({ description: 'The name it will take, when its own is taken' })) });
-const policy = t.obj({ scriptsAdminOnly: t.bool({ description: 'Only admins add skills that run scripts or start tool servers. Off by default.' }) });
+// scriptsAdminOnly: only admins add skills that run scripts or start tool servers. Off by default.
+const policy = t.obj({ scriptsAdminOnly: t.bool() });
 
 export const skillScopeCapabilities: CapabilityDef[] = [
   read('skills.page', 'Settings > Skills for the person asking: cards for skills shared with them, their own skills (Mine), the Space skills an admin set, the built-in ones, and their agents to assign them to', {
@@ -77,7 +78,7 @@ export const skillScopeCapabilities: CapabilityDef[] = [
     perm: null, level: 'edit', risk: 'medium', idem: 'key', audit: 'always', emits: ['skill.mine_changed'], tool: 'agents', mcpName: 'skills_mine_update', errors: ['validation.not_found', 'validation.bad_input', 'provider.unavailable', 'permission.role_lacks_permission'],
   }),
   write('skills.share', 'Share one of your skills with chosen people in this Space, or with everyone here. Each of them gets a card and decides', {
-    in: { skillId: skoId, to: t.opt(t.arr(id.user)), space: t.opt(t.bool()), stop: t.opt(t.bool({ description: 'Stop sharing with these instead' })) },
+    in: { skillId: skoId, to: t.opt(t.arr(id.user)), space: t.opt(t.bool()), stop: t.opt(t.bool()) },
     out: { sharedWith: t.arr(t.str()) }, perm: null, level: 'edit', idem: 'key', audit: 'always', emits: ['skill.shared'], tool: 'agents', mcpName: 'skills_share', errors: ['validation.not_found', 'validation.bad_input'],
   }),
   write('skills.shared.decide', 'Add a skill shared with you, so it applies to you and your agents, or say Not now', {
