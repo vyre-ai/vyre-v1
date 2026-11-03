@@ -3,7 +3,7 @@
 // agent's named pipe passed; ssh's known_hosts found with backslashes; git's ssh command quoted so a path with a space stays one path, with NUL for no config on Windows.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { WIN_SSH_AGENT_PIPE, addedFolder, agentSocket, engineAccess, sshFiles, toolProxyEnv, insideFolder, winFolder } from "../src/index.ts";
+import { WIN_SSH_AGENT_PIPE, addedFolder, agentSocket, engineAccess, insideFolder, sshConfig, sshFiles, toolProxyEnv, winFolder } from "../src/index.ts";
 import { gitSshCommand } from "../src/egress-policy.ts";
 
 const HOME = "C:\\Users\\Dana Reyes";
@@ -77,4 +77,17 @@ test("git's ssh command keeps a path with a space whole, on a Mac and on Windows
   assert.ok(win.includes(`'ProxyCommand="C:/Program Files/Vyre/node.exe" "C:/Users/Dana Reyes/AppData/Roaming/ai.vyre.desktop/personal/scratch/usr_dana/net/connect.mjs" 4242 %h %p'`), win);
   assert.match(gitSshCommand({ node: "n", helper: "h", port: 1, platform: "win32", knownHosts: "k", config: `${HOME}\\.ssh\\config` }), / -F 'C:\/Users\/Dana Reyes\/.ssh\/config' /);
   assert.equal(toolProxyEnv("http://127.0.0.1:1", { node: "n", helper: "h", port: 1, platform: "win32", knownHosts: "k" })["GIT_SSH_COMMAND"], gitSshCommand({ node: "n", helper: "h", port: 1, platform: "win32", knownHosts: "k" }));
+});
+
+test("Windows: the ssh config Vyre's ssh helper hands Windows OpenSSH: the proxy, the known-hosts files with spaces, the agent relay's pipe escaped for ssh, the person's config after", () => {
+  const text = sshConfig({ node: "C:\\Program Files\\Vyre\\node.exe", helper: `${DATA}\\s\\abc\\net\\connect.mjs`, port: 4242, platform: "win32", knownHosts: [`${DATA}\\s\\abc\\home\\.vyre-known-hosts`, `${HOME}\\.ssh\\known_hosts`], config: `${HOME}\\.ssh\\config`, agent: "\\\\.\\pipe\\vyre-agent-1a2b" });
+  const lines = text.split("\n");
+  assert.equal(lines[1], "Host *");
+  assert.equal(lines[2], `  ProxyCommand "C:/Program Files/Vyre/node.exe" "C:/Users/Dana Reyes/AppData/Roaming/ai.vyre.desktop/personal/s/abc/net/connect.mjs" 4242 %h %p`);
+  assert.equal(lines[3], `  UserKnownHostsFile "C:/Users/Dana Reyes/AppData/Roaming/ai.vyre.desktop/personal/s/abc/home/.vyre-known-hosts" "C:/Users/Dana Reyes/.ssh/known_hosts"`);
+  assert.ok(lines.includes("  StrictHostKeyChecking accept-new") && lines.includes("  BatchMode yes"));
+  assert.ok(lines.includes(`  IdentityAgent "\\\\\\\\.\\\\pipe\\\\vyre-agent-1a2b"`), "ssh reads \\\\ as one backslash inside quotes, so the pipe name arrives whole");
+  assert.ok(lines.indexOf("Match all") > lines.indexOf("  ConnectTimeout 20"), "the person's config comes after Vyre's, whose values win");
+  assert.ok(lines.includes(`  Include "C:/Users/Dana Reyes/.ssh/config"`));
+  assert.ok(!sshConfig({ node: "n", helper: "h", port: 1, platform: "win32", knownHosts: "k" }).includes("Include"));
 });
