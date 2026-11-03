@@ -39,7 +39,7 @@ test("the turn's network rule always reaches the Space at the address this compu
   fs.rmSync(dir, { recursive: true, force: true });
 });
 
-test("her own sign-in on this computer: Codex's CODEX_HOME with auth.json, Claude Code's Keychain marker on a Mac; the Space's account is taken out only then", async () => {
+test("her own sign-in on this computer: Codex's CODEX_HOME with auth.json, Claude Code's sign-in file; the Space's account is taken out only then", async () => {
   const { ownSignin } = await import("../src/compute/device-link.ts");
   const have = (files: string[]) => (p: string) => files.includes(p);
   const env = { CODEX_API_KEY: "sk-space", VYRE_CRED_FILES: "{}", OTHER: "x" };
@@ -47,9 +47,37 @@ test("her own sign-in on this computer: Codex's CODEX_HOME with auth.json, Claud
   assert.deepEqual([codex["CODEX_HOME"], codex["CODEX_API_KEY"], codex["VYRE_CRED_FILES"], codex["OTHER"]], ["/Users/dana/.codex-work", undefined, undefined, "x"]);
   assert.deepEqual(JSON.parse(codex["VYRE_ENGINE_ACCESS"]!), { where: "own", folders: ["/Users/dana/.codex-work"] });
   assert.deepEqual(ownSignin(["codex"], env, { home: "/Users/dana", env: {}, platform: "darwin", exists: have([]) }), env, "not signed in here: as the Space sent it");
-  const claude = ownSignin(["claude", "-p"], { CLAUDE_CODE_OAUTH_TOKEN: "t", VYRE_ENGINE_ACCESS: JSON.stringify({ where: "own", folders: ["/Users/dana/site"] }) }, { home: "/Users/dana", env: {}, platform: "darwin", exists: have(["/Users/dana/.claude.json"]) });
+  const claude = ownSignin(["claude", "-p"], { CLAUDE_CODE_OAUTH_TOKEN: "t", VYRE_ENGINE_ACCESS: JSON.stringify({ where: "own", folders: ["/Users/dana/site"] }) }, { home: "/Users/dana", env: {}, platform: "linux", exists: have(["/Users/dana/.claude/.credentials.json"]) });
   assert.equal(claude["CLAUDE_CONFIG_DIR"], "/Users/dana/.claude");
   assert.equal(claude["CLAUDE_CODE_OAUTH_TOKEN"], undefined);
   assert.deepEqual(JSON.parse(claude["VYRE_ENGINE_ACCESS"]!).folders, ["/Users/dana/site", "/Users/dana/.claude"], "her added folders stay, and the engine's home joins them");
+  const keychainOnly = ownSignin(["claude"], { CLAUDE_CODE_OAUTH_TOKEN: "t" }, { home: "/Users/dana", env: {}, platform: "darwin", exists: have(["/Users/dana/.claude.json"]) });
+  assert.deepEqual(keychainOnly, { CLAUDE_CODE_OAUTH_TOKEN: "t" }, "a Mac whose sign-in is in the Keychain is handed over by macClaude, not by pointing the sandboxed engine at the Keychain");
   assert.deepEqual(ownSignin(["grok"], { XAI_API_KEY: "k" }, { home: "/h", env: {}, platform: "linux", exists: () => true }), { XAI_API_KEY: "k" }, "an engine with no home of its own here is left as it was");
+});
+
+test("Claude Code on a Mac: the Keychain sign-in is handed over as a file in a private folder, the Space's account is taken out, and a refresh goes back to the Keychain", async () => {
+  const { macClaude, CLAUDE_KEYCHAIN } = await import("../src/compute/device-link.ts");
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "vyre-macclaude-"));
+  const cred = (t: string) => JSON.stringify({ claudeAiOauth: { accessToken: t, refreshToken: "r", expiresAt: 1 } });
+  const kc = new Map<string, string>([[CLAUDE_KEYCHAIN, cred("tok-1")]]);
+  const writes: string[] = [];
+  const homes = { home: "/Users/dana", env: {}, platform: "darwin" as const, exists: () => false, keychain: { read: (sv: string) => kc.get(sv) ?? null, write: (sv: string, t: string) => { writes.push(t); kc.set(sv, t); } } };
+  const m = macClaude({ CLAUDE_CODE_OAUTH_TOKEN: "space", OTHER: "x" }, homes, dir, "usr_dana", "prc_1", 20);
+  assert.ok(m);
+  const cfg = m!.env["CLAUDE_CONFIG_DIR"]!;
+  assert.equal(cfg, path.join(dir, "scratch", "usr_dana", "claude-own", "prc_1"), "inside the person's scratch folder, which the sandbox opens for the turn");
+  assert.equal(fs.readFileSync(path.join(cfg, ".credentials.json"), "utf8"), cred("tok-1"));
+  assert.equal((fs.statSync(path.join(cfg, ".credentials.json")).mode & 0o777), 0o600);
+  assert.deepEqual([m!.env["CLAUDE_CODE_OAUTH_TOKEN"], m!.env["OTHER"]], [undefined, "x"]);
+  // the engine refreshes in place while it is still warm: written back without waiting for it to end
+  fs.writeFileSync(path.join(cfg, ".credentials.json"), cred("tok-2"));
+  for (let i = 0; i < 50 && writes.length === 0; i++) await new Promise((r) => setTimeout(r, 10));
+  assert.deepEqual(writes, [cred("tok-2")]);
+  m!.after();
+  assert.equal(writes.length, 1, "an unchanged token is not written again");
+  assert.equal(fs.existsSync(cfg), false, "the file is gone when the engine ends");
+  assert.equal(macClaude({}, { ...homes, platform: "linux" as const }, dir, "usr_dana", "prc_2"), null, "only on a Mac");
+  assert.equal(macClaude({}, { ...homes, keychain: { read: () => null, write: () => undefined } }, dir, "usr_dana", "prc_3"), null, "no Keychain sign-in: as the Space sent it");
+  fs.rmSync(dir, { recursive: true, force: true });
 });

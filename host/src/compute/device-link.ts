@@ -9,6 +9,7 @@
 //   home and the account the Space filled in is taken out, so their own subscription on their own Mac pays (ownSignin below); not signed in here, the Space's fill stands
 //   a dial that does not open (the Space is unreachable, the computer just woke, or the session was signed out) is tried again, waiting longer each time up to a minute; the app takes the link away
 //   at sign-out (DELETE /local/chrome/spaces)
+import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -38,7 +39,57 @@ export interface DeviceLinkDeps {
 }
 
 /** What ownSignin reads of this computer. */
-export interface OwnHomes { home: string; env: Readonly<Record<string, string | undefined>>; platform: NodeJS.Platform; exists(p: string): boolean }
+export interface OwnHomes {
+  home: string; env: Readonly<Record<string, string | undefined>>; platform: NodeJS.Platform; exists(p: string): boolean;
+  /** The Mac login Keychain, read and written by this daemon (outside any sandbox). Absent: none (Linux, Windows, a test). */
+  keychain?: { read(service: string): string | null; write(service: string, text: string): void };
+}
+
+/** The Keychain entry Claude Code keeps its sign-in in on a Mac (the same one l-decisions' local-signin reader reads). */
+export const CLAUDE_KEYCHAIN = "Claude Code-credentials";
+
+/** The access token in a Claude Code credentials file, or "" (to tell a refresh from the file as written). */
+const claudeToken = (text: string | null): string => { try { const t = (JSON.parse(text ?? "") as { claudeAiOauth?: { accessToken?: unknown } }).claudeAiOauth?.accessToken; return typeof t === "string" ? t : ""; } catch { return ""; } };
+
+/**
+ * Claude Code on a Mac keeps its sign-in in the Keychain, which an engine inside Seatbelt does not read reliably. So the daemon reads the entry once per process (outside the sandbox), writes it as
+ * .credentials.json into a private config folder for the person inside their scratch folder (which the sandbox opens for the turn, and nothing else's), and points CLAUDE_CONFIG_DIR there:
+ * Claude Code reads that file and refreshes it in place (owner decision D2, proved on 2.1.316). When the process ends, a refreshed token is written back to the Keychain, so the person's own
+ * Claude Code stays signed in, and the file is removed. A warm engine lives across turns, so a refresh is also written back as soon as the file changes (checked every `watchMs`).
+ */
+export function macClaude(env: Readonly<Record<string, string>>, h: OwnHomes, dataDir: string, person: string, proc: string, watchMs = 2_000): { env: Record<string, string>; after(): void } | null {
+  if (h.platform !== "darwin" || !h.keychain) return null;
+  const text = h.keychain.read(CLAUDE_KEYCHAIN);
+  if (!text || claudeToken(text) === "") return null;
+  const dir = path.join(dataDir, "scratch", safePart(person), "claude-own", proc);
+  fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
+  const file = path.join(dir, ".credentials.json");
+  fs.writeFileSync(file, text, { mode: 0o600 });
+  const out: Record<string, string> = {};
+  for (const [k, v] of Object.entries(env)) if (k !== "CLAUDE_CODE_OAUTH_TOKEN" && k !== "ANTHROPIC_API_KEY") out[k] = v;
+  out["CLAUDE_CONFIG_DIR"] = dir;
+  let last = claudeToken(text);
+  const writeBack = (): void => {
+    let now: string | null = null;
+    try { now = fs.readFileSync(file, "utf8"); } catch { now = null; }
+    const t = claudeToken(now);
+    if (now !== null && t !== "" && t !== last) { try { h.keychain!.write(CLAUDE_KEYCHAIN, now); last = t; } catch { /* the next check tries again */ } }
+  };
+  const watch = setInterval(writeBack, watchMs);
+  watch.unref?.();
+  let done = false;
+  return {
+    env: out,
+    after() {
+      if (done) return;
+      done = true;
+      clearInterval(watch);
+      writeBack();
+      try { fs.rmSync(dir, { recursive: true, force: true }); } catch { /* the scratch folder is the person's own */ }
+    },
+  };
+}
+const safePart = (id: string): string => { const v = id.replace(/[^a-zA-Z0-9_-]/g, "_"); return v === "" || v === "." || v === ".." ? "node" : v; };
 
 /** The environment variable a spawn carries what the engine may touch in (sandbox/src/engine-access.ts ACCESS_ENV). */
 const ACCESS_ENV = "VYRE_ENGINE_ACCESS";
@@ -47,8 +98,8 @@ const ENGINE_HOMES: Readonly<Record<string, { dirEnv: string; dir(h: OwnHomes): 
   claude: {
     dirEnv: "CLAUDE_CONFIG_DIR",
     dir: (h) => h.env["CLAUDE_CONFIG_DIR"] ?? path.join(h.home, ".claude"),
-    // a sign-in file, or on a Mac the Keychain entry Claude Code points at from ~/.claude.json
-    signedIn: (dir, h) => h.exists(path.join(dir, ".credentials.json")) || (h.platform === "darwin" && h.exists(path.join(h.home, ".claude.json"))),
+    // a sign-in file (Linux, Windows, or a Mac set up that way); a Mac's Keychain sign-in is handed over as a file by macClaude
+    signedIn: (dir, h) => h.exists(path.join(dir, ".credentials.json")),
     keys: ["CLAUDE_CODE_OAUTH_TOKEN", "ANTHROPIC_API_KEY"],
   },
   codex: {
@@ -78,7 +129,14 @@ export function ownSignin(argv: readonly string[], env: Readonly<Record<string, 
   return out;
 }
 
-const thisComputer = (): OwnHomes => ({ home: os.homedir(), env: process.env, platform: process.platform, exists: (p) => fs.existsSync(p) });
+function macKeychain(): OwnHomes["keychain"] {
+  return {
+    read(service) { try { return execFileSync("/usr/bin/security", ["find-generic-password", "-s", service, "-w"], { encoding: "utf8", timeout: 10_000, stdio: ["ignore", "pipe", "ignore"] }).trim() || null; } catch { return null; } },
+    // -U updates the entry Claude Code made, for this login user, as Claude Code itself names it
+    write(service, text) { execFileSync("/usr/bin/security", ["add-generic-password", "-U", "-s", service, "-a", os.userInfo().username, "-w", text], { timeout: 10_000, stdio: "ignore" }); },
+  };
+}
+const thisComputer = (): OwnHomes => ({ home: os.homedir(), env: process.env, platform: process.platform, exists: (p) => fs.existsSync(p), ...(process.platform === "darwin" ? { keychain: macKeychain() } : {}) });
 
 /** Hold the link until stopped, dialling again after a drop. */
 export async function runDeviceLink(d: DeviceLinkDeps): Promise<"stopped"> {
@@ -86,7 +144,16 @@ export async function runDeviceLink(d: DeviceLinkDeps): Promise<"stopped"> {
   const url = `${server.replace(/^http/, "ws")}/compute/stream`;
   let person: string | null = null;
   const homes = d.homes ?? thisComputer();
-  const launcher = { spawn: (spec: Parameters<typeof d.launcher.spawn>[0]) => d.launcher.spawn({ ...spec, env: ownSignin(spec.argv, spec.env, homes) }) };
+  const launcher = {
+    async spawn(spec: Parameters<typeof d.launcher.spawn>[0]) {
+      const env = ownSignin(spec.argv, spec.env, homes);
+      // Claude Code on a Mac with no sign-in file: the Keychain's, handed over as a file in a private folder, and a refresh written back when the engine ends
+      const mac = path.basename(spec.argv[0] ?? "") === "claude" && env["CLAUDE_CONFIG_DIR"] === undefined && person ? macClaude(env, homes, d.dataDir, person, path.basename(spec.cwd ?? "") || "turn") : null;
+      const proc = await d.launcher.spawn({ ...spec, env: mac ? mac.env : env }).catch((e: unknown) => { mac?.after(); throw e; });
+      if (mac) void proc.exited.then(() => mac.after(), () => mac.after());
+      return proc;
+    },
+  };
   const engines = cliRelay({ launcher, dataDir: d.dataDir, server, log: d.log, person: () => person });
   const base = d.retryMs ?? 2_000;
   let wait = base;
