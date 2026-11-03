@@ -38,7 +38,7 @@ export interface PeerAccessPort {
   since(after: number, limit: number): Promise<{ events: PeerAccessEvent[]; next: number; more: boolean }>;
   /** Append the other computer's events under their own ids. A second copy is a duplicate, never a second fold; an id reused with other content, an event about another Space and anything that
    *  would make or move the Space itself are refused (accessCheck). Returns how many were new here and how many were refused. */
-  import(events: readonly PeerAccessEvent[]): Promise<{ folded: number; refused: number }>;
+  fold(events: readonly PeerAccessEvent[]): Promise<{ folded: number; refused: number }>;
 }
 
 /** Why an access event from another computer is refused here, or null when it may be appended: it must be of a kind in PEER_ACCESS, and never name another Space or make a Space. */
@@ -314,7 +314,7 @@ export function createPeerSync(d: PeerSyncDeps): PeerSync {
               const r = await ch.request({ method: "POST", path: "/v1/peers/access", headers: auth, body: JSON.stringify({ since }) });
               if (r.status !== 200) break;
               const page = r.json<{ data: { events: PeerAccessEvent[]; next: number; more: boolean } }>().data;
-              const got = await acc.import(page.events);
+              const got = await acc.fold(page.events);
               out.applied += got.folded;
               if (got.refused) d.log("peers.access_refused", { from: p.id, n: got.refused });
               cells.modules.setCursor(`access:${p.id}`, page.next);

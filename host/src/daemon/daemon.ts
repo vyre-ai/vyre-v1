@@ -1213,7 +1213,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
             if (page.length < 2000) return { events: out, next: cursor, more: false };
           }
         },
-        async import(events) {
+        async fold(events) {
           let folded = 0, refused = 0;
           for (const e of events) {
             const why = accessCheck(e, spaceId);

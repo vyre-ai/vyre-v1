@@ -44,7 +44,7 @@ test("the access door answers only this Space's own computers, refuses other Spa
     assert.equal(accessCheck({ id: "evt_ok", type: "resource.created", payload: { id: "fld_1", type: "folder", parent_id: space } }, space), null);
     const port = A.peers.accessPort();
     const before = (await A.log.currentHead()).seq;
-    const bad = await port.import([
+    const bad = await port.fold([
       { seq: 1, id: "evt_peer_bad1", type: "grant.created", sv: 1, actor: "svc_host", vis: "space", trace_id: "c0".repeat(16), payload: { id: "gr_x", space: "spc_elsewhere", subject_kind: "actor", subject_id: "usr_mallory", resource_type: "space", resource_id: "spc_elsewhere", level: "edit" } },
       { seq: 2, id: "evt_peer_bad2", type: "resource.created", sv: 1, actor: "svc_host", vis: "space", trace_id: "c0".repeat(16), payload: { id: "spc_new", type: "space", parent_id: null, label: 0, owner_id: "usr_mallory", holds: 0 } },
     ]);
@@ -53,9 +53,9 @@ test("the access door answers only this Space's own computers, refuses other Spa
 
     // 3. replay
     const ev = { seq: 9, id: "evt_peer_folder_once", type: "resource.created", sv: 1, actor: "svc_host", vis: "space", trace_id: "c0".repeat(16), entity: "resource", entity_id: "fld_peer_once", payload: { id: "fld_peer_once", type: "folder", parent_id: space, label: 0, owner_id: "usr_olivia", holds: 0 } };
-    assert.deepEqual(await port.import([ev]), { folded: 1, refused: 0 });
-    assert.deepEqual(await port.import([ev]), { folded: 0, refused: 0 }, "the same event again is not folded again");
-    assert.deepEqual(await port.import([{ ...ev, payload: { ...ev.payload, owner_id: "usr_mallory" } }]), { folded: 0, refused: 1 }, "an id reused with other content is refused");
+    assert.deepEqual(await port.fold([ev]), { folded: 1, refused: 0 });
+    assert.deepEqual(await port.fold([ev]), { folded: 0, refused: 0 }, "the same event again is not folded again");
+    assert.deepEqual(await port.fold([{ ...ev, payload: { ...ev.payload, owner_id: "usr_mallory" } }]), { folded: 0, refused: 1 }, "an id reused with other content is refused");
     assert.equal(sameContent({ a: 1, b: { c: 2 } }, { b: { c: 2 }, a: 1 }), true);
 
     // 4. removal shuts the door at once
