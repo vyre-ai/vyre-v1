@@ -3419,6 +3419,7 @@ export type AutomationsReadDocsOut = {
 export type AutomationsReadLinkIn = {
   url: string;
   focus?: string;
+  preview?: boolean;
 };
 export type AutomationsReadLinkOut = {
   ok: boolean;
@@ -3436,6 +3437,12 @@ export type AutomationsReadLinkOut = {
     image?: string;
     siteName?: string;
     description?: string;
+    icon?: string;
+  };
+  preview?: {
+    contentType: "image/png" | "image/jpeg" | "image/gif" | "image/webp";
+    data: string;
+    from: "image" | "icon";
   };
 };
 export type AutomationsReplayIn = {
@@ -21568,8 +21575,8 @@ export type NotesClipOut = {
       url: string;
       title?: string;
       siteName?: string;
-      image?: string;
       description?: string;
+      preview?: "image" | "icon";
     };
     clip?: {
       url: string;
@@ -21624,8 +21631,8 @@ export type NotesCreateOut = {
       url: string;
       title?: string;
       siteName?: string;
-      image?: string;
       description?: string;
+      preview?: "image" | "icon";
     };
     clip?: {
       url: string;
@@ -21679,8 +21686,8 @@ export type NotesGetOut = {
       url: string;
       title?: string;
       siteName?: string;
-      image?: string;
       description?: string;
+      preview?: "image" | "icon";
     };
     clip?: {
       url: string;
@@ -21710,6 +21717,7 @@ export type NotesGetOut = {
 };
 export type NotesImageIn = {
   noteId: string;
+  part?: "image" | "link";
 };
 export type NotesImageOut = {
   contentType: string;
@@ -21734,8 +21742,8 @@ export type NotesLabelOut = {
       url: string;
       title?: string;
       siteName?: string;
-      image?: string;
       description?: string;
+      preview?: "image" | "icon";
     };
     clip?: {
       url: string;
@@ -21784,8 +21792,8 @@ export type NotesListOut = {
         url: string;
         title?: string;
         siteName?: string;
-        image?: string;
         description?: string;
+        preview?: "image" | "icon";
       };
       clip?: {
         url: string;
@@ -21837,8 +21845,8 @@ export type NotesPinOut = {
       url: string;
       title?: string;
       siteName?: string;
-      image?: string;
       description?: string;
+      preview?: "image" | "icon";
     };
     clip?: {
       url: string;
@@ -21883,8 +21891,8 @@ export type NotesRestoreOut = {
       url: string;
       title?: string;
       siteName?: string;
-      image?: string;
       description?: string;
+      preview?: "image" | "icon";
     };
     clip?: {
       url: string;
@@ -21948,8 +21956,8 @@ export type NotesShareOut = {
       url: string;
       title?: string;
       siteName?: string;
-      image?: string;
       description?: string;
+      preview?: "image" | "icon";
     };
     clip?: {
       url: string;
@@ -21998,8 +22006,8 @@ export type NotesToRecordOut = {
       url: string;
       title?: string;
       siteName?: string;
-      image?: string;
       description?: string;
+      preview?: "image" | "icon";
     };
     clip?: {
       url: string;
@@ -22053,8 +22061,8 @@ export type NotesToTaskOut = {
       url: string;
       title?: string;
       siteName?: string;
-      image?: string;
       description?: string;
+      preview?: "image" | "icon";
     };
     clip?: {
       url: string;
@@ -22108,8 +22116,8 @@ export type NotesUpdateOut = {
       url: string;
       title?: string;
       siteName?: string;
-      image?: string;
       description?: string;
+      preview?: "image" | "icon";
     };
     clip?: {
       url: string;

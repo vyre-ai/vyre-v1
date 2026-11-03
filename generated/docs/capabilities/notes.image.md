@@ -1,6 +1,6 @@
 # notes.image
 
-The image of a note, for someone who may read it
+The image of a note (or a clip screenshot), or with part link its link card picture, for someone who may read it
 
 | | |
 |---|---|
@@ -26,6 +26,7 @@ The image of a note, for someone who may read it
 ```ts
 type In = {
   noteId: string;
+  part?: "image" | "link";
 };
 ```
 
@@ -52,7 +53,8 @@ type Out = {
 {
   "name": "example",
   "input": {
-    "noteId": "nte_a1b2c3"
+    "noteId": "nte_a1b2c3",
+    "part": "image"
   },
   "output": {
     "contentType": "example",

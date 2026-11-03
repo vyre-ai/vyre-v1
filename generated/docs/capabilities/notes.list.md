@@ -50,8 +50,8 @@ type Out = {
         url: string;
         title?: string;
         siteName?: string;
-        image?: string;
         description?: string;
+        preview?: "image" | "icon";
       };
       clip?: {
         url: string;
@@ -133,7 +133,7 @@ type Out = {
         ],
         "link": {
           "description": "example",
-          "image": "example",
+          "preview": "image",
           "siteName": "example",
           "title": "example",
           "url": "example"

@@ -41772,6 +41772,10 @@
           "focus": {
             "type": "string"
           },
+          "preview": {
+            "description": "Also fetch a link card picture on the server: the page image, else the site icon (PNG, JPEG, GIF or WebP, 1 MB at most)",
+            "type": "boolean"
+          },
           "url": {
             "type": "string"
           }

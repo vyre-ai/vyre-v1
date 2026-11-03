@@ -27,6 +27,7 @@ Open a web page from the server and read it as plain text, with its links. Use i
 type In = {
   url: string;
   focus?: string;
+  preview?: boolean;
 };
 ```
 
@@ -49,6 +50,12 @@ type Out = {
     image?: string;
     siteName?: string;
     description?: string;
+    icon?: string;
+  };
+  preview?: {
+    contentType: "image/png" | "image/jpeg" | "image/gif" | "image/webp";
+    data: string;
+    from: "image" | "icon";
   };
 };
 ```
@@ -68,6 +75,7 @@ type Out = {
   "name": "example",
   "input": {
     "focus": "example",
+    "preview": true,
     "url": "example"
   },
   "output": {
@@ -81,11 +89,17 @@ type Out = {
     ],
     "meta": {
       "description": "example",
+      "icon": "example",
       "image": "example",
       "siteName": "example",
       "title": "example"
     },
     "ok": true,
+    "preview": {
+      "contentType": "image/png",
+      "data": "example",
+      "from": "image"
+    },
     "reason": "example",
     "text": "example",
     "truncated": true

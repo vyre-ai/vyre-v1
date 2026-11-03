@@ -10,7 +10,7 @@ Requires: nothing.
 - [notes.create](../capabilities/notes.create.md): Take a note: text, an image, or a link that becomes a card. Private to the person until shared
 - [notes.delete](../capabilities/notes.delete.md): Delete a note. It can come back with notes.restore (Undo). Someone it was shared with only removes it from their own notes
 - [notes.get](../capabilities/notes.get.md): Read one note the asker may read. An agent reads a note only when everyone in its chat may read it
-- [notes.image](../capabilities/notes.image.md): The image of a note, for someone who may read it
+- [notes.image](../capabilities/notes.image.md): The image of a note (or a clip screenshot), or with part link its link card picture, for someone who may read it
 - [notes.label](../capabilities/notes.label.md): Add or remove labels on a note
 - [notes.list](../capabilities/notes.list.md): The notes the person reads: their own and those shared with them. Pinned first, newest first, with the labels in use
 - [notes.pin](../capabilities/notes.pin.md): Pin or unpin a note
