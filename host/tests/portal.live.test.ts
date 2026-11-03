@@ -202,12 +202,11 @@ test("portal live: a source that tries many tokens on the link is turned away wi
 });
 
 test("portal live: the landing page shows what is shared with the client once their record is linked", async () => {
-  // its own daemon: a type made by schema.apply on the shared daemon, after the earlier tests had used it, was not found by records.create (open question for the lead), so this one starts clean
-  const sent: Sent[] = [];
-  const d = await boot(seededDir(), sent);
+  const sent = sharedSent; sent.length = 0;
+  const d = await sharedDaemon();
   try {
     await serviceMailbox(d);
-    const made = await invite(d, OWNER_TOKEN, "pat@client.test");
+    const made = await invite(d, OWNER_TOKEN, "pat6@client.test");
     const typed = await post(d, OWNER_TOKEN, "schema.apply", { ops: [{ op: "type.create", type: "rt_client", def: { title: "Client", plural: "Clients", icon: "user", titleField: "name", fields: [{ key: "name", type: "text", title: "Name", required: true }] } }] });
     assert.equal(typed.status, 200, JSON.stringify(typed.data));
     const rec = await post(d, OWNER_TOKEN, "records.create", { type: "rt_client", fields: { name: "Pat Client" } });
@@ -218,7 +217,7 @@ test("portal live: the landing page shows what is shared with the client once th
     assert.equal(page.status, 200);
     assert.match(page.text, /Your records/);
     assert.match(page.text, /Shared rt client records/);
-  } finally { await d.stop(); }
+  } finally { /* the shared daemon stops after the last test */ }
 });
 
 test("portal live: a temporary guest without sites.deploy cannot invite", async () => {
