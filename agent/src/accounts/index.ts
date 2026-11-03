@@ -11,3 +11,5 @@ export type { ProbeDeps, ProbeError, ProbeResult } from "./probe.ts";
 export type {
   AccountKind, AccountRow, AccountStatus, AccountsPolicy, AgentAccountConfig, Attempt, NeedsYou, ResolveReason, ResolveRequest, Resolution, SkipWhy, SpaceUses, Trigger,
 } from "./types.ts";
+export { usableHere, WHY } from "./usable.ts";
+export type { Place } from "./usable.ts";

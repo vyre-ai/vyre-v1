@@ -49,3 +49,34 @@ test("the lock greets the first name of the display name, and the username only 
   assert.equal(lockName({}), "");
   assert.equal(lockName({ displayName: "  ", username: "nadia" }), "nadia");
 });
+
+test("the key is handed again when the link becomes live (first time or back after a drop) on a Space with a key door, and never otherwise", async () => {
+  const { handOnLive } = await import("../../../../../client/src/gateway/key-keeper.ts");
+  assert.equal(handOnLive("offline", "live", true), true, "first live after the session opened");
+  assert.equal(handOnLive("reconnecting", "live", true), true, "back after a drop");
+  assert.equal(handOnLive("live", "live", true), false);
+  assert.equal(handOnLive("live", "offline", true), false);
+  assert.equal(handOnLive("offline", "live", false), false, "no key door: plain http to another machine");
+});
+
+test("an open app that holds the key asks the Space again every beat and hands it over; one that holds none asks nothing; the stop ends it", async () => {
+  const { watchKey } = await import("../../../../../client/src/gateway/key-keeper.ts");
+  const ticks: Array<() => void> = [];
+  const calls: string[] = [];
+  const set = ((f: () => void) => { ticks.push(f); return 1; }) as unknown as typeof setInterval;
+  let cleared = 0;
+  const clear = (() => { cleared++; }) as unknown as typeof clearInterval;
+  const rehand = (async (url: string, token: string) => { calls.push(`${url}|${token}`); return true; }) as unknown as typeof rehandKey;
+  forgetKey();
+  const stop = watchKey("https://team.example.com", () => "tok", { set, clear, rehand });
+  ticks[0]!();
+  assert.deepEqual(calls, [], "a device that was never unlocked here has no key to hand over");
+  keepKey(new Uint8Array(32).fill(9));
+  ticks[0]!();
+  assert.deepEqual(calls, ["https://team.example.com|tok"]);
+  stop();
+  assert.equal(cleared, 1);
+  forgetKey();
+  assert.equal(watchKey("http://10.0.0.2:7777", () => "tok", { set, clear, rehand })(), undefined, "no key door, nothing watched");
+  assert.equal(ticks.length, 1);
+});

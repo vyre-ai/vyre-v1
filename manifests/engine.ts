@@ -47,6 +47,10 @@ const accountRow = t.obj({
   spaceKey: t.opt(t.bool()),
   aliases: t.opt(t.arr(accountRef, { description: 'Other refs that show as this account: handles folded into it and its older sign-ins. A chat or agent pinned to one of them shows this account' })),
   older: t.opt(t.arr(t.obj({ ref: accountRef, providerId: t.id('prv'), name: t.str() }), { description: 'Older sign-ins of the same provider whose account cannot be read, listed under this one so a person can remove them' })),
+  providerId: t.opt(t.id('prv')),
+  models: t.opt(t.arr(t.str(), { description: 'The models the account\'s provider lists, when known' })),
+  usable: t.opt(t.bool()),
+  why: t.opt(t.str({ description: 'With a place, when usable is false: the reason, in plain words' })),
 });
 const turnRow = t.obj({
   turnId: id.turn, threadId: id.thread, agentId: id.agent, asker: t.str(), accountRef: t.opt(accountRef), engine: t.str(), model: t.str(), state: turnState,
@@ -302,7 +306,8 @@ export default defineManifest({
       errors: ['provider.auth_failed', 'provider.rate_limited', 'provider.unavailable', 'provider.overloaded', 'permission.limit', 'permission.provider_label', 'timeout.deadline', 'internal.unavailable'],
     }),
     // ---- accounts and models
-    read('engine.accounts.list', 'Accounts the caller can run on: API keys by handle and subscription sign-ins (Mine), with status', {
+    read('engine.accounts.list', 'Accounts the caller can run on: API keys by handle and subscription sign-ins (Mine), with status. With a place (chat, automation, agent, space) each says whether it can run there and why not', {
+      in: { place: t.opt(t.enm('chat', 'automation', 'agent', 'space')), model: t.opt(t.str()), agentId: t.opt(id.agent), explicit: t.opt(t.bool()) },
       out: { accounts: t.arr(accountRow) }, tool: 'meta',
     }),
     read('engine.usage.get', 'For a chat and an account: the context used against the model window (from the latest turn and the model catalog) and the session and week limits exactly as the provider reported them. A provider that reports nothing gives null; nothing is estimated', {

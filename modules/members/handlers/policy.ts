@@ -1,6 +1,7 @@
 // Sign-in policy, second-factor report and SSO providers (spec 3.13, 3.10, ARCH 7.13). TOTP itself lives in identity; this module sets the Space rule around it and reports who has it.
 // SSO is the firm's own Google or Microsoft sign-in app (OpenID Connect): providers are configured and tested here, the sign-in screens offer them, and the secret is a Vault handle, never a value stored in this module. A provider is usable only with the firm's domain set.
 import type { MembersCtx } from "../projections.ts";
+import { mustUse } from "../../../lib/vault-check.ts";
 import { pinIssuer } from "../../../lib/oidc-issuer.ts";
 import { OWNER_ROLE, me, page, policyDrop, policyGet, policyPut, raise } from "../projections.ts";
 
@@ -98,6 +99,9 @@ export async function ssoSet(ctx: MembersCtx, input: { provider: Sso }) {
   const pin = pinIssuer(p.key, p.issuer);
   if ("error" in pin) raise(tid, "validation.bad_input", pin.error);
   if (!/^#[A-Za-z0-9_]+(\.[A-Za-z0-9_]+)?$/.test(p.clientSecretHandle)) raise(tid, "validation.bad_input", "the client secret is a Vault handle such as #Okta_Secret, never the value");
+  // The server signs people in with this secret later, as itself: whoever sets the provider must have Use on the item now (lib/vault-check.ts). The Vault answers a name that is not there
+  // the same as one the caller may not use, so the item is put in the Vault first (the Console does that before it saves the provider).
+  await mustUse((cap, i) => ctx.call(cap, i), p.clientSecretHandle, (m) => raise(tid, "permission.no_grant", m));
   const prev = providers(ctx).find((x) => x.key === p.key);
   if (prev?.enabled && !p.enabled && currentPolicy(ctx).requireSso && providers(ctx).filter((x) => x.enabled).length === 1) {
     raise(tid, "validation.precondition_failed", "single sign-on is required and this is the only provider that is on");

@@ -27,7 +27,7 @@ import { openAskPane } from "../ask/pane.ts";
 import { AutomationsSidebarSlot, StudioNav } from "../../places/automations/sidebar/AutomationsSidebarSlot.tsx";
 import { AutomationsSidebar } from "../../places/automations/sidebar/AutomationsSidebar.tsx";
 import type { StudioView } from "../../places/automations/sidebar/AutomationsSidebarSlot.tsx";
-import { keysFromProviders } from "../../places/automations/values/typed.ts";
+import { keysFromAccounts } from "../../places/automations/values/typed.ts";
 import { nameOf } from "./misc-common.ts";
 import { GATE, allows, useOptionalShellRuntime } from "./runtime.tsx";
 import type { ShellRuntime } from "./runtime.tsx";
@@ -64,9 +64,9 @@ function Body({ rt }: { rt: ShellRuntime }): ReactElement {
   const missing = useMissing(rt.screens, "automations.canvas", "automation", openId ? { automationId: openId, route: { automationId: openId } } : null);
   useEffect(() => {
     let live = true;
-    void rt.call("providers.list", {}).then((out) => {
+    void rt.call("engine.accounts.list", { place: "automation" }).then((out) => {
       if (!live) return;
-      const parsed = keysFromProviders(out);
+      const parsed = keysFromAccounts(out);
       if (!parsed) { setKeys([]); setKeysStatus("unavailable"); return; }
       setKeys(parsed);
       setKeysStatus(parsed.length > 0 ? "ready" : "empty");
