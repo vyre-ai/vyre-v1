@@ -167,6 +167,7 @@ import { requestListener } from "./http.ts";
 import { desktopCors } from "./desktop-cors.ts";
 import { createLiveTicketRoute, createLiveTickets } from "../routes/live-ticket.ts";
 import { createChromeBridge } from "../bridge/chrome.ts";
+import { createChromeApp } from "../../../lib/chrome-app.ts";
 import type { ChromeBridge } from "../bridge/chrome.ts";
 import { coerceQuery } from "./query.ts";
 import type { PropSchema } from "./query.ts";
@@ -373,7 +374,10 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   const token = ensureAdminToken(paths);
   const sink = openLogSink(paths.logs, now, token);
   const closers: (() => Promise<void> | void)[] = [() => sink.close()];
-  const chromeBridge = createChromeBridge({ token, onEvent: (e) => sink.log({ space: "-", level: 20, msg: "chrome.agent_event", place: "chrome-bridge", attrs: { event: e.event, agent: typeof e["agent"] === "string" ? e["agent"] : "" } }) });
+  // Vyre for Chrome's requests (lib/chrome-app.ts) are answered once this daemon hosts a Space and its invoke pipeline is up; until then the bridge says "not_available".
+  let chromeApp: { invoke(cap: string, input: Record<string, unknown>): Promise<unknown>; op(op: string, input: Record<string, unknown>): Promise<unknown> } | null = null;
+  const chromeNotReady = (): Promise<never> => Promise.reject(Object.assign(new Error("The Vyre app cannot answer that yet."), { code: "not_available" }));
+  const chromeBridge = createChromeBridge({ token, invoke: (cap, input) => (chromeApp ? chromeApp.invoke(cap, input) : chromeNotReady()), op: (op, input) => (chromeApp ? chromeApp.op(op, input) : chromeNotReady()), onEvent: (e) => sink.log({ space: "-", level: 20, msg: "chrome.agent_event", place: "chrome-bridge", attrs: { event: e.event, agent: typeof e["agent"] === "string" ? e["agent"] : "" } }) });
   closers.push(() => { chromeBridge.failAll(); chromeBridge.closeStreams(); });
   const fetchFn: FetchFn | null = o.fetch ?? (typeof fetch === "function" ? (fetch as unknown as FetchFn) : null);
 
@@ -1547,6 +1551,13 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       }
 
       const owner = (): string => access.owner() ?? cfg.owner ?? "usr_owner";
+      // Vyre for Chrome: the extension's calls run as the Space owner, the person the daemon's admin token stands for (the local admin door, below, does the same).
+      chromeApp = createChromeApp({
+        invoke: (cap, input) => invoke(cap, input, { space: spaceId, principal: { kind: "person", id: owner() }, device: ADMIN_DEVICE, origin: "chrome" }),
+        space: () => ({ id: spaceId, name: String((db?.all("SELECT name FROM identity_space WHERE id = ?", spaceId)[0] as { name?: string } | undefined)?.name ?? cfg.spaceName ?? "This Space"), webUrl: cfg.address ? (/^https?:\/\//.test(cfg.address) ? cfg.address : `https://${cfg.address}`) : "" }),
+        me: owner,
+        push: (m) => { chromeBridge.push(m); },
+      });
 
       // A restore brought an older Space back. What was erased since is erased again, as the host, before any request is served (spec 2.26, ARCH 7.10). If it cannot be done the Space does not open.
       const kept = loaded.serving.get("governance") === "live" ? readRestoredTombstones(paths.root) : null;

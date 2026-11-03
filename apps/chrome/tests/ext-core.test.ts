@@ -199,7 +199,8 @@ function memoryArea() {
 test("the store keeps only what the extension is allowed to keep, in the shape it expects", async () => {
   const m = memoryArea();
   const s = createStore(m.area);
-  await s.set({ activeSpace: "spc_a", spaces: [{ id: "spc_a", name: "Acme", webUrl: "https://acme.vyre.run" }], siteRules: [{ host: "a.test", neverFill: true, neverSave: false }], suggestOnPages: true, offerToSave: false });
+  await s.set({ activeSpace: "spc_a", spaces: [{ id: "spc_a", name: "Acme", webUrl: "https://acme.vyre.run" }], siteRules: [{ host: "a.test", neverFill: true, neverSave: false }], suggestOnPages: true, offerToSave: false,
+    sitePrivacy: [{ host: "a.test", mode: "never", records: true }], panelPicks: [{ space: "spc_a", agent: "agt_a", model: "" }] });
   assert.deepEqual(Object.keys(m.data).sort(), [...KEYS].sort());
   assert.equal((await s.get(["activeSpace"]))["activeSpace"], "spc_a");
 });
