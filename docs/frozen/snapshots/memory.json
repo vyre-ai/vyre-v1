@@ -3,7 +3,9 @@
   "capabilities": {
     "memory.archive_sweep@1": "2cadb341a03ab550e08d7042931962cdbc770a3274c4c8aa6afb315a1d9b691c",
     "memory.backlinks@1": "a284f9f8e454175c59d2f770cf452c754408adab0033826f9224fd5cb89629c8",
-    "memory.capture@1": "0995edd98c0e139700368c597987da26cbefef3c93525cefce5a730d6ac713b5",
+    "memory.capture@1": "f12c186d1daeb48bfb4a1244080c9f7e86c73037c28da4779526f424794f0865",
+    "memory.chat_learning.get@1": "e961234739a97a4126f7eaf53d09d2c1ad6232d59a09888599a8330875396443",
+    "memory.chat_learning.set@1": "2f4ed0dc3324cafeab7af9308677cf16a4a4f7a7eecfa406d672dc4174f4a7e4",
     "memory.counts@1": "de7d20329adf60fda029985597ad9c200066ae4ab93a1586cfe8cf53617bd7a4",
     "memory.erase@1": "4784afdd57ebbc253f633ba7f1f3868e99156c7bda161ecfad285031f094161c",
     "memory.export_markdown@1": "8385d37dbb3523fb93b8327f39dc1c1cca925bd196706ff4a42928b1ff95325d",
@@ -27,6 +29,7 @@
     "memory.layout.get@1": "920c555e3b4e3b2404e72ccedfcae7ab2f6c2f0509ec399b7a8ebf22ec863b42",
     "memory.layout.save@1": "b106ac7e1c7852ab413ba83055ac0c72fa2c8abb340848c147179dd7e077f3a5",
     "memory.learned@1": "568aafdc327d916fd47b17957ebca942649751791ee5c266d6ab2c189a070845",
+    "memory.learning.today@1": "d7fcadd4baa10e3e4216c097dd3fe672cce1051361a3e10d12bf27537bb61fa0",
     "memory.maintain@1": "7e7332f071339e79ddab12ed51d4a410be0cd8c193f6e73fa057a0ad84d737ba",
     "memory.map.get@1": "2ec8af83998b8217f20fd68baf16eb399bb7491dc928ab73d29f1aa23ad77ec5",
     "memory.meaning.rank@1": "342fa1108f3c0ae5a945dc1b28127bb434caf1487a770cad1c164f358d6cd63b",
@@ -65,6 +68,7 @@
   "events": {
     "memory.archived": "9a1bb2fdb2bd07b89f9b7d331cc7ae1ec9ec8a17745f71c9b9ec71ba3a99216a",
     "memory.captured": "ca8c2bc4c03149532719b3e4956d1618542f088dfd3cff3af2b7e3284536aaa8",
+    "memory.chat_learning_changed": "6ed076c40895f31d1d9d64063ba4fab8fdd51b3a689a122bbdc776b17bdab8a0",
     "memory.erased": "17f5f971dedd03ee43525e7a75ba33d65c00d39de603f20a14e6de0ac26e7b8a",
     "memory.everything_viewed": "2527d661c15217158246e24091c3b03e4dd5d04f24f1887149f3112050775c86",
     "memory.fact_accepted": "1b01912c35a0de240d29fabb85ab74dc91527a4bb27a4ef8adee6056d060856e",

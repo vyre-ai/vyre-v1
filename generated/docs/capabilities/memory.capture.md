@@ -1,6 +1,6 @@
 # memory.capture
 
-Capture at chat end: a cheap-model pass proposes facts to the person layer; channel facts go to the project layer, Automation facts to proposed/
+Learn from a chat: after each turn on the asker's own account and cheapest model inside their daily quota, else by rules; at chat end or when quiet, by rules over what no turn pass read
 
 | | |
 |---|---|
@@ -26,7 +26,16 @@ Capture at chat end: a cheap-model pass proposes facts to the person layer; chan
 ```ts
 type In = {
   threadId: string;
-  reason: "closed" | "idle";
+  reason: "closed" | "idle" | "turn";
+  turnId?: string;
+  agentId?: string;
+  account?: {
+    ref: string;
+    driver: string;
+    kind?: string;
+    payer?: string;
+    spaceKey?: boolean;
+  };
 };
 ```
 
@@ -36,6 +45,10 @@ type In = {
 type Out = {
   proposed: number;
   merged: number;
+  updated?: number;
+  closed?: number;
+  via?: "model" | "rules" | "none";
+  skipped?: "forgotten" | "off" | "nothing_new";
 };
 ```
 
@@ -53,12 +66,25 @@ type Out = {
 {
   "name": "example",
   "input": {
+    "account": {
+      "driver": "example",
+      "kind": "example",
+      "payer": "example",
+      "ref": "example",
+      "spaceKey": true
+    },
+    "agentId": "agt_a1b2c3",
     "reason": "closed",
-    "threadId": "thr_a1b2c3"
+    "threadId": "thr_a1b2c3",
+    "turnId": "example"
   },
   "output": {
+    "closed": 1,
     "merged": 1,
-    "proposed": 1
+    "proposed": 1,
+    "skipped": "forgotten",
+    "updated": 1,
+    "via": "model"
   }
 }
 ```

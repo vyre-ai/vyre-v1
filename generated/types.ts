@@ -18484,11 +18484,43 @@ export type MemoryBacklinksOut = {
 };
 export type MemoryCaptureIn = {
   threadId: string;
-  reason: "closed" | "idle";
+  reason: "closed" | "idle" | "turn";
+  turnId?: string;
+  agentId?: string;
+  account?: {
+    ref: string;
+    driver: string;
+    kind?: string;
+    payer?: string;
+    spaceKey?: boolean;
+  };
 };
 export type MemoryCaptureOut = {
   proposed: number;
   merged: number;
+  updated?: number;
+  closed?: number;
+  via?: "model" | "rules" | "none";
+  skipped?: "forgotten" | "off" | "nothing_new";
+};
+export type MemoryChatLearningGetIn = {
+  threadId: string;
+};
+export type MemoryChatLearningGetOut = {
+  threadId: string;
+  remember: boolean;
+  by?: string;
+  at?: number;
+};
+export type MemoryChatLearningSetIn = {
+  threadId: string;
+  remember: boolean;
+};
+export type MemoryChatLearningSetOut = {
+  threadId: string;
+  remember: boolean;
+  by?: string;
+  at?: number;
 };
 export type MemoryCountsIn = {
   agentId: string;
@@ -19104,6 +19136,19 @@ export type MemoryLearnedOut = {
     }>;
   next?: string;
   total?: number;
+};
+export type MemoryLearningTodayIn = Record<string, unknown>;
+export type MemoryLearningTodayOut = {
+  day: string;
+  passes: number;
+  tokensIn: number;
+  tokensOut: number;
+  rulePasses: number;
+  capPasses: number;
+  capTokens: number;
+  resetsAt: number;
+  timezone: string;
+  state: "learning" | "rules_only";
 };
 export type MemoryMaintainIn = {
   agentId?: string;
@@ -35062,6 +35107,8 @@ export interface CapMap {
   "memory.archive_sweep": { in: MemoryArchiveSweepIn; out: MemoryArchiveSweepOut };
   "memory.backlinks": { in: MemoryBacklinksIn; out: MemoryBacklinksOut };
   "memory.capture": { in: MemoryCaptureIn; out: MemoryCaptureOut };
+  "memory.chat_learning.get": { in: MemoryChatLearningGetIn; out: MemoryChatLearningGetOut };
+  "memory.chat_learning.set": { in: MemoryChatLearningSetIn; out: MemoryChatLearningSetOut };
   "memory.counts": { in: MemoryCountsIn; out: MemoryCountsOut };
   "memory.erase": { in: MemoryEraseIn; out: MemoryEraseOut };
   "memory.export_markdown": { in: MemoryExportMarkdownIn; out: MemoryExportMarkdownOut };
@@ -35085,6 +35132,7 @@ export interface CapMap {
   "memory.layout.get": { in: MemoryLayoutGetIn; out: MemoryLayoutGetOut };
   "memory.layout.save": { in: MemoryLayoutSaveIn; out: MemoryLayoutSaveOut };
   "memory.learned": { in: MemoryLearnedIn; out: MemoryLearnedOut };
+  "memory.learning.today": { in: MemoryLearningTodayIn; out: MemoryLearningTodayOut };
   "memory.maintain": { in: MemoryMaintainIn; out: MemoryMaintainOut };
   "memory.map.get": { in: MemoryMapGetIn; out: MemoryMapGetOut };
   "memory.meaning.rank": { in: MemoryMeaningRankIn; out: MemoryMeaningRankOut };
@@ -37510,6 +37558,11 @@ export type MemoryCapturedPayload = {
   proposed: number;
   merged: number;
 };
+export type MemoryChatLearningChangedPayload = {
+  threadId: string;
+  remember: boolean;
+  by: string;
+};
 export type MemoryErasedPayload = {
   count: number;
   by: string;
@@ -39797,6 +39850,7 @@ export interface EventMap {
   "member.removed": MemberRemovedPayload;
   "memory.archived": MemoryArchivedPayload;
   "memory.captured": MemoryCapturedPayload;
+  "memory.chat_learning_changed": MemoryChatLearningChangedPayload;
   "memory.erased": MemoryErasedPayload;
   "memory.everything_viewed": MemoryEverythingViewedPayload;
   "memory.fact_accepted": MemoryFactAcceptedPayload;

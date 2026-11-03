@@ -1491,6 +1491,10 @@ export function stubs(ctx: CallCtx) {
       archive_sweep: call("memory.archive_sweep"),
       backlinks: call("memory.backlinks"),
       capture: call("memory.capture"),
+      chat_learning: {
+        get: call("memory.chat_learning.get"),
+        set: call("memory.chat_learning.set"),
+      },
       counts: call("memory.counts"),
       erase: call("memory.erase"),
       export_markdown: call("memory.export_markdown"),
@@ -1526,6 +1530,9 @@ export function stubs(ctx: CallCtx) {
         save: call("memory.layout.save"),
       },
       learned: call("memory.learned"),
+      learning: {
+        today: call("memory.learning.today"),
+      },
       maintain: call("memory.maintain"),
       map: {
         get: call("memory.map.get"),

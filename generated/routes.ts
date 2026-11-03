@@ -19623,6 +19623,42 @@ const routes3: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/memory/chat_learning/get",
+    "cap": "memory.chat_learning.get",
+    "v": 1,
+    "module": "memory",
+    "effects": "read",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/memory/chat_learning/set",
+    "cap": "memory.chat_learning.set",
+    "v": 1,
+    "module": "memory",
+    "effects": "write",
+    "permission": null,
+    "level": "edit",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/memory/counts",
     "cap": "memory.counts",
     "v": 1,
@@ -20021,6 +20057,24 @@ const routes3: Route[] = [
     "method": "POST",
     "path": "/v1/memory/learned",
     "cap": "memory.learned",
+    "v": 1,
+    "module": "memory",
+    "effects": "read",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/memory/learning/today",
+    "cap": "memory.learning.today",
     "v": 1,
     "module": "memory",
     "effects": "read",
@@ -22061,7 +22115,10 @@ const routes3: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": "send"
-  },
+  }
+];
+
+const routes4: Route[] = [
   {
     "method": "POST",
     "path": "/v1/ms/mail/subscribe",
@@ -22118,10 +22175,7 @@ const routes3: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": "none"
-  }
-];
-
-const routes4: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/ms/receive_notification",
@@ -27580,7 +27634,10 @@ const routes4: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes5: Route[] = [
   {
     "method": "POST",
     "path": "/v1/sheets/read_rows",
@@ -27637,10 +27694,7 @@ const routes4: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  }
-];
-
-const routes5: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/sites/artifact_open",
@@ -33117,7 +33171,10 @@ const routes5: Route[] = [
     "offline": "online",
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes6: Route[] = [
   {
     "method": "POST",
     "path": "/v1/vault/item/update",
@@ -33173,10 +33230,7 @@ const routes5: Route[] = [
     "offline": "online",
     "teamOnly": false,
     "gate": "secret_export"
-  }
-];
-
-const routes6: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/vault/items/list",

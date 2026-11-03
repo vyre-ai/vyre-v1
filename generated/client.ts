@@ -1491,6 +1491,10 @@ export function createClient(transport: Transport) {
       archive_sweep: call("memory.archive_sweep", 1),
       backlinks: call("memory.backlinks", 1),
       capture: call("memory.capture", 1),
+      chat_learning: {
+        get: call("memory.chat_learning.get", 1),
+        set: call("memory.chat_learning.set", 1),
+      },
       counts: call("memory.counts", 1),
       erase: call("memory.erase", 1),
       export_markdown: call("memory.export_markdown", 1),
@@ -1526,6 +1530,9 @@ export function createClient(transport: Transport) {
         save: call("memory.layout.save", 1),
       },
       learned: call("memory.learned", 1),
+      learning: {
+        today: call("memory.learning.today", 1),
+      },
       maintain: call("memory.maintain", 1),
       map: {
         get: call("memory.map.get", 1),

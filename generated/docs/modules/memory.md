@@ -4,11 +4,13 @@ Lane L2. Kind module. Version 0.1.0.
 
 Requires: projects.
 
-## Capabilities (60)
+## Capabilities (63)
 
 - [memory.archive_sweep](../capabilities/memory.archive_sweep.md): Daily job: move facts untouched in Trash for the Space setting (30 to 90 days, default 60) to Archive
 - [memory.backlinks](../capabilities/memory.backlinks.md): Where a page is linked from: other pages, chats, runs and records, each with the line that names it; only places the reader can open
-- [memory.capture](../capabilities/memory.capture.md): Capture at chat end: a cheap-model pass proposes facts to the person layer; channel facts go to the project layer, Automation facts to proposed/
+- [memory.capture](../capabilities/memory.capture.md): Learn from a chat: after each turn on the asker's own account and cheapest model inside their daily quota, else by rules; at chat end or when quiet, by rules over what no turn pass read
+- [memory.chat_learning.get](../capabilities/memory.chat_learning.get.md): Whether a chat is remembered: off means nothing is learned from it
+- [memory.chat_learning.set](../capabilities/memory.chat_learning.set.md): Don't remember this chat: anyone in it turns learning off; who turned it off, or who started the chat, turns it back on
 - [memory.counts](../capabilities/memory.counts.md): Counts for the agent strip: current facts, proposed facts, facts from the caller and facts merged on their own
 - [memory.erase](../capabilities/memory.erase.md): Erase completely: delete facts from history; open to the source person or an admin; the audit entry records who and when, never what
 - [memory.export_markdown](../capabilities/memory.export_markdown.md): The whole brain the reader can see as one Markdown document: pages with their facts, Notes and links, then the facts no page names; personal memory only when asked, and only the reader's own
@@ -32,6 +34,7 @@ Requires: projects.
 - [memory.layout.get](../capabilities/memory.layout.get.md): Saved node positions for a graph
 - [memory.layout.save](../capabilities/memory.layout.save.md): Save node positions for a graph
 - [memory.learned](../capabilities/memory.learned.md): The Learned feed: what memory learned, newest first, with its source and who learned it, for what the reader can see; each row can be undone
+- [memory.learning.today](../capabilities/memory.learning.today.md): What learning from your chats used today against your daily quota (model passes and input tokens), when it resets, and whether it learns with a model or by rules until then
 - [memory.maintain](../capabilities/memory.maintain.md): Upkeep, nightly or on demand: merge duplicates into Trash, flag contradictions and old facts as questions, close expired facts, and with a memory key let a model do the rest; rewrite MAP.md for each agent
 - [memory.map.get](../capabilities/memory.map.get.md): The MAP.md block of an agent as the nightly job last wrote it (agent layer only, never personal memory); absent before the first night
 - [memory.meaning.rank](../capabilities/memory.meaning.rank.md): Rank texts the caller already holds (chat messages, say) against a question by meaning; nothing is stored, so private text is safe; a score is 0 when unrelated and 0.5 to 1 when related, and the list is empty when the model is not ready
@@ -67,10 +70,11 @@ Requires: projects.
 - [memory.used](../capabilities/memory.used.md): What recall put in front of the agent for one message: the facts and the exact quotes, each read again now under your access (a fact since deleted, or a chat closed to you, is not shown); for the "Used N memories" line and "Show what the agent knew here"
 - [memory.versions](../capabilities/memory.versions.md): List versions of a shared memory note (One History)
 
-## Events (20)
+## Events (21)
 
 - [memory.archived](../events/memory.archived.md): Facts untouched in Trash moved to Archive
 - [memory.captured](../events/memory.captured.md): Capture ran for a thread
+- [memory.chat_learning_changed](../events/memory.chat_learning_changed.md): Don't remember this chat was turned on or off
 - [memory.erased](../events/memory.erased.md): Facts were erased from history (who and when only)
 - [memory.everything_viewed](../events/memory.everything_viewed.md): An admin opened the everything graph view
 - [memory.fact_accepted](../events/memory.fact_accepted.md): A proposed fact became current
