@@ -61,7 +61,7 @@ export interface GoogleHost {
   userApp(ctx: GoogleCtx, handle: string): Promise<{ clientId: string; hasSecret: boolean }>;
   userPublicUrl(ctx: GoogleCtx): Promise<string>;
   userExchange(ctx: GoogleCtx, a: { appHandle: string; code: string; verifier: string; redirectUri: string }): Promise<{ refreshToken: string; accessToken: string; expiresAt: number }>;
-  userRefresh(ctx: GoogleCtx, a: { appHandle: string; refreshToken: string; cacheKey: string; fresh?: boolean }): Promise<{ token: string; expiresAt: number }>;
+  userRefresh(ctx: GoogleCtx, a: { appHandle: string; refreshToken: string; cacheKey: string; fresh?: boolean }): Promise<{ token: string; expiresAt: number; /** The new refresh token when the provider rotated it (Microsoft does on every refresh): the caller keeps it in place of the old one. */ refreshToken?: string }>;
 }
 
 let host: GoogleHost | null = null;
@@ -258,7 +258,10 @@ export function userAppHandle(ctx: GoogleCtx): string {
 async function userToken(ctx: GoogleCtx, accountId: string, fresh: boolean): Promise<string> {
   const a = userAccount(ctx, accountId);
   const refreshToken = new TextDecoder().decode(ctx.seal.unseal(JSON.parse(a.refreshSealed) as Sealed));
-  return (await needHost(ctx).userRefresh(ctx, { appHandle: userAppHandle(ctx), refreshToken, cacheKey: accountId, ...(fresh ? { fresh: true } : {}) })).token;
+  const got = await needHost(ctx).userRefresh(ctx, { appHandle: userAppHandle(ctx), refreshToken, cacheKey: accountId, ...(fresh ? { fresh: true } : {}) });
+  // a rotated refresh token replaces the old one, sealed as before, so the sign-in does not lapse when the old one expires
+  if (got.refreshToken) ctx.db.run(`UPDATE google_user_account SET "refreshSealed" = ? WHERE "accountId" = ?`, JSON.stringify(ctx.seal.seal(new TextEncoder().encode(got.refreshToken), "google.user.refresh")), accountId);
+  return got.token;
 }
 
 /** Who the call acts as: the caller's own mapped address. Only the host's own services act for a named member, and the setup probes for the admin address. A role never reaches a teammate's mailbox. */

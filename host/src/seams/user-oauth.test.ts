@@ -101,3 +101,15 @@ test("userRefresh: an empty token, a rejected one, a dead network and a server e
   const wrong = createUserOauth(w.deps, { ...GOOGLE, tokenUrl: () => "https://evil.test/token" });
   await assert.rejects(wrong.userRefresh(w.ctx, { ...a, refreshToken: "r" }), code("permission.no_grant"));
 });
+
+test("userRefresh: a new refresh token Microsoft sends with the access token is handed back to be kept; the same one or none is not (vault audit, Broken 11)", async () => {
+  const w = world({ replies: [ok({ access_token: "acc-1", expires_in: 3600, refresh_token: "ref-2" }), ok({ access_token: "acc-2", expires_in: 3600, refresh_token: "ref-2" }), ok({ access_token: "acc-3", expires_in: 3600 })] });
+  const seam = createUserOauth(w.deps, MS);
+  const first = await seam.userRefresh(w.ctx, { appHandle: "#App", refreshToken: "ref-1", cacheKey: "mua_1", fresh: true });
+  assert.deepEqual([first.token, first.refreshToken], ["acc-1", "ref-2"], "rotated: the new one comes back");
+  const same = await seam.userRefresh(w.ctx, { appHandle: "#App", refreshToken: "ref-2", cacheKey: "mua_1", fresh: true });
+  assert.equal(same.refreshToken, undefined, "the one already kept is not handed back again");
+  const none = await seam.userRefresh(w.ctx, { appHandle: "#App", refreshToken: "ref-2", cacheKey: "mua_1", fresh: true });
+  assert.equal(none.refreshToken, undefined);
+  assert.equal(form(w.sent[1]!.body).get("refresh_token"), "ref-2");
+});
