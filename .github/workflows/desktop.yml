@@ -314,6 +314,26 @@ jobs:
         shell: powershell
         continue-on-error: true
         run: spikes/win-appcontainer/run.ps1
+      - name: "Option B: does a WSL2 distro boot here, and does bubblewrap run in it (spike)"
+        if: always()
+        shell: powershell
+        continue-on-error: true
+        timeout-minutes: 15
+        run: |
+          $env:WSL_UTF8 = "1"
+          $tar = Join-Path $env:RUNNER_TEMP "alpine.tar.gz"
+          Invoke-WebRequest -UseBasicParsing https://dl-cdn.alpinelinux.org/alpine/v3.22/releases/x86_64/alpine-minirootfs-3.22.7-x86_64.tar.gz -OutFile $tar
+          if ((Get-FileHash $tar -Algorithm SHA256).Hash.ToLower() -ne "57e364a241bab0699cd8a760c0fd7b270e9cbcbd3cee822cb2b07ca6d925c16c") { throw "rootfs sum" }
+          $t0 = Get-Date
+          wsl.exe --import vyre-spike (Join-Path $env:RUNNER_TEMP "wsl-vyre") $tar --version 2 2>&1 | Out-String
+          "import took $([int]((Get-Date) - $t0).TotalSeconds) s"
+          wsl.exe -l -v 2>&1 | Out-String
+          $t0 = Get-Date
+          wsl.exe -d vyre-spike -- uname -a 2>&1 | Out-String
+          "first boot took $([int]((Get-Date) - $t0).TotalSeconds) s"
+          wsl.exe -d vyre-spike -- sh -c "apk add --no-cache bubblewrap >/dev/null 2>&1; bwrap --version; bwrap --ro-bind / / --unshare-all --die-with-parent sh -c 'echo inside bwrap; cat /proc/self/uid_map'; echo bwrap exit \$?" 2>&1 | Out-String
+          wsl.exe -d vyre-spike -- sh -c "ls /mnt/c/Users | head -3; cat /etc/os-release | head -2" 2>&1 | Out-String
+          wsl.exe --unregister vyre-spike 2>&1 | Out-String
       - name: "Option E: a Low-integrity token and a Job Object (spike)"
         if: always()
         shell: powershell
