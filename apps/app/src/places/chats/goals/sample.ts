@@ -16,14 +16,14 @@ export function sampleGoals(now: number, state: SampleState = "active"): { page:
     ...(state === "missed" || state === "done" || state === "draft" || state === "paused" ? {} : { nextCheckinAt: now + 20 * HOUR }),
     progress: { value, target: 300, start: 96, percent: Math.round(((value - 96) / (300 - 96)) * 100), readAt: now - 4 * 60_000, tasksDone: state === "done" ? 5 : 3, tasks: 5 },
     projectId: "prj_lab8", updatedAt: now - 10 * 60_000,
-    finish: { kind: "number", line: "Luma registrations for Lab 8 reach 300 by Fri 7 Nov, 18:00", target: 300, unit: "registrations", source: { kind: "connection", label: "Luma, Lab 8 event" } },
+    finish: { kind: "number", line: "Luma registrations for Lab 8 reach 300", target: 300, unit: "registrations", source: { kind: "connection", label: "Luma, Lab 8 event" } },
     helpers: [{ kind: "agent", id: "agt_content" }, { kind: "person", id: "usr_aliza" }], recordIds: [], budget: { spendMicros: 25_000_000, turns: 200 },
     rhythm: { every: "day", at: "09:00" }, zone: "Asia/Karachi", quiet: { from: "22:00", to: "08:00" },
     permissions: [{ act: "post", target: "skool", label: "Post in the MLA AI Labs community", granted: true }, { act: "send", target: "mail.send", label: "Send email from the Lab template to Lab 8 registrants", granted: true }],
     rootTaskId: "tsk_root", folderId: "fld_goal", lastCheckinAt: now - 4 * HOUR, checkins: 4,
     spentMicros: state === "budget" ? 20_500_000 : state === "paused" ? 25_100_000 : state === "done" ? 14_800_000 : 4_100_000, turns: state === "budget" ? 164 : state === "paused" ? 151 : state === "done" ? 118 : 38,
     stuckAfter: 3, createdBy: "usr_irfad", createdAt: created,
-    ...(state === "missed" ? { ended: "missed" as const, endedAt: now - 2 * HOUR, summary: "Got to 268 of 300 registrations (84%) by the deadline, Fri 7 Nov, 18:00. 4 of 5 tasks done. Still open: Retarget the Lab 8 lead form. Used $18.20 of $25, 151 of 200 turns.",
+    ...(state === "missed" ? { ended: "missed" as const, endedAt: now - 2 * HOUR, summary: "Got to 268 of 300 registrations (84%) by the deadline. 4 of 5 tasks done. Still open: Retarget the Lab 8 lead form. Used $18.20 of $25, 151 of 200 turns.",
       retro: { summary: "Reminders moved it most; the held email cost three days.", worked: ["Reminder to Lab 7 attendees: +41 in a day", "Newsletter and two community posts: +45"], didNot: ["The reminder waited on approval from Mon to Thu", "Retargeting started Wed, too late"] } } : {}),
     ...(state === "done" ? { ended: "done" as const, endedAt: now - 2 * HOUR, summary: "Reached 301 of 300 registrations (100%). 5 of 5 tasks done. Used $14.80 of $25, 118 of 200 turns.",
       retro: { summary: "Reached a day early.", worked: ["Reminder to Lab 7 attendees: +41 in a day, the biggest single step", "Newsletter and two community posts: +52", "Reels and retargeting: +23"], didNot: [] } } : {}),
@@ -47,7 +47,7 @@ export function sampleGoals(now: number, state: SampleState = "active"): { page:
     { at: now - 26 * HOUR, kind: "waiting", text: "Waiting: Approve: email to 1,240 Lab 7 attendees", ref: "tsk_hold" },
     { at: now - 2 * DAY, kind: "task", text: "Done: VY-312 Post Lab 8 in the MLA AI Labs community", ref: "tsk_skool" },
     { at: now - 4 * DAY, kind: "plan", text: "Planned VY-311 Remind Lab 7 attendees who have not registered. Why: past attendees registered at 31% after one reminder. Expected: +40 to +60", ref: "tsk_rem" },
-    { at: now - 5 * DAY, kind: "started", text: "Started. Finish line: Luma registrations for Lab 8 reach 300 by Fri 7 Nov, 18:00." },
+    { at: now - 5 * DAY, kind: "started", text: "Started. Finish line: Luma registrations for Lab 8 reach 300." },
   ];
   const page: GoalPageData = { goal: state === "draft" ? { ...goal, status: "draft", permissions: goal.permissions.map((p) => ({ ...p, granted: false })) } : goal, tasks: state === "draft" ? [] : tasks, waiting, activity, readings };
   const line = (g: Goal): GoalLine => ({ id: g.id, title: g.title, status: g.status, ...(g.statusReason ? { statusReason: g.statusReason } : {}), owner: g.owner, leadAgentId: g.leadAgentId, deadline: g.deadline, ...(g.nextCheckinAt ? { nextCheckinAt: g.nextCheckinAt } : {}), progress: g.progress, updatedAt: g.updatedAt });

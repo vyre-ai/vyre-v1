@@ -1,6 +1,6 @@
 // Goals module (lane L6). The handlers, what it reads from the event log, and its clock.
 import { handlers } from "./handlers/index.ts";
-import { onMention, onTask, onTurn, onWaiting, sweep } from "./handlers/events.ts";
+import { onMention, onMessage, onTask, onTurn, onWaiting, sweep } from "./handlers/events.ts";
 import type { GoalsCtx } from "./projections.ts";
 
 export { handlers };
@@ -25,4 +25,6 @@ export const consumers = {
   "goals.waiting": { on: ["turn.waiting"], run: (ctx: GoalsCtx, event: Ev): Promise<string[]> => onWaiting(ctx, event) },
   /** A person mentioned in a goal's chat may read its folder. */
   "goals.mention": { on: ["message.mentioned"], run: (ctx: GoalsCtx, event: Ev): Promise<string[]> => onMention(ctx, event) },
+  /** Files dropped in a goal chat are kept in the goal's folder. */
+  "goals.drops": { on: ["message.received"], run: (ctx: GoalsCtx, event: Ev): Promise<string[]> => onMessage(ctx, event) },
 };

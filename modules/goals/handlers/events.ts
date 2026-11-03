@@ -1,7 +1,7 @@
 // What the goals module reads from the event log: its tasks moving, turns in its chats (budget), turns parked on a person (waiting), mentions (folder access). Each is safe to read twice.
 import { ENDED, LIVE, addTask, addThread, allGoals, dispatch, ensure, getGoal, goalOfTask, goalOfThread, note, queueWake, rootOf, saveGoal, setStatus, threadsOf } from "../projections.ts";
 import type { Goal, GoalsCtx, Who } from "../projections.ts";
-import { addWait, dropWait, setTaskState, spend, syncGrants, tick, tickFromTask, tryCall, unstick } from "./life.ts";
+import { addWait, dropWait, ensureFolder, setTaskState, spend, syncGrants, tick, tickFromTask, tryCall, unstick } from "./life.ts";
 
 type Obj = Record<string, unknown>;
 interface Ev { name: string; id?: string; payload: Obj }
@@ -62,6 +62,7 @@ export async function onTask(ctx: GoalsCtx, ev: Ev): Promise<string[]> {
     if (to === "done" && ev.name !== "task.transitioned") {
       const t = await read();
       note(ctx, g.id, "task", `Done: ${t?.key ? `${t.key} ` : ""}${t?.title ?? taskId}`, taskId);
+      await keepOutputs(ctx, g, taskId);
       await tickFromTask(ctx, g, taskId);
       if (LIVE.has(g.status)) queueWake(ctx, g, "task_done", `Done: ${t?.title ?? taskId}`, `task:${taskId}:done`);
     }
@@ -123,3 +124,36 @@ export async function sweep(ctx: GoalsCtx): Promise<string[]> {
   return ids;
 }
 export const goalThreads = threadsOf;
+
+/** A finished task's outputs land in the goal's folder, a copy each, once. The task keeps its own. */
+export async function keepOutputs(ctx: GoalsCtx, g: Goal, taskId: string): Promise<number> {
+  if (!g.folderId) return 0;
+  const t = (await tryCall<{ task?: { fileIds?: string[]; title?: string } }>(ctx, "tasks.get", { taskId }))?.task;
+  let n = 0;
+  for (const fileId of (t?.fileIds ?? []).slice(0, 20)) {
+    if (await tryCall(ctx, "files.copy", { fileId, toFolderId: g.folderId, idempotencyKey: `goal-out:${g.id}:${fileId}` })) n++;
+  }
+  if (n > 0) note(ctx, g.id, "files", `Kept ${n} file${n === 1 ? "" : "s"} from "${t?.title ?? taskId}" in the goal's folder.`, taskId);
+  return n;
+}
+
+/** Files people drop into the goal chat are kept in the goal's folder too. */
+export async function onMessage(ctx: GoalsCtx, ev: Ev): Promise<string[]> {
+  const threadId = str(ev.payload["threadId"]), messageId = str(ev.payload["messageId"]);
+  const goalId = threadId ? goalOfThread(ctx.db, threadId) : undefined;
+  if (!goalId || !messageId) return [];
+  const author = ev.payload["author"] as { kind?: string } | undefined;
+  if (author?.kind !== "person") return [];
+  const g = getGoal(ctx.db, goalId);
+  if (!g) return [];
+  const m = (await tryCall<{ message?: { attachments?: string[] } }>(ctx, "chat.message.get", { threadId, messageId }))?.message;
+  const files = (m?.attachments ?? []).slice(0, 20);
+  if (files.length === 0) return [];
+  if (!g.folderId) await ensureFolder(ctx, g);
+  if (!g.folderId) return [];
+  let n = 0;
+  for (const fileId of files) if (await tryCall(ctx, "files.copy", { fileId, toFolderId: g.folderId, idempotencyKey: `goal-drop:${g.id}:${fileId}` })) n++;
+  if (n > 0) note(ctx, g.id, "files", `Kept ${n} file${n === 1 ? "" : "s"} dropped in the goal chat in the goal's folder.`, messageId);
+  saveGoal(ctx, g);
+  return [g.id];
+}

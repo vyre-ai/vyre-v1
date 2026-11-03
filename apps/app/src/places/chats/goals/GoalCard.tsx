@@ -8,7 +8,7 @@ import { useFollow } from "../conversation/use-follow.ts";
 import type { Changes } from "../conversation/use-follow.ts";
 import { Bar, TONE } from "./GoalRow.tsx";
 import { Btn, Icon } from "./GoalPage.tsx";
-import { delta, fmt, statusOf } from "./model.ts";
+import { delta, fmt, lineWithDue, statusOf } from "./model.ts";
 import type { GoalBlock, Progress, Status } from "./model.ts";
 
 export { goalBlockOf } from "./model.ts";
@@ -47,7 +47,7 @@ export function GoalCard({ block, call, changes, openGoal, me }: { block: GoalBl
       <Pressable accessibilityRole="link" accessibilityLabel={`Open the goal ${block.title}`} onPress={() => openGoal?.(block.goalId)} testID={`goal-card-open-${block.goalId}`}>
         <Text style={st.title}>{block.title}</Text>
       </Pressable>
-      <Text style={st.small}>{block.line}</Text>
+      <Text style={st.small}>{lineWithDue(block.line, live?.deadline ?? block.deadline, -new Date().getTimezoneOffset())}</Text>
       {value !== undefined && target !== undefined ? (
         <View style={st.num}>
           <Text style={st.big}>{fmt(value)}</Text><Text style={st.of}>{`/ ${fmt(target)}${block.unit ? ` ${block.unit}` : ""}`}</Text>

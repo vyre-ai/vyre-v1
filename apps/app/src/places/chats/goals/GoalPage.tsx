@@ -17,7 +17,7 @@ import type { Changes } from "../conversation/use-follow.ts";
 import { useGoal } from "./data.ts";
 import type { Call } from "./data.ts";
 import { Bar, TONE } from "./GoalRow.tsx";
-import { ENDED, LIVE, budgetOf, byDay, chartOf, fmt, fractionOf, leftWords, numberOf, rhythmWords, statusOf, taskWord, whenWords } from "./model.ts";
+import { ENDED, LIVE, budgetOf, byDay, chartOf, dueWords, fmt, lineWithDue, fractionOf, leftWords, numberOf, rhythmWords, statusOf, taskWord, whenWords } from "./model.ts";
 import type { Goal, GoalPageData, TaskLine, Tone, WaitLine } from "./model.ts";
 
 export interface GoalPageProps {
@@ -151,7 +151,7 @@ function Head({ g, me, nameOf, now, offsetMin, run, menu, showPane, openAgent, f
     <View>
       <View style={st.kicker}><Icon name="target" size={13} /><Text style={st.kickerText}>Goal</Text></View>
       <Text testID="goal-title" accessibilityRole="header" style={[st.h1, phone && st.h1Phone]}>{g.title}</Text>
-      <Text testID="goal-finish" style={st.finish}>{g.finish.line}</Text>
+      <Text testID="goal-finish" style={st.finish}>{lineWithDue(g.finish.line, g.deadline, offsetMin)}</Text>
       <View style={st.meta}>
         <Text testID="goal-status" style={[st.metaText, { color: TONE[s.tone] as string, fontWeight: s.tone === "plain" ? "400" : "600" }]}>{s.word}</Text>
         <Pressable accessibilityRole="link" accessibilityLabel={`Open ${nameOf(g.leadAgentId)}`} onPress={() => openAgent(g.leadAgentId)} style={st.metaItem}>
@@ -159,7 +159,7 @@ function Head({ g, me, nameOf, now, offsetMin, run, menu, showPane, openAgent, f
         </Pressable>
         <View style={st.metaItem}><Avatar {...avatarOf({ id: g.owner, name: nameOf(g.owner), kind: "person" })} size={18} /><Text style={st.metaText}>{`${g.owner === me ? "You own it" : `${nameOf(g.owner)} owns it`}`}</Text></View>
         {live && g.nextCheckinAt ? <View style={st.metaItem}><Icon name="clock" /><Text style={st.metaText}>{`Check-in ${whenWords(g.nextCheckinAt, now, offsetMin)}`}</Text></View> : null}
-        <View style={st.metaItem}><Icon name="cal" /><Text style={st.metaText}>{ENDED.has(g.status) ? `Ended ${whenWords(g.endedAt ?? now, now, offsetMin)}` : `Due ${whenWords(g.deadline, now, offsetMin)}`}</Text></View>
+        <View style={st.metaItem}><Icon name="cal" /><Text style={st.metaText}>{ENDED.has(g.status) ? `Ended ${whenWords(g.endedAt ?? now, now, offsetMin)}` : `Due ${dueWords(g.deadline, offsetMin)}`}</Text></View>
       </View>
       {ENDED.has(g.status) ? null : (
         <View style={st.controls}>
@@ -269,13 +269,22 @@ function ChartView({ data, now }: { data: GoalPageData; now: number }): ReactEle
   const e = createElement;
   return (
     <View testID="goal-chart" style={st.chart} accessibilityLabel={`Progress over time, now ${numberOf(data.goal.progress)}`}>
+      <View style={st.plotRow}>
+      <View style={[st.axis, { height: h }]}>
+        {/* ui-rows-lint: not a list (the chart's axis labels) */}
+        {c.ticks.map((t) => <Text key={t.value} style={[st.tick, { top: t.y - 7 }]}>{fmt(t.value)}</Text>)}
+      </View>
+      <View style={{ flex: 1 }}>
       {e("svg", { viewBox: `0 0 ${w} ${h}`, width: "100%", height: h, preserveAspectRatio: "none", "aria-hidden": true, style: { display: "block" } },
+        ...c.ticks.map((t) => e("line", { key: `tk${t.value}`, x1: 0, x2: w, y1: t.y, y2: t.y, stroke: "var(--line)", strokeOpacity: 0.5 })),
         e("line", { key: "t", x1: 0, x2: w, y1: c.targetY, y2: c.targetY, stroke: "var(--line)", strokeDasharray: "3 4" }),
         e("path", { key: "p", d: c.pace, fill: "none", stroke: "var(--ink-4)", strokeDasharray: "2 4", strokeWidth: 1 }),
         e("line", { key: "d", x1: c.deadlineX, x2: c.deadlineX, y1: 0, y2: h, stroke: "var(--line)" }),
         e("path", { key: "a", d: c.area, fill: "var(--accent-wash)", stroke: "none" }),
         e("path", { key: "l", d: c.line, fill: "none", stroke: "var(--accent)", strokeWidth: 2, strokeLinejoin: "round" }),
       )}
+      </View>
+      </View>
       <View style={st.chartLegend}><Text style={st.tiny}>Target</Text><Text style={st.tiny}>Dashed: the pace to reach it by the deadline</Text></View>
     </View>
   );
@@ -380,7 +389,7 @@ function Details({ g, nameOf, offsetMin, now, run, menu }: { g: Goal; nameOf(id:
       ) : <Btn label="Change the target" icon="edit" onPress={() => setEditing(true)} testID="goal-target-edit" />) : null}
       <Text style={st.small}>{`Read from ${g.finish.source?.label ?? g.finish.source?.kind ?? "the goal itself"}. Progress comes from the source only, never from what an agent says.`}</Text>
       <Text style={st.label}>Deadline</Text>
-      <Text style={st.body}>{whenWords(g.deadline, now, offsetMin)}</Text>
+      <Text style={st.body}>{dueWords(g.deadline, offsetMin)}</Text>
       <Btn label="Extend" onPress={(e) => { const at = pointAt(e); menu.show(extendEntries(g, run), at.x, at.y, "other", { label: "Extend" }); }} />
       <Text style={st.label}>Check-ins</Text>
       <Text style={st.body}>{rhythmWords(g)}</Text>
@@ -462,6 +471,9 @@ const st = StyleSheet.create({
   numRight: { alignItems: "flex-end" },
   pct: { color: "var(--ink)" as string, fontSize: 18, fontWeight: "600", fontVariant: ["tabular-nums"] },
   chart: { marginTop: 8 },
+  plotRow: { flexDirection: "row" },
+  axis: { width: 30, position: "relative" },
+  tick: { position: "absolute", right: 6, color: "var(--ink-4)" as string, fontSize: 10, lineHeight: 14, fontVariant: ["tabular-nums"] },
   chartLegend: { flexDirection: "row", justifyContent: "space-between", marginTop: 4 },
   list: { marginTop: 6 },
   section: { marginTop: 10 },

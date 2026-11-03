@@ -399,7 +399,7 @@ export function goalOut(g: Goal, tasks: { done: number; total: number }): Record
 }
 export function lineOut(g: Goal, tasks: { done: number; total: number }): Record<string, unknown> {
   return clean({
-    id: g.id, title: g.title, status: g.status, statusReason: g.statusReason, owner: g.owner, leadAgentId: g.leadAgentId, threadId: g.threadId, deadline: g.deadline,
+    id: g.id, title: g.title, status: g.status, statusReason: g.statusReason, owner: g.owner, leadAgentId: g.leadAgentId, threadId: g.threadId, folderId: g.folderId, deadline: g.deadline,
     nextCheckinAt: LIVE.has(g.status) ? g.nextCheckinAt : undefined, progress: progressOf(g, tasks), projectId: g.projectId, updatedAt: g.updatedAt,
   });
 }

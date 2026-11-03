@@ -55,7 +55,7 @@ function Inner({ search }: { search: string }): ReactNode {
 
 function Cards({ call, now }: { call: (cap: string, input: unknown) => Promise<unknown>; now: number }): ReactNode {
   const cards = useMemo(() => {
-  const base = { goalId: "gol_lab8", threadId: "thr_goal", title: "300 registrations for Lab 8", line: "Luma registrations for Lab 8 reach 300 by Fri 7 Nov, 18:00", unit: "registrations", deadline: now + 3 * 86_400_000 };
+  const base = { goalId: "gol_lab8", threadId: "thr_goal", title: "300 registrations for Lab 8", line: "Luma registrations for Lab 8 reach 300", unit: "registrations", deadline: now + 3 * 86_400_000 };
   const blocks: GoalBlock[] = [
     { ...base, kind: "draft", status: "draft", target: 300, plan: ["Remind Lab 7 attendees who have not registered (31% registered after one reminder last time)", "Post Lab 8 in the community (the last post brought most first-time registrations)", "Ask Aliza for two reels from the Lab 7 recording"], permissions: ["Post in the MLA AI Labs community", "Send email from the Lab template to Lab 8 registrants"] },
     { ...base, kind: "update", status: "active", value: 212, prev: 194, target: 300, summary: "212, behind pace by 30. The Skool post brought 11 and the reels 7. The Lab 7 reminder is the biggest lever left and waits on your approval.", done: ["Posted Lab 8 in the community", "Aliza's two reels went out"], next: ["Send the Lab 7 reminder once you approve", "Start retargeting the lead form"], needs: ["Approve: email to 1,240 Lab 7 attendees"] },

@@ -2,7 +2,7 @@
 // records, memory). The stand-ins keep just enough state for the goal to read back what it did: tasks with states and parents, folders, shares, grants, posts.
 import { scopedDb } from "../../../host/src/ctx/db.ts";
 import { handlers } from "../impl.ts";
-import { onMention, onTask, onTurn, onWaiting, sweep } from "../handlers/events.ts";
+import { onMention, onMessage, onTask, onTurn, onWaiting, sweep } from "../handlers/events.ts";
 import type { Db, GoalsCtx } from "../projections.ts";
 
 const { DatabaseSync } = process.getBuiltinModule("node:sqlite");
@@ -12,7 +12,7 @@ export const T0 = Date.UTC(2026, 10, 3, 5, 0);
 export const HOUR = 3_600_000, DAY = 24 * HOUR;
 
 type Obj = Record<string, any>;   // eslint-disable-line @typescript-eslint/no-explicit-any
-export interface FakeTask { id: string; kind: string; title: string; state: string; parentTaskId?: string; threadId?: string; key?: string; assigned?: Obj; workingNotes: Record<string, string>; createdBy: string; summary?: string }
+export interface FakeTask { fileIds?: string[]; id: string; kind: string; title: string; state: string; parentTaskId?: string; threadId?: string; key?: string; assigned?: Obj; workingNotes: Record<string, string>; createdBy: string; summary?: string }
 export interface Caller { id: string; kind?: "person" | "agent" | "service"; actingFor?: string; origin?: string; depth?: number }
 export const owner: Caller = { id: OWNER, kind: "person", origin: "app" };
 export const lead: Caller = { id: LEAD, kind: "agent", actingFor: OWNER };
@@ -67,6 +67,8 @@ export function world(o: { count?: number; failRead?: string } = {}) {
     "files.list": (i) => ({ files: [], folders: [...state.folders.entries()].filter(([, f]) => f.parent === i.folder).map(([folderId, f]) => ({ folderId, name: f.name })) }),
     "files.folder.create": (i) => { const id = next("fld"); state.folders.set(id, { name: i.name, parent: i.parentId }); return { folder: { folderId: id, name: i.name } }; },
     "files.folder.rename": (i) => { const f = state.folders.get(i.folderId); if (f) f.name = i.name; return { folder: { folderId: i.folderId, name: i.name } }; },
+    "files.copy": (i) => { state.files.push({ folderId: i.toFolderId, name: `copy of ${i.fileId}`, text: "" }); return { file: { fileId: next("fil") } }; },
+    "chat.message.get": (i) => ({ message: { messageId: i.messageId, attachments: i.messageId === "msg_drop" ? ["fil_brief", "fil_list"] : [] } }),
     "files.create": (i) => { state.files.push({ folderId: i.folderId, name: i.name, text: i.content?.text ?? "" }); return { file: { fileId: next("fil") } }; },
     "access.share": (i) => { if (!state.shares.some((s) => s.resource.id === i.resource.id && s.subject.id === i.subject.id && s.source === i.source)) state.shares.push({ resource: i.resource, subject: i.subject, level: i.level, source: i.source }); return { grant: {} }; },
     "access.unshare": (i) => { const before = state.shares.length; state.shares = state.shares.filter((s) => !(s.resource.id === i.resource.id && s.source === i.source)); return { revoked: before - state.shares.length }; },
@@ -105,6 +107,7 @@ export function world(o: { count?: number; failRead?: string } = {}) {
     turn: (name: string, payload: Obj) => onTurn(ctx(host), ev(name, payload)),
     waiting: (payload: Obj) => onWaiting(ctx(host), ev("turn.waiting", payload)),
     mention: (payload: Obj) => onMention(ctx(host), ev("message.mentioned", payload)),
+    message: (payload: Obj) => onMessage(ctx(host), ev("message.received", payload)),
     woken: () => state.events.filter((e) => e.name === "goal.woken"),
     named: (name: string) => state.events.filter((e) => e.name === name),
     tick: (ms: number) => { state.now += ms; },

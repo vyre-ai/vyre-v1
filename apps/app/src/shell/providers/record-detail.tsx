@@ -68,9 +68,11 @@ export function RecordDetail({ rt, recordId, type: hint, fields = false, tab = "
       attach: (files, t) => attachToRecord(rt.call, rt.putBlob, files, { type: t.type, recordId: t.recordId }, `record-attach:${t.recordId}:${Date.now().toString(36)}`),
       store: (files, t) => storeOnRecord(rt.call, rt.putBlob, files, { type: t.type, recordId: t.recordId }, `record-attach:${t.recordId}:${Date.now().toString(36)}`).then((r) => r.fileIds),
     },
+    ...(rt.changes ? { changes: rt.changes } : {}),
     nav: {
       openFile: (id) => rt.open({ subject: { type: "file", id } }),
       openSubject: (subject) => rt.open({ subject }),
+      openGoal: (goalId: string) => rt.open({ subject: { type: "goal", id: goalId } }),
       openRecord: (type, id) => rt.open({ subject: { type: "record", id }, args: { type } }),
       openChat: (_type, id) => { void rt.call("chat.start", { kind: "ask", idempotencyKey: attemptKey(), agentIds: [rt.assistant.id], scopeType: "record", scopeId: id }).then((out: unknown) => { rt.open({ subject: { type: "thread", id: (out as { thread: { threadId: string } }).thread.threadId } }); }).catch(() => setActionError("Couldn’t open the record’s chat. Try again.")); },
       askFor: (input) => {

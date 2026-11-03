@@ -70,7 +70,7 @@ const goalRow = t.obj({
   createdBy: t.str(), createdAt: t.ts(), updatedAt: t.ts(),
 });
 const goalLine = t.obj({
-  id: goalId, title: t.str(), status, statusReason: t.opt(t.str()), owner: id.user, leadAgentId: id.agent, threadId: t.opt(id.thread), deadline: t.ts(), nextCheckinAt: t.opt(t.ts()),
+  id: goalId, title: t.str(), status, statusReason: t.opt(t.str()), owner: id.user, leadAgentId: id.agent, threadId: t.opt(id.thread), folderId: t.opt(id.folder), deadline: t.ts(), nextCheckinAt: t.opt(t.ts()),
   progress, projectId: t.opt(id.project), updatedAt: t.ts(),
 });
 const taskLine = t.obj({ taskId: id.task, key: t.opt(t.str()), title: t.str(), state: t.str(), assigned: t.opt(who), blocked: t.bool() });

@@ -338,3 +338,19 @@ test("the brief tells the lead why it was woken, the pace, the plan, what waits 
   assert.match(text, /Standing permissions \(these acts go without asking, in this goal's chats only\): Send email from the Lab template\./);
   assert.match(text, /The goal's folder in Files/);
 });
+
+test("the goal's folder keeps what its tasks hand in and what people drop in its chat, once each", async () => {
+  const w = world({ count: 10 });
+  const { goal } = await w.call("goals.create", labGoal({ plan: [step("a", "Draft the reminder")] }));
+  const child = [...w.state.tasks.values()].find((t) => t.parentTaskId === goal.rootTaskId)!;
+  child.fileIds = ["fil_draft"]; child.state = "done";
+  await w.task("task.completed", child.id);
+  await w.task("task.completed", child.id);
+  assert.deepEqual(w.state.files.filter((f) => f.folderId === goal.folderId).map((f) => f.name), ["copy of fil_draft"], "a task's output is kept once");
+  await w.message({ threadId: goal.threadId, messageId: "msg_drop", author: { kind: "person", id: OWNER } });
+  await w.message({ threadId: goal.threadId, messageId: "msg_drop", author: { kind: "person", id: OWNER } });
+  await w.message({ threadId: goal.threadId, messageId: "msg_drop", author: { kind: "agent", id: LEAD } });
+  assert.deepEqual(w.state.files.filter((f) => f.folderId === goal.folderId).map((f) => f.name).sort(), ["copy of fil_brief", "copy of fil_draft", "copy of fil_list"]);
+  const listed = await w.call("goals.list", { scope: "mine" });
+  assert.equal(listed.goals[0].folderId, goal.folderId, "the Files folder knows its goal");
+});

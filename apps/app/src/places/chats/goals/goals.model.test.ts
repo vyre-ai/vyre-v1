@@ -87,3 +87,13 @@ test("a goal card from a message block, the check-in's change, and Part of on a 
   assert.deepEqual(partOf({ "goal.id": "gol_1", "goal.title": "300 registrations" }), { goalId: "gol_1", title: "300 registrations" });
   assert.equal(partOf({ "goal.id": "gol_1", "goal.title": "x", "goal.root": "1" }), null);
 });
+
+test("the finish line's date and the Due chip come from the one deadline; the chart's axis has round ticks", async () => {
+  const { dueWords, lineWithDue, niceStep } = await import("./model.ts");
+  const fri = Date.UTC(2026, 10, 7, 13, 0);   // 7 Nov 2026, 18:00 in Karachi (a Saturday)
+  assert.equal(dueWords(fri, PKT), "Sat 7 Nov, 18:00");
+  assert.equal(lineWithDue("Luma registrations for Lab 8 reach 300 by Friday", fri, PKT), `Luma registrations for Lab 8 reach 300 by ${dueWords(fri, PKT)}`);
+  assert.equal(lineWithDue("Luma registrations reach 300 by Mon 10 Nov, 18:00", fri, PKT), `Luma registrations reach 300 by ${dueWords(fri, PKT)}`, "an old date in the words gives way to the real deadline");
+  assert.equal(lineWithDue("Every onboarding task closed", fri, PKT), `Every onboarding task closed by ${dueWords(fri, PKT)}`);
+  assert.deepEqual([niceStep(100), niceStep(120), niceStep(7), niceStep(0)], [100, 200, 10, 1]);
+});

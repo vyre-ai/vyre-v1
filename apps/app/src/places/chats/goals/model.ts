@@ -6,7 +6,7 @@ export type Tone = "plain" | "need" | "stuck" | "ok" | "dim";
 export interface Who { kind: string; id: string }
 export interface Progress { value?: number; target?: number; start?: number; percent?: number; readAt?: number; error?: string; itemsDone?: number; items?: number; tasksDone: number; tasks: number }
 export interface GoalLine {
-  id: string; title: string; status: Status; statusReason?: string; owner: string; leadAgentId: string; threadId?: string; deadline: number; nextCheckinAt?: number; progress: Progress; projectId?: string; updatedAt: number;
+  id: string; title: string; status: Status; statusReason?: string; owner: string; leadAgentId: string; threadId?: string; folderId?: string; deadline: number; nextCheckinAt?: number; progress: Progress; projectId?: string; updatedAt: number;
 }
 export interface Permission { act: string; target: string; label: string; granted?: boolean }
 export interface Retro { summary: string; worked: string[]; didNot: string[]; playbook?: string }
@@ -69,6 +69,16 @@ export function whenWords(at: number, now: number, offsetMin = 0): string {
   if (Math.abs(dayA - dayN) < 7) return `${["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][a.getUTCDay()]} ${hm}`;
   return `${a.getUTCDate()} ${["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"][a.getUTCMonth()]}`;
 }
+/** The deadline as a date: "Fri 7 Nov, 18:00", in the person's zone. The finish line's subtitle and the Due chip both say it from the one deadline. */
+export function dueWords(at: number, offsetMin = 0): string {
+  const a = new Date(at + offsetMin * MIN);
+  return `${["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][a.getUTCDay()]} ${a.getUTCDate()} ${["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"][a.getUTCMonth()]}, ${a.getUTCHours()}:${String(a.getUTCMinutes()).padStart(2, "0")}`;
+}
+/** The finish line in words, ending with the real deadline: a date the words carry ("by Friday") is replaced, so the line and the chip never disagree. */
+export function lineWithDue(line: string, deadline: number, offsetMin = 0): string {
+  const bare = line.replace(/\s+by\s+[^,.]*(,\s*\d{1,2}:\d{2})?\.?\s*$/i, "").replace(/\.\s*$/, "");
+  return `${bare} by ${dueWords(deadline, offsetMin)}`;
+}
 /** "4 days left", "18 hours left", "Due now". */
 export function leftWords(deadline: number, now: number): string {
   const d = deadline - now;
@@ -125,7 +135,7 @@ export function taskWord(state: string, blocked: boolean): { word: string; tone:
   }
 }
 
-export interface Chart { line: string; area: string; targetY: number; pace: string; deadlineX: number; points: Array<{ x: number; y: number; at: number; value: number }>; max: number; min: number }
+export interface Chart { ticks: Array<{ y: number; value: number }>; line: string; area: string; targetY: number; pace: string; deadlineX: number; points: Array<{ x: number; y: number; at: number; value: number }>; max: number; min: number }
 /**
  * The number over time, in a box of w by h: the readings as one line from the start, the target as a level line, the pace a straight line from the start to the target at the deadline,
  * and where the deadline falls. Unread readings are left out (the line never invents a point). Null with nothing to draw.
@@ -136,8 +146,11 @@ export function chartOf(readings: readonly Reading[], g: Pick<Goal, "createdAt" 
   if (pts.length === 0 || target === undefined) return null;
   const t0 = Math.min(g.createdAt, pts[0]!.at), t1 = Math.max(g.deadline, now);
   const start = g.progress.start ?? pts[0]!.value;
-  const lo = Math.min(start, target, ...pts.map((p) => p.value));
-  const hi = Math.max(start, target, ...pts.map((p) => p.value));
+  // the axis starts at 0 and ends on a round step past the target and the readings: 100, 200, 300
+  const top = Math.max(start, target, ...pts.map((p) => p.value));
+  const step = niceStep(top / 3);
+  const lo = Math.min(0, start, ...pts.map((p) => p.value));
+  const hi = Math.ceil(top / step) * step;
   const span = hi - lo || 1;
   const pad = 4;
   const x = (t: number): number => Math.round(((t - t0) / (t1 - t0 || 1)) * (w - 2 * pad) + pad);
@@ -150,7 +163,17 @@ export function chartOf(readings: readonly Reading[], g: Pick<Goal, "createdAt" 
   const end = Math.min(x(now), w - pad);
   if (end > last.x) line += ` H${end}`;
   const area = `${line} V${h - pad} H${points[0]!.x} Z`;
-  return { line, area, targetY: y(target), pace: `M${x(g.createdAt)} ${y(start)} L${x(g.deadline)} ${y(target)}`, deadlineX: x(g.deadline), points, max: hi, min: lo };
+  const ticks: Array<{ y: number; value: number }> = [];
+  for (let v = step; v <= hi + 1e-9; v += step) ticks.push({ y: y(v), value: v });
+  return { ticks, line, area, targetY: y(target), pace: `M${x(g.createdAt)} ${y(start)} L${x(g.deadline)} ${y(target)}`, deadlineX: x(g.deadline), points, max: hi, min: lo };
+}
+
+/** A round step near `raw`: 1, 2 or 5 times a power of ten. */
+export function niceStep(raw: number): number {
+  if (!(raw > 0)) return 1;
+  const p = 10 ** Math.floor(Math.log10(raw));
+  const m = raw / p;
+  return (m <= 1 ? 1 : m <= 2 ? 2 : m <= 5 ? 5 : 10) * p;
 }
 
 /** The activity, newest first, grouped by day: "Today", "Yesterday", "Mon 3 Nov". */
