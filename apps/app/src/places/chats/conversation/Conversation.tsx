@@ -48,6 +48,7 @@ import type { MessageActions } from "./MessageView.tsx";
 import { FaceButton, Glyph, IconButton, RenameField, TextButton } from "./parts.tsx";
 import { CONTINUE_TEXT, DEFAULT_AGENT_HOPS, limitOf, parkedAtLimit, parkedLine } from "./hops.ts";
 import { addedAgentMentions, askPost, pickerAgents, unansweredOwn } from "./askagent.ts";
+import { MemorySwitch } from "./memory-switch.tsx";
 import type { AgentMeta } from "./askagent.ts";
 import { useMobileBack } from "../../../mobile/shell/back.ts";
 import { offlineLine } from "../agentpage/model.ts";
@@ -632,6 +633,7 @@ function ConversationView(): ReactElement {
             testID="composer" whoWillAnswer={whoLine(thread, nameOf)} placeholder={data.placeholder ?? placeholderFor(thread, nameOf, isWorking, canSteer)} working={isWorking}
             {...(place.chip ? { runsChip: place.chip } : {})}
             agents={composerAgents} mode={mode} onMode={chooseChatMode}
+            barExtra={<MemorySwitch threadId={thread.threadId} call={data.call} say={say} />}
             suggest={composerSuggest(data)} preview={(item) => previewOf(data, item)}
             renderPanel={(agent, close, narrowPanel) => <ChatBrain data={data} thread={thread} agent={agent} accounts={accounts} mode={mode} onMode={chooseChatMode} close={close} narrow={narrowPanel} say={say} {...(place.runs ? { runs: place.runs } : {})} onCompact={(keep, always) => void compactChat(data, keep, always, agent.id).then((line) => { if (line === null) say(keep ? `Compacted, keeping ${keep}` : "Compacted"); }, fail("Could not compact."))} />}
             {...(lead ? { lead: nameOf(lead.agentId) } : {})} listening={collect(thread.agents.filter((a) => a.mode === "listen"), (a) => nameOf(a.agentId))}
