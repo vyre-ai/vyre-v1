@@ -107,8 +107,9 @@ export async function requestCreate(ctx: VaultReqCtx, input: { name: string; fie
   }
 
   // a request addressed to one teammate (an agent asking them in their direct chat) goes to that person alone; they decide it as they would as a manager
-  const forWhom = ctx.actingFor ?? requester.id;
-  if (input.to !== undefined && (!input.to.startsWith("usr_") || input.to === forWhom || input.to === requester.id)) raise(trace, "validation.bad_input", "Address the request to a teammate, not to yourself.");
+  // the person behind this ask (two merged lines named it `asker` twice, which stopped the module loading): a request is never addressed to them
+  const self = ctx.actingFor ?? requester.id;
+  if (input.to !== undefined && (!input.to.startsWith("usr_") || input.to === self || input.to === requester.id)) raise(trace, "validation.bad_input", "Address the request to a teammate, not to yourself.");
   const managers = input.to !== undefined ? [input.to] : await managersFor(ctx, input.folderId, requester.id);
   if (managers.length === 0) raise(trace, "validation.precondition_failed", "Nobody can decide this request.");
   const id = nid("vrq");
