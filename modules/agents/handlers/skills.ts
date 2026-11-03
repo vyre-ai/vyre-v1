@@ -3,6 +3,9 @@
 //   space   the Space library an admin keeps in Settings (skills.add / skills.remove)
 //   builtin the files shipped in agent/skills, read from disk; `system: true` ones cannot be hidden or replaced
 // A turn shows the index (name and one line) and load_skill returns the full text. Reads run as the asker, so the agent folder is only read when the asker may see it.
+// Two skills with one name are both listed: the nearer one is used and says what it wins over, the other says what it loses to. A row that cannot be read is listed as broken and left out of
+// every turn; the rest of the list still answers. A Kit never replaces a skill it did not install, and undoing a Kit removes only its own.
+import { createHash } from "node:crypto";
 import { readFileSync, readdirSync, existsSync, statSync } from "node:fs";
 import { parseSkill, SKILL_MAX_BYTES } from "../../../lib/skill-md.ts";
 import { agentBy, askerOf, canSee, ensure, mintId, raise, tolerant } from "../projections.ts";
@@ -11,13 +14,26 @@ import { personalSkills, renameClashes } from "./skill-scopes.ts";
 
 type Row = Record<string, unknown>;
 export type Tier = "builtin" | "space" | "agent" | "mine" | "shared";
-export interface SkillOut { name: string; description: string; tier: Tier; source: string; agentId?: string; system: boolean; enabled: boolean; bytes: number; updatedAt?: number; label?: string }
+export interface SkillOut {
+  name: string; description: string; tier: Tier; source: string; agentId?: string; system: boolean; enabled: boolean; bytes: number; updatedAt?: number;
+  /** A fingerprint of the text and supporting files: a CLI engine's copy is written again only when it changes. */
+  hash: string;
+  /** Another skill of this name is used instead (the nearer tier, or a Vyre system skill). */
+  shadowedBy?: Tier;
+  /** Why it is used or not, when another skill has the same name. */
+  note?: string;
+  /** Why this row cannot be used. It stays listed so it can be fixed or removed, and is never in a turn. */
+  broken?: string;
+  /** D27: "pdf (from acme/skills)", when a person's skill or one it clashes with was renamed because the name was taken first. */
+  label?: string;
+}
 interface Found extends SkillOut { text: string; body: string; files: Array<{ path: string; text: string }>; at?: number }
 
 const str = (v: unknown): string => (typeof v === "string" ? v : String(v ?? ""));
 const by = (ctx: AgentsCtx): string => askerOf(ctx);
 export const MAX_FILES_BYTES = 400_000;
 const BUILTIN = new URL("../../../agent/skills/", import.meta.url);
+const fingerprint = (text: string, files: ReadonlyArray<{ path: string; text: string }>): string => createHash("sha256").update(text).update("\0").update(JSON.stringify(files)).digest("hex").slice(0, 16);
 
 // ---- built-in -------------------------------------------------------------------------------------------------------------------------------------------
 
@@ -36,7 +52,17 @@ function supporting(dir: URL): Array<{ path: string; text: string }> {
   walk(dir, "", 0);
   return out;
 }
+/** The shipped skills change only with an update, and every turn reads them: kept for a short while so a turn does not read the folder four times. */
+const BUILTIN_MS = 30_000;
+const builtinCache = new Map<string, { at: number; skills: Found[] }>();
 export function builtinSkills(root: URL = BUILTIN): Found[] {
+  const hit = builtinCache.get(root.href);
+  if (hit && Date.now() - hit.at < BUILTIN_MS) return hit.skills;
+  const skills = readBuiltins(root);
+  builtinCache.set(root.href, { at: Date.now(), skills });
+  return skills;
+}
+function readBuiltins(root: URL): Found[] {
   if (!existsSync(root)) return [];
   const out: Found[] = [];
   for (const d of readdirSync(root, { withFileTypes: true }).filter((e) => e.isDirectory()).sort((a, b) => a.name.localeCompare(b.name))) {
@@ -47,9 +73,10 @@ export function builtinSkills(root: URL = BUILTIN): Found[] {
     if (!r.ok) continue;
     let at: number | undefined;
     try { at = Math.round(statSync(new URL("SKILL.md", dir)).mtimeMs); } catch { /* no time */ }
+    const files = supporting(dir);
     out.push({
       name: r.skill.name, description: r.skill.description, tier: "builtin", source: "vyre", system: r.skill.meta["system"] === true, enabled: true, bytes: Buffer.byteLength(text, "utf8"),
-      text, body: r.skill.body, files: supporting(dir), ...(at !== undefined ? { updatedAt: at } : {}),
+      text, body: r.skill.body, files, hash: fingerprint(text, files), ...(at !== undefined ? { updatedAt: at } : {}),
     });
   }
   return out;
@@ -57,24 +84,55 @@ export function builtinSkills(root: URL = BUILTIN): Found[] {
 
 // ---- the library ------------------------------------------------------------------------------------------------------------------------------------------
 
+/** One library row. A row that cannot be read (its files are not valid JSON, its text does not parse, it has no name) is still answered, marked broken, so one bad row never breaks the list. */
 function fromRow(r: Row): Found {
   const agentId = str(r["agent_id"]);
-  const files = JSON.parse(str(r["files_json"])) as Record<string, string>;
-  const parsed = parseSkill(str(r["text"]), str(r["name"]));
+  const name = str(r["name"]);
+  const text = str(r["text"]);
+  let broken: string | undefined;
+  let files: Array<{ path: string; text: string }> = [];
+  try {
+    const raw = r["files_json"] === null || r["files_json"] === undefined || str(r["files_json"]) === "" ? {} : JSON.parse(str(r["files_json"])) as unknown;
+    if (typeof raw !== "object" || raw === null || Array.isArray(raw) || Object.values(raw).some((v) => typeof v !== "string")) throw new Error("not a map of path to text");
+    files = Object.entries(raw as Record<string, string>).map(([path, t]) => ({ path, text: t }));
+  } catch { broken = "Its supporting files cannot be read. Remove it and add it again."; }
+  const parsed = parseSkill(text, name || undefined);
+  if (!parsed.ok) broken ??= `Its SKILL.md cannot be read: ${parsed.problem}`;
+  if (name.trim() === "") broken ??= "It has no name.";
+  const updated = Number(r["updated_at"]);
   return {
-    name: str(r["name"]), description: str(r["description"]), tier: agentId === "" ? "space" : "agent", source: str(r["source"]), system: false, enabled: Number(r["enabled"]) === 1,
-    bytes: Buffer.byteLength(str(r["text"]), "utf8"), updatedAt: Number(r["updated_at"]), at: Number(r["at"]), text: str(r["text"]), body: parsed.ok ? parsed.skill.body : str(r["text"]),
-    files: Object.entries(files).map(([path, text]) => ({ path, text })), ...(agentId === "" ? {} : { agentId }),
+    name, description: str(r["description"]), tier: agentId === "" ? "space" : "agent", source: str(r["source"]), system: false, enabled: Number(r["enabled"]) === 1,
+    bytes: Buffer.byteLength(text, "utf8"), ...(Number.isFinite(updated) ? { updatedAt: updated } : {}), at: Number(r["at"]), text, body: parsed.ok ? parsed.skill.body : text,
+    files, hash: fingerprint(text, files), ...(agentId === "" ? {} : { agentId }), ...(broken ? { broken } : {}),
   };
 }
-const library = (ctx: AgentsCtx, agentId: string): Found[] => (ctx.db.all("SELECT * FROM agents_skills WHERE agent_id = ? ORDER BY name", agentId) as Row[]).map(fromRow);
+const library = (ctx: AgentsCtx, agentId: string): Found[] => (ctx.db.all("SELECT * FROM agents_skills WHERE agent_id = ? ORDER BY name", agentId) as Row[]).flatMap((r) => {
+  try { return [fromRow(r)]; } catch (e) {
+    ctx.log.warn("agents: a skill row could not be read", { name: str(r["name"]), error: e instanceof Error ? e.message : String(e) });
+    return [];
+  }
+});
 
 // ---- the agent's own folder -------------------------------------------------------------------------------------------------------------------------------
 
 interface FolderRow { folderId: string; name: string }
-interface FileRow { fileId: string; name: string }
+interface FileRow { fileId: string; name: string; version?: number }
 const CACHE_MS = 8_000;
 const folderCache = new Map<string, { at: number; skills: Found[] }>();
+/** The text of a file at one version, for the one reading it: the index reads the folder every turn, and a file is read again only when it changed. Bounded; the oldest goes first. */
+const textCache = new Map<string, string>();
+const TEXT_CACHE_MAX = 500;
+async function fileText(ctx: AgentsCtx, f: FileRow): Promise<string | undefined> {
+  const key = `${ctx.space}:${askerOf(ctx)}:${f.fileId}:${f.version ?? "?"}`;
+  const hit = f.version !== undefined ? textCache.get(key) : undefined;
+  if (hit !== undefined) return hit;
+  const text = (await tolerant<{ text?: string }>(ctx, "files.read", { fileId: f.fileId, as: "text" }, {})).text;
+  if (typeof text === "string" && f.version !== undefined) {
+    textCache.set(key, text);
+    if (textCache.size > TEXT_CACHE_MAX) textCache.delete(textCache.keys().next().value as string);
+  }
+  return typeof text === "string" ? text : undefined;
+}
 /** skills/<name>/SKILL.md in the agent's Files folder, read as the caller. A folder the caller cannot open, or any failure, gives nothing: the other tiers still answer. */
 async function folderSkills(ctx: AgentsCtx, agentId: string): Promise<Found[]> {
   const key = `${ctx.space}:${agentId}:${askerOf(ctx)}`;
@@ -91,28 +149,37 @@ async function folderSkills(ctx: AgentsCtx, agentId: string): Promise<Found[]> {
         const inner = await tolerant<{ files?: FileRow[] }>(ctx, "files.list", { section: "space", folder: sub.folderId, limit: 100 }, {});
         const md = (inner.files ?? []).find((f) => f.name === "SKILL.md");
         if (!md) continue;
-        const text = (await tolerant<{ text?: string }>(ctx, "files.read", { fileId: md.fileId, as: "text" }, {})).text;
+        const text = await fileText(ctx, md);
         if (typeof text !== "string") continue;
         const r = parseSkill(text, sub.name);
-        if (!r.ok) continue;
+        if (!r.ok) {
+          // a SKILL.md the agent wrote that does not parse is listed as broken, so it can be seen and fixed; it is never in a turn
+          out.push({ name: sub.name, description: "", tier: "agent", source: "agent", agentId, system: false, enabled: true, bytes: Buffer.byteLength(text, "utf8"), text, body: text, files: [], hash: fingerprint(text, []), broken: `Its SKILL.md cannot be read: ${r.problem}` });
+          continue;
+        }
         const files: Array<{ path: string; text: string }> = [];
         for (const f of (inner.files ?? []).filter((x) => x.name !== "SKILL.md" && TEXT.test(x.name)).slice(0, 10)) {
-          const t = (await tolerant<{ text?: string }>(ctx, "files.read", { fileId: f.fileId, as: "text" }, {})).text;
+          const t = await fileText(ctx, f);
           if (typeof t === "string") files.push({ path: f.name, text: t });
         }
-        out.push({ name: r.skill.name, description: r.skill.description, tier: "agent", source: "agent", agentId, system: false, enabled: true, bytes: Buffer.byteLength(text, "utf8"), text, body: r.skill.body, files });
+        out.push({ name: r.skill.name, description: r.skill.description, tier: "agent", source: "agent", agentId, system: false, enabled: true, bytes: Buffer.byteLength(text, "utf8"), text, body: r.skill.body, files, hash: fingerprint(text, files) });
       }
     }
   }
   folderCache.set(key, { at: ctx.now(), skills: out });
   return out;
 }
-export const forgetFolderSkills = (): void => { folderCache.clear(); };
+export const forgetFolderSkills = (): void => { folderCache.clear(); textCache.clear(); builtinCache.clear(); };
 
 // ---- what a chat with an agent sees ---------------------------------------------------------------------------------------------------------------------
 
-/** All skills for a chat, nearest tier first, one per name. A system built-in cannot be shadowed. Off ones are left out unless `includeOff`. */
-export async function visibleSkills(ctx: AgentsCtx, agentId: string | undefined, includeOff = false): Promise<Found[]> {
+const TIER_WORDS: Readonly<Record<Tier, string>> = { agent: "the agent's own", space: "the Space's", builtin: "Vyre's built-in", mine: "your own", shared: "a shared" };
+
+/**
+ * Every skill a chat with this agent can see, nearest tier first (the agent's folder, the agent's library, the Space library, built-in), with the ones that lose a name to a nearer one still listed and
+ * marked. A system built-in cannot be shadowed: a library skill with its name loses to it. Off ones are left out unless `includeOff`; broken ones are listed, marked, and never used.
+ */
+async function allSkills(ctx: AgentsCtx, agentId: string | undefined, includeOff: boolean): Promise<Found[]> {
   ensure(ctx.db);
   const built = builtinSkills();
   const system = new Set(built.filter((b) => b.system).map((b) => b.name));
@@ -121,31 +188,50 @@ export async function visibleSkills(ctx: AgentsCtx, agentId: string | undefined,
     const a = agentBy(ctx.db, agentId);
     if (a && canSee(ctx, a)) { tiers.push(await folderSkills(ctx, agentId)); tiers.push(library(ctx, agentId)); }
   }
-  // the asker's own skills and the shared ones they added sit after the agent's and before the Space's; a later one with a taken name carries its source (D27)
-  tiers.push(personalSkills(ctx, agentId) as Found[], library(ctx, ""), built);
-  const named = renameClashes(tiers.flat() as Found[]) as Found[];
-  const seen = new Set<string>();
-  const out: Found[] = [];
-  for (const tier of [named]) {
-    for (const s of tier) {
-      if (seen.has(s.name) || (s.tier !== "builtin" && system.has(s.name))) continue;
-      if (!s.enabled && !includeOff) continue;
-      seen.add(s.name);
-      out.push(s);
-    }
+  // the asker's own skills and the shared ones they added sit after the agent's and before the Space's; when one of them and another skill share a name, the later one is renamed with its
+  // source (D27), so both stay usable. Clashes among the agent's and the Space's tiers keep the nearest-wins note below.
+  tiers.push(personalSkills(ctx, agentId).map((p) => ({ ...p, hash: fingerprint(p.text, p.files) })) as Found[], library(ctx, ""), built);
+  const listed = (renameClashes(tiers.flat()) as Found[]).filter((s) => s.enabled || includeOff);
+  const used = new Map<string, Found>();
+  for (const s of listed) {
+    if (s.broken || !s.enabled) continue;
+    if (s.tier !== "builtin" && system.has(s.name)) continue;
+    if (!used.has(s.name)) used.set(s.name, s);
   }
-  return out;
+  return listed.map((s) => {
+    const winner = used.get(s.name);
+    if (winner === s) {
+      const others = listed.filter((o) => o !== s && o.name === s.name && !o.broken && o.enabled);
+      if (others.length === 0) return s;
+      const losers = others.map((o) => TIER_WORDS[o.tier]).filter((w, i, all) => all.indexOf(w) === i).join(" and ");
+      return { ...s, note: `Used here. ${losers.charAt(0).toUpperCase()}${losers.slice(1)} ${others.length === 1 ? "skill" : "skills"} of this name ${others.length === 1 ? "is" : "are"} not.` };
+    }
+    if (!winner || s.broken || !s.enabled) return s;
+    return { ...s, shadowedBy: winner.tier, note: `Not used here: ${TIER_WORDS[winner.tier]} skill of this name is used instead${winner.system ? " (a Vyre system skill cannot be replaced)" : ""}.` };
+  });
 }
-const outOf = (f: Found): SkillOut => ({ name: f.name, description: f.description, tier: f.tier, source: f.source, system: f.system, enabled: f.enabled, bytes: f.bytes, ...(f.agentId ? { agentId: f.agentId } : {}), ...(f.updatedAt !== undefined ? { updatedAt: f.updatedAt } : {}), ...(f.label ? { label: f.label } : {}) });
+
+/** The skills a chat with an agent uses: one per name, the nearest tier, never a broken or switched-off one. */
+export async function visibleSkills(ctx: AgentsCtx, agentId: string | undefined): Promise<Found[]> {
+  return (await allSkills(ctx, agentId, false)).filter((s) => !s.broken && !s.shadowedBy && s.enabled);
+}
+const outOf = (f: Found): SkillOut => ({
+  name: f.name, description: f.description, tier: f.tier, source: f.source, system: f.system, enabled: f.enabled, bytes: f.bytes, hash: f.hash, ...(f.agentId ? { agentId: f.agentId } : {}),
+  ...(f.updatedAt !== undefined ? { updatedAt: f.updatedAt } : {}), ...(f.shadowedBy ? { shadowedBy: f.shadowedBy } : {}), ...(f.note ? { note: f.note } : {}), ...(f.broken ? { broken: f.broken } : {}),
+  ...(f.label ? { label: f.label } : {}),
+});
+
+/** An agent that asks without naming an agent means itself: its own skills are in its list and load without it repeating its id. */
+const agentOf = (ctx: AgentsCtx, agentId: string | undefined): string | undefined => agentId ?? (ctx.principal.kind === "agent" ? ctx.principal.id : undefined);
 
 export async function skillsList(ctx: AgentsCtx, input: { agentId?: string; includeOff?: boolean }) {
-  return { skills: (await visibleSkills(ctx, input.agentId, input.includeOff === true)).map(outOf) };
+  return { skills: (await allSkills(ctx, agentOf(ctx, input.agentId), input.includeOff === true)).map(outOf) };
 }
 
 export async function skillsLoad(ctx: AgentsCtx, input: { name: string; agentId?: string }) {
-  const found = (await visibleSkills(ctx, input.agentId)).find((s) => s.name === input.name.trim());
+  const found = (await visibleSkills(ctx, agentOf(ctx, input.agentId))).find((s) => s.name === input.name.trim());
   if (!found) raise(ctx, "validation.not_found", `There is no skill called ${input.name.trim()}. Use skills_list to see the names.`, { name: input.name });
-  return { skill: { name: found.name, description: found.description, tier: found.tier, source: found.source, body: found.body, files: found.files } };
+  return { skill: { name: found.name, description: found.description, tier: found.tier, source: found.source, body: found.body, files: found.files, text: found.text, hash: found.hash } };
 }
 
 // ---- the library, written ---------------------------------------------------------------------------------------------------------------------------------
@@ -167,7 +253,12 @@ export async function skillsAdd(ctx: AgentsCtx, input: { text: string; name?: st
   if (total > MAX_FILES_BYTES) raise(ctx, "validation.too_large", `The supporting files are over ${MAX_FILES_BYTES / 1000} KB.`);
   const source = (input.source ?? "upload").trim() || "upload";
   const now = ctx.now();
-  const old = (ctx.db.all("SELECT id, at FROM agents_skills WHERE agent_id = ? AND name = ?", agentId, skill.name) as Row[])[0];
+  const old = (ctx.db.all("SELECT id, at, source FROM agents_skills WHERE agent_id = ? AND name = ?", agentId, skill.name) as Row[])[0];
+  // a Kit adds its skills and replaces its own, never one that someone added or another Kit brought: theirs stays, and the Kit's undo (which names its source) leaves it alone
+  if (old && source.startsWith("kit:") && str(old["source"]) !== source) {
+    const kept = library(ctx, agentId).find((s) => s.name === skill.name);
+    if (kept) return { skill: outOf(kept), kept: true, note: `A skill called ${skill.name} is already here (${str(old["source"]) || "added by hand"}). It was kept, and the Kit's copy was not added.` };
+  }
   if (old) {
     ctx.db.run("UPDATE agents_skills SET description = ?, text = ?, files_json = ?, source = ?, enabled = 1, author = ?, updated_at = ? WHERE id = ?", skill.description, input.text, JSON.stringify(files), source, by(ctx), now, str(old["id"]));
   } else {
@@ -177,10 +268,13 @@ export async function skillsAdd(ctx: AgentsCtx, input: { text: string; name?: st
   return { skill: outOf(library(ctx, agentId).find((s) => s.name === skill.name)!) };
 }
 
-export async function skillsRemove(ctx: AgentsCtx, input: { name: string; agentId?: string }) {
+/** `source` limits the removal to the copy that source added: a Kit's undo names its own, so a skill of the same name someone else added is never removed with it. */
+export async function skillsRemove(ctx: AgentsCtx, input: { name: string; agentId?: string; source?: string }) {
   ensure(ctx.db);
   const agentId = input.agentId ?? "";
-  const r = ctx.db.run("DELETE FROM agents_skills WHERE agent_id = ? AND name = ?", agentId, input.name.trim());
+  const r = input.source !== undefined
+    ? ctx.db.run("DELETE FROM agents_skills WHERE agent_id = ? AND name = ? AND source = ?", agentId, input.name.trim(), input.source)
+    : ctx.db.run("DELETE FROM agents_skills WHERE agent_id = ? AND name = ?", agentId, input.name.trim());
   if (r.changes > 0) ctx.emit("skill.removed", input.name.trim(), { name: input.name.trim(), ...(agentId !== "" ? { agentId } : {}), by: by(ctx) });
   return { removed: r.changes > 0 };
 }

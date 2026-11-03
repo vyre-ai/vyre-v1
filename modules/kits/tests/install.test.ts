@@ -364,7 +364,7 @@ test("a Kit brings skills, a marketplace, a plugin, an outside tool server and a
   assert.deepEqual(r.problems, []);
   const by = (k: string) => r.kit!.items.find((i) => i.key === k)!;
   assert.deepEqual(by("sk.intake").apply, { cap: "skills.add", input: { text: SKILL_TEXT, files: { "references/list.md": "one" }, source: "kit:law-intake", idempotencyKey: "kit.law-intake.sk.intake" } });
-  assert.deepEqual(by("sk.intake").undo, { cap: "skills.remove", input: { name: "intake-rules", idempotencyKey: "kit.law-intake.sk.intake.undo" } });
+  assert.deepEqual(by("sk.intake").undo, { cap: "skills.remove", input: { name: "intake-rules", source: "kit:law-intake", idempotencyKey: "kit.law-intake.sk.intake.undo" } }, "the undo removes only the copy this Kit added");
   assert.deepEqual(by("mk.firm").undo?.input["name"], "firm-plugins");
   assert.deepEqual([by("pl.greeter").apply!.cap, by("pl.greeter").undo!.cap, by("pl.greeter").apply!.input["marketplace"], by("pl.greeter").undo!.input["scope"]], ["plugins.install", "plugins.uninstall", "firm-plugins", "space"]);
   assert.deepEqual([by("mcp.crm").apply!.cap, by("mcp.crm").undo!.cap], ["plugins.connection.add", "plugins.connection.remove"]);

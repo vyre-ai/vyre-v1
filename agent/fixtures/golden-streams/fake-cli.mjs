@@ -11,11 +11,15 @@
 //   hang            starts, says nothing more, never ends
 //   die             writes to stderr and exits 3 with no result
 //   /compact [keep] (claude only) compacts: a compact_boundary line with the tokens before and after, then an empty success result
+//   pluginenv       starts each plugin MCP server the way the real CLI would (Claude Code: its own environment plus the server's env with ${NAME} expanded; Codex: a short default environment, the
+//                   env table's plain values and the variables env_vars names) and answers with what each server printed: the environment the server process actually saw
+//   skills          lists the skills in the work folder where the CLI looks for its own (Claude Code .claude/skills, Codex .agents/skills): name, description line, supporting files
 //   anything else   answers with the prompt it was given
 // A session id to resume that starts with "gone-" is one the CLI no longer has: it says so on stderr in the CLI's own words and exits 1 before reading anything.
 // Claude Code and Grok read their MCP server from --mcp-config (JSON, the token expanded from the environment); Codex from -c mcp_servers.vyre.* overrides.
 import fs from "node:fs";
 import path from "node:path";
+import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -110,6 +114,44 @@ function pluginsSeen() {
   return seen.join("|");
 }
 
+/** Codex's default environment for an MCP server (its env policy keeps these from its own environment); every other variable must be named in env_vars. */
+const CODEX_DEFAULT_ENV = ["HOME", "LOGNAME", "PATH", "SHELL", "USER", "LANG", "TERM", "TMPDIR", "TZ"];
+function pluginServers() {
+  if (bin === "codex") {
+    const servers = {};
+    for (const o of argv.filter((_, i) => argv[i - 1] === "-c")) {
+      const m = /^mcp_servers\.(plugin_[A-Za-z0-9_-]+)\.(command|args|env_vars|env\.([A-Za-z_][A-Za-z0-9_]*))=(.*)$/s.exec(o);
+      if (!m) continue;
+      const s = (servers[m[1]] ??= { env: {}, envVars: [] });
+      const v = JSON.parse(m[4]);   // the driver writes TOML strings and arrays of strings, which read as JSON
+      if (m[2] === "command") s.command = v; else if (m[2] === "args") s.args = v; else if (m[2] === "env_vars") s.envVars = v; else s.env[m[3]] = v;
+    }
+    return Object.entries(servers).map(([name, s]) => {
+      const env = {};
+      for (const k of [...CODEX_DEFAULT_ENV, ...s.envVars]) if (process.env[k] !== undefined) env[k] = process.env[k];
+      return { name, command: s.command, args: s.args ?? [], env: { ...env, ...s.env } };
+    });
+  }
+  const servers = JSON.parse(flag("--mcp-config") ?? "{}").mcpServers ?? {};
+  const expand = (v) => String(v).replace(/\$\{([A-Za-z_][A-Za-z0-9_]*)\}/g, (_, k) => process.env[k] ?? "");
+  return Object.entries(servers).filter(([k]) => k.startsWith("plugin_")).map(([name, s]) => ({ name, command: s.command, args: s.args ?? [], env: { ...process.env, ...Object.fromEntries(Object.entries(s.env ?? {}).map(([k, v]) => [k, expand(v)])) } }));
+}
+function pluginEnv() {
+  return pluginServers().map((s) => {
+    const r = spawnSync(s.command, s.args, { env: s.env, encoding: "utf8", timeout: 10_000 });
+    return `${s.name}=${(r.stdout ?? "").trim() || `failed: ${(r.stderr ?? "").trim() || r.error?.message || r.status}`}`;
+  }).join("|");
+}
+function skillsSeen() {
+  const base = path.join(process.cwd(), bin === "codex" ? ".agents/skills" : ".claude/skills");
+  const ls = (d) => { try { return fs.readdirSync(d, { withFileTypes: true }); } catch { return []; } };
+  const walk = (d, rel = "") => ls(d).flatMap((e) => (e.isDirectory() ? walk(path.join(d, e.name), `${rel}${e.name}/`) : [`${rel}${e.name}`]));
+  return ls(base).filter((e) => e.isDirectory() && fs.existsSync(path.join(base, e.name, "SKILL.md"))).map((e) => {
+    const md = fs.readFileSync(path.join(base, e.name, "SKILL.md"), "utf8");
+    return `${e.name}:${md.split("\n").find((l) => l.startsWith("description:")) ?? ""}:${walk(path.join(base, e.name)).filter((f) => f !== "SKILL.md").sort().join(",")}`;
+  }).sort().join("|") || "none";
+}
+
 let folding = false;
 async function run(prompt) {
   const words = prompt.trim().split(/\s+/);
@@ -130,6 +172,8 @@ async function run(prompt) {
       break;
     case "die": process.stderr.write("boom: the engine crashed\n"); process.exit(3); break;
     case "plugins": say(pluginsSeen()); break;
+    case "pluginenv": say(pluginEnv()); break;
+    case "skills": say(skillsSeen()); break;
     case "/compact":
       out(JSON.stringify({ type: "system", subtype: "compact_boundary", session_id: session, compact_metadata: { trigger: "manual", pre_tokens: 50_000, post_tokens: 3_000 } }));
       out(JSON.stringify({ type: "result", subtype: "success", is_error: false, result: "", session_id: session, usage: { input_tokens: 50_000, output_tokens: 900 } }));

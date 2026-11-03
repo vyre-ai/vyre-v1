@@ -46,7 +46,7 @@ test("Claude Code: the plugin folder is in the work folder, the CLI session sees
   assert.ok(!JSON.stringify(spy.launches).includes("filled-by-the-vault"), "the value is in the environment only, never in the command line");
 });
 
-test("Codex: the skills go where Codex looks for them, named for their plugin, and the server is a -c override with the variable name", async () => {
+test("Codex: the skills go where Codex looks for them, named for their plugin, and the server is a -c override", async () => {
   const w = work();
   const native = (await nativePlugins({ call: call() }, "codex", "agt_intake", "per_dana", w))!;
   const spy = newSpy();
@@ -56,8 +56,40 @@ test("Codex: the skills go where Codex looks for them, named for their plugin, a
   assert.match(said, /skill:greeter-greeting:description: How to greet a person warmly/);
   assert.match(said, /mcp:plugin_echo/);
   assert.ok(fs.existsSync(path.join(w, ".codex", "skills", "greeter-greeting", "SKILL.md")));
-  assert.ok(spy.launches[0]!.includes('mcp_servers.plugin_echo.env_vars=["ECHO_TOKEN", "REGION"]'), spy.launches[0]!.join(" "));
+  assert.ok(!JSON.stringify(spy.launches).includes("filled-by-the-vault"));
 });
+
+// The environment a plugin's server process sees, started the way each CLI starts it (the fake CLI's pluginenv: Claude Code expands ${NAME} in the server's env from its own environment; Codex passes
+// a short default environment, the env table's plain values and the variables env_vars names, and expands nothing). The server prints what it got.
+const DUMP = "process.stdout.write(JSON.stringify({ ECHO_TOKEN: process.env.ECHO_TOKEN ?? null, REGION: process.env.REGION ?? null, VYRE_PLUGIN_1: process.env.VYRE_PLUGIN_1 ?? null, OPENAI_API_KEY: process.env.OPENAI_API_KEY ?? null }));\n";
+const dumpCall = async (cap: string): Promise<unknown> => {
+  if (cap === "plugins.list") return { plugins: [{ pluginId: "plg_greeter", name: "greeter", enabled: true }] };
+  if (cap === "plugins.files") return { files: { ...files, "env-dump.mjs": DUMP } };
+  if (cap === "plugins.mcp.servers") return { servers: [{ key: "greeter/dump", name: "dump", from: "plugin", pluginId: "plg_greeter", transport: "stdio", command: process.execPath, args: ["${CLAUDE_PLUGIN_ROOT}/env-dump.mjs"], env: { ECHO_TOKEN: "#Dana_Echo.token", REGION: "eu" }, needs: [] }] };
+  throw new Error(`unexpected ${cap}`);
+};
+const seen = (said: string): Record<string, string | null> => JSON.parse(/plugin_dump=(\{.*?\})(\||$)/.exec(said)?.[1] ?? "null") as Record<string, string | null>;
+
+for (const driver of ["claude_code", "codex"] as const) {
+  test(`${driver}: the plugin's server process gets its secret under its own name and its plain values, and the engine's own key stays the engine's`, async () => {
+    const w = work();
+    const native = (await nativePlugins({ call: dumpCall }, driver, "agt_intake", "per_dana", w))!;
+    assert.deepEqual(native.secrets, { VYRE_PLUGIN_1: "#Dana_Echo.token" }, "the Vault fills the value under Vyre's own name");
+    const spy = newSpy();
+    const session = await createCliDriver(CLI_ADAPTERS[driver], driverDeps(spy, { plugins: () => native, workFolder: () => w, env: () => ({ VYRE_PLUGIN_1: "filled-by-the-vault", OPENAI_API_KEY: "the-engine-key" }) })).open(specOf());
+    const said = texts(await collect(session.send(turnOf("pluginenv")))).join("");
+    await session.close();
+    const env = seen(said);
+    assert.ok(env, said);
+    assert.equal(env["ECHO_TOKEN"], "filled-by-the-vault", "the secret reaches the server under the name it reads");
+    assert.equal(env["REGION"], "eu", "a plain value reaches it as it is");
+    if (driver === "codex") {
+      assert.equal(env["VYRE_PLUGIN_1"], null, "Vyre's own name for the secret is dropped before the server starts");
+      assert.equal(env["OPENAI_API_KEY"], null, "Codex's own key is not passed to a plugin server");
+    }
+    assert.ok(!JSON.stringify(spy.launches).includes("filled-by-the-vault"), "the value is in the environment only, never in the command line");
+  });
+}
 
 test("an agent with no enabled plugin gets nothing written", async () => {
   const w = work();

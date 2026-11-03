@@ -7,6 +7,7 @@ import { createGuardedFetch } from "../lib/net-guard.ts";
 import { CORE_SPACE } from "../fixtures/seed/core/index.ts";
 import { KEY, boot, connect, hostLog, scriptedModel, seededDir, stop, waitFor } from "./support/eco-live.ts";
 import type { Daemon } from "../host/src/daemon/daemon.ts";
+import { fileHubKey } from "../apps/app/src/hubs/hub-key.ts";
 
 const HUB_KEY = "cmp_team_FAKEhubKEY0123456789abcdef"; // secret-scan: fake
 const HUB_URL = "https://backend.composio.dev/v3/mcp/srv_team/mcp";
@@ -148,5 +149,64 @@ test("Team: the admin connects with a Shared key; each member's agent runs on th
     state.revoked = false;
     assert.match(await ask("usr_noah", "list channels", "team-back"), /^GOT/);
     assert.equal((await mine()).length, 0, "the item closed when another member's call worked: the host closes it, not the person whose call failed");
+  } catch (e) { console.error("FAILED:", e instanceof Error ? e.message.slice(0, 1800) : e); throw e; } finally { await stop(d); await hub.close(); }
+});
+
+test("Team: the hub card files the key where every member's call can use it (a Shared folder); filed in the admin's Mine folder, a member's call is refused", async () => {
+  const seen: Seen[] = [];
+  const hub = await fakeHub(seen, { revoked: false });
+  const guarded = createGuardedFetch({ own: true });
+  const mcpFetch = (url: string, init: Parameters<typeof guarded>[1]) => guarded(url.replace("https://backend.composio.dev", `http://127.0.0.1:${hub.port}`), init);
+  const model = scriptedModel(async function* (_input, run) {
+    const r = yield* run("mcp__composio__SLACK_LIST_CHANNELS", {});
+    yield { type: "text", text: r.ok ? `GOT ${JSON.stringify(r.content)}` : `FAILED ${JSON.stringify(r.content ?? r)}` };
+  });
+  const ownerToken = { v: "" };
+  const d = await boot(seededDir(), model, {
+    mcpFetch, vault: undefined,
+    session: (headers: Record<string, string | undefined>) => {
+      const t = String(headers["authorization"] ?? "").replace(/^Bearer /, "");
+      const id = t === ownerToken.v ? "usr_olivia" : t;
+      return WHO.includes(id) ? { space: CORE_SPACE, principal: { kind: "person" as const, id }, device: "hub-team" } : null;
+    },
+  });
+  ownerToken.v = d.token;
+  const api = as(d);
+  const asOwner = async (cap: string, input: unknown): Promise<unknown> => { const r = await api("usr_olivia", cap, input); assert.equal(r.status, 200, `${cap}: ${JSON.stringify(r.data)}`); return r.data; };
+  try {
+    await connect(d);
+    const agentId = ((await asOwner("agents.create", { name: "Ops", role: "You help the team.", idempotencyKey: "kf-agent" })) as { agent: { agentId: string } }).agent.agentId;
+    const keys = (await asOwner("vault.folders.create", { idempotencyKey: "kf-ai-folder", name: "AI accounts", scope: "shared" })) as { folder: { id: string } };
+    const acct = (await asOwner("providers.add", { idempotencyKey: "kf-ai", providerKey: "anthropic", connection: "api_key", apiKey: `${KEY}K`, name: "Team AI", scope: "shared", folderId: keys.folder.id })) as { provider: { handle: string } };
+    await asOwner("agents.update", { agentId, patch: { accountPolicy: "key", accountKey: acct.provider.handle }, idempotencyKey: "kf-agent-key" });
+    const ask = async (who: string, key: string): Promise<string> => {
+      const th = (await api(who, "chat.start", { kind: "chat", agentIds: [agentId], idempotencyKey: `${key}-s` })).data.thread.threadId as string;
+      await api(who, "chat.post", { threadId: th, body: "list channels", mentions: [{ kind: "agent", id: agentId }], idempotencyKey: `${key}-p` });
+      return waitFor(async () => {
+        await d.hooks?.pump?.();
+        const ms = (await api(who, "chat.messages.list", { threadId: th })).data.messages as Array<{ author?: { kind?: string }; body?: string }> | undefined;
+        return ms?.find((m) => m.author?.kind === "agent" && (m.body ?? "") !== "")?.body ?? null;
+      }, 25_000, () => hostLog(d));
+    };
+
+    // what the card did before rc.17: the key in the admin's own Mine folder
+    const mine = (await asOwner("vault.folders.create", { idempotencyKey: "kf-mine", name: "Mine", scope: "mine" })) as { folder: { id: string } };
+    await asOwner("vault.item.put", { idempotencyKey: "kf-mine-key", folderId: mine.folder.id, name: "Composio_key", kind: "api_key", fields: [{ key: "api_key", value: HUB_KEY, secret: true }] });
+    await asOwner("plugins.connection.add", { idempotencyKey: "kf-conn1", name: "composio", scope: "space", url: HUB_URL, headers: { "x-api-key": "#Composio_key.api_key" }, hub: "composio" });
+    assert.match(await ask("usr_olivia", "kf-olivia1"), /^GOT .*SLACK_LIST_CHANNELS for /, "the admin's own call fills the key");
+    const refused = await ask("usr_mia", "kf-mia1");
+    assert.match(refused, /^FAILED/, "a member's call cannot fill a key in the admin's Mine folder");
+    assert.ok(!refused.includes(HUB_KEY));
+
+    // what the card does now: the key in a Shared folder, the connection holding only its handle
+    await asOwner("plugins.connection.remove", { idempotencyKey: "kf-conn1-rm", name: "composio", scope: "space" });
+    const handle = await fileHubKey(asOwner, "ComposioTeam", HUB_KEY);
+    assert.equal(handle, "#ComposioTeam_key.api_key");
+    const items = ((await asOwner("vault.items.list", {})) as { items: Array<{ name: string; scope: string }> }).items;
+    assert.equal(items.find((i) => i.name === "ComposioTeam_key")?.scope, "shared", "the key is in a Shared folder");
+    await asOwner("plugins.connection.add", { idempotencyKey: "kf-conn2", name: "composio", scope: "space", url: HUB_URL, headers: { "x-api-key": handle }, hub: "composio" });
+    const works = await ask("usr_mia", "kf-mia2");
+    assert.match(works, /^GOT .*SLACK_LIST_CHANNELS for /, works);
+    assert.ok(!works.includes(HUB_KEY));
   } catch (e) { console.error("FAILED:", e instanceof Error ? e.message.slice(0, 1800) : e); throw e; } finally { await stop(d); await hub.close(); }
 });

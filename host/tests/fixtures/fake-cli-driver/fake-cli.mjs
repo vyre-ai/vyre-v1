@@ -11,6 +11,7 @@
 //   send      "send <address> [mailboxId]": calls the mail_send tool over the Vyre MCP server named in --mcp-config (stdio shim or loopback URL, the same ways the real CLI would) and answers with
 //             what the tool said, "mail_send answered: <text>" or "mail_send refused: <text>" (a Gate hold, a refusal) or "mcp error: <message>". Lets a test drive the Gate path end to end.
 //   tool      "tool <name> <json arguments>": calls any tool over the Vyre MCP server and answers "<name> answered: <text>" or "<name> refused: <text>" (or "mcp error: ..."). A model that reads memory through its tools.
+//   skillscheck  lists the skills in .claude/skills of its folder, where Claude Code looks for its own: "skills: <name>=<description>=<files>; ..." and whether Skill is an allowed tool
 //   anything else answers with the prompt it was given
 // These are picked by the prompt's last line (the person's message comes last, after the turn context and any recent messages a fresh session is given):
 //   resumecheck  "resumed=<the --resume id or none> session=<this session's id>"
@@ -142,6 +143,22 @@ async function callTool(prompt) {
   } catch (e) {
     reply([`mcp error: ${e instanceof Error ? e.message : "the call failed"}`]);
   } finally { mcp?.close(); }
+}
+
+/** What Claude Code would find of its own skills in its folder, and whether it may open one. */
+function skillsCheck() {
+  const base = path.join(process.cwd(), ".claude", "skills");
+  let dirs = [];
+  try { dirs = fs.readdirSync(base, { withFileTypes: true }).filter((e) => e.isDirectory()).map((e) => e.name).sort(); } catch { /* none */ }
+  const walk = (d, rel = "") => { try { return fs.readdirSync(d, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? walk(path.join(d, e.name), `${rel}${e.name}/`) : [`${rel}${e.name}`])); } catch { return []; } };
+  const rows = dirs.map((n) => {
+    let desc = "";
+    try { desc = (fs.readFileSync(path.join(base, n, "SKILL.md"), "utf8").split("\n").find((l) => l.startsWith("description:")) ?? "").replace(/^description:\s*/, ""); } catch { desc = "NO SKILL.md"; }
+    return `${n}=${desc}=${walk(path.join(base, n)).filter((f) => f !== "SKILL.md").sort().join(",")}`;
+  });
+  const i = argv.indexOf("--allowedTools");
+  const allowed = i >= 0 ? argv.slice(i + 1).filter((a, k, all) => !all.slice(0, k + 1).some((x) => x.startsWith("--"))) : [];
+  return `skills: ${rows.join("; ") || "none"} | Skill allowed: ${allowed.includes("Skill")}`;
 }
 
 // A real claude merges a user message that arrives while it is mid-turn into that turn (one result for both) instead of answering it as a turn of its own. `holding` is the part of a turn where the fake does the same:
@@ -281,6 +298,7 @@ async function run(raw) {
   // a "tool" line is the person's message, which comes last and may follow context or memory the engine put in front of it
   const toolLine = prompt.split("\n").reverse().find((l) => /^tool\s+\S+/.test(l));
   if (toolLine) { await callTool(toolLine); return; }
+  if (prompt.split("\n").some((l) => l.trim() === "skillscheck")) { reply([skillsCheck()]); return; }
   const first = prompt.trim().split(/\s+/)[0];
   // a side question (/btw): its first message carries "The question: ..."; the answer streams a few words
   const asked = /The question: ([^\n]*)/.exec(prompt);

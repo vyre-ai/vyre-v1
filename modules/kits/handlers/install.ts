@@ -238,7 +238,8 @@ function shorthand(kind: (typeof SHORTHANDS)[number], v: unknown, kit: string, i
     if (v.files !== undefined && !strMap(v.files)) { bad(`${at}.files`, "a map of path to text"); return null; }
     return {
       apply: { cap: "skills.add", input: { text: v.text, ...(v.files ? { files: v.files } : {}), source: `kit:${kit}`, idempotencyKey: key } },
-      undo: { cap: "skills.remove", input: { name: parsed.skill.name, idempotencyKey: `${key}.undo` } },
+      // the undo names the Kit as the source: a skill of the same name someone else added (which the Kit kept, never replaced) is not removed with it
+      undo: { cap: "skills.remove", input: { name: parsed.skill.name, source: `kit:${kit}`, idempotencyKey: `${key}.undo` } },
     };
   }
   if (kind === "marketplace") {

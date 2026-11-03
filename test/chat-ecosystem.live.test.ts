@@ -25,7 +25,14 @@ test("a skill is loaded into a turn: the Space library, the agent's own skills/ 
     if (/list my skills/.test(ask)) {
       yield* run("tool_search", { query: "skills list" });
       const l = yield* run("skills_list", { agentId });
-      yield { type: "text", text: `INDEX ${((l.content as { data: { skills: Array<{ name: string; tier: string }> } }).data.skills).map((s) => `${s.name}:${s.tier}`).join(",")}` };
+      yield { type: "text", text: `INDEX ${((l.content as { data: { skills: Array<{ name: string; tier: string; shadowedBy?: string }> } }).data.skills).map((s) => `${s.name}:${s.tier}${s.shadowedBy ? `<${s.shadowedBy}` : ""}`).join(",")}` };
+    } else if (/what skills fit/.test(ask)) {
+      // a model that reads the turn: the index in front of it names the Space's skill and the agent's own, and the tool that loads them; it loads one straight away, with no tool_search
+      const idx = input.context?.sections.find((x) => x.id === "skills")?.text ?? "";
+      const lines = idx.split("\n").filter((x) => /^- (intake-rules|triage):/.test(x));
+      const tool = /load it with (load_skill) \{name\}/.exec(idx)?.[1] ?? "none";
+      const r = yield* run(tool, { name: "triage" });
+      yield { type: "text", text: `TURN ${lines.join(" / ")} || TOOL ${tool} || ${r.ok ? (r.content as { data: { skill: { tier: string; body: string } } }).data.skill.tier + " " + (r.content as { data: { skill: { body: string } } }).data.skill.body.trim() : `FAILED ${text(r)}`}` };
     } else if (/use the intake rules/.test(ask)) {
       const r = yield* run("load_skill", { name: "intake-rules", agentId });
       yield { type: "text", text: `LOADED ${r.ok ? ((r.content as { data: { skill: { tier: string; body: string } } }).data.skill.tier + " " + (r.content as { data: { skill: { body: string } } }).data.skill.body.split("\n").find((x) => x.trim() !== "")) : "FAILED"}` };
@@ -52,8 +59,11 @@ test("a skill is loaded into a turn: the Space library, the agent's own skills/ 
     assert.match(index, /^INDEX /);
     assert.match(index, /working-in-vyre:builtin/);
     assert.match(index, /intake-rules:space/);
-    assert.match(index, /triage:agent/, "the agent's own triage wins over the Space copy");
-    assert.doesNotMatch(index, /triage:space/);
+    assert.match(index, /triage:agent(,|$)/, "the agent's own triage wins over the Space copy");
+    assert.match(index, /triage:space<agent/, "the Space copy is still listed, marked as beaten by the agent's own");
+    // the turn itself: the Space skill and the agent's own are in the index the model is given, and the one it names loads with no search
+    const turn = await post(d, thread, id, "what skills fit this", "sk1t");
+    assert.match(turn, /^TURN - triage: The intake agent's own triage steps\. \(Used here\. The Space's skill of this name is not\.\) \/ - intake-rules: How we take a new matter at intake\. Use when someone asks about intake\. \|\| TOOL load_skill \|\| agent Own triage\.$/, turn);
     assert.equal(await post(d, thread, id, "use the intake rules", "sk1b"), "LOADED space Ask for the conflict names first.");
     assert.equal(await post(d, thread, id, "use the triage steps", "sk1c"), "LOADED agent");
   } catch (e) {
