@@ -29969,7 +29969,7 @@ const routes5: Route[] = [
     "module": "sites",
     "effects": "write",
     "permission": null,
-    "level": "edit",
+    "level": "view",
     "resource": {
       "type": "site",
       "id": "/artifactId"
