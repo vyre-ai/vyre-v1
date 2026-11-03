@@ -72,8 +72,10 @@ export function skipReason(row: AccountRow | undefined, req: ResolveRequest, pay
 
 function candidates(req: ResolveRequest, payerReason: "starter" | "steerer", payer: string): Candidate[] {
   const out: Candidate[] = [];
+  // the fallbacks someone configured (the agent's ordered list, the Space's backups) keep that reason wherever they land in the order, so moving on to one never stops to ask (switch-on-limit.ts)
+  const configured = new Set<string>([...(req.trigger !== "task" ? req.agent.accountFallback ?? [] : []), ...req.backupRefs]);
   const add = (ref: string | undefined, reason: ResolveReason, o: { pin?: true; space?: true } = {}): void => {
-    if (ref !== undefined && ref !== "" && !out.some((c) => c.ref === ref)) out.push({ ref, reason, ...o });
+    if (ref !== undefined && ref !== "" && !out.some((c) => c.ref === ref)) out.push({ ref, reason: configured.has(ref) && o.pin !== true ? "backup_key" : reason, ...o });
   };
   const own = (): void => {
     // the payer's own accounts: subscription sign-ins before keys (already paid for); an older sign-in listed under another row of the provider is not picked on its own
@@ -93,7 +95,11 @@ function candidates(req: ResolveRequest, payerReason: "starter" | "steerer", pay
     if (req.stepKey === undefined && req.agent.accountPolicy !== "key") own();
   } else {
     add(req.threadAccountRef, payerReason, req.modelPinned === true ? { pin: true, strict: true } : { pin: true });
-    if (req.agent.accountPolicy === "key") add(req.agent.accountKey, payerReason, { pin: true });
+    if (req.agent.accountPolicy === "key") {
+      add(req.agent.accountKey, payerReason, { pin: true });
+      // an agent pinned to a key goes on down its own ordered fallback list, as configured, before anything else
+      for (const f of req.agent.accountFallback ?? []) add(f, "backup_key");
+    }
     const chat = req.trigger === "message" || req.trigger === "wake";
     if (chat) { if (req.agent.accountPolicy !== "key") own(); space(); }
     else { space(); if (req.agent.accountPolicy !== "key") own(); }
