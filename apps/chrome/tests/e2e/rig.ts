@@ -51,7 +51,7 @@ export function site(pages: Record<string, string | ((req: http.IncomingMessage,
  * Start the fake app (the daemon's bridge with handlers) and a Chromium with the extension. `ops` answers bridge operations by name, `caps` answers capability calls by name.
  * Every call is recorded in `calls`. Returns the browser context, the extension's service worker, and helpers.
  */
-export async function launch(found: { chromium: any; exe: string }, o: { ops?: Record<string, Handler>; caps?: Record<string, Handler>; colorScheme?: "light" | "dark"; incognito?: boolean; agent?: boolean } = {}) {
+export async function launch(found: { chromium: any; exe: string }, o: { ops?: Record<string, Handler>; caps?: Record<string, Handler>; colorScheme?: "light" | "dark"; incognito?: boolean; agent?: boolean; daemon?: { url: string; token: string } } = {}) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "vyre-e2e-"));
   const data = path.join(dir, "data");
   const profile = path.join(dir, "profile");
@@ -74,8 +74,9 @@ export async function launch(found: { chromium: any; exe: string }, o: { ops?: R
   const server = http.createServer((req, res) => { if (!bridge.handle(req, res)) { res.writeHead(404); res.end(); } });
   await new Promise<void>((r) => server.listen(0, "127.0.0.1", () => r()));
   const url = `http://127.0.0.1:${(server.address() as { port: number }).port}`;
-  fs.writeFileSync(path.join(data, "vyred.json"), JSON.stringify({ url, pid: process.pid, roles: ["space"] }));
-  fs.writeFileSync(path.join(data, "admin.token"), token);
+  // with `daemon` the native host reaches a booted daemon's own bridge instead of this rig's fake app
+  fs.writeFileSync(path.join(data, "vyred.json"), JSON.stringify({ url: o.daemon?.url ?? url, pid: process.pid, roles: ["space"] }));
+  fs.writeFileSync(path.join(data, "admin.token"), o.daemon?.token ?? token);
 
   // The native host, as the desktop app installs it: a launcher Chromium starts, which runs host.js with node.
   const launcher = path.join(dir, "run-vyre-bridge");

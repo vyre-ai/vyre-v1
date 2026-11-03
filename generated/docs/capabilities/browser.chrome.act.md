@@ -28,6 +28,11 @@ type In = {
   action: "send" | "drop" | "watch" | "takeover";
   agentId: string;
   heldId?: string;
+  edits?: {
+    to?: string;
+    subject?: string;
+    message?: string;
+  };
   threadId?: string;
   summary?: string;
   idempotencyKey: string;
@@ -59,6 +64,11 @@ type Out = {
   "input": {
     "action": "send",
     "agentId": "agt_a1b2c3",
+    "edits": {
+      "message": "example",
+      "subject": "example",
+      "to": "example"
+    },
     "heldId": "hld_a1b2c3",
     "idempotencyKey": "idem_1",
     "summary": "example",

@@ -4730,6 +4730,11 @@ export type BrowserChromeActIn = {
   action: "send" | "drop" | "watch" | "takeover";
   agentId: string;
   heldId?: string;
+  edits?: {
+    to?: string;
+    subject?: string;
+    message?: string;
+  };
   threadId?: string;
   summary?: string;
   idempotencyKey: string;

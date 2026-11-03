@@ -67,7 +67,8 @@ export function cleanBlock(type: unknown, data: unknown): { type: "chrome_held" 
     const thumb = str(d["thumb"], 400_000);
     const state = ["waiting", "paused", "done", "stopped"].includes(String(d["state"])) ? d["state"] : "using";
     const saw = (Array.isArray(d["saw"]) ? d["saw"] : []).filter((h): h is string => typeof h === "string" && /^#[A-Za-z0-9_]+(\.[A-Za-z0-9_]+)?$/.test(h)).slice(0, 20);
-    return { type: "chrome_step", v: 1, data: { agentId: str(d["agentId"], 80), agent: str(d["agent"], 60), site, thumb: THUMB.test(thumb) ? thumb : null, state, saw } };
+    const steps = (Array.isArray(d["steps"]) ? d["steps"] : []).slice(0, 21).flatMap((x) => { const o = obj(x); const text = str(o["text"], 200); return text ? [{ text, state: o["state"] === "done" || o["state"] === "waiting" ? o["state"] : "todo" }] : []; });
+    return { type: "chrome_step", v: 1, data: { agentId: str(d["agentId"], 80), agent: str(d["agent"], 60), site, thumb: THUMB.test(thumb) ? thumb : null, state, saw, goal: str(d["goal"], 200), steps } };
   }
   return null;
 }

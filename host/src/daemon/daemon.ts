@@ -127,6 +127,7 @@ import { createLocalWork, createLocalWorkRoute } from "../routes/local-work.ts";
 import { createChromeAgentsRoute } from "../routes/chrome-agents.ts";
 import { bindPersonalChrome } from "../../../lib/personal-chrome.ts";
 import { createBridgePort } from "../../../lib/personal-chrome-bridge.ts";
+import { composePorts, createRemotePort } from "../../../lib/personal-chrome-remote.ts";
 import { createTeamLinksRoute } from "../routes/team-links.ts";
 import type { TeamLink } from "../routes/team-links.ts";
 import type { ComputeStream } from "../routes/compute-stream.ts";
@@ -422,7 +423,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   // teamLinks below), through that Space's gateway. Never as the owner, never with this daemon's admin token; with nobody signed in they are refused.
   let chromeApp: { invoke(cap: string, input: Record<string, unknown>): Promise<unknown>; op(op: string, input: Record<string, unknown>): Promise<unknown> } | null = null;
   const chromeNotReady = (): Promise<never> => Promise.reject(Object.assign(new Error("The Vyre app cannot answer that yet."), { code: "not_available" }));
-  let chromePortEvents: (e: import("../bridge/chrome.ts").AgentEvent) => void = () => {};
+  const chromeEventListeners = new Set<(e: import("../bridge/chrome.ts").AgentEvent) => void>();
+  let chromePortEvents: (e: import("../bridge/chrome.ts").AgentEvent) => void = (e) => { for (const f of chromeEventListeners) { try { f(e); } catch { /* a listener never stops the bridge */ } } };
   const chromeBridge = createChromeBridge({ token, invoke: (cap, input) => (chromeApp ? chromeApp.invoke(cap, input) : chromeNotReady()), op: (op, input) => (chromeApp ? chromeApp.op(op, input) : chromeNotReady()), onEvent: (e) => { chromePortEvents(e); sink.log({ space: "-", level: 20, msg: "chrome.agent_event", place: "chrome-bridge", attrs: { event: e.event, agent: typeof e["agent"] === "string" ? e["agent"] : "" } }); } });
   closers.push(() => { chromeBridge.failAll(); chromeBridge.closeStreams(); });
   const fetchFn: FetchFn | null = o.fetch ?? (typeof fetch === "function" ? (fetch as unknown as FetchFn) : null);
@@ -536,7 +538,10 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   let computeStreamInput: (computerId: string, personId: string) => Promise<boolean> = () => Promise.resolve(false);
   // a person's own computer links with their signed-in session (lane l-runson); who it is comes from the same resolver as the gateway, once the Space is open
   let deviceOfToken: (token: string) => Promise<{ person: string; device: string; name?: string } | null> = () => Promise.resolve(null);
-  const computeStream = createComputeStream({ poll: (c) => computePoll(c, {}), device: (t) => deviceOfToken(t), open: (t, c) => computeStreamOpen(t, c), mayInput: (c, p) => computeStreamInput(c, p), ...(o.computeStreamRecheckMs !== undefined ? { recheckMs: o.computeStreamRecheckMs } : {}), ...(o.computeStreamSecure ? { secure: o.computeStreamSecure } : {}) });
+  let streamRef: { devices(p?: string): { nodeId: string; person: string }[]; ask(n: string, k: string, i: unknown, t?: number): Promise<unknown> } | null = null;
+  let remoteChrome: ReturnType<typeof createRemotePort>;
+  const computeStream = createComputeStream({ chromeEvent: (link, e) => remoteChrome.onEvent({ nodeId: link.nodeId, person: link.person }, e), poll: (c) => computePoll(c, {}), device: (t) => deviceOfToken(t), open: (t, c) => computeStreamOpen(t, c), mayInput: (c, p) => computeStreamInput(c, p), ...(o.computeStreamRecheckMs !== undefined ? { recheckMs: o.computeStreamRecheckMs } : {}), ...(o.computeStreamSecure ? { secure: o.computeStreamSecure } : {}) });
+  streamRef = computeStream;
   closers.push(() => computeStream.close());
   // A device-role daemon (the Vyre app's, on the person's own computer) links to each Team Space its person is signed in to here, so their chats there can run on this computer (lane l-runson).
   // A daemon that hosts a Space does not: its Space is here, and its turns already run here.
@@ -560,6 +565,23 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
     const engines = o.deviceLink?.engines ?? (engine?.nodeCliReport?.().sandbox.ok === true ? ["claude_code", "codex", "grok"] : []);
     await runDeviceLink({
       server: l.address, token: l.token, dataDir: paths.root, name: o.deviceLink?.name ?? platform.hostname, engines, launcher,
+      chrome: {
+        // the Space's questions about this computer's Chrome, answered with the same port a local turn uses (the person signed in to the extension, the Space they picked, opened to agents)
+        answer: async (kind, input) => {
+          const i = (input ?? {}) as Record<string, any>;
+          switch (kind) {
+            case "chrome.available": return chromePort.port.available({ space: String(i["space"]), person: String(i["person"]) });
+            case "chrome.call":
+              if (!(await chromePort.port.available({ space: String(i["space"]), person: String(i["person"]) }))) throw new Error("This Chrome is not open to agents for you here.");
+              return chromePort.port.call({ tool: String(i["tool"]), args: (i["args"] ?? {}) as Record<string, unknown>, agent: i["agent"] as { id: string; name: string }, space: String(i["space"]), ...(i["thread"] ? { thread: String(i["thread"]) } : {}), timeoutMs: Number(i["timeoutMs"]) || 30_000 });
+            case "chrome.drop": chromePort.port.drop(String(i["heldId"])); return true;
+            case "chrome.takeover": chromePort.port.takeOver(String(i["agentId"])); return true;
+            case "chrome.watch": chromePort.port.watch(String(i["agentId"])); return true;
+            default: throw new Error("Not a Chrome question.");
+          }
+        },
+        onEvent: (f) => { chromeEventListeners.add(f as never); return () => { chromeEventListeners.delete(f as never); }; },
+      },
       socket: o.deviceLink?.socket ?? platformSocket, signal, ...(o.deviceLink?.retryMs !== undefined ? { retryMs: o.deviceLink.retryMs } : {}), ...(o.deviceLink?.homes ? { homes: o.deviceLink.homes } : {}),
       sleep: (ms, sig) => new Promise<void>((resolve, reject) => { const t = setTimeout(resolve, ms); t.unref?.(); sig.addEventListener("abort", () => { clearTimeout(t); reject(new Error("stopped")); }, { once: true }); }),
       log: (line) => sink.log({ space: l.id, level: 20, msg: "team.link", place: "device-link", attrs: { line } }),
@@ -588,6 +610,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
     push: (m) => { chromeBridge.push(m); },
   });
   // The person's own Chrome as a place the Chrome tools can run: only for an agent working for the person signed in to it, in the Space they picked, once they opened Chrome to agents (POST /local/chrome/agents).
+  // a Team Space server reaches the person's Chrome over their device link (their computer's daemon owns the bridge)
+  remoteChrome = createRemotePort({ devices: (p) => streamRef?.devices(p) ?? [], ask: (n, k, i, t) => (streamRef ? streamRef.ask(n, k, i, t) : Promise.reject(new Error("no link"))) });
   const agentNames = new Map<string, string>();
   const chromePort = createBridgePort({
     bridge: chromeBridge,
@@ -597,8 +621,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       return agentNames.get(id) ?? id;
     },
   });
-  chromePortEvents = chromePort.onEvent;
-  bindPersonalChrome(chromePort.port);
+  chromeEventListeners.add(chromePort.onEvent);
+  bindPersonalChrome(composePorts(chromePort.port, remoteChrome.port));
   closers.push(() => bindPersonalChrome(null));
   const chromeAgentsRoute = createChromeAgentsRoute({ token, optIn: (spaces) => chromeBridge.optIn(spaces, "personal"), opened: () => chromeBridge.opened?.spaces ?? [], sameToken });
   let computeRecording: (nodeId: string, a: { token: string; computerId: string; url: string; bytes: Buffer }) => Promise<boolean> = () => Promise.resolve(false);

@@ -71,7 +71,7 @@ const SHAPES = {
   chrome_status: {},
   chrome_stop: { reason: "s?" },
   chrome_resume: {},
-  chrome_send: { heldId: "s" },
+  chrome_send: { heldId: "s", edits: "o?" },
   chrome_batch: { tabId: "s?", steps: "a" },
   chrome_plan: { goal: "s", steps: "a?" },
   chrome_api: { method: METHODS, url: "s", headers: "o?", body: "?" },

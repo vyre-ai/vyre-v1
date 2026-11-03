@@ -7,6 +7,8 @@ export interface PersonalChrome {
   held(heldId: string): Promise<{ site?: string; kind?: string; summary?: string; card?: Record<string, string> } | null>;
   /** The newest small masked picture of the agent's tab, if there is one. */
   frame(agentId: string): { site: string; thumb: string } | null;
+  /** How far the agent is in the plan it gave: its goal, the steps and how many are done. */
+  plan(agentId: string): { goal: string; steps: string[]; done: number } | null;
   /** The person chose Don't send: the extension forgets the held item. */
   drop(heldId: string): void;
   /** Hand the agent's tab back to the person (the bar's Take over). */

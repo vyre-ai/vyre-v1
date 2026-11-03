@@ -15,7 +15,7 @@ function port(o: { open?: boolean; sendThrows?: string } = {}) {
   bindPersonalChrome({
     async available(a) { return o.open !== false && a.person === "usr_olivia"; },
     async call(a) { sends.push(a); if (o.sendThrows) throw Object.assign(new Error("gone"), { code: o.sendThrows }); return { sent: true }; },
-    held: async () => null, frame: () => null,
+    held: async () => null, frame: () => null, plan: () => null,
     drop: (id) => log.push(`drop ${id}`), takeOver: (a) => log.push(`takeover ${a}`), watch: (a) => log.push(`watch ${a}`),
   } satisfies PersonalChrome);
   return { log, sends };

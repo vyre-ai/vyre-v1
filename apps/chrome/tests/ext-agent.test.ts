@@ -349,7 +349,7 @@ test("the frame, the beacon and the debugger exist only while an agent drives, a
   const o = w.overlay.get(7);
   assert.equal(o.name, "Intake");
   assert.equal(o.paused, false);
-  assert.equal(o.goal, "Sign in to Acme");
+  assert.equal(o.goal, "Sign in to Acme · 0 of 1", "the bar counts the plan");
   assert.equal(o.port, "vyre.agent.overlay");
   assert.equal(w.badge[7], "●");
   assert.ok(w.attached.has(7));
@@ -379,7 +379,7 @@ test("Stop on the frame gives the tab back, is logged under the agent, and the a
   for (const f of w.connectListeners) f(port);
   port.send({ type: "stop" });
   await w.advance(0);
-  assert.equal(w.overlay.size, 0, "the frame is off");
+  assert.equal(w.overlay.get(7).state, "stopped", "the bar says so and offers Resume and End task; the frame is off");
   assert.equal(w.attached.size, 0, "the debugger is detached: the tab is the person's again");
   const stopped = w.eventsOf("stopped");
   assert.equal(stopped.length, 1);
@@ -434,7 +434,7 @@ test("cancelling Chrome's own debugging bar is a Stop", async () => {
   for (const f of w.detachListeners) f({ tabId: 7 }, "canceled_by_user");
   await w.advance(0);
   assert.equal(w.eventsOf("stopped")[0].by, "person");
-  assert.equal(w.overlay.size, 0);
+  assert.equal(w.overlay.get(7).state, "stopped");
   await w.fails("chrome_snapshot", {}, "paused");
 });
 
@@ -1070,4 +1070,70 @@ test("events carry the chat the agent was asked in, and Don't send in the chat m
   await w.fails("chrome_send", { heldId: held.heldId }, "held_gone");
   assert.deepEqual((await w.call("chrome_status")).held, []);
   assert.equal(parseCommand({ type: "agent.held.drop", id: "../x" }), null, "only a held id is a held id");
+});
+
+// ---------- the bar's states, the plan's count, and Open in Vyre ----------
+
+function overlayPort(w) {
+  const port = { name: "vyre.agent.overlay", sender: { id: "ext", tab: { id: 7 } }, onMessage: { addListener: (f) => { port.send = f; } } };
+  for (const f of w.connectListeners) f(port);
+  return port;
+}
+
+test("the bar counts the plan: each acting step that goes through is one more of the steps the agent gave", async () => {
+  const w = await ready({ sites: [] });
+  await w.call("chrome_plan", { goal: "Fill the form", steps: ["Email", "Password", "Sign in"] });
+  await w.call("chrome_snapshot");
+  assert.equal(w.overlay.get(7).goal, "Fill the form · 0 of 3", "reading is not a step");
+  await w.call("chrome_type", { ref: "e1", text: "dana@acme.test" });
+  assert.equal(w.overlay.get(7).goal, "Fill the form · 1 of 3");
+  const plans = w.eventsOf("plan");
+  assert.deepEqual([plans.at(-1).done, plans.at(-1).steps.length], [1, 3], "the chat's checklist follows");
+});
+
+test("Take over leaves a bar that says You're in control with Give back; giving back clears it and the agent may go on", async () => {
+  const w = await ready();
+  await w.call("chrome_snapshot");
+  const port = overlayPort(w);
+  port.send({ type: "takeover" });
+  await w.advance(0);
+  assert.equal(w.overlay.get(7).state, "takeover");
+  assert.equal(w.attached.size, 0);
+  await w.fails("chrome_snapshot", {}, "paused");
+  port.send({ type: "giveback" });
+  await w.advance(0);
+  assert.equal(w.overlay.size, 0, "the bar is gone");
+  assert.equal(w.eventsOf("resumed").length, 1);
+  assert.match((await w.call("chrome_snapshot")).tree, /Sign in/);
+});
+
+test("Stopped offers Resume, which goes on, and End task, which tells the app the task ended", async () => {
+  const w = await ready();
+  await w.call("chrome_snapshot");
+  const port = overlayPort(w);
+  port.send({ type: "stop" });
+  await w.advance(0);
+  port.send({ type: "endtask" });
+  await w.advance(0);
+  assert.equal(w.overlay.size, 0);
+  assert.equal(w.eventsOf("ended").length, 1);
+  await w.call("chrome_snapshot");
+  port.send({ type: "stop" });
+  await w.advance(0);
+  port.send({ type: "giveback" });
+  await w.advance(0);
+  assert.equal((await w.call("chrome_status")).paused, false, "Resume lets the agent go on");
+});
+
+test("Open in Vyre opens the chat the agent was asked in, else the Space's web app at that chat", async () => {
+  const w = await ready();
+  await w.control.onIncoming({ type: "agent.call", id: "c9", tool: "chrome_snapshot", input: {}, agent: w.agent, space: "spc_a", thread: "thr_lab7" });
+  const asked = [];
+  const call = w.control.transport.call;
+  w.control.transport.call = async (type, name, input) => { asked.push([type, name, input]); return {}; };
+  const port = overlayPort(w);
+  port.send({ type: "openvyre" });
+  await w.advance(0);
+  assert.deepEqual(asked[0], ["bridge", "app.open", { place: "chats", threadId: "thr_lab7" }]);
+  w.control.transport.call = call;
 });

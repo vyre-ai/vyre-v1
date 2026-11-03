@@ -80,5 +80,16 @@ test("a chat turn works in the person's Chrome: the held send is a card, Send se
     await assert.rejects(agent("computers.chrome.send", { heldId: held2.heldId }), "the agent cannot press what was declined");
     await new Promise((x) => setTimeout(x, 300));
     assert.equal(sends(), 1, "declined: nothing more went out");
+
+    // Edit on the card: the edited values go into the page before the press, and what is sent is what the person edited
+    await page.goto(srv.url + "/");
+    const snap3 = await agent("computers.chrome.snapshot");
+    const held3 = await agent("computers.chrome.act", { ref: /button "Send" \[ref=(e\d+)\]/.exec(snap3.tree)![1], action: "click" });
+    assert.deepEqual(await browser["browser.chrome.act"](bw.as(PERSON), { action: "send", agentId: AGENT, heldId: held3.heldId, edits: { subject: "Edited subject", message: "Hi Dana, one change." }, threadId: "thr_lab7", idempotencyKey: "s3" }), { done: true });
+    await r.waitFor(() => sends() === 2, 5000, "the edited send");
+    const body = decodeURIComponent(srv.hits.filter((h) => h.path === "/send")[1]!.body.replace(/\+/g, " "));
+    assert.match(body, /subject=Edited subject/);
+    assert.match(body, /body=Hi Dana, one change\./);
+    assert.match(body, /to=dana@client\.test/, "what was not edited stays");
   } finally { clearInterval(timer); bindPersonalChrome(null); await r.close(); await srv.close(); }
 });

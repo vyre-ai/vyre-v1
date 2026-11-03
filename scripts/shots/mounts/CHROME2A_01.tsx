@@ -39,7 +39,7 @@ const HELD = { heldId: "hld_a1b2c3", agent: "Scout", site: "mail.google.com", ki
 function message(part: string, thumb: string): Message {
   const blocks = part.startsWith("held")
     ? [{ id: "blk_h", type: "chrome_held", v: 1, state: "waiting", data: part === "held-done" ? { ...HELD, state: "sent" } : HELD }]
-    : [{ id: "blk_s", type: "chrome_step", v: 1, state: "live", data: { agent: "Scout", site: "app.gohighlevel.com", thumb: thumb || null, state: "using", ...(part === "step-saw" ? { saw: ["#GoHighLevel_Olivia.username", "#GoHighLevel_Olivia.password"], open: true } : {}) } }];
+    : [{ id: "blk_s", type: "chrome_step", v: 1, state: "live", data: { agent: "Scout", site: "app.gohighlevel.com", thumb: thumb || null, state: "using", ...(part === "step" ? { goal: "Add tags", steps: [{ text: "Opened Contacts and the list \"Lab 7 registered, not attended\" (14)", state: "done" }, { text: "Added the tag lab-7-noshow (14 of 14)", state: "done" }, { text: "Enrolled them in the workflow Lab 8 nurture", state: "done" }, { text: "Drafted the email in Bulk email", state: "done" }, { text: "Send waits for you", state: "waiting" }] } : {}), ...(part === "step-saw" ? { saw: ["#GoHighLevel_Olivia.username", "#GoHighLevel_Olivia.password"], open: true } : {}) } }];
   return {
     messageId: "msg_c2a", threadId: "thr_c2a", threadSeq: 1, author: { kind: "agent", id: "agt_scout" }, kind: "agent",
     body: part.startsWith("held") ? "The email to Dana is written. It is waiting for your go-ahead." : "I am in your Chrome, in the Marisol Vega contact.",
@@ -53,7 +53,7 @@ function Chat({ part }: { part: string }): ReactNode {
   const [thumb, setThumb] = useState("");
   useEffect(() => setThumb(drawShot()), []);
   const items = useMemo(() => timeline([message(part, thumb)], { meId: "usr_olivia", nameOf: (id: string) => NAMES[id] ?? id, kindOf: (id: string) => (id.startsWith("agt_") ? "agent" : "person"), clock: { now: Date.UTC(2026, 10, 4, 15, 0), offsetMin: -300 } }), [part, thumb]);
-  const actions = useMemo(() => ({ nameOf: (id: string) => NAMES[id] ?? id, chrome: { send: async () => ({ sent: true }), drop: async () => undefined, edit: async () => undefined, watch: async () => undefined, takeOver: async () => undefined }, copy() {}, openThread() {}, setPinned() {}, react() {}, remove() {}, openAgent() {}, showMenu() {} }), []);
+  const actions = useMemo(() => ({ nameOf: (id: string) => NAMES[id] ?? id, chrome: { send: async () => ({ sent: true }), drop: async () => undefined, watch: async () => undefined, takeOver: async () => undefined }, copy() {}, openThread() {}, setPinned() {}, react() {}, remove() {}, openAgent() {}, showMenu() {} }), []);
   return (
     <View style={{ flex: 1, minHeight: 520, padding: 24, backgroundColor: "var(--win)" as string }}>
       <View style={{ maxWidth: 720, width: "100%" }}>{items.map((it) => <MessageView key={it.key} item={it} actions={actions as never} meId="usr_olivia" />)}</View>

@@ -70,8 +70,24 @@ export async function shootExtension(scheme: "light" | "dark", skin: "paper" | "
         assert.match(held.heldId, /^hld_/);
         await new Promise((x) => setTimeout(x, 300));
         await r.shot(page, name("agent-waiting", size));
+        // Take over and Stopped leave their own bars, with Give back and Resume
+        await press(page, "button", "Take over").catch(() => undefined);
         await call("chrome_stop");
         await call("chrome_resume");
+        await call("chrome_snapshot");
+        await press(page, "button", "Take over");
+        await boxOf(page, "button", "Give back");
+        await new Promise((x) => setTimeout(x, 200));
+        await r.shot(page, name("agent-takeover", size));
+        await press(page, "button", "Give back");
+        await new Promise((x) => setTimeout(x, 300));
+        await call("chrome_snapshot");
+        await press(page, "button", "Stop");
+        await boxOf(page, "button", "Resume");
+        await new Promise((x) => setTimeout(x, 200));
+        await r.shot(page, name("agent-stopped", size));
+        await press(page, "button", "Resume");
+        await new Promise((x) => setTimeout(x, 300));
         // the badge and the picker
         await page.goto(srv.url + "/login");
         await page.click("#em");

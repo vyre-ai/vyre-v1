@@ -268,6 +268,42 @@ export function composeFacts(idx) {
   return out;
 }
 
+/**
+ * Put the person's edits into the form a held send is about, the way a person typing would: To, Subject and Message, found by the same labels composeFacts reads. Returns which of them it set.
+ * @param {{ to?: string, subject?: string, message?: string }} edits
+ */
+export function applyFacts(edits) {
+  const g = /** @type {any} */ (globalThis);
+  const secrets = g[Symbol.for("vyre.agent.secret")];
+  /** @param {any} el */
+  const words = (el) => {
+    const bits = [el.getAttribute("aria-label"), el.getAttribute("placeholder"), el.getAttribute("name"), el.id];
+    if (el.labels) for (const l of el.labels) bits.push(l.innerText);
+    return bits.filter(Boolean).join(" ").toLowerCase();
+  };
+  /** @type {string[]} */
+  const set = [];
+  for (const el of g.document.querySelectorAll("input,textarea,[contenteditable=true],[role=textbox]")) {
+    const type = String(el.getAttribute("type") || "").toLowerCase();
+    if (type === "password" || type === "hidden" || type === "submit" || type === "button" || (secrets && secrets.has(el))) continue;
+    const w = words(el);
+    const long = el.tagName === "TEXTAREA" || el.getAttribute("contenteditable") === "true" || el.getAttribute("role") === "textbox";
+    const role = /(^|[^a-z])(to|recipients?)([^a-z]|$)/.test(w) ? "to" : /subject/.test(w) ? "subject" : (long || /message|body|comment|text/.test(w)) ? "message" : "";
+    if (!role || set.includes(role) || typeof edits[/** @type {"to"|"subject"|"message"} */ (role)] !== "string") continue;
+    const value = String(edits[/** @type {"to"|"subject"|"message"} */ (role)]);
+    if (el.isContentEditable && el.tagName !== "TEXTAREA") el.innerText = value;
+    else {
+      const proto = Object.getPrototypeOf(el);
+      const setter = Object.getOwnPropertyDescriptor(proto, "value")?.set;
+      if (setter) setter.call(el, value); else el.value = value;
+    }
+    el.dispatchEvent(new g.Event("input", { bubbles: true }));
+    el.dispatchEvent(new g.Event("change", { bubbles: true }));
+    set.push(role);
+  }
+  return set;
+}
+
 /** The actionable control under a point, for a click by coordinates. @param {number} x @param {number} y */
 export function pointInfo(x, y) {
   const g = /** @type {any} */ (globalThis);

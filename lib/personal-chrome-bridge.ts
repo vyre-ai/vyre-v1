@@ -14,6 +14,7 @@ export interface BridgePortDeps {
 export function createBridgePort(d: BridgePortDeps): { port: PersonalChrome; onEvent(e: AgentEvent): void } {
   const held = new Map<string, { site?: string; kind?: string; summary?: string; card?: Record<string, string> }>();
   const frames = new Map<string, { site: string; thumb: string }>();
+  const plans = new Map<string, { goal: string; steps: string[]; done: number }>();
   const port: PersonalChrome = {
     async available({ space, person }) {
       const open = d.bridge.opened;
@@ -28,6 +29,7 @@ export function createBridgePort(d: BridgePortDeps): { port: PersonalChrome; onE
       return held.get(id) ?? null;
     },
     frame: (agentId) => frames.get(agentId) ?? null,
+    plan: (agentId) => plans.get(agentId) ?? null,
     drop: (id) => { d.bridge.dropHeld(id); held.delete(id); },
     takeOver: (agentId) => { d.bridge.takeOver(agentId); },
     watch: (agentId) => { d.bridge.watch(agentId); },
@@ -40,6 +42,7 @@ export function createBridgePort(d: BridgePortDeps): { port: PersonalChrome; onE
         held.set(e["id"], { site: String(card["site"] ?? ""), kind: String(e["kind"] ?? ""), summary: String(e["summary"] ?? ""), card });
         if (held.size > 100) held.delete(held.keys().next().value as string);
       }
+      if (e.event === "plan" && typeof e["agent"] === "string" && Array.isArray(e["steps"])) plans.set(e["agent"], { goal: String(e["goal"] ?? ""), steps: (e["steps"] as unknown[]).filter((x): x is string => typeof x === "string").slice(0, 20), done: Number(e["done"]) || 0 });
       if (e.event === "frame" && typeof e["agent"] === "string" && typeof e["thumb"] === "string") frames.set(e["agent"], { site: String(e["site"] ?? ""), thumb: e["thumb"] });
     },
   };

@@ -10,7 +10,7 @@
 //     from anything read back.
 
 import { acts } from "./rights.js";
-import { callExpression, blurSecrets, collectPage, composeFacts, describeElement, focusElement, markSecret, pageRequest, pointInfo, probe, revealElement, scrollTo, scrubSecrets, selectOption } from "./page.js";
+import { applyFacts, callExpression, blurSecrets, collectPage, composeFacts, describeElement, focusElement, markSecret, pageRequest, pointInfo, probe, revealElement, scrollTo, scrubSecrets, selectOption } from "./page.js";
 import { AgentFailure, BATCHABLE, TAB_LIMIT, checkInput, errorOf, fail } from "./protocol.js";
 import { bareUrl, maskBody, maskHeaders, maskJson, maskUrl, scrub } from "./mask.js";
 import { refMap, renderTree, toSnapshot } from "./snapshot.js";
@@ -674,6 +674,13 @@ export function createTools(kit) {
       const h = sessions.take(call, String(input["heldId"]));
       note(`sent held ${h.kind}`);
       return drive(call, { tabId: String(h.tabId) }, async (tabId) => {
+        // the person edited the fields on the card: put those values in the page before the press
+        const e = input["edits"];
+        if (e && typeof e === "object") {
+          const clean = /** @type {Record<string, string>} */ ({});
+          for (const k of ["to", "subject", "message"]) if (typeof /** @type {any} */ (e)[k] === "string") clean[k] = /** @type {any} */ (e)[k].slice(0, 5000);
+          if (Object.keys(clean).length) await evalPage(tabId, applyFacts, clean);
+        }
         if (h.action.type === "click") {
           if (!h.selector) {
             // A click by coordinates was held without a control to re-bind: it cannot be replayed safely.
@@ -723,7 +730,7 @@ export function createTools(kit) {
     async chrome_plan(call, input, note) {
       const steps = Array.isArray(input["steps"]) ? input["steps"].filter((/** @type {unknown} */ s) => typeof s === "string").slice(0, 20).map(scrub) : [];
       kit.emit({ event: "plan", agent: call.agent.id, goal: scrub(input["goal"]), steps });
-      await sessions.setGoal(call.agent, scrub(input["goal"]));
+      await sessions.setGoal(call.agent, scrub(input["goal"]), steps);
       note(scrub(input["goal"]));
       return { ok: true };
     },
@@ -793,6 +800,10 @@ export function createTools(kit) {
     try {
       const out = await impl({ ...call, input }, input, (s) => { summary = scrub(s); });
       if (!nested && kit.mode() === "personal" && !QUIET.has(call.tool)) void frame(call);
+      if (out && out.ok !== false && acts(call.tool, input) && !out?.heldId) {
+        const p = sessions.advance(call.agent.id);
+        if (p) kit.emit({ event: "plan", agent: call.agent.id, name: call.agent.name, goal: scrub(sessions.goalOf(call.agent.id)), steps: p.steps, done: p.done });
+      }
       ok = !(out && out.ok === false);
       return out;
     } catch (e) {

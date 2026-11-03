@@ -6,7 +6,7 @@
 
 /**
  * Show or update the frame and bar. Returns true when drawn.
- * @param {{ name: string, goal?: string, paused?: boolean, waiting?: boolean, color?: string, port: string }} o
+ * @param {{ name: string, goal?: string, paused?: boolean, waiting?: boolean, state?: "takeover" | "stopped", color?: string, port: string }} o
  */
 export function overlayShow(o) {
   const g = /** @type {any} */ (globalThis);
@@ -53,7 +53,13 @@ export function overlayShow(o) {
     const take = doc.createElement("button");
     take.className = "take";
     take.type = "button";
-    take.textContent = "Take over";
+    const handNs = "http://www.w3.org/2000/svg";
+    const hand = doc.createElementNS(handNs, "svg");
+    for (const [k, v] of [["width", "13"], ["height", "13"], ["viewBox", "0 0 16 16"], ["fill", "none"], ["stroke", "currentColor"], ["stroke-width", "1.4"], ["stroke-linecap", "round"], ["stroke-linejoin", "round"]]) hand.setAttribute(/** @type {string} */ (k), /** @type {string} */ (v));
+    const hp = doc.createElementNS(handNs, "path");
+    hp.setAttribute("d", "M5.5 8.5V3.8a1 1 0 012 0V7m0-3.4a1 1 0 012 0V7m0-2.4a1 1 0 012 0V9m0-3.2a1 1 0 012 0v3.4c0 2.6-1.700 4.300-4 4.300-1.800 0-2.800-.8-3.800-2.300L3 9.800a1 1 0 011.500-1.200z");
+    hand.append(hp);
+    take.append(hand, " Take over");
     const stop = doc.createElement("button");
     stop.className = "stop";
     stop.type = "button";
@@ -66,7 +72,19 @@ export function overlayShow(o) {
     open.className = "open";
     open.type = "button";
     open.textContent = "Open in Vyre";
-    bar.append(dot, text, goal, take, stop, open);
+    const give = doc.createElement("button");
+    give.className = "open";
+    give.type = "button";
+    give.textContent = "Give back";
+    const resume = doc.createElement("button");
+    resume.className = "open";
+    resume.type = "button";
+    resume.textContent = "Resume";
+    const end = doc.createElement("button");
+    end.className = "open";
+    end.type = "button";
+    end.textContent = "End task";
+    bar.append(dot, text, goal, take, stop, open, give, resume, end);
     const cursor = doc.createElement("div");
     cursor.className = "cursor";
     const svgNs = "http://www.w3.org/2000/svg";
@@ -90,24 +108,32 @@ export function overlayShow(o) {
     const port = g.chrome && g.chrome.runtime && g.chrome.runtime.connect ? g.chrome.runtime.connect({ name: o.port }) : null;
     stop.addEventListener("click", (/** @type {any} */ e) => { e.preventDefault(); e.stopPropagation(); if (port) port.postMessage({ type: "stop" }); });
     open.addEventListener("click", (/** @type {any} */ e) => { e.preventDefault(); e.stopPropagation(); if (port) port.postMessage({ type: "openvyre" }); });
+    give.addEventListener("click", (/** @type {any} */ e) => { e.preventDefault(); e.stopPropagation(); if (port) port.postMessage({ type: "giveback" }); });
+    resume.addEventListener("click", (/** @type {any} */ e) => { e.preventDefault(); e.stopPropagation(); if (port) port.postMessage({ type: "giveback" }); });
+    end.addEventListener("click", (/** @type {any} */ e) => { e.preventDefault(); e.stopPropagation(); if (port) port.postMessage({ type: "endtask" }); });
     take.addEventListener("click", (/** @type {any} */ e) => { e.preventDefault(); e.stopPropagation(); if (port) port.postMessage({ type: "takeover" }); });
     const onKey = (/** @type {any} */ e) => { if (e.key === "Escape" && !s.paused && port) port.postMessage({ type: "esc" }); };
     g.addEventListener("keydown", onKey, true);
-    s = { host, frame, bar, text, goal, stop, take, hint, open, cursor, chip, port, onKey, paused: false, moved: false };
+    s = { host, frame, bar, text, goal, stop, take, hint, open, give, resume, end, cursor, chip, port, onKey, paused: false, moved: false };
     g[KEY] = s;
   }
   s.paused = Boolean(o.paused);
-  const waiting = !s.paused && Boolean(o.waiting);
+  const state = o.state === "takeover" || o.state === "stopped" ? o.state : "";
+  const waiting = !s.paused && !state && Boolean(o.waiting);
   s.frame.className = s.paused ? "frame paused" : "frame";
   if (o.color) s.host.style.setProperty("--grp", String(o.color));
   s.bar.className = s.paused ? "bar paused" : waiting ? "bar waiting" : "bar";
-  s.text.textContent = s.paused ? `${o.name} is paused` : waiting ? "Waiting for you in Vyre" : `${o.name} is using this tab`;
-  s.take.style.display = s.paused || waiting ? "none" : "";
-  s.stop.style.display = s.paused ? "none" : "";
+  s.text.textContent = state === "takeover" ? `You're in control. ${o.name} waits.` : state === "stopped" ? `Stopped. ${o.name} does nothing until you choose.` : s.paused ? `${o.name} is paused` : waiting ? "Waiting for you in Vyre" : `${o.name} is using this tab`;
+  s.frame.style.display = state ? "none" : "";
+  const live = !s.paused && !state;
+  s.take.style.display = live && !waiting ? "" : "none";
+  s.stop.style.display = live ? "" : "none";
   s.open.style.display = waiting ? "" : "none";
+  s.give.style.display = state === "takeover" ? "" : "none";
+  s.resume.style.display = state === "stopped" ? "" : "none";
+  s.end.style.display = state === "stopped" ? "" : "none";
   s.goal.textContent = o.goal ? String(o.goal).slice(0, 80) : "";
   s.goal.style.display = o.goal ? "" : "none";
-  s.stop.style.display = s.paused ? "none" : "";
   s.chip.textContent = o.name;
   return true;
 }

@@ -13,7 +13,7 @@ export async function cardsPost(ctx: BrowserCtx, input: { threadId: string; bloc
   return { posted: true };
 }
 
-export async function chromeAct(ctx: BrowserCtx, input: { action: "send" | "drop" | "watch" | "takeover"; agentId: string; heldId?: string; threadId?: string; summary?: string; idempotencyKey: string }) {
+export async function chromeAct(ctx: BrowserCtx, input: { action: "send" | "drop" | "watch" | "takeover"; agentId: string; heldId?: string; edits?: { to?: string; subject?: string; message?: string }; threadId?: string; summary?: string; idempotencyKey: string }) {
   const trace = ctx.trace.traceId;
   if (ctx.principal.kind !== "person") raise(trace, "permission.no_grant", "Only the person whose Chrome it is can press these.");
   const port = personalChrome();
@@ -23,7 +23,7 @@ export async function chromeAct(ctx: BrowserCtx, input: { action: "send" | "drop
   switch (input.action) {
     case "send": {
       try {
-        const out = await p.call({ tool: "chrome_send", args: { heldId: input.heldId }, agent: { id: input.agentId, name: input.agentId }, space: ctx.space, ...(input.threadId ? { thread: input.threadId } : {}), timeoutMs: 60_000 });
+        const out = await p.call({ tool: "chrome_send", args: { heldId: input.heldId, ...(input.edits ? { edits: input.edits } : {}) }, agent: { id: input.agentId, name: input.agentId }, space: ctx.space, ...(input.threadId ? { thread: input.threadId } : {}), timeoutMs: 60_000 });
         return { done: out["sent"] === true };
       } catch (e) {
         const code = (e as { code?: unknown } | null)?.code;

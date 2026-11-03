@@ -5,22 +5,20 @@
 // Both read only their own data; a picture is shown only as a data: image the extension made. What the buttons do is the caller's (actions.chrome).
 import { useState } from "react";
 import type { ReactElement } from "react";
-import { Image, StyleSheet, Text, View } from "react-native";
+import { Image, StyleSheet, Text, TextInput, View } from "react-native";
 import { Glyph, TextButton } from "./parts.tsx";
 
 export interface HeldCardData {
   heldId: string; agent: string; site: string; kind: string; to: string; from: string; subject: string; message: string; summary: string;
   state: "waiting" | "sent" | "dropped" | "expired";
 }
-export interface StepCardData { agent: string; site: string; thumb: string | null; state: "using" | "waiting" | "paused" | "done" | "stopped"; /** Vault handles the agent was given on this page (names, never values). */ saw: string[]; /** The list of handles starts open (a screenshot mount). */ open: boolean }
+export interface StepCardData { agent: string; site: string; thumb: string | null; state: "using" | "waiting" | "paused" | "done" | "stopped"; /** Vault handles the agent was given on this page (names, never values). */ saw: string[]; /** The list of handles starts open (a screenshot mount). */ open: boolean; goal: string; steps: Array<{ text: string; state: "done" | "waiting" | "todo" }> }
 /** What a button press on a card needs to name. */
 export interface HeldRef { heldId: string; agentId: string; summary: string }
 /** What the buttons do. Each answers when it is done, or throws with words for the person. send answers whether it went out now (false: it was already done). */
 export interface ChromeCardActions {
-  send(h: HeldRef): Promise<{ sent: boolean }>;
+  send(h: HeldRef, edits?: { to?: string; subject?: string; message?: string }): Promise<{ sent: boolean }>;
   drop(h: HeldRef): Promise<void>;
-  /** Edit means the person changes it in Chrome themselves: the agent steps back and the tab is theirs. */
-  edit(h: HeldRef): Promise<void>;
   watch(agentId: string): Promise<void>;
   takeOver(agentId: string): Promise<void>;
 }
@@ -49,7 +47,7 @@ export function stepCardOf(data: unknown): StepCardData | null {
   if (!site) return null;
   const state = d["state"] === "waiting" || d["state"] === "paused" || d["state"] === "done" || d["state"] === "stopped" ? d["state"] : "using";
   const saw = (Array.isArray(d["saw"]) ? d["saw"] : []).filter((h): h is string => typeof h === "string" && HANDLE.test(h)).slice(0, 20);
-  return { agent: str(d["agent"], 60) || "An agent", site, thumb: typeof d["thumb"] === "string" && THUMB.test(d["thumb"]) ? d["thumb"] : null, state, saw, open: d["open"] === true };
+  return { agent: str(d["agent"], 60) || "An agent", site, thumb: typeof d["thumb"] === "string" && THUMB.test(d["thumb"]) ? d["thumb"] : null, state, saw, open: d["open"] === true, goal: str(d["goal"], 200), steps: (Array.isArray(d["steps"]) ? d["steps"] : []).slice(0, 21).flatMap((x) => { const o = (x && typeof x === "object" ? x : {}) as Record<string, unknown>; const text = str(o["text"], 200); return text ? [{ text, state: (o["state"] === "done" || o["state"] === "waiting" ? o["state"] : "todo") as "done" | "waiting" | "todo" }] : []; }) };
 }
 
 /** What the button and the card call the act: Send, Post, Pay or Delete. */
@@ -71,7 +69,9 @@ export function HeldSendCard({ id, data, agentId, agentName, actions }: { id: st
   const h = { ...found, agent: found.agent === "An agent" && agentName ? agentName : found.agent };
   const v = verbOf(h.kind);
   const rows: Array<[string, string]> = ([["To", h.to], ["From", h.from], ["Subject", h.subject], ["Message", h.message]] as Array<[string, string]>).filter(([, t]) => t !== "");
-  const [local, setLocal] = useState<"" | "sent" | "dropped" | "editing">("");
+  const [local, setLocal] = useState<"" | "sent" | "dropped">("");
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState({ to: found.to, subject: found.subject, message: found.message });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const open = h.state === "waiting" && local === "";
@@ -92,20 +92,25 @@ export function HeldSendCard({ id, data, agentId, agentName, actions }: { id: st
       <Text style={s.who}>{`${h.agent} wants to ${v.what}`}</Text>
       {rows.length > 0 ? (
         <View style={s.rows}>
-          {rows.map(([label, text]) => (
+          {rows.map(([label, text]) => (editing && (label === "To" || label === "Subject" || label === "Message") ? (
+            <View key={label} style={s.row}>
+              <Text style={s.label}>{label}</Text>
+              <TextInput testID={`chrome-held-field-${label.toLowerCase()}-${id}`} accessibilityLabel={label} value={draft[label.toLowerCase() as "to" | "subject" | "message"]} onChangeText={(v) => setDraft((d) => ({ ...d, [label.toLowerCase()]: v }))} multiline={label === "Message"} style={[s.input, label === "Message" && s.inputArea]} />
+            </View>
+          ) : (
             <View key={label} style={s.row}><Text style={s.label}>{label}</Text><Text style={[s.value, label === "Message" && s.message]} numberOfLines={label === "Message" ? 8 : 2}>{text}</Text></View>
-          ))}
+          )))}
           {where ? <View style={s.row}><Text style={s.label}>Where</Text><Text style={s.value}>{where}</Text></View> : null}
         </View>
       ) : <Text style={s.summary}>{h.summary || "Something is waiting for you in Chrome."}</Text>}
       <View style={s.foot}>
         {open ? (
           <View style={s.actions}>
-            <TextButton label={v.do} primary icon="check" onPress={() => press(async () => { await (actions as ChromeCardActions).send(ref); setLocal("sent"); })} disabled={!actions || busy} testID={`chrome-held-send-${id}`} />
-            <TextButton label="Edit" ring icon="edit" onPress={() => press(async () => { await (actions as ChromeCardActions).edit(ref); setLocal("editing"); })} disabled={!actions || busy} testID={`chrome-held-edit-${id}`} />
+            <TextButton label={v.do} primary icon="check" onPress={() => press(async () => { await (actions as ChromeCardActions).send(ref, editing ? { to: draft.to, subject: draft.subject, message: draft.message } : undefined); setLocal("sent"); setEditing(false); })} disabled={!actions || busy} testID={`chrome-held-send-${id}`} />
+            <TextButton label="Edit" ring icon="edit" onPress={() => setEditing(true)} disabled={!actions || busy} testID={`chrome-held-edit-${id}`} />
             <TextButton label={v.dont} onPress={() => press(async () => { await (actions as ChromeCardActions).drop(ref); setLocal("dropped"); })} disabled={!actions || busy} testID={`chrome-held-drop-${id}`} />
           </View>
-        ) : <Text style={s.state} testID={`chrome-held-state-${id}`}>{h.state === "sent" || local === "sent" ? "Sent" : h.state === "dropped" || local === "dropped" ? `Not sent. ${h.agent} was told.` : local === "editing" ? "The tab is yours. Change what you need in Chrome and press Send there. The agent waits." : "No longer waiting"}</Text>}
+        ) : <Text style={s.state} testID={`chrome-held-state-${id}`}>{h.state === "sent" || local === "sent" ? "Sent" : h.state === "dropped" || local === "dropped" ? `Not sent. ${h.agent} was told.` : "No longer waiting"}</Text>}
         {error ? <Text style={s.error} accessibilityRole="alert" testID={`chrome-held-error-${id}`}>{error}</Text> : null}
         {open ? <Text style={s.stopped}>{`${h.agent} stopped before ${v.do}`}</Text> : null}
       </View>
@@ -125,6 +130,14 @@ export function ChromeStepCard({ id, data, agentId, agentName, actions }: { id: 
       <View style={s.words}>
         <Text style={s.title} numberOfLines={1}>{stepWords(c)}</Text>
         <Text style={s.site} numberOfLines={1}>{c.agent}</Text>
+        {c.steps.length > 0 ? (
+          <View style={s.checks} testID={`chrome-step-checks-${id}`}>
+            {c.steps.map((st, i) => (
+              <View key={i} style={s.check}><Glyph name={st.state === "waiting" ? "lock" : "check"} size={13} color={st.state === "done" ? "var(--ok)" : "var(--ink-3)"} /><Text style={[s.checkText, st.state === "waiting" && s.checkWait]}>{st.text}</Text></View>
+            ))}
+            <Text style={s.site}>{`Tab group "Vyre · ${c.agent}" in your Chrome.`}</Text>
+          </View>
+        ) : null}
         {live ? (
           <View style={s.actions}>
             <TextButton label="Watch" onPress={() => { void actions?.watch(agentId).catch(() => undefined); }} disabled={!actions} testID={`chrome-step-watch-${id}`} />
@@ -149,6 +162,12 @@ const s = StyleSheet.create({
   needs: { fontSize: 12, color: "var(--ink-3)" as string },
   who: { paddingHorizontal: 12, fontSize: 12.5, color: "var(--ink-3)" as string },
   foot: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8, paddingHorizontal: 12, paddingTop: 4 },
+  input: { flex: 1, minWidth: 0, minHeight: 30, borderWidth: 1, borderColor: "var(--line)" as string, borderRadius: 7, paddingHorizontal: 9, paddingVertical: 5, color: "var(--ink)" as string, backgroundColor: "var(--win)" as string, fontSize: 13 },
+  inputArea: { minHeight: 96, textAlignVertical: "top" as const },
+  checks: { gap: 4, marginTop: 4 },
+  check: { flexDirection: "row", alignItems: "center", gap: 8 },
+  checkText: { flex: 1, fontSize: 13, color: "var(--ink)" as string },
+  checkWait: { color: "var(--ink-3)" as string },
   error: { fontSize: 12, color: "var(--danger)" as string },
   stopped: { fontSize: 12, color: "var(--ink-3)" as string },
   head: { flexDirection: "row", alignItems: "center", gap: 8 },
@@ -162,7 +181,7 @@ const s = StyleSheet.create({
   summary: { paddingHorizontal: 12, fontSize: 13, color: "var(--ink-2)" as string },
   actions: { flexDirection: "row", gap: 8, flexWrap: "wrap", marginTop: 2 },
   state: { fontSize: 12.5, color: "var(--ink-3)" as string },
-  step: { flexDirection: "row", alignItems: "center", gap: 12, marginTop: 6, padding: 8, paddingRight: 14, maxWidth: 520, alignSelf: "stretch", minWidth: 0, borderRadius: 12, borderWidth: 1, borderColor: "var(--line)" as string, backgroundColor: "var(--raised)" as string },
+  step: { flexDirection: "row", alignItems: "center", gap: 12, marginTop: 6, padding: 8, paddingRight: 14, maxWidth: 666, alignSelf: "stretch", alignItems: "flex-start", minWidth: 0, borderRadius: 12, borderWidth: 1, borderColor: "var(--line)" as string, backgroundColor: "var(--raised)" as string },
   thumb: { width: 96, height: 60, flexShrink: 0, borderRadius: 8, borderWidth: 1, borderColor: "var(--line-2)" as string, backgroundColor: "#fff" },
   tile: { width: 96, height: 60, flexShrink: 0, borderRadius: 8, backgroundColor: "var(--sunk)" as string, alignItems: "center", justifyContent: "center" },
   tileText: { fontSize: 22, fontWeight: "600", color: "var(--ink-3)" as string },

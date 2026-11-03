@@ -25,17 +25,22 @@
     button.primary { background: #4338ca; border-color: #4338ca; color: #fff; }
     button:focus-visible { outline: 2px solid #4338ca; outline-offset: 2px; }
     .share { display: flex; gap: 6px; align-items: center; margin-top: 10px; }
-    .seg { display: flex; margin-top: 10px; border: 1px solid rgba(128,128,128,.4); border-radius: 8px; overflow: hidden; }
-    .seg button { flex: 1; border: 0; border-radius: 0; }
-    .seg button[aria-pressed=true] { background: #4338ca; color: #fff; }
+    .seg { display: flex; margin-top: 4px; padding: 2px; gap: 2px; border-radius: 8px; background: rgba(128,128,128,.16); }
+    .seg button { flex: 1; border: 0; border-radius: 6px; padding: 5px 8px; }
+    .seg button[aria-pressed=true] { background: #fff; color: #1c1c1e; box-shadow: 0 1px 2px rgba(0,0,0,.14); }
     select { width: 100%; box-sizing: border-box; padding: 6px 8px; border: 1px solid rgba(128,128,128,.4); border-radius: 6px; font: inherit; background: #f2f2f7; color: inherit; }
     .who { margin-top: 6px; display: grid; gap: 4px; }
     .who label { display: flex; gap: 6px; align-items: center; margin: 0; opacity: 1; font-size: 13px; }
     .note { margin-top: 6px; font-size: 11px; opacity: .7; }
-    @media (prefers-color-scheme: dark) { .card { background: #2c2c2e; color: #f2f2f7; box-shadow: 0 8px 30px rgba(0,0,0,.5), 0 0 0 1px rgba(255,255,255,.1); } input[type=text], select { background: #1c1c1e; color: #f2f2f7; } .seg button[aria-pressed=false] { color: #f2f2f7; } }
-    .row { display: flex; gap: 8px; margin-top: 12px; }
-    .row .grow { flex: 1; }
+    @media (prefers-color-scheme: dark) { .card { background: #2c2c2e; color: #f2f2f7; box-shadow: 0 8px 30px rgba(0,0,0,.5), 0 0 0 1px rgba(255,255,255,.1); } input[type=text], select { background: #1c1c1e; color: #f2f2f7; } .seg button[aria-pressed=false] { color: #f2f2f7; } .seg button[aria-pressed=true] { background: #4a4a4e; color: #fff; } }
+    .row { display: flex; gap: 8px; margin-top: 12px; justify-content: flex-end; align-items: center; }
     .never { margin-top: 8px; width: 100%; opacity: .75; border-style: dashed; }
+    .top { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+    .top h1 { flex: 1; margin: 0; }
+    .top button { border: 0; padding: 2px 8px; font-size: 16px; line-height: 1; opacity: .7; }
+    .site { margin: 0 0 6px; font-size: 12.5px; opacity: .8; }
+    .plain { border: 0; background: transparent; }
+    .hintline { margin-top: 6px; font-size: 11.5px; opacity: .65; }
   `;
 
   /**
@@ -55,13 +60,26 @@
     card.setAttribute("role", "dialog");
     card.setAttribute("aria-label", "Save this login in Vyre");
 
+    const top = d.createElement("div");
+    top.className = "top";
     const h = d.createElement("h1");
     h.textContent = p.mode === "update" ? "Update this login in Vyre?" : "Save to Vault?";
-    const nameLabel = d.createElement("label");
-    nameLabel.textContent = "Name";
-    const nameInput = d.createElement("input");
-    nameInput.type = "text";
-    nameInput.value = p.name || p.host;
+    const more = d.createElement("button");
+    more.type = "button";
+    more.textContent = "\u22EF";
+    more.setAttribute("aria-label", "More");
+    const closeBtn = d.createElement("button");
+    closeBtn.type = "button";
+    closeBtn.textContent = "\u00D7";
+    closeBtn.setAttribute("aria-label", "Close");
+    top.append(h, more, closeBtn);
+    const siteLine = d.createElement("p");
+    siteLine.className = "site";
+    siteLine.textContent = p.name && p.name !== p.host ? `${p.name} · ${p.host}` : p.host;
+    const keepLabel = d.createElement("label");
+    keepLabel.textContent = "Keep in";
+    const keepNote = d.createElement("div");
+    keepNote.className = "hintline";
     const userLabel = d.createElement("label");
     userLabel.textContent = "Username";
     const userInput = d.createElement("input");
@@ -118,6 +136,7 @@
       mineBtn.setAttribute("aria-pressed", String(scope === "mine"));
       sharedBtn.setAttribute("aria-pressed", String(scope === "shared"));
       sharedBox.style.display = scope === "shared" ? "" : "none";
+      keepNote.textContent = scope === "shared" ? "Shared with the folder's people and the agents you pick." : "Only you can see and use it.";
       note.textContent = scope === "shared" && !folders.length ? "There is no shared folder you can add to. Ask a manager, or keep it in Mine." : "";
     };
     mineBtn.addEventListener("click", () => { scope = "mine"; paint(); });
@@ -151,24 +170,26 @@
     row.className = "row";
     const save = d.createElement("button");
     save.type = "button";
-    save.className = "primary grow";
+    save.className = "primary";
     save.textContent = p.mode === "update" ? "Update" : "Save";
     const later = d.createElement("button");
     later.type = "button";
-    later.className = "grow";
+    later.className = "plain";
     later.textContent = "Not now";
-    row.append(save, later);
+    row.append(later, save);
     const never = d.createElement("button");
     never.type = "button";
     never.className = "never";
     never.textContent = "Never for this site";
 
-    card.append(h, nameLabel, nameInput, userLabel, userInput, pwLabel, pw);
-    if (p.mode !== "update") card.append(seg, sharedBox);
+    card.append(top, siteLine, userLabel, userInput, pwLabel, pw);
+    if (p.mode !== "update") card.append(keepLabel, seg, keepNote, sharedBox);
     card.append(row, never);
+    never.style.display = "none";
+    more.addEventListener("click", () => { never.style.display = never.style.display === "none" ? "" : "none"; });
+    closeBtn.addEventListener("click", () => { tell("vyre.dismiss", { never: false }); done(); });
     root.append(style, card);
     (d.documentElement || d.body).appendChild(host);
-    save.focus();
 
     /** @type {any} */
     let life = null;
@@ -186,7 +207,7 @@
     }
     save.addEventListener("click", () => {
       const agentIds = agentBoxes.filter((c) => c.checked).map((c) => c.value);
-      tell("vyre.save", { name: nameInput.value, username: userInput.value, password: secret, scope, folderId: scope === "shared" ? folderSel.value : undefined, agentIds: scope === "shared" ? agentIds : [], cardId, mode: p.mode });
+      tell("vyre.save", { name: p.name || p.host, username: userInput.value, password: secret, scope, folderId: scope === "shared" ? folderSel.value : undefined, agentIds: scope === "shared" ? agentIds : [], cardId, mode: p.mode });
       done();
     });
     later.addEventListener("click", () => { tell("vyre.dismiss", { never: false }); done(); });

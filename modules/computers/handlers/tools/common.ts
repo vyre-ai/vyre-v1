@@ -236,6 +236,16 @@ async function chromeCards(ctx: CompCtx, port: PersonalChrome, out: ToolAnswer):
     if (heldId && held) {
       await ctx.call("browser.cards.post", { threadId: thread, idempotencyKey: `chrheld:${heldId}`, block: { type: "chrome_held", data: { heldId, agentId: agent, site: held.site ?? "", kind: held.kind ?? "send", summary: held.summary ?? "", card: held.card ?? {}, state: "waiting" } } });
     }
+    if (heldId && held) {
+      // the step block above the held card: what the agent did, then what waits for the person
+      const plan = port.plan(agent);
+      const frameNow = port.frame(agent);
+      if (plan && plan.steps.length > 0) {
+        const steps = plan.steps.map((text, i) => ({ text, state: i < plan.done ? "done" : "todo" }));
+        steps.push({ text: `${held.kind === "post" ? "Post" : held.kind === "payment" ? "Payment" : held.kind === "delete" ? "Delete" : "Send"} waits for you`, state: "waiting" });
+        await ctx.call("browser.cards.post", { threadId: thread, idempotencyKey: `chrplan:${heldId}`, block: { type: "chrome_step", data: { agentId: agent, site: held.site || frameNow?.site || "your Chrome", thumb: frameNow?.thumb ?? null, state: "waiting", goal: plan.goal, steps } } });
+      }
+    }
     const f = port.frame(agent);
     const key = `${agent}|${thread}`;
     const prev = lastStep.get(key);

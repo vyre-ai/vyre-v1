@@ -8,7 +8,7 @@ import { MessageView } from "./MessageView.tsx";
 import { timeline } from "./model.ts";
 import type { Message } from "./model.ts";
 
-const ok = { send: async () => ({ sent: true }), drop: async () => undefined, edit: async () => undefined, watch: async () => undefined, takeOver: async () => undefined };
+const ok = { send: async () => ({ sent: true }), drop: async () => undefined, watch: async () => undefined, takeOver: async () => undefined };
 const THUMB = "data:image/jpeg;base64,/9j/4AAQSkZJRg==";
 const HELD = { heldId: "hld_a1b2c3", agent: "Scout", site: "mail.google.com", kind: "send", card: { to: "dana@client.test", from: "olivia@firm.test", subject: "Your signed deed", message: "Hi Dana, the signed deed is attached." }, state: "waiting" };
 const flat = (h: string): string => h.replace(/<[^>]+>/g, " ").replace(/&#x27;|&#39;/g, "'").replace(/\s+/g, " ");
@@ -51,9 +51,9 @@ test("the step card says Using your Chrome with the site, shows only the extensi
   assert.equal(stepCardOf({ site: "" }), null);
   assert.equal(stepCardOf({ site: "a.test", thumb: "https://tracker.test/x.png" })?.thumb, null);
   assert.equal(stepCardOf({ site: "a.test", thumb: THUMB })?.thumb, THUMB);
-  assert.equal(stepWords({ agent: "Scout", site: "a.test", thumb: null, state: "using", saw: [], open: false }), "Using your Chrome · a.test");
-  assert.equal(stepWords({ agent: "Scout", site: "a.test", thumb: null, state: "waiting", saw: [], open: false }), "Waiting for you · a.test");
-  assert.equal(stepWords({ agent: "Scout", site: "a.test", thumb: null, state: "stopped", saw: [], open: false }), "Stopped in your Chrome · a.test");
+  assert.equal(stepWords({ agent: "Scout", site: "a.test", thumb: null, state: "using", saw: [], open: false, goal: "", steps: [] }), "Using your Chrome · a.test");
+  assert.equal(stepWords({ agent: "Scout", site: "a.test", thumb: null, state: "waiting", saw: [], open: false, goal: "", steps: [] }), "Waiting for you · a.test");
+  assert.equal(stepWords({ agent: "Scout", site: "a.test", thumb: null, state: "stopped", saw: [], open: false, goal: "", steps: [] }), "Stopped in your Chrome · a.test");
   const live = renderToStaticMarkup(<ChromeStepCard id="s1" data={{ agent: "Scout", site: "app.gohighlevel.com", thumb: THUMB, state: "using" }} agentId="agt_scout" actions={ok} />);
   assert.match(flat(live), /Using your Chrome · app\.gohighlevel\.com/);
   assert.match(live, /chrome-step-s1-thumb/);
@@ -65,6 +65,10 @@ test("the step card says Using your Chrome with the site, shows only the extensi
   const open = renderToStaticMarkup(<ChromeStepCard id="s4" data={{ agent: "Scout", site: "a.test", state: "using", saw: ["#Acme_Portal.password"], open: true }} agentId="agt_scout" />);
   assert.match(flat(open), /Hide what Scout saw.*#Acme_Portal\.password.*Names only/);
   assert.ok(!flat(withSaw).includes("#Acme_Portal.password"), "closed: the handles are not on the page");
+  const listed = renderToStaticMarkup(<ChromeStepCard id="s5" data={{ agent: "Scout", site: "app.gohighlevel.com", state: "waiting", steps: [{ text: "Opened Contacts", state: "done" }, { text: "Drafted the email", state: "done" }, { text: "Send waits for you", state: "waiting" }, { text: "x".repeat(300), state: "odd" }, { text: "" }] }} agentId="agt_scout" />);
+  assert.match(flat(listed), /Opened Contacts.*Drafted the email.*Send waits for you/);
+  assert.match(flat(listed), /Tab group &quot;Vyre · Scout&quot; in your Chrome/);
+  assert.deepEqual(stepCardOf({ site: "a.test", steps: [{ text: "a", state: "done" }, { text: "" }, { text: "b", state: "odd" }] })!.steps, [{ text: "a", state: "done" }, { text: "b", state: "todo" }]);
   const done = renderToStaticMarkup(<ChromeStepCard id="s2" data={{ agent: "Scout", site: "a.test", thumb: null, state: "done" }} agentId="agt_scout" />);
   assert.ok(!/chrome-step-watch|takeover/.test(done), "nothing to watch or take over once it is done");
   assert.match(done, />A</, "no picture: the site's initial");

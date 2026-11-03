@@ -125,7 +125,19 @@ export function createAgentControl(ext, o = {}) {
     const tabId = port.sender.tab.id;
     port.onMessage.addListener((/** @type {any} */ m) => {
       const agent = sessions.driverOf(tabId);
-      if (m && m.type === "openvyre") { void transport.call("bridge", "app.open", { place: "chats" }).catch(() => {}); return; }
+      const shownAgent = sessions.shownAgent(tabId);
+      if (m && m.type === "openvyre") {
+        const who = agent ?? shownAgent;
+        const thread = who ? threads.get(who.id) : undefined;
+        // the exact chat the agent works in: the desktop app opens it, else the Space's web app does
+        void transport.call("bridge", "app.open", { place: "chats", ...(thread ? { threadId: thread } : {}) }).catch(async () => {
+          const kept = await store.get(["spaces", "activeSpace"]);
+          const sp = (kept["spaces"] ?? []).find((/** @type {any} */ x) => x.id === kept["activeSpace"]);
+          if (sp && sp.webUrl) void ext.tabs.create({ url: `${sp.webUrl}/chats${thread ? `/${thread}` : ""}` });
+        });
+        return;
+      }
+      if (m && (m.type === "giveback" || m.type === "endtask") && shownAgent) { void sessions.resume(shownAgent.id).then(() => { if (m.type === "endtask") emit({ event: "ended", agent: shownAgent.id }); }); return; }
       if (!agent || !m) return;
       if (m.type === "stop") void sessions.pause(agent.id, "person");
       else if (m.type === "takeover") void sessions.pause(agent.id, "takeover");

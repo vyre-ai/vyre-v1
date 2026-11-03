@@ -51,6 +51,10 @@ export function createSessions({ ext, cdp, traffic, emit, now = Date.now, setTim
   const paused = new Map();
   /** @type {Map<number, Map<string, import("./selector.js").Selector>>} refs the agent last read, by tab */
   const refs = new Map();
+  /** @type {Map<string, { total: number, done: number, steps: string[] }>} how far each agent is in the plan it gave */
+  const plans = new Map();
+  /** @type {Map<number, AgentRef>} tabs that wear a Take over or Stopped bar, and whose agent it is */
+  const shown = new Map();
   /** @type {Map<string, string>} what each agent said it is doing (chrome_plan) */
   const goals = new Map();
 
@@ -82,9 +86,15 @@ export function createSessions({ ext, cdp, traffic, emit, now = Date.now, setTim
     });
   }
 
-  /** @param {number} tabId @param {AgentRef} agent @param {boolean} [isPaused] */
-  async function draw(tabId, agent, isPaused = false) {
-    await quiet(() => ext.scripting.executeScript({ target: { tabId }, func: overlayShow, args: [{ name: agent.name, goal: goals.get(agent.id) ?? "", paused: isPaused, waiting: !isPaused && waitingOn(tabId), color: GROUP_HEX[/** @type {keyof typeof GROUP_HEX} */ (groupColor(agent.id))], port: OVERLAY_PORT }] }));
+  /** @param {string} agentId */
+  const goalText = (agentId) => { const g = goals.get(agentId) ?? ""; const p = plans.get(agentId); return g && p && p.total > 0 ? `${g} · ${p.done} of ${p.total}` : g; };
+
+  /** @param {number} tabId @param {AgentRef} agent @param {boolean | "takeover" | "stopped"} [mode] true: Esc paused */
+  async function draw(tabId, agent, mode = false) {
+    const isPaused = mode === true;
+    const state = mode === "takeover" || mode === "stopped" ? mode : undefined;
+    if (state) shown.set(tabId, agent); else shown.delete(tabId);
+    await quiet(() => ext.scripting.executeScript({ target: { tabId }, func: overlayShow, args: [{ name: agent.name, goal: goalText(agent.id), paused: isPaused, ...(state ? { state } : {}), waiting: !isPaused && waitingOn(tabId), color: GROUP_HEX[/** @type {keyof typeof GROUP_HEX} */ (groupColor(agent.id))], port: OVERLAY_PORT }] }));
     if (ext.action) {
       const a = ext.action;
       await quiet(async () => { await a.setBadgeText({ tabId, text: BEACON }); await a.setBadgeBackgroundColor({ tabId, color: BEACON_COLOR }); if (a.setTitle) await a.setTitle({ tabId, title: `Vyre: ${agent.name} is using this tab` }); });
@@ -93,6 +103,7 @@ export function createSessions({ ext, cdp, traffic, emit, now = Date.now, setTim
 
   /** @param {number} tabId */
   async function undraw(tabId) {
+    shown.delete(tabId);
     await quiet(() => ext.scripting.executeScript({ target: { tabId }, func: overlayHide, args: [] }));
     if (ext.action) { const a = ext.action; await quiet(async () => { await a.setBadgeText({ tabId, text: "" }); if (a.setTitle) await a.setTitle({ tabId, title: "Vyre" }); }); }
   }
@@ -195,7 +206,17 @@ export function createSessions({ ext, cdp, traffic, emit, now = Date.now, setTim
           await draw(tabId, d.agent, true);
           drivers.delete(tabId);
           traffic.forget(tabId);
-        } else await release(tabId, by === "person" ? "stopped by the person" : by === "takeover" ? "the person took over" : "stopped by the agent");
+        } else if (by === "person" || by === "takeover") {
+          // the tab is the person's now: the debugger and the frame go, and the bar stays to say so and to give it back
+          clearTimer(d.timer);
+          drivers.delete(tabId);
+          refs.delete(tabId);
+          for (const [id, h] of held) if (h.tabId === tabId) held.delete(id);
+          await cdp.detach(tabId);
+          traffic.forget(tabId);
+          emit({ event: "driving", on: false, agent: d.agent.id, tab: tabId, why: by === "person" ? "stopped by the person" : "the person took over" });
+          await draw(tabId, d.agent, by === "person" ? "stopped" : "takeover");
+        } else await release(tabId, "stopped by the agent");
       }
       emit({ event: by === "esc" ? "paused" : by === "takeover" ? "takeover" : "stopped", agent: agentId, by, ...(reason ? { reason: String(reason).slice(0, 200) } : {}) });
     },
@@ -242,9 +263,22 @@ export function createSessions({ ext, cdp, traffic, emit, now = Date.now, setTim
     dropHeld(id) { const h = held.get(id); if (!h) return false; held.delete(id); const d = drivers.get(h.tabId); if (d) void draw(h.tabId, d.agent); return true; },
 
     // ---- goal line
-    /** @param {AgentRef} agent @param {string} goal */
-    async setGoal(agent, goal) {
+    /** @param {string} agentId */
+    goalOf: (agentId) => goals.get(agentId) ?? "",
+    /** The agent whose Take over or Stopped bar is on this tab. @param {number} tabId */
+    shownAgent: (tabId) => shown.get(tabId) ?? null,
+    /** One step of the plan is done (an acting tool succeeded): the bar counts it and the chat's checklist follows. @param {string} agentId */
+    advance(agentId) {
+      const p = plans.get(agentId);
+      if (!p || p.done >= p.total) return null;
+      p.done++;
+      for (const [tabId, d] of drivers) if (d.agent.id === agentId) void draw(tabId, d.agent);
+      return { total: p.total, done: p.done, steps: p.steps };
+    },
+    /** @param {AgentRef} agent @param {string} goal @param {string[]} [steps] */
+    async setGoal(agent, goal, steps = []) {
       goals.set(agent.id, goal);
+      plans.set(agent.id, { total: steps.length, done: 0, steps });
       for (const [tabId, d] of drivers) if (d.agent.id === agent.id) await draw(tabId, agent);
     },
     /** Everything off: the worker is going away or the Space was closed. */

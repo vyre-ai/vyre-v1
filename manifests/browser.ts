@@ -38,7 +38,7 @@ export default defineManifest({
     // What the buttons on those cards do. Only the signed-in person, only in their own Chrome: Send releases the held item through chrome_send (once: a second press says it was already done), Don't send makes the
     // extension forget it and tells the agent in the chat, Watch brings its tab to the front, Take over gives the tab back.
     write('browser.chrome.act', 'Press a button on a Chrome card: send what is held, do not send it, watch the agent\'s tab, or take it over', {
-      level: 'member', idem: 'key', risk: 'high', in: { action: t.enm('send', 'drop', 'watch', 'takeover'), agentId: id.agent, heldId: t.opt(t.str({ pattern: '^hld_[0-9a-f]+$', examples: ['hld_a1b2c3'] })), threadId: t.opt(id.thread), summary: t.opt(t.str()) },
+      level: 'member', idem: 'key', risk: 'high', in: { action: t.enm('send', 'drop', 'watch', 'takeover'), agentId: id.agent, heldId: t.opt(t.str({ pattern: '^hld_[0-9a-f]+$', examples: ['hld_a1b2c3'] })), edits: t.opt(t.obj({ to: t.opt(t.str()), subject: t.opt(t.str()), message: t.opt(t.str()) })), threadId: t.opt(id.thread), summary: t.opt(t.str()) },
       out: { done: t.bool(), already: t.opt(t.bool()) }, audit: 'always', offline: 'online', errors: ['provider.unavailable', 'validation.bad_input', 'permission.no_grant'],
     }),
     write('browser.sites.remove', 'Remove a Browser connection', { level: 'member', in: { siteId }, out: ok, emits: ['browser.site_changed'], audit: 'sensitive', offline: 'online', errors: ['validation.not_found'] }),

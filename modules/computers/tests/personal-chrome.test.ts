@@ -15,7 +15,7 @@ function port(o: { person?: string; open?: boolean; answers?: Record<string, Rec
     async call(a) { calls.push(a); return o.answers?.[a.tool] ?? { ok: true }; },
     held: async (id) => (id === "hld_ab12" ? { site: "mail.test", kind: "send", summary: "send: Send on mail.test", card: { to: "dana@client.test", subject: "Deed", message: "Hi" } } : null),
     frame: () => ({ site: "mail.test", thumb: THUMB }),
-    drop() {}, takeOver() {}, watch() {},
+    plan: () => ({ goal: "Draft the email", steps: ["Opened Contacts", "Drafted the email"], done: 2 }), drop() {}, takeOver() {}, watch() {},
   };
   bindPersonalChrome(p);
   return calls;
@@ -61,10 +61,14 @@ test("a held send leaves its card in the chat with the page's own fields, once, 
     const posts = h.calls("browser.cards.post");
     const held = posts.map((p) => (p.input["block"] as { type: string; data: Record<string, any> })).find((b) => b.type === "chrome_held")!;
     assert.deepEqual([held.data["heldId"], held.data["card"].to, held.data["state"]], ["hld_ab12", "dana@client.test", "waiting"]);
-    const step = posts.map((p) => (p.input["block"] as { type: string; data: Record<string, any> })).find((b) => b.type === "chrome_step")!;
+    const blocks = posts.map((p) => (p.input["block"] as { type: string; data: Record<string, any> }));
+    const step = blocks.find((b) => b.type === "chrome_step" && !b.data["steps"])!;
+    const plan = blocks.find((b) => b.type === "chrome_step" && b.data["steps"])!;
+    assert.deepEqual(plan.data["steps"], [{ text: "Opened Contacts", state: "done" }, { text: "Drafted the email", state: "done" }, { text: "Send waits for you", state: "waiting" }], "the checklist above the held card");
+    assert.equal(plan.data["state"], "waiting");
     assert.deepEqual([step.data["site"], step.data["thumb"], step.data["state"]], ["mail.test", THUMB, "using"]);
     await tool["computers.chrome.snapshot"]!(h.ctx, { computerId: "my-chrome" });
-    assert.equal(h.calls("browser.cards.post").filter((p) => (p.input["block"] as { type: string }).type === "chrome_step").length, 1, "one step card for a burst");
+    assert.equal(h.calls("browser.cards.post").filter((p) => (p.input["block"] as { type: string; data: Record<string, unknown> }).type === "chrome_step" && !(p.input["block"] as { data: Record<string, unknown> }).data["steps"]).length, 1, "one picture card for a burst");
   } finally { bindPersonalChrome(null); }
 });
 
