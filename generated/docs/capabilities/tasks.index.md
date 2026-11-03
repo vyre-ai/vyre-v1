@@ -31,6 +31,8 @@ type In = {
   underThread?: string;
   done?: boolean;
   rev?: string;
+  q?: string;
+  snoozed?: boolean;
 };
 ```
 
@@ -71,7 +73,7 @@ type Out = {
       threadId?: string;
       workerThread?: string;
       source?: {
-        kind: "chat" | "run" | "gate" | "journey" | "meeting" | "manual";
+        kind: "chat" | "run" | "gate" | "journey" | "meeting" | "goal" | "manual";
         id: string;
       };
       snoozedUntil?: number;
@@ -82,6 +84,7 @@ type Out = {
       createdBy: string;
       createdAt: number;
       updatedAt: number;
+      yourTurn?: boolean;
     }>;
   doneThisWeek: number;
   total: number;
@@ -103,9 +106,11 @@ type Out = {
   "input": {
     "done": true,
     "parentTaskId": "tsk_a1b2c3",
+    "q": "example",
     "recordId": "rec_a1b2c3",
     "rev": "example",
     "scope": "mine",
+    "snoozed": true,
     "underThread": "thr_a1b2c3"
   },
   "output": {
@@ -157,7 +162,8 @@ type Out = {
         "threadId": "thr_a1b2c3",
         "title": "example",
         "updatedAt": 1760000000000,
-        "workerThread": "thr_a1b2c3"
+        "workerThread": "thr_a1b2c3",
+        "yourTurn": true
       }
     ],
     "total": 1,

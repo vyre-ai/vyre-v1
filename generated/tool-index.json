@@ -987,7 +987,7 @@
     {
       "deferred": false,
       "name": "calendar_create_event",
-      "summary": "Create an event (drag in 15 minute steps); the provider invites attendees",
+      "summary": "Create an event (drag in 15 minute steps) on its Google or Microsoft calendar, with a Meet, Teams or Zoom call when asked; the provider invites attendees",
       "toolset": "inbox"
     },
     {
@@ -1017,7 +1017,7 @@
     {
       "deferred": false,
       "name": "calendar_get_event",
-      "summary": "Read one event with attendees, agenda, linked records and meeting",
+      "summary": "Read one event with attendees, agenda, linked records and meeting, your own answer and how it repeats",
       "toolset": "inbox"
     },
     {
@@ -1053,7 +1053,7 @@
     {
       "deferred": false,
       "name": "calendar_restore_event",
-      "summary": "Restore a deleted event",
+      "summary": "Restore a deleted event (made again on its provider calendar)",
       "toolset": "inbox"
     },
     {
@@ -1396,6 +1396,12 @@
       "deferred": false,
       "name": "chat_remember",
       "summary": "Remember a message as a fact in the memory of the project this chat belongs to (else your own), sourced to the message; a \"Remembered for ...\" card in the thread links to the fact. A shared layer keeps its review rule",
+      "toolset": "chats"
+    },
+    {
+      "deferred": false,
+      "name": "chat_reply_details",
+      "summary": "How one agent reply was made, for its hover card and Details tab: its turn, what the agent knew, and its own steps when no turn was kept. Account, cost and tool arguments are for the asker and AI-spend managers only",
       "toolset": "chats"
     },
     {
@@ -3530,6 +3536,132 @@
     },
     {
       "deferred": false,
+      "name": "goals_activity",
+      "summary": "The activity of a goal, newest first: every reading, wake-up, step, task and status change, and why",
+      "toolset": "tasks"
+    },
+    {
+      "deferred": false,
+      "name": "goals_ask",
+      "summary": "Ask the owner (or a named person) for a decision only they can make: one Waiting-on item, with the options. The same decision asked again returns the first ask; the answer wakes you",
+      "toolset": "tasks"
+    },
+    {
+      "deferred": false,
+      "name": "goals_checkin_post",
+      "summary": "Post the check-in in the goal chat: the real number against the pace, what changed and why, what was done, the next best step. One per wake-up; short and specific",
+      "toolset": "tasks"
+    },
+    {
+      "deferred": false,
+      "name": "goals_complete",
+      "summary": "When a goal ends (done or missed), write its retrospective: what worked, what did not, and a playbook worth repeating. It is saved to the goal, its project and Space memory. On an owner-says-done goal whose work is finished, it asks the owner to confirm instead",
+      "toolset": "tasks"
+    },
+    {
+      "deferred": false,
+      "name": "goals_confirm",
+      "summary": "Start a drafted goal: the owner presses Start on its card. The standing permissions it names hold from this press",
+      "toolset": "tasks"
+    },
+    {
+      "deferred": false,
+      "name": "goals_create",
+      "summary": "Give an agent a goal with a finish line: it plans the work as tasks, works across days, posts progress, asks for approvals and says when it is stuck. Drafted by an agent, it waits for its owner to press Start",
+      "toolset": "tasks"
+    },
+    {
+      "deferred": false,
+      "name": "goals_extend",
+      "summary": "Move the deadline of a goal; a missed goal starts again",
+      "toolset": "tasks"
+    },
+    {
+      "deferred": false,
+      "name": "goals_finish",
+      "summary": "The owner says a goal is done (the finish line of an owner-says-done goal, or done early)",
+      "toolset": "tasks"
+    },
+    {
+      "deferred": false,
+      "name": "goals_folder",
+      "summary": "The Files folder of a goal, where its plan, drafts, research and reports go; asking for a subfolder makes it the first time it is needed",
+      "toolset": "tasks"
+    },
+    {
+      "deferred": false,
+      "name": "goals_get",
+      "summary": "One goal: its finish line and progress, the plan as tasks, who is helping, what waits on whom, budget used and the latest activity",
+      "toolset": "tasks"
+    },
+    {
+      "deferred": false,
+      "name": "goals_list",
+      "summary": "Goals by scope: mine, the ones I help with, a project, a record, a task, or all I can see",
+      "toolset": "tasks"
+    },
+    {
+      "deferred": false,
+      "name": "goals_mark_stuck",
+      "summary": "Say plainly that the goal cannot move: the reason and two options for the owner. The owner hears once; the goal shows Stuck until the number moves or the owner picks",
+      "toolset": "tasks"
+    },
+    {
+      "deferred": false,
+      "name": "goals_pause",
+      "summary": "Pause a goal: no wake-ups and none of its tasks wake their agents until it is resumed",
+      "toolset": "tasks"
+    },
+    {
+      "deferred": false,
+      "name": "goals_plan_update",
+      "summary": "Add tasks to the plan of a goal: each with its brief, what done means, who does it (an agent, a person, a group) and what it waits on. They are tasks like any other and show \"Part of\" the goal",
+      "toolset": "tasks"
+    },
+    {
+      "deferred": false,
+      "name": "goals_progress_read",
+      "summary": "Where a goal stands: the number from its source, read now when asked, and its history",
+      "toolset": "tasks"
+    },
+    {
+      "deferred": false,
+      "name": "goals_resume",
+      "summary": "Resume a paused goal",
+      "toolset": "tasks"
+    },
+    {
+      "deferred": false,
+      "name": "goals_search_past",
+      "summary": "Past goals in this Space with their outcome and retrospective, to learn what worked before planning",
+      "toolset": "tasks"
+    },
+    {
+      "deferred": false,
+      "name": "goals_sources",
+      "summary": "What a goal could count, for drafting a measurable finish line: record types with their counts, connections, and the outside MCP servers the lead can read",
+      "toolset": "tasks"
+    },
+    {
+      "deferred": false,
+      "name": "goals_step",
+      "summary": "Before a step with an effect (a send, a post, a record change), claim it by id; a step already done answers done with its result, so a retried wake-up never repeats it. Finish it with finish true",
+      "toolset": "tasks"
+    },
+    {
+      "deferred": false,
+      "name": "goals_stop",
+      "summary": "Stop a goal for good: its open tasks are withdrawn and its permissions end",
+      "toolset": "tasks"
+    },
+    {
+      "deferred": false,
+      "name": "goals_update",
+      "summary": "Change a goal: its finish line, deadline, budget, check-in rhythm, quiet hours, helpers, links or standing permissions (only the owner)",
+      "toolset": "tasks"
+    },
+    {
+      "deferred": false,
       "name": "google_access_log",
       "summary": "Who reached whose Google data: who made the call, the person an agent worked for, which mailbox, which capability, when",
       "toolset": "engineer"
@@ -4292,6 +4424,12 @@
     },
     {
       "deferred": false,
+      "name": "inbox_threads",
+      "summary": "One contact's email threads, each whole: every thread they are on (From, To or Cc), newest first, with everyone's messages, quoted history and signatures apart, reactions, what is new and your role",
+      "toolset": "inbox"
+    },
+    {
+      "deferred": false,
       "name": "inbox_unmatch",
       "summary": "Undo a match; the sender goes back to Unmatched",
       "toolset": "inbox"
@@ -4718,6 +4856,12 @@
     },
     {
       "deferred": false,
+      "name": "mail_thread_get",
+      "summary": "Read one email thread whole: every message you may see, oldest first, with quoted history and signatures apart, Gmail reactions on the message they answer, and your role (you started it, To, Cc, or added later)",
+      "toolset": "inbox"
+    },
+    {
+      "deferred": false,
       "name": "mcp_activity_list",
       "summary": "What an outside agent did: the tool, how it ended and where, never an input or an answer",
       "toolset": "meta"
@@ -4864,6 +5008,24 @@
       "deferred": false,
       "name": "meetings_merge",
       "summary": "Merge two meetings that describe one call",
+      "toolset": "inbox"
+    },
+    {
+      "deferred": false,
+      "name": "meetings_prep_get",
+      "summary": "Your prep notes for an event: whether your Assistant is still working on them, and the notes",
+      "toolset": "inbox"
+    },
+    {
+      "deferred": false,
+      "name": "meetings_prep_save",
+      "summary": "The Assistant's prep notes for an event, a few short lines",
+      "toolset": "inbox"
+    },
+    {
+      "deferred": false,
+      "name": "meetings_prep_start",
+      "summary": "Ask your Assistant to prepare for an event from the attendees' records and your past meetings with them",
       "toolset": "inbox"
     },
     {
@@ -5915,6 +6077,18 @@
       "name": "network_status",
       "summary": "Address, certificate state, relay state and public ingress",
       "toolset": "engineer"
+    },
+    {
+      "deferred": false,
+      "name": "notes_get",
+      "summary": "Read one note the asker may read. An agent reads a note only when everyone in its chat may read it",
+      "toolset": "memory"
+    },
+    {
+      "deferred": false,
+      "name": "notes_search",
+      "summary": "Search the notes the asker may read: title, text, labels, link and clipped page. An agent finds only notes everyone in its chat may read",
+      "toolset": "memory"
     },
     {
       "deferred": false,
@@ -7095,7 +7269,7 @@
     {
       "deferred": false,
       "name": "search_query",
-      "summary": "Search everything the caller may see: people, agents, chats, inbox, records, files, automations, apps, settings, memory",
+      "summary": "Search everything the caller may see: people, agents, chats, inbox, records, files, automations, apps, settings, memory, and the caller's notes (answered by notes.search as the caller, never indexed)",
       "toolset": "meta"
     },
     {
@@ -7292,6 +7466,18 @@
     },
     {
       "deferred": false,
+      "name": "sites_addon_add",
+      "summary": "Give a deployed site its own Postgres or Redis on this server, with its address set as DATABASE_URL or REDIS_URL. Its data stays on the server through redeploys",
+      "toolset": "sites"
+    },
+    {
+      "deferred": false,
+      "name": "sites_addon_remove",
+      "summary": "Remove a site's Postgres or Redis and its data",
+      "toolset": "sites"
+    },
+    {
+      "deferred": false,
       "name": "sites_artifact_open",
       "summary": "A short-lived address that opens an artifact for the person asking, in a tab or the browser",
       "toolset": "sites"
@@ -7305,7 +7491,13 @@
     {
       "deferred": false,
       "name": "sites_create",
-      "summary": "Create a site: a name, and where it runs (a port on a computer, or a folder in Files). Nothing is served until it is published",
+      "summary": "Create a site: a name, and where it runs (a port on a computer, or a folder in Files), or its source (a GitHub repo, an uploaded folder or zip) for Vyre to build and run with sites_deploy. Nothing is served until it is published or deployed",
+      "toolset": "sites"
+    },
+    {
+      "deferred": false,
+      "name": "sites_db_import",
+      "summary": "Copy an existing Postgres into the site's own: a pg_dump file in Files, or a Vault key holding the old connection string (for example from Railway)",
       "toolset": "sites"
     },
     {
@@ -7317,7 +7509,7 @@
     {
       "deferred": false,
       "name": "sites_deploy",
-      "summary": "Deploy a build to the always-password-protected staging URL",
+      "summary": "Build the site from its source (GitHub repo, folder or zip in Files, or a folder here) and run it on this Space, like Railway: Dockerfile, Node, Next.js, Vite, Python or static. The last good build serves until the new one answers. wait returns when it ends",
       "toolset": "sites"
     },
     {
@@ -7353,13 +7545,13 @@
     {
       "deferred": false,
       "name": "sites_env_list",
-      "summary": "List environment names (never values)",
+      "summary": "List env var names and the Vault keys they come from (never values), and the names the app looks for that are not set yet",
       "toolset": "sites"
     },
     {
       "deferred": false,
       "name": "sites_env_set",
-      "summary": "Set environment names for deployments; values come from Vault by key name with inject into deployments",
+      "summary": "Set the env vars of a deployed site: each name takes its value from a Vault key, filled at deploy time and never shown. The next deploy uses them",
       "toolset": "sites"
     },
     {
@@ -7371,7 +7563,7 @@
     {
       "deferred": false,
       "name": "sites_host",
-      "summary": "What this Space can host: its address, whether it is a phone address, and what a custom domain needs",
+      "summary": "What this Space can host: its address, whether it is a phone address, whether Vyre can build and run apps here, the address sites get, and what a custom domain needs",
       "toolset": "sites"
     },
     {
@@ -7383,7 +7575,13 @@
     {
       "deferred": false,
       "name": "sites_logs",
-      "summary": "Container logs of a deployment (ids and text from the site, not Vyre content)",
+      "summary": "The log of a site: its running app, or with build the build log of a deployment (the latest when none is named). Text from the site, not Vyre content",
+      "toolset": "sites"
+    },
+    {
+      "deferred": false,
+      "name": "sites_plan",
+      "summary": "What a deploy would do with this source, before running it: how it is built and started, the port, and the databases and env names it looks for (read from railway.json, nixpacks.toml, a Procfile, package.json, requirements.txt or a Dockerfile)",
       "toolset": "sites"
     },
     {
@@ -7419,7 +7617,7 @@
     {
       "deferred": false,
       "name": "sites_rollback",
-      "summary": "Roll production back to an earlier build",
+      "summary": "Serve an earlier build again (the one before the current, or the one named). Its image is kept on the server, so nothing is built",
       "toolset": "sites"
     },
     {
@@ -7467,7 +7665,7 @@
     {
       "deferred": false,
       "name": "sites_update",
-      "summary": "Rename a site, change its settings, where it runs or who may reach it. Making it public takes it down until it is published again",
+      "summary": "Rename a site, change its settings, its source, its CPU and memory, auto deploy on push, where it runs or who may reach it. Making it public takes it down until it is published again",
       "toolset": "sites"
     },
     {
@@ -8084,6 +8282,12 @@
     },
     {
       "deferred": false,
+      "name": "task_digest",
+      "summary": "What an agent should keep in mind: the task bound to this thread, its parent and siblings in a line each, then its own open tasks, the top five and a count. About 300 tokens; detail stays one tasks_get away. An agent asking for itself leaves out agentId",
+      "toolset": "tasks"
+    },
+    {
+      "deferred": false,
       "name": "task_plan",
       "summary": "Break work into tasks in one step: a parent (new, or one that exists) and its children, each with its brief, what done means, who does it and which others it waits on. A child starts by itself when what it waits on is done; the parent hears only when all are done, or one is blocked or asks",
       "toolset": "tasks"
@@ -8594,6 +8798,12 @@
     },
     {
       "deferred": false,
+      "name": "threads_follow",
+      "summary": "Follow a thread (its replies reach me), mute it (I stay in it, its replies are quiet and do not count as new) or leave it",
+      "toolset": "chats"
+    },
+    {
+      "deferred": false,
       "name": "threads_get",
       "summary": "Read one thread with its members, agents, modes, plan mode and (for helpers) the address bar path",
       "toolset": "chats"
@@ -8601,7 +8811,7 @@
     {
       "deferred": false,
       "name": "threads_list",
-      "summary": "List threads by kind, folder, scope or record",
+      "summary": "List threads by kind, folder, scope or record; or the threads I am in, newest reply first",
       "toolset": "chats"
     },
     {

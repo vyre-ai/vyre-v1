@@ -1981,6 +1981,47 @@ export const screens: ScreenIndexEntry[] = [
     }
   },
   {
+    "id": "chats.threads",
+    "module": "chat",
+    "place": "chats",
+    "slot": "main",
+    "builtin": "ui:ThreadsPage",
+    "caller": "principal",
+    "queries": {
+      "threads": {
+        "cap": "threads.list",
+        "input": {
+          "kind": "/state/kind",
+          "mine": "/state/mine",
+          "order": "/state/order",
+          "exceptScope": "/state/exceptScope",
+          "limit": "/state/limit"
+        },
+        "live": true
+      }
+    },
+    "actions": {
+      "follow": {
+        "cap": "threads.follow",
+        "input": {
+          "threadId": "/state/threadId",
+          "mode": "/state/mode"
+        }
+      },
+      "markRead": {
+        "cap": "threads.mark_read",
+        "input": {
+          "threadId": "/state/threadId"
+        }
+      }
+    },
+    "needs": [],
+    "perf": {
+      "firstPaintMs": 50,
+      "completeMs": 100
+    }
+  },
+  {
     "id": "company.setup",
     "module": "members",
     "place": "console",
@@ -8055,6 +8096,11 @@ export const screens: ScreenIndexEntry[] = [
         "input": {
           "limit": "/state/limit"
         },
+        "live": true
+      },
+      "count": {
+        "cap": "tasks.count_needs_you",
+        "input": {},
         "live": true
       }
     },

@@ -66,6 +66,7 @@ Counts are not written down: they change with every contract change. Run `node t
 - [microsoft](modules/microsoft.md) (L5, connector)
 - [mounts](modules/mounts.md) (L4, module)
 - [network](modules/network.md) (L7b, module)
+- [notes](modules/notes.md) (L2, module)
 - [notifications](modules/notifications.md) (L6, module)
 - [portal](modules/portal.md) (L8, module)
 - [previews](modules/previews.md) (L4, module)
