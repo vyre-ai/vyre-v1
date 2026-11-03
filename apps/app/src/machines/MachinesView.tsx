@@ -124,6 +124,7 @@ export function MachineList({ data, who, narrow, now, onOpen, onAdd, onApprove, 
         </Block>
       ) : null}
       <Block title={scope === "space" ? "All machines" : "My computers and servers"} count={ms.length} testID="machines-table">
+        {narrow ? null : <View style={[s.mrow, s.mheadRow]} testID="machines-head"><View style={s.mname}><Text style={s.mheadText}>Machine</Text></View><View style={s.cells}>{["Status", "CPU", "Memory", "Disk", "Running", "Can run", "Room left"].map((h) => <View key={h} style={s.cell}><Text style={s.mheadText}>{h}</Text></View>)}</View></View>}
         {ms.map((m) => <MachineRowView key={m.serverId} m={m} who={who} narrow={narrow} now={now} onOpen={() => onOpen(m.serverId)} />)}
       </Block>
       {extra}
@@ -403,6 +404,8 @@ const s = StyleSheet.create({
   numText: { fontSize: 13, fontWeight: "600", color: "var(--ink)" as string },
   roomText: { fontSize: 12, color: "var(--ink-3)" as string, fontVariant: ["tabular-nums"] },
   mrow: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 12, paddingHorizontal: 12, paddingVertical: 10, borderRadius: 9 },
+  mheadRow: { paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: "var(--line)" as string },
+  mheadText: { fontSize: 11.5, fontWeight: "600", color: "var(--ink-3)" as string },
   mname: { flexDirection: "row", alignItems: "center", gap: 10, flexBasis: 220, flexGrow: 1, minWidth: 0 },
   ico: { width: 30, height: 30, borderRadius: 8, alignItems: "center", justifyContent: "center", backgroundColor: "var(--sunk)" as string },
   ico44: { width: 44, height: 44, borderRadius: 11, alignItems: "center", justifyContent: "center", backgroundColor: "var(--sunk)" as string },

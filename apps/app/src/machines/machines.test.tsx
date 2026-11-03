@@ -29,6 +29,7 @@ test("the list: a strip, the alerts with Open, one row per machine and what an a
   const alerts: MachinesOut["alerts"] = [{ alertId: "disk:srv_box", serverId: "srv_box", kind: "disk", title: "Berlin has 8% disk left", detail: "12 GB of 160 GB free" }, { alertId: "offline:srv_dev_omar", serverId: "srv_dev_omar", kind: "offline", title: "Omar's iMac is offline and Scout is pinned to it", detail: "Last seen 125 minutes ago" }];
   const out = html(<MachineList data={data([space, berlin, mine, maya, off], alerts)} who={who} narrow={false} now={NOW} onOpen={noop} onAdd={noop} scope="space" />);
   assert.ok(out.includes("4 of 5 online") && out.includes("1 offline"), "the strip");
+  assert.ok(out.includes('data-testid="machines-head"') && out.includes(">Room left<"), "column headings on a wide screen");
   assert.ok(out.includes("Berlin has 8% disk left") && out.includes('data-testid="alert-open-srv_box"'), "an alert with its way in");
   const at = (id: string): number => out.indexOf(`data-testid="machine-${id}"`);
   assert.ok(at("srv_local") >= 0 && at("srv_local") < at("srv_box") && at("srv_box") < at("srv_dev_mbp"), "the Space server, then servers, then computers");
@@ -68,7 +69,7 @@ test("a machine page: name with its own name behind a nickname, the facts, four 
   for (const c of CHARTS) assert.ok(out.includes(`data-testid="chart-${c.key}"`), c.key);
   assert.ok(out.includes("Alert at 10% free"), "the disk chart's alert line");
   assert.ok(out.includes("Downsampled after 24 hours") === false && out.includes("10-minute points") && out.includes("History is kept 30 days"));
-  for (const r of ["1 h", "24 h", "7 d", "30 d"]) assert.ok(out.includes(r), r);
+  for (const r of ["1\u00a0h", "24\u00a0h", "7\u00a0d", "30\u00a0d"]) assert.ok(out.includes(r), r);
   assert.ok(out.includes("Research") && out.includes("Market scan for the Q4 plan") && out.includes("14% CPU"));
   assert.ok(out.includes("\u2713 Claude Code") && out.includes("\u2713 Docker") && out.includes("Codex") && out.includes("Names only."));
   assert.ok(out.includes('data-testid="placement-slot"'));
