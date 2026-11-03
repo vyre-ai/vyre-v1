@@ -11,7 +11,8 @@ import { createSampleSidebar, northwind } from "../../../apps/app/src/places/cha
 
 export const title = "One name per chat";
 
-const TITLES: Record<string, string> = { untitled: "", titled: "GHL onboarding goal", dm: "Heyy" };
+const TITLES: Record<string, string> = { untitled: "", titled: "GHL onboarding goal", dm: "Heyy", group: "Lab 8 launch" };
+const GROUP = [{ kind: "person", id: "usr_irfad" }, { kind: "person", id: "usr_maya" }, { kind: "person", id: "usr_omar" }, { kind: "person", id: "usr_priya" }, { kind: "agent", id: "agt_intake" }, { kind: "agent", id: "agt_docs" }] as never;
 
 export default function Mount(): ReactNode {
   const [part, setPart] = useState<string | null>(null);
@@ -25,7 +26,7 @@ export default function Mount(): ReactNode {
     if (row) sb.replica.put("threads", [{ ...row, title: stored, agents: ["agt_intake", "agt_docs"] }]);
     return sb.data;
   }, [stored]);
-  const conv = useMemo(() => createConversationSample("idle", { title: stored }).data, [stored]);
+  const conv = useMemo(() => createConversationSample("idle", { title: stored, ...(part === "group" ? { members: GROUP } : {}) }).data, [stored, part]);
   if (part === null) return <View style={{ flex: 1, backgroundColor: "var(--win)" as string }} />;
   const narrow = width < 700;
   return (
