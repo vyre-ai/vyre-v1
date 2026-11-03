@@ -42,6 +42,13 @@ async function stateOf(target: RouteTarget, domain: string, to: { hostname?: str
 
 async function need(ctx: Ctx, site: Row): Promise<{ target: RouteTarget; to: { hostname?: string; ip?: string } }> {
   const target = targetOf(site);
+  if (site.source !== null && site.source !== undefined) {
+    // a site Vyre deploys is served by this server's gateway, which asks for the password or the sign-in its access needs: the domain points here
+    const edge = domainEdge();
+    const to = edge ? await edge.public({}) : null;
+    if (!to) fail(ctx, "validation.precondition_failed", "A custom domain needs this server to have a public address and Caddy.");
+    return { target: {}, to };
+  }
   if (target.port === undefined) fail(ctx, "validation.precondition_failed", "Say which port it runs on first. A custom domain points at a running port.");
   const edge = domainEdge();
   const to = edge ? await edge.public(target) : null;
@@ -55,14 +62,16 @@ async function domainAdd(ctx: Ctx, input: unknown): Promise<{ domain: string; re
   const siteId = str(site.id);
   const domain = cleanDomain(ctx, reqStr(ctx, o, "domain"));
   // a custom domain is the public internet, with no sandbox and no sign-in in front of it: only a public site has one, and its route waits for the site to be published through the Gate
-  if (site.access !== "public") fail(ctx, "validation.precondition_failed", "A custom domain is public. Make the site public first.");
+  const deployed = site.source !== null && site.source !== undefined;
+  if (site.access !== "public" && !deployed) fail(ctx, "validation.precondition_failed", "A custom domain is public. Make the site public first.");
   const { target, to } = await need(ctx, site);
   if (many(ctx, "SELECT * FROM sites_domain WHERE domain = ?", domain).some((r) => r.site_id !== siteId)) fail(ctx, "validation.duplicate", "Another site already uses that domain.", { domain });
   const now = ctx.now();
   if (!one(ctx, "SELECT * FROM sites_domain WHERE site_id = ? AND domain = ?", siteId, domain)) {
     ctx.db.run("INSERT INTO sites_domain (site_id, domain, dns_ok, certificate, created_at, checked_at) VALUES (?, ?, ?, ?, ?, ?)", siteId, domain, 0, "pending", now, now);
   }
-  if (flag(site.live)) await (domainEdge() as DomainEdge).setRoute(target, domain, target.port as number);
+  if (deployed) await routesHost()?.hostRoute?.(siteId, true);
+  else if (flag(site.live)) await (domainEdge() as DomainEdge).setRoute(target, domain, target.port as number);
   touchActivity(ctx.db, siteId, "site.domain_changed", now);
   ctx.emit("site.domain_changed", `site/${siteId}`, { siteId, domain });
   return { domain, records: recordsFor(domain, to), state: await stateOf(target, domain, to) };
@@ -101,7 +110,7 @@ export async function refreshDomainRoutes(ctx: Pick<Ctx, "db">, warn: (msg: stri
   const edge = domainEdge();
   if (!edge) return 0;
   let n = 0;
-  for (const row of ctx.db.all("SELECT d.domain AS domain, s.computer_id AS computer_id, s.port AS port FROM sites_domain d JOIN sites_site s ON s.id = d.site_id WHERE s.deleted_at IS NULL AND s.live = 1 AND s.access = 'public' AND s.port IS NOT NULL") as Row[]) {
+  for (const row of ctx.db.all("SELECT d.domain AS domain, s.computer_id AS computer_id, s.port AS port FROM sites_domain d JOIN sites_site s ON s.id = d.site_id WHERE s.deleted_at IS NULL AND s.live = 1 AND s.access = 'public' AND s.port IS NOT NULL AND s.source IS NULL") as Row[]) {
     try { await edge.setRoute(targetOf(row), str(row.domain), Number(row.port)); n++; } catch (e) { warn("sites: a domain route was not refreshed", { domain: str(row.domain), error: e instanceof Error ? e.message : String(e) }); }
   }
   return n;

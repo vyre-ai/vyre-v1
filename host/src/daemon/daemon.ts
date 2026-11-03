@@ -39,7 +39,9 @@ import type { SharedView } from "../routes/share.ts";
 import { createFormsPageRoute } from "../routes/forms-page.ts";
 import { createPublicPathRoute } from "../routes/public-path.ts";
 import type { PublicPathDeps, ServedSite } from "../routes/public-path.ts";
-import { createDomainEdge, createSitesHost, mimeOf } from "../seams/sites-host.ts";
+import { createDomainEdge, createSitesHost, dnsPointsAt, mimeOf } from "../seams/sites-host.ts";
+import { createSiteHostRoute, createSiteSigninPage, inSubnets } from "../routes/site-host.ts";
+import type { SiteHostDeps } from "../routes/site-host.ts";
 import { CaddyAdmin, CaddyError, CaddyRouter, ingressHostOf } from "../caddy/index.ts";
 import type { PublicFormView } from "../routes/forms-page.ts";
 import { deferredCaps, deferredModules } from "../routes/deferred.ts";
@@ -292,6 +294,8 @@ export interface DaemonOptions {
   computersHomeIntervalMs?: number;
   /** The container engine socket the agent computers module talks to (default: the system one); tests point it somewhere nothing listens. */
   computersSocketPath?: string;
+  /** The sites runner's socket (host/src/sites-runner; default VYRE_SITES_RUNNER) and, beside it, its token file. Vyre never holds the Docker socket itself. */
+  sitesRunnerSocket?: string;
   /** How long a computer that joined has to answer a job before it is handed out again (default 45 s); tests shorten it. */
   computeLeaseMs?: number;
   /** How often a computer's live-view socket checks that its credential still stands (a test sets it low). Default 2 s. */
@@ -324,7 +328,7 @@ export interface DaemonOptions {
   now?: () => number;
   sleep?: (ms: number) => Promise<void>;
   /** intervals in ms; tests shorten them */
-  intervals?: { tick?: number; commands?: number; fast?: number; slow?: number; encryption?: number; hooks?: number; sweep?: number };
+  intervals?: { tick?: number; commands?: number; fast?: number; slow?: number; encryption?: number; hooks?: number; sweep?: number; sitesPush?: number };
 }
 
 export interface Daemon {
@@ -481,6 +485,25 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   // sites: what the module answers and where the bytes go; set once the modules are loaded and the stream exists
   let sitesServing: Partial<PublicPathDeps> = {};
   let refreshDomains: () => Promise<void> = () => Promise.resolve();
+  // sites Vyre deploys, at addresses of their own: set once the sites module is loaded (configureRoutes); until then no host is a site
+  let siteHosts: SiteHostDeps | null = null;
+  let siteGuard: (localAddress: string | undefined) => boolean = () => false;
+  let sitesTick: () => Promise<void> = () => Promise.resolve();
+  const siteHostRoute = createSiteHostRoute({
+    own: (h) => siteHosts?.own(h) ?? true, site: (h) => siteHosts?.site(h) ?? null, ticket: (id, t) => siteHosts?.ticket(id, t) ?? Promise.resolve(null), may: (p, x) => siteHosts?.may(p, x) ?? false,
+    checkPassword: (g, h) => siteHosts?.checkPassword(g, h) ?? Promise.resolve(false), newSession: (id, p) => siteHosts ? siteHosts.newSession(id, p) : Promise.reject(new Error("not ready")),
+    address: (c) => siteHosts?.address(c) ?? Promise.resolve(null), origin: () => publicOrigin()?.origin ?? null,
+  });
+  const siteSigninPage = createSiteSigninPage();
+  // a value the Vault filled for a deploy (sites, kind container_env): held for one deploy, never logged, gone after ten minutes whether taken or not
+  const siteSecrets = new Map<string, { value: string; at: number }>();
+  const takeSiteSecret = (ref: string): string | undefined => {
+    const t = Date.now();
+    for (const [k, v] of siteSecrets) if (t - v.at > 600_000) siteSecrets.delete(k);
+    const got = siteSecrets.get(ref);
+    siteSecrets.delete(ref);
+    return got?.value;
+  };
   const publicPath = createPublicPathRoute({
     forms: () => formsPageRoute, unsubscribe: () => unsubscribeRoute, share: () => shareRoute, origin: () => publicOrigin()?.origin ?? null,
     site: (slug) => sitesServing.site?.(slug) ?? null, artifact: (id, token) => sitesServing.artifact?.(id, token) ?? Promise.resolve(null),
@@ -1387,7 +1410,84 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         configureRoutes: () => {
           const computers = loaded.moduleExports.get("computers") as { localComputerAddress?: (id: string) => Promise<string | null>; localSiteLogs?: (a: { computerId: string; slug: string; lines: number }) => Promise<string[]> } | undefined;
           const sitesMod = loaded.moduleExports.get("sites") as { routeBySlug?(c: { db: unknown }, slug: string): ServedSite | null; routeByTicket?(c: { db: unknown }, id: string, token: string, now: number): Promise<{ route: ServedSite; principal: string; owner: string } | null> } | undefined;
+          const sitesExports = loaded.moduleExports.get("sites") as Record<string, unknown> | undefined;
+          // Vyre builds and runs sites through the sites runner beside it (compose service sites-runner), which alone holds the Docker socket and refuses anything a site does not need.
+          // Its token is new each time it starts and sits next to its socket, so it is read again on every call.
+          const runnerSocket = o.sitesRunnerSocket ?? process.env["VYRE_SITES_RUNNER"] ?? undefined;
+          const runnerToken = (): string => { try { return fs.readFileSync(process.env["VYRE_SITES_RUNNER_TOKEN_FILE"] ?? path.join(path.dirname(runnerSocket as string), "token"), "utf8").trim(); } catch { return ""; } };
+          const runnerLink = runnerSocket ? { socketPath: runnerSocket, token: runnerToken } : undefined;
+          const sitesCaddy = cfg.caddyAdmin ? new CaddyRouter({ admin: new CaddyAdmin({ baseUrl: cfg.caddyAdmin, ...(o.fetch ? { fetch: o.fetch as never } : {}) }), space: spaceId, base: process.env["VYRE_CADDY_CA"] === "internal" ? { acme: { ca: "internal" } } : {} }) : null;
+          // sites get <slug>.<this>: VYRE_SITES_DOMAIN, or the Space's own domain once a wildcard name under it points at this server (checked now and then, never assumed)
+          let wildcard: { host: string; ok: boolean; at: number } | null = null;
+          const checkWildcard = async (): Promise<void> => {
+            const a = cfg.address ? new URL(/^https?:\/\//.test(cfg.address) ? cfg.address : `https://${cfg.address}`).hostname : null;
+            if (!a || !/\./.test(a) || /^\d+\.\d+\.\d+\.\d+$/.test(a)) { wildcard = null; return; }
+            if (wildcard && wildcard.host === a && Date.now() - wildcard.at < 10 * 60_000) return;
+            const probe = `vyre-sites-${Math.random().toString(36).slice(2, 10)}.${a}`;
+            wildcard = { host: a, ok: await dnsPointsAt(probe, { hostname: a }).catch(() => false), at: Date.now() };
+          };
+          const sitesDomain = (): string | null => process.env["VYRE_SITES_DOMAIN"]?.trim().toLowerCase() || (wildcard?.ok ? wildcard.host : null);
+          type Hosted = { siteId: string; hosts: string[]; live: boolean; container?: string; port?: number };
+          const hostsOf = (siteId?: string): Hosted[] => (sitesExports?.["deployedHosts"] as ((c: { db: unknown }, d: string | null, id?: string) => Hosted[]) | undefined)?.({ db: db! }, sitesDomain(), siteId) ?? [];
+          const containerAddress = (c: string): Promise<string | null> => (sitesExports?.["containerAddress"] as ((c: string) => Promise<string | null>) | undefined)?.(c) ?? Promise.resolve(null);
+          // what each site name points at in Caddy now: auth at this daemon, then the container itself (WebSockets go through); written again when a container's address changes
+          const written = new Map<string, string>();
+          const writeHost = async (x: Hosted): Promise<void> => {
+            if (!sitesCaddy) return;
+            const address = x.container ? await containerAddress(x.container) : null;
+            const app = address && x.port ? `${address}:${x.port}` : null;
+            for (const h of x.hosts) {
+              const want = app ?? "vyred";
+              if (written.get(h) === want) continue;
+              // a site with nothing running yet still answers at its name: this daemon says what is wrong
+              if (app) await sitesCaddy.setDeployedSite(h, `127.0.0.1:${boundPort}`, app); else await sitesCaddy.setIngress(h, `127.0.0.1:${boundPort}`);
+              written.set(h, want);
+            }
+          };
+          const hostRoute = async (siteId: string, up: boolean): Promise<void> => {
+            if (!sitesCaddy) return;
+            for (const x of hostsOf(siteId)) {
+              if (up) await writeHost(x); else for (const h of x.hosts) { await sitesCaddy.removeRoute(h).catch(() => undefined); written.delete(h); }
+            }
+          };
+          // sites never reach this daemon: a connection that arrives on a site network's address is closed (the ingress sits on every site's network to proxy to it)
+          let subnets: { at: number; list: string[] } = { at: 0, list: [] };
+          siteGuard = (address) => {
+            if (Date.now() - subnets.at > 10_000) subnets = { at: Date.now(), list: (sitesExports?.["siteSubnets"] as ((c: { db: unknown }) => string[]) | undefined)?.({ db: db! }) ?? [] };
+            return inSubnets(address, subnets.list);
+          };
+          const ownHosts = (): Set<string> => {
+            const out = new Set(["localhost", "127.0.0.1", "[::1]"]);
+            const o2 = publicOrigin()?.origin; if (o2) out.add(new URL(o2).hostname.toLowerCase());
+            if (cfg.address) { try { out.add(new URL(/^https?:\/\//.test(cfg.address) ? cfg.address : `https://${cfg.address}`).hostname.toLowerCase()); } catch { /* not an address */ } }
+            return out;
+          };
+          type HostRow = { siteId: string; name: string; access: string; live: boolean; blocked: boolean; owner: string; passwordHash: string | null; target: { container?: string; port?: number } };
+          siteHosts = {
+            own: (h) => ownHosts().has(h) || /^\d+\.\d+\.\d+\.\d+$/.test(h),
+            site: (h) => (sitesExports?.["routeByHost"] as ((c: { db: unknown }, h: string, d: string | null) => HostRow | null) | undefined)?.({ db: db! }, h, sitesDomain()) ?? null,
+            ticket: async (id, t) => (await (sitesExports?.["routeByTicket"] as ((c: { db: unknown }, id: string, t: string, n: number) => Promise<{ principal: string } | null>) | undefined)?.({ db: db! }, id, t, now()))?.principal ?? null,
+            // the same rule as an artifact's address: the owner, an active member for a Space site, or a grant on the site for a private one; asked on every request
+            may: (p, x) => p === x.owner || (x.access !== "private" && access.snap.principal(p)?.status === "active") || (!staleFor(p) && authorize(access.snap, { principal: p, action: { perm: null, level: "view" }, resource: { type: "site", id: x.siteId } }).effect === "allow"),
+            checkPassword: (g, h) => (sitesExports?.["checkPassword"] as (g: string, h: string) => Promise<boolean>)(g, h),
+            newSession: (id, p) => (sitesExports?.["newTicket"] as (db: unknown, id: string, p: string, ms: number, n: number) => Promise<string>)(db!, id, p, sitesExports?.["SESSION_MS"] as number, now()),
+            address: (c) => (sitesExports?.["containerAddress"] as ((c: string) => Promise<string | null>) | undefined)?.(c) ?? Promise.resolve(null),
+            origin: () => publicOrigin()?.origin ?? null,
+          };
+          // the slow tick: the wildcard check, every deployed site's address back in Caddy, and a deploy for each site whose branch moved (run as whoever deployed it last, so the Vault checks their access)
+          void checkWildcard().catch(() => undefined);
+          sitesTick = async () => {
+            await checkWildcard();
+            if (sitesCaddy) for (const x of hostsOf()) { try { await writeHost(x); } catch (e) { sink.log({ space: spaceId, level: 40, msg: "sites.host_route_pending", place: "sites", attrs: { site: x.siteId, why: e instanceof Error ? e.message.slice(0, 160) : "" } }); } }
+            const autos = (sitesExports?.["autoDeploySites"] as ((c: { db: unknown }) => { siteId: string; as: string }[]) | undefined)?.({ db: db! }) ?? [];
+            for (const a of autos) {
+              const r = await invoke("sites.deploy", { siteId: a.siteId, onlyIfChanged: true }, { space: spaceId, principal: { kind: a.as.startsWith("agt_") ? "agent" : "person", id: a.as }, origin: "sites-push" }).catch((e: unknown) => ({ status: "error", e }));
+              if ((r as { status?: string }).status !== "ok") sink.log({ space: spaceId, level: 30, msg: "sites.push_check_skipped", place: "sites", attrs: { site: a.siteId } });
+            }
+          };
           const made = createSitesHost({
+            containerAddress: (c) => (sitesExports?.["containerAddress"] as ((c: string) => Promise<string | null>) | undefined)?.(c) ?? Promise.resolve(null),
+            deploy: { ...(runnerLink ? { runnerLink } : {}), take: takeSiteSecret, tmp: path.join(paths.root, "site-builds"), sitesDomain, domainOf: (id) => (db!.all("SELECT domain FROM sites_domain WHERE site_id = ? ORDER BY created_at", id)[0] as { domain?: string } | undefined)?.domain ?? null, hostRoute },
             artifacts: artifactStore, origin: publicOrigin, contained: fs.existsSync("/.dockerenv"),
             nodeOf: (id) => (db!.all("SELECT node_id FROM computers_computers WHERE computer_id = ?", id)[0] as { node_id?: string | null } | undefined)?.node_id ?? null,
             localAddress: (id) => computers?.localComputerAddress?.(id) ?? Promise.resolve(null),
@@ -1520,7 +1620,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           privateKey: async (personId: string) => { const k = keyring.get(personId); if (!k) return null; try { return privateKeyOf(db, personId, k); } finally { k.fill(0); } },
         }),
         setVaultFillerKey: () => Buffer.from(sealKeyFile(path.join(paths.root, "vault-filler.key")), "hex"),
-        configureVault: (d) => ({ signin: createProviderSignin({ fetch: d.fetch, ...(cfg.spaceKind === "personal" ? { localSignin: (p: SigninProvider) => readLocalSignin(p) } : {}) }), refreshed: { take: (t: string, itemId: string) => signinRefresh.take(t, itemId) }, sinks: { ...o.seams?.vaultSinks, http_header: (filled:Parameters<typeof connectorPort.sink>[0],execution?:Parameters<typeof connectorPort.sink>[1]) => { if(connectorPort.accepts(filled.ref))return connectorPort.sink(filled,execution);const existing=o.seams?.vaultSinks?.['http_header'];if(existing)return existing(filled);throw new Error("This HTTP fill reference is unavailable.");} }, db: db!, probe: createProviderProbe({ own: ownNode, ...(o.providerFetch ? { fetch: o.providerFetch } : {}) }), refuse: ({ address, caller }) => refuseModelAddress(address, ownNode(caller)), origin: () => { const a = cfg.address ?? `http://${cfg.host}:${boundPort}`; return /^https?:\/\//.test(a) ? a : `https://${a}`; }, provide: (p: VaultPort & { pullExport?(exportId: string, token: string): string }) => { vaultImpl = p; if (p.pullExport) pullVaultExport = p.pullExport; } }),
+        configureVault: (d) => ({ signin: createProviderSignin({ fetch: d.fetch, ...(cfg.spaceKind === "personal" ? { localSignin: (p: SigninProvider) => readLocalSignin(p) } : {}) }), refreshed: { take: (t: string, itemId: string) => signinRefresh.take(t, itemId) }, sinks: { container_env: (f: { value: string; ref: string }) => { siteSecrets.set(f.ref, { value: f.value, at: Date.now() }); }, ...o.seams?.vaultSinks, http_header: (filled:Parameters<typeof connectorPort.sink>[0],execution?:Parameters<typeof connectorPort.sink>[1]) => { if(connectorPort.accepts(filled.ref))return connectorPort.sink(filled,execution);const existing=o.seams?.vaultSinks?.['http_header'];if(existing)return existing(filled);throw new Error("This HTTP fill reference is unavailable.");} }, db: db!, probe: createProviderProbe({ own: ownNode, ...(o.providerFetch ? { fetch: o.providerFetch } : {}) }), refuse: ({ address, caller }) => refuseModelAddress(address, ownNode(caller)), origin: () => { const a = cfg.address ?? `http://${cfg.host}:${boundPort}`; return /^https?:\/\//.test(a) ? a : `https://${a}`; }, provide: (p: VaultPort & { pullExport?(exportId: string, token: string): string }) => { vaultImpl = p; if (p.pullExport) pullVaultExport = p.pullExport; } }),
         setConnectorsHost: () => connectorPort,
         setDocumentNetwork: () => o.documentNetwork ?? documentPin(),
         setConnectorReadSender: (d) => connectorReadSender(d),
@@ -1965,6 +2065,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
     scheduler.add({ name: "commands.poll", schedule: { everyMs: o.intervals?.commands ?? 1000 }, run: async () => { await runCommands(); } });
     scheduler.add({ name: "schedule.tick", schedule: { everyMs: o.intervals?.tick ?? 1000 }, run: async () => { await queue?.tick(); } });
     scheduler.add({ name: "sites.domain_routes", schedule: { everyMs: o.intervals?.slow ?? 60_000 }, run: async () => { await refreshDomains(); } });
+    scheduler.add({ name: "sites.deployed", schedule: { everyMs: o.intervals?.sitesPush ?? 60_000 }, run: async () => { await sitesTick(); } });
     scheduler.add({ name: "projections.pump", schedule: { everyMs: o.intervals?.hooks ?? 5000 }, run: async () => { await projections?.pump(); } });
     scheduler.add({ name: "hooks.pump", schedule: { everyMs: o.intervals?.hooks ?? 5000 }, run: async () => { await hooks?.pump(); } });   // the backstop for a consumer that failed, and for events committed by another process
     // A Personal Space on several computers runs its scheduled work on one of them at a time (host/src/peers/runner.ts); the jobs that look after this computer's own state run on each.
@@ -1997,6 +2098,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
     const server = h.server;
     if (hubFactory) server.on("upgrade", (req, socket, head) => { if (computeStream.claims(req)) computeStream.upgrade(req, socket, head); });
     server.removeAllListeners("request");
+    // a site's container reaches this machine only through its own network; a connection on that network's address is a site trying the Space's API, and is closed at once
+    server.on("connection", (sock) => { if (siteGuard(sock.localAddress)) sock.destroy(); });
     const listener = requestListener({
       health, coerce,
       gateway: gateway ?? (() => Promise.resolve({ status: 404, headers: {}, body: { error: makeError("validation.unknown_capability", ZERO_TRACE, { message: "This daemon runs the device role only; it has no Space API." }) } })),
@@ -2034,8 +2137,9 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         res.once("finish", () => { setImmediate(requestStop); });
         return;
       }
+      if (siteHostRoute.handle(req, res)) return;
       if (peerService?.handle(req, res)) return;
-      if (liveTicketRoute.handle(req, res) || publicPath.handle(req, res) || mcpRoute.handle(req, res) || chromeBridge.handle(req, res) || githubSignInRoute.handle(req, res) || ssoSignInRoute.handle(req, res) || blobRoute?.handle(req, res) || formsPageRoute?.handle(req, res) || unsubscribeRoute.handle(req, res) || shareRoute?.handle(req, res) || portalLinkRoute?.handle(req, res) || exportRoute.handle(req, res) || webhookRoute.handle(req, res) || computeRoute.handle(req, res) || computeStream.handle(req, res) || teamLinks.handle(req, res) || fillRoute.handle(req, res) || localKeyRoute.handle(req, res) || appFiles.handle(req, res)) return;
+      if (liveTicketRoute.handle(req, res) || publicPath.handle(req, res) || siteSigninPage.handle(req, res) || mcpRoute.handle(req, res) || chromeBridge.handle(req, res) || githubSignInRoute.handle(req, res) || ssoSignInRoute.handle(req, res) || blobRoute?.handle(req, res) || formsPageRoute?.handle(req, res) || unsubscribeRoute.handle(req, res) || shareRoute?.handle(req, res) || portalLinkRoute?.handle(req, res) || exportRoute.handle(req, res) || webhookRoute.handle(req, res) || computeRoute.handle(req, res) || computeStream.handle(req, res) || teamLinks.handle(req, res) || fillRoute.handle(req, res) || localKeyRoute.handle(req, res) || appFiles.handle(req, res)) return;
       listener(req, res);
     });
     await new Promise<void>((resolve, reject) => {

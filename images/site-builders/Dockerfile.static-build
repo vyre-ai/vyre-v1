@@ -14,5 +14,6 @@ RUN sh -c "$BUILD_CMD"
 FROM caddy:2-alpine
 ARG STATIC_DIR=dist
 COPY --from=build /app/${STATIC_DIR} /srv
+RUN printf ':3000 {\n\troot * /srv\n\tencode gzip\n\ttry_files {path} {path}/index.html /index.html\n\tfile_server\n}\n' > /etc/caddy/Caddyfile
 EXPOSE 3000
-CMD ["caddy", "file-server", "--root", "/srv", "--listen", ":3000"]
+CMD ["caddy", "run", "--config", "/etc/caddy/Caddyfile", "--adapter", "caddyfile"]

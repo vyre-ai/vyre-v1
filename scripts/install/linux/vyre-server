@@ -292,6 +292,13 @@ check_all() {
       "") finding host.caddy down "Caddy is not running. Start it: vyre-server start." ;;
       *) finding host.caddy down "Caddy is $cd. Read: vyre-server logs caddy." ;;
     esac
+    # the sites runner (the one service holding the Docker socket): sites stop deploying without it, the Space does not, so it is never a reason to roll an update back
+    sr=$(printf '%s\n' "$ps" | awk '$1 == "sites-runner" { print $2 }')
+    case "$sr" in
+      running) finding host.sites_runner healthy "The sites runner is running." ;;
+      "") finding host.sites_runner degraded "The sites runner is not running, so sites cannot deploy. Start it: vyre-server start." ;;
+      *) finding host.sites_runner degraded "The sites runner is $sr. Read: vyre-server logs sites-runner." ;;
+    esac
     ai=$(lock_get VYRE_AGENT_IMAGE)
     if [ -n "$ai" ]; then
       if docker image inspect "$ai" >/dev/null 2>&1; then finding host.agent_image healthy "The agent computer image is pulled."

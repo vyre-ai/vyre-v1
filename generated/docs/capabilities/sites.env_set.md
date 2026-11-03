@@ -1,6 +1,6 @@
 # sites.env_set
 
-Set environment names for deployments; values come from Vault by key name with inject into deployments
+Set the env vars of a deployed site: each name takes its value from a Vault key, filled at deploy time and never shown. The next deploy uses them
 
 | | |
 |---|---|

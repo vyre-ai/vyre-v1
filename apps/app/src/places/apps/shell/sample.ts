@@ -36,10 +36,10 @@ export interface SampleApps {
   failNext(cap: string, message?: string): void;
 }
 
-export function createSampleApps(o: { team?: boolean; gate?: boolean; deferred?: readonly string[] } = {}): SampleApps {
+export function createSampleApps(o: { team?: boolean; gate?: boolean; deferred?: readonly string[]; sites?: readonly SiteRow[] } = {}): SampleApps {
   const replica = createFakeReplica("northwind");
   const put = (table: string, rows: readonly object[], id: (r: never) => string): void => replica.put(table, rows.map((r) => ({ ...r, id: id(r as never) }) as unknown as Row));
-  put("sites", SITES, (r: SiteRow) => r.siteId); put("forms", FORMS, (r: FormRow) => r.formId); put("templates", TEMPLATES, (r: TemplateRow) => r.templateId);
+  put("sites", o.sites ?? SITES, (r: SiteRow) => r.siteId); put("forms", FORMS, (r: FormRow) => r.formId); put("templates", TEMPLATES, (r: TemplateRow) => r.templateId);
   const strip = <T,>(rows: Row[]): T[] => rows.map(({ id: _id, ...rest }) => rest as unknown as T);
   const row = (table: string, id: string): Row => { const r = replica.rows(table).find((x) => x.id === id); if (!r) throw new Error("Not found"); return r; };
   replica.resolve("sites.list", () => ({ sites: strip<SiteRow>(replica.rows("sites")) }) as CapMap["sites.list"]["out"]);

@@ -1,6 +1,6 @@
 # sites.logs
 
-Container logs of a deployment (ids and text from the site, not Vyre content)
+The log of a site: its running app, or with build the build log of a deployment (the latest when none is named). Text from the site, not Vyre content
 
 | | |
 |---|---|
@@ -28,6 +28,7 @@ type In = {
   siteId: string;
   deploymentId?: string;
   tail?: number;
+  build?: boolean;
 };
 ```
 
@@ -36,6 +37,7 @@ type In = {
 ```ts
 type Out = {
   lines: Array<string>;
+  state?: "queued" | "building" | "ready" | "failed" | "stopped";
 };
 ```
 
@@ -54,6 +56,7 @@ type Out = {
 {
   "name": "example",
   "input": {
+    "build": true,
     "deploymentId": "dpl_a1b2c3",
     "siteId": "sit_a1b2c3",
     "tail": 1
@@ -61,7 +64,8 @@ type Out = {
   "output": {
     "lines": [
       "example"
-    ]
+    ],
+    "state": "queued"
   }
 }
 ```

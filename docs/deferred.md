@@ -8,7 +8,7 @@ Ruling 93 (26 Oct): Vault import ships in v1.1, not v1. v1 counts golden flows 1
 |---|---|---|
 | vault | vault.import, vault.import_parse | P-L7_11; ships in v1.1 (ruling 93) |
 | reports-client | reports.resolved | The inbound webhook from reports.vyre.run (POST /hooks/reports): needs the service's signature check and a route to this module. The rest of Report a problem is real: the host wires the bundle sources and the signed client (host/src/seams/reports.ts); the replay sandbox is not wired |
-| sites | sites.build, sites.deploy, sites.deployments, sites.previews, sites.preview_rebuild, sites.preview_remove, sites.rollback, sites.table_create, sites.tables, sites.table_promote, sites.env_set, sites.env_list, sites.staging_password_set, sites.service_identity | The Docker build pipeline, staging, previews and site tables. Owner, 2 Nov: a site is a route, so an agent builds and runs it on a computer and these stay dormant. The rest of Sites is live (modules/sites/handlers/route.ts); golden flow 6 covers it |
+| sites | sites.build, sites.previews, sites.preview_rebuild, sites.preview_remove, sites.table_create, sites.tables, sites.table_promote, sites.staging_password_set, sites.service_identity | The staging, preview and site-table pipeline. Owner, 2 Nov: a site is a route; owner, 3 Nov: Vyre also deploys a site from its source like Railway, so sites.deploy, deployments, rollback, env_set and env_list are live again on a new implementation (modules/sites/handlers/release.ts). The rest of Sites is live (handlers/route.ts); golden flow 6 covers it |
 
 The providers capabilities (list, add, remove, test, sign-in) are real, not deferred: the engine needs them for every turn.
 
