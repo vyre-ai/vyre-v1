@@ -22,7 +22,7 @@ import { each } from "./each.ts";
 import { Icon } from "./icons.tsx";
 import { calendarMenuEntries, dayMenuEntries, eventMenuEntries, lengthMenuEntries, peopleMenuEntries } from "./menus.ts";
 import {
-  DAY, HH, allDayRows, availabilityLine, atSlot, blockOf, calReduce, clickCreate, clock, conflicts, dateOf, directoryOf, dragCreate, dragMove, dragResize, eventLine, eventsOn, freeLine, initialCal, isPast, lanesOf, lengthText, menuFacts,
+  DAY, HH, MONTH_CAP, allDayLane, availabilityLine, atSlot, blockOf, calReduce, clickCreate, clock, conflicts, dateOf, dayText, directoryOf, dragCreate, dragMove, dragResize, eventLine, eventsOn, freeLine, initialCal, isPast, lanesOf, monthCell, lengthText, menuFacts,
   minutes, monthOf, nameMap, newDraft, offsetToY, range, setLength, slotText, startOfDay, stripesOf, viewDays, viewRange, viewTitle, visibleCalendarIds, weekdayShort, whoLabel,
 } from "./model.ts";
 import type { Busy, CalendarRow, Draft, EventRow, Mode, Slot, Span } from "./model.ts";
@@ -58,6 +58,12 @@ export interface CalendarProps {
 }
 
 const GRID = HH * 24;
+const QUARTER = HH / 4;
+// the hour grid with a faint line every 15 minutes (the hour line on top)
+const GRIDBG = `repeating-linear-gradient(to bottom, transparent 0, transparent ${HH - 1}px, var(--line) ${HH - 1}px, var(--line) ${HH}px), repeating-linear-gradient(to bottom, transparent 0, transparent ${QUARTER - 1}px, color-mix(in srgb, var(--line) 42%, transparent) ${QUARTER - 1}px, color-mix(in srgb, var(--line) 42%, transparent) ${QUARTER}px)`;
+const SOLID = (c: string): string => `linear-gradient(${c}, ${c})`;
+const isWeekend = (day: number, offsetMin: number): boolean => { const w = new Date(day + offsetMin * 60_000).getUTCDay(); return w === 0 || w === 6; };
+const AD_ROW = 21;
 const FALLBACK = "#5B5BD6";
 const colorOf = (cals: readonly CalendarRow[], id: string): string => cals.find((c) => c.id === id)?.color ?? FALLBACK;
 // react-native-web drops a color-mix() backgroundColor, so a fill is a one-colour gradient in backgroundImage (as the busy stripes are): the grid shows through in both skins
@@ -187,7 +193,8 @@ function Grid({ p }: { p: CalendarProps }): ReactElement {
     void findTime(data, shaded, length, Math.max(clockNow.now, today), today + 14 * DAY, 1).then((r) => { if (live) setFirst(r[0]); }).catch(() => undefined);
     return () => { live = false; };
   }, [shaded.join(), length, draftEnd, today]);
-  useEffect(() => { scroll.current?.scrollTo?.({ y: cal.mode === "month" ? 0 : 7.5 * HH, animated: false }); }, [cal.mode]);
+  // the grid opens at the working day, or at the current time (two and a half hours above it) when today is in view
+  useEffect(() => { scroll.current?.scrollTo?.({ y: cal.mode === "month" ? 0 : viewDays(cal.mode, cal.day, off).includes(today) ? Math.max(0, offsetToY(clockNow.now - today) - 2.5 * HH) : 7.5 * HH, animated: false }); }, [cal.mode]); // eslint-disable-line react-hooks/exhaustive-deps -- on open and when the mode changes
 
   const calId = cal.draft?.calendarId ?? calendars.find((c) => !c.personal)?.id ?? calendars[0]?.id ?? "";
   const withDraft = (span: Span, title = ""): void => dispatch({ type: "draft", draft: newDraft(span, calId, cal.people, title) });
@@ -312,24 +319,74 @@ function Grid({ p }: { p: CalendarProps }): ReactElement {
   const dayStripes = (day: number) => (shaded.length > 0 ? stripesOf(busy, shaded, day) : []);
   const line = shaded.length > 0 ? availabilityLine(shaded, names, first, length, off) : null;
 
-  const renderEvent = (e: EventRow, day: number, laid: ReturnType<typeof lanesOf>[number]): ReactElement => {
+  // the hover card: title, time, who and a Join button, after a short rest on an event; a press opens the pane as before
+  const [hov, setHov] = useState<{ id: string; x: number; y: number; w: number } | null>(null);
+  const hovTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const hovOff = (): void => { if (hovTimer.current) clearTimeout(hovTimer.current); hovTimer.current = null; setHov(null); };
+  const hoverIn = (id: string) => (ev: unknown): void => {
+    const r = (ev as { currentTarget?: { getBoundingClientRect?: () => { left: number; right: number; top: number; width: number } } } | undefined)?.currentTarget?.getBoundingClientRect?.();
+    if (!r || phone || drag) return;
+    if (hovTimer.current) clearTimeout(hovTimer.current);
+    hovTimer.current = setTimeout(() => setHov({ id, x: r.right + 6, y: r.top, w: r.width }), hov ? 60 : 420);
+  };
+  const hoverOut = (): void => { if (hovTimer.current) clearTimeout(hovTimer.current); hovTimer.current = setTimeout(() => setHov(null), 140); };
+  const hovEvent = hov ? events.find((x) => x.id === hov.id) : undefined;
+  const hovCard = hov && hovEvent ? (() => {
+    const e = hovEvent, who = e.attendees.filter((a) => a.email !== p.me).map((a) => a.name ?? names.get(a.email) ?? a.email);
+    const joinable = e.joinUrl !== undefined && e.joinProvider !== "none" && e.endsAt > clockNow.now;
+    const left = typeof window !== "undefined" && hov.x + 250 > window.innerWidth - 8 ? Math.max(8, hov.x - hov.w - 262) : hov.x;
+    return (
+      <View style={[s.hov, { left, top: hov.y }]} testID="cal-hover" {...({ onMouseEnter: () => { if (hovTimer.current) clearTimeout(hovTimer.current); }, onMouseLeave: hoverOut } as object)}>
+        <View style={s.hovHead}><View style={[s.cdot, { backgroundColor: colorOf(calendars, e.calendarId) }]} /><Text numberOfLines={2} style={s.hovTitle}>{e.title}</Text></View>
+        <Text style={s.hovText}>{`${dayText(e.startsAt, off)} · ${eventLine(e, off)}`}</Text>
+        {who.length > 0 ? <Text style={s.hovWho} numberOfLines={2}>{who.slice(0, 3).join(", ")}{who.length > 3 ? ` and ${who.length - 3} more` : ""}</Text> : null}
+        {joinable ? <Pressable accessibilityRole="button" accessibilityLabel={`Join ${PROVIDER_NAME[e.joinProvider as "meet"] ?? "call"}`} testID="cal-hover-join" onPress={() => { hovOff(); nav.join(e.joinUrl as string); }} style={({ hovered }: { hovered?: boolean }) => [s.btn, s.btnP, s.hovJoin, hovered === true && s.btnPOver]}><Text style={s.btnPText}>{`Join ${PROVIDER_NAME[e.joinProvider as "meet"] ?? "call"}`}</Text></Pressable> : null}
+      </View>
+    );
+  })() : null;
+
+  const renderEvent = (e: EventRow, day: number, laid: ReturnType<typeof lanesOf>[number], all: ReturnType<typeof lanesOf>): ReactElement => {
     const span = preview(e);
     const l = { ...laid, e: { ...e, ...span } };
     const b = blockOf(l, day);
     const col = colorOf(calendars, e.calendarId);
+    if (laid.band) {
+      // a long Block or Focus: a quiet tinted band behind the others; only its small label takes a press (the rest lets a drag create through)
+      const crowded = all.some((o) => !o.band && o.e.startsAt < e.startsAt + 16 * 36e5 / HH && o.e.endsAt > e.startsAt);
+      return (
+        <View key={e.id} pointerEvents="box-none" testID={`band:${e.id}`} style={[s.band, { top: b.top, height: b.height, backgroundImage: tint(col, cal.selected === e.id ? 11 : 6), boxShadow: `inset 2px 0 0 color-mix(in srgb, ${col} 38%, transparent)` as unknown as undefined }]}>
+          <Pressable accessibilityRole="button" accessibilityLabel={`${e.title}, ${eventLine(e, off)}`} testID={`band-label:${e.id}`} onPress={(ev) => pressEvent(e.id, ev)} {...menuTrigger((x, y) => eventMenu(e, x, y))} style={[s.bandLabel, crowded ? s.bandLabelBot : s.bandLabelTop]}>
+            <Text numberOfLines={1} style={[s.bandText, { color: col }]}>{e.title}</Text>
+          </Pressable>
+        </View>
+      );
+    }
+    const when = b.time === "range" ? range(span.startsAt, span.endsAt, off) : clock(span.startsAt, off);
+    const inline = b.lines === 1 && b.time === "start";
     return (
       <View key={e.id} {...menuTrigger((x, y) => eventMenu(e, x, y))} style={[s.cev, { top: b.top, height: b.height, left: b.left as unknown as number, width: b.width as unknown as number, backgroundImage: tint(col, isPast(e, clockNow.now) ? 9 : 15), borderLeftColor: col }, cal.selected === e.id && s.cevSel]} testID={`event:${e.id}`}>
         <Pressable
           accessibilityRole="button" accessibilityLabel={`${e.title}, ${eventLine(e, off)}`} accessibilityState={{ selected: cal.selected === e.id }} testID={`event-body:${e.id}`}
-          onPress={(ev) => pressEvent(e.id, ev)} {...({ onPointerDown: startEvent(e, "move") } as object)} style={s.cevIn}
+          onPress={(ev) => pressEvent(e.id, ev)} onHoverIn={hoverIn(e.id)} onHoverOut={hoverOut} {...({ onPointerDown: startEvent(e, "move") } as object)} style={[s.cevIn, inline && s.cevInline]}
         >
-          <Text numberOfLines={1} style={[s.cevTitle, isPast(e, clockNow.now) && s.cevPast]}>{e.title}</Text>
-          {b.one ? null : <Text numberOfLines={1} style={s.cevSmall}>{range(span.startsAt, span.endsAt, off)}</Text>}
+          <Text numberOfLines={b.lines} style={[s.cevTitle, inline && s.cevTitleInline, isPast(e, clockNow.now) && s.cevPast]}>{e.title}</Text>
+          {b.time === "none" ? null : <Text numberOfLines={1} style={s.cevSmall}>{when}</Text>}
         </Pressable>
         <View testID={`resize:${e.id}`} {...({ onPointerDown: startEvent(e, "resize") } as object)} style={s.grip} />
-        {e.bookedByAgentId && b.height >= 24 ? <View style={s.af}><Face name={e.bookedByAgentId.replace(/^agt_/, "")} seedId={e.bookedByAgentId} size={14} round={false} /></View> : null}
+        {e.bookedByAgentId && b.height >= 24 && laid.lanes < 3 ? <View style={s.af}><Face name={e.bookedByAgentId.replace(/^agt_/, "")} seedId={e.bookedByAgentId} size={14} round={false} /></View> : null}
       </View>
     );
+  };
+
+  // phone: a swipe across the day view goes to the next or previous day
+  const swipe = useRef<{ x: number; y: number } | null>(null);
+  const swipeStart = (e: { touches?: ArrayLike<{ clientX: number; clientY: number }> }): void => { const t = e.touches?.[0]; swipe.current = phone && mode === "day" && t && (e.touches?.length ?? 0) === 1 ? { x: t.clientX, y: t.clientY } : null; };
+  const swipeEnd = (e: { changedTouches?: ArrayLike<{ clientX: number; clientY: number }> }): void => {
+    const a = swipe.current, t = e.changedTouches?.[0];
+    swipe.current = null;
+    if (!a || !t) return;
+    const dx = t.clientX - a.x, dy = t.clientY - a.y;
+    if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.8) dispatch({ type: "step", dir: dx < 0 ? 1 : -1, offsetMin: off });
   };
 
   const header = (
@@ -342,7 +399,7 @@ function Grid({ p }: { p: CalendarProps }): ReactElement {
       </View>
       <View style={s.grow} />
       <View style={s.seg} accessibilityRole="tablist">
-        {each(["day", "week", "month"] as const, (m) => (
+        {each((phone ? ["day", "month"] : ["day", "week", "month"]) as readonly Mode[], (m) => (
           <Pressable key={m} accessibilityRole="tab" accessibilityLabel={m === "day" ? "Day" : m === "week" ? "Week" : "Month"} accessibilityState={{ selected: mode === m }} aria-selected={mode === m} testID={`cal-mode-${m}`} onPress={() => dispatch({ type: "mode", mode: m })} style={({ hovered }: { hovered?: boolean }) => [s.segBtn, mode === m && s.segOn, hovered === true && mode !== m && s.hicOver]}>
             <Text style={[s.segText, mode === m && s.segTextOn]}>{m === "day" ? "Day" : m === "week" ? "Week" : "Month"}</Text>
           </Pressable>
@@ -414,9 +471,9 @@ function Grid({ p }: { p: CalendarProps }): ReactElement {
       <View style={s.mwk}>{each(["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"], (w) => <Text key={w} style={s.mwkText}>{w}</Text>)}</View>
       <View style={s.mgrid}>
         {each(days, (d) => {
-          const es = [...eventsOn(events, d, true), ...eventsOn(events, d, false)];
-          const cap = days.length > 35 ? 3 : 4;
-          const show = es.slice(0, es.length > cap ? cap - 1 : cap);
+          const es = monthCell(events, d);
+          const cap = MONTH_CAP;
+          const show = es.slice(0, cap);
           const out = monthOf(d, off) !== monthOf(cal.day, off);
           return (
             <Pressable
@@ -427,13 +484,13 @@ function Grid({ p }: { p: CalendarProps }): ReactElement {
             >
               <View style={[s.mn, d === today && s.mnToday]}><Text style={[s.mnText, out && s.mnOut, d === today && s.mnTodayText]}>{dateOf(d, off)}</Text></View>
               {each(show, (e) => (
-                <Pressable key={e.id} accessibilityRole="button" accessibilityLabel={e.title} testID={`mev:${e.id}`} onPress={(ev) => pressEvent(e.id, ev)} {...menuTrigger((x, y) => eventMenu(e, x, y))} style={({ hovered }: { hovered?: boolean }) => [s.mev, (hovered === true || cal.selected === e.id) && s.mevOver]}>
+                <Pressable key={e.id} accessibilityRole="button" accessibilityLabel={e.title} testID={`mev:${e.id}`} onPress={(ev) => pressEvent(e.id, ev)} onHoverIn={hoverIn(e.id)} onHoverOut={hoverOut} {...menuTrigger((x, y) => eventMenu(e, x, y))} style={({ hovered }: { hovered?: boolean }) => [s.mev, (hovered === true || cal.selected === e.id) && s.mevOver]}>
                   <View style={[s.cdotS, { backgroundColor: colorOf(calendars, e.calendarId) }]} />
                   {e.allDay ? null : <Text style={s.mevTime}>{clock(e.startsAt, off).replace(":00", "").replace(" ", "").toLowerCase()}</Text>}
                   <Text numberOfLines={1} style={[s.mevText, isPast(e, clockNow.now) && s.cevPast]}>{e.title}</Text>
                 </Pressable>
               ))}
-              {es.length > cap ? <Text style={s.mmore} testID={`more:${d}`}>{es.length - cap + 1} more</Text> : null}
+              {es.length > cap ? <Pressable accessibilityRole="button" accessibilityLabel={`${es.length - cap} more events`} testID={`more:${d}`} onPress={() => { dispatch({ type: "mode", mode: "day" }); dispatch({ type: "go", day: d }); }} style={({ hovered }: { hovered?: boolean }) => [s.mmoreBtn, hovered === true && s.hicOver]}><Text style={s.mmore}>{`+${es.length - cap} more`}</Text></Pressable> : null}
             </Pressable>
           );
         })}
@@ -442,36 +499,69 @@ function Grid({ p }: { p: CalendarProps }): ReactElement {
   );
 
   // ---- Day and Week
-  const allDays = allDayRows(events, days);
+  const nDays = days.length;
+  const lane = allDayLane(events, days, phone && nDays === 1 ? 99 : 2);
+  const pct = (i: number): string => `${(i * 100) / nDays}%`;
+  const chip = (e: EventRow, multi: boolean, label: string): ReactElement => (
+    <Pressable key={e.id} accessibilityRole="button" accessibilityLabel={e.title} testID={`allday:${e.id}`} onPress={(ev) => pressEvent(e.id, ev)} onHoverIn={hoverIn(e.id)} onHoverOut={hoverOut} {...menuTrigger((x, y) => eventMenu(e, x, y))}
+      style={[s.cevAll, label !== "" && s.cevAllRow, multi && s.cevMulti, { backgroundImage: tint(colorOf(calendars, e.calendarId), multi ? 22 : 15), borderLeftColor: colorOf(calendars, e.calendarId) }, cal.selected === e.id && s.cevSel]}>
+      <Text numberOfLines={1} style={s.cevTitle}>{e.title}</Text>{label ? <Text numberOfLines={1} style={s.cevSmall}>{label}</Text> : null}
+    </Pressable>
+  );
+  const adLane = lane.segs.length === 0 ? null : phone && nDays === 1 ? (
+    // on a phone the all-day items are a list at the top of the day
+    <View style={s.adList} testID="cal-allday-list">{each(lane.segs, (sg) => chip(sg.e, false, "All day"))}</View>
+  ) : (
+    <View style={s.adRow} testID="cal-allday">
+      <View style={s.gutter} />
+      <View style={[s.adl, { height: lane.rows * AD_ROW + 4 }]}>
+        <View pointerEvents="none" style={s.adCols}>{each(days, (d) => <View key={d} style={s.adCol} />)}</View>
+        {each(lane.segs, (sg) => (
+          <View key={sg.e.id + sg.a} style={{ position: "absolute", top: sg.row * AD_ROW, left: `calc(${pct(sg.a)} + 3px)` as unknown as number, width: `calc(${((sg.b - sg.a + 1) * 100) / nDays}% - 6px)` as unknown as number, zIndex: 2 }}>{chip(sg.e, sg.b > sg.a, "")}</View>
+        ))}
+        {each(Object.keys(lane.hidden), (k) => (
+          <Pressable key={k} accessibilityRole="button" accessibilityLabel={`${lane.hidden[+k]} more all-day events`} testID={`admore:${days[+k]}`} onPress={() => { dispatch({ type: "mode", mode: "day" }); dispatch({ type: "go", day: days[+k] as number }); }}
+            style={({ hovered }: { hovered?: boolean }) => [s.adMore, { top: 2 * AD_ROW, left: `calc(${pct(+k)} + 3px)` as unknown as number }, hovered === true && s.hicOver]}><Text style={s.adMoreText}>{`+${lane.hidden[+k]}`}</Text></Pressable>
+        ))}
+      </View>
+    </View>
+  );
+  const nowIn = days.includes(today);
+  const nowY = offsetToY(clockNow.now - today);
   const timeBody = (
-    <View style={s.timeWrap}>
+    <View style={s.timeWrap} {...({ onTouchStart: swipeStart, onTouchEnd: swipeEnd } as object)}>
+      <View style={s.chdWrap}>
       <View style={s.chd}>
         <View style={s.gutter} />
-        {each(days, (d, i) => (
+        {each(days, (d) => (
           <View key={d} style={s.dh} testID={`dayhead:${d}`}>
             <Pressable accessibilityRole="button" accessibilityLabel={`${weekdayShort(d, off)} ${dateOf(d, off)}`} onPress={() => { dispatch({ type: "mode", mode: "day" }); dispatch({ type: "go", day: d }); }} style={s.dhIn}>
-              <Text style={[s.dhWk, d === today && s.dhToday]}>{weekdayShort(d, off)}</Text>
-              <View style={[s.dhNum, d === today && s.dhNumToday]}><Text style={[s.dhNumText, d === today && s.dhNumTodayText]}>{dateOf(d, off)}</Text></View>
+              <Text style={[s.dhWk, isWeekend(d, off) && s.dhQuiet, d === today && s.dhToday]}>{weekdayShort(d, off)}</Text>
+              <View style={[s.dhNum, d === today && s.dhNumToday]}><Text style={[s.dhNumText, isWeekend(d, off) && s.dhNumQuiet, d === today && s.dhNumTodayText]}>{dateOf(d, off)}</Text></View>
             </Pressable>
-            {each(allDays[i] ?? [], (e) => <Pressable key={e.id} accessibilityRole="button" accessibilityLabel={e.title} testID={`allday:${e.id}`} onPress={(ev) => pressEvent(e.id, ev)} {...menuTrigger((x, y) => eventMenu(e, x, y))} style={[s.cevAll, { backgroundImage: tint(colorOf(calendars, e.calendarId), 15), borderLeftColor: colorOf(calendars, e.calendarId) }]}><Text numberOfLines={1} style={s.cevTitle}>{e.title}</Text></Pressable>)}
           </View>
         ))}
       </View>
+      {adLane}
+      </View>
       <ScrollView ref={scroll} style={s.scroll} testID="cal-scroll">
       <View style={s.cbody} ref={body as never}>
-        <View style={s.hours}>{Array.from({ length: 23 }, (_, i) => <Text key={i} style={[s.hour, { top: (i + 1) * HH }]}>{`${(i + 1) % 12 || 12} ${i + 1 < 12 ? "AM" : "PM"}`}</Text>)}</View>
+        <View style={s.hours}>
+          {Array.from({ length: 23 }, (_, i) => <Text key={i} style={[s.hour, { top: (i + 1) * HH }, nowIn && Math.abs((i + 1) * HH - nowY) < 9 && s.hourHid]}>{`${(i + 1) % 12 || 12} ${i + 1 < 12 ? "AM" : "PM"}`}</Text>)}
+          {nowIn ? <View style={[s.nowPill, { top: nowY - 7 }]} testID="cal-now-label"><Text style={s.nowPillText}>{clock(clockNow.now, off).replace(/ [AP]M$/, "")}</Text></View> : null}
+        </View>
         {each(days, (d) => {
           const laid = lanesOf(eventsOn(events, d, false));
           const ghost = drag?.kind === "create" && drag.day === d ? dragCreate(d, drag.y0, drag.y1) : draft && startOfDay(draft.startsAt, off) === d ? draft : null;
           return (
-            <View key={d} style={[s.ccol, d === today && s.ccolToday]} testID={`col:${d}`} {...({ onPointerDown: startCreate(d), onDoubleClick: (e: PointerLike) => { const r = e.currentTarget?.getBoundingClientRect?.(); if (r) withDraft(clickCreate(d, e.clientY - r.top)); } } as object)}
+            <View key={d} style={[s.ccol, isWeekend(d, off) && s.ccolWeekend, d === today && s.ccolToday]} testID={`col:${d}`} {...({ onPointerDown: startCreate(d), onDoubleClick: (e: PointerLike) => { const r = e.currentTarget?.getBoundingClientRect?.(); if (r) withDraft(clickCreate(d, e.clientY - r.top)); } } as object)}
               {...menuTrigger((x, y) => menu.show(dayMenuEntries({ newHere: () => withDraft(clickCreate(d, 9 * HH)), goDay: () => { dispatch({ type: "mode", mode: "day" }); dispatch({ type: "go", day: d }); } }), x, y))}>
               {each(dayStripes(d), (st) => (
                 <View key={st.top} testID={`stripe:${d}:${st.top}`} accessibilityLabel={`${whoLabel(st.who, names)} busy`} pointerEvents="none" style={[s.busy, { top: st.top, height: st.height, backgroundColor: `color-mix(in srgb, var(--ink) ${st.alpha}%, transparent)` }]} />
               ))}
-              {each(laid, (l) => renderEvent(l.e, d, l))}
+              {each(laid, (l) => renderEvent(l.e, d, l, laid))}
               {d === today ? <View pointerEvents="none" style={[s.now, { top: offsetToY(clockNow.now - d) }]} testID="cal-now" /> : null}
-              {ghost ? <View pointerEvents="none" testID="cal-ghost" style={[s.ghost, { top: offsetToY(ghost.startsAt - d), height: Math.max(20, offsetToY(ghost.endsAt - ghost.startsAt) - 1) }]}><Text numberOfLines={1} style={s.ghostText}>{draft && "title" in ghost && ghost.title ? ghost.title : "New event"}</Text></View> : null}
+              {ghost ? <View pointerEvents="none" testID="cal-ghost" style={[s.ghost, { top: offsetToY(ghost.startsAt - d), height: Math.max(20, offsetToY(ghost.endsAt - ghost.startsAt) - 1) }]}><Text numberOfLines={1} style={s.ghostText}>{drag?.kind === "create" ? range(ghost.startsAt, ghost.endsAt, off) : draft && "title" in ghost && ghost.title ? ghost.title : "New event"}</Text></View> : null}
             </View>
           );
         })}
@@ -509,6 +599,7 @@ function Grid({ p }: { p: CalendarProps }): ReactElement {
       ) : null}
       {mode === "month" ? monthBody : timeBody}
       {card}
+      {hovCard}
       {menu.element}
     </View>
     {/* the event opens where it was pressed: beside the calendar, or in a sheet on a phone */}
@@ -565,8 +656,9 @@ const s = StyleSheet.create({
   undoText: { fontSize: 12.5, color: ink("--ink-2") },
   timeWrap: { flex: 1, minHeight: 0 },
   scroll: { flex: 1, minHeight: 0 },
-  chd: { flexDirection: "row", borderBottomWidth: 1, borderBottomColor: ink("--line"), backgroundColor: ink("--win") },
+  chd: { flexDirection: "row" },
   gutter: { width: 52 },
+  chdWrap: { borderBottomWidth: 1, borderBottomColor: ink("--line"), backgroundColor: ink("--win") },
   dh: { flex: 1, minWidth: 0, borderLeftWidth: 1, borderLeftColor: ink("--line"), paddingBottom: 4 },
   dhIn: { flexDirection: "row", alignItems: "center", gap: 7, paddingTop: 9, paddingHorizontal: 10, paddingBottom: 7 },
   dhWk: { fontSize: 12, color: ink("--ink-3") },
@@ -575,15 +667,44 @@ const s = StyleSheet.create({
   dhNumToday: { backgroundColor: ink("--accent") },
   dhNumText: { fontSize: 15, fontWeight: "500", color: ink("--ink"), fontVariant: ["tabular-nums"] },
   dhNumTodayText: { color: ink("--accent-ink"), fontWeight: "600" },
-  cevAll: { height: 20, marginHorizontal: 3, marginBottom: 2, borderRadius: 5, borderLeftWidth: 3, paddingHorizontal: 6, justifyContent: "center" },
+  cevAll: { height: 19, borderRadius: 5, borderLeftWidth: 3, paddingHorizontal: 6, justifyContent: "flex-start", flexDirection: "row", alignItems: "center", gap: 8, overflow: "hidden" },
+  cevMulti: { boxShadow: "inset -3px 0 0 color-mix(in srgb, var(--ink) 14%, transparent)" as unknown as undefined },
+  adRow: { flexDirection: "row" },
+  adl: { flex: 1, minWidth: 0, paddingTop: 0 },
+  adCols: { position: "absolute", left: 0, right: 0, top: 0, bottom: 0, flexDirection: "row" },
+  adCol: { flex: 1, borderLeftWidth: 1, borderLeftColor: ink("--line") },
+  adMore: { position: "absolute", height: AD_ROW - 2, paddingHorizontal: 6, borderRadius: 4, justifyContent: "center", zIndex: 2 },
+  adMoreText: { fontSize: 11.5, fontWeight: "600", color: ink("--ink-3") },
+  adList: { paddingHorizontal: 10, paddingBottom: 6, gap: 2 },
+  cevAllRow: { height: 24, justifyContent: "space-between", paddingHorizontal: 8 },
+  dhQuiet: { color: ink("--ink-4") },
+  dhNumQuiet: { color: ink("--ink-3") },
+  hourHid: { opacity: 0 },
+  nowPill: { position: "absolute", right: 3, height: 14, paddingHorizontal: 4, borderRadius: 4, backgroundColor: ink("--danger"), justifyContent: "center", zIndex: 9 },
+  nowPillText: { fontSize: 10, lineHeight: 14, fontWeight: "600", color: "#fff", fontVariant: ["tabular-nums"] },
+  band: { position: "absolute", left: 0, right: 0, zIndex: 1 },
+  bandLabel: { position: "absolute", left: 6, maxWidth: "90%" as unknown as number, paddingHorizontal: 3, borderRadius: 3, opacity: 0.8 },
+  bandLabelTop: { top: 2 },
+  bandLabelBot: { bottom: 2 },
+  bandText: { fontSize: 10.5, lineHeight: 14, fontWeight: "500" },
+  hov: { position: "fixed" as unknown as "absolute", width: 244, zIndex: 60, borderRadius: 10, backgroundColor: ink("--raised"), paddingTop: 10, paddingHorizontal: 12, paddingBottom: 11, gap: 3, boxShadow: "var(--sh-pop)" as unknown as undefined },
+  hovHead: { flexDirection: "row", alignItems: "center", gap: 8 },
+  hovTitle: { flex: 1, fontSize: 13, lineHeight: 17, fontWeight: "600", color: ink("--ink") },
+  hovText: { fontSize: 12, color: ink("--ink-2") },
+  hovWho: { fontSize: 12, color: ink("--ink-3") },
+  hovJoin: { marginTop: 6, alignSelf: "flex-start" },
+  mmoreBtn: { alignSelf: "flex-start", height: 17, paddingHorizontal: 4, borderRadius: 4, justifyContent: "center" },
   cbody: { flexDirection: "row", height: GRID },
   hours: { width: 52, height: GRID },
   hour: { position: "absolute", right: 8, fontSize: 10.5, color: ink("--ink-3"), fontVariant: ["tabular-nums"], transform: [{ translateY: -7 }] },
-  ccol: { flex: 1, minWidth: 0, height: GRID, borderLeftWidth: 1, borderLeftColor: ink("--line"), backgroundImage: "repeating-linear-gradient(to bottom, transparent 0, transparent 51px, var(--line) 51px, var(--line) 52px)" as unknown as undefined },
-  ccolToday: { backgroundImage: "linear-gradient(color-mix(in srgb, var(--accent) 3.5%, transparent), color-mix(in srgb, var(--accent) 3.5%, transparent))" as unknown as undefined },
+  ccol: { flex: 1, minWidth: 0, height: GRID, borderLeftWidth: 1, borderLeftColor: ink("--line"), backgroundImage: GRIDBG as unknown as undefined },
+  ccolWeekend: { backgroundImage: `${SOLID("color-mix(in srgb, var(--ink) 2.4%, transparent)")}, ${GRIDBG}` as unknown as undefined },
+  ccolToday: { backgroundImage: `${SOLID("color-mix(in srgb, var(--accent) 5.5%, transparent)")}, ${GRIDBG}` as unknown as undefined },
   cev: { position: "absolute", borderRadius: 5, overflow: "hidden", borderLeftWidth: 3, zIndex: 2 },
   cevSel: { zIndex: 4, boxShadow: "0 0 0 2px var(--accent)" as unknown as undefined },
-  cevIn: { flex: 1, paddingTop: 3, paddingBottom: 2, paddingLeft: 5, paddingRight: 6 },
+  cevIn: { flex: 1, paddingTop: 3, paddingBottom: 2, paddingLeft: 5, paddingRight: 4 },
+  cevInline: { flexDirection: "row", alignItems: "baseline", gap: 6, paddingTop: 2 },
+  cevTitleInline: { flexShrink: 1 },
   cevTitle: { fontSize: 11.5, lineHeight: 14, fontWeight: "600", color: ink("--ink") },
   cevPast: { color: ink("--ink-2") },
   cevSmall: { fontSize: 11, lineHeight: 14, color: ink("--ink-2") },
@@ -597,7 +718,7 @@ const s = StyleSheet.create({
   mwk: { flexDirection: "row", borderBottomWidth: 1, borderBottomColor: ink("--line") },
   mwkText: { flex: 1, paddingTop: 8, paddingBottom: 6, paddingHorizontal: 10, fontSize: 11.5, fontWeight: "500", color: ink("--ink-3") },
   mgrid: { flex: 1, minHeight: 0, flexDirection: "row", flexWrap: "wrap" },
-  mc: { width: "14.2857%" as unknown as number, minHeight: 92, flexGrow: 1, borderRightWidth: 1, borderBottomWidth: 1, borderRightColor: ink("--line"), borderBottomColor: ink("--line"), paddingVertical: 4, paddingHorizontal: 5, overflow: "hidden", gap: 1 },
+  mc: { width: "14.2857%" as unknown as number, minHeight: 104, flexGrow: 1, borderRightWidth: 1, borderBottomWidth: 1, borderRightColor: ink("--line"), borderBottomColor: ink("--line"), paddingVertical: 4, paddingHorizontal: 5, overflow: "hidden", gap: 1 },
   mn: { alignSelf: "flex-start", height: 20, minWidth: 20, paddingHorizontal: 5, borderRadius: 20, alignItems: "center", justifyContent: "center", marginBottom: 1 },
   mnToday: { backgroundColor: ink("--accent") },
   mnText: { fontSize: 12, color: ink("--ink-2"), fontVariant: ["tabular-nums"] },
@@ -629,5 +750,5 @@ const s = StyleSheet.create({
   btnPText: { fontSize: 12.5, fontWeight: "600", color: ink("--accent-ink") },
   skBar: { height: 9, borderRadius: 5, backgroundColor: ink("--hover") },
   skGrid: { flex: 1, paddingTop: 12 },
-  skLine: { height: 52, borderBottomWidth: 1, borderBottomColor: ink("--line") },
+  skLine: { height: HH, borderBottomWidth: 1, borderBottomColor: ink("--line") },
 });

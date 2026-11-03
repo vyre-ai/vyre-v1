@@ -67,6 +67,22 @@ function nwEvents(): EventRow[] {
     ev("e_sat", "cal_pers", "Farmers market", at(1, 9), at(1, 10)),
     ev("e_mon1", "cal_work", "Client intake: Priya Nair", at(3, 10, 30), at(3, 11, 30), { joinProvider: "meet", joinUrl: "https://meet.example/abc-defg", attendees: att(ME) }),
   );
+  // a crowded week like a real one: overlaps, long Block and Focus events, repeated and multi-day all-day items
+  const day = (id: string, cal: string, title: string, d: number, o: Partial<EventRow> = {}): EventRow => ev(id, cal, title, at(d, 0), at(d + 1, 0), { allDay: true, ...o });
+  out.push(
+    ev("e_x_block", "cal_work", "Block", at(-3, 9), at(-3, 17)),
+    ev("e_x_focus", "cal_work", "Focus", at(-1, 8, 30), at(-1, 16)),
+    ev("e_x_prep", "cal_work", "Block 10:00 prep for Hartwell", at(-2, 10), at(-2, 12)),
+    ev("e_x_nda", "cal_work", "NDA walk-through: Alvarez Design", at(-2, 10), at(-2, 10, 30), { attendees: att(ME) }),
+    ev("e_x_priya", "cal_work", "Meeting with Priya", at(-2, 10), at(-2, 10, 30), { attendees: att(ME) }),
+    ev("e_x_hart", "cal_ms", "The Hartwell intake call", at(-2, 10, 15), at(-2, 11), { attendees: att(ME, "lena@northwind.example"), joinProvider: "teams", joinUrl: "https://teams.microsoft.com/l/meetup-join/hartwell" }),
+    ev("e_x_pipe", "cal_work", "Pipeline review", at(-1, 10), at(-1, 10, 45), { attendees: att(ME, "maya@northwind.example", "omar@northwind.example"), joinProvider: "meet", joinUrl: "https://meet.google.com/pip-eline-rev" }),
+    ev("e_x_omar", "cal_ms", "Quick sync: Omar", at(-1, 10, 30), at(-1, 11), { attendees: att(ME, "omar@northwind.example") }),
+    day("e_x_up1", "cal_work", "MLA Updates", -4), day("e_x_up2", "cal_work", "MLA Updates", -3), day("e_x_up2b", "cal_work", "MLA Updates", -3),
+    day("e_x_up3", "cal_work", "MLA Updates", -2), day("e_x_up3b", "cal_work", "MLA Updates", -2), day("e_x_up4", "cal_work", "MLA Updates", -1),
+    day("e_x_off", "cal_ms", "Offsite prep", -3), day("e_x_bd", "cal_work", "Birthday: Maya", -2), day("e_x_car", "cal_pers", "Car service", -2),
+    ev("e_x_summit", "cal_pers", "LegalTech Summit", at(-2, 0), at(0, 0), { allDay: true }),
+  );
   return out;
 }
 
