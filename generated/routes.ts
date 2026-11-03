@@ -28796,6 +28796,24 @@ const routes5: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/search/ask",
+    "cap": "search.ask",
+    "v": 1,
+    "module": "search",
+    "effects": "read",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/search/embed/run",
     "cap": "search.embed.run",
     "v": 1,
@@ -33115,7 +33133,10 @@ const routes5: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes6: Route[] = [
   {
     "method": "POST",
     "path": "/v1/telephony/call/get",
@@ -33133,10 +33154,7 @@ const routes5: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  }
-];
-
-const routes6: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/telephony/call/list",

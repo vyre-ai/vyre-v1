@@ -49281,6 +49281,30 @@
     },
     {
       "blocks": [],
+      "cap": "search.ask",
+      "deferred": false,
+      "description": "Ask the Space: answer a question from the chats, records, files, tasks and notes the caller may read, on the caller's own AI account, with numbered citations; nothing readable gives the no-access answer and calls no model",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "q": {
+            "maxLength": 500,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "q"
+        ],
+        "type": "object"
+      },
+      "name": "search_ask",
+      "planMode": "allowed",
+      "toolset": "meta",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "search.index.rebuild",
       "deferred": false,
       "description": "Rebuild the index for an entity or the whole Space from the projections",

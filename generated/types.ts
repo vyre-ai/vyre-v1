@@ -29612,6 +29612,32 @@ export type SearchActionsListOut = {
       keys?: string;
     }>;
 };
+export type SearchAskIn = {
+  q: string;
+};
+export type SearchAskOut = {
+  state: "answered" | "no_access" | "no_account" | "failed";
+  answer?: string;
+  sources: Array<{
+      kind: "person" | "agent" | "chat" | "inbox" | "record" | "file" | "automation" | "app" | "setting" | "memory" | "task" | "channel" | "note";
+      id: string;
+      title: string;
+      recordType?: string;
+      snippet?: string;
+      path?: string;
+      link: string;
+      label?: "public" | "internal" | "confidential" | "restricted";
+      score: number;
+      updatedAt?: number;
+      n: number;
+      where: string;
+    }>;
+  cited: Array<number>;
+  account?: {
+    title: string;
+    mine: boolean;
+  };
+};
 export type SearchEmbedRunIn = {
   limit?: number;
 };
@@ -41003,6 +41029,7 @@ export interface CapMap {
   "schema.types.list": { in: SchemaTypesListIn; out: SchemaTypesListOut };
   "schema.view_kinds": { in: SchemaViewKindsIn; out: SchemaViewKindsOut };
   "search.actions.list": { in: SearchActionsListIn; out: SearchActionsListOut };
+  "search.ask": { in: SearchAskIn; out: SearchAskOut };
   "search.embed.run": { in: SearchEmbedRunIn; out: SearchEmbedRunOut };
   "search.health": { in: SearchHealthIn; out: SearchHealthOut };
   "search.index.apply": { in: SearchIndexApplyIn; out: SearchIndexApplyOut };

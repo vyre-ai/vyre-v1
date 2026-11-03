@@ -70,6 +70,26 @@ function visible(ctx: SearchCtx, d: DocRow): boolean {
   return ctx.authorize({ perm: null, level: "view" }, { type: d.resType, id: d.resId }).effect === "allow";
 }
 
+/**
+ * The kernel's view grant covers a whole Space, but a chat is the people in it: an invite-only channel's text is not for a manager who was not invited. So a chat or channel document also has to be one
+ * the asker can open through the chat module's own rule (the same answer chat gives when they press it), asked as the asker. Anything else that says no, or fails, is not shown.
+ */
+async function readable(ctx: SearchCtx, d: DocRow, seen: Map<string, boolean> = new Map()): Promise<boolean> {
+  if (!visible(ctx, d)) return false;
+  if (d.kind !== "chat" && d.kind !== "channel") return true;
+  const k = `${d.kind}:${d.id}`;
+  const known = seen.get(k);
+  if (known !== undefined) return known;
+  let ok = false;
+  try {
+    if (d.kind === "chat") await ctx.call("chat.messages.list", { threadId: d.id, limit: 1 });
+    else await ctx.call("channels.get", { channelId: d.id });
+    ok = true;
+  } catch { ok = false; }
+  seen.set(k, ok);
+  return ok;
+}
+
 const WORD_CHAR = /[\p{L}\p{N}_]/u;
 
 /** A short stretch of the text around the first typed word, the word marked with [ ]; the head of the body when nothing matches. Done here, not in SQL, so only the rows shown pay for it. */
@@ -169,6 +189,7 @@ export async function query(ctx: SearchCtx, input: QueryInput): Promise<{ hits: 
 
   const kinds = input.types && input.types.length > 0 ? new Set<string>(input.types) : null;
   const hits: Hit[] = [];
+  const opened = new Map<string, boolean>();
   let more = false;
   for (const [n, e] of order) {
     const d = docs.get(n);
@@ -176,7 +197,7 @@ export async function query(ctx: SearchCtx, input: QueryInput): Promise<{ hits: 
     if (kinds && !kinds.has(d.kind)) continue;
     if (input.recordType && d.recordType !== input.recordType) continue;
     if (input.folderId && d.folderId !== input.folderId) continue;
-    if (!visible(ctx, d)) continue;
+    if (!(await readable(ctx, d, opened))) continue;
     if (hits.length === want) { more = true; break; }
     hits.push(hitOf(d, e.score, words));
   }
@@ -196,7 +217,7 @@ export async function recentList(ctx: SearchCtx, input: { types?: readonly Kind[
     const d = rowsOf(ctx.db, "SELECT * FROM search_docs WHERE kind = ? AND id = ?", str(r["kind"]), str(r["item_id"]))[0];
     if (!d) continue;
     const doc = docOf(d);
-    if (!visible(ctx, doc)) continue;
+    if (!(await readable(ctx, doc))) continue;
     hits.push(hitOf(doc, 1 / (RRF + hits.length), []));
     if (hits.length === limit) break;
   }
@@ -211,7 +232,7 @@ export async function resolveItem(ctx: SearchCtx, input: { kind: Kind; itemId: s
   const row = rowsOf(ctx.db, "SELECT * FROM search_docs WHERE kind = ? AND id = ?", input.kind, input.itemId)[0];
   if (!row) return {};
   const doc = docOf(row);
-  return visible(ctx, doc) ? { hit: hitOf(doc, 1, []) } : {};
+  return (await readable(ctx, doc)) ? { hit: hitOf(doc, 1, []) } : {};
 }
 
 // ---- Related
@@ -233,7 +254,7 @@ export async function related(ctx: SearchCtx, input: { kind: Kind; itemId: strin
   const row = rowsOf(ctx.db, "SELECT * FROM search_docs WHERE kind = ? AND id = ?", input.kind, input.itemId)[0];
   if (!row) return { hits: [] };
   const self = docOf(row);
-  if (!visible(ctx, self)) return { hits: [] };
+  if (!(await readable(ctx, self))) return { hits: [] };
   const terms = termsOf(self);
   if (terms.length === 0) return { hits: [] };
   const cands = rowsOf(
@@ -245,7 +266,7 @@ export async function related(ctx: SearchCtx, input: { kind: Kind; itemId: strin
   const hits: Hit[] = [];
   for (const c of cands) {
     const d = docs.get(Number(c["n"]));
-    if (!d || d.n === self.n || !visible(ctx, d)) continue;
+    if (!d || d.n === self.n || !(await readable(ctx, d))) continue;
     hits.push(hitOf(d, 1 / (RRF + hits.length), terms));
     if (hits.length === limit) break;
   }

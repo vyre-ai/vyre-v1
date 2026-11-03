@@ -2187,6 +2187,7 @@ export function createClient(transport: Transport) {
       actions: {
         list: call("search.actions.list", 1),
       },
+      ask: call("search.ask", 1),
       embed: {
         run: call("search.embed.run", 1),
       },
