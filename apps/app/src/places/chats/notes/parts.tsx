@@ -78,7 +78,7 @@ export function LinkCard({ link, compact = false, row = false, testID }: { link:
   const mark = siteMark(site);
   return (
     <View testID={testID} style={[st.lk, row ? st.lkRow : null]} {...dom({ dataSet: { nlk: "true" } })}>
-      {link.image && web ? createElement("div", { style: row ? { width: 150, flex: "none", overflow: "hidden" } : { width: "100%" } }, createElement("img", { src: link.image, alt: "", draggable: false, style: row ? { height: "100%", width: "100%", objectFit: "cover", display: "block" } : { width: "100%", height: "auto", display: "block" } })) : null}
+      {link.image && web ? createElement("div", { style: row ? { width: 150, flex: "none", overflow: "hidden" } : { width: "100%" } }, createElement("img", { src: link.image, alt: "", draggable: false, style: row ? { height: "100%", width: "100%", objectFit: "cover", objectPosition: "left center", display: "block" } : { width: "100%", height: "auto", display: "block" } })) : null}
       <View style={st.lx}>
         <View style={st.ls}>
           <View style={[st.fav, { backgroundColor: mark.color }]}><Text style={st.favText}>{mark.letter}</Text></View>
