@@ -92,6 +92,7 @@ export function createClient(transport: Transport) {
       view_as: call("access.view_as", 1),
     },
     agents: {
+      assistant_of: call("agents.assistant_of", 1),
       builtin_skill: {
         get: call("agents.builtin_skill.get", 1),
       },

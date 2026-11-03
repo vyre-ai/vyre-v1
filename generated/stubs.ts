@@ -92,6 +92,7 @@ export function stubs(ctx: CallCtx) {
       view_as: call("access.view_as"),
     },
     agents: {
+      assistant_of: call("agents.assistant_of"),
       builtin_skill: {
         get: call("agents.builtin_skill.get"),
       },
