@@ -37,3 +37,11 @@ test("Remove asks once more before it takes a computer out", () => {
   const out = body([peer({ self: true, online: true, peerId: "peer_me" }), peer({})], [], "peer_a");
   assert.ok(out.includes('data-testid="peer-remove-yes-peer_a"'));
 });
+
+test("the computer that runs scheduled work says so, and a sync conflict is listed with what happened to it", () => {
+  const out = renderToStaticMarkup(<PeersBody peers={[peer({ peerId: "peer_me", self: true, online: true }), peer({ online: true })]} requests={[]} runner="peer_a" now={NOW} busy={false} removing={null} error=""
+    conflicts={[{ conflictId: "pcf_1", table: "projects_item", rowKey: "[\"p_a\"]", kind: "renamed", detail: '"Tax 2026" was made on two computers; one is now "Tax 2026 (2)"', at: NOW - 60_000 }]}
+    onAllow={noop} onDecline={noop} onAskRemove={noop} onRemove={noop} />).replaceAll("<!-- -->", "");
+  assert.ok(out.includes("Awake · runs scheduled work"));
+  assert.ok(out.includes("Sync conflicts") && out.includes("Tax 2026 (2)") && out.includes("Renamed · just now"));
+});

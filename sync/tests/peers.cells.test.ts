@@ -13,6 +13,8 @@ CREATE TABLE chat_member (thread TEXT NOT NULL, person TEXT NOT NULL, role TEXT,
 CREATE TABLE logs_row (id INTEGER PRIMARY KEY, line TEXT);
 CREATE TABLE network_phone (name TEXT PRIMARY KEY, state TEXT);
 CREATE TABLE network_peer (id TEXT PRIMARY KEY, name TEXT, last_seen_at INTEGER);
+CREATE TABLE projects_item (id TEXT PRIMARY KEY, name TEXT NOT NULL UNIQUE, note TEXT);
+CREATE TABLE numbers_line (id TEXT PRIMARY KEY, number INTEGER NOT NULL UNIQUE);
 `;
 
 function computer(site: string, clock: { t: number }): { db: DatabaseSync; cells: Cells } {
@@ -37,7 +39,7 @@ const rows = (db: DatabaseSync, sql: string): unknown[] => db.prepare(sql).all()
 test("a write on one computer reaches the other whole, and only the tables and columns that travel", () => {
   const clock = { t: 1_000 };
   const a = computer("peer_a", clock), b = computer("peer_b", clock);
-  assert.deepEqual([...a.cells.tables()].sort(), ["chat_member", "chat_thread", "network_peer"], "no integer-keyed log, no denied table");
+  assert.deepEqual([...a.cells.tables()].sort(), ["chat_member", "chat_thread", "network_peer", "numbers_line", "projects_item"], "no integer-keyed log, no denied table");
   a.db.exec("INSERT INTO chat_thread (id, title, body) VALUES ('t1', 'Plan', x'0102ff')");
   a.db.exec("INSERT INTO chat_member VALUES ('t1', 'usr_irfad', 'owner'), ('t1', 'usr_aina', NULL)");
   a.db.exec("INSERT INTO logs_row (line) VALUES ('local only')");
@@ -109,4 +111,36 @@ test("a table added later is copied once install runs again", () => {
   a.db.exec("INSERT INTO rt_matter VALUES ('m1', 'Estate of Lee')");
   sync(a.cells, b.cells, "peer_a");
   assert.deepEqual(rows(b.db, "SELECT * FROM rt_matter"), [{ id: "m1", name: "Estate of Lee" }]);
+});
+
+test("the same name made on both computers while apart: both items survive, the later keeps the name, the other is renamed the same way on both", () => {
+  const clock = { t: 1_000 };
+  const a = computer("peer_a", clock), b = computer("peer_b", clock);
+  a.db.exec("INSERT INTO projects_item VALUES ('p_a', 'Tax 2026', 'made on the office computer')"); a.cells.stamp();
+  clock.t = 2_000; b.db.exec("INSERT INTO projects_item VALUES ('p_b', 'Tax 2026', 'made on the laptop')"); b.cells.stamp();
+  clock.t = 3_000;
+  const first = (() => { const page = a.cells.changes(0); return b.cells.apply(page.rows); })();
+  assert.equal(first.conflicts.length, 1, "the clash is reported, not skipped");
+  assert.equal(first.refused.length, 0);
+  sync(b.cells, a.cells, "peer_b");
+  sync(a.cells, b.cells, "peer_a");
+  for (const c of [a, b]) {
+    assert.deepEqual(rows(c.db, "SELECT id, name, note FROM projects_item ORDER BY id"), [
+      { id: "p_a", name: "Tax 2026 (2)", note: "made on the office computer" },
+      { id: "p_b", name: "Tax 2026", note: "made on the laptop" },
+    ], "the later one keeps the name on both computers");
+  }
+  assert.equal(rows(b.db, "SELECT * FROM peer_conflict WHERE kind = 'renamed'").length >= 1, true, "the rename is in the conflicts list");
+});
+
+test("a clash that cannot be renamed keeps the other row whole in the conflicts list", () => {
+  const clock = { t: 1_000 };
+  const a = computer("peer_a", clock), b = computer("peer_b", clock);
+  a.db.exec("INSERT INTO numbers_line VALUES ('n_a', 5551234)"); a.cells.stamp();
+  clock.t = 2_000; b.db.exec("INSERT INTO numbers_line VALUES ('n_b', 5551234)"); b.cells.stamp();
+  const out = b.cells.apply(a.cells.changes(0).rows);
+  assert.equal(out.conflicts[0]?.kept, "aside");
+  const kept = rows(b.db, "SELECT tbl, kind, row FROM peer_conflict") as { tbl: string; kind: string; row: string }[];
+  assert.equal(kept[0]!.kind, "kept_aside");
+  assert.equal(JSON.parse(kept[0]!.row).c.number.v, 5551234, "the row is kept whole, not lost");
 });

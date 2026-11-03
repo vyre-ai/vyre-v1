@@ -11,6 +11,8 @@ import type { HostDb } from "../daemon/sqlite.ts";
 import { openDb } from "../daemon/sqlite.ts";
 import { loadRelayKeys } from "../seams/relay.ts";
 import { openPeerChannel } from "./link.ts";
+import { LEASE_ID, LEASE_MS, RENEW_MS, decide } from "./runner.ts";
+import type { Lease } from "./runner.ts";
 import type { PeerChannel, PeerTarget } from "./link.ts";
 
 /** The part of sync/src/peers/cells.ts the host uses (a structural copy: host may not import sync). */
@@ -18,7 +20,7 @@ export interface CellsLike {
   install(): string[];
   stamp(): number;
   changes(since: number, limit?: number): { rows: unknown[]; next: number; more: boolean; head: number };
-  apply(rows: readonly unknown[]): { applied: number; unchanged: number; refused: { t: string; k: string; why: string }[] };
+  apply(rows: readonly unknown[]): { applied: number; unchanged: number; refused: { t: string; k: string; why: string }[]; conflicts: { t: string; k: string; col: string; from: string; to: string; renamed: string; kept: string; why?: string; otherKey?: string }[] };
   head(): number;
   waiting(cursor: number): number;
   cursor(peer: string): number;
@@ -26,8 +28,9 @@ export interface CellsLike {
 }
 export type CreateCells = (db: { all(sql: string, ...a: unknown[]): unknown[]; run(sql: string, ...a: unknown[]): unknown; exec(sql: string): void }, o: { site: string; now(): number; deny?(t: string): boolean; denyColumns?: Record<string, readonly string[]> }) => CellsLike;
 
-/** Tables that describe this computer, or are kept from this computer's own log by sequence, and never travel. */
-const LOCAL = /^(host_|health_|logs_|sync_|search_|network_(phone|endpoint|config|command|result|dns|cert|peer_request|peer_self))/;
+/** Tables that describe this computer, or are kept from this computer's own log by sequence, and never travel. The engine's queue, leases and parked turns are work this computer's own engine
+ *  holds: copied, another computer's engine would take a turn that is already running here (a chat message itself travels; the turn it started stays where it was sent). */
+const LOCAL = /^(host_|health_|logs_|sync_|search_|network_(phone|endpoint|config|command|result|dns|cert|peer_request|peer_self|peer_conflict)|engine_(thread_queue|thread_lease|waits|crew_job|crew_wait|capture_state))/;
 export const denyModules = (t: string): boolean => LOCAL.test(t);
 export const DENY_COLUMNS: Readonly<Record<string, readonly string[]>> = { network_peer: ["last_seen_at"] };
 
@@ -50,6 +53,8 @@ export interface PeerSyncDeps {
   changed: () => void;
   WebSocket?: typeof WebSocket;
   roundMs?: number;
+  /** how long the runner lease lasts (runner.ts); tests make it short */
+  leaseMs?: number;
 }
 
 export interface PeerSync {
@@ -60,12 +65,17 @@ export interface PeerSync {
   handle(req: http.IncomingMessage, res: http.ServerResponse, peerOf: (req: http.IncomingMessage) => Promise<string | null>): boolean;
   /** rows written here that some other computer has not taken yet */
   waiting(): number;
+  /** This computer runs the Space's scheduled work now (runner.ts). Always true for a Space on one computer. */
+  isRunner(): boolean;
+  /** take or renew the lease now (the rounds do it every 30 s) */
+  lease(): RunnerState;
   /** sync on a timer while the daemon runs */
   start(): void;
   stop(): void;
 }
 
 interface PeerRow { id: string; name: string; route: string; relay: string }
+export interface RunnerState { holder: string | null; mine: boolean; expiresAt: number }
 
 export function createPeerSync(d: PeerSyncDeps): PeerSync {
   let cells: Record<StoreName, CellsLike> | null = null;
@@ -75,6 +85,35 @@ export function createPeerSync(d: PeerSyncDeps): PeerSync {
   let rounds = 0;
   let timer: ReturnType<typeof setInterval> | null = null;
   let running = false;
+  let leasedAt = 0;
+
+  const leaseRow = (h: HostDb): Lease | null => (h.all("SELECT peer_id, kind, since, expires_at FROM network_runner WHERE id = ?", LEASE_ID)[0] as Lease | undefined) ?? null;
+  function lease(): RunnerState {
+    const h = d.db(), me = d.selfId();
+    if (!h || !me || !cells) return { holder: me, mine: true, expiresAt: Infinity };
+    const now = d.now();
+    const kind = String((h.all("SELECT kind FROM network_peer WHERE id = ?", me)[0] as { kind?: string } | undefined)?.kind ?? "computer");
+    const serverAwake = (h.all("SELECT 1 FROM network_peer WHERE kind = 'server' AND id != ? AND removed_at IS NULL AND last_seen_at > ?", me, now - 2 * 60_000) as unknown[]).length > 0;
+    const cur = leaseRow(h);
+    const move = decide({ id: me, kind }, cur, now, serverAwake);
+    const ttl = d.leaseMs ?? LEASE_MS;
+    if (move === "renew") h.run("UPDATE network_runner SET expires_at = ? WHERE id = ? AND peer_id = ?", now + ttl, LEASE_ID, me);
+    else if (move === "take") {
+      h.run("INSERT INTO network_runner (id, peer_id, kind, since, expires_at) VALUES (?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET peer_id = excluded.peer_id, kind = excluded.kind, since = excluded.since, expires_at = excluded.expires_at", LEASE_ID, me, kind, now, now + ttl);
+      d.log("peers.runner_taken", { from: cur?.peer_id ?? null });
+    }
+    leasedAt = now;
+    const after = leaseRow(h);
+    return { holder: after?.peer_id ?? null, mine: after?.peer_id === me && (after?.expires_at ?? 0) > now, expiresAt: after?.expires_at ?? 0 };
+  }
+  function isRunner(): boolean {
+    // a Space on one computer runs everything here; one that has a second computer decides by the lease, and a computer that has not taken it waits
+    if (!cells && !ensure()) return true;
+    const h = d.db(), me = d.selfId();
+    if (!h || !me) return true;
+    const cur = leaseRow(h);
+    return Boolean(cur && cur.peer_id === me && cur.expires_at > d.now());
+  }
 
   const peers = (h: HostDb): PeerRow[] => (h.all("SELECT id, name, route, relay FROM network_peer WHERE removed_at IS NULL") as PeerRow[]);
 
@@ -149,6 +188,10 @@ export function createPeerSync(d: PeerSyncDeps): PeerSync {
               const page = r.json<{ data: { rows: unknown[]; next: number; more: boolean } }>().data;
               const done = c.apply(page.rows);
               out.applied += done.applied;
+              for (const x of done.conflicts) {
+                const detail = x.kept === "aside" ? `Kept aside: ${x.why ?? "could not be merged"}` : `"${x.from}" was made on two computers; one is now "${x.to}"`;
+                h.run("INSERT OR IGNORE INTO network_peer_conflict (id, store, tbl, row_key, kind, detail, at) VALUES (?, ?, ?, ?, ?, ?, ?)", `pcf_${d.now()}_${Math.random().toString(36).slice(2, 10)}`, store, x.t, x.otherKey ?? x.k, x.kept === "aside" ? "kept_aside" : "renamed", detail, d.now());
+              }
               if (done.refused.length) d.log("peers.refused", { from: p.id, store, n: done.refused.length, first: done.refused[0] });
               c.setCursor(p.id, page.next);
               if (!page.more) break;
@@ -166,6 +209,7 @@ export function createPeerSync(d: PeerSyncDeps): PeerSync {
         }
       }
       if (out.applied) d.changed();
+      if (d.now() - leasedAt >= Math.min(RENEW_MS, (d.leaseMs ?? LEASE_MS) / 3)) lease();
       try { h.run("UPDATE network_peer_self SET waiting = ?, synced_at = ? WHERE id = 1", waiting(), out.reached.length ? d.now() : null); } catch { /* an older table */ }
       return out;
     } finally { running = false; }
@@ -211,7 +255,7 @@ export function createPeerSync(d: PeerSyncDeps): PeerSync {
   }
 
   return {
-    ensure, round, waiting,
+    ensure, round, waiting, isRunner, lease,
     handle(req, res, peerOf) {
       if (req.method === "POST" && (req.url ?? "").split("?")[0] === "/v1/peers/changes") { void changes(req, res, peerOf).catch(() => { try { res.writeHead(500); res.end(); } catch { /* sent */ } }); return true; }
       return false;

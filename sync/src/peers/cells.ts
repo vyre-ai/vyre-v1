@@ -35,7 +35,10 @@ export interface WireCell { v?: unknown; h: string }
 /** One row on the wire: its table, its key (the JSON array of its primary key values), its cells, and its delete cell if it has one. */
 export interface RowChange { t: string; k: string; c: Record<string, WireCell>; d?: string }
 export interface ChangePage { rows: RowChange[]; next: number; more: boolean; head: number }
-export interface ApplyResult { applied: number; unchanged: number; refused: { t: string; k: string; why: string }[] }
+/** A unique key two computers both used (the same name made on each while apart). The row whose cell is older is renamed with " (2)" (or the next free number), never dropped. A clash that
+ *  cannot be renamed keeps the incoming row whole in peer_conflict (`kept: "aside"`). */
+export interface UniqueClash { t: string; k: string; col: string; from: string; to: string; renamed: "incoming" | "local" | "none"; kept: "both" | "aside"; why?: string; otherKey?: string }
+export interface ApplyResult { applied: number; unchanged: number; refused: { t: string; k: string; why: string }[]; conflicts: UniqueClash[] }
 
 interface TableInfo { name: string; pk: string[]; cols: string[]; tracked: string[] }
 
@@ -48,6 +51,7 @@ CREATE INDEX IF NOT EXISTS peer_clock_ver ON peer_clock (ver);
 CREATE TABLE IF NOT EXISTS peer_apply (id INTEGER PRIMARY KEY CHECK (id = 1), "on" INTEGER NOT NULL);
 INSERT OR IGNORE INTO peer_apply (id, "on") VALUES (1, 0);
 CREATE TABLE IF NOT EXISTS peer_cursor (peer TEXT PRIMARY KEY, cursor INTEGER NOT NULL, at INTEGER NOT NULL);
+CREATE TABLE IF NOT EXISTS peer_conflict (n INTEGER PRIMARY KEY, tbl TEXT NOT NULL, pk TEXT NOT NULL, at INTEGER NOT NULL, kind TEXT NOT NULL, detail TEXT, row TEXT);
 `;
 const q = (id: string): string => `"${id.replaceAll('"', '""')}"`;
 const lit = (s: string): string => `'${s.replaceAll("'", "''")}'`;
@@ -200,8 +204,46 @@ export function createCells(db: CellDb, o: CellOptions): Cells {
     return pa ? newer({ hlc: pa, actor: pa.deviceId }, { hlc: b, actor: parseHlc(b)?.deviceId ?? "" }) : false;
   };
 
+  /** The next free value of a text column: "Plan" -> "Plan (2)", "Plan (3)", ... */
+  const freeName = (t: TableInfo, col: string, v: string): string => {
+    const stem = v.replace(/ \(\d+\)$/, "");
+    for (let n = 2; n < 1000; n++) {
+      const cand = `${stem} (${n})`;
+      if (!db.all(`SELECT 1 FROM ${q(t.name)} WHERE ${q(col)} = ? LIMIT 1`, cand).length) return cand;
+    }
+    return `${stem} (${Date.now()})`;
+  };
+
+  /** Two rows with different keys want one unique value. The later write keeps it; the other row takes the next free name. Same answer on every computer, since both read the same clocks. */
+  function resolveUnique(t: TableInfo, r: RowChange, key: unknown[], win: Record<string, WireCell>, cols: string[]): UniqueClash | null {
+    const vals: Record<string, unknown> = {};
+    const have = rowOf(t, r.k);
+    for (const c of cols) vals[c] = c in win ? fromWire(win[c]!.v) : c in (r.c ?? {}) ? fromWire(r.c[c]!.v) : have?.[c];
+    const text = cols.filter((c) => typeof vals[c] === "string" && !t.pk.includes(c));
+    if (!text.length) return null;
+    const holder = db.all(`SELECT ${t.pk.map(q).join(", ")} FROM ${q(t.name)} WHERE ${cols.map((c) => `${q(c)} IS ?`).join(" AND ")} LIMIT 1`, ...cols.map((c) => vals[c]))[0] as Record<string, unknown> | undefined;
+    if (!holder) return null;
+    const otherKey = JSON.stringify(t.pk.map((c) => holder[c]));
+    if (otherKey === JSON.stringify(key)) return null;
+    const col = text[0]!;
+    const theirs = (db.all("SELECT hlc FROM peer_clock WHERE tbl = ? AND pk = ? AND col = ?", t.name, otherKey, col)[0] as { hlc?: string } | undefined)?.hlc;
+    const mine = win[col]?.h ?? r.c?.[col]?.h ?? "";
+    const from = String(vals[col]);
+    if (mine && later(mine, theirs)) {
+      // the incoming row is the later write: it keeps the name, the row here takes the next free one, and that rename goes back out as this computer's own write
+      const to = freeName(t, col, from);
+      db.run(`UPDATE ${q(t.name)} SET ${q(col)} = ? WHERE ${t.pk.map((c) => `${q(c)} IS ?`).join(" AND ")}`, to, ...t.pk.map((c) => holder[c]));
+      upsertClock(t.name, otherKey, col, tick(), o.site, nextVer());
+      db.run("INSERT INTO peer_conflict (tbl, pk, at, kind, detail) VALUES (?, ?, ?, 'renamed', ?)", t.name, otherKey, o.now(), `${col}: ${from} -> ${to}`);
+      return { t: t.name, k: r.k, col, from, to, renamed: "local", kept: "both", otherKey };
+    }
+    const to = freeName(t, col, from);
+    db.run("INSERT INTO peer_conflict (tbl, pk, at, kind, detail) VALUES (?, ?, ?, 'renamed', ?)", t.name, r.k, o.now(), `${col}: ${from} -> ${to}`);
+    return { t: t.name, k: r.k, col, from, to, renamed: "incoming", kept: "both", otherKey };
+  }
+
   function apply(rows: readonly RowChange[]): ApplyResult {
-    const res: ApplyResult = { applied: 0, unchanged: 0, refused: [] };
+    const res: ApplyResult = { applied: 0, unchanged: 0, refused: [], conflicts: [] };
     tx(() => {
       stampInside();
       db.run(`UPDATE peer_apply SET "on" = 1 WHERE id = 1`);
@@ -231,29 +273,46 @@ export function createCells(db: CellDb, o: CellOptions): Cells {
           const alive = !del || cellHlcs.some((h) => later(h, del));
           db.exec("SAVEPOINT peer_row");
           try {
-            const have = rowOf(t, r.k);
             const where = t.pk.map((c) => `${q(c)} IS ?`).join(" AND ");
-            if (!alive) { if (have) db.run(`DELETE FROM ${q(t.name)} WHERE ${where}`, ...key); }
-            else if (have) {
-              const cols = Object.keys(win).filter((c) => !t.pk.includes(c));
-              if (cols.length) db.run(`UPDATE ${q(t.name)} SET ${cols.map((c) => `${q(c)} = ?`).join(", ")} WHERE ${where}`, ...cols.map((c) => fromWire(win[c]!.v)), ...key);
-            } else {
+            const own: Record<string, string> = {};   // cells this computer renamed while resolving a unique clash: they carry a clock of this computer's own
+            const write = (): void => {
+              const have = rowOf(t, r.k);
+              if (!alive) { if (have) db.run(`DELETE FROM ${q(t.name)} WHERE ${where}`, ...key); return; }
+              if (have) {
+                const cols = Object.keys(win).filter((c) => !t.pk.includes(c));
+                if (cols.length) db.run(`UPDATE ${q(t.name)} SET ${cols.map((c) => `${q(c)} = ?`).join(", ")} WHERE ${where}`, ...cols.map((c) => fromWire(win[c]!.v)), ...key);
+                return;
+              }
               // the row is new here, or deleted here and written again later there: it comes back with every value the other computer sent
               const vals: Record<string, unknown> = {};
               t.pk.forEach((c, i) => { vals[c] = key[i]; });
               for (const [c, cell] of Object.entries(r.c ?? {})) if (t.tracked.includes(c) && !t.pk.includes(c) && "v" in cell) vals[c] = fromWire(cell.v);
               const cols = Object.keys(vals);
               db.run(`INSERT INTO ${q(t.name)} (${cols.map(q).join(", ")}) VALUES (${cols.map(() => "?").join(", ")})`, ...cols.map((c) => vals[c]));
+            };
+            for (let attempt = 0; ; attempt++) {
+              try { write(); break; } catch (e) {
+                const clash = /UNIQUE constraint failed: (.+)$/.exec((e as Error).message);
+                if (!clash || attempt >= 3) throw e;
+                const c = resolveUnique(t, r, key, win, clash[1]!.split(",").map((x) => x.trim().split(".").pop()!));
+                if (!c) throw e;
+                res.conflicts.push(c);
+                if (c.renamed === "incoming") { win[c.col] = { v: c.to, h: tick() }; r.c[c.col] = win[c.col]!; own[c.col] = win[c.col]!.h; }
+              }
             }
             const v = nextVer();
-            for (const [c, cell] of Object.entries(win)) upsertClock(r.t, r.k, c, cell.h, parseHlc(cell.h)?.deviceId ?? "", v);
+            for (const [c, cell] of Object.entries(win)) upsertClock(r.t, r.k, c, cell.h, own[c] ? o.site : parseHlc(cell.h)?.deviceId ?? "", v);
             if (delWins) upsertClock(r.t, r.k, DEL, r.d!, parseHlc(r.d!)?.deviceId ?? "", v);
             db.exec("RELEASE peer_row");
             res.applied++;
           } catch (e) {
             db.exec("ROLLBACK TO peer_row");
             db.exec("RELEASE peer_row");
-            res.refused.push({ t: r.t, k: r.k, why: (e as Error).message.slice(0, 160) });
+            // never dropped in silence: the row is kept whole in peer_conflict, and the caller lists it
+            const why = (e as Error).message.slice(0, 160);
+            db.run("INSERT INTO peer_conflict (tbl, pk, at, kind, detail, row) VALUES (?, ?, ?, 'kept_aside', ?, ?)", r.t, r.k, o.now(), why, JSON.stringify(r));
+            res.refused.push({ t: r.t, k: r.k, why });
+            res.conflicts.push({ t: r.t, k: r.k, col: "", from: "", to: "", renamed: "none", kept: "aside", why });
           }
         }
       } finally { db.run(`UPDATE peer_apply SET "on" = 0 WHERE id = 1`); }

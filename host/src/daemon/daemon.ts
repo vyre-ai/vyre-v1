@@ -229,6 +229,8 @@ export interface DaemonOptions {
   onStopped?:()=>void;
   /** Tests: how often the computers of a Personal Space sync (host/src/peers/sync.ts); 5 s when absent. */
   peerRoundMs?: number;
+  /** Tests: how long the scheduled-work lease lasts (host/src/peers/runner.ts); 90 s when absent. */
+  peerLeaseMs?: number;
   /** GitHub sign-in (default: VYRE_GH_OAUTH_CLIENT_ID and VYRE_GH_OAUTH_CLIENT_SECRET from the environment; null: not set up) */
   githubOAuth?: GithubOAuth | null;
   /** where the GitHub app an admin saves in the app talks to (default: github.com; only a test points these at a stand-in) */
@@ -1810,7 +1812,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
     ...(o.seams?.relayWebSocket ? { WebSocket: o.seams.relayWebSocket } : {}),
     createCells: () => peerCells,
     changed: () => { if (space) hub?.poke?.(space); },
-    ...(o.peerRoundMs ? { roundMs: o.peerRoundMs } : {}),
+    ...(o.peerRoundMs ? { roundMs: o.peerRoundMs } : {}), ...(o.peerLeaseMs ? { leaseMs: o.peerLeaseMs } : {}),
   }) : null;
   if (peerService) closers.push(() => peerService.stop());
   const phone: PhonePort = createPhonePort({ current: () => relayBox, start: () => startPhoneRelay?.() ?? null, dropped: () => { relayBox = null; }, configured: Boolean(cfg.relayUrl) });
@@ -1878,7 +1880,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
     scheduler.add({ name: "sites.domain_routes", schedule: { everyMs: o.intervals?.slow ?? 60_000 }, run: async () => { await refreshDomains(); } });
     scheduler.add({ name: "projections.pump", schedule: { everyMs: o.intervals?.hooks ?? 5000 }, run: async () => { await projections?.pump(); } });
     scheduler.add({ name: "hooks.pump", schedule: { everyMs: o.intervals?.hooks ?? 5000 }, run: async () => { await hooks?.pump(); } });   // the backstop for a consumer that failed, and for events committed by another process
-    for (const p of hooks?.periodic ?? []) scheduler.add({ name: `hook.${p.name}`, schedule: { everyMs: p.everyMs, ...(p.immediate ? { immediate: true } : {}) }, run: async () => { await hooks?.runPeriodic(p.name); } });
+    // A Personal Space on several computers runs its scheduled work on one of them at a time (host/src/peers/runner.ts); the jobs that look after this computer's own state run on each.
+    for (const p of hooks?.periodic ?? []) scheduler.add({ name: `hook.${p.name}`, schedule: { everyMs: p.everyMs, ...(p.immediate ? { immediate: true } : {}) }, run: async () => { if (peerService && !peerService.mayRun(p.name)) return; await hooks?.runPeriodic(p.name); } });
     scheduler.add({ name: "logs.cap", schedule: { everyMs: 60_000 }, run: async () => { await capTelemetry?.(); } });
     scheduler.add({ name: "idempotency.purge", schedule: { daily: { hour: 4, minute: 0 } }, run: async () => { await log?.purgeIdempotency(); } });
   }

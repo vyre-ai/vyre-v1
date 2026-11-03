@@ -38,3 +38,22 @@ CREATE TABLE IF NOT EXISTS network_peer_self (
   waiting INTEGER NOT NULL DEFAULT 0,
   synced_at INTEGER
 );
+-- Which computer of a Personal Space runs the Space's scheduled work (automations, routines, watchers, provider pulls, nightly jobs): one at a time, by a lease every computer copies.
+-- The holder renews expires_at every 30 seconds; when it sleeps, another computer takes it once it runs out. A server of the Space takes it from a computer.
+CREATE TABLE IF NOT EXISTS network_runner (
+  id TEXT PRIMARY KEY,
+  peer_id TEXT NOT NULL,
+  kind TEXT NOT NULL,
+  since INTEGER NOT NULL,
+  expires_at INTEGER NOT NULL
+);
+-- What a sync had to settle on this computer: the same name made on two computers while apart (one renamed), or a row that could not be merged and is kept whole aside.
+CREATE TABLE IF NOT EXISTS network_peer_conflict (
+  id TEXT PRIMARY KEY,
+  store TEXT NOT NULL,
+  tbl TEXT NOT NULL,
+  row_key TEXT NOT NULL,
+  kind TEXT NOT NULL,
+  detail TEXT NOT NULL,
+  at INTEGER NOT NULL
+);

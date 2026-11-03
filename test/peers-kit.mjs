@@ -41,7 +41,7 @@ export function boot(dir, args, extra = {}) {
     fetch: caddyFetch,
     seams: { relayWebSocket: Sniff },
     peerRoundMs: 3_600_000,
-    session: (h) => (/^Bearer (.+)$/.exec(String(h["authorization"] ?? ""))?.[1] === OWNER ? { space: "spc_core", principal: { kind: "person", id: "usr_olivia" }, device: "mac" } : null),
+    session: (h) => { const t = /^Bearer tok-(usr_[a-z]+)$/.exec(String(h["authorization"] ?? ""))?.[1]; return t ? { space: "spc_core", principal: { kind: "person", id: t }, device: "mac" } : null; },
     intervals: { fast: 3_600_000, slow: 3_600_000, encryption: 3_600_000, commands: 3_600_000, hooks: 3_600_000 },
     ...extra,
   });

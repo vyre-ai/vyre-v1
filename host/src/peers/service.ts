@@ -27,6 +27,7 @@ import { JOIN_DIR, SECRET_FILES, STAGED_DBS } from "./join.ts";
 import { packagedOrigin } from "../daemon/desktop-cors.ts";
 import { createPeerSync } from "./sync.ts";
 import type { CreateCells, PeerSync } from "./sync.ts";
+import { EVERY_COMPUTER } from "./runner.ts";
 
 const ASK_TTL_MS = 10 * 60_000;
 const REQUEST_TTL_MS = 10 * 60_000;
@@ -83,6 +84,7 @@ export interface PeerServiceDeps {
   changed?: () => void;
   /** how often the computers sync while awake (tests make it short) */
   roundMs?: number;
+  leaseMs?: number;
 }
 
 export interface PeerService {
@@ -94,6 +96,8 @@ export interface PeerService {
   tick(): Promise<void>;
   /** keeping the copies in step with the other computers (sync.ts) */
   readonly sync: PeerSync;
+  /** May this computer run the module job `name` now: the Space's scheduled work only on the lease holder (runner.ts), its own upkeep everywhere. */
+  mayRun(name: string): boolean;
   stop(): void;
 }
 
@@ -152,7 +156,7 @@ export function createPeerService(d: PeerServiceDeps): PeerService {
   const ownToken = (): string | null => { try { return fs.readFileSync(tokenFile, "utf8").trim() || null; } catch { return null; } };
   const peerSync = createPeerSync({
     root: d.root, db, createCells: () => d.createCells?.() ?? null, selfId: () => { const h = db(); return h ? selfId(h) : null; }, token: ownToken,
-    now: d.now, log: d.log, changed: () => d.changed?.(), ...(d.WebSocket ? { WebSocket: d.WebSocket } : {}), ...(d.roundMs ? { roundMs: d.roundMs } : {}),
+    now: d.now, log: d.log, changed: () => d.changed?.(), ...(d.WebSocket ? { WebSocket: d.WebSocket } : {}), ...(d.roundMs ? { roundMs: d.roundMs } : {}), ...(d.leaseMs ? { leaseMs: d.leaseMs } : {}),
   });
 
   /** This computer's row in network_peer, made the first time the Space has an owner and a relay route. Its token is kept in peer.token (0600) and only its hash in the row. */
@@ -471,5 +475,5 @@ export function createPeerService(d: PeerServiceDeps): PeerService {
     timer = setInterval(() => { void tick().catch(() => {}); }, TICK_MS);
     timer.unref?.();
   }
-  return { onAsk, handle, tick, sync: peerSync, stop: () => { if (timer) clearInterval(timer); timer = null; peerSync.stop(); void selfRoute; } };
+  return { onAsk, handle, tick, sync: peerSync, mayRun: (name) => EVERY_COMPUTER.has(name) || peerSync.isRunner(), stop: () => { if (timer) clearInterval(timer); timer = null; peerSync.stop(); void selfRoute; } };
 }

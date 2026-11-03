@@ -75,3 +75,18 @@ export async function peerRemove(ctx: NetworkCtx, input: { peerId: string }) {
   ctx.db.run("UPDATE network_peer SET removed_at = ?, token_hash = ? WHERE id = ?", ctx.now(), null, input.peerId);
   return { removed: true };
 }
+
+/** What syncing between this Space's computers had to settle here: a name made on two computers while apart (one copy renamed), or a row kept aside whole. Newest first. */
+export async function peerConflicts(ctx: NetworkCtx, _input: Record<string, unknown>) {
+  const rows = ctx.db.all("SELECT id, tbl, row_key, kind, detail, at FROM network_peer_conflict ORDER BY at DESC LIMIT 100").map(asRow);
+  return { conflicts: rows.map((r) => ({ conflictId: str(r?.["id"]), table: str(r?.["tbl"]), rowKey: str(r?.["row_key"]), kind: str(r?.["kind"]) === "kept_aside" ? "kept_aside" as const : "renamed" as const, detail: str(r?.["detail"]), at: num(r?.["at"]) ?? 0 })) };
+}
+
+/** Where scheduled work runs now: the computer holding the lease, and until when. */
+export async function peerRunner(ctx: NetworkCtx, _input: Record<string, unknown>) {
+  const r = asRow(ctx.db.all("SELECT peer_id, expires_at FROM network_runner WHERE id = 'scheduled'")[0]);
+  const me = selfId(ctx);
+  if (!r) return { here: true };
+  const holder = str(r["peer_id"]);
+  return { peerId: holder, here: holder === me && (num(r["expires_at"]) ?? 0) > ctx.now(), expiresAt: num(r["expires_at"]) ?? 0 };
+}

@@ -64,6 +64,26 @@ test("two computers sync through the relay: both ways, offline edits later, conf
     assert.equal(thread(A, "thr_sync1"), "Laptop version");
     assert.equal(thread(B, "thr_sync1"), "Laptop version");
 
+    // the same name made on both computers while apart: both survive, the later keeps the name, and the clash is listed in Settings
+    const market = (d, id) => {
+      const cols = d.db.all("PRAGMA table_info(agents_marketplaces)");
+      const vals = cols.map((c) => (c.name === "id" ? id : c.name === "name" ? "Team tools" : /INT/i.test(c.type) ? 1 : "x"));
+      d.db.run(`INSERT INTO agents_marketplaces (${cols.map((c) => `"${c.name}"`).join(", ")}) VALUES (${cols.map(() => "?").join(", ")})`, ...vals);
+    };
+    market(A, "mkt_office");
+    await pause(10);
+    market(B, "mkt_laptop");
+    await A.peers.sync.round();
+    await B.peers.sync.round();
+    await A.peers.sync.round();
+    for (const d of [A, B]) {
+      assert.deepEqual(d.db.all("SELECT id, name FROM agents_marketplaces WHERE id IN ('mkt_office', 'mkt_laptop') ORDER BY id").map((r) => ({ ...r })),
+        [{ id: "mkt_laptop", name: "Team tools" }, { id: "mkt_office", name: "Team tools (2)" }], "both kept, the later keeps the name, on both computers");
+    }
+    const clashes = await call(A, "/v1/network/peer_conflicts");
+    assert.equal(clashes.status, 200, JSON.stringify(clashes.body));
+    assert.ok(clashes.body.data.conflicts.some((c) => c.kind === "renamed" && c.detail.includes("Team tools (2)")), "the clash is in the sync conflicts list");
+
     // a file's contents follow (a blob is named by its content)
     fs.mkdirSync(path.join(first.dirA, "blobs", "ctx"), { recursive: true });
     fs.writeFileSync(path.join(first.dirA, "blobs", "ctx", "blb_peers0001"), "ciphertext of a file");
