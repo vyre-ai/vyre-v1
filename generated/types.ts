@@ -37666,9 +37666,11 @@ export type TalkSpaceCheckOut = {
   checkedAt?: number;
   state?: "ok" | "failing";
   peopleOwnKey?: number;
+  keyed?: Array<string>;
 };
 export type TalkSpaceConfigureIn = {
-  on: boolean;
+  on?: boolean;
+  provider?: string;
 };
 export type TalkSpaceConfigureOut = {
   set: boolean;
@@ -37679,6 +37681,7 @@ export type TalkSpaceConfigureOut = {
   checkedAt?: number;
   state?: "ok" | "failing";
   peopleOwnKey?: number;
+  keyed?: Array<string>;
 };
 export type TalkSpaceConnectIn = {
   provider: string;
@@ -37698,6 +37701,7 @@ export type TalkSpaceConnectOut = {
   checkedAt?: number;
   state?: "ok" | "failing";
   peopleOwnKey?: number;
+  keyed?: Array<string>;
 };
 export type TalkSpaceDisconnectIn = Record<string, unknown>;
 export type TalkSpaceDisconnectOut = {
@@ -37709,6 +37713,7 @@ export type TalkSpaceDisconnectOut = {
   checkedAt?: number;
   state?: "ok" | "failing";
   peopleOwnKey?: number;
+  keyed?: Array<string>;
 };
 export type TalkSpaceStatusIn = Record<string, unknown>;
 export type TalkSpaceStatusOut = {
@@ -37720,6 +37725,7 @@ export type TalkSpaceStatusOut = {
   checkedAt?: number;
   state?: "ok" | "failing";
   peopleOwnKey?: number;
+  keyed?: Array<string>;
 };
 export type TalkStatusIn = Record<string, unknown>;
 export type TalkStatusOut = {
