@@ -123,7 +123,7 @@ test("helpers are one row each, updated in place, the lead answers once, and a h
       await page.getByTestId("crew-peek-back").click({ timeout: 10_000 });
       await page.getByTestId("crew-overview").first().waitFor({ timeout: 20_000 });
       await shoot(page, `crew-over-${mode}-${phone ? "phone" : "wide"}`);
-      await page.getByTestId("crew-overview").locator('[data-testid^="crew-row-"]').first().click({ timeout: 10_000 });
+      await page.getByTestId("crew-overview").locator('[data-testid^="row-crew-row-"]').first().click({ timeout: 10_000 });
       await page.getByTestId("crew-peek-open").click({ timeout: 15_000 });
       await page.getByText(/Brief from/).first().waitFor({ timeout: 20_000 }).catch(async (e) => { await shoot(page, `${mode}-FAILED-helper-chat`); throw e; });
       await shoot(page, `crew-chat1-${mode}-${phone ? "phone" : "wide"}`);

@@ -99,6 +99,7 @@ export function CrewStrip({ members, totals, selectedId, onPeek, onStopAll, onOp
         {onOpenPane ? <Pressable accessibilityRole="button" accessibilityLabel="Open the Crew pane" testID="crew-strip-pane" onPress={onOpenPane} style={st.headBtn}><Text style={st.headBtnText}>Crew</Text></Pressable> : null}
       </View>
       <View style={st.list}>
+        {/* ui-rows-lint: not a list (the chips of one strip: each a face in a ring with a state, a name, a line and a clock, drawn together as the prototype p-crew shows them) */}
         {members.map((m, i) => <HelperChip key={m.id} m={m} now={now} index={i} selected={selectedId === m.id} onPress={onPeek} {...(onRetry ? { onRetry } : {})} />)}
       </View>
     </View>

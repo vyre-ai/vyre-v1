@@ -73,12 +73,12 @@ test("the overview: totals in one sentence, rows sorted needs you first, the tim
   const peeked: string[] = [];
   const root = await mount(createRoot, <CrewOverview status={status(three(), T({ failed: 1 }))} call={async (cap, input) => { calls.push({ cap, input }); return {}; }} threadId="thr_0" onPeek={(id) => peeked.push(id)} onRefresh={() => undefined} />);
   assert.equal(textOf(find(root, "crew-overview-totals")), "1 of 3 done · 1 needs you · 1 working · 1 failed · 12 s");
-  const order = ["thr_a", "thr_c", "thr_b"].map((id) => find(root, `crew-row-${id}`));
+  const order = ["thr_a", "thr_c", "thr_b"].map((id) => find(root, `row-crew-row-${id}`));
   assert.ok(order.every((n) => n !== null));
   assert.ok(find(root, "crew-tl-thr_b-bar"));
   assert.equal(textOf(find(root, "crew-cost")), "$0.12");
   assert.match(textOf(find(root, "crew-keys")), /stops all/);
-  await press(find(root, "crew-row-thr_b"));
+  await press(find(root, "row-crew-row-thr_b"));
   assert.deepEqual(peeked, ["thr_b"]);
   await press(find(root, "crew-stop-all")); await flush();
   assert.deepEqual(calls.map((c) => c.cap), ["engine.helpers.stop_all"]);
@@ -171,7 +171,7 @@ test("Show keeps one kind of helper and checks the one showing; the token bar sp
   assert.deepEqual(entries.filter((e) => e.checked).map((e) => e.label), ["Working"]);
   entries[3]!.onSelect(); assert.deepEqual(picked, ["done"]);
   const only = await mount(createRoot, <CrewOverview status={status(three(), T({ failed: 1 }))} call={async () => ({})} threadId="thr_0" onPeek={() => undefined} onRefresh={() => undefined} initialShow="failed" />);
-  assert.ok(find(only, "crew-row-thr_c")); assert.equal(find(only, "crew-row-thr_a"), null); assert.equal(find(only, "crew-row-thr_b"), null);
+  assert.ok(find(only, "row-crew-row-thr_c")); assert.equal(find(only, "row-crew-row-thr_a"), null); assert.equal(find(only, "row-crew-row-thr_b"), null);
   const none = await mount(createRoot, <CrewOverview status={status([three()[1]!])} call={async () => ({})} threadId="thr_0" onPeek={() => undefined} onRefresh={() => undefined} initialShow="done" />);
   assert.match(textOf(find(none, "crew-empty-show")), /No helper is done yet/);
   const tok = await mount(createRoot, <CrewOverview status={status(three(), T({ tokensIn: 12_300, tokensOut: 800 }))} call={async () => ({})} threadId="thr_0" onPeek={() => undefined} onRefresh={() => undefined} />);
@@ -193,11 +193,11 @@ test("Change model lists the other models the person may use, confirms with what
   const root = await mount(createRoot, <CrewPeek member={{ ...three()[1]!, model: "claude-haiku-5-5", startedAt: Date.now() - 5000 }} call={call} onBack={() => undefined} onOpenChat={() => undefined} onRefresh={() => { refreshed += 1; }} />);
   await flush();
   await press(find(root, "crew-peek-change-model")); await flush();
-  assert.ok(find(root, "crew-change-claude-opus-5-5") && find(root, "crew-change-gpt-6")); assert.equal(find(root, "crew-change-claude-haiku-5-5"), null);
-  await press(find(root, "crew-change-gpt-6"));
+  assert.ok(find(root, "row-crew-change-claude-opus-5-5") && find(root, "row-crew-change-gpt-6")); assert.equal(find(root, "row-crew-change-claude-haiku-5-5"), null);
+  await press(find(root, "row-crew-change-gpt-6"));
   assert.match(textOf(find(root, "crew-change-confirm")), /Restart Orin on gpt-6\? It has used \$0\.02 so far and starts over\./);
   await press(find(root, "crew-change-cancel")); assert.equal(find(root, "crew-change-confirm"), null);
-  await press(find(root, "crew-change-gpt-6")); await press(find(root, "crew-change-go")); await flush();
+  await press(find(root, "row-crew-change-gpt-6")); await press(find(root, "crew-change-go")); await flush();
   const call2 = calls.find((c) => c.cap === "engine.helpers.change_model")!;
   assert.deepEqual([call2.input["threadId"], call2.input["helperId"], call2.input["account"], call2.input["model"]], ["thr_0", "thr_b", "#B", "gpt-6"]);
   assert.equal(refreshed, 1);

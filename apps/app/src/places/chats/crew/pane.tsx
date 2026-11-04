@@ -6,6 +6,7 @@ import type { ReactElement } from "react";
 import { Platform, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { Avatar } from "../../../../../../ui/src/Avatar/index.tsx";
 import { useMenu } from "../../../../../../ui/src/Menu/index.tsx";
+import { Row } from "../../../../../../ui/src/Row/index.tsx";
 import { MemberRing, timeOf, useNow } from "./strip.tsx";
 import { clock, isCode, keyAction, testsWords, lineOf, modelTag, money, nameOf, ranTogether, roleOf, shows, sorted, span, stateWord, timeline, tokenSplit, tokens, totalsLine } from "./model.ts";
 import type { CrewMember, CrewStatusOut, Show } from "./model.ts";
@@ -58,11 +59,10 @@ export function CrewOverview({ status, call, threadId, onPeek, onRefresh, initia
       <Text style={st.section}>Side by side</Text>
       <View testID="crew-timeline" style={{ gap: 3 }}>
         {all.map((m, i) => (
-          <Pressable key={m.id} accessibilityRole="button" testID={`crew-tl-${m.id}`} onPress={() => onPeek(m.id)} style={st.tlr}>
-            <Avatar name={nameOf(m)} seedId={m.agentId} kind="agent" size={18} />
-            <Text numberOfLines={1} style={st.tln}>{nameOf(m)}</Text>
-            <View style={st.tlt}><View testID={`crew-tl-${m.id}-bar`} style={{ position: "absolute", top: 0, bottom: 0, left: `${(tl[i]?.left ?? 0) * 100}%`, width: `${(tl[i]?.width ?? 1) * 100}%`, borderRadius: 5, backgroundColor: BAR[m.state] as string, opacity: m.state === "failed" || m.state === "stopped" ? 0.5 : 1 } as object} /></View>
-          </Pressable>
+          <Row
+            key={m.id} id={`crew-tl-${m.id}`} title={nameOf(m)} onPress={() => onPeek(m.id)} leading={<Avatar name={nameOf(m)} seedId={m.agentId} kind="agent" size={18} />}
+            trailing={<View style={st.tlt}><View testID={`crew-tl-${m.id}-bar`} style={{ position: "absolute", top: 0, bottom: 0, left: `${(tl[i]?.left ?? 0) * 100}%`, width: `${(tl[i]?.width ?? 1) * 100}%`, borderRadius: 5, backgroundColor: BAR[m.state] as string, opacity: m.state === "failed" || m.state === "stopped" ? 0.5 : 1 } as object} /></View>}
+          />
         ))}
       </View>
       {together ? <Text testID="crew-ran-together" style={st.together}>{together}</Text> : null}
@@ -79,16 +79,11 @@ export function CrewOverview({ status, call, threadId, onPeek, onRefresh, initia
 
       <View style={st.listHead}><Text style={st.section}>Helpers</Text><Text style={st.hint}>{status.totals.done} of {status.totals.members} done</Text></View>
       {rows.length === 0 ? <Text testID="crew-empty-show" style={st.hint}>{NONE[show]}</Text> : null}
-      {rows.map((m, i) => (
-        <Pressable key={m.id} accessibilityRole="button" accessibilityLabel={`${nameOf(m)}, ${stateWord(m.state)}`} testID={`crew-row-${m.id}`} onPress={() => onPeek(m.id)} style={st.row}>
-          <Face m={m} />
-          <View style={{ flex: 1, minWidth: 0 }}>
-            <Text numberOfLines={1} style={st.rowTitle}>{nameOf(m)} · {roleOf(m)}</Text>
-            <Text numberOfLines={1} testID={`crew-row-${m.id}-line`} style={st.rowLine}>{lineOf(m)}</Text>
-          </View>
-          <Text testID={`crew-row-${m.id}-state`} style={[st.rowState, m.state === "working" && { color: "var(--accent)" as string }, m.state === "needs_you" && { color: "var(--warn)" as string }, m.state === "done" && { color: "var(--ok)" as string }]}>{stateWord(m.state)}</Text>
-          <Text style={st.hidden}>{i + 1}</Text>
-        </Pressable>
+      {rows.map((m) => (
+        <Row
+          key={m.id} id={`crew-row-${m.id}`} title={`${nameOf(m)} · ${roleOf(m)}`} note={lineOf(m)} tall onPress={() => onPeek(m.id)} leading={<Face m={m} />}
+          trailing={<Text testID={`crew-row-${m.id}-state`} style={[st.rowState, m.state === "working" && { color: "var(--accent)" as string }, m.state === "needs_you" && { color: "var(--warn)" as string }, m.state === "done" && { color: "var(--ok)" as string }]}>{stateWord(m.state)}</Text>}
+        />
       ))}
       <Text testID="crew-keys" style={st.keys}>⌘ . stops all · ⌥ 1 to ⌥ 9 jump to a helper</Text>
     </View>
@@ -127,11 +122,7 @@ function ChangeModel({ member, call, onDone }: { member: CrewMember; call: Call;
             <Pressable accessibilityRole="button" testID="crew-change-cancel" onPress={() => setPick(null)} style={st.pill}><Text style={st.pillText}>Cancel</Text></Pressable>
           </View>
         </>
-      ) : cat === null ? <Text style={st.hint}>Reading the models…</Text> : choices.length === 0 ? <Text testID="crew-change-none" style={st.hint}>No other model is available right now.</Text> : choices.map((c) => (
-        <Pressable key={`${c.account}:${c.model}`} accessibilityRole="button" testID={`crew-change-${c.model}`} onPress={() => setPick(c)} style={st.row}>
-          <Text style={st.rowTitle}>{c.model}</Text><Text style={st.hint}>{c.accountLabel}{c.tier ? ` · ${c.tier}` : ""}</Text>
-        </Pressable>
-      ))}
+      ) : cat === null ? <Text style={st.hint}>Reading the models…</Text> : choices.length === 0 ? <Text testID="crew-change-none" style={st.hint}>No other model is available right now.</Text> : choices.map((c) => <Row key={`${c.account}:${c.model}`} id={`crew-change-${c.model}`} title={c.model} note={`${c.accountLabel}${c.tier ? ` · ${c.tier}` : ""}`} onPress={() => setPick(c)} />)}
       {err ? <Text testID="crew-change-error" style={st.hint}>{err}</Text> : null}
     </View>
   );
@@ -179,7 +170,9 @@ export function CrewPeek({ member, call, nameOfId, onBack, onOpenChat, onRefresh
       {member.state === "working" && member.step ? <><Text style={st.section}>Now</Text><Text testID="crew-peek-step" style={st.rowLine}>{member.step}</Text></> : null}
       {member.found ? <><Text style={st.section}>Answer</Text><Text testID="crew-peek-answer" style={st.rowLine}>{member.found}</Text></> : null}
       {isCode(member) ? <><Text style={st.section}>Code</Text><Text testID="crew-peek-code" style={st.mono}>{member.branch} · +{member.added ?? 0} −{member.deleted ?? 0} · {member.files?.length ?? 0} files{member.tests ? ` · ${testsWords(member.tests)}` : ""}</Text></> : null}
-      {log.length > 0 ? <><Text style={st.section}>Notes</Text>{log.map((n) => <View key={n.messageId} testID={`crew-note-${n.messageId}`} style={st.note}><Text style={st.noteWho}>{WHO[n.who]}{n.who === "parent" && n.seenAt !== undefined ? " · seen" : ""}</Text><Text style={st.rowLine}>{n.body}</Text></View>)}</> : null}
+      {log.length > 0 ? <Text style={st.section}>Notes</Text> : null}
+      {/* ui-rows-lint: not a list (a read-only log of what was said between the helper and the agent that started it, each entry a sender and words, nothing to press) */}
+      {log.map((n) => <View key={n.messageId} testID={`crew-note-${n.messageId}`} style={st.note}><Text style={st.noteWho}>{WHO[n.who]}{n.who === "parent" && n.seenAt !== undefined ? " · seen" : ""}</Text><Text style={st.rowLine}>{n.body}</Text></View>)}
       <Text style={st.section}>Cost and time</Text>
       <View style={st.kv}><Text style={st.k}>Time</Text><Text testID="crew-peek-time" style={st.v}>{timeOf(member, now)}</Text></View>
       <View style={st.kv}><Text style={st.k}>Cost</Text><Text testID="crew-peek-cost" style={st.v}>{money(member.costMicros)}</Text></View>
