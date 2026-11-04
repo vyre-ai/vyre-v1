@@ -10,7 +10,7 @@ export type KindKey =
   | "approval.requested" | "answer.requested" | "unblock.requested" | "approval.backstop" | "dm" | "mention" | "call.incoming" | "agent.blocked" | "incident.owned" | "task.assigned" | "reply.followed"
   | "agent.task_finished" | "digest.away" | "mention.thread" | "run.failed" | "conflict.needs_you" | "access.requested" | "access.decided"
   | "sync.attention" | "health.degraded" | "problem.report" | "member.joined" | "member.join_requested" | "limit.hit" | "vault.rotation_due" | "reply.thread"
-  | "task.turn" | "task.returned" | "task.finished" | "task.due" | "machine.alert" | "item.shared" | "space.deletion_scheduled" | "space.deletion_cancelled" | "ci.paused";
+  | "task.turn" | "task.returned" | "task.finished" | "task.due" | "machine.alert" | "item.shared" | "space.deletion_scheduled" | "space.deletion_cancelled" | "ci.paused" | "hook.asked";
 export type Action = { label: string; cap: string };
 export interface KindDef {
   key: KindKey; level: Level; place: Place; title: string; pushTitle?: string; actions: Action[]; agentRateKey?: string; backstopEmailAfterHours?: number; respectHours: boolean;
@@ -50,6 +50,7 @@ export const KINDS: readonly KindDef[] = [
   kind("space.deletion_scheduled", "badge", "inbox", "{{title}}", { actions: [a("Cancel deletion", "spaces.delete_cancel")] }),
   kind("space.deletion_cancelled", "badge", "inbox", "{{title}}"),
   kind("ci.paused", "badge", "console", "{{title}}", { actions: [a("Open", "ci.cost.month")] }),
+  kind("hook.asked", "badge", "inbox", "{{title}}", { actions: [a("Open", "hooks.list")] }),
   kind("problem.report", "badge", "console", "Problem report from {{from}}", { actions: [a("Review", "tasks.act")] }),
   kind("member.joined", "digest", "home", "{{name}} joined {{space}}"),
   kind("member.join_requested", "badge", "console", "{{name}} asked to join {{space}}", { actions: [a("Review", "members.join_requests.list")] }),

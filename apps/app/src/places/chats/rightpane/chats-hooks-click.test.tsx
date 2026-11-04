@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import { createRoot } from "test-renderer";
 import { find, flush, installDom, mount, press, textOf, typeInto } from "../../../../../../ui/src/testing/dom.ts";
 import { HookCard } from "./HooksTab.tsx";
-import { lastRan, ranWhat } from "./hooks-model.ts";
+import { lastRan, ranWhat, titleOf } from "./hooks-model.ts";
 import type { Hook, HookRun } from "./hooks-model.ts";
 import type { PaneDeps } from "./actions.ts";
 
@@ -19,7 +19,7 @@ function deps() {
   const d: PaneDeps = { call: async (cap, input) => { calls.push({ cap, input: input as Record<string, unknown> }); return {}; }, note: (text, undo) => notes.push({ text, ...(undo ? { undo } : {}) }) };
   return { d, calls, notes };
 }
-const card = (d: PaneDeps, h: Hook, ran = "Not run yet") => <HookCard h={h} threadId="thr_1" deps={d} selected={false} nameOf={(id) => (id === "agt_intake" ? "Intake" : "Irfad Imtiaz")} ran={ran} />;
+const card = (d: PaneDeps, h: Hook, ran = "Never ran") => <HookCard h={h} threadId="thr_1" deps={d} selected={false} nameOf={(id) => (id === "agt_intake" ? "Intake" : "Irfad Imtiaz")} ran={ran} />;
 
 test("Edit opens the form with the hook's words; Cancel throws a change away", async () => {
   const off = installDom();
@@ -105,15 +105,18 @@ test("a Space hook a person cannot change has no Edit or Remove, says so, and st
 test("Last ran reads from the newest run: when, and what it did", async () => {
   const ago = (ts: number): string => `${Math.round((600_000 - ts) / 60_000)} min ago`;
   const run = (o: Partial<HookRun>): HookRun => ({ id: 1, hookId: "hok_1", event: "tool.before", outcome: "blocked", ms: 3, at: 480_000, ...o } as HookRun);
-  assert.equal(lastRan("hok_1", [run({ tool: "files_tree" })], ago), "Ran 2 min ago · stopped files_tree");
-  assert.equal(lastRan("hok_1", [], ago), "Not run yet");
-  assert.equal(lastRan("hok_other", [run({})], ago), "Not run yet");
+  assert.equal(lastRan("hok_1", [run({ tool: "files_tree" })], ago), "Last ran 2 min ago, stopped files_tree");
+  assert.equal(lastRan("hok_1", [], ago), "Never ran");
+  assert.equal(lastRan("hok_other", [run({})], ago), "Never ran");
+  assert.equal(titleOf({ line: "before any email, check the address is in Contacts", event: "outward.before" }), "Before any email");
+  assert.equal(titleOf({ line: "", event: "turn.end" }), "When a turn ends");
   assert.equal(ranWhat({ outcome: "allowed_once", tool: "files_tree" }), "let through once, files_tree");
   assert.equal(ranWhat({ outcome: "timeout" }), "ran out of time");
   const off = installDom();
   try {
     const { d } = deps();
-    const root = await mount(createRoot, card(d, hook(), "Ran 2 min ago · stopped files_tree"));
-    assert.match(textOf(find(root, "hook-ran-hok_1")), /Ran 2 min ago · stopped files_tree/);
+    const root = await mount(createRoot, card(d, hook(), "Last ran 2 min ago, stopped files_tree"));
+    assert.match(textOf(find(root, "hook-ran-hok_1")), /Last ran 2 min ago, stopped files_tree/);
+    assert.match(textOf(find(root, "hook-title-hok_1")), /^Before any email$/);
   } finally { off(); }
 });

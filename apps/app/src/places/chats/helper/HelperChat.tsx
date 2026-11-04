@@ -131,7 +131,7 @@ function HelperView(): ReactElement {
       <ScrollView testID="helper-feed" style={{ flex: 1 }} contentContainerStyle={st.feed}>
         <Text style={st.daysep}>{`Helper of ${owner}${parent ? ` · from “${parent.title}”` : ""}`}</Text>
         {messages.length === 0 ? <States kind="empty" icon="chat" title="Nothing yet. The helper has not started." /> : feed}
-        {hooksQ.status === "ready" ? <HelperHooks hooks={hooksQ.data.hooks} helperThreadId={data.threadId} lead={owner} {...(data.nav.openHooks ? { open: data.nav.openHooks } : {})} /> : null}
+        {hooksQ.status === "ready" ? <HelperHooks hooks={hooksQ.data.hooks} helperThreadId={data.threadId} lead={owner} name={thread.title ?? "this helper"} {...(data.nav.openHooks ? { open: data.nav.openHooks } : {})} /> : null}
       </ScrollView>
       {line ? <View testID="helper-line" style={st.note}><Text style={st.noteText}>{line}</Text></View> : null}
       {status === "running" && data.me?.id !== undefined && thread.starter === data.me.id ? <AskBox threadId={data.threadId} call={data.call} say={setLine} /> : null}

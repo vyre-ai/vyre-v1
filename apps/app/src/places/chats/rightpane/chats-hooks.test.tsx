@@ -33,7 +33,7 @@ test("the hooks are grouped: this chat, this run and its helpers, the agent ever
   const order = ["label-l-chat", "label-l-run", "label-l-agent", "label-l-space"].map((n) => { const i = out.indexOf(`data-testid="${n}"`); assert.ok(i >= 0, n); return i; });
   for (const name of ["This chat", "This run and its helpers", "Intake everywhere"]) assert.ok(out.includes(name), name);
   assert.deepEqual([...order].sort((a, b) => a - b), order);
-  for (const needle of ["Before anything leaves Vyre", "Ask a quick check", "Check the address is in Contacts", "Run a script", "format-changed.sh", "4 in this chat, 0 paused"]) assert.ok(out.includes(needle), needle);
+  for (const needle of ["Before any email", "Ask a quick check", "Check the address is in Contacts", "Run a script", "format-changed.sh", "4 in this chat, 0 paused"]) assert.ok(out.includes(needle), needle);
   assert.ok(out.includes("Intake can add its own hooks") || out.includes("can add its own hooks"), "the foot says who may add hooks");
   assert.deepEqual(grouped(hooksOf(createSample("northwind", { hooks: true })), "Intake").map((g) => g.key), ["chat", "run", "agent", "space"]);
   assert.equal(countLine([]), "0 in this chat, 0 paused");

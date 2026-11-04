@@ -2,7 +2,7 @@
 // applies the access rule: a Space hook is let go by an admin only, and anyone may ask. A refusal is said in its own words, never a bare error.
 import { useState } from "react";
 import type { ReactElement } from "react";
-import { Text } from "react-native";
+import { Text, View } from "react-native";
 import type { HookLine, HookLineAct } from "./model.ts";
 import { hookLineActs } from "./model.ts";
 
@@ -26,10 +26,10 @@ export function HookLineActs({ id, line, threadId, call, open, linkStyle, quietS
   };
   if (said !== null) return <Text testID={`hook-said-${id}`} accessibilityRole="alert" style={quietStyle}>{said}</Text>;
   return (
-    <>
+    <View style={{ flexDirection: "row", gap: 12, marginLeft: "auto" as never }}>
       {acts.map((a) => (
         <Text key={a} testID={`hook-act-${a}-${id}`} accessibilityRole="link" accessibilityState={{ disabled: busy }} onPress={() => { if (!busy) press(a); }} style={linkStyle}>{LABEL[a]}</Text>
       ))}
-    </>
+    </View>
   );
 }

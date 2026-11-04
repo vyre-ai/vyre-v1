@@ -123,6 +123,12 @@ export function hookLineText(h: HookLine, nameOf: (id: string) => string): strin
   if (h.by && h.subject && h.kind === "asked") return `${nameOf(h.by)} asked an admin about a hook: ${h.subject}`;
   return h.line;
 }
+/** The words that lead a hook line, in ink: "A hook stopped this:" or the name before "added a hook". The rest follows in the quieter colour. */
+export function hookLead(text: string): [string, string] {
+  if (text.startsWith("A hook stopped this:")) return ["A hook stopped this:", text.slice("A hook stopped this:".length)];
+  const m = /^(.+?)( (?:added|set|changed|removed|paused|turned|let|asked) )/.exec(text);
+  return m ? [m[1]!, text.slice(m[1]!.length)] : ["", text];
+}
 /** What a line offers beyond its words. A block shows Details (the hook, in the Hooks tab), Run once anyway and Ask an admin; a hook that is still there shows Edit. */
 export type HookLineAct = "details" | "edit" | "once" | "ask";
 export function hookLineActs(h: HookLine): HookLineAct[] {
