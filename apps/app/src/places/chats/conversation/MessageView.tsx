@@ -39,7 +39,7 @@ import { KeyRequestCard, isKeyRequest } from "./keyrequest.tsx";
 import { AccessRequestCard, isAccessRequest } from "./accessrequest.tsx";
 import { RedactRequestCard, isRedactRequest } from "./redactrequest.tsx";
 import { ChecklistCard, isChecklist } from "./checklist.tsx";
-import { HookLineRow } from "./hookline.tsx";
+import { HookLineRow, HookSteps } from "./hookline.tsx";
 import { NoteOfferCard, isNoteOffer } from "./noteoffer.tsx";
 import { QuoteCard, WebPageCard, isQuote, isWebPage } from "./webpage.tsx";
 import { ChromeStepCard, HeldSendCard, isChromeHeld, isChromeStep } from "./chrome-cards.tsx";
@@ -193,7 +193,7 @@ export const MessageView = memo(function MessageView(props: MessageViewProps): R
     }
     if (hookLine && props.actions.files) {
       // a hook line (lane l-hooks): the lock where other lines have a dot, the lead words in ink, the way forward quiet
-      return <HookLineRow id={item.key} line={hookLine} words={hookLineText(hookLine, props.actions.nameOf ?? unnamed)} threadId={props.actions.files.threadId} call={props.actions.files.call} {...(props.actions.openHooks ? { open: (hookId: string) => props.actions.openHooks?.(hookId) } : {})} st={{ event: st.event, text: st.hookText, lead: st.hookLead, act: st.hookAct }} />;
+      return <HookLineRow id={item.key} line={hookLine} words={hookLineText(hookLine, props.actions.nameOf ?? unnamed)} threadId={props.actions.files.threadId} call={props.actions.files.call} {...(props.actions.openHooks ? { open: (hookId: string) => props.actions.openHooks?.(hookId) } : {})} stepsBelow={item.stepsBelow === true} st={{ event: st.event, text: st.hookText, lead: st.hookLead, act: st.hookAct }} />;
     }
     return (
       <View testID={`event-${item.key}`} accessibilityRole="text" style={st.event}>
@@ -410,7 +410,8 @@ function Theirs({ item, actions, stream, openWork, mark, meId, replies }: Messag
       {m.via ? <Text testID={`via-${m.messageId}`} style={st.via}>{`Sent by ${item.who.name} on a routine ${m.via.routineOwner === meId ? "you" : actions.nameOf ? actions.nameOf(m.via.routineOwner) : unnamed(m.via.routineOwner)} set`}</Text> : null}
       {work && (!work.short || !item.newgroup || workOpen) ? (
         <Fold testID={`work-${m.messageId}`} label={work.live ? `Working${work.now ? ` · ${work.now}` : ""}` : work.summary} open={work.live || workOpen} live={work.live} onToggle={() => setWorkOpen((o) => !o)}>
-          {person || stream || m.body === "" ? null : <ReplyMemory messageId={m.messageId} threadId={m.threadId} reply={m.body} part="line" />}
+          {item.hookSteps && actions.files ? <HookSteps id={m.messageId} steps={item.hookSteps.next} agentId={item.hookSteps.agentId} threadId={actions.files.threadId} call={actions.files.call} /> : null}
+      {person || stream || m.body === "" ? null : <ReplyMemory messageId={m.messageId} threadId={m.threadId} reply={m.body} part="line" />}
           {collect(work.steps, (l) => (
             <View key={l.id} testID={`step-${l.id}`} style={st.step}>
               <View style={[st.stepDot, l.state === "live" && st.stepLive, l.state === "error" && st.stepError]} />

@@ -2,7 +2,7 @@
 // The quiet line a hook leaves in a chat (lane l-hooks): its words, and the side button it offers (Edit for a hook that is still there, Details for one that stopped something).
 import test from "node:test";
 import assert from "node:assert/strict";
-import { hookLineActs, hookLineOf, hookLineText, isCard, hookLead } from "./model.ts";
+import { hookLineActs, hookLineOf, hookLineText, isCard, hookLead, timeline } from "./model.ts";
 
 const msg = (data: Record<string, unknown>) => ({ blocks: [{ id: "b", type: "hook", v: 1, state: "done", data }] }) as never;
 
@@ -40,4 +40,19 @@ test("steps in a block's data are read: at most two, each a short label and sent
   assert.equal(l.agentId, "agt_a");
   assert.deepEqual(l.next, [{ label: "A", ask: "Do a" }, { label: "B", ask: "Do b" }]);
   assert.equal(hookLineOf(msg({ line: "x", kind: "blocked", hookId: "h", next: "nope" }))!.next, undefined);
+});
+
+test("the steps of a stop ride on the agent's reply right below it, and the line leaves them out; with no reply from that agent they stay on the line", () => {
+  const ctx = { meId: "usr_me", nameOf: (id: string) => id, kindOf: (id: string) => (id.startsWith("agt_") ? "agent" as const : "person" as const), clock: { now: 1_760_000_000_000, offsetMin: 0 } } as never;
+  const stop = { messageId: "m_stop", threadId: "t", threadSeq: 2, author: { kind: "agent", id: "agt_a" }, kind: "quiet", body: "A hook stopped this: no", createdAt: 1_760_000_000_000, depth: 0, attachments: [], reactions: [], pinned: false,
+    blocks: [{ type: "hook", v: 1, id: "b", state: "done", data: { line: "A hook stopped this: no", kind: "blocked", hookId: "h", agentId: "agt_a", next: [{ label: "Add them", ask: "Please add them" }] } }] };
+  const reply = { messageId: "m_reply", threadId: "t", threadSeq: 3, author: { kind: "agent", id: "agt_a" }, kind: "agent", body: "I did not send it.", createdAt: 1_760_000_001_000, depth: 0, attachments: [], reactions: [], pinned: false, blocks: [] };
+  const items = timeline([stop, reply] as never, ctx);
+  assert.equal(items.find((i) => i.kind === "event")!.stepsBelow, true);
+  const other = items.find((i) => i.kind === "other")!;
+  assert.deepEqual(other.kind === "other" && other.hookSteps?.next, [{ label: "Add them", ask: "Please add them" }]);
+  const alone = timeline([stop] as never, ctx);
+  assert.equal(alone.find((i) => i.kind === "event")!.stepsBelow, undefined, "no reply yet: the steps stay on the line");
+  const other2 = timeline([stop, { ...reply, author: { kind: "agent", id: "agt_b" } }] as never, ctx);
+  assert.equal(other2.find((i) => i.kind === "event")!.stepsBelow, undefined, "a reply from another agent does not carry them");
 });

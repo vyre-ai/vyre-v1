@@ -10,13 +10,13 @@ import { hookLineActs } from "./model.ts";
 
 const LABEL: Readonly<Record<HookLineAct, string>> = { details: "Details", edit: "Edit", once: "Allow this once", ask: "Ask an admin" };
 
-export function HookLineActs({ id, line, threadId, call, open, linkStyle, quietStyle }: {
-  id: string; line: HookLine; threadId: string; call(cap: string, input: unknown): Promise<unknown>; open?: (hookId: string) => void; linkStyle: object; quietStyle: object; 
+export function HookLineActs({ id, line, threadId, call, open, linkStyle, quietStyle, stepsBelow = false }: {
+  id: string; line: HookLine; /** The steps are drawn inside the agent's reply below this line */ stepsBelow?: boolean; threadId: string; call(cap: string, input: unknown): Promise<unknown>; open?: (hookId: string) => void; linkStyle: object; quietStyle: object; 
 }): ReactElement | null {
   const [said, setSaid] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const acts = hookLineActs(line).filter((a) => (a === "details" || a === "edit" ? open !== undefined : true));
-  const steps = line.kind === "blocked" && line.agentId !== undefined ? line.next ?? [] : [];
+  const steps = line.kind === "blocked" && line.agentId !== undefined && !stepsBelow ? line.next ?? [] : [];
   if ((acts.length === 0 && steps.length === 0) || line.hookId === undefined) return null;
   const hookId = line.hookId;
   // a step a check wrote: pressing it says its sentence to the assistant as the person's own message
@@ -58,8 +58,8 @@ export function HookLineActs({ id, line, threadId, call, open, linkStyle, quietS
 }
 
 /** One hook line in the chat: the lock, the words (the lead in ink), and under them, on every width, the quiet verbs and then the steps the check wrote. */
-export function HookLineRow({ id, line, words, threadId, call, open, st }: {
-  id: string; line: HookLine; words: string; threadId: string; call(cap: string, input: unknown): Promise<unknown>; open?: (hookId: string) => void;
+export function HookLineRow({ id, line, words, threadId, call, open, st, stepsBelow = false }: {
+  id: string; line: HookLine; stepsBelow?: boolean; words: string; threadId: string; call(cap: string, input: unknown): Promise<unknown>; open?: (hookId: string) => void;
   st: { event: object; text: object; lead: object; act: object };
 }): ReactElement {
   const [lead, rest] = hookLead(words);
@@ -68,8 +68,29 @@ export function HookLineRow({ id, line, words, threadId, call, open, st }: {
       <View style={{ marginTop: 3 }}><Glyph name="lock" size={14} color="var(--ink-3)" /></View>
       <View style={{ flex: 1, minWidth: 0, gap: 4 }}>
         <Text style={st.text}><Text style={st.lead}>{lead}</Text>{rest}</Text>
-        <HookLineActs id={id} line={line} threadId={threadId} call={call} {...(open ? { open } : {})} linkStyle={st.act} quietStyle={st.act} />
+        <HookLineActs id={id} line={line} threadId={threadId} call={call} {...(open ? { open } : {})} linkStyle={st.act} quietStyle={st.act} stepsBelow={stepsBelow} />
       </View>
+    </View>
+  );
+}
+
+/** The steps a hook check wrote, as small buttons inside the agent's reply that follows the stop. Pressing one sends its sentence to the assistant as the person's own message. */
+export function HookSteps({ id, steps, agentId, threadId, call }: { id: string; steps: ReadonlyArray<{ label: string; ask: string }>; agentId: string; threadId: string; call(cap: string, input: unknown): Promise<unknown> }): ReactElement | null {
+  const [said, setSaid] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  if (steps.length === 0) return null;
+  if (said !== null) return <Text testID={`hook-steps-said-${id}`} accessibilityRole="alert" style={{ marginTop: 8, fontSize: 12.5, color: "var(--ink-3)" as string }}>{said}</Text>;
+  const send = (i: number): void => {
+    setBusy(true);
+    void call("chat.post", { threadId, body: steps[i]!.ask, mentions: [{ kind: "agent", id: agentId }], idempotencyKey: `hook-next-${id}-${i}` }).then(() => { setSaid("Sent."); setBusy(false); }, () => { setSaid("That did not send. Try again."); setBusy(false); });
+  };
+  return (
+    <View testID={`hook-steps-${id}`} style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 8 }}>
+      {steps.map((st, i) => (
+        <Pressable key={i} testID={`hook-step-${i}-${id}`} accessibilityRole="button" accessibilityLabel={st.label} accessibilityState={{ disabled: busy }} onPress={() => { if (!busy) send(i); }} style={{ height: 28, paddingHorizontal: 11, justifyContent: "center", borderRadius: 9, backgroundColor: "var(--sunk)" as string }}>
+          <Text style={{ fontSize: 12.5, fontWeight: "500", color: "var(--ink)" as string }}>{st.label}</Text>
+        </Pressable>
+      ))}
     </View>
   );
 }

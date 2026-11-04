@@ -301,9 +301,9 @@ export interface TimelineCtx {
 
 export type Item =
   | { kind: "day"; key: string; label: string }
-  | { kind: "event"; key: string; message: Message; text: string; time: string }
+  | { kind: "event"; key: string; message: Message; text: string; time: string; /** The check's steps ride on the agent's reply below, not on this line */ stepsBelow?: boolean }
   | { kind: "me"; key: string; message: Message; time: string; newgroup: boolean }
-  | { kind: "other"; key: string; message: Message; who: Who; time: string; newgroup: boolean; /** "On Sara's account": set only where more than one person shares the chat. */ paidLine?: string };
+  | { kind: "other"; key: string; message: Message; who: Who; time: string; newgroup: boolean; /** "On Sara's account": set only where more than one person shares the chat. */ paidLine?: string; /** The steps a hook check wrote for the stop just above this reply: small buttons inside it */ hookSteps?: { key: string; agentId: string; next: Array<{ label: string; ask: string }> } };
 
 /** System and quiet messages are one-line events ("Switched to Codex, picked up from the summary and the last 20 turns"). */
 export const isEvent = (m: Message): boolean => m.kind === "system" || m.kind === "quiet";
@@ -319,6 +319,15 @@ export function timeline(messages: readonly Message[], ctx: TimelineCtx): Item[]
   const out: Item[] = [];
   let lastDay = "";
   let prev: Message | null = null;
+  // a stop that carries steps: the agent's next reply (the first message after the stop that is not an event) is where they sit
+  const stepsFor = new Map<string, { key: string; agentId: string; next: Array<{ label: string; ask: string }>; line: number }>();
+  messages.forEach((m, i) => {
+    const h = isEvent(m) ? hookLineOf(m) : null;
+    if (!h || h.kind !== "blocked" || !h.next || !h.agentId) return;
+    const reply = messages.slice(i + 1).find((x) => !isEvent(x));
+    if (reply && reply.author.kind === "agent" && reply.author.id === h.agentId) stepsFor.set(reply.messageId, { key: m.messageId, agentId: h.agentId, next: h.next, line: i });
+  });
+  const carried = new Set([...stepsFor.values()].map((v) => v.key));
   for (const m of messages) {
     const dk = dayKey(m.createdAt, ctx.clock);
     if (dk !== lastDay) {
@@ -328,13 +337,13 @@ export function timeline(messages: readonly Message[], ctx: TimelineCtx): Item[]
     }
     const time = timeLabel(m.createdAt, ctx.clock);
     if (isEvent(m)) {
-      out.push({ kind: "event", key: m.messageId, message: m, text: m.body, time });
+      out.push({ kind: "event", key: m.messageId, message: m, text: m.body, time, ...(carried.has(m.messageId) ? { stepsBelow: true } : {}) });
       prev = null;
       continue;
     }
     const newgroup = prev === null || prev.author.id !== m.author.id || prev.author.kind !== m.author.kind;
     if (m.author.id === ctx.meId && m.author.kind === "person") out.push({ kind: "me", key: m.messageId, message: m, time, newgroup });
-    else out.push({ kind: "other", key: m.messageId, message: m, who: whoOf(m, ctx), time, newgroup, ...(ctx.shared && m.paidBy ? { paidLine: paidLine(m.paidBy, ctx) } : {}) });
+    else out.push({ kind: "other", key: m.messageId, message: m, who: whoOf(m, ctx), time, newgroup, ...(ctx.shared && m.paidBy ? { paidLine: paidLine(m.paidBy, ctx) } : {}), ...(stepsFor.has(m.messageId) ? { hookSteps: { key: stepsFor.get(m.messageId)!.key, agentId: stepsFor.get(m.messageId)!.agentId, next: stepsFor.get(m.messageId)!.next } } : {}) });
     prev = m;
   }
   return out;

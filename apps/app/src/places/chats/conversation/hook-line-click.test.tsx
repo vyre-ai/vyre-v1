@@ -4,7 +4,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { createRoot } from "test-renderer";
 import { find, flush, installDom, mount, press, textOf } from "../../../../../../ui/src/testing/dom.ts";
-import { HookLineActs } from "./hookline.tsx";
+import { HookLineActs, HookSteps } from "./hookline.tsx";
 
 const blocked = { line: "A hook stopped this: the address isn't in Contacts", kind: "blocked", hookId: "hok_1", scope: "chat" };
 function setup(fail?: string) {
@@ -82,5 +82,23 @@ test("the steps a check wrote are buttons: each sends its sentence to the assist
     assert.match(textOf(find(root, "hook-said-m1")), /Sent\./);
     const none = await mount(createRoot, s.el({ ...blocked, next: line.next }));
     assert.equal(find(none, "hook-next-0-m1"), null, "no agent to send to, no step buttons");
+  } finally { off(); }
+});
+
+test("with the steps below, the line keeps only the quiet verbs and the reply carries the step buttons; pressing one says it to the assistant", async () => {
+  const off = installDom();
+  try {
+    const calls: Array<{ cap: string; input: unknown }> = [];
+    const call = async (cap: string, input: unknown) => { calls.push({ cap, input }); return {}; };
+    const line = { ...blocked, agentId: "agt_intake", next: [{ label: "Add them to Contacts", ask: "Please add them" }] };
+    const root = await mount(createRoot, <HookLineActs id="m1" line={line} threadId="thr_1" call={call} open={() => undefined} linkStyle={{}} quietStyle={{}} stepsBelow />);
+    assert.equal(find(root, "hook-next-0-m1"), null, "the line does not carry the steps");
+    assert.ok(find(root, "hook-act-once-m1") && find(root, "hook-act-ask-m1") && find(root, "hook-act-details-m1"));
+    const reply = await mount(createRoot, <HookSteps id="m_reply" steps={line.next} agentId="agt_intake" threadId="thr_1" call={call} />);
+    assert.match(textOf(find(reply, "hook-step-0-m_reply")), /Add them to Contacts/);
+    await press(find(reply, "hook-step-0-m_reply"));
+    await flush();
+    assert.deepEqual([calls[0]!.cap, (calls[0]!.input as { body: string }).body], ["chat.post", "Please add them"]);
+    assert.match(textOf(find(reply, "hook-steps-said-m_reply")), /Sent\./);
   } finally { off(); }
 });
