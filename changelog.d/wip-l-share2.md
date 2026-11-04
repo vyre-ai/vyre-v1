@@ -17,3 +17,4 @@
 - Reach: a refused person profile shows "You can't see this person's profile" and opens nothing; an allowed one opens in Chats.
 - Person profile: pressing a person in the chat People popover (or opening a person link) opens their public profile in the chat's right pane. About adds the public lines of memory.profile.get; the private part never reaches the pane.
 - Person profile: presence dot 10 px with a 2 px ring; About lists Shared context (projects you both can see, each opens the project); on a phone the profile is a full-screen page with a back arrow and the name over the bottom nav.
+- Person profile About: "How <name> responds here" (their hours and time, from what they set), Shared context lists projects and up to three chats you both are in, About <name> carries pronouns and the public profile lines. Live test seeds a public and a private fact and proves the private one never reaches the page.

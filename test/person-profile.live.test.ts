@@ -20,6 +20,11 @@ test("person profile, team: pressing a person in the chat's People popover opens
     // what Sara set about herself, and a project the two can see: the role line, About and Shared context draw from these
     await sara.ok("settings.set", { key: "profile.timezone", value: "Europe/Berlin" });
     await sara.ok("settings.set", { key: "profile.title", value: "Account lead" });
+    // one fact in her public profile and one in her private: the public one shows, the private one never reaches the owner's page
+    const PUBLIC_FACT = "Prefers a short written summary before a call";
+    const PRIVATE_FACT = "Takes Thursday mornings for a standing appointment";
+    await sara.ok("memory.profile.add", { text: PUBLIC_FACT, to: "public" });
+    await sara.ok("memory.profile.add", { text: PRIVATE_FACT, to: "private" });
     const projectId = (await w.owner.ok("projects.create", { type: "project", title: "Client portal launch", idempotencyKey: "pf-project" })).projectId as string;
     await w.owner.ok("projects.members.set", { projectId, principal: sara.id, role: "lead" });
     const me = await seat(s, w.owner, "Owner");
@@ -35,7 +40,9 @@ test("person profile, team: pressing a person in the chat's People popover opens
     assert.ok(await me.page.getByTestId("participants-button").count() >= 1, "the chat is still open beside it");
     assert.match(await me.page.getByTestId("person-header").innerText(), /Account lead.*for sara/i, "the role line carries their local time");
     await me.page.getByTestId(`row-person-project-${projectId}`).waitFor({ timeout: 15_000 });   // Shared context lists the project you both see
+    await me.page.getByText(PUBLIC_FACT).first().waitFor({ timeout: 15_000 });   // About shows the public line
     await me.page.waitForTimeout(1500);
+    assert.equal((await me.page.locator("body").innerText()).includes(PRIVATE_FACT), false, "the private fact never reaches the page");
     await shoot(me.page, OUT, "chat-person-wide");
 
     // the phone: the full-screen sheet like the other panes
@@ -48,6 +55,8 @@ test("person profile, team: pressing a person in the chat's People popover opens
     // where the bottom nav would be, the page the profile draws is on top
     assert.equal(await me.page.evaluate("(function(){var e=document.elementFromPoint(195,window.innerHeight-20);return !!(e&&e.closest('[data-testid=phone-profile]'))})()"), true, "the profile covers the bottom nav");
     await me.page.waitForTimeout(1500);
+    await me.page.getByText(PUBLIC_FACT).first().waitFor({ timeout: 15_000 });
+    assert.equal((await me.page.locator("body").innerText()).includes(PRIVATE_FACT), false, "nor on a phone");
     await shoot(me.page, OUT, "chat-person-phone");
     await me.page.getByTestId("phone-profile-back").click();
     await me.page.getByTestId("phone-profile").waitFor({ state: "detached", timeout: 10_000 });
