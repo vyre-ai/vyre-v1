@@ -530,7 +530,7 @@ function Theirs({ item, actions, stream, openWork, mark, meId, replies }: Messag
           // a helper that waits for a person's yes shows its held request here, in the chat the person reads: the same approval card as anywhere (Allow, Always allow, Deny)
           // the coders on this strip: Review all and Merge sit in its header, and nothing is posted per coder
           const coders = members.filter((x) => (x as { kind?: string }).kind === "teammate") as Array<CrewMember & { jobId?: string }>;
-          const coderMerge = coders.length > 0 && c?.merge ? { state: coders.every((x) => x.merged === true) ? "merged" as const : coders.every((x) => x.state === "done") ? "ready" as const : "working" as const, onReview: () => c.openPane(), onMerge: () => c.merge(coders.flatMap((x) => (x.jobId ? [x.jobId] : []))) } : null;
+          const coderMerge = coders.length > 0 && c?.merge ? { state: coders.every((x) => x.merged === true) ? "merged" as const : members.every((x) => x.state === "done") ? "ready" as const : "working" as const, onReview: () => c.openPane(), onMerge: () => c.merge(coders.flatMap((x) => (x.jobId ? [x.jobId] : []))) } : null;
           const holds = holdsOf(members);
           return (
             <View key={b.id}>
