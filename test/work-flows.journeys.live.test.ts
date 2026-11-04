@@ -146,19 +146,21 @@ test("journey 8, one-tap send: an agent's email is held, Needs you shows the dra
     }, "the held send in Needs you");
 
     const me = await seat(s, w.owner, "Owner");
-    await open(me, s, "/home");
+    await open(me, s, "/chat");   // Home is gone: Needs you is on the Chats landing
     await me.page.getByText(held.title).first().waitFor({ timeout: 30_000 });
     await me.page.getByText(held.title).first().click();
     await me.page.getByTestId("held-mail").waitFor({ timeout: 20_000 });
     assert.match(await me.page.getByTestId("held-subject").innerText(), /Your engagement letter/);
     assert.match(await me.page.getByTestId("held-body").innerText(), /Please sign by Friday/);
     await me.page.getByTestId("held-record").getByText("Dana Fox").first().waitFor({ timeout: 20_000 });
-    assert.equal(await me.page.getByTestId("needs-primary").innerText().then((x) => x.replace(/\s*A$/, "")), "Send");
+    // the held send opens on its task page now (Held before sending): Approve sends it, Send back asks for changes
+    await me.page.getByRole("button", { name: "Approve", exact: true }).waitFor({ timeout: 20_000 });
     await shoot(me.page, dir, "held-draft");
-    await me.page.getByTestId("needs-sendback").click();
-    await me.page.getByTestId("needs-compose").locator("textarea, input").first().fill("Add the fee to the letter");
+    // Send back asks what to change first (a note is required), then sends it back; Approve is the one that sends the mail
+    await me.page.getByRole("button", { name: "Send back", exact: true }).click();
+    await me.page.getByPlaceholder("Add a note").fill("Add the fee to the letter");
     await shoot(me.page, dir, "ask-for-changes", { phone: false });
-    await me.page.getByTestId("needs-send").click();
+    await me.page.getByRole("button", { name: "Send back", exact: true }).click();
     await until(async () => (((await w.owner.ok("gate.holds.list", { states: ["held"] })).holds as unknown[]).length === 0 ? true : null), "the hold is closed");
     const out = ((await w.owner.ok("mail.message.list", { mailboxId })).messages as { direction: string }[]).filter((m) => m.direction === "out");
     assert.equal(out.length, 0, "nothing was sent");
