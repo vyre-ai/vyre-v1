@@ -8,7 +8,7 @@ import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import type { ViewStyle } from "react-native";
 import { I } from "./parts.tsx";
 import { Glyph } from "./shared.tsx";
-import { LINE, openWebMic, startTalk } from "./talk.ts";
+import { LINE, openWebMic, placed, startTalk } from "./talk.ts";
 import type { TalkDeps, TalkRun, TalkSession } from "./talk.ts";
 
 export interface TalkPort {
@@ -36,12 +36,7 @@ const web = Platform.OS === "web";
 type Anchor = { before: string; after: string; skip: number };
 const wordsAfter = (all: string, skip: number): string => all.split(/\s+/).filter(Boolean).slice(skip).join(" ");
 
-/** The field with the words in place: at the cursor, spaced from what is around them. */
-export function placed(a: { before: string; after: string }, words: string): { text: string; cursor: number } {
-  if (words === "") return { text: a.before + a.after, cursor: a.before.length };
-  const head = a.before + (a.before !== "" && !/\s$/.test(a.before) ? " " : "") + words;
-  return { text: head + (a.after !== "" && !/^\s/.test(a.after) ? " " : "") + a.after, cursor: head.length };
-}
+export { placed };
 
 export interface TalkControl {
   port: TalkPort | null;

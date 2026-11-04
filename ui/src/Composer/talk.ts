@@ -258,3 +258,10 @@ export async function openWebMic(on: (pcm: ArrayBuffer, level: number) => void, 
     },
   };
 }
+
+/** The field with the words in place: at the cursor, spaced from what is around them. */
+export function placed(a: { before: string; after: string }, words: string): { text: string; cursor: number } {
+  if (words === "") return { text: a.before + a.after, cursor: a.before.length };
+  const head = a.before + (a.before !== "" && !/\s$/.test(a.before) ? " " : "") + words;
+  return { text: head + (a.after !== "" && !/^\s/.test(a.after) ? " " : "") + a.after, cursor: head.length };
+}

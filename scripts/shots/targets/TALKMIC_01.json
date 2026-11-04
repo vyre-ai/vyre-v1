@@ -1,8 +1,39 @@
 {
   "targets": [
-    { "id": "TALKMIC_01-idle", "route": "/m/TALKMIC_01?state=idle", "proto": "chats,{skin}", "waitFor": "[data-testid='composer-talk']", "note": "The mic at rest beside the box: one size in every state." },
-    { "id": "TALKMIC_01-listening", "route": "/m/TALKMIC_01?state=listening", "proto": "chats,{skin}", "waitFor": "[data-testid='composer-talk']", "note": "Pressed: the four level bars move and the words land in the box as they are heard, the last part still changing." },
-    { "id": "TALKMIC_01-unset-member", "route": "/m/TALKMIC_01?state=unset-member", "proto": "chats,{skin}", "waitFor": "[data-testid='composer-talk']", "note": "A member in a team Space with no key: the mic is dimmed and a press says Voice isn't set up. Ask an admin to add a key." },
-    { "id": "TALKMIC_01-unset-admin", "route": "/m/TALKMIC_01?state=unset-admin", "proto": "chats,{skin}", "waitFor": "[data-testid='composer-talk']", "note": "An admin in the same state gets the same line and the link Add a key in Console." }
+    {
+      "id": "TALKMIC_01-idle",
+      "route": "/m/TALKMIC_01?state=idle",
+      "proto": "chats,{skin}",
+      "waitFor": "[data-testid='composer-talk']",
+      "note": "The mic at rest beside the box: one size in every state."
+    },
+    {
+      "id": "TALKMIC_01-listening",
+      "route": "/m/TALKMIC_01?state=listening",
+      "proto": "chats,{skin}",
+      "waitFor": "[data-testid='composer-talk']",
+      "note": "Pressed: the four level bars move and the words land in the box as they are heard, the last part still changing."
+    },
+    {
+      "id": "TALKMIC_01-unset-member",
+      "route": "/m/TALKMIC_01?state=unset-member",
+      "proto": "chats,{skin}",
+      "waitFor": "[data-testid='composer-talk']",
+      "note": "A member in a team Space with no key: the mic is dimmed and a press says Voice isn't set up. Ask an admin to add a key."
+    },
+    {
+      "id": "TALKMIC_01-unset-admin",
+      "route": "/m/TALKMIC_01?state=unset-admin",
+      "proto": "chats,{skin}",
+      "waitFor": "[data-testid='composer-talk']",
+      "note": "An admin in the same state gets the same line and the link Add a key in Console."
+    },
+    {
+      "id": "TALKMIC_01-undo",
+      "route": "/m/TALKMIC_01?state=listening",
+      "proto": "chats,{skin}",
+      "waitFor": "[data-testid='composer-field']",
+      "note": "The real chat field: type, press the mic, words land at the caret, press it again, then one Ctrl+Z takes all the spoken words back."
+    }
   ]
 }

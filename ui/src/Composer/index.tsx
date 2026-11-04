@@ -1164,7 +1164,7 @@ export function Composer(props: ComposerProps): ReactElement {
         <ChatField
           value={state.text} cursor={state.cursor} ranges={ranges} placeholder={props.placeholder ?? "Message"} label={props.label ?? "Message"} testID="composer-field" fontSize={compact ? 14 : 15} lineHeight={22} maxHeight={MAX_FIELD}
           onChange={onChange as never} onSelectionChange={(e) => patch({ cursor: e.nativeEvent.selection.start })} onKeyPress={onKeyPress as never} onFocus={onFocus} onBlur={onBlur}
-          controlRef={(c) => { input.current = c as never; }} onFail={() => setChatFailed(true)}
+          controlRef={(c) => { input.current = c as never; }} onFail={() => setChatFailed(true)} talking={talk.phase !== "idle"}
         />
       ) : (
         <>

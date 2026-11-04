@@ -37,7 +37,30 @@ for (const t of targets) for (const skin of ["paper", "graphite"]) for (const [s
   await page.waitForTimeout(500);
   let found = true;
   if (t.waitFor) await page.waitForSelector(t.waitFor, { timeout: 8000 }).catch(() => { found = false; });
-  if (/listening|unset/.test(t.id)) { await page.click("[data-testid='composer-talk']").catch(() => { found = false; }); await page.waitForTimeout(/listening/.test(t.id) ? 1100 : 500); }
+  if (t.id.endsWith("-undo")) {
+    // the real ChatField in a real browser: words at the caret, and one undo step for all of them
+    const field = page.locator("[data-testid='composer-field']");
+    const read = async () => (await field.innerText()).replace(/\u00a0/g, " ").trim();
+    const canUndo = () => page.evaluate(() => { const el = document.querySelector(".vyre-chat"); return el && el.editor ? el.editor.can().undo() : null; });
+    await field.click(); await page.keyboard.type("Hello there"); await page.waitForTimeout(700);
+    const typed = await read(), canBefore = await canUndo();
+    await page.evaluate(() => { window.__tx = []; document.querySelector(".vyre-chat").editor.on("transaction", ({ transaction: t }) => window.__tx.push(`${t.docChanged ? "doc" : "sel"}:${t.getMeta("addToHistory")}:${t.steps.length}`)); });
+    await page.click("[data-testid='composer-talk']"); await page.waitForTimeout(900);
+    const during = await read(), canDuring = await canUndo();
+    await page.click("[data-testid='composer-talk']"); await page.waitForTimeout(3000);   // Talk waits up to two seconds for the last words after a stop
+    const tx = await page.evaluate(() => window.__tx);
+    const after = await read(), canAfter = await canUndo();
+    const shape = () => page.evaluate(() => { const ed = document.querySelector(".vyre-chat").editor; return JSON.stringify(ed.getJSON()).slice(0, 400); });
+    const shapeAfter = await shape();
+    const direct = await page.evaluate(() => { const el = document.querySelector(".vyre-chat"); const ed = el.editor; const b = ed.getText(); ed.commands.undo(); return { sync: ed.getText() === b ? "same" : ed.getText() }; });
+    await page.waitForTimeout(300);
+    const shapeUndo = await shape();
+    const settled = await read();
+    await page.keyboard.press("Control+z"); await page.waitForTimeout(300);
+    const undone = await read();
+    await page.keyboard.press("Control+z"); await page.waitForTimeout(200);
+    console.log(JSON.stringify({ check: "undo", typed, canBefore, during, canDuring, after, canAfter, tx, shapeAfter, shapeUndo, direct, settled, undone, ok: typed === "Hello there" && after.length > typed.length && after.startsWith("Hello there") && undone === typed }));
+  } else if (/listening|unset/.test(t.id)) { await page.click("[data-testid='composer-talk']").catch(() => { found = false; }); await page.waitForTimeout(/listening/.test(t.id) ? 1100 : 500); }
   await page.waitForTimeout(900);
   const file = path.join(out, `${t.id.replace("TALKMIC_01-", "")}-${skin}-${size}.png`);
   await page.screenshot({ path: file });
