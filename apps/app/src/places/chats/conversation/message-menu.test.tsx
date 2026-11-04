@@ -32,3 +32,23 @@ test("the words follow the state and every item calls what it says", () => {
 test("a system line has no Make a Task, Share or Fork", () => {
   assert.equal(shape(msg({ kind: "system" }), false), "Copy,|,Reply in Thread,|,Pin Message,Add Reaction");
 });
+
+test("Edit and Delete are only on your own message; an agent's reply has Regenerate instead of Edit, and Regenerate runs its turn again", async () => {
+  const withRegen = { ...(acts as object), regenerate: (id: string) => calls.push(`regen:${id}`) } as unknown as MessageActions;
+  const agentMsg = msg({ author: { kind: "agent", id: "agt_mira" }, kind: "agent" });
+  const agentLabels = menuFor(agentMsg, false, withRegen, () => undefined).flatMap((e) => ("label" in e ? [e.label] : []));
+  assert.ok(agentLabels.includes("Regenerate") && !agentLabels.includes("Edit") && !agentLabels.includes("Delete"), agentLabels.join("|"));
+  const theirs = menuFor(msg(), false, withRegen, () => undefined).flatMap((e) => ("label" in e ? [e.label] : []));
+  assert.ok(!theirs.includes("Edit") && !theirs.includes("Delete") && !theirs.includes("Regenerate"), "a person's message has none of the three");
+  const mine = menuFor(msg({ author: { kind: "person", id: "me" } }), true, withRegen, () => undefined).flatMap((e) => ("label" in e ? [e.label] : []));
+  assert.ok(mine.includes("Edit") && mine.includes("Delete") && !mine.includes("Regenerate"));
+  calls.length = 0;
+  (menuFor(agentMsg, false, withRegen, () => undefined).find((e) => "label" in e && e.label === "Regenerate") as { onSelect(): void }).onSelect();
+  assert.deepEqual(calls, ["regen:m1"]);
+  assert.ok(!menuFor(agentMsg, false, acts, () => undefined).some((e) => "label" in e && e.label === "Regenerate"), "left out where the chat cannot");
+  const { regenerate } = await import("./actions.ts");
+  const sent: { cap: string; input: unknown }[] = [];
+  await regenerate({ threadId: "thr_1", call: async (cap: string, input: unknown) => { sent.push({ cap, input }); return cap === "engine.turn.of_message" ? { turn: { turnId: "trn_9" } } : {}; } } as never, "m1");
+  assert.deepEqual(sent, [{ cap: "engine.turn.of_message", input: { threadId: "thr_1", messageId: "m1" } }, { cap: "engine.turn.retry", input: { turnId: "trn_9" } }]);
+  await assert.rejects(regenerate({ threadId: "thr_1", call: async () => ({}) } as never, "m1"));
+});

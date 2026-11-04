@@ -12,6 +12,7 @@ import { Row } from "../../../../../../ui/src/Row/index.tsx";
 import { VirtualList } from "../../../../../../ui/src/VirtualList/index.tsx";
 import type { VirtualWindow } from "../../../../../../ui/src/VirtualList/index.tsx";
 import { menuTrigger, useMenu } from "../../../../../../ui/src/Menu/index.tsx";
+import { useContextMenu } from "../../../../../../ui/src/Menu/context.tsx";
 import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
 import { FACES_SHOWN } from "./model.ts";
 import { createSidebarApi } from "./actions.ts";
@@ -104,6 +105,7 @@ function Sidebar({ window, query, slot, open: shown, startFilter }: { window?: V
   const data = useSidebarData();
   const online = useOnline();
   const menu = useMenu();
+  const rowMenu = useContextMenu(menu);
   const width = useWindowDimensions().width;
   const narrow = width > 0 && width < 560;
   const [filter, setFilter] = useState<SideFilter>(startFilter ?? "all");
@@ -485,7 +487,7 @@ function Sidebar({ window, query, slot, open: shown, startFilter }: { window?: V
     const lit = follows && cursor === e.key && !sel;
     const wrap = (child: ReactElement): ReactElement => {
       const m = menuFor(e, 0, 0);
-      return m ? <View style={{ height: ROW_H }} {...menuTrigger((x, y) => { readFacts(); const at = menuFor(e, x, y); if (at) menu.show(at, x, y, "context", { label: e.key }); })}>{child}</View> : child;
+      return m ? <View style={{ height: ROW_H }} {...rowMenu.on((at) => menuFor(e, at.x, at.y), { label: e.key, before: () => readFacts() })}>{child}</View> : child;
     };
     switch (e.type) {
       case "head": {
