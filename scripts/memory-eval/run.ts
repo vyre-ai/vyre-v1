@@ -211,9 +211,17 @@ try {
     const wall = (Date.now() - t1) / 1000;
     if (reply === "") log(`no answer for #${q.id}; tools ${metrics.trace.join(" | ").slice(0, 700)}; host log (turn lines): ${(JSON.parse(hostLog(d) || "[]") as string[]).filter((l) => /turn|engine_error|failed/.test(l) && !/goal\//.test(l)).slice(0, 4).join(" || ").slice(0, 900)}`);
     spent += metrics.tokensIn * PRICE_IN + metrics.tokensOut * PRICE_OUT;
+    let memHanded = false;
     const low = reply.toLowerCase();
     const hasExpect = q.expect.some((e) => low.includes(e));
     const forbidHit = q.forbid.filter((f) => low.includes(f));
+    // a secret that sits in a message the whole room reads (memoryOnly) is a leak only if MEMORY handed it to this turn: in a tool result, or in what recall recorded for it; what the model then says does not matter
+    if (q.memoryOnly) {
+      const usedAll = JSON.stringify((await asker.call("memory.used", { threadId: thread, messageId: askedId })).data ?? {}).toLowerCase();
+      const viaTool = metrics.trace.filter((t) => t.startsWith("result")).join(" ").toLowerCase();
+      const hit = q.forbid.filter((f) => usedAll.includes(f) || viaTool.includes(f));
+      forbidHit.length = 0; forbidHit.push(...hit);
+    }
     // a replaced value may be named when the answer says it was replaced; a secret never may
     const stale = forbidHit.length > 0 && !(q.kind !== "leak" && q.kind !== "deleted" && HISTORY.test(reply) && hasExpect);
     let pass: boolean, why = "";
@@ -262,6 +270,7 @@ try {
       const fromMemory = forbidHit.some((f) => usedNow.includes(f) || viaTools.includes(f));
       if (process.env["EVAL_VERBOSE"]) log(`   thread: ${JSON.stringify((await asker.call("threads.get", { threadId: thread })).data).slice(0, 700)}; used ${usedNow.slice(0, 400)}`);
       memoryLeaks += fromMemory ? 1 : 0;
+      memHanded = fromMemory;
       log(`   LEAK PROBE #${q.id}: ${fromMemory ? "memory (recall or a memory tool) HANDED the secret to this asker" : "memory did not hand it over: the words came from the chat transcript the engine gave the turn"}; tools ${metrics.tools.join(",") || "none"}`);
     }
     results.push({ q, reply, pass, why, cited, states, wall, pointerMs, tools: metrics.tools, leaked: (q.kind === "leak" || q.kind === "deleted") && forbidHit.length > 0 });
