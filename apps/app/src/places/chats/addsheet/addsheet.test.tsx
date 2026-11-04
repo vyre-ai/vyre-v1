@@ -3,6 +3,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createRoot } from "test-renderer";
+import { act } from "react";
 import { Dimensions } from "react-native";
 import { installDom, mount, press, find, flush, typeInto, textOf } from "../../../onboarding/test-dom.ts";
 import type { Node } from "../../../onboarding/test-dom.ts";
@@ -64,23 +65,31 @@ test("the header + opens the same sheet (the old Add as listening menu is gone)"
   });
 });
 
-test("the people menu lists who is here and starts with Add people and agents, which opens the same sheet", async () => {
+/** A right-click on a people-popover row, the way a person opens its menu. */
+async function rightClick(root: Node, id: string): Promise<void> {
+  const open = find(root, id)?.props["onContextMenu"] as ((e: unknown) => void) | undefined;
+  assert.equal(typeof open, "function", id);
+  await act(async () => { open?.({ preventDefault() {}, nativeEvent: { pageX: 20, pageY: 20 }, pageX: 20, pageY: 20, clientX: 20, clientY: 20 }); });
+  await flush();
+}
+
+test("the people popover is People and agents: one row per member with the role on the right, and the footer Add people and agents opens the same sheet", async () => {
   await withDom(async () => {
     const s = createSample("idle");
     const root = await mount(createRoot, <Conversation data={s.data} />);
     await press(find(root, "participants-button"));
-    const pop = find(root, "people-pop");
+    const pop = find(root, "people-popover");
     assert.ok(pop);
-    assert.match(textOf(pop), /^\s*Add people and agents/);
-    // your own row reads "You" with your role under it, not "You / You"
+    assert.match(textOf(pop), /^\s*People and agents/);
+    assert.match(textOf(pop), /Add people and agents\s*$/, "the footer");
     assert.match(textOf(find(root, "people-row-usr_irfad")), /^\s*You\s+Member\s*$/);
-    // a person row has nothing new; an agent row has Poke and a gear
-    assert.equal(find(root, "people-poke-usr_irfad"), null);
-    assert.equal(find(root, "people-gear-usr_irfad"), null);
-    assert.ok(find(root, "people-poke-agt_intake") && find(root, "people-gear-agt_intake") && find(root, "people-poke-agt_docs"));
-    await press(find(root, "people-add"));
+    assert.ok(find(root, "people-row-agt_intake") && find(root, "people-row-agt_docs"));
+    // an agent's Poke and settings are in its right-click menu; a person's are not
+    await rightClick(root, "people-row-usr_irfad");
+    assert.equal(find(root, "menu-item-Poke"), null);
+    await press(find(root, "people-footer"));
     await flush();
-    assert.equal(find(root, "people-pop"), null);
+    assert.equal(find(root, "people-popover"), null);
     assert.ok(find(root, SHEET));
   });
 });
@@ -111,22 +120,25 @@ test("the right pane's Threads and Crew tabs each have the Add people and agents
   });
 });
 
-test("a project's members count and its Teammates tab open the same sheet; the old inline form is gone", async () => {
+test("a project's members count opens the people popover (Manage on the Overview); its Teammates tab opens the Add sheet; the old inline form is gone", async () => {
   await withDom(async () => {
     const s = createSampleProject();
     const root = await mount(createRoot, <ProjectPageDataProvider value={s.data}><ProjectPage projectId="pj_0" /></ProjectPageDataProvider>);
     await flush();
     await press(find(root, "project-members"));
     await flush();
-    assert.ok(find(root, SHEET));
-    assert.match(textOf(find(root, SHEET)), /to Rivera engagement/);
-    await press(find(root, "as-cancel"));
+    assert.ok(find(root, "people-popover"));
+    assert.equal(textOf(find(root, "people-footer")).trim(), "Manage on the Overview");
+    await press(find(root, "people-footer"));
+    await flush();
+    assert.equal(find(root, "people-popover"), null, "the footer closes it and shows the Overview");
     await press(find(root, "tab-teammates"));
     await flush();
     assert.equal(find(root, "teammate-name"), null, "no inline form");
     await press(find(root, "teammate-add"));
     await flush();
     assert.ok(find(root, SHEET));
+    assert.match(textOf(find(root, SHEET)), /to Rivera engagement/);
   });
 });
 
@@ -339,7 +351,8 @@ test("Poke calls threads.poke, the reply says Poked by, and the quiet line says 
     const s = createSample("idle");
     const root = await mount(createRoot, <Conversation data={s.data} />);
     await press(find(root, "participants-button"));
-    await press(find(root, "people-poke-agt_docs"));
+    await rightClick(root, "people-row-agt_docs");
+    await press(find(root, "menu-item-Poke"));
     await flush();
     assert.deepEqual(s.calls.filter((c) => c.cap === "threads.poke").map((c) => c.input), [{ threadId: "c1", agentId: "agt_docs" }]);
     assert.ok(s.toasts.includes("Poked Docs"));
@@ -354,7 +367,8 @@ test("the gear opens How, When and Style; Listening is mode quiet; making anothe
     const s = createSample("idle");
     const root = await mount(createRoot, <Conversation data={s.data} />);
     await press(find(root, "participants-button"));
-    await press(find(root, "people-gear-agt_docs"));
+    await rightClick(root, "people-row-agt_docs");
+    await press(find(root, "menu-item-How and when it responds"));
     assert.ok(find(root, "as-pop"));
     for (const id of ["as-how-lead", "as-how-tag", "as-how-listen", "as-when-always", "as-when-topics", "as-when-hours", "as-style-short", "as-style-full"]) assert.ok(find(root, id), id);
     await press(find(root, "as-how-listen"));
@@ -424,7 +438,8 @@ test("a project: people and agents become members, a new agent is agents.create 
     const s = createSampleProject();
     const root = await mount(createRoot, <ProjectPageDataProvider value={s.data}><ProjectPage projectId="pj_0" /></ProjectPageDataProvider>);
     await flush();
-    await press(find(root, "project-members"));
+    await press(find(root, "tab-teammates"));
+    await press(find(root, "teammate-add"));
     await flush();
     await press(find(root, "as-row-person:usr_sara"));
     await press(find(root, "as-row-agent:agt_billing"));
@@ -463,7 +478,8 @@ test("an outside agent in the chat never offers Answers everything in its settin
     const root = await mount(createRoot, <Conversation data={s.data} />);
     await press(find(root, "participants-button"));
     await flush();
-    await press(find(root, "people-gear-out_cc"));
+    await rightClick(root, "people-row-out_cc");
+    await press(find(root, "menu-item-How and when it responds"));
     assert.ok(find(root, "as-pop"));
     assert.equal(find(root, "as-how-lead"), null);
     assert.ok(find(root, "as-how-tag") && find(root, "as-how-listen"));
@@ -471,7 +487,20 @@ test("an outside agent in the chat never offers Answers everything in its settin
     await press(find(root, "as-pop-x"));
     await press(find(root, "participants-button"));
     await flush();
-    await press(find(root, "people-gear-agt_docs"));
+    await rightClick(root, "people-row-agt_docs");
+    await press(find(root, "menu-item-How and when it responds"));
     assert.ok(find(root, "as-how-lead"));
+  });
+});
+
+test("a project's people popover lists the members with their project roles on the right", async () => {
+  await withDom(async () => {
+    const s = createSampleProject();
+    const root = await mount(createRoot, <ProjectPageDataProvider value={s.data}><ProjectPage projectId="pj_0" /></ProjectPageDataProvider>);
+    await flush();
+    await press(find(root, "project-members"));
+    await flush();
+    assert.match(textOf(find(root, "people-popover")), /People and agents/);
+    assert.ok(/Lead|Member|Reviewer|Guest/.test(textOf(find(root, "people-popover"))), "the project roles are on the right");
   });
 });

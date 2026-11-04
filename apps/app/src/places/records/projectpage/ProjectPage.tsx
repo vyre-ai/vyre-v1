@@ -17,6 +17,10 @@ import type { Overview, PlanOut, TabKey } from "./model.ts";
 import { ImportedHistory } from "./ImportedHistory.tsx";
 import { TeammatesTab } from "./TeammatesTab.tsx";
 import { useAddSheet } from "../../chats/addsheet/index.ts";
+import { PeoplePopover } from "../../../../../../ui/src/PeoplePopover/index.tsx";
+import type { MemberAction, MemberRow } from "../../../../../../ui/src/PeoplePopover/index.tsx";
+import { useMenu } from "../../../../../../ui/src/Menu/index.tsx";
+import { itemLink } from "../../../share/rows.ts";
 
 export interface ProjectPageProps {
   projectId: string;
@@ -48,6 +52,9 @@ export function ProjectPage({ projectId, tab: first = "overview", planView = "ti
   // the one Add people and agents sheet for this project: the members count and the Teammates tab both open it
   const [added, setAdded] = useState(0);
   const add = useAddSheet({ call: d.call, me: d.me ?? { id: "me", name: "You" }, nameOf: d.nameOf, newKey: () => globalThis.crypto.randomUUID(), toast: (text) => setNote(text) }, { onDone: () => { setAdded((n) => n + 1); void read(); } });
+  // the people popover of the head (the same component the chats use)
+  const [people, setPeople] = useState<{ x: number; y: number } | null>(null);
+  const menu = useMenu();
   useEffect(() => {
     if (!note) return undefined;
     const t = setTimeout(() => setNote(null), 4500);
@@ -93,7 +100,7 @@ export function ProjectPage({ projectId, tab: first = "overview", planView = "ti
       <View style={s.strip} testID="project-strip" accessibilityLabel="Project at a glance">
         <Text style={s.stripText}>{plural(p.openTasks, "open task")}</Text>
         <Text style={[s.stripText, p.lateTasks > 0 && s.late]} testID="project-late">{p.lateTasks > 0 ? `${p.lateTasks} late` : "None late"}</Text>
-        <Pressable accessibilityRole="button" accessibilityLabel="Add people and agents" testID="project-members" onPress={() => add.open({ projectId })}><Text style={s.stripText}>{plural(p.memberCount, "person", "people")}</Text></Pressable>
+        <Pressable accessibilityRole="button" accessibilityLabel="People and agents" aria-haspopup="dialog" testID="project-members" onPress={(e: { nativeEvent?: { pageX?: number; pageY?: number } }) => setPeople({ x: e.nativeEvent?.pageX ?? 0, y: e.nativeEvent?.pageY ?? 0 })}><Text style={s.stripText}>{plural(p.memberCount, "person", "people")}</Text></Pressable>
       </View>
       {d.nav.openGoal ? <GoalsOf scope="project" id={projectId} call={d.call} changes={d.changes} now={d.now()} offsetMin={0} nameOf={d.nameOf} openGoal={d.nav.openGoal} testID="project-goals" /> : null}
       <TabStrip tabs={TAB_SPECS} active={tab} onSelect={(k) => { setTab(k as TabKey); onTabChange?.(k as TabKey); }} />
@@ -108,6 +115,8 @@ export function ProjectPage({ projectId, tab: first = "overview", planView = "ti
       {tab === "teammates" ? <TeammatesTab projectId={projectId} refresh={added} onAdd={() => add.open({ projectId })} /> : null}
       {note ? <Text style={s.note} accessibilityLiveRegion="polite" testID="project-note">{note}</Text> : null}
       {add.element}
+      {people ? <ProjectPeople o={o} projectId={projectId} at={people} onClose={() => setPeople(null)} toOverview={() => { setPeople(null); setTab("overview"); onTabChange?.("overview"); }} menu={menu} reload={() => { void read(); }} say={say} /> : null}
+      {menu.element}
     </View>
   );
 }
@@ -118,6 +127,29 @@ function Section({ title, count, children, id }: { title: string; count?: number
       <View style={s.sh}><Text accessibilityRole="header" style={s.h2}>{title}</Text>{count !== undefined ? <Text style={s.count}>{count}</Text> : null}</View>
       {children}
     </View>
+  );
+}
+
+/** The head's people popover for a project: one row per member with the project role, Manage on the Overview in the footer. Lead (or whoever manages) may change a role or remove. */
+function ProjectPeople({ o, projectId, at, onClose, toOverview, menu, reload, say }: { o: Overview; projectId: string; at: { x: number; y: number }; onClose(): void; toOverview(): void; menu: ReturnType<typeof useMenu>; reload(): void; say(e: unknown): void }): ReactElement {
+  const d = useProjectPageData();
+  const rows: MemberRow[] = o.people.map((m) => ({ id: m.principal, name: d.nameOf(m.principal), kind: m.kind === "agent" ? "agent" : "person", role: ROLE_WORDS[m.role] }));
+  const meRole = d.me ? o.people.find((m) => m.principal === d.me?.id)?.role : undefined;
+  const manages = meRole === "lead";
+  const run = (p: Promise<unknown>): void => { p.then(reload, say); };
+  const act = (action: MemberAction, r: MemberRow): void => {
+    if (action === "link") { const clip = (globalThis as { navigator?: { clipboard?: { writeText(t: string): Promise<void> } } }).navigator?.clipboard; void clip?.writeText(itemLink(r.kind === "person" ? "person" : "agent", r.id)); return; }
+    if (action === "remove") { run(Promise.resolve(d.call("projects.members.remove", { projectId, principal: r.id }))); return; }
+    if (action === "role") {
+      menu.show((["lead", "member", "reviewer", "guest"] as const).map((role) => ({ label: ROLE_WORDS[role], checked: ROLE_WORDS[role] === r.role, onSelect: () => run(Promise.resolve(d.call("projects.members.set", { projectId, principal: r.id, role, idempotencyKey: globalThis.crypto.randomUUID() }))) })), at.x, at.y, "context", { label: `Role for ${r.name}` });
+    }
+  };
+  return (
+    <PeoplePopover
+      where="project" rows={rows} {...(d.me ? { meId: d.me.id } : {})} perms={{ message: false, changeRole: manages, remove: manages }} anchor={at}
+      onOpen={(r) => { onClose(); if (r.kind === "person") d.nav.openPerson?.(r.id); else d.nav.openAgent?.(r.id); }}
+      onAction={act} onFooter={toOverview} onClose={onClose}
+    />
   );
 }
 
