@@ -11,11 +11,18 @@ import type { ShellRuntime } from "../../../shell/providers/runtime.tsx";
 import { FolderShareSheet } from "../../../shell/providers/files-share.tsx";
 import { nameLookup } from "../../../shell/providers/records-live.ts";
 import { artifactAddress, plainLink } from "./artifact-address.ts";
+import { available, DesktopArtifactFrame } from "./desktop-frame.tsx";
 
 type Site = CapMap["sites.get"]["out"]["site"];
 let seq = 0;
 /** How long a page may take to say it loaded before the tab says it could not. */
 export const LOAD_LIMIT_MS = 20_000;
+
+/** Which frame draws the page: the desktop app opens it as a native page over a placeholder (an iframe of the artifact host never keeps its cookie there); a browser keeps the iframe. */
+export const frameFor = (src: string | null, desktop: boolean): "none" | "desktop" | "iframe" => (src === null ? "none" : desktop ? "desktop" : "iframe");
+
+/** A native page draws above everything, so it steps aside while a menu, the Share sheet or the delete question is open. */
+export const coveredBy = (o: { sharing: boolean; menu: boolean; sure: boolean }): boolean => o.sharing || o.menu || o.sure;
 
 /** The server said this person may not open it (as against it being slow or broken). */
 export const refused = (e: unknown): boolean => {
@@ -46,14 +53,15 @@ export function ArtifactView({ rt, artifactId, share, back, gone }: { rt: ShellR
   const [asked, setAsked] = useState(false);
   const { element, show } = useMenu();
   const nameOf = useMemo(() => nameLookup(rt), [rt]);
+  const desktop = available();
   const open = useCallback((embed: boolean): Promise<string> => Promise.resolve(rt.call("sites.artifact_open", { artifactId, idempotencyKey: `open-${artifactId}-${rt.clock().now}-${++seq}` })).then((o) => artifactAddress(o as { path: string; url?: string }, rt.baseUrl, embed)), [rt, artifactId]);
   useEffect(() => {
     let live = true;
     setLoaded(false); setFailed(null); setSrc(null); setDenied(false);
     void Promise.resolve(rt.call("sites.get", { siteId: artifactId })).then((o) => { if (live) setSite((o as CapMap["sites.get"]["out"]).site); }, () => undefined);
-    void open(true).then((u) => { if (live) setSrc(u); }, (e: unknown) => { if (live) { if (refused(e)) setDenied(true); else setFailed(msg(e)); } });
+    void open(!desktop).then((u) => { if (live) { setSrc(u); if (desktop) setLoaded(true); } }, (e: unknown) => { if (live) { if (refused(e)) setDenied(true); else setFailed(msg(e)); } });
     return () => { live = false; };
-  }, [rt, artifactId, open, attempt]);
+  }, [rt, artifactId, open, attempt, desktop]);
   // a page that never says it loaded is an error too, not a spinner for ever
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
@@ -111,7 +119,8 @@ export function ArtifactView({ rt, artifactId, share, back, gone }: { rt: ShellR
           </View>
         ) : (
           <>
-            {src !== null ? createElement("iframe", { src, title: name, sandbox: "allow-scripts allow-forms allow-popups allow-downloads", referrerPolicy: "no-referrer", onLoad: () => setLoaded(true), onError: () => setFailed("This page couldn’t load here."), style: { position: "absolute", left: 0, top: 0, width: "100%", height: "100%", border: 0, background: "#fff" }, "data-testid": "artifact-frame" }) : null}
+            {frameFor(src, desktop) === "desktop" ? <DesktopArtifactFrame url={src as string} title={name} covered={coveredBy({ sharing, menu: element !== null, sure })} onError={(m) => setFailed(m)} /> : null}
+            {frameFor(src, desktop) === "iframe" ? createElement("iframe", { src: src as string, title: name, sandbox: "allow-scripts allow-forms allow-popups allow-downloads", referrerPolicy: "no-referrer", onLoad: () => setLoaded(true), onError: () => setFailed("This page couldn\u2019t load here."), style: { position: "absolute", left: 0, top: 0, width: "100%", height: "100%", border: 0, background: "#fff" }, "data-testid": "artifact-frame" }) : null}
             {!loaded && !denied ? <View testID="artifact-loading" accessibilityRole="progressbar" accessibilityLabel={`Loading ${name}`} style={s.loading}><Text style={s.stateLine}>{`Loading ${name}`}</Text></View> : null}
           </>
         )}
