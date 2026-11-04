@@ -41,8 +41,8 @@ const page = (t: ReturnType<typeof setup>, tab?: ProjectTabKey): JSX.Element => 
   <ProjectPageDataProvider value={t.data}><ProjectPage projectId="pj_0" space={SPACE} {...(tab ? { tab } : {})} onTabChange={(k) => t.tabs.push(k)} /></ProjectPageDataProvider>
 );
 
-test("the tabs are Chat, Plan, Overview, Linked and Knows, in that order, and the first is Chat", () => {
-  assert.deepEqual(PROJECT_TABS.map((t) => t.title), ["Chat", "Plan", "Overview", "Linked", "Knows"]);
+test("the tabs are Chat, Plan, Overview and Linked, in that order, and the first is Chat", () => {
+  assert.deepEqual(PROJECT_TABS.map((t) => t.title), ["Chat", "Plan", "Overview", "Linked"]);
   assert.equal(DEFAULT_PROJECT_TAB, "chat");
   assert.ok(!isProjectTab("knows") && isProjectTab("linked") && !isProjectTab("teammates") && !isProjectTab(undefined));
 });
