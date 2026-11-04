@@ -48,6 +48,7 @@ const NOTE_S = { color: "var(--ink-3)", fontSize: 11.5, lineHeight: "16px", over
 const NOTE2_S = { color: "var(--ink-3)", fontSize: 11.5, lineHeight: "16px", whiteSpace: "pre-line", overflow: "hidden", display: "-webkit-box", WebkitBoxOrient: "vertical", WebkitLineClamp: 2 } as const;
 
 const TITLE_WRAP_S = { color: "var(--ink)", fontSize: 13, lineHeight: "18px", overflow: "hidden", display: "-webkit-box", WebkitBoxOrient: "vertical", WebkitLineClamp: 2, overflowWrap: "anywhere" } as const;
+const TITLE_IN_LINE_WRAP_S = { ...TITLE_WRAP_S, flex: "0 1 auto", minWidth: 0 } as const;
 /** On a phone a title may run to two lines instead of one clipped one (the Console turns it on below 900 wide). The row grows with it, as it does for a taller trailing slot. */
 export const RowWrapContext = createContext(false);
 
@@ -77,7 +78,7 @@ function WebRow({ id, title, titleSuffix, titleMarks, noteLead, noteLeadTone = "
     h(
       "div", { style: TEXT_S },
       titleSuffix || titleMarks
-        ? h("div", { style: TLINE_S }, h("span", { style: emphasis ? { ...TITLE_IN_LINE_S, ...BOLD } : TITLE_IN_LINE_S }, title), titleSuffix ? h("span", { style: SUFFIX_S, "data-testid": tid("-suffix") }, titleSuffix) : null, titleMarks ? h("div", { style: MARKS_S, "data-testid": tid("-marks") }, titleMarks) : null)
+        ? h("div", { style: TLINE_S }, h("span", { style: emphasis ? { ...(wrapTitle ? TITLE_IN_LINE_WRAP_S : TITLE_IN_LINE_S), ...BOLD } : wrapTitle ? TITLE_IN_LINE_WRAP_S : TITLE_IN_LINE_S }, title), titleSuffix ? h("span", { style: SUFFIX_S, "data-testid": tid("-suffix") }, titleSuffix) : null, titleMarks ? h("div", { style: MARKS_S, "data-testid": tid("-marks") }, titleMarks) : null)
         : titleEl,
       note ? h("div", { style: { ...(tall || wrapTitle ? NOTE2_S : NOTE_S), ...(filled ? { color: "var(--accent-ink)", opacity: 0.8 } : null) } }, noteLead ? h("span", { "data-testid": tid("-notelead"), style: noteLeadTone === "warning" ? NOTE_LEAD_WARN : NOTE_LEAD }, noteLead) : null, noteLead ? " \u00b7 " : null, note) : null,
     ),
