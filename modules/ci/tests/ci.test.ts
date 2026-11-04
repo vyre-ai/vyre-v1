@@ -357,3 +357,11 @@ test("the host's own capabilities have handlers and refuse everyone else", async
     await assert.rejects(Promise.resolve((handlers[cap] as (c: unknown, i: unknown) => unknown)({ ...w.ctxFor(admin), origin: "user", depth: 0 }, {})), (e: any) => e.error.code === "permission.no_grant");   // eslint-disable-line @typescript-eslint/no-explicit-any
   }
 });
+
+test("only the host service counts as an admin by kind: a service a tenant can make (an automation, a site) does not", async () => {
+  const w = world();
+  for (const id of ["svc_0123456789abcdef0123456789abcdef", "svc_site_ab12", "svc_form_cd34"]) {
+    await assert.rejects(w.call("ci.settings.get", {}, { id, kind: "service" }), (e: any) => e.error.code === "permission.no_grant");   // eslint-disable-line @typescript-eslint/no-explicit-any
+  }
+  assert.ok((await w.call("ci.settings.get", {}, { id: "svc_host", kind: "service" })).settings);
+});
