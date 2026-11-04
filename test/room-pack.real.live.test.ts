@@ -23,8 +23,7 @@ test("real model: time to first visible text in a seeded 300-message room, with 
       return real(input, init);
     }) as typeof fetch;
   }
-  process.env["VYRE_TEST_VAULT_SECRET"] = KEY;   // the harness Vault fills this key into the request; the real Vault read of a member on a server turn is a separate finding
-  const d = await boot(seededDir(), null);
+  const d = await boot(seededDir(), null, { realVault: true });   // the real Vault: her key comes out of her own Vault, as in a Team Space
   try {
     // the person who owns the key is a member who joined the way a person does: the Space reads her Vault only while her key is held (the https door), so a turn on her account needs her signed in
     const maya = await join(d, "maya");
@@ -51,6 +50,8 @@ test("real model: time to first visible text in a seeded 300-message room, with 
     const threadId = made.data.channel.mainThreadId as string;
     await waitFor(async () => { await d.hooks?.pump?.(); return (await api(d, maya.token, "chat.messages.list", { threadId })).status === 200 ? true : null; }, 20_000);
     await as(maya.token, "threads.set_mode", { threadId, mode: "auto" });
+    // agents of a channel reply in a thread under the asking message by default; this test reads the channel itself
+    await as(maya.token, "threads.set_agent_replies", { threadId, inThreads: false });
     const pick = await as(maya.token, "engine.set_model", { threadId, agentId: agent, model, provider: "opencode_go" });
     console.log(`set_model ${pick.status} ${JSON.stringify(pick.data).slice(0, 200)}`);
     const script = [
@@ -146,6 +147,7 @@ test("real model: time to first visible text in a seeded 300-message room, with 
     const pt = priv.data.channel.mainThreadId as string;
     await waitFor(async () => { await d.hooks?.pump?.(); return (await api(d, maya.token, "chat.messages.list", { threadId: pt })).status === 200 ? true : null; }, 20_000);
     await api(d, maya.token, "threads.set_mode", { threadId: pt, mode: "auto", idempotencyKey: "rr-auto2" });
+    await api(d, maya.token, "threads.set_agent_replies", { threadId: pt, inThreads: false, idempotencyKey: "rr-rep2" });
     await api(d, maya.token, "engine.set_model", { threadId: pt, agentId: agent, model, provider: "opencode_go", idempotencyKey: "rr-pick2" });
     await ask(pt, maya.token, "@Intake private note for me only: my budget ceiling for the Acme deal is 80000 dollars, remember it.", "rr-w3a");
     const add = await api(d, maya.token, "channels.members.add", { channelId: priv.data.channel.channelId, personIds: [omar.personId], idempotencyKey: "rr-add2" });
