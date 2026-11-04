@@ -5,6 +5,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { bootFreshSpace, claimOnEdge, edge, dismissOnboarding } from "./real-app-harness.test.ts";
+import { guardCrashes } from "./crash-guard.ts";
 
 const PASSWORD = "fixture password 123";
 
@@ -22,6 +23,7 @@ test("Projects shell: sidebar group, project tab, header, tabs and status, as an
     const owner = await browser.newContext({ viewport: { width: 1280, height: 800 } });
     const page = await owner.newPage();
     page.on("pageerror", (e) => errs.push(e.message));
+    const guards = new Map<unknown, ReturnType<typeof guardCrashes>>();
     await page.goto(claimOnEdge(space.claim!, web.origin), { waitUntil: "load" });
     await page.getByTestId("claim-name").fill("Olivia Owner"); await page.getByTestId("claim-username").fill("olivia");
     await page.getByTestId("claim-password").fill(PASSWORD); await page.getByTestId("claim-confirm").fill(PASSWORD);
@@ -58,11 +60,27 @@ test("Projects shell: sidebar group, project tab, header, tabs and status, as an
     await call("projects.members.set", { projectId: pid, principal: mayaId, role: "member", idempotencyKey: "pj-maya" });
 
     const walk = async (who: "admin" | "member", p: typeof page, size: "wide" | "phone"): Promise<void> => {
+      if (!guards.has(p)) guards.set(p, guardCrashes(p));
+      const guard = guards.get(p)!;
+      const ok = (where: string): Promise<void> => guard.check(`${who} ${size} ${where}`);
       await p.goto(`${web.origin}/chat`, { waitUntil: "load" });
       if (size === "phone") { await p.getByTestId("mobile-shell").waitFor({ timeout: 30_000 }); } else { await p.getByTestId("shell").waitFor({ timeout: 30_000 }); }
+      // a plain chat finishing loading in the Chats tab (React 310 on a chat that loaded after an early return)
+      if (who === "admin" && size === "wide") {
+        const agents = (await call("agents.list", { limit: 20 })).agents as Array<{ agentId: string }>;
+        const chat = (await call("chat.start", { kind: "chat", agentIds: [agents[0]!.agentId], idempotencyKey: "plain-chat" })).thread.threadId as string;
+        await p.goto(`${web.origin}/chat#subject=thread:${chat}`, { waitUntil: "load" });
+        await p.getByTestId("conversation").waitFor({ timeout: 30_000 });
+        await p.waitForTimeout(800);
+        assert.equal(await p.getByText("Couldn't draw this page").count(), 0, "a plain chat draws");
+        await ok("a plain chat");
+        await p.screenshot({ path: path.join(shots, `projects-0-plain-chat-${who}-${size}-paper.png`) });
+        await p.goto(`${web.origin}/chat`, { waitUntil: "load" });
+      }
       // the group in the sidebar, after Goals, and a row
       if (size === "wide") {
         await p.getByTestId("head-projects").waitFor({ timeout: 20_000 });
+        await ok("the sidebar");
         await p.screenshot({ path: path.join(shots, `projects-1-sidebar-${who}-${size}-paper.png`) });
         await p.getByTestId(`row-pj:${pid}`).click();
       } else {
@@ -74,14 +92,18 @@ test("Projects shell: sidebar group, project tab, header, tabs and status, as an
         throw new Error(`no project page at ${p.url()}: ${JSON.stringify(ids)} errors=${JSON.stringify(errs.slice(0, 3))} / ${e.message.slice(0, 60)}`);
       });
       assert.equal(await p.getByTestId("project-title").innerText(), "Rivera account");
-      await p.waitForTimeout(500);
+      await p.getByTestId("conversation").or(p.getByTestId("conversation-loading")).first().waitFor({ timeout: 20_000 }).catch(() => undefined);
+      await p.waitForTimeout(800);
+      assert.equal(await p.getByText("Couldn't draw this page").count(), 0, "the project page draws with its chat loaded");
+      await ok("the project page");
       await p.screenshot({ path: path.join(shots, `projects-2-project-${who}-${size}-paper.png`) });
       // the regression: pressing Plan opens the Plan
       await p.getByTestId("tab-plan").click();
       await p.getByTestId("project-plan").waitFor({ timeout: 15_000 });
       await p.waitForTimeout(500);
+      await ok("Plan");
       await p.screenshot({ path: path.join(shots, `projects-3-plan-${who}-${size}-paper.png`) });
-      for (const k of ["overview", "linked", "knows", "chat"]) { await p.getByTestId(`tab-${k}`).click(); await p.waitForTimeout(250); }
+      for (const k of ["overview", "linked", "knows", "chat"]) { await p.getByTestId(`tab-${k}`).click(); await p.waitForTimeout(500); await ok(`the ${k} tab`); }
       await p.getByTestId("project-chat").waitFor({ timeout: 10_000 });
       if (who === "admin" && size === "wide") {
         await p.getByTestId("project-health").click();
@@ -89,6 +111,7 @@ test("Projects shell: sidebar group, project tab, header, tabs and status, as an
         await p.getByText("At risk").first().waitFor({ timeout: 10_000 });
         await p.getByTestId("tab-knows").click();
         await p.getByTestId("project-knows").waitFor({ timeout: 10_000 });
+        await ok("Knows and the status");
         await p.screenshot({ path: path.join(shots, `projects-4-knows-${who}-${size}-paper.png`) });
       }
     };

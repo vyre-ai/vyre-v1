@@ -112,7 +112,7 @@ export function ApprovalCard({ taskId, agent, agentId, data, face, editor }: { t
           invitees: ow.to.map((r) => ({ name: r.name ?? r.address ?? "A guest", seed: r.address ?? r.id ?? agentId })),
           inviteNote: ow.to.length === 0 ? "No guests" : ev.notify ? "They get an email invite" : "They are not emailed",
         } : {})}
-        {...(always ? { alwaysLabel: `Always let ${agent} ${verbOfChannel(ow, nameOf)}`, onAlways: always } : {})}
+        {...(always ? { alwaysLabel: `Always allow ${agent} to ${verbOfChannel(ow, nameOf)}`, onAlways: always } : {})}
         edited={Boolean(ow.edited)} state={ended === "allowed" ? "sent" : ended === "denied" ? "dropped" : "waiting"}
         doneLine={ended === "allowed" ? (ev ? `${ev.notify ? "Invites sent" : "Added to the calendar"} · ${hhmm}` : `Sent${first ? ` to ${first}` : ""} · ${hhmm}`) : "Not sent"} editable={Boolean(held.holdId) && !ended} editSubject={Boolean(ev)}
         {...(editor ? { editor } : {})} onSend={() => answer("approve")} onDrop={(reason) => answer("reject", denyNote(reason))}

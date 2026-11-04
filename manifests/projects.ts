@@ -95,7 +95,7 @@ export default defineManifest({
       field('title', 'text', 'Title', { required: true }),
       field('summary', 'text', 'Summary'),
       field('why', 'longtext', 'Why'),
-      field('kind', 'choice', 'Kind', { default: 'work', options: { choices: [{ key: 'work', title: 'Work' }, { key: 'approve', title: 'Approve' }, { key: 'review', title: 'Review' }, { key: 'answer', title: 'Answer' }, { key: 'unblock', title: 'Unblock' }, { key: 'signature', title: 'Signature' }] } }),
+      field('kind', 'choice', 'Kind', { default: 'work', options: { choices: [{ key: 'work', title: 'Work' }, { key: 'approve', title: 'Approval' }, { key: 'review', title: 'Review' }, { key: 'answer', title: 'Answer' }, { key: 'unblock', title: 'Unblock' }, { key: 'signature', title: 'Signature' }] } }),
       field('status', 'status', 'Status', { default: 'todo', writeOnlyBy: ['tasks.transition'], options: { stages: [{ key: 'todo', title: 'To do' }, { key: 'doing', title: 'Doing' }, { key: 'in_review', title: 'In review' }, { key: 'awaiting_approval', title: 'Awaiting approval' }, { key: 'done', title: 'Done' }, { key: 'canceled', title: 'Canceled' }] } }),
       field('project', 'relation', 'Project', { options: { target: 'project', inverse: 'tasks' } }),
       field('stage', 'text', 'Stage'),
