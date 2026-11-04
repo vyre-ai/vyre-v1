@@ -12,6 +12,9 @@ export interface ChannelDo {
   copyLink(): void;
   leave(): void;
   archive(): void;
+  /** Left out when the sidebar cannot: the Add sheet on the channel, how loudly it tells you. */
+  invite?: (() => void) | undefined;
+  notifications?: (() => void) | undefined;
 }
 export function channelMenu(f: ChannelFacts, d: ChannelDo): MenuEntry[] {
   return tidy([
@@ -20,7 +23,9 @@ export function channelMenu(f: ChannelFacts, d: ChannelDo): MenuEntry[] {
     f.unread ? item("Mark as Read", d.markRead, { hint: KEY.unread }) : item("Mark as Unread", d.markUnread, { hint: KEY.unread }),
     f.starred ? item("Remove Star", () => d.star(false), { hint: KEY.star }) : item("Star", () => d.star(true), { hint: KEY.star }),
     f.muted ? item("Unmute", () => d.mute(false)) : item("Mute", () => d.mute(true)),
+    d.notifications ? item("Notifications\u2026", d.notifications) : null,
     sep,
+    f.member && d.invite ? item("Invite\u2026", d.invite) : null,
     item("Copy Link", d.copyLink),
     f.member || f.admin ? sep : null,
     f.admin ? item("Archive Channel", d.archive, { hint: KEY.archive }) : null,

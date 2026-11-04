@@ -25,6 +25,7 @@ import { useLive } from "../mounts/live.ts";
 import { QuickField } from "./QuickField.tsx";
 import { Avatar } from "../../../../../../ui/src/Avatar/index.tsx";
 import type { ActEnv } from "./actions.ts";
+import { taskRowEntries } from "./row-menu.ts";
 import { bulkAssign, bulkDelete, bulkDue, bulkLabel, bulkMove, bulkPriority, bulkStatus, dueEntries, failure, keepQuiet, letGo, priorityEntries, setStatus, snoozeQuiet } from "./actions.ts";
 import { Board } from "./Board.tsx";
 import { buildEntries, DAY, filterRows, GROUPS, heightOf, holderOf, isFiltered, NO_FILTER, SORTS } from "./model.ts";
@@ -155,20 +156,21 @@ export function TasksPage({ rt, openTask, openAgent, openChat, window }: TasksPa
 
   const rowMenu = useCallback((row: TaskRow, at: { x: number; y: number }): void => {
     const ids = selected.has(row.id) ? [...selected] : [row.id];
-    const items: MenuEntry[] = [
-      { label: "Open", onSelect: () => openTask(row.id) },
-      { label: selected.has(row.id) ? "Deselect" : "Select", onSelect: () => pick(row.id, false) },
-      { separator: true },
-      { label: "Status…", onSelect: () => statusMenu(row, at) },
-      { label: "Assign…", onSelect: () => assignMenu(ids, at) },
-      { label: "Due…", onSelect: () => dueMenu(ids, at) },
-      { label: "Priority…", onSelect: () => menu.show(priorityEntries(row.priority, (k, w) => void bulkPriority(act, ids, k, w)), at.x, at.y, "other", { label: "Priority" }) },
-      { label: "Labels…", onSelect: () => labelMenu(ids, at) },
-      { label: "Move to a project…", onSelect: () => moveMenu(ids, at) },
-      { separator: true },
-      { label: "Duplicate", onSelect: () => void rt.call("tasks.create", { title: `${row.title} (copy)`, assigned: row.assigned, labels: row.labels, ...(row.due !== undefined ? { due: row.due } : {}), ...(row.priority ? { priority: row.priority } : {}), ...(row.recordId ? { recordId: row.recordId } : {}), idempotencyKey: newKey() }).then(() => say("Duplicated"), (e: unknown) => say(failure(e, "It could not be copied."))) },
-      { label: "Delete", danger: true, onSelect: () => void bulkDelete(act, ids) },
-    ];
+    const items = taskRowEntries({ done: row.state === "done", selected: selected.has(row.id) }, {
+      open: () => openTask(row.id),
+      toggleSelect: () => pick(row.id, false),
+      markDone: () => void bulkStatus(act, ids, "done"),
+      reopen: () => void bulkStatus(act, ids, "todo"),
+      status: () => statusMenu(row, at),
+      assign: () => assignMenu(ids, at),
+      due: () => dueMenu(ids, at),
+      priority: () => menu.show(priorityEntries(row.priority, (k, w) => void bulkPriority(act, ids, k, w)), at.x, at.y, "other", { label: "Priority" }),
+      labels: () => labelMenu(ids, at),
+      moveToProject: () => moveMenu(ids, at),
+      snooze: () => menu.show(dueEntries(act, (when, words) => { if (when !== null) void snoozeQuiet(act, ids, when, words); }).filter((e) => !("label" in e && e.label === "No date")), at.x, at.y, "other", { label: "Snooze until" }),
+      duplicate: () => void rt.call("tasks.create", { title: `${row.title} (copy)`, assigned: row.assigned, labels: row.labels, ...(row.due !== undefined ? { due: row.due } : {}), ...(row.priority ? { priority: row.priority } : {}), ...(row.recordId ? { recordId: row.recordId } : {}), idempotencyKey: newKey() }).then(() => say("Duplicated"), (e: unknown) => say(failure(e, "It could not be copied."))),
+      remove: () => void bulkDelete(act, ids),
+    });
     menu.show(items, at.x, at.y, "context", { label: row.title });
   }, [act, assignMenu, dueMenu, labelMenu, menu, moveMenu, openTask, pick, rt, say, selected, statusMenu]);
 

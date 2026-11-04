@@ -17,6 +17,8 @@ import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
 import { FACES_SHOWN } from "./model.ts";
 import { createSidebarApi } from "./actions.ts";
 import { createMenuApi, muteKey } from "../menus/actions.ts";
+import { useAddSheet } from "../addsheet/index.ts";
+import { useShareSheet } from "../../../share/useShareSheet.tsx";
 import { agentMenu, channelMenu, chatMenu as chatMenuOf, personMenu as personMenuOf, shortcutFor } from "../menus/kinds.ts";
 import type { SidebarApi } from "./actions.ts";
 import { ChatsSidebarDataProvider, useOnline, useOptionalSidebarData, useScreenQuery, useSidebarData } from "./data.tsx";
@@ -315,12 +317,41 @@ function Sidebar({ window, query, slot, open: shown, startFilter }: { window?: V
   };
   const muted = (kind: "person" | "agent" | "channel" | "thread", id: string): boolean => facts.current.mutes.has(muteKey(kind, id));
   const starred = (type: string, id: string): boolean => facts.current.stars.has(`${type}:${id}`);
-  const setMute = (kind: "person" | "agent" | "channel" | "thread", id: string, on: boolean): void => {
+  const setMute = (kind: "person" | "agent" | "channel" | "thread", id: string, on: boolean, minutes?: number): void => {
     const next = new Set(facts.current.mutes); if (on) next.add(muteKey(kind, id)); else next.delete(muteKey(kind, id));
     facts.current.mutes = next;
-    guard(menuApi.setMute(kind, id, on));
+    guard(menuApi.setMute(kind, id, on, minutes));
   };
   const manageAgents = allows(rtPerms, "agents.manage"), provisionPc = allows(rtPerms, GATE.provisionComputer);
+  // the Add sheet (people and agents into a chat, a channel invite) and the Share sheet (who may use an agent): one host each, drawn at the end of the sidebar
+  const [note, setNote] = useState<string | null>(null);
+  const noteTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const say = (text: string): void => { if (noteTimer.current) clearTimeout(noteTimer.current); setNote(text); noteTimer.current = setTimeout(() => setNote(null), 3500); };
+  useEffect(() => () => { if (noteTimer.current) clearTimeout(noteTimer.current); }, []);
+  const seq = useRef(0);
+  const meNow = { id: data.me?.id ?? "me", name: nameOr(names.get(data.me?.id ?? ""), "You") };
+  const add = useAddSheet({ call: data.call, me: meNow, nameOf: agentName, newKey: () => `sb-add-${++seq.current}`, toast: say }, { copy: (t) => copy(t) });
+  const share = useShareSheet({ call: data.call, me: meNow, nameOf: agentName, spaceName: data.space.name, newKey: () => `sb-share-${++seq.current}`, toast: say });
+  const chatLink = (threadId: string): string => `${(globalThis as { location?: { origin?: string } }).location?.origin ?? ""}/c/${threadId}`;
+  const chatRowsAll = allGroups.flatMap((g) => g.rows).filter((r) => !r.local);
+  const dmWith = (agentId: string): ChatRow | undefined => chatRowsAll.find((r) => r.whoId === agentId && r.members === undefined);
+  /** Which chat: the most recent ones, then the one picked gets the call. */
+  const pickChat = (title: string, x: number, y: number, run: (threadId: string) => Promise<unknown>): void => {
+    const rows = chatRowsAll.slice(0, 12);
+    menu.show(rows.length === 0 ? [{ head: "No chats yet." }] : [{ head: title }, ...rows.map((r) => ({ label: r.title, onSelect: () => again(run(r.threadId)) }))], x, y, "other");
+  };
+  /** How loudly a chat, a channel or an agent tells you: mute for a while, until you turn it back on, or unmute. */
+  const notifyMenu = (kind: "thread" | "channel" | "agent" | "person", id: string, x: number, y: number): void => {
+    const on = muted(kind, id);
+    menu.show([
+      { head: "Notifications" },
+      ...(on ? [{ label: "Unmute", onSelect: () => setMute(kind, id, false) }] : []),
+      { label: "Mute for 1 hour", onSelect: () => setMute(kind, id, true, 60) },
+      { label: "Mute for 8 hours", onSelect: () => setMute(kind, id, true, 480) },
+      { label: "Mute for 1 day", onSelect: () => setMute(kind, id, true, 1440) },
+      { label: "Mute until I turn it back on", onSelect: () => setMute(kind, id, true) },
+    ], x, y, "other");
+  };
   const [renamingChat, setRenamingChat] = useState<string | null>(null);
   const renameChat = (r: ChatRow, title: string | null): void => {
     setRenamingChat(null);
@@ -340,6 +371,9 @@ function Sidebar({ window, query, slot, open: shown, startFilter }: { window?: V
     rename: () => setRenamingChat(r.threadId),
     muted: muted("thread", r.threadId),
     mute: (on) => setMute("thread", r.threadId, on),
+    addPeople: () => add.open({ threadId: r.threadId, name: r.title }),
+    copyLink: () => copy(chatLink(r.threadId)),
+    notifications: () => notifyMenu("thread", r.threadId, 8, 48),
     ...(data.nav.openChatTab ? { openTab: () => data.nav.openChatTab?.(r.threadId) } : {}),
   });
   const faceMenu = (e: Extract<Entry, { type: "face" }>, x: number, y: number): MenuEntry[] => {
@@ -355,6 +389,10 @@ function Sidebar({ window, query, slot, open: shown, startFilter }: { window?: V
       resume: () => again(menuApi.resume(a.agentId)),
       star: (on) => guard(api.star("agent", a.agentId, on)),
       mute: (on) => setMute("agent", a.agentId, on),
+      ...(dmWith(a.agentId) ? { poke: () => { const t = dmWith(a.agentId)!; void menuApi.poke(t.threadId, a.agentId).then(() => say(`Poked ${a.name}`), () => say(`Could not poke ${a.name}. Try again.`)); } } : {}),
+      addToChat: () => pickChat(`Add ${a.name} to`, x, y, (threadId) => menuApi.addAgentToChat(threadId, a.agentId)),
+      share: () => share.open({ resourceType: "agent", resourceId: a.agentId, itemType: "agent", name: a.name }),
+      ...(data.nav.openAgent ? { editInstructions: () => { data.nav.openAgent?.(a.agentId, "instructions"); leave(); } } : {}),
       remove: () => menu.show([{ head: `Delete ${a.name}? Its chats stay; its work and memory go.` }, { label: "Delete agent", danger: true, onSelect: () => again(menuApi.deleteAgent(a.agentId)) }, { label: "Cancel" }], x, y, "other"),
     });
   };
@@ -364,6 +402,8 @@ function Sidebar({ window, query, slot, open: shown, startFilter }: { window?: V
     markUnread: () => guard(api.markUnread(c.mainThreadId)),
     star: (on) => guard(api.star("channel", c.channelId, on)),
     mute: (on) => setMute("channel", c.channelId, on),
+    invite: () => add.open({ threadId: c.mainThreadId, name: c.name }),
+    notifications: () => notifyMenu("channel", c.channelId, 8, 48),
     copyLink: () => copy(`vyre://channel/${c.channelId}`),
     leave: () => again(menuApi.leaveChannel(c.channelId)),
     archive: () => again(menuApi.archiveChannel(c.channelId)),
@@ -436,6 +476,8 @@ function Sidebar({ window, query, slot, open: shown, startFilter }: { window?: V
       markRead: () => { if (dm) guard(api.markRead(dm)); },
       markUnread: () => { if (dm) guard(api.markUnread(dm)); },
       mute: (on) => setMute("person", e.id, on),
+      addToChat: () => pickChat(`Add ${e.name} to`, 8, 48, (threadId) => menuApi.addPersonToChat(threadId, e.id)),
+      copyHandle: () => { copy(`@${e.name.split(" ")[0] ?? e.name}`); say("Copied"); },
     });
   };
   // Notes: Open, Open in a new tab, Take a note
@@ -663,7 +705,10 @@ function Sidebar({ window, query, slot, open: shown, startFilter }: { window?: V
           <Pressable accessibilityRole="button" accessibilityLabel={`Undo delete of ${undo.title}`} testID="undo-delete" onPress={restore} style={st.undoBtn}><Text style={st.undoAct}>Undo</Text></Pressable>
         </View>
       ) : null}
+      {note ? <View testID="menu-note" accessibilityRole="alert" style={st.undo}><Text numberOfLines={2} style={st.undoText}>{note}</Text></View> : null}
       {menu.element}
+      {add.element}
+      {share.element}
       {sheet ? <ChannelSheets kind={sheet} channels={allChannels} agents={agents} onSwitch={setSheet} onClose={() => setSheet(null)} /> : null}
     </View>
   );

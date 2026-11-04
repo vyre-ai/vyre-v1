@@ -52,3 +52,13 @@ test("Edit and Delete are only on your own message; an agent's reply has Regener
   assert.deepEqual(sent, [{ cap: "engine.turn.of_message", input: { threadId: "thr_1", messageId: "m1" } }, { cap: "engine.turn.retry", input: { turnId: "trn_9" } }]);
   await assert.rejects(regenerate({ threadId: "thr_1", call: async () => ({}) } as never, "m1"));
 });
+
+test("Copy Link copies the plain link to the message, only where the chat has an address; it sits with Copy", () => {
+  const withLink = { ...(acts as object), copyLink: (id: string) => calls.push(`link:${id}`) } as unknown as MessageActions;
+  const labels = menuFor(msg(), false, withLink, () => undefined).map((e) => ("separator" in e ? "|" : "head" in e ? "#" : e.label));
+  assert.deepEqual(labels.slice(0, 3), ["Copy", "Copy Link", "|"]);
+  calls.length = 0;
+  (menuFor(msg(), false, withLink, () => undefined).find((e) => "label" in e && e.label === "Copy Link") as { onSelect(): void }).onSelect();
+  assert.deepEqual(calls, ["link:m1"]);
+  assert.ok(!menuFor(msg(), false, acts, () => undefined).some((e) => "label" in e && e.label === "Copy Link"));
+});

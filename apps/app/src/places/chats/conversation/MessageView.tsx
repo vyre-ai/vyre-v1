@@ -83,6 +83,8 @@ export interface MessageActions {
   retryTurn(turnId: string): void;
   /** Run the turn that made this reply once more: "Regenerate" in an agent reply's menu. Left out where the chat cannot. */
   regenerate?(messageId: string): void;
+  /** Copies the plain link to this message (/c/<thread>#<message>). Left out where the chat has no address. */
+  copyLink?(messageId: string): void;
   /** The rows of Details on a failed turn, read from the turn when it opens. */
   turnDetail?(turnId: string): Promise<[string, string][]>;
   errorNext(key: string, turnId?: string): void;
@@ -202,6 +204,7 @@ export function menuFor(m: Message, mine: boolean, a: MessageActions, onEdit: ()
   // groups, split by a separator: read and write it, then turn it into something, then keep it, then how it was made, then remove it last
   const talk = m.kind !== "system" && m.kind !== "quiet";
   const write: MenuEntry[] = [{ label: "Copy", onSelect: () => a.copy(m.body) }];
+  if (a.copyLink) write.push({ label: "Copy Link", onSelect: () => a.copyLink!(m.messageId) });
   if (mine && m.kind === "text") write.push({ label: "Edit", onSelect: onEdit });
   const turn: MenuEntry[] = [{ label: "Reply in Thread", onSelect: () => a.openThread(m.messageId) }];
   // an agent's reply cannot be edited by you; it can be asked again

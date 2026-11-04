@@ -24,6 +24,10 @@ export interface ChatDo {
   unarchive(): void;
   leave(): void;
   remove(): void;
+  /** Left out when the sidebar cannot: the Add sheet, a link to the chat, how loudly it tells you. */
+  addPeople?: (() => void) | undefined;
+  copyLink?: (() => void) | undefined;
+  notifications?: (() => void) | undefined;
 }
 /** `has` says which optional parts the caller can do (a sidebar with no Rename leaves it out); by default all. */
 export function chatMenu(f: ChatFacts, d: ChatDo, has: { rename?: boolean; mute?: boolean } = {}): MenuEntry[] {
@@ -36,6 +40,10 @@ export function chatMenu(f: ChatFacts, d: ChatDo, has: { rename?: boolean; mute?
     f.starred ? item("Remove Star", () => d.star(false), { hint: KEY.star }) : item("Star", () => d.star(true), { hint: KEY.star }),
     f.unread ? item("Mark as Read", d.markRead, { hint: KEY.unread }) : f.local ? null : item("Mark as Unread", d.markUnread, { hint: KEY.unread }),
     f.local || !mute ? null : f.muted ? item("Unmute", () => d.mute(false)) : item("Mute", () => d.mute(true)),
+    f.local || !d.notifications ? null : item("Notifications\u2026", d.notifications),
+    sep,
+    f.local || !d.addPeople ? null : item("Add People\u2026", d.addPeople),
+    f.local || !d.copyLink ? null : item("Copy Link", d.copyLink),
     sep,
     f.archived ? item("Unarchive", d.unarchive, { hint: KEY.archive }) : item("Archive", d.archive, { hint: KEY.archive }),
     f.local ? null : sep,

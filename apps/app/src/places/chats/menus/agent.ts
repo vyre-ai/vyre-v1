@@ -29,6 +29,11 @@ export interface AgentDo {
   star(on: boolean): void;
   mute(on: boolean): void;
   remove(): void;
+  /** Left out when the sidebar cannot: nudge it in your own chat with it (threads.poke), put it in another chat, share it, edit what it is told. */
+  poke?: (() => void) | undefined;
+  addToChat?: (() => void) | undefined;
+  share?: (() => void) | undefined;
+  editInstructions?: (() => void) | undefined;
 }
 export function agentMenu(f: AgentFacts, d: AgentDo): MenuEntry[] {
   const computer = f.hasComputer || f.computer !== undefined
@@ -37,9 +42,14 @@ export function agentMenu(f: AgentFacts, d: AgentDo): MenuEntry[] {
   return tidy([
     item(`Message ${f.name}`, d.message, { hint: KEY.enter }),
     d.openProfile ? item("Open Profile", d.openProfile, { hint: KEY.profile }) : null,
+    d.poke ? item("Poke", d.poke) : null,
+    sep,
+    d.addToChat ? item("Add to a Chat\u2026", d.addToChat) : null,
+    d.share && f.manage && !f.assistant ? item("Share\u2026", d.share) : null,
     sep,
     ...computer,
     sep,
+    d.editInstructions && f.manage && !f.assistant ? item("Edit Instructions", d.editInstructions) : null,
     f.manage && !f.assistant ? (f.status === "paused" ? item("Resume", d.resume) : item("Pause", d.pause)) : null,
     sep,
     f.starred ? item("Remove Star", () => d.star(false), { hint: KEY.star }) : item("Star", () => d.star(true), { hint: KEY.star }),

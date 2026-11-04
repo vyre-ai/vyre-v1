@@ -90,7 +90,7 @@ export function sidebarData(rt: ShellRuntime, a: ChatsActions): ChatsSidebarData
     openChannel: a.openThread,
     openNeedsYou: (taskId) => rt.open({ screen: "tasks.needs-you", ...(taskId ? { args: { taskId } } : {}) }),
     openAllAgents: () => rt.open({ screen: "chats.all-agents" }),
-    openAgent: (agentId) => rt.open({ screen: "chats.agent-page", args: { agentId } }),
+    openAgent: (agentId, section) => rt.open({ screen: "chats.agent-page", args: { agentId, ...(section ? { section } : {}) } }),
     openChatTab: (threadId) => rt.open({ subject: { type: "thread", id: threadId }, background: true }),
     openArtifacts: () => rt.open({ screen: "apps.artifacts" }),
     openSearch: () => rt.open({ screen: "shell.cmdk" }),
