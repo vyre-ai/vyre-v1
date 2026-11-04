@@ -29,7 +29,7 @@ export function seededDir(): string {
 }
 
 /** `standIn` null with `engineCli` boots the real driver around a CLI process (the fake claude of host/tests/fixtures/fake-cli-driver). */
-export async function boot(dir: string, standIn: OpenSession | null, extra: { engineCli?: unknown; now?: () => number; seams?: unknown } = {}): Promise<Daemon> {
+export async function boot(dir: string, standIn: OpenSession | null, extra: { engineCli?: unknown; now?: () => number; seams?: unknown; realVault?: boolean } = {}): Promise<Daemon> {
   return startDaemon({
     ...(extra.now ? { now: extra.now } : {}),
     config: loadConfig(["--data-dir", dir, "--port", "0"], {}, "1.2.3"),
@@ -44,7 +44,7 @@ export async function boot(dir: string, standIn: OpenSession | null, extra: { en
     }),
     fetch: caddyFetch,
     intervals: { fast: 3_600_000, slow: 3_600_000, encryption: 3_600_000, commands: 3_600_000, hooks: 3_600_000 },
-    vault: { secret: async () => KEY, signRs256: async () => "" },
+    ...(extra.realVault ? {} : { vault: { secret: async () => KEY, signRs256: async () => "" } }),
     ...(extra.seamFetch ? { seams: { fetch: extra.seamFetch } } : {}),
     ...(standIn ? { engineOpenSession: standIn } : {}),
     ...(extra.engineCli !== undefined ? { engineCli: extra.engineCli as never } : {}),

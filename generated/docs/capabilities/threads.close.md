@@ -70,6 +70,7 @@ type Out = {
       }>;
     createdAt: number;
     closedAt?: number;
+    joinedAt?: Record<string, unknown>;
     sharedAt?: number;
     replyCount?: number;
     lastMessageAt?: number;
@@ -131,6 +132,7 @@ type Out = {
       "createdAt": 1760000000000,
       "folderId": "fld_a1b2c3",
       "following": true,
+      "joinedAt": {},
       "kind": "chat",
       "lastMessageAt": 1760000000000,
       "listed": true,

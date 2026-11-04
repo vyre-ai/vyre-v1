@@ -6677,6 +6677,7 @@ export type ChatAsksOfOut = {
         }>;
       createdAt: number;
       closedAt?: number;
+      joinedAt?: Record<string, unknown>;
       sharedAt?: number;
       replyCount?: number;
       lastMessageAt?: number;
@@ -6837,6 +6838,7 @@ export type ChatForkOut = {
       }>;
     createdAt: number;
     closedAt?: number;
+    joinedAt?: Record<string, unknown>;
     sharedAt?: number;
     replyCount?: number;
     lastMessageAt?: number;
@@ -6899,6 +6901,7 @@ export type ChatHandoffOut = {
       }>;
     createdAt: number;
     closedAt?: number;
+    joinedAt?: Record<string, unknown>;
     sharedAt?: number;
     replyCount?: number;
     lastMessageAt?: number;
@@ -7014,6 +7017,7 @@ export type ChatHelperStartOut = {
       }>;
     createdAt: number;
     closedAt?: number;
+    joinedAt?: Record<string, unknown>;
     sharedAt?: number;
     replyCount?: number;
     lastMessageAt?: number;
@@ -7308,6 +7312,7 @@ export type ChatOpenAsChatOut = {
       }>;
     createdAt: number;
     closedAt?: number;
+    joinedAt?: Record<string, unknown>;
     sharedAt?: number;
     replyCount?: number;
     lastMessageAt?: number;
@@ -7875,6 +7880,7 @@ export type ChatStartOut = {
       }>;
     createdAt: number;
     closedAt?: number;
+    joinedAt?: Record<string, unknown>;
     sharedAt?: number;
     replyCount?: number;
     lastMessageAt?: number;
@@ -7935,6 +7941,7 @@ export type ChatThreadOut = {
       }>;
     createdAt: number;
     closedAt?: number;
+    joinedAt?: Record<string, unknown>;
     sharedAt?: number;
     replyCount?: number;
     lastMessageAt?: number;
@@ -41057,6 +41064,7 @@ export type ThreadsAddAgentOut = {
       }>;
     createdAt: number;
     closedAt?: number;
+    joinedAt?: Record<string, unknown>;
     sharedAt?: number;
     replyCount?: number;
     lastMessageAt?: number;
@@ -41122,6 +41130,7 @@ export type ThreadsAgentConfigureOut = {
       }>;
     createdAt: number;
     closedAt?: number;
+    joinedAt?: Record<string, unknown>;
     sharedAt?: number;
     replyCount?: number;
     lastMessageAt?: number;
@@ -41186,6 +41195,7 @@ export type ThreadsAgentCreateOut = {
       }>;
     createdAt: number;
     closedAt?: number;
+    joinedAt?: Record<string, unknown>;
     sharedAt?: number;
     replyCount?: number;
     lastMessageAt?: number;
@@ -41253,6 +41263,7 @@ export type ThreadsAgentSettingsSetOut = {
       }>;
     createdAt: number;
     closedAt?: number;
+    joinedAt?: Record<string, unknown>;
     sharedAt?: number;
     replyCount?: number;
     lastMessageAt?: number;
@@ -41318,6 +41329,7 @@ export type ThreadsCloseOut = {
       }>;
     createdAt: number;
     closedAt?: number;
+    joinedAt?: Record<string, unknown>;
     sharedAt?: number;
     replyCount?: number;
     lastMessageAt?: number;
@@ -41397,6 +41409,7 @@ export type ThreadsGetOut = {
       }>;
     createdAt: number;
     closedAt?: number;
+    joinedAt?: Record<string, unknown>;
     sharedAt?: number;
     replyCount?: number;
     lastMessageAt?: number;
@@ -41480,6 +41493,7 @@ export type ThreadsListOut = {
         }>;
       createdAt: number;
       closedAt?: number;
+      joinedAt?: Record<string, unknown>;
       sharedAt?: number;
       replyCount?: number;
       lastMessageAt?: number;
@@ -41599,6 +41613,7 @@ export type ThreadsMembersAddOut = {
       }>;
     createdAt: number;
     closedAt?: number;
+    joinedAt?: Record<string, unknown>;
     sharedAt?: number;
     replyCount?: number;
     lastMessageAt?: number;
@@ -41659,6 +41674,7 @@ export type ThreadsMembersRemoveOut = {
       }>;
     createdAt: number;
     closedAt?: number;
+    joinedAt?: Record<string, unknown>;
     sharedAt?: number;
     replyCount?: number;
     lastMessageAt?: number;
@@ -41719,6 +41735,7 @@ export type ThreadsMoveOut = {
       }>;
     createdAt: number;
     closedAt?: number;
+    joinedAt?: Record<string, unknown>;
     sharedAt?: number;
     replyCount?: number;
     lastMessageAt?: number;
@@ -41780,6 +41797,7 @@ export type ThreadsOutsideAgentAddOut = {
       }>;
     createdAt: number;
     closedAt?: number;
+    joinedAt?: Record<string, unknown>;
     sharedAt?: number;
     replyCount?: number;
     lastMessageAt?: number;
@@ -41845,6 +41863,7 @@ export type ThreadsOutsideAgentRemoveOut = {
       }>;
     createdAt: number;
     closedAt?: number;
+    joinedAt?: Record<string, unknown>;
     sharedAt?: number;
     replyCount?: number;
     lastMessageAt?: number;
@@ -41915,6 +41934,7 @@ export type ThreadsRemoveAgentOut = {
       }>;
     createdAt: number;
     closedAt?: number;
+    joinedAt?: Record<string, unknown>;
     sharedAt?: number;
     replyCount?: number;
     lastMessageAt?: number;
@@ -41974,6 +41994,7 @@ export type ThreadsReopenOut = {
       }>;
     createdAt: number;
     closedAt?: number;
+    joinedAt?: Record<string, unknown>;
     sharedAt?: number;
     replyCount?: number;
     lastMessageAt?: number;
@@ -42033,6 +42054,7 @@ export type ThreadsRestoreOut = {
       }>;
     createdAt: number;
     closedAt?: number;
+    joinedAt?: Record<string, unknown>;
     sharedAt?: number;
     replyCount?: number;
     lastMessageAt?: number;
@@ -42093,6 +42115,7 @@ export type ThreadsSetFolderOut = {
       }>;
     createdAt: number;
     closedAt?: number;
+    joinedAt?: Record<string, unknown>;
     sharedAt?: number;
     replyCount?: number;
     lastMessageAt?: number;
@@ -42153,6 +42176,7 @@ export type ThreadsSetModeOut = {
       }>;
     createdAt: number;
     closedAt?: number;
+    joinedAt?: Record<string, unknown>;
     sharedAt?: number;
     replyCount?: number;
     lastMessageAt?: number;
@@ -42213,6 +42237,7 @@ export type ThreadsSetPlanModeOut = {
       }>;
     createdAt: number;
     closedAt?: number;
+    joinedAt?: Record<string, unknown>;
     sharedAt?: number;
     replyCount?: number;
     lastMessageAt?: number;
@@ -42279,6 +42304,7 @@ export type ThreadsUpdateOut = {
       }>;
     createdAt: number;
     closedAt?: number;
+    joinedAt?: Record<string, unknown>;
     sharedAt?: number;
     replyCount?: number;
     lastMessageAt?: number;
