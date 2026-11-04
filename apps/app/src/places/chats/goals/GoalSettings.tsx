@@ -43,8 +43,10 @@ function RhythmEditor({ g, patch, close }: { g: Goal; patch: Patch; close(): voi
   const rhythm = every === "hours" ? { every, hours: h } : every === "week" ? { every, at, day } : { every, at };
   return (
     <View style={{ gap: 8 }}>
+      {/* ui-rows-lint: not a list (a segmented choice of how often) */}
       <View style={st.row}>{(["day", "hours", "week"] as const).map((k) => <Mini key={k} label={k === "day" ? "Every day" : k === "hours" ? "Every few hours" : "Every week"} primary={every === k} testID={`goal-rhythm-${k}`} onPress={() => setEvery(k)} />)}</View>
       {every === "hours" ? <View style={st.row}><Text style={st.note}>Every</Text>{input(hours, setHours, "number", "Hours", 70)}<Text style={st.note}>hours</Text></View> : null}
+      {/* ui-rows-lint: not a list (a segmented choice of the weekday) */}
       {every === "week" ? <View style={st.row}>{DAYS.map((d, i) => <Mini key={d} label={d.slice(0, 3)} primary={day === i} onPress={() => setDay(i)} />)}</View> : null}
       {every !== "hours" ? <View style={st.row}><Text style={st.note}>At</Text>{input(at, setAt, "time", "Time")}</View> : null}
       <View style={st.row}><Mini label={quiet ? "Quiet hours on" : "Quiet hours off"} primary={quiet} testID="goal-quiet-toggle" onPress={() => setQuiet(!quiet)} />
@@ -84,6 +86,7 @@ function PermissionsBlock({ g, canEdit, patch }: { g: Goal; canEdit: boolean; pa
     <View testID="goal-permissions" style={st.setting}>
       <Text style={st.name}>It may do without asking</Text>
       {g.permissions.length === 0 ? <Text style={st.value}>Nothing yet. It asks you before anything leaves the Space.</Text> : null}
+      {/* ui-rows-lint: not a list (the goal's permissions: each line has its own on and off switch) */}
       {g.permissions.map((p) => (
         <View key={`${p.act}-${p.target}-${p.label}`} style={st.perm}>
           <View style={{ flex: 1, minWidth: 0 }}><Text style={st.value}>{p.label}</Text><Text style={st.note}>{p.granted ? "Allowed" : "Allowed once you start the goal"}</Text></View>
@@ -130,6 +133,7 @@ export function GoalSettings({ g, nameOf, offsetMin, canEdit, patch, pick, remov
       <PermissionsBlock g={g} canEdit={canEdit} patch={patch} />
       <View testID="goal-people" style={st.setting}>
         <Text style={st.name}>People</Text>
+        {/* ui-rows-lint: not a list (the goal's people with their roles, each a line with its own controls) */}
         {people.map((p) => (
           <View key={`${p.role}-${p.id}`} testID={`goal-person-${p.id}`} style={st.perm}>
             <Avatar {...avatarOf({ id: p.id, name: nameOf(p.id), kind: p.kind === "agent" ? "agent" : "person" })} size={20} />

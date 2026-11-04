@@ -129,6 +129,9 @@ export default defineManifest({
       in: { scope: t.enm('mine', 'helping', 'project', 'record', 'task', 'all'), projectId: t.opt(id.project), recordId: t.opt(id.record), taskId: t.opt(id.task), open: t.opt(t.bool()) },
       out: { goals: t.arr(goalLine) }, level: 'member', tool: 'tasks', mcpName: 'goals_list', label: 'filter', cli: 'vyre goals list',
     }),
+    read('goals.count', 'How many goals a project has, whoever may open them: a number and nothing else (never a title). Only a manager of the project or the system may ask; the Overview uses it to say how many goals a reader may not open', {
+      in: { projectId: id.project }, out: { count: t.int({ minimum: 0 }) }, level: 'member', tool: 'tasks',
+    }),
     read('goals.activity', 'The activity of a goal, newest first: every reading, wake-up, step, task and status change, and why', {
       in: { ...target, before: t.opt(t.ts()), limit: t.opt(t.int({ minimum: 1, maximum: 200 })) }, out: { activity: t.arr(activity) }, level: 'member', tool: 'tasks', errors: ['validation.not_found'],
     }),

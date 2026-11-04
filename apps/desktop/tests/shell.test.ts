@@ -56,6 +56,14 @@ test("the sidecar is the bundled vyred binary plus the staged runtime, and the p
   assert.ok(fs.existsSync(path.join(REPO, "host/src/daemon/main.ts")), "the entry the shell runs exists");
 });
 
+test("Talk: the Mac app says why it asks for the microphone, the page may reach the provider's socket, and no sandbox entitlement is needed for an ad-hoc app with no hardened runtime", () => {
+  assert.match(read("Info.plist"), /<key>NSMicrophoneUsageDescription<\/key>\s*<string>[^<]{20,}<\/string>/);
+  const c = conf();
+  assert.match(c.app.security.csp, /connect-src[^;]*\bwss:/);
+  assert.equal(c.bundle.macOS.signingIdentity, "-");
+  assert.equal(c.bundle.macOS.hardenedRuntime, false);
+});
+
 test("the daemon prints the line the shell reads", () => {
   const main = fs.readFileSync(path.join(REPO, "host/src/daemon/main.ts"), "utf8");
   assert.match(main, /vyred \$\{version\} \$\{d\.roles\.join\(","\)\} \$\{d\.space \?\? "-"\} listening on \$\{d\.url\}/);

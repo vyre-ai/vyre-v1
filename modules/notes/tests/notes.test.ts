@@ -307,3 +307,22 @@ test("an agent saving a note from the chat it is in: the note is the person's, p
   assert.equal(n.owner, ME);
   assert.equal(await failed(w.call("notes.create", { title: "x", body: "y", source: { threadId: "thr_team", messageId: "msg_9" } }, bot)), "validation.not_found");
 });
+
+test("sharing with notify tells each person just added, once, with the line; without it nobody; and the owner hands the note over", async () => {
+  const w = world();
+  const a = (await w.call("notes.create", { title: "Lab 8 run of show", body: "6:05" })).note;
+  await w.call("notes.share", { noteId: a.noteId, people: [{ personId: ALIZA, role: "view" }] });
+  assert.equal(w.calls.filter((c) => c.cap === "notifications.send").length, 0, "no notify, no word");
+  await w.call("notes.share", { noteId: a.noteId, people: [{ personId: ALIZA, role: "edit" }, { personId: ANDREY, role: "view" }], notify: { message: "Take a look" } });
+  const sent = w.calls.filter((c) => c.cap === "notifications.send");
+  assert.equal(sent.length, 1, "Aliza already had it; only Andrey is told");
+  assert.deepEqual(sent[0]!.input, { to: ANDREY, kind: "item.shared", subject: { type: "note", id: a.noteId }, title: "Lab 8 run of show", data: { from: "Irfad", message: "Take a look" }, collapseKey: `item.shared:${a.noteId}:${ANDREY}` });
+  assert.equal(await failed(w.call("notes.set_owner", { noteId: a.noteId, personId: ANDREY }, ALIZA)), "permission.no_grant", "only the owner hands it over");
+  assert.equal(await failed(w.call("notes.set_owner", { noteId: a.noteId, personId: "usr_stranger00" })), "validation.bad_input", "share it first");
+  const handed = (await w.call("notes.set_owner", { noteId: a.noteId, personId: ANDREY })).note;
+  assert.equal(handed.mine, false);
+  const andrey = (await w.call("notes.get", { noteId: a.noteId }, ANDREY)).note;
+  assert.deepEqual([andrey.mine, andrey.owner], [true, ANDREY]);
+  const me = (await w.call("notes.get", { noteId: a.noteId })).note;
+  assert.deepEqual([me.mine, me.canEdit], [false, true], "the previous owner keeps Edit");
+});

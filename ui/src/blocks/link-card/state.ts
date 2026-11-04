@@ -38,6 +38,10 @@ const FLOW: Record<string, CardState> = {
 export const doneByState = (d: LinkCardData, state: CardState | null): readonly string[] => (d.target?.type === "automation" && state?.text === "On" ? ["on"] : []);
 
 /** The held call a work card names, when it is one: a held call has one card, the approval card, so the app draws that in its place. */
+/** An email an agent drafted: the card is the held email card, with Edit, Send and Don't send. */
+export const draftOf = (d: LinkCardData): string | null => (d.icon === "draft" && d.target?.type === "draft" ? d.target.id : null);
+/** An email draft kept at Gmail or Outlook: the card carries its words and the calls its buttons make. */
+export const providerDraftOf = (d: LinkCardData): boolean => d.icon === "draft" && d.target?.type === "provider_draft" && (d.actions ?? []).some((a) => a.key === "send" && a.cap !== undefined);
 export const heldTaskOf = (d: LinkCardData): string | null => (d.icon === "approval" && d.target?.type === "task" ? d.target.id : null);
 
 /** The state a read answers with, or null when the thing has none to show (a file, a record). */
@@ -53,3 +57,9 @@ export function stateOf(d: LinkCardData, answer: unknown): CardState | null {
 
 /** What replaces the name when the reader may not open the thing. */
 export const HIDDEN_TITLE = "Not shared with you";
+
+/** What stands in for the name of a thing the reader cannot open: what kind of thing it is and that it is theirs to ask for, never its name or anything about it. */
+export function hiddenTitle(type: string | undefined): string {
+  const kind = ({ task: "task", file: "file", folder: "folder", record: "record", thread: "chat", chat: "chat", channel: "channel", run: "run", project: "project", automation: "automation", computer: "computer", agent: "agent", goal: "goal" } as Record<string, string>)[type ?? ""];
+  return kind ? `A ${kind} you don't have access to` : HIDDEN_TITLE;
+}

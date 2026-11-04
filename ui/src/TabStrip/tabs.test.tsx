@@ -156,3 +156,14 @@ test("a tab keeps its hover while the pointer is on its close button: hover is e
     assert.equal(close().opacity, 0, "leaving the tab hides it again");
   } finally { restore(); }
 });
+
+test("an underline strip marks the open tab with a line, never a filled pill; the default strip keeps its fill", () => {
+  const tagOf = (html: string, id: string): string => new RegExp(`<[^>]*data-testid="${id}"[^>]*>`).exec(html)?.[0] ?? "";
+  const line = renderToStaticMarkup(<TabStrip tabs={TABS} active="b" underline />);
+  const open = tagOf(line, "tab-b-selected");
+  assert.match(open, /box-shadow:inset 0 -2px 0 var\(--ink\)/, "a 2 px line under the open tab");
+  assert.doesNotMatch(open, /background-color:var\(--sel\)/, "no pill fill");
+  assert.doesNotMatch(tagOf(line, "tab-a"), /box-shadow:inset 0 -2px/, "only the open tab has the line");
+  const filled = tagOf(renderToStaticMarkup(<TabStrip tabs={TABS} active="b" />), "tab-b-selected");
+  assert.match(filled, /background-color:var\(--sel\)/, "the main strip is unchanged");
+});

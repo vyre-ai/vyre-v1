@@ -5,7 +5,8 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { isHead, isItem } from "../../../../../ui/src/Menu/props.ts";
 import { createShellHub, titleText } from "../spaces/hub.ts";
 import { SEED_DEFS } from "../spaces/model.ts";
-import { Toast } from "../spaces/Toast.tsx";
+import { NoticeSlot } from "../noticeslot/NoticeSlot.tsx";
+import { createNoticeStore } from "../noticeslot/model.ts";
 import { TitleBar } from "./TitleBar.tsx";
 import { ResumeContext } from "../../onboarding/resume-context.ts";
 import { ResumeChip } from "../../onboarding/ResumeChip.tsx";
@@ -31,18 +32,17 @@ test("a calm bar is one search field; the connection shows only when it is broke
   const out = html(props());
   assert.ok(out.includes('aria-label="Vyre · Northwind · Chats"'));
   assert.ok(out.includes("Search or run a command") && out.includes("⌘K"));
-  assert.ok(!out.includes("Connected") && !out.includes('data-testid="title-sync"'), "never shown while fine");
+  assert.ok(!out.includes("Connected") && !out.includes('data-testid="notice-slot"'), "nothing is said while it is fine");
   assert.ok(!out.includes('data-testid="title-skin"'), "the skin lives in Settings and Cmd-K");
-  assert.ok(html(props({ online: false, waiting: 3 })).includes("Offline, 3 changes waiting"));
-  assert.ok(html(props({ waiting: 2 })).includes("Sending 2 changes"));
+  assert.ok(out.includes('data-testid="title-notices"'), "the notifications slot is right of the search field");
 });
 
-test("a confirmation is a toast with Undo when it can be taken back, not a line in the title bar", () => {
-  const plain = renderToStaticMarkup(<Toast status={{ id: 1, text: "Saved", undo: false }} onUndo={() => undefined} />);
-  assert.ok(plain.includes("Saved") && !plain.includes('data-testid="toast-undo"'));
-  const undo = renderToStaticMarkup(<Toast status={{ id: 2, text: "Task moved to Friday", undo: true }} onUndo={() => undefined} />);
-  assert.ok(undo.includes("Task moved to Friday") && undo.includes('data-testid="toast-undo"'));
-  assert.equal(renderToStaticMarkup(<Toast status={null} onUndo={() => undefined} />), "");
+test("a confirmation is a passing notice in the top bar, with Undo when it can be taken back", () => {
+  const store = createNoticeStore();
+  store.pass("Task moved to Friday", { label: "Undo", run: () => undefined });
+  const out = renderToStaticMarkup(<NoticeSlot store={store} />).replaceAll("<!-- -->", "");
+  assert.ok(out.includes("Task moved to Friday") && out.includes('data-testid="notice-action"') && out.includes(">Undo<"));
+  assert.equal(renderToStaticMarkup(<NoticeSlot store={createNoticeStore()} />).includes('data-testid="notice-slot"'), false, "nothing to say: nothing drawn");
 });
 
 test("a phone-width window keeps the icon and drops the words", () => {

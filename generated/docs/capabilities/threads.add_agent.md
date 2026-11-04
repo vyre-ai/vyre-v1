@@ -72,6 +72,7 @@ type Out = {
       }>;
     createdAt: number;
     closedAt?: number;
+    sharedAt?: number;
     replyCount?: number;
     lastMessageAt?: number;
     path?: Array<{
@@ -168,6 +169,7 @@ type Out = {
       "replyCount": 1,
       "scopeId": "example",
       "scopeType": "record",
+      "sharedAt": 1760000000000,
       "starter": "example",
       "threadId": "thr_a1b2c3",
       "title": "example",

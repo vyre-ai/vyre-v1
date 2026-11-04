@@ -165,6 +165,13 @@ test("the built app starts Personal, claims over HTTP, imports fixture sessions 
   try {
     const proof = await Promise.race([c.got, new Promise((_, bad) => setTimeout(() => bad(new Error(`the page never reported over the IPC:\n${first.out().slice(-2500)}`)), 90_000))]) as any;   // eslint-disable-line @typescript-eslint/no-explicit-any
     assert.deepEqual(proof.errors, [], `every command the page called over the IPC answered\n${proof.errors.length ? diagnostics(first.out()) : ""}`);
+    // Talk in the real webview. A CI runner has no one to answer the TCC prompt, so the mic may be refused or left waiting; what must hold is that the webview is a secure context with the API, and that the call reached the system
+    console.log(`talk proof: ${JSON.stringify(proof.talk)}`);
+    assert.equal(proof.talk.secure, true, `the app's origin is a secure context: ${proof.talk.origin}`);
+    assert.equal(proof.talk.mediaDevices, true, "getUserMedia is there");
+    assert.equal(proof.talk.audioContext, true);
+    assert.doesNotMatch(String(proof.talk.mic), /^threw|TypeError|NotSupported/, `the call reached the system: ${String(proof.talk.mic)}`);
+    assert.doesNotMatch(String(proof.talk.socket), /^threw/, `the provider's socket is allowed by the CSP: ${String(proof.talk.socket)}`);
 
     // ---- 1. Personal, started by the app as the UI starts it, claimed over HTTP
     const p = proof.personal;

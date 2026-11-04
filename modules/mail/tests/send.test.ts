@@ -244,6 +244,36 @@ test("a person sending an agent's draft keeps the agent line and the agent's nam
   assert.equal(rows(r, "mail_message").length, 1);
 });
 
+test("an agent's draft is sent as it is stored: its own recipients, Cc, subject and every character of its body, whatever the caller's input holds", async () => {
+  const r = rig({ principal: { kind: "agent", id: "agt_scout01" } });
+  const FULL = `Hi Osama,\n\nAgenda for the call:\n${"1. Instantly warm-up and sending limits for the new domains.\n".repeat(10)}Thanks, Irfad`;
+  const made = await draft(r.ctx, { mailboxId: "mbx_hello", to: [{ address: "osama@mail.test" }], cc: [{ address: "aliza@mla.test" }], subject: "Cold email setup", text: FULL, idempotencyKey: "d-osama" });
+  r.ctx.principal = { kind: "person", id: "usr_maya01" };
+  // the caller (a card or a composer holding something else) names another person, another subject and a cut-off preview
+  await send(r.ctx, { mailboxId: "mbx_hello", to: [{ address: "josh@jcs.test" }], cc: [], subject: "Replying in Claude in Chrome for Clio Grow", text: `${FULL.slice(0, 40)}...`, draftId: made.draftId, idempotencyKey: "s-osama" });
+  const sent = r.calls("resend.send_email")[0]!.input as { to: unknown; cc?: unknown; subject: string; text: string };
+  assert.ok(String(JSON.stringify(sent.to)).includes("osama@mail.test") && !JSON.stringify(sent).includes("josh@jcs.test"), "to the draft's own recipient, never the composer's");
+  assert.ok(JSON.stringify(sent.cc ?? []).includes("aliza@mla.test"));
+  assert.equal(sent.subject, "Cold email setup");
+  assert.ok(sent.text.startsWith(FULL), "every character of the stored body");
+});
+
+test("an agent's draft that ends in a cut-off marker is refused until a person has saved it; a person's own draft is the person's", async () => {
+  const r = rig({ principal: { kind: "agent", id: "agt_scout01" } });
+  const cut = await draft(r.ctx, { mailboxId: "mbx_hello", to: [{ address: "pat@acme.test" }], subject: "Follow up", text: "Agenda for the call: 1. Instantly...", idempotencyKey: "d-cut" });
+  r.ctx.principal = { kind: "person", id: "usr_maya01" };
+  await assert.rejects(() => send(r.ctx, { mailboxId: "mbx_hello", to: [{ address: "pat@acme.test" }], subject: "Follow up", draftId: cut.draftId, idempotencyKey: "s-cut" }), /cut-off marker/);
+  assert.equal(r.calls("resend.send_email").length, 0, "nothing left");
+  // the person edits it (their words, even ending in dots) and the stored draft is theirs
+  await draft(r.ctx, { mailboxId: "mbx_hello", draftId: cut.draftId, text: "Agenda for the call, to be continued...", idempotencyKey: "d-edit" });
+  await send(r.ctx, { mailboxId: "mbx_hello", to: [{ address: "pat@acme.test" }], subject: "Follow up", draftId: cut.draftId, idempotencyKey: "s-edit" });
+  assert.equal(r.calls("resend.send_email").length, 1);
+  // a person's own draft is sent with what the composer holds, as before
+  const own = await draft(r.ctx, { mailboxId: "mbx_hello", to: [{ address: "pat@acme.test" }], subject: "Hi", text: "Draft text", idempotencyKey: "d-own" });
+  await send(r.ctx, { mailboxId: "mbx_hello", to: [{ address: "pat@acme.test" }], subject: "Hi", text: "Edited in the composer...", draftId: own.draftId, idempotencyKey: "s-own" });
+  assert.ok(String((r.calls("resend.send_email")[1]!.input as { text: string }).text).startsWith("Edited in the composer..."));
+});
+
 // ---- routes: the Space domain or the member's own mailbox
 
 test("a person's own Gmail mailbox sends through Gmail as that person, with no window, and keeps the Sent copy from duplicating", async () => {
@@ -424,7 +454,7 @@ test("send_as through Graph answers with the message id only", async () => {
   assert.equal(r.calls("ms.mail.send_message").length, 1);
 });
 
-test("send_as is a person's own mail: no window, no cap, but a suppressed recipient refuses the whole send", async () => {
+test("send_as is a person's own mail: never held by the window, but a suppressed recipient refuses the whole send", async () => {
   const r = rig({ suppressed: { "gone@acme.test": "unsubscribe" } });
   r.goto(SATURDAY_3AM);
   await sendAs(r.ctx, { mailboxId: "mbx_maya", to: [{ address: "pat@acme.test" }], subject: "Hi", text: "x", idempotencyKey: "as-3" });

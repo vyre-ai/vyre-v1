@@ -99,6 +99,10 @@ async function planTask(ctx: NotifCtx, e: Ev): Promise<SendIn[]> {
   return [];
 }
 
+const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+/** A date in words, in UTC: 18 November 2026. */
+export const dayOf = (ms: number): string => { const d = new Date(ms); return `${d.getUTCDate()} ${MONTHS[d.getUTCMonth()]} ${d.getUTCFullYear()}`; };
+
 /** Everyone who holds the Owner or Admin role: the people a machine alert is for. */
 async function adminsOf(ctx: NotifCtx): Promise<string[]> {
   if (!ctx.call) return [];
@@ -121,6 +125,12 @@ export function plan(ctx: NotifCtx, e: Ev): Promise<SendIn | SendIn[] | undefine
     // one line for each admin; it collapses while the same alert lasts, and the machine page is where it opens
     return adminsOf(ctx).then((to) => to.map((id) => ({ to: id, kind: "machine.alert", subject: { type: "space", id: String(p.machineId ?? "") }, title: String(p.title ?? "A machine needs a look"), collapseKey: `machine.alert:${String(p.alertId ?? "")}` })));
   }
+  if (e.name === "space.deletion_scheduled" || e.name === "space.deletion_cancelled") {
+    // every Owner and Admin hears of it; the line carries the date and the way to cancel
+    const scheduled = e.name === "space.deletion_scheduled";
+    const title = scheduled ? `The Space is scheduled for deletion on ${dayOf(Number(p.at))}. Everything is removed then.` : "The scheduled deletion of the Space was cancelled.";
+    return adminsOf(ctx).then((to) => to.map((id) => ({ to: id, kind: e.name, subject: { type: "space", id: ctx.space }, title, collapseKey: `${e.name}:${String(p.at ?? p.by ?? "")}` })));
+  }
   if (e.name === "ci.paused") {
     // the monthly cap is reached: one line for each admin, once for the month
     return adminsOf(ctx).then((to) => to.map((id) => ({ to: id, kind: "ci.paused", subject: { type: "space", id: "ci" }, title: String(p.title ?? "CI paused"), collapseKey: `ci.paused:${String(p.month ?? "")}` })));
@@ -136,6 +146,11 @@ export function plan(ctx: NotifCtx, e: Ev): Promise<SendIn | SendIn[] | undefine
   if ((e.name === "access.granted" || e.name === "access.declined") && typeof p.requester === "string") {
     const r = p.resource as { type?: string } | undefined;
     return { to: p.requester, kind: "access.decided", title: r?.type ?? "this", data: { decision: e.name === "access.granted" ? "approved" : "declined" } };
+  }
+  if (e.name === "access.shared_with" && typeof p.to === "string") {
+    // "Irfad shared Dex with you", with the line the sharer wrote, in the Inbox
+    const r = p.resource as { type?: string; id?: string } | undefined;
+    return { to: p.to, kind: "item.shared", ...(r?.type && r.id ? { subject: { type: r.type, id: r.id } } : {}), title: String(p.title ?? "something"), data: { from: String(p.byName ?? "Someone"), ...(typeof p.message === "string" && p.message ? { message: p.message } : {}) }, collapseKey: `item.shared:${r?.id ?? ""}:${p.to}` } as never;
   }
   if (e.name === "run.failed") return { to: String(p.owner), kind: "run.failed", subject: { type: "run", id: String(p.runId) }, data: { name: p.kind, message: p.message }, runId: String(p.runId) };
   if (e.name === "member.joined") {
@@ -153,7 +168,7 @@ export function plan(ctx: NotifCtx, e: Ev): Promise<SendIn | SendIn[] | undefine
 /** Async consumers by name: the events each one reads and what it does with one. */
 export const consumers = {
   "notifications.fanout": {
-    on: ["task.requested", "task.assigned", "task.completed", "task.due", "task.nudged", "run.failed", "run.succeeded", "member.joined", "access.granted", "access.declined", "machine.alert", "ci.paused"],
+    on: ["task.requested", "task.assigned", "task.completed", "task.due", "task.nudged", "run.failed", "run.succeeded", "member.joined", "access.granted", "access.declined", "machine.alert", "access.shared_with", "space.deletion_scheduled", "space.deletion_cancelled", "ci.paused"],
     async run(ctx: NotifCtx, event: Ev): Promise<string[]> {
       const planned = await plan(ctx, event);
       const out: string[] = [];

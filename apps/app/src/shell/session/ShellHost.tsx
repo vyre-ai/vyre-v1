@@ -17,7 +17,8 @@ import { createGateSearch, loadRecent } from "../cmdk/gate.ts";
 import type { Hit } from "../cmdk/model.ts";
 import { formatHash, parseHash } from "../hash/hash.ts";
 import { tabKey } from "../tabs/store.ts";
-import { titleAsk, typeTitleAsk } from "../tabs/titles.ts";
+import { followTitle, screenAsk, titleAsk, typeTitleAsk } from "../tabs/titles.ts";
+import { railPlaces } from "../rail/kits.ts";
 import type { PlaceId } from "../rail/kits.ts";
 import { createShellHub } from "../spaces/hub.ts";
 import { INBOX_TIP, followInboxSources, rememberInbox, seedInbox, takeInboxTip } from "../rail/inbox-sources.ts";
@@ -42,8 +43,10 @@ import type { StoredSession } from "./stored.ts";
 import { VaultUnlockHost } from "./VaultUnlockHost.tsx";
 import { teamActions } from "./team-actions.ts";
 import { ReportHost } from "../report/ReportHost.tsx";
-import { NotificationsHost } from "../notifications/Host.tsx";
-import type { NotificationsHostProps } from "../notifications/Host.tsx";
+import { useNotificationNotices, useUpdateNotice } from "../noticeslot/bridge.ts";
+import type { NotificationNoticesProps, UpdateSource } from "../noticeslot/bridge.ts";
+import { desktopUpdates, localStore, setUpdateState } from "../../startup/update/store.ts";
+import { FROM_KEY, noteUpdateFrom } from "../../startup/update/model.ts";
 import { isMacShell, lockedIdentity, storeLock } from "./entry.ts";
 import { anyUnread } from "../../places/chats/sidebar/model.ts";
 import type { RecentOut } from "../../places/chats/sidebar/model.ts";
@@ -107,7 +110,7 @@ export function ShellHost({ stored, open, onSignedOut, onHub, hub: given, initia
     let off = false;
     let opened: RealSession | null = null;
     setFailed(null);
-    const options: OpenSessionOptions = { baseUrl: stored.baseUrl, token: stored.token, ...(stored.username ? { username: stored.username } : {}), spaceCards:catalogue.map(item=>item.def), ...(stored.syncEpoch !== undefined ? { syncEpoch: stored.syncEpoch } : {}), onSyncEpoch: (e) => { const now = readStored(undefined, stored.baseUrl); if (now && now.token === stored.token) writeStored({ ...now, syncEpoch: e }); }, navigate: (p, hash, background) => { navRef.current?.go(p,hash,background);if(phoneGo.current&&background!==true)phoneGo.current(p,hash); },
+    const options: OpenSessionOptions = { baseUrl: stored.baseUrl, token: stored.token, ...(stored.username ? { username: stored.username } : {}), spaceCards:catalogue.map(item=>item.def), ...(stored.syncEpoch !== undefined ? { syncEpoch: stored.syncEpoch } : {}), onSyncEpoch: (e) => { const now = readStored(undefined, stored.baseUrl); if (now && now.token === stored.token) writeStored({ ...now, syncEpoch: e }); }, notice: (text) => { navRef.current?.flash(text); }, navigate: (p, hash, background) => { navRef.current?.go(p,hash,background);if(phoneGo.current&&background!==true)phoneGo.current(p,hash); },
       shell: (screen,args) => {
         const h = navRef.current;
         if (!h) return;
@@ -166,7 +169,7 @@ export function ShellHost({ stored, open, onSignedOut, onHub, hub: given, initia
   }, [team]);
   const setAway = useCallback((on: boolean): void => { flags.current.away = on; void team?.away(on); }, [team]);
   const teamProp = useMemo(() => (team ? { invite: () => { void team.invite(); }, away: setAway } : undefined), [team, setAway]);
-  const search = useMemo(() => (session ? (flags.current.terminal = session.def.terminal, createGateSearch({ runtime: session.runtime, nav: hub, state: flags.current, recent: () => recent.current, ...(team ? { away: setAway } : {}) })) : null), [session, hub, team, setAway]);
+  const search = useMemo(() => (session ? (flags.current.terminal = session.def.terminal, createGateSearch({ runtime: session.runtime, nav: hub, state: flags.current, recent: () => recent.current, viewer: () => ({ id: session.runtime.me.id, spaceId: session.def.spaceId, places: new Set(railPlaces(hub.rail())) }), ...(team ? { away: setAway } : {}) })) : null), [session, hub, team, setAway]);
 
   useEffect(() => {
     if (!session || stored.def.kind !== "team") return undefined;
@@ -199,16 +202,10 @@ export function ShellHost({ stored, open, onSignedOut, onHub, hub: given, initia
   useEffect(() => {
     if (!session) return;
     const target = parseHash(location.hash);
-    const ask = target.subject ? titleAsk(target.subject, target.args) : typeTitleAsk(location.place, target.args);
+    const ask = target.subject ? titleAsk(target.subject, target.args) : screenAsk(target.screen, target.args) ?? typeTitleAsk(location.place, target.args);
     if (!ask) return;
     const key = tabKey(location.place, location.hash);
-    let off = false;
-    session.call(ask.cap, ask.input).then((out) => {
-      const name = ask.name(out);
-      if (!off && name) hub.retitle(key, name);
-      if (ask.resolve) void ask.resolve(out, session.call, session.me.id).then((full) => { if (!off && full) hub.retitle(key, full); }, () => undefined);
-    }, () => undefined);
-    return () => { off = true; };
+    return followTitle(session, ask, (t, empty) => hub.retitle(key, t, empty));
   }, [session, hub, location.place, location.hash]);
 
   // Inbox is on the rail once something flows in: the answer follows the mailbox, calendar and number reads (and their change events), and is kept for the next launch
@@ -319,13 +316,28 @@ export function ShellHost({ stored, open, onSignedOut, onHub, hub: given, initia
   // the onboarding screen opens over whatever the shell shows, the first time a person enters a Space and when asked
   // the Personal Space on this computer, so a Team Space can offer "use the same AI account" (never copied without a yes)
   const personalCall = useMemo(() => { const p = catalogue.find((item) => item.def.kind === "personal" && item.def.spaceId !== stored.def.spaceId && isLoopbackUrl(item.baseUrl)); return p ? createCapCaller({ baseUrl: p.baseUrl, token: () => p.token }) : null; }, [catalogueKey, stored.def.spaceId]);
-  // the banners: my unseen Interrupt notifications, read live; pressing one opens what it is about
-  const banners = useMemo<NotificationsHostProps | null>(() => (session ? {
+  // what needs me (replies, mentions, held approvals, alerts) and an update that is ready are persisting notices in the top bar's slot; pressing one opens what it is about
+  const banners = useMemo<NotificationNoticesProps | null>(() => (session ? {
     query: (cap, input) => session.hooks.capQuery(cap, input),
     call: (cap, input) => session.call(cap, input),
     open: (t) => { if (t.subject) session.runtime.open({ subject: t.subject }); else if (t.place) hub.go(t.place as PlaceId); },
   } : null), [session, hub]);
-  const wrap = (el: ReactElement): ReactElement => <OnboardingHost call={session?.call ?? null} space={{ kind: stored.def.kind === "personal" ? "personal" : "team", name: stored.def.name }} mac={isMacShell()} runtime={session?.runtime ?? null} person={session?.me.id ?? null} personName={session?.me.name ?? null} address={stored.baseUrl} personalCall={personalCall} onGo={(place, hash) => hub.go(place as PlaceId, hash ?? "")} {...(onAddSpace?{onAddSpace}:{})}><>{el}<VaultUnlockHost /><ReportHost call={session?.call ?? null} place={location.place} />{banners ? <NotificationsHost {...banners} /> : null}</></OnboardingHost>;
+  useNotificationNotices(banners);
+  const updateSource = useMemo<UpdateSource | null>(() => {
+    const u = desktopUpdates();
+    if (!u) return null;
+    return {
+      state: updateState, subscribe: subscribeUpdates,
+      install: async () => {
+        const check = updateState().check;
+        if (check) noteUpdateFrom(localStore(), check.current);
+        setUpdateState({ installing: true });
+        try { await u.install(() => undefined); } catch { /* the Settings page says it did not finish */ } finally { try { localStore()?.removeItem(FROM_KEY); } catch { /* nothing kept */ } setUpdateState({ installing: false }); }
+      },
+    };
+  }, []);
+  useUpdateNotice(updateSource);
+  const wrap = (el: ReactElement): ReactElement => <OnboardingHost call={session?.call ?? null} space={{ kind: stored.def.kind === "personal" ? "personal" : "team", name: stored.def.name }} mac={isMacShell()} runtime={session?.runtime ?? null} person={session?.me.id ?? null} personName={session?.me.name ?? null} address={stored.baseUrl} personalCall={personalCall} onGo={(place, hash) => hub.go(place as PlaceId, hash ?? "")} {...(onAddSpace?{onAddSpace}:{})}><>{el}<VaultUnlockHost /><ReportHost call={session?.call ?? null} place={location.place} /></></OnboardingHost>;
   if (deadConsole) return <View testID="console-redirect" style={{ flex: 1, backgroundColor: "var(--win)" as string }} />;
   // on a computer the Console is a place in the shell; at its own address nothing surrounds it. In the app on a phone it is not there (owner ruling, 3 Nov): PhoneHost draws the Chat-about-it line
   if (consoleDoor && location.place !== "console") return <View testID="console-redirect" style={{ flex: 1, backgroundColor: "var(--win)" as string }} />;

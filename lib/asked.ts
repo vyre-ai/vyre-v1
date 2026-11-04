@@ -13,6 +13,8 @@ const VERBS: ReadonlyArray<readonly [RegExp, readonly string[], "named"?]> = [
   // a teammate reached in Vyre for the person (lane l-agentdm): "tell Andrey the deck is ready", "ask Rubab for the key", "let Sam know", "remind Lee", "ping Mia". These count only with a name:
   // "tell me", "let me know" and "ask around" are not a request to send anything, and a request that names nobody would cover any target.
   [new RegExp(`${LEAD}(tell|ask|remind|ping|nudge|notify|let)\\b`, "i"), ["send"], "named"],
+  // a calendar entry for the person ("put it on the calendar", "add an event", "book a meeting with Sam"): it invites people, so it is a send
+  [new RegExp(`${LEAD}(put|add|create|schedule|book|set up)\\b[^.]*\\b(calendar|event|meeting|invite)\\b`, "i"), ["send"]],
   [new RegExp(`${LEAD}(post|tweet|comment|upload)\\b`, "i"), ["post"]],
   [new RegExp(`${LEAD}(publish)\\b`, "i"), ["post", "site_promote"]],
   [new RegExp(`${LEAD}(?:open|create|file|raise|make)\\s+(?:a|an|the)\\s+(?:new\\s+)?(pull request|pr|issue)\\b`, "i"), ["post"]],
@@ -91,4 +93,21 @@ export function askedIn(body: string): Asked[] {
     }
   }
   return [...seen.values()];
+}
+
+const GO = /^\s*(?:@[\w.-]+\s+)?(?:yes|yep|yeah|yup|sure|ok|okay|go ahead|do it|please do|sounds good|approved?|send it|confirmed?|go for it)\b/i;
+/** A clear go-ahead to what was just proposed: it opens with yes, ok, go ahead, do it, and is not a question, a refusal or a long message about something else. */
+export function isGoAhead(body: string): boolean {
+  const own = ownWords(body).trim();
+  return own.length > 0 && own.length <= 240 && GO.test(own) && !NEVER.test(own) && !/\?\s*$/.test(own);
+}
+
+/**
+ * What an agent's last message said it would do, for a person's plain yes to answer. It is read only to find which kind of act the person was shown: a send or a post, once, with no target, so a yes opens
+ * that one act and nothing wider (never a push, a deploy, a signature or money, and never more than one grant of a kind). The person's yes is the authority; these words only say what it was a yes to.
+ */
+export function proposedIn(agentBody: string): Asked[] {
+  const said = ownWords(agentBody).replace(/\b(?:shall i|should i|want me to|would you like me to|do you want me to|i(?:'ll| will| can| could| am going to)|i'm going to|let me)\b/gi, "please");
+  const acts = new Set(askedIn(said).map((a) => a.act).filter((a) => a === "send" || a === "post"));
+  return [...acts].map((act) => ({ act, target: "" }));
 }

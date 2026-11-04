@@ -66,7 +66,7 @@ const hrs = { days: [1, 2, 3, 4, 5], from: "09:00", to: "17:30" };
 
 export const northwind: SampleSpace = {
   id: "northwind", name: "Northwind", me: { id: "usr_irfad", name: "Irfad Imtiaz" },
-  names: namesFor("northwind", { ch_sales: "#sales" }),
+  names: namesFor("northwind", { ch_sales: "#sales", usr_aliza: "Aliza Rizvi", agt_dex: "Dex", chn_ops: "#ops" }),
   values: {
     "appearance.skin": "system", "profile.display_name": "Irfad Imtiaz", "profile.handle": "irfad", "profile.title": "Head of operations", "profile.timezone": "America/Los_Angeles",
     "profile.working_hours": hrs, "profile.contact": { email: "irfad@northwind.example", phone: "+1 415 555 0132" }, 
@@ -235,6 +235,12 @@ export function createSampleSettings(space: SampleSpace = northwind): SampleSett
   replica.resolve("machines.get", () => ({ machine, series: { "1h": [], "24h": [], "7d": [], "30d": [] }, findings: [], alerts: [], privacy: { restricted: false } }) as never);
   replica.resolve("machines.alerts", () => ({ alerts: [] }) as never);
   replica.resolve("computers.hosts", () => ({ available: false, hosts: [] }) as never);
+  replica.put("allow", [
+    { id: "alw_1", kind: "always", act: "send", target: "usr_aliza", agentId: "agt_dex" },
+    { id: "alw_2", kind: "always", act: "post", target: "chn_ops", agentId: "agt_dex" },
+    { id: "alw_3", kind: "standing", act: "send", target: "usr_maya", agentId: "agt_dex" },
+  ]);
+  replica.resolve("gate.allow.list", () => ({ rules: replica.rows("allow") as unknown as CapMap["gate.allow.list"]["out"]["rules"] }) as CapMap["gate.allow.list"]["out"]);
   replica.resolve("devices.mine", () => ({ devices: (replica.rows("devices") as unknown as Row[]).filter((x) => x["revokedAt"] === undefined), sessions: [] }) as unknown as CapMap["devices.mine"]["out"]);
   replica.resolve("notifications.mute.list", () => ({ mutes: (replica.rows("mutes") as unknown as { target: { kind: string; id: string }; until: number }[]).map((m) => ({ target: m.target, until: m.until })) }) as CapMap["notifications.mute.list"]["out"]);
   replica.resolve("notifications.kinds.list", () => ({
@@ -295,6 +301,7 @@ export function createSampleSettings(space: SampleSpace = northwind): SampleSett
     "github.me.policy.set": (i: { policy: Record<string, string> }) => { Object.assign(ghPolicy, i.policy); return { policy: { ...ghPolicy } }; },
     "machines.set": () => ({ ok: true }),
     "machines.fix": () => ({ ok: true }),
+    "gate.allow.remove": (i: { id: string }) => { replica.remove("allow", [i.id]); return { ok: true }; },
     "devices.revoke": (i: { deviceId: string }) => { const cur = replica.rows("devices").find((x) => x.id === i.deviceId); if (cur) replica.put("devices", [{ ...cur, revokedAt: SAMPLE_NOW }]); return { ok: true }; },
     "devices.revoke_others": () => { let n = 0; for (const x of replica.rows("devices")) if (!x["current"] && x["revokedAt"] === undefined) { replica.put("devices", [{ ...x, revokedAt: SAMPLE_NOW }]); n++; } return { revoked: n }; },
     "mail.mailbox.pause": (i: { mailboxId: string }) => { const m = replica.rows("mailboxes").find((x) => x.id === i.mailboxId); if (m) replica.put("mailboxes", [{ ...m, state: "paused" }]); return { ok: true }; },

@@ -1,0 +1,256 @@
+{
+  "targets": [
+    {
+      "id": "CONSOLIDATE_02-overview",
+      "route": "/m/CONSOLIDATE_02?part=overview",
+      "proto": "console,{skin}",
+      "note": "Console page overview over scripted Northwind data."
+    },
+    {
+      "id": "CONSOLIDATE_02-people",
+      "route": "/m/CONSOLIDATE_02?part=people",
+      "proto": "console,{skin}",
+      "note": "Console page people over scripted Northwind data."
+    },
+    {
+      "id": "CONSOLIDATE_02-groups",
+      "route": "/m/CONSOLIDATE_02?part=groups",
+      "proto": "console,{skin}",
+      "note": "Console page groups over scripted Northwind data."
+    },
+    {
+      "id": "CONSOLIDATE_02-permissions",
+      "route": "/m/CONSOLIDATE_02?part=permissions",
+      "proto": "console,{skin}",
+      "note": "Console page permissions over scripted Northwind data."
+    },
+    {
+      "id": "CONSOLIDATE_02-requests",
+      "route": "/m/CONSOLIDATE_02?part=requests",
+      "proto": "console,{skin}",
+      "note": "Console page requests over scripted Northwind data."
+    },
+    {
+      "id": "CONSOLIDATE_02-agents",
+      "route": "/m/CONSOLIDATE_02?part=agents",
+      "proto": "console,{skin}",
+      "note": "Console page agents over scripted Northwind data."
+    },
+    {
+      "id": "CONSOLIDATE_02-actors",
+      "route": "/m/CONSOLIDATE_02?part=actors",
+      "proto": "console,{skin}",
+      "note": "Console page actors over scripted Northwind data."
+    },
+    {
+      "id": "CONSOLIDATE_02-skills",
+      "route": "/m/CONSOLIDATE_02?part=skills",
+      "proto": "console,{skin}",
+      "note": "Console page skills over scripted Northwind data."
+    },
+    {
+      "id": "CONSOLIDATE_02-activity",
+      "route": "/m/CONSOLIDATE_02?part=activity",
+      "proto": "console,{skin}",
+      "note": "Console page activity over scripted Northwind data."
+    },
+    {
+      "id": "CONSOLIDATE_02-template",
+      "route": "/m/CONSOLIDATE_02?part=template",
+      "proto": "console,{skin}",
+      "note": "Console page template over scripted Northwind data."
+    },
+    {
+      "id": "CONSOLIDATE_02-aiaccounts",
+      "route": "/m/CONSOLIDATE_02?part=aiaccounts",
+      "proto": "console,{skin}",
+      "note": "Console page aiaccounts over scripted Northwind data."
+    },
+    {
+      "id": "CONSOLIDATE_02-aisee",
+      "route": "/m/CONSOLIDATE_02?part=aisee",
+      "proto": "console,{skin}",
+      "note": "Console page aisee over scripted Northwind data."
+    },
+    {
+      "id": "CONSOLIDATE_02-spend",
+      "route": "/m/CONSOLIDATE_02?part=spend",
+      "proto": "console,{skin}",
+      "note": "Console page spend over scripted Northwind data."
+    },
+    {
+      "id": "CONSOLIDATE_02-gate",
+      "route": "/m/CONSOLIDATE_02?part=gate",
+      "proto": "console,{skin}",
+      "note": "Console page gate over scripted Northwind data."
+    },
+    {
+      "id": "CONSOLIDATE_02-review",
+      "route": "/m/CONSOLIDATE_02?part=review",
+      "proto": "console,{skin}",
+      "note": "Console page review over scripted Northwind data."
+    },
+    {
+      "id": "CONSOLIDATE_02-voice",
+      "route": "/m/CONSOLIDATE_02?part=voice",
+      "proto": "console,{skin}",
+      "note": "Console page voice over scripted Northwind data."
+    },
+    {
+      "id": "CONSOLIDATE_02-aipolicy",
+      "route": "/m/CONSOLIDATE_02?part=aipolicy",
+      "proto": "console,{skin}",
+      "note": "Console page aipolicy over scripted Northwind data."
+    },
+    {
+      "id": "CONSOLIDATE_02-schema",
+      "route": "/m/CONSOLIDATE_02?part=schema",
+      "proto": "console,{skin}",
+      "note": "Console page schema over scripted Northwind data."
+    },
+    {
+      "id": "CONSOLIDATE_02-labels",
+      "route": "/m/CONSOLIDATE_02?part=labels",
+      "proto": "console,{skin}",
+      "note": "Console page labels over scripted Northwind data."
+    },
+    {
+      "id": "CONSOLIDATE_02-retention",
+      "route": "/m/CONSOLIDATE_02?part=retention",
+      "proto": "console,{skin}",
+      "note": "Console page retention over scripted Northwind data."
+    },
+    {
+      "id": "CONSOLIDATE_02-backups",
+      "route": "/m/CONSOLIDATE_02?part=backups",
+      "proto": "console,{skin}",
+      "note": "Console page backups over scripted Northwind data."
+    },
+    {
+      "id": "CONSOLIDATE_02-export",
+      "route": "/m/CONSOLIDATE_02?part=export",
+      "proto": "console,{skin}",
+      "note": "Console page export over scripted Northwind data."
+    },
+    {
+      "id": "CONSOLIDATE_02-domains",
+      "route": "/m/CONSOLIDATE_02?part=domains",
+      "proto": "console,{skin}",
+      "note": "Console page domains over scripted Northwind data."
+    },
+    {
+      "id": "CONSOLIDATE_02-numbers",
+      "route": "/m/CONSOLIDATE_02?part=numbers",
+      "proto": "console,{skin}",
+      "note": "Console page numbers over scripted Northwind data."
+    },
+    {
+      "id": "CONSOLIDATE_02-sendrules",
+      "route": "/m/CONSOLIDATE_02?part=sendrules",
+      "proto": "console,{skin}",
+      "note": "Console page sendrules over scripted Northwind data."
+    },
+    {
+      "id": "CONSOLIDATE_02-apps",
+      "route": "/m/CONSOLIDATE_02?part=apps",
+      "proto": "console,{skin}",
+      "note": "Console page apps over scripted Northwind data."
+    },
+    {
+      "id": "CONSOLIDATE_02-webhooks",
+      "route": "/m/CONSOLIDATE_02?part=webhooks",
+      "proto": "console,{skin}",
+      "note": "Console page webhooks over scripted Northwind data."
+    },
+    {
+      "id": "CONSOLIDATE_02-machines",
+      "route": "/m/CONSOLIDATE_02?part=machines",
+      "proto": "console,{skin}",
+      "note": "Console page machines over scripted Northwind data."
+    },
+    {
+      "id": "CONSOLIDATE_02-servers",
+      "route": "/m/CONSOLIDATE_02?part=servers",
+      "proto": "console,{skin}",
+      "note": "Console page servers over scripted Northwind data."
+    },
+    {
+      "id": "CONSOLIDATE_02-agentcomputers",
+      "route": "/m/CONSOLIDATE_02?part=agentcomputers",
+      "proto": "console,{skin}",
+      "note": "Console page agentcomputers over scripted Northwind data."
+    },
+    {
+      "id": "CONSOLIDATE_02-diagnostics",
+      "route": "/m/CONSOLIDATE_02?part=diagnostics",
+      "proto": "console,{skin}",
+      "note": "Console page diagnostics over scripted Northwind data."
+    },
+    {
+      "id": "CONSOLIDATE_02-policies",
+      "route": "/m/CONSOLIDATE_02?part=policies",
+      "proto": "console,{skin}",
+      "note": "Console page policies over scripted Northwind data."
+    },
+    {
+      "id": "CONSOLIDATE_02-reviews",
+      "route": "/m/CONSOLIDATE_02?part=reviews",
+      "proto": "console,{skin}",
+      "note": "Console page reviews over scripted Northwind data."
+    },
+    {
+      "id": "CONSOLIDATE_02-audit",
+      "route": "/m/CONSOLIDATE_02?part=audit",
+      "proto": "console,{skin}",
+      "note": "Console page audit over scripted Northwind data."
+    },
+    {
+      "id": "CONSOLIDATE_02-space",
+      "route": "/m/CONSOLIDATE_02?part=space",
+      "proto": "console,{skin}",
+      "note": "Console page space over scripted Northwind data."
+    },
+    {
+      "id": "CONSOLIDATE_02-billing",
+      "route": "/m/CONSOLIDATE_02?part=billing",
+      "proto": "console,{skin}",
+      "note": "Console page billing over scripted Northwind data."
+    },
+    {
+      "id": "CONSOLIDATE_02-spacedel",
+      "route": "/m/CONSOLIDATE_02?part=spacedel",
+      "proto": "console,{skin}",
+      "note": "Console page spacedel over scripted Northwind data."
+    },
+    {
+      "id": "CONSOLIDATE_02-roles",
+      "route": "/m/CONSOLIDATE_02?part=roles",
+      "proto": "console,{skin}",
+      "note": "Console page roles over scripted Northwind data."
+    },
+    {
+      "id": "CONSOLIDATE_02-grants",
+      "route": "/m/CONSOLIDATE_02?part=grants",
+      "proto": "console,{skin}",
+      "note": "Console page grants over scripted Northwind data."
+    },
+    {
+      "id": "CONSOLIDATE_02-models",
+      "route": "/m/CONSOLIDATE_02?part=models",
+      "proto": "console,{skin}",
+      "note": "Console page models over scripted Northwind data."
+    },
+    {
+      "id": "CONSOLIDATE_02-network",
+      "route": "/m/CONSOLIDATE_02?part=network",
+      "proto": "console,{skin}",
+      "note": "Console page network over scripted Northwind data."
+    },
+    {
+      "id": "CONSOLIDATE_02-updates",
+      "route": "/m/CONSOLIDATE_02?part=updates",
+      "proto": "console,{skin}",
+      "note": "Console page updates over scripted Northwind data."
+    }
+  ]
+}

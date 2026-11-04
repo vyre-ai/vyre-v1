@@ -18,7 +18,7 @@ function draw(selected?: string, builtIn = false): string {
 }
 test("Groups mounts shared object list with search, checked filter choices, selection and server pagination", () => {
   const html = draw();
-  for (const expected of ["Reviewers", "Search", "group-list", "Load more", "Create group"]) assert.ok(html.includes(expected), expected);
+  for (const expected of ["Reviewers", "Search", "group-list", "Load more", "New team"]) assert.ok(html.includes(expected), expected);
 });
 test("group deep link mounts standard object tabs and named owner with actions, not a placeholder", () => {
   const html = draw(custom.id);
@@ -27,7 +27,7 @@ test("group deep link mounts standard object tabs and named owner with actions, 
   assert.doesNotMatch(draw(custom.id, true), />Rename</);
 });
 test("destructive impact is based on the selected object; paging merges by identity", () => {
-  assert.match(groupDeleteImpact(custom, 3), /1 membership, 1 manager assignment and 3 direct grants/);
+  assert.match(groupDeleteImpact(custom, 3), /1 membership, 1 manager assignment and 3 extra access entries/);
   assert.match(groupDeleteImpact(custom, 3), /cannot be undone/);
   assert.equal(groupActivityLabel("access.roles.assign"), "Role assigned");
   assert.deepEqual(mergeGroupRows([custom], [{...custom,name:"Renamed"}]).map((row) => row.name), ["Renamed"]);

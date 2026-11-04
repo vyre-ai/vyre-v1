@@ -1,4 +1,4 @@
-import { actionSentence } from "../../../../../lib/words/index.ts";
+import { auditPhrase, auditSentence } from "../../../../../lib/words/audit.ts";
 // Small text helpers the Console pages share. Numbers are tabular wherever they show; times are relative to the shell's clock so a screen test is stable.
 
 const MIN = 60_000;
@@ -20,15 +20,19 @@ export function money(micros: number): string {
   return "$" + Math.round(micros / 1_000_000).toLocaleString("en-US");
 }
 
-/** "role.changed" to "role changed": the registry's action names read as a phrase. */
-export function actionPhrase(action: string): string {
-  return action.replace(/[._]/g, " ");
+/** "files.save" as "saved a file", "role.changed" as "changed a role": the registry's act names said as a person says them (lib/words/audit.ts). With the name of the thing, "saved the file Fee agreement.pdf". */
+export function actionPhrase(action: string, resource?: string): string {
+  return auditPhrase(action, resource);
 }
 
-/** Plain sentences for the acts a new owner sees first; anything else keeps the generic phrase. An actor the Space has no name for reads as "The owner" only for a claim, else "Someone". */
+/** The act as a title: "Saved a file". */
+export const capPhrase = (action: string, resource?: string): string => { const t = auditPhrase(action, resource); return t.charAt(0).toUpperCase() + t.slice(1); };
+
+/** One line of the activity feed: who, what they did, and to what, in words. An actor the Space has no name for reads as "Someone" ("The owner" only for a claim). */
 export function activityTitle(who: string, action: string, resource: string | undefined): string {
   const unnamed = /^(act|usr|agt)_/.test(who);
-  return actionSentence({ who: unnamed ? (action === "identity.claim_owner" ? "The owner" : "Someone") : who, action, thing: resource });
+  const actor = unnamed ? (action === "identity.claim_owner" ? "The owner" : "Someone") : who;
+  return auditSentence({ actor, action, ...(resource ? { resource } : {}) });
 }
 
 /** The name of what an act was on, or nothing: an id the Space has no name for (the Space itself, a row since deleted) is left out, never read as "Someone". */

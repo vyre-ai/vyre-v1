@@ -262,6 +262,9 @@ export function threadOut(db: Db, t: ThreadRec): Record<string, unknown> {
   const stat = (db.all('SELECT COUNT(*) AS n, MAX("createdAt") AS last FROM chat_message WHERE "thread" = ? AND deleted_at IS NULL', t.id)[0] ?? {}) as { n?: number; last?: number | null };
   out["replyCount"] = Number(stat.n ?? 0);
   if (stat.last !== null && stat.last !== undefined) out["lastMessageAt"] = Number(stat.last);
+  // when a second person came in: what was said before it was said between fewer people, and an agent that reads the room for everyone leaves it out
+  const people = db.all("SELECT updated_at FROM chat_thread_member WHERE thread = ? AND deleted_at IS NULL AND principal LIKE 'usr_%' ORDER BY rowid", t.id) as Row[];
+  if (people.length > 1 && people[1]!["updated_at"] !== null && people[1]!["updated_at"] !== undefined) out["sharedAt"] = Number(people[1]!["updated_at"]);
   if (t.kind === "helper") {
     // the address bar of a helper chat: each ancestor, each part a link back
     const path: Array<{ title: string; threadId: string }> = [];

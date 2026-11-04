@@ -4,7 +4,7 @@ export type AccessRequestBlockData = {
   requestId: string;
   requester: string;
   resource: {
-    type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
+    type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar" | "skill";
     id: string;
   };
   resourceTitle: string;
@@ -147,6 +147,13 @@ export type HelperBlockData = {
       threadId: string;
     }>;
 };
+export type InstallPlanBlockData = {
+  planId: string;
+  name: string;
+  kind: "skill" | "plugin" | "mcp_local" | "mcp_remote" | "site";
+  update?: boolean;
+  installId?: string;
+};
 export type MemorySavedBlockData = {
   factId: string;
   layer: "person" | "agent" | "project" | "space";
@@ -275,6 +282,11 @@ export type TableBlockData = {
     }>;
   rows: Array<Record<string, unknown>>;
 };
+export type TalkKeyBlockData = {
+  provider: string;
+  scope: "mine" | "space";
+  hint?: string;
+};
 export type TerminalBlockData = {
   terminalId: string;
   title: string;
@@ -313,6 +325,7 @@ export interface BlockDataMap {
   "form_fields": FormFieldsBlockData;
   "goal": GoalBlockData;
   "helper": HelperBlockData;
+  "install_plan": InstallPlanBlockData;
   "memory_saved": MemorySavedBlockData;
   "model_switch": ModelSwitchBlockData;
   "mount": MountBlockData;
@@ -327,6 +340,7 @@ export interface BlockDataMap {
   "secret_input": SecretInputBlockData;
   "tab_opened": TabOpenedBlockData;
   "table": TableBlockData;
+  "talk_key": TalkKeyBlockData;
   "terminal": TerminalBlockData;
   "vault_used": VaultUsedBlockData;
 }
@@ -633,6 +647,16 @@ export const blockRegistry = [
     }
   },
   {
+    "type": "install_plan",
+    "v": 1,
+    "module": "chat",
+    "component": "ui:BlockInstallPlan",
+    "fallback": "Install {{name}}?",
+    "waitsForAnswer": false,
+    "actions": [],
+    "opens": null
+  },
+  {
     "type": "memory_saved",
     "v": 1,
     "module": "memory",
@@ -899,6 +923,33 @@ export const blockRegistry = [
     "fallback": "Table {{title}} ({{rows.length}} rows)",
     "waitsForAnswer": false,
     "actions": [],
+    "opens": null
+  },
+  {
+    "type": "talk_key",
+    "v": 1,
+    "module": "talk",
+    "component": "ui:BlockTalkKey",
+    "fallback": "Add a Talk key: type it in the field above. It goes straight to the Vault and does not enter this chat.",
+    "waitsForAnswer": false,
+    "actions": [
+      {
+        "key": "save",
+        "label": "Turn on Talk",
+        "cap": "talk.connect",
+        "input": {
+          "provider": "/provider"
+        }
+      },
+      {
+        "key": "save_space",
+        "label": "Turn on for everyone",
+        "cap": "talk.space.connect",
+        "input": {
+          "provider": "/provider"
+        }
+      }
+    ],
     "opens": null
   },
   {

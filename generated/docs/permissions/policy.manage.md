@@ -1,6 +1,6 @@
 # policy.manage
 
-Manage policies, retention and erase a person
+Manage sign-in rules, keep and delete, and erase a person
 
 Area: space. Risk: high. Applies to: space.
 
@@ -62,6 +62,11 @@ Area: space. Risk: high. Applies to: space.
 - settings.reset_space
 - settings.set_space
 - spaces.update
+- talk.space.check
+- talk.space.configure
+- talk.space.connect
+- talk.space.disconnect
+- talk.space.status
 - telephony.call.erase
 - telephony.sms.erase
 - threads.erase

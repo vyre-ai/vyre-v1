@@ -10,7 +10,7 @@ export type KindKey =
   | "approval.requested" | "answer.requested" | "unblock.requested" | "approval.backstop" | "dm" | "mention" | "call.incoming" | "agent.blocked" | "incident.owned" | "task.assigned" | "reply.followed"
   | "agent.task_finished" | "digest.away" | "mention.thread" | "run.failed" | "conflict.needs_you" | "access.requested" | "access.decided"
   | "sync.attention" | "health.degraded" | "problem.report" | "member.joined" | "limit.hit" | "vault.rotation_due" | "reply.thread"
-  | "task.turn" | "task.returned" | "task.finished" | "task.due" | "machine.alert" | "ci.paused";
+  | "task.turn" | "task.returned" | "task.finished" | "task.due" | "machine.alert" | "item.shared" | "space.deletion_scheduled" | "space.deletion_cancelled" | "ci.paused";
 export type Action = { label: string; cap: string };
 export interface KindDef {
   key: KindKey; level: Level; place: Place; title: string; pushTitle?: string; actions: Action[]; agentRateKey?: string; backstopEmailAfterHours?: number; respectHours: boolean;
@@ -43,9 +43,12 @@ export const KINDS: readonly KindDef[] = [
   kind("conflict.needs_you", "badge", "records", "Two edits conflict on {{title}}", { actions: [a("Resolve", "tasks.act")] }),
   kind("access.requested", "badge", "console", "{{from}} asks for {{level}} access to {{title}}", { actions: [a("Review", "tasks.act")] }),
   kind("access.decided", "badge", "home", "Your access request for {{title}} was {{decision}}"),
+  kind("item.shared", "badge", "inbox", "{{from}} shared {{title}} with you"),
   kind("sync.attention", "badge", "settings", "Sync needs attention on {{device}}"),
   kind("health.degraded", "badge", "console", "{{service}} is {{state}}"),
   kind("machine.alert", "badge", "inbox", "{{title}}", { actions: [a("Open", "machines.list")] }),
+  kind("space.deletion_scheduled", "badge", "inbox", "{{title}}", { actions: [a("Cancel deletion", "spaces.delete_cancel")] }),
+  kind("space.deletion_cancelled", "badge", "inbox", "{{title}}"),
   kind("ci.paused", "badge", "console", "{{title}}", { actions: [a("Open", "ci.cost.month")] }),
   kind("problem.report", "badge", "console", "Problem report from {{from}}", { actions: [a("Review", "tasks.act")] }),
   kind("member.joined", "digest", "home", "{{name}} joined {{space}}"),

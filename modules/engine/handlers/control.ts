@@ -4,9 +4,11 @@
 // The live engine is the TurnEngine bound at boot (projections.boundEngine). A thread that is not open on this host is opened from threads.get first,
 // with the mode, model and engine this module saved for its agents. Events are the manifest's, with the caller as `by`.
 import { recallPick, rememberPick } from "../last-pick.ts";
+import { probePick } from "./extra/models.ts";
 import type { TurnEngine } from "../../../agent/src/turn-engine/engine.ts";
 import type { EngineAgent, ThreadKind } from "../../../agent/src/turn-engine/types.ts";
 import { noteHandoff } from "../context.ts";
+import { modelName } from "../model-fallback.ts";
 import { actorOf, boundEngine, ensure, mintId, raise } from "../projections.ts";
 import type { EngineCtx } from "../projections.ts";
 
@@ -176,6 +178,8 @@ export async function setModel(
   saveState(ctx, input.threadId, input.agentId, { model, provider, effort: effort ?? null, accountRef: accountRef ?? null });
   ctx.emit("agent.model_changed", input.threadId, { threadId: input.threadId, agentId: input.agentId, model, provider, by: actorOf(ctx) });
   // a person's own pick is what their next new chat starts on (last-pick.ts)
+  // a model picked now is checked now, within the background check's cap or not (model-health.ts)
+  if (input.model !== undefined) void probePick(ctx, model);
   if (input.model !== undefined && ctx.principal.kind === "person") rememberPick(ctx.db, ctx.principal.id, input.agentId, { model, provider, effort: effort ?? null }, ctx.now());
   return { model, provider, ...(effort === undefined ? {} : { effort }), ...(accountRef === undefined ? {} : { accountRef }) };
 }
@@ -203,6 +207,22 @@ export async function lastPickGet(ctx: EngineCtx): Promise<{ provider?: string; 
 /** Rolling handoff: the new engine starts from the summary and the last turns (spec 4.14). The summary itself is the transcript module's. */
 const HANDOFF_TURNS = 20;
 
+/**
+ * Does an account the asker may use serve the target? The named account when one is given; otherwise an account of the target's engine that works, or a model list row (the Space key's models, an API
+ * key's) that is allowed. Accounts that cannot be read leave the switch as it was: the turn then says what is wrong.
+ */
+async function someoneServes(ctx: EngineCtx, input: { driver: string; model: string; accountRef?: string }): Promise<boolean> {
+  let accounts: Array<{ ref: string; driver: string; status: string; aliases?: string[] }>;
+  try { accounts = ((await ctx.call("engine.accounts.list", {})) as { accounts?: typeof accounts }).accounts ?? []; } catch { return true; }
+  const usable = accounts.filter((a) => a.status !== "expired" && a.status !== "failed");
+  if (input.accountRef !== undefined) return usable.some((a) => a.ref === input.accountRef || (a.aliases ?? []).includes(input.accountRef as string));
+  if (usable.some((a) => a.driver === input.driver)) return true;
+  try {
+    const rows = ((await ctx.call("engine.models.list", {})) as { models?: Array<{ model: string; alias?: string; allowed: boolean }> }).models ?? [];
+    return rows.some((m) => m.allowed && (m.model === input.model || m.alias === input.model));
+  } catch { return true; }
+}
+
 export async function switchEngine(
   ctx: EngineCtx,
   input: { threadId: string; agentId?: string; driver: string; model: string; provider?: string; effort?: "low" | "medium" | "high" | "max"; accountRef?: string },
@@ -218,6 +238,12 @@ export async function switchEngine(
   const saved = stateOf(ctx, input.threadId, agentId);
   const provider = input.provider ?? providerFor(input.model) ?? (DRIVER_TITLE[input.driver] ? input.driver : "openrouter");
   const accountRef = input.accountRef ?? saved?.accountRef ?? agent.accountRef;
+  // A chat is never left switched to something that cannot answer: with no account the asker may use serving the target, the switch is refused up front, in words.
+  if (!(await someoneServes(ctx, input))) {
+    const what = modelName(input.model);
+    const sub = ["claude_code", "codex", "grok"].includes(input.driver);
+    raise(ctx, "validation.precondition_failed", `No account here can run ${what}. Add ${sub ? `a ${DRIVER_TITLE[input.driver] ?? input.driver} sign-in` : `${/^[aeiou]/i.test(DRIVER_TITLE[input.driver] ?? "") ? "an" : "a"} ${DRIVER_TITLE[input.driver] ?? input.driver} key`} in Vault.`, { reason: "no_account_serves", model: input.model, driver: input.driver });
+  }
   const done = engine.turns(input.threadId).filter((t) => t.state === "completed").length;
   const handoffTurns = Math.min(HANDOFF_TURNS, done);
   const to = DRIVER_TITLE[input.driver] ?? input.driver;

@@ -274,3 +274,18 @@ test("a warm hint never throws and never waits", async () => {
   assert.equal(d.opens, 1);
   assert.equal(pool.status().totalWarm, 1);
 });
+
+test("stop idle sessions: all of them, or only one person's; a busy one is left alone", async () => {
+  const d = driver("anthropic");
+  const pool = createPool({ placement: "device", drivers: [d] });
+  const dana = await pool.acquire(spec({}, { person: "usr_dana", thread: "thr_1" }));
+  const ravi = await pool.acquire(spec({}, { person: "usr_ravi", thread: "thr_2" }));
+  const busy = await pool.acquire(spec({}, { person: "usr_dana", thread: "thr_3" }));
+  await pool.release(dana); await pool.release(ravi);
+  assert.deepEqual([pool.idleCount(), pool.idleCount("usr_dana"), pool.idleCount("usr_ravi")], [2, 1, 1], "the busy one is not idle");
+  assert.equal(await pool.closeIdle("usr_dana"), 1, "only Dana's idle session");
+  assert.deepEqual([pool.idleCount("usr_dana"), pool.idleCount("usr_ravi")], [0, 1], "Ravi's is still warm");
+  assert.equal(await pool.closeIdle(), 1);
+  assert.equal(pool.idleCount(), 0);
+  void busy;
+});

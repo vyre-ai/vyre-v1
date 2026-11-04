@@ -117,6 +117,37 @@
       "proto": "chat,{skin}",
       "waitFor": "[data-testid^='approval-']",
       "note": "After a Save the card stays held and says Edited by you."
+    },
+    {
+      "id": "CHROME2A_01-gate-event",
+      "route": "/m/CHROME2A_01?part=gate-event",
+      "proto": "chat,{skin}",
+      "waitFor": "[data-testid^='approval-']",
+      "note": "A held calendar event: title, when in both zones, guests and whether they are emailed, where with its link, the agenda folded, Send invites."
+    },
+    {
+      "id": "CHROME2A_01-inbox-elena",
+      "route": "/m/P-L9c_02?c=elena&open=transcript",
+      "proto": "inbox,{skin}",
+      "waitFor": "[data-testid^='draft:']",
+      "note": "Inbox by contact with an agent's draft as the held email card: who drafted it, the Gate line, Send, Edit and Don't send."
+    },
+    {
+      "id": "CHROME2A_01-inbox-edit",
+      "route": "/m/P-L9c_02?c=elena&open=transcript",
+      "proto": "inbox,{skin}",
+      "waitFor": "[data-testid^='draft:']",
+      "note": "Edit opens in the card, on the draft's own text.",
+      "click": [
+        "[data-testid='draft:dr_elena-edit']"
+      ]
+    },
+    {
+      "id": "CHROME2A_01-inbox-text",
+      "route": "/m/P-L9c_02?c=marcus&open=transcript",
+      "proto": "inbox,{skin}",
+      "waitFor": "[data-testid^='draft:']",
+      "note": "An agent's text draft in the same card: no subject."
     }
   ]
 }

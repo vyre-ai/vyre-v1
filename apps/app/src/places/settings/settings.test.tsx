@@ -361,6 +361,20 @@ test("a notification kind's level is a choice that saves, says why when refused,
   assert.ok(s.calls.some((c) => c.cap === "notifications.kind.set_level"));
 });
 
+test("AI usage asks for this person's own turns since the first of the month, never the whole Space for all time", () => {
+  const s = createSampleSettings(northwind);
+  html(s, { initialPage: "ai" });
+  const asked = s.usageAsked.find((a) => a["by"] === "model");
+  assert.ok(asked, "the AI page reads usage by model: " + JSON.stringify(s.usageAsked));
+  assert.equal(asked!["personId"], s.space.me.id, "only this person");
+  assert.equal(asked!["from"], monthStart(s.data.clock().now, s.data.clock().offsetMin), "from the start of this month");
+  assert.ok((asked!["from"] as number) > 0);
+  const jan = Date.UTC(2026, 0, 1);
+  assert.equal(monthStart(Date.UTC(2026, 0, 31, 23, 0), 0), jan);
+  assert.equal(monthStart(Date.UTC(2026, 0, 1, 1, 0), -120), Date.UTC(2025, 11, 1) + 120 * 60_000, "a local clock behind UTC is still in the old month");
+  assert.equal(monthStart(Date.UTC(2026, 0, 1, 1, 0), 120), Date.UTC(2026, 0, 1) - 120 * 60_000, "a local clock ahead of UTC has the new month");
+});
+
 test("Settings has a Notes page with the one switch: offers to save useful things from chats as notes, on by default", () => {
   const out = html(createSampleSettings(northwind), { initialPage: "notes" });
   assert.ok(has(out, 'data-testid="page-ai"'), "folded into Your AI");
@@ -380,6 +394,16 @@ test("AI usage asks for this person's own turns since the first of the month, ne
   assert.equal(monthStart(Date.UTC(2026, 0, 31, 23, 0), 0), jan);
   assert.equal(monthStart(Date.UTC(2026, 0, 1, 1, 0), -120), Date.UTC(2025, 11, 1) + 120 * 60_000, "a local clock behind UTC is still in the old month");
   assert.equal(monthStart(Date.UTC(2026, 0, 1, 1, 0), 120), Date.UTC(2026, 0, 1) - 120 * 60_000, "a local clock ahead of UTC has the new month");
+});
+
+test("the Default model row shows the model the person last picked, and says so; with no pick it shows the Space default", () => {
+  const out = html(createSampleSettings(northwind), { initialPage: "ai" });
+  assert.ok(has(out, "Your last pick. A new chat starts on it"), "the row says where its value comes from");
+  assert.ok(has(out, "GPT-5"), "the last pick, not the Space default (Claude Sonnet 5.5)");
+  const opts = [{ value: "anthropic/claude-sonnet-5-5" }, { value: "openai/gpt-5" }];
+  assert.equal(defaultModelValue({ model: "gpt-5" }, { provider: "anthropic", model: "claude-sonnet-5-5" }, opts), "openai/gpt-5", "a pick without a provider finds it among the models");
+  assert.equal(defaultModelValue({}, { provider: "anthropic", model: "claude-sonnet-5-5" }, opts), "anthropic/claude-sonnet-5-5");
+  assert.equal(defaultModelValue(null, null, opts), "");
 });
 
 test("the Default model row shows the model the person last picked, and says so; with no pick it shows the Space default", () => {

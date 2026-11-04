@@ -1,6 +1,8 @@
 // The production root, without a router. Every place is registered behind its dynamic loader before the first render; the session gate shows sign-in or the shell with the
 // Space's real data, and the address follows the shell through window.history (UrlSync). On the web index.web.tsx mounts this directly; the static export renders it through
 // expo-router (app/_layout.tsx), which only makes a page per route for deep links and the daemon.
+import { OpenLink } from "../shell/reach/OpenLink.tsx";
+import { holdOpen, parseOpenPath } from "../shell/reach/open-link.ts";
 import { Component, Suspense, lazy, useEffect, useState } from "react";
 import type { ReactElement, ReactNode } from "react";
 import { States } from "../../../../ui/src/States/index.tsx";
@@ -50,7 +52,7 @@ function AppRoute(): ReactElement {
   // The static export is one page per route and the daemon serves the root page for any address (a claim link included), so the first client render must be the page's own first frame;
   // the address decides what to draw only after mount (a hydration mismatch, React #418, otherwise).
   const [path, setPath] = useState<string | null>(null);
-  useEffect(() => setPath(currentPath()), []);
+  useEffect(() => { const p = currentPath(); setPath(p); const item = parseOpenPath(p); if (item) holdOpen(item); }, []);
   const token = path === null ? null : claimToken(path);
   const home = (): void => { replacePath("/chat"); setPath("/chat"); };
   // /oauth/callback: where an app sends a person back after approving a connection; it finishes the sign-in as the signed-in person
@@ -69,6 +71,7 @@ function AppRoute(): ReactElement {
     <StartupUpdate>
       <SessionGate baseUrl={hydrationBaseUrl(path !== null)} onHub={setHub} voice={loadTwilioDevice} />
       {hub ? <UrlSync hub={hub} /> : null}
+      {hub ? <OpenLink hub={hub} /> : null}
       {hub ? <WhatsNewOnce /> : null}
     </StartupUpdate>
   );

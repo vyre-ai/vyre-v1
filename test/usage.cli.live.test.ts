@@ -36,7 +36,7 @@ test("a Claude Code turn is recorded with the model the engine ran, its cached i
     // what the latest turn really ran on is on the record, and the usage by account names the account that paid
     assert.equal(use.lastTurn.model, "claude-sonnet-4-5");
     assert.equal(use.lastTurn.account.provider, "anthropic");
-    assert.match(use.lastTurn.paid, /· your sign-in$/);
+    assert.match(use.lastTurn.paid, / · your sign-in$/, "the Paid by line names the account and says it is the asker's own sign-in (agent/src/accounts/paid.ts)");
     const byAccount = (await call(d, "engine.usage.query", { by: "account" })).data;
     assert.deepEqual(byAccount.rows.map((r: { key: string }) => r.key), [use.lastTurn.account.ref]);
     assert.equal(byAccount.rows[0].title, use.account.name, "the account has the name the person gave it");
