@@ -272,6 +272,13 @@ export function createClient(transport: Transport) {
       validate: call("automations.validate", 1),
       vault_usage: call("automations.vault_usage", 1),
       versions: call("automations.versions", 1),
+      watches: {
+        check: call("automations.watches.check", 1),
+        list: call("automations.watches.list", 1),
+        remove: call("automations.watches.remove", 1),
+        report: call("automations.watches.report", 1),
+        save: call("automations.watches.save", 1),
+      },
       webhook_url: {
         get: call("automations.webhook_url.get", 1),
         rotate: call("automations.webhook_url.rotate", 1),
@@ -296,6 +303,19 @@ export function createClient(transport: Transport) {
       cancel: call("bookings.cancel", 1),
       list: call("bookings.list", 1),
       page_create: call("bookings.page_create", 1),
+    },
+    browser: {
+      cards: {
+        post: call("browser.cards.post", 1),
+      },
+      chrome: {
+        act: call("browser.chrome.act", 1),
+      },
+      sites: {
+        list: call("browser.sites.list", 1),
+        remove: call("browser.sites.remove", 1),
+        set: call("browser.sites.set", 1),
+      },
     },
     calendar: {
       availability: call("calendar.availability", 1),
@@ -401,6 +421,10 @@ export function createClient(transport: Transport) {
       messages: {
         list: call("chat.messages.list", 1),
       },
+      note_offer: {
+        answer: call("chat.note_offer.answer", 1),
+        make: call("chat.note_offer.make", 1),
+      },
       open_as_chat: call("chat.open_as_chat", 1),
       open_tab: call("chat.open_tab", 1),
       people_status: call("chat.people_status", 1),
@@ -418,6 +442,7 @@ export function createClient(transport: Transport) {
         ask: call("chat.question.ask", 1),
       },
       react: call("chat.react", 1),
+      read_floor: call("chat.read_floor", 1),
       recent: call("chat.recent", 1),
       remember: call("chat.remember", 1),
       reply_details: call("chat.reply_details", 1),
@@ -785,6 +810,7 @@ export function createClient(transport: Transport) {
       models: {
         list: call("engine.models.list", 1),
       },
+      my_ai: call("engine.my_ai", 1),
       now: call("engine.now", 1),
       placement: {
         decide: call("engine.placement.decide", 1),
@@ -1013,6 +1039,7 @@ export function createClient(transport: Transport) {
       holds: {
         get: call("gate.holds.get", 1),
         list: call("gate.holds.list", 1),
+        revise: call("gate.holds.revise", 1),
       },
       links: {
         known: call("gate.links.known", 1),
@@ -2246,6 +2273,11 @@ export function createClient(transport: Transport) {
       rename: call("sessions.rename", 1),
     },
     settings: {
+      contact: {
+        status: call("settings.contact.status", 1),
+        verify_confirm: call("settings.contact.verify_confirm", 1),
+        verify_start: call("settings.contact.verify_start", 1),
+      },
       copy_profile: call("settings.copy_profile", 1),
       copy_source: call("settings.copy_source", 1),
       floor_set: call("settings.floor_set", 1),
@@ -2499,8 +2531,24 @@ export function createClient(transport: Transport) {
       undo_push: call("sync_types.undo_push", 1),
       update: call("sync_types.update", 1),
     },
+    talk: {
+      ask_key: call("talk.ask_key", 1),
+      configure: call("talk.configure", 1),
+      connect: call("talk.connect", 1),
+      disconnect: call("talk.disconnect", 1),
+      session: call("talk.session", 1),
+      space: {
+        check: call("talk.space.check", 1),
+        configure: call("talk.space.configure", 1),
+        connect: call("talk.space.connect", 1),
+        disconnect: call("talk.space.disconnect", 1),
+        status: call("talk.space.status", 1),
+      },
+      status: call("talk.status", 1),
+    },
     tasks: {
       act: call("tasks.act", 1),
+      agent_on_it: call("tasks.agent_on_it", 1),
       ask: call("tasks.ask", 1),
       assign: call("tasks.assign", 1),
       block: call("tasks.block", 1),
@@ -2522,6 +2570,7 @@ export function createClient(transport: Transport) {
         remove: call("tasks.followers.remove", 1),
       },
       get: call("tasks.get", 1),
+      held_revise: call("tasks.held_revise", 1),
       history: call("tasks.history", 1),
       index: call("tasks.index", 1),
       links: {

@@ -272,6 +272,13 @@ export function stubs(ctx: CallCtx) {
       validate: call("automations.validate"),
       vault_usage: call("automations.vault_usage"),
       versions: call("automations.versions"),
+      watches: {
+        check: call("automations.watches.check"),
+        list: call("automations.watches.list"),
+        remove: call("automations.watches.remove"),
+        report: call("automations.watches.report"),
+        save: call("automations.watches.save"),
+      },
       webhook_url: {
         get: call("automations.webhook_url.get"),
         rotate: call("automations.webhook_url.rotate"),
@@ -296,6 +303,19 @@ export function stubs(ctx: CallCtx) {
       cancel: call("bookings.cancel"),
       list: call("bookings.list"),
       page_create: call("bookings.page_create"),
+    },
+    browser: {
+      cards: {
+        post: call("browser.cards.post"),
+      },
+      chrome: {
+        act: call("browser.chrome.act"),
+      },
+      sites: {
+        list: call("browser.sites.list"),
+        remove: call("browser.sites.remove"),
+        set: call("browser.sites.set"),
+      },
     },
     calendar: {
       availability: call("calendar.availability"),
@@ -401,6 +421,10 @@ export function stubs(ctx: CallCtx) {
       messages: {
         list: call("chat.messages.list"),
       },
+      note_offer: {
+        answer: call("chat.note_offer.answer"),
+        make: call("chat.note_offer.make"),
+      },
       open_as_chat: call("chat.open_as_chat"),
       open_tab: call("chat.open_tab"),
       people_status: call("chat.people_status"),
@@ -418,6 +442,7 @@ export function stubs(ctx: CallCtx) {
         ask: call("chat.question.ask"),
       },
       react: call("chat.react"),
+      read_floor: call("chat.read_floor"),
       recent: call("chat.recent"),
       remember: call("chat.remember"),
       reply_details: call("chat.reply_details"),
@@ -785,6 +810,7 @@ export function stubs(ctx: CallCtx) {
       models: {
         list: call("engine.models.list"),
       },
+      my_ai: call("engine.my_ai"),
       now: call("engine.now"),
       placement: {
         decide: call("engine.placement.decide"),
@@ -1013,6 +1039,7 @@ export function stubs(ctx: CallCtx) {
       holds: {
         get: call("gate.holds.get"),
         list: call("gate.holds.list"),
+        revise: call("gate.holds.revise"),
       },
       links: {
         known: call("gate.links.known"),
@@ -2246,6 +2273,11 @@ export function stubs(ctx: CallCtx) {
       rename: call("sessions.rename"),
     },
     settings: {
+      contact: {
+        status: call("settings.contact.status"),
+        verify_confirm: call("settings.contact.verify_confirm"),
+        verify_start: call("settings.contact.verify_start"),
+      },
       copy_profile: call("settings.copy_profile"),
       copy_source: call("settings.copy_source"),
       floor_set: call("settings.floor_set"),
@@ -2499,8 +2531,24 @@ export function stubs(ctx: CallCtx) {
       undo_push: call("sync_types.undo_push"),
       update: call("sync_types.update"),
     },
+    talk: {
+      ask_key: call("talk.ask_key"),
+      configure: call("talk.configure"),
+      connect: call("talk.connect"),
+      disconnect: call("talk.disconnect"),
+      session: call("talk.session"),
+      space: {
+        check: call("talk.space.check"),
+        configure: call("talk.space.configure"),
+        connect: call("talk.space.connect"),
+        disconnect: call("talk.space.disconnect"),
+        status: call("talk.space.status"),
+      },
+      status: call("talk.status"),
+    },
     tasks: {
       act: call("tasks.act"),
+      agent_on_it: call("tasks.agent_on_it"),
       ask: call("tasks.ask"),
       assign: call("tasks.assign"),
       block: call("tasks.block"),
@@ -2522,6 +2570,7 @@ export function stubs(ctx: CallCtx) {
         remove: call("tasks.followers.remove"),
       },
       get: call("tasks.get"),
+      held_revise: call("tasks.held_revise"),
       history: call("tasks.history"),
       index: call("tasks.index"),
       links: {

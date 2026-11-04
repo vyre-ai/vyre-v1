@@ -1396,7 +1396,9 @@ export const screens: ScreenIndexEntry[] = [
       },
       "accounts": {
         "cap": "engine.accounts.list",
-        "input": {},
+        "input": {
+          "place": "chat"
+        },
         "live": true
       }
     },
@@ -2473,6 +2475,43 @@ export const screens: ScreenIndexEntry[] = [
     },
     "needs": [
       "ai.spend"
+    ],
+    "perf": {
+      "firstPaintMs": 50,
+      "completeMs": 100
+    }
+  },
+  {
+    "id": "console.ai-voice",
+    "module": "talk",
+    "place": "console",
+    "slot": "main",
+    "builtin": "ui:ConsoleAiVoice",
+    "caller": "principal",
+    "queries": {
+      "space": {
+        "cap": "talk.space.status",
+        "input": {},
+        "live": true
+      },
+      "me": {
+        "cap": "talk.status",
+        "input": {},
+        "live": true
+      }
+    },
+    "actions": {
+      "configure": {
+        "cap": "talk.space.configure",
+        "input": {}
+      },
+      "check": {
+        "cap": "talk.space.check",
+        "input": {}
+      }
+    },
+    "needs": [
+      "policy.manage"
     ],
     "perf": {
       "firstPaintMs": 50,

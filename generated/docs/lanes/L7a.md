@@ -286,9 +286,12 @@ Events:
 
 ### settings
 
-Capabilities to implement: 15. Events to emit: 2. Contract tests that must go green: `generated/tests/settings/`.
+Capabilities to implement: 18. Events to emit: 6. Contract tests that must go green: `generated/tests/settings/`.
 
 Capabilities:
+- settings.contact.status (read, grant only, level view)
+- settings.contact.verify_confirm (write, grant only, level view)
+- settings.contact.verify_start (write, grant only, level view)
 - settings.copy_profile (write, grant only, level view)
 - settings.copy_source (read, grant only, level view)
 - settings.floor_set (write, policy.manage, level view)
@@ -307,6 +310,10 @@ Capabilities:
 
 Events:
 - settings.changed
+- settings.contact_code_failed
+- settings.contact_code_sent
+- settings.contact_unverified
+- settings.contact_verified
 - settings.floor_changed
 
 ### spaces
@@ -346,6 +353,30 @@ Events:
 - space.updated
 - star.added
 - star.removed
+
+### talk
+
+Capabilities to implement: 11. Events to emit: 5. Contract tests that must go green: `generated/tests/talk/`.
+
+Capabilities:
+- talk.ask_key (write, grant only, level edit)
+- talk.configure (write, grant only, level edit)
+- talk.connect (write, grant only, level edit)
+- talk.disconnect (write, grant only, level edit)
+- talk.session (write, grant only, level edit)
+- talk.space.check (write, policy.manage, level edit)
+- talk.space.configure (write, policy.manage, level edit, gate approve)
+- talk.space.connect (write, policy.manage, level edit)
+- talk.space.disconnect (write, policy.manage, level edit, gate delete)
+- talk.space.status (read, policy.manage, level view)
+- talk.status (read, grant only, level view)
+
+Events:
+- talk.configured
+- talk.connected
+- talk.disconnected
+- talk.space_changed
+- talk.space_checked
 
 ### vault
 

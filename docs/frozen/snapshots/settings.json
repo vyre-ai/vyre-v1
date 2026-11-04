@@ -1,6 +1,9 @@
 {
   "module": "settings",
   "capabilities": {
+    "settings.contact.status@1": "a0256c009d29a3547cb3be326ce2970c4602f8f0a60209e02ffdf1cb135182c2",
+    "settings.contact.verify_confirm@1": "a658ea6b2b3a9fd10c3aec8fe3e6e829becb1a3fa7ba9afd13d58bff788faa0f",
+    "settings.contact.verify_start@1": "d6f711bbf70e6cd434cc26508ae5ef9d0cd6a5cc6c4c0787a6c9bb603493565c",
     "settings.copy_profile@1": "6fa0910b4419200e0c6c101aed1e2a5abdf8a4cdb3e0b2a519fea1af4a50f8e4",
     "settings.copy_source@1": "13e0a9e877fc71c872fa247b75afadb82a4afa1ab164c70d8ec3d62fa2577287",
     "settings.floor_set@1": "196e37b686b6a64650d9f6396cf31cd7af7234e065a39a9d97b519fe56967bf8",
@@ -19,6 +22,10 @@
   },
   "events": {
     "settings.changed": "21494486dd388c5f01060a6abb6944689173f6081de579a26132ea3906271d99",
+    "settings.contact_code_failed": "b9c3d4ec7080300a173f940b2a2152a95e367fd61a58a5a4454d286deeae1692",
+    "settings.contact_code_sent": "48cc8d333318504abe8eca84ecf1cdb96f57da49d6cfcf28fb390012cbd3279d",
+    "settings.contact_unverified": "9f9b16850b0b9406f2ff039fee1a27574536fba33582109bb09e81b210ea2100",
+    "settings.contact_verified": "0b1444287fe740cc0cf0fbbaea87366bd066cf6ecb3efee9aa530b5cb53063d0",
     "settings.floor_changed": "72d1beeb9f9cd86051f25c37bc1ed34add49eaed32440a493ad4292c7b7150b8"
   }
 }
