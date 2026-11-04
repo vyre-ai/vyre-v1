@@ -12,9 +12,12 @@ const LOREM = /lorem ipsum/i;
 const FREE = new Set(["q", "query", "search", "term", "pattern", "filter", "keyword", "keywords", "text_search"]);
 
 /** The placeholder in a value, as the words that show it, or null. Walks objects and lists; a field named for searching is left alone. */
-export function probeIn(v: unknown, key = "", said = ""): string | null {
+export function probeIn(v: unknown, key = "", said = "", schema?: unknown): string | null {
+  const sc = (schema ?? {}) as { enum?: unknown[]; properties?: Record<string, unknown>; items?: unknown };
   if (typeof v === "string") {
     const s = v.trim();
+    // a value the tool's own schema lists as a choice ("none" for a cursor kind) is the tool's word, not a placeholder
+    if (Array.isArray(sc.enum) && sc.enum.includes(v)) return null;
     // a value the person typed themselves is theirs to ask for ("make a task called test", "open example.com")
     const mine = (what: string): boolean => said !== "" && said.toLowerCase().includes(what.toLowerCase());
     if (FREE.has(key)) return null;
@@ -27,11 +30,11 @@ export function probeIn(v: unknown, key = "", said = ""): string | null {
     if (s.length < 80 && !s.includes(" ") && PROBE_ID.test(s)) return mine(s) ? null : s;
     return null;
   }
-  if (Array.isArray(v)) { for (const x of v) { const p = probeIn(x, key, said); if (p !== null) return p; } return null; }
+  if (Array.isArray(v)) { for (const x of v) { const p = probeIn(x, key, said, sc.items); if (p !== null) return p; } return null; }
   if (v !== null && typeof v === "object") {
     for (const [k, x] of Object.entries(v as Record<string, unknown>)) {
       if (k === "idempotencyKey") continue;
-      const p = probeIn(x, k, said);
+      const p = probeIn(x, k, said, sc.properties?.[k]);
       if (p !== null) return p;
     }
   }

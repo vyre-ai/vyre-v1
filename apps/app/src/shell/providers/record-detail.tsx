@@ -114,6 +114,6 @@ export function RecordDetail({ rt, recordId, type: hint, fields = false, tab = "
   if (!resolved.type) return <States kind="empty" title="Opening record…" icon="records" />;
   if (!fields && resolved.type === "agent") return <AgentRecord key={recordId} rt={rt} recordId={resolved.recordId ?? recordId} />;
   return !fields && resolved.projectId !== undefined
-    ? <ProjectPageDataProvider value={projectData}><ProjectPage key={recordId} projectId={resolved.projectId!} tab={tab} onTabChange={(next) => rt.open({ subject: { type: "project", id: resolved.projectId! }, args: { tab: next } })} /></ProjectPageDataProvider>
+    ? <ProjectPageDataProvider value={projectData}><ProjectPage key={recordId} projectId={resolved.projectId!} tab={tab} onTabChange={(next) => rt.open({ subject: { type: "project", id: resolved.projectId! }, args: { tab: next }, local: true })} /></ProjectPageDataProvider>
     : <RecordPageDataProvider value={data}><RecordPage key={`${resolved.type}:${recordId}`} type={resolved.type} recordId={resolved.recordId ?? recordId} /></RecordPageDataProvider>;
 }
