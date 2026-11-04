@@ -11,8 +11,8 @@ import { mkChain, mkProject, run } from "../fixtures/seed.ts";
 
 const mine = registry.capabilities.filter((c) => c.module === "projects");
 
-test("the handler table covers exactly the 50 capabilities of the projects manifest", () => {
-  assert.equal(mine.length, 50);   // 47 of l-projview, the one l-crews added, and archive and unarchive (l-menus)
+test("the handler table covers exactly the 51 capabilities of the projects manifest", () => {
+  assert.equal(mine.length, 51);   // 48 of l-projview (with overview_doc.restore), the one l-crews added, and archive and unarchive (l-menus)
   assert.deepEqual(Object.keys(handlers).sort(), mine.map((c) => c.name).sort());
   for (const c of mine) assert.equal(typeof handlers[c.name], "function", c.name);
 });
@@ -135,6 +135,8 @@ const scenarios: Scenario[] = [
   { cap: "projects.overview_edit", setup: withProject, run: (hn, p) => run(hn, "projects.overview_edit", { projectId: p.projectId, ops: [{ op: "delete", id: "blk_none" }] }), expect: "validation.not_found" },
   { cap: "projects.overview_get", setup: withProject, run: (hn, p) => run(hn, "projects.overview_get", { projectId: p.projectId }) },
   { cap: "projects.overview_doc.undo", setup: async (hn) => { const p = await withProject(hn); await run(hn, "projects.overview_edit", { projectId: p.projectId, ops: [{ op: "insert", block: { kind: "text", text: "Hi" } }] }); hn.clear(); return p; }, run: (hn, p) => run(hn, "projects.overview_doc.undo", { projectId: p.projectId }) },
+  { cap: "projects.overview_doc.restore", setup: async (hn) => { const p = await withProject(hn); const a = await run(hn, "projects.overview_edit", { projectId: p.projectId, ops: [{ op: "insert", block: { kind: "text", text: "One" } }] }); await run(hn, "projects.overview_edit", { projectId: p.projectId, ops: [{ op: "insert", block: { kind: "text", text: "Two" } }] }); hn.clear(); return { ...p, first: a.rev }; }, run: (hn, p) => run(hn, "projects.overview_doc.restore", { projectId: p.projectId, rev: (p as { first: number }).first }) },
+  { cap: "projects.overview_doc.restore", setup: withProject, run: (hn, p) => run(hn, "projects.overview_doc.restore", { projectId: p.projectId, rev: 999 }), expect: "validation.not_found" },
   { cap: "projects.overview_doc.undo", setup: withProject, run: (hn, p) => run(hn, "projects.overview_doc.undo", { projectId: p.projectId }), expect: "validation.precondition_failed" },
   { cap: "projects.overview_doc.history", setup: withProject, run: (hn, p) => run(hn, "projects.overview_doc.history", { projectId: p.projectId, limit: 5 }) },
   { cap: "projects.live_block.query", setup: withProject, run: (hn, p) => run(hn, "projects.live_block.query", { projectId: p.projectId, type: "status", spec: {} }) },

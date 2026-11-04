@@ -4,7 +4,7 @@ Lane L3. Kind module. Version 0.1.0.
 
 Requires: agents, records, tasks.
 
-## Capabilities (50)
+## Capabilities (51)
 
 - [projects.apply_cascade](../capabilities/projects.apply_cascade.md): Apply a cascade proposal, or keep the dates
 - [projects.archive](../capabilities/projects.archive.md): Archive a project: it leaves the lists and stays readable, with its record, channel, folder and plan. A manager of the project
@@ -31,6 +31,7 @@ Requires: agents, records, tasks.
 - [projects.overview_doc.apply_template](../capabilities/projects.overview_doc.apply_template.md): Put a template's blocks on a project's Overview, replacing the page (one revision, so Undo brings the old page back)
 - [projects.overview_doc.get](../capabilities/projects.overview_doc.get.md): The Overview page: its blocks (text, headings and live blocks that hold only a spec), its revision and the project's custom fields for the page header
 - [projects.overview_doc.history](../capabilities/projects.overview_doc.history.md): The Overview's revisions, newest first, each with who made it and what changed
+- [projects.overview_doc.restore](../capabilities/projects.overview_doc.restore.md): Bring an older version of the Overview back: its blocks become the page again, as a new revision (so the restore can be undone)
 - [projects.overview_doc.save](../capabilities/projects.overview_doc.save.md): Save the whole Overview page from the editor, as Markdown (or blocks); baseRev is the revision it was opened at, and a page changed since says so instead of overwriting
 - [projects.overview_doc.templates.list](../capabilities/projects.overview_doc.templates.list.md): The Space's Overview page templates: Client account, Software project and Hiring, and any saved since
 - [projects.overview_doc.templates.save](../capabilities/projects.overview_doc.templates.save.md): Save a page template for the Space, from a project's Overview or from blocks; an agent can too

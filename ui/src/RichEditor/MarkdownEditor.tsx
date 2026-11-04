@@ -4,7 +4,7 @@
 // Paste loses the indent it was copied with and Markdown becomes its structure. The editor saves nothing itself: the host keeps the text (autosave.ts) and shows the version.
 // Web mounts TipTap; the phone keeps a plain multiline field until a native editor exists (the same rule as the Notes editor).
 
-import { createElement, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, createElement, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { LiveBlockApi, LiveBlockAttrsLike, LiveBlockRenderer } from "./extensions.ts";
 import type { ReactElement, ReactNode } from "react";
 import { Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions } from "react-native";
@@ -18,7 +18,7 @@ import type { PMNode } from "./mdtree.ts";
 export type MarkdownView = "styled" | "raw";
 
 /** One row of a suggestion menu. */
-export interface SuggestItem { id: string; label: string; detail?: string }
+export interface SuggestItem { id: string; label: string; detail?: string; /** In a "/" menu: the group it is listed under ("Basic blocks", "Live blocks"); a heading is drawn where the group changes. */ group?: string }
 
 /**
  * A menu that opens at the caret when the text before it ends in a trigger: `[[` for a page link, `@` for a person. The editor reports what was typed after the trigger (onQuery, null when the menu closes), the host
@@ -544,7 +544,8 @@ function MarkdownEditorEdit(props: MarkdownEditorProps): ReactElement {
     show(hidden.map((c) => ({ label: tooltip(c.label, c.keys), checked: editor !== null && c.active(editor), onSelect: () => { if (editor) c.run(editor, { link: openLink }); } })), at.x, at.y, "other");
   };
   const styleLabel = TEXT_STYLES.find((s) => s.id === style)?.label ?? "Paragraph";
-  const bar = barOn ? (
+  // on a phone the toolbar sits at the foot of the page: while the "/" menu is open it steps aside, so it never draws across the menu
+  const bar = phone && sg !== null ? null : barOn ? (
     <View style={[st.bar, phone && st.barPhone]} testID="md-bar" accessibilityRole="toolbar" accessibilityLabel="Formatting" {...webProps({ onMouseDown: (e: { target?: { tagName?: string }; preventDefault(): void }) => { if (e.target?.tagName !== "INPUT") e.preventDefault(); } })} onLayout={(e: LayoutChangeEvent) => setBarW(e.nativeEvent.layout.width)}>
       {linkAt !== null ? (
         <View style={st.linkRow} testID="md-link-row">
@@ -591,11 +592,19 @@ function MarkdownEditorEdit(props: MarkdownEditorProps): ReactElement {
   ) : null;
 
   const sgItems = sg !== null && props.suggest ? props.suggest.items : [];
+  const sgGroups: { name: string | undefined; items: { it: SuggestItem; i: number }[] }[] = [];
+  sgItems.forEach((it, i) => { const last = sgGroups[sgGroups.length - 1]; if (last && last.name === it.group) last.items.push({ it, i }); else sgGroups.push({ name: it.group, items: [{ it, i }] }); });
   const suggestNode = sg !== null && props.suggest && sgItems.length > 0 ? (
     <View style={[st.suggest, { left: sg.left, top: sg.top }]} accessibilityRole="menu" accessibilityLabel={props.suggest.label} testID={props.suggest.menuTestID ?? "md-suggest"} {...webProps({ onMouseDown: (e: { preventDefault(): void }) => e.preventDefault() })}>
-      {sgItems.map((it, i) => (
-        <Row key={it.id} id={it.id} title={it.label} selected={i === sgHi} {...(it.detail ? { trailing: <Text style={st.sgDetail}>{it.detail}</Text> } : {})} onPress={() => pickSuggest(it)}
-          domProps={{ "data-testid": props.suggest?.itemTestID ? props.suggest.itemTestID(it) : `md-suggest-${it.id}`, role: "menuitem", "aria-selected": i === sgHi }} />
+      {/* ui-rows-lint: not a list (groups of rows: each group is a heading and its rows) */}
+      {sgGroups.map((g) => (
+        <Fragment key={g.name ?? ""}>
+          {g.name !== undefined ? <Text style={st.sgHead} testID={`md-suggest-head-${g.name}`}>{g.name}</Text> : null}
+          {g.items.map(({ it, i }) => (
+            <Row key={it.id} id={it.id} title={it.label} selected={i === sgHi} {...(it.detail ? { trailing: <Text style={st.sgDetail}>{it.detail}</Text> } : {})} onPress={() => pickSuggest(it)}
+              domProps={{ "data-testid": props.suggest?.itemTestID ? props.suggest.itemTestID(it) : `md-suggest-${it.id}`, role: "menuitem", "aria-selected": i === sgHi }} />
+          ))}
+        </Fragment>
       ))}
     </View>
   ) : null;
@@ -670,6 +679,7 @@ const st = StyleSheet.create({
   pageCompact: { paddingVertical: 12, paddingHorizontal: 16 },
   pageBare: { paddingVertical: 0, paddingHorizontal: 0, maxWidth: "100%" as unknown as number, alignSelf: "stretch" },
   bubble: { position: "absolute", zIndex: 20, flexDirection: "row", alignItems: "center", gap: 1, padding: 3, borderRadius: 9, backgroundColor: "var(--raised)" as string, borderWidth: 1, borderColor: "var(--line-2)" as string },
+  sgHead: { fontSize: 11.5, fontWeight: "600", color: "var(--ink-3)" as string, paddingHorizontal: 8, paddingTop: 8, paddingBottom: 2 },
   suggest: { position: "absolute", zIndex: 30, minWidth: 220, maxWidth: 320, padding: 4, borderRadius: 10, backgroundColor: "var(--raised)" as string, borderWidth: 1, borderColor: "var(--line-2)" as string },
   sgItem: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 8, height: 30, borderRadius: 6 },
   sgOn: { backgroundColor: "var(--hover)" as string },
