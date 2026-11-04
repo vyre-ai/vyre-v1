@@ -60,6 +60,17 @@ test("Projects shell: sidebar group, project tab, header, tabs and status, as an
     const walk = async (who: "admin" | "member", p: typeof page, size: "wide" | "phone"): Promise<void> => {
       await p.goto(`${web.origin}/chat`, { waitUntil: "load" });
       if (size === "phone") { await p.getByTestId("mobile-shell").waitFor({ timeout: 30_000 }); } else { await p.getByTestId("shell").waitFor({ timeout: 30_000 }); }
+      // a plain chat finishing loading in the Chats tab (React 310 on a chat that loaded after an early return)
+      if (who === "admin" && size === "wide") {
+        const agents = (await call("agents.list", { limit: 20 })).agents as Array<{ agentId: string }>;
+        const chat = (await call("chat.start", { kind: "chat", agentIds: [agents[0]!.agentId], idempotencyKey: "plain-chat" })).thread.threadId as string;
+        await p.goto(`${web.origin}/chat#subject=thread:${chat}`, { waitUntil: "load" });
+        await p.getByTestId("conversation").waitFor({ timeout: 30_000 });
+        await p.waitForTimeout(800);
+        assert.equal(await p.getByText("Couldn't draw this page").count(), 0, "a plain chat draws");
+        await p.screenshot({ path: path.join(shots, `projects-0-plain-chat-${who}-${size}-paper.png`) });
+        await p.goto(`${web.origin}/chat`, { waitUntil: "load" });
+      }
       // the group in the sidebar, after Goals, and a row
       if (size === "wide") {
         await p.getByTestId("head-projects").waitFor({ timeout: 20_000 });
@@ -74,7 +85,9 @@ test("Projects shell: sidebar group, project tab, header, tabs and status, as an
         throw new Error(`no project page at ${p.url()}: ${JSON.stringify(ids)} errors=${JSON.stringify(errs.slice(0, 3))} / ${e.message.slice(0, 60)}`);
       });
       assert.equal(await p.getByTestId("project-title").innerText(), "Rivera account");
-      await p.waitForTimeout(500);
+      await p.getByTestId("conversation").or(p.getByTestId("conversation-loading")).first().waitFor({ timeout: 20_000 }).catch(() => undefined);
+      await p.waitForTimeout(800);
+      assert.equal(await p.getByText("Couldn't draw this page").count(), 0, "the project page draws with its chat loaded");
       await p.screenshot({ path: path.join(shots, `projects-2-project-${who}-${size}-paper.png`) });
       // the regression: pressing Plan opens the Plan
       await p.getByTestId("tab-plan").click();
