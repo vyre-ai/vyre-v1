@@ -41,6 +41,7 @@ export const PAGES: readonly PageDef[] = [
   p("erase", "Erase a person", "Data", "x", "policy.manage", "governance.erase"),
   p("backups", "Backups", "Data", "box", "server.backups", "console.backups"),
   p("models", "Allowed models", "AI", "ai", "ai.models", "console.ai-models"),
+  p("voice", "Voice", "AI", "mic", "policy.manage", "console.ai-voice"),
   p("gate", "Approvals", "AI", "filter", "policy.manage", "gate.rules"),
   p("spend", "Spend and limits", "AI", "coins", "ai.spend", "console.ai-spend"),
   p("review", "Sampling", "AI", "eye", "ai.incidents", "console.ai-review"),
@@ -70,7 +71,6 @@ export const PAGES: readonly PageDef[] = [
   // the pages the Console restructure added (4 Nov): each draws an existing screen, so the same permission shows it
   p("aiaccounts", "AI accounts", "AI", "ai", "ai.models", "console.ai-models"),
   p("aisee", "What each provider may see", "AI", "filter", "ai.models", "console.ai-models"),
-  p("voice", "Voice", "AI", "assistant", "ai.models", "console.ai-models"),
   p("requests", "Requests", "Access", "people", "access.manage", "access.people"),
   p("activity", "Activity", "Agents and actors", "pulse", "agents.manage", "console.agents-register"),
   p("apps", "Connected apps", "Integrations", "braces", "console.access", "console.integrations"),
@@ -152,6 +152,7 @@ export const PAGE_NOTE: Readonly<Record<string, string>> = {
   labels: "What each label protects",
   microsoft: "One connection for everyone",
   models: "Which AI this Space allows",
+  voice: "One key so everyone here can talk",
   network: "Addresses and certificates",
   numbers: "Phone numbers",
   overview: "Checks, recent admin changes, last backup",

@@ -25,6 +25,8 @@ import { createPluginsHost } from "./plugins.ts";
 import { createSourcesSecretResolver } from "./sources.ts";
 import type { SourcesSecretResolver } from "./sources.ts";
 import type { MsHostSeam, MsSeamDeps } from "./microsoft.ts";
+import { createTalkHost } from "./talk.ts";
+import type { TalkHostSeam } from "./talk.ts";
 import type { FetchedResponse, SeamFetch, SpaceBlobs, SpaceFiles, SpaceMembers, VaultPort } from "./ports.ts";
 
 export { createGithubHost, createStripeHost, createTwilioHost, createZoomHost };
@@ -66,6 +68,8 @@ export interface SeamSetters {
   setZoomHost?: ((h: ZoomHostSeam | null) => void) | undefined;
   /** Dropbox as a file source (live folders L3): the app key and secret, sign-in and refresh, uploads and downloads */
   setDropboxHost?: ((h: DropboxHostSeam | null) => void) | undefined;
+  /** Talk: the provider's grant, with the key read from the Vault at the last moment */
+  setTalkHost?: ((h: TalkHostSeam | null) => void) | undefined;
   [name: string]: ((driver: never) => void) | undefined;
 }
 
@@ -123,6 +127,7 @@ export const BUILTIN_DRIVERS: Readonly<Record<string, SeamDriver>> = Object.free
   setTwilioHost: (d: SeamDriverDeps) => createTwilioHost({ vault: d.vault, fetch: d.fetch, blobs: d.blobs, publicUrl: d.publicUrl }),
   setZoomHost: (d: SeamDriverDeps) => createZoomHost({ vault: d.vault, fetch: d.fetch, blobs: d.blobs }),
   setDropboxHost: (d: SeamDriverDeps) => createDropboxHost({ vault: d.vault, fetch: d.fetch, files: d.files, blobs: d.blobs, publicUrl: d.publicUrl }),
+  setTalkHost: (d: SeamDriverDeps) => createTalkHost({ vault: d.vault, fetch: d.fetch }),
   setPluginsHost: (d: SeamDriverDeps) => createPluginsHost({ fetch: d.fetch }),
   setGithubHost: (d: SeamDriverDeps) => createGithubHost({ vault: d.vault, fetch: d.fetch, blobs: d.blobs, filler: d.filler, publicUrl: d.publicUrl }),
 });

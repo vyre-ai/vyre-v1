@@ -1,75 +1,94 @@
-// Console > AI > Voice: one Deepgram key covers the whole Space, so people only press the mic. UI only for now: the capabilities voice.status, voice.set, voice.check and voice.remove are
-// not in generated/types.ts yet, so they go through the thin typed wrapper below (data.call takes a plain name). When they are generated, only `VoiceApi` needs to change.
-import { useState } from "react";
+// Console, AI, Voice: one key that covers everyone in the Space. Status at a glance first, then what can be done. The key itself is never read back here: it sits Restricted in the Vault.
+import { useEffect, useRef, useState } from "react";
 import type { ReactElement } from "react";
 import { Text, View } from "react-native";
+import type { CapMap } from "../../../../../generated/types.ts";
 import { Row } from "../../../../../ui/src/Row/index.tsx";
-import { Glyph } from "../shell/glyphs.tsx";
-import { Group, Lead } from "../shell/ui.tsx";
+import { useConsoleData } from "../shell/data.tsx";
+import { Group, Section, StatusLabel } from "../shell/ui.tsx";
 import { Actions, Button, Field, Note, ReadState, useAction, useRead } from "./shared.tsx";
 
-export interface VoiceStatus { set: boolean; on: boolean; own: number; who?: string; checkedAt?: number }
-/** The four capabilities Voice needs, by name, with the shape each takes. */
-export const VoiceApi = {
-  status: { cap: "voice.status", input: {} as Record<string, never> },
-  set: (input: { key?: string; on?: boolean }) => ({ cap: "voice.set", input }),
-  check: { cap: "voice.check", input: {} as Record<string, never> },
-  remove: { cap: "voice.remove", input: {} as Record<string, never> },
-} as const;
+type SpaceOut = CapMap["talk.space.status"]["out"];
+type VoiceOut = CapMap["talk.status"]["out"];
+const CHECK_AFTER_MS = 3_600_000;
+const attempt = (): string => (globalThis.crypto?.randomUUID?.() ?? `voice-${Date.now()}`);
 
-/** "4 minutes ago" from a timestamp in milliseconds. */
-export function agoWords(at: number | undefined, now: number): string {
-  if (at === undefined) return "not yet";
-  const s = Math.max(0, Math.round((now - at) / 1000));
-  if (s < 60) return "just now";
-  const m = Math.round(s / 60);
-  if (m < 60) return `${m} ${m === 1 ? "minute" : "minutes"} ago`;
+/** "4 minutes ago", plainly. */
+export function agoLine(at: number | undefined, now: number): string {
+  if (at === undefined) return "not checked yet";
+  const m = Math.round((now - at) / 60_000);
+  if (m < 1) return "just now";
+  if (m < 60) return `${m} minute${m === 1 ? "" : "s"} ago`;
   const h = Math.round(m / 60);
-  if (h < 24) return `${h} ${h === 1 ? "hour" : "hours"} ago`;
-  const d = Math.round(h / 24);
-  return `${d} ${d === 1 ? "day" : "days"} ago`;
+  if (h < 48) return `${h} hour${h === 1 ? "" : "s"} ago`;
+  return `${Math.round(h / 24)} days ago`;
 }
 
-export const voiceLine = (v: VoiceStatus): string => !v.set ? "Not set up" : v.on ? "On for everyone" : "Off for everyone";
-
-export function VoicePage(): ReactElement {
-  const status = useRead<VoiceStatus>(VoiceApi.status.cap, VoiceApi.status.input, { direct: true });
-  if (!status.data) return <ReadState error={status.error} retry={status.refresh} />;
-  return <Voice status={status.data} refresh={status.refresh} />;
+/** The one line that says how the Space stands. */
+export function voiceHeadline(s: SpaceOut): string {
+  if (!s.set) return "Not set up";
+  if (!s.on) return "Off for everyone";
+  return s.state === "failing" ? "The key stopped working" : "On for everyone";
 }
 
-function Voice({ status, refresh }: { status: VoiceStatus; refresh(): void }): ReactElement {
+export function VoiceSettings(): ReactElement {
+  const data = useConsoleData();
+  const space = useRead<SpaceOut>("talk.space.status");
+  const me = useRead<VoiceOut>("talk.status");
+  const refresh = (): void => { space.refresh(); me.refresh(); };
   const action = useAction(refresh);
-  const [form, setForm] = useState(false);
+  const [replacing, setReplacing] = useState(false);
   const [key, setKey] = useState("");
-  const showForm = !status.set || form;
+  const [gone, setGone] = useState(false);
+  const checked = useRef(false);
+  const s = space.data;
+  // a row that says when it was last checked should not be far behind: an old answer is asked again once as the page opens
+  useEffect(() => {
+    if (!s?.set || checked.current || data.clock().now - (s.checkedAt ?? 0) < CHECK_AFTER_MS) return;
+    checked.current = true;
+    void action.run("talk.space.check", {}, "");
+  }, [s?.set]);
+  if (!s || !me.data) return <ReadState error={space.error ?? me.error} retry={refresh} />;
+  const provider = me.data.providers.find((p) => p.key === (s.provider ?? me.data?.provider)) ?? me.data.providers[0];
+  const name = provider?.name ?? "Deepgram";
   const save = async (): Promise<void> => {
-    const call = VoiceApi.set({ key: key.trim(), ...(status.set ? {} : { on: true }) });
-    const out = await action.run(call.cap, call.input, status.set ? "Key replaced" : "Voice is on for everyone");
-    if (out) { setKey(""); setForm(false); }
+    if (key.trim() === "" || !provider) return;
+    const out = await action.run<SpaceOut>("talk.space.connect", { provider: provider.key, fields: [{ key: "api_key", value: key, secret: true }], idempotencyKey: attempt() }, "Talk is on for everyone");
+    if (out) { setKey(""); setReplacing(false); }
   };
-  const toggle = (): void => { const call = VoiceApi.set({ on: !status.on }); void action.run(call.cap, call.input, status.on ? "Voice is off for everyone" : "Voice is on for everyone"); };
-  const check = (): void => { void action.run(VoiceApi.check.cap, VoiceApi.check.input, "Checked"); };
-  const remove = (): void => { void action.run(VoiceApi.remove.cap, VoiceApi.remove.input, "Key removed"); };
-  return <View testID="console-voice">
-    <Text style={{ fontSize: 12.5, color: "var(--ink-3)" as string, marginBottom: 12, marginLeft: 2 }}>Press the mic and your words land in the message. One key here covers everyone, and nobody can read it.</Text>
-    <Group>
-      <Row id="voice-status" title={voiceLine(status)} note={status.set ? `Deepgram · ${status.who ?? "Someone"} added it · checked ${agoWords(status.checkedAt, Date.now())}` : "One Deepgram key can cover everyone. People just press the mic."} leading={<Lead><Glyph name="assistant" size={16} color="var(--ink-3)" /></Lead>} trailing={status.set ? <Text style={{ fontSize: 12.5, color: "var(--ink-3)" as string }}>{status.on ? "Working" : "Paused"}</Text> : null} />
-      {status.set ? <Row id="voice-own" title="People with their own key" note={`${status.own}. Their own key wins for them`} /> : null}
-    </Group>
-    {showForm ? <View style={{ padding: 14, gap: 8 }}>
-      <Field label="Deepgram key" testID="voice-key" secure value={key} onChange={setKey} />
-      <Text style={{ fontSize: 12, color: "var(--ink-3)" as string }}>Goes straight to this Space's Vault and is checked at once. It needs the Member role.</Text>
-      <Actions>
-        {status.set ? <Button label="Cancel" testID="voice-cancel" onPress={() => { setForm(false); setKey(""); }} /> : null}
-        <Button label={status.set ? "Replace key" : "Turn on for everyone"} testID="voice-save" disabled={action.busy || key.trim() === ""} why="Paste your key first" onPress={() => void save()} />
-      </Actions>
-    </View> : <Actions>
-      <Button label="Replace key" testID="voice-replace" onPress={() => setForm(true)} />
-      <Button label={status.on ? "Turn off" : "Turn on"} testID="voice-toggle" disabled={action.busy} onPress={toggle} />
-      <Button label="Check now" testID="voice-check" disabled={action.busy} onPress={check} />
-      <Button label="Remove key" testID="voice-remove" danger disabled={action.busy} onPress={remove} />
-    </Actions>}
-    {action.note ? <Note>{action.note}</Note> : null}
-  </View>;
+  const who = s.setBy ? `${data.name(s.setBy)} added it` : "";
+  const note = s.set ? [name, who, `checked ${agoLine(s.checkedAt, data.clock().now)}`].filter(Boolean).join(" · ") : `One ${name} key can cover everyone. People just press the mic, and can never read the key.`;
+  const owned = s.peopleOwnKey ?? 0;
+  const form = !s.set || replacing;
+  return (
+    <View testID="console-voice">
+      <Section title="Voice">
+        <Group>
+          <Row id="voice-status" title={voiceHeadline(s)} note={note} trailing={s.set ? <StatusLabel status={s.state === "failing" ? "failed" : s.on ? "active" : "paused"} /> : undefined} />
+          {s.set ? <Row id="voice-own" title="People with their own key" note={owned === 0 ? "Nobody. The Space key covers everyone" : `${owned}. Their own key wins for them`} /> : null}
+        </Group>
+        {form ? (
+          <Group>
+            <Field label={`${name} key`} value={key} onChange={setKey} secure testID="voice-key" />
+            <Note>{"Goes straight to this Space's Vault and is checked at once. It needs the Member role."}</Note>
+            <Actions>
+              <Button label={action.busy ? "Checking" : s.set ? "Replace key" : "Turn on for everyone"} disabled={key.trim() === "" || action.busy} why="Paste the key first" onPress={() => void save()} testID="voice-save" />
+              {replacing ? <Button label="Cancel" onPress={() => { setReplacing(false); setKey(""); }} testID="voice-cancel" /> : null}
+              {provider ? <Button label={`Get a key from ${name}`} onPress={() => { (globalThis as { open?: (url: string, target: string) => void }).open?.(provider.keyUrl, "_blank"); }} testID="voice-get-key" /> : null}
+            </Actions>
+          </Group>
+        ) : (
+          <Actions>
+            <Button label="Replace key" onPress={() => setReplacing(true)} testID="voice-replace" />
+            <Button label={s.on ? "Turn off" : "Turn on"} onPress={() => void action.run("talk.space.configure", { on: !s.on }, s.on ? "Talk is off for everyone without their own key" : "Talk is on for everyone")} disabled={action.busy} testID="voice-toggle" />
+            <Button label="Check now" onPress={() => void action.run("talk.space.check", {}, "Checked")} disabled={action.busy} testID="voice-check" />
+            {gone
+              ? <Button danger label="Remove from the Vault" onPress={() => void action.run("talk.space.disconnect", {}, "Key removed").then(() => setGone(false))} testID="voice-remove-yes" />
+              : <Button label="Remove key" onPress={() => setGone(true)} testID="voice-remove" />}
+          </Actions>
+        )}
+        {action.note !== "" ? <Text accessibilityRole="status" testID="voice-note" style={{ marginTop: 8, fontSize: 12.5, color: "var(--ink-3)" }}>{action.note}</Text> : null}
+      </Section>
+    </View>
+  );
 }

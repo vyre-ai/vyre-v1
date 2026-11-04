@@ -31,6 +31,7 @@ import { ConnectCompanyPage } from "../../console/pages/company/ConnectCompany.t
 import { GoogleWorkspacePage } from "../../console/pages/suite/GoogleWorkspace.tsx";
 import { Microsoft365Page } from "../../console/pages/suite/Microsoft365.tsx";
 import { Models } from "../../console/pages/Models.tsx";
+import { VoiceSettings } from "../../console/pages/Voice.tsx";
 import { Spend } from "../../console/pages/Spend.tsx";
 import { ReviewSampling } from "../../console/pages/AiSettings.tsx";
 import { Incidents } from "../../console/pages/Incidents.tsx";
@@ -42,7 +43,6 @@ import { Holds } from "../../console/pages/Holds.tsx";
 import { ErasePerson } from "../../console/pages/ErasePerson.tsx";
 import { AiAccountsPage } from "../../console/pages/AiAccounts.tsx";
 import { AiSeePage } from "../../console/pages/AiSee.tsx";
-import { VoicePage } from "../../console/pages/Voice.tsx";
 import { RequestsPage } from "../../console/pages/Requests.tsx";
 import { ActivityPage } from "../../console/pages/Activity.tsx";
 import { AppsPage } from "../../console/pages/AppsList.tsx";
@@ -75,7 +75,6 @@ export function consolePageFor(id: string, args: Record<string, string | undefin
   if (aiPage) return aiPage;
   if (id === "aiaccounts") return <AiAccountsPage />;
   if (id === "aisee") return <AiSeePage />;
-  if (id === "voice") return <VoicePage />;
   if (id === "requests") return <RequestsPage />;
   if (id === "activity") return <ActivityPage />;
   if (id === "apps") return <AppsPage />;
@@ -124,6 +123,7 @@ export function consolePageFor(id: string, args: Record<string, string | undefin
 }
 export function aiDataPageFor(id: string): ReactElement | null {
   if (id === "models") return <Models />;
+  if (id === "voice") return <VoiceSettings />;
   if (id === "spend") return <Spend />;
   if (id === "usage") return <Usage />;
   if (id === "review") return <ReviewSampling />;

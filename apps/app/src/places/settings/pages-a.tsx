@@ -14,6 +14,7 @@ import { ROW_HELP, clock, labelOf, moneyLabel, rowHelp, sectionsFor } from "./mo
 import type { SettingRow } from "./model.ts";
 import { SettingRowFor, useChange } from "./rows.tsx";
 import { useSaved } from "./saved.tsx";
+import { VoiceRows } from "./VoiceRows.tsx";
 import { Choice, Field, Glyph, Section, SettingsRow, SmallButton, Switch, Value, pointer } from "./ui.tsx";
 import { useOpenConnect } from "../../shell/connect/context.ts";
 import { statusNote, useSpaceAi } from "../../ai-signin/SpaceAiStatus.tsx";
@@ -310,6 +311,7 @@ export function AiPage({ rows, found }: PageProps): ReactElement {
         {acc}
         <SettingsRow id="open-vault" label="Sign-ins and keys" sub="Add an account, or let the Space use yours" lead={<Glyph name="key" size={15} />} first={acc.length === 0} onPress={() => data.nav.openVault()} control={<Glyph name="chevR" size={13} />} />
       </Section>
+      <VoiceRows found={found} />
     </>
   );
 }
