@@ -1,5 +1,5 @@
 // One handler per runs capability. Lifecycle, step log, waits and reads live in engine.ts; undo and its preview in undo.ts.
-import { count, finish, get, list, markWaitingCap, pinVersion, recordKey, recordStep, replay, resume, retry, start, status, steps, stop, waitFor } from "./engine.ts";
+import { count, peopleCounts, finish, get, list, markWaitingCap, pinVersion, recordKey, recordStep, replay, resume, retry, start, status, steps, stop, waitFor } from "./engine.ts";
 import { stepIo } from "./step-io.ts";
 import { previewUndo, undo } from "./undo.ts";
 import { erase, purge } from "./purge.ts";
@@ -8,6 +8,7 @@ export const handlers = {
   "runs.erase": erase,
   "runs.purge": purge,
   "runs.count": count,
+  "runs.people_counts": peopleCounts,
   "runs.finish": finish,
   "runs.get": get,
   "runs.list": list,

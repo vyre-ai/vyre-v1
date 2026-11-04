@@ -29593,6 +29593,15 @@ export type RunsMarkWaitingOut = {
     };
   };
 };
+export type RunsPeopleCountsIn = {
+  statuses?: Array<"queued" | "running" | "waiting" | "succeeded" | "failed" | "stopped">;
+};
+export type RunsPeopleCountsOut = {
+  people: Array<{
+      person: string;
+      runs: number;
+    }>;
+};
 export type RunsPinVersionIn = {
   runId: string;
   definitionVersion: number;
@@ -41974,6 +41983,7 @@ export interface CapMap {
   "runs.get": { in: RunsGetIn; out: RunsGetOut };
   "runs.list": { in: RunsListIn; out: RunsListOut };
   "runs.mark_waiting": { in: RunsMarkWaitingIn; out: RunsMarkWaitingOut };
+  "runs.people_counts": { in: RunsPeopleCountsIn; out: RunsPeopleCountsOut };
   "runs.pin_version": { in: RunsPinVersionIn; out: RunsPinVersionOut };
   "runs.preview_undo": { in: RunsPreviewUndoIn; out: RunsPreviewUndoOut };
   "runs.purge": { in: RunsPurgeIn; out: RunsPurgeOut };
