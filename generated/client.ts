@@ -20,6 +20,10 @@ export function createClient(transport: Transport) {
         set_engineer_mcp: call("access.actors.set_engineer_mcp", 1),
         update: call("access.actors.update", 1),
       },
+      agents_can_call: {
+        get: call("access.agents_can_call.get", 1),
+        set: call("access.agents_can_call.set", 1),
+      },
       audience_set: call("access.audience_set", 1),
       automation_senders: call("access.automation_senders", 1),
       check: call("access.check", 1),
@@ -136,6 +140,8 @@ export function createClient(transport: Transport) {
         usable: call("agents.outside.usable", 1),
       },
       pause: call("agents.pause", 1),
+      pause_person: call("agents.pause_person", 1),
+      people_summary: call("agents.people_summary", 1),
       restore: call("agents.restore", 1),
       restore_version: call("agents.restore_version", 1),
       resume: call("agents.resume", 1),
@@ -875,6 +881,7 @@ export function createClient(transport: Transport) {
       },
       turns: {
         list: call("engine.turns.list", 1),
+        running: call("engine.turns.running", 1),
       },
       usage: {
         get: call("engine.usage.get", 1),
@@ -1432,6 +1439,17 @@ export function createClient(transport: Transport) {
       spans: call("logs.spans", 1),
       tail: call("logs.tail", 1),
       trace: call("logs.trace", 1),
+    },
+    machines: {
+      alerts: call("machines.alerts", 1),
+      alerts_notify: call("machines.alerts_notify", 1),
+      fix: call("machines.fix", 1),
+      get: call("machines.get", 1),
+      list: call("machines.list", 1),
+      move_record: call("machines.move_record", 1),
+      moves: call("machines.moves", 1),
+      rooms: call("machines.rooms", 1),
+      set: call("machines.set", 1),
     },
     mail: {
       attachment: {
@@ -2165,6 +2183,7 @@ export function createClient(transport: Transport) {
       get: call("runs.get", 1),
       list: call("runs.list", 1),
       mark_waiting: call("runs.mark_waiting", 1),
+      people_counts: call("runs.people_counts", 1),
       pin_version: call("runs.pin_version", 1),
       preview_undo: call("runs.preview_undo", 1),
       purge: call("runs.purge", 1),
@@ -2301,6 +2320,7 @@ export function createClient(transport: Transport) {
       artifact_open: call("sites.artifact_open", 1),
       artifact_publish: call("sites.artifact_publish", 1),
       build: call("sites.build", 1),
+      chat_viewing: call("sites.chat_viewing", 1),
       create: call("sites.create", 1),
       db_import: call("sites.db_import", 1),
       delete: call("sites.delete", 1),
