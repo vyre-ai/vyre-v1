@@ -289,6 +289,12 @@
       "note": "Apps > GitHub, Vyre app in use"
     },
     {
+      "id": "CONSOLIDATE_02-ghapp_perms",
+      "route": "/m/CONSOLIDATE_02?part=ghapp_perms",
+      "proto": "console,{skin}",
+      "note": "Apps > GitHub, the app needs new permissions (Needs you row)"
+    },
+    {
       "id": "CONSOLIDATE_02-ghapp_own",
       "route": "/m/CONSOLIDATE_02?part=ghapp_own",
       "proto": "console,{skin}",

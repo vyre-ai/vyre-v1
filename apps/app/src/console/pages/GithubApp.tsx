@@ -11,7 +11,7 @@ import { Group, Lead, Line, Section } from "../shell/ui.tsx";
 import { useConsoleData } from "../shell/data.tsx";
 import { Switch } from "../../places/settings/ui.tsx";
 import { LogoTile } from "../../places/vault/layout/parts.tsx";
-import { GithubAppLine, IconTile } from "./CiRunners.tsx";
+import { IconTile } from "./CiRunners.tsx";
 import type { CiSettings } from "./CiRunners.tsx";
 import { Actions, Button, Field, FormSheet, Note, ReadState, useAction, useRead } from "./shared.tsx";
 
@@ -46,6 +46,12 @@ export function postManifest(out: { manifest: unknown; postUrl: string }): void 
   Object.assign(form, { method: "post", action: out.postUrl, target: "_blank" });
   Object.assign(input, { type: "hidden", name: "manifest", value: JSON.stringify(out.manifest) });
   form.appendChild(input); doc.body.appendChild(form); form.submit();
+}
+
+/** The org named in the accept link (github.com/organizations/<org>/...), else the Space's name. */
+export function acceptOrg(orgUrl: string | null, fallback: string): string {
+  const m = orgUrl?.match(/\/organizations\/([^/]+)\//);
+  return m?.[1] ? decodeURIComponent(m[1]) : fallback;
 }
 
 /** The helper line under a card: 12px, muted, with a gap above and the section gap below. */
@@ -96,7 +102,12 @@ export function GithubAppPage(): ReactElement {
     if (complete) { setConfirm(true); return; }
     setWantOwn(false);
   };
+  const gapp = ci.data?.githubApp;
+  const acceptUrl = gapp && gapp.installed && !gapp.ready ? (gapp.acceptUrl ?? gapp.orgAcceptUrl) : null;
   return <View testID="console-github-app">
+    {acceptUrl ? <Section title="Needs you" count={1}>
+      <Group><Row id="gh-need-perms" title={`GitHub needs you to accept new permissions for ${acceptOrg(gapp?.orgAcceptUrl ?? null, data.space.name)}`} note="Until you accept them, jobs stay on GitHub's own runners." leading={<IconTile icon="warn" tone="warn" />} trailing={<Button small label="Accept" testID="gh-need-accept" onPress={() => open(acceptUrl)} />} /></Group>
+    </Section> : null}
     <Section title="GitHub app">
       <Group>
         <Row id="gh-own" title="Use our own GitHub app" note={ownLine(on, complete, data.space.name)} leading={<GhMark />} trailing={<Switch on={on} label="Use our own GitHub app" testID="gh-own-switch" disabled={action.busy} onChange={flip} />} />
@@ -130,7 +141,6 @@ export function GithubAppPage(): ReactElement {
         <Foot top={14} testID="gh-foot-own">{`${data.space.name} uses its own GitHub app. Reconnect once.`}</Foot>
         {app ? <View style={{ marginTop: 12, flexDirection: "row" }}><Button small label="Check again" testID="gh-recheck" disabled={action.busy} onPress={() => void action.run("github.installations.list", {}, "Checked").then((out) => { if (out) refresh(); })} /></View> : null}
       </Section>
-      {ci.data ? <GithubAppLine settings={ci.data} /> : null}
     </> : null}
     {action.note ? <Note>{action.note}</Note> : null}
     {sheet === "keys" ? <KeysSheet sign={g} onClose={() => setSheet(null)} onDone={() => { setSheet(null); refresh(); }} /> : null}

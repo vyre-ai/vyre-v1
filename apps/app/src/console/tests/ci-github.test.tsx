@@ -361,13 +361,18 @@ test("switching off asks first, then members.sign_in_github.clear puts members b
   } finally { restore(); }
 });
 
-test("when the app needs new permissions the GitHub tab says so with Accept on GitHub", async () => {
+test("when the app needs new permissions the GitHub tab opens with a Needs you row and Accept", async () => {
   const { root, opened, restore } = await gh({ "members.sign_in_github.get": SIGN({ clientId: "Iv1.abc", secretSet: true, source: "space" }), "ci.settings.get": settingsOut({}, { ready: false, installed: true, missing: ["actions: read"], acceptUrl: null, orgAcceptUrl: "https://github.com/organizations/northwind/settings/installations/7/permissions/update" }) }, MADE);
   try {
-    assert.match(textOf(find(root, "row-ci-github-perms")), /Northwind's GitHub app needs new permissions/);
-    await tap(root, "ci-github-accept");
+    assert.match(textOf(find(root, "row-gh-need-perms")), /GitHub needs you to accept new permissions for northwind/);
+    await tap(root, "gh-need-accept");
     assert.deepEqual(opened, ["url:https://github.com/organizations/northwind/settings/installations/7/permissions/update"]);
   } finally { restore(); }
+});
+
+test("the GitHub tab shows no Needs you row when the app is ready", async () => {
+  const { root, restore } = await gh({ "members.sign_in_github.get": SIGN({ clientId: "Iv1.abc", secretSet: true, source: "space" }), "ci.settings.get": settingsOut() }, MADE);
+  try { assert.equal(find(root, "row-gh-need-perms"), null); } finally { restore(); }
 });
 
 test("a setting's picker stacks under its label below 760 wide, and not on a wide or an unmeasured screen", () => {

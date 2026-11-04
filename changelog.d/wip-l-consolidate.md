@@ -32,3 +32,4 @@
 - Space > General now carries Plan and usage: the design-beta sentence, AI spend this month against the Space limit (with Spend and limits) and storage. An old Billing address lands on General.
 - Console > Agents > Hooks: Needs you now reads the Space's blocked, failed and timed-out hook runs of the last 7 days straight from the server, so an admin's strip never misses one. `hooks.runs.list` takes `since`, `outcomes` and `scope: "space"` (an admin reads every Space hook's runs; anyone else gets only what they could see anyway).
 - Hooks rows have dividers, wrap in full and put Pause and Remove under the text on a phone. Remove is a quiet button, red only on the confirm, and a Removed note offers Undo. The Add a hook sheet says When, Do this, Only for and Stop after.
+- Console > Apps > GitHub: a Needs you row at the top asks the admin to accept new GitHub permissions, with an Accept button.
