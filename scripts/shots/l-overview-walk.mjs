@@ -74,7 +74,7 @@ for (const skin of ["paper", "graphite"]) for (const [size, vp] of [["wide", { w
   await page.click(T("overview-history-done"));
   // templates
   await page.click(T("overview-template-open"));
-  await page.waitForSelector(T("tpl-tpl_hiring"), { timeout: 5000 });
+  await page.waitForSelector(T("row-tpl-tpl_hiring"), { timeout: 5000 });
   await page.waitForTimeout(500);
   await page.screenshot({ path: path.join(out, `overview-templates-${tag}.png`) });
   await page.click(T("overview-templates-cancel"));
