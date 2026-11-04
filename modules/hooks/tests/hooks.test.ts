@@ -211,3 +211,43 @@ test("an agent keeps at most 30 hooks", async () => {
   for (let i = 0; i < 30; i++) await w.call("hooks.set", { scope: "agent", event: "turn.end", kind: "check", instruction: `n${i}` }, agent());
   await assert.rejects(w.call("hooks.set", { scope: "agent", event: "turn.end", kind: "check", instruction: "one more" }, agent()), /at most 30/);
 });
+
+test("runs.list since, outcomes and scope space: an admin reads every Space hook's bad runs from the last week and nothing else; a person cannot widen", async () => {
+  const w = world();
+  const spaceHook = (await w.call("hooks.set", { scope: "space", event: "tool.before", kind: "command", command: "guard" }, admin)).hook;
+  const mayaHook = (await w.call("hooks.set", { scope: "person", event: "tool.before", kind: "command", command: "mine" }, maya)).hook;
+  const agentHook = (await w.call("hooks.set", { scope: "chat", event: "tool.before", kind: "command", command: "chat", threadId: "thr_a" }, agent())).hook;
+  const answers = [stop, { code: 1, stdout: "", stderr: "boom", timedOut: false }, { code: null, stdout: "", stderr: "", timedOut: true }, ok];
+  let n = 0;
+  w.s.command = async () => answers[n++ % answers.length]!;
+  const DAY = 86_400_000;
+  w.advance(-10 * DAY);
+  await w.fire({ event: "tool.before", tool: "x" });          // an old stop
+  w.advance(10 * DAY);
+  n = 0;
+  await w.fire({ event: "tool.before", tool: "x", threadId: "thr_b" });
+  n = 1;
+  await w.fire({ event: "tool.before", tool: "x" });
+  n = 2;
+  await w.fire({ event: "tool.before", tool: "x" });
+  const since = w.s.now - 7 * DAY;
+  const bad = ["blocked", "error", "timeout"];
+  const all = await w.call("hooks.runs.list", { scope: "space", since, outcomes: bad, limit: 200 }, admin);
+  assert.ok(all.runs.length >= 3, "the admin sees the bad runs");
+  assert.ok(all.runs.every((r: { hookId: string; at: number; outcome: string }) => r.hookId === spaceHook.id && r.at >= since && bad.includes(r.outcome)), "only Space hooks, only the last week, only bad outcomes");
+  assert.ok(!all.runs.some((r: { hookId: string }) => r.hookId === mayaHook.id || r.hookId === agentHook.id), "not a person's private hook, not a chat hook");
+  assert.ok(all.runs.some((r: { threadId?: string }) => r.threadId === "thr_b"), "from every chat");
+  const old = await w.call("hooks.runs.list", { scope: "space", outcomes: bad, limit: 200 }, admin);
+  assert.ok(old.runs.length > all.runs.length, "without since the older stop is there too");
+  assert.deepEqual((await w.call("hooks.runs.list", { scope: "space", since, outcomes: [] }, admin)).runs, [], "no outcomes asked for, none returned");
+  // a person asking for the Space-wide read gets only the Space-hook runs in chats they can use, and none of the admin's or others' private hooks
+  w.s.threadsDenied.add("thr_b");
+  const asMaya = await w.call("hooks.runs.list", { scope: "space", since, outcomes: bad, limit: 200 }, maya);
+  assert.ok(asMaya.runs.every((r: { hookId: string; threadId?: string }) => r.hookId === spaceHook.id && r.threadId !== "thr_b"), "a chat Maya cannot use stays hidden");
+  assert.ok(asMaya.runs.length < all.runs.length);
+  const plain = await w.call("hooks.runs.list", { since, outcomes: bad }, maya);
+  assert.ok(plain.runs.some((r: { hookId: string }) => r.hookId === mayaHook.id), "Maya still sees her own hook's runs");
+  assert.ok(!plain.runs.some((r: { threadId?: string }) => r.threadId === "thr_b"));
+  const limited = await w.call("hooks.runs.list", { scope: "space", since, outcomes: bad, limit: 1 }, admin);
+  assert.equal(limited.runs.length, 1);
+});

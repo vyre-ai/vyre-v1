@@ -1,6 +1,6 @@
 # hooks.runs.list
 
-What hooks did lately: which ran, what they answered, and the ones that failed or ran out of time, newest first
+What hooks did lately: which ran, what they answered, and the ones that failed or ran out of time, newest first. since and outcomes narrow it before the limit; scope space is a Space admin's read of every Space hook's runs (anyone else gets only what they could see anyway)
 
 | | |
 |---|---|
@@ -28,6 +28,9 @@ type In = {
   hookId?: string;
   threadId?: string;
   limit?: number;
+  since?: number;
+  outcomes?: Array<"ok" | "blocked" | "note" | "error" | "timeout" | "skipped">;
+  scope?: "space";
 };
 ```
 
@@ -64,6 +67,11 @@ type Out = {
   "input": {
     "hookId": "example",
     "limit": 1,
+    "outcomes": [
+      "ok"
+    ],
+    "scope": "space",
+    "since": 1760000000000,
     "threadId": "thr_a1b2c3"
   },
   "output": {

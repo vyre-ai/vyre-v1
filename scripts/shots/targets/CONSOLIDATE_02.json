@@ -305,6 +305,12 @@
       "route": "/m/CONSOLIDATE_02?part=hooks_empty",
       "proto": "console,at:hooks,{skin}",
       "note": "Agents > Hooks, no hooks yet"
+    },
+    {
+      "id": "CONSOLIDATE_02-hooks_add",
+      "route": "/m/CONSOLIDATE_02?part=hooks_add",
+      "proto": "console,at:hooks,{skin}",
+      "note": "Agents > Hooks, the Add a hook sheet open"
     }
   ]
 }

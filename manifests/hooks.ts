@@ -59,8 +59,14 @@ export default defineManifest({
     write('hooks.pause', 'Pause a hook, or turn it back on', {
       in: { id: t.str(), paused: t.bool(), threadId: t.opt(id.thread) }, out: { hook: hookRow }, level: 'member', emits: ['hook.changed'], audit: 'always', idem: 'natural', errors: ['permission.no_grant', 'validation.not_found'],
     }),
-    read('hooks.runs.list', 'What hooks did lately: which ran, what they answered, and the ones that failed or ran out of time, newest first', {
-      in: { hookId: t.opt(t.str()), threadId: t.opt(id.thread), limit: t.opt(t.int({ minimum: 1, maximum: 200 })) }, out: { runs: t.arr(runRow) }, level: 'member',
+    read('hooks.runs.list', 'What hooks did lately: which ran, what they answered, and the ones that failed or ran out of time, newest first. since and outcomes narrow it before the limit; scope space is a Space admin\'s read of every Space hook\'s runs (anyone else gets only what they could see anyway)', {
+      in: {
+        hookId: t.opt(t.str()), threadId: t.opt(id.thread), limit: t.opt(t.int({ minimum: 1, maximum: 200 })),
+        since: t.opt(t.ts({ description: 'Only runs at or after this time' })),
+        outcomes: t.opt(t.arr(t.enm('ok', 'blocked', 'note', 'error', 'timeout', 'skipped'))),
+        scope: t.opt(t.enm('space')),
+      },
+      out: { runs: t.arr(runRow) }, level: 'member',
     }),
     read('hooks.policy.get', 'Whether agents may make hooks in this Space', { in: {}, out: { agentHooks: t.bool() }, level: 'member' }),
     write('hooks.policy.set', 'Space admins: allow or turn off hooks made by agents for the whole Space. Hooks agents already made stay but do not run while it is off', {

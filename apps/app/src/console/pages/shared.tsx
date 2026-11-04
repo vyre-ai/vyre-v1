@@ -56,8 +56,8 @@ export function useAction(refresh: () => void) {
   };
   return { note, busy, run };
 }
-export function Field({ label, value, onChange, testID, secure = false, multiline = false }: { label: string; value: string; onChange: (value: string) => void; testID?: string; secure?: boolean; multiline?: boolean }): ReactElement {
-  return <View style={s.field}><Text style={s.label}>{label}</Text><TextInput multiline={multiline} value={value} onChangeText={onChange} accessibilityLabel={label} testID={testID} secureTextEntry={secure} autoCapitalize="none" autoCorrect={false} style={s.input} /></View>;
+export function Field({ label, value, onChange, testID, secure = false, multiline = false, hint }: { label: string; value: string; onChange: (value: string) => void; testID?: string; secure?: boolean; multiline?: boolean; hint?: string }): ReactElement {
+  return <View style={s.field}><Text style={s.label}>{label}</Text><TextInput multiline={multiline} value={value} onChangeText={onChange} accessibilityLabel={label} testID={testID} secureTextEntry={secure} autoCapitalize="none" autoCorrect={false} style={s.input} />{hint ? <Text style={{ fontSize: 11.5, lineHeight: 16, color: "var(--ink-3)" as string, marginTop: 4 }}>{hint}</Text> : null}</View>;
 }
 /** `why`: a disabled button says why as its tooltip, so nobody meets a dead button without a reason and no sentence sits beside it. */
 export function Button({ label, onPress, disabled = false, testID, danger = false, why, small = false }: { label: string; onPress: () => void; disabled?: boolean; testID?: string; danger?: boolean; why?: string; small?: boolean }): ReactElement {

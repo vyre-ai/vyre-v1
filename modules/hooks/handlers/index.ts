@@ -166,12 +166,40 @@ export async function list(ctx: HooksCtx, i: { scope?: string; threadId?: string
   return { hooks: rows.map((h) => outRow(h, a)), agentHooks: agentHooksOn(ctx) };
 }
 
-export function runsList(ctx: HooksCtx, i: { hookId?: string; threadId?: string; limit?: number }): { runs: Row[] } {
+const RUN_OUTCOMES = ["ok", "blocked", "note", "error", "timeout", "skipped"];
+/**
+ * What the hooks did lately, newest first. The caller sees the runs of hooks they could list: the Space's, their own person hooks, and the agent, chat and run hooks they made or that were made for them.
+ * `since` and `outcomes` narrow the log before the limit is taken, so a busy week cannot push the failures out. `scope: "space"` is the admin's Space-wide read: only runs of Space hooks, from every
+ * chat. A caller who is not an admin asking for it gets what they could see anyway: a Space hook's run in a chat they cannot use stays hidden.
+ */
+export async function runsList(ctx: HooksCtx, i: { hookId?: string; threadId?: string; limit?: number; since?: number; outcomes?: string[]; scope?: string }): Promise<{ runs: Row[] }> {
   ensure(ctx.db);
-  const where = [i.hookId ? "hook_id = ?" : "", i.threadId ? "thread_id = ?" : ""].filter(Boolean);
-  const args = [i.hookId, i.threadId].filter((x): x is string => x !== undefined);
-  const rows = ctx.db.all(`SELECT * FROM hooks_run ${where.length ? `WHERE ${where.join(" AND ")}` : ""} ORDER BY id DESC LIMIT ?`, ...args, Math.min(200, Math.max(1, i.limit ?? 50))) as Row[];
-  return { runs: rows.map((r) => ({ id: r["id"], hookId: r["hook_id"], event: r["event"], threadId: r["thread_id"] ?? undefined, agentId: r["agent_id"] ?? undefined, outcome: r["outcome"], detail: r["detail"] ?? undefined, ms: r["ms"], at: r["at"] })) };
+  const a = actorOf(ctx);
+  const outcomes = (i.outcomes ?? []).filter((o) => RUN_OUTCOMES.includes(o));
+  const where = [i.hookId ? "hook_id = ?" : "", i.threadId ? "thread_id = ?" : "", i.since !== undefined ? "at >= ?" : "", i.outcomes ? `outcome IN (${outcomes.length ? outcomes.map(() => "?").join(", ") : "NULL"})` : ""].filter(Boolean);
+  const args = [i.hookId, i.threadId, i.since].filter((x): x is string | number => x !== undefined);
+  const cap = Math.min(200, Math.max(1, i.limit ?? 50));
+  const hooks = new Map(allHooks(ctx).map((h) => [h.id, h]));
+  const usable = new Map<string, boolean>();
+  const mayUse = async (threadId: string): Promise<boolean> => { if (!usable.has(threadId)) usable.set(threadId, await mayUseThread(ctx, threadId)); return usable.get(threadId)!; };
+  const seen = async (r: Row): Promise<boolean> => {
+    const h = hooks.get(String(r["hook_id"]));
+    if (!h) return false;
+    if (i.scope === "space" && h.scope !== "space") return false;
+    if (h.scope === "space") return a.admin || !r["thread_id"] || (await mayUse(String(r["thread_id"])));
+    if (h.scope === "person") return h.personId === a.asker || a.kind === "service";
+    return h.madeBy === a.id || h.forPerson === a.asker || (h.madeBy === a.asker && a.kind !== "agent");
+  };
+  const out: Row[] = [];
+  let before = Number.MAX_SAFE_INTEGER;
+  // read in pages so a long log of runs this caller cannot see still gives them up to `limit` of their own
+  for (let page = 0; page < 10 && out.length < cap; page++) {
+    const rows = ctx.db.all(`SELECT * FROM hooks_run WHERE id < ?${where.length ? ` AND ${where.join(" AND ")}` : ""} ORDER BY id DESC LIMIT 200`, before, ...args, ...(i.outcomes ? outcomes : [])) as Row[];
+    for (const r of rows) { if (out.length < cap && (await seen(r))) out.push(r); }
+    if (rows.length < 200) break;
+    before = Number(rows[rows.length - 1]!["id"]);
+  }
+  return { runs: out.map((r) => ({ id: r["id"], hookId: r["hook_id"], event: r["event"], threadId: r["thread_id"] ?? undefined, agentId: r["agent_id"] ?? undefined, outcome: r["outcome"], detail: r["detail"] ?? undefined, ms: r["ms"], at: r["at"] })) };
 }
 
 export function policyGet(ctx: HooksCtx): { agentHooks: boolean } { ensure(ctx.db); return { agentHooks: agentHooksOn(ctx) }; }

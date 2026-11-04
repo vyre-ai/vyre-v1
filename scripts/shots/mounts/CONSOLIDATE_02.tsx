@@ -426,7 +426,11 @@ const AGENT_HOOKS = [hook("hk_notes", { scope: "agent", agentId: "agt_docs", mad
 const hookRun = (id: number, hookId: string, outcome: string, at: number, detail?: string): Record<string, unknown> => ({ id, hookId, event: "tool.after", outcome, ms: 40, at, ...(detail ? { detail } : {}) });
 answers["hooks.list"] = (i) => ({ hooks: part.variant === "empty" ? [] : i["scope"] === "agent" ? (i["agentId"] === "agt_docs" ? AGENT_HOOKS : []) : HOOKS, agentHooks: true });
 answers["hooks.policy.get"] = () => ({ agentHooks: true });
-answers["hooks.runs.list"] = () => ({ runs: part.variant === "empty" ? [] : [hookRun(1, "hk_fmt", "ok", ago(3 * MIN)), hookRun(2, "hk_mail", "blocked", ago(2 * HOUR), "The address is not in Contacts"), hookRun(3, "hk_notes", "ok", ago(DAY)), hookRun(4, "hk_mail", "ok", ago(3 * DAY))] });
+answers["hooks.runs.list"] = (i) => {
+  const all = [hookRun(1, "hk_fmt", "ok", ago(3 * MIN)), hookRun(2, "hk_mail", "blocked", ago(2 * HOUR), "The address is not in Contacts"), hookRun(3, "hk_notes", "ok", ago(DAY)), hookRun(4, "hk_mail", "ok", ago(3 * DAY))];
+  const outcomes = i["outcomes"] as string[] | undefined;
+  return { runs: part.variant === "empty" ? [] : all.filter((r) => (outcomes ? outcomes.includes(String(r["outcome"])) : true) && (typeof i["since"] === "number" ? Number(r["at"]) >= i["since"] : true)) };
+};
 
 const machines = machinesCall();
 const part = { current: "", variant: "" };
@@ -459,6 +463,8 @@ const DEFAULTS: Record<string, string> = { memlearn: "memlearn", "def-access": "
 export default function Mount(): ReactNode {
   const [id, setId] = useState<string | null>(null);
   useEffect(() => { const raw = new URLSearchParams((globalThis as { location?: { search?: string } }).location?.search ?? "").get("part") ?? "overview"; const [p, v] = raw.split("_"); part.current = p!; part.variant = v ?? ""; setId(p!); }, []);
+  // hooks_add: the Add a hook sheet open over the page
+  useEffect(() => { if (id !== "hooks" || part.variant !== "add") return undefined; const t = setTimeout(() => (globalThis as { document?: { querySelector(s: string): { click(): void } | null } }).document?.querySelector("[data-testid='hooks-add']")?.click(), 900); return () => clearTimeout(t); }, [id]);
   const data = useMemo(() => consoleData(), []);
   const settings = useMemo(() => createSampleSettings().data, []);
   if (id === null) return <View style={{ flex: 1, backgroundColor: "var(--win)" as string }} />;
