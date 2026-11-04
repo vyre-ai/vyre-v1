@@ -23,8 +23,9 @@ function pcmOf(path: string): Uint8Array {
 const message = (e: unknown): string => { const x = e as { error?: { code?: string; message?: string } }; return x?.error ? `${x.error.code}: ${x.error.message}` : String((e as Error)?.message ?? e); };
 
 /** ElevenLabs: the ways to hand the model its words, to find the one that works. */
-const VARIANTS: Record<string, (url: URL, terms: string[]) => { url: URL; previousText?: string }> = {
-  repeated: (u) => ({ url: u }),
+const VARIANTS: Record<string, (url: URL, terms: string[]) => { url: URL; previousText?: string; noContext?: boolean }> = {
+  provider: (u) => ({ url: u }),
+  repeated: (u, t) => { u.searchParams.delete("keyterms"); for (const x of t) u.searchParams.append("keyterms", x); return { url: u, noContext: true }; },
   json: (u, t) => { u.searchParams.delete("keyterms"); u.searchParams.set("keyterms", JSON.stringify(t)); return { url: u }; },
   comma: (u, t) => { u.searchParams.delete("keyterms"); u.searchParams.set("keyterms", t.join(",")); return { url: u }; },
   bracket: (u, t) => { u.searchParams.delete("keyterms"); for (const x of t) u.searchParams.append("keyterms[]", x); return { url: u }; },
@@ -33,7 +34,7 @@ const VARIANTS: Record<string, (url: URL, terms: string[]) => { url: URL; previo
   none: (u) => { u.searchParams.delete("keyterms"); return { url: u }; },
 };
 
-async function one(name: string, key: string, variant = "repeated"): Promise<boolean> {
+async function one(name: string, key: string, variant = "provider"): Promise<boolean> {
   const p = talkProvider(name)!;
   const host = createTalkHost({ vault: { secret: async () => key }, fetch: async (url, init) => { const r = await fetch(url, init as RequestInit); return { status: r.status, text: () => r.text(), arrayBuffer: () => r.arrayBuffer() }; } });
   const t0 = Date.now();
@@ -63,7 +64,8 @@ async function one(name: string, key: string, variant = "repeated"): Promise<boo
   const chunk = TALK_SAMPLE_RATE / 10 * 2;   // 100 ms of 16 bit mono
   for (let i = 0; i < pcm.length; i += chunk) {
     const part = pcm.slice(i, i + chunk);
-    const frame = p.frame(part.buffer.slice(part.byteOffset, part.byteOffset + part.byteLength));
+    const own = "previousText" in shaped || "noContext" in shaped;   // a variant sets its own context; the default is what the session gives the page
+    const frame = p.frame(part.buffer.slice(part.byteOffset, part.byteOffset + part.byteLength), { first, context: own ? undefined : sock.context });
     if (first && typeof frame === "string" && "previousText" in shaped && shaped.previousText) ws.send(JSON.stringify({ ...JSON.parse(frame), previous_text: shaped.previousText })); else ws.send(frame);
     first = false;
     await new Promise((r) => setTimeout(r, 100));

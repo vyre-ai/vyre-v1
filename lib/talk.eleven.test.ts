@@ -39,5 +39,19 @@ test("boosted words: trimmed, listed once, product first, kept short; Nova 3 tak
   const dg = talkProvider("deepgram")!;
   assert.deepEqual(new URL(dg.socket({ model: "nova-3", language: "en", token: "t", terms: ["Vyre", "Maya Chen"] }).url).searchParams.getAll("keyterm"), ["Vyre", "Maya Chen"]);
   assert.deepEqual(new URL(dg.socket({ model: "nova-2", language: "en", token: "t", terms: ["Vyre"] }).url).searchParams.getAll("keywords"), ["Vyre:2"]);
-  assert.deepEqual(new URL(p.socket({ model: "scribe_v2_realtime", language: "en", token: "t", terms: ["Vyre", "Maya Chen"] }).url).searchParams.getAll("keyterms"), ["Vyre", "Maya Chen"]);
+  const eleven = p.socket({ model: "scribe_v2_realtime", language: "en", token: "t", terms: ["Vyre", "Maya Chen"] });
+  assert.deepEqual(new URL(eleven.url).searchParams.getAll("keyterms"), ['["Vyre","Maya Chen"]'], "one JSON array, not a repeated parameter");
+  assert.equal(eleven.context, "Vyre. Maya Chen.");
+  assert.equal(p.socket({ model: "scribe_v2_realtime", language: "en", token: "t" }).context, undefined);
+  assert.equal(dg.socket({ model: "nova-3", language: "en", token: "t", terms: ["Vyre"] }).context, undefined, "Deepgram has no context line");
+});
+
+test("the context line goes on the first audio chunk only, and only ElevenLabs frames it", () => {
+  const pcm = new Uint8Array([1, 2]).buffer;
+  const first = JSON.parse(p.frame(pcm, { first: true, context: "Vyre." }) as string);
+  const second = JSON.parse(p.frame(pcm, { first: false, context: "Vyre." }) as string);
+  assert.equal(first.previous_text, "Vyre.");
+  assert.equal("previous_text" in second, false);
+  assert.equal("previous_text" in JSON.parse(p.frame(pcm, { first: true }) as string), false, "no context, no field");
+  assert.equal(talkProvider("deepgram")!.frame(pcm, { first: true, context: "Vyre." }), pcm, "Deepgram audio stays raw bytes");
 });

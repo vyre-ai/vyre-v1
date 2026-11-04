@@ -33,9 +33,9 @@ export interface TalkProvider {
   grant(apiKey: string, ttlSeconds: number): { url: string; method: string; headers: Record<string, string>; body: string };
   readGrant(status: number, body: string): GrantResult;
   /** `terms` are words the provider should favour: the product, the Space, its people and agents. Each provider passes them its own way, or ignores them. */
-  socket(s: { model: string; language: string; token: string; terms?: readonly string[] }): { url: string; protocols: string[] };
+  socket(s: { model: string; language: string; token: string; terms?: readonly string[] }): { url: string; protocols: string[]; /** Words sent with the first audio chunk (ElevenLabs), where the address cannot carry them well enough. */ context?: string };
   /** One chunk of microphone audio as the socket wants it: Deepgram takes the raw bytes, ElevenLabs a JSON text frame. */
-  frame(pcm: ArrayBuffer): string | ArrayBuffer;
+  frame(pcm: ArrayBuffer, o?: { first?: boolean; context?: string | undefined }): string | ArrayBuffer;
   /** The text frame that asks the provider for what it still holds, then to close. */
   closing: string;
   read(message: string): TalkHeard;
@@ -98,7 +98,7 @@ const base64 = (pcm: ArrayBuffer): string => {
   for (let i = 0; i < b.length; i += 0x8000) s += String.fromCharCode(...b.subarray(i, i + 0x8000));
   return btoa(s);
 };
-const eleven = (audio: string, commit: boolean): string => JSON.stringify({ message_type: "input_audio_chunk", audio_base_64: audio, commit, sample_rate: TALK_SAMPLE_RATE });
+const eleven = (audio: string, commit: boolean, context?: string): string => JSON.stringify({ message_type: "input_audio_chunk", audio_base_64: audio, commit, sample_rate: TALK_SAMPLE_RATE, ...(context ? { previous_text: context } : {}) });
 
 // DECISION: ElevenLabs Scribe v2 Realtime. The host swaps the key for a single-use token (valid for one socket, 15 minutes to start it); the page opens the socket with the token in the address,
 // because a browser cannot send a header and ElevenLabs has no subprotocol form. The token is not the key and works once. Audio goes up as base64 JSON frames, and a commit frame asks for what it still holds.
@@ -128,11 +128,12 @@ const ELEVENLABS: TalkProvider = {
   },
   socket({ model, language, token, terms = [] }) {
     const q = new URLSearchParams({ model_id: model, token, audio_format: "pcm_16000", commit_strategy: "vad", include_timestamps: "false" });
-    for (const term of terms) q.append("keyterms", term);
+    // measured live (4 Nov): the JSON form moved "Vyre voice" closer, and the context line on the first chunk got it right; a repeated or comma form did nothing
+    if (terms.length > 0) q.set("keyterms", JSON.stringify(terms));
     if (language !== "multi") q.set("language_code", language);
-    return { url: `wss://api.elevenlabs.io/v1/speech-to-text/realtime?${q.toString()}`, protocols: [] };
+    return { url: `wss://api.elevenlabs.io/v1/speech-to-text/realtime?${q.toString()}`, protocols: [], ...(terms.length > 0 ? { context: `${terms.join(". ")}.` } : {}) };
   },
-  frame: (pcm) => eleven(base64(pcm), false),
+  frame: (pcm, o) => eleven(base64(pcm), false, o?.first === true ? o.context : undefined),
   closing: eleven("", true),
   read(message) {
     let j: { message_type?: unknown; text?: unknown };
