@@ -14,6 +14,7 @@ import type { FileLink } from "../open-in.ts";
 import { commentOnQuote, pinArea, resolveComment, saveMarkup, saveText } from "./actions.ts";
 import { useFilesViewerData } from "./data.tsx";
 import { useFileLinks } from "../links.ts";
+import { FileMarkdownEditor } from "./FileMarkdownEditor.tsx";
 import { boxesOf, nodeFor, docCommentsOf, docsMarkdown, isEditable, isOffice, kindLabel, officeBlocks, parseCsv, strokesOf, subtitleOf, textToBlocks, viewerKindOf } from "./model.ts";
 import { TypeTile } from "../FileList.tsx";
 import { tileLabel } from "../tree/model.ts";
@@ -93,7 +94,11 @@ export function FileViewer({ fileId, pane = "main" }: FileViewerProps): ReactEle
   const kind = ready ? viewerKindOf(ready.data) : "other";
   // a Google Doc is kept as Markdown: it is read as a note is, without Drive's escapes
   const app = ready ? googleAppOf(ready.data.file) : null;
-  const text = app === "gdocs" ? docsMarkdown(ready?.data.text ?? "") : ready?.data.text ?? "";
+  // the text the file holds after the saves of the Markdown editor, so the page reads what was just written once Edit is left
+  const [liveText, setLiveText] = useState<string | null>(null);
+  useEffect(() => { setLiveText(null); }, [fileId]);
+  const rawText = liveText ?? ready?.data.text ?? "";
+  const text = app === "gdocs" ? docsMarkdown(rawText) : rawText;
   const fileLinks = useFileLinks(d, ready && app === null ? { folderId: ready.data.file.folderId } : null, kind === "document" ? text : "");
   // a Word file or a deck is read from its Markdown: headings, lists, tables, pictures, and a deck's slides with their notes
   const office = ready !== null && isOffice(ready.data.file.kind);
@@ -119,6 +124,8 @@ export function FileViewer({ fileId, pane = "main" }: FileViewerProps): ReactEle
     timer.current = setTimeout(() => { void saveText(d, fileId, next, file.kind, version.current).then((v) => { version.current = v; }).catch(say); }, SAVE_DELAY_MS);
   };
 
+  // a Markdown file is edited in the one Markdown editor, which saves it as new versions by itself
+  const mdEditor = file.kind === "markdown" && app === null && !office && isEditable(ready.data);
   const node = ready.graph ? nodeFor(ready.graph, file.name) : null;
   // Preview as agent: the words an agent reads, as blocks of the same kind
   const shownBlocks = layer.preview && layer.view?.text ? textToBlocks(layer.view.text, file.kind) : blocks;
@@ -160,7 +167,7 @@ export function FileViewer({ fileId, pane = "main" }: FileViewerProps): ReactEle
         {...(siblings ? { siblings, current: fileId, onSibling: (id: string) => d.openFile?.(id) } : {})}
         {...(ready.graph && node ? { graph: ready.graph, nodeId: node, onOpenLink: (id: string) => d.openFile?.(id) } : {})}
         agentName={d.agentFor?.(fileId) ?? d.agents.find((a) => a.assistant)?.name ?? "the agent"}
-        {...(ready.data.canMark ? { onBoxes: addBox, onStrokes: saveStrokes } : {})} {...(isEditable(ready.data) ? { onEdit: edit } : {})}
+        {...(ready.data.canMark ? { onBoxes: addBox, onStrokes: saveStrokes } : {})} {...(isEditable(ready.data) && !mdEditor ? { onEdit: edit } : {})} {...(file.kind === "markdown" && app === null && !office && !(layer.preview && layer.view?.text) ? { markdown: rawText } : {})} {...(mdEditor ? { docEditor: <FileMarkdownEditor call={d.call} fileId={fileId} name={file.name} text={rawText} version={version.current} onText={setLiveText} /> } : {})}
         {...(link && d.openUrl ? { openIn: { label: openInWords(link.openIn), onOpen: () => d.openUrl?.(link.webUrl) } } : {})}
         layer={{ marks: viewerMarks(layer.list, d.name, now), preview: layer.preview }}
         onLayer={layer.mark}

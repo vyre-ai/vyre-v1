@@ -95,7 +95,10 @@ test("Take a note saves what was typed; an empty one is dropped; the search narr
 
   await press(find(root, "take-closed"));
   await typeInto(find(root, "take-title"), "JCS Law, Windows setup");
-  await typeInto(find(root, "take-body"), "Send Josh the installer link.");
+  // the note text is the shared Markdown editor; its Markdown view is the field a test can type into
+  assert.ok(find(find(root, "take-body")!, "markdown-editor-host"), "the note body is the shared Markdown editor");
+  await press(find(root, "md-view-raw"));
+  await typeInto(find(root, "markdown-editor-raw-text"), "Send Josh the installer link.");
   await press(find(root, "take-close"));
   await flush();
   const made = calls.filter((c) => c.cap === "notes.create");

@@ -397,7 +397,8 @@ function lintRepeats(text: string, vyreText: string | undefined, add: (p: LintPr
 
 // ---- the whole lint ----
 
-const INHERITS = /^\s*Inherits:\s*VYRE\.md\s*$/im;
+/** A line that says the agent follows VYRE.md: "Inherits: VYRE.md", "Follows VYRE.md.", "Extends the Space's VYRE.md", "Builds on VYRE.md", with or without a colon, alone on its line or inside a sentence. */
+export const INHERITS = /\b(?:inherits?|follows?|extends?|builds?\s+on|based\s+on)\b[\s:,-]*(?:the\s+)?(?:space['\u2019]s\s+)?VYRE\.md/i;
 const OVERRIDE = /^\s*Override:\s*(.*)$/i;
 const HEADING = /^\s*#{1,6}\s+(.*)$/;
 const LIST_ITEM = /^\s*(?:[-*+]|\d+[.)])\s+\S/;
@@ -425,7 +426,7 @@ export function lintText(file: LintFile, text: string, limits: LintLimits = DEFA
   let inherits: boolean | undefined;
   if (file === "agent_md") {
     inherits = INHERITS.test(text);
-    if (!inherits) add({ severity: "info", rule: "inherits.missing", message: "No Inherits: VYRE.md line. The agent still follows VYRE.md; the line shows it." });
+    if (!inherits) add({ severity: "info", rule: "inherits.missing", message: "No line says it follows VYRE.md. The agent still does; a line such as Follows VYRE.md shows it." });
   }
   if (file === "vyre_md") {
     let inRules = false;
