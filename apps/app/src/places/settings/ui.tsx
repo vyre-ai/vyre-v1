@@ -5,7 +5,7 @@ import { connectEntries } from "../../shell/connect/model.ts";
 import type { Connected, ConnectNeed } from "../../shell/connect/model.ts";
 import { createElement, isValidElement, useState } from "react";
 import type { ReactElement, ReactNode } from "react";
-import { Platform, Pressable, StyleSheet, Text, View, useWindowDimensions } from "react-native";
+import { Image, Platform, Pressable, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import type { ViewStyle } from "react-native";
 import { Row } from "../../../../../ui/src/Row/index.tsx";
 import { Info, Tip } from "../../../../../ui/src/Tip/index.tsx";
@@ -254,6 +254,13 @@ export function Segmented({ value, options, onChange, label, testID }: { value: 
 /** A 30px rounded square holding a glyph: the prototype's mark at the left of a link or action row. */
 export function IconTile({ name, size = 16 }: { name: string; size?: number }): ReactElement {
   return <View aria-hidden style={{ width: 30, height: 30, borderRadius: 8, alignItems: "center", justifyContent: "center", backgroundColor: "var(--sunk)" as string }}><Glyph name={name} size={size} color="var(--ink-2)" /></View>;
+}
+
+/** A 30px picture of a GitHub account or org (github.com/<login>.png); the GitHub mark in a tile stands in when it cannot be loaded. */
+export function GithubAvatar({ login }: { login: string }): ReactElement {
+  const [bad, setBad] = useState(false);
+  if (bad || !login) return <IconTile name="github" />;
+  return <Image aria-hidden accessibilityIgnoresInvertColors source={{ uri: `https://github.com/${encodeURIComponent(login)}.png?size=60` }} onError={() => setBad(true)} style={{ width: 30, height: 30, borderRadius: 8, backgroundColor: "var(--sunk)" as string }} />;
 }
 
 /** A stepped slider with a small A at each end and the value after it; arrow keys move it by one step, a tap on the track picks the nearest step. */

@@ -8,7 +8,7 @@ import type { CapMap } from "../../../../../generated/types.ts";
 import { useSettingsData } from "./data.tsx";
 import { useSaved } from "./saved.tsx";
 import { whenLabel } from "./pages-b.tsx";
-import { Choice, Glyph, IconTile, Section, SettingsRow, SmallButton } from "./ui.tsx";
+import { Choice, Glyph, GithubAvatar, IconTile, Section, SettingsRow, SmallButton } from "./ui.tsx";
 
 type Status = CapMap["github.me.status"]["out"];
 type Reach = CapMap["github.me.reach"]["out"];
@@ -92,7 +92,7 @@ export function GithubPage(): ReactElement {
         </Section>
       ) : null}
       <Section title="Account" testID="github-account">
-        <SettingsRow id="github.account" first lead={<IconTile name="github" />} label={`@${status.login ?? ""}`} sub={`Signs you in to Vyre · through ${via}`}
+        <SettingsRow id="github.account" first lead={<GithubAvatar login={status.login ?? ""} />} label={`@${status.login ?? ""}`} sub={`Signs you in to Vyre · through ${via}`}
           control={sure
             ? <><SmallButton label="Cancel" onPress={() => setSure(false)} /><SmallButton label="Disconnect" danger testID="gh-disconnect-yes" onPress={disconnect} /></>
             : <SmallButton label="Disconnect" testID="gh-disconnect" onPress={() => setSure(true)} />} />
@@ -104,7 +104,7 @@ export function GithubPage(): ReactElement {
           // ui-rows-lint: not a list (each line is a SettingsRow, which draws a ui/Row itself)
           : reach.orgs.map((o, i) => {
             const n = reach.repos.filter((r) => r.repo.startsWith(`${o.login}/`)).length;
-            return <SettingsRow key={o.login} id={`github.org.${o.login}`} first={i === 0} lead={<IconTile name="github" />} label={o.login} sub={installWords(o, n)}
+            return <SettingsRow key={o.login} id={`github.org.${o.login}`} first={i === 0} lead={<GithubAvatar login={o.login} />} label={o.login} sub={installWords(o, n)}
               control={o.url ? <SmallButton label={o.install === "none" ? "Install" : "Change"} testID={`gh-org-${o.login}`} onPress={() => data.nav.openLink?.(o.url as string)} /> : undefined} />;
           })}
       </Section>

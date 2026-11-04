@@ -16,7 +16,7 @@ import type { GithubCtx, UserHost } from "../projections.ts";
 export const ACTIONS = ["read", "push_branch", "open_pr", "comment", "merge", "push_default"] as const;
 export type Action = (typeof ACTIONS)[number];
 export type Mode = "always" | "ask" | "never";
-export const DEFAULT_POLICY: Record<Action, Mode> = { read: "always", push_branch: "ask", open_pr: "ask", comment: "ask", merge: "ask", push_default: "ask" };
+export const DEFAULT_POLICY: Record<Action, Mode> = { read: "always", push_branch: "always", open_pr: "always", comment: "always", merge: "ask", push_default: "ask" };
 const WORDS: Record<Action, string> = { read: "read", push_branch: "push a branch", open_pr: "open a pull request", comment: "comment", merge: "merge", push_default: "push to the default branch" };
 /** What the installation token is allowed to do for each kind of use. */
 export const PERMISSIONS: Record<Action, Record<string, string>> = {

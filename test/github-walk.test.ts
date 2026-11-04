@@ -96,6 +96,7 @@ test("walk: connect, reach, a refused repository, Ask me first, the policy and a
     await assert.rejects(me.token(g.ctx, { repo: "vyre-ai/private-notes", action: "read", consumer: "crew" }), (e: any) => e.error.code === "validation.not_found");   // eslint-disable-line @typescript-eslint/no-explicit-any
 
     // ---- 4. Ask me first holds a card; once approved the token comes, and the filler holds it, not the module
+    me.policySet(g.ctx, { policy: { open_pr: "ask" } });
     await assert.rejects(me.token(g.ctx, { repo: "vyre-ai/website", action: "open_pr", consumer: "crew" }), (e: any) => e.error.code === "permission.needs_approval");   // eslint-disable-line @typescript-eslint/no-explicit-any
     assert.equal(gate.held, 1);
     me.meApprove(g.ctx, { repo: "vyre-ai/website", action: "open_pr", consumer: "crew" });
@@ -167,7 +168,7 @@ test("walk: signing in with GitHub through the default Vyre app connects it too,
     const item = v.rows(`SELECT * FROM vault_meta WHERE "owner" = ?`, PERSON)[0]!;
     assert.equal(await u.secretPort(v.ctx.db).secret(`${item.handle}.refresh_token`, "", PERSON), "ghr_signin_1");
     assert.equal(JSON.stringify([v.everything(), g.emitted]).includes("ghr_signin_1"), false);
-    assert.deepEqual(me.policyGet(g.ctx).policy, { read: "always", push_branch: "ask", open_pr: "ask", comment: "ask", merge: "ask", push_default: "ask" });
+    assert.deepEqual(me.policyGet(g.ctx).policy, { read: "always", push_branch: "always", open_pr: "always", comment: "always", merge: "ask", push_default: "ask" });
     // a second sign-in does not disturb the connection, and a server with no app says so
     assert.deepEqual(await me.adoptSignIn(g.ctx, { githubId: "4242", person: PERSON }), { adopted: false });
     const none = createGithubHost({ vault: u.secretPort(v.ctx.db) as never, fetch: f, blobs: {} as never, tickets });
