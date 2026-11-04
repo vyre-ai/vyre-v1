@@ -7,6 +7,8 @@ import path from "node:path";
 export interface ComputersHostSeam {
   /** The Docker Engine socket. Default /var/run/docker.sock. */
   socketPath?: string;
+  /** A Team server: the container runner's socket and its token (read again on each call), and the container vyred runs in. When set, vyred holds no Docker socket and uses this. */
+  runner?: { socket: string; token(): string; ingress?: string; alias?: string };
   /** The agent computer image. Default vyre/agent-computer:1 (images/agent-computer). */
   image?: string;
   /** The folder bound at ~/Vyre in an agent's computer, made on first use. It is a mirror of the agent's folder in Files (the module's home sync keeps the two together, as the agent). */
@@ -28,6 +30,7 @@ export interface ComputersHostDeps {
   /** The Space data directory: each agent computer's home folder lives under <dataDir>/computers/<agent>/Vyre, its sync manifest beside it. */
   dataDir: string;
   socketPath?: string;
+  runner?: { socket: string; token(): string; ingress?: string; alias?: string };
   image?: string;
   startTimeoutMs?: number;
   /** Run a capability as the agent (the daemon's invoke pipeline with the agent principal, so access, review rules and the scrubber apply). Omitted: no home mirror. */
@@ -47,6 +50,7 @@ export function createComputersHost(d: ComputersHostDeps): ComputersHostSeam {
   const root = path.join(d.dataDir, "computers");
   return {
     ...(d.socketPath !== undefined ? { socketPath: d.socketPath } : {}),
+    ...(d.runner ? { runner: d.runner } : {}),
     image: d.image ?? process.env["VYRE_AGENT_COMPUTER_IMAGE"] ?? "vyre/agent-computer:1",
     startTimeoutMs: d.startTimeoutMs ?? 120_000,
     ...(d.callAs && d.putBytes ? { home: { callAs: d.callAs as never, putBytes: d.putBytes, ...(d.homeIntervalMs !== undefined ? { intervalMs: d.homeIntervalMs } : {}), manifest: (agentId: string) => path.join(root, agentId, "home-manifest.json"), ...(d.announce ? { announce: d.announce } : {}), ...(d.log ? { log: d.log } : {}) } } : {}),

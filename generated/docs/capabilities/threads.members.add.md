@@ -1,6 +1,6 @@
 # threads.members.add
 
-Add a person to a thread; a private chat never gains people, so this offers a channel instead
+Add a person to a thread. A private chat becomes a group chat: the newcomer reads from now on unless fromStart is true (Include earlier messages), a goal chat shows its history, and agents stop using the asker's private profile there. A chat's own agents become visible to the newcomer.
 
 | | |
 |---|---|
@@ -27,6 +27,7 @@ Add a person to a thread; a private chat never gains people, so this offers a ch
 type In = {
   threadId: string;
   personId: string;
+  fromStart?: boolean;
 };
 ```
 
@@ -97,7 +98,6 @@ type Out = {
 - permission.no_grant
 - validation.bad_input
 - validation.not_found
-- validation.precondition_failed
 
 ## Example
 
@@ -105,6 +105,7 @@ type Out = {
 {
   "name": "example",
   "input": {
+    "fromStart": true,
     "personId": "usr_a1b2c3",
     "threadId": "thr_a1b2c3"
   },

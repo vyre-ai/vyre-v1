@@ -13,7 +13,7 @@ import type { CapMap } from "../../../../../../generated/types.ts";
 import { swapNeeded } from "../conversation/model.ts";
 import { PeoplePop } from "./PeoplePop.tsx";
 import type { PeopleRow } from "./PeoplePop.tsx";
-import { addedLine, addsSomeone, directoryOf, failedLine, hereSub, maxLevelOf, projectExtras, settingsOf, titleOfTarget } from "./model.ts";
+import { addedLine, addsSomeone, directoryOf, failedLine, hereSub, maxLevelOf, projectExtras, roleWord, settingsOf, titleOfTarget } from "./model.ts";
 import type { AddOpen, AddSheetDeps, ThreadAgentRow, ThreadRow } from "./model.ts";
 
 type Out<K extends keyof CapMap> = CapMap[K]["out"];
@@ -145,9 +145,9 @@ function nameOfCall(call: { cap: string; input: unknown }, picks: readonly Acces
 }
 
 /** Runs the sheet's picks: people first, then agents, then settings, new agents and guests, in the order addCalls plans. Says one line after. */
-export async function runAdd(deps: AddSheetDeps, r: Loaded, picks: readonly AccessPick[]): Promise<{ added: string[]; failed: string[] }> {
+export async function runAdd(deps: AddSheetDeps, r: Loaded, picks: readonly AccessPick[], earlier = false): Promise<{ added: string[]; failed: string[] }> {
   const key = (): string => deps.newKey();
-  const plan = addCalls(r.ctx, picks, key);
+  const plan = addCalls(r.ctx, picks, key, { earlier });
   const queue: { cap: string; input: unknown }[] = plan.calls.map((c) => ({ cap: c.cap, input: c.input }));
   if (r.ctx.kind === "project") {
     const extra = projectExtras(plan.unsupported, key);
@@ -176,7 +176,7 @@ export async function runAdd(deps: AddSheetDeps, r: Loaded, picks: readonly Acce
 type Surface =
   | { k: "sheet"; open: AddOpen; r: Loaded }
   | { k: "pick"; r: Loaded; onPicks(picks: readonly AccessPick[]): void }
-  | { k: "people"; thread: ThreadRow; x: number; y: number; onOpenAgent(id: string): void; outside: ReadonlySet<string> }
+  | { k: "people"; thread: ThreadRow; x: number; y: number; onOpenAgent(id: string): void; outside: ReadonlySet<string>; meRole: string }
   | { k: "settings"; thread: ThreadRow; agentId: string; x: number; y: number; outside: ReadonlySet<string> };
 
 export interface AddSheetApi {
@@ -239,8 +239,13 @@ export function useAddSheet(deps: AddSheetDeps, opts: { onDone?: () => void; cop
     const got = await tryCall<Out<"agents.list">>(d.current, "agents.list", {});
     return new Set((got?.agents ?? []).filter((a) => a.runtime === "outside").map((a) => a.agentId));
   }, []);
-  const showPeople = useCallback((p: { thread: ThreadRow; x: number; y: number; onOpenAgent(agentId: string): void }): void => { void outsideOf().then((outside) => setSurface({ k: "people", ...p, outside })); }, [outsideOf]);
-  const showSettings = useCallback((p: { thread: ThreadRow; agentId: string; x: number; y: number }): void => { void outsideOf().then((outside) => setSurface({ k: "settings", ...p, outside })); }, [outsideOf]);
+  /** The chat's agents as the server keeps them: the copy a screen holds may leave out how each answers (Listening, When, Style). */
+  const freshThread = useCallback(async (seen: ThreadRow): Promise<ThreadRow> => (await tryCall<Out<"threads.get">>(d.current, "threads.get", { threadId: seen.threadId }))?.thread ?? seen, []);
+  const showPeople = useCallback((p: { thread: ThreadRow; x: number; y: number; onOpenAgent(agentId: string): void }): void => {
+    void Promise.all([outsideOf(), freshThread(p.thread), tryCall<Out<"access.principals.list">>(d.current, "access.principals.list", {})]).then(([outside, thread, people]) =>
+      setSurface({ k: "people", ...p, thread, outside, meRole: roleWord(people?.principals.find((x) => x.id === d.current.me.id)?.roles) }));
+  }, [outsideOf, freshThread]);
+  const showSettings = useCallback((p: { thread: ThreadRow; agentId: string; x: number; y: number }): void => { void Promise.all([outsideOf(), freshThread(p.thread)]).then(([outside, thread]) => setSurface({ k: "settings", ...p, thread, outside })); }, [outsideOf, freshThread]);
 
   let element: ReactElement | null = null;
   if (surface?.k === "sheet") {
@@ -250,7 +255,7 @@ export function useAddSheet(deps: AddSheetDeps, opts: { onDone?: () => void; cop
     element = (
       <AccessSheet
         mode="add" density={phone ? "compact" : "regular"} ownerName={deps.me.name} target={r.target} directory={r.directory} here={r.here} agentSettings={r.agentSettings} models={MODELS}
-        earlierMessages={false} {...(r.maxLevel !== undefined ? { maxLevel: r.maxLevel } : {})} {...(r.link ? { link: r.link } : {})} testID="add-sheet" onClose={close}
+        earlierMessages={r.target.kind === "chat" || r.target.kind === "thread"} {...(r.maxLevel !== undefined ? { maxLevel: r.maxLevel } : {})} {...(r.link ? { link: r.link } : {})} testID="add-sheet" onClose={close}
         {...(sameThread !== null ? { onPoke: (id: string) => poke(sameThread, id, r.here), onAgentSettings: (id: string, s: AgentSettings) => save(sameThread, id, s, true) } : {})}
         {...(sameThread !== null ? { onRemoveHere: (e: AccessEntry) => {
           void Promise.resolve(d.current.call("threads.outside_agent.remove", outsideAgentRemoveInput(sameThread, e.id))).then(
@@ -258,8 +263,8 @@ export function useAddSheet(deps: AddSheetDeps, opts: { onDone?: () => void; cop
             () => d.current.toast(`Could not remove ${e.name}. Try again.`),
           );
         } } : {})}
-        onAdd={(picks) => {
-          void runAdd(d.current, r, picks).then(({ added, failed }) => {
+        onAdd={(picks, opts) => {
+          void runAdd(d.current, r, picks, opts.earlier).then(({ added, failed }) => {
             if (added.length > 0) d.current.toast(addedLine(added));
             if (failed.length > 0) d.current.toast(failedLine(failed));
             o.current.onDone?.();
@@ -280,7 +285,7 @@ export function useAddSheet(deps: AddSheetDeps, opts: { onDone?: () => void; cop
     const t = surface.thread;
     const only = t.agents.length === 1;
     const rows: PeopleRow[] = [
-      ...t.members.filter((m) => m.kind === "person").map((m): PeopleRow => ({ id: m.id, name: deps.nameOf(m.id), kind: "person", sub: m.id === deps.me.id ? "You" : "Person" })),
+      ...t.members.filter((m) => m.kind === "person").map((m): PeopleRow => ({ id: m.id, name: m.id === deps.me.id ? "You" : deps.nameOf(m.id), kind: "person", sub: m.id === deps.me.id ? surface.meRole : "Person" })),
       ...t.agents.map((a): PeopleRow => ({ id: a.agentId, name: deps.nameOf(a.agentId), kind: surface.outside.has(a.agentId) ? "outside" : "agent", sub: hereSub(a, only) })),
     ];
     element = (
@@ -317,7 +322,7 @@ function ChatAgentSettings({ deps, thread, agentId, outside, x, y, save, poke, c
       const old = deps.nameOf(lead.agentId);
       confirm([
         { head: `${old} leads this chat. Make ${name} lead instead? ${old} will keep listening.` },
-        { label: "Swap", onSelect: () => { setValue(next); save(thread.threadId, agentId, next, false); deps.toast(`${name} now answers everything. ${old} answers only when tagged.`); } },
+        { label: "Swap", onSelect: () => { setValue(next); save(thread.threadId, agentId, next, false); deps.toast(`${name} now answers everything. ${old} answers only when mentioned.`); } },
         { label: "Cancel" },
       ], x, y, name);
       return;

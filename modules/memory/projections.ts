@@ -88,11 +88,11 @@ const FACT_INDEXES = ['CREATE INDEX IF NOT EXISTS memory_facts_trash ON memory_f
 export function ensure(db: Db): void {
   if (ready.has(db)) return;
   try {
-    db.all("SELECT archived_by FROM memory_facts WHERE id = ?", "probe");
+    // every column added after the first schema is probed by name: a Space made before one of them was added (the first of them, archived_by, is there; audience, added later, is not) must fail here
+    // and get it, not read a column it does not have
+    for (const col of FACT_COLUMNS) db.all(`SELECT ${col.split(" ")[0]} FROM memory_facts WHERE id = ?`, "probe");
+    for (const [table, col] of LATER_COLUMNS) db.all(`SELECT ${col.split(" ")[0]} FROM ${table} LIMIT 0`);
     db.all("SELECT stopped FROM memory_upkeep_runs WHERE id = ?", "probe");
-    db.all("SELECT blurb FROM memory_pages WHERE page_id = ?", "probe");
-    db.all("SELECT message_id FROM memory_mentions WHERE page_id = ?", "probe");
-    db.all("SELECT target FROM memory_page_links WHERE from_page = ?", "probe");
   } catch {
     for (const stmt of SCHEMA) db.run(stmt);
     // SQLite has no ADD COLUMN IF NOT EXISTS: a column that is already there raises and is skipped.

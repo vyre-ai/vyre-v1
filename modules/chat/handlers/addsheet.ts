@@ -8,11 +8,12 @@
 //   threads.invite_guest         a guest of this chat only, by email.
 //
 // Mode keeps its two values for everything that reads a thread (lead, listen). Listening is `listen` with quiet true: the row says it, the engine never routes to a quiet agent but for a poke.
-import { addAgent, agentsOf, askerOf, channelBy, encOf, insertMessage, lastMessages, messageOut, mintId, raise } from "../projections.ts";
+import { addAgent, agentsOf, askerOf, channelBy, encOf, insertMessage, lastMessages, membersOf, messageOut, mintId, raise } from "../projections.ts";
 import type { ChatCtx, ThreadRec } from "../projections.ts";
 import { agentMayChange, load, out } from "./g24a.ts";
+import { readFloor } from "./floor.ts";
 import { deliver, mayGovernChannel, rootOf } from "./post.ts";
-import { grantsOf, revokeGrants, sourceOf, trashOwned } from "./owned.ts";
+import { grantsOf, revokeGrants, shareOwnedWithReaders, sourceOf, trashOwned } from "./owned.ts";
 import type { Granted } from "./owned.ts";
 
 type Row = Record<string, unknown>;
@@ -66,7 +67,7 @@ export async function agentSettingsSet(ctx: ChatCtx, input: {
   const cur = agentsOf(ctx.db, t.id).find((a) => a.agentId === input.agentId);
   if (!cur) raise(ctx, "validation.not_found", "That agent is not in this chat.");
   await mayAdjust(ctx, t, input.agentId);
-  if (input.mode !== undefined && input.mode !== "lead" && input.mode !== "listen" && input.mode !== "quiet") raise(ctx, "validation.bad_input", "An agent answers everything, answers when tagged, or listens.", { field: "mode" });
+  if (input.mode !== undefined && input.mode !== "lead" && input.mode !== "listen" && input.mode !== "quiet") raise(ctx, "validation.bad_input", "An agent answers everything, answers when mentioned, or listens.", { field: "mode" });
   if (input.when !== undefined && input.when !== "always" && input.when !== "topics" && input.when !== "hours") raise(ctx, "validation.bad_input", "When is always, topics or hours.", { field: "when" });
   if (input.style !== undefined && input.style !== "short" && input.style !== "full") raise(ctx, "validation.bad_input", "Style is short or full.", { field: "style" });
   const clean = (k: "hoursFrom" | "hoursTo"): string | null | undefined => {
@@ -111,7 +112,7 @@ export async function agentCreate(ctx: ChatCtx, input: { threadId: string; name:
   if (!ctx.call) raise(ctx, "internal.unavailable", "Making an agent is not available here.");
   if (!agentMayChange(ctx, t)) raise(ctx, "permission.role_lacks_permission", "Only the lead agent of a chat adds agents to it.");
   if (t.closedAt !== undefined) raise(ctx, "validation.precondition_failed", "This thread is closed. Reopen it first.");
-  if (input.mode !== undefined && input.mode !== "lead" && input.mode !== "listen" && input.mode !== "quiet") raise(ctx, "validation.bad_input", "An agent answers everything, answers when tagged, or listens.", { field: "mode" });
+  if (input.mode !== undefined && input.mode !== "lead" && input.mode !== "listen" && input.mode !== "quiet") raise(ctx, "validation.bad_input", "An agent answers everything, answers when mentioned, or listens.", { field: "mode" });
   if (agentsOf(ctx.db, t.id).length >= MAX_AGENTS) raise(ctx, "validation.bad_input", `A chat can have at most ${MAX_AGENTS} agents.`);
   const brief = input.brief?.replace(/\s+/g, " ").trim();
   const key = input.idempotencyKey ?? ctx.trace.traceId;
@@ -127,6 +128,13 @@ export async function agentCreate(ctx: ChatCtx, input: { threadId: string; name:
     await trashOwned(ctx, [agentId]);
     throw e;
   }
+  // everyone who can read the chat sees the agent, whoever made it: its people, or the Space for a public channel
+  const root = rootOf(ctx, t);
+  const channel = root.channelId === undefined ? undefined : channelBy(ctx.db, root.channelId);
+  const readers = channel && channel.visibility !== "invite"
+    ? [{ kind: "group" as const, id: "space" }]
+    : [...new Set([...(root.starter?.startsWith("usr_") ? [root.starter] : []), ...membersOf(ctx.db, root.id).filter((p) => p.startsWith("usr_"))])].map((id) => ({ kind: "person" as const, id }));
+  await shareOwnedWithReaders(ctx, t.id, agentId, readers);
   ctx.emit("agent.engaged", t.id, { threadId: t.id, agentId, mode: mode === "lead" ? "lead" : "listen", by: askerOf(ctx) });
   ctx.emit("thread.updated", t.id, { threadId: t.id, fields: ["agents"] });
   if (mode === "lead") await tellEngine(ctx, t.id, agentId, "lead");
@@ -223,11 +231,20 @@ export async function historyPage(ctx: ChatCtx, input: { threadId: string; befor
     const ok = working !== undefined ? working === t.id : agentsOf(ctx.db, t.id).some((a) => a.agentId === ctx.principal.id) || agentsOf(ctx.db, rootOf(ctx, t).id).some((a) => a.agentId === ctx.principal.id);
     if (!ok) raise(ctx, "permission.no_grant", "You can read back only in the chat you are working in.", { threadId: t.id });
   }
-  const page = lastMessages(ctx.db, t.id, limit, input.before);
+  // a person added without earlier messages (or an agent working for them) reads back no further than their start
+  const floor = readFloor(ctx, t);
+  const page = lastMessages(ctx.db, t.id, limit, input.before).filter((m) => m.createdAt >= floor);
   const first = page[0];
-  const hasMore = first !== undefined && (ctx.db.all("SELECT 1 AS x FROM chat_message WHERE thread = ? AND threadSeq < ? AND deleted_at IS NULL LIMIT 1", t.id, first.seq) as Row[]).length > 0;
+  const hasMore = first !== undefined && (ctx.db.all("SELECT 1 AS x FROM chat_message WHERE thread = ? AND threadSeq < ? AND createdAt >= ? AND deleted_at IS NULL LIMIT 1", t.id, first.seq, floor) as Row[]).length > 0;
   const enc = encOf(ctx.db, t);
   return { messages: page.map((m) => messageOut(m, enc)), hasMore, ...(hasMore && first ? { next: first.seq } : {}) };
+}
+
+/** Where the caller's reading of this chat starts, so the engine can tell an agent not to quote what the person never saw. */
+export async function readFloorOf(ctx: ChatCtx, input: { threadId: string }) {
+  const t = load(ctx, input.threadId);
+  const at = readFloor(ctx, t);
+  return at > 0 ? { fromAt: at } : {};
 }
 
 // ---- an outside agent, scoped to this chat ----------------------------------------------------------------------------------------------------------
@@ -252,7 +269,7 @@ export async function outsideAgentAdd(ctx: ChatCtx, input: { threadId: string; a
   const t = load(ctx, input.threadId);
   if (!ctx.call) raise(ctx, "internal.unavailable", "Adding an agent is not available here.");
   if (!input.agentId.startsWith("agt_")) raise(ctx, "validation.bad_input", "That is not an agent.", { agentId: input.agentId });
-  if (input.mode !== undefined && input.mode !== "listen" && input.mode !== "quiet") raise(ctx, "validation.bad_input", "An outside agent answers when tagged, or listens.", { field: "mode" });
+  if (input.mode !== undefined && input.mode !== "listen" && input.mode !== "quiet") raise(ctx, "validation.bad_input", "An outside agent answers when mentioned, or listens.", { field: "mode" });
   if (!agentMayChange(ctx, t)) raise(ctx, "permission.role_lacks_permission", "Only the lead agent of a chat adds agents to it.");
   if (t.closedAt !== undefined) raise(ctx, "validation.precondition_failed", "This thread is closed. Reopen it first.");
   const agent = await mustBeUsable(ctx, input.agentId);
@@ -305,7 +322,7 @@ export async function inviteGuest(ctx: ChatCtx, input: { threadId: string; email
   if (!ctx.call) raise(ctx, "internal.unavailable", "Inviting is not available here.");
   const root = rootOf(ctx, t);
   if (root.kind === "chat" || root.kind === "ask") {
-    raise(ctx, "validation.precondition_failed", "A private chat never gains people. Make it a channel to bring a guest in.", { offer: "threads.make_channel", threadId: t.id });
+    raise(ctx, "validation.precondition_failed", "A guest is invited to a channel. Make this chat a channel first, then invite them.", { offer: "threads.make_channel", threadId: t.id });
   }
   // a guest is invited to a channel's own chat: its inline threads belong to the channel, so there is no narrower place to give
   if (t.kind !== "channel" || t.channelId === undefined) raise(ctx, "validation.precondition_failed", "Invite the guest to the channel's own chat. An inline thread belongs to its channel.", { threadId: t.id });
@@ -327,6 +344,7 @@ export const addsheetHandlers = {
   "threads.agent.create": agentCreate,
   "threads.poke": poke,
   "chat.history.page": historyPage,
+  "chat.read_floor": readFloorOf,
   "threads.outside_agent.add": outsideAgentAdd,
   "threads.outside_agent.remove": outsideAgentRemove,
   "threads.invite_guest": inviteGuest,

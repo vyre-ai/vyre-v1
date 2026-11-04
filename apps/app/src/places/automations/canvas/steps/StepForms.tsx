@@ -167,7 +167,7 @@ export function AiForm({ def, node, onChange, openMenu, kind, keys, agents, who,
   const pickKey = (field: "keyId" | "backupKeyId", none: string) => (x: number, y: number): void => {
     const entries: MenuEntry[] = [{ label: none, checked: !ai[field], onSelect: () => writeAi(withAi(ai, field, undefined)) }];
     if (pickable.length > 0) entries.push({ separator: true });
-    for (const k of pickable) entries.push({ label: `${k.name}${k.kind === "subscription" ? " (sign-in)" : " (API key)"}`, checked: ai[field] === k.id, onSelect: () => writeAi(withAi(ai, field, k.id)) });
+    for (const k of pickable) entries.push({ label: `${k.name}${k.kind === "subscription" ? " (sign-in)" : " (API key)"}`, checked: ai[field] === k.id, onSelect: () => writeAi(withAi(ai, field, k.id)), ...(k.usable === false ? { disabled: true, ...(k.why ? { reason: k.why } : {}) } : {}) });
     // the connect item ends the menu; when the flow finishes the new account is the one this field takes
     openMenu(connectEntries(entries, { kind: "ai" }, openConnect, (made) => writeAi(withAi(ai, field, made.id)), pickable.length === 0), x, y, "other");
   };
@@ -221,12 +221,12 @@ export function AiForm({ def, node, onChange, openMenu, kind, keys, agents, who,
   if (taskMode) {
     return (
       <>
-        <Segmented testID="ai-mode" value="task" onPick={(k) => onChange(updateStep(def, node.id, { ai: setMode(ai, k === "task" ? "task" : "answer") }))} options={[{ key: "answer", label: "Answer", hint: "One quick answer, no tools" }, { key: "task", label: "Task", hint: "Real work: an agent with its tools, in its own thread" }]} />
+        <Segmented testID="ai-mode" value="task" onPick={(k) => onChange(updateStep(def, node.id, { ai: setMode(ai, k === "task" ? "task" : "answer") }))} options={[{ key: "answer", label: "Answer", hint: "One quick answer, no tools" }, { key: "task", label: "Task", hint: "Real work: an agent with its tools, in its own chat" }]} />
         <ChipText label="Goal" value={show(input["prompt"])} placeholder="What should be done? Bring in data with Insert data." testID="field-prompt" hint="What the agent is asked to do. Written like a note to a colleague." chipLabel={(ref) => chipLabel(ref, stepTitle)} onCommit={(t) => writeInput(withField(input, "prompt", t))} />
         <Choice label="Insert data" value="Pick something to bring in" testID="insert-data" hint="Adds a {{ }} reference to the goal" onOpen={insertData} />
         <Rows label="Input data" pairs={pairsOf(input["inputs"])} keyLabel="Name" valueLabel="Value" addLabel="Add input data" testID="rows-inputs" onCommit={(rows) => writeInput(withField(input, "inputs", recordOf(rows, true)))} />
         <Group head="Who" testID="ai-seats">
-          <Choice label="Assigned" value={seatLine(assigned, "Pick who does it")} face={face(assigned)} testID="choose-assigned" hint="Does the work, in the task's thread" onOpen={pickSeat("assigned", "Nobody yet")} />
+          <Choice label="Assigned" value={seatLine(assigned, "Pick who does it")} face={face(assigned)} testID="choose-assigned" hint="Does the work, in the task's chat" onOpen={pickSeat("assigned", "Nobody yet")} />
           <Choice label="Reviewer" value={seatLine(ai.reviewer, "Nobody")} face={face(ai.reviewer)} testID="choose-reviewer" hint="Checks the work against Done means and sends it back with fixes" onOpen={pickSeat("reviewer", "Nobody")} />
           <Choice label="Approver" value={seatLine(ai.approver, "Nobody")} face={face(ai.approver)} testID="choose-approver" hint="Decides it may go ahead; held actions go out on a yes" onOpen={pickSeat("approver", "Nobody")} />
         </Group>
@@ -258,13 +258,13 @@ export function AiForm({ def, node, onChange, openMenu, kind, keys, agents, who,
           {nudgeProblem ? <Hint danger testID="nudge-problem">{nudgeProblem}</Hint> : null}
           <Choice label="Escalate to" value={seatLine(ai.escalateTo, "The person who owns this")} face={face(ai.escalateTo)} testID="choose-escalate" hint="Who gets it when the agent stalls" onOpen={pickSeat("escalateTo" as never, "The person who owns this")} />
         </More>
-        <Hint testID="ai-tools-note">The agent works in the task's thread with its tools, on its own account. Anything that leaves Vyre waits for a yes.</Hint>
+        <Hint testID="ai-tools-note">The agent works in the task's chat with its tools, on its own account. Anything that leaves Vyre waits for a yes.</Hint>
       </>
     );
   }
   return (
     <>
-      <Segmented testID="ai-mode" value="answer" onPick={(k) => onChange(updateStep(def, node.id, { ai: setMode(ai, k === "task" ? "task" : "answer") }))} options={[{ key: "answer", label: "Answer", hint: "One quick answer, no tools" }, { key: "task", label: "Task", hint: "Real work: an agent with its tools, in its own thread" }]} />
+      <Segmented testID="ai-mode" value="answer" onPick={(k) => onChange(updateStep(def, node.id, { ai: setMode(ai, k === "task" ? "task" : "answer") }))} options={[{ key: "answer", label: "Answer", hint: "One quick answer, no tools" }, { key: "task", label: "Task", hint: "Real work: an agent with its tools, in its own chat" }]} />
       <Field label="Prompt" value={show(input["prompt"])} rows={6} placeholder="What should the AI do? Use {{ steps.name.out.field }} to bring an earlier step's data in." testID="field-prompt" onCommit={(t) => writeInput(withField(input, "prompt", t))} />
       <Rows label="Input data" pairs={pairsOf(input["inputs"])} keyLabel="Name" valueLabel="Value" addLabel="Add input data" testID="rows-inputs" onCommit={(rows) => writeInput(withField(input, "inputs", recordOf(rows, true)))} />
       <Choice

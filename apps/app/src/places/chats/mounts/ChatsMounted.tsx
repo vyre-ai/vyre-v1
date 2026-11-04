@@ -40,7 +40,6 @@ import { useLive } from "./live.ts";
 import { noteThreadKind } from "../../../shell/ask/screen.ts";
 import { START, fromHash, openKeyOf, step, workOf } from "./route.ts";
 import { Landing } from "../landing/Landing.tsx";
-import { ThreadsPage } from "./ThreadsPage.tsx";
 import { ThreadSide } from "./ThreadSide.tsx";
 import { ArtifactsPage } from "./ArtifactsPage.tsx";
 import { NotesPage } from "../notes/NotesPage.tsx";
@@ -136,7 +135,7 @@ export function ChatsMounted({ rt, hash = "", initial, window, opened, onSwitch,
   routeNow.current = shown.route.view;
   const act = useCallback((a: Act): void => {
     if (stacked && a.t === "chat" && routeNow.current === "new" && a.threadId !== "") { opened?.({ subject: { type: "thread", id: a.threadId } }); return; }
-    if (a.t === "chat" || a.t === "new" || a.t === "tasks" || a.t === "task" || a.t === "threads" || a.t === "artifacts" || (a.t === "notes" && routeNow.current !== "notes") || a.t === "agent-form" || a.t === "agent" || a.t === "needs") onSwitch?.();
+    if (a.t === "chat" || a.t === "new" || a.t === "tasks" || a.t === "task" || a.t === "artifacts" || (a.t === "notes" && routeNow.current !== "notes") || a.t === "agent-form" || a.t === "agent" || a.t === "needs") onSwitch?.();
     setShown((s) => step(s, a));
   }, [onSwitch, stacked, opened]);
   // a link from another place, a notification or the Space menu while Chats is already open
@@ -156,7 +155,6 @@ export function ChatsMounted({ rt, hash = "", initial, window, opened, onSwitch,
     if (!report || routeKey === "") return;
     if (routeKey === "new") report({});
     else if (routeKey === "tasks") report({ screen: "tasks.my-work" });
-    else if (routeKey === "threads") report({ screen: "chats.threads" });
     else if (routeKey === "artifacts") report({ screen: "chats.artifacts" });
     else if (routeKey === "notes") report({ screen: "chats.notes" });
     else if (routeKey.startsWith("a:")) report({ screen: "chats.agent-form", ...(routeKey.length > 2 ? { args: { agentId: routeKey.slice(2) } } : {}) });
@@ -224,7 +222,7 @@ export function ChatsMounted({ rt, hash = "", initial, window, opened, onSwitch,
   /* ---------- the sidebar: registered in the shell's shared place sidebar slot (collapse, search and the phone list are the slot's) ---------- */
   const side = useMemo(() => {
     const base = wireSidebar(rt, go);
-    return { ...base, people: list.filter((p) => p.kind === "person" && p.id !== rt.me.id).map((p) => ({ id: p.id, name: p.name })), nav: { ...base.nav, openTasks: () => act({ t: "tasks" }), openThreads: () => act({ t: "threads" }), ...(base.nav.openArtifacts ? { openArtifacts: () => act({ t: "artifacts" }) } : {}), openNotes: () => act({ t: "notes" }), takeNote: () => act({ t: "notes", take: true }), ...(openInNewTab ? { openNotesTab: () => openInNewTab("screen=chats.notes") } : {}), openNew: () => act({ t: "new" }), openNewAgent: () => act({ t: "agent-form" }), openGoal: (goalId: string) => rt.open({ subject: { type: "goal", id: goalId } }) }, ...(rt.changes ? { changes: rt.changes } : {}) };
+    return { ...base, people: list.filter((p) => p.kind === "person" && p.id !== rt.me.id).map((p) => ({ id: p.id, name: p.name })), nav: { ...base.nav, openTasks: () => act({ t: "tasks" }), ...(base.nav.openArtifacts ? { openArtifacts: () => act({ t: "artifacts" }) } : {}), openNotes: () => act({ t: "notes" }), takeNote: () => act({ t: "notes", take: true }), ...(openInNewTab ? { openNotesTab: () => openInNewTab("screen=chats.notes") } : {}), openNew: () => act({ t: "new" }), openNewAgent: () => act({ t: "agent-form" }), openGoal: (goalId: string) => rt.open({ subject: { type: "goal", id: goalId } }) }, ...(rt.changes ? { changes: rt.changes } : {}) };
   }, [rt, go, act, list, openInNewTab]);
 
   /* ---------- the open chat ---------- */

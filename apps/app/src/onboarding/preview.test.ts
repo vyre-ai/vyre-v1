@@ -6,9 +6,9 @@ import type { CapCall } from "../shell/session/caps.ts";
 const fake = (answers: Record<string, unknown>): CapCall => (async (c: string) => { if (!(c in answers)) throw new Error("none"); return answers[c]; }) as unknown as CapCall;
 
 test("the preview shows the AI account as a chip in the Vault, and Not yet when there is none", async () => {
-  const p = await previewFor(fake({ "providers.list": { providers: [{ id: "p1", name: "Claude", connection: "subscription", scope: "mine" }] } }), "connect_ai");
+  const p = await previewFor(fake({ "engine.accounts.list": { accounts: [{ ref: "#Claude", providerId: "p1", name: "Claude", title: "Claude Code", kind: "subscription", mine: true }] } }), "connect_ai");
   assert.deepEqual(p.items.map((i) => i.label), ["Claude · subscription · in your Vault"]);
-  const none = await previewFor(fake({ "providers.list": { providers: [] } }), "connect_ai");
+  const none = await previewFor(fake({ "engine.accounts.list": { accounts: [] } }), "connect_ai");
   assert.equal(none.items.length, 0);
   assert.match(none.hint, /^Not yet\./);
 });
@@ -32,7 +32,7 @@ test("the team list grows with people and open invites; agents show without the 
 
 test("the AI for the Space preview names the key for everyone first, then the owner's own accounts", async () => {
   const { previewFor } = await import("./preview.ts");
-  const call = (async (cap: string) => (cap === "providers.space_key.get" ? { set: true, name: "OpenCode Go" } : cap === "providers.list" ? { providers: [{ id: "prv_1", name: "Claude", connection: "subscription", scope: "mine" }] } : {})) as never;
+  const call = (async (cap: string) => (cap === "providers.space_key.get" ? { set: true, name: "OpenCode Go" } : cap === "engine.accounts.list" ? { accounts: [{ ref: "#Claude", providerId: "prv_1", name: "Claude", title: "Claude Code", kind: "subscription", mine: true }] } : {})) as never;
   const p = await previewFor(call, "space_ai");
   assert.deepEqual(p.items.map((i) => i.label), ["OpenCode Go for everyone", "Claude · subscription · in your Vault"]);
   assert.ok(!JSON.stringify(p).includes("spc_"));

@@ -152,6 +152,42 @@
         ]
       ],
       "after": "[data-testid='poked-pokeR_1']"
+    },
+    {
+      "id": "ADDSHEET_01-offer",
+      "route": "/m/ADDSHEET_01",
+      "proto": "chats,{skin}",
+      "waitFor": "[data-testid='conversation']",
+      "note": "Typing @Maya Chen, who is not in the chat: Maya isn't in this chat. Add Maya, Start a channel instead, and what she will see.",
+      "steps": [
+        [
+          "fill",
+          "[data-testid='composer-field']",
+          "@Maya Chen can you look at this"
+        ]
+      ],
+      "after": "[data-testid='channel-offer']"
+    },
+    {
+      "id": "ADDSHEET_01-earlier",
+      "route": "/m/ADDSHEET_01",
+      "proto": "chats,{skin}",
+      "waitFor": "[data-testid='conversation']",
+      "note": "A person picked: the Include earlier messages switch is off by default, and the line says they read from now on.",
+      "steps": [
+        [
+          "open"
+        ],
+        [
+          "click",
+          "[data-testid='as-row-person:usr_maya']"
+        ],
+        [
+          "click",
+          "[data-testid='as-earlier']"
+        ]
+      ],
+      "after": "[data-testid='as-earlier']"
     }
   ]
 }

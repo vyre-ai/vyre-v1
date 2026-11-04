@@ -4,6 +4,7 @@
 //   chat.helper.start / chat.helpers.list / chat.handoff   sub-task threads and agent-to-agent threads
 // No handler here calls a model. transcript.summarize writes the plain extract of agent/src/transcript (the floor every switch and rollover already uses) and marks the thread as wanting a
 // model refresh; search is lexical, because the module holds no embedding index.
+import { readFloor } from "./floor.ts";
 import { createTranscript, redact, refreshSummary, transcriptPath } from "../../../agent/src/transcript/index.ts";
 import type { Part, Turn } from "../../../agent/src/transcript/index.ts";
 import {
@@ -27,7 +28,7 @@ function visible(ctx: ChatCtx, threadId: string): ThreadRec {
 }
 function open(ctx: ChatCtx, threadId: string): ThreadRec {
   const t = visible(ctx, threadId);
-  if (t.closedAt !== undefined) raise(ctx, "validation.bad_input", "This thread is closed. Reopen it to write in it.");
+  if (t.closedAt !== undefined) raise(ctx, "validation.bad_input", "This chat is closed. Reopen it to write in it.");
   return t;
 }
 const authorKind = (ctx: ChatCtx): "agent" | "text" => (ctx.principal.kind === "agent" ? "agent" : "text");
@@ -144,7 +145,7 @@ export async function transcriptGet(ctx: ChatCtx, input: { threadId: string; tur
   const own = seenRows(ctx);
   // a turn whose every row is someone else's private detail is, for this reader, a turn with no rows
   if ((ctx.db.all("SELECT 1 AS x FROM chat_transcript_row WHERE thread = ? AND turnId = ? LIMIT 1", t.id, input.turnId) as Row[]).length === 0) raise(ctx, "validation.not_found", "That turn is not in this transcript.");
-  const rows = ctx.db.all(`SELECT * FROM chat_transcript_row r WHERE thread = ? AND turnId = ? AND ${own.sql} ORDER BY idx`, t.id, input.turnId, ...own.args) as Row[];
+  const rows = ctx.db.all(`SELECT * FROM chat_transcript_row r WHERE thread = ? AND turnId = ? AND at >= ? AND ${own.sql} ORDER BY idx`, t.id, input.turnId, readFloor(ctx, t), ...own.args) as Row[];
   return {
     turnId: input.turnId,
     rows: rows.map((r) => ({
@@ -160,7 +161,8 @@ export async function transcriptRead(ctx: ChatCtx, input: { threadId: string; fr
   const from = Math.max(1, input.fromIdx ?? 1);
   const limit = Math.min(MAX_ROWS, Math.max(1, input.limit ?? 100));
   const own = seenRows(ctx);
-  const rows = ctx.db.all(`SELECT * FROM chat_transcript_row r WHERE thread = ? AND idx >= ? AND ${own.sql} ORDER BY idx LIMIT ?`, t.id, from, ...own.args, limit + 1) as Row[];
+  // the file export of a chat holds the reader's own line: nothing from before a newcomer's start
+  const rows = ctx.db.all(`SELECT * FROM chat_transcript_row r WHERE thread = ? AND idx >= ? AND at >= ? AND ${own.sql} ORDER BY idx LIMIT ?`, t.id, from, readFloor(ctx, t), ...own.args, limit + 1) as Row[];
   const shown = rows.slice(0, limit);
   const parts = shown.map((r) => {
     const tool = r["toolName"] ? `, ${String(r["toolName"])}` : "";
@@ -191,9 +193,9 @@ export async function transcriptSearch(
     where.push("r.thread = ?"); args.push(t.id);
   }
   if (input.agentId !== undefined) { where.push("r.thread IN (SELECT thread FROM chat_thread_agent WHERE agentId = ? AND deleted_at IS NULL)"); args.push(input.agentId); }
-  const rows = ctx.db.all(
+  const rows = (ctx.db.all(
     `SELECT r.* FROM chat_transcript_row r JOIN chat_thread t ON t.id = r.thread WHERE ${where.join(" AND ")} ORDER BY r.at DESC, r.idx DESC LIMIT 5000`, ...args,
-  ) as Row[];
+  ) as Row[]).filter((r) => { const th = threadBy(ctx.db, String(r["thread"])); return th === null || th === undefined || Number(r["at"]) >= readFloor(ctx, th); });
   const may = new Map<string, boolean>();
   const allowed = (id: string): boolean => {
     let ok = may.get(id);
@@ -226,7 +228,8 @@ export async function transcriptSearch(
 export async function transcriptSummary(ctx: ChatCtx, input: { threadId: string }) {
   ensureTranscript(ctx.db);
   const t = visible(ctx, input.threadId);
-  const r = (ctx.db.all("SELECT * FROM chat_transcript_summary WHERE thread = ?", t.id) as Row[])[0];
+  // the summary is made of the whole chat: a reader whose history starts later gets none, so what was hidden from them never reaches an agent working for them
+  const r = readFloor(ctx, t) > 0 ? undefined : (ctx.db.all("SELECT * FROM chat_transcript_summary WHERE thread = ?", t.id) as Row[])[0];
   return { summary: r ? String(r["summary"]) : "", upToIdx: r ? Number(r["upToIdx"]) : 0, updatedAt: r ? Number(r["updatedAt"]) : 0, transcriptPath: transcriptPath(t.id) };
 }
 

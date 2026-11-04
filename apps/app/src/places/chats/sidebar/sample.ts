@@ -5,11 +5,19 @@ import { createFakeReplica, createScreenHooks } from "../../../../../../client/s
 import type { FakeReplica, Row } from "../../../../../../client/src/index.ts";
 import { screensById } from "../../../../../../generated/screens.ts";
 import type { CapMap } from "../../../../../../generated/types.ts";
-import { validateInput } from "../../../../../../generated/validators.ts";
+// only the modules whose capabilities this sample checks (chat, agents, tasks, import), not the whole validators.ts: loading that took 2.2 s of a cold test run
+import { checkIn } from "../../../../../../generated/validators/core.ts";
+import { validators as chatChecks } from "../../../../../../generated/validators/chat.ts";
+import { validators as agentsChecks } from "../../../../../../generated/validators/agents.ts";
+import { validators as tasksChecks } from "../../../../../../generated/validators/tasks.ts";
+import { validators as importChecks } from "../../../../../../generated/validators/import.ts";
 import { fixtureFor } from "../../../fixtures/index.ts";
 import type { FixtureChannel } from "../../../fixtures/index.ts";
 import type { Agent, Channel, NeedsItem, RecentItem, RecentOut } from "./model.ts";
 import type { ChatsNav, ChatsSidebarData, Connection } from "./data.tsx";
+
+const CHECKS = { ...chatChecks, ...agentsChecks, ...tasksChecks, ...importChecks };
+const validateInput = (cap: string, v: number, input: unknown): string[] => checkIn(CHECKS, "in", cap, v, input);
 
 /** Friday 24 October 2025, 10:00 (UTC, so every machine prints the same times). */
 export const SAMPLE_NOW = Date.UTC(2025, 9, 24, 10, 0, 0);
@@ -18,7 +26,7 @@ const DAY = 86_400_000;
 /** You, in every sample Space. */
 export const ME = "usr_irfad";
 
-export interface SampleThread { threadId: string; title: string; agents: string[]; unread: number; working: boolean; starred: boolean; lastAt: number; preview?: string; /** in my Archived section */ archived?: boolean; /** deleted, waiting for Undo */ deleted?: boolean; /** left */ left?: boolean }
+export interface SampleThread { /** unread replies, from threads I follow, under this chat */ repliesUnread?: number; threadId: string; title: string; agents: string[]; unread: number; working: boolean; starred: boolean; lastAt: number; preview?: string; /** in my Archived section */ archived?: boolean; /** deleted, waiting for Undo */ deleted?: boolean; /** left */ left?: boolean }
 export interface SampleSpace {
   id: "northwind" | "harbor" | "personal";
   name: string;
@@ -163,7 +171,7 @@ export function createSampleSidebar(space: SampleSpace = northwind, o: { online?
 
   const threads = (): SampleThread[] => replica.rows("threads") as unknown as SampleThread[];
   const dayOf = (ts: number): number => Math.floor(ts / DAY);
-  const item = (x: SampleThread): RecentItem => ({ threadId: x.threadId, kind: "chat", title: x.title, agents: x.agents, unread: x.unread, working: x.working, starred: x.starred, lastAt: x.lastAt });
+  const item = (x: SampleThread): RecentItem => ({ threadId: x.threadId, kind: "chat", title: x.title, agents: x.agents, unread: x.unread, working: x.working, starred: x.starred, lastAt: x.lastAt, ...(x.repliesUnread ? { repliesUnread: x.repliesUnread } : {}) });
 
   replica.resolve("chat.recent", (_t, input) => {
     refuse("chat.recent", input);

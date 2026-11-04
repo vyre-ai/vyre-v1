@@ -23,8 +23,8 @@ export function withMode(agents: readonly EngineAgent[], agentId: string, mode: 
 }
 
 /** The composer line, from the same route() the engine uses, so label and behaviour cannot disagree. */
-export function preview(agents: readonly EngineAgent[], author: Author, mentions: readonly RouteMention[], depth: number | undefined, policy: RoutePolicy = {}): PreviewResult {
-  const r = route({ agents }, { author, mentions, ...(depth === undefined ? {} : { depth }) }, policy);
+export function preview(agents: readonly EngineAgent[], author: Author, mentions: readonly RouteMention[], depth: number | undefined, policy: RoutePolicy = {}, thread: { kind?: string; people?: readonly string[] } = {}, text?: string): PreviewResult {
+  const r = route({ agents, ...thread }, { author, mentions, ...(depth === undefined ? {} : { depth }), ...(text === undefined ? {} : { text }) }, policy);
   const name = (id: string): string => agents.find((a) => a.id === id)?.name ?? id;
   const names = r.responders.map(name);
   const line = names.length === 0 ? "" : `${names.length === 1 ? names[0] : `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`} will reply`;

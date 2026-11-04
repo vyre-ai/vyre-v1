@@ -4,7 +4,7 @@ import { isSystemCall } from "../../../lib/trust.ts";
 import type { Ctx } from "../../../packages/contracts/src/ctx.ts";
 import type { DeviceClass, DevicesCtx, EpochReason } from "../projections.ts";
 import {
-  bumpEpoch, deviceById, deviceOut, devicesOf, epochOf, mayTouch, me, mustDevice, nid, pageOf, raise, revokeDevice, sessionOut, sessionsOf, sessionsOfDevice,
+  bumpEpoch, deviceById, deviceOut, devicesOf, epochOf, mayTouch, me, meRead, mustDevice, nid, pageOf, raise, revokeDevice, sessionOut, sessionsOf, sessionsOfDevice,
   endSession,
 } from "../projections.ts";
 import type { DeviceRec, SessionRec } from "../projections.ts";
@@ -23,7 +23,7 @@ async function purgeOnSync(ctx: RevokeCtx, d: DeviceRec): Promise<void> {
 type Page = { cursor?: string; limit?: number };
 
 export async function mine(ctx: DevicesCtx, _input: Record<string, never>) {
-  const person = me(ctx);
+  const person = meRead(ctx);
   return {
     devices: devicesOf(ctx, person, true).map((d) => deviceOut(d, ctx.device)),
     sessions: sessionsOf(ctx, person).map((s) => sessionOut(s, ctx.device)),

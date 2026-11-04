@@ -124,3 +124,18 @@ test("the join page names the sign-in when everyone must use it, and nothing els
   await handlers["members.sign_in_policy.set"](a, { policy: { ...OFF, requireSso: true } });
   assert.deepEqual((await handlers["members.invites.preview"](h.anon ?? a, { code })).ssoRequired, [{ key: "okta", title: "Okta" }]);
 });
+
+test("members.sso.set checks that the caller can use the secret's Vault item, as vault.use", async () => {
+  const h = harness();
+  const a = h.as("usr_admin");
+  h.world.vaultDenied.add("#okta_secret");
+  await assert.rejects(handlers["members.sso.set"](a, { provider: OKTA }), (e) => codeOf(e) === "permission.no_grant", "someone else's key cannot be pointed at a sign-in app");
+  h.world.vaultDenied.clear();
+  h.world.vaultMissing.add("#okta_secret");
+  await assert.rejects(handlers["members.sso.set"](a, { provider: OKTA }), (e) => codeOf(e) === "permission.no_grant", "an item that is not in the Vault is refused the same way");
+  assert.deepEqual((await handlers["members.sso.list"](a, {})).providers, [], "nothing was saved");
+  h.world.vaultMissing.clear();
+  await handlers["members.sso.set"](a, { provider: { ...OKTA, clientSecretHandle: "#Okta_Secret.value" } });
+  const uses = h.calls.filter((c) => c.cap === "vault.use").map((c) => (c.input as { item: string }).item);
+  assert.equal(uses[uses.length - 1], "#Okta_Secret", "the item is checked without its field name");
+});

@@ -44,13 +44,13 @@ test("Follow, Mute and Leave: the control says what I am and the menu offers the
   assert.deepEqual(followMenu("none", () => undefined).map((e) => ("label" in e ? e.label : "-")), ["Follow", "Mute"], "nothing to leave when I am not in it");
 });
 
-test("a Threads row: where it hangs, who wrote the newest line, when, and how many are new; a muted one has nothing new", () => {
+test("a Replies row: where it hangs, who wrote the newest line, when, and how many are new; a muted one has nothing new", () => {
   const c = { now: Date.UTC(2026, 10, 3, 15, 0), offsetMin: 0 };
   const names: Record<string, string> = { usr_leo: "Leo" };
   const v = threadView({ threadId: "thr_1", parentTitle: "#intake", preview: "Rivera is with me", repliers: [{ kind: "person", id: "usr_leo" }], lastMessageAt: Date.UTC(2026, 10, 3, 14, 5), createdAt: 0, unread: 2 }, (id) => names[id] ?? id, c);
   assert.deepEqual([v.title, v.note, v.when, v.unread, v.bold], ["#intake", "Leo: Rivera is with me", "14:05", 2, true]);
   const quiet = threadView({ threadId: "thr_2", createdAt: Date.UTC(2026, 10, 2, 9, 0), unread: 3, muted: true, replyCount: 1 }, (id) => id, c);
-  assert.deepEqual([quiet.title, quiet.note, quiet.when, quiet.unread, quiet.bold, quiet.muted], ["Thread", "1 reply", "Yesterday", 0, false, true]);
+  assert.deepEqual([quiet.title, quiet.note, quiet.when, quiet.unread, quiet.bold, quiet.muted], ["A chat", "1 reply", "Yesterday", 0, false, true]);
   assert.equal(threadsNote(0), "Nothing new");
   assert.equal(threadsNote(3), "3 new replies");
 });
@@ -70,10 +70,12 @@ test("pages join the live first page without twins; J and K move and stop at the
   assert.equal(typing({ tagName: "DIV" }), false);
 });
 
-test("on the phone the Threads page sits on the Chats tab's history and draws as itself", () => {
-  const e = entryFor("chats", "screen=chats.threads");
-  assert.deepEqual(e, { tab: "chats", screen: "threads:list", title: "Threads" });
-  assert.deepEqual(placeOf(e!), { place: "chats", hash: "screen=chats.threads" });
+test("on the phone Replies sit on the Chats tab's history and draw as themselves; an old Threads address lands there too", () => {
+  const e = entryFor("inbox", "screen=inbox.replies");
+  assert.deepEqual(e, { tab: "chats", screen: "replies:list", title: "Replies" });
+  assert.deepEqual(placeOf(e!), { place: "inbox", hash: "screen=inbox.replies" });
+  assert.deepEqual(placeOf({ tab: "chats", screen: "threads:list" }), { place: "inbox", hash: "screen=inbox.replies" }, "a saved history entry from before"); 
+  assert.deepEqual(entryFor("chats", "screen=chats.threads"), e, "the old address redirects");
 });
 
 test("the message a thread goes back to is marked with room around it: the wash and the ring sit outside its text and face", async () => {

@@ -125,7 +125,7 @@ type Out = {
     "model": "example",
     "name": "Intake",
     "ownerId": "usr_a1b2c3",
-    "projectId": "prj_a1b2c3",
+    "projectId": "example",
     "role": "example",
     "templateKey": "example",
     "threadId": "thr_a1b2c3",
@@ -173,7 +173,7 @@ type Out = {
       "runtime": "vyre",
       "status": "awake",
       "switchOnLimit": true,
-      "teammateOf": "prj_a1b2c3",
+      "teammateOf": "example",
       "templateVersion": 1,
       "toolsAllowed": [
         "example"

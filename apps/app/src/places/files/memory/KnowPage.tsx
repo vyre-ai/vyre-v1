@@ -8,6 +8,7 @@
 import { createElement, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import type { ReactElement } from "react";
 import { Platform, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { MarkdownEditor } from "../../../../../../ui/src/RichEditor/index.tsx";
 import { menuTrigger, useMenu } from "../../../../../../ui/src/Menu/index.tsx";
 import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
 import type { LiveQuery, QueryState } from "../../../../../../client/src/index.ts";
@@ -18,7 +19,7 @@ import type { LiveCap } from "./data.tsx";
 import { Empty, Flash, KnowColumn, KnowHeader, SectionHead, frame } from "./KnowFrame.tsx";
 import type { Crumb, FlashState } from "./KnowFrame.tsx";
 import { KnowFactLine } from "./KnowFactLine.tsx";
-import { KIND_MANY, KIND_ONE, LAYER_NAME, LIST_KINDS, ageText, dateText, openLinkAt, plural, stampText } from "./know.ts";
+import { KIND_MANY, KIND_ONE, LAYER_NAME, LIST_KINDS, ageText, dateText, plural, stampText } from "./know.ts";
 import type { Backlink, KFact, ListKind, PageKind, PageLink, PageRow, Question } from "./know.ts";
 import { SubjectTile, TextButton } from "./KnowParts.tsx";
 import { Icon, pointOf } from "./parts.tsx";
@@ -92,27 +93,6 @@ export function notePieces(text: string, links: readonly PageLink[]): Piece[] {
   }
   if (at < text.length) out.push({ text: text.slice(at) });
   return out;
-}
-
-/** Picking a title in the [[ menu: the text with `[[Title]]` in place of what was typed after `[[`, and where the caret goes (after the closing brackets). */
-export function completeLink(text: string, caret: number, title: string): { text: string; caret: number } | null {
-  const open = openLinkAt(text, caret);
-  if (!open) return null;
-  const tail = text.slice(caret).startsWith("]]") ? text.slice(caret + 2) : text.slice(caret);
-  const head = `${text.slice(0, open.start)}[[${title}]]`;
-  return { text: head + tail, caret: head.length };
-}
-
-/** An arrow key in a menu of `n` rows from row `i`: wraps at both ends. */
-export function stepIndex(i: number, n: number, key: "ArrowDown" | "ArrowUp"): number {
-  if (n <= 0) return 0;
-  return key === "ArrowDown" ? (i + 1) % n : (i - 1 + n) % n;
-}
-
-/** Where the [[ menu sits under the caret: the line and column of the caret, as px inside the field (a rough guess, soft wraps ignored). */
-export function caretSpot(text: string, caret: number): { top: number; left: number } {
-  const before = text.slice(0, caret), lines = before.split("\n");
-  return { top: 12 + lines.length * 20 + 4, left: Math.min(12 + (lines[lines.length - 1] ?? "").length * 7.2, 380) };
 }
 
 /** True when a save failed because the Notes changed since they were read. */
@@ -462,49 +442,17 @@ function NotesRead({ notes, links }: { notes: string; links: readonly PageLink[]
   );
 }
 
-/** The multiline Notes field with the [[ menu. Typing [[ lists matching page titles under the caret; the arrows, Enter or Tab pick, Escape closes, a press picks. */
+/** The Notes of a page, written in the shared Markdown editor. Typing [[ lists matching page titles under the caret; the arrows, Enter or Tab pick, Escape closes, a press picks; a pick writes [[Title]]. */
 function NotesEditor({ initial, onDraft, onDone }: { initial: string; onDraft: (t: string) => void; onDone: () => void }): ReactElement {
-  const [text, setText] = useState(initial);
-  const [sel, setSel] = useState(initial.length);
-  const [hi, setHi] = useState(0);
-  const [shut, setShut] = useState<number | null>(null);
-  const box = useRef<unknown>(null);
-  const open = openLinkAt(text, sel);
-  const q = useSafeLive("memory.page.list", { q: open?.query ?? "", limit: 6 });
-  const items = open && shut !== open.start && q.status === "ready" ? q.data.pages.slice(0, 6) : [];
-  const set = (t: string, caret: number): void => { setText(t); setSel(caret); setHi(0); onDraft(t); };
-  const pick = (title: string): void => {
-    const r = completeLink(text, sel, title);
-    if (!r) return;
-    set(r.text, r.caret);
-    setTimeout(() => { const el = box.current as { setSelectionRange?: (a: number, b: number) => void; focus?: () => void } | null; el?.focus?.(); el?.setSelectionRange?.(r.caret, r.caret); }, 0);
-  };
-  const spot = caretSpot(text, sel);
-  const onKey = (e: { nativeEvent: { key: string }; preventDefault?: () => void }): void => {
-    if (items.length === 0) return;
-    const k = e.nativeEvent.key;
-    if (k === "ArrowDown" || k === "ArrowUp") { e.preventDefault?.(); setHi((i) => stepIndex(i, items.length, k)); }
-    else if (k === "Enter" || k === "Tab") { e.preventDefault?.(); pick(items[Math.min(hi, items.length - 1)]!.title); }
-    else if (k === "Escape") { e.preventDefault?.(); if (open) setShut(open.start); }
-  };
+  const [query, setQuery] = useState<string | null>(null);
+  const q = useSafeLive("memory.page.list", { q: query ?? "", limit: 6 });
+  const items = query !== null && q.status === "ready" ? q.data.pages.slice(0, 6).map((pg) => ({ id: pg.pageId, label: pg.title, detail: KIND_ONE[pg.kind] })) : [];
   return (
     <View style={n.wrap}>
-      <TextInput
-        ref={(r) => { box.current = r; }} value={text} multiline numberOfLines={5} autoFocus accessibilityLabel="Notes" testID="notes-input" placeholder="Write anything. Type [[ to link a page."
-        onChange={(e) => { const t = e.nativeEvent.text, el = (e as unknown as { target?: { selectionStart?: number } }).target; set(t, typeof el?.selectionStart === "number" ? el.selectionStart : t.length); }}
-        onSelectionChange={(e) => setSel(e.nativeEvent.selection.start)} onKeyPress={onKey as never}
-        {...({ onKeyDown: (e: { key: string; metaKey?: boolean; ctrlKey?: boolean }) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey) && items.length === 0) onDone(); } } as object)}
-        style={n.input as never}
+      <MarkdownEditor
+        testID="notes-input" label="Notes" value={initial} onChange={onDraft} placeholder="Write anything. Type [[ to link a page." toggle={false} density="compact" minHeight={110} autoFocus onModEnter={onDone}
+        suggest={{ trigger: "[[", items, onQuery: setQuery, label: "Link to a page", menuTestID: "notes-link-menu", itemTestID: (it) => `notes-link-${it.id}` }}
       />
-      {items.length > 0 ? (
-        <View style={[n.menu, { top: spot.top, left: spot.left }]} accessibilityRole="menu" accessibilityLabel="Link to a page" testID="notes-link-menu">
-          {each(items, (pg, i) => (
-            <Pressable key={pg.pageId} accessibilityRole="menuitem" accessibilityLabel={pg.title} accessibilityState={{ selected: i === hi }} testID={`notes-link-${pg.pageId}`} onPress={() => pick(pg.title)} style={[n.item, i === hi && n.itemOn]}>
-              <Text style={n.itemText}>{pg.title}</Text><Text style={n.itemKind}>{KIND_ONE[pg.kind]}</Text>
-            </Pressable>
-          ))}
-        </View>
-      ) : null}
     </View>
   );
 }

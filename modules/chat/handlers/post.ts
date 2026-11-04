@@ -23,7 +23,7 @@ const BLOCK_TYPE = /^[a-z][a-z0-9_]*$/;
 /** Blocks that wait for an answer have their own tools (they need a row to answer against); a plain post cannot carry them. */
 const OWN_TOOL = new Set(["question", "plan"]);
 /** Blocks only the server writes: who an agent's message to a teammate speaks for, a line that carries a teammate's reply back, the state of a message that waits (handlers/agent-dm.ts). */
-const SERVER_ONLY = new Set(["on_behalf", "relay", "agent_dm"]);
+const SERVER_ONLY = new Set(["on_behalf", "relay", "agent_dm", "note_offer"]);
 
 /** The top of a thread chain: the chat, Ask pane or channel an inline thread hangs under. */
 export function rootOf(ctx: Pick<ChatCtx, "db">, t: ThreadRec): ThreadRec {
@@ -116,7 +116,7 @@ export function inertCard(data: unknown): unknown {
 
 /**
  * What a message sets in motion, once it is stored: message.received for the engine and the replicas, then the notices people get.
- * `author` is who the event names (the call's principal); a mention of a person who cannot see the thread notifies nobody (a private chat never gains people).
+ * `author` is who the event names (the call's principal); a mention of a person who cannot see the thread notifies nobody (a private chat gains people only by threads.members.add, so a person it does not hold hears nothing).
  * `notify: false` sends message.received only. chat.start declares no message.direct, so the first message of a new direct message cannot notify the other person from there (a contract gap, see the packet comment).
  */
 export function deliver(ctx: ChatCtx, thread: ThreadRec, m: MessageRec, mentions: Mention[], author: { kind: "person" | "agent" | "actor" | "service"; id: string }, opts: { notify?: boolean; job?: boolean; poke?: { agentId: string; by: string; outside?: boolean } } = {}): void {
@@ -186,7 +186,7 @@ export async function post(ctx: ChatCtx, input: PostInput) {
   if (thread.kind === "helper" && !isCrewThread(ctx, thread) && !(author.kind === "agent" && agentsOf(ctx.db, thread.id).some((a) => a.agentId === author.id))) {
     raise(ctx, "validation.bad_input", "A helper chat takes no messages. Steer the helper from the chat that started it.");
   }
-  if (thread.closedAt !== undefined) raise(ctx, "validation.bad_input", "This thread is closed. Reopen it to write in it.");
+  if (thread.closedAt !== undefined) raise(ctx, "validation.bad_input", "This chat is closed. Reopen it to write in it.");
 
   const body = input.body;
   const blocks = cleanBlocks(ctx, input.blocks);
@@ -201,14 +201,14 @@ export async function post(ctx: ChatCtx, input: PostInput) {
   if (input.clientId !== undefined) {
     const prior = messageBy(ctx.db, input.clientId);
     if (prior) {
-      if (prior.thread !== thread.id) raise(ctx, "validation.bad_input", "That message id belongs to another thread.");
+      if (prior.thread !== thread.id) raise(ctx, "validation.bad_input", "That message id belongs to another chat.");
       return { message: messageOut(prior, encOf(ctx.db, thread)) };
     }
   }
   let replyTo: MessageRec | null = null;
   if (input.replyTo !== undefined) {
     replyTo = messageBy(ctx.db, input.replyTo);
-    if (!replyTo || replyTo.thread !== thread.id) raise(ctx, "validation.bad_input", "The message you reply to is not in this thread.");
+    if (!replyTo || replyTo.thread !== thread.id) raise(ctx, "validation.bad_input", "The message you reply to is not in this chat.");
   }
 
   // Hops: an agent answering another agent is one hop further from the last person who spoke; a person's message starts again at 0. A Job's line (a helper's or a teammate's

@@ -4,7 +4,7 @@ Lane L2. Kind module. Version 0.1.0.
 
 Requires: engine, mcp, members.
 
-## Capabilities (97)
+## Capabilities (100)
 
 - [channels.agent_watch.set](../capabilities/channels.agent_watch.set.md): Let an agent act unmentioned in a channel ("watches this channel"); every such act is logged like a routine
 - [channels.agents.add](../capabilities/channels.agents.add.md): Invite an agent into a channel; agents listen by default
@@ -48,6 +48,8 @@ Requires: engine, mcp, members.
 - [chat.message.get](../capabilities/chat.message.get.md): Read one message with its blocks
 - [chat.message_person](../capabilities/chat.message_person.md): Message a teammate for the person you work for, in their direct chat, signed as them (Agent); the reply comes back to this chat. Can carry an approval, review or key card. Waits for away and after hours unless urgent; 3 an hour
 - [chat.messages.list](../capabilities/chat.messages.list.md): Messages of a thread by sequence window (last 50 first, older stream in)
+- [chat.note_offer.answer](../capabilities/chat.note_offer.answer.md): Save or dismiss an offer to keep something from this chat as a note. Save makes the person's own private note that links back to the message
+- [chat.note_offer.make](../capabilities/chat.note_offer.make.md): Offer to save something from this chat as a note: a small card with a preview of the note, Save and Not now. At most once per topic and rarely; says offered false with a reason when the person has it off or it is too soon
 - [chat.open_as_chat](../capabilities/chat.open_as_chat.md): Open an Ask pane as a normal chat so it appears in Recent
 - [chat.open_tab](../capabilities/chat.open_tab.md): Open a side tab beside the chat for the person (a file, record, diff, terminal); respects the person tab setting and posts a line
 - [chat.people_status](../capabilities/chat.people_status.md): Your teammates as you see them: online, away or offline and when last seen, their local time and working hours, and when a message to them would go. Only people in this Space, never anything private
@@ -59,6 +61,7 @@ Requires: engine, mcp, members.
 - [chat.post](../capabilities/chat.post.md): Post a message in a thread or channel; routes to the lead agent or @mentioned agents and records mentions
 - [chat.question.ask](../capabilities/chat.question.ask.md): Ask the person a structured question (single, multi or free text); the turn parks until it is answered
 - [chat.react](../capabilities/chat.react.md): Add or remove a reaction
+- [chat.read_floor](../capabilities/chat.read_floor.md): Where the caller's reading of one chat starts: the time they were added without Include earlier messages, or nothing when they read all of it. The engine tells an agent so before it answers them
 - [chat.recent](../capabilities/chat.recent.md): Sidebar Recent: Starred, Today, Yesterday, Earlier with unread counts and the working pulse, then the chats I archived (they are in no other group)
 - [chat.remember](../capabilities/chat.remember.md): Remember a message as a fact in the memory of the project this chat belongs to (else your own), sourced to the message; a "Remembered for ..." card in the thread links to the fact. A shared layer keeps its review rule
 - [chat.reply_details](../capabilities/chat.reply_details.md): How one agent reply was made, for its hover card and Details tab: its turn, what the agent knew, and its own steps when no turn was kept. Account, cost and tool arguments are for the asker and AI-spend managers only
@@ -90,7 +93,7 @@ Requires: engine, mcp, members.
 - [threads.list](../capabilities/threads.list.md): List threads by kind, folder, scope or record; or the threads I am in, newest reply first
 - [threads.make_channel](../capabilities/threads.make_channel.md): Make a private chat into a channel with another person; the new channel links back to the chat
 - [threads.mark_read](../capabilities/threads.mark_read.md): Mark a thread read up to a sequence number, or unread again (the newest message from someone else counts as new)
-- [threads.members.add](../capabilities/threads.members.add.md): Add a person to a thread; a private chat never gains people, so this offers a channel instead
+- [threads.members.add](../capabilities/threads.members.add.md): Add a person to a thread. A private chat becomes a group chat: the newcomer reads from now on unless fromStart is true (Include earlier messages), a goal chat shows its history, and agents stop using the asker's private profile there. A chat's own agents become visible to the newcomer.
 - [threads.members.remove](../capabilities/threads.members.remove.md): Remove a person from a thread
 - [threads.outside_agent.add](../capabilities/threads.outside_agent.add.md): Bring an outside agent into this chat with exactly this chat, its project, files folder and record, each tagged with the chat; it shows as "<person> (Agent)" and removing it ends access at once. You can only give what you hold
 - [threads.outside_agent.remove](../capabilities/threads.outside_agent.remove.md): Take an outside agent out of this chat and end every grant that bringing it in gave, at once

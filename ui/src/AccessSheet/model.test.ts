@@ -232,7 +232,7 @@ test("a phone is under 640 px", () => {
 test("add lines: messages from now on or the start, files folder, records", () => {
   const picks = [sara("member")];
   assert.equal(addLines({ target, picks, earlier: false, ownerName: "Irfad" })[0]?.text, "They'll see this chat's messages from now on, its files folder Portal uploads, and records in Clients.");
-  assert.equal(addLines({ target, picks, earlier: true, ownerName: "Irfad" })[0]?.text, "They'll see this chat's messages from the start, its files folder Portal uploads, and records in Clients.");
+  assert.equal(addLines({ target, picks, earlier: true, ownerName: "Irfad" })[0]?.text, "They'll see the whole chat, its files folder Portal uploads, and records in Clients.");
   assert.deepEqual(addLines({ target, picks: [], earlier: false, ownerName: "Irfad" }), []);
 });
 
@@ -347,10 +347,10 @@ test("the three Hows map to the modes the contract has", () => {
   assert.equal(modeOf("lead"), "lead");
   assert.equal(modeOf("tag"), "listen");
   assert.equal(modeOf("listen"), "quiet");
-  assert.equal(settingsSummary(DEFAULT_AGENT_SETTINGS), "Answers when tagged · Always · Keep replies short");
+  assert.equal(settingsSummary(DEFAULT_AGENT_SETTINGS), "Answers when mentioned · Any time · Short replies");
   assert.equal(settingsSummary({ ...DEFAULT_AGENT_SETTINGS, how: "lead", when: "topics", topics: "invoices, billing", style: "full" }), "Answers everything · Only on invoices, billing · Full detail");
-  assert.equal(settingsSummary({ ...DEFAULT_AGENT_SETTINGS, how: "listen", when: "hours", hoursFrom: "08:00", hoursTo: "18:00" }), "Listening · 08:00 to 18:00 · Keep replies short");
-  assert.equal(pokeNote("Docs"), "A poke starts one turn now. Docs reads the last 12 messages and tool calls, answers whoever poked, and can read further back with a tool. It reads only what the poker can read.");
+  assert.equal(settingsSummary({ ...DEFAULT_AGENT_SETTINGS, how: "listen", when: "hours", hoursFrom: "08:00", hoursTo: "18:00" }), "Only listens · 08:00 to 18:00 · Short replies");
+  assert.equal(pokeNote("Docs"), "Poke asks Docs to read the chat now and reply. It only sees what you can see.");
 });
 
 /* ---------- capability inputs: add mode (each one must satisfy CapMap[...]["in"]) ---------- */
@@ -368,7 +368,7 @@ test("threads.agent.create: name, brief, model, mode and the key", () => {
   assert.deepEqual(agentCreateInput("thr_1", { name: "Checker", brief: "  " }, "k2"), { threadId: "thr_1", name: "Checker", idempotencyKey: "k2" });
 });
 
-test("threads.agent_settings.set: Answers everything is lead, when it is tagged is listen, Listening is quiet", () => {
+test("threads.agent_settings.set: Answers everything is lead, when it is mentioned is listen, Only listens is quiet", () => {
   const s = agentSettingsInput("thr_1", "agt_docs", { how: "tag", when: "topics", topics: " invoices, billing ", style: "short" }) satisfies CapMap["threads.agent_settings.set"]["in"];
   assert.deepEqual(s, { threadId: "thr_1", agentId: "agt_docs", mode: "listen", when: "topics", topics: "invoices, billing", hoursFrom: null, hoursTo: null, style: "short" });
   assert.deepEqual(agentSettingsInput("t", "a", { how: "lead", when: "hours", hoursFrom: "08:00", hoursTo: "18:00" }), { threadId: "t", agentId: "a", mode: "lead", when: "hours", topics: null, hoursFrom: "08:00", hoursTo: "18:00" });
@@ -570,4 +570,12 @@ test("general access and redundancy words", () => {
 test("an automation offers View, Edit and Manage", () => {
   assert.deepEqual(levelDefs("automation").map((l) => l.label), ["Can view", "Can edit", "Can manage"]);
   assert.equal(accessSubtitle("automation", 3), "Automation · 3 with access");
+});
+
+test("addCalls sends fromStart only when Include earlier messages is on", () => {
+  const person = { key: "person:usr_sara", kind: "person", id: "usr_sara", name: "Sara", role: "member" } as never;
+  const off = addCalls({ kind: "chat", threadId: "thr_1" }, [person], () => "k");
+  assert.deepEqual(off.calls.map((c) => c.input), [{ threadId: "thr_1", personId: "usr_sara" }]);
+  const on = addCalls({ kind: "chat", threadId: "thr_1" }, [person], () => "k", { earlier: true });
+  assert.deepEqual(on.calls.map((c) => c.input), [{ threadId: "thr_1", personId: "usr_sara", fromStart: true }]);
 });

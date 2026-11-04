@@ -19,7 +19,6 @@ import type { ShellRuntime } from "../providers/runtime.tsx";
 import { askAboutRecord } from "../providers/record-detail.tsx";
 import { RecordPage, RecordPageDataProvider } from "../../places/records/recordpage/index.ts";
 import { createSamplePage } from "../../places/records/recordpage/sample.ts";
-import { ThreadsPage } from "../../places/chats/mounts/ThreadsPage.tsx";
 
 const LOADING = { status: "loading" } as const;
 const quiet = { query: () => ({ subscribe: () => () => undefined, getSnapshot: () => LOADING }) };
@@ -120,21 +119,3 @@ test("a record page's Ask opens the pane beside the record, about it, and the pa
   } finally { await unmountAll(); restore(); }
 });
 
-test("Chats keeps every Ask under Ask history on the Threads page, so one can be opened there as a full chat", async () => {
-  const restore = installDom();
-  try {
-    const { rt } = runtime((cap, input) => {
-      if (cap === "threads.list") return (input["kind"] as string[])[0] === "ask"
-        ? { threads: [{ threadId: "thr_a1", kind: "ask", title: "Ask about Lease.pdf", agents: [{ agentId: "agt_assistant", mode: "lead" }] }], total: 1 }
-        : { threads: [], total: 0 };
-      throw new Error(cap);
-    });
-    const chosen: string[] = [];
-    const root = await mount(createRoot, <ThreadsPage rt={rt} nameOf={(id) => (id === "agt_assistant" ? "Assistant" : id)} openChat={(id) => chosen.push(id)} />);
-    await settle();
-    assert.ok(find(root, "ask-history"));
-    assert.match(textOf(find(root, "ask-history")), /Ask about Lease\.pdf/);
-    await press(find(root, "row-ask-thr_a1"));
-    assert.deepEqual(chosen, ["thr_a1"]);
-  } finally { await unmountAll(); restore(); }
-});

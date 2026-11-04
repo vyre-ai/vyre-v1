@@ -199,7 +199,7 @@ async function sha256(bytes: Uint8Array): Promise<string> {
   return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
-function bytesToB64(bytes: Uint8Array): string {
+export function bytesToB64(bytes: Uint8Array): string {
   const chunk = 0x8000;
   let bin = "";
   for (let i = 0; i < bytes.length; i += chunk) {

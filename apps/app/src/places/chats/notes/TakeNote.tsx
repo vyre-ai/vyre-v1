@@ -1,6 +1,7 @@
 // Take a note: the bar above the grid. Closed it says "Take a note" with an image button; a press (or C) opens it in place with the caret in the note. Open it holds a title, the text, a
 // pasted or picked image, a pasted link (Reading <url>, then its card), the labels, and a bar: colour, labels, image, pin, who sees it, Close. Esc, Close or a press outside saves it;
 // an empty one is dropped (the page decides, through the reducer in take.ts).
+import { MarkdownEditor } from "../../../../../../ui/src/RichEditor/index.tsx";
 import { useEffect, useRef, useState } from "react";
 import type { ComponentRef, ReactElement } from "react";
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
@@ -31,15 +32,14 @@ export interface TakeProps {
 }
 
 export function TakeNote({ take, dispatch, close, pickImage, colour, labels, who, menu, spaceName, dropping, focusBody }: TakeProps): ReactElement {
-  const body = useRef<ComponentRef<typeof TextInput> | null>(null);
+  const [bodyFocusKey, setBodyFocusKey] = useState(0);
   const title = useRef<ComponentRef<typeof TextInput> | null>(null);
-  const [bodyH, setBodyH] = useState(44);
-  useEffect(() => { if (take.open && focusBody > 0) body.current?.focus?.(); }, [focusBody, take.open]);
+  useEffect(() => { if (take.open && focusBody > 0) setBodyFocusKey((k) => k + 1); }, [focusBody, take.open]);
   const keys = (e: unknown, field: "title" | "body"): void => {
     const ev = (e as { nativeEvent?: { key?: string; metaKey?: boolean; ctrlKey?: boolean }; preventDefault?: () => void });
     const k = ev.nativeEvent?.key;
     if (k === "Escape" || (k === "Enter" && (ev.nativeEvent?.metaKey || ev.nativeEvent?.ctrlKey))) { ev.preventDefault?.(); close(); return; }
-    if (k === "Enter" && field === "title") { ev.preventDefault?.(); body.current?.focus?.(); }
+    if (k === "Enter" && field === "title") { ev.preventDefault?.(); setBodyFocusKey((k) => k + 1); }
   };
   if (!take.open) {
     return (
@@ -67,11 +67,7 @@ export function TakeNote({ take, dispatch, close, pickImage, colour, labels, who
         ref={title} value={take.title} onChangeText={(v) => dispatch({ t: "title", v })} onKeyPress={(e) => keys(e, "title")} placeholder="Title" placeholderTextColor="var(--ink-3)"
         accessibilityLabel="Title" testID="take-title" style={s.tkT}
       />
-      <TextInput
-        ref={body} value={take.body} onChangeText={(v) => dispatch({ t: "body", v })} onKeyPress={(e) => keys(e, "body")} multiline placeholder="Take a note, or paste text, an image or a link"
-        placeholderTextColor="var(--ink-3)" accessibilityLabel="Note" testID="take-body" autoFocus={!take.title && !take.body}
-        onContentSizeChange={(e) => setBodyH(Math.max(44, Math.ceil(e.nativeEvent.contentSize.height)))} style={[s.tkB, { height: bodyH }]}
-      />
+      <View style={s.tkBWrap}><MarkdownEditor testID="take-body" label="Note" value={take.body} onChange={(v) => dispatch({ t: "body", v })} placeholder="Take a note, or paste text, an image or a link" bare density="compact" minHeight={44} autoFocus={!take.title && !take.body} focusKey={bodyFocusKey} onEscape={close} onModEnter={close} /></View>
       {take.reading ? (
         <View style={s.reading} testID="take-reading">
           <Ico name="link" size={14} color="var(--ink-3)" />
@@ -111,11 +107,12 @@ const s = StyleSheet.create({
     width: "100%", maxWidth: 600, alignSelf: "center", borderRadius: 14, backgroundColor: "var(--raised)" as string, marginTop: 18, marginBottom: 28,
     ...(web ? ({ boxShadow: "var(--sh-2)" } as object) : null),
   },
-  closed: { flexDirection: "row", alignItems: "center", gap: 4, height: 48, paddingLeft: 16, paddingRight: 8, marginTop: 0, marginBottom: 0, ...(web ? ({ cursor: "text" } as object) : null) },
+  closed: { flexDirection: "row", alignItems: "center", gap: 4, height: 48, paddingLeft: 16, paddingRight: 8, marginTop: 0, marginBottom: 0, ...(web ? ({ cursor: "text", boxShadow: "0 0 0 1px var(--line), var(--sh-1)" } as object) : null) },
   ph: { flex: 1, fontSize: 15, color: "var(--ink-3)" as string },
   im: { position: "relative", borderTopLeftRadius: 14, borderTopRightRadius: 14, overflow: "hidden" },
   over: { position: "absolute", right: 8, top: 8 },
   tkT: { width: "100%", fontSize: 16, lineHeight: 22, fontWeight: "600", color: "var(--ink)" as string, paddingTop: 14, paddingHorizontal: 16, paddingBottom: 2, ...(web ? ({ outlineStyle: "none" } as object) : null) },
+  tkBWrap: { paddingTop: 6, paddingHorizontal: 16, paddingBottom: 10 },
   tkB: { width: "100%", fontSize: 14, lineHeight: 21, color: "var(--ink)" as string, paddingTop: 6, paddingHorizontal: 16, paddingBottom: 10, ...(web ? ({ outlineStyle: "none", resize: "none" } as object) : null) },
   reading: { flexDirection: "row", alignItems: "center", gap: 9, marginTop: 4, marginHorizontal: 16, marginBottom: 10, paddingVertical: 10, paddingHorizontal: 12, borderRadius: 10, backgroundColor: "var(--sunk)" as string },
   readingText: { fontSize: 12.5, color: "var(--ink-3)" as string, flexShrink: 1 },

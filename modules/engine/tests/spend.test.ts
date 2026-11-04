@@ -243,7 +243,7 @@ test("usage groups by day, person, agent or model; a person without ai.spend see
 
   const byAgent = (await usageQuery(h.ctx, { by: "agent" }));
   assert.deepEqual(byAgent.rows.map((r) => [r.key, r.totals.turns, r.totals.costMicros]), [["agt_docs", 1, 300], ["agt_intake", 2, 700]]);
-  assert.deepEqual(byAgent.totals, { turns: 3, tokensIn: 300, tokensOut: 30, costMicros: 1000 });
+  assert.deepEqual(byAgent.totals, { turns: 3, tokensIn: 300, tokensOut: 30, costMicros: 1000, cachedIn: 0 });
   assert.deepEqual(contractErrors("engine.usage.query", "out", byAgent), []);
   assert.deepEqual((await usageQuery(h.ctx, { by: "day" })).rows.map((r) => [r.key, r.totals.costMicros]), [["2025-10-10", 200], ["2025-10-09", 800]]);
   assert.deepEqual((await usageQuery(h.ctx, { by: "model" })).rows.map((r) => r.key), ["claude-sonnet-5-5", "gpt-5"]);

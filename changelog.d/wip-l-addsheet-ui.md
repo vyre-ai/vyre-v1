@@ -1,7 +1,7 @@
 ## What's new
 - One sheet now adds people and agents to a chat, channel, thread or project, and shares a note, folder, record, record type, artifact, project, Vault item or agent. It is not wired into the app yet.
 - Add: search people and agents, type an email to invite a guest, and pick several at once. "New agent for this chat" and "Link an outside agent" sit right under the search.
-- Each picked agent opens a small panel to say how it answers (everything, when tagged, or listening), when (always, on topics, during hours) and how long (short or full). Every agent row has a Poke button.
+- Each picked agent opens a small panel to say how it answers (everything, when mentioned, or only listening), when (always, on topics, during hours) and how long (short or full). Every agent row has a Poke button.
 - Before you confirm, one plain line says what they get: messages from now on or from the start, the files folder and the records. Guests, outside agents and chat agents each get their own line.
 - A person can only give what they have. Levels above their own are greyed with "(you do not have this)".
 - Share: a level for each person, group or the whole Space, with a line that says what each level lets them do. Vault items can be used without being seen. Agents are shared at four levels, and your own Assistant says it can't be shared.
@@ -14,3 +14,12 @@
 - The "Include earlier messages" switch stays hidden for now: nothing in the server gives a new member the earlier messages yet.
 - Whoever added an agent to a chat can change how and when it answers, and so can the chat's owner, anyone who manages the chat and the chat's lead agent. Anyone else is told who can: "Only Maya, the chat's owner or someone who manages this chat can change how Drafter answers."
 - Choosing "Only on topics" before any topic is typed no longer errors. It is kept as a draft, and the agent answers everything until the topics are written.
+- A private chat can now gain people. Adding someone turns it into a group chat. They read from the moment they were added unless "Include earlier messages" is on (off by default); a goal chat shows its history. The hidden history stays hidden in the message list, a single message, pins, reading further back, the catch-up, search, forks and the chat summary agents read.
+- Typing @name for someone who is not in the chat now offers "Aliza isn't in this chat" with Add Aliza first and Start a channel instead second, and says what they will see. Once someone joins, agents in that chat stop using the private part of your profile.
+- An agent a chat made for itself is now visible to everyone who can read the chat, whoever made it. A person who joins gets it, and a person who leaves loses it.
+- Closing the "Only on topics" settings with no topic written says "Add a topic or pick another mode". Until a topic is written the agent answers everything.
+- A person added to a private chat without earlier messages never receives them: the sync server holds back every message from before their start, with its pins, reactions and attachments, on every device. The chat's file export, the channel stream and the transcript search hold the same line.
+- When someone who joined without the earlier messages asks an agent, the agent is told "Maya joined at 10:40 UTC and can't see earlier messages; don't quote them to Maya."
+- When someone who was added without earlier messages is added again with "Include earlier messages", every device of theirs is sent the earlier rows on its next sync, with no wait and no manual step.
+- The agent settings panel is now three short lists, each option with a line on what it does: Answers everything, Answers when mentioned, Only listens; Any time, Only about certain topics, Only during working hours; Short replies, Full detail. Poke shows only for agents already in the chat, and says "Poke asks Docs to read the chat now and reply. It only sees what you can see."
+- Your outside agents now read "Others see these as <your full name> (Agent)". The people menu shows your own row as "You" with your role. With Include earlier messages on, the line says "They'll see the whole chat".
