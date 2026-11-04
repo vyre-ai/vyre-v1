@@ -2,7 +2,7 @@
 // applies the access rule: a Space hook is let go by an admin only, and anyone may ask. A refusal is said in its own words, never a bare error.
 import { useState } from "react";
 import type { ReactElement } from "react";
-import { Text, View, useWindowDimensions } from "react-native";
+import { Pressable, Text, View } from "react-native";
 import { Glyph } from "./parts.tsx";
 import { hookLead } from "./model.ts";
 import type { HookLine, HookLineAct } from "./model.ts";
@@ -10,8 +10,8 @@ import { hookLineActs } from "./model.ts";
 
 const LABEL: Readonly<Record<HookLineAct, string>> = { details: "Details", edit: "Edit", once: "Allow this once", ask: "Ask an admin" };
 
-export function HookLineActs({ id, line, threadId, call, open, linkStyle, quietStyle, left = false }: {
-  id: string; line: HookLine; threadId: string; call(cap: string, input: unknown): Promise<unknown>; open?: (hookId: string) => void; linkStyle: object; quietStyle: object; /** Narrow: the actions start at the left of their own line */ left?: boolean;
+export function HookLineActs({ id, line, threadId, call, open, linkStyle, quietStyle }: {
+  id: string; line: HookLine; threadId: string; call(cap: string, input: unknown): Promise<unknown>; open?: (hookId: string) => void; linkStyle: object; quietStyle: object; 
 }): ReactElement | null {
   const [said, setSaid] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -35,39 +35,41 @@ export function HookLineActs({ id, line, threadId, call, open, linkStyle, quietS
   };
   if (said !== null) return <Text testID={`hook-said-${id}`} accessibilityRole="alert" style={quietStyle}>{said}</Text>;
   return (
-    <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12, ...(left ? {} : { marginLeft: "auto" as never }) }}>
-      {steps.map((st, i) => (
-        <Text key={`n${i}`} testID={`hook-next-${i}-${id}`} accessibilityRole="button" accessibilityState={{ disabled: busy }} onPress={() => { if (!busy) say(i); }} style={linkStyle}>{st.label}</Text>
-      ))}
-      {acts.map((a) => (
-        <Text key={a} testID={`hook-act-${a}-${id}`} accessibilityRole="link" accessibilityState={{ disabled: busy }} onPress={() => { if (!busy) press(a); }} style={linkStyle}>{LABEL[a]}</Text>
-      ))}
+    <View style={{ gap: 6, alignSelf: "flex-start" }}>
+      {acts.length > 0 ? (
+        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
+          {acts.map((a) => (
+            <Text key={a} testID={`hook-act-${a}-${id}`} accessibilityRole="link" accessibilityState={{ disabled: busy }} onPress={() => { if (!busy) press(a); }} style={linkStyle}>{LABEL[a]}</Text>
+          ))}
+        </View>
+      ) : null}
+      {steps.length > 0 ? (
+        // the way forward the check wrote: small buttons, apart from the quiet verbs above
+        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+          {steps.map((st, i) => (
+            <Pressable key={`n${i}`} testID={`hook-next-${i}-${id}`} accessibilityRole="button" accessibilityLabel={st.label} accessibilityState={{ disabled: busy }} onPress={() => { if (!busy) say(i); }} style={{ height: 28, paddingHorizontal: 11, justifyContent: "center", borderRadius: 9, backgroundColor: "var(--sunk)" as string }}>
+              <Text style={{ fontSize: 12.5, fontWeight: "500", color: "var(--ink)" as string }}>{st.label}</Text>
+            </Pressable>
+          ))}
+        </View>
+      ) : null}
     </View>
   );
 }
 
-/** One hook line in the chat: the lock, the words (the lead in ink), and the way forward. Wide: the actions sit quiet at the right. Narrow: they go on a second line under the words, in line with them. */
+/** One hook line in the chat: the lock, the words (the lead in ink), and under them, on every width, the quiet verbs and then the steps the check wrote. */
 export function HookLineRow({ id, line, words, threadId, call, open, st }: {
   id: string; line: HookLine; words: string; threadId: string; call(cap: string, input: unknown): Promise<unknown>; open?: (hookId: string) => void;
   st: { event: object; text: object; lead: object; act: object };
 }): ReactElement {
-  const narrow = useWindowDimensions().width < 600;
   const [lead, rest] = hookLead(words);
-  const acts = <HookLineActs id={id} line={line} threadId={threadId} call={call} {...(open ? { open } : {})} linkStyle={st.act} quietStyle={st.act} {...(narrow ? { left: true } : {})} />;
   return (
     <View testID={`event-${id}`} accessibilityRole="text" style={st.event}>
       <View style={{ marginTop: 3 }}><Glyph name="lock" size={14} color="var(--ink-3)" /></View>
-      {narrow ? (
-        <View style={{ flex: 1, minWidth: 0 }}>
-          <Text style={st.text}><Text style={st.lead}>{lead}</Text>{rest}</Text>
-          <View style={{ marginTop: 2, alignSelf: "flex-start" }}>{acts}</View>
-        </View>
-      ) : (
-        <>
-          <Text style={st.text}><Text style={st.lead}>{lead}</Text>{rest}</Text>
-          {acts}
-        </>
-      )}
+      <View style={{ flex: 1, minWidth: 0, gap: 4 }}>
+        <Text style={st.text}><Text style={st.lead}>{lead}</Text>{rest}</Text>
+        <HookLineActs id={id} line={line} threadId={threadId} call={call} {...(open ? { open } : {})} linkStyle={st.act} quietStyle={st.act} />
+      </View>
     </View>
   );
 }

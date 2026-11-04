@@ -46,7 +46,7 @@ const st = StyleSheet.create({
   head: { flexDirection: "row", justifyContent: "space-between", marginBottom: 4 },
   label: { fontSize: 11.5, fontWeight: "600", color: "var(--ink-3)" as string },
   row: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 8, paddingHorizontal: 8, marginHorizontal: -8, borderRadius: 10 },
-  over: { backgroundColor: "var(--hover, rgba(127,127,127,0.10))" as string },
+  over: { backgroundColor: "color-mix(in srgb, var(--ink) 5%, transparent)" as string },
   text: { flex: 1, minWidth: 0 },
   when: { fontSize: 14, fontWeight: "500", color: "var(--ink)" as string },
   what: { marginTop: 1, fontSize: 12.5, lineHeight: 17, color: "var(--ink-3)" as string },

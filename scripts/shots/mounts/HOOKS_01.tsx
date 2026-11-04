@@ -50,6 +50,6 @@ function Page({ view, skin }: { view: string; skin: string }): ReactNode {
   const pane = useMemo(() => createPaneSample("northwind", { hooks: true, admin: false }), []);
   const helper = useMemo(() => createHelperSample("done", { hooks: true }), []);
   if (view === "tab") return <View testID="hooks-mount" style={{ flex: 1, flexDirection: "row" }}><View style={{ flex: 1 }} /><ChatRightPane data={pane.data} open onToggle={() => undefined} tab="hooks" hookSel="hok_chat" window={{ start: 0, end: 500 }} /></View>;
-  if (view === "helper") return <View testID="hooks-mount" style={{ flex: 1, backgroundColor: "var(--win)" as string }}><HelperChat data={helper.data} /></View>;
+  if (view === "helper") return <View testID="hooks-mount" style={{ flex: 1, backgroundColor: "var(--win)" as string }}><HelperChat data={{ ...helper.data, nav: { ...helper.data.nav, openHooks: () => undefined } }} /></View>;
   return <View testID="hooks-mount" style={{ flex: 1, backgroundColor: "var(--win)" as string }}><Conversation data={lines} /></View>;
 }

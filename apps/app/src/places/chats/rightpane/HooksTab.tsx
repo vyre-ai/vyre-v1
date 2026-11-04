@@ -11,7 +11,7 @@ import { hookPause, hookRemove, hookSave } from "./actions.ts";
 import { PANE_SCREEN } from "./ThreadsTab.tsx";
 import { agoLabel } from "./model.ts";
 import { usePaneData, useScreenQuery } from "./data.tsx";
-import { ACTION_CHOICES, ACTION_EVENTS, EVENT_ORDER, EVENT_WORDS, KIND_ORDER, KIND_WORDS, canRemoveNote, countLine, doOptions, titleOf, draftOf, grouped, kindWord, lastRan, madeBy, restoreInput, setInput, whatOf } from "./hooks-model.ts";
+import { ACTION_CHOICES, ACTION_EVENTS, EVENT_ORDER, EVENT_WORDS, KIND_ORDER, KIND_WORDS, canRemoveNote, countLine, doOptions, eventWords, titleOf, draftOf, grouped, kindWord, lastRan, madeBy, restoreInput, setInput, whatOf } from "./hooks-model.ts";
 import type { Draft, Hook, HookKind, HookRun } from "./hooks-model.ts";
 import { Icon, PaneList, TextButton } from "./parts.tsx";
 import type { Entry } from "./parts.tsx";
@@ -19,7 +19,7 @@ import type { Entry } from "./parts.tsx";
 type HooksOut = CapMap["hooks.list"]["out"];
 type RunsOut = { runs: HookRun[] };
 
-export function HookCard({ h, threadId, deps, selected, nameOf, ran, startEditing = false, onSaved }: { h: Hook; threadId: string; deps: PaneDeps; selected: boolean; nameOf: (id: string) => string; /** The line "Ran 2 min ago · stopped files_tree" */ ran: string; startEditing?: boolean; onSaved?: () => void }): ReactElement {
+export function HookCard({ h, threadId, deps, selected, nameOf, ran, agentName = "the assistant", startEditing = false, onSaved }: { h: Hook; threadId: string; deps: PaneDeps; selected: boolean; nameOf: (id: string) => string; /** The line "Ran 2 min ago · stopped files_tree" */ ran: string; /** For "When <name> finishes replying" */ agentName?: string; startEditing?: boolean; onSaved?: () => void }): ReactElement {
   const [edit, setEdit] = useState(startEditing);
   const [focus, setFocus] = useState(false);
   const [draft, setDraft] = useState<Draft>(() => draftOf(h));
@@ -33,7 +33,7 @@ export function HookCard({ h, threadId, deps, selected, nameOf, ran, startEditin
       <Text testID={`hook-title-${h.id}`} style={s.when}>{titleOf(h)}</Text>
       {edit ? (
         <View testID={`hook-form-${h.id}`} style={s.form}>
-          <Pick label="When" id={`hook-event-${h.id}`} value={draft.event} options={EVENT_ORDER.map((e) => ({ key: e, title: EVENT_WORDS[e]! }))} onChange={(event) => setDraft({ ...draft, event })} />
+          <Pick label="When" id={`hook-event-${h.id}`} value={draft.event} options={EVENT_ORDER.map((e) => ({ key: e, title: eventWords(e, agentName) }))} onChange={(event) => setDraft({ ...draft, event })} />
           {ACTION_EVENTS.has(draft.event) ? <Pick label="Only for" id={`hook-only-${h.id}`} value={draft.only} options={ACTION_CHOICES.map((c) => ({ key: c.key, title: c.title }))} onChange={(only) => setDraft({ ...draft, only })} /> : null}
           <Pick label="What it does" id={`hook-kind-${h.id}`} value={draft.kind} options={KIND_ORDER.map((k) => ({ key: k, title: KIND_WORDS[k] }))} onChange={(kind) => setDraft({ ...draft, kind: kind as HookKind, ...(kind === "action" && !/^[a-z]+\.[a-z_.]+$/.test(draft.what) ? { what: "chat.post" } : {}), ...(kind !== "action" && /^[a-z]+\.[a-z_.]+$/.test(draft.what) ? { what: "" } : {}) })} />
           {draft.kind === "action" ? <Pick label="Do this" id={`hook-do-${h.id}`} value={draft.what} options={doOptions(draft.what)} onChange={(what) => setDraft({ ...draft, what })} /> : null}
@@ -94,7 +94,7 @@ export function HooksTab({ deps, window, selected }: { deps: PaneDeps; window?: 
   if (hooks.length === 0) entries.push({ key: "none", type: "empty", text: `No hooks here. ${data.agent.name} can add its own when you ask.`, testID: "hooks-empty" });
   for (const g of grouped(hooks, data.agent.name)) {
     entries.push({ key: `l-${g.key}`, type: "label", text: g.title, right: String(g.hooks.length) });
-    for (const h of g.hooks) entries.push({ key: h.id, type: "block", node: <HookCard key={h.id} h={h} threadId={data.threadId} deps={deps} selected={selected === h.id} nameOf={nameOf} ran={lastRan(h.id, runs, (ts) => agoLabel(ts, clock))} /> });
+    for (const h of g.hooks) entries.push({ key: h.id, type: "block", node: <HookCard key={h.id} h={h} threadId={data.threadId} deps={deps} selected={selected === h.id} nameOf={nameOf} ran={lastRan(h.id, runs, (ts) => agoLabel(ts, clock))} agentName={data.agent.name} /> });
   }
   entries.push({ key: "foot", type: "block", node: <Text key="foot" testID="hooks-foot" style={s.foot}>{agentsOn ? `${data.agent.name} can add its own hooks. A Space admin turns that on or off in Console, Agents, Hooks.` : "Hooks made by agents are off in this Space. A Space admin can turn them on in Console, Agents, Hooks."}</Text> });
   return <PaneList entries={entries} plain {...(window ? { window } : {})} testID="hooks-list" />;

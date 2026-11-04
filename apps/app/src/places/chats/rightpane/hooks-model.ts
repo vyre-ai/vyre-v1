@@ -11,7 +11,7 @@ export const KIND_ORDER: readonly HookKind[] = ["command", "check", "action"];
 /** When a hook runs, in a few words (the "When" of the form). */
 export const EVENT_WORDS: Readonly<Record<string, string>> = {
   "session.start": "When a session starts", "prompt.submit": "Before each message is read", "tool.before": "Before any action", "tool.after": "After any action",
-  "outward.before": "Before anything leaves Vyre", "turn.end": "When a turn ends", "helper.start": "Before a helper starts", "helper.end": "When a helper ends",
+  "outward.before": "Before anything leaves Vyre", "turn.end": "When it finishes replying", "helper.start": "Before a helper starts", "helper.end": "When a helper ends",
 };
 export const EVENT_ORDER: readonly string[] = Object.keys(EVENT_WORDS);
 
@@ -80,6 +80,8 @@ export function restoreInput(h: Hook, threadId: string): Record<string, unknown>
   return { scope: h.scope, event: h.event, kind: h.kind, matcher: h.matcher, timeoutSec: h.timeoutSec, helpers: h.helpers, summary: h.line, threadId, ...(h.agentId ? { agentId: h.agentId } : {}), ...(rawOf(h) ? (h.kind === "command" ? { command: rawOf(h) } : h.kind === "check" ? { instruction: rawOf(h) } : { cap: rawOf(h), input: (h.spec as { input?: unknown }).input ?? {} }) : {}) };
 }
 
+/** The event words with the agent's own name where it fits: "When Intake finishes replying". */
+export const eventWords = (event: string, agent: string): string => (event === "turn.end" ? `When ${agent} finishes replying` : EVENT_WORDS[event] ?? event);
 /** When a hook runs, in the plain words its maker gave it: the part of its line before the first comma, capitalised ("Before any email"). The event words are the fallback. */
 export function titleOf(h: Pick<Hook, "line" | "event">): string {
   const first = h.line.split(",")[0]!.trim();
@@ -98,7 +100,7 @@ export function ranWhat(r: Pick<HookRun, "outcome" | "tool">): string {
     case "error": return "did not finish";
     case "timeout": return "ran out of time";
     case "skipped": return "had no AI account to ask";
-    default: return on ? `checked${on}` : "ran";
+    default: return `allowed${on}`;
   }
 }
 /** "Last ran 2 min ago, stopped sending an email", or "Not run in this chat yet": a chat's read covers only the runs in that chat, so a hook that ran elsewhere is not "never run" here. Pass `everywhere` only where the read covers every run the viewer may see (the Console list): then it is "Never ran". `runs` are newest first, as hooks.runs.list gives them. */
