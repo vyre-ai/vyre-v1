@@ -36,9 +36,7 @@ test("settings journey: the seven pages as Owner and as Member, the look and a c
         await me.page.getByTestId(`row-page-${p.id}`).click();
         await me.page.getByTestId(`page-${p.id}`).waitFor({ timeout: 20_000 });
         await me.page.waitForTimeout(800);
-        const whole = (await me.page.getByTestId(`page-${p.id}`).innerText()).replace(/\s+/g, " ");
-        // the Skills list on Your AI shows the skills' own descriptions, which are not Settings labels
-        const text = p.id === "ai" && whole.includes(" Skills ") ? whole.slice(0, whole.indexOf(" Skills ")) : whole;
+        const text = (await me.page.getByTestId(`page-${p.id}`).innerText()).replace(/\s+/g, " ");
         assert.ok(text.includes(p.sub), `${who}/${p.id}: the sentence under the title`);
         for (const b of BANNED) { const m = new RegExp(`(^|[^a-z])${b}([^a-z]|$)`, "i").exec(text); assert.ok(!m, `${who}/${p.id}: no "${b}" in: ...${m ? text.slice(Math.max(0, m.index - 60), m.index + 60) : ""}...`); }
         assert.ok(!/Couldn't load|Something went wrong|undefined|\[object/.test(text), `${who}/${p.id}: no error text`);
