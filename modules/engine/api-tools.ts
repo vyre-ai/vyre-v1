@@ -74,6 +74,10 @@ export function createEngineApiTools(d: EngineApiToolsDeps): ApiTools {
     },
     ...(d.plugins ? { dynamic: d.plugins.dynamic, hooks: d.plugins.hooks } : {}) });
   const primed = new Set<string>();
+  const hasHelpers = async (t: { threadId: string; asker: string }): Promise<boolean> => {
+    if (!d.call) return false;
+    try { return (((await d.call("chat.helpers.list", { threadId: t.threadId }, t.asker)) as { helpers?: unknown[] }).helpers?.length ?? 0) > 0; } catch { return false; }
+  };
   const prepare = async (t: { threadId: string; agentId: string; asker: string; turnId: string }): Promise<void> => {
     if (!d.call || primed.has(t.turnId)) return;
     primed.add(t.turnId);
@@ -94,6 +98,8 @@ export function createEngineApiTools(d: EngineApiToolsDeps): ApiTools {
     session.preload(t.threadId, TEAMMATE_TOOLS);
     session.preload(t.threadId, CORE_READ_TOOLS);
     if (isRoom(th as never)) session.preload(t.threadId, ROOM_TOOLS);   // a room's reads, so a tagged agent never searches before it speaks
+    // a helper and the agent that started it talk with helper_note: listed in a helper chat and in the chat above it, so neither has to search for it
+    if (th?.kind === "helper" || await hasHelpers(t)) session.preload(t.threadId, ["helper_note"]);
     facts.set(t.threadId, { kind: th?.kind ?? "chat", planMode: th?.planMode === true, ...(th?.mode === "ask" || th?.mode === "auto" || th?.mode === "plan" ? { mode: th.mode } : {}), ...(scope ? { scope } : {}) });
     if (th?.kind === "ask" && scope) {
       const lvl = await d.call("chat.ask_level", { threadId: t.threadId }, t.asker).catch(() => undefined) as { level?: Level | null } | undefined;

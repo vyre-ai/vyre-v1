@@ -408,7 +408,12 @@ export function stubs(ctx: CallCtx) {
       fork: call("chat.fork"),
       handoff: call("chat.handoff"),
       helper: {
+        note: call("chat.helper.note"),
+        note_seen: call("chat.helper.note_seen"),
+        notes: call("chat.helper.notes"),
+        restart: call("chat.helper.restart"),
         start: call("chat.helper.start"),
+        steer: call("chat.helper.steer"),
       },
       helpers: {
         list: call("chat.helpers.list"),
@@ -780,6 +785,7 @@ export function stubs(ctx: CallCtx) {
           set: call("engine.crew.repo.set"),
         },
         start: call("engine.crew.start"),
+        status: call("engine.crew.status"),
         stop: call("engine.crew.stop"),
         wait: call("engine.crew.wait"),
         workspace: call("engine.crew.workspace"),
@@ -790,6 +796,12 @@ export function stubs(ctx: CallCtx) {
       },
       drop_queued: call("engine.drop_queued"),
       health: call("engine.health"),
+      helper_models: call("engine.helper_models"),
+      helpers: {
+        change_model: call("engine.helpers.change_model"),
+        status: call("engine.helpers.status"),
+        stop_all: call("engine.helpers.stop_all"),
+      },
       incident: {
         assign: call("engine.incident.assign"),
         get: call("engine.incident.get"),

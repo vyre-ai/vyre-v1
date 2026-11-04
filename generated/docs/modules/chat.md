@@ -4,7 +4,7 @@ Lane L2. Kind module. Version 0.1.0.
 
 Requires: engine, mcp, members.
 
-## Capabilities (102)
+## Capabilities (107)
 
 - [channels.agent_watch.set](../capabilities/channels.agent_watch.set.md): Let an agent act unmentioned in a channel ("watches this channel"); every such act is logged like a routine
 - [channels.agents.add](../capabilities/channels.agents.add.md): Invite an agent into a channel; agents listen by default
@@ -40,7 +40,12 @@ Requires: engine, mcp, members.
 - [chat.flow_card](../capabilities/chat.flow_card.md): Leave the card of a drafted Flow in its chat: its name, what it does in plain words and Turn on and Test buttons. Written by the server from the draft itself; only a draft gets one
 - [chat.fork](../capabilities/chat.fork.md): Branch a chat at one message: a new private chat that holds a copy of everything up to there, with the same agents and a line that links back
 - [chat.handoff](../capabilities/chat.handoff.md): Hand work to another agent: opens that agent thread linked from this one, counted against the hop limit
+- [chat.helper.note](../capabilities/chat.helper.note.md): Note between a helper and the agent that started it: a follow-up down, progress, a result or a question up. Set needsPerson only when no one but the person can answer
+- [chat.helper.note_seen](../capabilities/chat.helper.note_seen.md): Mark the notes waiting for a helper as read
+- [chat.helper.notes](../capabilities/chat.helper.notes.md): The notes in a helper chat with who sent each: the person, the agent that started it, or the helper
+- [chat.helper.restart](../capabilities/chat.helper.restart.md): Start a helper again on another model: the person it works for picks an account and a model, and it does its brief again from the start
 - [chat.helper.start](../capabilities/chat.helper.start.md): Start a helper sub-task thread with its own model, provider and effort; helper chats are read-only
+- [chat.helper.steer](../capabilities/chat.helper.steer.md): Ask a helper that is working something, in its own chat: the person it works for only, while it runs
 - [chat.helpers.list](../capabilities/chat.helpers.list.md): Helpers running under a chat, with status
 - [chat.history.page](../capabilities/chat.history.page.md): Older messages and tool calls of THIS chat before a given message number, at most 100 at a time, oldest first inside the page; the agent reads further back than the window it was given. It refuses any other chat than the one the agent is working in
 - [chat.history.search](../capabilities/chat.history.search.md): Word-for-word search over the chat messages and transcript rows (turns, tool calls and results) the asker could open themselves; used by memory for exact quotes. Returns the stored words, author, time and a link that opens the chat at that line
@@ -109,7 +114,7 @@ Requires: engine, mcp, members.
 - [threads.unarchive](../capabilities/threads.unarchive.md): Put an archived chat back in my list
 - [threads.update](../capabilities/threads.update.md): Rename a thread
 
-## Events (42)
+## Events (43)
 
 - [agent.disengaged](../events/agent.disengaged.md): An agent left a thread
 - [agent.engaged](../events/agent.engaged.md): An agent joined a thread as lead or listener
@@ -127,6 +132,7 @@ Requires: engine, mcp, members.
 - [channel.member_removed](../events/channel.member_removed.md): A person left or was removed from a channel or thread
 - [channel.unarchived](../events/channel.unarchived.md): A channel was brought back
 - [channel.updated](../events/channel.updated.md): A channel changed name, topic or visibility
+- [helper.note](../events/helper.note.md): A note went between a helper and the agent that started it
 - [helper.started](../events/helper.started.md): A helper sub-task thread started under a chat
 - [message.deleted](../events/message.deleted.md): A message was deleted
 - [message.direct](../events/message.direct.md): A person received a direct message from another person

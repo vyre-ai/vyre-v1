@@ -1,6 +1,13 @@
 // One entry of the conversation. Yours is a bubble on the right; anyone else's has a header (face, name, time) when the author changes; an agent's work folds into one line; native
 // cards (question, plan, terminal, changeset, file) sit under the text; an error is one inline row (what, why, next). Hover shows Copy and Edit and the rest; right-click opens the same
 // list; the keyboard reaches both. Every row is memoised on its item, so a streaming message re-renders alone.
+import { HelperRow } from "./helper-row.tsx";
+import { CrewStrip } from "../crew/strip.tsx";
+import { memberFromBlock, memberOf } from "../crew/status.ts";
+import { holdsOf } from "../crew/model.ts";
+import { FROM_THREAD_LINE } from "../crew/also.tsx";
+import { citable, citeBody, citeRender } from "../crew/cite.tsx";
+import type { CrewStatusOut } from "../crew/model.ts";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactElement } from "react";
 import { Platform, Pressable, StyleSheet, Text, TextInput, View, useWindowDimensions } from "react-native";
@@ -120,6 +127,8 @@ export interface MessageActions {
   nameOf?(id: string): string;
   /** Open another chat on a message (the line a fork starts with). */
   openMessage?(threadId: string, messageId: string): void;
+  /** The crew strip: the live read, the open peek, and what its buttons do. Without it the strip draws from the helpers' own blocks and its rows do nothing. */
+  crew?: { status: CrewStatusOut | null; selected: string | null; peek(helperThreadId: string): void; stopAll(): void; openPane(): void; retry(helperThreadId: string): void };
   /** What files and links in a message need: lookups, opening beside the chat, copying. Left out in a place that cannot open them. */
   files?: Pick<ConversationData, "call" | "nav" | "copy" | "threadId" | "changes">;
   /** The agents of this chat (for a Mount card, which shares the new folder with them) and the sheet that connects a folder. Left out where the shell has no Files. */
@@ -373,7 +382,10 @@ function Theirs({ item, actions, stream, openWork, mark, meId, replies }: Messag
   // a crew result card says it all (who, what changed, the teammate's words): the message's own text is for the lead agent that wakes on it, so the card stands alone
   const crewCard = m.blocks.some(isCrewResult) || crewStart !== undefined;
   // a person's id that slips into an agent's words reads as their name
-  const words = namedIds(m.body, actions.nameOf);
+  // the answer that brings helpers together marks each claim with the number of the helper it came from: [1], [2]. Those marks are chips that open that helper.
+  const crewRows = actions.crew?.status ? citable(actions.crew.status.members) : [];
+  const words = !person && !stream ? citeBody(namedIds(m.body, actions.nameOf), crewRows.length) : namedIds(m.body, actions.nameOf);
+  const citeLink = useMemo(() => (actions.crew ? citeRender(crewRows, (x) => actions.crew!.peek(x.id)) : undefined), [actions.crew, crewRows.length]);  // eslint-disable-line react-hooks/exhaustive-deps
   const chips = useRefChips(words, actions.files);
   const blocks = stream || crewCard ? null : bodyBlocks(chips.body === words ? m.messageId : `${m.messageId}#${chips.body.length}:${chips.body.slice(-24)}`, chips.body);
   const runCfg = actions.runCode;
@@ -413,7 +425,7 @@ function Theirs({ item, actions, stream, openWork, mark, meId, replies }: Messag
           ))}
         </Fold>
       ) : null}
-      {stream ? <LiveBody store={stream} hideEmpty={actions.activityOf?.(m.messageId) !== undefined} testID={`body-${m.messageId}`} style={st.body} /> : m.body && !crewCard ? <View testID={`body-${m.messageId}`} style={st.body}><MarkdownBlocks blocks={subjects.blocks} {...(subjects.renderLink || chips.renderLink ? { renderLink: ((href, kids, key) => chips.renderLink?.(href, kids, key) ?? subjects.renderLink?.(href, kids, key) ?? null) as NonNullable<typeof chips.renderLink> } : {})} {...(renderCode ? { renderCode } : {})} /></View> : null}
+      {stream ? <LiveBody store={stream} hideEmpty={actions.activityOf?.(m.messageId) !== undefined} testID={`body-${m.messageId}`} style={st.body} /> : m.body && !crewCard ? <View testID={`body-${m.messageId}`} style={st.body}><MarkdownBlocks blocks={subjects.blocks} {...(subjects.renderLink || chips.renderLink || citeLink ? { renderLink: ((href, kids, key) => citeLink?.(href, kids, key) ?? chips.renderLink?.(href, kids, key) ?? subjects.renderLink?.(href, kids, key) ?? null) as NonNullable<typeof chips.renderLink> } : {})} {...(renderCode ? { renderCode } : {})} /></View> : null}
       {stream && actions.activityOf?.(m.messageId) ? <ActivityLine store={actions.activityOf(m.messageId)!} stream={stream} /> : null}
       {person || stream || m.body === "" ? null : <ReplyMemory messageId={m.messageId} threadId={m.threadId} reply={m.body} part={work ? "cards" : "all"} />}
           {crewStart && actions.openMessage ? <CrewStartLine block={crewStart} name={actions.nameOf ? actions.nameOf(String((crewStart.data as { agentId?: unknown } | null)?.agentId ?? "")) : item.who.name} onOpen={(id) => actions.openMessage?.(id, "")} /> : null}
@@ -441,6 +453,28 @@ function Theirs({ item, actions, stream, openWork, mark, meId, replies }: Messag
         if (isQuote(b.type)) return <QuoteCard key={b.id} id={b.id} data={b.data} />;
         if (isChromeHeld(b.type)) return <HeldSendCard key={b.id} id={b.id} data={b.data} agentId={item.who.id} agentName={item.who.name} actions={actions.chrome} />;
         if (isChromeStep(b.type)) return <ChromeStepCard key={b.id} id={b.id} data={b.data} agentId={item.who.id} agentName={item.who.name} actions={actions.chrome} />;
+        if (b.type === "from_thread") {
+          const tid = String((b.data as { threadId?: unknown } | null)?.threadId ?? "");
+          return <Pressable key={b.id} accessibilityRole="link" testID={`from-thread-${m.messageId}`} onPress={() => (tid !== "" ? actions.openMessage?.(tid, "") : undefined)}><Text style={st.edited}>{FROM_THREAD_LINE}</Text></Pressable>;
+        }
+        if (b.type === "crew_strip") {
+          const blocks = ((b.data as { blocks?: Array<{ data?: unknown; state?: string }> } | null)?.blocks ?? []);
+          const live = actions.crew?.status ?? null;
+          const members = blocks.map((x) => { const own = memberFromBlock(x, m.threadId); return memberOf(live, own.id) ?? own; });
+          const rows = members.length;
+          const totals = live && members.every((x) => memberOf(live, x.id) !== undefined) && live.members.filter((x) => x.kind === "helper").length === rows ? live.totals
+            : { members: rows, working: members.filter((x) => x.state === "working").length, done: members.filter((x) => x.state === "done").length, needsYou: members.filter((x) => x.state === "needs_you").length, failed: members.filter((x) => x.state === "failed").length, stopped: members.filter((x) => x.state === "stopped").length, tokensIn: 0, tokensOut: 0, costMicros: 0, filesChanged: 0, added: 0, deleted: 0, elapsedMs: Math.max(0, ...members.map((x) => x.elapsedMs)) };
+          const c = actions.crew;
+          // a helper that waits for a person's yes shows its held request here, in the chat the person reads: the same approval card as anywhere (Allow, Always allow, Deny)
+          const holds = holdsOf(members);
+          return (
+            <View key={b.id}>
+              <CrewStrip members={members} totals={totals} selectedId={c?.selected ?? null} onPeek={(x) => (c ? c.peek(x.id) : actions.openMessage?.(x.id, ""))} {...(c ? { onStopAll: c.stopAll, onOpenPane: c.openPane, onRetry: (x: { id: string }) => c.retry(x.id) } : {})} />
+              {actions.files ? holds.map((x) => <ApprovalCard key={`hold-${x.id}`} taskId={x.holdTaskId} agent={x.name ?? x.title} agentId={x.agentId} data={actions.files!} />) : null}
+            </View>
+          );
+        }
+        if (b.type === "helper" && !isCrewStart(b)) return <HelperRow key={b.id} block={b} onOpen={(id) => actions.openMessage?.(id, "")} />;
         if (isPartOneType(b.type)) return <BlockViewA key={b.id} block={b} host={actions.host} />;
         return <Card key={b.id} line={cardLine(b)} actions={actions} />;
       })}

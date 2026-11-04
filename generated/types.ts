@@ -1421,6 +1421,7 @@ export type AgentsCreateOut = {
     folderId: string;
     model?: string;
     fallbackModel?: string;
+    helperModels?: "same_provider" | "any" | "ask";
     accountPolicy: "asker" | "key";
     accountKey?: string;
     accountFallback: Array<string>;
@@ -1471,6 +1472,7 @@ export type AgentsGetOut = {
     folderId: string;
     model?: string;
     fallbackModel?: string;
+    helperModels?: "same_provider" | "any" | "ask";
     accountPolicy: "asker" | "key";
     accountKey?: string;
     accountFallback: Array<string>;
@@ -1522,6 +1524,7 @@ export type AgentsInstructionAppendOut = {
     folderId: string;
     model?: string;
     fallbackModel?: string;
+    helperModels?: "same_provider" | "any" | "ask";
     accountPolicy: "asker" | "key";
     accountKey?: string;
     accountFallback: Array<string>;
@@ -1590,6 +1593,7 @@ export type AgentsListOut = {
       folderId: string;
       model?: string;
       fallbackModel?: string;
+      helperModels?: "same_provider" | "any" | "ask";
       accountPolicy: "asker" | "key";
       accountKey?: string;
       accountFallback: Array<string>;
@@ -1691,6 +1695,7 @@ export type AgentsPauseOut = {
     folderId: string;
     model?: string;
     fallbackModel?: string;
+    helperModels?: "same_provider" | "any" | "ask";
     accountPolicy: "asker" | "key";
     accountKey?: string;
     accountFallback: Array<string>;
@@ -1753,6 +1758,7 @@ export type AgentsRestoreOut = {
     folderId: string;
     model?: string;
     fallbackModel?: string;
+    helperModels?: "same_provider" | "any" | "ask";
     accountPolicy: "asker" | "key";
     accountKey?: string;
     accountFallback: Array<string>;
@@ -1799,6 +1805,7 @@ export type AgentsRestoreVersionOut = {
     folderId: string;
     model?: string;
     fallbackModel?: string;
+    helperModels?: "same_provider" | "any" | "ask";
     accountPolicy: "asker" | "key";
     accountKey?: string;
     accountFallback: Array<string>;
@@ -1843,6 +1850,7 @@ export type AgentsResumeOut = {
     folderId: string;
     model?: string;
     fallbackModel?: string;
+    helperModels?: "same_provider" | "any" | "ask";
     accountPolicy: "asker" | "key";
     accountKey?: string;
     accountFallback: Array<string>;
@@ -1888,6 +1896,7 @@ export type AgentsRoleLineSetOut = {
     folderId: string;
     model?: string;
     fallbackModel?: string;
+    helperModels?: "same_provider" | "any" | "ask";
     accountPolicy: "asker" | "key";
     accountKey?: string;
     accountFallback: Array<string>;
@@ -2083,6 +2092,7 @@ export type AgentsSetOwnerOut = {
     folderId: string;
     model?: string;
     fallbackModel?: string;
+    helperModels?: "same_provider" | "any" | "ask";
     accountPolicy: "asker" | "key";
     accountKey?: string;
     accountFallback: Array<string>;
@@ -2277,6 +2287,7 @@ export type AgentsUpdateOut = {
     folderId: string;
     model?: string;
     fallbackModel?: string;
+    helperModels?: "same_provider" | "any" | "ask";
     accountPolicy: "asker" | "key";
     accountKey?: string;
     accountFallback: Array<string>;
@@ -6893,6 +6904,51 @@ export type ChatHandoffOut = {
   };
   depth: number;
 };
+export type ChatHelperNoteIn = {
+  threadId: string;
+  body: string;
+  kind?: "followup" | "progress" | "question" | "result";
+  needsPerson?: boolean;
+  options?: Array<{
+      key: string;
+      label: string;
+    }>;
+};
+export type ChatHelperNoteOut = {
+  messageId: string;
+};
+export type ChatHelperNoteSeenIn = {
+  threadId: string;
+};
+export type ChatHelperNoteSeenOut = {
+  marked: number;
+};
+export type ChatHelperNotesIn = {
+  threadId: string;
+};
+export type ChatHelperNotesOut = {
+  notes: Array<{
+      messageId: string;
+      authorId: string;
+      who: "brief" | "person" | "parent" | "helper";
+      body: string;
+      kind?: string;
+      state?: string;
+      seenAt?: number;
+    }>;
+};
+export type ChatHelperRestartIn = {
+  threadId: string;
+  model?: string;
+  account?: string;
+  provider?: string;
+};
+export type ChatHelperRestartOut = {
+  messageId: string;
+  model: string;
+  account: string;
+  fellBackFrom?: string;
+};
 export type ChatHelperStartIn = {
   threadId: string;
   title: string;
@@ -6901,6 +6957,8 @@ export type ChatHelperStartIn = {
   model?: string;
   provider?: string;
   effort?: "low" | "medium" | "high" | "max";
+  account?: string;
+  why?: string;
   crew?: boolean;
   taskId?: string;
 };
@@ -6961,6 +7019,14 @@ export type ChatHelperStartOut = {
   };
   blockId: string;
 };
+export type ChatHelperSteerIn = {
+  threadId: string;
+  body: string;
+  idempotencyKey: string;
+};
+export type ChatHelperSteerOut = {
+  messageId: string;
+};
 export type ChatHelpersListIn = {
   threadId: string;
 };
@@ -6971,6 +7037,7 @@ export type ChatHelpersListOut = {
       status: "running" | "done" | "failed" | "stopped";
       agentId: string;
       model?: string;
+      pick?: Record<string, unknown>;
       startedAt: number;
     }>;
 };
@@ -7398,6 +7465,7 @@ export type ChatPostIn = {
     actions?: Array<string>;
     focus?: string;
   };
+  alsoToChat?: boolean;
   idempotencyKey: string;
 };
 export type ChatPostOut = {
@@ -10999,6 +11067,63 @@ export type EngineCrewStartOut = {
     result?: Record<string, unknown>;
   };
 };
+export type EngineCrewStatusIn = {
+  threadId: string;
+};
+export type EngineCrewStatusOut = {
+  members: Array<{
+      kind: "helper" | "teammate";
+      id: string;
+      parentThreadId: string;
+      title: string;
+      name?: string;
+      agentId: string;
+      state: "working" | "done" | "needs_you" | "failed" | "stopped";
+      holdTaskId?: string;
+      step?: string;
+      found?: string;
+      startedAt: number;
+      endedAt?: number;
+      elapsedMs: number;
+      model?: string;
+      provider?: string;
+      accountLabel?: string;
+      why?: string;
+      fellBackFrom?: string;
+      branch?: string;
+      files?: Array<{
+          path: string;
+          added: number;
+          deleted: number;
+        }>;
+      added?: number;
+      deleted?: number;
+      merged?: boolean;
+      tokensIn: number;
+      tokensOut: number;
+      costMicros: number;
+      tests?: {
+        state: "running" | "passing" | "failing";
+        passed?: number;
+        failed?: number;
+      };
+    }>;
+  totals: {
+    members: number;
+    working: number;
+    done: number;
+    needsYou: number;
+    failed: number;
+    stopped: number;
+    tokensIn: number;
+    tokensOut: number;
+    costMicros: number;
+    filesChanged: number;
+    added: number;
+    deleted: number;
+    elapsedMs: number;
+  };
+};
 export type EngineCrewStopIn = {
   jobId: string;
   idempotencyKey: string;
@@ -11086,6 +11211,95 @@ export type EngineHealthOut = {
   detail?: string;
   latencyMs?: number;
   oldestQueuedMs: number;
+};
+export type EngineHelperModelsIn = {
+  threadId?: string;
+  agentId?: string;
+};
+export type EngineHelperModelsOut = {
+  accounts: Array<{
+      ref: string;
+      provider: string;
+      label: string;
+      mine: boolean;
+      shared: boolean;
+      spaceKey: boolean;
+      models: Array<{
+          model: string;
+          title?: string;
+          tier: "cheap" | "standard" | "strong";
+          tools: boolean;
+          vision: boolean;
+          contextTokens?: number;
+          available: boolean;
+          why?: string;
+        }>;
+    }>;
+  parent: {
+    provider?: string;
+    accountRef?: string;
+    model?: string;
+  };
+  policy: "same_provider" | "any" | "ask";
+  suggest: {
+    read: {
+      account: string;
+      accountLabel: string;
+      model: string;
+      why: string;
+    } | null;
+    think: {
+      account: string;
+      accountLabel: string;
+      model: string;
+      why: string;
+    } | null;
+  };
+  rule: string;
+};
+export type EngineHelpersChangeModelIn = {
+  threadId: string;
+  helperId: string;
+  account?: string;
+  model?: string;
+};
+export type EngineHelpersChangeModelOut = {
+  restarted: boolean;
+  model: string;
+  account: string;
+  fellBackFrom?: string;
+  spentMicros: number;
+};
+export type EngineHelpersStatusIn = {
+  threadId: string;
+};
+export type EngineHelpersStatusOut = {
+  helpers: Array<{
+      threadId: string;
+      title: string;
+      agentId: string;
+      provider?: string;
+      accountLabel?: string;
+      model?: string;
+      why?: string;
+      fellBackFrom?: string;
+      state: "working" | "done" | "needs_you" | "failed" | "stopped";
+      holdTaskId?: string;
+      step?: string;
+      found?: string;
+      startedAt: number;
+      endedAt?: number;
+      elapsedMs: number;
+      tokensIn: number;
+      tokensOut: number;
+      costMicros: number;
+    }>;
+};
+export type EngineHelpersStopAllIn = {
+  threadId: string;
+};
+export type EngineHelpersStopAllOut = {
+  stopped: number;
 };
 export type EngineIncidentAssignIn = {
   incidentId: string;
@@ -11269,6 +11483,7 @@ export type EngineLiveTurnsOut = {
       turnId: string;
       agentId: string;
       text: string;
+      step?: string;
     }>;
 };
 export type EngineMcpCallIn = {
@@ -42690,7 +42905,12 @@ export interface CapMap {
   "chat.flow_card": { in: ChatFlowCardIn; out: ChatFlowCardOut };
   "chat.fork": { in: ChatForkIn; out: ChatForkOut };
   "chat.handoff": { in: ChatHandoffIn; out: ChatHandoffOut };
+  "chat.helper.note": { in: ChatHelperNoteIn; out: ChatHelperNoteOut };
+  "chat.helper.note_seen": { in: ChatHelperNoteSeenIn; out: ChatHelperNoteSeenOut };
+  "chat.helper.notes": { in: ChatHelperNotesIn; out: ChatHelperNotesOut };
+  "chat.helper.restart": { in: ChatHelperRestartIn; out: ChatHelperRestartOut };
   "chat.helper.start": { in: ChatHelperStartIn; out: ChatHelperStartOut };
+  "chat.helper.steer": { in: ChatHelperSteerIn; out: ChatHelperSteerOut };
   "chat.helpers.list": { in: ChatHelpersListIn; out: ChatHelpersListOut };
   "chat.history.page": { in: ChatHistoryPageIn; out: ChatHistoryPageOut };
   "chat.history.search": { in: ChatHistorySearchIn; out: ChatHistorySearchOut };
@@ -42960,6 +43180,7 @@ export interface CapMap {
   "engine.crew.repo.get": { in: EngineCrewRepoGetIn; out: EngineCrewRepoGetOut };
   "engine.crew.repo.set": { in: EngineCrewRepoSetIn; out: EngineCrewRepoSetOut };
   "engine.crew.start": { in: EngineCrewStartIn; out: EngineCrewStartOut };
+  "engine.crew.status": { in: EngineCrewStatusIn; out: EngineCrewStatusOut };
   "engine.crew.stop": { in: EngineCrewStopIn; out: EngineCrewStopOut };
   "engine.crew.wait": { in: EngineCrewWaitIn; out: EngineCrewWaitOut };
   "engine.crew.workspace": { in: EngineCrewWorkspaceIn; out: EngineCrewWorkspaceOut };
@@ -42967,6 +43188,10 @@ export interface CapMap {
   "engine.defaults.set": { in: EngineDefaultsSetIn; out: EngineDefaultsSetOut };
   "engine.drop_queued": { in: EngineDropQueuedIn; out: EngineDropQueuedOut };
   "engine.health": { in: EngineHealthIn; out: EngineHealthOut };
+  "engine.helper_models": { in: EngineHelperModelsIn; out: EngineHelperModelsOut };
+  "engine.helpers.change_model": { in: EngineHelpersChangeModelIn; out: EngineHelpersChangeModelOut };
+  "engine.helpers.status": { in: EngineHelpersStatusIn; out: EngineHelpersStatusOut };
+  "engine.helpers.stop_all": { in: EngineHelpersStopAllIn; out: EngineHelpersStopAllOut };
   "engine.incident.assign": { in: EngineIncidentAssignIn; out: EngineIncidentAssignOut };
   "engine.incident.get": { in: EngineIncidentGetIn; out: EngineIncidentGetOut };
   "engine.incident.note": { in: EngineIncidentNoteIn; out: EngineIncidentNoteOut };
@@ -46006,6 +46231,12 @@ export type HealthPausedPayload = {
 export type HealthResumedPayload = {
   key: string;
 };
+export type HelperNotePayload = {
+  helperThreadId: string;
+  direction: "up" | "down";
+  kind: "followup" | "progress" | "question" | "result";
+  messageId: string;
+};
 export type HelperStartedPayload = {
   helperThreadId: string;
   parentThreadId: string;
@@ -46602,6 +46833,7 @@ export type MessageReceivedPayload = {
   via?: string;
   actingFor?: string;
   job?: boolean;
+  copy?: boolean;
   typed?: boolean;
   poke?: {
     agentId: string;
@@ -48805,6 +49037,7 @@ export interface EventMap {
   "health.changed": HealthChangedPayload;
   "health.paused": HealthPausedPayload;
   "health.resumed": HealthResumedPayload;
+  "helper.note": HelperNotePayload;
   "helper.started": HelperStartedPayload;
   "hold.placed": HoldPlacedPayload;
   "hold.released": HoldReleasedPayload;

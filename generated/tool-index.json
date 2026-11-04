@@ -1394,6 +1394,30 @@
     },
     {
       "deferred": false,
+      "name": "chat_helper_note_seen",
+      "summary": "Mark the notes waiting for a helper as read",
+      "toolset": "chats"
+    },
+    {
+      "deferred": false,
+      "name": "chat_helper_notes",
+      "summary": "The notes in a helper chat with who sent each: the person, the agent that started it, or the helper",
+      "toolset": "chats"
+    },
+    {
+      "deferred": false,
+      "name": "chat_helper_restart",
+      "summary": "Start a helper again on another model: the person it works for picks an account and a model, and it does its brief again from the start",
+      "toolset": "chats"
+    },
+    {
+      "deferred": false,
+      "name": "chat_helper_steer",
+      "summary": "Ask a helper that is working something, in its own chat: the person it works for only, while it runs",
+      "toolset": "chats"
+    },
+    {
+      "deferred": false,
       "name": "chat_helpers_list",
       "summary": "Helpers running under a chat, with status",
       "toolset": "chats"
@@ -2588,6 +2612,12 @@
     },
     {
       "deferred": false,
+      "name": "engine_crew_status",
+      "summary": "Everything that works for a chat, in one read for the Island, the header chip and the Crew pane: each helper and teammate with its state, the step it is on, model, account, branch, files changed, tokens and cost, and the totals for the crew. Only what is known; nothing is estimated",
+      "toolset": "chats"
+    },
+    {
+      "deferred": false,
       "name": "engine_defaults_get",
       "summary": "The caller default model, provider, effort and fallback order in this Space",
       "toolset": "meta"
@@ -2602,6 +2632,24 @@
       "deferred": false,
       "name": "engine_drop_queued",
       "summary": "Take a message that is waiting behind a running turn out of the queue so it can be edited and sent again; it stays in the chat and the agent will not answer it",
+      "toolset": "chats"
+    },
+    {
+      "deferred": false,
+      "name": "engine_helpers_change_model",
+      "summary": "Change the model of one helper of a chat: it stops, then starts again on the account and model the person picked, doing its brief from the start",
+      "toolset": "chats"
+    },
+    {
+      "deferred": false,
+      "name": "engine_helpers_status",
+      "summary": "The helpers of a chat, live: each one working, done, needing a person or failed, the step it is on, one line of what it found, how long it took and what it cost",
+      "toolset": "chats"
+    },
+    {
+      "deferred": false,
+      "name": "engine_helpers_stop_all",
+      "summary": "Stop every helper still working under a chat; what they did so far is kept",
       "toolset": "chats"
     },
     {
@@ -4261,6 +4309,12 @@
       "toolset": "engineer"
     },
     {
+      "deferred": true,
+      "name": "helper_note",
+      "summary": "Note between a helper and the agent that started it: a follow-up down, progress, a result or a question up. Set needsPerson only when no one but the person can answer",
+      "toolset": "chats"
+    },
+    {
       "deferred": false,
       "name": "home_activity",
       "summary": "See all: the full activity for the digest period on records I follow, my agents, and my routines",
@@ -5693,6 +5747,12 @@
       "name": "models_catalog",
       "summary": "Every AI account the asker can use with its models, what each can do (tools, images, context), a cost tier (cheap, standard or strong) and whether the probe found it available; for helpers that pick a model across accounts. Reads saved lists and the probe's marks only",
       "toolset": "meta"
+    },
+    {
+      "deferred": false,
+      "name": "models_for_helpers",
+      "summary": "The catalogue before you start helpers: every AI account the person may use with its provider, label and models (tools, vision, context, a cost tier cheap, standard or strong, whether it is available now), and where a helper goes by default",
+      "toolset": "chats"
     },
     {
       "deferred": false,

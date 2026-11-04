@@ -489,7 +489,42 @@ export default defineManifest({
       perm: null, tool: 'chats', team: true,
     }),
     read('engine.live_turns', 'The turns being written in a thread right now, with the text so far: what a chat opened or reconnected mid-turn shows before it follows the live stream', {
-      in: { threadId: id.thread }, out: { turns: t.arr(t.obj({ turnId: t.str(), agentId: id.agent, text: t.str() })) }, on: ['thread', '/threadId'], perm: null, tool: 'chats',
+      in: { threadId: id.thread }, out: { turns: t.arr(t.obj({ turnId: t.str(), agentId: id.agent, text: t.str(), step: t.opt(t.str({ description: 'What it is doing now, in plain words' })) })) }, on: ['thread', '/threadId'], perm: null, tool: 'chats',
+    }),
+    read('engine.helper_models', 'The catalogue before you start helpers: every AI account the person may use with its provider, label and models (tools, vision, context, a cost tier cheap, standard or strong, whether it is available now), and where a helper goes by default', {
+      in: { threadId: t.opt(id.thread), agentId: t.opt(id.agent) },
+      out: {
+        accounts: t.arr(t.obj({ ref: accountRef, provider: t.str(), label: t.str({ examples: ['OpenAI · irfad@mylegalacademy.com'] }), mine: t.bool(), shared: t.bool(), spaceKey: t.bool(), models: t.arr(t.obj({ model: t.str(), title: t.opt(t.str()), tier: t.enm('cheap', 'standard', 'strong'), tools: t.bool(), vision: t.bool(), contextTokens: t.opt(t.int()), available: t.bool(), why: t.opt(t.str()) })) })),
+        parent: t.obj({ provider: t.opt(t.str()), accountRef: t.opt(accountRef), model: t.opt(t.str()) }), policy: t.enm('same_provider', 'any', 'ask'),
+        suggest: t.obj({ read: t.nullable(t.obj({ account: accountRef, accountLabel: t.str(), model: t.str(), why: t.str() })), think: t.nullable(t.obj({ account: accountRef, accountLabel: t.str(), model: t.str(), why: t.str() })) }), rule: t.str(),
+      },
+      tool: 'chats', mcpName: 'models_for_helpers', agent: { planMode: 'allowed' }, label: 'check',
+    }),
+    read('engine.crew.status', 'Everything that works for a chat, in one read for the Island, the header chip and the Crew pane: each helper and teammate with its state, the step it is on, model, account, branch, files changed, tokens and cost, and the totals for the crew. Only what is known; nothing is estimated', {
+      in: { ...threadT }, out: {
+        members: t.arr(t.obj({
+          kind: t.enm('helper', 'teammate'), id: id.thread, parentThreadId: id.thread, title: t.str(), name: t.opt(t.str()), agentId: id.agent, state: t.enm('working', 'done', 'needs_you', 'failed', 'stopped'), holdTaskId: t.opt(id.task), step: t.opt(t.str()), found: t.opt(t.str()),
+          startedAt: t.ts(), endedAt: t.opt(t.ts()), elapsedMs: t.int({ minimum: 0 }), model: t.opt(t.str()), provider: t.opt(t.str()), accountLabel: t.opt(t.str()), why: t.opt(t.str()), fellBackFrom: t.opt(t.str()),
+          branch: t.opt(t.str()), files: t.opt(t.arr(t.obj({ path: t.str(), added: t.int(), deleted: t.int() }))), added: t.opt(t.int()), deleted: t.opt(t.int()), merged: t.opt(t.bool()),
+          tokensIn: t.int({ minimum: 0 }), tokensOut: t.int({ minimum: 0 }), costMicros: t.int({ minimum: 0 }),
+          tests: t.opt(t.obj({ state: t.enm('running', 'passing', 'failing'), passed: t.opt(t.int({ minimum: 0 })), failed: t.opt(t.int({ minimum: 0 })) })),
+        })),
+        totals: t.obj({ members: t.int(), working: t.int(), done: t.int(), needsYou: t.int(), failed: t.int(), stopped: t.int(), tokensIn: t.int(), tokensOut: t.int(), costMicros: t.int(), filesChanged: t.int(), added: t.int(), deleted: t.int(), elapsedMs: t.int() }),
+      }, on: ['thread', '/threadId'], tool: 'chats', label: 'check',
+    }),
+    write('engine.helpers.change_model', 'Change the model of one helper of a chat: it stops, then starts again on the account and model the person picked, doing its brief from the start', {
+      in: { ...threadT, helperId: id.thread, account: t.opt(t.str({ description: 'An account from models_for_helpers: its ref, or its label' })), model: t.opt(t.str()) },
+      out: { restarted: t.bool(), model: t.str(), account: t.str(), fellBackFrom: t.opt(t.str()), spentMicros: t.int({ minimum: 0 }) }, on: ['thread', '/threadId'], level: 'use', tool: 'chats',
+      errors: ['validation.not_found', 'validation.precondition_failed', 'validation.bad_input', 'permission.no_grant', 'provider.unavailable'],
+    }),
+    read('engine.helpers.status', 'The helpers of a chat, live: each one working, done, needing a person or failed, the step it is on, one line of what it found, how long it took and what it cost', {
+      in: { ...threadT }, out: { helpers: t.arr(t.obj({
+        threadId: id.thread, title: t.str(), agentId: id.agent, provider: t.opt(t.str()), accountLabel: t.opt(t.str()), model: t.opt(t.str()), why: t.opt(t.str()), fellBackFrom: t.opt(t.str()), state: t.enm('working', 'done', 'needs_you', 'failed', 'stopped'), holdTaskId: t.opt(id.task), step: t.opt(t.str()), found: t.opt(t.str()), startedAt: t.ts(), endedAt: t.opt(t.ts()),
+        elapsedMs: t.int({ minimum: 0 }), tokensIn: t.int({ minimum: 0 }), tokensOut: t.int({ minimum: 0 }), costMicros: t.int({ minimum: 0 }),
+      })) }, on: ['thread', '/threadId'], tool: 'chats', label: 'check',
+    }),
+    write('engine.helpers.stop_all', 'Stop every helper still working under a chat; what they did so far is kept', {
+      in: { ...threadT }, out: { stopped: t.int({ minimum: 0 }) }, on: ['thread', '/threadId'], level: 'use', idem: 'natural', tool: 'chats', emits: ['turn.cancelled'],
     }),
     read('engine.health', 'Engine health: queue age, lease holders, provider reachability', {
       out: { state: t.enm('healthy', 'degraded', 'down'), detail: t.opt(t.str()), latencyMs: t.opt(t.int()), oldestQueuedMs: t.int() },

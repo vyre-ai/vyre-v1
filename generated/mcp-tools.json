@@ -10394,6 +10394,133 @@
     },
     {
       "blocks": [],
+      "cap": "chat.helper.note_seen",
+      "deferred": false,
+      "description": "Mark the notes waiting for a helper as read",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "threadId"
+        ],
+        "type": "object"
+      },
+      "name": "chat_helper_note_seen",
+      "planMode": "blocked",
+      "toolset": "chats",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "chat.helper.notes",
+      "deferred": false,
+      "description": "The notes in a helper chat with who sent each: the person, the agent that started it, or the helper",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "threadId"
+        ],
+        "type": "object"
+      },
+      "name": "chat_helper_notes",
+      "planMode": "allowed",
+      "toolset": "chats",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "chat.helper.restart",
+      "deferred": false,
+      "description": "Start a helper again on another model: the person it works for picks an account and a model, and it does its brief again from the start",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "account": {
+            "description": "An account from models_for_helpers: its ref, or its label",
+            "type": "string"
+          },
+          "model": {
+            "type": "string"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "threadId"
+        ],
+        "type": "object"
+      },
+      "name": "chat_helper_restart",
+      "planMode": "blocked",
+      "toolset": "chats",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "chat.helper.steer",
+      "deferred": false,
+      "description": "Ask a helper that is working something, in its own chat: the person it works for only, while it runs",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "body": {
+            "maxLength": 20000,
+            "type": "string"
+          },
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "threadId",
+          "body",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "name": "chat_helper_steer",
+      "planMode": "blocked",
+      "toolset": "chats",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "chat.helpers.list",
       "deferred": false,
       "description": "Helpers running under a chat, with status",
@@ -10748,6 +10875,10 @@
       "effects": "write",
       "inputSchema": {
         "properties": {
+          "alsoToChat": {
+            "description": "From a thread: also put these words in the chat the thread hangs in, marked as coming from the thread",
+            "type": "boolean"
+          },
           "attachments": {
             "items": {
               "examples": [
@@ -17515,6 +17646,32 @@
     },
     {
       "blocks": [],
+      "cap": "engine.crew.status",
+      "deferred": false,
+      "description": "Everything that works for a chat, in one read for the Island, the header chip and the Crew pane: each helper and teammate with its state, the step it is on, model, account, branch, files changed, tokens and cost, and the totals for the crew. Only what is known; nothing is estimated",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "threadId"
+        ],
+        "type": "object"
+      },
+      "name": "engine_crew_status",
+      "planMode": "allowed",
+      "toolset": "chats",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "engine.defaults.get",
       "deferred": false,
       "description": "The caller default model, provider, effort and fallback order in this Space",
@@ -17614,6 +17771,99 @@
         "type": "object"
       },
       "name": "engine_drop_queued",
+      "planMode": "blocked",
+      "toolset": "chats",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "engine.helpers.change_model",
+      "deferred": false,
+      "description": "Change the model of one helper of a chat: it stops, then starts again on the account and model the person picked, doing its brief from the start",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "account": {
+            "description": "An account from models_for_helpers: its ref, or its label",
+            "type": "string"
+          },
+          "helperId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          },
+          "model": {
+            "type": "string"
+          },
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "threadId",
+          "helperId"
+        ],
+        "type": "object"
+      },
+      "name": "engine_helpers_change_model",
+      "planMode": "blocked",
+      "toolset": "chats",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "engine.helpers.status",
+      "deferred": false,
+      "description": "The helpers of a chat, live: each one working, done, needing a person or failed, the step it is on, one line of what it found, how long it took and what it cost",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "threadId"
+        ],
+        "type": "object"
+      },
+      "name": "engine_helpers_status",
+      "planMode": "allowed",
+      "toolset": "chats",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "engine.helpers.stop_all",
+      "deferred": false,
+      "description": "Stop every helper still working under a chat; what they did so far is kept",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "threadId"
+        ],
+        "type": "object"
+      },
+      "name": "engine_helpers_stop_all",
       "planMode": "blocked",
       "toolset": "chats",
       "v": 1
@@ -29596,6 +29846,68 @@
     },
     {
       "blocks": [],
+      "cap": "chat.helper.note",
+      "deferred": true,
+      "description": "Note between a helper and the agent that started it: a follow-up down, progress, a result or a question up. Set needsPerson only when no one but the person can answer",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "body": {
+            "maxLength": 20000,
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "followup",
+              "progress",
+              "question",
+              "result"
+            ],
+            "type": "string"
+          },
+          "needsPerson": {
+            "type": "boolean"
+          },
+          "options": {
+            "items": {
+              "properties": {
+                "key": {
+                  "type": "string"
+                },
+                "label": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "key",
+                "label"
+              ],
+              "type": "object"
+            },
+            "maxItems": 20,
+            "type": "array"
+          },
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "threadId",
+          "body"
+        ],
+        "type": "object"
+      },
+      "name": "helper_note",
+      "planMode": "blocked",
+      "toolset": "chats",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "home.activity",
       "deferred": false,
       "description": "See all: the full activity for the digest period on records I follow, my agents, and my routines",
@@ -39163,6 +39475,36 @@
       "name": "models_catalog",
       "planMode": "allowed",
       "toolset": "meta",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "engine.helper_models",
+      "deferred": false,
+      "description": "The catalogue before you start helpers: every AI account the person may use with its provider, label and models (tools, vision, context, a cost tier cheap, standard or strong, whether it is available now), and where a helper goes by default",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          },
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "name": "models_for_helpers",
+      "planMode": "allowed",
+      "toolset": "chats",
       "v": 1
     },
     {
@@ -56159,6 +56501,10 @@
       "effects": "write",
       "inputSchema": {
         "properties": {
+          "account": {
+            "description": "An account from models_for_helpers: its ref, or its label",
+            "type": "string"
+          },
           "agentId": {
             "examples": [
               "agt_a1b2c3"
@@ -56202,6 +56548,13 @@
             "type": "string"
           },
           "title": {
+            "type": "string"
+          },
+          "why": {
+            "description": "Why this model: \"cheap reader\", \"strong for reasoning\" or \"you asked\"",
+            "examples": [
+              "cheap reader"
+            ],
             "type": "string"
           }
         },

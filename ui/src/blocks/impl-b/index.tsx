@@ -4,7 +4,7 @@
 // is reachable by keyboard and paints the quiet hover; colours are skin tokens, so a skin switch repaints with no re-render.
 // secret_input is the one card that holds a secret: the typed value lives in that card's state only, goes to vault.item.put when saved and is cleared after.
 
-import { createElement, useCallback, useMemo, useState } from "react";
+import { createElement, useCallback, useEffect, useMemo, useState } from "react";
 import type { ReactElement, ReactNode } from "react";
 import { Platform, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { talkProvider } from "../../../../lib/talk.ts";
@@ -29,6 +29,7 @@ import {
   diffKindWord,
   fieldLabel,
   helperStatusWord,
+  helperTag,
   helperTone,
   helperTrail,
   levelWord,
@@ -484,6 +485,9 @@ export function ModelSwitchBlock({ block, host }: BlockViewPropsB): ReactElement
 export function HelperBlock({ block, host }: BlockViewPropsB): ReactElement {
   const d = helperData(block.data);
   const [stopped, setStopped] = useState(false);
+  const [now, setNow] = useState(() => Date.now());
+  const live = d.status === "running" && d.startedAt !== null;
+  useEffect(() => { if (!live) return undefined; const t = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(t); }, [live]);
   const status = stopped && d.status === "running" ? "stopped" : d.status;
   const run = useCallback(
     (key: string) => {
@@ -499,7 +503,8 @@ export function HelperBlock({ block, host }: BlockViewPropsB): ReactElement {
   const meta = [who ?? "", d.model].filter((x) => x !== "").join(" · ");
   return (
     <Card type="helper" block={block} testID={`blk-helper-${block.id}`} menu={menu}>
-      <Head testID={`blk-helper-${block.id}`} icon="helper" title={d.title} tag={helperStatusWord(status)} onPress={open} />
+      <Head testID={`blk-helper-${block.id}`} icon="helper" title={d.title} tag={helperTag(status, d.startedAt, now)} onPress={open} />
+      {d.found !== "" ? <Text numberOfLines={2} testID={`blk-helper-${block.id}-found`} style={styles.sub}>{d.found}</Text> : null}
       {trail !== "" ? <Text numberOfLines={1} testID={`blk-helper-${block.id}-trail`} style={styles.sub}>{trail}</Text> : null}
       <View style={styles.acts}>
         <Text style={[styles.sub, styles.grow]}>{meta}</Text>

@@ -4,7 +4,7 @@ Lane L2. Kind module. Version 0.1.0.
 
 Requires: nothing.
 
-## Capabilities (87)
+## Capabilities (92)
 
 - [engine.account.resolve](../capabilities/engine.account.resolve.md): Resolve the account that pays for a turn: a pin (the chat's account, the agent's key, the step's key), the person's own, the Space AI accounts whose uses cover the turn (cheapest that fits, not capped), the backups, else an Unblock
 - [engine.accounts.list](../capabilities/engine.accounts.list.md): Accounts the caller can run on: API keys by handle and subscription sign-ins (Mine), with status. With a place (chat, automation, agent, space) each says whether it can run there and why not
@@ -18,6 +18,7 @@ Requires: nothing.
 - [engine.crew.repo.get](../capabilities/engine.crew.repo.get.md): The project's repository for the crew, or nothing when none is set
 - [engine.crew.repo.set](../capabilities/engine.crew.repo.set.md): Say which folder on this computer holds the project's repository, and the branch teammates start from; the folder must be a git repository
 - [engine.crew.start](../capabilities/engine.crew.start.md): Start a teammate on a brief in any chat. It works on its own branch in its own copy of the repository: the chat's project's, else the chat's own work folder on this computer (made on first use). Nothing to set up first
+- [engine.crew.status](../capabilities/engine.crew.status.md): Everything that works for a chat, in one read for the Island, the header chip and the Crew pane: each helper and teammate with its state, the step it is on, model, account, branch, files changed, tokens and cost, and the totals for the crew. Only what is known; nothing is estimated
 - [engine.crew.stop](../capabilities/engine.crew.stop.md): Stop a teammate: its running turn ends and anything queued for it is dropped; its work stays on its branch
 - [engine.crew.wait](../capabilities/engine.crew.wait.md): Wake me when the checks of a pull request end: the host looks at them, not the model, shows the progress in the Crew tab, and posts one message here that wakes the lead when they finish
 - [engine.crew.workspace](../capabilities/engine.crew.workspace.md): System: the repository copy a teammate thread works in, so the engine can make it before the first turn
@@ -25,6 +26,10 @@ Requires: nothing.
 - [engine.defaults.set](../capabilities/engine.defaults.set.md): Set the caller default model, provider, effort and fallback order (the chat default)
 - [engine.drop_queued](../capabilities/engine.drop_queued.md): Take a message that is waiting behind a running turn out of the queue so it can be edited and sent again; it stays in the chat and the agent will not answer it
 - [engine.health](../capabilities/engine.health.md): Engine health: queue age, lease holders, provider reachability
+- [engine.helper_models](../capabilities/engine.helper_models.md): The catalogue before you start helpers: every AI account the person may use with its provider, label and models (tools, vision, context, a cost tier cheap, standard or strong, whether it is available now), and where a helper goes by default
+- [engine.helpers.change_model](../capabilities/engine.helpers.change_model.md): Change the model of one helper of a chat: it stops, then starts again on the account and model the person picked, doing its brief from the start
+- [engine.helpers.status](../capabilities/engine.helpers.status.md): The helpers of a chat, live: each one working, done, needing a person or failed, the step it is on, one line of what it found, how long it took and what it cost
+- [engine.helpers.stop_all](../capabilities/engine.helpers.stop_all.md): Stop every helper still working under a chat; what they did so far is kept
 - [engine.incident.assign](../capabilities/engine.incident.assign.md): Assign an incident to an owner
 - [engine.incident.get](../capabilities/engine.incident.get.md): Read one AI incident with its notes
 - [engine.incident.note](../capabilities/engine.incident.note.md): Add a note to an incident
