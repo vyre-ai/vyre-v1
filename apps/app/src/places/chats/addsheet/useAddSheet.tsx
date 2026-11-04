@@ -49,6 +49,10 @@ export async function loadAdd(deps: AddSheetDeps, open: AddOpen, copy?: (text: s
   let hereRows: { kind: "person" | "agent" | "outside"; id: string }[] = [];
   let agentRows: ThreadAgentRow[] = [];
   let projectId: string | undefined;
+  // the files folder and the records scope the newcomer really gets: read, never taken from the chat's name
+  let folderId: string | undefined;
+  let recordsOf: string | undefined;
+  let linkedCount = 0;
   const agentsOut = tryCall<Out<"agents.list">>(deps, "agents.list", {});
   if ("threadId" in open) {
     const got = await tryCall<Out<"threads.get">>(deps, "threads.get", { threadId: open.threadId });
@@ -56,10 +60,14 @@ export async function loadAdd(deps: AddSheetDeps, open: AddOpen, copy?: (text: s
     const t: ThreadRow = got.thread;
     threadId = t.threadId;
     agentRows = t.agents;
+    folderId = t.folderId;
+    recordsOf = t.recordId;
     if (t.kind === "channel") {
       const channelId = t.channelId ?? t.threadId;
       const ch = await tryCall<Out<"channels.get">>(deps, "channels.get", { channelId });
       ctx = { kind: "channel", channelId, mainThreadId: ch?.channel.mainThreadId ?? t.threadId };
+      folderId = ch?.channel.folderId ?? folderId;
+      recordsOf = ch?.channel.recordId ?? recordsOf;
       kind = "channel";
       name = titleOfTarget("channel", ch?.channel.name ?? open.name ?? t.title ?? "this channel");
       resource = { type: "channel", id: channelId };
@@ -77,6 +85,10 @@ export async function loadAdd(deps: AddSheetDeps, open: AddOpen, copy?: (text: s
     const ov = await tryCall<Out<"projects.overview">>(deps, "projects.overview", { projectId });
     const mem = await tryCall<Out<"projects.members.list">>(deps, "projects.members.list", { projectId });
     name = open.name ?? ov?.project.title ?? "this project";
+    folderId = ov?.project.folderId;
+    // the project's records: the ones linked to it; none linked, none named
+    const links = await tryCall<Out<"projects.links.list">>(deps, "projects.links.list", { projectId });
+    linkedCount = Math.max((links?.links ?? []).filter((l) => l.kind === "record").length, (ov?.linked ?? []).length);
     ctx = { kind: "project", projectId };
     resource = { type: "project", id: projectId };
     hereRows = (mem?.members ?? []).filter((m) => m.kind !== "group").map((m) => ({ kind: m.kind === "agent" ? "agent" : "person", id: m.principal }));
@@ -108,7 +120,15 @@ export async function loadAdd(deps: AddSheetDeps, open: AddOpen, copy?: (text: s
   const answers = checks.map((c) => c?.decision.effect === "allow");
   const known = checks.some((c) => c !== null);
   const maxLevel = known ? maxLevelOf({ manage: answers[0] === true, edit: answers[1] === true, use: answers[2] === true }) : undefined;
-  const target: AddTarget = { kind, name, filesFolder: name, recordsFolder: name };
+  const filesName = folderId === undefined ? undefined : (await tryCall<Out<"files.folder.get">>(deps, "files.folder.get", { folderId }))?.folder.name;
+  let recordsName: string | undefined;
+  if (recordsOf !== undefined) {
+    const hit = (await tryCall<Out<"search.resolve">>(deps, "search.resolve", { kind: "record", itemId: recordsOf }))?.hit;
+    recordsName = hit?.title && hit.title.trim() !== "" ? hit.title.trim() : undefined;
+  }
+  const target: AddTarget = kind === "project"
+    ? { kind, name, project: { name, hasFiles: Boolean(filesName), linkedRecords: linkedCount } }
+    : { kind, name, ...(filesName ? { filesFolder: filesName } : {}), ...(recordsName ? { recordsFolder: recordsName } : {}) };
   const info: LinkInfo | undefined = link
     ? { command: link.claudeCode, ...(connected && connected.agents.length > 0 ? { connected: (connected.agents[0] as { clientName: string }).clientName } : {}), onCopy: () => { (copy ?? ((t: string) => { void (globalThis as { navigator?: { clipboard?: { writeText(t: string): Promise<void> } } }).navigator?.clipboard?.writeText(t); }))(link.claudeCode); } }
     : undefined;
@@ -125,7 +145,7 @@ export async function loadPick(deps: AddSheetDeps, name: string, copy?: (text: s
   ]);
   const info: LinkInfo | undefined = link ? { command: link.claudeCode, onCopy: () => { (copy ?? ((t: string) => { void (globalThis as { navigator?: { clipboard?: { writeText(t: string): Promise<void> } } }).navigator?.clipboard?.writeText(t); }))(link.claudeCode); } } : undefined;
   return {
-    ctx: { kind: "chat", threadId: "" }, target: { kind: "chat", name, filesFolder: name, recordsFolder: name }, threadId: null,
+    ctx: { kind: "chat", threadId: "" }, target: { kind: "chat", name }, threadId: null,
     directory: directoryOf({ me: deps.me.id, principals: principals?.principals ?? [], agents: agents?.agents ?? [], connected: connected?.agents ?? [] }), here: [], agentSettings: {}, ...(info ? { link: info } : {}),
   };
 }
@@ -350,7 +370,7 @@ function ChatAgentSettings({ deps, thread, agentId, outside, x, y, save, poke, c
 export async function runAfterStart(deps: AddSheetDeps, threadId: string, picks: readonly AccessPick[]): Promise<{ added: string[]; failed: string[] }> {
   const rest = picks.filter((p) => p.kind === "outside" || p.kind === "new" || p.kind === "guest");
   const people = picks.filter((p) => p.kind === "person").slice(1);
-  const out = await runAdd(deps, { ctx: { kind: "chat", threadId }, target: { kind: "chat", name: "this chat", filesFolder: "", recordsFolder: "" }, threadId, directory: {}, here: [], agentSettings: {} }, [...people, ...rest]);
+  const out = await runAdd(deps, { ctx: { kind: "chat", threadId }, target: { kind: "chat", name: "this chat" }, threadId, directory: {}, here: [], agentSettings: {} }, [...people, ...rest]);
   for (const p of picks.filter((x) => x.kind === "agent" && x.settings !== undefined && (x.settings.how !== "tag" || x.settings.when !== "always" || x.settings.style !== "short"))) {
     try { await deps.call("threads.agent_settings.set", agentSettingsInput(threadId, p.id, p.settings as AgentSettings)); } catch { out.failed.push(p.name); }
   }
