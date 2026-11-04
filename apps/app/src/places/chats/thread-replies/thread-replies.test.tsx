@@ -207,6 +207,11 @@ test("a reply that was also sent to the chat carries the mark in the thread; one
   const chat = await mount(createRoot, <Conversation data={s.data} />);
   await flush();
   assert.ok(find(chat, "from-thread-c3"), "the copy in the chat names its thread");
+  // a person's own copy says so too, and does not make the no-agent hint appear
+  s.replica.put("messages", [msg("c4", "c1", 4, me, "Decision: Tuesday 2:00.", { blocks: [{ type: "from_thread", v: 1, id: "b2", data: { threadId: "t_c2", messageId: "tm3" } }] as never })]);
+  await flush();
+  assert.match(textOf(find(chat, "from-thread-c4")), /Also sent to the chat from a thread/);
+  assert.equal(find(chat, "no-agent-line"), null, "a copy from a thread wakes no agent and is not waiting on one");
 });
 
 test("the thread's composer carries Also post to the chat, and a send from the thread with it ticked asks chat.post to also post to the chat", async () => {

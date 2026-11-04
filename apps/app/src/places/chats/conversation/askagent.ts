@@ -79,6 +79,8 @@ export function unansweredOwn(thread: Thread, rows: readonly Message[], meId: st
   if (thread.kind !== "channel" || thread.agents.length === 0) return null;
   const last = rows[rows.length - 1];
   if (!last || last.author.kind !== "person" || last.author.id !== meId || last.kind !== "text" || last.messageId.startsWith("pending:")) return null;
+  // a copy from a thread ("Also post to the chat") is for reading, and wakes no agent: nobody is waiting on it
+  if (last.blocks.some((b) => b.type === "from_thread")) return null;
   // an agent already answers under it (agents reply in threads): the footer under the message says so, and this line would say the opposite
   if (hasThread(last.messageId)) return null;
   const mentions = mentionsIn(last.body, directory);

@@ -12,7 +12,7 @@ const require = createRequire(R + "/package.json");
 const { chromium } = require("playwright-core");
 const out = process.argv[2] ?? "/root/wt/tmp-l-threadreplies/walk-shots";
 fs.rmSync(out, { recursive: true, force: true }); fs.mkdirSync(out, { recursive: true });
-setTimeout(() => { console.log("WATCHDOG"); process.exit(9); }, 420000).unref();
+setTimeout(() => { console.log("WATCHDOG"); process.exit(9); }, 1000000).unref();
 
 const WHO = ["usr_olivia", "usr_mia"];
 let agentId = "";

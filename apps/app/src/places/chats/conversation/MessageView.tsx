@@ -381,6 +381,10 @@ function Mine({ item, actions, sending, mark, replies }: MessageViewProps & { it
           <TextButton label="Discard" onPress={() => actions.discardSend(m.messageId)} testID={`discard-send-${m.messageId}`} />
         </View>
       ) : null}
+      {m.blocks.filter((b) => b.type === "from_thread").map((b) => {
+        const tid = String((b.data as { threadId?: unknown } | null)?.threadId ?? "");
+        return <Pressable key={b.id} accessibilityRole="link" testID={`from-thread-${m.messageId}`} onPress={() => (tid !== "" ? actions.openMessage?.(tid, "") : undefined)} style={st.fromThreadMine}><Text style={st.edited}>{FROM_THREAD_LINE}</Text></Pressable>;
+      })}
       <Reactions m={m} a={actions} mine />
       {actions.alsoSent?.has(m.messageId) ? <AlsoSentMark messageId={m.messageId} mine /> : null}
       <Replies m={m} replies={replies} actions={actions} mine />
@@ -481,7 +485,7 @@ function Theirs({ item, actions, stream, openWork, mark, meId, replies }: Messag
         if (isChromeStep(b.type)) return <ChromeStepCard key={b.id} id={b.id} data={b.data} agentId={item.who.id} agentName={item.who.name} actions={actions.chrome} />;
         if (b.type === "from_thread") {
           const tid = String((b.data as { threadId?: unknown } | null)?.threadId ?? "");
-          return <Pressable key={b.id} accessibilityRole="link" testID={`from-thread-${m.messageId}`} onPress={() => (tid !== "" ? actions.openMessage?.(tid, "") : undefined)}><Text style={st.edited}>{FROM_THREAD_LINE}</Text></Pressable>;
+          return <Pressable key={b.id} accessibilityRole="link" testID={`from-thread-${m.messageId}`} onPress={() => (tid !== "" ? actions.openMessage?.(tid, "") : undefined)}><Text style={st.edited}>{typeof (b.data as { messageId?: unknown } | null)?.messageId === "string" && (b.data as { messageId: string }).messageId !== "" ? FROM_THREAD_LINE : "Open the thread"}</Text></Pressable>;
         }
         if (b.type === "crew_strip") {
           const blocks = ((b.data as { blocks?: Array<{ data?: unknown; state?: string }> } | null)?.blocks ?? []);
@@ -685,6 +689,7 @@ function ErrorRowView({ block, actions }: { block: Message["blocks"][number]; ac
 }
 
 export const st = StyleSheet.create({
+  fromThreadMine: { alignSelf: "flex-end", marginTop: 4 },
   day: { alignSelf: "center", fontSize: 12, color: "var(--ink-3)" as string, marginTop: 18, marginBottom: 6 },
   eventCard: { flexShrink: 1, minWidth: 0 },
   eventCentre: { justifyContent: "center" },
