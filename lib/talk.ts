@@ -98,6 +98,8 @@ const base64 = (pcm: ArrayBuffer): string => {
   for (let i = 0; i < b.length; i += 0x8000) s += String.fromCharCode(...b.subarray(i, i + 0x8000));
   return btoa(s);
 };
+/** The sentence sent with the first chunk. Measured live: this exact form got "Vyre voice" right every time; the bare list "Vyre." did not. */
+export const contextLine = (terms: readonly string[]): string => `Words that may come up: ${terms.join(", ")}.`;
 const eleven = (audio: string, commit: boolean, context?: string): string => JSON.stringify({ message_type: "input_audio_chunk", audio_base_64: audio, commit, sample_rate: TALK_SAMPLE_RATE, ...(context ? { previous_text: context } : {}) });
 
 // DECISION: ElevenLabs Scribe v2 Realtime. The host swaps the key for a single-use token (valid for one socket, 15 minutes to start it); the page opens the socket with the token in the address,
@@ -131,7 +133,7 @@ const ELEVENLABS: TalkProvider = {
     // measured live (4 Nov): the JSON form moved "Vyre voice" closer, and the context line on the first chunk got it right; a repeated or comma form did nothing
     if (terms.length > 0) q.set("keyterms", JSON.stringify(terms));
     if (language !== "multi") q.set("language_code", language);
-    return { url: `wss://api.elevenlabs.io/v1/speech-to-text/realtime?${q.toString()}`, protocols: [], ...(terms.length > 0 ? { context: `${terms.join(". ")}.` } : {}) };
+    return { url: `wss://api.elevenlabs.io/v1/speech-to-text/realtime?${q.toString()}`, protocols: [], ...(terms.length > 0 ? { context: contextLine(terms) } : {}) };
   },
   frame: (pcm, o) => eleven(base64(pcm), false, o?.first === true ? o.context : undefined),
   closing: eleven("", true),

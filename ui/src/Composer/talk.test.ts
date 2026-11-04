@@ -218,7 +218,7 @@ test("the web mic: no API is its own error, tracks stop, and a refused mic close
 });
 
 test("a provider that sends a context line gets it on the first chunk only, including a chunk held while the socket opened", async () => {
-  const eleven: TalkSession = { provider: "elevenlabs", url: "wss://api.elevenlabs.io/v1/speech-to-text/realtime?model_id=m", protocols: [], context: "Vyre. Maya Chen.", source: "space", expiresIn: 900 };
+  const eleven: TalkSession = { provider: "elevenlabs", url: "wss://api.elevenlabs.io/v1/speech-to-text/realtime?model_id=m", protocols: [], context: "Words that may come up: Vyre, Maya Chen.", source: "space", expiresIn: 900 };
   const t = rig({ session: async () => eleven });
   await tick();
   const s = t.sockets[0]!;
@@ -228,7 +228,7 @@ test("a provider that sends a context line gets it on the first chunk only, incl
   t.speak(new Uint8Array([3]).buffer);
   const sent = s.sent.map((x) => JSON.parse(x as string) as { previous_text?: string });
   assert.equal(sent.length, 3);
-  assert.deepEqual(sent.map((x) => x.previous_text), ["Vyre. Maya Chen.", undefined, undefined]);
+  assert.deepEqual(sent.map((x) => x.previous_text), ["Words that may come up: Vyre, Maya Chen.", undefined, undefined]);
   const again = rig({ session: async () => SESSION });
   await tick();
   again.sockets[0]!.open();
