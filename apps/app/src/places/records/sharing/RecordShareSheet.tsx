@@ -1,20 +1,24 @@
-// The Share sheet for a record type or a record: the Files sheet (ui/ShareSheet) with the Records line on top, two switches under each person and the export setting under More.
+// The Share sheet for a record type or a record: the one Access sheet (ui/AccessSheet) with the Records line on top, two switches under each person and the export setting under More.
 // It reads the shares live, so a change shows at once and a change someone else makes shows too; every choice is one capability call.
 import { useMemo, useState, useSyncExternalStore } from "react";
 import type { ReactElement } from "react";
 import { Platform, Pressable, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import type { ViewStyle } from "react-native";
-import { ShareSheet } from "../../../../../../ui/src/ShareSheet/index.tsx";
-import type { Audience, Exporters, RowFlag, ShareDirectory, ShareInput, ShareRow, UnshareInput } from "../../../../../../ui/src/ShareSheet/index.tsx";
+import { AccessSheet } from "../../../../../../ui/src/AccessSheet/index.tsx";
+import type { Audience, Exporters, RowFlag, ShareInput, ShareRow, UnshareInput } from "../../../../../../ui/src/AccessSheet/index.tsx";
+import { copyItemLink, sheetDirectory, withNotify } from "../../../share/rows.ts";
 import { States } from "../../../../../../ui/src/States/index.tsx";
 import { useRecordsData } from "../sidebar/data.tsx";
 import type { ShareTarget } from "../sidebar/data.tsx";
 import { RECORD_LEVELS, audienceCall, exportersCall, outsideCall, flagCall, sheetModel, shareCall, subtitleOf } from "./model.ts";
 import type { SharesOut } from "./model.ts";
 
+/** The people, groups and agents a Space offers (id and name; a line under the name is optional). */
+export interface ShareDirectory { people?: readonly { id: string; name: string }[]; groups?: readonly { id: string; name: string }[]; roles?: readonly { id: string; name: string }[]; agents?: readonly { id: string; name: string }[] }
+
 const FIXED = (Platform.OS === "web" ? "fixed" : "absolute") as ViewStyle["position"];
 
-export function RecordShareSheet({ target, directory, onClose }: { target: ShareTarget; directory: ShareDirectory; onClose(): void }): ReactElement {
+export function RecordShareSheet({ target, directory, spaceName, meId, onClose }: { target: ShareTarget; directory: ShareDirectory; spaceName?: string; meId?: string; onClose(): void }): ReactElement {
   const data = useRecordsData();
   const width = useWindowDimensions().width;
   const phone = width > 0 && width < 720;
@@ -49,11 +53,12 @@ export function RecordShareSheet({ target, directory, onClose }: { target: Share
   };
   return shell(
     <View style={s.stack}>
-      <ShareSheet
-        resourceType={target.type} resourceId={target.id} resourceName={target.name} target="item" ownerName={ownerName} {...(m.owner ? { ownerId: m.owner.id } : {})}
-        levels={RECORD_LEVELS} shares={m.rows} allowExternal={false} density={phone ? "compact" : "regular"} directory={directory}
-        {...(target.typeName ? { folderName: target.typeName } : {})} records={records}
-        onShare={(i: ShareInput) => run(data.call("access.share", shareCall(res, i.subject, i.level)))}
+      <AccessSheet
+        mode="share" itemType={target.type === "record_type" ? "rtype" : "record"} resourceType={target.type} resourceId={target.id} itemName={target.name} target="item" {...(spaceName ? { spaceName } : {})} ownerName={ownerName} {...(m.owner ? { ownerId: m.owner.id } : {})}
+        levels={RECORD_LEVELS} shares={m.rows} allowExternal={false} density={phone ? "compact" : "regular"} directory={sheetDirectory({ people: directory.people ?? [], groups: directory.groups ?? [], roles: directory.roles ?? [], agents: directory.agents ?? [] })}
+        {...(target.typeName ? { folderName: target.typeName } : {})} {...(out.mine ? { maxLevel: out.mine } : {})} records={records}
+        {...(meId ? { meId } : {})} notifyPeople onMakeOwner={(s) => run(data.call("access.make_owner", { resource: res, personId: s.id, idempotencyKey: `owner:${target.id}:${s.id}` }))} onCopyLink={() => copyItemLink(target.type, target.id)}
+        onShare={(i: ShareInput, opts) => run(data.call("access.share", withNotify(shareCall(res, i.subject, i.level), opts)))}
         onUnshare={(i: UnshareInput) => run(data.call("access.unshare", { resource: i.resource, subject: i.subject }))}
         onClose={onClose}
       />

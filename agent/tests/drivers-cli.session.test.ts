@@ -24,7 +24,7 @@ test("warm reuse: the process starts when the session opens, answers turn after 
   const one = await collect(session.send(turnOf("text")));
   assert.deepEqual(kinds(one), ["text", "text", "usage", "done"]);
   assert.deepEqual(texts(one), ["Hello", " from Claude."]);
-  assert.deepEqual(one.find((e) => e.type === "usage"), { type: "usage", inputTokens: 112, outputTokens: 6, cacheReadTokens: 100, cacheWriteTokens: 0, costUsd: 0.0012 });
+  assert.deepEqual(one.find((e) => e.type === "usage"), { type: "usage", inputTokens: 112, outputTokens: 6, cacheReadTokens: 100, cacheWriteTokens: 0, costUsd: 0.0012, model: "claude-sonnet-5-5", contextTokens: 112 });
 
   const two = await collect(session.send(turnOf("text")));
   assert.equal(two.at(-1)?.type, "done");
@@ -121,6 +121,18 @@ test("a message from someone else injected into a turn names its author", async 
   await session.close();
 });
 
+test("a model the engine will not run is engine.model_unavailable, its own line is not shown as an answer, and its command-line advice never reaches the chat", async () => {
+  const spy = newSpy();
+  const session = await claude(spy).open(specOf());
+  const bad = await collect(session.send(turnOf("nomodel")));
+  assert.deepEqual(bad.map((e) => e.type), ["error"], "no text event: the line is an error, not an answer");
+  const e = bad[0] as { code: string; message: string };
+  assert.equal(e.code, "engine.model_unavailable");
+  assert.doesNotMatch(e.message, /--model|Run /);
+  assert.match(e.message, /selected model \(beam-free\)/);
+  await session.close();
+});
+
 test("a sign-in that is gone is provider.auth_failed (the backup key's cue) and the session stays usable", async () => {
   const spy = newSpy();
   const session = await claude(spy).open(specOf());
@@ -136,7 +148,7 @@ test("a sign-in that is gone is provider.auth_failed (the backup key's cue) and 
 test("a turn limit is engine.step_limit, with the tokens it used", async () => {
   const session = await claude().open(specOf());
   const events = await collect(session.send(turnOf("maxturns")));
-  assert.deepEqual(events, [{ type: "usage", inputTokens: 900, outputTokens: 120 }, { type: "error", code: "engine.step_limit", message: "error_max_turns" }]);
+  assert.deepEqual(events, [{ type: "usage", inputTokens: 900, outputTokens: 120, model: "claude-sonnet-5-5" }, { type: "error", code: "engine.step_limit", message: "error_max_turns" }]);
   await session.close();
 });
 

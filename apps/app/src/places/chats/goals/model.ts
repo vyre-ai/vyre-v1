@@ -19,7 +19,7 @@ export interface Goal extends GoalLine {
 }
 export interface TaskLine { taskId: string; key?: string; title: string; state: string; assigned?: Who; blocked: boolean }
 export interface WaitLine { taskId: string; kind: string; title: string; assigned?: Who; since: number }
-export interface ActivityLine { at: number; kind: string; text: string; by?: string; ref?: string }
+export interface ActivityLine { at: number; kind: string; text: string; tpl?: string; by?: string; ref?: string }
 export interface Reading { at: number; value?: number; ok: boolean; error?: string }
 /** One step of a drafted plan: what it is, why it should move the number, and who does it. */
 export interface PlanStep { key: string; title: string; why: string; impact?: string; brief?: string; doneMeans?: string[]; assigned: Who; reviewer?: Who; approver?: Who; dependsOn?: string[]; due?: number }
@@ -78,7 +78,7 @@ export function dueWords(at: number, offsetMin = 0): string {
 }
 /** The finish line in words, ending with the real deadline: a date the words carry ("by Friday") is replaced, so the line and the chip never disagree. */
 export function lineWithDue(line: string, deadline: number, offsetMin = 0): string {
-  const bare = line.replace(/\s+by\s+[^,.]*(,\s*\d{1,2}:\d{2})?\.?\s*$/i, "").replace(/\.\s*$/, "");
+  const bare = line.replace(/\s+by\s+[^,.]*(,?\s*\d{1,2}:\d{2}(\s*[ap]m)?(\s+[A-Z]{2,5}\b)?)?\.?\s*$/i, "").replace(/\.\s*$/, "");
   return `${bare} by ${dueWords(deadline, offsetMin)}`;
 }
 /** "4 days left", "18 hours left", "Due now". */

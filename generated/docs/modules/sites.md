@@ -4,13 +4,15 @@ Lane L8. Kind module. Version 0.1.0.
 
 Requires: nothing.
 
-## Capabilities (37)
+## Capabilities (39)
 
 - [sites.addon_add](../capabilities/sites.addon_add.md): Give a deployed site its own Postgres or Redis on this server, with its address set as DATABASE_URL or REDIS_URL. Its data stays on the server through redeploys
 - [sites.addon_remove](../capabilities/sites.addon_remove.md): Remove a site's Postgres or Redis and its data
 - [sites.artifact_open](../capabilities/sites.artifact_open.md): A short-lived address that opens an artifact for the person asking, in a tab or the browser
-- [sites.artifact_publish](../capabilities/sites.artifact_publish.md): THE way to show something you made: publish it privately to a link that opens in a tab. Give html, a file or folder in Files, a path on this machine, or a running port. Same title or artifactId updates the same link
+- [sites.artifact_publish](../capabilities/sites.artifact_publish.md): THE way to show something you made: publish it privately; the person gets a card in the chat to open it. The result says whether it was opened for them (opened). Give html, a file or folder in Files, a path on this machine, or a running port. Same title or artifactId updates the same link
+- [sites.artifact_thumb_set](../capabilities/sites.artifact_thumb_set.md): Keep a small picture of an artifact, taken when someone opened it (the Vyre for Chrome extension sends it). It is set only when there is none yet or the artifact changed since the last one
 - [sites.build](../capabilities/sites.build.md): Build the site from its repo (the site agent runs in the repo); test and verify
+- [sites.chat_viewing](../capabilities/sites.chat_viewing.md): The app says a chat is open for the person right now (every half minute while it stays open). An artifact an agent publishes in a turn that person asked opens in their app only while this holds
 - [sites.create](../capabilities/sites.create.md): Create a site: a name, and where it runs (a port on a computer, or a folder in Files), or its source (a GitHub repo, an uploaded folder or zip) for Vyre to build and run with sites_deploy. Nothing is served until it is published or deployed
 - [sites.db_import](../capabilities/sites.db_import.md): Copy an existing Postgres into the site's own: a pg_dump file in Files, or a Vault key holding the old connection string (for example from Railway)
 - [sites.delete](../capabilities/sites.delete.md): Delete a site and stop its container

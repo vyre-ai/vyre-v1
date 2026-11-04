@@ -123,6 +123,15 @@ export function editedWords(n: Pick<Note, "clip" | "createdAt" | "updatedAt">, n
   return `${verb} ${whenWords(n.updatedAt, now, offsetMin)}`;
 }
 
+/** Where a note was saved from, for the line on the opened note: "From: Weinberger Law prep, 9:12". Null when it came from nowhere. A chat its owner can no longer read keeps only the time. */
+export function fromLine(n: Pick<Note, "from">, now: number, offsetMin = 0): { text: string; open: { threadId: string; messageId: string } | null } | null {
+  const f = n.from;
+  if (!f) return null;
+  const when = whenWords(f.at, now, offsetMin);
+  if (!f.readable || !f.threadId || !f.messageId) return { text: `From a chat you can no longer read, ${when}`, open: null };
+  return { text: `From: ${f.title || "a chat"}, ${when}`, open: { threadId: f.threadId, messageId: f.messageId } };
+}
+
 /** A host as a link card names it when the page gave no site name. */
 export function hostOf(url: string): string {
   return url.replace(/^https?:\/\//, "").split(/[/?#]/)[0]!.replace(/^www\./, "");
@@ -201,4 +210,26 @@ export function fillFromNote(t: RecordType, n: Pick<Note, "title" | "body" | "li
   const first = (n.body.split("\n")[0] ?? "").trim();
   if (t.summaryField && first) out[t.summaryField] = first;
   return out;
+}
+
+/* ---------- the Access sheet over a note ---------- */
+
+export type NoteSharePatch = { people?: { personId: string; role: "edit" | "view" | "remove" }[]; space?: "off" | "view" | "edit"; notify?: { message?: string } };
+const EVERYONE = "grp_everyone";
+
+/** A note's shares as the Access sheet's rows: each person at their role, and the Space as Everyone when it is open. */
+export function noteShareRows(n: Pick<Note, "share">, nameOf: (id: string) => string): Array<{ subjectKind: "person" | "group"; subjectId: string; name: string; level: "view" | "edit"; via: "grant"; fromFolderId: null }> {
+  const rows: Array<{ subjectKind: "person" | "group"; subjectId: string; name: string; level: "view" | "edit"; via: "grant"; fromFolderId: null }> = n.share.people.map((p) => ({ subjectKind: "person" as const, subjectId: p.personId, name: nameOf(p.personId), level: p.role, via: "grant" as const, fromFolderId: null }));
+  if (n.share.space !== "off") rows.push({ subjectKind: "group", subjectId: EVERYONE, name: "Everyone", level: n.share.space, via: "grant", fromFolderId: null });
+  return rows;
+}
+
+/** What the sheet's choice means for notes.share. Notes are shared with people or the Space, at View or Edit; anything else is not a note share. */
+export function notePatchOf(input: { subject: { kind: string; id: string }; level?: string }, remove = false, opts?: { notify: boolean; message?: string }): NoteSharePatch | null {
+  const { subject } = input;
+  const role = input.level === "edit" ? "edit" : "view";
+  const notify = opts?.notify && !remove ? { notify: opts.message ? { message: opts.message } : {} } : {};
+  if (subject.kind === "person") return { people: [{ personId: subject.id, role: remove ? "remove" : role }], ...notify };
+  if (subject.kind === "group" && (subject.id === EVERYONE || subject.id === "space")) return { space: remove ? "off" : role };
+  return null;
 }

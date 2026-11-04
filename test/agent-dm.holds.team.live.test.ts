@@ -28,8 +28,13 @@ test("Team: after hours, the hourly limit and a mute hold Mia's agent messages; 
     yield { type: "text", text: `Done ${n}: ${out.state ?? "failed"}` };
   });
   const ownerToken = { v: "" };
+  // The Space's clock runs from noon UTC, whatever time it really is. The test needs the end of the day to be later than the end of the hourly limit (a mute lasts to the end of the day, the limit to an hour
+  // after the third message; the later of the two wins, as it should), and in the last hour of a UTC day it is not: it failed every evening between 23:00 and midnight.
+  const t0 = Date.UTC(2026, 10, 4, 12, 0, 0), real0 = Date.now();
+  const clock = (): number => t0 + (Date.now() - real0);
   const d = await boot(seededDir(), model, {
     vault: undefined,
+    now: clock,
     session: (headers: Record<string, string | undefined>) => {
       const t = String(headers["authorization"] ?? "").replace(/^Bearer /, "");
       const id = t === ownerToken.v ? "usr_olivia" : t;
@@ -41,10 +46,12 @@ test("Team: after hours, the hourly limit and a mute hold Mia's agent messages; 
   const list = async (who: string, threadId: string): Promise<Msg[]> => { await d.hooks?.pump?.(); return ((await api(who, "chat.messages.list", { threadId })).data.messages as Msg[] | undefined) ?? []; };
   try {
     await connect(d);
-    const agentId = (await api("usr_olivia", "agents.create", { name: "Ops", role: "You help the team.", idempotencyKey: "h-agent" })).data.agent.agentId as string;
+    const agentId = (await api("usr_olivia", "agents.create", { name: "Ops", role: "You help the team.", ownerId: "usr_mia", idempotencyKey: "h-agent" })).data.agent.agentId as string;
     const keys = await api("usr_olivia", "vault.folders.create", { idempotencyKey: "h-ai", name: "AI accounts", scope: "shared" });
     const acct = await api("usr_olivia", "providers.add", { idempotencyKey: "h-acct", providerKey: "anthropic", connection: "api_key", apiKey: `${KEY}A`, name: "Team AI", scope: "shared", folderId: keys.data.folder.id });
     assert.equal((await api("usr_olivia", "agents.update", { agentId, patch: { accountPolicy: "key", accountKey: acct.data.provider.handle }, idempotencyKey: "h-upd" })).status, 200);
+    // this test is about an Assistant writing for its person: Ops is Mia's and stands in as her Assistant (a Space agent writes as itself, test/agent-dm.self.live.test.ts)
+    { const { DatabaseSync } = await import("node:sqlite"); const db = new DatabaseSync(d.paths.modules); db.prepare("UPDATE agents_agent SET kind = 'assistant' WHERE id = ?").run(agentId); db.close(); }
     const chat = (await api("usr_mia", "chat.start", { kind: "chat", agentIds: [agentId], idempotencyKey: "h-chat" })).data.thread.threadId as string;
     let k = 0;
     const tell = async (body: string): Promise<void> => {
@@ -56,7 +63,7 @@ test("Team: after hours, the hourly limit and a mute hold Mia's agent messages; 
     const dmWith = async (who: string): Promise<string> => (await api("usr_mia", "chat.start", { kind: "chat", agentIds: [], personId: who, idempotencyKey: `h-open-${who}` })).data.thread.threadId as string;
 
     // after hours: Adam works only in a two-hour window that is not now (UTC), so it waits for his next start
-    const h = new Date().getUTCHours();
+    const h = new Date(clock()).getUTCHours();
     const pad = (x: number): string => String(x % 24).padStart(2, "0");
     assert.equal((await api("usr_adam", "settings.set", { key: "profile.timezone", value: "UTC" })).status, 200);
     assert.equal((await api("usr_adam", "settings.set", { key: "profile.working_hours", value: { days: [0, 1, 2, 3, 4, 5, 6], from: `${pad(h + 3)}:00`, to: `${pad(h + 5)}:00` } })).status, 200);
@@ -67,7 +74,7 @@ test("Team: after hours, the hourly limit and a mute hold Mia's agent messages; 
     assert.equal((await list("usr_adam", await dmWith("usr_adam"))).length, 0, "nothing reached Adam yet");
 
     // away (lane l-team1's devices.presence, from notifications.away): Olivia is away for an hour, so it waits until she is back
-    const back = Date.now() + 3_600_000;
+    const back = clock() + 3_600_000;
     assert.equal((await api("usr_olivia", "notifications.away.set", { until: back, delegate: { kind: "none" } })).status, 200);
     await tell("tell Olivia the Rivera invoice went out");
     assert.equal(outcomes.at(-1)?.state, "scheduled", JSON.stringify(outcomes));
@@ -85,7 +92,7 @@ test("Team: after hours, the hourly limit and a mute hold Mia's agent messages; 
     // Noah mutes Mia's agents for today: Mia is told, and what comes next waits until tomorrow
     const muted = await api("usr_noah", "chat.agent_dm.mute", { personId: "usr_mia" });
     assert.equal(muted.status, 200, JSON.stringify(muted.data));
-    assert.ok(muted.data.until > Date.now());
+    assert.ok(muted.data.until > clock());
     await quiet(/muted agent messages from you for today/);
     assert.notEqual((await api("usr_mia", "chat.agent_dm.mute", { personId: "usr_mia" })).status, 200, "nobody mutes themselves");
     await tell("tell Noah update 5 is in, it is urgent");

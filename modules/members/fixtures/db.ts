@@ -15,6 +15,8 @@ export const NOW = 1_760_000_000_000;
 export const SPACE = "spc_test";
 const TRACE = "0123456789abcdef0123456789abcdef";
 export const MIGRATION = fileURLToPath(new URL("../migrations/0001_members.sql", import.meta.url));
+/** The table a guest invited from a chat is scoped by (lane l-addsheet). */
+export const GUEST_MIGRATION = fileURLToPath(new URL("../migrations/0003_guest_scope.sql", import.meta.url));
 
 type Cell = string | number | null;
 export type Row = Record<string, Cell>;
@@ -173,7 +175,7 @@ export class FakeMembersDb implements RawDb {
   readonly log: string[] = [];
 
   constructor(migrationPath: string = MIGRATION) {
-    this.tables = parseMigration(readFileSync(migrationPath, "utf8"));
+    this.tables = parseMigration(readFileSync(migrationPath, "utf8") + (migrationPath === MIGRATION ? "\n" + readFileSync(GUEST_MIGRATION, "utf8") : ""));
   }
 
   rows(table: string): Row[] { return this.table(table).rows.map((r) => ({ ...r })); }
@@ -352,6 +354,9 @@ export function harness(now = NOW) {
     failing: new Set<string>(),
     factors: new Map<string, "totp"[]>(),
     http: new Map<string, { status: number; body: unknown }>(),
+    /** Vault items by handle: ones the caller may not use, and ones that are not in the Vault */
+    vaultDenied: new Set<string>(),
+    vaultMissing: new Set<string>(),
   };
   const person = (id: string, name: string, roles: string[] = ["rol_member"]): FakePrincipal => {
     const p: FakePrincipal = { id, kind: "person", name, status: "active", roles: [...roles], groups: ["grp_everyone"] };
@@ -376,6 +381,12 @@ export function harness(now = NOW) {
       case "access.roles.unassign": { const p = world.principals.get(i.subject.id) ?? gone(TRACE, "validation.not_found"); p.roles = p.roles.filter((r) => r !== i.roleId); return { roles: p.roles }; }
       case "access.groups.add_member": { const p = world.principals.get(i.member.id) ?? gone(TRACE, "validation.not_found"); if (!p.groups.includes(i.groupId)) p.groups.push(i.groupId); return { group: {} }; }
       case "access.groups.remove_member": { const p = world.principals.get(i.member.id) ?? gone(TRACE, "validation.not_found"); p.groups = p.groups.filter((g) => g !== i.groupId); return { group: {} }; }
+      case "vault.use": {
+        const item = String(i.item).toLowerCase();
+        if (world.vaultMissing.has(item)) throw fail("validation.not_found", TRACE, {});
+        if (world.vaultDenied.has(item)) throw fail("permission.no_grant", TRACE, {});
+        return { handle: i.item, itemId: "vit_members1", fields: ["value"] };
+      }
       case "access.share": case "projects.members.set": case "channels.members.add": return { ok: true };
       case "channels.home_join": return { channelId: "chn_vyre", added: true };
       case "access.join_share": return { grant: { id: "gnt_join" } };

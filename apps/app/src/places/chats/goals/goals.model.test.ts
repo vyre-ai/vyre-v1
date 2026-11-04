@@ -49,13 +49,13 @@ test("the Goals group: what needs you first, then by the next check-in; ended go
   assert.deepEqual(out.map((g) => g.id), ["b", "c", "a", "f", "e"]);
 });
 
-test("the Chats sidebar shows Goals under Tasks and Threads, five then N more, none when there are none", () => {
+test("the Chats sidebar shows Goals under Tasks, five then N more, none when there are none", () => {
   const base = { faces: [], workingAgents: new Set<string>(), groups: [], channels: [], filter: "all" as const, closed: new Set<never>() };
   const none = buildEntries(base);
   assert.equal(none.some((e) => e.key === "h:goals"), false);
   const goals = Array.from({ length: 7 }, (_, i) => line({ id: `g${i}` }));
   const keys = buildEntries({ ...base, goals }).map((e) => e.key);
-  assert.deepEqual(keys.slice(0, 9), ["nav:tasks", "nav:threads", "h:goals", "g:g0", "g:g1", "g:g2", "g:g3", "g:g4", "m:goals"]);
+  assert.deepEqual(keys.slice(0, 8), ["nav:tasks", "h:goals", "g:g0", "g:g1", "g:g2", "g:g3", "g:g4", "m:goals"]);
   assert.equal(buildEntries({ ...base, goals, moreGoals: true }).filter((e) => e.type === "goal").length, 7);
   assert.equal(buildEntries({ ...base, goals, closed: new Set(["goals" as const]) }).filter((e) => e.type === "goal").length, 0, "the group folds");
 });
@@ -94,6 +94,7 @@ test("the finish line's date and the Due chip come from the one deadline; the ch
   assert.equal(dueWords(fri, PKT), "Sat 7 Nov, 18:00");
   assert.equal(lineWithDue("Luma registrations for Lab 8 reach 300 by Friday", fri, PKT), `Luma registrations for Lab 8 reach 300 by ${dueWords(fri, PKT)}`);
   assert.equal(lineWithDue("Luma registrations reach 300 by Mon 10 Nov, 18:00", fri, PKT), `Luma registrations reach 300 by ${dueWords(fri, PKT)}`, "an old date in the words gives way to the real deadline");
+  assert.equal(lineWithDue("Luma registrations reach 300 by Wed 11 Nov 2026, 04:16 PKT", fri, PKT), `Luma registrations reach 300 by ${dueWords(fri, PKT)}`, "a date with a year and a zone name is not left behind");
   assert.equal(lineWithDue("Every onboarding task closed", fri, PKT), `Every onboarding task closed by ${dueWords(fri, PKT)}`);
   assert.deepEqual([niceStep(100), niceStep(120), niceStep(7), niceStep(0)], [100, 200, 10, 1]);
 });

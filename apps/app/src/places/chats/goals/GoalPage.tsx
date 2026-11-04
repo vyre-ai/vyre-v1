@@ -14,6 +14,7 @@ import { Avatar, avatarOf } from "../../../../../../ui/src/Avatar/index.tsx";
 import { Conversation } from "../conversation/Conversation.tsx";
 import type { ConversationData } from "../conversation/data.tsx";
 import type { Changes } from "../conversation/use-follow.ts";
+import { formatActivity } from "../../../../../../lib/words/activity.ts";
 import { useGoal } from "./data.ts";
 import type { Call } from "./data.ts";
 import { Bar, TONE } from "./GoalRow.tsx";
@@ -122,7 +123,7 @@ export function GoalPage({ goalId, call, changes, me, nameOf, clock, conversatio
       <View style={st.main}>{feed}</View>
       {paneOpen && !phone ? (
         <SidePane paneKey="goal-pane" toggle={{ open: true, onPress: () => setPaneOpen(false) }} title="Goal" tabs={[{ key: "activity", title: "Activity" }, { key: "details", title: "Details" }, { key: "files", title: "Files" }]} activeTab={tab} onSelectTab={(k) => setTab(k as PaneTab)} defaultWidth={340}>
-          {tab === "activity" ? <Activity data={data} nameOf={nameOf} now={now} offsetMin={offsetMin} openTask={openTask} /> : tab === "details" ? <GoalSettings g={g} nameOf={nameOf} offsetMin={offsetMin} canEdit={edit} patch={(i, said, back) => void run("goals.update", i, said, back)} pick={setPicker} removeHelper={(id) => saveHelpers(g.helpers.filter((h) => h.id !== id), `${nameOf(id)} is no longer a helper.`)} /> : <Files g={g} call={call} changes={changes} {...(openFolder ? { openFolder } : {})} {...(openFile ? { openFile } : {})} />}
+          {tab === "activity" ? <Activity data={data} me={me} nameOf={nameOf} now={now} offsetMin={offsetMin} openTask={openTask} /> : tab === "details" ? <GoalSettings g={g} nameOf={nameOf} offsetMin={offsetMin} canEdit={edit} patch={(i, said, back) => void run("goals.update", i, said, back)} pick={setPicker} removeHelper={(id) => saveHelpers(g.helpers.filter((h) => h.id !== id), `${nameOf(id)} is no longer a helper.`)} /> : <Files g={g} call={call} changes={changes} {...(openFolder ? { openFolder } : {})} {...(openFile ? { openFile } : {})} />}
         </SidePane>
       ) : null}
       {menu.element}
@@ -416,7 +417,8 @@ function Plan({ data, nameOf, openTask, edit, onDraft, onRemove, onAdd, onRename
   );
 }
 
-function Activity({ data, nameOf, now, offsetMin, openTask }: { data: GoalPageData; nameOf(id: string): string; now: number; offsetMin: number; openTask(id: string): void }): ReactElement {
+export function Activity({ data, me, nameOf, now, offsetMin, openTask }: { data: GoalPageData; me: string; nameOf(id: string): string; now: number; offsetMin: number; openTask(id: string): void }): ReactElement {
+  const viewer = { me, nameOf, offsetMin };
   const days = byDay(data.activity, now, offsetMin);
   if (days.length === 0) return <Text style={[st.small, st.pad]}>Nothing yet.</Text>;
   return (
@@ -425,21 +427,17 @@ function Activity({ data, nameOf, now, offsetMin, openTask }: { data: GoalPageDa
       {days.map((d) => (
         <View key={d.day} style={st.day}>
           <Text style={st.label}>{d.day}</Text>
-          {d.items.map((a) => (
-            <Row key={`${a.at}-${a.kind}-${a.text.slice(0, 24)}`} id={`ga-${a.at}`} title={a.text} note={`${whenWords(a.at, now, offsetMin)}${a.by ? ` · ${credit(a.by, nameOf)}` : ""}`}
-              {...(a.ref?.startsWith("tsk_") ? { onPress: () => openTask(a.ref!) } : {})} />
-          ))}
+          {d.items.map((a) => {
+            const line = formatActivity(a, viewer);
+            return (
+              <Row key={`${a.at}-${a.kind}-${a.text.slice(0, 24)}`} id={`ga-${a.at}`} title={line.text} note={`${whenWords(a.at, now, offsetMin)}${line.credit ? ` · ${line.credit}` : ""}`}
+                {...(a.ref?.startsWith("tsk_") ? { onPress: () => openTask(a.ref!) } : {})} />
+            );
+          })}
         </View>
       ))}
     </ScrollView>
   );
-}
-/** Who did it: a person by name, a person's agent as "<Person> (Agent)", the server as Vyre. */
-function credit(by: string, nameOf: (id: string) => string): string {
-  const [actor, forWho] = by.split(">");
-  if (forWho) return `${nameOf(forWho)} (Agent)`;
-  if (actor?.startsWith("svc_")) return "Vyre";
-  return nameOf(actor ?? by);
 }
 
 function Files({ g, call, changes, openFolder, openFile }: { g: Goal; call: Call; changes: Changes | undefined; openFolder?: (id: string) => void; openFile?: (id: string) => void }): ReactElement {

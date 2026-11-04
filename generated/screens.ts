@@ -321,7 +321,7 @@ export const screens: ScreenIndexEntry[] = [
     "module": "access",
     "place": "shell",
     "slot": "sheet",
-    "builtin": "ui:ShareSheet",
+    "builtin": "ui:AccessSheet",
     "caller": "principal",
     "queries": {
       "shares": {
@@ -1396,7 +1396,9 @@ export const screens: ScreenIndexEntry[] = [
       },
       "accounts": {
         "cap": "engine.accounts.list",
-        "input": {},
+        "input": {
+          "place": "chat"
+        },
         "live": true
       }
     },
@@ -2480,6 +2482,43 @@ export const screens: ScreenIndexEntry[] = [
     }
   },
   {
+    "id": "console.ai-voice",
+    "module": "talk",
+    "place": "console",
+    "slot": "main",
+    "builtin": "ui:ConsoleAiVoice",
+    "caller": "principal",
+    "queries": {
+      "space": {
+        "cap": "talk.space.status",
+        "input": {},
+        "live": true
+      },
+      "me": {
+        "cap": "talk.status",
+        "input": {},
+        "live": true
+      }
+    },
+    "actions": {
+      "configure": {
+        "cap": "talk.space.configure",
+        "input": {}
+      },
+      "check": {
+        "cap": "talk.space.check",
+        "input": {}
+      }
+    },
+    "needs": [
+      "policy.manage"
+    ],
+    "perf": {
+      "firstPaintMs": 50,
+      "completeMs": 100
+    }
+  },
+  {
     "id": "console.backups",
     "module": "console-views",
     "place": "console",
@@ -2781,6 +2820,43 @@ export const screens: ScreenIndexEntry[] = [
     },
     "needs": [
       "policy.manage"
+    ],
+    "perf": {
+      "firstPaintMs": 50,
+      "completeMs": 100
+    }
+  },
+  {
+    "id": "console.machines",
+    "module": "console-views",
+    "place": "console",
+    "slot": "main",
+    "builtin": "ui:ConsoleMachines",
+    "caller": "principal",
+    "queries": {
+      "machines": {
+        "cap": "machines.list",
+        "input": {},
+        "live": true
+      }
+    },
+    "actions": {
+      "set": {
+        "cap": "machines.set",
+        "input": {
+          "machineId": "/state/machineId"
+        }
+      },
+      "fix": {
+        "cap": "machines.fix",
+        "input": {
+          "machineId": "/state/machineId",
+          "fix": "/state/fix"
+        }
+      }
+    },
+    "needs": [
+      "console.access"
     ],
     "perf": {
       "firstPaintMs": 50,
@@ -7556,7 +7632,8 @@ export const screens: ScreenIndexEntry[] = [
         "input": {
           "by": "/state/by",
           "from": "/state/from",
-          "to": "/state/to"
+          "to": "/state/to",
+          "personId": "/state/personId"
         },
         "live": true
       }

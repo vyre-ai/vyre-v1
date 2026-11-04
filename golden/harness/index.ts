@@ -58,6 +58,14 @@ export function checkSequence(expected: string[], observed: Observed[], tracePol
   return problems;
 }
 
+/** A flow's steps take 2 to 8 s alone. A step that waits on something that never comes (a socket, a child, a lock) used to hold the whole run until an outer watchdog killed it with no name: now it fails the one flow, naming it. */
+export const STEPS_CAP_MS = Number(process.env["GOLDEN_FLOW_CAP_MS"] ?? 60_000);
+export function withinCap<T>(p: Promise<T>, ms: number, what: string): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const cap = new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new Error(`${what} did not finish within ${Math.round(ms / 1000)} s`)), ms); timer.unref?.(); });
+  return Promise.race([p, cap]).finally(() => clearTimeout(timer));
+}
+
 /** Runs one flow. Pending when a needed module is a stub; failed when ready but its steps are missing or its events are wrong. */
 export async function evaluate(flow: Flow, modules: ModuleStatus[], loadSteps: LoadSteps): Promise<Result> {
   const base = { n: flow.n, name: flow.name };
@@ -66,7 +74,7 @@ export async function evaluate(flow: Flow, modules: ModuleStatus[], loadSteps: L
   const run = await loadSteps(flow);
   if (!run) return { ...base, status: "fail", blockers: [], reasons: ["no steps file in golden/steps"], line: `FAIL ${flowId(flow)}: no steps file in golden/steps` };
   let reasons: string[];
-  try { reasons = checkSequence(flow.events, await run(), flow.tracePolicy); } catch (e) { reasons = [`steps threw: ${(e as Error).message}`]; }
+  try { reasons = checkSequence(flow.events, await withinCap(run(), STEPS_CAP_MS, `${flowId(flow)} steps`), flow.tracePolicy); } catch (e) { reasons = [`steps threw: ${(e as Error).message}`]; }
   return { ...base, status: reasons.length ? "fail" : "pass", blockers: [], reasons, line: reasons.length ? `FAIL ${flowId(flow)}: ${reasons.join("; ")}` : `ok   ${flowId(flow)}` };
 }
 

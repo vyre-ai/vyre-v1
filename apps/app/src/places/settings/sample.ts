@@ -29,6 +29,7 @@ export const ROWS: readonly Def[] = [
   d("chrome.agents_use_my_browser", "person", "This computer", "Let agents use my Chrome (per Space, only that Space agents, with a visible indicator)", {}),
   d("engine.local_runs", "person", "Models and usage", "Run my private chats on this computer", true),
   d("kit.person_choice", "person", "appearance", "My Kit", null),
+  d("notes.offers", "person", "Notes", "Offer to save useful things from chats as notes", true),
   d("notifications.alert_replies", "person", "Notifications", "Alert me on replies", false),
   d("notifications.email_backstop", "person", "Notifications", "Email me once if an approval waits 4 hours", true),
   d("notifications.hand_needs_you_to", "person", "Notifications", "While you are away, hand Needs you to (a person; none leaves it with you)", null),
@@ -64,7 +65,7 @@ const hrs = { days: [1, 2, 3, 4, 5], from: "09:00", to: "17:30" };
 
 export const northwind: SampleSpace = {
   id: "northwind", name: "Northwind", me: { id: "usr_irfad", name: "Irfad Imtiaz" },
-  names: namesFor("northwind", { ch_sales: "#sales" }),
+  names: namesFor("northwind", { ch_sales: "#sales", usr_aliza: "Aliza Rizvi", agt_dex: "Dex", chn_ops: "#ops" }),
   values: {
     "appearance.skin": "system", "profile.display_name": "Irfad Imtiaz", "profile.handle": "irfad", "profile.title": "Head of operations", "profile.timezone": "America/Los_Angeles",
     "profile.working_hours": hrs, "profile.contact": { email: "irfad@northwind.example", phone: "+1 415 555 0132" }, 
@@ -99,6 +100,8 @@ export const securityOf = (_space: SampleSpace): NonNullable<SettingsData["secur
 });
 
 export interface SampleSettings {
+  /** What the usage read was asked: the person and the start of the month the AI page sends. */
+  usageAsked: Record<string, unknown>[];
   data: SettingsData;
   replica: FakeReplica;
   space: SampleSpace;
@@ -115,6 +118,7 @@ const device = (id: string, name: string, cls: "desktop" | "phone" | "web" | "ex
 export function createSampleSettings(space: SampleSpace = northwind): SampleSettings {
   const replica = createFakeReplica(space.id);
   const calls: { cap: string; input: unknown }[] = [];
+  const usageAsked: Record<string, unknown>[] = [];
   const opened: string[] = [];
   const previews: (string | null)[] = [];
   const failing = new Set<string>();
@@ -213,6 +217,12 @@ export function createSampleSettings(space: SampleSpace = northwind): SampleSett
   replica.resolve("settings.list", (_t, input) => ({ rows: rowsNow().filter((r) => (input.page ? r.page === input.page : true) && (input.scope ? r.scope === input.scope : true)) }) as CapMap["settings.list"]["out"]);
   replica.resolve("settings.search", (_t, input) => ({ rows: searchRows(rowsNow(), input.q).map((h) => ({ key: h.key, page: h.page, title: h.title, score: h.score })) }) as CapMap["settings.search"]["out"]);
   replica.resolve("settings.copy_source", () => { const o = replica.rows("other")[0] as unknown as Record<string, unknown> | undefined; const { id: _i, ...rest } = o ?? {}; return rest as CapMap["settings.copy_source"]["out"]; });
+  replica.put("allow", [
+    { id: "alw_1", kind: "always", act: "send", target: "usr_aliza", agentId: "agt_dex" },
+    { id: "alw_2", kind: "always", act: "post", target: "chn_ops", agentId: "agt_dex" },
+    { id: "alw_3", kind: "standing", act: "send", target: "usr_maya", agentId: "agt_dex" },
+  ]);
+  replica.resolve("gate.allow.list", () => ({ rules: replica.rows("allow") as unknown as CapMap["gate.allow.list"]["out"]["rules"] }) as CapMap["gate.allow.list"]["out"]);
   replica.resolve("devices.mine", () => ({ devices: (replica.rows("devices") as unknown as Row[]).filter((x) => x["revokedAt"] === undefined), sessions: [] }) as unknown as CapMap["devices.mine"]["out"]);
   replica.resolve("notifications.mute.list", () => ({ mutes: (replica.rows("mutes") as unknown as { target: { kind: string; id: string }; until: number }[]).map((m) => ({ target: m.target, until: m.until })) }) as CapMap["notifications.mute.list"]["out"]);
   replica.resolve("notifications.kinds.list", () => ({
@@ -230,8 +240,9 @@ export function createSampleSettings(space: SampleSpace = northwind): SampleSett
   replica.resolve("telephony.number.list", () => ({ numbers: replica.rows("numbers") as unknown as CapMap["telephony.number.list"]["out"]["numbers"] }) as CapMap["telephony.number.list"]["out"]);
   replica.resolve("engine.accounts.list", () => ({ accounts: replica.rows("accounts") as unknown as CapMap["engine.accounts.list"]["out"]["accounts"] }) as CapMap["engine.accounts.list"]["out"]);
   replica.resolve("engine.models.list", () => ({ models: replica.rows("models") as unknown as CapMap["engine.models.list"]["out"]["models"] }) as CapMap["engine.models.list"]["out"]);
+  replica.resolve("engine.last_pick.get", () => ({ provider: "openai", model: "gpt-5" }) as CapMap["engine.last_pick.get"]["out"]);
   replica.resolve("engine.defaults.get", () => { const x = replica.rows("defaults")[0] as unknown as { provider: string; model: string; fallback: { provider: string; model: string }[] }; return { provider: x.provider, model: x.model, fallback: x.fallback }; });
-  replica.resolve("engine.usage.query", () => ({ rows: replica.rows("usage") as unknown as CapMap["engine.usage.query"]["out"]["rows"], totals: { turns: 620, tokensIn: 4_600_000, tokensOut: 940_000, costMicros: 51_800_000 } }) as CapMap["engine.usage.query"]["out"]);
+  replica.resolve("engine.usage.query", (_t, i) => { usageAsked.push(i as Record<string, unknown>); return { rows: replica.rows("usage") as unknown as CapMap["engine.usage.query"]["out"]["rows"], totals: { turns: 620, tokensIn: 4_600_000, tokensOut: 940_000, costMicros: 51_800_000 } } as CapMap["engine.usage.query"]["out"]; });
   replica.resolve("kits.list", () => ({ kits: replica.rows("kits") as unknown as CapMap["kits.list"]["out"]["kits"] }) as CapMap["kits.list"]["out"]);
   replica.resolve("settings.kit.get", () => { const k = replica.rows("kit")[0] as unknown as { space: string | null; person: string | null; effective: string }; return { kit: { space: k.space, person: k.person, effective: k.effective } }; });
 
@@ -267,6 +278,7 @@ export function createSampleSettings(space: SampleSpace = northwind): SampleSett
     "engine.defaults.set": (i: { provider?: string; model?: string; fallback?: { provider: string; model: string }[] }) => { const cur = replica.rows("defaults")[0]!; replica.put("defaults", [{ ...cur, ...(i.provider ? { provider: i.provider } : {}), ...(i.model ? { model: i.model } : {}), ...(i.fallback ? { fallback: i.fallback } : {}) }]); return { ok: true }; },
     "notifications.kind.set_level": (i: { kind: string; level: string }) => { if (i.kind === "approval.requested" && i.level !== "interrupt") throw new Error("Approval reminders never go below Interrupt."); return { kind: i.kind, level: i.level, channels: [] }; },
     "notifications.mute.clear": (i: { target: { id: string } }) => { replica.remove("mutes", [i.target.id]); return { ok: true }; },
+    "gate.allow.remove": (i: { id: string }) => { replica.remove("allow", [i.id]); return { ok: true }; },
     "devices.revoke": (i: { deviceId: string }) => { const cur = replica.rows("devices").find((x) => x.id === i.deviceId); if (cur) replica.put("devices", [{ ...cur, revokedAt: SAMPLE_NOW }]); return { ok: true }; },
     "devices.revoke_others": () => { let n = 0; for (const x of replica.rows("devices")) if (!x["current"] && x["revokedAt"] === undefined) { replica.put("devices", [{ ...x, revokedAt: SAMPLE_NOW }]); n++; } return { revoked: n }; },
     "mail.mailbox.pause": (i: { mailboxId: string }) => { const m = replica.rows("mailboxes").find((x) => x.id === i.mailboxId); if (m) replica.put("mailboxes", [{ ...m, state: "paused" }]); return { ok: true }; },
@@ -298,7 +310,7 @@ export function createSampleSettings(space: SampleSpace = northwind): SampleSett
   const screens: ScreenHooks = {
     query(screenId, name, state = {}) {
       if (screenId === "settings.page" && name === "rows") return liveQuery(replica, "settings.list", {}) as LiveQuery<unknown>;
-      if (screenId === "settings.models-usage" && name === "usage") return liveQuery(replica, "engine.usage.query", { by: "model" }) as LiveQuery<unknown>;
+      if (screenId === "settings.models-usage" && name === "usage") return liveQuery(replica, "engine.usage.query", { by: "model", ...(state["personId"] !== undefined ? { personId: state["personId"] } : {}), ...(state["from"] !== undefined ? { from: state["from"] } : {}) }) as LiveQuery<unknown>;
       return base.query(screenId, name, state);
     },
   };
@@ -322,5 +334,5 @@ export function createSampleSettings(space: SampleSpace = northwind): SampleSett
     peek: (cap, input) => replica.run(cap as keyof CapMap, input as never)?.data,
     me: space.me, space: { id: space.id, name: space.name }, spaces: space.spaces, name: (id) => space.names[id] ?? nameOf(space.id, id), nav, clock: () => ({ now: SAMPLE_NOW, offsetMin: 0 }), security: securityOf(space),
   };
-  return { data, replica, space, calls, opened, previews, failNext: (cap) => void failing.add(cap) };
+  return { data, replica, space, calls, opened, previews, usageAsked, failNext: (cap) => void failing.add(cap) };
 }

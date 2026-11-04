@@ -31,6 +31,10 @@ withSpace("the owner's agent asks to set up Google sign-in: one card for the own
   const { agentId } = await signIn(s, c, owner);
   await c.rpc("initialize", INIT);
 
+  // the secret the card names is a Vault item she can use (members.sso.set checks that when it runs)
+  const vf = expectStatus(await s.call("vault.folders.create", owner, { idempotencyKey: "ap-folder", name: "Sign-in", scope: "shared" }), 200, "vault.folders.create").folder.id as string;
+  expectStatus(await s.call("vault.item.put", owner, { folderId: vf, name: "Google_Client_Secret", kind: "api_key", fields: [{ key: "value", value: "GOCSPX-test-value", secret: true }], idempotencyKey: "ap-put" }), 200, "vault.item.put");
+
   // a raw secret never gets onto a card
   const raw = await c.tool("use_tool", { name: "members_sso_set", arguments: { provider: google({ clientSecretHandle: "GOCSPX-raw-secret" }) } });
   assert.equal(raw.json.result.isError, true);

@@ -30,6 +30,7 @@ type In = {
   agentId?: string;
   threadId?: string;
   days?: number;
+  recipient?: boolean;
 };
 ```
 
@@ -69,6 +70,7 @@ type Out = {
     "act": "send",
     "agentId": "agt_a1b2c3",
     "days": 1,
+    "recipient": true,
     "target": "example",
     "threadId": "thr_a1b2c3"
   },

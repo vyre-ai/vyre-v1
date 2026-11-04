@@ -4,6 +4,7 @@
 //   Plugin servers: listed where their plugin is; managed on the plugin.
 //   Built-in integrations (Google, Microsoft, Slack, Zoom and the rest: the connectors module's accounts): a person's own or the Space's.
 import type { CapMap } from "../../../../../../generated/types.ts";
+import { siteRow } from "./browser.ts";
 
 export type Home = CapMap["plugins.connections.home"]["out"];
 export type HomeRow = Home["mine"][number];
@@ -12,7 +13,7 @@ export type Connector = CapMap["connectors.list"]["out"]["connectors"][number];
 export type Policy = Home["policy"];
 
 export type Health = HomeRow["health"];
-export type Kind = "mcp" | "plugin" | "hub" | "skill" | "app";
+export type Kind = "mcp" | "plugin" | "hub" | "skill" | "app" | "browser";
 
 export interface ConnRow {
   /** Unique across kinds: mcs_..., plg_.../server, con_... */
@@ -44,6 +45,8 @@ export interface ConnRow {
   needs: readonly string[];
   source?: string;
   sourceRef?: string;
+  /** A Browser connection's own row (browser.sites.list), for its sheet. */
+  site?: import("./browser.ts").BrowserSite;
 }
 
 /** The dot's colour: steady, never blinking. Green works, amber wants you, red is broken, grey is off or not checked yet. */
@@ -100,7 +103,7 @@ export function whatOf(r: Pick<HomeRow, "kind" | "source" | "sourceRef" | "hub" 
 export interface Assembled { mine: ConnRow[]; space: ConnRow[]; agents: ConnRow[] }
 
 /** The three sections, each sorted: what needs you first, then by name. */
-export function assemble(home: Home | null, accounts: readonly Account[], connectors: readonly Connector[], me: string, groupName: (id: string) => string, agentName: (id: string) => string): Assembled {
+export function assemble(home: Home | null, accounts: readonly Account[], connectors: readonly Connector[], me: string, groupName: (id: string) => string, agentName: (id: string) => string, sites: readonly import("./browser.ts").BrowserSite[] = []): Assembled {
   const out: Assembled = { mine: [], space: [], agents: [] };
   const title = (key: string): string => connectors.find((c) => c.key === key)?.title ?? key.charAt(0).toUpperCase() + key.slice(1);
   if (home) {
@@ -123,6 +126,7 @@ export function assemble(home: Home | null, accounts: readonly Account[], connec
       who: mine ? "You and your agents" : "Everyone", usedBy: [], ...(a.lastSyncAt ? { usedAt: a.lastSyncAt } : {}), accountId: a.connectionId, oauth: false, share: mine ? [] : ["everyone"], canManage: true, keys: a.handles, needs: [],
     });
   }
+  for (const site of sites) out.mine.push(siteRow(site, agentName));
   const rank = (h: Health): number => (h === "key_refused" || h === "not_answering" ? 0 : h === "needs_signin" || h === "needs_setup" ? 1 : 2);
   for (const k of ["mine", "space", "agents"] as const) out[k].sort((x, y) => rank(x.health) - rank(y.health) || x.title.localeCompare(y.title));
   return out;
@@ -130,6 +134,7 @@ export function assemble(home: Home | null, accounts: readonly Account[], connec
 
 /** The second line of a row: what it is, who can use it, the agents that used it, and when. */
 export function noteOf(r: ConnRow, now: number, agentName: (id: string) => string): string {
+  if (r.kind === "browser") return [r.what, r.who].join(" · ");
   const parts = [r.what, r.who];
   if (r.usedBy.length > 0) {
     const names = r.usedBy.slice(0, 2).map(agentName);

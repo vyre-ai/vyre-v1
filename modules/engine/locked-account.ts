@@ -11,13 +11,19 @@ export interface LockedDeps {
   resolve(q: AccountQuery): Promise<ResolvedAccount | null>;
   /** Does this server hold the person's key now. Absent: not a Space server, nothing is skipped. */
   held?: (person: string) => boolean;
+  /** Will this turn run on the person's own computer (placement)? Their sign-in lives there, so the server not holding it does not matter. */
+  onDevice?: (q: AccountQuery) => Promise<boolean>;
   postAs?: PostAs;
   log?: (msg: string, attrs?: Record<string, unknown>) => void;
 }
 
 /** The chat's line when the Space AI key (or another shared account) answered for a person whose own account is closed. */
-export const LOCKED_SPACE_KEY_LINE = "Your own AI account opens when you sign in to this Space, so the Space AI key answered.";
-export const lockedLine = (to: ResolvedAccount): string => (to.spaceKey === true ? LOCKED_SPACE_KEY_LINE : "Your own AI account opens when you sign in to this Space, so another account answered.");
+export const LOCKED_SPACE_KEY_LINE = "Your sign-ins are locked on this server, so the Space AI key answered.";
+export const lockedLine = (to: ResolvedAccount): string => (to.spaceKey === true ? LOCKED_SPACE_KEY_LINE : "Your sign-ins are locked on this server, so another account answered.");
+
+const ENGINE = { claude_code: "Claude Code", codex: "Codex", grok: "Grok" } as const;
+/** The line when the person's own sign-in is the only way to run the picked model and the server does not hold it. */
+export const lockedWords = (a: Pick<ResolvedAccount, "driver">): string => `Your ${(ENGINE as Record<string, string>)[a.driver] ?? "AI"} sign-in is locked on this server. Unlock Vyre on your device, or pick another model.`;
 
 export function skipLocked(d: LockedDeps): (q: AccountQuery) => Promise<ResolvedAccount | null> {
   const held = d.held;
@@ -28,17 +34,23 @@ export function skipLocked(d: LockedDeps): (q: AccountQuery) => Promise<Resolved
     // a key of the Space is not the person's own: it never needs their key
     if (!first || first.shared === true) return first;
     // open again: the next time it closes, the chat says so again
+    // a turn that runs on the person's own computer uses the sign-in that lives there: a server that does not hold the key is no reason to pass it over (owner ruling 3 Nov: own computer first)
+    if (!held(first.payer) && d.onDevice && await d.onDevice(q).catch(() => false)) return first;
     if (held(first.payer)) { for (const k of [...said]) if (k.startsWith(`${q.threadId}|${q.agentId}|`)) said.delete(k); return first; }
     const skipped = [first.ref];
     for (let i = 0; i < 8; i++) {
-      const next = await d.resolve({ ...q, unavailable: [...(q.unavailable ?? []), ...skipped] });
+      // the picked model needs this sign-in and nothing else serves it: never another model under its name, one plain line instead (the owner's rc.20 test)
+      const next = await d.resolve({ ...q, unavailable: [...(q.unavailable ?? []), ...skipped] }).catch((e: unknown) => {
+        if ((e as { code?: unknown } | null)?.code === "engine.model_unavailable") throw Object.assign(new Error(lockedWords(first)), { code: "engine.model_unavailable" });
+        throw e;
+      });
       if (!next) break;
       if (next.shared !== true && !held(next.payer)) { skipped.push(next.ref); continue; }
       const key = `${q.threadId}|${q.agentId}|${first.ref}|${next.ref}`;
       if (d.postAs && !said.has(key)) {
         said.add(key);
         try {
-          await d.postAs(q.agentId, { actingFor: q.askerId, threadId: q.threadId, body: "", mentions: [], clientId: BRIDGE_PREFIX + mintId("b").slice(2), blocks: [{ type: "turn_status", v: 1, data: { state: "note", text: lockedLine(next) } }] });
+          await d.postAs(q.agentId, { actingFor: q.askerId, threadId: q.threadId, body: "", mentions: [], clientId: BRIDGE_PREFIX + mintId("b").slice(2), blocks: [{ type: "turn_status", v: 1, data: { state: "key_locked", text: lockedLine(next) } }] });
         } catch (e) { d.log?.("the account change could not be shown in the chat", { threadId: q.threadId, error: e instanceof Error ? e.message : String(e) }); }
       }
       d.log?.("the person's own account is closed on this server; another answered", { threadId: q.threadId, payer: first.payer, from: first.ref, to: next.ref });

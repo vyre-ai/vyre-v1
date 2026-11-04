@@ -21,8 +21,12 @@ export interface ConversationNav {
   openDetails?(threadId: string, messageId: string): void;
   /** Shows or hides the pane on the right (Computer, Threads, Files, Memory, Routines). */
   togglePane(): void;
+  /** A saved note opens in Notes. Left out where the shell has no Notes. */
+  openNote?(noteId: string): void;
   /** A card's file, record or diff opens beside the chat. A "computer" card or the Computer chip passes the agent's id. */
   openBeside(kind: string, id: string): void;
+  /** A card's "Open in browser": an address outside the app. Left out where the shell has no browser. */
+  openUrl?(url: string): void;
   /** A goal's page (a goal card's Open). Left out where the shell has no such page. */
   openGoal?(goalId: string): void;
   /** The channel menu's "Connect an outside agent": the sheet for this channel (P-L9b_23). Left out where the shell has no such sheet. */
@@ -66,7 +70,9 @@ export interface ConversationData {
   /** Counts each time the same message is asked for again, so it is marked again. */
   focusN?: number;
   /** The signed-in person: messages from them are the right-hand bubbles. */
-  me: { id: string; name: string };
+  /** The viewer's own Assistant: the @ menu lists it first, as Yours. */
+  assistantId?: string;
+  me: { id: string; name: string; /** Holds only the Guest role: the @ menu lists only the agents this chat allows. */ guest?: boolean };
   nameOf(id: string): string;
   kindOf(id: string): "person" | "agent";
   nav: ConversationNav;

@@ -5,7 +5,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
-import { validateInput } from "../../../generated/validators.ts";
+import { validateInput } from "./validators.support.ts";
 import { Terminal, TerminalFeed, hostMenu, keyToData } from "../../../ui/src/Terminal/index.tsx";
 import type { TerminalFrame } from "../../../ui/src/Terminal/index.tsx";
 import { PEOPLE, CHANNEL, COMPUTER, HELPER, RECORDING, SERVER_TERMINAL, TERMINAL, createMountSample } from "../src/places/chats/mounts/sample.ts";
@@ -455,7 +455,7 @@ test("the whole place with a runtime draws the sidebar and the open chat, and ev
   const side = inSlot(s);
   assert.ok(has(side.out, 'data-testid="chats-sidebar"'), "the sidebar is drawn in the shell's slot");
   for (const own of ["sidebar-head", "sidebar-toggle", "sidebar-collapsed", "sidebar-show", "chats-back", "chats-sidebar"]) assert.ok(!has(out, `data-testid="${own}"`), `${own}: the place draws no sidebar frame of its own`);
-  for (const id of ["helpers-button", "participants-button", "pane-button", "more-button"]) assert.ok(has(out, `data-testid="${id}"`), id);
+  for (const id of ["helpers-button", "participants-button", "pane-button", "more-button", "add-agent"]) assert.ok(has(out, `data-testid="${id}"`), id);
   assert.ok(!has(out, "-loading"), "no loading frame once the Space is open");
 });
 

@@ -62,7 +62,7 @@ test("the context holds identity, where, skills, what the agent can do and the t
   assert.match(text("where"), /threadId thr_1\. This is a chat called "Intake desk"\./);
   assert.match(text("where"), /talking with Maya Chen \(usr_maya; /);
   assert.match(text("where"), /Also here: Omar Haddad\./);
-  assert.match(text("where"), /Agents here: Docs \(listen\)\./);
+  assert.match(text("where"), /Agents here: Docs \(answers when mentioned[^)]*\)\. To hand something to one, @mention it by name/);
   assert.match(text("skills"), /^Working in Vyre \(always loaded\):\n# Working in Vyre\nThe manual\./);
   assert.match(text("skills"), /load it with load_skill \{name\}[^\n]*:\n- focus-records: Work in Records\./, "the index names the tool that loads every tier");
   assert.doesNotMatch(text("skills"), /agents_builtin_skill_get/);
@@ -73,7 +73,7 @@ test("the context holds identity, where, skills, what the agent can do and the t
   assert.match(text("can"), /- schedule "Overdue invoices" cron "0 4 \* \* 1", next 2026-11-02 04:00 UTC \(rtn_1\)/);
   assert.match(text("can"), /- watcher "Triage" on each new message in chn_9, paused \(rtn_2\)/);
   assert.match(text("can"), /Your computer is asleep, 0 tabs open\./);
-  assert.match(text("now"), /^It is Thursday, 29 October 2026, 22:07 \(Asia\/Karachi\)\.$|^It is Friday, 30 October 2026, 03:07 \(Asia\/Karachi\)\.$/);
+  assert.match(text("now"), /^It is (Thursday, 29 October 2026, 22:07|Friday, 30 October 2026, 03:07) \(Asia\/Karachi\)\. That is UTC\+5\..*time_convert/);
   assert.equal(ctx.names["usr_omar"], "Omar Haddad");
   for (const c of f.log) assert.equal(c.as, "usr_maya", `${c.cap} is read as the asker`);
 });
@@ -168,9 +168,12 @@ test("no secret value is read: the Vault appears by item name only, and no vault
 });
 
 test("timeLine says the weekday, the date and the zone, and falls back to UTC for a zone it does not know", () => {
-  assert.equal(timeLine(Date.UTC(2026, 9, 29, 22, 7), "UTC"), "It is Thursday, 29 October 2026, 22:07 (UTC).");
-  assert.equal(timeLine(Date.UTC(2026, 9, 29, 22, 7), "Not/AZone"), "It is Thursday, 29 October 2026, 22:07 (UTC).");
-  assert.match(timeLine(Date.UTC(2026, 9, 29, 22, 7), "Asia/Karachi"), /Friday, 30 October 2026, 03:07 \(Asia\/Karachi\)/);
+  assert.match(timeLine(Date.UTC(2026, 9, 29, 22, 7), "UTC"), /^It is Thursday, 29 October 2026, 22:07 \(UTC\)\. That is UTC\+0\. The person's time zone is UTC: say times in it\./);
+  assert.match(timeLine(Date.UTC(2026, 9, 29, 22, 7), "Not/AZone"), /^It is Thursday, 29 October 2026, 22:07 \(UTC\)\./);
+  const pkt = timeLine(Date.UTC(2026, 9, 29, 22, 7), "Asia/Karachi");
+  assert.match(pkt, /^It is Friday, 30 October 2026, 03:07 \(Asia\/Karachi\)\. That is UTC\+5\. The person's time zone is Asia\/Karachi/);
+  assert.match(pkt, /call time_convert; never work out zones, dates or epoch numbers yourself/);
+  assert.match(timeLine(Date.UTC(2026, 9, 29, 22, 7), "Asia/Kolkata"), /That is UTC\+5:30\./);
 });
 
 test("a routine line says its kind, when it runs and whether it is paused", () => {
@@ -312,4 +315,16 @@ test("a long index is cut, nearest first, and says how many more there are; a lo
   const t2 = ctx2.sections.find((s) => s.id === "skills")?.text ?? "";
   assert.match(t2, /^Working in Vyre \(always loaded\):/, "the manual comes from disk");
   assert.match(t2, /- focus-records: /);
+});
+
+test("group guidance is in the context of a group chat and a channel, and absent in a 1:1", async () => {
+  const { GROUP_STYLE } = await import("../context.ts");
+  const where = async (over: Record<string, unknown>): Promise<string> => {
+    const f = fake(over as never);
+    const ctx = await createContextBuilder({ call: f.call, skills, now: () => at }).build(input());
+    return ctx.sections.find((s) => s.id === "where")?.text ?? "";
+  };
+  assert.match(await where(FULL), new RegExp(GROUP_STYLE.slice(0, 40)), "Docs and Omar are also here: a group");
+  assert.doesNotMatch(await where({ ...FULL, "threads.get": { thread: { threadId: "thr_1", kind: "chat", title: "Intake desk", members: [{ kind: "person", id: "usr_maya" }], agents: [{ agentId: "agt_intake", mode: "lead" }] } } }), /group conversation/, "a 1:1 keeps the agent's own style");
+  assert.match(await where({ ...FULL, "threads.get": { thread: { threadId: "thr_1", kind: "channel", title: "general", members: [{ kind: "person", id: "usr_maya" }], agents: [{ agentId: "agt_intake", mode: "lead" }] } } }), /group conversation/, "a channel is a group even with one other");
 });

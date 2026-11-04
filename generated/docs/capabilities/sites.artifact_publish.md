@@ -1,6 +1,6 @@
 # sites.artifact_publish
 
-THE way to show something you made: publish it privately to a link that opens in a tab. Give html, a file or folder in Files, a path on this machine, or a running port. Same title or artifactId updates the same link
+THE way to show something you made: publish it privately; the person gets a card in the chat to open it. The result says whether it was opened for them (opened). Give html, a file or folder in Files, a path on this machine, or a running port. Same title or artifactId updates the same link
 
 | | |
 |---|---|
@@ -33,6 +33,7 @@ type In = {
   port?: number;
   computerId?: string;
   artifactId?: string;
+  thumb?: string;
   idempotencyKey: string;
 };
 ```
@@ -44,6 +45,7 @@ type Out = {
   artifactId: string;
   url?: string;
   updated: boolean;
+  opened: boolean;
 };
 ```
 
@@ -69,10 +71,12 @@ type Out = {
     "idempotencyKey": "idem_1",
     "path": "example",
     "port": 1,
+    "thumb": "example",
     "title": "example"
   },
   "output": {
     "artifactId": "sit_a1b2c3",
+    "opened": true,
     "updated": true,
     "url": "example"
   }

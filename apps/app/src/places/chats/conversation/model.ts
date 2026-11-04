@@ -9,6 +9,7 @@ import { createIncrementalMarkdown } from "../../../../../../ui/src/stream/markd
 import type { Block as MdBlock } from "../../../../../../ui/src/stream/markdown.ts";
 import { isTurnStatus } from "./status.ts";
 import { route } from "../../../../../../lib/route.ts";
+import { chatName } from "../../../../../../lib/chat-name.ts";
 
 export type Thread = CapMap["threads.get"]["out"]["thread"];
 export type Message = CapMap["chat.messages.list"]["out"]["messages"][number];
@@ -99,9 +100,23 @@ export const isErrorBlock = (b: MessageBlock): boolean => b.type === "error";
 /** Everything else is a native card: terminal, changeset, question, plan, deploy, file, and so on. */
 /** Blocks that are data for the page, not a card: the links of a message (drawn inside its text) and the line a fork starts with (drawn as a link). */
 // on_behalf, relay and agent_dm say who an agent's message to a teammate speaks for and carry a reply back (lane l-agentdm): they shape the header and the line, never a card of their own
-const QUIET_BLOCKS = new Set(["refs", "fork_origin", "on_behalf", "relay", "agent_dm"]);
+const QUIET_BLOCKS = new Set(["refs", "fork_origin", "on_behalf", "relay", "agent_dm", "poke", "poked"]);
+
+/** The quiet line a poke leaves in the chat: "Sara poked Docs", with the note after it. The block carries the ids, so the words follow each reader's names. */
+export function pokeLine(m: Pick<Message, "blocks">, nameOf: (id: string) => string): string | null {
+  const b = m.blocks.find((x) => x.type === "poke");
+  const d = b?.data as { by?: unknown; agentId?: unknown; note?: unknown } | null | undefined;
+  if (!d || typeof d.by !== "string" || typeof d.agentId !== "string") return null;
+  return `${nameOf(d.by)} poked ${nameOf(d.agentId)}${typeof d.note === "string" && d.note !== "" ? `: ${d.note}` : ""}`;
+}
+
+/** "Poked by Sara": the quiet line under a reply an agent wrote because a person poked it. */
+export function pokedBy(m: Pick<Message, "blocks">, nameOf: (id: string) => string): string | null {
+  const d = m.blocks.find((x) => x.type === "poked")?.data as { by?: unknown } | null | undefined;
+  return d && typeof d.by === "string" ? `Poked by ${nameOf(d.by)}` : null;
+}
 export const isCard = (b: MessageBlock): boolean => !isStep(b) && !isToolStep(b) && !isErrorBlock(b) && !isTurnStatus(b) && !QUIET_BLOCKS.has(b.type);
-export { isTurnStatus, statusView, withoutAnswered } from "./status.ts";
+export { isSystemLine, isTurnStatus, statusView, withoutAnswered } from "./status.ts";
 export type { StatusView } from "./status.ts";
 
 export interface StepLine { id: string; title: string; sub: string; state: MessageBlock["state"] }
@@ -330,12 +345,17 @@ export function directWith(t: Thread, meId: string | undefined): string | null {
   return others.length === 1 && t.members.some((m) => m.id === meId) ? others[0]!.id : null;
 }
 
+/** The other people in a chat (never the viewer): their faces sit in the header of a chat that is not a direct message. */
+export function otherPeople(t: Pick<Thread, "members">, meId: string | undefined): string[] {
+  return [...new Set(t.members.filter((m) => m.kind === "person" && m.id !== meId).map((m) => m.id))];
+}
+
+/** The one name of a chat (lib/chat-name.ts), the same as the list shows: a direct message is the person, any other chat its title, else who is in it. */
 export function titleOf(t: Thread, nameOf: (id: string) => string, meId?: string): string {
-  if (t.title) return t.title;
-  const first = t.agents[0];
-  if (first) return nameOf(first.agentId);
-  const other = directWith(t, meId);
-  return other ? nameOf(other) : "Chat";
+  return chatName({
+    title: t.title, kind: t.kind, agents: t.agents.map((a) => a.agentId),
+    people: [...new Set(t.members.filter((m) => m.kind === "person" && m.id !== meId).map((m) => m.id))],
+  }, nameOf);
 }
 
 /** The label of the stop control: one agent working, its name; more than one, Stop all. */
@@ -494,17 +514,7 @@ export function matchLine(n: number, at: number, query: string): string {
   return n === 0 ? "No matches" : `${at + 1} of ${n}`;
 }
 
-export interface Participant { id: string; name: string; kind: "person" | "agent"; role: string }
 
-/** Everyone in the thread for the participants menu: people first, then agents with their mode. */
-export function participants(t: Thread, nameOf: (id: string) => string): Participant[] {
-  const out: Participant[] = [];
-  for (const m of t.members) {
-    if (m.kind === "person") out.push({ id: m.id, name: nameOf(m.id), kind: "person", role: "Person" });
-  }
-  for (const a of t.agents) out.push({ id: a.agentId, name: nameOf(a.agentId), kind: "agent", role: t.agents.length === 1 ? "Agent" : a.mode === "lead" ? "Replies to everything" : "Only when @mentioned" });
-  return out;
-}
 
 /** A thread that has closed takes no messages until it is reopened. */
 export const isClosed = (t: Thread): boolean => t.closedAt !== undefined;
@@ -546,4 +556,9 @@ export function collect<T, U>(list: readonly T[], fn: (item: T, index: number) =
   const out: U[] = [];
   for (const [i, x] of list.entries()) out.push(fn(x, i));
   return out;
+}
+
+/** May the @ menu offer this agent? Everyone sees every agent offered to them; a guest only the agents this chat allows (the ones in it). */
+export function mentionable(item: string | { t: string; ref?: string | undefined }, guest: boolean, inThread: ReadonlyMap<string, unknown>): boolean {
+  return !guest || (typeof item !== "string" && item.ref !== undefined && inThread.has(item.ref));
 }

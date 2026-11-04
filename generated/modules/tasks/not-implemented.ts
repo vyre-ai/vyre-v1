@@ -6,6 +6,7 @@ import type { Handlers } from './handlers.ts';
 /** Served while the module is a stub and no example answer is wanted: every capability fails with a typed error carrying the trace id. */
 export const handlers: Handlers<HandlerCtx> = {
   "tasks.act": async (ctx) => { throw new VyreErr(notImplemented("tasks.act", ctx.trace)); },
+  "tasks.agent_on_it": async (ctx) => { throw new VyreErr(notImplemented("tasks.agent_on_it", ctx.trace)); },
   "tasks.ask": async (ctx) => { throw new VyreErr(notImplemented("tasks.ask", ctx.trace)); },
   "tasks.assign": async (ctx) => { throw new VyreErr(notImplemented("tasks.assign", ctx.trace)); },
   "tasks.block": async (ctx) => { throw new VyreErr(notImplemented("tasks.block", ctx.trace)); },
@@ -23,6 +24,7 @@ export const handlers: Handlers<HandlerCtx> = {
   "tasks.followers.add": async (ctx) => { throw new VyreErr(notImplemented("tasks.followers.add", ctx.trace)); },
   "tasks.followers.remove": async (ctx) => { throw new VyreErr(notImplemented("tasks.followers.remove", ctx.trace)); },
   "tasks.get": async (ctx) => { throw new VyreErr(notImplemented("tasks.get", ctx.trace)); },
+  "tasks.held_revise": async (ctx) => { throw new VyreErr(notImplemented("tasks.held_revise", ctx.trace)); },
   "tasks.history": async (ctx) => { throw new VyreErr(notImplemented("tasks.history", ctx.trace)); },
   "tasks.index": async (ctx) => { throw new VyreErr(notImplemented("tasks.index", ctx.trace)); },
   "tasks.links.add": async (ctx) => { throw new VyreErr(notImplemented("tasks.links.add", ctx.trace)); },

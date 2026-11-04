@@ -11,8 +11,8 @@ import { mkChain, mkProject, run } from "../fixtures/seed.ts";
 
 const mine = registry.capabilities.filter((c) => c.module === "projects");
 
-test("the handler table covers exactly the 28 capabilities of the projects manifest", () => {
-  assert.equal(mine.length, 28);
+test("the handler table covers exactly the 29 capabilities of the projects manifest", () => {
+  assert.equal(mine.length, 29);
   assert.deepEqual(Object.keys(handlers).sort(), mine.map((c) => c.name).sort());
   for (const c of mine) assert.equal(typeof handlers[c.name], "function", c.name);
 });
@@ -42,6 +42,8 @@ const scenarios: Scenario[] = [
   { cap: "projects.get", setup: withProject, run: (hn, p) => run(hn, "projects.get", { projectId: p.projectId }) },
   { cap: "projects.get", run: (hn) => run(hn, "projects.get", { projectId: NONE }), expect: "validation.not_found" },
   { cap: "projects.list", setup: withProject, run: (hn) => run(hn, "projects.list", { mine: true, limit: 10 }) },
+  { cap: "projects.roles_of", setup: withProject, run: (hn) => run(hn, "projects.roles_of", { personId: DANA }) },
+  { cap: "projects.roles_of", run: (hn) => run(hn, "projects.roles_of", { personId: "agt_x" }), expect: "validation.bad_input" },
   { cap: "projects.overview", setup: withTask, run: (hn, p) => run(hn, "projects.overview", { projectId: p.projectId }) },
   { cap: "projects.overview", run: (hn) => run(hn, "projects.overview", { projectId: NONE }), expect: "validation.not_found" },
   { cap: "projects.templates.list", run: (hn) => run(hn, "projects.templates.list", {}) },

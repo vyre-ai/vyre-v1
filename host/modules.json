@@ -27,6 +27,11 @@
       "status": "live"
     },
     {
+      "id": "browser",
+      "owner": "L10",
+      "status": "live"
+    },
+    {
       "id": "calendar",
       "owner": "L5",
       "status": "live"
@@ -222,6 +227,11 @@
       "status": "live"
     },
     {
+      "id": "machines",
+      "owner": "L2",
+      "status": "live"
+    },
+    {
       "id": "notes",
       "owner": "L2",
       "status": "live"
@@ -363,6 +373,11 @@
     },
     {
       "id": "vault-requests",
+      "owner": "L7a",
+      "status": "live"
+    },
+    {
+      "id": "talk",
       "owner": "L7a",
       "status": "live"
     },

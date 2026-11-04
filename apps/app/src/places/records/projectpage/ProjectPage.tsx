@@ -16,6 +16,7 @@ import { ROLE_WORDS, TAB_SPECS, ago, dateWords, dueWords, editsBetween, isoDay, 
 import type { Overview, PlanOut, TabKey } from "./model.ts";
 import { ImportedHistory } from "./ImportedHistory.tsx";
 import { TeammatesTab } from "./TeammatesTab.tsx";
+import { useAddSheet } from "../../chats/addsheet/index.ts";
 
 export interface ProjectPageProps {
   projectId: string;
@@ -44,6 +45,9 @@ export function ProjectPage({ projectId, tab: first = "overview", planView = "ti
     } catch { setLoad({ status: "gone" }); }
   }, [d, projectId]);
   useEffect(() => { void read(); }, [read]);
+  // the one Add people and agents sheet for this project: the members count and the Teammates tab both open it
+  const [added, setAdded] = useState(0);
+  const add = useAddSheet({ call: d.call, me: d.me ?? { id: "me", name: "You" }, nameOf: d.nameOf, newKey: () => globalThis.crypto.randomUUID(), toast: (text) => setNote(text) }, { onDone: () => { setAdded((n) => n + 1); void read(); } });
   useEffect(() => {
     if (!note) return undefined;
     const t = setTimeout(() => setNote(null), 4500);
@@ -89,10 +93,10 @@ export function ProjectPage({ projectId, tab: first = "overview", planView = "ti
       <View style={s.strip} testID="project-strip" accessibilityLabel="Project at a glance">
         <Text style={s.stripText}>{plural(p.openTasks, "open task")}</Text>
         <Text style={[s.stripText, p.lateTasks > 0 && s.late]} testID="project-late">{p.lateTasks > 0 ? `${p.lateTasks} late` : "None late"}</Text>
-        <Text style={s.stripText}>{plural(p.memberCount, "person", "people")}</Text>
+        <Pressable accessibilityRole="button" accessibilityLabel="Add people and agents" testID="project-members" onPress={() => add.open({ projectId })}><Text style={s.stripText}>{plural(p.memberCount, "person", "people")}</Text></Pressable>
       </View>
       {d.nav.openGoal ? <GoalsOf scope="project" id={projectId} call={d.call} changes={d.changes} now={d.now()} offsetMin={0} nameOf={d.nameOf} openGoal={d.nav.openGoal} testID="project-goals" /> : null}
-      <TabStrip tabs={TAB_SPECS} active={tab} onSelect={(k) => { setTab(k as TabKey); onTabChange?.(k as TabKey); }} />
+      <TabStrip underline tabs={TAB_SPECS} active={tab} onSelect={(k) => { setTab(k as TabKey); onTabChange?.(k as TabKey); }} />
       {tab === "overview" ? <OverviewTab o={o} now={now} /> : null}
       {tab === "plan" ? (
         <View style={s.planBody} testID="project-plan">
@@ -101,8 +105,9 @@ export function ProjectPage({ projectId, tab: first = "overview", planView = "ti
       ) : null}
       {tab === "files" ? <FilesTab o={o} /> : null}
       {tab === "chat" ? <ChatTab o={o} projectId={projectId} channelName={`#${p.title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}`} now={now} /> : null}
-      {tab === "teammates" ? <TeammatesTab projectId={projectId} /> : null}
+      {tab === "teammates" ? <TeammatesTab projectId={projectId} refresh={added} onAdd={() => add.open({ projectId })} /> : null}
       {note ? <Text style={s.note} accessibilityLiveRegion="polite" testID="project-note">{note}</Text> : null}
+      {add.element}
     </View>
   );
 }
@@ -181,7 +186,7 @@ export function ChatTab({ o, channelName, now, projectId }: { o: Overview; chann
     <ScrollView style={s.scroll} contentContainerStyle={s.scrollIn} testID="project-chat">
       <Text style={s.lead} testID="project-chat-is-channel">{`This project has one chat. It is the channel ${channelName}, so everything said here is said there.`}</Text>
       <Pressable accessibilityRole="button" testID="project-open-channel" onPress={() => d.nav.openChannel(o.project.channelId)} style={s.open}><Text style={s.openText}>{`Open ${channelName} in Chats`}</Text></Pressable>
-      <Section title="Threads" count={o.recentThreads.length} id="project-threads">{rows.length ? rows : <Text style={s.dim}>No threads yet.</Text>}</Section>
+      <Section title="Chats" count={o.recentThreads.length} id="project-threads">{rows.length ? rows : <Text style={s.dim}>No chats yet.</Text>}</Section>
       {projectId ? <ImportedHistory projectId={projectId} /> : null}
     </ScrollView>
   );

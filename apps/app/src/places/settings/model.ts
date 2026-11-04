@@ -4,7 +4,7 @@ import type { CapMap } from "../../../../../generated/types.ts";
 
 export type SettingRow = CapMap["settings.list"]["out"]["rows"][number];
 export type PageInfo = CapMap["settings.pages"]["out"]["pages"][number];
-export type YouPage = "profile" | "notifications" | "appearance" | "ai" | "memory" | "skills" | "connected" | "mail" | "signin" | "computer" | "about";
+export type YouPage = "profile" | "notifications" | "appearance" | "ai" | "memory" | "notes" | "skills" | "connected" | "mail" | "signin" | "computer" | "about";
 export type SpacePage = "space" | "people" | "agents" | "data" | "apps" | "advanced";
 export type PageKey = YouPage | SpacePage;
 
@@ -16,6 +16,7 @@ export const PAGES: readonly PageDef[] = [
   { key: "appearance", title: "Appearance", group: "you", icon: "palette", pages: [] },
   { key: "ai", title: "AI", group: "you", icon: "chip", pages: ["Models and usage", "Chats", "Memory and privacy"] },
   { key: "memory", title: "Memory and privacy", group: "you", icon: "lock", pages: [] },
+  { key: "notes", title: "Notes", group: "you", icon: "doc", pages: ["Notes"] },
   { key: "skills", title: "Skills", group: "you", icon: "spark", pages: ["Skills"] },
   { key: "connected", title: "Connected", group: "you", icon: "link", pages: ["Connections"] },
   { key: "mail", title: "Email and calendar", group: "you", icon: "mail", pages: [] },
@@ -66,6 +67,7 @@ export const SECTIONS: Readonly<Record<YouPage, readonly SectionDef[]>> = {
   appearance: [],
   ai: [{ title: "Working with agents", keys: ["engine.local_runs", "chat.agent_tabs"] }],
   memory: [],
+  notes: [{ title: "From chats", keys: ["notes.offers"] }],
   skills: [],
   connected: [],
   mail: [],
@@ -223,18 +225,20 @@ export const ROW_LABELS: Readonly<Record<string, string>> = {
   "notifications.quiet_hours": "Quiet hours",
   "engine.local_runs": "Run my chats on this computer",
   "chat.agent_tabs": "Agents can open side tabs",
+  "notes.offers": "Offer to save things from chats as notes",
 };
 /** What a row does. It shows on hover, never as a line on the page. */
 export const ROW_HELP: Readonly<Record<string, string>> = {
   "profile.timezone": "Used for your working hours, quiet hours and whatever agents schedule for you.",
   "profile.working_hours": "When you work. People and agents see it, Find a time keeps to it, and outside it only calls, urgent approvals and incidents interrupt you.",
   "notifications.email_backstop": "One email if an approval has been waiting on you for 4 hours.",
-  "notifications.alert_replies": "A reply in a thread you follow interrupts you. Off, it is a badge.",
+  "notifications.alert_replies": "A reply to a message you follow interrupts you. Off, it is a badge.",
   "notifications.routines_all": "Failures always reach you. On, successes do too.",
   "notifications.quiet_hours": "No sounds or pushes between these times. What arrives waits in one summary.",
   "notifications.hand_needs_you_to": "While you are away, what needs you goes to this person.",
   "engine.local_runs": "Your private chats run here while this computer is on. Off, they run on the Space's computer. One chat can pick its own place in the model menu.",
   "chat.agent_tabs": "Lets an agent open or switch a tab beside your chat to show you something.",
+  "notes.offers": "When something in a chat is worth keeping (a link, an answer, a decision), an agent may offer to save it as a private note. Nothing is saved until you press Save.",
   "model.default": "The model a new chat starts with. You can change it in any chat.",
   "model.fallback": "Used when the default is out of credits or down.",
 };
@@ -305,6 +309,7 @@ export const DRAWN_ROWS: readonly { key: string; page: PageKey; title: string; s
   { key: "signin.spaces", page: "signin", title: "Your Spaces", sub: "Open or leave a Space", words: "switch leave" },
   { key: "shortcuts", page: "appearance", title: "Keyboard shortcuts", sub: "Every shortcut, in one list", words: "keys hotkey keybinding" },
   { key: "model.default", page: "ai", title: "Default model", sub: "For new chats", words: "claude sonnet opus gpt" },
+  { key: "voice.cover", page: "ai", title: "Voice", sub: "What covers your Talk, language and model", words: "talk mic microphone speech dictation deepgram transcription language" },
   { key: "model.fallback", page: "ai", title: "Fallback model", sub: "When the default is unavailable", words: "backup" },
   { key: "usage", page: "ai", title: "Usage this month", sub: "You and your agents", words: "limit cost tokens spend" },
   { key: "open-vault", page: "ai", title: "AI accounts", sub: "Sign-ins and keys live in the Vault", words: "provider api key openai anthropic subscription" },

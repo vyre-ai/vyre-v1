@@ -44,6 +44,7 @@ type Out = {
   context: {
     used: number;
     window: number;
+    approximate?: boolean;
   } | null;
   session: {
     pct: number;
@@ -55,6 +56,17 @@ type Out = {
   } | null;
   source: "provider" | "estimate" | "none";
   keepEvery?: string;
+  model?: string;
+  lastTurn?: {
+    model?: string;
+    account?: {
+      ref: string;
+      name?: string;
+      provider: string;
+      shared?: boolean;
+    };
+    paid?: string;
+  };
 };
 ```
 
@@ -84,10 +96,22 @@ type Out = {
       "ref": "#Team_Anthropic_Key"
     },
     "context": {
+      "approximate": true,
       "used": 1,
       "window": 1
     },
     "keepEvery": "example",
+    "lastTurn": {
+      "account": {
+        "name": "example",
+        "provider": "example",
+        "ref": "#Team_Anthropic_Key",
+        "shared": true
+      },
+      "model": "example",
+      "paid": "example"
+    },
+    "model": "example",
     "session": {
       "pct": 1,
       "resetsAt": 1760000000000

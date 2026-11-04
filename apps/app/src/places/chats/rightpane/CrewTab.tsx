@@ -10,6 +10,7 @@ import { PANE_SCREEN } from "./ThreadsTab.tsx";
 import { usePaneData, useScreenQuery } from "./data.tsx";
 import { crewNote } from "./model.ts";
 import type { CrewJob } from "./model.ts";
+import { usePaneAdd } from "./add.tsx";
 import { Face, LeadIcon, PaneList, TextButton } from "./parts.tsx";
 import type { Entry } from "./parts.tsx";
 
@@ -27,7 +28,8 @@ export function CrewTab({ deps, window }: { deps: PaneDeps; window?: VirtualWind
   const clock = data.clock();
   const jobs = q.status === "ready" ? q.data.jobs : [];
   const waits = q.status === "ready" ? q.data.waits : [];
-  const entries: Entry[] = [];
+  const { add, row: addRow } = usePaneAdd(deps);
+  const entries: Entry[] = [addRow];
   // a Personal Space has no server: its crew works while this computer is on, and says so
   if (data.space.personal && (jobs.length > 0 || waits.length > 0)) entries.push({ key: "runs-here", type: "label", text: "Runs while this computer is on" });
   // what the lead waits on besides teammates: a live row, "Waiting on checks, 12 of 40", until the host sees them end and wakes the lead
@@ -49,5 +51,5 @@ export function CrewTab({ deps, window }: { deps: PaneDeps; window?: VirtualWind
       ),
     });
   }
-  return <PaneList entries={entries} {...(window ? { window } : {})} testID="crew-list" />;
+  return <><PaneList entries={entries} {...(window ? { window } : {})} testID="crew-list" />{add.element}</>;
 }

@@ -10,6 +10,8 @@ export interface ToolOutcomeLike {
   /** Present when kind is "held". */
   taskId?: string;
   runId?: string;
+  /** A question asked of the person: the turn waits on this block. */
+  parkOn?: { blockId: string };
 }
 
 export function toolRunnerFrom(call: (c: { id: string; name: string; input: unknown }, ctx: Parameters<ToolRunner>[1]) => Promise<ToolOutcomeLike>): ToolRunner {
@@ -18,6 +20,7 @@ export function toolRunnerFrom(call: (c: { id: string; name: string; input: unkn
     if (out.kind === "held" && typeof out.taskId === "string") {
       return { ...out.result, held: { taskId: out.taskId, ...(out.runId === undefined ? {} : { runId: out.runId }) } };
     }
+    if (out.parkOn) return { ok: out.result.ok, content: out.result.content, parkOn: out.parkOn };
     return { ok: out.result.ok, content: out.result.content };
   };
 }

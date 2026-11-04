@@ -154,3 +154,19 @@ test("who paid and why is stored with the turn and read back synchronously: Chat
   const other = harness({ raw: h2.raw, principal: { kind: "person", id: "usr_eve" }, manager: false });
   assert.equal(H["engine.turn.of_message"](other.ctx, { threadId: T, messageId: MSG }).turn.paid, undefined);
 });
+
+test("an API account whose provider gives no price is estimated from the model's list price, and marked so", async () => {
+  const { costOf } = await import("../turn-cost.ts");
+  const est = costOf({ model: "claude-sonnet-5-5", driver: "opencode_go", provider: "opencode_go", accountKind: "api_key", tokensIn: 100_000, tokensOut: 2_000 });
+  assert.equal(est.source, "estimate");
+  assert.ok((est.micros ?? 0) > 0);
+  assert.equal(costOf({ model: "no-such-model", driver: "opencode_go", provider: "opencode_go", accountKind: "api_key", tokensIn: 10, tokensOut: 1 }).source, "unknown", "no price anywhere: unknown, never 0");
+  assert.equal(costOf({ model: "claude-sonnet-5-5", driver: "claude_code", provider: "anthropic", accountKind: "subscription", tokensIn: 10, tokensOut: 1 }).source, "subscription");
+});
+
+test("a flat-plan account that reports a cost of 0 is a flat plan, not a free answer; any other zero or figure is priced as before", async () => {
+  const { costOf } = await import("../turn-cost.ts");
+  assert.deepEqual(costOf({ model: "glm-5.3", driver: "opencode_go", provider: "opencode-go", accountKind: "api_key", tokensIn: 100, tokensOut: 10, costUsd: 0 }), { source: "flat" });
+  assert.equal(costOf({ model: "claude-sonnet-5-5", driver: "anthropic", provider: "anthropic", accountKind: "api_key", tokensIn: 100, tokensOut: 10, costUsd: 0 }).source, "reported", "a zero from a metered provider stays what it reported");
+  assert.equal(costOf({ model: "glm-5.3", driver: "opencode_go", provider: "opencode-go", accountKind: "api_key", tokensIn: 100, tokensOut: 10, costUsd: 0.5 }).source, "reported");
+});

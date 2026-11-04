@@ -1,24 +1,24 @@
 // The Threads page as plain data (audit Threads 4, 6): one row per thread I am in, newest reply first, with where it hangs, the newest line and who wrote it, when, and how much is new.
-// J and K move the selection, Enter opens it. Pure: ThreadsPage draws what these return.
+// J and K move the selection, Enter opens it. Pure: RepliesPage draws what these return.
 import { chatWhen } from "../rightpane/model.ts";
 import type { Clock } from "../rightpane/model.ts";
 
 export interface ThreadLike {
-  threadId: string; title?: string | undefined; parentTitle?: string | undefined; preview?: string | undefined; lastMessageAt?: number | undefined; createdAt: number;
+  threadId: string; parentThreadId?: string | undefined; parentMessageId?: string | undefined; title?: string | undefined; parentTitle?: string | undefined; preview?: string | undefined; lastMessageAt?: number | undefined; createdAt: number;
   repliers?: readonly { kind: string; id: string }[] | undefined; unread?: number | undefined; muted?: boolean | undefined; following?: boolean | undefined; replyCount?: number | undefined;
 }
 
 export interface ThreadView {
-  threadId: string; title: string; note: string; when: string; unread: number; bold: boolean; muted: boolean;
+  threadId: string; title: string; /** who wrote the newest reply */ who: string; note: string; when: string; unread: number; bold: boolean; muted: boolean;
   faces: readonly { id: string; kind: "person" | "agent" }[];
 }
 
 export function threadView(t: ThreadLike, nameOf: (id: string) => string, c: Clock): ThreadView {
   const who = t.repliers?.[0];
-  const line = t.preview ? `${who ? `${nameOf(who.id)}: ` : ""}${t.preview}` : t.replyCount ? `${t.replyCount} ${t.replyCount === 1 ? "reply" : "replies"}` : "No replies yet";
+  const line = t.preview ? t.preview : t.replyCount ? `${t.replyCount} ${t.replyCount === 1 ? "reply" : "replies"}` : "No replies yet";
   const unread = t.muted ? 0 : t.unread ?? 0;
   return {
-    threadId: t.threadId, title: t.parentTitle ?? t.title ?? "Thread", note: line, when: chatWhen(t.lastMessageAt ?? t.createdAt, c), unread, bold: unread > 0, muted: t.muted === true,
+    threadId: t.threadId, title: t.parentTitle ?? t.title ?? "A chat", who: who ? nameOf(who.id) : "Someone", note: line, when: chatWhen(t.lastMessageAt ?? t.createdAt, c), unread, bold: unread > 0, muted: t.muted === true,
     faces: (t.repliers ?? []).slice(0, 3).map((r) => ({ id: r.id, kind: r.kind === "agent" ? "agent" : "person" })),
   };
 }

@@ -18,7 +18,7 @@ export const owner: Caller = { id: OWNER, kind: "person", origin: "app" };
 export const lead: Caller = { id: LEAD, kind: "agent", actingFor: OWNER };
 export const host: Caller = { id: "svc_host", kind: "service" };
 
-export function world(o: { count?: number; failRead?: string; failMembers?: string } = {}) {
+export function world(o: { count?: number; failRead?: string; failMembers?: string; fakes?: Record<string, (i: Obj, who: Caller) => unknown> } = {}) {
   const sqlite = new DatabaseSync(":memory:");
   const norm = (a: unknown): unknown => (a === undefined ? null : a);
   const raw: Db = {
@@ -27,7 +27,7 @@ export function world(o: { count?: number; failRead?: string; failMembers?: stri
   };
   const db = scopedDb("goals", raw, "0123456789abcdef0123456789abcdef") as Db;
   const state = {
-    now: T0, count: o.count ?? 0, failRead: o.failRead as string | undefined,
+    now: T0, count: o.count ?? 0, watch: { value: "Registrations: 212", changes: 3 } as { value?: string; changes: number; error?: string }, failRead: o.failRead as string | undefined,
     tasks: new Map<string, FakeTask>(), folders: new Map<string, { name: string; parent?: string }>([["fld_personal", { name: "Personal" }]]),
     files: [] as Array<{ folderId: string; name: string; text: string }>, shares: [] as Array<{ resource: Obj; subject: Obj; level: string; source: string }>,
     grants: [] as Obj[], posts: [] as Array<{ threadId: string; body: string; blocks?: Obj[]; by: string }>, memory: [] as Obj[], events: [] as Array<{ name: string; payload: Obj; key?: string }>,
@@ -73,10 +73,13 @@ export function world(o: { count?: number; failRead?: string; failMembers?: stri
     "access.share": (i) => { if (!state.shares.some((s) => s.resource.id === i.resource.id && s.subject.id === i.subject.id && s.source === i.source)) state.shares.push({ resource: i.resource, subject: i.subject, level: i.level, source: i.source }); return { grant: {} }; },
     "access.unshare": (i) => { const before = state.shares.length; state.shares = state.shares.filter((s) => !(s.resource.id === i.resource.id && s.source === i.source)); return { revoked: before - state.shares.length }; },
     "gate.grants.goal": (i) => { state.grants.push(i); return { acts: (i.set ?? []).length, rows: 0 }; },
+    "automations.watches.list": (i) => ({ watches: i.watchId === "wch_lab8" ? [{ watchId: "wch_lab8", ...state.watch }] : [] }),
     "records.counts": () => { if (state.failRead) throw new Error(state.failRead); return { count: state.count }; },
     "memory.remember": (i) => { state.memory.push(i); return {}; },
     "projects.get": () => ({ project: { folderId: "fld_project" } }),
   };
+
+  Object.assign(fake, o.fakes ?? {});
 
   function ctx(who: Caller): GoalsCtx {
     return {

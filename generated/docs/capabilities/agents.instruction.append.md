@@ -71,6 +71,7 @@ type Out = {
     createdAt: number;
     lastActiveAt?: number;
     teammateOf?: string;
+    chatOf?: string;
   };
   added: boolean;
   versionId?: string;
@@ -105,6 +106,7 @@ type Out = {
       "accountPolicy": "asker",
       "agentId": "agt_a1b2c3",
       "captureMode": "auto",
+      "chatOf": "thr_a1b2c3",
       "createdAt": 1760000000000,
       "face": "intake",
       "fallbackModel": "example",
@@ -130,7 +132,7 @@ type Out = {
       "runtime": "vyre",
       "status": "awake",
       "switchOnLimit": true,
-      "teammateOf": "prj_a1b2c3",
+      "teammateOf": "example",
       "templateVersion": 1,
       "toolsAllowed": [
         "example"

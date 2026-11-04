@@ -55,6 +55,10 @@ test("an agent drafts, the owner presses Start: no grant before the press, the d
   assert.equal(card.blocks![0]!.data.kind, "draft");
   assert.deepEqual(card.blocks![0]!.data.plan, ["Ask Aliza for two reels (Ask Aliza for two reels worked for Lab 7)"]);
   await assert.rejects(w.call("goals.confirm", { goalId: goal.id }, lead), /Only the owner starts a goal/);
+  const feed = (await w.call("goals.activity", { goalId: goal.id }, owner)).activity as Array<{ kind: string; text: string; tpl?: string }>;
+  const made = feed.find((a) => a.kind === "created")!;
+  assert.match(made.tpl!, /^\{who:agt_[^}]+\} drafted this goal for \{who:usr_[^}]+\}\.$/, "stored with names to fill in, not with 'an agent' or 'the owner'");
+  assert.doesNotMatch(made.text, /\{who:|an agent|the owner/);
   const started = (await w.call("goals.confirm", { goalId: goal.id }, owner)).goal;
   assert.equal(started.status, "active");
   assert.equal(started.permissions[0].granted, true);
@@ -369,6 +373,21 @@ test("a lead whose turn ends without a check-in is asked again at once, then the
   const g = getGoal(w.db, goal.id)!;
   assert.equal(g.status, "stuck");
   assert.equal(g.statusReason, "The lead agent did not check in after two wake-ups: the turn ended without a check-in.");
+});
+
+test("a watched page is a source: the number it last read, or how many times it changed; a watch that is gone or has read nothing says so", async () => {
+  const w = world();
+  const watched = (path?: string, id = "wch_lab8") => labGoal({ idempotencyKey: `k${path ?? "n"}${id}${w.state.watch.error ?? ""}`, finish: { kind: "number", line: "Luma shows 300 registrations", target: 300, unit: "registrations", source: { kind: "watch", watchId: id, ...(path ? { path } : {}) } } });
+  const { goal } = await w.call("goals.create", watched());
+  assert.equal(goal.progress.value, 212, "the number written on the watched page");
+  assert.deepEqual(w.state.calls.filter((c) => c.cap === "automations.watches.list").map((c) => c.input), [{ watchId: "wch_lab8", person: OWNER }], "asked for the owner's watch");
+  const changes = (await w.call("goals.create", watched("changes"))).goal;
+  assert.equal(changes.progress.value, 3);
+  w.state.watch = { changes: 0, error: "timed out" };
+  const none = (await w.call("goals.create", watched(undefined, "wch_lab8"))).goal;
+  assert.match(none.progress.error, /watch could not read the page: timed out/);
+  const gone = (await w.call("goals.create", watched(undefined, "wch_other"))).goal;
+  assert.match(gone.progress.error, /watch is gone/);
 });
 
 test("a goal drafted by an agent takes plan steps before Start, and they become tasks when the owner presses Start", async () => {

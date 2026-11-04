@@ -7,8 +7,10 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { ChatRightPane, ChatRightPaneLoading } from "./ChatRightPane.tsx";
 import { RightPaneDataProvider } from "./data.tsx";
 import { FilesTab, treeOrder } from "./FilesTab.tsx";
+import { NoneBody, setupView } from "./ComputerTab.tsx";
+import type { HostsAnswer } from "./ComputerTab.tsx";
 import {
-  accept, correct, deleteRoutine, duplicateRoutine, provision, reject, removeFact, renameRoutine, saveInstructions, setRoutine, signOut, takeOver, giveBack, wake,
+  accept, correct, deleteRoutine, duplicateRoutine, provision, reasonOf, reject, removeFact, renameRoutine, saveInstructions, setRoutine, signOut, takeOver, giveBack, wake,
 } from "./actions.ts";
 import type { PaneDeps } from "./actions.ts";
 import {
@@ -42,14 +44,14 @@ const deps = (s: Sample): { d: PaneDeps; notes: { text: string; undo?: () => Pro
 };
 const factsNow = (s: Sample): Fact[] => s.replica.rows("facts") as unknown as Fact[];
 const routinesNow = (s: Sample): Routine[] => s.replica.rows("routines") as unknown as Routine[];
-const tabs: TabKey[] = ["computer", "threads", "files", "memory", "routines"];
+const tabs: TabKey[] = ["about", "computer", "threads", "files", "memory", "routines"];
 
 test("five tabs in order under one pane toggle at the far left", () => {
-  assert.deepEqual(TABS.map((t) => t.title), ["Computer", "Threads", "Files", "Knows", "Routines"]);
+  assert.deepEqual(TABS.map((t) => t.title), ["About", "Computer", "Chats", "Files", "Knows", "Routines"]);
   const out = html(createSample(), "computer", 640);
   assert.equal(out.split('data-pane-toggle="far-left"').length - 1, 1, "exactly one toggle");
   assert.ok(has(out, 'data-toggle-count="1"'));
-  inOrder(out, ['data-pane-toggle="far-left"', ">Computer<", ">Threads<", ">Files<", ">Knows<", ">Routines<"]);
+  inOrder(out, ['data-pane-toggle="far-left"', ">About<", ">Computer<", ">Chats<", ">Files<", ">Knows<", ">Routines<"]);
   assert.ok(has(out, 'data-testid="chats-right-pane"') && has(out, 'data-testid="pane-body-computer"'));
   assert.ok(!has(out, String.fromCharCode(0x2014)), "no em dash in any copy");
 });
@@ -69,16 +71,18 @@ test("switching sections keeps the width: the edge is the pane's, not the tab's"
 
 test("the pane follows the agent of the open chat", () => {
   const nw = html(createSample(), "threads");
-  assert.ok(has(nw, 'data-testid="face-Intake"') && has(nw, "Books first calls and follows up on cold inquiries"));
+  assert.ok(has(nw, 'data-testid="face-Intake"') && has(nw, "Agent · books first calls and follows up on cold inquiries"));
   const personal = html(createSample("personal"), "threads");
-  assert.ok(has(personal, 'data-testid="face-Assistant"') && has(personal, "Your assistant for anything in this Space"));
+  assert.ok(has(personal, 'data-testid="face-Assistant"') && has(personal, "Agent · your assistant for anything in this Space"));
   assert.ok(!has(personal, "Rivera intake"), "another agent's chats do not leak in");
 });
 
 test("Computer, working: the live caption, steps in order, and the sites it is signed in to", () => {
   const out = html(createSample(), "computer");
-  assert.ok(has(out, "Working: Filling the county records form"));
-  assert.ok(has(out, 'data-testid="computer-screen"') && has(out, 'data-testid="computer-take"') && has(out, 'data-testid="computer-terminal"') && has(out, 'data-testid="computer-pop"'));
+  assert.ok(has(out, "Awake · Filling the county records form"), "the state is one chip");
+  assert.ok(has(out, 'data-testid="computer-screen"') && has(out, 'data-testid="computer-take"') && has(out, "Open Intake&#x27;s computer".replace("&#x27;", "'")), "the picture is the open");
+  for (const gone of ["computer-open", "computer-sleep", "computer-terminal", "computer-pop", "computer-more"]) assert.ok(!has(out, `data-testid="${gone}"`), `${gone} is not drawn: the picture opens, the header's menu sleeps`);
+  assert.ok(has(out, 'data-testid="computer-runs-on"') && has(out, "On ") && has(out, " of 8 tabs"), "where it runs is one footer line");
   assert.ok(has(out, ">Session<") && has(out, ">5 steps<"));
   const session = out.slice(at(out, ">Session<"));
   inOrder(session, ["Opened the county records site", "Searched for Rivera, Elena", "Saved the 2019 deed to Files", "Checked the filing date", "Filling the county records form"]);
@@ -90,7 +94,7 @@ test("Computer, working: the live caption, steps in order, and the sites it is s
 
 test("Computer, asleep: Wake, the last session, and a dimmed screen that wakes on click", () => {
   const out = html(createSample("asleep"), "computer");
-  assert.ok(has(out, ">Asleep<") && has(out, 'data-testid="computer-wake"') && has(out, ">Last session<"));
+  assert.ok(has(out, "Asleep · wakes when needed") && has(out, ">Last session<") && !has(out, 'data-testid="computer-sleep"'));
   assert.ok(has(out, "Wake Intake's computer"));
   assert.ok(!has(out, 'data-testid="computer-take"'), "Take over is for a working computer");
 });
@@ -98,18 +102,18 @@ test("Computer, asleep: Wake, the last session, and a dimmed screen that wakes o
 test("Computer, a Personal Space with a capable host (a server, or Docker here) has the Computer tab and sets up an agent's computer like a team one", () => {
   const s = createSample("personal");
   const withHost: Sample = { ...s, data: { ...s.data, space: { ...s.data.space, computers: true } } };
-  const out = html(withHost, "computer");
-  assert.ok(has(out, 'data-testid="computer-none"') && has(out, "Set up its computer"), "no computer yet, and the way to make one");
+  const out = clean(renderToStaticMarkup(<ChatRightPane data={withHost.data} open onToggle={() => undefined} tab="computer" setup window={ALL} />));
+  assert.ok(has(out, 'data-testid="computer-none"') && has(out, "Checking where its computer can run"), "no computer yet; the button waits for the Space to say a host can run one");
   assert.ok(!has(out, "Needs a Team Space"));
 });
 
-test("Computer, in a Personal Space there is no Computer tab and the pane opens on Threads; an agent without a computer offers to set one up", () => {
+test("Computer, in a Personal Space there is no Computer tab and the pane opens on About; an agent without a computer offers to set one up", () => {
   const personal = html(createSample("personal"), "computer");
   assert.ok(!has(personal, 'data-testid="computer-personal"') && !has(personal, ">Computer<"), "no Computer tab in a Personal Space");
-  assert.ok(has(personal, 'data-testid="face-Assistant"'), "asking for Computer shows Threads");
+  assert.ok(has(personal, 'data-testid="face-Assistant"'), "asking for Computer shows About");
   const s = createSample();
-  const bare = clean(renderToStaticMarkup(<ChatRightPane data={{ ...s.data, agent: { agentId: "agt_intake", name: "Intake" } }} open onToggle={() => undefined} tab="computer" window={ALL} />));
-  assert.ok(has(bare, "No computer yet") && has(bare, 'data-testid="computer-provision"'));
+  const bare = clean(renderToStaticMarkup(<ChatRightPane data={{ ...s.data, agent: { agentId: "agt_intake", name: "Intake" } }} open onToggle={() => undefined} tab="computer" setup window={ALL} />));
+  assert.ok(has(bare, "Give Intake its own computer") && has(bare, 'data-testid="computer-checking"') && !has(bare, 'data-testid="computer-provision"'), "no button until a host says it can run one");
 });
 
 test("Threads: the threads it worked in, its helpers (running first), and its own chats; the open chat is selected", () => {
@@ -191,7 +195,7 @@ test("an agent with no routines says so; a Personal assistant has none", () => {
 });
 
 test("every list draws ui/Row with its slots, never an overlay", () => {
-  for (const t of tabs) {
+  for (const t of tabs.filter((x) => x !== "about")) {
     const out = html(createSample(), t);
     assert.ok(has(out, 'data-testid="row-'), `${t} has rows`);
   }
@@ -307,7 +311,7 @@ test("computer actions: wake, take over, give back, sign out, set up", async () 
   await signOut(d, "cmp_intake", "Calendar");
   assert.ok(!html(s, "computer").includes("Maya Chen's calendar, can book"));
   await provision(d, "agt_intake", "Intake");
-  assert.deepEqual(s.calls.map((c) => c.cap), ["computers.wake", "computers.take_over", "computers.give_back", "computers.session.sign_out", "computers.provision"]);
+  assert.deepEqual(s.calls.map((c) => c.cap), ["computers.wake", "computers.take_over", "computers.give_back", "computers.session.sign_out", "computers.provision", "computers.wake"]);
   assert.ok(notes.every((n) => !n.text.startsWith("Could not")));
 });
 
@@ -316,7 +320,7 @@ test("a failed write is one quiet line, not a thrown error", async () => {
   const { d, notes } = deps(s);
   s.failNext("memory.fact.reject");
   assert.equal(await reject(d, factsNow(s).find((f) => f.factId === "p1")!), false);
-  assert.deepEqual(notes.map((n) => n.text), ["Could not reject that fact. Try again."]);
+  assert.deepEqual(notes.map((n) => n.text), ["Could not reject that fact: memory.fact.reject failed"]);
   assert.equal(factsNow(s).find((f) => f.factId === "p1")!.status, "proposed", "nothing changed");
 });
 
@@ -477,7 +481,7 @@ test("with a terminal in the shell the pane has a sixth tab after Files, and wit
   const s = createSample();
   const withTerminal = { ...s.data, terminal: { screens: s.data.screens, call: async () => ({ terminals: [] }), connection: s.data.connection, space: { id: "spc_1", name: "Northwind" }, newKey: () => "k", clock: s.data.clock, nav: { openTerminal() {}, closeTab() {}, openList() {}, openRules() {}, openAgent() {} } } } as never;
   const out = clean(renderToStaticMarkup(<ChatRightPane data={withTerminal} open={true} onToggle={() => undefined} tab="computer" window={ALL} paneWidth={760} />));
-  inOrder(out, [">Computer<", ">Threads<", ">Files<", ">Terminal<", ">Knows<", ">Routines<"]);
+  inOrder(out, [">Computer<", ">Chats<", ">Files<", ">Terminal<", ">Knows<", ">Routines<"]);
   assert.ok(!has(html(s, "computer", 760), ">Terminal<"));
 });
 
@@ -504,4 +508,31 @@ test("giving back from the pane tells the agent in the chat to carry on, once, a
   posted.length = 0;
   await giveBack(mk(false), "cmp_1", "Intake");
   assert.ok(!posted.some((p) => p.cap === "chat.post"), "without a chat there is nowhere to say it");
+});
+
+test("Computer, none yet: the button is there only when a host can run one; when none can, the real reason and the next step are, never a button that cannot work", () => {
+  const render = (hosts: HostsAnswer, canProvision = true) => clean(renderToStaticMarkup(<NoneBody hosts={hosts} canProvision={canProvision} onProvision={() => undefined} name="Dex" />));
+  const can = render({ state: "ready", available: true, hosts: [{ hostId: "space", name: "The Space", canRun: true }] });
+  assert.ok(has(can, 'data-testid="computer-provision"') && has(can, "Set up its computer") && !has(can, 'data-testid="computer-cannot"'));
+  assert.ok(has(render({ state: "ready", available: true, hosts: [] }, false), 'data-testid="computer-provision-admin"') && !has(render({ state: "ready", available: true, hosts: [] }, false), 'data-testid="computer-provision"'), "a member is told who sets it up");
+  const why = "This server's container runner is not running, so agent computers cannot start. Start it: docker compose up -d sites-runner.";
+  const cannot = render({ state: "ready", available: false, hosts: [{ hostId: "space", name: "The Space", canRun: false, reason: why }] });
+  assert.ok(has(cannot, 'data-testid="computer-cannot"') && has(cannot, "docker compose up -d sites-runner") && !has(cannot, 'data-testid="computer-provision"') && !has(cannot, "Set up its computer"));
+  const mac = render({ state: "ready", available: false, hosts: [{ hostId: "this", name: "This computer", canRun: false, reason: "Docker is not running on this Mac. Start Docker Desktop or Colima, then set up the computer." }] });
+  assert.ok(has(mac, "Start Docker Desktop or Colima") && !has(mac, "Try again"));
+  const none = render({ state: "ready", available: false, hosts: [] });
+  assert.ok(has(none, "Add a server with Docker"));
+  const err = render({ state: "error", message: "the Space did not answer" });
+  assert.ok(has(err, "could not ask where an agent computer can run: the space did not answer".replace("the space", "the Space")) && !has(err, "Set up its computer"));
+  assert.equal(setupView({ state: "loading" }).kind, "checking");
+});
+
+test("a failed write says why in the app's own words, and a computer that could not be set up says the reason", async () => {
+  const s = createSample();
+  const { d, notes } = deps(s);
+  const reasoned: PaneDeps = { ...d, call: async () => { throw new Error("This server's container runner is not running. Start it: docker compose up -d sites-runner."); } };
+  assert.equal(await provision(reasoned, "agt_intake", "Dex"), false);
+  assert.deepEqual(notes.map((n) => n.text), ["Could not set up its computer: This server's container runner is not running. Start it: docker compose up -d sites-runner"]);
+  assert.equal(reasonOf(new Error("Not allowed.")), "Not allowed");
+  assert.equal(reasonOf("not an error"), "");
 });

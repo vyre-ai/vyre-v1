@@ -1,5 +1,6 @@
 // Chats sidebar (spec 3.2, 2.23): the pure part. What each section shows, worked out from the capability answers (types from generated/types.ts).
 // No React and no I/O here, so grouping, filters, the Cmd-digit map, next unread and the local new-chat row are tested without a renderer.
+import { chatName } from "../../../../../../lib/chat-name.ts";
 import type { CapMap } from "../../../../../../generated/types.ts";
 import type { ImportedRow } from "../imported/model.ts";
 import type { TeamNow } from "../../../shell/team/now.ts";
@@ -13,12 +14,14 @@ export type NeedsItem = CapMap["tasks.needs_you"]["out"]["items"][number];
 export type Filter = NonNullable<CapMap["chat.recent"]["in"]["filter"]>;
 
 /** The sidebar's filter menu. The server filters All and Unread; Needs you and Running are read off the rows. */
-export type SideFilter = "all" | "unread" | "needs" | "running";
+export type SideFilter = "all" | "unread" | "needs" | "running" | "asks";
 export const FILTERS: readonly { key: SideFilter; label: string }[] = [
   { key: "all", label: "All" },
   { key: "unread", label: "Unread" },
   { key: "needs", label: "Needs you" },
   { key: "running", label: "Running" },
+  // the Ask history: every Ask pane you opened beside something in another place (they stay out of Recent until you ask for them here)
+  { key: "asks", label: "Asks" },
 ];
 
 /** Cmd-1 to Cmd-9 jump to the first nine starred agent faces. */
@@ -48,6 +51,8 @@ export interface ChatRow {
   /** A group chat: up to three of its agents, drawn as stacked faces. Absent for a chat with one. */
   members?: { id: string; name: string }[] | undefined;
   unread: number;
+  /** New replies, to messages you follow, in this chat: its row is bold with this count. */
+  repliesUnread?: number | undefined;
   working: boolean;
   /** Something in this chat waits on you: the amber ring. */
   waiting?: boolean;
@@ -72,12 +77,14 @@ export function rowOf(item: RecentItem, agentName: (id: string) => string, perso
   const name = person !== null && personName ? personName(person) : null;
   return {
     threadId: item.threadId,
-    title: name !== null && (item.title === "" || item.title === "New chat") ? name : item.title,
+    // one name for a chat, the same in the list, the header, the tabs and search (lib/chat-name.ts): a direct message is the person, any other chat its title, else who is in it
+    title: chatName({ title: item.title, kind: item.kind, agents: item.agents, people: item.people ?? [] }, (id) => (id.startsWith("agt_") || id === "assistant" ? agentName(id) : personName ? personName(id) : id)),
     who: agent !== undefined ? agentName(agent) : name ?? item.title,
     ...(agent !== undefined ? { whoId: agent } : person !== null ? { whoId: person } : {}),
     kind: agent !== undefined ? "agent" : "person",
     ...(item.agents.length > 1 ? { members: item.agents.slice(0, 3).map((id) => ({ id, name: agentName(id) })) } : {}),
     unread: item.unread,
+    ...(item.repliesUnread ? { repliesUnread: item.repliesUnread } : {}),
     working: item.working,
     starred: item.starred,
     lastAt: item.lastAt,
@@ -152,7 +159,7 @@ export function anyUnread(recent: RecentOut | null, channels: readonly Pick<Chan
 
 /** The server filters; this is the same rule for rows already on the device (a local row with no agent counts as People). */
 export function matchesFilter(row: ChatRow, f: SideFilter): boolean {
-  return f === "all" || (f === "unread" && row.unread > 0) || (f === "needs" && row.waiting === true) || (f === "running" && row.working);
+  return f === "all" || (f === "unread" && (row.unread > 0 || (row.repliesUnread ?? 0) > 0)) || (f === "needs" && row.waiting === true) || (f === "running" && row.working);
 }
 
 /** The shared search field: a row stays when every word of the query is in one of its texts (case-insensitive). An empty query keeps everything. */
@@ -165,7 +172,7 @@ export function matchesQuery(query: string, ...texts: readonly string[]): boolea
 
 /** Counts for the filter menu, from the unfiltered answer. */
 export function filterCounts(rows: readonly ChatRow[]): Record<SideFilter, number> {
-  const c: Record<SideFilter, number> = { all: rows.length, unread: 0, needs: 0, running: 0 };
+  const c: Record<SideFilter, number> = { all: rows.length, unread: 0, needs: 0, running: 0, asks: 0 };
   for (const r of rows) {
     if (matchesFilter(r, "unread")) c.unread++;
     if (matchesFilter(r, "needs")) c.needs++;
@@ -211,8 +218,8 @@ export type Entry =
   | { key: string; type: "head"; section: SectionKey; label: string; count?: number; open: boolean }
   | { key: string; type: "face"; agent: Agent; digit?: number; working: boolean; waiting: boolean; assistant?: boolean; unread?: number }
   | { key: string; type: "more"; label: string; to: "agents" | "unread" | "recent" | "people" | "faces" | "goals" }
-  /** The rows at the top: Tasks, Threads and Notes. */
-  | { key: string; type: "nav"; to: "tasks" | "threads" | "notes"; label: string; count: number; dot?: boolean }
+  /** The rows at the top: Tasks and Notes. */
+  | { key: string; type: "nav"; to: "tasks" | "notes"; label: string; count: number; dot?: boolean }
   /** A goal: its lead's face, its title, a steady bar and what changes what you do (a two-line row, GOAL_ROW_H). */
   | { key: string; type: "goal"; goal: GoalLine }
   /** A person of the Space: a press opens your chat with them. `presence` is their steady dot (online, away). */
@@ -255,7 +262,6 @@ export interface SidebarInput {
   assistant?: { agentId: string; name: string };
   /** What you owe, on the Tasks row. */
   tasksCount?: number;
-  threadsDot?: boolean;
   /** The Notes row is drawn (the shell has a Notes page). */
   notes?: boolean;
   /** Unread in my chats with each agent alone, by agent id: the face's dot. */
@@ -313,7 +319,7 @@ export const RECENT_SHOWN = 3;
 /** People and Agents show this many, then "N more". */
 export const LIST_SHOWN = 3;
 
-/** The flat list, top to bottom: Tasks and Threads, then Now (running and waiting rise here), Recent, Channels, People, Agents. Every list survives 300 rows: each folds, and long ones stop at "N more". */
+/** The flat list, top to bottom: Tasks and Notes, then Now (running and waiting rise here), Recent, Channels, People, Agents. Every list survives 300 rows: each folds, and long ones stop at "N more". */
 export function buildEntries(i: SidebarInput): Entry[] {
   const out: Entry[] = [];
   const open = (s: SectionKey): boolean => !i.closed.has(s);
@@ -321,10 +327,9 @@ export function buildEntries(i: SidebarInput): Entry[] {
   if (!i.searching && i.digest && i.digest.count > 0) out.push({ key: "digest", type: "digest", count: i.digest.count });
   if (!i.searching) {
     out.push({ key: "nav:tasks", type: "nav", to: "tasks", label: "Tasks", count: i.tasksCount ?? 0 });
-    out.push({ key: "nav:threads", type: "nav", to: "threads", label: "Threads", count: 0, dot: i.threadsDot === true });
     if (i.notes) out.push({ key: "nav:notes", type: "nav", to: "notes", label: "Notes", count: 0 });
   }
-  // Goals sit under Tasks and Threads: what needs you first. A Space with none shows no group.
+  // Goals sit under Tasks: what needs you first. A Space with none shows no group.
   if (!i.searching && (i.goals?.length ?? 0) > 0) {
     const goals = i.goals!;
     out.push({ key: "h:goals", type: "head", section: "goals", label: "Goals", count: goals.length, open: open("goals") });
@@ -424,7 +429,7 @@ export function openEntry(entries: readonly Entry[], open: string | null): strin
   if (!open) return null;
   const has = (k: string): string | null => (entries.some((e) => e.key === k) ? k : null);
   if (open === "artifacts") return "artifacts";
-  if (open === "tasks" || open === "threads" || open === "notes") return has(`nav:${open}`);
+  if (open === "tasks" || open === "notes") return has(`nav:${open}`);
   if (open.startsWith("g:")) return has(open);
   if (open.startsWith("i:")) return has(open);
   if (open.startsWith("a:")) return has(`f:${open.slice(2)}`);

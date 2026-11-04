@@ -306,7 +306,8 @@ test("the frame, the bar and the named cursor, in a light and a dark page, then 
         await r.call("chrome_snapshot");
         await r.page.evaluate(() => (globalThis as any)[Symbol.for("vyre.agent.overlay")].stop.click());
         await new Promise((res) => setTimeout(res, 200));
-        assert.equal(await r.overlayState(), null, "Stop gave the tab back");
+        const stoppedBar = await r.overlayState();
+        assert.ok(stoppedBar, "Stop leaves the Stopped bar, with Resume and End task");
         assert.ok(r.sentEvents.some((e: any) => e.event === "stopped" && e.by === "person" && e.agent === "agt_intake"), "and it was logged under the agent");
         await assert.rejects(r.call("chrome_snapshot"), (e: any) => e.code === "paused");
         assert.equal((await r.call("chrome_status")).paused, true);

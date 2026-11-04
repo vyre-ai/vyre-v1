@@ -91,7 +91,7 @@ export async function start(ctx: ChatCtx, input: StartInput) {
 
   if (input.kind === "ask") {
     if (isRun) raise(ctx, "validation.bad_input", "A Run has a chat, not an Ask pane.");
-    if (isTask) raise(ctx, "validation.bad_input", "A task has a thread, not an Ask pane.");
+    if (isTask) raise(ctx, "validation.bad_input", "A task has a chat, not an Ask pane.");
     if (input.scopeType === undefined) raise(ctx, "validation.bad_input", "An Ask pane is about something: say which record, file, event or page.");
     if (personId !== undefined) raise(ctx, "validation.bad_input", "An Ask pane is private. Start a chat to talk to a person.");
     if (agentIds.length === 0) raise(ctx, "validation.bad_input", "Pick the agent to ask.");
@@ -99,12 +99,12 @@ export async function start(ctx: ChatCtx, input: StartInput) {
     raise(ctx, "validation.bad_input", "Pick an agent or a person to talk to.");
   }
   if (isRun) {
-    if (!input.scopeId!.startsWith("run_")) raise(ctx, "validation.bad_input", "A Run thread is named by its Run id.", { scopeId: input.scopeId });
+    if (!input.scopeId!.startsWith("run_")) raise(ctx, "validation.bad_input", "A Run chat is named by its Run id.", { scopeId: input.scopeId });
     if (personId !== undefined) raise(ctx, "validation.bad_input", "A Run chat belongs to the Run, not to a pair of people.");
   }
   if (isTask) {
-    if (!input.scopeId!.startsWith("tsk_")) raise(ctx, "validation.bad_input", "A task thread is named by its task id.", { scopeId: input.scopeId });
-    if (personId !== undefined) raise(ctx, "validation.bad_input", "A task thread belongs to the task, not to a pair of people.");
+    if (!input.scopeId!.startsWith("tsk_")) raise(ctx, "validation.bad_input", "A task chat is named by its task id.", { scopeId: input.scopeId });
+    if (personId !== undefined) raise(ctx, "validation.bad_input", "A task chat belongs to the task, not to a pair of people.");
   }
 
   // One chat per Run: starting it again opens the one that exists.
@@ -211,7 +211,7 @@ export async function makeChannel(ctx: ChatCtx, input: { threadId: string; perso
   return { channel: channelOut(ctx.db, channel) };
 }
 
-export async function channelsCreate(ctx: ChatCtx, input: { name: string; visibility: "public" | "invite"; topic?: string; memberIds?: string[]; agentIds?: string[]; folderId?: string; recordId?: string; idempotencyKey?: string }) {
+export async function channelsCreate(ctx: ChatCtx, input: { name: string; visibility: "public" | "invite"; topic?: string; memberIds?: string[]; agentIds?: string[]; leadAgentId?: string; folderId?: string; recordId?: string; idempotencyKey?: string }) {
   ensure(ctx.db);
   const name = cleanName(ctx, input.name);
   if (channelByName(ctx.db, name)) raise(ctx, "validation.bad_input", "A channel with that name already exists.", { name });
@@ -227,7 +227,7 @@ export async function channelsCreate(ctx: ChatCtx, input: { name: string; visibi
   if (asker.startsWith("usr_")) addMember(ctx, main.id, asker, "owner");
   for (const p of memberIds) addMember(ctx, main.id, p);
   // Agents are invited as listeners: in a channel they answer when asked, and act unmentioned only where "watches this channel" is on.
-  for (const agentId of agentIds) addAgent(ctx, main.id, { agentId, mode: "listen", addedBy: asker });
+  for (const agentId of agentIds) addAgent(ctx, main.id, { agentId, mode: agentId === input.leadAgentId ? "lead" : "listen", addedBy: asker });
   const channel = insertChannel(ctx, { id: channelId, mainThread: main.id, name, topic, visibility: input.visibility, folderId: input.folderId, recordId: input.recordId, createdBy: asker });
   ctx.emit("channel.created", channel.id, { channelId: channel.id, name, visibility: input.visibility, ...(input.recordId !== undefined ? { recordId: input.recordId } : {}) });
   emitStarted(ctx, main);

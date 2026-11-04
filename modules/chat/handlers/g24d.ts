@@ -4,6 +4,7 @@
 //   chat.helper.start / chat.helpers.list / chat.handoff   sub-task threads and agent-to-agent threads
 // No handler here calls a model. transcript.summarize writes the plain extract of agent/src/transcript (the floor every switch and rollover already uses) and marks the thread as wanting a
 // model refresh; search is lexical, because the module holds no embedding index.
+import { readFloor } from "./floor.ts";
 import { createTranscript, redact, refreshSummary, transcriptPath } from "../../../agent/src/transcript/index.ts";
 import type { Part, Turn } from "../../../agent/src/transcript/index.ts";
 import {
@@ -27,7 +28,7 @@ function visible(ctx: ChatCtx, threadId: string): ThreadRec {
 }
 function open(ctx: ChatCtx, threadId: string): ThreadRec {
   const t = visible(ctx, threadId);
-  if (t.closedAt !== undefined) raise(ctx, "validation.bad_input", "This thread is closed. Reopen it to write in it.");
+  if (t.closedAt !== undefined) raise(ctx, "validation.bad_input", "This chat is closed. Reopen it to write in it.");
   return t;
 }
 const authorKind = (ctx: ChatCtx): "agent" | "text" => (ctx.principal.kind === "agent" ? "agent" : "text");
@@ -144,7 +145,7 @@ export async function transcriptGet(ctx: ChatCtx, input: { threadId: string; tur
   const own = seenRows(ctx);
   // a turn whose every row is someone else's private detail is, for this reader, a turn with no rows
   if ((ctx.db.all("SELECT 1 AS x FROM chat_transcript_row WHERE thread = ? AND turnId = ? LIMIT 1", t.id, input.turnId) as Row[]).length === 0) raise(ctx, "validation.not_found", "That turn is not in this transcript.");
-  const rows = ctx.db.all(`SELECT * FROM chat_transcript_row r WHERE thread = ? AND turnId = ? AND ${own.sql} ORDER BY idx`, t.id, input.turnId, ...own.args) as Row[];
+  const rows = ctx.db.all(`SELECT * FROM chat_transcript_row r WHERE thread = ? AND turnId = ? AND at >= ? AND ${own.sql} ORDER BY idx`, t.id, input.turnId, readFloor(ctx, t), ...own.args) as Row[];
   return {
     turnId: input.turnId,
     rows: rows.map((r) => ({
@@ -160,7 +161,8 @@ export async function transcriptRead(ctx: ChatCtx, input: { threadId: string; fr
   const from = Math.max(1, input.fromIdx ?? 1);
   const limit = Math.min(MAX_ROWS, Math.max(1, input.limit ?? 100));
   const own = seenRows(ctx);
-  const rows = ctx.db.all(`SELECT * FROM chat_transcript_row r WHERE thread = ? AND idx >= ? AND ${own.sql} ORDER BY idx LIMIT ?`, t.id, from, ...own.args, limit + 1) as Row[];
+  // the file export of a chat holds the reader's own line: nothing from before a newcomer's start
+  const rows = ctx.db.all(`SELECT * FROM chat_transcript_row r WHERE thread = ? AND idx >= ? AND at >= ? AND ${own.sql} ORDER BY idx LIMIT ?`, t.id, from, readFloor(ctx, t), ...own.args, limit + 1) as Row[];
   const shown = rows.slice(0, limit);
   const parts = shown.map((r) => {
     const tool = r["toolName"] ? `, ${String(r["toolName"])}` : "";
@@ -191,9 +193,9 @@ export async function transcriptSearch(
     where.push("r.thread = ?"); args.push(t.id);
   }
   if (input.agentId !== undefined) { where.push("r.thread IN (SELECT thread FROM chat_thread_agent WHERE agentId = ? AND deleted_at IS NULL)"); args.push(input.agentId); }
-  const rows = ctx.db.all(
+  const rows = (ctx.db.all(
     `SELECT r.* FROM chat_transcript_row r JOIN chat_thread t ON t.id = r.thread WHERE ${where.join(" AND ")} ORDER BY r.at DESC, r.idx DESC LIMIT 5000`, ...args,
-  ) as Row[];
+  ) as Row[]).filter((r) => { const th = threadBy(ctx.db, String(r["thread"])); return th === null || th === undefined || Number(r["at"]) >= readFloor(ctx, th); });
   const may = new Map<string, boolean>();
   const allowed = (id: string): boolean => {
     let ok = may.get(id);
@@ -226,7 +228,8 @@ export async function transcriptSearch(
 export async function transcriptSummary(ctx: ChatCtx, input: { threadId: string }) {
   ensureTranscript(ctx.db);
   const t = visible(ctx, input.threadId);
-  const r = (ctx.db.all("SELECT * FROM chat_transcript_summary WHERE thread = ?", t.id) as Row[])[0];
+  // the summary is made of the whole chat: a reader whose history starts later gets none, so what was hidden from them never reaches an agent working for them
+  const r = readFloor(ctx, t) > 0 ? undefined : (ctx.db.all("SELECT * FROM chat_transcript_summary WHERE thread = ?", t.id) as Row[])[0];
   return { summary: r ? String(r["summary"]) : "", upToIdx: r ? Number(r["upToIdx"]) : 0, updatedAt: r ? Number(r["updatedAt"]) : 0, transcriptPath: transcriptPath(t.id) };
 }
 
@@ -300,6 +303,28 @@ const MAX_OPTIONS = 20;
 const MAX_STEPS = 50;
 const MAX_STEP = 2_000;
 
+/** Under three words, or only a probe word: nothing worth a card on someone's list. */
+export function isProbe(prompt: string, hasChoices = false): boolean {
+  const words = prompt.toLowerCase().replace(/[^\p{L}\p{N}\s']/gu, " ").split(/\s+/).filter((w) => w !== "");
+  // a choice between options may be short ("Which court?"); a free question needs a sentence
+  return (words.length < 3 && !(hasChoices && words.length >= 1)) || words.every((w) => /^(test|testing|tests|hi|hello|hey|ping|asdf|foo|bar|ok|okay)$/.test(w));
+}
+
+/** The agent's own question taken back: its turn ended without waiting for it. The card closes as withdrawn and its task is closed behind it. Only the agent that asked (or a person in the chat) may. */
+export async function questionWithdraw(ctx: ChatCtx, input: { threadId: string; blockId: string }): Promise<{ withdrawn: boolean }> {
+  ensure(ctx.db);
+  const block = blockBy(ctx.db, input.blockId);
+  const t = threadBy(ctx.db, input.threadId);
+  if (!block || !t || block.thread !== t.id || block.type !== "question") raise(ctx, "validation.not_found", "That question does not exist.");
+  const author = messageBy(ctx.db, block.message)?.author;
+  if (ctx.principal.kind === "agent" ? author !== ctx.principal.id : !canSpeak(ctx, t)) raise(ctx, "permission.no_grant", "Only the one who asked can take a question back.");
+  if (block.state === "done") return { withdrawn: false };
+  ctx.db.run("UPDATE chat_block SET state = 'done', answer = NULL, answeredBy = NULL, answeredAt = ? WHERE id = ?", ctx.now(), block.id);
+  patchBlockInMessage(ctx.db, block.message, block.id, (b) => ({ ...b, state: "done", data: { ...(b["data"] as Record<string, unknown>), withdrawn: true } }));
+  ctx.emit("block.withdrawn", t.id, { threadId: t.id, blockId: block.id });
+  return { withdrawn: true };
+}
+
 export async function questionAsk(
   ctx: ChatCtx,
   input: { threadId: string; prompt: string; mode: "single" | "multi" | "free"; options?: Array<{ key: string; label: string; detail?: string }>; allowOther?: boolean; card?: { kind: "terminal"; command: string; host?: string; risk?: string }; idempotencyKey?: string },
@@ -308,6 +333,8 @@ export async function questionAsk(
   const t = open(ctx, input.threadId);
   const prompt = input.prompt.trim();
   if (prompt === "" || prompt.length > MAX_PROMPT) raise(ctx, "validation.bad_input", `A question needs words, at most ${MAX_PROMPT} characters.`);
+  // a question is a card and a task on a person's list: it needs a real question, not a probe ("test", "hi", one word)
+  if (isProbe(prompt, (input.options ?? []).length >= 1)) raise(ctx, "validation.bad_input", "Ask a real question: say in a sentence what you need to know. A question of one or two words, or a test, is not put on anyone's list.");
   const options = input.options ?? [];
   if (input.mode === "free" && options.length > 0) raise(ctx, "validation.bad_input", "A free-text question has no options.");
   if (input.mode !== "free") {
@@ -515,6 +542,11 @@ export async function handoff(ctx: ChatCtx, input: { threadId: string; toAgentId
   const fromAgentId = ctx.principal.kind === "agent" ? ctx.principal.id : (list.find((a) => a.mode === "lead") ?? list[0])?.agentId;
   if (fromAgentId === undefined) raise(ctx, "validation.precondition_failed", "No agent in this chat has work to hand over.");
   if (fromAgentId === input.toAgentId) raise(ctx, "validation.bad_input", "An agent cannot hand work to itself.");
+  // one agent hands work to another only when the other allows calls from agents in the Space (access.agents_can_call, On unless a person turned it Off)
+  if (ctx.principal.kind === "agent" && ctx.call) {
+    const gate = (await ctx.call("access.agents_can_call.get", { agentId: input.toAgentId })) as { on?: boolean } | undefined;
+    if (gate?.on === false) raise(ctx, "permission.no_grant", "That agent does not take calls from other agents. A person can turn them on in its Share sheet.", { agentId: input.toAgentId });
+  }
 
   // A handoff is one more hop after whatever the chat holds now; past the hop limit a person has to speak first.
   const depth = (lastMessage(ctx.db, source.id)?.depth ?? 0) + 1;
@@ -545,6 +577,7 @@ export const g24dHandlers = {
   "chat.plan.reject": planReject,
   "chat.plan.step_done": planStepDone,
   "chat.question.ask": questionAsk,
+  "chat.question.withdraw": questionWithdraw,
   "chat.helper.start": helperStart,
   "chat.helpers.list": helpersList,
   "chat.handoff": handoff,

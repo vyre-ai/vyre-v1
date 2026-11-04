@@ -6,7 +6,7 @@ Generated from the manifests. The lead completes it by hand (spec sections, reus
 
 ### access
 
-Capabilities to implement: 71. Events to emit: 20. Contract tests that must go green: `generated/tests/access/`.
+Capabilities to implement: 74. Events to emit: 21. Contract tests that must go green: `generated/tests/access/`.
 
 Capabilities:
 - access.actors.create (write, access.manage, level view)
@@ -15,6 +15,8 @@ Capabilities:
 - access.actors.revoke (write, access.manage, level view)
 - access.actors.set_engineer_mcp (write, access.manage, level view)
 - access.actors.update (write, access.manage, level view)
+- access.agents_can_call.get (read, grant only, level member)
+- access.agents_can_call.set (write, grant only, level view)
 - access.audience_set (write, grant only, level view)
 - access.automation_senders (write, grant only, level view)
 - access.check (read, access.manage, level view)
@@ -41,6 +43,7 @@ Capabilities:
 - access.labels.list (read, grant only, level view)
 - access.labels.set (write, policy.manage, level view)
 - access.lists (read, grant only, level view)
+- access.make_owner (write, grant only, level view, gate transfer)
 - access.policies.list (read, policy.manage, level view)
 - access.policies.reset (write, policy.manage, level view)
 - access.policies.set (write, policy.manage, level view)
@@ -89,6 +92,7 @@ Events:
 - access.exception_set
 - access.granted
 - access.requested
+- access.shared_with
 - access_review.closed
 - access_review.opened
 - folder.shared
@@ -236,7 +240,7 @@ Events:
 
 ### members
 
-Capabilities to implement: 33. Events to emit: 6. Contract tests that must go green: `generated/tests/members/`.
+Capabilities to implement: 34. Events to emit: 6. Contract tests that must go green: `generated/tests/members/`.
 
 Capabilities:
 - company.access_log (read, connectors.manage, level view)
@@ -253,6 +257,7 @@ Capabilities:
 - members.accept (write, grant only, level view)
 - members.invites.create (write, members.invite, level view)
 - members.invites.extend (write, members.invite, level view)
+- members.invites.guest (write, grant only, level member)
 - members.invites.list (read, members.invite, level view)
 - members.invites.preview (read, grant only, level view)
 - members.invites.revoke (write, members.invite, level view)
@@ -283,9 +288,12 @@ Events:
 
 ### settings
 
-Capabilities to implement: 15. Events to emit: 2. Contract tests that must go green: `generated/tests/settings/`.
+Capabilities to implement: 18. Events to emit: 6. Contract tests that must go green: `generated/tests/settings/`.
 
 Capabilities:
+- settings.contact.status (read, grant only, level view)
+- settings.contact.verify_confirm (write, grant only, level view)
+- settings.contact.verify_start (write, grant only, level view)
 - settings.copy_profile (write, grant only, level view)
 - settings.copy_source (read, grant only, level view)
 - settings.floor_set (write, policy.manage, level view)
@@ -304,6 +312,10 @@ Capabilities:
 
 Events:
 - settings.changed
+- settings.contact_code_failed
+- settings.contact_code_sent
+- settings.contact_unverified
+- settings.contact_verified
 - settings.floor_changed
 
 ### spaces
@@ -343,6 +355,30 @@ Events:
 - space.updated
 - star.added
 - star.removed
+
+### talk
+
+Capabilities to implement: 11. Events to emit: 5. Contract tests that must go green: `generated/tests/talk/`.
+
+Capabilities:
+- talk.ask_key (write, grant only, level edit)
+- talk.configure (write, grant only, level edit)
+- talk.connect (write, grant only, level edit)
+- talk.disconnect (write, grant only, level edit)
+- talk.session (write, grant only, level edit)
+- talk.space.check (write, policy.manage, level edit)
+- talk.space.configure (write, policy.manage, level edit, gate approve)
+- talk.space.connect (write, policy.manage, level edit)
+- talk.space.disconnect (write, policy.manage, level edit, gate delete)
+- talk.space.status (read, policy.manage, level view)
+- talk.status (read, grant only, level view)
+
+Events:
+- talk.configured
+- talk.connected
+- talk.disconnected
+- talk.space_changed
+- talk.space_checked
 
 ### vault
 

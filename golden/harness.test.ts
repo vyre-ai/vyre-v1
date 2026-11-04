@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { blockers, checkSequence, evaluate, exitCode, loadFlows, loadRegistryEvents, loadRegistryModules, ROOT, summary, defineFlow } from "./harness/index.ts";
+import { blockers, checkSequence, evaluate, withinCap, exitCode, loadFlows, loadRegistryEvents, loadRegistryModules, ROOT, summary, defineFlow } from "./harness/index.ts";
 import type { LoadSteps, ModuleStatus, Observed } from "./harness/index.ts";
 import { dueAt, readyReport } from "../scripts/golden-ready.ts";
 
@@ -82,7 +82,7 @@ test("golden-ready prints blockers per flow and applies the hour 6, 9 and 11 dea
 });
 
 test("the CLIs run: pending flows keep the exit code at 0, golden-ready lists all 15", () => {
-  const sh = (f: string, a: string[] = []) => spawnSync(process.execPath, [f, ...a], { cwd: ROOT, encoding: "utf8" });
+  const sh = (f: string, a: string[] = []) => spawnSync(process.execPath, [f, ...a], { cwd: ROOT, encoding: "utf8", timeout: 100_000, env: { ...process.env, GOLDEN_TIMES: "1" } });
   const g = sh("golden/harness/cli.ts");
   const m = /^15 flows: (\d+) pass, (\d+) pending, (\d+) fail$/m.exec(g.stdout);
   assert.ok(m, g.stdout + g.stderr);
@@ -91,4 +91,9 @@ test("the CLIs run: pending flows keep the exit code at 0, golden-ready lists al
   assert.equal(r.status, 0);
   assert.equal(r.stdout.trim().split("\n").length, 16);
   assert.equal(summary([]), "0 flows: 0 pass, 0 pending, 0 fail");
+});
+
+test("a flow whose steps never finish fails alone, naming the flow, instead of holding the run", async () => {
+  await assert.rejects(withinCap(new Promise<never>(() => undefined), 30, "07-agent-reply steps"), /07-agent-reply steps did not finish within 0 s/);
+  assert.equal(await withinCap(Promise.resolve(5), 1000, "x"), 5);
 });

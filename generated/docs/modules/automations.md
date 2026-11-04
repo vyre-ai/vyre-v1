@@ -4,7 +4,7 @@ Lane L6. Kind module. Version 0.1.0.
 
 Requires: chat, files, forms, github, journeys, mail, meetings, records, runs, telephony.
 
-## Capabilities (61)
+## Capabilities (67)
 
 - [automations.account_picks](../capabilities/automations.account_picks.md): The last account this person picked for each app
 - [automations.alerts.get](../capabilities/automations.alerts.get.md): Read error alerts: who, when and where, and the escalation chain
@@ -53,6 +53,7 @@ Requires: chat, files, forms, github, journeys, mail, meetings, records, runs, t
 - [automations.schedule_choose](../capabilities/automations.schedule_choose.md): Apply one recovery choice to a schedule whose backlog is over its cap
 - [automations.senders](../capabilities/automations.senders.md): What this Automation sends from: the mailboxes and numbers its steps name, and whether each can send now
 - [automations.set_enabled](../capabilities/automations.set_enabled.md): Turn an Automation on or off
+- [automations.set_owner](../capabilities/automations.set_owner.md): Hand a Space Automation to another person as its accountable owner; the previous owner keeps Manage
 - [automations.steps.list](../capabilities/automations.steps.list.md): The step palette: every step kind with category, input and output schema, effects and Gate act
 - [automations.stop](../capabilities/automations.stop.md): Stop one run of an Automation, or all its running runs and pause it
 - [automations.templates.list](../capabilities/automations.templates.list.md): The starter templates: what each one does, what starts it and what to set up
@@ -65,10 +66,15 @@ Requires: chat, files, forms, github, journeys, mail, meetings, records, runs, t
 - [automations.validate](../capabilities/automations.validate.md): Check a definition against the step and trigger catalogue: missing inputs, unreachable steps, loops, personal triggers that need a Team Space
 - [automations.vault_usage](../capabilities/automations.vault_usage.md): Which Automation steps use which Vault item, by handle. Optionally one item. Only Automations the caller can see. A Vault value is never included.
 - [automations.versions](../capabilities/automations.versions.md): List versions of an Automation (One History)
+- [automations.watches.check](../capabilities/automations.watches.check.md): Vyre for Chrome: check a watch now. One in the person's Chrome is read at the extension's next look; one on an agent's computer wakes the agent
+- [automations.watches.list](../capabilities/automations.watches.list.md): Vyre for Chrome: the person's watches, newest first: what is watched, how often, where it runs, what the last check read and the last change with before and after
+- [automations.watches.remove](../capabilities/automations.watches.remove.md): Vyre for Chrome: remove a watch, or pause or resume it
+- [automations.watches.report](../capabilities/automations.watches.report.md): A check of a watched page: what it read now (or why it could not read). The first reading is the baseline; a different one is a change and is told in the watch's chat with before and after
+- [automations.watches.save](../capabilities/automations.watches.save.md): Vyre for Chrome: watch a page or a region of one. It runs in the person's Chrome or on an agent's computer; a change is told in a chat with what it was and what it is now
 - [automations.webhook_url.get](../capabilities/automations.webhook_url.get.md): The inbound webhook URL of an Automation that has a webhook trigger
 - [automations.webhook_url.rotate](../capabilities/automations.webhook_url.rotate.md): Rotate the secret in the webhook URL; the old URL stops working
 
-## Events (19)
+## Events (21)
 
 - [automation.alerts_changed](../events/automation.alerts_changed.md): Error alerts and the escalation chain changed
 - [automation.copied](../events/automation.copied.md): A Space Automation was copied to a Personal Automation
@@ -89,3 +95,5 @@ Requires: chat, files, forms, github, journeys, mail, meetings, records, runs, t
 - [automation.trigger_dropped](../events/automation.trigger_dropped.md): A trigger event was ignored: self-trigger, chain depth 8 or paused
 - [automation.updated](../events/automation.updated.md): An Automation definition or settings changed; a definition change saves a version
 - [automation.version_restored](../events/automation.version_restored.md): An earlier version was restored as the newest version
+- [automations.watch_changed](../events/automations.watch_changed.md): A watched page changed since its last reading
+- [automations.watch_saved](../events/automations.watch_saved.md): A watch was made, changed, paused, resumed or removed

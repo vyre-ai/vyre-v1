@@ -2665,6 +2665,91 @@
      "ts": 29640,
      "project": 1
     },
+    "gl": {
+     "id": "gl",
+     "p": "r",
+     "name": "Goals",
+     "dir": true,
+     "kind": "folder",
+     "by": "You",
+     "ts": 33821,
+     "note": "One folder per goal"
+    },
+    "gl-lab8": {
+     "id": "gl-lab8",
+     "p": "gl",
+     "name": "300 registrations for Lab 8",
+     "dir": true,
+     "kind": "folder",
+     "by": "You",
+     "ts": 33821
+    },
+    "gl-r1": {
+     "id": "gl-r1",
+     "p": "gl-lab8",
+     "name": "Reel 1, the 3 questions.mp4",
+     "dir": false,
+     "kind": "video",
+     "by": "Aliza",
+     "ts": 33818,
+     "sz": 21400000,
+     "dur": "0:42"
+    },
+    "gl-r2": {
+     "id": "gl-r2",
+     "p": "gl-lab8",
+     "name": "Reel 2, before and after.mp4",
+     "dir": false,
+     "kind": "video",
+     "by": "Aliza",
+     "ts": 33819,
+     "sz": 18900000,
+     "dur": "0:38"
+    },
+    "gl-csv": {
+     "id": "gl-csv",
+     "p": "gl-lab8",
+     "name": "Lab 7 not registered.csv",
+     "dir": false,
+     "kind": "csv",
+     "by": "Lab Desk",
+     "ts": 32292,
+     "sz": 61000,
+     "cols": [
+      "Name",
+      "Email",
+      "Lab 7 attended"
+     ],
+     "rows": [
+      [
+       "Dana Fox",
+       "dana@northwind.example",
+       "Yes"
+      ],
+      [
+       "Marcus Lee",
+       "marcus@harbor.example",
+       "Yes"
+      ],
+      [
+       "Priya Nair",
+       "priya@example.com",
+       "Yes"
+      ]
+     ]
+    },
+    "gl-md": {
+     "id": "gl-md",
+     "p": "gl-lab8",
+     "name": "Reminder email draft.md",
+     "dir": false,
+     "kind": "md",
+     "by": "Lab Desk",
+     "ts": 33665,
+     "sz": 640,
+     "edit": 1,
+     "text": "# Reminder to Lab 7 attendees\n\nLab 8 is Tuesday. You joined Lab 7, so here is the link to save your seat.\n\nHeld for approval: this goes to a new audience.\n"
+    },
     "doc1": {
      "id": "doc1",
      "p": "pj-rivera",

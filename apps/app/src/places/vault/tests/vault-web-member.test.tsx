@@ -48,7 +48,7 @@ test("AI providers in a browser: the Space key covers the member, and their own 
     await flush();
     const text = textOf(root);
     assert.ok(find(root, "vault-space-ai"), "the Space key line");
-    assert.ok(text.includes("You're covered") && text.includes("This Space's AI key (OpenCode Go) works for you.") && text.includes("glm-5.3"), text);
+    assert.ok(text.includes("You're covered") && text.includes("This Space's AI key (OpenCode Go) works for you for the models below. It has no Claude, GPT, Gemini models: connect your own sign-in to use those.") && text.includes("glm-5.3"), text);
     for (const word of ["Connect Claude", "Connect ChatGPT", "Connect Grok", "Use an API key"]) assert.ok(text.includes(word), word);
     assert.ok(!text.includes("Your vault is empty"), "the AI providers section never says the Vault is empty");
   } finally { restore(); }

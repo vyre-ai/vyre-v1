@@ -1,7 +1,7 @@
 // Tasks state machine and the capabilities that change or read a task (ARCH 4.7, spec 2.8, 4.1, 4.2).
 // `tasks.transition` is the only writer of the status field; `tasks.act` (handlers/act.ts) and the Gate reach the same applyMove. The table of 4.7 lives in planMove.
 // Group and role slots: the pipeline authorizes the call at level use on the task, so holders pass; the first Take locks the task to one person (tasks.take).
-import { isTrustedService } from "../../../lib/trust.ts";
+import { isSystemCall, isTrustedService } from "../../../lib/trust.ts";
 import {
   actionableByMe, allTasks, clean, emitTask, ensurePrefix, findTask, getTask, historyOf, holds, isOpen, isRequest, listTasks, myWork, needsYou, newTaskId, openIndex,
   out, outFor, page, raise, readPolicy, sameAssignee, touch, visibleTo, whoIs,
@@ -96,7 +96,7 @@ export function checkMove(ctx: TasksCtx, t: Task, to: TaskState, o: { note?: str
   const plan = planMove(t, to);
   if (!plan.ok) raise(ctx, "validation.precondition_failed", plan.why, { reason: "illegal_transition", from: t.state, to });
   const move = plan.move;
-  if (!mayAct(t, move, who)) raise(ctx, "validation.precondition_failed", "Only the person this step belongs to can do that.", { reason: "wrong_actor", action: move.action });
+  if (!mayAct(t, move, who)) raise(ctx, "validation.precondition_failed", ctx.principal.kind === "agent" ? "This step belongs to someone else. An agent can do it only for the person it is assigned to, when that person is the one asking." : "Only the person this step belongs to can do that.", { reason: "wrong_actor", action: move.action });
   const note = o.note?.trim();
   if (move.noteRequired && !note) raise(ctx, "validation.precondition_failed", "Add a note so the sender knows what to change.", { reason: "note_required", action: move.action });
   const judging = move.action === "approve_review" || move.action === "approve" || move.action === "send_back" || move.action === "reject";
@@ -355,7 +355,9 @@ function staleVersion(ctx: TasksCtx, t: Task, input: In): never {
     lines.push(`${FIELD_WORDS[k] ?? k} is now ${wordsOf(k, rec[k])}`);
   }
   const what = lines.length ? ` Now ${lines.join("; ")}.` : "";
-  raise(ctx, "validation.precondition_failed", `This task changed while you were editing it.${what} Your change was not saved.`, { reason: "stale_version", version: t.version, updatedAt: t.updatedAt, current });
+  // who changed it last, so the second person's page can say who
+  const by = historyOf(ctx.db, t.id).find((h) => h.type === "updated")?.by;
+  raise(ctx, "validation.precondition_failed", `This task changed while you were editing it.${what} Your change was not saved.`, { reason: "stale_version", version: t.version, updatedAt: t.updatedAt, current, ...(by ? { by } : {}) });
 }
 
 export async function update(ctx: TasksCtx, input: In): Promise<unknown> {
@@ -522,6 +524,7 @@ export async function withdraw(ctx: TasksCtx, input: In): Promise<unknown> {
     }
     if (input.taskId !== undefined && hasSource && (t.source?.kind !== input.sourceKind || t.source?.id !== input.sourceId)) continue;
     t.state = "canceled";
+    t.workingNotes = { ...t.workingNotes, withdrawn: note };
     delete t.snoozedUntil;
     touch(ctx, ctx.db, t);
     emitTask(ctx, ctx.db, "task.withdrawn", t, { note, sourceKind: t.source?.kind, sourceId: t.source?.id }, { type: "withdrawn", by: ctx.principal.id, note });
@@ -564,17 +567,44 @@ export async function notesSet(ctx: TasksCtx, input: In): Promise<unknown> {
   const key = String(input.key ?? "");
   if (!key.trim()) raise(ctx, "validation.bad_input", "A note needs a key.", { errors: ["/key: required"] });
   const value = String(input.value ?? "");
+  // a writer that names the value it started from is refused when someone changed the note meanwhile: nothing is overwritten, and the refusal says what the note holds now and who changed it.
+  // An agent that names none may only append (the note was empty, or its new value starts with what it holds): anything else could erase what a person saved after the agent read it. A list note
+  // (Done means, the ticks) an agent changed from a stale read is merged, as the page does for people: both changes stay.
+  const held = t.workingNotes[key] ?? "";
+  const named = typeof input.expectedFrom === "string";
+  const agent = ctx.principal.kind === "agent";
+  let writing = value;
+  if (named ? held !== input.expectedFrom : agent && !(held === "" || value.startsWith(held))) {
+    if (agent && named && LIST_NOTES.has(key)) writing = mergeList(input.expectedFrom, value, held);
+    else {
+      const by = historyOf(ctx.db, t.id).find((h) => h.type === "note_set" || h.type === "updated")?.by;
+      const redo = agent ? ` It now says: ${held === "" ? "(empty)" : held}. Make your change again on top of that, and send expectedFrom with that text.` : "";
+      raise(ctx, "validation.precondition_failed", `This task changed while you were editing it. The note ${key} is now different.${redo} Your change was not saved.`, { reason: "stale_version", version: t.version, updatedAt: t.updatedAt, current: { [key]: held }, ...(by ? { by } : {}) });
+    }
+  }
   const reserved = (RESERVED_NOTES as Record<string, "decisionId" | "payloadHash">)[key];
   if (reserved) {
     if (t.source?.kind !== "gate") raise(ctx, "validation.field_locked", "Only a held act carries that.", { field: key });
     if (t[reserved] !== undefined && t[reserved] !== value) raise(ctx, "validation.field_locked", "That value is set once.", { field: key });
     t[reserved] = value;
   } else {
-    t.workingNotes = { ...t.workingNotes, [key]: value };
+    t.workingNotes = { ...t.workingNotes, [key]: writing };
   }
   touch(ctx, ctx.db, t);
   emitTask(ctx, ctx.db, "task.note_set", t, { key, by: ctx.principal.id }, { type: "note_set", by: ctx.principal.id });
   return { task: out(ctx, t) };
+}
+/** The Gate's edit of a held message: the card and the hash the approval is bound to change together. A nested call from the Gate only, on a task that is the held act, while it is still open. */
+export async function heldRevise(ctx: TasksCtx, input: In): Promise<unknown> {
+  const t = getTask(ctx, input.taskId);
+  if (!isSystemCall(ctx)) raise(ctx, "validation.field_locked", "Only the Gate changes a held act.", { field: "blocks" });
+  if (t.source?.kind !== "gate" || t.payloadHash === undefined) raise(ctx, "validation.precondition_failed", "That task is not a held act.", { reason: "not_held" });
+  if (!isOpen(t.state)) raise(ctx, "validation.precondition_failed", "That act is decided already.", { reason: "closed" });
+  t.blocks = input.blocks as Block[];
+  t.payloadHash = String(input.payloadHash);
+  touch(ctx, ctx.db, t);
+  emitTask(ctx, ctx.db, "task.updated", t, { fields: ["blocks"] }, { type: "updated", by: ctx.principal.id });
+  return { ok: true };
 }
 export async function notesDelete(ctx: TasksCtx, input: In): Promise<unknown> {
   const t = getTask(ctx, input.taskId);
@@ -661,4 +691,15 @@ export async function history(ctx: TasksCtx, input: In): Promise<unknown> {
   if (!visibleTo(ctx, t)) raise(ctx, "permission.not_found", "That task is not available.");
   const p = page(historyOf(ctx.db, t.id), input.cursor, input.limit);
   return clean({ entries: p.rows, next: p.next, total: p.total });
+}
+
+/** The notes that are lists. Two writers changing one do not clash: both changes are kept (the page does the same for people, conflict.ts). */
+const LIST_NOTES: ReadonlySet<string> = new Set(["done_means", "done_ticks"]);
+const listOf = (v: string | undefined): unknown[] => { try { const x = JSON.parse(v ?? "[]") as unknown; return Array.isArray(x) ? x : []; } catch { return []; } };
+/** The note as it becomes when the writer changed it from `base` to `mine` while it became `current`: the other change and the writer's, together. */
+export function mergeList(base: string | undefined, mine: string, current: string | undefined): string {
+  const b = listOf(base), m = listOf(mine), c = listOf(current);
+  const has = (xs: unknown[], x: unknown): boolean => xs.some((y) => JSON.stringify(y) === JSON.stringify(x));
+  const added = m.filter((x) => !has(b, x)), removed = b.filter((x) => !has(m, x));
+  return JSON.stringify([...c.filter((x) => !has(removed, x)), ...added.filter((x) => !has(c, x))]);
 }

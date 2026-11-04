@@ -33,9 +33,12 @@ const routineView = (s: Sample, routineId: string, mode: "view" | "delegate"): s
 test("at 340 px the strip shows what fits and folds the rest behind More; no tab is clipped", () => {
   assert.equal(PANE_WIDTH_GUESS, 340);
   const out = pane(createSample(), "computer");
-  for (const shown of ["Computer", "Threads", "Files", "Knows"]) assert.ok(has(out, `>${shown}<`), `${shown} is drawn`);
-  assert.ok(has(out, ">More<"), "the fold is a More tab");
+  const fit = fitTabs(TABS, "computer", 340);
+  assert.ok(fit.shown.length >= 2 && fit.hidden.length >= 1, "at this width some fold");
+  for (const shown of fit.shown) assert.ok(has(out, `>${shown.title}<`), `${shown.title} is drawn`);
+  assert.ok(has(out, 'aria-label="More tabs"'), "the fold is a More tab");
   assert.ok(!has(out, ">Routines<"), "the folded one is not drawn half-cut");
+  assert.ok(!has(out, 'aria-label="Tab options"'), "one overflow, the three dots: no second options button");
 });
 
 test("every layout keeps the strip inside the room the header leaves", () => {
@@ -52,16 +55,16 @@ test("every layout keeps the strip inside the room the header leaves", () => {
 
 test("the open tab is drawn even when it is the last one; the others keep their order", () => {
   const out = pane(createSample(), "routines");
-  assert.ok(has(out, ">Routines<") && has(out, ">More<"));
+  assert.ok(has(out, ">Routines<") && has(out, 'aria-label="More tabs"'));
   assert.ok(out.indexOf(">Computer<") < out.indexOf(">Routines<"), "tabs keep their order");
-  assert.deepEqual(fitTabs(TABS, "routines", 340).shown.map((t) => t.key), ["computer", "routines"]);
+  assert.deepEqual(fitTabs(TABS, "routines", 340).shown.map((t) => t.key), ["about", "computer", "routines"]);
   assert.deepEqual(fitTabs(TABS, "routines", 340).hidden.map((t) => t.key), ["threads", "files", "memory"]);
 });
 
 test("wide enough, all five tabs show and there is no More", () => {
   const out = pane(createSample(), "computer", 640);
   for (const t of TABS) assert.ok(has(out, `>${t.title}<`), t.title);
-  assert.ok(!has(out, ">More<"));
+  assert.ok(!has(out, 'aria-label="More tabs"'));
   assert.deepEqual(fitTabs(TABS, "files", 640).hidden, []);
   assert.equal(MORE_KEY, "more");
 });
@@ -81,7 +84,7 @@ test("Run now calls the routine's run capability once and says so; a failure is 
   assert.equal(notes.at(-1)?.text, `Running ${r.title}`);
   s.failNext("agents.routine.run_now");
   assert.equal(await runNow(d, r), false);
-  assert.equal(notes.at(-1)?.text, "Could not run it. Try again.");
+  assert.equal(notes.at(-1)?.text, "Could not run it: agents.routine.run_now failed");
 });
 
 test("the routine page offers Run Now beside Change by Asking", () => {
@@ -129,6 +132,6 @@ test("delegating to the current owner does nothing; a failed hand-over is one qu
   assert.equal(s.calls.length, 0);
   s.failNext("agents.routine.delegate");
   assert.equal(await delegateRoutine(d, r, "usr_maya", "Maya Chen"), false);
-  assert.equal(notes.at(-1)?.text, "Could not hand it over. Try again.");
+  assert.equal(notes.at(-1)?.text, "Could not hand it over: agents.routine.delegate failed");
   assert.equal(routinesNow(s).find((x) => x.routineId === "r3")!.ownerId, "usr_omar");
 });

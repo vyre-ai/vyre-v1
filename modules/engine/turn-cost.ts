@@ -9,7 +9,7 @@ import { resolvePick, shippedModels } from "./live-models.ts";
 
 export interface Price { in: number; out: number; cacheRead?: number; cacheWrite?: number; longPrompt?: { over: number; in: number; out: number } }
 export interface CostLine { kind: "input" | "output" | "cache_read" | "cache_write"; tokens: number; perMillion: number; micros: number }
-export interface TurnCost { source: "subscription" | "reported" | "catalog" | "unknown"; micros?: number; lines?: CostLine[]; priceAsOf?: string; missing?: string[] }
+export interface TurnCost { source: "subscription" | "reported" | "catalog" | "estimate" | "unknown" | "flat"; micros?: number; lines?: CostLine[]; priceAsOf?: string; missing?: string[] }
 export interface CostIn {
   model: string; driver?: string; provider?: string; accountKind?: string;
   tokensIn: number; tokensOut: number; cacheReadTokens?: number; cacheWriteTokens?: number; costUsd?: number;
@@ -37,10 +37,20 @@ export function priceFor(model: string, driver?: string, provider?: string): { p
 
 const micros = (tokens: number, perMillion: number): number => Math.round(tokens * perMillion);
 
+/** Drivers whose accounts are a flat plan: the provider reports no per-token cost. */
+export const FLAT_PLANS: ReadonlySet<string> = new Set(["opencode_go"]);
+
 export function costOf(c: CostIn): TurnCost {
   if (c.accountKind === "subscription") return { source: "subscription" };
+  // a flat-plan account (OpenCode Go) reports a cost of 0: that is a plan, not a free answer, so it is never shown as $0.00
+  if (c.costUsd === 0 && FLAT_PLANS.has(c.driver ?? "")) return { source: "flat" };
   if (c.costUsd !== undefined) return { source: "reported", micros: Math.round(c.costUsd * 1e6) };
-  const found = priceFor(c.model, c.driver, c.provider);
+  let found = priceFor(c.model, c.driver, c.provider);
+  let source: "catalog" | "estimate" = "catalog";
+  if (!found && c.accountKind === "api_key") {
+    // the provider gave no figure and has no list price here (OpenCode Go, a gateway): the model's list price at the vendor that makes it stands in, and the turn says it is an estimate
+    for (const table of Object.values(prices().providers)) if (table[c.model]) { found = { price: table[c.model]!, asOf: prices().asOf }; source = "estimate"; break; }
+  }
   if (!found) return { source: "unknown" };
   const p = found.price;
   // the input count holds the cache reads and writes too: what is left is the input billed at the full rate
@@ -58,5 +68,5 @@ export function costOf(c: CostIn): TurnCost {
   add("output", c.tokensOut, long ? long.out : p.out);
   if (c.cacheReadTokens !== undefined) add("cache_read", c.cacheReadTokens, p.cacheRead);
   if (c.cacheWriteTokens !== undefined) add("cache_write", c.cacheWriteTokens, p.cacheWrite);
-  return { source: "catalog", micros: lines.reduce((a, l) => a + l.micros, 0), lines, priceAsOf: found.asOf, ...(missing.length > 0 ? { missing } : {}) };
+  return { source, micros: lines.reduce((a, l) => a + l.micros, 0), lines, priceAsOf: found.asOf, ...(missing.length > 0 ? { missing } : {}) };
 }

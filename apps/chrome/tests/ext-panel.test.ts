@@ -259,6 +259,13 @@ function fakeApp(o: { signedIn?: boolean } = {}) {
       if (cap === "search.query") return { hits: [{ kind: "record", id: "rec_1", title: "Marisol Vega", recordType: "Contact" }] };
       if (cap === "search.related") return { hits: [{ kind: "chat", id: "thr_7", title: "Follow up after Lab 7" }] };
       if (cap === "notes.clip") return { note: { noteId: "not_1" } };
+      if (cap === "access.principals.list") return { principals: sess.token === "vst_me" ? [{ id: "usr_me", name: "Me Myself" }] : [{ id: "usr_noah", name: "Noah" }, { id: "usr_aliza", name: "Aliza" }] };
+      if (cap === "channels.list") return { channels: [{ channelId: "chn_mkt", mainThreadId: "thr_mkt", name: "marketing", archived: false }, { channelId: "chn_old", mainThreadId: "thr_old", name: "old", archived: true }] };
+      if (cap === "goals.list") return { goals: [{ id: "gol_1", title: "300 registrations", progress: { value: 212, target: 300 } }, { id: "gol_2", title: "Be nice", progress: { tasksDone: 1, tasks: 2 } }] };
+      if (cap === "sites.artifact_open") {
+        if (input.artifactId === "sit_private") throw Object.assign(new Error("That is not shared with you."), { code: "permission.no_grant" });
+        return input.artifactId === "sit_local" ? { path: "/x/aaaa", url: "http://a.localhost:4100/x/aaaa", expiresAt: 5 } : { path: "/x/code1", url: "https://mla-a.vyre.run/x/code1", expiresAt: 60_000 };
+      }
       if (cap === "identity.whoami") return { principal: { kind: "person", id: sess.token === "vst_me" ? "usr_me" : "usr_noah" }, name: "Noah", spaceId: sess.id };
       return {};
     },
@@ -336,4 +343,74 @@ test("the gateway call: the capability's route, the person's bearer session, a k
   await assert.rejects(gatewayCall(s, "vault.share", {}, { fetch: gone }), (e: any) => e.code === "auth.unauthenticated");
   const down = (async () => { throw new Error("ECONNREFUSED"); }) as any;
   await assert.rejects(gatewayCall(s, "vault.share", {}, { fetch: down }), (e: any) => e.code === "offline");
+});
+
+test("the pickers: people and channels, and the person's goals with a number, are read with the picked Space's own session and nothing else", async () => {
+  const f = fakeApp();
+  await f.app.op("space.select", { id: "spc_mla" });
+  const pick: any = await f.app.op("people.list", {});
+  assert.deepEqual(pick.people, [{ id: "usr_noah", name: "Noah" }, { id: "usr_aliza", name: "Aliza" }]);
+  assert.deepEqual(pick.channels, [{ id: "chn_mkt", threadId: "thr_mkt", name: "marketing" }], "an archived channel is not offered");
+  assert.deepEqual(((await f.app.op("people.list", { q: "ali" })) as any).people, [{ id: "usr_aliza", name: "Aliza" }]);
+  const goals: any = await f.app.op("goals.pick", {});
+  assert.deepEqual(goals.goals, [{ id: "gol_1", title: "300 registrations", value: 212, target: 300 }], "a goal with no number is not offered");
+  assert.deepEqual(f.calls.filter((c) => /principals|channels|goals/.test(c.cap)).map((c) => [c.cap, c.as, c.input]), [
+    ["access.principals.list", "vst_mine", { kind: "person", status: "active", limit: 200 }], ["channels.list", "vst_mine", {}],
+    ["access.principals.list", "vst_mine", { kind: "person", status: "active", limit: 200 }], ["channels.list", "vst_mine", {}], ["goals.list", "vst_mine", { scope: "mine", open: true }]]);
+  await f.app.op("space.select", { id: "spc_me" });
+  assert.deepEqual(((await f.app.op("people.list", {})) as any).people, [{ id: "usr_me", name: "Me Myself" }], "another Space, another session, another view");
+  const out = fakeApp({ signedIn: false });
+  await assert.rejects(out.app.op("people.list", {}), (e: any) => e.code === "signed_out");
+  await assert.rejects(out.app.op("goals.pick", {}), (e: any) => e.code === "signed_out");
+});
+
+// ---------- artifacts opened as the person
+
+import { artifactLink, createArtifacts } from "../src/worker/artifacts.js";
+
+test("artifact.open mints the single-use address as the person who is signed in to that Space, and gives back only the address", async () => {
+  const f = fakeApp();
+  const r = await f.app.op("artifact.open", { url: "https://mla.test/a/sit_abc123" }) as any;
+  assert.deepEqual(r, { url: "https://mla-a.vyre.run/x/code1", expiresAt: 60_000 });
+  const call = f.calls.find((c) => c.cap === "sites.artifact_open")!;
+  assert.deepEqual([call.input, call.as], [{ artifactId: "sit_abc123" }, "vst_mine"], "the person's own session, for the Space the link points at");
+  assert.equal(((await f.app.op("artifact.open", { artifactId: "sit_x1" })) as any).url, "https://mla-a.vyre.run/x/code1", "or by id, in the active Space");
+  const local = await f.app.op("artifact.open", { artifactId: "sit_local" }) as any;
+  assert.equal(local.url, "http://a.localhost:4100/x/aaaa", "a Space on this computer: the code on a.localhost");
+});
+
+test("artifact.open is refused when signed out, for a Space this person is not signed in to, for a link that is not an artifact, and for one that is not shared with them", async () => {
+  const out = fakeApp({ signedIn: false });
+  await assert.rejects(out.app.op("artifact.open", { url: "https://mla.test/a/sit_abc123" }), (e: any) => e.code === "signed_out");
+  const f = fakeApp();
+  await assert.rejects(f.app.op("artifact.open", { url: "https://other.example/a/sit_abc123" }), (e: any) => e.code === "not_this_space");
+  await assert.rejects(f.app.op("artifact.open", { url: "https://mla.test/files/sit_abc123" }), (e: any) => e.code === "validation.bad_input");
+  await assert.rejects(f.app.op("artifact.open", { url: "javascript:alert(1)" }), (e: any) => e.code === "validation.bad_input");
+  await assert.rejects(f.app.op("artifact.open", { artifactId: "../x" }), (e: any) => e.code === "validation.bad_input");
+  await assert.rejects(f.app.op("artifact.open", { url: "https://mla.test/a/sit_private" }), (e: any) => e.code === "permission.no_grant", "the Space's own refusal reaches the caller");
+  assert.equal(f.calls.filter((c) => c.cap === "sites.artifact_open").length, 1, "only the shared-with-nobody one ever reached the Space");
+});
+
+test("the worker takes over only a real artifact link, opens what the Space gave in a tab, and lets anything else load as it was going to", async () => {
+  assert.deepEqual(artifactLink("https://mla.test/a/sit_abc123"), { host: "mla.test", id: "sit_abc123" });
+  for (const no of ["https://mla.test/a/other", "https://mla.test/a/sit_abc/x", "ftp://mla.test/a/sit_abc", "http://mla.test/a/sit_abc", "", null]) assert.equal(artifactLink(no), null, String(no));
+  const tabs: any[] = [];
+  const ops: any[] = [];
+  let fail: any = null;
+  const a = createArtifacts({
+    ext: { tabs: { create: async (o: any) => { tabs.push(o); } } },
+    bridge: { op: async (op: string, i: any) => { ops.push([op, i]); if (fail) throw fail; return { url: "https://mla-a.vyre.run/x/code1" }; } },
+    store: createStore(memoryArea()) as any,
+  });
+  assert.deepEqual(await a.open({ href: "https://mla.test/a/sit_abc123" }), { handled: true });
+  assert.deepEqual([tabs, ops], [[{ url: "https://mla-a.vyre.run/x/code1" }], [["artifact.open", { url: "https://mla.test/a/sit_abc123" }]]]);
+  assert.deepEqual(await a.open({ id: "sit_abc123" }), { handled: true });
+  assert.deepEqual(await a.open({ href: "https://mla.test/pricing" }), { handled: false, why: "not_artifact" });
+  fail = Object.assign(new Error("x"), { code: "signed_out" });
+  assert.deepEqual(await a.open({ href: "https://mla.test/a/sit_abc123" }), { handled: false, why: "signed_out" });
+  assert.equal(tabs.length, 2, "a refusal opens nothing");
+  fail = null;
+  const bad = createArtifacts({ ext: { tabs: { create: async (o: any) => { tabs.push(o); } } }, bridge: { op: async () => ({ url: "javascript:alert(1)" }) }, store: createStore(memoryArea()) as any });
+  assert.deepEqual(await bad.open({ id: "sit_abc123" }), { handled: false, why: "bad_address" });
+  assert.equal(tabs.length, 2);
 });

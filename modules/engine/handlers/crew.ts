@@ -1,7 +1,7 @@
 // The crew (DESIGN-crew.md, steps 1 and 2): a project's repository on this computer, and teammate jobs. A job is a teammate agent working in its own copy of that repository, on its own branch, in its own thread
 // under the lead's chat. Nothing new is made for it: the thread is a helper thread, the teammate is a project teammate, the work folder is the engine's per-thread folder with a clone in it (../crew-git.ts).
 import { engineHost } from "../runtime.ts";
-import { GitError, branchFacts, cleanBranch, commitLeftovers, git, landBranch, prepareClone, pushBase, repoHead } from "../crew-git.ts";
+import { GitError, branchFacts, cleanBranch, commitLeftovers, git, initLocalRepo, landBranch, prepareClone, pushBase, repoHead } from "../crew-git.ts";
 import { ensure, actorOf, mintEngineId, raise } from "../projections.ts";
 import { workFolder } from "../sandbox.ts";
 import { GUIDE_FILES } from "../../../lib/memory-guide.ts";
@@ -15,7 +15,7 @@ const str = (v: unknown): string => (typeof v === "string" ? v : "");
 const num = (v: unknown): number => (typeof v === "number" ? v : Number(v) || 0);
 
 export interface CrewJob {
-  jobId: string; threadId: string; leadThreadId: string; projectId: string; agentId: string; name?: string; title: string; branch: string; base: string;
+  jobId: string; threadId: string; leadThreadId: string; projectId?: string; agentId: string; name?: string; title: string; branch: string; base: string;
   state: "working" | "waiting" | "paused" | "lost" | "done" | "failed" | "stopped" | "merged"; startedAt: number; endedAt?: number; result?: Record<string, unknown>;
 }
 
@@ -23,7 +23,7 @@ export function jobOut(r: Row, name?: string): CrewJob {
   let result: Record<string, unknown> | undefined;
   try { const j = r["result_json"] ? JSON.parse(String(r["result_json"])) : undefined; if (j && typeof j === "object") result = j as Record<string, unknown>; } catch { /* a result that is not JSON is no result */ }
   return {
-    jobId: str(r["job_id"]), threadId: str(r["thread_id"]), leadThreadId: str(r["lead_thread_id"]), projectId: str(r["project_id"]), agentId: str(r["agent_id"]), ...(name ? { name } : {}),
+    jobId: str(r["job_id"]), threadId: str(r["thread_id"]), leadThreadId: str(r["lead_thread_id"]), ...(str(r["project_id"]) !== "" ? { projectId: str(r["project_id"]) } : {}), agentId: str(r["agent_id"]), ...(name ? { name } : {}),
     title: str(r["title"]), branch: str(r["branch"]), base: str(r["base_branch"]), state: str(r["state"]) as CrewJob["state"], startedAt: num(r["started_at"]),
     ...(r["ended_at"] !== null && r["ended_at"] !== undefined ? { endedAt: num(r["ended_at"]) } : {}), ...(result ? { result } : {}),
   };
@@ -63,6 +63,14 @@ export async function repoGet(ctx: EngineCtx, input: { projectId: string }) {
   try { const head = await repoHead(r.path); return { repo: { projectId: input.projectId, path: r.path, baseBranch: r.base, branch: head.branch } }; } catch { return { repo: { projectId: input.projectId, path: r.path, baseBranch: r.base, branch: "" } }; }
 }
 
+/** The repository of a chat that has its own work folder (a crew started in a chat with no project). */
+export async function chatRepoGet(ctx: EngineCtx, input: { threadId: string }) {
+  ensure(ctx.db);
+  const r = repoRow(ctx, input.threadId);
+  if (!r) return { repo: null };
+  try { const head = await repoHead(r.path); return { repo: { threadId: input.threadId, path: r.path, baseBranch: r.base, branch: head.branch } }; } catch { return { repo: { threadId: input.threadId, path: r.path, baseBranch: r.base, branch: "" } }; }
+}
+
 /** The teammate's folder, made on the first call and left alone after. `dataDir` is the Space's; `asker` and `agentId` name the folder (it is per person, thread and agent). */
 export async function ensureWorkspace(dataDir: string, asker: string, threadId: string, agentId: string, w: { repo: string; base: string; branch: string; name: string }): Promise<{ dir: string; created: boolean }> {
   const dir = workFolder(dataDir, asker, threadId, agentId);
@@ -98,18 +106,125 @@ async function bindJob(ctx: EngineCtx, taskId: string, threadId: string, jobId: 
   await soft("tasks.working_notes.set", { taskId, key: "crew.branch", value: branch });
 }
 
-export async function start(ctx: EngineCtx, input: { threadId: string; projectId: string; teammateId: string; title: string; brief: string; model?: string; provider?: string; effort?: string; taskId?: string }) {
+/**
+ * The project's repository when it has none: a git repository on this computer, in the folder of the project's files (the same working copy the Files git panel shows), `main` as its start.
+ * A project without a Files folder gets one beside the Space's data. Remembered like a repository a person named, so every later teammate starts from the same place.
+ */
+const makingRepo = new Map<string, Promise<{ path: string; base: string }>>();
+export function startRepo(ctx: EngineCtx, scope: string, chatThreadId?: string): Promise<{ path: string; base: string }> {
+  // two teammates started at once make the repository once
+  const key = `${ctx.space}:${scope}`;
+  const running = makingRepo.get(key);
+  if (running) return running;
+  const p = makeRepo(ctx, scope, chatThreadId).finally(() => makingRepo.delete(key));
+  makingRepo.set(key, p);
+  return p;
+}
+
+/** The Files folder a chat's work lives in: the one the chat is filed under, else a new one in the asker's Personal folder, shown as the chat's work folder. Undefined when Files cannot give one. */
+async function chatFolder(ctx: EngineCtx, threadId: string): Promise<string | undefined> {
+  try {
+    const t = (await ctx.call("threads.get", { threadId })) as { thread?: { folderId?: string; title?: string } };
+    if (t.thread?.folderId) return t.thread.folderId;
+    const found = (await ctx.call("files.folder.search", { q: "Personal", scope: "folders", limit: 20 })) as { folders?: Array<{ folderId: string; name: string; path: string }> };
+    const name = `Chat ${threadId.slice(-6)}${t.thread?.title ? ` ${t.thread.title.replace(/[\\/:*?"<>|]+/g, " ").trim().slice(0, 40)}` : ""}`.trim();
+    for (const root of (found.folders ?? []).filter((f) => f.path === "Personal")) {
+      try {
+        const made = (await ctx.call("files.folder.create", { parentId: root.folderId, name, idempotencyKey: `crew-folder:${threadId}` })) as { folder: { folderId: string } };
+        await ctx.call("threads.set_folder", { threadId, folderId: made.folder.folderId }).catch(() => undefined);
+        return made.folder.folderId;
+      } catch { /* not this person's Personal folder */ }
+    }
+  } catch (e) { ctx.log.warn("the chat's work folder could not be made in Files", { threadId, error: e instanceof Error ? e.message : "error" }); }
+  return undefined;
+}
+
+/**
+ * The repository of a project or of a chat, when it has none: a git repository on this computer, in the folder of the files (the same working copy the Files git panel shows), `main` as its start.
+ * A project's is its own Files folder; a chat's is its work folder, made the first time it is needed. Without a Files folder the repository sits beside the Space's data. Remembered like a
+ * repository a person named, so every later teammate starts from the same place.
+ */
+async function makeRepo(ctx: EngineCtx, scope: string, chatThreadId?: string): Promise<{ path: string; base: string }> {
+  const again = repoRow(ctx, scope);
+  if (again) return again;
+  const dataDir = engineHost()?.dataDir;
+  if (!dataDir) raise(ctx, "validation.precondition_failed", "This computer has no folders for the crew.");
+  let folderId = "";
+  if (chatThreadId) folderId = (await chatFolder(ctx, chatThreadId)) ?? "";
+  else {
+    try { folderId = str(((await ctx.call("projects.get", { projectId: scope })) as { project?: { folderId?: string } }).project?.folderId); } catch (e) { ctx.log.warn("the project's folder could not be read for its repository", { projectId: scope, error: e instanceof Error ? e.message : "error" }); }
+  }
+  // the Files folder's working copy first (its files go into the first commit), when the person may start history on it; the engine makes the repository itself when not
+  if (folderId) await ctx.call("git.init", { folderId }).catch(() => undefined);
+  const dir = folderId ? path.join(dataDir, "trees", folderId) : path.join(dataDir, "crew-repos", scope);
+  try {
+    const made = await initLocalRepo(dir);
+    ensure(ctx.db);
+    ctx.db.run(
+      "INSERT INTO engine_crew_repo (project_id, path, base_branch, set_by, at) VALUES (?, ?, ?, ?, ?) ON CONFLICT (project_id) DO UPDATE SET path = excluded.path, base_branch = excluded.base_branch, set_by = excluded.set_by, at = excluded.at",
+      scope, dir, made.branch, actorOf(ctx), ctx.now(),
+    );
+    return { path: dir, base: made.branch };
+  } catch (e) { return gitFailure(ctx, e); }
+}
+
+const MATE_NAMES = ["Ember", "Birch", "Cedar", "Dune", "Flint", "Heron", "Ivy", "Juniper", "Kestrel", "Lark", "Maple", "Nova"];
+
+/** The project this chat belongs to, when it does. */
+async function projectOfChat(ctx: EngineCtx, threadId: string): Promise<string | undefined> {
+  try {
+    const t = (await ctx.call("threads.get", { threadId })) as { thread?: { scopeType?: string; scopeId?: string } };
+    return t.thread?.scopeType === "project" && t.thread.scopeId ? t.thread.scopeId : undefined;
+  } catch { return undefined; }
+}
+
+/**
+ * A teammate nobody made first: an agent that belongs to this chat (or to the chat's project, when it is in one) and not to the Agents page. It is the asker's, so it holds what the asker holds.
+ * Names come from a short list; a name already taken in the Space gets the end of the chat's id.
+ */
+async function makeMate(ctx: EngineCtx, o: { threadId: string; projectId?: string; name?: string; brief: string; taken: number }): Promise<{ agentId: string; name: string }> {
+  const base = (o.name?.trim() || MATE_NAMES[o.taken % MATE_NAMES.length]!).slice(0, 40);
+  const role = o.brief.replace(/\s+/g, " ").slice(0, 200);
+  for (const name of [base, `${base} ${o.threadId.slice(-4)}`]) {
+    try {
+      if (o.projectId) {
+        const made = (await ctx.call("projects.teammates.create", { projectId: o.projectId, name, role: "member", brief: role, idempotencyKey: `crew-mate:${o.threadId}:${name}` })) as { teammate: { agentId: string; name: string } };
+        return { agentId: made.teammate.agentId, name: made.teammate.name };
+      }
+      const made = (await ctx.call("agents.create", { name, role, computer: false, projectId: o.threadId, idempotencyKey: `crew-mate:${o.threadId}:${name}` })) as { agent: { agentId: string } };
+      return { agentId: made.agent.agentId, name };
+    } catch (e) {
+      const code = (e as { error?: { code?: string } })?.error?.code;
+      if (code !== "validation.duplicate") throw e;
+    }
+  }
+  return raise(ctx, "validation.bad_input", "Give the teammate a name nobody else has.");
+}
+
+export async function start(ctx: EngineCtx, input: { threadId: string; projectId?: string; teammateId?: string; name?: string; title: string; brief: string; model?: string; provider?: string; effort?: string; taskId?: string }) {
   ensure(ctx.db);
-  const repo = repoRow(ctx, input.projectId);
-  if (!repo) raise(ctx, "validation.precondition_failed", "Say where the project's repository is first.");
+  // any chat can start a crew: the repository is the project's when the chat is in one, else the chat's own folder on this computer
+  const projectId = input.projectId ?? (await projectOfChat(ctx, input.threadId));
+  const scope = projectId ?? input.threadId;
+  const repo = repoRow(ctx, scope) ?? (await startRepo(ctx, scope, projectId === undefined ? input.threadId : undefined));
   const title = input.title.trim();
   const brief = input.brief.trim();
   if (title === "" || title.length > 120) raise(ctx, "validation.bad_input", "Give the job a title of up to 120 characters.");
   if (brief === "") raise(ctx, "validation.bad_input", "Tell the teammate what to do.");
-  const team = (await ctx.call("projects.teammates.list", { projectId: input.projectId })) as { teammates: Array<{ agentId: string; name: string }> };
-  const mate = team.teammates.find((m) => m.agentId === input.teammateId);
-  if (!mate) raise(ctx, "validation.bad_input", "That agent is not a teammate of this project.");
-  const n = Number((ctx.db.all("SELECT COUNT(*) AS n FROM engine_crew_job WHERE project_id = ? AND agent_id = ?", input.projectId, mate.agentId)[0] as Row | undefined)?.["n"] ?? 0) + 1;
+  let mate: { agentId: string; name: string };
+  const count = Number((ctx.db.all("SELECT COUNT(DISTINCT agent_id) AS n FROM engine_crew_job WHERE lead_thread_id = ?", input.threadId)[0] as Row | undefined)?.["n"] ?? 0);
+  if (input.teammateId === undefined) mate = await makeMate(ctx, { threadId: input.threadId, ...(projectId ? { projectId } : {}), ...(input.name ? { name: input.name } : {}), brief: input.brief.trim(), taken: count });
+  else if (projectId) {
+    const team = (await ctx.call("projects.teammates.list", { projectId })) as { teammates: Array<{ agentId: string; name: string }> };
+    const found = team.teammates.find((m) => m.agentId === input.teammateId);
+    if (!found) return raise(ctx, "validation.bad_input", "That agent is not a teammate of this project.");
+    mate = found;
+  } else {
+    const got = (await ctx.call("agents.get", { agentId: input.teammateId })) as { agent?: { name?: string; teammateOf?: string } };
+    if (got.agent?.teammateOf !== input.threadId) return raise(ctx, "validation.bad_input", "That agent is not a teammate of this chat.");
+    mate = { agentId: input.teammateId, name: got.agent.name ?? "Teammate" };
+  }
+  const n = Number((ctx.db.all("SELECT COUNT(*) AS n FROM engine_crew_job WHERE project_id = ? AND agent_id = ?", projectId ?? "", mate.agentId)[0] as Row | undefined)?.["n"] ?? 0) + 1;
   const branch = cleanBranch(`crew/${slug(mate.name)}-${n}`);
   const asker = actorOf(ctx);
   const taskId = await taskOfJob(ctx, { ...input, title, brief, teammateId: mate.agentId }, n);
@@ -120,7 +235,7 @@ export async function start(ctx: EngineCtx, input: { threadId: string; projectId
   const jobId = mintEngineId("crw", ctx.now());
   ctx.db.run(
     "INSERT INTO engine_crew_job (job_id, thread_id, lead_thread_id, project_id, agent_id, asker, title, branch, base_branch, repo_path, state, started_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'working', ?)",
-    jobId, started.helper.threadId, input.threadId, input.projectId, mate.agentId, asker, title, branch, repo.base, repo.path, ctx.now(),
+    jobId, started.helper.threadId, input.threadId, projectId ?? "", mate.agentId, asker, title, branch, repo.base, repo.path, ctx.now(),
   );
   // made now so the folder exists before anything else looks at it; the session opener asks for the same thing before the first turn and finds it done
   const dataDir = engineHost()?.dataDir;
@@ -128,7 +243,7 @@ export async function start(ctx: EngineCtx, input: { threadId: string; projectId
     try { await ensureWorkspace(dataDir, asker, started.helper.threadId, mate.agentId, { repo: repo.path, base: repo.base, branch, name: mate.name }); } catch (e) { ctx.log.warn("the teammate's repository copy could not be made at start", { jobId, error: e instanceof Error ? e.message : String(e) }); }
   }
   if (taskId) await bindJob(ctx, taskId, started.helper.threadId, jobId, branch);
-  ctx.emit("crew.job_started", input.threadId, { jobId, threadId: started.helper.threadId, leadThreadId: input.threadId, projectId: input.projectId, agentId: mate.agentId, branch });
+  ctx.emit("crew.job_started", input.threadId, { jobId, threadId: started.helper.threadId, leadThreadId: input.threadId, ...(projectId ? { projectId } : {}), agentId: mate.agentId, branch });
   const row = ctx.db.all("SELECT * FROM engine_crew_job WHERE job_id = ?", jobId)[0] as Row;
   return { job: jobOut(row, mate.name) };
 }

@@ -149,10 +149,16 @@ export function resolveAccount(req: ResolveRequest): Resolution {
   }
 
   // a team chat or agent work: the cheapest Space account that covers it runs it on its own default model
-  const swap = SUBSTITUTES.has(USE[req.trigger]) || req.trigger === "wake" ? misfits[0] : undefined;
+  // a model the person picked in the composer is never swapped for another (the owner's rc.20 test: the card said Claude and something else ran)
+  const swap = req.modelPicked === true ? undefined : SUBSTITUTES.has(USE[req.trigger]) || req.trigger === "wake" ? misfits[0] : undefined;
+  if (req.modelPicked === true && !broken && !policyBlocked && tried.some((a) => a.why === "no_model")) {
+    const served = [...new Set(req.accounts.filter((a) => tried.some((t) => t.ref === a.ref && t.why === "no_model")).flatMap((a) => a.models ?? []))];
+    return { accountRef: null, payer: null, reason: "none", allowed: false, tried, noModel: true, servedModels: served, unblock: needs(owner, null, "no_account", false), ...(pin ? { pin } : {}) };
+  }
   if (swap) {
     tried.push({ ref: swap.ref, used: true });
-    const res: Resolution = { accountRef: swap.ref, payer, reason: swap.reason, allowed: true, tried, modelFallback: true, ...(pin ? { pin } : {}) };
+    // via "space": a Space account runs it, so Details never says "your own key" for it
+    const res: Resolution = { accountRef: swap.ref, payer, reason: swap.reason, allowed: true, tried, modelFallback: true, via: "space", ...(pin ? { pin } : {}) };
     if (broken) res.unblock = needs(payer, broken.ref, broken.why, true);
     return res;
   }

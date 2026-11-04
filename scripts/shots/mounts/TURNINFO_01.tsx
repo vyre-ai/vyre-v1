@@ -20,7 +20,7 @@ const T0 = Date.UTC(2025, 9, 24, 9, 41, 2);
 const SIGNIN: ReplyTurn = {
   turnId: "trn_01jbx4k2", traceId: "4bf92f3577b34da6a3ce929d0e0e4736", agentId: "agt_intake", asker: "usr_irfad", model: "claude-opus-5-5", effort: "high", engine: "claude_code", provider: "anthropic",
   accountKind: "subscription", accountRef: "#Irfad_Claude", state: "completed", ranOn: [{ kind: "computer", name: "Irfad's MacBook" }],
-  timing: { queuedAt: T0 - 400, startedAt: T0, firstTokenAt: T0 + 2100, endedAt: T0 + 14_000 }, tokens: { in: 41_280, out: 1904, cacheRead: 118_400, cacheWrite: 9650 }, cost: { source: "subscription" },
+  timing: { queuedAt: T0 - 400, startedAt: T0, firstTokenAt: T0 + 2100, endedAt: T0 + 14_000 }, tokens: { in: 169_330, out: 1904, context: 52_000, cacheRead: 118_400, cacheWrite: 9650 }, cost: { source: "subscription" }, paid: "Claude Code \u00b7 your sign-in",
   tools: [
     { name: "Read", args: "fee-schedule-2025.csv", ok: true, durationMs: 1800 }, { name: "Skill", args: "engagement-letter", ok: true, durationMs: 300 },
     { name: "Edit", args: "engagement-letter.docx", ok: true, durationMs: 2400 }, { name: "records.update", args: "Elena Rivera", ok: true, durationMs: 600, heldTaskId: "tsk_hold1" },
@@ -30,7 +30,7 @@ const SIGNIN: ReplyTurn = {
 };
 const API: ReplyTurn = {
   ...SIGNIN, model: "claude-sonnet-5-5", effort: "medium", engine: "anthropic", accountKind: "api_key", shared: true, accountRef: "#Team_Anthropic", ranOn: [{ kind: "space", name: "The Space" }],
-  tokens: { in: 29_989, out: 1769, cacheRead: 20_000 }, switches: [],
+  tokens: { in: 29_989, out: 1769, cacheRead: 20_000 }, paid: "OpenCode Go \u00b7 Space account", switches: [],
   cost: { source: "catalog", micros: 41_668, priceAsOf: "2026-10-06", lines: [{ kind: "input", tokens: 9989, perMillion: 2, micros: 19_978 }, { kind: "output", tokens: 1769, perMillion: 10, micros: 17_690 }, { kind: "cache_read", tokens: 20_000, perMillion: 0.2, micros: 4000 }] },
 };
 const MEMBER: ReplyTurn = { ...SIGNIN, private: true, tools: SIGNIN.tools.map((x) => ({ name: x.name, ...(x.ok === undefined ? {} : { ok: x.ok }), ...(x.durationMs === undefined ? {} : { durationMs: x.durationMs }), ...(x.heldTaskId ? { heldTaskId: x.heldTaskId } : {}) })), files: { read: [], written: [] }, switches: SIGNIN.switches.map((s) => ({ at: s.at, why: s.why, sameAccount: s.sameAccount })) };

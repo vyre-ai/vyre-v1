@@ -26,13 +26,18 @@ export function createCrewWatcher(o: { db: Db; host: EngineHostSeam; now: () => 
   const ended = new Map<string, "done" | "failed" | "cancelled" | "waiting" | "lost">();
   const askers = new Map<string, string>();   // turnId -> the person it ran for, kept from its start for the result of a helper
   const warn = (msg: string, attrs: Record<string, unknown>): void => o.host.log?.(msg, attrs);
+  /** The person a turn ran for, from its record. */
+  const askerOfTurn = (turnId: string): string | undefined => {
+    try { return str((o.db.all("SELECT asker FROM engine_turns WHERE turn_id = ?", turnId)[0] as Row | undefined)?.["asker"]) || undefined; } catch { return undefined; }
+  };
 
   /**
    * A helper's turn ended. Its answer goes to the chat that started it as the helper's own line, carrying a `helper` block that names the thread and how it ended. chat.post checks that block, and the engine then
    * wakes the lead, even when the lead is the helper's own agent, and bills the person the helper works for. Stopped or waiting on a person, it has nothing to report yet.
    */
   async function helperResult(e: Extract<StreamEvent, { kind: "final" }>): Promise<void> {
-    const asker = askers.get(e.turnId);
+    // who the turn ran for: kept from its start, or, when the server restarted in the middle of it, read from the turn's record (the recovered turn has no start here)
+    const asker = askers.get(e.turnId) ?? askerOfTurn(e.turnId);
     const state = ended.get(e.turnId) ?? "done";
     askers.delete(e.turnId);
     ended.delete(e.turnId);
@@ -42,10 +47,12 @@ export function createCrewWatcher(o: { db: Db; host: EngineHostSeam; now: () => 
     let text = "";
     if (e.messageId) { try { text = str(((await o.host.call("chat.message.get", { threadId: e.threadId, messageId: e.messageId }, asker)) as { message?: { body?: string } }).message?.body).trim(); } catch { /* the line goes without the words */ } }
     const title = str(th.title);
-    const body = state === "failed" ? `Helper "${title}" could not finish.${text ? `\n\n${cut(text, 600)}` : ""}` : `Helper "${title}" found:\n\n${text ? cut(text, 1500) : "(it ended with no words)"}`;
+    // the server stopped under it: it may have done part of the work, so the lead hears that and decides, and the result is not "found"
+    const body = state === "lost" ? `Helper "${title}" was stopped when the server restarted. It may have done part of its work, so look at what is done before you start it again.`
+      : state === "failed" ? `Helper "${title}" could not finish.${text ? `\n\n${cut(text, 600)}` : ""}` : `Helper "${title}" found:\n\n${text ? cut(text, 1500) : "(it ended with no words)"}`;
     await o.host.postAs(e.agentId, {
       actingFor: asker, threadId: th.parentThreadId, body, mentions: [], clientId: `msg_hlp${e.turnId.replace(/^trn_/, "")}`.replace(/[^a-z0-9_]/g, ""),
-      blocks: [{ type: "helper", v: 1, data: { threadId: e.threadId, parentThreadId: th.parentThreadId, title, status: state, agentId: e.agentId, path: [] } }],
+      blocks: [{ type: "helper", v: 1, data: { threadId: e.threadId, parentThreadId: th.parentThreadId, title, status: state === "done" ? "done" : "failed", agentId: e.agentId, path: [] } }],
     });
   }
 
@@ -80,7 +87,7 @@ export function createCrewWatcher(o: { db: Db; host: EngineHostSeam; now: () => 
     if (e.kind === "start") askers.set(e.turnId, e.asker);
     const job = o.db.all("SELECT * FROM engine_crew_job WHERE thread_id = ?", e.threadId)[0] as Row | undefined;
     if (!job) {
-      if (e.kind === "end") ended.set(e.turnId, e.state);
+      if (e.kind === "end") ended.set(e.turnId, e.code === "host_lost" ? "lost" : e.state);
       if (e.kind === "final") await helperResult(e);
       return;
     }

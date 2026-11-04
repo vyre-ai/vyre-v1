@@ -1,0 +1,193 @@
+{
+  "targets": [
+    {
+      "id": "ADDSHEET_01-empty",
+      "route": "/m/ADDSHEET_01",
+      "proto": "chats,{skin}",
+      "waitFor": "[data-testid='conversation']",
+      "note": "The sheet with nobody picked: search, New agent and Link an outside agent, Suggested, People, Agents, Your outside agents, and Here now.",
+      "steps": [
+        [
+          "open"
+        ]
+      ],
+      "after": "[data-testid='add-sheet']"
+    },
+    {
+      "id": "ADDSHEET_01-typing",
+      "route": "/m/ADDSHEET_01",
+      "proto": "chats,{skin}",
+      "waitFor": "[data-testid='conversation']",
+      "note": "Typing narrows the lists; an email offers a guest invite.",
+      "steps": [
+        [
+          "open"
+        ],
+        [
+          "fill",
+          "[data-testid='as-search']",
+          "ma"
+        ]
+      ],
+      "after": "[data-testid='add-sheet']"
+    },
+    {
+      "id": "ADDSHEET_01-two",
+      "route": "/m/ADDSHEET_01",
+      "proto": "chats,{skin}",
+      "waitFor": "[data-testid='conversation']",
+      "note": "Two picks, a person with a role and an agent with its summary; the line says what they get.",
+      "steps": [
+        [
+          "open"
+        ],
+        [
+          "click",
+          "[data-testid='as-row-person:usr_maya']"
+        ],
+        [
+          "click",
+          "[data-testid='as-row-agent:agt_research']"
+        ]
+      ],
+      "after": "[data-testid='add-sheet']"
+    },
+    {
+      "id": "ADDSHEET_01-settings",
+      "route": "/m/ADDSHEET_01",
+      "proto": "chats,{skin}",
+      "waitFor": "[data-testid='conversation']",
+      "note": "The settings popover: How, When, Style and Poke.",
+      "steps": [
+        [
+          "open"
+        ],
+        [
+          "click",
+          "[data-testid='as-row-agent:agt_research']"
+        ],
+        [
+          "click",
+          "[data-testid='as-settings-agent:agt_research']"
+        ]
+      ],
+      "after": "[data-testid='as-pop']"
+    },
+    {
+      "id": "ADDSHEET_01-new",
+      "route": "/m/ADDSHEET_01",
+      "proto": "chats,{skin}",
+      "waitFor": "[data-testid='conversation']",
+      "note": "New agent for this chat: name, one line, model.",
+      "steps": [
+        [
+          "open"
+        ],
+        [
+          "click",
+          "[data-testid='as-new']"
+        ],
+        [
+          "fill",
+          "[data-testid='as-name']",
+          "Checker"
+        ],
+        [
+          "fill",
+          "[data-testid='as-brief']",
+          "Checks every upload against the spec"
+        ]
+      ],
+      "after": "[data-testid='as-new-view']"
+    },
+    {
+      "id": "ADDSHEET_01-link",
+      "route": "/m/ADDSHEET_01",
+      "proto": "chats,{skin}",
+      "waitFor": "[data-testid='conversation']",
+      "note": "Link an outside agent: three steps and the exact command.",
+      "steps": [
+        [
+          "open"
+        ],
+        [
+          "click",
+          "[data-testid='as-link']"
+        ]
+      ],
+      "after": "[data-testid='as-link-view']"
+    },
+    {
+      "id": "ADDSHEET_01-people",
+      "route": "/m/ADDSHEET_01",
+      "proto": "chats,{skin}",
+      "waitFor": "[data-testid='conversation']",
+      "note": "The people count: Add people and agents first, then who is here; each agent has Poke and a gear.",
+      "steps": [
+        [
+          "click",
+          "[data-testid='participants-button']"
+        ]
+      ],
+      "after": "[data-testid='people-pop']"
+    },
+    {
+      "id": "ADDSHEET_01-poked",
+      "route": "/m/ADDSHEET_01",
+      "proto": "chats,{skin}",
+      "waitFor": "[data-testid='conversation']",
+      "note": "After a poke: the quiet line and the reply's Poked by.",
+      "steps": [
+        [
+          "click",
+          "[data-testid='participants-button']"
+        ],
+        [
+          "click",
+          "[data-testid='people-poke-agt_docs']"
+        ],
+        [
+          "wait",
+          "[data-testid='poked-pokeR_1']"
+        ]
+      ],
+      "after": "[data-testid='poked-pokeR_1']"
+    },
+    {
+      "id": "ADDSHEET_01-offer",
+      "route": "/m/ADDSHEET_01",
+      "proto": "chats,{skin}",
+      "waitFor": "[data-testid='conversation']",
+      "note": "Typing @Maya Chen, who is not in the chat: Maya isn't in this chat. Add Maya, Start a channel instead, and what she will see.",
+      "steps": [
+        [
+          "fill",
+          "[data-testid='composer-field']",
+          "@Maya Chen can you look at this"
+        ]
+      ],
+      "after": "[data-testid='channel-offer']"
+    },
+    {
+      "id": "ADDSHEET_01-earlier",
+      "route": "/m/ADDSHEET_01",
+      "proto": "chats,{skin}",
+      "waitFor": "[data-testid='conversation']",
+      "note": "A person picked: the Include earlier messages switch is off by default, and the line says they read from now on.",
+      "steps": [
+        [
+          "open"
+        ],
+        [
+          "click",
+          "[data-testid='as-row-person:usr_maya']"
+        ],
+        [
+          "click",
+          "[data-testid='as-earlier']"
+        ]
+      ],
+      "after": "[data-testid='as-earlier']"
+    }
+  ]
+}

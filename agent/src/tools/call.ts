@@ -3,14 +3,22 @@
 import { HostError, makeError } from "../../../host/src/routes/errors.ts";
 import type { CtxSeed, Invoke } from "../../../host/src/invoke.ts";
 import { heldCard, recordWork, workCardOf } from "./work-cards.ts";
+import { modelError } from "./model-error.ts";
+import { PROBE_MESSAGE, probeIn } from "../../../lib/probe.ts";
 import type { CapName, ErrorCode, NextStep, VyreError } from "../../../packages/contracts/src/types.ts";
+import { limited, shapeOutput } from "./compact.ts";
 import { askLevel, refusalFor, searchTools, TASK_BATON_TOOLS, toolsFor, reachesScope } from "./access.ts";
 import type { AccessDeps } from "./access.ts";
 import type { LocalDecision } from "./local.ts";
 import type { Refusal, ToolCtx, ToolDef, ToolResult, ToolSet } from "./types.ts";
+import { withLocalTimes } from "../../../lib/time-convert.ts";
+
+/** The capabilities whose results are times a person schedules by. */
+const TIMED = /^(?:calendar|mail|inbox|tasks|meetings|events)\./;
 
 export type ToolOutcome =
-  | { kind: "result"; result: ToolResult; traceId: string }
+  /** `parkOn`: a question asked of the person (ask_question): the turn waits on its block and makes no further model call until it is answered. */
+  | { kind: "result"; result: ToolResult; traceId: string; parkOn?: { blockId: string } }
   | { kind: "error"; result: ToolResult; error: VyreError }
   /** Parked at the Gate: the turn shows turn.waiting {task} and resumes when it is approved or denied. */
   | { kind: "held"; result: ToolResult; taskId: string; runId?: string; traceId: string };
@@ -35,6 +43,8 @@ export interface CallDeps extends AccessDeps {
   dynamic?: DynamicTools;
   hooks?: CallHooks;
   invoke: Invoke;
+  /** The asker's time zone, when known: a calendar, mail, inbox or task result then carries each time in it as well (lib/time-convert.ts withLocalTimes). */
+  zoneOf?(ctx: ToolCtx): string | undefined;
   traceId?(): string;
   /** Local tools only: what Ask, Allow and Auto say. Fails closed: a missing policy refuses a local tool. */
   localPolicy?(t: ToolDef, ctx: ToolCtx, input: unknown): LocalDecision;
@@ -58,6 +68,8 @@ const hex = (n: number): string => Array.from(globalThis.crypto.getRandomValues(
 
 export function createToolSession(deps: CallDeps): ToolSession {
   const loadedBy = new Map<string, Set<string>>();
+  /** The searches each turn has made, so the same one is not run twice. */
+  const searchedIn = new Map<string, Set<string>>();
   const newTrace = deps.traceId ?? ((): string => hex(16));
   const loadedSet = (threadId: string): Set<string> => {
     let s = loadedBy.get(threadId);
@@ -67,7 +79,7 @@ export function createToolSession(deps: CallDeps): ToolSession {
 
   const fail = (code: ErrorCode, traceId: string, o: { message?: string; details?: Record<string, unknown>; next?: NextStep[] } = {}): ToolOutcome => {
     const error = makeError(code, traceId, o);
-    return { kind: "error", error, result: { ok: false, content: { error } } };
+    return { kind: "error", error, result: { ok: false, content: { error: modelError(error) } } };
   };
 
   const askAccessNext = (ctx: ToolCtx, t: ToolDef): NextStep[] => {
@@ -103,6 +115,10 @@ export function createToolSession(deps: CallDeps): ToolSession {
     if (why !== null) return refused(why, ctx, t, traceId);
     if (!reachesScope(t, ctx.thread, input)) return refused("ask_scope", ctx, t, traceId);
 
+    // a tool is never called to see if it works, and never with placeholder content: refused before anything runs, so no card, hold, task or message reaches the chat
+    const placeholder = probeIn(input, "", ctx.said ?? "");
+    if (placeholder !== null) return fail("validation.bad_input", traceId, { message: PROBE_MESSAGE, details: { tool: t.name, reason: "placeholder" } });
+
     const isDynamic = !deps.catalog.byName(name);
     if (!isDynamic && !deps.defaults.has(t.name) && !(ctx.thread.scope?.type === "task" && TASK_BATON_TOOLS.has(t.name)) && !loadedSet(ctx.thread.threadId).has(t.name)) {
       return fail("validation.precondition_failed", traceId, { message: "Find this tool with tool_search first.", details: { tool: t.name, reason: "not_loaded" } });
@@ -111,6 +127,16 @@ export function createToolSession(deps: CallDeps): ToolSession {
     if (t.name === "tool_search") {
       const query = (input as { query?: unknown } | null)?.query;
       if (typeof query !== "string" || query.trim() === "") return fail("validation.bad_input", traceId, { details: { errors: ["/query: required"], tool: t.name } });
+      // The same search twice in one turn finds the same tools: the second time says so instead of searching again (a model went round this loop nineteen times).
+      if (ctx.turnId) {
+        const key = query.trim().toLowerCase().replace(/\s+/g, " ");
+        let asked = searchedIn.get(ctx.turnId);
+        if (!asked) { asked = new Set(); searchedIn.set(ctx.turnId, asked); if (searchedIn.size > 200) searchedIn.delete(searchedIn.keys().next().value as string); }
+        if (asked.has(key)) {
+          return { kind: "result", traceId, result: { ok: true, content: { data: { tools: [], hint: "You already searched for that in this turn. What it found can be called now; call one of those tools, or change the words. If nothing fits, answer with what you have and say what is missing." } } } };
+        }
+        asked.add(key);
+      }
       const found = api.search(ctx, query);
       return {
         kind: "result", traceId,
@@ -153,7 +179,7 @@ export function createToolSession(deps: CallDeps): ToolSession {
       ...(t.effects !== "read" && t.planMode === "blocked" ? { askable: true } : {}),
     };
     try {
-      const res = await deps.invoke(t.cap, isDynamic && deps.dynamic ? deps.dynamic.input(ctx, t, input) : unstringified(t.inputSchema, input), seed);
+      const res = await deps.invoke(t.cap, isDynamic && deps.dynamic ? deps.dynamic.input(ctx, t, input) : limited(t.cap, unstringified(t.inputSchema, input)), seed);
       if (res.status === "held") {
         recordWork(ctx.turnId, heldCard(t.cap, res.taskId, input));
         return {
@@ -168,13 +194,23 @@ export function createToolSession(deps: CallDeps): ToolSession {
         if (typeof made === "string") await deps.invoke("chat.flow_card", { threadId: ctx.thread.threadId, automationId: made, idempotencyKey: `flow-card:${made}` }, seed).catch(() => undefined);
       }
       recordWork(ctx.turnId, workCardOf(t.cap, input, res.output));
-      const content: { data: unknown; blocks?: string[] } = { data: res.output };
+      // the calendar and mail reads come back to a model as compact rows with a count and a size (compact.ts); the full answer is what the hooks and the work card see
+      const shaped = isDynamic ? null : shapeOutput(t.cap, res.output);
+      // times in the person's zone beside the ISO and epoch ones, for the tools that return times people schedule by
+      const zone = TIMED.test(t.cap) ? deps.zoneOf?.(ctx) : undefined;
+      const data = shaped ? shaped.data : res.output;
+      const content: { data: unknown; meta?: unknown; blocks?: string[] } = { data: zone ? withLocalTimes(data, zone) : data, ...(shaped ? { meta: shaped.meta } : {}) };
       if (t.blocks.length > 0) content.blocks = t.blocks;
       if (deps.hooks?.after) void Promise.resolve(deps.hooks.after(ctx, t, input, { ok: true, output: res.output })).catch(() => undefined);
-      return { kind: "result", traceId: res.traceId, result: { ok: true, content } };
+      const asked = t.cap === "chat.question.ask" ? (res.output as { blockId?: unknown } | null)?.blockId : undefined;
+      return { kind: "result", traceId: res.traceId, result: { ok: true, content }, ...(typeof asked === "string" ? { parkOn: { blockId: asked } } : {}) };
     } catch (e) {
-      if (e instanceof HostError) return { kind: "error", error: e.error, result: { ok: false, content: { error: e.error } } };
-      return fail("internal.unexpected", traceId, { message: "Something went wrong on our side." });
+      if (e instanceof HostError) return { kind: "error", error: e.error, result: { ok: false, content: { error: modelError(e.error) } } };
+      // a failure nobody named (a crash inside a module): a plain sentence the model can act on, never a bare "500"; the cause and stack are in the server log under this trace (host/src/invoke.ts)
+      return fail("internal.unexpected", traceId, {
+        message: `${t.name} could not finish on the server just now, and nothing was changed. Try it once more; if it fails again, tell the person in plain words that it did not work. Do not paste ids or traces.`,
+        details: { tool: t.name, reason: "server_error" },
+      });
     }
   }
 

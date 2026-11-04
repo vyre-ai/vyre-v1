@@ -30,7 +30,8 @@ const agentRow = t.obj({
   switchOnLimit: t.opt(t.bool()),  // on unless false: switch to the next usable account when this one runs out of its limit; a paid key that is not on a fallback list asks first
   toolsAllowed: t.arr(t.str()), toolsDenied: t.arr(t.str()), vaultKeys: t.arr(t.str()), limits, captureMode, hasComputer: t.bool(), templateVersion: t.int(),
   createdAt: t.ts(), lastActiveAt: t.opt(t.ts()),
-  teammateOf: t.opt(id.project),
+  teammateOf: t.opt(t.str({ description: 'The project, or the chat, this teammate belongs to' })),
+  chatOf: t.opt(id.thread),   // an agent a chat or channel made for itself: it is not on the Agents page and goes with the chat
 });
 const routineRow = t.obj({
   routineId: t.id('rtn'), agentId: id.agent, title: t.str(), cron: t.opt(t.str({ examples: ['0 9 * * 1-5'], description: 'The schedule of a schedule routine; a watcher has none' })), prompt: t.str(), channelId: t.opt(id.channel), enabled: t.bool(),
@@ -53,7 +54,7 @@ const outsideJob = t.obj({
 const agentFile = t.enm('AGENT.md', 'agent.toml');
 const target = { agentId: id.agent };
 // A teammate is an agent made for one project (owner ruling 20 Oct): the Agents page leaves it out unless asked, and the project's Teammates tab lists it.
-const listIn = { section: t.opt(t.enm('personal', 'shared', 'space')), folderId: t.opt(id.folder), status: t.opt(t.arr(agentStatus)), teammates: t.opt(t.enm('hide', 'include', 'only')), projectId: t.opt(id.project), ...pageIn };
+const listIn = { section: t.opt(t.enm('personal', 'shared', 'space')), folderId: t.opt(id.folder), status: t.opt(t.arr(agentStatus)), teammates: t.opt(t.enm('hide', 'include', 'only')), projectId: t.opt(t.str({ description: 'A project, or a chat, whose teammates to list' })), threadId: t.opt(id.thread), ...pageIn };
 const effort = t.enm('low', 'medium', 'high', 'max');
 // Skills (CHAT-DESIGN ruling 4): SKILL.md files in three tiers. builtin ships with Vyre (agent/skills), space is the Space library an admin keeps, agent is the agent's own skills/ folder
 // (and what a plugin installed into one agent brings). The turn shows an index of name and one line; load_skill returns the full text.
@@ -105,6 +106,13 @@ export default defineManifest({
     read('agents.list', 'List agents you are in or that are shared with you (admins may toggle All in the Space)', { level: 'member',
       in: listIn, out: { agents: t.arr(agentRow), ...pageOut }, tool: 'agents', label: 'filter', cli: 'vyre agents list',
     }),
+    // People's own agents (owner ruling 4 Nov): an admin governs them without opening them. No name, instruction or chat is in either answer.
+    read('agents.people_summary', 'For each person whose agents you cannot see (their Assistant, the agents they keep private): how many, what they spent this month against their cap, and whether they are paused. Never names or content', {
+      in: {}, out: { people: t.arr(t.obj({ personId: id.user, assistant: t.bool(), privateAgents: t.int({ minimum: 0 }), spendMonthMicros: t.int({ minimum: 0 }), capMicros: t.opt(t.int({ minimum: 0 })), paused: t.bool() })) }, perm: 'agents.manage', level: 'manage', tool: 'agents',
+    }),
+    write('agents.pause_person', 'Pause every agent of one person, or let them run again. Audited, and the person is told. Answers how many changed, never which', {
+      in: { personId: id.user, paused: t.bool() }, out: { changed: t.int({ minimum: 0 }) }, perm: 'agents.manage', level: 'manage', emits: ['agent.paused', 'agent.resumed'], audit: 'always', tool: 'agents', idem: 'natural',
+    }),
     read('agents.get', 'Read one agent: record, status, limits and the effective configuration', {
       in: target, out: { agent: agentRow }, on: ['agent', '/agentId'], tool: 'agents', label: 'check', errors: ['validation.not_found'],
     }),
@@ -131,7 +139,7 @@ export default defineManifest({
       in: {
         name: t.str({ examples: ['Intake'] }), role: t.opt(t.str()), face: t.opt(t.str()), model: t.opt(t.str()), ownerId: t.opt(id.user), computer: t.opt(t.bool()),
         templateKey: t.opt(t.str()), tools: t.opt(t.obj({ allowed: t.arr(t.str()), denied: t.arr(t.str()) })), limits: t.opt(limits),
-        projectId: t.opt(id.project),
+        projectId: t.opt(t.str({ description: 'Make a teammate of this project, or of this chat (a thread id): it shows with its crew and not on the Agents page' })), threadId: t.opt(id.thread),
       },
       out: { agent: agentRow }, perm: 'agents.create', emits: ['agent.created'], tool: 'agents', offline: 'queue', cli: 'vyre agents create',
       errors: ['validation.duplicate'],
@@ -155,7 +163,7 @@ export default defineManifest({
       in: { agentId: id.agent, kind: t.enm('mention', 'task', 'answer'), threadId: t.opt(id.thread), taskId: t.opt(id.task), messageId: t.opt(id.message), asker: t.str(), title: t.opt(t.str()), text: t.opt(t.str()) },
       out: { queued: t.bool() }, emits: ['agent.job_queued'], idem: 'none', risk: 'low',
     }),
-    read('agents.outside.usable', 'May the person asking give this agent work? An outside agent takes work from its owner only; every other agent says yes', {
+    read('agents.outside.usable', 'May the person asking give this agent work (a task, an automation step, a crew)? An outside agent takes work from its owner only; any other agent needs Can use on it (Can chat with is not enough); a person\'s Assistant is theirs alone', {
       in: target, out: { usable: t.bool() }, level: 'member',
     }),
     write('agents.outside.seen', 'System: an outside agent called a tool: its status follows', { in: { agentId: id.agent }, out: { ok: t.bool() }, emits: ['agent.seen'], idem: 'none', risk: 'low' }),
@@ -297,7 +305,7 @@ export default defineManifest({
     ev('skill.changed', 'A skill was turned off or on', { p: { name: t.str(), agentId: t.opt(id.agent), enabled: t.bool(), by: t.str() }, subject: ['entity', '/name'] }),
     // private: the person's own assistant or an outside agent they connected (owner ruling 3 Nov): to everyone else it is named as its person, "Irfad Imtiaz (Agent)", never by its own name
     ev('agent.created', 'An agent was created', { p: { agentId: id.agent, name: t.str(), ownerId: id.user, folderId: t.str(), templateVersion: t.int(), private: t.opt(t.bool()) }, subject: ['agent', '/agentId'], trigger: { title: 'An agent is created' } }),
-    ev('agent.privacy_set', 'An agent became private to its person (their assistant, an outside agent) or stopped being so; access names it as its person to everyone else', { p: { agentId: id.agent, ownerId: id.user, private: t.bool() }, subject: ['agent', '/agentId'], retention: 'audit' }),
+    ev('agent.privacy_set', 'An agent became private to its person (their assistant, an outside agent) or stopped being so; access names it as its person to everyone else', { p: { agentId: id.agent, ownerId: id.user, private: t.bool(), assistant: t.opt(t.bool({ description: 'The agent is its person\'s own Assistant' })) }, subject: ['agent', '/agentId'], retention: 'audit' }),
     ev('agent.paused', 'An agent was paused', { p: { agentId: id.agent, reason: t.opt(t.str()), by: t.str() }, subject: ['agent', '/agentId'], trigger: { title: 'An agent is paused' } }),
     ev('agent.resumed', 'An agent was resumed', { p: { agentId: id.agent, by: t.str() }, subject: ['agent', '/agentId'] }),
     ev('agent.owner_changed', 'An agent was handed to another person', { p: { agentId: id.agent, from: id.user, to: id.user, by: t.str() }, subject: ['agent', '/agentId'] }),
@@ -359,6 +367,13 @@ export default defineManifest({
     atool('handoff', 'Hand work to another agent in a new linked thread (counted against the hop limit)', {
       in: { toAgentId: id.agent, note: t.str() }, out: { thread: t.rec(), depth: t.int() }, cap: 'chat.handoff', effects: 'write', planMode: 'blocked',
     }),
+    atool('notes_create', 'Save a note for the person, private by default, when they ask ("save this as a note"). It links back to the chat message it was saved from', {
+      in: { title: t.opt(t.str()), body: t.opt(t.str()), labels: t.opt(t.arr(t.str())) }, out: { note: t.rec() }, cap: 'notes.create', effects: 'write', planMode: 'blocked',
+    }),
+    atool('offer_note', 'Offer to save something worth keeping from this chat as a note: a card with a preview and Save or Not now. Rare: once per topic, never for small talk', {
+      in: { title: t.str(), body: t.str(), topic: t.str(), messageId: t.opt(t.str()) }, out: { offered: t.bool(), why: t.opt(t.str()), blockId: t.opt(id.block), messageId: t.opt(id.message) },
+      cap: 'chat.note_offer.make', effects: 'write', planMode: 'blocked', blocks: ['note_offer'],
+    }),
     atool('memory_propose', 'Save a fact to the asker layer of this agent memory with its source', {
       in: { text: t.str(), sourceKind: t.str(), sourceRef: t.str(), layer: t.opt(t.str()), validFrom: t.opt(t.ts()), kind: t.opt(t.str()) },
       out: { fact: t.rec(), merged: t.bool() }, cap: 'memory.propose_fact', effects: 'write', planMode: 'blocked', blocks: ['memory_saved'],
@@ -372,7 +387,7 @@ export default defineManifest({
       q: {
         agent: ['agents.get', { agentId: '/state/agentId' }, true], summary: ['agents.summary', { agentId: '/state/agentId' }, true],
         routines: ['agents.routines.list', { agentId: '/state/agentId' }, true], suggestions: ['agents.suggestions.list', { agentId: '/state/agentId' }, true],
-        config: ['agents.config.get', { agentId: '/state/agentId' }, true], chats: ['threads.list', {}, true], accounts: ['engine.accounts.list', {}, true],
+        config: ['agents.config.get', { agentId: '/state/agentId' }, true], chats: ['threads.list', {}, true], accounts: ['engine.accounts.list', { place: 'chat' }, true],
       },
       a: {
         chat: ['chat.start', {}], setRoleLine: ['agents.role_line.set', { agentId: '/state/agentId' }], update: ['agents.update', { agentId: '/state/agentId' }],

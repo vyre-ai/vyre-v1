@@ -7,7 +7,7 @@ import path from "node:path";
 import { main } from "./cli.ts";
 import { EXTENSION_ZIP, SERVER_FILES, imagesLock, packExtension, packFolder, packServer, releasesFrom, sha256File, tarList, zipNames, zipRead } from "./pack.ts";
 import { imageHasChrome, stageChrome } from "./computer.ts";
-import { publishRelease, updateRolling } from "./publish.ts";
+import { GithubReleases, publishRelease, updateRolling } from "./publish.ts";
 import type { ApiFetch } from "./publish.ts";
 import { smokeRelease } from "./smoke.ts";
 import { CHANNEL_KINDS, buildEntries, manifestFor, readFeed } from "./channels.ts";
@@ -326,7 +326,8 @@ test("publish attaches every signed file to a new release, and never replaces a 
   const gh = fakeGithub();
   const r = await publishRelease({ repo: "o/r", token: "tok", tag: "v1.0.0", dir, prerelease: false, notes: "n", fetch: gh.fetch });
   assert.deepEqual(r.attached, ["Vyre_1.0.0_aarch64.dmg", "Vyre_1.0.0_aarch64.dmg.sha256", "stable.json", "stable.json.sig", "vyre.tgz"], "feed.json and releases.json are build files, not release files");
-  assert.deepEqual(gh.uploads, ["Vyre_1.0.0_aarch64.dmg", "Vyre_1.0.0_aarch64.dmg.sha256", "stable.json", "stable.json.sig", "vyre.tgz"]);
+  assert.deepEqual(gh.uploads.slice(0, 3).sort(), ["Vyre_1.0.0_aarch64.dmg", "Vyre_1.0.0_aarch64.dmg.sha256", "vyre.tgz"], "the bulk files go first");
+  assert.deepEqual(gh.uploads.slice(3), ["stable.json.sig", "stable.json"], "the manifest goes last, its signature just before it");
   await assert.rejects(publishRelease({ repo: "o/r", token: "tok", tag: "v1.0.0", dir, prerelease: false, notes: "n", fetch: fakeGithub(["v1.0.0"]).fetch }), /already has a release/);
 });
 
@@ -365,4 +366,109 @@ test("Vyre for Chrome is staged into the agent-computer build context without it
   inImage.set("manifest.json", "{}");
   assert.throws(() => imageHasChrome("img", files, run), /no version/);
   assert.throws(() => stageChrome(fs.mkdtempSync(path.join(os.tmpdir(), "empty-"))), /manifest\.json is missing/);
+});
+
+// A fake GitHub that keeps the assets it was given (name, size, sha256, state) so a second run sees what the first left behind.
+function statefulGithub(opts: { failAfter?: number; halfWritten?: string } = {}) {
+  type A = { id: number; name: string; size: number; state: string; digest: string };
+  const rel = { id: 7, assets: [] as A[] };
+  let exists = false, ids = 0, sent = 0, live = 0, peak = 0;
+  const log: string[] = [];
+  const fetch: ApiFetch = async (url, init) => {
+    if (init.method === "GET" && url.includes("/releases/tags/")) return { status: exists ? 200 : 404, json: async () => ({ ...rel, assets: rel.assets.map((a) => ({ ...a })) }) };
+    if (init.method === "POST" && url.endsWith("/releases")) { exists = true; return { status: 201, json: async () => ({ id: rel.id, assets: [] }) }; }
+    if (init.method === "DELETE") { const id = Number(url.split("/").pop()); rel.assets = rel.assets.filter((a) => a.id !== id); log.push(`DELETE ${id}`); return { status: 204, json: async () => ({}) }; }
+    if (init.method === "POST" && url.includes("/assets?name=")) {
+      const name = decodeURIComponent(url.split("name=")[1] ?? "");
+      const body = init.body as Uint8Array;
+      live++; peak = Math.max(peak, live);
+      await new Promise((r) => setTimeout(r, 5));
+      live--;
+      if (opts.failAfter !== undefined && sent >= opts.failAfter) {
+        // the connection drops mid-upload: GitHub keeps a starter asset behind
+        rel.assets.push({ id: ++ids, name, size: 0, state: "starter", digest: "" });
+        throw new Error("socket hang up");
+      }
+      sent++;
+      log.push(`UP ${name}`);
+      rel.assets.push({ id: ++ids, name, size: body.length, state: "uploaded", digest: "sha256:" + crypto.createHash("sha256").update(body).digest("hex") });
+      return { status: 201, json: async () => ({}) };
+    }
+    return { status: 404, json: async () => ({}) };
+  };
+  return { fetch, rel, log, peak: () => peak, setFail: (n: number | undefined) => { if (n === undefined) delete opts.failAfter; else opts.failAfter = n; sent = 0; } };
+}
+
+function releaseDir(): string {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "pub-"));
+  for (const [f, body] of Object.entries({ "beta.json": "{}", "beta.json.sig": "sig", "vyre.tgz": "x".repeat(900), "Vyre.dmg": "d".repeat(2000), "Vyre.dmg.sha256": "h", "VyreSetup.exe": "e".repeat(1500), "SHA256SUMS": "s" })) fs.writeFileSync(path.join(dir, f), body);
+  return dir;
+}
+
+test("a publish cut off mid-way is finished by a rerun: finished files are skipped, the half-written one is replaced, the manifest goes last", async () => {
+  const dir = releaseDir();
+  const gh = statefulGithub({ failAfter: 3 });
+  await assert.rejects(publishRelease({ repo: "o/r", token: "tok", tag: "v1.0.0-rc.1", dir, prerelease: true, notes: "n", fetch: gh.fetch, parallel: 1, pauseMs: 1 }), /could not attach/);
+  assert.ok(gh.rel.assets.some((a) => a.state === "starter"), "the cut upload left a half-written asset");
+  const firstPass = gh.rel.assets.filter((a) => a.state === "uploaded").map((a) => a.name).sort();
+  assert.equal(firstPass.length, 3);
+  assert.ok(!gh.rel.assets.some((a) => a.name === "beta.json"), "the manifest was not reached");
+  gh.setFail(undefined);
+  gh.log.length = 0;
+  const r = await publishRelease({ repo: "o/r", token: "tok", tag: "v1.0.0-rc.1", dir, prerelease: true, notes: "n", fetch: gh.fetch });
+  assert.deepEqual(r.skipped, firstPass, "what was uploaded with the right size and checksum is not sent again");
+  const sent = gh.log.filter((l) => l.startsWith("UP ")).map((l) => l.slice(3));
+  assert.equal(sent.length, 7 - 3);
+  assert.deepEqual(sent.slice(-2), ["beta.json.sig", "beta.json"], "manifest last");
+  assert.deepEqual(gh.rel.assets.map((a) => a.name).sort(), fs.readdirSync(dir).sort());
+  assert.ok(gh.rel.assets.every((a) => a.state === "uploaded"));
+  // and a third run has nothing left to send
+  gh.log.length = 0;
+  const again = await publishRelease({ repo: "o/r", token: "tok", tag: "v1.0.0-rc.1", dir, prerelease: true, notes: "n", fetch: gh.fetch });
+  assert.equal(again.skipped.length, 7);
+  assert.deepEqual(gh.log, []);
+});
+
+test("a rerun replaces an asset of the right size but the wrong checksum only when it is half written, and refuses to overwrite a finished one", async () => {
+  const dir = releaseDir();
+  const gh = statefulGithub();
+  await publishRelease({ repo: "o/r", token: "tok", tag: "v1.0.0", dir, prerelease: false, notes: "n", fetch: gh.fetch });
+  const tgz = gh.rel.assets.find((a) => a.name === "vyre.tgz")!;
+  tgz.digest = "sha256:" + "0".repeat(64);
+  await assert.rejects(publishRelease({ repo: "o/r", token: "tok", tag: "v1.0.0", dir, prerelease: false, notes: "n", fetch: gh.fetch }), /already has a release with a different vyre\.tgz/);
+  tgz.state = "starter";
+  const r = await publishRelease({ repo: "o/r", token: "tok", tag: "v1.0.0", dir, prerelease: false, notes: "n", fetch: gh.fetch });
+  assert.ok(!r.skipped.includes("vyre.tgz"));
+  assert.equal(gh.rel.assets.find((a) => a.name === "vyre.tgz")!.state, "uploaded");
+});
+
+test("bulk uploads run side by side, and a transient upload failure is retried", async () => {
+  const dir = releaseDir();
+  const gh = statefulGithub();
+  await publishRelease({ repo: "o/r", token: "tok", tag: "v1.0.0", dir, prerelease: false, notes: "n", fetch: gh.fetch, parallel: 3 });
+  assert.ok(gh.peak() >= 2 && gh.peak() <= 3, `peak uploads at once: ${gh.peak()}`);
+  // one dropped connection, then success: the retry removes the starter asset and sends again
+  const flaky = statefulGithub({ failAfter: 0 });
+  const q = new GithubReleases("o/r", "tok", flaky.fetch);
+  const rel = await q.create({ tag: "t", prerelease: false, notes: "" });
+  rel.tag = "t";
+  const f = path.join(dir, "vyre.tgz");
+  setTimeout(() => flaky.setFail(undefined), 1);
+  await q.upload(rel, f, { pauseMs: 20 });
+  assert.equal(flaky.rel.assets.filter((a) => a.name === "vyre.tgz").length, 1);
+  assert.equal(flaky.rel.assets[0]!.state, "uploaded");
+});
+
+test("the rolling release leaves unchanged files alone and refreshes the channel manifest last", async () => {
+  const dir = releaseDir();
+  const gh = statefulGithub();
+  await updateRolling({ repo: "o/r", token: "tok", dir, channel: "beta", fetch: gh.fetch });
+  gh.log.length = 0;
+  fs.writeFileSync(path.join(dir, "beta.json"), '{"v":2}');
+  fs.writeFileSync(path.join(dir, "beta.json.sig"), "sig2");
+  fs.writeFileSync(path.join(dir, "Vyre.dmg"), "n".repeat(2000));
+  const r = await updateRolling({ repo: "o/r", token: "tok", dir, channel: "beta", fetch: gh.fetch });
+  const sent = gh.log.filter((l) => l.startsWith("UP ")).map((l) => l.slice(3));
+  assert.deepEqual(sent, ["Vyre.dmg", "beta.json.sig", "beta.json"], "only what changed, the manifest last");
+  assert.ok(r.skipped.includes("vyre.tgz"));
 });

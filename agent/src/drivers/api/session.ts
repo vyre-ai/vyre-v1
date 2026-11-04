@@ -5,6 +5,7 @@
 //   retries    429 with a short Retry-After, 5xx and network errors before the first byte, with backoff; after the first byte an error is surfaced, never replayed
 //   cancel     aborts the request in flight and releases any wait for a tool result; the generator ends without an error event
 //   caching    the stable system blocks and the sorted tool list are hashed and marked (prefix.ts); each call notes whether the prefix matched the one before
+import { slimTool } from "./slim.ts";
 import { windowFor } from "../../transcript/windows.ts";
 import type { DriverEvent, EngineSession, SessionSpec, StoredMessage, ToolResult, TurnInput } from "../../turn-engine/types.ts";
 import { classify, plainRefusal, retryAfterMs, scrub } from "./errors.ts";
@@ -23,6 +24,8 @@ export interface SessionContext {
   system: SystemBlock[];
   tools: ApiTool[];
   maxOutputTokens?: number;
+  /** The tool set as it stands now. Read again after a step that ran tool_search: what the search loaded is callable in the next step of the same turn. */
+  reload?(): Promise<readonly ApiTool[]>;
 }
 
 export interface RetryPolicy {
@@ -201,10 +204,11 @@ export function createApiSession(deps: SessionDeps, spec: SessionSpec): ApiSessi
     abort = ac;
     results.clear();
     try {
-      const ctx = await deps.context(spec, input);
+      const asked = await deps.context(spec, input);
+      const ctx = { ...asked, tools: asked.tools.map(slimTool) };   // the copy the model reads is trimmed (slim.ts); calls are still validated against the full schema
       const system = orderSystem(ctx.system);
-      const hash = prefixHash(system, ctx.tools, model);
-      const fixed = fixedTokens(system, ctx.tools);
+      let hash = prefixHash(system, ctx.tools, model);
+      let fixed = fixedTokens(system, ctx.tools);
       const window = windowFor(model, deps.adapter.id);
       let messages: Msg[] = threadMessages(input);
       const maxSteps = deps.maxSteps ?? MAX_STEPS;
@@ -234,7 +238,7 @@ export function createApiSession(deps: SessionDeps, spec: SessionSpec): ApiSessi
         tracker.settle(u.cacheReadTokens, u.cacheWriteTokens);
         if (inTokens > 0 || u.outputTokens > 0) {
           yield {
-            type: "usage", inputTokens: inTokens, outputTokens: u.outputTokens,
+            type: "usage", inputTokens: inTokens, outputTokens: u.outputTokens, contextTokens: inTokens,
             ...(told.has("cacheReadTokens") ? { cacheReadTokens: u.cacheReadTokens } : {}), ...(told.has("cacheWriteTokens") ? { cacheWriteTokens: u.cacheWriteTokens } : {}),
             ...(u.reasoningTokens !== undefined ? { reasoningTokens: u.reasoningTokens } : {}), ...(u.costUsd !== undefined ? { costUsd: u.costUsd } : {}),
           };
@@ -247,6 +251,16 @@ export function createApiSession(deps: SessionDeps, spec: SessionSpec): ApiSessi
             const r = await waitFor(p.id, ac.signal);
             if (r === null) return;
             messages.push({ role: "tool", callId: p.id, name: p.name, ok: r.ok, content: cap(typeof r.content === "string" ? r.content : JSON.stringify(r.content ?? null)) });
+          }
+          // A tool the search just found is callable in the very next step. The new ones go at the end, so the tools already sent keep their place and the cached prefix up to them stays valid.
+          if (ctx.reload && pending.some((p) => p.name === "tool_search")) {
+            const known = new Set(ctx.tools.map((t) => t.name));
+            const fresh = (await ctx.reload().catch(() => [] as readonly ApiTool[])).filter((t) => !known.has(t.name)).map(slimTool);
+            if (fresh.length > 0) {
+              ctx.tools = [...ctx.tools, ...fresh];
+              hash = prefixHash(system, ctx.tools, model);
+              fixed = fixedTokens(system, ctx.tools);
+            }
           }
         } else if (text !== "") {
           messages.push({ role: "assistant", text, calls: [] });

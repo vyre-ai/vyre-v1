@@ -40,9 +40,9 @@ test("a type: who can see this, the people with their levels, the switches, and 
     const s = await open(typeShares, { type: "record_type", id: "deal", name: "Deals" });
     const text = textOf(s.tree);
     for (const word of ["Share", "Deals", "Who can see this", "Only people added", "Bea", "Cal", "Can edit", "Can view", "Can export", "Can share with others", "Export: Chosen people"]) assert.ok(text.includes(word), word);
-    assert.equal(find(s.tree, "share-audience-pick-added")?.props["aria-selected"], true, "the chosen audience is lit");
-    assert.equal(find(s.tree, "share-export-usr_bea")?.props["aria-checked"], true, "Bea can export");
-    assert.equal(find(s.tree, "share-export-usr_cal")?.props["aria-checked"], false, "Cal cannot");
+    assert.equal(find(s.tree, "as-audience-pick-added")?.props["aria-selected"], true, "the chosen audience is lit");
+    assert.equal(find(s.tree, "as-export-usr_bea")?.props["aria-checked"], true, "Bea can export");
+    assert.equal(find(s.tree, "as-export-usr_cal")?.props["aria-checked"], false, "Cal cannot");
   } finally { restore(); }
 });
 
@@ -50,9 +50,9 @@ test("a switch sets only itself, the audience is one call, and a level change se
   const restore = installDom();
   try {
     const s = await open(typeShares, { type: "record_type", id: "deal", name: "Deals" });
-    await press(find(s.tree, "share-export-usr_cal"));
-    await press(find(s.tree, "share-reshare-usr_bea"));
-    await press(find(s.tree, "share-audience-pick-me"));
+    await press(find(s.tree, "as-export-usr_cal"));
+    await press(find(s.tree, "as-reshare-usr_bea"));
+    await press(find(s.tree, "as-audience-pick-me"));
     await flush();
     assert.deepEqual(s.calls.map((c) => [c.cap, c.input]), [
       ["access.share", { resource: { type: "record_type", id: "deal" }, subject: { kind: "person", id: "usr_cal" }, level: "view", export: true }],
@@ -66,11 +66,11 @@ test("a viewer who may not share sees the sheet as it is and nothing moves", asy
   const restore = installDom();
   try {
     const s = await open({ ...typeShares, can: { manage: false, share: false, export: false } }, { type: "record_type", id: "deal", name: "Deals" });
-    await press(find(s.tree, "share-export-usr_cal"));
-    await press(find(s.tree, "share-audience-pick-me"));
+    await press(find(s.tree, "as-export-usr_cal"));
+    await press(find(s.tree, "as-audience-pick-me"));
     await flush();
     assert.deepEqual(s.calls, []);
-    assert.equal(find(s.tree, "share-export-usr_cal")?.props["aria-disabled"] ?? find(s.tree, "share-export-usr_cal")?.props.disabled, true);
+    assert.equal(find(s.tree, "as-export-usr_cal")?.props["aria-disabled"] ?? find(s.tree, "as-export-usr_cal")?.props.disabled, true);
   } finally { restore(); }
 });
 
@@ -78,8 +78,8 @@ test("when the type says anyone who can view may export, every switch is on and 
   const restore = installDom();
   try {
     const s = await open({ ...typeShares, exporters: "viewers" }, { type: "record_type", id: "deal", name: "Deals" });
-    assert.equal(find(s.tree, "share-export-usr_cal")?.props["aria-checked"], true);
-    await press(find(s.tree, "share-export-usr_cal"));
+    assert.equal(find(s.tree, "as-export-usr_cal")?.props["aria-checked"], true);
+    await press(find(s.tree, "as-export-usr_cal"));
     assert.deepEqual(s.calls, []);
   } finally { restore(); }
 });
@@ -91,13 +91,13 @@ test("a record follows its type until it is set apart; the way back is the first
     const s = await open(follows, { type: "record", id: "rec_one", name: "Acme renewal", typeName: "Deals" });
     const text = textOf(s.tree);
     assert.ok(text.includes("Follows Deals") && text.includes("Change for this record only") && text.includes("From Deals"), text);
-    assert.equal(find(s.tree, "share-audience-pick"), null, "the choice is hidden until it is asked for");
-    assert.equal(find(s.tree, "share-more"), null, "export is a setting of the type");
-    await press(find(s.tree, "share-override"));
+    assert.equal(find(s.tree, "as-audience-pick"), null, "the choice is hidden until it is asked for");
+    assert.equal(find(s.tree, "as-more"), null, "export is a setting of the type");
+    await press(find(s.tree, "as-override"));
     await flush();
-    assert.ok(find(s.tree, "share-audience-pick"));
+    assert.ok(find(s.tree, "as-audience-pick"));
     assert.ok(textOf(s.tree).includes("Only me"));
-    await press(find(s.tree, "share-audience-pick-me"));
+    await press(find(s.tree, "as-audience-pick-me"));
     await flush();
     assert.deepEqual(s.calls.map((c) => [c.cap, c.input]), [["access.audience_set", { resource: { type: "record", id: "rec_one" }, audience: "me" }]]);
   } finally { restore(); }

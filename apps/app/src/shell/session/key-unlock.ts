@@ -41,3 +41,27 @@ export async function passwordKeyState(baseUrl: string, token: string): Promise<
 
 /** Whether there is a password key to open here. Kept for callers that only need yes or no. */
 export async function hasPasswordKey(baseUrl: string, token: string): Promise<boolean> { return (await passwordKeyState(baseUrl, token)) === "yes"; }
+
+
+/**
+ * Whether the launch lock shows for a Space server (owner, 4 Nov: lock at launch, the key stays memory-only on the device and one password unlocks everything). It shows only when nobody holds the key:
+ * not this app (it was relaunched), not the server (it restarted, or never had it), and the account has a password to open it with. An app that holds the key hands it over without a word; a server
+ * that already holds it, an account that signed in another way, and a server that did not answer all go straight in.
+ */
+export async function remoteGateState(d: {
+  kept(): boolean;
+  rehand(): Promise<boolean>;
+  serverHolds(): Promise<boolean | null>;
+  passwordKey(): Promise<"yes" | "no" | "unknown">;
+}): Promise<"open" | "locked"> {
+  if (d.kept()) { await d.rehand(); return "open"; }
+  const held = await d.serverHolds();
+  if (held === null || held === true) return "open";
+  return (await d.passwordKey()) === "yes" ? "locked" : "open";
+}
+
+/**
+ * One beat of the watch while the app is open (owner, 4 Nov): after a server restart the key is gone from the server and an app relaunched since holds none. The lock notice is in the top bar until the
+ * person unlocks, whatever else they did: there is nothing to dismiss. Held again (another device unlocked) clears it.
+ */
+export const noticeAfterBeat = (now: "open" | "locked"): "show" | "clear" => (now === "locked" ? "show" : "clear");

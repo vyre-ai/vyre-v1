@@ -20,6 +20,7 @@
 // /compute/stream with the person's own signed-in session (`Authorization: Bearer vst_...`), not a node credential. Its node id is `device:<device id>`, it belongs to that person, and the Space
 // starts a process on it only for that person's own turns (spawnProc's `person`); the device refuses any other as the second lock. It says which engines it runs once, in its hello
 //   device -> Space  {t:"hello", engines:[...], name?}         Space -> device  {t:"ready", person, device}
+//   node or device -> Space  {t:"report", report}  every 30 s: its specs, load, what Vyre runs on it and what it can run (machines, host/src/machines/report.ts); the Space pings every 30 s and the answer {t:"pong", at} gives the round trip
 // A session that is signed out or revoked drops the socket within `recheckMs`, like a removed node.
 //
 // And one request to a port on a computer on this node, for a site or an artifact (portFetch), and one question for the machine (ask): no job row, so a read can use them.
@@ -57,18 +58,24 @@ export const deviceNode = (deviceId: string): string => `device:${deviceId}`;
 
 export interface ComputeStreamDeps {
   /** Who holds this credential, if still admitted (the network module's node_poll). */
-  poll(credential: string): Promise<{ serverId: string } | null>;
+  poll(credential: string): Promise<{ serverId: string; owner?: string } | null>;
   /** A person's signed-in session, for their own computer's link: the person and the device, if the session is live and the device is a computer (not a phone or a browser). Absent: no device links. */
   device?(token: string): Promise<{ person: string; device: string; name?: string } | null>;
   /** Spend a viewer's ticket for this computer: the node it lives on, who the ticket was issued to, and whether that person holds the controls. Null when the ticket is not good. */
   open(ticket: string, computerId: string): Promise<{ nodeId: string; personId: string; input: boolean } | null>;
   /** Does this person still hold the controls of this computer? */
   mayInput(computerId: string, personId: string): Promise<boolean>;
+  /** A computer's report of its load, specs and what it runs, every 30 s (machines: host/src/machines/report.ts). `serverId` is set for a node that joined with a credential (`owner` is who added it); `device` for a person's own computer; `latencyMs` is the Space's own measure of the round trip. The host hands it to the Machines module. */
+  /** The number of engine processes on a node changed (one started, ended or was lost): the Machines module re-reads who has room. */
+  procsChanged?(nodeId: string): void;
+  report?(from: { nodeId: string; serverId?: string; owner?: string; device?: DeviceLink; latencyMs?: number }, report: unknown): void;
   now?: () => number;
   /** How often a connected node's credential is checked again. Default 2 s. */
   recheckMs?: number;
   /** A node that has said nothing for this long is dropped. Default 60 s. */
   deadMs?: number;
+  /** A person's computer reports what its Chrome did for an agent (held sends, pictures): handed on as it comes, never stored here. */
+  chromeEvent?(link: DeviceLink, event: Record<string, unknown>): void;
   /** Is this node's link private (TLS, or a peer on this machine)? Default: see linkIsSecure. A test passes its own. */
   secure?: (req: http.IncomingMessage) => boolean;
 }
@@ -120,10 +127,14 @@ export interface ComputeStream {
   /** The node left the Space: close its socket and end its views. Returns how many sockets were closed. */
   closeNode(nodeId: string): number;
   connected(nodeId: string): boolean;
+  /** Turns running on this node now: the engine processes the Space started there (all nodes' when none is named). Zero for a node that is not connected. */
+  running(nodeId?: string): number;
+  /** Turns running on this node now: the engine processes the Space started there (all nodes' when none is named). Zero for a node that is not connected. */
+  running(nodeId?: string): number;
   /** One HTTP request to a port on a computer on this node. */
   portFetch(nodeId: string, a: { computerId: string; port: number; request: PortRequest }, sink: PortSink): void;
-  /** One question for the machine: its answer, or a rejection when it cannot say. */
-  ask(nodeId: string, kind: string, input: unknown): Promise<unknown>;
+  /** One question for the machine: its answer, or a rejection when it cannot say. `timeoutMs` is how long to wait (default 20 s). */
+  ask(nodeId: string, kind: string, input: unknown, timeoutMs?: number): Promise<unknown>;
   /** The address this node's socket came from. */
   peerAddress(nodeId: string): string | null;
   /** The person's own computers linked right now (all people's when no person is named). */
@@ -133,7 +144,7 @@ export interface ComputeStream {
   close(): void;
 }
 
-interface NodeConn { nodeId: string; credential: string; peer: Peer; views: Set<string>; procs: Set<string>; lastSeen: number; secure: boolean; address: string; device?: DeviceLink }
+interface NodeConn { nodeId: string; credential: string; peer: Peer; views: Set<string>; procs: Set<string>; lastSeen: number; secure: boolean; address: string; device?: DeviceLink; pingAt?: number; rtt?: number; pinger?: ReturnType<typeof setInterval> }
 interface ProcState {
   id: string; nodeId: string; started(pid: number | undefined): void; failed(e: RelayError): void; out(bytes: Buffer, err: boolean): void; exit(x: RelayExit): void;
 }
@@ -196,8 +207,12 @@ export function createComputeStream(deps: ComputeStreamDeps): ComputeStream {
       p?.failed(n.device ? new RelayError("engine.device_gone", "The computer went away.") : new RelayError("engine.server_off", "The server went away."));
       p?.exit({ code: null, signal: "SIGKILL" });
     }
+    changed(n.nodeId);
   }
+  const changed = (nodeId: string): void => { try { deps.procsChanged?.(nodeId); } catch { /* a listener never stops a turn */ } };
+  const stopPing = (n: NodeConn): void => { if (n.pinger) { clearInterval(n.pinger); delete n.pinger; } };
   function dropNode(n: NodeConn, code: number): void {
+    stopPing(n);
     const was = nodes.get(n.nodeId) === n;
     if (was) nodes.delete(n.nodeId);
     for (const id of [...n.views]) dropView(id, false);
@@ -226,7 +241,14 @@ export function createComputeStream(deps: ComputeStreamDeps): ComputeStream {
       if (old) dropNode(old, 4000);
       nodes.set(conn.nodeId, conn);
       peer.send(JSON.stringify(device ? { t: "ready", person: device.person, device: device.deviceId } : { t: "ready" }));
+      // the Space measures the round trip to each machine with a ping every 30 s; the answer comes back as a pong
+      if (deps.report) {
+        const ping = (): void => { if (peer.open) { conn.pingAt = now(); peer.send(JSON.stringify({ t: "ping", at: conn.pingAt })); } };
+        conn.pinger = setInterval(ping, 30_000); conn.pinger.unref?.();
+        ping();
+      }
       peer.onClose(() => {
+        stopPing(conn);
         const was = nodes.get(conn.nodeId) === conn;
         if (was) nodes.delete(conn.nodeId);
         for (const id of [...conn.views]) dropView(id, false);
@@ -258,6 +280,12 @@ export function createComputeStream(deps: ComputeStreamDeps): ComputeStream {
         let m: { t?: unknown; view?: unknown; reason?: unknown; data?: unknown; proc?: unknown; pid?: unknown; err?: unknown; code?: unknown; signal?: unknown };
         try { m = JSON.parse(data.toString("utf8")) as typeof m; } catch { return; }
         if (m.t === "hb") return;
+        if (m.t === "pong") { const at = (m as { at?: unknown }).at; if (typeof at === "number" && at === conn.pingAt) conn.rtt = Math.max(0, now() - at); return; }
+        if (m.t === "report") {
+          // the load of this computer, reported by it (made safe by parseReport in the Machines module), only from the socket it belongs to
+          try { deps.report?.({ nodeId: conn.nodeId, ...(who ? { serverId: who.serverId, ...(who.owner ? { owner: who.owner } : {}) } : {}), ...(conn.device ? { device: conn.device } : {}), ...(conn.rtt !== undefined ? { latencyMs: conn.rtt } : {}) }, (m as unknown as { report?: unknown }).report); } catch { /* a report that cannot be stored is dropped; the next one comes in 30 s */ }
+          return;
+        }
         if (typeof m.t === "string" && m.t.startsWith("port_")) {
           const r = m as unknown as { id?: unknown; status?: unknown; headers?: unknown; b?: unknown; reason?: unknown };
           const id = typeof r.id === "string" ? r.id : "";
@@ -269,14 +297,19 @@ export function createComputeStream(deps: ComputeStreamDeps): ComputeStream {
           else if (m.t === "port_fail") { portDone(id); p.sink.fail(typeof r.reason === "string" ? r.reason.slice(0, 200) : "The computer did not answer."); }
           return;
         }
+        if (m.t === "chrome_event") {
+          const ev = (m as { event?: unknown }).event;
+          if (conn.device && ev && typeof ev === "object" && !Array.isArray(ev)) { try { deps.chromeEvent?.(conn.device, ev as Record<string, unknown>); } catch { /* an event never stops the link */ } }
+          return;
+        }
         if (m.t === "ask_res") {
-          const r = m as unknown as { id?: unknown; ok?: unknown; result?: unknown; reason?: unknown };
+          const r = m as unknown as { id?: unknown; ok?: unknown; result?: unknown; reason?: unknown; code?: unknown };
           const id = typeof r.id === "string" ? r.id : "";
           const a = asks.get(id);
           if (!a || a.nodeId !== conn.nodeId) return;
           clearTimeout(a.timer);
           asks.delete(id);
-          if (r.ok === true) a.ok(r.result); else a.no(new Error(typeof r.reason === "string" ? r.reason.slice(0, 200) : "The computer could not say."));
+          if (r.ok === true) a.ok(r.result); else a.no(Object.assign(new Error(typeof r.reason === "string" ? r.reason.slice(0, 200) : "The computer could not say."), typeof r.code === "string" ? { code: r.code } : {}));
           return;
         }
         if (typeof m.t === "string" && m.t.startsWith("cli_")) {
@@ -285,8 +318,8 @@ export function createComputeStream(deps: ComputeStreamDeps): ComputeStream {
           if (!p || p.nodeId !== conn.nodeId || !conn.procs.has(pid)) return;   // not one of this socket's processes: ignored
           if (m.t === "cli_started") p.started(typeof m.pid === "number" ? m.pid : undefined);
           else if (m.t === "cli_out" && typeof m.data === "string") p.out(Buffer.from(m.data, "base64"), m.err === true);
-          else if (m.t === "cli_failed") { procs.delete(pid); conn.procs.delete(pid); p.failed(new RelayError(typeof m.code === "string" ? m.code : "engine.cli_failed", typeof m.reason === "string" ? m.reason.slice(0, 300) : "The server could not start it.")); p.exit({ code: null, signal: null }); }
-          else if (m.t === "cli_exit") { procs.delete(pid); conn.procs.delete(pid); p.exit({ code: typeof m.code === "number" ? m.code : null, signal: typeof m.signal === "string" ? m.signal : null }); }
+          else if (m.t === "cli_failed") { procs.delete(pid); conn.procs.delete(pid); changed(conn.nodeId); p.failed(new RelayError(typeof m.code === "string" ? m.code : "engine.cli_failed", typeof m.reason === "string" ? m.reason.slice(0, 300) : "The server could not start it.")); p.exit({ code: null, signal: null }); }
+          else if (m.t === "cli_exit") { procs.delete(pid); conn.procs.delete(pid); changed(conn.nodeId); p.exit({ code: typeof m.code === "number" ? m.code : null, signal: typeof m.signal === "string" ? m.signal : null }); }
           return;
         }
         const id = typeof m.view === "string" ? m.view : "";
@@ -437,6 +470,7 @@ export function createComputeStream(deps: ComputeStreamDeps): ComputeStream {
     };
     procs.set(id, state);
     node.procs.add(id);
+    changed(nodeId);
     const send = (m: Record<string, unknown>): void => { const n = nodes.get(nodeId); if (n?.peer.open) n.peer.send(JSON.stringify({ ...m, proc: id })); };
     send({ t: "cli_spawn", argv: [...spec.argv], ...(spec.cwd !== undefined ? { cwd: spec.cwd } : {}), env: { ...spec.env }, ...(node.device ? { person: node.device.person } : {}) });
     const timer = setTimeout(() => { settleStart.fail(new RelayError("engine.server_off", "The server did not start the engine in time.")); procs.delete(id); node.procs.delete(id); send({ t: "cli_kill", signal: "SIGKILL" }); }, PROC_START_MS);
@@ -472,17 +506,19 @@ export function createComputeStream(deps: ComputeStreamDeps): ComputeStream {
       ports.set(id, { nodeId, sink, timer });
       n.peer.send(JSON.stringify({ t: "port_req", id, computerId: a.computerId, port: a.port, method: a.request.method, path: a.request.path, headers: a.request.headers, ...(a.request.body?.length ? { body: Buffer.from(a.request.body).toString("base64") } : {}) }));
     },
+    running(nodeId) { return nodeId === undefined ? [...nodes.values()].reduce((n, c) => n + c.procs.size, 0) : (nodes.get(nodeId)?.procs.size ?? 0); },
+    running(nodeId) { return nodeId === undefined ? [...nodes.values()].reduce((n, c) => n + c.procs.size, 0) : (nodes.get(nodeId)?.procs.size ?? 0); },
     peerAddress(nodeId) { return nodes.get(nodeId)?.address ?? null; },
     devices(person) {
       return [...nodes.values()].filter((n) => n.device && n.peer.open && (person === undefined || n.device.person === person)).map((n) => ({ ...n.device!, engines: [...n.device!.engines] }));
     },
     onDevice(fn) { deviceListeners.add(fn); return () => { deviceListeners.delete(fn); }; },
-    ask(nodeId, kind, input) {
+    ask(nodeId, kind, input, timeoutMs = 20_000) {
       return new Promise((ok, no) => {
         const n = nodes.get(nodeId);
         if (!n?.peer.open) { no(new Error("The computer it runs on is not connected.")); return; }
         const id = newId();
-        const timer = setTimeout(() => { asks.delete(id); no(new Error("The computer did not answer in time.")); }, 20_000);
+        const timer = setTimeout(() => { asks.delete(id); no(new Error("The computer did not answer in time.")); }, Math.min(Math.max(timeoutMs, 1_000), 150_000));
         timer.unref?.();
         asks.set(id, { nodeId, ok, no, timer });
         n.peer.send(JSON.stringify({ t: "ask", id, kind, input }));

@@ -23,21 +23,24 @@ export const ASK_AGENT_LABEL = "Ask an Agent…";
 /** What the picker needs to know about an agent: agents.list rows, as far as the label goes. */
 export interface AgentMeta { agentId: string; name: string; ownerId?: string; kind?: string }
 
-export interface PickerAgent { id: string; label: string; mine: boolean }
+export interface PickerAgent { id: string; label: string; mine: boolean; assistant?: boolean }
 
 /**
- * The channel's agents for the picker, your own first. A private agent (a person's assistant) reads "<Person> (Agent)" so nobody mistakes it for the person. An agent not in this chat is not
- * offered: only an agent in the room can answer in it.
+ * The channel's agents for the picker, your own Assistant first, named "Assistant" (owner ruling 3 Nov: never "<Person> (Agent)"). Another person's Assistant and an outside agent (credited as
+ * "<Person> (Agent)") are not offered. An agent not in this chat is not offered either: only an agent in the room can answer in it.
  */
 export function pickerAgents(thread: Pick<Thread, "agents">, meta: readonly AgentMeta[], meId: string, nameOf: (id: string) => string): PickerAgent[] {
   const byId = new Map(meta.map((a) => [a.agentId, a]));
-  const out = thread.agents.map((a): PickerAgent => {
+  const out: PickerAgent[] = [];
+  for (const a of thread.agents) {
     const m = byId.get(a.agentId);
-    const owner = m?.ownerId;
-    const label = m?.kind === "assistant" && owner !== undefined ? `${nameOf(owner)} (Agent)` : (m?.name ?? nameOf(a.agentId));
-    return { id: a.agentId, label, mine: owner === meId };
-  });
-  return [...out.filter((a) => a.mine), ...out.filter((a) => !a.mine)];
+    const assistant = m?.kind === "assistant";
+    const mine = m?.ownerId === meId;
+    const name = m?.name ?? nameOf(a.agentId);
+    if ((assistant && !mine) || name.endsWith(" (Agent)")) continue;
+    out.push({ id: a.agentId, label: assistant ? "Assistant" : name, mine, assistant });
+  }
+  return [...out.filter((a) => a.assistant), ...out.filter((a) => !a.assistant && a.mine), ...out.filter((a) => !a.assistant && !a.mine)];
 }
 
 /** FNV-1a, base 36: a short stable id part. */

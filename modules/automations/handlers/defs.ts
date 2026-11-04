@@ -262,7 +262,8 @@ const hasErrors = (issues: readonly Issue[]): boolean => issues.some((i) => i.se
 //   Run code needs the sandbox (steps.support says whether this server has it), and is refused with the reason where it does not.
 //   An AI step in a Personal automation runs on its owner's own account (keyId may pick one); in a Space automation it needs a Space-shared key in keyId. The message names what to add.
 interface Support { code: { available: boolean; reason?: string }; ai: { available: boolean; reason?: string } }
-interface ProviderLite { id: string; handle?: string; itemId: string; name: string; connection: string; scope: string; spaceMayUse: boolean; state: string; uses?: { automations?: true }; capped?: boolean }
+/** One AI account as engine.accounts.list { place: "automation" } answers it: the same rule the resolver applies, with the reason when it cannot run an automation. */
+interface AccountLite { ref: string; providerId?: string; name?: string; title: string; mine: boolean; status: string; usable?: boolean; why?: string; aliases?: string[] }
 
 async function supportOf(ctx: AutoCtx): Promise<Support> {
   const none = { available: false, reason: "This server has not started the part that runs it." };
@@ -281,29 +282,28 @@ async function hiddenSteps(ctx: AutoCtx): Promise<Set<string>> {
   return new Set([...(s.code.available ? [] : ["code"]), ...(s.ai.available ? [] : ["ai"])]);
 }
 
-async function providersOf(ctx: AutoCtx): Promise<ProviderLite[] | null> {
+async function providersOf(ctx: AutoCtx, kind: Automation["kind"], explicit = false): Promise<AccountLite[] | null> {
   if (!ctx.call) return null;
   try {
-    const r = (await ctx.call("providers.list", {})) as { providers?: ProviderLite[] } | null;
-    const list = Array.isArray(r?.providers) ? r!.providers : [];
-    // a Personal Space runs on the person's own computer: their sign-in needs no "the Space may use it" switch there
-    const personal = await (ctx.call("spaces.get", {}) as Promise<{ space?: { kind?: string } } | null>).then((x) => x?.space?.kind === "personal", () => false);
-    return personal ? list.map((p) => (p.connection === "subscription" ? { ...p, spaceMayUse: true } : p)) : list;
+    const r = (await ctx.call("engine.accounts.list", { place: "automation", runsAs: kind === "space" ? "space" : "person", ...(explicit ? { explicit: true } : {}) })) as { accounts?: AccountLite[] } | null;
+    return Array.isArray(r?.accounts) ? r!.accounts : [];
   } catch {
     return null;
   }
 }
 
-const refOf = (p: ProviderLite): string[] => [p.handle, p.itemId, p.id, p.name].filter((x): x is string => typeof x === "string" && x !== "");
-const works = (p: ProviderLite): boolean => p.state === "ok" && (p.connection !== "subscription" || p.spaceMayUse);
-/** A Space AI account that is kept for automations, works, and is under its cap: what Automatic picks from. */
-const paysForAutomations = (p: ProviderLite): boolean => p.scope === "shared" && works(p) && p.uses?.automations === true && p.capped !== true;
+const refOf = (p: AccountLite): string[] => [p.ref, p.providerId, ...(p.aliases ?? []), p.name].filter((x): x is string => typeof x === "string" && x !== "");
+const nameOf = (p: AccountLite): string => p.name ?? p.title;
+/** A Space AI account, kept for automations, working and under its cap: what Automatic picks from (the resolver's own answer for the automation place). */
+const paysForAutomations = (p: AccountLite): boolean => !p.mine && p.usable === true;
 
 /** Why the AI steps of this definition cannot pay for their turns when it goes live, one issue per step. */
 async function aiAccountIssues(ctx: AutoCtx, kind: Automation["kind"], def: Definition): Promise<Issue[]> {
   const nodes = def.nodes.filter((n) => n.key === "ai");
   if (nodes.length === 0) return [];
-  const providers = await providersOf(ctx);
+  // an account the step itself names is the person's own choice for it, so a Space account is not checked against what it is kept for; the automation's own account and Automatic are
+  const forAutomation = await providersOf(ctx, kind);
+  const forStep = def.nodes.some((n) => n.key === "ai" && typeof ({ ...(n.ai ?? {}), ...n.input } as Record<string, unknown>)["keyId"] === "string") ? await providersOf(ctx, kind, true) : forAutomation;
   const out: Issue[] = [];
   for (const n of nodes) {
     const have = { ...(n.ai ?? {}), ...n.input } as Record<string, unknown>;
@@ -312,31 +312,31 @@ async function aiAccountIssues(ctx: AutoCtx, kind: Automation["kind"], def: Defi
     const key = own ?? (def.ai?.keyId && def.ai.keyId !== "" ? def.ai.keyId : undefined);
     const backup = typeof have["backupKeyId"] === "string" && have["backupKeyId"] !== "" ? have["backupKeyId"] : (own === undefined && def.ai?.backupKeyId ? def.ai.backupKeyId : undefined);
     const fromAutomation = own === undefined;
-    const pick = (ref: string): ProviderLite | undefined => providers?.find((p) => refOf(p).includes(ref));
+    const providers = own === undefined ? forAutomation : forStep;
+    const pick = (ref: string): AccountLite | undefined => providers?.find((p) => refOf(p).includes(ref));
     if (providers === null) { out.push(issue("error", "AI steps run on the agent runtime, which this server has not started.", n.id)); continue; }
     if (kind === "space") {
       if (!key) {
         // Automatic: the cheapest Space AI account that is kept for automations
-        if (!providers.some(paysForAutomations)) out.push(issue("error", "A Space AI step needs a Space AI account that pays for automations. An admin adds one in the Vault under AI accounts and ticks Automations, or you choose one in this step or in the automation's Settings.", n.id));
+        if (!providers.some(paysForAutomations)) out.push(issue("error", "A Space AI step needs a Space AI account that pays for automations. An admin adds one in the Vault under AI accounts and ticks Automations, or you choose one in this step or in the automation's Settings.", n.id))
         if (backup) { const b = pick(backup); if (!b) out.push(issue("error", `The backup AI account ${backup} is not in the Vault. Choose another in Settings.`, n.id)); }
         continue;
       }
       for (const ref of [key, ...(backup ? [backup] : [])]) {
         const p = pick(ref);
         if (!p) out.push(issue("error", `The AI key ${ref} is not in the Vault. Add a Space-shared AI key and choose it in this step.`, n.id));
-        else if (fromAutomation && p.scope === "shared" && p.uses?.automations !== true) out.push(issue("error", `${p.name}, the AI account chosen for this automation, is not set to pay for automations. An admin can tick Automations for it in the Vault under AI accounts, or choose another.`, n.id));
-        else if (p.scope !== "shared") out.push(issue("error", `The AI key ${p.name} belongs to one person. A Space automation needs a Space-shared AI key: share it with the Space in the Vault, or add one.`, n.id));
-        else if (!works(p)) out.push(issue("error", `The AI key ${p.name} does not work right now (${p.state === "ok" ? "it needs a sign-in" : p.state.replace("_", " ")}). Fix it in AI settings or choose another.`, n.id));
+        else if (p.mine) out.push(issue("error", `The AI key ${nameOf(p)} belongs to one person. A Space automation needs a Space-shared AI key: share it with the Space in the Vault, or add one.`, n.id));
+        else if (p.usable === false) out.push(issue("error", `${nameOf(p)}, the AI account chosen for ${fromAutomation ? "this automation" : "this step"}, cannot run it. ${p.why ?? "Fix it in AI settings or choose another."}`, n.id));
       }
       continue;
     }
     if (key) {
       const p = pick(key);
       if (!p) { out.push(issue("error", `The AI key ${key} is not in the Vault. Pick one of your AI accounts, or clear the choice to use your default.`, n.id)); continue; }
-      if (!works(p)) out.push(issue("error", p.connection === "subscription" && p.state === "ok" ? `${p.name} is your subscription, and the Space may not use it yet. Turn on Let the Space run work on my subscription in AI settings.` : `${p.name} does not work right now. Fix it in AI settings or choose another.`, n.id));
+      if (p.usable === false) out.push(issue("error", `${nameOf(p)} cannot run this step. ${p.why ?? "Fix it in AI settings or choose another."}`, n.id));
       continue;
     }
-    if (!providers.some(works)) out.push(issue("error", "This AI step runs on your own AI account and you have none that works on the server. Add an API key, or sign in with Claude or Codex and turn on Let the Space run work on my subscription, in AI settings.", n.id));
+    if (!providers.some((p) => p.usable === true)) out.push(issue("error", "This AI step runs on your own AI account and you have none that works on the server. Add an API key, or sign in with Claude or Codex and turn on Let the Space run work on my subscription, in AI settings.", n.id))
   }
   return out;
 }
@@ -617,6 +617,20 @@ export async function remove(ctx: AutoCtx, input: In): Promise<unknown> {
   markDeleted(ctx, a.id);
   emitAuto(ctx, "automation.deleted", a.id, {});
   return { deleted: true };
+}
+export async function setOwner(ctx: AutoCtx, input: In & { ownerId?: string }): Promise<unknown> {
+  const a = visible(ctx, getAutomation(ctx, input.automationId));
+  await mustChange(ctx, a);
+  if (a.kind !== "space") raise(ctx, "validation.bad_input", "A Personal Automation belongs to its person. Promote it to the Space first.");
+  const to = typeof input.ownerId === "string" ? input.ownerId : "";
+  if (!to.startsWith("usr_") || to === a.ownerId) raise(ctx, "validation.bad_input", "Pick another person.");
+  const from = a.ownerId;
+  a.ownerId = to;
+  touch(ctx, a);
+  // the previous owner keeps Manage, so handing it over never locks them out
+  await ctx.call?.("access.share", { resource: { type: "automation", id: a.id }, subject: { kind: "person", id: from }, level: "manage", idempotencyKey: `owner:${a.id}:${to}` }).catch(() => undefined);
+  emitAuto(ctx, "automation.updated", a.id, { version: a.version, fields: ["ownerId"] });
+  return { automation: out(a) };
 }
 export async function undelete(ctx: AutoCtx, input: In): Promise<unknown> {
   const a = getAutomation(ctx, input.automationId, true);

@@ -8,8 +8,14 @@ export interface PaneDeps {
   note(text: string, undo?: () => Promise<void> | void): void;
 }
 
+/** What the app said went wrong, in its own words, so a note never says only "try again". */
+export function reasonOf(e: unknown): string {
+  const m = e instanceof Error ? e.message.trim() : "";
+  return m.replace(/\.+$/, "").slice(0, 240);
+}
+
 async function attempt(d: PaneDeps, what: string, fn: () => Promise<void>): Promise<boolean> {
-  try { await fn(); return true; } catch { d.note(`Could not ${what}. Try again.`); return false; }
+  try { await fn(); return true; } catch (e) { const why = reasonOf(e); d.note(why ? `Could not ${what}: ${why}` : `Could not ${what}.`); return false; }
 }
 
 let seq = 0;
@@ -21,8 +27,15 @@ export function wake(d: PaneDeps, computerId: string, name: string): Promise<boo
   return attempt(d, "wake it", async () => { await d.call("computers.wake", { computerId }); d.note(`${name} is awake`); });
 }
 
-export function provision(d: PaneDeps, agentId: string, name: string): Promise<boolean> {
-  return attempt(d, "set up its computer", async () => { await d.call("computers.provision", { agentId, idempotencyKey: key("computer", agentId) }); d.note(`Setting up ${name}'s computer`); });
+/** Make the computer and wake it: "Set up its computer" is one press. `nodeId` is a server of the person's, left out for the Space server. */
+export function provision(d: PaneDeps, agentId: string, name: string, nodeId?: string): Promise<boolean> {
+  return attempt(d, "set up its computer", async () => {
+    const out = (await d.call("computers.provision", { agentId, ...(nodeId ? { nodeId } : {}), idempotencyKey: key("computer", agentId) })) as { computer?: { computerId?: string } } | null;
+    d.note(`Setting up ${name}'s computer`);
+    const id = out?.computer?.computerId;
+    // waking can take a minute: the pane follows its state, so this does not wait here; a failure shows on the computer itself, with its reason
+    if (id) void d.call("computers.wake", { computerId: id }).catch(() => undefined);
+  });
 }
 
 export function signOut(d: PaneDeps, computerId: string, site: string): Promise<boolean> {

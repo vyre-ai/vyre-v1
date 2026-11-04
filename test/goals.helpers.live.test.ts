@@ -41,6 +41,7 @@ test("an agent asked to make a goal with two named people: they are helpers and 
   assert.equal(more.isError, false, more.text);
   assert.equal((more.data as { drafted: number }).drafted, 2);
   const got = await h.owner.call("goals.get", { goalId: data.goal.id });
+  assert.equal(got.goal.status, "draft");
   assert.deepEqual(got.draftPlan.map((s: { key: string }) => s.key), ["invite", "post"]);
   // a helper sees the goal; the owner edits it in place and the answer says what happened to a removed helper
   assert.ok(((await aliza.call("goals.list", { scope: "helping" })).goals as Array<{ id: string }>).some((g) => g.id === data.goal.id), "Aliza sees the goal she helps with");

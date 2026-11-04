@@ -10,7 +10,7 @@
 // DECISION: every vault write that carries a value is offline 'online': values are never placed in the pending_ops queue on a device.
 // DECISION: import files are deleted right after the commit. A subscription provider item is Mine and never shareable.
 import { block, defineManifest, entity, ev, health, importSource, list, outward, read, screen, setting, t, write } from '../packages/contracts/src/index.ts';
-import { id, level, ok, pageIn, pageOut, principalRef, subjectRef, url } from './_common.ts';
+import { id, level, ok, pageIn, pageOut, principalRef, spaceUses, subjectRef, url } from './_common.ts';
 
 const V = { level: 'view' } as const;
 const itemKind = t.enm('login', 'api_key', 'env', 'card', 'note', 'totp', 'ssh_key', 'ai_subscription', 'other');
@@ -29,13 +29,6 @@ const folderRow = t.obj({
   whoCanExport: t.arr(subjectRef), yourLevel: level,
 });
 const handleField = t.str({ pattern: '^#[A-Za-z0-9_]+(\\.[A-Za-z0-9_]+)?$', description: 'A handle, with a field after the dot to name one field', examples: ['#Dana_Lawmatics.api_key'] });
-/** What a Space AI account may pay for (owner ruling 9). Each use is off unless named. */
-const spaceUses = t.obj({
-  teamChats: t.opt(t.obj({ who: t.union(t.lit('everyone'), t.arr(id.group, { minItems: 1 })) }, { description: 'A member\'s own chat, only when they have no account of their own that can pay: everyone, or the people in these groups' })),
-  automations: t.opt({ ...t.lit(true), description: 'Automation steps' }),
-  goals: t.opt({ ...t.lit(true), description: 'Goal turns and wake-ups' }),
-  agentWork: t.opt(t.obj({ which: t.union(t.lit('all'), t.arr(id.agent, { minItems: 1 })) }, { description: 'Work an agent does with no asker (routines, watchers, helpers): every agent, or these' })),
-}, { description: 'What a Space AI account may pay for' });
 const providerRow = t.obj({
   id: t.id('prv'), providerKey: t.str({ examples: ['anthropic'] }), name: t.str(), logo: t.opt(t.str()),
   connection: t.enm('subscription', 'api_key', 'local_model'), via: t.str({ examples: ['Subscription, yours'] }), scope: t.enm('mine', 'shared'),
@@ -102,7 +95,7 @@ export default defineManifest({
       level: 'member', in: { section: t.opt(section), folder: t.opt(id.vaultFolder), kind: t.opt(itemKind), q: t.opt(t.str()), ...pageIn },
       out: { items: t.arr(itemMeta), counts: t.rec(t.int({ minimum: 0 })), ...pageOut }, tool: 'vault', label: 'filter', cli: 'vyre vault list',
     }),
-    read('vault.items.match', 'Items that fit a website address (the Chrome extension offers them to fill)', { ...V, in: { url }, out: { items: t.arr(t.obj({ item: itemMeta, usernameField: t.opt(fieldKey) })) }, tool: 'vault', label: 'filter' }),
+    read('vault.items.match', 'Items that fit a website address (the Chrome extension offers them to fill)', { ...V, in: { url }, out: { items: t.arr(t.obj({ item: itemMeta, usernameField: t.opt(fieldKey), username: t.opt(t.str()) })) }, tool: 'vault', label: 'filter' }),
     read('vault.item.get', 'One item: metadata and field keys, never values', {
       in: { itemId: id.vaultItem }, out: { item: itemMeta, fields: t.arr(t.obj({ key: fieldKey, secret: t.bool(), hasValue: t.bool() })) }, on: ['vault_item', '/itemId'], level: 'use', tool: 'vault', label: 'check', cli: 'vyre vault get',
     }),
@@ -136,7 +129,7 @@ export default defineManifest({
 
     // ---- sharing (a thin front over access.share with the vault levels)
     write('vault.share', 'Share an item or folder with a person, group, agent or automation at Use, View, Edit or Manage; subscription sign-ins are never shareable', {
-      ...V, idem: 'key', in: { resource: t.obj({ type: t.enm('vault_item', 'vault_folder'), id: t.str({ examples: ['vit_a1b2c3'] }) }), subject: subjectRef, level },
+      ...V, idem: 'key', in: { resource: t.obj({ type: t.enm('vault_item', 'vault_folder'), id: t.str({ examples: ['vit_a1b2c3'] }) }), subject: subjectRef, level, notify: t.opt(t.obj({ message: t.opt(t.str()) })) },
       out: { granted: t.bool() }, emits: ['grant.created', 'access.changed', 'folder.shared'], audit: 'always', tool: 'vault', offline: 'online', team: true, errors: ['validation.precondition_failed', 'permission.not_contained'],
     }),
     write('vault.unshare', 'Stop sharing an item or folder with someone', {

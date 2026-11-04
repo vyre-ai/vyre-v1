@@ -9,6 +9,7 @@
 // @reads ../migrations/0001_sites_core.sql
 // @reads ../migrations/0003_routes.sql
 
+import { isViewing, noteViewing } from "./viewing.ts";
 import { VyreErr } from "../../../packages/contracts/src/errors.ts";
 import type { Ctx } from "../../../packages/contracts/src/ctx.ts";
 import { touchActivity } from "../projections.ts";
@@ -26,7 +27,10 @@ const NAME_MAX = 80;
 const RESERVED_PORTS = new Set([22, 2019, 8420]);
 const SLUG = /^[a-z0-9][a-z0-9-]{0,62}$/;
 const RESERVED_SLUGS = new Set(["forms", "u", "share", "a", "p", "api", "admin", "assets", "v1"]);
-const TICKET_MS = 8 * 60 * 60 * 1000;
+/** An artifact's one-time code: good for one use and a minute. */
+export const EXCHANGE_MS = 60 * 1000;
+/** The cookie session a code starts on the artifact host: access is asked again on every request, so a person removed from the share is out at once. */
+export const ARTIFACT_SESSION_MS = 12 * 60 * 60 * 1000;
 const PAGE_DEFAULT = 100;
 const PAGE_MAX = 500;
 const FILES_MAX = 200;
@@ -39,6 +43,8 @@ export interface LocalFile { path: string; base64: string; mime: string }
 export interface SitesHost {
   /** the address people outside reach this Space at, and whether it is a phone address (name.vyre.run) */
   origin(): { origin: string; relay: boolean } | null;
+  /** The host artifacts are served from, apart from the app's own origin (a.<space> or <name>-a.vyre.run), or null where none is set up: artifacts then open at their keyed address on the app's origin, as before. */
+  artifactHost?(): string | null;
   /** does this target answer now? (any HTTP answer on the path counts) */
   probe(target: RouteTarget, path?: string): Promise<{ answering: boolean; detail?: string }>;
   /** the last lines of a site's log on its computer */
@@ -219,8 +225,37 @@ async function sitesCreate(ctx: Ctx, input: unknown): Promise<{ site: unknown }>
   return { site: siteOut(ctx, mustSite(ctx, id)) };
 }
 
+/** What an artifact adds to its row when read: the picture taken at publish, the chat that made it (with its title, read now), and the people it is shared with (the Access sheet's own list, direct shares only). */
+async function artifactExtras(ctx: Ctx, r: Row): Promise<Record<string, unknown>> {
+  if (r.kind !== "artifact") return {};
+  let kept: Record<string, unknown> = {};
+  try { const v: unknown = JSON.parse(isNull(r.settings) ? "{}" : str(r.settings)); if (v !== null && typeof v === "object") kept = v as Record<string, unknown>; } catch { /* an old row with no settings */ }
+  const out: Record<string, unknown> = {};
+  if (typeof kept["thumb"] === "string") out["thumb"] = kept["thumb"];
+  if (typeof kept["chatId"] === "string") {
+    out["chatId"] = kept["chatId"];
+    try { const t = (await ctx.call("threads.get", { threadId: kept["chatId"] })) as { thread?: { title?: unknown } }; if (typeof t.thread?.title === "string" && t.thread.title !== "") out["chatTitle"] = t.thread.title; } catch { /* the chat is gone or not readable by this person: the card shows no source */ }
+  }
+  try {
+    const sh = (await ctx.call("access.shares_of", { resource: { type: "site", id: str(r.id) } })) as { shares?: { through?: string; grant?: { subject?: { kind?: string; id?: string } } }[] };
+    const people = new Set<string>();
+    const audience = new Set<string>();
+    for (const x of sh.shares ?? []) {
+      const sub = x.grant?.subject;
+      if (!sub || typeof sub.id !== "string" || x.through === "owner") continue;
+      if (sub.kind === "link") audience.add("link");
+      else if (sub.kind === "group" && sub.id === "grp_everyone") audience.add("space");
+      else if (sub.kind === "person" && sub.id !== str(r.owner)) people.add(sub.id); // direct or inherited from a folder
+    }
+    if (people.size > 0) out["sharedWith"] = [...people];
+    if (audience.size > 0) out["sharedAudience"] = [...audience];
+  } catch { /* a person who cannot read the shares sees none */ }
+  return out;
+}
+
 async function sitesGet(ctx: Ctx, input: unknown): Promise<{ site: unknown }> {
-  return { site: siteOut(ctx, mustSite(ctx, reqStr(ctx, rec(ctx, input), "siteId"))) };
+  const r = mustSite(ctx, reqStr(ctx, rec(ctx, input), "siteId"));
+  return { site: { ...siteOut(ctx, r), ...(await artifactExtras(ctx, r)) } };
 }
 
 async function sitesList(ctx: Ctx, input: unknown): Promise<{ sites: unknown[]; next?: string; total: number }> {
@@ -238,7 +273,8 @@ async function sitesList(ctx: Ctx, input: unknown): Promise<{ sites: unknown[]; 
   if (section === "shared") rows = rows.filter((r) => r.owner !== me);
   rows = rows.filter((r) => ctx.authorize({ perm: null, level: "view" }, { type: "site", id: str(r.id) }).effect === "allow");
   rows.sort((a, b) => num(b.updated_at) - num(a.updated_at) || str(a.id).localeCompare(str(b.id)));
-  const out: { sites: unknown[]; next?: string; total: number } = { sites: rows.slice(offset, offset + limit).map((r) => siteOut(ctx, r)), total: rows.length };
+  const page = rows.slice(offset, offset + limit);
+  const out: { sites: unknown[]; next?: string; total: number } = { sites: await Promise.all(page.map(async (r) => ({ ...siteOut(ctx, r), ...(await artifactExtras(ctx, r)) }))), total: rows.length };
   if (offset + limit < rows.length) out.next = String(offset + limit);
   return out;
 }
@@ -393,7 +429,10 @@ async function sitesLogs(ctx: Ctx, input: unknown): Promise<{ lines: string[]; s
 
 // ---- artifacts
 
-async function artifactPublish(ctx: Ctx, input: unknown): Promise<{ artifactId: string; url?: string; updated: boolean }> {
+/** The largest thumbnail kept (a data URL, about 120 by 80 pixels). */
+const THUMB_MAX = 60_000;
+
+async function artifactPublish(ctx: Ctx, input: unknown): Promise<{ artifactId: string; url?: string; updated: boolean; opened: boolean }> {
   const o = rec(ctx, input);
   const title = cleanName(ctx, reqStr(ctx, o, "title"));
   const html = optStr(ctx, o, "html");
@@ -401,6 +440,8 @@ async function artifactPublish(ctx: Ctx, input: unknown): Promise<{ artifactId: 
   const folderIn = optStr(ctx, o, "folderId");
   const localPath = optStr(ctx, o, "path");
   const port = cleanPort(ctx, optInt(ctx, o, "port"));
+  const thumb = optStr(ctx, o, "thumb");
+  if (thumb !== undefined && (thumb.length > THUMB_MAX || !/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/.test(thumb))) fail(ctx, "validation.bad_input", "A thumbnail is a small png, jpeg or webp data URL.", { field: "thumb" });
   let computerId = optStr(ctx, o, "computerId");
   if ([html, fileId, folderIn, localPath, port].filter((v) => v !== undefined).length !== 1) fail(ctx, "validation.bad_input", "Give one of html, fileId, folderId, path or port.", { field: "html" });
   // a port with no computer named is on the agent's own computer, when it has one
@@ -449,26 +490,68 @@ async function artifactPublish(ctx: Ctx, input: unknown): Promise<{ artifactId: 
     "UPDATE sites_site SET port = ?, computer_id = ?, target_folder = ?, live = ?, state = ?, updated_at = ? WHERE id = ?",
     port ?? null, port === undefined ? null : (computerId ?? null), port === undefined ? folderId : null, 1, "ready", now, id,
   );
+  // the picture and the chat that made it are kept with the artifact; the first chat stays its source
+  let kept: Record<string, unknown> = {};
+  try { const v: unknown = JSON.parse(isNull(row.settings) ? "{}" : str(row.settings)); if (v !== null && typeof v === "object") kept = v as Record<string, unknown>; } catch { /* an old row */ }
+  if (thumb !== undefined) { kept["thumb"] = thumb; kept["thumbAt"] = now; }
+  if (ctx.thread && kept["chatId"] === undefined) kept["chatId"] = ctx.thread;
+  ctx.db.run("UPDATE sites_site SET settings = ? WHERE id = ?", JSON.stringify(kept), id);
   touchActivity(ctx.db, id, "site.published", now);
   const fresh = mustSite(ctx, id);
   const url = urlOf(fresh);
   ctx.emit("site.published", `site/${id}`, { siteId: id, ...(url ? { url } : {}), access: "private" });
-  await announce(ctx, id, title);
-  return { artifactId: id, ...(url ? { url } : {}), updated };
+  // The asker's app opens it in a tab only when it said this chat is open for them (sites.chat_viewing); the card in the chat is posted either way. `opened` is true only when the card went out
+  // marked for them, so the app that has the chat open opens the tab. Anything less and the agent says it is published and the card has Open.
+  const asker = askerOf(ctx);
+  const openFor = asker !== null && ctx.thread && isViewing(asker, ctx.thread, ctx.now()) ? asker : undefined;
+  const posted = await announce(ctx, id, title, openFor);
+  return { artifactId: id, ...(url ? { url } : {}), updated, opened: openFor !== undefined && posted };
 }
 
 /** A card in the chat the work was asked in. Nothing to say it in is not a failure of the publish. */
-async function announce(ctx: Ctx, id: string, title: string): Promise<void> {
-  if (!ctx.thread) return;
+async function announce(ctx: Ctx, id: string, title: string, openFor?: string): Promise<boolean> {
+  if (!ctx.thread) return false;
   try {
-    await ctx.call("chat.post", { threadId: ctx.thread, body: "", mentions: [], blocks: [{ type: "artifact", v: 1, data: { artifactId: id, title } }], idempotencyKey: `artifact:${id}:${ctx.now()}` });
+    await ctx.call("chat.post", { threadId: ctx.thread, body: "", mentions: [], blocks: [{ type: "artifact", v: 1, data: { artifactId: id, title, ...(openFor ? { openFor } : {}) } }], idempotencyKey: `artifact:${id}:${ctx.now()}` });
+    return true;
   } catch (e) {
     if (!(e instanceof VyreErr)) throw e;
     ctx.log.warn("sites: the artifact card was not posted", { code: e.error.code });
+    return false;
   }
 }
 
+/** The person whose turn this publish is in, when an agent is publishing for them in a chat. Nobody asked when a person publishes it themselves. */
+function askerOf(ctx: Ctx): string | null {
+  return ctx.principal.kind === "agent" && ctx.actingFor && ctx.thread ? ctx.actingFor : null;
+}
+
+/** The app says this chat is open for the caller. Presence only, kept in memory a minute and a quarter. */
+function chatViewing(ctx: Ctx, input: unknown): { ok: boolean } {
+  const threadId = reqStr(ctx, rec(ctx, input), "threadId");
+  if (ctx.principal.kind === "person") noteViewing(ctx.principal.id, threadId, ctx.now());
+  return { ok: true };
+}
+
 const hashHex = async (text: string): Promise<string> => Array.from(new Uint8Array(await globalThis.crypto.subtle.digest("SHA-256", new TextEncoder().encode(text))), (b) => b.toString(16).padStart(2, "0")).join("");
+
+/** Keeps the picture a person's browser took when it opened the artifact: only when there is none, or the artifact changed since the last one. Anyone who can open it may send it. */
+async function artifactThumbSet(ctx: Ctx, input: unknown): Promise<{ set: boolean }> {
+  const o = rec(ctx, input);
+  const row = mustSite(ctx, reqStr(ctx, o, "artifactId"));
+  if (row.kind !== "artifact") fail(ctx, "validation.bad_input", "That is a site, not an artifact.", { field: "artifactId" });
+  const thumb = reqStr(ctx, o, "thumb");
+  if (thumb.length > THUMB_MAX || !/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/.test(thumb)) fail(ctx, "validation.bad_input", "A thumbnail is a small png, jpeg or webp data URL.", { field: "thumb" });
+  let kept: Record<string, unknown> = {};
+  try { const v: unknown = JSON.parse(isNull(row.settings) ? "{}" : str(row.settings)); if (v !== null && typeof v === "object") kept = v as Record<string, unknown>; } catch { /* an old row */ }
+  const at = typeof kept["thumbAt"] === "number" ? kept["thumbAt"] : 0;
+  if (typeof kept["thumb"] === "string" && at >= num(row.updated_at)) return { set: false };
+  kept["thumb"] = thumb;
+  kept["thumbAt"] = ctx.now();
+  // not touch: a picture is not a change to the artifact
+  ctx.db.run("UPDATE sites_site SET settings = ? WHERE id = ?", JSON.stringify(kept), str(row.id));
+  return { set: true };
+}
 
 async function artifactOpen(ctx: Ctx, input: unknown): Promise<{ path: string; url?: string; expiresAt: number }> {
   const id = reqStr(ctx, rec(ctx, input), "artifactId");
@@ -479,11 +562,12 @@ async function artifactOpen(ctx: Ctx, input: unknown): Promise<{ path: string; u
   const now = ctx.now();
   ctx.db.run("DELETE FROM sites_ticket WHERE expires_at < ?", now);
   const token = Array.from(globalThis.crypto.getRandomValues(new Uint8Array(24)), (b) => b.toString(16).padStart(2, "0")).join("");
-  const expiresAt = now + TICKET_MS;
-  ctx.db.run("INSERT INTO sites_ticket (token_hash, site_id, principal, expires_at) VALUES (?, ?, ?, ?)", await hashHex(token), id, ctx.principal.id, expiresAt);
-  const path = `/a/${id}/k/${token}/`;
-  const o = host?.origin();
-  return { path, ...(o ? { url: `${o.origin}${path}` } : {}), expiresAt };
+  // the address is a one-time code for the artifact host (a minute, one use, traded for a cookie there); there is no address with a token in it
+  const ah = host?.artifactHost?.() ?? null;
+  if (!ah) fail(ctx, "validation.precondition_failed", "This server has no address for artifacts yet.");
+  const expiresAt = now + EXCHANGE_MS;
+  ctx.db.run("INSERT INTO sites_ticket (token_hash, site_id, principal, expires_at) VALUES (?, ?, ?, ?)", await hashHex(`x:${token}`), id, ctx.principal.id, expiresAt);
+  return { path: `/x/${token}`, url: `${/^a\.localhost(:\d+)?$/.test(ah as string) ? "http" : "https"}://${ah}/x/${token}`, expiresAt };
 }
 
 // ---- what the gateway asks
@@ -536,6 +620,31 @@ export async function routeByTicket(ctx: Pick<Ctx, "db">, siteId: string, token:
   return r ? { route: served(r), principal: str(t.principal), owner: str(r.owner) } : null;
 }
 
+/**
+ * Trade an artifact's one-time code for a session: the code is used up (a second use finds nothing), and a session token for the artifact host's cookie is made for the same person. Null for a code that is
+ * not good now (used, ended). The artifact it opens is the one the code was made for.
+ */
+export async function exchangeArtifactCode(ctx: Pick<Ctx, "db">, code: string, now: number): Promise<{ siteId: string; token: string; maxAgeSeconds: number } | null> {
+  if (!/^[0-9a-f]{48}$/.test(code)) return null;
+  const hash = await hashHex(`x:${code}`);
+  const t = (ctx.db.all("SELECT * FROM sites_ticket WHERE token_hash = ?", hash) as Row[])[0];
+  if (!t) return null;
+  ctx.db.run("DELETE FROM sites_ticket WHERE token_hash = ?", hash);   // single use, whatever happens next
+  if (num(t.expires_at) <= now) return null;
+  const session = Array.from(globalThis.crypto.getRandomValues(new Uint8Array(24)), (b) => b.toString(16).padStart(2, "0")).join("");
+  ctx.db.run("INSERT INTO sites_ticket (token_hash, site_id, principal, expires_at) VALUES (?, ?, ?, ?)", await hashHex(`s:${session}`), str(t.site_id), str(t.principal), now + ARTIFACT_SESSION_MS);
+  return { siteId: str(t.site_id), token: session, maxAgeSeconds: Math.floor(ARTIFACT_SESSION_MS / 1000) };
+}
+
+/** The route and who is asking, for a request carrying an artifact host session cookie. The caller checks that person's access on every request. Null for a cookie not good for this artifact now. */
+export async function routeByArtifactSession(ctx: Pick<Ctx, "db">, siteId: string, token: string, now: number): Promise<{ route: ServedRoute; principal: string; owner: string } | null> {
+  if (!/^[0-9a-f]{48}$/.test(token)) return null;
+  const t = (ctx.db.all("SELECT * FROM sites_ticket WHERE token_hash = ?", await hashHex(`s:${token}`)) as Row[])[0];
+  if (!t || t.site_id !== siteId || num(t.expires_at) <= now) return null;
+  const r = (ctx.db.all("SELECT * FROM sites_site WHERE id = ? AND deleted_at IS NULL", siteId) as Row[])[0];
+  return r ? { route: served(r), principal: str(t.principal), owner: str(r.owner) } : null;
+}
+
 export const routeHandlers = {
   "sites.create": (ctx: Ctx, input: unknown) => sitesCreate(ctx, input),
   "sites.get": (ctx: Ctx, input: unknown) => sitesGet(ctx, input),
@@ -550,4 +659,6 @@ export const routeHandlers = {
   "sites.logs": (ctx: Ctx, input: unknown) => sitesLogs(ctx, input),
   "sites.artifact_publish": (ctx: Ctx, input: unknown) => artifactPublish(ctx, input),
   "sites.artifact_open": (ctx: Ctx, input: unknown) => artifactOpen(ctx, input),
+  "sites.artifact_thumb_set": (ctx: Ctx, input: unknown) => artifactThumbSet(ctx, input),
+  "sites.chat_viewing": (ctx: Ctx, input: unknown) => chatViewing(ctx, input),
 };

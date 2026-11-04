@@ -35,7 +35,7 @@ export async function configureAgent(
   const scope = input.scope ?? "chat";
   if (scope !== "chat" && scope !== "agent") raise(ctx, "validation.bad_input", "The scope is chat or agent.");
   if (!input.agentId.startsWith("agt_")) raise(ctx, "validation.bad_input", "That is not an agent.", { agentId: input.agentId });
-  if (!agentsOf(ctx.db, t.id).some((a) => a.agentId === input.agentId)) raise(ctx, "validation.not_found", "That agent is not in this thread.");
+  if (!agentsOf(ctx.db, t.id).some((a) => a.agentId === input.agentId)) raise(ctx, "validation.not_found", "That agent is not in this chat.");
   const text = (k: "model" | "provider" | "accountRef"): string | null | undefined => {
     const v = input[k];
     if (v === undefined || v === null) return v;

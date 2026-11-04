@@ -1,7 +1,7 @@
 // goals (lane L6): an agent owns an outcome. A Goal has a finish line read from a real source, a lead agent, helpers, a plan made of tasks, a budget, a check-in rhythm and a status.
 // The plan is tasks (the one task object, its slots and its baton): the goal's root task is the parent of every task in the plan. Wake-ups are goal.woken events the engine turns into a turn of the
 // lead agent in the goal's own chat, for the goal's owner, on the owner's account and placement. Outward acts follow the Gate: the standing permissions the owner pressed for are grants of kind goal.
-// DECISION: progress is read from the source by this module (records count, a connection read, an outside MCP read, an automation's output, a number the owner sets, a checklist, or the owner saying done),
+// DECISION: progress is read from the source by this module (records count, a connection read, an outside MCP read, an automation's output, a watched page, a number the owner sets, a checklist, or the owner saying done),
 //           never from what an agent reports. A source that cannot be read says so on the goal and counts toward stuck.
 // DECISION: a goal is not a kernel resource type yet. Capabilities bind to the Space at level member and the handlers decide who sees and changes a goal: its owner, its lead and helpers, people who can
 //           see its project, and Space admins. Events go to the participants of the goal's chat.
@@ -14,7 +14,7 @@ const goalId = id.goal;
 const who = t.obj({ kind: t.enm('person', 'agent', 'group', 'role'), id: t.str({ examples: ['agt_a1b2c3'] }) });
 const status = t.enm('draft', 'planning', 'active', 'waiting', 'stuck', 'paused', 'done', 'missed', 'stopped');
 const outcome = t.enm('done', 'missed', 'stopped');
-const sourceKind = t.enm('records', 'connection', 'mcp', 'automation', 'manual');
+const sourceKind = t.enm('records', 'connection', 'mcp', 'automation', 'watch', 'manual');
 const source = t.obj({
   kind: sourceKind,
   label: t.opt(t.str({ examples: ['Luma, Lab 8 registrations'] })),
@@ -26,6 +26,8 @@ const source = t.obj({
   server: t.opt(t.str()), tool: t.opt(t.str()),
   // automation: a field of the newest successful run's output
   automationId: t.opt(id.automation),
+  // watch: a page watched with Vyre for Chrome: the number it last read (a price, a count), or with path "changes" how many times it has changed
+  watchId: t.opt(t.id('wch')),
   // where the number is in what a connection, MCP tool or automation answers: a dotted path ("total", "data.count"), or "length" of a list at that path
   path: t.opt(t.str({ examples: ['meta.total'] })),
 });
@@ -76,7 +78,7 @@ const goalLine = t.obj({
 });
 const taskLine = t.obj({ taskId: id.task, key: t.opt(t.str()), title: t.str(), state: t.str(), assigned: t.opt(who), blocked: t.bool() });
 const waitLine = t.obj({ taskId: id.task, kind: t.str(), title: t.str(), assigned: t.opt(who), since: t.ts() });
-const activity = t.obj({ at: t.ts(), kind: t.str({ examples: ['reading'] }), text: t.str(), by: t.opt(t.str()), ref: t.opt(t.str()) });
+const activity = t.obj({ at: t.ts(), kind: t.str({ examples: ['reading'] }), text: t.str(), by: t.opt(t.str()), ref: t.opt(t.str()), tpl: t.opt(t.str({ description: 'The sentence before its names and times were filled in, so an app can fill them in for its own reader' })) });
 const wakeReason = t.str({ examples: ['checkin'] });
 // every change to a goal can move its status, read its source, send a wake-up or end it, so every write declares the goal's events
 const EMITS: EventName[] = ['goal.created', 'goal.started', 'goal.updated', 'goal.status_changed', 'goal.progress', 'goal.woken', 'goal.resumed', 'goal.reported', 'goal.step_done', 'goal.budget_warned', 'goal.ended', 'goal.extended'];

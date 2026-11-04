@@ -28,7 +28,7 @@ type In = {
   threadId: string;
   turnId: string;
   agentId: string;
-  phase: "started" | "completed" | "failed" | "cancelled";
+  phase: "started" | "waiting" | "completed" | "failed" | "cancelled";
   qseq: number;
   asker?: string;
   engine?: string;
@@ -53,6 +53,7 @@ type In = {
     cacheReadTokens?: number;
     cacheWriteTokens?: number;
     reasoningTokens?: number;
+    contextTokens?: number;
     costUsd?: number;
     paid?: string;
     tools: Array<{
@@ -107,6 +108,7 @@ type Out = {
     ranOn?: Array<{
         kind: "computer" | "server" | "space";
         name: string;
+        note?: string;
       }>;
   };
 };
@@ -142,6 +144,7 @@ type Out = {
       },
       "cacheReadTokens": 1,
       "cacheWriteTokens": 1,
+      "contextTokens": 1,
       "costUsd": 1,
       "effort": "high",
       "firstTokenAt": 1760000000000,
@@ -200,7 +203,8 @@ type Out = {
       "ranOn": [
         {
           "kind": "computer",
-          "name": "Dana's MacBook"
+          "name": "Dana's MacBook",
+          "note": "Moved from Dana's MacBook because it was busy, 4 of 4 turns running"
         }
       ],
       "runId": "run_a1b2c3",

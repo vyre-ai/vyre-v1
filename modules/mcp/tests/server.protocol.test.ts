@@ -314,7 +314,9 @@ test("pipeline errors come back as tool errors the model can read, with the code
   const out = await r.callTool("out", "records_query", { type: "lead" });
   assert.equal(out.result.isError, true);
   assert.equal(out.result.structuredContent.error.code, "permission.no_grant");
-  assert.equal(out.result.structuredContent.error.traceId, "b".repeat(32));
+  assert.equal(out.result.structuredContent.error.traceId, undefined, "the model never reads the trace id");
+  assert.ok(!JSON.stringify(out.result.content).includes("b".repeat(32)), "nor in the text");
+  assert.equal(out.result._meta["vyre/traceId"], "b".repeat(32), "it travels beside the result, for the turn's Details");
   assert.ok(Array.isArray(out.result.structuredContent.error.next));
   assert.deepEqual(r.calls, [{ tool: "records_query", outcome: "error" }]);
 

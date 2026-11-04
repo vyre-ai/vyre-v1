@@ -4,6 +4,7 @@
 // Files, Memory and History (the shared History tab). Each person folds sections and keeps fields visible for themselves; the type's layout is the admin's.
 import { createElement, useEffect, useRef, useState } from "react";
 import type { ReactElement } from "react";
+import { MarkdownEditor } from "../../../../../../ui/src/RichEditor/index.tsx";
 import { Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions } from "react-native";
 import { HistoryTab } from "../../../../../../ui/src/HistoryTab/index.tsx";
 import { menuTrigger, useMenu } from "../../../../../../ui/src/Menu/index.tsx";
@@ -122,7 +123,14 @@ function FieldRow(q: FieldProps): ReactElement {
   const trig = menuTrigger((x, y) => q.onSource(f, x, y));
   let body: ReactElement;
   if (open && (kind === "text" || kind === "number" || kind === "money" || kind === "date" || kind === "longtext" || kind === "rating")) {
-    body = (
+    body = kind === "longtext" ? (
+      // a long text is written in the shared Markdown editor; Done saves it, Escape drops the edit
+      <View style={p.editWrap}>
+        <MarkdownEditor testID={`edit-${f.key}`} label={f.title} value={q.editing!.text} onChange={q.onText} placeholder={f.title} toggle={false} density="compact" minHeight={110} autoFocus onEscape={q.onCancel} onSave={() => q.onCommit(f, q.editing!.text)} />
+        {q.editing!.error ? <Text style={p.errText} accessibilityRole="alert" testID={`error-${f.key}`}>{q.editing!.error}</Text> : null}
+        <View style={p.doneRow}><Pressable accessibilityRole="button" accessibilityLabel="Cancel" testID={`cancel-${f.key}`} onPress={q.onCancel}><Text style={p.doneText}>Cancel</Text></Pressable><Pressable accessibilityRole="button" accessibilityLabel="Done" testID={`done-${f.key}`} onPress={() => q.onCommit(f, q.editing!.text)}><Text style={[p.doneText, p.doneOn]}>Done</Text></Pressable></View>
+      </View>
+    ) : (
       <View style={p.editWrap}>
         <TextInput
           autoFocus value={q.editing!.text} onChangeText={q.onText} accessibilityLabel={f.title} testID={`edit-${f.key}`} multiline={kind === "longtext"} placeholder={f.title} placeholderTextColor="var(--ink-3)"
@@ -251,7 +259,7 @@ function Pane({ type, row, def, tab, onTab, phone = false }: { type: string; row
       onLayout={(e) => { const w = Math.round(e.nativeEvent.layout.width); if (w > 0 && w !== paneW) setPaneW(w); }}
     >
       <TabMeasure titles={PANE_TABS.map((x) => x.title)} onWidth={titles.set} />
-      <TabStrip tabs={strip as never} active={tab} onSelect={select} />
+      <TabStrip underline tabs={strip as never} active={tab} onSelect={select} />
       {fill ? <View style={p.paneFill}>{body}</View> : <ScrollView style={p.paneScroll}>{body}</ScrollView>}
       {menu.element}
     </ResizableColumn>
@@ -532,6 +540,9 @@ const p = StyleSheet.create({
   star: { fontSize: 16, color: "var(--line-2)" as string },
   starOn: { color: "var(--warn)" as string },
   editWrap: { gap: 4 },
+  doneRow: { flexDirection: "row", justifyContent: "flex-end", gap: 14, paddingTop: 4 },
+  doneText: { fontSize: 12.5, color: "var(--ink-3)" as string },
+  doneOn: { color: "var(--accent)" as string },
   input: { height: 30, paddingHorizontal: 9, borderRadius: 7, borderWidth: 1, borderColor: "var(--field-line)", backgroundColor: "var(--field)" as string, fontSize: 13.5, color: "var(--ink)" as string },
   inputLong: { height: 96, paddingTop: 6 },
   inputBad: { boxShadow: "inset 0 0 0 1.5px var(--danger)" } as object,

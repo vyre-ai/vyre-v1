@@ -4,7 +4,7 @@ Lane L5. Kind connector. Version 0.1.0.
 
 Requires: mail.
 
-## Capabilities (81)
+## Capabilities (82)
 
 - [google.access_log](../capabilities/google.access_log.md): Who reached whose Google data: who made the call, the person an agent worked for, which mailbox, which capability, when
 - [google.calendar.create_event](../capabilities/google.calendar.create_event.md): Create an event; Google invites the attendees
@@ -55,6 +55,7 @@ Requires: mail.
 - [google.dwd.status](../capabilities/google.dwd.status.md): State of domain-wide delegation: key stored, scopes, last probe, mapped members
 - [google.dwd.sync_members](../capabilities/google.dwd.sync_members.md): Match the people who have joined since setup (by the email their invitation went to) and connect their mail and calendar
 - [google.gmail.create_draft](../capabilities/google.gmail.create_draft.md): Create a draft in the member mailbox
+- [google.gmail.delete_draft](../capabilities/google.gmail.delete_draft.md): Delete a draft from the member mailbox (the draft an agent made and its person decided not to send)
 - [google.gmail.get_attachment](../capabilities/google.gmail.get_attachment.md): Download an attachment into a blob
 - [google.gmail.get_message](../capabilities/google.gmail.get_message.md): Read one Gmail message
 - [google.gmail.get_profile](../capabilities/google.gmail.get_profile.md): Gmail profile of the member (address, history id)

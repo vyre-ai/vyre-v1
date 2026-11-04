@@ -2,6 +2,8 @@
 // A Run's thread is its log: agent steps are real turns in it, plain steps are compact rows, an error row carries the retry, a parallel branch is a side thread (message depth above 0).
 // The thread says what a row is through one block type per kind (run.row, run.turn, run.join, run.wait, run.error, run.branch, run.stat); a message without one is drawn from its kind and author.
 import type { CapMap } from "../../../../../../generated/types.ts";
+import { idLike, stepWords } from "../../../../../../lib/words/steps.ts";
+import type { StepNode } from "../../../../../../lib/words/steps.ts";
 
 export type Run = CapMap["runs.list"]["out"]["runs"][number];
 export type RunStatus = Run["status"];
@@ -185,7 +187,7 @@ function lineOf(m: ThreadMessage, run: Pick<Run, "startedAt">): RunLine | null {
 }
 
 /** The chat lines of a Run: the thread in order, side threads grouped, and an error row from the step log when the thread has none for a failed Run. */
-export function buildLines(run: Pick<Run, "id" | "status" | "startedAt">, messages: readonly ThreadMessage[], steps: readonly RunStep[]): RunLine[] {
+export function buildLines(run: Pick<Run, "id" | "status" | "startedAt">, messages: readonly ThreadMessage[], steps: readonly RunStep[], nameOf: StepNamer = stepNamer(undefined)): RunLine[] {
   const sorted = [...messages].sort((a, b) => a.threadSeq - b.threadSeq);
   const out: RunLine[] = [];
   let branch: Extract<RunLine, { kind: "branch" }> | null = null;
@@ -194,7 +196,7 @@ export function buildLines(run: Pick<Run, "id" | "status" | "startedAt">, messag
     if (!line) continue;
     if (m.depth > 0) {
       const label = str(rec(m.blocks.find((x) => x.type === "run.branch")?.data)["label"]);
-      if (!branch || (label && label !== branch.label)) { branch = { kind: "branch", id: `branch-${m.messageId}`, label: label ?? "Side thread", lines: [] }; out.push(branch); }
+      if (!branch || (label && label !== branch.label)) { branch = { kind: "branch", id: `branch-${m.messageId}`, label: label ?? "Side chat", lines: [] }; out.push(branch); }
       branch.lines.push(line);
     } else {
       branch = null;
@@ -202,7 +204,7 @@ export function buildLines(run: Pick<Run, "id" | "status" | "startedAt">, messag
     }
   }
   // a run whose thread has said nothing yet still has its step log: show each step as a row
-  if (out.length === 0) out.push(...stepRows(run, steps));
+  if (out.length === 0) out.push(...stepRows(run, steps, nameOf));
   const hasError = flat(out).some((l) => l.kind === "error");
   if (run.status === "failed" && !hasError) {
     const failed = [...steps].reverse().find((s) => s.state === "failed" && s.error);
@@ -210,12 +212,24 @@ export function buildLines(run: Pick<Run, "id" | "status" | "startedAt">, messag
   }
   return out;
 }
+/** Names a stored step id the way a person says it: the step's own title in the automation, else what its kind does ("Send an email", "Wait 2 days"), else its place ("Step 3"). Never the id. */
+export type StepNamer = (stepId: string) => string;
+export function stepNamer(nodes: readonly StepNode[] | undefined): StepNamer {
+  const list = nodes ?? [];
+  return (stepId) => {
+    const i = list.findIndex((n) => n.id === stepId);
+    if (i >= 0) return stepWords(list[i]!, undefined, i + 1);
+    if (!idLike(stepId) && /[a-z]{3}/i.test(stepId)) { const w = stepId.replace(/[_.-]+/g, " ").trim(); return w.charAt(0).toUpperCase() + w.slice(1); }
+    const m = /(\d+)$/.exec(stepId);
+    return m ? `Step ${m[1]}` : "A step";
+  };
+}
 /** One row per step from the step log (the latest attempt of each), for a run with no thread lines. */
-export function stepRows(run: Pick<Run, "startedAt">, steps: readonly RunStep[]): RunLine[] {
+export function stepRows(run: Pick<Run, "startedAt">, steps: readonly RunStep[], nameOf: StepNamer = stepNamer(undefined)): RunLine[] {
   const latest = new Map<string, RunStep>();
   for (const st of steps) latest.set(st.step, st);
   return [...latest.values()].map((st): RunLine => {
-    const name = st.step.replace(/[_.-]+/g, " ").replace(/^./, (c) => c.toUpperCase());
+    const name = nameOf(st.step);
     const offset = Math.max(0, Math.round(((st.endedAt ?? st.startedAt ?? run.startedAt) - run.startedAt) / 1000));
     if (st.state === "failed") return { kind: "row", id: `step-${st.step}`, text: `${name} failed`, icon: "x", tone: "bad", offset };
     if (st.state === "succeeded") return { kind: "row", id: `step-${st.step}`, text: name, icon: "check", tone: "ok", offset };

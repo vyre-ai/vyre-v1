@@ -86,7 +86,7 @@ test("an account switch on a refused key is kept with the turn: from, to and why
   assert.equal(t.info!.account?.ref, "#Team_Anthropic", "the account that paid at the end");
 });
 
-test("the turn keeps who paid and why: the asker's own key with the Chat key off, the agent's Chat key when it paid, a Space account after a fallback", async () => {
+test("the turn keeps who paid and why: the account's name and whose it is", async () => {
   const run = async (acct: ResolvedAccount): Promise<string | undefined> => {
     const { c, now } = clock();
     const p = scriptedProvider({ script: () => [{ type: "text", text: "Hi." }, { type: "usage", inputTokens: 10, outputTokens: 2 }, { type: "done" }], beforeEvent: () => { c.t += 10; } });
@@ -96,8 +96,34 @@ test("the turn keeps who paid and why: the asker's own key with the Chat key off
     await engine.idle("T");
     return engine.turns("T")[0]!.info!.paid;
   };
-  assert.equal(await run(account({ kind: "api_key", ref: "#Dana_Key" })), "The asker's own key");
-  assert.equal(await run(account({ kind: "subscription" })), "The asker's own sign-in");
-  assert.match((await run(account({ kind: "api_key", ref: "#Team", shared: true, via: "chat_key" })))!, /^The agent's Chat key/);
-  assert.equal(await run(account({ kind: "api_key", ref: "#Team", shared: true, via: "space", fellBack: true })), "A Space AI account, after another could not pay");
+  assert.equal(await run(account({ kind: "api_key", ref: "#Dana_Key", name: "Dana Anthropic" })), "Dana Anthropic \u00b7 your key");
+  assert.equal(await run(account({ kind: "subscription", name: "Claude Code" })), "Claude Code \u00b7 your sign-in");
+  assert.match((await run(account({ kind: "api_key", ref: "#Team", name: "Team key", shared: true, via: "chat_key" })))!, /^Team key \u00b7 The agent's own account/);
+  assert.equal(await run(account({ kind: "api_key", ref: "#Team", name: "OpenCode Go", shared: true, via: "space", fellBack: true })), "OpenCode Go \u00b7 Space account");
+});
+
+test("the turn keeps the model that really ran, not the one asked for, and the context of its last call, not the sum of its calls", async () => {
+  const run = async (o: { account?: ResolvedAccount; session?: string; events: DriverEvent[]; asked?: string }) => {
+    const { c, now } = clock();
+    const p = scriptedProvider({ script: () => o.events, beforeEvent: () => { c.t += 10; } });
+    const open = async (spec: Parameters<typeof p.openSession>[0]) => Object.assign(await p.openSession(spec), o.session ? { model: o.session } : {});
+    const engine = createTurnEngine({ holder: "host:s", now, openSession: open as never, resolveAccount: async () => o.account ?? account() });
+    engine.openThread(thread([{ id: "mira", mode: "lead", model: o.asked ?? "claude-sonnet-5-5" }]));
+    engine.receive({ threadId: "T", author: person, body: "Hello." });
+    await engine.idle("T");
+    return engine.turns("T")[0]!;
+  };
+  const usage = (extra: object = {}): DriverEvent[] => [{ type: "text", text: "Hi." }, { type: "usage", inputTokens: 1_000_000, outputTokens: 8_300, contextTokens: 61_000, cacheReadTokens: 940_000, ...extra } as DriverEvent, { type: "done" }];
+  // a session that says which model it runs (a swapped one) is what the record keeps
+  assert.equal((await run({ session: "glm-5.3", events: usage() })).model, "glm-5.3");
+  // the engine's own report of the model it ran wins over an alias or a blank
+  assert.equal((await run({ asked: "sonnet", events: usage({ model: "claude-sonnet-5-5" }) })).model, "claude-sonnet-5-5");
+  // a team chat swapped to the account's own default is not the model that was asked for
+  assert.equal((await run({ account: account({ modelFallback: { from: "claude-sonnet-5-5" } }), events: usage() })).model, null);
+  assert.equal((await run({ account: account({ modelFallback: { from: "claude-sonnet-5-5", to: "glm-5.3" } }), events: usage() })).model, "glm-5.3");
+  // nothing said otherwise: the asked model
+  const plain = await run({ events: usage() });
+  assert.equal(plain.model, "claude-sonnet-5-5");
+  assert.equal(plain.tokensIn, 1_000_000, "the turn's input adds up every call");
+  assert.equal(plain.info!.contextTokens, 61_000, "the context is what the last call was shown");
 });

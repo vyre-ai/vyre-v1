@@ -3,7 +3,7 @@
 import { createContext, useContext, useMemo, useSyncExternalStore } from "react";
 import type { ReactElement, ReactNode } from "react";
 import type { LiveQuery, QueryState, ScreenHooks } from "../../../../../../client/src/index.ts";
-import type { DirectoryEntry } from "../../../../../../ui/src/ShareSheet/index.tsx";
+import type { DirectoryEntry } from "../../../../../../ui/src/AccessSheet/index.tsx";
 import type { ChatMemoryData } from "../memory/data.tsx";
 import type { Clock } from "./model.ts";
 import type { TerminalData } from "../terminal/data.ts";
@@ -26,6 +26,10 @@ export interface RightPaneNav {
   openRoutineFile(agentId: string, title: string): void;
   /** "Make a Skill from Here": drafts a skill from a step to the end. */
   skillFromStep(computerId: string, stepId: string): void;
+  /** What the header offers beside Message, only where the shell can do it: Poke asks the agent to read the latest and answer now, Share opens the share sheet, Machines opens Console, Computers with that machine selected. Left out, the button is not drawn. */
+  poke?(agentId: string, threadId: string): void;
+  share?(agentId: string): void;
+  openMachines?(nodeId?: string): void;
 }
 
 export interface Connection { get(): "online" | "offline"; subscribe(l: () => void): () => void }

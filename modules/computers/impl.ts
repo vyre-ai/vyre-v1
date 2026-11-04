@@ -30,7 +30,7 @@ import { createContainerHomeFs } from "./handlers/home-fs.ts";
 import type { HomeDeps, HomeSync, MadeFile } from "./handlers/home.ts";
 import { createFillService, fillHttp } from "./handlers/fill.ts";
 import type { FillSource, FillUse } from "./handlers/fill.ts";
-import { bindFill, bindHost } from "./projections.ts";
+import { bindFill, bindHost, boundHost } from "./projections.ts";
 import { nodeHomeCheck, nodeJobs, nodeRecordingCheck, nodeResult, nodeStreamInput, nodeStreamOpen } from "./handlers/node.ts";
 import { nodeRun } from "./remote.ts";
 import { ToolError } from "./handlers/tools/common.ts";
@@ -84,18 +84,26 @@ export interface DockerHostOptions {
   /** The agent's home on the computer mirrors its folder in Files (handlers/home.ts): calls as the agent, how often to look, and where the manifest of what was last synced is kept. */
   home?: { deps: HomeDeps; intervalMs?: number; manifest(agentId: string): string; announce?: (a: { agentId: string; computerId: string; files: MadeFile[] }) => Promise<boolean | void> };
   sleep?: (ms: number) => Promise<void>;
+  /**
+   * Run behind the container runner (a Team server: vyred holds no Docker socket, the runner does, and refuses all but agent computers). Each computer then gets a network of its own
+   * (so one cannot reach another), only its profile volume (no host folder), and the ingress joins that network for the one route agentd posts to.
+   */
+  runner?: { socket: string; ingress?: string; alias?: string };
 }
 
+const bodyText = (b: Uint8Array): string => { const s = new TextDecoder().decode(b); try { const m = (JSON.parse(s) as { message?: string }).message; return String(m ?? s).slice(0, 200); } catch { return s.slice(0, 200); } };
 const realSleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
 const RECORDING_PATH = /^work\/recordings\/rcd_[a-z0-9]+$/;
 
 /** Everything the container is not given: no capability, no new privileges, no devices, no Docker socket, no host namespaces. */
+export const computerNetworkName = (computerId: string): string => `vyre-compnet-${computerId.replace(/^cmt_/, "").replace(/-/g, "").slice(-16)}`;
+
 export function computerContainerConfig(name: string, computerId: string, agentId: string, o: DockerHostOptions, tabLimit: number): ContainerConfig {
   const limits = { cpus: 2, memoryMb: 4096, pids: 1024, ...o.limits };
   const memory = Math.round(limits.memoryMb * 1024 * 1024);
   const uid = o.user?.uid ?? 10001;
   const gid = o.user?.gid ?? 10001;
-  const files = o.filesRoot?.(agentId) ?? null;
+  const files = o.runner ? null : o.filesRoot?.(agentId) ?? null;
   return {
     Image: o.image ?? DEFAULT_COMPUTER_IMAGE,
     Hostname: name,
@@ -113,7 +121,7 @@ export function computerContainerConfig(name: string, computerId: string, agentI
       CapAdd: [],
       SecurityOpt: ["no-new-privileges:true", `seccomp=${computerSeccomp()}`],
       Privileged: false,
-      NetworkMode: "bridge",
+      NetworkMode: o.runner ? computerNetworkName(computerId) : "bridge",
       PidMode: "",
       IpcMode: "private",
       UsernsMode: "",
@@ -169,6 +177,29 @@ export function toolErrorOf(stderr: string, exitCode: number | null): ToolError 
   return new ToolError("unavailable", `agentd tool failed (${exitCode ?? "no exit code"}): ${stderr.trim().slice(0, 200)}`);
 }
 
+/**
+ * Why the container runtime cannot be used, in words a person can act on (shown in Computer and the host list). `where` says whether Vyre reaches the engine itself or the server's runner.
+ * An unreachable socket says what to start; a refused token says what to restart; nothing says "try again".
+ */
+export function explainEngine(status: number, error: unknown, where: "engine" | "runner", platform: string = process.platform): string {
+  const code = (error as { code?: string } | null)?.code ?? "";
+  if (where === "runner") {
+    if (status === 401) return "This server's container runner did not accept Vyre's token. Restart the sites-runner service so it writes a new one: docker compose restart sites-runner vyred.";
+    if (code === "ENOENT" || code === "ECONNREFUSED") return "This server's container runner is not running, so agent computers cannot start. Start it: docker compose up -d sites-runner.";
+    if (code === "EACCES") return "Vyre may not open the container runner's socket on this server. Check that the sites-runner volume is shared with vyred.";
+    if (status >= 500) return "This server's container runner answered an error, and Docker behind it may be down. Check docker compose logs sites-runner.";
+    return "This server's container runner did not answer in time. Check docker compose ps.";
+  }
+  if (code === "ENOENT" || code === "ECONNREFUSED") {
+    return platform === "darwin" ? "Docker is not running on this Mac. Start Docker Desktop or Colima, then set up the computer."
+      : platform === "win32" ? "Docker is not running on this computer. Start Docker Desktop, then set up the computer."
+        : "There is no Docker on this machine (its socket is missing or nothing answers on it). Install and start Docker, then set up the computer.";
+  }
+  if (code === "EACCES") return "Vyre may not use Docker on this machine: the socket refuses it. Add the Vyre user to the docker group, then set up the computer.";
+  if (status > 0) return `Docker answered an error (${status}). Check that it is healthy, then set up the computer.`;
+  return "Docker did not answer in time. Check that it is running, then set up the computer.";
+}
+
 export function createDockerComputerHost(o: DockerHostOptions): ComputerHost & ToolHost {
   const prefix = o.prefix ?? "vyre-comp-";
   const ctlPath = o.ctl ?? AGENTD_CTL;
@@ -181,7 +212,42 @@ export function createDockerComputerHost(o: DockerHostOptions): ComputerHost & T
     if (r.status !== 200) return null;
     const info = JSON.parse(new TextDecoder().decode(r.body)) as { State?: { Running?: boolean }; NetworkSettings?: { IPAddress?: string; Networks?: Record<string, { IPAddress?: string }> } };
     if (info.State?.Running !== true) return null;
-    return info.NetworkSettings?.Networks?.["bridge"]?.IPAddress || info.NetworkSettings?.IPAddress || null;
+    const nets = info.NetworkSettings?.Networks ?? {};
+    return nets["bridge"]?.IPAddress || info.NetworkSettings?.IPAddress || Object.values(nets).map((n) => n.IPAddress).find((a) => a) || null;
+  }
+
+  // ---- behind the runner: one network per computer ----
+  const netOf = (computerId: string): string => computerNetworkName(computerId);
+  const subnets = new Map<string, string>();
+  async function learnSubnet(computerId: string): Promise<void> {
+    if (!o.runner || !o.http) return;
+    try {
+      const r = await o.http({ method: "GET", path: `/networks/${netOf(computerId)}` });
+      if (r.status !== 200) return;
+      const cidr = (JSON.parse(new TextDecoder().decode(r.body)) as { IPAM?: { Config?: Array<{ Subnet?: string }> } }).IPAM?.Config?.find((c) => c.Subnet)?.Subnet;
+      if (cidr) subnets.set(computerId, cidr);
+    } catch { /* not known yet */ }
+  }
+  async function makeNetwork(computerId: string): Promise<void> {
+    if (!o.runner || !o.http) return;
+    const name = netOf(computerId);
+    const made = await o.http({ method: "POST", path: "/networks/create", json: { Name: name, Driver: "bridge", CheckDuplicate: true, Labels: { "vyre.computer": computerId } } });
+    if (made.status !== 201 && made.status !== 409) throw new Error(`the computer's network was not made (${made.status}: ${bodyText(made.body)})`);
+    if (o.runner.ingress) {
+      // the ingress (vyred) joins so agentd can reach the one route it posts to; the runner lets only the computer's own container and the ingress in
+      const joined = await o.http({ method: "POST", path: `/networks/${name}/connect`, json: { Container: o.runner.ingress, EndpointConfig: { Aliases: [o.runner.alias ?? "vyre-host"] } } });
+      if (joined.status !== 200 && joined.status !== 403 && !/already exists/i.test(bodyText(joined.body))) throw new Error(`vyred could not join the computer's network (${joined.status}: ${bodyText(joined.body)})`);
+      if (joined.status === 403) throw new Error(`the runner refused to join vyred to the computer's network: ${bodyText(joined.body)}`);
+    }
+    await learnSubnet(computerId);
+  }
+  async function dropNetwork(computerId: string): Promise<void> {
+    if (!o.runner || !o.http) return;
+    const name = netOf(computerId);
+    if (o.runner.ingress) await o.http({ method: "POST", path: `/networks/${name}/disconnect`, json: { Container: o.runner.ingress, Force: true } }).catch(() => undefined);
+    const r = await o.http({ method: "DELETE", path: `/networks/${name}` });
+    if (r.status !== 204 && r.status !== 404) throw new Error(`the computer's network was not removed (${r.status}: ${bodyText(r.body)})`);
+    subnets.delete(computerId);
   }
 
   async function siteLogs(a: { computerId: string; slug: string; lines: number }): Promise<string[]> {
@@ -256,8 +322,17 @@ export function createDockerComputerHost(o: DockerHostOptions): ComputerHost & T
       const config = computerContainerConfig(name, a.computerId, a.agentId, o, a.tabLimit);
       const wrong = reviewComputerConfig(config);
       if (wrong.length > 0) throw new Error(`the computer's container config is outside its profile: ${wrong.join(", ")}`);
-      if (!(await o.api.imageExists(config.Image))) throw new Error(`the image ${config.Image} is not on this host`);
-      await o.api.containerCreate(name, config);
+      if (!(await o.api.imageExists(config.Image))) {
+        // a server that has never run one fetches the image itself (the runner allows only this image); without a registry that has it, the reason says what is missing
+        const [repo, tag] = [config.Image.slice(0, config.Image.lastIndexOf(":")), config.Image.slice(config.Image.lastIndexOf(":") + 1)];
+        let pulled = false; let why = "";
+        if (o.http) {
+          try { const r = await o.http({ method: "POST", path: "/images/create", query: { fromImage: repo, tag }, timeoutMs: 15 * 60_000 }); pulled = r.status === 200 && !/"error"/.test(new TextDecoder().decode(r.body)); if (!pulled) why = bodyText(r.body); } catch (e) { why = e instanceof Error ? e.message.slice(0, 160) : "no answer"; }
+        }
+        if (!pulled || !(await o.api.imageExists(config.Image))) throw new Error(`the agent computer image ${config.Image} is not on this server${why ? ` and could not be fetched (${why})` : ""}. Load it with docker pull ${config.Image}, or set VYRE_AGENT_COMPUTER_IMAGE to the one you have`);
+      }
+      await makeNetwork(a.computerId);
+      try { await o.api.containerCreate(name, config); } catch (e) { await dropNetwork(a.computerId).catch(() => undefined); throw e; }
       return {};
     },
     async start(a) {
@@ -265,6 +340,7 @@ export function createDockerComputerHost(o: DockerHostOptions): ComputerHost & T
       if (o.profile) await o.profile.unseal(a.computerId);
       await homePass(a.computerId, a.agentId);
       await o.api.containerStart(name);
+      await learnSubnet(a.computerId);
       const deadline = Date.now() + (o.startTimeoutMs ?? 30_000);
       for (;;) {
         try {
@@ -294,12 +370,14 @@ export function createDockerComputerHost(o: DockerHostOptions): ComputerHost & T
     async remove(computerId) {
       const name = nameOf(computerId);
       await o.api.containerRemove(name);
+      await dropNetwork(computerId);
       if (o.http) {
         const r = await o.http({ method: "DELETE", path: `/volumes/${name}-profile`, query: { force: "true" } });
         if (r.status !== 204 && r.status !== 404) throw new Error(`the profile volume was not removed (${r.status})`);
       }
     },
     async probe(computerId) {
+      if (o.runner && !subnets.has(computerId)) await learnSubnet(computerId);
       const running = await o.api.containerRunning(nameOf(computerId));
       if (!running) return { running: false, busy: false, tabs: 0 };
       const s = await ctl<{ tabs?: number; busy?: boolean; caption?: string; lastFrameAt?: number; diskBytes?: number }>(computerId, "status");
@@ -382,9 +460,19 @@ export function createDockerComputerHost(o: DockerHostOptions): ComputerHost & T
     },
     async health() {
       const t0 = Date.now();
-      const ok = await o.api.ping();
-      return { ok, latencyMs: Date.now() - t0, ...(ok ? {} : { detail: "The container runtime did not answer." }) };
+      if (!o.http) { const ok = await o.api.ping(); return { ok, latencyMs: Date.now() - t0, ...(ok ? {} : { detail: "The container runtime did not answer." }) }; }
+      try {
+        const r = await o.http({ method: "GET", path: "/_ping", timeoutMs: 5000 });
+        if (r.status === 200) return { ok: true, latencyMs: Date.now() - t0 };
+        return { ok: false, latencyMs: Date.now() - t0, detail: explainEngine(r.status, null, o.runner ? "runner" : "engine") };
+      } catch (e) { return { ok: false, latencyMs: Date.now() - t0, detail: explainEngine(0, e, o.runner ? "runner" : "engine") }; }
     },
+    async capacity() {
+      const os = process.getBuiltinModule("node:os");
+      return { totalMb: Math.round(os.totalmem() / 1048576), freeMb: Math.round(os.freemem() / 1048576), cpus: os.cpus().length, os: os.platform() };
+    },
+    subnets: () => [...subnets.values()],
+    async knownNetworks(ids: readonly string[]) { for (const id of ids) await learnSubnet(id); return [...subnets.values()]; },
   };
   return host;
 }
@@ -402,6 +490,8 @@ export function setComputersFill(h: ComputersFillSeam | null): void {
 /** What the host hands over at boot (host/src/seams/computers-host.ts): the Docker socket, the image and the agents' Files folders. The module builds the Docker host from it and binds it. */
 export interface ComputersHostConfig {
   socketPath?: string;
+  /** A Team server: the runner's socket and token (it alone holds the Docker socket), and the container vyred runs in, which joins each computer's network. */
+  runner?: { socket: string; token(): string; ingress?: string; alias?: string };
   image?: string;
   filesRoot?: (agentId: string) => string | null;
   startTimeoutMs?: number;
@@ -411,9 +501,11 @@ export interface ComputersHostConfig {
 
 /** The Docker host for a machine, not yet bound: the Space binds it as its own; a computer that joined runs jobs on it. */
 export function buildComputerHost(c: ComputersHostConfig): ComputerHost & ToolHost {
-  const http = unixSocketHttp(c.socketPath);
+  // behind the runner the socket is the runner's and every call carries its token, read again each time (the runner writes a new one at each start)
+  const http = c.runner ? unixSocketHttp(c.runner.socket, undefined, () => ({ authorization: `Bearer ${c.runner!.token()}` })) : unixSocketHttp(c.socketPath);
   return createDockerComputerHost({
     api: createDockerApi(http), http,
+    ...(c.runner ? { runner: { socket: c.runner.socket, ...(c.runner.ingress ? { ingress: c.runner.ingress } : {}), ...(c.runner.alias ? { alias: c.runner.alias } : {}) } } : {}),
     ...(c.image !== undefined ? { image: c.image } : {}),
     ...(c.filesRoot !== undefined ? { filesRoot: c.filesRoot } : {}),
     ...(c.startTimeoutMs !== undefined ? { startTimeoutMs: c.startTimeoutMs } : {}),
@@ -423,6 +515,9 @@ export function buildComputerHost(c: ComputersHostConfig): ComputerHost & ToolHo
 
 /** The address of a computer on this machine, for a site served from it; null when there is none or it is not running. */
 export async function localComputerAddress(computerId: string): Promise<string | null> { return (await boundHost()?.address?.(computerId)) ?? null; }
+/** The subnets of the computers' own networks, for the daemon: a connection that arrives on one may reach only the Vault channel. */
+export function computerSubnets(): string[] { return (boundHost() as { subnets?: () => string[] } | null)?.subnets?.() ?? []; }
+export async function learnComputerSubnets(ids: readonly string[]): Promise<string[]> { return (await (boundHost() as { knownNetworks?: (i: readonly string[]) => Promise<string[]> } | null)?.knownNetworks?.(ids)) ?? []; }
 export async function localSiteLogs(a: { computerId: string; slug: string; lines: number }): Promise<string[]> { return (await boundHost()?.siteLogs?.(a)) ?? []; }
 
 export function setComputerHost(c: ComputersHostConfig | null): void {

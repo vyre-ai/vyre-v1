@@ -4,7 +4,7 @@ on:
   workflow_call:
     inputs:
       only:
-        description: "Run one job only (sandbox-windows)"
+        description: "Run one job only (sandbox-windows, frame-macos)"
         required: false
         type: string
         default: ""
@@ -159,6 +159,7 @@ jobs:
           hdiutil detach "$mount"
           attached=0
           codesign --verify --deep --strict "$installed"
+          /usr/libexec/PlistBuddy -c "Print :NSMicrophoneUsageDescription" "$installed/Contents/Info.plist"
           codesign -dvvv "$installed" 2>&1 | tee -a proof-codesign.txt
           grep -F "Signature=adhoc" proof-codesign.txt
           # Ad-hoc signing proves bundle integrity but has no Developer ID or notarization ticket.
@@ -320,6 +321,32 @@ jobs:
           VYRE_HEAVY_DOCKER=1 node --test --test-force-exit --test-reporter=spec golden/steps/07-reply.heavy.test.ts
   # CLI engines on Windows: the local sockets the daemon makes (a named pipe, never a unix socket path a long profile folder breaks) and the MCP shim reaching Vyre over one from a
   # 120-character data folder. Blocks the release because release.yml calls this whole workflow.
+  # The artifact viewer's frame in WebKit, the Mac app's engine (owner ruling, 4 Nov: the viewer was blank in the Mac app). The app's page frames the artifact host; the one-time code must become the
+  # host's cookie inside the frame and the page must load. A WebKit that refuses the third-party cookie fails here, which is the signal to open the artifact in a top-level webview instead.
+  frame-macos:
+    if: ${{ !inputs.only || inputs.only == 'frame-macos' }}
+    name: artifact frame (macos-latest)
+    runs-on: macos-latest
+    timeout-minutes: 25
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: The artifact loads in a frame under WebKit and Chromium
+        env:
+          VYRE_REQUIRE_BROWSERS: webkit
+        run: |
+          npx playwright-core install webkit
+          node --test --test-force-exit --test-reporter=spec test/artifact-frame.browser.test.ts
+
   sandbox-windows:
     if: ${{ !inputs.only || inputs.only == 'sandbox-windows' }}
     name: sandbox (windows-latest)

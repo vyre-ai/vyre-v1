@@ -67,6 +67,10 @@ export interface EnginePool {
   release(lease: Lease, o?: { reuse?: boolean }): Promise<void>;
   /** Close the idle sessions older than the idle time. Called before every acquire; also callable on a timer. */
   sweep(): Promise<number>;
+  /** Close every idle session now, whatever its age (the Doctor's "stop idle engine sessions"); only one person's when named. A busy one is left alone. Returns how many were closed. */
+  closeIdle(person?: string): Promise<number>;
+  /** How many sessions are idle now (one person's when named): what closeIdle would stop. */
+  idleCount(person?: string): number;
   /**
    * Close the idle CLI sessions that hold this thread's conversation (a compaction, or the engine session they hold was forgotten), so the thread's next turn opens a new one. A busy session is left
    * alone. Returns how many were closed.
@@ -248,6 +252,14 @@ export function createPool(o: PoolOptions): EnginePool {
       const stale = [...entries.values()].filter((e) => e.state === "idle" && e.lastUsed < cutoff);
       for (const e of stale) await drop(e, "evict");
       return stale.length;
+    },
+
+    idleCount(person) { return [...entries.values()].filter((e) => e.state === "idle" && (person === undefined || e.person === person)).length; },
+
+    async closeIdle(person) {
+      const idle = [...entries.values()].filter((e) => e.state === "idle" && (person === undefined || e.person === person));
+      for (const e of idle) await drop(e, "close");
+      return idle.length;
     },
 
     async drop(threadId) {

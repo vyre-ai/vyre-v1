@@ -1,0 +1,153 @@
+{
+  "targets": [
+    {
+      "id": "CHROME2A_01-conn",
+      "route": "/m/CHROME2A_01?part=conn",
+      "proto": "vault,{skin}",
+      "waitFor": "[data-testid='connections-add-site']",
+      "note": "Vault > Connections with Browser connections in Mine: each site, where it runs (My Chrome, agent computers, both) and what each agent may do (acts, reads)."
+    },
+    {
+      "id": "CHROME2A_01-site",
+      "route": "/m/CHROME2A_01?part=site",
+      "proto": "vault,{skin}",
+      "waitFor": "[data-testid='browser-sheet']",
+      "note": "Add a site: the site, where it runs, a right for each agent (No access, Read only, Act), and that a send, a post, a payment and a delete are always held."
+    },
+    {
+      "id": "CHROME2A_01-held",
+      "route": "/m/CHROME2A_01?part=held",
+      "proto": "chat,{skin}",
+      "waitFor": "[data-testid^='chrome-held-']",
+      "note": "The approval card in a chat: To, From, Subject and Message read from the page, with Send, Edit and Don't send."
+    },
+    {
+      "id": "CHROME2A_01-held-done",
+      "route": "/m/CHROME2A_01?part=held-done",
+      "proto": "chat,{skin}",
+      "waitFor": "[data-testid^='chrome-held-']",
+      "note": "The same card after Send: it says Sent and has no buttons."
+    },
+    {
+      "id": "CHROME2A_01-step",
+      "route": "/m/CHROME2A_01?part=step",
+      "proto": "chat,{skin}",
+      "waitFor": "[data-testid^='chrome-step-']",
+      "note": "Using your Chrome with a masked picture of the tab, Watch and Take over."
+    },
+    {
+      "id": "CHROME2A_01-step-saw",
+      "route": "/m/CHROME2A_01?part=step-saw",
+      "proto": "chat,{skin}",
+      "waitFor": "[data-testid^='chrome-step-']",
+      "note": "The step with Show what Scout saw: the Vault handles it was given, names only."
+    },
+    {
+      "id": "CHROME2A_01-gate-dm",
+      "route": "/m/CHROME2A_01?part=gate-dm",
+      "proto": "chat,{skin}",
+      "waitFor": "[data-testid^='approval-']",
+      "note": "The held card for a message to a person: who it goes to in words, when it sends, the words formatted, Send, Edit and Don't send."
+    },
+    {
+      "id": "CHROME2A_01-gate-email",
+      "route": "/m/CHROME2A_01?part=gate-email",
+      "proto": "chat,{skin}",
+      "waitFor": "[data-testid^='approval-']",
+      "note": "The same card for an email: the address and the subject."
+    },
+    {
+      "id": "CHROME2A_01-gate-text",
+      "route": "/m/CHROME2A_01?part=gate-text",
+      "proto": "chat,{skin}",
+      "waitFor": "[data-testid^='approval-']",
+      "note": "The same card for a text."
+    },
+    {
+      "id": "CHROME2A_01-gate-post",
+      "route": "/m/CHROME2A_01?part=gate-post",
+      "proto": "chat,{skin}",
+      "waitFor": "[data-testid^='approval-']",
+      "note": "The same card for a channel post."
+    },
+    {
+      "id": "CHROME2A_01-gate-long",
+      "route": "/m/CHROME2A_01?part=gate-long",
+      "proto": "chat,{skin}",
+      "waitFor": "[data-testid^='approval-']",
+      "note": "A long body is cut at twelve lines with Show all."
+    },
+    {
+      "id": "CHROME2A_01-gate-edit",
+      "route": "/m/CHROME2A_01?part=gate-edit",
+      "proto": "chat,{skin}",
+      "waitFor": "[data-testid^='approval-']",
+      "note": "Edit turns the body into the shared editor in place, with Save and Cancel.",
+      "click": [
+        "[data-testid='approval-tsk_g-edit']"
+      ]
+    },
+    {
+      "id": "CHROME2A_01-gate-reason",
+      "route": "/m/CHROME2A_01?part=gate-reason",
+      "proto": "chat,{skin}",
+      "waitFor": "[data-testid^='approval-']",
+      "note": "Don't send asks for an optional reason that goes back to the agent.",
+      "click": [
+        "[data-testid='approval-tsk_g-drop']"
+      ]
+    },
+    {
+      "id": "CHROME2A_01-gate-sent",
+      "route": "/m/CHROME2A_01?part=gate-sent",
+      "proto": "chat,{skin}",
+      "waitFor": "[data-testid^='approval-']",
+      "note": "After Send: Sent to Aliza Rizvi and the time."
+    },
+    {
+      "id": "CHROME2A_01-gate-dropped",
+      "route": "/m/CHROME2A_01?part=gate-dropped",
+      "proto": "chat,{skin}",
+      "waitFor": "[data-testid^='approval-']",
+      "note": "After Don't send: Not sent."
+    },
+    {
+      "id": "CHROME2A_01-gate-edited",
+      "route": "/m/CHROME2A_01?part=gate-edited",
+      "proto": "chat,{skin}",
+      "waitFor": "[data-testid^='approval-']",
+      "note": "After a Save the card stays held and says Edited by you."
+    },
+    {
+      "id": "CHROME2A_01-gate-event",
+      "route": "/m/CHROME2A_01?part=gate-event",
+      "proto": "chat,{skin}",
+      "waitFor": "[data-testid^='approval-']",
+      "note": "A held calendar event: title, when in both zones, guests and whether they are emailed, where with its link, the agenda folded, Send invites."
+    },
+    {
+      "id": "CHROME2A_01-inbox-elena",
+      "route": "/m/P-L9c_02?c=elena&open=transcript",
+      "proto": "inbox,{skin}",
+      "waitFor": "[data-testid^='draft:']",
+      "note": "Inbox by contact with an agent's draft as the held email card: who drafted it, the Gate line, Send, Edit and Don't send."
+    },
+    {
+      "id": "CHROME2A_01-inbox-edit",
+      "route": "/m/P-L9c_02?c=elena&open=transcript",
+      "proto": "inbox,{skin}",
+      "waitFor": "[data-testid^='draft:']",
+      "note": "Edit opens in the card, on the draft's own text.",
+      "click": [
+        "[data-testid='draft:dr_elena-edit']"
+      ]
+    },
+    {
+      "id": "CHROME2A_01-inbox-text",
+      "route": "/m/P-L9c_02?c=marcus&open=transcript",
+      "proto": "inbox,{skin}",
+      "waitFor": "[data-testid^='draft:']",
+      "note": "An agent's text draft in the same card: no subject."
+    }
+  ]
+}

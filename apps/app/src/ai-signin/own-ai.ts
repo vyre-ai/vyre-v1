@@ -39,7 +39,7 @@ const messageOf = (e: unknown): string => {
 /** The Space refused because the person's own key is not open where it asked: by its reason (vault_locked), or in the words older daemons and the connectors module use. */
 export function isOwnKeyRefusal(e: unknown): boolean {
   // the reason when the error carries it; else the Vault's words, old ("vault key is locked") and new (modules/vault MINE_CLOSED: "Your Mine items open while you are signed in")
-  return codeOf(e) === "auth.unauthenticated" && (isVaultLockedError(e) || /vault (key )?is locked|Mine items open while you are signed in/i.test(messageOf(e)));
+  return codeOf(e) === "auth.unauthenticated" && (isVaultLockedError(e) || /vault (key )?is locked|sign-ins are locked|Mine items open while you are signed in/i.test(messageOf(e)));
 }
 
 /**
@@ -70,7 +70,10 @@ export function spaceAiWords(key: SpaceKeyState | null | "error", admin: string 
   if (key === null) return { covered: false, title: "Checking this Space's AI key", line: "", models: "" };
   if (key === "error") return { covered: false, title: "Could not check this Space's AI key", line: `${ask} whether this Space has one, or connect your own account.`, models: "" };
   const named = key.name ? `This Space's AI key (${key.name})` : "This Space's AI key";
-  if (key.set && key.state !== "failing") return { covered: true, title: "You're covered", line: `${named} works for you.`, models: modelsShort(key.models) };
+  // covered for the models the key serves, and only those: a key without Claude models does not cover a Claude pick
+  const serves = (key.models ?? []).length > 0;
+  const lacks = ["claude", "gpt", "gemini"].filter((m) => serves && !(key.models ?? []).some((x) => x.toLowerCase().startsWith(m))).map((m) => (m === "claude" ? "Claude" : m === "gpt" ? "GPT" : "Gemini"));
+  if (key.set && key.state !== "failing") return { covered: true, title: "You're covered", line: `${named} works for you${serves ? " for the models below" : ""}.${lacks.length > 0 ? ` It has no ${lacks.join(", ")} models: connect your own sign-in to use those.` : ""}`, models: modelsShort(key.models) };
   if (key.set) return { covered: false, title: `${named} stopped working`, line: key.mayManage ? "Check it in Console, under AI." : `${ask} to check it in Console, or connect your own account.`, models: "" };
   if (key.mayManage) return { covered: false, title: "This Space has no AI key yet", line: "Add one in Console, under AI, and it covers everyone here.", models: "" };
   return { covered: false, title: "This Space has no AI key yet", line: `${ask} to add one in Console, or connect your own account.`, models: "" };
