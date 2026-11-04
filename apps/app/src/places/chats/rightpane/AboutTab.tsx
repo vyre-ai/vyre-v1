@@ -41,7 +41,7 @@ export function AboutTab({ agent, name, hasComputer, computerNote, onGive, onOpe
   const working = summary.status === "ready" ? summary.data.workingOn : [];
   const facts = summary.status === "ready" ? summary.data.memoryFacts : 0;
   const responds = respondsWord(mine?.mode);
-  const kv = (k: string, v: string | undefined): ReactElement | null => (v === undefined || v === "" ? null : <View key={k} style={st.kv}><Text style={st.k}>{k}</Text><Text numberOfLines={1} style={st.v}>{v}</Text></View>);
+  const kv = (k: string, v: string | undefined): ReactElement | null => (v === undefined || v === "" ? null : <View key={k} style={st.kv}><Text style={st.k}>{k}</Text><Text style={[st.v, st.vEnd]}>{v}</Text></View>);
   const label = (t: string, key?: string): ReactElement => <Text key={key ?? t} style={st.label}>{t}</Text>;
   return (
     <ScrollView testID="about-tab" style={st.root} contentContainerStyle={st.content}>
@@ -67,7 +67,8 @@ const st = StyleSheet.create({
   now: { flexDirection: "row", alignItems: "flex-start", gap: 12, paddingVertical: 3 },
   nowDot: { width: 8, height: 8, borderRadius: 4, marginTop: 6, backgroundColor: "var(--ok)" as string },
   kv: { flexDirection: "row", justifyContent: "space-between", gap: 14, paddingVertical: 12, borderTopWidth: 1, borderTopColor: "var(--line)" as string },
-  k: { fontSize: 13.5, color: "var(--ink-3)" as string },
+  k: { flexShrink: 0, fontSize: 13.5, color: "var(--ink-3)" as string },
+  vEnd: { flex: 1, textAlign: "right" },
   v: { flexShrink: 1, fontSize: 13.5, lineHeight: 18, color: "var(--ink)" as string },
   sub: { fontSize: 12, lineHeight: 16, color: "var(--ink-3)" as string },
   row: { flexDirection: "row", alignItems: "center", gap: 14, minHeight: 56, paddingVertical: 10 },

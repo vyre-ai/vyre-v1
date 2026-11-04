@@ -91,7 +91,7 @@ export function PersonProfile(p: PersonProfileProps): ReactElement {
 }
 
 const label = (t: string): ReactElement => <Text key={t} style={st.label}>{t}</Text>;
-const kv = (k: string, v: string | undefined): ReactElement | null => (v === undefined || v === "" ? null : <View key={k} style={st.kv}><Text style={st.k}>{k}</Text><Text numberOfLines={1} style={st.v}>{v}</Text></View>);
+const kv = (k: string, v: string | undefined): ReactElement | null => (v === undefined || v === "" ? null : <View key={k} style={st.kv}><Text style={st.k}>{k}</Text><Text style={[st.v, st.vEnd]}>{v}</Text></View>);
 
 function About(p: PersonProfileProps & { first: string; state: PresenceState | undefined; lastSeenAt: number | undefined; pub: PublicOut | null; time: string | undefined }): ReactElement {
   const roles = p.roles ?? [];
@@ -160,7 +160,8 @@ const st = StyleSheet.create({
   now: { flexDirection: "row", alignItems: "flex-start", gap: 12, paddingVertical: 3 },
   dot: { width: 8, height: 8, borderRadius: 4, marginTop: 6 },
   kv: { flexDirection: "row", justifyContent: "space-between", gap: 14, paddingVertical: 12, borderTopWidth: 1, borderTopColor: "var(--line)" as string },
-  k: { fontSize: 13.5, color: "var(--ink-3)" as string },
+  k: { flexShrink: 0, fontSize: 13.5, color: "var(--ink-3)" as string },
+  vEnd: { flex: 1, textAlign: "right" },
   v: { flexShrink: 1, fontSize: 14, lineHeight: 19, color: "var(--ink)" as string },
   sub: { fontSize: 12.5, lineHeight: 17, color: "var(--ink-3)" as string },
   row: { flexDirection: "row", alignItems: "center", gap: 14, minHeight: 56, paddingVertical: 10 },
