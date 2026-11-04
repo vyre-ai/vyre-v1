@@ -74,7 +74,18 @@ function checkOutputs(ctx: TasksCtx, t: Task, outputs: unknown): Record<string, 
 
 /** One line in the thread by the person or agent that acted. Failing to write it never undoes the move. */
 async function line(ctx: TasksCtx, t: Task, kind: string, body: string): Promise<void> {
-  await postLine(ctx, t, cut(body, LINE_CHARS), `${kind}:${t.version}`);
+  await postLine(ctx, t, cut(`${await didForLine(ctx, t)}${body}`, LINE_CHARS), `${kind}:${t.version}`);
+}
+
+/** An agent finishing a seat that belongs to the person it acts for says so, by name: "Assistant did this for Irfad." Empty for anyone else. */
+async function didForLine(ctx: TasksCtx, t: Task): Promise<string> {
+  const person = ctx.actingFor;
+  if (ctx.principal.kind !== "agent" || !person || !ctx.call) return "";
+  if (![t.assigned, t.reviewer, t.approver].some((a) => a !== undefined && a.kind === "person" && a.id === person)) return "";
+  const nameOf = async (kind: string, id: string, fallback: string): Promise<string> => {
+    try { const r = (await ctx.call!("access.principals.get", { principal: { kind, id } })) as { principal?: { name?: unknown } } | null; return typeof r?.principal?.name === "string" && r.principal.name !== "" ? r.principal.name : fallback; } catch { return fallback; }
+  };
+  return `${await nameOf("agent", ctx.principal.id, "An agent")} did this for ${await nameOf("person", person, "them")}.\n\n`;
 }
 
 // ---- tasks.submit ----
