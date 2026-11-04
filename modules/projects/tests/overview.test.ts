@@ -248,7 +248,7 @@ test("reading the page needs view; changing it needs edit; a project the caller 
 test("the editor's Markdown: every block is led by its id, a live block is one directive line, and saving it back keeps ids, authors and the page", async () => {
   const h = harness();
   const p = await mkProject(h);
-  await run(h, "projects.overview_edit", { projectId: p.projectId, ops: [{ op: "insert", after: "blk_h_next", block: { kind: "text", text: "Line one\n\n- a list\n- of things" } }] }, h.agent(BOT, DANA));
+  await run(h, "projects.overview_edit", { projectId: p.projectId, ops: [{ op: "insert", after: "blk_h_next", block: { kind: "text", text: "Line one\n- a list\n- of things" } }] }, h.agent(BOT, DANA));
   const got = await run(h, "projects.overview_doc.get", { projectId: p.projectId });
   assert.match(got.markdown, /^<!--b:blk_status-->\n:::live \{"type":"status","spec":\{"title":"Status"\},"view":"list"\}\n\n<!--b:blk_h_next-->\n## Next\n\n<!--b:blk_[a-z0-9]+-->\nLine one/);
   assert.deepEqual(contractErrors("projects.overview_doc.get", "out", got), []);
@@ -267,11 +267,15 @@ test("the editor's Markdown: every block is led by its id, a live block is one d
   const noMarkers = toMarkdown([{ id: "x", kind: "text", text: "Alone" }]).replace(/<!--b:x-->\n/, "");
   const parsed = fromMarkdown(h.ctx, noMarkers);
   assert.deepEqual(parsed.map((b) => [b.kind, b.text, b.fresh]), [["text", "Alone", true]]);
-  // fenced code keeps its blank lines; a bad live directive is refused
+  // fenced code keeps its blank lines; a blank line after it splits; a bad live directive is refused
   const code = fromMarkdown(h.ctx, "<!--b:blk_c-->\n```js\na\n\nb\n```\n\nafter");
-  assert.deepEqual(code.map((b) => [b.id, b.text]), [["blk_c", "```js\na\n\nb\n```\n\nafter"]], "a marked text block runs to the next marker, fenced or not");
+  assert.deepEqual(code.map((b) => [b.id, b.text, b.fresh]), [["blk_c", "```js\na\n\nb\n```", false], [code[1]!.id, "after", true]]);
   const split = fromMarkdown(h.ctx, "<!--b:blk_h-->\n## Title\n\nunmarked paragraph");
   assert.deepEqual(split.map((b) => [b.kind, b.text, b.fresh]), [["heading", "Title", false], ["text", "unmarked paragraph", true]]);
+  // a list keeps its blank lines between items; a table is one block; a paragraph after a list is its own
+  const mix = fromMarkdown(h.ctx, "<!--b:blk_l-->\n- one\n\n- two\n  more of two\n\nA paragraph\n\n| a | b |\n|---|---|\n| 1 | 2 |");
+  assert.deepEqual(mix.map((b) => b.text), ["- one\n\n- two\n  more of two", "A paragraph", "| a | b |\n|---|---|\n| 1 | 2 |"]);
+  assert.deepEqual(mix.map((b) => b.fresh), [false, true, true]);
   await refused(run(h, "projects.overview_doc.save", { projectId: p.projectId, markdown: "<!--b:blk_z-->\n:::live {not json}" }), "validation.bad_input");
   await refused(run(h, "projects.overview_doc.save", { projectId: p.projectId, markdown: '<!--b:blk_z-->\n:::live {"type":"weather","spec":{}}' }), "validation.bad_input");
 });
@@ -325,4 +329,25 @@ test("the goal block reads the project's goal text and the goals of the project"
   const out = await run(h, "projects.live_block.query", { projectId: p.projectId, type: "goal", spec: {} });
   assert.deepEqual(out.rows.map((r: { title: string; state?: string }) => [r.title, r.state]), [["Sign the letter", undefined], ["300 registrations", "active"]]);
   assert.deepEqual(contractErrors("projects.live_block.query", "out", out), []);
+});
+
+test("two paragraphs typed in the editor are two blocks; editing the second leaves the first with its author and its id", async () => {
+  const h = harness();
+  const p = await mkProject(h);
+  await run(h, "projects.members.set", { projectId: p.projectId, principal: MAYA, role: "member" });
+  const opened = await run(h, "projects.overview_doc.get", { projectId: p.projectId });
+  const typed = `${opened.markdown}\n\nFirst paragraph\n\nSecond paragraph\n`;
+  const first = await run(h, "projects.overview_doc.save", { projectId: p.projectId, markdown: typed, baseRev: opened.rev });
+  const [a, b] = first.blocks.slice(-2);
+  assert.deepEqual([first.blocks.length, a.text, b.text, a.by, b.by], [opened.blocks.length + 2, "First paragraph", "Second paragraph", DANA, DANA]);
+  assert.notEqual(a.id, b.id);
+  // Maya opens the page and changes only the second paragraph
+  h.advance(60_000);
+  const reopened = await run(h, "projects.overview_doc.get", { projectId: p.projectId });
+  const edited = reopened.markdown.replace("Second paragraph", "Second paragraph, rewritten");
+  const second = await run(h, "projects.overview_doc.save", { projectId: p.projectId, markdown: edited, baseRev: reopened.rev }, h.person(MAYA));
+  const [a2, b2] = second.blocks.slice(-2);
+  assert.deepEqual([a2.id, a2.by, a2.at], [a.id, DANA, a.at], "the paragraph that did not change keeps its id, author and time");
+  assert.deepEqual([b2.id, b2.text, b2.by], [b.id, "Second paragraph, rewritten", MAYA], "the edited one keeps its id and takes the editor as author");
+  assert.equal(second.blocks.length, first.blocks.length);
 });

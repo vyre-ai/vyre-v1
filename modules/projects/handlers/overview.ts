@@ -321,18 +321,30 @@ export function toMarkdown(blocks: readonly PageBlock[]): string {
   }).join("\n\n");
 }
 
-/** The blocks of a Markdown page: a marker names the block that follows; a paragraph without one is new. Fenced code keeps its blank lines. */
+/**
+ * The blocks of a Markdown page: a marker names the block that follows; every other paragraph is a new block. A blank line between paragraphs splits blocks, except inside fenced code and between the
+ * items of a list (a list with blank lines between its items is one block). A heading and a live directive are blocks of their own.
+ */
+const ITEM = /^\s*([-*+]|\d+[.)])\s/;
 export function fromMarkdown(ctx: ProjectsCtx, md: string): Array<Omit<PageBlock, "by" | "at"> & { fresh: boolean }> {
   const chunks: Array<{ id?: string; lines: string[] }> = [];
   let cur: { id?: string; lines: string[] } | null = null;
   let fenced = false;
   const flush = (): void => { if (cur && cur.lines.some((l) => l.trim() !== "")) chunks.push(cur); cur = null; };
-  for (const line of md.replaceAll("\r\n", "\n").split("\n")) {
+  const lines = md.replaceAll("\r\n", "\n").split("\n");
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i]!;
     const mark = !fenced ? MARK.exec(line.trim()) : null;
     if (mark) { flush(); cur = { id: mark[1]!, lines: [] }; continue; }
     if (/^\s*```/.test(line)) fenced = !fenced;
-    // a paragraph, a heading and a live directive end at the blank line; a marked text block runs on to the next marker, so its own blank lines stay in it
-    if (!fenced && line.trim() === "") { if (cur && (cur.id === undefined || /^(:::live\s|#{1,3}\s)/.test(cur.lines[0] ?? ""))) flush(); else if (cur) cur.lines.push(line); continue; }
+    if (!fenced && line.trim() === "") {
+      if (!cur) continue;
+      const last = [...cur.lines].reverse().find((l) => l.trim() !== "") ?? "";
+      const next = lines.slice(i + 1).find((l) => l.trim() !== "") ?? "";
+      // a blank line inside a list: the paragraph before is a list item and the next line is another item or its continuation
+      if (ITEM.test(last) && (ITEM.test(next) || /^\s{2,}\S/.test(next)) && !MARK.test(next.trim())) cur.lines.push(line); else flush();
+      continue;
+    }
     if (!cur) cur = { lines: [] };
     cur.lines.push(line);
   }
