@@ -3290,6 +3290,51 @@
     },
     {
       "blocks": [],
+      "cap": "agents.pause_person",
+      "deferred": false,
+      "description": "Pause every agent of one person, or let them run again. Audited, and the person is told. Answers how many changed, never which",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "paused": {
+            "type": "boolean"
+          },
+          "personId": {
+            "examples": [
+              "usr_a1b2c3"
+            ],
+            "pattern": "^usr_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "personId",
+          "paused"
+        ],
+        "type": "object"
+      },
+      "name": "agents_pause_person",
+      "planMode": "blocked",
+      "toolset": "agents",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "agents.people_summary",
+      "deferred": false,
+      "description": "For each person whose agents you cannot see (their Assistant, the agents they keep private): how many, what they spent this month against their cap, and whether they are paused. Never names or content",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "agents_people_summary",
+      "planMode": "allowed",
+      "toolset": "agents",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "agents.restore",
       "deferred": false,
       "description": "Restore an agent from Trash",

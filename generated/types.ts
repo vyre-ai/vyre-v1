@@ -1681,6 +1681,24 @@ export type AgentsPauseOut = {
     teammateOf?: string;
   };
 };
+export type AgentsPausePersonIn = {
+  personId: string;
+  paused: boolean;
+};
+export type AgentsPausePersonOut = {
+  changed: number;
+};
+export type AgentsPeopleSummaryIn = Record<string, unknown>;
+export type AgentsPeopleSummaryOut = {
+  people: Array<{
+      personId: string;
+      assistant: boolean;
+      privateAgents: number;
+      spendMonthMicros: number;
+      capMicros?: number;
+      paused: boolean;
+    }>;
+};
 export type AgentsRestoreIn = {
   agentId: string;
 };
@@ -40553,6 +40571,8 @@ export interface CapMap {
   "agents.outside.seen": { in: AgentsOutsideSeenIn; out: AgentsOutsideSeenOut };
   "agents.outside.usable": { in: AgentsOutsideUsableIn; out: AgentsOutsideUsableOut };
   "agents.pause": { in: AgentsPauseIn; out: AgentsPauseOut };
+  "agents.pause_person": { in: AgentsPausePersonIn; out: AgentsPausePersonOut };
+  "agents.people_summary": { in: AgentsPeopleSummaryIn; out: AgentsPeopleSummaryOut };
   "agents.restore": { in: AgentsRestoreIn; out: AgentsRestoreOut };
   "agents.restore_version": { in: AgentsRestoreVersionIn; out: AgentsRestoreVersionOut };
   "agents.resume": { in: AgentsResumeIn; out: AgentsResumeOut };

@@ -136,6 +136,8 @@ export function createClient(transport: Transport) {
         usable: call("agents.outside.usable", 1),
       },
       pause: call("agents.pause", 1),
+      pause_person: call("agents.pause_person", 1),
+      people_summary: call("agents.people_summary", 1),
       restore: call("agents.restore", 1),
       restore_version: call("agents.restore_version", 1),
       resume: call("agents.resume", 1),
