@@ -139,6 +139,7 @@ function About(p: PersonProfileProps & { pace: CapMap["chat.pace_of"]["out"] | n
         ))}</> : null}
       {p.pub?.pronouns || p.known.length > 0 ? label(`About ${p.first}`) : null}
       {kv("Pronouns", p.pub?.pronouns)}
+      {/* ui-rows-lint: not a list (the public lines about the person, read-only paragraphs under About) */}
       {p.known.map((line) => <Text key={line} testID="person-known" style={[st.body14, st.fact]}>{line}</Text>)}
     </View>
   );
