@@ -145,8 +145,8 @@ test("an always-allow rule shows in the hook's row in plain words and Remove cal
     assert.match(textOf(find(root, "hook-allowed-alw_1")), /Always allowed for\s+sending an email/);
     // the rule's button ends that one exception and says so; "Remove" is the hook's own and appears once
     assert.match(textOf(find(root, "hook-allowed-remove-alw_1")), /^Stop allowing$/);
-    const removes = (n: unknown): number => { const x = n as { props?: Record<string, unknown>; children?: unknown[] } | string | null; if (!x || typeof x === "string") return 0; return (typeof x.props?.["testID"] === "string" && /^hook-remove-/.test(x.props["testID"] as string) ? 1 : 0) + (x.children ?? []).reduce((a: number, c) => a + removes(c), 0 as number); };
-    assert.equal(removes(root), 1, "one Remove in the card: the hook's");
+    assert.equal((textOf(root).match(/\bRemove\b/g) ?? []).length, 1, "one Remove in the card: the hook's");
+    assert.ok(find(root, "hook-remove-hok_1"), "and it is the hook's own");
     assert.ok(!textOf(find(root, "hook-allowed-alw_1")).includes("Remove"), "the rule row has no Remove");
     await press(find(root, "hook-allowed-remove-alw_1"));
     await flush();
