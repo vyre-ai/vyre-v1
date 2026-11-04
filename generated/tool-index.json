@@ -7521,7 +7521,7 @@
     {
       "deferred": false,
       "name": "sessions_list",
-      "summary": "List the current owner private imported session archive in this Personal Space",
+      "summary": "List the current owner private imported session archive in this Personal Space; in any other Space the list is empty and personalOnly is true",
       "toolset": "chats"
     },
     {

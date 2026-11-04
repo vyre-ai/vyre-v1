@@ -70,7 +70,7 @@ test("an install that did not finish says why in a plain line and keeps the Inst
 
 test("a locked Vault is an Unlock card, not a failed reply; an unreadable one gives the reason the Vault gave", () => {
   const locked = errorOf({ state: "failed", turnId: "t", code: "engine.vault_locked" });
-  assert.equal(locked.message, "Your Vault is locked.");
+  assert.equal(locked.message, "Your sign-ins are locked on this server.");
   assert.deepEqual(locked.next, [{ key: "unlock_vault", label: "Unlock" }]);
   const unreadable = errorOf({ state: "failed", turnId: "t", code: "engine.vault_unreadable", reason: "provider.unavailable" });
   assert.equal(unreadable.message, "Your Vault could not be read just now.");
@@ -134,4 +134,10 @@ test("sandbox.unavailable says the engine cannot run safely here and offers an A
   assert.match(d.cause ?? "", /sandbox/);
   assert.deepEqual(d.next, [{ key: "connect_ai", label: "Use an API key" }]);
   assert.equal(d.retryable, false);
+});
+
+test("the chat line for a locked sign-in carries Unlock: it opens the same sheet as the banner", async () => {
+  const { statusView } = await import("./status.ts");
+  const v = statusView({ id: "b1", type: "turn_status", v: 1, data: { state: "key_locked", text: "Your sign-ins are locked on this server, so the Space AI key answered." } } as never);
+  assert.deepEqual(v, { kind: "wait", id: "b1", text: "Your sign-ins are locked on this server, so the Space AI key answered.", action: { key: "unlock_vault", label: "Unlock" } });
 });

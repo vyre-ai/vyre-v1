@@ -580,6 +580,7 @@ export function stubs(ctx: CallCtx) {
       delete: call("connections.delete"),
       get: call("connections.get"),
       list: call("connections.list"),
+      mark_working: call("connections.mark_working"),
       pause: call("connections.pause"),
       reconnect: call("connections.reconnect"),
       resume: call("connections.resume"),

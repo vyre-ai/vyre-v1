@@ -94,11 +94,11 @@ export function secretPort(db: VaultDb): SecretPort {
     if (str(meta, "scope") === "mine") {
       const key = await currentKeyPort()?.personKey(str(meta, "owner"));
       // the words the engine and the app read as a locked key (vault_locked): the owner's Mine items open while they are signed in
-      if (!key) throw new Error("Your vault key is locked: your Mine items open while you are signed in to Vyre.");
+      if (!key) throw new Error("Your sign-ins are locked on this server. Unlock Vyre to use them.");
       const sealed = { keyId: str(row, "keyId"), box, rev: num(row, "rev"), wrapped: parseJson(row["wrapped"], { iv: "", ct: "", tag: "" }) };
       if (num(row, "enc") === ENC_MINE_SEALED) {
         const priv = await currentKeyPort()?.privateKey?.(str(meta, "owner"));
-        if (!priv) throw new Error("Your vault key is locked: your Mine items open while you are signed in to Vyre.");
+        if (!priv) throw new Error("Your sign-ins are locked on this server. Unlock Vyre to use them.");
         fields = openMineSealed(str(meta, "id"), { enc: ENC_MINE_SEALED, ...sealed }, priv);
       } else fields = openMine(str(meta, "id"), { enc: ENC_MINE, ...sealed }, wrapKeyFromPersonKey(key));
     } else {

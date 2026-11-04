@@ -1,0 +1,6 @@
+{
+  "targets": [
+    { "id": "KEYLOCK_01-banner", "route": "/m/KEYLOCK_01?part=banner", "proto": "login,{skin}", "waitFor": "[data-testid='key-banner']", "note": "While Vyre is open after the server restarted: the app stays on screen, a slim banner says the sign-ins are locked, with Unlock and a dismiss." },
+    { "id": "KEYLOCK_01-sheet", "route": "/m/KEYLOCK_01?part=sheet", "proto": "login,{skin}", "waitFor": "[data-testid='vault-unlock']", "note": "Unlock pressed: the small sheet over the open screen, with the password, Unlock and Forgot password; the app is still visible behind it." }
+  ]
+}

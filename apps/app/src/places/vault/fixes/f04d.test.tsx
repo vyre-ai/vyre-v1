@@ -45,11 +45,12 @@ test("Who can use it: an Automation grant shows with its name, the Automation ma
   assert.match(out, /data-avatar="automation"[^>]*aria-label="Weekly lead report"|aria-label="Weekly lead report"[^>]*data-avatar="automation"/, "its face is the shared automation mark");
   assert.ok(has(out, 'data-testid="avatar-Intake"') && /data-avatar="agent"/.test(out), "an agent has the shared agent face");
   assert.ok(/data-avatar="person"/.test(out), "a person has the shared person face");
+  assert.ok(!has(out, ">Person<") && !has(out, ">Agent<"), "a person and an agent carry no label line: only what a name alone does not say is written");
 });
 
 test("Who can use it: a person who is not the owner is listed first with the level they hold, and an item shared with no one lists only you", () => {
   const out = who([], { you: { name: "Maya Chen", level: "edit", owner: false } });
-  assert.ok(has(out, 'data-testid="row-who:you"') && has(out, ">Person<") && !has(out, ">Owner<"));
+  assert.ok(has(out, 'data-testid="row-who:you"') && !has(out, ">Person<") && !has(out, ">Owner<"), "no \"Person\" line: the face and the name say it");
   assert.match(tag(out, "who-level-you"), />Edit$/);
   assert.equal((out.match(/data-testid="row-who:[a-z_:]+"/g) ?? []).length, 1, "only you");
 });
@@ -74,4 +75,16 @@ test("Add field opens the Edit sheet in Fields with one new empty secret field a
   const plain = sheet(false);
   assert.match(tag(plain, "edit-mode-env"), /aria-selected="true"/);
   assert.ok(!has(plain, 'data-testid="edit-row-0"'), "no field rows in .env");
+});
+
+test("Who can use it: the line under a name says only what the name does not (a group, a role, an Automation, an outside agent) and how it came to hold the item", async () => {
+  const { noteOf } = await import("../itemenv/WhoCanUse.tsx");
+  assert.equal(noteOf("person", "direct"), "");
+  assert.equal(noteOf("agent", "direct"), "");
+  assert.equal(noteOf("group", "direct"), "Group");
+  assert.equal(noteOf("service", "direct"), "Automation");
+  assert.equal(noteOf("actor", "direct"), "Outside agent");
+  assert.equal(noteOf("person", "group"), "through a group");
+  assert.equal(noteOf("agent", "folder"), "from the folder");
+  assert.equal(noteOf("group", "folder"), "Group · from the folder");
 });

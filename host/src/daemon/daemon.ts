@@ -689,8 +689,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   // Space. Without a session (the local admin token) only the person's own node takes it.
   const sessionAlive = (id: string): boolean => (db ? sessionLive(db, id) : false);
   // after a restart or a deploy, a person still signed in through Google, Microsoft or GitHub gets their key back from the server's wrap with nothing to type (key-wraps.ts); bound once the wraps exist
-  let reopenWrap: (p: string) => { key: Uint8Array; sessions: string[] } | null = () => null;
-  const keyring = createKeyring({ allowed: (p, sessionId) => ownNode(p) || (sessionId !== undefined && sessionAlive(sessionId)), live: sessionAlive, reopen: (p) => reopenWrap(p) });
+  let reopenWrap: (p: string, since?: number) => { key: Uint8Array; sessions: string[] } | null = () => null;
+  const keyring = createKeyring({ allowed: (p, sessionId) => ownNode(p) || (sessionId !== undefined && sessionAlive(sessionId)), live: sessionAlive, reopen: (p, since) => reopenWrap(p, since) });
   closers.push(() => keyring.clearAll());
   const fillRoute = createFillRoute();
   // GitHub sign-in: the server environment first, then the app an admin saved (members.sign_in_github.set; its secret is read from the Vault by handle and kept in memory only)
@@ -717,15 +717,15 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   };
   const keyWraps = cfg.roles.includes("device") ? null : createKeyWraps({ db: () => db, space: () => space ?? "-", secret: () => Buffer.from(sealKeyFile(path.join(paths.root, "person-wrap.key")), "hex"), enabled: wrapsOn });
   // a person's live sessions that a provider proved (SSO or GitHub sign-in): the ones the wrap may open for, as at a fresh provider sign-in (modules/identity/projections.ts)
-  const provenSessions = (p: string): string[] => {
+  const provenSessions = (p: string, since = 0): string[] => {
     try {
-      return (db?.all(`SELECT id FROM identity_sessions WHERE person_id = ? AND method IN ('sso', 'github') AND revoked_at IS NULL AND expires_at > ?`, p, Date.now()) as Array<{ id: string }> ?? []).map((r) => r.id).filter(sessionAlive);
+      return (db?.all(`SELECT id FROM identity_sessions WHERE person_id = ? AND method IN ('sso', 'github') AND revoked_at IS NULL AND expires_at > ? AND created_at > ?`, p, Date.now(), since) as Array<{ id: string }> ?? []).map((r) => r.id).filter(sessionAlive);
     } catch { return []; }
   };
   let auditReopen: (p: string, sessions: string[]) => void = () => undefined;
-  if (keyWraps) reopenWrap = (p) => {
+  if (keyWraps) reopenWrap = (p, since) => {
     if (ownNode(p)) return null;
-    const sessions = provenSessions(p);
+    const sessions = provenSessions(p, since);
     if (sessions.length === 0) return null;
     const key = keyWraps.open(p);
     if (!key) return null;
