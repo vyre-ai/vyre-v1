@@ -28137,6 +28137,7 @@ export type ProjectsOverviewDocGetOut = {
       by?: string;
       at?: number;
     }>;
+  markdown: string;
   properties: Array<{
       key: string;
       title: string;
@@ -28170,7 +28171,8 @@ export type ProjectsOverviewDocHistoryOut = {
 };
 export type ProjectsOverviewDocSaveIn = {
   projectId: string;
-  blocks: Array<{
+  markdown?: string;
+  blocks?: Array<{
       id?: string;
       kind: "text" | "heading" | "live";
       text?: string;
@@ -28198,6 +28200,7 @@ export type ProjectsOverviewDocSaveOut = {
       by?: string;
       at?: number;
     }>;
+  markdown: string;
 };
 export type ProjectsOverviewDocTemplatesListIn = Record<string, unknown>;
 export type ProjectsOverviewDocTemplatesListOut = {

@@ -267,11 +267,11 @@ export default defineManifest({
     }),
     // ---- the Overview as a page
     read('projects.overview_doc.get', 'The Overview page: its blocks (text, headings and live blocks that hold only a spec), its revision and the project\'s custom fields for the page header', {
-      in: { projectId: id.project }, out: { rev: t.int({ minimum: 0 }), blocks: t.arr(pageBlock), properties: t.arr(pageProp), updatedBy: t.opt(t.str()), updatedAt: t.opt(t.ts()), latest: t.opt(revRow) },
+      in: { projectId: id.project }, out: { rev: t.int({ minimum: 0 }), blocks: t.arr(pageBlock), markdown: t.str({ description: 'The page as Markdown for the shared editor: each block led by <!--b:id-->, a live block as one :::live {json} line' }), properties: t.arr(pageProp), updatedBy: t.opt(t.str()), updatedAt: t.opt(t.ts()), latest: t.opt(revRow) },
       on: ['project', '/projectId'], tool: 'records', label: 'check',
     }),
-    write('projects.overview_doc.save', 'Save the whole Overview page from the editor; baseRev is the revision it was opened at, and a page changed since says so instead of overwriting', {
-      in: { projectId: id.project, blocks: t.arr(pageBlockIn), baseRev: t.opt(t.int({ minimum: 0 })) }, out: { rev: t.int({ minimum: 1 }), blocks: t.arr(pageBlock) },
+    write('projects.overview_doc.save', 'Save the whole Overview page from the editor, as Markdown (or blocks); baseRev is the revision it was opened at, and a page changed since says so instead of overwriting', {
+      in: { projectId: id.project, markdown: t.opt(t.str()), blocks: t.opt(t.arr(pageBlockIn)), baseRev: t.opt(t.int({ minimum: 0 })) }, out: { rev: t.int({ minimum: 1 }), blocks: t.arr(pageBlock), markdown: t.str() },
       on: ['project', '/projectId'], level: 'edit', audit: 'always', emits: ['project.overview_edited'], tool: 'records', errors: ['validation.bad_input', 'validation.precondition_failed'],
     }),
     write('projects.overview_edit', 'Edit the Overview by ops: insert, update, move, delete a block, or set_property on a custom field of the project. One revision for the call, carrying its author; an agent\'s edit leaves one quiet line in the project channel', {

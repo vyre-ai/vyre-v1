@@ -91,7 +91,7 @@ export async function docGet(ctx: ProjectsCtx, input: In): Promise<unknown> {
   const d = docOf(ctx.db, p.projectId);
   const revs = revsOf(ctx.db, p.projectId, 1);
   return clean({
-    rev: d?.rev ?? 0, blocks: (d?.blocks ?? defaultBlocks()).map(view), properties: await properties(ctx, p),
+    rev: d?.rev ?? 0, blocks: (d?.blocks ?? defaultBlocks()).map(view), markdown: toMarkdown(d?.blocks ?? defaultBlocks()), properties: await properties(ctx, p),
     updatedBy: d?.by, updatedAt: d?.at, latest: revs[0] ? revView(revs[0]) : undefined,
   });
 }
@@ -211,7 +211,10 @@ export async function docSave(ctx: ProjectsCtx, input: In): Promise<unknown> {
   const before = docOf(ctx.db, p.projectId)?.blocks ?? defaultBlocks();
   const known = new Map(before.map((b) => [b.id, b]));
   const at = ctx.now();
-  const blocks: PageBlock[] = (Array.isArray(input.blocks) ? input.blocks : []).map((raw: In): PageBlock => {
+  if (input.markdown !== undefined && typeof input.markdown !== "string") raise(ctx, "validation.bad_input", "Send the page as text.");
+  const fromText = typeof input.markdown === "string" ? fromMarkdown(ctx, input.markdown).map(({ fresh, ...b }) => { void fresh; return b; }) : undefined;
+  const incoming: In[] = fromText ?? (Array.isArray(input.blocks) ? input.blocks : []);
+  const blocks: PageBlock[] = incoming.map((raw: In): PageBlock => {
     const checked = checkBlock(ctx, raw);
     const id = typeof raw.id === "string" && raw.id !== "" ? raw.id : newId("blk", at);
     const old = known.get(id);
@@ -221,7 +224,7 @@ export async function docSave(ctx: ProjectsCtx, input: In): Promise<unknown> {
   if (blocks.length > 300) raise(ctx, "validation.bad_input", "A page holds at most 300 blocks.");
   const summary = JSON.stringify(blocks) === JSON.stringify(before) ? "no change" : "edited the page";
   const rev = await commit(ctx, p, before, { blocks, summary, props: {} });
-  return { rev, blocks: blocks.map(view) };
+  return { rev, blocks: blocks.map(view), markdown: toMarkdown(blocks) };
 }
 
 export async function edit(ctx: ProjectsCtx, input: In): Promise<unknown> {
@@ -296,6 +299,49 @@ export async function templateApply(ctx: ProjectsCtx, input: In): Promise<unknow
   const rev = await commit(ctx, p, before, { blocks, summary: `applied the ${tpl.title} template`, props: {} });
   await say(ctx, p, `applied the ${tpl.title} template`);
   return { rev, blocks: blocks.map(view) };
+}
+
+// ---- the page as Markdown for the editor ----
+// The shared Markdown editor opens and saves the page as Markdown: every block is led by `<!--b:id-->` so it keeps its identity (author, history) across saves, a heading is `#`, `##` or `###`, and a
+// live block is `:::live {json}` on one line with the block's type, spec and view. Text typed in the editor without a marker is a new block per paragraph.
+
+const MARK = /^<!--b:([A-Za-z0-9_]+)-->$/;
+export function toMarkdown(blocks: readonly PageBlock[]): string {
+  return blocks.map((b) => {
+    const body = b.kind === "heading" ? `${"#".repeat(b.level ?? 2)} ${b.text ?? ""}` : b.kind === "text" ? b.text ?? "" : `:::live ${JSON.stringify({ type: b.live!.type, spec: b.live!.spec, ...(b.live!.view ? { view: b.live!.view } : {}) })}`;
+    return `<!--b:${b.id}-->\n${body}`;
+  }).join("\n\n");
+}
+
+/** The blocks of a Markdown page: a marker names the block that follows; a paragraph without one is new. Fenced code keeps its blank lines. */
+export function fromMarkdown(ctx: ProjectsCtx, md: string): Array<Omit<PageBlock, "by" | "at"> & { fresh: boolean }> {
+  const chunks: Array<{ id?: string; lines: string[] }> = [];
+  let cur: { id?: string; lines: string[] } | null = null;
+  let fenced = false;
+  const flush = (): void => { if (cur && cur.lines.some((l) => l.trim() !== "")) chunks.push(cur); cur = null; };
+  for (const line of md.replaceAll("\r\n", "\n").split("\n")) {
+    const mark = !fenced ? MARK.exec(line.trim()) : null;
+    if (mark) { flush(); cur = { id: mark[1]!, lines: [] }; continue; }
+    if (/^\s*```/.test(line)) fenced = !fenced;
+    // a paragraph, a heading and a live directive end at the blank line; a marked text block runs on to the next marker, so its own blank lines stay in it
+    if (!fenced && line.trim() === "") { if (cur && (cur.id === undefined || /^(:::live\s|#{1,3}\s)/.test(cur.lines[0] ?? ""))) flush(); else if (cur) cur.lines.push(line); continue; }
+    if (!cur) cur = { lines: [] };
+    cur.lines.push(line);
+  }
+  flush();
+  return chunks.map((c) => {
+    const body = c.lines.join("\n").replace(/\s+$/, "");
+    const id = c.id ?? newId("blk", ctx.now());
+    const live = /^:::live\s+(\{.*\})\s*$/s.exec(body);
+    if (live) {
+      let parsed: In;
+      try { parsed = JSON.parse(live[1]!) as In; } catch { raise(ctx, "validation.bad_input", "A live block's settings are not readable."); }
+      return { id, fresh: c.id === undefined, kind: "live" as const, live: checkLive(ctx, parsed) };
+    }
+    const h = /^(#{1,3})\s+(.*)$/.exec(body);
+    if (h && !body.includes("\n")) return { id, fresh: c.id === undefined, kind: "heading" as const, text: h[2]!, level: h[1]!.length };
+    return { id, fresh: c.id === undefined, kind: "text" as const, text: body };
+  });
 }
 
 // ---- agents read the page as Markdown ----

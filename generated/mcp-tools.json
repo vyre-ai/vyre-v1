@@ -45662,7 +45662,7 @@
       "blocks": [],
       "cap": "projects.overview_doc.save",
       "deferred": false,
-      "description": "Save the whole Overview page from the editor; baseRev is the revision it was opened at, and a page changed since says so instead of overwriting",
+      "description": "Save the whole Overview page from the editor, as Markdown (or blocks); baseRev is the revision it was opened at, and a page changed since says so instead of overwriting",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -45738,6 +45738,9 @@
             },
             "type": "array"
           },
+          "markdown": {
+            "type": "string"
+          },
           "projectId": {
             "examples": [
               "prj_a1b2c3"
@@ -45747,8 +45750,7 @@
           }
         },
         "required": [
-          "projectId",
-          "blocks"
+          "projectId"
         ],
         "type": "object"
       },

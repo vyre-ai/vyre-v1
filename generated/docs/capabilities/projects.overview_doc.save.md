@@ -1,6 +1,6 @@
 # projects.overview_doc.save
 
-Save the whole Overview page from the editor; baseRev is the revision it was opened at, and a page changed since says so instead of overwriting
+Save the whole Overview page from the editor, as Markdown (or blocks); baseRev is the revision it was opened at, and a page changed since says so instead of overwriting
 
 | | |
 |---|---|
@@ -26,7 +26,8 @@ Save the whole Overview page from the editor; baseRev is the revision it was ope
 ```ts
 type In = {
   projectId: string;
-  blocks: Array<{
+  markdown?: string;
+  blocks?: Array<{
       id?: string;
       kind: "text" | "heading" | "live";
       text?: string;
@@ -59,6 +60,7 @@ type Out = {
       by?: string;
       at?: number;
     }>;
+  markdown: string;
 };
 ```
 
@@ -91,6 +93,7 @@ type Out = {
         "text": "example"
       }
     ],
+    "markdown": "example",
     "projectId": "prj_a1b2c3"
   },
   "output": {
@@ -109,6 +112,7 @@ type Out = {
         "text": "example"
       }
     ],
+    "markdown": "example",
     "rev": 1
   }
 }

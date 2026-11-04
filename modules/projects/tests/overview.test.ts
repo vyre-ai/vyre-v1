@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import { DAY, NOW, DANA, LEO, MAYA, BOT, contractErrors, harness, codeOf } from "../fixtures/harness.ts";
 import type { Harness } from "../fixtures/harness.ts";
 import { mkProject, run } from "../fixtures/seed.ts";
-import { BUILTIN_TEMPLATES, markdownOf } from "../handlers/overview.ts";
+import { BUILTIN_TEMPLATES, fromMarkdown, markdownOf, toMarkdown } from "../handlers/overview.ts";
 
 async function refused(p: Promise<unknown>, code: string): Promise<void> {
   await assert.rejects(p, (e) => { assert.equal(codeOf(e), code); return true; });
@@ -243,4 +243,35 @@ test("reading the page needs view; changing it needs edit; a project the caller 
   h.allowOnly(() => false);
   await refused(run(h, "projects.overview_doc.get", { projectId: p.projectId }), "validation.not_found");
   await refused(run(h, "projects.overview_get", { projectId: p.projectId }), "validation.not_found");
+});
+
+test("the editor's Markdown: every block is led by its id, a live block is one directive line, and saving it back keeps ids, authors and the page", async () => {
+  const h = harness();
+  const p = await mkProject(h);
+  await run(h, "projects.overview_edit", { projectId: p.projectId, ops: [{ op: "insert", after: "blk_h_next", block: { kind: "text", text: "Line one\n\n- a list\n- of things" } }] }, h.agent(BOT, DANA));
+  const got = await run(h, "projects.overview_doc.get", { projectId: p.projectId });
+  assert.match(got.markdown, /^<!--b:blk_status-->\n:::live \{"type":"status","spec":\{"title":"Status"\},"view":"list"\}\n\n<!--b:blk_h_next-->\n## Next\n\n<!--b:blk_[a-z0-9]+-->\nLine one/);
+  assert.deepEqual(contractErrors("projects.overview_doc.get", "out", got), []);
+  const same = await run(h, "projects.overview_doc.save", { projectId: p.projectId, markdown: got.markdown, baseRev: got.rev }, h.person(MAYA));
+  assert.deepEqual(same.blocks.map((b: { id: string; by?: string }) => [b.id, b.by]), got.blocks.map((b: { id: string; by?: string }) => [b.id, b.by]), "nothing changed, so nobody is credited");
+  assert.equal(same.markdown, got.markdown);
+  // typing in the editor: a new paragraph with no marker is a new block by the saver; an edited paragraph keeps its id
+  const typed = got.markdown.replace("## Next", "## Next up") + "\n\nA new paragraph typed in the editor\n";
+  await run(h, "projects.members.set", { projectId: p.projectId, principal: MAYA, role: "member" });
+  const saved = await run(h, "projects.overview_doc.save", { projectId: p.projectId, markdown: typed, baseRev: same.rev }, h.person(MAYA));
+  const next = saved.blocks.find((b: { id: string }) => b.id === "blk_h_next");
+  assert.deepEqual([next.text, next.by], ["Next up", MAYA]);
+  assert.deepEqual([saved.blocks.at(-1).text, saved.blocks.at(-1).by], ["A new paragraph typed in the editor", MAYA]);
+  assert.equal(saved.blocks.length, got.blocks.length + 1);
+  // a block whose marker the editor dropped is a new block, the old one is gone
+  const noMarkers = toMarkdown([{ id: "x", kind: "text", text: "Alone" }]).replace(/<!--b:x-->\n/, "");
+  const parsed = fromMarkdown(h.ctx, noMarkers);
+  assert.deepEqual(parsed.map((b) => [b.kind, b.text, b.fresh]), [["text", "Alone", true]]);
+  // fenced code keeps its blank lines; a bad live directive is refused
+  const code = fromMarkdown(h.ctx, "<!--b:blk_c-->\n```js\na\n\nb\n```\n\nafter");
+  assert.deepEqual(code.map((b) => [b.id, b.text]), [["blk_c", "```js\na\n\nb\n```\n\nafter"]], "a marked text block runs to the next marker, fenced or not");
+  const split = fromMarkdown(h.ctx, "<!--b:blk_h-->\n## Title\n\nunmarked paragraph");
+  assert.deepEqual(split.map((b) => [b.kind, b.text, b.fresh]), [["heading", "Title", false], ["text", "unmarked paragraph", true]]);
+  await refused(run(h, "projects.overview_doc.save", { projectId: p.projectId, markdown: "<!--b:blk_z-->\n:::live {not json}" }), "validation.bad_input");
+  await refused(run(h, "projects.overview_doc.save", { projectId: p.projectId, markdown: '<!--b:blk_z-->\n:::live {"type":"weather","spec":{}}' }), "validation.bad_input");
 });

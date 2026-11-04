@@ -47,6 +47,7 @@ type Out = {
       by?: string;
       at?: number;
     }>;
+  markdown: string;
   properties: Array<{
       key: string;
       title: string;
@@ -106,6 +107,7 @@ type Out = {
       "summary": "example",
       "undoOf": 1
     },
+    "markdown": "example",
     "properties": [
       {
         "key": "example",
