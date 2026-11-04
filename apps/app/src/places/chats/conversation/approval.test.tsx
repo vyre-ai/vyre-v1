@@ -118,6 +118,26 @@ test("Always allow keeps a rule for this agent in this chat, then allows; an act
   assert.deepEqual(calls.find((c) => c.cap === "gate.allow.set")!.input, { act: "approve", target: "files.write", agentId: "agt_1", threadId: "thr_1" });
 });
 
+test("a helper's request card says Today, Always and No: Today keeps a rule that ends with the person's day, then allows; Always keeps the 30-day rule; No sends it back; the other uses of the card keep their words", async () => {
+  const calls: { cap: string; input: unknown }[] = [];
+  const root = await mount(createRoot, <ApprovalCard taskId="tsk_1" agent="Tess" agentId="agt_1" helper data={{ ...data(calls), threadId: "thr_1" } as never} />);
+  await flush();
+  assert.ok(find(root, "approval-today-tsk_1") && find(root, "approval-always-tsk_1") && find(root, "approval-deny-tsk_1"));
+  assert.equal(find(root, "approval-allow-tsk_1"), null, "Today stands where Allow stood");
+  const t = textOf(find(root, "approval-tsk_1"));
+  assert.ok(/Today/.test(t) && /Always/.test(t) && /No/.test(t) && !/Always allow/.test(t) && !/Deny/.test(t));
+  await press(find(root, "approval-today-tsk_1")); await flush();
+  assert.deepEqual(calls.map((c) => c.cap).filter((c) => c === "gate.allow.set" || c === "tasks.act"), ["gate.allow.set", "tasks.act"]);
+  const set = calls.find((c) => c.cap === "gate.allow.set")!.input as { until: number; act: string; agentId: string };
+  assert.ok(set.until > Date.now() && set.until <= Date.now() + 36 * 3_600_000, "until the end of the day, within a day and a half");
+  assert.deepEqual([set.act, set.agentId], ["approve", "agt_1"]);
+  // the card everywhere else keeps its words
+  const other = await mount(createRoot, <ApprovalCard taskId="tsk_1" agent="Intake" agentId="agt_1" data={{ ...data([]), threadId: "thr_1" } as never} />);
+  await flush();
+  assert.ok(find(other, "approval-allow-tsk_1") && /Always allow/.test(textOf(find(other, "approval-tsk_1"))) && /Deny/.test(textOf(find(other, "approval-tsk_1"))));
+  assert.equal(find(other, "approval-today-tsk_1"), null);
+});
+
 /** The Space's live tick, as the session gives it to a card. */
 function stream() {
   const ears = new Set<() => void>();

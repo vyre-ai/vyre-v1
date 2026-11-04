@@ -142,7 +142,10 @@ export async function allowSet(ctx: GateCtx, input: In): Promise<unknown> {
   if (input.recipient === true && !toOne) raise(ctx, "validation.bad_input", "Always allow for a recipient names one agent and one recipient.");
   if (input.act !== "approve" && !toOne && !isAdmin(ctx)) raise(ctx, "permission.role_lacks_permission", "An admin allows this.", { reason: "admin_only" });
   const now = ctx.now();
-  const row: AllowRow = { id: newGrantId(), kind: "always", act: input.act, target: input.target, agent_id: input.agentId ?? null, thread_id: input.threadId ?? null, subject_id: null, step_id: null, expires_at: now + (input.days ?? ALWAYS_DAYS) * DAY_MS, person: ctx.principal.id };
+  // "Today" (a helper's request card): allowed until the end of the person's day, which their device names; never a longer reach than a day and a half, and never in the past
+  if (input.until !== undefined && (typeof input.until !== "number" || input.until <= now || input.until > now + 36 * 3_600_000)) raise(ctx, "validation.bad_input", "Today ends within the next day and a half.", { reason: "bad_until" });
+  const expiry: number = input.until ?? now + (input.days ?? ALWAYS_DAYS) * DAY_MS;
+  const row: AllowRow = { id: newGrantId(), kind: "always", act: input.act, target: input.target, agent_id: input.agentId ?? null, thread_id: input.threadId ?? null, subject_id: null, step_id: null, expires_at: expiry, person: ctx.principal.id };
   ctx.db.run("INSERT INTO gate_grants (id, kind, person, act, target, agent_id, thread_id, expires_at, created_at) VALUES (?, 'always', ?, ?, ?, ?, ?, ?, ?)", row.id, row.person, row.act, row.target, row.agent_id, row.thread_id, row.expires_at, now);
   return { rule: allowOut(row) };
 }

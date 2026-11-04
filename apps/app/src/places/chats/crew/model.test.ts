@@ -1,7 +1,7 @@
 // The crew model: every sentence a person reads about the crew, from the numbers engine.crew.status returns.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { holdsOf, keyAction, testsWords, clock, counts, isCode, lineOf, modelTag, money, ranTogether, roleOf, shows, sorted, span, stripTitle, stripTone, timeline, tokenSplit, totalsLine, tokens } from "./model.ts";
+import { faceSeed, holdsOf, keyAction, testsWords, clock, counts, isCode, lineOf, modelTag, money, ranTogether, roleOf, shows, sorted, span, stripTitle, stripTone, timeline, tokenSplit, totalsLine, tokens } from "./model.ts";
 import type { CrewMember, CrewTotals } from "./model.ts";
 
 const T = (o: Partial<CrewTotals> = {}): CrewTotals => ({ members: 3, working: 0, done: 3, needsYou: 0, failed: 0, stopped: 0, tokensIn: 0, tokensOut: 0, costMicros: 0, filesChanged: 0, added: 0, deleted: 0, elapsedMs: 41_000, ...o });
@@ -84,4 +84,10 @@ test("tests read as a person says them, and the keys do what the pane says", () 
 test("only a helper that needs you and holds a request gets an approval card", () => {
   const rows = [M({ id: "a", state: "needs_you", holdTaskId: "tsk_1" } as never), M({ id: "b", state: "needs_you" }), M({ id: "c", state: "working", holdTaskId: "tsk_2" } as never), M({ id: "d", state: "needs_you", holdTaskId: "" } as never)];
   assert.deepEqual(holdsOf(rows as never).map((r) => r.id), ["a"]);
+});
+
+test("a helper's face is seeded by its own id, so helpers that run as one agent still look different", () => {
+  const a = M({ id: "thr_a1", agentId: "agt_assistant" }), b = M({ id: "thr_b2", agentId: "agt_assistant" });
+  assert.notEqual(faceSeed(a), faceSeed(b));
+  assert.equal(faceSeed(a), faceSeed(M({ id: "thr_a1", agentId: "agt_other" })), "the same helper, the same face, whoever runs it");
 });

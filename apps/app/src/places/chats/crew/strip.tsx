@@ -5,7 +5,7 @@ import type { ReactElement } from "react";
 import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import { Avatar } from "../../../../../../ui/src/Avatar/index.tsx";
 import { injectCss } from "../../../../../../ui/src/theme/css.ts";
-import { clock, isCode, lineOf, modelTag, nameOf, roleOf, stripTitle, stripTone, testsWords } from "./model.ts";
+import { clock, isCode, lineOf, modelTag, nameOf, roleOf, stripTitle, stripTone, testsWords, faceSeed } from "./model.ts";
 import type { CrewMember, CrewTotals } from "./model.ts";
 
 const web = Platform.OS === "web";
@@ -63,7 +63,7 @@ export function HelperChip({ m, now, selected = false, index = 0, onPress, onRet
     >
       <View style={st.av}>
         <MemberRing state={m.state} id={id} />
-        <Avatar name={name} seedId={m.agentId} kind="agent" size={28} />
+        <Avatar name={name} seedId={faceSeed(m)} kind="agent" size={28} />
       </View>
       <View style={st.main}>
         <View style={st.l1}><Text numberOfLines={1} style={st.name}>{name}</Text>{roleOf(m) !== "" ? <Text numberOfLines={1} testID={`${id}-role`} style={st.role}>{roleOf(m)}</Text> : null}</View>

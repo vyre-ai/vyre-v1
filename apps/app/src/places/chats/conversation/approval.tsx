@@ -39,7 +39,7 @@ async function subjectOf(data: Data, cap: string, input: Record<string, unknown>
 /** 24-hour clock time of a moment, in a zone or the viewer's own. */
 const clock = (at: number, timeZone?: string): string => { try { return new Date(at).toLocaleTimeString("en-GB", { hour: "numeric", minute: "2-digit", hour12: false, ...(timeZone ? { timeZone } : {}) }); } catch { return new Date(at).toLocaleTimeString("en-GB", { hour: "numeric", minute: "2-digit", hour12: false }); } };
 
-export function ApprovalCard({ taskId, agent, agentId, data, face, editor }: { taskId: string; agent: string; agentId: string; data: Data; /** an agent asking for its person wears that person's face (lane l-agentdm) */ face?: string; /** the held card's editor, when a test or a screenshot puts its own in */ editor?: HeldEditor }): ReactElement | null {
+export function ApprovalCard({ taskId, agent, agentId, data, face, editor, helper = false }: { taskId: string; agent: string; agentId: string; data: Data; /** an agent asking for its person wears that person's face (lane l-agentdm) */ face?: string; /** the held card's editor, when a test or a screenshot puts its own in */ editor?: HeldEditor ; /** a helper's request in its chat above: the buttons say Today, Always and No, as the prototype does */ helper?: boolean }): ReactElement | null {
   const [task, setTask] = useState<Task | null | undefined>(undefined);
   const [subject, setSubject] = useState<string | undefined>(undefined);
   const [theirTz, setTheirTz] = useState<string | undefined>(undefined);
@@ -153,6 +153,16 @@ export function ApprovalCard({ taskId, agent, agentId, data, face, editor }: { t
       () => { setBusy(false); setLine("Could not keep that rule. Try Allow."); },
     );
   };
+  /** Today: allow this and every call like it from this agent in this chat until the end of the person's day. Only where Always is the person's to give. */
+  const today = (): void => {
+    setBusy(true); setLine(null);
+    const end = new Date(); end.setHours(23, 59, 59, 0);
+    const until = Math.min(end.getTime(), Date.now() + 36 * 3_600_000 - 1000);
+    void Promise.resolve(data.call("gate.allow.set", { act: "approve", target: held.cap, agentId, threadId: data.threadId, until })).then(
+      () => act("approve"),
+      () => { setBusy(false); setLine("Could not allow it for today. Try again."); },
+    );
+  };
   // an outside agent asking its person: what happens, that it runs as them, and every input
   const rows = held.plain ? plainRows(held) : held.what ? askRows(task.blocks) : excerptLines(held.input, 5, held.cap);
   const headline = held.what ? askLine(agent, held.what) : wantsLine(agent, held.cap, subject, held.input);
@@ -192,9 +202,9 @@ export function ApprovalCard({ taskId, agent, agentId, data, face, editor }: { t
         </View>
       ) : (
         <View style={st.acts}>
-          <TextButton label={held.plain ? "Send back" : "Deny"} onPress={() => setDenying(true)} disabled={busy} testID={`approval-deny-${taskId}`} />
-          {allowable ? <TextButton label="Always allow" disabled={busy} onPress={always} testID={`approval-always-${taskId}`} /> : null}
-          <TextButton label={held.plain ? "Approve" : "Allow"} primary disabled={busy} onPress={() => act("approve")} testID={`approval-allow-${taskId}`} />
+          <TextButton label={helper ? "No" : held.plain ? "Send back" : "Deny"} onPress={() => setDenying(true)} disabled={busy} testID={`approval-deny-${taskId}`} />
+          {allowable ? <TextButton label={helper ? "Always" : "Always allow"} disabled={busy} onPress={always} testID={`approval-always-${taskId}`} /> : null}
+          {helper && allowable ? <TextButton label="Today" primary disabled={busy} onPress={today} testID={`approval-today-${taskId}`} /> : <TextButton label={helper ? "Yes" : held.plain ? "Approve" : "Allow"} primary disabled={busy} onPress={() => act("approve")} testID={`approval-allow-${taskId}`} />}
         </View>
       )}
       {line ? <Text accessibilityRole="alert" style={st.err}>{line}</Text> : null}

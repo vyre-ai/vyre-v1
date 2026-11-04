@@ -8,7 +8,7 @@ import { Avatar } from "../../../../../../ui/src/Avatar/index.tsx";
 import { useMenu } from "../../../../../../ui/src/Menu/index.tsx";
 import { Row } from "../../../../../../ui/src/Row/index.tsx";
 import { MemberRing, timeOf, useNow } from "./strip.tsx";
-import { clock, isCode, keyAction, testsWords, lineOf, modelTag, money, nameOf, ranTogether, roleOf, shows, sorted, span, stateWord, timeline, tokenSplit, tokens, totalsLine } from "./model.ts";
+import { clock, isCode, keyAction, testsWords, lineOf, modelTag, money, nameOf, ranTogether, roleOf, shows, sorted, span, stateWord, timeline, tokenSplit, tokens, totalsLine, faceSeed } from "./model.ts";
 import type { CrewMember, CrewStatusOut, Show } from "./model.ts";
 import type { Call } from "./status.ts";
 
@@ -18,7 +18,7 @@ const NONE: Record<Show, string> = { all: "No helpers yet.", working: "No helper
 const BAR = { working: "var(--accent)", needs_you: "var(--warn)", done: "var(--accent)", failed: "var(--ink-4)", stopped: "var(--ink-4)" } as const;
 
 function Face({ m, size = 34 }: { m: CrewMember; size?: number }): ReactElement {
-  return <View style={{ width: size, height: size, alignItems: "center", justifyContent: "center" }}><MemberRing state={m.state} size={size} id={`crew-pane-${m.id}`} /><Avatar name={nameOf(m)} seedId={m.agentId} kind="agent" size={Math.round(size * 0.74)} /></View>;
+  return <View style={{ width: size, height: size, alignItems: "center", justifyContent: "center" }}><MemberRing state={m.state} size={size} id={`crew-pane-${m.id}`} /><Avatar name={nameOf(m)} seedId={faceSeed(m)} kind="agent" size={Math.round(size * 0.74)} /></View>;
 }
 
 /** The Show menu: which helpers the list keeps. The one now showing is checked. */
@@ -60,7 +60,7 @@ export function CrewOverview({ status, call, threadId, onPeek, onRefresh, initia
       <View testID="crew-timeline" style={{ gap: 3 }}>
         {all.map((m, i) => (
           <Row
-            key={m.id} id={`crew-tl-${m.id}`} title={nameOf(m)} onPress={() => onPeek(m.id)} leading={<View style={{ marginRight: 8 }}><Avatar name={nameOf(m)} seedId={m.agentId} kind="agent" size={18} /></View>}
+            key={m.id} id={`crew-tl-${m.id}`} title={nameOf(m)} onPress={() => onPeek(m.id)} leading={<View style={{ marginRight: 8 }}><Avatar name={nameOf(m)} seedId={faceSeed(m)} kind="agent" size={18} /></View>}
             trailing={<View style={st.tlt}><View testID={`crew-tl-${m.id}-bar`} style={{ position: "absolute", top: 0, bottom: 0, left: `${(tl[i]?.left ?? 0) * 100}%`, width: `${(tl[i]?.width ?? 1) * 100}%`, borderRadius: 5, backgroundColor: BAR[m.state] as string, opacity: m.state === "failed" || m.state === "stopped" ? 0.5 : 1 } as object} /></View>}
           />
         ))}

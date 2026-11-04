@@ -168,3 +168,6 @@ export function testsWords(t: CrewMember["tests"]): string {
 /** The helpers that wait for a person's yes with a held request to answer: each one's request is drawn as an approval card under the strip. */
 export const holdsOf = <T extends Pick<CrewMember, "state"> & { holdTaskId?: string }>(members: readonly T[]): Array<T & { holdTaskId: string }> =>
   members.filter((m): m is T & { holdTaskId: string } => m.state === "needs_you" && typeof m.holdTaskId === "string" && m.holdTaskId !== "");
+
+/** The id a helper's face is drawn from: its own, so each helper has a stable face of its own, distinct within a crew and the same after a reload, even when they all run as the same agent. */
+export const faceSeed = (m: Pick<CrewMember, "id">): string => m.id;
