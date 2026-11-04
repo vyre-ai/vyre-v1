@@ -98,6 +98,7 @@ test("settings journey: the seven pages as Owner and as Member, the look and a c
         if (p.id === "github") {
           gh.reconnect = true;
           await open(me, s, "/settings?skin=paper");
+          if (!(await me.page.getByTestId("row-page-github").isVisible().catch(() => false))) await me.page.getByTestId("back").click().catch(() => undefined);
           await me.page.getByTestId("row-page-github").click();
           await me.page.getByTestId("page-github").waitFor();
           await me.page.waitForTimeout(800);
