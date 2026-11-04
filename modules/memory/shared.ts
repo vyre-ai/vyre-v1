@@ -40,6 +40,8 @@ export async function writeShared(ctx: MemCtx, n: SharedIn): Promise<SharedOut> 
   const now = ctx.now();
   if (replaced) ctx.db.run("UPDATE memory_facts SET status = 'closed', valid_to = ?, closed_at = ? WHERE id = ?", now, now, replaced.id);
   const fact = insertFact(ctx, { ...common, ...(replaced ? { replaces: replaced.id } : {}), ...(clash ? { state: "disputed" } : {}) });
+  // a marker that pointed at the older statement follows the one that replaced it
+  if (replaced) ctx.db.run("UPDATE memory_facts SET promoted_from = ? WHERE promoted_from = ? AND state = 'marker'", fact.id, replaced.id);
   if (replaced) trail(ctx, { action: "edit", factId: fact.id, layer: fact.layer, ownerRef: fact.ownerRef, agentId: fact.agentId, projectId: fact.projectId, reason: "a newer statement on the same subject", detail: { replaces: replaced.id } });
   if (clash) {
     ctx.db.run("UPDATE memory_facts SET state = 'disputed' WHERE id = ?", clash.id);

@@ -4,6 +4,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { capture, factCorrect, factsList, pointer, search, factsAsOf } from "../handlers/facts.ts";
 import { remember } from "../handlers/tools.ts";
+import { promote } from "../handlers/facts.ts";
 import { placeArchive, placeList, sourceRemoved } from "../handlers/places.ts";
 import { questionResolve } from "../handlers/upkeep.ts";
 import { quote } from "../handlers/quotes.ts";
@@ -349,4 +350,28 @@ test("LEAKAGE: nobody reads, through any memory read, a memory whose place they 
   const room = JSON.stringify([await pointer(inRoom.ctx, { threadId: "thr_chan", agentId: AGENT, text: "amber passport flood" }), await search(agentInRoom.ctx, { q: "passport", agentId: AGENT, mode: "keyword" }), await factsList(agentInRoom.ctx, {})]);
   assert.equal(room.includes(secrets.personal!), false, "personal memory never goes into a room");
   void contexts;
+});
+
+test("promoting a place's decision to the Space is a marker pointing back: no second copy of the words, it follows a replacement and dies with its source", async () => {
+  const s = setup();
+  const svc = s.svc();
+  s.w.said["thr_chan"] = [msg("msg_1", MAYA, "We decided to go with Harbor for freight shipping.")];
+  await capture(svc.ctx, { threadId: "thr_chan", reason: "closed" });
+  const src = (s.raw.all("SELECT id FROM memory_facts")[0] as { id: string }).id;
+  const dana = s.as(DANA, ["thr_d"], { "access.shares_of": () => ({ shares: [{ grant: { subject: { kind: "person", id: DANA }, level: "manage" }, through: "direct" }] }) });
+  const out = await promote(dana.ctx, { factId: src, toLayer: "space" });
+  assert.equal(out.promoted, true);
+  const row = () => s.raw.all("SELECT id, text, state, promoted_from FROM memory_facts WHERE layer = 'space'")[0] as { id: string; text: string; state: string; promoted_from: string };
+  assert.equal(row().text, "", "the words are not copied");
+  assert.equal(row().state, "marker");
+  const read = (await factsList(dana.ctx, { layer: "space" })) as { facts: Array<{ text: string }> };
+  assert.equal(read.facts[0]!.text, "We decided to go with Harbor for freight shipping.");
+  // the source is replaced: the marker follows
+  s.w.said["thr_chan"] = [msg("msg_2", MAYA, "We decided to go with Meridian for freight shipping instead.")];
+  await capture(svc.ctx, { threadId: "thr_chan", reason: "closed" });
+  const now = (await factsList(dana.ctx, { layer: "space" })) as { facts: Array<{ text: string }> };
+  assert.match(now.facts[0]!.text, /Meridian/);
+  // the message is deleted: the marker goes with it
+  await sourceRemoved(s.as(MAYA, ["thr_m"]).ctx, { threadId: "thr_chan", messageId: "msg_2" });
+  assert.equal(((await factsList(dana.ctx, { layer: "space" })) as { facts: unknown[] }).facts.filter((f) => (f as { text: string }).text !== "").length, 0);
 });

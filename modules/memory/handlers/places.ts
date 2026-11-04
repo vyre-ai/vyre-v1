@@ -68,6 +68,7 @@ export async function placeArchive(ctx: MemCtx, input: { placeKind: string; plac
   for (const f of placeRows(ctx, input.placeKind, input.placeId)) {
     if (!(access.isAdmin() || (f.layer !== "person" && (await access.can(f.layer, f.ownerRef, f.agentId, f.projectId, "edit"))))) continue;
     if (input.action === "delete") {
+      for (const m of rowsOf(ctx.db, "SELECT id FROM memory_facts WHERE promoted_from = ? AND state = 'marker'", f.id)) ctx.db.run("DELETE FROM memory_facts WHERE id = ?", str(m["id"]));
       trail(ctx, { action: "erase", factId: f.id, layer: f.layer, ownerRef: f.ownerRef, agentId: f.agentId, projectId: f.projectId, reason: "place deleted" });
       for (const sql of [
         "DELETE FROM memory_fact_links WHERE fact_id = ?", "DELETE FROM memory_promotions WHERE fact_id = ?", "DELETE FROM memory_questions WHERE fact_a = ? OR fact_b = ?",

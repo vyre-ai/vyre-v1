@@ -167,6 +167,11 @@ export function readFact(ctx: Pick<MemCtx, "seal" | "principal" | "actingFor"> &
   const owner = str(r["owner_ref"]);
   const sealed = orNull(r["sealed"]);
   let text = str(r["text"]);
+  // a marker (rule 6) holds no words of its own: it reads as its source reads now, and reads as nothing once the source is gone
+  if (orNull(r["state"]) === "marker" && ctx.db) {
+    const src = rowsOf(ctx.db, "SELECT text FROM memory_facts WHERE id = ? AND status = 'current' AND trashed_at IS NULL AND layer <> 'person'", str(r["promoted_from"]))[0];
+    text = src ? str(src["text"]) : "";
+  }
   if (num(r["enc"]) === 2 && sealed !== null) {
     text = owner === actorOf(ctx) ? openFactText(ctx as SealCtx, str(r["id"]), owner, sealed) : "";
   }

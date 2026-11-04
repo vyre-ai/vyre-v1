@@ -467,7 +467,7 @@ async function factDocs(ctx: MemCtx, access: Access, agentId: string | undefined
   const mine = ix ? currentPersonFacts(ctx, me) : null;
   const args: unknown[] = [now, me];
   // with the index: shared layers, plus the asker's own plain person-layer rows (a fact on their public profile); without it: everything the asker may read
-  let sql = `SELECT id, layer, owner_ref, agent_id, project_id, note_id, kind, text, enc, valid_from, learned_at, source_link, audience, place_kind, place_id, parent_kind, parent_id, source_person, msg_id, state FROM memory_facts WHERE status = 'current' AND (state IS NULL OR state <> 'source_removed') AND (valid_to IS NULL OR valid_to > ?) AND ${mine ? "(layer IN ('agent', 'project', 'space') OR (layer = 'person' AND owner_ref = ? AND enc <> 2))" : "(layer != 'person' OR owner_ref = ?)"}`;
+  let sql = `SELECT id, layer, owner_ref, agent_id, project_id, note_id, kind, COALESCE(NULLIF(text, ''), (SELECT s.text FROM memory_facts s WHERE s.id = memory_facts.promoted_from AND memory_facts.state = 'marker' AND s.status = 'current' AND s.trashed_at IS NULL AND s.layer <> 'person'), '') AS text, enc, valid_from, learned_at, source_link, audience, place_kind, place_id, parent_kind, parent_id, source_person, msg_id, state FROM memory_facts WHERE status = 'current' AND (state IS NULL OR state <> 'source_removed') AND (valid_to IS NULL OR valid_to > ?) AND ${mine ? "(layer IN ('agent', 'project', 'space') OR (layer = 'person' AND owner_ref = ? AND enc <> 2))" : "(layer != 'person' OR owner_ref = ?)"}`;
   if (agentId) { sql += " AND (agent_id = ? OR layer IN ('project', 'space'))"; args.push(agentId); }
   if (projectId) { sql += " AND (project_id = ? OR layer != 'project')"; args.push(projectId); }
   const paths = new Map<string, string | null>();
@@ -855,7 +855,14 @@ function applyPromotion(ctx: MemCtx, p: Promotion, by: string): Fact {
   const src = needFact(ctx, p.factId);
   // The person asked for the promotion, so their sealed text may be opened here to make the shared copy; nothing else leaves the sealed row.
   const text = src.text !== "" ? src.text : readFact({ seal: ctx.seal, principal: { kind: "person", id: src.ownerRef } }, rowsOf(ctx.db, "SELECT * FROM memory_facts WHERE id = ?", src.id)[0]!).text;
-  const copy = insertFact(ctx, {
+  // rule 6: a decision learned in a shared place goes wider as a marker that points back to it, never as a second copy of its words; it ends with its source
+  const marker = src.layer !== "person" && src.placeId !== null;
+  const copy = insertFact(ctx, marker ? {
+    layer: p.toLayer, ownerRef: ownerOfLayer(ctx, p.toLayer, by, p.agentId, p.projectId), agentId: p.toLayer === "agent" ? p.agentId : null, projectId: p.toLayer === "project" ? p.projectId : null,
+    kind: src.kind, text: "", validFrom: src.validFrom, sourceKind: src.sourceKind, sourceRef: src.sourceRef, sourcePerson: src.sourcePerson, proposedBy: p.requestedBy, status: "current",
+    lowRisk: src.lowRisk, promotedFrom: src.id, promotedBy: by, promotedAt: ctx.now(), links: [["promoted_from", src.id]], how: "promote", state: "marker",
+    place: { kind: src.placeKind!, id: src.placeId! }, ...(src.msgId ? { msgId: src.msgId } : {}),
+  } : {
     layer: p.toLayer, ownerRef: ownerOfLayer(ctx, p.toLayer, by, p.agentId, p.projectId), agentId: p.toLayer === "agent" ? p.agentId : null, projectId: p.toLayer === "project" ? p.projectId : null,
     kind: src.kind, text, validFrom: src.validFrom, sourceKind: src.sourceKind, sourceRef: src.sourceRef, sourcePerson: src.sourcePerson, proposedBy: p.requestedBy, status: "current",
     lowRisk: src.lowRisk, promotedFrom: src.id, promotedBy: by, promotedAt: ctx.now(), links: [["promoted_from", src.id]], how: "promote",
