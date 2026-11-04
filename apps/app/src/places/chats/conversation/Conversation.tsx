@@ -77,6 +77,7 @@ import type { Face as FaceModel, Message, Pending, SendKind, Thread } from "./mo
 import { LoadFailed, failureOf } from "../../../../../../ui/src/States/Loads.tsx";
 import { messageLink } from "../../../share/rows.ts";
 import { useZones } from "../../../../../../ui/src/Time/index.tsx";
+import { offsetMinAt, zoneName } from "../../../../../../lib/zones.ts";
 
 type ThreadOut = CapMap["threads.get"]["out"];
 type MessagesOut = CapMap["chat.messages.list"]["out"];
@@ -700,6 +701,7 @@ function ConversationView(): ReactElement {
       ) : null}
       <CatchUpLine onJump={(id) => setFocusId(id)} newest={live[live.length - 1]?.messageId ?? ""} credit={(id) => { const m = all.find((x) => x.author.id === id && onBehalfOf(x)); const ob = m ? onBehalfOf(m) : null; return ob ? `${nameOf(ob.person)} (Agent)` : undefined; }} />
       {note ? <Text testID="conversation-note" style={st.noteLine}>{note}</Text> : null}
+      {sharedChat ? <Text testID="zone-note" accessibilityLabel={`Times in this chat use ${zoneName(zones.space)}`} style={{ fontSize: 11.5, color: "var(--ink-3)" as string, textAlign: "center", paddingTop: 6, paddingHorizontal: 12 }}>{`Times here use ${zoneName(zones.space)}, the Space's time zone${zones.viewer !== zones.space && offsetMinAt(Date.now(), zones.viewer) !== offsetMinAt(Date.now(), zones.space) ? `. Hover a time to see yours.` : "."}`}</Text> : null}
       {thread.kind === "thread" ? <ThreadParent threadId={thread.parentThreadId} messageId={thread.parentMessageId} call={data.call as never} nameOf={nameOf} kindOf={data.kindOf} clock={data.clock()} count={thread.replyCount ?? all.length} writing={writingName} onOpen={thread.parentThreadId && thread.parentMessageId ? () => data.nav.openThread(thread.parentThreadId!, thread.parentMessageId!) : undefined} /> : null}
 
       {liveView ? null : (

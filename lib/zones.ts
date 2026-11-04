@@ -205,3 +205,9 @@ export function dueText(at: number, z: Zones): string {
   const day = dateIn(at, z.viewer) !== dateIn(at, z.space) ? `${DAYS[partsIn(at, z.viewer).dow]} ` : "";
   return `${base} (${day}${clockIn(at, z.viewer)} your time)`;
 }
+
+/** The live example in a zone-change confirm: what this moment reads now, and what it will read: "Right now: Thu 5 Nov, 4:16 PM Pakistan Time. It will read Thu 5 Nov, 4:16 AM Pacific Time." */
+export function zoneExample(at: number, from: string, to: string): string {
+  const line = (zone: string): string => `${dateIn(at, zone)}, ${clockIn(at, zone)} ${zoneName(zone, at)}`;
+  return `${line(from)} now reads ${line(to)}.`;
+}

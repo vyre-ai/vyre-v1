@@ -17,6 +17,8 @@ import { SettingRowFor, useChange } from "./rows.tsx";
 import { useSaved } from "./saved.tsx";
 import { VoiceRows } from "./VoiceRows.tsx";
 import { Choice, Field, Glyph, Section, SettingsRow, SmallButton, Switch, Value, pointer } from "./ui.tsx";
+import { useZones } from "../../../../../ui/src/Time/index.tsx";
+import { zoneName, zoneCity } from "../../../../../lib/zones.ts";
 import { useOpenConnect } from "../../shell/connect/context.ts";
 import { statusNote, useSpaceAi } from "../../ai-signin/SpaceAiStatus.tsx";
 
@@ -50,6 +52,7 @@ export function ProfilePage({ rows, found }: PageProps): ReactElement {
   }, [tz?.value]); // eslint-disable-line react-hooks/exhaustive-deps
   const c = (contact?.value ?? {}) as { email?: string; phone?: string };
   const here = data.spaces.find((sp) => sp.current);
+  const zones = useZones();
   const role = here?.kind === "personal" ? "" : here?.role ?? "";   // no role labels in a Personal Space
   const line = [str(handle) ? `@${str(handle)}` : "", role, str(title)].filter(Boolean).join(" · ");
   const before: ReactElement[] = [];
@@ -80,6 +83,11 @@ export function ProfilePage({ rows, found }: PageProps): ReactElement {
       </Section>
       {assistantId() ? <AssistantLook /> : null}
       {before}
+      {here?.kind === "personal" ? null : (
+        <Section title="Shared time">
+          <SettingsRow id="space.timezone" label="Space time zone" first sub="Set by an admin in Console. Shared places read in it and show your own time beside it." control={<Value text={`${zoneName(zones.space)}, ${zoneCity(zones.space)}`} testID="space-timezone-readonly" />} />
+        </Section>
+      )}
       {contact ? (
         <Section title="Contact">
           <SettingsRow id="profile.contact" label="Email" first found={found === "profile.contact"} control={<View style={{ alignItems: "flex-end", gap: 6 }}><Field value={c.email ?? ""} label="Email" placeholder="Add an email" width={260} testID="ctl-profile.contact.email" onCommit={(v) => void change(contact, { ...c, email: v })} /><ContactVerify channel="email" value={(c.email ?? "").trim()} /></View>} />

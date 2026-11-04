@@ -12,7 +12,7 @@ import { useConsoleData } from '../shell/data.tsx';
 import { Actions, Button, Note, ReadState, Select, useAction, useRead } from './shared.tsx';
 import { useMenu } from '../../../../../ui/src/Menu/index.tsx';
 import { ZonePicker } from '../../../../../ui/src/ZonePicker/index.tsx';
-import { deviceZone, zoneName } from '../../../../../lib/zones.ts';
+import { deviceZone, zoneExample, zoneName } from '../../../../../lib/zones.ts';
 import { refreshZones } from '../../shell/zones/ZonesHost.tsx';
 import { skins, system } from '../../../../../ui/src/tokens/skins.ts';
 export function Updates(): ReactElement {
@@ -68,6 +68,7 @@ export function SpaceProfile(): ReactElement {
     const action = useAction(result.refresh);
     // the Space's own time zone: chosen first, saved after one line says what it changes
     const [pendingZone, setPendingZone] = useState<string | null>(null);
+    const [zoneUndo, setZoneUndo] = useState<{ was: string; now: string; at: number } | null>(null);
     useEffect(() => { const space = result.data?.space; if (space) {
         setName(space.name);
         setLegal(space.legalName ?? '');
@@ -90,7 +91,8 @@ export function SpaceProfile(): ReactElement {
         <Line index={1}><Row id="space-name" title="Name" trailing={<RowField label="Space name" testID="infra-space-name" value={name} onChange={setName} onCommit={saveName} width={220}/>}/></Line>
         <Line index={2}><Row id="space-legal" tall title="Legal name" note="Shown on public pages and emails" trailing={<RowField label="Legal name" testID="infra-space-legal" value={legal} onChange={setLegal} onCommit={saveLegal} width={260}/>}/></Line>
         <Line index={3}><Row id="space-timezone-now" tall title="Space time zone" note="Every shared place reads times in it. People see their own time beside it." trailing={<ZonePicker label="Space time zone" testID="infra-space-timezone" value={pendingZone ?? space.timezone ?? deviceZone()} disabled={action.busy} onChange={(zone) => setPendingZone(zone === (space.timezone ?? '') ? null : zone)}/>}/></Line>
-        {pendingZone !== null ? <Line index={4}><Row id="space-timezone-confirm" tall title={`Check-ins, due times and schedules will read in ${zoneName(pendingZone)}. Deadlines already set keep their moment.`} trailing={<View style={st.inline}><Button label="Cancel" testID="infra-space-timezone-cancel" onPress={() => setPendingZone(null)}/><Button label="Change time zone" testID="infra-space-timezone-save" disabled={action.busy} onPress={() => { const zone = pendingZone; setPendingZone(null); void action.run('spaces.timezone.set', { timezone: zone }, 'Space time zone saved.').then(() => refreshZones()); }}/></View>}/></Line> : null}
+        {pendingZone !== null ? <Line index={4}><Row id="space-timezone-confirm" tall title={`Check-ins, due times and schedules will read in ${zoneName(pendingZone)}. Deadlines already set keep their moment.`} note={zoneExample(Date.now(), space.timezone ?? deviceZone(), pendingZone)} trailing={<View style={st.inline}><Button label="Cancel" testID="infra-space-timezone-cancel" onPress={() => setPendingZone(null)}/><Button label="Change time zone" testID="infra-space-timezone-save" disabled={action.busy} onPress={() => { const zone = pendingZone, was = space.timezone ?? deviceZone(); setPendingZone(null); void action.run('spaces.timezone.set', { timezone: zone }, 'Space time zone saved.').then((out) => { refreshZones(); if (out) setZoneUndo({ was, now: zone, at: Date.now() }); }); }}/></View>}/></Line> : null}
+        {zoneUndo !== null && pendingZone === null ? <Line index={4}><Row id="space-timezone-saved" tall title={`Space time zone is now ${zoneName(zoneUndo.now)}.`} note="Recorded in the audit log: changed by you, just now." trailing={<Button label="Undo" testID="infra-space-timezone-undo" disabled={action.busy} onPress={() => { const back = zoneUndo.was; setZoneUndo(null); void action.run('spaces.timezone.set', { timezone: back }, 'Put back.').then(() => refreshZones()); }}/>}/></Line> : null}
         <Line index={5}><Row id="space-address-now" title="Address" trailing={<View style={st.inline}>{mono(address)}<Button label={copied ? 'Copied' : 'Copy'} testID="space-address-copy" onPress={() => { copyAddress(address); setCopied(true); setTimeout(() => setCopied(false), 1500); }}/></View>}/></Line>
     </Group>{action.note ? <Note>{action.note}</Note> : null}</Section>
     <Section title="Defaults for new members"><Group>

@@ -249,8 +249,13 @@ test("Space time zone: pick a city, read one line of what it changes, then save 
     assert.doesNotMatch(p.text(), /will read in Pacific Time/);
     await p.press("infra-space-timezone");
     await p.press("menu-item-Pacific Time, Los Angeles, " + new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit", timeZone: "America/Los_Angeles" }).format(new Date()));
+    assert.match(p.text(), /Pakistan Time now reads .* Pacific Time\./, "a live example of this moment, before and after");
     await p.press("infra-space-timezone-save");
     assert.deepEqual(p.called("spaces.timezone.set").at(-1)!.input, { timezone: "America/Los_Angeles" });
+    assert.match(p.text(), /Space time zone is now Pacific Time\./);
+    assert.match(p.text(), /Recorded in the audit log: changed by you, just now\./);
+    await p.press("infra-space-timezone-undo");
+    assert.deepEqual(p.called("spaces.timezone.set").at(-1)!.input, { timezone: "Asia/Karachi" }, "Undo puts the old zone back");
     assert.equal(p.called("spaces.update").length, 0, "the member default is not touched");
   } finally { p.restore(); }
 });

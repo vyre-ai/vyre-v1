@@ -123,3 +123,12 @@ test("Profile: Your time zone is a city picker; choosing a city saves profile.ti
     assert.deepEqual(calls("settings.set").filter((c) => (c.input as { key: string }).key === "profile.timezone").at(-1)!.input, { key: "profile.timezone", value: device });
   } finally { restore(); }
 });
+
+test("Profile: the Space's time zone is a read-only row with where to change it", async () => {
+  const { root, restore } = await open("profile");
+  try {
+    assert.match(textOf(root), /Space time zone/);
+    assert.match(textOf(root), /Set by an admin in Console/);
+    assert.ok(find(root, "space-timezone-readonly"));
+  } finally { restore(); }
+});
