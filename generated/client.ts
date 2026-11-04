@@ -414,6 +414,7 @@ export function createClient(transport: Transport) {
         ask: call("chat.question.ask", 1),
       },
       react: call("chat.react", 1),
+      read_floor: call("chat.read_floor", 1),
       recent: call("chat.recent", 1),
       remember: call("chat.remember", 1),
       reply_details: call("chat.reply_details", 1),

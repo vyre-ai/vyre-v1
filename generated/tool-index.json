@@ -1424,6 +1424,12 @@
     },
     {
       "deferred": false,
+      "name": "chat_read_floor",
+      "summary": "Where the caller's reading of one chat starts: the time they were added without Include earlier messages, or nothing when they read all of it. The engine tells an agent so before it answers them",
+      "toolset": "chats"
+    },
+    {
+      "deferred": false,
       "name": "chat_recent",
       "summary": "Sidebar Recent: Starred, Today, Yesterday, Earlier with unread counts and the working pulse, then the chats I archived (they are in no other group)",
       "toolset": "chats"

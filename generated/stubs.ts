@@ -414,6 +414,7 @@ export function stubs(ctx: CallCtx) {
         ask: call("chat.question.ask"),
       },
       react: call("chat.react"),
+      read_floor: call("chat.read_floor"),
       recent: call("chat.recent"),
       remember: call("chat.remember"),
       reply_details: call("chat.reply_details"),

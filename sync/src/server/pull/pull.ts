@@ -10,7 +10,7 @@ import type { Change, FieldVal, Hide, PullReq, PullRes } from "../../protocol.ts
 import type { Catalog } from "./catalog.ts";
 import type { Cell, Cells } from "./fold.ts";
 import { purgeIfNarrowed } from "./classify.ts";
-import { ScopeCache, Viewer, Window } from "./scope.ts";
+import { MemberFloor, ScopeCache, Viewer, Window } from "./scope.ts";
 import type { RowRec, Who } from "./scope.ts";
 
 export interface PullDeps {
@@ -194,7 +194,7 @@ export function pullChanges(d: PullDeps, who: Who, req: PullReq, trace = "0".rep
     where.push(`entity IN (${want.map(() => "?").join(", ")})`); args.push(...want);
   } else if (excluded.length) { where.push(`entity NOT IN (${excluded.map(() => "?").join(", ")})`); args.push(...excluded); }
   const now = d.now();
-  const viewer = new Viewer({ cache: d.cache, who, now, phoneCeiling: d.phoneCeiling() });
+  const viewer = new Viewer({ cache: d.cache, who, now, phoneCeiling: d.phoneCeiling(), floor: new MemberFloor(db) });
   const window = new Window(db, now, (entity, id) => d.keep(who.person, entity, id));
   // a field this device cached and may no longer hold is not removed by any patch: purge it and let it resnapshot, before any data goes back
   if (purgeIfNarrowed(d, who, viewer)) return { epoch: deviceEpochOf(db, who.person, who.device), changes: [], hide: [], next: req.cursor, more: false, serverHlc, reset: "purge" };

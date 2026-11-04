@@ -101,7 +101,50 @@ export class ScopeCache {
   }
 }
 
-export interface ViewerOpts { cache: ScopeCache; who: Who; now: number; phoneCeiling: number }
+/**
+ * Where a person's reading of a chat starts (owner ruling 4 Nov 2026): a person added to a private chat without "Include earlier messages" has a `fromAt` on their thread_member row. A message made
+ * before it never leaves the server for that person's devices: the rows, and the attachments, reactions and pins that are fields of them, are held back here, in the one place every pull and snapshot
+ * asks. The lane reads only its own index (sync_rows): the member row of the chat's root (a thread under a chat answers to the chat's), found through the thread rows' parent.
+ */
+export class MemberFloor {
+  private readonly db: Tx;
+  private roots = new Map<string, string>();
+  private floors = new Map<string, number>();
+  constructor(db: Tx) { this.db = db; }
+
+  private cell(fields: string, name: string): unknown { try { return (JSON.parse(fields) as Record<string, { v?: unknown } | undefined>)[name]?.v; } catch { return undefined; } }
+
+  private rootOf(thread: string): string {
+    const hit = this.roots.get(thread);
+    if (hit !== undefined) return hit;
+    let cur = thread;
+    for (let i = 0; i < 8; i++) {
+      const row = this.db.get<{ fields: string }>("SELECT fields FROM sync_rows WHERE entity = 'thread' AND id = ? AND deleted = 0", cur);
+      const up = row ? this.cell(row.fields, "parentThreadId") : undefined;
+      if (typeof up !== "string" || up === "") break;
+      cur = up;
+    }
+    this.roots.set(thread, cur);
+    return cur;
+  }
+
+  /** The earliest time this person reads in this chat; 0 when all of it. */
+  of(person: string, thread: string): number {
+    const root = this.rootOf(thread);
+    const key = `${person}\0${root}`;
+    const hit = this.floors.get(key);
+    if (hit !== undefined) return hit;
+    const row = this.db.get<{ fields: string }>(
+      "SELECT fields FROM sync_rows WHERE entity = 'thread_member' AND deleted = 0 AND json_extract(fields, '$.thread.v') = ? AND json_extract(fields, '$.principal.v') = ? LIMIT 1", root, person,
+    );
+    const at = row ? this.cell(row.fields, "fromAt") : undefined;
+    const floor = typeof at === "number" && at > 0 ? at : typeof at === "string" && Date.parse(at) > 0 ? Date.parse(at) : 0;
+    this.floors.set(key, floor);
+    return floor;
+  }
+}
+
+export interface ViewerOpts { cache: ScopeCache; who: Who; now: number; phoneCeiling: number; floor?: MemberFloor }
 
 /** Everything one request needs to decide visibility. Cheap to make; scopes come from the shared cache. */
 export class Viewer {
@@ -135,7 +178,23 @@ export class Viewer {
     return ctx;
   }
 
+  /** A message made before this person's start in its chat: held back with everything that hangs on it. */
+  private beforeStart(sc: EntityScope, cells: Cells): boolean {
+    if (!this.o.floor || sc.cfg.key !== "message") return false;
+    const thread = cells["thread"]?.v;
+    if (typeof thread !== "string") return false;
+    const floor = this.o.floor.of(this.o.who.person, thread);
+    if (floor <= 0) return false;
+    const made = cells["createdAt"]?.v;
+    const at = typeof made === "number" ? made : typeof made === "string" ? Date.parse(made) : NaN;
+    return Number.isFinite(at) && at < floor;
+  }
+
   visible(sc: EntityScope, row: RowRec, cells: Cells): boolean {
+    return this.sees(sc, row, cells) && !this.beforeStart(sc, cells);
+  }
+
+  private sees(sc: EntityScope, row: RowRec, cells: Cells): boolean {
     if (sc.pred.t === "false") return false;
     if ((row.enc === 2 || row.vis === "owner" || row.vis === "private") && row.owner_id !== this.o.who.person) return false;
     if (row.label > sc.cap) return false;

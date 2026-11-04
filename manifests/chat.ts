@@ -108,7 +108,7 @@ export default defineManifest({
       kind: 'choice', title: 'text', starter: 'person', recordId: 'text', folderId: 'text', scopeType: 'text', scopeId: 'text', channelId: 'text',
       parentThreadId: 'text', parentMessageId: 'text', listed: 'checkbox', modePlan: 'checkbox', createdAt: 'datetime', closedAt: 'datetime',
     }, 'thread', { ownerField: 'starter', fts: ['title'], sync: { window: { recentCount: 200, starred: true } } }),
-    entity('thread_member', 'chat_thread_member', 'thm_', { thread: 'text', principal: 'text', role: 'choice' }, 'thread', { parent: { entity: 'thread', field: 'thread' }, parentField: 'thread' }),
+    entity('thread_member', 'chat_thread_member', 'thm_', { thread: 'text', principal: 'text', role: 'choice', fromAt: 'datetime' }, 'thread', { parent: { entity: 'thread', field: 'thread' }, parentField: 'thread' }),
     entity('thread_agent', 'chat_thread_agent', 'tha_', {
       thread: 'text', agentId: 'text', mode: 'choice', model: 'text', provider: 'text', effort: 'choice', accountRef: 'text', addedBy: 'text', watches: 'checkbox',
     }, 'thread', { parent: { entity: 'thread', field: 'thread' }, parentField: 'thread' }),
@@ -221,6 +221,9 @@ export default defineManifest({
       in: { ...threadT, agentId: id.agent, note: t.opt(t.str({ description: 'A line for the agent, shown in the chat' })) },
       out: { messageId: id.message, delivered: t.enm('engine', 'outside_queue') }, on: ['thread', '/threadId'], level: 'use', idem: 'none', risk: 'low', emits: ['message.received', 'agent.engaged'], tool: 'chats', offline: 'online',
       errors: ['validation.not_found', 'validation.bad_input', 'permission.no_grant', 'validation.precondition_failed'],
+    }),
+    read('chat.read_floor', 'Where the caller\'s reading of one chat starts: the time they were added without Include earlier messages, or nothing when they read all of it. The engine tells an agent so before it answers them', {
+      in: threadT, out: { fromAt: t.opt(t.ts()) }, on: ['thread', '/threadId'], tool: 'chats', label: 'filter', agent: { planMode: 'allowed' },
     }),
     read('chat.history.page', 'Older messages and tool calls of THIS chat before a given message number, at most 100 at a time, oldest first inside the page; the agent reads further back than the window it was given. It refuses any other chat than the one the agent is working in', {
       in: { ...threadT, before: t.int({ minimum: 1, description: 'The message number (threadSeq) of the oldest message you can see' }), limit: t.opt(t.int({ minimum: 1, maximum: 100 })) },

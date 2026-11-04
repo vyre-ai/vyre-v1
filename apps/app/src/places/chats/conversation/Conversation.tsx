@@ -678,7 +678,7 @@ function ConversationView(): ReactElement {
         <View testID="channel-offer" style={st.offer}>
           <Face name={nameOf(personMention.id)} seedId={personMention.id} kind="person" size={18} />
           <Text style={st.offerText}>{`${nameOf(personMention.id).split(" ")[0]} isn't in this chat.`}</Text>
-          <TextButton label={`Add ${nameOf(personMention.id).split(" ")[0]}`} testID="channel-add" onPress={() => void act.addPerson(data, personMention.id, offerEarlier).then(() => { setOfferEarlier(false); say(`${nameOf(personMention.id).split(" ")[0]} was added. This is now a group chat.`); }, fail("Could not add them."))} />
+          <TextButton primary label={`Add ${nameOf(personMention.id).split(" ")[0]}`} testID="channel-add" onPress={() => void act.addPerson(data, personMention.id, offerEarlier).then(() => { setOfferEarlier(false); say(`${nameOf(personMention.id).split(" ")[0]} was added. This is now a group chat.`); }, fail("Could not add them."))} />
           <TextButton label="Start a channel instead" testID="channel-start" onPress={() => void act.startChannel(data, personMention.id, data.newKey()).then(() => say("Channel started, linked back to this chat."), fail("Could not start the channel."))} />
           <Text testID="channel-offer-sees" style={st.offerText}>{offerEarlier ? "They will read the whole chat." : "They will read from now on. Earlier messages stay hidden."}</Text>
           <TextButton link label={offerEarlier ? "Hide earlier messages" : "Include earlier messages"} testID="channel-earlier" onPress={() => setOfferEarlier((x) => !x)} />

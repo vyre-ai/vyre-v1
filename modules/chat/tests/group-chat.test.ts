@@ -7,6 +7,7 @@ import { handlers } from "../impl.ts";
 import { DANA, INTAKE, MAYA, LEO, contractErrors, harness as baseHarness } from "../fixtures/harness.ts";
 import type { Harness } from "../fixtures/harness.ts";
 import { ensure, insertThread, addMember } from "../projections.ts";
+import { ensureTranscript } from "../handlers/g24d.ts";
 import { chatAudience, othersRead } from "../../../lib/audience.ts";
 
 type Fn = (ctx: Harness["ctx"], input: any) => Promise<any>;
@@ -121,4 +122,21 @@ test("an agent the chat made is shown to everyone who reads the chat, whoever ma
   assert.ok(log.shared.some((g) => g["subject"].id === LEO), "a joiner sees it");
   await h["threads.members.remove"]!(hn.ctx, { threadId: id, personId: LEO });
   assert.deepEqual(log.unshared.map((g) => [g["subject"].id, g["source"]]), [[LEO, `chat:${id}`]], "and a leaver does not");
+});
+
+test("the file export of a chat (its transcript) and the channel stream hold the same line: nothing from before a newcomer's start", async () => {
+  const { hn } = world();
+  const id = await chatOf(hn);
+  ensureTranscript(hn.db);
+  const row = (idx: number, at: number, text: string) => hn.db.run("INSERT INTO chat_transcript_row (thread, idx, turnId, author, role, kind, content, at) VALUES (?, ?, 'trn_1', ?, 'user', 'text', ?, ?)", id, idx, DANA, JSON.stringify(text), at);
+  const t0 = hn.clock.t;
+  row(1, t0, "the old retainer in the transcript");
+  hn.advance(5_000);
+  await h["threads.members.add"]!(hn.ctx, { threadId: id, personId: MAYA });
+  hn.advance(5_000);
+  row(2, hn.clock.t, "after Maya joined");
+  const maya = (await h["chat.transcript.read"]!(hn.person(MAYA), { threadId: id })).markdown as string;
+  assert.ok(!maya.includes("the old retainer"), "not in her export");
+  assert.ok(maya.includes("after Maya joined"));
+  assert.ok((await h["chat.transcript.read"]!(hn.ctx, { threadId: id })).markdown.includes("the old retainer"), "Dana's export still has it");
 });

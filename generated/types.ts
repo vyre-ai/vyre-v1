@@ -7006,6 +7006,12 @@ export type ChatReactOut = {
       by: Array<string>;
     }>;
 };
+export type ChatReadFloorIn = {
+  threadId: string;
+};
+export type ChatReadFloorOut = {
+  fromAt?: number;
+};
 export type ChatRecentIn = {
   filter?: "all" | "unread" | "people" | "agents";
 };
@@ -40987,6 +40993,7 @@ export interface CapMap {
   "chat.post": { in: ChatPostIn; out: ChatPostOut };
   "chat.question.ask": { in: ChatQuestionAskIn; out: ChatQuestionAskOut };
   "chat.react": { in: ChatReactIn; out: ChatReactOut };
+  "chat.read_floor": { in: ChatReadFloorIn; out: ChatReadFloorOut };
   "chat.recent": { in: ChatRecentIn; out: ChatRecentOut };
   "chat.remember": { in: ChatRememberIn; out: ChatRememberOut };
   "chat.reply_details": { in: ChatReplyDetailsIn; out: ChatReplyDetailsOut };
