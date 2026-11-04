@@ -29,7 +29,7 @@ export async function writeShared(ctx: MemCtx, n: SharedIn): Promise<SharedOut> 
 /** The same with the place already known, so the per-turn learn pass (which cannot wait) writes through the one door too. */
 export function writeSharedWith(ctx: MemCtx, n: SharedIn, place: Place): SharedOut {
   const kind = kindOf(n.kind);
-  const common: NewFact = { ...n, kind, place: { kind: place.kind, id: place.id, ...(place.parent ? { parent: place.parent } : {}) }, placeThread: n.threadId, audience: n.heard };
+  const common: NewFact = { ...n, kind, place: { kind: place.kind, id: place.id, ...(place.parent ? { parent: place.parent } : {}) }, placeThread: place.thread ?? n.threadId, audience: n.heard };
   const same = neighbours(ctx, n, place.kind, place.id);
   const dup = same.find((f) => normal(f.text) === normal(n.text));
   if (dup) return { fact: dup, deduped: true };
