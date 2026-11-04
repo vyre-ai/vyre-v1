@@ -343,7 +343,7 @@ test("an agent with a project role is a teammate there; a role or an automation 
 test("only someone who manages the project can change who is on it, and the same key answers the same", async () => {
   const h = harness();
   const p = await mkProject(h);
-  h.allowOnly((a) => a.level === "view" || a.level === "edit");
+  h.allowOnly((a) => a.perm !== "console.access" && (a.level === "view" || a.level === "edit"));   // no Manage, and not a Space admin
   await refused(run(h, "projects.members.set", { projectId: p.projectId, principal: MAYA, role: "member" }), "permission.no_grant");
   await refused(run(h, "projects.members.remove", { projectId: p.projectId, principal: DANA }), "permission.no_grant");
   h.allowOnly(() => true);
@@ -576,4 +576,16 @@ test("a person given a role on a project is added to its invite-only channel (so
   assert.ok(h.world.channelPeople.get(p.channelId)?.has(MAYA), "Maya is in the project's channel");
   await run(h, "projects.members.remove", { projectId: p.projectId, principal: MAYA });
   assert.ok(!h.world.channelPeople.get(p.channelId)?.has(MAYA), "and out of it when she leaves the project");
+});
+
+test("a Space owner or admin may set and remove roles whoever leads the project; a person with no Manage and no Console right may not", async () => {
+  const h = harness();
+  const p = await mkProject(h);
+  await run(h, "projects.members.set", { projectId: p.projectId, principal: BOT, role: "lead" });
+  h.allowOnly((a) => a.perm === "console.access");   // no Manage on the project itself, only the Console right
+  const set = await run(h, "projects.members.set", { projectId: p.projectId, principal: MAYA, role: "member" });
+  assert.equal(set.member.role, "member", "the admin names a member though an agent leads");
+  assert.deepEqual(await run(h, "projects.members.remove", { projectId: p.projectId, principal: MAYA }), { removed: true });
+  h.allowOnly((a) => a.perm === null && a.level === "view");   // can see it, cannot manage, no Console right
+  await assert.rejects(() => run(h, "projects.members.set", { projectId: p.projectId, principal: MAYA, role: "member" }), /Manage/);
 });
