@@ -58,6 +58,7 @@ export const handlers: Handlers<HandlerCtx> = {
   "chat.plan.step_done": async (ctx) => { throw new VyreErr(notImplemented("chat.plan.step_done", ctx.trace)); },
   "chat.post": async (ctx) => { throw new VyreErr(notImplemented("chat.post", ctx.trace)); },
   "chat.question.ask": async (ctx) => { throw new VyreErr(notImplemented("chat.question.ask", ctx.trace)); },
+  "chat.question.withdraw": async (ctx) => { throw new VyreErr(notImplemented("chat.question.withdraw", ctx.trace)); },
   "chat.react": async (ctx) => { throw new VyreErr(notImplemented("chat.react", ctx.trace)); },
   "chat.recent": async (ctx) => { throw new VyreErr(notImplemented("chat.recent", ctx.trace)); },
   "chat.remember": async (ctx) => { throw new VyreErr(notImplemented("chat.remember", ctx.trace)); },

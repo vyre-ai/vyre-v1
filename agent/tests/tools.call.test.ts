@@ -168,3 +168,27 @@ test("an unknown tool is a validation error and never reaches invoke", async () 
   assert.equal(calls.length, 0);
 });
 
+
+test("a probe call is refused before anything runs: example.com, a bare test and __probe_none__ reach no capability and come back with the plain refusal; a real call still works", async () => {
+  const loaded = loadGenerated();
+  const invoked: string[] = [];
+  const session = createToolSession({ catalog: loaded.catalog, defaults: loaded.defaults, levelFor: () => "manage", traceId: () => "trace_fixed", invoke: async (cap) => { invoked.push(cap); return { status: "ok", output: {}, traceId: "t" } as never; } });
+  const probes: Array<[string, unknown]> = [
+    ["records_get", { recordId: "__probe_none__" }],
+    ["ask_question", { prompt: "test", mode: "free" }],
+    ["ask_question", { prompt: "Is example.com the right site for the firm?", mode: "free" }],
+    ["mail_send", { to: ["client@example.com"], subject: "Retainer", body: "Dear Lee." }],
+    ["records_create", { type: "lead", fields: { name: "foo" } }],
+  ];
+  for (const [tool, input] of probes) {
+    const out = await session.call(ctx(), tool, input);
+    assert.equal(out.kind, "error", `${tool} ${JSON.stringify(input)}`);
+    if (out.kind !== "error") continue;
+    assert.equal(out.error.code, "validation.bad_input");
+    assert.match(out.error.message, /Don't call tools to test them\. Call with the real thing the person asked for, or don't call\./);
+  }
+  assert.deepEqual(invoked, [], "nothing reached a capability: no card, hold, task or message");
+  const real = await session.call(ctx(), "records_get", { type: "lead", recordId: "rec_01a1a392662d48efb1762dffc795f3a3" });
+  assert.equal(real.kind, "result");
+  assert.deepEqual(invoked, ["records.get"]);
+});

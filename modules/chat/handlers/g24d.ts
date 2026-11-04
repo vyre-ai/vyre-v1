@@ -300,6 +300,28 @@ const MAX_OPTIONS = 20;
 const MAX_STEPS = 50;
 const MAX_STEP = 2_000;
 
+/** Under three words, or only a probe word: nothing worth a card on someone's list. */
+export function isProbe(prompt: string, hasChoices = false): boolean {
+  const words = prompt.toLowerCase().replace(/[^\p{L}\p{N}\s']/gu, " ").split(/\s+/).filter((w) => w !== "");
+  // a choice between options may be short ("Which court?"); a free question needs a sentence
+  return (words.length < 3 && !(hasChoices && words.length >= 1)) || words.every((w) => /^(test|testing|tests|hi|hello|hey|ping|asdf|foo|bar|ok|okay)$/.test(w));
+}
+
+/** The agent's own question taken back: its turn ended without waiting for it. The card closes as withdrawn and its task is closed behind it. Only the agent that asked (or a person in the chat) may. */
+export async function questionWithdraw(ctx: ChatCtx, input: { threadId: string; blockId: string }): Promise<{ withdrawn: boolean }> {
+  ensure(ctx.db);
+  const block = blockBy(ctx.db, input.blockId);
+  const t = threadBy(ctx.db, input.threadId);
+  if (!block || !t || block.thread !== t.id || block.type !== "question") raise(ctx, "validation.not_found", "That question does not exist.");
+  const author = messageBy(ctx.db, block.message)?.author;
+  if (ctx.principal.kind === "agent" ? author !== ctx.principal.id : !canSpeak(ctx, t)) raise(ctx, "permission.no_grant", "Only the one who asked can take a question back.");
+  if (block.state === "done") return { withdrawn: false };
+  ctx.db.run("UPDATE chat_block SET state = 'done', answer = NULL, answeredBy = NULL, answeredAt = ? WHERE id = ?", ctx.now(), block.id);
+  patchBlockInMessage(ctx.db, block.message, block.id, (b) => ({ ...b, state: "done", data: { ...(b["data"] as Record<string, unknown>), withdrawn: true } }));
+  ctx.emit("block.withdrawn", t.id, { threadId: t.id, blockId: block.id });
+  return { withdrawn: true };
+}
+
 export async function questionAsk(
   ctx: ChatCtx,
   input: { threadId: string; prompt: string; mode: "single" | "multi" | "free"; options?: Array<{ key: string; label: string; detail?: string }>; allowOther?: boolean; card?: { kind: "terminal"; command: string; host?: string; risk?: string }; idempotencyKey?: string },
@@ -308,6 +330,8 @@ export async function questionAsk(
   const t = open(ctx, input.threadId);
   const prompt = input.prompt.trim();
   if (prompt === "" || prompt.length > MAX_PROMPT) raise(ctx, "validation.bad_input", `A question needs words, at most ${MAX_PROMPT} characters.`);
+  // a question is a card and a task on a person's list: it needs a real question, not a probe ("test", "hi", one word)
+  if (isProbe(prompt, (input.options ?? []).length >= 1)) raise(ctx, "validation.bad_input", "Ask a real question: say in a sentence what you need to know. A question of one or two words, or a test, is not put on anyone's list.");
   const options = input.options ?? [];
   if (input.mode === "free" && options.length > 0) raise(ctx, "validation.bad_input", "A free-text question has no options.");
   if (input.mode !== "free") {
@@ -545,6 +569,7 @@ export const g24dHandlers = {
   "chat.plan.reject": planReject,
   "chat.plan.step_done": planStepDone,
   "chat.question.ask": questionAsk,
+  "chat.question.withdraw": questionWithdraw,
   "chat.helper.start": helperStart,
   "chat.helpers.list": helpersList,
   "chat.handoff": handoff,

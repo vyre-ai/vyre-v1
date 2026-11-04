@@ -147,6 +147,8 @@ export type EngineEvent =
   | { type: "turn.waiting"; threadId: string; reason: "hop_limit"; messageId: string }
   /** A tool call was held at the Gate (ARCH 6.7): the turn parks on the approval task and a wake continues it once the task is answered. */
   | { type: "turn.waiting"; threadId: string; reason: "approval"; turnId: string; agentId: string; taskId: string; runId?: string }
+  /** A parked turn is over: its wake started as a turn of its own. */
+  | { type: "turn.resumed"; threadId: string; turnId: string; agentId: string }
   | { type: "turn.completed"; threadId: string; turnId: string; agentId: string }
   | { type: "turn.failed"; threadId: string; turnId: string; agentId: string; code: string; /** a turn a dead host left (code host_lost): its queue row and whom it ran for */ qseq?: number; asker?: string; /** what the engine knows of the failure, for the log only: never stored in an event, never shown to the person, scrubbed by the bridge before it is written */ message?: string }
   | { type: "turn.cancelled"; threadId: string; turnId: string; agentId: string }

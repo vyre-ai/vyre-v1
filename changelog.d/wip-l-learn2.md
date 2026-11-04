@@ -53,3 +53,12 @@
 - Make task and Remember under an agent's answer in a chat of people are drawn as buttons with an edge and an icon, so they no longer read as stray text.
 - Audit rows and the Console overview read as sentences: "Priya Raman assigned a role to Omar Haddad", "Intake revealed the record Rivera engagement, for Priya Raman", in place of "role changed Omar". The sentence is made in lib/words/actions.ts from the act's name, in the past tense, with no dots, underscores or ids; a guard test covers every audited capability.
 - Make task and Remember for an agent's answer in a chat of people sit in the message's hover bar next to Copy, Reply in thread, Fork and Pin (and Make a Task and Remember in the long-press sheet on a phone). Nothing of them is drawn at rest.
+
+## What's new (Agents)
+
+- An agent that asks a question in a chat now stops there: its turn waits for the answer and makes no further model call. A question taken back by its agent (chat.question.withdraw) closes its card and its task leaves Needs you. A turn that ends without waiting takes back any question it left open. A question of fewer than three words, or only "test", is refused with a plain message.
+- A turn parked on a hold or a question now records the usage it had up to that point and is closed when its wake starts, so no turn is left running with nothing counted.
+- Text that comes after a tool step starts a new paragraph, so a reply no longer reads "Let me look.Found 3 leads."
+- No tool is called to see if it works: a call whose arguments are placeholders (example.com, a bare "test", foo and bar, __probe ids, lorem ipsum) is refused before it runs, with "Don't call tools to test them. Call with the real thing the person asked for, or don't call." No card, hold, task or message reaches the chat. Every agent is told the same in its rules.
+- On update, a one-time clean-up closes open question cards and drops holds whose content is a placeholder, and their tasks leave Needs you. Nothing else is touched.
+- The Notes guidance moved from working-in-vyre into its own small skill, working-with-notes, so working-in-vyre stays under its line cap.

@@ -6841,6 +6841,13 @@ export type ChatQuestionAskOut = {
   blockId: string;
   messageId: string;
 };
+export type ChatQuestionWithdrawIn = {
+  threadId: string;
+  blockId: string;
+};
+export type ChatQuestionWithdrawOut = {
+  withdrawn: boolean;
+};
 export type ChatReactIn = {
   messageId: string;
   threadId: string;
@@ -11208,7 +11215,7 @@ export type EngineTurnRecordIn = {
   threadId: string;
   turnId: string;
   agentId: string;
-  phase: "started" | "completed" | "failed" | "cancelled";
+  phase: "started" | "waiting" | "completed" | "failed" | "cancelled";
   qseq: number;
   asker?: string;
   engine?: string;
@@ -14452,6 +14459,7 @@ export type GoalsActivityOut = {
       text: string;
       by?: string;
       ref?: string;
+      tpl?: string;
     }>;
 };
 export type GoalsAskIn = {
@@ -15227,6 +15235,7 @@ export type GoalsGetOut = {
       text: string;
       by?: string;
       ref?: string;
+      tpl?: string;
     }>;
   readings: Array<{
       at: number;
@@ -40516,6 +40525,7 @@ export interface CapMap {
   "chat.plan.step_done": { in: ChatPlanStepDoneIn; out: ChatPlanStepDoneOut };
   "chat.post": { in: ChatPostIn; out: ChatPostOut };
   "chat.question.ask": { in: ChatQuestionAskIn; out: ChatQuestionAskOut };
+  "chat.question.withdraw": { in: ChatQuestionWithdrawIn; out: ChatQuestionWithdrawOut };
   "chat.react": { in: ChatReactIn; out: ChatReactOut };
   "chat.recent": { in: ChatRecentIn; out: ChatRecentOut };
   "chat.remember": { in: ChatRememberIn; out: ChatRememberOut };
@@ -42608,6 +42618,10 @@ export type BlockWaitingPayload = {
   threadId: string;
   blockId: string;
   blockType: "question" | "plan";
+};
+export type BlockWithdrawnPayload = {
+  threadId: string;
+  blockId: string;
 };
 export type BookingCancelledPayload = {
   bookingId: string;
@@ -46258,6 +46272,7 @@ export interface EventMap {
   "backup.verified": BackupVerifiedPayload;
   "block.answered": BlockAnsweredPayload;
   "block.waiting": BlockWaitingPayload;
+  "block.withdrawn": BlockWithdrawnPayload;
   "booking.cancelled": BookingCancelledPayload;
   "booking.created": BookingCreatedPayload;
   "calendar.created": CalendarCreatedPayload;

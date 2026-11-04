@@ -4,7 +4,7 @@ Lane L2. Kind module. Version 0.1.0.
 
 Requires: engine, mcp.
 
-## Capabilities (93)
+## Capabilities (94)
 
 - [channels.agent_watch.set](../capabilities/channels.agent_watch.set.md): Let an agent act unmentioned in a channel ("watches this channel"); every such act is logged like a routine
 - [channels.agents.add](../capabilities/channels.agents.add.md): Invite an agent into a channel; agents listen by default
@@ -58,7 +58,8 @@ Requires: engine, mcp.
 - [chat.plan.reject](../capabilities/chat.plan.reject.md): Reject a plan with a note; the agent stays in plan mode
 - [chat.plan.step_done](../capabilities/chat.plan.step_done.md): Mark one plan step done so the plan block ticks it
 - [chat.post](../capabilities/chat.post.md): Post a message in a thread or channel; routes to the lead agent or @mentioned agents and records mentions
-- [chat.question.ask](../capabilities/chat.question.ask.md): Ask the person a structured question (single, multi or free text); the turn parks until it is answered
+- [chat.question.ask](../capabilities/chat.question.ask.md): Ask the person a structured question (single, multi or free text); the turn parks until it is answered and makes no further model call; a question of fewer than three words, or only a test, is refused
+- [chat.question.withdraw](../capabilities/chat.question.withdraw.md): Take back a question: its turn ended without waiting for it. The card closes as withdrawn and its task leaves the Needs you list. Only the agent that asked, or a person in the chat
 - [chat.react](../capabilities/chat.react.md): Add or remove a reaction
 - [chat.recent](../capabilities/chat.recent.md): Sidebar Recent: Starred, Today, Yesterday, Earlier with unread counts and the working pulse, then the chats I archived (they are in no other group)
 - [chat.remember](../capabilities/chat.remember.md): Remember a message as a fact in the memory of the project this chat belongs to (else your own), sourced to the message; a "Remembered for ..." card in the thread links to the fact. A shared layer keeps its review rule
@@ -100,13 +101,14 @@ Requires: engine, mcp.
 - [threads.unarchive](../capabilities/threads.unarchive.md): Put an archived chat back in my list
 - [threads.update](../capabilities/threads.update.md): Rename a thread
 
-## Events (41)
+## Events (42)
 
 - [agent.disengaged](../events/agent.disengaged.md): An agent left a thread
 - [agent.engaged](../events/agent.engaged.md): An agent joined a thread as lead or listener
 - [agent.handoff](../events/agent.handoff.md): An agent handed work to another agent, in a new linked thread
 - [block.answered](../events/block.answered.md): A waiting block was answered; the answer is queued as a wake
 - [block.waiting](../events/block.waiting.md): A question or plan block is waiting for an answer and the turn is parked
+- [block.withdrawn](../events/block.withdrawn.md): A question was taken back by the agent that asked it; its task is closed
 - [channel.agent_added](../events/channel.agent_added.md): An agent was invited into a channel
 - [channel.agent_removed](../events/channel.agent_removed.md): An agent was removed from a channel
 - [channel.agent_watch_changed](../events/channel.agent_watch_changed.md): An agent started or stopped watching a channel

@@ -415,6 +415,7 @@ export function createClient(transport: Transport) {
       post: call("chat.post", 1),
       question: {
         ask: call("chat.question.ask", 1),
+        withdraw: call("chat.question.withdraw", 1),
       },
       react: call("chat.react", 1),
       recent: call("chat.recent", 1),

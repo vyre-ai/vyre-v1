@@ -354,7 +354,10 @@ export default defineManifest({
       in: { ...threadT, blockId: id.block, answer: t.json() }, out: { ok: t.bool() }, on: ['thread', '/threadId'], level: 'use',
       emits: ['block.answered'], tool: 'chats', offline: 'queue', errors: ['validation.precondition_failed'],
     }),
-    write('chat.question.ask', 'Ask the person a structured question (single, multi or free text); the turn parks until it is answered', {
+    write('chat.question.withdraw', 'Take back a question: its turn ended without waiting for it. The card closes as withdrawn and its task leaves the Needs you list. Only the agent that asked, or a person in the chat', {
+      in: { ...threadT, blockId: id.block }, out: { withdrawn: t.bool() }, on: ['thread', '/threadId'], level: 'use', emits: ['block.withdrawn'], errors: ['validation.not_found', 'permission.no_grant'],
+    }),
+    write('chat.question.ask', 'Ask the person a structured question (single, multi or free text); the turn parks until it is answered and makes no further model call; a question of fewer than three words, or only a test, is refused', {
       in: {
         ...threadT, prompt: t.str(), mode: t.enm('single', 'multi', 'free'), options: t.opt(t.arr(option)), allowOther: t.opt(t.bool()),
         card: t.opt(t.obj({ kind: t.enm('terminal'), command: t.str(), host: t.opt(t.enm('agent_computer', 'space_server', 'device')), risk: t.opt(t.enm('read', 'change', 'danger')) })),
@@ -575,6 +578,9 @@ export default defineManifest({
     }),
     ev('block.answered', 'A waiting block was answered; the answer is queued as a wake', {
       p: { threadId: id.thread, blockId: id.block, by: t.str() }, subject: ['thread', '/threadId'], vis: 'participants',
+    }),
+    ev('block.withdrawn', 'A question was taken back by the agent that asked it; its task is closed', {
+      p: { threadId: id.thread, blockId: id.block }, subject: ['thread', '/threadId'], vis: 'participants',
     }),
     ev('tab.opened', 'An agent opened a side tab for a person (delivered live to that person devices)', {
       p: { threadId: id.thread, personId: id.user, targetType: t.str(), targetId: t.str(), agentId: id.agent }, subject: ['thread', '/threadId'], vis: 'owner',
