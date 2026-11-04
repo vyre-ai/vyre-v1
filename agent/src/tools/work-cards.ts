@@ -53,6 +53,11 @@ export function workCardOf(cap: string, input: unknown, output: unknown): WorkCa
       const later = o["state"] === "scheduled";
       return { key: `dm:${s(o["messageId"]) || id}:${clip(s(i["body"]), 40)}`, icon: "thread", lead: later ? "Scheduled" : "Sent", title: clip(first(i["body"], rec(i["card"])["title"], "A message")), target: { type: "thread", id } };
     }
+    case "mail.draft": {
+      // an email an agent drafted waits for its person's Send, Edit or Discard: the card in the chat where it was asked is the held email card
+      const id = s(o["draftId"]);
+      return id ? { key: `draft:${id}`, icon: "draft", lead: "Draft", title: clip(first(i["subject"], "An email draft")), target: { type: "draft", id } } : null;
+    }
     case "computers.provision": {
       const c = rec(o["computer"]);
       return s(c["computerId"]) ? { key: `computer:${s(c["computerId"])}`, icon: "computer", lead: "Computer", title: clip(first(c["name"], "Agent computer")), target: { type: "computer", id: s(c["computerId"]) } } : null;
