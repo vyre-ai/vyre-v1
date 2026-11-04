@@ -158,10 +158,3 @@ personalSteps.push(
     } finally { imap.close(); }
   } },
 );
-
-// Steps the walk cannot drive yet. They are listed as FAIL on purpose so a release is never read as "walked" while they are not: each says what is missing.
-const notDriven = (id, owner, why) => ({ id, owner, run: async () => { throw new Error(`NOT DRIVEN: ${why}`); } });
-personalSteps.push(
-  notDriven("start-a-crew-in-a-plain-chat", "l-crews", "a crew job starts when the model calls crew_start, which needs a model stand-in that can call tools (fixtures/model-vendor.ts streams text only) and an agent computer for the job to run on (none on this box)"),
-  notDriven("hold-and-approve-an-email-draft", "l-gate", "an agent's email send is held by the Gate for approval, which needs a connected mailbox (the connect-inbox step) and a model stand-in that calls the send tool (fixtures/model-vendor.ts streams text only)"),
-);

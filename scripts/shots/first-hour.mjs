@@ -31,25 +31,28 @@ export const PW = "first hour password 9";
 const results = [];
 
 /** One Space's walk: boots a fresh install, claims it in a browser, and runs steps against it. */
-async function walk(kind, steps) {
+async function walk(kind, steps, provision = null) {
   const v = await vendor();
   const prior = process.env.NODE_OPTIONS;
   process.env.NODE_OPTIONS = `${prior ?? ""} --import ${PRELOAD}`.trim();
   process.env.VYRE_TEST_VENDOR = v.base;
-  const space = await bootFreshSpace(kind === "personal" ? "personal" : undefined, true);
+  // a provisioner boots its own daemon (the scripted walk: a daemon in this process whose model calls tools) and answers { space, session? }; the default is a spawned daemon claimed in the browser
+  const given = provision ? await provision(dist) : null;
+  const space = given ? given.space : await bootFreshSpace(kind === "personal" ? "personal" : undefined, true);
   if (prior === undefined) delete process.env.NODE_OPTIONS; else process.env.NODE_OPTIONS = prior;
   const web = await edge(dist, space.url);
   const browser = await chromium.launch({ args: ["--no-sandbox"] });
   const context = await browser.newContext({ viewport: { width: 1440, height: 900 }, deviceScaleFactor: 1, colorScheme: "light", reducedMotion: "reduce" });
+  if (given?.session) await context.addInitScript((s) => { try { localStorage.setItem("vyre.session.v1", JSON.stringify({ sessions: { [s.baseUrl]: s } })); } catch { /* blocked */ } }, { ...given.session, baseUrl: web.origin, def: { ...given.session.def, address: web.origin } });
   const page = await context.newPage();
   const noise = [];   // refused calls and console errors, in order, each stamped with the step that was running
   let current = "setup";
   page.on("pageerror", (e) => noise.push({ step: current, what: `page error: ${String(e).slice(0, 300)}` }));
   page.on("console", (m) => { if (m.type() === "error") noise.push({ step: current, what: `console: ${m.text().slice(0, 300)}` }); });
   page.on("response", async (r) => { const u = new URL(r.url()); if (r.status() >= 400 && (u.pathname.startsWith("/v1/") || u.pathname.startsWith("/sync/"))) noise.push({ step: current, what: `HTTP ${r.status()} ${u.pathname} ${(await r.text().catch(() => "")).slice(0, 420)} req=${(r.request().postData() ?? "").slice(0, 240)}`, refused: true }); });
-  const S = { kind, space, web, page, context, vendor: v, out, PW, state: {}, makeBundle, claimOnEdge, dismissOnboarding };
+  const S = { kind, space, web, page, context, vendor: v, out, PW, state: { ...(given?.state ?? {}) }, makeBundle, claimOnEdge, dismissOnboarding, daemon: given?.daemon, token0: given?.session?.token };
   let n = 0;
-  S.token = () => page.evaluate(() => { const s = JSON.parse(localStorage.getItem("vyre.session.v1")); return s.sessions[location.origin].token; });
+  S.token = () => S.token0 ? Promise.resolve(S.token0) : page.evaluate(() => { const s = JSON.parse(localStorage.getItem("vyre.session.v1")); return s.sessions[location.origin].token; });
   S.api = async (cap, data = {}, token) => {
     const r = await context.request.post(`${web.origin}/v1/${cap.replaceAll(".", "/")}`, { headers: { authorization: `Bearer ${token ?? await S.token()}` }, data: { idempotencyKey: `fh-${++n}`, ...data } });
     const b = await r.json().catch(() => ({}));
@@ -82,8 +85,12 @@ async function walk(kind, steps) {
 
 const { personalSteps } = await import(path.join(REPO, "scripts/shots/first-hour-steps.mjs"));
 const { teamSteps } = await import(path.join(REPO, "scripts/shots/first-hour-team.mjs"));
-if (only !== "team") await walk("personal", personalSteps);
-if (only !== "personal") await walk("team", teamSteps);
+if (only === "" || only === "personal") await walk("personal", personalSteps);
+if (only === "" || only === "team") await walk("team", teamSteps);
+if (only === "" || only === "scripted") {
+  const { scriptedSteps, provisionScripted } = await import(path.join(REPO, "scripts/shots/first-hour-scripted.mjs"));
+  await walk("scripted", scriptedSteps, provisionScripted);
+}
 const bad = results.filter((r) => r.failure || r.refused.length || r.errs.length);
 const md = `# First-hour walk\n\n${results.length} steps, ${bad.length} with failures.\n\n| step | owner | result |\n|---|---|---|\n${results.map((r) => `| ${r.kind}/${r.id} | ${r.owner} | ${r.failure || r.refused.length || r.errs.length ? `FAIL ${[r.failure, ...r.refused.map((x) => `refused ${x}`), ...r.errs].filter(Boolean).join(" ; ").replace(/\|/g, "/")}` : "ok"} |`).join("\n")}\n`;
 fs.writeFileSync(path.join(out, "report.md"), md);

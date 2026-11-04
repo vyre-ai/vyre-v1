@@ -20,6 +20,10 @@ export function createClient(transport: Transport) {
         set_engineer_mcp: call("access.actors.set_engineer_mcp", 1),
         update: call("access.actors.update", 1),
       },
+      agents_can_call: {
+        get: call("access.agents_can_call.get", 1),
+        set: call("access.agents_can_call.set", 1),
+      },
       audience_set: call("access.audience_set", 1),
       automation_senders: call("access.automation_senders", 1),
       check: call("access.check", 1),
@@ -136,6 +140,8 @@ export function createClient(transport: Transport) {
         usable: call("agents.outside.usable", 1),
       },
       pause: call("agents.pause", 1),
+      pause_person: call("agents.pause_person", 1),
+      people_summary: call("agents.people_summary", 1),
       restore: call("agents.restore", 1),
       restore_version: call("agents.restore_version", 1),
       resume: call("agents.resume", 1),
@@ -406,6 +412,7 @@ export function createClient(transport: Transport) {
         list: call("chat.helpers.list", 1),
       },
       history: {
+        page: call("chat.history.page", 1),
         search: call("chat.history.search", 1),
       },
       make_task: call("chat.make_task", 1),
@@ -437,6 +444,7 @@ export function createClient(transport: Transport) {
         ask: call("chat.question.ask", 1),
       },
       react: call("chat.react", 1),
+      read_floor: call("chat.read_floor", 1),
       recent: call("chat.recent", 1),
       remember: call("chat.remember", 1),
       reply_details: call("chat.reply_details", 1),
@@ -447,6 +455,7 @@ export function createClient(transport: Transport) {
       share: call("chat.share", 1),
       start: call("chat.start", 1),
       thread: call("chat.thread", 1),
+      title_make: call("chat.title_make", 1),
       transcript: {
         append: call("chat.transcript.append", 1),
         get: call("chat.transcript.get", 1),
@@ -758,6 +767,7 @@ export function createClient(transport: Transport) {
       compact: call("engine.compact", 1),
       complete: call("engine.complete", 1),
       crew: {
+        chat_repo: call("engine.crew.chat_repo", 1),
         list: call("engine.crew.list", 1),
         merge: call("engine.crew.merge", 1),
         message: call("engine.crew.message", 1),
@@ -874,6 +884,7 @@ export function createClient(transport: Transport) {
       },
       turns: {
         list: call("engine.turns.list", 1),
+        running: call("engine.turns.running", 1),
       },
       usage: {
         get: call("engine.usage.get", 1),
@@ -1034,6 +1045,7 @@ export function createClient(transport: Transport) {
       holds: {
         get: call("gate.holds.get", 1),
         list: call("gate.holds.list", 1),
+        revise: call("gate.holds.revise", 1),
       },
       links: {
         known: call("gate.links.known", 1),
@@ -1432,6 +1444,17 @@ export function createClient(transport: Transport) {
       tail: call("logs.tail", 1),
       trace: call("logs.trace", 1),
     },
+    machines: {
+      alerts: call("machines.alerts", 1),
+      alerts_notify: call("machines.alerts_notify", 1),
+      fix: call("machines.fix", 1),
+      get: call("machines.get", 1),
+      list: call("machines.list", 1),
+      move_record: call("machines.move_record", 1),
+      moves: call("machines.moves", 1),
+      rooms: call("machines.rooms", 1),
+      set: call("machines.set", 1),
+    },
     mail: {
       attachment: {
         save: call("mail.attachment.save", 1),
@@ -1583,6 +1606,7 @@ export function createClient(transport: Transport) {
       invites: {
         create: call("members.invites.create", 1),
         extend: call("members.invites.extend", 1),
+        guest: call("members.invites.guest", 1),
         list: call("members.invites.list", 1),
         preview: call("members.invites.preview", 1),
         revoke: call("members.invites.revoke", 1),
@@ -2163,6 +2187,7 @@ export function createClient(transport: Transport) {
       get: call("runs.get", 1),
       list: call("runs.list", 1),
       mark_waiting: call("runs.mark_waiting", 1),
+      people_counts: call("runs.people_counts", 1),
       pin_version: call("runs.pin_version", 1),
       preview_undo: call("runs.preview_undo", 1),
       purge: call("runs.purge", 1),
@@ -2298,7 +2323,9 @@ export function createClient(transport: Transport) {
       addon_remove: call("sites.addon_remove", 1),
       artifact_open: call("sites.artifact_open", 1),
       artifact_publish: call("sites.artifact_publish", 1),
+      artifact_thumb_set: call("sites.artifact_thumb_set", 1),
       build: call("sites.build", 1),
+      chat_viewing: call("sites.chat_viewing", 1),
       create: call("sites.create", 1),
       db_import: call("sites.db_import", 1),
       delete: call("sites.delete", 1),
@@ -2541,6 +2568,7 @@ export function createClient(transport: Transport) {
         remove: call("tasks.followers.remove", 1),
       },
       get: call("tasks.get", 1),
+      held_revise: call("tasks.held_revise", 1),
       history: call("tasks.history", 1),
       index: call("tasks.index", 1),
       links: {
@@ -2643,6 +2671,10 @@ export function createClient(transport: Transport) {
       add_agent: call("threads.add_agent", 1),
       agent: {
         configure: call("threads.agent.configure", 1),
+        create: call("threads.agent.create", 1),
+      },
+      agent_settings: {
+        set: call("threads.agent_settings.set", 1),
       },
       archive: call("threads.archive", 1),
       close: call("threads.close", 1),
@@ -2650,6 +2682,7 @@ export function createClient(transport: Transport) {
       erase: call("threads.erase", 1),
       follow: call("threads.follow", 1),
       get: call("threads.get", 1),
+      invite_guest: call("threads.invite_guest", 1),
       leave: call("threads.leave", 1),
       list: call("threads.list", 1),
       make_channel: call("threads.make_channel", 1),
@@ -2658,6 +2691,11 @@ export function createClient(transport: Transport) {
         add: call("threads.members.add", 1),
         remove: call("threads.members.remove", 1),
       },
+      outside_agent: {
+        add: call("threads.outside_agent.add", 1),
+        remove: call("threads.outside_agent.remove", 1),
+      },
+      poke: call("threads.poke", 1),
       remove_agent: call("threads.remove_agent", 1),
       reopen: call("threads.reopen", 1),
       restore: call("threads.restore", 1),
