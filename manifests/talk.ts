@@ -47,7 +47,7 @@ export default defineManifest({
     }),
     write('talk.disconnect', 'A person removes their own Talk key from the Vault', { in: {}, out: status, emits: ['talk.disconnected'], audit: 'sensitive', offline: 'online', agent: false }),
     write('talk.session', 'Open one Talk session: mints a short-lived provider token and the socket address. Own key first, then the Space key. Audited per person; the key itself never leaves the server', {
-      idem: 'none', in: {}, out: { provider: t.str({ examples: ['deepgram'] }), url: t.str(), protocols: t.arr(t.str()), source: t.enm('own', 'space'), expiresIn: t.int({ minimum: 1 }) },
+      idem: 'none', in: {}, out: { provider: t.str({ examples: ['deepgram'] }), url: t.str(), protocols: t.arr(t.str()), context: t.opt(t.str()), source: t.enm('own', 'space'), expiresIn: t.int({ minimum: 1 }) },
       audit: 'always', offline: 'online', agent: false, rate: { n: 120, perSeconds: 60, scope: 'principal' }, errors: [...providerErrors, 'validation.precondition_failed'],
     }),
     write('talk.ask_key', 'Post the secret card that asks for a Talk key in this chat: their own, or the Space\'s. The value goes straight to the Vault and never into the chat', {

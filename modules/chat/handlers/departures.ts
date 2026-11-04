@@ -4,6 +4,7 @@
 // a second delivery finds nothing to do.
 import { insertMessage, membersOf } from "../projections.ts";
 import type { ChatCtx } from "../projections.ts";
+import { forgetMentions } from "./pace.ts";
 
 type Row = Record<string, unknown>;
 const str = (v: unknown): string => (typeof v === "string" ? v : "");
@@ -17,6 +18,7 @@ async function nameOf(ctx: ChatCtx, id: string): Promise<string> {
 export async function onPersonLeft(ctx: ChatCtx, event: { payload: { personId?: string } }): Promise<string[]> {
   const gone = event.payload.personId;
   if (typeof gone !== "string" || !person(gone)) return [];
+  forgetMentions(ctx, { person: gone });   // memory rule 9: who was mentioned goes with them
   const rows = ctx.db.all(
     `SELECT t."id" AS "id", t."kind" AS "kind", t."starter" AS "starter", t."channelId" AS "channelId", t."parentThreadId" AS "parent" FROM chat_thread t WHERE t."deleted_at" IS NULL
        AND (t."starter" = ? OR EXISTS (SELECT 1 FROM chat_thread_member m WHERE m."thread" = t."id" AND m."principal" = ? AND m."deleted_at" IS NULL))`, gone, gone,

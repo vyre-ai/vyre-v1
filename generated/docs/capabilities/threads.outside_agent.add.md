@@ -19,7 +19,7 @@ Bring an outside agent into this chat with exactly this chat, its project, files
 | HTTP | POST /v1/threads/outside_agent/add |
 | MCP tool | threads_outside_agent_add (chats) |
 | CLI | none |
-| Emits | agent.engaged |
+| Emits | agent.engaged, thread.updated |
 
 ## Input
 
@@ -50,6 +50,7 @@ type Out = {
     listed: boolean;
     planMode: boolean;
     mode?: "ask" | "auto" | "plan";
+    agentRepliesInThreads?: boolean;
     members: Array<{
         kind: "person" | "agent" | "actor" | "service";
         id: string;
@@ -128,6 +129,7 @@ type Out = {
       }
     ],
     "thread": {
+      "agentRepliesInThreads": true,
       "agents": [
         {
           "accountRef": "example",

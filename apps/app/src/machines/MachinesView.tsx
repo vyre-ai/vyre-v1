@@ -149,7 +149,8 @@ export function MachineList({ data, who, narrow, now, onOpen, onAdd, onApprove, 
       ) : null}
       <Block title={scope === "space" ? "All machines" : "My computers and servers"} count={ms.length} testID="machines-table">
         {/* ui-rows-lint: not a list (the table's column headings) */}
-        {narrow ? null : <View style={[s.mrow, s.mheadRow]} testID="machines-head"><View style={s.mname}><Text style={s.mheadText}>Machine</Text></View><View style={s.cells}>{["Status", "CPU", "Memory", "Disk", "Running", "Can run", "Room left"].map((h) => <View key={h} style={s.cell}><Text style={s.mheadText}>{h}</Text></View>)}</View></View>}
+        {narrow || ms.length === 0 ? null : <View style={[s.mrow, s.mheadRow]} testID="machines-head"><View style={s.mname}><Text style={s.mheadText}>Machine</Text></View><View style={s.cells}>{["Status", "CPU", "Memory", "Disk", "Running", "Can run", "Room left"].map((h) => <View key={h} style={s.cell}><Text style={s.mheadText}>{h}</Text></View>)}</View></View>}
+        {ms.length === 0 ? <Text testID="machines-none" style={s.note}>No machines yet. Add a server to run agents around the clock.</Text> : null}
         {/* ui-rows-lint: not a list (a table of machines: one row per machine with Status, CPU, Memory, Disk, Running, Can run and Room left cells under shared column headings, hover painted across the full row) */}
         {ms.map((m) => <MachineRowView key={m.serverId} m={m} who={who} narrow={narrow} now={now} onOpen={() => onOpen(m.serverId)} onMenu={(x, y) => rowMenu(m, x, y)} />)}
       </Block>

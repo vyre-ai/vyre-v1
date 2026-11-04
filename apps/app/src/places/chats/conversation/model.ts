@@ -111,11 +111,37 @@ export function pokeLine(m: Pick<Message, "blocks">, nameOf: (id: string) => str
 }
 
 /** The quiet line a hook leaves (lane l-hooks): its words, what happened to it, and the hook it is about, so the line can offer Details or Edit. */
-export interface HookLine { line: string; kind: string; hookId?: string; reason?: string }
+export interface HookLine { line: string; kind: string; hookId?: string; reason?: string; by?: string; subject?: string; scope?: string; agentId?: string; /** Up to two steps a check wrote: a button label and what pressing it says to the assistant */ next?: Array<{ label: string; ask: string }> }
 export function hookLineOf(m: Pick<Message, "blocks">): HookLine | null {
   const d = m.blocks.find((x) => x.type === "hook")?.data as { line?: unknown; kind?: unknown; hookId?: unknown; reason?: unknown } | null | undefined;
   if (!d || typeof d.line !== "string" || typeof d.kind !== "string") return null;
-  return { line: d.line, kind: d.kind, ...(typeof d.hookId === "string" ? { hookId: d.hookId } : {}), ...(typeof d.reason === "string" ? { reason: d.reason } : {}) };
+  return { line: d.line, kind: d.kind, ...(typeof d.hookId === "string" ? { hookId: d.hookId } : {}), ...(typeof d.reason === "string" ? { reason: d.reason } : {}), ...(typeof (d as { by?: unknown }).by === "string" ? { by: (d as { by: string }).by } : {}), ...(typeof (d as { subject?: unknown }).subject === "string" ? { subject: (d as { subject: string }).subject } : {}), ...(typeof (d as { scope?: unknown }).scope === "string" ? { scope: (d as { scope: string }).scope } : {}), ...(typeof (d as { agentId?: unknown }).agentId === "string" ? { agentId: (d as { agentId: string }).agentId } : {}), ...nextOf((d as { next?: unknown }).next) };
+}
+/** The steps a check offered, read from the block: at most two, each a short label and a plain sentence; anything else is dropped. */
+function nextOf(v: unknown): { next?: Array<{ label: string; ask: string }> } {
+  if (!Array.isArray(v)) return {};
+  const next = v.filter((x): x is { label: string; ask: string } => !!x && typeof (x as { label?: unknown }).label === "string" && typeof (x as { ask?: unknown }).ask === "string" && (x as { label: string }).label.length <= 40 && (x as { ask: string }).ask.length <= 200).slice(0, 2);
+  return next.length > 0 ? { next } : {};
+}
+/** The words of a line as this reader sees them: a line about a person names them as the reader does ("Maya Chen let a hook go by once: ..."), never "Someone". */
+export function hookLineText(h: HookLine, nameOf: (id: string) => string): string {
+  if (h.by && h.subject && h.kind === "allowed") return `${nameOf(h.by)} let a hook go by once: ${h.subject}`;
+  if (h.by && h.subject && h.kind === "asked") return `${nameOf(h.by)} asked an admin about a hook: ${h.subject}`;
+  return h.line;
+}
+/** The words that lead a hook line, in ink: "A hook stopped this:" or the name before "added a hook". The rest follows in the quieter colour. */
+export function hookLead(text: string): [string, string] {
+  if (text.startsWith("A hook stopped this:")) return ["A hook stopped this:", text.slice("A hook stopped this:".length)];
+  const m = /^(.+?)( (?:added|set|changed|removed|paused|turned|let|asked) )/.exec(text);
+  return m ? [m[1]!, text.slice(m[1]!.length)] : ["", text];
+}
+/** What a line offers beyond its words. A block shows Details (the hook, in the Hooks tab), Allow this once and Ask an admin; a hook that is still there shows Edit. */
+export type HookLineAct = "details" | "edit" | "once" | "ask";
+export function hookLineActs(h: HookLine): HookLineAct[] {
+  if (h.hookId === undefined) return [];
+  if (h.kind === "blocked") return ["details", "once", "ask"];
+  if (h.kind === "failed") return ["details"];
+  return h.kind === "added" || h.kind === "changed" ? ["edit"] : [];
 }
 /** A line's side button: a block shows Details (it names the hook that stopped it), a hook that is still there shows Edit. */
 export const hookLineAction = (h: HookLine): { label: string } | null => (h.hookId === undefined || h.kind === "removed" ? null : { label: h.kind === "blocked" || h.kind === "failed" ? "Details" : "Edit" });
@@ -275,9 +301,9 @@ export interface TimelineCtx {
 
 export type Item =
   | { kind: "day"; key: string; label: string }
-  | { kind: "event"; key: string; message: Message; text: string; time: string }
+  | { kind: "event"; key: string; message: Message; text: string; time: string; /** The check's steps ride on the agent's reply below, not on this line */ stepsBelow?: boolean }
   | { kind: "me"; key: string; message: Message; time: string; newgroup: boolean }
-  | { kind: "other"; key: string; message: Message; who: Who; time: string; newgroup: boolean; /** "On Sara's account": set only where more than one person shares the chat. */ paidLine?: string };
+  | { kind: "other"; key: string; message: Message; who: Who; time: string; newgroup: boolean; /** "On Sara's account": set only where more than one person shares the chat. */ paidLine?: string; /** The steps a hook check wrote for the stop just above this reply: small buttons inside it */ hookSteps?: { key: string; agentId: string; next: Array<{ label: string; ask: string }> } };
 
 /** System and quiet messages are one-line events ("Switched to Codex, picked up from the summary and the last 20 turns"). */
 export const isEvent = (m: Message): boolean => m.kind === "system" || m.kind === "quiet";
@@ -293,6 +319,15 @@ export function timeline(messages: readonly Message[], ctx: TimelineCtx): Item[]
   const out: Item[] = [];
   let lastDay = "";
   let prev: Message | null = null;
+  // a stop that carries steps: the agent's next reply (the first message after the stop that is not an event) is where they sit
+  const stepsFor = new Map<string, { key: string; agentId: string; next: Array<{ label: string; ask: string }>; line: number }>();
+  messages.forEach((m, i) => {
+    const h = isEvent(m) ? hookLineOf(m) : null;
+    if (!h || h.kind !== "blocked" || !h.next || !h.agentId) return;
+    const reply = messages.slice(i + 1).find((x) => !isEvent(x));
+    if (reply && reply.author.kind === "agent" && reply.author.id === h.agentId) stepsFor.set(reply.messageId, { key: m.messageId, agentId: h.agentId, next: h.next, line: i });
+  });
+  const carried = new Set([...stepsFor.values()].map((v) => v.key));
   for (const m of messages) {
     const dk = dayKey(m.createdAt, ctx.clock);
     if (dk !== lastDay) {
@@ -302,13 +337,13 @@ export function timeline(messages: readonly Message[], ctx: TimelineCtx): Item[]
     }
     const time = timeLabel(m.createdAt, ctx.clock);
     if (isEvent(m)) {
-      out.push({ kind: "event", key: m.messageId, message: m, text: m.body, time });
+      out.push({ kind: "event", key: m.messageId, message: m, text: m.body, time, ...(carried.has(m.messageId) ? { stepsBelow: true } : {}) });
       prev = null;
       continue;
     }
     const newgroup = prev === null || prev.author.id !== m.author.id || prev.author.kind !== m.author.kind;
     if (m.author.id === ctx.meId && m.author.kind === "person") out.push({ kind: "me", key: m.messageId, message: m, time, newgroup });
-    else out.push({ kind: "other", key: m.messageId, message: m, who: whoOf(m, ctx), time, newgroup, ...(ctx.shared && m.paidBy ? { paidLine: paidLine(m.paidBy, ctx) } : {}) });
+    else out.push({ kind: "other", key: m.messageId, message: m, who: whoOf(m, ctx), time, newgroup, ...(ctx.shared && m.paidBy ? { paidLine: paidLine(m.paidBy, ctx) } : {}), ...(stepsFor.has(m.messageId) ? { hookSteps: { key: stepsFor.get(m.messageId)!.key, agentId: stepsFor.get(m.messageId)!.agentId, next: stepsFor.get(m.messageId)!.next } } : {}) });
     prev = m;
   }
   return out;
@@ -535,8 +570,9 @@ export const isClosed = (t: Thread): boolean => t.closedAt !== undefined;
 export function threadKindNote(t: Thread, nameOf: (id: string) => string): string {
   if (t.kind === "helper") return "Helper chat";
   if (t.kind === "ask") return "Ask pane";
-  const starter = t.starter ? nameOf(t.starter) : "";
-  return t.kind === "thread" && starter ? `Thread started by ${starter}` : "";
+  // a thread opens on the message it hangs off, drawn as a plain message row (ThreadParent): no "started by" line over it
+  void nameOf;
+  return "";
 }
 
 /* ---------- the chat-open budget ---------- */

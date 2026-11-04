@@ -67,6 +67,8 @@ export function world(perms: { admins?: readonly string[] } = {}) {
       if (cap === "vault.item.delete") { items.splice(items.findIndex((it) => it.id === i["itemId"]), 1); return { ok: true }; }
       if (cap === "vault.use") return { handle: items.find((it) => it.id === i["item"])!.handle };
       if (cap === "access.labels.set") { const it = items.find((x) => x.id === (i["resource"] as { id: string }).id); if (it) it.label = String(i["label"]); return {}; }
+      if (cap === "spaces.get") return { space: { name: "Hart & Reyes Law" } };
+      if (cap === "access.principals.list") return { principals: [{ kind: "person", name: "Maya Chen" }, { kind: "person", name: "Dana Wine" }, { kind: "agent", name: "Intake" }, { kind: "agent", name: "Irfad Imtiaz (Agent)", private: true }] };
       if (cap === "chat.post") return { ok: true };
       throw new Error(`unexpected call ${cap}`);
     },

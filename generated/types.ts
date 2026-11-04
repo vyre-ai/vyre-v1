@@ -6655,6 +6655,7 @@ export type ChatAsksOfOut = {
       listed: boolean;
       planMode: boolean;
       mode?: "ask" | "auto" | "plan";
+      agentRepliesInThreads?: boolean;
       members: Array<{
           kind: "person" | "agent" | "actor" | "service";
           id: string;
@@ -6816,6 +6817,7 @@ export type ChatForkOut = {
     listed: boolean;
     planMode: boolean;
     mode?: "ask" | "auto" | "plan";
+    agentRepliesInThreads?: boolean;
     members: Array<{
         kind: "person" | "agent" | "actor" | "service";
         id: string;
@@ -6879,6 +6881,7 @@ export type ChatHandoffOut = {
     listed: boolean;
     planMode: boolean;
     mode?: "ask" | "auto" | "plan";
+    agentRepliesInThreads?: boolean;
     members: Array<{
         kind: "person" | "agent" | "actor" | "service";
         id: string;
@@ -6995,6 +6998,7 @@ export type ChatHelperStartOut = {
     listed: boolean;
     planMode: boolean;
     mode?: "ask" | "auto" | "plan";
+    agentRepliesInThreads?: boolean;
     members: Array<{
         kind: "person" | "agent" | "actor" | "service";
         id: string;
@@ -7134,12 +7138,19 @@ export type ChatHistorySearchOut = {
 export type ChatHookLineIn = {
   threadId: string;
   body: string;
-  kind: "added" | "changed" | "removed" | "paused" | "resumed" | "blocked" | "failed";
+  kind: "added" | "changed" | "removed" | "paused" | "resumed" | "blocked" | "failed" | "allowed" | "asked";
   hookId?: string;
   scope?: string;
   by?: string;
   byKind?: "admin" | "person" | "agent";
   reason?: string;
+  tool?: string;
+  subject?: string;
+  agentId?: string;
+  next?: Array<{
+      label: string;
+      ask: string;
+    }>;
 };
 export type ChatHookLineOut = {
   messageId: string;
@@ -7327,6 +7338,7 @@ export type ChatOpenAsChatOut = {
     listed: boolean;
     planMode: boolean;
     mode?: "ask" | "auto" | "plan";
+    agentRepliesInThreads?: boolean;
     members: Array<{
         kind: "person" | "agent" | "actor" | "service";
         id: string;
@@ -7377,6 +7389,15 @@ export type ChatOpenTabIn = {
 export type ChatOpenTabOut = {
   opened: boolean;
   reason?: "disabled_by_person" | "no_device";
+};
+export type ChatPaceOfIn = {
+  personId: string;
+  threadId?: string;
+};
+export type ChatPaceOfOut = {
+  replies: "minutes" | "hour" | "day" | "slow" | "unknown";
+  samples: number;
+  notifies?: "all" | "mentions" | "off";
 };
 export type ChatPeopleStatusIn = {
   personIds?: Array<string>;
@@ -7895,6 +7916,7 @@ export type ChatStartOut = {
     listed: boolean;
     planMode: boolean;
     mode?: "ask" | "auto" | "plan";
+    agentRepliesInThreads?: boolean;
     members: Array<{
         kind: "person" | "agent" | "actor" | "service";
         id: string;
@@ -7956,6 +7978,7 @@ export type ChatThreadOut = {
     listed: boolean;
     planMode: boolean;
     mode?: "ask" | "auto" | "plan";
+    agentRepliesInThreads?: boolean;
     members: Array<{
         kind: "person" | "agent" | "actor" | "service";
         id: string;
@@ -19195,10 +19218,27 @@ export type HomeWriteDigestIn = {
 export type HomeWriteDigestOut = {
   digestId: string;
 };
+export type HooksAllowOnceIn = {
+  id: string;
+  threadId: string;
+};
+export type HooksAllowOnceOut = {
+  allowed: boolean;
+  expiresAt: number;
+};
+export type HooksAskAdminIn = {
+  id: string;
+  threadId: string;
+  note?: string;
+};
+export type HooksAskAdminOut = {
+  asked: boolean;
+};
 export type HooksFireIn = {
   event: "session.start" | "prompt.submit" | "tool.before" | "tool.after" | "outward.before" | "turn.end" | "helper.start" | "helper.end";
   agentId: string;
   threadId: string;
+  asker?: string;
   turnId?: string;
   threadKind?: string;
   engine?: string;
@@ -19217,6 +19257,10 @@ export type HooksFireOut = {
     hookId: string;
     by: string;
     scope: string;
+    next?: Array<{
+        label: string;
+        ask: string;
+      }>;
   } | null;
   notes: Array<string>;
   ran: number;
@@ -19295,12 +19339,29 @@ export type HooksRemoveIn = {
 export type HooksRemoveOut = {
   removed: boolean;
 };
+export type HooksRunsLatestIn = {
+  threadId: string;
+};
+export type HooksRunsLatestOut = {
+  runs: Array<{
+      id: number;
+      hookId: string;
+      event: string;
+      threadId?: string;
+      agentId?: string;
+      tool?: string;
+      outcome: "ok" | "blocked" | "note" | "error" | "timeout" | "skipped" | "allowed_once";
+      detail?: string;
+      ms: number;
+      at: number;
+    }>;
+};
 export type HooksRunsListIn = {
   hookId?: string;
   threadId?: string;
   limit?: number;
   since?: number;
-  outcomes?: Array<"ok" | "blocked" | "note" | "error" | "timeout" | "skipped">;
+  outcomes?: Array<"ok" | "blocked" | "note" | "error" | "timeout" | "skipped" | "allowed_once">;
   scope?: "space";
 };
 export type HooksRunsListOut = {
@@ -19310,7 +19371,8 @@ export type HooksRunsListOut = {
       event: string;
       threadId?: string;
       agentId?: string;
-      outcome: "ok" | "blocked" | "note" | "error" | "timeout" | "skipped";
+      tool?: string;
+      outcome: "ok" | "blocked" | "note" | "error" | "timeout" | "skipped" | "allowed_once";
       detail?: string;
       ms: number;
       at: number;
@@ -20650,6 +20712,7 @@ export type InstallCheckUpdateOut = {
     commit: string;
     url: string;
     path?: string;
+    version?: string;
     needs: {
       domains: Array<string>;
       vaultKeys: Array<string>;
@@ -20686,6 +20749,9 @@ export type InstallCheckUpdateOut = {
     diff?: {
       from: string;
       to: string;
+      fromVersion?: string;
+      toVersion?: string;
+      newAccess?: Array<string>;
       added: Array<string>;
       removed: Array<string>;
       changed: Array<{
@@ -20711,6 +20777,7 @@ export type InstallFromLinkOut = {
     commit: string;
     url: string;
     path?: string;
+    version?: string;
     needs: {
       domains: Array<string>;
       vaultKeys: Array<string>;
@@ -20747,6 +20814,9 @@ export type InstallFromLinkOut = {
     diff?: {
       from: string;
       to: string;
+      fromVersion?: string;
+      toVersion?: string;
+      newAccess?: Array<string>;
       added: Array<string>;
       removed: Array<string>;
       changed: Array<{
@@ -20772,6 +20842,7 @@ export type InstallGetOut = {
     commit: string;
     url: string;
     path?: string;
+    version?: string;
     needs: {
       domains: Array<string>;
       vaultKeys: Array<string>;
@@ -20808,6 +20879,9 @@ export type InstallGetOut = {
     diff?: {
       from: string;
       to: string;
+      fromVersion?: string;
+      toVersion?: string;
+      newAccess?: Array<string>;
       added: Array<string>;
       removed: Array<string>;
       changed: Array<{
@@ -20827,6 +20901,7 @@ export type InstallListOut = {
       installId: string;
       kind: string;
       name: string;
+      version?: string;
       repo: string;
       commit: string;
       url: string;
@@ -28805,7 +28880,7 @@ export type NotificationsDigestCollectIn = {
 };
 export type NotificationsDigestCollectOut = {
   items: Array<{
-      kind: "approval.requested" | "answer.requested" | "unblock.requested" | "approval.backstop" | "dm" | "mention" | "call.incoming" | "agent.blocked" | "incident.owned" | "task.assigned" | "reply.followed" | "agent.task_finished" | "digest.away" | "mention.thread" | "run.failed" | "conflict.needs_you" | "access.requested" | "access.decided" | "sync.attention" | "health.degraded" | "problem.report" | "member.joined" | "member.join_requested" | "limit.hit" | "vault.rotation_due" | "reply.thread" | "task.turn" | "task.returned" | "task.finished" | "task.due" | "machine.alert" | "item.shared" | "space.deletion_scheduled" | "space.deletion_cancelled" | "ci.paused";
+      kind: "approval.requested" | "answer.requested" | "unblock.requested" | "approval.backstop" | "dm" | "mention" | "call.incoming" | "agent.blocked" | "incident.owned" | "task.assigned" | "reply.followed" | "agent.task_finished" | "digest.away" | "mention.thread" | "run.failed" | "conflict.needs_you" | "access.requested" | "access.decided" | "sync.attention" | "health.degraded" | "problem.report" | "member.joined" | "member.join_requested" | "limit.hit" | "vault.rotation_due" | "reply.thread" | "task.turn" | "task.returned" | "task.finished" | "task.due" | "machine.alert" | "item.shared" | "space.deletion_scheduled" | "space.deletion_cancelled" | "ci.paused" | "hook.asked";
       title: string;
       at: number;
       subject?: {
@@ -28816,19 +28891,19 @@ export type NotificationsDigestCollectOut = {
     }>;
 };
 export type NotificationsKindSetLevelIn = {
-  kind: "approval.requested" | "answer.requested" | "unblock.requested" | "approval.backstop" | "dm" | "mention" | "call.incoming" | "agent.blocked" | "incident.owned" | "task.assigned" | "reply.followed" | "agent.task_finished" | "digest.away" | "mention.thread" | "run.failed" | "conflict.needs_you" | "access.requested" | "access.decided" | "sync.attention" | "health.degraded" | "problem.report" | "member.joined" | "member.join_requested" | "limit.hit" | "vault.rotation_due" | "reply.thread" | "task.turn" | "task.returned" | "task.finished" | "task.due" | "machine.alert" | "item.shared" | "space.deletion_scheduled" | "space.deletion_cancelled" | "ci.paused";
+  kind: "approval.requested" | "answer.requested" | "unblock.requested" | "approval.backstop" | "dm" | "mention" | "call.incoming" | "agent.blocked" | "incident.owned" | "task.assigned" | "reply.followed" | "agent.task_finished" | "digest.away" | "mention.thread" | "run.failed" | "conflict.needs_you" | "access.requested" | "access.decided" | "sync.attention" | "health.degraded" | "problem.report" | "member.joined" | "member.join_requested" | "limit.hit" | "vault.rotation_due" | "reply.thread" | "task.turn" | "task.returned" | "task.finished" | "task.due" | "machine.alert" | "item.shared" | "space.deletion_scheduled" | "space.deletion_cancelled" | "ci.paused" | "hook.asked";
   level?: "interrupt" | "badge" | "digest";
   channels?: Array<"desktop" | "phone" | "email">;
 };
 export type NotificationsKindSetLevelOut = {
-  kind: "approval.requested" | "answer.requested" | "unblock.requested" | "approval.backstop" | "dm" | "mention" | "call.incoming" | "agent.blocked" | "incident.owned" | "task.assigned" | "reply.followed" | "agent.task_finished" | "digest.away" | "mention.thread" | "run.failed" | "conflict.needs_you" | "access.requested" | "access.decided" | "sync.attention" | "health.degraded" | "problem.report" | "member.joined" | "member.join_requested" | "limit.hit" | "vault.rotation_due" | "reply.thread" | "task.turn" | "task.returned" | "task.finished" | "task.due" | "machine.alert" | "item.shared" | "space.deletion_scheduled" | "space.deletion_cancelled" | "ci.paused";
+  kind: "approval.requested" | "answer.requested" | "unblock.requested" | "approval.backstop" | "dm" | "mention" | "call.incoming" | "agent.blocked" | "incident.owned" | "task.assigned" | "reply.followed" | "agent.task_finished" | "digest.away" | "mention.thread" | "run.failed" | "conflict.needs_you" | "access.requested" | "access.decided" | "sync.attention" | "health.degraded" | "problem.report" | "member.joined" | "member.join_requested" | "limit.hit" | "vault.rotation_due" | "reply.thread" | "task.turn" | "task.returned" | "task.finished" | "task.due" | "machine.alert" | "item.shared" | "space.deletion_scheduled" | "space.deletion_cancelled" | "ci.paused" | "hook.asked";
   level: "interrupt" | "badge" | "digest";
   channels: Array<"desktop" | "phone" | "email">;
 };
 export type NotificationsKindsListIn = Record<string, unknown>;
 export type NotificationsKindsListOut = {
   kinds: Array<{
-      key: "approval.requested" | "answer.requested" | "unblock.requested" | "approval.backstop" | "dm" | "mention" | "call.incoming" | "agent.blocked" | "incident.owned" | "task.assigned" | "reply.followed" | "agent.task_finished" | "digest.away" | "mention.thread" | "run.failed" | "conflict.needs_you" | "access.requested" | "access.decided" | "sync.attention" | "health.degraded" | "problem.report" | "member.joined" | "member.join_requested" | "limit.hit" | "vault.rotation_due" | "reply.thread" | "task.turn" | "task.returned" | "task.finished" | "task.due" | "machine.alert" | "item.shared" | "space.deletion_scheduled" | "space.deletion_cancelled" | "ci.paused";
+      key: "approval.requested" | "answer.requested" | "unblock.requested" | "approval.backstop" | "dm" | "mention" | "call.incoming" | "agent.blocked" | "incident.owned" | "task.assigned" | "reply.followed" | "agent.task_finished" | "digest.away" | "mention.thread" | "run.failed" | "conflict.needs_you" | "access.requested" | "access.decided" | "sync.attention" | "health.degraded" | "problem.report" | "member.joined" | "member.join_requested" | "limit.hit" | "vault.rotation_due" | "reply.thread" | "task.turn" | "task.returned" | "task.finished" | "task.due" | "machine.alert" | "item.shared" | "space.deletion_scheduled" | "space.deletion_cancelled" | "ci.paused" | "hook.asked";
       level: "interrupt" | "badge" | "digest";
       place: "home" | "chats" | "inbox" | "records" | "files" | "apps" | "automations" | "vault" | "settings" | "console";
       title: string;
@@ -28849,7 +28924,7 @@ export type NotificationsListIn = {
 export type NotificationsListOut = {
   notifications: Array<{
       id: string;
-      kind: "approval.requested" | "answer.requested" | "unblock.requested" | "approval.backstop" | "dm" | "mention" | "call.incoming" | "agent.blocked" | "incident.owned" | "task.assigned" | "reply.followed" | "agent.task_finished" | "digest.away" | "mention.thread" | "run.failed" | "conflict.needs_you" | "access.requested" | "access.decided" | "sync.attention" | "health.degraded" | "problem.report" | "member.joined" | "member.join_requested" | "limit.hit" | "vault.rotation_due" | "reply.thread" | "task.turn" | "task.returned" | "task.finished" | "task.due" | "machine.alert" | "item.shared" | "space.deletion_scheduled" | "space.deletion_cancelled" | "ci.paused";
+      kind: "approval.requested" | "answer.requested" | "unblock.requested" | "approval.backstop" | "dm" | "mention" | "call.incoming" | "agent.blocked" | "incident.owned" | "task.assigned" | "reply.followed" | "agent.task_finished" | "digest.away" | "mention.thread" | "run.failed" | "conflict.needs_you" | "access.requested" | "access.decided" | "sync.attention" | "health.degraded" | "problem.report" | "member.joined" | "member.join_requested" | "limit.hit" | "vault.rotation_due" | "reply.thread" | "task.turn" | "task.returned" | "task.finished" | "task.due" | "machine.alert" | "item.shared" | "space.deletion_scheduled" | "space.deletion_cancelled" | "ci.paused" | "hook.asked";
       level: "interrupt" | "badge" | "digest";
       place: "home" | "chats" | "inbox" | "records" | "files" | "apps" | "automations" | "vault" | "settings" | "console";
       title: string;
@@ -28963,7 +29038,7 @@ export type NotificationsRulesSetOut = {
 };
 export type NotificationsSendIn = {
   to: string;
-  kind: "approval.requested" | "answer.requested" | "unblock.requested" | "approval.backstop" | "dm" | "mention" | "call.incoming" | "agent.blocked" | "incident.owned" | "task.assigned" | "reply.followed" | "agent.task_finished" | "digest.away" | "mention.thread" | "run.failed" | "conflict.needs_you" | "access.requested" | "access.decided" | "sync.attention" | "health.degraded" | "problem.report" | "member.joined" | "member.join_requested" | "limit.hit" | "vault.rotation_due" | "reply.thread" | "task.turn" | "task.returned" | "task.finished" | "task.due" | "machine.alert" | "item.shared" | "space.deletion_scheduled" | "space.deletion_cancelled" | "ci.paused";
+  kind: "approval.requested" | "answer.requested" | "unblock.requested" | "approval.backstop" | "dm" | "mention" | "call.incoming" | "agent.blocked" | "incident.owned" | "task.assigned" | "reply.followed" | "agent.task_finished" | "digest.away" | "mention.thread" | "run.failed" | "conflict.needs_you" | "access.requested" | "access.decided" | "sync.attention" | "health.degraded" | "problem.report" | "member.joined" | "member.join_requested" | "limit.hit" | "vault.rotation_due" | "reply.thread" | "task.turn" | "task.returned" | "task.finished" | "task.due" | "machine.alert" | "item.shared" | "space.deletion_scheduled" | "space.deletion_cancelled" | "ci.paused" | "hook.asked";
   subject?: {
     type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar" | "skill";
     id: string;
@@ -37840,6 +37915,7 @@ export type TalkSessionOut = {
   provider: string;
   url: string;
   protocols: Array<string>;
+  context?: string;
   source: "own" | "space";
   expiresIn: number;
 };
@@ -41454,6 +41530,7 @@ export type ThreadsAddAgentOut = {
     listed: boolean;
     planMode: boolean;
     mode?: "ask" | "auto" | "plan";
+    agentRepliesInThreads?: boolean;
     members: Array<{
         kind: "person" | "agent" | "actor" | "service";
         id: string;
@@ -41520,6 +41597,7 @@ export type ThreadsAgentConfigureOut = {
     listed: boolean;
     planMode: boolean;
     mode?: "ask" | "auto" | "plan";
+    agentRepliesInThreads?: boolean;
     members: Array<{
         kind: "person" | "agent" | "actor" | "service";
         id: string;
@@ -41585,6 +41663,7 @@ export type ThreadsAgentCreateOut = {
     listed: boolean;
     planMode: boolean;
     mode?: "ask" | "auto" | "plan";
+    agentRepliesInThreads?: boolean;
     members: Array<{
         kind: "person" | "agent" | "actor" | "service";
         id: string;
@@ -41653,6 +41732,7 @@ export type ThreadsAgentSettingsSetOut = {
     listed: boolean;
     planMode: boolean;
     mode?: "ask" | "auto" | "plan";
+    agentRepliesInThreads?: boolean;
     members: Array<{
         kind: "person" | "agent" | "actor" | "service";
         id: string;
@@ -41719,6 +41799,7 @@ export type ThreadsCloseOut = {
     listed: boolean;
     planMode: boolean;
     mode?: "ask" | "auto" | "plan";
+    agentRepliesInThreads?: boolean;
     members: Array<{
         kind: "person" | "agent" | "actor" | "service";
         id: string;
@@ -41799,6 +41880,7 @@ export type ThreadsGetOut = {
     listed: boolean;
     planMode: boolean;
     mode?: "ask" | "auto" | "plan";
+    agentRepliesInThreads?: boolean;
     members: Array<{
         kind: "person" | "agent" | "actor" | "service";
         id: string;
@@ -41883,6 +41965,7 @@ export type ThreadsListOut = {
       listed: boolean;
       planMode: boolean;
       mode?: "ask" | "auto" | "plan";
+      agentRepliesInThreads?: boolean;
       members: Array<{
           kind: "person" | "agent" | "actor" | "service";
           id: string;
@@ -42003,6 +42086,7 @@ export type ThreadsMembersAddOut = {
     listed: boolean;
     planMode: boolean;
     mode?: "ask" | "auto" | "plan";
+    agentRepliesInThreads?: boolean;
     members: Array<{
         kind: "person" | "agent" | "actor" | "service";
         id: string;
@@ -42064,6 +42148,7 @@ export type ThreadsMembersRemoveOut = {
     listed: boolean;
     planMode: boolean;
     mode?: "ask" | "auto" | "plan";
+    agentRepliesInThreads?: boolean;
     members: Array<{
         kind: "person" | "agent" | "actor" | "service";
         id: string;
@@ -42125,6 +42210,7 @@ export type ThreadsMoveOut = {
     listed: boolean;
     planMode: boolean;
     mode?: "ask" | "auto" | "plan";
+    agentRepliesInThreads?: boolean;
     members: Array<{
         kind: "person" | "agent" | "actor" | "service";
         id: string;
@@ -42187,6 +42273,7 @@ export type ThreadsOutsideAgentAddOut = {
     listed: boolean;
     planMode: boolean;
     mode?: "ask" | "auto" | "plan";
+    agentRepliesInThreads?: boolean;
     members: Array<{
         kind: "person" | "agent" | "actor" | "service";
         id: string;
@@ -42253,6 +42340,7 @@ export type ThreadsOutsideAgentRemoveOut = {
     listed: boolean;
     planMode: boolean;
     mode?: "ask" | "auto" | "plan";
+    agentRepliesInThreads?: boolean;
     members: Array<{
         kind: "person" | "agent" | "actor" | "service";
         id: string;
@@ -42324,6 +42412,7 @@ export type ThreadsRemoveAgentOut = {
     listed: boolean;
     planMode: boolean;
     mode?: "ask" | "auto" | "plan";
+    agentRepliesInThreads?: boolean;
     members: Array<{
         kind: "person" | "agent" | "actor" | "service";
         id: string;
@@ -42384,6 +42473,7 @@ export type ThreadsReopenOut = {
     listed: boolean;
     planMode: boolean;
     mode?: "ask" | "auto" | "plan";
+    agentRepliesInThreads?: boolean;
     members: Array<{
         kind: "person" | "agent" | "actor" | "service";
         id: string;
@@ -42444,6 +42534,69 @@ export type ThreadsRestoreOut = {
     listed: boolean;
     planMode: boolean;
     mode?: "ask" | "auto" | "plan";
+    agentRepliesInThreads?: boolean;
+    members: Array<{
+        kind: "person" | "agent" | "actor" | "service";
+        id: string;
+      }>;
+    agents: Array<{
+        agentId: string;
+        mode: "lead" | "listen";
+        model?: string;
+        provider?: string;
+        effort?: "low" | "medium" | "high" | "max";
+        accountRef?: string;
+        watches?: boolean;
+        when?: "always" | "topics" | "hours";
+        topics?: string;
+        hoursFrom?: string;
+        hoursTo?: string;
+        style?: "short" | "full";
+        quiet?: boolean;
+        owned?: boolean;
+      }>;
+    createdAt: number;
+    closedAt?: number;
+    joinedAt?: Record<string, unknown>;
+    sharedAt?: number;
+    replyCount?: number;
+    lastMessageAt?: number;
+    path?: Array<{
+        title: string;
+        threadId: string;
+      }>;
+    unread?: number;
+    following?: boolean;
+    muted?: boolean;
+    repliers?: Array<{
+        kind: "person" | "agent" | "actor" | "service";
+        id: string;
+      }>;
+    parentTitle?: string;
+    preview?: string;
+  };
+};
+export type ThreadsSetAgentRepliesIn = {
+  threadId: string;
+  inThreads: boolean;
+};
+export type ThreadsSetAgentRepliesOut = {
+  thread: {
+    threadId: string;
+    kind: "chat" | "channel" | "thread" | "ask" | "run" | "helper" | "console";
+    title?: string;
+    starter?: string;
+    channelId?: string;
+    parentThreadId?: string;
+    parentMessageId?: string;
+    recordId?: string;
+    folderId?: string;
+    scopeType?: string;
+    scopeId?: string;
+    listed: boolean;
+    planMode: boolean;
+    mode?: "ask" | "auto" | "plan";
+    agentRepliesInThreads?: boolean;
     members: Array<{
         kind: "person" | "agent" | "actor" | "service";
         id: string;
@@ -42505,6 +42658,7 @@ export type ThreadsSetFolderOut = {
     listed: boolean;
     planMode: boolean;
     mode?: "ask" | "auto" | "plan";
+    agentRepliesInThreads?: boolean;
     members: Array<{
         kind: "person" | "agent" | "actor" | "service";
         id: string;
@@ -42566,6 +42720,7 @@ export type ThreadsSetModeOut = {
     listed: boolean;
     planMode: boolean;
     mode?: "ask" | "auto" | "plan";
+    agentRepliesInThreads?: boolean;
     members: Array<{
         kind: "person" | "agent" | "actor" | "service";
         id: string;
@@ -42627,6 +42782,7 @@ export type ThreadsSetPlanModeOut = {
     listed: boolean;
     planMode: boolean;
     mode?: "ask" | "auto" | "plan";
+    agentRepliesInThreads?: boolean;
     members: Array<{
         kind: "person" | "agent" | "actor" | "service";
         id: string;
@@ -42694,6 +42850,7 @@ export type ThreadsUpdateOut = {
     listed: boolean;
     planMode: boolean;
     mode?: "ask" | "auto" | "plan";
+    agentRepliesInThreads?: boolean;
     members: Array<{
         kind: "person" | "agent" | "actor" | "service";
         id: string;
@@ -44495,6 +44652,7 @@ export interface CapMap {
   "chat.noted": { in: ChatNotedIn; out: ChatNotedOut };
   "chat.open_as_chat": { in: ChatOpenAsChatIn; out: ChatOpenAsChatOut };
   "chat.open_tab": { in: ChatOpenTabIn; out: ChatOpenTabOut };
+  "chat.pace_of": { in: ChatPaceOfIn; out: ChatPaceOfOut };
   "chat.people_status": { in: ChatPeopleStatusIn; out: ChatPeopleStatusOut };
   "chat.pin": { in: ChatPinIn; out: ChatPinOut };
   "chat.pins.list": { in: ChatPinsListIn; out: ChatPinsListOut };
@@ -45173,12 +45331,15 @@ export interface CapMap {
   "home.mark_digest_seen": { in: HomeMarkDigestSeenIn; out: HomeMarkDigestSeenOut };
   "home.routines_today": { in: HomeRoutinesTodayIn; out: HomeRoutinesTodayOut };
   "home.write_digest": { in: HomeWriteDigestIn; out: HomeWriteDigestOut };
+  "hooks.allow_once": { in: HooksAllowOnceIn; out: HooksAllowOnceOut };
+  "hooks.ask_admin": { in: HooksAskAdminIn; out: HooksAskAdminOut };
   "hooks.fire": { in: HooksFireIn; out: HooksFireOut };
   "hooks.list": { in: HooksListIn; out: HooksListOut };
   "hooks.pause": { in: HooksPauseIn; out: HooksPauseOut };
   "hooks.policy.get": { in: HooksPolicyGetIn; out: HooksPolicyGetOut };
   "hooks.policy.set": { in: HooksPolicySetIn; out: HooksPolicySetOut };
   "hooks.remove": { in: HooksRemoveIn; out: HooksRemoveOut };
+  "hooks.runs.latest": { in: HooksRunsLatestIn; out: HooksRunsLatestOut };
   "hooks.runs.list": { in: HooksRunsListIn; out: HooksRunsListOut };
   "hooks.set": { in: HooksSetIn; out: HooksSetOut };
   "hubspot.health": { in: HubspotHealthIn; out: HubspotHealthOut };
@@ -46251,6 +46412,7 @@ export interface CapMap {
   "threads.remove_agent": { in: ThreadsRemoveAgentIn; out: ThreadsRemoveAgentOut };
   "threads.reopen": { in: ThreadsReopenIn; out: ThreadsReopenOut };
   "threads.restore": { in: ThreadsRestoreIn; out: ThreadsRestoreOut };
+  "threads.set_agent_replies": { in: ThreadsSetAgentRepliesIn; out: ThreadsSetAgentRepliesOut };
   "threads.set_folder": { in: ThreadsSetFolderIn; out: ThreadsSetFolderOut };
   "threads.set_mode": { in: ThreadsSetModeIn; out: ThreadsSetModeOut };
   "threads.set_plan_mode": { in: ThreadsSetPlanModeIn; out: ThreadsSetPlanModeOut };
@@ -47971,6 +48133,14 @@ export type HoldReleasedPayload = {
   };
   by: string;
 };
+export type HookAdminAskedPayload = {
+  hookId: string;
+  threadId: string;
+  line: string;
+  reason?: string;
+  by: string;
+  note?: string;
+};
 export type HookBlockedPayload = {
   hookId: string;
   event: string;
@@ -47983,7 +48153,7 @@ export type HookBlockedPayload = {
 export type HookChangedPayload = {
   hookId: string;
   scope: string;
-  change: "added" | "changed" | "removed" | "paused" | "resumed" | "agents_on" | "agents_off";
+  change: "added" | "changed" | "removed" | "paused" | "resumed" | "allowed_once" | "agents_on" | "agents_off";
   by: string;
   line: string;
   threadId?: string;
@@ -48732,7 +48902,7 @@ export type NotesUpdatedPayload = {
 export type NotificationCappedPayload = {
   person: string;
   agentId: string;
-  kind: "approval.requested" | "answer.requested" | "unblock.requested" | "approval.backstop" | "dm" | "mention" | "call.incoming" | "agent.blocked" | "incident.owned" | "task.assigned" | "reply.followed" | "agent.task_finished" | "digest.away" | "mention.thread" | "run.failed" | "conflict.needs_you" | "access.requested" | "access.decided" | "sync.attention" | "health.degraded" | "problem.report" | "member.joined" | "member.join_requested" | "limit.hit" | "vault.rotation_due" | "reply.thread" | "task.turn" | "task.returned" | "task.finished" | "task.due" | "machine.alert" | "item.shared" | "space.deletion_scheduled" | "space.deletion_cancelled" | "ci.paused";
+  kind: "approval.requested" | "answer.requested" | "unblock.requested" | "approval.backstop" | "dm" | "mention" | "call.incoming" | "agent.blocked" | "incident.owned" | "task.assigned" | "reply.followed" | "agent.task_finished" | "digest.away" | "mention.thread" | "run.failed" | "conflict.needs_you" | "access.requested" | "access.decided" | "sync.attention" | "health.degraded" | "problem.report" | "member.joined" | "member.join_requested" | "limit.hit" | "vault.rotation_due" | "reply.thread" | "task.turn" | "task.returned" | "task.finished" | "task.due" | "machine.alert" | "item.shared" | "space.deletion_scheduled" | "space.deletion_cancelled" | "ci.paused" | "hook.asked";
   perHour: number;
 };
 export type NotificationDelegateChangedPayload = {
@@ -48745,7 +48915,7 @@ export type NotificationDelegateChangedPayload = {
 export type NotificationDeliveredPayload = {
   notificationId: string;
   person: string;
-  kind: "approval.requested" | "answer.requested" | "unblock.requested" | "approval.backstop" | "dm" | "mention" | "call.incoming" | "agent.blocked" | "incident.owned" | "task.assigned" | "reply.followed" | "agent.task_finished" | "digest.away" | "mention.thread" | "run.failed" | "conflict.needs_you" | "access.requested" | "access.decided" | "sync.attention" | "health.degraded" | "problem.report" | "member.joined" | "member.join_requested" | "limit.hit" | "vault.rotation_due" | "reply.thread" | "task.turn" | "task.returned" | "task.finished" | "task.due" | "machine.alert" | "item.shared" | "space.deletion_scheduled" | "space.deletion_cancelled" | "ci.paused";
+  kind: "approval.requested" | "answer.requested" | "unblock.requested" | "approval.backstop" | "dm" | "mention" | "call.incoming" | "agent.blocked" | "incident.owned" | "task.assigned" | "reply.followed" | "agent.task_finished" | "digest.away" | "mention.thread" | "run.failed" | "conflict.needs_you" | "access.requested" | "access.decided" | "sync.attention" | "health.degraded" | "problem.report" | "member.joined" | "member.join_requested" | "limit.hit" | "vault.rotation_due" | "reply.thread" | "task.turn" | "task.returned" | "task.finished" | "task.due" | "machine.alert" | "item.shared" | "space.deletion_scheduled" | "space.deletion_cancelled" | "ci.paused" | "hook.asked";
   level: "interrupt" | "badge" | "digest";
   place: "home" | "chats" | "inbox" | "records" | "files" | "apps" | "automations" | "vault" | "settings" | "console";
   subject?: {
@@ -49679,6 +49849,7 @@ export type SkillMineChangedPayload = {
   name: string;
   op: "added" | "changed" | "removed" | "updated";
   by: string;
+  ownerId?: string;
 };
 export type SkillPolicyChangedPayload = {
   scriptsAdminOnly: boolean;
@@ -50876,6 +51047,7 @@ export interface EventMap {
   "helper.started": HelperStartedPayload;
   "hold.placed": HoldPlacedPayload;
   "hold.released": HoldReleasedPayload;
+  "hook.admin_asked": HookAdminAskedPayload;
   "hook.blocked": HookBlockedPayload;
   "hook.changed": HookChangedPayload;
   "hubspot.webhook_received": HubspotWebhookReceivedPayload;

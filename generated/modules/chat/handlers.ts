@@ -58,6 +58,7 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "chat.noted": Handler<"chat.noted", X>;
   "chat.open_as_chat": Handler<"chat.open_as_chat", X>;
   "chat.open_tab": Handler<"chat.open_tab", X>;
+  "chat.pace_of": Handler<"chat.pace_of", X>;
   "chat.people_status": Handler<"chat.people_status", X>;
   "chat.pin": Handler<"chat.pin", X>;
   "chat.pins.list": Handler<"chat.pins.list", X>;
@@ -111,6 +112,7 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "threads.remove_agent": Handler<"threads.remove_agent", X>;
   "threads.reopen": Handler<"threads.reopen", X>;
   "threads.restore": Handler<"threads.restore", X>;
+  "threads.set_agent_replies": Handler<"threads.set_agent_replies", X>;
   "threads.set_folder": Handler<"threads.set_folder", X>;
   "threads.set_mode": Handler<"threads.set_mode", X>;
   "threads.set_plan_mode": Handler<"threads.set_plan_mode", X>;

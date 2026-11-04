@@ -27,10 +27,10 @@ test("commit leftovers: the token a process wrote into a file and into .git/conf
 
   // the "CLI": it has GH_TOKEN, saves its environment to a file, adds a remote with the token in the address, and writes a script that curls with it
   const script = `
-    const fs = require("fs");
+    const fs = require("node:fs");
     fs.writeFileSync("env.txt", "GH_TOKEN=" + process.env.GH_TOKEN + "\\n");
     fs.writeFileSync("deploy.sh", "curl -H 'Authorization: Bearer " + process.env.GH_TOKEN + "' https://api.github.com/user\\n");
-    require("child_process").execFileSync("git", ["remote", "add", "tokenized", "https://x-access-token:" + process.env.GH_TOKEN + "@github.com/northwind/site.git"]);
+    require("node:child_process").execFileSync("git", ["remote", "add", "tokenized", "https://x-access-token:" + process.env.GH_TOKEN + "@github.com/northwind/site.git"]);
   `;
   const ran = spawnSync(process.execPath, ["-e", script], { cwd: dest, env: { ...process.env, GH_TOKEN: T }, encoding: "utf8" });
   assert.equal(ran.status, 0, ran.stderr);

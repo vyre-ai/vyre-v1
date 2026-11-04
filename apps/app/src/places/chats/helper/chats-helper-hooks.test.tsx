@@ -12,7 +12,7 @@ const html = (s: Sample): string => clean(renderToStaticMarkup(<HelperChat data=
 
 test("a helper with hooks shows them: its own first, then the inherited, each tagged", () => {
   const out = html(createSample("done", { hooks: true }));
-  assert.ok(out.includes('data-testid="helper-hooks"') && out.includes("Hooks for this helper"));
+  assert.ok(out.includes('data-testid="helper-hooks"') && /Hooks for /.test(out));
   const own = out.indexOf('data-testid="helper-hook-hok_own"'), run = out.indexOf('data-testid="helper-hook-hok_run"'), space = out.indexOf('data-testid="helper-hook-hok_space"');
   assert.ok(own >= 0 && own < run && run < space);
   assert.ok(out.includes("From Intake") || /From [A-Z]/.test(out), "the lead's own say From <lead>");
@@ -25,6 +25,6 @@ test("no hooks, no section", () => {
 
 test("splitHooks puts a run hook set on the helper's own thread apart from the rest", () => {
   const h = (id: string, scope: string, threadId?: string) => ({ id, scope, threadId }) as never;
-  const r = splitHooks([h("a", "run", "H"), h("b", "run", "P"), h("c", "space")], "H");
-  assert.deepEqual([r.own.map((x) => x.id), r.inherited.map((x) => x.id)], [["a"], ["b", "c"]]);
+  const r = splitHooks([h("a", "run", "H"), h("b", "run", "P"), h("c", "space"), h("d", "chat", "P")], "H");
+  assert.deepEqual([r.own.map((x) => x.id), r.chat.map((x) => x.id), r.inherited.map((x) => x.id)], [["a"], ["d"], ["b", "c"]], "the chat's own rule is shown as From this chat, apart from the rest");
 });

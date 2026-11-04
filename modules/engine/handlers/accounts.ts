@@ -76,7 +76,9 @@ export async function load(ctx: Pick<Ctx, "actingFor" | "principal" | "call">): 
     const under = p.olderOf ? refById.get(p.olderOf) : undefined;
     if (under) underOf.set(ref, under);
     // a sign-in reads by the name the person gave it or its account, never "Claude Code 4"; the Space AI key reads as its provider, like any other
-    const name = p.displayName ?? p.itemName;
+    // Codex on an OpenAI key reads in plain words next to the ChatGPT sign-in, unless the person named it
+    const plain = p.providerKey === "codex" && p.connection === "api_key" && (!p.itemName || /^codex( \d+)?$/i.test(p.itemName)) ? "Codex, with an API key" : undefined;
+    const name = p.displayName ?? plain ?? p.itemName;
     if (name && p.spaceKey !== true) names.set(ref, name);
     if (p.address || p.keyless) where.set(ref, { ...(p.address ? { base: p.address } : {}), ...(p.keyless ? { keyless: true } : {}) });
     rows.push({

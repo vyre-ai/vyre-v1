@@ -1,5 +1,6 @@
 // The helper chat's logic, with no renderer (spec 3.2 Helper chats): where it sits in the address bar, whether it is still running, how its steps read. A helper takes no
 // messages, so nothing here is about sending.
+import { plainStep } from "../../../../../../lib/plain-words.ts";
 import type { CapMap } from "../../../../../../generated/types.ts";
 import { BLOCK_FALLBACKS, isNativeBlockType } from "../../../../../../ui/src/blocks/registry.ts";
 import { applyFallback } from "../../../../../../ui/src/blocks/GenericBlock.tsx";
@@ -57,7 +58,7 @@ export function blockLine(b: MessageBlock): { title: string; sub: string; state:
   const data = isRec(b.data) ? b.data : {};
   const fromTemplate = isNativeBlockType(b.type) ? applyFallback(BLOCK_FALLBACKS[b.type], b.data) : "";
   const title = fromTemplate || str(data.title) || str(data.caption) || b.type.replaceAll("_", " ");
-  return { title, sub: str(data.sub), state: b.state };
+  return { ...plainStep({ title, sub: str(data.sub) }), state: b.state };
 }
 
 export function stepCount(messages: readonly Message[]): number {
@@ -85,4 +86,4 @@ export function whenLabel(ts: number, c: Clock): string {
   return `${two(d.getUTCHours())}:${two(d.getUTCMinutes())}`;
 }
 
-export const READ_ONLY_NOTE = "Helpers work from their brief and can't take messages.";
+export const READ_ONLY_NOTE = "What you write here goes to the helper, and the agent that started it sees it.";

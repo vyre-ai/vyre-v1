@@ -10,7 +10,7 @@ export type KindKey =
   | "approval.requested" | "answer.requested" | "unblock.requested" | "approval.backstop" | "dm" | "mention" | "call.incoming" | "agent.blocked" | "incident.owned" | "task.assigned" | "reply.followed"
   | "agent.task_finished" | "digest.away" | "mention.thread" | "run.failed" | "conflict.needs_you" | "access.requested" | "access.decided"
   | "sync.attention" | "health.degraded" | "problem.report" | "member.joined" | "member.join_requested" | "limit.hit" | "vault.rotation_due" | "reply.thread"
-  | "task.turn" | "task.returned" | "task.finished" | "task.due" | "machine.alert" | "item.shared" | "space.deletion_scheduled" | "space.deletion_cancelled" | "ci.paused";
+  | "task.turn" | "task.returned" | "task.finished" | "task.due" | "machine.alert" | "item.shared" | "space.deletion_scheduled" | "space.deletion_cancelled" | "ci.paused" | "hook.asked";
 export type Action = { label: string; cap: string };
 export interface KindDef {
   key: KindKey; level: Level; place: Place; title: string; pushTitle?: string; actions: Action[]; agentRateKey?: string; backstopEmailAfterHours?: number; respectHours: boolean;
@@ -50,6 +50,7 @@ export const KINDS: readonly KindDef[] = [
   kind("space.deletion_scheduled", "badge", "inbox", "{{title}}", { actions: [a("Cancel deletion", "spaces.delete_cancel")] }),
   kind("space.deletion_cancelled", "badge", "inbox", "{{title}}"),
   kind("ci.paused", "badge", "console", "{{title}}", { actions: [a("Open", "ci.cost.month")] }),
+  kind("hook.asked", "badge", "inbox", "{{title}}", { actions: [a("Open", "hooks.list")] }),
   kind("problem.report", "badge", "console", "Problem report from {{from}}", { actions: [a("Review", "tasks.act")] }),
   kind("member.joined", "digest", "home", "{{name}} joined {{space}}"),
   kind("member.join_requested", "badge", "console", "{{name}} asked to join {{space}}", { actions: [a("Review", "members.join_requests.list")] }),
@@ -115,7 +116,8 @@ const parse = <T>(s: unknown, fallback: T): T => { try { return JSON.parse(Strin
 
 /** {{name}} filled from the data; an unknown name becomes empty and the line is tidied ("Message from " is never shown with a hole). */
 export function render(tpl: string, vars: Record<string, unknown>): string {
-  const s = tpl.replace(/\{\{(\w+)\}\}/g, (_m, k: string) => (vars[k] === undefined || vars[k] === null ? "" : String(vars[k])));
+  const s = tpl.replace(/\{\{(\w+)\}\}/g, (_m, k: string) => (vars[k] === undefined || vars[k] === null ? "" : String(vars[k])))
+    .replace(/^Approval needed: (?=\S.* wants to )/, "");   // an agent's request already says who wants what: no label in front of it
   return s.replace(/\s+/g, " ").replace(/\s+([:,.])/g, "$1").replace(/[:,]\s*$/, "").trim();
 }
 

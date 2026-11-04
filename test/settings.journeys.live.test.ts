@@ -3,7 +3,8 @@
 // Screenshots of every page, light and dark, desktop and phone, go to shots-evidence/settings/<who>/.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { bootScreens, browserOrSkip, open, phonePass, seat, setScheme, shoot } from "./support/mail-browser.ts";
+import fs from "node:fs";
+import { SIZES, bootScreens, browserOrSkip, open, seat, setScheme, shoot } from "./support/mail-browser.ts";
 
 const OUT = "shots-evidence/settings";
 const PAGES: { id: string; title: string; sub: string }[] = [
@@ -27,6 +28,7 @@ test("settings journey: the seven pages as Owner and as Member, the look and a c
     for (const [who, person, role] of [["owner", w.owner, "Owner"], ["member", member, "Member"]] as const) {
       const me = await seat(s, person, role);
       const dir = `${OUT}/${who}`;
+      await me.page.setViewportSize({ width: 1440, height: 900 });   // the prototype's width, for side-by-side shots
       await open(me, s, "/settings");
       await me.page.getByTestId("settings-place").waitFor({ timeout: 30_000 });
       const nav = (await me.page.getByTestId("settings-nav").innerText()).replace(/\s+/g, " ");
@@ -38,7 +40,7 @@ test("settings journey: the seven pages as Owner and as Member, the look and a c
         await me.page.waitForTimeout(800);
         const text = (await me.page.getByTestId(`page-${p.id}`).innerText()).replace(/\s+/g, " ");
         assert.ok(text.includes(p.sub), `${who}/${p.id}: the sentence under the title`);
-        for (const b of BANNED) assert.ok(!new RegExp(`(^|[^a-z])${b}([^a-z]|$)`, "i").test(text), `${who}/${p.id}: no "${b}"`);
+        for (const b of BANNED) { const m = new RegExp(`(^|[^a-z])${b}([^a-z]|$)`, "i").exec(text); assert.ok(!m, `${who}/${p.id}: no "${b}" in: ...${m ? text.slice(Math.max(0, m.index - 60), m.index + 60) : ""}...`); }
         assert.ok(!/Couldn't load|Something went wrong|undefined|\[object/.test(text), `${who}/${p.id}: no error text`);
         await shoot(me.page, dir, p.id);
       }
@@ -55,7 +57,20 @@ test("settings journey: the seven pages as Owner and as Member, the look and a c
       assert.equal(look.rm, true, `${who}: Reduce motion saved`);
       await setScheme(me.page, "dark");
       await shoot(me.page, dir, "appearance-after");
-      await phonePass(me, s, dir, [{ name: "settings", route: "/settings" }]);
+      // the phone: every page, light and dark (the list is one screen and a page another, with a back arrow between them)
+      await me.page.setViewportSize(SIZES.phone);
+      for (const p of PAGES) {
+        await open(me, s, "/settings");
+        const row = me.page.getByTestId(`row-page-${p.id}`);
+        if (!(await row.isVisible().catch(() => false))) await me.page.getByTestId("back").click().catch(() => undefined);
+        await row.click();
+        await me.page.getByTestId(`page-${p.id}`).waitFor({ timeout: 20_000 });
+        await me.page.waitForTimeout(800);
+        const phoneText = (await me.page.getByTestId(`page-${p.id}`).innerText()).replace(/\s+/g, " ");
+        assert.ok(phoneText.includes(p.sub), `${who}/${p.id}: the sentence on a phone`);
+        await shoot(me.page, dir, `phone-${p.id}`).then((files) => files.forEach((f) => fs.renameSync(f, f.replace("-desktop.png", "-phone.png"))));
+      }
+      await me.page.setViewportSize({ width: 1440, height: 900 });
       assert.deepEqual(me.errors, [], `${who}: no page errors`);
     }
   } finally { await s.close(); }

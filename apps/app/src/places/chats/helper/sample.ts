@@ -43,6 +43,7 @@ function build(variant: Variant): { thread: Thread; messages: Message[] } {
       msg(2, 2, agent, "Which county site: the main one or a mirror?", started + 5_000, [{ type: "helper_note", v: 1, id: "n1", data: { direction: "up", kind: "question", state: "answered", from: { kind: "agent", id: agent } }, state: "sent", traceId: "tr_n1" }]),
       msg(3, 3, "agt_lead", "Use the mirror.", started + 9_000, [{ type: "helper_note", v: 1, id: "n2", data: { direction: "down", kind: "followup", state: "seen", seenAt: started + 10_000, from: { kind: "agent", id: "agt_lead" } }, state: "sent", traceId: "tr_n2" }]),
       { ...msg(4, 4, "usr_irfad", "Also tell me the filing date.", started + 14_000), author: { kind: "person", id: "usr_irfad" }, kind: "text" } as Message,
+      msg(5, 5, agent, "Noted. I will include the filing date.", started + 16_000),
     ]
     : [
       msg(1, 1, agent, "While the main county site needs a login, check the three public mirror sites for the same parcel records and return what's there.", started),
@@ -76,8 +77,9 @@ export function createSample(variant: Variant = "done", o: { online?: boolean; h
     ({ id, scope, event: "tool.before", kind, matcher: "", line, paused: false, madeBy: by, madeByKind: byKind, ...(threadId ? { threadId } : {}), helpers: true, timeoutSec: 20, createdAt: SAMPLE_NOW, updatedAt: SAMPLE_NOW, spec, mine: false, canChange: false });
   if (o.hooks) replica.put("hooks", [
     hk("hok_own", "run", thread.threadId, "before a helper opens a link, only open links from the quotes you were sent", "check", { instruction: "Only open links from the quotes" }, "agt_lead", "agent"),
-    hk("hok_run", "run", "c2", "before a tool, no client names in a search", "check", { instruction: "No client names" }, "agt_lead", "agent"),
-    hk("hok_space", "space", undefined, "before a tool, keep to the Space rules", "command", { command: "rules.sh" }, "usr_admin", "admin"),
+    hk("hok_chat", "chat", "c2", "before any email, check the address is in Contacts", "check", { instruction: "Check the address is in Contacts" }, "agt_lead", "agent"),
+    hk("hok_run", "run", "c2", "before any search, no client names", "check", { instruction: "No client names" }, "agt_lead", "agent"),
+    hk("hok_space", "space", undefined, "before a helper acts, keep to the Space rules", "command", { command: "rules.sh" }, "usr_irfad", "admin"),
   ]);
   replica.resolve("hooks.list", () => ({ hooks: o.hooks ? (replica.rows("hooks") as unknown[]) : [], agentHooks: true }));
   replica.resolve("threads.get", (_t, input) => {

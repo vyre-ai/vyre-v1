@@ -20,7 +20,7 @@ A hook was added, changed, removed, paused or turned back on, or an admin switch
 type Payload = {
   hookId: string;
   scope: string;
-  change: "added" | "changed" | "removed" | "paused" | "resumed" | "agents_on" | "agents_off";
+  change: "added" | "changed" | "removed" | "paused" | "resumed" | "allowed_once" | "agents_on" | "agents_off";
   by: string;
   line: string;
   threadId?: string;

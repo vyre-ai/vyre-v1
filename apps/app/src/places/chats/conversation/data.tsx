@@ -127,6 +127,8 @@ export interface ConversationData {
   activity?: { events: readonly import("./model.ts").Message[]; show: "all" | "comments" | "updates" };
   /** The composer's words, in place of the chat's. */
   placeholder?: string;
+  /** In a thread: the messages that were also sent to the chat. They carry "Also sent to the chat". */
+  alsoSent?: ReadonlySet<string>;
   /** What the chat's memory surfaces read and write (Used N memories, quote cards, Learned lines, underlined subjects, the message menu's memory items). Left out where the shell has none: every surface then draws nothing. */
   memory?: ChatMemoryData;
 }

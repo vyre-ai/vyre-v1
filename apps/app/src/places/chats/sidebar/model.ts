@@ -5,6 +5,8 @@ import type { CapMap } from "../../../../../../generated/types.ts";
 import type { ImportedRow } from "../imported/model.ts";
 import type { TeamNow } from "../../../shell/team/now.ts";
 import type { GoalLine } from "../goals/model.ts";
+import { PROJECTS_SHOWN } from "../projects/model.ts";
+import type { ProjectLine } from "../projects/model.ts";
 
 export type RecentOut = CapMap["chat.recent"]["out"];
 export type RecentItem = RecentOut["today"][number];
@@ -38,7 +40,7 @@ export const GROUPS: readonly { key: GroupKey; label: string }[] = [
   { key: "earlier", label: "Earlier" },
 ];
 
-export type SectionKey = "now" | "goals" | "team" | "people" | "faces" | "recent" | "channels" | "imported" | "archived";
+export type SectionKey = "now" | "goals" | "projects" | "team" | "people" | "faces" | "recent" | "channels" | "imported" | "archived";
 
 /** A recent row as the sidebar draws it. `person` marks a chat with one person; `local` marks one made on this device that the server has not answered yet. */
 export interface ChatRow {
@@ -217,11 +219,13 @@ export function needsKind(item: NeedsItem): { label: string; tone: "accent" | "w
 export type Entry =
   | { key: string; type: "head"; section: SectionKey; label: string; count?: number; open: boolean }
   | { key: string; type: "face"; agent: Agent; digit?: number; working: boolean; waiting: boolean; assistant?: boolean; unread?: number }
-  | { key: string; type: "more"; label: string; to: "agents" | "unread" | "recent" | "people" | "faces" | "goals" }
+  | { key: string; type: "more"; label: string; to: "agents" | "unread" | "recent" | "people" | "faces" | "goals" | "projects" }
   /** The rows at the top: Tasks and Notes. */
   | { key: string; type: "nav"; to: "tasks" | "notes"; label: string; count: number; dot?: boolean }
   /** A goal: its lead's face, its title, a steady bar and what changes what you do (a two-line row, GOAL_ROW_H). */
   | { key: string; type: "goal"; goal: GoalLine }
+  /** A project: its health dot and its name. */
+  | { key: string; type: "project"; project: ProjectLine }
   /** A person of the Space: a press opens your chat with them. `presence` is their steady dot (online, away). */
   | { key: string; type: "person"; id: string; name: string; unread: number; presence?: "online" | "away" }
   /** While you were away (owner D21): one quiet row at the very top, only after an absence that had something in it; a press shows what happened. */
@@ -271,6 +275,9 @@ export interface SidebarInput {
   /** Your goals and the ones you help with, in the order the Goals group shows them (goals/model.ts sidebarGoals). */
   goals?: readonly GoalLine[];
   moreGoals?: boolean;
+  /** The Space's projects, starred first (projects/model.ts sidebarProjects), shown after Goals. A Space with none shows no group. */
+  projects?: readonly ProjectLine[];
+  moreProjects?: boolean;
   people?: readonly { id: string; name: string; unread?: number }[];
   moreRecent?: boolean;
   morePeople?: boolean;
@@ -339,6 +346,16 @@ export function buildEntries(i: SidebarInput): Entry[] {
       if (shown.length < goals.length) out.push({ key: "m:goals", type: "more", label: `${goals.length - shown.length} more`, to: "goals" });
     }
   }
+  // Projects sit right after Goals
+  if (!i.searching && (i.projects?.length ?? 0) > 0) {
+    const projects = i.projects!;
+    out.push({ key: "h:projects", type: "head", section: "projects", label: "Projects", count: projects.length, open: open("projects") });
+    if (open("projects")) {
+      const shown = i.moreProjects === true ? projects : projects.slice(0, PROJECTS_SHOWN);
+      for (const p of shown) out.push({ key: `pj:${p.id}`, type: "project", project: p });
+      if (shown.length < projects.length) out.push({ key: "m:projects", type: "more", label: `${projects.length - shown.length} more`, to: "projects" });
+    }
+  }
   const rows = i.groups.flatMap((g) => g.rows);
   const unique = rows.filter((r, n) => rows.findIndex((x) => x.threadId === r.threadId) === n);
   const isNow = (r: ChatRow): boolean => r.working || i.waitingThreads?.has(r.threadId) === true;
@@ -366,7 +383,10 @@ export function buildEntries(i: SidebarInput): Entry[] {
     if (shown.length < rest.length) out.push({ key: "m:recent", type: "more", label: `${rest.length - shown.length} more`, to: "recent" });
   }
   if (i.filter === "all") {
-    const { plain, projects } = splitChannels(i.channels);
+    // a project's channel belongs to the project (its Chat tab): with the Projects group above, the channel list does not repeat it
+    const split = splitChannels(i.channels);
+    const plain = split.plain;
+    const projects = (i.projects?.length ?? 0) > 0 ? [] : split.projects;
     if (!i.personal && (plain.length || projects.length || i.errors?.channels || !i.searching)) {
       out.push({ key: "h:channels", type: "head", section: "channels", label: "Channels", count: plain.length + projects.length, open: open("channels") });
       if (open("channels")) {

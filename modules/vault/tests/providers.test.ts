@@ -24,6 +24,17 @@ test("the catalog names every engine driver and each connection it takes", async
   h.cleanup();
 });
 
+test("Codex takes an OpenAI API key as well as the ChatGPT sign-in; the key is sealed and the account runs on the codex engine", async () => {
+  const h = harness();
+  const c = out(await p.catalog(h.ctx, {})).providers as Json[];
+  assert.deepEqual((c.find((x) => x.key === "codex") as Json).connections, ["subscription", "api_key"]);
+  const row = out(out(await p.add(h.ctx, { providerKey: "codex", connection: "api_key", scope: "mine", apiKey: SECRET, idempotencyKey: key() })).provider);
+  assert.deepEqual(contractErrors("providers.add", "out", { provider: row }), []);
+  assert.deepEqual([row.providerKey, row.connection, row.engine, row.state], ["codex", "api_key", "codex", "ok"]);
+  assert.ok(!h.everything().includes(SECRET), "the key is sealed in the item, nowhere else");
+  h.cleanup();
+});
+
 test("a Shared API key is added, listed with its handle, visible to people with Use, and the key is in no row", async () => {
   const h = harness();
   const folder = await sharedFolder(h);

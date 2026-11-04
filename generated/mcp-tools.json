@@ -10929,6 +10929,39 @@
     },
     {
       "blocks": [],
+      "cap": "chat.pace_of",
+      "deferred": false,
+      "description": "How a teammate answers, for their profile: usual reply time over the last 30 days, and for one chat how they hear about it. Reads only chats you are in with them",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "personId": {
+            "examples": [
+              "usr_a1b2c3"
+            ],
+            "pattern": "^usr_[a-z0-9]+$",
+            "type": "string"
+          },
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "personId"
+        ],
+        "type": "object"
+      },
+      "name": "chat_pace_of",
+      "planMode": "allowed",
+      "toolset": "chats",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "chat.pin",
       "deferred": false,
       "description": "Mark a message as pinned (a content marker, not a Star)",
@@ -30698,6 +30731,92 @@
       "v": 1
     },
     {
+      "blocks": [],
+      "cap": "hooks.runs.list",
+      "deferred": false,
+      "description": "What hooks did lately: which ran, what they answered, and the ones that failed or ran out of time, newest first. since and outcomes narrow it before the limit; scope space is a Space admin's read of every Space hook's runs (anyone else gets only what they could see anyway)",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "hookId": {
+            "type": "string"
+          },
+          "limit": {
+            "maximum": 200,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "outcomes": {
+            "items": {
+              "enum": [
+                "ok",
+                "blocked",
+                "note",
+                "error",
+                "timeout",
+                "skipped",
+                "allowed_once"
+              ],
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "scope": {
+            "enum": [
+              "space"
+            ],
+            "type": "string"
+          },
+          "since": {
+            "description": "Only runs at or after this time",
+            "examples": [
+              1760000000000
+            ],
+            "minimum": 0,
+            "type": "integer"
+          },
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "name": "hooks_runs",
+      "planMode": "allowed",
+      "toolset": "agents",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "hooks.runs.latest",
+      "deferred": false,
+      "description": "The newest run of each hook in one chat, one row per hook: what \"Last ran\" on a hook card reads. Only for a chat you can use",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "threadId"
+        ],
+        "type": "object"
+      },
+      "name": "hooks_runs_latest",
+      "planMode": "allowed",
+      "toolset": "agents",
+      "v": 1
+    },
+    {
       "blocks": [
         "hook"
       ],
@@ -44669,7 +44788,8 @@
               "item.shared",
               "space.deletion_scheduled",
               "space.deletion_cancelled",
-              "ci.paused"
+              "ci.paused",
+              "hook.asked"
             ],
             "type": "string"
           },
@@ -45139,7 +45259,8 @@
               "item.shared",
               "space.deletion_scheduled",
               "space.deletion_cancelled",
-              "ci.paused"
+              "ci.paused",
+              "hook.asked"
             ],
             "type": "string"
           },
@@ -67286,6 +67407,36 @@
         "type": "object"
       },
       "name": "threads_reopen",
+      "planMode": "blocked",
+      "toolset": "chats",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "threads.set_agent_replies",
+      "deferred": false,
+      "description": "Choose where the agents of a chat reply: in the thread under the message that asked them, or in the chat itself. Approvals and answers an agent marks Also send to the chat still come to the chat",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "inThreads": {
+            "type": "boolean"
+          },
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "threadId",
+          "inThreads"
+        ],
+        "type": "object"
+      },
+      "name": "threads_set_agent_replies",
       "planMode": "blocked",
       "toolset": "chats",
       "v": 1

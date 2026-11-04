@@ -27,12 +27,19 @@ Hooks module only: leave a quiet line in a chat when a hook is added, changed, r
 type In = {
   threadId: string;
   body: string;
-  kind: "added" | "changed" | "removed" | "paused" | "resumed" | "blocked" | "failed";
+  kind: "added" | "changed" | "removed" | "paused" | "resumed" | "blocked" | "failed" | "allowed" | "asked";
   hookId?: string;
   scope?: string;
   by?: string;
   byKind?: "admin" | "person" | "agent";
   reason?: string;
+  tool?: string;
+  subject?: string;
+  agentId?: string;
+  next?: Array<{
+      label: string;
+      ask: string;
+    }>;
 };
 ```
 
@@ -58,14 +65,23 @@ type Out = {
 {
   "name": "example",
   "input": {
+    "agentId": "agt_a1b2c3",
     "body": "example",
     "by": "example",
     "byKind": "admin",
     "hookId": "example",
     "kind": "added",
+    "next": [
+      {
+        "ask": "example",
+        "label": "example"
+      }
+    ],
     "reason": "example",
     "scope": "example",
-    "threadId": "thr_a1b2c3"
+    "subject": "example",
+    "threadId": "thr_a1b2c3",
+    "tool": "example"
   },
   "output": {
     "messageId": "msg_a1b2c3"

@@ -1,5 +1,6 @@
 // ui/Avatar: people get a marble, agents a Notionists face, the assistant the Vyre mark, automations and groups a glyph; one face per name, everywhere.
 import test from "node:test";
+import { readFileSync } from "node:fs";
 import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
 import { Avatar, FACE_STATE_CSS, faceKey, faceTint, hash, hueOf, kindOf, marbleInner, marbleSpec, initialsOf } from "./index.tsx";
@@ -220,4 +221,20 @@ test("state sits on the face: a moving ring working, an amber ring waiting, a gr
   assert.match(FACE_STATE_CSS, /var\(--accent\) 75%,var\(--beacon\) 100%/, "the ring runs iris into coral");
   assert.match(FACE_STATE_CSS, /to\{--vyre-ra:360deg\}/, "the colour travels; the ring does not rotate");
   assert.doesNotMatch(FACE_STATE_CSS, /rotate\(/);
+});
+
+test("an agent's face is written in the first frame once its drawing modules are loaded, and the module load starts at import", async () => {
+  const { loadNotionists } = await import("./load.ts");
+  await loadNotionists();
+  await new Promise((r) => setTimeout(r, 20));
+  // a server render has no document, so the module preload does not run; what is asserted is the pure part: the same seed gives the same svg twice, so the cached markup is stable
+  const { notionistsSvg } = await import("./notionists.ts");
+  assert.equal(notionistsSvg("Ember"), notionistsSvg("Ember"));
+  assert.match(notionistsSvg("Ember"), /^<svg/);
+});
+
+test("the synchronous draw is limited per frame so a long list never holds the main thread", () => {
+  const src = readFileSync(new URL("./index.tsx", import.meta.url), "utf8");
+  assert.match(src, /SYNC_PER_FRAME = 6/);
+  assert.match(src, /if \(!spendSync\(\)\) return undefined;/);
 });

@@ -581,13 +581,13 @@ test("the real app on a booted daemon: sign-in screen, then Home, Chats, Records
         await page.getByTestId(`row-template-edit-${templateFile.fileId}`).getByRole("button",{name:"Edit text",exact:true}).click();await page.getByTestId("template-file-content").fill("# Release checklist\nVerify and record the release evidence.\n");await page.getByTestId("template-file-save").click();await page.getByTestId("template-text-editor").waitFor({state:"detached"});
         assert.match((await api("files.read",{fileId:templateFile.fileId,as:"text"}) as {text:string}).text,/record the release evidence/);
         await page.reload();await page.getByTestId("console-agent-template").waitFor();await page.getByTestId("row-template-file-RELEASE.md").waitFor();
-        await page.getByRole("button",{name:"Target agent",exact:true}).click();await page.getByTestId("menu-item-Template proof assistant").click();await page.getByTestId("template-preview").click();await page.getByRole("button",{name:"Apply template",exact:true}).waitFor();
+        await page.getByRole("button",{name:"Target agent",exact:true}).click();await page.getByTestId("menu-item-Template proof assistant").click();await page.getByTestId("template-preview").click();await page.getByRole("button",{name:"Update agents",exact:true}).waitFor();
         await page.screenshot({path:"shots-evidence/console/template-files-preview.png"});
         await pickSkin("Obsidian");await page.getByTestId("template-preview").scrollIntoViewIfNeeded();await page.screenshot({path:"shots-evidence/console/template-files-dark.png"});
         await phoneConsole("template-files-phone");await pickSkin("Vyre");
-        await page.getByRole("button",{name:"Apply template",exact:true}).click();await page.getByText("Template applied",{exact:true}).waitFor();
+        await page.getByRole("button",{name:"Update agents",exact:true}).click();await page.getByText("Defaults applied",{exact:true}).waitFor();
         const appliedFiles=await api("files.list",{section:"space",folder:templateAgent.agent.folderId}) as {files:{fileId:string;name:string}[]};const appliedFile=appliedFiles.files.find(file=>file.name==="RELEASE.md")!;assert.ok(appliedFile,"one-agent apply creates the actual template file in the target agent home");assert.match((await api("files.read",{fileId:appliedFile.fileId,as:"text"}) as {text:string}).text,/record the release evidence/);
-        await openConsole("console.agent-computers");const hostHealth=await api("computers.health",{}) as {state:string;runtime?:string};const hostState=hostHealth.state;const hostLabel=hostHealth.runtime==="missing"&&hostState==="healthy"?"No container runtime":hostState==="down"?"Host unavailable":hostState==="degraded"?"Host needs attention":"Host ready";await page.getByText(hostLabel,{exact:true}).waitFor();await page.getByTestId("computer-new").click();const provisionSheet=page.getByTestId("computer-new-sheet");await provisionSheet.waitFor();await page.getByTestId(`row-provision-agent-${templateAgent.agent.agentId}`).click();if(hostState==="down")assert.equal(await provisionSheet.getByRole("button",{name:"Provision",exact:true}).isDisabled(),true,"a down host cannot pretend to provision an agent computer");await page.screenshot({path:"shots-evidence/console/computer-host-unavailable.png"});await provisionSheet.getByRole("button",{name:"Cancel",exact:true}).click();await provisionSheet.waitFor({state:"detached"});
+        await openConsole("console.machines&page=agentcomputers");const hostHealth=await api("computers.health",{}) as {state:string;runtime?:string};const hostState=hostHealth.state;const hostLabel=hostHealth.runtime==="missing"&&hostState==="healthy"?"No container runtime":hostState==="down"?"Host unavailable":hostState==="degraded"?"Host needs attention":"Host ready";await page.getByText(hostLabel,{exact:true}).waitFor();await page.getByTestId("computer-new").click();const provisionSheet=page.getByTestId("computer-new-sheet");await provisionSheet.waitFor();await page.getByTestId(`row-provision-agent-${templateAgent.agent.agentId}`).click();if(hostState==="down")assert.equal(await provisionSheet.getByRole("button",{name:"Provision",exact:true}).isDisabled(),true,"a down host cannot pretend to provision an agent computer");await page.screenshot({path:"shots-evidence/console/computer-host-unavailable.png"});await provisionSheet.getByRole("button",{name:"Cancel",exact:true}).click();await provisionSheet.waitFor({state:"detached"});
         await openConsole("access.grants");
         const reviewKeep=await api("access.share",{resource:{type:"folder",id:project.folderId},subject:{kind:"role",id:cloned.id},level:"view",idempotencyKey:"e2e.review.keep"}) as {grant:{id:string}};
         const developer=(await api("access.roles.list",{}) as {roles:{id:string;name:string}[]}).roles.find((role)=>role.name==="Developer")!;
@@ -599,12 +599,12 @@ test("the real app on a booted daemon: sign-in screen, then Home, Chats, Records
         await page.getByTestId("review-start").click();
         await page.getByTestId("review-object").waitFor();
         const review=(await api("access.reviews.list",{state:"open"}) as {reviews:{id:string}[]}).reviews[0]!;
-        await page.getByRole("button",{name:"Open grants",exact:true}).click();
+        await page.getByRole("button",{name:"Review access",exact:true}).click();
         await page.getByTestId(`row-review-grant-${reviewKeep.grant.id}`).getByRole("button",{name:"Keep",exact:true}).click();
-        await page.getByText("Grant kept",{exact:true}).waitFor();
+        await page.getByText("Access kept",{exact:true}).waitFor();
         await page.getByTestId(`row-review-grant-${reviewRemove.grant.id}`).getByRole("button",{name:"Remove…",exact:true}).click();
         await page.getByTestId(`review-remove-${reviewRemove.grant.id}`).click();
-        await page.getByText("Grant removed",{exact:true}).waitFor();
+        await page.getByText("Access removed",{exact:true}).waitFor();
         const reviewed=await api("access.reviews.get",{reviewId:review.id}) as {items:{grant:{id:string};decision?:string;taskId?:string}[]};
         assert.equal(reviewed.items.find((item)=>item.grant.id===reviewKeep.grant.id)?.decision,"keep");
         assert.equal(reviewed.items.find((item)=>item.grant.id===reviewRemove.grant.id)?.decision,"remove");
@@ -624,8 +624,8 @@ test("the real app on a booted daemon: sign-in screen, then Home, Chats, Records
         await page.getByText("Review closed",{exact:true}).waitFor();
         assert.equal((await api("access.reviews.get",{reviewId:review.id}) as {review:{state:string}}).review.state,"closed");
         await openConsole("access.policies");
-        await page.getByText("Public links",{exact:true}).click();
-        await page.getByRole("button",{name:"Edit policy",exact:true}).click();
+        await page.getByText("Sharing outside the Space",{exact:true}).click();
+        await page.getByRole("button",{name:"Edit rule",exact:true}).click();
         await page.getByRole("button",{name:"Who can create new public links",exact:true}).click();
         await page.getByText("Nobody",{exact:true}).click();
         await page.getByTestId("policy-links-review").click();
@@ -636,10 +636,10 @@ test("the real app on a booted daemon: sign-in screen, then Home, Chats, Records
         await page.reload();await page.getByText("Nobody",{exact:true}).waitFor();
         await page.screenshot({path:"shots-evidence/console/policies-links.png"});
         await page.getByRole("tab",{name:"Activity",exact:true}).click();
-        await page.getByText("access policies set",{exact:true}).waitFor();
-        await openConsole("access.policies");await page.getByText("Sign-in requirements",{exact:true}).click();
+        await page.getByText("Changed the policy in access settings",{exact:true}).waitFor();
+        await openConsole("access.policies");await page.getByText("Sign-in",{exact:true}).last().click();
         await page.getByText("The Space owner must set up an authenticator first.",{exact:true}).waitFor();
-        await page.getByRole("button",{name:"Edit policy",exact:true}).click();
+        await page.getByRole("button",{name:"Edit rule",exact:true}).click();
         await page.getByTestId("object-sheet").locator('button[aria-label="Authenticator requirement"]').click();
         assert.equal(await page.getByText("Required",{exact:true}).count(),0,"unsupported required enrollment is not offered");
         await page.keyboard.press("Escape");
@@ -650,6 +650,7 @@ test("the real app on a booted daemon: sign-in screen, then Home, Chats, Records
         await phoneConsole("policies-phone");await pickSkin("Vyre");
 
         await openConsole("access.checker");
+        await page.getByRole("button",{name:"Check someone's access",exact:true}).click();// (Check access lives in People > Members now; the resource picker is open under it)
         await page.getByTestId("checker-resource-picker-search").fill("Console access proof");
         await page.getByTestId(`row-checker-resource-picker-${project.folderId}`).click();
         await page.getByTestId("checker-run").click();

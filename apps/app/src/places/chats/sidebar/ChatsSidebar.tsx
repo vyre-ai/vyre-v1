@@ -45,6 +45,11 @@ import { sidebarGoals } from "../goals/model.ts";
 import type { GoalLine } from "../goals/model.ts";
 import { GOAL_ROW_H, GoalRow } from "../goals/GoalRow.tsx";
 import { askedCall, goalMenuEntries } from "../goals/goal-menu.ts";
+import { useProjects } from "../projects/data.ts";
+import { sidebarProjects } from "../projects/model.ts";
+import { HEALTH_LABEL } from "../../records/projectpage/model.ts";
+import { projectMenu } from "../menus/kinds-b.ts";
+import { copyToClipboard, vyreLink } from "../menus/actions-b.ts";
 import { TextAsk } from "../menus/TextAsk.tsx";
 import { RenameField } from "../conversation/parts.tsx";
 import { ChannelSheets } from "../channels/Sheets.tsx";
@@ -114,9 +119,12 @@ function Sidebar({ window, query, slot, open: shown, startFilter }: { window?: V
   const width = useWindowDimensions().width;
   const narrow = width > 0 && width < 560;
   const [filter, setFilter] = useState<SideFilter>(startFilter ?? "all");
-  const [more, setMore] = useState<{ recent?: boolean; people?: boolean; faces?: boolean; goals?: boolean }>({});
+  const [more, setMore] = useState<{ recent?: boolean; people?: boolean; faces?: boolean; goals?: boolean; projects?: boolean }>({});
   // Goals: yours and the ones you help with, what needs you first (goals/model.ts). They follow the Space's changes, as a card that reads by capability does.
   const goalsQ = useGoals(data.call, data.changes);
+  // Projects follow Goals: the Space's projects, starred first, each with its health dot
+  const projectsQ = useProjects(data.call, data.changes, data.nav.openProject !== undefined);
+  const projectRows = useMemo(() => sidebarProjects(projectsQ.lines), [projectsQ.lines]);
   const goalRows = useMemo(() => (goalsQ.state.status === "ready" ? sidebarGoals(goalsQ.state.data, data.clock().now) : NO_GOALS), [goalsQ.state, data]);
   // Team now starts folded (owner D24: collapsed in Chats, open in Console); a press opens it
   const [closed, setClosed] = useState<ReadonlySet<SectionKey>>(new Set<SectionKey>(["team"]));
@@ -246,8 +254,8 @@ function Sidebar({ window, query, slot, open: shown, startFilter }: { window?: V
   }, [groups, agents]);
 
   const entries = useMemo(
-    () => buildEntries({ goals: goalRows, moreGoals: more.goals === true, digest: digestCount > 0 ? { count: digestCount } : null, team: pulse.team, presence: pulse.presence, tasksCount, notes: data.nav.openNotes !== undefined, agentUnread: byAgent, waitingThreads, assistant: { agentId: data.space.assistant.agentId, name: data.space.assistant.name }, people, moreRecent: more.recent === true, morePeople: more.people === true, moreAgents: more.faces === true, faces, workingAgents: working, waitingAgents: waiting, groups, channels, filter, archived: archivedChats, archivedOpen, closed: (importedOpen ?? importedStartsOpen(liveImported)) ? closed : new Set([...closed, "imported" as const]), facesMore, errors, imported, archivedImported, personal, searching: query.trim() !== "" }),
-    [goalRows, digestCount, pulse.team, pulse.presence, personal, query, tasksCount, data.nav.openNotes, byAgent, waitingThreads, people, more, data.space.assistant.agentId, data.space.assistant.name, faces, facesMore, recentQ, channelsQ, agentsQ, working, waiting, groups, channels, filter, closed, imported, archivedImported, importedOpen, liveImported, archivedChats, archivedOpen],
+    () => buildEntries({ goals: goalRows, moreGoals: more.goals === true, projects: projectRows, moreProjects: more.projects === true, digest: digestCount > 0 ? { count: digestCount } : null, team: pulse.team, presence: pulse.presence, tasksCount, notes: data.nav.openNotes !== undefined, agentUnread: byAgent, waitingThreads, assistant: { agentId: data.space.assistant.agentId, name: data.space.assistant.name }, people, moreRecent: more.recent === true, morePeople: more.people === true, moreAgents: more.faces === true, faces, workingAgents: working, waitingAgents: waiting, groups, channels, filter, archived: archivedChats, archivedOpen, closed: (importedOpen ?? importedStartsOpen(liveImported)) ? closed : new Set([...closed, "imported" as const]), facesMore, errors, imported, archivedImported, personal, searching: query.trim() !== "" }),
+    [goalRows, projectRows, digestCount, pulse.team, pulse.presence, personal, query, tasksCount, data.nav.openNotes, byAgent, waitingThreads, people, more, data.space.assistant.agentId, data.space.assistant.name, faces, facesMore, recentQ, channelsQ, agentsQ, working, waiting, groups, channels, filter, closed, imported, archivedImported, importedOpen, liveImported, archivedChats, archivedOpen],
   );
   const order = useMemo(() => selectable(entries), [entries]);
   const byKey = useMemo(() => new Map(entries.map((e) => [e.key, e])), [entries]);
@@ -446,6 +454,7 @@ function Sidebar({ window, query, slot, open: shown, startFilter }: { window?: V
     else if (e.type === "channel") data.nav.openChannel(e.channel.channelId);
     else if (e.type === "nav") { (e.to === "tasks" ? data.nav.openTasks : data.nav.openNotes)?.(); }
     else if (e.type === "goal") data.nav.openGoal?.(e.goal.id);
+    else if (e.type === "project") data.nav.openProject?.(e.project.id);
     else if (e.type === "person") void api.chatWithPerson(e.id);
     else if (e.type === "pulse") { if (e.kind === "person") void api.chatWithPerson(e.id); else if (e.threadId) data.nav.openChat(e.threadId); else data.nav.openAgentChat(e.id); }
     else if (e.type === "digest") { digestMenu(8, 48); return; }
@@ -505,8 +514,15 @@ function Sidebar({ window, query, slot, open: shown, startFilter }: { window?: V
     ...(data.nav.openGoal ? { open: () => { data.nav.openGoal?.(e.goal.id); leave(); } } : {}),
     ask: (kind) => setGoalAsk({ goalId: e.goal.id, kind }),
   });
+  /** A project row's menu: what anyone may do (Open, Star, Copy Link); Share, Add People and Archive are the page's, where the person's role on the project is known. */
+  const projectRowMenu = (e: Extract<Entry, { type: "project" }>): MenuEntry[] => projectMenu({ title: e.project.title, starred: e.project.starred, archived: false, manage: false, edit: false }, {
+    open: () => { data.nav.openProject?.(e.project.id); leave(); },
+    star: (on) => { void Promise.resolve(data.call("stars.toggle", { resource: { type: "project", id: e.project.id }, on })).then(() => projectsQ.reload(), () => say("That did not go through.")); },
+    share: () => undefined, addPeople: () => undefined, pinFile: () => undefined, archive: () => undefined, unarchive: () => undefined,
+    copyLink: () => { copyToClipboard(vyreLink("project", e.project.id)); say("Link copied"); },
+  });
   const menuFor = (e: Entry, x: number, y: number): MenuEntry[] | null =>
-    e.type === "goal" ? goalMenu(e) : e.type === "nav" && e.to === "notes" ? notesMenu(e) : e.type === "chat" ? chatMenu(e.row) : e.type === "face" ? faceMenu(e, x, y) : e.type === "channel" ? channelMenuFor(e.channel) : e.type === "imported" ? importedMenu(e, x, y) : e.type === "person" ? personMenu(e) : null;
+    e.type === "goal" ? goalMenu(e) : e.type === "project" ? projectRowMenu(e) : e.type === "nav" && e.to === "notes" ? notesMenu(e) : e.type === "chat" ? chatMenu(e.row) : e.type === "face" ? faceMenu(e, x, y) : e.type === "channel" ? channelMenuFor(e.channel) : e.type === "imported" ? importedMenu(e, x, y) : e.type === "person" ? personMenu(e) : null;
   /** A row's "...", drawn while the pointer is on it: the same menu as a right-click. */
   const moreTool = (e: Entry, label: string): ReactElement => (
     <Tool icon="more" label={`More for ${label}`} onPress={(x, y) => { readFacts(); const m = menuFor(e, x, y); if (m) menu.show(m, x, y, "context", { label: e.key }); }} testID={`more-${e.key}`} />
@@ -560,6 +576,10 @@ function Sidebar({ window, query, slot, open: shown, startFilter }: { window?: V
           </SectionHead>
         );
       }
+      case "project": return wrap(
+        <Row id={e.key} title={e.project.title} selected={sel} hovered={lit} onPress={() => open(e)}
+          leading={<View style={[st.healthDot, { backgroundColor: HEALTH_DOT[e.project.health ?? "none"] }]} testID={`project-dot-${e.project.id}`} accessibilityLabel={e.project.health ? HEALTH_LABEL[e.project.health] : "No status"} />}
+          trailing={e.project.starred ? <Text style={st.starMark}>{"\u2605"}</Text> : undefined} />, ROW_H);
       case "goal": return wrap(<GoalRow goal={e.goal} selected={sel} hovered={lit} now={data.clock().now} offsetMin={data.clock().offsetMin} me={data.me?.id} leadName={agentName(e.goal.leadAgentId)} onPress={() => open(e)} />, GOAL_ROW_H);
       case "group": return <GroupLabel label={e.label} />;
       case "action": return (
@@ -737,7 +757,11 @@ function Sidebar({ window, query, slot, open: shown, startFilter }: { window?: V
 /** Time budget helper for the proof: how long a new chat takes to show as a row. Exported so the test and the mount share one measure. */
 export const NEW_CHAT_BUDGET_MS = NEW_CHAT_MS;
 
+const HEALTH_DOT: Record<string, string> = { on: "var(--ok)", risk: "var(--warn)", off: "var(--danger)", hold: "var(--ink-3)", done: "var(--accent)", none: "var(--line-2)" };
+
 const st = StyleSheet.create({
+  healthDot: { width: 8, height: 8, borderRadius: 4, marginHorizontal: 5 },
+  starMark: { fontSize: 11, color: "var(--warn)" as string },
   root: { flex: 1, minHeight: 0, paddingHorizontal: 8 },
   top: { height: 28, flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 6, paddingBottom: 4 },
   navCount: { fontSize: 11, color: "var(--ink-4)" as string, fontVariant: ["tabular-nums"] },

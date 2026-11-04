@@ -19,9 +19,10 @@ const hookRow = t.obj({
   threadId: t.opt(id.thread), agentId: t.opt(id.agent), helpers: t.bool({ description: 'A run hook that also reaches the helpers the run starts' }), timeoutSec: t.int({ minimum: 1, maximum: 60 }),
   createdAt: t.ts(), updatedAt: t.ts(), spec: t.json(), mine: t.bool(), canChange: t.bool({ description: 'The reader may change, pause or remove it; false for a Space hook seen by a non-admin' }), endedAt: t.opt(t.ts()),
 });
-const runRow = t.obj({ id: t.int(), hookId: t.str(), event: t.str(), threadId: t.opt(t.str()), agentId: t.opt(t.str()), outcome: t.enm('ok', 'blocked', 'note', 'error', 'timeout', 'skipped'), detail: t.opt(t.str()), ms: t.int(), at: t.ts() });
+const runRow = t.obj({ id: t.int(), hookId: t.str(), event: t.str(), threadId: t.opt(t.str()), agentId: t.opt(t.str()), tool: t.opt(t.str()), outcome: t.enm('ok', 'blocked', 'note', 'error', 'timeout', 'skipped', 'allowed_once'), detail: t.opt(t.str()), ms: t.int(), at: t.ts() });
+const nextStep = t.obj({ label: t.str({ maxLength: 40 }), ask: t.str({ maxLength: 200 }) });
 const verdict = t.obj({
-  block: t.nullable(t.obj({ reason: t.str(), hookId: t.str(), by: t.str(), scope: t.str() })), notes: t.arr(t.str()), ran: t.int(),
+  block: t.nullable(t.obj({ reason: t.str(), hookId: t.str(), by: t.str(), scope: t.str(), next: t.opt(t.arr(nextStep, { maxItems: 2 })) })), notes: t.arr(t.str()), ran: t.int(),
 });
 const setIn = {
   id: t.opt(t.str({ description: 'Give the id of a hook you made to change it' })), scope, event, kind,
@@ -40,7 +41,8 @@ export default defineManifest({
   title: 'Hooks',
   owner: 'L2',
   events: [
-    ev('hook.changed', 'A hook was added, changed, removed, paused or turned back on, or an admin switched agent-made hooks', { p: { hookId: t.str(), scope: t.str(), change: t.enm('added', 'changed', 'removed', 'paused', 'resumed', 'agents_on', 'agents_off'), by: t.str(), line: t.str(), threadId: t.opt(t.str()), agentId: t.opt(t.str()) }, subject: ['entity', '/hookId'] }),
+    ev('hook.changed', 'A hook was added, changed, removed, paused or turned back on, or an admin switched agent-made hooks', { p: { hookId: t.str(), scope: t.str(), change: t.enm('added', 'changed', 'removed', 'paused', 'resumed', 'allowed_once', 'agents_on', 'agents_off'), by: t.str(), line: t.str(), threadId: t.opt(t.str()), agentId: t.opt(t.str()) }, subject: ['entity', '/hookId'] }),
+    ev('hook.admin_asked', 'Someone asked the Space admins about a hook that stopped something', { p: { hookId: t.str(), threadId: t.str(), line: t.str(), reason: t.opt(t.str()), by: t.str(), note: t.opt(t.str()) }, subject: ['thread', '/threadId'], vis: 'participants', label: 'subject', notify: 'hook.asked' }),
     ev('hook.blocked', 'A hook stopped a message, a tool call, an outward act or a helper', { p: { hookId: t.str(), event: t.str(), threadId: t.str(), agentId: t.str(), reason: t.str(), scope: t.str(), by: t.str() }, subject: ['thread', '/threadId'], vis: 'participants', label: 'subject' }),
   ],
   capabilities: [
@@ -63,18 +65,28 @@ export default defineManifest({
       in: {
         hookId: t.opt(t.str()), threadId: t.opt(id.thread), limit: t.opt(t.int({ minimum: 1, maximum: 200 })),
         since: t.opt(t.ts({ description: 'Only runs at or after this time' })),
-        outcomes: t.opt(t.arr(t.enm('ok', 'blocked', 'note', 'error', 'timeout', 'skipped'))),
+        outcomes: t.opt(t.arr(t.enm('ok', 'blocked', 'note', 'error', 'timeout', 'skipped', 'allowed_once'))),
         scope: t.opt(t.enm('space')),
       },
       out: { runs: t.arr(runRow) }, level: 'member',
+      tool: 'agents', mcpName: 'hooks_runs', agent: { planMode: 'allowed' },
+    }),
+    read('hooks.runs.latest', 'The newest run of each hook in one chat, one row per hook: what "Last ran" on a hook card reads. Only for a chat you can use', {
+      in: { threadId: id.thread }, out: { runs: t.arr(runRow) }, level: 'member', tool: 'agents', mcpName: 'hooks_runs_latest', agent: { planMode: 'allowed' }, errors: ['permission.no_grant'],
     }),
     read('hooks.policy.get', 'Whether agents may make hooks in this Space', { in: {}, out: { agentHooks: t.bool() }, level: 'member' }),
     write('hooks.policy.set', 'Space admins: allow or turn off hooks made by agents for the whole Space. Hooks agents already made stay but do not run while it is off', {
       in: { agentHooks: t.bool() }, out: { agentHooks: t.bool() }, level: 'member', emits: ['hook.changed'], audit: 'always', idem: 'natural', errors: ['permission.no_grant'],
     }),
+    write('hooks.allow_once', 'Let a hook that stopped something go by, once, in this chat: the next time it would stop the same kind of call it lets it through. A person presses it, never an agent; a Space hook only an admin may let through. The pass ends after one use or ten minutes', {
+      in: { id: t.str(), threadId: id.thread }, out: { allowed: t.bool(), expiresAt: t.ts() }, level: 'member', emits: ['hook.changed'], audit: 'always', idem: 'none', errors: ['permission.no_grant', 'validation.not_found'],
+    }),
+    write('hooks.ask_admin', 'Ask the Space admins about a hook that stopped something: one Inbox line for each admin, and a quiet line in the chat saying you asked', {
+      in: { id: t.str(), threadId: id.thread, note: t.opt(t.str({ maxLength: 300 })) }, out: { asked: t.bool() }, level: 'member', emits: ['hook.admin_asked'], audit: 'always', idem: 'none', errors: ['validation.not_found', 'permission.no_grant'],
+    }),
     write('hooks.fire', 'System: ask what the hooks say about one event. The engine, the tool session and the CLI shim call it; it returns a block with its reason, notes for the model, and how many ran. Hooks that fail or run out of time never block', {
       in: {
-        event, agentId: id.agent, threadId: id.thread, turnId: t.opt(t.str()), threadKind: t.opt(t.str()), engine: t.opt(t.str()), source: t.opt(t.enm('engine', 'tools', 'cli')),
+        event, agentId: id.agent, threadId: id.thread, asker: t.opt(id.user), turnId: t.opt(t.str()), threadKind: t.opt(t.str()), engine: t.opt(t.str()), source: t.opt(t.enm('engine', 'tools', 'cli')),
         tool: t.opt(t.str()), cap: t.opt(t.str()), input: t.opt(t.json()), output: t.opt(t.json()), ok: t.opt(t.bool()), prompt: t.opt(t.str()), title: t.opt(t.str()),
       },
       out: verdict, level: 'member', emits: ['hook.blocked'], errors: [],
@@ -90,7 +102,7 @@ export default defineManifest({
   ],
   blocks: [
     block('hook', {
-      threadId: id.thread, kind: t.enm('added', 'changed', 'removed', 'paused', 'resumed', 'blocked', 'failed'), line: t.str(), hookId: t.opt(t.str()), scope: t.opt(t.str()), by: t.opt(t.str()), byKind: t.opt(madeByKind), reason: t.opt(t.str()),
+      threadId: id.thread, kind: t.enm('added', 'changed', 'removed', 'paused', 'resumed', 'blocked', 'failed', 'allowed', 'asked'), line: t.str(), hookId: t.opt(t.str()), scope: t.opt(t.str()), by: t.opt(t.str()), byKind: t.opt(madeByKind), reason: t.opt(t.str()), tool: t.opt(t.str()), subject: t.opt(t.str()), agentId: t.opt(id.agent), next: t.opt(t.arr(nextStep, { maxItems: 2 })),
     }, '{{line}}'),
   ],
 });

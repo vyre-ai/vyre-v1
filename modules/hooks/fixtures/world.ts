@@ -27,6 +27,8 @@ export function world() {
     plugins: [] as Array<{ pluginId: string; plugin: string; event: string; matcher: string; command: string; args: string[] }>,
     pluginRun: (async () => ok) as () => Promise<CommandResult>,
     threadsDenied: new Set<string>(),
+    /** helper thread to the chat it works for, as threads.get says it (before any helper-started event was folded in) */
+    helperParents: {} as Record<string, string>,
   };
   const seams: Partial<HostSeams> = {
     command: async (_w, h, ev) => { s.ran.push(`command:${h.command}`); return s.command(h.command, ev as Record<string, unknown>); },
@@ -37,7 +39,7 @@ export function world() {
   };
   bindHooks(seams);
   const calls: Record<string, (i: Record<string, unknown>) => unknown> = {
-    "threads.get": (i) => { if (s.threadsDenied.has(String(i["threadId"]))) throw new Error("no"); return { thread: { threadId: i["threadId"] } }; },
+    "threads.get": (i) => { if (s.threadsDenied.has(String(i["threadId"]))) throw new Error("no"); const parent = s.helperParents[String(i["threadId"])]; return { thread: { threadId: i["threadId"], ...(parent ? { kind: "helper", parentThreadId: parent } : {}) } }; },
     "agents.get": () => ({ agent: { name: "Assistant" } }),
     "chat.hook_line": (i) => { s.lines.push(i); return { messageId: "msg_1" }; },
   };

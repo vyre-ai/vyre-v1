@@ -17,7 +17,7 @@ What hooks did lately: which ran, what they answered, and the ones that failed o
 | Audit | none |
 | Team Space only | no |
 | HTTP | POST /v1/hooks/runs/list |
-| MCP tool | none |
+| MCP tool | hooks_runs (agents) |
 | CLI | none |
 | Emits | none |
 
@@ -29,7 +29,7 @@ type In = {
   threadId?: string;
   limit?: number;
   since?: number;
-  outcomes?: Array<"ok" | "blocked" | "note" | "error" | "timeout" | "skipped">;
+  outcomes?: Array<"ok" | "blocked" | "note" | "error" | "timeout" | "skipped" | "allowed_once">;
   scope?: "space";
 };
 ```
@@ -44,7 +44,8 @@ type Out = {
       event: string;
       threadId?: string;
       agentId?: string;
-      outcome: "ok" | "blocked" | "note" | "error" | "timeout" | "skipped";
+      tool?: string;
+      outcome: "ok" | "blocked" | "note" | "error" | "timeout" | "skipped" | "allowed_once";
       detail?: string;
       ms: number;
       at: number;
@@ -85,7 +86,8 @@ type Out = {
         "id": 1,
         "ms": 1,
         "outcome": "ok",
-        "threadId": "example"
+        "threadId": "example",
+        "tool": "example"
       }
     ]
   }

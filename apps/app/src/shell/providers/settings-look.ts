@@ -46,9 +46,18 @@ export function paintCustom(s: CustomSkin, d: Doc | undefined = doc()): boolean 
 
 const keyFor = (person: string): string => `vyre.look.${person}`;
 export function rememberLook(person: string, look: Look): void { try { globalThis.localStorage?.setItem(keyFor(person), JSON.stringify(look)); } catch { /* a blocked store only loses the shortcut */ } }
+/** The look this device kept for the person, or null when none was ever saved (then the Space and the device decide the skin, as before). */
+export function storedLook(person: string): Look | null { try { const raw = globalThis.localStorage?.getItem(keyFor(person)); return raw ? lookFrom(JSON.parse(raw)) : null; } catch { return null; } }
+/** A skin named in the address (?skin=graphite): it wins for this view of the page and is never saved. */
+export function explicitSkin(search: string): string | null { const v = new URLSearchParams(search).get("skin"); return v !== null && v !== "" ? v : null; }
+/** What the shell does at start with the person's look: the display choices always, the skin only when the person has saved a look and no address names one. */
+export function startupPlan(person: string, search: string): { look: Look | null; paintSkin: boolean } {
+  const look = storedLook(person);
+  return { look, paintSkin: look !== null && explicitSkin(search) === null };
+}
 export function restoreLook(person: string): Look { try { const raw = globalThis.localStorage?.getItem(keyFor(person)); return raw ? lookFrom(JSON.parse(raw)) : DEFAULT_LOOK; } catch { return DEFAULT_LOOK; } }
 
-export interface LookApplier { apply(look: Look): void; preview(skinId: string | null): void }
+export interface LookApplier { apply(look: Look, o?: { skin?: boolean }): void; preview(skinId: string | null): void }
 
 /** The applier for the open Space. `look` is whatever the Space last said; a hover or a device switch repaints from it. */
 export function lookApplier(rt: Pick<ShellRuntime, "me" | "space">, initial: Look = restoreLook(rt.me.id)): LookApplier {
@@ -70,7 +79,7 @@ export function lookApplier(rt: Pick<ShellRuntime, "me" | "space">, initial: Loo
     if (save) c.setSkin(id); else c.preview({ skin: id });
   };
   return {
-    apply(next) { look = next; rememberLook(rt.me.id, look); applyDisplay(look); show(effectiveSkin(look, prefersDark()), true); },
+    apply(next, o) { look = next; rememberLook(rt.me.id, look); applyDisplay(look); if (o?.skin !== false) show(effectiveSkin(look, prefersDark()), true); },
     preview(id) { if (id === null) show(effectiveSkin(look, prefersDark()), true); else show(id, false); },
   };
 }

@@ -195,10 +195,15 @@ export function createSample(variant: Variant = "idle", o: SampleOptions = {}): 
   const msgRows = (): Message[] => (replica.rows("messages") as unknown as (Message & Row)[]).filter((m) => m.threadId === thread.threadId).map(({ id: _id, ...rest }) => rest as Message).sort((a, b) => a.threadSeq - b.threadSeq);
   const putMsg = (msg: Message): void => replica.put("messages", [{ id: msg.messageId, ...msg }]);
 
-  replica.resolve("threads.get", () => { const { id: _id, ...rest } = threadRow(); return { thread: rest as Thread }; });
+  // a thread under a message (agents reply in threads): its own row and its own messages, by id
+  const rowOf = (id: string): (Thread & Row) | undefined => (replica.rows("threads") as unknown as (Thread & Row)[]).find((x) => x.threadId === id);
+  replica.resolve("threads.get", (_t, input) => { const { id: _id, ...rest } = rowOf(input.threadId) ?? threadRow(); return { thread: rest as Thread }; });
+  replica.resolve("threads.list", (_t, input) => ({ threads: (replica.rows("threads") as unknown as (Thread & Row)[]).filter((x) => input.parentThreadId !== undefined && x.parentThreadId === input.parentThreadId).map(({ id: _id, ...rest }) => rest as Thread), hasMore: false }));
   replica.resolve("chat.messages.list", (_t, input) => {
     const limit = input.limit ?? 50;
-    const all = msgRows().filter((m) => input.before === undefined || m.threadSeq < input.before);
+    const mine = input.threadId !== undefined && input.threadId !== thread.threadId;
+    const rows = mine ? (replica.rows("messages") as unknown as (Message & Row)[]).filter((m) => m.threadId === input.threadId).map(({ id: _id, ...rest }) => rest as Message).sort((a, b) => a.threadSeq - b.threadSeq) : msgRows();
+    const all = rows.filter((m) => input.before === undefined || m.threadSeq < input.before);
     return { messages: all.slice(Math.max(0, all.length - limit)), hasMore: all.length > limit };
   });
   replica.resolve("chat.helpers.list", () => ({ helpers: (replica.rows("helpers") as unknown as (Helper & Row)[]).map(({ id: _id, ...rest }) => rest as Helper) }));
@@ -302,6 +307,8 @@ export function createSample(variant: Variant = "idle", o: SampleOptions = {}): 
     },
     "threads.add_agent": (i: { agentId: string; mode?: "lead" | "listen" }) => { const cur = threadRow(); setThread({ agents: [...cur.agents, { agentId: i.agentId, mode: i.mode ?? "listen" }], members: [...cur.members, { kind: "agent", id: i.agentId }] }); return { ok: true }; },
     "threads.remove_agent": (i: { agentId: string }) => { const cur = threadRow(); setThread({ agents: cur.agents.filter((a) => a.agentId !== i.agentId), members: cur.members.filter((m) => m.id !== i.agentId) }); return { ok: true }; },
+    // where agents reply (lane l-threadreplies): the chat's own row carries the choice
+    "threads.set_agent_replies": (i: { threadId: string; inThreads: boolean }) => { setThread({ agentRepliesInThreads: i.inThreads }); return { thread: threadRow() }; },
     "threads.set_plan_mode": (i: { planMode: boolean }) => { setThread({ planMode: i.planMode }); return { planMode: i.planMode }; },
     "threads.make_channel": () => ({ channelId: "ch_new" }),
     "threads.reopen": () => { const { closedAt: _c, ...rest } = threadRow(); replica.put("threads", [rest]); return { ok: true }; },

@@ -122,7 +122,7 @@ export function createToolSession(deps: CallDeps): ToolSession {
     if (!reachesScope(t, ctx.thread, input)) return refused("ask_scope", ctx, t, traceId);
 
     // a tool is never called to see if it works, and never with placeholder content: refused before anything runs, so no card, hold, task or message reaches the chat
-    const placeholder = probeIn(input, "", ctx.said ?? "");
+    const placeholder = probeIn(input, "", ctx.said ?? "", t.inputSchema);
     if (placeholder !== null) return fail("validation.bad_input", traceId, { message: PROBE_MESSAGE, details: { tool: t.name, reason: "placeholder" } });
 
     const isDynamic = !deps.catalog.byName(name);

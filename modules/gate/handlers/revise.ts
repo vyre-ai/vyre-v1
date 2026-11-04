@@ -2,6 +2,7 @@
 // means changing the stored call and making the hash again; the card (a task) changes with it. Only a person who may handle the hold edits it, never the agent that made it, and only what can be said:
 // a message, an email, a text, a post. What is sent after Approve is the edited text, and the Gate's event says who edited it.
 import { outwardOf, withBody, withTitle } from "../../../lib/outward.ts";
+import { holdNamesOf } from "./hold.ts";
 import { getHold, mayHandle, payloadHasher, previewBlocks, raise, reviseHoldInput, sha } from "../projections.ts";
 import { actOf } from "../projections.ts";
 import type { GateCtx } from "../projections.ts";
@@ -31,7 +32,7 @@ export async function holdsRevise(ctx: GateCtx, input: In): Promise<unknown> {
   const at = ctx.now();
   const a = actOf(h.act);
   // the card first: if the task refuses, the hold is as it was
-  await (ctx.call as NonNullable<typeof ctx.call>)("tasks.held_revise", { taskId: h.taskId, blocks: previewBlocks(a, h.capName, next, { by: ctx.principal.id, at }, h.id), payloadHash });
+  await (ctx.call as NonNullable<typeof ctx.call>)("tasks.held_revise", { taskId: h.taskId, blocks: previewBlocks(a, h.capName, next, { by: ctx.principal.id, at }, h.id, h.principal.kind === "agent" ? await holdNamesOf(ctx, h.capName, next) : undefined), payloadHash });
   reviseHoldInput(ctx.db, h, next, inputHash, payloadHash);
   ctx.emit("gate.revised", `task/${h.taskId}`, { holdId: h.id, act: h.act, taskId: h.taskId, by: ctx.principal.id, was: outwardOf(h.capName, h.input)?.body ?? "", now: body }, { vis: "participants" });
   return { ok: true, edited: at };

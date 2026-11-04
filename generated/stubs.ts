@@ -439,6 +439,7 @@ export function stubs(ctx: CallCtx) {
       noted: call("chat.noted"),
       open_as_chat: call("chat.open_as_chat"),
       open_tab: call("chat.open_tab"),
+      pace_of: call("chat.pace_of"),
       people_status: call("chat.people_status"),
       pin: call("chat.pin"),
       pins: {
@@ -1383,6 +1384,8 @@ export function stubs(ctx: CallCtx) {
       write_digest: call("home.write_digest"),
     },
     hooks: {
+      allow_once: call("hooks.allow_once"),
+      ask_admin: call("hooks.ask_admin"),
       fire: call("hooks.fire"),
       list: call("hooks.list"),
       pause: call("hooks.pause"),
@@ -1392,6 +1395,7 @@ export function stubs(ctx: CallCtx) {
       },
       remove: call("hooks.remove"),
       runs: {
+        latest: call("hooks.runs.latest"),
         list: call("hooks.runs.list"),
       },
       set: call("hooks.set"),
@@ -2877,6 +2881,7 @@ export function stubs(ctx: CallCtx) {
       remove_agent: call("threads.remove_agent"),
       reopen: call("threads.reopen"),
       restore: call("threads.restore"),
+      set_agent_replies: call("threads.set_agent_replies"),
       set_folder: call("threads.set_folder"),
       set_mode: call("threads.set_mode"),
       set_plan_mode: call("threads.set_plan_mode"),

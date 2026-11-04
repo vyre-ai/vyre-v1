@@ -57,6 +57,4 @@ export const HOLD_PHRASES: Readonly<Record<string, string>> = {
   "views.share_external": "share a view with someone outside the Space",
   "webhooks.replay_delivery": "send a past webhook delivery again", "webhooks.send_delivery": "deliver an event to a webhook", "webhooks.test": "send a test event to a webhook",
   "zoom.meetings.create": "create a Zoom meeting", "zoom.meetings.delete": "delete a Zoom meeting", "zoom.meetings.update": "change a Zoom meeting",
-  "access.make_owner": "make someone an owner of the Space", "automations.set_owner": "hand an automation to someone else", "notes.set_owner": "hand a note to someone else",
-  "github.me.approve": "approve a use of your GitHub", "install.apply": "install something from a link", "talk.space.configure": "change Talk for everyone", "talk.space.disconnect": "remove the Talk key for everyone",
 };
