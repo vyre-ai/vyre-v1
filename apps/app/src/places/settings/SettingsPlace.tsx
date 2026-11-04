@@ -13,6 +13,8 @@ import type { Hit, PageKey, SettingRow, SpacePage } from "./model.ts";
 import { ComputerPage, SignInPage } from "./pages-b.tsx";
 import { AppearancePage } from "./Appearance.tsx";
 import { AboutVyre } from "./DesktopUpdate.tsx";
+import { SignInApps } from "./SignInApps.tsx";
+import { OutsideAgents } from "./OutsideAgents.tsx";
 import { AiPage, ConnectedPage, NotesSettingsPage, NotificationsPage, ProfilePage } from "./pages-a.tsx";
 import { GithubPage } from "./GithubPage.tsx";
 import { MovedPage } from "./MovedPage.tsx";
@@ -158,7 +160,7 @@ function SettingsBody({ initialPage = "profile", initialQuery = "", initialView 
       case "github": return <GithubPage />;
       case "connected": return <MovedPage kind="vault" />;
       case "mail": return <MovedPage kind="inbox" />;
-      case "signin": return <SignInPage />;
+      case "signin": return <><SignInPage /><SignInApps /><OutsideAgents /></>;
       case "computer": return <><ComputerPage /><AboutVyre /></>;
       default:
         return <SpacePageBody page={page as SpacePage} rows={spaceRows.rows} reload={spaceRows.reload} found={found} personal />;

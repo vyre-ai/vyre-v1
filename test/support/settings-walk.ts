@@ -1,13 +1,13 @@
 // The real app, Settings walked as a person: the seven pages, as the Owner and as a Member, in a real Chromium against a Team world. Each page opens, shows its sentence, has no error and no banned word; the
 // controls that matter are pressed (a notification channel, the look, GitHub) and the capability they call is checked on the server. Needs VYRE_APP_DIST and Chromium; without them it skips and says why.
 // Screenshots of every page, light and dark, desktop and phone, go to shots-evidence/settings/<who>/.
-import test from "node:test";
+import type { TestContext } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
-import { guardCrashes } from "../apps/app/tests/crash-guard.ts";
-import { SIZES, bootScreens, browserOrSkip, open, seat, setScheme, shoot } from "./support/mail-browser.ts";
+import { guardCrashes } from "../../apps/app/tests/crash-guard.ts";
+import { SIZES, bootScreens, browserOrSkip, open, seat, setScheme, shoot } from "./mail-browser.ts";
 
-const OUT = "shots-evidence/settings";
+export const OUT = "shots-evidence/settings";
 const PAGES: { id: string; title: string; sub: string }[] = [
   { id: "profile", title: "Profile", sub: "How people in this Space see you." },
   { id: "ai", title: "Your AI", sub: "The AI accounts and models you use." },
@@ -32,14 +32,14 @@ async function stubGithub(page: import("playwright-core").Page): Promise<void> {
 }
 const BANNED = ["principal", "grant", "actor", "schema", "gate", "suppression", "retention", "tenant", "capability", "sandbox.denied", "trace"];
 
-test("settings journey: the seven pages as Owner and as Member, the look and a channel saved on the server", async (t) => {
+export async function walkSettings(t: TestContext, only: "owner" | "member"): Promise<void> {
   const env = await browserOrSkip();
   if (typeof env === "string") { t.skip(env); return; }
   const s = await bootScreens({ kind: "team" }, env);
   try {
     const w = s.world;
-    const member = await w.join("mia");
-    for (const [who, person, role] of [["owner", w.owner, "Owner"], ["member", member, "Member"]] as const) {
+    const member = only === "member" ? await w.join("mia") : null;
+    for (const [who, person, role] of (only === "owner" ? [["owner", w.owner, "Owner"]] : [["member", member!, "Member"]]) as readonly (readonly ["owner" | "member", Parameters<typeof seat>[1], string])[]) {
       const me = await seat(s, person, role);
       const dir = `${OUT}/${who}`;
       await me.page.setViewportSize({ width: 1440, height: 900 });   // the prototype's width, for side-by-side shots
@@ -118,4 +118,4 @@ test("settings journey: the seven pages as Owner and as Member, the look and a c
       assert.deepEqual(me.errors, [], `${who}: no page errors`);
     }
   } finally { await s.close(); }
-});
+}
