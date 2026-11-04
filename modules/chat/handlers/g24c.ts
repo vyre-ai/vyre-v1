@@ -103,6 +103,8 @@ export async function deleteMessage(ctx: ChatCtx, input: { threadId: string; mes
   const now = ctx.now();
   ctx.db.run("UPDATE chat_message SET deleted_at = ?, pinned = 0, version = version + 1, updated_at = ? WHERE id = ?", now, now, input.messageId);
   ctx.emit("message.deleted", t.id, { messageId: input.messageId, threadId: t.id });
+  // memory (rule 9): what it derived from this message goes with it. A memory that cannot be reached now is not a reason to keep the message from being deleted; the failure is logged.
+  if (ctx.call) { try { await ctx.call("memory.source_removed", { threadId: t.id, messageId: input.messageId }); } catch (e) { ctx.log.warn("memory was not told a message was deleted", { threadId: t.id, messageId: input.messageId, error: String((e as { message?: unknown })?.message ?? e) }); } }
   return { deleted: true };
 }
 

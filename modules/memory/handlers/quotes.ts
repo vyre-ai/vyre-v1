@@ -1,8 +1,9 @@
 // memory.quote (memory ruling 1B and 3): exact recall, line by line. It asks the chat module for the words of every message and transcript row (turns, tool calls and results, which is what a run
 // step is) that the ASKER could open themselves, and answers with the stored text, who wrote it, when, and a link that opens the chat scrolled to that line. Nothing is stored here and nothing
 // is paraphrased: no card, no recall. Access is the chat module's (chat.history.search), run as the asker, so a person who was not in a chat never gets a line from it, not even through an agent.
-import { actorOf, ensure, makeAccess, raise } from "../projections.ts";
+import { actorOf, ensure, loadFact, makeAccess, raise } from "../projections.ts";
 import { recallable } from "../../../lib/recall-intent.ts";
+import { chatAudience } from "../../../lib/audience.ts";
 import type { MemCtx } from "../projections.ts";
 
 interface HistoryHit {
@@ -56,14 +57,51 @@ export async function findQuotes(ctx: MemCtx, input: { q?: string; ref?: string;
   return quotes;
 }
 
+/**
+ * A recalled fact is handed to the model with its fact id as the ref; asking for its exact words (rule 3: exact recall quotes the source span) answers with the words as the person wrote them,
+ * who said them, when it was learned and where, if the asker may read the fact. Replaced and removed facts are quoted too, and say so.
+ */
+async function quoteOfFact(ctx: MemCtx, access: ReturnType<typeof makeAccess>, factId: string): Promise<Quote[]> {
+  const f = loadFact(ctx, factId);
+  if (!f || f.layer === "person" || f.state === "source_removed" || !(await access.can(f.layer, f.ownerRef, f.agentId, f.projectId, "view", f.audience))) return [];
+  const replaced = f.status === "closed" ? " (replaced by a later statement)" : f.state === "disputed" ? " (disputed: two people disagree)" : "";
+  return [{
+    ref: f.id, source: "message", text: `${f.span ?? f.text}${replaced}`, author: { kind: "person", id: f.sourcePerson }, role: "user", at: f.learnedAt, threadId: f.sourceRef,
+    threadKind: f.sourceKind === "channel" ? "channel" : "chat", link: f.sourceLink ?? `/chats/${f.sourceRef}${f.msgId ? `?m=${f.msgId}` : ""}`, score: 1,
+  }];
+}
+
 export async function quote(ctx: MemCtx, input: { q?: string; ref?: string; threadId?: string; excludeThreadId?: string; limit?: number; minCoverage?: number }) {
   if ((input.q === undefined || input.q.trim() === "") && !input.ref) raise(ctx, "validation.bad_input", "Say what to quote: some words to look for, or the ref of a line you were given.");
   actorOf(ctx);
+  // a fact id as the ref: the exact words the fact was learned from
+  if (input.ref?.startsWith("fct_")) return { quotes: await quoteOfFact(ctx, makeAccess(ctx, { ...(input.excludeThreadId !== undefined ? { thread: input.excludeThreadId } : {}) }), input.ref) };
   const quotes = await findQuotes(ctx, input);
   // words go into a chat only from a chat everyone there also reads (hole 8, the one memory check in makeAccess): recall names the chat it is for, and an agent's own tool call carries it.
   // A line asked for by its ref is held to the same rule: a ref is no way around it.
   const access = makeAccess(ctx, { ...(input.excludeThreadId !== undefined ? { thread: input.excludeThreadId } : {}) });
   const shown: Quote[] = [];
-  for (const q of quotes) if (await access.showsFrom(q.threadId)) shown.push(q);
+  // rule 8: a private chat that gained people keeps what was said before for the person who started it. Those earlier words go only into a chat nobody else reads.
+  const sharedAt = new Map<string, { at: number; starter: string } | null>();
+  const earlier = async (q: Quote): Promise<boolean> => {
+    let s = sharedAt.get(q.threadId);
+    if (s === undefined) {
+      try {
+        const th = ((await ctx.call("threads.get", { threadId: q.threadId })) as { thread?: { sharedAt?: unknown; starter?: unknown } }).thread;
+        s = th && typeof th.sharedAt === "number" ? { at: th.sharedAt, starter: typeof th.starter === "string" ? th.starter : "" } : null;
+      } catch { s = null; }
+      sharedAt.set(q.threadId, s);
+    }
+    return s !== null && q.at < s.at;
+  };
+  for (const q of quotes) {
+    if (!(await access.showsFrom(q.threadId))) continue;
+    if (await earlier(q)) {
+      const s = sharedAt.get(q.threadId)!;
+      const room = input.excludeThreadId !== undefined ? await chatAudience((cap, i) => ctx.call(cap, i), input.excludeThreadId) : { space: false, people: [actorOf(ctx)] };
+      if (room.space || room.people.some((p) => p !== s.starter)) continue;
+    }
+    shown.push(q);
+  }
   return { quotes: shown };
 }

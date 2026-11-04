@@ -49,6 +49,7 @@ export const handlers: Handlers<HandlerCtx> = {
   "chat.messages.list": async (ctx) => { throw new VyreErr(notImplemented("chat.messages.list", ctx.trace)); },
   "chat.note_offer.answer": async (ctx) => { throw new VyreErr(notImplemented("chat.note_offer.answer", ctx.trace)); },
   "chat.note_offer.make": async (ctx) => { throw new VyreErr(notImplemented("chat.note_offer.make", ctx.trace)); },
+  "chat.noted": async (ctx) => { throw new VyreErr(notImplemented("chat.noted", ctx.trace)); },
   "chat.open_as_chat": async (ctx) => { throw new VyreErr(notImplemented("chat.open_as_chat", ctx.trace)); },
   "chat.open_tab": async (ctx) => { throw new VyreErr(notImplemented("chat.open_tab", ctx.trace)); },
   "chat.people_status": async (ctx) => { throw new VyreErr(notImplemented("chat.people_status", ctx.trace)); },

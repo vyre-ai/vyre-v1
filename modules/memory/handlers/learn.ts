@@ -184,6 +184,8 @@ export async function learnTurn(ctx: MemCtx, input: LearnIn): Promise<LearnOut> 
   let chars = 0;
   for (const m of fresh) {
     if (sealedBody(m) || IMPORTED_PREAMBLE.test(String(m.body ?? ""))) continue;
+    // a system or quiet line (a "Noted" line, a card) is the product talking, even when it is posted under a person's name
+    if ((m as { kind?: string }).kind === "system" || (m as { kind?: string }).kind === "quiet") continue;
     const mine = m.author.kind === "person" && m.author.id === asker;
     // other people's lines never reach the pass: what they said is not this person's to keep
     if (!mine && m.author.kind !== "agent") continue;

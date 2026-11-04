@@ -323,6 +323,10 @@ export default defineManifest({
       out: { factId: id.fact, layer: t.enm('project', 'person'), merged: t.bool(), projectId: t.opt(id.project), projectTitle: t.opt(t.str()), by: t.str() },
       on: ['thread', '/threadId'], level: 'use', idem: 'key', tool: 'chats', offline: 'online', risk: 'low', agent: { planMode: 'blocked' }, errors: ['validation.bad_input', 'validation.not_found', 'permission.provider_label'],
     }),
+    write('chat.noted', 'The quiet line memory leaves in a place other people share when it remembers something: "Noted: decision, go with Harbor" with Undo. One link-card line; Undo is memory.undo on the fact', {
+      in: { ...threadT, factId: id.fact, kind: t.str(), text: t.str(), replaces: t.opt(id.fact), disputed: t.opt(t.bool()) }, out: { posted: t.bool() },
+      on: ['thread', '/threadId'], level: 'use', tool: 'chats', offline: 'online', risk: 'low', idem: 'natural', errors: ['validation.not_found'],
+    }),
     write('chat.pin', 'Mark a message as pinned (a content marker, not a Star)', {
       in: { messageId: id.message, threadId: id.thread }, out: { pinned: t.bool() }, on: ['thread', '/threadId'], emits: ['message.pinned'], tool: 'chats', offline: 'patch', idem: 'natural',
     }),

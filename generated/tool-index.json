@@ -1418,6 +1418,12 @@
     },
     {
       "deferred": false,
+      "name": "chat_noted",
+      "summary": "The quiet line memory leaves in a place other people share when it remembers something: \"Noted: decision, go with Harbor\" with Undo. One link-card line; Undo is memory.undo on the fact",
+      "toolset": "chats"
+    },
+    {
+      "deferred": false,
       "name": "chat_open_as_chat",
       "summary": "Open an Ask pane as a normal chat so it appears in Recent",
       "toolset": "chats"
@@ -5528,6 +5534,18 @@
     },
     {
       "deferred": false,
+      "name": "memory_place_archive",
+      "summary": "A place was archived or deleted: its memory is archived (restorable by an admin) or deleted with it. Whoever may edit the place's memory, or an admin",
+      "toolset": "memory"
+    },
+    {
+      "deferred": false,
+      "name": "memory_place_list",
+      "summary": "Knows tab: what Vyre remembers in one place (chat, channel, project, task, goal or record), each with its kind, state, who said it, the message and the words it came from; only what the caller may open. Edit and Remove show where canEdit is true",
+      "toolset": "memory"
+    },
+    {
+      "deferred": false,
       "name": "memory_profile",
       "summary": "Your profile in this Space, as a chat may use it: the public part always, the private part only where nobody else reads the chat (your own chats, your private Ask); with personId, that teammate's public part",
       "toolset": "memory"
@@ -5620,6 +5638,12 @@
       "deferred": false,
       "name": "memory_search_trash",
       "summary": "Search Trash (or Archive, for an admin): deleted and merged-away facts, which normal search and recall never show",
+      "toolset": "memory"
+    },
+    {
+      "deferred": false,
+      "name": "memory_source_removed",
+      "summary": "A message was deleted: what memory derived from it is dropped, and a statement it replaced holds again",
       "toolset": "memory"
     },
     {

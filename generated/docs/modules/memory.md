@@ -4,7 +4,7 @@ Lane L2. Kind module. Version 0.1.0.
 
 Requires: projects.
 
-## Capabilities (69)
+## Capabilities (72)
 
 - [memory.archive_sweep](../capabilities/memory.archive_sweep.md): Daily job: move facts untouched in Trash for the Space setting (30 to 90 days, default 60) to Archive
 - [memory.backlinks](../capabilities/memory.backlinks.md): Where a page is linked from: other pages, chats, runs and records, each with the line that names it; only places the reader can open
@@ -49,6 +49,8 @@ Requires: projects.
 - [memory.page.restore_version](../capabilities/memory.page.restore_version.md): Write an earlier version of the Notes back as a new version (the versions in between stay)
 - [memory.page.set_visibility](../capabilities/memory.page.set_visibility.md): Change who can see a page: move it to the Space, a project, an agent or the caller's own personal layer; its Notes, versions and links go with it
 - [memory.page.versions](../capabilities/memory.page.versions.md): Every version of the Notes of a page, newest first, with who wrote it and when
+- [memory.place.archive](../capabilities/memory.place.archive.md): A place was archived or deleted: its memory is archived (restorable by an admin) or deleted with it. Whoever may edit the place's memory, or an admin
+- [memory.place.list](../capabilities/memory.place.list.md): Knows tab: what Vyre remembers in one place (chat, channel, project, task, goal or record), each with its kind, state, who said it, the message and the words it came from; only what the caller may open. Edit and Remove show where canEdit is true
 - [memory.pointer](../capabilities/memory.pointer.md): Pointer block for a message: up to about 5 lines from a local lookup, no model call, deduplicated against the thread
 - [memory.profile.add](../capabilities/memory.profile.add.md): Add a fact about yourself to your public or private profile
 - [memory.profile.context](../capabilities/memory.profile.context.md): The profile lines a turn loads, as the person who asked: their public part, their private part only when nobody else reads the chat, and the public part of the other people in it
@@ -69,6 +71,7 @@ Requires: projects.
 - [memory.restore](../capabilities/memory.restore.md): Restore a fact from Trash, or from Archive for an admin; open to any person or agent who can see the fact
 - [memory.restore_version](../capabilities/memory.restore_version.md): Restore a shared memory note to an earlier version (owners and admins)
 - [memory.search](../capabilities/memory.search.md): Search notes and current facts the asker may read; BM25, vectors and recency; snippets carry the source link
+- [memory.source_removed](../capabilities/memory.source_removed.md): A message was deleted: what memory derived from it is dropped, and a statement it replaced holds again
 - [memory.trail](../capabilities/memory.trail.md): The trail of changes to facts and pages (who, what, when, why and source), for what the reader can see; rows are never deleted and never hold content
 - [memory.trash.search](../capabilities/memory.trash.search.md): Search Trash (or Archive, for an admin): deleted and merged-away facts, which normal search and recall never show
 - [memory.undo](../capabilities/memory.undo.md): Undo something memory learned: the fact goes to Trash with the reason undone, and a restore brings it back

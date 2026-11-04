@@ -10534,6 +10534,58 @@
     },
     {
       "blocks": [],
+      "cap": "chat.noted",
+      "deferred": false,
+      "description": "The quiet line memory leaves in a place other people share when it remembers something: \"Noted: decision, go with Harbor\" with Undo. One link-card line; Undo is memory.undo on the fact",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "disputed": {
+            "type": "boolean"
+          },
+          "factId": {
+            "examples": [
+              "fct_a1b2c3"
+            ],
+            "pattern": "^fct_[a-z0-9]+$",
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "replaces": {
+            "examples": [
+              "fct_a1b2c3"
+            ],
+            "pattern": "^fct_[a-z0-9]+$",
+            "type": "string"
+          },
+          "text": {
+            "type": "string"
+          },
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "threadId",
+          "factId",
+          "kind",
+          "text"
+        ],
+        "type": "object"
+      },
+      "name": "chat_noted",
+      "planMode": "blocked",
+      "toolset": "chats",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "chat.open_as_chat",
       "deferred": false,
       "description": "Open an Ask pane as a normal chat so it appears in Recent",
@@ -37980,6 +38032,86 @@
     },
     {
       "blocks": [],
+      "cap": "memory.place.archive",
+      "deferred": false,
+      "description": "A place was archived or deleted: its memory is archived (restorable by an admin) or deleted with it. Whoever may edit the place's memory, or an admin",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "action": {
+            "enum": [
+              "archive",
+              "delete"
+            ],
+            "type": "string"
+          },
+          "placeId": {
+            "type": "string"
+          },
+          "placeKind": {
+            "enum": [
+              "chat",
+              "channel",
+              "project",
+              "task",
+              "goal",
+              "record"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "placeKind",
+          "placeId",
+          "action"
+        ],
+        "type": "object"
+      },
+      "name": "memory_place_archive",
+      "planMode": "blocked",
+      "toolset": "memory",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "memory.place.list",
+      "deferred": false,
+      "description": "Knows tab: what Vyre remembers in one place (chat, channel, project, task, goal or record), each with its kind, state, who said it, the message and the words it came from; only what the caller may open. Edit and Remove show where canEdit is true",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "history": {
+            "description": "Include replaced and removed ones",
+            "type": "boolean"
+          },
+          "placeId": {
+            "type": "string"
+          },
+          "placeKind": {
+            "enum": [
+              "chat",
+              "channel",
+              "project",
+              "task",
+              "goal",
+              "record"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "placeKind",
+          "placeId"
+        ],
+        "type": "object"
+      },
+      "name": "memory_place_list",
+      "planMode": "allowed",
+      "toolset": "memory",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "memory.profile.get",
       "deferred": false,
       "description": "Your profile in this Space, as a chat may use it: the public part always, the private part only where nobody else reads the chat (your own chats, your private Ask); with personId, that teammate's public part",
@@ -38683,6 +38815,40 @@
       },
       "name": "memory_search_trash",
       "planMode": "allowed",
+      "toolset": "memory",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "memory.source_removed",
+      "deferred": false,
+      "description": "A message was deleted: what memory derived from it is dropped, and a statement it replaced holds again",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "messageId": {
+            "examples": [
+              "msg_a1b2c3"
+            ],
+            "pattern": "^msg_[a-z0-9]+$",
+            "type": "string"
+          },
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "threadId",
+          "messageId"
+        ],
+        "type": "object"
+      },
+      "name": "memory_source_removed",
+      "planMode": "blocked",
       "toolset": "memory",
       "v": 1
     },
