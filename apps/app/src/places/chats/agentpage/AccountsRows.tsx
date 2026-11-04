@@ -43,7 +43,7 @@ export function useAccountEntries({ agent, deps, accounts, canEdit }: AccountsIn
   const openConnect = useOpenConnect();
   const fallback = agent.accountFallback ?? [];
   const chat = agent.accountPolicy === "key" ? agent.accountKey ?? null : null;
-  const spaceAi = useSpaceAi(deps.call);
+  const spaceAi = useSpaceAi(deps.call, { agentId: agent.agentId });
   const before: AccountPatch = { accountPolicy: agent.accountPolicy, accountKey: agent.accountKey ?? null, accountFallback: [...fallback], memoryKey: agent.memoryKey ?? null, workKey: agent.workKey ?? null };
   const save = (patch: AccountPatch, said: string): void => { void setAccounts(deps, agent.agentId, patch, before, said); };
   const label = (a: AccountChoice): string => `${accountName(accounts, a.ref)}${STATUS_NOTE[a.status] ? `, ${STATUS_NOTE[a.status].toLowerCase()}` : ""}`;
@@ -52,7 +52,7 @@ export function useAccountEntries({ agent, deps, accounts, canEdit }: AccountsIn
     const { x, y } = menuAt(e);
     const items: MenuEntry[] = [];
     if (none !== "") items.push({ label: none, checked: current === null, onSelect: () => choose(null) });
-    for (const a of accountOptions(accounts, taken)) items.push({ label: label(a), checked: a.ref === current, onSelect: () => choose(a.ref) });
+    for (const a of accountOptions(accounts, taken)) items.push({ label: label(a), checked: a.ref === current, onSelect: () => choose(a.ref), ...(a.usable === false ? { disabled: true, ...(a.why ? { reason: a.why } : {}) } : {}) });
     const real = items.some((i) => "label" in i && i.label !== none);
     const took = (made: { id: string; ref?: string }): void => choose(made.ref ?? made.id);
     menu.show(openConnect ? connectEntries(items, { kind: "ai" }, openConnect, took, !real) : (items.length === 0 ? [{ label: "No accounts to pick. Add one in the Vault.", disabled: true } as MenuEntry] : items), x, y, "other");

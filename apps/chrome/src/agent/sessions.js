@@ -7,6 +7,14 @@ import { overlayCursor, overlayHide, overlayShow } from "./overlay.js";
 import { HELD_TTL_MS, IDLE_MS, OVERLAY_PORT, fail } from "./protocol.js";
 
 export const BEACON = "●";
+/** Chrome's tab group colours, without grey (grey reads as "no agent"). */
+export const GROUP_COLORS = Object.freeze(["blue", "purple", "cyan", "green", "orange", "pink", "yellow", "red"]);
+/** Chrome's own tab group colours, so the frame matches the group. */
+export const GROUP_HEX = Object.freeze({ blue: "#1a73e8", purple: "#9334e6", cyan: "#12b5cb", green: "#188038", orange: "#fa7b17", pink: "#d01884", yellow: "#f9ab00", red: "#d93025" });
+/** The same agent always gets the same colour. @param {string} agentId */
+export function groupColor(agentId) { let h = 7; for (const c of String(agentId)) h = (h * 31 + c.charCodeAt(0)) >>> 0; return GROUP_COLORS[h % GROUP_COLORS.length]; }
+/** @param {string} name */
+export const groupTitle = (name) => `Vyre · ${String(name).slice(0, 24)}`;
 const BEACON_COLOR = "#4f46e5";
 
 /** @param {string} prefix */
@@ -19,16 +27,18 @@ function randomId(prefix) {
 /**
  * @typedef {{ id: string, name: string }} AgentRef
  * @typedef {{ agent: AgentRef, space: string, since: number, timer: any, goal: string }} Driver
- * @typedef {{ id: string, agentId: string, space: string, tabId: number, kind: string, why: string, summary: string, selector: import("./selector.js").Selector | null, action: { type: "click", button: "left" | "right" | "middle", double: boolean } | { type: "press", key: string }, expires: number }} Held
+ * @typedef {{ to?: string, from?: string, subject?: string, message?: string, site?: string }} Card
+ * @typedef {{ id: string, agentId: string, space: string, tabId: number, kind: string, why: string, summary: string, card?: Card, selector: import("./selector.js").Selector | null, action: { type: "click", button: "left" | "right" | "middle", double: boolean } | { type: "press", key: string }, expires: number }} Held
  * @param {{
- *   ext: { scripting: { executeScript(o: any): Promise<any> }, action?: { setBadgeText(o: any): any, setBadgeBackgroundColor(o: any): any, setTitle?(o: any): any } },
+ *   ext: { scripting: { executeScript(o: any): Promise<any> }, tabs?: any, tabGroups?: any, action?: { setBadgeText(o: any): any, setBadgeBackgroundColor(o: any): any, setTitle?(o: any): any } },
  *   cdp: { detach(tabId: number): Promise<void> },
  *   traffic: { forget(tabId: number): void },
  *   emit: (event: Record<string, any>) => void,
  *   now?: () => number, setTimer?: (f: () => void, ms: number) => any, clearTimer?: (t: any) => void, idleMs?: number,
+ *   grouping?: () => boolean,
  * }} deps
  */
-export function createSessions({ ext, cdp, traffic, emit, now = Date.now, setTimer = (f, ms) => setTimeout(f, ms), clearTimer = (t) => clearTimeout(t), idleMs = IDLE_MS }) {
+export function createSessions({ ext, cdp, traffic, emit, now = Date.now, setTimer = (f, ms) => setTimeout(f, ms), clearTimer = (t) => clearTimeout(t), idleMs = IDLE_MS, grouping = () => true }) {
   /** @type {Map<number, Driver>} */
   const drivers = new Map();
   /** @type {Map<string, Set<number>>} tabs an agent opened or was given, by agent id */
@@ -41,15 +51,50 @@ export function createSessions({ ext, cdp, traffic, emit, now = Date.now, setTim
   const paused = new Map();
   /** @type {Map<number, Map<string, import("./selector.js").Selector>>} refs the agent last read, by tab */
   const refs = new Map();
+  /** @type {Map<string, { total: number, done: number, steps: string[] }>} how far each agent is in the plan it gave */
+  const plans = new Map();
+  /** @type {Map<number, AgentRef>} tabs that wear a Take over or Stopped bar, and whose agent it is */
+  const shown = new Map();
   /** @type {Map<string, string>} what each agent said it is doing (chrome_plan) */
   const goals = new Map();
+
+  /** @type {Map<string, number>} the Chrome tab group of each agent in this window set */
+  const groupIds = new Map();
 
   /** @param {() => Promise<any>} f */
   const quiet = async (f) => { try { await f(); } catch { /* a restricted or closed tab: nothing to draw on */ } };
 
-  /** @param {number} tabId @param {AgentRef} agent @param {boolean} [isPaused] */
-  async function draw(tabId, agent, isPaused = false) {
-    await quiet(() => ext.scripting.executeScript({ target: { tabId }, func: overlayShow, args: [{ name: agent.name, goal: goals.get(agent.id) ?? "", paused: isPaused, port: OVERLAY_PORT }] }));
+  /** Is something an agent reached waiting for the person on this tab? @param {number} tabId */
+  const waitingOn = (tabId) => { for (const h of held.values()) if (h.tabId === tabId && h.expires >= now()) return true; return false; };
+
+  /** Put a tab in its agent's group, "Vyre · <agent>", made on first use and found again by id. The group is the person's view of which tabs an agent has. @param {AgentRef} agent @param {number} tabId */
+  async function group(agent, tabId) {
+    if (!grouping() || !ext.tabs || typeof ext.tabs.group !== "function" || !ext.tabGroups) return;
+    await quiet(async () => {
+      let gid = groupIds.get(agent.id);
+      if (gid !== undefined) {
+        try { const t = await ext.tabs.get(tabId); if (t && t.groupId === gid) return; } catch { return; }
+      }
+      /** @type {number} */
+      let made;
+      try { made = await ext.tabs.group(gid !== undefined ? { tabIds: [tabId], groupId: gid } : { tabIds: [tabId] }); }
+      catch { if (gid === undefined) return; groupIds.delete(agent.id); made = await ext.tabs.group({ tabIds: [tabId] }); gid = undefined; }
+      if (gid === undefined || gid !== made) {
+        groupIds.set(agent.id, made);
+        await ext.tabGroups.update(made, { title: groupTitle(agent.name), color: groupColor(agent.id), collapsed: false });
+      }
+    });
+  }
+
+  /** @param {string} agentId */
+  const goalText = (agentId) => { const g = goals.get(agentId) ?? ""; const p = plans.get(agentId); return g && p && p.total > 0 ? `${g} · ${p.done} of ${p.total}` : g; };
+
+  /** @param {number} tabId @param {AgentRef} agent @param {boolean | "takeover" | "stopped"} [mode] true: Esc paused */
+  async function draw(tabId, agent, mode = false) {
+    const isPaused = mode === true;
+    const state = mode === "takeover" || mode === "stopped" ? mode : undefined;
+    if (state) shown.set(tabId, agent); else shown.delete(tabId);
+    await quiet(() => ext.scripting.executeScript({ target: { tabId }, func: overlayShow, args: [{ name: agent.name, goal: goalText(agent.id), paused: isPaused, ...(state ? { state } : {}), waiting: !isPaused && waitingOn(tabId), color: GROUP_HEX[/** @type {keyof typeof GROUP_HEX} */ (groupColor(agent.id))], port: OVERLAY_PORT }] }));
     if (ext.action) {
       const a = ext.action;
       await quiet(async () => { await a.setBadgeText({ tabId, text: BEACON }); await a.setBadgeBackgroundColor({ tabId, color: BEACON_COLOR }); if (a.setTitle) await a.setTitle({ tabId, title: `Vyre: ${agent.name} is using this tab` }); });
@@ -58,6 +103,7 @@ export function createSessions({ ext, cdp, traffic, emit, now = Date.now, setTim
 
   /** @param {number} tabId */
   async function undraw(tabId) {
+    shown.delete(tabId);
     await quiet(() => ext.scripting.executeScript({ target: { tabId }, func: overlayHide, args: [] }));
     if (ext.action) { const a = ext.action; await quiet(async () => { await a.setBadgeText({ tabId, text: "" }); if (a.setTitle) await a.setTitle({ tabId, title: "Vyre" }); }); }
   }
@@ -91,9 +137,13 @@ export function createSessions({ ext, cdp, traffic, emit, now = Date.now, setTim
       if (d && d.agent.id !== call.agent.id) fail("busy");
       if (!d) {
         drivers.set(tabId, { agent: call.agent, space: call.space, since: now(), timer: null, goal: "" });
-        emit({ event: "driving", on: true, agent: call.agent.id, name: call.agent.name, tab: tabId, space: call.space });
+        /** @type {string} */
+        let site = "";
+        try { site = new URL(String((await ext.tabs.get(tabId)).url ?? "")).hostname.replace(/^www\./, ""); } catch { /* no address to name */ }
+        emit({ event: "driving", on: true, agent: call.agent.id, name: call.agent.name, tab: tabId, space: call.space, ...(site ? { site } : {}) });
         await draw(tabId, call.agent);
       }
+      await group(call.agent, tabId);
       arm(tabId);
     },
     /** @param {number} tabId */
@@ -101,6 +151,7 @@ export function createSessions({ ext, cdp, traffic, emit, now = Date.now, setTim
     /** The page loaded again (a navigation, a reload): the frame went with the old document, so draw it again. @param {number} tabId */
     async redraw(tabId) { const d = drivers.get(tabId); if (d) await draw(tabId, d.agent); },
     release,
+    group,
     /** The agent's cursor goes to a point; with `click`, a ring. @param {number} tabId @param {number} x @param {number} y @param {boolean} [click] */
     async cursor(tabId, x, y, click) {
       await quiet(() => ext.scripting.executeScript({ target: { tabId }, func: overlayCursor, args: [x, y, Boolean(click)] }));
@@ -142,7 +193,7 @@ export function createSessions({ ext, cdp, traffic, emit, now = Date.now, setTim
     /**
      * The person pressed Stop, or Esc, or the agent stopped itself. Stop and the tool give the tab back (frame off, detached); Esc keeps the dashed frame so the person
      * sees it is waiting for them. Either way nothing runs for this agent until chrome_resume.
-     * @param {string} agentId @param {"person" | "esc" | "tool"} by @param {string} [reason]
+     * @param {string} agentId @param {"person" | "esc" | "tool" | "takeover"} by @param {string} [reason]
      */
     async pause(agentId, by, reason) {
       paused.set(agentId, { by, at: now() });
@@ -155,9 +206,19 @@ export function createSessions({ ext, cdp, traffic, emit, now = Date.now, setTim
           await draw(tabId, d.agent, true);
           drivers.delete(tabId);
           traffic.forget(tabId);
-        } else await release(tabId, by === "person" ? "stopped by the person" : "stopped by the agent");
+        } else if (by === "person" || by === "takeover") {
+          // the tab is the person's now: the debugger and the frame go, and the bar stays to say so and to give it back
+          clearTimer(d.timer);
+          drivers.delete(tabId);
+          refs.delete(tabId);
+          for (const [id, h] of held) if (h.tabId === tabId) held.delete(id);
+          await cdp.detach(tabId);
+          traffic.forget(tabId);
+          emit({ event: "driving", on: false, agent: d.agent.id, tab: tabId, why: by === "person" ? "stopped by the person" : "the person took over" });
+          await draw(tabId, d.agent, by === "person" ? "stopped" : "takeover");
+        } else await release(tabId, "stopped by the agent");
       }
-      emit({ event: by === "esc" ? "paused" : "stopped", agent: agentId, by, ...(reason ? { reason: String(reason).slice(0, 200) } : {}) });
+      emit({ event: by === "esc" ? "paused" : by === "takeover" ? "takeover" : "stopped", agent: agentId, by, ...(reason ? { reason: String(reason).slice(0, 200) } : {}) });
     },
     /** @param {string} agentId */
     async resume(agentId) {
@@ -179,7 +240,9 @@ export function createSessions({ ext, cdp, traffic, emit, now = Date.now, setTim
       for (const [id, h] of held) if (h.expires < now()) held.delete(id);
       const id = randomId("hld");
       held.set(id, { id, agentId: call.agent.id, space: call.space, tabId, expires: now() + HELD_TTL_MS, ...what });
-      emit({ event: "held", agent: call.agent.id, id, kind: what.kind, summary: what.summary, tab: tabId });
+      emit({ event: "held", agent: call.agent.id, name: call.agent.name, space: call.space, id, kind: what.kind, why: what.why, summary: what.summary, tab: tabId, ...(what.card ? { card: what.card } : {}) });
+      const d = drivers.get(tabId);
+      if (d) void draw(tabId, d.agent);
       return id;
     },
     /** Take a held item out for chrome_send: only the agent and Space that reached it, only before it expires. @param {{ agent: AgentRef, space: string }} call @param {string} id */
@@ -187,15 +250,35 @@ export function createSessions({ ext, cdp, traffic, emit, now = Date.now, setTim
       const h = held.get(id);
       if (!h || h.expires < now() || h.agentId !== call.agent.id || h.space !== call.space) fail("held_gone");
       held.delete(id);
+      const d = drivers.get(h.tabId);
+      if (d) void draw(h.tabId, d.agent);
       return h;
     },
+    /** The held items of one agent, as the approval card shows them. @param {string} agentId */
+    heldOf: (agentId) => [...held.values()].filter((h) => h.agentId === agentId && h.expires >= now()).map((h) => ({ id: h.id, kind: h.kind, summary: h.summary, tab: h.tabId, ...(h.card ? { card: h.card } : {}) })),
     /** @param {string} agentId */
     heldIds: (agentId) => [...held.values()].filter((h) => h.agentId === agentId && h.expires >= now()).map((h) => h.id),
 
+    /** The person chose Don't send in Vyre: forget the item, so the agent cannot press it later. @param {string} id */
+    dropHeld(id) { const h = held.get(id); if (!h) return false; held.delete(id); const d = drivers.get(h.tabId); if (d) void draw(h.tabId, d.agent); return true; },
+
     // ---- goal line
-    /** @param {AgentRef} agent @param {string} goal */
-    async setGoal(agent, goal) {
+    /** @param {string} agentId */
+    goalOf: (agentId) => goals.get(agentId) ?? "",
+    /** The agent whose Take over or Stopped bar is on this tab. @param {number} tabId */
+    shownAgent: (tabId) => shown.get(tabId) ?? null,
+    /** One step of the plan is done (an acting tool succeeded): the bar counts it and the chat's checklist follows. @param {string} agentId */
+    advance(agentId) {
+      const p = plans.get(agentId);
+      if (!p || p.done >= p.total) return null;
+      p.done++;
+      for (const [tabId, d] of drivers) if (d.agent.id === agentId) void draw(tabId, d.agent);
+      return { total: p.total, done: p.done, steps: p.steps };
+    },
+    /** @param {AgentRef} agent @param {string} goal @param {string[]} [steps] */
+    async setGoal(agent, goal, steps = []) {
       goals.set(agent.id, goal);
+      plans.set(agent.id, { total: steps.length, done: 0, steps });
       for (const [tabId, d] of drivers) if (d.agent.id === agent.id) await draw(tabId, agent);
     },
     /** Everything off: the worker is going away or the Space was closed. */

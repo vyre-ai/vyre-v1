@@ -5,9 +5,11 @@ export { captureSubscription, draftFor, serverMayUse, setSpaceUse } from "./subs
 export type { ShareDeps, SubscriptionCapture, SubscriptionItemDraft, VaultItems } from "./subscription.ts";
 export { providerOfModel } from "./provider.ts";
 export { costTier } from "./cost.ts";
-export { payLine } from "./paid.ts";
+export { ownerWords, payLine, splitPaid } from "./paid.ts";
 export { probeAccount, statusAfter, UnknownAccount } from "./probe.ts";
 export type { ProbeDeps, ProbeError, ProbeResult } from "./probe.ts";
 export type {
   AccountKind, AccountRow, AccountStatus, AccountsPolicy, AgentAccountConfig, Attempt, NeedsYou, ResolveReason, ResolveRequest, Resolution, SkipWhy, SpaceUses, Trigger,
 } from "./types.ts";
+export { usableHere, WHY } from "./usable.ts";
+export type { Place } from "./usable.ts";

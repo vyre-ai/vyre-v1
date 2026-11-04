@@ -364,12 +364,13 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
     // The account that pays comes from engine.account.resolve when the host wires it; without it the engine keeps its own starter/steerer choice (unit tests).
     let resolveFailed = false;
     let resolveCode: string | undefined;
+    let resolveMessage: string | undefined;
     // a chain with no person behind it stops and asks: nothing is admitted, resolved or paid for, and the chat says a person has to ask
     const orphan = !wait && payer.personless === true;
     const refused = orphan
       ? { code: "no_asker", message: "No person asked for this, so it did not run." }
       : opts.admit ? await opts.admit({ threadId: st.thread.id, agentId: item.agentId, asker: wait?.asker ?? payer.asker }).catch(() => null) : null;
-    const account = opts.resolveAccount && !refused ? await opts.resolveAccount({ threadId: st.thread.id, agentId: item.agentId, askerId: wait?.asker ?? payer.asker, ...(item.routine ? { kind: "agent_work" as const } : item.kind === "wake" ? { kind: "wake" as const } : {}) }).catch((e: unknown) => { resolveFailed = true; resolveCode = (e as { code?: unknown } | null)?.code as string | undefined; return null; }) : undefined;
+    const account = opts.resolveAccount && !refused ? await opts.resolveAccount({ threadId: st.thread.id, agentId: item.agentId, askerId: wait?.asker ?? payer.asker, ...(item.routine ? { kind: "agent_work" as const } : item.kind === "wake" ? { kind: "wake" as const } : {}) }).catch((e: unknown) => { resolveFailed = true; resolveCode = (e as { code?: unknown } | null)?.code as string | undefined; if (typeof resolveCode === "string" && resolveCode.startsWith("engine.") && e instanceof Error) resolveMessage = e.message; return null; }) : undefined;
     // a refused personless turn is recorded for nobody: not the starter, whose access it never had
     const asker = orphan ? "" : wait?.asker ?? (account ? account.payer : payer.asker);
     const reason = wait ? ("starter" as const) : payer.reason;
@@ -420,7 +421,7 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
     try {
       if (refused) throw Object.assign(new Error(refused.message), { code: refused.code });
       if (!agent) throw Object.assign(new Error("agent is not in this thread"), { code: "unknown_agent" });
-      if (account === null && resolveFailed) throw Object.assign(new Error("the account could not be resolved just now"), { code: typeof resolveCode === "string" ? resolveCode : "account_unavailable" });   // a resolver that is down is not "no key": no Unblock
+      if (account === null && resolveFailed) throw Object.assign(new Error(resolveMessage ?? "the account could not be resolved just now"), { code: typeof resolveCode === "string" ? resolveCode : "account_unavailable" });   // a resolver that is down is not "no key": no Unblock
       if (account === null) {
         // Nobody has a usable key for this turn: no session, the turn ends as failed (no_account) until they add one.
         try { await opts.onNoAccount?.({ threadId: st.thread.id, turnId: turn.id, agentId: item.agentId, asker, routine: item.routine }); } catch { /* the Unblock is best effort; the turn still ends as no_account */ }
@@ -431,6 +432,8 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
       for (;;) {
       const session = await opts.openSession({ threadId: st.thread.id, agent, asker, turnId: turn.id, traceId: turn.traceId, ...(paying ? { account: paying } : {}) });
       run.session = session;
+      // what really runs is what the record keeps: a session that says its model (a swapped or limited one) wins over the one the chat asked for, and a swap to the account's own default is not the asked model
+      { const ran = (session as { model?: unknown }).model; if (typeof ran === "string") turn.model = ran; else if (paying?.modelFallback) turn.model = paying.modelFallback.to ?? null; }
       if (run.cancelled) await session.cancel();
       let switchTo: ResolvedAccount | null = null;
       const input = {
@@ -487,6 +490,8 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
             if (ev.model) turn.model = ev.model;
             if (ev.contextTokens !== undefined) info.contextTokens = ev.contextTokens;
             usages += 1;
+            if (ev.contextTokens !== undefined) info.contextTokens = ev.contextTokens;
+            if (ev.model) turn.model = ev.model;   // what the engine says it ran is what is recorded
             if (ev.cacheReadTokens !== undefined) info.cacheReadTokens = (info.cacheReadTokens ?? 0) + ev.cacheReadTokens;
             if (ev.cacheWriteTokens !== undefined) info.cacheWriteTokens = (info.cacheWriteTokens ?? 0) + ev.cacheWriteTokens;
             if (ev.reasoningTokens !== undefined) info.reasoningTokens = (info.reasoningTokens ?? 0) + ev.reasoningTokens;
@@ -753,7 +758,7 @@ function noteBlock(info: TurnInfo, kind: string, payload: unknown, at: number): 
 
 /** At the end of a turn: the account that paid last, and the provider's dollar figure only when every call gave one. */
 function settleInfo(info: TurnInfo, paying: ResolvedAccount | null, usages: number, priced: number): void {
-  if (paying) info.paid = payLine({ ...(paying.via ? { via: paying.via } : {}), kind: paying.kind, ...(paying.fellBack ? { fellBack: true } : {}), ...(paying.cappedFrom ? { cappedFrom: paying.cappedFrom } : {}) });
+  if (paying) info.paid = payLine({ ...(paying.name ? { name: paying.name } : {}), ...(paying.via ? { via: paying.via } : {}), kind: paying.kind, ...(paying.shared ? { shared: true } : {}), ...(paying.spaceKey ? { spaceKey: true } : {}), ...(paying.fellBack ? { fellBack: true } : {}), ...(paying.cappedFrom ? { cappedFrom: paying.cappedFrom } : {}) });
   if (paying) info.account = { ref: paying.ref, driver: paying.driver, provider: paying.provider, kind: paying.kind, ...(paying.shared ? { shared: true } : {}), ...(paying.spaceKey ? { spaceKey: true } : {}) };
   if (usages === 0 || priced !== usages) delete info.costUsd;
 }

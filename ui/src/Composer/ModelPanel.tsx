@@ -31,7 +31,7 @@ export interface PanelModel {
 
 export interface UsageMeter { pct: number; resetsAt?: string | number | null }
 export interface PanelUsage {
-  context: { used: number; window: number } | null;
+  context: { used: number; window: number; approximate?: boolean } | null;
   session: UsageMeter | null;
   week: UsageMeter | null;
   /** What every compaction of this chat keeps ("Keep this every time"), when set: the Compact form opens with it, ticked. */
@@ -113,9 +113,9 @@ export function lowSuggestion(accounts: readonly PanelAccount[], current: string
 }
 
 /** The context meter follows the model: its window when the model says, the used tokens from the engine. */
-export function contextFor(usage: PanelUsage | null, model: PanelModel | undefined): { used: number; window: number } | null {
+export function contextFor(usage: PanelUsage | null, model: PanelModel | undefined): { used: number; window: number; approximate?: boolean } | null {
   if (!usage?.context) return null;
-  return { used: usage.context.used, window: model?.window ?? usage.context.window };
+  return { used: usage.context.used, window: model?.window ?? usage.context.window, ...(usage.context.approximate ? { approximate: true } : {}) };
 }
 
 const providerTitle = (p: string): string => ({ anthropic: "Claude", claude: "Claude", claude_code: "Claude", openai: "ChatGPT", codex: "ChatGPT", grok: "Grok", xai: "Grok", google: "Gemini", openrouter: "OpenRouter", local: "Local", opencode_go: "OpenCode" } as Record<string, string>)[p] ?? p;
@@ -335,7 +335,7 @@ export function ModelPanel(p: ModelPanelProps): ReactElement {
           <View style={st.lims} testID="model-usage">
             {session ? <Meter testID="meter-session" label={words.session} frac={session.pct} value={resetLabel(session.resetsAt, p.now) ? `resets ${resetLabel(session.resetsAt, p.now)}` : pct(session.pct)} /> : null}
             {week ? <Meter testID="meter-week" label={words.week} frac={week.pct} value={resetLabel(week.resetsAt, p.now) ? `resets ${resetLabel(week.resetsAt, p.now)}` : pct(week.pct)} /> : null}
-            {ctx ? <Meter testID="meter-context" label="Context" frac={ctx.used / ctx.window} value={`${kTokens(ctx.used)} / ${kTokens(ctx.window)}`} /> : null}
+            {ctx ? <Meter testID="meter-context" label="Context" frac={ctx.used / ctx.window} value={`${ctx.approximate ? "about " : ""}${kTokens(ctx.used)} / ${kTokens(ctx.window)}`} /> : null}
           </View>
         </>
       )}

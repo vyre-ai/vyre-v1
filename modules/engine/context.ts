@@ -4,7 +4,9 @@
 import { readFileSync, readdirSync, existsSync } from "node:fs";
 import { SECTION_ORDER, parseScreen, screenText } from "../../agent/src/turn-engine/context.ts";
 import type { ContextSection, ScreenContext, TurnContext } from "../../agent/src/turn-engine/context.ts";
-import type { EngineSession, OpenSession, TurnInput } from "../../agent/src/turn-engine/types.ts";
+import type { EngineSession, OpenSession, SessionSpec, TurnInput } from "../../agent/src/turn-engine/types.ts";
+import { payLine } from "../../agent/src/accounts/paid.ts";
+import { modelName } from "./model-fallback.ts";
 
 type Call = (cap: string, input: unknown, as?: string) => Promise<unknown>;
 type Obj = Record<string, unknown>;
@@ -12,6 +14,7 @@ type Obj = Record<string, unknown>;
 import { CONNECTOR_CHAT, CONNECTOR_SKILL, CRM_CHAT, CRM_SKILL } from "../../lib/connector-chat.ts";
 import { COMPANY_INTENT } from "../../lib/company-flow.ts";
 import { ABOUT_VYRE_INTENT, ABOUT_VYRE_SKILL } from "../../lib/about-vyre.ts";
+import { REPLY_FORMAT } from "../../lib/reply-format.ts";
 
 /** The titles of the chats the Vault (Add to Automations) and the step picker (Build a connector) start, and the skill they run on. */
 /** How to name a record, file, task or chat in a reply: by link, never by id. */
@@ -96,7 +99,9 @@ export function capabilitySkills(call: Call, fallback: SkillsPort = diskSkills()
 }
 
 /** The index lists at most this many skills; the rest are named by count and skills_list has them all. */
-export const SKILL_INDEX_MAX = 60;
+export const SKILL_INDEX_MAX = 40;
+/** A person's profile shows at most this many lines of each kind; memory_search has the rest. Every call of a turn re-sends the profile. */
+export const PROFILE_LINES_MAX = 12;
 
 const cutTo = (s: string, n: number): string => (s.length <= n ? s : `${s.slice(0, n - 1)}…`);
 /** The line every agent gets in a group chat, a discussion or a channel. */
@@ -186,9 +191,9 @@ export function profileSection(p: ProfileContext | undefined, who: (id: string) 
   if (!p) return "";
   const out: string[] = [];
   for (const person of p.people) {
-    const pub = [...person.basics.map((b) => `- ${b}`), ...person.public.map((l) => `- ${l}`)];
+    const pub = [...person.basics.slice(0, PROFILE_LINES_MAX).map((b) => `- ${b}`), ...person.public.slice(0, PROFILE_LINES_MAX).map((l) => `- ${l}`)];
     if (person.self) {
-      const priv = person.private.map((l) => `- ${l}`);
+      const priv = person.private.slice(0, PROFILE_LINES_MAX).map((l) => `- ${l}`);
       if (pub.length === 0 && priv.length === 0) continue;
       if (p.audience === "private") {
         out.push(`About ${who(person.personId)}, the person you work for (their profile, learned by any of their agents). Only they and their own agents are in this chat, so you may use all of it here.`);
@@ -405,8 +410,8 @@ export function createContextBuilder(d: ContextDeps) {
     const md = agent ? await agentMd(agent, asker) : undefined;
     const always = agent ? await agentContext(agent, asker) : undefined;
     // every driver gets this context, so this line reaches Claude, Codex and Grok alike
-    add("identity", true, `You are ${name} (agentId ${agentId}), an agent in Vyre.${role ? ` ${role}` : ""}\nTo show the person anything you made, use artifact_publish: it stays private and opens in a tab. Never leave it as a loose file or send them to localhost.${md ? `\n\nYour AGENT.md:\n${cutTo(md, 6_000)}` : ""}${always ? `\n\nWhat you always know (your context folder):\n${cutTo(always, 8_000)}` : ""}`);
-    add("rules", true, "You work for the person who asked; their access limits yours. Search Vyre memory before you ask them anything. A secret is used by Vault handle (vault_use), never by value. Anything that leaves the Space goes through the Gate and may come back held: say what is waiting and for whom. Say what you did and what you did not do. " + NAMING);
+    add("identity", true, `You are ${name} (agentId ${agentId}), an agent in Vyre.${role ? ` ${role}` : ""}\nTo show the person anything you made, use artifact_publish: it stays private and shows as a card the person opens; say it opened in a tab only when the result says opened is true. Report only what a tool result confirms. Never leave it as a loose file or send them to localhost.${md ? `\n\nYour AGENT.md:\n${cutTo(md, 6_000)}` : ""}${always ? `\n\nWhat you always know (your context folder):\n${cutTo(always, 8_000)}` : ""}`);
+    add("rules", true, "You work for the person who asked; their access limits yours. Search Vyre memory before you ask them anything. A secret is used by Vault handle (vault_use), never by value. Anything that leaves the Space goes through the Gate and may come back held: say what is waiting and for whom. Say what you did and what you did not do. " + NAMING + "\n" + REPLY_FORMAT);
 
     // where
     const people = arr(th?.["members"]).filter((m) => m["kind"] === "person").map((m) => String(m["id"]));
@@ -472,7 +477,7 @@ export function createContextBuilder(d: ContextDeps) {
         // nearest first (the agent's own, then the Space's, then Vyre's), so a long list keeps the ones this Space added
         const shown = others.slice(0, SKILL_INDEX_MAX);
         const more = others.length - shown.length;
-        parts.push(`Other skills, by name. When one fits what you are doing, load it with load_skill {name} and follow it:\n${shown.map((s) => `- ${s.name}: ${one(s.description, 130)}${s.note ? ` (${one(s.note, 120)})` : ""}`).join("\n")}${more > 0 ? `\n... and ${more} more: skills_list names them all.` : ""}`);
+        parts.push(`Other skills, by name. When one fits what you are doing, load it with load_skill {name} and follow it:\n${shown.map((s) => `- ${s.name}: ${one(s.description, 90)}${s.note ? ` (${one(s.note, 120)})` : ""}`).join("\n")}${more > 0 ? `\n... and ${more} more: skills_list names them all.` : ""}`);
       }
       add("skills", true, parts.join("\n\n"));
       if (focusName && idx.some((s) => s.name === focusName)) {
@@ -546,7 +551,19 @@ export function createContextBuilder(d: ContextDeps) {
 export type ContextBuilder = ReturnType<typeof createContextBuilder>;
 
 /** An OpenSession whose sessions get the turn context on every send. A context that fails to build never holds the turn: it runs without. */
-export function withTurnContext(open: OpenSession, b: ContextBuilder): OpenSession {
+/**
+ * The one short line every turn carries about itself: the model and effort running it, who pays, and where it runs. It is a fact of the turn, not a thing the model remembers, and it points to my_ai for the rest.
+ * Stable for a chat (it changes only when the model, the account or the place does), so it sits in the cached prefix.
+ */
+export function runningLine(spec: Pick<SessionSpec, "agent" | "account">, place?: string): string | undefined {
+  const a = spec.account;
+  const model = a?.modelFallback?.to ?? spec.agent.model;
+  if (!a && !model) return undefined;
+  const paid = a ? payLine({ ...(a.name ? { name: a.name } : {}), ...(a.via ? { via: a.via } : {}), kind: a.kind, ...(a.shared ? { shared: true } : {}), ...(a.spaceKey ? { spaceKey: true } : {}) }) : undefined;
+  return `This turn runs on ${model ? modelName(model) : "the engine's own default model"}${spec.agent.effort ? ` (${spec.agent.effort} effort)` : ""}${paid ? `, paid by ${paid}` : ""}${place ? `, ${place}` : ""}. What else the person may use and what is left on each is my_ai (never answer it from memory).`;
+}
+
+export function withTurnContext(open: OpenSession, b: ContextBuilder, running?: (spec: SessionSpec) => Promise<string | undefined>): OpenSession {
   return async (spec) => {
     const session = await open(spec);
     return Object.create(session, {
@@ -554,6 +571,10 @@ export function withTurnContext(open: OpenSession, b: ContextBuilder): OpenSessi
         value: (input: TurnInput) => (async function* () {
           let context: TurnContext | undefined;
           try { context = await b.build(input); } catch { context = undefined; }
+          try {
+            const line = running ? await running(spec) : undefined;
+            if (line && context) context = { ...context, sections: [...context.sections.filter((s) => s.id !== "running"), { id: "running", stable: true, text: line }].sort((x, y) => SECTION_ORDER.indexOf(x.id) - SECTION_ORDER.indexOf(y.id)) };
+          } catch { /* a turn without the line is still a turn */ }
           yield* session.send(context ? { ...input, context, ...(context.keepHistory !== undefined && input.history.length > context.keepHistory ? { history: input.history.slice(-context.keepHistory) } : {}) } : input);
         })(),
       },

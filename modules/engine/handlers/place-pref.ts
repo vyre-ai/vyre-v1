@@ -11,6 +11,7 @@ import type { Db, EngineCtx } from "../projections.ts";
 import { askerOf, devicesFrom, placementDecide, serversOf, spaceOf } from "./place.ts";
 import { setOnce } from "../node-turns.ts";
 import { engineIfBound } from "../projections.ts";
+import { forgetPlacement } from "../placement-cache.ts";
 
 interface CallCtx extends EngineCtx { call(cap: string, input: unknown): Promise<unknown> }
 type Row = Record<string, unknown>;
@@ -66,6 +67,7 @@ async function privateThread(ctx: CallCtx, threadId: string): Promise<boolean> {
 
 export async function placementSet(ctx: CallCtx, input: { threadId: string; target: Target | "auto"; serverId?: string; deviceId?: string; once?: boolean }): Promise<{ target: Target | "auto"; serverId?: string; deviceId?: string }> {
   ensurePlace(ctx.db);
+  forgetPlacement(input.threadId);   // the kept placement words of this chat are stale from here
   const asker = askerOf(ctx);
   // "Run it on the server instead": this once, on the Space; the chat's own choice stays. A turn waiting for the computer is started again so it goes now.
   if (input.once === true) {

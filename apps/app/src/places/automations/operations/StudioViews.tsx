@@ -17,6 +17,7 @@ export { Dependencies } from "./DependenciesView.tsx";
 export { LiveEvents } from "./EventsView.tsx";
 export { Packages } from "./PackagesView.tsx";
 export { TemplateGallery } from "./TemplateGallery.tsx";
+export { Watching } from "./WatchingView.tsx";
 
 interface NeedsRow { id: string; title: string; reason: string; task: unknown }
 

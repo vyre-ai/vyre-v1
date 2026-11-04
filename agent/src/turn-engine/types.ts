@@ -244,9 +244,13 @@ export interface EngineSession {
  * The account a turn runs on, as engine.account.resolve answered it. `ref` is the Vault handle (never a value); the opener fetches the secret itself through Vault fill.
  * `itemId` is the Vault item behind the handle, so usage can be metered against it. `payer` is the person who pays.
  */
+/** What a session can say about itself beyond running turns. */
+export interface SessionModel { /** The model that really runs. */ readonly model?: string }
 export interface ResolvedAccount { ref: string; driver: string; provider: string; kind: AccountKind; payer: string; reason: ResolveReason; itemId?: string;
+  /** The account's name as its owner sees it (Details: Paid by). */
+  name?: string;
   /** Which rule chose it (the Chat key, the chat's pick, an own-work account, a step's account, a Space account, a backup); absent for the asker's own. */
-  via?: "thread" | "chat_key" | "work" | "step" | "space" | "backup";
+  via?: "thread" | "chat_key" | "work" | "step" | "space" | "backup" | "own";
   /** The account ahead of this one that had hit its monthly cap. */
   cappedFrom?: string;
   /** An account ahead of this one could not pay (signed out, failing, out of its limit): this is a fallback, not the person's first choice. */

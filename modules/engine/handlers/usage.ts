@@ -10,7 +10,7 @@ import { windowFor } from "../../../agent/src/transcript/windows.ts";
 import { raise } from "../projections.ts";
 import type { Db, EngineCtx } from "../projections.ts";
 import { ensureExtra } from "./extra/schema.ts";
-import { num, optStr, rows } from "./extra/util.ts";
+import { num, optStr, rows, str } from "./extra/util.ts";
 import { keepEvery, lastCompaction } from "../cli-sessions.ts";
 import { ensureInfo } from "./extra/reply-info.ts";
 
@@ -137,11 +137,13 @@ export async function usageGet(ctx: EngineCtx, input: { threadId: string; agentI
   const last = rows(ctx, "SELECT turn_id, model, tokens_in, started_at, ended_at FROM engine_turns WHERE thread_id = ? AND agent_id = ? AND tokens_in > 0 ORDER BY started_at DESC, qseq DESC LIMIT 1", input.threadId, input.agentId)[0];
   // a turn's token total adds up every request it made, each of which re-sent the whole chat: the chat's size is what the turn's last request carried, when the engine said
   let lastSize: number | undefined;
+  let lastCalls = 1;   // requests the turn made: its tool calls plus the answer
   if (last) {
     try {
       ensureInfo(ctx.db);
       const i = rows(ctx, "SELECT info FROM engine_turn_info WHERE turn_id = ?", String(last["turn_id"]))[0];
-      const parsed = i && typeof i["info"] === "string" ? (JSON.parse(i["info"] as string) as { contextTokens?: number }) : undefined;
+      const parsed = i && typeof i["info"] === "string" ? (JSON.parse(i["info"] as string) as { contextTokens?: number; tools?: unknown[] }) : undefined;
+      if (Array.isArray(parsed?.tools)) lastCalls = parsed!.tools!.length + 1;
       if (typeof parsed?.contextTokens === "number" && parsed.contextTokens > 0) lastSize = parsed.contextTokens;
     } catch { /* the figure falls back to the turn's total */ }
   }
@@ -156,8 +158,9 @@ export async function usageGet(ctx: EngineCtx, input: { threadId: string; agentI
     // a compaction since the latest turn left the context at what it reported (engine.compact): that is the figure until the next turn says otherwise
     const c = lastCompaction(ctx.db, input.threadId, input.agentId);
     const lastAt = last ? Math.max(num(last["started_at"]), num(last["ended_at"])) : 0;
-    const used = c && c.used !== null && c.at >= lastAt ? c.used : last ? Math.trunc(lastSize ?? num(last["tokens_in"])) : 0;
-    context = { used: Math.min(window, used), window };
+    const used = c && c.used !== null && c.at >= lastAt ? c.used : last ? Math.trunc(lastSize ?? (lastCalls > 1 ? (2 * num(last["tokens_in"])) / lastCalls : num(last["tokens_in"]))) : 0;   // an engine that reports only the turn's total (Codex) made lastCalls requests, each re-sending a growing chat: the last one is about twice the average
+    const estimated = !(c && c.used !== null && c.at >= lastAt) && last !== undefined && lastSize === undefined && lastCalls > 1;
+    context = { used: Math.min(window, used), window, ...(estimated ? { approximate: true } : {}) };
   }
 
   // a model that ran out on this account reads as a full session until it comes back (what the provider refused, not an estimate)
@@ -169,7 +172,7 @@ export async function usageGet(ctx: EngineCtx, input: { threadId: string; agentI
   const lastTurn = await lastTurnOf(ctx, input.threadId, input.agentId, listed.accounts);
   return {
     account: row ? { ref: row.ref, name: row.name ?? row.title, provider: accountProvider as string } : null,
-    context, session, week, source, ...(keep !== "" ? { keepEvery: keep } : {}), ...(lastTurn ? { lastTurn } : {}),
+    context, session, week, source, ...(keep !== "" ? { keepEvery: keep } : {}), ...(lastTurn ? { lastTurn } : {}), ...(picked.model ? { model: picked.model } : {}),
   } as const;
 }
 

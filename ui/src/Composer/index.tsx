@@ -22,6 +22,7 @@ import { DropHost, DropOverlay, useDropRoute, useFileDrop } from "../FileDrop/in
 import { Row } from "../Row/index.tsx";
 import { answering, contextRing, deleteToken, effortsFor, modeInfo, nextMode, sendControl, sizeLabel, stripName, tokenRanges } from "./brain.ts";
 import type { ChatMode, ComposerAgent, TokenRange } from "./brain.ts";
+import { ChatField, canMountChatField } from "./ChatField.tsx";
 import { ContextRing, EffortBars, GroupHead, I, IconTile, Kbd, Pop, STOP, ensureComposerCss, useDismiss } from "./parts.tsx";
 import { composerSymbols } from "./props.ts";
 import { closeEmoji, findEmoji } from "./emoji.ts";
@@ -98,7 +99,9 @@ export type ListItem = string | { t: string; s?: string; kind?: string; sealed?:
   /** A command that takes words after its name: the hint for them. Picking it writes "/name " and waits instead of running. */
   arg?: string;
   /** Other words it is found by, past its name: a connected folder's provider ("Google Drive", "SharePoint"), so typing the provider finds it. */
-  find?: string };
+  find?: string;
+  /** In the @ menu: the group it is listed under (the place knows who is in the chat). Without it an agent is under Agents and a person under People. */
+  group?: string };
 
 export interface ComposerLists {
   people?: readonly ListItem[];
@@ -196,7 +199,7 @@ function ranked(items: readonly ListItem[] | undefined, query: string, group: st
     const ref = typeof x === "string" ? undefined : x.ref;
     const arg = typeof x === "string" ? undefined : x.arg;
     const data = typeof x === "string" ? undefined : x.data;
-    scored.push({ at, q, item: { group, label, kind: kindOf(x, kind), ...(note === undefined ? {} : { note }), ...(sealed === undefined ? {} : { sealed }), ...(body === undefined ? {} : { body }), ...(ref === undefined ? {} : { ref }), ...(arg === undefined ? {} : { arg }), ...(data === undefined ? {} : { data }) } });
+    scored.push({ at, q, item: { group: (typeof x === "string" ? undefined : x.group) ?? group, label, kind: kindOf(x, kind), ...(note === undefined ? {} : { note }), ...(sealed === undefined ? {} : { sealed }), ...(body === undefined ? {} : { body }), ...(ref === undefined ? {} : { ref }), ...(arg === undefined ? {} : { arg }), ...(data === undefined ? {} : { data }) } });
   });
   scored.sort((a, b) => b.q - a.q || a.at - b.at);
   return scored.slice(0, limit).map((s) => s.item);
@@ -218,12 +221,18 @@ const HASH_LIST: Record<HashGroup, [keyof ComposerLists, string]> = {
 export function popupFor(trigger: Trigger, lists: ComposerLists, _agentChat = true, scope: HashScope = "All"): PopupEntry[] {
   const q = trigger.query;
   if (trigger.ch === "@") {
-    const agents = ranked(lists.agents, q, "Agents", "Agent", MENTION_LIMIT);
-    const people = ranked(lists.people, q, "People", "Person", MENTION_LIMIT);
+    // only mentions belong here: a stray menu row (Report a problem is added to menus, never to this list) is dropped
+    const mention = (x: ListItem): boolean => nameOf(x) !== "Report a problem";
+    const agents = ranked((lists.agents ?? []).filter(mention), q, "Agents", "Agent", MENTION_LIMIT);
+    const people = ranked((lists.people ?? []).filter(mention), q, "People", "Person", MENTION_LIMIT);
+    // groups in the order the menu draws them; each keeps the ranking it had
     const out: PopupEntry[] = [];
     let left = MENTION_LIMIT;
-    for (const [name, items] of [["Agents", agents], ["People", people]] as const) {
-      const take = items.slice(0, left);
+    const all = [...agents, ...people];
+    const order = ["Agents in this chat", "Agents", "People", "Bring in"];
+    for (const name of [...order, ...all.map((x) => x.group).filter((g) => !order.includes(g))]) {
+      if (out.some((e) => "head" in e && e.head === name)) continue;
+      const take = all.filter((x) => x.group === name).slice(0, left);
       if (take.length === 0) continue;
       out.push({ head: name }, ...take);
       left -= take.length;
@@ -526,6 +535,8 @@ export interface ComposerPreview {
 }
 
 export interface ComposerProps extends ComposerShellProps {
+  /** The text is drawn on the shared editor with each @mention as one chip (ChatField). On wherever a browser DOM is there; the plain field is only the fallback when the editor cannot mount. `false` forces the plain field (tests). */
+  chatField?: boolean;
   lists?: ComposerLists;
   /** Agents that listen in this thread (answer only when @mentioned). The lead comes from `lead`. */
   listening?: readonly string[];
@@ -670,13 +681,14 @@ function AgentStrip({ list, narrow, onPress, open, face, mode, runsChip, ring }:
   const a = list[0] as ComposerAgent;
   const name = stripName(list);
   const title = a.modelTitle ?? "Auto";
-  const label = `${name} will answer on ${title}${a.effort ? `, ${a.effort} effort` : ""}${onPress ? ". Mode, model, effort and limits" : ""}`;
+  const label = `${name} will answer on ${title}${a.unavailable === true ? ", not available here" : ""}${a.effort ? `, ${a.effort} effort` : ""}${onPress ? ". Mode, model, effort and limits" : ""}`;
   const body = (
     <>
       {face ? <Avatar {...avatarOf({ id: a.id, name: a.name, kind: a.kind === "assistant" ? "assistant" : "agent" })} size={20} /> : null}
       {mode !== undefined && mode !== "auto" ? <View style={styles.mchip} testID="composer-mode"><Text style={styles.mchipText}>{modeInfo(mode).label}</Text></View> : null}
       {runsChip !== undefined ? <View style={styles.rchip} testID="composer-runs"><Text numberOfLines={1} style={styles.rchipText}>{`On ${runsChip}`}</Text></View> : null}
       {narrow ? null : <Text numberOfLines={1} style={styles.stripModelText}>{`${title}${a.accountName ? ` · ${a.accountName}` : ""}`}</Text>}
+      {a.unavailable === true ? <Text numberOfLines={1} style={styles.stripNote} testID="composer-unavailable">Not available here</Text> : null}
       <EffortBars effort={a.effort} levels={effortsFor(a.provider).length} testID="composer-effort" />
       {ring ? <ContextRing pct={ring.pct} warn={ring.warn} size={18} /> : null}
     </>
@@ -688,6 +700,16 @@ function AgentStrip({ list, narrow, onPress, open, face, mode, runsChip, ring }:
       {body}
     </Pressable>
   );
+}
+
+/**
+ * How far the field's text has scrolled. React Native Web hands a multiline TextInput's onScroll the DOM scroll event, which carries no `contentOffset` (that is a native-only field), so the
+ * wash behind a long draft stayed at 0 while the text scrolled under it and the boxes slid onto the wrong words (owner report, rc.20). The textarea's own scrollTop is the truth.
+ */
+export function scrollTopOf(e: unknown): number {
+  const ev = e as { nativeEvent?: { contentOffset?: { y?: number }; target?: { scrollTop?: number } }; target?: { scrollTop?: number }; currentTarget?: { scrollTop?: number } } | null;
+  const y = ev?.nativeEvent?.contentOffset?.y ?? ev?.currentTarget?.scrollTop ?? ev?.target?.scrollTop ?? ev?.nativeEvent?.target?.scrollTop ?? 0;
+  return Number.isFinite(y) ? Math.max(0, y) : 0;
 }
 
 /** The field's tokens, drawn behind the text: a wash under each #link, @mention and [[link]]. The text itself stays the field's own. */
@@ -865,6 +887,12 @@ export function Composer(props: ComposerProps): ReactElement {
     typeSymbol("#");
   };
   const cycleMode = (): void => { if (props.mode && props.onMode) props.onMode(nextMode(props.mode)); };
+
+  // a draft that shrinks or grows moves the text under the wash without always raising a scroll event: read the field's own scrollTop after every change
+  useEffect(() => {
+    const el = input.current as unknown as { scrollTop?: number } | null;
+    if (web && el && typeof el.scrollTop === "number") setScrollY(el.scrollTop);
+  }, [state.text, web]);
 
   const names = useMemo(() => [...(lists.agents ?? []), ...(lists.people ?? [])].map((x) => (typeof x === "string" ? x : x.t)), [lists.agents, lists.people]);
   const ranges = useMemo(() => tokenRanges(state.text, state.refs, names), [state.text, state.refs, names]);
@@ -1113,26 +1141,38 @@ export function Composer(props: ComposerProps): ReactElement {
       </Pressable>
     </View>
   );
+  const [chatFailed, setChatFailed] = useState(false);
+  const useChat = web && props.chatField !== false && !chatFailed && canMountChatField();
   const fieldNode = (
     <View style={[styles.fieldWrap, ...fieldPad, oneLine && styles.fieldLine]} {...webProps({ dataSet: { cmpField: "1" } })}>
-      {web && ranges.length > 0 ? <TokenBackdrop text={state.text} ranges={ranges} scrollY={scrollY} style={fieldText} pad={fieldPad} /> : null}
-      <TextInput
-        ref={input}
-        multiline
-        value={state.text}
-        placeholder={props.placeholder ?? "Message"}
-        placeholderTextColor="var(--ink-3)"
-        accessibilityLabel={props.label ?? "Message"}
-        onChange={onChange as never}
-        onSelectionChange={(e) => patch({ cursor: e.nativeEvent.selection.start })}
-        onKeyPress={onKeyPress as never}
-        onContentSizeChange={(e) => setHeight(Math.max(MIN_FIELD, Math.min(MAX_FIELD, Math.ceil(e.nativeEvent.contentSize.height))))}
-        onScroll={(e) => setScrollY(e.nativeEvent.contentOffset?.y ?? 0)}
-        onFocus={onFocus}
-        onBlur={onBlur}
-        testID="composer-field"
-        style={[styles.field, fieldText, FIELD_STYLE, { height }]}
-      />
+      {useChat ? (
+        <ChatField
+          value={state.text} cursor={state.cursor} ranges={ranges} placeholder={props.placeholder ?? "Message"} label={props.label ?? "Message"} testID="composer-field" fontSize={compact ? 14 : 15} lineHeight={22} maxHeight={MAX_FIELD}
+          onChange={onChange as never} onSelectionChange={(e) => patch({ cursor: e.nativeEvent.selection.start })} onKeyPress={onKeyPress as never} onFocus={onFocus} onBlur={onBlur}
+          controlRef={(c) => { input.current = c as never; }} onFail={() => setChatFailed(true)}
+        />
+      ) : (
+        <>
+          {web && ranges.length > 0 ? <TokenBackdrop text={state.text} ranges={ranges} scrollY={scrollY} style={fieldText} pad={fieldPad} /> : null}
+          <TextInput
+            ref={input}
+            multiline
+            value={state.text}
+            placeholder={props.placeholder ?? "Message"}
+            placeholderTextColor="var(--ink-3)"
+            accessibilityLabel={props.label ?? "Message"}
+            onChange={onChange as never}
+            onSelectionChange={(e) => patch({ cursor: e.nativeEvent.selection.start })}
+            onKeyPress={onKeyPress as never}
+            onContentSizeChange={(e) => setHeight(Math.max(MIN_FIELD, Math.min(MAX_FIELD, Math.ceil(e.nativeEvent.contentSize.height))))}
+            onScroll={(e) => setScrollY(scrollTopOf(e))}
+            onFocus={onFocus}
+            onBlur={onBlur}
+            testID="composer-field"
+            style={[styles.field, fieldText, FIELD_STYLE, { height }]}
+          />
+        </>
+      )}
     </View>
   );
   const stripNode_ = ai ? (
@@ -1255,6 +1295,7 @@ const styles = StyleSheet.create({
   stripWrap: { flexShrink: 1, minWidth: 0 },
   strip: { flexDirection: "row", alignItems: "center", gap: 7, height: 34, paddingHorizontal: 9, borderRadius: 17, minWidth: 0 },
   stripModelText: { fontSize: 12.5, color: "var(--ink-3)" as string, flexShrink: 1 },
+  stripNote: { fontSize: 11.5, color: "var(--ink-3)" as string, flexShrink: 1, fontStyle: "italic" as const },
   mchip: { height: 20, paddingHorizontal: 7, borderRadius: 10, justifyContent: "center", backgroundColor: "var(--accent-wash)" as string },
   mchipText: { fontSize: 11.5, lineHeight: 20, color: "var(--accent)" as string },
   rchip: { height: 20, paddingHorizontal: 7, borderRadius: 10, justifyContent: "center", backgroundColor: "var(--sunk)" as string, flexShrink: 1 },

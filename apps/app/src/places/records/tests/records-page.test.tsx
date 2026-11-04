@@ -238,6 +238,14 @@ test("screen: a field open for editing is an input with its label, no Save butto
   assert.ok(has(bad, 'data-testid="edit-value"'));
 });
 
+test("screen: a long-text field open for editing is the shared Markdown editor, with Done and Cancel", () => {
+  const out = page(createSamplePage(), { edit: { key: "notes", text: "# Plan\n- call Maya\n" }, all: true });
+  const at = out.indexOf('data-testid="edit-notes"');
+  assert.ok(at >= 0, "the field is open");
+  assert.ok(out.slice(at, at + 2500).includes('data-testid="markdown-editor-host"'), "a long text is written in the Markdown editor, not a plain box");
+  assert.ok(has(out, 'data-testid="done-notes"') && has(out, 'data-testid="cancel-notes"'), "Done saves it, Cancel drops the edit");
+});
+
 test("screen: relation hover peek shows the linked record's own fields", () => {
   const out = wrap(createSamplePage(), <Peek type="projects" recordId="pj_0" />);
   assert.ok(has(out, 'data-testid="peek-pj_0"') && has(out, ">Rivera engagement<") && has(out, ">Budget<") && has(out, "$8,000") && has(out, ">Lead<") && has(out, ">Omar Haddad<"));

@@ -215,8 +215,8 @@ export default defineManifest({
     write('tasks.followers.remove', 'Remove a follower', {
       in: { ...target, follower: t.str({ examples: ['usr_a1b2c3'] }) }, out: { task: taskRow }, on: ['task', '/taskId'], emits: ['task.follower_removed'], tool: 'tasks', offline: 'patch',
     }),
-    write('tasks.working_notes.set', 'Write a working note (key and value) that any person or agent on the task can read', {
-      in: { ...target, key: t.str({ minLength: 1 }), value: t.str() }, out: { task: taskRow }, on: ['task', '/taskId'], level: 'use', emits: ['task.note_set'], tool: 'tasks', offline: 'patch',
+    write('tasks.working_notes.set', 'Write a working note (key and value) that any person or agent on the task can read; send expectedFrom, the note as you last read it', {
+      in: { ...target, key: t.str({ minLength: 1 }), value: t.str(), expectedFrom: t.opt(t.str({ description: 'The note as you last read it, empty when it had none. If someone changed the note since, nothing is written and the refusal gives the current note: make your change again on top of it (a list note, Done means or its ticks, is merged for an agent). Without it an agent may only append to the note' })) }, out: { task: taskRow }, on: ['task', '/taskId'], level: 'use', emits: ['task.note_set'], tool: 'tasks', offline: 'patch',
     }),
     write('tasks.working_notes.delete', 'Delete a working note', { in: { ...target, key: t.str() }, out: { task: taskRow }, on: ['task', '/taskId'], level: 'use', emits: ['task.note_set'], tool: 'tasks', offline: 'patch' }),
     write('tasks.links.add', 'Link a record or a file to a task', {

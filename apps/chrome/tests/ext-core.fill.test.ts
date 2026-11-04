@@ -7,6 +7,8 @@ import assert from "node:assert/strict";
 const PASSWORD = "Tr0ub4dor&3-sentinel";
 const USERNAME = "dana@acme.test";
 const CODE = "482913";
+const CARD = "4242424242424242";
+const CVV = "737";
 
 // ---------- a fake DOM, just enough for the content scripts ----------
 
@@ -86,10 +88,11 @@ class FakeApp {
     switch (m["capability"]) {
       case "vault.items.match":
         return reply({ items: [{ item: { id: "vit_acme", name: "Acme Portal", kind: "login", handle: "#Acme_Portal", fieldKeys: ["username", "password", "totp"] }, usernameField: "username" }] });
-      case "vault.use": return reply({ handle: "#Acme_Portal", itemId: input["item"], fields: ["username", "password", "totp"] });
+      case "vault.items.list": return reply({ items: [{ id: "vit_card", name: "Firm Amex", kind: "card" }] });
+      case "vault.use": return reply(input["item"] === "vit_card" ? { handle: "#Firm_Amex", itemId: "vit_card", fields: ["number", "name", "expiry", "cvv"] } : { handle: "#Acme_Portal", itemId: input["item"], fields: ["username", "password", "totp"] });
       case "vault.fill": {
         const field = String(input["handle"]).split(".")[1];
-        const value = field === "username" ? USERNAME : field === "password" ? PASSWORD : CODE;
+        const value = field === "username" ? USERNAME : field === "password" ? PASSWORD : field === "number" ? CARD : field === "expiry" ? "04/29" : field === "cvv" ? CVV : field === "name" ? "Dana Acme" : CODE;
         this.pushedValues++;
         this.send({ type: "fill", ref: (input["target"] as Msg)["ref"], value });
         return reply({ filled: true, field, where: "device" });
@@ -99,7 +102,7 @@ class FakeApp {
         this.rules = [...this.rules.filter((r) => r.host !== input["host"]), { host: String(input["host"]), neverFill: Boolean(input["neverFill"]), neverSave: Boolean(input["neverSave"]) }];
         return reply(input);
       }
-      case "vault.folders.list": return reply({ folders: [{ id: "vfo_mine", name: "Mine", yourLevel: "manage" }] });
+      case "vault.folders.list": return reply({ folders: input["scope"] === "shared" ? [{ id: "vfo_team", name: "Team logins", yourLevel: "edit" }, { id: "vfo_ro", name: "Read only", yourLevel: "view" }] : [{ id: "vfo_mine", name: "Mine", yourLevel: "manage" }] });
       case "vault.item.put": this.puts.push(input); return reply({ item: { id: "vit_new" } });
       case "vault.item.update": this.puts.push(input); return reply({ item: { id: String(input["itemId"]) } });
       case "vault.share": return reply({ granted: true });
@@ -451,17 +454,55 @@ test("a new login is offered once the page settles, and Save puts it in the pers
   assert.deepEqual(shown[0]!["agent"], { id: "agt_intake", name: "Intake" });
   assert.equal(b.w.save.pendingCount, 0, "the worker no longer holds the password");
 
-  const saved = await b.w.onMessage({ type: "vyre.save", name: "Acme Portal", username: USERNAME, password: PASSWORD, share: true, mode: "save" }, { id: "ext_vyre", tab: { id: 7 }, origin: "https://login.acme.test" });
-  assert.deepEqual(saved.data, { saved: true, itemId: "vit_new" });
+  // Mine is the default: a private item in a Mine folder, with a key made from the card, and nothing shared (a Mine item cannot be)
+  const ctx7 = { id: "ext_vyre", tab: { id: 7 }, origin: "https://login.acme.test" };
+  const saved = await b.w.onMessage({ type: "vyre.save", name: "Acme Portal", username: USERNAME, password: PASSWORD, cardId: "c1", mode: "save" }, ctx7);
+  assert.deepEqual(saved.data, { saved: true, itemId: "vit_new", scope: "mine", allowed: [], refused: [] });
   const put = app.puts[0]!;
   assert.equal(put["folderId"], "vfo_mine");
   assert.equal(put["kind"], "login");
+  assert.equal(put["idempotencyKey"], "chr_card_c1_put");
   assert.deepEqual(put["fields"], [{ key: "url", value: "https://login.acme.test" }, { key: "username", value: USERNAME }, { key: "password", value: PASSWORD, secret: true }]);
-  const share = app.received.find((m) => m["capability"] === "vault.share")!;
-  assert.deepEqual(share["input"], { resource: { type: "vault_item", id: "vit_new" }, subject: { kind: "agent", id: "agt_intake" }, level: "use" });
+  assert.equal(app.received.filter((m) => m["capability"] === "vault.share").length, 0, "a Mine item is never shared");
   assert.deepEqual(Object.keys(b.areas.local.data).filter((k) => !["activeSpace", "spaces", "siteRules"].includes(k)), []);
   assert.ok(!JSON.stringify([b.areas.local.writes, b.areas.session.writes, b.areas.sync.writes, logged]).includes(PASSWORD));
   void p;
+});
+
+/** Sign in, wait for the card, and return the sender context. */
+async function cardFor(app: FakeApp) {
+  loginPage(doc);
+  const b = await worker(app);
+  ns.prompt = { show: () => true, hide() {} };
+  const ctx = { id: "ext_vyre", tab: { id: 7 }, origin: "https://login.acme.test" };
+  await b.w.onMessage({ type: "vyre.submit", username: USERNAME, password: PASSWORD, kind: "signin" }, ctx);
+  await b.w.onTabUpdated(7, { status: "loading" }, undefined);
+  await b.w.onTabUpdated(7, { status: "complete" }, undefined);
+  return { b, ctx };
+}
+
+test("Shared lists only the folders the person may add to and the agents; the save goes to that folder and allows the chosen agents, each call keyed", async () => {
+  const app = new FakeApp();
+  const { b, ctx } = await cardFor(app);
+  const choices = await b.w.onMessage({ type: "vyre.choices" }, ctx);
+  assert.deepEqual(choices.data, { folders: [{ id: "vfo_team", name: "Team logins" }], agents: [{ id: "agt_intake", name: "Intake", suggested: true }] });
+  const saved = await b.w.onMessage({ type: "vyre.save", name: "Acme Portal", username: USERNAME, password: PASSWORD, scope: "shared", folderId: "vfo_team", agentIds: ["agt_intake", "agt_nobody"], cardId: "c2", mode: "save" }, ctx);
+  assert.deepEqual(saved.data, { saved: true, itemId: "vit_new", scope: "shared", allowed: ["agt_intake"], refused: ["agt_nobody"] });
+  assert.equal(app.puts[0]!["folderId"], "vfo_team");
+  assert.equal(app.puts[0]!["idempotencyKey"], "chr_card_c2_put");
+  const shares = app.received.filter((m) => m["capability"] === "vault.share");
+  assert.equal(shares.length, 1, "an agent the Space does not list is not asked for");
+  assert.deepEqual(shares[0]!["input"], { idempotencyKey: "chr_card_c2_use_agt_intake", resource: { type: "vault_item", id: "vit_new" }, subject: { kind: "agent", id: "agt_intake" }, level: "use" });
+});
+
+test("a folder the page names but the Space did not list for this person is refused, and nothing is saved", async () => {
+  const app = new FakeApp();
+  const { b, ctx } = await cardFor(app);
+  for (const folderId of ["vfo_ro", "vfo_elsewhere", undefined]) {
+    const r = await b.w.onMessage({ type: "vyre.save", name: "x", username: USERNAME, password: PASSWORD, scope: "shared", folderId, agentIds: [], cardId: "c3", mode: "save" }, ctx);
+    assert.equal(r.error?.code, "no_folder", String(folderId));
+  }
+  assert.equal(app.puts.length, 0);
 });
 
 test("a single-page app that never navigates still gets the card after a short settle", async () => {
@@ -495,8 +536,8 @@ test("a known login is not offered; a changed password is offered as an update",
   assert.deepEqual((await b.w.onMessage({ type: "vyre.submit", username: USERNAME, password: PASSWORD, kind: "signin" }, ctx)).data, { prompt: true });
   await b.w.onTabUpdated(7, { status: "loading" }, undefined);
   await b.w.onTabUpdated(7, { status: "complete" }, undefined);
-  const r = await b.w.onMessage({ type: "vyre.save", name: "Acme Portal", username: USERNAME, password: PASSWORD, share: false, mode: "update" }, ctx);
-  assert.deepEqual(r.data, { saved: true, itemId: "vit_acme" });
+  const r = await b.w.onMessage({ type: "vyre.save", name: "Acme Portal", username: USERNAME, password: PASSWORD, mode: "update" }, ctx);
+  assert.deepEqual(r.data, { saved: true, itemId: "vit_acme", scope: "mine", allowed: [], refused: [] });
   assert.deepEqual(app.puts[0], { itemId: "vit_acme", fieldsSet: [{ key: "password", value: PASSWORD, secret: true }] });
 });
 
@@ -571,12 +612,13 @@ test("the card masks the password, peeks for five seconds, and clears it on ever
     reMask.f();
     assert.match(out.textContent, /^•+$/, "masked again after 5 seconds");
     assert.ok(byText(host.shadow!, "Never for this site"));
-    assert.ok(host.shadow!.find((e) => e.textContent === "Share with Intake"));
+    assert.ok(byText(host.shadow!, "Mine") && byText(host.shadow!, "Shared"), "Mine or Shared");
 
     byText(host.shadow!, "Save")!.click();
     assert.equal(sent.at(-1)?.["type"], "vyre.save");
     assert.equal(sent.at(-1)?.["password"], PASSWORD);
-    assert.equal(sent.at(-1)?.["share"], false);
+    assert.equal(sent.at(-1)?.["scope"], "mine");
+    assert.deepEqual(sent.at(-1)?.["agentIds"], []);
     assert.equal(host.props["removed"], true);
 
     // Not now and Never carry no password at all
@@ -595,3 +637,77 @@ test("the card masks the password, peeks for five seconds, and clears it on ever
 });
 
 // Final run on the last commit of P-L10_05: this file reports its own ok line (third pass after the lint fix).
+
+// ---------- the badge and the account picker, and card fill ----------
+
+test("the field badge's picker: accounts for this address by name, and a click's fill goes through the same filler as the popup", async () => {
+  const app = new FakeApp();
+  const { user, pass } = loginPage(doc);
+  const b = await worker(app);
+  const ctx = { id: "ext_vyre", tab: { id: 7, url: "https://login.acme.test/signin" }, origin: "https://login.acme.test" };
+  const list = await b.w.onMessage({ type: "vyre.accounts", kind: "login" }, ctx);
+  assert.deepEqual(list.data.rows.map((x: any) => x.name), ["Acme Portal"]);
+  assert.equal(list.data.blocked, null);
+  assert.ok(!JSON.stringify(list).includes(USERNAME), "names only");
+  const r = await b.w.onMessage({ type: "vyre.fill", itemId: "vit_acme", kind: "login", usernameField: "username" }, ctx);
+  assert.deepEqual(r.data, { filled: ["username", "password"], signedIn: false });
+  assert.equal(user.value, USERNAME);
+  assert.equal(pass.value, PASSWORD);
+  assertNoValueAnywhere(b, app, [PASSWORD, USERNAME]);
+});
+
+test("in a private window the badge still lists and fills (a click), while saving and asking stay off", async () => {
+  const app = new FakeApp();
+  loginPage(doc);
+  const b = await worker(app);
+  const ctx = { id: "ext_vyre", tab: { id: 7, url: "https://login.acme.test/signin", incognito: true }, origin: "https://login.acme.test" };
+  assert.equal((await b.w.onMessage({ type: "vyre.accounts", kind: "login" }, ctx)).data.rows.length, 1);
+  assert.deepEqual((await b.w.onMessage({ type: "vyre.fill", itemId: "vit_acme", kind: "login" }, ctx)).data.filled, ["username", "password"]);
+  assert.equal((await b.w.onMessage({ type: "vyre.save", name: "x", username: "u", password: "p" }, ctx)).error.code, "incognito");
+});
+
+test("a Never Fill site shows the badge's picker as off", async () => {
+  const app = new FakeApp();
+  app.rules = [{ host: "login.acme.test", neverFill: true, neverSave: false }];
+  loginPage(doc);
+  const b = await worker(app);
+  const r = await b.w.onMessage({ type: "vyre.accounts", kind: "login" }, { id: "ext_vyre", tab: { id: 7, url: "https://login.acme.test/signin" }, origin: "https://login.acme.test" });
+  assert.deepEqual(r.data, { blocked: "never_fill", rows: [] });
+});
+
+function cardPage(d: FakeDocument) {
+  const form = new FakeForm();
+  const number = new FakeInput({ type: "text", name: "cardnumber", autocomplete: "cc-number" });
+  const name = new FakeInput({ type: "text", name: "ccname", autocomplete: "cc-name" });
+  const exp = new FakeInput({ type: "text", name: "exp", autocomplete: "cc-exp" });
+  const cvc = new FakeInput({ type: "text", name: "cvc", autocomplete: "cc-csc" });
+  number.form = name.form = exp.form = cvc.form = form;
+  form.inputs = [number, name, exp, cvc];
+  d.page(number, name, exp, cvc);
+  return { number, name, exp, cvc };
+}
+
+test("card fill: the popup lists the person's cards on a page that asks for one, and the filler puts number, name, expiry and code in their fields, never at rest", async () => {
+  const app = new FakeApp();
+  const f = cardPage(doc);
+  const b = await worker(app, "https://shop.acme.test/pay");
+  const st = await popup(b.w, { type: "popup.state" });
+  assert.equal(st.data.cardFields, true);
+  assert.deepEqual(st.data.cards, [{ id: "vit_card", name: "Firm Amex", kind: "card" }]);
+  const r = await popup(b.w, { type: "popup.fill", itemId: "vit_card", kind: "card" });
+  assert.deepEqual(r.data, { filled: ["cc-number", "cc-name", "cc-exp", "cc-cvc"], signedIn: false });
+  assert.equal(f.number.value, CARD);
+  assert.equal(f.exp.value, "04/29");
+  assert.equal(f.cvc.value, CVV, "the card's cvv key fills the code field");
+  assert.equal(f.name.value, "Dana Acme");
+  assertNoValueAnywhere(b, app, [CARD, CVV]);
+});
+
+test("a page with no card field does not list cards", async () => {
+  const app = new FakeApp();
+  loginPage(doc);
+  const b = await worker(app);
+  const st = await popup(b.w, { type: "popup.state" });
+  assert.equal(st.data.cardFields, undefined);
+  assert.equal(st.data.cards, undefined);
+});

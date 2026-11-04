@@ -1,5 +1,6 @@
 // The fixtures cannot drift from the prototype: this runs the prototype's own seed code (cut out of scripts/shots/prototype/vyre-v1.html) and compares what it draws with the fixtures,
 // and re-reads the extracted tables. If the prototype changes and prototype-data.ts is not regenerated (python3 scripts/shots/extract-fixtures.py), this fails.
+// The chat module is not seeded from here any more: the Chats prototype is its own build (team/v1/prototypes) with one seed for the shell's three Spaces, and no screen reads a copy of it.
 import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
@@ -108,24 +109,6 @@ function balancedAt(src: string, start: number): string {
   }
 }
 
-test("the chat seed of all three Spaces is what the prototype's own seed and seedFor draw, flags included", async () => {
-  const { PROTO_CHAT } = await import("./prototype-chat.ts");
-  const i = TEXT.indexOf('  const seed = () => ({\n    space: "nw"');
-  assert.ok(i > 0, "the prototype has the chat seed");
-  const lit = balancedAt(TEXT, TEXT.indexOf("({", i));
-  const f = TEXT.indexOf("  function seedFor(sp) {", i);
-  const end = TEXT.indexOf("\n  }\n", f) + 4;
-  const code = `const SPID = { team: "nw", personal: "me", harbor: "hb" };\nconst seed = () => ${lit};\n${TEXT.slice(f, end)}\n({ nw: seedFor("team"), hb: seedFor("harbor"), me: seedFor("personal") })`;
-  const ran = JSON.parse(JSON.stringify(vm.runInNewContext(code, { window: {} })));
-  // the prototype sets b.space to the Space's short id; so does the extractor
-  assert.deepEqual(PROTO_CHAT, ran);
-  const ch = (PROTO_CHAT["nw"] as { channels: { n: string; project?: boolean; followed?: boolean; starred?: boolean }[] }).channels;
-  assert.deepEqual(ch.map((c) => [c.n, c.project === true, c.followed === true, c.starred === true]), [["intake", false, false, false], ["billing", false, false, false], ["pruitt-matter", true, true, false], ["atp-q4", true, false, false], ["rivera-matter", false, false, false]], "the followed project channel is the one the sidebar shows");
-  assert.equal((PROTO_CHAT["nw"] as { needs: unknown[] }).needs.length, 8);
-  assert.equal((PROTO_CHAT["hb"] as { needs: unknown[] }).needs.length, 2);
-  assert.equal((PROTO_CHAT["me"] as { chats: unknown[] }).chats.length, 3);
-});
-
 test("the projects, invoices, meetings and tasks are what the prototype's own seedData draws, all of them", () => {
   const ran = runPrototypeSeed();
   const w = protoWork();
@@ -161,8 +144,12 @@ test("the inbox (its inboxes, the contacts with every message, the templates and
   const t = JSON.parse(JSON.stringify(vm.runInNewContext(`${tail}\n({ TEMPLATES, SNIPPETS });`, {}))) as { TEMPLATES: unknown[]; SNIPPETS: unknown[] };
   assert.deepEqual(PROTO_TEMPLATES, t.TEMPLATES);
   assert.deepEqual(PROTO_SNIPPETS, t.SNIPPETS);
-  const ids = (PROTO_CONTACTS as { msgs: { id: string }[] }[]).flatMap((c) => c.msgs.map((m) => m.id));
-  assert.equal(new Set(ids).size, ids.length, "message ids run m1, m2 ... with no repeat");
+  // ids run m1, m2 ... in the order the helpers make the messages. A thread two contacts share (TH.slice(), TH.filter(...)) shows the same messages under both, so an id repeats only across contacts and always names the same message.
+  const seen = new Map<string, unknown>();
+  for (const c of PROTO_CONTACTS as { name: string; msgs: { id: string }[] }[]) {
+    assert.equal(new Set(c.msgs.map((m) => m.id)).size, c.msgs.length, `${c.name}: no id twice in one contact`);
+    for (const m of c.msgs) { if (seen.has(m.id)) assert.deepEqual(seen.get(m.id), m, `${m.id} is one message wherever it shows`); else seen.set(m.id, m); }
+  }
   assert.ok(PROTO_CONTACTS.length >= 8 && PROTO_INBOXES.length === 7);
 });
 

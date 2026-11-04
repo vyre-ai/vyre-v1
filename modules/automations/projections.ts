@@ -54,6 +54,8 @@ export interface AutoCtx {
   thread?: string;
   /** where the call came from; "mcp" for an outside agent's call, even one run as its person under the setup grant */
   origin?: string;
+  /** how many capabilities deep this call is: 0 from the gateway */
+  depth?: number;
   trace: { traceId: string };
   now(): number;
   db: Db;

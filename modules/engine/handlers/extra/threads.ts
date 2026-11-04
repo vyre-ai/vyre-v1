@@ -26,7 +26,7 @@ export function leaseHeartbeat(ctx: EngineCtx, input: { threadId: string; holder
   ensureExtra(ctx.db);
   const leases = sqlLeases(ctx.db);
   if (!leases.renew(input.threadId, input.holder, ctx.now())) {
-    raise(ctx, "validation.precondition_failed", "This holder no longer has the thread. Stop the turn.", { threadId: input.threadId, holder: input.holder });
+    raise(ctx, "validation.precondition_failed", "This holder no longer has the chat. Stop the turn.", { threadId: input.threadId, holder: input.holder });
   }
   const cur = leases.get(input.threadId, ctx.now());
   return { expiresAt: cur ? cur.expiresAt : ctx.now() + LEASE_TTL_MS };

@@ -62,8 +62,12 @@ test("sidebar: sections in the prototype's order with counts, Requested and Heal
 
 test("list: newest use first, field names on the second line, Used 14 min ago, a dot on rows worth a look", () => {
   const out = html(createSampleVault());
-  const rows = ["GoHighLevel", "Northwind Forms", "Stripe", "Claude", "Stripe webhooks", "Google Workspace"].map((n) => at(out, `aria-label="${n}"`));
-  assert.deepEqual([...rows].sort((a, b) => a - b), rows, "most recently used first");
+  // Mine first, then what is shared with the person, then the Space's; inside each section the most recently used first
+  const names = ["Claude", "GoHighLevel", "Northwind Forms", "Stripe", "Stripe webhooks", "Google Workspace"];
+  const rows = names.map((n) => at(out, `aria-label="${n}"`));
+  assert.deepEqual([...rows].sort((a, b) => a - b), rows, "Mine, then the shared sections, each newest use first");
+  assert.ok(has(out, 'data-testid="vault-section-mine"') && has(out, 'data-testid="vault-section-with-me"'), "the sections are headed");
+  assert.ok(at(out, 'data-testid="vault-section-mine"') < at(out, 'aria-label="Claude"') && at(out, 'aria-label="Claude"') < at(out, 'data-testid="vault-section-with-me"'));
   assert.ok(has(out, "GHL_PIT · GHL_LOCATION_ID"), "field names, joined");
   assert.ok(has(out, "Login · USERNAME · PASSWORD"), "a login reads Login then its fields");
   assert.ok(has(out, "Used 14 min ago") && has(out, "Used 2 h ago") && has(out, "Used 3 h ago"));

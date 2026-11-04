@@ -5,6 +5,7 @@
 //           shows it full; the next turn that answers on it clears it. OpenCode Go has no usage endpoint we know of, so its first refusal is what marks the model.
 //   no cold failure  On the Space AI key, a refusal for usage before the turn said anything moves the turn to the next model the key serves that is not out; only when none is left does the refusal
 //           reach the turn engine, which then tries the next account (switch-on-limit.ts).
+import { noModelWords } from "./model-fallback.ts";
 import type { DriverEvent, EngineSession, OpenSession, SessionSpec, ToolResult, StoredMessage } from "../../agent/src/turn-engine/types.ts";
 import type { Db } from "./projections.ts";
 import { noteModelFallback } from "./model-fallback.ts";
@@ -62,12 +63,16 @@ export function withSpaceKeyTurns(open: OpenSession, d: { call: Call; db: Db; no
       const agent = model === spec.agent.model || model === undefined ? spec.agent : { ...spec.agent, model };
       return { session: await open(agent === spec.agent ? spec : { ...spec, agent }), model: agent.model };
     };
+    // a model the account does not serve is never run as another one under its name: the turn says so and names what can run (the owner's rc.20 test)
+    if (swap === undefined && spec.agent.model !== undefined && served.length > 0 && !served.includes(spec.agent.model)) throw Object.assign(new Error(noModelWords(spec.agent.model, served)), { code: "engine.model_unavailable" });
     let cur = await opened(fitModel(spec.agent.model, served, outNow()));
     const tried = new Set<string>();
     const note = (fn: () => void): void => { try { fn(); } catch { /* remembering a limit must never fail a turn */ } };
     return {
       get warm() { return cur.session.warm; },
       get providerLatencyMs() { return cur.session.providerLatencyMs; },
+      /** The model that really runs, which the turn's record keeps (not the one asked for). */
+      get model() { return cur.model; },
       async *send(input) {
         for (;;) {
           let said = false;
