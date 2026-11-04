@@ -27753,6 +27753,16 @@ export type ProjectsRescheduleOut = {
   due?: number;
   proposalId?: string;
 };
+export type ProjectsRolesOfIn = {
+  personId: string;
+};
+export type ProjectsRolesOfOut = {
+  roles: Array<{
+      projectId: string;
+      title: string;
+      role: "lead" | "member" | "reviewer" | "guest";
+    }>;
+};
 export type ProjectsShareOutIn = {
   projectId: string;
   expiresAt?: number;
@@ -30878,6 +30888,7 @@ export type SettingsPublicOfOut = {
   };
   pronouns?: string;
   title?: string;
+  phone?: string;
 };
 export type SettingsResetIn = {
   key: string;
@@ -42169,6 +42180,7 @@ export interface CapMap {
   "projects.plan": { in: ProjectsPlanIn; out: ProjectsPlanOut };
   "projects.post_update": { in: ProjectsPostUpdateIn; out: ProjectsPostUpdateOut };
   "projects.reschedule": { in: ProjectsRescheduleIn; out: ProjectsRescheduleOut };
+  "projects.roles_of": { in: ProjectsRolesOfIn; out: ProjectsRolesOfOut };
   "projects.share_out": { in: ProjectsShareOutIn; out: ProjectsShareOutOut };
   "projects.shared_view": { in: ProjectsSharedViewIn; out: ProjectsSharedViewOut };
   "projects.stages.set": { in: ProjectsStagesSetIn; out: ProjectsStagesSetOut };

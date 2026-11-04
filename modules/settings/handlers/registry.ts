@@ -147,13 +147,15 @@ export async function copySource(ctx: SettingsCtx, _input: Record<string, never>
 export async function publicOf(ctx: SettingsCtx, input: { personId: string }) {
   spaceReader(ctx);
   if (typeof input.personId !== "string" || !input.personId.startsWith("usr_")) raise(ctx, "validation.bad_input", "That is not a person.");
-  const out: { timezone?: string; hours?: unknown; pronouns?: string; title?: string } = {};
+  const out: { timezone?: string; hours?: unknown; pronouns?: string; title?: string; phone?: string } = {};
   const zone = stored(ctx, "profile.timezone", "person", input.personId)?.value;
   if (typeof zone === "string" && zone.trim() !== "") out.timezone = zone.trim();
   const hours = stored(ctx, "profile.working_hours", "person", input.personId)?.value;
   if (hours !== null && typeof hours === "object") out.hours = hours;
   const pronouns = stored(ctx, "profile.pronouns", "person", input.personId)?.value;
   if (typeof pronouns === "string" && pronouns.trim() !== "") out.pronouns = pronouns.trim();
+  const phone = stored(ctx, "profile.public_phone", "person", input.personId)?.value;
+  if (typeof phone === "string" && phone.trim() !== "") out.phone = phone.trim();
   const title = stored(ctx, "profile.title", "person", input.personId)?.value;
   if (typeof title === "string" && title.trim() !== "") out.title = title.trim();
   return out;

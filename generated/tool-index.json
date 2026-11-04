@@ -6620,6 +6620,12 @@
     },
     {
       "deferred": false,
+      "name": "projects_roles_of",
+      "summary": "The projects where one person holds a role, and which role, limited to the projects the asker can see",
+      "toolset": "records"
+    },
+    {
+      "deferred": false,
       "name": "projects_share_out",
       "summary": "Make a read-only link to the project Overview for a client; it expires in 30 days unless expiresAt or expiresInDays says otherwise",
       "toolset": "records"

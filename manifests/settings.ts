@@ -48,8 +48,8 @@ export default defineManifest({
     }),
 
     // A teammate's time zone and working hours, as they set them (lane l-agentdm): public by nature, so an agent can tell when a message reaches them during their day. Nothing else of theirs.
-    read('settings.public_of', 'A teammate\'s time zone, working hours, pronouns and title, only when they set them themselves', {
-      ...V, in: { personId: id.user }, out: { timezone: t.opt(t.str()), hours: t.opt(t.obj({ days: t.arr(t.int({ minimum: 0, maximum: 6 })), from: t.str(), to: t.str() })), pronouns: t.opt(t.str()), title: t.opt(t.str()) },
+    read('settings.public_of', 'A teammate\'s time zone, working hours, pronouns, title and a public phone, only when they set them themselves', {
+      ...V, in: { personId: id.user }, out: { timezone: t.opt(t.str()), hours: t.opt(t.obj({ days: t.arr(t.int({ minimum: 0, maximum: 6 })), from: t.str(), to: t.str() })), pronouns: t.opt(t.str()), title: t.opt(t.str()), phone: t.opt(t.str()) },
     }),
 
     // ---- Copy from another Space
@@ -85,6 +85,7 @@ export default defineManifest({
     setting('profile.pronouns', 'person', 'profile', 'Pronouns', t.str({ maxLength: 40, description: 'Optional, in the person\'s own words; Vyre never guesses them' }), ''),
     setting('profile.timezone', 'person', 'profile', 'Time zone', t.str({ examples: ['Asia/Karachi'] }), 'UTC'),
     setting('profile.working_hours', 'person', 'profile', 'Working hours', t.obj({ days: t.arr(t.int({ minimum: 0, maximum: 6 })), from: t.str({ pattern: '^[0-2][0-9]:[0-5][0-9]$' }), to: t.str({ pattern: '^[0-2][0-9]:[0-5][0-9]$' }) }), { days: [1, 2, 3, 4, 5], from: '09:00', to: '17:00' }),
+    setting('profile.public_phone', 'person', 'profile', 'Phone teammates can call', t.str({ maxLength: 32, description: 'Optional: shown to teammates, and Call appears on the profile only when it is set and the Space has telephony' }), ''),
     setting('profile.contact', 'person', 'profile', 'Contact', t.obj({ email: t.opt(t.str()), phone: t.opt(t.str()) }), {}),
     setting('appearance.skin', 'person', 'appearance', 'Skin', t.str(), 'classic'),
     setting('kit.person_choice', 'person', 'appearance', 'My Kit', t.nullable(id.kit), null),

@@ -2013,6 +2013,7 @@ export function createClient(transport: Transport) {
       plan: call("projects.plan", 1),
       post_update: call("projects.post_update", 1),
       reschedule: call("projects.reschedule", 1),
+      roles_of: call("projects.roles_of", 1),
       share_out: call("projects.share_out", 1),
       shared_view: call("projects.shared_view", 1),
       stages: {

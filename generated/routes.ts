@@ -26425,6 +26425,24 @@ const routes4: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/projects/roles_of",
+    "cap": "projects.roles_of",
+    "v": 1,
+    "module": "projects",
+    "effects": "read",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/projects/share_out",
     "cap": "projects.share_out",
     "v": 1,
@@ -27616,7 +27634,10 @@ const routes4: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes5: Route[] = [
   {
     "method": "POST",
     "path": "/v1/reports/health",
@@ -27634,10 +27655,7 @@ const routes4: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  }
-];
-
-const routes5: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/reports/list",
@@ -33126,7 +33144,10 @@ const routes5: Route[] = [
     "offline": "patch",
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes6: Route[] = [
   {
     "method": "POST",
     "path": "/v1/tasks/list",
@@ -33144,10 +33165,7 @@ const routes5: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  }
-];
-
-const routes6: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/tasks/my_work",

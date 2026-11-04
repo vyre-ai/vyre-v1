@@ -2013,6 +2013,7 @@ export function stubs(ctx: CallCtx) {
       plan: call("projects.plan"),
       post_update: call("projects.post_update"),
       reschedule: call("projects.reschedule"),
+      roles_of: call("projects.roles_of"),
       share_out: call("projects.share_out"),
       shared_view: call("projects.shared_view"),
       stages: {

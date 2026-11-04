@@ -45008,6 +45008,32 @@
     },
     {
       "blocks": [],
+      "cap": "projects.roles_of",
+      "deferred": false,
+      "description": "The projects where one person holds a role, and which role, limited to the projects the asker can see",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "personId": {
+            "examples": [
+              "usr_a1b2c3"
+            ],
+            "pattern": "^usr_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "personId"
+        ],
+        "type": "object"
+      },
+      "name": "projects_roles_of",
+      "planMode": "allowed",
+      "toolset": "records",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "projects.share_out",
       "deferred": false,
       "description": "Make a read-only link to the project Overview for a client; it expires in 30 days unless expiresAt or expiresInDays says otherwise",
