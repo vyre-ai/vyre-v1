@@ -37,7 +37,7 @@ export function userData(jitConfig: string, maxMinutes: number): string {
     `curl -fsSL -o runner.tgz https://github.com/actions/runner/releases/download/v${RUNNER_VERSION}/actions-runner-linux-x64-${RUNNER_VERSION}.tar.gz || exit 1`,
     `echo "${RUNNER_SHA256}  runner.tgz" | sha256sum -c - || exit 1`,
     "tar xzf runner.tgz && rm runner.tgz",
-    "./bin/installdependencies.sh > /dev/null 2>&1",
+    "for i in 1 2 3 4 5 6; do ./bin/installdependencies.sh > /dev/null 2>&1 && break; sleep 15; done",   // a first boot can hold the package lock for a minute
     "chown -R runner:runner /home/runner",
     `sudo -u runner ./run.sh --jitconfig ${jitConfig}`,
     "",
