@@ -12,11 +12,12 @@ import type { HooksCtx, Rec, Spec } from "../projections.ts";
 type Row = Record<string, unknown>;
 export const MAX_AGENT_HOOKS = 30;
 
-interface Actor { id: string; kind: "person" | "agent" | "service"; asker: string; admin: boolean }
+// The host service (lib/trust.ts isHostService) is the only caller that reads as "host" here: a tenant service is a person-level caller, never an admin.
+interface Actor { id: string; kind: "person" | "agent" | "host"; asker: string; admin: boolean }
 function actorOf(ctx: HooksCtx): Actor {
-  const kind = ctx.principal.kind === "agent" ? "agent" : isHostService(ctx.principal as never) ? "service" : "person";
+  const kind = ctx.principal.kind === "agent" ? "agent" : isHostService(ctx.principal as never) ? "host" : "person";
   const asker = kind === "agent" ? (ctx.actingFor ?? "") : ctx.principal.id;
-  const admin = kind === "service" || (kind === "person" && ctx.authorize?.({ perm: "policy.manage", level: "manage" }, { type: "space", id: ctx.space }).effect === "allow");
+  const admin = kind === "host" || (kind === "person" && ctx.authorize?.({ perm: "policy.manage", level: "manage" }, { type: "space", id: ctx.space }).effect === "allow");
   return { id: ctx.principal.id, kind, asker, admin };
 }
 /** The same rule mayTouch enforces, as a yes or no the screen can show (Remove, or "Only an admin can remove this"). */
@@ -158,7 +159,7 @@ export async function list(ctx: HooksCtx, i: { scope?: string; threadId?: string
   const rows = allHooks(ctx).filter((h) => {
     if (i.scope && h.scope !== i.scope) return false;
     if (h.scope === "space") return true;
-    if (h.scope === "person") return h.personId === a.asker || a.kind === "service";
+    if (h.scope === "person") return h.personId === a.asker || a.kind === "host";
     if (h.scope === "agent") return i.agentId !== undefined ? h.agentId === i.agentId : h.agentId === a.id || h.forPerson === a.asker || h.madeBy === a.id;
     if (!i.threadId) return h.madeBy === a.id || h.forPerson === a.asker;
     return h.threadId === i.threadId || (h.scope === "run" && h.threadId !== null && parentOf(ctx, i.threadId) === h.threadId);
@@ -215,7 +216,7 @@ export async function runsList(ctx: HooksCtx, i: { hookId?: string; threadId?: s
     if (!h) return false;
     if (i.scope === "space" && h.scope !== "space") return false;
     if (h.scope === "space") return a.admin || !r["thread_id"] || (await mayUse(String(r["thread_id"])));
-    if (h.scope === "person") return h.personId === a.asker || a.kind === "service";
+    if (h.scope === "person") return h.personId === a.asker || a.kind === "host";
     return h.madeBy === a.id || h.forPerson === a.asker || (h.madeBy === a.asker && a.kind !== "agent");
   };
   const out: Row[] = [];
