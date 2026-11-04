@@ -67,8 +67,11 @@ test("production Console Access: People directory, person object, groups, device
     const matrix = async (name: string, navigate: (p: Page) => Promise<void>): Promise<void> => {
       for (const [skin, size, w, h] of MATRIX) {
         const view = await context.newPage(); await view.setViewportSize({ width: w, height: h });
-        await view.goto(`${web.origin}/console?skin=${skin}`, { waitUntil: "load" }); await view.getByTestId("console").waitFor({ timeout: 30_000 });
-        await navigate(view); await view.waitForTimeout(250);
+        await view.goto(`${web.origin}/console?skin=${skin}`, { waitUntil: "load" });
+        // the Console opens on a computer: a phone shows that line and a way to chat about it (mobile-map.ts desktopLine), so a phone has no Console page to navigate
+        if (w < 720) await view.getByText(/The Console opens on a computer/).waitFor({ timeout: 30_000 });
+        else { await view.getByTestId("console").waitFor({ timeout: 30_000 }); await navigate(view); }
+        await view.waitForTimeout(250);
         await view.screenshot({ path: path.join(shots, `${name}-${size}-${skin === "paper" ? "light" : "graphite"}.png`), animations: "disabled" }); await view.close();
       }
     };
@@ -148,8 +151,13 @@ test("production Console Access: People directory, person object, groups, device
       await page.getByTestId("person-overview").waitFor();
       await page.getByRole("tab", { name: /^Access/ }).click();
       await page.getByTestId("person-effective").waitFor();
+      await page.getByTestId("person-effective").getByText("Roles", { exact: true }).waitFor();   // the effective access fills in after the tab opens
       const effective = await page.getByTestId("person-effective").innerText();
-      assert.match(effective, /Roles[\s\S]*Member/); assert.match(effective, /Permissions/);
+      assert.match(effective, /Roles[\s\S]*Member/);
+      // what the role gives is listed in plain words in What they can do (the permission keys are not shown), and the effective section counts them
+      assert.match(effective, /Effective access\s+\d+/);
+      await page.getByTestId("person-what").getByText("Create records", { exact: true }).waitFor();
+      assert.match(await page.getByTestId("person-what").innerText(), /Create records\s+Allowed/);
       await page.getByRole("tab", { name: /^Groups/ }).click(); await page.getByTestId("person-groups").waitFor();
       await page.getByTestId("row-person-group-" + sales).waitFor();
       await page.getByTestId("row-person-group-" + sales).getByRole("button", { name: "Remove" }).click();

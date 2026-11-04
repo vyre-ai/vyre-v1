@@ -157,6 +157,8 @@ function Sidebar({ window, query, slot, open: shown, startFilter }: { window?: V
   const [reread, setReread] = useState(0);
   useEffect(() => onImportedChange(() => setReread((n) => n + 1)), []);
   useEffect(() => {
+    // Imported sessions belong to a Personal Space (the server refuses the list anywhere else with a 422), so a Team Space does not ask
+    if (!personal) { setArchive([]); return undefined; }
     let off = false;
     // only a Personal Space keeps imported coding sessions; a Team Space refuses the read (422), so it is not asked
     if (!personal) { setArchive([]); return undefined; }
