@@ -19,6 +19,8 @@ export interface Author { kind: "person" | "agent"; id: string }
 
 export interface EngineAgent {
   id: string;
+  /** The agent that works a task, in the thread of that task with several agents: it answers what a person writes there without an @. An agent's own line (a reviewer's hand-off) never wakes it. */
+  taskLead?: boolean;
   /** Display name for the "will reply" line. Falls back to the id. */
   name?: string;
   mode: AgentMode;

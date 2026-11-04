@@ -117,6 +117,14 @@ function AssistantLook(): ReactElement {
 type KindsOut = CapMap["notifications.kinds.list"]["out"];
 const WORD: Readonly<Record<string, string>> = { from: "Someone", agent: "An agent", name: "Something", where: "a chat", device: "a device", service: "A service", space: "the Space", level: "more", title: "something", state: "down", reason: "a reason", decision: "decided", message: "an error" };
 /** A notification kind's title is the template of the notice; here it names the kind, so the blanks read as words, never as {{from}}. */
+/** What each kind is called on the page, in plain words. A template title ("{{from}} replied in {{where}}") is never shown as a label. */
+export const KIND_LABELS: Readonly<Record<string, string>> = {
+  "approval.requested": "Needs you", "unblock.requested": "Someone is blocked on you", "answer.requested": "Needs your answer", "approval.backstop": "Still waiting on you", dm: "Direct messages", mention: "Mentions", "mention.thread": "Mentions in a reply",
+  "call.incoming": "Incoming calls", "agent.blocked": "An agent is blocked", "agent.task_finished": "Agent finished a task", "incident.owned": "Incidents you own", "task.assigned": "Tasks given to you", "task.turn": "Your turn on a task", "task.returned": "A task sent back to you",
+  "task.finished": "Tasks finished", "task.due": "Tasks due", "reply.followed": "Replies to you", "reply.thread": "Replies in a chat", "digest.away": "While you were away", "run.failed": "Routines that failed", "conflict.needs_you": "Edits that conflict",
+  "access.requested": "Requests for access", "access.decided": "Answers to your access requests", "item.shared": "Things shared with you", "sync.attention": "A device needs attention", "health.degraded": "Something is down", "problem.report": "Problem reports",
+  "member.joined": "People who joined", "member.join_requested": "People asking to join", "limit.hit": "A limit was reached", "vault.rotation_due": "Keys to rotate", "machine.alert": "Machine alerts", "ci.paused": "Builds paused", "space.deletion_scheduled": "Space deletion scheduled", "space.deletion_cancelled": "Space deletion cancelled",
+};
 export const kindLabel = (title: string): string => title.replace(/^Replies in your threads$/, "Replies to you").replace(/:\s*\{\{\w+\}\}$/, "").replace(/\{\{(\w+)\}\}/g, (_, w: string) => WORD[w] ?? "something");
 type MutesOut = CapMap["notifications.mute.list"]["out"];
 
@@ -124,8 +132,8 @@ export type Channel = "desktop" | "phone" | "email";
 export const CHANNELS: readonly { key: Channel; label: string }[] = [{ key: "desktop", label: "Desktop" }, { key: "phone", label: "Phone" }, { key: "email", label: "Email" }];
 /** "Desktop and email", "Desktop", "Badge only": where a kind reaches the person, in words. */
 export function channelWords(cs: readonly Channel[]): string {
-  const n = CHANNELS.filter((c) => cs.includes(c.key)).map((c) => c.label);
-  return n.length === 0 ? "Badge only" : n.length === 1 ? n[0]! : `${n.slice(0, -1).join(", ")} and ${n[n.length - 1]!.toLowerCase()}`;
+  const n = CHANNELS.filter((c) => cs.includes(c.key)).map((c, i) => (i === 0 ? c.label : c.label.toLowerCase()));
+  return n.length === 0 ? "Badge only" : n.length === 1 ? n[0]! : `${n.slice(0, -1).join(", ")} and ${n[n.length - 1]!}`;
 }
 /** The channels a plain level stands for, until the person has picked their own. */
 export const levelChannels = (level: string): Channel[] => (level === "interrupt" ? ["desktop", "phone"] : []);
@@ -160,7 +168,7 @@ export function NotificationsPage({ rows, found }: PageProps): ReactElement {
   (kinds?.kinds ?? []).forEach((k, i) => {
     const now = chans[k.key] ?? (k.mine?.channels as Channel[] | undefined) ?? levelChannels(k.level);
     list.push(
-      <SettingsRow key={k.key} id={`kind.${k.key}`} label={kindLabel(k.title)} first={i === 0} sub={channelWords(now)} help="Pick where it reaches you. With none picked it adds a dot only."
+      <SettingsRow key={k.key} id={`kind.${k.key}`} label={KIND_LABELS[k.key] ?? kindLabel(k.title)} first={i === 0} sub={channelWords(now)} help="Pick where it reaches you. With none picked it adds a dot only."
         /* ui-rows-lint: not a list (the channel chips of one row's control) */
         control={<View style={{ flexDirection: "row", gap: 6 }} testID={`kind-${k.key}`}>{CHANNELS.map((c) => <Chip key={c.key} label={c.label} on={now.includes(c.key)} testID={`kind-${k.key}-${c.key}`} onPress={() => toggle(k.key, now, c.key)} />)}</View>} />,
     );
@@ -349,8 +357,15 @@ export function AiPage({ rows, found }: PageProps): ReactElement {
   return (
     <>
       <Section>
+        {options.length === 0 && models.status === "ready" ? (
+          <SettingsRow id="model.none" first label="Add an AI account to choose a default model" sub="Models show up here once an AI account is connected." lead={<Glyph name="key" size={15} />}
+            control={<SmallButton label="Add AI account" primary testID="ctl-add-ai" onPress={() => (openConnect ? void openConnect({ kind: "ai" }) : data.nav.openVault())} />} />
+        ) : (
+          <>
         <SettingsRow id="model.default" label="Default model" sub={last?.model ? "Your last pick. A new chat starts on it" : "A new chat starts on the model you pick"} help={ROW_HELP["model.default"]!} first found={found === "model.default"} control={<Choice value={cur} options={options} label="Default model" testID="ctl-model-default" onChange={(v) => setDefault(v, "model")} />} />
         <SettingsRow id="model.fallback" label="Backup model" sub="Used when the default is busy" help={ROW_HELP["model.fallback"]!} found={found === "model.fallback"} control={<Choice value={fb} options={options} label="Backup model" testID="ctl-model-fallback" onChange={(v) => setDefault(v, "fallback")} />} />
+          </>
+        )}
       </Section>
       <RegistrySections page="ai" rows={rows} found={found} />
       {use.length > 0 ? <Section title="You and your agents this month" testID="usage">{use}</Section> : null}

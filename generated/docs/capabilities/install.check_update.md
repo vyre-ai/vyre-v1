@@ -45,6 +45,7 @@ type Out = {
     commit: string;
     url: string;
     path?: string;
+    version?: string;
     needs: {
       domains: Array<string>;
       vaultKeys: Array<string>;
@@ -81,6 +82,9 @@ type Out = {
     diff?: {
       from: string;
       to: string;
+      fromVersion?: string;
+      toVersion?: string;
+      newAccess?: Array<string>;
       added: Array<string>;
       removed: Array<string>;
       changed: Array<{
@@ -148,10 +152,15 @@ type Out = {
           }
         ],
         "from": "example",
+        "fromVersion": "example",
+        "newAccess": [
+          "example"
+        ],
         "removed": [
           "example"
         ],
-        "to": "example"
+        "to": "example",
+        "toVersion": "example"
       },
       "flavor": "claude",
       "kind": "skill",
@@ -192,6 +201,7 @@ type Out = {
       "state": "example",
       "summary": "example",
       "url": "example",
+      "version": "example",
       "who": [
         {
           "adminOnly": true,

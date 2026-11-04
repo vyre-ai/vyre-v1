@@ -28,7 +28,7 @@ test("set up: the sub-line names who added it and when it was checked, with the 
   try {
     const t = p.text();
     assert.ok(t.includes("Deepgram") && t.includes("added it") && t.includes("checked"), t);
-    assert.ok(t.includes("Working") && t.includes("People with their own key") && t.includes("2. Their own key wins for them"));
+    assert.ok(t.includes("Working") && t.includes("People with their own key") && t.includes("2 people · their own key wins for them"));
     assert.ok(!t.includes("Needs you"), "a good check raises nothing");
   } finally { p.restore(); }
 });
@@ -36,7 +36,9 @@ test("set up: the sub-line names who added it and when it was checked, with the 
 test("not set up: the key form shows, and Turn on for everyone calls connect with the key", async () => {
   const p = await mountPage(createRoot, <VoiceSettings />, rows({ set: false, on: false }));
   try {
-    assert.ok(p.text().includes("Goes straight to this Space's Vault and is checked at once."));
+    assert.ok(p.text().includes("Goes straight to this Space's Vault and is checked at once. Make the key in Deepgram with the Member role or higher."));
+    assert.ok(p.text().includes("One key covers everyone. People just press the mic, and nobody can read the key."));
+    assert.ok(!p.text().includes("One Deepgram key"));
     assert.ok(p.has("voice-key") && !p.has("voice-toggle"));
     await p.type("voice-key", "dg-secret");
     await p.press("voice-save");
@@ -100,5 +102,25 @@ test("a failed check puts Needs you at the top, and its button opens the key for
     assert.ok(t.includes("Needs you") && t.includes("The key stopped working") && t.includes("Not working"));
     await p.press("voice-need-replace");
     assert.ok(p.has("voice-key"));
+  } finally { p.restore(); }
+});
+
+test("not set up with two providers: the picker starts on Deepgram, choosing ElevenLabs changes the key field and the connect call carries it", async () => {
+  const both = [...providers, { key: "elevenlabs", name: "ElevenLabs", keyUrl: "https://elevenlabs.io/app/settings/api-keys", models: [], languages: [] }];
+  const p = await mountPage(createRoot, <VoiceSettings />, { "talk.status": { ...ME, providers: both }, "talk.space.status": { set: false, on: false } });
+  try {
+    assert.ok(p.has("voice-provider-pick"), "the picker shows");
+    assert.ok(p.text().includes("Deepgram") && p.text().includes("Turns what people say into text in the message.") && p.text().includes("Deepgram key") && p.text().includes("Get a key from Deepgram"));
+    await p.press("voice-provider-pick");
+    assert.ok(p.has("menu-item-ElevenLabs"), "both providers are offered");
+    await p.press("menu-item-ElevenLabs");
+    const t = p.text();
+    assert.ok(t.includes("ElevenLabs key") && t.includes("Get a key from ElevenLabs") && !t.includes("Deepgram key"), t);
+    assert.ok(t.includes("Make the key in ElevenLabs with Speech to Text access."));
+    await p.type("voice-key", "xi-secret");
+    await p.press("voice-save");
+    const c = p.called("talk.space.connect")[0];
+    assert.ok(c, "connect asked for");
+    assert.equal(c.input.provider, "elevenlabs");
   } finally { p.restore(); }
 });

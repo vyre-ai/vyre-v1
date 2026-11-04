@@ -1,8 +1,9 @@
-import{lookApplier,restoreLook}from'../providers/settings-look.ts';
+import{lookApplier,startupPlan}from'../providers/settings-look.ts';
 import{sessionTheme}from'./space-theme.ts';
 import{sessionCatalogue}from'./space-catalog.ts';
 // The authenticated application shell. Kept behind SessionGate's lazy boundary so a signed-out
 // first paint does not parse the screen registry, virtual lists, command surface, or place chrome.
+import { OpenLink } from "../reach/OpenLink.tsx";
 import { subscribeUpdates, updateState, updateWaiting } from "../../startup/update/store.ts";
 import { ConsoleAlone, onConsoleHost } from "../console-host.ts";
 import { speed } from "../../speed/recorder.ts";
@@ -94,7 +95,7 @@ export function ShellHost({ stored, open, onSignedOut, onHub, hub: given, initia
     return h;
   }, [given, catalogueKey, stored.def.spaceId, stored.personId]);
   const location = useHubState(hub);
-  const theme=useMemo(()=>{const th=sessionTheme(activeStored);lookApplier({me:{id:activeStored.personId},space:{id:activeStored.def.spaceId}} as never).apply(restoreLook(activeStored.personId));return th;},[stored.personId,stored.def.spaceId,activeStored.def.skinDefault]);
+  const theme=useMemo(()=>{const th=sessionTheme(activeStored);{const plan=startupPlan(activeStored.personId,(globalThis as{location?:{search?:string}}).location?.search??'');if(plan.look)lookApplier({me:{id:activeStored.personId},space:{id:activeStored.def.spaceId}} as never).apply(plan.look,{skin:plan.paintSkin});}return th;},[stored.personId,stored.def.spaceId,activeStored.def.skinDefault]);
   const [failed, setFailed] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
   const [searchOpen, setSearchOpen] = useState(initialSearchOpen);
@@ -337,7 +338,8 @@ export function ShellHost({ stored, open, onSignedOut, onHub, hub: given, initia
     };
   }, []);
   useUpdateNotice(updateSource);
-  const wrap = (el: ReactElement): ReactElement => <OnboardingHost call={session?.call ?? null} space={{ kind: stored.def.kind === "personal" ? "personal" : "team", name: stored.def.name }} mac={isMacShell()} runtime={session?.runtime ?? null} person={session?.me.id ?? null} personName={session?.me.name ?? null} address={stored.baseUrl} personalCall={personalCall} onGo={(place, hash) => hub.go(place as PlaceId, hash ?? "")} {...(onAddSpace?{onAddSpace}:{})}><>{el}<VaultUnlockHost /><ReportHost call={session?.call ?? null} place={location.place} /></></OnboardingHost>;
+  // a link held from the address or the desktop acts here, where the open Space's runtime is: reach decides, then the page or the safe peek
+  const wrap = (el: ReactElement): ReactElement => <>{session ? <OpenLink hub={hub} rt={session.runtime} me={session.me.id} spaceId={session.def.spaceId} /> : null}<OnboardingHost call={session?.call ?? null} space={{ kind: stored.def.kind === "personal" ? "personal" : "team", name: stored.def.name }} mac={isMacShell()} runtime={session?.runtime ?? null} person={session?.me.id ?? null} personName={session?.me.name ?? null} address={stored.baseUrl} personalCall={personalCall} onGo={(place, hash) => hub.go(place as PlaceId, hash ?? "")} {...(onAddSpace?{onAddSpace}:{})}><>{el}<VaultUnlockHost /><ReportHost call={session?.call ?? null} place={location.place} /></></OnboardingHost></>;
   if (deadConsole) return <View testID="console-redirect" style={{ flex: 1, backgroundColor: "var(--win)" as string }} />;
   // on a computer the Console is a place in the shell; at its own address nothing surrounds it. In the app on a phone it is not there (owner ruling, 3 Nov): PhoneHost draws the Chat-about-it line
   if (consoleDoor && location.place !== "console") return <View testID="console-redirect" style={{ flex: 1, backgroundColor: "var(--win)" as string }} />;

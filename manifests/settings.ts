@@ -50,9 +50,9 @@ export default defineManifest({
     read('settings.list', 'Rows of one page (or all) with the value that applies to me', { ...V, in: { page: t.opt(t.str()), scope: t.opt(scope) }, out: { rows: t.arr(settingRow) }, tool: 'meta' }),
     read('settings.get', 'One setting with its value, default and floor', { ...V, in: { key }, out: { row: settingRow }, tool: 'meta' }),
     write('settings.set', 'Change one of my settings; saves as made and returns the previous value so Undo is one call', {
-      ...V, in: { key, value: t.json() }, out: { row: settingRow, previous: t.json() }, emits: ['settings.changed'], tool: 'meta', offline: 'queue', errors: ['validation.field_locked'],
+      ...V, in: { key, value: t.json() }, out: { row: settingRow, previous: t.json() }, emits: ['settings.changed', 'settings.contact_unverified'], tool: 'meta', offline: 'queue', errors: ['validation.field_locked'],
     }),
-    write('settings.reset', 'Put one of my settings back to the Space default', { ...V, in: { key }, out: { row: settingRow }, emits: ['settings.changed'], tool: 'meta', offline: 'queue' }),
+    write('settings.reset', 'Put one of my settings back to the Space default', { ...V, in: { key }, out: { row: settingRow }, emits: ['settings.changed', 'settings.contact_unverified'], tool: 'meta', offline: 'queue' }),
     write('settings.set_space', 'Change a Space-wide setting (the permission of the row decides who may; policy.manage by default)', {
       ...V, in: { key, value: t.json() }, out: { row: settingRow, previous: t.json() }, perm: 'policy.manage', emits: ['settings.changed'], audit: 'always', tool: 'engineer', errors: ['validation.field_locked'],
     }),
@@ -72,7 +72,7 @@ export default defineManifest({
       ...V, in: {}, out: { photoFileId: t.opt(id.file), name: t.opt(t.str()), handle: t.opt(t.str()), timezone: t.opt(t.str()), hours: t.opt(t.json()), contact: t.opt(t.obj({ email: t.opt(t.str()), phone: t.opt(t.str()) })) }, tool: 'meta',
     }),
     write('settings.copy_profile', 'Apply values read from another Space to my profile here; the title is never copied', {
-      ...V, in: { fields: t.arr(copyFields), values: t.rec() }, out: { applied: t.arr(copyFields) }, emits: ['settings.changed'], tool: 'meta', offline: 'queue', errors: ['validation.bad_input'],
+      ...V, in: { fields: t.arr(copyFields), values: t.rec() }, out: { applied: t.arr(copyFields) }, emits: ['settings.changed', 'settings.contact_unverified'], tool: 'meta', offline: 'queue', errors: ['validation.bad_input'],
     }),
 
     // ---- Kit choice (chosen per Space or per person)

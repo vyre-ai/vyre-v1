@@ -3,6 +3,7 @@
 import { archiveHandlers } from "./archive.ts";
 import { messagePerson, mute as agentDmMute, peopleStatus } from "./agent-dm.ts";
 import { catchUp } from "./catch-up.ts";
+import { paceOfPerson } from "./pace.ts";
 import { replyDetails } from "./reply-details.ts";
 import { aside, asideKeep } from "./aside.ts";
 import { share } from "./share.ts";
@@ -16,6 +17,7 @@ import { g24bHandlers } from "./g24b.ts";
 import { g24cHandlers } from "./g24c.ts";
 import { g24dHandlers } from "./g24d.ts";
 import { noteOfferHandlers } from "./note-offer.ts";
+import { hookLineHandlers } from "./hook-line.ts";
 import { titleMake } from "./title.ts";
 import { g26Handlers } from "./g26.ts";
 import { historySearch } from "./history.ts";
@@ -48,6 +50,7 @@ export const handlers = {
   "chat.aside_keep": asideKeep,
   "chat.flow_card": flowCard,
   "chat.catch_up": catchUp,
+  "chat.pace_of": paceOfPerson,
   "chat.remember": remember,
   "chat.noted": noted,
   "chat.thread": thread,
@@ -76,6 +79,7 @@ export const handlers = {
   ...g24dHandlers,
   "chat.title_make": titleMake,
   ...noteOfferHandlers,
+  ...hookLineHandlers,
   // P-L2_26 replaces the group entries that had reported limits
   ...g26Handlers,
   ...g27Handlers,

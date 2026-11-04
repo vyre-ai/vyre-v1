@@ -1,0 +1,9 @@
+{
+  "targets": [
+    { "id": "THREADREPLIES_01-main", "route": "/m/THREADREPLIES_01?part=main", "proto": "chat,at:crewthread,{skin}", "waitFor": "[data-testid='replies-c2-head']", "note": "The chat keeps your ask and one live footer under it: Intake's face, Working with a timer, 1 reply." },
+    { "id": "THREADREPLIES_01-done", "route": "/m/THREADREPLIES_01?part=done", "proto": "chat,at:crewthread,{skin}", "waitFor": "[data-testid='replies-c2']", "note": "The footer at rest: 3 replies and when the last one came." },
+    { "id": "THREADREPLIES_01-thread", "route": "/m/THREADREPLIES_01?part=thread", "proto": "chat,at:crewthread;thread,{skin}", "waitFor": "[data-testid='thread-side']", "note": "The thread beside the chat (a full-screen sheet on a phone): the ask on top, Intake's replies, Also sent to the chat, the composer with its tick, the switch." },
+    { "id": "THREADREPLIES_01-empty", "route": "/m/THREADREPLIES_01?part=empty", "proto": "chat,at:crewthread;thread,{skin}", "waitFor": "[data-testid='thread-empty']", "note": "A thread with nothing in it yet." },
+    { "id": "THREADREPLIES_01-long", "route": "/m/THREADREPLIES_01?part=long", "proto": "chat,at:crewthread;thread,{skin}", "waitFor": "[data-testid='thread-side']", "note": "Sixty replies: the thread opens on the newest." }
+  ]
+}

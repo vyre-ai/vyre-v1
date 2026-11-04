@@ -47,8 +47,9 @@ test("mention an agent and its reply lands under the comment; mention a person a
     // Ask first held the agent's other write: the record is unchanged and an approval waits for the person
     const row = (await call(d, "records.get", { type: "contact", recordId })).data.record.fields as { name: string };
     assert.equal(row.name, "Rivera Holdings", "the agent's rename did not run");
-    const held = (await call(d, "tasks.list", { scope: "all", kinds: ["approve"] })).data.tasks as Array<{ summary?: string }>;
-    assert.ok(held.some((t) => /records\.update/.test(t.summary ?? "")), "the rename waits for the person's yes: " + JSON.stringify(held));
+    const held = (await call(d, "tasks.list", { scope: "all", kinds: ["approve"] })).data.tasks as Array<{ summary?: string; title?: string; state?: string; blocks?: Array<{ data?: { cap?: string } }> }>;
+    // the hold is still an Approve task waiting for the person's yes; its words now say who wants what ("Intake wants to change a record"), the capability is in the held block
+    assert.ok(held.some((t) => t.state === "awaiting_approval" && /^Intake wants to change a record/.test(t.summary ?? "") && t.blocks?.some((b) => b.data?.cap === "records.update")), "the rename waits for the person's yes: " + JSON.stringify(held));
     const after = (await call(d, "chat.recent", { filter: "all" })).data;
     assert.equal(JSON.stringify(after), JSON.stringify(before), "no chat shows up: the agent worked in an unlisted Ask pane");
 

@@ -108,7 +108,7 @@ export type {
 } from "./props.ts";
 export { DEFAULT_AGENT_SETTINGS, frozenAddSheetProps, frozenShareSheetProps } from "./props.ts";
 export * from "./model.ts";
-export { Face as AccessFace, Icon as AccessIcon, IconButton as AccessIconButton, PokeButton as AccessPokeButton, SettingsPopover as AgentSettingsPopover } from "./parts.tsx";
+export { Face as AccessFace, Icon as AccessIcon, IconButton as AccessIconButton, PokeButton as AccessPokeButton, SettingsPopover as AgentSettingsPopover, SheetShell as AccessSheetShell, ViewHead as AccessViewHead } from "./parts.tsx";
 
 const DEFAULT_MODELS = ["Opus 5.5", "Sonnet 5.5", "Haiku 5.5", "GPT-5 Codex"] as const;
 

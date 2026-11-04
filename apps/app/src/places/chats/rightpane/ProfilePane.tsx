@@ -47,7 +47,7 @@ export interface ProfileProps {
   /** A person's pane: what the shell can do beside Message and Mention, and where its lists open. */
   /** An agent opened from a face: the full agent pane (About, Computer, Chats, Files, Terminal) for it, drawn inside this tab. Absent: the short body. */
   agentPane?: ChatRightPaneData | null | undefined;
-  person?: Pick<PersonProfileProps, "now" | "dial" | "onAdd" | "openThread" | "openFile" | "openTask" | "copy"> | undefined;
+  person?: Pick<PersonProfileProps, "now" | "dial" | "onAdd" | "openThread" | "openFile" | "openProject" | "threadId" | "nameOf" | "meId" | "openTask" | "copy"> | undefined;
 }
 
 export function ProfilePane({ tab, name, call, onMessage, onMention, onEdit, person: more, agentPane }: ProfileProps): ReactElement {

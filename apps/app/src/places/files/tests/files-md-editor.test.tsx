@@ -22,7 +22,7 @@ function rig(text: string, version: number) {
     if (cap === "files.save") { at = String(i["text"]); n += 1; versions.push({ n, versionId: `v${n}`, text: at }); return { n, versionId: `v${n}` }; }
     if (cap === "files.versions") return { versions: versions.map(({ n: k, versionId }) => ({ n: k, versionId })) };
     if (cap === "files.read") return { text: versions.find((v) => v.versionId === i["versionId"])?.text ?? "" };
-    if (cap === "files.restore_version") { const v = versions.find((x) => x.versionId === i["versionId"])!; at = v.text; n += 1; versions.push({ n, versionId: `v${n}`, text: at }); return { n, versionId: `v${n}` }; }
+    if (cap === "files.restore_version") { const v = versions.find((x) => x.versionId === i["versionId"])!; at = v.text; n += 1; versions.push({ n, versionId: `v${n}`, text: at }); return { file: { version: n }, versionId: `v${n}` }; }   // the real shape of files.restore_version
     return {};
   };
   return { call, calls, now: () => at };
@@ -58,5 +58,6 @@ test("typing saves a new version after a pause; the row says Saved with its numb
     assert.equal(r.now(), "# Hi\n\nOne line.\n", "the text of the version before is the file again");
     assert.ok(r.calls.some((c) => c.cap === "files.restore_version" && c.input["versionId"] === "v5"), "restored as a new version");
     assert.equal(find(root, "file-md-undo"), null, "nothing left to undo");
+    assert.match(textOf(find(root, "file-md-status")), /v7/, "the new version number comes from the file the restore answers with");
   } finally { restore(); }
 });

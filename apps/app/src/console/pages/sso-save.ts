@@ -1,6 +1,7 @@
 // The logic behind the Google and Microsoft sign-in forms, with no screen in it so a host test can run the same code: what a form may save, the redirect address, and the save itself (the secret
 // into the Vault in a Restricted folder, only its handle into members.sso.set). SsoSections.tsx draws it.
 import type {MembersSsoListOut} from "../../../../../generated/types.ts";
+import {errorSentence} from "../../errors/details.ts";
 
 export type SsoKey="google"|"microsoft";
 export type SsoProvider=MembersSsoListOut["providers"][number];
@@ -67,6 +68,6 @@ export async function saveSso(call:Call,i:SsoInput,saved:SsoProvider|undefined):
   const issuer=i.key==="google"?GOOGLE_ISSUER:`https://login.microsoftonline.com/${i.tenant.trim().toLowerCase()}/v2.0`;
   await call("members.sso.set",{provider:{key:i.key,title:SSO_TITLE[i.key],issuer,clientId:i.clientId.trim(),clientSecretHandle:handle,enabled:i.enabled,domainHint:i.domain.trim().toLowerCase()}});
   return {ok:true,message:`${SSO_TITLE[i.key]} sign-in saved`};
- }catch(e){const x=e as {message?:string;code?:string};return {ok:false,message:`${x.message??"Couldn't save this"}${x.code?` (${x.code})`:""}.`};}
+ }catch(e){return {ok:false,message:errorSentence(e,"Couldn't save this")};}
 }
 

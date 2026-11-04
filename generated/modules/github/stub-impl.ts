@@ -42,6 +42,7 @@ export const handlers: Handlers<HandlerCtx> = {
   "github.receive_webhook": async () => ({"accepted":true} as unknown) as never,
   "github.repo.get": async () => ({"defaultBranch":"example","description":"example","private":true,"repo":"vyre-ai/website","url":"example"} as unknown) as never,
   "github.repos.list": async () => ({"next":"example","repos":[{"defaultBranch":"example","private":true,"repo":"vyre-ai/website","url":"example"}],"total":1} as unknown) as never,
+  "github.runner_release": async () => ({"assets":[{"digest":"example","name":"example"}]} as unknown) as never,
   "github.runners.jit_config": async () => ({"jitConfig":"example","runnerId":1} as unknown) as never,
   "github.runners.remove": async () => ({"removed":true} as unknown) as never,
   "github.session_env": async () => ({"env":{},"expiresAt":1760000000000,"gitConfig":["example"],"repos":["vyre-ai/website"],"skipped":["vyre-ai/website"]} as unknown) as never,

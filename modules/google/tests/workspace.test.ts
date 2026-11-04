@@ -638,6 +638,21 @@ test("a Drive push notice wakes the mounts that watch the channel; the first not
 
 // ---- the Space's Google connection reads active and used (MLA, 4 Nov: "Needs sign-in, never used" while mail and calendar polled)
 
+test("a member's own read through the Space's delegation never calls connections.mark_working; the host's poll does", async () => {
+  const h = admin();
+  await dwdSetup(h.ctx, setupInput);
+  seedMailbox(h);
+  h.advance(61_000);
+  const n = h.calls("connections.mark_working").length;
+  // the same mailbox read, as a member who does not manage the Space connection (the harness refuses connectors.manage to anyone not admin)
+  const asMember = Object.assign({}, h.ctx, { principal: { kind: "person", id: "usr_maya01" }, authorize: (a: { perm: string | null }) => a.perm === "connectors.manage" ? { effect: "deny", reason: "no_grant", decisionId: "dec_x" } : { effect: "allow", reason: "ok", decisionId: "dec_x" } }) as typeof h.ctx;
+  await pullMailbox(asMember, { connectionId: CONN, mailbox: MAYA });
+  assert.equal(h.calls("connections.mark_working").length, n, "a member's read does not make the call");
+  const asHost = Object.assign({}, h.ctx, { principal: { kind: "service", id: "svc_host" }, authorize: asMember.authorize }) as typeof h.ctx;
+  await pullMailbox(asHost, { connectionId: CONN, mailbox: MAYA });
+  assert.equal(h.calls("connections.mark_working").length, n + 1, "the host's poll tells the connection");
+});
+
 /** Maya's mailbox (made by setup) has pulled before: it has a cursor, and Google answers an empty history, so a poll is one good answer and no mail. */
 function seedMailbox(h: Harness): void {
   h.ctx.db.run(`UPDATE google_mailbox SET "historyId" = ? WHERE email = ?`, "1000", MAYA);

@@ -307,8 +307,11 @@ const MAX_STEP = 2_000;
 /** Under three words, or only a probe word: nothing worth a card on someone's list. */
 export function isProbe(prompt: string, hasChoices = false): boolean {
   const words = prompt.toLowerCase().replace(/[^\p{L}\p{N}\s']/gu, " ").split(/\s+/).filter((w) => w !== "");
-  // a choice between options may be short ("Which court?"); a free question needs a sentence
-  return (words.length < 3 && !(hasChoices && words.length >= 1)) || words.every((w) => /^(test|testing|tests|hi|hello|hey|ping|asdf|foo|bar|ok|okay)$/.test(w));
+  // only a placeholder is refused, never a short real question ("Who signed?", "Which court?"): no words at all, words that are all test words, "question 1", lorem ipsum
+  void hasChoices;
+  if (words.length === 0) return true;
+  if (/^(question|q|prompt|ask)\s*\d*$/.test(words.join(" ")) || /^lorem ipsum\b/.test(words.join(" "))) return true;
+  return words.every((w) => /^(test|testing|tests|hi|hello|hey|ping|asdf|foo|bar|ok|okay|placeholder|todo|tbd|xxx|\d+)$/.test(w));
 }
 
 /** The agent's own question taken back: its turn ended without waiting for it. The card closes as withdrawn and its task is closed behind it. Only the agent that asked (or a person in the chat) may. */
@@ -343,7 +346,7 @@ export async function questionIn(
   const prompt = input.prompt.trim();
   if (prompt === "" || prompt.length > MAX_PROMPT) raise(ctx, "validation.bad_input", `A question needs words, at most ${MAX_PROMPT} characters.`);
   // a question is a card and a task on a person's list: it needs a real question, not a probe ("test", "hi", one word)
-  if (isProbe(prompt, (input.options ?? []).length >= 1)) raise(ctx, "validation.bad_input", "Ask a real question: say in a sentence what you need to know. A question of one or two words, or a test, is not put on anyone's list.");
+  if (isProbe(prompt, (input.options ?? []).length >= 1)) raise(ctx, "validation.bad_input", "Ask a real question: say what you need to know. A placeholder (\"test\", \"hi\", \"question 1\") is not put on anyone's list.");
   const options = input.options ?? [];
   if (input.mode === "free" && options.length > 0) raise(ctx, "validation.bad_input", "A free-text question has no options.");
   if (input.mode !== "free") {
@@ -566,7 +569,9 @@ export async function helperSteer(ctx: ChatCtx, input: { threadId: string; body:
   const t = threadBy(ctx.db, input.threadId);
   if (!t || t.kind !== "helper") raise(ctx, "validation.not_found", "That is not a helper chat.");
   const asker = askerOf(ctx);
-  if (!asker.startsWith("usr_") || t.starter !== asker) raise(ctx, "validation.precondition_failed", "Only the person the helper works for can ask it something.");
+  // any person who can speak in the chat the helper works in may message it (owner, 4 Nov 2026): the words are theirs, the turn runs on their account and within their access, and the chat above sees them
+  const root = t.parentThreadId !== undefined ? threadBy(ctx.db, t.parentThreadId) : null;
+  if (!asker.startsWith("usr_") || !root || !canSpeak(ctx, root)) raise(ctx, "validation.precondition_failed", "Only someone in the chat this helper works in can message it.");
   if (t.closedAt !== undefined) raise(ctx, "validation.precondition_failed", "This helper has finished. Ask in the chat that started it.");
   const body = input.body.trim();
   if (body === "" || body.length > 20_000) raise(ctx, "validation.bad_input", "Write what to ask it.");
@@ -574,6 +579,12 @@ export async function helperSteer(ctx: ChatCtx, input: { threadId: string; body:
   if (!lead) raise(ctx, "validation.precondition_failed", "This helper has no agent to ask.");
   const m = insertMessage(ctx, t.id, { author: asker, kind: "text", body });
   deliver(ctx, t, m, [{ kind: "agent", id: lead.agentId }], { kind: "person", id: asker }, { notify: false });
+  // the chat above sees it, as a line to be read and not answered, so the agent that started the helper knows what it was told
+  if (root) {
+    const seen = insertMessage(ctx, root.id, { author: asker, kind: "text", body: `To "${t.title ?? "a helper"}": ${body}`, depth: 0 });
+    deliver(ctx, root, seen, [], { kind: "person", id: asker }, { notify: false, copy: true });
+  }
+  ctx.emit("helper.note", t.id, { helperThreadId: t.id, direction: "down", kind: "followup", messageId: m.id });
   return { messageId: m.id };
 }
 

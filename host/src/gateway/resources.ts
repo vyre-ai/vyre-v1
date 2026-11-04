@@ -21,14 +21,14 @@ const ID_SHAPE: Readonly<Record<string, RegExp | null>> = Object.freeze({
   channel: /^chn_[a-z0-9]+$/, thread: /^thr_[a-z0-9]+$/, mailbox: /^mbx_[a-z0-9]+$/, vault_folder: /^vfd_[a-z0-9]+$/, vault_item: /^vit_[a-z0-9]+$/, automation: /^aut_[a-z0-9]+$/,
   agent: /^agt_[a-z0-9]+$/, connection: /^con_[a-z0-9]+$/, site: /^sit_[a-z0-9]+$/, form: /^frm_[a-z0-9]+$/, kit: /^kit_[a-z0-9]+$/,
   terminal: /^trm_[a-z0-9]+$/, computer: /^cmt_[a-z0-9]+$/, task: /^tsk_[a-z0-9]+$/, run: /^run_[a-z0-9]+$/, number: /^num_[a-z0-9]+$/, domain: /^dom_[a-z0-9]+$/, note: /^not_[a-z0-9]+$/, email: /^eml_[a-z0-9]+$/,
-  conversation: /^cnv_[a-z0-9]+$/, mail_message: /^eml_[a-z0-9]+$/, inbox: null, automation_group: null, connector: null, calendar: null,
+  skill: /^sko_[a-z0-9]+$/, conversation: /^cnv_[a-z0-9]+$/, mail_message: /^eml_[a-z0-9]+$/, inbox: null, automation_group: null, connector: null, calendar: null,
 });
 /**
  * Resource types whose birth event may name the owner, and the payload pointer it does it in. Opt-in per type: the capability that creates one of these decides who may assign an owner
  * other than the caller (agents.create refuses a caller who is not an owner or admin; connecting a member's Google or Outlook calendar and mail takes connectors.manage), so the
  * registrar only records what that capability allowed.
  */
-const OWNER_NAMED: ReadonlyMap<string, string> = new Map([["agent", "/ownerId"], ["calendar", "/ownerId"], ["mailbox", "/memberId"]]);
+const OWNER_NAMED: ReadonlyMap<string, string> = new Map([["agent", "/ownerId"], ["calendar", "/ownerId"], ["mailbox", "/memberId"], ["skill", "/ownerId"]]);
 /** Every resource type the registrar checks ids for. */
 export const KNOWN_TYPES: readonly string[] = Object.freeze(Object.keys(ID_SHAPE));
 const ANY_ID = /^[A-Za-z0-9][A-Za-z0-9_.:-]*$/;

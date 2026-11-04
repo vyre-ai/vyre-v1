@@ -1,5 +1,7 @@
 // A Space's CI in one process: a real SQLite database behind the host's table guard for ci_* tables, a clock, a fake cloud (droplets that can be created, listed and deleted), and stand-ins for the
 // github, projects and git modules. No real cloud or GitHub call is ever made.
+import { registry } from "../../../generated/registry.ts";
+import { validate } from "../../../packages/contracts/src/jsonschema.ts";
 import { scopedDb } from "../../../host/src/ctx/db.ts";
 import { consumers, handlers } from "../impl.ts";
 import { sweep } from "../handlers/runner.ts";
@@ -33,7 +35,7 @@ export function world(f: Fakes = {}) {
     now: T0, events: [] as Array<{ name: string; subject: string; payload: Record<string, any> }>,   // eslint-disable-line @typescript-eslint/no-explicit-any
     droplets: [] as FakeDroplet[], nextId: 1000, cloudCalls: [] as Array<{ method: string; path: string }>, keysUsed: [] as string[], jit: [] as Array<Record<string, unknown>>, removed: [] as number[],
     secrets: f.secrets === undefined ? 0 : f.secrets, links: f.links ?? { "northwind/site": "prj_site" }, members: f.members ?? {},
-    links_: [] as Array<Record<string, unknown>>, noLinkCap: false, appPerms: { actions: "read", administration: "write", secrets: "read" } as Record<string, string>, appEvents: ["push", "workflow_job"], failCreate: 0, failList: false, failDelete: false, jitFails: false, runnerSeq: 1,
+    links_: [] as Array<Record<string, unknown>>, noLinkCap: false, appPerms: { actions: "read", administration: "write", secrets: "read" } as Record<string, string>, appEvents: ["push", "workflow_job"], runnerDigest: "sha256:baebf204307bac6193480852732f0aba2ae97b6c5597c244f4d5558390147c40" as string | null, releaseDown: false, linkRules: {} as Record<string, string>, linkedPrs: {} as Record<string, string>, noRemote: new Set<string>(), failCreate: 0, failList: false, failDelete: false, jitFails: false, runnerSeq: 1,
   };
   const cloud: CiHost = {
     async cloud(_ctx, handle, req) {
@@ -70,11 +72,17 @@ export function world(f: Fakes = {}) {
     authorize: () => ({ effect: who.admin || who.id === "svc_host" ? "allow" : "deny" }),
     call: async (cap, input) => {
       const i = input as Record<string, any>;   // eslint-disable-line @typescript-eslint/no-explicit-any
+      // every call to another module is checked against that capability's frozen input schema: a call to one that does not exist, or with the wrong shape, fails the test
+      const def = registry.capabilities.filter((c) => c.name === cap).sort((a, b) => b.v - a.v)[0];
+      if (!def) throw new Error(`${cap} is not in the registry`);
+      const misfit = validate(def.input, i, "", registry.$defs);
+      if (misfit.length) throw new Error(`${cap} was called with input its contract refuses: ${misfit.join("; ")}`);
       if (cap === "github.runners.jit_config") {
         if (st.jitFails) throw Object.assign(new Error("x"), { error: { code: "provider.auth_failed" } });
         st.jit.push(i);
         return { runnerId: 7000 + st.runnerSeq++, jitConfig: "eyJhbGciOiJIUzI1NiJ9abc123==" };
       }
+      if (cap === "github.runner_release") { if (st.releaseDown) throw Object.assign(new Error("x"), { error: { code: "provider.unavailable" } }); return { assets: [{ name: "actions-runner-linux-x64-2.338.2.tar.gz", digest: st.runnerDigest }, { name: "other.tar.gz", digest: null }] }; }
       if (cap === "github.app.get") return { permissions: st.appPerms, events: st.appEvents };
       if (cap === "github.installations.list") return { installations: [{ id: 555, account: "northwind", repositorySelection: "all" }] };
       if (cap === "github.runners.remove") { st.removed.push(i["runnerId"]); return { removed: true }; }
@@ -86,10 +94,20 @@ export function world(f: Fakes = {}) {
       if (cap === "projects.get") {
         const ok = who.admin || who.kind === "service" || (st.members[i["projectId"]] ?? []).includes(who.id);
         if (!ok) throw Object.assign(new Error("no"), { error: { code: "permission.no_grant" } });
-        return { project: { projectId: i["projectId"], folderId: `fld_${i["projectId"]}` } };
+        return { project: { projectId: i["projectId"], folderId: `fld_${String(i["projectId"]).slice(4)}` } };
+      }
+      if (cap === "projects.links.list") {
+        const projectId = String(i["projectId"]);
+        const out = {
+          links: st.linkedPrs[projectId] ? [{ linkId: "lnk_a1b2c3", projectId, kind: "github.pr", ref: `${st.linkedPrs[projectId]}#12`, source: "manual", addedBy: "usr_admin", addedAt: st.now }] : [],
+          rules: st.linkRules[projectId] ? [{ ruleId: "rul_a1b2c3", kind: "repo", repo: st.linkRules[projectId], by: "usr_admin", at: st.now }] : [],
+        };
+        const bad = validate(registry.capabilities.filter((c) => c.name === cap).sort((a, b) => b.v - a.v)[0]!.output, out, "", registry.$defs);
+        if (bad.length) throw new Error(`the fake projects.links.list answers what its contract refuses: ${bad.join("; ")}`);
+        return out;
       }
       if (cap === "git.status") {
-        const projectId = String(i["folderId"]).slice(4), repo = Object.entries(st.links).find(([, p]) => p === projectId)?.[0];
+        const projectId = `prj_${String(i["folderId"]).slice(4)}`, repo = st.noRemote.has(projectId) ? undefined : Object.entries(st.links).find(([, p]) => p === projectId)?.[0];
         return { remotes: repo ? [{ name: "origin", url: `https://github.com/${repo}.git` }] : [] };
       }
       throw new Error(`no ${cap}`);

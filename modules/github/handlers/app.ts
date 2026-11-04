@@ -447,3 +447,11 @@ export async function runnersRemove(ctx: GithubCtx, input: { repo: string; runne
     return { removed: false };
   }
 }
+
+/** The files of a release of the Actions runner and the checksum GitHub itself lists for each (the CI module checks it against its pin before it starts any machine). No credentials: it is public. */
+export async function runnerRelease(ctx: GithubCtx, input: { version: string }): Promise<{ assets: Array<{ name: string; digest: string | null }> }> {
+  ensure(ctx);
+  if (!/^\d+\.\d+\.\d+$/.test(input.version)) bad(ctx, "A runner version looks like 2.338.2.");
+  const j = await api(ctx, { path: `/repos/actions/runner/releases/tags/v${input.version}`, auth: { as: "none" } });
+  return { assets: list(j.assets).map(obj).map((a) => ({ name: text(a.name), digest: strOrUndef(a.digest) ?? null })).filter((a) => a.name) };
+}

@@ -38,3 +38,58 @@ test("a calendar event is an event, not a message", async () => {
   assert.equal(g.title, "Approve: Add a calendar event");
   assert.ok(!/message|google/i.test(`${g.title} ${g.summary}`), `${g.title} / ${g.summary}`);
 });
+
+// An agent's own hold says who wants what, from the real input, in one sentence the card, the footer, the top bar and the task all share (lane l-threadreplies).
+async function parkAs(over: Record<string, unknown>, id: string): Promise<{ title: string; summary: string; block: any }> {
+  const h = harness();
+  h.callee("access.principals.get", (i: any) => ({ principal: { name: i.principal.id === "agt_bot" ? "Intake" : i.principal.id === "usr_bob" ? "Noah Berg" : "Someone" } }));
+  h.callee("access.principals.list", () => ({ principals: [{ id: "usr_bob", name: "Noah Berg" }, { id: "usr_cara", name: "Cara Lund" }] }));
+  h.callee("files.get", () => ({ file: { name: "Q4 pricing.docx" } }));
+  await h.call("gate.park", parkInput({ decisionId: id, ...over }), as(bot));
+  const t = h.callsTo("tasks.create")[0]!.input as { title: string; summary: string; blocks: any[] };
+  return { title: t.title, summary: t.summary, block: t.blocks[0] };
+}
+
+test("a held message names who the agent wants to message, from the id or from the handle it was given, with no Approve: in front", async () => {
+  const byId = await parkAs({ capName: "chat.message_person", input: { to: "usr_bob", body: "The call is Thursday." }, act: "send" }, "s_dm1");
+  assert.equal(byId.title, "Intake wants to message Noah Berg");
+  assert.equal(byId.summary, "Intake wants to message Noah Berg");
+  assert.equal(byId.block.data.outward.to[0].name, "Noah Berg", "the card's recipient carries the name");
+  const byHandle = await parkAs({ capName: "chat.message_person", input: { to: "noah", body: "hi" }, act: "send" }, "s_dm2");
+  assert.equal(byHandle.title, "Intake wants to message Noah Berg", "a first-name handle is found in the directory");
+  assert.ok(!/Approve:|teammate/.test(`${byId.title} ${byHandle.title}`));
+});
+
+test("a held email names the addresses and a held file share names the file", async () => {
+  const mail = await parkAs({ capName: "mail.send", input: { to: [{ address: "aliza@example.com" }], subject: "Retainer", text: "Dear Aliza" }, act: "send" }, "s_mail");
+  assert.equal(mail.title, "Intake wants to email aliza@example.com");
+  const share = await parkAs({ capName: "files.share_external", input: { fileId: "fil_1" }, act: "send" }, "s_share");
+  assert.equal(share.title, "Intake wants to share Q4 pricing.docx with a link for someone outside the Space");
+  assert.ok(!/Approve:/.test(share.title));
+});
+
+test("a hold nobody named keeps the act's own words", async () => {
+  const h = harness();
+  await h.call("gate.park", parkInput({ decisionId: "s_plain", capName: "stripe.refund.create", input: { chargeId: "ch_1", amount: 500 }, act: "pay" }), as(bot));
+  assert.equal((h.callsTo("tasks.create")[0]!.input as { title: string }).title, "Approve: Refund a payment");
+});
+
+test("a hold for a bare verb names what it acts on from the capability's scope", async () => {
+  const rec = await parkAs({ capName: "records.update", input: { type: "contact", recordId: "rec_1", patch: { name: "Renamed" } }, act: "approve" }, "s_rec");
+  assert.equal(rec.title, "Intake wants to change a record");
+  const file = await parkAs({ capName: "files.write", input: { fileId: "fil_1" }, act: "approve" }, "s_file");
+  assert.equal(file.title, "Intake wants to edit Q4 pricing.docx", "with the file's name when it is known");
+});
+
+test("no held capability's sentence ends in a bare verb: every one of the held-act words names what it acts on", async () => {
+  const { WANTS, holdSentence } = await import("../../../lib/hold-words.ts");
+  const bare: string[] = [];
+  for (const cap of Object.keys(WANTS)) {
+    const sentence = holdSentence("Intake", cap, {});
+    if (/^Intake wants to \S+$/.test(sentence)) bare.push(`${cap}: ${sentence}`);
+  }
+  assert.deepEqual(bare, [], "a word with no subject reads as nothing");
+  assert.equal(holdSentence("Intake", "files.delete", { fileId: "fil_1" }, { file: "Q4 pricing.docx" }), "Intake wants to delete Q4 pricing.docx");
+  assert.equal(holdSentence("Intake", "files.write", {}), "Intake wants to edit a file");
+  assert.equal(holdSentence("Intake", "records.delete", {}), "Intake wants to delete a record");
+});

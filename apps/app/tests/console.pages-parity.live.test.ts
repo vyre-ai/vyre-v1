@@ -63,7 +63,7 @@ test("production Console: every page draws at desktop and phone, light and graph
     };
 
     // the Console is ten places, each with a quiet tab strip (the plan in SETTINGS-CONSOLE-IA.md): the places, their order and their tabs are pinned here, so a place or tab that goes missing fails loudly
-    const PLACES: [string, string[]][] = [["Home", ["Home"]], ["People", ["Members", "Teams", "Roles", "Requests"]], ["Agents", ["Space agents", "Outside agents", "Skills and plugins", "Activity", "Defaults for new agents"]],
+    const PLACES: [string, string[]][] = [["Home", ["Home"]], ["People", ["Members", "Teams", "Roles", "Requests"]], ["Agents", ["Space agents", "Outside agents", "Skills and plugins", "Hooks", "Activity", "Defaults for new agents"]],
       ["AI", ["AI accounts", "What each provider may see", "Spend and limits", "Approvals", "Review", "Voice", "AI use policy"]], ["Data", ["Record types", "Labels", "Keep and delete", "Backups", "Export"]],
       ["Messaging", ["Email", "Phone and texting", "Rules"]], ["Apps", ["Connected apps", "GitHub", "Developers"]], ["Computers", ["Overview", "Servers", "Agent computers", "CI runners", "Diagnostics"]],
       ["Security", ["Sign-in", "Access reviews", "Audit log"]], ["Space", ["General", "Transfer or delete"]]];

@@ -6,7 +6,7 @@
 //   channels.create              a named room, public to the Team Space or invite-only; a record's channel is a Project or Journey channel
 //   chat.answer_block / chat.approve_plan   answers to the blocks that park a turn; the engine reads block.answered and queues the wake
 import {
-  MAX_NAME, addAgent, addMember, agentsOf, askerOf, blockBy, channelBy, channelByName, channelOfRecord, channelOut, ensure, insertChannel, insertMessage, insertThread, membersOf, messageBy,
+  MAX_NAME, addAgent, agentsReplyInThreads, addMember, agentsOf, askerOf, blockBy, channelBy, channelByName, channelOfRecord, channelOut, ensure, insertChannel, insertMessage, insertThread, membersOf, messageBy,
   mintId, patchBlockInMessage, planBy, raise, refuseUnseenAgents, threadBy, threadOut,
 } from "../projections.ts";
 import type { ChatCtx, Mode, PlanStep, ThreadRec } from "../projections.ts";
@@ -174,6 +174,12 @@ export async function thread(ctx: ChatCtx, input: { threadId: string; messageId:
   // An agent works inside the thread under its own message, and the agent that opens a thread leads it (spec 2.5); people's threads otherwise leave agents listening.
   const leads = [msg.author, ctx.principal.id].filter((id, i, all) => id.startsWith("agt_") && all.indexOf(id) === i);
   if (leads.length > 0) addAgent(ctx, t.id, { agentId: leads[0]!, mode: "lead", addedBy: asker });
+  // Where agents reply in threads, the agents of the chat are in its threads as they are in the chat: the thread is where they answer, so a question asked inside it is answered there.
+  if (agentsReplyInThreads(parent)) {
+    for (const a of agentsOf(ctx.db, parent.id)) {
+      addAgent(ctx, t.id, { agentId: a.agentId, mode: a.mode === "lead" && leads.length > 0 ? "listen" : a.mode, ...(a.model !== undefined ? { model: a.model } : {}), ...(a.provider !== undefined ? { provider: a.provider } : {}), ...(a.effort !== undefined ? { effort: a.effort } : {}), ...(a.accountRef !== undefined ? { accountRef: a.accountRef } : {}), ...(a.quiet === true ? { quiet: true } : {}), addedBy: asker });
+    }
+  }
   emitStarted(ctx, t);
   return { thread: threadOut(ctx.db, t) };
 }

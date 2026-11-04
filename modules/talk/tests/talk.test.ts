@@ -182,3 +182,21 @@ test("Check now is a one-second grant against the picked provider, and a refused
   w.answers.mint = fail("provider.auth_failed", "0".repeat(32), { message: "no" });
   assert.equal((await h.spaceCheck(admin, {})).state, "failing");
 });
+
+test("a session asks the provider to favour Vyre, the Space, its agents and its people, and a read that fails only leaves its words out", async () => {
+  const w = world({ admins: ["usr_admin"] });
+  await spaceConnect(w.as(person("usr_admin")));
+  const mia = w.as(person("usr_mia"));
+  const url = new URL((await h.session(mia, {})).url);
+  assert.deepEqual(url.searchParams.getAll("keyterm"), ["Vyre", "Hart Reyes Law", "Intake", "Maya Chen", "Dana Wine"], "someone else's private agent is not named");
+  await h.spaceConnect(w.as(person("usr_admin")), { provider: "elevenlabs", fields: fields(), idempotencyKey: "s9" });
+  const eleven = await h.session(mia, {});
+  assert.deepEqual(JSON.parse(new URL(eleven.url).searchParams.get("keyterms")!), ["Vyre", "Hart Reyes Law", "Intake", "Maya Chen", "Dana Wine"]);
+  assert.equal(eleven.context, "Words that may come up: Vyre, Hart Reyes Law, Intake, Maya Chen, Dana Wine.", "the same words as a line for the first audio chunk");
+  assert.equal(new URL(url.toString()).searchParams.has("keyterm"), true);
+  const quiet = world({ admins: ["usr_admin"] });
+  const call = quiet.as(person("usr_admin")).call;
+  await spaceConnect(quiet.as(person("usr_admin")));
+  const ctx = { ...quiet.as(person("usr_mia")), call: async (cap: string, i: unknown) => { if (cap === "spaces.get" || cap === "access.principals.list") throw new Error("no"); return call(cap, i); } };
+  assert.deepEqual(new URL((await h.session(ctx, {})).url).searchParams.getAll("keyterm"), ["Vyre"]);
+});

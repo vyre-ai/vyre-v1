@@ -14,7 +14,7 @@ const dist = path.resolve(REPO, (args.find((a) => a.startsWith("--dist=")) ?? ""
 const { exportEnv } = await import(path.join(REPO, "scripts/lib/registry-hash.mjs"));
 if (!args.includes("--skip-export")) {
   fs.rmSync(dist, { recursive: true, force: true });
-  execSync("/root/wt/base/node_modules/.bin/expo export --platform web --output-dir dist", { cwd: path.join(REPO, "apps/app"), stdio: "inherit", env: exportEnv() });
+  execSync((await import(path.join(process.cwd(), "scripts/shots/expo-cmd.mjs"))).exportCmd(process.cwd()), { cwd: path.join(REPO, "apps/app"), stdio: "inherit", env: exportEnv() });
   execSync(`node scripts/shots/registry-hash-in-bundle.mjs ${dist}`, { cwd: REPO, stdio: "inherit" });
 }
 fs.rmSync(out, { recursive: true, force: true });

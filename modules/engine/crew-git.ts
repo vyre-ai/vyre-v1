@@ -5,6 +5,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { createLocalLauncher } from "../../agent/src/drivers/cli/launcher.ts";
 import type { CliProcess } from "../../agent/src/drivers/cli/types.ts";
+import { redactTree } from "./github-session.ts";
 
 export class GitError extends Error {
   readonly code: "engine.git_failed" | "validation.bad_input";
@@ -138,6 +139,7 @@ export async function summarize(dest: string, base: string): Promise<CrewSummary
 
 /** Commits whatever the teammate left uncommitted, so a finished turn never loses work. Answers true when it made a commit. */
 export async function commitLeftovers(dest: string, message: string): Promise<boolean> {
+  redactTree(dest);   // a GitHub token a session held is never committed
   if ((await must(["status", "--porcelain"], dest, "reading the state")).trim() === "") return false;
   await must(["add", "-A"], dest, "staging the changes");
   await must(["commit", "--quiet", "-m", message], dest, "saving the changes");

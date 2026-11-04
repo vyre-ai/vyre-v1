@@ -19,7 +19,7 @@ Put one of my settings back to the Space default
 | HTTP | POST /v1/settings/reset |
 | MCP tool | settings_reset (meta) |
 | CLI | none |
-| Emits | settings.changed |
+| Emits | settings.changed, settings.contact_unverified |
 
 ## Input
 
