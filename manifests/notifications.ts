@@ -42,7 +42,7 @@ export default defineManifest({
   ],
   notificationKinds: [
     notif('approval.requested', 'interrupt', 'chats', 'Approval needed: {{title}}', {
-      pushTitle: '{{space}} needs you', actions: [{ label: 'Approve', cap: 'tasks.act' }, { label: 'Send back', cap: 'tasks.act' }], agentRateKey: 'agent_interrupt', backstopEmailAfterHours: 4,
+      pushTitle: '{{space}} needs you', actions: [{ label: 'Allow', cap: 'tasks.act' }, { label: 'Send back', cap: 'tasks.act' }], agentRateKey: 'agent_interrupt', backstopEmailAfterHours: 4,
     }),
     notif('answer.requested', 'interrupt', 'chats', 'Needs your answer: {{title}}', { pushTitle: '{{space}} needs you', agentRateKey: 'agent_interrupt', actions: [{ label: 'Answer', cap: 'tasks.act' }], backstopEmailAfterHours: 4 }),
     notif('unblock.requested', 'interrupt', 'chats', 'Needs you: {{title}}', { pushTitle: '{{space}} needs you', agentRateKey: 'agent_interrupt', actions: [{ label: 'Open', cap: 'tasks.act' }], backstopEmailAfterHours: 4 }),

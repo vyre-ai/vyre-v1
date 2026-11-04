@@ -55,8 +55,8 @@ export function AccessRequestCard({ block, data }: { block: Block; data: Data })
       {block.note ? <Text style={st.note}>{block.note}</Text> : null}
       {canDecide ? (
         <View style={st.acts}>
-          <TextButton label="Decline" onPress={() => void decide("access.requests.decline")} disabled={busy} testID={`accessreq-decline-${block.requestId}`} />
-          <TextButton label="Approve" primary disabled={busy} onPress={() => void decide("access.requests.approve")} testID={`accessreq-approve-${block.requestId}`} />
+          <TextButton label="Deny" onPress={() => void decide("access.requests.decline")} disabled={busy} testID={`accessreq-decline-${block.requestId}`} />
+          <TextButton label="Allow" primary disabled={busy} onPress={() => void decide("access.requests.approve")} testID={`accessreq-approve-${block.requestId}`} />
         </View>
       ) : <Text testID={`accessreq-wait-${block.requestId}`} style={st.note}>Waiting on the people who can decide it.</Text>}
       {problem ? <Text accessibilityRole="alert" style={st.err}>{problem}</Text> : null}

@@ -18,7 +18,7 @@ export default defineManifest({
     ev('console.change_rejected', 'A person rejected a proposed change', { p: { diffId, by: id.user }, subject: ['entity', '/diffId'], vis: 'participants' }),
   ],
   blocks: [
-    block('diff_card', diffCard, 'Proposed change: {{title}}', { actions: [{ key: 'apply', label: 'Apply', cap: 'console.diff_apply', input: { diffId: '/diffId' } }, { key: 'reject', label: 'Reject', cap: 'console.diff_reject', input: { diffId: '/diffId' } }] }),
+    block('diff_card', diffCard, 'Proposed change: {{title}}', { actions: [{ key: 'apply', label: 'Apply', cap: 'console.diff_apply', input: { diffId: '/diffId' } }, { key: 'reject', label: 'Deny', cap: 'console.diff_reject', input: { diffId: '/diffId' } }] }),
   ],
   capabilities: [
     create('console.assistant_open', 'Open the Console assistant thread (kind console) with the current page as a context block', { in: { page: t.str({ examples: ['access.roles'] }), objectRef: t.opt(t.str()) }, out: { threadId: id.thread }, perm: 'console.access', tool: 'engineer' }),

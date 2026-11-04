@@ -109,7 +109,7 @@ test("screen: an open meeting shows the summary, decisions, open questions and e
   const out = html(tab(data, M1));
   assert.ok(out.includes('data-testid="meeting-package"'));
   for (const s of ["Summary", "Decisions", "Open questions", "Tasks", "Record updates", "Follow-up email", "Next meeting"]) assert.ok(out.includes(`>${s}<`), `the ${s} section`);
-  assert.ok(out.includes(">Approve all 3<"), "three items wait");
+  assert.ok(out.includes(">Allow all 3<"), "three items wait");
   for (const id of ["mci_t1", "mci_r1", "mci_e1"]) for (const a of ["approve", "edit", "skip"]) assert.ok(out.includes(`data-testid="${a}-${id}"`), `${a} on ${id}`);
   assert.ok(out.includes(">Sam Reyes · Due "), "the task says who and when");
   assert.ok(out.includes(">Operations lead<") && out.includes(">Head of Operations<"), "the field change, from and to");

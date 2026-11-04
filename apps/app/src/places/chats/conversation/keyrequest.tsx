@@ -89,7 +89,7 @@ export function KeyRequestCard({ requestId, agent, agentId, data }: { requestId:
           <TextInput accessibilityLabel="Why not (optional)" testID={`keyreq-reason-${requestId}`} value={reason} onChangeText={setReason} placeholder="Reason (optional)" placeholderTextColor="var(--ink-4)" style={st.input} />
           <View style={st.acts}>
             <TextButton label="Back" onPress={() => setDeclining(false)} testID={`keyreq-back-${requestId}`} />
-            <TextButton label="Decline" danger disabled={busy} onPress={() => void decline()} testID={`keyreq-decline-go-${requestId}`} />
+            <TextButton label="Deny" danger disabled={busy} onPress={() => void decline()} testID={`keyreq-decline-go-${requestId}`} />
           </View>
         </View>
       ) : (
@@ -110,7 +110,7 @@ export function KeyRequestCard({ requestId, agent, agentId, data }: { requestId:
             ))}
           </View>
           <View style={st.acts}>
-            <TextButton label="Decline" onPress={() => setDeclining(true)} disabled={busy} testID={`keyreq-decline-${requestId}`} />
+            <TextButton label="Deny" onPress={() => setDeclining(true)} disabled={busy} testID={`keyreq-decline-${requestId}`} />
             <TextButton label="Add the key" primary disabled={busy || !ready} onPress={() => void add()} testID={`keyreq-add-${requestId}`} />
           </View>
         </View>

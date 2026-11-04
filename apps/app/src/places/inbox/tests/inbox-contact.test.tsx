@@ -113,18 +113,18 @@ test("screen: an agent's draft shows who drafted it, the inbox it sends from, th
   const { out } = tab("elena");
   assert.ok(has(out, 'data-testid="draft:dr_elena"'));
   assert.ok(has(out, "Intake") && has(out, "drafted a reply"));
-  assert.ok(has(out, "Sends from") && has(out, "when you press Send") && !has(out, "Gate") && !has(out, "agt_"), "a plain line: no system words, no ids");
+  assert.ok(has(out, "Sends from") && has(out, "when you press Allow") && !has(out, "Gate") && !has(out, "agt_"), "a plain line: no system words, no ids");
   assert.ok(has(out, 'data-testid="draft:dr_elena-stopped"'));
   for (const b of ["draft:dr_elena-send", "draft:dr_elena-edit", "draft:dr_elena-drop"]) assert.ok(has(out, `data-testid="${b}"`), b);
   assert.ok(has(out, "Thanks for draft 3. I will read it tonight"));
   assert.ok(!has(tab("priya").out, 'data-testid="draft:'), "no draft, no card");
-  assert.equal(sendsLine("techmanager@mylegalacademy.com"), "Sends from techmanager@mylegalacademy.com when you press Send");
+  assert.equal(sendsLine("techmanager@mylegalacademy.com"), "Sends from techmanager@mylegalacademy.com when you press Allow");
 });
 
 test("screen: an agent's text draft says it drafted a text, shows the number and its Gate line, and has no subject", () => {
   const { out } = tab("marcus");
   assert.ok(has(out, 'data-testid="draft:dr_marcus"') && has(out, "drafted a text") && !has(out, "drafted a reply"));
-  assert.ok(has(out, "Sends from") && has(out, "when you press Send") && !has(out, "Gate:") && has(out, 'data-testid="draft:dr_marcus-stopped"'));
+  assert.ok(has(out, "Sends from") && has(out, "when you press Allow") && !has(out, "Gate:") && has(out, 'data-testid="draft:dr_marcus-stopped"'));
   for (const b of ["draft:dr_marcus-send", "draft:dr_marcus-edit", "draft:dr_marcus-drop"]) assert.ok(has(out, `data-testid="${b}"`), b);
   assert.ok(has(out, "resending invoice 1041 now"));
 });

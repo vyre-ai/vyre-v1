@@ -159,7 +159,7 @@ test("an approval card: an Approve task for Maya, shown in the message; her answ
   assert.equal(msgs(hn, out.threadId)[0]!["body"], "", "the card alone: its title is the ask, its detail the reason, nothing said twice");
   assert.equal((tasks[0] as { summary?: string }).summary, "Their retainer renews Monday.");
   const card = msgs(hn, out.threadId)[0]!.blocks.find((b) => b.type === "link_card")!;
-  assert.deepEqual(card.data, { icon: "approval", lead: "Approve", title: "the 10% Rivera discount", target: { type: "task", id: "tsk_card1" } });
+  assert.deepEqual(card.data, { icon: "approval", lead: "Allow", title: "the 10% Rivera discount", target: { type: "task", id: "tsk_card1" } });
   assert.equal((await onCardAnswered(hn.ctx, { name: "task.approved", payload: { taskId: "tsk_card1", by: MAYA } })).length, 1);
   assert.equal(msgs(hn, origin).at(-1)!["body"], "Maya approved: the 10% Rivera discount.");
   assert.deepEqual(await onCardAnswered(hn.ctx, { name: "task.sent_back", payload: { taskId: "tsk_card1", by: MAYA, note: "x" } }), [], "once");

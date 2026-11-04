@@ -655,7 +655,7 @@ function Card({ line, actions }: { line: CardLine; actions: MessageActions }): R
           ))}
         </View>
       ) : null}
-      {line.type === "plan" && waiting ? <View style={st.cardRow}><TextButton label="Approve plan" primary testID={`plan-approve-${line.id}`} onPress={() => actions.approvePlan(typeof line.data.planId === "string" ? line.data.planId : line.id)} /></View> : null}
+      {line.type === "plan" && waiting ? <View style={st.cardRow}><TextButton label="Allow" primary testID={`plan-approve-${line.id}`} onPress={() => actions.approvePlan(typeof line.data.planId === "string" ? line.data.planId : line.id)} /></View> : null}
       {line.type === "question" && waiting && terminalAsk && actions.terminalCard ? <TerminalCard id={line.id} why={typeof line.data.prompt === "string" ? line.data.prompt : line.title} command={terminalAsk.command} risk={terminalAsk.risk} {...(terminalAsk.host ? { host: terminalAsk.host } : {})} {...(actions.terminalCard.agentId ? { agentId: actions.terminalCard.agentId } : {})} deps={actions.terminalCard.deps} copy={actions.terminalCard.copy} openTerminal={actions.terminalCard.openTerminal} answer={actions.answer} /> : null}
       {line.type === "question" && waiting && offers && actions.mountCard ? <MountCard id={line.id} prompt={typeof line.data.prompt === "string" ? line.data.prompt : line.title} offers={offers} agents={actions.mountCard.agents} data={actions.mountCard.data} answer={actions.answer} /> : null}
       {line.type === "question" && waiting && options.length > 0 && !(offers && actions.mountCard) && !(terminalAsk && actions.terminalCard) ? (
@@ -695,7 +695,7 @@ function ErrorRowView({ block, actions }: { block: Message["blocks"][number]; ac
     return () => { live = false; clearInterval(timer); };
   }, [noAccount, asked, ready, resent, actions]);
   return (
-    <View testID={`error-${block.id}`} accessibilityRole="alert" {...menuTrigger((x, y) => actions.showMenu([{ label: "Copy Trace Id", onSelect: () => actions.copy(e.traceId) }, { label: "What Happened?", onSelect: () => setOpen((o) => !o) }], x, y, "Error"))} style={st.err}>
+    <View testID={`error-${block.id}`} accessibilityRole="alert" {...menuTrigger((x, y) => actions.showMenu([{ label: "Copy error details", onSelect: () => actions.copy(e.traceId) }, { label: "What Happened?", onSelect: () => setOpen((o) => !o) }], x, y, "Error"))} style={st.err}>
       <View style={st.errTop}><Glyph name="alert" size={15} color="var(--warn)" /><Text style={st.errMsg}>{e.message}</Text></View>
       {e.cause ? <Text style={st.errCause}>{e.cause}</Text> : null}
       <View style={st.errActions}>

@@ -90,10 +90,10 @@ export function Help({ children }: { children: string }): ReactElement | null {
 }
 export function Actions({ children }: { children: ReactNode }): ReactElement { return <View style={s.actions}>{children}</View>; }
 /** A note under a form or list. When it is a failure sentence (errorSentence), a quiet Details shows its code and trace id with Copy; they are never part of the sentence. */
-export function Note({ children }: { children: ReactNode }): ReactElement {
+export function Note({ children, testID }: { children: ReactNode; testID?: string }): ReactElement {
   const [open, setOpen] = useState(false);
   const d = detailsOf(children);
-  return <View><Text accessibilityRole="status" style={s.note}>{children}</Text>
+  return <View><Text accessibilityRole="status" {...(testID ? { testID } : {})} style={s.note}>{children}</Text>
     {d ? <View testID="note-details" style={{ marginTop: 2 }}>
       <Pressable accessibilityRole="button" accessibilityLabel="Details" accessibilityState={{ expanded: open }} testID="note-details-toggle" onPress={() => setOpen(!open)} style={{ alignSelf: "flex-start", paddingVertical: 2 }}><Text style={{ fontSize: 12, color: "var(--ink-3)" as string }}>{open ? "Hide details" : "Details"}</Text></Pressable>
       {open ? <View style={{ flexDirection: "row", alignItems: "center", gap: 10, flexWrap: "wrap" }}><Text testID="note-details-text" selectable style={{ fontSize: 11.5, color: "var(--ink-3)" as string, fontFamily: "var(--mono, monospace)" as string }}>{detailsText(d)}</Text>

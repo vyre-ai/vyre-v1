@@ -21,7 +21,7 @@ test("in review the reviewer approves or sends back with fixes; awaiting approva
   const t = work({ state: "in_review", approver: person(cara) });
   assert.deepEqual(labels(t, maya), ["Looks good, on to approval", "Send back", "Cancel the task"]);
   assert.deepEqual(labels(t, me), ["Cancel the task"], "the doer cannot approve their own work here");
-  assert.deepEqual(labels(work({ state: "awaiting_approval", approver: person(cara) }), cara).slice(0, 2), ["Approve", "Send back"]);
+  assert.deepEqual(labels(work({ state: "awaiting_approval", approver: person(cara) }), cara).slice(0, 2), ["Allow", "Send back"]);
   assert.deepEqual(labels(work({ state: "done" }), me), ["Reopen"]);
 });
 
