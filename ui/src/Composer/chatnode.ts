@@ -16,10 +16,10 @@ export const Chip = Node.create({
   inline: true,
   atom: true,
   selectable: true,
-  addAttributes() { return { text: { default: "" }, kind: { default: "mention" } }; },
+  addAttributes() { return { label: { default: "" }, kind: { default: "mention" } }; },
   parseHTML() { return [{ tag: "span.vyre-chip" }]; },
-  renderHTML({ node }) { return ["span", { class: "vyre-chip", "data-kind": String(node.attrs["kind"] ?? "mention") }, String(node.attrs["text"] ?? "")]; },
-  renderText({ node }) { return String(node.attrs["text"] ?? ""); },
+  renderHTML({ node }) { return ["span", { class: "vyre-chip", "data-kind": String(node.attrs["kind"] ?? "mention") }, String(node.attrs["label"] ?? "")]; },
+  renderText({ node }) { return String(node.attrs["label"] ?? ""); },
 });
 
 /**
