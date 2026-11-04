@@ -103,7 +103,7 @@ export function TimePop({ at, personal = false, children }: { at: number; person
   const hide = (): void => setOpen(null);
   return createElement("div", { style: { display: "contents" }, "data-testid": "time-pop", onMouseOver: show, onMouseOut: hide, onFocus: show, onBlur: hide, onKeyDown: (e: { key?: string }) => { if (e.key === "Escape") hide(); } },
     children,
-    open ? createElement("div", { role: "tooltip", "data-testid": "time-pop-card", style: { position: "fixed", left: open.left, top: open.top, zIndex: 2147483000, background: "var(--raised)", color: "var(--ink)", borderRadius: 12, boxShadow: "0 8px 28px rgba(0,0,0,0.18), 0 0 0 1px var(--line)", padding: "10px 12px", fontSize: 12.5, lineHeight: "18px", minWidth: 220, pointerEvents: "none" } },
+    open ? createElement("div", { role: "tooltip", "data-testid": "time-pop-card", style: { position: "fixed", left: open.left, top: open.top, zIndex: 2147481000, background: "var(--raised)", color: "var(--ink)", borderRadius: 12, boxShadow: "0 8px 28px rgba(0,0,0,0.18), 0 0 0 1px var(--line)", padding: "10px 12px", fontSize: 12.5, lineHeight: "18px", minWidth: 220, pointerEvents: "none" } },
       createElement("div", { style: { fontWeight: 600 }, "data-testid": "time-pop-date" }, parts.date),
       createElement("div", { "data-testid": "time-pop-space" }, createElement("span", { style: { color: "var(--ink-3)", display: "inline-block", width: 44 } }, "Space"), parts.space),
       parts.mine ? createElement("div", { "data-testid": "time-pop-mine" }, createElement("span", { style: { color: "var(--ink-3)", display: "inline-block", width: 44 } }, "You"), parts.mine) : null,

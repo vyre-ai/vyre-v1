@@ -1,7 +1,7 @@
 // Every control on the pages, pressed in a mounted tree (the test renderer, as the Console tests do) with the capability it calls asserted. The server is the sample Space, which records each call.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { find, installDom, mount, press, textOf } from "../../../../../ui/src/testing/dom.ts";
+import { find, flush, installDom, mount, press, textOf } from "../../../../../ui/src/testing/dom.ts";
 import { SettingsDataProvider } from "./data.tsx";
 import { SettingsPlace } from "./SettingsPlace.tsx";
 import { createSampleSettings, harbor, northwind } from "./sample.ts";
@@ -112,13 +112,15 @@ test("Profile: Your time zone is a city picker; choosing a city saves profile.ti
     assert.ok(picker, "the row has the zone picker");
     assert.match(textOf(root), /Your time zone/);
     await press(picker);
-    const at = new Date();
-    const hm = (zone: string): string => new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit", timeZone: zone }).format(at);
-    await press(find(root, `menu-item-Pakistan Standard Time, Karachi, ${hm("Asia/Karachi")}`) ?? find(root, `menu-item-Pakistan Time, Karachi, ${hm("Asia/Karachi")}`));
+    await flush();
+    await press(find(root, "zone-row-Asia/Karachi"));
+    await flush();
     const sets = calls("settings.set").filter((c) => (c.input as { key: string }).key === "profile.timezone");
     assert.deepEqual(sets.at(-1)!.input, { key: "profile.timezone", value: "Asia/Karachi" });
     await press(find(root, "ctl-profile.timezone"));
-    await press(find(root, "menu-item-Use this computer's time zone"));
+    await flush();
+    await press(find(root, "zone-extra"));
+    await flush();
     const device = new Intl.DateTimeFormat().resolvedOptions().timeZone;
     assert.deepEqual(calls("settings.set").filter((c) => (c.input as { key: string }).key === "profile.timezone").at(-1)!.input, { key: "profile.timezone", value: device });
   } finally { restore(); }

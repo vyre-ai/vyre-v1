@@ -11,6 +11,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "./lib.mjs";
+import { vendor } from "../../fixtures/model-vendor.ts";
 import { bootFreshSpace, claimOnEdge, dismissOnboarding, edge, ownerSession } from "../../apps/app/tests/real-app-harness.test.ts";
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
@@ -19,7 +20,14 @@ const dist = path.resolve(REPO, args.dist || "apps/app/dist");
 const out = path.resolve(REPO, args.out || "shots-out/zones-real");
 fs.rmSync(out, { recursive: true, force: true });
 fs.mkdirSync(out, { recursive: true });
-const space = await bootFreshSpace();
+// a local stand-in for the model vendor, so an agent can answer in the channel with a scripted line (fixtures/model-vendor.ts); the daemon is started with its preload
+const stand = await vendor();
+const PRELOAD = fileURLToPath(new URL("../../fixtures/model-vendor-preload.mjs", import.meta.url));
+const priorOptions = process.env["NODE_OPTIONS"];
+process.env["NODE_OPTIONS"] = `${priorOptions ?? ""} --import ${PRELOAD}`.trim();
+process.env["VYRE_TEST_VENDOR"] = stand.base;
+const space = await bootFreshSpace(undefined, true);
+if (priorOptions === undefined) delete process.env["NODE_OPTIONS"]; else process.env["NODE_OPTIONS"] = priorOptions;
 const web = await edge(dist, space.url);
 const { chromium } = await import("playwright-core");
 const browser = await chromium.launch({ args: ["--no-sandbox"] });
@@ -47,7 +55,7 @@ if (space.claim) {
   await ctx.close();
 }
 const sess = session ?? JSON.stringify(ownerSession(space, web.origin));
-const token = space.token;   // the admin token of the booted daemon: the same owner, for the API calls the page does not make
+const token = (() => { try { return JSON.parse(sess).sessions[web.origin].token; } catch { return space.token; } })();   // the claimed owner's own session token
 
 let _ctx0 = null;
 const ctx0 = () => _ctx0;
@@ -74,9 +82,11 @@ const open = async (ctx, url) => {
 };
 const pick = async (page, trigger, city) => {
   await page.getByTestId(trigger).click();
-  await page.getByTestId("menu-search").fill(city);
+  const sheet = await page.getByTestId("zone-search").waitFor({ timeout: 8000 }).then(() => true, () => false);
+  if (!sheet) { console.log("     no sheet after the click; testids: " + JSON.stringify((await page.$$eval("[data-testid]", (n) => n.map((x) => x.getAttribute("data-testid")))).slice(-40))); await page.screenshot({ path: path.join(out, "debug-no-sheet.png") }); }
+  await page.getByTestId("zone-search").fill(city);
   await page.waitForTimeout(500);
-  const items = page.locator("[data-testid^='menu-item-']").filter({ hasText: city });
+  const items = page.locator("[data-testid^='zone-row-']").filter({ hasText: city });
   console.log(`     ${city}: ${await items.count()} matching rows`);
   await items.first().click();
   await page.waitForTimeout(600);
@@ -95,7 +105,7 @@ try {
   await con.getByTestId("row-nav-space").click({ timeout: 30000 }).catch(async () => { console.log("testids: " + JSON.stringify((await con.$$eval("[data-testid]", (n) => n.map((x) => x.getAttribute("data-testid")))).slice(0, 50))); });
   say(await con.getByTestId("infra-space-timezone").waitFor({ timeout: 30000 }).then(() => true, () => false), "Console, Space, General has the Space time zone row");
   await pick(con, "infra-space-timezone", "Los Angeles");
-  const line = await con.getByTestId("row-space-timezone-confirm").innerText().catch(() => "");
+  const line = await con.getByTestId("space-timezone-confirm").innerText().catch(() => "");
   say(/will read in Pacific Time\. Deadlines already set keep their moment\./.test(line), `the confirm line reads: ${JSON.stringify(line.slice(0, 140))}`);
   await con.screenshot({ path: path.join(out, "paper-wide-1-console-confirm.png") });
   await con.getByTestId("infra-space-timezone-save").click();
@@ -142,9 +152,11 @@ try {
       if (skin === "paper" && size === "wide") {
         say(/9:00 AM \(\d{1,2}:\d{2} (AM|PM) your time\)/.test(text), `check-in reads ${JSON.stringify(text)}`);
         say(/\(10:00 PM your time\)/.test(text), "9:00 AM Pacific is 10:00 PM in Karachi (while Pacific is on winter time)");
-        const title = await page.locator("[title*='Pacific Time']").first().getAttribute("title").catch(() => null);
-        say(Boolean(title) && /Pacific Time/.test(title) && /Your time:/.test(title) && /Pakistan/.test(title), `hover names both zones: ${JSON.stringify(title)}`);
         await page.getByTestId("goal-checkin").hover();
+        await page.waitForTimeout(300);
+        const card = await page.getByTestId("time-pop-card").innerText().catch(() => "");
+        say(/Pacific Time/.test(card) && /Pakistan/.test(card), `hover card: ${JSON.stringify(card.replace(/\s+/g, " "))}`);
+        await page.getByTestId("goal-checkin").focus().catch(() => undefined);
       }
       await page.waitForTimeout(500);
     }
@@ -187,6 +199,14 @@ try {
   say(Boolean(chanThread), `channel thread ${chanThread}`);
   await api(ctx0(), "chat.post", { threadId: chanThread, body: "Kickoff is Thursday at 9:00 AM Pacific. Mira, can you send the agenda?", idempotencyKey: `zones-m1-${Date.now()}` });
   await asMira("chat.post", { threadId: chanThread, body: "On it. I will send it tonight.", idempotencyKey: `zones-m2-${Date.now()}` });
+  // an agent answers in the channel with a scripted line that carries a date, written in the Space zone the way the context asks (the stand-in scripts the words; the shot proves how they read)
+  const provider = await api(ctx0(), "providers.add", { idempotencyKey: "zones-provider", providerKey: "openai", connection: "api_key", apiKey: "sk-test-fixture-0123456789abcdef", scope: "mine" });
+  await api(ctx0(), "providers.set_space_use", { idempotencyKey: "zones-spaceuse", providerId: provider.body?.provider?.id, allow: true });
+  await api(ctx0(), "agents.update", { agentId: lead, patch: { model: "gpt-4o-mini" }, idempotencyKey: "zones-model" });
+  await api(ctx0(), "threads.add_agent", { threadId: chanThread, agentId: lead });
+  stand.script.push({ text: "Thursday works: 9:00 AM Pacific. I will put the agenda on the Redwood project page before then." });
+  await api(ctx0(), "chat.post", { threadId: chanThread, body: "When should we hold the kickoff?", mentions: [{ kind: "agent", id: lead }], idempotencyKey: `zones-ask-${Date.now()}` });
+  await new Promise((r) => setTimeout(r, 9000));
   const priv = await api(ctx0(), "chat.start", { kind: "chat", agentIds: [lead], idempotencyKey: `zones-priv-${Date.now()}` });
   const privThread = priv.body?.thread?.threadId;
   if (privThread) await api(ctx0(), "chat.post", { threadId: privThread, body: "Remind me to call Rivera at 9 tomorrow.", idempotencyKey: `zones-p1-${Date.now()}` });
@@ -217,10 +237,11 @@ try {
     say(ok, `${tag}: Console has the Space time zone row`);
     if (ok) {
       await pg.getByTestId("infra-space-timezone").click();
-      await pg.getByTestId("menu-search").fill("Los");
+      await pg.getByTestId("zone-search").fill("Los");
       await pg.waitForTimeout(400);
       await pg.screenshot({ path: path.join(out, `${tag}-console-picker.png`) });
       await pg.keyboard.press("Escape");
+      await pg.waitForTimeout(300);
       await pick(pg, "infra-space-timezone", "Tokyo");
       await pg.screenshot({ path: path.join(out, `${tag}-console-confirm.png`) });
       await pg.getByTestId("infra-space-timezone-cancel").click().catch(() => undefined);
@@ -269,7 +290,7 @@ try {
     await mp.close();
     await mc.close();
   }
-} finally { await browser.close(); web.close(); await space.stop(); }
+} finally { await browser.close(); web.close(); await space.stop(); stand.close(); }
 say(errors.length === 0, `no page errors${errors.length ? `: ${errors.join(" | ").slice(0, 400)}` : ""}`);
 say(refused.length === 0, `no refused calls${refused.length ? `: ${[...new Set(refused)].join(", ")}` : ""}`);
 console.log(failed === 0 ? "all good" : `${failed} failed`);
