@@ -6,7 +6,7 @@ import type { ReactElement } from "react";
 import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import type { ActivityStore } from "../../../shell/session/turn-streams.ts";
 import { activityLine, elapsedWords, stepLabel, thinkingExcerpt } from "./activity.ts";
-import { waitFor } from "./dwell.ts";
+import { lineWait } from "./dwell.ts";
 import { WorkingMark } from "../../../../../../ui/src/WorkingMark/index.tsx";
 import { injectCss } from "../../../../../../ui/src/theme/css.ts";
 import { useStream } from "../../../../../../ui/src/stream/useStream.ts";
@@ -64,8 +64,7 @@ function useDwelled(target: { label: string; detail: string }, done: boolean): {
   useEffect(() => {
     if (shown.label === target.label && shown.detail === target.detail) return;
     // a finished turn shows its end at once; the detail (the tail of the thinking) follows the same beat as the label
-    // the first of its thinking shows at once (a line gaining words is not a flicker); after that the excerpt moves on the same 1.5 s beat as the label
-    const wait = done || (shown.label === target.label && shown.detail === "") ? 0 : shown.label === target.label ? Math.max(0, clock.current.shownAt + 1500 - Date.now()) : waitFor(clock.current.shownAt, Date.now());
+    const wait = lineWait(shown, target, done, clock.current.shownAt, Date.now());
     const h = setTimeout(() => {
       const next = latest.current;
       setShown((cur) => { if (cur.label !== next.label) clock.current.shownAt = Date.now(); return next; });

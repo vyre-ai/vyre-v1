@@ -7,3 +7,13 @@ export const DWELL_MS = 4000;
 export function waitFor(shownAt: number, now: number, dwell = DWELL_MS): number {
   return Math.max(0, shownAt + dwell - now);
 }
+
+/** How long the same label keeps its excerpt before the excerpt moves on. */
+export const EXCERPT_BEAT_MS = 1500;
+
+/** When the line may show the newest words: now for a finished turn, now for the first of the thinking (a line gaining words is not a flicker), the excerpt's own beat when only the excerpt moves, the label's dwell when the label changes. */
+export function lineWait(shown: { label: string; detail: string }, target: { label: string; detail: string }, done: boolean, shownAt: number, now: number): number {
+  if (done) return 0;
+  if (shown.label === target.label) return shown.detail === "" ? 0 : Math.max(0, shownAt + EXCERPT_BEAT_MS - now);
+  return waitFor(shownAt, now);
+}
