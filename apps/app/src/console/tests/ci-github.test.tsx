@@ -365,9 +365,24 @@ test("when the app needs new permissions the GitHub tab opens with a Needs you r
   const { root, opened, restore } = await gh({ "members.sign_in_github.get": SIGN({ clientId: "Iv1.abc", secretSet: true, source: "space" }), "ci.settings.get": settingsOut({}, { ready: false, installed: true, missing: ["actions: read"], acceptUrl: null, orgAcceptUrl: "https://github.com/organizations/northwind/settings/installations/7/permissions/update" }) }, MADE);
   try {
     assert.match(textOf(find(root, "row-gh-need-perms")), /GitHub needs you to accept new permissions for northwind/);
+    assert.equal(find(root, "gh-foot-off"), null, "the footnote that says it needs nothing from you is hidden while the row asks for something");
     await tap(root, "gh-need-accept");
     assert.deepEqual(opened, ["url:https://github.com/organizations/northwind/settings/installations/7/permissions/update"]);
   } finally { restore(); }
+});
+
+test("with the default Vyre app, the footnote shows when nothing is asked and hides while the accept row shows", async () => {
+  const quiet = await gh({ "members.sign_in_github.get": SIGN(), "ci.settings.get": settingsOut() });
+  try { assert.ok(find(quiet.root, "gh-foot-off") !== null, "nothing asked: the footnote reads"); } finally { quiet.restore(); }
+  const asked = await gh({ "members.sign_in_github.get": SIGN(), "ci.settings.get": settingsOut({}, { ready: false, installed: true, missing: ["actions: read"], acceptUrl: "https://github.com/settings/installations/7/permissions/update", orgAcceptUrl: null }) });
+  try { assert.ok(find(asked.root, "row-gh-need-perms") !== null); assert.equal(find(asked.root, "gh-foot-off"), null, "contradiction removed"); } finally { asked.restore(); }
+});
+
+test("after Accept the page asks again on a timer so the row clears once the permissions are accepted", async () => {
+  const { ACCEPT_POLL_MS, ACCEPT_POLL_MAX_MS } = await import("../pages/GithubApp.tsx");
+  assert.ok(ACCEPT_POLL_MS >= 2000 && ACCEPT_POLL_MS <= 10000 && ACCEPT_POLL_MAX_MS >= 120_000, "a few seconds apart, for minutes");
+  const { root, restore } = await gh({ "members.sign_in_github.get": SIGN({ clientId: "Iv1.abc", secretSet: true, source: "space" }), "ci.settings.get": settingsOut() }, MADE);
+  try { assert.equal(find(root, "row-gh-need-perms"), null, "ready on the next ci.settings.get: no row"); } finally { restore(); }
 });
 
 test("the GitHub tab shows no Needs you row when the app is ready", async () => {

@@ -65,10 +65,13 @@ export const secretWord = (isSet: boolean): string => isSet ? "Set in Vault" : "
 const Value = ({ children }: { children: string }): ReactElement => <Text style={{ fontSize: 13, color: "var(--ink-3)" as string }}>{children}</Text>;
 const GhMark = (): ReactElement => <Lead><LogoTile name="github" size={30} /></Lead>;
 
+export const ACCEPT_POLL_MS = 5000;
+export const ACCEPT_POLL_MAX_MS = 300_000;
 export function GithubAppPage(): ReactElement {
   const data = useConsoleData();
   const sign = useRead<{ github: Sign }>("members.sign_in_github.get");
   const ci = useRead<CiSettings>("ci.settings.get");
+  const [accepting, setAccepting] = useState(false);
   const [app, setApp] = useState<App | null>(null);
   const [installs, setInstalls] = useState<Installs>([]);
   const [rev, setRev] = useState(0);
@@ -104,9 +107,17 @@ export function GithubAppPage(): ReactElement {
   };
   const gapp = ci.data?.githubApp;
   const acceptUrl = gapp && gapp.installed && !gapp.ready ? (gapp.acceptUrl ?? gapp.orgAcceptUrl) : null;
+  // after Accept the person is on GitHub: ask again every few seconds (up to five minutes) so the row clears by itself once the permissions are accepted
+  useEffect(() => {
+    if (!accepting || !acceptUrl) return undefined;
+    const t0 = Date.now();
+    const timer = setInterval(() => { if (Date.now() - t0 > ACCEPT_POLL_MAX_MS) { clearInterval(timer); return; } ci.refresh(); }, ACCEPT_POLL_MS);
+    (timer as unknown as { unref?: () => void }).unref?.();
+    return () => clearInterval(timer);
+  }, [accepting, acceptUrl, ci]);
   return <View testID="console-github-app">
     {acceptUrl ? <Section title="Needs you" count={1}>
-      <Group><Row id="gh-need-perms" title={`GitHub needs you to accept new permissions for ${acceptOrg(gapp?.orgAcceptUrl ?? null, data.space.name)}`} note="Until you accept them, jobs stay on GitHub's own runners." leading={<IconTile icon="warn" tone="warn" />} trailing={<Button small label="Accept" testID="gh-need-accept" onPress={() => open(acceptUrl)} />} /></Group>
+      <Group><Row id="gh-need-perms" title={`GitHub needs you to accept new permissions for ${acceptOrg(gapp?.orgAcceptUrl ?? null, data.space.name)}`} note="Until you accept them, jobs stay on GitHub's own runners." leading={<IconTile icon="warn" tone="warn" />} trailing={<Button small label="Accept" testID="gh-need-accept" onPress={() => { open(acceptUrl); setAccepting(true); }} />} /></Group>
     </Section> : null}
     <Section title="GitHub app">
       <Group>
@@ -116,7 +127,7 @@ export function GithubAppPage(): ReactElement {
           <Actions><Button label="Switch back" testID="gh-off-yes" disabled={action.busy} onPress={() => void action.run("members.sign_in_github.clear", {}, "Members use the Vyre GitHub app").then(() => { setConfirm(false); setWantOwn(false); })} /><Button label="Cancel" testID="gh-off-cancel" onPress={() => setConfirm(false)} /></Actions>
         </View> : null}
       </Group>
-      {on ? null : <Foot top={14} testID="gh-foot-off">The Vyre GitHub app needs nothing from you. Switch to your own app if your GitHub org requires it, or you want its name on the permission screen.</Foot>}
+      {on || acceptUrl ? null : <Foot top={14} testID="gh-foot-off">The Vyre GitHub app needs nothing from you. Switch to your own app if your GitHub org requires it, or you want its name on the permission screen.</Foot>}
     </Section>
     {on ? <>
       <Section title="App details">
