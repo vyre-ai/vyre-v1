@@ -1,0 +1,1 @@
+- Tabs: opening a place that already has a tab goes to that tab instead of adding a second one (one tab per place, one per chat or record), and tab lists saved with duplicates close the older ones when the Space opens, keeping the one used last.

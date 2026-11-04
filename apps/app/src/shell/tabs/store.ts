@@ -18,6 +18,8 @@ export interface TabEntry {
   /** The "+" tab: one search that opens anything. */
   isNew?: boolean;
   pinned?: boolean;
+  /** When the tab was last the selected one (ms): the most recent of two tabs for the same thing is the one that stays. */
+  at?: number;
 }
 
 export interface TabsState {
@@ -75,6 +77,12 @@ export function openTab(state: TabsState, tab: TabEntry, background = false): Ta
     // the tab follows where its place went (a new screen inside it), so coming back lands there
     const moved = tab.hash !== undefined && tab.hash !== at.hash && !at.isNew;
     return { tabs: moved ? state.tabs.map((t) => (t === at ? { ...t, hash: tab.hash as string } : t)) : state.tabs, active: at.key };
+  }
+  // a place that already has a tab is that tab: opening the place (no item named) goes to the one it has, the one on screen first, else the one used last; one tab per place, and one per chat or record
+  if (tab.hash === undefined && tab.isNew !== true) {
+    const same = state.tabs.filter((t) => t.place === tab.place && t.isNew !== true);
+    const there = same.find((t) => t.key === state.active) ?? [...same].sort((a, b) => (b.at ?? 0) - (a.at ?? 0))[0] ?? undefined;
+    if (there !== undefined) return background ? state : { tabs: state.tabs, active: there.key };
   }
   const tabs = [...state.tabs, tab];
   return { tabs, active: background && state.active !== "" ? state.active : tab.key };
@@ -169,6 +177,31 @@ export function tabsStorageKey(deviceId: string, personId: string, spaceId: stri
   return `vyre.tabs.v1:${deviceId}:${personId}:${spaceId}`;
 }
 
+/**
+ * Tabs saved before the rule held can show the same thing twice. One tab stays for each thing, the one used last, in the place of the first; and of the tabs of one place that still carry only the
+ * place's own name (an item whose name never arrived, "Chats" again), one stays too.
+ */
+export function dedupeTabs(state: TabsState): TabsState {
+  const newest = (a: TabEntry, b: TabEntry): TabEntry => ((b.at ?? 0) >= (a.at ?? 0) && state.tabs.indexOf(b) > state.tabs.indexOf(a)) || (b.at ?? 0) > (a.at ?? 0) ? b : a;
+  const winner = new Map<string, TabEntry>();
+  for (const t of state.tabs) {
+    if (t.isNew === true) continue;
+    const id = tabKey(t.place, t.hash);
+    const nameless = t.hash !== undefined && t.title === PLACE_TITLE[t.place] && t.key !== t.place ? `nameless:${t.place}` : undefined;
+    for (const k of nameless === undefined ? [id] : [id, nameless]) { const cur = winner.get(k); winner.set(k, cur === undefined ? t : newest(cur, t)); }
+  }
+  const keep = (t: TabEntry): boolean => {
+    if (t.isNew === true) return true;
+    const id = tabKey(t.place, t.hash);
+    if (winner.get(id) !== t) return false;
+    const nameless = t.hash !== undefined && t.title === PLACE_TITLE[t.place] && t.key !== t.place ? `nameless:${t.place}` : undefined;
+    return nameless === undefined || winner.get(nameless) === t;
+  };
+  const tabs = state.tabs.filter((t) => keep(t) || t.pinned === true);
+  if (tabs.length === state.tabs.length) return state;
+  return { tabs, active: tabs.some((t) => t.key === state.active) ? state.active : ([...tabs].sort((a, b) => (b.at ?? 0) - (a.at ?? 0))[0]?.key ?? "") };
+}
+
 export function writeTabs(state: TabsState): string {
   return JSON.stringify({ v: 1, active: state.active, tabs: state.tabs });
 }
@@ -194,7 +227,7 @@ export function readTabs(raw: string | null): TabsState | null {
   const renamed = new Map<string, string>();
   for (const row of data["tabs"] as unknown[]) {
     if (!isRecord(row)) return null;
-    const { key, title, place, hash, isNew, pinned } = row;
+    const { key, title, place, hash, isNew, pinned, at } = row;
     if (typeof key !== "string" || typeof title !== "string" || typeof place !== "string" || !KNOWN_PLACES.has(place)) return null;
     const hashText = typeof hash === "string" && hash !== "" ? hash : undefined;
     // a tab saved on Home reopens in Chats, where Home went
@@ -214,6 +247,7 @@ export function readTabs(raw: string | null): TabsState | null {
       ...(typeof hash === "string" && hash !== "" ? { hash } : {}),
       ...(isNew === true ? { isNew: true } : {}),
       ...(pinned === true ? { pinned: true } : {}),
+      ...(typeof at === "number" ? { at } : {}),
     });
   }
   const active = renamed.get(data["active"]) ?? data["active"];
@@ -269,14 +303,16 @@ export function createTabsController(options: TabsControllerOptions): TabsContro
       raw = null;
     }
     const saved = readTabs(raw);
-    const kept = saved === null ? null : withoutPlaces(saved, hidden);
+    const kept = saved === null ? null : dedupeTabs(withoutPlaces(saved, hidden));
     return kept !== null && kept.tabs.length > 0 ? kept : openTab(EMPTY_TABS, placeTab(options.start));
   })();
   const listeners = new Set<() => void>();
 
   const set = (given: TabsState): void => {
     // closing the last tab leaves the Space's start place open, never an empty stage
-    const next = given.tabs.length === 0 ? openTab(EMPTY_TABS, placeTab(options.start)) : given;
+    let next = given.tabs.length === 0 ? openTab(EMPTY_TABS, placeTab(options.start)) : given;
+    // the tab the person is on is the one used last: stamp it, so "the most recent" has a meaning
+    if (next.active !== state.active || state.tabs.length === 0) next = { tabs: next.tabs.map((t) => (t.key === next.active ? { ...t, at: Date.now() } : t)), active: next.active };
     if (next === state) return;
     state = next;
     try {
