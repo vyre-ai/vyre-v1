@@ -14,7 +14,7 @@
       "proto": "pj-rivera,{skin}",
       "waitFor": "[data-testid='link-peek-lnk_5']",
       "steps": [
-        "click|link-open-lnk_5"
+        "click|row-lk-lnk_5"
       ],
       "note": "A file the viewer cannot open: only its kind, a read-only peek, Ask for access."
     },
@@ -24,7 +24,7 @@
       "proto": "pj-rivera,{skin}",
       "waitFor": "[data-testid='link-asked-lnk_5']",
       "steps": [
-        "click|link-open-lnk_5",
+        "click|row-lk-lnk_5",
         "click|link-ask-lnk_5"
       ],
       "note": "After Ask for access."
@@ -171,6 +171,37 @@
       "waitFor": "[data-testid='ci-rows']",
       "steps": [],
       "note": "A project whose only link to its repository is a repo rule: its CI rows show."
+    },
+    {
+      "id": "LINKED_01-ci",
+      "route": "/m/LINKED_01?part=tab",
+      "proto": "pj-rivera,{skin}",
+      "waitFor": "[data-testid='ci-fix']",
+      "steps": [
+        "see|ci-fix"
+      ],
+      "note": "The CI rows scrolled into view: status, the failure line and the fix card."
+    },
+    {
+      "id": "LINKED_01-rules",
+      "route": "/m/LINKED_01?part=tab",
+      "proto": "pj-rivera,{skin}",
+      "waitFor": "[data-testid='linked-rules']",
+      "steps": [
+        "see|linked-rules"
+      ],
+      "note": "Link automatically: the rules with their counts."
+    },
+    {
+      "id": "LINKED_01-accept-ci",
+      "route": "/m/LINKED_01?part=accept",
+      "proto": "pj-rivera,{skin}",
+      "waitFor": "[data-testid='ci-accept']",
+      "steps": [
+        "click|ci-accept-ask",
+        "see|ci-fix"
+      ],
+      "note": "After Ask an admin, the CI rows below the line."
     }
   ]
 }

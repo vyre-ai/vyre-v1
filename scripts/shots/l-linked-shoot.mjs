@@ -42,6 +42,7 @@ for (const t of targets) for (const skin of ["paper", "graphite"]) for (const [s
     const [kind, id, ...rest] = step.split("|");
     const loc = page.locator(`[data-testid="${id}"]`).first();
     if (kind === "click") await loc.click({ timeout: 5000 }).catch((e) => errs.push("click " + id + " " + String(e).slice(0, 80)));
+    else if (kind === "see") await loc.scrollIntoViewIfNeeded({ timeout: 5000 }).catch(() => errs.push("see " + id));
     else if (kind === "fill") await loc.fill(rest.join("|")).catch((e) => errs.push("fill " + id));
     await page.waitForTimeout(350);
   }
