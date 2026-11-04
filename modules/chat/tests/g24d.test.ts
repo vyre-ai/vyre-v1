@@ -30,8 +30,8 @@ async function refuses(hn: Harness, name: string, code: string, run: () => Promi
   assert.ok((cap(name).errors as readonly string[]).includes(code), `${name} does not declare ${code}`);
 }
 
-test("the table holds the thirteen capabilities of this group, all frozen chat capabilities, each example input valid", () => {
-  assert.equal(NAMES.length, 13);
+test("the table holds the nineteen capabilities of this group, all frozen chat capabilities, each example input valid", () => {
+  assert.equal(NAMES.length, 19);   // the 13, plus chat.question.withdraw (l-learn2), chat.helper.steer (l-crews: ask a running helper) and the three helper notes (chat.helper.note, chat.helper.note_seen, chat.helper.notes), plus chat.helper.restart (Change model)
   for (const name of NAMES) {
     const c = cap(name);
     assert.equal(c.module, "chat", name);
@@ -133,7 +133,7 @@ test("chat.question.ask writes the block the answer capability expects", async (
   assert.deepEqual(hn.names().sort(), ["block.waiting", "message.received"]);
   assert.equal(hn.rows("SELECT state FROM chat_block WHERE id = ?", out.blockId)[0]!["state"], "waiting");
   assert.deepEqual(await answerBlock(hn.ctx, { threadId, blockId: out.blockId, answer: "b" }), { ok: true });
-  const free = await g["chat.question.ask"](hn.agent(), { threadId, prompt: "Anything else?", mode: "free" });
+  const free = await g["chat.question.ask"](hn.agent(), { threadId, prompt: "Is there anything else?", mode: "free" });
   assert.deepEqual(await answerBlock(hn.ctx, { threadId, blockId: free.blockId, answer: "No" }), { ok: true });
   await refuses(hn, "chat.question.ask", "validation.bad_input", () => g["chat.question.ask"](hn.agent(), { threadId, prompt: "Pick", mode: "single" }));
   await refuses(hn, "chat.question.ask", "validation.bad_input", () => g["chat.question.ask"](hn.agent(), { threadId, prompt: "Pick", mode: "multi", options: [{ key: "a", label: "A" }, { key: "a", label: "B" }] }));
@@ -161,7 +161,7 @@ test("a question can carry a terminal card, and what the person ran comes back a
   const stored = JSON.parse(String(hn.rows("SELECT data FROM chat_block WHERE id = ?", q.blockId)[0]!["data"])) as { card?: unknown };
   assert.deepEqual(stored.card, card);
   assert.deepEqual(await answerBlock(hn.ctx, { threadId, blockId: q.blockId, answer: { other: "Ran in my terminal (exit 0):\nffmpeg installed" } }), { ok: true });
-  const plain = await g["chat.question.ask"](hn.agent(), { threadId, prompt: "Which?", mode: "free" });
+  const plain = await g["chat.question.ask"](hn.agent(), { threadId, prompt: "Which one do you want?", mode: "free" });
   assert.equal(JSON.parse(String(hn.rows("SELECT data FROM chat_block WHERE id = ?", plain.blockId)[0]!["data"])).card, undefined);
 });
 
@@ -280,7 +280,7 @@ test("handoff opens a linked thread for the other agent and counts the hop", asy
   assert.deepEqual(hn.named("agent.handoff")[0]!.payload, { fromThreadId: threadId, toThreadId: out.thread["threadId"], fromAgentId: INTAKE, toAgentId: REVIEWER, depth: 1 });
 
   // an agent's last line makes the next handoff a second hop; a third is over the limit of 2
-  await g["chat.question.ask"](hn.agent(), { threadId, prompt: "Ok?", mode: "free" });
+  await g["chat.question.ask"](hn.agent(), { threadId, prompt: "Is this plan okay to run?", mode: "free" });
   hn.raw.run("UPDATE chat_message SET depth = 1 WHERE thread = ?", threadId);
   assert.equal((await g["chat.handoff"](hn.agent(INTAKE), input)).depth, 2);
   hn.raw.run("UPDATE chat_message SET depth = 2 WHERE thread = ?", threadId);

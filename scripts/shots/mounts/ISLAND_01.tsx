@@ -7,6 +7,7 @@ import { createThemeController } from "../../../ui/src/theme/index.ts";
 import type { ThemeRoot } from "../../../ui/src/theme/index.ts";
 import { Conversation } from "../../../apps/app/src/places/chats/conversation/Conversation.tsx";
 import { createSample } from "../../../apps/app/src/places/chats/conversation/sample.ts";
+import { createStreamStore } from "../../../ui/src/stream/index.ts";
 import type { Message } from "../../../apps/app/src/places/chats/conversation/model.ts";
 
 export const title = "The Island above the composer";
@@ -34,7 +35,10 @@ function Page({ view, skin }: { view: string; skin: string }): ReactNode {
   }, [skin]);
   const sample = useMemo(() => {
     const s = createSample("streaming");
-    if (view === "working") return s.data;
+    // an agent is writing now (a live turn), as in a real chat: without one nobody is working and the Island is rightly not there
+    const turns = [{ turnId: "trn_island", threadId: s.data.threadId, agentId: "agt_intake", store: createStreamStore(), state: "writing" as const, startedAt: Date.now() - 20_000 }];
+    const withLive = (): typeof s.data => ({ ...s.data, live: { turnsOf: () => turns, subscribe: () => () => undefined, settle: () => undefined, seed: () => undefined, onGap: () => () => undefined } } as typeof s.data);
+    if (view === "working") return withLive();
     const rows = (s.replica.rows("messages") as unknown as (Message & { id: string })[]).filter((m) => m.threadId === s.data.threadId).sort((a, b) => a.threadSeq - b.threadSeq);
     const last = rows[rows.length - 1]!;
     const asks = view === "several" ? ASKS : ASKS.slice(0, 1);
@@ -46,7 +50,7 @@ function Page({ view, skin }: { view: string; skin: string }): ReactNode {
       } as unknown as Message;
       s.replica.put("messages", [{ id: m.messageId, ...m }]);
     });
-    return s.data;
+    return withLive();
   }, [view]);
   return <View testID="island-mount" style={{ flex: 1, backgroundColor: "var(--win)" as string }}><Conversation data={sample} /></View>;
 }

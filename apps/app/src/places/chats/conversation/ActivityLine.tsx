@@ -74,7 +74,7 @@ function useDwelled(target: { label: string; detail: string }, done: boolean): {
   return shown;
 }
 
-export function ActivityLine({ store, stream }: { store: ActivityStore; stream?: StreamStore | undefined }): ReactElement {
+export function ActivityLine({ store, stream, face }: { store: ActivityStore; stream?: StreamStore | undefined; /** Draws in place of the product mark (a thread shows the agent's own face). */ face?: ReactElement | undefined }): ReactElement {
   ensureCss();
   const snap = useSyncExternalStore(store.subscribe, store.get, store.get);
   const [open, setOpen] = useState(false);
@@ -88,7 +88,7 @@ export function ActivityLine({ store, stream }: { store: ActivityStore; stream?:
   const inner = (
     <View testID="activity" style={st.root}>
       <Pressable accessibilityRole="button" accessibilityState={{ expanded: open }} accessibilityLabel={`${line.label}. ${open ? "Hide" : "Show"} what it is doing`} testID="activity-line" onPress={() => setOpen((o) => !o)} style={st.row}>
-        <WorkingMark state={state} step={line.label} size={20} testID="working-mark" />
+        {face ?? <WorkingMark state={state} step={line.label} size={20} testID="working-mark" />}
         <Text accessibilityLiveRegion="polite" style={st.label}>{Platform.OS === "web" ? createElement("span", { className: "vy-shimmer" }, createElement("span", { key: line.label, className: "vy-fade" }, line.label)) : line.label}</Text>
         <Elapsed since={snap.startedAt} done={snap.done} />
         {line.detail !== "" ? <Text numberOfLines={1} testID="activity-excerpt" style={st.detail}>{line.detail}</Text> : null}

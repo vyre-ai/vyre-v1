@@ -13,7 +13,7 @@ import { blockSchema, id, level, pageIn, pageOut, principalRef, purgeOut, replyT
 
 const threadKind = t.enm('chat', 'channel', 'thread', 'ask', 'run', 'helper', 'console');
 const agentMode = t.enm('lead', 'listen');
-// How an agent answers in one chat (the Add people and agents sheet): lead = Answers everything, listen = Answers when tagged, quiet = Listening (reads, posts only when poked). A quiet agent shows as mode 'listen' with quiet true.
+// How an agent answers in one chat (the Add people and agents sheet): lead = Answers everything, listen = Answers when mentioned, quiet = Only listens (reads, posts only when poked). A quiet agent shows as mode 'listen' with quiet true.
 const agentSetMode = t.enm('lead', 'listen', 'quiet');
 const agentWhen = t.enm('always', 'topics', 'hours');
 const agentStyle = t.enm('short', 'full');
@@ -30,7 +30,10 @@ const threadRow = t.obj({
   threadId: id.thread, kind: threadKind, title: t.opt(t.str()), starter: t.opt(t.str()), channelId: t.opt(id.channel),
   parentThreadId: t.opt(id.thread), parentMessageId: t.opt(id.message), recordId: t.opt(id.record), folderId: t.opt(id.folder),
   scopeType: t.opt(t.str({ examples: ['record'] })), scopeId: t.opt(t.str()), listed: t.bool(), planMode: t.bool(), mode: t.opt(chatMode),
+  agentRepliesInThreads: t.opt(t.bool({ description: 'Agents reply in the thread under the message that asked them (a chat or channel only): on for a project or channel main chat, off for direct chats unless the person turns it on' })),
   members: t.arr(principalRef), agents: t.arr(threadAgent), createdAt: t.ts(), closedAt: t.opt(t.ts()),
+  joinedAt: t.opt(t.rec()),   // person id to the time they joined, for every person after the first
+  sharedAt: t.opt(t.ts()),   // when a second person joined: messages before it were not said to the room
   replyCount: t.opt(t.int({ minimum: 0, description: 'Messages in the thread that are not deleted' })), lastMessageAt: t.opt(t.ts()),
   path: t.opt(t.arr(t.obj({ title: t.str(), threadId: id.thread }), { description: 'Address bar parts for helper chats, each a link back' })),
   // threads.list only, for the asker: what the Threads page and the line under a message show
@@ -106,7 +109,7 @@ export default defineManifest({
     }, 'thread', { parent: { entity: 'thread', field: 'thread' }, parentField: 'thread', fts: ['body'], sync: { window: { days: 90 }, profile: { desktop: 'all', phone: 'window', web: 'all' } } }),
     entity('thread', 'chat_thread', 'thr_', {
       kind: 'choice', title: 'text', starter: 'person', recordId: 'text', folderId: 'text', scopeType: 'text', scopeId: 'text', channelId: 'text',
-      parentThreadId: 'text', parentMessageId: 'text', listed: 'checkbox', modePlan: 'checkbox', createdAt: 'datetime', closedAt: 'datetime',
+      parentThreadId: 'text', parentMessageId: 'text', listed: 'checkbox', modePlan: 'checkbox', repliesIn: 'number', createdAt: 'datetime', closedAt: 'datetime',
     }, 'thread', { ownerField: 'starter', fts: ['title'], sync: { window: { recentCount: 200, starred: true } } }),
     entity('thread_member', 'chat_thread_member', 'thm_', { thread: 'text', principal: 'text', role: 'choice', fromAt: 'datetime' }, 'thread', { parent: { entity: 'thread', field: 'thread' }, parentField: 'thread' }),
     entity('thread_agent', 'chat_thread_agent', 'tha_', {
@@ -160,6 +163,9 @@ export default defineManifest({
     write('threads.set_mode', 'Set how much the agents of a chat may do alone: auto (the default), ask (Ask first) or plan. Anything that leaves Vyre is held for a yes in every mode', {
       in: { ...threadT, mode: chatMode }, out: { thread: threadRow }, on: ['thread', '/threadId'], level: 'use', emits: ['thread.updated', 'thread.plan_mode_changed'], tool: 'chats', offline: 'queue', idem: 'natural',
     }),
+    write('threads.set_agent_replies', 'Choose where the agents of a chat reply: in the thread under the message that asked them, or in the chat itself. Approvals and answers an agent marks Also send to the chat still come to the chat', {
+      in: { ...threadT, inThreads: t.bool() }, out: { thread: threadRow }, on: ['thread', '/threadId'], level: 'use', emits: ['thread.updated'], tool: 'chats', offline: 'queue', idem: 'natural', errors: ['validation.not_found', 'validation.bad_input'],
+    }),
     write('threads.agent.configure', 'Pick the model, provider, effort or account an agent answers with, for this chat or as the agent default; null clears a field', {
       in: {
         ...threadT, agentId: id.agent, model: t.opt(t.nullable(t.str())), provider: t.opt(t.nullable(t.str())), effort: t.opt(t.nullable(effort)), accountRef: t.opt(t.nullable(t.str())),
@@ -199,6 +205,13 @@ export default defineManifest({
     write('threads.mark_read', 'Mark a thread read up to a sequence number, or unread again (the newest message from someone else counts as new)', {
       in: { ...threadT, upto: t.opt(t.int()), unread: t.opt(t.bool()) }, out: { unread: t.int() }, on: ['thread', '/threadId'], level: 'view', tool: 'chats', offline: 'queue', idem: 'natural', risk: 'low',
     }),
+    write('threads.mark_unread_from', 'Mark a thread unread from one message on: the read point goes back to just before that message, so it and everything after it count as new (it never moves the point forward)', {
+      in: { ...threadT, seq: t.int({ minimum: 1, description: 'The threadSeq of the first message to count as new again' }) }, out: { unread: t.int() }, on: ['thread', '/threadId'], level: 'view', tool: 'chats', offline: 'queue', idem: 'natural', risk: 'low', errors: ['validation.bad_input'],
+    }),
+    write('threads.move', 'Move a chat into a project: it then belongs to the project (its memory and its people). Needs Manage on the chat and the right to add to the project; audited', {
+      in: { ...threadT, projectId: id.project }, out: { thread: threadRow }, on: ['thread', '/threadId'], level: 'manage', emits: ['thread.updated'], audit: 'always', risk: 'medium', idem: 'natural', tool: 'chats',
+      errors: ['validation.not_found', 'validation.bad_input', 'validation.precondition_failed', 'permission.role_lacks_permission'],
+    }),
     write('threads.add_agent', 'Add an agent to a thread as listening (or leading when it is the only agent)', {
       in: { ...threadT, agentId: id.agent, mode: t.opt(agentMode) }, out: { thread: threadRow }, on: ['thread', '/threadId'], perm: 'channels.agents',
       emits: ['agent.engaged'], tool: 'chats', errors: ['validation.precondition_failed'],
@@ -219,7 +232,7 @@ export default defineManifest({
     }),
     write('threads.poke', 'Poke an agent: one turn for it now, even if it is listening. It reads the last 12 messages and tool calls, answers the poker, and its reply carries "Poked by <person>". An outside agent gets the poke in its queue', {
       in: { ...threadT, agentId: id.agent, note: t.opt(t.str({ description: 'A line for the agent, shown in the chat' })) },
-      out: { messageId: id.message, delivered: t.enm('engine', 'outside_queue') }, on: ['thread', '/threadId'], level: 'use', idem: 'none', risk: 'low', emits: ['message.received', 'agent.engaged'], tool: 'chats', offline: 'online',
+      out: { messageId: id.message, delivered: t.enm('engine', 'outside_queue') }, on: ['thread', '/threadId'], level: 'use', idem: 'none', risk: 'low', emits: ['message.received', 'agent.engaged', 'message.direct', 'message.mentioned', 'thread.replied', 'thread.unarchived', 'thread.updated'], tool: 'chats', offline: 'online',
       errors: ['validation.not_found', 'validation.bad_input', 'permission.no_grant', 'validation.precondition_failed'],
     }),
     read('chat.read_floor', 'Where the caller\'s reading of one chat starts: the time they were added without Include earlier messages, or nothing when they read all of it. The engine tells an agent so before it answers them', {
@@ -232,7 +245,7 @@ export default defineManifest({
     }),
     write('threads.outside_agent.add', 'Bring an outside agent into this chat with exactly this chat, its project, files folder and record, each tagged with the chat; it shows as "<person> (Agent)" and removing it ends access at once. You can only give what you hold', {
       in: { ...threadT, agentId: id.agent, mode: t.opt(agentSetMode) }, out: { thread: threadRow, granted: t.arr(t.obj({ type: t.str(), id: t.str(), level: t.str() })) },
-      on: ['thread', '/threadId'], level: 'use', perm: 'channels.agents', idem: 'natural', audit: 'always', emits: ['agent.engaged'], tool: 'chats', offline: 'online',
+      on: ['thread', '/threadId'], level: 'use', perm: 'channels.agents', idem: 'natural', audit: 'always', emits: ['agent.engaged', 'thread.updated'], tool: 'chats', offline: 'online',
       errors: ['validation.not_found', 'validation.bad_input', 'permission.not_contained', 'permission.no_grant', 'validation.precondition_failed'],
     }),
     write('threads.outside_agent.remove', 'Take an outside agent out of this chat and end every grant that bringing it in gave, at once', {
@@ -273,7 +286,7 @@ export default defineManifest({
       in: {
         ...threadT, body: t.str(), blocks: t.opt(t.arr(t.obj({ type: t.str(), v: t.int({ minimum: 1 }), data: t.json() }))), attachments: t.opt(t.arr(id.file)),
         replyTo: t.opt(id.message), mentions: t.opt(t.arr(mention)), via: t.opt(t.obj({ routineOwner: id.user })), clientId: t.opt(id.message),
-        screen: t.opt(screenContext),
+        screen: t.opt(screenContext), alsoToChat: t.opt(t.bool({ description: 'From a thread: also put these words in the chat the thread hangs in, marked as coming from the thread' })),
       },
       out: { message: messageRow }, on: ['thread', '/threadId'], level: 'use', idem: 'key',
       emits: ['message.received', 'message.mentioned', 'message.direct', 'thread.replied', 'thread.unarchived', 'agent.engaged'], tool: 'chats', offline: 'queue', hook: true, cli: 'vyre chat post',
@@ -323,6 +336,10 @@ export default defineManifest({
       out: { factId: id.fact, layer: t.enm('project', 'person'), merged: t.bool(), projectId: t.opt(id.project), projectTitle: t.opt(t.str()), by: t.str() },
       on: ['thread', '/threadId'], level: 'use', idem: 'key', tool: 'chats', offline: 'online', risk: 'low', agent: { planMode: 'blocked' }, errors: ['validation.bad_input', 'validation.not_found', 'permission.provider_label'],
     }),
+    write('chat.noted', 'The quiet line memory leaves in a place other people share when it remembers something: "Noted: decision, go with Harbor" with Undo. One link-card line; Undo is memory.undo on the fact', {
+      in: { ...threadT, factId: id.fact, kind: t.str(), text: t.str(), replaces: t.opt(id.fact), disputed: t.opt(t.bool()), question: t.opt(t.obj({ questionId: t.str(), a: t.obj({ text: t.str(), by: t.str(), at: t.ts() }), b: t.obj({ text: t.str(), by: t.str(), at: t.ts() }) })) }, out: { posted: t.bool() },
+      on: ['thread', '/threadId'], level: 'use', tool: 'chats', offline: 'online', risk: 'low', idem: 'natural', errors: ['validation.not_found'],
+    }),
     write('chat.pin', 'Mark a message as pinned (a content marker, not a Star)', {
       in: { messageId: id.message, threadId: id.thread }, out: { pinned: t.bool() }, on: ['thread', '/threadId'], emits: ['message.pinned'], tool: 'chats', offline: 'patch', idem: 'natural',
     }),
@@ -332,6 +349,11 @@ export default defineManifest({
     read('chat.messages.list', 'Messages of a thread by sequence window (last 50 first, older stream in)', {
       in: { ...threadT, before: t.opt(t.int()), after: t.opt(t.int()), limit: t.opt(t.int({ minimum: 1, maximum: 200 })) },
       out: { messages: t.arr(messageRow), hasMore: t.bool() }, on: ['thread', '/threadId'], tool: 'chats', label: 'filter',
+    }),
+    read('chat.pace_of', "How a teammate answers, for their profile: usual reply time over the last 30 days, and for one chat how they hear about it. Reads only chats you are in with them", {
+      in: { personId: id.user, threadId: t.opt(id.thread) },
+      out: { replies: t.enm('minutes', 'hour', 'day', 'slow', 'unknown'), samples: t.int({ minimum: 0 }), notifies: t.opt(t.enm('all', 'mentions', 'off')) },
+      tool: 'chats', label: 'check',
     }),
     read('chat.catch_up', 'What you missed in a thread since you last read it: counts, who wrote, tasks and decisions that landed, and messages with an @ in them. A plain read, kept until something new arrives', {
       in: threadT,
@@ -391,6 +413,10 @@ export default defineManifest({
       out: { offered: t.bool(), why: t.opt(t.enm('off', 'already_offered', 'too_soon', 'declined_recently')), blockId: t.opt(id.block), messageId: t.opt(id.message) },
       on: ['thread', '/threadId'], level: 'use', tool: 'chats', mcpName: 'offer_note', agent: { planMode: 'blocked', blocks: ['note_offer'] }, errors: ['validation.bad_input', 'validation.not_found'],
     }),
+    write('chat.hook_line', 'Hooks module only: leave a quiet line in a chat when a hook is added, changed, removed or paused, when one stops something, or when one could not finish', {
+      in: { ...threadT, body: t.str({ maxLength: 400 }), kind: t.enm('added', 'changed', 'removed', 'paused', 'resumed', 'blocked', 'failed', 'allowed', 'asked'), hookId: t.opt(t.str()), scope: t.opt(t.str()), by: t.opt(t.str()), byKind: t.opt(t.enm('admin', 'person', 'agent')), reason: t.opt(t.str({ maxLength: 300 })), tool: t.opt(t.str({ maxLength: 80 })), subject: t.opt(t.str({ maxLength: 200 })), agentId: t.opt(id.agent), next: t.opt(t.arr(t.obj({ label: t.str({ maxLength: 40 }), ask: t.str({ maxLength: 200 }) }), { maxItems: 2 })) },
+      out: { messageId: id.message }, on: ['thread', '/threadId'], level: 'use', errors: ['validation.bad_input', 'validation.not_found'],
+    }),
     write('chat.note_offer.answer', 'Save or dismiss an offer to keep something from this chat as a note. Save makes the person\'s own private note that links back to the message', {
       in: { ...threadT, blockId: id.block, decision: t.enm('save', 'dismiss') }, out: { state: t.enm('saved', 'dismissed'), noteId: t.opt(t.str()) },
       on: ['thread', '/threadId'], level: 'use', offline: 'online', agent: false, errors: ['validation.not_found', 'validation.precondition_failed'],
@@ -399,7 +425,10 @@ export default defineManifest({
       in: { ...threadT, blockId: id.block, answer: t.json() }, out: { ok: t.bool() }, on: ['thread', '/threadId'], level: 'use',
       emits: ['block.answered'], tool: 'chats', offline: 'queue', errors: ['validation.precondition_failed'],
     }),
-    write('chat.question.ask', 'Ask the person a structured question (single, multi or free text); the turn parks until it is answered', {
+    write('chat.question.withdraw', 'Take back a question: its turn ended without waiting for it. The card closes as withdrawn and its task leaves the Needs you list. Only the agent that asked, or a person in the chat', {
+      in: { ...threadT, blockId: id.block }, out: { withdrawn: t.bool() }, on: ['thread', '/threadId'], level: 'use', emits: ['block.withdrawn'], errors: ['validation.not_found', 'permission.no_grant'],
+    }),
+    write('chat.question.ask', 'Ask the person a structured question (single, multi or free text); the turn parks until it is answered and makes no further model call; a question of fewer than three words, or only a test, is refused', {
       in: {
         ...threadT, prompt: t.str(), mode: t.enm('single', 'multi', 'free'), options: t.opt(t.arr(option)), allowOther: t.opt(t.bool()),
         recommended: t.opt(t.int({ minimum: 0, description: 'The position (0 is the first) of the option you recommend; it is drawn as the main choice' })),
@@ -437,13 +466,37 @@ export default defineManifest({
     write('chat.helper.start', 'Start a helper sub-task thread with its own model, provider and effort; helper chats are read-only', {
       in: {
         ...threadT, title: t.str(), instruction: t.str(), agentId: t.opt(id.agent), model: t.opt(t.str()), provider: t.opt(t.str()), effort: t.opt(effort),
+        account: t.opt(t.str({ description: 'An account from models_for_helpers: its ref, or its label' })), why: t.opt(t.str({ description: 'Why this model: "cheap reader", "strong for reasoning" or "you asked"', examples: ['cheap reader'] })),
         crew: t.opt(t.bool()), taskId: t.opt(id.task),
       },
       out: { helper: threadRow, blockId: id.block }, on: ['thread', '/threadId'], level: 'use', emits: ['helper.started', 'thread.started', 'message.received', 'thread.unarchived'],
       tool: 'chats', mcpName: 'sub_task_model', agent: { planMode: 'blocked', blocks: ['model_switch', 'helper'] },
     }),
+    write('chat.helper.steer', 'Ask a helper that is working something, in its own chat: the person it works for only, while it runs', {
+      in: { ...threadT, body: t.str({ maxLength: 20000 }) }, out: { messageId: id.message }, on: ['thread', '/threadId'], level: 'use', idem: 'key', emits: ['message.received', 'helper.note', 'message.direct', 'message.mentioned', 'thread.replied', 'thread.unarchived'], tool: 'chats', errors: ['validation.not_found', 'validation.precondition_failed'],
+    }),
+    write('chat.helper.note', 'Note between a helper and the agent that started it: a follow-up down, progress, a result or a question up. Set needsPerson only when no one but the person can answer', {
+      in: {
+        ...threadT, body: t.str({ maxLength: 20000 }), kind: t.opt(t.enm('followup', 'progress', 'question', 'result')), needsPerson: t.opt(t.bool()),
+        options: t.opt(t.arr(t.obj({ key: t.str(), label: t.str() }), { maxItems: 20 })),
+      },
+      out: { messageId: id.message }, on: ['thread', '/threadId'], level: 'use', emits: ['helper.note', 'message.received', 'block.waiting', 'message.direct', 'message.mentioned', 'thread.replied', 'thread.unarchived'], tool: 'chats', mcpName: 'helper_note', deferred: true, agent: { planMode: 'blocked' },
+      errors: ['validation.not_found', 'validation.precondition_failed', 'validation.bad_input'],
+    }),
+    write('chat.helper.restart', 'Start a helper again on another model: the person it works for picks an account and a model, and it does its brief again from the start', {
+      in: { ...threadT, model: t.opt(t.str()), account: t.opt(t.str({ description: 'An account from models_for_helpers: its ref, or its label' })), provider: t.opt(t.str()) },
+      out: { messageId: id.message, model: t.str(), account: t.str(), fellBackFrom: t.opt(t.str()) }, on: ['thread', '/threadId'], level: 'use', emits: ['helper.note', 'message.received', 'message.direct', 'message.mentioned', 'thread.replied', 'thread.unarchived'], tool: 'chats',
+      errors: ['validation.not_found', 'validation.precondition_failed', 'validation.bad_input', 'permission.no_grant', 'provider.unavailable'],
+    }),
+    write('chat.helper.note_seen', 'Mark the notes waiting for a helper as read', {
+      in: threadT, out: { marked: t.int() }, on: ['thread', '/threadId'], level: 'use', tool: 'chats', errors: ['validation.not_found'],
+    }),
+    read('chat.helper.notes', 'The notes in a helper chat with who sent each: the person, the agent that started it, or the helper', {
+      in: threadT, out: { notes: t.arr(t.obj({ messageId: id.message, authorId: t.str(), who: t.enm('brief', 'person', 'parent', 'helper'), body: t.str(), kind: t.opt(t.str()), state: t.opt(t.str()), seenAt: t.opt(t.ts()) })) },
+      on: ['thread', '/threadId'], tool: 'chats',
+    }),
     read('chat.helpers.list', 'Helpers running under a chat, with status', {
-      in: threadT, out: { helpers: t.arr(t.obj({ threadId: id.thread, title: t.str(), status: t.enm('running', 'done', 'failed', 'stopped'), agentId: id.agent, model: t.opt(t.str()), startedAt: t.ts() })) },
+      in: threadT, out: { helpers: t.arr(t.obj({ threadId: id.thread, title: t.str(), status: t.enm('running', 'done', 'failed', 'stopped'), agentId: id.agent, model: t.opt(t.str()), pick: t.opt(t.rec()), startedAt: t.ts() })) },
       on: ['thread', '/threadId'], tool: 'chats',
     }),
     // ---- transcript
@@ -564,7 +617,7 @@ export default defineManifest({
     ev('channel.erased', 'A channel was erased for good with its messages (ids only)', { p: { channelId: id.channel }, subject: ['entity', '/channelId'], retention: 'audit' }),
     ev('transcripts.purged', 'Chat transcripts past their retention were removed (a count)', { p: { removed: t.int({ minimum: 0 }) }, subject: ['entity', '/removed'], retention: 'audit' }),
     ev('message.received', 'A message was posted in a thread (ids and counts only, never the text)', {
-      p: { messageId: id.message, threadId: id.thread, threadSeq: t.int(), author: principalRef, kind: t.str(), depth: t.int(), mentions: t.arr(mention), hasBlocks: t.bool(), via: t.opt(id.user), actingFor: t.opt(id.user), job: t.opt(t.bool()), typed: t.opt(t.bool()), poke: t.opt(t.obj({ agentId: id.agent, by: id.user, outside: t.opt(t.bool()) })) },
+      p: { messageId: id.message, threadId: id.thread, threadSeq: t.int(), author: principalRef, kind: t.str(), depth: t.int(), mentions: t.arr(mention), hasBlocks: t.bool(), via: t.opt(id.user), actingFor: t.opt(id.user), job: t.opt(t.bool()), copy: t.opt(t.bool()), typed: t.opt(t.bool()), poke: t.opt(t.obj({ agentId: id.agent, by: id.user, outside: t.opt(t.bool()) })) },
       subject: ['thread', '/threadId'], label: 'subject', retention: 'transcripts', trigger: { title: 'A message is posted', fields: ['/threadId', '/author/kind'] },
     }),
     ev('message.edited', 'A message was edited', { p: { messageId: id.message, threadId: id.thread }, subject: ['thread', '/threadId'], label: 'subject', retention: 'transcripts' }),
@@ -612,6 +665,9 @@ export default defineManifest({
     ev('helper.started', 'A helper sub-task thread started under a chat', {
       p: { helperThreadId: id.thread, parentThreadId: id.thread, agentId: id.agent, model: t.opt(t.str()) }, subject: ['thread', '/helperThreadId'], vis: 'participants',
     }),
+    ev('helper.note', 'A note went between a helper and the agent that started it', {
+      p: { helperThreadId: id.thread, direction: t.enm('up', 'down'), kind: t.enm('followup', 'progress', 'question', 'result'), messageId: id.message }, subject: ['thread', '/helperThreadId'], vis: 'participants',
+    }),
     ev('plan.proposed', 'An agent proposed a plan', { p: { planId: id.plan, threadId: id.thread, steps: t.int() }, subject: ['thread', '/threadId'], vis: 'participants' }),
     ev('plan.approved', 'A plan was approved (with or without edits)', { p: { planId: id.plan, threadId: id.thread, edited: t.bool(), by: t.str() }, subject: ['thread', '/threadId'], vis: 'participants' }),
     ev('plan.rejected', 'A plan was rejected', { p: { planId: id.plan, threadId: id.thread, by: t.str() }, subject: ['thread', '/threadId'], vis: 'participants' }),
@@ -621,6 +677,9 @@ export default defineManifest({
     }),
     ev('block.answered', 'A waiting block was answered; the answer is queued as a wake', {
       p: { threadId: id.thread, blockId: id.block, by: t.str() }, subject: ['thread', '/threadId'], vis: 'participants',
+    }),
+    ev('block.withdrawn', 'A question was taken back by the agent that asked it; its task is closed', {
+      p: { threadId: id.thread, blockId: id.block }, subject: ['thread', '/threadId'], vis: 'participants',
     }),
     ev('tab.opened', 'An agent opened a side tab for a person (delivered live to that person devices)', {
       p: { threadId: id.thread, personId: id.user, targetType: t.str(), targetId: t.str(), agentId: id.agent }, subject: ['thread', '/threadId'], vis: 'owner',
@@ -643,6 +702,7 @@ export default defineManifest({
     block('note_offer', {
       threadId: id.thread, blockId: id.block, person: t.opt(id.user), title: t.str(), body: t.str(), topic: t.str(), messageId: t.opt(id.message), state: t.enm('offered', 'saved', 'dismissed'), noteId: t.opt(t.str()),
     }, 'Offer to save a note: {{title}}', { actions: [{ key: 'save', label: 'Save', cap: 'chat.note_offer.answer', input: { threadId: '/threadId', blockId: '/blockId', decision: 'save' } }, { key: 'dismiss', label: 'Not now', cap: 'chat.note_offer.answer', input: { threadId: '/threadId', blockId: '/blockId', decision: 'dismiss' } }] }),
+    block('install_plan', { planId: t.str(), name: t.str(), kind: t.enm('skill', 'plugin', 'mcp_local', 'mcp_remote', 'site'), update: t.opt(t.bool()), installId: t.opt(t.str()) }, 'Install {{name}}?'),
     block('poked', { by: id.user, agentId: id.agent }, 'Poked by {{by}}'),
     block('poke', { agentId: id.agent, by: id.user, note: t.opt(t.str()) }, '{{by}} poked an agent'),
     block('tab_opened', { targetType: t.str(), targetId: t.str(), title: t.str(), agentId: id.agent }, 'Opened {{title}} beside the chat', { opens: { tab: 'target', input: { type: '/targetType', id: '/targetId' } } }),
@@ -699,12 +759,12 @@ export default defineManifest({
     }),
     screen('chats.helper-chat', 'chats', 'ui:HelperChat', {
       slot: 'side',
-      q: { thread: ['threads.get', { threadId: '/state/threadId' }, true], messages: ['chat.messages.list', { threadId: '/state/threadId' }, true] },
+      q: { thread: ['threads.get', { threadId: '/state/threadId' }, true], messages: ['chat.messages.list', { threadId: '/state/threadId' }, true], hooks: ['hooks.list', { threadId: '/state/threadId' }, true] },
       a: { stop: ['engine.stop', { threadId: '/state/threadId' }] },
       empty: 'The helper has not said anything yet', primary: 'Back to the chat',
     }),
     screen('chats.right-pane', 'chats', 'ui:ChatRightPane', {
-      slot: 'side', q: { threads: ['threads.list', { parentThreadId: '/state/threadId' }, true], helpers: ['chat.helpers.list', { threadId: '/state/threadId' }, true], crew: ['engine.crew.list', { threadId: '/state/threadId' }, true] },
+      slot: 'side', q: { threads: ['threads.list', { parentThreadId: '/state/threadId' }, true], helpers: ['chat.helpers.list', { threadId: '/state/threadId' }, true], crew: ['engine.crew.list', { threadId: '/state/threadId' }, true], hooks: ['hooks.list', { threadId: '/state/threadId' }, true], hookRuns: ['hooks.runs.latest', { threadId: '/state/threadId' }, true] },
       a: { openThread: ['chat.thread', { threadId: '/state/threadId' }] }, empty: 'No threads yet',
     }),
     screen('chats.threads', 'chats', 'ui:ThreadsPage', {

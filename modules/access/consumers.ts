@@ -7,7 +7,7 @@ import type { Ctx } from "../../packages/contracts/src/ctx.ts";
 import type { AccessSnapshot } from "../../kernel/src/authorize/index.ts";
 import { isElevatedRole } from "../../kernel/src/authorize/snapshot.ts";
 import { fail } from "../../host/src/routes/errors.ts";
-import { AccessStore, CURSOR_KEY, EVERYONE, changed, labelOf, setPrivate, storeOf } from "./projections.ts";
+import { AccessStore, CURSOR_KEY, agentLevel, EVERYONE, changed, labelOf, setPrivate, storeOf } from "./projections.ts";
 import type { AccessCtx, Cond, GrantRec, Label, Level, PKind, Ref, Status, SubjectKind } from "./projections.ts";
 
 export interface LogEvent { seq: number; type: string; payload: unknown }
@@ -48,7 +48,7 @@ function seededGrant(store: AccessStore, p: Record<string, unknown>, at: number)
   if (Array.isArray(c["hiddenFields"])) conditions.hiddenFields = c["hiddenFields"].filter((x): x is string => typeof x === "string");
   if (typeof c["notBefore"] === "number" && typeof c["notAfter"] === "number") conditions.window = { from: c["notBefore"], to: c["notAfter"] };
   if (typeof p["expires_at"] === "number") conditions.expiresAt = p["expires_at"];
-  const level = p["level"] as Level;
+  const level = agentLevel(type, p["level"] as Level);
   // Gateway events use the historical `actor` wire kind for all non-person
   // principals. Resolve that alias against the principal projection so agent
   // home grants authorize the agent itself, while outside actors remain actors.

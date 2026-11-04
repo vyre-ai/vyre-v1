@@ -37,3 +37,8 @@ test("the old Threads page address opens Replies in the Inbox", () => {
   assert.deepEqual(parseHash("screen=chats.threads"), { args: {}, screen: "inbox.replies" });
   assert.equal(formatHash({ screen: "chats.threads" }), "screen=inbox.replies");
 });
+
+test("a project opens in Chats, not Records: its page is one screen", () => {
+  assert.equal(placeForSubject("project"), "chats");
+  assert.equal(placeForSubject("record"), "records");
+});

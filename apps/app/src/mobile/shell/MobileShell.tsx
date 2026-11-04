@@ -31,11 +31,13 @@ export interface MobileShellProps {
   headerBack?(entry: Entry): boolean;
   /** A dot on the You tab (the Space switcher lives there): another Space needs you. */
   youDot?: boolean;
+  /** A slim bar above the screen for what needs you (the notifications bell). It draws nothing when the host passes nothing. */
+  notices?: ReactNode;
   /** Called after every move (tests and the router bridge). */
   onNav?(state: NavState): void;
 }
 
-export function MobileShell({ renderScreen, needsYou = 0, initialTab = "chats", initialEntry, onNav, ownsHeader, headerBack, youDot = false }: MobileShellProps): ReactElement {
+export function MobileShell({ renderScreen, needsYou = 0, initialTab = "chats", initialEntry, onNav, ownsHeader, headerBack, youDot = false, notices }: MobileShellProps): ReactElement {
   const [nav, setNav] = useState<NavState>(() => initialEntry ? open(initialNav(initialEntry.tab), initialEntry) : initialNav(initialTab));
   const move = useCallback((f: (s: NavState) => NavState) => setNav((s) => { const n = f(s); if (n !== s) onNav?.(n); return n; }), [onNav]);
   const top = current(nav);
@@ -70,6 +72,7 @@ export function MobileShell({ renderScreen, needsYou = 0, initialTab = "chats", 
           <Text numberOfLines={1} style={st.backText}>{from?.title ?? "Back"}</Text>
         </Pressable>
       ) : null}
+      {notices ?? null}
       <View testID={`screen-${top.screen}`} style={st.screen}><MobileBackContext.Provider value={inHeader ? api.back : null}>{renderScreen(top, api)}</MobileBackContext.Provider></View>
       <View role="tablist" aria-label="Places" testID="mobile-tabs" style={st.tabs}>{tabs}</View>
     </View>

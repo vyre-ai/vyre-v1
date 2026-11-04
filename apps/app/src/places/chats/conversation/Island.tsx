@@ -14,7 +14,7 @@ import { WorkingMark } from "../../../../../../ui/src/WorkingMark/index.tsx";
 import type { ActivityStore, LiveTurn } from "../../../shell/session/turn-streams.ts";
 import { turnRowId } from "../../../shell/session/turn-streams.ts";
 import { elapsedWords } from "./activity.ts";
-import { agentOf, capFaces, choiceForKey, hoverOf, islandOpen, wordOf } from "./island.ts";
+import { agentOf, capFaces, cardSeen, choiceForKey, hoverOf, islandOpen, pillChoices, wordOf } from "./island.ts";
 import type { IslandAgent, IslandQuestion } from "./island.ts";
 import { Glyph } from "./parts.tsx";
 
@@ -46,6 +46,27 @@ const typing = (t: unknown): boolean => {
   const tag = (e.tagName ?? "").toUpperCase();
   return tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || e.isContentEditable === true || (typeof e.closest === "function" && !!e.closest('[contenteditable="true"],[data-testid="composer-field"]'));
 };
+type El = { getBoundingClientRect(): { top: number; bottom: number } };
+type Finder = { querySelector(q: string): El | null };
+/** The ids of the question cards now on screen in the chat feed: read from the page now and again on every scroll and each half second (a card is drawn by the chat, not by the Island). */
+function useSeenCards(ids: readonly string[]): ReadonlySet<string> {
+  const [seen, setSeen] = useState<ReadonlySet<string>>(new Set());
+  const key = ids.join("|");
+  useEffect(() => {
+    const d = (globalThis as { document?: Finder & Doc }).document;
+    if (!d || ids.length === 0) { setSeen((s) => (s.size === 0 ? s : new Set())); return undefined; }
+    const read = (): void => {
+      const feed = d.querySelector('[data-testid="conversation-feed"]');
+      const now = new Set(ids.filter((id) => cardSeen(d.querySelector(`[data-testid="blk-question-${id}"]`)?.getBoundingClientRect(), feed?.getBoundingClientRect())));
+      setSeen((cur) => (cur.size === now.size && [...now].every((x) => cur.has(x)) ? cur : now));
+    };
+    read();
+    const t = setInterval(read, 500);
+    (d as unknown as { addEventListener(t: string, f: () => void, c?: boolean): void }).addEventListener("scroll", read, true);
+    return () => { clearInterval(t); (d as unknown as { removeEventListener(t: string, f: () => void, c?: boolean): void }).removeEventListener("scroll", read, true); };
+  }, [key]);  // eslint-disable-line react-hooks/exhaustive-deps
+  return seen;
+}
 const focusComposer = (): void => { doc()?.querySelector('[data-testid="composer-field"]')?.focus?.(); };
 
 /** The agents behind the live turns, one row each (an agent's newest turn), read from the stores now. A re-render comes with any store's change. */
@@ -85,7 +106,9 @@ export function Island(p: IslandProps): ReactElement | null {
   const [people, setPeople] = useState(false);
   const [problem, setProblem] = useState("");
   const [busy, setBusy] = useState(false);
-  const asked = (p.questions ?? []).filter((q) => !gone.has(q.blockId) && !away.has(q.blockId));
+  const seen = useSeenCards((p.questions ?? []).map((x) => x.blockId));
+  // a question whose card is on screen is answered there; the pill carries it once the card has scrolled away (the Island is a shortcut, never the only place)
+  const asked = (p.questions ?? []).filter((x) => !gone.has(x.blockId) && !away.has(x.blockId) && !seen.has(x.blockId));
   const q: IslandQuestion | undefined = asked[Math.min(at, Math.max(0, asked.length - 1))];
   const send = (answer: string): void => {
     if (!q || busy || answer.trim() === "") return;
@@ -107,8 +130,9 @@ export function Island(p: IslandProps): ReactElement | null {
       if (!k.q || e.defaultPrevented) return;
       if (e.key === "Escape") { if (k.other) { setOther(false); setWords(""); } else k.putAway(); return; }
       if (e.metaKey || e.ctrlKey || e.altKey || typing(e.target)) return;
-      const i = choiceForKey(e.key, k.q.choices.length);
-      if (i !== null) { e.preventDefault?.(); k.send(k.q.choices[i]!.id); return; }
+      const shown = pillChoices(k.q).choices;
+      const i = choiceForKey(e.key, shown.length);
+      if (i !== null) { e.preventDefault?.(); k.send(shown[i]!.id); return; }
       if (k.asked > 1 && e.key === "ArrowRight") setAt((n) => (n + 1) % k.asked);
       if (k.asked > 1 && e.key === "ArrowLeft") setAt((n) => (n + k.asked - 1) % k.asked);
     };
@@ -118,6 +142,7 @@ export function Island(p: IslandProps): ReactElement | null {
   if (q) {
     const many = asked.length > 1;
     const here = Math.min(at, asked.length - 1);
+    const pill = pillChoices(q);
     return (
       <View testID="island" accessibilityLiveRegion="polite" style={[st.wrap, phone && st.wrapPhone]}>
         {people ? (
@@ -139,17 +164,17 @@ export function Island(p: IslandProps): ReactElement | null {
             ) : null}
           </View>
           <View testID="island-choices" accessibilityRole="radiogroup" style={st.choices}>
-            {q.choices.map((c, i) => (
+            {pill.choices.map((c, i) => (
               <Pressable key={c.id} accessibilityRole="button" accessibilityLabel={`${c.label}${c.detail ? `. ${c.detail}` : ""}. Key ${i + 1}`} testID={`island-choice-${c.id}`} disabled={busy} onPress={() => send(c.id)} style={[st.choice, c.recommended && st.choiceMain]}>
                 <Text style={[st.choiceText, c.recommended && st.choiceMainText]}>{c.label}</Text>
               </Pressable>
             ))}
-            {q.other && q.choices.length > 0 ? (
+            {pill.other && pill.choices.length > 0 ? (
               <Pressable accessibilityRole="button" accessibilityState={{ expanded: other }} testID="island-other" onPress={() => setOther((o) => !o)} style={st.choice}><Text style={st.choiceText}>Other</Text></Pressable>
             ) : null}
             <Pressable accessibilityRole="button" accessibilityLabel="Who can answer" testID="island-people-button" onPress={() => setPeople((v) => !v)} style={st.peopleBtn}><Glyph name="people" size={15} color="var(--ink-3)" /></Pressable>
           </View>
-          {other || q.choices.length === 0 ? (
+          {other || pill.choices.length === 0 ? (
             <View style={st.otherRow}>
               <TextInput testID="island-other-field" autoFocus={other} accessibilityLabel="Your answer" placeholder="Your answer" value={words} onChangeText={setWords} onSubmitEditing={() => send(words)} editable={!busy} style={st.field} />
               <Pressable accessibilityRole="button" testID="island-other-send" disabled={busy || words.trim() === ""} onPress={() => send(words)} style={[st.choice, st.choiceMain, (busy || words.trim() === "") && { opacity: 0.5 }]}><Text style={st.choiceMainText}>Send</Text></Pressable>

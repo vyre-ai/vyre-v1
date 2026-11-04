@@ -16,9 +16,11 @@ HTTP 403. Retryable: no.
 - access.check
 - access.grants.update
 - access.labels.set
+- access.make_owner
 - access.policies.reset
 - access.policies.set
 - access.propose_change
+- access.reach
 - access.request
 - access.requests.approve
 - access.requests.decline
@@ -29,5 +31,3 @@ HTTP 403. Retryable: no.
 - access.unshare
 - access.view_as
 - audit.archives.list
-- audit.checkpoints.list
-- audit.export

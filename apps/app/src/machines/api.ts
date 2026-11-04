@@ -52,7 +52,7 @@ const STEP: Record<Range, number> = { "1h": 60_000, "24h": 600_000, "7d": 3_600_
 export async function loadMachine(call: Call, row: MachineRow, range: Range): Promise<MachineOut> {
   const g = (await call("machines.get", { machineId: row.serverId })) as {
     machine: ListRow; series: Record<Range, ApiPoint[]>; findings: MachineOut["findings"]; alerts: ListAlert[]; privacy: MachineOut["privacy"];
-    work: Array<{ kind: string; agentId?: string; what: string; where: string }>; lastFix?: MachineOut["lastFix"];
+    work: Array<{ kind: string; agentId?: string; what: string; where: string }>; lastFix?: MachineOut["lastFix"]; idleSessions?: number;
   };
   const m = toRow(g.machine), mem = m.memBytes ?? 0;
   const points: Point[] = g.series[range].map((p) => ({
@@ -65,7 +65,7 @@ export async function loadMachine(call: Call, row: MachineRow, range: Range): Pr
   }));
   return {
     machine: m, series: { range, step: STEP[range], points }, findings: g.findings, alerts: g.alerts.map(toAlert), privacy: g.privacy,
-    work: g.work.map((w) => ({ agent: w.agentId ?? (w.kind === "site" ? "Site" : "Automation"), what: w.what, where: w.where, cpu: 0 })), ...(g.lastFix ? { lastFix: g.lastFix } : {}),
+    work: g.work.map((w) => ({ agent: w.agentId ?? (w.kind === "site" ? "Site" : "Automation"), what: w.what, where: w.where, cpu: 0 })), ...(g.lastFix ? { lastFix: g.lastFix } : {}), ...(g.idleSessions !== undefined ? { idleSessions: g.idleSessions } : {}),
   };
 }
 

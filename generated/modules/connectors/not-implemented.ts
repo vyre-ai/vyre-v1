@@ -10,6 +10,7 @@ export const handlers: Handlers<HandlerCtx> = {
   "connections.delete": async (ctx) => { throw new VyreErr(notImplemented("connections.delete", ctx.trace)); },
   "connections.get": async (ctx) => { throw new VyreErr(notImplemented("connections.get", ctx.trace)); },
   "connections.list": async (ctx) => { throw new VyreErr(notImplemented("connections.list", ctx.trace)); },
+  "connections.mark_working": async (ctx) => { throw new VyreErr(notImplemented("connections.mark_working", ctx.trace)); },
   "connections.pause": async (ctx) => { throw new VyreErr(notImplemented("connections.pause", ctx.trace)); },
   "connections.reconnect": async (ctx) => { throw new VyreErr(notImplemented("connections.reconnect", ctx.trace)); },
   "connections.resume": async (ctx) => { throw new VyreErr(notImplemented("connections.resume", ctx.trace)); },

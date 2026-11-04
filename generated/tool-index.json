@@ -206,6 +206,12 @@
     },
     {
       "deferred": false,
+      "name": "access_reach",
+      "summary": "What level the caller holds on each of up to 200 things, in one call: none, view, use, edit or manage. A thing that does not exist answers none, the same as one the caller cannot see",
+      "toolset": "meta"
+    },
+    {
+      "deferred": false,
       "name": "access_record_marks",
       "summary": "For the rows of one record type: which differ from the type (their own audience or direct grants), and whether the caller was given the type or a row by name",
       "toolset": "meta"
@@ -573,7 +579,7 @@
     {
       "deferred": false,
       "name": "ask_question",
-      "summary": "Ask the person a structured question (single, multi or free text); the turn parks until it is answered",
+      "summary": "Ask the person a structured question (single, multi or free text); the turn parks until it is answered and makes no further model call; a question of fewer than three words, or only a test, is refused",
       "toolset": "chats"
     },
     {
@@ -862,6 +868,12 @@
       "deferred": false,
       "name": "automations_set_enabled",
       "summary": "Turn an Automation on or off",
+      "toolset": "automations"
+    },
+    {
+      "deferred": false,
+      "name": "automations_set_owner",
+      "summary": "Hand a Space Automation to another person as its accountable owner; the previous owner keeps Manage",
       "toolset": "automations"
     },
     {
@@ -1388,6 +1400,30 @@
     },
     {
       "deferred": false,
+      "name": "chat_helper_note_seen",
+      "summary": "Mark the notes waiting for a helper as read",
+      "toolset": "chats"
+    },
+    {
+      "deferred": false,
+      "name": "chat_helper_notes",
+      "summary": "The notes in a helper chat with who sent each: the person, the agent that started it, or the helper",
+      "toolset": "chats"
+    },
+    {
+      "deferred": false,
+      "name": "chat_helper_restart",
+      "summary": "Start a helper again on another model: the person it works for picks an account and a model, and it does its brief again from the start",
+      "toolset": "chats"
+    },
+    {
+      "deferred": false,
+      "name": "chat_helper_steer",
+      "summary": "Ask a helper that is working something, in its own chat: the person it works for only, while it runs",
+      "toolset": "chats"
+    },
+    {
+      "deferred": false,
       "name": "chat_helpers_list",
       "summary": "Helpers running under a chat, with status",
       "toolset": "chats"
@@ -1418,8 +1454,20 @@
     },
     {
       "deferred": false,
+      "name": "chat_noted",
+      "summary": "The quiet line memory leaves in a place other people share when it remembers something: \"Noted: decision, go with Harbor\" with Undo. One link-card line; Undo is memory.undo on the fact",
+      "toolset": "chats"
+    },
+    {
+      "deferred": false,
       "name": "chat_open_as_chat",
       "summary": "Open an Ask pane as a normal chat so it appears in Recent",
+      "toolset": "chats"
+    },
+    {
+      "deferred": false,
+      "name": "chat_pace_of",
+      "summary": "How a teammate answers, for their profile: usual reply time over the last 30 days, and for one chat how they hear about it. Reads only chats you are in with them",
       "toolset": "chats"
     },
     {
@@ -1649,6 +1697,54 @@
       "name": "chrome_wait",
       "summary": "Wait for a load, text, selector, network idle or a time",
       "toolset": "computer"
+    },
+    {
+      "deferred": false,
+      "name": "ci_cost_month",
+      "summary": "What CI cost this month so far (or the month given, written 2026-11), the cap, what is left, how many runs, and the cost by repository. Admin only",
+      "toolset": "engineer"
+    },
+    {
+      "deferred": false,
+      "name": "ci_job_intake",
+      "summary": "Host only: a job is waiting (or ended) on GitHub; start or stop its machine. Called for the workflow_job events, never by a person",
+      "toolset": "engineer"
+    },
+    {
+      "deferred": false,
+      "name": "ci_project_get",
+      "summary": "Whether a project shows the CI tab: its repository is linked and runners are on. Anyone who can see the project",
+      "toolset": "engineer"
+    },
+    {
+      "deferred": false,
+      "name": "ci_runs_get",
+      "summary": "One run",
+      "toolset": "engineer"
+    },
+    {
+      "deferred": false,
+      "name": "ci_runs_list",
+      "summary": "Runs, newest first, for one project or one repository (give one); each has its state, machine, times and cost. Anyone who can see the project",
+      "toolset": "engineer"
+    },
+    {
+      "deferred": false,
+      "name": "ci_settings_get",
+      "summary": "The CI settings: whether runners are on, the cloud provider, the Vault item that holds its key (never the key), region, machine size, image, how many at once, the monthly cap, the time limit and the labels. Admin only",
+      "toolset": "engineer"
+    },
+    {
+      "deferred": false,
+      "name": "ci_settings_set",
+      "summary": "Turn runners on or off and change their settings. Admin only, audited. Turning them on needs a key (a Vault item) and a monthly cap",
+      "toolset": "engineer"
+    },
+    {
+      "deferred": false,
+      "name": "ci_sweep",
+      "summary": "Host only: every 2 minutes, delete any machine tagged vyre-ci that is too old or has no live run, and start queued jobs that now fit",
+      "toolset": "engineer"
     },
     {
       "deferred": false,
@@ -2582,6 +2678,12 @@
     },
     {
       "deferred": false,
+      "name": "engine_crew_status",
+      "summary": "Everything that works for a chat, in one read for the Island, the header chip and the Crew pane: each helper and teammate with its state, the step it is on, model, account, branch, files changed, tokens and cost, and the totals for the crew. Only what is known; nothing is estimated",
+      "toolset": "chats"
+    },
+    {
+      "deferred": false,
       "name": "engine_defaults_get",
       "summary": "The caller default model, provider, effort and fallback order in this Space",
       "toolset": "meta"
@@ -2596,6 +2698,24 @@
       "deferred": false,
       "name": "engine_drop_queued",
       "summary": "Take a message that is waiting behind a running turn out of the queue so it can be edited and sent again; it stays in the chat and the agent will not answer it",
+      "toolset": "chats"
+    },
+    {
+      "deferred": false,
+      "name": "engine_helpers_change_model",
+      "summary": "Change the model of one helper of a chat: it stops, then starts again on the account and model the person picked, doing its brief from the start",
+      "toolset": "chats"
+    },
+    {
+      "deferred": false,
+      "name": "engine_helpers_status",
+      "summary": "The helpers of a chat, live: each one working, done, needing a person or failed, the step it is on, one line of what it found, how long it took and what it cost",
+      "toolset": "chats"
+    },
+    {
+      "deferred": false,
+      "name": "engine_helpers_stop_all",
+      "summary": "Stop every helper still working under a chat; what they did so far is kept",
       "toolset": "chats"
     },
     {
@@ -2639,6 +2759,12 @@
       "name": "engine_interrupt",
       "summary": "Interrupt now: cancel the current turn and queue the message at top priority (\"stop and send\")",
       "toolset": "chats"
+    },
+    {
+      "deferred": false,
+      "name": "engine_last_pick_get",
+      "summary": "The model the caller last picked in a chat (any agent): a new chat starts on it. Empty when they have not picked one yet",
+      "toolset": "meta"
     },
     {
       "deferred": false,
@@ -3597,7 +3723,7 @@
     {
       "deferred": true,
       "name": "github_pull_request_get",
-      "summary": "Read a pull request live from GitHub",
+      "summary": "Read a pull request live from GitHub. A person with a connected GitHub is read as them: their policy for reading and the repositories they reach apply, and consumer (such as linked.prs) shows in Used by",
       "toolset": "records"
     },
     {
@@ -3670,6 +3796,12 @@
       "deferred": false,
       "name": "goals_confirm",
       "summary": "Start a drafted goal: the owner presses Start on its card, or an agent acting for the owner starts it with messageId, the message in which the owner asked for it, in the goal chat and under 15 minutes old. An agent start grants no permission. The standing permissions it names hold from this press",
+      "toolset": "tasks"
+    },
+    {
+      "deferred": false,
+      "name": "goals_count",
+      "summary": "How many goals a project has, whoever may open them: a number and nothing else (never a title). Only a manager of the project or the system may ask; the Overview uses it to say how many goals a reader may not open",
       "toolset": "tasks"
     },
     {
@@ -4022,6 +4154,12 @@
     },
     {
       "deferred": true,
+      "name": "google_gmail_delete_draft",
+      "summary": "Delete a draft from the member mailbox (the draft an agent made and its person decided not to send)",
+      "toolset": "inbox"
+    },
+    {
+      "deferred": true,
       "name": "google_gmail_get_message",
       "summary": "Read one Gmail message",
       "toolset": "inbox"
@@ -4243,6 +4381,12 @@
       "toolset": "engineer"
     },
     {
+      "deferred": true,
+      "name": "helper_note",
+      "summary": "Note between a helper and the agent that started it: a follow-up down, progress, a result or a question up. Set needsPerson only when no one but the person can answer",
+      "toolset": "chats"
+    },
+    {
       "deferred": false,
       "name": "home_activity",
       "summary": "See all: the full activity for the digest period on records I follow, my agents, and my routines",
@@ -4289,6 +4433,36 @@
       "name": "home_routines_today",
       "summary": "Today's routines of my agents: scheduled, running, done or failed, one line each",
       "toolset": "meta"
+    },
+    {
+      "deferred": false,
+      "name": "hooks_list",
+      "summary": "List hooks: the Space's, yours, and an agent's or one chat's. Each has a plain line, when it runs, what it does and who made it. Use this before you add one",
+      "toolset": "agents"
+    },
+    {
+      "deferred": false,
+      "name": "hooks_remove",
+      "summary": "Remove a hook you made",
+      "toolset": "agents"
+    },
+    {
+      "deferred": false,
+      "name": "hooks_runs",
+      "summary": "What hooks did lately: which ran, what they answered, and the ones that failed or ran out of time, newest first. since and outcomes narrow it before the limit; scope space is a Space admin's read of every Space hook's runs (anyone else gets only what they could see anyway)",
+      "toolset": "agents"
+    },
+    {
+      "deferred": false,
+      "name": "hooks_runs_latest",
+      "summary": "The newest run of each hook in one chat, one row per hook: what \"Last ran\" on a hook card reads. Only for a chat you can use",
+      "toolset": "agents"
+    },
+    {
+      "deferred": false,
+      "name": "hooks_set",
+      "summary": "Add or change a hook that runs at an event (before a tool, before anything leaves Vyre, a message, a turn end, a helper) as a command, a check or one action. For yourself: scope agent, chat or run. It can stop something, add a note or run its own action; never skip a rule",
+      "toolset": "agents"
     },
     {
       "deferred": false,
@@ -4532,6 +4706,12 @@
     },
     {
       "deferred": false,
+      "name": "inbox_thread_conversation",
+      "summary": "The conversation an email thread opens in, found by the mail provider thread id a mail tool returned (a chat link to an email thread uses it)",
+      "toolset": "inbox"
+    },
+    {
+      "deferred": false,
       "name": "inbox_threads",
       "summary": "One contact's email threads, each whole: every thread they are on (From, To or Cc), newest first, with everyone's messages, quoted history and signatures apart, reactions, what is new and your role",
       "toolset": "inbox"
@@ -4547,6 +4727,42 @@
       "name": "inbox_unmatched",
       "summary": "The Unmatched list: senders with no record that did not raise Needs a match",
       "toolset": "inbox"
+    },
+    {
+      "deferred": false,
+      "name": "install_apply",
+      "summary": "Install what a plan says, for the person, for one agent, or for everyone in the Space (admin only). An agent asking is held at the Gate as a card with the plan; the person presses Install",
+      "toolset": "agents"
+    },
+    {
+      "deferred": false,
+      "name": "install_check_update",
+      "summary": "Read an install's repository again. A newer commit gives an update plan with the diff; nothing changes until the plan is applied",
+      "toolset": "agents"
+    },
+    {
+      "deferred": false,
+      "name": "install_from_link",
+      "summary": "Read a GitHub link (pinned to a commit) or an MCP server address and say what it is: a skill, a plugin, a local MCP server, a remote MCP server or a site, what it does, what it needs (network, Vault keys, files) and who can get it. Nothing is installed",
+      "toolset": "agents"
+    },
+    {
+      "deferred": false,
+      "name": "install_get",
+      "summary": "One plan, as its card draws it: what it is, what it needs, the commit, who can get it, and for an update the diff",
+      "toolset": "agents"
+    },
+    {
+      "deferred": false,
+      "name": "install_list",
+      "summary": "What was installed from links, by the person asking (an admin may ask for the whole Space)",
+      "toolset": "agents"
+    },
+    {
+      "deferred": false,
+      "name": "install_remove",
+      "summary": "Take back an install: its skill, plugin or connection is removed",
+      "toolset": "agents"
     },
     {
       "deferred": false,
@@ -5246,6 +5462,48 @@
     },
     {
       "deferred": false,
+      "name": "members_join_link_create",
+      "summary": "Turn the Request to join link on (the address people open), or change the role it admits at; defaults to Guest, the least role. Turning it on after Off makes a fresh address",
+      "toolset": "meta"
+    },
+    {
+      "deferred": false,
+      "name": "members_join_link_disable",
+      "summary": "Turn the Request to join link off; the address stops working and requests already waiting stay",
+      "toolset": "meta"
+    },
+    {
+      "deferred": false,
+      "name": "members_join_link_get",
+      "summary": "The reusable Request to join link: on or off, the role people join as, the address when on (shown again any time), and how many requests wait",
+      "toolset": "meta"
+    },
+    {
+      "deferred": false,
+      "name": "members_join_link_rotate",
+      "summary": "Make a new Request to join address; the old one stops working at once and requests already waiting stay",
+      "toolset": "meta"
+    },
+    {
+      "deferred": false,
+      "name": "members_join_requests_approve",
+      "summary": "Approve a request to join: makes a one-time invite for their email at the link's role and returns that link once, to email or copy",
+      "toolset": "meta"
+    },
+    {
+      "deferred": false,
+      "name": "members_join_requests_decline",
+      "summary": "Decline a request to join",
+      "toolset": "meta"
+    },
+    {
+      "deferred": false,
+      "name": "members_join_requests_list",
+      "summary": "People who asked to join through the Request to join link, newest first",
+      "toolset": "meta"
+    },
+    {
+      "deferred": false,
       "name": "members_joins_list",
       "summary": "Joins that have not finished: each new member with the steps that did not work yet, in words, how often each was tried, and whether it is stuck (three tries or more)",
       "toolset": "meta"
@@ -5528,6 +5786,18 @@
     },
     {
       "deferred": false,
+      "name": "memory_place_archive",
+      "summary": "A place was archived or deleted: its memory is archived (restorable by an admin) or deleted with it. Whoever may edit the place's memory, or an admin",
+      "toolset": "memory"
+    },
+    {
+      "deferred": false,
+      "name": "memory_place_list",
+      "summary": "Knows tab: what Vyre remembers in one place, each with kind, state, who said it, the message and words; with linked places (scope linked) and Space markers (scope space) the caller may open. canEdit says whether Edit and Remove show",
+      "toolset": "memory"
+    },
+    {
+      "deferred": false,
       "name": "memory_profile",
       "summary": "Your profile in this Space, as a chat may use it: the public part always, the private part only where nobody else reads the chat (your own chats, your private Ask); with personId, that teammate's public part",
       "toolset": "memory"
@@ -5624,6 +5894,12 @@
     },
     {
       "deferred": false,
+      "name": "memory_source_removed",
+      "summary": "A message was deleted: what memory derived from it is dropped, and a statement it replaced holds again",
+      "toolset": "memory"
+    },
+    {
+      "deferred": false,
       "name": "memory_trail",
       "summary": "The trail of changes to facts and pages (who, what, when, why and source), for what the reader can see; rows are never deleted and never hold content",
       "toolset": "memory"
@@ -5662,6 +5938,18 @@
       "deferred": true,
       "name": "message_person",
       "summary": "Message a teammate. An Assistant writes for its person in their direct chat, signed as them (Agent). Any other agent writes as itself in its own chat with them. Cards allowed; waits for away and after hours unless urgent; 3 an hour",
+      "toolset": "chats"
+    },
+    {
+      "deferred": false,
+      "name": "models_catalog",
+      "summary": "Every AI account the asker can use with its models, what each can do (tools, images, context), a cost tier (cheap, standard or strong) and whether the probe found it available; for helpers that pick a model across accounts. Reads saved lists and the probe's marks only",
+      "toolset": "meta"
+    },
+    {
+      "deferred": false,
+      "name": "models_for_helpers",
+      "summary": "The catalogue before you start helpers: every AI account the person may use with its provider, label and models (tools, vision, context, a cost tier cheap, standard or strong, whether it is available now), and where a helper goes by default",
       "toolset": "chats"
     },
     {
@@ -6397,6 +6685,18 @@
       "toolset": "chats"
     },
     {
+      "deferred": false,
+      "name": "overview_edit",
+      "summary": "Edit the Overview by ops: insert, update, move, delete a block, or set_property on a custom field of the project. One revision for the call, carrying its author; an agent's edit leaves one quiet line in the project channel",
+      "toolset": "records"
+    },
+    {
+      "deferred": false,
+      "name": "overview_get",
+      "summary": "Read the Overview as Markdown with every block led by its id, the project's custom fields and the kinds of live block, so overview_edit can name what to change",
+      "toolset": "records"
+    },
+    {
       "deferred": true,
       "name": "people_status",
       "summary": "Your teammates as you see them: online, away or offline and when last seen, their local time and working hours, and when a message to them would go. Only people in this Space, never anything private",
@@ -6638,6 +6938,12 @@
     },
     {
       "deferred": false,
+      "name": "projects_archive",
+      "summary": "Archive a project: it leaves the lists and stays readable, with its record, channel, folder and plan. A manager of the project",
+      "toolset": "records"
+    },
+    {
+      "deferred": false,
       "name": "projects_cascade",
       "summary": "Propose the cascade after something slips: which later tasks move and which dates still hold (an agent may call this too)",
       "toolset": "tasks"
@@ -6650,6 +6956,12 @@
     },
     {
       "deferred": false,
+      "name": "projects_crew",
+      "summary": "The helpers working for a project with a live state (Working, Done or Needs you) and what each is on, from the crews of the project's chats, and the project's teammates",
+      "toolset": "records"
+    },
+    {
+      "deferred": false,
       "name": "projects_file_chat",
       "summary": "File a private chat under the project; it stays private and the agent gets the project memory and folder",
       "toolset": "records"
@@ -6658,6 +6970,12 @@
       "deferred": false,
       "name": "projects_files_folder",
       "summary": "The folder that holds a record's files: a project's own, else Files > Projects > Record files > the record (made on first use unless create is false, with the record's access mirrored onto it)",
+      "toolset": "records"
+    },
+    {
+      "deferred": false,
+      "name": "projects_for_channel",
+      "summary": "The project a channel belongs to, if there is one the caller may see",
       "toolset": "records"
     },
     {
@@ -6680,8 +6998,38 @@
     },
     {
       "deferred": false,
+      "name": "projects_links_link",
+      "summary": "Link something to a project; an agent that may edit the project can too. A web address or CI run may bring its own state, label and address",
+      "toolset": "records"
+    },
+    {
+      "deferred": false,
+      "name": "projects_links_list",
+      "summary": "What is linked to a project (records, files, chats, tasks, artifacts, mail threads, calendar events, pull requests, commits, CI runs, web addresses), each with its state read live from the source, and the rules that link by themselves",
+      "toolset": "records"
+    },
+    {
+      "deferred": false,
+      "name": "projects_links_rules_set",
+      "summary": "Set the rules that link matching new items to the project: a repository, a record filter or an email domain",
+      "toolset": "records"
+    },
+    {
+      "deferred": false,
+      "name": "projects_links_unlink",
+      "summary": "Take a link off a project; an item a rule linked is remembered as an exception and never comes back by rule",
+      "toolset": "records"
+    },
+    {
+      "deferred": false,
       "name": "projects_list",
       "summary": "List the projects the caller is in (Agents, Projects and Journeys show only those you are in)",
+      "toolset": "records"
+    },
+    {
+      "deferred": false,
+      "name": "projects_live_block_query",
+      "summary": "Evaluate a live block for the reader: the rows they may open, how many they may not (hidden), and for a metric its value. The block stores only its spec",
       "toolset": "records"
     },
     {
@@ -6716,6 +7064,48 @@
     },
     {
       "deferred": false,
+      "name": "projects_overview_doc_apply_template",
+      "summary": "Put a template's blocks on a project's Overview, replacing the page (one revision, so Undo brings the old page back)",
+      "toolset": "records"
+    },
+    {
+      "deferred": false,
+      "name": "projects_overview_doc_get",
+      "summary": "The Overview page: its blocks (text, headings and live blocks that hold only a spec), its revision and the project's custom fields for the page header",
+      "toolset": "records"
+    },
+    {
+      "deferred": false,
+      "name": "projects_overview_doc_history",
+      "summary": "The Overview's revisions, newest first, each with who made it and what changed",
+      "toolset": "records"
+    },
+    {
+      "deferred": false,
+      "name": "projects_overview_doc_save",
+      "summary": "Save the whole Overview page from the editor, as Markdown (or blocks); baseRev is the revision it was opened at, and a page changed since says so instead of overwriting",
+      "toolset": "records"
+    },
+    {
+      "deferred": false,
+      "name": "projects_overview_doc_templates_list",
+      "summary": "The Space's Overview page templates: Client account, Software project and Hiring, and any saved since",
+      "toolset": "records"
+    },
+    {
+      "deferred": false,
+      "name": "projects_overview_doc_templates_save",
+      "summary": "Save a page template for the Space, from a project's Overview or from blocks; an agent can too",
+      "toolset": "records"
+    },
+    {
+      "deferred": false,
+      "name": "projects_overview_doc_undo",
+      "summary": "Undo the latest change to the Overview: the blocks and any property it set go back as they were; the undo is a revision too",
+      "toolset": "records"
+    },
+    {
+      "deferred": false,
       "name": "projects_pin_file",
       "summary": "Pin a file to the Overview",
       "toolset": "records"
@@ -6737,6 +7127,18 @@
       "name": "projects_reschedule",
       "summary": "Move a task bar or resize it on the timeline; if it slips, the response carries a cascade proposal",
       "toolset": "tasks"
+    },
+    {
+      "deferred": false,
+      "name": "projects_roles_of",
+      "summary": "The projects where one person holds a role, and which role, limited to the projects the asker can see",
+      "toolset": "records"
+    },
+    {
+      "deferred": false,
+      "name": "projects_set",
+      "summary": "Set how the project stands (On track, At risk, Off track, On hold or Done) by hand, or null to go back to the reading from the late tasks; audited, and the Overview says who set it",
+      "toolset": "records"
     },
     {
       "deferred": false,
@@ -6776,6 +7178,12 @@
     },
     {
       "deferred": false,
+      "name": "projects_unarchive",
+      "summary": "Bring an archived project back to the lists",
+      "toolset": "records"
+    },
+    {
+      "deferred": false,
       "name": "projects_unlink_tasks",
       "summary": "Remove a dependency arrow",
       "toolset": "tasks"
@@ -6790,6 +7198,18 @@
       "deferred": false,
       "name": "projects_unshare_out",
       "summary": "Revoke a read-only link to the project Overview; the link answers not found at once",
+      "toolset": "records"
+    },
+    {
+      "deferred": false,
+      "name": "projects_update_draft",
+      "summary": "Draft the status update again from the project facts, on the asker's own AI account; it is kept as the draft and posted only by Post",
+      "toolset": "records"
+    },
+    {
+      "deferred": false,
+      "name": "projects_update_edit",
+      "summary": "Edit the status update's draft in place",
       "toolset": "records"
     },
     {
@@ -6830,8 +7250,20 @@
     },
     {
       "deferred": false,
+      "name": "providers_own_people",
+      "summary": "Who runs on their own AI sign-ins: the people with a Mine provider and how many each, for the AI accounts switch (never an account name or a value)",
+      "toolset": "vault"
+    },
+    {
+      "deferred": false,
       "name": "providers_remove",
       "summary": "Remove a provider and its key or sign-in",
+      "toolset": "vault"
+    },
+    {
+      "deferred": false,
+      "name": "providers_set_keeps_nothing",
+      "summary": "An owner or admin says an AI account shared with the Space keeps nothing of what it is sent. Restricted data may only go to accounts that do. A local model always does",
       "toolset": "vault"
     },
     {
@@ -7521,7 +7953,7 @@
     {
       "deferred": false,
       "name": "sessions_list",
-      "summary": "List the current owner private imported session archive in this Personal Space",
+      "summary": "List the current owner private imported session archive in this Personal Space; in any other Space the list is empty and personalOnly is true",
       "toolset": "chats"
     },
     {
@@ -7529,6 +7961,24 @@
       "name": "sessions_rename",
       "summary": "Give an imported session a new title in Vyre. Only the title shown changes: the copied transcript and its source provenance stay as they were",
       "toolset": "chats"
+    },
+    {
+      "deferred": false,
+      "name": "settings_contact_status",
+      "summary": "Whether my email and phone are verified, whether a code is waiting, and whether this Space can send one (no phone line: no Verify)",
+      "toolset": "meta"
+    },
+    {
+      "deferred": false,
+      "name": "settings_contact_verify_confirm",
+      "summary": "Confirm the code that was sent; the tick shows only after this",
+      "toolset": "meta"
+    },
+    {
+      "deferred": false,
+      "name": "settings_contact_verify_start",
+      "summary": "Send a 6-digit code to my email or phone through the Space mail sender or its phone line; it lasts 10 minutes, 3 an hour",
+      "toolset": "meta"
     },
     {
       "deferred": false,
@@ -7880,6 +8330,36 @@
     },
     {
       "deferred": false,
+      "name": "skill_grant",
+      "summary": "Give an agent use, edit or manage of a skill, or take it back (level null). Use puts it in the agent's list; edit lets it save versions; manage lets it share the skill on",
+      "toolset": "agents"
+    },
+    {
+      "deferred": false,
+      "name": "skill_grants",
+      "summary": "Who owns a skill and which agents hold it, at what level",
+      "toolset": "agents"
+    },
+    {
+      "deferred": false,
+      "name": "skill_history",
+      "summary": "The versions of a skill, newest first, each with who saved it and what changed",
+      "toolset": "agents"
+    },
+    {
+      "deferred": false,
+      "name": "skill_save",
+      "summary": "Write a skill as its owner (the person, or an agent they own; an agent writes its own) or as an agent given edit: a new skill, or a new version of one. Every save is a version",
+      "toolset": "agents"
+    },
+    {
+      "deferred": false,
+      "name": "skill_undo",
+      "summary": "Undo the latest version of a skill; the version before it comes back as a new version, and undoing again brings the undone one back",
+      "toolset": "agents"
+    },
+    {
+      "deferred": false,
       "name": "skills_add",
       "summary": "Add or replace a skill in the Space library, or in one agent (SKILL.md text with name and description in its front matter, plus optional supporting files)",
       "toolset": "agents"
@@ -7918,6 +8398,12 @@
       "deferred": false,
       "name": "skills_mine_update",
       "summary": "Fetch one of your skills again from its link or repo; whoever it is shared with approves again if it can now touch more",
+      "toolset": "agents"
+    },
+    {
+      "deferred": false,
+      "name": "skills_of_agents",
+      "summary": "The skills the agents a person owns keep for themselves, one row each",
       "toolset": "agents"
     },
     {
@@ -8067,13 +8553,31 @@
     {
       "deferred": false,
       "name": "spaces_delete",
-      "summary": "Owner only: delete the Space after typing its legal name",
+      "summary": "Owner only: schedule the Space for deletion 14 days out after typing its legal name. Needs an export from the last 24 hours, or withoutExport. Everything keeps working until the date",
+      "toolset": "meta"
+    },
+    {
+      "deferred": false,
+      "name": "spaces_delete_cancel",
+      "summary": "Owner or an admin: cancel the scheduled deletion with one click; the Space carries on and every admin is told",
+      "toolset": "meta"
+    },
+    {
+      "deferred": false,
+      "name": "spaces_delete_due",
+      "summary": "Host only: when the scheduled date has passed, remove the Space's data and stop serving it",
       "toolset": "meta"
     },
     {
       "deferred": false,
       "name": "spaces_export",
       "summary": "Owner one-click export: a zip of records, files, chats and settings; never secret values, never others' private chats or personal memory",
+      "toolset": "meta"
+    },
+    {
+      "deferred": false,
+      "name": "spaces_export_latest",
+      "summary": "When the newest finished export of this Space was taken, or nothing when none was; Delete this Space asks for one from the last 24 hours",
       "toolset": "meta"
     },
     {
@@ -8473,6 +8977,42 @@
       "toolset": "records"
     },
     {
+      "deferred": true,
+      "name": "talk_ask_key",
+      "summary": "Post the secret card that asks for a Talk key in this chat: their own, or the Space's. The value goes straight to the Vault and never into the chat",
+      "toolset": "meta"
+    },
+    {
+      "deferred": true,
+      "name": "talk_configure",
+      "summary": "Change a person's Talk: on or off, provider, language, model. An agent may do this for the person it acts for. Keys go through talk_ask_key",
+      "toolset": "meta"
+    },
+    {
+      "deferred": true,
+      "name": "talk_space_check",
+      "summary": "Check the Space key now: a real one-second grant against the provider the Space picked, with the key from the Vault",
+      "toolset": "meta"
+    },
+    {
+      "deferred": true,
+      "name": "talk_space_configure",
+      "summary": "Turn Talk for everyone on or off, and pick which provider (Deepgram or ElevenLabs) covers people; its key must be added first. An agent's change stops at the Gate for someone who may approve it",
+      "toolset": "meta"
+    },
+    {
+      "deferred": true,
+      "name": "talk_space_status",
+      "summary": "Talk for everyone in the Space: whether a key is set, on or off, who set it, when it was last checked and how many people use their own key",
+      "toolset": "meta"
+    },
+    {
+      "deferred": true,
+      "name": "talk_status",
+      "summary": "Talk for the person asking: on or off, provider, language, model and what covers them (their own key, the Space key or nothing). Never a key",
+      "toolset": "meta"
+    },
+    {
       "deferred": false,
       "name": "task_ask",
       "summary": "Ask a question while you work on a task: an Answer task opens for the requester or a named person, the work waits, and the answer wakes you",
@@ -8518,6 +9058,12 @@
       "deferred": false,
       "name": "tasks_act",
       "summary": "Act on a request at its source: approve, reject, send back, answer, resolve, with a note; continues the chat or run at once",
+      "toolset": "tasks"
+    },
+    {
+      "deferred": false,
+      "name": "tasks_agent_on_it",
+      "summary": "Say that an agent is on a task for the person it is assigned to: the task moves to Doing and its row reads \"<Agent> is on it for you\". Only that person, or the host, may say so",
       "toolset": "tasks"
     },
     {
@@ -9056,6 +9602,12 @@
     },
     {
       "deferred": false,
+      "name": "threads_mark_unread_from",
+      "summary": "Mark a thread unread from one message on: the read point goes back to just before that message, so it and everything after it count as new (it never moves the point forward)",
+      "toolset": "chats"
+    },
+    {
+      "deferred": false,
       "name": "threads_members_add",
       "summary": "Add a person to a thread. A private chat becomes a group chat: the newcomer reads from now on unless fromStart is true (Include earlier messages), a goal chat shows its history, and agents stop using the asker's private profile there. A chat's own agents become visible to the newcomer.",
       "toolset": "chats"
@@ -9064,6 +9616,12 @@
       "deferred": false,
       "name": "threads_members_remove",
       "summary": "Remove a person from a thread",
+      "toolset": "chats"
+    },
+    {
+      "deferred": false,
+      "name": "threads_move",
+      "summary": "Move a chat into a project: it then belongs to the project (its memory and its people). Needs Manage on the chat and the right to add to the project; audited",
       "toolset": "chats"
     },
     {
@@ -9098,6 +9656,12 @@
     },
     {
       "deferred": false,
+      "name": "threads_set_agent_replies",
+      "summary": "Choose where the agents of a chat reply: in the thread under the message that asked them, or in the chat itself. Approvals and answers an agent marks Also send to the chat still come to the chat",
+      "toolset": "chats"
+    },
+    {
+      "deferred": false,
       "name": "threads_set_folder",
       "summary": "Set the thread work folder (the folder chip above the composer)",
       "toolset": "chats"
@@ -9125,6 +9689,12 @@
       "name": "threads_update",
       "summary": "Rename a thread",
       "toolset": "chats"
+    },
+    {
+      "deferred": false,
+      "name": "time_convert",
+      "summary": "Convert a time between time zones, or turn \"tomorrow 2pm\" into a time. Use it for any time not already in the person's zone; never work out zones, dates or epoch numbers yourself",
+      "toolset": "meta"
     },
     {
       "deferred": false,

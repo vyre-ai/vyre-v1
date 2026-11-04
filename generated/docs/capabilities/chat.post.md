@@ -64,6 +64,7 @@ type In = {
     actions?: Array<string>;
     focus?: string;
   };
+  alsoToChat?: boolean;
   idempotencyKey: string;
 };
 ```
@@ -125,6 +126,7 @@ type Out = {
 {
   "name": "example",
   "input": {
+    "alsoToChat": true,
     "attachments": [
       "fil_a1b2c3"
     ],

@@ -196,6 +196,9 @@ export default defineManifest({
     write('tasks.take', 'Take a group or role task; the first Take locks it and others see taken by', {
       in: target, out: { task: taskRow }, on: ['task', '/taskId'], level: 'use', emits: ['task.taken'], tool: 'tasks', offline: 'online', errors: ['validation.precondition_failed'],
     }),
+    write('tasks.agent_on_it', 'Say that an agent is on a task for the person it is assigned to: the task moves to Doing and its row reads "<Agent> is on it for you". Only that person, or the host, may say so', {
+      in: { ...target, agentId: id.agent }, out: { task: taskRow }, on: ['task', '/taskId'], level: 'use', emits: ['task.transitioned', 'task.updated', 'task.requested'], tool: 'tasks', errors: ['validation.precondition_failed'],
+    }),
     write('tasks.release', 'Give a taken task back to its group or role', { in: target, out: { task: taskRow }, on: ['task', '/taskId'], level: 'use', emits: ['task.released'], tool: 'tasks' }),
     create('tasks.plan', 'Break work into tasks in one step: a parent (new, or one that exists) and its children, each with its brief, what done means, who does it and which others it waits on. A child starts by itself when what it waits on is done; the parent hears only when all are done, or one is blocked or asks', {
       in: {

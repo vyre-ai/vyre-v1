@@ -8,7 +8,7 @@ import {
   eventCreate, eventDelete, eventGet, eventRespond, eventsList, eventUpdate, freeBusy, health, meetEntries, meetRecordings, meetRecords, meetSubscribe, meetTranscripts,
   receivePush, sheetAppend, sheetBatch, sheetCreate, sheetGet, sheetUpdate, sheetValues,
 } from "../handlers/index.ts";
-import { getProfile, watch } from "../handlers/gmail.ts";
+import { getProfile, pullMailbox, watch } from "../handlers/gmail.ts";
 import { handlers } from "../impl.ts";
 import { registry } from "../../../generated/registry.ts";
 import { ensure, pushToken, SCOPES } from "../projections.ts";
@@ -634,4 +634,65 @@ test("a Drive push notice wakes the mounts that watch the channel; the first not
   assert.deepEqual(h.calls("mounts.nudge").map((c) => c.input), [{ source: "google", channelId: "chn1" }]);
   await receivePush(h.ctx, { kind: "calendar", messageId: "cal1:1", channelId: "cal1", resourceState: "exists" });
   assert.equal(h.calls("mounts.nudge").length, 1, "only Drive notices wake mounts");
+});
+
+// ---- the Space's Google connection reads active and used (MLA, 4 Nov: "Needs sign-in, never used" while mail and calendar polled)
+
+test("a member's own read through the Space's delegation never calls connections.mark_working; the host's poll does", async () => {
+  const h = admin();
+  await dwdSetup(h.ctx, setupInput);
+  seedMailbox(h);
+  h.advance(61_000);
+  const n = h.calls("connections.mark_working").length;
+  // the same mailbox read, as a member who does not manage the Space connection (the harness refuses connectors.manage to anyone not admin)
+  const asMember = Object.assign({}, h.ctx, { principal: { kind: "person", id: "usr_maya01" }, authorize: (a: { perm: string | null }) => a.perm === "connectors.manage" ? { effect: "deny", reason: "no_grant", decisionId: "dec_x" } : { effect: "allow", reason: "ok", decisionId: "dec_x" } }) as typeof h.ctx;
+  await pullMailbox(asMember, { connectionId: CONN, mailbox: MAYA });
+  assert.equal(h.calls("connections.mark_working").length, n, "a member's read does not make the call");
+  const asHost = Object.assign({}, h.ctx, { principal: { kind: "service", id: "svc_host" }, authorize: asMember.authorize }) as typeof h.ctx;
+  await pullMailbox(asHost, { connectionId: CONN, mailbox: MAYA });
+  assert.equal(h.calls("connections.mark_working").length, n + 1, "the host's poll tells the connection");
+});
+
+/** Maya's mailbox (made by setup) has pulled before: it has a cursor, and Google answers an empty history, so a poll is one good answer and no mail. */
+function seedMailbox(h: Harness): void {
+  h.ctx.db.run(`UPDATE google_mailbox SET "historyId" = ? WHERE email = ?`, "1000", MAYA);
+  h.on("GET", /\/history\?/, { body: { history: [], historyId: "1001" } });
+}
+
+test("delegation set up with a passing check makes the Space connection active, and a mailbox poll stamps its last use at most once a minute", async () => {
+  const h = admin();
+  assert.deepEqual(h.connection, { state: "pending", lastSyncAt: null }, "a new connection starts pending");
+  await dwdSetup(h.ctx, setupInput);
+  assert.equal(h.connection.state, "active", "the check passed, so it is active");
+  assert.equal(h.calls("connections.mark_working")[0]!.input.connectionId, CONN);
+  assert.equal(h.connection.lastSyncAt, NOW, "the good answer from Google is its first use");
+  seedMailbox(h);
+  const before = h.calls("connections.mark_working").length;
+  await pullMailbox(h.ctx, { connectionId: CONN, mailbox: MAYA });
+  assert.equal(h.calls("connections.mark_working").length, before, "inside the minute: nothing more is sent");
+  h.advance(61_000);
+  await pullMailbox(h.ctx, { connectionId: CONN, mailbox: MAYA });
+  assert.equal(h.connection.lastSyncAt, NOW + 61_000, "after one poll the last use is set");
+});
+
+test("a pending Google connection whose delegation check passed becomes active on the next poll (the repair for a connection set up before this)", async () => {
+  const h = admin();
+  await dwdSetup(h.ctx, setupInput);
+  seedMailbox(h);
+  h.connection.state = "pending";
+  h.connection.lastSyncAt = null;   // MLA's row: pending since 2 Nov, never stamped
+  h.advance(5 * 60_000);
+  await pullMailbox(h.ctx, { connectionId: CONN, mailbox: MAYA });
+  assert.deepEqual(h.connection, { state: "active", lastSyncAt: NOW + 5 * 60_000 });
+});
+
+test("a paused connection stays paused and unstamped however often it is polled", async () => {
+  const h = admin();
+  await dwdSetup(h.ctx, setupInput);
+  seedMailbox(h);
+  h.connection.state = "paused";
+  h.connection.lastSyncAt = null;
+  h.advance(5 * 60_000);
+  await pullMailbox(h.ctx, { connectionId: CONN, mailbox: MAYA });
+  assert.deepEqual(h.connection, { state: "paused", lastSyncAt: null });
 });

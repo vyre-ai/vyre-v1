@@ -14,7 +14,7 @@ type Dev = "desktop" | "phone" | "web" | "extension" | "daemon";
 
 interface SpaceInfo { id: string; name: string; logoFileId?: string; fingerprint: string; host?: string }
 
-async function spaceInfo(ctx: MembersCtx): Promise<SpaceInfo> {
+export async function spaceInfo(ctx: MembersCtx): Promise<SpaceInfo> {
   const out = (await ctx.call("spaces.get", {})) as { space: { id: string; name: string; logoFileId?: string; fingerprint: string; address?: { host?: string } } };
   const s = out.space;
   const info: SpaceInfo = { id: s.id, name: s.name, fingerprint: s.fingerprint };
@@ -23,7 +23,7 @@ async function spaceInfo(ctx: MembersCtx): Promise<SpaceInfo> {
   return info;
 }
 
-async function roleName(ctx: MembersCtx, roleId: string): Promise<string> {
+export async function roleName(ctx: MembersCtx, roleId: string): Promise<string> {
   const out = (await ctx.call("access.roles.get", { roleId })) as { role: { name: string } };
   return out.role.name;
 }

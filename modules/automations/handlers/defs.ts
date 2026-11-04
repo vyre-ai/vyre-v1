@@ -618,6 +618,20 @@ export async function remove(ctx: AutoCtx, input: In): Promise<unknown> {
   emitAuto(ctx, "automation.deleted", a.id, {});
   return { deleted: true };
 }
+export async function setOwner(ctx: AutoCtx, input: In & { ownerId?: string }): Promise<unknown> {
+  const a = visible(ctx, getAutomation(ctx, input.automationId));
+  await mustChange(ctx, a);
+  if (a.kind !== "space") raise(ctx, "validation.bad_input", "A Personal Automation belongs to its person. Promote it to the Space first.");
+  const to = typeof input.ownerId === "string" ? input.ownerId : "";
+  if (!to.startsWith("usr_") || to === a.ownerId) raise(ctx, "validation.bad_input", "Pick another person.");
+  const from = a.ownerId;
+  a.ownerId = to;
+  touch(ctx, a);
+  // the previous owner keeps Manage, so handing it over never locks them out
+  await ctx.call?.("access.share", { resource: { type: "automation", id: a.id }, subject: { kind: "person", id: from }, level: "manage", idempotencyKey: `owner:${a.id}:${to}` }).catch(() => undefined);
+  emitAuto(ctx, "automation.updated", a.id, { version: a.version, fields: ["ownerId"] });
+  return { automation: out(a) };
+}
 export async function undelete(ctx: AutoCtx, input: In): Promise<unknown> {
   const a = getAutomation(ctx, input.automationId, true);
   visible(ctx, a);

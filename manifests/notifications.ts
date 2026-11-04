@@ -12,8 +12,8 @@ const place = t.enm('home', 'chats', 'inbox', 'records', 'files', 'apps', 'autom
 const kindKey = t.enm(
   'approval.requested', 'answer.requested', 'unblock.requested', 'approval.backstop', 'dm', 'mention', 'call.incoming', 'agent.blocked', 'incident.owned', 'task.assigned', 'reply.followed',
   'agent.task_finished', 'digest.away', 'mention.thread', 'run.failed', 'conflict.needs_you', 'access.requested', 'access.decided',
-  'sync.attention', 'health.degraded', 'problem.report', 'member.joined', 'limit.hit', 'vault.rotation_due', 'reply.thread',
-  'task.turn', 'task.returned', 'task.finished', 'task.due', 'machine.alert',
+  'sync.attention', 'health.degraded', 'problem.report', 'member.joined', 'member.join_requested', 'limit.hit', 'vault.rotation_due', 'reply.thread',
+  'task.turn', 'task.returned', 'task.finished', 'task.due', 'machine.alert', 'item.shared', 'space.deletion_scheduled', 'space.deletion_cancelled', 'ci.paused', 'hook.asked',
 );
 const notificationRow = t.obj({
   id: id.notification, kind: kindKey, level, place, title: t.str(), body: t.opt(t.str()), subject: t.opt(resourceRef), count: t.int({ minimum: 1 }),
@@ -66,12 +66,22 @@ export default defineManifest({
     notif('conflict.needs_you', 'badge', 'records', 'Two edits conflict on {{title}}', { actions: [{ label: 'Resolve', cap: 'tasks.act' }] }),
     notif('access.requested', 'badge', 'console', '{{from}} asks for {{level}} access to {{title}}', { actions: [{ label: 'Review', cap: 'tasks.act' }] }),
     notif('access.decided', 'badge', 'home', 'Your access request for {{title}} was {{decision}}'),
+    notif('item.shared', 'badge', 'inbox', '{{from}} shared {{title}} with you'),
     notif('sync.attention', 'badge', 'settings', 'Sync needs attention on {{device}}'),
     notif('health.degraded', 'badge', 'console', '{{service}} is {{state}}'),
     // a machine needs a look (disk nearly full, memory pressure, offline with pinned work, a failed backup): one Inbox line for each admin, and the Console's dot on Machines
     notif('machine.alert', 'badge', 'inbox', '{{title}}', { actions: [{ label: 'Open', cap: 'machines.list' }] }),
+    // the Space was scheduled for deletion, or the deletion was cancelled: one Inbox line for each admin, and an email to each (the date and the way to cancel)
+    notif('space.deletion_scheduled', 'badge', 'inbox', '{{title}}', { actions: [{ label: 'Cancel deletion', cap: 'spaces.delete_cancel' }] }),
+    notif('space.deletion_cancelled', 'badge', 'inbox', '{{title}}'),
+    // CI paused for the month: the cap is reached; one Inbox line for each admin
+    notif('ci.paused', 'badge', 'console', '{{title}}', { actions: [{ label: 'Open', cap: 'ci.cost.month' }] }),
+    // someone asked the admins about a hook that stopped something: one Inbox line for each admin, opening the Hooks list
+    notif('hook.asked', 'badge', 'inbox', '{{title}}', { actions: [{ label: 'Open', cap: 'hooks.list' }] }),
     notif('problem.report', 'badge', 'console', 'Problem report from {{from}}', { actions: [{ label: 'Review', cap: 'tasks.act' }] }),
     notif('member.joined', 'digest', 'home', '{{name}} joined {{space}}'),
+    // someone asked to join through the Request to join link: one line for each admin, opening Console > People > Requests
+    notif('member.join_requested', 'badge', 'console', '{{name}} asked to join {{space}}', { actions: [{ label: 'Review', cap: 'members.join_requests.list' }] }),
     notif('limit.hit', 'badge', 'chats', '{{title}} hit its limit', { actions: [{ label: 'Raise once', cap: 'tasks.act' }, { label: 'Stop', cap: 'tasks.act' }] }),
     notif('vault.rotation_due', 'badge', 'vault', 'Time to rotate {{title}}', { actions: [{ label: 'Mark rotated', cap: 'vault.item.mark_rotated' }] }),
     // a reply in a chat thread you follow (you wrote the message it hangs off, replied in it, were mentioned in it or followed it). A burst collapses into one row per thread: "3 new replies in #intake"

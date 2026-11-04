@@ -1,9 +1,14 @@
 // Capability handlers for settings (15). One file holds them all: registry.ts.
 import { copyProfile, copySource, floorSet, get, kitGet, kitSetMine, kitSetSpace, list, pages, publicOf, reset, resetSpace, searchRows, set, setSpace } from "./registry.ts";
 
+import { contactStatus, contactVerifyConfirm, contactVerifyStart } from "./contact.ts";
+
 export type { SettingsCtx } from "../projections.ts";
 
 export const handlers = {
+  "settings.contact.status": contactStatus,
+  "settings.contact.verify_confirm": contactVerifyConfirm,
+  "settings.contact.verify_start": contactVerifyStart,
   "settings.copy_profile": copyProfile,
   "settings.copy_source": copySource,
   "settings.floor_set": floorSet,

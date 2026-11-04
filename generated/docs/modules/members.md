@@ -4,7 +4,7 @@ Lane L7a. Kind module. Version 0.1.0.
 
 Requires: access, home.
 
-## Capabilities (34)
+## Capabilities (43)
 
 - [company.access_log](../capabilities/company.access_log.md): Who reached whose mail, calendar or files: who made the call, the person an agent worked for, which mailbox, when
 - [company.check](../capabilities/company.check.md): Prove the key now in the Vault works, with no person involved. Answers what is wrong in plain words, or who it is; never the key. A key that works is remembered
@@ -24,6 +24,15 @@ Requires: access, home.
 - [members.invites.list](../capabilities/members.invites.list.md): List invites
 - [members.invites.preview](../capabilities/members.invites.preview.md): Join page: the public Space routing id, name and logo, who invited, expiry and display fingerprint for a code
 - [members.invites.revoke](../capabilities/members.invites.revoke.md): Revoke an open invite
+- [members.join_link.create](../capabilities/members.join_link.create.md): Turn the Request to join link on (the address people open), or change the role it admits at; defaults to Guest, the least role. Turning it on after Off makes a fresh address
+- [members.join_link.disable](../capabilities/members.join_link.disable.md): Turn the Request to join link off; the address stops working and requests already waiting stay
+- [members.join_link.get](../capabilities/members.join_link.get.md): The reusable Request to join link: on or off, the role people join as, the address when on (shown again any time), and how many requests wait
+- [members.join_link.preview](../capabilities/members.join_link.preview.md): Request page: the Space name, logo, the role and the display fingerprint for a Request to join code
+- [members.join_link.request](../capabilities/members.join_link.request.md): Ask to join through the Request to join link: a name, an email and an optional note. Nothing is created but the request; asking again from the same email is one request
+- [members.join_link.rotate](../capabilities/members.join_link.rotate.md): Make a new Request to join address; the old one stops working at once and requests already waiting stay
+- [members.join_requests.approve](../capabilities/members.join_requests.approve.md): Approve a request to join: makes a one-time invite for their email at the link's role and returns that link once, to email or copy
+- [members.join_requests.decline](../capabilities/members.join_requests.decline.md): Decline a request to join
+- [members.join_requests.list](../capabilities/members.join_requests.list.md): People who asked to join through the Request to join link, newest first
 - [members.joins.list](../capabilities/members.joins.list.md): Joins that have not finished: each new member with the steps that did not work yet, in words, how often each was tried, and whether it is stuck (three tries or more)
 - [members.joins.retry](../capabilities/members.joins.retry.md): Retry a new member's join steps that did not work, now
 - [members.reactivate](../capabilities/members.reactivate.md): Reactivate a suspended person
@@ -41,10 +50,13 @@ Requires: access, home.
 - [members.sso.test](../capabilities/members.sso.test.md): Test an SSO provider: discovery document, keys and redirect
 - [members.suspend](../capabilities/members.suspend.md): Suspend a person: they cannot act and their devices purge on next contact
 
-## Events (6)
+## Events (9)
 
 - [member.invite_revoked](../events/member.invite_revoked.md): An invite was revoked
 - [member.invited](../events/member.invited.md): An invite was made
+- [member.join_link_changed](../events/member.join_link_changed.md): The reusable Request to join link was turned on, turned off, rotated, or given another role (never the code)
+- [member.join_request_declined](../events/member.join_request_declined.md): A request to join was declined
+- [member.join_requested](../events/member.join_requested.md): A person opened the Request to join link and asked to join; every admin gets a line
 - [member.join_stuck](../events/member.join_stuck.md): A join step (a group, a channel, a project, an agent, the first channel, their mail and calendar) failed three times; it is still tried every two minutes and shows in Console Overview
 - [member.joined](../events/member.joined.md): A person accepted an invite and is active; the inviter gets a quiet line
 - [member.removal_plan_applied](../events/member.removal_plan_applied.md): The removal wizard reassigned or paused the things the person owned (counts only)

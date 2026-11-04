@@ -3,17 +3,18 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import { DatabaseSync } from "node:sqlite";
 import { authorize } from "../../../kernel/src/authorize/index.ts";
 import { handlers } from "../impl.ts";
 import { putPrincipal } from "../handlers/roles.ts";
 import {
-  agentsCanCallGet, agentsCanCallSet, dropShare, foldersCreate, foldersDelete, foldersList, foldersMove, foldersPlace, foldersRename, foldersUnplace, levelFor, lists,
+  agentsCanCallGet, agentsCanCallSet, dropShare, makeOwner, foldersCreate, foldersDelete, foldersList, foldersMove, foldersPlace, foldersRename, foldersUnplace, levelFor, lists,
   automationSenders, deciders, myAccess, share, shareOf, sharesOf, unshare, updateGrant,
 } from "../handlers/share.ts";
 import type { ShareCtx } from "../handlers/share.ts";
 import { MemoryDb } from "../fixtures/db.ts";
 import type { Db } from "../projections.ts";
-import { dropStore, EVERYONE, pkey, setPrivate, storeOf } from "../projections.ts";
+import { agentLevel, dropStore, EVERYONE, pkey, setPrivate, storeOf } from "../projections.ts";
 
 const NOW = 1_700_000_000_000;
 const DAY = 24 * 60 * 60 * 1000;
@@ -512,4 +513,71 @@ test("agents can call: On unless a person with Manage turns it Off; an agent, a 
   assert.deepEqual(await agentsCanCallSet(a, { agentId: "agt_dex", on: true }), { on: true });
   assert.equal((await sharesOf(a, { resource: res })).agentsCanCall, true);
   assert.equal(await code(agentsCanCallGet(a, { agentId: "sit_none" })), "validation.not_found");
+});
+
+test("an agent has three levels: an old Can chat with (view) grant reads as Can use, and sharing at view stores use", async () => {
+  const r = rig();
+  r.item("agt_dex", "usr_a", "agent");
+  const a = r.as("usr_a");
+  const res = { type: "agent" as const, id: "agt_dex" };
+  assert.equal(agentLevel("agent", "view"), "use");
+  assert.equal(agentLevel("agent", "use"), "use");
+  assert.deepEqual(["edit", "manage"].map((l) => agentLevel("agent", l as "edit" | "manage")), ["edit", "manage"]);
+  assert.equal(agentLevel("file", "view"), "view", "other kinds keep View");
+  const g = (await share(a, { resource: res, subject: { kind: "person", id: "usr_b" }, level: "view" })).grant;
+  assert.equal(g.level, "use");
+  assert.equal((await sharesOf(a, { resource: res })).shares.find((x) => x.grant.subject.id === "usr_b")?.grant.level, "use");
+  // a stored row from before the merge is read as use
+  r.store.grants.set("gnt_old", { id: "gnt_old", subject: { kind: "person", id: "usr_c" }, resource: { type: "agent", id: "agt_dex" }, level: "view", conditions: {}, by: "usr_a", createdAt: 1 });
+  assert.equal(agentLevel("agent", r.store.grants.get("gnt_old")!.level), "use");
+});
+
+test("migration 0005 turns every stored View grant on an agent into Use and drops a duplicate", () => {
+  const sql = readFileSync(new URL("../migrations/0005_agent_levels.sql", import.meta.url), "utf8");
+  assert.match(sql, /UPDATE "access_grants" SET "level" = 'use' WHERE "resourceType" = 'agent' AND "level" = 'view'/);
+  assert.match(sql, /DELETE FROM "access_grants" WHERE "resourceType" = 'agent' AND "level" = 'view' AND EXISTS/);
+  const db = new DatabaseSync(":memory:");
+  db.exec('CREATE TABLE "access_grants" ("id" TEXT, "subjectKind" TEXT, "subjectId" TEXT, "resourceType" TEXT, "resourceId" TEXT, "level" TEXT)');
+  const put = db.prepare('INSERT INTO "access_grants" VALUES (?,?,?,?,?,?)');
+  put.run("g1", "person", "usr_b", "agent", "agt_dex", "view");     // becomes use
+  put.run("g2", "person", "usr_c", "agent", "agt_dex", "view");     // also holds use: the view row goes
+  put.run("g3", "person", "usr_c", "agent", "agt_dex", "use");
+  put.run("g4", "person", "usr_b", "file", "fil_1", "view");        // another kind: untouched
+  put.run("g5", "person", "usr_d", "agent", "agt_dex", "edit");
+  db.exec(sql);
+  const rows = db.prepare('SELECT "id","level" FROM "access_grants" ORDER BY "id"').all().map((r) => [r.id, r.level]);
+  assert.deepEqual(rows, [["g1", "use"], ["g3", "use"], ["g4", "view"], ["g5", "edit"]]);
+});
+
+test("sharing with notify tells the person once; without it nobody is told; never oneself", async () => {
+  const r = rig();
+  r.item("agt_dex", "usr_a", "agent");
+  const a = r.as("usr_a");
+  const res = { type: "agent" as const, id: "agt_dex" };
+  await share(a, { resource: res, subject: { kind: "person", id: "usr_b" }, level: "use" });
+  assert.equal(r.names().filter((n) => n === "access.shared_with").length, 0, "no notify, no word");
+  await share(a, { resource: res, subject: { kind: "person", id: "usr_c" }, level: "use", notify: { message: "Take a look" } });
+  const told = r.events.filter((e) => e.name === "access.shared_with");
+  assert.equal(told.length, 1);
+  assert.deepEqual(told[0]!.payload, { to: "usr_c", resource: res, level: "use", byName: "usr_a", title: "agt_dex", message: "Take a look" });
+  await share(a, { resource: res, subject: { kind: "person", id: "usr_a" }, level: "use", notify: {} });
+  assert.equal(r.events.filter((e) => e.name === "access.shared_with").length, 1, "not oneself");
+});
+
+test("make owner: only the owner, only to an active person; the previous owner keeps Manage", async () => {
+  const r = rig();
+  r.item("fld_x", "usr_a", "folder");
+  const res = { type: "folder" as const, id: "fld_x" };
+  const a = r.as("usr_a");
+  await share(a, { resource: res, subject: { kind: "person", id: "usr_b" }, level: "edit" });
+  assert.equal(await code(makeOwner(r.as("usr_b"), { resource: res, personId: "usr_c" })), "permission.no_grant", "a manager is not the owner");
+  assert.equal(await code(makeOwner(a, { resource: res, personId: "usr_nobody" })), "validation.bad_input");
+  assert.equal(await code(makeOwner(a, { resource: res, personId: "usr_a" })), "validation.bad_input");
+  const agent: ShareCtx = { ...a, principal: { kind: "agent", id: "agt_x" } };
+  assert.equal(await code(makeOwner(agent, { resource: res, personId: "usr_b" })), "permission.no_grant", "an agent never hands over ownership");
+  assert.deepEqual(await makeOwner(a, { resource: res, personId: "usr_b" }), { ok: true });
+  const { shares } = await sharesOf(r.as("usr_b"), { resource: res });
+  assert.equal(shares.find((s) => s.through === "owner")?.grant.subject.id, "usr_b");
+  assert.equal(shares.find((s) => s.grant.subject.id === "usr_a")?.grant.level, "manage", "the previous owner keeps Manage");
+  assert.equal((await sharesOf(a, { resource: res })).mine, "manage");
 });

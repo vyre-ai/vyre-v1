@@ -1,3 +1,7 @@
+import { judge, needsJudging, noAccessLine } from "../reach/target.ts";
+import type { Judge } from "../reach/target.ts";
+import { adminPages } from "../providers/settings-admin.ts";
+import { createLinkPolicy } from "../reach/policy.ts";
 import { isAssistantRow } from "../../../../../lib/agent-kind.ts";
 import {createRecordsPreview} from "../../../../../client/src/gateway/records-preview.ts";
 // A signed-in Space, open (ARCH 7.0): who you are, the Space's name and kind, the capability caller on its gateway, the screen hooks every place reads, the live link that keeps them fresh, and the
@@ -31,7 +35,8 @@ import { assistantName } from "../../../../../ui/src/Avatar/assistant.ts";
 import type { Dial, Scheduler } from "../../../../../client/src/connection/index.ts";
 import { PLACE_QUERIES, WARM_ORDER } from "./prefetch.ts";
 import { directoryOf, standInsOf } from "./private-agents.ts";
-import { setStandIns } from "../../../../../ui/src/Avatar/assistant.ts";
+import { setAgentFaces, setAgentStatuses, setStandIns } from "../../../../../ui/src/Avatar/assistant.ts";
+import { setFaceImageLoader } from "../../../../../ui/src/Avatar/faceimages.ts";
 import { createRemoteScreenHooks } from "./remote-hooks.ts";
 import type { RemoteHooks } from "./remote-hooks.ts";
 import { onRetryLoads } from "../../../../../ui/src/States/retry.ts";
@@ -48,6 +53,8 @@ export interface OpenSessionOptions {
   spaceCards?: readonly SpaceDef[];
   /** Where a click goes: the shell maps a screen or subject to a place and shows it. */
   navigate?(place: PlaceId, hash: string, background?: boolean): void;
+  /** A click reach turned away: one quiet line. */
+  notice?(text: string): void;
   /** A click that opens something of the shell itself (the search, a new tab, the Space switcher): screens whose place is `shell`. */
   shell?(screen: string, args: Record<string, unknown>): void;
   /** The session ended on the server (401): the shell goes back to sign-in. */
@@ -318,6 +325,13 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
   const warmTimers: ReturnType<typeof setTimeout>[] = [];
   WARM_ORDER.filter((place) => !offRail.includes(place)).forEach((place, i) => { warmTimers.push(setTimeout(() => prefetchPlace(place), o.warmAfterMs === undefined ? 1500 + i * 250 : o.warmAfterMs + i * 250)); });
 
+  // the pictures of uploaded agent faces are files in the agents' folders: read once as the person, kept for the session
+  setFaceImageLoader(async (fileId) => {
+    const out = (await call("files.read", { fileId, as: "base64" })) as { base64?: string; mime?: string };
+    if (typeof out.base64 !== "string" || typeof out.mime !== "string") throw new Error("not a picture");
+    return `data:${out.mime};base64,${out.base64}`;
+  });
+
   const connections = hooks.capQuery<Out<"connections.list">>("connections.list", {});
   const principalsList = hooks.capQuery<Out<"access.principals.list">>("access.principals.list", {});
   const groupsList = hooks.capQuery<Out<"access.groups.list">>("access.groups.list", {});
@@ -330,6 +344,13 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
     const list = new Map<string, Principal>([[me.id, me]]);
     // the agents this person may use are what agents.list answers (the agents module's visibility rule); any other agent is someone else's private one, credited to its person ("Irfad Imtiaz (Agent)") and never offered
     const usable = ag?.status === "ready" ? new Set((ag.data as Out<"agents.list">).agents.map((a) => a.agentId)) : null;
+    // what was picked on an agent's page shows on every face of that agent, in every place (not only Chats)
+    if (ag?.status === "ready") {
+      const rows = (ag.data as Out<"agents.list">).agents;
+      setAgentFaces(rows.map((a) => ({ id: a.agentId, face: a.face })));
+      // how each agent is doing shows on every one of its faces, in every place
+      setAgentStatuses(rows.map((a) => ({ id: a.agentId, status: a.status })));
+    }
     if (p?.status === "ready") {
       const dir = directoryOf((p.data as Out<"access.principals.list">).principals, own, me.id, usable);
       for (const x of dir) list.set(x.id, x);
@@ -351,11 +372,37 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
     return a ? { id: a.agentId, name: assistantName(a.name, who.name) } : { id: "assistant", name: "Assistant" };
   };
 
+  // every click that opens something goes through this one door, and reach decides: the Console page or the item must be one this person can open (shell/reach/target.ts)
+  const links = createLinkPolicy({ call: (cap, input) => reach(cap, input), ...(o.notice ? { flash: o.notice } : {}) });
+  const judging: Judge = {
+    links,
+    viewer: () => ({ id: me.id, spaceId: space.id, ...(livePerms ? { perms: livePerms } : {}) }),
+    call: (cap, input) => reach(cap, input),
+    consolePages: () => consolePagesOnce(),
+    memo: new Map(),
+  };
+  let consoleRead: Promise<ReadonlySet<string>> | null = null;
+  const consolePagesOnce = (): Promise<ReadonlySet<string>> => {
+    if (consoleRead === null) {
+      consoleRead = space.kind === "personal" || (who.roles.length > 0 && plainRoleOnly(who.roles, space.kind)) ? Promise.resolve(new Set<string>())
+        : (reach("console.nav", {}) as Promise<Parameters<typeof adminPages>[0]>).then((out) => adminPages(out), () => new Set<string>());
+    }
+    return consoleRead;
+  };
   const open = (t: ShellTarget): void => {
     const where = t.screen ? (screens.get(t.screen)?.place ?? "") : (t.subject ? (placeForSubject(t.subject.type) ?? "") : "");
     if (where === "shell") { if (t.screen) o.shell?.(t.screen, t.args ?? {}); return; }
     const place = railPlace(where);
-    if (place && o.navigate) o.navigate(place, targetHash(t), t.background === true);
+    if (!place || !o.navigate) return;
+    const go = (): void => { o.navigate?.(place, targetHash(t), t.background === true); };
+    // a tab or view of what is already open is not a new door: no read, no refusal
+    if (t.local === true || !needsJudging(t)) { go(); return; }
+    void judge(t, judging).then((r) => {
+      if (r.to === "open") { go(); return; }
+      // the last resort: a link should have drawn plain before it was pressed. Under test it is a failure, so the suite counts zero of these.
+      if (o.notice) o.notice(noAccessLine(t));
+      else if ((globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env?.["NODE_TEST_CONTEXT"] !== undefined) throw new Error("reach fallback fired: a link led somewhere the viewer cannot open");
+    });
   };
 
   // a Space that never learnt its name answers its id: it is called by its address instead (spaces/space-label.ts)
@@ -429,6 +476,7 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
     deferredModules: deferred.deferredModules,
     isDeferred: deferred.isDeferred,
     open,
+    links,
     openUrl: (url) => {
       if (o.openUrl) o.openUrl(url);
       else (globalThis as { open?: (u: string, t: string, f: string) => unknown }).open?.(url, "_blank", "noopener");

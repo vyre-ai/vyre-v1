@@ -10,7 +10,7 @@ import { createStreamStore } from "../../../../../../ui/src/stream/index.ts";
 import type { LiveTurn } from "../../../shell/session/turn-streams.ts";
 import { Island } from "./Island.tsx";
 import type { IslandProps } from "./Island.tsx";
-import { choiceForKey, questionsOf } from "./island.ts";
+import { cardSeen, choiceForKey, pillChoices, questionsOf } from "./island.ts";
 import type { IslandQuestion } from "./island.ts";
 import type { Message } from "./model.ts";
 
@@ -20,6 +20,8 @@ const SIZE: IslandQuestion = { blockId: "blk_size", agentId: "agt_sol", name: "S
 const COLD: IslandQuestion = { blockId: "blk_cold", agentId: "agt_mira", name: "Mira", prompt: "Move old files to cold storage after 90 days?", choices: [
   { id: "90", label: "After 90 days", detail: "Recommended", recommended: true }, { id: "fast", label: "Keep everything fast", detail: "", recommended: false }], other: false };
 const THIRD: IslandQuestion = { ...COLD, blockId: "blk_third", prompt: "Which region?" };
+const PLAIN: IslandQuestion = { blockId: "blk_plain", agentId: "agt_sol", name: "Sol", prompt: "Which region?", choices: [
+  { id: "eu", label: "Europe", detail: "", recommended: false }, { id: "us", label: "United States", detail: "", recommended: false }], other: false };
 const FREE: IslandQuestion = { blockId: "blk_free", agentId: "agt_sol", name: "Sol", prompt: "What should the folder be called?", choices: [], other: true };
 const working: LiveTurn = { turnId: "t_mira", threadId: "thr_1", agentId: "agt_mira", store: createStreamStore(), state: "writing", startedAt: 1_000 };
 
@@ -47,12 +49,14 @@ test("an agent's question is the pill: the asker's waiting face, the question, i
   const s = await show({ questions: [SIZE] });
   assert.match(textOf(find(s.root, "island-question-text")), /How large can an upload be\?/);
   assert.match(String(find(s.root, "island-asker")!.props["aria-label"]), /Sol is waiting for your answer/);
-  for (const c of ["2gb", "10gb", "none"]) assert.ok(find(s.root, `island-choice-${c}`), `a button for ${c}`);
+  assert.ok(find(s.root, "island-choice-2gb"), "the recommended choice is a button");
+  for (const c of ["10gb", "none"]) assert.equal(find(s.root, `island-choice-${c}`), null, `${c} stays on the card in the chat`);
   assert.ok(find(s.root, "island-other") && find(s.root, "island-people-button"));
   assert.equal(find(s.root, "island-count"), null, "one question shows no counter");
   assert.equal(find(s.root, "island-other-field"), null, "Other is closed until pressed");
-  const main = (id: string): unknown => JSON.stringify(find(s.root, `island-choice-${id}`)!.props["style"] ?? find(s.root, `island-choice-${id}`)!.props["className"] ?? "");
-  assert.notEqual(main("2gb"), main("10gb"), "the recommended choice is drawn differently from the others");
+  const plain = await show({ questions: [PLAIN] });
+  const main = (n: Node, id: string): string => JSON.stringify(find(n, `island-choice-${id}`)!.props["style"] ?? find(n, `island-choice-${id}`)!.props["className"] ?? "");
+  assert.notEqual(main(s.root, "2gb"), main(plain.root, "eu"), "the recommended choice is drawn differently from a plain one");
   assert.equal(find(s.root, "island-word"), null, "the Working pill steps aside");
 });
 
@@ -102,7 +106,7 @@ test("a free-text question shows the field at once and no choices", async () => 
 });
 
 test("number keys pick a choice, the arrows walk, and a key typed in the composer or a field is not the Island's", async () => {
-  const s = await show({ questions: [SIZE, COLD] });
+  const s = await show({ questions: [PLAIN, COLD] });
   await s.key("2", { tagName: "DIV", isContentEditable: true });
   await s.key("2", { tagName: "TEXTAREA" });
   await s.key("2", { tagName: "DIV", closest: () => ({}) });
@@ -111,9 +115,10 @@ test("number keys pick a choice, the arrows walk, and a key typed in the compose
   assert.match(textOf(find(s.root, "island-count")), /2 of 2/);
   await s.key("ArrowLeft", { tagName: "BODY" });
   await s.key("9", { tagName: "BODY" });
+  await s.key("3", { tagName: "BODY" });
   assert.deepEqual(s.answers, [], "a number past the last choice picks none");
   await s.key("2", { tagName: "BODY" });
-  assert.deepEqual(s.answers, [["blk_size", "10gb"]]);
+  assert.deepEqual(s.answers, [["blk_plain", "us"]]);
   assert.equal(choiceForKey("1", 3), 0);
   assert.equal(choiceForKey("0", 3), null);
   assert.equal(choiceForKey("x", 3), null);
@@ -181,4 +186,44 @@ test("questionsOf: the recommended index fills that option; the Recommended text
   ], (id) => id);
   assert.deepEqual(withIndex!.choices.map((c) => c.recommended), [false, false, true], "the index wins over the text");
   assert.deepEqual(without!.choices.map((c) => c.recommended), [true, false, false]);
+});
+
+test("the pill offers the recommended choice alone with Other; with no recommendation it offers every choice; free text is only the field", () => {
+  assert.deepEqual(pillChoices(SIZE).choices.map((c) => c.id), ["2gb"]);
+  assert.equal(pillChoices(SIZE).other, true);
+  assert.deepEqual(pillChoices({ ...COLD, other: false }).choices.map((c) => c.id), ["90"]);
+  assert.equal(pillChoices({ ...COLD, other: false }).other, true, "Other is there whenever choices were left to the card, so every answer stays reachable");
+  assert.deepEqual(pillChoices(PLAIN).choices.map((c) => c.id), ["eu", "us"]);
+  assert.equal(pillChoices(PLAIN).other, false);
+  assert.deepEqual([pillChoices(FREE).choices.length, pillChoices(FREE).other], [0, true]);
+});
+
+test("cardSeen is the prototype's rule: whole inside the feed and clear of the composer, and not found is not seen", () => {
+  const feed = { top: 100, bottom: 700 };
+  assert.equal(cardSeen({ top: 200, bottom: 400 }, feed), true);
+  assert.equal(cardSeen({ top: 60, bottom: 300 }, feed), true, "a little under the top edge still counts");
+  assert.equal(cardSeen({ top: 20, bottom: 300 }, feed), false, "scrolled off the top");
+  assert.equal(cardSeen({ top: 300, bottom: 640 }, feed), false, "under the composer's foot");
+  assert.equal(cardSeen(null, feed), false);
+  assert.equal(cardSeen({ top: 200, bottom: 400 }, null), false);
+});
+
+test("a question whose card is on screen is not in the pill; it appears when the card scrolls away and goes when it is back", async () => {
+  const s = await show({ questions: [SIZE], turns: [working], activityOf: () => ({ get: () => ({ startedAt: 1_000, thinking: "", steps: [], version: 1, done: false }), subscribe: () => () => undefined }) });
+  const doc = (globalThis as { document: Record<string, unknown> }).document;
+  const feed = { top: 100, bottom: 700 };
+  let card: { top: number; bottom: number } | null = { top: 200, bottom: 400 };
+  doc["querySelector"] = (q: string) => (q.includes("conversation-feed") ? { getBoundingClientRect: () => feed } : q.includes("blk-question-blk_size") && card ? { getBoundingClientRect: () => card } : null);
+  await act(async () => { await new Promise((r) => setTimeout(r, 620)); });
+  await flush();
+  assert.equal(find(s.root, "island-question"), null, "the card is on screen: the pill is just Working");
+  assert.match(textOf(find(s.root, "island-word")), /Thinking/);
+  card = { top: -300, bottom: -100 };
+  await act(async () => { await new Promise((r) => setTimeout(r, 620)); });
+  await flush();
+  assert.ok(find(s.root, "island-question"), "the card scrolled away: the pill carries the question");
+  card = { top: 200, bottom: 400 };
+  await act(async () => { await new Promise((r) => setTimeout(r, 620)); });
+  await flush();
+  assert.equal(find(s.root, "island-question"), null, "scrolled back to the card: the pill steps aside again");
 });

@@ -28,6 +28,6 @@ HTTP 502. Retryable: no.
 - git.push
 - git.sync
 - github.app.complete
-- google.directory.list
-- google.directory.reconcile
-- google.dwd.probe
+- github.me.complete
+- github.me.reach
+- github.runners.jit_config

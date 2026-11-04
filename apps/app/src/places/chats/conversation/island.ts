@@ -110,3 +110,20 @@ export function questionsOf(messages: readonly Pick<Message, "author" | "blocks"
 
 /** A number key picks the choice with that number (1 is the first); anything else, or a number past the last choice, picks none. */
 export const choiceForKey = (key: string, count: number): number | null => (/^[1-9]$/.test(key) && Number(key) <= count ? Number(key) - 1 : null);
+
+/**
+ * What the pill offers of a question: the recommended choice alone (filled) and Other, the way a person would answer a quick one; a question with no recommendation offers all its choices. Anything else a
+ * choice question allows is still on its card in the chat. Number keys count these buttons, and Other is always there when choices were left out, so every answer stays reachable.
+ */
+export function pillChoices(q: IslandQuestion): { choices: IslandChoice[]; other: boolean } {
+  const rec = q.choices.find((c) => c.recommended);
+  const choices = rec ? [rec] : q.choices;
+  return { choices, other: q.other || choices.length < q.choices.length };
+}
+
+export interface BoxLike { top: number; bottom: number }
+/** The prototype's rule: a question card is "seen" when it sits whole inside the feed, clear of the composer's foot. Not found (not drawn yet, or no screen): not seen, so the Island asks. */
+export function cardSeen(card: BoxLike | null | undefined, feed: BoxLike | null | undefined): boolean {
+  if (!card || !feed) return false;
+  return card.top >= feed.top - 40 && card.bottom < feed.bottom - 100;
+}

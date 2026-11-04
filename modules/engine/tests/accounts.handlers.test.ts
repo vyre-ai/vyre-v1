@@ -6,7 +6,7 @@ import { captureSubscription, draftFor, probeAccount, setSpaceUse, statusAfter }
 import type { AccountRow, SubscriptionItemDraft } from "../../../agent/src/accounts/index.ts";
 import { accountProbe, accountResolve, accountsList } from "../handlers/accounts.ts";
 
-type Prov = { id: string; providerKey: string; name: string; connection: string; scope: string; handle?: string; itemId: string; engine: string; spaceMayUse: boolean; state: string; uses?: Record<string, unknown>; capped?: boolean; models?: string[] };
+type Prov = { id: string; providerKey: string; name: string; connection: string; scope: string; handle?: string; itemId: string; engine: string; spaceMayUse: boolean; state: string; uses?: Record<string, unknown>; capped?: boolean; models?: string[]; keepsNothing?: boolean };
 const prov = (o: Partial<Prov> & { id: string; handle: string }): Prov => ({ providerKey: "anthropic", name: o.handle, connection: "api_key", scope: "mine", itemId: `vit_${o.id}`, engine: "anthropic", spaceMayUse: false, state: "ok", ...o });
 
 function fake(routes: Record<string, (input: unknown) => unknown>, opts: { actingFor?: string } = {}): { ctx: Ctx; calls: string[] } {
@@ -43,6 +43,30 @@ test("accounts.list: handles, kinds, Mine or shared, and sign-in state, no secre
     ["#Team_Anthropic_Key", "anthropic", "api_key", false, "ok", undefined],
   ]);
   assert.ok(!JSON.stringify(out).toLowerCase().includes("secret"));
+});
+
+test("accounts.list: Codex on an API key resolves to the Codex CLI as an API key account, next to the ChatGPT sign-in", async () => {
+  const { ctx } = fake(routes([
+    prov({ id: "prv_1", handle: "#Dana_Codex", providerKey: "codex", engine: "codex", connection: "subscription" }),
+    prov({ id: "prv_2", handle: "#Dana_CodexKey", providerKey: "codex", engine: "codex", connection: "api_key" }),
+  ]));
+  const out = await accountsList(ctx, {});
+  assert.deepEqual(out.accounts.map((a) => [a.ref, a.driver, a.kind]), [["#Dana_Codex", "codex", "subscription"], ["#Dana_CodexKey", "codex", "api_key"]]);
+  assert.ok(!JSON.stringify(out).includes("sk-"));
+  assert.equal(out.accounts[1]!.name, "Codex, with an API key", "the key reads in plain words");
+  const named = await accountsList(fake(routes([prov({ id: "prv_3", handle: "#Mine", providerKey: "codex", engine: "codex", connection: "api_key", itemName: "Work Codex key" } as Partial<Prov> & { id: string; handle: string })])).ctx, {});
+  assert.equal(named.accounts[0]!.name, "Work Codex key", "a name the person gave stays");
+});
+
+test("accounts.list says which accounts keep nothing (a local model always does); a Restricted thread runs only on one that does", async () => {
+  const mix = [prov({ id: "prv_1", handle: "#Dana_Anthropic" }), prov({ id: "prv_3", handle: "#Team_Anthropic_Key", scope: "shared", keepsNothing: true }), prov({ id: "prv_5", handle: "#Local", connection: "local_model", engine: "local", providerKey: "local" })];
+  const listed = await accountsList(fake(routes(mix)).ctx, {});
+  assert.deepEqual(listed.accounts.map((a) => [a.ref, a.keepsNothing]), [["#Dana_Anthropic", undefined], ["#Team_Anthropic_Key", true], ["#Local", true]]);
+  const restricted = { "threads.get": () => ({ thread: { label: "restricted", starter: "usr_dana", agents: [{ agentId: "agt_1", model: "claude-sonnet-5-5" }] } }) };
+  const on = await accountResolve(fake(routes(mix, restricted)).ctx, { threadId: "thr_1", agentId: "agt_1" });
+  assert.deepEqual([on.accountRef, on.allowed], ["#Team_Anthropic_Key", true], "her own key keeps something, so the account that keeps nothing pays");
+  const off = await accountResolve(fake(routes([mix[0]!], { ...restricted, "engine.defaults.get": () => ({ fallback: [] }) })).ctx, { threadId: "thr_1", agentId: "agt_1" });
+  assert.deepEqual([off.accountRef, off.allowed], [null, false], "no account that keeps nothing: the turn does not run");
 });
 
 test("account.resolve: the starter's key, then the Space's fallback key when it is signed out", async () => {

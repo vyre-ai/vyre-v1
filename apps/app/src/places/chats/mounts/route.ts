@@ -20,6 +20,8 @@ export type Route =
   | { view: "task"; taskId: string }
   /** One goal's page, with its chat under it. */
   | { view: "goal"; goalId: string }
+  /** One project, in its own tab, with Chat, Plan, Overview, Linked and Knows. `tab` is the one it is on (null: its first). */
+  | { view: "project"; projectId: string; tab: string | null }
   /** What models made to show you. */
   | { view: "artifacts" }
   /** One artifact, in its own tab, under the Artifacts row. `share` opens the Share sheet on it. */
@@ -70,6 +72,7 @@ export type Act =
   | { t: "tasks" }
   | { t: "task"; taskId: string }
   | { t: "goal"; goalId: string }
+  | { t: "project"; projectId: string; tab?: string }
   | { t: "artifacts" }
   | { t: "artifact"; artifactId: string; share?: boolean }
   | { t: "notes"; noteId?: string; take?: boolean }
@@ -109,6 +112,7 @@ export function step(s: Shown, a: Act): Shown {
     case "side-close": return { ...s, side: null };
     case "new": return { ...s, route: { view: "new" }, layer: null };
     case "goal": return { ...s, route: { view: "goal", goalId: a.goalId }, pane: false, terminalId: null, layer: null };
+    case "project": return { ...s, route: { view: "project", projectId: a.projectId, tab: a.tab ?? null }, pane: false, terminalId: null, layer: null };
     case "artifacts": return { ...s, route: { view: "artifacts" }, layer: null };
     case "artifact": return { ...s, route: { view: "artifact", artifactId: a.artifactId, ...(a.share ? { share: true } : {}) }, pane: false, terminalId: null, layer: null };
     case "notes": return { ...s, route: { view: "notes", ...(a.noteId ? { noteId: a.noteId } : {}), ...(a.take ? { take: (s.route.view === "notes" ? s.route.take ?? 0 : 0) + 1 } : {}) }, layer: null };
@@ -144,6 +148,7 @@ export function openKeyOf(r: Route): string | null {
     case "tasks": case "artifacts": case "notes": return r.view;
     case "artifact": return "artifacts";
     case "goal": return `g:${r.goalId}`;
+    case "project": return `p:${r.projectId}`;
     case "imported": return `i:${r.conversationId}`;
     case "agent": return `a:${r.agentId}`;
     case "agent-form": return r.agentId ? `a:${r.agentId}` : null;
@@ -209,10 +214,11 @@ export function fromHash(hash: string): Shown {
   const screen = p.get("screen") ?? "";
   const arg = (k: string): string => p.get(k) ?? "";
   const fixed = { x: 8, y: 48 };
-  const subject = /^(thread|chat|channel|task|goal|artifact):(.+)$/.exec(arg("subject"));
+  const subject = /^(thread|chat|channel|task|goal|artifact|project):(.+)$/.exec(arg("subject"));
+  if (subject?.[1] === "project") return step(START, { t: "project", projectId: subject[2]!, ...(arg("tab") === "" ? {} : { tab: arg("tab") }) });
   if (subject?.[1] === "goal") return step(START, { t: "goal", goalId: subject[2]! });
   if (subject?.[1] === "artifact") return step(START, { t: "artifact", artifactId: subject[2]!, ...(arg("share") === "1" ? { share: true } : {}) });
-  if (subject) return subject[1] === "task" ? step(START, { t: "task", taskId: subject[2]! }) : step(START, { t: "chat", threadId: subject[2]! });
+  if (subject) return subject[1] === "task" ? step(START, { t: "task", taskId: subject[2]! }) : step(START, { t: "chat", threadId: subject[2]!, ...(arg("m") === "" ? {} : { focus: arg("m") }) });
   switch (screen) {
     case SCREEN.tasks: return step(START, { t: "tasks" });
     case SCREEN.task: return arg("taskId") === "" ? step(START, { t: "tasks" }) : step(START, { t: "task", taskId: arg("taskId") });
@@ -240,6 +246,19 @@ export function fromHash(hash: string): Shown {
     case SCREEN.terminalTab: return arg("terminalId") === "" ? START : step(START, { t: "terminal", terminalId: arg("terminalId") });
     default: return START;
   }
+}
+
+/** The person a link names (`subject=person:<id>`), else null. A person is not a page: the place shows their profile in the right pane and leaves the page alone. */
+export function personOfHash(hash: string): string | null {
+  const m = /^person:(.+)$/.exec(new URLSearchParams(hash.replace(/^#/, "")).get("subject") ?? "");
+  return m?.[1] ?? null;
+}
+
+/** A link or tab switch arrives while the place is mounted: the same page keeps its pane and place, a different page replaces them. A layer the link names (Open Terminal on the landing, All agents) goes up over the page that is already there. */
+export function linkedTo(s: Shown, hash: string): Shown {
+  const next = hash === "" ? START : fromHash(hash);
+  if (JSON.stringify(next.route) === JSON.stringify(s.route)) return next.layer !== null ? { ...s, layer: next.layer } : s;
+  return { ...next, pane: s.pane, terminalId: s.terminalId };
 }
 
 /** Where a popover opens: under the control that has the focus (a mouse press and a key press both leave it there), never at the pointer. */

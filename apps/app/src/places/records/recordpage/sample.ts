@@ -228,7 +228,6 @@ export function createSamplePage(space: PageSpace = northwind, o: { fail?: strin
     now: () => SAMPLE_NOW, nameOf: (id) => space.people[id] ?? id,
     me: { id: "usr_irfad", name: space.people["usr_irfad"] ?? "Irfad" },
     mentionables: () => Object.entries(space.people).filter(([id]) => id !== "usr_irfad").map(([id, name]) => ({ id, name, kind: id.startsWith("agt_") ? ("agent" as const) : ("person" as const), ...(id.startsWith("agt_") ? { sub: "Agent" } : {}) })),
-    renderChat: (type, id) => createElement(Text, { testID: "sample-chat" }, `Ask pane for ${type} ${id}`),
     files: {
       folderOf: async (t) => (replica.rows("folders") as unknown as { id: string; forRecord?: string }[]).find((f) => f.forRecord === t.recordId)?.id ?? null,
       attach: async (files, t) => {

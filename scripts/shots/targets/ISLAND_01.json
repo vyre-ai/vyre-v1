@@ -5,38 +5,62 @@
       "route": "/m/ISLAND_01?view=working",
       "proto": "chat,{skin}",
       "waitFor": "[data-testid='island-pill']",
-      "note": "The Island while an agent works: the mark, the word, one face per working agent, as built before."
+      "note": "An agent is writing: the Working pill."
+    },
+    {
+      "id": "ISLAND_01-card",
+      "route": "/m/ISLAND_01?view=question",
+      "proto": "chat,{skin}",
+      "waitFor": "[data-testid='blk-question-blk_q1']",
+      "walk": "card",
+      "note": "Question card in view: the pill is Working, the question is answered on its card."
     },
     {
       "id": "ISLAND_01-question",
       "route": "/m/ISLAND_01?view=question",
       "proto": "chat,{skin}",
-      "waitFor": "[data-testid='island-question']",
-      "note": "An agent asks: the Island is the question, the asker's face with an amber ring, choices with the recommended one filled, Other, and who can answer."
+      "waitFor": "[data-testid='blk-question-blk_q1']",
+      "walk": "away",
+      "after": "[data-testid='island-question']",
+      "note": "Card scrolled out of view: the pill is the question, the recommended choice and Other."
+    },
+    {
+      "id": "ISLAND_01-back",
+      "route": "/m/ISLAND_01?view=question",
+      "proto": "chat,{skin}",
+      "waitFor": "[data-testid='blk-question-blk_q1']",
+      "walk": "back",
+      "note": "Scrolled away then back to the card: the pill steps aside to Working."
     },
     {
       "id": "ISLAND_01-several",
       "route": "/m/ISLAND_01?view=several",
       "proto": "chat,{skin}",
-      "waitFor": "[data-testid='island-count']",
-      "note": "Three questions waiting: 1 of 3 with arrows."
+      "waitFor": "[data-testid='blk-question-blk_q1']",
+      "walk": "away",
+      "after": "[data-testid='island-count']",
+      "note": "Three questions, card out of view: 1 of 3 with arrows."
     },
     {
       "id": "ISLAND_01-other",
       "route": "/m/ISLAND_01?view=question",
       "proto": "chat,{skin}",
-      "waitFor": "[data-testid='island-other']",
+      "waitFor": "[data-testid='blk-question-blk_q1']",
+      "walk": "away",
+      "after": "[data-testid='island-other']",
       "click": "[data-testid='island-other']",
-      "after": "[data-testid='island-other-field']",
+      "after2": "[data-testid='island-other-field']",
       "note": "Other open: a short text field and Send."
     },
     {
       "id": "ISLAND_01-answered",
       "route": "/m/ISLAND_01?view=question",
       "proto": "chat,{skin}",
-      "waitFor": "[data-testid='island-choice-2gb']",
+      "waitFor": "[data-testid='blk-question-blk_q1']",
+      "walk": "away",
+      "after": "[data-testid='island-choice-2gb']",
       "click": "[data-testid='island-choice-2gb']",
-      "after": "[data-testid='island-pill']",
+      "after2": "[data-testid='island-pill']",
       "note": "After pressing 2 GB: the pill goes back to Working."
     }
   ]

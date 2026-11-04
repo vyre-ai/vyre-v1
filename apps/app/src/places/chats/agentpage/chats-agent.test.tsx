@@ -269,6 +269,25 @@ test("Settings > AI accounts: the chat key, the ordered fallback list and the me
   assert.ok(!has(viewer, 'data-testid="pick-chat-key"') && !has(viewer, 'data-testid="pick-fallback"') && !has(viewer, 'data-testid="pick-memory-key"'));
 });
 
+test("Settings > Helper models: the default says same provider, an owner can change it through agents.update with Undo, a viewer sees it with no picker", async () => {
+  const { setHelperModels, HELPER_MODEL_WORDS } = await import("./actions.ts");
+  const s = createSample("owner");
+  const { d, notes } = deps(s);
+  const out = html(s, "settings");
+  for (const t of ["Helper models", "Helpers use a cheap or a strong model from the same provider", 'data-testid="pick-helper-models"', "Pick for me (same provider)"]) assert.ok(has(out, t), t);
+  assert.deepEqual(Object.values(HELPER_MODEL_WORDS).map((w) => w.title), ["Pick for me (same provider)", "Any provider when I ask", "Always ask me first"]);
+  assert.equal(await setHelperModels(d, "agt_intake", "ask", "same_provider"), true);
+  const call = s.calls[s.calls.length - 1]!;
+  assert.equal(call.cap, "agents.update");
+  assert.deepEqual((call.input as { patch: unknown }).patch, { helperModels: "ask" });
+  assert.match(notes[notes.length - 1]!.text, /Always ask me first/);
+  s.failNext("agents.update");
+  assert.equal(await setHelperModels(d, "agt_intake", "any", "same_provider"), false);
+  assert.equal(notes[notes.length - 1]!.text, "Could not save the helper models. Try again.");
+  const viewer = html(createSample("viewer"), "settings");
+  assert.ok(has(viewer, "Helper models") && !has(viewer, 'data-testid="pick-helper-models"'));
+});
+
 test("an outside agent reads as what it is: Offline, not Asleep; what it did comes first; and it says so where a person might wait", () => {
   const a = { status: "asleep", runtime: "outside" } as Parameters<typeof statusLine>[0];
   assert.equal(statusLine(a, (x) => x), "Offline");

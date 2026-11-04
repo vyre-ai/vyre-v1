@@ -1,0 +1,4 @@
+## What's new
+
+- A project has a Linked tab: everything attached to it as a live reference, grouped into Tasks, Records, Files, Chats, Code and Sites, with a "Show" menu and the state of each source (an invoice Overdue or Paid, a pull request Open or Merged). Link something searches Vyre or takes a pasted GitHub or web address. Link automatically makes rules (a repository, matching records, email from a domain); what a rule linked carries an auto mark, and unlinking one stops it coming back. A project whose repository is linked also shows its CI runs there, each failure with its reason and a card that asks the Assistant to fix it.
+- Every link follows the access rule. What you can open is a link; what you cannot shows only its kind ("A file you don't have access to") with a read-only peek and Ask for access, never a link to a place you cannot open.

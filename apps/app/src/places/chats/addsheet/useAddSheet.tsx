@@ -11,9 +11,10 @@ import type { AccessDirectory, AccessEntry, AccessPick, AddContext, AddTarget, A
 import { useMenu } from "../../../../../../ui/src/Menu/index.tsx";
 import type { CapMap } from "../../../../../../generated/types.ts";
 import { swapNeeded } from "../conversation/model.ts";
-import { PeoplePop } from "./PeoplePop.tsx";
-import type { PeopleRow } from "./PeoplePop.tsx";
-import { addedLine, addsSomeone, directoryOf, failedLine, hereSub, maxLevelOf, projectExtras, settingsOf, titleOfTarget } from "./model.ts";
+import { itemLink } from "../../../share/rows.ts";
+import { PeoplePopover } from "../../../../../../ui/src/PeoplePopover/index.tsx";
+import type { MemberRow } from "../../../../../../ui/src/PeoplePopover/index.tsx";
+import { addedLine, addsSomeone, directoryOf, failedLine, hereSub, maxLevelOf, projectExtras, roleWord, settingsOf, titleOfTarget } from "./model.ts";
 import type { AddOpen, AddSheetDeps, ThreadAgentRow, ThreadRow } from "./model.ts";
 
 type Out<K extends keyof CapMap> = CapMap[K]["out"];
@@ -176,7 +177,7 @@ export async function runAdd(deps: AddSheetDeps, r: Loaded, picks: readonly Acce
 type Surface =
   | { k: "sheet"; open: AddOpen; r: Loaded }
   | { k: "pick"; r: Loaded; onPicks(picks: readonly AccessPick[]): void }
-  | { k: "people"; thread: ThreadRow; x: number; y: number; onOpenAgent(id: string): void; outside: ReadonlySet<string> }
+  | { k: "people"; thread: ThreadRow; x: number; y: number; /** opens the profile of whoever was pressed, a person or an agent */ onOpenAgent(id: string): void; outside: ReadonlySet<string>; meRole: string }
   | { k: "settings"; thread: ThreadRow; agentId: string; x: number; y: number; outside: ReadonlySet<string> };
 
 export interface AddSheetApi {
@@ -241,7 +242,10 @@ export function useAddSheet(deps: AddSheetDeps, opts: { onDone?: () => void; cop
   }, []);
   /** The chat's agents as the server keeps them: the copy a screen holds may leave out how each answers (Listening, When, Style). */
   const freshThread = useCallback(async (seen: ThreadRow): Promise<ThreadRow> => (await tryCall<Out<"threads.get">>(d.current, "threads.get", { threadId: seen.threadId }))?.thread ?? seen, []);
-  const showPeople = useCallback((p: { thread: ThreadRow; x: number; y: number; onOpenAgent(agentId: string): void }): void => { void Promise.all([outsideOf(), freshThread(p.thread)]).then(([outside, thread]) => setSurface({ k: "people", ...p, thread, outside })); }, [outsideOf, freshThread]);
+  const showPeople = useCallback((p: { thread: ThreadRow; x: number; y: number; onOpenAgent(agentId: string): void }): void => {
+    void Promise.all([outsideOf(), freshThread(p.thread), tryCall<Out<"access.principals.list">>(d.current, "access.principals.list", {})]).then(([outside, thread, people]) =>
+      setSurface({ k: "people", ...p, thread, outside, meRole: roleWord(people?.principals.find((x) => x.id === d.current.me.id)?.roles) }));
+  }, [outsideOf, freshThread]);
   const showSettings = useCallback((p: { thread: ThreadRow; agentId: string; x: number; y: number }): void => { void Promise.all([outsideOf(), freshThread(p.thread)]).then(([outside, thread]) => setSurface({ k: "settings", ...p, thread, outside })); }, [outsideOf, freshThread]);
 
   let element: ReactElement | null = null;
@@ -281,15 +285,21 @@ export function useAddSheet(deps: AddSheetDeps, opts: { onDone?: () => void; cop
   } else if (surface?.k === "people") {
     const t = surface.thread;
     const only = t.agents.length === 1;
-    const rows: PeopleRow[] = [
-      ...t.members.filter((m) => m.kind === "person").map((m): PeopleRow => ({ id: m.id, name: deps.nameOf(m.id), kind: "person", sub: m.id === deps.me.id ? "You" : "Person" })),
-      ...t.agents.map((a): PeopleRow => ({ id: a.agentId, name: deps.nameOf(a.agentId), kind: surface.outside.has(a.agentId) ? "outside" : "agent", sub: hereSub(a, only) })),
+    // one row per member with the role on the right (the prototype's people popover); an agent's role is who leads it, else Can use
+    const rows: MemberRow[] = [
+      ...t.members.filter((m) => m.kind === "person").map((m): MemberRow => ({ id: m.id, name: deps.nameOf(m.id), kind: "person", role: m.id === deps.me.id ? surface.meRole : "Member" })),
+      ...t.agents.map((a): MemberRow => ({ id: a.agentId, name: deps.nameOf(a.agentId), kind: surface.outside.has(a.agentId) ? "outside" : "agent", role: a.mode === "lead" && !only ? "Lead" : "Can use" })),
     ];
     element = (
-      <PeoplePop
-        title={`${t.members.length} in this ${t.kind === "channel" ? "channel" : t.kind === "thread" ? "thread" : "chat"}`} rows={rows} anchor={{ x: surface.x, y: surface.y }}
-        onAdd={() => { const id = t.threadId; setSurface(null); open({ threadId: id }); }} onPoke={(id) => poke(t.threadId, id, t.agents.map((a) => ({ id: a.agentId })))}
-        onGear={(id, x, y) => setSurface({ k: "settings", thread: t, agentId: id, x, y, outside: surface.outside })} onOpenAgent={(id) => { const go = surface.onOpenAgent; setSurface(null); go(id); }} onClose={close}
+      <PeoplePopover
+        where="chat" rows={rows} meId={deps.me.id} perms={{ message: false, changeRole: false, remove: false, agentControls: true }} anchor={{ x: surface.x, y: surface.y }}
+        onOpen={(r) => { const go = surface.onOpenAgent; setSurface(null); go(r.id); }}
+        onAction={(action, r) => {
+          if (action === "poke") poke(t.threadId, r.id, t.agents.map((a) => ({ id: a.agentId })));
+          else if (action === "settings") setSurface({ k: "settings", thread: t, agentId: r.id, x: surface.x, y: surface.y, outside: surface.outside });
+          else if (action === "link") { const clip = (globalThis as { navigator?: { clipboard?: { writeText(t: string): Promise<void> } } }).navigator?.clipboard; void clip?.writeText(itemLinkOf(r)); setSurface(null); }
+        }}
+        onFooter={() => { const id = t.threadId; setSurface(null); open({ threadId: id }); }} onClose={close}
       />
     );
   } else if (surface?.k === "settings") {
@@ -319,7 +329,7 @@ function ChatAgentSettings({ deps, thread, agentId, outside, x, y, save, poke, c
       const old = deps.nameOf(lead.agentId);
       confirm([
         { head: `${old} leads this chat. Make ${name} lead instead? ${old} will keep listening.` },
-        { label: "Swap", onSelect: () => { setValue(next); save(thread.threadId, agentId, next, false); deps.toast(`${name} now answers everything. ${old} answers only when tagged.`); } },
+        { label: "Swap", onSelect: () => { setValue(next); save(thread.threadId, agentId, next, false); deps.toast(`${name} now answers everything. ${old} answers only when mentioned.`); } },
         { label: "Cancel" },
       ], x, y, name);
       return;
@@ -346,3 +356,6 @@ export async function runAfterStart(deps: AddSheetDeps, threadId: string, picks:
   }
   return out;
 }
+
+/** The link a row copies: a person or an agent, on the Space's web address. */
+function itemLinkOf(r: { id: string; kind: string }): string { return itemLink(r.kind === "person" ? "person" : "agent", r.id); }
