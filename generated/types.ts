@@ -6959,6 +6959,7 @@ export type ChatHelperNotesOut = {
 };
 export type ChatHelperRestartIn = {
   threadId: string;
+  helperId: string;
   model?: string;
   account?: string;
   provider?: string;

@@ -10542,6 +10542,13 @@
             "description": "An account from models_for_helpers: its ref, or its label",
             "type": "string"
           },
+          "helperId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          },
           "model": {
             "type": "string"
           },
@@ -10557,7 +10564,8 @@
           }
         },
         "required": [
-          "threadId"
+          "threadId",
+          "helperId"
         ],
         "type": "object"
       },

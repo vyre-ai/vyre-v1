@@ -112,5 +112,9 @@
   {"file":"test/chat-brain.bench.test.ts","capSec":120,"owner":"L2","reason":"runs all 30 chat benchmark tasks on a seeded Space with the turn context (the side without it is chat-brain.bench.no-context.live.test.ts, slow by rule); over the fast cap on a loaded runner"},
   {"file":"test/personal.walk.live.test.ts","capSec":120,"owner":"personal-walk","reason":"The Personal Space first hour in the real app: claim, AI chat, Vault, Inbox, Files, Records, Automations, theme, Terminal; the production export in Chromium","heavy":true},
   {"file":"test/files.share.live.test.ts","capSec":60,"owner":"files-share","reason":"A folder Share in a Team Space opens the Records ShareSheet on the folder; the production export in Chromium","heavy":true},
-  {"file":"test/theme.firstframe.live.test.ts","capSec":60,"owner":"theme-boot","reason":"The first frame of the web export carries the stored skin and mode, and System follows the device; the production export in Chromium","heavy":true}
+  {"file":"test/theme.firstframe.live.test.ts","capSec":60,"owner":"theme-boot","reason":"The first frame of the web export carries the stored skin and mode, and System follows the device; the production export in Chromium","heavy":true},
+  {"file":"test/crew.restart.live.test.ts","capSec":120,"owner":"l-crews","reason":"a restart in the middle of a teammate's work: a booted daemon, a git repository and a scripted teammate, two boots"},
+  {"file":"test/helper.model.live.test.ts","capSec":120,"owner":"l-crews","reason":"Change model on a running helper: a booted daemon, a helper that runs for seconds, a stop and a restart"},
+  {"file":"test/helper.notes.live.test.ts","capSec":120,"owner":"l-crews","reason":"notes between a helper and the agent that started it: three scripted helpers, a question answered, a steer and its reply"},
+  {"file":"test/helpers.state.live.test.ts","capSec":120,"owner":"l-crews","reason":"three helpers at once with a failed one, a steer, Stop and Stop all on a booted daemon"}
 ]

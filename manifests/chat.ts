@@ -483,7 +483,7 @@ export default defineManifest({
       errors: ['validation.not_found', 'validation.precondition_failed', 'validation.bad_input'],
     }),
     write('chat.helper.restart', 'Start a helper again on another model: the person it works for picks an account and a model, and it does its brief again from the start', {
-      in: { ...threadT, model: t.opt(t.str()), account: t.opt(t.str({ description: 'An account from models_for_helpers: its ref, or its label' })), provider: t.opt(t.str()) },
+      in: { ...threadT, helperId: id.thread, model: t.opt(t.str()), account: t.opt(t.str({ description: 'An account from models_for_helpers: its ref, or its label' })), provider: t.opt(t.str()) },
       out: { messageId: id.message, model: t.str(), account: t.str(), fellBackFrom: t.opt(t.str()) }, on: ['thread', '/threadId'], level: 'use', emits: ['helper.note', 'message.received', 'message.direct', 'message.mentioned', 'thread.replied', 'thread.unarchived'], tool: 'chats',
       errors: ['validation.not_found', 'validation.precondition_failed', 'validation.bad_input', 'permission.no_grant', 'provider.unavailable'],
     }),

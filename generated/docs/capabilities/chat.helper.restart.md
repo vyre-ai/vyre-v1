@@ -26,6 +26,7 @@ Start a helper again on another model: the person it works for picks an account 
 ```ts
 type In = {
   threadId: string;
+  helperId: string;
   model?: string;
   account?: string;
   provider?: string;
@@ -60,6 +61,7 @@ type Out = {
   "name": "example",
   "input": {
     "account": "example",
+    "helperId": "thr_a1b2c3",
     "model": "example",
     "provider": "example",
     "threadId": "thr_a1b2c3"

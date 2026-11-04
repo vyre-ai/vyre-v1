@@ -77,7 +77,7 @@ test("Change model restarts a helper on the account and model the person picks: 
   const hn = world("same_provider");
   const threadId = await chatOf(hn);
   const h = (await startHelper(hn, threadId, { account: "#Mine_Claude", model: "claude-haiku-5-5", why: "cheap reader" })).helper["threadId"] as string;
-  const out = await g["chat.helper.restart"](hn.person(DANA), { threadId: h, account: "#Space_OCG", model: "glm-5.3" });
+  const out = await g["chat.helper.restart"](hn.person(DANA), { threadId, helperId: h, account: "#Space_OCG", model: "glm-5.3" });
   assert.deepEqual([out.model, out.account], ["glm-5.3", "#Space_OCG"]);
   assert.deepEqual(hn.rows("SELECT model, provider, accountRef FROM chat_thread_agent WHERE thread = ?", h).map((r) => [r["model"], r["provider"], r["accountRef"]]), [["glm-5.3", "opencode-go", "#Space_OCG"]]);
   const again = hn.rows("SELECT body, author FROM chat_message WHERE thread = ? ORDER BY threadSeq", h).map((r) => String(r["body"]));
@@ -91,11 +91,11 @@ test("Change model: only the person it works for, an unavailable model falls bac
   const hn = world("same_provider");
   const threadId = await chatOf(hn);
   const h = (await startHelper(hn, threadId, { account: "#Mine_Claude", model: "claude-haiku-5-5" })).helper["threadId"] as string;
-  assert.equal((await failure(() => g["chat.helper.restart"](hn.person("usr_other"), { threadId: h, model: "claude-opus-5-5", account: "#Mine_Claude" }))).code, "validation.precondition_failed");
-  assert.deepEqual(await failure(() => g["chat.helper.restart"](hn.person(DANA), { threadId: h, account: "#Someone_Elses_Key", model: "gpt-6" })), { code: "permission.no_grant", reason: "account_not_theirs" });
-  const fell = await g["chat.helper.restart"](hn.person(DANA), { threadId: h, account: "#Mine_Claude", model: "claude-sonnet-5-5" });
+  assert.equal((await failure(() => g["chat.helper.restart"](hn.person("usr_other"), { threadId, helperId: h, model: "claude-opus-5-5", account: "#Mine_Claude" }))).code, "validation.precondition_failed");
+  assert.deepEqual(await failure(() => g["chat.helper.restart"](hn.person(DANA), { threadId, helperId: h, account: "#Someone_Elses_Key", model: "gpt-6" })), { code: "permission.no_grant", reason: "account_not_theirs" });
+  const fell = await g["chat.helper.restart"](hn.person(DANA), { threadId, helperId: h, account: "#Mine_Claude", model: "claude-sonnet-5-5" });
   assert.deepEqual([fell.model, fell.fellBackFrom], ["claude-haiku-5-5", "claude-sonnet-5-5"]);
-  assert.equal((await failure(() => g["chat.helper.restart"](hn.person(DANA), { threadId, model: "claude-opus-5-5", account: "#Mine_Claude" }))).code, "validation.not_found", "a chat is not a helper");
+  assert.equal((await failure(() => g["chat.helper.restart"](hn.person(DANA), { threadId, helperId: threadId, model: "claude-opus-5-5", account: "#Mine_Claude" }))).code, "validation.not_found", "a chat is not a helper");
 });
 
 test("any member of the chat can message a running helper; someone outside it cannot; the words are theirs and the chat above sees them as a line, not a message to answer", async () => {

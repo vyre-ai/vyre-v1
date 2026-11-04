@@ -2203,7 +2203,9 @@ const b1973: string[] = []; lf(x1973, p, b1973, L0); if (b1973.length) e.push(..
 if (g1973 === "object") {
 if (g1973 === 'object') { const o1973 = x1973 as Record<string, unknown>;
 if (!("threadId" in o1973)) e.push(p + "/threadId" + ': required');
+if (!("helperId" in o1973)) e.push(p + "/helperId" + ': required');
 if ("threadId" in o1973) lf(o1973["threadId"], p + "/threadId", e, L13);
+if ("helperId" in o1973) lf(o1973["helperId"], p + "/helperId", e, L13);
 if ("model" in o1973) lf(o1973["model"], p + "/model", e, L1);
 if ("account" in o1973) lf(o1973["account"], p + "/account", e, L1);
 if ("provider" in o1973) lf(o1973["provider"], p + "/provider", e, L1);

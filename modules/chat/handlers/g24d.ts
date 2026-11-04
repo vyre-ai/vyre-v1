@@ -708,10 +708,11 @@ export async function helperNotes(ctx: ChatCtx, input: { threadId: string }) {
  * account they may use, a model that is available, or the nearest one that is), the helper's agent takes it, and the brief is given again as a fresh job, so the helper starts over on the new model. What it
  * had used so far stays on its row; the new work is billed to the person as any other.
  */
-export async function helperRestart(ctx: ChatCtx, input: { threadId: string; model?: string; account?: string; provider?: string }) {
+export async function helperRestart(ctx: ChatCtx, input: { threadId: string; helperId: string; model?: string; account?: string; provider?: string }) {
   ensure(ctx.db);
-  const t = threadBy(ctx.db, input.threadId);
-  if (!t || t.kind !== "helper" || t.parentThreadId === undefined) raise(ctx, "validation.not_found", "That is not a helper chat.");
+  // the capability is on the chat the helper works in (threadId), which is always there; the helper is named by helperId
+  const t = threadBy(ctx.db, input.helperId);
+  if (!t || t.kind !== "helper" || t.parentThreadId === undefined || t.parentThreadId !== input.threadId) raise(ctx, "validation.not_found", "That is not a helper of this chat.");
   const asker = askerOf(ctx);
   if (!asker.startsWith("usr_") || t.starter !== asker) raise(ctx, "validation.precondition_failed", "Only the person the helper works for can change its model.");
   if (input.model === undefined && input.account === undefined) raise(ctx, "validation.bad_input", "Say which model to use.");

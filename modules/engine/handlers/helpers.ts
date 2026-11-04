@@ -84,6 +84,6 @@ export async function helpersChangeModel(ctx: EngineCtx, input: { threadId: stri
   if (!before) throw new Error("That helper does not belong to this chat.");
   // the old turn ends first, so the new one is the only one running; a stopped turn reports nothing to the chat above
   await stop(ctx, { threadId: input.helperId }).catch(() => ({ stopped: 0 }));
-  const out = (await ctx.call("chat.helper.restart", { threadId: input.helperId, ...(input.account !== undefined ? { account: input.account } : {}), ...(input.model !== undefined ? { model: input.model } : {}) })) as { model: string; account: string; fellBackFrom?: string };
+  const out = (await ctx.call("chat.helper.restart", { threadId: input.threadId, helperId: input.helperId, ...(input.account !== undefined ? { account: input.account } : {}), ...(input.model !== undefined ? { model: input.model } : {}) })) as { model: string; account: string; fellBackFrom?: string };
   return { restarted: true, model: out.model, account: out.account, ...(out.fellBackFrom ? { fellBackFrom: out.fellBackFrom } : {}), spentMicros: before?.costMicros ?? 0 };
 }
