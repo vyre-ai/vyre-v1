@@ -88,5 +88,9 @@ for (const r of results.sort((a, b) => a.f.localeCompare(b.f))) {
   if (!r.ok) console.log(r.out);
 }
 const failed = results.filter((r) => !r.ok);
-console.log(`${results.length} files, ${results.filter((r) => r.cached).length} cached, ${failed.length} failed, ${Date.now() - t0} ms, shard ${shard.join("/")}`);
+const cachedN = results.filter((r) => r.cached).length;
+console.log(`${results.length} files, ${cachedN} cached, ${failed.length} failed, ${Date.now() - t0} ms, shard ${shard.join("/")}`);
+// a cached pass did not run this time: say how many, on the run page too, so a green shard of replayed passes is visible
+console.log(`pass cache: ${cachedN} of ${results.length} files in shard ${shard.join("/")} were served from a cached pass and did not run`);
+if (process.env.GITHUB_ACTIONS === "true") console.log(`::notice title=pass cache::${cachedN} of ${results.length} files in this job were served from a cached pass and did not run`);
 process.exit(failed.length ? 1 : 0);
