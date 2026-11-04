@@ -29,8 +29,17 @@ test("Team server channel: a member's own Claude sign-in answers her message wit
 
     const ch = (await ok(d, d.token, "channels.create", { name: "team", visibility: "invite", memberIds: [rubab.personId, sara.personId], agentIds: [agentId] })).channel as { mainThreadId: string };
     const threadId = ch.mainThreadId;
+    type Msg = { messageId: string; author?: { kind?: string; id?: string }; body?: string };
+    // in a channel the agent answers in the thread under the asking message: read the chat and the threads under it
+    const everything = async (who: { token: string }): Promise<Msg[]> => {
+        return [
+          ...(((await api(d, who.token, "chat.messages.list", { threadId })).data.messages ?? []) as Msg[]),
+          ...(await Promise.all((((await api(d, who.token, "threads.list", { parentThreadId: threadId })).data.threads ?? []) as Array<{ threadId: string }>).map(async (t) => ((await api(d, who.token, "chat.messages.list", { threadId: t.threadId })).data.messages ?? []) as Msg[]))).flat(),
+        ];
+    };
     const replyTo = async (who: { token: string }, body: string): Promise<string> => {
-      const before = ((await ok(d, who.token, "chat.messages.list", { threadId })).messages as Array<{ messageId: string }>).map((m) => m.messageId);
+      // what was there before this ask, threads included: an earlier answer in another person's thread is not this reply
+      const before = (await everything(who)).map((m) => m.messageId);
       await ok(d, who.token, "chat.post", { threadId, body, mentions: [{ kind: "agent", id: agentId }] });
       let seen: unknown = null;
       return waitFor(async () => {

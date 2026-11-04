@@ -68,8 +68,9 @@ import { ChatWork } from "../tasks/ChatWork.tsx";
 import { TasksPage } from "../tasks/TasksPage.tsx";
 import { TaskDetail } from "../tasks/TaskDetail.tsx";
 import { GoalPage } from "../goals/GoalPage.tsx";
+import { ProjectScreen } from "../projects/ProjectScreen.tsx";
 import { openSkills } from "../install/open.ts";
-import type { Act, Shown } from "./route.ts";
+import type { Act, Route, Shown } from "./route.ts";
 import { nameOr } from "../names.ts";
 import { viewing } from "../../../shell/noticeslot/viewing.ts";
 import { LoadFailed } from "../../../../../../ui/src/States/Loads.tsx";
@@ -166,7 +167,7 @@ export function ChatsMounted({ rt, hash = "", initial, window, opened, onSwitch,
   // what is open follows into the tab and the address (the Chats tab moves with it; tabs/store.ts moveTab), so coming back lands on it
   const openedRef = useRef(opened);
   openedRef.current = opened;
-  const routeKey = shown.route.view === "agent" ? `g:${shown.route.agentId}` : shown.route.view === "agent-form" ? `a:${shown.route.agentId ?? ""}` : shown.route.view === "chat" ? `t:${shown.route.threadId ?? ""}` : shown.route.view === "new" ? "new" : shown.route.view === "task" ? `k:${shown.route.taskId}` : shown.route.view === "tasks" ? "tasks" : shown.route.view === "threads" ? "threads" : shown.route.view === "artifacts" ? "artifacts" : shown.route.view === "artifact" ? `x:${shown.route.artifactId}` : shown.route.view === "notes" ? "notes" : "";
+  const routeKey = shown.route.view === "agent" ? `g:${shown.route.agentId}` : shown.route.view === "agent-form" ? `a:${shown.route.agentId ?? ""}` : shown.route.view === "chat" ? `t:${shown.route.threadId ?? ""}` : shown.route.view === "new" ? "new" : shown.route.view === "task" ? `k:${shown.route.taskId}` : shown.route.view === "tasks" ? "tasks" : shown.route.view === "threads" ? "threads" : shown.route.view === "artifacts" ? "artifacts" : shown.route.view === "artifact" ? `x:${shown.route.artifactId}` : shown.route.view === "notes" ? "notes" : shown.route.view === "project" ? `j:${shown.route.projectId}:${shown.route.tab ?? ""}` : "";
   useEffect(() => {
     const report = openedRef.current;
     if (!report || routeKey === "") return;
@@ -175,6 +176,7 @@ export function ChatsMounted({ rt, hash = "", initial, window, opened, onSwitch,
     else if (routeKey === "artifacts") report({ screen: "chats.artifacts" });
     else if (routeKey === "notes") report({ screen: "chats.notes" });
     else if (routeKey.startsWith("x:")) report({ subject: { type: "artifact", id: routeKey.slice(2) } });
+    else if (routeKey.startsWith("j:")) { const [id, tab] = routeKey.slice(2).split(":"); report({ subject: { type: "project", id: id! }, ...(tab ? { args: { tab } } : {}) }); }
     else if (routeKey.startsWith("g:") && routeKey !== "g:") report({ screen: "chats.agent-page", args: { agentId: routeKey.slice(2) } });
     else if (routeKey.startsWith("a:")) report({ screen: "chats.agent-form", ...(routeKey.length > 2 ? { args: { agentId: routeKey.slice(2) } } : {}) });
     else if (routeKey.startsWith("t:") && routeKey !== "t:") report({ subject: { type: "thread", id: routeKey.slice(2) } });
@@ -233,7 +235,25 @@ export function ChatsMounted({ rt, hash = "", initial, window, opened, onSwitch,
     setRightOn((on) => { if (on !== key) return on; return afterClose(rightTabs, key); });
     setRightTabs((t) => t.filter((x) => x.key !== key));
   }, [rightTabs]);
-  const route = shown.route;
+  // a project on its Chat tab runs the project's channel through the same conversation machinery as any chat (composer, crew strip, side pane, thread replies): the route is the channel's chat
+  // while the project page frames it
+  const projectView = shown.route.view === "project" ? shown.route : null;
+  const projectChat = projectView !== null && (projectView.tab === null || projectView.tab === "chat");
+  const [pjChannel, setPjChannel] = useState<{ projectId: string; channelId: string } | null>(null);
+  useEffect(() => {
+    if (!projectView) return undefined;
+    let live = true;
+    // the project's channel is shown as its main thread (the thread capabilities refuse a channel id); it is resolved here, so the route stays the project's and the page frames the chat
+    const set = (channelId: string): void => { if (live) setPjChannel({ projectId: projectView.projectId, channelId }); };
+    void Promise.resolve(rt.call("projects.get", { projectId: projectView.projectId })).then(
+      (o) => { const channelId = (o as { project: { channelId: string } }).project.channelId; void channelThread(rt.call as (cap: string, input: unknown) => Promise<unknown>, channelId).then((r) => set("threadId" in r ? r.threadId : ""), () => set("")); },
+      () => set(""),
+    );
+    return () => { live = false; };
+  }, [rt, projectView?.projectId]);   // eslint-disable-line react-hooks/exhaustive-deps -- one read per project
+  const pjReady = projectChat && projectView !== null && pjChannel?.projectId === projectView.projectId;
+  // no main channel (yet): the empty chat with the composer ready, never a list of old chats
+  const route: Route = pjReady ? (pjChannel!.channelId === "" ? { view: "new" } : { view: "chat", threadId: pjChannel!.channelId }) : shown.route;
   const width = useWindowDimensions().width;
   const narrow = width > 0 && width < WIDE;
   // the sidebar draws the row of what the middle shows, however it was opened (a row, a tab, a link, Cmd-K)
@@ -362,6 +382,7 @@ export function ChatsMounted({ rt, hash = "", initial, window, opened, onSwitch,
   let main: ReactElement;
   if (route.view === "tasks") main = <TasksPage rt={rt} openTask={go.task} openAgent={(id) => go.agent(id)} openChat={(text) => rt.open({ screen: "chats.ask", args: { with: "assistant", first: text } })} {...(window ? { window } : {})} />;
   else if (route.view === "task") main = <TaskDetail key={route.taskId} rt={rt} taskId={route.taskId} conversationFor={conversationFor} openTask={go.task} openAgent={(id) => go.agent(id)} openChat={(id) => rt.open({ screen: "chats.conversation", args: { threadId: id } })} back={() => act({ t: "tasks" })} />;
+  else if (route.view === "project") main = <ProjectScreen key={route.projectId} rt={rt} projectId={route.projectId} tab={route.tab} onTab={(tab) => act({ t: "project", projectId: route.projectId, tab })} />;
   else if (route.view === "goal") main = <GoalPage key={route.goalId} goalId={route.goalId} call={rt.call as (cap: string, input: unknown) => Promise<unknown>} changes={rt.changes} me={rt.me.id} nameOf={nameOf} clock={rt.clock} conversationFor={conversationFor} openTask={go.task} openAgent={(id) => go.agent(id)} openFolder={(id) => rt.open({ subject: { type: "folder", id } })} openFile={(id) => rt.open({ subject: { type: "file", id } })} fill={(t) => fill.set(t)} directory={pickList} />;
   else if (route.view === "search") main = <SearchPage key={route.q} data={searchData} />;
   else if (route.view === "needs") main = <TasksPage rt={rt} openTask={go.task} openAgent={(id) => go.agent(id)} openChat={(text) => rt.open({ screen: "chats.ask", args: { with: "assistant", first: text } })} {...(window ? { window } : {})} />;
@@ -442,7 +463,9 @@ export function ChatsMounted({ rt, hash = "", initial, window, opened, onSwitch,
     );
   }
 
-
+  // the project's page frames its channel's chat
+  if (projectChat && projectView && !pjReady) main = <ProjectScreen key={projectView.projectId} rt={rt} projectId={projectView.projectId} tab={projectView.tab} onTab={(tab) => act({ t: "project", projectId: projectView.projectId, tab })} chatSlot={<ConversationLoading />} />;
+  else if (projectChat && projectView && (route.view === "chat" || route.view === "new")) main = <ProjectScreen key={projectView.projectId} rt={rt} projectId={projectView.projectId} tab={projectView.tab} onTab={(tab) => act({ t: "project", projectId: projectView.projectId, tab })} chatSlot={main} />;
   const showMain = !(narrow && right !== null);
   return (
     <CrewProvider call={rt.call as (cap: string, input: unknown) => Promise<unknown>} threadId={threadId ?? ""} >
