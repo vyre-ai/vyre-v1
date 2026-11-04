@@ -194,7 +194,11 @@ export function QuietLine({ text, testID }: { text: string; testID: string }): R
 }
 
 /** An agent's draft: what it would send, from which inbox, the Gate line, and Send, Edit and Discard. */
-export function DraftBlock({ d, note, busy, offsetMin = 0, onSend, onEdit, onDiscard }: { d: DraftCard; note?: string | undefined; busy: boolean; offsetMin?: number; onSend(): void; onEdit(): void; onDiscard(): void }): ReactElement {
+export interface DraftEditing { text: string; subject: string; loading?: boolean }
+export function DraftBlock({ d, note, busy, offsetMin = 0, editing = null, onChange, onSave, onCancel, onSend, onEdit, onDiscard }: {
+  d: DraftCard; note?: string | undefined; busy: boolean; offsetMin?: number; editing?: DraftEditing | null;
+  onChange?(next: { text: string; subject: string }): void; onSave?(): void; onCancel?(): void; onSend(): void; onEdit(): void; onDiscard(): void;
+}): ReactElement {
   const [showEarlier, setShowEarlier] = useState(false);
   return (
     <View style={s.dr} testID={`draft:${d.id}`}>
@@ -204,8 +208,19 @@ export function DraftBlock({ d, note, busy, offsetMin = 0, onSend, onEdit, onDis
         <View style={s.grow} />
         <Via name={d.via} />
       </View>
-      {d.subject ? <Text style={s.drSj}>{d.subject}</Text> : null}
-      <Text style={s.drBd}>{d.body}</Text>
+      {editing ? (
+        <View testID={`draft-editor:${d.id}`} style={s.dEdit}>
+          {d.channel === "email" ? <TextInput accessibilityLabel="Subject" testID={`draft-edit-subject:${d.id}`} value={editing.subject} onChangeText={(subject) => onChange?.({ text: editing.text, subject })} style={s.dEditSj} /> : null}
+          <TextInput accessibilityLabel="Draft" testID={`draft-edit-body:${d.id}`} multiline value={editing.loading ? "Loading the draft..." : editing.text} editable={!editing.loading} onChangeText={(text) => onChange?.({ text, subject: editing.subject })} style={s.dEditBody} />
+          <View style={s.acts}>
+            <Pressable accessibilityRole="button" accessibilityLabel="Save" testID={`draft-save:${d.id}`} disabled={busy || editing.loading === true} onPress={onSave} style={(st: { hovered?: boolean }) => [s.btn, s.btnP, hover(st) && s.btnPOver]}><Text style={s.btnPText}>Save</Text></Pressable>
+            <Pressable accessibilityRole="button" accessibilityLabel="Cancel" testID={`draft-cancel:${d.id}`} onPress={onCancel} style={(st: { hovered?: boolean }) => [s.btn, hover(st) && s.btnOver]}><Text style={s.btnText}>Cancel</Text></Pressable>
+          </View>
+        </View>
+      ) : (<>
+        {d.subject ? <Text style={s.drSj}>{d.subject}</Text> : null}
+        <Text style={s.drBd}>{d.body}</Text>
+      </>)}
       {d.earlier ? (
         <View>
           <Pressable accessibilityRole="button" accessibilityState={{ expanded: showEarlier }} testID={`draft-earlier:${d.id}`} onPress={() => setShowEarlier((v) => !v)}><Text style={s.earlierLink}>{showEarlier ? "Hide the earlier draft" : "Show the earlier draft"}</Text></Pressable>
@@ -217,7 +232,7 @@ export function DraftBlock({ d, note, busy, offsetMin = 0, onSend, onEdit, onDis
         <Text style={s.gateText}>{sendsLine(d.from)}</Text>
       </View>
       {note ? <Text style={s.note} accessibilityRole="alert" testID={`draft-note:${d.id}`}>{note}</Text> : null}
-      <View style={s.acts}>
+      {editing ? null : <View style={s.acts}>
         <Pressable accessibilityRole="button" accessibilityLabel="Send" accessibilityState={{ disabled: busy }} testID={`draft-send:${d.id}`} disabled={busy} onPress={onSend} style={(st: { hovered?: boolean }) => [s.btn, s.btnP, hover(st) && s.btnPOver, busy && s.dim]}>
           <Icon name="up" size={14} color="var(--accent-ink)" /><Text style={s.btnPText}>Send</Text>
         </Pressable>
@@ -227,7 +242,7 @@ export function DraftBlock({ d, note, busy, offsetMin = 0, onSend, onEdit, onDis
         <Pressable accessibilityRole="button" accessibilityLabel="Discard" testID={`draft-discard:${d.id}`} onPress={onDiscard} style={(st: { hovered?: boolean }) => [s.btn, hover(st) && s.btnOver]}>
           <Icon name="x" size={14} color="var(--ink)" /><Text style={s.btnText}>Discard</Text>
         </Pressable>
-      </View>
+      </View>}
     </View>
   );
 }
@@ -235,6 +250,9 @@ export function DraftBlock({ d, note, busy, offsetMin = 0, onSend, onEdit, onDis
 const ink = (v: string): string => `var(${v})`;
 const s = StyleSheet.create({
   grow: { flex: 1 },
+  dEdit: { gap: 8, paddingVertical: 6 },
+  dEditSj: { fontSize: 14, fontWeight: "600", color: ink("--ink"), borderWidth: 1, borderColor: ink("--line"), borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6 },
+  dEditBody: { minHeight: 140, fontSize: 13.5, lineHeight: 20, color: ink("--ink"), borderWidth: 1, borderColor: ink("--line"), borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8 },
   dhUpdated: { color: ink("--ink-3"), fontSize: 11.5 },
   earlierLink: { fontSize: 12, color: ink("--accent"), paddingVertical: 4 },
   earlierText: { fontSize: 12.5, lineHeight: 18, color: ink("--ink-3"), paddingBottom: 6 },

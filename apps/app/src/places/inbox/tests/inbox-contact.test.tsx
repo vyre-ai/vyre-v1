@@ -20,6 +20,7 @@ import { Bubbles, CallLine, EmailItem } from "../contacttab/parts.tsx";
 import { createContactTabSample, threads } from "../contacttab/sample.ts";
 import type { ContactTabSample } from "../contacttab/sample.ts";
 import { DraftBlock } from "../contacttab/parts.tsx";
+import { cutOff, loadDraft } from "../contacttab/actions.ts";
 import { harbor, northwind, SAMPLE_NOW } from "../contactlist/sample.ts";
 import type { SampleSpace } from "../contactlist/sample.ts";
 import { InboxDataProvider } from "../sidebar/index.ts";
@@ -411,4 +412,47 @@ test("an updated agent draft says Updated with the time, and the earlier draft i
   assert.ok(!has(out, "Thursday 3:00 am"), "the earlier text is folded");
   const first = renderToStaticMarkup(<DraftBlock d={plain[0]!} busy={false} onSend={() => undefined} onEdit={() => undefined} onDiscard={() => undefined} />).replaceAll("<!-- -->", "");
   assert.ok(!has(first, "Updated") && !has(first, "earlier draft"));
+});
+
+test("Edit and Send of an agent draft use the stored draft: every character of a body longer than its preview, its own recipients and Cc, never the thread that is open", async () => {
+  const s = createContactTabSample();
+  const FULL = `Hi Osama,\n\nAgenda for the call:\n${"1. Instantly warm-up and sending limits for the new domains.\\n".repeat(12)}Thanks, Irfad`;
+  const PREVIEW = `${FULL.slice(0, 40)}...`;
+  const rows = s.replica.rows("drafts") as unknown as Record<string, unknown>[];
+  s.replica.put("drafts", [...rows, {
+    id: "dr_osama", mailboxId: "mbx_work", inboxIds: ["mbx_work"], threadId: "thr_cold", direction: "out", status: "draft", from: { address: "irfad@northwind.example" },
+    to: [{ address: "osama@mail.example", name: "Osama" }], cc: [{ address: "aliza@northwind.example", name: "Aliza" }], subject: "Re: Cold email setup", snippet: PREVIEW, full: FULL, sentAt: SAMPLE_NOW, contactId: "ct_osama", isPrivate: false, draftedByAgent: "agt_intake",
+  }] as never);
+  const full = await loadDraft(s.data, "dr_osama");
+  assert.equal(full.text, FULL, "every character, not the preview");
+  assert.equal(full.threadId, "thr_cold");
+  assert.deepEqual(full.to.map((p) => p.address), ["osama@mail.example"]);
+  assert.deepEqual(full.cc.map((p) => p.address), ["aliza@northwind.example"]);
+  // sent while Josh's thread is the open one: it goes to Osama and Aliza, from the draft's own mailbox, filed under Osama, with the whole body
+  const [card] = draftCards((s.replica.run("mail.drafts.list", {})!.data).drafts.filter((d: { id: string }) => d.id === "dr_osama"), titles(northwind), new Map([["agt_intake", "Intake"]]));
+  assert.equal(card!.body, PREVIEW);
+  const josh = thread(s, "elena").conversation;
+  await sendAgentDraft(s.data, card!, josh, "", "", "key-osama");
+  const sent = s.sent.at(-1)!.input as { to: { address: string }[]; cc?: { address: string }[]; text: string; subject: string; contactId?: string; draftId: string };
+  assert.deepEqual([sent.to.map((p) => p.address), sent.cc?.map((p) => p.address), sent.text, sent.subject, sent.contactId, sent.draftId], [["osama@mail.example"], ["aliza@northwind.example"], FULL, "Re: Cold email setup", "ct_osama", "dr_osama"]);
+});
+
+test("a body that ends in a cut-off marker the person did not type is never sent", async () => {
+  const s = createContactTabSample();
+  const rows = s.replica.rows("drafts") as unknown as Record<string, unknown>[];
+  s.replica.put("drafts", [...rows, {
+    id: "dr_cut", mailboxId: "mbx_work", inboxIds: ["mbx_work"], threadId: "thr_cut", direction: "out", status: "draft", from: { address: "irfad@northwind.example" },
+    to: [{ address: "osama@mail.example" }], cc: [], subject: "Cold", snippet: "Agenda for the call: 1. Instantly...", sentAt: SAMPLE_NOW, contactId: "ct_osama", isPrivate: false, draftedByAgent: "agt_intake",
+  }] as never);
+  const [card] = draftCards((s.replica.run("mail.drafts.list", {})!.data).drafts.filter((d: { id: string }) => d.id === "dr_cut"), titles(northwind), new Map([["agt_intake", "Intake"]]));
+  const conv = thread(s, "elena").conversation;
+  const before = s.sent.length;
+  await assert.rejects(() => sendAgentDraft(s.data, card!, conv, "", "", "k1"), /only a preview/, "the stored text ends in a cut-off marker");
+  await assert.rejects(() => sendAgentDraft(s.data, card!, conv, card!.body, "", "k2"), /only a preview/, "the card's own preview is never sent");
+  assert.equal(s.sent.length, before, "nothing was sent");
+  assert.equal(cutOff("Agenda...", "Agenda..."), false, "a person who typed it may send it");
+  assert.equal(cutOff("Agenda for the call...", ""), true);
+  assert.equal(cutOff("Thanks, Irfad", ""), false);
+  await sendAgentDraft(s.data, card!, conv, "Agenda for the call: the three points we agreed.", "", "k3");
+  assert.equal(s.sent.length, before + 1, "words the person typed go out");
 });

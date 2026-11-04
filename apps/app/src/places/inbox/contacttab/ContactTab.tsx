@@ -19,7 +19,7 @@ import { useMenu } from "../../../../../../ui/src/Menu/index.tsx";
 import { useInboxData, useOnline, useOptionalInboxData, useScreenQuery } from "../sidebar/data.tsx";
 import { Face, Ghost, pointOf } from "../sidebar/parts.tsx";
 import type { Mailbox } from "../sidebar/model.ts";
-import { discardDraft, listSnippets, listTemplates, markRead, sendAgentDraft, sendEmail, sendText, setFollow, templateContent } from "./actions.ts";
+import { discardDraft, loadDraft, saveDraft, listSnippets, listTemplates, markRead, sendAgentDraft, sendEmail, sendText, setFollow, templateContent } from "./actions.ts";
 import { QUICK_FORM_NOTE, askStart, conversationOf, makeQuickForm, startChannel as askChannel, switchText, withLink, withoutLink } from "./ask.ts";
 import type { AskRequest } from "./ask.ts";
 import { each } from "./each.ts";
@@ -254,16 +254,28 @@ function Tab({ conversationId, contactId, ...props }: ContactTabProps): ReactEle
     }
   };
 
+  // Edit opens the draft's own card for editing, in place: the full stored body, never the preview, and never the thread that happens to be open
+  const [editing, setEditing] = useState<Record<string, { text: string; subject: string; loading?: boolean }>>({});
   const draftSend = (card: DraftCard): Promise<void> => withBusy(card.id, async () => {
     try {
-      const text = over.draftId === card.id && over.text ? over.text : card.body;
-      const subject = over.draftId === card.id && over.subject ? over.subject : card.subject;
-      const done = await sendAgentDraft(data, card, conv, text, subject);
+      const edit = editing[card.id];
+      const done = await sendAgentDraft(data, card, conv, edit && !edit.loading ? edit.text : "", edit && !edit.loading ? edit.subject : "");
       setDraftNotes((n) => ({ ...n, [card.id]: done }));
-      if (over.draftId === card.id) setOver((o) => ({ ...o, text: "", draftId: null }));
+      setEditing((e) => { const { [card.id]: _gone, ...rest } = e; return rest; });
     } catch (e) { setDraftNotes((n) => ({ ...n, [card.id]: fail(e) })); }
   });
-  const draftEdit = (card: DraftCard): void => { patch({ chan: card.channel, draftId: card.id, text: card.body, subject: card.subject, to: card.channel === "sms" ? [] : card.to, from: card.channel === "sms" ? { email: null, sms: card.mailboxId } : { email: card.mailboxId, sms: null } }); };
+  const draftEdit = (card: DraftCard): void => {
+    setEditing((e) => ({ ...e, [card.id]: { text: "", subject: card.subject, loading: true } }));
+    void loadDraft(data, card.id).then(
+      (full) => setEditing((e) => (e[card.id] ? { ...e, [card.id]: { text: full.text, subject: full.subject } } : e)),
+      (err) => { setEditing((e) => { const { [card.id]: _gone, ...rest } = e; return rest; }); setDraftNotes((n) => ({ ...n, [card.id]: fail(err) })); },
+    );
+  };
+  const draftSave = (card: DraftCard): Promise<void> => withBusy(card.id, async () => {
+    const edit = editing[card.id];
+    if (!edit) return;
+    try { await saveDraft(data, card, edit); setEditing((e) => { const { [card.id]: _gone, ...rest } = e; return rest; }); setDraftNotes((n) => ({ ...n, [card.id]: "Saved" })); } catch (err) { setDraftNotes((n) => ({ ...n, [card.id]: fail(err) })); }
+  });
   const draftDiscard = (card: DraftCard): Promise<void> => withBusy(card.id, async () => {
     try { await discardDraft(data, card.id); if (over.draftId === card.id) setOver((o) => ({ ...o, text: "", draftId: null })); } catch (e) { setDraftNotes((n) => ({ ...n, [card.id]: fail(e) })); }
   });
@@ -380,7 +392,7 @@ function Tab({ conversationId, contactId, ...props }: ContactTabProps): ReactEle
             case "note": return <QuietLine key={f.key} text={f.item.title ?? f.item.preview ?? ""} testID={`note:${f.item.id}`} />;
           }
         })}
-        {each(cards, (d) => <DraftBlock key={d.id} d={d} offsetMin={clock.offsetMin} note={draftNotes[d.id]} busy={busy.includes(d.id) || !online} onSend={() => void draftSend(d)} onEdit={() => draftEdit(d)} onDiscard={() => void draftDiscard(d)} />)}
+        {each(cards, (d) => <DraftBlock key={d.id} d={d} offsetMin={clock.offsetMin} editing={editing[d.id] ?? null} onChange={(next) => setEditing((e) => ({ ...e, [d.id]: next }))} onSave={() => void draftSave(d)} onCancel={() => setEditing((e) => { const { [d.id]: _gone, ...rest } = e; return rest; })} note={draftNotes[d.id]} busy={busy.includes(d.id) || !online} onSend={() => void draftSend(d)} onEdit={() => draftEdit(d)} onDiscard={() => void draftDiscard(d)} />)}
       </ScrollView>
 
       <View style={s.cmpWrap} testID="contact-composer">
