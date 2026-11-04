@@ -13,6 +13,7 @@ import {
   LONG_PRESS_MS,
   menuTrigger,
   moveActive,
+  setInputMode,
   reportProblem,
   selectableIndices,
   setReportProblemHandler,
@@ -140,7 +141,16 @@ test("a rendered menu lists the items in order and Report a problem last, with a
   assert.ok(html.lastIndexOf('data-separator="true"') < html.indexOf('data-report="true"'));
 });
 
+test("a menu opened by a key lights its first row; one opened by the pointer lights none", () => {
+  const items = [{ label: "Open" }, { label: "Copy" }];
+  setInputMode("key");
+  assert.equal(renderToStaticMarkup(<Menu items={items} x={0} y={0} />).match(/background-color:var\(--sel\)/g)?.length, 1, "a keyboard-opened menu lights the first row with the subtle fill");
+  setInputMode("pointer");
+  assert.equal(renderToStaticMarkup(<Menu items={items} x={0} y={0} />).match(/background-color:var\(--sel\)/g)?.length ?? 0, 0, "a pointer-opened menu lights nothing");
+});
+
 test("no row is lit when a menu opens; a key or the pointer lights one, with a subtle fill", () => {
+  setInputMode("pointer");
   const html = renderToStaticMarkup(<Menu items={[{ label: "Open" }, { label: "Copy" }]} x={0} y={0} />);
   assert.equal(html.match(/background-color:var\(--sel\)/g)?.length ?? 0, 0, "nothing is lit until a key or the pointer moves onto a row");
   assert.equal(moveActive([{ label: "Open" }, { label: "Copy" }], -1, "ArrowDown"), 0, "the first arrow key lights the first row");

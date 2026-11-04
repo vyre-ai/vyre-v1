@@ -245,8 +245,8 @@ export function Menu(props: MenuViewProps): ReactElement | null {
   const entries = useMemo(() => (searching ? filterMenuEntries(all, query) : all), [all, searching, query]);
   const window = useWindowDimensions();
   const [gone, setGone] = useState(false);
-  // owner, 5 Nov: no row is lit on open; the first key or the pointer lights one
-  const [active, setActive] = useState(-1);
+  // owner, 5 Nov: a menu opened by a key lights its first row (Enter picks it); one opened by the pointer lights none until a key or the pointer moves onto a row
+  const [active, setActive] = useState(() => (openedByKey() ? moveActive(entries, -1, "Home") : -1));
   const [size, setSize] = useState<{ w: number; h: number }>({ w: MENU_W, h: MENU_H });
   const nodes = useRef<Record<number, unknown>>({});
   const typed = useRef<{ text: string; at: number }>({ text: "", at: 0 });
@@ -510,14 +510,20 @@ export function noteAnchor(target: unknown): void {
   if (rect !== null && Number.isFinite(rect.left) && Number.isFinite(rect.bottom)) lastAnchor = { x: rect.left, y: rect.bottom + 4 };
 }
 
+/** How the person last acted: with a key (Enter or Space on a button, Shift+F10, the menu key) or with the pointer. A menu opened by a key lights its first row; one opened by the pointer lights none. */
+let inputByKey = false;
+export const openedByKey = (): boolean => inputByKey;
+/** Test seam: say how the next menu is opened. */
+export function setInputMode(mode: "key" | "pointer"): void { inputByKey = mode === "key"; }
+
 /** One document listener, installed once on web. A menu opened by a button that has no pointer position (the caller passes -1, or nothing) lands under that button. */
 function listenForPresses(): void {
   if (listening || Platform.OS !== "web") return;
   const doc = (globalThis as { document?: { addEventListener?: (type: string, fn: (e: { target?: unknown; key?: string }) => void, capture?: boolean) => void; activeElement?: unknown } }).document;
   if (doc === undefined || typeof doc.addEventListener !== "function") return;
   listening = true;
-  doc.addEventListener("pointerdown", (e) => noteAnchor(e.target), true);
-  doc.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") noteAnchor(doc.activeElement); }, true);
+  doc.addEventListener("pointerdown", (e) => { inputByKey = false; noteAnchor(e.target); }, true);
+  doc.addEventListener("keydown", (e) => { inputByKey = true; if (e.key === "Enter" || e.key === " ") noteAnchor(doc.activeElement); }, true);
 }
 
 /** A point is "unknown" when it is missing, negative or not a number: the caller had no coordinates to give. */
