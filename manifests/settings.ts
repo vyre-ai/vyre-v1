@@ -8,6 +8,8 @@ import { defineManifest, ev, read, screen, setting, t, write } from '../packages
 import { id } from './_common.ts';
 
 const V = { level: 'view' } as const;
+const contactChannel = t.enm('email', 'phone');
+const contactState = t.obj({ verified: t.bool(), canVerify: t.bool(), pending: t.bool() });
 const scope = t.enm('space', 'person');
 const settingRow = t.obj({
   key: t.str({ examples: ['profile.timezone'] }), scope, page: t.str({ examples: ['profile'] }), title: t.str(), value: t.json(), default: t.json(),
@@ -25,10 +27,23 @@ export default defineManifest({
 
   events: [
     ev('settings.changed', 'A setting changed (settings hold no secrets)', { p: { key: t.str(), scope, person: t.opt(id.user), before: t.json(), after: t.json(), by: t.str() }, subject: ['entity', '/key'] }),
+    ev('settings.contact_code_sent', 'A verification code was sent to my email or phone (the code is never in the log)', { p: { person: id.user, channel: t.enm('email', 'phone') }, subject: ['entity', '/person'], retention: 'audit' }),
+    ev('settings.contact_verified', 'My email or phone was confirmed with its code', { p: { person: id.user, channel: t.enm('email', 'phone') }, subject: ['entity', '/person'], retention: 'audit' }),
+    ev('settings.contact_unverified', 'My email or phone changed, so its tick went', { p: { person: id.user, channel: t.enm('email', 'phone'), why: t.str() }, subject: ['entity', '/person'], retention: 'audit' }),
+    ev('settings.contact_code_failed', 'A verification code was refused: wrong, expired, too many tries or not asked for', { p: { person: id.user, channel: t.enm('email', 'phone'), reason: t.str() }, subject: ['entity', '/person'], retention: 'audit' }),
     ev('settings.floor_changed', 'The owner floor on a setting changed; nobody may go below it', { p: { key: t.str(), by: t.str() }, subject: ['entity', '/key'], retention: 'audit' }),
   ],
 
   capabilities: [
+    read('settings.contact.status', 'Whether my email and phone are verified, whether a code is waiting, and whether this Space can send one (no phone line: no Verify)', {
+      ...V, in: {}, out: { email: contactState, phone: contactState }, tool: 'meta',
+    }),
+    write('settings.contact.verify_start', 'Send a 6-digit code to my email or phone through the Space mail sender or its phone line; it lasts 10 minutes, 3 an hour', {
+      ...V, in: { channel: contactChannel }, out: { sent: t.bool(), verified: t.bool(), expiresAt: t.int() }, emits: ['settings.contact_code_sent'], audit: 'always', tool: 'meta', errors: ['validation.precondition_failed', 'rate_limit.exceeded'],
+    }),
+    write('settings.contact.verify_confirm', 'Confirm the code that was sent; the tick shows only after this', {
+      ...V, in: { channel: contactChannel, code: t.str({ minLength: 4, maxLength: 12 }) }, out: { verified: t.bool() }, emits: ['settings.contact_verified', 'settings.contact_code_failed'], audit: 'always', tool: 'meta', errors: ['auth.invalid_code', 'auth.expired', 'validation.precondition_failed', 'rate_limit.exceeded'],
+    }),
     read('settings.pages', 'The settings pages a person has, with row counts', {
       level: 'member', in: {}, out: { pages: t.arr(t.obj({ key: t.str(), title: t.str(), group: t.enm('you', 'space'), rows: t.int({ minimum: 0 }) })) }, tool: 'meta',
     }),

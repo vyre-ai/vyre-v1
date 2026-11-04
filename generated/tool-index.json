@@ -7430,6 +7430,24 @@
     },
     {
       "deferred": false,
+      "name": "settings_contact_status",
+      "summary": "Whether my email and phone are verified, whether a code is waiting, and whether this Space can send one (no phone line: no Verify)",
+      "toolset": "meta"
+    },
+    {
+      "deferred": false,
+      "name": "settings_contact_verify_confirm",
+      "summary": "Confirm the code that was sent; the tick shows only after this",
+      "toolset": "meta"
+    },
+    {
+      "deferred": false,
+      "name": "settings_contact_verify_start",
+      "summary": "Send a 6-digit code to my email or phone through the Space mail sender or its phone line; it lasts 10 minutes, 3 an hour",
+      "toolset": "meta"
+    },
+    {
+      "deferred": false,
       "name": "settings_copy_profile",
       "summary": "Apply values read from another Space to my profile here; the title is never copied",
       "toolset": "meta"

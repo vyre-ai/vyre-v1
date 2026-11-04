@@ -2265,6 +2265,11 @@ export function createClient(transport: Transport) {
       rename: call("sessions.rename", 1),
     },
     settings: {
+      contact: {
+        status: call("settings.contact.status", 1),
+        verify_confirm: call("settings.contact.verify_confirm", 1),
+        verify_start: call("settings.contact.verify_start", 1),
+      },
       copy_profile: call("settings.copy_profile", 1),
       copy_source: call("settings.copy_source", 1),
       floor_set: call("settings.floor_set", 1),

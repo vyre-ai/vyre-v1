@@ -283,9 +283,12 @@ Events:
 
 ### settings
 
-Capabilities to implement: 15. Events to emit: 2. Contract tests that must go green: `generated/tests/settings/`.
+Capabilities to implement: 18. Events to emit: 6. Contract tests that must go green: `generated/tests/settings/`.
 
 Capabilities:
+- settings.contact.status (read, grant only, level view)
+- settings.contact.verify_confirm (write, grant only, level view)
+- settings.contact.verify_start (write, grant only, level view)
 - settings.copy_profile (write, grant only, level view)
 - settings.copy_source (read, grant only, level view)
 - settings.floor_set (write, policy.manage, level view)
@@ -304,6 +307,10 @@ Capabilities:
 
 Events:
 - settings.changed
+- settings.contact_code_failed
+- settings.contact_code_sent
+- settings.contact_unverified
+- settings.contact_verified
 - settings.floor_changed
 
 ### spaces
