@@ -84,8 +84,8 @@ export function HelperChip({ m, now, selected = false, index = 0, last = false, 
   );
 }
 
-export function CrewStrip({ members, totals, selectedId, parentName, onPeek, onStopAll, onOpenPane, onRetry }: {
-  members: readonly CrewMember[]; totals: CrewTotals; parentName?: string; selectedId?: string | null; onPeek: (m: CrewMember) => void; onStopAll?: () => void; onOpenPane?: () => void; onRetry?: (m: CrewMember) => void;
+export function CrewStrip({ members, totals, selectedId, parentName, merge, onPeek, onStopAll, onOpenPane, onRetry }: {
+  members: readonly CrewMember[]; totals: CrewTotals; parentName?: string; merge?: { state: "working" | "ready" | "merged"; onReview(): void; onMerge(): void }; selectedId?: string | null; onPeek: (m: CrewMember) => void; onStopAll?: () => void; onOpenPane?: () => void; onRetry?: (m: CrewMember) => void;
 }): ReactElement | null {
   const live = totals.working + totals.needsYou > 0;
   const now = useNow(live);
@@ -97,6 +97,8 @@ export function CrewStrip({ members, totals, selectedId, parentName, onPeek, onS
       <View style={st.head}>
         <View testID="crew-strip-dot" style={[st.dot, tone === "idle" && { backgroundColor: "var(--ok)" as string }, tone === "need" && { backgroundColor: "var(--warn)" as string }]} {...(web && tone !== "idle" ? { className: "vy-cw-dot" } : {})} />
         <Text numberOfLines={1} testID="crew-strip-title" style={st.title}>{stripTitle(totals)}</Text>
+        {merge && merge.state === "ready" ? <><Pressable accessibilityRole="button" testID="crew-strip-review" onPress={merge.onReview} style={st.headBtn}><Text style={st.headBtnText}>Review all</Text></Pressable><Pressable accessibilityRole="button" testID="crew-strip-merge" onPress={merge.onMerge} style={[st.headBtn, { backgroundColor: "var(--accent)" as string }]}><Text style={[st.headBtnText, { color: "var(--accent-ink)" as string }]}>Merge</Text></Pressable></> : null}
+        {merge && merge.state === "merged" ? <Text testID="crew-strip-merged" style={st.headBtnText}>Merged</Text> : null}
         {live && onStopAll ? <Pressable accessibilityRole="button" testID="crew-strip-stop-all" onPress={onStopAll} style={st.headBtn}><Text style={st.headBtnText}>Stop all</Text></Pressable> : null}
         {onOpenPane ? <Pressable accessibilityRole="button" accessibilityLabel="Open Crew" testID="crew-strip-pane" onPress={onOpenPane} style={st.headBtn}><Glyph name="pane" size={14} /></Pressable> : null}
       </View>

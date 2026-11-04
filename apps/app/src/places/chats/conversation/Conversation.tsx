@@ -4,7 +4,7 @@
 // send queues for its next step and Interrupt sends it now.
 import { useFrameStore } from "./frame.ts";
 import type { FrameControls, FrameStore } from "./frame.ts";
-import { foldHelperRows, groupHelperStrips, mergeCrewAnswer } from "./helper-rows.ts";
+import { foldHelperRows, groupHelperStrips, hideCrewPosts, mergeCrewAnswer, stripFromCoders } from "./helper-rows.ts";
 import { useCrew } from "../crew/context.tsx";
 import { crewChipOf } from "../crew/model.ts";
 import { CrewIsland } from "../crew/island.tsx";
@@ -393,7 +393,9 @@ function ConversationView(): ReactElement {
   const timelineMessages = byOrder([...win.rows, ...collect(liveView ? stillPending(pending, win.rows) : [], (p, i) => pendingMessage(p, data.me.id, thread.threadId, (win.rows[win.rows.length - 1]?.threadSeq ?? 0) + 1 + i)), ...ghosts]);
   const pendingState = new Map<string, "sending" | "failed">();
   for (const p of stillPending(pending, win.rows)) pendingState.set(`pending:${p.key}`, p.state);
-  const folded = mergeCrewAnswer(groupHelperStrips(foldHelperRows(timelineMessages)));
+  const coders = (crew?.status?.members ?? []).filter((x) => x.kind === "teammate");
+  const coderThreads = new Set(coders.map((x) => x.id));
+  const folded = mergeCrewAnswer(hideCrewPosts(stripFromCoders(groupHelperStrips(foldHelperRows(timelineMessages)), coderThreads), coderThreads, new Set(coders.flatMap((x) => (x.jobId ? [x.jobId] : [])))));
   const woven = data.activity ? weave(folded, data.activity.events).filter((m) => keepItem(m, data.activity!.show)) : folded;
   const items = timeline(woven, { meId: data.me.id, nameOf, kindOf: data.kindOf, clock: data.clock(), shared: thread.members.filter((p) => p.kind === "person").length >= 2 }).filter((it) => !(thread.kind === "thread" && it.kind === "day"));   // a thread has no day dividers: its root row and "N replies" lead
   const lastLive = [...timelineMessages].reverse().find((m) => data.streamOf(m.messageId) !== undefined);
@@ -568,6 +570,7 @@ function ConversationView(): ReactElement {
       status: crew.status, selected: crew.selected, peek: (id: string) => crew.show(id), openPane: () => crew.show(null),
       stopAll: () => void act.stopHelpers(data).then(() => crew.refresh(), fail("Could not stop the helpers.")),
       retry: (id: string) => void act.retryHelper(data, id, data.newKey()).then(() => crew.refresh(), fail("Could not start it again.")),
+      merge: (jobIds: readonly string[]) => void Promise.all(jobIds.map((jobId) => data.call("engine.crew.merge", { jobId, idempotencyKey: data.newKey() }))).then(() => { crew.refresh(); say("Merged."); }, fail("Could not merge it.")),
     } } : {}),
     share: (id, x, y) => void act.shareTargets(data, thread.threadId).then((targets) => {
       const entries: MenuEntry[] = [];

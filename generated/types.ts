@@ -11305,6 +11305,7 @@ export type EngineCrewStatusOut = {
   members: Array<{
       kind: "helper" | "teammate";
       id: string;
+      jobId?: string;
       parentThreadId: string;
       title: string;
       name?: string;

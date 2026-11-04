@@ -367,3 +367,16 @@ test("no raw model, engine or account id is written anywhere in the crew UI: not
   assert.doesNotMatch(text, /claude-|Maya_Claude|claude-code/);
   assert.equal(find(root, "crew-note-m2"), null, "a restart is not a note");
 });
+
+test("the coders' Review all and Merge sit in the strip header: they appear once every coder is done, Merge lands them, and after it the header says Merged", async () => {
+  const calls: string[] = [];
+  const rows = [M({ id: "c1", kind: "teammate" as never, state: "done", branch: "crew/ember", added: 12, deleted: 3, found: "Fixed it." }), M({ id: "h1", state: "done", found: "Read it." })];
+  const totals = T({ members: 2, working: 0, done: 2, needsYou: 0 });
+  const ready = await mount(createRoot, <CrewStrip members={rows} totals={totals} merge={{ state: "ready", onReview: () => calls.push("review"), onMerge: () => calls.push("merge") }} onPeek={() => undefined} />);
+  await press(find(ready, "crew-strip-review")); await press(find(ready, "crew-strip-merge"));
+  assert.deepEqual(calls, ["review", "merge"]);
+  const working = await mount(createRoot, <CrewStrip members={rows} totals={totals} merge={{ state: "working", onReview: () => undefined, onMerge: () => undefined }} onPeek={() => undefined} />);
+  assert.equal(find(working, "crew-strip-merge"), null, "not before they are done");
+  const merged = await mount(createRoot, <CrewStrip members={rows} totals={totals} merge={{ state: "merged", onReview: () => undefined, onMerge: () => undefined }} onPeek={() => undefined} />);
+  assert.equal(textOf(find(merged, "crew-strip-merged")), "Merged"); assert.equal(find(merged, "crew-strip-merge"), null);
+});

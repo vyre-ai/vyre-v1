@@ -197,10 +197,12 @@ export function jobLine(m: Pick<CrewMember, "title"> & { name?: string | undefin
 export function withTeammates<T extends Pick<CrewMember, "startedAt">>(rows: readonly T[], live: CrewStatusOut | null): Array<T | CrewMember> {
   if (!live) return [...rows];
   const mates = live.members.filter((m) => m.kind === "teammate");
-  if (mates.length === 0 || rows.length === 0) return [...rows];
+  if (mates.length === 0) return [...rows];
+  const have = new Set(rows.map((r) => (r as { id?: string }).id));
+  if (rows.length === 0) return mates.filter((m) => !have.has(m.id));
   const earliest = Math.min(...live.members.filter((m) => m.kind === "helper").map((m) => m.startedAt));
   const here = Math.min(...rows.map((r) => r.startedAt));
-  return here <= earliest ? [...rows, ...mates] : [...rows];
+  return here <= earliest ? [...rows, ...mates.filter((m) => !have.has(m.id))] : [...rows];
 }
 
 export type SortKey = "state" | "time" | "tokens" | "cost";

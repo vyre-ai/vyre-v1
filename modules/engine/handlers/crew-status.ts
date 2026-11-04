@@ -46,7 +46,7 @@ export async function crewStatus(ctx: EngineCtx, input: { threadId: string }) {
     const end = j.endedAt;
     const name = (await agentDisplay((cap, i) => ctx.call(cap, i), j.agentId)).name;
     members.push({
-      kind: "teammate", id: j.threadId, parentThreadId: input.threadId, title: j.title, name, agentId: j.agentId, state: JOB_STATE[j.state] ?? "working", ...(live ? { step: live } : {}),
+      kind: "teammate", id: j.threadId, jobId: j.jobId, parentThreadId: input.threadId, title: j.title, name, agentId: j.agentId, state: JOB_STATE[j.state] ?? "working", ...(live ? { step: live } : {}),
       startedAt: j.startedAt, ...(end !== undefined ? { endedAt: end } : {}), elapsedMs: Math.max(0, (end ?? now) - j.startedAt), ...(last && String(last["model"]) !== "unknown" ? { model: String(last["model"]) } : {}),
       ...(acct ? { accountLabel: acct.name ?? acct.title ?? ref } : {}), branch: j.branch, files, added: files.reduce((n, f) => n + f.added, 0), deleted: files.reduce((n, f) => n + f.deleted, 0), merged: j.state === "merged",
       tokensIn: turns.reduce((n, t) => n + num(t["tokens_in"]), 0), tokensOut: turns.reduce((n, t) => n + num(t["tokens_out"]), 0), costMicros: turns.reduce((n, t) => n + num(t["cost_micros"]), 0),

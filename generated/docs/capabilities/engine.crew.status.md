@@ -36,6 +36,7 @@ type Out = {
   members: Array<{
       kind: "helper" | "teammate";
       id: string;
+      jobId?: string;
       parentThreadId: string;
       title: string;
       name?: string;
@@ -126,6 +127,7 @@ type Out = {
         "found": "example",
         "holdTaskId": "tsk_a1b2c3",
         "id": "thr_a1b2c3",
+        "jobId": "example",
         "kind": "helper",
         "merged": true,
         "model": "example",
