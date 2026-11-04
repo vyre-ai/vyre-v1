@@ -7,7 +7,7 @@ import type { Clock } from "../rightpane/model.ts";
 
 export const THREAD_TITLE = "Thread";
 export const SWITCH_TITLE = "Agents reply in threads";
-export const SWITCH_NOTE = "Approvals and decisions still come to the chat.";
+export const SWITCH_NOTE = "Answers stay out of the main chat";
 export const ALSO_SENT = "Also sent to the chat";
 export const REPLY_PLACEHOLDER = "Reply in thread";
 export const EMPTY_THREAD = "No replies yet. The agent answers here when you ask in the chat.";

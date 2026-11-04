@@ -115,7 +115,8 @@ const parse = <T>(s: unknown, fallback: T): T => { try { return JSON.parse(Strin
 
 /** {{name}} filled from the data; an unknown name becomes empty and the line is tidied ("Message from " is never shown with a hole). */
 export function render(tpl: string, vars: Record<string, unknown>): string {
-  const s = tpl.replace(/\{\{(\w+)\}\}/g, (_m, k: string) => (vars[k] === undefined || vars[k] === null ? "" : String(vars[k])));
+  const s = tpl.replace(/\{\{(\w+)\}\}/g, (_m, k: string) => (vars[k] === undefined || vars[k] === null ? "" : String(vars[k])))
+    .replace(/^Approval needed: (?=\S.* wants to )/, "");   // an agent's request already says who wants what: no label in front of it
   return s.replace(/\s+/g, " ").replace(/\s+([:,.])/g, "$1").replace(/[:,]\s*$/, "").trim();
 }
 

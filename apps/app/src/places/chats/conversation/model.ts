@@ -525,8 +525,9 @@ export const isClosed = (t: Thread): boolean => t.closedAt !== undefined;
 export function threadKindNote(t: Thread, nameOf: (id: string) => string): string {
   if (t.kind === "helper") return "Helper chat";
   if (t.kind === "ask") return "Ask pane";
-  const starter = t.starter ? nameOf(t.starter) : "";
-  return t.kind === "thread" && starter ? `Thread started by ${starter}` : "";
+  // a thread opens on the message it hangs off, drawn as a plain message row (ThreadParent): no "started by" line over it
+  void nameOf;
+  return "";
 }
 
 /* ---------- the chat-open budget ---------- */

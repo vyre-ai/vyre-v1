@@ -64,13 +64,12 @@ export function ThreadSide({ rt, threadId, data, narrow, onClose, say }: ThreadS
       {row?.replyCount ? <Text style={st.count}>{`${row.replyCount} ${row.replyCount === 1 ? "reply" : "replies"}`}</Text> : null}
     </View>
   );
-  // agents reply in threads: the empty line, "Also sent to the chat" and the chat's switch at the foot
-  const extras = useThreadExtras(rt, data, threadId, parent, say);
+  // agents reply in threads: the empty line and "Also sent to the chat" (the chat's switch is in its More menu)
+  const extras = useThreadExtras(rt, data, threadId, parent);
   const body = (
     <View testID="thread-side" style={st.body}>
       {control}
       <View style={st.conv}><Conversation key={threadId} data={extras.data} compact /></View>
-      {extras.foot}
       {menu.element}
     </View>
   );

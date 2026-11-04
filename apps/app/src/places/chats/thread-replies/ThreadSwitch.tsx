@@ -1,11 +1,9 @@
-// "Agents reply in threads": one switch for the chat, shown at the foot of a thread and in the chat's menu. On, an agent asked in the chat answers under that message; off, it answers in the chat.
+// "Agents reply in threads": one switch for the chat, in the chat's More menu. On, an agent asked in the chat answers under that message; off, it answers in the chat.
 // It reads the chat's own row and writes threads.set_agent_replies; the page changes with the row.
 import { useCallback, useEffect, useState } from "react";
-import type { ReactElement } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
 import type { CapMap } from "../../../../../../generated/types.ts";
 import type { ConversationData } from "../conversation/data.tsx";
-import { SWITCH_NOTE, SWITCH_TITLE, switchToast } from "./model.ts";
+import { switchToast } from "./model.ts";
 
 type SetIn = CapMap["threads.set_agent_replies"]["in"];
 
@@ -26,28 +24,3 @@ export function useReplySwitch(data: Pick<ConversationData, "call" | "toast">, t
   }, [data, threadId]);
   return { on, set };
 }
-
-export function ThreadSwitch({ on, onChange }: { on: boolean; onChange(on: boolean): void }): ReactElement {
-  return (
-    <View testID="thread-switch-row" style={st.row}>
-      <View style={st.words}>
-        <Text style={st.title}>{SWITCH_TITLE}</Text>
-        <Text style={st.note}>{SWITCH_NOTE}</Text>
-      </View>
-      <Pressable testID="thread-switch" accessibilityRole="switch" accessibilityLabel={SWITCH_TITLE} aria-checked={on} onPress={() => onChange(!on)} style={[st.track, on && st.trackOn]}>
-        <View style={[st.knob, on && st.knobOn]} />
-      </Pressable>
-    </View>
-  );
-}
-
-const st = StyleSheet.create({
-  row: { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 12, paddingHorizontal: 16, borderTopWidth: 1, borderTopColor: "var(--line)" as string },
-  words: { flex: 1, minWidth: 0, gap: 2 },
-  title: { fontSize: 13.5, color: "var(--ink)" as string },
-  note: { fontSize: 12, lineHeight: 16, color: "var(--ink-3)" as string },
-  track: { width: 36, height: 20, borderRadius: 10, backgroundColor: "var(--ink-4)" as string, justifyContent: "center", paddingHorizontal: 2 },
-  trackOn: { backgroundColor: "var(--accent)" as string },
-  knob: { width: 16, height: 16, borderRadius: 8, backgroundColor: "#fff", alignSelf: "flex-start" },
-  knobOn: { alignSelf: "flex-end" },
-});

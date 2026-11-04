@@ -400,3 +400,9 @@ test("ci.paused files one Inbox-style line for each admin, and the same month co
   assert.equal(all[0].title, "CI paused: this month's cap of $10 is reached");
   assert.equal(all[0].place, "console");
 });
+
+test("the top bar says who wants what for an agent's request, with no label in front of it", async () => {
+  const { render } = await import("../projections.ts");
+  assert.equal(render("Approval needed: {{title}}", { title: "Intake wants to message Noah Berg" }), "Intake wants to message Noah Berg");
+  assert.equal(render("Approval needed: {{title}}", { title: "Retainer for Lee" }), "Approval needed: Retainer for Lee", "any other title keeps its label");
+});
