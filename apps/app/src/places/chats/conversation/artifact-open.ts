@@ -40,6 +40,8 @@ export function useChatViewing(call: (cap: string, input: unknown) => unknown, t
     };
     say();
     const timer = setInterval(say, VIEWING_EVERY_MS);
+    // in Node (the app's tests) a view that is never unmounted must not keep the process alive; a browser timer has no unref
+    (timer as unknown as { unref?: () => void }).unref?.();
     return () => clearInterval(timer);
   }, [call, threadId]);
 }

@@ -88,7 +88,8 @@ import type { FetchFn, ProbeName, ProbeResult } from "../platform/probes.ts";
 import { Scheduler } from "../scheduler/index.ts";
 import { Supervisor } from "../supervisor/index.ts";
 import type { RunningUnit, ServiceSpec, UnitExit } from "../supervisor/index.ts";
-import { createGateHook, moduleFetches, moduleOutward, moduleWhens } from "./gate-hook.ts";
+import { createGateHook, moduleFetches, moduleOutward, moduleWhens, payloadHash } from "./gate-hook.ts";
+import { bindPayloadHash } from "../../../lib/payload-hasher.ts";
 import { withGateNesting } from "./gate-nesting.ts";
 import { FILL_PATH, createComputersFillHost, createFillRoute } from "../seams/computers.ts";
 import { homeCallAllowed, homeScopeOf } from "./home-confine.ts";
@@ -509,7 +510,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
     return publicOriginOf(cfg.address, claimed?.state === "claimed" ? claimed.name : null);
   };
   // sites: what the module answers and where the bytes go; set once the modules are loaded and the stream exists
-  let sitesServing: Partial<PublicPathDeps> & { artifactSession?: PublicPathDeps["artifact"]; artifactExchange?: (code: string) => Promise<{ siteId: string; token: string; maxAgeSeconds: number } | null> } = {};
+  let sitesServing: Partial<PublicPathDeps> & { artifactSession?: (siteId: string, token: string) => Promise<ServedSite | null>; artifactExchange?: (code: string) => Promise<{ siteId: string; token: string; maxAgeSeconds: number } | null> } = {};
   // the host artifacts are served from, apart from the app's origin (artifact-host.ts); none until one is set up (VYRE_ARTIFACT_HOST), and artifacts then open at their keyed address as before
   // explicit setting first (the option or VYRE_ARTIFACT_HOST; "off" turns it off), else derived from the Space's address: <name>-a.vyre.run for a relay name, a.<domain> for an own domain
   const artifactHostOf = (): string | null => {
@@ -517,7 +518,10 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
     if (set !== null) return set === "off" ? null : set;
     let claimed: { name?: string; state?: string } | undefined;
     try { claimed = db?.all("SELECT name, state FROM network_phone WHERE id = 1")[0] as typeof claimed; } catch { /* the table comes with the network module */ }
-    return deriveArtifactHost(cfg.address, claimed?.state === "claimed" ? claimed.name : null);
+    const derived = deriveArtifactHost(cfg.address, claimed?.state === "claimed" ? claimed.name : null);
+    if (derived || cfg.address || claimed?.state === "claimed") return derived;
+    // a Space on this computer alone: browsers send *.localhost to loopback, so a.localhost:<port> is a separate origin with the same cookie flow
+    return /^(127\.0\.0\.1|localhost|\[::1\])$/.test(cfg.host) ? `a.localhost:${boundPort}` : null;
   };
   let refreshDomains: () => Promise<void> = () => Promise.resolve();
   // sites Vyre deploys, at addresses of their own: set once the sites module is loaded (configureRoutes); until then no host is a site
@@ -553,8 +557,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   };
   const publicPath = createPublicPathRoute({
     forms: () => formsPageRoute, unsubscribe: () => unsubscribeRoute, share: () => shareRoute, origin: () => publicOrigin()?.origin ?? null,
-    site: (slug) => sitesServing.site?.(slug) ?? null, // the keyed /a/<id>/k/<token>/ address (a token in the URL) is served only where no artifact host exists, which is a Space reached on a local address; with a host it is refused
-    artifact: (id, token) => artifactHostOf() ? Promise.resolve(null) : (sitesServing.artifact?.(id, token) ?? Promise.resolve(null)),
+    site: (slug) => sitesServing.site?.(slug) ?? null,
     fetch: (t, r, sink) => sitesServing.fetch ? sitesServing.fetch(t, r, sink) : Promise.resolve(sink.fail("Not available.")), file: (f, rel) => sitesServing.file?.(f, rel) ?? Promise.resolve(null),
   });
   // GET /exports/<id>?token= (P-L7_16): the vault module checks the token; until it is configured every pull is refused
@@ -660,6 +663,9 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
     },
   });
   chromeEventListeners.add(chromePort.onEvent);
+  // the hash a held call's approval is bound to, handed to the Gate module so editing a held message can bind the approval to the new words (modules/gate/handlers/revise.ts)
+  bindPayloadHash((capName, capVersion, input, principal, actingFor) => payloadHash({ name: capName, v: capVersion }, input, { principal: principal as { kind: "person" | "agent" | "actor" | "service"; id: string }, ...(actingFor !== undefined ? { actingFor } : {}) }));
+  closers.push(() => bindPayloadHash(null));
   const composedChrome = composePorts(chromePort.port, remoteChrome.port);
   bindPersonalChrome(composedChrome);
   closers.push(() => bindPersonalChrome(null));
@@ -1695,13 +1701,6 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           });
           sitesServing = {
             site: (slug) => sitesMod?.routeBySlug?.({ db: db! }, slug) ?? null,
-            artifact: async (id, token) => {
-              const got = await sitesMod?.routeByTicket?.({ db: db! }, id, token, now());
-              if (!got) return null;
-              // access is asked on every request, so ending a share ends the link
-              const may = got.principal === got.owner || (got.route.access === "space" && access.snap.principal(got.principal)?.status === "active") || (!staleFor(got.principal) && authorize(access.snap, { principal: got.principal, action: { perm: null, level: "view" }, resource: { type: "site", id } }).effect === "allow");
-              return may ? got.route : null;
-            },
             artifactSession: async (id, token) => {
               const got = await sitesMod?.routeByArtifactSession?.({ db: db! }, id, token, now());
               if (!got) return null;

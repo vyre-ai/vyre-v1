@@ -48,13 +48,13 @@ test("screen: Week is the default, Monday first, with the range in the title, to
   assert.ok(!has(out, String.fromCharCode(0x2014)), "no em dash in any copy");
 });
 
-test("screen: an event sits at its start time (52 px an hour) and overlapping events share the column", () => {
+test("screen: an event sits at its start time (64 px an hour) and overlapping events share the column", () => {
   const { out } = cal();
   const at = (id: string): string => { const i = out.indexOf(`data-testid="event:${id}"`); assert.ok(i >= 0, id); return out.slice(Math.max(0, i - 400), i + 40); };
-  assert.ok(at("e_lease_call").includes("top:572px"), "11:00 is 11 hours down the grid");
-  assert.ok(at("e_planning").includes("width:calc(50% - 4px)") && at("e_invoices").includes("width:calc(50% - 4px)"), "14:00 and 14:30 split the column");
+  assert.ok(at("e_lease_call").includes(`top:${11 * HH}px`), "11:00 is 11 hours down the grid");
+  assert.ok(at("e_planning").includes("width:calc((100% - 0px) / 1 - 4px)") && at("e_invoices").includes("width:calc((100% - 12px) / 1 - 4px)"), "14:30 sits on top of the 14:00 card, 12 px further in");
   const lane = lanesOf(events(createCalendarSample()).filter((e) => e.id === "e_planning" || e.id === "e_invoices"));
-  assert.deepEqual(lane.map((l) => [l.e.id, l.lane, l.lanes]), [["e_planning", 0, 2], ["e_invoices", 1, 2]]);
+  assert.deepEqual(lane.map((l) => [l.e.id, l.lane, l.lanes, l.level]), [["e_planning", 0, 1, 0], ["e_invoices", 0, 1, 1]]);
   assert.ok(has(out, "Lease call with Elena") && has(out, "11:00 to 11:45 AM"), "a taller event shows its time under the title");
 });
 
@@ -117,9 +117,9 @@ test("screen: the Harbor Studio space has its own events", () => {
 test("snapping: y positions land on 15 minute steps (13 px is a quarter hour), clamped to the day", () => {
   assert.equal(yToOffset(0), 0);
   assert.equal(yToOffset(6), 0, "under half a step rounds down");
-  assert.equal(yToOffset(7), 15 * MIN, "past half a step rounds up");
+  assert.equal(yToOffset(9), 15 * MIN, "past half a step (8 px) rounds up");
   assert.equal(yToOffset(13), 15 * MIN);
-  assert.equal(yToOffset(20), 30 * MIN);
+  assert.equal(yToOffset(25), 30 * MIN);
   assert.equal(yToOffset(HH * 24 + 50), DAY, "never past midnight");
   assert.equal(yToOffset(-30), 0);
   for (let y = 0; y < HH * 24; y += 3) assert.equal(yToOffset(y) % (15 * MIN), 0);
@@ -130,8 +130,8 @@ test("snapping: y positions land on 15 minute steps (13 px is a quarter hour), c
 
 test("drag to create: start and end on 15 minute steps, at least one step long, either direction, an hour on a double click", () => {
   const d = TODAY;
-  assert.deepEqual(dragCreate(d, 130, 195), { startsAt: d + 150 * MIN, endsAt: d + 225 * MIN }, "2:30 to 3:45 AM");
-  assert.deepEqual(dragCreate(d, 195, 130), dragCreate(d, 130, 195), "dragging up gives the same event");
+  assert.deepEqual(dragCreate(d, 160, 240), { startsAt: d + 150 * MIN, endsAt: d + 225 * MIN }, "2:30 to 3:45 AM");
+  assert.deepEqual(dragCreate(d, 240, 160), dragCreate(d, 160, 240), "dragging up gives the same event");
   assert.equal(minutes(dragCreate(d, 100, 101)), 15, "a tiny drag is one step");
   assert.deepEqual(clickCreate(d, 9 * HH), { startsAt: d + 9 * HOUR, endsAt: d + 10 * HOUR });
   assert.equal(clickCreate(d, 23.9 * HH).endsAt, d + DAY, "an hour near midnight stays inside the day");
@@ -140,8 +140,8 @@ test("drag to create: start and end on 15 minute steps, at least one step long, 
 
 test("drag to move and resize: only the times change, on 15 minute steps; a move can change the day; the end never passes the start", () => {
   const e = { startsAt: TODAY + 10 * HOUR, endsAt: TODAY + 11 * HOUR };
-  assert.deepEqual(dragMove(e, 26, 0, 0), { startsAt: TODAY + 10.5 * HOUR, endsAt: TODAY + 11.5 * HOUR }, "26 px is half an hour");
-  assert.deepEqual(dragMove(e, 7, 0, 0), { startsAt: TODAY + 10.25 * HOUR, endsAt: TODAY + 11.25 * HOUR }, "7 px rounds to a quarter hour");
+  assert.deepEqual(dragMove(e, HH / 2, 0, 0), { startsAt: TODAY + 10.5 * HOUR, endsAt: TODAY + 11.5 * HOUR }, "half an hour of pixels is half an hour");
+  assert.deepEqual(dragMove(e, 9, 0, 0), { startsAt: TODAY + 10.25 * HOUR, endsAt: TODAY + 11.25 * HOUR }, "9 px rounds to a quarter hour");
   assert.deepEqual(dragMove(e, 0, 1, 0), { startsAt: TODAY + DAY + 10 * HOUR, endsAt: TODAY + DAY + 11 * HOUR }, "one column right is the next day");
   assert.equal(minutes(dragMove(e, 91, 2, 0)), 60, "a move keeps the length");
   assert.deepEqual(dragResize(e, 13, 0), { startsAt: e.startsAt, endsAt: TODAY + 11.25 * HOUR });

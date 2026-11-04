@@ -1,0 +1,6 @@
+{
+  "targets": [
+    { "id": "COPY_01-audit", "route": "/m/COPY_01?part=audit", "proto": "console,{skin}", "waitFor": "[data-testid='audit']", "note": "The audit log: each row is who did what to which thing, in plain words." },
+    { "id": "COPY_01-overview", "route": "/m/COPY_01?part=overview", "proto": "console,{skin}", "waitFor": "[data-testid='attention']", "note": "Console overview: the last admin acts in plain words." }
+  ]
+}

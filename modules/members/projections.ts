@@ -95,6 +95,7 @@ export interface SeamInvite { inviteId: string; role: string; groups: string[]; 
 
 export const EVERYONE = "grp_everyone";
 export const OWNER_ROLE = "rol_owner";
+export const GUEST_ROLE = "rol_guest";
 export const DEFAULT_EXPIRY_DAYS = 7;
 export const DAY_MS = 24 * 3_600_000;
 export const EXPORT_DAYS = 30;

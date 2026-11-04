@@ -41,6 +41,7 @@ type Out = {
       text: string;
       by?: string;
       ref?: string;
+      tpl?: string;
     }>;
 };
 ```
@@ -70,7 +71,8 @@ type Out = {
         "by": "example",
         "kind": "reading",
         "ref": "example",
-        "text": "example"
+        "text": "example",
+        "tpl": "example"
       }
     ]
   }

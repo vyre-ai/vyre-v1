@@ -19,6 +19,7 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "members.accept": Handler<"members.accept", X>;
   "members.invites.create": Handler<"members.invites.create", X>;
   "members.invites.extend": Handler<"members.invites.extend", X>;
+  "members.invites.guest": Handler<"members.invites.guest", X>;
   "members.invites.list": Handler<"members.invites.list", X>;
   "members.invites.preview": Handler<"members.invites.preview", X>;
   "members.invites.revoke": Handler<"members.invites.revoke", X>;

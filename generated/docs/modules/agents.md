@@ -24,7 +24,7 @@ Requires: chat, engine, mcp, memory, notes, runs, terminal.
 - [agents.outside.connect](../capabilities/agents.outside.connect.md): System: make the agent an app becomes when a person allows it. Called by mcp.oauth.allow, never by a client
 - [agents.outside.enqueue](../capabilities/agents.outside.enqueue.md): System: a mention or a task for an outside agent waits in its queue until it asks
 - [agents.outside.seen](../capabilities/agents.outside.seen.md): System: an outside agent called a tool: its status follows
-- [agents.outside.usable](../capabilities/agents.outside.usable.md): May the person asking give this agent work? An outside agent takes work from its owner only; every other agent says yes
+- [agents.outside.usable](../capabilities/agents.outside.usable.md): May the person asking give this agent work (a task, an automation step, a crew)? An outside agent takes work from its owner only; any other agent needs Can use on it (Can chat with is not enough); a person's Assistant is theirs alone
 - [agents.pause](../capabilities/agents.pause.md): Pause an agent with a reason; the status shows who paused it
 - [agents.pause_person](../capabilities/agents.pause_person.md): Pause every agent of one person, or let them run again. Audited, and the person is told. Answers how many changed, never which
 - [agents.people_summary](../capabilities/agents.people_summary.md): For each person whose agents you cannot see (their Assistant, the agents they keep private): how many, what they spent this month against their cap, and whether they are paused. Never names or content

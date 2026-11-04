@@ -1,3 +1,4 @@
+import { actionSentence } from "../../../../../lib/words/index.ts";
 // Small text helpers the Console pages share. Numbers are tabular wherever they show; times are relative to the shell's clock so a screen test is stable.
 
 const MIN = 60_000;
@@ -25,12 +26,9 @@ export function actionPhrase(action: string): string {
 }
 
 /** Plain sentences for the acts a new owner sees first; anything else keeps the generic phrase. An actor the Space has no name for reads as "The owner" only for a claim, else "Someone". */
-const SENTENCES: Readonly<Record<string, string>> = { "audit.viewed": "opened the audit log", "identity.claim_owner": "claimed this Space" };
 export function activityTitle(who: string, action: string, resource: string | undefined): string {
   const unnamed = /^(act|usr|agt)_/.test(who);
-  const sentence = SENTENCES[action];
-  if (sentence) return `${unnamed ? (action === "identity.claim_owner" ? "The owner" : "Someone") : who} ${sentence}`;
-  return `${unnamed ? "Someone" : who} ${actionPhrase(action)}${resource ? ` ${resource}` : ""}`;
+  return actionSentence({ who: unnamed ? (action === "identity.claim_owner" ? "The owner" : "Someone") : who, action, thing: resource });
 }
 
 /** The name of what an act was on, or nothing: an id the Space has no name for (the Space itself, a row since deleted) is left out, never read as "Someone". */

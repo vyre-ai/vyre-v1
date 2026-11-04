@@ -23,6 +23,7 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "tasks.followers.add": Handler<"tasks.followers.add", X>;
   "tasks.followers.remove": Handler<"tasks.followers.remove", X>;
   "tasks.get": Handler<"tasks.get", X>;
+  "tasks.held_revise": Handler<"tasks.held_revise", X>;
   "tasks.history": Handler<"tasks.history", X>;
   "tasks.index": Handler<"tasks.index", X>;
   "tasks.links.add": Handler<"tasks.links.add", X>;

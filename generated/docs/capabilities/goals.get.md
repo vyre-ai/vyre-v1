@@ -131,6 +131,28 @@ type Out = {
     createdAt: number;
     updatedAt: number;
   };
+  draftPlan?: Array<{
+      key: string;
+      title: string;
+      why: string;
+      impact?: string;
+      brief?: string;
+      doneMeans?: Array<string>;
+      assigned: {
+        kind: "person" | "agent" | "group" | "role";
+        id: string;
+      };
+      reviewer?: {
+        kind: "person" | "agent" | "group" | "role";
+        id: string;
+      };
+      approver?: {
+        kind: "person" | "agent" | "group" | "role";
+        id: string;
+      };
+      dependsOn?: Array<string>;
+      due?: number;
+    }>;
   tasks: Array<{
       taskId: string;
       key?: string;
@@ -158,6 +180,7 @@ type Out = {
       text: string;
       by?: string;
       ref?: string;
+      tpl?: string;
     }>;
   readings: Array<{
       at: number;
@@ -191,7 +214,36 @@ type Out = {
         "by": "example",
         "kind": "reading",
         "ref": "example",
-        "text": "example"
+        "text": "example",
+        "tpl": "example"
+      }
+    ],
+    "draftPlan": [
+      {
+        "approver": {
+          "id": "agt_a1b2c3",
+          "kind": "person"
+        },
+        "assigned": {
+          "id": "agt_a1b2c3",
+          "kind": "person"
+        },
+        "brief": "example",
+        "dependsOn": [
+          "example"
+        ],
+        "doneMeans": [
+          "example"
+        ],
+        "due": 1760000000000,
+        "impact": "+40 to +60 registrations",
+        "key": "reminder",
+        "reviewer": {
+          "id": "agt_a1b2c3",
+          "kind": "person"
+        },
+        "title": "example",
+        "why": "Lab 7 attendees registered at 31% after one reminder last time"
       }
     ],
     "goal": {

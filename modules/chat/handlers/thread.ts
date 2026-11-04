@@ -211,7 +211,7 @@ export async function makeChannel(ctx: ChatCtx, input: { threadId: string; perso
   return { channel: channelOut(ctx.db, channel) };
 }
 
-export async function channelsCreate(ctx: ChatCtx, input: { name: string; visibility: "public" | "invite"; topic?: string; memberIds?: string[]; agentIds?: string[]; folderId?: string; recordId?: string; idempotencyKey?: string }) {
+export async function channelsCreate(ctx: ChatCtx, input: { name: string; visibility: "public" | "invite"; topic?: string; memberIds?: string[]; agentIds?: string[]; leadAgentId?: string; folderId?: string; recordId?: string; idempotencyKey?: string }) {
   ensure(ctx.db);
   const name = cleanName(ctx, input.name);
   if (channelByName(ctx.db, name)) raise(ctx, "validation.bad_input", "A channel with that name already exists.", { name });
@@ -227,7 +227,7 @@ export async function channelsCreate(ctx: ChatCtx, input: { name: string; visibi
   if (asker.startsWith("usr_")) addMember(ctx, main.id, asker, "owner");
   for (const p of memberIds) addMember(ctx, main.id, p);
   // Agents are invited as listeners: in a channel they answer when asked, and act unmentioned only where "watches this channel" is on.
-  for (const agentId of agentIds) addAgent(ctx, main.id, { agentId, mode: "listen", addedBy: asker });
+  for (const agentId of agentIds) addAgent(ctx, main.id, { agentId, mode: agentId === input.leadAgentId ? "lead" : "listen", addedBy: asker });
   const channel = insertChannel(ctx, { id: channelId, mainThread: main.id, name, topic, visibility: input.visibility, folderId: input.folderId, recordId: input.recordId, createdBy: asker });
   ctx.emit("channel.created", channel.id, { channelId: channel.id, name, visibility: input.visibility, ...(input.recordId !== undefined ? { recordId: input.recordId } : {}) });
   emitStarted(ctx, main);

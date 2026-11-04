@@ -6,7 +6,7 @@ import type { FakeReplica } from "../../../../../client/src/index.ts";
 import { screensById } from "../../../../../generated/screens.ts";
 import type { CapMap } from "../../../../../generated/types.ts";
 import type { ConsoleData } from "./data.tsx";
-import { actionPhrase } from "./format.ts";
+import { actionWords } from "../../../../../lib/words/index.ts";
 
 export const SAMPLE_NOW = Date.UTC(2025, 9, 24, 10, 0, 0);
 const MIN = 60_000;
@@ -84,7 +84,7 @@ export function createSampleConsole(o: { viewer?: Viewer; busy?: boolean } = {})
   replica.resolve("audit.list", (_t, input) => {
     const q = (input.q ?? "").toLowerCase();
     const rows = AUDIT.filter((r) => (!input.class || r.class === input.class) && (!input.traceId || r.traceId === input.traceId)
-      && (!q || `${NAMES[r.actor.id] ?? r.actor.id} ${actionPhrase(r.action)}`.toLowerCase().includes(q)));
+      && (!q || `${NAMES[r.actor.id] ?? r.actor.id} ${actionWords(r.action)}`.toLowerCase().includes(q)));
     return { rows: [...rows], total: rows.length };
   });
   replica.resolve("audit.get", (_t, input) => {

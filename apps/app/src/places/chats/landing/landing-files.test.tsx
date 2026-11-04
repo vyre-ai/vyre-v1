@@ -67,7 +67,7 @@ test("a screenshot dropped on New chat starts the chat, then posts the words wit
     const said: string[] = [];
     const root = await mount(createRoot, (
       <ResumeContext.Provider value={{ done: 8, total: 8, open: noop, pill: null }}>
-        <Landing rt={rt} nameOf={(id) => id} kindOf={() => "agent"} agents={[]} people={[]} openChat={(id) => void opened.push(id)} openTasks={noop} openNeed={noop} openProfile={noop} fill={noop} newKey={() => "k"} say={(t) => void said.push(t)} />
+        <Landing rt={rt} nameOf={(id) => id} kindOf={() => "agent"} openChat={(id) => void opened.push(id)} openTasks={noop} openNeed={noop} openProfile={noop} fill={noop} newKey={() => "k"} say={(t) => void said.push(t)} />
       </ResumeContext.Provider>
     ));
     const shot = new File([new Uint8Array([1, 2, 3])], "Screenshot 2026-11-03 at 10.14.02.png", { type: "image/png" });

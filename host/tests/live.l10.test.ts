@@ -90,11 +90,11 @@ const ok = async (d: { url: string }, token: string, cap: string, body: Record<s
   return (JSON.parse(text) as { data: unknown }).data;
 };
 
-test("l10 live: kits is live in host/modules.json", () => {
+test("l10 live: kits and browser (Vyre for Chrome's Browser connections) are live in host/modules.json", () => {
   const file = JSON.parse(fs.readFileSync(new URL("../modules.json", import.meta.url), "utf8")) as { modules: { id: string; owner: string; status: string }[] };
   const mine = file.modules.filter((m) => m.owner === "L10");
-  assert.deepEqual(mine.map((m) => m.id), ["kits"]);
-  assert.equal(mine[0]!.status, "live");
+  assert.deepEqual(mine.map((m) => m.id), ["browser", "kits"]);
+  for (const m of mine) assert.equal(m.status, "live", m.id);
 });
 
 test("l10 live: a booted daemon wires the Kit source, and kits answers reads and writes through the gateway; a member is refused", async () => {

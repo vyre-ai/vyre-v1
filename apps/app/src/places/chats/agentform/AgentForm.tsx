@@ -10,13 +10,14 @@ import type { CapMap } from "../../../../../../generated/types.ts";
 import type { ConfigDirectory } from "../../automations/config/data.tsx";
 import { Overlay } from "../../automations/config/Overlay.tsx";
 import { Switch } from "../../automations/config/parts.tsx";
-import { shareRows } from "../../automations/config/SettingsTab.tsx";
-import { ShareSheet } from "../../../../../../ui/src/ShareSheet/index.tsx";
+import { shareRows, sheetDirectory } from "../../../share/rows.ts";
+import { AccessSheet, accessCount } from "../../../../../../ui/src/AccessSheet/index.tsx";
 import { useMenu } from "../../../../../../ui/src/Menu/index.tsx";
+import { MarkdownEditor } from "../../../../../../ui/src/RichEditor/index.tsx";
 import { aiMenu } from "../../vault/providers/aiMenu.ts";
 import { aiCaption, aiName, automaticLine } from "../../vault/providers/pick.ts";
 import { useSpaceAi } from "../../vault/providers/useSpaceAi.ts";
-import type { ShareInput, UnshareInput } from "../../../../../../ui/src/ShareSheet/index.tsx";
+import type { ShareInput, UnshareInput } from "../../../../../../ui/src/AccessSheet/index.tsx";
 import { Glyph as Mark } from "../conversation/parts.tsx";
 import { Glyph } from "../sidebar/parts.tsx";
 import { createInput, draftInstructions, faceChoices, faceSeed, grantsFor, reachOffers, updatePatch, workPatch, chatKeyPatch } from "./model.ts";
@@ -37,7 +38,7 @@ export interface AgentFormProps {
   /** Opens Vault > AI accounts, where an admin keeps accounts for this work. */
   openVault?(): void;
   /** Absent in a Personal Space, where nobody else can use it. */
-  sharing?: { directory: ConfigDirectory; meName: string; meId: string; nameOf(id: string): string };
+  sharing?: { directory: ConfigDirectory; meName: string; meId: string; nameOf(id: string): string; spaceName?: string };
 }
 
 const EMPTY: AgentDraft = { name: "", does: "", face: "", instructions: "", model: "", fallbackModel: "", computer: "none", workKey: "" };
@@ -148,7 +149,7 @@ export function AgentForm({ agentId, call, newKey, onDone, onCancel, say, sharin
         </View>
 
         <Section title="Instructions" note="AGENT.md">
-          <TextInput testID="agent-instructions" accessibilityLabel="Instructions" multiline value={shown} onChangeText={(instructions) => { setTouched(true); set({ instructions }); }} style={[st.text, st.tall]} />
+          <View style={st.md}><MarkdownEditor testID="agent-instructions" label="Instructions" value={shown} onChange={(instructions) => { setTouched(true); set({ instructions }); }} minHeight={260} /></View>
         </Section>
 
         <Section title="Context" note="It always knows these">
@@ -159,7 +160,7 @@ export function AgentForm({ agentId, call, newKey, onDone, onCancel, say, sharin
           </View>
           {note !== null ? (
             <View style={st.noteBox}>
-              <TextInput testID="agent-note-text" accessibilityLabel="The note" multiline autoFocus value={note} onChangeText={setNote} placeholder="What should it always know?" placeholderTextColor="var(--ink-3)" style={st.text} />
+              <View style={st.md}><MarkdownEditor testID="agent-note-text" label="The note" autoFocus value={note} onChange={setNote} placeholder="What should it always know?" toggle={false} minHeight={90} density="compact" /></View>
               <View style={st.row}>
                 <Btn label="Keep" primary testID="agent-note-keep" onPress={() => { if (note.trim() !== "") setNotes((l) => [...l, note.trim()]); setNote(null); }} />
                 <Btn label="Cancel" testID="agent-note-cancel" onPress={() => setNote(null)} />
@@ -184,7 +185,7 @@ export function AgentForm({ agentId, call, newKey, onDone, onCancel, say, sharin
         </Section>
 
         {sharing ? (
-          <Section title="Who can use it" note={agentId === null ? "Only you, until you share it" : `${shares?.shares.length ?? 1} with access`}>
+          <Section title="Who can use it" note={agentId === null ? "Only you, until you share it" : `${shares && sharing ? accessCount({ shares: shareRows(shares, sharing.nameOf, agentId), itemType: "agent", resourceId: agentId, ownerId: sharing.meId, ownerName: sharing.meName }) : 1} with access`}>
             <View style={st.row}><Btn label="Share" testID="agent-share" onPress={() => { if (agentId === null) say("Create it first, then share it from here."); else setSharingOpen(true); }} /></View>
           </Section>
         ) : null}
@@ -243,9 +244,12 @@ export function AgentForm({ agentId, call, newKey, onDone, onCancel, say, sharin
       {aiPop.element}
       {sharing && sharingOpen && agentId !== null && shares ? (
         <Overlay label="Who can use it" onClose={() => setSharingOpen(false)} testID="agent-share-overlay">
-          <ShareSheet
-            resourceType="agent" resourceId={agentId} resourceName={d.name} target="item" ownerName={sharing.meName} ownerId={sharing.meId} levels={["use", "edit", "manage"]} shares={shareRows(shares, sharing.nameOf)} allowExternal={false} density="compact"
-            directory={{ people: sharing.directory.people, groups: sharing.directory.groups, roles: sharing.directory.roles, agents: sharing.directory.agents }}
+          <AccessSheet
+            mode="share" itemType="agent" resourceType="agent" resourceId={agentId} itemName={d.name} target="item" ownerName={sharing.meName} ownerId={sharing.meId} {...(sharing.spaceName ? { spaceName: sharing.spaceName } : {})} levels={["view", "use", "edit", "manage"]}
+            shares={shareRows(shares, sharing.nameOf, agentId)} allowExternal={false} density="compact" newKey={newKey}
+            {...(shares.agentsCanCall === undefined ? {} : { agentsOn: shares.agentsCanCall })}
+            onAgents={(on) => { void Promise.resolve(call("access.agents_can_call.set", { agentId, on, idempotencyKey: newKey() })).then(loadShares, () => say("Could not change who can call this agent.")); }}
+            directory={sheetDirectory(sharing.directory)}
             onShare={(i: ShareInput) => { void Promise.resolve(call("access.share", i)).then(loadShares, () => say("Could not change access.")); }}
             onUnshare={(i: UnshareInput) => { void Promise.resolve(call("access.unshare", i)).then(loadShares, () => say("Could not change access.")); }}
             onClose={() => setSharingOpen(false)}
@@ -255,6 +259,7 @@ export function AgentForm({ agentId, call, newKey, onDone, onCancel, say, sharin
     </ScrollView>
   );
 }
+
 
 function Section({ title, note, children }: { title: string; note?: string; children: ReactNode }): ReactElement {
   return <View style={st.sec}><View style={st.secHead}><Text accessibilityRole="header" style={st.secTitle}>{title}</Text>{note ? <Text style={st.secNote}>{note}</Text> : null}</View>{children}</View>;
@@ -282,6 +287,7 @@ const st = StyleSheet.create({
   secNote: { fontSize: 12.5, color: "var(--ink-3)" as string },
   text: { minHeight: 120, borderRadius: 12, padding: 12, fontSize: 14, lineHeight: 21, color: "var(--ink)" as string, backgroundColor: "var(--field)" as string, outlineStyle: "none", outlineWidth: 0 } as object,
   tall: { height: 190 },
+  md: { borderRadius: 12, backgroundColor: "var(--field)" as string, overflow: "hidden" },
   field: { height: 34, borderRadius: 9, paddingHorizontal: 11, marginTop: 4, fontSize: 14, color: "var(--ink)" as string, backgroundColor: "var(--field)" as string, outlineStyle: "none", outlineWidth: 0 } as object,
   drop: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 6, padding: 10, borderRadius: 14, boxShadow: "inset 0 0 0 1.5px var(--line-2)" } as object,
   file: { flexDirection: "row", alignItems: "center", gap: 6, height: 30, maxWidth: 220, paddingHorizontal: 10, borderRadius: 9, backgroundColor: "var(--sunk)" as string },

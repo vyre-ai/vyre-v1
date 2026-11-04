@@ -10,6 +10,7 @@ import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
 import { copyText, useOnline, usePrincipals, useScreenQuery, useVaultData } from "../layout/data.tsx";
 import { agoLabel, KIND_LABEL, rotation, whoLine } from "../layout/model.ts";
 import type { Folder, Item, Share } from "../layout/model.ts";
+import { VaultShareSheet } from "../share/VaultShareSheet.tsx";
 import { Btn, Glyph, IconBtn, LogoTile, Mono } from "../layout/parts.tsx";
 import type { CapMap } from "../../../../../../generated/types.ts";
 import { MASK, formatEnv, keysOf } from "./env.ts";
@@ -73,6 +74,7 @@ export function ItemEnv({ itemId, onEdit, onAddField, onGone, onNote, onBack, as
   const [failure, setFailure] = useState<string | null>(null);
   const [shares, setShares] = useState<Share[] | null>(null);
   const [sharesAt, setSharesAt] = useState(0);
+  const [sharing, setSharing] = useState(false);
   useEffect(() => {
     let live = true;
     void (async () => {
@@ -144,17 +146,13 @@ export function ItemEnv({ itemId, onEdit, onAddField, onGone, onNote, onBack, as
     } catch (e) { fail(e); }
   };
 
-  // Share: the people and agents of the Space who do not have it yet, one press each, at Use (who can change it is set on their row after)
-  const holders = new Set((shares ?? []).map((x) => x.subject.id));
-  const shareEntries: MenuEntry[] = (item as { scope?: string }).scope === "mine" ? [{ head: "A Mine item is yours alone. Move it to a Shared folder to share it." } as MenuEntry, { label: "OK", onSelect: () => undefined }] : [
-    { head: "Share with" } as MenuEntry,
-    ...names.all.filter((p) => (p.kind === "person" || p.kind === "agent") && p.id !== data.me.id && !holders.has(p.id)).slice(0, 30)
-      .map((p): MenuEntry => ({ label: p.name, onSelect: () => void setLevel({ subject: { kind: p.kind as "person" | "agent", id: p.id }, level: "use" } as Share, "use") })),
-  ];
+  // Share: the one Access sheet. A Mine item is yours alone, so it says so instead.
+  const shareEntries: MenuEntry[] = [{ head: "A Mine item is yours alone. Move it to a Shared folder to share it." } as MenuEntry, { label: "OK", onSelect: () => undefined }];
+  const openShare = (e?: unknown): void => { if ((item as { scope?: string }).scope === "mine") { const r = rectOf(e); menu.show(shareEntries, r.x, r.y, "other"); } else setSharing(true); };
   const moreItems: MenuEntry[] = [
     ...(canEdit ? [{ label: "Edit…", onSelect: onEdit }] : []),
     { label: "Copy handle", onSelect: () => { void copyText(data, item.handle); } },
-    ...(item.yourLevel === "manage" && data.personal !== true ? [{ label: "Share…", onSelect: () => data.nav.openShare(itemId) }] : []),
+    ...(item.yourLevel === "manage" && data.personal !== true ? [{ label: "Share…", onSelect: () => openShare() }] : []),
     SEP,
     ...(canEdit ? [{ label: "Mark as rotated", onSelect: () => { void rotate(); } }, { label: "Fill on the Space only", checked: item.spaceOnly, onSelect: () => { void lockSpace(); } }] : []),
     ...(item.yourLevel === "manage" && item.scope === "shared" ? [{ label: "Export .env…", onSelect: () => data.nav.openExport(item.folderId) }] : []),
@@ -182,6 +180,7 @@ export function ItemEnv({ itemId, onEdit, onAddField, onGone, onNote, onBack, as
   return (
     <View style={s.pane} testID="item-env" accessibilityLabel={item.name} {...menuTrigger((x, y) => menu.show(moreItems, x, y))}>
       {menu.element}
+      {sharing ? <VaultShareSheet kind="vault_item" id={itemId} name={item.name} onClose={() => setSharing(false)} onChanged={() => setSharesAt((n) => n + 1)} /> : null}
       <View style={s.bar}>
         {onBack ? <IconBtn icon="back" label="Back to the list" onPress={onBack} testID="item-back" /> : null}
         <View style={{ flex: 1 }} />
@@ -265,7 +264,7 @@ export function ItemEnv({ itemId, onEdit, onAddField, onGone, onNote, onBack, as
           {data.personal === true ? null : (
             <WhoCanUse
             shares={shares ?? []} you={{ name: data.me.name, level: meShare?.level ?? item.yourLevel, owner: meShare?.through === "owner" }} nameOf={subjectName} meId={data.me.id} canManage={item.yourLevel === "manage"}
-            onLevel={(sh, l) => { void setLevel(sh, l); }} onRemove={(sh) => { void stopSharing(sh); }} onShare={(e) => { const r = rectOf(e); menu.show(shareEntries, r.x, r.y, "other"); }}
+            onLevel={(sh, l) => { void setLevel(sh, l); }} onRemove={(sh) => { void stopSharing(sh); }} onShare={(e) => openShare(e)}
             onMenu={(entries, x, y) => menu.show(entries, x, y, "other")}
           />
           )}
