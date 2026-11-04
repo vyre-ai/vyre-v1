@@ -61,6 +61,7 @@ test("running helpers: a held request, Change model, a person messaging a helper
     if (/Calendar job/.test(body)) { await new Promise((r) => setTimeout(r, 150_000)); yield { type: "text", text: "Thursday at 14:00 is free." }; return; }
     if (/Quotes job/.test(body)) { await new Promise((r) => setTimeout(r, 20_000)); yield { type: "text", text: "Harbor is $4,180 in two weeks. Pine Works is $3,920 in four." }; return; }
     if (/Writer job/.test(body)) {
+      await new Promise((r) => setTimeout(r, 12_000));
       yield* run("tool_search", { query: "files create" });
       yield* run("files_create", { name: "summary.md", content: "Summary", idempotencyKey: "w-file" });
       yield { type: "text", text: "Summary written." };
@@ -105,12 +106,18 @@ test("running helpers: a held request, Change model, a person messaging a helper
     const shoot = async (page: import("playwright-core").Page, name: string): Promise<void> => { await page.screenshot({ path: path.join(shots, `${name}.png`) }); };
     const phone = process.env["VYRE_CREW_PHONE"] === "1";
 
-    await api("threads.set_mode", { threadId: chat, mode: "ask" }).catch(() => undefined);
     await api("chat.post", { threadId: chat, body: "start the crew", mentions: [{ kind: "agent", id: lead }], idempotencyKey: "w-ask" });
     await waitFor(async () => {
       const r = (await api("engine.helpers.status", { threadId: chat })).helpers as Array<{ state: string }>;
       return r.length >= 3 && r.some((h) => h.state === "working") ? r : null;
-    }, 60_000, () => hostLog(d));
+    }, 60_000, () => hostLog(d)).catch(async (e) => {
+      console.log("CHAT", JSON.stringify(((await api("chat.messages.list", { threadId: chat })).messages as Array<{ author: { kind: string }; body: string; blocks: Array<{ type: string }> }>).map((m) => [m.author.kind, m.body.slice(0, 120), m.blocks.map((b) => b.type)])));
+      console.log("STATUS", JSON.stringify(((await api("engine.crew.status", { threadId: chat })).members as Array<{ title: string; state: string }>).map((m) => [m.title, m.state])));
+      throw e;
+    });
+    // the writer helper is set to Ask first, so its file write waits for a yes: the held request
+    const writer = ((await api("chat.helpers.list", { threadId: chat })).helpers as Array<{ threadId: string; title: string }>).find((h) => h.title === "Write the summary")!;
+    await api("threads.set_mode", { threadId: writer.threadId, mode: "ask" });
     const size = phone ? "phone" : "wide";
     // a thread under the first message, and a reply sent also to the chat
     const first = ((await api("chat.messages.list", { threadId: chat })).messages as Array<{ messageId: string }>)[0]!.messageId;
@@ -132,6 +139,7 @@ test("running helpers: a held request, Change model, a person messaging a helper
       await page.getByTestId("crew-strip").first().waitFor({ timeout: 40_000 }).catch(async (e) => { await shoot(page, `FAILED-strip-${mode}`); throw e; });
       await page.waitForTimeout(4000);
       await shoot(page, `crew-t14-running-${mode}-${size}`);
+      await page.locator('[data-testid^="approval-"]').first().waitFor({ timeout: 40_000 }).catch(() => undefined);
       console.log("HELD_CARD", mode, await page.locator('[data-testid^="approval-"]').count());
       await shoot(page, `crew-t27-held-${mode}-${size}`);
       // the quotes helper reports: the answer marks what came from which helper with chips
