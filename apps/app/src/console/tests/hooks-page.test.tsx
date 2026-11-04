@@ -104,14 +104,13 @@ test("Add a hook opens the sheet; Add hook stays off until it says what to do, t
     await p.press("hooks-add");
     assert.ok(p.has("hook-sheet") && p.has("hook-what"), "the sheet is open");
     const sheet = p.text();
-    for (const w of ["When", "Do this", "Only for", "Leave empty for every time", "Stop after (seconds)", "Add hook", "Cancel", "Check with an instruction"]) assert.ok(sheet.includes(w), `the sheet says ${w}`);
+    for (const w of ["When", "Do this", "Only for", "Leave as Any action to run every time.", "Stop after (seconds)", "Add hook", "Cancel", "Check with an instruction"]) assert.ok(sheet.includes(w), `the sheet says ${w}`);
     assert.doesNotMatch(sheet, /matcher|\bkind\b|timeout|time limit/i, "plain words, not field names");
     await p.press("sheet-submit");
     assert.equal(p.called("hooks.set").length, 0, "nothing is saved without words");
     await p.type("hook-what", "Confirm the file is not marked private");
-    await p.type("hook-matcher", "files.*");
     await p.press("sheet-submit");
-    assert.deepEqual(p.called("hooks.set").map((c) => c.input), [{ scope: "space", event: "tool.before", kind: "check", matcher: "files.*", instruction: "Confirm the file is not marked private", timeoutSec: 10 }]);
+    assert.deepEqual(p.called("hooks.set").map((c) => c.input), [{ scope: "space", event: "tool.before", kind: "check", instruction: "Confirm the file is not marked private", timeoutSec: 10 }]);
     assert.ok(!p.has("hook-sheet"), "the sheet closes once it is saved");
   } finally { p.restore(); }
 });
@@ -161,4 +160,18 @@ test("no label on the page uses the words the Console dropped", async () => {
     assert.doesNotMatch(p.text(), /!|—/);
     assert.doesNotMatch(p.text(), /Company only|by label|capabilit/i);
   } finally { p.restore(); }
+});
+
+test("Only for is a plain-words picker defaulting to Any action; each choice maps to a matcher on the server's names", async () => {
+  const { ACTION_CHOICES, matcherFor, choiceFor, matches, namesOf } = await import("../../../../../lib/hooks.ts");
+  assert.deepEqual(ACTION_CHOICES.map((c) => c.title), ["Any action", "Sending an email", "Sending a text", "Running a command", "Changing a file", "Opening a link", "Moving money"]);
+  assert.equal(matcherFor("any"), "", "Any action is no limit");
+  assert.equal(choiceFor(matcherFor("email")), "email");
+  assert.equal(choiceFor("something.else"), "any");
+  const email = matcherFor("email");
+  assert.ok(namesOf({ cap: "mail.send" }).some((n) => matches(email, n)) && namesOf({ cap: "resend.send_email" }).some((n) => matches(email, n)));
+  assert.ok(!namesOf({ cap: "files.write" }).some((n) => matches(email, n)));
+  assert.ok(namesOf({ tool: "Bash" }).some((n) => matches(matcherFor("command"), n)));
+  assert.ok(namesOf({ cap: "stripe.charge" }).some((n) => matches(matcherFor("money"), n)), "a family name matches");
+  for (const c of ACTION_CHOICES) assert.doesNotMatch(c.title, /_|\./, "no tool names on the page");
 });

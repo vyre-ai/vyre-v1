@@ -9,6 +9,7 @@ import { Pressable, Text, View, useWindowDimensions } from "react-native";
 import type { CapMap } from "../../../../../generated/types.ts";
 import { Row } from "../../../../../ui/src/Row/index.tsx";
 import { Switch } from "../../places/settings/ui.tsx";
+import { ACTION_CHOICES, ACTION_EVENTS, matcherFor } from "../../../../../lib/hooks.ts";
 import { EVENT_ORDER, EVENT_WORDS, kindWord, whatOf } from "../../places/chats/rightpane/hooks-model.ts";
 import type { Hook, HookKind } from "../../places/chats/rightpane/hooks-model.ts";
 import { ago } from "../shell/format.ts";
@@ -230,7 +231,8 @@ function AddHook({ onClose, onSaved }: { onClose: () => void; onSaved: () => voi
   const [event, setEvent] = useState("tool.before");
   const [kind, setKind] = useState<HookKind>("check");
   const [what, setWhat] = useState("");
-  const [matcher, setMatcher] = useState("");
+  const [only, setOnly] = useState("any");
+  const matcher = ACTION_EVENTS.has(event) ? matcherFor(only) : "";
   const [secs, setSecs] = useState(10);
   const action = useAction(() => undefined);
   const ready = what.trim() !== "";
@@ -241,12 +243,11 @@ function AddHook({ onClose, onSaved }: { onClose: () => void; onSaved: () => voi
     if (out) onSaved();
   };
   return (
-    <FormSheet title="Add a hook" submit="Add hook" onClose={onClose} onSubmit={() => void save()} disabled={!ready || action.busy} why={ready ? undefined : "Say what it does first"} testID="hook-sheet"
-      note="A command runs on the Space's server. An instruction is read by a quick check that may stop what is about to happen. An action calls one thing Vyre can do.">
+    <FormSheet title="Add a hook" submit="Add hook" onClose={onClose} onSubmit={() => void save()} disabled={!ready || action.busy} why={ready ? undefined : "Say what it does first"} testID="hook-sheet">
       <Select label="When" value={event} options={EVENT_ORDER.map((k) => ({ key: k, title: EVENT_WORDS[k] ?? k }))} onChange={setEvent} />
       <Select label="Do this" value={kind} options={DO_THIS} onChange={(v) => setKind(v as HookKind)} />
       <Field label={WHAT_LABEL[kind]} value={what} onChange={setWhat} testID="hook-what" multiline={kind === "check"} />
-      <Field label="Only for" value={matcher} onChange={setMatcher} testID="hook-matcher" hint="Leave empty for every time" />
+      {ACTION_EVENTS.has(event) ? <Select label="Only for" value={only} options={ACTION_CHOICES.map((c) => ({ key: c.key, title: c.title }))} onChange={setOnly} hint="Leave as Any action to run every time." /> : null}
       <Stepper label="Stop after (seconds)" value={secs} onChange={setSecs} min={1} max={60} />
       {action.note ? <Note>{action.note}</Note> : null}
     </FormSheet>

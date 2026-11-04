@@ -68,3 +68,19 @@ export function plainLine(h: { event: string; kind: string; matcher?: string; in
   const what = h.kind === "check" ? `check: ${(h.instruction ?? "").trim()}` : h.kind === "action" ? `run ${h.cap ?? "an action"}` : `run ${(h.command ?? "a command").split(/\s+/)[0]}`;
   return `${when}, ${what}`.slice(0, 200);
 }
+
+/** "Only for" in plain words: what a hook on a tool event is limited to. Each choice maps to the matcher the server tests against a tool's name, its capability and its family (see namesOf). "Any action" is no limit. */
+export const ACTION_CHOICES: ReadonlyArray<{ key: string; title: string; matcher: string }> = [
+  { key: "any", title: "Any action", matcher: "" },
+  { key: "email", title: "Sending an email", matcher: "mail\\.send|mail\\.send_as|resend\\.send_email|mailgun\\.send_email" },
+  { key: "text", title: "Sending a text", matcher: "telephony\\.send_sms" },
+  { key: "command", title: "Running a command", matcher: "Bash" },
+  { key: "file", title: "Changing a file", matcher: "Edit|Write|MultiEdit|NotebookEdit" },
+  { key: "link", title: "Opening a link", matcher: "WebFetch|WebSearch" },
+  { key: "money", title: "Moving money", matcher: "stripe" },
+];
+/** The events a hook can be limited by action on: the ones that fire around a tool or an outward step. */
+export const ACTION_EVENTS: ReadonlySet<string> = new Set(["tool.before", "tool.after", "outward.before"]);
+export const matcherFor = (key: string): string => ACTION_CHOICES.find((c) => c.key === key)?.matcher ?? "";
+/** The plain choice a stored matcher stands for, or "any" when it is none of them (a hook set elsewhere keeps its own matcher; the sheet only writes these). */
+export const choiceFor = (matcher: string): string => ACTION_CHOICES.find((c) => c.matcher === matcher)?.key ?? "any";
