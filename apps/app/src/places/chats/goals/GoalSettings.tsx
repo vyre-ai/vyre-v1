@@ -86,6 +86,7 @@ function PermissionsBlock({ g, canEdit, patch }: { g: Goal; canEdit: boolean; pa
     <View testID="goal-permissions" style={st.setting}>
       <Text style={st.name}>It may do without asking</Text>
       {g.permissions.length === 0 ? <Text style={st.value}>Nothing yet. It asks you before anything leaves the Space.</Text> : null}
+      {/* ui-rows-lint: not a list (the goal's permissions: each line has its own on and off switch) */}
       {g.permissions.map((p) => (
         <View key={`${p.act}-${p.target}-${p.label}`} style={st.perm}>
           <View style={{ flex: 1, minWidth: 0 }}><Text style={st.value}>{p.label}</Text><Text style={st.note}>{p.granted ? "Allowed" : "Allowed once you start the goal"}</Text></View>
@@ -132,6 +133,7 @@ export function GoalSettings({ g, nameOf, offsetMin, canEdit, patch, pick, remov
       <PermissionsBlock g={g} canEdit={canEdit} patch={patch} />
       <View testID="goal-people" style={st.setting}>
         <Text style={st.name}>People</Text>
+        {/* ui-rows-lint: not a list (the goal's people with their roles, each a line with its own controls) */}
         {people.map((p) => (
           <View key={`${p.role}-${p.id}`} testID={`goal-person-${p.id}`} style={st.perm}>
             <Avatar {...avatarOf({ id: p.id, name: nameOf(p.id), kind: p.kind === "agent" ? "agent" : "person" })} size={20} />
