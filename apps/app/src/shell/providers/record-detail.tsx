@@ -5,7 +5,7 @@ import type { ReactElement } from "react";
 import { States } from "../../../../../ui/src/States/index.tsx";
 import { RecordPage, RecordPageDataProvider } from "../../places/records/recordpage/index.ts";
 import type { RecordPageData } from "../../places/records/recordpage/index.ts";
-import type { TabKey } from "../../places/records/projectpage/model.ts";
+import type { ProjectTabKey } from "../../places/records/projectpage/tabs.ts";
 import { ProjectPage } from "../../places/records/projectpage/ProjectPage.tsx";
 import { ProjectPageDataProvider } from "../../places/records/projectpage/data.tsx";
 import type { ProjectPageData } from "../../places/records/projectpage/data.tsx";
@@ -34,7 +34,7 @@ export function askAboutRecord(type: string, id: string, title: string): void {
   openAskPane({ thing: { kind: "record", id, title }, context: { actions: ["read the record and its history", "answer questions about it"], filters: { recordType: type } } }, "records");
 }
 
-export function RecordDetail({ rt, recordId, type: hint, fields = false, tab = "overview" }: { rt: ShellRuntime; recordId: string; type?: string; fields?: boolean; tab?: TabKey }): ReactElement {
+export function RecordDetail({ rt, recordId, type: hint, fields = false, tab = "overview" }: { rt: ShellRuntime; recordId: string; type?: string; fields?: boolean; tab?: ProjectTabKey }): ReactElement {
   const [resolved, setResolved] = useState<{ type?: string; recordId?: string; projectId?: string; error?: string }>({});
   const [actionError, setActionError] = useState("");
   useEffect(() => {
@@ -102,6 +102,6 @@ export function RecordDetail({ rt, recordId, type: hint, fields = false, tab = "
   if (!resolved.type) return <States kind="empty" title="Opening record…" icon="records" />;
   if (!fields && resolved.type === "agent") return <AgentRecord key={recordId} rt={rt} recordId={resolved.recordId ?? recordId} />;
   return !fields && resolved.projectId !== undefined
-    ? <ProjectPageDataProvider value={projectData}><ProjectPage key={recordId} projectId={resolved.projectId!} tab={tab} onTabChange={(next) => rt.open({ subject: { type: "project", id: resolved.projectId! }, args: { tab: next }, local: true })} /></ProjectPageDataProvider>
+    ? <ProjectPageDataProvider value={projectData}><ProjectPage key={recordId} projectId={resolved.projectId!} tab={tab} onTabChange={(next) => rt.open({ subject: { type: "record", id: recordId }, args: { ...(resolved.type ? { type: resolved.type } : {}), tab: next }, local: true })} /></ProjectPageDataProvider>
     : <RecordPageDataProvider value={data}><RecordPage key={`${resolved.type}:${recordId}`} type={resolved.type} recordId={resolved.recordId ?? recordId} /></RecordPageDataProvider>;
 }
