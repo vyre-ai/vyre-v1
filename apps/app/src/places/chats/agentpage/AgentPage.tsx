@@ -4,7 +4,7 @@
 // Every change says so in one quiet line at the foot, with Undo where it can be taken back.
 import { useEffect, useMemo, useState } from "react";
 import type { ReactElement } from "react";
-import { StyleSheet, Text, View, useWindowDimensions } from "react-native";
+import { Pressable, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import { TabStrip } from "../../../../../../ui/src/TabStrip/index.tsx";
 import { useMenu } from "../../../../../../ui/src/Menu/index.tsx";
 import type { VirtualWindow } from "../../../../../../ui/src/VirtualList/index.tsx";
@@ -14,7 +14,9 @@ import { ComputerTab } from "../rightpane/ComputerTab.tsx";
 import { FilesTab } from "../rightpane/FilesTab.tsx";
 import { MemoryTab } from "../rightpane/MemoryTab.tsx";
 import { Face, Notice, TextButton, Tool } from "../rightpane/parts.tsx";
-import { pause, removeOutside, resume, saveRoleLine, startChat } from "./actions.ts";
+import { pause, removeOutside, resume, saveFace, saveRoleLine, startChat } from "./actions.ts";
+import { FacePicker } from "../../../../../../ui/src/FacePicker/index.tsx";
+import { saveFaceFile } from "./face-file.ts";
 import type { PageDeps } from "./actions.ts";
 import { AgentPageDataProvider, paneDataOf, useAgentPageData, useOnline, useOptionalAgentPageData, useScreenQuery } from "./data.tsx";
 import type { AgentPageData } from "./data.tsx";
@@ -87,6 +89,7 @@ function PageView({ tab: controlled, initialTab, onTab, window }: AgentPageProps
   const titles = useTitleWidths();
   const [notice, setNotice] = useState<{ text: string; undo?: () => Promise<void> | void } | null>(null);
   const [sure, setSure] = useState(false);
+  const [facing, setFacing] = useState(false);
   const deps: PageDeps = useMemo(() => ({
     call: data.call,
     note: (text: string, undo?: () => Promise<void> | void) => setNotice(undo ? { text, undo } : { text }),
@@ -132,7 +135,7 @@ function PageView({ tab: controlled, initialTab, onTab, window }: AgentPageProps
     <View testID="agent-page" accessibilityLabel={`${name}, agent page`} style={st.root}>
       <View style={[st.col, narrow && st.colNarrow]} onLayout={(e) => { const w = Math.round(e.nativeEvent.layout.width); if (w > 0 && w !== colW) setColW(w); }}>
         <View testID="agent-head" style={[st.head, narrow && st.headNarrow]}>
-          <Face name={name} seedId={agentId} size={narrow ? 48 : 56} pulse={agent.status === "working"} />
+          {data.canEdit && !outside ? <Pressable role="button" aria-label="Change the face" testID="agent-face" onPress={() => setFacing(true)}><Face name={name} seedId={agentId} size={narrow ? 48 : 56} pulse={agent.status === "working"} asleep={agent.status === "asleep"} /></Pressable> : <Face name={name} seedId={agentId} size={narrow ? 48 : 56} pulse={agent.status === "working"} asleep={agent.status === "asleep"} />}
           <View style={st.who}>
             <View style={st.nameRow}>
               <Text accessibilityRole="header" testID="agent-name" numberOfLines={1} style={st.name}>{name}</Text>
@@ -179,6 +182,7 @@ function PageView({ tab: controlled, initialTab, onTab, window }: AgentPageProps
           </RightPaneDataProvider>
           {tab === "settings" ? <SettingsTab agent={agent} deps={deps} {...(window ? { window } : {})} /> : null}
         </View>
+        {facing ? <FacePicker name={name} value={agent.face} saveImage={(url) => saveFaceFile(data.call, agent.folderId, url, () => `face-${agentId}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`)} onDone={(face) => { setFacing(false); if (face !== null) void saveFace(deps, agentId, face, agent.face); }} /> : null}
         {notice ? <Notice text={notice.text} onClose={() => setNotice(null)} {...(notice.undo ? { onUndo: () => { const u = notice.undo; setNotice(null); void u?.(); } } : {})} /> : null}
       </View>
       {menu.element}
