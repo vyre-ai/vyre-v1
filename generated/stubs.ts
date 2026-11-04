@@ -2879,6 +2879,7 @@ export function stubs(ctx: CallCtx) {
       remove_agent: call("threads.remove_agent"),
       reopen: call("threads.reopen"),
       restore: call("threads.restore"),
+      set_agent_replies: call("threads.set_agent_replies"),
       set_folder: call("threads.set_folder"),
       set_mode: call("threads.set_mode"),
       set_plan_mode: call("threads.set_plan_mode"),

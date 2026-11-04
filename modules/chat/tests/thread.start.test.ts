@@ -104,7 +104,7 @@ test("the thread under a message is made once and reopened after that", async ()
   assert.equal(thread.parentThreadId, c.mainThreadId);
   assert.equal(thread.parentMessageId, msg.messageId);
   assert.equal(thread.listed, false);
-  assert.deepEqual(thread.agents, [], "people's threads leave agents listening in the channel, not in the thread");
+  assert.deepEqual(thread.agents.map((a: any) => [a.agentId, a.mode]), [[INTAKE, "listen"]], "agents reply in a channel's threads (the default), so the channel's agents are in the thread, listening, and answer when asked there");
   assert.deepEqual(hn.names(), ["thread.started"]);
   assert.deepEqual(assertEventsConform(hn), []);
   hn.clear();
@@ -122,7 +122,7 @@ test("the thread under an agent's message is worked by that agent, who leads it"
   // an agent that opens a thread under a person's message leads it too
   const ask = (await h["chat.post"]!(hn.person(MAYA), { threadId: c.mainThreadId, body: "Draft a reply", idempotencyKey: "p2" })).message;
   const mine = await h["chat.thread"]!(hn.agent(DRAFTER), { threadId: c.mainThreadId, messageId: ask.messageId });
-  assert.deepEqual(mine.thread.agents.map((a: any) => [a.agentId, a.mode]), [[DRAFTER, "lead"]]);
+  assert.deepEqual(mine.thread.agents.map((a: any) => [a.agentId, a.mode]), [[DRAFTER, "lead"], [INTAKE, "listen"]]);
 });
 
 test("a thread needs a message of that thread, and a private chat's messages are private", async () => {

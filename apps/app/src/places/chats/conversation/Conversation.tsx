@@ -60,6 +60,8 @@ import { FaceButton, Glyph, IconButton, RenameField, TextButton } from "./parts.
 import { CONTINUE_TEXT, DEFAULT_AGENT_HOPS, limitOf, parkedAtLimit, parkedLine } from "./hops.ts";
 import { addedAgentMentions, askPost, pickerAgents, unansweredOwn } from "./askagent.ts";
 import { MemorySwitch } from "./memory-switch.tsx";
+import { SWITCH_TITLE, hasSwitch, repliesOf } from "../thread-replies/model.ts";
+import { useReplySwitch } from "../thread-replies/ThreadSwitch.tsx";
 import type { AgentMeta } from "./askagent.ts";
 import { useMobileBack } from "../../../mobile/shell/back.ts";
 import { offlineLine } from "../agentpage/model.ts";
@@ -89,7 +91,7 @@ function useReplies(threadId: string): Map<string, ReplySummary> {
   const { screens } = useConversationData();
   const q = useMemo(() => { try { return screens.query(REPLIES_SCREEN, "threads", { threadId }) as LiveQuery<ThreadsOut>; } catch { return NOT_READ; } }, [screens, threadId]);
   const snap = useSyncExternalStore(q.subscribe, q.getSnapshot, q.getSnapshot);
-  return useMemo(() => (snap.status === "ready" ? replySummaries(snap.data.threads) : NO_REPLIES), [snap]);
+  return useMemo(() => (snap.status === "ready" ? replySummaries(snap.data.threads, { empty: true }) : NO_REPLIES), [snap]);
 }
 
 /** `compact` is for a conversation inside another screen (the onboarding Assistant): just the messages and the composer, no title bar with members, search and side-panel buttons. */
@@ -199,6 +201,7 @@ function ConversationView(): ReactElement {
   const memoryEntries = useMemoryEntries();
   const threadQ = useScreenQuery<ThreadOut>(CONVERSATION_SCREEN, "thread", { threadId: data.threadId });
   const messagesQ = useScreenQuery<MessagesOut>(CONVERSATION_SCREEN, "messages", { threadId: data.threadId });
+  const repliesSwitch = useReplySwitch(data, data.threadId, threadQ.status === "ready" ? repliesOf(threadQ.data.thread) : undefined);
   const helpersQ = useScreenQuery<HelpersOut>(CONVERSATION_SCREEN, "helpers", { threadId: data.threadId });
   const [shown, setShown] = useState(WINDOW);
   const [older, setOlder] = useState<Message[]>([]);
@@ -234,7 +237,7 @@ function ConversationView(): ReactElement {
     return () => clearTimeout(t);
   }, [data.focusN, data.focus]);
   const replies = useReplies(data.threadId);
-  const accounts = useAccounts(data, useConnectVersion());
+    const accounts = useAccounts(data, useConnectVersion());
   const [modeOver, setModeOver] = useState<ChatMode | null>(null);
   const [picker, setPicker] = useState<{ id: string; x: number; y: number } | null>(null);
   const [renaming, setRenaming] = useState(false);
@@ -448,6 +451,7 @@ function ConversationView(): ReactElement {
   const moreMenu = (x: number, y: number): void => {
     const items: MenuEntry[] = [
       { label: "Plan Mode", checked: mode === "plan", onSelect: () => chooseChatMode(mode === "plan" ? "ask" : "plan") },
+      ...(hasSwitch(thread) && repliesSwitch.on !== null ? [{ label: SWITCH_TITLE, checked: repliesSwitch.on, onSelect: () => repliesSwitch.set(!repliesSwitch.on) } as MenuEntry] : []),
       ...(lead ? [{ label: `Open ${nameOf(lead.agentId)}'s Page`, onSelect: () => data.nav.openAgent(lead.agentId) } as MenuEntry] : []),
       ...connectEntries(thread, data.nav),
       { separator: true } as MenuEntry,
@@ -491,6 +495,7 @@ function ConversationView(): ReactElement {
     react: (id, emoji, remove) => void act.react(data, id, emoji, remove).catch(fail("Could not react.")),
     openThread: (id) => void act.openMessageThread(data, id).then((tid) => data.nav.openThread(tid), fail("Could not open the replies.")),
     remove: (id) => void act.deleteMessage(data, id).catch(fail("Could not delete it.")),
+    ...(data.alsoSent ? { alsoSent: data.alsoSent } : {}),
     openAgent: data.nav.openAgent,
     openBeside: data.nav.openBeside,
     ...(data.nav.openGoal ? { openGoal: data.nav.openGoal } : {}),
@@ -587,7 +592,7 @@ function ConversationView(): ReactElement {
     : undefined;
   const closed = isClosed(thread);
   const parked = !closed && parkedAtLimit(win.rows[win.rows.length - 1], hopLimit, isWorking);
-  const unanswered = closed || isWorking ? null : unansweredOwn(thread, win.rows, data.me.id, data.directory);
+  const unanswered = closed || isWorking ? null : unansweredOwn(thread, win.rows, data.me.id, data.directory, (id) => replies.has(id));
   // an Ask drawn in its own pane is already titled Ask Vyre: the quiet "Ask pane" line is for an Ask opened in Chats
   const note = data.head || (compact && thread.kind === "ask") ? "" : threadKindNote(thread, nameOf);
   const title = titleOf(thread, nameOf, data.me.id);
@@ -721,7 +726,7 @@ function ConversationView(): ReactElement {
             accessibilityRole="button" accessibilityLabel="No agent will reply. Ask an agent about your message" accessibilityHint="Opens the list of this channel's agents" testID="no-agent-ask"
             onPress={(e) => { const box = (e as unknown as { currentTarget?: { getBoundingClientRect?: () => { left: number; top: number } } }).currentTarget?.getBoundingClientRect?.(); openAskPicker(unanswered.messageId, box?.left ?? 16, box?.top ?? 0); }}
           >
-            <Text style={[st.lineText, { textDecorationLine: "underline" }]}>No agent will reply. @mention one</Text>
+            <Text style={[st.lineText, st.quietLine]}>No agent will reply. @mention one</Text>
           </Pressable>
         </View>
       ) : null}
@@ -753,12 +758,13 @@ function ConversationView(): ReactElement {
               </View>
             );
           })() : null}
+          {thread.kind === "thread" && thread.parentThreadId ? <View testID="also-to-chat-row" style={st.alsoRow}><AlsoToChat on={alsoOn} onChange={setAlso} /></View> : null}
           <Composer
             key={`composer-${seed.n}`} {...(seed.value !== "" ? { value: seed.value } : {})}
             testID="composer" whoWillAnswer={whoLine(thread, nameOf)} placeholder={data.placeholder ?? placeholderFor(thread, nameOf, isWorking, canSteer)} working={isWorking}
             {...(place.chip ? { runsChip: place.chip } : {})}
             agents={composerAgents} mode={mode} onMode={chooseChatMode}
-            barExtra={<><MemorySwitch threadId={thread.threadId} call={data.call} say={say} />{thread.kind === "thread" && thread.parentThreadId ? <AlsoToChat on={alsoOn} onChange={setAlso} /> : null}</>}
+            barExtra={<MemorySwitch threadId={thread.threadId} call={data.call} say={say} />}
             suggest={composerSuggest(data)} preview={(item) => previewOf(data, item)}
             renderPanel={(agent, close, narrowPanel) => <ChatBrain data={data} thread={thread} agent={agent} accounts={accounts} mode={mode} onMode={chooseChatMode} close={close} narrow={narrowPanel} say={say} {...(place.runs ? { runs: place.runs } : {})} onCompact={(keep, always) => void compactChat(data, keep, always, agent.id).then((line) => { if (line === null) say(keep ? `Compacted, keeping ${keep}` : "Compacted"); }, fail("Could not compact."))} />}
             onAddPeople={() => add.open({ threadId: thread.threadId })}
@@ -840,6 +846,8 @@ function OlderPage({ before, onPage }: { before: number; onPage: (page: Messages
 }
 
 const st = StyleSheet.create({
+  /** "Also post to the chat" sits above a thread's composer, as the prototype draws it, so the composer's own bar keeps its room in a narrow pane. */
+  alsoRow: { paddingLeft: 28, paddingRight: 20, marginBottom: -6 },
   outsideOffline: { paddingHorizontal: 16, paddingBottom: 6, fontSize: 12.5, lineHeight: 17, color: "var(--ink-3)" as string, textAlign: "center" },
   root: { flex: 1, minHeight: 0, backgroundColor: "var(--win)" as string },
   head: { minHeight: 48, flexDirection: "row", alignItems: "center", gap: 8, paddingLeft: 20, paddingRight: 10 },
@@ -867,6 +875,8 @@ const st = StyleSheet.create({
   queue: { fontSize: 12.5, color: "var(--ink-3)" as string, textAlign: "center" },
   lineBox: { paddingHorizontal: 24, paddingVertical: 4, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 },
   lineText: { fontSize: 12.5, color: "var(--ink-2)" as string },
+  /** A quiet line: muted ink, no underline. */
+  quietLine: { color: "var(--ink-3)" as string },
   offerStrip: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10, minHeight: 38, paddingLeft: 14, paddingRight: 6, marginHorizontal: 10, marginBottom: -1, borderTopLeftRadius: 14, borderTopRightRadius: 14, borderWidth: 1, borderColor: "var(--line)" as string, backgroundColor: "var(--side)" as string },
   offerStripText: { flex: 1, minWidth: 0, fontSize: 12.5, color: "var(--ink-2)" as string },
   offerBtns: { flexDirection: "row", alignItems: "center", gap: 2, flexShrink: 0 },

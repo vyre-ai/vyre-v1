@@ -1,5 +1,5 @@
 // Chat modes and the per-chat choice of model, effort and account (threads.set_mode, threads.agent.configure). The older plan switch (threads.set_plan_mode, g24a.ts) shares applyMode.
-import { CHAT_MODES, agentsOf, askerOf, codeOfMode, raise } from "../projections.ts";
+import { CHAT_MODES, agentsOf, agentsReplyInThreads, askerOf, codeOfMode, raise } from "../projections.ts";
 import type { ChatCtx, ChatMode, ThreadRec } from "../projections.ts";
 import { load, out, touch } from "./g24a.ts";
 
@@ -16,6 +16,21 @@ export async function setThreadMode(ctx: ChatCtx, input: { threadId: string; mod
   const t = load(ctx, input.threadId);
   if (!CHAT_MODES.includes(input.mode)) raise(ctx, "validation.bad_input", "A chat runs Ask first, Auto or Plan.");
   applyMode(ctx, t, input.mode);
+  return out(ctx, t.id);
+}
+
+/**
+ * Where agents answer in this chat: in the thread under the message that asked them (true), or in the chat itself (false). The person who may use the chat sets it; it keeps the main chat of a project or
+ * channel readable. Only a chat or channel has the choice: a thread, a helper, an Ask pane and a Run have no thread to answer in.
+ */
+export async function setAgentReplies(ctx: ChatCtx, input: { threadId: string; inThreads: boolean }) {
+  const t = load(ctx, input.threadId);
+  if (t.kind !== "channel" && t.kind !== "chat") raise(ctx, "validation.bad_input", "Only a chat or a channel chooses where its agents reply.");
+  if (typeof input.inThreads !== "boolean") raise(ctx, "validation.bad_input", "Say whether agents reply in threads.");
+  if (agentsReplyInThreads(t) !== input.inThreads || t.repliesIn === undefined) {
+    touch(ctx, t.id, `"repliesIn" = ?`, input.inThreads ? 1 : 0);
+    ctx.emit("thread.updated", t.id, { threadId: t.id, fields: ["repliesIn"] });
+  }
   return out(ctx, t.id);
 }
 
@@ -75,4 +90,5 @@ export async function configureAgent(
 export const modesHandlers = {
   "threads.set_mode": setThreadMode,
   "threads.agent.configure": configureAgent,
+  "threads.set_agent_replies": setAgentReplies,
 };

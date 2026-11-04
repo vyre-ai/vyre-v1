@@ -69,6 +69,7 @@ import { GoalPage } from "../goals/GoalPage.tsx";
 import { openSkills } from "../install/open.ts";
 import type { Act, Shown } from "./route.ts";
 import { nameOr } from "../names.ts";
+import { viewing } from "../../../shell/noticeslot/viewing.ts";
 import { LoadFailed } from "../../../../../../ui/src/States/Loads.tsx";
 import type { LoadFailure } from "../../../../../../ui/src/States/Loads.tsx";
 
@@ -304,6 +305,8 @@ export function ChatsMounted({ rt, hash = "", initial, window, opened, onSwitch,
   );
   // the thread beside the chat: its parent box goes back to the message in the chat (on a phone the sheet steps aside first)
   const sideId = route.view === "chat" && threadId !== null ? shown.side ?? null : null;
+  // the chat on screen (and the thread beside it) is not announced in the top bar: the person is reading it
+  useEffect(() => { viewing.set(route.view === "chat" && threadId !== null ? [threadId, sideId ?? ""] : []); return () => viewing.set([]); }, [route.view, threadId, sideId]);
   const sideConv = useMemo(() => {
     if (sideId === null) return null;
     const wired = wireConversation(rt, go, { threadId: sideId, list, nameOf, leadId: rt.assistant.id, fill });
