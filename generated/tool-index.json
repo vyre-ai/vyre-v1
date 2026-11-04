@@ -3645,7 +3645,7 @@
     {
       "deferred": true,
       "name": "github_pull_request_get",
-      "summary": "Read a pull request live from GitHub",
+      "summary": "Read a pull request live from GitHub. A person with a connected GitHub is read as them: their policy for reading and the repositories they reach apply, and consumer (such as linked.prs) shows in Used by",
       "toolset": "records"
     },
     {

@@ -4,7 +4,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { fail } from "../../../host/src/routes/errors.ts";
-import { meApprove, meComplete, meConnect, meDisconnect, meReach, meStatus, meUsage, policyGet, policySet, sessionEnv, token } from "../handlers/me.ts";
+import { checkRead, meApprove, meComplete, meConnect, meDisconnect, meReach, meStatus, meUsage, policyGet, policySet, sessionEnv, token } from "../handlers/me.ts";
 import { codeOf, INSTALL, harness } from "../fixtures/harness.ts";
 import type { Harness } from "../fixtures/harness.ts";
 import { ensure } from "../projections.ts";
@@ -214,4 +214,17 @@ test("disconnect: the grant is revoked, the Vault item and approvals are gone, a
 test("a server without the personal connection says so plainly", async () => {
   const h = harness();
   await refused(meConnect(h.ctx), "internal.unavailable");
+});
+
+test("a read for a linked pull request follows the person's rules and shows in Used by; a caller with no connected GitHub reads as before", async () => {
+  const w = world();
+  await checkRead(w.h.ctx, "vyre-ai/website", "linked.prs");   // not connected yet: nothing changes
+  assert.equal(meUsage(w.as({})).uses.length, 0);
+  await w.connect();
+  await checkRead(w.as({ principal: { kind: "agent", id: "agt_scout" }, actingFor: MAYA }), "vyre-ai/website", "linked.prs");
+  assert.deepEqual(meUsage(w.h.ctx).uses.map((u) => [u.consumer, u.action]), [["linked.prs", "read"]]);
+  await refused(checkRead(w.h.ctx, "vyre-ai/secret", "linked.prs"), "validation.not_found");
+  policySet(w.h.ctx, { policy: { read: "never" } });
+  await refused(checkRead(w.h.ctx, "vyre-ai/website", "linked.prs"), "validation.precondition_failed");
+  await checkRead(w.as({ principal: { kind: "service", id: "svc_host" } }), "vyre-ai/website", "linked.prs");   // the host with no person: the Space app's read
 });

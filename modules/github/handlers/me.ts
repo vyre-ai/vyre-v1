@@ -213,6 +213,19 @@ async function allowed(ctx: GithubCtx, person: string, repo: string, action: Act
   }
 }
 
+/**
+ * A read made for a person (the caller, or the person an agent acts for) goes through the same rules as a token: the person's policy for reading, whether they reach the repository, and the Used by note.
+ * A caller with no connected GitHub keeps the Space app's read as before. The read itself uses the app's installation, so no token is handed out here.
+ */
+export async function checkRead(ctx: GithubCtx, repo: string, consumer: string): Promise<void> {
+  ensureMe(ctx);
+  const person = ctx.principal.kind === "person" ? ctx.principal.id : ctx.actingFor;
+  if (!person || !first(ctx.db.all(`SELECT "person" FROM github_me WHERE "person" = ?`, person))) return;
+  await allowed(ctx, person, repo, "read", consumer);
+  await installationOfRepo(ctx, person, repo);
+  note(ctx, person, consumer, repo, "read");
+}
+
 export async function token(ctx: GithubCtx, input: { person?: string; repo: string; action: Action; consumer: string }): Promise<{ handle: string; expiresAt: number; repo: string; permissions: Record<string, string> }> {
   ensure(ctx); ensureMe(ctx);
   repoPath(ctx, input.repo);

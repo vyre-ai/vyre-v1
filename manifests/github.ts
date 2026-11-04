@@ -82,7 +82,7 @@ const capabilities = [
   }),
   read('github.health', 'Health probe: GET /app', { in: {}, out: healthOut }),
   // ---- pull requests
-  read('github.pull_request.get', 'Read a pull request live from GitHub', { in: prRef, out: { pullRequest: prRow }, tool: 'records', deferred: true }),
+  read('github.pull_request.get', 'Read a pull request live from GitHub. A person with a connected GitHub is read as them: their policy for reading and the repositories they reach apply, and consumer (such as linked.prs) shows in Used by', { in: { ...prRef, consumer: t.opt(t.str({ pattern: '^[a-z][a-z0-9_.:-]{1,60}$', examples: ['linked.prs'] })) }, out: { pullRequest: prRow }, tool: 'records', deferred: true }),
   read('github.pull_request.list_files', 'Changed files of a pull request (the Changes tab)', {
     in: { ...prRef, ...pageIn }, out: { files: t.arr(t.obj({ path: t.str(), status: t.str(), additions: t.int(), deletions: t.int(), patch: t.opt(t.str()) })), ...pageOut }, tool: 'records', deferred: true,
   }),

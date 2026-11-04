@@ -15196,6 +15196,7 @@ export type GithubPullRequestDiffOut = {
 export type GithubPullRequestGetIn = {
   repo: string;
   number: number;
+  consumer?: string;
 };
 export type GithubPullRequestGetOut = {
   pullRequest: {

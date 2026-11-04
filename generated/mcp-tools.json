@@ -24317,10 +24317,17 @@
       "blocks": [],
       "cap": "github.pull_request.get",
       "deferred": true,
-      "description": "Read a pull request live from GitHub",
+      "description": "Read a pull request live from GitHub. A person with a connected GitHub is read as them: their policy for reading and the repositories they reach apply, and consumer (such as linked.prs) shows in Used by",
       "effects": "read",
       "inputSchema": {
         "properties": {
+          "consumer": {
+            "examples": [
+              "linked.prs"
+            ],
+            "pattern": "^[a-z][a-z0-9_.:-]{1,60}$",
+            "type": "string"
+          },
           "number": {
             "minimum": 1,
             "type": "integer"

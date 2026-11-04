@@ -13,6 +13,7 @@
 import { fail } from "../../../host/src/routes/errors.ts";
 import { api, bad, codeOf, ensure, first, installationFor, intOrUndef, list, MAX_FIX_ROUNDS, msOf, num, numberOf, obj, raw, refuse, refusal, repoPath, strOrUndef, text } from "../projections.ts";
 import type { Auth, GithubCtx, Json } from "../projections.ts";
+import { checkRead } from "./me.ts";
 
 type Checks = "none" | "pending" | "passing" | "failing";
 
@@ -86,8 +87,9 @@ async function readPr(ctx: GithubCtx, repo: unknown, number: unknown): Promise<{
 
 // ---- pull requests: reads
 
-export async function prGet(ctx: GithubCtx, input: { repo: string; number: number }): Promise<{ pullRequest: PrOut }> {
+export async function prGet(ctx: GithubCtx, input: { repo: string; number: number; consumer?: string }): Promise<{ pullRequest: PrOut }> {
   ensure(ctx);
+  await checkRead(ctx, input.repo, input.consumer ?? "github.read");
   const { pr, t } = await readPr(ctx, input.repo, input.number);
   return { pullRequest: mapPr(pr, t.repo, checksState(await runsOf(ctx, t, text(obj(pr.head).sha)))) };
 }

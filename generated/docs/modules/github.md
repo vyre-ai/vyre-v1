@@ -35,7 +35,7 @@ Requires: nothing.
 - [github.pull_request.comment](../capabilities/github.pull_request.comment.md): Comment on a pull request
 - [github.pull_request.create](../capabilities/github.pull_request.create.md): Open a pull request
 - [github.pull_request.diff](../capabilities/github.pull_request.diff.md): Unified diff of a pull request (opens as a diff tab)
-- [github.pull_request.get](../capabilities/github.pull_request.get.md): Read a pull request live from GitHub
+- [github.pull_request.get](../capabilities/github.pull_request.get.md): Read a pull request live from GitHub. A person with a connected GitHub is read as them: their policy for reading and the repositories they reach apply, and consumer (such as linked.prs) shows in Used by
 - [github.pull_request.list_files](../capabilities/github.pull_request.list_files.md): Changed files of a pull request (the Changes tab)
 - [github.pull_request.merge](../capabilities/github.pull_request.merge.md): Merge a pull request (protected branches go through the Gate)
 - [github.pull_request.request_review](../capabilities/github.pull_request.request_review.md): Request a review
