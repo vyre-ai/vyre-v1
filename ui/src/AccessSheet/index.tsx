@@ -94,6 +94,7 @@ export type {
   ShareInput,
   ShareItemType,
   ShareLevel,
+  ShareResourceType,
   ShareRow,
   ShareSheetProps,
   ShareSubjectKind,

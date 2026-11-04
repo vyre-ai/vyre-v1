@@ -20,6 +20,7 @@ import { Sidebar } from "./Sidebar.tsx";
 import { GATE, allows, useOptionalShellRuntime } from "../../../shell/providers/runtime.tsx";
 import { ResizableColumn } from "../../../../../../ui/src/SidePane/resize.tsx";
 import { Sheet } from "./Sheet.tsx";
+import { VaultShareSheet } from "../share/VaultShareSheet.tsx";
 import { PolicyView } from "./PolicyView.tsx";
 import { ChromeSheet } from "./ChromeSheet.tsx";
 import { declineVaultRequest, exportVaultFolder, fulfilVaultRequest, requestFields, revokeVaultExport } from "./routed-actions.ts";
@@ -88,6 +89,7 @@ function Page({ initial, sheet, view, route, onRouteClose, connectionsInitial, c
   const routeSelection: Selection | undefined = route.surface === "requests" ? { kind: "requested" } : route.surface === "export" ? { kind: "folder", folderId: route.folderId } : undefined;
   const [selection, setSelection] = useState<Selection>(routeSelection ?? initial ?? ALL);
   const [query, setQuery] = useState("");
+  const [sharingFolder, setSharingFolder] = useState<Folder | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(route.surface === "share" ? route.itemId : null);
   const [detailOpen, setDetailOpen] = useState(route.surface === "share");
   const [adding, setAdding] = useState<{ paste?: string; app?: string } | null>(sheet?.add ?? null);
@@ -227,6 +229,7 @@ function Page({ initial, sheet, view, route, onRouteClose, connectionsInitial, c
   const folderMenu = (f: Folder, x: number, y: number): void => {
     menu.show([
       ...(f.yourLevel === "edit" || f.yourLevel === "manage" ? [{ label: "Add an item here", onSelect: () => { setLastFolder(f.id); setAdding({}); } } as MenuEntry] : []),
+      ...(f.yourLevel === "manage" && f.scope === "shared" && data.personal !== true ? [{ label: "Share…", onSelect: () => setSharingFolder(f) } as MenuEntry] : []),
       ...(f.yourLevel === "manage" ? [{ label: "Export .env…", onSelect: () => data.nav.openExport(f.id) } as MenuEntry] : []),
     ], x, y);
   };
@@ -343,6 +346,7 @@ function Page({ initial, sheet, view, route, onRouteClose, connectionsInitial, c
   return (
     <View style={s.page} testID="vault-place">
       {menu.element}
+      {sharingFolder ? <VaultShareSheet kind="vault_folder" id={sharingFolder.id} name={sharingFolder.name} onClose={() => setSharingFolder(null)} /> : null}
       {wide ? <Sidebar counts={counts} folders={folderList} selection={selection} onSelect={select} onAdvanced={data.nav.openAdvanced} advanced={route.surface === "advanced" || route.surface === "policy"} {...(data.nav.openConnections ? { onConnections: data.nav.openConnections, connections: route.surface === "connections" } : {})} onNewFolder={createFolder} onFolderMenu={folderMenu} canCreateShared={canShare} hideShared={data.personal === true} /> : null}
       {routed ?? (sectionPage ? <View style={[s.listPane, { flex: 1 }]} testID="vault-section-page">{header}{sectionPage}</View> : <>{twoPane || !showDetail ? listPane : null}{showDetail ? <View style={s.detail}>{detail}</View> : null}</>)}
       {choosing ? <AddChooser onClose={() => setChoosing(false)} onPick={(t) => addThe(t)} /> : null}

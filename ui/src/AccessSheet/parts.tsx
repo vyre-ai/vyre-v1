@@ -24,6 +24,7 @@ import {
   canCreateAgent,
   howOptions,
   levelName,
+  canGiveLevel,
   levelsFor,
   pokeNote,
   removable,
@@ -32,7 +33,7 @@ import {
   unshareInput,
 } from "./model.ts";
 import type { NewAgentDraft } from "./model.ts";
-import type { AccessPick, AgentSettings, Audience, Exporters, LinkInfo, PickKind, RowFlag, ShareLevel, ShareRow, ShareSheetProps, ShareSubjectKind } from "./props.ts";
+import type { AccessPick, AgentSettings, Audience, Exporters, LinkInfo, PickKind, RowFlag, ShareItemType, ShareLevel, ShareRow, ShareSheetProps, ShareSubjectKind } from "./props.ts";
 
 const web = Platform.OS === "web";
 export const webProps = (props: Record<string, unknown>): Record<string, unknown> => (web ? props : {});
@@ -354,24 +355,26 @@ function FlagPill({ label, hint, on, locked, disabled, onChange, testID }: { lab
 export function AccessList({ p, offered, cleared, onCleared }: { p: ShareSheetProps; offered: readonly ShareLevel[] | undefined; cleared: readonly string[]; onCleared(key: string): void }): ReactElement {
   const menu = useMenu();
   const rec = p.records;
+  // a person gives no more than they have: a level above their own is not in the menu (the row keeps the one it has)
+  const levelsOf = (row: Pick<ShareRow, "subjectKind" | "level" | "via">, t: ShareItemType, offered: readonly ShareLevel[] | undefined): ShareLevel[] => levelsFor(row, t, offered).filter((l) => l === row.level || canGiveLevel(t, l, { maxLevel: p.maxLevel, canGive: p.canGive }));
   const type = p.itemType;
   const [apart, setApart] = useState(false);
   const shares = p.shares.filter((r) => !cleared.includes(`${r.subjectKind}:${r.subjectId}`));
   const v = accessView({ shares, itemType: type, resourceId: p.resourceId, ownerId: p.ownerId, ownerName: p.ownerName, folderName: p.folderName, agentsOn: p.agentsOn });
   const { link } = v;
-  const lname = (l: ShareLevel): string => (rec ? RECORD_LEVEL_NAMES[l] : undefined) ?? levelName(type, l);
+  const lname = (l: ShareLevel): string => levelName(type, l);
   const say = (kind: ShareSubjectKind, id: string, level: ShareLevel): void => p.onShare?.(shareInput(p, { kind, id }, level, p.newKey?.()));
   const remove = (row: ShareRow): void => {
     onCleared(`${row.subjectKind}:${row.subjectId}`);
     p.onUnshare?.(unshareInput(p, { kind: row.subjectKind, id: row.subjectId }));
   };
   const pickLevel = (row: ShareRow, x: number, y: number): void => {
-    const items: MenuEntry[] = levelsFor(row, type, offered).map((l) => ({ label: lname(l), hint: levelHint(type, l), checked: l === row.level, onSelect: () => say(row.subjectKind, row.subjectId, l) }));
+    const items: MenuEntry[] = levelsOf(row, type, offered).map((l) => ({ label: lname(l), hint: levelHint(type, l), checked: l === row.level, onSelect: () => say(row.subjectKind, row.subjectId, l) }));
     menu.show(items, x, y, "context", { label: `Access for ${row.name}` });
   };
   const rowMenu = (row: ShareRow, x: number, y: number): void => {
     const items: MenuEntry[] = [];
-    if (levelsFor(row, type, offered).length > 1) for (const l of levelsFor(row, type, offered)) items.push({ label: lname(l), hint: levelHint(type, l), checked: l === row.level, onSelect: () => say(row.subjectKind, row.subjectId, l) });
+    if (levelsOf(row, type, offered).length > 1) for (const l of levelsOf(row, type, offered)) items.push({ label: lname(l), hint: levelHint(type, l), checked: l === row.level, onSelect: () => say(row.subjectKind, row.subjectId, l) });
     if (removable(row)) {
       if (items.length > 0) items.push({ separator: true });
       items.push({ label: "Remove", danger: true, onSelect: () => remove(row) });
@@ -381,7 +384,7 @@ export function AccessList({ p, offered, cleared, onCleared }: { p: ShareSheetPr
   };
   const rowNode = (row: ShareRow): ReactElement => {
     const inheritedRow = row.via !== "grant";
-    const can = levelsFor(row, type, offered).length > 1;
+    const can = levelsOf(row, type, offered).length > 1;
     const trail = (
       <View style={st.trail}>
         <Picker label={`Level for ${row.name}`} value={lname(row.level)} disabled={!can || (rec !== undefined && !rec.canChange)} testID={`as-acc-level-${row.subjectId}`} onPress={(x, y) => pickLevel(row, x, y)} />
@@ -393,7 +396,7 @@ export function AccessList({ p, offered, cleared, onCleared }: { p: ShareSheetPr
     const slot = (
       <SlotRow
         key={`${row.subjectKind}:${row.subjectId}:${inheritedRow ? "i" : "d"}`}
-        id={`as-acc-${row.subjectId}`} title={row.name} note={rec ? rowSub({ ...row, via: "grant" }) : rowSub(row, p.folderName)}
+        id={`as-acc-${row.subjectId}`} title={row.name} note={rec ? (inheritedRow ? `From ${p.folderName ?? "its type"}` : rowSub({ ...row, via: "grant" })) : rowSub(row, p.folderName)}
         leadWidth={36} lead={<SubjectFace row={row} />} trail={trail} onMenu={(x, y) => rowMenu(row, x, y)}
       />
     );
@@ -409,10 +412,10 @@ export function AccessList({ p, offered, cleared, onCleared }: { p: ShareSheetPr
       </View>
     );
   };
-  const levels = levelsFor({ subjectKind: "group", level: "view", via: "grant" }, type, offered);
+  const levels = levelsOf({ subjectKind: "group", level: "view", via: "grant" }, type, offered);
   const generalRow = v.general.row;
   const generalSubject = { kind: "group" as const, id: generalRow?.subjectId ?? p.directory.space?.subject?.id ?? "grp_everyone" };
-  const generalLevels = generalRow ? levelsFor(generalRow, type, offered) : levels;
+  const generalLevels = generalRow ? levelsOf(generalRow, type, offered) : levels;
   const pickGeneral = (x: number, y: number): void => {
     const items: MenuEntry[] = generalLevels.map((l) => ({ label: lname(l), hint: levelHint(type, l), checked: l === v.general.level, onSelect: () => say(generalSubject.kind, generalSubject.id, l) }));
     if (generalRow && removable(generalRow)) items.push({ separator: true }, { label: "No access", checked: false, onSelect: () => remove(generalRow) });

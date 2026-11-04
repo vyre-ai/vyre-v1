@@ -570,3 +570,16 @@ test("Dex: the agents line follows the server's answer and flips through onAgent
   });
   assert.match(ssr(<AccessSheet {...dex({ shares: [], agentsOn: true })} />), /On/);
 });
+
+test("a person gives no more than they have: a level above maxLevel is not in a row's menu", async () => {
+  await withDom(async () => {
+    const said: unknown[] = [];
+    const root = await mount(createRoot, <AccessSheet {...share({
+      itemType: "file", directory: sharePeople, maxLevel: "edit", onShare: (i) => said.push(i),
+      shares: [{ subjectKind: "person", subjectId: "p_omar", name: "Omar Reyes", level: "view", via: "grant", fromFolderId: null }],
+    })} />);
+    await press(find(root, "as-acc-level-p_omar"));
+    assert.ok(find(root, "menu-item-Can edit") !== null);
+    assert.ok(find(root, "menu-item-Can manage") === null);
+  });
+});

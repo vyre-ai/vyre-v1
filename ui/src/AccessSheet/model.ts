@@ -2,6 +2,7 @@
 // The builders at the bottom return exactly the inputs of the capabilities the hosts call (CapMap[...]["in"]), so the sheet and the contract cannot drift.
 
 import type { CapMap } from "../../../generated/types.ts";
+import type { MenuEntry } from "../Menu/index.tsx";
 import { DEFAULT_AGENT_SETTINGS } from "./props.ts";
 import type {
   AccessDirectory,
@@ -805,4 +806,31 @@ export function levelHint(type: ShareItemType, level: ShareLevel): string {
   if (type === "vault") return ({ use: "Agents and automations use it. The value stays hidden.", view: "See the value and use it.", edit: "See, use and change it.", manage: "Also share it." } as Record<ShareLevel, string>)[level];
   if (type === "automation") return ({ view: "See it, its runs and its history.", use: "Run it.", edit: "Change it and pause it.", manage: "Also share it and delete it." } as Record<ShareLevel, string>)[level];
   return ({ view: "Open it and read it.", use: "Open it and use it.", edit: "Change it.", manage: "Also share it, move it and delete it." } as Record<ShareLevel, string>)[level];
+}
+
+/* ---------- the Add menu: a plain people picker for places that only need to pick someone (a routine's new owner) ---------- */
+
+export interface DirectoryEntry { id: string; name: string; sub?: string }
+export interface ShareDirectory { people?: readonly DirectoryEntry[]; groups?: readonly DirectoryEntry[]; roles?: readonly DirectoryEntry[]; agents?: readonly DirectoryEntry[] }
+
+/** People, Groups, Roles, Agents; entries that already have access show a check and do nothing. */
+export function addMenu(directory: ShareDirectory, shares: readonly { subjectKind: string; subjectId: string }[], onAdd: (subject: { kind: ShareSubjectKind; id: string }, name: string) => void): MenuEntry[] {
+  const have = new Set(shares.map((r) => `${r.subjectKind}:${r.subjectId}`));
+  const out: MenuEntry[] = [];
+  const groups: readonly { head: string; kind: ShareSubjectKind; list: readonly DirectoryEntry[] | undefined }[] = [
+    { head: "People", kind: "person", list: directory.people },
+    { head: "Groups", kind: "group", list: directory.groups },
+    { head: "Roles", kind: "role", list: directory.roles },
+    { head: "Agents", kind: "agent", list: directory.agents },
+  ];
+  for (const g of groups) {
+    if (g.list === undefined || g.list.length === 0) continue;
+    if (out.length > 0) out.push({ separator: true });
+    out.push({ head: g.head });
+    for (const e of g.list) {
+      const added = have.has(`${g.kind}:${e.id}`);
+      out.push({ label: e.name, checked: added, ...(added ? {} : { onSelect: () => onAdd({ kind: g.kind, id: e.id }, e.name) }) });
+    }
+  }
+  return out;
 }

@@ -10,9 +10,8 @@ import type { CapMap } from "../../../../../../generated/types.ts";
 import type { ConfigDirectory } from "../../automations/config/data.tsx";
 import { Overlay } from "../../automations/config/Overlay.tsx";
 import { Switch } from "../../automations/config/parts.tsx";
-import { shareRows } from "../../automations/config/SettingsTab.tsx";
+import { shareRows, sheetDirectory } from "../../../share/rows.ts";
 import { AccessSheet, accessCount } from "../../../../../../ui/src/AccessSheet/index.tsx";
-import type { AccessEntry } from "../../../../../../ui/src/AccessSheet/index.tsx";
 import { useMenu } from "../../../../../../ui/src/Menu/index.tsx";
 import { aiMenu } from "../../vault/providers/aiMenu.ts";
 import { aiCaption, aiName, automaticLine } from "../../vault/providers/pick.ts";
@@ -249,7 +248,7 @@ export function AgentForm({ agentId, call, newKey, onDone, onCancel, say, sharin
             shares={shareRows(shares, sharing.nameOf, agentId)} allowExternal={false} density="compact" newKey={newKey}
             {...(shares.agentsCanCall === undefined ? {} : { agentsOn: shares.agentsCanCall })}
             onAgents={(on) => { void Promise.resolve(call("access.agents_can_call.set", { agentId, on, idempotencyKey: newKey() })).then(loadShares, () => say("Could not change who can call this agent.")); }}
-            directory={{ people: entries(sharing.directory.people, "person"), groups: entries(sharing.directory.groups, "group"), roles: entries(sharing.directory.roles, "role"), agents: entries(sharing.directory.agents, "agent") }}
+            directory={sheetDirectory(sharing.directory)}
             onShare={(i: ShareInput) => { void Promise.resolve(call("access.share", i)).then(loadShares, () => say("Could not change access.")); }}
             onUnshare={(i: UnshareInput) => { void Promise.resolve(call("access.unshare", i)).then(loadShares, () => say("Could not change access.")); }}
             onClose={() => setSharingOpen(false)}
@@ -260,7 +259,6 @@ export function AgentForm({ agentId, call, newKey, onDone, onCancel, say, sharin
   );
 }
 
-const entries = (list: readonly { id: string; name: string; sub?: string }[], kind: AccessEntry["kind"]): AccessEntry[] => list.map((e) => ({ id: e.id, name: e.name, kind, ...(e.sub ? { sub: e.sub } : {}) }));
 
 function Section({ title, note, children }: { title: string; note?: string; children: ReactNode }): ReactElement {
   return <View style={st.sec}><View style={st.secHead}><Text accessibilityRole="header" style={st.secTitle}>{title}</Text>{note ? <Text style={st.secNote}>{note}</Text> : null}</View>{children}</View>;

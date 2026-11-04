@@ -9,7 +9,7 @@ import { StyleSheet, Text, View } from "react-native";
 import { Row } from "../../../../../../ui/src/Row/index.tsx";
 import { useMenu } from "../../../../../../ui/src/Menu/index.tsx";
 import { AccessSheet } from "../../../../../../ui/src/AccessSheet/index.tsx";
-import type { AccessEntry, ShareInput, ShareRow, UnshareInput } from "../../../../../../ui/src/AccessSheet/index.tsx";
+import type { ShareInput, UnshareInput } from "../../../../../../ui/src/AccessSheet/index.tsx";
 import type { CapMap } from "../../../../../../generated/types.ts";
 import { useAutomationsData } from "../canvas/data.tsx";
 import { Face, IconButton, TextButton } from "../canvas/parts.tsx";
@@ -26,26 +26,12 @@ import { Group, Hint, IconLine, Lab, PickButton, SRow, Switch } from "./parts.ts
 import { PromoteSheet, usePromotePreview } from "./PromoteSheet.tsx";
 import { useSaved } from "./saved.ts";
 
-const entries = (list: readonly { id: string; name: string; sub?: string }[], kind: AccessEntry["kind"]): AccessEntry[] => list.map((e) => ({ id: e.id, name: e.name, kind, ...(e.sub ? { sub: e.sub } : {}) }));
 
-type SharesOut = CapMap["access.shares_of"]["out"];
-
-export type AccessRow = ShareRow & { through: SharesOut["shares"][number]["through"] };
-
-/** The contract's grants as the Share sheet's rows: direct grants can be raised and removed, the rest come from a group, a role, a folder or the owner. `through` keeps which. */
-export function shareRows(out: SharesOut, name: (id: string) => string, resourceId?: string): AccessRow[] {
-  return each(out.shares, (s) => {
-    const kind = s.grant.subject.kind;
-    return {
-      subjectKind: kind === "person" || kind === "group" || kind === "role" || kind === "agent" || kind === "link" ? kind : "agent",
-      subjectId: s.grant.subject.id, name: name(s.grant.subject.id), level: s.grant.level,
-      // a group or role the item itself was given to (Everyone) is a grant on this item; only a folder or the Space above it is inherited
-      via: s.through === "owner" ? "owner" : s.through === "direct" || (resourceId !== undefined && s.grant.resource.id === resourceId) ? "grant" : s.through === "folder" ? "folder" : "space",
-      fromFolderId: s.through === "folder" ? s.grant.source ?? null : null,
-      through: s.through,
-    };
-  });
-}
+import { shareRows } from "../../../share/rows.ts";
+import type { AccessRow, SharesOut } from "../../../share/rows.ts";
+import { sheetDirectory } from "../../../share/rows.ts";
+export { shareRows };
+export type { AccessRow };
 
 const THROUGH_NOTE: Readonly<Record<AccessRow["through"], string | undefined>> = { owner: "Owner", direct: undefined, group: "From a group", role: "From a role", folder: "From the folder" };
 
@@ -246,7 +232,7 @@ export function SettingsTab({ automation, openPromote = false, openShare = false
           <AccessSheet
             mode="share" itemType="automation" resourceType="automation" resourceId={a.id} itemName={a.name} target="item" ownerName={data.name(a.ownerId)} ownerId={a.ownerId} levels={["view", "edit", "manage"]}
             shares={shareRows(shares.out, data.name, a.id)} allowExternal={false} density="regular"
-            directory={{ people: entries(extras.directory.people, "person"), groups: entries(extras.directory.groups, "group"), roles: entries(extras.directory.roles, "role"), agents: entries(extras.directory.agents, "agent") }}
+            directory={sheetDirectory(extras.directory)}
             onShare={(i: ShareInput) => { void saved.run("Access changed", async () => { await data.call("access.share", i); shares.reload(); }); }}
             onUnshare={(i: UnshareInput) => { void saved.run("Access removed", async () => { await data.call("access.unshare", i); shares.reload(); }); }}
             onClose={() => setShare(false)}
