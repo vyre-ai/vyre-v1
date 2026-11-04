@@ -50,7 +50,9 @@ export function Thumb({ info, size }: { info: ArtifactInfo; size?: { w: number; 
   return (
     <View testID="artifact-thumb-drawn" accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={box}>
       {k === 0 ? <>{bar("46%", true)}{bar("92%")}{bar("84%")}{bar("90%")}{bar("52%")}</> : null}
+      {/* ui-rows-lint: not a list (bars of a drawn placeholder thumbnail) */}
       {k === 1 ? <>{bar("38%", true)}<View style={st.bars}>{[30, 52, 40, 72, 60, 88].map((p, i) => <View key={i} style={[st.col, { height: `${p}%` as unknown as number }]} />)}</View></> : null}
+      {/* ui-rows-lint: not a list (bars of a drawn placeholder thumbnail) */}
       {k === 2 ? <>{[70, 55, 64, 40].map((p, i) => <View key={i} style={st.rw}><View style={[st.tick, i < 2 && st.tickOn]} />{bar(`${p}%`)}</View>)}</> : null}
       {k === 3 ? <View style={st.grid}>{Array.from({ length: 12 }, (_, i) => <View key={i} style={[st.cell, i < 3 && st.cellHead]} />)}</View> : null}
     </View>

@@ -56,6 +56,7 @@ export function ArtifactsPage({ rt }: { rt: ShellRuntime }): ReactElement {
           </View>
         ) : (
           <View testID="artifacts-grid" style={st.grid}>
+            {/* ui-rows-lint: not a list (a grid of artifact cards, each a card with its own thumbnail) */}
             {shown.map((a) => (
               <View key={a.id} style={st.cell}>
                 <ArtifactCard
