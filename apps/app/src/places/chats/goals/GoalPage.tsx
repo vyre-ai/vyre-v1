@@ -435,6 +435,7 @@ export function Activity({ data, me, nameOf, now, zones, openTask }: { data: Goa
       {days.map((d) => (
         <View key={d.day} style={st.day}>
           <Text style={st.label}>{d.day}</Text>
+          {/* ui-rows-lint: not a list (each item is a ui/Row; the TimePop around it only adds the hover card with both zones) */}
           {d.items.map((a) => {
             const line = formatActivity(a, viewer);
             // a list of times: each reads in the Space zone only; yours is on hover, so the list stays quiet
