@@ -82,6 +82,10 @@ test("Overview, real data: an Unpaid block sums real invoices, and the number fo
       await page.locator("[data-testid=live-metric] [data-testid=live-number]").first().waitFor({ timeout: 20_000 });
       await page.waitForTimeout(800);
       await guard.check(`the Overview, ${tag} ${size} ${skin}`);
+      // the same data says the same words in either skin; the header and the Status property read one stage; a section is named once
+      assert.match(await page.locator("[data-testid=live-metric] [data-testid=live-metric-line]").first().innerText(), /unpaid across \d+ invoices$/, `${skin}: the metric names the type, not "rows"`);
+      assert.equal((await page.getByTestId("project-health").innerText()).trim(), (await page.getByTestId("prop-status").innerText()).trim(), `${skin}: the header and the Status property agree`);
+      assert.equal(await page.getByText("Invoices", { exact: true }).count(), 1, `${skin}: "Invoices" names the section once`);
       await page.screenshot({ path: path.join(shots, `overview-real-${tag}-${size}-${skin}.png`) });
       return (await page.locator("[data-testid=live-metric] [data-testid=live-number]").first().innerText()).trim();
     };

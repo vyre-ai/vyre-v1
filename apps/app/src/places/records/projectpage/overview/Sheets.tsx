@@ -17,7 +17,7 @@ function Select<T extends string>({ label, value, options, onChange, testID }: {
       <Text style={s.label}>{label}</Text>
       {Platform.OS === "web" ? createElement("select", {
         "aria-label": label, "data-testid": testID, value, onChange: (e: { target: { value: string } }) => onChange(e.target.value as T),
-        style: { height: 34, borderRadius: 8, padding: "0 10px", fontSize: 13.5, color: "var(--ink)", background: "var(--sunk)", border: "1px solid var(--line-2)", font: "inherit", width: "100%" },
+        style: { height: 34, borderRadius: 8, padding: "0 28px 0 10px", fontSize: 13.5, fontFamily: "inherit", color: "var(--ink)", backgroundColor: "var(--sunk)", border: "1px solid var(--line-2)", width: "100%", boxSizing: "border-box", appearance: "none", WebkitAppearance: "none", backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' fill='none' stroke='%23928DA2' stroke-width='1.5'%3E%3Cpath d='M1 1l4 4 4-4'/%3E%3C/svg%3E\")", backgroundRepeat: "no-repeat", backgroundPosition: "right 10px center" },
       }, ...options.map((o) => createElement("option", { key: o.id, value: o.id }, o.label))) : (
         <View accessibilityRole="radiogroup" accessibilityLabel={label}>
           {/* ui-rows-lint: not a list (the choices of one setting) */}

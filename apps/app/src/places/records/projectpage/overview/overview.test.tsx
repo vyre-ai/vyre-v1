@@ -438,9 +438,9 @@ test("a record row is the Linked row: the title, the amount under it, the state 
     assert.match(textOf(r), /\$900/);
     const state = (n: Node, word: string): Node | null => { for (const c of n.children ?? []) { if (typeof c === "object") { const f = state(c, word); if (f) return f; if (textOf(c).trim() === word && c.props?.style) return c; } } return null; };
     const colour = (n: Node | null): string => JSON.stringify(n?.props?.["style"] ?? "");
-    assert.match(colour(state(r, "Overdue")), /warn/);
+    assert.match(colour(state(r, "Overdue")), /danger/);
     assert.match(colour(state(find(root, "row-live-inv105")!, "Paid")), /ok/);
-    assert.doesNotMatch(colour(state(find(root, "row-live-inv104")!, "Open")), /warn|ok/);
+    assert.doesNotMatch(colour(state(find(root, "row-live-inv104")!, "Open")), /danger|warn|ok/);
   } finally { off(); }
 });
 
@@ -493,4 +493,19 @@ test("an agent's block is lit for a few seconds after its edit (its blockId is t
   const doc = { blocks: [{ id: "a", kind: "text", by: "usr_maya", at: 1 }, { id: "n", kind: "live", by: "agt_docs", at: 5000 }], latest: { rev: 2, by: "agt_docs", authorKind: "agent", summary: "x", at: 5000 } } as never;
   assert.deepEqual([...freshIds(doc)], ["n"]);
   assert.equal(freshIds({ blocks: [{ id: "n", kind: "live", by: "usr_maya", at: 5000 }], latest: { rev: 2, by: "usr_maya", authorKind: "person", summary: "x", at: 5000 } } as never).size, 0);
+});
+
+test("a metric waits for the record types before it speaks, so it never says 'rows' first and 'invoices' later (the same data gives the same words)", async () => {
+  const off = installDom();
+  try {
+    const s = createSampleOverview();
+    const attrs = { blockId: "b", type: "metric", spec: { title: "Unpaid", type: "invoice", op: "sum", field: "amount" }, view: "count" } as const;
+    const early = await mount(createRoot, <ProjectPageDataProvider value={s.data}><LiveBlockView projectId="prj_rivera" attrs={attrs} readOnly={true} types={null} onSettings={() => undefined} api={{ remove: () => undefined } as never} /></ProjectPageDataProvider>);
+    for (let i = 0; i < 20; i++) await flush();
+    assert.notEqual(find(early, "live-loading"), null, "no sentence before the types are known");
+    assert.doesNotMatch(textOf(early), /rows/);
+    const late = await mount(createRoot, <ProjectPageDataProvider value={s.data}><LiveBlockView projectId="prj_rivera" attrs={attrs} readOnly={true} types={[{ key: "invoice", title: "Invoice", plural: "Invoices" }]} onSettings={() => undefined} api={{ remove: () => undefined } as never} /></ProjectPageDataProvider>);
+    await wait(() => /\$6,250/.test(textOf(find(late, "live-number"))));
+    assert.match(textOf(find(late, "live-metric-line")), /unpaid across 3 invoices/);
+  } finally { off(); }
 });

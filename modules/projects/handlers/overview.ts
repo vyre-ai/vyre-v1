@@ -20,38 +20,44 @@ const live = (id: string, type: LiveType, spec: Record<string, unknown>, view: V
 const head = (id: string, text: string, level = 2): PageBlock => ({ id, kind: "heading", text, level });
 const text = (id: string, t: string): PageBlock => ({ id, kind: "text", text: t });
 
+/** One name on a page, once: a heading that repeats the title of the live block under it goes, since the block's own title is the section's name (and carries its Edit and menu). */
+const tidy = (blocks: PageBlock[]): PageBlock[] => blocks.filter((b, i) => {
+  const next = blocks[i + 1];
+  return !(b.kind === "heading" && next?.kind === "live" && String((next.live?.spec as { title?: unknown } | undefined)?.title ?? "").trim().toLowerCase() === b.text.trim().toLowerCase());
+});
+
 /** A page for a project that never had one: how it stands, what is next, who is on it. */
-export const defaultBlocks = (): PageBlock[] => [
+export const defaultBlocks = (): PageBlock[] => tidy([
   live("blk_status", "status", { title: "Status" }), head("blk_h_next", "Next"), live("blk_next", "milestones", { title: "Next milestones", limit: 3 }),
   head("blk_h_work", "Late or waiting"), live("blk_open", "tasks", { title: "Open tasks", status: "late" }), head("blk_h_people", "People and agents"), live("blk_people", "people", { title: "People and agents" }),
-];
+]);
 
 export interface Builtin { templateId: string; title: string; summary: string; blocks: PageBlock[] }
 export const BUILTIN_TEMPLATES: readonly Builtin[] = [
   {
     templateId: "tpl_client_account", title: "Client account", summary: "A client's work in one place: invoices, mail, tasks and who is on it.",
-    blocks: [
+    blocks: tidy([
       live("b_status", "status", { title: "Status" }), head("b_h_about", "About this client"), text("b_about", "Who they are, what we do for them, and what to watch."),
       head("b_h_inv", "Invoices"), live("b_inv", "records", { title: "Invoices", type: "invoice" }, "table"), live("b_owed", "metric", { title: "Unpaid", type: "invoice", op: "sum", field: "amount", filter: { field: "status", op: "eq", value: "sent" } }, "count"),
       head("b_h_mail", "Mail"), live("b_mail", "links", { title: "Mail threads", kind: "mail_thread" }), head("b_h_tasks", "Work"), live("b_tasks", "tasks", { title: "Open tasks", status: "open" }),
       live("b_next", "milestones", { title: "Next milestones", limit: 3 }), head("b_h_people", "People and agents"), live("b_people", "people", { title: "People and agents" }),
-    ],
+    ]),
   },
   {
     templateId: "tpl_software_project", title: "Software project", summary: "Pull requests, CI, tasks and milestones for a code project.",
-    blocks: [
+    blocks: tidy([
       live("b_status", "status", { title: "Status" }), head("b_h_goal", "Goal"), live("b_goal", "goal", { title: "Goal" }), head("b_h_code", "Code"),
       live("b_prs", "links", { title: "Pull requests", kind: "github.pr" }), live("b_ci", "ci", { title: "CI runs" }), head("b_h_work", "Work"), live("b_tasks", "tasks", { title: "Open tasks", status: "open" }),
       live("b_next", "milestones", { title: "Next milestones", limit: 3 }), head("b_h_people", "People and agents"), live("b_people", "people", { title: "People and agents" }),
-    ],
+    ]),
   },
   {
     templateId: "tpl_hiring", title: "Hiring", summary: "Candidates, interviews and the people running the search.",
-    blocks: [
+    blocks: tidy([
       live("b_status", "status", { title: "Status" }), head("b_h_role", "The role"), text("b_role", "What the role is, what good looks like, and the pay range."),
       head("b_h_cand", "Candidates"), live("b_cand", "records", { title: "Candidates", type: "candidate" }, "table"), live("b_count", "metric", { title: "Candidates in the pipeline", type: "candidate", op: "count" }, "count"),
       head("b_h_int", "Interviews"), live("b_cal", "links", { title: "Interviews", kind: "calendar_event" }), live("b_tasks", "tasks", { title: "Open tasks", status: "open" }), head("b_h_people", "People and agents"), live("b_people", "people", { title: "People and agents" }),
-    ],
+    ]),
   },
 ];
 

@@ -16,7 +16,7 @@ import type { LiveOut, LiveRowOut, TypeName, View as LiveView } from "./model.ts
 export interface LiveAttrs { blockId: string | null; type: string; spec: unknown; view: string }
 export interface LiveApi { update(patch: { type?: string; spec?: unknown; view?: string }): void; remove(): void }
 
-const TONE: Readonly<Record<"bad" | "good" | "plain", string>> = { bad: "var(--warn)", good: "var(--ok)", plain: "var(--ink-3)" };
+const TONE: Readonly<Record<"bad" | "good" | "plain", string>> = { bad: "var(--danger)", good: "var(--ok)", plain: "var(--ink-3)" };
 const wordOf = (s: string | undefined): string => { const w = (s ?? "").replace(/_/g, " "); return w === "" ? "" : w.charAt(0).toUpperCase() + w.slice(1); };
 
 // the strip shows on hover or focus; a phone has neither, so it is always on there
@@ -80,7 +80,7 @@ function TaskRows({ rows, now, open }: { rows: readonly LiveRowOut[]; now: numbe
       {rows.map((r) => {
         const due = dueWords(r.due, r.state, now);
         return (
-          <Row key={r.id} id={`live-${r.id}`} title={r.title} leading={<StatusMark status={planStatus(r.state)} size={15} />} onPress={() => open(r)}
+          <Row key={r.id} id={`live-${r.id}`} title={r.title} leading={<View style={{ marginRight: 10 }}><StatusMark status={planStatus(r.state)} size={15} /></View>} onPress={() => open(r)}
             trailing={<View style={s.trail}>{due ? <Text style={[s.due, due.late && s.late]}>{due.text}</Text> : null}{r.who ? <Avatar name={d.nameOf(r.who)} kind={r.who.startsWith("agt_") ? "agent" : "person"} size={18} /> : null}</View>} />
         );
       })}
@@ -130,7 +130,7 @@ function Rows({ type, rows, view, now, open }: { type: string; rows: readonly Li
   return type === "tasks" || type === "milestones" ? <TaskRows rows={rows} now={now} open={open} /> : <ItemRows rows={rows} open={open} />;
 }
 
-export function LiveBlockView({ projectId, attrs, readOnly, api, fresh = false, reload = 0, types = [], onSettings }: { projectId: string; attrs: LiveAttrs; readOnly: boolean; api: LiveApi; fresh?: boolean; reload?: number; types?: readonly TypeName[]; onSettings(a: LiveAttrs): void }): ReactElement {
+export function LiveBlockView({ projectId, attrs, readOnly, api, fresh = false, reload = 0, types = [], onSettings }: { projectId: string; attrs: LiveAttrs; readOnly: boolean; api: LiveApi; fresh?: boolean; reload?: number; types?: readonly TypeName[] | null; onSettings(a: LiveAttrs): void }): ReactElement {
   ensureCss();
   const d = useProjectPageData();
   const menu = useMenu();
@@ -148,11 +148,11 @@ export function LiveBlockView({ projectId, attrs, readOnly, api, fresh = false, 
   const spec = (attrs.spec ?? {}) as Record<string, unknown>;
   const looked = useCurrency(spec["type"], spec["field"], attrs.type === "metric" && spec["op"] === "sum" && out !== null && out !== "error" && out.unit === undefined);
   const unit = out !== null && out !== "error" ? out.unit ?? looked : looked;
-  const noun = types.find((x) => x.key === spec["type"])?.plural ?? "rows";
+  const noun = (types ?? []).find((x) => x.key === spec["type"])?.plural ?? "rows";
   let body: ReactElement;
   if (kind === undefined) body = <Text testID="live-unknown" style={s.dim}>This block (&quot;{attrs.type}&quot;) is kept as written. This version of Vyre cannot draw it.</Text>;
   else if (!ready) body = <Text testID="live-setup" style={s.dim}>Choose what this shows{readOnly ? "." : ": press Edit."}</Text>;
-  else if (out === null) body = <View testID="live-loading" style={s.skel} />;
+  else if (out === null || (attrs.type === "metric" && types === null && spec["type"] !== undefined)) body = <View testID="live-loading" style={s.skel} />;
   else if (out === "error") body = <Text testID="live-error" style={s.dim}>This could not be read just now.</Text>;
   else if (attrs.type === "metric") {
     const m = metricLine({ value: out.value, parts: out.parts, title: out.label ?? title, total: out.total, noun, unit, sum: spec["op"] === "sum" });
@@ -174,7 +174,7 @@ export function LiveBlockView({ projectId, attrs, readOnly, api, fresh = false, 
         <Text style={s.title}>{title}</Text>
         <View style={{ flex: 1 }} />
         <View style={[s.strip, phone && s.stripOn]} {...(Platform.OS === "web" && !phone ? ({ dataSet: { lbTools: "1" } } as object) : {})}>
-          {!phone ? <Text testID="live-tag" numberOfLines={1} style={s.tag}>{`Live · ${liveDescription(attrs.type, attrs.spec, types)}`}</Text> : null}
+          {!phone ? <Text testID="live-tag" numberOfLines={1} style={s.tag}>{`Live · ${liveDescription(attrs.type, attrs.spec, types ?? [])}`}</Text> : null}
           {tools ? <Pressable accessibilityRole="button" accessibilityLabel={`Edit ${title}`} testID="live-edit" onPress={() => onSettings(attrs)} style={s.btn}><Text style={s.btnText}>Edit</Text></Pressable> : null}
           {!readOnly ? (
             <Pressable accessibilityRole="button" accessibilityLabel={`${title} menu`} testID="live-menu" style={s.btn}
@@ -193,7 +193,8 @@ export function LiveBlockView({ projectId, attrs, readOnly, api, fresh = false, 
 
 const s = StyleSheet.create({
   box: { marginVertical: 6, borderRadius: 8 },
-  fresh: { backgroundColor: "var(--accent-wash)" as string },
+  // the quiet highlight after an agent edit: 8px inside on each side, pulled back out so the text stays on the page's edge
+  fresh: { backgroundColor: "var(--accent-wash)" as string, paddingHorizontal: 8, marginHorizontal: -8 },
   head: { flexDirection: "row", alignItems: "center", gap: 8, minHeight: 28, marginBottom: 2 },
   title: { fontSize: 13, fontWeight: "600", color: "var(--ink)" as string, flexShrink: 1 },
   strip: { flexDirection: "row", alignItems: "center", gap: 2, flexShrink: 1 },
@@ -208,7 +209,7 @@ const s = StyleSheet.create({
   over: { backgroundColor: "var(--hover)" as string },
   trail: { flexDirection: "row", alignItems: "center", gap: 8 },
   due: { fontSize: 12, color: "var(--ink-3)" as string },
-  late: { color: "var(--warn)" as string },
+  late: { color: "var(--danger)" as string },
   stateText: { fontSize: 12.5 },
   table: { borderTopWidth: 1, borderTopColor: "var(--line)" as string },
   trow: { flexDirection: "row", alignItems: "center", gap: 10, minHeight: 34, borderBottomWidth: 1, borderBottomColor: "var(--line)" as string, paddingHorizontal: 4 },

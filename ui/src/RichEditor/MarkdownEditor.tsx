@@ -544,7 +544,8 @@ function MarkdownEditorEdit(props: MarkdownEditorProps): ReactElement {
     show(hidden.map((c) => ({ label: tooltip(c.label, c.keys), checked: editor !== null && c.active(editor), onSelect: () => { if (editor) c.run(editor, { link: openLink }); } })), at.x, at.y, "other");
   };
   const styleLabel = TEXT_STYLES.find((s) => s.id === style)?.label ?? "Paragraph";
-  const bar = barOn ? (
+  // on a phone the toolbar sits at the foot of the page: while the "/" menu is open it steps aside, so it never draws across the menu
+  const bar = barOn && !(phone && sg !== null) ? (
     <View style={[st.bar, phone && st.barPhone]} testID="md-bar" accessibilityRole="toolbar" accessibilityLabel="Formatting" {...webProps({ onMouseDown: (e: { target?: { tagName?: string }; preventDefault(): void }) => { if (e.target?.tagName !== "INPUT") e.preventDefault(); } })} onLayout={(e: LayoutChangeEvent) => setBarW(e.nativeEvent.layout.width)}>
       {linkAt !== null ? (
         <View style={st.linkRow} testID="md-link-row">

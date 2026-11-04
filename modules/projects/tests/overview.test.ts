@@ -58,7 +58,7 @@ test("an agent inserts a live invoices block; a member sees only the invoices th
   assert.deepEqual(contractErrors("projects.live_block.query", "out", asLeo), []);
   assert.equal(JSON.stringify(asLeo).includes("INV-3"), false, "the row they may not open is not in the answer");
 });
-const defaultCount = (): number => 7;
+const defaultCount = (): number => 6;
 
 test("undo puts the page back, then the undo can be undone; only the latest change is undone", async () => {
   const h = harness();
@@ -79,7 +79,7 @@ test("undo puts the page back, then the undo can be undone; only the latest chan
   const fresh = harness();
   const q = await mkProject(fresh);
   await refused(run(fresh, "projects.overview_doc.undo", { projectId: q.projectId }), "validation.precondition_failed");
-  assert.equal(before.length, 7);
+  assert.equal(before.length, 6);
 });
 
 test("ops: insert after a block, update, move and delete; a bad op or block is refused and changes nothing", async () => {
@@ -437,4 +437,18 @@ test("amounts in different currencies are never added together: the metric answe
   invoices(h, mixed.slice(0, 2));
   const one = await run(h, "projects.live_block.query", { projectId: p.projectId, type: "metric", spec: { title: "Unpaid", type: "invoice", op: "sum", field: "amount" } });
   assert.deepEqual([one.value, one.unit, one.parts], [4550, "USD", undefined]);
+});
+
+test("a heading never repeats the title of the live block under it, in the default page or any built-in template", async () => {
+  const { BUILTIN_TEMPLATES, defaultBlocks } = await import("../handlers/overview.ts");
+  const pages = [defaultBlocks(), ...BUILTIN_TEMPLATES.map((b) => b.blocks)];
+  for (const blocks of pages) {
+    blocks.forEach((b, i) => {
+      const n = blocks[i + 1];
+      if (b.kind !== "heading" || n?.kind !== "live") return;
+      const title = String((n.live?.spec as { title?: unknown } | undefined)?.title ?? "").trim().toLowerCase();
+      assert.notEqual(title, b.text.trim().toLowerCase(), `"${b.text}" sits above a block with the same title`);
+    });
+  }
+  assert.ok(!BUILTIN_TEMPLATES.find((b) => b.templateId === "tpl_client_account")!.blocks.some((b) => b.kind === "heading" && b.text === "Invoices"));
 });

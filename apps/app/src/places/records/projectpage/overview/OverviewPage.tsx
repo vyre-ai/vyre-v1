@@ -24,7 +24,7 @@ export function OverviewPage(props: OverviewPageProps): ReactElement {
   const [load, setLoad] = useState<Load>({ status: "loading" });
   const [facts, setFacts] = useState<Facts | null>(null);
   const [versions, setVersions] = useState(0);
-  const [types, setTypes] = useState<readonly TypeName[]>(EMPTY);
+  const [types, setTypes] = useState<readonly TypeName[] | null>(null);
   const read = useCallback(async (): Promise<OverviewDoc | null> => {
     try {
       const doc = (await d.call("projects.overview_doc.get", { projectId: props.projectId })) as OverviewDoc;
@@ -36,14 +36,14 @@ export function OverviewPage(props: OverviewPageProps): ReactElement {
   useEffect(() => {
     void Promise.resolve(d.call("projects.overview", { projectId: props.projectId })).then((o) => { const p = (o as { project: Facts }).project; setFacts({ status: p.status, lead: p.lead, start: p.start, due: p.due, health: p.health }); }, () => undefined);
     void Promise.resolve(d.call("projects.overview_doc.history", { projectId: props.projectId, limit: 100 })).then((o) => setVersions((o as { revisions: unknown[] }).revisions.length), () => undefined);
-    void Promise.resolve(d.call("schema.types.list", {})).then((o) => setTypes(((o as { types?: { key: string; title?: string; plural?: string }[] }).types ?? []).map((t) => ({ key: t.key, title: t.title ?? t.key, plural: t.plural ?? t.title ?? t.key }))), () => undefined);
+    void Promise.resolve(d.call("schema.types.list", {})).then((o) => setTypes(((o as { types?: { key: string; title?: string; plural?: string }[] }).types ?? []).map((t) => ({ key: t.key, title: t.title ?? t.key, plural: t.plural ?? t.title ?? t.key }))), () => setTypes(EMPTY));
   }, [d, props.projectId]);
   if (load.status === "loading") return <View testID="overview-loading" style={s.fill}><View style={s.skel} /><View style={[s.skel, { width: "60%" }]} /></View>;
   if (load.status === "gone") return <View testID="overview-gone" style={s.fill}><Text style={s.dim}>The Overview could not be opened. You may not have access to this project.</Text></View>;
   return <Page key={props.projectId} {...props} doc={load.doc} facts={facts} versions={versions} types={types} reload={read} bump={() => setVersions((v) => v + 1)} />;
 }
 
-function Page({ projectId, canEdit, doc, facts, versions, types, reload, bump }: OverviewPageProps & { doc: OverviewDoc; facts: Facts | null; versions: number; types: readonly TypeName[]; reload(): Promise<OverviewDoc | null>; bump(): void }): ReactElement {
+function Page({ projectId, canEdit, doc, facts, versions, types, reload, bump }: OverviewPageProps & { doc: OverviewDoc; facts: Facts | null; versions: number; types: readonly TypeName[] | null; reload(): Promise<OverviewDoc | null>; bump(): void }): ReactElement {
   const d = useProjectPageData();
   // the revision this page is on: the one it was read at, then each save's own (a re-render must not put it back)
   const rev = useRef(doc.rev);
@@ -110,7 +110,7 @@ function Page({ projectId, canEdit, doc, facts, versions, types, reload, bump }:
       const k = kindOf(it.id);
       if (!k) return null;
       const spec = k.spec();
-      if ((it.id === "records" || it.id === "metric") && types[0]) spec["type"] = types[0].key;
+      if ((it.id === "records" || it.id === "metric") && types?.[0]) spec["type"] = types[0].key;
       return liveBlockNode(k.type, spec, k.defaultView);
     },
   } : undefined;

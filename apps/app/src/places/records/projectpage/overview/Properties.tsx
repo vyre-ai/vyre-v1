@@ -9,7 +9,7 @@ import type { Property } from "./model.ts";
 
 export interface Facts { status: string; lead?: string | undefined; start?: number | undefined; due?: number | undefined; health?: string | undefined }
 const HEALTH: Readonly<Record<string, string>> = { on: "On track", risk: "At risk", off: "Off track", hold: "On hold", done: "Done" };
-const STATUS: Readonly<Record<string, string>> = { active: "Active", hold: "On hold", done: "Done" };
+const STATUS: Readonly<Record<string, string>> = { planning: "Planning", active: "Active", hold: "On hold", done: "Done" };
 const day = (ms: number | undefined): string => (ms === undefined ? "" : new Date(ms).toLocaleDateString("en-US", { month: "short", day: "numeric" }));
 
 function Field({ p, canEdit, onSet }: { p: Property; canEdit: boolean; onSet(key: string, text: string): void }): ReactElement {
@@ -28,7 +28,7 @@ export function PropertiesRow({ facts, props, canEdit, onSet, onAdd }: { facts: 
   const d = useProjectPageData();
   const rows: { k: string; node: ReactElement }[] = [];
   if (facts) {
-    rows.push({ k: "Status", node: <Text style={s.val} testID="prop-status">{STATUS[facts.status] ?? facts.status}</Text> });
+    rows.push({ k: "Status", node: <Text style={s.val} testID="prop-status">{STATUS[facts.status] ?? facts.status.charAt(0).toUpperCase() + facts.status.slice(1)}</Text> });
     if (facts.lead) rows.push({ k: "Lead", node: <Text style={s.val} testID="prop-lead">{d.nameOf(facts.lead)}</Text> });
     if (facts.start !== undefined || facts.due !== undefined) rows.push({ k: "Dates", node: <Text style={s.val} testID="prop-dates">{[day(facts.start), day(facts.due)].filter(Boolean).join(" to ")}</Text> });
     if (facts.health) rows.push({ k: "Health", node: <Text style={s.val} testID="prop-health">{HEALTH[facts.health] ?? facts.health}</Text> });
