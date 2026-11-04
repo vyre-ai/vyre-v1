@@ -1,7 +1,7 @@
 // projects module entry (lane L3). The host loads the generated stubs while host/modules.json says `status: 'stub'` and this file once it says `live` (ruling 25).
 import type { Handler } from "../../host/src/invoke.ts";
 import { handlers as table } from "./handlers/index.ts";
-import { grantOnProject } from "./handlers/project.ts";
+import { addAgentMember, grantOnProject } from "./handlers/project.ts";
 import { backfill, onRecordEvent } from "./handlers/folders.ts";
 import { itemOf, offer } from "./handlers/attach.ts";
 import type { Ctx } from "../../packages/contracts/src/ctx.ts";
@@ -9,7 +9,7 @@ import type { Ctx } from "../../packages/contracts/src/ctx.ts";
 export const handlers: Record<string, Handler> = table as unknown as Record<string, Handler>;
 
 export { planCascade, propose } from "./handlers/cascade.ts";
-export { grantOnProject } from "./handlers/project.ts";
+export { addAgentMember, grantOnProject } from "./handlers/project.ts";
 
 /** After `project.created` commits the project is a resource in access: its starting members get their grants on it (the folder and channel were granted while it was made). */
 export const consumers = {
@@ -18,6 +18,14 @@ export const consumers = {
     async run(ctx: Ctx, event: { payload: Record<string, unknown> }): Promise<void> {
       const id = event.payload["projectId"];
       if (typeof id === "string") await grantOnProject(ctx as never, id);
+    },
+  },
+  /** An agent made for a project joins the project's people with the role Member, once the create has committed and the agent is a principal of the Space (consumers are retried). */
+  "projects.agent_member": {
+    on: ["agent.created"],
+    async run(ctx: Ctx, event: { payload: Record<string, unknown> }): Promise<void> {
+      const id = event.payload["agentId"];
+      if (typeof id === "string") await addAgentMember(ctx as never, id);
     },
   },
   /** A new pull request, commit, record or email that a project's rule takes is linked to that project, with the rule's id (handlers/attach.ts). */

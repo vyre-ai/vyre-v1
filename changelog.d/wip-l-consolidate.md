@@ -35,4 +35,4 @@
 - Console > Apps > GitHub: a Needs you row at the top asks the admin to accept new GitHub permissions, with an Accept button.
 - Console > Apps > Connected apps: a custom app you started stays on the list while it is a draft, with a Settings button, so you can come back to finish and publish it. Removing an app from its Settings returns to the list.
 - Console > Computers: an added server's page ends with "Remove this server…". It asks first, says its agent computers stop, their local data is wiped and its access ends at once, then removes it. The Space server has no Remove.
-- An agent made for a project from its Add people and agents sheet is now one of the project's people (role Member), so it is listed with them and a Lead can make it Lead or Reviewer there.
+- An agent made for a project (from the Add sheet, by an agent, by the API or from a template) now joins the project's people as a Member as soon as it is created, so it is listed with them and a Lead can make it Lead or Reviewer there.

@@ -46,7 +46,7 @@ test("a project: people and agents become members, a new agent is agents.create 
     await press(find(root, "as-add"));
     await flush();
     const sets = s.calls.filter((c) => c.cap === "projects.members.set").map((c) => (c.input as { principal: string; role: string }));
-    assert.deepEqual(sets.map((m) => [m.principal, m.role]), [["usr_sara", "member"], ["agt_billing", "member"], ["agt_new", "member"]], "the new agent is made for the project and is one of its people (members.set), so a Lead can give it a role");
+    assert.deepEqual(sets.map((m) => [m.principal, m.role]), [["usr_sara", "member"], ["agt_billing", "member"]]);
     const made = s.calls.find((c) => c.cap === "agents.create")?.input as { name: string; role: string; projectId: string };
     assert.deepEqual([made.name, made.role, made.projectId], ["Checker", "Checks every draft", "pj_0"]);
   });
