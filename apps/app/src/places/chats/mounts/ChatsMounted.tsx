@@ -238,15 +238,15 @@ export function ChatsMounted({ rt, hash = "", initial, window, opened, onSwitch,
   // while the project page frames it
   const projectView = shown.route.view === "project" ? shown.route : null;
   const projectChat = projectView !== null && (projectView.tab === null || projectView.tab === "chat");
-  const [pjChannel, setPjChannel] = useState<{ projectId: string; channelId: string; title?: string } | null>(null);
+  const [pjChannel, setPjChannel] = useState<{ projectId: string; channelId: string; title?: string; why?: string } | null>(null);
   useEffect(() => {
     if (!projectView) return undefined;
     let live = true;
     // the project's channel is shown as its main thread (the thread capabilities refuse a channel id); it is resolved here, so the route stays the project's and the page frames the chat
     let title: string | undefined;
-    const set = (channelId: string): void => { if (live) setPjChannel({ projectId: projectView.projectId, channelId, ...(title ? { title } : {}) }); };
+    const set = (channelId: string, why?: string): void => { if (live) setPjChannel({ projectId: projectView.projectId, channelId, ...(title ? { title } : {}), ...(why ? { why } : {}) }); };
     void Promise.resolve(rt.call("projects.get", { projectId: projectView.projectId })).then(
-      (o) => { const pj = (o as { project: { channelId: string; title?: string } }).project; const channelId = pj.channelId; title = pj.title; void channelThread(rt.call as (cap: string, input: unknown) => Promise<unknown>, channelId).then((r) => set("threadId" in r ? r.threadId : ""), () => set("")); },
+      (o) => { const pj = (o as { project: { channelId: string; title?: string } }).project; const channelId = pj.channelId; title = pj.title; void channelThread(rt.call as (cap: string, input: unknown) => Promise<unknown>, channelId).then((r) => set("threadId" in r ? r.threadId : "", "failure" in r && r.failure.code !== undefined ? r.failure.message : undefined), () => set("", "The project chat could not be read.")); },
       () => set(""),
     );
     return () => { live = false; };
@@ -465,7 +465,7 @@ export function ChatsMounted({ rt, hash = "", initial, window, opened, onSwitch,
 
   // the project's page frames its channel's chat
   if (projectChat && projectView && !pjReady) main = <ProjectScreen key={projectView.projectId} rt={rt} projectId={projectView.projectId} tab={projectView.tab} onTab={(tab) => act({ t: "project", projectId: projectView.projectId, tab })} chatSlot={<ConversationLoading />} />;
-  else if (projectChat && projectView && (route.view === "chat" || route.view === "new")) main = <ProjectScreen key={projectView.projectId} rt={rt} projectId={projectView.projectId} tab={projectView.tab} onTab={(tab) => act({ t: "project", projectId: projectView.projectId, tab })} chatSlot={main} {...(pjChannel?.title ? { title: pjChannel.title } : {})} />;
+  else if (projectChat && projectView && (route.view === "chat" || route.view === "new")) main = <ProjectScreen key={projectView.projectId} rt={rt} projectId={projectView.projectId} tab={projectView.tab} onTab={(tab) => act({ t: "project", projectId: projectView.projectId, tab })} chatSlot={pjChannel?.channelId === "" && pjChannel.why ? <View testID="project-chat-unavailable" style={{ padding: 24 }}><Text style={{ fontSize: 13, color: "var(--ink-3)" }}>{`This project's chat is not available to you: ${pjChannel.why}`}</Text></View> : main} {...(pjChannel?.title ? { title: pjChannel.title } : {})} />;
   const showMain = !(narrow && right !== null);
   return (
     <CrewProvider call={rt.call as (cap: string, input: unknown) => Promise<unknown>} threadId={threadId ?? ""} onShow={() => { if (!shown.pane) go.togglePane(); }}>

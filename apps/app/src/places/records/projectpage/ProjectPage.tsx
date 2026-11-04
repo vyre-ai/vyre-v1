@@ -55,6 +55,7 @@ export function ProjectPage({ projectId, tab: first = DEFAULT_PROJECT_TAB, planV
   const [tab, setTab] = useState<ProjectTabKey>(first);
   useEffect(() => setTab(first), [first]);
   const [note, setNote] = useState<string | null>(null);
+  const [knowsOpen, setKnowsOpen] = useState(false);
   const menu = useMenu();
   const noFrame = useMemo(() => ({ subscribe: () => () => undefined, version: () => 0, get: () => null }), []);
   const frameStore = chatControls ?? noFrame;
@@ -120,7 +121,7 @@ export function ProjectPage({ projectId, tab: first = DEFAULT_PROJECT_TAB, planV
     unarchive: () => { void api.projectUnarchive(projectId).then(() => { setNote("Back in the lists"); void read(); }, say); }, copyLink: () => { copyToClipboard(vyreLink("project", projectId)); setNote("Link copied"); },
   });
   // More is one menu: the project's items, a divider, then the chat's (only on the Chat tab)
-  const moreEntries = (): MenuEntry[] => { const mine = projectEntries(); const theirs = chat ? chat.chatEntries() : []; return theirs.length > 0 ? [...mine, { separator: true } as MenuEntry, ...theirs] : mine; };
+  const moreEntries = (): MenuEntry[] => { const mine = [...projectEntries(), { label: "What Vyre knows", onSelect: () => setKnowsOpen(true) } as MenuEntry]; const theirs = chat ? chat.chatEntries() : []; return theirs.length > 0 ? [...mine, { separator: true } as MenuEntry, ...theirs] : mine; };
   const pick = (k: ProjectTabKey): void => { setTab(k); onTabChange?.(k); };
   const at = (e: unknown): { x: number; y: number } => { const t = (e as { nativeEvent?: { pageX?: number; pageY?: number }; clientX?: number; clientY?: number } | undefined); return { x: t?.clientX ?? t?.nativeEvent?.pageX ?? 24, y: (t?.clientY ?? t?.nativeEvent?.pageY ?? 40) + 12 }; };
   const health = p.health;
@@ -178,7 +179,12 @@ export function ProjectPage({ projectId, tab: first = DEFAULT_PROJECT_TAB, planV
       ) : null}
       {tab === "overview" ? <ProjectOverview projectId={projectId} space={{ ...space, id: d.spaceId ?? space.id }} canEdit={canEdit} admin={d.admin === true} /> : null}
       {tab === "linked" ? <ProjectLinked projectId={projectId} space={{ ...space, id: d.spaceId ?? space.id }} canEdit={canEdit} admin={d.admin === true} /> : null}
-      {tab === "knows" ? <KnowsTab projectId={projectId} space={{ ...space, id: d.spaceId ?? space.id }} canEdit={canEdit} admin={d.admin === true} /> : null}
+      {knowsOpen ? (
+        <View style={s.knowsPane} testID="project-knows-pane" accessibilityLabel="What Vyre knows">
+          <View style={s.knowsHead}><Text accessibilityRole="header" style={s.knowsTitle}>What Vyre knows</Text><IconButton icon="x" label="Close" testID="project-knows-close" onPress={() => setKnowsOpen(false)} /></View>
+          <KnowsTab projectId={projectId} space={{ ...space, id: d.spaceId ?? space.id }} canEdit={canEdit} admin={d.admin === true} />
+        </View>
+      ) : null}
       {note ? <Text style={s.note} accessibilityLiveRegion="polite" testID="project-note">{note}</Text> : null}
       {add.element}
       {people ? <ProjectPeople o={o} projectId={projectId} at={people} onClose={() => setPeople(null)} toOverview={() => { setPeople(null); setTab("overview"); onTabChange?.("overview"); }} menu={menu} reload={() => { void read(); }} say={say} /> : null}
@@ -303,6 +309,9 @@ const s = StyleSheet.create({
   starOn: { color: "var(--warn)" as string },
   pill: { height: 28, flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 8, borderRadius: 8 },
   chev: { fontSize: 12, color: "var(--ink-3)" as string, marginLeft: 2 },
+  knowsPane: { position: "absolute", top: 0, right: 0, bottom: 0, width: "100%", maxWidth: 400, zIndex: 20, backgroundColor: "var(--raised)" as string, borderLeftWidth: 1, borderLeftColor: "var(--line)" as string },
+  knowsHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 24, paddingTop: 16 },
+  knowsTitle: { fontSize: 15, fontWeight: "600", color: "var(--ink)" as string },
   pillText: { fontSize: 12.5, color: "var(--ink-2)" as string },
   dot: { width: 8, height: 8, borderRadius: 4 },
   stack: { flexDirection: "row", marginRight: 2 },

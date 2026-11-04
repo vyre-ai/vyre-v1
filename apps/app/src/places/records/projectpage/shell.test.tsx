@@ -44,7 +44,7 @@ const page = (t: ReturnType<typeof setup>, tab?: ProjectTabKey): JSX.Element => 
 test("the tabs are Chat, Plan, Overview, Linked and Knows, in that order, and the first is Chat", () => {
   assert.deepEqual(PROJECT_TABS.map((t) => t.title), ["Chat", "Plan", "Overview", "Linked", "Knows"]);
   assert.equal(DEFAULT_PROJECT_TAB, "chat");
-  assert.ok(isProjectTab("knows") && !isProjectTab("teammates") && !isProjectTab(undefined));
+  assert.ok(!isProjectTab("knows") && isProjectTab("linked") && !isProjectTab("teammates") && !isProjectTab(undefined));
 });
 
 test("the header: the name, the status the lead set, the lead, the people count; and the tab strip", async () => {
@@ -75,9 +75,11 @@ test("each tab is one press and tells the shell; its body is the one the contrac
     assert.ok(find(root, "tab-overview-selected") && !find(root, "project-overview-stub"), "the Overview body is l-editor's component, not the stub");
     await press(find(root, "tab-linked")); await flush();
     assert.ok(find(root, "linked") || find(root, "linked-empty") || find(root, "project-linked") || textOf(root).includes("Linked"), "the Linked body is l-artifacts' component");
-    await press(find(root, "tab-knows")); await flush();
-    assert.ok(find(root, "project-knows"));
-    assert.deepEqual(t.tabs, ["plan", "overview", "linked", "knows"]);
+    assert.ok(!find(root, "tab-knows"), "Knows is not a tab: it opens in the side pane from More");
+    await press(find(root, "project-more")); await flush();
+    await press(find(root, "menu-item-What Vyre knows")); await flush();
+    assert.ok(find(root, "project-knows-pane") && find(root, "project-knows"), "What Vyre knows opens the pane");
+    assert.deepEqual(t.tabs, ["plan", "overview", "linked"]);
   } finally { off(); }
 });
 
@@ -132,8 +134,10 @@ test("Knows reads memory.place.list for the project and draws what Vyre remember
   try {
     const calls: Array<{ cap: string; input: Record<string, unknown> }> = [];
     const t = setup({ "memory.place.list": (i) => { calls.push({ cap: "memory.place.list", input: i }); return { facts: [{ factId: "fct_1", kind: "decision", text: "Send the retainer Friday", state: "current", said_by: "usr_maya", at: 1_762_000_000_000 - 3_600_000 }] }; } });
-    const root = await mount(createRoot, page(t, "knows"));
+    const root = await mount(createRoot, page(t));
     await flush();
+    await press(find(root, "project-more")); await flush();
+    await press(find(root, "menu-item-What Vyre knows")); await flush();
     assert.deepEqual(calls[0]!.input, { placeKind: "project", placeId: "pj_0", history: true });
     assert.ok(find(root, "knows-row-fct_1"));
     assert.ok(textOf(find(root, "knows-row-fct_1")).includes("Send the retainer Friday"));

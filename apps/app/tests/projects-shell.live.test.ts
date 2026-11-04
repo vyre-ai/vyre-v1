@@ -121,14 +121,16 @@ test("Projects shell: sidebar group, project tab, header, tabs and status, as an
       await p.waitForTimeout(500);
       await ok("Plan");
       await both(p, `projects-3-plan-${who}-${size}`);
-      for (const k of ["overview", "linked", "knows", "chat"]) { await p.getByTestId(`tab-${k}`).click(); await p.waitForTimeout(500); await ok(`the ${k} tab`); }
+      for (const k of ["overview", "linked", "chat"]) { await p.getByTestId(`tab-${k}`).click(); await p.waitForTimeout(500); await ok(`the ${k} tab`); }
       await p.getByTestId("project-chat-main").waitFor({ timeout: 15_000 });
       if (who === "admin" && size === "wide") {
         await p.getByTestId("project-health").click();
         await p.getByTestId("menu-item-At risk").click();
         await p.getByText("At risk").first().waitFor({ timeout: 10_000 });
-        await p.getByTestId("tab-knows").click();
+        await p.getByTestId("project-more").click();
+        await p.getByTestId("menu-item-What Vyre knows").click();
         await p.getByTestId("project-knows").waitFor({ timeout: 10_000 });
+        await p.waitForTimeout(5000);   // the status toast clears first
         await ok("Knows and the status");
         await both(p, `projects-4-knows-${who}-${size}`);
       }
