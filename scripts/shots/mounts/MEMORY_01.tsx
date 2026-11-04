@@ -58,7 +58,7 @@ function Cite(): ReactNode {
     <View testID="memory-cite" style={{ padding: 16, maxWidth: 620, backgroundColor: "var(--win)" as string, minHeight: 500, gap: 6 }}>
       <Text style={{ fontSize: 14, fontWeight: "600", color: "var(--ink)" as string }}>Scout</Text>
       <Text style={{ fontSize: 14, lineHeight: 22, color: "var(--ink)" as string }}>{REPLY}</Text>
-      <ChatMemoryProvider memory={memory as never} threadId="thr_q"><ReplyMemory messageId="msg_q" threadId="thr_q" reply={REPLY} startOpen /></ChatMemoryProvider>
+      <ChatMemoryProvider memory={memory as never} threadId="thr_q"><ReplyMemory messageId="msg_q" threadId="thr_q" reply={REPLY} /></ChatMemoryProvider>
     </View>
   );
 }

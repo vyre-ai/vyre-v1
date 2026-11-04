@@ -58,6 +58,7 @@ function UsedLine({ messageId, used, startOpen }: { messageId: string; used: Use
   const mem = useChatMemory()!;
   const [open, setOpen] = useState(startOpen);
   const menu = useMenu();
+  const openSource = useOpenSource();
   const n = usedCount(used);
   const entries = (x: number, y: number): void => menu.show([
     { label: open ? "Hide Memories" : "Show Memories", onSelect: () => setOpen((o) => !o) },
@@ -73,6 +74,14 @@ function UsedLine({ messageId, used, startOpen }: { messageId: string; used: Use
         <Text style={st.headText}>{usedLabel(n)}</Text>
         <View style={open ? st.flip : undefined}><Icon name="chevd" size={9} color="var(--ink-3)" /></View>
       </Pressable>
+      {!open ? (
+        // rule 7: the citation is on the message itself: who said what the answer rests on, and when, each a chip that jumps to the message
+        <View testID={`mused-chips-${messageId}`} style={st.chips}>
+          {each(used.facts.filter((f) => f.by).slice(0, 1), (f) => (
+            <ChipLink key={f.factId} icon={glyphOf(f.sourceKind)} label={`Remembered from ${f.by === mem.me.id ? "you" : mem.nameOf(f.by!)}, ${ageText(f.at, mem.now())}`} testID={`mused-cite-${f.factId}`} onPress={() => openSource(f)} />
+          ))}
+        </View>
+      ) : null}
       {open ? (
         <View testID={`mused-list-${messageId}`} style={st.list}>
           {each(used.facts, (f, i) => <FactRow key={f.factId} fact={f} first={i === 0} />)}
@@ -182,6 +191,7 @@ const st = StyleSheet.create({
   lessonLine: { alignSelf: "flex-start", flexDirection: "row", alignItems: "center", gap: 8, minHeight: 24, marginTop: 6, paddingLeft: 4, paddingRight: 6, marginLeft: -4, borderRadius: 6 },
   lessonText: { flexShrink: 1, fontSize: 12.5, color: "var(--ink-3)" as string },
   lessonBold: { fontWeight: "500", color: "var(--ink-2)" as string },
+  chips: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 6 },
   list: { alignSelf: "stretch", marginTop: 4, marginBottom: 2, paddingTop: 4, paddingHorizontal: 12, paddingBottom: 8, borderRadius: 12, backgroundColor: "var(--sunk)" as string, boxShadow: "inset 0 0 0 1px var(--line)" } as object,
   item: { flexDirection: "row", columnGap: 8, paddingVertical: 9 },
   itemRule: { borderTopWidth: 1, borderTopColor: "var(--line)" as string },
