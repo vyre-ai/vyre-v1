@@ -130,13 +130,15 @@ test("a finished helper's peek has no Stop and no Ask box; a needs-you helper sa
 
 test("the Island says Working with the faces of the helpers on it, Needs you in amber when one waits, and is gone when none works", async () => {
   const { CrewIsland } = await import("./island.tsx");
-  const { crewChipOf } = await import("./model.ts");
+  const { crewChipOf, islandText } = await import("./model.ts");
   let opened = 0;
   const root = await mount(createRoot, <CrewIsland status={status(three())} onPress={() => { opened += 1; }} />);
-  assert.equal(textOf(find(root, "crew-island-text")), "Needs you");
+  assert.equal(textOf(find(root, "crew-island-text")), "Tess · Needs your OK to read Vendor calls", "it names who and what");
   await press(find(root, "crew-island")); assert.equal(opened, 1);
   const working = await mount(createRoot, <CrewIsland status={status([M({ state: "working" })], T({ members: 1, working: 1, needsYou: 0, done: 0 }))} onPress={() => undefined} />);
   assert.equal(textOf(find(working, "crew-island-text")), "Working");
+  const { islandText } = await import("./model.ts");
+  assert.equal(islandText(status([M({ id: "x", state: "needs_you" }), M({ id: "y", state: "needs_you" })], T({ needsYou: 2 }))), "2 helpers need you");
   const none = await mount(createRoot, <CrewIsland status={status([M({ state: "done" })], T({ members: 1, working: 0, needsYou: 0, done: 1 }))} onPress={() => undefined} />);
   assert.equal(find(none, "crew-island"), null);
   // the header chip counts from the same read
@@ -378,7 +380,7 @@ test("the coders' Review all and Merge sit in the strip header: they appear once
   const working = await mount(createRoot, <CrewStrip members={rows} totals={totals} merge={{ state: "working", onReview: () => undefined, onMerge: () => undefined }} onPeek={() => undefined} />);
   assert.equal(find(working, "crew-strip-merge"), null, "not before they are done");
   const merged = await mount(createRoot, <CrewStrip members={rows} totals={totals} merge={{ state: "merged", onReview: () => undefined, onMerge: () => undefined }} onPeek={() => undefined} />);
-  assert.equal(textOf(find(merged, "crew-strip-merged")), "Merged"); assert.equal(find(merged, "crew-strip-merge"), null);
+  assert.match(textOf(find(merged, "crew-strip-merged")), /Merged/); assert.equal(find(merged, "crew-strip-merge"), null);
 });
 
 test("on a phone the muted 'Assistant's helper' is dropped so the name has the room; the helper's request card wears the helper's own face", async () => {
@@ -388,4 +390,17 @@ test("on a phone the muted 'Assistant's helper' is dropped so the name has the r
   const fs = await import("node:fs");
   const src = fs.readFileSync(new URL("../conversation/approval.tsx", import.meta.url).pathname, "utf8");
   assert.match(src, /seedId=\{face \?\? faceSeed \?\? agentId\}/, "the card's face is the helper's when it has one");
+});
+
+
+test("Review all is the primary button until the crew has been looked at, then it reads Reviewed and Merge is the primary; Merged carries a check", async () => {
+  const calls: string[] = [];
+  const rows = [M({ id: "c1", kind: "teammate" as never, state: "done", branch: "crew/e", found: "Fixed it." })];
+  const root = await mount(createRoot, <CrewStrip members={rows} totals={T({ members: 1, working: 0, done: 1, needsYou: 0 })} merge={{ state: "ready", onReview: () => calls.push("review"), onMerge: () => calls.push("merge") }} onPeek={() => undefined} />);
+  await press(find(root, "crew-strip-review"));
+  assert.equal(find(root, "crew-strip-review"), null); assert.equal(textOf(find(root, "crew-strip-reviewed")), "Reviewed");
+  await press(find(root, "crew-strip-merge"));
+  assert.deepEqual(calls, ["review", "merge"]);
+  const merged = await mount(createRoot, <CrewStrip members={rows} totals={T({ members: 1, working: 0, done: 1, needsYou: 0 })} merge={{ state: "merged", onReview: () => undefined, onMerge: () => undefined }} onPeek={() => undefined} />);
+  assert.match(textOf(find(merged, "crew-strip-merged")), /✓\s*Merged/);
 });

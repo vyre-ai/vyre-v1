@@ -150,10 +150,11 @@ function HelperView(): ReactElement {
         {online ? null : <Text testID="helper-offline" style={st.meta}>Offline</Text>}
       </View>
       {parent ? (
-        <Pressable accessibilityRole="link" accessibilityLabel={`Back to the message that started this helper in ${parent.title}`} testID="helper-started-by"
-          onPress={() => (data.nav.openMessage && thread.parentMessageId ? data.nav.openMessage(parent.threadId, thread.parentMessageId) : data.nav.openThread(parent.threadId))} style={st.startedBy}>
-          <Text numberOfLines={1} style={st.startedByText}>{`Helper chat · started by ${startedBy} in ${parent.title}`}</Text>
-        </Pressable>
+        <View style={st.startedBy}>
+          <Text numberOfLines={1} style={st.startedByPlain}>{`Helper chat · started by ${startedBy} in `}
+            <Text accessibilityRole="link" accessibilityLabel={`Back to the message that started this helper in ${parent.title}`} testID="helper-started-by" onPress={() => (data.nav.openMessage && thread.parentMessageId ? data.nav.openMessage(parent.threadId, thread.parentMessageId) : data.nav.openThread(parent.threadId))} style={st.startedByText}>{parent.title}</Text>
+          </Text>
+        </View>
       ) : null}
       <ScrollView testID="helper-feed" style={{ flex: 1 }} contentContainerStyle={st.feed}>
         <Text style={st.daysep}>{`Helper of ${owner}${parent ? ` · from “${parent.title}”` : ""}`}</Text>
@@ -223,6 +224,7 @@ const st = StyleSheet.create({
   briefHead: { flex: 1, fontSize: 13, fontWeight: "600", color: "var(--ink)" as string },
   briefTop: { flexDirection: "row", alignItems: "center", gap: 8 },
   startedBy: { minHeight: 28, justifyContent: "center", paddingHorizontal: 16 },
+  startedByPlain: { fontSize: 12.5, color: "var(--ink-3)" as string },
   startedByText: { fontSize: 12.5, color: "var(--accent)" as string },
   root: { flex: 1, minHeight: 0, backgroundColor: "var(--win)" as string },
   bar: { minHeight: 44, flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 16, borderBottomWidth: 1, borderBottomColor: "var(--line)" as string },

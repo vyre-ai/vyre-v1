@@ -226,3 +226,11 @@ export function sortedBy<T extends Pick<CrewMember, "state" | "startedAt" | "ela
 
 /** The account a helper runs on, as a person reads it. */
 export const accountWords = (m: Pick<CrewMember, "accountLabel">): string => accountName(m.accountLabel);
+
+/** The Island's words: who needs what when one helper waits ("Read the Pine quote needs your OK to open pine-works.example"), how many when several do, else that they work. */
+export function islandText(status: CrewStatusOut): string {
+  const waiting = status.members.filter((m) => m.state === "needs_you");
+  if (waiting.length === 1) { const m = waiting[0]!; return `${nameOf(m)} · ${lineOf(m)}`; }
+  if (waiting.length > 1) return `${waiting.length} helpers need you`;
+  return "Working";
+}
