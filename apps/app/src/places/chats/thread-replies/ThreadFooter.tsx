@@ -91,8 +91,8 @@ export function ThreadFooter({ s, clock, nameOf, onOpen, mine = false, testID, t
     return (
       <Pressable testID={testID} accessibilityRole="button" accessibilityLabel={`Open the thread: ${f.label}`} onPress={onOpen} style={({ hovered }: { hovered?: boolean }) => [st.line, mine && st.mine, hovered === true && st.over]}>
         <View style={st.face}><Face name={nameOf(s?.lastBy?.id ?? "")} seedId={s?.lastBy?.id} kind="agent" size={18} /></View>
-        <Text testID={`${testID}-waiting`} numberOfLines={1} style={st.doneText}><Text style={st.head}>{f.head}</Text>{f.waiting.line !== "" ? ` \u00b7 ${f.waiting.line}` : ""}</Text>
-        {f.count !== "0 replies" ? <Text testID={`${testID}-count`} style={[st.muted, f.bold && st.bold]}>{`\u00b7 ${f.count}`}</Text> : null}
+        <Text testID={`${testID}-waiting`} numberOfLines={1} style={st.doneText}><Text style={st.warn}>{f.head}</Text>{f.waiting.line !== "" ? ` \u00b7 ${f.waiting.line}` : ""}</Text>
+        {f.count !== "0 replies" ? <Text testID={`${testID}-count`} numberOfLines={1} style={[st.muted, f.bold && st.bold]}>{`\u00b7 ${f.count}`}</Text> : null}
       </Pressable>
     );
   }
@@ -101,7 +101,7 @@ export function ThreadFooter({ s, clock, nameOf, onOpen, mine = false, testID, t
       <Pressable testID={testID} accessibilityRole="button" accessibilityLabel={`Open the thread: Done, ${f.done.line}, ${f.label}`} onPress={onOpen} style={({ hovered }: { hovered?: boolean }) => [st.line, mine && st.mine, hovered === true && st.over]}>
         <View style={st.face}><Face name={nameOf(f.done.agentId)} seedId={f.done.agentId} kind="agent" size={18} /></View>
         <Text testID={`${testID}-done`} numberOfLines={1} style={st.doneText}><Text style={st.head}>Done</Text>{` \u00b7 ${f.done.line}`}</Text>
-        <Text testID={`${testID}-count`} style={[st.muted, f.bold && st.bold]}>{`\u00b7 ${f.count}`}</Text>
+        <Text testID={`${testID}-count`} numberOfLines={1} style={[st.muted, f.bold && st.bold]}>{`\u00b7 ${f.count}`}</Text>
       </Pressable>
     );
   }
@@ -111,21 +111,22 @@ export function ThreadFooter({ s, clock, nameOf, onOpen, mine = false, testID, t
   return (
     <Pressable testID={testID} accessibilityRole="button" accessibilityLabel={`Open the thread: ${f.label}`} onPress={onOpen} style={({ hovered }: { hovered?: boolean }) => [st.line, mine && st.mine, hovered === true && st.over]}>
       <View style={st.face}><Face name={nameOf(who)} seedId={who} kind="agent" size={18} /></View>
-      <Text testID={`${testID}-head`} style={st.working}>{f.head}</Text>
-      {f.count !== "0 replies" ? <Text testID={`${testID}-count`} style={[st.muted, f.bold && st.bold]}>{`\u00b7 ${f.count}`}</Text> : null}
+      <Text testID={`${testID}-head`} numberOfLines={1} style={st.working}>{f.head}</Text>
+      {f.count !== "0 replies" ? <Text testID={`${testID}-count`} numberOfLines={1} style={[st.muted, f.bold && st.bold]}>{`\u00b7 ${f.count}`}</Text> : null}
     </Pressable>
   );
 }
 
 const st = StyleSheet.create({
-  line: { flexDirection: "row", alignItems: "center", gap: 8, alignSelf: "flex-start", marginTop: 6, paddingVertical: 4, paddingHorizontal: 6, marginLeft: -6, borderRadius: 8 },
+  line: { flexDirection: "row", alignItems: "center", gap: 8, alignSelf: "flex-start", maxWidth: "100%", minWidth: 0, flexShrink: 1, marginTop: 6, paddingVertical: 4, paddingHorizontal: 6, marginLeft: -6, borderRadius: 8 },
   mine: { alignSelf: "flex-end" },
   over: { backgroundColor: "var(--hover)" as string },
   face: { flexShrink: 0 },
   doneText: { flexShrink: 1, minWidth: 0, fontSize: 13, color: "var(--ink-2)" as string },
   head: { fontSize: 13, color: "var(--ink)" as string, fontWeight: "500" },
-  working: { fontSize: 13, color: "var(--accent)" as string, fontWeight: "500" },
-  muted: { fontSize: 12.5, color: "var(--ink-3)" as string },
+  working: { fontSize: 13, color: "var(--accent)" as string, fontWeight: "500", flexShrink: 0 },
+  muted: { fontSize: 12.5, color: "var(--ink-3)" as string, flexShrink: 0 },
+  warn: { fontSize: 13, color: "var(--warn)" as string, fontWeight: "500" },
   count: { fontSize: 12.5, color: "var(--accent)" as string, fontWeight: "500" },
   bold: { fontWeight: "700" },
   when: { fontSize: 12, color: "var(--ink-3)" as string },

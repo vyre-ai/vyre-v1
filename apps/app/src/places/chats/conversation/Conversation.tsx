@@ -399,6 +399,8 @@ function ConversationView(): ReactElement {
   const leadDriver = entryOf(accounts, leadNow?.accountRef)?.provider;
   // only the person whose turn it is steers it; anyone else's message goes in after it (the engine holds to this; a turn picked up mid-way names nobody until its next start)
   const runningFor = liveTurns.find((t) => t.state === "writing" && t.agentId === leadNow?.agentId)?.asker;
+  const writingTurn = liveTurns.find((t) => t.state === "writing");
+  const writingName = writingTurn ? nameOf(writingTurn.agentId) : undefined;
   const ownTurn = runningFor === undefined || runningFor === data.me.id;
   const canSteer = ownTurn && !(leadDriver !== undefined && act.CANNOT_STEER.has(leadDriver));   // a chat on Codex or Grok keeps its message queued: they read nothing mid-turn
   const helpers = (helpersQ.status === "loading" ? [] : helpersQ.data.helpers).filter((h) => h.status === "running");
@@ -496,6 +498,7 @@ function ConversationView(): ReactElement {
     openThread: (id) => void act.openMessageThread(data, id).then((tid) => data.nav.openThread(tid), fail("Could not open the replies.")),
     remove: (id) => void act.deleteMessage(data, id).catch(fail("Could not delete it.")),
     ...(data.alsoSent ? { alsoSent: data.alsoSent } : {}),
+    ...(thread.kind === "thread" ? { faceInThread: true } : {}),
     openAgent: data.nav.openAgent,
     openBeside: data.nav.openBeside,
     ...(data.nav.openGoal ? { openGoal: data.nav.openGoal } : {}),
@@ -678,7 +681,7 @@ function ConversationView(): ReactElement {
       ) : null}
       <CatchUpLine onJump={(id) => setFocusId(id)} newest={live[live.length - 1]?.messageId ?? ""} credit={(id) => { const m = all.find((x) => x.author.id === id && onBehalfOf(x)); const ob = m ? onBehalfOf(m) : null; return ob ? `${nameOf(ob.person)} (Agent)` : undefined; }} />
       {note ? <Text testID="conversation-note" style={st.noteLine}>{note}</Text> : null}
-      {thread.kind === "thread" ? <ThreadParent threadId={thread.parentThreadId} messageId={thread.parentMessageId} call={data.call as never} nameOf={nameOf} kindOf={data.kindOf} clock={data.clock()} count={thread.replyCount ?? all.length} onOpen={thread.parentThreadId && thread.parentMessageId ? () => data.nav.openThread(thread.parentThreadId!, thread.parentMessageId!) : undefined} /> : null}
+      {thread.kind === "thread" ? <ThreadParent threadId={thread.parentThreadId} messageId={thread.parentMessageId} call={data.call as never} nameOf={nameOf} kindOf={data.kindOf} clock={data.clock()} count={thread.replyCount ?? all.length} writing={writingName} onOpen={thread.parentThreadId && thread.parentMessageId ? () => data.nav.openThread(thread.parentThreadId!, thread.parentMessageId!) : undefined} /> : null}
 
       {liveView ? null : (
         <View testID="viewing-earlier" accessibilityRole="alert" style={st.earlierBar}>
@@ -695,7 +698,7 @@ function ConversationView(): ReactElement {
                 <TextButton label="Show earlier messages" testID="earlier-button" onPress={() => { if (win.hiddenLocal > 0) setShown((n) => n + WINDOW); else { const c = beforeCursor(all); if (c !== null) setCursor(c); } }} />
               </View>
             ) : null}
-            {items.length === 0 && !data.head ? <States kind="empty" icon="chat" title="Say something to start" /> : null}
+            {items.length === 0 && !data.head && thread.kind !== "thread" ? <States kind="empty" icon="chat" title="Say something to start" /> : null}
             {collect(items, (it) => {
               const key = it.key;
               const stream = it.kind === "other" ? data.streamOf(it.message.messageId) : undefined;

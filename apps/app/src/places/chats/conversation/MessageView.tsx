@@ -94,6 +94,8 @@ export interface MessageActions {
   openThread(messageId: string): void;
   /** In a thread: the messages that were also sent to the chat (a copy from this thread is there). They carry the "Also sent to the chat" mark. */
   alsoSent?: ReadonlySet<string>;
+  /** In a thread: the live "Thinking" line carries the agent's own face, not the product mark. */
+  faceInThread?: boolean;
   remove(messageId: string): void;
   openAgent(agentId: string): void;
   openBeside(kind: string, id: string): void;
@@ -401,7 +403,7 @@ function Mine({ item, actions, sending, mark, replies }: MessageViewProps & { it
       {/* ui-rows-lint: not a list (at most one line saying which thread a copy came from) */}
       {m.blocks.filter((b) => b.type === "from_thread").map((b) => {
         const tid = String((b.data as { threadId?: unknown } | null)?.threadId ?? "");
-        return <Pressable key={b.id} accessibilityRole="link" testID={`from-thread-${m.messageId}`} onPress={() => (tid !== "" ? actions.openMessage?.(tid, "") : undefined)} style={st.fromThreadMine}><Text style={st.edited}>{FROM_THREAD_LINE}</Text></Pressable>;
+        return <Pressable key={b.id} accessibilityRole="link" testID={`from-thread-${m.messageId}`} onPress={() => (tid !== "" ? actions.openMessage?.(tid, "") : undefined)} style={st.fromThreadMine}><Text style={st.fromThread}>{FROM_THREAD_LINE}</Text></Pressable>;
       })}
       <Reactions m={m} a={actions} mine />
       {actions.alsoSent?.has(m.messageId) ? <AlsoSentMark messageId={m.messageId} mine /> : null}
@@ -414,11 +416,19 @@ function Mine({ item, actions, sending, mark, replies }: MessageViewProps & { it
 /* ---------- anyone else's ---------- */
 
 /** An approval asked in a thread rises to the chat as one quiet line: the whole line is a button that opens the thread, where the held card is the newest thing. */
+/** Keyboard focus only: a ring after a click or a tap is noise, so the ring shows when the last thing the person did was press a key. */
+let byKeyboard = false;
+{
+  const doc = (globalThis as { document?: { addEventListener(t: string, f: () => void, c?: boolean): void } }).document;
+  doc?.addEventListener("keydown", () => { byKeyboard = true; }, true);
+  doc?.addEventListener("pointerdown", () => { byKeyboard = false; }, true);
+  doc?.addEventListener("mousedown", () => { byKeyboard = false; }, true);
+}
 const isApprovalUp = (b: { type: string; data?: unknown }): boolean => b.type === "from_thread" && (b.data as { messageId?: unknown } | null)?.messageId === "";
 function ApprovalLine({ id, who, threadId, open }: { id: string; who: string; threadId: string; open(threadId: string): void }): ReactElement {
   return (
     <Pressable testID={`approval-line-${id}`} accessibilityRole="button" accessibilityLabel={`${who} needs your OK. Open the thread`} onPress={() => open(threadId)}
-      style={({ hovered, focused }: { hovered?: boolean; focused?: boolean }) => [st.approvalLine, hovered === true && st.approvalOver, focused === true && st.approvalFocus]}>
+      style={({ hovered, focused }: { hovered?: boolean; focused?: boolean }) => [st.approvalLine, hovered === true && st.approvalOver, focused === true && byKeyboard && st.approvalFocus]}>
       <Text style={st.approvalText}>{`${who} needs your OK in a thread. `}<Text style={st.approvalOpen}>Open the thread</Text></Text>
     </Pressable>
   );
@@ -484,7 +494,7 @@ function Theirs({ item, actions, stream, openWork, mark, meId, replies }: Messag
         </Fold>
       ) : null}
       {stream ? <LiveBody store={stream} hideEmpty={actions.activityOf?.(m.messageId) !== undefined} testID={`body-${m.messageId}`} style={st.body} /> : m.body && !crewCard ? <View testID={`body-${m.messageId}`} style={st.body}><MarkdownBlocks blocks={subjects.blocks} {...(subjects.renderLink || chips.renderLink || citeLink ? { renderLink: ((href, kids, key) => citeLink?.(href, kids, key) ?? chips.renderLink?.(href, kids, key) ?? subjects.renderLink?.(href, kids, key) ?? null) as NonNullable<typeof chips.renderLink> } : {})} {...(renderCode ? { renderCode } : {})} /></View> : null}
-      {stream && actions.activityOf?.(m.messageId) ? <ActivityLine store={actions.activityOf(m.messageId)!} stream={stream} /> : null}
+      {stream && actions.activityOf?.(m.messageId) ? <ActivityLine store={actions.activityOf(m.messageId)!} stream={stream} {...(actions.faceInThread ? { face: <Face name={item.who.name} seedId={item.who.id} kind="agent" size={20} /> } : {})} /> : null}
       {person || stream || m.body === "" ? null : <ReplyMemory messageId={m.messageId} threadId={m.threadId} reply={m.body} part={work ? "cards" : "all"} />}
           {crewStart && actions.openMessage ? <CrewStartLine block={crewStart} name={actions.nameOf ? actions.nameOf(String((crewStart.data as { agentId?: unknown } | null)?.agentId ?? "")) : item.who.name} onOpen={(id) => actions.openMessage?.(id, "")} /> : null}
       {actions.files && refsOf(m).length > 0 ? <MountRefs refs={refsOf(m)} data={actions.files} /> : null}
@@ -515,7 +525,7 @@ function Theirs({ item, actions, stream, openWork, mark, meId, replies }: Messag
         if (isApprovalUp(b)) return <ApprovalLine key={b.id} id={m.messageId} who={item.who.name} threadId={String((b.data as { threadId?: unknown } | null)?.threadId ?? "")} open={(t) => actions.openMessage?.(t, "")} />;
         if (b.type === "from_thread") {
           const tid = String((b.data as { threadId?: unknown } | null)?.threadId ?? "");
-          return <Pressable key={b.id} accessibilityRole="link" testID={`from-thread-${m.messageId}`} onPress={() => (tid !== "" ? actions.openMessage?.(tid, "") : undefined)}><Text style={st.edited}>{typeof (b.data as { messageId?: unknown } | null)?.messageId === "string" && (b.data as { messageId: string }).messageId !== "" ? FROM_THREAD_LINE : "Open the thread"}</Text></Pressable>;
+          return <Pressable key={b.id} accessibilityRole="link" testID={`from-thread-${m.messageId}`} onPress={() => (tid !== "" ? actions.openMessage?.(tid, "") : undefined)}><Text style={st.fromThread}>{typeof (b.data as { messageId?: unknown } | null)?.messageId === "string" && (b.data as { messageId: string }).messageId !== "" ? FROM_THREAD_LINE : "Open the thread"}</Text></Pressable>;
         }
         if (b.type === "crew_strip") {
           const blocks = ((b.data as { blocks?: Array<{ data?: unknown; state?: string }> } | null)?.blocks ?? []);
@@ -722,7 +732,8 @@ export const st = StyleSheet.create({
   approvalLine: { flexDirection: "row", alignItems: "center", gap: 10, alignSelf: "flex-start", marginTop: 4, paddingVertical: 5, paddingHorizontal: 10, marginLeft: -10, borderRadius: 8 },
   approvalOver: { backgroundColor: "var(--hover)" as string },
   approvalFocus: { borderWidth: 2, borderColor: "var(--accent)" as string, paddingVertical: 3, paddingHorizontal: 8 },
-  approvalText: { fontSize: 13, color: "var(--ink-2)" as string },
+  approvalText: { fontSize: 14, lineHeight: 20, color: "var(--ink-2)" as string },
+  fromThread: { fontSize: 12, color: "var(--ink-3)" as string },
   approvalOpen: { color: "var(--accent)" as string, fontWeight: "500" },
   fromThreadMine: { alignSelf: "flex-end", marginTop: 4 },
   day: { alignSelf: "center", fontSize: 12, color: "var(--ink-3)" as string, marginTop: 18, marginBottom: 6 },
