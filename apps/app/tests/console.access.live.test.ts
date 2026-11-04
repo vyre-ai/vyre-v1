@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import type { Page } from "playwright-core";
-import { resolve, sectionOf, tabOf } from "../src/console/shell/sections.ts";
+import { openConsolePage } from "./console-nav.ts";
 import { bootFreshSpace, claimOnEdge, edge, dismissOnboarding} from "./real-app-harness.test.ts";
 
 const KEYS = { personKeyByPassword: "cGVyc29uLWJ5LXBhc3N3b3Jk", publicKey: "cHVibGljLWtleQ==", privateKeyWrapped: "cHJpdmF0ZS13cmFwcGVk", spaceKeys: [{ epoch: 1, wrapped: "c3BhY2Uta2V5LTE=" }] };
@@ -60,14 +60,7 @@ test("production Console Access: People directory, person object, groups, device
     const rolesOf = async (personId: string): Promise<string[]> => (await api("access.principals.get", { principal: { kind: "person", id: personId } })).principal.roles as string[];
 
     /** Reach a Console page through the real navigation: the place in the side list, then its tab, then the view under the tab's text switch. A phone has no Console (it opens on a computer), so every flow here runs at desktop width. */
-    const goPage = async (p: Page, pageId: string): Promise<void> => {
-      const id = resolve(pageId), section = sectionOf(id), tab = tabOf(id);
-      assert.ok(section && tab, `${pageId} has a place in the Console`);
-      await p.getByTestId(`row-nav-${section.id}`).click({ timeout: 60_000 });
-      if (section.tabs.length > 1) await p.getByTestId(`tab-${tab.views[0]!.page}`).click();
-      if (tab.views[0]!.page !== id) await p.getByTestId(`view-${id}`).click();
-      await p.getByTestId(`page-${id}`).waitFor();
-    };
+    const goPage = async (p: Page, pageId: string): Promise<void> => { await openConsolePage(p, pageId); };
     const goPeople = async (p: Page = page): Promise<void> => {
       await p.goto(`${web.origin}/console`, { waitUntil: "load" }); await p.getByTestId("console").waitFor({ timeout: 30_000 });
       await goPage(p, "people"); await p.getByTestId("console-people").waitFor();
