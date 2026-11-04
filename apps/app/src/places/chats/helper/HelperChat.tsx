@@ -123,6 +123,8 @@ function HelperView(): ReactElement {
       );
       continue;
     }
+    // a line with no words and nothing a person reads (only the turn's own bookkeeping) is not a row
+    if (m.body.trim() === "" && !hasWork && !note && m !== messages[0]) continue;
     const byPerson = m.author.id.startsWith("usr_");
     // the helper speaks as itself, with its own name and face, not as the agent it runs as
     const isHelperVoice = m.author.id === agentId;

@@ -188,11 +188,13 @@ export function CrewPeek({ member, call, nameOfId, onBack, onOpenChat, onRefresh
       {member.state === "failed" || member.state === "stopped" ? <Text testID="crew-peek-line" style={st.rowLine}>{lineOf(member)}</Text> : null}
       <Text style={st.section}>Brief from {brief ? (nameOfId?.(brief.authorId) ?? "the agent") : "the agent"}</Text>
       <View style={st.brief}><Text testID="crew-peek-brief" style={st.briefText}>{brief?.body ?? member.title}</Text></View>
-      {steps.length > 0 || (member.state === "working" && member.step) ? <Text style={st.section}>Steps</Text> : null}
+      {steps.length > 0 || member.state === "working" || member.state === "needs_you" ? <Text style={st.section}>Steps</Text> : null}
+      {steps.length === 0 && !member.step && (member.state === "working" || member.state === "needs_you") ? <View style={st.step}><View style={[st.stepDot, { backgroundColor: "var(--accent)" as string }]} /><Text testID="crew-peek-step-start" style={st.rowLine}>Getting started</Text></View> : null}
       {/* ui-rows-lint: not a list (what the helper has done, in order: a quiet log of plain-word steps, nothing to press) */}
       {steps.slice(-6).map((x) => <View key={x.id} testID={`crew-step-${x.id}`} style={st.step}><View style={[st.stepDot, x.state === "live" && { backgroundColor: "var(--accent)" as string }]} /><Text numberOfLines={1} style={st.rowLine}>{x.title}{x.sub ? ` · ${x.sub}` : ""}</Text></View>)}
       {member.state === "working" && member.step && !steps.some((x) => x.state === "live") ? <View style={st.step}><View style={[st.stepDot, { backgroundColor: "var(--accent)" as string }]} /><Text testID="crew-peek-step" numberOfLines={1} style={st.rowLine}>{member.step}</Text></View> : null}
-      {member.model ? <><Text style={st.section}>Runs on</Text><Text testID="crew-peek-model" style={st.rowLine}>{modelTag(member)}{member.accountLabel ? ` · ${accountName(member.accountLabel)}` : ""}</Text></> : null}
+      <Text style={st.section}>Runs on</Text>
+      <Text testID="crew-peek-model" style={st.rowLine}>{member.model ? `${modelTag(member)}${member.accountLabel ? ` · ${accountName(member.accountLabel)}` : ""}` : "The same model as the chat"}</Text>
       {live || member.state === "failed" || member.state === "stopped" ? <ChangeModel member={member} call={call} onDone={onRefresh} /> : null}
       <HelperHooksSection threadId={member.id} call={call} lead={brief ? (nameOfId?.(brief.authorId) ?? "the agent") : "the agent"} name={nameOf(member)} />
       {member.found ? <><Text style={st.section}>Answer</Text><Text testID="crew-peek-answer" style={st.rowLine}>{member.found}</Text></> : null}

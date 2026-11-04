@@ -403,3 +403,23 @@ test("Review all is the primary button until the crew has been looked at, then i
   const merged = await mount(createRoot, <CrewStrip members={rows} totals={T({ members: 1, working: 0, done: 1, needsYou: 0 })} merge={{ state: "merged", onReview: () => undefined, onMerge: () => undefined }} onPeek={() => undefined} />);
   assert.match(textOf(find(merged, "crew-strip-merged")), /✓\s*Merged/);
 });
+
+
+test("a working peek always carries Steps and Runs on, even before the first step or a known model", async () => {
+  const call = async (cap: string): Promise<unknown> => (cap === "chat.helper.notes" ? { notes: [{ messageId: "m1", who: "brief", authorId: "agt_1", body: "Read it." }] } : {});
+  const root = await mount(createRoot, <CrewPeek member={M({ id: "thr_n", state: "working", step: undefined, model: undefined })} call={call} onBack={() => undefined} onOpenChat={() => undefined} onRefresh={() => undefined} />);
+  await flush();
+  const text = textOf(find(root, "crew-peek")).replace(/\s+/g, " ");
+  assert.match(text, /Steps/); assert.match(text, /Getting started/); assert.match(text, /Runs on/); assert.match(text, /The same model as the chat/);
+  assert.ok(find(root, "crew-peek-change-model"));
+});
+
+test("a helper chat line with no words and only the turn's bookkeeping is not drawn as a blank reply row", async () => {
+  const { HelperChat } = await import("../helper/HelperChat.tsx");
+  const { createSample } = await import("../helper/sample.ts");
+  const s = createSample("notes");
+  s.replica.put("messages", [{ id: "m_blank", messageId: "m_blank", threadId: s.data.threadId, threadSeq: 9, author: { kind: "agent", id: "agt_scout" }, kind: "agent", body: "", blocks: [{ type: "turn_status", v: 1, id: "ts1", data: { state: "done" }, state: "done", traceId: "t" }], depth: 0, attachments: [], reactions: [], pinned: false, createdAt: 1 } as never]);
+  const root = await mount(createRoot, <HelperChat data={s.data} />);
+  await flush(); await flush();
+  assert.equal(find(root, "msg-m_blank"), null);
+});
