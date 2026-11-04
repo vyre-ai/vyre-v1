@@ -9,6 +9,7 @@ import { askerOf, ensure, membersOf, refOf, threadBy } from "../projections.ts";
 import type { ChatCtx, ThreadRec } from "../projections.ts";
 import { ensureTranscript, seenRows } from "./g24d.ts";
 import { rootOf } from "./post.ts";
+import { readFloor } from "./floor.ts";
 
 type Row = Record<string, unknown>;
 
@@ -115,6 +116,8 @@ export async function historySearch(ctx: ChatCtx, input: HistoryInput): Promise<
       if (thread === input.excludeThreadId) continue;
       const t = open(thread);
       if (!t) continue;
+      // a person added without earlier messages never finds them by searching
+      if (Number(r["createdAt"] ?? 0) < readFloor(ctx, t)) continue;
       const body = String(r["body"] ?? "");
       const s = scoreOf(body, terms, phrase);
       if (s < need) continue;
@@ -142,6 +145,7 @@ export async function historySearch(ctx: ChatCtx, input: HistoryInput): Promise<
       if (thread === input.excludeThreadId) continue;
       const t = open(thread);
       if (!t) continue;
+      if (Number(r["at"] ?? 0) < readFloor(ctx, t)) continue;
       const text = jsonText(r["content"]);
       if (text === "" || /^enc2\./.test(text)) continue;
       const s = scoreOf(text, terms, phrase);
@@ -183,7 +187,7 @@ function byRef(ctx: ChatCtx, ref: string, open: (id: string) => ThreadRec | null
     const own = seenRows(ctx);
     const r = (ctx.db.all(`SELECT * FROM chat_transcript_row r WHERE thread = ? AND idx = ? AND ${own.sql}`, step[1], Number(step[2]), ...own.args) as Row[])[0];
     const t = r ? open(String(r["thread"])) : null;
-    if (!r || !t) return [];
+    if (!r || !t || Number(r["at"] ?? 0) < readFloor(ctx, t)) return [];
     const text = jsonText(r["content"]);
     const kind = String(r["kind"]);
     const isStep = String(r["role"]) === "tool" || kind === "tool_call" || kind === "tool_result";
@@ -194,7 +198,7 @@ function byRef(ctx: ChatCtx, ref: string, open: (id: string) => ThreadRec | null
   }
   const m = (ctx.db.all("SELECT * FROM chat_message WHERE id = ? AND deleted_at IS NULL", ref) as Row[])[0];
   const t = m ? open(String(m["thread"])) : null;
-  if (!m || !t) return [];
+  if (!m || !t || Number(m["createdAt"] ?? 0) < readFloor(ctx, t)) return [];
   const body = String(m["body"] ?? "");
   if (/^enc2\./.test(body)) return [];
   return [{

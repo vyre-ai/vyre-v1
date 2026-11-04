@@ -170,10 +170,11 @@ test("threads.add_agent and remove_agent: modes, one lead, events, and who may c
   assert.deepEqual(assertEventsConform(hn), []);
 });
 
-test("threads.members.add and remove: a private chat offers a channel; a channel adds, removes, keeps its last person", async () => {
+test("threads.members.add and remove: a private chat gains a person (a group chat); a channel adds, removes, keeps its last person", async () => {
   const hn = harness();
   const chat = await chatOf(hn);
-  await refused("threads.members.add", hn.ctx, { threadId: chat, personId: LEO }, "validation.precondition_failed");
+  const grown = (await ok("threads.members.add", hn.ctx, { threadId: chat, personId: LEO })).thread;
+  assert.ok(grown.members.some((m: any) => m.id === LEO), "a private chat gains people now (owner ruling, 4 Nov 2026)");
   const ch = await channelOf(hn);
   hn.clear();
   const t = (await ok("threads.members.add", hn.ctx, { threadId: ch.mainThreadId, personId: LEO })).thread;

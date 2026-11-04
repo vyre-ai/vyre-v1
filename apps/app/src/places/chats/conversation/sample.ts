@@ -37,7 +37,7 @@ function build(variant: Variant): { thread: Thread; messages: Message[]; helpers
   const agents: Thread["agents"] = variant === "nolead" || variant === "channel"
     ? [{ agentId: "agt_intake", mode: "listen", model: "opus" }, { agentId: "agt_docs", mode: "listen", model: "sonnet" }]
     : [{ agentId: "agt_intake", mode: "lead", model: "opus" }, { agentId: "agt_docs", mode: "listen", model: "sonnet" }];
-  const thread: Thread = { ...base, agents, ...(variant === "closed" ? { closedAt: at(9, 50) } : {}), ...(variant === "channel" ? { kind: "channel" as Thread["kind"], title: "intake" } : {}) };
+  const thread: Thread = { ...base, agents, ...(variant === "closed" ? { closedAt: at(9, 50) } : {}), ...(variant === "channel" ? { kind: "channel" as Thread["kind"], title: "intake", channelId: "ch_intake" } : {}) };
   let seq = 0;
   const m = (id: string, author: { kind: "person" | "agent"; id: string }, body: string, createdAt: number, o: Partial<Message> = {}): Message => ({
     messageId: id, threadId: "c1", threadSeq: ++seq, author, kind: author.kind === "agent" ? "agent" : "text", body, blocks: [], depth: 0, attachments: [], reactions: [], pinned: false, createdAt, ...o,
@@ -168,7 +168,7 @@ export interface Sample {
   push(delta: string): void;
 }
 
-export interface SampleOptions { online?: boolean; streamText?: string; /** the chat's stored title (the sample has "Rivera intake"; "" is a chat with none yet) */ title?: string; /** the chat's members, in place of the sample's (a group chat for the header faces) */ members?: Thread["members"] }
+export interface SampleOptions { online?: boolean; streamText?: string; /** the chat's stored title (the sample has "Rivera intake"; "" is a chat with none yet) */ title?: string; /** the chat's members, in place of the sample's (a group chat for the header faces) */ members?: Thread["members"]; /** The signed-in person can only view this chat: they may add viewers, not members. */ viewOnly?: boolean }
 
 const HELD_TEXT = "I read the standard engagement letter and filled in the **consult fee** from the fee schedule. Two things need your eye:\n\n1. The retainer is `$2,500`, which Maya has not confirmed\n2. Elena's address is the old one from the web form";
 
@@ -238,6 +238,43 @@ export function createSample(variant: Variant = "idle", o: SampleOptions = {}): 
     "chat.approve_plan": () => {
       for (const m of msgRows()) if (m.blocks.some((b) => b.type === "plan" && b.state === "waiting")) putMsg({ ...m, blocks: m.blocks.map((b) => (b.type === "plan" ? { ...b, state: "live" as const } : b)) });
       return { ok: true };
+    },
+    // the Add people and agents sheet (lane l-addsheet): the directory it reads and the calls it makes
+    "threads.get": () => { const { id: _id, ...rest } = threadRow(); return { thread: rest as Thread }; },
+    "access.principals.list": () => ({ principals: [
+      { id: "usr_irfad", kind: "person", name: "You", status: "active", roles: [], groups: [], createdAt: SAMPLE_NOW },
+      { id: "usr_maya", kind: "person", name: "Maya Chen", status: "active", roles: [], groups: [], title: "Partner", createdAt: SAMPLE_NOW },
+      { id: "usr_omar", kind: "person", name: "Omar Haddad", status: "active", roles: [], groups: [], title: "Operations", createdAt: SAMPLE_NOW },
+    ] }),
+    "agents.list": () => ({ agents: ["agt_intake", "agt_docs", "agt_research", "agt_scout", "agt_billing", "out_cc"].map((id, n) => ({ agentId: id, name: id === "out_cc" ? "Claude Code" : NAMES[id] ?? id, kind: "agent", ...(id === "out_cc" ? { runtime: "outside" } : {}), face: id, status: "awake", ownerId: "usr_irfad", folderId: "fld", accountPolicy: "asker", accountFallback: [], toolsAllowed: [], toolsDenied: [], vaultKeys: [], limits: {}, captureMode: "auto", hasComputer: false, templateVersion: 1, createdAt: SAMPLE_NOW, lastActiveAt: SAMPLE_NOW - n })) }),
+    "mcp.connected.list": () => ({ agents: [{ agentId: "out_cc", clientName: "Claude Code", connectedAt: SAMPLE_NOW, calls: 0 }] }),
+    "mcp.connected.link": () => ({ url: "https://northwind.vyre.run/mcp", claudeCode: "claude mcp add --transport http vyre https://northwind.vyre.run/mcp" }),
+    "access.check": (i: { action: { level: string } }) => ({ decision: { effect: o.viewOnly === true && i.action.level !== "view" ? "deny" : "allow", reason: "", steps: [], decisionId: "dec_1" } }),
+    "channels.get": () => ({ channel: { channelId: "ch_intake", mainThreadId: thread.threadId, name: "intake", visibility: "invite", archived: false, members: threadRow().members, agents: threadRow().agents } }),
+    "channels.members.add": () => ({ ok: true }),
+    "threads.members.add": (i: { personId: string }) => { const cur = threadRow(); setThread({ members: [...cur.members, { kind: "person", id: i.personId }] }); return { thread: threadRow() }; },
+    "threads.agent_settings.set": (i: { agentId: string; mode?: "lead" | "listen" | "quiet"; when?: "always" | "topics" | "hours"; topics?: string | null; style?: "short" | "full" }) => {
+      const cur = threadRow();
+      setThread({ agents: cur.agents.map((a) => (a.agentId !== i.agentId ? (i.mode === "lead" && a.mode === "lead" ? { ...a, mode: "listen" as const } : a) : { ...a, ...(i.mode !== undefined ? { mode: i.mode === "lead" ? ("lead" as const) : ("listen" as const), quiet: i.mode === "quiet" } : {}), ...(i.when !== undefined ? { when: i.when } : {}), ...(i.style !== undefined ? { style: i.style } : {}) })) });
+      return { thread: threadRow() };
+    },
+    "threads.agent.create": (i: { name: string; mode?: "lead" | "listen" | "quiet" }) => {
+      const cur = threadRow();
+      const id = `agt_new${++counter}`;
+      NAMES[id] = i.name;
+      KINDS[id] = "agent";
+      setThread({ agents: [...cur.agents, { agentId: id, mode: "listen", quiet: i.mode === "quiet", owned: true }], members: [...cur.members, { kind: "agent", id }] });
+      return { thread: threadRow(), agentId: id };
+    },
+    "threads.outside_agent.add": (i: { agentId: string }) => { const cur = threadRow(); NAMES[i.agentId] = "Claude Code"; setThread({ agents: [...cur.agents, { agentId: i.agentId, mode: "listen" }], members: [...cur.members, { kind: "agent", id: i.agentId }] }); return { thread: threadRow() }; },
+    "threads.outside_agent.remove": (i: { agentId: string }) => { const cur = threadRow(); setThread({ agents: cur.agents.filter((a) => a.agentId !== i.agentId), members: cur.members.filter((m) => m.id !== i.agentId) }); return { thread: threadRow() }; },
+    "threads.invite_guest": () => ({ inviteId: "inv_1", link: "https://northwind.vyre.run/join/inv_1" }),
+    "threads.poke": (i: { agentId: string; note?: string }) => {
+      const prev = msgRows();
+      const seq = (prev[prev.length - 1]?.threadSeq ?? 0) + 1;
+      putMsg({ messageId: `poke_${++counter}`, threadId: thread.threadId, threadSeq: seq, author: { kind: "person", id: "usr_irfad" }, kind: "quiet", body: `You poked ${NAMES[i.agentId] ?? i.agentId}`, blocks: [{ type: "poke", v: 1, id: `bp_${counter}`, data: { agentId: i.agentId, by: "usr_irfad" }, state: "done", traceId: "tr_poke" }], depth: 0, attachments: [], reactions: [], pinned: false, createdAt: SAMPLE_NOW } as Message);
+      putMsg({ messageId: `pokeR_${counter}`, threadId: thread.threadId, threadSeq: seq + 1, author: { kind: "agent", id: i.agentId }, kind: "agent", body: "Here is where it stands: the letter is drafted and waiting on Maya.", blocks: [{ type: "poked", v: 1, id: `bq_${counter}`, data: { agentId: i.agentId, by: "usr_irfad" }, state: "done", traceId: "tr_poke" }], depth: 0, attachments: [], reactions: [], pinned: false, createdAt: SAMPLE_NOW + 1000 } as Message);
+      return { messageId: `poke_${counter}`, delivered: "engine" };
     },
     "engine.interrupt": () => ({ ok: true }),
     "engine.models.list": () => ({ models: [

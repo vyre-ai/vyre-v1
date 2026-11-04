@@ -1388,6 +1388,12 @@
     },
     {
       "deferred": false,
+      "name": "chat_history_page",
+      "summary": "Older messages and tool calls of THIS chat before a given message number, at most 100 at a time, oldest first inside the page; the agent reads further back than the window it was given. It refuses any other chat than the one the agent is working in",
+      "toolset": "chats"
+    },
+    {
+      "deferred": false,
       "name": "chat_make_task",
       "summary": "Turn a message into a task: the title is its first line, the task points back at it and a \"Task created\" card in the thread links to the task. An agent may do it for the person it acts for",
       "toolset": "chats"
@@ -1444,6 +1450,12 @@
       "deferred": false,
       "name": "chat_react",
       "summary": "Add or remove a reaction",
+      "toolset": "chats"
+    },
+    {
+      "deferred": false,
+      "name": "chat_read_floor",
+      "summary": "Where the caller's reading of one chat starts: the time they were added without Include earlier messages, or nothing when they read all of it. The engine tells an agent so before it answers them",
       "toolset": "chats"
     },
     {
@@ -8978,6 +8990,18 @@
     },
     {
       "deferred": false,
+      "name": "threads_agent_create",
+      "summary": "Make an agent for this chat or channel and add it as listening in one step: a name, a one-line brief (use me for) and a model. It belongs to the chat: it is not on the Agents page, and it is removed with the chat or when it is removed from it",
+      "toolset": "chats"
+    },
+    {
+      "deferred": false,
+      "name": "threads_agent_settings_set",
+      "summary": "Set how and when one agent answers in one chat: mode lead (answers everything), listen (when tagged) or quiet (listening, posts only when poked); when always, topics or hours; topics, hours and style (short or full). A tag or a poke still reaches an agent that is not quiet",
+      "toolset": "chats"
+    },
+    {
+      "deferred": false,
       "name": "threads_archive",
       "summary": "Archive a chat for me: it leaves my list and waits in my Archived section; the others in a group chat still see it. New messages do not bring it back, an @mention of me does",
       "toolset": "chats"
@@ -9002,6 +9026,12 @@
     },
     {
       "deferred": false,
+      "name": "threads_invite_guest",
+      "summary": "Invite someone by email as a guest of this channel chat only: no files folder, no records, no other chats. level view reads, reply also writes. Only the channel owner or a manager invites; a private chat becomes a channel first",
+      "toolset": "chats"
+    },
+    {
+      "deferred": false,
       "name": "threads_list",
       "summary": "List threads by kind, folder, scope or record; or the threads I am in, newest reply first",
       "toolset": "chats"
@@ -9021,13 +9051,31 @@
     {
       "deferred": false,
       "name": "threads_members_add",
-      "summary": "Add a person to a thread; a private chat never gains people, so this offers a channel instead",
+      "summary": "Add a person to a thread. A private chat becomes a group chat: the newcomer reads from now on unless fromStart is true (Include earlier messages), a goal chat shows its history, and agents stop using the asker's private profile there. A chat's own agents become visible to the newcomer.",
       "toolset": "chats"
     },
     {
       "deferred": false,
       "name": "threads_members_remove",
       "summary": "Remove a person from a thread",
+      "toolset": "chats"
+    },
+    {
+      "deferred": false,
+      "name": "threads_outside_agent_add",
+      "summary": "Bring an outside agent into this chat with exactly this chat, its project, files folder and record, each tagged with the chat; it shows as \"<person> (Agent)\" and removing it ends access at once. You can only give what you hold",
+      "toolset": "chats"
+    },
+    {
+      "deferred": false,
+      "name": "threads_outside_agent_remove",
+      "summary": "Take an outside agent out of this chat and end every grant that bringing it in gave, at once",
+      "toolset": "chats"
+    },
+    {
+      "deferred": false,
+      "name": "threads_poke",
+      "summary": "Poke an agent: one turn for it now, even if it is listening. It reads the last 12 messages and tool calls, answers the poker, and its reply carries \"Poked by <person>\". An outside agent gets the poke in its queue",
       "toolset": "chats"
     },
     {
