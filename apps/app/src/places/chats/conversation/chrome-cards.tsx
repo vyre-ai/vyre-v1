@@ -51,14 +51,14 @@ export function stepCardOf(data: unknown): StepCardData | null {
   return { agent: str(d["agent"], 60) || "An agent", site, thumb: typeof d["thumb"] === "string" && THUMB.test(d["thumb"]) ? d["thumb"] : null, state, saw, open: d["open"] === true, goal: str(d["goal"], 200), steps: (Array.isArray(d["steps"]) ? d["steps"] : []).slice(0, 21).flatMap((x) => { const o = (x && typeof x === "object" ? x : {}) as Record<string, unknown>; const text = str(o["text"], 200); return text ? [{ text, state: (o["state"] === "done" || o["state"] === "waiting" ? o["state"] : "todo") as "done" | "waiting" | "todo" }] : []; }) };
 }
 
-/** What the button and the card call the act: Send, Post, Pay or Delete. */
-export function verbOf(kind: string): { do: string; dont: string; what: string } {
+/** What the card calls the act: Send, Post, Pay or Delete (the buttons are Allow and Deny, the one approval vocabulary). */
+export function verbOf(kind: string): { do: string; what: string } {
   switch (kind) {
-    case "post": return { do: "Post", dont: "Don't post", what: "post this" };
-    case "payment": return { do: "Pay", dont: "Don't pay", what: "make this payment" };
-    case "delete": return { do: "Delete", dont: "Don't delete", what: "delete this" };
-    case "send": return { do: "Send", dont: "Don't send", what: "send this" };
-    default: return { do: "Go ahead", dont: "Don't", what: "do this" };
+    case "post": return { do: "Post", what: "post this" };
+    case "payment": return { do: "Pay", what: "make this payment" };
+    case "delete": return { do: "Delete", what: "delete this" };
+    case "send": return { do: "Send", what: "send this" };
+    default: return { do: "Go ahead", what: "do this" };
   }
 }
 
@@ -76,12 +76,12 @@ export function HeldSendCard({ id, data, agentId, agentName, actions }: { id: st
   if (h.from) fields.push(["From", h.from]);
   if (h.site) fields.push(["Where", `${h.site}, in your Chrome`]);
   const body = shown.message || (h.summary ? h.summary : "Something is waiting for you in Chrome.");
-  // the one held card (held-card.tsx): To is the recipient, the Message is the body; what Send, Edit and Don't send do is Chrome's (the extension writes the edits into the page, then presses)
+  // the one held card (held-card.tsx): To is the recipient, the Message is the body; what Allow, Edit and Deny do is Chrome's (the extension writes the edits into the page, then presses)
   return (
     <HeldCard
       testID={`chrome-held-${id}`} agent={h.agent} to={shown.to ? [{ name: shown.to, seed: shown.to, kind: "person" }] : []} verb={shown.to && h.kind === "send" ? `send this to ${shown.to}` : v.what}
       subject={shown.subject || undefined} fields={fields} body={body} edited={saved !== null} state={h.state === "sent" ? "sent" : h.state === "dropped" ? "dropped" : "waiting"}
-      doneLine={h.state === "dropped" ? `Not sent. ${h.agent} was told.` : undefined} editable={Boolean(actions)} editTo editSubject sendLabel={v.do} dropLabel={v.dont} stoppedNote={`${h.agent} stopped before ${v.do}`}
+      doneLine={h.state === "dropped" ? `Not sent. ${h.agent} was told.` : undefined} editable={Boolean(actions)} editTo editSubject stoppedNote={`${h.agent} stopped before ${v.do}`}
       onSend={async () => { await (actions as ChromeCardActions).send(ref, saved ? { to: saved.to, subject: saved.subject, message: saved.message } : undefined); }}
       onSave={async (e) => { setSaved({ to: e.to ?? h.to, subject: e.subject ?? h.subject, message: e.body }); }}
       onDrop={async (reason) => { await (actions as ChromeCardActions).drop(ref, reason || undefined); }}

@@ -1,4 +1,4 @@
-// The two cards an agent in the person's own Chrome leaves in a chat: the held send with To, From, Subject and Message and Send, Edit, Don't send; and "Using your Chrome" with a masked picture,
+// The two cards an agent in the person's own Chrome leaves in a chat: the held send with To, From, Subject and Message and Allow, Edit, Deny; and "Using your Chrome" with a masked picture,
 // Watch and Take over. They read only their own data, a picture only as the extension's own data image, and they draw in a message through the same path as any card.
 import test from "node:test";
 import assert from "node:assert/strict";
@@ -21,11 +21,11 @@ test("a held block reads To, From, Subject and Message from the extension's card
   assert.equal(heldCardOf({ ...HELD, state: "sent" })?.state, "sent");
 });
 
-test("the words follow the act: Send, Post, Pay or Delete, and the matching Don't", () => {
-  assert.deepEqual(verbOf("send"), { do: "Send", dont: "Don't send", what: "send this" });
-  assert.equal(verbOf("post").dont, "Don't post");
+test("the card names the act: Send, Post, Pay or Delete; the buttons are Allow and Deny whatever the act", () => {
+  assert.deepEqual(verbOf("send"), { do: "Send", what: "send this" });
+  assert.equal(verbOf("post").do, "Post");
   assert.equal(verbOf("payment").do, "Pay");
-  assert.equal(verbOf("delete").dont, "Don't delete");
+  assert.equal(verbOf("delete").do, "Delete");
   assert.equal(verbOf("form").do, "Go ahead");
 });
 
@@ -37,7 +37,8 @@ test("the held card draws the four fields and three buttons; once answered it sa
   assert.match(t, /Scout stopped before Send/);
   for (const w of ["From", "olivia@firm.test", "Subject", "Your signed deed", "Hi Dana, the signed deed is attached."]) assert.ok(t.includes(w), w);
   for (const id of ["send", "edit", "drop"]) assert.match(open, new RegExp(`chrome-held-b1-${id}`));
-  assert.match(t, /Don't send/);
+  assert.match(t, /Allow Edit Deny/);
+  assert.doesNotMatch(t, /Don't send/);
   const sent = renderToStaticMarkup(<HeldSendCard id="b1" data={{ ...HELD, state: "sent" }} agentId="agt_scout" />);
   assert.match(flat(sent), /Sent/);
   assert.ok(!/chrome-held-b1-send/.test(sent));

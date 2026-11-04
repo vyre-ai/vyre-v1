@@ -70,7 +70,7 @@ export function goalsCall(base: (cap: string, input: unknown) => Promise<unknown
     if (cap === "goals.get") return i["goalId"] === "gol_lab8" ? page : { ...page, goal: { ...page.goal, ...lines.find((l) => l.id === i["goalId"]) } };
     if (cap === "goals.activity") return { activity: page.activity };
     if (cap === "files.list" && i["folder"] === "fld_goal") return { files: [{ fileId: "fil_r1", name: "Reel 1, the three questions.mp4" }, { fileId: "fil_r2", name: "Reel 2, before and after.mp4" }, { fileId: "fil_csv", name: "Lab 7 not registered.csv" }], folders: [{ folderId: "fld_drafts", name: "Drafts" }, { folderId: "fld_research", name: "Research" }] };
-    if (cap === "tasks.get" && i["taskId"] === "tsk_hold") return { task: { id: "tsk_hold", kind: "approve", state: "awaiting_approval", actions: [{ key: "approve", label: "Approve" }], blocks: [] } };
+    if (cap === "tasks.get" && i["taskId"] === "tsk_hold") return { task: { id: "tsk_hold", kind: "approve", state: "awaiting_approval", actions: [{ key: "approve", label: "Allow" }], blocks: [] } };
     if (cap === "tasks.get" && i["taskId"] === "tsk_ask") return { task: { id: "tsk_ask", kind: "answer", state: "todo", actions: [{ key: "answer", label: "Answer" }], blocks: [{ type: "question", data: { options: ["Yes, them too", "Only attendees"] } }] } };
     if (cap.startsWith("goals.")) return { goal: page.goal };
     return base(cap, input);

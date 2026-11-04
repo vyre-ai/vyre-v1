@@ -203,7 +203,7 @@ test("a calendar event holds as an event card: the title, when in both zones, th
   assert.ok(find(root, "approval-tsk_1-fold"), "the agenda is folded");
   assert.ok(!t.includes("the deed"), "and closed until opened");
   for (const raw of ["Summary", "Description", "Location", "Send updates", "sendUpdates", "google", "Google", "conference"]) assert.ok(!t.includes(raw), `${raw} is not on the card`);
-  assert.equal(textOf(find(root, "approval-tsk_1-send")).trim(), "Send invites");
+  assert.equal(textOf(find(root, "approval-tsk_1-send")).trim(), "Allow");
   await press(find(root, "approval-tsk_1-fold"));
   assert.match(textOf(root), /the deed/);
 });
@@ -211,7 +211,7 @@ test("a calendar event holds as an event card: the title, when in both zones, th
 test("an event with nobody to email says so and adds to the calendar; guests who are not emailed are said too", async () => {
   const none = await mount(createRoot, card(world([eventBlock({ summary: "Block", start: EVENT.start, end: EVENT.end })]).d));
   assert.match(textOf(none), /No guests/);
-  assert.equal(textOf(find(none, "approval-tsk_1-send")).trim(), "Add to calendar");
+  assert.equal(textOf(find(none, "approval-tsk_1-send")).trim(), "Allow");
   const quiet = await mount(createRoot, card(world([eventBlock({ ...EVENT, sendUpdates: "none" })]).d));
   assert.match(textOf(quiet), /They are not emailed/);
 });
