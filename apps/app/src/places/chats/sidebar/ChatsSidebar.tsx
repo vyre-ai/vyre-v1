@@ -149,10 +149,12 @@ function Sidebar({ window, query, slot, open: shown, startFilter }: { window?: V
   const [reread, setReread] = useState(0);
   useEffect(() => onImportedChange(() => setReread((n) => n + 1)), []);
   useEffect(() => {
+    // Imported sessions belong to a Personal Space (the server refuses the list anywhere else with a 422), so a Team Space does not ask
+    if (!personal) { setArchive([]); return undefined; }
     let off = false;
     void (Promise.resolve().then(() => data.call("sessions.list", {})) as Promise<{ sessions?: Partial<ImportedRow>[] } | undefined>).then((r) => { if (!off) setArchive(importedRows(r?.sessions)); }, () => { if (!off) setArchive([]); });
     return () => { off = true; };
-  }, [data.call, recentQ, reread]);
+  }, [data.call, recentQ, reread, personal]);
   const imported = useMemo(() => archive.filter((r) => r.archived !== true && matchesQuery(query, r.title, providerName(r.provider))), [archive, query]);
   const archivedImported = useMemo(() => archive.filter((r) => r.archived === true && matchesQuery(query, r.title, providerName(r.provider))), [archive, query]);
   const liveImported = useMemo(() => archive.filter((r) => r.archived !== true).length, [archive]);

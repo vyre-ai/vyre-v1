@@ -296,7 +296,7 @@ export function createSampleSidebar(space: SampleSpace = northwind, o: { online?
       return w(input);
     },
     connection,
-    space: { name: space.name, otherNeedsYou: space.otherNeedsYou, ...(space.id === "personal" ? { personal: true } : {}), assistant: space.assistant },
+    space: { name: space.name, otherNeedsYou: space.otherNeedsYou, ...(space.id === "personal" || (o.imported?.length ?? 0) > 0 ? { personal: true } : {}), assistant: space.assistant },
     nav, me: { id: ME },
     clock: () => ({ now: SAMPLE_NOW, offsetMin: 0 }),
   };
