@@ -188,7 +188,7 @@ export function LinkedTab({ projectId, projectTitle = "this project", canEdit, s
       leading: <View style={st.kind}><Glyph name={locked ? "lock" : KIND_ICON[l.kind]} size={15} color={locked ? "var(--ink-3)" : TONE_COLOR[tone]} /></View>,
       ...(by.auto ? { titleMarks: <Text testID={`link-auto-${id}`} accessibilityLabel="Linked by a rule" style={st.auto}>AUTO</Text> } : {}),
       trailing: (
-        <View style={st.trail}>
+        <View style={[st.trail, locked && st.trailLocked]}>
           {!locked && l.state ? <Text style={st.state} testID={`link-state-${id}`}>{stateWords(l.state, d.now())}</Text> : null}
           {(!locked || canEdit) ? <Pressable accessibilityRole="button" accessibilityLabel={`More for ${titleOf(l)}`} testID={`link-more-${id}`} onPress={() => { const a = anchor(); rowMenu(l, a.x, a.y); }} style={({ hovered }: { hovered?: boolean }) => [st.more, hovered === true && st.hover]}><Text style={st.moreText}>{"\u2026"}</Text></Pressable> : null}
         </View>
@@ -288,6 +288,8 @@ const st = StyleSheet.create({
   // about 50 px a row: the 44 px ui/Row and a little air
   rowBox: { paddingVertical: 3 },
   trail: { flexDirection: "row", alignItems: "center", gap: 6, marginRight: 17 },
+  // a locked row's lock sits at the right edge and takes those 17 px itself
+  trailLocked: { marginRight: 0 },
   main: { flex: 1, minWidth: 0, flexDirection: "row", alignItems: "center", gap: 10, minHeight: 50, paddingVertical: 7, paddingHorizontal: 10, borderRadius: 8 },
   kind: { width: 28, height: 28, marginRight: 10, borderRadius: 8, alignItems: "center", justifyContent: "center", backgroundColor: "var(--sunk)" as string },
   kindText: { fontSize: 13, color: "var(--ink-2)" as string },
