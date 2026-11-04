@@ -21,7 +21,7 @@ type ProviderRow = CapMap["providers.list"]["out"]["providers"][number];
 type UsageOut = CapMap["engine.usage.query"]["out"];
 
 /** "12 turns · 48k tokens": a key on a plan has no price per turn, so it reads as use. */
-export function useLine(t: UsageOut["totals"]): string {
+export function usageLine(t: UsageOut["totals"]): string {
   const tokens = t.tokensIn + t.tokensOut;
   return `${t.turns} turn${t.turns === 1 ? "" : "s"} · ${tokens >= 1000 ? `${Math.round(tokens / 1000)}k` : tokens} tokens`;
 }
@@ -35,8 +35,8 @@ function SpaceKeyUsage({ now }: { now: number }): ReactElement | null {
   if (!key) return null;
   return <Section title="Space AI key this month"><Group testID="space-key-usage">
     {!usage.data ? <ReadState error={usage.error} retry={usage.refresh} /> : usage.data.rows.length === 0 ? <Row title={key.name} note="Nobody has used it yet" /> : <>
-      <Row title={key.name} note={useLine(usage.data.totals)} />
-      {usage.data.rows.map((row) => <Row key={row.key} title={row.title} note={useLine(row.totals)} />)}
+      <Row title={key.name} note={usageLine(usage.data.totals)} />
+      {usage.data.rows.map((row) => <Row key={row.key} title={row.title} note={usageLine(row.totals)} />)}
     </>}
   </Group></Section>;
 }
