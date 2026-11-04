@@ -65,6 +65,9 @@ test("Overview, real data: an Unpaid block sums real invoices, and the number fo
       await page.getByTestId("project-page").waitFor({ timeout: 40_000 });
       await page.waitForTimeout(1200); await page.getByTestId("tab-overview").click({ force: true, timeout: 10_000 }).catch(async (e: Error) => {
         const ids = await page.evaluate(() => [...document.querySelectorAll("[data-testid]")].map((x) => x.getAttribute("data-testid")).slice(0, 60));
+        await page.getByTestId("state-details").click({ timeout: 2000 }).catch(() => undefined);
+        const cause = await page.getByTestId("state-cause").innerText({ timeout: 2000 }).catch(() => "");
+        fs.writeFileSync(path.join(shots, `debug-${tag}-${size}.txt`), cause + "\n" + (await page.locator("body").innerText()).slice(0, 3000));
         await page.screenshot({ path: path.join(shots, `debug-${tag}-${size}.png`) });
         throw new Error(`no overview tab at ${page.url()}: ${JSON.stringify(ids)} errors=${JSON.stringify(errs.slice(0, 3))} / ${e.message.slice(0, 60)}`);
       });
