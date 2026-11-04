@@ -126,7 +126,7 @@ test("reach: organisations with their install state and the address to install o
 test("policy: sensible defaults, changed per kind of use, and a bad value refused", async () => {
   const w = world();
   await w.connect();
-  assert.deepEqual(policyGet(w.h.ctx).policy, { read: "always", push_branch: "ask", open_pr: "ask", comment: "ask", merge: "ask", push_default: "never" });
+  assert.deepEqual(policyGet(w.h.ctx).policy, { read: "always", push_branch: "ask", open_pr: "ask", comment: "ask", merge: "ask", push_default: "ask" });
   assert.equal(policySet(w.h.ctx, { policy: { comment: "always" } }).policy.comment, "always");
   await refused(Promise.resolve().then(() => policySet(w.h.ctx, { policy: { merge: "maybe" as never } })), "validation.bad_input");
   await refused(Promise.resolve().then(() => policySet(w.h.ctx, { policy: { delete_repo: "always" } as never })), "validation.bad_input");
@@ -154,6 +154,7 @@ test("broker: a token is short-lived, narrowed to one repository and to what the
 test("policy: Never refuses with the person's own words; Ask me first goes to the Gate and a token follows once approved, for ten minutes", async () => {
   const w = world();
   await w.connect();
+  policySet(w.h.ctx, { policy: { push_default: "never" } });
   await assert.rejects(token(w.h.ctx, { repo: "vyre-ai/website", action: "push_default", consumer: "crew" }), (e: unknown) => { assert.equal(codeOf(e), "validation.precondition_failed"); assert.match((e as Error & { error: { message: string } }).error.message, /never let anything push to the default branch/); return true; });
   await refused(token(w.h.ctx, { repo: "vyre-ai/website", action: "open_pr", consumer: "crew" }), "permission.needs_approval");
   assert.deepEqual(w.gate.held, [{ repo: "vyre-ai/website", action: "open_pr", consumer: "crew" }]);

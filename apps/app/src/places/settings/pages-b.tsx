@@ -92,8 +92,7 @@ function AccountCard({ sec }: { sec: NonNullable<SettingsData["security"]> }): R
       {(sec.account.carried ?? []).slice(0, 3).map((c, i) => <SettingsRow key={`carried-${i}`} id={`signin.carried.${i}`} label={`Signed in from ${c.host}`} lead={<Glyph name="key" size={16} />} sub={`To bring your account to another Space, ${c.day}`} />)}
       {data.spaces.length > 1 ? <SettingsRow id="signin.link" label="Use one account everywhere" lead={<Glyph name="key" size={16} />} sub="Two Vyre accounts? Keep one; your work stays where it is" control={<SmallButton label="Choose..." testID="link-open" onPress={() => data.nav.manageSecurity?.("link", first)} />} /> : null}
       <SettingsRow
-        id="signin.github" label="GitHub" lead={<Glyph name="github" size={16} />} sub={gh ? `Connected as @${gh}` : "Sign in with one click"}
-        control={<SmallButton label={gh ? "Disconnect" : "Connect"} testID="gh-toggle" onPress={() => data.nav.manageSecurity?.(gh ? "github-off" : "github-on", first)} />}
+        id="signin.github" label="GitHub" lead={<Glyph name="github" size={16} />} sub={gh ? `Connected as @${gh}. Manage it in Settings, GitHub` : "Connect it in Settings, GitHub"}
       />
     </Section>
   );

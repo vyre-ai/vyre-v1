@@ -12,6 +12,10 @@ async function scrollEnd(page: import("playwright-core").Page): Promise<void> {
   await page.evaluate(() => { for (const el of Array.from(document.querySelectorAll<HTMLElement>("*"))) { const o = getComputedStyle(el).overflowY; if ((o === "auto" || o === "scroll") && el.scrollHeight > el.clientHeight + 20) el.scrollTop = el.scrollHeight; } });
   await page.waitForTimeout(300);
 }
+async function scrollTop(page: import("playwright-core").Page): Promise<void> {
+  await page.evaluate(() => { for (const el of Array.from(document.querySelectorAll<HTMLElement>("*"))) if (el.scrollTop > 0) el.scrollTop = 0; });
+  await page.waitForTimeout(200);
+}
 export const OUT = "shots-evidence/settings";
 const PAGES: { id: string; title: string; sub: string }[] = [
   { id: "profile", title: "Profile", sub: "How people in this Space see you." },
@@ -23,14 +27,14 @@ const PAGES: { id: string; title: string; sub: string }[] = [
   { id: "signin", title: "Privacy and security", sub: "Your password, two-step sign-in and where you are signed in." },
 ];
 /** GitHub answers as a connected account: the daemon's GitHub egress cannot be faked from a test, so these five reads are answered at the browser's edge; every other call is the real daemon's. */
-const gh = { reconnect: false };
+const gh = { reconnect: false, connected: true };
 const POLICY = { read: "always", push_branch: "ask", open_pr: "ask", comment: "ask", merge: "ask", push_default: "never" };
 async function stubGithub(page: import("playwright-core").Page): Promise<void> {
   await page.route(/\/v1\/github\/me\/(status|reach|policy\/get|usage)$/, async (route) => {
     const k = /\/me\/(.+)$/.exec(route.request().url())?.[1];
-    const data = k === "status" ? { connected: true, login: "maya-codes", source: "vyre", connectedAt: Date.now() - 9 * 86_400_000, needsReconnect: gh.reconnect }
+    const data = k === "status" ? gh.connected ? { connected: true, login: "maya-codes", source: "vyre", connectedAt: Date.now() - 9 * 86_400_000, needsReconnect: gh.reconnect } : { connected: false, needsReconnect: false }
       : k === "reach" ? { login: "maya-codes", orgs: [{ login: "maya-codes", install: "all", url: "https://github.com/settings/installations/1" }, { login: "northwind-law", install: "selected", url: "https://github.com/organizations/northwind-law/settings/installations/2" }, { login: "closed-org", install: "none", url: "https://github.com/apps/vyre/installations/new/permissions?target_id=10" }], repos: [{ repo: "maya-codes/notes", installationId: 1 }, { repo: "northwind-law/website", installationId: 2 }, { repo: "northwind-law/intake-forms", installationId: 2 }] }
-      : k === "usage" ? { uses: [{ consumer: "Scout", repo: "northwind-law/website", action: "pr", at: Date.now() - 3_600_000 }, { consumer: "Scout", repo: "maya-codes/notes", action: "read", at: Date.now() - 86_400_000 }] }
+      : k === "usage" ? { uses: [{ consumer: "crews", repo: "northwind-law/website", action: "pr", at: Date.now() - 3_600_000 }, { consumer: "sessions", repo: "maya-codes/notes", action: "read", at: Date.now() - 86_400_000 }] }
       : { policy: POLICY };
     await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ data }) });
   });
@@ -64,6 +68,7 @@ export async function walkSettings(t: TestContext, only: "owner" | "member"): Pr
         assert.ok(text.includes(p.sub), `${who}/${p.id}: the sentence under the title`);
         for (const b of BANNED) { const m = new RegExp(`(^|[^a-z])${b}([^a-z]|$)`, "i").exec(text); assert.ok(!m, `${who}/${p.id}: no "${b}" in: ...${m ? text.slice(Math.max(0, m.index - 60), m.index + 60) : ""}...`); }
         assert.ok(!/Couldn't load|Something went wrong|undefined|\[object/.test(text), `${who}/${p.id}: no error text`);
+        await scrollTop(me.page);
         await guard.check(p.id);
         await shoot(me.page, dir, p.id);
         if (["ai", "github", "notifications", "appearance", "signin"].includes(p.id)) {
@@ -82,6 +87,14 @@ export async function walkSettings(t: TestContext, only: "owner" | "member"): Pr
           await guard.check("github-reconnect");
           await shoot(me.page, dir, "github-reconnect");
           gh.reconnect = false;
+          gh.connected = false;
+          await me.page.getByTestId("row-page-profile").click();
+          await me.page.getByTestId("row-page-github").click();
+          await me.page.getByTestId("github-connect").waitFor();
+          await me.page.waitForTimeout(500);
+          await guard.check("github-connect");
+          await shoot(me.page, dir, "github-connect");
+          gh.connected = true;
         }
       }
       // a notification channel and the look, as that person, saved on the server
@@ -121,6 +134,15 @@ export async function walkSettings(t: TestContext, only: "owner" | "member"): Pr
           await guard.check("phone-github-reconnect");
           await shoot(me.page, dir, "phone-github-reconnect").then((files) => files.forEach((f) => fs.renameSync(f, f.replace("-desktop.png", "-phone.png"))));
           gh.reconnect = false;
+          gh.connected = false;
+          await open(me, s, "/settings?skin=paper");
+          if (!(await me.page.getByTestId("row-page-github").isVisible().catch(() => false))) await me.page.getByTestId("back").click().catch(() => undefined);
+          await me.page.getByTestId("row-page-github").click();
+          await me.page.getByTestId("github-connect").waitFor();
+          await me.page.waitForTimeout(500);
+          await guard.check("phone-github-connect");
+          await shoot(me.page, dir, "phone-github-connect").then((files) => files.forEach((f) => fs.renameSync(f, f.replace("-desktop.png", "-phone.png"))));
+          gh.connected = true;
         }
       }
       await me.page.setViewportSize({ width: 1440, height: 900 });

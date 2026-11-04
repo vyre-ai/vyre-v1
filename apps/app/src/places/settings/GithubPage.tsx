@@ -7,7 +7,8 @@ import { Text, View } from "react-native";
 import type { CapMap } from "../../../../../generated/types.ts";
 import { useSettingsData } from "./data.tsx";
 import { useSaved } from "./saved.tsx";
-import { Choice, Glyph, Section, SettingsRow, SmallButton } from "./ui.tsx";
+import { whenLabel } from "./pages-b.tsx";
+import { Choice, Glyph, IconTile, Section, SettingsRow, SmallButton } from "./ui.tsx";
 
 type Status = CapMap["github.me.status"]["out"];
 type Reach = CapMap["github.me.reach"]["out"];
@@ -86,12 +87,12 @@ export function GithubPage(): ReactElement {
     <>
       {status.needsReconnect ? (
         <Section testID="github-reconnect">
-          <SettingsRow id="github.reconnect" first lead={<Glyph name="link" size={16} />} label="Reconnect GitHub once" sub={`${data.space.name} uses its own GitHub app. Your repos and permissions stay as they are.`}
+          <SettingsRow id="github.reconnect" first lead={<IconTile name="github" />} label="Reconnect GitHub once" sub={`${data.space.name} uses its own GitHub app. Your repos and permissions stay as they are.`}
             control={<SmallButton label="Reconnect" primary testID="gh-reconnect" onPress={connect} />} />
         </Section>
       ) : null}
       <Section title="Account" testID="github-account">
-        <SettingsRow id="github.account" first lead={<Glyph name="link" size={16} />} label={`@${status.login ?? ""}`} sub={`Signs you in to Vyre · through ${via}`}
+        <SettingsRow id="github.account" first lead={<IconTile name="github" />} label={`@${status.login ?? ""}`} sub={`Signs you in to Vyre · through ${via}`}
           control={sure
             ? <><SmallButton label="Cancel" onPress={() => setSure(false)} /><SmallButton label="Disconnect" danger testID="gh-disconnect-yes" onPress={disconnect} /></>
             : <SmallButton label="Disconnect" testID="gh-disconnect" onPress={() => setSure(true)} />} />
@@ -103,7 +104,7 @@ export function GithubPage(): ReactElement {
           // ui-rows-lint: not a list (each line is a SettingsRow, which draws a ui/Row itself)
           : reach.orgs.map((o, i) => {
             const n = reach.repos.filter((r) => r.repo.startsWith(`${o.login}/`)).length;
-            return <SettingsRow key={o.login} id={`github.org.${o.login}`} first={i === 0} lead={<Glyph name="link" size={16} />} label={o.login} sub={installWords(o, n)}
+            return <SettingsRow key={o.login} id={`github.org.${o.login}`} first={i === 0} lead={<IconTile name="github" />} label={o.login} sub={installWords(o, n)}
               control={o.url ? <SmallButton label={o.install === "none" ? "Install" : "Change"} testID={`gh-org-${o.login}`} onPress={() => data.nav.openLink?.(o.url as string)} /> : undefined} />;
           })}
       </Section>
@@ -118,7 +119,7 @@ export function GithubPage(): ReactElement {
         {uses.length === 0
           ? <SettingsRow id="github.used.none" first label="Nothing yet" sub="Crews, CI, sessions and the Linked tab show here once they use your GitHub." />
           // ui-rows-lint: not a list (each line is a SettingsRow, which draws a ui/Row itself)
-          : uses.slice(0, 8).map((u, i) => <SettingsRow key={`${u.consumer}-${u.at}-${i}`} id={`github.used.${i}`} first={i === 0} label={consumerWords(u.consumer)} sub={`${u.action} · ${u.repo}`} />)}
+          : uses.slice(0, 8).map((u, i) => <SettingsRow key={`${u.consumer}-${u.at}-${i}`} id={`github.used.${i}`} first={i === 0} label={consumerWords(u.consumer)} sub={u.repo} control={<Text style={{ fontSize: 12, color: "var(--ink-3)" as string }}>{whenLabel(u.at, Date.now())}</Text>} />)}
       </Section>
     </>
   );
