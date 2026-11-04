@@ -24,6 +24,10 @@ export interface KnowsItem {
   scope?: "here" | "linked" | "space";
   /** For linked and space rows: the name of the place it was learned in. */
   from?: string;
+  /** For a disputed row: the open question it belongs to, which side of it, and its short answer ("Thursday"). */
+  questionId?: string;
+  qside?: "a" | "b";
+  short?: string;
 }
 
 /** What Source asks the host to open: the message, in its chat or thread. The host scrolls to it. */
@@ -37,8 +41,17 @@ export const GROUPS: Array<{ kind: KnowsKind; title: string }> = [
 
 /** The groups with something in them, current ones first, then what was replaced, then what was disputed; newest last in each, as the people read the room. */
 export function groupKnows(items: readonly KnowsItem[]): Array<{ kind: KnowsKind; title: string; items: KnowsItem[] }> {
+  // a disputed row is part of an open question, not of its kind: it is listed under Open questions, with its answers
+  items = items.map((i) => (i.state === "disputed" && i.questionId ? { ...i, kind: "question" as const } : i));
   const order: Record<KnowsState, number> = { current: 0, disputed: 1, replaced: 2, source_removed: 3, removed: 3 };
   return GROUPS.map((g) => ({ ...g, items: items.filter((i) => (i.scope ?? "here") === "here" && i.kind === g.kind && i.state !== "removed" && i.state !== "source_removed").sort((a, b) => order[a.state] - order[b.state]) })).filter((g) => g.items.length > 0);
+}
+
+/** The open questions: one entry per question, with its two answers (a side each), the one the room said first. */
+export function openQuestions(items: readonly KnowsItem[]): Array<{ questionId: string; answers: KnowsItem[] }> {
+  const by = new Map<string, KnowsItem[]>();
+  for (const i of items) if (i.state === "disputed" && i.questionId && (i.scope ?? "here") === "here") by.set(i.questionId, [...(by.get(i.questionId) ?? []), i]);
+  return [...by].map(([questionId, answers]) => ({ questionId, answers: answers.sort((a, b) => (a.qside ?? "a").localeCompare(b.qside ?? "a")) }));
 }
 
 /** Rows from linked places and markers in Space memory, apart from the place's own. */

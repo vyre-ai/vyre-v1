@@ -3,7 +3,7 @@
 import { useState } from "react";
 import type { ReactElement } from "react";
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
-import { groupKnows, knowsMark, linkedItems, sourceChip, spaceItems } from "./model.ts";
+import { groupKnows, knowsMark, linkedItems, openQuestions, sourceChip, spaceItems } from "./model.ts";
 import type { KnowsItem } from "./model.ts";
 
 export interface KnowsProps {
@@ -14,12 +14,15 @@ export interface KnowsProps {
   onSource: (item: KnowsItem) => void;
   onEdit: (item: KnowsItem, text: string) => void;
   onRemove: (item: KnowsItem) => void;
+  /** One of the two answers of an open question was picked: the host calls memory.question.resolve (keep_a or keep_b). */
+  onAnswer?: (questionId: string, side: "a" | "b") => void;
 }
 
-export function Knows({ place, items, onSource, onEdit, onRemove }: KnowsProps): ReactElement {
+export function Knows({ place, items, onSource, onEdit, onRemove, onAnswer }: KnowsProps): ReactElement {
   const [editing, setEditing] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
   const groups = groupKnows(items);
+  const hov = ({ hovered }: { hovered?: boolean }): object[] => [st.sm, hovered === true && st.hover];
   const linked = linkedItems(items), space = spaceItems(items);
   if (groups.length === 0 && linked.length === 0 && space.length === 0) return <View testID="knows"><Text style={st.cap}>Nothing is remembered here yet.</Text></View>;
   return (
@@ -28,8 +31,21 @@ export function Knows({ place, items, onSource, onEdit, onRemove }: KnowsProps):
       <Text style={st.cap}>Only people who can open this place can read it.</Text>
       {groups.map((g) => (
         <View key={g.kind} testID={`knows-group-${g.kind}`}>
-          <View style={st.label}><Text style={st.labelText}>{g.title}</Text><Text style={st.labelText}>{g.items.length}</Text></View>
-          {g.items.map((i) => {
+          <View style={st.label}><Text style={st.labelText}>{g.title}</Text><Text style={st.labelText}>{g.kind === "question" ? openQuestions(g.items).length + g.items.filter((i) => !i.questionId).length : g.items.length}</Text></View>
+          {g.kind === "question" ? openQuestions(g.items).map((q) => (
+            <View key={q.questionId} testID={`knows-question-${q.questionId}`} style={st.row}>
+              <Text style={st.text}>{q.answers[0]!.text.replace(/\s+/g, " ")}</Text>
+              <Text style={st.mark}>{"Open question \u00b7 Vyre will not guess"}</Text>
+              <View style={st.acts}>
+                {q.answers.map((a, n) => (
+                  <Pressable key={a.factId} accessibilityRole="button" testID={`knows-answer-${q.questionId}-${a.qside}`} onPress={() => onAnswer?.(q.questionId, a.qside ?? "a")} style={({ hovered }: { hovered?: boolean }) => [st.ansBtn, n === 0 && st.ansPrimary, hovered === true && st.hover]}>
+                    <Text style={[st.ansText, n === 0 && st.ansPrimaryText]}>{`${a.short ?? a.text} \u00b7 ${a.by.split(" ")[0]}, ${a.at}`}</Text>
+                  </Pressable>
+                ))}
+              </View>
+            </View>
+          )) : null}
+          {g.items.filter((i) => g.kind !== "question" || !i.questionId).map((i) => {
             const old = i.state === "replaced";
             const mine = editing === i.factId;
             return (
@@ -43,14 +59,16 @@ export function Knows({ place, items, onSource, onEdit, onRemove }: KnowsProps):
                     </View>
                   </View>
                 ) : <Text style={[st.text, old && st.old]}>{i.text}</Text>}
-                <Text style={st.mark}>{knowsMark(i)}</Text>
-                {old && i.replacedBy ? <Text testID={`knows-replaced-${i.factId}`} style={st.replaced}>{`Replaced by: ${i.replacedBy}`}</Text> : null}
+                <View style={st.metaRow}>
+                  <Text style={st.mark}>{knowsMark(i)}</Text>
+                  {old && i.replacedBy ? <Text testID={`knows-replaced-${i.factId}`} style={st.replaced}>{`Replaced by: ${i.replacedBy}`}</Text> : null}
+                </View>
                 <View style={st.acts}>
-                  <Pressable accessibilityRole="button" testID={`knows-source-${i.factId}`} onPress={() => onSource(i)}><Text style={st.btn}>Source</Text></Pressable>
+                  <Pressable accessibilityRole="button" testID={`knows-source-${i.factId}`} onPress={() => onSource(i)} style={hov}><Text style={st.btn}>{"\u21a9 Source"}</Text></Pressable>
                   {i.canEdit && !old && !mine ? (
                     <>
-                      <Pressable accessibilityRole="button" testID={`knows-editbtn-${i.factId}`} onPress={() => { setDraft(i.text); setEditing(i.factId); }}><Text style={st.btn}>Edit</Text></Pressable>
-                      <Pressable accessibilityRole="button" testID={`knows-remove-${i.factId}`} onPress={() => onRemove(i)}><Text style={st.btn}>Remove</Text></Pressable>
+                      <Pressable accessibilityRole="button" testID={`knows-editbtn-${i.factId}`} onPress={() => { setDraft(i.text); setEditing(i.factId); }} style={hov}><Text style={st.btn}>Edit</Text></Pressable>
+                      <Pressable accessibilityRole="button" testID={`knows-remove-${i.factId}`} onPress={() => onRemove(i)} style={hov}><Text style={st.btn}>Remove</Text></Pressable>
                     </>
                   ) : null}
                 </View>
@@ -66,7 +84,7 @@ export function Knows({ place, items, onSource, onEdit, onRemove }: KnowsProps):
             <View key={i.factId} testID={`knows-row-${i.factId}`} style={st.row}>
               <Text style={st.text}>{i.text}</Text>
               <Text style={st.mark}>{`${i.from ?? "a linked place"} \u00b7 ${i.by} \u00b7 ${i.at}`}</Text>
-              <View style={st.acts}><Pressable accessibilityRole="button" testID={`knows-source-${i.factId}`} onPress={() => onSource(i)}><Text style={st.btn}>Source</Text></Pressable></View>
+              <View style={st.acts}><Pressable accessibilityRole="button" testID={`knows-source-${i.factId}`} onPress={() => onSource(i)} style={hov}><Text style={st.btn}>{"\u21a9 Source"}</Text></Pressable></View>
             </View>
           ))}
         </View>
@@ -88,7 +106,13 @@ export function Knows({ place, items, onSource, onEdit, onRemove }: KnowsProps):
 
 /** The chip under an agent's answer that used a memory: who said it and when. Pressing it opens the source. */
 export function SourceChip({ by, at, onPress }: { by: string; at: string; onPress?: () => void }): ReactElement {
-  return <Pressable accessibilityRole="link" testID="source-chip" onPress={onPress}><Text style={st.chip}>{sourceChip(by, at)}</Text></Pressable>;
+  // the whole chip is the press target: it jumps to the message
+  return (
+    <Pressable accessibilityRole="link" testID="source-chip" onPress={onPress} style={({ hovered }: { hovered?: boolean }) => [st.chipBox, hovered === true && st.hover]}>
+      <Text style={st.chipIcon}>{"\u201c"}</Text>
+      <Text style={st.chip}>{sourceChip(by, at)}</Text>
+    </Pressable>
+  );
 }
 
 const st = StyleSheet.create({
@@ -101,9 +125,18 @@ const st = StyleSheet.create({
   text: { fontSize: 14, lineHeight: 20, color: "var(--ink)" as string },
   old: { textDecorationLine: "line-through", color: "var(--ink-3)" as string },
   mark: { fontSize: 12, color: "var(--ink-3)" as string },
-  replaced: { fontSize: 12, color: "var(--ink-3)" as string, borderRadius: 6, padding: 6, boxShadow: "inset 0 0 0 1px var(--line-2)" } as object,
+  replaced: { fontSize: 11.5, color: "var(--ink-3)" as string, borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1, boxShadow: "inset 0 0 0 1px var(--line-2)" } as object,
   acts: { flexDirection: "row", gap: 12, paddingTop: 2 },
-  btn: { fontSize: 12.5, color: "var(--ink-3)" as string },
+  btn: { fontSize: 12, color: "var(--ink-3)" as string },
+  sm: { paddingVertical: 2, paddingHorizontal: 6, borderRadius: 6 },
+  hover: { backgroundColor: "var(--sunk)" as string },
+  metaRow: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 6 },
+  ansBtn: { paddingVertical: 4, paddingHorizontal: 10, borderRadius: 6, backgroundColor: "var(--sunk)" as string },
+  ansPrimary: { backgroundColor: "var(--accent)" as string },
+  ansText: { fontSize: 12.5, color: "var(--ink)" as string },
+  ansPrimaryText: { color: "var(--on-accent, #fff)" as string },
+  chipBox: { flexDirection: "row", alignItems: "center", gap: 6, height: 24, paddingHorizontal: 8, borderRadius: 6, marginTop: 6, alignSelf: "flex-start", boxShadow: "inset 0 0 0 1px var(--line-2)" } as object,
+  chipIcon: { fontSize: 14, color: "var(--ink-3)" as string, lineHeight: 16 },
   input: { fontSize: 14, color: "var(--ink)" as string, borderRadius: 6, padding: 6, boxShadow: "inset 0 0 0 1px var(--line-2)" } as object,
-  chip: { fontSize: 12, color: "var(--accent)" as string },
+  chip: { fontSize: 12, color: "var(--ink-3)" as string },
 });

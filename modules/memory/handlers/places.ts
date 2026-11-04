@@ -1,7 +1,7 @@
 // Memory by place (MEMORY-RULES 1, 3, 9): the Knows tab list of what Vyre remembers in a place, what happens to memory when a message in it is deleted, and when the place is archived or deleted.
 import { actorOf, ensure, makeAccess, orNull, raise, readFact, rowsOf, str } from "../projections.ts";
 import type { Fact, MemCtx } from "../projections.ts";
-import { PLACE_KINDS, kindOf, stateOf } from "../place.ts";
+import { PLACE_KINDS, diffValue, kindOf, stateOf } from "../place.ts";
 import { trashFact } from "./lifecycle.ts";
 import { trail } from "../trail.ts";
 
@@ -25,8 +25,18 @@ export async function placeList(ctx: MemCtx, input: { placeKind: string; placeId
     const live = f.status === "current" || f.status === "proposed";
     if (!live && !input.history) return;
     if (!(await access.can(f.layer, f.ownerRef, f.agentId, f.projectId, "view", f.audience))) return;
+    // a disputed fact says which question it is part of, which side it is, and its short answer
+    let q: Record<string, unknown> = {};
+    if (state === "disputed") {
+      const r = rowsOf(ctx.db, "SELECT id, fact_a, fact_b FROM memory_questions WHERE status = 'open' AND (fact_a = ? OR fact_b = ?)", f.id, f.id)[0];
+      if (r) {
+        const otherId = str(r["fact_a"]) === f.id ? str(r["fact_b"]) : str(r["fact_a"]);
+        const other = rowsOf(ctx.db, "SELECT text FROM memory_facts WHERE id = ?", otherId)[0];
+        q = { questionId: str(r["id"]), qside: str(r["fact_a"]) === f.id ? "a" : "b", short: diffValue(f.text, str(other?.["text"])) };
+      }
+    }
     rows.push({
-      factId: f.id, kind: kindOf(f.kind), text: f.text, state, said_by: f.sourcePerson, at: f.learnedAt, messageId: f.msgId, threadId: f.sourceRef, span: f.span, sourceLink: f.sourceLink, layer: f.layer,
+      ...q, factId: f.id, kind: kindOf(f.kind), text: f.text, state, said_by: f.sourcePerson, at: f.learnedAt, messageId: f.msgId, threadId: f.sourceRef, span: f.span, sourceLink: f.sourceLink, layer: f.layer,
       replaces: f.replaces, scope, ...(from ? { placeKind: from.kind, placeId: from.id } : {}), canEdit: scope === "here" && await access.can(f.layer, f.ownerRef, f.agentId, f.projectId, "edit"),
     });
   };

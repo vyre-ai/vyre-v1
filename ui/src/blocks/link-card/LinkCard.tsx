@@ -21,17 +21,19 @@ export interface LinkCardProps {
   state?: CardState | null;
   /** The reader may not open the thing: its name is not shown and it is not a link. */
   hidden?: boolean;
+  /** The time the line was written, as the reader reads times ("9:50 am"): shown at the right of a Noted line. */
+  time?: string;
 }
 
-export function LinkCard({ id, data, nameOf, icon, onOpen, onAction, done, state, hidden }: LinkCardProps): ReactElement {
+export function LinkCard({ id, data, nameOf, icon, onOpen, onAction, done, state, hidden, time }: LinkCardProps): ReactElement {
   const line = linkCardLine(data, nameOf);
   const open = data.target && onOpen && !hidden ? (): void => onOpen(data.target!) : undefined;
   const head = (
     <View style={st.head}>
       {icon ? <View style={st.icon}>{icon}</View> : null}
       <Text numberOfLines={2} style={st.text}>
-        {`${line}: `}
-        <Text accessibilityRole={open ? "link" : "text"} testID={`link-card-${id}-open`} onPress={open} style={open ? st.link : st.title}>{hidden ? HIDDEN_TITLE : data.title}</Text>
+        {data.style === "question" ? "" : `${line}: `}
+        <Text accessibilityRole={open ? "link" : "text"} testID={`link-card-${id}-open`} onPress={open} style={open ? st.link : data.style === "question" ? st.qtitle : st.title}>{hidden ? HIDDEN_TITLE : data.title}</Text>
       </Text>
       {state && !hidden ? <Text testID={`link-card-${id}-state`} style={[st.state, state.tone === "ok" && st.ok, state.tone === "warn" && st.warn, state.tone === "bad" && st.bad]}>{state.text}</Text> : null}
     </View>
@@ -41,9 +43,26 @@ export function LinkCard({ id, data, nameOf, icon, onOpen, onAction, done, state
   for (const a of data.actions ?? []) {
     const was = done?.has(a.key) === true;
     buttons.push(
-      <Pressable key={a.key} accessibilityRole="button" accessibilityLabel={a.label} accessibilityState={{ disabled: was }} disabled={was || !onAction} testID={`link-card-${id}-${a.key}`} onPress={() => onAction?.(a.key)} style={[st.btn, was && st.btnDone]}>
-        <Text style={st.btnText}>{was ? `${a.label} \u2713` : a.label}</Text>
+      <Pressable key={a.key} accessibilityRole="button" accessibilityLabel={a.label} accessibilityState={{ disabled: was }} disabled={was || !onAction} testID={`link-card-${id}-${a.key}`} onPress={() => onAction?.(a.key)} style={[st.btn, was && st.btnDone, data.style === "question" && buttons.length === 0 && st.btnPrimary]}>
+        <Text style={[st.btnText, data.style === "question" && buttons.length === 0 && st.btnPrimaryText]}>{was ? `${a.label} \u2713` : a.label}</Text>
       </Pressable>,
+    );
+  }
+  if (data.style === "noted") {
+    // the quiet line every memory leaves in a shared place: a dot, "Noted: decision, go with Harbor", Undo, and the time at the right
+    const a = data.actions?.[0];
+    const was = a ? done?.has(a.key) === true : false;
+    return (
+      <View testID={`link-card-${id}`} style={st.noted}>
+        <View style={st.dot} />
+        <Text style={st.notedText}>
+          <Text>{`${data.lead}, `}</Text>
+          <Text style={st.notedWords}>{data.title.charAt(0).toLowerCase() + data.title.slice(1)}</Text>
+          {a ? <Text>{" \u00b7 "}</Text> : null}
+          {a ? <Text accessibilityRole="button" testID={`link-card-${id}-${a.key}`} onPress={was || !onAction ? undefined : () => onAction(a.key)} style={st.notedUndo}>{was ? `${a.label} \u2713` : a.label}</Text> : null}
+        </Text>
+        {time ? <Text testID={`link-card-${id}-time`} style={st.notedTime}>{time}</Text> : null}
+      </View>
     );
   }
   if (isInlineAction(data)) {
@@ -60,6 +79,7 @@ export function LinkCard({ id, data, nameOf, icon, onOpen, onAction, done, state
   return (
     <View testID={`link-card-${id}`} style={st.card}>
       {head}
+      {data.sub ? <Text style={st.sub}>{data.sub}</Text> : null}
       {data.body ? <Text style={st.body}>{data.body}</Text> : null}
       {data.actions?.length ? (
         <View style={st.acts}>
@@ -87,5 +107,15 @@ const st = StyleSheet.create({
   acts: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   btn: { height: 28, paddingHorizontal: 12, borderRadius: 8, justifyContent: "center", backgroundColor: "var(--sunk)" as string },
   btnDone: { opacity: 0.6 },
+  btnPrimary: { backgroundColor: "var(--accent)" as string },
+  btnPrimaryText: { color: "var(--on-accent, #fff)" as string },
+  qtitle: { color: "var(--ink)" as string, fontWeight: "500", fontSize: 14 },
+  sub: { fontSize: 12.5, lineHeight: 18, color: "var(--ink-3)" as string, marginTop: -4 },
+  noted: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingTop: 12, paddingBottom: 6 },
+  dot: { width: 5, height: 5, borderRadius: 3, backgroundColor: "var(--ok)" as string },
+  notedText: { fontSize: 12.5, lineHeight: 18, color: "var(--ink-3)" as string },
+  notedWords: { color: "var(--ink-2, var(--ink))" as string, fontWeight: "500" },
+  notedUndo: { color: "var(--accent)" as string, fontWeight: "500" },
+  notedTime: { fontSize: 12, color: "var(--ink-3)" as string, fontVariant: ["tabular-nums"] },
   btnText: { fontSize: 12.5, fontWeight: "500", color: "var(--ink)" as string },
 });

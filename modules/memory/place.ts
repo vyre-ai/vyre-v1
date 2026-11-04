@@ -97,3 +97,12 @@ export function stateOf(db: Db, f: Pick<Fact, "id" | "status" | "state">): "curr
   if (f.status === "closed" && rowsOf(db, "SELECT 1 FROM memory_facts WHERE replaces = ? LIMIT 1", f.id)[0]) return "replaced";
   return "current";
 }
+
+/** The words that differ between two statements about one thing ("Thursday" against "Friday"), capitalised: the short answer a question offers. */
+export function diffValue(a: string, b: string): string {
+  const tok = (x: string): string[] => x.replace(/[.,;:!?"]/g, "").split(/\s+/).filter((w) => w !== "");
+  const other = new Set(tok(b).map((w) => w.toLowerCase()));
+  const d = tok(a).filter((w) => !other.has(w.toLowerCase())).join(" ");
+  const v = d !== "" ? d : a.replace(/\s+/g, " ").trim().slice(0, 40);
+  return `${v.charAt(0).toUpperCase()}${v.slice(1)}`;
+}

@@ -17,22 +17,32 @@ export async function noted(ctx: ChatCtx, input: { threadId: string; factId: str
   const kind = KINDS.has(input.kind) ? input.kind : "fact";
   const words = input.text.replace(/\s+/g, " ").trim();
   const title = words.length > TITLE ? `${words.slice(0, TITLE - 1)}…` : words;
-  const lead = input.disputed ? `Noted: ${kind}, in question` : input.replaces ? `Noted: ${kind}, updated` : `Noted: ${kind}`;
+  const lead = `Noted: ${kind}`;
   const cut = (x: string): string => { const w = x.replace(/\s+/g, " ").trim(); return w.length > 60 ? `${w.slice(0, 59)}…` : w; };
+  // the words that differ between two statements about one thing: "Thursday" against "Friday"
+  const tok = (x: string): string[] => x.replace(/[.,;:!?"]/g, "").split(/\s+/).filter((w) => w !== "");
+  const diff = (a: string, b: string): string => {
+    const other = new Set(tok(b).map((w) => w.toLowerCase()));
+    const d = tok(a).filter((w) => !other.has(w.toLowerCase())).join(" ");
+    const v = d !== "" ? d : cut(a);
+    return `${v.charAt(0).toUpperCase()}${v.slice(1)}`;
+  };
   if (input.question) {
-    // "Maya said on Monday: ... Omar said today: ... Which holds?": both people, by name, and when
+    // "Maya said Thursday on Monday. Omar said Friday today. Which holds?": both people, by name, what they said, and when; the answers are the two values
     const q = input.question;
     const name = async (id: string): Promise<string> => {
       try { return (((await ctx.call?.("search.resolve", { kind: "person", itemId: id })) as { hit?: { title?: string } } | undefined)?.hit?.title) ?? "Someone"; } catch { return "Someone"; }
     };
     const when = (at: number): string => (new Date(at).toISOString().slice(0, 10) === new Date(ctx.now()).toISOString().slice(0, 10) ? "today" : `on ${DAYS[new Date(at).getUTCDay()]}`);
-    const say = async (x: Said): Promise<string> => `${await name(x.by)} said ${when(x.at)}: ${cut(x.text)}`;
+    const [na, nb] = [await name(q.a.by), await name(q.b.by)];
+    const [va, vb] = [diff(q.a.text, q.b.text), diff(q.b.text, q.a.text)];
     postLinkCard(ctx, t.id, {
-      icon: "fact", lead: "Open question", title: "Two statements about one thing", body: `${await say(q.a)}\n${await say(q.b)}\nWhich holds?`,
-      actions: [{ key: "a", label: `${(await name(q.a.by)).split(" ")[0]}: ${cut(q.a.text)}`, cap: "memory.question.resolve", input: { questionId: q.questionId, resolution: "keep_a" } }, { key: "b", label: `${(await name(q.b.by)).split(" ")[0]}: ${cut(q.b.text)}`, cap: "memory.question.resolve", input: { questionId: q.questionId, resolution: "keep_b" } }],
-    }, `Open question: ${cut(q.a.text)} or ${cut(q.b.text)}`);
+      icon: "fact", lead: "Open question", title: `${na.split(" ")[0]} and ${nb.split(" ")[0]} disagree`, sub: "Which holds? Vyre will not guess.", style: "question",
+      body: `${na} said ${va} ${when(q.a.at)}.\n${nb} said ${vb} ${when(q.b.at)}.`,
+      actions: [{ key: "a", label: va, cap: "memory.question.resolve", input: { questionId: q.questionId, resolution: "keep_a" } }, { key: "b", label: vb, cap: "memory.question.resolve", input: { questionId: q.questionId, resolution: "keep_b" } }],
+    }, `Open question: ${va} or ${vb}`);
     return { posted: true };
   }
-  postLinkCard(ctx, t.id, { icon: "fact", lead, title, target: { type: "fact", id: input.factId }, actions: [{ key: "undo", label: "Undo", cap: "memory.undo", input: { factId: input.factId } }] }, `${lead}, ${title}`);
+  postLinkCard(ctx, t.id, { icon: "fact", lead, title, style: "noted", target: { type: "fact", id: input.factId }, actions: [{ key: "undo", label: "Undo", cap: "memory.undo", input: { factId: input.factId } }] }, `${lead}, ${title}`);
   return { posted: true };
 }
