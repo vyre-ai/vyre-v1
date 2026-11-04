@@ -8,6 +8,7 @@ import type { Invoke } from "../invoke.ts";
 import { fail } from "../routes/errors.ts";
 import { checked, getToBlob, secretOf } from "./mail-providers.ts";
 import type { FillerPort } from "./filler.ts";
+import type { GithubTickets } from "./github-tickets.ts";
 import type { SeamCtx, SeamFetch, SpaceBlobs, VaultPort } from "./ports.ts";
 
 export const STRIPE_HANDLES = ["#Stripe_Key", "#Stripe_Webhook_Secret"] as const;
@@ -45,7 +46,9 @@ export interface GithubHostSeam {
 /** A person's own GitHub (the shape of UserHost in modules/github/projections.ts). */
 export interface GithubUserSeam {
   app(ctx: SeamCtx): Promise<{ clientId: string; source: "space" | "vyre" }>;
-  exchange(ctx: SeamCtx, a: { code: string; verifier: string; redirectUri: string }): Promise<{ accessToken: string; refreshToken: string; expiresAt: number }>;
+  exchange(ctx: SeamCtx, a: { code: string; verifier: string; redirectUri: string }): Promise<{ accessToken: string; refreshToken: string; expiresAt: number; linkTicket?: string }>;
+  /** Tokens a sign-in with GitHub left for this GitHub id (consumed once), or null. */
+  adopt(ctx: SeamCtx, a: { githubId: string }): Promise<{ login: string; accessToken: string; refreshToken: string; expiresAt: number } | null>;
   refresh(ctx: SeamCtx, a: { refreshToken: string }): Promise<{ accessToken: string; refreshToken: string; expiresAt: number }>;
   revoke(ctx: SeamCtx, a: { accessToken: string }): Promise<void>;
   keep(ctx: SeamCtx, person: string, a: { refreshToken: string }): Promise<void>;
@@ -57,12 +60,11 @@ export interface GithubUserSeam {
 export interface CommsDeps {
   vault: Pick<VaultPort, "secret"> & Partial<Pick<VaultPort, "signRs256">> & {
     store?(items: { name: string; value: string }[], space: string): Promise<void>;
-    /** Put or replace a field of a person's own (Mine) Vault item; absent on a server whose Vault cannot yet. */
-    storeMine?(person: string, item: string, fields: Record<string, string>, space: string): Promise<void>;
-    removeMine?(person: string, item: string, space: string): Promise<void>;
   };
-  /** The default Vyre GitHub app, used when the Space did not set up its own: client id and secret. */
-  defaultApp?: { clientId: string; clientSecret: string } | undefined;
+  /** The host's own calls into modules (vault.mine_set and vault.mine_remove save a person's Mine item), as the host service. Absent: a personal GitHub cannot be kept. */
+  hostCall?: ((name: string, input: unknown) => Promise<unknown>) | undefined;
+  /** The default Vyre GitHub app, used when the Space did not set up its own: read when needed from the server's named settings (VYRE_GH_OAUTH_CLIENT_ID and VYRE_GH_OAUTH_CLIENT_SECRET). */
+  defaultApp?: (() => { clientId: string; clientSecret: string } | null) | undefined;
   fetch: SeamFetch;
   blobs: SpaceBlobs;
   filler?: FillerPort | undefined;
@@ -150,6 +152,8 @@ export function createGithubHost(d: CommsDeps): GithubHostSeam {
 }
 
 const MINE_ITEM = "GitHub";
+/** The handle of a person's own GitHub item (the same rule as modules/vault/handlers/mine-host.ts mineHandle, which a test holds equal). */
+export const githubItemHandle = (person: string): string => `#${MINE_ITEM}_${person.replace(/^usr_/, "").slice(0, 12)}`;
 const GITHUB_WEB = ["github.com", "api.github.com"] as const;
 
 /** The OAuth side of a person's own GitHub. The client secret is read from the Vault (or the default app) for one call; the refresh token lives in the person's own Vault item "GitHub", field refresh_token. */
@@ -158,8 +162,9 @@ function createGithubUser(d: CommsDeps): GithubUserSeam {
     let id = "", secret = "";
     try { id = await d.vault.secret("#GitHub_App_Client_Id", ctx.space); secret = await d.vault.secret("#GitHub_App_Client_Secret", ctx.space); } catch { /* the Space has none: the default app */ }
     if (id && secret) return { clientId: id, clientSecret: secret, source: "space" };
-    if (d.defaultApp?.clientId && d.defaultApp.clientSecret) return { ...d.defaultApp, source: "vyre" };
-    throw fail("internal.unavailable", ctx.trace.traceId, { message: "No GitHub app is set up to connect to. An admin sets one up in Console, Comms." });
+    const dflt = d.defaultApp?.() ?? null;
+    if (dflt?.clientId && dflt.clientSecret) return { ...dflt, source: "vyre" };
+    throw fail("internal.unavailable", ctx.trace.traceId, { message: "No GitHub app is set up to connect to. An admin sets one up in Console, Comms, or this server needs VYRE_GH_OAUTH_CLIENT_ID and VYRE_GH_OAUTH_CLIENT_SECRET." });
   };
   const token = async (ctx: SeamCtx, form: URLSearchParams): Promise<{ accessToken: string; refreshToken: string; expiresAt: number }> => {
     const a = await app(ctx);
@@ -174,7 +179,21 @@ function createGithubUser(d: CommsDeps): GithubUserSeam {
   };
   return {
     async app(ctx) { const a = await app(ctx); return { clientId: a.clientId, source: a.source }; },
-    exchange: (ctx, a) => token(ctx, new URLSearchParams({ code: a.code, code_verifier: a.verifier, redirect_uri: a.redirectUri })),
+    async exchange(ctx, a) {
+      const got = await token(ctx, new URLSearchParams({ code: a.code, code_verifier: a.verifier, redirect_uri: a.redirectUri }));
+      if (!d.tickets) return got;
+      // who GitHub says this is, once, so the link to the sign-in needs no second code
+      try {
+        const r = await d.fetch(checked(ctx, "https://api.github.com/user", GITHUB_WEB), { method: "GET", headers: { accept: "application/vnd.github+json", authorization: `Bearer ${got.accessToken}`, "user-agent": "vyre-server" } });
+        const u = JSON.parse(await r.text()) as { id?: unknown; login?: unknown };
+        if ((typeof u.id === "number" || typeof u.id === "string") && typeof u.login === "string") return { ...got, linkTicket: d.tickets.mintLink({ id: String(u.id), login: u.login }) };
+      } catch { /* connecting works without the link */ }
+      return got;
+    },
+    async adopt(_ctx, a) {
+      const p = d.tickets?.takePending(a.githubId);
+      return p ? { login: p.login, ...p.tokens } : null;
+    },
     refresh: (ctx, a) => token(ctx, new URLSearchParams({ grant_type: "refresh_token", refresh_token: a.refreshToken })),
     async revoke(ctx, a) {
       const c = await app(ctx);
@@ -183,13 +202,14 @@ function createGithubUser(d: CommsDeps): GithubUserSeam {
       });
     },
     async keep(ctx, person, a) {
-      if (!d.vault.storeMine) throw fail("internal.unavailable", ctx.trace.traceId, { message: "This server's Vault cannot keep a personal item yet, so GitHub cannot be connected." });
-      await d.vault.storeMine(person, MINE_ITEM, { refresh_token: a.refreshToken }, ctx.space);
+      if (!d.hostCall) throw fail("internal.unavailable", ctx.trace.traceId, { message: "This server's Vault cannot keep a personal item yet, so GitHub cannot be connected." });
+      await d.hostCall("vault.mine_set", { owner: person, name: MINE_ITEM, fields: { refresh_token: a.refreshToken } });
     },
     async recall(ctx, person) {
-      try { return (await (d.vault.secret as (h: string, s: string, asker?: string) => Promise<string>)(`#${MINE_ITEM}.refresh_token`, ctx.space, person)) || null; } catch { return null; }
+      // the person's own Mine item, by the handle only they have (name plus a piece of their id); it opens with their key on this node
+      try { return (await (d.vault.secret as (h: string, s: string, asker?: string) => Promise<string>)(`${githubItemHandle(person)}.refresh_token`, ctx.space, person)) || null; } catch { return null; }
     },
-    async forget(ctx, person) { await d.vault.removeMine?.(person, MINE_ITEM, ctx.space); },
+    async forget(ctx, person) { await d.hostCall?.("vault.mine_remove", { owner: person, name: MINE_ITEM }); },
     redirectUri: async (ctx) => `${await publicUrlOf(d, ctx, "GitHub")}/hooks/github/connect`,
   };
 }

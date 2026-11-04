@@ -2,6 +2,7 @@
 // opener from them. A CLI engine (Claude Code, Codex, Grok) runs as a local process with the key filled into its environment and reaches Vyre over the loopback MCP endpoint, where the
 // agent's tools run through the invoke pipeline. An API-key driver gets the agent's role as its system prompt and no tools yet: running its tools needs the engine's tool runner (callTool),
 // which is a separate packet; until then a chat on an API key answers in words only.
+import { githubEnv, withGithub } from "./github-session.ts";
 import { LaunchError, createLocalLauncher } from "../../agent/src/drivers/cli/launcher.ts";
 import { ACCESS_ENV, RULE_ENV, SandboxError, WIN_SSH_AGENT_PIPE, accessFromEnv, engineAccess, ruleFromEnv } from "../../sandbox/src/index.ts";
 import type { AccessAsked, EgressEvent, EgressRule, EngineAccess } from "../../sandbox/src/index.ts";
@@ -58,6 +59,8 @@ export interface OpenerHost {
   session: EngineSessionPorts;
   /** Call a capability for a person; used for the agent's role. */
   call(cap: string, input: unknown, as?: string): Promise<unknown>;
+  /** The token behind a filler handle, once (github-session.ts): with it a CLI engine's process gets GitHub for the person's own turn. Absent: none does. */
+  githubFill?: (handle: string) => string | null;
   /** Where and how a CLI engine is sandboxed (the host decides). Without it a CLI turn fails with sandbox.unavailable: the engine never runs unwrapped. */
   sandbox?: SandboxPlan;
   /** The Space data directory (work folders live under it) and a builder for the default plan, used when the host gave none. Both come from the daemon. */
@@ -416,6 +419,8 @@ export function buildOpener(h: OpenerHost): SessionOpener {
         let ruled = h.egress ? withRule(spec, await ruleOf(h.egress)) : spec;
         const who = dataDir ? workOf(dataDir, spec.cwd) : null;
         if (h.access && who) ruled = withAccess(ruled, await h.access(who.person, "space").catch(() => ({ where: "server" as const, folders: [] })));
+        // GitHub for the person whose turn this is, from the one broker (a chat of a project whose Files folder points at GitHub); set last
+        if (h.githubFill && who) ruled = withGithub(ruled, await githubEnv({ call: h.call, fill: h.githubFill }, who.person, who.threadId));
         return spawnCli(await plan(), ruled, swap ? [...swap, ...spec.argv.slice(1)] : ownedArgv(spec.argv, h.cliProbe), h.egress?.record ? { onEgress: h.egress.record } : {});
       },
     },

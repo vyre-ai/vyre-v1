@@ -42,7 +42,7 @@ export const handlers: Record<string, Handler> = {
   "github.issue.comment": (ctx, i) => h.issueComment(ctx, i),
   "github.issue.close": (ctx, i) => h.issueClose(ctx, i),
   "github.issue.assign_agent": (ctx, i) => h.issueAssignAgent(ctx, i),
-  "github.me.connect": (ctx) => me.meConnect(ctx),
+  "github.me.connect": (ctx, i) => me.meConnect(ctx, i as never),
   "github.me.complete": (ctx, i) => me.meComplete(ctx, i),
   "github.me.status": (ctx) => me.meStatus(ctx),
   "github.me.disconnect": (ctx) => me.meDisconnect(ctx),
@@ -71,4 +71,6 @@ export const hostCalls = {
     const input = await h.verifyWebhook(ctx, { signature: a.headers["x-hub-signature-256"], event: a.headers["x-github-event"], deliveryId: a.headers["x-github-delivery"], body: a.body });
     return input === null ? { accepted: true } : h.receiveWebhook(ctx, input);
   },
+  /** A sign-in with GitHub finished (identity, through the host): connect that person's GitHub with the tokens it left. The host's own call. */
+  "github.adopt_sign_in": (ctx: Ctx, a: { githubId: string; person: string }): Promise<unknown> => { hostOnly(ctx, "github.adopt_sign_in"); return me.adoptSignIn(ctx as never, a); },
 };

@@ -15046,7 +15046,9 @@ export type GithubMeCompleteOut = {
   login: string;
   source: "space" | "vyre";
 };
-export type GithubMeConnectIn = Record<string, unknown>;
+export type GithubMeConnectIn = {
+  return?: string;
+};
 export type GithubMeConnectOut = {
   authUrl: string;
   state: string;
