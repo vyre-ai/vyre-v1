@@ -9,7 +9,7 @@ import { api, door, join } from "./member-key-kit.ts";
 
 const KEY = process.env["OPENCODE_API_KEY"];
 
-test("real model: time to first visible text in a seeded 300-message room, with and without the pack, and one real digest", { skip: !KEY && "OPENCODE_API_KEY is not set", timeout: 900_000 }, async () => {
+test("real model: time to first visible text in a seeded 300-message room, with and without the pack, and one real digest", { skip: !KEY && "OPENCODE_API_KEY is not set", timeout: 1_700_000 }, async () => {
   if (process.env["SPY"]) {
     const real = globalThis.fetch;
     let n = 0;
@@ -79,15 +79,16 @@ test("real model: time to first visible text in a seeded 300-message room, with 
         if (!JSON.stringify(p.data).includes("rate_limit")) assert.fail(JSON.stringify(p.data).slice(0, 200));
         await new Promise<void>((res) => setTimeout(res, 1_000));
       }
-      const seen = ((await api(d, maya.token, "chat.messages.list", { threadId })).data.messages as unknown[]).length;
+      const seqOf = async (): Promise<number> => ((await api(d, maya.token, "chat.messages.list", { threadId, limit: 5 })).data.messages as Array<{ threadSeq: number }>).reduce((n, m) => Math.max(n, m.threadSeq), 0);
+      const seen = await seqOf();   // the window holds the newest 50, so a count never moves: the sequence does
       const at = await waitFor(async () => {
         await d.hooks?.pump?.();
         const r = await api(d, maya.token, "engine.live_turns", { threadId });
         const turns = (r.data.turns ?? []) as Array<{ text: string }>;
         if (turns.some((x) => x.text.trim() !== "")) return Date.now();
         // a short reply can be done between two polls: the message itself is then the first visible text
-        const m = (await api(d, maya.token, "chat.messages.list", { threadId })).data.messages as Array<{ author: { kind: string }; body: string }>;
-        return m.slice(seen).some((x) => x.author.kind === "agent" && x.body.trim() !== "") ? Date.now() : null;
+        const m = (await api(d, maya.token, "chat.messages.list", { threadId, limit: 10 })).data.messages as Array<{ threadSeq: number; author: { kind: string }; body: string }>;
+        return m.some((x) => x.threadSeq > seen && x.author.kind === "agent" && x.body.trim() !== "") ? Date.now() : null;
       }, 60_000, () => hostLog(d).replaceAll(KEY!, "***").slice(0, 1500)).catch(async (e: Error) => {
         const m = (await api(d, maya.token, "chat.messages.list", { threadId, limit: 6 })).data.messages as Array<{ author: { kind: string; id: string }; kind: string; body: string }>;
         const now = await api(d, maya.token, "engine.now", {});
@@ -103,10 +104,10 @@ test("real model: time to first visible text in a seeded 300-message room, with 
     };
     await firstText("off", 0);   // the first turn builds the runtime and warms the connection
     const on: number[] = [], off: number[] = [];
-    for (let n = 1; n <= 3; n++) { off.push(await firstText("off", n * 2)); on.push(await firstText("on", n * 2 + 1)); }
-    console.log(`REAL first visible text (ms), model ${model}: without the pack ${off.join(", ")}; with the pack ${on.join(", ")}`);
+    for (let n = 1; n <= 5; n++) { off.push(await firstText("off", n * 2)); on.push(await firstText("on", n * 2 + 1)); }
+    console.log(`OUT|REAL first visible text (ms), model ${model}: without the pack ${off.join(", ")}; with the pack ${on.join(", ")}`);
     const last = (await api(d, maya.token, "chat.messages.list", { threadId, limit: 4 })).data.messages as Array<{ author: { kind: string }; body: string }>;
-    console.log(`last reply: ${last.filter((m) => m.author.kind === "agent").at(-1)?.body.slice(0, 300)}`);
+    console.log(`OUT|last reply: ${last.filter((m) => m.author.kind === "agent").at(-1)?.body.slice(0, 300)}`);
     // the digest the 300 messages caused
     let digest = "";
     for (let i = 0; i < 60 && digest === ""; i++) {
@@ -115,11 +116,11 @@ test("real model: time to first visible text in a seeded 300-message room, with 
       }
       if (digest === "") await new Promise<void>((res) => setTimeout(res, 1_000));
     }
-    console.log(`DIGEST:\n${digest || "(none written)"}`);
+    console.log(`OUT|DIGEST ${(digest || "(none written)").replaceAll("\n", " // ")}`);
 
     // ---- the walk: what the agent knew and did not know, asked in plain words as Omar
     const ask = async (tid: string, as: string, body: string, key: string): Promise<string> => {
-      const before = ((await api(d, maya.token, "chat.messages.list", { threadId: tid })).data.messages as unknown[]).length;
+      const before = ((await api(d, maya.token, "chat.messages.list", { threadId: tid, limit: 5 })).data.messages as Array<{ threadSeq: number }>).reduce((n, m) => Math.max(n, m.threadSeq), 0);
       for (let tries = 0; tries < 90; tries++) {
         const r = await fetch(`${d.url}/v1/chat/post`, { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${as}` }, body: JSON.stringify({ threadId: tid, body, mentions: [{ kind: "agent", id: agent }], idempotencyKey: key }) });
         const t = await r.text();
@@ -128,19 +129,21 @@ test("real model: time to first visible text in a seeded 300-message room, with 
         await new Promise<void>((res) => setTimeout(res, 1_000));
       }
       return waitFor(async () => {
-        const m = (await api(d, maya.token, "chat.messages.list", { threadId: tid })).data.messages as Array<{ author: { kind: string }; body: string }>;
-        const a = m.slice(before).filter((x) => x.author.kind === "agent" && x.body.trim() !== "");
+        await d.hooks?.pump?.();
+        const m = (await api(d, maya.token, "chat.messages.list", { threadId: tid, limit: 20 })).data.messages as Array<{ threadSeq: number; author: { kind: string }; body: string }>;
+        const a = m.filter((x) => x.threadSeq > before && x.author.kind === "agent" && x.body.trim() !== "");
         return a.length ? a.map((x) => x.body).join(" ") : null;
       }, 120_000);
     };
     // 1. a channel: tagged by Maya, whose account pays
-    console.log(`WALK channel: ${(await ask(threadId, maya.token, "@Intake in one sentence: when does the launch email go out, and what is blocked?", "rr-w1")).slice(0, 400)}`);
+    console.log(`OUT|WALK channel: ${(await ask(threadId, maya.token, "@Intake in one sentence: when does the launch email go out, and what is blocked?", "rr-w1")).slice(0, 400)}`);
     // 2. a thread under a message of the channel
-    const msgs = (await api(d, maya.token, "chat.messages.list", { threadId, limit: 200 })).data.messages as Array<{ messageId: string; body: string }>;
-    const parent = msgs.find((m) => m.body.startsWith("Decision: pricing stays"))!;
+    const dec = await api(d, maya.token, "chat.post", { threadId, body: "Decision: pricing stays at 49 a month, no annual discount for launch.", mentions: [], idempotencyKey: "rr-decision" });
+    assert.equal(dec.status, 200, JSON.stringify(dec.data));
+    const parent = { messageId: dec.data.message.messageId as string };
     const th = await api(d, maya.token, "chat.thread", { threadId, messageId: parent.messageId, idempotencyKey: "rr-thread" });
     assert.equal(th.status, 200, JSON.stringify(th.data));
-    console.log(`WALK thread: ${(await ask(th.data.thread.threadId as string, maya.token, "@Intake what is the decision this thread hangs off, in one sentence?", "rr-w2")).slice(0, 400)}`);
+    console.log(`OUT|WALK thread: ${(await ask(th.data.thread.threadId as string, maya.token, "@Intake what is the decision this thread hangs off, in one sentence?", "rr-w2")).slice(0, 400)}`);
     // 3. a room that gained a person: the owner talks with the agent alone first, then Omar joins and asks about it
     const priv = await api(d, maya.token, "channels.create", { name: "plans", visibility: "invite", agentIds: [agent], idempotencyKey: "rr-chan2" });
     assert.equal(priv.status, 200, JSON.stringify(priv.data));
@@ -154,6 +157,8 @@ test("real model: time to first visible text in a seeded 300-message room, with 
     assert.equal(add.status, 200, JSON.stringify(add.data));
     await waitFor(async () => { await d.hooks?.pump?.(); return (await api(d, maya.token, "chat.messages.list", { threadId: pt }).then((r) => r)).status === 200 ? true : null; }, 20_000);
     await new Promise<void>((res) => setTimeout(res, 1_500));
-    console.log(`WALK gained-a-person: ${(await ask(pt, maya.token, "@Intake what is the budget ceiling for the Acme deal that was discussed here earlier?", "rr-w3b")).slice(0, 400)}`);
+    const tg = await api(d, maya.token, "threads.get", { threadId: pt });
+    console.log(`OUT|joinedAt ${JSON.stringify(tg.data.thread?.joinedAt)} members ${(tg.data.thread?.members ?? []).length}`);
+    console.log(`OUT|WALK gained-a-person: ${(await ask(pt, maya.token, "@Intake what is the budget ceiling for the Acme deal that was discussed here earlier?", "rr-w3b")).slice(0, 400)}`);
   } finally { delete process.env["VYRE_ROOM_PACK"]; await d.stop(); }
 });
