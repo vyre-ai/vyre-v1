@@ -47,7 +47,7 @@ export function HookLineActs({ id, line, threadId, call, open, linkStyle, quietS
         // the way forward the check wrote: small buttons, apart from the quiet verbs above
         <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
           {steps.map((st, i) => (
-            <Pressable key={`n${i}`} testID={`hook-next-${i}-${id}`} accessibilityRole="button" accessibilityLabel={st.label} accessibilityState={{ disabled: busy }} onPress={() => { if (!busy) say(i); }} style={{ height: 28, paddingHorizontal: 11, justifyContent: "center", borderRadius: 9, backgroundColor: "var(--sunk)" as string }}>
+            <Pressable key={`n${i}`} testID={`hook-next-${i}-${id}`} accessibilityRole="button" accessibilityLabel={st.label} accessibilityState={{ disabled: busy }} onPress={() => { if (!busy) say(i); }} style={{ height: 28, paddingHorizontal: 11, justifyContent: "center", borderRadius: 9, backgroundColor: "var(--sunk)" as string, boxShadow: "inset 0 0 0 1px var(--line)" } as object}>
               <Text style={{ fontSize: 12.5, fontWeight: "500", color: "var(--ink)" as string }}>{st.label}</Text>
             </Pressable>
           ))}
@@ -63,6 +63,17 @@ export function HookLineRow({ id, line, words, threadId, call, open, st, stepsBe
   st: { event: object; text: object; lead: object; act: object };
 }): ReactElement {
   const [lead, rest] = hookLead(words);
+  // one quiet word (Edit) sits at the right of the text when it fits; a stop with several verbs and steps puts them under it
+  const inline = hookLineActs(line).length <= 1 && (line.next ?? []).length === 0;
+  if (inline) {
+    return (
+      <View testID={`event-${id}`} accessibilityRole="text" style={st.event}>
+        <View style={{ marginTop: 3 }}><Glyph name="lock" size={14} color="var(--ink-3)" /></View>
+        <Text style={st.text}><Text style={st.lead}>{lead}</Text>{rest}</Text>
+        <HookLineActs id={id} line={line} threadId={threadId} call={call} {...(open ? { open } : {})} linkStyle={st.act} quietStyle={st.act} stepsBelow={stepsBelow} />
+      </View>
+    );
+  }
   return (
     <View testID={`event-${id}`} accessibilityRole="text" style={st.event}>
       <View style={{ marginTop: 3 }}><Glyph name="lock" size={14} color="var(--ink-3)" /></View>
@@ -87,7 +98,7 @@ export function HookSteps({ id, steps, agentId, threadId, call }: { id: string; 
   return (
     <View testID={`hook-steps-${id}`} style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 8 }}>
       {steps.map((st, i) => (
-        <Pressable key={i} testID={`hook-step-${i}-${id}`} accessibilityRole="button" accessibilityLabel={st.label} accessibilityState={{ disabled: busy }} onPress={() => { if (!busy) send(i); }} style={{ height: 28, paddingHorizontal: 11, justifyContent: "center", borderRadius: 9, backgroundColor: "var(--sunk)" as string }}>
+        <Pressable key={i} testID={`hook-step-${i}-${id}`} accessibilityRole="button" accessibilityLabel={st.label} accessibilityState={{ disabled: busy }} onPress={() => { if (!busy) send(i); }} style={{ height: 28, paddingHorizontal: 11, justifyContent: "center", borderRadius: 9, backgroundColor: "var(--sunk)" as string, boxShadow: "inset 0 0 0 1px var(--line)" } as object}>
           <Text style={{ fontSize: 12.5, fontWeight: "500", color: "var(--ink)" as string }}>{st.label}</Text>
         </Pressable>
       ))}

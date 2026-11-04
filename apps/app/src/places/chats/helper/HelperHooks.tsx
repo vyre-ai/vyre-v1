@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import type { ReactElement } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
-import { Icon } from "../rightpane/parts.tsx";
+import { Icon } from "../needsyou/parts.tsx";
 import type { CapMap } from "../../../../../../generated/types.ts";
 import { kindWord, titleOf, whatOf } from "../rightpane/hooks-model.ts";
 import type { Hook } from "../rightpane/hooks-model.ts";
