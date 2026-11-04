@@ -175,6 +175,10 @@ export default defineManifest({
     read('access.agents_can_call.get', 'Whether other agents may hand work to this agent (On unless a person turned it Off); engine and chat check it before one agent calls another', {
       level: 'member', in: { agentId: id.agent }, out: { on: t.bool() }, tool: 'meta', errors: ['validation.not_found'],
     }),
+    write('access.make_owner', 'The owner hands an item to someone else: they become the owner and the previous owner keeps Manage', {
+      ...V, idem: 'key', in: { resource: resourceRef, personId: id.user }, out: { ok: t.bool() }, emits: ['grant.created', 'access.changed'], audit: 'always', team: true, agent: false,
+      gate: { act: 'transfer', when: "actor.kind != 'person'" }, errors: ['permission.no_grant', 'validation.bad_input', 'validation.not_found'],
+    }),
     write('access.audience_set', 'Choose who a record type or one record is open to: everyone, only people added or only me; a type also says who may export; a record\'s Files folder can follow its record', {
       ...V, in: { resource: resourceRef, audience: t.opt(audience), exporters: t.opt(exporters), outside: t.opt(t.bool()), follows: t.opt(id.record) }, out: { audience, exporters, outside: t.bool() },
       emits: ['grant.created', 'grant.revoked', 'access.changed'], audit: 'always', tool: 'meta', team: true, errors: ['permission.not_contained', 'validation.precondition_failed'],

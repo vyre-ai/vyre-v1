@@ -5,7 +5,7 @@ import type { ReactElement } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { AccessSheet } from "../../../../../../ui/src/AccessSheet/index.tsx";
 import type { ShareInput, UnshareInput } from "../../../../../../ui/src/AccessSheet/index.tsx";
-import { copyPageLink, shareRows, sheetDirectory, withNotify } from "../../../share/rows.ts";
+import { copyItemLink, shareRows, sheetDirectory, withNotify } from "../../../share/rows.ts";
 import type { SharesOut } from "../../../share/rows.ts";
 import { useVaultData, usePrincipals } from "../layout/data.tsx";
 import { messageOf } from "../connections/actions.ts";
@@ -37,7 +37,7 @@ export function VaultShareSheet({ kind, id, name, onClose, onChanged }: { kind: 
         ownerName={owner ? names.name(owner.grant.subject.id) : data.me.name} {...(owner ? { ownerId: owner.grant.subject.id } : {})} spaceName={data.spaceName}
         levels={["use", "view", "manage"]} shares={rows} allowExternal={false} density="regular" directory={sheetDirectory({ people, groups: [], roles: [], agents })}
         {...(out.mine ? { maxLevel: out.mine } : {})}
-        meId={data.me.id} notifyPeople onCopyLink={copyPageLink}
+        meId={data.me.id} notifyPeople onCopyLink={() => copyItemLink(kind, id)}
         onShare={(i: ShareInput, opts) => run(Promise.resolve(data.call("vault.share", withNotify({ resource: { type: kind, id }, subject: i.subject, level: i.level }, opts))))}
         onUnshare={(i: UnshareInput) => run(Promise.resolve(data.call("vault.unshare", { resource: { type: kind, id }, subject: i.subject })))}
         onClose={onClose}

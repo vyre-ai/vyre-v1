@@ -555,7 +555,7 @@
     {
       "deferred": false,
       "name": "artifact_publish",
-      "summary": "THE way to show something you made: publish it privately to a link that opens in a tab. Give html, a file or folder in Files, a path on this machine, or a running port. Same title or artifactId updates the same link",
+      "summary": "THE way to show something you made: publish it privately; the person gets a card in the chat to open it. The result says whether it was opened for them (opened). Give html, a file or folder in Files, a path on this machine, or a running port. Same title or artifactId updates the same link",
       "toolset": "sites"
     },
     {
@@ -854,6 +854,12 @@
     },
     {
       "deferred": false,
+      "name": "automations_set_owner",
+      "summary": "Hand a Space Automation to another person as its accountable owner; the previous owner keeps Manage",
+      "toolset": "automations"
+    },
+    {
+      "deferred": false,
       "name": "automations_steps_list",
       "summary": "The step palette: every step kind with category, input and output schema, effects and Gate act",
       "toolset": "automations"
@@ -922,6 +928,18 @@
       "deferred": false,
       "name": "automations_versions",
       "summary": "List versions of an Automation (One History)",
+      "toolset": "automations"
+    },
+    {
+      "deferred": false,
+      "name": "automations_watches_list",
+      "summary": "Vyre for Chrome: the person's watches, newest first: what is watched, how often, where it runs, what the last check read and the last change with before and after",
+      "toolset": "automations"
+    },
+    {
+      "deferred": false,
+      "name": "automations_watches_report",
+      "summary": "A check of a watched page: what it read now (or why it could not read). The first reading is the baseline; a different one is a change and is told in the watch's chat with before and after",
       "toolset": "automations"
     },
     {
@@ -1001,6 +1019,12 @@
       "name": "bookings_page_create",
       "summary": "Create a booking page with host or round-robin pool, length, buffer and questions",
       "toolset": "automations"
+    },
+    {
+      "deferred": false,
+      "name": "browser_sites_list",
+      "summary": "The Browser connections: sites agents may use, where each runs, and each agent's right (Read only or Act). A person sees their own; an agent sees the sites that name it",
+      "toolset": "computer"
     },
     {
       "deferred": false,
@@ -1426,6 +1450,12 @@
       "deferred": false,
       "name": "chat_react",
       "summary": "Add or remove a reaction",
+      "toolset": "chats"
+    },
+    {
+      "deferred": false,
+      "name": "chat_read_floor",
+      "summary": "Where the caller's reading of one chat starts: the time they were added without Include earlier messages, or nothing when they read all of it. The engine tells an agent so before it answers them",
       "toolset": "chats"
     },
     {
@@ -2265,7 +2295,7 @@
     {
       "deferred": false,
       "name": "crew_start",
-      "summary": "Start a teammate on a brief: it gets its own thread under this chat and its own copy of the project repository on its own branch, and works until it is done",
+      "summary": "Start a teammate on a brief in any chat. It works on its own branch in its own copy of the repository: the chat's project's, else the chat's own work folder on this computer (made on first use). Nothing to set up first",
       "toolset": "chats"
     },
     {
@@ -2523,7 +2553,7 @@
     {
       "deferred": false,
       "name": "engine_accounts_list",
-      "summary": "Accounts the caller can run on: API keys by handle and subscription sign-ins (Mine), with status",
+      "summary": "Accounts the caller can run on: API keys by handle and subscription sign-ins (Mine), with status. With a place (chat, automation, agent, space) each says whether it can run there and why not",
       "toolset": "meta"
     },
     {
@@ -5978,6 +6008,12 @@
     },
     {
       "deferred": false,
+      "name": "my_ai",
+      "summary": "What AI this chat runs on and what else the person may use now: model, account and who paid, each usable account with models and limits (or not readable), and use today and this month. Ask it for what model, what else, what is left, /usage",
+      "toolset": "meta"
+    },
+    {
+      "deferred": false,
       "name": "network_certificate_renew",
       "summary": "Renew a certificate now",
       "toolset": "engineer"
@@ -6146,6 +6182,12 @@
     },
     {
       "deferred": false,
+      "name": "notes_create",
+      "summary": "Take a note: text, an image, or a link that becomes a card. Private to the person until shared",
+      "toolset": "memory"
+    },
+    {
+      "deferred": false,
       "name": "notes_get",
       "summary": "Read one note the asker may read. An agent reads a note only when everyone in its chat may read it",
       "toolset": "memory"
@@ -6269,6 +6311,12 @@
       "name": "notifications_send",
       "summary": "Notify a person of a kind; collapses repeats, respects hours, mutes and away, enforces the agent interrupt cap and the one-device rule",
       "toolset": "meta"
+    },
+    {
+      "deferred": false,
+      "name": "offer_note",
+      "summary": "Offer to save something from this chat as a note: a small card with a preview of the note, Save and Not now. At most once per topic and rarely; says offered false with a reason when the person has it off or it is too soon",
+      "toolset": "chats"
     },
     {
       "deferred": false,
@@ -8541,7 +8589,7 @@
     {
       "deferred": false,
       "name": "tasks_working_notes_set",
-      "summary": "Write a working note (key and value) that any person or agent on the task can read",
+      "summary": "Write a working note (key and value) that any person or agent on the task can read; send expectedFrom, the note as you last read it",
       "toolset": "tasks"
     },
     {
@@ -8919,7 +8967,7 @@
     {
       "deferred": false,
       "name": "threads_members_add",
-      "summary": "Add a person to a thread; a private chat never gains people, so this offers a channel instead",
+      "summary": "Add a person to a thread. A private chat becomes a group chat: the newcomer reads from now on unless fromStart is true (Include earlier messages), a goal chat shows its history, and agents stop using the asker's private profile there. A chat's own agents become visible to the newcomer.",
       "toolset": "chats"
     },
     {

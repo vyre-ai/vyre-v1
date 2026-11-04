@@ -805,6 +805,32 @@ export async function audienceSet(ctx: ShareCtx, input: { resource: ResourceRef;
   return { audience: audienceOf(res), exporters: exportersOf(store, res), outside: res.row?.["outside"] === true };
 }
 
+/** The owner hands an item to another active person. The previous owner keeps Manage as a grant of their own, so handing it over never locks them out. */
+export async function makeOwner(ctx: ShareCtx, input: { resource: ResourceRef; personId: string }) {
+  const store = storeOf(ctx);
+  const ss = shareOf(ctx);
+  const trace = ctx.trace.traceId;
+  if (ctx.principal.kind !== "person") raise(trace, "permission.no_grant", "Only a person hands over ownership.");
+  const res = resourceOf(ctx, store, input.resource);
+  if (res.ownerId !== ctx.principal.id) raise(trace, "permission.no_grant", "Only the owner hands this over.");
+  const to = store.principals.get(input.personId);
+  if (!to || to.kind !== "person" || to.status !== "active") raise(trace, "validation.bad_input", "Pick an active person in this Space.");
+  if (input.personId === ctx.principal.id) raise(trace, "validation.bad_input", "It is already yours.");
+  const wasFresh = isFresh(ctx, store, ss);
+  const from = res.ownerId;
+  // whatever the new owner held directly on it is now the owner's, so those grants go
+  for (const g of [...store.grants.values()]) if (g.resource.id === res.id && g.subject.kind === "person" && g.subject.id === input.personId && g.source === undefined) dropGrant(ctx, store, g);
+  res.ownerId = input.personId;
+  if (from) {
+    const g: GrantRec = { id: nid("gnt"), subject: { kind: "person", id: from }, resource: { type: res.type, id: res.id }, level: "manage", conditions: {}, by: ctx.principal.id, createdAt: ctx.now() };
+    store.grants.set(g.id, g);
+    ctx.emit("grant.created", g.id, { grantId: g.id, subject: g.subject, resource: g.resource, level: g.level });
+  }
+  changed(ctx, store, "assignment");
+  commit(ctx, store, ss, wasFresh, [res.id], false);
+  return { ok: true };
+}
+
 /** Whether other agents may hand work to this agent. On unless a person turned it Off. */
 export async function agentsCanCallGet(ctx: ShareCtx, input: { agentId: string }) {
   const store = storeOf(ctx);

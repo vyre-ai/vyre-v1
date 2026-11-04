@@ -756,7 +756,10 @@ test("a person who already has the level through Everyone says so, and adding th
     const root = await mount(createRoot, <AccessSheet {...dex({ directory: sharePeople, shares: [general], onShare: (i) => said.push(i) })} />);
     await typeInto(find(root, "as-search"), "omar");
     await press(find(root, "as-row-person:usr_omar"));
-    // a new person starts at the level Everyone holds, which gains them nothing: refused, with the reason
+    // a new person starts one level above Everyone (here Can manage); picking Can use gains them nothing: refused, with the reason
+    assert.match(textOf(find(root, "as-role-person:usr_omar")), /Can manage/);
+    await press(find(root, "as-role-person:usr_omar"));
+    await press(find(root, "menu-item-Can use"));
     await press(find(root, "as-add"));
     assert.equal(said.length, 0);
     assert.match(textOf(find(root, "as-refused")), /Already has access through Everyone in Northwind/);
@@ -767,7 +770,7 @@ test("a person who already has the level through Everyone says so, and adding th
   });
 });
 
-test("a new person starts at the general level when one is set, else at Can use for an agent", async () => {
+test("a new person starts one level above the general one, else at Can use for an agent", async () => {
   await withDom(async () => {
     const root = await mount(createRoot, <AccessSheet {...dex({ directory: sharePeople, shares: [] })} />);
     await typeInto(find(root, "as-search"), "omar");

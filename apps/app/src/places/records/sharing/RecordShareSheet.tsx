@@ -6,7 +6,7 @@ import { Platform, Pressable, StyleSheet, Text, View, useWindowDimensions } from
 import type { ViewStyle } from "react-native";
 import { AccessSheet } from "../../../../../../ui/src/AccessSheet/index.tsx";
 import type { Audience, Exporters, RowFlag, ShareInput, ShareRow, UnshareInput } from "../../../../../../ui/src/AccessSheet/index.tsx";
-import { copyPageLink, sheetDirectory, withNotify } from "../../../share/rows.ts";
+import { copyItemLink, sheetDirectory, withNotify } from "../../../share/rows.ts";
 import { States } from "../../../../../../ui/src/States/index.tsx";
 import { useRecordsData } from "../sidebar/data.tsx";
 import type { ShareTarget } from "../sidebar/data.tsx";
@@ -18,7 +18,7 @@ export interface ShareDirectory { people?: readonly { id: string; name: string }
 
 const FIXED = (Platform.OS === "web" ? "fixed" : "absolute") as ViewStyle["position"];
 
-export function RecordShareSheet({ target, directory, spaceName, onClose }: { target: ShareTarget; directory: ShareDirectory; spaceName?: string; onClose(): void }): ReactElement {
+export function RecordShareSheet({ target, directory, spaceName, meId, onClose }: { target: ShareTarget; directory: ShareDirectory; spaceName?: string; meId?: string; onClose(): void }): ReactElement {
   const data = useRecordsData();
   const width = useWindowDimensions().width;
   const phone = width > 0 && width < 720;
@@ -57,7 +57,7 @@ export function RecordShareSheet({ target, directory, spaceName, onClose }: { ta
         mode="share" itemType={target.type === "record_type" ? "rtype" : "record"} resourceType={target.type} resourceId={target.id} itemName={target.name} target="item" {...(spaceName ? { spaceName } : {})} ownerName={ownerName} {...(m.owner ? { ownerId: m.owner.id } : {})}
         levels={RECORD_LEVELS} shares={m.rows} allowExternal={false} density={phone ? "compact" : "regular"} directory={sheetDirectory({ people: directory.people ?? [], groups: directory.groups ?? [], roles: directory.roles ?? [], agents: directory.agents ?? [] })}
         {...(target.typeName ? { folderName: target.typeName } : {})} {...(out.mine ? { maxLevel: out.mine } : {})} records={records}
-        notifyPeople onCopyLink={copyPageLink}
+        {...(meId ? { meId } : {})} notifyPeople onMakeOwner={(s) => run(data.call("access.make_owner", { resource: res, personId: s.id, idempotencyKey: `owner:${target.id}:${s.id}` }))} onCopyLink={() => copyItemLink(target.type, target.id)}
         onShare={(i: ShareInput, opts) => run(data.call("access.share", withNotify(shareCall(res, i.subject, i.level), opts)))}
         onUnshare={(i: UnshareInput) => run(data.call("access.unshare", { resource: i.resource, subject: i.subject }))}
         onClose={onClose}

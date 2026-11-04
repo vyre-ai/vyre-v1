@@ -60,6 +60,7 @@ export function stubs(ctx: CallCtx) {
         set: call("access.labels.set"),
       },
       lists: call("access.lists"),
+      make_owner: call("access.make_owner"),
       policies: {
         list: call("access.policies.list"),
         reset: call("access.policies.reset"),
@@ -254,6 +255,7 @@ export function stubs(ctx: CallCtx) {
       schedule_choose: call("automations.schedule_choose"),
       senders: call("automations.senders"),
       set_enabled: call("automations.set_enabled"),
+      set_owner: call("automations.set_owner"),
       steps: {
         list: call("automations.steps.list"),
       },
@@ -272,6 +274,13 @@ export function stubs(ctx: CallCtx) {
       validate: call("automations.validate"),
       vault_usage: call("automations.vault_usage"),
       versions: call("automations.versions"),
+      watches: {
+        check: call("automations.watches.check"),
+        list: call("automations.watches.list"),
+        remove: call("automations.watches.remove"),
+        report: call("automations.watches.report"),
+        save: call("automations.watches.save"),
+      },
       webhook_url: {
         get: call("automations.webhook_url.get"),
         rotate: call("automations.webhook_url.rotate"),
@@ -296,6 +305,19 @@ export function stubs(ctx: CallCtx) {
       cancel: call("bookings.cancel"),
       list: call("bookings.list"),
       page_create: call("bookings.page_create"),
+    },
+    browser: {
+      cards: {
+        post: call("browser.cards.post"),
+      },
+      chrome: {
+        act: call("browser.chrome.act"),
+      },
+      sites: {
+        list: call("browser.sites.list"),
+        remove: call("browser.sites.remove"),
+        set: call("browser.sites.set"),
+      },
     },
     calendar: {
       availability: call("calendar.availability"),
@@ -401,6 +423,10 @@ export function stubs(ctx: CallCtx) {
       messages: {
         list: call("chat.messages.list"),
       },
+      note_offer: {
+        answer: call("chat.note_offer.answer"),
+        make: call("chat.note_offer.make"),
+      },
       open_as_chat: call("chat.open_as_chat"),
       open_tab: call("chat.open_tab"),
       people_status: call("chat.people_status"),
@@ -418,6 +444,7 @@ export function stubs(ctx: CallCtx) {
         ask: call("chat.question.ask"),
       },
       react: call("chat.react"),
+      read_floor: call("chat.read_floor"),
       recent: call("chat.recent"),
       remember: call("chat.remember"),
       reply_details: call("chat.reply_details"),
@@ -785,6 +812,7 @@ export function stubs(ctx: CallCtx) {
       models: {
         list: call("engine.models.list"),
       },
+      my_ai: call("engine.my_ai"),
       now: call("engine.now"),
       placement: {
         decide: call("engine.placement.decide"),
@@ -1871,6 +1899,7 @@ export function stubs(ctx: CallCtx) {
       pin: call("notes.pin"),
       restore: call("notes.restore"),
       search: call("notes.search"),
+      set_owner: call("notes.set_owner"),
       share: call("notes.share"),
       to_record: call("notes.to_record"),
       to_task: call("notes.to_task"),

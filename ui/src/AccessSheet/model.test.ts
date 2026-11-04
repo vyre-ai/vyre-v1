@@ -200,7 +200,9 @@ test("role lists: people Member or Can view, guests Can view or Can reply, agent
   assert.equal(defaultRole("guest", addCtx), "gview");
   assert.equal(defaultRole("person", { mode: "share", itemType: "vault" }), "use");
   assert.equal(defaultRole("person", { mode: "share", itemType: "agent" }), "use");
-  assert.equal(defaultRole("person", { mode: "share", itemType: "agent", general: "edit" }), "edit", "a new person starts at the general level when one is set");
+  assert.equal(defaultRole("person", { mode: "share", itemType: "agent", general: "use" }), "edit", "a new person starts one level above the general one");
+  assert.equal(defaultRole("person", { mode: "share", itemType: "agent", general: null }), "use", "with Only people added, Can use");
+  assert.equal(defaultRole("person", { mode: "share", itemType: "agent", general: "use", giving: { maxLevel: "use" } }), "use", "nothing above is on offer: the default stays");
 });
 
 /* ---------- buttons ---------- */

@@ -8,7 +8,7 @@ import { authorize } from "../../../kernel/src/authorize/index.ts";
 import { handlers } from "../impl.ts";
 import { putPrincipal } from "../handlers/roles.ts";
 import {
-  agentsCanCallGet, agentsCanCallSet, dropShare, foldersCreate, foldersDelete, foldersList, foldersMove, foldersPlace, foldersRename, foldersUnplace, levelFor, lists,
+  agentsCanCallGet, agentsCanCallSet, dropShare, makeOwner, foldersCreate, foldersDelete, foldersList, foldersMove, foldersPlace, foldersRename, foldersUnplace, levelFor, lists,
   automationSenders, deciders, myAccess, share, shareOf, sharesOf, unshare, updateGrant,
 } from "../handlers/share.ts";
 import type { ShareCtx } from "../handlers/share.ts";
@@ -562,4 +562,22 @@ test("sharing with notify tells the person once; without it nobody is told; neve
   assert.deepEqual(told[0]!.payload, { to: "usr_c", resource: res, level: "use", byName: "usr_a", title: "agt_dex", message: "Take a look" });
   await share(a, { resource: res, subject: { kind: "person", id: "usr_a" }, level: "use", notify: {} });
   assert.equal(r.events.filter((e) => e.name === "access.shared_with").length, 1, "not oneself");
+});
+
+test("make owner: only the owner, only to an active person; the previous owner keeps Manage", async () => {
+  const r = rig();
+  r.item("fld_x", "usr_a", "folder");
+  const res = { type: "folder" as const, id: "fld_x" };
+  const a = r.as("usr_a");
+  await share(a, { resource: res, subject: { kind: "person", id: "usr_b" }, level: "edit" });
+  assert.equal(await code(makeOwner(r.as("usr_b"), { resource: res, personId: "usr_c" })), "permission.no_grant", "a manager is not the owner");
+  assert.equal(await code(makeOwner(a, { resource: res, personId: "usr_nobody" })), "validation.bad_input");
+  assert.equal(await code(makeOwner(a, { resource: res, personId: "usr_a" })), "validation.bad_input");
+  const agent: ShareCtx = { ...a, principal: { kind: "agent", id: "agt_x" } };
+  assert.equal(await code(makeOwner(agent, { resource: res, personId: "usr_b" })), "permission.no_grant", "an agent never hands over ownership");
+  assert.deepEqual(await makeOwner(a, { resource: res, personId: "usr_b" }), { ok: true });
+  const { shares } = await sharesOf(r.as("usr_b"), { resource: res });
+  assert.equal(shares.find((s) => s.through === "owner")?.grant.subject.id, "usr_b");
+  assert.equal(shares.find((s) => s.grant.subject.id === "usr_a")?.grant.level, "manage", "the previous owner keeps Manage");
+  assert.equal((await sharesOf(a, { resource: res })).mine, "manage");
 });

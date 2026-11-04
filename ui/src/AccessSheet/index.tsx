@@ -369,7 +369,7 @@ export function AccessSheet(props: AccessSheetProps): ReactElement {
       ) : null}
       <ScrollView style={st.body} keyboardShouldPersistTaps="handled" testID="as-body">
         {picks.length > 0 ? <><View style={st.sectRow}><Text style={st.sectText}>{add ? "Adding" : "Sharing with"}</Text></View>{picks.map(pickRow)}</> : null}
-        {share ? <AccessList p={share} offered={share.levels} cleared={cleared} onCleared={(k) => setCleared((c) => [...c, k])} /> : null}
+        {share ? <AccessList p={share} compact={compactLabel} offered={share.levels} cleared={cleared} onCleared={(k) => setCleared((c) => [...c, k])} /> : null}
         {section("Suggested", secs.suggested, share ? undefined : "You work with these most")}
         {secs.invite === null ? null : (
           <View>

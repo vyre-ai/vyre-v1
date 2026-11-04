@@ -214,7 +214,7 @@ export function fillFromNote(t: RecordType, n: Pick<Note, "title" | "body" | "li
 
 /* ---------- the Access sheet over a note ---------- */
 
-export type NoteSharePatch = { people?: { personId: string; role: "edit" | "view" | "remove" }[]; space?: "off" | "view" | "edit" };
+export type NoteSharePatch = { people?: { personId: string; role: "edit" | "view" | "remove" }[]; space?: "off" | "view" | "edit"; notify?: { message?: string } };
 const EVERYONE = "grp_everyone";
 
 /** A note's shares as the Access sheet's rows: each person at their role, and the Space as Everyone when it is open. */
@@ -225,10 +225,11 @@ export function noteShareRows(n: Pick<Note, "share">, nameOf: (id: string) => st
 }
 
 /** What the sheet's choice means for notes.share. Notes are shared with people or the Space, at View or Edit; anything else is not a note share. */
-export function notePatchOf(input: { subject: { kind: string; id: string }; level?: string }, remove = false): NoteSharePatch | null {
+export function notePatchOf(input: { subject: { kind: string; id: string }; level?: string }, remove = false, opts?: { notify: boolean; message?: string }): NoteSharePatch | null {
   const { subject } = input;
   const role = input.level === "edit" ? "edit" : "view";
-  if (subject.kind === "person") return { people: [{ personId: subject.id, role: remove ? "remove" : role }] };
+  const notify = opts?.notify && !remove ? { notify: opts.message ? { message: opts.message } : {} } : {};
+  if (subject.kind === "person") return { people: [{ personId: subject.id, role: remove ? "remove" : role }], ...notify };
   if (subject.kind === "group" && (subject.id === EVERYONE || subject.id === "space")) return { space: remove ? "off" : role };
   return null;
 }

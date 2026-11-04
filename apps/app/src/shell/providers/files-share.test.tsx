@@ -103,3 +103,15 @@ test("a folder: Notify people goes with the share as `notify`, with the message,
     assert.ok(find(s.tree, "as-acc-level-usr_bea") !== null);
   } finally { restore2(); }
 });
+
+test("a folder: Make owner is access.make_owner on the folder", async () => {
+  const restore = installDom();
+  try {
+    const s = await open(shares("manage"));
+    await press(find(s.tree, "as-acc-level-usr_bea"));
+    await press(find(s.tree, "menu-item-Make owner"));
+    await press(find(s.tree, "as-confirm-yes"));
+    await flush();
+    assert.deepEqual(s.calls.find((c) => c.cap === "access.make_owner")?.input, { resource: { type: "folder", id: "fld_clients" }, personId: "usr_bea", idempotencyKey: "owner:fld_clients:usr_bea" });
+  } finally { restore(); }
+});

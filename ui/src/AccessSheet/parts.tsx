@@ -133,13 +133,14 @@ export function PokeButton({ name, onPress, testID }: { name: string; onPress():
   );
 }
 
-export function IconButton({ icon, label, onPress, testID, size = 14 }: { icon: string; label: string; onPress(x: number, y: number): void; testID?: string; size?: number }): ReactElement {
+export function IconButton({ icon, label, onPress, testID, size = 14, quiet = false, onFocus, onBlur }: { icon: string; label: string; onPress(x: number, y: number): void; testID?: string; size?: number; /** Drawn faint and out of the way until the row is hovered or the button has focus. */ quiet?: boolean; onFocus?(): void; onBlur?(): void }): ReactElement {
   return (
     <Tooltip text={label}>
       <Pressable
         accessibilityRole="button" accessibilityLabel={label} testID={testID}
         onPress={(e: { nativeEvent?: { pageX?: number; pageY?: number } }) => onPress(e.nativeEvent?.pageX ?? 0, e.nativeEvent?.pageY ?? 0)}
-        style={({ hovered }: { hovered?: boolean }) => [st.iconBtn, hovered === true && st.hover]}
+        {...(onFocus ? { onFocus } : {})} {...(onBlur ? { onBlur } : {})}
+        style={({ hovered }: { hovered?: boolean }) => [st.iconBtn, hovered === true && st.hover, quiet && st.hidden]}
       >
         <Icon name={icon} size={size} />
       </Pressable>
@@ -396,9 +397,21 @@ function FlagPill({ label, hint, on, locked, disabled, onChange, testID }: { lab
   );
 }
 
+/** A row that knows whether the pointer is on it or something in it has focus: the remove x shows only then (and always on a phone, which has no hover). */
+function HoverRow({ always, children }: { always: boolean; children: (show: boolean, focus: { onFocus(): void; onBlur(): void }) => ReactElement }): ReactElement {
+  const [over, setOver] = useState(false);
+  const [focused, setFocused] = useState(false);
+  const web = Platform.OS === "web";
+  return (
+    <View {...(web ? ({ onMouseEnter: () => setOver(true), onMouseLeave: () => setOver(false) } as object) : {})}>
+      {children(always || over || focused, { onFocus: () => setFocused(true), onBlur: () => setFocused(false) })}
+    </View>
+  );
+}
+
 export const ONLY_ADDED = "Only people added";
 
-export function AccessList({ p, offered, cleared, onCleared }: { p: ShareSheetProps; offered: readonly ShareLevel[] | undefined; cleared: readonly string[]; onCleared(key: string): void }): ReactElement {
+export function AccessList({ p, offered, cleared, onCleared, compact = false }: { p: ShareSheetProps; compact?: boolean; offered: readonly ShareLevel[] | undefined; cleared: readonly string[]; onCleared(key: string): void }): ReactElement {
   const menu = useMenu();
   const rec = p.records;
   // a person gives no more than they have: a level above their own is not in the menu (the row keeps the one it has)
@@ -439,20 +452,21 @@ export function AccessList({ p, offered, cleared, onCleared }: { p: ShareSheetPr
   const rowNode = (row: ShareRow): ReactElement => {
     const inheritedRow = row.via !== "grant";
     const can = levelsOf(row, type, offered).length > 1;
-    const trail = (
+    const trailOf = (show: boolean, focus: { onFocus(): void; onBlur(): void }): ReactElement => (
       <View style={st.trail}>
         <Picker label={`Level for ${row.name}`} value={lname(row.level)} disabled={!can || (rec !== undefined && !rec.canChange)} testID={`as-acc-level-${row.subjectId}`} onPress={(x, y) => pickLevel(row, x, y)} />
         {removable(row)
-          ? <IconButton icon="x" label={`Remove ${row.name}`} testID={`as-acc-remove-${row.subjectId}`} size={12} onPress={() => askRemove(row)} />
+          ? <IconButton icon="x" label={`Remove ${row.name}`} testID={`as-acc-remove-${row.subjectId}`} size={12} quiet={!show} onFocus={focus.onFocus} onBlur={focus.onBlur} onPress={() => askRemove(row)} />
           : <View style={st.iconBtn} />}
       </View>
     );
     const slot = (
       <View key={`${row.subjectKind}:${row.subjectId}:${inheritedRow ? "i" : "d"}`} style={st.plain}>
+      <HoverRow always={compact || p.density === "compact"}>{(show, focus) => (
       <SlotRow
         id={`as-acc-${row.subjectId}`} title={row.name} note={rec ? (inheritedRow ? `From ${p.folderName ?? "its type"}` : rowSub({ ...row, via: "grant" })) : row.subjectKind === "person" && row.via === "grant" && redundantVia(type, v.general.level, row.level, p.spaceName ?? "the Space") !== null ? (redundantVia(type, v.general.level, row.level, p.spaceName ?? "the Space") as string) : rowSub(row, p.folderName)}
-        leadWidth={36} lead={<SubjectFace row={row} />} trail={trail} onMenu={(x, y) => rowMenu(row, x, y)}
-      />
+        leadWidth={36} lead={<SubjectFace row={row} />} trail={trailOf(show, focus)} onMenu={(x, y) => rowMenu(row, x, y)}
+      />)}</HoverRow>
       </View>
     );
     if (!rec || inheritedRow || row.subjectKind === "link") return slot;
@@ -593,6 +607,7 @@ export const pickHowLabel = (p: AccessPick): string => HOW_OPTIONS.find((h) => h
 /* ---------- styles ---------- */
 
 export const st = StyleSheet.create({
+  hidden: { opacity: 0 },
   refusal: { color: t("danger"), fontSize: 12.5, lineHeight: 18 },
   message: { height: 34, borderRadius: 9, paddingHorizontal: 10, backgroundColor: t("sunk"), color: t("ink"), fontSize: 13, ...(web ? ({ outlineStyle: "none" } as object) : null) },
   confirmBar: { gap: 8, padding: 10, marginHorizontal: 6, marginVertical: 4, borderRadius: 10, backgroundColor: t("sunk") },

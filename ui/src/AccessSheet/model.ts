@@ -298,7 +298,7 @@ export interface RoleContext {
   itemType?: ShareItemType | undefined;
   offered?: readonly ShareLevel[] | undefined;
   giving?: Giving;
-  /** Share mode: the level Everyone already holds. A new person starts there, so they are not given less than the Space already gives. */
+  /** Share mode: the level Everyone already holds. A new person starts one level above it. */
   general?: ShareLevel | null | undefined;
 }
 
@@ -325,15 +325,17 @@ export function roleName(kind: AccessPick["kind"], role: string, c: RoleContext)
   return roleOptions(kind, c).find((o) => o.id === role)?.label ?? role;
 }
 
-/** The role a new pick starts at: add mode, Member (or Can view when the person can only view); a guest Can view; share mode, the item's lowest offered level. */
+/** The role a new pick starts at: add mode, Member (or Can view when the person can only view); a guest Can view; share mode, the level above the general one, else the item's default. */
 export function defaultRole(kind: AccessPick["kind"], c: RoleContext): string {
   if (isAgentKind(kind)) return "";
   const g = c.giving ?? {};
   if (c.mode === "add") return kind === "guest" ? "gview" : isViewOnly(g) ? "view" : "member";
   const defs = levelDefs(c.itemType ?? "note", c.offered);
   const want = ITEM_DEFS[c.itemType ?? "note"].def;
-  const fromSpace = c.general ? defs.find((l) => l.id === c.general && canGiveLevel(c.itemType ?? "note", l.id, g)) : undefined;
-  const first = fromSpace ?? defs.find((l) => l.id === want) ?? (defs[0] as LevelDef);
+  // a new person starts one level above what Everyone already holds, so the grant adds something (owner, 4 Nov); with nothing general, the item's own default
+  const at = c.general ? defs.findIndex((l) => l.id === c.general) : -1;
+  const above = at >= 0 ? defs.slice(at + 1).find((l) => canGiveLevel(c.itemType ?? "note", l.id, g)) : undefined;
+  const first = above ?? defs.find((l) => l.id === want) ?? (defs[0] as LevelDef);
   return first.id;
 }
 

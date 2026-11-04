@@ -290,6 +290,9 @@ export default defineManifest({
     write('automations.delete', 'Move an Automation to Trash', {
       in: target, out: { deleted: t.bool() }, on: ['automation', '/automationId'], level: 'manage', gate: { act: 'delete', when: "actor.kind != 'person'" }, emits: ['automation.deleted'], tool: 'automations',
     }),
+    write('automations.set_owner', 'Hand a Space Automation to another person as its accountable owner; the previous owner keeps Manage', {
+      in: { ...target, ownerId: id.user }, out: { automation: row }, on: ['automation', '/automationId'], level: 'manage', gate: { act: 'transfer', when: "actor.kind != 'person'" }, emits: ['automation.updated'], tool: 'automations', audit: 'sensitive', errors: ['validation.bad_input'],
+    }),
     write('automations.undelete', 'Restore an Automation from Trash', { in: target, out: { automation: row }, on: ['automation', '/automationId'], level: 'manage', emits: ['automation.restored'], tool: 'automations' }),
     read('automations.versions', 'List versions of an Automation (One History)', { in: target, out: { versions: t.arr(versionRow) }, on: ['automation', '/automationId'], tool: 'automations' }),
     write('automations.restore_version', 'Restore an Automation to an earlier version (saved as a new version)', {
