@@ -386,5 +386,6 @@ test("AI usage asks for this person's own turns since the first of the month, ne
   assert.ok((asked!["from"] as number) > 0);
   const jan = Date.UTC(2026, 0, 1);
   assert.equal(monthStart(Date.UTC(2026, 0, 31, 23, 0), 0), jan);
-  assert.equal(monthStart(Date.UTC(2026, 0, 1, 1, 0), 120), Date.UTC(2025, 11, 1) - 120 * 60_000, "a local clock behind UTC's new month is still in the old one");
+  assert.equal(monthStart(Date.UTC(2026, 0, 1, 1, 0), -120), Date.UTC(2025, 11, 1) + 120 * 60_000, "a local clock behind UTC is still in the old month");
+  assert.equal(monthStart(Date.UTC(2026, 0, 1, 1, 0), 120), Date.UTC(2026, 0, 1) - 120 * 60_000, "a local clock ahead of UTC has the new month");
 });
