@@ -93,3 +93,12 @@ test("a link that names a layer opens it over the page that is already there, an
   assert.equal(linkedTo(chat, "screen=chats.all-agents").layer?.kind, "all-agents", "a layer over an open chat");
   assert.equal(linkedTo(chat, "screen=chats.conversation&threadId=c2").route.view, "chat");
 });
+
+test("a project opens in Chats as its own page: subject=project:<id>, with the tab it is on", () => {
+  assert.deepEqual(fromHash("#subject=project:prj_1").route, { view: "project", projectId: "prj_1", tab: null });
+  assert.deepEqual(fromHash("#subject=project:prj_1&tab=plan").route, { view: "project", projectId: "prj_1", tab: "plan" });
+  assert.equal(openKeyOf(fromHash("#subject=project:prj_1").route), "p:prj_1", "the sidebar selects its row");
+  const next = step(START, { t: "project", projectId: "prj_1", tab: "knows" });
+  assert.deepEqual(next.route, { view: "project", projectId: "prj_1", tab: "knows" });
+  assert.equal(next.pane, false);
+});

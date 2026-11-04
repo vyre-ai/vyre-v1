@@ -1,4 +1,5 @@
 // Resolve an incoming record link once, then mount the existing record or project page.
+import { projectPageData } from "./project-data.ts";
 import { useEffect, useMemo, useState } from "react";
 import type { ReactElement } from "react";
 import { States } from "../../../../../ui/src/States/index.tsx";
@@ -6,8 +7,8 @@ import { RecordPage, RecordPageDataProvider } from "../../places/records/recordp
 import type { RecordPageData } from "../../places/records/recordpage/index.ts";
 import type { TabKey } from "../../places/records/projectpage/model.ts";
 import { ProjectPage } from "../../places/records/projectpage/ProjectPage.tsx";
-import { listProjectImports, ProjectPageDataProvider } from "../../places/records/projectpage/data.tsx";
-import type { ImportedSessionTranscript, ProjectPageData } from "../../places/records/projectpage/data.tsx";
+import { ProjectPageDataProvider } from "../../places/records/projectpage/data.tsx";
+import type { ProjectPageData } from "../../places/records/projectpage/data.tsx";
 import { capLive, nameLookup } from "./records-live.ts";
 import { attachToRecord, findRecordFolder, storeOnRecord } from "../../places/records/recordpane/files.ts";
 import { openAskPane } from "../ask/pane.ts";
@@ -93,20 +94,7 @@ export function RecordDetail({ rt, recordId, type: hint, fields = false, tab = "
       openSource: (link) => rt.openUrl(link),
     },
   }), [rt]);
-  const projectData = useMemo<ProjectPageData>(() => ({ call: rt.call, nameOf: nameLookup(rt), me: { id: rt.me.id, name: rt.me.name }, now: () => rt.clock().now, ...(rt.space.kind === "personal" ? { imports: {
-    list: (projectId: string) => listProjectImports(rt.call, projectId),
-    read: async (conversationId: string) => await rt.call("sessions.get", { conversationId }) as ImportedSessionTranscript,
-    continue: async (conversationId: string) => {
-      const out = await rt.call("sessions.continue", { conversationId, destinationSpaceId: rt.space.id, destinationScope: "personal", agentId: rt.assistant.id }) as { threadId: string };
-      return out.threadId;
-    },
-  } } : {}), nav: {
-    openChannel: (id) => rt.open({ subject: { type: "channel", id } }), openThread: (id) => rt.open({ subject: { type: "thread", id } }),
-    openFolder: (id) => rt.open({ subject: { type: "folder", id } }), openFile: (id) => rt.open({ subject: { type: "file", id } }),
-    openRecord: (type, id) => rt.open({ subject: { type: "record", id }, args: { type } }),
-    openRecordPage: (type, id) => rt.open({ subject: { type: "record", id }, args: { type, recordView: "fields" } }),
-    openGoal: (id) => rt.open({ subject: { type: "goal", id } }),
-  }, ...(rt.changes ? { changes: rt.changes } : {}) }), [rt]);
+  const projectData = useMemo<ProjectPageData>(() => projectPageData(rt), [rt]);
   if (actionError) return <States kind="error" message={actionError} retryable onRetry={() => setActionError("")} />;
   if (resolved.error) return <States kind="error" message={resolved.error} />;
   if (!resolved.type) return <States kind="empty" title="Opening record…" icon="records" />;

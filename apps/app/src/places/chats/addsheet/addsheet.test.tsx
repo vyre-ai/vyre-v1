@@ -1,5 +1,6 @@
 // The one Add people and agents host (lane l-addsheet, increment UI-2). Every entry point opens the same ui/AccessSheet through the same hook: the composer's +, the conversation header, the
 // people menu, a channel, a reply thread (the right pane), a project's members and teammates, and the new-chat landing. The picks become capability calls through the sheet's own addCalls.
+import { TeammatesTab } from "../../records/projectpage/TeammatesTab.tsx";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createRoot } from "test-renderer";
@@ -111,7 +112,7 @@ test("the right pane's Threads and Crew tabs each have the Add people and agents
   });
 });
 
-test("a project's members count and its Teammates tab open the same sheet; the old inline form is gone", async () => {
+test("a project's members count opens the Add people and agents sheet; there is no inline form", async () => {
   await withDom(async () => {
     const s = createSampleProject();
     const root = await mount(createRoot, <ProjectPageDataProvider value={s.data}><ProjectPage projectId="pj_0" /></ProjectPageDataProvider>);
@@ -121,12 +122,9 @@ test("a project's members count and its Teammates tab open the same sheet; the o
     assert.ok(find(root, SHEET));
     assert.match(textOf(find(root, SHEET)), /to Rivera engagement/);
     await press(find(root, "as-cancel"));
-    await press(find(root, "tab-teammates"));
-    await flush();
+    // the Teammates list is no tab of the page now (its people and agents are the people popover's); the page has no inline form either
+    assert.equal(find(root, "tab-teammates"), null);
     assert.equal(find(root, "teammate-name"), null, "no inline form");
-    await press(find(root, "teammate-add"));
-    await flush();
-    assert.ok(find(root, SHEET));
   });
 });
 
@@ -444,9 +442,7 @@ test("a project: people and agents become members, a new agent is agents.create 
 test("a teammate's role is chosen on its row (Lead answers first); adding is only the sheet", async () => {
   await withDom(async () => {
     const s = createSampleProject();
-    const root = await mount(createRoot, <ProjectPageDataProvider value={s.data}><ProjectPage projectId="pj_0" /></ProjectPageDataProvider>);
-    await flush();
-    await press(find(root, "tab-teammates"));
+    const root = await mount(createRoot, <ProjectPageDataProvider value={s.data}><TeammatesTab projectId="pj_0" refresh={0} onAdd={() => undefined} /></ProjectPageDataProvider>);
     await flush();
     await press(find(root, "teammate-role-agt_docs"));
     await press(find(root, "menu-item-Lead: Answers first in a new chat of this project"));

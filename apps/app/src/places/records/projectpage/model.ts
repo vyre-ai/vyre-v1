@@ -12,6 +12,10 @@ export const TABS = [{ key: "overview", title: "Overview" }, { key: "plan", titl
 export type TabKey = (typeof TABS)[number]["key"];
 export const TAB_SPECS: readonly { key: string; title: string }[] = [{ key: "overview", title: "Overview" }, { key: "plan", title: "Plan" }, { key: "files", title: "Files" }, { key: "chat", title: "Chat" }, { key: "teammates", title: "Teammates" }];
 
+/** The health a lead sets, in the words the prototype uses. */
+export const HEALTH_LABEL: Readonly<Record<"on" | "risk" | "off" | "hold" | "done", string>> = { on: "On track", risk: "At risk", off: "Off track", hold: "On hold", done: "Done" };
+export const HEALTH_ORDER: readonly ("on" | "risk" | "off" | "hold" | "done")[] = ["on", "risk", "off", "hold", "done"];
+
 const DAY = 86_400_000;
 /** An epoch time as the ISO day the Plan draws (UTC, so every machine agrees). */
 export const isoDay = (ms: number): string => new Date(ms).toISOString().slice(0, 10);
