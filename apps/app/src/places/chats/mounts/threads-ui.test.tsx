@@ -75,22 +75,18 @@ test("Replies (in the Inbox) draws the replies I follow from its live read, with
   assert.deepEqual(opened, ["thr_2"]);
 });
 
-test("a banner for a burst of replies says the count once, in its title, with Reply", async () => {
-  installDom();
-  const { NotificationBanners } = await import("../../../shell/notifications/Banners.tsx");
-  const { BannerStack } = await import("../../../shell/notifications/model.ts");
-  const stack = new BannerStack(() => NOW);
-  stack.push({ id: "ntf_1", kind: "reply.thread", level: "interrupt", place: "chats", title: "3 new replies in #intake", body: "Calling at 3", count: 3, at: NOW, actions: [{ label: "Reply", cap: "chat.post" }], spaceId: "spc_1", subject: { type: "thread", id: "thr_1" } } as never);
+test("a burst of replies is one notice in the top bar: the count once, in its title, with Open", async () => {
+  const { syncNotifications } = await import("../../../shell/noticeslot/bridge.ts");
+  const { createNoticeStore } = await import("../../../shell/noticeslot/model.ts");
+  const store = createNoticeStore();
   const opened: string[] = [];
-  const r = createRoot();
-  await act(async () => { r.render(<NotificationBanners stack={stack} onAction={(n, a) => opened.push(`${a.label}:${n.id}`)} onOpen={() => undefined} />); });
-  await flush();
-  const root = r.container as unknown as Parameters<typeof find>[0];
-  const card = find(root, "banner-ntf_1");
-  assert.match(textOf(card), /3 new replies in #intake/);
-  assert.equal(find(root, "banner-count-ntf_1"), null, "the title already says how many");
-  await press(find(root, "banner-action-Reply"));
-  assert.deepEqual(opened, ["Reply:ntf_1"]);
-  await act(async () => { r.unmount(); });   // the banners' expiry clock stops with them
+  const row = { id: "ntf_1", kind: "reply.thread", level: "interrupt", place: "chats", title: "3 new replies in #intake", body: "Calling at 3", count: 3, at: NOW, actions: [{ label: "Reply", cap: "chat.post" }], spaceId: "spc_1" } as never;
+  syncNotifications(store, new Set(), [row], (n) => opened.push(String((n as { id: string }).id)));
+  const live = store.getSnapshot().live;
+  assert.equal(live.length, 1);
+  assert.equal(live[0]!.text, "3 new replies in #intake", "the title already says how many: not said twice");
+  assert.equal(live[0]!.action?.label, "Open");
+  live[0]!.action!.run();
+  assert.deepEqual(opened, ["ntf_1"]);
 });
 
