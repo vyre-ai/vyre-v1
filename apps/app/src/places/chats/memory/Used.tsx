@@ -92,20 +92,13 @@ function UsedLine({ messageId, used, startOpen }: { messageId: string; used: Use
   );
 }
 
-/** The time a memory was said as a person says it on a message: "9:50 am" today, "Yesterday 4:20 pm" the day before, else how long ago. */
-function citeWhen(at: number, now: number): string {
-  const d = new Date(at), day = (t: number): number => Math.floor(t / 86_400_000);
-  const h = d.getUTCHours(), clock = `${h % 12 === 0 ? 12 : h % 12}:${String(d.getUTCMinutes()).padStart(2, "0")} ${h < 12 ? "am" : "pm"}`;
-  return day(at) === day(now) ? clock : day(at) === day(now) - 1 ? `Yesterday ${clock}` : ageText(at, now);
-}
-
 /** "(chat) Remembered from Omar Haddad, 9:50 am": a bordered 24 px chip, the whole of it a press. */
 function CiteChip({ fact, onPress }: { fact: ChatFact; onPress: () => void }): ReactElement {
   const mem = useChatMemory()!;
   return (
     <Pressable accessibilityRole="link" accessibilityLabel="Open the source" testID={`mused-cite-${fact.factId}`} onPress={onPress} style={({ hovered }: { hovered?: boolean }) => [st.cite, hovered === true && st.headOver]}>
       <Icon name="chat" size={12} color="var(--ink-3)" />
-      <Text numberOfLines={1} style={st.citeText}>{`Remembered from ${fact.by === mem.me.id ? "you" : mem.nameOf(fact.by!)}, ${citeWhen(fact.at, mem.now())}`}</Text>
+      <Text numberOfLines={1} style={st.citeText}>{`Remembered from ${fact.by === mem.me.id ? "you" : mem.nameOf(fact.by!)}, ${mem.time ? mem.time(fact.at) : ageText(fact.at, mem.now())}`}</Text>
     </Pressable>
   );
 }
