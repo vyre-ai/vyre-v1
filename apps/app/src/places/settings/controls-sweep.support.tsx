@@ -16,11 +16,11 @@ const pressables = (n: N, out: Map<string, N> = new Map()): string[] => {
   return [...out.keys()];
 };
 
-export async function sweep(page: string, who: "owner" | "member"): Promise<void> {
+/** `createRoot` comes from the test file: only tests import test-renderer (boundaries B6). */
+export async function sweep(createRoot: Parameters<typeof mount>[0], page: string, who: "owner" | "member"): Promise<void> {
   const restore = installDom();
   try {
     const s = createSampleSettings(who === "owner" ? northwind : harbor);
-    const { createRoot } = await import("test-renderer");
     const root = await mount(createRoot, <SettingsDataProvider value={s.data}><SettingsPlace width={1280} initialPage={page as never} /></SettingsDataProvider>);
     const ids = pressables(root as N).filter((id) => !/^(row-|page-|hit-|saved-slot|undo|skin-thumb|settings-)/.test(id));
     assert.ok(ids.length > 0 || page === "signin", `${page} has controls: ${textOf(root as never).slice(0, 200)}`);
