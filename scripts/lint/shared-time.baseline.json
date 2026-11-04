@@ -37,6 +37,7 @@
   "apps/app/src/places/inbox/sidebar/model.ts": 3,
   "apps/app/src/places/records/projectpage/linked/model.ts": 1,
   "apps/app/src/places/records/projectpage/model.ts": 1,
+  "apps/app/src/places/records/projectpage/overview/model.ts": 1,
   "apps/app/src/places/records/projectpage/overview/Properties.tsx": 1,
   "apps/app/src/places/records/table/model.ts": 1,
   "apps/app/src/places/records/typeedit/FieldsPanel.tsx": 1,
