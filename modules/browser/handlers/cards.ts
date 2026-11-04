@@ -13,7 +13,7 @@ export async function cardsPost(ctx: BrowserCtx, input: { threadId: string; bloc
   return { posted: true };
 }
 
-export async function chromeAct(ctx: BrowserCtx, input: { action: "send" | "drop" | "watch" | "takeover"; agentId: string; heldId?: string; edits?: { to?: string; subject?: string; message?: string }; threadId?: string; summary?: string; idempotencyKey: string }) {
+export async function chromeAct(ctx: BrowserCtx, input: { action: "send" | "drop" | "watch" | "takeover"; agentId: string; heldId?: string; reason?: string; edits?: { to?: string; subject?: string; message?: string }; threadId?: string; summary?: string; idempotencyKey: string }) {
   const trace = ctx.trace.traceId;
   if (ctx.principal.kind !== "person") raise(trace, "permission.no_grant", "Only the person whose Chrome it is can press these.");
   const port = personalChrome();
@@ -34,7 +34,7 @@ export async function chromeAct(ctx: BrowserCtx, input: { action: "send" | "drop
     }
     case "drop": {
       p.drop(input.heldId as string);
-      if (input.threadId) await ctx.call("chat.post", { threadId: input.threadId, body: `Don't send that.${input.summary ? ` (${input.summary.slice(0, 200)})` : ""} Ask me what to change.`, mentions: [], idempotencyKey: `chrdrop:${input.heldId}` });
+      if (input.threadId) await ctx.call("chat.post", { threadId: input.threadId, body: `Don't send that.${input.summary ? ` (${input.summary.slice(0, 200)})` : ""}${input.reason && input.reason.trim() ? ` ${input.reason.trim().slice(0, 500)}` : " Ask me what to change."}`, mentions: [], idempotencyKey: `chrdrop:${input.heldId}` });
       return { done: true };
     }
     case "watch": p.watch(input.agentId); return { done: true };

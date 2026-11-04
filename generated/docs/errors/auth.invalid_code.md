@@ -30,3 +30,4 @@ HTTP 401. Retryable: no.
 - ms.user.complete
 - network.enroll
 - network.enroll_status
+- settings.contact.verify_confirm

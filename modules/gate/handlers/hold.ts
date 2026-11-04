@@ -2,6 +2,7 @@
 // the hold lists, and the two things the module does on its own: recover() after a crash and rejectAllOf() when a person leaves.
 // gate.park is called by the invoke pipeline with the payload hash it computed; the Gate stores it with the decision id, writes both onto the task as reserved working notes
 // (tasks.working_notes.set decision_id and payload_hash, once each) and sets two timers: gate.expire at the timeout and one approval.backstop notification at the backstop hour.
+import { holdTitle } from "../../../lib/hold-words.ts";
 import {
   ACTS, APPROVER_RANK, RISK_RANK, actOf, allRules, approverFor, askBlocks, clean, cut, effectiveRule, getHold, holdOut, holdsWhere, insertHold, mayHandle, newHoldId, previewBlocks, putRule,
   raise, rawSecretIn, readPolicy, saveHold, sha, summaryLine,
@@ -94,8 +95,8 @@ export async function park(ctx: GateCtx, input: In): Promise<unknown> {
   let taskId: string;
   try {
     const r = (await ctx.call("tasks.create", clean({
-      kind: "approve", title: ask ? cut(`${agentName} asks: ${ask.what}`, 120) : `Approve: ${a.title}`, summary, why: ask ? "Only you can do this here. Approve runs it as you, once, exactly as shown." : rule.reason, assigned: approver,
-      blocks: ask ? askBlocks({ act: a.key, what: ask.what, agentName, capName: input.capName, input: input.input }) : previewBlocks(a, input.capName, input.input),
+      kind: "approve", title: ask ? cut(`${agentName} asks: ${ask.what}`, 120) : `Approve: ${holdTitle(input.capName, input.input, a.title)}`, summary, why: ask ? "Only you can do this here. Approve runs it as you, once, exactly as shown." : rule.reason, assigned: approver,
+      blocks: ask ? askBlocks({ act: a.key, what: ask.what, agentName, capName: input.capName, input: input.input }) : previewBlocks(a, input.capName, input.input, undefined, id),
       source: { kind: "gate", id }, expiresAt, idempotencyKey: `gate:${id}`,
     }))) as { task: { id: string } };
     taskId = r.task.id;

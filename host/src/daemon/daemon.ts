@@ -88,7 +88,8 @@ import type { FetchFn, ProbeName, ProbeResult } from "../platform/probes.ts";
 import { Scheduler } from "../scheduler/index.ts";
 import { Supervisor } from "../supervisor/index.ts";
 import type { RunningUnit, ServiceSpec, UnitExit } from "../supervisor/index.ts";
-import { createGateHook, moduleFetches, moduleOutward, moduleWhens } from "./gate-hook.ts";
+import { createGateHook, moduleFetches, moduleOutward, moduleWhens, payloadHash } from "./gate-hook.ts";
+import { bindPayloadHash } from "../../../lib/payload-hasher.ts";
 import { withGateNesting } from "./gate-nesting.ts";
 import { FILL_PATH, createComputersFillHost, createFillRoute } from "../seams/computers.ts";
 import { homeCallAllowed, homeScopeOf } from "./home-confine.ts";
@@ -641,6 +642,9 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
     },
   });
   chromeEventListeners.add(chromePort.onEvent);
+  // the hash a held call's approval is bound to, handed to the Gate module so editing a held message can bind the approval to the new words (modules/gate/handlers/revise.ts)
+  bindPayloadHash((capName, capVersion, input, principal, actingFor) => payloadHash({ name: capName, v: capVersion }, input, { principal: principal as { kind: "person" | "agent" | "actor" | "service"; id: string }, ...(actingFor !== undefined ? { actingFor } : {}) }));
+  closers.push(() => bindPayloadHash(null));
   const composedChrome = composePorts(chromePort.port, remoteChrome.port);
   bindPersonalChrome(composedChrome);
   closers.push(() => bindPersonalChrome(null));

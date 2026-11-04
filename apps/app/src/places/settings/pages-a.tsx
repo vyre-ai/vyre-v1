@@ -6,6 +6,7 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 import type { CapMap } from "../../../../../generated/types.ts";
 import { Avatar, assistantId, assistantLook, setAssistantLook, subscribeAssistant } from "../../../../../ui/src/Avatar/index.tsx";
 import { Bar, RegistrySections, useRead } from "./blocks.tsx";
+import { ContactVerify } from "./ContactVerify.tsx";
 import { CopyFromSpace } from "./CopyFromSpace.tsx";
 import { SignInApps } from "./SignInApps.tsx";
 import { OutsideAgents } from "./OutsideAgents.tsx";
@@ -80,8 +81,8 @@ export function ProfilePage({ rows, found }: PageProps): ReactElement {
       {before}
       {contact ? (
         <Section title="Contact">
-          <SettingsRow id="profile.contact" label="Email" first found={found === "profile.contact"} control={<Field value={c.email ?? ""} label="Email" placeholder="Add an email" width={260} testID="ctl-profile.contact.email" onCommit={(v) => void change(contact, { ...c, email: v })} />} />
-          <SettingsRow id="profile.contact.phone" label="Phone" control={<Field value={c.phone ?? ""} label="Phone" placeholder="Add a phone number" width={260} testID="ctl-profile.contact.phone" onCommit={(v) => void change(contact, { ...c, phone: v })} />} />
+          <SettingsRow id="profile.contact" label="Email" first found={found === "profile.contact"} control={<View style={{ alignItems: "flex-end", gap: 6 }}><Field value={c.email ?? ""} label="Email" placeholder="Add an email" width={260} testID="ctl-profile.contact.email" onCommit={(v) => void change(contact, { ...c, email: v })} /><ContactVerify channel="email" value={(c.email ?? "").trim()} /></View>} />
+          <SettingsRow id="profile.contact.phone" label="Phone" control={<View style={{ alignItems: "flex-end", gap: 6 }}><Field value={c.phone ?? ""} label="Phone" placeholder="Add a phone number" width={260} testID="ctl-profile.contact.phone" onCommit={(v) => void change(contact, { ...c, phone: v })} /><ContactVerify channel="phone" value={(c.phone ?? "").trim()} /></View>} />
         </Section>
       ) : null}
       {copy ? <CopyFromSpace onClose={() => setCopy(false)} /> : null}

@@ -6,6 +6,7 @@ export type Handler<C extends keyof CapMap, X extends HandlerCtx = HandlerCtx> =
 
 export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "tasks.act": Handler<"tasks.act", X>;
+  "tasks.agent_on_it": Handler<"tasks.agent_on_it", X>;
   "tasks.ask": Handler<"tasks.ask", X>;
   "tasks.assign": Handler<"tasks.assign", X>;
   "tasks.block": Handler<"tasks.block", X>;
@@ -23,6 +24,7 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "tasks.followers.add": Handler<"tasks.followers.add", X>;
   "tasks.followers.remove": Handler<"tasks.followers.remove", X>;
   "tasks.get": Handler<"tasks.get", X>;
+  "tasks.held_revise": Handler<"tasks.held_revise", X>;
   "tasks.history": Handler<"tasks.history", X>;
   "tasks.index": Handler<"tasks.index", X>;
   "tasks.links.add": Handler<"tasks.links.add", X>;
