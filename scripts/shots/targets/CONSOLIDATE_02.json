@@ -311,6 +311,12 @@
       "route": "/m/CONSOLIDATE_02?part=hooks_add",
       "proto": "console,at:hooks,{skin}",
       "note": "Agents > Hooks, the Add a hook sheet open"
+    },
+    {
+      "id": "CONSOLIDATE_02-hooks_only",
+      "route": "/m/CONSOLIDATE_02?part=hooks_only",
+      "proto": "console,at:hooks,{skin}",
+      "note": "Agents > Hooks, the Add a hook sheet with the Only for menu open"
     }
   ]
 }
