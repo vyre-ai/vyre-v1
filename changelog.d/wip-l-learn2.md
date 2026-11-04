@@ -39,3 +39,17 @@
 - Tests for an agent's memory search: a fresh agent, an agent with lessons, a person key held and gone, awkward notes, and the read gate on a search answer.
 - A note card is only as tall as its words. Its hover tools sit over its foot and take no room, so one note no longer sits in a tall empty card.
 - The closed Take a note bar has a flat edge in place of the wide soft shadow, which showed as a shaded strip under it in dark themes.
+- An agent is told in its base instructions to say in plain words what failed and never paste ids or traces. A tool that crashes on the server returns a plain sentence to the agent, with the trace in the error's own fields and not in the words it would repeat.
+- In Inbox > Replies, pressing a reply (or Enter on it) opens that chat with the thread open beside the message, and marks the reply read. The chat's name in the row opens the chat itself. A reply row now leads with who replied, then the reply.
+- A link to a chat can name the thread to open beside it (side=...).
+
+## What's new (Chat names)
+
+- A chat has one name, the same in the sidebar, the header, the tabs and notifications. A direct message is named after the person. Any other chat is named by its title, and until it has a real title it shows who is in it ("Dex", "Dex and Aliza"). The first line of a message and the day no longer stand in for a name.
+- A chat is named automatically after the first real request, never from a greeting ("Heyy", "hi", "test"): 2 to 5 plain words from a cheap model on the account that ran the turn, or from the request's own words when no model is at hand. A title made from a very short first request is made again once, from the first fuller one. After you rename a chat, from the header or the sidebar, it is never renamed for you.
+- chat.title_make names a chat from its first real request. Notifications say where in the chat's one name, never "a chat".
+- The cheapest-model pick moved to lib/cheap-model.ts so chat and memory share it.
+- Inbox > Replies on a phone is a two-line row: who replied and the chat name with the time, then the words with the count or Muted. A chat that is not a direct message shows the other people's faces in its header.
+- Make task and Remember under an agent's answer in a chat of people are drawn as buttons with an edge and an icon, so they no longer read as stray text.
+- Audit rows and the Console overview read as sentences: "Priya Raman assigned a role to Omar Haddad", "Intake revealed the record Rivera engagement, for Priya Raman", in place of "role changed Omar". The sentence is made in lib/words/actions.ts from the act's name, in the past tense, with no dots, underscores or ids; a guard test covers every audited capability.
+- Make task and Remember for an agent's answer in a chat of people sit in the message's hover bar next to Copy, Reply in thread, Fork and Pin (and Make a Task and Remember in the long-press sheet on a phone). Nothing of them is drawn at rest.

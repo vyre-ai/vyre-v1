@@ -180,6 +180,13 @@ export function taskSection(t: Obj, agentId: string, names: Readonly<Record<stri
 const PARENT_LINES = 8;
 const PARENT_LINE = 300;
 
+/** The rule for an agent answering a person who joined without the earlier messages (owner ruling, 4 Nov 2026). The time is UTC, to the minute. */
+export function joinedLine(name: string, at: number): string {
+  const first = name.split(" ")[0] || name;
+  const time = new Date(at).toISOString().slice(11, 16);
+  return `${first} joined at ${time} UTC and can't see earlier messages; don't quote them to ${first}.`;
+}
+
 /** What memory.profile.context answers: the profile lines a turn may load, per person, already held to the chat's audience by the memory module. */
 export interface ProfileContext { audience: "private" | "shared"; people: ReadonlyArray<{ personId: string; self: boolean; basics: readonly string[]; public: readonly string[]; private: readonly string[] }> }
 
@@ -407,10 +414,13 @@ export function createContextBuilder(d: ContextDeps) {
     // identity
     const name = str(agent?.["name"]) ?? input.agent.name ?? agentId;
     const role = str(agent?.["role"]) ?? input.agent.role;
+    // how long replies are in this chat, as the person set it for this agent (the Add people and agents sheet): one line, kept with the identity
+    const mine = arr(th?.["agents"]).find((x) => x["agentId"] === agentId);
+    const styleLine = mine?.["style"] === "short" ? "Keep replies short." : mine?.["style"] === "full" ? "Give full detail." : "";
     const md = agent ? await agentMd(agent, asker) : undefined;
     const always = agent ? await agentContext(agent, asker) : undefined;
     // every driver gets this context, so this line reaches Claude, Codex and Grok alike
-    add("identity", true, `You are ${name} (agentId ${agentId}), an agent in Vyre.${role ? ` ${role}` : ""}\nTo show the person anything you made, use artifact_publish: it stays private and shows as a card the person opens; say it opened in a tab only when the result says opened is true. Report only what a tool result confirms. Never leave it as a loose file or send them to localhost.${md ? `\n\nYour AGENT.md:\n${cutTo(md, 6_000)}` : ""}${always ? `\n\nWhat you always know (your context folder):\n${cutTo(always, 8_000)}` : ""}`);
+    add("identity", true, `You are ${name} (agentId ${agentId}), an agent in Vyre.${role ? ` ${role}` : ""}${styleLine ? `\n${styleLine}` : ""}\nTo show the person anything you made, use artifact_publish: it stays private and shows as a card the person opens; say it opened in a tab only when the result says opened is true. Report only what a tool result confirms. Never leave it as a loose file or send them to localhost.${md ? `\n\nYour AGENT.md:\n${cutTo(md, 6_000)}` : ""}${always ? `\n\nWhat you always know (your context folder):\n${cutTo(always, 8_000)}` : ""}`);
     add("rules", true, "You work for the person who asked; their access limits yours. Search Vyre memory before you ask them anything. A secret is used by Vault handle (vault_use), never by value. Anything that leaves the Space goes through the Gate and may come back held: say what is waiting and for whom. Say what you did and what you did not do. " + NAMING + "\n" + REPLY_FORMAT);
 
     // where
@@ -460,6 +470,9 @@ export function createContextBuilder(d: ContextDeps) {
     if (kind === "helper") {
       where.push("You are a helper: your brief is the first message. Your final words are the result itself, in plain words a person can read (the facts, the answer, what you changed), even when you also hand the work in to a task: never say you submitted, finished or handed in anything, and never name a tool. If you need something from the agent that started you, call helper_note {threadId " + input.threadId + ", kind \"question\", body}: it answers with its next step, and you carry on with what you can do meanwhile. Use needsPerson only when nobody but the person can say (a choice that is theirs, a secret, a permission); then it becomes a card for them. A message from that agent in your chat is a follow-up to your brief: act on it. Progress notes are optional, one line (helper_note kind \"progress\").");
     }
+    // a person who joined this chat without the earlier messages: the agent's own session may remember them, so it is told not to quote them
+    const floor = await read<Obj>("chat.read_floor", { threadId: input.threadId }, asker);
+    if (typeof floor?.["fromAt"] === "number" && floor["fromAt"] > 0) where.push(joinedLine(who(asker), floor["fromAt"]));
     add("where", true, where.join("\n"));
 
     // the person: their profile as this chat's audience allows (public always, private only when nobody else reads the chat), and the public profile of the others here
@@ -480,7 +493,7 @@ export function createContextBuilder(d: ContextDeps) {
         // nearest first (the agent's own, then the Space's, then Vyre's), so a long list keeps the ones this Space added
         const shown = others.slice(0, SKILL_INDEX_MAX);
         const more = others.length - shown.length;
-        parts.push(`Other skills, by name. When one fits what you are doing, load it with load_skill {name} and follow it:\n${shown.map((s) => `- ${s.name}: ${one(s.description, 90)}${s.note ? ` (${one(s.note, 120)})` : ""}`).join("\n")}${more > 0 ? `\n... and ${more} more: skills_list names them all.` : ""}`);
+        parts.push(`Other skills, by name. When one fits what you are doing, load it with load_skill {name} and follow it:\n${shown.map((s) => `- ${s.name}: ${one(s.description, 130)}${s.note ? ` (${one(s.note, 120)})` : ""}`).join("\n")}${more > 0 ? `\n... and ${more} more: skills_list names them all.` : ""}`);
       }
       add("skills", true, parts.join("\n\n"));
       if (focusName && idx.some((s) => s.name === focusName)) {

@@ -201,19 +201,27 @@ export async function usageQuery(ctx: EngineCtx, input: { by: UsageBy; from?: nu
       for (const row of list) { const a = accounts.find((x) => x.ref === row.key) ?? accounts.find((x) => (x.aliases ?? []).includes(row.key)); if (a) row.title = a.name ?? a.title ?? row.key; }
     } catch { /* the ref stands */ }
   }
+  const hidden = new Set<string>();
   if (input.by === "agent" || input.by === "person") {
     await Promise.all(list.map(async (row: { key: string; title: string; face?: string }) => {
       try {
         if (input.by === "agent") {
-          const a = await agentDisplay((cap, i) => ctx.call(cap, i), row.key);
-          row.title = a.name;
-          if (a.face) row.face = a.face;
+          // agents.get answers only for an agent the asker may see: a person's own private agent is not named here, not even through the principal directory
+          let a: { name?: string; face?: string } | undefined;
+          try { a = ((await ctx.call("agents.get", { agentId: row.key })) as { agent?: { name?: string; face?: string } } | null)?.agent; } catch { a = undefined; }
+          if (a?.name) { row.title = a.name; if (a.face) row.face = a.face; } else hidden.add(row.key);
         } else {
           const p = (await ctx.call("access.principals.get", { principal: { kind: "person", id: row.key } })) as { principal?: { name?: string } } | null;
           if (p?.principal?.name) row.title = p.principal.name;
         }
       } catch { /* the id stands */ }
     }));
+  }
+  if (hidden.size > 0) {
+    const folded: UsageTotals = { turns: 0, tokensIn: 0, tokensOut: 0, costMicros: 0 };
+    for (const row of list) if (hidden.has(row.key)) { const t = row.totals; folded.turns += t.turns; folded.tokensIn += t.tokensIn; folded.tokensOut += t.tokensOut; folded.costMicros += t.costMicros; }
+    const shown = list.filter((row) => !hidden.has(row.key));
+    return { rows: [...shown, { key: "personal", title: "People's own agents", totals: folded }], totals: sum };
   }
   return { rows: list, totals: sum };
 }

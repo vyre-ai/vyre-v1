@@ -33,7 +33,7 @@ import { GATE, allows, useOptionalShellRuntime } from "./runtime.tsx";
 import type { ShellRuntime } from "./runtime.tsx";
 
 export function automationsData(rt: ShellRuntime, nav: AutomationsData["nav"], keys: readonly KeyChoice[] = [], keysStatus?: KeysStatus, accounts?: readonly AccountOption[], lastPicks?: Readonly<Record<string, string>>): AutomationsData {
-  return { screens: rt.screens, call: rt.call, me: { id: rt.me.id, name: rt.me.name }, name: nameOf(rt), keys, ...(keysStatus ? { keysStatus } : {}), ...(accounts ? { accounts } : {}), ...(lastPicks ? { lastPicks } : {}), nav, clock: () => ({ now: rt.clock().now }), canSpace: allows(rt, GATE.spaceAutomations) };
+  return { screens: rt.screens, call: rt.call, me: { id: rt.me.id, name: rt.me.name }, spaceName: rt.space.name, name: nameOf(rt), keys, ...(keysStatus ? { keysStatus } : {}), ...(accounts ? { accounts } : {}), ...(lastPicks ? { lastPicks } : {}), nav, clock: () => ({ now: rt.clock().now }), canSpace: allows(rt, GATE.spaceAutomations) };
 }
 
 /** The tab hash names the Watching view. */

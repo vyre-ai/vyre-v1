@@ -457,3 +457,76 @@ test("a task's thread with several agents: the one that works the task answers w
   const group = setup({ script: reply("On it."), agents, thread: { ...thread, members: [{ kind: "person", id: "usr_dana" }, { kind: "person", id: "usr_aliza" }] }, task: { assigned: { kind: "agent", id: B }, createdBy: A } });
   assert.deepEqual((await group.say("Aliza, can you look at this?", [{ kind: "person", id: "usr_aliza" }])).result, { receivedAs: [] }, "a message to the other person in the thread is for them");
 });
+
+// ---- the Add people and agents sheet (lane l-addsheet): Listening, When, and a poke
+
+type Rost = { agentId: string; mode: "lead" | "listen"; quiet?: boolean; when?: "always" | "topics" | "hours"; topics?: string; hoursFrom?: string; hoursTo?: string; style?: "short" | "full" };
+
+test("topics set in the chat reach the engine before the next message: the lead answers what is about them and stays out of the rest", async () => {
+  const agents: Rost[] = [{ agentId: LEAD, mode: "lead" }];
+  const s = setup({ script: reply("On it."), agents: agents as never });
+  await s.say("Morning.");
+  assert.equal(s.provider.sessions.length, 1, "no setting: the lead answers everything");
+  agents[0]!.when = "topics"; agents[0]!.topics = "invoices, billing";
+  s.bridge.rosterChanged(T);
+  const lunch = await s.say("Lunch on Friday?");
+  assert.deepEqual(lunch.result, { receivedAs: [] }, "not about its topics");
+  const bill = await s.say("Please chase the invoices from March");
+  assert.deepEqual(bill.result, { receivedAs: [LEAD] });
+  assert.equal(s.provider.sessions.length, 2);
+  // the setting is kept being read: a change back needs no signal once the chat has any setting
+  delete agents[0]!.when;
+  const again = await s.say("Lunch is on me");
+  assert.deepEqual(again.result, { receivedAs: [LEAD] }, "Always again");
+});
+
+test("hours are read in the speaker's time: inside them the lead answers, outside it does not, and a tag still reaches it", async () => {
+  const agents: Rost[] = [{ agentId: LEAD, mode: "lead", when: "hours", hoursFrom: "09:00", hoursTo: "17:00" }];
+  const s = setup({ script: reply("Yes."), agents: agents as never });
+  // the bridge reads the real clock, in UTC when the speaker set no zone: pick hours that hold it and hours that do not
+  const t = new Date();
+  const hh = (n: number) => `${String(Math.floor(((n % 1440) + 1440) % 1440 / 60)).padStart(2, "0")}:${String(((n % 1440) + 1440) % 1440 % 60).padStart(2, "0")}`;
+  const mins = t.getUTCHours() * 60 + t.getUTCMinutes();
+  agents[0]!.hoursFrom = hh(mins - 60); agents[0]!.hoursTo = hh(mins + 60);
+  assert.deepEqual((await s.say("Inside hours?")).result, { receivedAs: [LEAD] });
+  agents[0]!.hoursFrom = hh(mins + 120); agents[0]!.hoursTo = hh(mins + 180);
+  s.bridge.rosterChanged(T);
+  assert.deepEqual((await s.say("Outside hours?")).result, { receivedAs: [] });
+  assert.deepEqual((await s.say("@Intake now please", [{ kind: "agent", id: LEAD }])).result, { receivedAs: [LEAD] }, "a tag always answers");
+});
+
+test("a poke runs a Listening agent once from the last 12 messages, the reply says who poked it, and a tag alone never wakes it", async () => {
+  const agents: Rost[] = [{ agentId: LEAD, mode: "lead" }, { agentId: WATCHER, mode: "listen", quiet: true }];
+  const s = setup({ script: reply("Here is where we are."), agents: agents as never });
+  for (let i = 1; i <= 14; i++) await s.say(`Note ${i}`);
+  const turnsBefore = s.provider.sessions.length;
+  const tagged = await s.say("@Watch are you there?", [{ kind: "agent", id: WATCHER }]);
+  assert.deepEqual(tagged.result, { receivedAs: [] }, "Listening: not even a tag");
+  assert.equal(s.provider.sessions.length, turnsBefore);
+  // the poke line, as threads.poke writes it, with its event
+  s.chat.push({ messageId: "msg_poke1", threadId: T, threadSeq: s.chat.length + 1, author: { kind: "person", id: "usr_dana" }, body: "Dana poked Watch", blocks: [], mentions: [{ kind: "agent", id: WATCHER }], depth: 0 } as never);
+  const res = await s.bridge.onEvent(s.ctx, { name: "message.received", payload: { messageId: "msg_poke1", threadId: T, author: { kind: "person", id: "usr_dana" }, mentions: [{ kind: "agent", id: WATCHER }], depth: 0, poke: { agentId: WATCHER, by: "usr_dana" } } });
+  assert.deepEqual(res, { receivedAs: [WATCHER] });
+  await s.engine.idle(T); await s.bridge.flush();
+  const turn = s.provider.sessions.filter((x) => x.spec.agent.id === WATCHER);
+  assert.equal(turn.length, 1);
+  const input = turn[0]!.inputs[0]!;
+  assert.ok(input.history.length <= 12, `a poke reads a short window, got ${input.history.length}`);
+  assert.equal(input.asker, "usr_dana", "it answers the person who poked");
+  assert.match(input.trigger?.body ?? "", /chat_history_page/, "it is told how to read further back");
+  const post = s.chat.filter((r) => r.author.id === WATCHER).at(-1)!;
+  assert.equal(post.body, "Here is where we are.");
+  assert.deepEqual((post.blocks as Array<{ type: string; data: unknown }>).filter((b) => b.type === "poked").map((b) => b.data), [{ by: "usr_dana", agentId: WATCHER }]);
+  // the next reply of that agent carries no marker
+  await s.say("@Watch again?", [{ kind: "agent", id: WATCHER }]);
+  assert.equal(s.chat.filter((r) => r.author.id === WATCHER).length, 1, "still Listening");
+});
+
+test("the poke of an outside agent is left to its queue: nothing runs here", async () => {
+  const s = setup({ script: reply("x") });
+  await s.say("Hello");
+  const n = s.provider.sessions.length;
+  const res = await s.bridge.onEvent(s.ctx, { name: "message.received", payload: { messageId: "msg_pk", threadId: T, author: { kind: "person", id: "usr_dana" }, mentions: [], depth: 0, poke: { agentId: "agt_cc", by: "usr_dana", outside: true } } });
+  assert.deepEqual(res, { skipped: "poke_outside" });
+  assert.equal(s.provider.sessions.length, n);
+});

@@ -12,7 +12,7 @@ import type { ShellRuntime } from "./runtime.tsx";
 import { nameOf } from "./misc-common.ts";
 
 const NEW_SITE_PROMPT = "I want a new site. Ask me what it is for or where its code is, then build it and deploy it here with sites_deploy, and give me its address.";
-const SCREEN: Readonly<Record<string, string>> = { artifacts: "apps.artifacts", sites: "apps.site-editor", forms: "apps.form-settings", templates: "apps.templates", domains: "apps.sending-domains" };
+const SCREEN: Readonly<Record<string, string>> = { artifacts: "chats.artifacts", sites: "apps.site-editor", forms: "apps.form-settings", templates: "apps.templates", domains: "apps.sending-domains" };
 
 export { appsRoute } from "../../places/apps/shell/routes.ts";
 import { appsRoute } from "../../places/apps/shell/routes.ts";
@@ -31,7 +31,8 @@ export function appsData(rt: ShellRuntime): AppsData {
       openUrl: (url) => rt.openUrl(url),
       openComputers: () => rt.open({ screen: "settings.page", args: { page: "computers" } }),
       create: (group, kind) => rt.open({ screen: group === "forms" ? "apps.forms" : group === "domains" ? "apps.sending-domains" : SCREEN[group] ?? "apps.forms", args: { create: true, ...(kind ? { kind } : {}) } }),
-      show: (group) => rt.open({ screen: group === "chats" ? "chats.conversation" : group === "artifacts" ? "apps.artifacts" : group === "sites" ? "apps.sites" : group === "forms" ? "apps.forms" : group === "domains" ? "apps.sending-domains" : SCREEN[group] ?? "apps.forms" }),
+      openArtifact: (artifactId) => rt.open(artifactId ? { subject: { type: "artifact", id: artifactId } } : { screen: "chats.artifacts" }),
+      show: (group) => rt.open({ screen: group === "chats" ? "chats.conversation" : group === "artifacts" ? "chats.artifacts" : group === "sites" ? "apps.sites" : group === "forms" ? "apps.forms" : group === "domains" ? "apps.sending-domains" : SCREEN[group] ?? "apps.forms" }),
       openEmailDesign: (emailId) => rt.open({ screen: "apps.email-builder", ...(emailId ? { args: { emailId } } : {}) }),
       joinTeam: () => rt.open({ screen: "settings.page", args: { page: "spaces" } }),
       openTask: (taskId) => rt.open({ subject: { type: "task", id: taskId } }),

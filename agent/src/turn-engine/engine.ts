@@ -157,6 +157,8 @@ export interface TurnEngine {
   setStarter(threadId: string, starter: string): void;
   /** Change the model, engine or paying account an agent runs on in this thread, from its next turn. */
   setAgent(threadId: string, agentId: string, patch: { model?: string; accountRef?: string }): void;
+  /** Replace how and when an agent answers in this thread (Listening, When, topics, hours, style): a field left out is cleared. Used before a message is routed, so a change made in the chat is the engine's from the next message. */
+  setSettings(threadId: string, agentId: string, s: Pick<EngineAgent, "quiet" | "when" | "topics" | "hoursFrom" | "hoursTo" | "style">): void;
   agents(threadId: string): EngineAgent[];
   /** The composer line "Intake will reply". */
   preview(threadId: string, draft: { author: IncomingMessage["author"]; mentions?: readonly RouteMention[]; depth?: number }): PreviewResult;
@@ -231,11 +233,15 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
 
   function ingest(st: ThreadState, m: IncomingMessage, interrupt: boolean): ReceiveResult {
     if (m.people) st.thread.people = [...m.people];
-    return dispatch(st, store(st, m), interrupt, m.replyToPerson, m.job, m.asker);
+    return dispatch(st, store(st, m), interrupt, m.replyToPerson, m.job, m.asker, m.poke, m.minutes);
   }
 
-  function dispatch(st: ThreadState, msg: StoredMessage, interrupt: boolean, replyToPerson?: string, job?: string, asker?: string): ReceiveResult {
-    const r = route({ agents: st.thread.agents, kind: st.thread.kind, ...(st.thread.personal ? { personal: true } : {}), ...(st.thread.people ? { people: st.thread.people } : {}) }, { author: msg.author, mentions: msg.mentions, depth: msg.depth, replyToPerson, job: job !== undefined, text: msg.body }, opts.policy);
+  /** The queue rows that are a poke: their turn reads the last 12 messages and no more. */
+  const pokeRows = new Set<string>();
+  const POKE_WINDOW = 12;
+
+  function dispatch(st: ThreadState, msg: StoredMessage, interrupt: boolean, replyToPerson?: string, job?: string, asker?: string, poke?: { agentId: string; by: string }, minutes?: number): ReceiveResult {
+    const r = route({ agents: st.thread.agents, kind: st.thread.kind, ...(st.thread.personal ? { personal: true } : {}), ...(st.thread.people ? { people: st.thread.people } : {}) }, { author: msg.author, mentions: msg.mentions, depth: msg.depth, replyToPerson, job: job !== undefined, text: msg.body, ...(poke ? { poke: poke.agentId } : {}), ...(minutes === undefined ? {} : { minutes }) }, opts.policy);
     let responders = r.responders;
     // a round where a person spoke to all the agents: each answers alone, and no answer sets off another agent (the lead posts no summary) unless it @mentions one or the person asks again
     if (msg.author.kind === "person") { if (r.reason === "all") askedAll.set(st.thread.id, new Set(responders)); else askedAll.delete(st.thread.id); }
@@ -270,6 +276,7 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
     for (const agentId of responders) if (outside.has(agentId)) emit({ type: "agent.outside_asked", threadId: st.thread.id, messageId: msg.id, agentId, asker: msg.author.id, body: msg.body });
     responders = responders.filter((id) => !outside.has(id));
     const qseqs = responders.map((agentId) => enqueue(st, { kind, agentId, from, messageId: msg.id, priority: interrupt ? PRIORITY_INTERRUPT : 0, routine }).qseq);
+    if (poke) for (const q of qseqs) pokeRows.add(`${st.thread.id}:${q}`);
     if (interrupt && st.running) void cancelRunning(st, "interrupt");
     if (qseqs.length > 0) kick(st);
     return { responders, reason: r.reason, qseqs, messageId: msg.id, ...(chain && qseqs.length > 0 ? { chain } : {}) };
@@ -438,7 +445,7 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
       let switchTo: ResolvedAccount | null = null;
       const input = {
         threadId: st.thread.id, turnId: turn.id, agent, trigger, asker,
-        history: st.messages.slice(-historyWindow),
+        history: st.messages.slice(-(pokeRows.has(`${st.thread.id}:${item.qseq}`) ? POKE_WINDOW : historyWindow)),
         listeners: st.thread.agents.filter((a) => a.mode === "listen" && a.id !== agent.id).map((a) => (a.role === undefined ? { id: a.id } : { id: a.id, role: a.role })),
         ...(wait && wait.resolution ? { resumed: { taskId: wait.taskId, callId: wait.callId, toolName: wait.toolName, approved: wait.resolution.approved, result: wait.resolution.result } } : {}),
       };
@@ -546,6 +553,7 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
       if (!run.cancelled) turn.error = { code, message: e instanceof Error ? e.message : "the turn failed" };
     } finally {
       stopBeat();
+      pokeRows.delete(`${st.thread.id}:${item.qseq}`);
       // a hung session may never close: give it a few seconds, then drop it so the turn can end
       try { await Promise.race([run.session?.close(), new Promise<void>((done) => { const h = setTimeout(done, 5000); if (typeof h === "object" && "unref" in h) h.unref(); })]); } catch { /* a session that will not close is dropped */ }
     }
@@ -677,6 +685,14 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
       const st = need(threadId);
       if (!st.thread.agents.some((a) => a.id === agentId)) throw new RangeError(`no agent ${agentId} in this thread`);
       st.thread.agents = st.thread.agents.map((a) => (a.id === agentId ? { ...a, ...(patch.model === undefined ? {} : { model: patch.model }), ...(patch.accountRef === undefined ? {} : { accountRef: patch.accountRef }) } : a));
+    },
+    setSettings(threadId, agentId, x) {
+      const st = need(threadId);
+      st.thread.agents = st.thread.agents.map((a) => {
+        if (a.id !== agentId) return a;
+        const { quiet: _q, when: _w, topics: _t, hoursFrom: _f, hoursTo: _o, style: _s, ...rest } = a;
+        return { ...rest, ...(x.quiet === true ? { quiet: true } : {}), ...(x.when !== undefined && x.when !== "always" ? { when: x.when } : {}), ...(x.topics ? { topics: x.topics } : {}), ...(x.hoursFrom ? { hoursFrom: x.hoursFrom } : {}), ...(x.hoursTo ? { hoursTo: x.hoursTo } : {}), ...(x.style ? { style: x.style } : {}) };
+      });
     },
     agents: (threadId) => need(threadId).thread.agents.map((a) => ({ ...a })),
     preview(threadId, draft) {

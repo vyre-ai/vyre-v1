@@ -8,6 +8,7 @@
 //   6. updates itself: a check at launch, and on the page's word the signed update installs once nothing runs here (updater.rs).
 // No keychain: the replica key is wrapped in IndexedDB by the page, so an ad-hoc signed Mac app works (ARCH 5.10).
 
+mod artifact_view;
 mod chrome;
 mod commands;
 mod links;
@@ -193,6 +194,18 @@ const PROOF: &str = r#"(function () {
   })();
 })();"#;
 
+/// CI only (VYRE_SHELL_ARTIFACT_PROOF_URL=http://127.0.0.1:<port>): opens the loopback collector's page as the artifact viewer would, through the real command, on a.localhost. The collector sets a cookie on
+/// its first response and redirects; it records whether the cookie came back, which is what a first-party child webview does and a cross-site frame in WebKit does not.
+const ARTIFACT_PROOF: &str = r#"(function () {
+  var inv = window.__TAURI__ && window.__TAURI__.core && window.__TAURI__.core.invoke;
+  if (!inv || window.__vyreArtifactProof) return;
+  window.__vyreArtifactProof = true;
+  inv("artifact_view_show", { url: "__ARTIFACT_URL__", x: 20, y: 80, width: 480, height: 320 }).then(
+    function () { inv("page_report", { kind: "artifactview", text: "shown" }); },
+    function (e) { inv("page_report", { kind: "artifactview", text: "refused " + String(e).slice(0, 120) }); }
+  );
+})();"#;
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let shared: sidecar::Shared = Arc::new(sidecar::Sidecar::default());
@@ -225,6 +238,10 @@ pub fn run() {
                 .build(),
         )
         .on_page_load(|webview, payload| {
+            // only the app's own page gets these scripts: the artifact viewer's webview shows a page of another host and is given nothing (artifact_view.rs)
+            if webview.label() != "main" {
+                return;
+            }
             if let tauri::webview::PageLoadEvent::Finished = payload.event() {
                 // The window starts hidden (tauri.conf.json): the page's head script has by now put the saved skin and mode on the root, so the first frame the person sees is already themed.
                 // On a Mac it is still almost transparent here, until FIRST_FRAME reports a drawn frame.
@@ -235,6 +252,13 @@ pub fn run() {
                 let _ = webview.eval(NO_SERVICE_WORKER);
                 if std::env::var("VYRE_SHELL_BANNER").is_ok() {
                     let _ = webview.eval(BANNER);
+                }
+                // The artifact viewer's proof: only a loopback collector's port is ever put into the script, and the address is rebuilt on a.localhost.
+                if let Ok(url) = std::env::var("VYRE_SHELL_ARTIFACT_PROOF_URL") {
+                    if url.starts_with("http://127.0.0.1:") && url[17..].bytes().all(|b| b.is_ascii_digit()) {
+                        let shown = format!("http://a.localhost:{}/x/proofcode1", &url[17..]);
+                        let _ = webview.eval(ARTIFACT_PROOF.replace("__ARTIFACT_URL__", &shown));
+                    }
                 }
                 // Only a loopback collector address is ever put into the script.
                 if let Ok(url) = std::env::var("VYRE_SHELL_PROOF_URL") {
@@ -260,6 +284,9 @@ pub fn run() {
             commands::take_pending_link,
             commands::page_report,
             commands::open_link,
+            artifact_view::artifact_view_show,
+            artifact_view::artifact_view_bounds,
+            artifact_view::artifact_view_hide,
             updater::startup_update,
             updater::check_desktop_update,
             updater::install_desktop_update,

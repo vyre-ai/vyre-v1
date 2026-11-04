@@ -86,6 +86,19 @@ export type AccessActorsUpdateOut = {
     lastSeenAt?: number;
   };
 };
+export type AccessAgentsCanCallGetIn = {
+  agentId: string;
+};
+export type AccessAgentsCanCallGetOut = {
+  on: boolean;
+};
+export type AccessAgentsCanCallSetIn = {
+  agentId: string;
+  on: boolean;
+};
+export type AccessAgentsCanCallSetOut = {
+  on: boolean;
+};
 export type AccessAudienceSetIn = {
   resource: {
     type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
@@ -1261,6 +1274,8 @@ export type AccessSharesOfOut = {
       };
       through: "direct" | "group" | "role" | "folder" | "owner";
     }>;
+  mine?: "view" | "use" | "edit" | "manage";
+  agentsCanCall?: boolean;
   audience?: "space" | "added" | "me";
   exporters?: "admins" | "viewers" | "chosen";
   inherits?: string;
@@ -1374,6 +1389,7 @@ export type AgentsCreateIn = {
     tokensPerDay?: number;
   };
   projectId?: string;
+  threadId?: string;
   idempotencyKey: string;
 };
 export type AgentsCreateOut = {
@@ -1415,6 +1431,7 @@ export type AgentsCreateOut = {
     createdAt: number;
     lastActiveAt?: number;
     teammateOf?: string;
+    chatOf?: string;
   };
 };
 export type AgentsDeleteIn = {
@@ -1465,6 +1482,7 @@ export type AgentsGetOut = {
     createdAt: number;
     lastActiveAt?: number;
     teammateOf?: string;
+    chatOf?: string;
   };
 };
 export type AgentsGuideGetIn = Record<string, unknown>;
@@ -1516,6 +1534,7 @@ export type AgentsInstructionAppendOut = {
     createdAt: number;
     lastActiveAt?: number;
     teammateOf?: string;
+    chatOf?: string;
   };
   added: boolean;
   versionId?: string;
@@ -1541,6 +1560,7 @@ export type AgentsListIn = {
   status?: Array<"awake" | "working" | "asleep" | "paused">;
   teammates?: "hide" | "include" | "only";
   projectId?: string;
+  threadId?: string;
   cursor?: string;
   limit?: number;
 };
@@ -1583,6 +1603,7 @@ export type AgentsListOut = {
       createdAt: number;
       lastActiveAt?: number;
       teammateOf?: string;
+      chatOf?: string;
     }>;
   next?: string;
   total?: number;
@@ -1684,7 +1705,26 @@ export type AgentsPauseOut = {
     createdAt: number;
     lastActiveAt?: number;
     teammateOf?: string;
+    chatOf?: string;
   };
+};
+export type AgentsPausePersonIn = {
+  personId: string;
+  paused: boolean;
+};
+export type AgentsPausePersonOut = {
+  changed: number;
+};
+export type AgentsPeopleSummaryIn = Record<string, unknown>;
+export type AgentsPeopleSummaryOut = {
+  people: Array<{
+      personId: string;
+      assistant: boolean;
+      privateAgents: number;
+      spendMonthMicros: number;
+      capMicros?: number;
+      paused: boolean;
+    }>;
 };
 export type AgentsRestoreIn = {
   agentId: string;
@@ -1728,6 +1768,7 @@ export type AgentsRestoreOut = {
     createdAt: number;
     lastActiveAt?: number;
     teammateOf?: string;
+    chatOf?: string;
   };
 };
 export type AgentsRestoreVersionIn = {
@@ -1774,6 +1815,7 @@ export type AgentsRestoreVersionOut = {
     createdAt: number;
     lastActiveAt?: number;
     teammateOf?: string;
+    chatOf?: string;
   };
 };
 export type AgentsResumeIn = {
@@ -1818,6 +1860,7 @@ export type AgentsResumeOut = {
     createdAt: number;
     lastActiveAt?: number;
     teammateOf?: string;
+    chatOf?: string;
   };
 };
 export type AgentsRoleLineSetIn = {
@@ -1863,6 +1906,7 @@ export type AgentsRoleLineSetOut = {
     createdAt: number;
     lastActiveAt?: number;
     teammateOf?: string;
+    chatOf?: string;
   };
   undoVersionId: string;
 };
@@ -2058,6 +2102,7 @@ export type AgentsSetOwnerOut = {
     createdAt: number;
     lastActiveAt?: number;
     teammateOf?: string;
+    chatOf?: string;
   };
 };
 export type AgentsSnapshotTakeIn = {
@@ -2252,6 +2297,7 @@ export type AgentsUpdateOut = {
     createdAt: number;
     lastActiveAt?: number;
     teammateOf?: string;
+    chatOf?: string;
   };
 };
 export type AgentsVersionsIn = {
@@ -4963,6 +5009,7 @@ export type BrowserChromeActIn = {
   };
   threadId?: string;
   summary?: string;
+  reason?: string;
   idempotencyKey: string;
 };
 export type BrowserChromeActOut = {
@@ -5864,6 +5911,13 @@ export type ChannelsAgentWatchSetOut = {
         effort?: "low" | "medium" | "high" | "max";
         accountRef?: string;
         watches?: boolean;
+        when?: "always" | "topics" | "hours";
+        topics?: string;
+        hoursFrom?: string;
+        hoursTo?: string;
+        style?: "short" | "full";
+        quiet?: boolean;
+        owned?: boolean;
       }>;
     unread: number;
     createdAt: number;
@@ -5897,6 +5951,13 @@ export type ChannelsAgentsAddOut = {
         effort?: "low" | "medium" | "high" | "max";
         accountRef?: string;
         watches?: boolean;
+        when?: "always" | "topics" | "hours";
+        topics?: string;
+        hoursFrom?: string;
+        hoursTo?: string;
+        style?: "short" | "full";
+        quiet?: boolean;
+        owned?: boolean;
       }>;
     unread: number;
     createdAt: number;
@@ -5929,6 +5990,13 @@ export type ChannelsAgentsRemoveOut = {
         effort?: "low" | "medium" | "high" | "max";
         accountRef?: string;
         watches?: boolean;
+        when?: "always" | "topics" | "hours";
+        topics?: string;
+        hoursFrom?: string;
+        hoursTo?: string;
+        style?: "short" | "full";
+        quiet?: boolean;
+        owned?: boolean;
       }>;
     unread: number;
     createdAt: number;
@@ -5960,6 +6028,13 @@ export type ChannelsArchiveOut = {
         effort?: "low" | "medium" | "high" | "max";
         accountRef?: string;
         watches?: boolean;
+        when?: "always" | "topics" | "hours";
+        topics?: string;
+        hoursFrom?: string;
+        hoursTo?: string;
+        style?: "short" | "full";
+        quiet?: boolean;
+        owned?: boolean;
       }>;
     unread: number;
     createdAt: number;
@@ -5999,6 +6074,13 @@ export type ChannelsCreateOut = {
         effort?: "low" | "medium" | "high" | "max";
         accountRef?: string;
         watches?: boolean;
+        when?: "always" | "topics" | "hours";
+        topics?: string;
+        hoursFrom?: string;
+        hoursTo?: string;
+        style?: "short" | "full";
+        quiet?: boolean;
+        owned?: boolean;
       }>;
     unread: number;
     createdAt: number;
@@ -6037,6 +6119,13 @@ export type ChannelsGetOut = {
         effort?: "low" | "medium" | "high" | "max";
         accountRef?: string;
         watches?: boolean;
+        when?: "always" | "topics" | "hours";
+        topics?: string;
+        hoursFrom?: string;
+        hoursTo?: string;
+        style?: "short" | "full";
+        quiet?: boolean;
+        owned?: boolean;
       }>;
     unread: number;
     createdAt: number;
@@ -6084,6 +6173,13 @@ export type ChannelsJoinOut = {
         effort?: "low" | "medium" | "high" | "max";
         accountRef?: string;
         watches?: boolean;
+        when?: "always" | "topics" | "hours";
+        topics?: string;
+        hoursFrom?: string;
+        hoursTo?: string;
+        style?: "short" | "full";
+        quiet?: boolean;
+        owned?: boolean;
       }>;
     unread: number;
     createdAt: number;
@@ -6125,6 +6221,13 @@ export type ChannelsListOut = {
           effort?: "low" | "medium" | "high" | "max";
           accountRef?: string;
           watches?: boolean;
+          when?: "always" | "topics" | "hours";
+          topics?: string;
+          hoursFrom?: string;
+          hoursTo?: string;
+          style?: "short" | "full";
+          quiet?: boolean;
+          owned?: boolean;
         }>;
       unread: number;
       createdAt: number;
@@ -6160,6 +6263,13 @@ export type ChannelsMembersAddOut = {
         effort?: "low" | "medium" | "high" | "max";
         accountRef?: string;
         watches?: boolean;
+        when?: "always" | "topics" | "hours";
+        topics?: string;
+        hoursFrom?: string;
+        hoursTo?: string;
+        style?: "short" | "full";
+        quiet?: boolean;
+        owned?: boolean;
       }>;
     unread: number;
     createdAt: number;
@@ -6192,6 +6302,13 @@ export type ChannelsMembersRemoveOut = {
         effort?: "low" | "medium" | "high" | "max";
         accountRef?: string;
         watches?: boolean;
+        when?: "always" | "topics" | "hours";
+        topics?: string;
+        hoursFrom?: string;
+        hoursTo?: string;
+        style?: "short" | "full";
+        quiet?: boolean;
+        owned?: boolean;
       }>;
     unread: number;
     createdAt: number;
@@ -6268,6 +6385,13 @@ export type ChannelsUnarchiveOut = {
         effort?: "low" | "medium" | "high" | "max";
         accountRef?: string;
         watches?: boolean;
+        when?: "always" | "topics" | "hours";
+        topics?: string;
+        hoursFrom?: string;
+        hoursTo?: string;
+        style?: "short" | "full";
+        quiet?: boolean;
+        owned?: boolean;
       }>;
     unread: number;
     createdAt: number;
@@ -6302,6 +6426,13 @@ export type ChannelsUpdateOut = {
         effort?: "low" | "medium" | "high" | "max";
         accountRef?: string;
         watches?: boolean;
+        when?: "always" | "topics" | "hours";
+        topics?: string;
+        hoursFrom?: string;
+        hoursTo?: string;
+        style?: "short" | "full";
+        quiet?: boolean;
+        owned?: boolean;
       }>;
     unread: number;
     createdAt: number;
@@ -6408,6 +6539,13 @@ export type ChatAsksOfOut = {
           effort?: "low" | "medium" | "high" | "max";
           accountRef?: string;
           watches?: boolean;
+          when?: "always" | "topics" | "hours";
+          topics?: string;
+          hoursFrom?: string;
+          hoursTo?: string;
+          style?: "short" | "full";
+          quiet?: boolean;
+          owned?: boolean;
         }>;
       createdAt: number;
       closedAt?: number;
@@ -6560,6 +6698,13 @@ export type ChatForkOut = {
         effort?: "low" | "medium" | "high" | "max";
         accountRef?: string;
         watches?: boolean;
+        when?: "always" | "topics" | "hours";
+        topics?: string;
+        hoursFrom?: string;
+        hoursTo?: string;
+        style?: "short" | "full";
+        quiet?: boolean;
+        owned?: boolean;
       }>;
     createdAt: number;
     closedAt?: number;
@@ -6614,6 +6759,13 @@ export type ChatHandoffOut = {
         effort?: "low" | "medium" | "high" | "max";
         accountRef?: string;
         watches?: boolean;
+        when?: "always" | "topics" | "hours";
+        topics?: string;
+        hoursFrom?: string;
+        hoursTo?: string;
+        style?: "short" | "full";
+        quiet?: boolean;
+        owned?: boolean;
       }>;
     createdAt: number;
     closedAt?: number;
@@ -6709,6 +6861,13 @@ export type ChatHelperStartOut = {
         effort?: "low" | "medium" | "high" | "max";
         accountRef?: string;
         watches?: boolean;
+        when?: "always" | "topics" | "hours";
+        topics?: string;
+        hoursFrom?: string;
+        hoursTo?: string;
+        style?: "short" | "full";
+        quiet?: boolean;
+        owned?: boolean;
       }>;
     createdAt: number;
     closedAt?: number;
@@ -6751,6 +6910,49 @@ export type ChatHelpersListOut = {
       pick?: Record<string, unknown>;
       startedAt: number;
     }>;
+};
+export type ChatHistoryPageIn = {
+  threadId: string;
+  before: number;
+  limit?: number;
+};
+export type ChatHistoryPageOut = {
+  messages: Array<{
+      messageId: string;
+      threadId: string;
+      threadSeq: number;
+      author: {
+        kind: "person" | "agent" | "actor" | "service";
+        id: string;
+      };
+      kind: "text" | "agent" | "system" | "quiet";
+      body: string;
+      blocks: Array<{
+          type: string;
+          v: number;
+          id: string;
+          data: unknown;
+          state?: "live" | "done" | "waiting" | "error";
+          traceId: string;
+        }>;
+      replyTo?: string;
+      via?: {
+        routineOwner: string;
+      };
+      paidBy?: string;
+      depth: number;
+      attachments: Array<string>;
+      reactions: Array<{
+          emoji: string;
+          by: Array<string>;
+        }>;
+      pinned: boolean;
+      editedAt?: number;
+      createdAt: number;
+      enc?: number;
+    }>;
+  hasMore: boolean;
+  next?: number;
 };
 export type ChatHistorySearchIn = {
   q?: string;
@@ -6952,6 +7154,13 @@ export type ChatOpenAsChatOut = {
         effort?: "low" | "medium" | "high" | "max";
         accountRef?: string;
         watches?: boolean;
+        when?: "always" | "topics" | "hours";
+        topics?: string;
+        hoursFrom?: string;
+        hoursTo?: string;
+        style?: "short" | "full";
+        quiet?: boolean;
+        owned?: boolean;
       }>;
     createdAt: number;
     closedAt?: number;
@@ -7196,6 +7405,12 @@ export type ChatReactOut = {
       by: Array<string>;
     }>;
 };
+export type ChatReadFloorIn = {
+  threadId: string;
+};
+export type ChatReadFloorOut = {
+  fromAt?: number;
+};
 export type ChatRecentIn = {
   filter?: "all" | "unread" | "people" | "agents";
 };
@@ -7309,6 +7524,7 @@ export type ChatReplyDetailsOut = {
       ranOn: Array<{
           kind: string;
           name: string;
+          note?: string;
         }>;
       timing: {
         queuedAt?: number;
@@ -7496,6 +7712,13 @@ export type ChatStartOut = {
         effort?: "low" | "medium" | "high" | "max";
         accountRef?: string;
         watches?: boolean;
+        when?: "always" | "topics" | "hours";
+        topics?: string;
+        hoursFrom?: string;
+        hoursTo?: string;
+        style?: "short" | "full";
+        quiet?: boolean;
+        owned?: boolean;
       }>;
     createdAt: number;
     closedAt?: number;
@@ -7548,6 +7771,13 @@ export type ChatThreadOut = {
         effort?: "low" | "medium" | "high" | "max";
         accountRef?: string;
         watches?: boolean;
+        when?: "always" | "topics" | "hours";
+        topics?: string;
+        hoursFrom?: string;
+        hoursTo?: string;
+        style?: "short" | "full";
+        quiet?: boolean;
+        owned?: boolean;
       }>;
     createdAt: number;
     closedAt?: number;
@@ -7567,6 +7797,21 @@ export type ChatThreadOut = {
     parentTitle?: string;
     preview?: string;
   };
+};
+export type ChatTitleMakeIn = {
+  threadId: string;
+  account?: {
+    ref: string;
+    driver: string;
+    kind?: string;
+    payer?: string;
+    spaceKey?: boolean;
+  };
+};
+export type ChatTitleMakeOut = {
+  made: boolean;
+  title?: string;
+  why?: "renamed" | "not_a_chat" | "direct" | "small_talk" | "done" | "has_title";
 };
 export type ChatTranscriptAppendIn = {
   threadId: string;
@@ -11217,6 +11462,10 @@ export type EnginePlacementDecideOut = {
   wakeLine?: string;
   nodeId?: string;
   deviceId?: string;
+  moved?: {
+    from: string;
+    why: string;
+  };
 };
 export type EnginePlacementOptionsIn = {
   threadId: string;
@@ -11611,6 +11860,7 @@ export type EngineTurnFinishOut = {
     ranOn?: Array<{
         kind: "computer" | "server" | "space";
         name: string;
+        note?: string;
       }>;
   };
 };
@@ -11648,6 +11898,7 @@ export type EngineTurnGetOut = {
       ranOn?: Array<{
           kind: "computer" | "server" | "space";
           name: string;
+          note?: string;
         }>;
     };
     machine: "host" | "device";
@@ -11694,6 +11945,7 @@ export type EngineTurnOfMessageOut = {
     ranOn: Array<{
         kind: string;
         name: string;
+        note?: string;
       }>;
     timing: {
       queuedAt?: number;
@@ -11827,6 +12079,7 @@ export type EngineTurnRecordOut = {
     ranOn?: Array<{
         kind: "computer" | "server" | "space";
         name: string;
+        note?: string;
       }>;
   };
 };
@@ -11877,6 +12130,7 @@ export type EngineTurnRetryOut = {
     ranOn?: Array<{
         kind: "computer" | "server" | "space";
         name: string;
+        note?: string;
       }>;
   };
 };
@@ -11920,6 +12174,7 @@ export type EngineTurnStartOut = {
     ranOn?: Array<{
         kind: "computer" | "server" | "space";
         name: string;
+        note?: string;
       }>;
   };
 };
@@ -11969,10 +12224,25 @@ export type EngineTurnsListOut = {
       ranOn?: Array<{
           kind: "computer" | "server" | "space";
           name: string;
+          note?: string;
         }>;
     }>;
   next?: string;
   total?: number;
+};
+export type EngineTurnsRunningIn = Record<string, unknown>;
+export type EngineTurnsRunningOut = {
+  turns: Array<{
+      turnId: string;
+      agentId: string;
+      asker: string;
+      startedAt: number;
+      where: {
+        kind: "computer" | "server" | "space";
+        name: string;
+        nodeId?: string;
+      };
+    }>;
 };
 export type EngineUsageGetIn = {
   threadId: string;
@@ -14309,6 +14579,15 @@ export type GateHoldsListOut = {
   next?: string;
   total?: number;
 };
+export type GateHoldsReviseIn = {
+  holdId: string;
+  taskId: string;
+  body: string;
+};
+export type GateHoldsReviseOut = {
+  ok: boolean;
+  edited: number;
+};
 export type GateLinksKnownIn = {
   url: string;
   threads: Array<string>;
@@ -15012,6 +15291,7 @@ export type GoalsActivityOut = {
       text: string;
       by?: string;
       ref?: string;
+      tpl?: string;
     }>;
 };
 export type GoalsAskIn = {
@@ -15155,6 +15435,7 @@ export type GoalsCompleteOut = {
 export type GoalsConfirmIn = {
   goalId: string;
   permissions?: Array<string>;
+  messageId?: string;
 };
 export type GoalsConfirmOut = {
   goal: {
@@ -15448,6 +15729,16 @@ export type GoalsCreateOut = {
       title: string;
       recordId: string;
     }>;
+  seated: Array<{
+      kind: "person" | "agent";
+      id: string;
+      inChat: boolean;
+      error?: string;
+    }>;
+  plan: {
+    drafted: number;
+    attached: number;
+  };
 };
 export type GoalsExtendIn = {
   goalId: string;
@@ -15767,6 +16058,28 @@ export type GoalsGetOut = {
     createdAt: number;
     updatedAt: number;
   };
+  draftPlan?: Array<{
+      key: string;
+      title: string;
+      why: string;
+      impact?: string;
+      brief?: string;
+      doneMeans?: Array<string>;
+      assigned: {
+        kind: "person" | "agent" | "group" | "role";
+        id: string;
+      };
+      reviewer?: {
+        kind: "person" | "agent" | "group" | "role";
+        id: string;
+      };
+      approver?: {
+        kind: "person" | "agent" | "group" | "role";
+        id: string;
+      };
+      dependsOn?: Array<string>;
+      due?: number;
+    }>;
   tasks: Array<{
       taskId: string;
       key?: string;
@@ -15794,6 +16107,7 @@ export type GoalsGetOut = {
       text: string;
       by?: string;
       ref?: string;
+      tpl?: string;
     }>;
   readings: Array<{
       at: number;
@@ -16188,6 +16502,7 @@ export type GoalsPlanOut = {
       taskId: string;
       created: boolean;
     }>;
+  drafted?: number;
 };
 export type GoalsProgressIn = {
   goalId: string;
@@ -16545,6 +16860,30 @@ export type GoalsUpdateIn = {
       granted?: boolean;
     }>;
   stuckAfter?: number;
+  leadAgentId?: string;
+  owner?: string;
+  plan?: Array<{
+      key: string;
+      title: string;
+      why: string;
+      impact?: string;
+      brief?: string;
+      doneMeans?: Array<string>;
+      assigned: {
+        kind: "person" | "agent" | "group" | "role";
+        id: string;
+      };
+      reviewer?: {
+        kind: "person" | "agent" | "group" | "role";
+        id: string;
+      };
+      approver?: {
+        kind: "person" | "agent" | "group" | "role";
+        id: string;
+      };
+      dependsOn?: Array<string>;
+      due?: number;
+    }>;
 };
 export type GoalsUpdateOut = {
   goal: {
@@ -16645,6 +16984,12 @@ export type GoalsUpdateOut = {
     createdAt: number;
     updatedAt: number;
   };
+  seated?: Array<{
+      kind: "person" | "agent";
+      id: string;
+      inChat: boolean;
+      error?: string;
+    }>;
 };
 export type GoalsWakeClaimIn = {
   goalId: string;
@@ -20480,6 +20825,351 @@ export type LogsTraceOut = {
       entity?: string;
     }>;
 };
+export type MachinesAlertsIn = Record<string, unknown>;
+export type MachinesAlertsOut = {
+  alerts: Array<{
+      alertId: string;
+      machineId: string;
+      kind: "disk_low" | "memory_pressure" | "offline_pinned" | "update_waiting" | "backup_failed";
+      severity: "info" | "warn" | "bad";
+      title: string;
+      detail: string;
+      next: string;
+    }>;
+};
+export type MachinesAlertsNotifyIn = Record<string, unknown>;
+export type MachinesAlertsNotifyOut = {
+  sent: number;
+};
+export type MachinesFixIn = {
+  machineId: string;
+  fix: "clear_caches" | "stop_idle" | "restart_service";
+  service?: string;
+};
+export type MachinesFixOut = {
+  state: "done" | "failed";
+  detail: string;
+};
+export type MachinesGetIn = {
+  machineId: string;
+};
+export type MachinesGetOut = {
+  machine: {
+    machineId: string;
+    kind: "space" | "server" | "computer";
+    name: string;
+    nickname?: string;
+    ownerId?: string;
+    personal: boolean;
+    mine: boolean;
+    online: boolean;
+    draining: boolean;
+    restricted: boolean;
+    lastSeenAt?: number;
+    latencyMs?: number;
+    version?: string;
+    os?: string;
+    arch?: string;
+    diskBytes?: number;
+    gpu?: string;
+    cores?: number;
+    memBytes?: number;
+    load?: {
+      cpuPct: number;
+      memUsedBytes: number;
+      diskFreeBytes: number;
+      netInBps: number;
+      netOutBps: number;
+    };
+    vyreLoad?: {
+      cpuPct: number;
+      memBytes: number;
+    };
+    runs: {
+      turns: number;
+      agentComputers: number;
+      sites: number;
+      automations: number;
+    };
+    can: Array<"claude_code" | "codex" | "docker" | "chrome">;
+    limits: {
+      maxTurns: number;
+      maxAgentComputers: number;
+    };
+    pinned: Array<{
+        agentId: string;
+      }>;
+    room: {
+      score: number;
+      tightest: "cpu" | "memory" | "turns" | "disk" | "offline" | "draining" | "busy";
+    };
+    alerts: number;
+    agentComputers: Array<{
+        computerId: string;
+        agentId: string;
+        state: string;
+        tabs: number;
+        tabLimit: number;
+        caption?: string;
+      }>;
+  };
+  series: {
+    "1h": Array<{
+        t: number;
+        cpuPct?: number;
+        memPct?: number;
+        diskFreePct?: number;
+        netInBps?: number;
+        netOutBps?: number;
+        vyreCpuPct?: number;
+        vyreMemBytes?: number;
+      }>;
+    "24h": Array<{
+        t: number;
+        cpuPct?: number;
+        memPct?: number;
+        diskFreePct?: number;
+        netInBps?: number;
+        netOutBps?: number;
+        vyreCpuPct?: number;
+        vyreMemBytes?: number;
+      }>;
+    "7d": Array<{
+        t: number;
+        cpuPct?: number;
+        memPct?: number;
+        diskFreePct?: number;
+        netInBps?: number;
+        netOutBps?: number;
+        vyreCpuPct?: number;
+        vyreMemBytes?: number;
+      }>;
+    "30d": Array<{
+        t: number;
+        cpuPct?: number;
+        memPct?: number;
+        diskFreePct?: number;
+        netInBps?: number;
+        netOutBps?: number;
+        vyreCpuPct?: number;
+        vyreMemBytes?: number;
+      }>;
+  };
+  alerts: Array<{
+      alertId: string;
+      machineId: string;
+      kind: "disk_low" | "memory_pressure" | "offline_pinned" | "update_waiting" | "backup_failed";
+      severity: "info" | "warn" | "bad";
+      title: string;
+      detail: string;
+      next: string;
+    }>;
+  work: Array<{
+      kind: "turn" | "site" | "automation";
+      agentId?: string;
+      what: string;
+      where: string;
+      minutes: number;
+    }>;
+  findings: Array<{
+      key: string;
+      state: "healthy" | "degraded" | "down";
+      detail: string;
+      next: string;
+      fix: ("clear_caches" | "stop_idle" | "update") | null;
+    }>;
+  privacy: "full" | "vyre_only";
+  lastFix?: {
+    fix: string;
+    at: number;
+    state: "done" | "failed";
+    detail: string;
+  };
+};
+export type MachinesListIn = Record<string, unknown>;
+export type MachinesListOut = {
+  machines: Array<{
+      machineId: string;
+      kind: "space" | "server" | "computer";
+      name: string;
+      nickname?: string;
+      ownerId?: string;
+      personal: boolean;
+      mine: boolean;
+      online: boolean;
+      draining: boolean;
+      restricted: boolean;
+      lastSeenAt?: number;
+      latencyMs?: number;
+      version?: string;
+      os?: string;
+      arch?: string;
+      diskBytes?: number;
+      gpu?: string;
+      cores?: number;
+      memBytes?: number;
+      load?: {
+        cpuPct: number;
+        memUsedBytes: number;
+        diskFreeBytes: number;
+        netInBps: number;
+        netOutBps: number;
+      };
+      vyreLoad?: {
+        cpuPct: number;
+        memBytes: number;
+      };
+      runs: {
+        turns: number;
+        agentComputers: number;
+        sites: number;
+        automations: number;
+      };
+      can: Array<"claude_code" | "codex" | "docker" | "chrome">;
+      limits: {
+        maxTurns: number;
+        maxAgentComputers: number;
+      };
+      pinned: Array<{
+          agentId: string;
+        }>;
+      room: {
+        score: number;
+        tightest: "cpu" | "memory" | "turns" | "disk" | "offline" | "draining" | "busy";
+      };
+      alerts: number;
+      agentComputers: Array<{
+          computerId: string;
+          agentId: string;
+          state: string;
+          tabs: number;
+          tabLimit: number;
+          caption?: string;
+        }>;
+    }>;
+  summary: {
+    online: number;
+    total: number;
+    agentComputers: number;
+    roomAvg: number;
+  };
+};
+export type MachinesMoveRecordIn = {
+  turnId?: string;
+  asker?: string;
+  agentId?: string;
+  threadId?: string;
+  from: string;
+  to: string;
+  why: string;
+};
+export type MachinesMoveRecordOut = {
+  ok: boolean;
+};
+export type MachinesMovesIn = {
+  limit?: number;
+};
+export type MachinesMovesOut = {
+  moves: Array<{
+      id: number;
+      at: number;
+      turnId: string | null;
+      asker: string | null;
+      agentId: string | null;
+      threadId: string | null;
+      from: string;
+      to: string;
+      why: string;
+    }>;
+};
+export type MachinesRoomsIn = {
+  ids: Array<string>;
+  agentId?: string;
+};
+export type MachinesRoomsOut = {
+  pinnedTo?: string;
+  rooms: Array<{
+      machineId: string;
+      name: string;
+      score: number;
+      why: string;
+      turns: number;
+      maxTurns: number;
+      draining: boolean;
+    }>;
+};
+export type MachinesSetIn = {
+  machineId: string;
+  nickname?: string | null;
+  maxTurns?: number;
+  maxAgentComputers?: number;
+  drain?: boolean;
+  pinAgent?: {
+    agentId: string;
+    pinned: boolean;
+  };
+};
+export type MachinesSetOut = {
+  machine: {
+    machineId: string;
+    kind: "space" | "server" | "computer";
+    name: string;
+    nickname?: string;
+    ownerId?: string;
+    personal: boolean;
+    mine: boolean;
+    online: boolean;
+    draining: boolean;
+    restricted: boolean;
+    lastSeenAt?: number;
+    latencyMs?: number;
+    version?: string;
+    os?: string;
+    arch?: string;
+    diskBytes?: number;
+    gpu?: string;
+    cores?: number;
+    memBytes?: number;
+    load?: {
+      cpuPct: number;
+      memUsedBytes: number;
+      diskFreeBytes: number;
+      netInBps: number;
+      netOutBps: number;
+    };
+    vyreLoad?: {
+      cpuPct: number;
+      memBytes: number;
+    };
+    runs: {
+      turns: number;
+      agentComputers: number;
+      sites: number;
+      automations: number;
+    };
+    can: Array<"claude_code" | "codex" | "docker" | "chrome">;
+    limits: {
+      maxTurns: number;
+      maxAgentComputers: number;
+    };
+    pinned: Array<{
+        agentId: string;
+      }>;
+    room: {
+      score: number;
+      tightest: "cpu" | "memory" | "turns" | "disk" | "offline" | "draining" | "busy";
+    };
+    alerts: number;
+    agentComputers: Array<{
+        computerId: string;
+        agentId: string;
+        state: string;
+        tabs: number;
+        tabLimit: number;
+        caption?: string;
+      }>;
+  };
+};
 export type MailAttachmentSaveIn = {
   messageId: string;
   attachmentId: string;
@@ -22224,6 +22914,33 @@ export type MembersInvitesExtendOut = {
     acceptedBy?: string;
     createdAt: number;
   };
+};
+export type MembersInvitesGuestIn = {
+  email: string;
+  scope: {
+    type: "channel";
+    id: string;
+  };
+  level?: "view" | "reply";
+  idempotencyKey: string;
+};
+export type MembersInvitesGuestOut = {
+  invite: {
+    id: string;
+    role: string;
+    groups: Array<string>;
+    agents: Array<string>;
+    projects: Array<string>;
+    channels: Array<string>;
+    email?: string;
+    expiresAt: number;
+    createdBy: string;
+    state: "open" | "accepted" | "revoked" | "expired";
+    aiKeyHandle?: string;
+    acceptedBy?: string;
+    createdAt: number;
+  };
+  link: string;
 };
 export type MembersInvitesListIn = {
   state?: "open" | "accepted" | "revoked" | "expired";
@@ -26862,7 +27579,7 @@ export type NotificationsDigestCollectIn = {
 };
 export type NotificationsDigestCollectOut = {
   items: Array<{
-      kind: "approval.requested" | "answer.requested" | "unblock.requested" | "approval.backstop" | "dm" | "mention" | "call.incoming" | "agent.blocked" | "incident.owned" | "task.assigned" | "reply.followed" | "agent.task_finished" | "digest.away" | "mention.thread" | "run.failed" | "conflict.needs_you" | "access.requested" | "access.decided" | "sync.attention" | "health.degraded" | "problem.report" | "member.joined" | "limit.hit" | "vault.rotation_due" | "reply.thread" | "task.turn" | "task.returned" | "task.finished" | "task.due";
+      kind: "approval.requested" | "answer.requested" | "unblock.requested" | "approval.backstop" | "dm" | "mention" | "call.incoming" | "agent.blocked" | "incident.owned" | "task.assigned" | "reply.followed" | "agent.task_finished" | "digest.away" | "mention.thread" | "run.failed" | "conflict.needs_you" | "access.requested" | "access.decided" | "sync.attention" | "health.degraded" | "problem.report" | "member.joined" | "limit.hit" | "vault.rotation_due" | "reply.thread" | "task.turn" | "task.returned" | "task.finished" | "task.due" | "machine.alert";
       title: string;
       at: number;
       subject?: {
@@ -26873,19 +27590,19 @@ export type NotificationsDigestCollectOut = {
     }>;
 };
 export type NotificationsKindSetLevelIn = {
-  kind: "approval.requested" | "answer.requested" | "unblock.requested" | "approval.backstop" | "dm" | "mention" | "call.incoming" | "agent.blocked" | "incident.owned" | "task.assigned" | "reply.followed" | "agent.task_finished" | "digest.away" | "mention.thread" | "run.failed" | "conflict.needs_you" | "access.requested" | "access.decided" | "sync.attention" | "health.degraded" | "problem.report" | "member.joined" | "limit.hit" | "vault.rotation_due" | "reply.thread" | "task.turn" | "task.returned" | "task.finished" | "task.due";
+  kind: "approval.requested" | "answer.requested" | "unblock.requested" | "approval.backstop" | "dm" | "mention" | "call.incoming" | "agent.blocked" | "incident.owned" | "task.assigned" | "reply.followed" | "agent.task_finished" | "digest.away" | "mention.thread" | "run.failed" | "conflict.needs_you" | "access.requested" | "access.decided" | "sync.attention" | "health.degraded" | "problem.report" | "member.joined" | "limit.hit" | "vault.rotation_due" | "reply.thread" | "task.turn" | "task.returned" | "task.finished" | "task.due" | "machine.alert";
   level?: "interrupt" | "badge" | "digest";
   channels?: Array<"desktop" | "phone" | "email">;
 };
 export type NotificationsKindSetLevelOut = {
-  kind: "approval.requested" | "answer.requested" | "unblock.requested" | "approval.backstop" | "dm" | "mention" | "call.incoming" | "agent.blocked" | "incident.owned" | "task.assigned" | "reply.followed" | "agent.task_finished" | "digest.away" | "mention.thread" | "run.failed" | "conflict.needs_you" | "access.requested" | "access.decided" | "sync.attention" | "health.degraded" | "problem.report" | "member.joined" | "limit.hit" | "vault.rotation_due" | "reply.thread" | "task.turn" | "task.returned" | "task.finished" | "task.due";
+  kind: "approval.requested" | "answer.requested" | "unblock.requested" | "approval.backstop" | "dm" | "mention" | "call.incoming" | "agent.blocked" | "incident.owned" | "task.assigned" | "reply.followed" | "agent.task_finished" | "digest.away" | "mention.thread" | "run.failed" | "conflict.needs_you" | "access.requested" | "access.decided" | "sync.attention" | "health.degraded" | "problem.report" | "member.joined" | "limit.hit" | "vault.rotation_due" | "reply.thread" | "task.turn" | "task.returned" | "task.finished" | "task.due" | "machine.alert";
   level: "interrupt" | "badge" | "digest";
   channels: Array<"desktop" | "phone" | "email">;
 };
 export type NotificationsKindsListIn = Record<string, unknown>;
 export type NotificationsKindsListOut = {
   kinds: Array<{
-      key: "approval.requested" | "answer.requested" | "unblock.requested" | "approval.backstop" | "dm" | "mention" | "call.incoming" | "agent.blocked" | "incident.owned" | "task.assigned" | "reply.followed" | "agent.task_finished" | "digest.away" | "mention.thread" | "run.failed" | "conflict.needs_you" | "access.requested" | "access.decided" | "sync.attention" | "health.degraded" | "problem.report" | "member.joined" | "limit.hit" | "vault.rotation_due" | "reply.thread" | "task.turn" | "task.returned" | "task.finished" | "task.due";
+      key: "approval.requested" | "answer.requested" | "unblock.requested" | "approval.backstop" | "dm" | "mention" | "call.incoming" | "agent.blocked" | "incident.owned" | "task.assigned" | "reply.followed" | "agent.task_finished" | "digest.away" | "mention.thread" | "run.failed" | "conflict.needs_you" | "access.requested" | "access.decided" | "sync.attention" | "health.degraded" | "problem.report" | "member.joined" | "limit.hit" | "vault.rotation_due" | "reply.thread" | "task.turn" | "task.returned" | "task.finished" | "task.due" | "machine.alert";
       level: "interrupt" | "badge" | "digest";
       place: "home" | "chats" | "inbox" | "records" | "files" | "apps" | "automations" | "vault" | "settings" | "console";
       title: string;
@@ -26906,7 +27623,7 @@ export type NotificationsListIn = {
 export type NotificationsListOut = {
   notifications: Array<{
       id: string;
-      kind: "approval.requested" | "answer.requested" | "unblock.requested" | "approval.backstop" | "dm" | "mention" | "call.incoming" | "agent.blocked" | "incident.owned" | "task.assigned" | "reply.followed" | "agent.task_finished" | "digest.away" | "mention.thread" | "run.failed" | "conflict.needs_you" | "access.requested" | "access.decided" | "sync.attention" | "health.degraded" | "problem.report" | "member.joined" | "limit.hit" | "vault.rotation_due" | "reply.thread" | "task.turn" | "task.returned" | "task.finished" | "task.due";
+      kind: "approval.requested" | "answer.requested" | "unblock.requested" | "approval.backstop" | "dm" | "mention" | "call.incoming" | "agent.blocked" | "incident.owned" | "task.assigned" | "reply.followed" | "agent.task_finished" | "digest.away" | "mention.thread" | "run.failed" | "conflict.needs_you" | "access.requested" | "access.decided" | "sync.attention" | "health.degraded" | "problem.report" | "member.joined" | "limit.hit" | "vault.rotation_due" | "reply.thread" | "task.turn" | "task.returned" | "task.finished" | "task.due" | "machine.alert";
       level: "interrupt" | "badge" | "digest";
       place: "home" | "chats" | "inbox" | "records" | "files" | "apps" | "automations" | "vault" | "settings" | "console";
       title: string;
@@ -27020,7 +27737,7 @@ export type NotificationsRulesSetOut = {
 };
 export type NotificationsSendIn = {
   to: string;
-  kind: "approval.requested" | "answer.requested" | "unblock.requested" | "approval.backstop" | "dm" | "mention" | "call.incoming" | "agent.blocked" | "incident.owned" | "task.assigned" | "reply.followed" | "agent.task_finished" | "digest.away" | "mention.thread" | "run.failed" | "conflict.needs_you" | "access.requested" | "access.decided" | "sync.attention" | "health.degraded" | "problem.report" | "member.joined" | "limit.hit" | "vault.rotation_due" | "reply.thread" | "task.turn" | "task.returned" | "task.finished" | "task.due";
+  kind: "approval.requested" | "answer.requested" | "unblock.requested" | "approval.backstop" | "dm" | "mention" | "call.incoming" | "agent.blocked" | "incident.owned" | "task.assigned" | "reply.followed" | "agent.task_finished" | "digest.away" | "mention.thread" | "run.failed" | "conflict.needs_you" | "access.requested" | "access.decided" | "sync.attention" | "health.degraded" | "problem.report" | "member.joined" | "limit.hit" | "vault.rotation_due" | "reply.thread" | "task.turn" | "task.returned" | "task.finished" | "task.due" | "machine.alert";
   subject?: {
     type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
     id: string;
@@ -29960,6 +30677,15 @@ export type RunsMarkWaitingOut = {
     };
   };
 };
+export type RunsPeopleCountsIn = {
+  statuses?: Array<"queued" | "running" | "waiting" | "succeeded" | "failed" | "stopped">;
+};
+export type RunsPeopleCountsOut = {
+  people: Array<{
+      person: string;
+      runs: number;
+    }>;
+};
 export type RunsPinVersionIn = {
   runId: string;
   definitionVersion: number;
@@ -31561,6 +32287,7 @@ export type SitesArtifactPublishIn = {
   port?: number;
   computerId?: string;
   artifactId?: string;
+  thumb?: string;
   idempotencyKey: string;
 };
 export type SitesArtifactPublishOut = {
@@ -31569,6 +32296,13 @@ export type SitesArtifactPublishOut = {
   updated: boolean;
   opened: boolean;
 };
+export type SitesArtifactThumbSetIn = {
+  artifactId: string;
+  thumb: string;
+};
+export type SitesArtifactThumbSetOut = {
+  set: boolean;
+};
 export type SitesBuildIn = {
   siteId: string;
   branch?: string;
@@ -31576,6 +32310,12 @@ export type SitesBuildIn = {
 export type SitesBuildOut = {
   runId: string;
   deploymentId: string;
+};
+export type SitesChatViewingIn = {
+  threadId: string;
+};
+export type SitesChatViewingOut = {
+  ok: boolean;
 };
 export type SitesCreateIn = {
   name: string;
@@ -31622,6 +32362,11 @@ export type SitesCreateOut = {
     live?: boolean;
     blocked?: boolean;
     updatedAt?: number;
+    thumb?: string;
+    chatId?: string;
+    chatTitle?: string;
+    sharedWith?: Array<string>;
+    sharedAudience?: Array<"link" | "space">;
     deployed?: boolean;
     source?: {
       repo?: string;
@@ -31823,6 +32568,11 @@ export type SitesGetOut = {
     live?: boolean;
     blocked?: boolean;
     updatedAt?: number;
+    thumb?: string;
+    chatId?: string;
+    chatTitle?: string;
+    sharedWith?: Array<string>;
+    sharedAudience?: Array<"link" | "space">;
     deployed?: boolean;
     source?: {
       repo?: string;
@@ -31901,6 +32651,11 @@ export type SitesListOut = {
       live?: boolean;
       blocked?: boolean;
       updatedAt?: number;
+      thumb?: string;
+      chatId?: string;
+      chatTitle?: string;
+      sharedWith?: Array<string>;
+      sharedAudience?: Array<"link" | "space">;
       deployed?: boolean;
       source?: {
         repo?: string;
@@ -32056,6 +32811,11 @@ export type SitesPromoteOut = {
     live?: boolean;
     blocked?: boolean;
     updatedAt?: number;
+    thumb?: string;
+    chatId?: string;
+    chatTitle?: string;
+    sharedWith?: Array<string>;
+    sharedAudience?: Array<"link" | "space">;
     deployed?: boolean;
     source?: {
       repo?: string;
@@ -32119,6 +32879,11 @@ export type SitesPublishOut = {
     live?: boolean;
     blocked?: boolean;
     updatedAt?: number;
+    thumb?: string;
+    chatId?: string;
+    chatTitle?: string;
+    sharedWith?: Array<string>;
+    sharedAudience?: Array<"link" | "space">;
     deployed?: boolean;
     source?: {
       repo?: string;
@@ -32240,6 +33005,11 @@ export type SitesStopOut = {
     live?: boolean;
     blocked?: boolean;
     updatedAt?: number;
+    thumb?: string;
+    chatId?: string;
+    chatTitle?: string;
+    sharedWith?: Array<string>;
+    sharedAudience?: Array<"link" | "space">;
     deployed?: boolean;
     source?: {
       repo?: string;
@@ -32353,6 +33123,11 @@ export type SitesUpdateOut = {
     live?: boolean;
     blocked?: boolean;
     updatedAt?: number;
+    thumb?: string;
+    chatId?: string;
+    chatTitle?: string;
+    sharedWith?: Array<string>;
+    sharedAudience?: Array<"link" | "space">;
     deployed?: boolean;
     source?: {
       repo?: string;
@@ -36104,6 +36879,18 @@ export type TasksGetOut = {
     workerThread?: string;
   };
 };
+export type TasksHeldReviseIn = {
+  taskId: string;
+  blocks: Array<{
+      type: string;
+      v?: number;
+      data: unknown;
+    }>;
+  payloadHash: string;
+};
+export type TasksHeldReviseOut = {
+  ok: boolean;
+};
 export type TasksHistoryIn = {
   taskId: string;
   cursor?: string;
@@ -38567,6 +39354,13 @@ export type ThreadsAddAgentOut = {
         effort?: "low" | "medium" | "high" | "max";
         accountRef?: string;
         watches?: boolean;
+        when?: "always" | "topics" | "hours";
+        topics?: string;
+        hoursFrom?: string;
+        hoursTo?: string;
+        style?: "short" | "full";
+        quiet?: boolean;
+        owned?: boolean;
       }>;
     createdAt: number;
     closedAt?: number;
@@ -38624,6 +39418,142 @@ export type ThreadsAgentConfigureOut = {
         effort?: "low" | "medium" | "high" | "max";
         accountRef?: string;
         watches?: boolean;
+        when?: "always" | "topics" | "hours";
+        topics?: string;
+        hoursFrom?: string;
+        hoursTo?: string;
+        style?: "short" | "full";
+        quiet?: boolean;
+        owned?: boolean;
+      }>;
+    createdAt: number;
+    closedAt?: number;
+    replyCount?: number;
+    lastMessageAt?: number;
+    path?: Array<{
+        title: string;
+        threadId: string;
+      }>;
+    unread?: number;
+    following?: boolean;
+    muted?: boolean;
+    repliers?: Array<{
+        kind: "person" | "agent" | "actor" | "service";
+        id: string;
+      }>;
+    parentTitle?: string;
+    preview?: string;
+  };
+};
+export type ThreadsAgentCreateIn = {
+  threadId: string;
+  name: string;
+  brief?: string;
+  model?: string;
+  mode?: "lead" | "listen" | "quiet";
+  idempotencyKey: string;
+};
+export type ThreadsAgentCreateOut = {
+  thread: {
+    threadId: string;
+    kind: "chat" | "channel" | "thread" | "ask" | "run" | "helper" | "console";
+    title?: string;
+    starter?: string;
+    channelId?: string;
+    parentThreadId?: string;
+    parentMessageId?: string;
+    recordId?: string;
+    folderId?: string;
+    scopeType?: string;
+    scopeId?: string;
+    listed: boolean;
+    planMode: boolean;
+    mode?: "ask" | "auto" | "plan";
+    members: Array<{
+        kind: "person" | "agent" | "actor" | "service";
+        id: string;
+      }>;
+    agents: Array<{
+        agentId: string;
+        mode: "lead" | "listen";
+        model?: string;
+        provider?: string;
+        effort?: "low" | "medium" | "high" | "max";
+        accountRef?: string;
+        watches?: boolean;
+        when?: "always" | "topics" | "hours";
+        topics?: string;
+        hoursFrom?: string;
+        hoursTo?: string;
+        style?: "short" | "full";
+        quiet?: boolean;
+        owned?: boolean;
+      }>;
+    createdAt: number;
+    closedAt?: number;
+    replyCount?: number;
+    lastMessageAt?: number;
+    path?: Array<{
+        title: string;
+        threadId: string;
+      }>;
+    unread?: number;
+    following?: boolean;
+    muted?: boolean;
+    repliers?: Array<{
+        kind: "person" | "agent" | "actor" | "service";
+        id: string;
+      }>;
+    parentTitle?: string;
+    preview?: string;
+  };
+  agentId: string;
+};
+export type ThreadsAgentSettingsSetIn = {
+  threadId: string;
+  agentId: string;
+  mode?: "lead" | "listen" | "quiet";
+  when?: "always" | "topics" | "hours";
+  topics?: string | null;
+  hoursFrom?: string | null;
+  hoursTo?: string | null;
+  style?: "short" | "full";
+};
+export type ThreadsAgentSettingsSetOut = {
+  thread: {
+    threadId: string;
+    kind: "chat" | "channel" | "thread" | "ask" | "run" | "helper" | "console";
+    title?: string;
+    starter?: string;
+    channelId?: string;
+    parentThreadId?: string;
+    parentMessageId?: string;
+    recordId?: string;
+    folderId?: string;
+    scopeType?: string;
+    scopeId?: string;
+    listed: boolean;
+    planMode: boolean;
+    mode?: "ask" | "auto" | "plan";
+    members: Array<{
+        kind: "person" | "agent" | "actor" | "service";
+        id: string;
+      }>;
+    agents: Array<{
+        agentId: string;
+        mode: "lead" | "listen";
+        model?: string;
+        provider?: string;
+        effort?: "low" | "medium" | "high" | "max";
+        accountRef?: string;
+        watches?: boolean;
+        when?: "always" | "topics" | "hours";
+        topics?: string;
+        hoursFrom?: string;
+        hoursTo?: string;
+        style?: "short" | "full";
+        quiet?: boolean;
+        owned?: boolean;
       }>;
     createdAt: number;
     closedAt?: number;
@@ -38681,6 +39611,13 @@ export type ThreadsCloseOut = {
         effort?: "low" | "medium" | "high" | "max";
         accountRef?: string;
         watches?: boolean;
+        when?: "always" | "topics" | "hours";
+        topics?: string;
+        hoursFrom?: string;
+        hoursTo?: string;
+        style?: "short" | "full";
+        quiet?: boolean;
+        owned?: boolean;
       }>;
     createdAt: number;
     closedAt?: number;
@@ -38752,6 +39689,13 @@ export type ThreadsGetOut = {
         effort?: "low" | "medium" | "high" | "max";
         accountRef?: string;
         watches?: boolean;
+        when?: "always" | "topics" | "hours";
+        topics?: string;
+        hoursFrom?: string;
+        hoursTo?: string;
+        style?: "short" | "full";
+        quiet?: boolean;
+        owned?: boolean;
       }>;
     createdAt: number;
     closedAt?: number;
@@ -38771,6 +39715,16 @@ export type ThreadsGetOut = {
     parentTitle?: string;
     preview?: string;
   };
+};
+export type ThreadsInviteGuestIn = {
+  threadId: string;
+  email: string;
+  level?: "view" | "reply";
+  idempotencyKey: string;
+};
+export type ThreadsInviteGuestOut = {
+  inviteId: string;
+  link: string;
 };
 export type ThreadsLeaveIn = {
   threadId: string;
@@ -38817,6 +39771,13 @@ export type ThreadsListOut = {
           effort?: "low" | "medium" | "high" | "max";
           accountRef?: string;
           watches?: boolean;
+          when?: "always" | "topics" | "hours";
+          topics?: string;
+          hoursFrom?: string;
+          hoursTo?: string;
+          style?: "short" | "full";
+          quiet?: boolean;
+          owned?: boolean;
         }>;
       createdAt: number;
       closedAt?: number;
@@ -38867,6 +39828,13 @@ export type ThreadsMakeChannelOut = {
         effort?: "low" | "medium" | "high" | "max";
         accountRef?: string;
         watches?: boolean;
+        when?: "always" | "topics" | "hours";
+        topics?: string;
+        hoursFrom?: string;
+        hoursTo?: string;
+        style?: "short" | "full";
+        quiet?: boolean;
+        owned?: boolean;
       }>;
     unread: number;
     createdAt: number;
@@ -38884,6 +39852,7 @@ export type ThreadsMarkReadOut = {
 export type ThreadsMembersAddIn = {
   threadId: string;
   personId: string;
+  fromStart?: boolean;
 };
 export type ThreadsMembersAddOut = {
   thread: {
@@ -38913,6 +39882,13 @@ export type ThreadsMembersAddOut = {
         effort?: "low" | "medium" | "high" | "max";
         accountRef?: string;
         watches?: boolean;
+        when?: "always" | "topics" | "hours";
+        topics?: string;
+        hoursFrom?: string;
+        hoursTo?: string;
+        style?: "short" | "full";
+        quiet?: boolean;
+        owned?: boolean;
       }>;
     createdAt: number;
     closedAt?: number;
@@ -38965,6 +39941,13 @@ export type ThreadsMembersRemoveOut = {
         effort?: "low" | "medium" | "high" | "max";
         accountRef?: string;
         watches?: boolean;
+        when?: "always" | "topics" | "hours";
+        topics?: string;
+        hoursFrom?: string;
+        hoursTo?: string;
+        style?: "short" | "full";
+        quiet?: boolean;
+        owned?: boolean;
       }>;
     createdAt: number;
     closedAt?: number;
@@ -38984,6 +39967,140 @@ export type ThreadsMembersRemoveOut = {
     parentTitle?: string;
     preview?: string;
   };
+};
+export type ThreadsOutsideAgentAddIn = {
+  threadId: string;
+  agentId: string;
+  mode?: "lead" | "listen" | "quiet";
+};
+export type ThreadsOutsideAgentAddOut = {
+  thread: {
+    threadId: string;
+    kind: "chat" | "channel" | "thread" | "ask" | "run" | "helper" | "console";
+    title?: string;
+    starter?: string;
+    channelId?: string;
+    parentThreadId?: string;
+    parentMessageId?: string;
+    recordId?: string;
+    folderId?: string;
+    scopeType?: string;
+    scopeId?: string;
+    listed: boolean;
+    planMode: boolean;
+    mode?: "ask" | "auto" | "plan";
+    members: Array<{
+        kind: "person" | "agent" | "actor" | "service";
+        id: string;
+      }>;
+    agents: Array<{
+        agentId: string;
+        mode: "lead" | "listen";
+        model?: string;
+        provider?: string;
+        effort?: "low" | "medium" | "high" | "max";
+        accountRef?: string;
+        watches?: boolean;
+        when?: "always" | "topics" | "hours";
+        topics?: string;
+        hoursFrom?: string;
+        hoursTo?: string;
+        style?: "short" | "full";
+        quiet?: boolean;
+        owned?: boolean;
+      }>;
+    createdAt: number;
+    closedAt?: number;
+    replyCount?: number;
+    lastMessageAt?: number;
+    path?: Array<{
+        title: string;
+        threadId: string;
+      }>;
+    unread?: number;
+    following?: boolean;
+    muted?: boolean;
+    repliers?: Array<{
+        kind: "person" | "agent" | "actor" | "service";
+        id: string;
+      }>;
+    parentTitle?: string;
+    preview?: string;
+  };
+  granted: Array<{
+      type: string;
+      id: string;
+      level: string;
+    }>;
+};
+export type ThreadsOutsideAgentRemoveIn = {
+  threadId: string;
+  agentId: string;
+};
+export type ThreadsOutsideAgentRemoveOut = {
+  thread: {
+    threadId: string;
+    kind: "chat" | "channel" | "thread" | "ask" | "run" | "helper" | "console";
+    title?: string;
+    starter?: string;
+    channelId?: string;
+    parentThreadId?: string;
+    parentMessageId?: string;
+    recordId?: string;
+    folderId?: string;
+    scopeType?: string;
+    scopeId?: string;
+    listed: boolean;
+    planMode: boolean;
+    mode?: "ask" | "auto" | "plan";
+    members: Array<{
+        kind: "person" | "agent" | "actor" | "service";
+        id: string;
+      }>;
+    agents: Array<{
+        agentId: string;
+        mode: "lead" | "listen";
+        model?: string;
+        provider?: string;
+        effort?: "low" | "medium" | "high" | "max";
+        accountRef?: string;
+        watches?: boolean;
+        when?: "always" | "topics" | "hours";
+        topics?: string;
+        hoursFrom?: string;
+        hoursTo?: string;
+        style?: "short" | "full";
+        quiet?: boolean;
+        owned?: boolean;
+      }>;
+    createdAt: number;
+    closedAt?: number;
+    replyCount?: number;
+    lastMessageAt?: number;
+    path?: Array<{
+        title: string;
+        threadId: string;
+      }>;
+    unread?: number;
+    following?: boolean;
+    muted?: boolean;
+    repliers?: Array<{
+        kind: "person" | "agent" | "actor" | "service";
+        id: string;
+      }>;
+    parentTitle?: string;
+    preview?: string;
+  };
+  revoked: number;
+};
+export type ThreadsPokeIn = {
+  threadId: string;
+  agentId: string;
+  note?: string;
+};
+export type ThreadsPokeOut = {
+  messageId: string;
+  delivered: "engine" | "outside_queue";
 };
 export type ThreadsRemoveAgentIn = {
   threadId: string;
@@ -39017,6 +40134,13 @@ export type ThreadsRemoveAgentOut = {
         effort?: "low" | "medium" | "high" | "max";
         accountRef?: string;
         watches?: boolean;
+        when?: "always" | "topics" | "hours";
+        topics?: string;
+        hoursFrom?: string;
+        hoursTo?: string;
+        style?: "short" | "full";
+        quiet?: boolean;
+        owned?: boolean;
       }>;
     createdAt: number;
     closedAt?: number;
@@ -39068,6 +40192,13 @@ export type ThreadsReopenOut = {
         effort?: "low" | "medium" | "high" | "max";
         accountRef?: string;
         watches?: boolean;
+        when?: "always" | "topics" | "hours";
+        topics?: string;
+        hoursFrom?: string;
+        hoursTo?: string;
+        style?: "short" | "full";
+        quiet?: boolean;
+        owned?: boolean;
       }>;
     createdAt: number;
     closedAt?: number;
@@ -39119,6 +40250,13 @@ export type ThreadsRestoreOut = {
         effort?: "low" | "medium" | "high" | "max";
         accountRef?: string;
         watches?: boolean;
+        when?: "always" | "topics" | "hours";
+        topics?: string;
+        hoursFrom?: string;
+        hoursTo?: string;
+        style?: "short" | "full";
+        quiet?: boolean;
+        owned?: boolean;
       }>;
     createdAt: number;
     closedAt?: number;
@@ -39171,6 +40309,13 @@ export type ThreadsSetFolderOut = {
         effort?: "low" | "medium" | "high" | "max";
         accountRef?: string;
         watches?: boolean;
+        when?: "always" | "topics" | "hours";
+        topics?: string;
+        hoursFrom?: string;
+        hoursTo?: string;
+        style?: "short" | "full";
+        quiet?: boolean;
+        owned?: boolean;
       }>;
     createdAt: number;
     closedAt?: number;
@@ -39223,6 +40368,13 @@ export type ThreadsSetModeOut = {
         effort?: "low" | "medium" | "high" | "max";
         accountRef?: string;
         watches?: boolean;
+        when?: "always" | "topics" | "hours";
+        topics?: string;
+        hoursFrom?: string;
+        hoursTo?: string;
+        style?: "short" | "full";
+        quiet?: boolean;
+        owned?: boolean;
       }>;
     createdAt: number;
     closedAt?: number;
@@ -39275,6 +40427,13 @@ export type ThreadsSetPlanModeOut = {
         effort?: "low" | "medium" | "high" | "max";
         accountRef?: string;
         watches?: boolean;
+        when?: "always" | "topics" | "hours";
+        topics?: string;
+        hoursFrom?: string;
+        hoursTo?: string;
+        style?: "short" | "full";
+        quiet?: boolean;
+        owned?: boolean;
       }>;
     createdAt: number;
     closedAt?: number;
@@ -39333,6 +40492,13 @@ export type ThreadsUpdateOut = {
         effort?: "low" | "medium" | "high" | "max";
         accountRef?: string;
         watches?: boolean;
+        when?: "always" | "topics" | "hours";
+        topics?: string;
+        hoursFrom?: string;
+        hoursTo?: string;
+        style?: "short" | "full";
+        quiet?: boolean;
+        owned?: boolean;
       }>;
     createdAt: number;
     closedAt?: number;
@@ -40820,6 +41986,8 @@ export interface CapMap {
   "access.actors.revoke": { in: AccessActorsRevokeIn; out: AccessActorsRevokeOut };
   "access.actors.set_engineer_mcp": { in: AccessActorsSetEngineerMcpIn; out: AccessActorsSetEngineerMcpOut };
   "access.actors.update": { in: AccessActorsUpdateIn; out: AccessActorsUpdateOut };
+  "access.agents_can_call.get": { in: AccessAgentsCanCallGetIn; out: AccessAgentsCanCallGetOut };
+  "access.agents_can_call.set": { in: AccessAgentsCanCallSetIn; out: AccessAgentsCanCallSetOut };
   "access.audience_set": { in: AccessAudienceSetIn; out: AccessAudienceSetOut };
   "access.automation_senders": { in: AccessAutomationSendersIn; out: AccessAutomationSendersOut };
   "access.check": { in: AccessCheckIn; out: AccessCheckOut };
@@ -40898,6 +42066,8 @@ export interface CapMap {
   "agents.outside.seen": { in: AgentsOutsideSeenIn; out: AgentsOutsideSeenOut };
   "agents.outside.usable": { in: AgentsOutsideUsableIn; out: AgentsOutsideUsableOut };
   "agents.pause": { in: AgentsPauseIn; out: AgentsPauseOut };
+  "agents.pause_person": { in: AgentsPausePersonIn; out: AgentsPausePersonOut };
+  "agents.people_summary": { in: AgentsPeopleSummaryIn; out: AgentsPeopleSummaryOut };
   "agents.restore": { in: AgentsRestoreIn; out: AgentsRestoreOut };
   "agents.restore_version": { in: AgentsRestoreVersionIn; out: AgentsRestoreVersionOut };
   "agents.resume": { in: AgentsResumeIn; out: AgentsResumeOut };
@@ -41089,6 +42259,7 @@ export interface CapMap {
   "chat.helper.start": { in: ChatHelperStartIn; out: ChatHelperStartOut };
   "chat.helper.steer": { in: ChatHelperSteerIn; out: ChatHelperSteerOut };
   "chat.helpers.list": { in: ChatHelpersListIn; out: ChatHelpersListOut };
+  "chat.history.page": { in: ChatHistoryPageIn; out: ChatHistoryPageOut };
   "chat.history.search": { in: ChatHistorySearchIn; out: ChatHistorySearchOut };
   "chat.make_task": { in: ChatMakeTaskIn; out: ChatMakeTaskOut };
   "chat.message.get": { in: ChatMessageGetIn; out: ChatMessageGetOut };
@@ -41107,6 +42278,7 @@ export interface CapMap {
   "chat.post": { in: ChatPostIn; out: ChatPostOut };
   "chat.question.ask": { in: ChatQuestionAskIn; out: ChatQuestionAskOut };
   "chat.react": { in: ChatReactIn; out: ChatReactOut };
+  "chat.read_floor": { in: ChatReadFloorIn; out: ChatReadFloorOut };
   "chat.recent": { in: ChatRecentIn; out: ChatRecentOut };
   "chat.remember": { in: ChatRememberIn; out: ChatRememberOut };
   "chat.reply_details": { in: ChatReplyDetailsIn; out: ChatReplyDetailsOut };
@@ -41115,6 +42287,7 @@ export interface CapMap {
   "chat.share": { in: ChatShareIn; out: ChatShareOut };
   "chat.start": { in: ChatStartIn; out: ChatStartOut };
   "chat.thread": { in: ChatThreadIn; out: ChatThreadOut };
+  "chat.title_make": { in: ChatTitleMakeIn; out: ChatTitleMakeOut };
   "chat.transcript.append": { in: ChatTranscriptAppendIn; out: ChatTranscriptAppendOut };
   "chat.transcript.get": { in: ChatTranscriptGetIn; out: ChatTranscriptGetOut };
   "chat.transcript.purge": { in: ChatTranscriptPurgeIn; out: ChatTranscriptPurgeOut };
@@ -41423,6 +42596,7 @@ export interface CapMap {
   "engine.turn.start": { in: EngineTurnStartIn; out: EngineTurnStartOut };
   "engine.turn.wait": { in: EngineTurnWaitIn; out: EngineTurnWaitOut };
   "engine.turns.list": { in: EngineTurnsListIn; out: EngineTurnsListOut };
+  "engine.turns.running": { in: EngineTurnsRunningIn; out: EngineTurnsRunningOut };
   "engine.usage.get": { in: EngineUsageGetIn; out: EngineUsageGetOut };
   "engine.usage.query": { in: EngineUsageQueryIn; out: EngineUsageQueryOut };
   "engine.use_policy.export": { in: EngineUsePolicyExportIn; out: EngineUsePolicyExportOut };
@@ -41543,6 +42717,7 @@ export interface CapMap {
   "gate.grants.take": { in: GateGrantsTakeIn; out: GateGrantsTakeOut };
   "gate.holds.get": { in: GateHoldsGetIn; out: GateHoldsGetOut };
   "gate.holds.list": { in: GateHoldsListIn; out: GateHoldsListOut };
+  "gate.holds.revise": { in: GateHoldsReviseIn; out: GateHoldsReviseOut };
   "gate.links.known": { in: GateLinksKnownIn; out: GateLinksKnownOut };
   "gate.park": { in: GateParkIn; out: GateParkOut };
   "gate.release": { in: GateReleaseIn; out: GateReleaseOut };
@@ -41849,6 +43024,15 @@ export interface CapMap {
   "logs.spans": { in: LogsSpansIn; out: LogsSpansOut };
   "logs.tail": { in: LogsTailIn; out: LogsTailOut };
   "logs.trace": { in: LogsTraceIn; out: LogsTraceOut };
+  "machines.alerts": { in: MachinesAlertsIn; out: MachinesAlertsOut };
+  "machines.alerts_notify": { in: MachinesAlertsNotifyIn; out: MachinesAlertsNotifyOut };
+  "machines.fix": { in: MachinesFixIn; out: MachinesFixOut };
+  "machines.get": { in: MachinesGetIn; out: MachinesGetOut };
+  "machines.list": { in: MachinesListIn; out: MachinesListOut };
+  "machines.move_record": { in: MachinesMoveRecordIn; out: MachinesMoveRecordOut };
+  "machines.moves": { in: MachinesMovesIn; out: MachinesMovesOut };
+  "machines.rooms": { in: MachinesRoomsIn; out: MachinesRoomsOut };
+  "machines.set": { in: MachinesSetIn; out: MachinesSetOut };
   "mail.attachment.save": { in: MailAttachmentSaveIn; out: MailAttachmentSaveOut };
   "mail.auto_connect_members": { in: MailAutoConnectMembersIn; out: MailAutoConnectMembersOut };
   "mail.connect": { in: MailConnectIn; out: MailConnectOut };
@@ -41946,6 +43130,7 @@ export interface CapMap {
   "members.accept": { in: MembersAcceptIn; out: MembersAcceptOut };
   "members.invites.create": { in: MembersInvitesCreateIn; out: MembersInvitesCreateOut };
   "members.invites.extend": { in: MembersInvitesExtendIn; out: MembersInvitesExtendOut };
+  "members.invites.guest": { in: MembersInvitesGuestIn; out: MembersInvitesGuestOut };
   "members.invites.list": { in: MembersInvitesListIn; out: MembersInvitesListOut };
   "members.invites.preview": { in: MembersInvitesPreviewIn; out: MembersInvitesPreviewOut };
   "members.invites.revoke": { in: MembersInvitesRevokeIn; out: MembersInvitesRevokeOut };
@@ -42357,6 +43542,7 @@ export interface CapMap {
   "runs.get": { in: RunsGetIn; out: RunsGetOut };
   "runs.list": { in: RunsListIn; out: RunsListOut };
   "runs.mark_waiting": { in: RunsMarkWaitingIn; out: RunsMarkWaitingOut };
+  "runs.people_counts": { in: RunsPeopleCountsIn; out: RunsPeopleCountsOut };
   "runs.pin_version": { in: RunsPinVersionIn; out: RunsPinVersionOut };
   "runs.preview_undo": { in: RunsPreviewUndoIn; out: RunsPreviewUndoOut };
   "runs.purge": { in: RunsPurgeIn; out: RunsPurgeOut };
@@ -42454,7 +43640,9 @@ export interface CapMap {
   "sites.addon_remove": { in: SitesAddonRemoveIn; out: SitesAddonRemoveOut };
   "sites.artifact_open": { in: SitesArtifactOpenIn; out: SitesArtifactOpenOut };
   "sites.artifact_publish": { in: SitesArtifactPublishIn; out: SitesArtifactPublishOut };
+  "sites.artifact_thumb_set": { in: SitesArtifactThumbSetIn; out: SitesArtifactThumbSetOut };
   "sites.build": { in: SitesBuildIn; out: SitesBuildOut };
+  "sites.chat_viewing": { in: SitesChatViewingIn; out: SitesChatViewingOut };
   "sites.create": { in: SitesCreateIn; out: SitesCreateOut };
   "sites.db_import": { in: SitesDbImportIn; out: SitesDbImportOut };
   "sites.delete": { in: SitesDeleteIn; out: SitesDeleteOut };
@@ -42627,6 +43815,7 @@ export interface CapMap {
   "tasks.followers.add": { in: TasksFollowersAddIn; out: TasksFollowersAddOut };
   "tasks.followers.remove": { in: TasksFollowersRemoveIn; out: TasksFollowersRemoveOut };
   "tasks.get": { in: TasksGetIn; out: TasksGetOut };
+  "tasks.held_revise": { in: TasksHeldReviseIn; out: TasksHeldReviseOut };
   "tasks.history": { in: TasksHistoryIn; out: TasksHistoryOut };
   "tasks.index": { in: TasksIndexIn; out: TasksIndexOut };
   "tasks.links.add": { in: TasksLinksAddIn; out: TasksLinksAddOut };
@@ -42706,18 +43895,24 @@ export interface CapMap {
   "terminal.status": { in: TerminalStatusIn; out: TerminalStatusOut };
   "threads.add_agent": { in: ThreadsAddAgentIn; out: ThreadsAddAgentOut };
   "threads.agent.configure": { in: ThreadsAgentConfigureIn; out: ThreadsAgentConfigureOut };
+  "threads.agent.create": { in: ThreadsAgentCreateIn; out: ThreadsAgentCreateOut };
+  "threads.agent_settings.set": { in: ThreadsAgentSettingsSetIn; out: ThreadsAgentSettingsSetOut };
   "threads.archive": { in: ThreadsArchiveIn; out: ThreadsArchiveOut };
   "threads.close": { in: ThreadsCloseIn; out: ThreadsCloseOut };
   "threads.delete": { in: ThreadsDeleteIn; out: ThreadsDeleteOut };
   "threads.erase": { in: ThreadsEraseIn; out: ThreadsEraseOut };
   "threads.follow": { in: ThreadsFollowIn; out: ThreadsFollowOut };
   "threads.get": { in: ThreadsGetIn; out: ThreadsGetOut };
+  "threads.invite_guest": { in: ThreadsInviteGuestIn; out: ThreadsInviteGuestOut };
   "threads.leave": { in: ThreadsLeaveIn; out: ThreadsLeaveOut };
   "threads.list": { in: ThreadsListIn; out: ThreadsListOut };
   "threads.make_channel": { in: ThreadsMakeChannelIn; out: ThreadsMakeChannelOut };
   "threads.mark_read": { in: ThreadsMarkReadIn; out: ThreadsMarkReadOut };
   "threads.members.add": { in: ThreadsMembersAddIn; out: ThreadsMembersAddOut };
   "threads.members.remove": { in: ThreadsMembersRemoveIn; out: ThreadsMembersRemoveOut };
+  "threads.outside_agent.add": { in: ThreadsOutsideAgentAddIn; out: ThreadsOutsideAgentAddOut };
+  "threads.outside_agent.remove": { in: ThreadsOutsideAgentRemoveIn; out: ThreadsOutsideAgentRemoveOut };
+  "threads.poke": { in: ThreadsPokeIn; out: ThreadsPokeOut };
   "threads.remove_agent": { in: ThreadsRemoveAgentIn; out: ThreadsRemoveAgentOut };
   "threads.reopen": { in: ThreadsReopenIn; out: ThreadsReopenOut };
   "threads.restore": { in: ThreadsRestoreIn; out: ThreadsRestoreOut };
@@ -43162,12 +44357,12 @@ export type AutomationVersionRestoredPayload = {
   versionId: string;
   version: number;
 };
-export type AutomationWatchChangedPayload = {
+export type AutomationsWatchChangedPayload = {
   watchId: string;
   owner: string;
   changes: number;
 };
-export type AutomationWatchSavedPayload = {
+export type AutomationsWatchSavedPayload = {
   watchId: string;
   owner: string;
   op: "added" | "changed" | "paused" | "resumed" | "removed";
@@ -44094,6 +45289,14 @@ export type GateRequestedPayload = {
     id: string;
   };
 };
+export type GateRevisedPayload = {
+  holdId: string;
+  act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "approve";
+  taskId: string;
+  by: string;
+  was: string;
+  now: string;
+};
 export type GateRuleChangedPayload = {
   act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "approve";
   scope: "space" | "floor" | "agent";
@@ -44548,6 +45751,17 @@ export type LogAccessedPayload = {
 export type LogsPurgedPayload = {
   removed: number;
 };
+export type MachineAlertPayload = {
+  alertId: string;
+  machineId: string;
+  kind: "disk_low" | "memory_pressure" | "offline_pinned" | "update_waiting" | "backup_failed";
+  title: string;
+  detail: string;
+};
+export type MachineChangedPayload = {
+  machineId: string;
+  what: Array<"nickname" | "limits" | "drain" | "pins" | "full" | "room">;
+};
 export type MailMessageErasedPayload = {
   messageId: string;
 };
@@ -44927,6 +46141,11 @@ export type MessageReceivedPayload = {
   actingFor?: string;
   job?: boolean;
   typed?: boolean;
+  poke?: {
+    agentId: string;
+    by: string;
+    outside?: boolean;
+  };
 };
 export type MessageSentPayload = {
   messageId: string;
@@ -45075,7 +46294,7 @@ export type NotesUpdatedPayload = {
 export type NotificationCappedPayload = {
   person: string;
   agentId: string;
-  kind: "approval.requested" | "answer.requested" | "unblock.requested" | "approval.backstop" | "dm" | "mention" | "call.incoming" | "agent.blocked" | "incident.owned" | "task.assigned" | "reply.followed" | "agent.task_finished" | "digest.away" | "mention.thread" | "run.failed" | "conflict.needs_you" | "access.requested" | "access.decided" | "sync.attention" | "health.degraded" | "problem.report" | "member.joined" | "limit.hit" | "vault.rotation_due" | "reply.thread" | "task.turn" | "task.returned" | "task.finished" | "task.due";
+  kind: "approval.requested" | "answer.requested" | "unblock.requested" | "approval.backstop" | "dm" | "mention" | "call.incoming" | "agent.blocked" | "incident.owned" | "task.assigned" | "reply.followed" | "agent.task_finished" | "digest.away" | "mention.thread" | "run.failed" | "conflict.needs_you" | "access.requested" | "access.decided" | "sync.attention" | "health.degraded" | "problem.report" | "member.joined" | "limit.hit" | "vault.rotation_due" | "reply.thread" | "task.turn" | "task.returned" | "task.finished" | "task.due" | "machine.alert";
   perHour: number;
 };
 export type NotificationDelegateChangedPayload = {
@@ -45088,7 +46307,7 @@ export type NotificationDelegateChangedPayload = {
 export type NotificationDeliveredPayload = {
   notificationId: string;
   person: string;
-  kind: "approval.requested" | "answer.requested" | "unblock.requested" | "approval.backstop" | "dm" | "mention" | "call.incoming" | "agent.blocked" | "incident.owned" | "task.assigned" | "reply.followed" | "agent.task_finished" | "digest.away" | "mention.thread" | "run.failed" | "conflict.needs_you" | "access.requested" | "access.decided" | "sync.attention" | "health.degraded" | "problem.report" | "member.joined" | "limit.hit" | "vault.rotation_due" | "reply.thread" | "task.turn" | "task.returned" | "task.finished" | "task.due";
+  kind: "approval.requested" | "answer.requested" | "unblock.requested" | "approval.backstop" | "dm" | "mention" | "call.incoming" | "agent.blocked" | "incident.owned" | "task.assigned" | "reply.followed" | "agent.task_finished" | "digest.away" | "mention.thread" | "run.failed" | "conflict.needs_you" | "access.requested" | "access.decided" | "sync.attention" | "health.degraded" | "problem.report" | "member.joined" | "limit.hit" | "vault.rotation_due" | "reply.thread" | "task.turn" | "task.returned" | "task.finished" | "task.due" | "machine.alert";
   level: "interrupt" | "badge" | "digest";
   place: "home" | "chats" | "inbox" | "records" | "files" | "apps" | "automations" | "vault" | "settings" | "console";
   subject?: {
@@ -46867,8 +48086,8 @@ export interface EventMap {
   "automation.trigger_dropped": AutomationTriggerDroppedPayload;
   "automation.updated": AutomationUpdatedPayload;
   "automation.version_restored": AutomationVersionRestoredPayload;
-  "automation.watch_changed": AutomationWatchChangedPayload;
-  "automation.watch_saved": AutomationWatchSavedPayload;
+  "automations.watch_changed": AutomationsWatchChangedPayload;
+  "automations.watch_saved": AutomationsWatchSavedPayload;
   "away.cleared": AwayClearedPayload;
   "away.set": AwaySetPayload;
   "backup.completed": BackupCompletedPayload;
@@ -47039,6 +48258,7 @@ export interface EventMap {
   "gate.denied": GateDeniedPayload;
   "gate.expired": GateExpiredPayload;
   "gate.requested": GateRequestedPayload;
+  "gate.revised": GateRevisedPayload;
   "gate.rule_changed": GateRuleChangedPayload;
   "git.branch_changed": GitBranchChangedPayload;
   "git.committed": GitCommittedPayload;
@@ -47114,6 +48334,8 @@ export interface EventMap {
   "kit.updated": KitUpdatedPayload;
   "log.accessed": LogAccessedPayload;
   "logs.purged": LogsPurgedPayload;
+  "machine.alert": MachineAlertPayload;
+  "machine.changed": MachineChangedPayload;
   "mail.message_erased": MailMessageErasedPayload;
   "mail.received": MailReceivedPayload;
   "mail_draft.discarded": MailDraftDiscardedPayload;

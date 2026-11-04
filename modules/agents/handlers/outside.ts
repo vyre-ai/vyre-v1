@@ -5,7 +5,7 @@
 //   next      the one call that takes work: the agent's own tool. The chat it names is where its work shows from then on.
 //   seen      a tool call happened: Working for a minute, Awake for two, then Offline.
 import { isHostService, isSystemCall } from "../../../lib/trust.ts";
-import { MAX_NAME, NAME_BAD, agentBy, agentByName, ensure, mintId, nameKey, raise, tolerant } from "../projections.ts";
+import { MAX_NAME, NAME_BAD, agentBy, agentByName, allows, askerOf, ensure, isAssistant, mintId, nameKey, raise, seesAll, tolerant } from "../projections.ts";
 import type { AgentRec, AgentsCtx } from "../projections.ts";
 
 type Row = Record<string, unknown>;
@@ -74,11 +74,20 @@ export function next(ctx: AgentsCtx, _input: Record<string, never>) {
   return { job, waiting: left };
 }
 
-/** Only the person who allowed an outside agent can give it work. The answer says no more than that. */
+/**
+ * May the person asking give this agent work: a task, an automation step, a crew? An outside agent takes work from its owner only. Any other agent also needs Can use on it (Share's second level):
+ * Can chat with lets a person add it to their chats and talk to it, nothing more, because work on an agent runs on the person's own AI account and acts for them. The owner, the host and a
+ * person who sees all agents (an admin) pass; the private Assistant is its person's alone. An agent that is not there says yes, as before: the caller finds that out where it matters.
+ */
 export function usable(ctx: AgentsCtx, input: { agentId: string }) {
   ensure(ctx.db);
   const a = agentBy(ctx.db, input.agentId);
-  return { usable: !a || !isOutside(a) || isHostService(ctx.principal) || a.ownerId === (ctx.actingFor ?? ctx.principal.id) };
+  if (!a) return { usable: true };
+  const who = askerOf(ctx);
+  if (isHostService(ctx.principal)) return { usable: true };
+  if (isAssistant(a)) return { usable: a.ownerId === who };   // a person's Assistant is theirs alone
+  if (!isOutside(a) && a.ownerId !== who && ctx.principal.kind === "person" && !allows(ctx, null, "use", "agent", a.id) && !seesAll(ctx)) return { usable: false };
+  return { usable: !isOutside(a) || a.ownerId === who };
 }
 
 export function seen(ctx: AgentsCtx, input: { agentId: string }) {

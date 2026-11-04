@@ -9,8 +9,7 @@ import { GoalsNow } from "../goals/GoalsList.tsx";
 import type { ComposerSend } from "../../../../../../ui/src/Composer/index.tsx";
 import type { ChatMode } from "../../../../../../ui/src/Composer/brain.ts";
 import { DeferredComposer as Composer } from "../../../../../../ui/src/Composer/Deferred.tsx";
-import { useMenu } from "../../../../../../ui/src/Menu/index.tsx";
-import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
+import type { AccessPick } from "../../../../../../ui/src/AccessSheet/index.tsx";
 import { WorkingMark } from "../../../../../../ui/src/WorkingMark/index.tsx";
 import { sq } from "../../../../../../ui/src/SidePane/host.tsx";
 import type { ShellRuntime } from "../../../shell/providers/runtime.tsx";
@@ -19,6 +18,7 @@ import { useResume } from "../../../onboarding/resume-context.ts";
 import { SetupRows, setupNote } from "../../../onboarding/SetupRows.tsx";
 import { useInboxSources } from "../../../shell/rail/inbox-sources.ts";
 import { needsRow } from "../../home/sections-a/model.ts";
+import { useAddSheet, runAfterStart } from "../addsheet/index.ts";
 import { useAccounts } from "../conversation/brain.tsx";
 import { NewChatBrain, newChatStrip } from "../conversation/new-chat-brain.tsx";
 import type { NewChoice } from "../conversation/new-chat-brain.tsx";
@@ -34,9 +34,6 @@ export interface LandingProps {
   rt: ShellRuntime;
   nameOf(id: string): string;
   kindOf(id: string): "agent" | "person";
-  /** Everyone who can be asked into the chat. */
-  agents: readonly { id: string; name: string }[];
-  people: readonly { id: string; name: string }[];
   openChat(threadId: string): void;
   openTasks(): void;
   openNeed(taskId: string): void;
@@ -60,7 +57,10 @@ export function Landing(p: LandingProps): ReactElement {
   const recent = useLive<RecentOut>(rt.screens, "chats.sidebar", "recent", { filter: "all" });
   const accounts = useAccounts(rt);
   const resume = useResume();
-  const menu = useMenu();
+  // who it starts with is the one Add people and agents sheet; a chat that does not exist yet takes the picks, and the ones chat.start cannot take are applied once it does
+  const [held, setHeld] = useState<readonly AccessPick[]>([]);
+  const sheetDeps = useMemo(() => ({ call: rt.call as (cap: string, input: unknown) => Promise<unknown>, me: { id: rt.me.id, name: rt.me.name }, nameOf: p.nameOf, newKey: p.newKey, toast: p.say }), [rt.call, rt.me.id, rt.me.name, p.nameOf, p.newKey, p.say]);
+  const sheet = useAddSheet(sheetDeps);
   const width = useWindowDimensions().width;
   const data = useMemo(() => ({ call: rt.call as (cap: string, input: unknown) => Promise<unknown> }), [rt.call]);
   const items: readonly NeedItem[] = needs.status === "ready" ? needs.data.items.slice(0, LANDING_NEEDS) : [];
@@ -85,22 +85,22 @@ export function Landing(p: LandingProps): ReactElement {
       const id = (out as CapMap["chat.start"]["out"]).thread.threadId;
       if (choice.mode !== "auto") await rt.call("threads.set_mode", { threadId: id, mode: choice.mode });
       if (files.length > 0) await postWithFiles(uploadDeps(rt), id, text, files, `landing:${id}`).catch((e: unknown) => p.say(e instanceof Error && /too large|cannot be read|could not be saved/.test(e.message) ? e.message : "The chat started, but the files did not go. Add them in the chat."));
+      const kept = held.filter((h) => (h.kind === "outside" || h.kind === "new" || h.kind === "guest") || picked.some((w) => w.id === h.id));
+      if (kept.length > 0) await runAfterStart(sheetDeps, id, kept);
       if (slash) p.fill(text);
       p.openChat(id);
     }, () => p.say("Could not start the chat. Try again."));
-  }, [picked, choice, rt, p]);
+  }, [picked, choice, rt, p, held, sheetDeps]);
 
-  const withMenu = (x: number, y: number): void => {
-    const free = <T extends { id: string }>(l: readonly T[]): T[] => l.filter((a) => !picked.some((w) => w.id === a.id) && a.id !== rt.me.id);
-    const add = (w: WithEntry): void => setPicked((cur) => [...cur.filter((c) => c.kind !== "assistant" || w.kind === "person"), w]);
-    const entries: MenuEntry[] = [
-      { head: "Agents" },
-      ...free([{ id: rt.assistant.id, name: rt.assistant.name }, ...p.agents.filter((a) => !isAssistant(rt, a.id))]).map((a): MenuEntry => ({ label: a.name, onSelect: () => add({ id: a.id, name: a.name, kind: isAssistant(rt, a.id) ? "assistant" : "agent" }) })),
-      ...(p.people.length > 0 ? [{ head: "People" } as MenuEntry] : []),
-      ...free(p.people).map((a): MenuEntry => ({ label: a.name, onSelect: () => add({ id: a.id, name: a.name, kind: "person" }) })),
-    ];
-    menu.show(entries, x, y, "other", { label: "Add to this chat" });
-  };
+  const withSheet = (): void => sheet.pick({
+    name: "this new chat",
+    onPicks: (picks) => {
+      setHeld((cur) => [...cur.filter((c) => !picks.some((n) => n.key === c.key)), ...picks]);
+      const entries = picks.flatMap((q): WithEntry[] => (q.kind === "agent" ? [{ id: q.id, name: q.name, kind: q.assistant === true || isAssistant(rt, q.id) ? "assistant" : "agent" }] : q.kind === "person" ? [{ id: q.id, name: q.name, kind: "person" }] : []));
+      if (entries.length > 0) setPicked((cur) => [...cur.filter((c) => (c.kind !== "assistant" || entries.some((e) => e.kind === "person")) && !entries.some((e) => e.id === c.id)), ...entries]);
+    },
+  });
+  const extras = held.filter((h) => h.kind === "outside" || h.kind === "new" || h.kind === "guest");
 
   const lead = picked.find((w) => w.kind !== "person") ?? you;
   const strip = newChatStrip(lead, choice, accounts ?? []);
@@ -127,10 +127,13 @@ export function Landing(p: LandingProps): ReactElement {
               <Text numberOfLines={1} style={st.chipText}>{w.kind === "person" ? w.name.split(/\s+/)[0] : w.name}</Text>
             </Pressable>
           ))}
-          <Pressable
-            role="button" aria-label="Add someone to this chat" testID="with-add" style={st.add}
-            onPress={(e) => { const box = (e as unknown as { currentTarget?: { getBoundingClientRect?: () => { left: number; bottom: number } } }).currentTarget?.getBoundingClientRect?.(); withMenu(box?.left ?? 0, (box?.bottom ?? 0) + 6); }}
-          >
+          {each(extras, (h) => (
+            <Pressable key={h.key} role="button" aria-label={`Remove ${h.name}`} testID={`with-${h.key}`} onPress={() => setHeld((cur) => cur.filter((c) => c.key !== h.key))} style={st.chip}>
+              <Avatar name={h.name} seedId={h.id} kind={h.kind === "guest" ? "person" : "agent"} size={18} />
+              <Text numberOfLines={1} style={st.chipText}>{h.kind === "guest" ? h.name : h.name.split(/\s+/)[0]}</Text>
+            </Pressable>
+          ))}
+          <Pressable role="button" aria-label="Add people and agents" testID="with-add" style={st.add} onPress={withSheet}>
             <Glyph name="plus" size={13} />
           </Pressable>
         </View>
@@ -153,7 +156,7 @@ export function Landing(p: LandingProps): ReactElement {
         </View>
         {p.list ? <View testID="landing-list" style={st.list}>{p.list}</View> : null}
       </View>
-      {menu.element}
+      {sheet.element}
     </ScrollView>
   );
 }

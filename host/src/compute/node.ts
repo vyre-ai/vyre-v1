@@ -401,6 +401,11 @@ export async function runComputeNode(d: NodeDeps): Promise<NodeEnd> {
   function ask(m: Record<string, unknown>, say: (m: Record<string, unknown>) => void): void {
     const id = String(m["id"]);
     const kind = String(m["kind"]);
+    if (kind === "fix" && d.fix) {
+      const x = (m["input"] ?? {}) as { fix?: unknown; service?: unknown };
+      d.fix(String(x.fix), typeof x.service === "string" ? x.service : undefined).then((result) => say({ t: "ask_res", id, ok: true, result }), (e: unknown) => say({ t: "ask_res", id, ok: false, reason: e instanceof Error ? e.message : "It could not do that." }));
+      return;
+    }
     if (!host || !ASKS.has(kind)) { say({ t: "ask_res", id, ok: false, reason: "This computer cannot do that." }); return; }
     host.run(kind, m["input"]).then((result) => say({ t: "ask_res", id, ok: true, result }), (e: unknown) => say({ t: "ask_res", id, ok: false, reason: e instanceof Error ? e.message : "It could not say." }));
   }
@@ -414,10 +419,18 @@ export async function runComputeNode(d: NodeDeps): Promise<NodeEnd> {
     await new Promise<void>((resolve) => {
       let hb: ReturnType<typeof setInterval> | undefined;
       let watch: ReturnType<typeof setInterval> | undefined;
-      const end = (): void => { engines.killAll(); if (hb) clearInterval(hb); if (watch) clearInterval(watch); d.signal.removeEventListener("abort", end); for (const s of local.values()) s.close(); local.clear(); up.close(); resolve(); };
+      let rp: ReturnType<typeof setInterval> | undefined;
+      const end = (): void => { engines.killAll(); if (hb) clearInterval(hb); if (rp) clearInterval(rp); if (watch) clearInterval(watch); d.signal.removeEventListener("abort", end); for (const s of local.values()) s.close(); local.clear(); up.close(); resolve(); };
       d.signal.addEventListener("abort", end, { once: true });
       watch = setInterval(() => { if (removed || ended) end(); }, 500); watch.unref?.();
-      up.onOpen(() => { hb = setInterval(() => say({ t: "hb" }), 15_000); hb.unref?.(); });
+      up.onOpen(() => {
+        hb = setInterval(() => say({ t: "hb" }), 15_000); hb.unref?.();
+        if (d.report) {
+          const send = (): void => { try { say({ t: "report", report: d.report!({ turns: engines.running() }) }); } catch { /* skipped; the next is in 30 s */ } };
+          send();
+          rp = setInterval(send, d.reportMs ?? 30_000); rp.unref?.();
+        }
+      });
       up.onClose(end);
       up.onMessage((data) => {
         if (typeof data !== "string") return;
@@ -427,6 +440,7 @@ export async function runComputeNode(d: NodeDeps): Promise<NodeEnd> {
         if (typeof m.t === "string" && m.t.startsWith("cli_")) { cli(m as Record<string, unknown>, say); return; }
         if (m.t === "port_req") { portReq(m as Record<string, unknown>, say); return; }
         if (m.t === "ask") { ask(m as Record<string, unknown>, say); return; }
+        if (m.t === "ping") { say({ t: "pong", at: (m as { at?: unknown }).at }); return; }
         if (m.t === "close" && view) { local.get(view)?.close(); local.delete(view); return; }
         if (m.t === "input" && view && typeof m.data === "string" && m.data.length <= 4096) { local.get(view)?.send(m.data); return; }
         if (m.t !== "open" || !view || typeof m.computerId !== "string" || !COMPUTER_ID.test(m.computerId) || local.has(view)) return;

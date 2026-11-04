@@ -45,6 +45,7 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "chat.helper.start": Handler<"chat.helper.start", X>;
   "chat.helper.steer": Handler<"chat.helper.steer", X>;
   "chat.helpers.list": Handler<"chat.helpers.list", X>;
+  "chat.history.page": Handler<"chat.history.page", X>;
   "chat.history.search": Handler<"chat.history.search", X>;
   "chat.make_task": Handler<"chat.make_task", X>;
   "chat.message.get": Handler<"chat.message.get", X>;
@@ -63,6 +64,7 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "chat.post": Handler<"chat.post", X>;
   "chat.question.ask": Handler<"chat.question.ask", X>;
   "chat.react": Handler<"chat.react", X>;
+  "chat.read_floor": Handler<"chat.read_floor", X>;
   "chat.recent": Handler<"chat.recent", X>;
   "chat.remember": Handler<"chat.remember", X>;
   "chat.reply_details": Handler<"chat.reply_details", X>;
@@ -71,6 +73,7 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "chat.share": Handler<"chat.share", X>;
   "chat.start": Handler<"chat.start", X>;
   "chat.thread": Handler<"chat.thread", X>;
+  "chat.title_make": Handler<"chat.title_make", X>;
   "chat.transcript.append": Handler<"chat.transcript.append", X>;
   "chat.transcript.get": Handler<"chat.transcript.get", X>;
   "chat.transcript.purge": Handler<"chat.transcript.purge", X>;
@@ -81,18 +84,24 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "chat.unpin": Handler<"chat.unpin", X>;
   "threads.add_agent": Handler<"threads.add_agent", X>;
   "threads.agent.configure": Handler<"threads.agent.configure", X>;
+  "threads.agent.create": Handler<"threads.agent.create", X>;
+  "threads.agent_settings.set": Handler<"threads.agent_settings.set", X>;
   "threads.archive": Handler<"threads.archive", X>;
   "threads.close": Handler<"threads.close", X>;
   "threads.delete": Handler<"threads.delete", X>;
   "threads.erase": Handler<"threads.erase", X>;
   "threads.follow": Handler<"threads.follow", X>;
   "threads.get": Handler<"threads.get", X>;
+  "threads.invite_guest": Handler<"threads.invite_guest", X>;
   "threads.leave": Handler<"threads.leave", X>;
   "threads.list": Handler<"threads.list", X>;
   "threads.make_channel": Handler<"threads.make_channel", X>;
   "threads.mark_read": Handler<"threads.mark_read", X>;
   "threads.members.add": Handler<"threads.members.add", X>;
   "threads.members.remove": Handler<"threads.members.remove", X>;
+  "threads.outside_agent.add": Handler<"threads.outside_agent.add", X>;
+  "threads.outside_agent.remove": Handler<"threads.outside_agent.remove", X>;
+  "threads.poke": Handler<"threads.poke", X>;
   "threads.remove_agent": Handler<"threads.remove_agent", X>;
   "threads.reopen": Handler<"threads.reopen", X>;
   "threads.restore": Handler<"threads.restore", X>;

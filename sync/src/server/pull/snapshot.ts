@@ -11,7 +11,7 @@ import { pullError } from "./errors.ts";
 import { recordHeldBack } from "./classify.ts";
 import { deviceRevoked, headSeq } from "./pull.ts";
 import type { PullDeps } from "./pull.ts";
-import { Viewer, Window } from "./scope.ts";
+import { MemberFloor, Viewer, Window } from "./scope.ts";
 import type { RowRec, Who } from "./scope.ts";
 
 /** A snapshot lives 10 minutes (5.8). */
@@ -92,7 +92,7 @@ export function snapshotPage(d: PullDeps, who: Who, req: { entity: string; after
   const cfg = d.catalog.get(req.entity);
   const mode = cfg.profile[who.deviceClass];
   if (mode === "none") return { rows: [], done: true };
-  const viewer = new Viewer({ cache: d.cache, who, now, phoneCeiling: d.phoneCeiling() });
+  const viewer = new Viewer({ cache: d.cache, who, now, phoneCeiling: d.phoneCeiling(), floor: new MemberFloor(db) });
   const sc = viewer.scope(cfg);
   const window = new Window(db, now, (entity, id) => d.keep(who.person, entity, id));
   const rows: SnapshotRow[] = [];

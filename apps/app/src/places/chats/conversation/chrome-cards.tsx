@@ -7,6 +7,7 @@ import { useState } from "react";
 import type { ReactElement } from "react";
 import { Image, StyleSheet, Text, TextInput, View } from "react-native";
 import { Glyph, TextButton } from "./parts.tsx";
+import { HeldCard } from "./held-card.tsx";
 
 export interface HeldCardData {
   heldId: string; agent: string; site: string; kind: string; to: string; from: string; subject: string; message: string; summary: string;
@@ -18,7 +19,7 @@ export interface HeldRef { heldId: string; agentId: string; summary: string }
 /** What the buttons do. Each answers when it is done, or throws with words for the person. send answers whether it went out now (false: it was already done). */
 export interface ChromeCardActions {
   send(h: HeldRef, edits?: { to?: string; subject?: string; message?: string }): Promise<{ sent: boolean }>;
-  drop(h: HeldRef): Promise<void>;
+  drop(h: HeldRef, reason?: string): Promise<void>;
   watch(agentId: string): Promise<void>;
   takeOver(agentId: string): Promise<void>;
 }
@@ -65,57 +66,26 @@ export const stepWords = (s: StepCardData): string => (s.state === "done" ? `Use
 
 export function HeldSendCard({ id, data, agentId, agentName, actions }: { id: string; data: unknown; agentId: string; agentName?: string | undefined; actions?: ChromeCardActions | undefined }): ReactElement | null {
   const found = heldCardOf(data);
+  const [saved, setSaved] = useState<{ to: string; subject: string; message: string } | null>(null);
   if (!found) return null;
   const h = { ...found, agent: found.agent === "An agent" && agentName ? agentName : found.agent };
   const v = verbOf(h.kind);
-  const rows: Array<[string, string]> = ([["To", h.to], ["From", h.from], ["Subject", h.subject], ["Message", h.message]] as Array<[string, string]>).filter(([, t]) => t !== "");
-  const [local, setLocal] = useState<"" | "sent" | "dropped">("");
-  const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState({ to: found.to, subject: found.subject, message: found.message });
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
-  const open = h.state === "waiting" && local === "";
+  const shown = saved ?? { to: h.to, subject: h.subject, message: h.message };
   const ref: HeldRef = { heldId: h.heldId, agentId: found.agentId || agentId, summary: h.summary };
-  const press = (f: () => Promise<void>): void => {
-    setBusy(true); setError("");
-    f().then(() => setBusy(false), (e: unknown) => { setBusy(false); setError(e instanceof Error ? e.message : "That did not work. Try again."); });
-  };
-  const where = h.site ? `${h.site}, in your Chrome` : "";
-  const heldTitle = h.kind === "send" ? "Held: send this" : h.kind === "post" ? "Held: post this" : h.kind === "payment" ? "Held: make this payment" : h.kind === "delete" ? "Held: delete this" : "Held: waiting for you";
+  const fields: Array<readonly [string, string]> = [];
+  if (h.from) fields.push(["From", h.from]);
+  if (h.site) fields.push(["Where", `${h.site}, in your Chrome`]);
+  const body = shown.message || (h.summary ? h.summary : "Something is waiting for you in Chrome.");
+  // the one held card (held-card.tsx): To is the recipient, the Message is the body; what Send, Edit and Don't send do is Chrome's (the extension writes the edits into the page, then presses)
   return (
-    <View testID={`chrome-held-${id}`} accessibilityRole="summary" accessibilityLabel={`${h.agent} wants to ${v.what}`} style={s.card}>
-      <View style={s.band}>
-        <Glyph name="lock" color="var(--ink-2)" />
-        <Text style={s.bandTitle} numberOfLines={1}>{heldTitle}</Text>
-        <Text style={s.needs}>{open ? "Needs you" : h.state === "sent" ? "Sent" : "Done"}</Text>
-      </View>
-      <Text style={s.who}>{`${h.agent} wants to ${v.what}`}</Text>
-      {rows.length > 0 ? (
-        <View style={s.rows}>
-          {/* ui-rows-lint: not a list (the labelled fields of one message) */}
-          {rows.map(([label, text]) => (editing && (label === "To" || label === "Subject" || label === "Message") ? (
-            <View key={label} style={s.row}>
-              <Text style={s.label}>{label}</Text>
-              <TextInput testID={`chrome-held-field-${label.toLowerCase()}-${id}`} accessibilityLabel={label} value={draft[label.toLowerCase() as "to" | "subject" | "message"]} onChangeText={(v) => setDraft((d) => ({ ...d, [label.toLowerCase()]: v }))} multiline={label === "Message"} style={[s.input, label === "Message" && s.inputArea]} />
-            </View>
-          ) : (
-            <View key={label} style={s.row}><Text style={s.label}>{label}</Text><Text style={[s.value, label === "Message" && s.message]} numberOfLines={label === "Message" ? 8 : 2}>{text}</Text></View>
-          )))}
-          {where ? <View style={s.row}><Text style={s.label}>Where</Text><Text style={s.value}>{where}</Text></View> : null}
-        </View>
-      ) : <Text style={s.summary}>{h.summary || "Something is waiting for you in Chrome."}</Text>}
-      <View style={s.foot}>
-        {open ? (
-          <View style={s.actions}>
-            <TextButton label={v.do} primary icon="check" onPress={() => press(async () => { await (actions as ChromeCardActions).send(ref, editing ? { to: draft.to, subject: draft.subject, message: draft.message } : undefined); setLocal("sent"); setEditing(false); })} disabled={!actions || busy} testID={`chrome-held-send-${id}`} />
-            <TextButton label="Edit" ring icon="edit" onPress={() => setEditing(true)} disabled={!actions || busy} testID={`chrome-held-edit-${id}`} />
-            <TextButton label={v.dont} onPress={() => press(async () => { await (actions as ChromeCardActions).drop(ref); setLocal("dropped"); })} disabled={!actions || busy} testID={`chrome-held-drop-${id}`} />
-          </View>
-        ) : <Text style={s.state} testID={`chrome-held-state-${id}`}>{h.state === "sent" || local === "sent" ? "Sent" : h.state === "dropped" || local === "dropped" ? `Not sent. ${h.agent} was told.` : "No longer waiting"}</Text>}
-        {error ? <Text style={s.error} accessibilityRole="alert" testID={`chrome-held-error-${id}`}>{error}</Text> : null}
-        {open ? <Text style={s.stopped}>{`${h.agent} stopped before ${v.do}`}</Text> : null}
-      </View>
-    </View>
+    <HeldCard
+      testID={`chrome-held-${id}`} agent={h.agent} to={shown.to ? [{ name: shown.to, seed: shown.to, kind: "person" }] : []} verb={shown.to && h.kind === "send" ? `send this to ${shown.to}` : v.what}
+      subject={shown.subject || undefined} fields={fields} body={body} edited={saved !== null} state={h.state === "sent" ? "sent" : h.state === "dropped" ? "dropped" : "waiting"}
+      doneLine={h.state === "dropped" ? `Not sent. ${h.agent} was told.` : undefined} editable={Boolean(actions)} editTo editSubject sendLabel={v.do} dropLabel={v.dont} stoppedNote={`${h.agent} stopped before ${v.do}`}
+      onSend={async () => { await (actions as ChromeCardActions).send(ref, saved ? { to: saved.to, subject: saved.subject, message: saved.message } : undefined); }}
+      onSave={async (e) => { setSaved({ to: e.to ?? h.to, subject: e.subject ?? h.subject, message: e.body }); }}
+      onDrop={async (reason) => { await (actions as ChromeCardActions).drop(ref, reason || undefined); }}
+    />
   );
 }
 

@@ -9,6 +9,7 @@ import type { ReactElement } from "react";
 import { Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions } from "react-native";
 import type { LayoutChangeEvent } from "react-native";
 import { MenuIcon, useMenu } from "../Menu/index.tsx";
+import { Row } from "../Row/index.tsx";
 import { MarkdownText } from "../stream/MarkdownText.tsx";
 import { blockOfLine, dedentPaste, docToMarkdown, looksLikeMarkdown, markdownToDoc } from "./mdtree.ts";
 import type { PMNode } from "./mdtree.ts";
@@ -152,8 +153,8 @@ function RawMarkdown(p: { value: string; onChange: (v: string) => void; editable
   const area = useRef<DomTextArea | null>(null);
   const size = useCallback(() => { const a = area.current; if (a?.style) { a.style.height = "auto"; a.style.height = `${Math.max(a.scrollHeight, p.minHeight)}px`; } }, [p.minHeight]);
   useEffect(() => { size(); }, [p.value, size]);
-  useEffect(() => { if (p.autoFocus) area.current?.focus(); }, [p.autoFocus]);
-  useEffect(() => { if (p.focusKey) area.current?.focus(); }, [p.focusKey]);
+  useEffect(() => { if (p.autoFocus) area.current?.focus?.(); }, [p.autoFocus]);
+  useEffect(() => { if (p.focusKey) area.current?.focus?.(); }, [p.focusKey]);
   useEffect(() => {
     const a = area.current;
     if (!a || p.jump === null) return;
@@ -567,10 +568,8 @@ function MarkdownEditorEdit(props: MarkdownEditorProps): ReactElement {
   const suggestNode = sg !== null && props.suggest && sgItems.length > 0 ? (
     <View style={[st.suggest, { left: sg.left, top: sg.top }]} accessibilityRole="menu" accessibilityLabel={props.suggest.label} testID={props.suggest.menuTestID ?? "md-suggest"} {...webProps({ onMouseDown: (e: { preventDefault(): void }) => e.preventDefault() })}>
       {sgItems.map((it, i) => (
-        <Pressable key={it.id} accessibilityRole="menuitem" accessibilityLabel={it.label} accessibilityState={{ selected: i === sgHi }} testID={props.suggest?.itemTestID ? props.suggest.itemTestID(it) : `md-suggest-${it.id}`} onPress={() => pickSuggest(it)} style={[st.sgItem, i === sgHi && st.sgOn]}>
-          <Text style={st.sgText}>{it.label}</Text>
-          {it.detail ? <Text style={st.sgDetail}>{it.detail}</Text> : null}
-        </Pressable>
+        <Row key={it.id} id={it.id} title={it.label} selected={i === sgHi} {...(it.detail ? { trailing: <Text style={st.sgDetail}>{it.detail}</Text> } : {})} onPress={() => pickSuggest(it)}
+          domProps={{ "data-testid": props.suggest?.itemTestID ? props.suggest.itemTestID(it) : `md-suggest-${it.id}`, role: "menuitem", "aria-selected": i === sgHi }} />
       ))}
     </View>
   ) : null;

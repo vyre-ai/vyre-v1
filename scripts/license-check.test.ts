@@ -119,3 +119,10 @@ test('CC-BY-4.0 on a package that is not a data package is blocked', () => {
 test('the copyleft licences stay blocked next to the new ones', () => {
   assert.equal(checkNpmLicenses([{ name: 'x', license: '(0BSD AND GPL-3.0-only)' }])[0]?.ok, false);
 });
+
+test('a recorded licence fills only a missing field, only for its exact version (khroma 2.1.0, MIT in its repo)', () => {
+  assert.equal(checkNpmLicenses([{ name: 'khroma', license: undefined, version: '2.1.0' }])[0]?.ok, true);
+  assert.equal(checkNpmLicenses([{ name: 'khroma', license: undefined, version: '2.2.0' }])[0]?.ok, false, 'a new version is checked again by hand');
+  assert.equal(checkNpmLicenses([{ name: 'khroma', license: 'GPL-3.0-only', version: '2.1.0' }])[0]?.ok, false, 'a stated licence is judged as stated');
+  assert.equal(checkNpmLicenses([{ name: 'other', license: undefined, version: '2.1.0' }])[0]?.ok, false, 'no other package borrows it');
+});

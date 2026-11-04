@@ -88,6 +88,7 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "engine.turn.start": Handler<"engine.turn.start", X>;
   "engine.turn.wait": Handler<"engine.turn.wait", X>;
   "engine.turns.list": Handler<"engine.turns.list", X>;
+  "engine.turns.running": Handler<"engine.turns.running", X>;
   "engine.usage.get": Handler<"engine.usage.get", X>;
   "engine.usage.query": Handler<"engine.usage.query", X>;
   "engine.use_policy.export": Handler<"engine.use_policy.export", X>;
