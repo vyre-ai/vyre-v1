@@ -11,6 +11,7 @@ import type { PlanChild, Seat } from "./life.ts";
 import { sourceWords } from "../sources.ts";
 import { whoToken } from "../../../lib/words/time.ts";
 import { expandWords, whoIn } from "../../../lib/words/activity.ts";
+import { validZone } from "../../../lib/zones.ts";
 
 type In = Record<string, any>;   // eslint-disable-line @typescript-eslint/no-explicit-any
 const me = (ctx: GoalsCtx): string => ctx.actingFor ?? ctx.principal.id;
@@ -44,7 +45,10 @@ function checkPermissions(ctx: GoalsCtx, ps: Permission[]): Permission[] {
   for (const p of ps) if ((p.act as string) === "pay") raise(ctx, "validation.precondition_failed", "Sending money always asks.", { reason: "money" });
   return ps.map((p) => ({ act: p.act, target: p.target, label: p.label, granted: false }));
 }
+/** A goal's check-ins and deadline read in one zone. A goal is a shared thing, so it starts in the Space's time zone; a Space with none yet gives the owner's own. */
 async function zoneOf(ctx: GoalsCtx): Promise<string> {
+  const space = await tryCall<{ space?: { timezone?: unknown } }>(ctx, "spaces.get", {});
+  if (typeof space?.space?.timezone === "string" && validZone(space.space.timezone)) return space.space.timezone;
   const r = await tryCall<{ row?: { value?: unknown } }>(ctx, "settings.get", { key: "profile.timezone" });
   return typeof r?.row?.value === "string" && r.row.value !== "" ? r.row.value : "UTC";
 }
@@ -531,7 +535,7 @@ export function briefText(ctx: GoalsCtx, g: Goal): string {
   out.push(`Finish line: ${f.line}.${g.outcome ? ` Outcome wanted: ${g.outcome}.` : ""}`);
   const left = g.deadline - now;
   out.push(`Deadline: ${when(g.deadline, g.zone)} (${left > 0 ? `${Math.floor(left / 3_600_000)} hours left` : "passed"}).`);
-  out.push(`The owner's time now: ${when(now, g.zone)} (${g.zone}). Write every time in check-ins, summaries and the retrospective in this zone, as the owner reads it, never in UTC.`);
+  out.push(`The time now: ${when(now, g.zone)} (${g.zone}). Write every time in check-ins, summaries and the retrospective in this zone, the one this goal and its people read in, never in UTC.`);
   if (f.kind === "number") {
     const pace = paceOf(g, now);
     out.push(`The number, read by Vyre from ${sourceWords(f.source)}: ${g.value ?? "not read yet"}${f.target !== undefined ? ` of ${f.target}` : ""}${f.unit ? ` ${f.unit}` : ""}${p.percent !== undefined ? ` (${p.percent}%)` : ""}${g.valueAt ? `, read ${when(g.valueAt, g.zone)}` : ""}.${pace ? ` ${pace}` : ""}`);
