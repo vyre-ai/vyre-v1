@@ -33,7 +33,16 @@ export async function helpersStatus(ctx: EngineCtx, input: { threadId: string })
     const live = (await liveTurns(ctx, { threadId: h.threadId }).catch(() => ({ turns: [] as Array<{ step?: string }> }))).turns;
     // the helper's own turns say how it stands: the start line's block is not rewritten when it ends (the report is a second message)
     const lastState = last ? String(last["state"]) : "";
-    const state: HelperState = lastState === "waiting" ? "needs_you" : lastState === "completed" ? "done" : lastState === "failed" ? "failed" : lastState === "cancelled" ? "stopped" : h.status === "failed" ? "failed" : "working";
+    let state: HelperState = lastState === "waiting" ? "needs_you" : lastState === "completed" ? "done" : lastState === "failed" ? "failed" : lastState === "cancelled" ? "stopped" : h.status === "failed" ? "failed" : "working";
+    // a person's line or a restart waits for the helper's next turn: it is working on that, not stopped or done (the last turn ended before the line was written)
+    let starting: string | undefined;
+    if ((state === "stopped" || state === "done" || state === "failed") && last) {
+      try {
+        const ms = ((await ctx.call("chat.messages.list", { threadId: h.threadId })) as { messages: Array<{ author?: { kind?: string }; createdAt?: number; body?: string; blocks?: Array<{ type?: string; data?: { restart?: boolean } }> }> }).messages;
+        const tail = ms[ms.length - 1];
+        if (tail && tail.author?.kind === "person" && (tail.createdAt ?? 0) >= num(last["ended_at"] ?? 0)) { state = "working"; starting = tail.blocks?.some((b) => b.data?.restart === true) ? "Starting again" : "Reading your message"; }
+      } catch { /* the state stays as the turns say */ }
+    }
     const now = ctx.now();
     const startedAt = h.startedAt;
     const endedAt = state === "working" || state === "needs_you" ? undefined : last && last["ended_at"] !== null && last["ended_at"] !== undefined ? num(last["ended_at"]) : undefined;
@@ -51,7 +60,7 @@ export async function helpersStatus(ctx: EngineCtx, input: { threadId: string })
         holdTaskId = holdOf(ms);
       } catch { /* the card then shows in the helper's own chat */ }
     }
-    const step = state === "working" ? live.find((l) => l.step)?.step : undefined;
+    const step = state === "working" ? (live.find((l) => l.step)?.step || starting) : undefined;
     const pick = h.pick ?? {};
     const used = last ? String(last["model"] ?? "") : "";
     const picked = typeof pick["model"] === "string" ? (pick["model"] as string) : undefined;

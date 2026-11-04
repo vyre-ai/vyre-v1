@@ -309,3 +309,21 @@ test("the peek carries the helper's hooks, from the one hooks component: asked f
   assert.match(textOf(find(root, "helper-hooks")), /Hooks for Orin/);
   assert.match(textOf(find(root, "helper-hook-hok_own")), /From Assistant/);
 });
+
+
+test("the crew UI says Allow, Always allow and Deny for a helper's request and never the older words", async () => {
+  const fs = await import("node:fs");
+  const path = await import("node:path");
+  const dirs = [new URL("./", import.meta.url).pathname, new URL("../helper/", import.meta.url).pathname];
+  const files = dirs.flatMap((d) => fs.readdirSync(d).filter((f) => /\.tsx?$/.test(f) && !/\.test\./.test(f) && f !== "sample.ts").map((f) => path.join(d, f)));
+  for (const f of files) {
+    const src = fs.readFileSync(f, "utf8").replace(/\/\/.*$/gm, "").replace(/\/\*[\s\S]*?\*\//g, "");
+    assert.doesNotMatch(src, /["'>`]\s*(Approve|Reject|Allow this once|Send back)\s*["'<`]/, `${path.basename(f)} uses an older approval word`);
+  }
+  // the helper's held request is the Gate's approval card: Deny, Always allow where it is the person's to give, Allow
+  const { ApprovalCard } = await import("../conversation/approval.tsx");
+  const root = await mount(createRoot, <ApprovalCard taskId="tsk_1" agent="Tess" agentId="agt_1" data={{ call: async () => ({}), nav: {}, threadId: "thr_1" } as never} />);
+  await flush();
+  const labels = textOf(find(root, "approval-tsk_1"));
+  assert.ok(!/Approve|Reject|Allow this once/.test(labels), labels);
+});

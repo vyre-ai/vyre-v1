@@ -31,6 +31,9 @@ test("change model: the helper restarts on the picked model with its brief again
     const pick = acct.models.find((m) => m.available && m.model !== now)?.model ?? acct.models.find((m) => m.available)!.model;
     const out = await s.api("engine.helpers.change_model", { threadId: chat, helperId: h.threadId, account: acct.ref, model: pick });
     assert.equal(out.restarted, true);
+    // what a person sees right after Change model: the helper is working on its restart, never "stopped"
+    const right = ((await s.api("engine.helpers.status", { threadId: chat })).helpers as Array<{ threadId: string; state: string; step?: string }>).find((x) => x.threadId === h.threadId)!;
+    assert.equal(right.state, "working", "a restarting helper reads as working");
     const after = await waitFor(async () => (briefs.length >= 2 ? true : null), 40_000, () => hostLog(s.d));
     assert.ok(after);
     assert.match(briefs[1]!, /Starting again on .*Do the brief again from the start/);
