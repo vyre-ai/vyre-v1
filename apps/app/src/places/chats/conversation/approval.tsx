@@ -107,7 +107,7 @@ export function ApprovalCard({ taskId, agent, agentId, data, face, editor }: { t
         testID={ended ? `approval-done-${taskId}` : `approval-${taskId}`} agent={agent} headFace={{ name: agent, seed: agentId, kind: "agent" }} to={ev ? [] : ow.to.map((r) => ({ name: nameOf(r), seed: r.id ?? r.address ?? agentId, kind: "person" as const }))} verb={verbOfChannel(ow, nameOf)}
         schedule={scheduleLine(ow.schedule, { yours: (at) => clock(at), theirs: theirTz ? (at) => clock(at, theirTz) : null })} subject={ow.subject} body={ow.body}
         {...(ev ? {
-          subjectLabel: "Title", editSubject: true, fold: "Agenda", fieldMd: ["Where"], sendLabel: ev.notify ? "Send invites" : "Add to calendar",
+          subjectLabel: "Title", editSubject: true, fold: "Agenda", fieldMd: ["Where"],
           fields: [["When", whenWords(ev, viewerTz) ?? "Not given"], ...(ev.where || ev.link ? [["Where", [ev.where ?? "", ev.link ? `[${host(ev.link)}](${ev.link})` : ""].filter(Boolean).join(" · ")] as const] : [])],
           invitees: ow.to.map((r) => ({ name: r.name ?? r.address ?? "A guest", seed: r.address ?? r.id ?? agentId })),
           inviteNote: ow.to.length === 0 ? "No guests" : ev.notify ? "They get an email invite" : "They are not emailed",
@@ -194,7 +194,7 @@ export function ApprovalCard({ taskId, agent, agentId, data, face, editor }: { t
         <View style={st.acts}>
           <TextButton label={held.plain ? "Send back" : "Deny"} onPress={() => setDenying(true)} disabled={busy} testID={`approval-deny-${taskId}`} />
           {allowable ? <TextButton label="Always allow" disabled={busy} onPress={always} testID={`approval-always-${taskId}`} /> : null}
-          <TextButton label={held.plain ? "Approve" : "Allow"} primary disabled={busy} onPress={() => act("approve")} testID={`approval-allow-${taskId}`} />
+          <TextButton label="Allow" primary disabled={busy} onPress={() => act("approve")} testID={`approval-allow-${taskId}`} />
         </View>
       )}
       {line ? <Text accessibilityRole="alert" style={st.err}>{line}</Text> : null}

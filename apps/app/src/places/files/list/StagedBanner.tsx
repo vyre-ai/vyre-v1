@@ -34,8 +34,8 @@ export function StagedBanner({ folderId }: { folderId: string }): ReactElement |
       <Pressable accessibilityRole="button" accessibilityLabel="Review the staged writes" testID="staged-review" onPress={() => data.nav.reviewChanges?.(first.changesetId)} style={({ hovered }: { hovered?: boolean }) => [s.btn, hovered === true && s.over]}>
         <Text style={s.btnText}>Review</Text>
       </Pressable>
-      <Pressable accessibilityRole="button" accessibilityLabel="Approve the staged writes" testID="staged-approve" onPress={approve} style={({ hovered }: { hovered?: boolean }) => [s.btn, s.pri, hovered === true && s.priOver]}>
-        <Text style={[s.btnText, s.priText]}>Approve</Text>
+      <Pressable accessibilityRole="button" accessibilityLabel="Allow the staged writes" testID="staged-approve" onPress={approve} style={({ hovered }: { hovered?: boolean }) => [s.btn, s.pri, hovered === true && s.priOver]}>
+        <Text style={[s.btnText, s.priText]}>Allow</Text>
       </Pressable>
     </View>
   );

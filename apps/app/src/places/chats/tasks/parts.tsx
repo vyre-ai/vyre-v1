@@ -181,7 +181,7 @@ export const NeedLine = memo(function NeedLine({ item, env }: { item: NeedItem; 
   const by = t.kind === "work" && (t.state === "in_review" || t.state === "awaiting_approval") ? t.assigned.id : sentBack ? (t.reviewer ?? t.approver)?.id ?? t.createdBy : t.createdBy;
   const who: Who = { kind: by.startsWith("agt_") ? "agent" : "person", id: by };
   // a team task is taken first; a held act is approved here; anything else opens, where its move is
-  const primary = canTake(t) ? { key: "take", label: "Take" } : t.kind === "approve" ? { key: "approve", label: "Approve" } : { key: "open", label: "Open" };
+  const primary = canTake(t) ? { key: "take", label: "Take" } : t.kind === "approve" ? { key: "approve", label: "Allow" } : { key: "open", label: "Open" };
   const step = t.kind !== "work" ? KIND_TITLE[t.kind] : t.state === "in_review" ? "Your review" : t.state === "awaiting_approval" ? "Your approval" : t.workingNotes["fixes"] !== undefined ? "Sent back to you" : canTake(t) ? `For ${env.nameOf(t.assigned.id)}` : "Given to you";
   const sub = [step, env.nameOf(by), t.recordId ? env.project(t.recordId) : undefined, ago(env.now - t.updatedAt)].filter(Boolean).join(" · ");
   const trigger = env.needMenu ? menuTrigger((x, y) => env.needMenu?.(item, { x, y })) : {};
