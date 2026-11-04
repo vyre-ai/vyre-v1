@@ -1,4 +1,4 @@
-// Talk: speak, and the words land in the composer. This file is the one provider seam: one object per provider says how to check a key, how to mint a short-lived token and how to open and read the
+// Talk: speak, and the words land in the composer. Deepgram and ElevenLabs. This file is the one provider seam: one object per provider says how to check a key, how to mint a short-lived token and how to open and read the
 // live socket. It holds no network and no key; the host seam (host/src/seams/talk.ts) runs the grant, the module picks the provider, the client opens the socket. A new provider is one more object here.
 // DECISION: the host mints a Deepgram temporary token and the page opens the socket to Deepgram itself. The long-lived key never reaches a browser and no audio passes through the Space. A token has to be
 // valid only while the socket opens (Deepgram documents this), so 30 seconds is plenty. It carries usage::write on the core voice APIs and nothing on the Manage APIs.
@@ -31,6 +31,8 @@ export interface TalkProvider {
   grant(apiKey: string, ttlSeconds: number): { url: string; method: string; headers: Record<string, string>; body: string };
   readGrant(status: number, body: string): GrantResult;
   socket(s: { model: string; language: string; token: string }): { url: string; protocols: string[] };
+  /** One chunk of microphone audio as the socket wants it: Deepgram takes the raw bytes, ElevenLabs a JSON text frame. */
+  frame(pcm: ArrayBuffer): string | ArrayBuffer;
   /** The text frame that asks the provider for what it still holds, then to close. */
   closing: string;
   read(message: string): TalkHeard;
@@ -72,6 +74,7 @@ const DEEPGRAM: TalkProvider = {
     // a browser socket cannot set a header: Deepgram reads the JWT from the subprotocol pair
     return { url: `wss://api.deepgram.com/v1/listen?${q.toString()}`, protocols: ["bearer", token] };
   },
+  frame: (pcm) => pcm,
   closing: JSON.stringify({ type: "CloseStream" }),
   read(message) {
     let j: { type?: unknown; is_final?: unknown; channel?: { alternatives?: { transcript?: unknown }[] } };
@@ -83,6 +86,56 @@ const DEEPGRAM: TalkProvider = {
   },
 };
 
-export const TALK_PROVIDERS: readonly TalkProvider[] = [DEEPGRAM];
+const base64 = (pcm: ArrayBuffer): string => {
+  const b = new Uint8Array(pcm);
+  let s = "";
+  for (let i = 0; i < b.length; i += 0x8000) s += String.fromCharCode(...b.subarray(i, i + 0x8000));
+  return btoa(s);
+};
+const eleven = (audio: string, commit: boolean): string => JSON.stringify({ message_type: "input_audio_chunk", audio_base_64: audio, commit, sample_rate: TALK_SAMPLE_RATE });
+
+// DECISION: ElevenLabs Scribe v2 Realtime. The host swaps the key for a single-use token (valid for one socket, 15 minutes to start it); the page opens the socket with the token in the address,
+// because a browser cannot send a header and ElevenLabs has no subprotocol form. The token is not the key and works once. Audio goes up as base64 JSON frames, and a commit frame asks for what it still holds.
+const ELEVENLABS: TalkProvider = {
+  key: "elevenlabs",
+  name: "ElevenLabs",
+  keyUrl: "https://elevenlabs.io/app/settings/api-keys",
+  keyName: "ElevenLabs",
+  spaceKeyName: "ElevenLabs for this Space",
+  keyField: "api_key",
+  models: [{ id: "scribe_v2_realtime", label: "Scribe v2 Realtime" }],
+  languages: DEEPGRAM.languages,
+  defaultModel: "scribe_v2_realtime",
+  defaultLanguage: "multi",
+  grant: (apiKey) => ({ url: "https://api.elevenlabs.io/v1/single-use-token/realtime_scribe", method: "POST", headers: { "xi-api-key": apiKey }, body: "" }),
+  readGrant(status, body) {
+    if (status === 401) return { ok: false, why: "key" };
+    if (status === 403) return { ok: false, why: "role" };
+    if (status === 429) return { ok: false, why: "busy" };
+    if (status < 200 || status >= 300) return { ok: false, why: "down" };
+    try {
+      const j = JSON.parse(body) as { token?: unknown };
+      if (typeof j.token !== "string" || j.token === "") return { ok: false, why: "down" };
+      return { ok: true, token: j.token, expiresIn: 900 };
+    } catch { return { ok: false, why: "down" }; }
+  },
+  socket({ model, language, token }) {
+    const q = new URLSearchParams({ model_id: model, token, audio_format: "pcm_16000", commit_strategy: "vad", include_timestamps: "false" });
+    if (language !== "multi") q.set("language_code", language);
+    return { url: `wss://api.elevenlabs.io/v1/speech-to-text/realtime?${q.toString()}`, protocols: [] };
+  },
+  frame: (pcm) => eleven(base64(pcm), false),
+  closing: eleven("", true),
+  read(message) {
+    let j: { message_type?: unknown; text?: unknown };
+    try { j = JSON.parse(message) as typeof j; } catch { return null; }
+    const kind = j.message_type;
+    if (typeof kind === "string" && /error|exceeded|rate_limited|unaccepted|auth_error|quota|invalid/i.test(kind)) return { kind: "error" };
+    if ((kind === "partial_transcript" || kind === "committed_transcript") && typeof j.text === "string") return { kind: "words", text: j.text, final: kind === "committed_transcript" };
+    return null;
+  },
+};
+
+export const TALK_PROVIDERS: readonly TalkProvider[] = [DEEPGRAM, ELEVENLABS];
 export const DEFAULT_TALK_PROVIDER = DEEPGRAM.key;
 export const talkProvider = (key: string): TalkProvider | undefined => TALK_PROVIDERS.find((p) => p.key === key);

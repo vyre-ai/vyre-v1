@@ -88,11 +88,12 @@ export function startTalk(deps: TalkDeps, ev: TalkEvents, opts: { warm: boolean 
   const finals: string[] = [];
   let interim = "";
   let closing: string | null = null;
+  let frame: (pcm: ArrayBuffer) => string | ArrayBuffer = (pcm) => pcm;
 
   const onAudio = (pcm: ArrayBuffer, level: number): void => {
     if (phase === "closing" || phase === "done") return;
     ev.level(level);
-    if (socket?.readyState === OPEN) socket.send(pcm);
+    if (socket?.readyState === OPEN) socket.send(frame(pcm));
     else if (backlog.length < BACKLOG_CHUNKS) backlog.push(pcm);
   };
   const quiet = (): void => {
@@ -120,13 +121,14 @@ export function startTalk(deps: TalkDeps, ev: TalkEvents, opts: { warm: boolean 
     const provider = talkProvider(info.provider);
     if (!provider) { fail(LINE.generic); return; }
     closing = provider.closing;
+    frame = provider.frame;
     let s: TalkSocket;
     try { s = deps.openSocket(info.url, info.protocols); } catch { fail(LINE.down); return; }
     socket = s;
     s.binaryType = "arraybuffer";
     s.onopen = () => {
       if (phase === "done") return;
-      for (const pcm of backlog.splice(0)) s.send(pcm);
+      for (const pcm of backlog.splice(0)) s.send(frame(pcm));
       if (phase === "closing") { s.send(provider.closing); return; }
       phase = "open";
       ev.listening();
