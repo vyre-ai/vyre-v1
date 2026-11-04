@@ -2,11 +2,12 @@
 // who it is for, Update when a newer commit exists and Remove. Every control calls install.*: list, check_update, from_link (the preview), apply (only after the preview) and remove.
 import { useCallback, useEffect, useState } from "react";
 import type { ReactElement } from "react";
-import { Text, View } from "react-native";
+import { Pressable, Text, View } from "react-native";
 import { Dialog } from "../../../../../ui/src/Dialog/index.tsx";
 import { Row } from "../../../../../ui/src/Row/index.tsx";
 import { TextField } from "../../../../../ui/src/TextField/index.tsx";
 import { Section, SmallButton } from "../../places/settings/ui.tsx";
+import { IconTile } from "./CiRunners.tsx";
 import { changedCount, diffRows, needsLines, pinnedLine, shortOf } from "../../places/chats/install/model.ts";
 import type { Plan } from "../../places/chats/install/model.ts";
 
@@ -19,7 +20,23 @@ const quiet = { fontSize: 12, color: "var(--ink-3)", lineHeight: 17 } as const;
 const mono = { fontSize: 12, color: "var(--ink-2)", fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace", lineHeight: 19 } as const;
 const say = (e: unknown, fallback: string): string => (e instanceof Error && e.message ? e.message : fallback);
 
-export const KIND_LABEL: Readonly<Record<Plan["kind"], string>> = { skill: "Skill", plugin: "Plugin", mcp_local: "MCP server", mcp_remote: "MCP server", site: "Site" };
+export const KIND_LABEL: Readonly<Record<Plan["kind"], string>> = { skill: "Skill", plugin: "Plugin", mcp_local: "MCP server", mcp_remote: "Remote MCP", site: "Site" };
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+/** "4 Nov": the day something was installed. */
+export const dayWord = (at: number): string => { const d = new Date(at); return `${d.getUTCDate()} ${MONTHS[d.getUTCMonth()]}`; };
+const loose = (o: unknown, k: string): string | undefined => { const v = (o as Record<string, unknown>)[k]; return typeof v === "string" && v !== "" ? v.replace(/^v/, "") : undefined; };
+/** The version an update brings, when the plan says; the new commit otherwise. */
+export const readyWord = (p: Plan): string => { const v = loose(p, "version"); return `${v ? `v${v}` : shortOf(p.commit)} is ready`; };
+/** The two lines under a name: who put it there, when and for whom; then its commit and version. */
+export function metaLines(i: Install, nameOf: (id: string) => string, hold: string | null): string {
+  const v = loose(i.installed, "version") ?? loose(i, "version");
+  const pinned = i.commit ? `Commit ${shortOf(i.commit)}${v ? ` · v${v}` : ""}` : "Not pinned, it runs on their side";
+  return `${nameOf(i.by)} installed it ${dayWord(i.at)} · for ${forWords(i, nameOf)}\n${pinned}${hold ? ` · Needs you: ${hold}` : ""}`;
+}
+/** A text-only button: no frame until the pointer is over it. */
+function Ghost({ label, onPress, testID, disabled = false }: { label: string; onPress: () => void; testID: string; disabled?: boolean }): ReactElement {
+  return <Pressable accessibilityRole="button" accessibilityLabel={label} testID={testID} disabled={disabled} onPress={onPress} style={({ hovered }: { hovered?: boolean }) => ({ height: 28, paddingHorizontal: 10, borderRadius: 7, justifyContent: "center", backgroundColor: hovered ? "var(--hover)" : "transparent", opacity: disabled ? 0.45 : 1 }) as never}><Text style={{ fontSize: 12.5, color: "var(--ink-2)" as string }}>{label}</Text></Pressable>;
+}
 /** Who the install is for, as the row says it. */
 export function forWords(i: Install, nameOf: (id: string) => string): string {
   const f = i.installed["for"];
@@ -122,11 +139,13 @@ export function InstalledForSpace({ call, nameOf = (id) => id }: { call: Call; n
       ) : list.map((i) => {
         const hold = needsYou(i);
         const u = updates[i.installId];
-        return <Row key={i.installId} id={`install-row-${i.installId}`} title={i.name}
-          note={`${KIND_LABEL[i.kind]} · ${i.repo || i.url}${i.commit ? ` at ${shortOf(i.commit)}` : ""} · For ${forWords(i, nameOf)} · Installed by ${nameOf(i.by)}${u ? " · Update available" : ""}${hold ? ` · Needs you: ${hold}` : ""}`}
-          trailing={<View style={{ flexDirection: "row", gap: 6 }}>
-            {u ? <SmallButton label="Update" testID={`install-update-${i.installId}`} disabled={busy} onPress={() => setUpdating(i)} /> : null}
-            <SmallButton label="Remove" danger testID={`install-remove-${i.installId}`} disabled={busy} onPress={() => setRemoving(i)} />
+        return <Row key={i.installId} id={`install-row-${i.installId}`} tall title={i.name} titleSuffix={KIND_LABEL[i.kind]}
+          titleMarks={u ? <Text testID={`install-ready-${i.installId}`} style={{ fontSize: 12, fontWeight: "500", color: "var(--accent)" as string }}>{readyWord(u)}</Text> : undefined}
+          leading={<IconTile icon={i.kind === "skill" ? "spark" : "plug"} />}
+          note={metaLines(i, nameOf, hold)}
+          trailing={<View style={{ flexDirection: "row", gap: 4, alignItems: "center" }}>
+            {u ? <SmallButton label="See changes" testID={`install-update-${i.installId}`} disabled={busy} onPress={() => setUpdating(i)} /> : <Text style={quiet}>Up to date</Text>}
+            <Ghost label="Remove" testID={`install-remove-${i.installId}`} disabled={busy} onPress={() => setRemoving(i)} />
           </View>} />;
       })}
       {list.length > 0 ? <View style={{ padding: 12, alignItems: "flex-start" }}><SmallButton label="Install from a link" testID="installed-add" onPress={() => setAdding(true)} /></View> : null}
@@ -135,10 +154,10 @@ export function InstalledForSpace({ call, nameOf = (id) => id }: { call: Call; n
 
     {updating && up ? (
       <Dialog title={`${updating.name} ${shortOf(up.diff?.from ?? updating.commit)} to ${shortOf(up.commit)}`} onClose={() => setUpdating(null)} width={600} fill testID="install-update-sheet"
-        actions={[{ label: "Update", primary: true, disabled: busy, testID: "install-update-go", onPress: () => void update() }, { label: "Not now", onPress: () => setUpdating(null) }]}>
+        actions={[{ label: "Update for the Space", primary: true, disabled: busy, testID: "install-update-go", onPress: () => void update() }, { label: "Not now", onPress: () => setUpdating(null) }]}>
         <View style={{ gap: 6 }}>
           {up.diff ? <Text style={quiet}>{`${changedCount(up.diff)} ${changedCount(up.diff) === 1 ? "file" : "files"} changed`}</Text> : null}
-          {reaches(up).length > 0 ? <Text style={quiet}>{`It reaches ${reaches(up).join(", ")}.`}</Text> : null}
+          <Text testID="install-update-access" style={quiet}>{`New access: ${reaches(up).length > 0 ? `it now also reaches ${reaches(up).join(", ")}` : "none"}.`}</Text>
           {up.diff ? diffRows(up.diff).map((r, n) => <Text key={n} style={[mono, r.kind === "head" ? { color: "var(--ink-3)" } : null]}>{r.text}</Text>) : null}
         </View>
       </Dialog>
@@ -146,8 +165,11 @@ export function InstalledForSpace({ call, nameOf = (id) => id }: { call: Call; n
 
     {removing ? (
       <Dialog title={`Remove ${removing.name}?`} onClose={() => setRemoving(null)} width={440} testID="install-remove-sheet"
-        actions={[{ label: "Remove", danger: true, disabled: busy, testID: "install-remove-go", onPress: () => void remove() }, { label: "Keep it", onPress: () => setRemoving(null) }]}>
-        <Text testID="install-remove-who" style={quiet}>{loseWords(removing, nameOf)}</Text>
+        actions={[{ label: "Remove", danger: true, disabled: busy, testID: "install-remove-go", onPress: () => void remove() }, { label: "Cancel", onPress: () => setRemoving(null) }]}>
+        <View style={{ gap: 6 }}>
+          <Text testID="install-remove-who" style={quiet}>{loseWords(removing, nameOf)}</Text>
+          <Text style={quiet}>Agents that use it lose it at once. People can install it again from the link.</Text>
+        </View>
       </Dialog>
     ) : null}
 

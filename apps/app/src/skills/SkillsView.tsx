@@ -6,7 +6,7 @@
 // Adding is one sheet: paste a link, drop a folder or zip, browse a marketplace, or ask the Assistant. What a skill can touch is shown before it is added and on every card.
 import { createElement, useCallback, useEffect, useRef, useState } from "react";
 import type { ReactElement } from "react";
-import { Platform, Text, View } from "react-native";
+import { Platform, Pressable, Text, View } from "react-native";
 import { Dialog } from "../../../../ui/src/Dialog/index.tsx";
 import { DropZone } from "../../../../ui/src/FileDrop/index.tsx";
 import type { DroppedFile } from "../../../../ui/src/FileDrop/index.tsx";
@@ -65,12 +65,17 @@ export interface ListsProps {
   onToggle(target: { kind: "mine" | "shared"; skillId: string } | { kind: "space"; name: string }, on: boolean): void; onAdd(): void; onAdopt(m: MemberSkill): void; onPolicy(on: boolean): void;
 }
 
+/** The add button of the page: quiet text, no frame until the pointer is over it, so it never competes with the lists. */
+function GhostAdd({ label, onPress }: { label: string; onPress: () => void }): ReactElement {
+  return <Pressable accessibilityRole="button" accessibilityLabel={label} testID="skill-add" onPress={onPress} style={({ hovered }: { hovered?: boolean }) => ({ height: 28, paddingHorizontal: 10, borderRadius: 7, justifyContent: "center", backgroundColor: hovered ? "var(--hover)" : "transparent" }) as never}><Text style={{ fontSize: 12.5, fontWeight: "500", color: "var(--ink-2)" as string }}>{`+ ${label}`}</Text></Pressable>;
+}
+
 /** The lists of the page, drawn from skills.page. Pure: the static test renders it with a page and no server. */
 export function SkillsLists(p: ListsProps): ReactElement {
   const { page, mode } = p;
   const added = page.shared.filter((c) => c.state === "added");
   const later = page.shared.filter((c) => c.state === "not_now");
-  const addButton = <SmallButton primary label={mode === "console" ? "Add a Space skill" : "Add a skill"} testID="skill-add" onPress={p.onAdd} />;
+  const addButton = <GhostAdd label={mode === "console" ? "Add a Space skill" : "Add a skill"} onPress={p.onAdd} />;
   const spaceRow = (s: SpaceSkill): ReactElement => <Row key={s.skillId} id={`skill-space-${s.name}`} title={titleOf(s)}
     note={`${s.description} · ${mode === "console" ? sourceLine(s) : "Set by an admin for everyone"}${s.needs.length > 0 ? ` · Needs ${s.needs.length === 1 ? "a key" : `${s.needs.length} keys`}` : ""}${s.enabled ? "" : " · Off"}`}
     onPress={() => p.onOpen({ kind: "space", skillId: s.skillId })}

@@ -45,7 +45,7 @@ const TITLE_IN_LINE_S = { ...TITLE_S, flex: "none", maxWidth: "70%" } as const;
 const SUFFIX_S = { flex: "0 1 auto", minWidth: 0, color: "var(--ink-3)", fontSize: 12, lineHeight: "18px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } as const;
 const MARKS_S = { flex: "none", display: "flex", flexDirection: "row", alignItems: "center", gap: 4 } as const;
 const NOTE_S = { color: "var(--ink-3)", fontSize: 11.5, lineHeight: "16px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } as const;
-const NOTE2_S = { color: "var(--ink-3)", fontSize: 11.5, lineHeight: "16px", overflow: "hidden", display: "-webkit-box", WebkitBoxOrient: "vertical", WebkitLineClamp: 2 } as const;
+const NOTE2_S = { color: "var(--ink-3)", fontSize: 11.5, lineHeight: "16px", whiteSpace: "pre-line", overflow: "hidden", display: "-webkit-box", WebkitBoxOrient: "vertical", WebkitLineClamp: 2 } as const;
 
 const TITLE_WRAP_S = { color: "var(--ink)", fontSize: 13, lineHeight: "18px", overflow: "hidden", display: "-webkit-box", WebkitBoxOrient: "vertical", WebkitLineClamp: 2, overflowWrap: "anywhere" } as const;
 /** On a phone a title may run to two lines instead of one clipped one (the Console turns it on below 900 wide). The row grows with it, as it does for a taller trailing slot. */
