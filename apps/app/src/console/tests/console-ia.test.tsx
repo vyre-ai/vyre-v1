@@ -11,6 +11,7 @@ import { ConsoleDataProvider } from "../shell/data.tsx";
 import { PAGES, PAGE_NOTE } from "../shell/nav.ts";
 import { OLD_NAMES, SECTIONS, nowIn, resolve, sectionOf, tabOf } from "../shell/sections.ts";
 import { createSampleConsole } from "../shell/sample.ts";
+import { permissions } from "../../../../../generated/permissions.ts";
 
 const BANNED = /\b(principals?|grants?|actors?|schema|gates?|suppression|retention|provider matrix|label grid|tenants?|scopes?|policy objects?|capabilit(?:y|ies)|sandbox\.denied|traces?)\b|company only|by label/i;
 const html = (props: ConsoleShellProps): string => renderToStaticMarkup(<ConsoleDataProvider value={createSampleConsole().data}><ConsoleShell width={1280} {...props} /></ConsoleDataProvider>).replaceAll("<!-- -->", "");
@@ -66,4 +67,10 @@ test("redirects: every old page id lands on its new home, and the search finds t
   for (const [name, id] of OLD_NAMES) assert.ok(nowIn(id).length > 0, `${name} has a home`);
   assert.ok(html({ initialPage: "kit" }).includes('data-testid="page-diagnostics"'), "an old address opens its new page");
   assert.ok(html({ initialPage: "connections" }).includes('data-testid="page-apps"'));
+});
+
+test("copy: the permission labels the Console lists carry no banned word", () => {
+  const hits = permissions.map((p) => (p as unknown as { label?: string; title?: string; summary?: string }).label ?? (p as unknown as { title?: string }).title ?? "").filter((l) => BANNED.test(l));
+  assert.deepEqual(hits, []);
+  assert.ok(permissions.length > 20);
 });
