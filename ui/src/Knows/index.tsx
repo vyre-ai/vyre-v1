@@ -3,6 +3,7 @@
 import { useState } from "react";
 import type { ReactElement } from "react";
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { Row } from "../Row/index.tsx";
 import { groupKnows, knowsMark, linkedItems, openQuestions, sourceChip, spaceItems } from "./model.ts";
 import type { KnowsItem } from "./model.ts";
 
@@ -29,14 +30,17 @@ export function Knows({ place, items, onSource, onEdit, onRemove, onAnswer }: Kn
     <View testID="knows" style={st.root}>
       <Text style={st.head}>{`What Vyre remembers in ${place}`}</Text>
       <Text style={st.cap}>Only people who can open this place can read it.</Text>
+      {/* ui-rows-lint: not a list (the groups of one panel, each a heading over its own entries) */}
       {groups.map((g) => (
         <View key={g.kind} testID={`knows-group-${g.kind}`}>
           <View style={st.label}><Text style={st.labelText}>{g.title}</Text><Text style={st.labelText}>{g.kind === "question" ? openQuestions(g.items).length + g.items.filter((i) => !i.questionId).length : g.items.length}</Text></View>
+          {/* ui-rows-lint: not a list (open questions: each a card with its two answer buttons under it, as in the prototype) */}
           {g.kind === "question" ? openQuestions(g.items).map((q) => (
             <View key={q.questionId} testID={`knows-question-${q.questionId}`} style={st.row}>
               <Text style={st.text}>{q.answers[0]!.text.replace(/\s+/g, " ")}</Text>
               <Text style={st.mark}>{"Open question \u00b7 Vyre will not guess"}</Text>
               <View style={st.acts}>
+                {/* ui-rows-lint: not a list (the two answer buttons of one question) */}
                 {q.answers.map((a, n) => (
                   <Pressable key={a.factId} accessibilityRole="button" testID={`knows-answer-${q.questionId}-${a.qside}`} onPress={() => onAnswer?.(q.questionId, a.qside ?? "a")} style={({ hovered }: { hovered?: boolean }) => [st.ansBtn, n === 0 && st.ansPrimary, hovered === true && st.hover]}>
                     <Text style={[st.ansText, n === 0 && st.ansPrimaryText]}>{`${a.short ?? a.text} \u00b7 ${a.by.split(" ")[0]}, ${a.at}`}</Text>
@@ -45,6 +49,7 @@ export function Knows({ place, items, onSource, onEdit, onRemove, onAnswer }: Kn
               </View>
             </View>
           )) : null}
+          {/* ui-rows-lint: not a list (memory entries: the words, who said them, an inline Edit field, a Replaced mark and Source, Edit and Remove under them; cards in the prototype) */}
           {g.items.filter((i) => g.kind !== "question" || !i.questionId).map((i) => {
             const old = i.state === "replaced";
             const mine = editing === i.factId;
@@ -81,11 +86,7 @@ export function Knows({ place, items, onSource, onEdit, onRemove, onAnswer }: Kn
         <View testID="knows-linked">
           <View style={st.label}><Text style={st.labelText}>From linked places</Text><Text style={st.labelText}>{linked.length}</Text></View>
           {linked.map((i) => (
-            <View key={i.factId} testID={`knows-row-${i.factId}`} style={st.row}>
-              <Text style={st.text}>{i.text}</Text>
-              <Text style={st.mark}>{`${i.from ?? "a linked place"} \u00b7 ${i.by} \u00b7 ${i.at}`}</Text>
-              <View style={st.acts}><Pressable accessibilityRole="button" testID={`knows-source-${i.factId}`} onPress={() => onSource(i)} style={hov}><Text style={st.btn}>{"\u21a9 Source"}</Text></Pressable></View>
-            </View>
+            <Row key={i.factId} tall title={i.text} note={`${i.from ?? "a linked place"} \u00b7 ${i.by} \u00b7 ${i.at}`} trailing={<Text style={st.btn}>{"\u21a9 Source"}</Text>} onPress={() => onSource(i)} />
           ))}
         </View>
       ) : null}
@@ -93,10 +94,7 @@ export function Knows({ place, items, onSource, onEdit, onRemove, onAnswer }: Kn
         <View testID="knows-space">
           <View style={st.label}><Text style={st.labelText}>Space</Text><Text style={st.labelText}>{space.length}</Text></View>
           {space.map((i) => (
-            <View key={i.factId} testID={`knows-row-${i.factId}`} style={st.row}>
-              <Text style={st.text}>{i.text}</Text>
-              <Text style={st.mark}>{`Marker in Space memory \u00b7 from ${i.from ?? "this place"} \u00b7 ${i.at}`}</Text>
-            </View>
+            <Row key={i.factId} tall title={i.text} note={`Marker in Space memory \u00b7 from ${i.from ?? "this place"} \u00b7 ${i.at}`} />
           ))}
         </View>
       ) : null}
