@@ -7,6 +7,7 @@ import type { ReactNode } from "react";
 import { View, useWindowDimensions } from "react-native";
 import { FailedBody, NoneBody, SettingUp } from "../../../apps/app/src/places/chats/rightpane/ComputerTab.tsx";
 import { ChatRightPane } from "../../../apps/app/src/places/chats/rightpane/ChatRightPane.tsx";
+import { PersonProfile } from "../../../apps/app/src/places/chats/rightpane/PersonProfile.tsx";
 import { createSample } from "../../../apps/app/src/places/chats/rightpane/sample.ts";
 import type { ChatRightPaneData } from "../../../apps/app/src/places/chats/rightpane/data.tsx";
 import type { HostsAnswer } from "../../../apps/app/src/places/chats/rightpane/ComputerTab.tsx";
@@ -38,11 +39,31 @@ function Pane({ withComputer, tab, asleep = false }: { withComputer: boolean; ta
   return <View style={{ flex: 1, alignItems: "flex-end", backgroundColor: "var(--win)" as string }}><ChatRightPane data={data} open onToggle={() => undefined} initialTab={tab} window={{ start: 0, end: 500 }} /></View>;
 }
 
+const NOW = Date.UTC(2026, 10, 4, 21, 41);
+const answer = (away: boolean) => (cap: string): Promise<unknown> => Promise.resolve(
+  cap === "devices.presence" ? { people: [{ personId: "usr_sara", state: away ? "away" : "online", lastSeenAt: NOW - 4 * 60_000 }] }
+  : cap === "settings.public_of" ? { timezone: "Europe/Berlin", hours: { days: [1, 2, 3, 4, 5], from: "09:00", to: "17:30" }, pronouns: away ? undefined : "they/them", title: "Account lead" }
+  : cap === "threads.list" ? { threads: [{ threadId: "t1", kind: "chat", title: "Renewal redline", members: [{ kind: "person", id: "usr_sara" }, { kind: "person", id: "usr_irfad" }] }, { threadId: "t2", kind: "chat", title: "Portal launch", members: [{ kind: "person", id: "usr_sara" }] }] }
+  : cap === "files.shared_with_me" ? { files: [{ fileId: "f1", name: "Renewal redline.docx", ownerId: "usr_sara" }, { fileId: "f2", name: "Portal launch plan", ownerId: "usr_sara" }], folders: [] }
+  : cap === "tasks.list" ? { tasks: [{ id: "k1", title: "Check the renewal before Friday" }] } : {});
+
+function Person({ away, tab }: { away: boolean; tab: "about" | "chats" | "files" | "tasks" }): ReactNode {
+  return (
+    <View style={{ flex: 1, alignItems: "flex-end", backgroundColor: "var(--win)" as string }}>
+      <View style={{ width: 340, flex: 1, backgroundColor: "var(--side)" as string }}>
+        <PersonProfile id="usr_sara" name="Sara Malik" call={answer(away)} now={() => NOW} onMessage={() => undefined} onMention={() => undefined} onCall={away ? undefined : () => undefined} copy={() => undefined}
+          roles={[{ project: "Client portal launch", role: "Lead" }, { project: "Northwind renewal", role: "Reviewer" }]} openThread={() => undefined} openFile={() => undefined} openTask={() => undefined} initialTab={tab} />
+      </View>
+    </View>
+  );
+}
+
 export default function Mount(): ReactNode {
   const [part, setPart] = useState<string | null>(null);
   useEffect(() => setPart(new URLSearchParams((globalThis as { location?: { search?: string } }).location?.search ?? "").get("part") ?? "can"), []);
   const { height, width } = useWindowDimensions();
   if (part === null) return <View style={{ flex: 1, backgroundColor: "var(--win)" as string }} />;
+  if (part === "person" || part === "away" || part === "personchats") return <Person away={part === "away"} tab={part === "personchats" ? "chats" : "about"} />;
   const a = ANSWERS[part] ?? ANSWERS["can"]!;
   if (part === "ready" || part === "asleep") return <Pane withComputer tab="computer" asleep={part === "asleep"} />;
   if (part === "about" || part === "nocomputer") return <Pane withComputer={part === "about"} tab="about" />;

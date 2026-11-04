@@ -104,6 +104,27 @@
       "proto": "chats,{skin}",
       "waitFor": "[data-testid='about-tab']",
       "note": "About of an agent with a computer: responsible for, right now, how it responds here, shared context."
+    },
+    {
+      "id": "COMPUTERNONE_01-person",
+      "route": "/m/COMPUTERNONE_01?part=person",
+      "proto": "chats,{skin}",
+      "waitFor": "[data-testid='person-about']",
+      "note": "A person's pane: online, Call shown, pronouns set."
+    },
+    {
+      "id": "COMPUTERNONE_01-away",
+      "route": "/m/COMPUTERNONE_01?part=away",
+      "proto": "chats,{skin}",
+      "waitFor": "[data-testid='person-about']",
+      "note": "A person away: no Call, no pronouns."
+    },
+    {
+      "id": "COMPUTERNONE_01-personchats",
+      "route": "/m/COMPUTERNONE_01?part=personchats",
+      "proto": "chats,{skin}",
+      "waitFor": "[data-testid='person-chats']",
+      "note": "A person's Chats tab."
     }
   ]
 }

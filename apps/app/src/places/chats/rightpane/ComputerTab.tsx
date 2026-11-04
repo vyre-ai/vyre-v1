@@ -307,12 +307,12 @@ function ComputerBody({ deps, computerId, window, canTake }: { deps: PaneDeps; c
       menu: [{ label: "Sign Out", danger: true, onSelect: () => void signOut(deps, c.computerId, x.site) }],
     });
   }
-  { const at = where || (c.host === "vm" ? "its own machine" : "the Space server"); entries.push({ key: "runs-on", type: "block", node: <RunsOn text={`On ${at} · ${view.screen === "asleep" ? "asleep" : `${c.tabs} of ${c.tabLimit} tabs`}`} {...(data.nav.openMachines ? { onPress: data.nav.openMachines } : {})} /> }); }
+  { const at = where || (c.host === "vm" ? "its own machine" : "the Space server"); entries.push({ key: "runs-on", type: "block", node: <RunsOn text={`On ${at} · ${view.screen === "asleep" ? "asleep" : `${c.tabs} of ${c.tabLimit} tabs`}`} {...(data.nav.openMachines ? { onPress: () => data.nav.openMachines?.(c.nodeId) } : {})} /> }); }
   return <View style={st.fill}><PaneList entries={entries} {...(window ? { window } : {})} testID="computer-list" /></View>;
 }
 
 /** The one footer line: where the computer runs and how many tabs it has open; it opens Console, Machines where the shell can. */
-function RunsOn({ text, onPress }: { text: string; onPress?: () => void }): ReactElement {
+export function RunsOn({ text, onPress }: { text: string; onPress?: () => void }): ReactElement {
   const body = <><Icon name="server" size={14} /><Text numberOfLines={1} style={st.footText}>{text}</Text>{onPress ? <Icon name="chev" size={11} /> : null}</>;
   return onPress
     ? <Pressable role="button" accessibilityRole="button" accessibilityLabel={`${text}. Open Machines`} testID="computer-runs-on" onPress={onPress} style={st.foot}>{body}</Pressable>

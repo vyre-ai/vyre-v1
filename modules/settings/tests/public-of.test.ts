@@ -16,6 +16,8 @@ test("a teammate reads what Maya set, and nothing when she set nothing", async (
   await run("settings.set", maya, { key: "profile.timezone", value: "Asia/Karachi" });
   await run("settings.set", maya, { key: "profile.working_hours", value: { days: [1, 2, 3, 4, 5], from: "10:00", to: "18:00" } });
   await run("settings.set", maya, { key: "profile.title", value: "Partner" });
-  assert.deepEqual(await run("settings.public_of", dana, { personId: "usr_maya" }), { timezone: "Asia/Karachi", hours: { days: [1, 2, 3, 4, 5], from: "10:00", to: "18:00" } }, "only zone and hours");
+  assert.deepEqual(await run("settings.public_of", dana, { personId: "usr_maya" }), { timezone: "Asia/Karachi", hours: { days: [1, 2, 3, 4, 5], from: "10:00", to: "18:00" }, title: "Partner" }, "zone, hours and title; no pronouns until set");
+  await run("settings.set", maya, { key: "profile.pronouns", value: "they/them" });
+  assert.deepEqual(await run("settings.public_of", dana, { personId: "usr_maya" }), { timezone: "Asia/Karachi", hours: { days: [1, 2, 3, 4, 5], from: "10:00", to: "18:00" }, pronouns: "they/them", title: "Partner" }, "pronouns only when the person set them");
   await assert.rejects(run("settings.public_of", dana, { personId: "agt_intake" }));
 });

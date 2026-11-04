@@ -7,6 +7,8 @@ import { ScrollView, StyleSheet, Text, View } from "react-native";
 import type { CapMap } from "../../../../../../generated/types.ts";
 import { each } from "../../../shell/sidebar/model.ts";
 import { ProfileHeader, roleLine } from "./ProfileHeader.tsx";
+import { PersonProfile } from "./PersonProfile.tsx";
+import type { PersonProfileProps } from "./PersonProfile.tsx";
 
 type AgentOut = CapMap["agents.get"]["out"]["agent"];
 type SummaryOut = CapMap["agents.summary"]["out"];
@@ -40,9 +42,11 @@ export interface ProfileProps {
   onMention(): void;
   /** An agent's one page: where it is edited. */
   onEdit(): void;
+  /** A person's pane: what the shell can do beside Message and Mention, and where its lists open. */
+  person?: Pick<PersonProfileProps, "now" | "onCall" | "roles" | "openThread" | "openFile" | "openTask" | "copy"> | undefined;
 }
 
-export function ProfilePane({ tab, name, call, onMessage, onMention, onEdit }: ProfileProps): ReactElement {
+export function ProfilePane({ tab, name, call, onMessage, onMention, onEdit, person: more }: ProfileProps): ReactElement {
   const person = tab.kind === "person";
   const [agent, setAgent] = useState<AgentOut | null>(null);
   const [summary, setSummary] = useState<SummaryOut | null>(null);
@@ -53,6 +57,7 @@ export function ProfilePane({ tab, name, call, onMessage, onMention, onEdit }: P
     void Promise.resolve(call("agents.summary", { agentId: tab.id })).then((o) => { if (live) setSummary(o as SummaryOut); }, () => undefined);
     return () => { live = false; };
   }, [call, tab.id, person]);
+  if (person) return <PersonProfile id={tab.id} name={name} call={call} now={more?.now ?? Date.now} onMessage={onMessage} onMention={onMention} {...(more ?? {})} />;
   const shown = tab.kind === "assistant" ? "Assistant" : name;
   const line = "Member";
   const row = (label: string, value: string | number | undefined): ReactElement | null => (value === undefined || value === "" ? null : <View key={label} style={st.kv}><Text style={st.k}>{label}</Text><Text numberOfLines={1} style={st.v}>{String(value)}</Text></View>);

@@ -348,6 +348,7 @@ export function ChatsMounted({ rt, hash = "", initial, window, opened, onSwitch,
       onMessage={() => { if (rightTab.kind === "person") void Promise.resolve(rt.call("chat.start", { kind: "chat", agentIds: [], personId: rightTab.id, idempotencyKey: `dm_${rightTab.id}` })).then((o) => { const id = (o as { thread?: { threadId?: string } }).thread?.threadId; if (id) go.chat(id); }, () => setLine("Could not start the chat. Try again.")); else go.agentChat(rightTab.id); }}
       onMention={() => fill.set(`@${nameOf(rightTab.id)} `)}
       onEdit={() => act({ t: "agent-form", agentId: rightTab.id })}
+      person={{ now: Date.now, openThread: (id) => go.thread(id), openFile: (id) => rt.open({ subject: { type: "file", id } }), openTask: openSideTask, copy: (text) => { copy(text); setLine("Copied the name"); } }}
     />
   ) : null;
   let right: ReactElement | null = null;

@@ -7,6 +7,7 @@ import { ChatRightPane } from "./ChatRightPane.tsx";
 import { ProfileHeader, roleLine } from "./ProfileHeader.tsx";
 import { createSample } from "./sample.ts";
 import { tabsOf } from "./model.ts";
+import { RunsOn } from "./ComputerTab.tsx";
 
 const ALL = { start: 0, end: 500 };
 const clean = (s: string): string => s.replaceAll("<!-- -->", "").replaceAll("&#x27;", "'").replaceAll("&quot;", '"').replaceAll("&amp;", "&");
@@ -51,4 +52,19 @@ test("About reads from the Space: what it is responsible for, and the shared fol
   assert.ok(has(out, "Responsible for") && has(out, "Books first calls and follows up on cold inquiries"));
   assert.ok(has(out, "Intake's folder") && has(out, "Shared with Vyre Files"));
   assert.ok(!/\b(he|she|her|his|hers)\b/i.test(out.replace(/<[^>]+>/g, " ")), "the pane never guesses pronouns");
+});
+
+test("no computer: the offer is the first thing in About, above Responsible for, so it shows without scrolling", () => {
+  const s = createSample();
+  const out = clean(renderToStaticMarkup(<ChatRightPane data={{ ...s.data, agent: { agentId: "agt_intake", name: "Intake" } }} open onToggle={() => undefined} window={ALL} />));
+  assert.ok(out.indexOf('data-testid="about-give"') > 0 && out.indexOf('data-testid="about-give"') < out.indexOf("Responsible for"));
+});
+
+test("Runs on opens Console, Computers with that machine selected; without a shell that can, it is a plain line", () => {
+  const seen: (string | undefined)[] = [];
+  const line = RunsOn({ text: "On the Space server · 2 of 8 tabs", onPress: () => seen.push("space") }) as unknown as { props: { onPress?: () => void } };
+  line.props.onPress?.();
+  assert.deepEqual(seen, ["space"]);
+  const plain = RunsOn({ text: "On the Space server · 2 of 8 tabs" }) as unknown as { props: { onPress?: () => void } };
+  assert.equal(plain.props.onPress, undefined);
 });

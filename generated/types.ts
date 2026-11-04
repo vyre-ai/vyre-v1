@@ -30645,6 +30645,7 @@ export type SettingsPublicOfOut = {
     from: string;
     to: string;
   };
+  pronouns?: string;
 };
 export type SettingsResetIn = {
   key: string;

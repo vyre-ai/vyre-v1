@@ -45,6 +45,7 @@ export function AboutTab({ agent, name, hasComputer, computerNote, onGive, onOpe
   const label = (t: string, key?: string): ReactElement => <Text key={key ?? t} style={st.label}>{t}</Text>;
   return (
     <ScrollView testID="about-tab" style={st.root} contentContainerStyle={st.content}>
+      {hasComputer ? null : <NoComputerRow name={name} onGive={onGive} />}
       {agent?.role ? <>{label("Responsible for")}<Text testID="about-role" style={st.body}>{agent.role}</Text></> : null}
       {working.length > 0 || computerNote ? label("Right now") : null}
       {working.slice(0, 4).map((w) => <View key={w.id} style={st.now}><View style={st.nowDot} /><Text numberOfLines={2} style={st.v}>{w.title}</Text></View>)}
@@ -54,7 +55,6 @@ export function AboutTab({ agent, name, hasComputer, computerNote, onGive, onOpe
       {label("Shared context")}
       <Pressable role="button" testID="about-files" onPress={onOpenFiles} style={st.row}><LeadIcon name="folder" /><View style={st.rowText}><Text style={st.v}>{`${name}'s folder`}</Text><Text style={st.sub}>Shared with Vyre Files</Text></View></Pressable>
       {facts > 0 ? <Pressable role="button" testID="about-knows" onPress={onOpenKnows} style={st.row}><LeadIcon name="doc" /><View style={st.rowText}><Text style={st.v}>What it knows</Text><Text style={st.sub}>{facts === 1 ? "1 thing" : `${facts} things`}</Text></View></Pressable> : null}
-      {hasComputer ? null : <NoComputerRow name={name} onGive={onGive} />}
     </ScrollView>
   );
 }
@@ -72,7 +72,7 @@ const st = StyleSheet.create({
   sub: { fontSize: 12, lineHeight: 16, color: "var(--ink-3)" as string },
   row: { flexDirection: "row", alignItems: "center", gap: 14, minHeight: 56, paddingVertical: 10 },
   rowText: { flex: 1, minWidth: 0 },
-  quiet: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 8, marginTop: 34, padding: 16, borderRadius: 14, backgroundColor: "var(--sunk)" as string },
+  quiet: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 8, marginTop: 16, padding: 16, borderRadius: 14, backgroundColor: "var(--sunk)" as string },
   quietText: { flex: 1, minWidth: 140, fontSize: 13, lineHeight: 18, color: "var(--ink-3)" as string },
   quietLead: { color: "var(--ink-2)" as string, fontWeight: "500" },
 });
