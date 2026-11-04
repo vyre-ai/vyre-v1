@@ -303,21 +303,6 @@ export const completerOf = (): typeof completer => completer;
 /** Tests: stand in for the runtime's one-request completer. */
 export const bindCompleter = (c: typeof completer): void => { completer = c; };
 
-/** The room digest's one request: the account is one the asker can run on, and the request runs as them (their key is taken from their Vault for it). */
-async function digestComplete(call: (cap: string, input: unknown, as?: string) => Promise<unknown>, i: { asker: string; accountRef: string; model?: string; system: string; prompt: string }): Promise<{ text: string }> {
-  const run = completer;
-  if (!run) throw new Error("The engine is not running on this host.");
-  const list = (await call("engine.accounts.list", {}, i.asker)) as { accounts: Array<{ ref: string; driver: string; kind: "api_key" | "subscription"; base?: string; keyless?: boolean; itemId?: string }> };
-  const row = list.accounts.find((a) => a.ref === i.accountRef);
-  if (!row) throw new Error("That account is not one the asker can run on.");
-  const account = {
-    ref: row.ref, driver: row.driver, provider: providerOfDriver(row.driver), kind: row.kind, payer: i.asker, reason: "starter",
-    ...(row.itemId ? { itemId: row.itemId } : {}), ...(row.base ? { base: row.base } : {}), ...(row.keyless ? { keyless: true } : {}),
-  } as ResolvedAccount;
-  const out = await run({ account, prompt: i.prompt, system: i.system, ...(i.model ? { model: i.model } : {}) });
-  return { text: out.text };
-}
-
 /** Run one turn of a pseudo-agent on the account and collect its text and token counts. */
 async function oneShot(openSession: OpenSession, i: CompleteIn, now: () => number): Promise<CompleteOut> {
   const n = now();
@@ -512,7 +497,7 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
     const roller = createRoller({ db: ctx.db, engine: () => running, compactor: () => compactor, ...(h.log ? { log: h.log } : {}) });
     const turnContext = createContextBuilder({
       call: h.call, skills: h.skills ?? capabilitySkills(h.call), now, handoff: takeHandoff,
-      digests: { get: (t, a) => getDigest(ctx.db, t, a), refresh: (o) => { maybeRefreshDigest({ db: ctx.db, call: h.call, now, ...(h.log ? { log: h.log } : {}), complete: (i) => digestComplete(h.call, i) }, o); } },
+      digests: { get: (t, a) => getDigest(ctx.db, t, a), refresh: (o) => { maybeRefreshDigest({ db: ctx.db, call: h.call, now, ...(h.log ? { log: h.log } : {}) }, o); } },
       waiting: (threadId, agentId) => (running?.waiting(threadId) ?? []).filter((w) => w.agentId === agentId).map((w) => `an answer to task ${w.taskId} (a held call needs approval)`),
     });
     const limitSwitch = createLimitSwitch({

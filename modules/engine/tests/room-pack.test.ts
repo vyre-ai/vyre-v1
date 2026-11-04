@@ -131,10 +131,11 @@ test("the digest batch: due after 30 new messages or 10 quiet minutes, never ove
     if (cap === "engine.usage.get") return usage;
     if (cap === "engine.models.list") return { models: [{ model: "claude-opus-5-5", allowed: true }, { model: "claude-haiku-5-5", allowed: true }] };
     if (cap === "memory.capture") { captured.push(i as { threadId: string; reason: string }); return {}; }
+    if (cap === "engine.complete") { completes.push(i as { model?: string }); return { text: "Digest: launch Friday." }; }
     throw new Error(cap);
   };
   const settle = (): Promise<void> => new Promise((r) => setTimeout(r, 20));
-  const base = { db: scoped as never, now: () => T0, complete: async (i: { model?: string }) => { completes.push(i); return { text: "Digest: launch Friday." }; } };
+  const base = { db: scoped as never, now: () => T0 };
   // over the limit: nothing is asked of the model, and no digest exists
   assert.equal(maybeRefreshDigest({ ...base, call: mk({ session: { pct: 95 } }) }, { threadId: "thr_9", agentId: "agt_intake", asker: "usr_maya", messages: msgs, nameOf: (id) => id }), true);
   await settle();

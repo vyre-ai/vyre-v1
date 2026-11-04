@@ -46,8 +46,6 @@ export interface EngineSessionHostDeps {
 
 /** The agent id of an automation AI step that runs as no agent in particular (the same word as modules/engine/step-turn.ts STEP_AGENT; host never imports a module). */
 const STEP_AGENT = "step";
-/** Work that has no agent of its own and asks as the person it is for: an AI step, and a one-shot request (memory upkeep, the room digest: modules/engine/runtime.ts oneShot). A pseudo-agent id is no member of the Space, so the Vault would refuse it. */
-const NOT_AN_AGENT: ReadonlySet<string> = new Set([STEP_AGENT, "memory-upkeep"]);
 const SYSTEM = { kind: "service", id: "svc_host" } as const;
 const TRACE_ID = /^[0-9a-f]{32}$/;
 
@@ -87,7 +85,7 @@ export function createEngineSessionHost(d: EngineSessionHostDeps): EngineSession
   type Who = { agentId: string; asker: string; where: "host" | "device" | "computer"; account?: boolean };
   /** Who asks the Vault: the agent acting for the person in a chat; the person, or a Space automation's own service, for an AI step that names no agent. */
   const seedOf = (who: Who) => {
-    const agentic = !NOT_AN_AGENT.has(who.agentId);
+    const agentic = who.agentId !== STEP_AGENT;
     const service = !agentic && who.asker.startsWith("svc_");
     return agentic
       ? { space: d.space, principal: { kind: "agent" as const, id: who.agentId }, actingFor: who.asker, origin: "engine" }
@@ -121,7 +119,7 @@ export function createEngineSessionHost(d: EngineSessionHostDeps): EngineSession
         try {
           // A chat turn is an agent acting for a person. An automation's AI step that names no agent has none in the chat sense: it is the person's own Run, or a Space automation's own service,
           // so the key is asked for as that principal (the step's marker is "step", as in modules/engine/step-turn.ts). A service reads Shared items only.
-          const agentic = !NOT_AN_AGENT.has(who.agentId);
+          const agentic = who.agentId !== STEP_AGENT;
           const service = !agentic && who.asker.startsWith("svc_");
           const r = await d.invoke(
             "vault.use",

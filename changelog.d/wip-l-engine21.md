@@ -43,7 +43,6 @@
 - The relay's `/health` answers `{ ok: true, version }`. The version is stamped at deploy (`RELAY_VERSION`, from package.json) and is `dev` where none was set.
 - Agents get times in the person's zone: every turn says the zone and its UTC offset, calendar, mail, inbox and task results carry `<key>Local` strings beside ISO and epoch times, and a new `time_convert` tool turns "tomorrow 2pm PT" or a time in one zone into another, so a model never works zones out itself.
 - A room context pack: an agent tagged in a group chat, project chat or channel gets the roster, a digest of older history, and the recent messages (since its last reply, or the last 40) with who said each, person or agent, and the time in the asker's zone, built from the database with no tool call. What was said before a second person joined is left out. The digest is made in batches (30 new messages or 10 quiet minutes) on the account's cheapest model, only under its usage limit; otherwise an earlier line says how much came before. The room's reads are listed up front.
-- A member's own API key now runs the room digest and memory's one-shot requests on a Team server. They asked the Vault as a pseudo-agent that is no member, which the Vault refused (auth.unauthenticated). They ask as the person they are for. The digest batch also called engine.complete from the background, which is refused at depth 0, so it never wrote; it now runs its one-shot directly.
 
 ## What's new
 - Agents on Claude Code or Codex can work in a goal's folder: it shows as goal/ and their changes are saved to Vyre.
