@@ -129,14 +129,15 @@ async function start(ctx: CiCtx, s: Settings, run: Run, price: number): Promise<
       body: { name, region: s.region, size: s.size, image: s.image, tags: ["vyre-ci", `vyre-space-${ctx.space}`], user_data: userData(jit.jitConfig, s.maxJobMinutes), monitoring: false, ipv6: false },
     });
     const id = (made.json["droplet"] as Row | undefined)?.["id"];
-    if (made.status >= 300 || (typeof id !== "number" && typeof id !== "string")) throw Object.assign(new Error("the cloud refused"), { error: { code: made.status === 401 || made.status === 403 ? "provider.auth_failed" : made.status === 422 ? "validation.bad_input" : "provider.unavailable" } });
+    if (made.status >= 300 || (typeof id !== "number" && typeof id !== "string")) throw Object.assign(new Error("the cloud refused"), { said: made.status < 500 && typeof made.json["message"] === "string" ? (made.json["message"] as string).replace(/[\u0000-\u001f]/g, " ").slice(0, 200) : "", error: { code: made.status === 401 ? "provider.auth_failed" : made.status === 403 ? "provider.refused" : made.status === 422 ? "validation.bad_input" : "provider.unavailable" } });
     dropletId = String(id);
     patchRun(ctx, run.runId, { state: "running", droplet_id: dropletId, runner_id: runnerId, started_at: ctx.now() });
     ctx.emit("ci.run.started", `entity/${run.runId}`, { runId: run.runId, repo: run.repo, jobId: run.jobId, dropletId, size: s.size });
     await linkRun(ctx, run.runId);
     return "started";
   } catch (e) {
-    const why = code(e) === "provider.auth_failed" ? "The cloud did not accept the key. Check the Vault item chosen in the CI settings." : code(e) === "validation.bad_input" ? "The cloud refused the machine settings (region, size or image)." : "A machine could not be made.";
+    const said = (e as { said?: string }).said;
+    const why = code(e) === "provider.refused" ? `The cloud refused to make a machine${said ? `: ${said}` : "."}` : code(e) === "provider.auth_failed" ? "The cloud did not accept the key. Check the Vault item chosen in the CI settings." : code(e) === "validation.bad_input" ? "The cloud refused the machine settings (region, size or image)." : "A machine could not be made.";
     ctx.log.warn("ci: a runner could not start", { code: code(e) });
     if (runnerId !== null) await ctx.call("github.runners.remove", { repo: run.repo, runnerId }).catch(() => undefined);
     patchRun(ctx, run.runId, { state: "failed", ended_at: ctx.now(), cost_usd: 0, note: why });

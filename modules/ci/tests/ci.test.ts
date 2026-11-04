@@ -117,6 +117,9 @@ test("start: when the cloud refuses, the run fails with a plain note, the runner
   assert.deepEqual(w.state.removed, [7001]);
   assert.equal(w.named("ci.run.failed").length, 1);
   assert.equal(JSON.stringify(w.state.events).includes("eyJhbGci"), false);
+  w.state.failCreate = 403;   // the account is held for a balance: the provider's own words reach the admin
+  await w.job("queued", { jobId: 32 });
+  assert.match((await w.call("ci.runs.list", { repo: "northwind/site" })).runs[0].note, /^The cloud refused to make a machine/);
   w.state.jitFails = true;
   await w.job("queued", { jobId: 31 });
   assert.equal((await w.call("ci.runs.get", { runId: (await w.call("ci.runs.list", { repo: "northwind/site" })).runs[0].runId })).run.state, "failed");
