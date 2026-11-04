@@ -591,7 +591,7 @@ function ConversationView(): ReactElement {
     : undefined;
   const closed = isClosed(thread);
   const parked = !closed && parkedAtLimit(win.rows[win.rows.length - 1], hopLimit, isWorking);
-  const unanswered = closed || isWorking ? null : unansweredOwn(thread, win.rows, data.me.id, data.directory);
+  const unanswered = closed || isWorking ? null : unansweredOwn(thread, win.rows, data.me.id, data.directory, (id) => replies.has(id));
   // an Ask drawn in its own pane is already titled Ask Vyre: the quiet "Ask pane" line is for an Ask opened in Chats
   const note = data.head || (compact && thread.kind === "ask") ? "" : threadKindNote(thread, nameOf);
   const title = titleOf(thread, nameOf, data.me.id);
@@ -725,7 +725,7 @@ function ConversationView(): ReactElement {
             accessibilityRole="button" accessibilityLabel="No agent will reply. Ask an agent about your message" accessibilityHint="Opens the list of this channel's agents" testID="no-agent-ask"
             onPress={(e) => { const box = (e as unknown as { currentTarget?: { getBoundingClientRect?: () => { left: number; top: number } } }).currentTarget?.getBoundingClientRect?.(); openAskPicker(unanswered.messageId, box?.left ?? 16, box?.top ?? 0); }}
           >
-            <Text style={[st.lineText, { textDecorationLine: "underline" }]}>No agent will reply. @mention one</Text>
+            <Text style={[st.lineText, st.quietLine]}>No agent will reply. @mention one</Text>
           </Pressable>
         </View>
       ) : null}
@@ -874,6 +874,8 @@ const st = StyleSheet.create({
   queue: { fontSize: 12.5, color: "var(--ink-3)" as string, textAlign: "center" },
   lineBox: { paddingHorizontal: 24, paddingVertical: 4, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 },
   lineText: { fontSize: 12.5, color: "var(--ink-2)" as string },
+  /** A quiet line: muted ink, no underline. */
+  quietLine: { color: "var(--ink-3)" as string },
   offerStrip: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10, minHeight: 38, paddingLeft: 14, paddingRight: 6, marginHorizontal: 10, marginBottom: -1, borderTopLeftRadius: 14, borderTopRightRadius: 14, borderWidth: 1, borderColor: "var(--line)" as string, backgroundColor: "var(--side)" as string },
   offerStripText: { flex: 1, minWidth: 0, fontSize: 12.5, color: "var(--ink-2)" as string },
   offerBtns: { flexDirection: "row", alignItems: "center", gap: 2, flexShrink: 0 },

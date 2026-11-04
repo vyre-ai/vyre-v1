@@ -24,7 +24,16 @@ export function mmss(ms: number): string {
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
 }
 
+/** The one line an agent's finished reply gives the footer: its first line, without markdown marks, cut to fit. */
+export function outcomeLine(preview: string | undefined, max = 72): string | null {
+  const first = (preview ?? "").split("\n").map((l) => l.replace(/^[\s>#*\-\d.)`]+/, "").replace(/[*_`]/g, "").trim()).find((l) => l !== "");
+  if (!first) return null;
+  return first.length <= max ? first : `${first.slice(0, max - 1).trimEnd()}\u2026`;
+}
+
 export interface Footer {
+  /** The agent finished and its last reply says so in one line: "Done \u00b7 Book Thursday at 14:00". */
+  done?: { agentId: string; line: string };
   /** An agent is writing in the thread right now. */
   writing: boolean;
   agentId?: string;
@@ -47,7 +56,8 @@ export function footerOf(s: ReplySummary | undefined, turns: readonly LiveTurn[]
   const words = replyWords(sum, c);
   const head = w ? `Working · ${mmss(now - w.startedAt)}` : null;
   const label = [head, words.label].filter((x) => x !== null).join(", ");
-  return { writing: w !== undefined, ...(w ? { agentId: w.agentId } : {}), head, count: words.count, when: sum.count === 0 ? null : words.when, bold: words.bold, label };
+  const line = !w && s?.lastBy?.kind === "agent" ? outcomeLine(s.preview) : null;
+  return { writing: w !== undefined, ...(line && s?.lastBy ? { done: { agentId: s.lastBy.id, line } } : {}), ...(w ? { agentId: w.agentId } : {}), head, count: words.count, when: sum.count === 0 ? null : words.when, bold: words.bold, label };
 }
 
 /** A footer with nothing in the thread and nobody writing draws no line. */
@@ -55,11 +65,11 @@ export const showsFooter = (f: Footer | null, s: ReplySummary | undefined): bool
 
 /**
  * Whether agents reply in threads in a chat, from the chat's row. The server says it outright (`agentRepliesInThreads`); a copy of the row kept on the device holds the person's own choice (`repliesIn`, empty when
- * they never chose) and the kind, from which the default follows: on for a channel, off for a chat.
+ * they never chose) and the kind, from which the default follows: on for a channel and a project's main chat (a chat about a record), off for a chat.
  */
-export function repliesOf(t: { kind: string; agentRepliesInThreads?: boolean | undefined; repliesIn?: number | boolean | null | undefined }): boolean | undefined {
+export function repliesOf(t: { kind: string; recordId?: string | undefined; scopeType?: string | undefined; agentRepliesInThreads?: boolean | undefined; repliesIn?: number | boolean | null | undefined }): boolean | undefined {
   if (t.agentRepliesInThreads !== undefined) return t.agentRepliesInThreads;
   if (!hasSwitch(t)) return undefined;
   if (t.repliesIn !== undefined && t.repliesIn !== null) return t.repliesIn === true || t.repliesIn === 1;
-  return t.kind === "channel";
+  return t.kind === "channel" || (t.recordId !== undefined && t.scopeType === undefined);
 }

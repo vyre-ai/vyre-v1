@@ -17,6 +17,13 @@ test("agents reply in threads by default in a channel and not in a direct chat",
   assert.equal((await h["threads.get"]!(hn.ctx, { threadId: await chatOf(hn) })).thread.agentRepliesInThreads, false);
 });
 
+test("a project's main chat (a chat about a record) defaults on as well, and a plain chat stays off", async () => {
+  const hn = harness();
+  const project = (await h["chat.start"]!(hn.ctx, { kind: "chat", agentIds: [INTAKE], recordId: "rec_project1", idempotencyKey: `pj${++n}` })).thread.threadId as string;
+  assert.equal((await h["threads.get"]!(hn.ctx, { threadId: project })).thread.agentRepliesInThreads, true);
+  assert.equal((await h["threads.get"]!(hn.ctx, { threadId: await chatOf(hn) })).thread.agentRepliesInThreads, false);
+});
+
 test("threads.set_agent_replies stores the choice, answers with the thread and says what changed", async () => {
   const hn = harness();
   const id = await channelOf(hn);

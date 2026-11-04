@@ -57,7 +57,16 @@ export function ThreadFooter({ s, clock, nameOf, onOpen, mine = false, testID, t
   }, [writing]);
   const f = footerOf(s, turns, now, clock);
   if (!showsFooter(f, s) || f === null) return null;
-  // nobody writing: the quiet reply line as it always was
+  if (f.done && s) {
+    return (
+      <Pressable testID={testID} accessibilityRole="button" accessibilityLabel={`Open the thread: Done, ${f.done.line}, ${f.label}`} onPress={onOpen} style={({ hovered }: { hovered?: boolean }) => [st.line, mine && st.mine, hovered === true && st.over]}>
+        <View style={st.face}><Face name={nameOf(f.done.agentId)} seedId={f.done.agentId} kind="agent" size={18} /></View>
+        <Text testID={`${testID}-done`} numberOfLines={1} style={st.doneText}><Text style={st.head}>Done</Text>{` \u00b7 ${f.done.line}`}</Text>
+        <Text testID={`${testID}-count`} style={[st.count, f.bold && st.bold]}>{f.count}</Text>
+      </Pressable>
+    );
+  }
+  // nobody writing and no outcome to say: the quiet reply line as it always was
   if (!f.writing && s) return <ReplyLine s={s} clock={clock} nameOf={nameOf} onOpen={onOpen} mine={mine} testID={testID} />;
   const who = f.agentId ?? "";
   return (
@@ -75,6 +84,7 @@ const st = StyleSheet.create({
   mine: { alignSelf: "flex-end" },
   over: { backgroundColor: "var(--hover)" as string },
   face: { flexShrink: 0 },
+  doneText: { flexShrink: 1, minWidth: 0, fontSize: 13, color: "var(--ink-2)" as string },
   head: { fontSize: 13, color: "var(--ink)" as string, fontWeight: "500" },
   count: { fontSize: 12.5, color: "var(--accent)" as string, fontWeight: "500" },
   bold: { fontWeight: "700" },

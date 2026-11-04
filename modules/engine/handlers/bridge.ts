@@ -534,8 +534,8 @@ export function createBridge(o: BridgeOptions): Bridge {
     if (a.kind === "person" && poke === undefined && p["job"] !== true) {
       try {
         const g = (await reader(ctx, authorId, home)("threads.get", { threadId: home })) as ThreadGet & { thread: { agentRepliesInThreads?: boolean; parentThreadId?: string } };
-        if (g.thread.kind === "channel" && g.thread.agentRepliesInThreads === true && g.thread.parentThreadId === undefined) {
-          const would = routeOf({ agents: eng.agents(home), kind: "channel", ...(people ? { people } : {}) }, { author: { kind: "person", id: authorId }, mentions, depth: 0, replyToPerson, text: got.message.body, ...(minutes === undefined ? {} : { minutes }) });
+        if ((g.thread.kind === "channel" || g.thread.kind === "chat") && g.thread.agentRepliesInThreads === true && g.thread.parentThreadId === undefined) {
+          const would = routeOf({ agents: eng.agents(home), kind: g.thread.kind, ...(people ? { people } : {}) }, { author: { kind: "person", id: authorId }, mentions, depth: 0, replyToPerson, text: got.message.body, ...(minutes === undefined ? {} : { minutes }) });
           if (would.responders.length > 0) {
             const made = (await reader(ctx, authorId, home)("chat.thread", { threadId: home, messageId })) as { thread: { threadId: string } };
             if (await open(ctx, made.thread.threadId, messageId, authorId)) {

@@ -16,12 +16,20 @@ setTimeout(() => { console.log("WATCHDOG"); process.exit(9); }, 420000).unref();
 
 const WHO = ["usr_olivia", "usr_mia"];
 let agentId = "";
-const model = eco.scriptedModel(async function* (input: any) {
+const model = eco.scriptedModel(async function* (input: any, run: any) {
   const said = input.trigger?.body ?? "";
   if (/vendor call/.test(said)) {
     yield { type: "text", text: "Two helpers. Tess checks the vendor calendar and Orin compares the quotes. " };
     await new Promise((r) => setTimeout(r, 30000));
     yield { type: "text", text: "Harbor costs $260 more up front, but its setup is two weeks sooner. Thursday 14:00 is free. Want me to book it?" };
+  } else if (/loop in Noah/.test(said)) {
+    // an outward act nobody asked for in words: the Gate holds it and the turn parks on an approval
+    yield { type: "text", text: "I will tell Noah. " };
+    yield* run("tool_search", { query: "people status message person" });
+    const w = yield* run("people_status", { q: "Noah" });
+    const handle = (((w.content as any).data?.people ?? [])[0] ?? {}).handle ?? "noah";
+    yield* run("message_person", { to: handle, body: "The vendor call is Thursday at 14:00.", idempotencyKey: "walk-noah-1" });
+    yield { type: "text", text: "Sent." };
   } else yield { type: "text", text: "Got it. Noted for the summary." };
 });
 
@@ -44,7 +52,7 @@ const list = async (who: string, threadId: string): Promise<any[]> => { await d.
 const until = async (f: () => Promise<boolean>, what: string, ms = 60000) => { const end = Date.now() + ms; while (Date.now() < end) { if (await f()) return true; await new Promise((r) => setTimeout(r, 250)); } console.log("NEVER", what); return false; };
 
 await eco.connect(d);
-agentId = (await api("usr_olivia", "agents.create", { name: "Assistant", role: "You help the team.", idempotencyKey: "w-agent" })).agent.agentId;
+agentId = (await api("usr_olivia", "agents.create", { name: "Intake", role: "You help the team.", idempotencyKey: "w-agent" })).agent.agentId;
 const keys = await api("usr_olivia", "vault.folders.create", { idempotencyKey: "w-ai", name: "AI accounts", scope: "shared" });
 const acct = await api("usr_olivia", "providers.add", { idempotencyKey: "w-acct", providerKey: "anthropic", connection: "api_key", apiKey: `${eco.KEY}A`, name: "Team AI", scope: "shared", folderId: keys.folder.id });
 await api("usr_olivia", "agents.update", { agentId, patch: { accountPolicy: "key", accountKey: acct.provider.handle }, idempotencyKey: "w-upd" });
@@ -121,6 +129,23 @@ try {
       await shot(page, `phone-thread-${mode}`);
       await ctx.close(); }
   }
+  // Also sent to the chat: Mia ticks "Also post to the chat" on her reply in the thread; the chat gets a copy that names its thread, the thread's message carries the mark
+  await api("usr_mia", "chat.post", { threadId: thr.threadId, body: "Decision: book Thursday 14:00 and go with Harbor.", alsoToChat: true, idempotencyKey: "w-also" });
+  await until(async () => (await list("usr_mia", main)).some((m: any) => (m.blocks ?? []).some((b: any) => b.type === "from_thread")), "the copy in the chat");
+  checks.push(`also sent: copy in the chat carries from_thread = ${(await list("usr_mia", main)).some((m: any) => (m.blocks ?? []).some((b: any) => b.type === "from_thread"))}`);
+  for (const mode of ["light", "dark"] as const) {
+    { const { page, ctx } = await open("usr_mia", { mode });
+      await page.getByText("Also sent to the chat from a thread").first().waitFor({ timeout: 15000 }).catch(() => console.log("nocopy"));
+      await shot(page, `main-also-sent-${mode}`);
+      await page.getByText(/replies|reply/).first().click({ timeout: 8000 }).catch(() => undefined);
+      await page.getByText("Also sent to the chat", { exact: true }).first().waitFor({ timeout: 15000 }).catch(() => console.log("nomark"));
+      await shot(page, `thread-also-sent-${mode}`);
+      await ctx.close(); }
+  }
+  { const { page, ctx } = await open("usr_mia", { mode: "light", w: 390, hh: 844 });
+    await page.getByText(/replies|reply/).first().click({ timeout: 8000 }).catch(() => undefined);
+    await page.getByText("Also sent to the chat", { exact: true }).first().waitFor({ timeout: 15000 }).catch(() => console.log("nomark-phone"));
+    await shot(page, "phone-thread-also-sent-light"); await ctx.close(); }
   // the switch off: the next ask is answered in the chat itself
   await api("usr_mia", "threads.set_agent_replies", { threadId: main, inThreads: false });
   const ask2 = (await api("usr_mia", "chat.post", { threadId: main, body: "Thanks. Note that for the summary.", mentions: [{ kind: "agent", id: agentId }], idempotencyKey: "w-ask2" })).message;
@@ -128,6 +153,24 @@ try {
   const t2 = ((await api("usr_mia", "threads.list", { parentThreadId: main })).threads ?? []).find((t: any) => t.parentMessageId === ask2.messageId);
   checks.push(`switch off: second ask answered in the chat = ${(await list("usr_mia", main)).some((m: any) => /Noted for the summary/.test(m.body ?? ""))}, thread made = ${t2 !== undefined}`);
   { const { page, ctx } = await open("usr_mia", { mode: "light" }); await shot(page, "main-switch-off-light"); await ctx.close(); }
+  // an approval asked in a thread: one quiet line in the chat that opens the thread, the card in the thread
+  await api("usr_mia", "threads.set_agent_replies", { threadId: main, inThreads: true });
+  const ask3 = (await api("usr_mia", "chat.post", { threadId: main, body: "Please loop in Noah about the Thursday call.", mentions: [{ kind: "agent", id: agentId }], idempotencyKey: "w-ask3" })).message;
+  const held = await until(async () => ((await api("usr_olivia", "gate.holds.list", { states: ["held"] })).holds ?? []).length > 0, "a held approval", 90000);
+  const quiet = await until(async () => (await list("usr_mia", main)).some((m: any) => (m.blocks ?? []).some((b: any) => b.type === "turn_status" && /needs your OK/.test(JSON.stringify(b.data)))), "the quiet line in the chat", 60000);
+  checks.push(`approval: held = ${held}, quiet line in the chat = ${quiet}, thread made under the ask = ${((await api("usr_mia", "threads.list", { parentThreadId: main })).threads ?? []).some((t: any) => t.parentMessageId === ask3.messageId)}`);
+  for (const mode of ["light", "dark"] as const) {
+    { const { page, ctx } = await open("usr_mia", { mode });
+      await page.getByText(/needs your OK/).first().waitFor({ timeout: 15000 }).catch(() => console.log("noquiet"));
+      await shot(page, `main-approval-${mode}`);
+      await page.getByText(/needs your OK/).first().click({ timeout: 8000 }).catch(() => console.log("noopen"));
+      await page.waitForTimeout(1500);
+      await shot(page, `thread-approval-${mode}`);
+      await ctx.close(); }
+  }
+  { const { page, ctx } = await open("usr_mia", { mode: "light", w: 390, hh: 844 });
+    await page.getByText(/needs your OK/).first().waitFor({ timeout: 15000 }).catch(() => console.log("noquiet-phone"));
+    await shot(page, "phone-main-approval-light"); await ctx.close(); }
 } catch (e) { console.log("WALK FAILED", e); }
 console.log("CHECKS\n" + checks.join("\n"));
 await browser.close(); web.close(); await eco.stop(d); process.exit(0);

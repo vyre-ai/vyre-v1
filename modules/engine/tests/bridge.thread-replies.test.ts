@@ -103,8 +103,8 @@ test("with the switch off the reply stays in the chat and no thread is made", as
   assert.equal(agentPosts(s)[0]!.threadId, MAIN);
 });
 
-test("a direct chat stays inline", async () => {
-  const s = setup({ kind: "chat", on: true });
+test("a direct chat stays inline (its switch is off by default)", async () => {
+  const s = setup({ kind: "chat", on: false });
   await s.say("Hello.");
   assert.equal(s.made.length, 0);
   assert.equal(agentPosts(s)[0]!.threadId, MAIN);
@@ -145,4 +145,10 @@ test("an approval asked in the thread rises to the chat as one quiet line that o
   assert.match(blocks, /needs your OK/);
   assert.ok(blocks.includes(thread), "and it names the thread it opens");
   assert.equal(quiet[0]!.body, "", "no words of the work come to the chat");
+});
+
+test("a project's main chat (kind chat, switch on by default) answers in the thread too", async () => {
+  const s = setup({ kind: "chat", on: true });
+  const { id } = await s.say("Compare the two quotes.");
+  assert.equal(agentPosts(s)[0]!.threadId, `thr_under_${id}`);
 });

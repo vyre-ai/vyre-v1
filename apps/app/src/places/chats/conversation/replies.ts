@@ -4,11 +4,11 @@ import { chatWhen } from "../rightpane/model.ts";
 import type { Clock } from "../rightpane/model.ts";
 
 export interface ReplyFace { id: string; kind: "person" | "agent" }
-export interface ReplySummary { threadId: string; count: number; lastAt?: number; people: readonly ReplyFace[]; unread: number; muted: boolean }
+export interface ReplySummary { threadId: string; count: number; lastAt?: number; people: readonly ReplyFace[]; unread: number; muted: boolean; /** The first line of the newest reply, and who wrote it: what the footer says when an agent is done. */ preview?: string; lastBy?: ReplyFace }
 
 interface ThreadLike {
   threadId: string; kind: string; parentMessageId?: string | undefined; replyCount?: number | undefined; lastMessageAt?: number | undefined;
-  repliers?: readonly { kind: string; id: string }[] | undefined; unread?: number | undefined; muted?: boolean | undefined;
+  repliers?: readonly { kind: string; id: string }[] | undefined; unread?: number | undefined; muted?: boolean | undefined; preview?: string | undefined;
 }
 
 /** The reply threads of a chat by the message each hangs off. A thread nobody has written in yet draws no line, unless `empty` keeps it so a footer can show an agent writing in it. */
@@ -19,6 +19,7 @@ export function replySummaries(threads: readonly ThreadLike[], o: { empty?: bool
     out.set(t.parentMessageId, {
       threadId: t.threadId, count: t.replyCount ?? 0, ...(t.lastMessageAt !== undefined ? { lastAt: t.lastMessageAt } : {}),
       people: (t.repliers ?? []).slice(0, 3).map((r) => ({ id: r.id, kind: r.kind === "agent" ? "agent" : "person" })), unread: t.muted ? 0 : t.unread ?? 0, muted: t.muted === true,
+      ...(t.preview ? { preview: t.preview } : {}), ...(t.repliers && t.repliers[0] ? { lastBy: { id: t.repliers[0].id, kind: t.repliers[0].kind === "agent" ? "agent" as const : "person" as const } } : {}),
     });
   }
   return out;

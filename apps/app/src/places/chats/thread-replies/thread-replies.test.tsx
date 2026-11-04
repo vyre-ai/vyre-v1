@@ -65,6 +65,38 @@ test("the footer under the ask: nothing for an empty thread, then the reply coun
   assert.match(textOf(find(root, "replies-c2")), /3 replies.*Last reply 9:55/s, "the line follows the thread live");
 });
 
+test("when the agent has finished the footer says Done with its one-line outcome, then the reply count", async () => {
+  installDom(); widen(1280);
+  const s = channel();
+  s.replica.put("threads", [threadRow({ replyCount: 3, lastMessageAt: at(9, 40), repliers: [{ kind: "agent", id: "agt_intake" }], preview: "**Decision:** book Thursday 14:00 and go with Harbor, who is ready two weeks sooner than Pine." })]);
+  const root = await mount(createRoot, <Conversation data={s.data} />);
+  await flush();
+  const foot = textOf(find(root, "replies-c2"));
+  assert.match(foot, /Done\s+\S\s+Decision: book Thursday 14:00 and go with Harbor/, "Done and the first line, without markdown");
+  assert.match(foot, /3 replies/);
+  assert.ok(find(find(root, "replies-c2")!, "face-Intake"), "the face of the agent that finished");
+  assert.ok(foot.length < 120, "one line, cut to fit");
+  // a person had the last word: the quiet reply line, not Done
+  s.replica.put("threads", [threadRow({ replyCount: 4, lastMessageAt: at(9, 50), repliers: [{ kind: "person", id: "usr_irfad" }], preview: "Thanks" })]);
+  await flush();
+  assert.doesNotMatch(textOf(find(root, "replies-c2")), /Done/);
+});
+
+test("the no-agent hint agrees with the routing: no line under an ask an agent answers in a thread; with nobody answering it is a quiet line, not underlined", async () => {
+  installDom(); widen(1280);
+  const quiet = channel();
+  const a = await mount(createRoot, <Conversation data={quiet.data} />);
+  await flush();
+  const line = find(a, "no-agent-line");
+  assert.ok(line, "nobody was named in a channel where agents listen, so the line says so");
+  assert.equal(JSON.stringify(line).includes("underline"), false, "a quiet line, not a link look");
+  const answered = channel();
+  answered.replica.put("threads", [threadRow({ replyCount: 1, lastMessageAt: at(9, 40) })]);
+  const b = await mount(createRoot, <Conversation data={answered.data} />);
+  await flush();
+  assert.equal(find(b, "no-agent-line"), null, "an agent answers under the message: the footer says so, the hint does not contradict it");
+});
+
 test("while an agent writes in the thread the footer shows its face and Working with a running timer", async () => {
   installDom(); widen(1280);
   const s = channel();
