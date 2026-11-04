@@ -126,8 +126,8 @@ test("a thread keeps its parent's place, a task its project, a project chat its 
     "threads.get": (b) => b["threadId"] === "thr_t" ? { thread: { threadId: "thr_t", kind: "chat", scopeType: "task", scopeId: "tsk_1", members: [person(DANA), person(MAYA)] } } : threadsFor(DANA, s.w, [])(b),
     "tasks.get": () => ({ task: { projectId: "prj_x" } }),
   });
-  assert.deepEqual(await placeOf(h.ctx, "thr_sub"), { kind: "channel", id: "chn_deals" });
-  assert.deepEqual(await placeOf(h.ctx, "thr_t"), { kind: "task", id: "tsk_1", parent: { kind: "project", id: "prj_x" } });
+  assert.deepEqual(await placeOf(h.ctx, "thr_sub"), { kind: "channel", id: "chn_deals", thread: "thr_chan" });
+  assert.deepEqual(await placeOf(h.ctx, "thr_t"), { kind: "task", id: "tsk_1", thread: "thr_t", parent: { kind: "project", id: "prj_x" } });
 });
 
 test("a channel of one person still keeps its memory for that channel: a stranger never reads it (L1)", async () => {

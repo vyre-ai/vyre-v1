@@ -7,7 +7,7 @@ import type { Db, Fact, MemCtx } from "./projections.ts";
 
 export const PLACE_KINDS = ["chat", "channel", "project", "task", "goal", "record"] as const;
 export type PlaceKind = (typeof PLACE_KINDS)[number];
-export interface Place { kind: PlaceKind; id: string; /** the place it points up to: a task's project or goal, a project chat's project */ parent?: { kind: PlaceKind; id: string } }
+export interface Place { kind: PlaceKind; id: string; /** the place it points up to: a task's project or goal, a project chat's project */ parent?: { kind: PlaceKind; id: string }; /** the chat or channel the place is read through: a thread's is the one it hangs under, so who may read a decision made in a thread is who may open its parent */ thread?: string }
 
 /** Kinds of a shared-place memory (rule 3). Anything else a model proposes is kept as a fact. */
 export const MEMORY_KINDS = ["decision", "fact", "commitment", "preference", "question", "role"] as const;
@@ -35,10 +35,14 @@ export async function placeOf(ctx: Pick<MemCtx, "call">, threadId: string): Prom
     if (parent !== "" && text(t["channelId"]) === "") { id = parent; continue; }
     const st = text(t["scopeType"]), sid = text(t["scopeId"]);
     if (sid !== "" && (st === "project" || st === "task" || st === "goal" || st === "record")) {
-      return { kind: st, id: sid, ...(st === "task" ? await taskParent(ctx, sid) : {}) };
+      return { kind: st, id: sid, thread: id, ...(st === "task" ? await taskParent(ctx, sid) : {}) };
     }
-    if (text(t["channelId"]) !== "") return { kind: "channel", id: text(t["channelId"]) };
-    return { kind: "chat", id };
+    if (text(t["channelId"]) !== "") {
+      let main = id;
+      try { main = text(((await ctx.call("channels.get", { channelId: text(t["channelId"]) })) as { channel?: Obj }).channel?.["mainThreadId"]) || id; } catch { /* the thread itself stands in */ }
+      return { kind: "channel", id: text(t["channelId"]), thread: main };
+    }
+    return { kind: "chat", id, thread: id };
   }
   return { kind: "chat", id: threadId };
 }

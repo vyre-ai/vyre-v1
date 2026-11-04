@@ -149,7 +149,7 @@ try {
     }
   }
   log(`seeded: ${said} messages, ${deleted} deleted, ${Object.keys(msgs).length} labelled, in ${((Date.now() - t0) / 1000).toFixed(0)} s`);
-  if (process.env["EVAL_SQL"]) { log(JSON.stringify(await d.db!.all(process.env["EVAL_SQL"]), null, 0)); process.exit(0); }
+  if (process.env["EVAL_SQL"]) { log(`labels: ${JSON.stringify(Object.fromEntries(Object.entries(msgs).map(([k, v]) => [k, v.id.slice(-6)])))}`); log(JSON.stringify(await d.db!.all(process.env["EVAL_SQL"]), null, 0)); process.exit(0); }
   if (process.env["EVAL_SEED_ONLY"]) {
     const counts = await d.db!.all("SELECT layer, state, status, COUNT(*) AS n FROM memory_facts GROUP BY layer, state, status") as unknown[];
     log(`facts: ${JSON.stringify(counts)}`);
