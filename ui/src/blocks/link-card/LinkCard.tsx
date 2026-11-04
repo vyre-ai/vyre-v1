@@ -36,7 +36,7 @@ export function LinkCard({ id, data, nameOf, icon, onOpen, onAction, done, state
       <Text numberOfLines={2} style={st.text}>
         {`${line}: `}
         <Text accessibilityRole={open ? "link" : "text"} testID={`link-card-${id}-open`} onPress={open} style={open ? st.link : st.title}>{hidden ? hiddenTitle(data.target?.type) : data.title}</Text>
-        {hidden && onAskAccess ? <Text>{" "}</Text> : null}
+        {hidden && onAskAccess ? <Text style={st.title}>{" \u00b7 "}</Text> : null}
         {hidden && onAskAccess ? <Text accessibilityRole={asked ? "text" : "link"} testID={`link-card-${id}-ask`} onPress={asked ? undefined : onAskAccess} style={asked ? st.title : st.link}>{asked ? "Asked for access" : "Ask for access"}</Text> : null}
       </Text>
       {state && !hidden ? <Text testID={`link-card-${id}-state`} style={[st.state, state.tone === "ok" && st.ok, state.tone === "warn" && st.warn, state.tone === "bad" && st.bad]}>{state.text}</Text> : null}

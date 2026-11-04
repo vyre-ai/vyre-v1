@@ -68,7 +68,7 @@ test("a work card says what its thing is doing now, and hides the name from a re
   assert.deepEqual(opened, ["run_1"]);
   const hidden = await mount(createRoot, <LinkCard id="w2" data={{ icon: "task", lead: "Task created", title: "Secret merger plan", target: { type: "task", id: "tsk_9" } }} nameOf={names} onOpen={(t) => opened.push(t.id)} hidden />);
   assert.ok(!textOf(find(hidden, "link-card-w2")).includes("Secret merger plan"), "the name is not shown");
-  assert.match(textOf(find(hidden, "link-card-w2")), /A task you do not have access to/);
+  assert.match(textOf(find(hidden, "link-card-w2")), /A task you don't have access to/);
   assert.equal(typeof find(hidden, "link-card-w2-open")!.props.onClick, "undefined", "and it is not a link: it opens nothing");
   assert.deepEqual(opened, ["run_1"]);
 });

@@ -66,7 +66,7 @@ test("the feed is drawn once, final: a row for a thing the person cannot open lo
   ] as never[];
   const out = await withReach(call as never, feed);
   assert.equal(calls.length, 1, "one call for the whole feed");
-  assert.deepEqual(out.map((x: { title: string; subject?: unknown }) => [x.title, x.subject !== undefined]), [["Send the retainer", true], ["A task you do not have access to", false], ["A comment", false]]);
+  assert.deepEqual(out.map((x: { title: string; subject?: unknown }) => [x.title, x.subject !== undefined]), [["Send the retainer", true], ["A task you don't have access to", false], ["A comment", false]]);
   const broken = await withReach((async () => { throw new Error("down"); }) as never, feed);
   assert.deepEqual(broken, feed, "a Space that does not answer leaves the rows as they are");
 });

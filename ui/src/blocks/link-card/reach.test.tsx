@@ -18,9 +18,9 @@ test("the level the Space attached is read, and only the five known levels", () 
 });
 
 test("what stands in for the name says the kind of thing and nothing else", () => {
-  assert.equal(hiddenTitle("task"), "A task you do not have access to");
-  assert.equal(hiddenTitle("file"), "A file you do not have access to");
-  assert.equal(hiddenTitle("chat"), "A chat you do not have access to");
+  assert.equal(hiddenTitle("task"), "A task you don't have access to");
+  assert.equal(hiddenTitle("file"), "A file you don't have access to");
+  assert.equal(hiddenTitle("chat"), "A chat you don't have access to");
   assert.equal(hiddenTitle("fact"), "Not shared with you");
 });
 
@@ -32,7 +32,7 @@ test("a card for a thing the reader cannot open shows no name, is not a link, an
     await flush();
     const text = textOf(root as never);
     assert.ok(!text.includes("Settlement offer"), "the thing's name is never shown");
-    assert.ok(text.includes("A task you do not have access to"));
+    assert.ok(text.includes("A task you don't have access to"));
     const open = find(root, "link-card-c1-open")!;
     assert.notEqual(open.props.role, "link", "plain text, not a link");
     await press(find(root, "link-card-c1-ask"));
