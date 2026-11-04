@@ -264,6 +264,7 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
 
   function ingest(st: ThreadState, m: IncomingMessage, interrupt: boolean): ReceiveResult {
     if (m.people) st.thread.people = [...m.people];
+    if (m.hold === true) { const kept = store(st, m); return { responders: [], reason: "no_lead", qseqs: [], messageId: kept.id }; }
     return dispatch(st, store(st, m), interrupt, m.replyToPerson, m.job, m.asker, m.poke, m.minutes);
   }
 

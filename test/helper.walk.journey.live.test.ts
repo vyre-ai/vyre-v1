@@ -47,9 +47,8 @@ test("running helpers: a held request, Change model, a person messaging a helper
         yield* run("tool_search", { query: "crew teammate" });
         yield* run("crew_start", { threadId: input.threadId, idempotencyKey: "w-code", title: "Fix the invoice date bug", brief: "Fix the invoice date bug and add a test." });
       } else if (input.trigger?.author.kind === "agent") {
-        // one answer, after the last helper is done: a helper that finishes while others still work gets no answer yet
-        const c = (await api("engine.crew.status", { threadId: chat })) as { totals: { working: number; needsYou: number } };
-        if (c.totals.working + c.totals.needsYou === 0) yield { type: "text", text: "Harbor costs more up front but is ready in two weeks [2]. Pine Works is cheaper but takes four [3]. Thursday at 14:00 is free on the calendar [1]." };
+        // the engine wakes the lead once, after the last helper is back
+        yield { type: "text", text: "Harbor costs more up front but is ready in two weeks [2]. Pine Works is cheaper but takes four [3]. Thursday at 14:00 is free on the calendar [1]." };
       }
       return;
     }
@@ -124,14 +123,6 @@ test("running helpers: a held request, Change model, a person messaging a helper
       throw e;
     });
     const size = phone ? "phone" : "wide";
-    // a thread under the first message, and a reply sent also to the chat
-    const first = ((await api("chat.messages.list", { threadId: chat })).messages as Array<{ messageId: string }>)[0]!.messageId;
-    const th = (await api("chat.thread", { threadId: chat, messageId: first })).thread.threadId as string;
-    // a person's reply in the thread, sent also to the chat (the walk has no agent that can post into an inline thread)
-    await api("chat.post", { threadId: th, body: "Decision: book Thursday 14:00 and go with Harbor.", alsoToChat: true, idempotencyKey: "w-also" });
-    const copied = ((await api("chat.messages.list", { threadId: chat })).messages as Array<{ body: string; blocks: Array<{ type: string }> }>).some((m) => m.body.startsWith("Decision:") && m.blocks.some((b) => b.type === "from_thread"));
-    assert.ok(copied, "Also post to the chat puts the decision in the chat, marked from the thread");
-
     for (const [skin, mode] of [["paper", "light"], ["graphite", "dark"]] as const) {
       const ctx = await browser.newContext({ viewport: phone ? { width: 390, height: 844 } : { width: 1440, height: 900 } });
       await ctx.addInitScript((s: unknown) => { try { localStorage.setItem("vyre.session.v1", JSON.stringify({ sessions: { [(s as { baseUrl: string }).baseUrl]: s } })); } catch { /* blocked */ } }, session);
@@ -203,6 +194,19 @@ test("running helpers: a held request, Change model, a person messaging a helper
       await page.getByTestId("crew-overview").locator('[data-testid^="crew-chip-"][role="button"]').filter({ hasText: "Check the calendar" }).first().click({ timeout: 15_000 });
       await page.getByTestId("crew-peek").first().waitFor({ timeout: 20_000 });
       await shot(`crew-peek-done-${mode}-${size}`);
+      if (mode === "light") {
+      // a thread under the first message, and a reply sent also to the chat
+      const first = ((await api("chat.messages.list", { threadId: chat })).messages as Array<{ messageId: string }>)[0]!.messageId;
+      const th = (await api("chat.thread", { threadId: chat, messageId: first })).thread.threadId as string;
+      // a person's reply in the thread, sent also to the chat (the walk has no agent that can post into an inline thread)
+      await api("chat.post", { threadId: th, body: "Decision: book Thursday 14:00 and go with Harbor.", alsoToChat: true, idempotencyKey: "w-also" });
+      const copied = ((await api("chat.messages.list", { threadId: chat })).messages as Array<{ body: string; blocks: Array<{ type: string }> }>).some((m) => m.body.startsWith("Decision:") && m.blocks.some((b) => b.type === "from_thread"));
+      assert.ok(copied, "Also post to the chat puts the decision in the chat, marked from the thread");
+        await page.reload({ waitUntil: "load" });
+        await page.getByText("Vendor call and quotes", { exact: false }).first().click({ timeout: 30_000 }).catch(() => undefined);
+        await page.getByText(/Also sent to the chat from a thread/).first().waitFor({ timeout: 30_000 });
+        await shot(`crewthread-also-${mode}-${size}`);
+      }
       await ctx.close();
     }
   } finally { await browser.close(); web.close(); await stop(d); }

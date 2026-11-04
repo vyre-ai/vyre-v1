@@ -561,7 +561,10 @@ export function createBridge(o: BridgeOptions): Bridge {
     const job = p["job"] === true ? str(p["actingFor"]) || authorId : undefined;
     // an agent's post speaks for the person it acted for (chat.post's actingFor): a turn it sets off runs for that person, never for the chat's starter; with nobody behind it, it runs for no one
     const speaksFor = a.kind === "agent" && str(p["actingFor"]).startsWith("usr_") ? str(p["actingFor"]) : undefined;
+    // a helper's or teammate's result while others of the crew still work: it is kept in the chat, and nobody is woken. The lead answers once, when the last one is back (owner, 4 Nov 2026).
+    const hold = a.kind === "agent" ? await othersStillWorking(ctx, readAs, threadId, (got.message as { blocks?: Array<{ type?: string; data?: unknown }> }).blocks) : false;
     const res = withMessageId(messageId, () => eng.receive({
+      ...(hold ? { hold: true } : {}),
       threadId, author: { kind: a.kind === "agent" ? "agent" : "person", id: authorId }, mentions, depth: Number(p["depth"] ?? 0), body: got.message.body + note + (poke ? POKE_NOTE : ""), replyToPerson, ...(people ? { people } : {}), ...(job ? { job } : {}), ...(speaksFor ? { asker: speaksFor } : {}),
       ...(poke ? { poke: { agentId: poke.agentId, by: poke.by ?? authorId } } : {}), ...(minutes === undefined ? {} : { minutes }),
     }));
@@ -583,6 +586,17 @@ export function createBridge(o: BridgeOptions): Bridge {
       catch (e) { ctx.log.warn("the hand-off line could not be shown", { threadId, error: e instanceof Error ? e.message : String(e) }); }
     }
     return { receivedAs: res.responders };
+  }
+
+  /** True when the message is a helper's result and another member of the crew is still working or waiting for a person. */
+  async function othersStillWorking(ctx: EngineCtx, readAs: string, threadId: string, blocks: ReadonlyArray<{ type?: string; data?: unknown }> | undefined): Promise<boolean> {
+    const done = (blocks ?? []).find((b) => b.type === "helper" && ((b.data ?? {}) as Record<string, unknown>)["status"] !== undefined);
+    if (!done) return false;
+    const own = str(((done.data ?? {}) as Record<string, unknown>)["threadId"]);
+    try {
+      const c = (await reader(ctx, readAs, threadId)("engine.crew.status", { threadId })) as { members: Array<{ id: string; state: string }> };
+      return c.members.some((m) => m.id !== own && (m.state === "working" || m.state === "needs_you"));
+    } catch { return false; }
   }
 
   async function onEdited(ctx: EngineCtx, p: Record<string, unknown>): Promise<{ skipped?: string; receivedAs?: string[] }> {

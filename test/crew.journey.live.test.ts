@@ -53,7 +53,7 @@ test("a person watches a crew build in the real app: the Crew tab, one result ca
       yield* run("crew_start", { threadId: input.threadId, idempotencyKey: "journey-start", projectId: project, teammateId: teammate, title: "Dark mode", brief: "Add a dark mode toggle and a test." });
       yield { type: "text", text: "I started Ember on the dark mode toggle." };
     } else if (input.trigger?.author.id === teammate) {
-      yield { type: "text", text: "Ember is done. The branch is ready for you to merge." };
+      yield { type: "text", text: "Ember is done." };
     }
   });
   const fresh = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "vyre-crew-journey-")));

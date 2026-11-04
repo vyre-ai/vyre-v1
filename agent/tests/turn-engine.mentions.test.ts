@@ -40,3 +40,17 @@ test("the same two agents never pass it back and forth more than twice", async (
   const ran = passes.map(([from, to], i) => engine.receive({ threadId: "T", author: agent(from), mentions: [agent(to)], depth: i + 1, asker: "dana", body: "back" }).responders.length);
   assert.deepEqual(ran, [1, 1, 0], "the third pass between the same pair is dropped");
 });
+
+test("a held message is kept in the chat and wakes nobody", async () => {
+  const p = scriptedProvider({ script: quiet });
+  const engine = createTurnEngine({ holder: "host:s", openSession: p.openSession });
+  engine.openThread({ id: "T", kind: "chat", starter: "dana", agents: team() });
+  const held = engine.receive({ threadId: "T", author: agent("intake"), mentions: [agent("docs")], depth: 1, asker: "dana", body: "result one", hold: true });
+  assert.deepEqual(held.responders, []);
+  assert.deepEqual(held.qseqs, []);
+  assert.ok(held.messageId, "it is stored");
+  await engine.idle("T");
+  assert.equal(p.sessions.length, 0, "no turn ran");
+  const next = engine.receive({ threadId: "T", author: agent("intake"), mentions: [agent("docs")], depth: 1, asker: "dana", body: "result two" });
+  assert.deepEqual(next.responders, ["docs"], "the next, unheld message wakes as usual");
+});
