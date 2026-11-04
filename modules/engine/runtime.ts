@@ -95,6 +95,7 @@ export interface EngineHostSeam {
   own?: (person: string) => boolean;
   /** A Space server only: does it hold this person's key now (locked-account.ts). Absent on a person's own computer. */
   keyHeld?: (person: string) => boolean;
+  keyOpen?: (person: string) => boolean;
   /** Is this module db handle this daemon's own? Two daemons in one process (the two-computer tests) share the engine module, and only the daemon whose host half it holds builds its runtime. */
   ours?: (db: unknown) => boolean;
   /** Bytes into a Files upload slot, in process (the daemon's putToSlot): a goal's files over the inline limit go up this way. */
@@ -563,8 +564,8 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
     });
     running = engine;
     // A turn parked because the person's Vault is locked runs once when this host holds their key (the Unlock a person presses lands here): one look at the keys every few seconds, no turn is started to find out.
-    if (h.keyHeld) {
-      const held = h.keyHeld;
+    if (h.keyOpen ?? h.keyHeld) {
+      const held = (h.keyOpen ?? h.keyHeld)!;
       const timer = setInterval(() => { for (const p of engine.parkedLocked()) if (held(p.asker)) engine.resumeLocked(p.asker); }, 5_000);
       timer.unref?.();
       closeUnlockWatch?.(); closeUnlockWatch = () => clearInterval(timer);
