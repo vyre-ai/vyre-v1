@@ -280,8 +280,8 @@ const st = StyleSheet.create({
   hover: { backgroundColor: "var(--hover)" },
   primary: { height: 30, paddingHorizontal: 13, borderRadius: 9, justifyContent: "center", backgroundColor: "var(--accent)" as string },
   primaryText: { fontSize: 13, fontWeight: "500", color: "var(--accent-ink)" as string },
-  group: { marginBottom: 0 },
-  gh: { flexDirection: "row", alignItems: "center", gap: 8, minHeight: 24, marginTop: 14, marginBottom: 2 },
+  group: { marginBottom: 14 },
+  gh: { flexDirection: "row", alignItems: "center", gap: 8, minHeight: 28, marginBottom: 2 },
   gt: { fontSize: 13, fontWeight: "600", color: "var(--ink-2)" as string },
   row: { flexDirection: "row", alignItems: "center" },
   // the "..." column is fixed: a locked row's lock sits at the right edge, so every row leaves its room

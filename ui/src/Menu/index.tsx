@@ -245,7 +245,8 @@ export function Menu(props: MenuViewProps): ReactElement | null {
   const entries = useMemo(() => (searching ? filterMenuEntries(all, query) : all), [all, searching, query]);
   const window = useWindowDimensions();
   const [gone, setGone] = useState(false);
-  const [active, setActive] = useState(() => moveActive(entries, -1, "Home"));
+  // owner, 5 Nov: no row is lit on open; the first key or the pointer lights one
+  const [active, setActive] = useState(-1);
   const [size, setSize] = useState<{ w: number; h: number }>({ w: MENU_W, h: MENU_H });
   const nodes = useRef<Record<number, unknown>>({});
   const typed = useRef<{ text: string; at: number }>({ text: "", at: 0 });

@@ -17,7 +17,7 @@ export type Show = "All" | Group;
 export const SHOWS: readonly Show[] = ["All", ...GROUPS];
 
 const GROUP_OF: Readonly<Record<LinkKind, Group>> = {
-  file: "Files", url: "Files", record: "Records", task: "Records", calendar_event: "Records", artifact: "Records", chat: "Chats", mail_thread: "Chats",
+  file: "Files", url: "Files", artifact: "Files", record: "Records", task: "Records", calendar_event: "Records", chat: "Chats", mail_thread: "Chats",
   "github.pr": "Code", "github.commit": "Code", "ci.run": "Code",
 };
 /** A record of an invoice type is money; every other record is a record. */

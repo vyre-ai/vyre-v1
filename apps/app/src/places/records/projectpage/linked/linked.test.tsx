@@ -42,12 +42,12 @@ test("links group, count and read as words", () => {
   assert.equal(groupOf({ kind: "url" }), "Files");
   assert.equal(groupOf(L("lnk_1")), "Records", "a task is a record");
   assert.equal(groupOf(L("lnk_2")), "Money", "an invoice is money");
-  assert.equal(groupOf(L("lnk_9")), "Records", "a page is a record");
-  assert.equal(filterLinks(LINKS(), "Files").length, 2);
+  assert.equal(groupOf(L("lnk_9")), "Files", "a published page is not a deploy, so it is filed with Files");
+  assert.equal(filterLinks(LINKS(), "Files").length, 3);
   assert.equal(filterLinks(LINKS(), "Money").length, 2);
   assert.equal(countFor(LINKS(), RUNS(), "All"), 9 + 3, "the CI runs count with the links");
   assert.equal(countFor(LINKS(), RUNS(), "Code"), 2 + 3);
-  assert.equal(countFor(LINKS(), RUNS(), "Records"), 2, "a task and a page");
+  assert.equal(countFor(LINKS(), RUNS(), "Records"), 1, "a task");
   assert.deepEqual(["Paid", "Merged", "Overdue", "Closed", "Draft", "Open", undefined].map(toneOf), ["ok", "ok", "bad", "bad", "warn", "", ""]);
 });
 
