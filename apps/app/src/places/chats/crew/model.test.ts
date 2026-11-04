@@ -21,7 +21,9 @@ test("a row says what it is on, what it found, or what went wrong", () => {
   assert.equal(lineOf({ state: "done", found: "Harbor: $4,180." }), "Harbor: $4,180.");
   assert.equal(lineOf({ state: "failed" }), "Could not finish. Try again.");
   assert.equal(lineOf({ state: "stopped" }), "Stopped");
-  assert.equal(roleOf({ title: "A very long title for a helper that goes past the limit" }).length, 28);
+  assert.equal(roleOf({ title: "A very long title for a helper that goes past the limit", name: "Tess" }).length, 28);
+  assert.equal(roleOf({ title: "Read page 1" }), "", "a helper with no name is called by its title: no role to repeat it");
+  assert.equal(roleOf({ title: "Calendar", name: "Calendar" }), "");
 });
 
 test("the strip's line counts them, says who needs you, and the light follows", () => {
