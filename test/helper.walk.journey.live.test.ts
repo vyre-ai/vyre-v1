@@ -31,7 +31,7 @@ test("running helpers: a held request, Change model, a person messaging a helper
   const shots = process.env["VYRE_CREW_SHOTS"] ?? fs.mkdtempSync(path.join(os.tmpdir(), "vyre-crew-shots-"));
   fs.mkdirSync(shots, { recursive: true });
 
-  let lead = ""; let chat = ""; let dir = ""; let owner = "";
+  let lead = ""; let chat = ""; let dir = ""; let owner = ""; let decisionThread = "";
   // the restart turn of Change model is held until the person has asked the helper something, so the helper is still at work when they do
   let release!: () => void;
   const restartGate = new Promise<void>((resolve) => { release = resolve; });
@@ -46,6 +46,10 @@ test("running helpers: a held request, Change model, a person messaging a helper
         yield* run("tool_search", { query: "crew teammate" });
         yield* run("crew_start", { threadId: input.threadId, idempotencyKey: "w-code", title: "Fix the invoice date bug", brief: "Fix the invoice date bug and add a test." });
         yield { type: "text", text: "Three helpers and a coder are on it. I will bring it together when they are back." };
+      } else if (/^decide$/.test(body.trim())) {
+        // the lead settles it in the thread and sends the decision to the chat too, as the product does
+        yield* run("tool_search", { query: "chat post" });
+        yield* run("chat_post", { threadId: decisionThread, body: "Decision: book Thursday 14:00 and go with Harbor.", alsoToChat: true, idempotencyKey: "w-decision" });
       } else if (/Compare the quotes/.test(body) && input.trigger?.author.kind === "agent") {
         yield { type: "text", text: "Harbor costs more up front but is ready in two weeks [2]. Pine Works is cheaper but takes four [3]. The calendar check is still running [1]." };
       }
@@ -124,7 +128,9 @@ test("running helpers: a held request, Change model, a person messaging a helper
     // a thread under the first message, and a reply sent also to the chat
     const first = ((await api("chat.messages.list", { threadId: chat })).messages as Array<{ messageId: string }>)[0]!.messageId;
     const th = (await api("chat.thread", { threadId: chat, messageId: first })).thread.threadId as string;
-    await api("chat.post", { threadId: th, body: "Decision: book Thursday 14:00 and go with Harbor.", alsoToChat: true, idempotencyKey: "w-also" });
+    decisionThread = th;
+    await api("chat.post", { threadId: chat, body: "decide", mentions: [{ kind: "agent", id: lead }], idempotencyKey: "w-decide" });
+    await waitFor(async () => (((await api("chat.messages.list", { threadId: chat })).messages as Array<{ body: string; author: { kind: string }; blocks: Array<{ type: string }> }>).some((m) => m.body.startsWith("Decision:") && m.author.kind === "agent" && m.blocks.some((b) => b.type === "from_thread")) ? true : null), 60_000, () => hostLog(d));
     const copied = ((await api("chat.messages.list", { threadId: chat })).messages as Array<{ body: string; blocks: Array<{ type: string }> }>).some((m) => m.body.startsWith("Decision:") && m.blocks.some((b) => b.type === "from_thread"));
     assert.ok(copied, "Also post to the chat puts the decision in the chat, marked from the thread");
 
