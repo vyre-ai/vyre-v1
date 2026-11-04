@@ -1,6 +1,6 @@
 ---
 name: working-in-vyre
-description: How an agent works inside Vyre. The places and what lives in each, Records, Files, Automations, your own loops, computers and commands, the Vault, memory, the Gate, access and errors.
+description: How an agent works inside Vyre. The places and what lives in each, Records, Files, Automations, your own loops, computers and commands, the Vault, memory, approvals, who can see what, and errors.
 system: true
 ---
 

@@ -7,6 +7,8 @@ import { SettingsPlace } from "./SettingsPlace.tsx";
 import { createSampleSettings, harbor, northwind } from "./sample.ts";
 import { LOOK_KEY } from "./look.ts";
 
+import "./controls-sweep.support.tsx";   // its timer patch: the saved line must not keep the process alive
+
 async function open(page: string, space = northwind) {
   const restore = installDom();
   const s = createSampleSettings(space);
