@@ -180,3 +180,58 @@ test("with an artifact host, artifact_open gives a one-time code for it: one use
     assert.equal(await exchangeArtifactCode(w.ctx, "0".repeat(48), now), null);
   } finally { configureRoutes(null); }
 });
+
+test("an artifact keeps its picture and the chat that made it, and reads back the chat's title and who it is shared with", async () => {
+  const w = harness();
+  configureRoutes(host({ artifacts: { folder: async () => "fld_a", put: async () => undefined } }) as never);
+  const thumb = "data:image/png;base64,iVBORw0KGgo=";
+  const calls: string[] = [];
+  const ctx = {
+    ...w.ctx, thread: "thr_1",
+    call: async (cap: string) => {
+      calls.push(cap);
+      if (cap === "threads.get") return { thread: { title: "Monthly numbers" } };
+      if (cap === "access.shares_of") return { shares: [{ through: "direct", grant: { subject: { kind: "person", id: "usr_sara" } } }, { through: "direct", grant: { subject: { kind: "link", id: "lnk_1" } } }, { through: "folder", grant: { subject: { kind: "person", id: "usr_omar" } } }, { through: "group", grant: { subject: { kind: "group", id: "grp_everyone" } } }, { through: "owner", grant: { subject: { kind: "person", id: w.ctx.principal.id } } }] };
+      return {};
+    },
+  };
+  try {
+    await assert.rejects(() => h["sites.artifact_publish"]!(ctx, { title: "Bad", html: "<p>x</p>", thumb: "javascript:alert(1)" }), /small png, jpeg or webp/);
+    const pub = await h["sites.artifact_publish"]!(ctx, { title: "Numbers", html: "<p>42</p>", thumb });
+    const got = await h["sites.get"]!(ctx, { siteId: pub.artifactId });
+    assert.equal(got.site.thumb, thumb);
+    assert.equal(got.site.chatId, "thr_1");
+    assert.equal(got.site.chatTitle, "Monthly numbers");
+    assert.deepEqual(got.site.sharedWith, ["usr_sara", "usr_omar"], "people with a grant, direct or from a folder; never the owner");
+    assert.deepEqual(got.site.sharedAudience, ["link", "space"], "a link and the whole Space say so");
+    const list = await h["sites.list"]!(ctx, { kind: "artifact" });
+    assert.equal(list.sites[0].chatTitle, "Monthly numbers");
+    // a republish from another chat keeps the first chat as the source, and without a picture keeps the old one
+    const again = await h["sites.artifact_publish"]!({ ...ctx, thread: "thr_2" }, { title: "Numbers", html: "<p>43</p>" });
+    assert.equal(again.artifactId, pub.artifactId);
+    const kept = await h["sites.get"]!(ctx, { siteId: pub.artifactId });
+    assert.equal(kept.site.chatId, "thr_1");
+    assert.equal(kept.site.thumb, thumb);
+  } finally { configureRoutes(null); }
+});
+
+test("a picture taken on open is kept once, and again only after the artifact changes", async () => {
+  const w = harness();
+  let t0 = 1_000;
+  const ctx = { ...w.ctx, now: () => t0, thread: undefined };
+  configureRoutes(host({ artifacts: { folder: async () => "fld_a", put: async () => undefined } }) as never);
+  const a = "data:image/webp;base64,AAAA", b = "data:image/webp;base64,BBBB";
+  try {
+    const pub = await h["sites.artifact_publish"]!(ctx, { title: "Numbers", html: "<p>1</p>" });
+    assert.equal((await h["sites.artifact_thumb_set"]!(ctx, { artifactId: pub.artifactId, thumb: a })).set, true, "the first open sets it");
+    t0 += 10;
+    assert.equal((await h["sites.artifact_thumb_set"]!(ctx, { artifactId: pub.artifactId, thumb: b })).set, false, "the same version keeps the first");
+    assert.equal((await h["sites.get"]!(ctx, { siteId: pub.artifactId })).site.thumb, a);
+    t0 += 10;
+    await h["sites.artifact_publish"]!(ctx, { title: "Numbers", html: "<p>2</p>" });
+    t0 += 10;
+    assert.equal((await h["sites.artifact_thumb_set"]!(ctx, { artifactId: pub.artifactId, thumb: b })).set, true, "a republish takes a new one on its next open");
+    assert.equal((await h["sites.get"]!(ctx, { siteId: pub.artifactId })).site.thumb, b);
+    await assert.rejects(() => h["sites.artifact_thumb_set"]!(ctx, { artifactId: pub.artifactId, thumb: "javascript:1" }), /small png, jpeg or webp/);
+  } finally { configureRoutes(null); }
+});

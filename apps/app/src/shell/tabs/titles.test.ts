@@ -42,3 +42,11 @@ test("a chat's tab carries the chat's one name: the person for a direct message,
   assert.equal(await resolve({ kind: "chat", title: "GHL onboarding goal", agents: [{ agentId: "agt_dex" }], members: [] }), "GHL onboarding goal");
   assert.equal(ask.name({ thread: { title: "New chat" } }), "New chat", "until the names arrive");
 });
+
+test("a tab opened on an artifact is named for the artifact", () => {
+  const ask = titleAsk({ type: "artifact", id: "sit_1" })!;
+  assert.equal(ask.cap, "sites.get");
+  assert.deepEqual(ask.input, { siteId: "sit_1" });
+  assert.equal(ask.name({ site: { siteId: "sit_1", name: "Pricing comparison" } }), "Pricing comparison");
+  assert.equal(ask.name({ site: {} }), null);
+});

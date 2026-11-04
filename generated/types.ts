@@ -31843,6 +31843,7 @@ export type SitesArtifactPublishIn = {
   port?: number;
   computerId?: string;
   artifactId?: string;
+  thumb?: string;
   idempotencyKey: string;
 };
 export type SitesArtifactPublishOut = {
@@ -31850,6 +31851,13 @@ export type SitesArtifactPublishOut = {
   url?: string;
   updated: boolean;
   opened: boolean;
+};
+export type SitesArtifactThumbSetIn = {
+  artifactId: string;
+  thumb: string;
+};
+export type SitesArtifactThumbSetOut = {
+  set: boolean;
 };
 export type SitesBuildIn = {
   siteId: string;
@@ -31910,6 +31918,11 @@ export type SitesCreateOut = {
     live?: boolean;
     blocked?: boolean;
     updatedAt?: number;
+    thumb?: string;
+    chatId?: string;
+    chatTitle?: string;
+    sharedWith?: Array<string>;
+    sharedAudience?: Array<"link" | "space">;
     deployed?: boolean;
     source?: {
       repo?: string;
@@ -32111,6 +32124,11 @@ export type SitesGetOut = {
     live?: boolean;
     blocked?: boolean;
     updatedAt?: number;
+    thumb?: string;
+    chatId?: string;
+    chatTitle?: string;
+    sharedWith?: Array<string>;
+    sharedAudience?: Array<"link" | "space">;
     deployed?: boolean;
     source?: {
       repo?: string;
@@ -32189,6 +32207,11 @@ export type SitesListOut = {
       live?: boolean;
       blocked?: boolean;
       updatedAt?: number;
+      thumb?: string;
+      chatId?: string;
+      chatTitle?: string;
+      sharedWith?: Array<string>;
+      sharedAudience?: Array<"link" | "space">;
       deployed?: boolean;
       source?: {
         repo?: string;
@@ -32344,6 +32367,11 @@ export type SitesPromoteOut = {
     live?: boolean;
     blocked?: boolean;
     updatedAt?: number;
+    thumb?: string;
+    chatId?: string;
+    chatTitle?: string;
+    sharedWith?: Array<string>;
+    sharedAudience?: Array<"link" | "space">;
     deployed?: boolean;
     source?: {
       repo?: string;
@@ -32407,6 +32435,11 @@ export type SitesPublishOut = {
     live?: boolean;
     blocked?: boolean;
     updatedAt?: number;
+    thumb?: string;
+    chatId?: string;
+    chatTitle?: string;
+    sharedWith?: Array<string>;
+    sharedAudience?: Array<"link" | "space">;
     deployed?: boolean;
     source?: {
       repo?: string;
@@ -32528,6 +32561,11 @@ export type SitesStopOut = {
     live?: boolean;
     blocked?: boolean;
     updatedAt?: number;
+    thumb?: string;
+    chatId?: string;
+    chatTitle?: string;
+    sharedWith?: Array<string>;
+    sharedAudience?: Array<"link" | "space">;
     deployed?: boolean;
     source?: {
       repo?: string;
@@ -32641,6 +32679,11 @@ export type SitesUpdateOut = {
     live?: boolean;
     blocked?: boolean;
     updatedAt?: number;
+    thumb?: string;
+    chatId?: string;
+    chatTitle?: string;
+    sharedWith?: Array<string>;
+    sharedAudience?: Array<"link" | "space">;
     deployed?: boolean;
     source?: {
       repo?: string;
@@ -42760,6 +42803,7 @@ export interface CapMap {
   "sites.addon_remove": { in: SitesAddonRemoveIn; out: SitesAddonRemoveOut };
   "sites.artifact_open": { in: SitesArtifactOpenIn; out: SitesArtifactOpenOut };
   "sites.artifact_publish": { in: SitesArtifactPublishIn; out: SitesArtifactPublishOut };
+  "sites.artifact_thumb_set": { in: SitesArtifactThumbSetIn; out: SitesArtifactThumbSetOut };
   "sites.build": { in: SitesBuildIn; out: SitesBuildOut };
   "sites.chat_viewing": { in: SitesChatViewingIn; out: SitesChatViewingOut };
   "sites.create": { in: SitesCreateIn; out: SitesCreateOut };
@@ -44407,6 +44451,8 @@ export type GateRevisedPayload = {
   act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "approve";
   taskId: string;
   by: string;
+  was: string;
+  now: string;
 };
 export type GateRuleChangedPayload = {
   act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "approve";

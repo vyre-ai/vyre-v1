@@ -4155,6 +4155,10 @@
             "minimum": 1,
             "type": "integer"
           },
+          "thumb": {
+            "description": "A small picture of the page taken at publish, as a png, jpeg or webp data URL (about 120 by 80)",
+            "type": "string"
+          },
           "title": {
             "type": "string"
           }
@@ -51889,6 +51893,36 @@
         "type": "object"
       },
       "name": "sites_artifact_open",
+      "planMode": "blocked",
+      "toolset": "sites",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "sites.artifact_thumb_set",
+      "deferred": false,
+      "description": "Keep a small picture of an artifact, taken when someone opened it (the Vyre for Chrome extension sends it). It is set only when there is none yet or the artifact changed since the last one",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "artifactId": {
+            "examples": [
+              "sit_a1b2c3"
+            ],
+            "pattern": "^sit_[a-z0-9]+$",
+            "type": "string"
+          },
+          "thumb": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "artifactId",
+          "thumb"
+        ],
+        "type": "object"
+      },
+      "name": "sites_artifact_thumb_set",
       "planMode": "blocked",
       "toolset": "sites",
       "v": 1

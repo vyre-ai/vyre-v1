@@ -30403,6 +30403,25 @@ const routes5: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/sites/artifact_thumb_set",
+    "cap": "sites.artifact_thumb_set",
+    "v": 1,
+    "module": "sites",
+    "effects": "write",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "site",
+      "id": "/artifactId"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": "online",
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/sites/build",
     "cap": "sites.build",
     "v": 1,
@@ -33111,7 +33130,10 @@ const routes5: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes6: Route[] = [
   {
     "method": "POST",
     "path": "/v1/sync_types/status",
@@ -33130,10 +33152,7 @@ const routes5: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  }
-];
-
-const routes6: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/sync_types/undo_push",

@@ -2312,6 +2312,7 @@ export function createClient(transport: Transport) {
       addon_remove: call("sites.addon_remove", 1),
       artifact_open: call("sites.artifact_open", 1),
       artifact_publish: call("sites.artifact_publish", 1),
+      artifact_thumb_set: call("sites.artifact_thumb_set", 1),
       build: call("sites.build", 1),
       chat_viewing: call("sites.chat_viewing", 1),
       create: call("sites.create", 1),

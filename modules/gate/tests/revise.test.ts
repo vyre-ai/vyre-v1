@@ -45,6 +45,7 @@ test("the person who handles it rewrites the words: the stored call, the hash an
     assert.deepEqual(stored.input, { ...DM, body: "Hi Bob, short version." });
     assert.equal(stored.payloadHash, call.payloadHash);
     assert.equal(h.events.find((e) => e.name === "gate.revised")?.payload["by"], alice.id);
+    assert.ok(String(h.events.find((e) => e.name === "gate.revised")?.payload["was"]).length > 0 && String(h.events.find((e) => e.name === "gate.revised")?.payload["now"]).length > 0, "the audit log keeps the original and the revised words");
   } finally { bindPayloadHash(null); }
 });
 

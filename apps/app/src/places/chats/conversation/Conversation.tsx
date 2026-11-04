@@ -484,6 +484,9 @@ function ConversationView(): ReactElement {
   if (muteOffer) rememberMuteSeen(muteOffer);
   const host: BlockHost = {
     invoke: (cap, input) => data.call(cap, input),
+    meId: data.me.id,
+    nameOf,
+    ...(data.nav.openUrl ? { openUrl: data.nav.openUrl } : {}),
     open: (tab, input) => { const id = Object.values(input).find((v): v is string => typeof v === "string"); data.nav.openBeside(tab, id ?? ""); },
   };
   const openDetails = data.nav.openDetails;

@@ -53,6 +53,7 @@ export function createWorker(ext) {
   /** @type {Map<number, string>} the view a side panel should open on, by window (a right-click Watch or Show Vyre how) */
   const views = new Map();
   const artifacts = createArtifacts({ ext, bridge, store });
+  artifacts.watchTabs();
   const panel = createPanel({ ext, bridge, store, privacy, context, views, artifacts });
   const notes = createNotes({ ext, bridge, privacy, context });
   const menus = createMenus({ ext, notes, panel, views, privacy });
