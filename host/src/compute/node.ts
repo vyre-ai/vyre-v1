@@ -440,6 +440,7 @@ export async function runComputeNode(d: NodeDeps): Promise<NodeEnd> {
         if (typeof m.t === "string" && m.t.startsWith("cli_")) { cli(m as Record<string, unknown>, say); return; }
         if (m.t === "port_req") { portReq(m as Record<string, unknown>, say); return; }
         if (m.t === "ask") { ask(m as Record<string, unknown>, say); return; }
+        if (m.t === "ping") { say({ t: "pong", at: (m as { at?: unknown }).at }); return; }
         if (m.t === "close" && view) { local.get(view)?.close(); local.delete(view); return; }
         if (m.t === "input" && view && typeof m.data === "string" && m.data.length <= 4096) { local.get(view)?.send(m.data); return; }
         if (m.t !== "open" || !view || typeof m.computerId !== "string" || !COMPUTER_ID.test(m.computerId) || local.has(view)) return;

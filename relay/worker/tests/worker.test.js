@@ -121,7 +121,7 @@ test("the Worker answers /health and refuses what is not a relay socket", async 
   const rt = world(t);
   const h = await rt.fetch("http://relay.test/health");
   assert.equal(h.status, 200);
-  assert.deepEqual(await h.json(), { ok: true });
+  assert.deepEqual(await h.json(), { ok: true, version: "dev" });
   assert.equal((await rt.fetch("http://relay.test/nope")).status, 404);
   const route = routeId(newRouteKey().pub);
   assert.equal((await rt.fetch(`http://relay.test/v1/box?route=${route}`)).status, 426);

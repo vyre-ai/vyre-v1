@@ -1,4 +1,5 @@
 // Console Overview (spec 3.10): what needs you, the server at a glance, and the last admin acts. One live query (console.overview), each tile opens its page.
+import { toAlert } from "../../../machines/api.ts";
 import type { ReactElement } from "react";
 import { Pressable, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import { Avatar } from "../../../../../../ui/src/Avatar/index.tsx";
@@ -49,7 +50,7 @@ export function Overview(): ReactElement {
   const width = useWindowDimensions().width, compact = width > 0 && width < 720;   // an unmeasured screen (a static render) keeps the desktop layout
   const act = useAction(() => (data.screens as { invalidate?: () => void }).invalidate?.());
   // machine alerts (a disk nearly full, memory pressure, a machine offline with pinned work, a failed backup, an update waiting): a line here, a dot on Machines, one Inbox line for each admin
-  const machineAlerts = useRead<CapMap["network.machine_alerts"]["out"]>("network.machine_alerts").data?.alerts ?? [];
+  const machineAlerts = (useRead<CapMap["machines.alerts"]["out"]>("machines.alerts").data?.alerts ?? []).map(toAlert);
   if (q.status !== "ready") return <Text style={s.loading} accessibilityRole="progressbar">Loading</Text>;
   // the two kinds a press here settles: a stuck join is retried now, and #general is renamed to #vyre or kept (never renamed without asking)
   const fix = (a: Attention, i: number): ReactElement | null => {

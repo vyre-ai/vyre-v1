@@ -13,6 +13,7 @@ import { usageGet } from "./usage.ts";
 import { selfAi } from "./self-ai.ts";
 import { list as crewList, merge as crewMerge, message as crewMessage, push as crewPush, repoGet as crewRepoGet, repoSet as crewRepoSet, start as crewStart, stop as crewStop, wait as crewWait, workspace as crewWorkspace } from "./crew.ts";
 import { capsSet, pauseAll, raiseLimit, recordUsage, resumeAll, spendGet, usageQuery } from "./spend.ts";
+import { timeConvert } from "./time-convert.ts";
 
 export const handlers = {
   "engine.accounts.list": accountsList,
@@ -44,6 +45,7 @@ export const handlers = {
   "engine.usage.query": usageQuery,
   "engine.usage.get": usageGet as never,
   "engine.my_ai": selfAi as never,
+  "engine.time_convert": timeConvert as never,
   "engine.turn.record_usage": recordUsage,
   "engine.crew.repo.set": crewRepoSet,
   "engine.crew.repo.get": crewRepoGet,

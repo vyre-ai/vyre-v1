@@ -4,7 +4,7 @@ Lane L2. Kind module. Version 0.1.0.
 
 Requires: nothing.
 
-## Capabilities (82)
+## Capabilities (84)
 
 - [engine.account.resolve](../capabilities/engine.account.resolve.md): Resolve the account that pays for a turn: a pin (the chat's account, the agent's key, the step's key), the person's own, the Space AI accounts whose uses cover the turn (cheapest that fits, not capped), the backups, else an Unblock
 - [engine.accounts.list](../capabilities/engine.accounts.list.md): Accounts the caller can run on: API keys by handle and subscription sign-ins (Mine), with status. With a place (chat, automation, agent, space) each says whether it can run there and why not
@@ -72,6 +72,7 @@ Requires: nothing.
 - [engine.stop_all](../capabilities/engine.stop_all.md): Stop every agent working in a thread (Stop all in the conversation header)
 - [engine.subscription_share.set](../capabilities/engine.subscription_share.set.md): Let the Space run work on my subscription (server runs for my chats, routines and personal automations); off kills my sandbox
 - [engine.switch](../capabilities/engine.switch.md): Switch engine mid-chat: the new engine starts from the rolling summary, the last turns and a pointer to the transcript
+- [engine.time_convert](../capabilities/engine.time_convert.md): Convert a time between time zones, or turn "tomorrow 2pm" into a time. Use it for any time not already in the person's zone; never work out zones, dates or epoch numbers yourself
 - [engine.turn.append](../capabilities/engine.turn.append.md): Persist a coalesced chunk of a running turn (text, tool call, tool result, block)
 - [engine.turn.enqueue](../capabilities/engine.turn.enqueue.md): Queue a turn for a responder (message, interrupt, wake or handoff)
 - [engine.turn.fallback](../capabilities/engine.turn.fallback.md): Record a fallback during a turn error: another model or the backup key
@@ -84,6 +85,7 @@ Requires: nothing.
 - [engine.turn.start](../capabilities/engine.turn.start.md): Start a queued turn on the placement chosen (host or device); records account, engine and model
 - [engine.turn.wait](../capabilities/engine.turn.wait.md): Park a turn until a task, an answered block, a run or a time
 - [engine.turns.list](../capabilities/engine.turns.list.md): Turns of a thread, newest first
+- [engine.turns.running](../capabilities/engine.turns.running.md): Engine only: the turns running now with the machine each runs on (agent, asker, start, place; no message or title), for the Machines page
 - [engine.usage.get](../capabilities/engine.usage.get.md): For a chat and an account: the context used against the model window (from the latest turn and the model catalog) and the session and week limits exactly as the provider reported them. A provider that reports nothing gives null; nothing is estimated
 - [engine.usage.query](../capabilities/engine.usage.query.md): Usage by day, person, agent or model; people see their own, managers their agents, admins all
 - [engine.use_policy.export](../capabilities/engine.use_policy.export.md): Export the AI use policy (models, providers, label rules, limits, accounts) as a file

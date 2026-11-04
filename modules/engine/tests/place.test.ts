@@ -217,15 +217,32 @@ test("with a relay, the live link decides: the computer in use first, then anoth
   } finally { bindRelay(null); }
 });
 
+const rooms = (...r: Array<[string, number, string]>) => ({ rooms: r.map(([machineId, score, why]) => ({ machineId, score, why })) });
+
 test("a busy computer is passed over for the Space's server, and the decision says where it would have gone and why not", async () => {
   const dm = ctxFor("chat", [{ kind: "person", id: "usr_dana" }, { kind: "agent", id: "agt_1" }], [{ ...mac, name: "Dana's MacBook" }]);
   const inner = dm.ctx.call as (cap: string, input: unknown) => Promise<unknown>;
-  dm.ctx.call = async (cap: string, input: unknown) => {
-    if (cap === "network.machines") return { machines: [{ serverId: "srv_dev_mac", online: true, room: { n: 0, why: "turn limit" }, runs: { turns: 4 }, limits: { maxTurns: 4 } }], spaceRoom: { n: 60, why: "cpu", turns: 1, maxTurns: null } };
-    return inner(cap, input);
-  };
+  const asked: unknown[] = [];
+  dm.ctx.call = async (cap: string, input: unknown) => { if (cap === "machines.rooms") { asked.push(input); return rooms(["device:dev_mac", 0, "4 of 4 turns"], ["space", 60, "CPU at 40%"]); } return inner(cap, input); };
   assert.deepEqual(await placementDecide(dm.ctx, { threadId: "thr_1", agentId: "agt_1", kind: "message" }), { placement: "host", reason: "space", moved: { from: "Dana's MacBook", why: "it was busy, 4 of 4 turns running" } });
+  assert.deepEqual(asked[0], { ids: ["device:dev_mac", "space"], agentId: "agt_1" });
   // a Space server that is busy too: the order stands and the turn queues on the computer
-  dm.ctx.call = async (cap: string, input: unknown) => (cap === "network.machines" ? { machines: [{ serverId: "srv_dev_mac", online: true, room: { n: 5, why: "memory" }, runs: { turns: 1 }, limits: { maxTurns: null } }], spaceRoom: { n: 3, why: "cpu", turns: 0, maxTurns: null } } : inner(cap, input));
+  dm.ctx.call = async (cap: string, input: unknown) => (cap === "machines.rooms" ? rooms(["device:dev_mac", 5, "memory at 95%"], ["space", 3, "CPU at 97%"]) : inner(cap, input));
   assert.deepEqual(await placementDecide(dm.ctx, { threadId: "thr_1", agentId: "agt_1", kind: "message" }), { placement: "device", reason: "other_device", deviceId: "dev_mac" });
+  // no Machines module: every machine has room, as before
+  dm.ctx.call = async (cap: string, input: unknown) => { if (cap === "machines.rooms") throw new Error("no machines"); return inner(cap, input); };
+  assert.equal((await placementDecide(dm.ctx, { threadId: "thr_1", agentId: "agt_1", kind: "message" })).placement, "device");
+});
+
+test("an agent pinned to a machine goes there first when it has room; with no room, or off, the turn moves on and says why; a chat's own pin still wins", async () => {
+  const dm = ctxFor("chat", [{ kind: "person", id: "usr_dana" }, { kind: "agent", id: "agt_1" }], [{ ...mac, name: "Dana's MacBook" }]);
+  const inner = dm.ctx.call as (cap: string, input: unknown) => Promise<unknown>;
+  const answer = (r: ReturnType<typeof rooms>, pinnedTo?: string) => { dm.ctx.call = async (cap: string, input: unknown) => (cap === "machines.rooms" ? { ...r, ...(pinnedTo ? { pinnedTo } : {}) } : inner(cap, input)); };
+  const go = () => placementDecide(dm.ctx, { threadId: "thr_1", agentId: "agt_1", kind: "message" });
+  answer(rooms(["device:dev_mac", 70, "CPU at 20%"], ["space", 90, "CPU at 5%"]), "space");
+  assert.deepEqual(await go(), { placement: "host", reason: "space" }, "pinned to the Space server: it goes there first, ahead of her computer");
+  answer(rooms(["device:dev_mac", 70, "CPU at 20%"], ["space", 0, "draining"]), "space");
+  assert.deepEqual(await go(), { placement: "device", reason: "other_device", deviceId: "dev_mac", moved: { from: "the Space server", why: "it is draining" } }, "pinned machine has no room: the agent moves on and the turn says why");
+  answer(rooms(["device:dev_mac", 70, "CPU at 20%"]), "device:dev_gone");
+  assert.equal((await go()).placement, "device", "a pin on a machine that is not one of hers is ignored");
 });

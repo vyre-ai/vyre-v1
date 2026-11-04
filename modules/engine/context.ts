@@ -14,7 +14,7 @@ type Obj = Record<string, unknown>;
 import { CONNECTOR_CHAT, CONNECTOR_SKILL, CRM_CHAT, CRM_SKILL } from "../../lib/connector-chat.ts";
 import { COMPANY_INTENT } from "../../lib/company-flow.ts";
 import { ABOUT_VYRE_INTENT, ABOUT_VYRE_SKILL } from "../../lib/about-vyre.ts";
-import { REPLY_FORMAT } from "../../lib/reply-format.ts";
+import { offsetMinutes } from "../../lib/time-convert.ts";
 
 /** The titles of the chats the Vault (Add to Automations) and the step picker (Build a connector) start, and the skill they run on. */
 /** How to name a record, file, task or chat in a reply: by link, never by id. */
@@ -114,7 +114,9 @@ export function timeLine(at: number, zone?: string): string {
   let tz = zone && zone !== "" ? zone : "UTC";
   let text: string;
   try { text = fmt(tz); } catch { tz = "UTC"; text = fmt(tz); }
-  return `It is ${text.replace(" at ", ", ")} (${tz}).`;
+  const off = offsetMinutes(at, tz);
+  // the person's zone and its offset are stated, and the model is told to convert with time_convert: the owner's Assistant worked a meeting's day out wrong from epoch numbers in its head
+  return `It is ${text.replace(" at ", ", ")} (${tz}). That is UTC${off < 0 ? "-" : "+"}${Math.floor(Math.abs(off) / 60)}${Math.abs(off) % 60 ? `:${String(Math.abs(off) % 60).padStart(2, "0")}` : ""}. The person's time zone is ${tz}: say times in it. To move a time between zones, or to turn "tomorrow 2pm PT" into a time, call time_convert; never work out zones, dates or epoch numbers yourself.`;
 }
 
 /** A routine or watcher in one line the agent can act on: kind, title, when, state, id. */
@@ -409,7 +411,7 @@ export function createContextBuilder(d: ContextDeps) {
     const always = agent ? await agentContext(agent, asker) : undefined;
     // every driver gets this context, so this line reaches Claude, Codex and Grok alike
     add("identity", true, `You are ${name} (agentId ${agentId}), an agent in Vyre.${role ? ` ${role}` : ""}\nTo show the person anything you made, use artifact_publish: it stays private and shows as a card the person opens; say it opened in a tab only when the result says opened is true. Report only what a tool result confirms. Never leave it as a loose file or send them to localhost.${md ? `\n\nYour AGENT.md:\n${cutTo(md, 6_000)}` : ""}${always ? `\n\nWhat you always know (your context folder):\n${cutTo(always, 8_000)}` : ""}`);
-    add("rules", true, "You work for the person who asked; their access limits yours. Search Vyre memory before you ask them anything. A secret is used by Vault handle (vault_use), never by value. Anything that leaves the Space goes through the Gate and may come back held: say what is waiting and for whom. Say what you did and what you did not do. " + NAMING + "\n" + REPLY_FORMAT);
+    add("rules", true, "You work for the person who asked; their access limits yours. Search Vyre memory before you ask them anything. A secret is used by Vault handle (vault_use), never by value. Anything that leaves the Space goes through the Gate and may come back held: say what is waiting and for whom. Say what you did and what you did not do. " + NAMING);
 
     // where
     const people = arr(th?.["members"]).filter((m) => m["kind"] === "person").map((m) => String(m["id"]));

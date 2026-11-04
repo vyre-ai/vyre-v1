@@ -71,6 +71,7 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "engine.stop_all": Handler<"engine.stop_all", X>;
   "engine.subscription_share.set": Handler<"engine.subscription_share.set", X>;
   "engine.switch": Handler<"engine.switch", X>;
+  "engine.time_convert": Handler<"engine.time_convert", X>;
   "engine.turn.append": Handler<"engine.turn.append", X>;
   "engine.turn.enqueue": Handler<"engine.turn.enqueue", X>;
   "engine.turn.fallback": Handler<"engine.turn.fallback", X>;
@@ -83,6 +84,7 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "engine.turn.start": Handler<"engine.turn.start", X>;
   "engine.turn.wait": Handler<"engine.turn.wait", X>;
   "engine.turns.list": Handler<"engine.turns.list", X>;
+  "engine.turns.running": Handler<"engine.turns.running", X>;
   "engine.usage.get": Handler<"engine.usage.get", X>;
   "engine.usage.query": Handler<"engine.usage.query", X>;
   "engine.use_policy.export": Handler<"engine.use_policy.export", X>;

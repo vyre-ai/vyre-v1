@@ -59,7 +59,7 @@ export function ArtifactView({ rt, artifactId, share, back, gone }: { rt: ShellR
     let live = true;
     setLoaded(false); setFailed(null); setSrc(null); setDenied(false);
     void Promise.resolve(rt.call("sites.get", { siteId: artifactId })).then((o) => { if (live) setSite((o as CapMap["sites.get"]["out"]).site); }, () => undefined);
-    void open(!desktop).then((u) => { if (live) { setSrc(u); if (desktop) setLoaded(true); } }, (e: unknown) => { if (live) { if (refused(e)) setDenied(true); else setFailed(msg(e)); } });
+    void open(!desktop).then((u) => { if (live) setSrc(u); }, (e: unknown) => { if (live) { if (refused(e)) setDenied(true); else setFailed(msg(e)); } });
     return () => { live = false; };
   }, [rt, artifactId, open, attempt, desktop]);
   // a page that never says it loaded is an error too, not a spinner for ever
@@ -119,7 +119,7 @@ export function ArtifactView({ rt, artifactId, share, back, gone }: { rt: ShellR
           </View>
         ) : (
           <>
-            {frameFor(src, desktop) === "desktop" ? <DesktopArtifactFrame url={src as string} title={name} covered={coveredBy({ sharing, menu: element !== null, sure })} onError={(m) => setFailed(m)} /> : null}
+            {frameFor(src, desktop) === "desktop" ? <DesktopArtifactFrame url={src as string} title={name} covered={coveredBy({ sharing, menu: element !== null, sure })} onError={(m) => setFailed(m)} onPlaced={() => setLoaded(true)} /> : null}
             {frameFor(src, desktop) === "iframe" ? createElement("iframe", { src: src as string, title: name, sandbox: "allow-scripts allow-forms allow-popups allow-downloads", referrerPolicy: "no-referrer", onLoad: () => setLoaded(true), onError: () => setFailed("This page couldn\u2019t load here."), style: { position: "absolute", left: 0, top: 0, width: "100%", height: "100%", border: 0, background: "#fff" }, "data-testid": "artifact-frame" }) : null}
             {!loaded && !denied ? <View testID="artifact-loading" accessibilityRole="progressbar" accessibilityLabel={`Loading ${name}`} style={s.loading}><Text style={s.stateLine}>{`Loading ${name}`}</Text></View> : null}
           </>

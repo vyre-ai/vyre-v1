@@ -205,6 +205,9 @@ export default defineManifest({
       out: { responders: t.arr(id.agent), line: t.str({ examples: ['Intake will reply'] }) }, on: ['thread', '/threadId'], tool: 'chats',
     }),
     // ---- turns
+    read('engine.turns.running', 'Engine only: the turns running now with the machine each runs on (agent, asker, start, place; no message or title), for the Machines page', {
+      in: {}, out: { turns: t.arr(t.obj({ turnId: id.turn, agentId: id.agent, asker: t.str(), startedAt: t.ts(), where: t.obj({ kind: t.enm('computer', 'server', 'space'), name: t.str(), nodeId: t.opt(t.str()) }) })) }, perm: null, tool: 'chats',
+    }),
     read('engine.turn.get', 'What happened: steps, durations, machine, model, key used and denials of one turn', {
       in: { turnId: id.turn }, out: { what: whatHappened }, label: 'check', tool: 'chats', errors: ['validation.not_found'],
     }),
@@ -334,6 +337,11 @@ export default defineManifest({
         }, { description: 'What the latest turn of this chat ran on, which can differ from the account shown above when the account that would pay now is not the one that paid then' })),
       },
       on: ['thread', '/threadId'], tool: 'meta', errors: ['validation.not_found'],
+    }),
+    read('engine.time_convert', 'Convert a time between time zones, or turn "tomorrow 2pm" into a time. Use it for any time not already in the person\'s zone; never work out zones, dates or epoch numbers yourself', {
+      in: { when: t.str({ minLength: 1, maxLength: 120, description: 'The time as said: "Thursday 5 Nov 2pm", "tomorrow 14:00", "2026-11-05 14:00", "in 3 hours"' }), from: t.opt(t.str({ maxLength: 60, description: 'The zone it was said in: PT, ET, PKT, UTC or America/Los_Angeles. Default: the person\'s' })), to: t.opt(t.arr(t.str({ maxLength: 60 }), { description: 'The zones to show it in' })), zone: t.opt(t.str({ maxLength: 60, description: 'The person\'s zone, when it is known; the profile\'s is used otherwise' })) },
+      out: { instant: t.str(), given: t.str(), zones: t.opt(t.arr(t.obj({ zone: t.str(), text: t.str() }))), inYourZone: t.str(), personZone: t.str(), note: t.opt(t.str()) },
+      tool: 'meta', mcpName: 'time_convert', errors: ['validation.bad_input'],
     }),
     read('engine.my_ai', 'What AI this chat runs on and what else the person may use now: model, account and who paid, each usable account with models and limits (or not readable), and use today and this month. Ask it for what model, what else, what is left, /usage', {
       in: { threadId: t.opt(id.thread), agentId: t.opt(id.agent) },

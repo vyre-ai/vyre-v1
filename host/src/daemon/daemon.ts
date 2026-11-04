@@ -125,9 +125,10 @@ import { createVaultExportRoute } from "../routes/vault-export.ts";
 import { createWebhookRoute } from "../routes/webhooks.ts";
 import { createComputeRoute } from "../routes/compute.ts";
 import { createComputeStream } from "../routes/compute-stream.ts";
-import { createReporter, recordLinkedReport, recordSpaceReport } from "./machines.ts";
+import { createReporter } from "../machines/reporter.ts";
+import type { Report } from "../machines/report.ts";
 import { isFix, runFix } from "./machine-fix.ts";
-import type { Report } from "../../../lib/machines.ts";
+import { runDoctor } from "./doctor.ts";
 import { createLocalWork, createLocalWorkRoute } from "../routes/local-work.ts";
 import { createChromeAgentsRoute } from "../routes/chrome-agents.ts";
 import { bindPersonalChrome } from "../../../lib/personal-chrome.ts";
@@ -573,15 +574,13 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   let computeStreamInput: (computerId: string, personId: string) => Promise<boolean> = () => Promise.resolve(false);
   // a person's own computer links with their signed-in session (lane l-runson); who it is comes from the same resolver as the gateway, once the Space is open
   let closeIdleSessions: () => Promise<number> = () => Promise.resolve(0);
+  let machinesSync: () => void = () => undefined;
+  let machinesIngest: (from: { nodeId: string; serverId?: string; owner?: string; device?: { deviceId: string; person: string; name?: string }; latencyMs?: number }, report: unknown) => void = () => undefined;
+  let deviceReporter: ReturnType<typeof createReporter> | undefined;
   let deviceOfToken: (token: string) => Promise<{ person: string; device: string; name?: string } | null> = () => Promise.resolve(null);
   let streamRef: { devices(p?: string): { nodeId: string; person: string }[]; ask(n: string, k: string, i: unknown, t?: number): Promise<unknown> } | null = null;
   let remoteChrome: ReturnType<typeof createRemotePort>;
-  const computeStream = createComputeStream({ chromeEvent: (link, e) => remoteChrome.onEvent({ nodeId: link.nodeId, person: link.person }, e), poll: (c) => computePoll(c, {}), device: (t) => deviceOfToken(t), report: (from, r) => {
-    if (!db) return;
-    // the Space started the engine processes on this machine, so the Space knows how many turns run there; what the machine says of itself is up to 30 s old and counts none that the Space placed
-    const sure = computeStream.running(from.nodeId), body = r && typeof r === "object" ? (r as { runs?: Record<string, unknown> }) : null;
-    recordLinkedReport(db, { ...(from.serverId ? { serverId: from.serverId } : {}), ...(from.device ? { device: from.device } : {}) }, body ? { ...body, runs: { ...(body.runs ?? {}), turns: sure } } : r, now());
-  }, open: (t, c) => computeStreamOpen(t, c), mayInput: (c, p) => computeStreamInput(c, p), ...(o.computeStreamRecheckMs !== undefined ? { recheckMs: o.computeStreamRecheckMs } : {}), ...(o.computeStreamSecure ? { secure: o.computeStreamSecure } : {}) });
+  const computeStream = createComputeStream({ procsChanged: () => machinesSync(), chromeEvent: (link, e) => remoteChrome.onEvent({ nodeId: link.nodeId, person: link.person }, e), poll: (c) => computePoll(c, {}), device: (t) => deviceOfToken(t), report: (from, r) => machinesIngest(from, r), open: (t, c) => computeStreamOpen(t, c), mayInput: (c, p) => computeStreamInput(c, p), ...(o.computeStreamRecheckMs !== undefined ? { recheckMs: o.computeStreamRecheckMs } : {}), ...(o.computeStreamSecure ? { secure: o.computeStreamSecure } : {}) });
   streamRef = computeStream;
   closers.push(() => computeStream.close());
   // A device-role daemon (the Vyre app's, on the person's own computer) links to each Team Space its person is signed in to here, so their chats there can run on this computer (lane l-runson).
@@ -623,7 +622,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         },
         onEvent: (f) => { chromeEventListeners.add(f as never); return () => { chromeEventListeners.delete(f as never); }; },
       },
-      fix: (fix, service) => (isFix(fix) ? runFix(fix, service, { dataDir: paths.root, now }) : Promise.reject(new Error("unknown fix"))), ...(o.deviceLink?.reportMs !== undefined ? { reportMs: o.deviceLink.reportMs } : {}), report: () => (o.machineReport ?? ((r: Report) => r))({ ...machineReporter.report(), can: [...engines, ...(fs.existsSync("/var/run/docker.sock") ? ["docker"] : [])] }) as unknown as Record<string, unknown>,
+      fix: (fix, service) => (isFix(fix) ? runFix(fix, service, { dataDir: paths.root, now }) : Promise.reject(new Error("unknown fix"))), ...(o.deviceLink?.reportMs !== undefined ? { reportMs: o.deviceLink.reportMs } : {}), report: (now) => (o.machineReport ?? ((r: Report) => r))((deviceReporter ??= createReporter({ dataDir: paths.root, version: cfg.version, runs: () => ({ turns: 0, agentComputers: 0, sites: 0, automations: 0 }), engines: () => engines, chrome: () => chromeBridge.connected > 0 })).report({ turns: now.turns })),
       socket: o.deviceLink?.socket ?? platformSocket, signal, ...(o.deviceLink?.retryMs !== undefined ? { retryMs: o.deviceLink.retryMs } : {}), ...(o.deviceLink?.homes ? { homes: o.deviceLink.homes } : {}),
       sleep: (ms, sig) => new Promise<void>((resolve, reject) => { const t = setTimeout(resolve, ms); t.unref?.(); sig.addEventListener("abort", () => { clearTimeout(t); reject(new Error("stopped")); }, { once: true }); }),
       log: (line) => sink.log({ space: l.id, level: 20, msg: "team.link", place: "device-link", attrs: { line } }),
@@ -934,6 +933,28 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       };
       computeStreamOpen = async (ticket, computerId) => (await hookRunner.call("computers.stream_open", { ticket, computerId })) as { nodeId: string; personId: string; input: boolean } | null;
       closeIdleSessions = async () => (await (loaded.moduleExports.get("engine") as { openerOf?: () => { pool: { closeIdle?: () => Promise<number> } } | null } | undefined)?.openerOf?.()?.pool.closeIdle?.()) ?? 0;
+      // Machines (lane l-machines): a machine's report goes to the module; the Space server reads itself every 30 s; the module asks the host how many turns a connected machine runs, for the Doctor and for the Fixes
+      machinesSync = () => { void hookRunner.call("machines.sync", {}).catch(() => undefined); };
+      machinesIngest = (from, r) => {
+        const body = r && typeof r === "object" ? (r as { runs?: Record<string, unknown> }) : null;
+        const machineId = from.device ? `device:${from.device.deviceId}` : from.serverId;
+        if (!body || !machineId) return;
+        // the Space started the engine processes on this machine, so it knows exactly how many turns run there; the machine's own report is up to 30 s old and counts none the Space placed
+        void hookRunner.call("machines.ingest", { machineId, kind: from.device ? "computer" : "server", name: from.device?.name ?? "Server", ...(from.device ? { ownerId: from.device.person } : from.owner ? { ownerId: from.owner } : {}), ...(from.latencyMs !== undefined ? { latencyMs: from.latencyMs } : {}), report: { ...body, runs: { ...(body.runs ?? {}), turns: computeStream.running(from.nodeId) } } }).catch(() => undefined);
+      };
+      {
+        const reporter = createReporter({ dataDir: paths.root, version: cfg.version, runs: () => ({ turns: Math.max(0, engineTurns - computeStream.running()), agentComputers: 0, sites: 0, automations: 0 }), engines: () => ["claude_code", "codex"], chrome: () => chromeBridge.connected > 0 });
+        (loaded.moduleExports.get("machines") as { bindMachines?: (h: unknown) => void } | undefined)?.bindMachines?.({
+          turns: (id: string) => (id === "space" ? Math.max(0, engineTurns - computeStream.running()) : computeStream.connected(id) ? computeStream.running(id) : undefined),
+          own: async () => ({ name: reporter.name(), report: (o.machineReport ?? ((r: Report) => r))(reporter.report()) }),
+          findings: async () => (await runDoctor({ dataDir: paths.root, role: "space" })).findings,
+          fix: async (id: string, fix: string, service?: string) => {
+            if (!isFix(fix)) throw new Error(`unknown fix ${fix}`);
+            if (id === "space") return runFix(fix, service, { dataDir: paths.root, now, closeIdle: () => closeIdleSessions(), restart: async (svc) => { if (!supervisor.has(svc)) return false; await supervisor.restart(svc); return true; } });
+            return String(await computeStream.ask(id, "fix", { fix, ...(service ? { service } : {}) }));
+          },
+        });
+      }
       computeStreamInput = async (computerId, personId) => (await hookRunner.call("computers.stream_input", { computerId, personId })) === true;
       computeHome = async (nodeId, a) => {
         const check = (await hookRunner.call("computers.node_home_check", { nodeId, token: a.token, computerId: a.computerId, cap: a.cap })) as { agentId: string } | null;
@@ -1737,7 +1758,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         // the turn engine: capabilities run for a person through this pipeline, the agent speaks into chat as itself, and the session opener's ports come from the Vault (P-L2_23)
         setEngineHost: (d) => (engineSeam = createEngineHost({ space: spaceId, invoke, now, putToSlot,
           // each person on their own grants, never as anyone's agent: the answer check of a shared chat (gap 6)
-          mayAll: (people, action, resource) => people.every((p) => { try { return !staleFor(p) && authorize(access.snap, { principal: p, action, resource, now: now() }).effect === "allow"; } catch { return false; } }), publishTurn: () => hub?.publishTurn ? hub.publishTurn.bind(hub) : null, log: (msg, attrs) => sink.log({ space: spaceId, level: 30, msg, place: "engine", ...(attrs ? { attrs } : {}) }), ...(d.vault ? { vault: d.vault } : {}), dataDir: paths.root, own: ownNode, ...(cfg.roles.includes("device") ? {} : { keyHeld: (p: string) => { const k = keyring.get(p); k?.fill(0); return k !== null; } }), ours: (x: unknown) => { const r = rawDbOf(x); return r === null || r === db; }, nodes: { spawn: (n, s) => computeStream.spawnProc(n, s), connected: (n) => computeStream.connected(n), secure: (n) => computeStream.secure(n), devices: (p) => computeStream.devices(p), onDevice: (f) => computeStream.onDevice(f) }, ...(o.engineCli !== undefined ? { cli: o.engineCli } : {}), ...(o.engineInstall ? { engineInstall: true } : {}), ...(o.engineOpenSession !== undefined ? { openSession: o.engineOpenSession } : {}), ...(o.mcpFetch !== undefined ? { mcpFetch: o.mcpFetch } : {}), ...(o.engineSandbox !== undefined ? { sandbox: o.engineSandbox } : {}), saveSignin: (r) => signinRefresh.save(r), closing: (done) => { engineClosing = done; }, turns: (n) => { engineTurns = n; } })),
+          mayAll: (people, action, resource) => people.every((p) => { try { return !staleFor(p) && authorize(access.snap, { principal: p, action, resource, now: now() }).effect === "allow"; } catch { return false; } }), publishTurn: () => hub?.publishTurn ? hub.publishTurn.bind(hub) : null, log: (msg, attrs) => sink.log({ space: spaceId, level: 30, msg, place: "engine", ...(attrs ? { attrs } : {}) }), ...(d.vault ? { vault: d.vault } : {}), dataDir: paths.root, own: ownNode, ...(cfg.roles.includes("device") ? {} : { keyHeld: (p: string) => { const k = keyring.get(p); k?.fill(0); return k !== null; } }), ours: (x: unknown) => { const r = rawDbOf(x); return r === null || r === db; }, nodes: { spawn: (n, s) => computeStream.spawnProc(n, s), connected: (n) => computeStream.connected(n), secure: (n) => computeStream.secure(n), devices: (p) => computeStream.devices(p), onDevice: (f) => computeStream.onDevice(f) }, ...(o.engineCli !== undefined ? { cli: o.engineCli } : {}), ...(o.engineInstall ? { engineInstall: true } : {}), ...(o.engineOpenSession !== undefined ? { openSession: o.engineOpenSession } : {}), ...(o.mcpFetch !== undefined ? { mcpFetch: o.mcpFetch } : {}), ...(o.engineSandbox !== undefined ? { sandbox: o.engineSandbox } : {}), saveSignin: (r) => signinRefresh.save(r), closing: (done) => { engineClosing = done; }, turns: (n) => { engineTurns = n; machinesSync(); } })),
         // Report a problem: the bundle sources (the person's last actions from the log, the versions) and the reports.vyre.run client, signed with a key derived from this Space's seal key
         configureReports: () => createReportsHost({
           space: spaceId, now, fetch: o.reportsFetch ?? ((u, i) => globalThis.fetch(u, i as RequestInit) as never),
@@ -2136,11 +2157,6 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
     return out;
   };
 
-  // Machines: what this computer says about itself every 30 s. The Space server stores its own report; a device-role daemon sends it over the link (linkDevice below).
-  const appVersion = ((): string => { try { return String((JSON.parse(fs.readFileSync(path.join(codeRoot, "package.json"), "utf8")) as { version?: unknown }).version ?? "unknown"); } catch { return "unknown"; } })();
-  const machineReporter = createReporter({ dir: paths.root, version: appVersion, runs: () => ({ turns: engineTurns }), can: () => [...(cfg.roles.includes("device") ? [] : ["claude_code", "codex"]), ...(fs.existsSync("/var/run/docker.sock") || fs.existsSync("/.dockerenv") ? ["docker"] : [])] });
-  const reportMachine = (): void => { if (db) recordSpaceReport(db, (o.machineReport ?? ((r: Report) => r))(machineReporter.report()), now()); };
-
   // What the host knows about itself goes into the network module's tables so Console, Infrastructure, Network has something true to show: the address, this server, the direct endpoint.
   const reportNetwork = (): void => {
     if (!db) return;
@@ -2198,18 +2214,9 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   if (peerService) closers.push(() => peerService.stop());
   if (peerService) scheduledHere = () => peerService.sync.isRunner();
   const phone: PhonePort = createPhonePort({ current: () => relayBox, start: () => startPhoneRelay?.() ?? null, dropped: () => { relayBox = null; }, configured: Boolean(cfg.relayUrl) });
-  // A machine's Doctor Fix (lane l-machines): the Space server runs it here; any other machine is asked over its link
-  const machineFix = async (serverId: string, fix: string, service: string | undefined): Promise<string> => {
-    if (!isFix(fix)) throw new Error(`unknown fix ${fix}`);
-    if (serverId === "srv_local") {
-      return runFix(fix, service, { dataDir: paths.root, now, closeIdle: () => closeIdleSessions(), restart: async (svc) => { if (!supervisor.has(svc)) return false; await supervisor.restart(svc); return true; } });
-    }
-    const link = computeStream.devices().find((l) => `srv_dev_${l.deviceId.replace(/^dev_/, "").replace(/[^a-z0-9]/gi, "").slice(0, 24)}` === serverId);
-    return String(await computeStream.ask(link ? link.nodeId : serverId, "fix", { fix, ...(service ? { service } : {}) }));
-  };
   const runCommands = (): Promise<number> => {
     if (!db) return Promise.resolve(0);
-    const run = () => pollCommands({ db: db!, supervisor, network, phone, now, machineFix, log: sink.logger({ space: space ?? "-", place: "commands" }), observed: async (event) => {
+    const run = () => pollCommands({ db: db!, supervisor, network, phone, now, log: sink.logger({ space: space ?? "-", place: "commands" }), observed: async (event) => {
     if (!log) throw new Error('The event log is unavailable.');
     const stored = await log.append({ id: event.id, type: event.type, sv: 1, trace_id: ZERO_TRACE, actor: event.actor, entity: 'entity', entity_id: event.target, vis: 'space', payload: event.payload });
     headSeq = Math.max(headSeq, stored.seq);
@@ -2267,7 +2274,6 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   } });
   scheduler.add({ name: "probes.fast", schedule: { everyMs: fast }, run: async () => { await runProbes(group(["events_db", "index_db", "scheduler", "disk_space"]), false); } });
   scheduler.add({ name: "probes.slow", schedule: { everyMs: slow }, run: async () => { await runProbes(group(["docker", "caddy", "time_skew"]), false); reportNetwork(); await ensureIngress(false); await refreshNetworkCertificate(); } });
-  scheduler.add({ name: "machines.report", schedule: { everyMs: o.intervals?.machines ?? 30_000, immediate: true }, run: () => { if (hasSpace) reportMachine(); } });
   scheduler.add({ name: "probes.encryption", schedule: { everyMs: o.intervals?.encryption ?? 300_000 }, run: async () => { await runProbes(group(["disk_encrypted"]), false); } });
   if (hasSpace) {
     scheduler.add({ name: "commands.poll", schedule: { everyMs: o.intervals?.commands ?? 1000 }, run: async () => { await runCommands(); } });
