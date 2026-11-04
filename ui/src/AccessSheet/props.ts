@@ -93,10 +93,12 @@ export interface AddTarget {
   kind: AddTargetKind;
   /** Display name: "#launch", "Lab 8", "The upload contract". */
   name: string;
-  /** The files folder they get. */
-  filesFolder: string;
-  /** The records folder they get. */
-  recordsFolder: string;
+  /** The name of the files folder they get. Left out when the target has none: the sentence then says nothing about files. */
+  filesFolder?: string | undefined;
+  /** The name of the records scope they get (a project's records). Left out when there is none: the sentence then says nothing about records. */
+  recordsFolder?: string | undefined;
+  /** A project's chat: the project's name, whose files they get, and how many records are linked to it. Replaces the folder and records names above: a project reads "Rivera's files, and its 3 linked records". */
+  project?: { name: string; hasFiles: boolean; linkedRecords: number } | undefined;
 }
 
 export interface LinkInfo {
