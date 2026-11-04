@@ -78,6 +78,9 @@ test("a screenshot pasted while the description is being written is attached; a 
     const root = await mount(createRoot, page(rt));
     await press(find(root, "task-brief"));
     assert.ok(find(root, "task-brief-edit"), "writing the description");
+    assert.ok(find(find(root, "task-brief-edit")!, "markdown-editor-host"), "the description is written in the shared Markdown editor");
+    assert.ok(find(root, "task-brief-done"), "Done closes it; a pause after typing saves");
+    assert.ok(find(find(root, "rail-notes") ?? { props: {} }, "markdown-editor-host") || find(root, "rail-notes") === null, "the working notes use the same editor where the rail is drawn");
     await fire(find(root, "task-brief-drop"), "onPaste", ev({ types: ["Files"], files: [new File([new Uint8Array([1])], "Brief.pdf", { type: "application/pdf" })] }));
     await wait(() => /could not be saved/.test(textOf(find(root, "task-brief-files"))));
     assert.match(textOf(find(root, "task-brief-files")), /Brief\.pdf could not be saved/);
