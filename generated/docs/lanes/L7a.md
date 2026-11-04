@@ -238,7 +238,7 @@ Events:
 
 ### members
 
-Capabilities to implement: 34. Events to emit: 6. Contract tests that must go green: `generated/tests/members/`.
+Capabilities to implement: 43. Events to emit: 9. Contract tests that must go green: `generated/tests/members/`.
 
 Capabilities:
 - company.access_log (read, connectors.manage, level view)
@@ -259,6 +259,15 @@ Capabilities:
 - members.invites.list (read, members.invite, level view)
 - members.invites.preview (read, grant only, level view)
 - members.invites.revoke (write, members.invite, level view)
+- members.join_link.create (write, members.invite, level view)
+- members.join_link.disable (write, members.invite, level view)
+- members.join_link.get (read, members.invite, level view)
+- members.join_link.preview (read, grant only, level view)
+- members.join_link.request (write, grant only, level view)
+- members.join_link.rotate (write, members.invite, level view)
+- members.join_requests.approve (write, members.invite, level view)
+- members.join_requests.decline (write, members.invite, level view)
+- members.join_requests.list (read, members.invite, level view)
 - members.joins.list (read, members.invite, level view)
 - members.joins.retry (write, members.invite, level view)
 - members.reactivate (write, members.remove, level view)
@@ -279,6 +288,9 @@ Capabilities:
 Events:
 - member.invite_revoked
 - member.invited
+- member.join_link_changed
+- member.join_request_declined
+- member.join_requested
 - member.join_stuck
 - member.joined
 - member.removal_plan_applied
@@ -378,7 +390,7 @@ Events:
 
 ### vault
 
-Capabilities to implement: 53. Events to emit: 20. Contract tests that must go green: `generated/tests/vault/`.
+Capabilities to implement: 54. Events to emit: 21. Contract tests that must go green: `generated/tests/vault/`.
 
 Capabilities:
 - providers.add (write, grant only, level view)
@@ -389,6 +401,7 @@ Capabilities:
 - providers.list (read, grant only, level view)
 - providers.own_people (read, ai.models, level view)
 - providers.remove (write, grant only, level view, gate delete)
+- providers.set_keeps_nothing (write, policy.manage, level edit)
 - providers.set_space_use (write, grant only, level view)
 - providers.space_key.get (read, grant only, level member)
 - providers.space_key.remove (write, policy.manage, level edit, gate delete)
@@ -437,6 +450,7 @@ Capabilities:
 
 Events:
 - provider.added
+- provider.keeps_nothing_changed
 - provider.removed
 - provider.updated
 - vault.export_revoked

@@ -49,6 +49,7 @@ Area: space. Risk: high. Applies to: space.
 - members.sso.test
 - memory.notes.erase
 - plugins.connections.policy_set
+- providers.set_keeps_nothing
 - providers.space_key.remove
 - providers.space_key.set
 - providers.uses.set

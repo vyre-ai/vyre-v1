@@ -25,7 +25,7 @@ Set how one kind of notification reaches me: its level and which of desktop, pho
 
 ```ts
 type In = {
-  kind: "approval.requested" | "answer.requested" | "unblock.requested" | "approval.backstop" | "dm" | "mention" | "call.incoming" | "agent.blocked" | "incident.owned" | "task.assigned" | "reply.followed" | "agent.task_finished" | "digest.away" | "mention.thread" | "run.failed" | "conflict.needs_you" | "access.requested" | "access.decided" | "sync.attention" | "health.degraded" | "problem.report" | "member.joined" | "limit.hit" | "vault.rotation_due" | "reply.thread" | "task.turn" | "task.returned" | "task.finished" | "task.due" | "machine.alert" | "space.deletion_scheduled" | "space.deletion_cancelled";
+  kind: "approval.requested" | "answer.requested" | "unblock.requested" | "approval.backstop" | "dm" | "mention" | "call.incoming" | "agent.blocked" | "incident.owned" | "task.assigned" | "reply.followed" | "agent.task_finished" | "digest.away" | "mention.thread" | "run.failed" | "conflict.needs_you" | "access.requested" | "access.decided" | "sync.attention" | "health.degraded" | "problem.report" | "member.joined" | "member.join_requested" | "limit.hit" | "vault.rotation_due" | "reply.thread" | "task.turn" | "task.returned" | "task.finished" | "task.due" | "machine.alert" | "space.deletion_scheduled" | "space.deletion_cancelled";
   level?: "interrupt" | "badge" | "digest";
   channels?: Array<"desktop" | "phone" | "email">;
 };
@@ -35,7 +35,7 @@ type In = {
 
 ```ts
 type Out = {
-  kind: "approval.requested" | "answer.requested" | "unblock.requested" | "approval.backstop" | "dm" | "mention" | "call.incoming" | "agent.blocked" | "incident.owned" | "task.assigned" | "reply.followed" | "agent.task_finished" | "digest.away" | "mention.thread" | "run.failed" | "conflict.needs_you" | "access.requested" | "access.decided" | "sync.attention" | "health.degraded" | "problem.report" | "member.joined" | "limit.hit" | "vault.rotation_due" | "reply.thread" | "task.turn" | "task.returned" | "task.finished" | "task.due" | "machine.alert" | "space.deletion_scheduled" | "space.deletion_cancelled";
+  kind: "approval.requested" | "answer.requested" | "unblock.requested" | "approval.backstop" | "dm" | "mention" | "call.incoming" | "agent.blocked" | "incident.owned" | "task.assigned" | "reply.followed" | "agent.task_finished" | "digest.away" | "mention.thread" | "run.failed" | "conflict.needs_you" | "access.requested" | "access.decided" | "sync.attention" | "health.degraded" | "problem.report" | "member.joined" | "member.join_requested" | "limit.hit" | "vault.rotation_due" | "reply.thread" | "task.turn" | "task.returned" | "task.finished" | "task.due" | "machine.alert" | "space.deletion_scheduled" | "space.deletion_cancelled";
   level: "interrupt" | "badge" | "digest";
   channels: Array<"desktop" | "phone" | "email">;
 };

@@ -36250,6 +36250,158 @@
     },
     {
       "blocks": [],
+      "cap": "members.join_link.create",
+      "deferred": false,
+      "description": "Turn the Request to join link on (the address people open), or change the role it admits at; defaults to Guest, the least role. Turning it on after Off makes a fresh address",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "role": {
+            "examples": [
+              "rol_a1b2c3"
+            ],
+            "pattern": "^rol_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "name": "members_join_link_create",
+      "planMode": "blocked",
+      "toolset": "meta",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "members.join_link.disable",
+      "deferred": false,
+      "description": "Turn the Request to join link off; the address stops working and requests already waiting stay",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "members_join_link_disable",
+      "planMode": "blocked",
+      "toolset": "meta",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "members.join_link.get",
+      "deferred": false,
+      "description": "The reusable Request to join link: on or off, the role people join as, the address when on (shown again any time), and how many requests wait",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "members_join_link_get",
+      "planMode": "allowed",
+      "toolset": "meta",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "members.join_link.rotate",
+      "deferred": false,
+      "description": "Make a new Request to join address; the old one stops working at once and requests already waiting stay",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "members_join_link_rotate",
+      "planMode": "blocked",
+      "toolset": "meta",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "members.join_requests.approve",
+      "deferred": false,
+      "description": "Approve a request to join: makes a one-time invite for their email at the link's role and returns that link once, to email or copy",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "requestId": {
+            "examples": [
+              "jrq_a1b2c3"
+            ],
+            "pattern": "^jrq_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "requestId"
+        ],
+        "type": "object"
+      },
+      "name": "members_join_requests_approve",
+      "planMode": "blocked",
+      "toolset": "meta",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "members.join_requests.decline",
+      "deferred": false,
+      "description": "Decline a request to join",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "requestId": {
+            "examples": [
+              "jrq_a1b2c3"
+            ],
+            "pattern": "^jrq_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "requestId"
+        ],
+        "type": "object"
+      },
+      "name": "members_join_requests_decline",
+      "planMode": "blocked",
+      "toolset": "meta",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "members.join_requests.list",
+      "deferred": false,
+      "description": "People who asked to join through the Request to join link, newest first",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "cursor": {
+            "type": "string"
+          },
+          "limit": {
+            "maximum": 500,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "state": {
+            "enum": [
+              "waiting",
+              "approved",
+              "declined"
+            ],
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "name": "members_join_requests_list",
+      "planMode": "allowed",
+      "toolset": "meta",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "members.joins.list",
       "deferred": false,
       "description": "Joins that have not finished: each new member with the steps that did not work yet, in words, how often each was tried, and whether it is stuck (three tries or more)",
@@ -42928,6 +43080,7 @@
               "health.degraded",
               "problem.report",
               "member.joined",
+              "member.join_requested",
               "limit.hit",
               "vault.rotation_due",
               "reply.thread",
@@ -43395,6 +43548,7 @@
               "health.degraded",
               "problem.report",
               "member.joined",
+              "member.join_requested",
               "limit.hit",
               "vault.rotation_due",
               "reply.thread",
@@ -46459,6 +46613,36 @@
         "type": "object"
       },
       "name": "providers_remove",
+      "planMode": "blocked",
+      "toolset": "vault",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "providers.set_keeps_nothing",
+      "deferred": false,
+      "description": "An owner or admin says an AI account shared with the Space keeps nothing of what it is sent. Restricted data may only go to accounts that do. A local model always does",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "keepsNothing": {
+            "type": "boolean"
+          },
+          "providerId": {
+            "examples": [
+              "prv_a1b2c3"
+            ],
+            "pattern": "^prv_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "providerId",
+          "keepsNothing"
+        ],
+        "type": "object"
+      },
+      "name": "providers_set_keeps_nothing",
       "planMode": "blocked",
       "toolset": "vault",
       "v": 1

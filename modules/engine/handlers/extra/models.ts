@@ -17,7 +17,7 @@ import type { Label, Policy } from "./config.ts";
 
 interface ProviderRow {
   id: string; providerKey: string; name: string; connection: "subscription" | "api_key" | "local_model"; scope: "mine" | "shared"; handle?: string; itemId: string;
-  engine: string; spaceMayUse: boolean; state: "ok" | "needs_sign_in" | "failing"; spaceKey?: boolean;
+  engine: string; spaceMayUse: boolean; state: "ok" | "needs_sign_in" | "failing"; spaceKey?: boolean; keepsNothing?: boolean;
   /** Handles of sign-ins of the same account folded into this row. */
   aliases?: string[];
 }
@@ -39,6 +39,9 @@ export function driverOf(p: Pick<ProviderRow, "engine" | "connection" | "provide
   if (p.connection === "local_model") return "local";
   return DRIVER_SET.has(p.providerKey) ? (p.providerKey as Driver) : "openrouter";
 }
+
+/** Does this account keep nothing of what it is sent: a local model always, any other only when an owner or admin said so. */
+const keeps = (p: Pick<ProviderRow, "connection" | "keepsNothing">): boolean => p.connection === "local_model" || p.keepsNothing === true;
 
 async function myProviders(ctx: EngineCtx): Promise<ProviderRow[]> {
   const out = (await ctx.call("providers.list", {})) as { providers: ProviderRow[] };
@@ -126,7 +129,7 @@ export async function modelsList(ctx: EngineCtx, input: { accountRef?: string; t
     // a model this account ran out of is listed greyed, with when it comes back when the provider said (engine.usage.get shows its meter full)
     const out = modelLimits(ctx.db, p.handle ?? p.itemId, ctx.now());
     for (const model of models) {
-      const why = blockedBy(policy, { provider: p.providerKey, model, ...(label === undefined ? {} : { label }) });
+      const why = blockedBy(policy, { provider: p.providerKey, model, ...(label === undefined ? {} : { label }), keepsNothing: keeps(p) });
       const spent = why === null ? out.get(model) : undefined;
       const lm = live.get(`${p.providerKey}/${model}`);
       // a pick saved as the alias (sonnet) ran out under that name: the row it resolves to is greyed too
@@ -185,7 +188,8 @@ export function providerState(driver: Driver, all: readonly ProviderRow[], polic
   const keys = [driver, ...mine.map((p) => p.providerKey)];
   let why: "label_provider" | "policy_model" | null = null;
   for (const k of keys) {
-    const w = blockedBy(policy, { provider: k, ...(label === undefined ? {} : { label }) });
+    // Restricted records need an account that keeps nothing: a driver is open to them when any of its accounts does
+    const w = blockedBy(policy, { provider: k, ...(label === undefined ? {} : { label }), keepsNothing: driver === "local" || mine.some(keeps) });
     if (w === null) { why = null; break; }
     why = w;
   }

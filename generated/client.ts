@@ -1610,6 +1610,19 @@ export function createClient(transport: Transport) {
         preview: call("members.invites.preview", 1),
         revoke: call("members.invites.revoke", 1),
       },
+      join_link: {
+        create: call("members.join_link.create", 1),
+        disable: call("members.join_link.disable", 1),
+        get: call("members.join_link.get", 1),
+        preview: call("members.join_link.preview", 1),
+        request: call("members.join_link.request", 1),
+        rotate: call("members.join_link.rotate", 1),
+      },
+      join_requests: {
+        approve: call("members.join_requests.approve", 1),
+        decline: call("members.join_requests.decline", 1),
+        list: call("members.join_requests.list", 1),
+      },
       joins: {
         list: call("members.joins.list", 1),
         retry: call("members.joins.retry", 1),
@@ -2082,6 +2095,7 @@ export function createClient(transport: Transport) {
       list: call("providers.list", 1),
       own_people: call("providers.own_people", 1),
       remove: call("providers.remove", 1),
+      set_keeps_nothing: call("providers.set_keeps_nothing", 1),
       set_space_use: call("providers.set_space_use", 1),
       space_key: {
         get: call("providers.space_key.get", 1),
