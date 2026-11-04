@@ -20,7 +20,7 @@ const real = await serve(path.join(appDir, "dist"), { spa: true });
 const { createRequire } = await import("node:module");
 const { chromium } = createRequire(path.join(REPO, "package.json"))("playwright-core");
 const browser = await chromium.launch({ args: ["--no-sandbox"] });
-const targets = loadTargets(path.join(REPO, "scripts/shots")).filter((t) => t.id.startsWith("EDITOR_01"));
+const targets = loadTargets(path.join(REPO, "scripts/shots")).filter((t) => t.id.startsWith("EDITOR_") && (process.env.ONLY ? t.id.includes(process.env.ONLY) : true));
 for (const t of targets) for (const skin of ["paper", "graphite"]) for (const [size, vp] of Object.entries(SIZES)) {
   const ctx = await browser.newContext({ viewport: vp, deviceScaleFactor: 1, colorScheme: skin === "graphite" ? "dark" : "light", reducedMotion: "reduce" });
   const page = await ctx.newPage();
@@ -30,6 +30,14 @@ for (const t of targets) for (const skin of ["paper", "graphite"]) for (const [s
   await page.goto(url, { waitUntil: "load", timeout: 60000 }).catch(() => page.goto(url, { waitUntil: "load", timeout: 60000 }));
   await page.waitForSelector(t.waitFor, { timeout: 10000 }).catch(() => undefined);
   await page.waitForTimeout(900);
+  if (!t.id.startsWith("EDITOR_01")) {
+    // the editor page: TipTap mounts after the page, so give it time, then shoot
+    await page.waitForTimeout(3500);
+    await page.screenshot({ path: path.join(out, `${t.id.toLowerCase()}-${skin}-${size}.png`) });
+    if (errs.length) console.log("errors", errs.join(" | ").slice(0, 300));
+    await ctx.close();
+    continue;
+  }
   for (const [phase, top] of [["rest", 0], ["scrolled", 120]]) {
     await page.evaluate((y) => { const ta = document.querySelector("[data-testid=composer-field]"); ta.scrollTop = y; ta.dispatchEvent(new Event("scroll", { bubbles: true })); }, top);
     await page.waitForTimeout(250);

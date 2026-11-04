@@ -1,5 +1,5 @@
 // @reads /tools/gen/src/cli.ts
-// F11 acceptance (P-PR_33): 74 modules generate, requires point at existing manifests, every module has its contract test, committed output has no drift.
+// F11 acceptance (P-PR_33): 75 modules generate (browser joined in l-chrome2a), requires point at existing manifests, every module has its contract test, committed output has no drift.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { existsSync, readFileSync } from 'node:fs';
@@ -11,13 +11,13 @@ const root = fileURLToPath(new URL('../', import.meta.url));
 const hostIds = new Set((JSON.parse(readFileSync(root + 'host/modules.json', 'utf8')) as { modules: Array<{ id: string }> }).modules.map((m) => m.id));
 const modules = all.filter((m) => hostIds.has(m.id));
 
-test('74 module manifests exist and every require names an existing manifest', () => {
-  assert.equal(modules.length, 74);
+test('75 module manifests exist and every require names an existing manifest', () => {
+  assert.equal(modules.length, 75);
   const ids = new Set(all.map((m) => m.id));
   for (const m of all) for (const r of Object.keys(m.requires ?? {})) assert.ok(ids.has(r), `${m.id} requires missing manifest ${r}`);
 });
 
-test('each of the 74 modules has a generated contract test, handlers and stub impl', () => {
+test('each of the 75 modules has a generated contract test, handlers and stub impl', () => {
   for (const m of modules) {
     for (const f of [`generated/tests/${m.id}.contract.test.ts`, `generated/modules/${m.id}/handlers.ts`, `generated/modules/${m.id}/stub-impl.ts`]) assert.ok(existsSync(root + f), f);
   }
