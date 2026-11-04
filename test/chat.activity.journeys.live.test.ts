@@ -30,7 +30,8 @@ test("a reply being written says what the agent is doing, from its real steps an
     await open(me, s, route);
     const field = me.page.getByTestId("composer-field");
     await field.click();
-    await field.fill("think 2500");
+    // a longer think keeps the excerpt on screen for a few seconds past the line's 1.5 s beat, so a loaded browser still catches it
+    await field.fill("think 4000");
     await me.page.getByTestId("composer-send").click();
 
     // before the first word: one line, "Thinking", with the last of its thinking
