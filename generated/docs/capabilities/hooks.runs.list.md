@@ -1,0 +1,85 @@
+# hooks.runs.list
+
+What hooks did lately: which ran, what they answered, and the ones that failed or ran out of time, newest first
+
+| | |
+|---|---|
+| Module | hooks |
+| Version | 1 (since 1.0.0) |
+| Effects | read |
+| Permission | grant only |
+| Grant level | member |
+| Risk | low |
+| Resource | space |
+| Gate | none |
+| Idempotency | natural |
+| Offline | online |
+| Audit | none |
+| Team Space only | no |
+| HTTP | POST /v1/hooks/runs/list |
+| MCP tool | none |
+| CLI | none |
+| Emits | none |
+
+## Input
+
+```ts
+type In = {
+  hookId?: string;
+  threadId?: string;
+  limit?: number;
+};
+```
+
+## Output
+
+```ts
+type Out = {
+  runs: Array<{
+      id: number;
+      hookId: string;
+      event: string;
+      threadId?: string;
+      agentId?: string;
+      outcome: "ok" | "blocked" | "note" | "error" | "timeout" | "skipped";
+      detail?: string;
+      ms: number;
+      at: number;
+    }>;
+};
+```
+
+## Errors
+
+- internal.unexpected
+- permission.above_clearance
+- permission.no_grant
+- validation.bad_input
+
+## Example
+
+```json
+{
+  "name": "example",
+  "input": {
+    "hookId": "example",
+    "limit": 1,
+    "threadId": "thr_a1b2c3"
+  },
+  "output": {
+    "runs": [
+      {
+        "agentId": "example",
+        "at": 1760000000000,
+        "detail": "example",
+        "event": "example",
+        "hookId": "example",
+        "id": 1,
+        "ms": 1,
+        "outcome": "ok",
+        "threadId": "example"
+      }
+    ]
+  }
+}
+```

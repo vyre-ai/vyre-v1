@@ -7131,6 +7131,19 @@ export type ChatHistorySearchOut = {
       score: number;
     }>;
 };
+export type ChatHookLineIn = {
+  threadId: string;
+  body: string;
+  kind: "added" | "changed" | "removed" | "paused" | "resumed" | "blocked" | "failed";
+  hookId?: string;
+  scope?: string;
+  by?: string;
+  byKind?: "admin" | "person" | "agent";
+  reason?: string;
+};
+export type ChatHookLineOut = {
+  messageId: string;
+};
 export type ChatMakeTaskIn = {
   threadId: string;
   messageId: string;
@@ -19169,6 +19182,165 @@ export type HomeWriteDigestIn = {
 };
 export type HomeWriteDigestOut = {
   digestId: string;
+};
+export type HooksFireIn = {
+  event: "session.start" | "prompt.submit" | "tool.before" | "tool.after" | "outward.before" | "turn.end" | "helper.start" | "helper.end";
+  agentId: string;
+  threadId: string;
+  turnId?: string;
+  threadKind?: string;
+  engine?: string;
+  source?: "engine" | "tools" | "cli";
+  tool?: string;
+  cap?: string;
+  input?: unknown;
+  output?: unknown;
+  ok?: boolean;
+  prompt?: string;
+  title?: string;
+};
+export type HooksFireOut = {
+  block: {
+    reason: string;
+    hookId: string;
+    by: string;
+    scope: string;
+  } | null;
+  notes: Array<string>;
+  ran: number;
+};
+export type HooksListIn = {
+  scope?: "space" | "person" | "agent" | "chat" | "run";
+  threadId?: string;
+  agentId?: string;
+};
+export type HooksListOut = {
+  hooks: Array<{
+      id: string;
+      scope: "space" | "person" | "agent" | "chat" | "run";
+      event: "session.start" | "prompt.submit" | "tool.before" | "tool.after" | "outward.before" | "turn.end" | "helper.start" | "helper.end";
+      kind: "command" | "check" | "action";
+      matcher: string;
+      line: string;
+      paused: boolean;
+      madeBy: string;
+      madeByKind: "admin" | "person" | "agent";
+      threadId?: string;
+      agentId?: string;
+      helpers: boolean;
+      timeoutSec: number;
+      createdAt: number;
+      updatedAt: number;
+      spec: unknown;
+      mine: boolean;
+      canChange: boolean;
+      endedAt?: number;
+    }>;
+  agentHooks: boolean;
+};
+export type HooksPauseIn = {
+  id: string;
+  paused: boolean;
+  threadId?: string;
+};
+export type HooksPauseOut = {
+  hook: {
+    id: string;
+    scope: "space" | "person" | "agent" | "chat" | "run";
+    event: "session.start" | "prompt.submit" | "tool.before" | "tool.after" | "outward.before" | "turn.end" | "helper.start" | "helper.end";
+    kind: "command" | "check" | "action";
+    matcher: string;
+    line: string;
+    paused: boolean;
+    madeBy: string;
+    madeByKind: "admin" | "person" | "agent";
+    threadId?: string;
+    agentId?: string;
+    helpers: boolean;
+    timeoutSec: number;
+    createdAt: number;
+    updatedAt: number;
+    spec: unknown;
+    mine: boolean;
+    canChange: boolean;
+    endedAt?: number;
+  };
+};
+export type HooksPolicyGetIn = Record<string, unknown>;
+export type HooksPolicyGetOut = {
+  agentHooks: boolean;
+};
+export type HooksPolicySetIn = {
+  agentHooks: boolean;
+};
+export type HooksPolicySetOut = {
+  agentHooks: boolean;
+};
+export type HooksRemoveIn = {
+  id: string;
+  threadId?: string;
+};
+export type HooksRemoveOut = {
+  removed: boolean;
+};
+export type HooksRunsListIn = {
+  hookId?: string;
+  threadId?: string;
+  limit?: number;
+};
+export type HooksRunsListOut = {
+  runs: Array<{
+      id: number;
+      hookId: string;
+      event: string;
+      threadId?: string;
+      agentId?: string;
+      outcome: "ok" | "blocked" | "note" | "error" | "timeout" | "skipped";
+      detail?: string;
+      ms: number;
+      at: number;
+    }>;
+};
+export type HooksSetIn = {
+  id?: string;
+  scope: "space" | "person" | "agent" | "chat" | "run";
+  event: "session.start" | "prompt.submit" | "tool.before" | "tool.after" | "outward.before" | "turn.end" | "helper.start" | "helper.end";
+  kind: "command" | "check" | "action";
+  matcher?: string;
+  command?: string;
+  args?: Array<string>;
+  instruction?: string;
+  cap?: string;
+  input?: unknown;
+  timeoutSec?: number;
+  summary?: string;
+  threadId?: string;
+  agentId?: string;
+  helpers?: boolean;
+  paused?: boolean;
+};
+export type HooksSetOut = {
+  hook: {
+    id: string;
+    scope: "space" | "person" | "agent" | "chat" | "run";
+    event: "session.start" | "prompt.submit" | "tool.before" | "tool.after" | "outward.before" | "turn.end" | "helper.start" | "helper.end";
+    kind: "command" | "check" | "action";
+    matcher: string;
+    line: string;
+    paused: boolean;
+    madeBy: string;
+    madeByKind: "admin" | "person" | "agent";
+    threadId?: string;
+    agentId?: string;
+    helpers: boolean;
+    timeoutSec: number;
+    createdAt: number;
+    updatedAt: number;
+    spec: unknown;
+    mine: boolean;
+    canChange: boolean;
+    endedAt?: number;
+  };
 };
 export type HubspotHealthIn = Record<string, unknown>;
 export type HubspotHealthOut = {
@@ -44298,6 +44470,7 @@ export interface CapMap {
   "chat.helpers.list": { in: ChatHelpersListIn; out: ChatHelpersListOut };
   "chat.history.page": { in: ChatHistoryPageIn; out: ChatHistoryPageOut };
   "chat.history.search": { in: ChatHistorySearchIn; out: ChatHistorySearchOut };
+  "chat.hook_line": { in: ChatHookLineIn; out: ChatHookLineOut };
   "chat.make_task": { in: ChatMakeTaskIn; out: ChatMakeTaskOut };
   "chat.message.get": { in: ChatMessageGetIn; out: ChatMessageGetOut };
   "chat.message_person": { in: ChatMessagePersonIn; out: ChatMessagePersonOut };
@@ -44984,6 +45157,14 @@ export interface CapMap {
   "home.mark_digest_seen": { in: HomeMarkDigestSeenIn; out: HomeMarkDigestSeenOut };
   "home.routines_today": { in: HomeRoutinesTodayIn; out: HomeRoutinesTodayOut };
   "home.write_digest": { in: HomeWriteDigestIn; out: HomeWriteDigestOut };
+  "hooks.fire": { in: HooksFireIn; out: HooksFireOut };
+  "hooks.list": { in: HooksListIn; out: HooksListOut };
+  "hooks.pause": { in: HooksPauseIn; out: HooksPauseOut };
+  "hooks.policy.get": { in: HooksPolicyGetIn; out: HooksPolicyGetOut };
+  "hooks.policy.set": { in: HooksPolicySetIn; out: HooksPolicySetOut };
+  "hooks.remove": { in: HooksRemoveIn; out: HooksRemoveOut };
+  "hooks.runs.list": { in: HooksRunsListIn; out: HooksRunsListOut };
+  "hooks.set": { in: HooksSetIn; out: HooksSetOut };
   "hubspot.health": { in: HubspotHealthIn; out: HubspotHealthOut };
   "hubspot.list_objects": { in: HubspotListObjectsIn; out: HubspotListObjectsOut };
   "hubspot.push_object": { in: HubspotPushObjectIn; out: HubspotPushObjectOut };
@@ -47768,6 +47949,24 @@ export type HoldReleasedPayload = {
     id: string;
   };
   by: string;
+};
+export type HookBlockedPayload = {
+  hookId: string;
+  event: string;
+  threadId: string;
+  agentId: string;
+  reason: string;
+  scope: string;
+  by: string;
+};
+export type HookChangedPayload = {
+  hookId: string;
+  scope: string;
+  change: "added" | "changed" | "removed" | "paused" | "resumed" | "agents_on" | "agents_off";
+  by: string;
+  line: string;
+  threadId?: string;
+  agentId?: string;
 };
 export type HubspotWebhookReceivedPayload = {
   objectType: string;
@@ -50655,6 +50854,8 @@ export interface EventMap {
   "helper.started": HelperStartedPayload;
   "hold.placed": HoldPlacedPayload;
   "hold.released": HoldReleasedPayload;
+  "hook.blocked": HookBlockedPayload;
+  "hook.changed": HookChangedPayload;
   "hubspot.webhook_received": HubspotWebhookReceivedPayload;
   "import.completed": ImportCompletedPayload;
   "import.failed": ImportFailedPayload;

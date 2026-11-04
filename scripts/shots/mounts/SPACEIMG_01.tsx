@@ -87,12 +87,11 @@ export default function Mount(): ReactNode {
   const saved = useMemo(() => consoleFor({ image: square, wide, square }), [wide, square]);
   useEffect(() => {
     if (part === "crop") { const t = setTimeout(() => paste(wide, "MLA logo.png"), 300); return () => clearTimeout(t); }
-    if (part === "from-files") { const t = setTimeout(() => click("space-image-from-files"), 300); return () => clearTimeout(t); }
     if (part === "rail") { const t = setTimeout(() => click("space-tile"), 300); return () => clearTimeout(t); }
     return undefined;
   }, [part, wide]);
   if (part === null) return <View style={{ flex: 1, backgroundColor: "var(--win)" as string }} />;
-  if (part === "profile-empty" || part === "crop" || part === "from-files" || part === "profile-saved") {
+  if (part === "profile-empty" || part === "crop" || part === "profile-saved") {
     return <ConsoleDataProvider value={part === "profile-saved" ? saved : empty}><View style={{ flex: 1, minHeight: 860, padding: 24, maxWidth: 980 }}><SpaceProfile /></View></ConsoleDataProvider>;
   }
   if (part === "rail") {

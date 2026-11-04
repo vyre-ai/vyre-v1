@@ -48,6 +48,7 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "chat.helpers.list": Handler<"chat.helpers.list", X>;
   "chat.history.page": Handler<"chat.history.page", X>;
   "chat.history.search": Handler<"chat.history.search", X>;
+  "chat.hook_line": Handler<"chat.hook_line", X>;
   "chat.make_task": Handler<"chat.make_task", X>;
   "chat.message.get": Handler<"chat.message.get", X>;
   "chat.message_person": Handler<"chat.message_person", X>;

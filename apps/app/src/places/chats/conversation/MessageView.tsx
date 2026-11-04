@@ -66,7 +66,7 @@ import { AttachmentChips, LinkedText, MountRefs, refsOf } from "./attachments.ts
 import { unnamed } from "../names.ts";
 import type { ConversationData } from "./data.tsx";
 import type { GlyphName } from "./parts.tsx";
-import { pokeLine, pokedBy, reportLabel, bodyBlocks, cardLine, collect, errorRow, isCard, isErrorBlock, isSystemLine, isTurnStatus, onBehalfOf, planSteps, questionOptions, statusView, terminalAskOf, workOf } from "./model.ts";
+import { hookLineAction, hookLineOf, pokeLine, pokedBy, reportLabel, bodyBlocks, cardLine, collect, errorRow, isCard, isErrorBlock, isSystemLine, isTurnStatus, onBehalfOf, planSteps, questionOptions, statusView, terminalAskOf, workOf } from "./model.ts";
 import type { CardLine, Item, Message } from "./model.ts";
 import { ReplyLine } from "./ReplyLine.tsx";
 import { MARK } from "./marks.ts";
@@ -137,6 +137,8 @@ export interface MessageActions {
   openMessage?(threadId: string, messageId: string): void;
   /** The crew strip: the live read, the open peek, and what its buttons do. Without it the strip draws from the helpers' own blocks and its rows do nothing. */
   crew?: { status: CrewStatusOut | null; selected: string | null; peek(helperThreadId: string): void; stopAll(): void; openPane(): void; retry(helperThreadId: string): void };
+  /** A hook line's Edit or Details: the Hooks tab of the right pane at that hook. */
+  openHooks?(hookId: string | undefined): void;
   /** What files and links in a message need: lookups, opening beside the chat, copying. Left out in a place that cannot open them. */
   files?: Pick<ConversationData, "call" | "nav" | "copy" | "threadId" | "changes">;
   /** The agents of this chat (for a Mount card, which shares the new folder with them) and the sheet that connects a folder. Left out where the shell has no Files. */
@@ -193,6 +195,8 @@ export const MessageView = memo(function MessageView(props: MessageViewProps): R
         </View>
       );
     }
+    const hookLine = hookLineOf(item.message);
+    const hookAct = hookLine ? hookLineAction(hookLine) : null;
     const origin = forkOrigin(item.message);
     if (origin && props.actions.openMessage) {
       const go = props.actions.openMessage;
@@ -211,6 +215,7 @@ export const MessageView = memo(function MessageView(props: MessageViewProps): R
       <View testID={`event-${item.key}`} accessibilityRole="text" style={st.event}>
         <View style={st.eventDot} />
         <Text style={st.eventText}>{pokeLine(item.message, props.actions.nameOf ?? unnamed) ?? item.text}</Text>
+        {hookLine && hookAct && props.actions.openHooks ? <Text testID={`hook-line-${item.key}`} accessibilityRole="link" onPress={() => props.actions.openHooks?.(hookLine.hookId)} style={st.eventLink}>{hookAct.label}</Text> : null}
         <Text style={st.eventTime}>{item.time}</Text>
       </View>
     );

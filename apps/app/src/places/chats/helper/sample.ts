@@ -61,7 +61,7 @@ export interface Sample {
   failNext(cap: string): void;
 }
 
-export function createSample(variant: Variant = "done", o: { online?: boolean } = {}): Sample {
+export function createSample(variant: Variant = "done", o: { online?: boolean; hooks?: boolean } = {}): Sample {
   const replica = createFakeReplica("northwind");
   const calls: { cap: string; input: unknown }[] = [];
   const opened: string[] = [];
@@ -71,6 +71,15 @@ export function createSample(variant: Variant = "done", o: { online?: boolean } 
   const { thread, messages } = build(variant);
   replica.put("threads", [{ id: thread.threadId, ...thread }]);
   replica.put("messages", messages.map((m) => ({ id: m.messageId, ...m })));
+  // the hooks this helper runs under (lane l-hooks): one its lead gave it for this helper, two it picked up from the run and the Space
+  const hk = (id: string, scope: string, threadId: string | undefined, line: string, kind: string, spec: Record<string, unknown>, by: string, byKind: string) =>
+    ({ id, scope, event: "tool.before", kind, matcher: "", line, paused: false, madeBy: by, madeByKind: byKind, ...(threadId ? { threadId } : {}), helpers: true, timeoutSec: 20, createdAt: SAMPLE_NOW, updatedAt: SAMPLE_NOW, spec, mine: false, canChange: false });
+  if (o.hooks) replica.put("hooks", [
+    hk("hok_own", "run", thread.threadId, "before a helper opens a link, only open links from the quotes you were sent", "check", { instruction: "Only open links from the quotes" }, "agt_lead", "agent"),
+    hk("hok_run", "run", "c2", "before a tool, no client names in a search", "check", { instruction: "No client names" }, "agt_lead", "agent"),
+    hk("hok_space", "space", undefined, "before a tool, keep to the Space rules", "command", { command: "rules.sh" }, "usr_admin", "admin"),
+  ]);
+  replica.resolve("hooks.list", () => ({ hooks: o.hooks ? (replica.rows("hooks") as unknown[]) : [], agentHooks: true }));
   replica.resolve("threads.get", (_t, input) => {
     const r = (replica.rows("threads") as unknown as (Thread & Row)[]).find((x) => x.threadId === input.threadId);
     if (!r) throw new Error("no such thread");
