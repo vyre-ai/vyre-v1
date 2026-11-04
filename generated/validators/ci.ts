@@ -754,12 +754,12 @@ export const validators: Record<string, { in: Check; out: Check }> = {
 };
 
 export const eventValidators: Record<string, Check> = {
-  "ci.job.refused": e109_payload,
+  "ci.job_refused": e109_payload,
   "ci.paused": e110_payload,
-  "ci.run.failed": e111_payload,
-  "ci.run.finished": e112_payload,
-  "ci.run.started": e113_payload,
-  "ci.run.swept": e114_payload,
+  "ci.run_failed": e111_payload,
+  "ci.run_finished": e112_payload,
+  "ci.run_started": e113_payload,
+  "ci.run_swept": e114_payload,
   "ci.settings_changed": e115_payload,
 };
 

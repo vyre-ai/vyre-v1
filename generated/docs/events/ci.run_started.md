@@ -1,12 +1,12 @@
-# ci.job.refused
+# ci.run_started
 
-A job asked for a runner and was refused, with the reason in plain words
+A cloud machine was made for a job and the runner is on it
 
 | | |
 |---|---|
 | Module | ci |
 | Schema version | 1 |
-| Subject | entity at /repo |
+| Subject | entity at /runId |
 | Visibility | space |
 | Label | none |
 | Replay | pure |
@@ -18,9 +18,10 @@ A job asked for a runner and was refused, with the reason in plain words
 
 ```ts
 type Payload = {
+  runId: string;
   repo: string;
   jobId: number;
-  reason: string;
-  code: "fork_with_secrets" | "cap_reached" | "not_enabled" | "no_key";
+  dropletId: string;
+  size: string;
 };
 ```

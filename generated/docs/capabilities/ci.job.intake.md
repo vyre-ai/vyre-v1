@@ -19,7 +19,7 @@ Host only: a job is waiting (or ended) on GitHub; start or stop its machine. Cal
 | HTTP | POST /v1/ci/job/intake |
 | MCP tool | ci_job_intake (engineer) |
 | CLI | none |
-| Emits | ci.run.started, ci.run.failed, ci.run.finished, ci.job.refused, ci.paused |
+| Emits | ci.run_started, ci.run_failed, ci.run_finished, ci.job_refused, ci.paused |
 
 ## Input
 

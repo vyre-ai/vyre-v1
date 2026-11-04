@@ -2,7 +2,7 @@
 // afterwards; the cost is recorded. GitHub's own minutes are never used, a person's computer is never used, and the Space server never runs a job.
 // DECISION: the cloud key lives in the Vault. The settings hold only its handle (vaultKeyRef); the key is read by the host at the last moment and never reaches this module, a log or an event.
 // DECISION: the module starts a runner only for a job whose labels all belong to the Space's label set (default "vyre") and whose repository is linked to a project in this Space. Any other job is left to GitHub.
-// DECISION: a job from a fork pull request never gets a runner while the repository holds Actions secrets, or when that cannot be told. The refusal is a ci.job.refused event with the reason in plain words.
+// DECISION: a job from a fork pull request never gets a runner while the repository holds Actions secrets, or when that cannot be told. The refusal is a ci.job_refused event with the reason in plain words.
 // DECISION: one machine, one job, then deleted (a just-in-time runner takes exactly one job). A sweeper every 2 minutes deletes any machine tagged vyre-ci that is older than the job limit plus 10 minutes, or has no live run.
 // DECISION: at the concurrency limit a job waits in a queue and starts when a machine frees; at the monthly cap it is refused and the admins are told once a month.
 // DECISION: settings are an admin's (connectors.manage) and audited. Reads of runs are for anyone who can see the project; the cost is for admins.
@@ -26,11 +26,11 @@ export default defineManifest({
   title: 'CI runners',
   owner: 'L5',
   events: [
-    ev('ci.run.started', 'A cloud machine was made for a job and the runner is on it', { p: { runId: t.id('cir'), repo, jobId: t.int(), dropletId: t.str(), size: t.str() }, subject: ['entity', '/runId'] }),
-    ev('ci.run.finished', 'A job ended and its machine was deleted; the cost is recorded', { p: { runId: t.id('cir'), repo, jobId: t.int(), conclusion: t.str(), costUsd: t.num(), minutes: t.int() }, subject: ['entity', '/runId'] }),
-    ev('ci.run.failed', 'A machine could not be made for a job, or it was lost before the job ran', { p: { runId: t.id('cir'), repo, jobId: t.int(), reason: t.str() }, subject: ['entity', '/runId'] }),
-    ev('ci.run.swept', 'The sweeper deleted a machine: past its time limit, or with no live run', { p: { runId: t.nullable(t.id('cir')), dropletId: t.str(), reason: t.enm('too_long', 'no_run'), costUsd: t.num() }, subject: ['entity', '/dropletId'] }),
-    ev('ci.job.refused', 'A job asked for a runner and was refused, with the reason in plain words', { p: { repo, jobId: t.int(), reason: t.str(), code: t.enm('fork_with_secrets', 'cap_reached', 'not_enabled', 'no_key') }, subject: ['entity', '/repo'] }),
+    ev('ci.run_started', 'A cloud machine was made for a job and the runner is on it', { p: { runId: t.id('cir'), repo, jobId: t.int(), dropletId: t.str(), size: t.str() }, subject: ['entity', '/runId'] }),
+    ev('ci.run_finished', 'A job ended and its machine was deleted; the cost is recorded', { p: { runId: t.id('cir'), repo, jobId: t.int(), conclusion: t.str(), costUsd: t.num(), minutes: t.int() }, subject: ['entity', '/runId'] }),
+    ev('ci.run_failed', 'A machine could not be made for a job, or it was lost before the job ran', { p: { runId: t.id('cir'), repo, jobId: t.int(), reason: t.str() }, subject: ['entity', '/runId'] }),
+    ev('ci.run_swept', 'The sweeper deleted a machine: past its time limit, or with no live run', { p: { runId: t.nullable(t.id('cir')), dropletId: t.str(), reason: t.enm('too_long', 'no_run'), costUsd: t.num() }, subject: ['entity', '/dropletId'] }),
+    ev('ci.job_refused', 'A job asked for a runner and was refused, with the reason in plain words', { p: { repo, jobId: t.int(), reason: t.str(), code: t.enm('fork_with_secrets', 'cap_reached', 'not_enabled', 'no_key') }, subject: ['entity', '/repo'] }),
     ev('ci.paused', 'CI paused: this month\'s cap is reached (once a month; the admins\' Inbox line)', { p: { title: t.str(), capUsd: t.num(), month: t.str() }, subject: ['entity', '/month'], notify: 'ci.paused' }),
     ev('ci.settings_changed', 'An admin changed the CI settings (never the key)', { p: { fields: t.arr(t.str()), enabled: t.bool() }, subject: ['entity', '/enabled'], retention: 'audit' }),
   ],
@@ -60,10 +60,10 @@ export default defineManifest({
     }),
     write('ci.job.intake', 'Host only: a job is waiting (or ended) on GitHub; start or stop its machine. Called for the workflow_job events, never by a person', {
       ...V, in: { action: t.enm('queued', 'completed'), repo, jobId: t.int(), runId: t.int(), name: t.opt(t.str()), labels: t.arr(t.str()), fork: t.opt(t.enm('no', 'yes', 'unknown')), conclusion: t.opt(t.str()) },
-      out: { handled: t.enm('started', 'queued', 'refused', 'ignored', 'finished', 'failed') }, emits: ['ci.run.started', 'ci.run.failed', 'ci.run.finished', 'ci.job.refused', 'ci.paused'], offline: 'online', idem: 'natural', errors: [],
+      out: { handled: t.enm('started', 'queued', 'refused', 'ignored', 'finished', 'failed') }, emits: ['ci.run_started', 'ci.run_failed', 'ci.run_finished', 'ci.job_refused', 'ci.paused'], offline: 'online', idem: 'natural', errors: [],
     }),
     write('ci.sweep', 'Host only: every 2 minutes, delete any machine tagged vyre-ci that is too old or has no live run, and start queued jobs that now fit', {
-      ...V, in: {}, out: { deleted: t.int({ minimum: 0 }), started: t.int({ minimum: 0 }) }, emits: ['ci.run.swept', 'ci.run.started', 'ci.run.failed'], offline: 'online', errors: [],
+      ...V, in: {}, out: { deleted: t.int({ minimum: 0 }), started: t.int({ minimum: 0 }) }, emits: ['ci.run_swept', 'ci.run_started', 'ci.run_failed'], offline: 'online', errors: [],
     }),
   ],
 });

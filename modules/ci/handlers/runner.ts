@@ -89,7 +89,7 @@ export async function intake(ctx: CiCtx, a: JobIn): Promise<{ handled: Handled }
     ctx.db.run(`INSERT INTO ci_run ("run_id", "job_id", "workflow_run_id", "repo", "job_name", "project_id", "state", "queued_at", "note") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       runId, a.jobId, a.runId, a.repo, (a.name ?? "job").slice(0, 120), projectId, state, ctx.now(), note);
   };
-  const refuse = (codeName: "fork_with_secrets" | "no_key", reason: string): { handled: Handled } => { insert("refused", reason); ctx.emit("ci.job.refused", `entity/${a.repo}`, { repo: a.repo, jobId: a.jobId, reason, code: codeName }); return { handled: "refused" }; };
+  const refuse = (codeName: "fork_with_secrets" | "no_key", reason: string): { handled: Handled } => { insert("refused", reason); ctx.emit("ci.job_refused", `entity/${a.repo}`, { repo: a.repo, jobId: a.jobId, reason, code: codeName }); return { handled: "refused" }; };
   if (!s.vaultKeyRef) return refuse("no_key", "Runners are on but no cloud key is chosen.");
   if (a.fork !== "no") {
     let secrets: number | null = null;
@@ -110,7 +110,7 @@ async function begin(ctx: CiCtx, s: Settings, run: Run): Promise<Handled> {
   if (spent + estimate > s.monthlyCapUsd) {
     const month = monthOf(ctx.now()), title = `CI paused: this month's cap of $${money(s.monthlyCapUsd)} is reached`;
     patchRun(ctx, run.runId, { state: "refused", ended_at: ctx.now(), note: title });
-    ctx.emit("ci.job.refused", `entity/${run.repo}`, { repo: run.repo, jobId: run.jobId, reason: title, code: "cap_reached" });
+    ctx.emit("ci.job_refused", `entity/${run.repo}`, { repo: run.repo, jobId: run.jobId, reason: title, code: "cap_reached" });
     if (metaGet(ctx, `paused:${month}`) === null) { metaSet(ctx, `paused:${month}`, String(ctx.now())); ctx.emit("ci.paused", `entity/${month}`, { title, capUsd: s.monthlyCapUsd, month }); }
     return "refused";
   }
@@ -132,7 +132,7 @@ async function start(ctx: CiCtx, s: Settings, run: Run, price: number): Promise<
     if (made.status >= 300 || (typeof id !== "number" && typeof id !== "string")) throw Object.assign(new Error("the cloud refused"), { said: made.status < 500 && typeof made.json["message"] === "string" ? (made.json["message"] as string).replace(/[\u0000-\u001f]/g, " ").slice(0, 200) : "", error: { code: made.status === 401 ? "provider.auth_failed" : made.status === 403 ? "provider.refused" : made.status === 422 ? "validation.bad_input" : "provider.unavailable" } });
     dropletId = String(id);
     patchRun(ctx, run.runId, { state: "running", droplet_id: dropletId, runner_id: runnerId, started_at: ctx.now() });
-    ctx.emit("ci.run.started", `entity/${run.runId}`, { runId: run.runId, repo: run.repo, jobId: run.jobId, dropletId, size: s.size });
+    ctx.emit("ci.run_started", `entity/${run.runId}`, { runId: run.runId, repo: run.repo, jobId: run.jobId, dropletId, size: s.size });
     await linkRun(ctx, run.runId);
     return "started";
   } catch (e) {
@@ -141,7 +141,7 @@ async function start(ctx: CiCtx, s: Settings, run: Run, price: number): Promise<
     ctx.log.warn("ci: a runner could not start", { code: code(e) });
     if (runnerId !== null) await ctx.call("github.runners.remove", { repo: run.repo, runnerId }).catch(() => undefined);
     patchRun(ctx, run.runId, { state: "failed", ended_at: ctx.now(), cost_usd: 0, note: why });
-    ctx.emit("ci.run.failed", `entity/${run.runId}`, { runId: run.runId, repo: run.repo, jobId: run.jobId, reason: why });
+    ctx.emit("ci.run_failed", `entity/${run.runId}`, { runId: run.runId, repo: run.repo, jobId: run.jobId, reason: why });
     await linkRun(ctx, run.runId);
     return "failed";
   }
@@ -163,7 +163,7 @@ async function finish(ctx: CiCtx, s: Settings, a: JobIn): Promise<{ handled: Han
   const seconds = run.startedAt === null ? 0 : (ctx.now() - run.startedAt) / 1000;
   const cost = run.dropletId ? costOf(run.priceHourly ?? PRICE_HOURLY[run.size ?? ""] ?? 0, seconds) : 0;
   patchRun(ctx, run.runId, { state: "finished", ended_at: ctx.now(), conclusion: a.conclusion ?? "unknown", cost_usd: cost, ...(run.dropletId ? {} : { note: "Ended before a machine was made." }) });
-  ctx.emit("ci.run.finished", `entity/${run.runId}`, { runId: run.runId, repo: run.repo, jobId: run.jobId, conclusion: a.conclusion ?? "unknown", costUsd: cost, minutes: Math.ceil(seconds / 60) });
+  ctx.emit("ci.run_finished", `entity/${run.runId}`, { runId: run.runId, repo: run.repo, jobId: run.jobId, conclusion: a.conclusion ?? "unknown", costUsd: cost, minutes: Math.ceil(seconds / 60) });
   await linkRun(ctx, run.runId);
   await drain(ctx, s);
   return { handled: "finished" };
@@ -218,7 +218,7 @@ export async function sweep(ctx: CiCtx): Promise<{ deleted: number; started: num
     const price = known?.priceHourly ?? PRICE_HOURLY[known?.size ?? s.size] ?? PRICE_HOURLY[s.size] ?? 0;
     const cost = costOf(price, age / 1000);
     if (run) patchRun(ctx, run.runId, { state: "swept", ended_at: ctx.now(), cost_usd: cost, note: `Deleted after more than ${s.maxJobMinutes + SWEEP_GRACE_MIN} minutes.` });
-    ctx.emit("ci.run.swept", `entity/${d.id}`, { runId: run?.runId ?? known?.runId ?? null, dropletId: d.id, reason, costUsd: cost });
+    ctx.emit("ci.run_swept", `entity/${d.id}`, { runId: run?.runId ?? known?.runId ?? null, dropletId: d.id, reason, costUsd: cost });
     if (run) await linkRun(ctx, run.runId);
   }
   const alive = new Set(droplets.map((d) => d.id));
@@ -226,7 +226,7 @@ export async function sweep(ctx: CiCtx): Promise<{ deleted: number; started: num
     if (r.dropletId && !alive.has(r.dropletId) && ctx.now() - (r.startedAt ?? 0) > LOST_AFTER_MS && runBy(ctx, "run_id", r.runId)?.state === "running") {
       const cost = costOf(r.priceHourly ?? 0, (ctx.now() - (r.startedAt ?? ctx.now())) / 1000);
       patchRun(ctx, r.runId, { state: "failed", ended_at: ctx.now(), cost_usd: cost, note: "The machine was lost before the job ended." });
-      ctx.emit("ci.run.failed", `entity/${r.runId}`, { runId: r.runId, repo: r.repo, jobId: r.jobId, reason: "The machine was lost before the job ended." });
+      ctx.emit("ci.run_failed", `entity/${r.runId}`, { runId: r.runId, repo: r.repo, jobId: r.jobId, reason: "The machine was lost before the job ended." });
       await linkRun(ctx, r.runId);
     }
   }
