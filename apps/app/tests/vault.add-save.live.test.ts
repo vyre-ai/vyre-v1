@@ -44,7 +44,7 @@ test("production Vault Add: a pasted key gets a name, Add saves one item to Mine
     assert.deepEqual(puts, [200], "one vault.item.put, and it succeeded");
     const r = await context.request.post(`${web.origin}/v1/vault/items/list`, { headers: { authorization: `Bearer ${token}` }, data: {} });
     const items = (await r.json()).data.items as { name: string; scope: string }[];
-    assert.deepEqual(items.map((i) => [i.name, i.scope]), [["My service key", "personal"]]);
+    assert.deepEqual(items.map((i) => [i.name, i.scope]), [["My service key", "mine"]], "one item, in Mine (the contract's scope is mine or shared)");
     assert.deepEqual(errors, []);
   } finally { await browser.close(); web.close(); await space.stop(); }
 });
