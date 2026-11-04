@@ -28567,6 +28567,24 @@ const routes5: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/runs/people_counts",
+    "cap": "runs.people_counts",
+    "v": 1,
+    "module": "runs",
+    "effects": "read",
+    "permission": "runs.manage",
+    "level": "manage",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/runs/pin_version",
     "cap": "runs.pin_version",
     "v": 1,
@@ -33110,7 +33128,10 @@ const routes5: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes6: Route[] = [
   {
     "method": "POST",
     "path": "/v1/tasks/act",
@@ -33129,10 +33150,7 @@ const routes5: Route[] = [
     "offline": "online",
     "teamOnly": false,
     "gate": null
-  }
-];
-
-const routes6: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/tasks/ask",

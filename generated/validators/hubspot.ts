@@ -151,17 +151,17 @@ if ("portalId" in o3472) lf(o3472["portalId"], p + "/portalId", e, L1);
 
 function e273_payload(v: unknown, p: string, e: string[]): void {
 {
-const x6438 = v;
-const g6438 = typeOf(x6438);
-const b6438: string[] = []; lf(x6438, p, b6438, L0); if (b6438.length) e.push(...b6438);
-if (g6438 === "object") {
-if (g6438 === 'object') { const o6438 = x6438 as Record<string, unknown>;
-if (!("objectType" in o6438)) e.push(p + "/objectType" + ': required');
-if (!("objectId" in o6438)) e.push(p + "/objectId" + ': required');
-if (!("providerEventId" in o6438)) e.push(p + "/providerEventId" + ': required');
-if ("objectType" in o6438) lf(o6438["objectType"], p + "/objectType", e, L1);
-if ("objectId" in o6438) lf(o6438["objectId"], p + "/objectId", e, L1);
-if ("providerEventId" in o6438) lf(o6438["providerEventId"], p + "/providerEventId", e, L1);
+const x6443 = v;
+const g6443 = typeOf(x6443);
+const b6443: string[] = []; lf(x6443, p, b6443, L0); if (b6443.length) e.push(...b6443);
+if (g6443 === "object") {
+if (g6443 === 'object') { const o6443 = x6443 as Record<string, unknown>;
+if (!("objectType" in o6443)) e.push(p + "/objectType" + ': required');
+if (!("objectId" in o6443)) e.push(p + "/objectId" + ': required');
+if (!("providerEventId" in o6443)) e.push(p + "/providerEventId" + ': required');
+if ("objectType" in o6443) lf(o6443["objectType"], p + "/objectType", e, L1);
+if ("objectId" in o6443) lf(o6443["objectId"], p + "/objectId", e, L1);
+if ("providerEventId" in o6443) lf(o6443["providerEventId"], p + "/providerEventId", e, L1);
 }
 }
 }
