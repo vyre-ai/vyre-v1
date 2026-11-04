@@ -36,7 +36,7 @@ export const openMessage = (i: KnowsItem): OpenMessage | null => (i.threadId && 
 
 export const GROUPS: Array<{ kind: KnowsKind; title: string }> = [
   { kind: "decision", title: "Decisions" }, { kind: "fact", title: "Facts" }, { kind: "commitment", title: "Commitments" },
-  { kind: "preference", title: "Preferences" }, { kind: "role", title: "Roles" }, { kind: "question", title: "Open questions" },
+  { kind: "preference", title: "Preferences" }, { kind: "question", title: "Open questions" }, { kind: "role", title: "Roles" },
 ];
 
 /** The groups with something in them, current ones first, then what was replaced, then what was disputed; newest last in each, as the people read the room. */
