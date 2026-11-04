@@ -5,6 +5,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { execSync } from "node:child_process";
 const REPO = process.cwd();
+const { guardCrashes } = await import(path.join(REPO, "apps/app/tests/crash-guard.ts"));
 const { serve } = await import(path.join(REPO, "scripts/shots/serve.mjs"));
 const { routeUrl, loadTargets } = await import(path.join(REPO, "scripts/shots/lib.mjs"));
 const { exportEnv } = await import(path.join(REPO, "scripts/lib/registry-hash.mjs"));
@@ -29,6 +30,7 @@ for (const t of targets) for (const skin of ["paper", "graphite"]) for (const [s
   if (size === "wide" && t.id.includes("phone")) continue;
   const ctx = await browser.newContext({ viewport: vp, deviceScaleFactor: 1, colorScheme: skin === "graphite" ? "dark" : "light", reducedMotion: "reduce" });
   const page = await ctx.newPage();
+  const guard = guardCrashes(page);
   const errs = [];
   page.on("pageerror", (e) => errs.push(String(e)));
   // a busy box drops a navigation now and then: one more try before giving up
@@ -38,10 +40,12 @@ for (const t of targets) for (const skin of ["paper", "graphite"]) for (const [s
   let found = true;
   const jump = () => page.click("text=Jump to latest", { timeout: 1500 }).then(() => page.waitForTimeout(400)).catch(() => undefined);
   if (t.waitFor) await page.waitForSelector(t.waitFor, { timeout: 8000 }).catch(() => { found = false; });
+  await guard.check(`${t.id} ${skin} ${size}: after load`);
   await jump();
   const bottom = () => page.evaluate(() => { for (const e of document.querySelectorAll("*")) if (e.scrollHeight > e.clientHeight + 40 && getComputedStyle(e).overflowY !== "visible" && getComputedStyle(e).overflowY !== "hidden") e.scrollTop = e.scrollHeight; }).then(() => page.waitForTimeout(300));
-  for (const sel of [].concat(t.click ?? [])) { await page.click(sel).catch(() => { found = false; }); await page.waitForTimeout(700); await page.mouse.move(2, 2); await jump(); }
+  for (const sel of [].concat(t.click ?? [])) { await page.click(sel).catch(() => { found = false; }); await page.waitForTimeout(700); await guard.check(`${t.id} ${skin} ${size}: after click ${sel}`); await page.mouse.move(2, 2); await jump(); }
   await bottom();
+  await guard.check(`${t.id} ${skin} ${size}: before the shot`);
   await page.waitForTimeout(600);
   const file = path.join(out, `${t.id.replace("INSTALL_02-", "")}-${skin}-${size}.png`);
   await page.screenshot({ path: file });
