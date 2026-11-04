@@ -15,6 +15,9 @@
 import type { ChatMode, DriverEvent, Effort, EngineSession, SessionSpec, StoredMessage, ToolResult, TurnInput } from "../../turn-engine/types.ts";
 import { scrub } from "../api/errors.ts";
 import { classifyCli, missingProgram, sessionGone } from "./errors.ts";
+import { mkdirSync, writeFileSync } from "node:fs";
+import { dirname } from "node:path";
+import { hookFiles } from "./hooks-config.ts";
 import { channel, lines } from "./lines.ts";
 import type { Channel } from "./lines.ts";
 import { defaultPrompt } from "./prompt.ts";
@@ -130,6 +133,12 @@ export function createCliSession(deps: CliSessionDeps, spec: SessionSpec): CliSe
       model: deps.model, resume: sessionId, mcpUrl: deps.endpoint.url, ...(deps.endpoint.stdio ? { mcpStdio: deps.endpoint.stdio } : {}), ...(deps.plugins ? { plugins: deps.plugins } : {}), planMode: deps.mode !== undefined ? deps.mode === "plan" : deps.planMode?.() ?? false, ...(deps.mode !== undefined ? { mode: deps.mode } : {}), ...(deps.effort !== undefined ? { effort: deps.effort } : {}), ...(deps.noTools ? { noTools: true } : {}),
       workFolder: deps.workFolder, system: a.systemFlag || deps.lean === true ? deps.system : null, ...(deps.lean ? { lean: true } : {}),
     });
+    // the hooks config of an engine that reads it from files (Grok, Codex): written before it starts, never a reason a turn does not run
+    if (deps.endpoint.stdio && deps.workFolder !== null && !deps.lean && !deps.noTools) {
+      try {
+        for (const [file, text] of Object.entries(hookFiles(a.id, { workFolder: deps.workFolder, stdio: deps.endpoint.stdio, ...(deps.env["HOME"] ? { home: deps.env["HOME"] } : {}) }))) { mkdirSync(dirname(file), { recursive: true }); writeFileSync(file, text); }
+      } catch { /* the hooks of the engine's own tools are missing; Vyre's own tools are still covered */ }
+    }
     const proc = await deps.launcher.spawn({
       argv, ...(deps.workFolder !== null ? { cwd: deps.workFolder } : {}),
       env: { ...a.env(), ...deps.env, [TOKEN_ENV]: deps.endpoint.token },

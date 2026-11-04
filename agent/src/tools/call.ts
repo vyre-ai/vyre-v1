@@ -9,6 +9,7 @@ import { limited, shapeOutput } from "./compact.ts";
 import { askLevel, refusalFor, searchTools, TASK_BATON_TOOLS, toolsFor, reachesScope } from "./access.ts";
 import type { AccessDeps } from "./access.ts";
 import type { LocalDecision } from "./local.ts";
+import type { HookFire, HookVerdict } from "./hooks.ts";
 import type { Refusal, ToolCtx, ToolDef, ToolResult, ToolSet } from "./types.ts";
 
 export type ToolOutcome =
@@ -31,6 +32,8 @@ export interface CallHooks {
   before?(ctx: ToolCtx, t: ToolDef, input: unknown): Promise<string | null>;
   /** Told how the call ended. Not waited for: a slow hook must not hold the model. */
   after?(ctx: ToolCtx, t: ToolDef, input: unknown, result: { ok: boolean; output: unknown }): Promise<void> | void;
+  /** The one hooks layer (modules/hooks): asked for tool.before, outward.before and tool.after. When present it answers instead of before and after. */
+  fire?(ctx: ToolCtx, f: Pick<HookFire, "event" | "tool" | "cap" | "input" | "output" | "ok">): Promise<HookVerdict>;
 }
 
 export interface CallDeps extends AccessDeps {
@@ -133,7 +136,15 @@ export function createToolSession(deps: CallDeps): ToolSession {
       }
     }
 
-    if (deps.hooks?.before) {
+    let hookNotes: string[] = [];
+    if (deps.hooks?.fire) {
+      const asked = async (event: "tool.before" | "outward.before"): Promise<HookVerdict | null> => deps.hooks!.fire!(ctx, { event, tool: t.name, cap: t.cap, input }).catch(() => null);
+      const v = await asked("tool.before");
+      const o = v?.block ? null : t.effects === "outward" || t.gated ? await asked("outward.before") : null;
+      const stop = v?.block ?? o?.block ?? null;
+      if (stop) return fail("permission.role_lacks_permission", traceId, { message: `A hook stopped this: ${stop.reason}`, details: { tool: t.name, reason: "hook", hookId: stop.hookId } });
+      hookNotes = [...(v?.notes ?? []), ...(o?.notes ?? [])];
+    } else if (deps.hooks?.before) {
       const reason = await deps.hooks.before(ctx, t, input).catch(() => null);
       if (reason !== null) return fail("permission.role_lacks_permission", traceId, { message: `A plugin hook stopped this: ${reason}`, details: { tool: t.name, reason: "hook" } });
     }
@@ -174,7 +185,9 @@ export function createToolSession(deps: CallDeps): ToolSession {
       const shaped = isDynamic ? null : shapeOutput(t.cap, res.output);
       const content: { data: unknown; meta?: unknown; blocks?: string[] } = shaped ? { data: shaped.data, meta: shaped.meta } : { data: res.output };
       if (t.blocks.length > 0) content.blocks = t.blocks;
-      if (deps.hooks?.after) void Promise.resolve(deps.hooks.after(ctx, t, input, { ok: true, output: res.output })).catch(() => undefined);
+      if (hookNotes.length > 0) (content as { hookNotes?: string[] }).hookNotes = hookNotes;
+      if (deps.hooks?.fire) void deps.hooks.fire(ctx, { event: "tool.after", tool: t.name, cap: t.cap, input, output: res.output, ok: true }).catch(() => undefined);
+      else if (deps.hooks?.after) void Promise.resolve(deps.hooks.after(ctx, t, input, { ok: true, output: res.output })).catch(() => undefined);
       return { kind: "result", traceId: res.traceId, result: { ok: true, content } };
     } catch (e) {
       if (e instanceof HostError) return { kind: "error", error: e.error, result: { ok: false, content: { error: modelError(e.error) } } };
