@@ -6,7 +6,7 @@ import { ObjectPage, ObjectSection, withBaseTabs } from "../../../../../ui/src/O
 import { Row } from "../../../../../ui/src/Row/index.tsx";
 import { ObjectList } from "../objects/ObjectList.tsx";
 import { useConsoleData } from "../shell/data.tsx";
-import { count } from "../shell/format.ts";
+import { capPhrase, count } from "../shell/format.ts";
 import { Empty, Group, Section } from "../shell/ui.tsx";
 import { Actions, Button, Field, Note, ReadState, attempt, useAction, useRead } from "./shared.tsx";
 
@@ -15,7 +15,7 @@ type Person = AccessPrincipalsListOut["principals"][number];
 type Ref = GroupRow["members"][number];
 export function groupActivityLabel(action: string): string {
   const labels: Record<string, string> = { "access.groups.create": "Team created", "access.groups.update": "Team details changed", "access.groups.add_member": "Member added", "access.groups.remove_member": "Member removed", "access.groups.delete": "Team deleted", "access.roles.assign": "Role assigned", "access.roles.unassign": "Role removed" };
-  return labels[action] ?? action.replace(/[._]/g, " ");
+  return labels[action] ?? capPhrase(action);
 }
 export function groupDeleteImpact(group: GroupRow, grants: number): string {
   return `Delete ${group.name}? ${count(group.members.length, "membership")}, ${count(group.managers.length, "manager assignment")} and ${grants} extra access ${grants === 1 ? "entry" : "entries"} end. Access through this team's roles ends for its members. This cannot be undone.`;

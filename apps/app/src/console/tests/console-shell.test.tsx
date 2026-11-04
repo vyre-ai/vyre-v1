@@ -205,10 +205,11 @@ test("text helpers: relative times, whole dollars and action phrases", () => {
   assert.equal(ago(SAMPLE_NOW, SAMPLE_NOW - 2 * 86_400_000), "2 d ago");
   assert.equal(ago(SAMPLE_NOW, SAMPLE_NOW - 30 * 86_400_000), "2025-09-24");
   assert.equal(money(412_000_000), "$412");
-  assert.equal(actionPhrase("gate.rule_changed"), "approval rule changed");
+  assert.equal(actionPhrase("gate.rule_changed"), "changed an approval rule");
+  assert.equal(actionPhrase("files.save", "Fee agreement.pdf"), "saved the file Fee agreement.pdf");
   assert.equal(activityTitle("Olivia Owner", "audit.viewed", "space/spc_fresh"), "Olivia Owner opened the audit log");
   assert.equal(activityTitle("act_anon_12ca17b49af22894", "identity.claim_owner", undefined), "The owner claimed this Space");
-  assert.equal(activityTitle("Priya Raman", "gate.rule_changed", "Send"), "Priya Raman changed the rule Send");
+  assert.equal(activityTitle("Priya Raman", "gate.rule_changed", "Send"), "Priya Raman changed the approval rule Send");
 });
 
 test("the skin menu lists System, then Dark and Light skins, and checks the open one", () => {
