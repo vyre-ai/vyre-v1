@@ -65,6 +65,9 @@ export default defineManifest({
       in: { hookId: t.opt(t.str()), threadId: t.opt(id.thread), limit: t.opt(t.int({ minimum: 1, maximum: 200 })) }, out: { runs: t.arr(runRow) }, level: 'member',
       tool: 'agents', mcpName: 'hooks_runs', agent: { planMode: 'allowed' },
     }),
+    read('hooks.runs.latest', 'The newest run of each hook in one chat, one row per hook: what "Last ran" on a hook card reads. Only for a chat you can use', {
+      in: { threadId: id.thread }, out: { runs: t.arr(runRow) }, level: 'member', tool: 'agents', mcpName: 'hooks_runs_latest', agent: { planMode: 'allowed' }, errors: ['permission.no_grant'],
+    }),
     read('hooks.policy.get', 'Whether agents may make hooks in this Space', { in: {}, out: { agentHooks: t.bool() }, level: 'member' }),
     write('hooks.policy.set', 'Space admins: allow or turn off hooks made by agents for the whole Space. Hooks agents already made stay but do not run while it is off', {
       in: { agentHooks: t.bool() }, out: { agentHooks: t.bool() }, level: 'member', emits: ['hook.changed'], audit: 'always', idem: 'natural', errors: ['permission.no_grant'],

@@ -13,6 +13,7 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "hooks.policy.get": Handler<"hooks.policy.get", X>;
   "hooks.policy.set": Handler<"hooks.policy.set", X>;
   "hooks.remove": Handler<"hooks.remove", X>;
+  "hooks.runs.latest": Handler<"hooks.runs.latest", X>;
   "hooks.runs.list": Handler<"hooks.runs.list", X>;
   "hooks.set": Handler<"hooks.set", X>;
 }

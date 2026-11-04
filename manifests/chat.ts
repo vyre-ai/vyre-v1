@@ -707,7 +707,7 @@ export default defineManifest({
       empty: 'The helper has not said anything yet', primary: 'Back to the chat',
     }),
     screen('chats.right-pane', 'chats', 'ui:ChatRightPane', {
-      slot: 'side', q: { threads: ['threads.list', { parentThreadId: '/state/threadId' }, true], helpers: ['chat.helpers.list', { threadId: '/state/threadId' }, true], crew: ['engine.crew.list', { threadId: '/state/threadId' }, true], hooks: ['hooks.list', { threadId: '/state/threadId' }, true], hookRuns: ['hooks.runs.list', { threadId: '/state/threadId', limit: 200 }, true] },
+      slot: 'side', q: { threads: ['threads.list', { parentThreadId: '/state/threadId' }, true], helpers: ['chat.helpers.list', { threadId: '/state/threadId' }, true], crew: ['engine.crew.list', { threadId: '/state/threadId' }, true], hooks: ['hooks.list', { threadId: '/state/threadId' }, true], hookRuns: ['hooks.runs.latest', { threadId: '/state/threadId' }, true] },
       a: { openThread: ['chat.thread', { threadId: '/state/threadId' }] }, empty: 'No threads yet',
     }),
     screen('chats.threads', 'chats', 'ui:ThreadsPage', {

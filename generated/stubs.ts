@@ -1326,6 +1326,7 @@ export function stubs(ctx: CallCtx) {
       },
       remove: call("hooks.remove"),
       runs: {
+        latest: call("hooks.runs.latest"),
         list: call("hooks.runs.list"),
       },
       set: call("hooks.set"),

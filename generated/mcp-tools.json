@@ -29785,6 +29785,32 @@
       "v": 1
     },
     {
+      "blocks": [],
+      "cap": "hooks.runs.latest",
+      "deferred": false,
+      "description": "The newest run of each hook in one chat, one row per hook: what \"Last ran\" on a hook card reads. Only for a chat you can use",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "threadId"
+        ],
+        "type": "object"
+      },
+      "name": "hooks_runs_latest",
+      "planMode": "allowed",
+      "toolset": "agents",
+      "v": 1
+    },
+    {
       "blocks": [
         "hook"
       ],

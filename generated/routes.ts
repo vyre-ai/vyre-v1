@@ -17455,6 +17455,24 @@ const routes3: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/hooks/runs/latest",
+    "cap": "hooks.runs.latest",
+    "v": 1,
+    "module": "hooks",
+    "effects": "read",
+    "permission": null,
+    "level": "member",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/hooks/runs/list",
     "cap": "hooks.runs.list",
     "v": 1,
@@ -22090,7 +22108,10 @@ const routes3: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes4: Route[] = [
   {
     "method": "POST",
     "path": "/v1/memory/graph_everything",
@@ -22108,10 +22129,7 @@ const routes3: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  }
-];
-
-const routes4: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/memory/graph_export",
@@ -27589,7 +27607,10 @@ const routes4: Route[] = [
     "offline": "online",
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes5: Route[] = [
   {
     "method": "POST",
     "path": "/v1/providers/test",
@@ -27607,10 +27628,7 @@ const routes4: Route[] = [
     "offline": "online",
     "teamOnly": false,
     "gate": null
-  }
-];
-
-const routes5: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/providers/uses/set",
@@ -33102,7 +33120,10 @@ const routes5: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes6: Route[] = [
   {
     "method": "POST",
     "path": "/v1/sync_specs/validate",
@@ -33120,10 +33141,7 @@ const routes5: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  }
-];
-
-const routes6: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/sync_types/confirm_deletes",

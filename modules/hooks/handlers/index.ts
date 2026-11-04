@@ -208,6 +208,7 @@ export async function askAdmin(ctx: HooksCtx, i: { id: string; threadId: string;
   return { asked: true };
 }
 
+const runOut = (r: Row): Row => ({ id: r["id"], hookId: r["hook_id"], event: r["event"], threadId: r["thread_id"] ?? undefined, agentId: r["agent_id"] ?? undefined, tool: r["tool"] ?? undefined, outcome: r["outcome"], detail: r["detail"] ?? undefined, ms: r["ms"], at: r["at"] });
 /** Runs a person may read: those of a chat they can use, or of a hook they may change. A trusted service reads any. Nothing else is listed, so a run never shows another person's chat. */
 export async function runsList(ctx: HooksCtx, i: { hookId?: string; threadId?: string; limit?: number }): Promise<{ runs: Row[] }> {
   ensure(ctx.db);
@@ -222,7 +223,16 @@ export async function runsList(ctx: HooksCtx, i: { hookId?: string; threadId?: s
   const where = [i.hookId ? "hook_id = ?" : "", i.threadId ? "thread_id = ?" : ""].filter(Boolean);
   const args = [i.hookId, i.threadId].filter((x): x is string => x !== undefined);
   const rows = ctx.db.all(`SELECT * FROM hooks_run ${where.length ? `WHERE ${where.join(" AND ")}` : ""} ORDER BY id DESC LIMIT ?`, ...args, Math.min(200, Math.max(1, i.limit ?? 50))) as Row[];
-  return { runs: rows.map((r) => ({ id: r["id"], hookId: r["hook_id"], event: r["event"], threadId: r["thread_id"] ?? undefined, agentId: r["agent_id"] ?? undefined, tool: r["tool"] ?? undefined, outcome: r["outcome"], detail: r["detail"] ?? undefined, ms: r["ms"], at: r["at"] })) };
+  return { runs: rows.map(runOut) };
+}
+
+/** The newest run of each hook in one chat: one row per hook, so a busy hook never crowds the others out. */
+export async function runsLatest(ctx: HooksCtx, i: { threadId: string }): Promise<{ runs: Row[] }> {
+  ensure(ctx.db);
+  const a = actorOf(ctx, "read");
+  if (a.kind !== "service" && !(await mayUseThread(ctx, i.threadId))) raise(ctx, "permission.no_grant", "That chat is not one you can use.");
+  const rows = ctx.db.all("SELECT * FROM hooks_run WHERE id IN (SELECT MAX(id) FROM hooks_run WHERE thread_id = ? GROUP BY hook_id) ORDER BY id DESC", i.threadId) as Row[];
+  return { runs: rows.map(runOut) };
 }
 
 export function policyGet(ctx: HooksCtx): { agentHooks: boolean } { actorOf(ctx, "read"); ensure(ctx.db); return { agentHooks: agentHooksOn(ctx) }; }

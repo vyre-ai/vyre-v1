@@ -13,6 +13,7 @@ export const handlers: Handlers<HandlerCtx> = {
   "hooks.policy.get": async (ctx) => { throw new VyreErr(notImplemented("hooks.policy.get", ctx.trace)); },
   "hooks.policy.set": async (ctx) => { throw new VyreErr(notImplemented("hooks.policy.set", ctx.trace)); },
   "hooks.remove": async (ctx) => { throw new VyreErr(notImplemented("hooks.remove", ctx.trace)); },
+  "hooks.runs.latest": async (ctx) => { throw new VyreErr(notImplemented("hooks.runs.latest", ctx.trace)); },
   "hooks.runs.list": async (ctx) => { throw new VyreErr(notImplemented("hooks.runs.list", ctx.trace)); },
   "hooks.set": async (ctx) => { throw new VyreErr(notImplemented("hooks.set", ctx.trace)); },
 };

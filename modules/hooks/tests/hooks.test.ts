@@ -309,3 +309,16 @@ test("a check's block can carry up to two next steps in plain words: long, linke
   const line = w.s.lines.find((l) => l["kind"] === "blocked")!;
   assert.deepEqual([line["agentId"], line["next"]], ["agt_intake", [{ label: "Add them", ask: "Please add them to Contacts" }]], "the quiet line carries the steps and the agent they go to");
 });
+
+test("the newest run of each hook in a chat: one row per hook, so a busy hook never crowds the others out; a chat you cannot use is refused", async () => {
+  const w = world();
+  const a = (await w.call("hooks.set", { scope: "person", event: "tool.before", kind: "command", command: "a" }, maya)).hook;
+  const b = (await w.call("hooks.set", { scope: "person", event: "prompt.submit", kind: "command", command: "b" }, maya)).hook;
+  await w.fire({ event: "prompt.submit", prompt: "x" });
+  for (let i = 0; i < 60; i++) await w.fire({ event: "tool.before", tool: "x" });
+  const { runs } = await w.call("hooks.runs.latest", { threadId: "thr_a" }, maya);
+  assert.deepEqual(runs.map((r: { hookId: string }) => r.hookId).sort(), [a.id, b.id].sort(), "both hooks have a row, though one ran 60 times after the other");
+  w.s.threadsDenied.add("thr_x");
+  await assert.rejects(w.call("hooks.runs.latest", { threadId: "thr_x" }, maya), /not one you can use/);
+  await assert.rejects(w.call("hooks.runs.latest", { threadId: "thr_a" }, { id: "svc_0123456789abcdef0123456789abcdef", kind: "service" }), /may not use hooks/);
+});
