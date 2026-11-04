@@ -45,7 +45,7 @@ test("a fresh Personal Space: the first hour works end to end in the real app", 
   const page = await context.newPage();
   const errors: string[] = [];
   const refused: string[] = [];
-  page.on("pageerror", (e) => errors.push(e.message.slice(0, 200)));
+  page.on("pageerror", (e) => errors.push(`${new URL(page.url()).pathname}${new URL(page.url()).hash.slice(0, 40)}: ${e.message.slice(0, 120)}`));
   page.on("response", (r) => { const u = new URL(r.url()); if (u.pathname.startsWith("/v1/") && r.status() >= 400) void r.text().then((b) => refused.push(`${r.status()} ${u.pathname} ${b.slice(0, 160)}`)).catch(() => undefined); });
   fs.mkdirSync(SHOTS, { recursive: true });
   const failures: string[] = [];
@@ -100,7 +100,8 @@ test("a fresh Personal Space: the first hour works end to end in the real app", 
       // Chats opens on the new-chat landing (its composer is there); a press on "New chat" is only needed when a chat is open
       const newChat = page.getByText("New chat", { exact: true }).first();
       if (await newChat.count() > 0) await newChat.click({ timeout: 15_000 });
-      const composer = page.getByTestId("composer-field").or(page.locator('[data-testid="composer"] textarea')).or(page.locator('[data-testid="composer"] [contenteditable="true"]')).first();
+      // the shared editor (contenteditable) is the composer once it has mounted; text typed into the plain stand-in of the first frame is lost when the editor replaces it
+      const composer = page.getByTestId("composer-field").and(page.locator('[contenteditable="true"]')).first();
       await composer.waitFor({ timeout: 15_000 });
       const text = `hello from the walk ${Date.now()}`;
       await composer.fill(text);
@@ -253,7 +254,8 @@ test("a fresh Personal Space: the first hour works end to end in the real app", 
       await page.getByTestId("agent-save").click({ timeout: 10_000 });
       // a real agent exists, and a chat with it is open
       await page.getByText("Walk Agent", { exact: true }).first().waitFor({ timeout: 20_000 });
-      const agents = (await api("agents.list")).data.agents as { name: string }[];
+      let agents = (await api("agents.list")).data.agents as { name: string }[];
+      for (let i = 0; i < 30 && !agents.some((x) => x.name === "Walk Agent"); i++) { await page.waitForTimeout(500); agents = (await api("agents.list")).data.agents as { name: string }[]; }
       assert.ok(agents.some((x) => x.name === "Walk Agent"), "the agent exists in the Space");
       assert.equal(await page.getByText("Needs a Team Space").count(), 0, "no dead page");
       await page.getByTestId("composer-field").waitFor({ timeout: 20_000 });

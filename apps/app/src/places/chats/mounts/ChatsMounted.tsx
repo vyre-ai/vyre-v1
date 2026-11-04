@@ -140,6 +140,8 @@ export function ChatsMounted({ rt, hash = "", initial, window, opened, onSwitch,
     setShown((s) => step(s, a));
   }, [onSwitch, stacked, opened]);
   // a link from another place, a notification or the Space menu while Chats is already open
+  // an agent form that came in on a link of its own (a tab opened for it) closes that tab when it is done; one opened in this tab from the sidebar's New agent leaves the tab and goes on to the chat in it
+  const formTab = useRef(hash !== "" && fromHash(hash).route.view === "agent-form");
   const linked = useRef(hash);
   useEffect(() => {
     if (hash === linked.current) return;
@@ -314,7 +316,7 @@ export function ChatsMounted({ rt, hash = "", initial, window, opened, onSwitch,
   else if (route.view === "imported") main = <ImportedSession key={route.conversationId} conversationId={route.conversationId} data={importedData} />;
   else if (route.view === "helper") main = helperId === "" ? <HelperChatLoading /> : <HelperChat key={helperId} data={helper} />;
   else if (route.view === "agent") main = agentId === "" ? <AgentPageLoading /> : <AgentPage key={agentId} data={agentPage} {...(route.tab ? { initialTab: route.tab } : {})} {...(window ? { window } : {})} />;
-  else if (route.view === "agent-form") main = <AgentForm key={route.agentId ?? "new"} agentId={route.agentId} call={rt.call as (cap: string, input: unknown) => Promise<unknown>} newKey={newKey} onDone={(id) => { closeSelf?.(); go.agentChat(id); }} onCancel={() => act({ t: "new" })} say={setLine} openVault={() => rt.open({ screen: "vault.providers" })} {...(rt.space.kind === "personal" ? {} : { sharing: { directory, meName: rt.me.name, meId: rt.me.id, nameOf } })} />;
+  else if (route.view === "agent-form") main = <AgentForm key={route.agentId ?? "new"} agentId={route.agentId} call={rt.call as (cap: string, input: unknown) => Promise<unknown>} newKey={newKey} onDone={(id) => { if (formTab.current) closeSelf?.(); go.agentChat(id); }} onCancel={() => act({ t: "new" })} say={setLine} openVault={() => rt.open({ screen: "vault.providers" })} {...(rt.space.kind === "personal" ? {} : { sharing: { directory, meName: rt.me.name, meId: rt.me.id, nameOf } })} />;
   else if (route.view === "artifacts") main = <ArtifactsPage rt={rt} />;
   else if (route.view === "notes") main = <NotesPage rt={rt} nameOf={nameOf} noteId={route.noteId ?? null} {...(route.take ? { takeNonce: route.take } : {})} {...(notesInitial ? { initial: notesInitial } : {})} />;
   else if (route.view === "new") {
