@@ -7271,6 +7271,30 @@ export type ChatNoteOfferMakeOut = {
   blockId?: string;
   messageId?: string;
 };
+export type ChatNotedIn = {
+  threadId: string;
+  factId: string;
+  kind: string;
+  text: string;
+  replaces?: string;
+  disputed?: boolean;
+  question?: {
+    questionId: string;
+    a: {
+      text: string;
+      by: string;
+      at: number;
+    };
+    b: {
+      text: string;
+      by: string;
+      at: number;
+    };
+  };
+};
+export type ChatNotedOut = {
+  posted: boolean;
+};
 export type ChatOpenAsChatIn = {
   threadId: string;
 };
@@ -25244,6 +25268,22 @@ export type MemoryPageVersionsOut = {
       notes: string;
     }>;
 };
+export type MemoryPlaceArchiveIn = {
+  placeKind: "chat" | "channel" | "project" | "task" | "goal" | "record";
+  placeId: string;
+  action: "archive" | "delete";
+};
+export type MemoryPlaceArchiveOut = {
+  facts: number;
+};
+export type MemoryPlaceListIn = {
+  placeKind: "chat" | "channel" | "project" | "task" | "goal" | "record";
+  placeId: string;
+  history?: boolean;
+};
+export type MemoryPlaceListOut = {
+  facts: Array<unknown>;
+};
 export type MemoryPointerIn = {
   threadId: string;
   agentId: string;
@@ -25894,6 +25934,13 @@ export type MemorySearchOut = {
     hint?: string;
   };
   locked?: string;
+};
+export type MemorySourceRemovedIn = {
+  threadId: string;
+  messageId: string;
+};
+export type MemorySourceRemovedOut = {
+  dropped: number;
 };
 export type MemoryTrailIn = {
   factId?: string;
@@ -44251,6 +44298,7 @@ export interface CapMap {
   "chat.messages.list": { in: ChatMessagesListIn; out: ChatMessagesListOut };
   "chat.note_offer.answer": { in: ChatNoteOfferAnswerIn; out: ChatNoteOfferAnswerOut };
   "chat.note_offer.make": { in: ChatNoteOfferMakeIn; out: ChatNoteOfferMakeOut };
+  "chat.noted": { in: ChatNotedIn; out: ChatNotedOut };
   "chat.open_as_chat": { in: ChatOpenAsChatIn; out: ChatOpenAsChatOut };
   "chat.open_tab": { in: ChatOpenTabIn; out: ChatOpenTabOut };
   "chat.people_status": { in: ChatPeopleStatusIn; out: ChatPeopleStatusOut };
@@ -45223,6 +45271,8 @@ export interface CapMap {
   "memory.page.restore_version": { in: MemoryPageRestoreVersionIn; out: MemoryPageRestoreVersionOut };
   "memory.page.set_visibility": { in: MemoryPageSetVisibilityIn; out: MemoryPageSetVisibilityOut };
   "memory.page.versions": { in: MemoryPageVersionsIn; out: MemoryPageVersionsOut };
+  "memory.place.archive": { in: MemoryPlaceArchiveIn; out: MemoryPlaceArchiveOut };
+  "memory.place.list": { in: MemoryPlaceListIn; out: MemoryPlaceListOut };
   "memory.pointer": { in: MemoryPointerIn; out: MemoryPointerOut };
   "memory.profile.add": { in: MemoryProfileAddIn; out: MemoryProfileAddOut };
   "memory.profile.context": { in: MemoryProfileContextIn; out: MemoryProfileContextOut };
@@ -45243,6 +45293,7 @@ export interface CapMap {
   "memory.restore": { in: MemoryRestoreIn; out: MemoryRestoreOut };
   "memory.restore_version": { in: MemoryRestoreVersionIn; out: MemoryRestoreVersionOut };
   "memory.search": { in: MemorySearchIn; out: MemorySearchOut };
+  "memory.source_removed": { in: MemorySourceRemovedIn; out: MemorySourceRemovedOut };
   "memory.trail": { in: MemoryTrailIn; out: MemoryTrailOut };
   "memory.trash.search": { in: MemoryTrashSearchIn; out: MemoryTrashSearchOut };
   "memory.undo": { in: MemoryUndoIn; out: MemoryUndoOut };

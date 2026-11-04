@@ -22,6 +22,10 @@ export interface LinkCardData {
   via?: string;
   /** More than a line: an agent's summary. Cards with a body or actions draw as a card, the rest as one line. */
   body?: string;
+  /** How it is drawn when it is not the plain card: a quiet memory line ("Noted: decision, go with Harbor \u00b7 Undo") or an open question whose first answer is the filled button. */
+  style?: "noted" | "question";
+  /** A muted line under the title of a question. */
+  sub?: string;
   /** Buttons under the body; the host knows what each key does (make a task, remember). */
   /** `cap` and `input` make a button do something by itself: the host calls that capability as the person (the Gate still holds what leaves Vyre). A button with no `cap` only reports its key. */
   actions?: { key: string; label: string; cap?: string; input?: Record<string, unknown> }[];
@@ -48,8 +52,10 @@ export function linkCardOf(b: { type: string; data: unknown }): LinkCardData | n
       return key && label ? [{ key, label, ...(cap ? { cap } : {}), ...(cap && input ? { input } : {}) }] : [];
     }).slice(0, 4)
     : [];
+  const style = d["style"] === "noted" || d["style"] === "question" ? (d["style"] as "noted" | "question") : undefined;
+  const sub = str(d["sub"]);
   return {
-    icon: str(d["icon"]) ?? "thread", lead, title,
+    icon: str(d["icon"]) ?? "thread", lead, title, ...(style ? { style } : {}), ...(sub ? { sub: sub.slice(0, 200) } : {}),
     ...(who ? { who } : {}), ...(by ? { by } : {}), ...(to ? { to } : {}), ...(via ? { via } : {}), ...(reach ? { reach } : {}), ...(type && id ? { target: { type, id } } : {}), ...(body ? { body: body.slice(0, 2000) } : {}), ...(actions.length ? { actions } : {}),
   };
 }
@@ -64,7 +70,11 @@ export function linkCardLine(d: LinkCardData, nameOf: (id: string) => string): s
 }
 
 /** A card that is more than a line: it has words under it or buttons. */
-export const isFullCard = (d: LinkCardData): boolean => d.body !== undefined || (d.actions?.length ?? 0) > 0;
+/** A line with one button and no words under it ("Noted: decision, go with Harbor \u00b7 Undo") stays a line: the button is a link at its end. */
+/** "Noted: decision, go with Harbor": the lead, a comma, the words with their first letter lowercased. */
+export const notedText = (d: LinkCardData): string => `${d.lead}, ${d.title.charAt(0).toLowerCase()}${d.title.slice(1)}`;
+export const isInlineAction = (d: LinkCardData): boolean => d.body === undefined && d.actions?.length === 1;
+export const isFullCard = (d: LinkCardData): boolean => !isInlineAction(d) && (d.body !== undefined || (d.actions?.length ?? 0) > 0);
 
 /** The block a handler writes into a thread: the one place the shape is built, so every module's card is the same. */
 export function linkCardBlock(id: string, traceId: string, d: LinkCardData): { type: string; v: number; id: string; data: LinkCardData; state: string; traceId: string } {

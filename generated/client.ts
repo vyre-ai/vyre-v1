@@ -435,6 +435,7 @@ export function createClient(transport: Transport) {
         answer: call("chat.note_offer.answer", 1),
         make: call("chat.note_offer.make", 1),
       },
+      noted: call("chat.noted", 1),
       open_as_chat: call("chat.open_as_chat", 1),
       open_tab: call("chat.open_tab", 1),
       people_status: call("chat.people_status", 1),
@@ -1795,6 +1796,10 @@ export function createClient(transport: Transport) {
         set_visibility: call("memory.page.set_visibility", 1),
         versions: call("memory.page.versions", 1),
       },
+      place: {
+        archive: call("memory.place.archive", 1),
+        list: call("memory.place.list", 1),
+      },
       pointer: call("memory.pointer", 1),
       profile: {
         add: call("memory.profile.add", 1),
@@ -1825,6 +1830,7 @@ export function createClient(transport: Transport) {
       restore: call("memory.restore", 1),
       restore_version: call("memory.restore_version", 1),
       search: call("memory.search", 1),
+      source_removed: call("memory.source_removed", 1),
       trail: call("memory.trail", 1),
       trash: {
         search: call("memory.trash.search", 1),

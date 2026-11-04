@@ -435,6 +435,7 @@ export function stubs(ctx: CallCtx) {
         answer: call("chat.note_offer.answer"),
         make: call("chat.note_offer.make"),
       },
+      noted: call("chat.noted"),
       open_as_chat: call("chat.open_as_chat"),
       open_tab: call("chat.open_tab"),
       people_status: call("chat.people_status"),
@@ -1795,6 +1796,10 @@ export function stubs(ctx: CallCtx) {
         set_visibility: call("memory.page.set_visibility"),
         versions: call("memory.page.versions"),
       },
+      place: {
+        archive: call("memory.place.archive"),
+        list: call("memory.place.list"),
+      },
       pointer: call("memory.pointer"),
       profile: {
         add: call("memory.profile.add"),
@@ -1825,6 +1830,7 @@ export function stubs(ctx: CallCtx) {
       restore: call("memory.restore"),
       restore_version: call("memory.restore_version"),
       search: call("memory.search"),
+      source_removed: call("memory.source_removed"),
       trail: call("memory.trail"),
       trash: {
         search: call("memory.trash.search"),

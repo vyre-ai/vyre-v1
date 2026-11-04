@@ -2,7 +2,7 @@
 // name lookup and what opening and a button do, so this file knows nothing about tasks or facts.
 import type { ReactElement, ReactNode } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
-import { isFullCard, linkCardLine } from "./model.ts";
+import { isFullCard, isInlineAction, linkCardLine } from "./model.ts";
 import type { LinkCardData } from "./model.ts";
 import type { CardState } from "./state.ts";
 import { hiddenTitle } from "./state.ts";
@@ -25,17 +25,19 @@ export interface LinkCardProps {
   onAskAccess?: () => void;
   /** The ask was made. */
   asked?: boolean;
+  /** The time the line was written, as the reader reads times ("9:50 am"): shown at the right of a Noted line. */
+  time?: string;
 }
 
-export function LinkCard({ id, data, nameOf, icon, onOpen, onAction, done, state, hidden, onAskAccess, asked }: LinkCardProps): ReactElement {
+export function LinkCard({ id, data, nameOf, icon, onOpen, onAction, done, state, hidden, onAskAccess, asked, time }: LinkCardProps): ReactElement {
   const line = linkCardLine(data, nameOf);
   const open = data.target && onOpen && !hidden ? (): void => onOpen(data.target!) : undefined;
   const head = (
     <View style={st.head}>
       {icon ? <View style={st.icon}>{icon}</View> : null}
       <Text numberOfLines={2} style={st.text}>
-        {`${line}: `}
-        <Text accessibilityRole={open ? "link" : "text"} testID={`link-card-${id}-open`} onPress={open} style={open ? st.link : st.title}>{hidden ? hiddenTitle(data.target?.type) : data.title}</Text>
+        {data.style === "question" ? "" : `${line}: `}
+        <Text accessibilityRole={open ? "link" : "text"} testID={`link-card-${id}-open`} onPress={open} style={open ? st.link : data.style === "question" ? st.qtitle : st.title}>{hidden ? hiddenTitle(data.target?.type) : data.title}</Text>
         {hidden && onAskAccess ? <Text style={st.title}>{" \u00b7 "}</Text> : null}
         {hidden && onAskAccess ? <Text accessibilityRole={asked ? "text" : "link"} testID={`link-card-${id}-ask`} onPress={asked ? undefined : onAskAccess} style={asked ? st.title : st.link}>{asked ? "Asked for access" : "Ask for access"}</Text> : null}
       </Text>
@@ -47,15 +49,43 @@ export function LinkCard({ id, data, nameOf, icon, onOpen, onAction, done, state
   for (const a of data.actions ?? []) {
     const was = done?.has(a.key) === true;
     buttons.push(
-      <Pressable key={a.key} accessibilityRole="button" accessibilityLabel={a.label} accessibilityState={{ disabled: was }} disabled={was || !onAction} testID={`link-card-${id}-${a.key}`} onPress={() => onAction?.(a.key)} style={[st.btn, was && st.btnDone]}>
-        <Text style={st.btnText}>{was ? `${a.label} \u2713` : a.label}</Text>
+      <Pressable key={a.key} accessibilityRole="button" accessibilityLabel={a.label} accessibilityState={{ disabled: was }} disabled={was || !onAction} testID={`link-card-${id}-${a.key}`} onPress={() => onAction?.(a.key)} style={[st.btn, was && st.btnDone, data.style === "question" && buttons.length === 0 && st.btnPrimary]}>
+        <Text style={[st.btnText, data.style === "question" && buttons.length === 0 && st.btnPrimaryText]}>{was ? `${a.label} \u2713` : a.label}</Text>
       </Pressable>,
+    );
+  }
+  if (data.style === "noted") {
+    // the quiet line every memory leaves in a shared place: a dot, "Noted: decision, go with Harbor", Undo, and the time at the right
+    const a = data.actions?.[0];
+    const was = a ? done?.has(a.key) === true : false;
+    return (
+      <View testID={`link-card-${id}`} style={st.noted}>
+        <View style={st.dot} />
+        <Text style={st.notedText}>
+          <Text>{`${data.lead}, `}</Text>
+          <Text style={st.notedWords}>{data.title.charAt(0).toLowerCase() + data.title.slice(1)}</Text>
+          {a ? <Text>{" \u00b7 "}</Text> : null}
+          {a ? <Text accessibilityRole="button" testID={`link-card-${id}-${a.key}`} onPress={was || !onAction ? undefined : () => onAction(a.key)} style={st.notedUndo}>{was ? `${a.label} \u2713` : a.label}</Text> : null}
+        </Text>
+        {time ? <Text testID={`link-card-${id}-time`} style={st.notedTime}>{time}</Text> : null}
+      </View>
+    );
+  }
+  if (isInlineAction(data)) {
+    const a = data.actions![0]!;
+    const was = done?.has(a.key) === true;
+    return (
+      <View testID={`link-card-${id}`} style={st.line}>
+        {head}
+        <Pressable accessibilityRole="button" accessibilityLabel={a.label} disabled={was || !onAction} testID={`link-card-${id}-${a.key}`} onPress={() => onAction?.(a.key)}><Text style={[st.link, st.inlineBtn]}>{was ? `${a.label} \u2713` : a.label}</Text></Pressable>
+      </View>
     );
   }
   if (!isFullCard(data)) return <View testID={`link-card-${id}`} accessibilityRole="text" style={st.line}>{head}</View>;
   return (
     <View testID={`link-card-${id}`} style={st.card}>
       {head}
+      {data.sub ? <Text style={st.sub}>{data.sub}</Text> : null}
       {data.body ? <Text style={st.body}>{data.body}</Text> : null}
       {data.actions?.length ? (
         <View style={st.acts}>
@@ -67,7 +97,8 @@ export function LinkCard({ id, data, nameOf, icon, onOpen, onAction, done, state
 }
 
 const st = StyleSheet.create({
-  line: { paddingVertical: 4, marginVertical: 2 },
+  line: { paddingVertical: 4, marginVertical: 2, flexDirection: "row", alignItems: "baseline", flexWrap: "wrap", gap: 8 },
+  inlineBtn: { fontSize: 13, lineHeight: 20 },
   card: { marginVertical: 6, maxWidth: 520, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, gap: 8, boxShadow: "inset 0 0 0 1px var(--line-2)" } as object,
   head: { flexDirection: "row", alignItems: "flex-start", gap: 8 },
   icon: { width: 18, height: 20, alignItems: "center", justifyContent: "center" },
@@ -82,5 +113,15 @@ const st = StyleSheet.create({
   acts: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   btn: { height: 28, paddingHorizontal: 12, borderRadius: 8, justifyContent: "center", backgroundColor: "var(--sunk)" as string },
   btnDone: { opacity: 0.6 },
+  btnPrimary: { backgroundColor: "var(--ink)" as string },
+  btnPrimaryText: { color: "var(--win)" as string },
+  qtitle: { color: "var(--ink)" as string, fontWeight: "500", fontSize: 14 },
+  sub: { fontSize: 12.5, lineHeight: 18, color: "var(--ink-3)" as string, marginTop: -4 },
+  noted: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingTop: 12, paddingBottom: 6 },
+  dot: { width: 5, height: 5, borderRadius: 3, backgroundColor: "var(--ok)" as string },
+  notedText: { fontSize: 12.5, lineHeight: 18, color: "var(--ink-3)" as string },
+  notedWords: { color: "var(--ink-2, var(--ink))" as string, fontWeight: "500" },
+  notedUndo: { color: "var(--accent)" as string, fontWeight: "500" },
+  notedTime: { fontSize: 12, color: "var(--ink-3)" as string, fontVariant: ["tabular-nums"] },
   btnText: { fontSize: 12.5, fontWeight: "500", color: "var(--ink)" as string },
 });
