@@ -60,7 +60,7 @@ export function TerminalCard({ id, why, command, risk, host, agentId, deps, copy
         <View style={s.row}>
           {st.s === "error" ? <Text accessibilityRole="alert" style={s.err}>Could not reach the terminal</Text> : null}
           <View style={{ flex: 1 }} />
-          <TextButton label="Decline" onPress={() => { answer(id, "decline"); setSt({ s: "done", line: "Declined" }); }} testID={`terminal-card-decline-${id}`} />
+          <TextButton label="Deny" onPress={() => { answer(id, "decline"); setSt({ s: "done", line: "Denied" }); }} testID={`terminal-card-decline-${id}`} />
           <TextButton label="Copy" onPress={() => { copy(command); answer(id, "copy"); setSt({ s: "done", line: "Copied. You run it" }); }} testID={`terminal-card-copy-${id}`} />
           <TextButton label="Run in my terminal" primary onPress={run} testID={`terminal-card-run-${id}`} />
         </View>

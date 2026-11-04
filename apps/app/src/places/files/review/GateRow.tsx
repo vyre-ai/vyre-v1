@@ -27,7 +27,7 @@ export function GateRow({ gate, onApprove, onCancel, onAsk }: GateRowProps): Rea
         leading={<Glyph name={gate.state === "cleared" ? "check" : "shield"} size={14} color={color} width={1.6} />}
         trailing={waiting ? (
           <View style={st.acts}>
-            <Btn label="Approve" small onPress={onApprove} testID="gate-approve" />
+            <Btn label="Allow" small onPress={onApprove} testID="gate-approve" />
             <Btn label="Cancel" small onPress={onCancel} testID="gate-cancel" />
           </View>
         ) : gate.state === "cancelled" && onAsk ? <Btn label="Ask again" small onPress={onAsk} testID="gate-ask" /> : undefined}

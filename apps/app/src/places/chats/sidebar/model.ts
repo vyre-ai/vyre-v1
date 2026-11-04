@@ -211,7 +211,7 @@ export function whenLabel(ts: number, now: number, offsetMin: number): string {
 export function needsKind(item: NeedsItem): { label: string; tone: "accent" | "warn" } {
   const t = item.task;
   if (t.kind === "unblock" || t.blocked) return { label: "Blocked", tone: "warn" };
-  return { label: t.kind === "approve" ? "Approve" : "Review", tone: "accent" };
+  return { label: t.kind === "approve" ? "Allow" : "Review", tone: "accent" };
 }
 
 // ---------------------------------------------------------------- the one flat list the sidebar draws

@@ -40,8 +40,8 @@ export const BLOCK_SPECS_B: Readonly<Record<PartTwoType, BlockSpecB>> = {
   access_request: {
     type: "access_request",
     actions: [
-      { key: "approve", label: "Approve", cap: "access.requests.approve", input: { requestId: "/requestId", level: "/level" } },
-      { key: "decline", label: "Decline", cap: "access.requests.decline", input: { requestId: "/requestId" } },
+      { key: "approve", label: "Allow", cap: "access.requests.approve", input: { requestId: "/requestId", level: "/level" } },
+      { key: "decline", label: "Deny", cap: "access.requests.decline", input: { requestId: "/requestId" } },
     ],
   },
   secret_input: {
@@ -65,7 +65,7 @@ export const BLOCK_SPECS_B: Readonly<Record<PartTwoType, BlockSpecB>> = {
     type: "diff_card",
     actions: [
       { key: "apply", label: "Apply", cap: "console.diff_apply", input: { diffId: "/diffId" } },
-      { key: "reject", label: "Reject", cap: "console.diff_reject", input: { diffId: "/diffId" } },
+      { key: "reject", label: "Deny", cap: "console.diff_reject", input: { diffId: "/diffId" } },
     ],
   },
 };

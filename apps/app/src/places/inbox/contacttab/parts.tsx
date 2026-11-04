@@ -225,7 +225,7 @@ export function DraftBlock({ d, offsetMin = 0, nameOf, onSend, onDrop, loadText,
         peopleRows={[{ label: "To", people: d.toParties.map((p) => { const name = p.name || nameOf?.(p.address) || p.address; return { name, seed: p.address, ...(name !== p.address ? { sub: p.address } : {}) }; }) }, { label: "Cc", people: d.ccParties.map((p) => { const name = p.name || nameOf?.(p.address) || p.address; return { name, seed: p.address, ...(name !== p.address ? { sub: p.address } : {}) }; }) }]}
         schedule={d.earlier ? `Updated ${clockTime(d.updatedAt, offsetMin)}` : null} subject={d.channel === "sms" ? undefined : subject} body={text} edited={edited}
         fields={d.via ? [["From", d.via]] : []} state="waiting" doneLine={done ?? "Sent"} editable editSubject={d.channel !== "sms"}
-        {...(d.earlier ? { earlier: { text: d.earlier.text } } : {})} {...(editor ? { editor } : {})} sendLabel="Send" stoppedNote={sendsLine(d.from)}
+        {...(d.earlier ? { earlier: { text: d.earlier.text } } : {})} {...(editor ? { editor } : {})} stoppedNote={sendsLine(d.from)}
         onSave={async ({ body, subject: sj }) => { const nextSubject = sj ?? subject; await onSave(body, nextSubject); setText(body); setSubject(nextSubject); setEdited(true); }}
         onSend={async () => { setDone(await onSend(text, subject)); }}
         onDrop={onDrop}

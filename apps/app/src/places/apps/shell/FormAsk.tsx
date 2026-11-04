@@ -40,7 +40,7 @@ export function FormAsk(p: FormAskProps): ReactElement {
         <Text style={[s.text, { fontWeight: "600" }]}>{`${FIELD_TITLE[c.path] ?? c.path} change`}</Text>
         <Text style={s.text}>{`${summaryOf(c).replace(/^[^:]*: /, "")} · ${state === "accepted" ? "accepted, save to keep" : state === "rejected" ? "rejected" : "proposed"}`}</Text>
         {state ? <Text testID={`apps-ask-${state}-${id}`} style={s.text}>{state === "accepted" ? "Accepted" : "Rejected"}</Text>
-          : <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}><Button title="Reject" testID={`apps-ask-reject-${id}`} onPress={() => p.onReject(c.path)} /><Button title="Accept" primary testID={`apps-ask-accept-${id}`} onPress={() => p.onAccept(c.path)} /></View>}
+          : <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}><Button title="Deny" testID={`apps-ask-reject-${id}`} onPress={() => p.onReject(c.path)} /><Button title="Allow" primary testID={`apps-ask-accept-${id}`} onPress={() => p.onAccept(c.path)} /></View>}
       </View>;
     })}
     {p.proposals.length > 0 ? <Text selectable testID="apps-ask-diff" style={[s.text, { fontFamily: "var(--mono)" as string }]}>{diffText(p.proposals)}</Text> : null}

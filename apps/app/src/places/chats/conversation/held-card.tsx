@@ -2,8 +2,9 @@
 //   Header   the recipient's avatar and name and the channel in plain words ("Dex wants to message Aliza Rizvi"), and, only when it does not go now, when ("Sends at 9:00").
 //   Body     what it says, drawn by the chat's own block renderer (bold, lists, links), in full; past about twelve lines it is cut with "Show all".
 //   Edit     the body becomes the shared MarkdownEditor in place, with Save and Cancel. Saving keeps it held and the card says "Edited by you".
-//   Buttons  Send (primary), Edit, Don't send. Don't send asks for a reason, optional, that goes back to the agent. After Send the card reads "Sent to Aliza · 04:38", after Don't send "Not sent".
-// It knows nothing of the Gate or of Chrome: the caller says what Send, Save and Don't send do. No internal field name is ever drawn.
+//   Buttons  Allow (primary, it sends), Edit, Deny: the one approval vocabulary (Allow, Always allow, Deny). Deny asks for a reason, optional, that goes back to the agent. After Allow the card reads
+//            "Sent to Aliza · 04:38", after Deny "Not sent".
+// It knows nothing of the Gate or of Chrome: the caller says what Allow, Save and Deny do. No internal field name is ever drawn.
 import { useState } from "react";
 import type { ReactElement } from "react";
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
@@ -58,8 +59,6 @@ export interface HeldCardProps {
   editTo?: boolean;
   /** Subject is editable (email, Chrome). */
   editSubject?: boolean;
-  sendLabel?: string;
-  dropLabel?: string;
   /** "Scout stopped before Send". */
   stoppedNote?: string | undefined;
   onSend(): Promise<void>;
@@ -174,15 +173,15 @@ export function HeldCard(p: HeldCardProps): ReactElement {
           <TextInput accessibilityLabel="Why not (optional)" testID={`${p.testID}-reason`} value={reason} onChangeText={setReason} placeholder="Reason (optional)" placeholderTextColor="var(--ink-4)" multiline style={st.reasonInput} />
           <View style={st.acts}>
             <TextButton label="Back" onPress={() => setDenying(false)} disabled={busy} testID={`${p.testID}-back`} />
-            <TextButton label={p.dropLabel ?? "Don't send"} danger disabled={busy} onPress={() => run(() => p.onDrop(reason.trim()), () => setDone("dropped"))} testID={`${p.testID}-drop-go`} />
+            <TextButton label="Deny" danger disabled={busy} onPress={() => run(() => p.onDrop(reason.trim()), () => setDone("dropped"))} testID={`${p.testID}-drop-go`} />
           </View>
         </View>
       ) : !editing ? (
         <View style={st.foot}>
           <View style={st.acts}>
-            <TextButton label={p.sendLabel ?? "Send"} primary icon="check" disabled={busy} onPress={() => run(p.onSend, () => setDone("sent"))} testID={`${p.testID}-send`} />
+            <TextButton label="Allow" primary icon="check" disabled={busy} onPress={() => run(p.onSend, () => setDone("sent"))} testID={`${p.testID}-send`} />
             {p.editable ? <TextButton label="Edit" ring icon="edit" disabled={busy} onPress={() => { setDraft({ body: p.body, subject: p.subject ?? "", to: p.to.map((r) => r.name).join(", ") }); setEditing(true); }} testID={`${p.testID}-edit`} /> : null}
-            <TextButton label={p.dropLabel ?? "Don't send"} disabled={busy} onPress={() => setDenying(true)} testID={`${p.testID}-drop`} />
+            <TextButton label="Deny" disabled={busy} onPress={() => setDenying(true)} testID={`${p.testID}-drop`} />
           </View>
           {p.stoppedNote ? <Text style={st.sub} testID={`${p.testID}-stopped`}>{p.stoppedNote}</Text> : null}
         </View>
