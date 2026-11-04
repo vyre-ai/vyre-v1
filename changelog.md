@@ -1,5 +1,7 @@
 # Changelog
 
+- An agent's draft in Inbox is no longer sent cut short or to the wrong person. Edit opens the draft in its own card with every character of its body, and Send goes out as the draft is stored: to its own recipients and Cc, with its own subject, from its own mailbox, never taking the thread that happens to be open. A draft that ends in a cut-off "..." that nobody typed is not sent.
+- A draft is filed under a contact only when it is addressed to that contact, so a draft to Osama no longer shows in Josh's view, and being copied (Cc) on two contacts' threads files nothing under the copied person.
 - The highlight behind an @mention in the message box stays on the name in a long draft (it slid onto the wrong words once the box scrolled).
 - A goal's helpers now reach its chat: the goal chat may gain people, so the owner and helpers are added; a plan step added to a draft goal waits in the drafted plan until Start; the agent that drafted a goal may plan it; and making or changing a goal reports what happened to each helper, with a failure written to the goal's activity.
 - The in-app artifact viewer's blank frame: the desktop app's CSP had no frame-src, so it fell back to default-src 'self' and refused to frame the Space's https address (the same address in a browser is fine). tauri.conf.json now has frame-src https: and loopback, in line with its connect-src, and an artifact's address says who may frame it, frame-ancestors 'self' tauri://localhost http(s)://tauri.localhost, and nothing wider.
