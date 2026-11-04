@@ -251,3 +251,31 @@ test("the right pane draws the Skills tab once (a merge once left two copies of 
   const src = (await import("node:fs")).readFileSync(new URL("../rightpane/ChatRightPane.tsx", import.meta.url), "utf8");
   assert.equal((src.match(/<SkillsTab\b/g) ?? []).length, 1);
 });
+
+test("a commit that names a lower version is an older version, held like any change: the marker, the title and the button never say update", async () => {
+  const { versionBelow } = await import("../../../../../../modules/agents/handlers/install.ts");
+  assert.equal(versionBelow("1.2.0", "1.3.0"), true);
+  assert.equal(versionBelow("1.3.0", "1.2.0"), false);
+  assert.equal(versionBelow("1.9.0", "1.10.0"), true, "numbers, not text");
+  assert.equal(versionBelow("v2.1.0", "2.1.0"), false);
+  assert.equal(versionBelow(undefined, "1.0.0"), null, "no version to compare: not called older");
+  const diff = { from: "7d03be8".padEnd(40, "0"), to: "a41f9c2".padEnd(40, "0"), fromVersion: "1.3.0", toVersion: "1.2.0", older: true, added: [], removed: [], changed: [{ path: "SKILL.md", plus: [], minus: ["x"] }] };
+  const c = await card(PLAN({ diff } as never), { update: true, installId: "ins_0" });
+  assert.match(textOf(find(c.root, "install-update-m1")!), /pdf-tools has an older version, not an update/);
+  await press(find(c.root, "install-diff-toggle-m1")!);
+  assert.match(textOf(find(c.root, "install-diff-m1")!), /pdf-tools 1\.3\.0 to 1\.2\.0/);
+  assert.match(textOf(find(c.root, "install-diff-m1")!), /Go back to it/);
+  assert.doesNotMatch(textOf(find(c.root, "install-update-m1")!), /has an update/);
+  assert.equal(c.calls.some((x) => x.cap === "install.apply"), false, "nothing is applied until the person says so");
+});
+
+test("a key the plan names that is in the Vault stays on the card as 'added'", async () => {
+  VAULT = ["DATABASE_URL"];
+  try {
+    const plan = PLAN({ kind: "mcp_local", name: "sql-reader", commit: "c90e5a3bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", needs: { domains: [], vaultKeys: ["DATABASE_URL"], files: [] }, runOn: [{ key: "sandbox", label: "On your computer, in the sandbox" }] });
+    const c = await card(plan);
+    assert.match(textOf(find(c.root, "install-vault-m1")!), /DATABASE_URL · added/);
+    assert.equal(find(c.root, "install-addkey-DATABASE_URL-m1"), null);
+    assert.equal(find(c.root, "install-waits-m1"), null);
+  } finally { VAULT = undefined; }
+});

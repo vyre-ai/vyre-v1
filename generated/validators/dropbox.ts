@@ -5,28 +5,28 @@ import type { Check } from './core.ts';
 
 function d_s_9b30b1af72(v: unknown, p: string, e: string[]): void {
 {
-const x770 = v;
-const g770 = typeOf(x770);
-const b770: string[] = []; lf(x770, p, b770, L0); if (b770.length) e.push(...b770);
-if (g770 === "object") {
-if (g770 === 'object') { const o770 = x770 as Record<string, unknown>;
-if (!("id" in o770)) e.push(p + "/id" + ': required');
-if (!("name" in o770)) e.push(p + "/name" + ': required');
-if (!("path" in o770)) e.push(p + "/path" + ': required');
-if (!("pathLower" in o770)) e.push(p + "/pathLower" + ': required');
-if (!("isFolder" in o770)) e.push(p + "/isFolder" + ': required');
-if (!("webUrl" in o770)) e.push(p + "/webUrl" + ': required');
-if ("id" in o770) lf(o770["id"], p + "/id", e, L1);
-if ("name" in o770) lf(o770["name"], p + "/name", e, L1);
-if ("path" in o770) lf(o770["path"], p + "/path", e, L1);
-if ("pathLower" in o770) lf(o770["pathLower"], p + "/pathLower", e, L1);
-if ("isFolder" in o770) lf(o770["isFolder"], p + "/isFolder", e, L3);
-if ("deleted" in o770) lf(o770["deleted"], p + "/deleted", e, L3);
-if ("size" in o770) lf(o770["size"], p + "/size", e, L17);
-if ("rev" in o770) lf(o770["rev"], p + "/rev", e, L1);
-if ("modified" in o770) lf(o770["modified"], p + "/modified", e, L1);
-if ("contentHash" in o770) lf(o770["contentHash"], p + "/contentHash", e, L1);
-if ("webUrl" in o770) lf(o770["webUrl"], p + "/webUrl", e, L1);
+const x788 = v;
+const g788 = typeOf(x788);
+const b788: string[] = []; lf(x788, p, b788, L0); if (b788.length) e.push(...b788);
+if (g788 === "object") {
+if (g788 === 'object') { const o788 = x788 as Record<string, unknown>;
+if (!("id" in o788)) e.push(p + "/id" + ': required');
+if (!("name" in o788)) e.push(p + "/name" + ': required');
+if (!("path" in o788)) e.push(p + "/path" + ': required');
+if (!("pathLower" in o788)) e.push(p + "/pathLower" + ': required');
+if (!("isFolder" in o788)) e.push(p + "/isFolder" + ': required');
+if (!("webUrl" in o788)) e.push(p + "/webUrl" + ': required');
+if ("id" in o788) lf(o788["id"], p + "/id", e, L1);
+if ("name" in o788) lf(o788["name"], p + "/name", e, L1);
+if ("path" in o788) lf(o788["path"], p + "/path", e, L1);
+if ("pathLower" in o788) lf(o788["pathLower"], p + "/pathLower", e, L1);
+if ("isFolder" in o788) lf(o788["isFolder"], p + "/isFolder", e, L3);
+if ("deleted" in o788) lf(o788["deleted"], p + "/deleted", e, L3);
+if ("size" in o788) lf(o788["size"], p + "/size", e, L17);
+if ("rev" in o788) lf(o788["rev"], p + "/rev", e, L1);
+if ("modified" in o788) lf(o788["modified"], p + "/modified", e, L1);
+if ("contentHash" in o788) lf(o788["contentHash"], p + "/contentHash", e, L1);
+if ("webUrl" in o788) lf(o788["webUrl"], p + "/webUrl", e, L1);
 }
 }
 }
@@ -34,13 +34,13 @@ if ("webUrl" in o770) lf(o770["webUrl"], p + "/webUrl", e, L1);
 
 function d_s_a12a98d618(v: unknown, p: string, e: string[]): void {
 {
-const x808 = v;
-const g808 = typeOf(x808);
-const b808: string[] = []; lf(x808, p, b808, L4); if (b808.length) e.push(...b808);
-if (g808 === "array") {
-if (g808 === 'array') { const a808 = x808 as unknown[];
-for (let i808 = 0; i808 < a808.length; i808++) {
-d_s_9b30b1af72(a808[i808], p + '/' + i808, e);
+const x826 = v;
+const g826 = typeOf(x826);
+const b826: string[] = []; lf(x826, p, b826, L4); if (b826.length) e.push(...b826);
+if (g826 === "array") {
+if (g826 === 'array') { const a826 = x826 as unknown[];
+for (let i826 = 0; i826 < a826.length; i826++) {
+d_s_9b30b1af72(a826[i826], p + '/' + i826, e);
 }
 }
 }

@@ -122,13 +122,13 @@ if ("idempotencyKey" in o632) lf(o632["idempotencyKey"], p + "/idempotencyKey", 
 
 function d_s_82b1280cc8(v: unknown, p: string, e: string[]): void {
 {
-const x637 = v;
-const g637 = typeOf(x637);
-const b637: string[] = []; lf(x637, p, b637, L4); if (b637.length) e.push(...b637);
-if (g637 === "array") {
-if (g637 === 'array') { const a637 = x637 as unknown[];
-for (let i637 = 0; i637 < a637.length; i637++) {
-d_s_dced9d14be(a637[i637], p + '/' + i637, e);
+const x655 = v;
+const g655 = typeOf(x655);
+const b655: string[] = []; lf(x655, p, b655, L4); if (b655.length) e.push(...b655);
+if (g655 === "array") {
+if (g655 === 'array') { const a655 = x655 as unknown[];
+for (let i655 = 0; i655 < a655.length; i655++) {
+d_s_dced9d14be(a655[i655], p + '/' + i655, e);
 }
 }
 }
@@ -137,13 +137,13 @@ d_s_dced9d14be(a637[i637], p + '/' + i637, e);
 
 function d_s_921597cfe1(v: unknown, p: string, e: string[]): void {
 {
-const x725 = v;
-const g725 = typeOf(x725);
-const b725: string[] = []; lf(x725, p, b725, L0); if (b725.length) e.push(...b725);
-if (g725 === "object") {
-if (g725 === 'object') { const o725 = x725 as Record<string, unknown>;
-if (!("item" in o725)) e.push(p + "/item" + ': required');
-if ("item" in o725) d_s_0046d61ae3(o725["item"], p + "/item", e);
+const x743 = v;
+const g743 = typeOf(x743);
+const b743: string[] = []; lf(x743, p, b743, L0); if (b743.length) e.push(...b743);
+if (g743 === "object") {
+if (g743 === 'object') { const o743 = x743 as Record<string, unknown>;
+if (!("item" in o743)) e.push(p + "/item" + ': required');
+if ("item" in o743) d_s_0046d61ae3(o743["item"], p + "/item", e);
 }
 }
 }

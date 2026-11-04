@@ -20805,6 +20805,7 @@ export type InstallCheckUpdateOut = {
       to: string;
       fromVersion?: string;
       toVersion?: string;
+      older?: boolean;
       newAccess?: Array<string>;
       added: Array<string>;
       removed: Array<string>;
@@ -20870,6 +20871,7 @@ export type InstallFromLinkOut = {
       to: string;
       fromVersion?: string;
       toVersion?: string;
+      older?: boolean;
       newAccess?: Array<string>;
       added: Array<string>;
       removed: Array<string>;
@@ -20935,6 +20937,7 @@ export type InstallGetOut = {
       to: string;
       fromVersion?: string;
       toVersion?: string;
+      older?: boolean;
       newAccess?: Array<string>;
       added: Array<string>;
       removed: Array<string>;

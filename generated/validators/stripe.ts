@@ -155,25 +155,25 @@ lf(o516[k], p + "/metadata" + '/' + k, e, L1);
 
 function d_s_8ec0b22028(v: unknown, p: string, e: string[]): void {
 {
-const x707 = v;
-const g707 = typeOf(x707);
-const b707: string[] = []; lf(x707, p, b707, L0); if (b707.length) e.push(...b707);
-if (g707 === "object") {
-if (g707 === 'object') { const o707 = x707 as Record<string, unknown>;
-if (!("id" in o707)) e.push(p + "/id" + ': required');
-if ("id" in o707) lf(o707["id"], p + "/id", e, L1);
-if ("email" in o707) lf(o707["email"], p + "/email", e, L6);
-if ("name" in o707) lf(o707["name"], p + "/name", e, L1);
-if ("created" in o707) lf(o707["created"], p + "/created", e, L17);
-if ("metadata" in o707) {
+const x725 = v;
+const g725 = typeOf(x725);
+const b725: string[] = []; lf(x725, p, b725, L0); if (b725.length) e.push(...b725);
+if (g725 === "object") {
+if (g725 === 'object') { const o725 = x725 as Record<string, unknown>;
+if (!("id" in o725)) e.push(p + "/id" + ': required');
+if ("id" in o725) lf(o725["id"], p + "/id", e, L1);
+if ("email" in o725) lf(o725["email"], p + "/email", e, L6);
+if ("name" in o725) lf(o725["name"], p + "/name", e, L1);
+if ("created" in o725) lf(o725["created"], p + "/created", e, L17);
+if ("metadata" in o725) {
 {
-const x708 = o707["metadata"];
-const g708 = typeOf(x708);
-const b708: string[] = []; lf(x708, p + "/metadata", b708, L0); if (b708.length) e.push(...b708);
-if (g708 === "object") {
-if (g708 === 'object') { const o708 = x708 as Record<string, unknown>;
-for (const k of Object.keys(o708)) { if (([] as string[]).includes(k)) continue;
-lf(o708[k], p + "/metadata" + '/' + k, e, L1);
+const x726 = o725["metadata"];
+const g726 = typeOf(x726);
+const b726: string[] = []; lf(x726, p + "/metadata", b726, L0); if (b726.length) e.push(...b726);
+if (g726 === "object") {
+if (g726 === 'object') { const o726 = x726 as Record<string, unknown>;
+for (const k of Object.keys(o726)) { if (([] as string[]).includes(k)) continue;
+lf(o726[k], p + "/metadata" + '/' + k, e, L1);
 }
 }
 }

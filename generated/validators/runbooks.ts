@@ -79,15 +79,15 @@ if ("state" in o581) lf(o581["state"], p + "/blocks" + '/' + i580 + "/state", e,
 
 function d_s_83ded911cc(v: unknown, p: string, e: string[]): void {
 {
-const x666 = v;
-const g666 = typeOf(x666);
-const b666: string[] = []; lf(x666, p, b666, L0); if (b666.length) e.push(...b666);
-if (g666 === "object") {
-if (g666 === 'object') { const o666 = x666 as Record<string, unknown>;
-if (!("fileId" in o666)) e.push(p + "/fileId" + ': required');
-if (!("target" in o666)) e.push(p + "/target" + ': required');
-if ("fileId" in o666) lf(o666["fileId"], p + "/fileId", e, L43);
-if ("target" in o666) d_s_2f2c8c4c69(o666["target"], p + "/target", e);
+const x684 = v;
+const g684 = typeOf(x684);
+const b684: string[] = []; lf(x684, p, b684, L0); if (b684.length) e.push(...b684);
+if (g684 === "object") {
+if (g684 === 'object') { const o684 = x684 as Record<string, unknown>;
+if (!("fileId" in o684)) e.push(p + "/fileId" + ': required');
+if (!("target" in o684)) e.push(p + "/target" + ': required');
+if ("fileId" in o684) lf(o684["fileId"], p + "/fileId", e, L43);
+if ("target" in o684) d_s_2f2c8c4c69(o684["target"], p + "/target", e);
 }
 }
 }

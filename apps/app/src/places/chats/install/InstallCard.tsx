@@ -7,7 +7,7 @@ import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import type { ConversationData } from "../conversation/data.tsx";
 import { TextButton } from "../conversation/parts.tsx";
 import { Face } from "../needsyou/parts.tsx";
-import { KIND_WORDS, SCOPES, choices, diffRows, doneLine, changedCount, needsLines, pinnedLine, shortOf, titleOf } from "./model.ts";
+import { KIND_WORDS, SCOPES, choices, diffRows, doneLine, changedCount, needsLines, pinnedLine, shortOf, titleOf, isOlder } from "./model.ts";
 import type { Plan, RunOn, Scope } from "./model.ts";
 
 export type InstallData = Pick<ConversationData, "call"> & { openSkills?(name: string): void; agentId?: string; /** the name of the Assistant whose face heads the card */ agentName?: string; say?(text: string): void };
@@ -35,6 +35,7 @@ export function InstallCard({ id, data, chat, mine = true }: { id: string; data:
   // the Vault keys the plan names that this person does not have yet: the install waits for them (prototype r-install, "Add it")
   const [added, setAdded] = useState<ReadonlySet<string>>(new Set());
   const [absent, setAbsent] = useState<readonly string[]>([]);
+  const [looked, setLooked] = useState(false);
   const [keyOpen, setKeyOpen] = useState<string | null>(null);
   const [keyValue, setKeyValue] = useState("");
   const [keyLine, setKeyLine] = useState<string | null>(null);
@@ -51,7 +52,7 @@ export function InstallCard({ id, data, chat, mine = true }: { id: string; data:
   const wanted = plan?.needs.vaultKeys.join("\n") ?? "";
   // the keys are looked for when the card opens and again when the person comes back to this window (they may have added one in the Vault), so Install turns on by itself
   useEffect(() => {
-    if (wanted === "") { setAbsent([]); return; }
+    if (wanted === "") { setAbsent([]); setLooked(false); return; }
     let live = true;
     const look = async (): Promise<void> => {
       const miss: string[] = [];
@@ -61,7 +62,7 @@ export function InstallCard({ id, data, chat, mine = true }: { id: string; data:
           if (!(out.items ?? []).some((i) => (i.name ?? "").toLowerCase() === k.toLowerCase())) miss.push(k);
         } catch { /* cannot tell: do not hold the install */ }
       }
-      if (live) setAbsent(miss);
+      if (live) { setAbsent(miss); setLooked(true); }
     };
     void look();
     const w = (globalThis as { addEventListener?: (t: string, f: () => void) => void; removeEventListener?: (t: string, f: () => void) => void });
@@ -118,7 +119,7 @@ export function InstallCard({ id, data, chat, mine = true }: { id: string; data:
     return (
       <View testID={`install-update-${id}`} style={st.gap}>
         <View style={st.quiet}>
-          <Dot /><Text style={st.quietText}>{`${plan.name} has an update`}</Text>
+          <Dot /><Text style={st.quietText}>{isOlder(plan) ? `${plan.name} has an older version, not an update` : `${plan.name} has an update`}</Text>
           <Pressable accessibilityRole="button" testID={`install-diff-toggle-${id}`} onPress={() => setDiff((x) => !x)}><Text style={st.link}>{diff ? "Hide changes" : "See changes"}</Text></Pressable>
         </View>
         {diff ? (
@@ -136,7 +137,7 @@ export function InstallCard({ id, data, chat, mine = true }: { id: string; data:
             </View>
             {(d.newAccess ?? []).length > 0 ? <Text testID={`install-newaccess-${id}`} style={st.sub}><Text style={st.warn}>New access:</Text>{` it now also reaches ${(d.newAccess ?? []).join(", ")}. Everything else is the same.`}</Text> : null}
             {mine ? <View style={st.row}>
-              <TextButton label="Update" primary icon="check" disabled={busy} testID={`install-update-go-${id}`} onPress={() => { void install(); }} />
+              <TextButton label={isOlder(plan) ? "Go back to it" : "Update"} primary icon="check" disabled={busy} testID={`install-update-go-${id}`} onPress={() => { void install(); }} />
               <TextButton label="Not now" testID={`install-update-no-${id}`} onPress={() => setDiff(false)} />
             </View> : null}
             {line ? <Text testID={`install-line-${id}`} style={st.sub}>{line}</Text> : null}
@@ -159,15 +160,16 @@ export function InstallCard({ id, data, chat, mine = true }: { id: string; data:
         <Row k="Source" v={`${plan.repo}${plan.path ? `/${plan.path}` : ""}`} mono />
         <Row k="Needs" v={`Network: ${needs.network}\nVault: ${needs.vault}${needs.files !== "none" ? `\nFiles: ${needs.files}` : ""}`} testID={`install-needs-${id}`} />
         <Row k={pin.label} v={pin.value} mono={Boolean(plan.commit)} testID={`install-pin-${id}`} />
-        {absent.length > 0 ? (
+        {looked && plan.needs.vaultKeys.length > 0 ? (
           <View style={st.rowLine} testID={`install-vault-${id}`}><Text style={st.k}>Vault</Text>
             <View style={st.keys}>
               {/* ui-rows-lint: not a list (the keys this install waits for, each with its own Add it) */}
-              {absent.map((k) => (
+              {plan.needs.vaultKeys.map((k) => (
+                // each key the plan names: missing ones carry Add it, present ones say so
                 <View key={k} style={st.gap}>
                   <View style={st.row}>
-                    <Text style={st.vtext}>{added.has(k) ? `${k} · added` : `${k} is not in your Vault`}</Text>
-                    {!added.has(k) && keyOpen !== k ? <TextButton label="Add it" ring testID={`install-addkey-${k}-${id}`} onPress={() => { setKeyOpen(k); setKeyLine(null); }} /> : null}
+                    <Text style={st.vtext}>{added.has(k) || !absent.includes(k) ? `${k} · added` : `${k} is not in your Vault`}</Text>
+                    {absent.includes(k) && !added.has(k) && keyOpen !== k ? <TextButton label="Add it" ring testID={`install-addkey-${k}-${id}`} onPress={() => { setKeyOpen(k); setKeyLine(null); }} /> : null}
                   </View>
                   {keyOpen === k ? (
                     <View style={st.gap}>

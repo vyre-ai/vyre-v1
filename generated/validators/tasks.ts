@@ -149,13 +149,13 @@ if ("id" in o612) lf(o612["id"], p + "/id", e, L1);
 
 function d_s_97035d7973(v: unknown, p: string, e: string[]): void {
 {
-const x744 = v;
-const g744 = typeOf(x744);
-const b744: string[] = []; lf(x744, p, b744, L4); if (b744.length) e.push(...b744);
-if (g744 === "array") {
-if (g744 === 'array') { const a744 = x744 as unknown[];
-for (let i744 = 0; i744 < a744.length; i744++) {
-d_s_e9c8e6cc2d(a744[i744], p + '/' + i744, e);
+const x762 = v;
+const g762 = typeOf(x762);
+const b762: string[] = []; lf(x762, p, b762, L4); if (b762.length) e.push(...b762);
+if (g762 === "array") {
+if (g762 === 'array') { const a762 = x762 as unknown[];
+for (let i762 = 0; i762 < a762.length; i762++) {
+d_s_e9c8e6cc2d(a762[i762], p + '/' + i762, e);
 }
 }
 }

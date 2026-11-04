@@ -204,15 +204,15 @@ if ("deployment" in o554) d_s_43fd382407(o554["deployment"], p + "/deployment", 
 
 function d_s_8bbe145173(v: unknown, p: string, e: string[]): void {
 {
-const x692 = v;
-const g692 = typeOf(x692);
-const b692: string[] = []; lf(x692, p, b692, L0); if (b692.length) e.push(...b692);
-if (g692 === "object") {
-if (g692 === 'object') { const o692 = x692 as Record<string, unknown>;
-if (!("siteId" in o692)) e.push(p + "/siteId" + ': required');
-if (!("domain" in o692)) e.push(p + "/domain" + ': required');
-if ("siteId" in o692) lf(o692["siteId"], p + "/siteId", e, L46);
-if ("domain" in o692) lf(o692["domain"], p + "/domain", e, L1);
+const x710 = v;
+const g710 = typeOf(x710);
+const b710: string[] = []; lf(x710, p, b710, L0); if (b710.length) e.push(...b710);
+if (g710 === "object") {
+if (g710 === 'object') { const o710 = x710 as Record<string, unknown>;
+if (!("siteId" in o710)) e.push(p + "/siteId" + ': required');
+if (!("domain" in o710)) e.push(p + "/domain" + ': required');
+if ("siteId" in o710) lf(o710["siteId"], p + "/siteId", e, L46);
+if ("domain" in o710) lf(o710["domain"], p + "/domain", e, L1);
 }
 }
 }

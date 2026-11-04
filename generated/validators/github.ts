@@ -255,18 +255,18 @@ if ("recordId" in o633) lf(o633["recordId"], p + "/recordId", e, L28);
 
 function d_s_8887548e27(v: unknown, p: string, e: string[]): void {
 {
-const x680 = v;
-const g680 = typeOf(x680);
-const b680: string[] = []; lf(x680, p, b680, L0); if (b680.length) e.push(...b680);
-if (g680 === "object") {
-if (g680 === 'object') { const o680 = x680 as Record<string, unknown>;
-if (!("repo" in o680)) e.push(p + "/repo" + ': required');
-if (!("number" in o680)) e.push(p + "/number" + ': required');
-if (!("author" in o680)) e.push(p + "/author" + ': required');
-if ("repo" in o680) lf(o680["repo"], p + "/repo", e, L86);
-if ("number" in o680) lf(o680["number"], p + "/number", e, L2);
-if ("recordId" in o680) lf(o680["recordId"], p + "/recordId", e, L28);
-if ("author" in o680) lf(o680["author"], p + "/author", e, L1);
+const x698 = v;
+const g698 = typeOf(x698);
+const b698: string[] = []; lf(x698, p, b698, L0); if (b698.length) e.push(...b698);
+if (g698 === "object") {
+if (g698 === 'object') { const o698 = x698 as Record<string, unknown>;
+if (!("repo" in o698)) e.push(p + "/repo" + ': required');
+if (!("number" in o698)) e.push(p + "/number" + ': required');
+if (!("author" in o698)) e.push(p + "/author" + ': required');
+if ("repo" in o698) lf(o698["repo"], p + "/repo", e, L86);
+if ("number" in o698) lf(o698["number"], p + "/number", e, L2);
+if ("recordId" in o698) lf(o698["recordId"], p + "/recordId", e, L28);
+if ("author" in o698) lf(o698["author"], p + "/author", e, L1);
 }
 }
 }

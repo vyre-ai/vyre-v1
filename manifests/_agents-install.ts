@@ -12,7 +12,7 @@ const level = t.enm('use', 'edit', 'manage');
 const insId = t.id('ins');
 const needs = t.obj({ domains: t.arr(t.str()), vaultKeys: t.arr(t.str()), files: t.arr(t.str()) });
 const diff = t.obj({
-  from: t.str(), to: t.str(), fromVersion: t.opt(t.str()), toVersion: t.opt(t.str()), newAccess: t.opt(t.arr(t.str())), added: t.arr(t.str()), removed: t.arr(t.str()),
+  from: t.str(), to: t.str(), fromVersion: t.opt(t.str()), toVersion: t.opt(t.str()), older: t.opt(t.bool({ description: 'The commit read now names a lower version than the one installed: it is an older version, and the card says so' })), newAccess: t.opt(t.arr(t.str())), added: t.arr(t.str()), removed: t.arr(t.str()),
   changed: t.arr(t.obj({ path: t.str(), plus: t.arr(t.str()), minus: t.arr(t.str()) })),
 });
 const plan = t.obj({
