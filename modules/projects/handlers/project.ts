@@ -6,7 +6,7 @@
 import {
   LEVEL_OF, addFiled, addLink, addPin, allProjects, allows, buildStages, call, clean, codeOf, dropMember, dropPin, emitP, ensure, isMember, keyed, kindOfPrincipal, linksOf, loadTasks,
   archivedIds, clearArchived, setArchived, me, membersOf, memberOf, newId, page, pinsOf, planTask, plansOf, projectBy, projectByChannel, projectRow, raise, readRecord, remember, replaceStages, saveMember, savePlan, saveProject, saveUpdate,
-  isSpaceAdmin, stagesOf, tolerant, updateOf, visible, writeRecord, draftOf, saveDraft, attachesOf, templateBy,
+  stagesOf, tolerant, updateOf, visible, writeRecord, draftOf, saveDraft, attachesOf, templateBy,
 } from "../projections.ts";
 import { isHostService } from "../../../lib/trust.ts";
 import { seedTemplates, startPage } from "./overview.ts";
@@ -98,9 +98,17 @@ export async function membersList(ctx: ProjectsCtx, input: In): Promise<unknown>
   return { members: membersOf(ctx.db, p.projectId) };
 }
 
+/** Roles change only for someone who manages the project (its Lead, its owner). Anyone else, a Space admin without Manage included, is told so in one plain line, before anything is written. */
+function manageToChangeRoles(ctx: ProjectsCtx, projectId: string): Project {
+  try { return visible(ctx, projectId, "manage"); } catch (e) {
+    if (codeOf(e) === "permission.no_grant") raise(ctx, "permission.no_grant", "You need to manage this project to change roles. Ask its Lead or the Space owner.", { reason: "needs_level", level: "manage" });
+    throw e;
+  }
+}
+
 export async function membersSet(ctx: ProjectsCtx, input: In): Promise<unknown> {
   ensure(ctx.db);
-  const p = isSpaceAdmin(ctx) && projectBy(ctx.db, input.projectId) ? projectBy(ctx.db, input.projectId)! : visible(ctx, input.projectId, "manage");   // a Space owner or admin may set roles whoever leads
+  const p = manageToChangeRoles(ctx, input.projectId);
   const again = keyed<{ member: Member }>(ctx.db, input.idempotencyKey, "projects.members.set");
   if (again) return again;
   const { member } = await applyRole(ctx, p, input.principal, input.role);
@@ -124,7 +132,7 @@ export async function removeMember(ctx: ProjectsCtx, p: Project, m: Member): Pro
 
 export async function membersRemove(ctx: ProjectsCtx, input: In): Promise<unknown> {
   ensure(ctx.db);
-  const p = isSpaceAdmin(ctx) && projectBy(ctx.db, input.projectId) ? projectBy(ctx.db, input.projectId)! : visible(ctx, input.projectId, "manage");
+  const p = manageToChangeRoles(ctx, input.projectId);
   const m = memberOf(ctx.db, p.projectId, input.principal);
   if (!m) return { removed: false };
   await removeMember(ctx, p, m);

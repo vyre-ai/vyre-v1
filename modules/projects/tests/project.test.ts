@@ -578,16 +578,19 @@ test("a person given a role on a project is added to its invite-only channel (so
   assert.ok(!h.world.channelPeople.get(p.channelId)?.has(MAYA), "and out of it when she leaves the project");
 });
 
-test("a Space owner or admin may set and remove roles whoever leads the project; a person with no Manage and no Console right may not", async () => {
+test("someone without Manage (a Space admin included) is told in one plain line to ask the Lead or the owner, and nothing changes: no member, no channel entry", async () => {
   const h = harness();
   const p = await mkProject(h);
   await run(h, "projects.members.set", { projectId: p.projectId, principal: BOT, role: "lead" });
-  h.allowOnly((a) => a.perm === "console.access");   // no Manage on the project itself, only the Console right
-  const set = await run(h, "projects.members.set", { projectId: p.projectId, principal: MAYA, role: "member" });
-  assert.equal(set.member.role, "member", "the admin names a member though an agent leads");
-  assert.deepEqual(await run(h, "projects.members.remove", { projectId: p.projectId, principal: MAYA }), { removed: true });
-  h.allowOnly((a) => a.perm === null && a.level === "view");   // can see it, cannot manage, no Console right
-  await assert.rejects(() => run(h, "projects.members.set", { projectId: p.projectId, principal: MAYA, role: "member" }), /Manage/);
+  h.allowOnly((a) => a.perm === "console.access" || a.level === "view" || a.level === "edit");   // a Space admin with no Manage on this project
+  const before = h.world.grants.length;
+  const err = await run(h, "projects.members.set", { projectId: p.projectId, principal: MAYA, role: "member" }).then(() => null, (e: unknown) => e);
+  assert.equal(codeOf(err), "permission.no_grant");
+  assert.match(String((err as Error).message), /You need to manage this project to change roles\. Ask its Lead or the Space owner\./);
+  assert.equal(h.world.grants.length, before, "no grant was written");
+  assert.ok(!h.world.channelPeople.get(p.channelId)?.has(MAYA), "Maya is not in the channel");
+  const list = await run(h, "projects.members.list", { projectId: p.projectId });
+  assert.ok(!list.members.some((m: { principal: string }) => m.principal === MAYA), "and not on the list");
 });
 
 test("an agent given a project role joins the project's channel too (Lead answers, the rest listen), and leaves it when removed", async () => {
