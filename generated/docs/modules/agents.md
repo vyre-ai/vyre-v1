@@ -2,7 +2,7 @@
 
 Lane L2. Kind module. Version 0.1.0.
 
-Requires: chat, engine, mcp, memory, runs, terminal.
+Requires: chat, engine, mcp, memory, notes, runs, terminal.
 
 ## Capabilities (96)
 

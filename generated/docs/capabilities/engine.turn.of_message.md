@@ -62,12 +62,13 @@ type Out = {
     tokens: {
       in: number;
       out: number;
+      context?: number;
       cacheRead?: number;
       cacheWrite?: number;
       reasoning?: number;
     };
     cost?: {
-      source: "subscription" | "reported" | "catalog" | "unknown";
+      source: "subscription" | "reported" | "catalog" | "estimate" | "unknown";
       micros?: number;
       lines?: Array<{
           kind: "input" | "output" | "cache_read" | "cache_write";
@@ -195,6 +196,7 @@ type Out = {
       "tokens": {
         "cacheRead": 1,
         "cacheWrite": 1,
+        "context": 1,
         "in": 1,
         "out": 1,
         "reasoning": 1

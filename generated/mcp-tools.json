@@ -3009,10 +3009,7 @@
             "type": "string"
           },
           "projectId": {
-            "examples": [
-              "prj_a1b2c3"
-            ],
-            "pattern": "^prj_[a-z0-9]+$",
+            "description": "Make a teammate of this project, or of this chat (a thread id): it shows with its crew and not on the Agents page",
             "type": "string"
           },
           "role": {
@@ -3202,10 +3199,7 @@
             "type": "integer"
           },
           "projectId": {
-            "examples": [
-              "prj_a1b2c3"
-            ],
-            "pattern": "^prj_[a-z0-9]+$",
+            "description": "A project, or a chat, whose teammates to list",
             "type": "string"
           },
           "section": {
@@ -4111,7 +4105,7 @@
       "blocks": [],
       "cap": "sites.artifact_publish",
       "deferred": false,
-      "description": "THE way to show something you made: publish it privately to a link that opens in a tab. Give html, a file or folder in Files, a path on this machine, or a running port. Same title or artifactId updates the same link",
+      "description": "THE way to show something you made: publish it privately; the person gets a card in the chat to open it. The result says whether it was opened for them (opened). Give html, a file or folder in Files, a path on this machine, or a running port. Same title or artifactId updates the same link",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -7398,6 +7392,77 @@
     },
     {
       "blocks": [],
+      "cap": "automations.watches.list",
+      "deferred": false,
+      "description": "Vyre for Chrome: the person's watches, newest first: what is watched, how often, where it runs, what the last check read and the last change with before and after",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "person": {
+            "examples": [
+              "usr_a1b2c3"
+            ],
+            "pattern": "^usr_[a-z0-9]+$",
+            "type": "string"
+          },
+          "runsOn": {
+            "enum": [
+              "computer",
+              "chrome"
+            ],
+            "type": "string"
+          },
+          "watchId": {
+            "examples": [
+              "wch_a1b2c3"
+            ],
+            "pattern": "^wch_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "name": "automations_watches_list",
+      "planMode": "allowed",
+      "toolset": "automations",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "automations.watches.report",
+      "deferred": false,
+      "description": "A check of a watched page: what it read now (or why it could not read). The first reading is the baseline; a different one is a change and is told in the watch's chat with before and after",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "error": {
+            "maxLength": 300,
+            "type": "string"
+          },
+          "value": {
+            "maxLength": 20000,
+            "type": "string"
+          },
+          "watchId": {
+            "examples": [
+              "wch_a1b2c3"
+            ],
+            "pattern": "^wch_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "watchId"
+        ],
+        "type": "object"
+      },
+      "name": "automations_watches_report",
+      "planMode": "blocked",
+      "toolset": "automations",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "automations.webhook_url.get",
       "deferred": false,
       "description": "The inbound webhook URL of an Automation that has a webhook trigger",
@@ -7797,6 +7862,21 @@
       "name": "bookings_page_create",
       "planMode": "blocked",
       "toolset": "automations",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "browser.sites.list",
+      "deferred": false,
+      "description": "The Browser connections: sites agents may use, where each runs, and each agent's right (Read only or Act). A person sees their own; an agent sees the sites that name it",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "browser_sites_list",
+      "planMode": "allowed",
+      "toolset": "computer",
       "v": 1
     },
     {
@@ -15628,7 +15708,7 @@
       ],
       "cap": "engine.crew.start",
       "deferred": false,
-      "description": "Start a teammate on a brief: it gets its own thread under this chat and its own copy of the project repository on its own branch, and works until it is done",
+      "description": "Start a teammate on a brief in any chat. It works on its own branch in its own copy of the repository: the chat's project's, else the chat's own work folder on this computer (made on first use). Nothing to set up first",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -15652,6 +15732,10 @@
             "type": "string"
           },
           "model": {
+            "type": "string"
+          },
+          "name": {
+            "description": "A name for the new teammate; one is chosen when left out",
             "type": "string"
           },
           "projectId": {
@@ -15691,8 +15775,6 @@
         },
         "required": [
           "threadId",
-          "projectId",
-          "teammateId",
           "title",
           "brief",
           "idempotencyKey"
@@ -17142,10 +17224,40 @@
       "blocks": [],
       "cap": "engine.accounts.list",
       "deferred": false,
-      "description": "Accounts the caller can run on: API keys by handle and subscription sign-ins (Mine), with status",
+      "description": "Accounts the caller can run on: API keys by handle and subscription sign-ins (Mine), with status. With a place (chat, automation, agent, space) each says whether it can run there and why not",
       "effects": "read",
       "inputSchema": {
-        "properties": {},
+        "properties": {
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          },
+          "explicit": {
+            "type": "boolean"
+          },
+          "model": {
+            "type": "string"
+          },
+          "place": {
+            "enum": [
+              "chat",
+              "automation",
+              "agent",
+              "space"
+            ],
+            "type": "string"
+          },
+          "runsAs": {
+            "enum": [
+              "person",
+              "space"
+            ],
+            "type": "string"
+          }
+        },
         "type": "object"
       },
       "name": "engine_accounts_list",
@@ -17162,10 +17274,7 @@
       "inputSchema": {
         "properties": {
           "projectId": {
-            "examples": [
-              "prj_a1b2c3"
-            ],
-            "pattern": "^prj_[a-z0-9]+$",
+            "description": "A project, or a chat (a thread id) that has its own work folder",
             "type": "string"
           }
         },
@@ -18067,6 +18176,10 @@
             },
             "type": "array"
           },
+          "text": {
+            "description": "The draft, so a message that names the lead in words is answered by it",
+            "type": "string"
+          },
           "threadId": {
             "examples": [
               "thr_a1b2c3"
@@ -18572,6 +18685,21 @@
     },
     {
       "blocks": [],
+      "cap": "engine.turns.running",
+      "deferred": false,
+      "description": "Engine only: the turns running now with the machine each runs on (agent, asker, start, place; no message or title), for the Machines page",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "engine_turns_running",
+      "planMode": "allowed",
+      "toolset": "chats",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "engine.usage.get",
       "deferred": false,
       "description": "For a chat and an account: the context used against the model window (from the latest turn and the model catalog) and the session and week limits exactly as the provider reported them. A provider that reports nothing gives null; nothing is estimated",
@@ -18631,7 +18759,8 @@
               "day",
               "person",
               "agent",
-              "model"
+              "model",
+              "account"
             ],
             "type": "string"
           },
@@ -24437,6 +24566,7 @@
                       "connection",
                       "mcp",
                       "automation",
+                      "watch",
                       "manual"
                     ],
                     "type": "string"
@@ -24464,6 +24594,13 @@
                       "contact"
                     ],
                     "pattern": "^[a-z][a-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "watchId": {
+                    "examples": [
+                      "wch_a1b2c3"
+                    ],
+                    "pattern": "^wch_[a-z0-9]+$",
                     "type": "string"
                   }
                 },
@@ -25560,6 +25697,7 @@
                       "connection",
                       "mcp",
                       "automation",
+                      "watch",
                       "manual"
                     ],
                     "type": "string"
@@ -25587,6 +25725,13 @@
                       "contact"
                     ],
                     "pattern": "^[a-z][a-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "watchId": {
+                    "examples": [
+                      "wch_a1b2c3"
+                    ],
+                    "pattern": "^wch_[a-z0-9]+$",
                     "type": "string"
                   }
                 },
@@ -32554,6 +32699,269 @@
       },
       "name": "logs_trace",
       "planMode": "allowed",
+      "toolset": "engineer",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "machines.alerts",
+      "deferred": false,
+      "description": "What needs a look: disk under 10% free, memory pressure, a machine offline with pinned work, an update waiting, a failed backup. Each says what to do",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "machines_alerts",
+      "planMode": "allowed",
+      "toolset": "engineer",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "machines.alerts_notify",
+      "deferred": false,
+      "description": "Host only: send each new machine alert to the Inbox once while it lasts, and tell the placement caches when a machine ran out of room or has room again",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "machines_alerts_notify",
+      "planMode": "blocked",
+      "toolset": "engineer",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "machines.fix",
+      "deferred": false,
+      "description": "Press a Doctor Fix on a machine: clear old caches, stop idle engine sessions, or restart a service. The host runs it; an admin for the Space server and servers, the owner for their own computer. Audited",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "fix": {
+            "enum": [
+              "clear_caches",
+              "stop_idle",
+              "restart_service"
+            ],
+            "type": "string"
+          },
+          "machineId": {
+            "type": "string"
+          },
+          "service": {
+            "pattern": "^[a-z][a-z0-9_.-]{0,40}$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "machineId",
+          "fix"
+        ],
+        "type": "object"
+      },
+      "name": "machines_fix",
+      "planMode": "blocked",
+      "toolset": "engineer",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "machines.get",
+      "deferred": false,
+      "description": "One machine with its series for 1 hour (60 one-minute points), 24 hours (144 ten-minute), 7 days (168 hourly) and 30 days (180 four-hourly), its alerts and, for the Space server, the doctor's findings. A gap is a bucket with only its time",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "machineId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "machineId"
+        ],
+        "type": "object"
+      },
+      "name": "machines_get",
+      "planMode": "allowed",
+      "toolset": "engineer",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "machines.list",
+      "deferred": false,
+      "description": "Every machine you may see with its load, what Vyre runs on it, what it can run and its room left; agent computers nested under their host. An admin sees all, a member their own; on a member's computer an admin sees only name, online, capacity and Vyre's own work",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "machines_list",
+      "planMode": "allowed",
+      "toolset": "engineer",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "machines.move_record",
+      "deferred": false,
+      "description": "Engine only: keep the line of a turn that Automatic moved off a machine with no room",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "agentId": {
+            "type": "string"
+          },
+          "asker": {
+            "type": "string"
+          },
+          "from": {
+            "type": "string"
+          },
+          "threadId": {
+            "type": "string"
+          },
+          "to": {
+            "type": "string"
+          },
+          "turnId": {
+            "type": "string"
+          },
+          "why": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "from",
+          "to",
+          "why"
+        ],
+        "type": "object"
+      },
+      "name": "machines_move_record",
+      "planMode": "blocked",
+      "toolset": "engineer",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "machines.moves",
+      "deferred": false,
+      "description": "Recent moves, Space-wide: each turn Automatic sent to another machine because the first in the order had no room, newest first. A member sees their own",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "limit": {
+            "maximum": 200,
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "name": "machines_moves",
+      "planMode": "allowed",
+      "toolset": "engineer",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "machines.rooms",
+      "deferred": false,
+      "description": "Room left on the machines you name (ids as machines.list gives them): the number placement skips a busy machine by, and the plain words for why (\"4 of 4 turns\"). Only machines you may see; used by engine.placement.decide",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          },
+          "ids": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 64,
+            "type": "array"
+          }
+        },
+        "required": [
+          "ids"
+        ],
+        "type": "object"
+      },
+      "name": "machines_rooms",
+      "planMode": "allowed",
+      "toolset": "engineer",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "machines.set",
+      "deferred": false,
+      "description": "Name a machine, set the most turns or agent computers it takes at once, drain it (no new work, what runs finishes) or pin an agent to it. A server is an admin's (and its owner's); a person's own computer is theirs, and an admin may only drain it",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "drain": {
+            "type": "boolean"
+          },
+          "machineId": {
+            "type": "string"
+          },
+          "maxAgentComputers": {
+            "maximum": 32,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "maxTurns": {
+            "maximum": 64,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "nickname": {
+            "anyOf": [
+              {
+                "maxLength": 40,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "pinAgent": {
+            "properties": {
+              "agentId": {
+                "examples": [
+                  "agt_a1b2c3"
+                ],
+                "pattern": "^agt_[a-z0-9]+$",
+                "type": "string"
+              },
+              "pinned": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "agentId",
+              "pinned"
+            ],
+            "type": "object"
+          }
+        },
+        "required": [
+          "machineId"
+        ],
+        "type": "object"
+      },
+      "name": "machines_set",
+      "planMode": "blocked",
       "toolset": "engineer",
       "v": 1
     },
@@ -41201,6 +41609,36 @@
     },
     {
       "blocks": [],
+      "cap": "engine.my_ai",
+      "deferred": false,
+      "description": "What AI this chat runs on and what else the person may use now: model, account and who paid, each usable account with models and limits (or not readable), and use today and this month. Ask it for what model, what else, what is left, /usage",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          },
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "name": "my_ai",
+      "planMode": "allowed",
+      "toolset": "meta",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "network.certificate_renew",
       "deferred": false,
       "description": "Renew a certificate now",
@@ -41257,198 +41695,6 @@
         "type": "object"
       },
       "name": "network_ingress_check",
-      "planMode": "allowed",
-      "toolset": "engineer",
-      "v": 1
-    },
-    {
-      "blocks": [],
-      "cap": "network.machine",
-      "deferred": false,
-      "description": "One machine with its history for a range (1 hour, 24 hours, 7 days or 30 days), what runs on it by agent and chat, and its Doctor findings",
-      "effects": "read",
-      "inputSchema": {
-        "properties": {
-          "range": {
-            "enum": [
-              "1h",
-              "24h",
-              "7d",
-              "30d"
-            ],
-            "type": "string"
-          },
-          "serverId": {
-            "examples": [
-              "srv_a1b2c3"
-            ],
-            "pattern": "^srv_[a-z0-9]+$",
-            "type": "string"
-          }
-        },
-        "required": [
-          "serverId"
-        ],
-        "type": "object"
-      },
-      "name": "network_machine",
-      "planMode": "allowed",
-      "toolset": "engineer",
-      "v": 1
-    },
-    {
-      "blocks": [],
-      "cap": "network.machine_alerts",
-      "deferred": false,
-      "description": "The machine alerts the asker may see: disk under 10 percent free, memory pressure, a machine offline with pinned work, a failed backup, an update waiting (the Console dot and the Inbox line)",
-      "effects": "read",
-      "inputSchema": {
-        "properties": {},
-        "type": "object"
-      },
-      "name": "network_machine_alerts",
-      "planMode": "allowed",
-      "toolset": "engineer",
-      "v": 1
-    },
-    {
-      "blocks": [],
-      "cap": "network.machine_pin",
-      "deferred": false,
-      "description": "Pin an agent to a machine so its turns always run there (waiting when it is away), or let it go",
-      "effects": "write",
-      "inputSchema": {
-        "properties": {
-          "agentId": {
-            "type": "string"
-          },
-          "pinned": {
-            "type": "boolean"
-          },
-          "serverId": {
-            "examples": [
-              "srv_a1b2c3"
-            ],
-            "pattern": "^srv_[a-z0-9]+$",
-            "type": "string"
-          }
-        },
-        "required": [
-          "serverId",
-          "agentId",
-          "pinned"
-        ],
-        "type": "object"
-      },
-      "name": "network_machine_pin",
-      "planMode": "blocked",
-      "toolset": "engineer",
-      "v": 1
-    },
-    {
-      "blocks": [],
-      "cap": "network.machine_place",
-      "deferred": false,
-      "description": "Which machine a turn goes to, given the places to try in order: the first with room, skipping a busy one, and why it moved (the Ran on line)",
-      "effects": "read",
-      "inputSchema": {
-        "properties": {
-          "order": {
-            "items": {
-              "examples": [
-                "srv_a1b2c3"
-              ],
-              "pattern": "^srv_[a-z0-9]+$",
-              "type": "string"
-            },
-            "type": "array"
-          }
-        },
-        "required": [
-          "order"
-        ],
-        "type": "object"
-      },
-      "name": "network_machine_place",
-      "planMode": "allowed",
-      "toolset": "engineer",
-      "v": 1
-    },
-    {
-      "blocks": [],
-      "cap": "network.machine_set",
-      "deferred": false,
-      "description": "Set a machine's nickname, the most turns or agent computers it takes at once (empty for no limit) and Drain: no new work lands on a drained machine and what runs finishes",
-      "effects": "write",
-      "inputSchema": {
-        "properties": {
-          "drain": {
-            "type": "boolean"
-          },
-          "maxAgentComputers": {
-            "anyOf": [
-              {
-                "maximum": 64,
-                "minimum": 0,
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "maxTurns": {
-            "anyOf": [
-              {
-                "maximum": 64,
-                "minimum": 0,
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "nickname": {
-            "anyOf": [
-              {
-                "maxLength": 40,
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "serverId": {
-            "examples": [
-              "srv_a1b2c3"
-            ],
-            "pattern": "^srv_[a-z0-9]+$",
-            "type": "string"
-          }
-        },
-        "required": [
-          "serverId"
-        ],
-        "type": "object"
-      },
-      "name": "network_machine_set",
-      "planMode": "blocked",
-      "toolset": "engineer",
-      "v": 1
-    },
-    {
-      "blocks": [],
-      "cap": "network.machines",
-      "deferred": false,
-      "description": "Every machine that runs Vyre work: the Space server, added servers and linked computers, with load, room left and alerts. A member's own computer shows an admin only name, online, capacity and Vyre's work",
-      "effects": "read",
-      "inputSchema": {
-        "properties": {},
-        "type": "object"
-      },
-      "name": "network_machines",
       "planMode": "allowed",
       "toolset": "engineer",
       "v": 1
@@ -41897,7 +42143,7 @@
       "blocks": [],
       "cap": "network.server_join_code",
       "deferred": false,
-      "description": "Make a join code to add a cloud box or office Mac for compute. A nickname names it once it arrives",
+      "description": "Make a join code to add a cloud box or office Mac for compute",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -41906,13 +42152,6 @@
               "idem_1"
             ],
             "minLength": 1,
-            "type": "string"
-          },
-          "nickname": {
-            "examples": [
-              "berlin-box"
-            ],
-            "maxLength": 40,
             "type": "string"
           }
         },
@@ -42006,6 +42245,117 @@
       "name": "network_status",
       "planMode": "allowed",
       "toolset": "engineer",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "notes.create",
+      "deferred": false,
+      "description": "Take a note: text, an image, or a link that becomes a card. Private to the person until shared",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "body": {
+            "maxLength": 100000,
+            "type": "string"
+          },
+          "color": {
+            "enum": [
+              "",
+              "rose",
+              "sand",
+              "sage",
+              "sky",
+              "lilac",
+              "slate"
+            ],
+            "type": "string"
+          },
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "image": {
+            "properties": {
+              "contentType": {
+                "enum": [
+                  "image/png",
+                  "image/jpeg",
+                  "image/gif",
+                  "image/webp"
+                ],
+                "type": "string"
+              },
+              "data": {
+                "description": "The image bytes, base64",
+                "maxLength": 14000000,
+                "type": "string"
+              }
+            },
+            "required": [
+              "data",
+              "contentType"
+            ],
+            "type": "object"
+          },
+          "labels": {
+            "items": {
+              "examples": [
+                "Lab 8"
+              ],
+              "maxLength": 40,
+              "minLength": 1,
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "link": {
+            "maxLength": 2000,
+            "type": "string"
+          },
+          "pinned": {
+            "type": "boolean"
+          },
+          "source": {
+            "description": "The chat message this note is saved from. The caller must read that chat; the note stays private to them and links back to the message",
+            "properties": {
+              "messageId": {
+                "examples": [
+                  "msg_a1b2c3"
+                ],
+                "pattern": "^msg_[a-z0-9]+$",
+                "type": "string"
+              },
+              "threadId": {
+                "examples": [
+                  "thr_a1b2c3"
+                ],
+                "pattern": "^thr_[a-z0-9]+$",
+                "type": "string"
+              }
+            },
+            "required": [
+              "threadId",
+              "messageId"
+            ],
+            "type": "object"
+          },
+          "title": {
+            "maxLength": 500,
+            "type": "string"
+          }
+        },
+        "required": [
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "name": "notes_create",
+      "planMode": "blocked",
+      "toolset": "memory",
       "v": 1
     },
     {
@@ -42825,6 +43175,56 @@
       "name": "notifications_send",
       "planMode": "blocked",
       "toolset": "meta",
+      "v": 1
+    },
+    {
+      "blocks": [
+        "note_offer"
+      ],
+      "cap": "chat.note_offer.make",
+      "deferred": false,
+      "description": "Offer to save something from this chat as a note: a small card with a preview of the note, Save and Not now. At most once per topic and rarely; says offered false with a reason when the person has it off or it is too soon",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "body": {
+            "maxLength": 4000,
+            "type": "string"
+          },
+          "messageId": {
+            "examples": [
+              "msg_a1b2c3"
+            ],
+            "pattern": "^msg_[a-z0-9]+$",
+            "type": "string"
+          },
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          },
+          "title": {
+            "maxLength": 200,
+            "type": "string"
+          },
+          "topic": {
+            "description": "What it is about, in a few words; the same topic is offered once in a chat",
+            "type": "string"
+          }
+        },
+        "required": [
+          "threadId",
+          "title",
+          "body",
+          "topic"
+        ],
+        "type": "object"
+      },
+      "name": "offer_note",
+      "planMode": "blocked",
+      "toolset": "chats",
       "v": 1
     },
     {
@@ -51367,6 +51767,32 @@
         "type": "object"
       },
       "name": "sites_build",
+      "planMode": "blocked",
+      "toolset": "sites",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "sites.chat_viewing",
+      "deferred": false,
+      "description": "The app says a chat is open for the person right now (every half minute while it stays open). An artifact an agent publishes in a turn that person asked opens in their app only while this holds",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "threadId"
+        ],
+        "type": "object"
+      },
+      "name": "sites_chat_viewing",
       "planMode": "blocked",
       "toolset": "sites",
       "v": 1
@@ -60294,10 +60720,14 @@
       "blocks": [],
       "cap": "tasks.working_notes.set",
       "deferred": false,
-      "description": "Write a working note (key and value) that any person or agent on the task can read",
+      "description": "Write a working note (key and value) that any person or agent on the task can read; send expectedFrom, the note as you last read it",
       "effects": "write",
       "inputSchema": {
         "properties": {
+          "expectedFrom": {
+            "description": "The note as you last read it, empty when it had none. If someone changed the note since, nothing is written and the refusal gives the current note: make your change again on top of it (a list note, Done means or its ticks, is merged for an agent). Without it an agent may only append to the note",
+            "type": "string"
+          },
           "key": {
             "minLength": 1,
             "type": "string"

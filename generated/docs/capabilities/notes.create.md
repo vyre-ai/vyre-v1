@@ -17,7 +17,7 @@ Take a note: text, an image, or a link that becomes a card. Private to the perso
 | Audit | none |
 | Team Space only | no |
 | HTTP | POST /v1/notes/create |
-| MCP tool | none |
+| MCP tool | notes_create (memory) |
 | CLI | none |
 | Emits | notes.created |
 
@@ -35,6 +35,10 @@ type In = {
     contentType: "image/png" | "image/jpeg" | "image/gif" | "image/webp";
   };
   link?: string;
+  source?: {
+    threadId: string;
+    messageId: string;
+  };
   idempotencyKey: string;
 };
 ```
@@ -66,6 +70,13 @@ type Out = {
       hasShot: boolean;
       at: number;
     };
+    from?: {
+      threadId?: string;
+      messageId?: string;
+      title?: string;
+      at: number;
+      readable: boolean;
+    };
     linked: Array<{
         kind: "task" | "record";
         id: string;
@@ -93,6 +104,7 @@ type Out = {
 - permission.above_clearance
 - permission.no_grant
 - validation.bad_input
+- validation.not_found
 - validation.precondition_failed
 
 ## Example
@@ -113,6 +125,10 @@ type Out = {
     ],
     "link": "example",
     "pinned": true,
+    "source": {
+      "messageId": "msg_a1b2c3",
+      "threadId": "thr_a1b2c3"
+    },
     "title": "example"
   },
   "output": {
@@ -128,6 +144,13 @@ type Out = {
       },
       "color": "",
       "createdAt": 1760000000000,
+      "from": {
+        "at": 1760000000000,
+        "messageId": "msg_a1b2c3",
+        "readable": true,
+        "threadId": "thr_a1b2c3",
+        "title": "example"
+      },
       "hasImage": true,
       "labels": [
         "Lab 8"

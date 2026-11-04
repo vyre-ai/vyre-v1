@@ -8,7 +8,7 @@ import { useMenu } from "../../../../../../ui/src/Menu/index.tsx";
 import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
 import { each } from "../../files/memory/model.ts";
 import { correctFact, restoreLearned, undoLearned } from "./actions.ts";
-import { SCOPE_TEXT } from "./model.ts";
+import { LAYER_SCOPE, learnedExact, learnedWhen, SCOPE_TEXT } from "./model.ts";
 import type { LearnedRow } from "./model.ts";
 import { LinkButton, webProps, ownMenu } from "./parts.tsx";
 import { useThreadMemory } from "./thread.tsx";
@@ -69,6 +69,8 @@ function LearnedLine({ row }: { row: LearnedRow & { current: boolean } }): React
     );
   }
   const lesson = row.lesson;
+  // every line says who can read it: a lesson its own scope, any other fact its layer
+  const scopeWords = lesson ? SCOPE_TEXT[lesson.scope] : row.layer ? LAYER_SCOPE[row.layer] : undefined;
   const items = (x: number, y: number): void => menu.show([
     ...(lesson && memory.showKnows ? [{ label: "See in Knows", onSelect: () => memory.showKnows?.() } as MenuEntry] : []),
     { label: "Edit", onSelect: () => { setDraft(row.text); setEditing(true); } },
@@ -80,7 +82,9 @@ function LearnedLine({ row }: { row: LearnedRow & { current: boolean } }): React
     <View testID={`learned-line-${row.factId}`} accessibilityLabel={`Learned: ${row.text}`} {...webProps({ tabIndex: 0 })} {...ownMenu(items)} style={st.line}>
       <View style={st.dot} />
       <Text style={st.text}><Text style={st.bold}>Learned:</Text>{` ${row.subjectTitle ? `${row.subjectTitle}: ` : ""}${row.text}`}</Text>
-      {lesson ? <><Text style={st.sep}>·</Text><Text testID={`learned-scope-${row.factId}`} style={st.scope}>{SCOPE_TEXT[lesson.scope]}</Text></> : null}
+      {scopeWords ? <><Text style={st.sep}>·</Text><Text testID={`learned-${lesson ? "scope" : "reach"}-${row.factId}`} style={st.scope}>{scopeWords}</Text></> : null}
+      <Text style={st.sep}>·</Text>
+      <Text testID={`learned-when-${row.factId}`} {...webProps({ title: learnedExact(row.at) })} style={st.scope}>{learnedWhen(row.at, memory.now())}</Text>
       <Text style={st.sep}>·</Text>
       <LinkButton label="Undo" testID={`learned-undo-${row.factId}`} a11y={`Undo: ${row.text}`} onPress={undo} />
       <Text style={st.sep}>·</Text>

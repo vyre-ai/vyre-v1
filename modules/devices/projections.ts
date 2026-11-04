@@ -5,7 +5,7 @@ import type { Ctx } from "../../packages/contracts/src/ctx.ts";
 import { fail } from "../../host/src/routes/errors.ts";
 
 /** The part of the host Ctx these handlers use. The full Ctx satisfies it. */
-export type DevicesCtx = Pick<Ctx, "space" | "principal" | "trace" | "now" | "db" | "emit" | "authorize" | "device"> & { depth?: number };
+export type DevicesCtx = Pick<Ctx, "space" | "principal" | "trace" | "now" | "db" | "emit" | "authorize" | "device"> & { depth?: number; actingFor?: string | undefined };
 
 export type DeviceClass = "desktop" | "phone" | "web" | "extension" | "daemon";
 export type EpochReason = "device_revoked" | "suspended" | "removed" | "password_reset" | "clearance_lowered" | "key_rotation";
@@ -34,6 +34,11 @@ export const PAGE_MAX = 500;
 export function me(ctx: DevicesCtx): string {
   if (!ctx.principal || ctx.principal.kind !== "person") raise(ctx, "auth.unauthenticated");
   return ctx.principal.id;
+}
+/** Whose devices a read is about: the person, or the person an agent acts for (an assistant working out where a turn runs reads its person's computers, and changes nothing of theirs). */
+export function meRead(ctx: DevicesCtx): string {
+  if (ctx.principal?.kind === "agent" && typeof ctx.actingFor === "string" && ctx.actingFor !== "") return ctx.actingFor;
+  return me(ctx);
 }
 export function isAdmin(ctx: DevicesCtx): boolean {
   return ctx.authorize({ perm: "access.manage", level: "view" }, { type: "space", id: ctx.space }).effect === "allow";

@@ -124,9 +124,13 @@ test("every member sees the Space AI key as the provider it is, not a special op
   assert.deepEqual([r.accountRef, r.payer, r.allowed, r.itemId], ["#OpenCode_Go_for_everyone", "usr_mia", true, "vit_space"], "usage is metered against the key's item and the member");
   const automatic = ctxWith({}, [{ threadId: "thr_1", starter: "usr_mia", agents: [{ agentId: "agt_1", mode: "lead" as const }] }] as never).ctx;
   assert.equal((await accountResolve(automatic, { threadId: "thr_1", agentId: "agt_1" })).accountRef, "#OpenCode_Go_for_everyone");
-  // a Claude model the key does not list: the team chat runs on the key's first model, and says so (owner, 3 Nov)
+  // a Claude model somebody picked in the chat that the key does not list: nothing runs in its place; the turn says so and names what can run (owner, 4 Nov, rc.20 test)
   const other = await accountResolve(ctx, { threadId: "thr_1", agentId: "agt_1" });
-  assert.deepEqual([other.accountRef, other.modelFallback], ["#OpenCode_Go_for_everyone", { from: "claude-sonnet-5-5", to: "glm-5.3" }]);
+  assert.deepEqual([other.accountRef, other.allowed, other.why, other.model, other.servedModels], [null, false, "no_model", "claude-sonnet-5-5", ["glm-5.3", "kimi-k3", "deepseek-v4-pro"]]);
+  // the agent's own default model (nobody picked it for this chat) still runs on the key's first model, and the chat says so
+  const dflt = ctxWith({ "agents.get": () => ({ agent: { accountPolicy: "asker", model: "claude-sonnet-5-5" } }) }, [{ threadId: "thr_1", starter: "usr_mia", agents: [{ agentId: "agt_1", mode: "lead" as const }] }] as never).ctx;
+  const swapped = await accountResolve(dflt, { threadId: "thr_1", agentId: "agt_1" });
+  assert.deepEqual([swapped.accountRef, swapped.modelFallback], ["#OpenCode_Go_for_everyone", { from: "claude-sonnet-5-5", to: "glm-5.3" }]);
 });
 
 test("the model list of the Space AI key comes from the Vault's kept list, never from a member testing the key", async () => {
@@ -174,7 +178,12 @@ test("a turn on the Space AI key runs a model the key serves; a model out of usa
   const call = async (cap: string): Promise<unknown> => { assert.equal(cap, "providers.space_key.get"); return { set: true, models: ["glm-5.3", "kimi-k3"], mayManage: false }; };
   const wrapped = withSpaceKeyTurns(open, { call, db: h.db, now: () => NOW });
   const account = { ref: "#OpenCode_Go_for_everyone", driver: "opencode_go", provider: "opencode_go", kind: "api_key" as const, payer: "usr_mia", reason: "starter" as const, spaceKey: true, shared: true };
-  const spec: SessionSpec = { threadId: "thr_1", agent: { id: "agt_1", mode: "lead", model: "claude-sonnet-5-5" }, asker: "usr_mia", turnId: "trn_1", traceId: "a".repeat(32), account };
+  // the resolver said this turn runs on the key's own model (a team chat with no pick, model-fallback.ts says so in the chat); a model somebody picked is refused instead (below)
+  const keySwap = { ...account, modelFallback: { from: "claude-sonnet-5-5", to: "glm-5.3" } };
+  const spec: SessionSpec = { threadId: "thr_1", agent: { id: "agt_1", mode: "lead", model: "claude-sonnet-5-5" }, asker: "usr_mia", turnId: "trn_1", traceId: "a".repeat(32), account: keySwap };
+  // never another model under the picked one's name: nothing said it was a swap, the key does not serve Claude, so the turn says so and names what can run
+  await assert.rejects(wrapped({ ...spec, account }), (e: { code?: string; message?: string }) => e.code === "engine.model_unavailable" && /^Claude Sonnet 5\.5 cannot run here.*Models that can: GLM 5\.3, Kimi K3\./.test(e.message ?? ""));
+  assert.deepEqual(opened, [], "no session was opened on another model");
   const drain = async (s: EngineSession): Promise<DriverEvent[]> => { const got: DriverEvent[] = []; for await (const e of s.send({} as never)) got.push(e); return got; };
   script["glm-5.3"] = [{ type: "error", code: "provider.rate_limited", message: "out of usage", resetsAt: NOW + 600_000 }];
   script["kimi-k3"] = [{ type: "text", text: "hi" }, { type: "done" }];
@@ -183,7 +192,7 @@ test("a turn on the Space AI key runs a model the key serves; a model out of usa
   assert.deepEqual(first.map((e) => e.type), ["text", "done"], "the turn did not fail: the person got an answer");
   assert.deepEqual([...modelLimits(h.db, account.ref, NOW)], [["glm-5.3", { resetsAt: NOW + 600_000 }]], "the out model stays greyed with its time");
   opened.length = 0;
-  await drain(await wrapped({ ...spec, agent: { ...spec.agent, model: "glm-5.3" } }));
+  await drain(await wrapped({ ...spec, account, agent: { ...spec.agent, model: "glm-5.3" } }));
   assert.deepEqual(opened, ["kimi-k3"], "while it is out, a turn that chose it starts on one that is not");
   // every model out: the refusal reaches the turn engine (it tries the next account), nothing loops
   script["kimi-k3"] = [{ type: "error", code: "provider.rate_limited", message: "out of usage" }];
@@ -194,8 +203,17 @@ test("a turn on the Space AI key runs a model the key serves; a model out of usa
   // every model is out, so a turn that chose kimi-k3 tries it; it answers, and that clears it at once
   assert.equal(modelLimits(h.db, account.ref, NOW).has("kimi-k3"), true);
   script["kimi-k3"] = [{ type: "text", text: "back" }, { type: "done" }];
-  await drain(await wrapped({ ...spec, agent: { ...spec.agent, model: "kimi-k3" } }));
+  await drain(await wrapped({ ...spec, account, agent: { ...spec.agent, model: "kimi-k3" } }));
   assert.equal(modelLimits(h.db, account.ref, NOW).has("kimi-k3"), false);
+  // the turn's usage names the model that really ran, not the one the chat asked for
+  script["kimi-k3"] = [{ type: "usage", inputTokens: 10, outputTokens: 2 }, { type: "done" }];
+  const usageOf = (evs: DriverEvent[]) => evs.filter((e): e is Extract<DriverEvent, { type: "usage" }> => e.type === "usage").map((e) => e.model);
+  assert.deepEqual(usageOf(await drain(await wrapped({ ...spec, agent: { ...spec.agent, model: "kimi-k3" } }))), ["kimi-k3"]);
+  // a turn moved to a Space account's own model that is not a watched one is stamped the same way
+  opened.length = 0;
+  const swapped = await wrapped({ ...spec, agent: { ...spec.agent, model: "claude-sonnet-5-5" }, account: { ...account, ref: "#Cheap", driver: "anthropic", provider: "anthropic", spaceKey: false, modelFallback: { from: "claude-sonnet-5-5", to: "glm-5.3" } } });
+  script["glm-5.3"] = [{ type: "usage", inputTokens: 10, outputTokens: 2 }, { type: "done" }];
+  assert.deepEqual(usageOf(await drain(swapped)), ["glm-5.3"]);
   // someone's own account is left alone
   opened.length = 0;
   const own = { ...spec, account: { ...account, ref: "#Dana_Anthropic", driver: "anthropic", provider: "anthropic", spaceKey: false } };

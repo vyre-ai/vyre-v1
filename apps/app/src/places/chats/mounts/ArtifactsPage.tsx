@@ -6,7 +6,7 @@ import { Row } from "../../../../../../ui/src/Row/index.tsx";
 import type { CapMap } from "../../../../../../generated/types.ts";
 import type { ShellRuntime } from "../../../shell/providers/runtime.tsx";
 import { useEffect, useState } from "react";
-import { LIST_PAGE } from "./ThreadsPage.tsx";
+import { LIST_PAGE } from "./RepliesPage.tsx";
 
 type Artifact = CapMap["sites.list"]["out"]["sites"][number];
 

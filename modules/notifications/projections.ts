@@ -45,7 +45,7 @@ export const KINDS: readonly KindDef[] = [
   kind("access.decided", "badge", "home", "Your access request for {{title}} was {{decision}}"),
   kind("sync.attention", "badge", "settings", "Sync needs attention on {{device}}"),
   kind("health.degraded", "badge", "console", "{{service}} is {{state}}"),
-  kind("machine.alert", "badge", "inbox", "{{title}}", { actions: [a("Open", "network.machines")] }),
+  kind("machine.alert", "badge", "inbox", "{{title}}", { actions: [a("Open", "machines.list")] }),
   kind("problem.report", "badge", "console", "Problem report from {{from}}", { actions: [a("Review", "tasks.act")] }),
   kind("member.joined", "digest", "home", "{{name}} joined {{space}}"),
   kind("limit.hit", "badge", "chats", "{{title}} hit its limit", { actions: [a("Raise once", "tasks.act"), a("Stop", "tasks.act")] }),

@@ -1,39 +1,31 @@
-// Mount for where a chat runs (lane l-runson), over the Northwind sample conversation pinned to this computer. ?part=
-//   chat     (default) the computer went to sleep mid-turn once ("continuing on the Northwind server"), and now it is off: the next message waits, with Run it on the server instead
-//   menu     the model panel open on Runs on: Automatic, This computer (off), the Office iMac (on), the Space, and their server home-box (off)
-//   details  a turn's Details: where it ran, "Irfad's MacBook, then the Northwind server"
-import { useEffect, useMemo, useState } from "react";
+// Mount for lane l-backup (owner, 4 Nov): the "Runs on" menu of an automation's AI step, where an account that cannot run an automation here is greyed (engine.accounts.list with place "automation" says
+// which, and why: the reason is the hover text). Over the Northwind sample, with the step "Draft a personal reply" open; ?part=menu has the menu open.
+import { useMemo } from "react";
 import type { ReactNode } from "react";
-import { View } from "react-native";
-import { Conversation } from "../../../apps/app/src/places/chats/conversation/Conversation.tsx";
-import { createSample } from "../../../apps/app/src/places/chats/conversation/sample.ts";
+import { View, useWindowDimensions } from "react-native";
+import { AutomationCanvas } from "../../../apps/app/src/places/automations/canvas/AutomationCanvas.tsx";
+import { AutomationsDataProvider } from "../../../apps/app/src/places/automations/canvas/data.tsx";
+import { createSampleAutomations, northwind } from "../../../apps/app/src/places/automations/sidebar/sample.ts";
 
-export const title = "Where a chat runs";
-
-type Doc = { querySelector(s: string): { click?: () => void } | null };
-const click = (sel: string): boolean => { const el = (globalThis as { document?: Doc }).document?.querySelector(sel); el?.click?.(); return !!el; };
+export const title = "Automation AI step: Runs on";
 
 export default function Mount(): ReactNode {
-  const [search, setSearch] = useState<string | null>(null);
-  useEffect(() => setSearch((globalThis as { location?: { search?: string } }).location?.search ?? ""), []);
-  const part = new URLSearchParams(search ?? "").get("part") ?? "chat";
-  const sample = useMemo(() => {
-    const s = createSample("runson");
-    if (part === "details") {
-      s.replica.put("messages", [{ id: "r6", messageId: "r6", threadId: "c1", threadSeq: 6, author: { kind: "agent", id: "agt_intake" }, kind: "agent", body: "", blocks: [{ type: "turn_status", v: 1, id: "st3", data: { state: "failed", code: "turn_timeout", turnId: "turn_r9" } }], depth: 0, attachments: [], reactions: [], pinned: false, createdAt: Date.UTC(2025, 9, 24, 9, 52) }]);
-    }
-    return s;
-  }, [part]);
-  useEffect(() => {
-    if (search === null) return undefined;
-    const timers: ReturnType<typeof setTimeout>[] = [];
-    if (part === "menu") {
-      timers.push(setTimeout(() => { click("[data-testid='composer-strip']"); }, 500));
-      timers.push(setTimeout(() => { click("[data-testid='model-runs-row']"); }, 1100));
-    }
-    if (part === "details") timers.push(setTimeout(() => { click("[data-testid='err-what']"); }, 600));
-    return () => { for (const t of timers) clearTimeout(t); };
-  }, [search, part]);
-  if (search === null) return <View style={{ flex: 1, backgroundColor: "var(--win)" as string }} />;
-  return <View style={{ flex: 1, backgroundColor: "var(--win)" as string }}><Conversation data={sample.data} /></View>;
+  const sample = useMemo(() => createSampleAutomations(northwind), []);
+  const data = useMemo(() => ({
+    ...sample.data,
+    keys: [
+      { id: "key_claude", name: "Your Claude sign-in", kind: "subscription" as const, usable: false, why: "Turn on \"Let the Space run work on my subscription\" for this account to use it here." },
+      { id: "key_nw_openai", name: "Northwind OpenAI key", kind: "api" as const, usable: true },
+      { id: "key_team_chat", name: "Team chat key", kind: "api" as const, usable: false, why: "An admin has not kept this account for this kind of work." },
+      { id: "key_codex", name: "Codex", kind: "subscription" as const, usable: false, why: "Sign in to this account again." },
+    ],
+  }), [sample]);
+  const { height } = useWindowDimensions();
+  return (
+    <AutomationsDataProvider value={data}>
+      <View style={{ height, flexDirection: "row", backgroundColor: "var(--win)" as string }}>
+        <AutomationCanvas automationId="aut_lead" initialSelected="draft" initialPanel />
+      </View>
+    </AutomationsDataProvider>
+  );
 }

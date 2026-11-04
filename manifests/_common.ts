@@ -70,7 +70,7 @@ export const purgeOut = { removed: t.int({ minimum: 0 }), more: t.bool(), skippe
 
 // A reply's Details (engine.turn.of_message, chat.reply_details). A count that is absent was not reported by the provider: never shown as 0.
 const turnCost = t.obj({
-  source: t.enm('subscription', 'reported', 'catalog', 'unknown'), micros: t.opt(t.int()),
+  source: t.enm('subscription', 'reported', 'catalog', 'estimate', 'unknown'), micros: t.opt(t.int()),
   lines: t.opt(t.arr(t.obj({ kind: t.enm('input', 'output', 'cache_read', 'cache_write'), tokens: t.int(), perMillion: t.num(), micros: t.int() }))),
   priceAsOf: t.opt(t.str({ examples: ['2026-10-06'] })), missing: t.opt(t.arr(t.str())),
 });
@@ -80,7 +80,7 @@ export const replyTurn = t.obj({
   paid: t.opt(t.str({ description: 'Who paid and why, in a plain line (the asker\'s and AI-spend managers\' only)' })),
   ranOn: t.arr(t.obj({ kind: t.str(), name: t.str(), note: t.opt(t.str()) })),
   timing: t.obj({ queuedAt: t.opt(t.ts()), startedAt: t.ts(), firstTokenAt: t.opt(t.ts()), endedAt: t.opt(t.ts()) }),
-  tokens: t.obj({ in: t.int(), out: t.int(), cacheRead: t.opt(t.int()), cacheWrite: t.opt(t.int()), reasoning: t.opt(t.int()) }),
+  tokens: t.obj({ in: t.int(), out: t.int(), context: t.opt(t.int({ description: 'What the model was shown in the last call of the turn: the real size of the context. `in` adds up every call' })), cacheRead: t.opt(t.int()), cacheWrite: t.opt(t.int()), reasoning: t.opt(t.int()) }),
   cost: t.opt(turnCost),
   tools: t.arr(t.obj({ name: t.str(), args: t.opt(t.str()), ok: t.opt(t.bool()), durationMs: t.opt(t.int()), heldTaskId: t.opt(id.task) })),
   files: t.obj({ read: t.arr(t.str()), written: t.arr(t.str()) }), skills: t.arr(t.str()),
@@ -98,3 +98,11 @@ export const threadMessage = t.obj({
   attachments: t.arr(t.obj({ attachmentId: t.str(), name: t.str(), mime: t.str(), size: t.int() })), isPrivate: t.bool(), rfcMessageId: t.opt(t.str()), inReplyTo: t.opt(t.str()),
 });
 export const threadRole = t.enm('started', 'to', 'cc', 'added_later', 'none');
+
+/** What a Space AI account may pay for (owner ruling 9). Each use is off unless named. */
+export const spaceUses = t.obj({
+  teamChats: t.opt(t.obj({ who: t.union(t.lit('everyone'), t.arr(id.group, { minItems: 1 })) }, { description: 'A member\'s own chat, only when they have no account of their own that can pay: everyone, or the people in these groups' })),
+  automations: t.opt({ ...t.lit(true), description: 'Automation steps' }),
+  goals: t.opt({ ...t.lit(true), description: 'Goal turns and wake-ups' }),
+  agentWork: t.opt(t.obj({ which: t.union(t.lit('all'), t.arr(id.agent, { minItems: 1 })) }, { description: 'Work an agent does with no asker (routines, watchers, helpers): every agent, or these' })),
+}, { description: 'What a Space AI account may pay for' });

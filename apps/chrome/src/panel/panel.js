@@ -6,6 +6,8 @@
 
 import { h, mount } from "../ui/dom.js";
 import { face, ic, mark, spaceTile } from "../ui/icons.js";
+import { recLine, showSheet, watchSheet, watchingSheet } from "./sheets.js";
+import { FREQS, runsOnFor } from "../ui/watch-model.js";
 import { ago, applyDelta, chips, groupThreads, modelGroups, modelLabel, suggestions, WHY_NOT } from "./model.js";
 
 const g = /** @type {any} */ (globalThis);
@@ -27,7 +29,14 @@ const S = {
   conv: /** @type {Msg[]} */ ([]), threadId: /** @type {string | null} */ (null), sending: false,
   view: "chat", hq: "", threads: /** @type {any[]} */ ([]), searching: false,
   draft: "", error: "",
+  // recording (Show Vyre how) and watching (Watch this page)
+  rec: /** @type {{ running: boolean, paused?: boolean, count?: number, secret?: boolean }} */ ({ running: false }), recName: "", recError: "", recBusy: false,
+  w: /** @type {{ tellOpen: boolean, tellPeople: string[], tellThreads: string[], goalOn: boolean, goalId: string | null, what: "region" | "page", region: { label: string, selector?: string, text?: string } | null, every: number, agentId: string, run: "computer" | "chrome" | null, picking: boolean, saving: boolean, error: string, note: string }} */ ({
+    tellOpen: false, tellPeople: [], tellThreads: [], goalOn: false, goalId: null, what: "region", region: null, every: 30, agentId: "", run: null, picking: false, saving: false, error: "", note: "" }),
+  dir: /** @type {any} */ (null), goals: /** @type {any[] | null} */ (null),
+  wList: /** @type {any[] | null} */ (null), wOpen: /** @type {string | null} */ (null), wError: "",
 };
+const SHEETS = ["show", "watch", "watching"];
 
 /** @param {string} type @param {Record<string, any>} [body] */
 function ask(type, body = {}) {
@@ -75,6 +84,7 @@ function msgView(m) {
       h("div.who", null, who.name, h("span", null, t)),
       h(`div.txt${m.error ? ".err" : ""}`, null, m.error ? m.error : m.text, m.streaming ? h("span.caret") : null),
       att,
+      ...(m.artifacts || []).map((/** @type {any} */ a) => h("button.btn.q", act("openArtifact", { data: { id: a.id } }), ic("open", "s"), `Open ${a.title}`)),
       m.who !== "me" && !m.streaming && !m.error ? h("div.mline", null, h("button.btn.q", act("openVyre"), ic("open", "s"), "Open in Vyre"), ib("copy", "copy", "Copy", { data: { a: "copy", id: m.id } })) : null));
 }
 
@@ -121,6 +131,7 @@ function chatView() {
       h("span.grow"),
       h("button.send", act("send", { "data-tip": "Send", "aria-label": "Send", disabled: S.sending || !a }), ic("up", "s"))));
   return [
+    S.rec.running ? recLine(S.rec) : null,
     ...(rec ? recordLine() : []),
     h("div.pconv", { id: "conv" }, S.conv.map(msgView)),
     empty && !c.never ? h("div.quiet", null, suggestions({ host: S.page ? S.page.host ?? "" : "", title: S.page ? S.page.title : "", record: rec }).map((t) => h("button", act("sugg", { data: { t } }), ic("spark", "xs"), h("span.ell", null, t)))) : null,
@@ -176,11 +187,14 @@ function render() {
   const conv = document.querySelector("#conv");
   const atEnd = !conv || conv.scrollTop + conv.clientHeight >= conv.scrollHeight - 30;
   const focused = document.activeElement ? document.activeElement.id : "";
-  const el = /** @type {HTMLTextAreaElement | null} */ (focused === "q" || focused === "hq" ? document.activeElement : null);
+  const el = /** @type {HTMLTextAreaElement | null} */ (focused === "q" || focused === "hq" || focused === "recname" ? document.activeElement : null);
   const caret = el ? [el.selectionStart, el.selectionEnd] : null;
   top();
   const off = offView();
-  mount($("#main"), off ?? (S.view === "history" ? historyView() : S.view === "site" ? [...chatView(), siteView()] : chatView()));
+  const sheet = S.view === "show" ? showSheet({ name: S.recName, host: S.page ? S.page.host ?? "" : "", error: S.recError, busy: S.recBusy })
+    : S.view === "watch" ? watchSheet({ page: S.page, w: S.w, agents: S.agents, dir: S.dir, goals: S.goals })
+    : S.view === "watching" ? watchingSheet({ list: S.wList, open: S.wOpen, error: S.wError, agents: S.agents }) : null;
+  mount($("#main"), off ?? (S.view === "history" ? historyView() : S.view === "site" ? [...chatView(), siteView()] : sheet ? [...chatView(), sheet] : chatView()));
   const c2 = document.querySelector("#conv");
   if (c2 && atEnd) c2.scrollTop = c2.scrollHeight;
   const q = /** @type {HTMLTextAreaElement | null} */ (document.querySelector("#q"));
@@ -243,6 +257,7 @@ async function loadState() {
     S.page = st.page;
     if (changedPage) { S.pageRemoved = null; S.shotOn = true; S.selRemoved = false; S.selection = ""; S.shot = null; S.records = []; S.recOpen = false; }
     if (st.view === "chat" || st.view === "history" || st.view === "site") S.view = st.view;
+    else if (SHEETS.includes(st.view)) enterView(st.view);
     render();
     if (S.status === "online" && !S.locked) { void loadPage(); void loadRecords(); if (!S.models) void loadModels(); }
   } catch {
@@ -320,6 +335,7 @@ async function openThread(/** @type {string} */ id) {
     S.conv = (Array.isArray(t.messages) ? t.messages : []).map((/** @type {any} */ m) => ({
       id: String(m.id), who: m.author && m.author.me ? "me" : String((m.author && m.author.name) || "Vyre"), kind: m.author ? m.author.kind : "agent",
       avatar: m.author ? m.author.avatar ?? null : null, assistant: Boolean(m.author && m.author.assistant), text: String(m.text ?? ""), at: Date.parse(m.at) || Date.now(),
+      artifacts: Array.isArray(m.artifacts) ? m.artifacts.map((/** @type {any} */ a) => ({ id: String(a.id), title: String(a.title || "Artifact") })) : [],
     }));
     if (t.agentId && S.agents.some((a) => a.id === t.agentId)) S.agent = t.agentId;
     S.view = "chat";
@@ -353,6 +369,45 @@ async function setSite(change) {
   } catch (e) { S.error = e instanceof Error ? e.message : ""; render(); }
 }
 
+/** Show one of the sheets, with what it needs ready. @param {string} view */
+function enterView(view) {
+  S.view = view;
+  S.recError = ""; S.wError = "";
+  if (view === "show") S.recName = S.recName || "";
+  if (view === "watch") {
+    S.w = { tellOpen: false, tellPeople: [], tellThreads: [], goalOn: false, goalId: null, what: "region", region: null, every: 30, agentId: S.agent || (S.agents[0] ? S.agents[0].id : ""), run: null, picking: false, saving: false, error: "", note: "" };
+    void loadPickers();
+  }
+  if (view === "watching") void loadWatching();
+}
+
+/** The people, channels and goals the person may pick on the Watch sheet, as the app shows them to this person. */
+async function loadPickers() {
+  try { S.dir = await ask("panel.watch.dir"); } catch { S.dir = { people: [], channels: [], me: "" }; }
+  try { const g = /** @type {any} */ (await ask("panel.watch.goals")); S.goals = g ? g.goals : []; } catch { S.goals = []; }
+  if (S.view === "watch") render();
+}
+
+async function loadWatching() {
+  try { const r = /** @type {any} */ (await ask("panel.watch.list")); S.wList = r ? r.watches : []; S.wError = ""; } catch (e) { S.wList = S.wList || []; S.wError = e instanceof Error ? e.message : ""; }
+  render();
+}
+
+let recTimer = 0;
+/** While a recording runs, keep its count fresh (the page script changes it). */
+function pollRec() {
+  clearInterval(recTimer);
+  recTimer = /** @type {any} */ (setInterval(async () => {
+    try {
+      const r = /** @type {any} */ (await ask("panel.rec.state"));
+      const was = S.rec.running;
+      S.rec = r && r.running ? r : { running: false };
+      if (was !== S.rec.running || S.rec.running) render();
+      if (!S.rec.running) clearInterval(recTimer);
+    } catch { /* away */ }
+  }, 1500));
+}
+
 const A = /** @type {Record<string, (el: HTMLElement) => void | Promise<void>>} */ ({
   space: (el) => menu(el, [{ head: "Spaces" }, ...S.spaces.map((s) => ({ label: s.name, check: s.id === S.active, run: async () => { if (s.id === S.active) return; await ask("panel.space", { id: s.id }).catch(() => {}); S.conv = []; S.threadId = null; S.models = null; await loadState(); } })), "-", { icon: "open", label: "Open Vyre", run: () => void ask("panel.open", { place: "chats" }).catch(() => {}) }]),
   history: () => { if (S.view === "history") { S.view = "chat"; render(); return; } S.view = "history"; render(); $("#hq")?.focus(); void search(); },
@@ -362,6 +417,9 @@ const A = /** @type {Record<string, (el: HTMLElement) => void | Promise<void>>} 
     const can = Boolean(p && p.read);
     menu(el, [
       { icon: "note", label: "Save page to Notes", disabled: !can, run: async () => { await ask("panel.clip").catch((e) => { S.error = e.message; render(); }); } },
+      { icon: "eye", label: "Watch this page", disabled: !can, run: () => { enterView("watch"); render(); } },
+      { icon: "list", label: "Watching", run: () => { enterView("watching"); render(); } },
+      { icon: "rec", label: "Show Vyre how", disabled: !can || S.rec.running, run: () => { enterView("show"); render(); } },
       "-",
       { icon: "gear", label: "This site...", disabled: !S.page || !S.page.host, run: () => { S.view = "site"; render(); } },
       p && !p.read && p.why === "never" ? { icon: "eye", label: "Send this site again", run: () => void setSite({ mode: "attach" }) } : { icon: "eyeoff", label: "Never send this site", disabled: !can, run: () => void setSite({ mode: "never" }) },
@@ -372,6 +430,7 @@ const A = /** @type {Record<string, (el: HTMLElement) => void | Promise<void>>} 
   retry: () => void loadState(),
   rec: () => { S.recOpen = !S.recOpen; render(); },
   openThread: (el) => void openThread(String(el.dataset["id"])),
+  openArtifact: (el) => void ask("panel.openArtifact", { id: el.dataset["id"] }).catch(() => {}),
   openGoal: (el) => void ask("panel.open", { place: "goal", id: el.dataset["id"] }).catch(() => {}),
   openRecord: (el) => void ask("panel.open", { place: "record", id: el.dataset["id"] }).catch(() => {}),
   sugg: (el) => void send(String(el.dataset["t"])),
@@ -381,6 +440,55 @@ const A = /** @type {Record<string, (el: HTMLElement) => void | Promise<void>>} 
   selX: () => { S.selRemoved = true; render(); },
   send: () => void send(),
   copy: async (el) => { const m = S.conv.find((x) => x.id === el.dataset["id"]); if (m) await navigator.clipboard.writeText(m.text).catch(() => {}); },
+  sheetX: () => { S.view = "chat"; S.w.picking = false; render(); },
+  recStart: async () => {
+    S.recBusy = true; S.recError = ""; render();
+    try {
+      await ask("panel.rec.start", { name: S.recName.trim() });
+      S.rec = { running: true, paused: false, count: 1 }; S.view = "chat"; S.recName = "";
+      pollRec();
+    } catch (e) { S.recError = e instanceof Error ? e.message : "Recording did not start."; }
+    S.recBusy = false; render();
+  },
+  recPause: async () => { try { const r = /** @type {any} */ (await ask("panel.rec.control", { op: S.rec.paused ? "resume" : "pause" })); S.rec = { ...S.rec, ...r }; } catch { /* ignored */ } render(); },
+  recStop: async () => { try { await ask("panel.rec.control", { op: "stop" }); } catch { /* ignored */ } S.rec = { running: false }; render(); },
+  wWhat: (el) => { S.w.what = el.dataset["k"] === "page" ? "page" : "region"; render(); },
+  pickStart: async () => { S.w.picking = true; S.w.error = ""; render(); try { await ask("panel.watch.pick"); } catch (e) { S.w.picking = false; S.w.error = e instanceof Error ? e.message : "Could not pick."; render(); } },
+  wFreq: (el) => menu(el, FREQS.map((f) => ({ label: f.label, check: f.min === S.w.every, run: () => { S.w.every = f.min; render(); } }))),
+  wWho: (el) => menu(el, [{ head: "Who checks it" }, ...S.agents.map((a) => ({ face: { name: a.name, avatar: a.avatar ?? null, assistant: Boolean(a.assistant) }, label: a.name, trail: a.computer ? "Has a computer" : "", check: a.id === S.w.agentId, run: () => { S.w.agentId = a.id; S.w.run = null; render(); } }))]),
+  wRun: (el) => { const k = el.dataset["k"] === "computer" ? "computer" : "chrome"; const a = S.agents.find((x) => x.id === S.w.agentId); if (k === "computer" && !(a && a.computer)) return; S.w.run = k; render(); },
+  givePc: async () => {
+    const a = S.agents.find((x) => x.id === S.w.agentId);
+    if (!a) return;
+    try { await ask("panel.watch.givePc", { agentId: a.id }); S.w.note = `Asked ${a.name} to set up a computer. It will show in your chats.`; } catch (e) { S.w.error = e instanceof Error ? e.message : ""; }
+    render();
+  },
+  wStart: async () => {
+    const a = S.agents.find((x) => x.id === S.w.agentId) || S.agents[0];
+    if (!a || S.w.saving || (S.w.what === "region" && !S.w.region)) return;
+    S.w.saving = true; S.w.error = ""; render();
+    try {
+      await ask("panel.watch.save", { watch: { mode: S.w.what, ...(S.w.what === "region" ? { region: { label: S.w.region?.label, selector: S.w.region?.selector } } : {}), everyMinutes: S.w.every, agentId: a.id, runsOn: runsOnFor(Boolean(a.computer), S.w.run), tell: S.w.tellPeople, tellThreads: S.w.tellThreads, ...(S.w.goalOn && S.w.goalId ? { goalId: S.w.goalId } : {}) } });
+      S.w.saving = false; S.w.region = null; S.w.run = null; enterView("watching"); render();
+    } catch (e) { S.w.saving = false; S.w.error = e instanceof Error ? e.message : "Could not start watching."; render(); }
+  },
+  wTell: () => { S.w.tellOpen = !S.w.tellOpen; render(); },
+  wTellPerson: (el) => { const id = String(el.dataset["k"]); S.w.tellPeople = S.w.tellPeople.includes(id) ? S.w.tellPeople.filter((x) => x !== id) : [...S.w.tellPeople, id]; render(); },
+  wTellThread: (el) => { const id = String(el.dataset["k"]); S.w.tellThreads = S.w.tellThreads.includes(id) ? S.w.tellThreads.filter((x) => x !== id) : [...S.w.tellThreads, id]; render(); },
+  wGoal: () => { S.w.goalOn = !S.w.goalOn; if (!S.w.goalOn) S.w.goalId = null; else if (S.goals && S.goals.length === 1) S.w.goalId = S.goals[0].id; render(); },
+  wGoalPick: (el) => { S.w.goalId = String(el.dataset["k"]); render(); },
+  wNew: () => { enterView("watch"); render(); },
+  wRow: (el) => { S.wOpen = S.wOpen === el.dataset["id"] ? null : String(el.dataset["id"]); render(); },
+  wPause: async (el) => { try { await ask("panel.watch.change", { watchId: el.dataset["id"], op: el.dataset["on"] ? "pause" : "resume" }); } catch (e) { S.wError = e instanceof Error ? e.message : ""; } await loadWatching(); },
+  wMore: (el) => {
+    const id = String(el.dataset["id"]);
+    menu(el, [
+      { icon: "refresh", label: "Check now", run: async () => { try { await ask("panel.watch.check", { watchId: id }); } catch (e) { S.wError = e instanceof Error ? e.message : ""; } await loadWatching(); } },
+      { icon: "open", label: "Open in Vyre", run: () => void ask("panel.open", { place: "watching", id }).catch(() => {}) },
+      "-",
+      { icon: "trash", label: "Delete watch", run: async () => { try { await ask("panel.watch.change", { watchId: id, op: "remove" }); } catch (e) { S.wError = e instanceof Error ? e.message : ""; } await loadWatching(); } },
+    ], "r");
+  },
   site: () => { S.view = "site"; render(); },
   back: () => { S.view = "chat"; render(); },
   siteOpt: (el) => void setSite({ mode: String(el.dataset["k"]) }),
@@ -420,6 +528,7 @@ document.addEventListener("click", (e) => {
 document.addEventListener("input", (e) => {
   const t = /** @type {HTMLInputElement} */ (e.target);
   if (t.id === "q") { S.draft = t.value; autosize(/** @type {any} */ (t)); }
+  if (t.id === "recname") S.recName = t.value;
   if (t.id === "hq") { S.hq = t.value; clearTimeout(searchTimer); searchTimer = /** @type {any} */ (setTimeout(() => void search(), 200)); }
 });
 document.addEventListener("keydown", (e) => {
@@ -467,6 +576,11 @@ async function boot() {
       if (S.page && m.tabId === S.page.tabId) { S.selection = m.text; S.selRemoved = false; S.view = "chat"; render(); $("#q")?.focus(); }
     } else if (m.type === "view") {
       if (["chat", "history", "site"].includes(m.view)) { S.view = m.view; render(); }
+      else if (SHEETS.includes(m.view)) { enterView(m.view); render(); }
+    } else if (m.type === "picked") {
+      S.w.picking = false;
+      if (m.region && m.region.selector) { S.w.region = m.region; S.w.error = ""; }
+      render();
     } else if (m.type === "tab" || m.type === "site" || m.type === "spaces") {
       clearTimeout(refreshTimer);
       refreshTimer = /** @type {any} */ (setTimeout(() => void loadState(), m.type === "tab" ? 250 : 0));
@@ -475,7 +589,8 @@ async function boot() {
   port.onDisconnect.addListener(() => { S.status = "offline"; render(); setTimeout(() => location.reload(), 1000); });
   render();
   await loadState();
-  $("#q")?.focus();
+  try { const r = /** @type {any} */ (await ask("panel.rec.state")); if (r && r.running) { S.rec = r; pollRec(); render(); } } catch { /* the app is away */ }
+  if (S.view === "chat") $("#q")?.focus();
 }
 
 void boot();

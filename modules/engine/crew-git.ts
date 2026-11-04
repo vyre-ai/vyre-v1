@@ -56,6 +56,28 @@ export async function repoHead(repo: string): Promise<{ branch: string; sha: str
   return { branch, sha };
 }
 
+/**
+ * Makes `dir` a git repository on this computer with `main` as its start, when it is not one yet, and answers its branch. A folder with files in it has them committed as the first commit; an empty one
+ * gets an empty first commit, so teammates have a commit to start their branches from. A folder that is already a repository is left exactly as it is. Nothing here talks to a remote.
+ */
+export async function initLocalRepo(dir: string, ident: CrewIdentity = { name: "Vyre", email: "vyre@vyre.invalid" }): Promise<{ branch: string; created: boolean }> {
+  fs.mkdirSync(dir, { recursive: true });
+  if (fs.existsSync(path.join(dir, ".git"))) {
+    const head = await git(["rev-parse", "--abbrev-ref", "HEAD"], dir);
+    const hasCommit = (await git(["rev-parse", "--verify", "--quiet", "HEAD"], dir)).code === 0;
+    if (hasCommit) return { branch: head.out.trim() || "main", created: false };
+    // a repository with no commit yet (git init was run, nothing saved): it gets the first one below
+  } else {
+    await must(["init", "--quiet"], dir, "starting the repository");
+    await must(["symbolic-ref", "HEAD", "refs/heads/main"], dir, "naming the first branch main");
+  }
+  const who = ["-c", `user.name=${ident.name}`, "-c", `user.email=${ident.email}`];
+  await must(["add", "-A"], dir, "saving what is in the folder");
+  await must([...who, "commit", "--quiet", "--allow-empty", "-m", "Start of the project"], dir, "making the first commit");
+  const branch = (await must(["rev-parse", "--abbrev-ref", "HEAD"], dir, "reading the branch")).trim();
+  return { branch, created: true };
+}
+
 export interface CrewIdentity { name: string; email: string }
 
 const making = new Map<string, Promise<{ created: boolean }>>();

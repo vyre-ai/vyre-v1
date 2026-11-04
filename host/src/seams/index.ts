@@ -167,6 +167,9 @@ export function createPushPort(deps: PushTransportDeps = {}): PushPortSeam {
 /** Which daemon wired each module setter last. A module's seam is one value per process, so where two daemons share a process (the tests that boot two computers of one Personal Space)
  *  the one that stops first must not unwire what the other wired after it; a daemon only ever clears a seam it still holds. One daemon per process (every install) is unaffected. */
 const holders = new Map<string, symbol>();
+/** Every daemon still wired to a setter, oldest first, with the driver it gave. When the newest one stops, the one before it is handed its own driver back: the module's seam is one value per process,
+ *  and the later daemon's wiring replaced the earlier one's, so without this the earlier daemon was left with nothing (a records.create answering "no type" for a type schema.apply had just made). */
+const stacks = new Map<string, Array<{ me: symbol; driver: unknown }>>();
 
 export function wireSeams(setters: SeamSetters, deps: SeamDeps): WiredSeams {
   const me = Symbol("daemon");
@@ -186,11 +189,13 @@ export function wireSeams(setters: SeamSetters, deps: SeamDeps): WiredSeams {
     const make = registry[name];
     if (!make) { missing.push({ setter: name, ...where, reason: "The host has no driver registered under this name." }); continue; }
     const set = fn as (driver: unknown) => void;
-    try { set(make(driverDeps)); } catch (e) { missing.push({ setter: name, ...where, reason: `The driver failed: ${e instanceof Error ? e.message : String(e)}` }); continue; }
+    let driver: unknown;
+    try { driver = make(driverDeps); set(driver); } catch (e) { missing.push({ setter: name, ...where, reason: `The driver failed: ${e instanceof Error ? e.message : String(e)}` }); continue; }
     wired.push(name);
     called.push(set);
     names.push(name);
     holders.set(name, me);
+    stacks.set(name, [...(stacks.get(name) ?? []), { me, driver }]);
     const legacy = LEGACY[name];
     if (legacy) state[legacy] = "wired";
   }
@@ -199,9 +204,14 @@ export function wireSeams(setters: SeamSetters, deps: SeamDeps): WiredSeams {
     unwire() {
       called.forEach((set, i) => {
         const name = names[i]!;
+        const rest = (stacks.get(name) ?? []).filter((x) => x.me !== me);
+        stacks.set(name, rest);
         if (holders.get(name) !== me) return;
         holders.delete(name);
         try { set(null); } catch { /* shutting down: one module's refusal must not keep the others wired */ }
+        // the daemon that wired before this one and is still running gets its seam back
+        const before = rest.at(-1);
+        if (before) { holders.set(name, before.me); try { set(before.driver); } catch { /* it keeps whatever it had */ } }
       });
     },
     owns: (setter) => holders.get(setter) === me,

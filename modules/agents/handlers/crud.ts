@@ -202,7 +202,7 @@ async function make(ctx: AgentsCtx, input: CreateInput, kind: AgentKind, runtime
   const priv = isPrivateAgent(rec);
   ctx.emit("agent.created", id, { agentId: id, name, ownerId: owner, folderId: tree.folderId, templateVersion: rec.templateVersion, ...(priv ? { private: true } : {}) });
   // access names a private agent as its person to everyone else ("Irfad Imtiaz (Agent)"); this is what tells it
-  if (priv) { ctx.emit("agent.privacy_set", id, { agentId: id, ownerId: owner, private: true }); setMeta(ctx.db, `privacy:${id}`, "1"); }
+  if (priv) { ctx.emit("agent.privacy_set", id, { agentId: id, ownerId: owner, private: true, ...(isAssistant(rec) ? { assistant: true } : {}) }); setMeta(ctx.db, `privacy:${id}`, "1"); if (isAssistant(rec)) setMeta(ctx.db, `assistant:${id}`, "1"); }
   return { agent: agentView(rec, now) };
 }
 
@@ -851,9 +851,12 @@ export async function announcePrivacy(ctx: AgentsCtx): Promise<string[]> {
   ensure(ctx.db);
   const told: string[] = [];
   for (const a of allAgents(ctx.db)) {
-    if (!isPrivateAgent(a) || meta(ctx.db, `privacy:${a.id}`) !== undefined) continue;
-    ctx.emit("agent.privacy_set", a.id, { agentId: a.id, ownerId: a.ownerId, private: true });
+    // an Assistant told before access learnt which agents are Assistants is told once more, so it can be its person's hands
+    const toldAssistant = !isAssistant(a) || meta(ctx.db, `assistant:${a.id}`) !== undefined;
+    if (!isPrivateAgent(a) || (meta(ctx.db, `privacy:${a.id}`) !== undefined && toldAssistant)) continue;
+    ctx.emit("agent.privacy_set", a.id, { agentId: a.id, ownerId: a.ownerId, private: true, ...(isAssistant(a) ? { assistant: true } : {}) });
     setMeta(ctx.db, `privacy:${a.id}`, "1");
+    if (isAssistant(a)) setMeta(ctx.db, `assistant:${a.id}`, "1");
     told.push(a.id);
   }
   return told;

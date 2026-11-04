@@ -16,6 +16,7 @@ import { parseIncoming } from "../worker/protocol.js";
 import { createCdp } from "./cdp.js";
 import { createTraffic } from "./net.js";
 import { OVERLAY_PORT, errorOf, fail, parseCommand } from "./protocol.js";
+import { createRights } from "./rights.js";
 import { createSessions } from "./sessions.js";
 import { createTools } from "./tools.js";
 import { createTransport } from "./transport.js";
@@ -50,9 +51,11 @@ export function createAgentControl(ext, o = {}) {
   const transport = o.transport ?? createTransport(ext, { onMessage: (m) => { void onIncoming(m); }, ...(o.setTimer ? { setTimer: o.setTimer } : {}), ...(o.clearTimer ? { clearTimer: o.clearTimer } : {}) });
   const cdp = createCdp(ext.debugger);
   const traffic = createTraffic(cdp, { now });
+  /** The chat each agent was last asked in, so what it does in the person's Chrome can be shown in that chat. @type {Map<string, string>} */
+  const threads = new Map();
   /** @param {Record<string, any>} event */
-  const emit = (event) => transport.tell("agent.event", event);
-  const sessions = createSessions({ ext, cdp, traffic, emit, now, ...(o.setTimer ? { setTimer: o.setTimer } : {}), ...(o.clearTimer ? { clearTimer: o.clearTimer } : {}), ...(o.idleMs !== undefined ? { idleMs: o.idleMs } : {}) });
+  const emit = (event) => transport.tell("agent.event", typeof event["agent"] === "string" && threads.has(event["agent"]) ? { ...event, thread: threads.get(event["agent"]) } : event);
+  const sessions = createSessions({ ext, cdp, traffic, emit, now, grouping: () => mode === "personal", ...(o.setTimer ? { setTimer: o.setTimer } : {}), ...(o.clearTimer ? { clearTimer: o.clearTimer } : {}), ...(o.idleMs !== undefined ? { idleMs: o.idleMs } : {}) });
 
   /** The agent's Space must be the one active here, and the person (or the agent computer's owner) must have opened Chrome to it. @param {{ space: string }} call */
   async function authorize(call) {
@@ -75,8 +78,13 @@ export function createAgentControl(ext, o = {}) {
     return landed;
   }
 
+  const rights = createRights({
+    list: (call) => transport.call("invoke", "browser.sites.list", {}, { agent: call.agent.id, space: call.space }),
+    mode: () => mode, now,
+  });
+
   const tools = createTools({
-    ext, cdp, traffic, sessions, authorize, vaultFill, emit,
+    ext, cdp, traffic, sessions, authorize, vaultFill, emit, rights,
     mode: () => mode,
     connected: (call) => transport.online && optedIn.has(call.space),
     now, ...(o.sleep ? { sleep: o.sleep } : {}), ...(o.settleMs !== undefined ? { settleMs: o.settleMs } : {}),
@@ -95,6 +103,14 @@ export function createAgentControl(ext, o = {}) {
       if (dropped.length) await sessions.releaseAll();
       return;
     }
+    if (cmd.type === "agent.held.drop") { sessions.dropHeld(cmd.id); return; }
+    if (cmd.type === "agent.takeover") { await sessions.pause(cmd.agent, "takeover"); return; }
+    if (cmd.type === "agent.watch") {
+      const tabId = sessions.currentTab(cmd.agent);
+      if (tabId !== null) { try { const t = await ext.tabs.update(tabId, { active: true }); if (t && t.windowId !== undefined && ext.windows) await ext.windows.update(t.windowId, { focused: true }); } catch { /* the tab is gone */ } }
+      return;
+    }
+    if (cmd.thread) threads.set(cmd.agent.id, cmd.thread);
     try {
       const output = await tools.run({ id: cmd.id, tool: cmd.tool, input: cmd.input, agent: cmd.agent, space: cmd.space });
       transport.tell("agent.result", { callId: cmd.id, ok: true, output });
@@ -109,8 +125,22 @@ export function createAgentControl(ext, o = {}) {
     const tabId = port.sender.tab.id;
     port.onMessage.addListener((/** @type {any} */ m) => {
       const agent = sessions.driverOf(tabId);
+      const shownAgent = sessions.shownAgent(tabId);
+      if (m && m.type === "openvyre") {
+        const who = agent ?? shownAgent;
+        const thread = who ? threads.get(who.id) : undefined;
+        // the exact chat the agent works in: the desktop app opens it, else the Space's web app does
+        void transport.call("bridge", "app.open", { place: "chats", ...(thread ? { threadId: thread } : {}) }).catch(async () => {
+          const kept = await store.get(["spaces", "activeSpace"]);
+          const sp = (kept["spaces"] ?? []).find((/** @type {any} */ x) => x.id === kept["activeSpace"]);
+          if (sp && sp.webUrl) void ext.tabs.create({ url: `${sp.webUrl}/chats${thread ? `/${thread}` : ""}` });
+        });
+        return;
+      }
+      if (m && (m.type === "giveback" || m.type === "endtask") && shownAgent) { void sessions.resume(shownAgent.id).then(() => { if (m.type === "endtask") emit({ event: "ended", agent: shownAgent.id }); }); return; }
       if (!agent || !m) return;
       if (m.type === "stop") void sessions.pause(agent.id, "person");
+      else if (m.type === "takeover") void sessions.pause(agent.id, "takeover");
       else if (m.type === "esc") void sessions.pause(agent.id, "esc");
     });
   });
@@ -125,7 +155,7 @@ export function createAgentControl(ext, o = {}) {
   ext.tabs.onRemoved.addListener((/** @type {number} */ id) => { void sessions.tabGone(id); });
 
   return {
-    sessions, tools, cdp, traffic, transport,
+    sessions, tools, cdp, traffic, transport, rights,
     connect: () => transport.connect(),
     run: tools.run,
     onIncoming,

@@ -27,13 +27,13 @@ const MCP_OK: CliEvent = { type: "mcp", status: "ok" };
 
 test("claude: a streamed answer is passed on as its deltas, once, with the cache counted into input tokens", () => {
   assert.deepEqual(decode("claude-text", createClaudeDecoder()), [
-    S1, MCP_OK, { type: "text", text: "Hello" }, { type: "text", text: " from Claude." }, usage(112, 6, { cacheReadTokens: 100, cacheWriteTokens: 0, costUsd: 0.0012 }), { type: "end" },
+    S1, MCP_OK, { type: "text", text: "Hello" }, { type: "text", text: " from Claude." }, usage(112, 6, { cacheReadTokens: 100, cacheWriteTokens: 0, costUsd: 0.0012, model: "claude-sonnet-5-5", contextTokens: 112 }), { type: "end" },
   ]);
 });
 
 test("claude: a message that came without deltas is passed on whole, its thinking too, and the result line does not repeat it", () => {
   assert.deepEqual(decode("claude-nopartial", createClaudeDecoder()), [
-    S1, MCP_OK, { type: "thinking", text: "Short answer." }, { type: "text", text: "Whole message, no deltas." }, usage(8, 5), { type: "end" },
+    S1, MCP_OK, { type: "thinking", text: "Short answer." }, { type: "text", text: "Whole message, no deltas." }, usage(8, 5, { model: "claude-sonnet-5-5", contextTokens: 8 }), { type: "end" },
   ]);
 });
 
@@ -44,7 +44,7 @@ test("claude: a tool call shows as activity once, its result as ok, and the answ
     { type: "tool", phase: "call", id: "toolu_01", name: "mcp__vyre__schema_describe" },
     { type: "tool", phase: "result", id: "toolu_01", ok: true },
     { type: "text", text: "Found the types." },
-    usage(80, 19, { cacheReadTokens: 0, cacheWriteTokens: 0 }), { type: "end" },
+    usage(80, 19, { cacheReadTokens: 0, cacheWriteTokens: 0, model: "claude-sonnet-5-5", contextTokens: 60 }), { type: "end" },
   ]);
 });
 
@@ -60,8 +60,8 @@ test("claude: a tool the MCP server refused arrives as a result that is not ok",
 test("claude: failures keep the engine's words; a turn limit gets its own code; a Vyre server that did not connect is reported", () => {
   assert.deepEqual(decode("claude-error-auth", createClaudeDecoder()).slice(-1), [{ type: "end", error: { message: "Invalid API key · Please run /login" } }]);
   // a count the engine left out stays out (not reported), and one it gave as 0 is 0
-  assert.deepEqual(decode("claude-nopartial", createClaudeDecoder()).find((e) => e.type === "usage"), usage(8, 5));
-  assert.deepEqual(decode("claude-max-turns", createClaudeDecoder()).slice(-2), [usage(900, 120), { type: "end", error: { code: "engine.step_limit", message: "error_max_turns" } }]);
+  assert.deepEqual(decode("claude-nopartial", createClaudeDecoder()).find((e) => e.type === "usage"), usage(8, 5, { model: "claude-sonnet-5-5", contextTokens: 8 }));
+  assert.deepEqual(decode("claude-max-turns", createClaudeDecoder()).slice(-2), [usage(900, 120, { model: "claude-sonnet-5-5" }), { type: "end", error: { code: "engine.step_limit", message: "error_max_turns" } }]);
   assert.deepEqual(decode("claude-mcp-failed", createClaudeDecoder()), [S1, { type: "mcp", status: "failed", detail: "failed" }]);
 });
 
@@ -95,7 +95,7 @@ test("codex: a failed turn ends once with the engine's message; an MCP server th
 test("grok: the same schema as Claude Code, read by the same decoder", () => {
   const adapter: CliAdapter = CLI_ADAPTERS.grok;
   assert.deepEqual(decode("grok-text", adapter.decoder()), [
-    S1, MCP_OK, { type: "text", text: "Hello from " }, { type: "text", text: "Grok." }, usage(30, 5), { type: "end" },
+    S1, MCP_OK, { type: "text", text: "Hello from " }, { type: "text", text: "Grok." }, usage(30, 5, { model: "grok-4", contextTokens: 30 }), { type: "end" },
   ]);
   assert.deepEqual(decode("grok-tool", adapter.decoder()).filter((e) => e.type === "tool"), [
     { type: "tool", phase: "call", id: "toolu_01", name: "mcp__vyre__schema_describe" },

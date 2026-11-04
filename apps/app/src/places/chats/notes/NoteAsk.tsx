@@ -19,9 +19,9 @@ import { Btn, IconBtn } from "./parts.tsx";
 const ChatsConversation = lazy(() => import("../../../shell/providers/chats.tsx").then((m) => ({ default: m.ChatsConversation })));
 
 /** The Ask thread of a note: one per person and note. */
-export const askThreadKey = (meId: string, noteId: string): string => `note-ask-${meId}-${noteId}`;
+export const askThreadKey = (meId: string, noteId: string, agentId?: string): string => `note-ask-${meId}-${noteId}${agentId ? `-${agentId}` : ""}`;
 
-export function NoteAsk({ rt, note, onClose, onOpen, onTask }: { rt: ShellRuntime; note: Note; onClose(): void; onOpen(): void; onTask(): void }): ReactElement {
+export function NoteAsk({ rt, note, agentId: picked, onClose, onOpen, onTask }: { rt: ShellRuntime; note: Note; /** The agent picked in the Ask control; the Assistant when none. */ agentId?: string; onClose(): void; onOpen(): void; onTask(): void }): ReactElement {
   const [thread, setThread] = useState<string | null>(null);
   const [error, setError] = useState(false);
   const name = noteName(note);
@@ -30,12 +30,12 @@ export function NoteAsk({ rt, note, onClose, onOpen, onTask }: { rt: ShellRuntim
     setThread(null);
     setError(false);
     void (async () => {
-      const agentId = (await findAssistant(rt, rt.me.id)) ?? rt.assistant.id;
-      const started = (await rt.call("chat.start", { kind: "ask", agentIds: [agentId], scopeType: "note", scopeId: note.noteId, title: name, idempotencyKey: askThreadKey(rt.me.id, note.noteId) })) as { thread: { threadId: string } };
+      const agentId = picked ?? (await findAssistant(rt, rt.me.id)) ?? rt.assistant.id;
+      const started = (await rt.call("chat.start", { kind: "ask", agentIds: [agentId], scopeType: "note", scopeId: note.noteId, title: name, idempotencyKey: askThreadKey(rt.me.id, note.noteId, picked) })) as { thread: { threadId: string } };
       if (live) { noteThreadKind(started.thread.threadId, "ask"); setThread(started.thread.threadId); }
     })().catch(() => { if (live) setError(true); });
     return () => { live = false; };
-  }, [rt, note.noteId]);   // eslint-disable-line react-hooks/exhaustive-deps
+  }, [rt, note.noteId, picked]);   // eslint-disable-line react-hooks/exhaustive-deps
   // what the assistant is told about where the person is: the note, by id and name, never its text
   useEffect(() => {
     addScreen({ title: `Notes, ${name}`, open: [{ type: "note", id: note.noteId, title: name }], actions: ["read the note with notes_get", "sum it up", "say what is still open", "draft a reply from it", "suggest a task"] });

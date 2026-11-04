@@ -270,6 +270,13 @@ export function stubs(ctx: CallCtx) {
       validate: call("automations.validate"),
       vault_usage: call("automations.vault_usage"),
       versions: call("automations.versions"),
+      watches: {
+        check: call("automations.watches.check"),
+        list: call("automations.watches.list"),
+        remove: call("automations.watches.remove"),
+        report: call("automations.watches.report"),
+        save: call("automations.watches.save"),
+      },
       webhook_url: {
         get: call("automations.webhook_url.get"),
         rotate: call("automations.webhook_url.rotate"),
@@ -294,6 +301,19 @@ export function stubs(ctx: CallCtx) {
       cancel: call("bookings.cancel"),
       list: call("bookings.list"),
       page_create: call("bookings.page_create"),
+    },
+    browser: {
+      cards: {
+        post: call("browser.cards.post"),
+      },
+      chrome: {
+        act: call("browser.chrome.act"),
+      },
+      sites: {
+        list: call("browser.sites.list"),
+        remove: call("browser.sites.remove"),
+        set: call("browser.sites.set"),
+      },
     },
     calendar: {
       availability: call("calendar.availability"),
@@ -397,6 +417,10 @@ export function stubs(ctx: CallCtx) {
       message_person: call("chat.message_person"),
       messages: {
         list: call("chat.messages.list"),
+      },
+      note_offer: {
+        answer: call("chat.note_offer.answer"),
+        make: call("chat.note_offer.make"),
       },
       open_as_chat: call("chat.open_as_chat"),
       open_tab: call("chat.open_tab"),
@@ -782,6 +806,7 @@ export function stubs(ctx: CallCtx) {
       models: {
         list: call("engine.models.list"),
       },
+      my_ai: call("engine.my_ai"),
       now: call("engine.now"),
       placement: {
         decide: call("engine.placement.decide"),
@@ -850,6 +875,7 @@ export function stubs(ctx: CallCtx) {
       },
       turns: {
         list: call("engine.turns.list"),
+        running: call("engine.turns.running"),
       },
       usage: {
         get: call("engine.usage.get"),
@@ -1408,6 +1434,17 @@ export function stubs(ctx: CallCtx) {
       tail: call("logs.tail"),
       trace: call("logs.trace"),
     },
+    machines: {
+      alerts: call("machines.alerts"),
+      alerts_notify: call("machines.alerts_notify"),
+      fix: call("machines.fix"),
+      get: call("machines.get"),
+      list: call("machines.list"),
+      move_record: call("machines.move_record"),
+      moves: call("machines.moves"),
+      rooms: call("machines.rooms"),
+      set: call("machines.set"),
+    },
     mail: {
       attachment: {
         save: call("mail.attachment.save"),
@@ -1830,13 +1867,6 @@ export function stubs(ctx: CallCtx) {
       enroll_status: call("network.enroll_status"),
       health: call("network.health"),
       ingress_check: call("network.ingress_check"),
-      machine: call("network.machine"),
-      machine_alerts: call("network.machine_alerts"),
-      machine_alerts_notify: call("network.machine_alerts_notify"),
-      machine_pin: call("network.machine_pin"),
-      machine_place: call("network.machine_place"),
-      machine_set: call("network.machine_set"),
-      machines: call("network.machines"),
       my_computer_approve: call("network.my_computer_approve"),
       my_computer_code: call("network.my_computer_code"),
       my_computer_decline: call("network.my_computer_decline"),
@@ -2283,6 +2313,7 @@ export function stubs(ctx: CallCtx) {
       artifact_open: call("sites.artifact_open"),
       artifact_publish: call("sites.artifact_publish"),
       build: call("sites.build"),
+      chat_viewing: call("sites.chat_viewing"),
       create: call("sites.create"),
       db_import: call("sites.db_import"),
       delete: call("sites.delete"),

@@ -103,7 +103,7 @@ function ShellBody({ initialPage = DEFAULT_PAGE, initialAudit, skin = SYSTEM_SKI
   useEffect(() => {
     if (!machinesOpen) return undefined;
     let live = true;
-    const load = (): void => { void (data.call("network.machine_alerts", {}) as Promise<{ alerts?: unknown[] }>).then((o) => { if (live) setMachineAlerts(o.alerts?.length ?? 0); }, () => undefined); };
+    const load = (): void => { void (data.call("machines.alerts", {}) as Promise<{ alerts?: unknown[] }>).then((o) => { if (live) setMachineAlerts(o.alerts?.length ?? 0); }, () => undefined); };
     load();
     const t = setInterval(load, 60_000);
     return () => { live = false; clearInterval(t); };

@@ -110,14 +110,14 @@ export async function openTaskThread(ctx: ProjectsCtx, input: In): Promise<unkno
   const { task } = await taskOf(ctx, p, input.taskId);
   const known = task.threadId ?? planOf(ctx.db, p.projectId, task.taskId)?.threadId;
   if (known) return { threadId: known };
-  if (!p.threadId) raise(ctx, "validation.bad_input", "This project has no channel to open the thread in.");
+  if (!p.threadId) raise(ctx, "validation.bad_input", "This project has no channel to open the chat in.");
   // the thread hangs under a small task card in the project channel
   const posted = await call<{ message?: { messageId?: string } }>(ctx, "chat.post", { threadId: p.threadId, body: `Task: ${task.title}` }, { idempotencyKey: `prj-task-card:${p.projectId}:${task.taskId}` });
   const messageId = posted.message?.messageId;
   if (!messageId) raise(ctx, "internal.unexpected", "The task card was not posted.");
   const made = await call<{ thread?: { threadId?: string } }>(ctx, "chat.thread", { threadId: p.threadId, messageId });
   const threadId = made.thread?.threadId;
-  if (!threadId) raise(ctx, "internal.unexpected", "The task thread was not opened.");
+  if (!threadId) raise(ctx, "internal.unexpected", "The task chat was not opened.");
   savePlan(ctx.db, p.projectId, task.taskId, { threadId });
   emitP(ctx, "project.task_thread_opened", p.projectId, { taskId: task.taskId, threadId });
   return { threadId };

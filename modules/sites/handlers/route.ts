@@ -9,6 +9,7 @@
 // @reads ../migrations/0001_sites_core.sql
 // @reads ../migrations/0003_routes.sql
 
+import { isViewing, noteViewing } from "./viewing.ts";
 import { VyreErr } from "../../../packages/contracts/src/errors.ts";
 import type { Ctx } from "../../../packages/contracts/src/ctx.ts";
 import { touchActivity } from "../projections.ts";
@@ -26,6 +27,10 @@ const NAME_MAX = 80;
 const RESERVED_PORTS = new Set([22, 2019, 8420]);
 const SLUG = /^[a-z0-9][a-z0-9-]{0,62}$/;
 const RESERVED_SLUGS = new Set(["forms", "u", "share", "a", "p", "api", "admin", "assets", "v1"]);
+/** An artifact's one-time code: good for one use and a minute. */
+export const EXCHANGE_MS = 60 * 1000;
+/** The cookie session a code starts on the artifact host: access is asked again on every request, so a person removed from the share is out at once. */
+export const ARTIFACT_SESSION_MS = 12 * 60 * 60 * 1000;
 const TICKET_MS = 8 * 60 * 60 * 1000;
 const PAGE_DEFAULT = 100;
 const PAGE_MAX = 500;
@@ -39,6 +44,8 @@ export interface LocalFile { path: string; base64: string; mime: string }
 export interface SitesHost {
   /** the address people outside reach this Space at, and whether it is a phone address (name.vyre.run) */
   origin(): { origin: string; relay: boolean } | null;
+  /** The host artifacts are served from, apart from the app's own origin (a.<space> or <name>-a.vyre.run), or null where none is set up: artifacts then open at their keyed address on the app's origin, as before. */
+  artifactHost?(): string | null;
   /** does this target answer now? (any HTTP answer on the path counts) */
   probe(target: RouteTarget, path?: string): Promise<{ answering: boolean; detail?: string }>;
   /** the last lines of a site's log on its computer */
@@ -393,7 +400,7 @@ async function sitesLogs(ctx: Ctx, input: unknown): Promise<{ lines: string[]; s
 
 // ---- artifacts
 
-async function artifactPublish(ctx: Ctx, input: unknown): Promise<{ artifactId: string; url?: string; updated: boolean }> {
+async function artifactPublish(ctx: Ctx, input: unknown): Promise<{ artifactId: string; url?: string; updated: boolean; opened: boolean }> {
   const o = rec(ctx, input);
   const title = cleanName(ctx, reqStr(ctx, o, "title"));
   const html = optStr(ctx, o, "html");
@@ -453,19 +460,37 @@ async function artifactPublish(ctx: Ctx, input: unknown): Promise<{ artifactId: 
   const fresh = mustSite(ctx, id);
   const url = urlOf(fresh);
   ctx.emit("site.published", `site/${id}`, { siteId: id, ...(url ? { url } : {}), access: "private" });
-  await announce(ctx, id, title);
-  return { artifactId: id, ...(url ? { url } : {}), updated };
+  // The asker's app opens it in a tab only when it said this chat is open for them (sites.chat_viewing); the card in the chat is posted either way. `opened` is true only when the card went out
+  // marked for them, so the app that has the chat open opens the tab. Anything less and the agent says it is published and the card has Open.
+  const asker = askerOf(ctx);
+  const openFor = asker !== null && ctx.thread && isViewing(asker, ctx.thread, ctx.now()) ? asker : undefined;
+  const posted = await announce(ctx, id, title, openFor);
+  return { artifactId: id, ...(url ? { url } : {}), updated, opened: openFor !== undefined && posted };
 }
 
 /** A card in the chat the work was asked in. Nothing to say it in is not a failure of the publish. */
-async function announce(ctx: Ctx, id: string, title: string): Promise<void> {
-  if (!ctx.thread) return;
+async function announce(ctx: Ctx, id: string, title: string, openFor?: string): Promise<boolean> {
+  if (!ctx.thread) return false;
   try {
-    await ctx.call("chat.post", { threadId: ctx.thread, body: "", mentions: [], blocks: [{ type: "artifact", v: 1, data: { artifactId: id, title } }], idempotencyKey: `artifact:${id}:${ctx.now()}` });
+    await ctx.call("chat.post", { threadId: ctx.thread, body: "", mentions: [], blocks: [{ type: "artifact", v: 1, data: { artifactId: id, title, ...(openFor ? { openFor } : {}) } }], idempotencyKey: `artifact:${id}:${ctx.now()}` });
+    return true;
   } catch (e) {
     if (!(e instanceof VyreErr)) throw e;
     ctx.log.warn("sites: the artifact card was not posted", { code: e.error.code });
+    return false;
   }
+}
+
+/** The person whose turn this publish is in, when an agent is publishing for them in a chat. Nobody asked when a person publishes it themselves. */
+function askerOf(ctx: Ctx): string | null {
+  return ctx.principal.kind === "agent" && ctx.actingFor && ctx.thread ? ctx.actingFor : null;
+}
+
+/** The app says this chat is open for the caller. Presence only, kept in memory a minute and a quarter. */
+function chatViewing(ctx: Ctx, input: unknown): { ok: boolean } {
+  const threadId = reqStr(ctx, rec(ctx, input), "threadId");
+  if (ctx.principal.kind === "person") noteViewing(ctx.principal.id, threadId, ctx.now());
+  return { ok: true };
 }
 
 const hashHex = async (text: string): Promise<string> => Array.from(new Uint8Array(await globalThis.crypto.subtle.digest("SHA-256", new TextEncoder().encode(text))), (b) => b.toString(16).padStart(2, "0")).join("");
@@ -479,8 +504,11 @@ async function artifactOpen(ctx: Ctx, input: unknown): Promise<{ path: string; u
   const now = ctx.now();
   ctx.db.run("DELETE FROM sites_ticket WHERE expires_at < ?", now);
   const token = Array.from(globalThis.crypto.getRandomValues(new Uint8Array(24)), (b) => b.toString(16).padStart(2, "0")).join("");
-  const expiresAt = now + TICKET_MS;
-  ctx.db.run("INSERT INTO sites_ticket (token_hash, site_id, principal, expires_at) VALUES (?, ?, ?, ?)", await hashHex(token), id, ctx.principal.id, expiresAt);
+  const ah = host?.artifactHost?.() ?? null;
+  // with an artifact host the address is a one-time code for it (a minute, one use, traded for a cookie there); without one the keyed address on the app's origin stands, as before
+  const expiresAt = now + (ah ? EXCHANGE_MS : TICKET_MS);
+  ctx.db.run("INSERT INTO sites_ticket (token_hash, site_id, principal, expires_at) VALUES (?, ?, ?, ?)", await hashHex(ah ? `x:${token}` : token), id, ctx.principal.id, expiresAt);
+  if (ah) return { path: `/x/${token}`, url: `https://${ah}/x/${token}`, expiresAt };
   const path = `/a/${id}/k/${token}/`;
   const o = host?.origin();
   return { path, ...(o ? { url: `${o.origin}${path}` } : {}), expiresAt };
@@ -536,6 +564,31 @@ export async function routeByTicket(ctx: Pick<Ctx, "db">, siteId: string, token:
   return r ? { route: served(r), principal: str(t.principal), owner: str(r.owner) } : null;
 }
 
+/**
+ * Trade an artifact's one-time code for a session: the code is used up (a second use finds nothing), and a session token for the artifact host's cookie is made for the same person. Null for a code that is
+ * not good now (used, ended). The artifact it opens is the one the code was made for.
+ */
+export async function exchangeArtifactCode(ctx: Pick<Ctx, "db">, code: string, now: number): Promise<{ siteId: string; token: string; maxAgeSeconds: number } | null> {
+  if (!/^[0-9a-f]{48}$/.test(code)) return null;
+  const hash = await hashHex(`x:${code}`);
+  const t = (ctx.db.all("SELECT * FROM sites_ticket WHERE token_hash = ?", hash) as Row[])[0];
+  if (!t) return null;
+  ctx.db.run("DELETE FROM sites_ticket WHERE token_hash = ?", hash);   // single use, whatever happens next
+  if (num(t.expires_at) <= now) return null;
+  const session = Array.from(globalThis.crypto.getRandomValues(new Uint8Array(24)), (b) => b.toString(16).padStart(2, "0")).join("");
+  ctx.db.run("INSERT INTO sites_ticket (token_hash, site_id, principal, expires_at) VALUES (?, ?, ?, ?)", await hashHex(`s:${session}`), str(t.site_id), str(t.principal), now + ARTIFACT_SESSION_MS);
+  return { siteId: str(t.site_id), token: session, maxAgeSeconds: Math.floor(ARTIFACT_SESSION_MS / 1000) };
+}
+
+/** The route and who is asking, for a request carrying an artifact host session cookie. The caller checks that person's access on every request. Null for a cookie not good for this artifact now. */
+export async function routeByArtifactSession(ctx: Pick<Ctx, "db">, siteId: string, token: string, now: number): Promise<{ route: ServedRoute; principal: string; owner: string } | null> {
+  if (!/^[0-9a-f]{48}$/.test(token)) return null;
+  const t = (ctx.db.all("SELECT * FROM sites_ticket WHERE token_hash = ?", await hashHex(`s:${token}`)) as Row[])[0];
+  if (!t || t.site_id !== siteId || num(t.expires_at) <= now) return null;
+  const r = (ctx.db.all("SELECT * FROM sites_site WHERE id = ? AND deleted_at IS NULL", siteId) as Row[])[0];
+  return r ? { route: served(r), principal: str(t.principal), owner: str(r.owner) } : null;
+}
+
 export const routeHandlers = {
   "sites.create": (ctx: Ctx, input: unknown) => sitesCreate(ctx, input),
   "sites.get": (ctx: Ctx, input: unknown) => sitesGet(ctx, input),
@@ -550,4 +603,5 @@ export const routeHandlers = {
   "sites.logs": (ctx: Ctx, input: unknown) => sitesLogs(ctx, input),
   "sites.artifact_publish": (ctx: Ctx, input: unknown) => artifactPublish(ctx, input),
   "sites.artifact_open": (ctx: Ctx, input: unknown) => artifactOpen(ctx, input),
+  "sites.chat_viewing": (ctx: Ctx, input: unknown) => chatViewing(ctx, input),
 };

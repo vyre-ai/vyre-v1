@@ -8,11 +8,11 @@ import { Pressable, ScrollView, StyleSheet, Text, TextInput, View, useWindowDime
 import { Row } from "../../../../../ui/src/Row/index.tsx";
 import type { CapMap } from "../../../../../generated/types.ts";
 import { PAGE, useIsPersonal, useScreenQuery, useSettingsData } from "./data.tsx";
-import { OLD_PAGES, PAGES, pageByKey, searchRows, spacePagesFor } from "./model.ts";
+import { PAGES, pageByKey, searchRows, spacePagesFor } from "./model.ts";
 import type { Hit, PageKey, SettingRow, SpacePage } from "./model.ts";
 import { AppearancePage, ComputerPage, SignInPage } from "./pages-b.tsx";
 import { AboutVyre } from "./DesktopUpdate.tsx";
-import { AiPage, ConnectedPage, NotificationsPage, ProfilePage } from "./pages-a.tsx";
+import { AiPage, ConnectedPage, NotesSettingsPage, NotificationsPage, ProfilePage } from "./pages-a.tsx";
 import { MailPage } from "./MailPage.tsx";
 import { MemoryPage } from "./AboutYou.tsx";
 import { SkillsPage } from "../../skills/SkillsView.tsx";
@@ -43,7 +43,7 @@ function SettingsBody({ initialPage = "profile", initialQuery = "", initialView 
   const data = useSettingsData();
   const measured = useWindowDimensions().width;
   const phone = (given ?? measured) < 760;
-  const [page, setPage] = useState<PageKey>(OLD_PAGES[initialPage] ?? initialPage);
+  const [page, setPage] = useState<PageKey>(initialPage);
   const [view, setView] = useState<"nav" | "page">(initialView);
   const [q, setQ] = useState(initialQuery);
   const [found, setFound] = useState<string | null>(initialFound);
@@ -142,14 +142,19 @@ function SettingsBody({ initialPage = "profile", initialQuery = "", initialView 
 
   const body = ((): ReactElement => {
     switch (page) {
-      case "profile": return <><ProfilePage rows={rows} found={found} /><MemoryPage found={found} /></>;
+      case "profile": return <ProfilePage rows={rows} found={found} />;
       case "notifications": return <NotificationsPage rows={rows} found={found} />;
       case "appearance": return <AppearancePage rows={rows} found={found} />;
-      // Your AI: defaults and accounts, and my skills (the same page in every Space; Ask opens the Ask pane beside Settings with the install already asked)
-      case "ai": return <><AiPage rows={rows} found={found} /><SkillsPage call={data.call} mode="settings" ask={(first) => openAskPane({ thing: { kind: "settings", id: "skills", title: "Skills" }, first }, "settings")} /></>;
-      case "connected": return <><ConnectedPage rows={rows} found={found} /><MailPage /></>;
+      case "ai": return <AiPage rows={rows} found={found} />;
+      case "memory": return <MemoryPage found={found} />;
+      case "notes": return <NotesSettingsPage rows={rows} found={found} />;
+      case "connected": return <ConnectedPage rows={rows} found={found} />;
+      case "mail": return <MailPage />;
+      // Skills is the same page in every Space; Ask the Assistant opens the Ask pane beside Settings with the install already asked
+      case "skills": return <SkillsPage call={data.call} mode="settings" ask={(first) => openAskPane({ thing: { kind: "settings", id: "skills", title: "Skills" }, first }, "settings")} />;
       case "signin": return <SignInPage />;
-      case "computer": return <><ComputerPage /><AboutVyre /></>;
+      case "computer": return <ComputerPage />;
+      case "about": return <AboutVyre />;
       default:
         return <SpacePageBody page={page as SpacePage} rows={spaceRows.rows} reload={spaceRows.reload} found={found} personal />;
     }

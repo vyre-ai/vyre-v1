@@ -66,7 +66,7 @@ test("Merge and Stop write through one capability each, change what the next ren
   assert.equal(notes.at(-1), "Stopped Ember");
   s.failNext("engine.crew.merge");
   assert.equal(await crewMerge(d, "crw_3", "Quill", "crew/quill-1"), false);
-  assert.equal(notes.at(-1), "Could not merge Quill's work. Try again.");
+  assert.equal(notes.at(-1), "Could not merge Quill's work: engine.crew.merge failed");
   assert.ok(s.calls.some((c) => c.cap === "engine.crew.merge" && (c.input as { idempotencyKey?: string }).idempotencyKey?.startsWith("rp-merge-")));
 });
 

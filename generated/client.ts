@@ -270,6 +270,13 @@ export function createClient(transport: Transport) {
       validate: call("automations.validate", 1),
       vault_usage: call("automations.vault_usage", 1),
       versions: call("automations.versions", 1),
+      watches: {
+        check: call("automations.watches.check", 1),
+        list: call("automations.watches.list", 1),
+        remove: call("automations.watches.remove", 1),
+        report: call("automations.watches.report", 1),
+        save: call("automations.watches.save", 1),
+      },
       webhook_url: {
         get: call("automations.webhook_url.get", 1),
         rotate: call("automations.webhook_url.rotate", 1),
@@ -294,6 +301,19 @@ export function createClient(transport: Transport) {
       cancel: call("bookings.cancel", 1),
       list: call("bookings.list", 1),
       page_create: call("bookings.page_create", 1),
+    },
+    browser: {
+      cards: {
+        post: call("browser.cards.post", 1),
+      },
+      chrome: {
+        act: call("browser.chrome.act", 1),
+      },
+      sites: {
+        list: call("browser.sites.list", 1),
+        remove: call("browser.sites.remove", 1),
+        set: call("browser.sites.set", 1),
+      },
     },
     calendar: {
       availability: call("calendar.availability", 1),
@@ -397,6 +417,10 @@ export function createClient(transport: Transport) {
       message_person: call("chat.message_person", 1),
       messages: {
         list: call("chat.messages.list", 1),
+      },
+      note_offer: {
+        answer: call("chat.note_offer.answer", 1),
+        make: call("chat.note_offer.make", 1),
       },
       open_as_chat: call("chat.open_as_chat", 1),
       open_tab: call("chat.open_tab", 1),
@@ -782,6 +806,7 @@ export function createClient(transport: Transport) {
       models: {
         list: call("engine.models.list", 1),
       },
+      my_ai: call("engine.my_ai", 1),
       now: call("engine.now", 1),
       placement: {
         decide: call("engine.placement.decide", 1),
@@ -850,6 +875,7 @@ export function createClient(transport: Transport) {
       },
       turns: {
         list: call("engine.turns.list", 1),
+        running: call("engine.turns.running", 1),
       },
       usage: {
         get: call("engine.usage.get", 1),
@@ -1408,6 +1434,17 @@ export function createClient(transport: Transport) {
       tail: call("logs.tail", 1),
       trace: call("logs.trace", 1),
     },
+    machines: {
+      alerts: call("machines.alerts", 1),
+      alerts_notify: call("machines.alerts_notify", 1),
+      fix: call("machines.fix", 1),
+      get: call("machines.get", 1),
+      list: call("machines.list", 1),
+      move_record: call("machines.move_record", 1),
+      moves: call("machines.moves", 1),
+      rooms: call("machines.rooms", 1),
+      set: call("machines.set", 1),
+    },
     mail: {
       attachment: {
         save: call("mail.attachment.save", 1),
@@ -1830,13 +1867,6 @@ export function createClient(transport: Transport) {
       enroll_status: call("network.enroll_status", 1),
       health: call("network.health", 1),
       ingress_check: call("network.ingress_check", 1),
-      machine: call("network.machine", 1),
-      machine_alerts: call("network.machine_alerts", 1),
-      machine_alerts_notify: call("network.machine_alerts_notify", 1),
-      machine_pin: call("network.machine_pin", 1),
-      machine_place: call("network.machine_place", 1),
-      machine_set: call("network.machine_set", 1),
-      machines: call("network.machines", 1),
       my_computer_approve: call("network.my_computer_approve", 1),
       my_computer_code: call("network.my_computer_code", 1),
       my_computer_decline: call("network.my_computer_decline", 1),
@@ -2283,6 +2313,7 @@ export function createClient(transport: Transport) {
       artifact_open: call("sites.artifact_open", 1),
       artifact_publish: call("sites.artifact_publish", 1),
       build: call("sites.build", 1),
+      chat_viewing: call("sites.chat_viewing", 1),
       create: call("sites.create", 1),
       db_import: call("sites.db_import", 1),
       delete: call("sites.delete", 1),

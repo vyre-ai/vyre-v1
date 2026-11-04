@@ -19,6 +19,10 @@ export interface SpaceStoreSeam {
   declare(extra: readonly InlineProjection[]): void;
   /** The one store of this Space (the same object for every caller). */
   open(): SpaceStoreHandle;
+  /** True when a module call's `ctx.db` belongs to the daemon that owns this store (a db that cannot be told apart counts as ours). Lets a module serving two daemons of one process pick the right store. */
+  ours?(db: unknown): boolean;
+  /** True once the Space store is closed (its daemon stopped). */
+  closed?(): boolean;
 }
 
 export interface SpaceStore extends SpaceStoreSeam {
@@ -31,13 +35,15 @@ export const SPACE_STORE_SETTERS = ["setRecordsSpaceStore", "setSchemaSpaceStore
 
 export const spaceStorePath = (root: string): string => path.join(root, "space.db");
 
-export function createSpaceStore(o: { path: string; space: string }): SpaceStore {
+export function createSpaceStore(o: { path: string; space: string; ours?: (db: unknown) => boolean }): SpaceStore {
   const extras: InlineProjection[] = [];
   let opened: SpaceStoreHandle | null = null;
   let closed = false;
   return {
     path: o.path,
     space: o.space,
+    ...(o.ours ? { ours: o.ours } : {}),
+    closed: () => closed,
     declare(extra) {
       if (opened) throw new Error("A module declared a projection after the Space store was opened.");
       for (const p of extra) if (!extras.some((x) => x.name === p.name)) extras.push(p);
@@ -63,4 +69,30 @@ export function createSpaceStore(o: { path: string; space: string }): SpaceStore
 /** One driver per setter, all giving the same store. */
 export function spaceStoreDrivers(store: SpaceStoreSeam): Record<string, SeamDriver> {
   return Object.fromEntries(SPACE_STORE_SETTERS.map((n) => [n, (() => store) as SeamDriver]));
+}
+
+/**
+ * What a data module keeps for the Space store(s) it was handed. A module's seam setter is called once per daemon, and two daemons can share a process (two Space links in the desktop app, the
+ * two-computer tests), so the module cannot hold one value: it keeps the stores handed to it and, for each call, picks the one whose daemon the call's `ctx.db` belongs to. A stopped daemon's store
+ * is never picked. With no store at all (a unit test) `build(null)` makes the module's private one. `build` runs once per store.
+ */
+export function perSpaceStore<T>(build: (seam: SpaceStoreSeam | null) => T, onSet?: (seam: SpaceStoreSeam) => void): { set(seam: SpaceStoreSeam | null): void; get(ctx?: { db?: unknown }): T } {
+  const seams: SpaceStoreSeam[] = [];
+  const built = new Map<SpaceStoreSeam | null, T>();
+  const pick = (ctx?: { db?: unknown }): SpaceStoreSeam | null => {
+    const live = seams.filter((x) => !x.closed?.());
+    const mine = ctx?.db !== undefined ? [...live].reverse().find((x) => x.ours?.(ctx.db)) : undefined;
+    return mine ?? live.at(-1) ?? null;
+  };
+  return {
+    set(seam) {
+      for (let i = seams.length - 1; i >= 0; i--) if (seams[i]!.closed?.()) { built.delete(seams[i]!); seams.splice(i, 1); }
+      if (seam && !seams.includes(seam)) { seams.push(seam); onSet?.(seam); }
+    },
+    get(ctx) {
+      const k = pick(ctx);
+      if (!built.has(k)) built.set(k, build(k));
+      return built.get(k) as T;
+    },
+  };
 }

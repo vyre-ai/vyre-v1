@@ -1,7 +1,7 @@
 {
   "lanes": {
     "L1": ["sync", "conflicts", "search"],
-    "L2": ["chat", "agents", "engine", "memory", "computers", "terminal", "mcp", "notes"],
+    "L2": ["chat", "agents", "engine", "memory", "computers", "terminal", "mcp", "notes", "machines"],
     "L3": ["records", "schema", "sources", "connectors", "projects", "import"],
     "L4": ["files", "mounts", "git", "previews", "documents", "runbooks", "dropbox"],
     "L5": ["inbox", "mail", "calendar", "telephony", "meetings", "contacts-link", "google", "microsoft", "resend", "mailgun", "twilio", "zoom", "github", "stripe"],
@@ -9,7 +9,7 @@
     "L7a": ["access", "identity", "members", "devices", "spaces", "settings", "vault", "vault-requests", "audit", "governance"],
     "L7b": ["backup", "updates", "network", "health", "logs", "reports-client", "console-views", "console-assistant"],
     "L8": ["sites", "forms", "templates", "esign", "portal", "email-builder-api"],
-    "L10": ["kits"]
+    "L10": ["kits", "browser"]
   },
   "extras": {
     "hubspot": "L3",
@@ -21,5 +21,5 @@
     "estate-planning": "L8",
     "harbor-studio": "L8"
   },
-  "frozenCount": 74
+  "frozenCount": 76
 }

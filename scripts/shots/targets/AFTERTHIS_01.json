@@ -1,0 +1,6 @@
+{
+  "targets": [
+    { "id": "AFTERTHIS_01-other", "route": "/m/AFTERTHIS_01?part=other", "proto": "chat,{skin}", "waitFor": "[data-testid='queue-note']", "note": "Maya's turn is running and your message waits: the line under the thread says After this: it goes in when this turn ends, with Edit." },
+    { "id": "AFTERTHIS_01-own", "route": "/m/AFTERTHIS_01?part=own", "proto": "chat,{skin}", "waitFor": "[data-testid='queue-note']", "note": "Your own turn is running: the line says Goes in at the next step, with Edit and Stop and send." }
+  ]
+}

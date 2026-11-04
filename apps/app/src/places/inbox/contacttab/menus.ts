@@ -12,7 +12,7 @@ export function followMenuEntries(followed: boolean, alertOnReplies: boolean, on
 export function fromMenuEntries(choices: readonly InboxChoice[], current: string | null, cameIn: readonly string[], pick: (id: string) => void, connect?: { label: string; run(): void }): MenuEntry[] {
   // nothing can send yet: the one way forward is to connect a mailbox or number
   if (choices.length === 0 && connect) return [{ head: "Send from" }, { label: connect.label, onSelect: connect.run }];
-  return [{ head: "Send from" }, ...choices.map((c) => ({ label: cameIn.includes(c.id) ? `${c.label} (this thread)` : c.label, checked: c.id === current, onSelect: () => pick(c.id) }))];
+  return [{ head: "Send from" }, ...choices.map((c) => ({ label: cameIn.includes(c.id) ? `${c.label} (this conversation)` : c.label, checked: c.id === current, onSelect: () => pick(c.id) }))];
 }
 
 /** The template button: each template inserts its text at the foot of the draft. */

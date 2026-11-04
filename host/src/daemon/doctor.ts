@@ -10,6 +10,7 @@ import type { Platform } from "../platform/index.ts";
 import * as probes from "../platform/probes.ts";
 import type { FetchFn, ProbeResult } from "../platform/probes.ts";
 import { alive, pathsFor, readInfo } from "./config.ts";
+import { NEXT, OK } from "./doctor-next.ts";
 import { openDb } from "./sqlite.ts";
 
 export interface Finding { key: string; state: "healthy" | "degraded" | "down"; detail: string; next: string }
@@ -25,18 +26,6 @@ export interface DoctorOptions {
   /** replace the disk check (recorded-output version from P-L7b_04) */
   diskEncrypted?: () => Promise<ProbeResult>;
 }
-
-const OK = "No action needed.";
-const NEXT = {
-  process: "Start it with vyre server start.",
-  disk: "Enable FileVault or LUKS for the data directory, then run vyre-server doctor.",
-  space: "Free disk space or extend the volume.",
-  events: "Restore from the last backup (Console, Data, Backups), then run vyre-server doctor again.",
-  docker: "Start Docker or Colima; sites and agent computers need it.",
-  caddy: "Restart Caddy in Console, Infrastructure, Services.",
-  ingress: "vyred writes the route within a minute of starting once Caddy answers. If it stays missing, run vyre-server restart and read vyre-server logs vyred.",
-  logs: "Read them with vyre logs --level error.",
-} as const;
 
 const finding = (key: string, r: ProbeResult, next: string): Finding => ({ key, state: r.state, detail: r.detail ?? "", next: r.state === "healthy" ? OK : next });
 

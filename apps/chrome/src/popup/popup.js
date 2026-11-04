@@ -112,7 +112,7 @@ async function doFill(i, how) {
   const trail = /** @type {HTMLElement} */ (el.querySelector(".trail"));
   trail.textContent = "Filling";
   const login = (state.rows || []).find((/** @type {any} */ r) => r.id === row.id);
-  const r = await ask({ type: "popup.fill", itemId: row.id, kind: how.code || row.kind === "totp" ? "otp" : "login", signIn: how.signIn, usernameField: login && login.usernameField ? login.usernameField : undefined });
+  const r = await ask({ type: "popup.fill", itemId: row.id, kind: how.code || row.kind === "totp" ? "otp" : row.kind === "card" ? "card" : "login", signIn: row.kind === "card" ? false : how.signIn, usernameField: login && login.usernameField ? login.usernameField : undefined });
   if (r.error) { trail.textContent = ""; showNote(r.error.message); return; }
   if (!r.data.filled.length) { trail.textContent = ""; showNote("Vyre found no field to fill on this page."); return; }
   el.classList.add("done");

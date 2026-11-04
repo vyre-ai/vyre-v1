@@ -16,8 +16,18 @@ cd "$WS"
 [ -f package-lock.json ] || { echo "deps skip: no package-lock.json (run the shots lockfile job first)"; exit 0; }
 
 # Key: lockfile plus every tracked package.json plus the toolchain, so a dependency or node/npm change prepares a new set.
+# The project's own version (the root package.json "version", and the same version at the top of the lockfile and in its root package entry) is left out: a release bump changes no
+# dependency, so it must not cost a fresh npm ci (about 100 s). Every dependency version, every workspace manifest and every other line still counts.
 manifests() { { git ls-files -- 'package.json' '*/package.json' 2>/dev/null || find . -name package.json -not -path '*/node_modules/*' | sed 's#^\./##'; } | sort; }
-KEY="$({ for f in package-lock.json $(manifests); do printf '%s\0' "$f"; cat "$f"; done; node -v; npm -v; uname -m; } | sha256sum | cut -c1-16)"
+keyed() {
+  case "$1" in
+    package-lock.json) awk '/^  "version": /{next} /^    "": \{/{root=1} root && /^      "version": /{next} root && /^    \},?$/{root=0} {print}' "$1";;
+    package.json) grep -v '^  "version": ' "$1" || true;;
+    *) cat "$1";;
+  esac
+}
+KEY="$({ for f in package-lock.json $(manifests); do printf '%s\0' "$f"; keyed "$f"; done; node -v; npm -v; uname -m; } | sha256sum | cut -c1-16)"
+if [ -n "${VYRE_DEPS_KEY_ONLY:-}" ]; then echo "$KEY"; exit 0; fi
 
 # The key scripts/shots/ensure-deps.mjs computes (its fixed file list), so the marker it looks for exists.
 ensure_key() { { for f in package.json package-lock.json ui/package.json scripts/shots/app/package.json apps/app/package.json; do printf '%s\0' "$f"; [ -f "$f" ] && cat "$f"; done; } | sha256sum | cut -c1-16; }

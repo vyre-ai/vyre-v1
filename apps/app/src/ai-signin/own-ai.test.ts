@@ -46,7 +46,9 @@ test("finishing an app sign-in: locked only here, a server Space says sign in ag
 });
 
 test("the Space key in plain words: covered with its models, failing, none with who can add it, unreadable; always a way forward", () => {
-  assert.deepEqual(spaceAiWords({ set: true, name: "OpenCode Go", state: "ok", models: ["glm-5.3", "kimi-k3", "qwen", "deepseek"] }, null), { covered: true, title: "You're covered", line: "This Space's AI key (OpenCode Go) works for you.", models: "glm-5.3, kimi-k3, qwen and 1 more" });
+  assert.deepEqual(spaceAiWords({ set: true, name: "OpenCode Go", state: "ok", models: ["glm-5.3", "kimi-k3", "qwen", "deepseek"] }, null), { covered: true, title: "You're covered", line: "This Space's AI key (OpenCode Go) works for you for the models below. It has no Claude, GPT, Gemini models: connect your own sign-in to use those.", models: "glm-5.3, kimi-k3, qwen and 1 more" });
+  // a key that lists Claude models covers a Claude pick, and says nothing of Claude missing
+  assert.equal(spaceAiWords({ set: true, name: "Team", state: "ok", models: ["claude-sonnet-5-5", "gpt-5", "gemini-2.5-pro"] }, null).line, "This Space's AI key (Team) works for you for the models below.");
   assert.match(spaceAiWords({ set: true, name: "OpenCode Go", state: "failing" }, "Irfad Imtiaz (owner)").line, /Ask Irfad Imtiaz \(owner\) to check it/);
   const none = spaceAiWords({ set: false }, "Irfad Imtiaz (owner)");
   assert.equal(none.covered, false);

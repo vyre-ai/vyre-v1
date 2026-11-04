@@ -91,6 +91,8 @@ export interface ResolveRequest {
   model?: string;
   /** The person chose the chat's account and its model together: when that account does not serve the model, the turn fails with no_model rather than run anywhere else. */
   modelPinned?: boolean;
+  /** The person picked this model in the composer: it is never swapped for another. When no account can serve it the turn says so (Resolution.noModel). */
+  modelPicked?: boolean;
   /** Refs a person picked for this kind of work (an automation's AI account and its backup): each is a Space account that pays only when its "Used for" covers the turn. */
   useChecked?: readonly string[];
   /** Refs that already failed during this turn. */
@@ -127,4 +129,7 @@ export interface Resolution {
   pin?: Attempt;
   /** A team chat or agent work that no Space account fitting its model could pay: it runs on this account's default model instead, and the chat says so in one line. */
   modelFallback?: true;
+  /** The model the person picked is served by no account that can pay, and nothing was swapped for it. The models the accounts that could pay do serve are in `servedModels`. */
+  noModel?: true;
+  servedModels?: string[];
 }

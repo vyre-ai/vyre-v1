@@ -231,3 +231,79 @@ test("a page clipped from Vyre for Chrome keeps its address, title, selection an
   assert.equal(await failed(w.call("notes.clip", { url: "https://example.org" }, w.agent(ME, "thr_mine"))), "permission.no_grant", "only a person clips");
   assert.equal(await failed(w.call("notes.clip", { url: "file:///etc/passwd" })), "validation.bad_input");
 });
+
+test("an address in a note's words gets its link card, on create and when it is typed or pasted into the opened note; a note that has a card is not read again", async () => {
+  const w = world();
+  const made = (await w.call("notes.create", { title: "Testing", body: `Testing ${LUMA}.` })).note;
+  assert.equal(made.link?.url, LUMA, "the address in the words became the card");
+  assert.equal(made.link?.title, "Lab 8: Claude reads your intake calls");
+  assert.equal(made.body, `Testing ${LUMA}.`, "the words stay as written");
+  const plain = (await w.call("notes.create", { title: "Plain", body: "Testing" })).note;
+  assert.equal(plain.link, undefined);
+  const typed = (await w.call("notes.update", { noteId: plain.noteId, body: `Testing ${ICON_SITE}` })).note;
+  assert.equal(typed.link?.url, ICON_SITE, "an address that is new in the words gets its card");
+  assert.equal(typed.link?.preview, "icon");
+  // a card already there stays: another address typed later does not replace it
+  const again = (await w.call("notes.update", { noteId: plain.noteId, body: `Testing ${ICON_SITE} and ${LUMA}` })).note;
+  assert.equal(again.link?.url, ICON_SITE);
+  // removing the card is honoured while the address stays in the words
+  const removed = (await w.call("notes.update", { noteId: plain.noteId, link: null })).note;
+  assert.equal(removed.link, undefined);
+  const edited = (await w.call("notes.update", { noteId: plain.noteId, body: `Testing ${ICON_SITE} again` })).note;
+  assert.equal(edited.link, undefined, "the same address, already in the words, is not read again after the person removed its card");
+});
+
+// ---- saved from a chat (agents make notes natively; the person's own private note links back to the message)
+const chats = {
+  thr_dm: { starter: ME, title: "Weinberger Law prep" },                                  // my own chat with my Assistant
+  thr_team: { channelId: "chn_team", title: "intake" },                                    // a channel Aliza and I are in
+  thr_other: { starter: ALIZA, title: "Aliza's own chat" },                                // a chat I cannot read
+};
+const sourceWorld = () => harness({
+  threads: chats, channels: { chn_team: { visibility: "invite" as const, members: [ME, ALIZA] } },
+  messages: { thr_dm: [{ messageId: "msg_1", createdAt: NOW_MSG }], thr_team: [{ messageId: "msg_9", createdAt: NOW_MSG }], thr_other: [{ messageId: "msg_5" }] },
+});
+const NOW_MSG = 1_762_150_000_000;
+
+test("a note saved from a chat is the person's own and private, and links back to that exact message with the chat's title and the message's time", async () => {
+  const w = sourceWorld();
+  const n = (await w.call("notes.create", { title: "Weinberger form link", body: "weinbergerlaw.com/intake-form", source: { threadId: "thr_dm", messageId: "msg_1" } })).note;
+  assert.deepEqual(n.from, { threadId: "thr_dm", messageId: "msg_1", title: "Weinberger Law prep", at: NOW_MSG, readable: true });
+  assert.deepEqual([n.mine, n.share], [true, { people: [], space: "off" }], "private to the person");
+  const got = (await w.call("notes.get", { noteId: n.noteId })).note;
+  assert.equal(got.from?.readable, true);
+});
+
+test("a note saved from a shared channel is still only the person's: Aliza, who is in the channel, does not read it, and the link is not handed to anyone a note is shared with", async () => {
+  const w = sourceWorld();
+  const n = (await w.call("notes.create", { title: "Decision", body: "Go with Tuesday", source: { threadId: "thr_team", messageId: "msg_9" } })).note;
+  assert.equal(await failed(w.call("notes.get", { noteId: n.noteId }, ALIZA)), "validation.not_found", "a channel member does not read the person's private note");
+  await w.call("notes.share", { noteId: n.noteId, people: [{ personId: ALIZA, role: "view" }] });
+  const theirs = (await w.call("notes.get", { noteId: n.noteId }, ALIZA)).note;
+  assert.equal(theirs.from, undefined, "a note shared with someone carries no link into the owner's chat");
+});
+
+test("the link is refused to someone who cannot read the chat: no chat, no message, no title, and a note cannot be saved from a chat the person cannot read", async () => {
+  const w = sourceWorld();
+  assert.equal(await failed(w.call("notes.create", { title: "x", body: "y", source: { threadId: "thr_other", messageId: "msg_5" } })), "validation.not_found", "a chat the person cannot read");
+  assert.equal(await failed(w.call("notes.create", { title: "x", body: "y", source: { threadId: "thr_dm", messageId: "msg_404" } })), "validation.not_found", "a message that is not in that chat");
+  // the owner loses the chat (removed from the channel): the note keeps only when it was saved
+  const own = { ...chats, thr_gone: { channelId: "chn_gone", title: "ops" } };
+  const channels = { chn_team: { visibility: "invite" as const, members: [ME, ALIZA] }, chn_gone: { visibility: "invite" as const, members: [ME] } };
+  const w2 = harness({ threads: own, channels, messages: { thr_gone: [{ messageId: "msg_7", createdAt: NOW_MSG }] } });
+  const made = (await w2.call("notes.create", { title: "Ops", body: "Rotate the key", source: { threadId: "thr_gone", messageId: "msg_7" } })).note;
+  channels.chn_gone.members = [ALIZA];
+  const later = (await w2.call("notes.get", { noteId: made.noteId })).note;
+  assert.deepEqual(later.from, { at: NOW_MSG, readable: false });
+  const list = (await w2.call("notes.list", {})).notes;
+  assert.deepEqual(list[0].from, { at: NOW_MSG, readable: false });
+});
+
+test("an agent saving a note from the chat it is in: the note is the person's, private, and links to the chat's latest message; it may not name another chat", async () => {
+  const w = sourceWorld();
+  const bot = w.agent(ME, "thr_dm");
+  const n = (await w.call("notes.create", { title: "Save this", body: "The answer to keep" }, bot)).note;
+  assert.equal(n.from?.messageId, "msg_1");
+  assert.equal(n.owner, ME);
+  assert.equal(await failed(w.call("notes.create", { title: "x", body: "y", source: { threadId: "thr_team", messageId: "msg_9" } }, bot)), "validation.not_found");
+});

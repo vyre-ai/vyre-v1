@@ -69,7 +69,7 @@ export default defineManifest({
     notif('sync.attention', 'badge', 'settings', 'Sync needs attention on {{device}}'),
     notif('health.degraded', 'badge', 'console', '{{service}} is {{state}}'),
     // a machine needs a look (disk nearly full, memory pressure, offline with pinned work, a failed backup): one Inbox line for each admin, and the Console's dot on Machines
-    notif('machine.alert', 'badge', 'inbox', '{{title}}', { actions: [{ label: 'Open', cap: 'network.machines' }] }),
+    notif('machine.alert', 'badge', 'inbox', '{{title}}', { actions: [{ label: 'Open', cap: 'machines.list' }] }),
     notif('problem.report', 'badge', 'console', 'Problem report from {{from}}', { actions: [{ label: 'Review', cap: 'tasks.act' }] }),
     notif('member.joined', 'digest', 'home', '{{name}} joined {{space}}'),
     notif('limit.hit', 'badge', 'chats', '{{title}} hit its limit', { actions: [{ label: 'Raise once', cap: 'tasks.act' }, { label: 'Stop', cap: 'tasks.act' }] }),

@@ -4532,6 +4532,221 @@ export type AutomationsVersionsOut = {
       name?: string;
     }>;
 };
+export type AutomationsWatchesCheckIn = {
+  watchId: string;
+};
+export type AutomationsWatchesCheckOut = {
+  watch: {
+    watchId: string;
+    title: string;
+    url: string;
+    host: string;
+    mode: "region" | "page";
+    region?: {
+      label: string;
+      selector?: string;
+    };
+    everyMinutes: number;
+    tell: Array<string>;
+    tellThreads: Array<string>;
+    goalId?: string;
+    agentId?: string;
+    runsOn: "computer" | "chrome";
+    computerId?: string;
+    state: "on" | "paused" | "error";
+    checkNow: boolean;
+    value?: string;
+    lastCheckedAt?: number;
+    nextDueAt?: number;
+    changes: number;
+    lastChange?: {
+      at: number;
+      before: string;
+      after: string;
+    };
+    threadId?: string;
+    error?: string;
+    createdAt: number;
+    updatedAt: number;
+  };
+};
+export type AutomationsWatchesListIn = {
+  watchId?: string;
+  runsOn?: "computer" | "chrome";
+  person?: string;
+};
+export type AutomationsWatchesListOut = {
+  watches: Array<{
+      watchId: string;
+      title: string;
+      url: string;
+      host: string;
+      mode: "region" | "page";
+      region?: {
+        label: string;
+        selector?: string;
+      };
+      everyMinutes: number;
+      tell: Array<string>;
+      tellThreads: Array<string>;
+      goalId?: string;
+      agentId?: string;
+      runsOn: "computer" | "chrome";
+      computerId?: string;
+      state: "on" | "paused" | "error";
+      checkNow: boolean;
+      value?: string;
+      lastCheckedAt?: number;
+      nextDueAt?: number;
+      changes: number;
+      lastChange?: {
+        at: number;
+        before: string;
+        after: string;
+      };
+      threadId?: string;
+      error?: string;
+      createdAt: number;
+      updatedAt: number;
+    }>;
+};
+export type AutomationsWatchesRemoveIn = {
+  watchId: string;
+  op: "remove" | "pause" | "resume";
+  idempotencyKey: string;
+};
+export type AutomationsWatchesRemoveOut = {
+  removed: boolean;
+  watch?: {
+    watchId: string;
+    title: string;
+    url: string;
+    host: string;
+    mode: "region" | "page";
+    region?: {
+      label: string;
+      selector?: string;
+    };
+    everyMinutes: number;
+    tell: Array<string>;
+    tellThreads: Array<string>;
+    goalId?: string;
+    agentId?: string;
+    runsOn: "computer" | "chrome";
+    computerId?: string;
+    state: "on" | "paused" | "error";
+    checkNow: boolean;
+    value?: string;
+    lastCheckedAt?: number;
+    nextDueAt?: number;
+    changes: number;
+    lastChange?: {
+      at: number;
+      before: string;
+      after: string;
+    };
+    threadId?: string;
+    error?: string;
+    createdAt: number;
+    updatedAt: number;
+  };
+};
+export type AutomationsWatchesReportIn = {
+  watchId: string;
+  value?: string;
+  error?: string;
+};
+export type AutomationsWatchesReportOut = {
+  changed: boolean;
+  watch: {
+    watchId: string;
+    title: string;
+    url: string;
+    host: string;
+    mode: "region" | "page";
+    region?: {
+      label: string;
+      selector?: string;
+    };
+    everyMinutes: number;
+    tell: Array<string>;
+    tellThreads: Array<string>;
+    goalId?: string;
+    agentId?: string;
+    runsOn: "computer" | "chrome";
+    computerId?: string;
+    state: "on" | "paused" | "error";
+    checkNow: boolean;
+    value?: string;
+    lastCheckedAt?: number;
+    nextDueAt?: number;
+    changes: number;
+    lastChange?: {
+      at: number;
+      before: string;
+      after: string;
+    };
+    threadId?: string;
+    error?: string;
+    createdAt: number;
+    updatedAt: number;
+  };
+};
+export type AutomationsWatchesSaveIn = {
+  watchId?: string;
+  title: string;
+  url: string;
+  mode: "region" | "page";
+  region?: {
+    label: string;
+    selector?: string;
+  };
+  everyMinutes: number;
+  tell?: Array<string>;
+  tellThreads?: Array<string>;
+  goalId?: string | null;
+  agentId?: string;
+  runsOn: "computer" | "chrome";
+  computerId?: string;
+  paused?: boolean;
+  value?: string;
+  idempotencyKey: string;
+};
+export type AutomationsWatchesSaveOut = {
+  watch: {
+    watchId: string;
+    title: string;
+    url: string;
+    host: string;
+    mode: "region" | "page";
+    region?: {
+      label: string;
+      selector?: string;
+    };
+    everyMinutes: number;
+    tell: Array<string>;
+    tellThreads: Array<string>;
+    goalId?: string;
+    agentId?: string;
+    runsOn: "computer" | "chrome";
+    computerId?: string;
+    state: "on" | "paused" | "error";
+    checkNow: boolean;
+    value?: string;
+    lastCheckedAt?: number;
+    nextDueAt?: number;
+    changes: number;
+    lastChange?: {
+      at: number;
+      before: string;
+      after: string;
+    };
+    threadId?: string;
+    error?: string;
+    createdAt: number;
+    updatedAt: number;
+  };
+};
 export type AutomationsWebhookUrlGetIn = {
   automationId: string;
 };
@@ -4731,6 +4946,76 @@ export type BookingsPageCreateOut = {
     state: "draft" | "published" | "closed";
     slug: string;
     submissions: number;
+  };
+};
+export type BrowserCardsPostIn = {
+  threadId: string;
+  block: {
+    type: "chrome_held" | "chrome_step";
+    data: unknown;
+  };
+  idempotencyKey: string;
+};
+export type BrowserCardsPostOut = {
+  posted: boolean;
+};
+export type BrowserChromeActIn = {
+  action: "send" | "drop" | "watch" | "takeover";
+  agentId: string;
+  heldId?: string;
+  edits?: {
+    to?: string;
+    subject?: string;
+    message?: string;
+  };
+  threadId?: string;
+  summary?: string;
+  idempotencyKey: string;
+};
+export type BrowserChromeActOut = {
+  done: boolean;
+  already?: boolean;
+};
+export type BrowserSitesListIn = Record<string, unknown>;
+export type BrowserSitesListOut = {
+  sites: Array<{
+      id: string;
+      host: string;
+      runsIn: "chrome" | "computers" | "both";
+      rights: Array<{
+          agentId: string;
+          right: "read" | "act";
+        }>;
+      at: number;
+      updatedAt: number;
+    }>;
+};
+export type BrowserSitesRemoveIn = {
+  siteId: string;
+};
+export type BrowserSitesRemoveOut = {
+  ok: boolean;
+};
+export type BrowserSitesSetIn = {
+  host: string;
+  runsIn: "chrome" | "computers" | "both";
+  rights: Array<{
+      agentId: string;
+      right: "read" | "act";
+    }>;
+  idempotencyKey: string;
+};
+export type BrowserSitesSetOut = {
+  site: {
+    id: string;
+    host: string;
+    runsIn: "chrome" | "computers" | "both";
+    rights: Array<{
+        agentId: string;
+        right: "read" | "act";
+      }>;
+    at: number;
+    updatedAt: number;
   };
 };
 export type CalendarAvailabilityIn = {
@@ -6575,6 +6860,28 @@ export type ChatMessagesListOut = {
     }>;
   hasMore: boolean;
 };
+export type ChatNoteOfferAnswerIn = {
+  threadId: string;
+  blockId: string;
+  decision: "save" | "dismiss";
+};
+export type ChatNoteOfferAnswerOut = {
+  state: "saved" | "dismissed";
+  noteId?: string;
+};
+export type ChatNoteOfferMakeIn = {
+  threadId: string;
+  title: string;
+  body: string;
+  topic: string;
+  messageId?: string;
+};
+export type ChatNoteOfferMakeOut = {
+  offered: boolean;
+  why?: "off" | "already_offered" | "too_soon" | "declined_recently";
+  blockId?: string;
+  messageId?: string;
+};
 export type ChatOpenAsChatIn = {
   threadId: string;
 };
@@ -6859,6 +7166,7 @@ export type ChatRecentOut = {
       title: string;
       agents: Array<string>;
       unread: number;
+      repliesUnread?: number;
       working: boolean;
       starred: boolean;
       lastAt: number;
@@ -6871,6 +7179,7 @@ export type ChatRecentOut = {
       title: string;
       agents: Array<string>;
       unread: number;
+      repliesUnread?: number;
       working: boolean;
       starred: boolean;
       lastAt: number;
@@ -6883,6 +7192,7 @@ export type ChatRecentOut = {
       title: string;
       agents: Array<string>;
       unread: number;
+      repliesUnread?: number;
       working: boolean;
       starred: boolean;
       lastAt: number;
@@ -6895,6 +7205,7 @@ export type ChatRecentOut = {
       title: string;
       agents: Array<string>;
       unread: number;
+      repliesUnread?: number;
       working: boolean;
       starred: boolean;
       lastAt: number;
@@ -6907,6 +7218,7 @@ export type ChatRecentOut = {
       title: string;
       agents: Array<string>;
       unread: number;
+      repliesUnread?: number;
       working: boolean;
       starred: boolean;
       lastAt: number;
@@ -6968,12 +7280,13 @@ export type ChatReplyDetailsOut = {
       tokens: {
         in: number;
         out: number;
+        context?: number;
         cacheRead?: number;
         cacheWrite?: number;
         reasoning?: number;
       };
       cost?: {
-        source: "subscription" | "reported" | "catalog" | "unknown";
+        source: "subscription" | "reported" | "catalog" | "estimate" | "unknown";
         micros?: number;
         lines?: Array<{
             kind: "input" | "output" | "cache_read" | "cache_write";
@@ -10071,13 +10384,21 @@ export type EngineAccountResolveOut = {
   };
   cappedFrom?: string;
   via?: "thread" | "chat_key" | "work" | "step" | "space" | "backup";
-  why?: "no_account" | "expired" | "failed" | "policy";
+  why?: "no_account" | "expired" | "failed" | "policy" | "no_model";
+  model?: string;
+  servedModels?: Array<string>;
   modelFallback?: {
     from: string;
     to?: string;
   };
 };
-export type EngineAccountsListIn = Record<string, unknown>;
+export type EngineAccountsListIn = {
+  place?: "chat" | "automation" | "agent" | "space";
+  model?: string;
+  agentId?: string;
+  explicit?: boolean;
+  runsAs?: "person" | "space";
+};
 export type EngineAccountsListOut = {
   accounts: Array<{
       ref: string;
@@ -10098,6 +10419,25 @@ export type EngineAccountsListOut = {
           providerId: string;
           name: string;
         }>;
+      providerId?: string;
+      provider?: string;
+      itemId?: string;
+      uses?: {
+        teamChats?: {
+          who: "everyone" | Array<string>;
+        };
+        automations?: true;
+        goals?: true;
+        agentWork?: {
+          which: "all" | Array<string>;
+        };
+      };
+      models?: Array<string>;
+      usable?: boolean;
+      code?: string;
+      capped?: boolean;
+      capCents?: number | null;
+      why?: string;
     }>;
 };
 export type EngineCompactIn = {
@@ -10137,7 +10477,7 @@ export type EngineCrewListOut = {
       jobId: string;
       threadId: string;
       leadThreadId: string;
-      projectId: string;
+      projectId?: string;
       agentId: string;
       name?: string;
       title: string;
@@ -10167,7 +10507,7 @@ export type EngineCrewMergeOut = {
     jobId: string;
     threadId: string;
     leadThreadId: string;
-    projectId: string;
+    projectId?: string;
     agentId: string;
     name?: string;
     title: string;
@@ -10199,7 +10539,7 @@ export type EngineCrewPushOut = {
     jobId: string;
     threadId: string;
     leadThreadId: string;
-    projectId: string;
+    projectId?: string;
     agentId: string;
     name?: string;
     title: string;
@@ -10239,8 +10579,9 @@ export type EngineCrewRepoSetOut = {
 };
 export type EngineCrewStartIn = {
   threadId: string;
-  projectId: string;
-  teammateId: string;
+  projectId?: string;
+  teammateId?: string;
+  name?: string;
   title: string;
   brief: string;
   model?: string;
@@ -10254,7 +10595,7 @@ export type EngineCrewStartOut = {
     jobId: string;
     threadId: string;
     leadThreadId: string;
-    projectId: string;
+    projectId?: string;
     agentId: string;
     name?: string;
     title: string;
@@ -10275,7 +10616,7 @@ export type EngineCrewStopOut = {
     jobId: string;
     threadId: string;
     leadThreadId: string;
-    projectId: string;
+    projectId?: string;
     agentId: string;
     name?: string;
     title: string;
@@ -10628,6 +10969,50 @@ export type EngineModelsListOut = {
     failed: boolean;
   };
 };
+export type EngineMyAiIn = {
+  threadId?: string;
+  agentId?: string;
+};
+export type EngineMyAiOut = {
+  running?: Record<string, unknown>;
+  accounts: Array<{
+      ref: string;
+      name: string;
+      provider: string;
+      kind: "api_key" | "subscription";
+      usable: boolean;
+      why?: string;
+      models: Array<string>;
+      limits: {
+        state: "read" | "not_readable";
+        session?: {
+          pct: number;
+          resetsAt?: number;
+        };
+        week?: {
+          pct: number;
+          resetsAt?: number;
+        };
+        note?: string;
+      };
+    }>;
+  use: {
+    today: {
+      turns: number;
+      input: number;
+      cachedInput: number;
+      output: number;
+      costMicros: number;
+    };
+    month: {
+      turns: number;
+      input: number;
+      cachedInput: number;
+      output: number;
+      costMicros: number;
+    };
+  };
+};
 export type EngineNowIn = Record<string, unknown>;
 export type EngineNowOut = {
   working: Array<{
@@ -10828,6 +11213,7 @@ export type EngineRoutePreviewIn = {
       kind: "person" | "agent";
       id: string;
     }>;
+  text?: string;
 };
 export type EngineRoutePreviewOut = {
   responders: Array<string>;
@@ -11145,12 +11531,13 @@ export type EngineTurnOfMessageOut = {
     tokens: {
       in: number;
       out: number;
+      context?: number;
       cacheRead?: number;
       cacheWrite?: number;
       reasoning?: number;
     };
     cost?: {
-      source: "subscription" | "reported" | "catalog" | "unknown";
+      source: "subscription" | "reported" | "catalog" | "estimate" | "unknown";
       micros?: number;
       lines?: Array<{
           kind: "input" | "output" | "cache_read" | "cache_write";
@@ -11217,6 +11604,7 @@ export type EngineTurnRecordIn = {
     cacheReadTokens?: number;
     cacheWriteTokens?: number;
     reasoningTokens?: number;
+    contextTokens?: number;
     costUsd?: number;
     paid?: string;
     tools: Array<{
@@ -11275,6 +11663,7 @@ export type EngineTurnRecordUsageIn = {
   tokensIn: number;
   tokensOut: number;
   costMicros: number;
+  model?: string;
   itemId?: string;
 };
 export type EngineTurnRecordUsageOut = {
@@ -11416,6 +11805,20 @@ export type EngineTurnsListOut = {
   next?: string;
   total?: number;
 };
+export type EngineTurnsRunningIn = Record<string, unknown>;
+export type EngineTurnsRunningOut = {
+  turns: Array<{
+      turnId: string;
+      agentId: string;
+      asker: string;
+      startedAt: number;
+      where: {
+        kind: "computer" | "server" | "space";
+        name: string;
+        nodeId?: string;
+      };
+    }>;
+};
 export type EngineUsageGetIn = {
   threadId: string;
   agentId: string;
@@ -11431,6 +11834,7 @@ export type EngineUsageGetOut = {
   context: {
     used: number;
     window: number;
+    approximate?: boolean;
   } | null;
   session: {
     pct: number;
@@ -11442,9 +11846,20 @@ export type EngineUsageGetOut = {
   } | null;
   source: "provider" | "estimate" | "none";
   keepEvery?: string;
+  model?: string;
+  lastTurn?: {
+    model?: string;
+    account?: {
+      ref: string;
+      name?: string;
+      provider: string;
+      shared?: boolean;
+    };
+    paid?: string;
+  };
 };
 export type EngineUsageQueryIn = {
-  by: "day" | "person" | "agent" | "model";
+  by: "day" | "person" | "agent" | "model" | "account";
   from?: number;
   to?: number;
   personId?: string;
@@ -11461,6 +11876,7 @@ export type EngineUsageQueryOut = {
         tokensIn: number;
         tokensOut: number;
         costMicros: number;
+        cachedIn?: number;
       };
     }>;
   totals: {
@@ -11468,6 +11884,7 @@ export type EngineUsageQueryOut = {
     tokensIn: number;
     tokensOut: number;
     costMicros: number;
+    cachedIn?: number;
   };
 };
 export type EngineUsePolicyExportIn = Record<string, unknown>;
@@ -14478,7 +14895,7 @@ export type GoalsChecklistTickOut = {
       direction?: "up" | "down";
       unit?: string;
       source?: {
-        kind: "records" | "connection" | "mcp" | "automation" | "manual";
+        kind: "records" | "connection" | "mcp" | "automation" | "watch" | "manual";
         label?: string;
         type?: string;
         filter?: unknown;
@@ -14489,6 +14906,7 @@ export type GoalsChecklistTickOut = {
         server?: string;
         tool?: string;
         automationId?: string;
+        watchId?: string;
         path?: string;
       };
       items?: Array<{
@@ -14595,7 +15013,7 @@ export type GoalsConfirmOut = {
       direction?: "up" | "down";
       unit?: string;
       source?: {
-        kind: "records" | "connection" | "mcp" | "automation" | "manual";
+        kind: "records" | "connection" | "mcp" | "automation" | "watch" | "manual";
         label?: string;
         type?: string;
         filter?: unknown;
@@ -14606,6 +15024,7 @@ export type GoalsConfirmOut = {
         server?: string;
         tool?: string;
         automationId?: string;
+        watchId?: string;
         path?: string;
       };
       items?: Array<{
@@ -14692,7 +15111,7 @@ export type GoalsCreateIn = {
     direction?: "up" | "down";
     unit?: string;
     source?: {
-      kind: "records" | "connection" | "mcp" | "automation" | "manual";
+      kind: "records" | "connection" | "mcp" | "automation" | "watch" | "manual";
       label?: string;
       type?: string;
       filter?: unknown;
@@ -14703,6 +15122,7 @@ export type GoalsCreateIn = {
       server?: string;
       tool?: string;
       automationId?: string;
+      watchId?: string;
       path?: string;
     };
     items?: Array<{
@@ -14781,7 +15201,7 @@ export type GoalsCreateOut = {
       direction?: "up" | "down";
       unit?: string;
       source?: {
-        kind: "records" | "connection" | "mcp" | "automation" | "manual";
+        kind: "records" | "connection" | "mcp" | "automation" | "watch" | "manual";
         label?: string;
         type?: string;
         filter?: unknown;
@@ -14792,6 +15212,7 @@ export type GoalsCreateOut = {
         server?: string;
         tool?: string;
         automationId?: string;
+        watchId?: string;
         path?: string;
       };
       items?: Array<{
@@ -14889,7 +15310,7 @@ export type GoalsExtendOut = {
       direction?: "up" | "down";
       unit?: string;
       source?: {
-        kind: "records" | "connection" | "mcp" | "automation" | "manual";
+        kind: "records" | "connection" | "mcp" | "automation" | "watch" | "manual";
         label?: string;
         type?: string;
         filter?: unknown;
@@ -14900,6 +15321,7 @@ export type GoalsExtendOut = {
         server?: string;
         tool?: string;
         automationId?: string;
+        watchId?: string;
         path?: string;
       };
       items?: Array<{
@@ -14992,7 +15414,7 @@ export type GoalsFinishOut = {
       direction?: "up" | "down";
       unit?: string;
       source?: {
-        kind: "records" | "connection" | "mcp" | "automation" | "manual";
+        kind: "records" | "connection" | "mcp" | "automation" | "watch" | "manual";
         label?: string;
         type?: string;
         filter?: unknown;
@@ -15003,6 +15425,7 @@ export type GoalsFinishOut = {
         server?: string;
         tool?: string;
         automationId?: string;
+        watchId?: string;
         path?: string;
       };
       items?: Array<{
@@ -15102,7 +15525,7 @@ export type GoalsGetOut = {
       direction?: "up" | "down";
       unit?: string;
       source?: {
-        kind: "records" | "connection" | "mcp" | "automation" | "manual";
+        kind: "records" | "connection" | "mcp" | "automation" | "watch" | "manual";
         label?: string;
         type?: string;
         filter?: unknown;
@@ -15113,6 +15536,7 @@ export type GoalsGetOut = {
         server?: string;
         tool?: string;
         automationId?: string;
+        watchId?: string;
         path?: string;
       };
       items?: Array<{
@@ -15282,7 +15706,7 @@ export type GoalsMarkStuckOut = {
       direction?: "up" | "down";
       unit?: string;
       source?: {
-        kind: "records" | "connection" | "mcp" | "automation" | "manual";
+        kind: "records" | "connection" | "mcp" | "automation" | "watch" | "manual";
         label?: string;
         type?: string;
         filter?: unknown;
@@ -15293,6 +15717,7 @@ export type GoalsMarkStuckOut = {
         server?: string;
         tool?: string;
         automationId?: string;
+        watchId?: string;
         path?: string;
       };
       items?: Array<{
@@ -15385,7 +15810,7 @@ export type GoalsNumberSetOut = {
       direction?: "up" | "down";
       unit?: string;
       source?: {
-        kind: "records" | "connection" | "mcp" | "automation" | "manual";
+        kind: "records" | "connection" | "mcp" | "automation" | "watch" | "manual";
         label?: string;
         type?: string;
         filter?: unknown;
@@ -15396,6 +15821,7 @@ export type GoalsNumberSetOut = {
         server?: string;
         tool?: string;
         automationId?: string;
+        watchId?: string;
         path?: string;
       };
       items?: Array<{
@@ -15488,7 +15914,7 @@ export type GoalsPauseOut = {
       direction?: "up" | "down";
       unit?: string;
       source?: {
-        kind: "records" | "connection" | "mcp" | "automation" | "manual";
+        kind: "records" | "connection" | "mcp" | "automation" | "watch" | "manual";
         label?: string;
         type?: string;
         filter?: unknown;
@@ -15499,6 +15925,7 @@ export type GoalsPauseOut = {
         server?: string;
         tool?: string;
         automationId?: string;
+        watchId?: string;
         path?: string;
       };
       items?: Array<{
@@ -15658,7 +16085,7 @@ export type GoalsResumeOut = {
       direction?: "up" | "down";
       unit?: string;
       source?: {
-        kind: "records" | "connection" | "mcp" | "automation" | "manual";
+        kind: "records" | "connection" | "mcp" | "automation" | "watch" | "manual";
         label?: string;
         type?: string;
         filter?: unknown;
@@ -15669,6 +16096,7 @@ export type GoalsResumeOut = {
         server?: string;
         tool?: string;
         automationId?: string;
+        watchId?: string;
         path?: string;
       };
       items?: Array<{
@@ -15813,7 +16241,7 @@ export type GoalsStopOut = {
       direction?: "up" | "down";
       unit?: string;
       source?: {
-        kind: "records" | "connection" | "mcp" | "automation" | "manual";
+        kind: "records" | "connection" | "mcp" | "automation" | "watch" | "manual";
         label?: string;
         type?: string;
         filter?: unknown;
@@ -15824,6 +16252,7 @@ export type GoalsStopOut = {
         server?: string;
         tool?: string;
         automationId?: string;
+        watchId?: string;
         path?: string;
       };
       items?: Array<{
@@ -15911,7 +16340,7 @@ export type GoalsUpdateIn = {
     direction?: "up" | "down";
     unit?: string;
     source?: {
-      kind: "records" | "connection" | "mcp" | "automation" | "manual";
+      kind: "records" | "connection" | "mcp" | "automation" | "watch" | "manual";
       label?: string;
       type?: string;
       filter?: unknown;
@@ -15922,6 +16351,7 @@ export type GoalsUpdateIn = {
       server?: string;
       tool?: string;
       automationId?: string;
+      watchId?: string;
       path?: string;
     };
     items?: Array<{
@@ -15973,7 +16403,7 @@ export type GoalsUpdateOut = {
       direction?: "up" | "down";
       unit?: string;
       source?: {
-        kind: "records" | "connection" | "mcp" | "automation" | "manual";
+        kind: "records" | "connection" | "mcp" | "automation" | "watch" | "manual";
         label?: string;
         type?: string;
         filter?: unknown;
@@ -15984,6 +16414,7 @@ export type GoalsUpdateOut = {
         server?: string;
         tool?: string;
         automationId?: string;
+        watchId?: string;
         path?: string;
       };
       items?: Array<{
@@ -19893,6 +20324,351 @@ export type LogsTraceOut = {
       actor: string;
       entity?: string;
     }>;
+};
+export type MachinesAlertsIn = Record<string, unknown>;
+export type MachinesAlertsOut = {
+  alerts: Array<{
+      alertId: string;
+      machineId: string;
+      kind: "disk_low" | "memory_pressure" | "offline_pinned" | "update_waiting" | "backup_failed";
+      severity: "info" | "warn" | "bad";
+      title: string;
+      detail: string;
+      next: string;
+    }>;
+};
+export type MachinesAlertsNotifyIn = Record<string, unknown>;
+export type MachinesAlertsNotifyOut = {
+  sent: number;
+};
+export type MachinesFixIn = {
+  machineId: string;
+  fix: "clear_caches" | "stop_idle" | "restart_service";
+  service?: string;
+};
+export type MachinesFixOut = {
+  state: "done" | "failed";
+  detail: string;
+};
+export type MachinesGetIn = {
+  machineId: string;
+};
+export type MachinesGetOut = {
+  machine: {
+    machineId: string;
+    kind: "space" | "server" | "computer";
+    name: string;
+    nickname?: string;
+    ownerId?: string;
+    personal: boolean;
+    mine: boolean;
+    online: boolean;
+    draining: boolean;
+    restricted: boolean;
+    lastSeenAt?: number;
+    latencyMs?: number;
+    version?: string;
+    os?: string;
+    arch?: string;
+    diskBytes?: number;
+    gpu?: string;
+    cores?: number;
+    memBytes?: number;
+    load?: {
+      cpuPct: number;
+      memUsedBytes: number;
+      diskFreeBytes: number;
+      netInBps: number;
+      netOutBps: number;
+    };
+    vyreLoad?: {
+      cpuPct: number;
+      memBytes: number;
+    };
+    runs: {
+      turns: number;
+      agentComputers: number;
+      sites: number;
+      automations: number;
+    };
+    can: Array<"claude_code" | "codex" | "docker" | "chrome">;
+    limits: {
+      maxTurns: number;
+      maxAgentComputers: number;
+    };
+    pinned: Array<{
+        agentId: string;
+      }>;
+    room: {
+      score: number;
+      tightest: "cpu" | "memory" | "turns" | "disk" | "offline" | "draining" | "busy";
+    };
+    alerts: number;
+    agentComputers: Array<{
+        computerId: string;
+        agentId: string;
+        state: string;
+        tabs: number;
+        tabLimit: number;
+        caption?: string;
+      }>;
+  };
+  series: {
+    "1h": Array<{
+        t: number;
+        cpuPct?: number;
+        memPct?: number;
+        diskFreePct?: number;
+        netInBps?: number;
+        netOutBps?: number;
+        vyreCpuPct?: number;
+        vyreMemBytes?: number;
+      }>;
+    "24h": Array<{
+        t: number;
+        cpuPct?: number;
+        memPct?: number;
+        diskFreePct?: number;
+        netInBps?: number;
+        netOutBps?: number;
+        vyreCpuPct?: number;
+        vyreMemBytes?: number;
+      }>;
+    "7d": Array<{
+        t: number;
+        cpuPct?: number;
+        memPct?: number;
+        diskFreePct?: number;
+        netInBps?: number;
+        netOutBps?: number;
+        vyreCpuPct?: number;
+        vyreMemBytes?: number;
+      }>;
+    "30d": Array<{
+        t: number;
+        cpuPct?: number;
+        memPct?: number;
+        diskFreePct?: number;
+        netInBps?: number;
+        netOutBps?: number;
+        vyreCpuPct?: number;
+        vyreMemBytes?: number;
+      }>;
+  };
+  alerts: Array<{
+      alertId: string;
+      machineId: string;
+      kind: "disk_low" | "memory_pressure" | "offline_pinned" | "update_waiting" | "backup_failed";
+      severity: "info" | "warn" | "bad";
+      title: string;
+      detail: string;
+      next: string;
+    }>;
+  work: Array<{
+      kind: "turn" | "site" | "automation";
+      agentId?: string;
+      what: string;
+      where: string;
+      minutes: number;
+    }>;
+  findings: Array<{
+      key: string;
+      state: "healthy" | "degraded" | "down";
+      detail: string;
+      next: string;
+      fix: ("clear_caches" | "stop_idle" | "update") | null;
+    }>;
+  privacy: "full" | "vyre_only";
+  lastFix?: {
+    fix: string;
+    at: number;
+    state: "done" | "failed";
+    detail: string;
+  };
+};
+export type MachinesListIn = Record<string, unknown>;
+export type MachinesListOut = {
+  machines: Array<{
+      machineId: string;
+      kind: "space" | "server" | "computer";
+      name: string;
+      nickname?: string;
+      ownerId?: string;
+      personal: boolean;
+      mine: boolean;
+      online: boolean;
+      draining: boolean;
+      restricted: boolean;
+      lastSeenAt?: number;
+      latencyMs?: number;
+      version?: string;
+      os?: string;
+      arch?: string;
+      diskBytes?: number;
+      gpu?: string;
+      cores?: number;
+      memBytes?: number;
+      load?: {
+        cpuPct: number;
+        memUsedBytes: number;
+        diskFreeBytes: number;
+        netInBps: number;
+        netOutBps: number;
+      };
+      vyreLoad?: {
+        cpuPct: number;
+        memBytes: number;
+      };
+      runs: {
+        turns: number;
+        agentComputers: number;
+        sites: number;
+        automations: number;
+      };
+      can: Array<"claude_code" | "codex" | "docker" | "chrome">;
+      limits: {
+        maxTurns: number;
+        maxAgentComputers: number;
+      };
+      pinned: Array<{
+          agentId: string;
+        }>;
+      room: {
+        score: number;
+        tightest: "cpu" | "memory" | "turns" | "disk" | "offline" | "draining" | "busy";
+      };
+      alerts: number;
+      agentComputers: Array<{
+          computerId: string;
+          agentId: string;
+          state: string;
+          tabs: number;
+          tabLimit: number;
+          caption?: string;
+        }>;
+    }>;
+  summary: {
+    online: number;
+    total: number;
+    agentComputers: number;
+    roomAvg: number;
+  };
+};
+export type MachinesMoveRecordIn = {
+  turnId?: string;
+  asker?: string;
+  agentId?: string;
+  threadId?: string;
+  from: string;
+  to: string;
+  why: string;
+};
+export type MachinesMoveRecordOut = {
+  ok: boolean;
+};
+export type MachinesMovesIn = {
+  limit?: number;
+};
+export type MachinesMovesOut = {
+  moves: Array<{
+      id: number;
+      at: number;
+      turnId: string | null;
+      asker: string | null;
+      agentId: string | null;
+      threadId: string | null;
+      from: string;
+      to: string;
+      why: string;
+    }>;
+};
+export type MachinesRoomsIn = {
+  ids: Array<string>;
+  agentId?: string;
+};
+export type MachinesRoomsOut = {
+  pinnedTo?: string;
+  rooms: Array<{
+      machineId: string;
+      name: string;
+      score: number;
+      why: string;
+      turns: number;
+      maxTurns: number;
+      draining: boolean;
+    }>;
+};
+export type MachinesSetIn = {
+  machineId: string;
+  nickname?: string | null;
+  maxTurns?: number;
+  maxAgentComputers?: number;
+  drain?: boolean;
+  pinAgent?: {
+    agentId: string;
+    pinned: boolean;
+  };
+};
+export type MachinesSetOut = {
+  machine: {
+    machineId: string;
+    kind: "space" | "server" | "computer";
+    name: string;
+    nickname?: string;
+    ownerId?: string;
+    personal: boolean;
+    mine: boolean;
+    online: boolean;
+    draining: boolean;
+    restricted: boolean;
+    lastSeenAt?: number;
+    latencyMs?: number;
+    version?: string;
+    os?: string;
+    arch?: string;
+    diskBytes?: number;
+    gpu?: string;
+    cores?: number;
+    memBytes?: number;
+    load?: {
+      cpuPct: number;
+      memUsedBytes: number;
+      diskFreeBytes: number;
+      netInBps: number;
+      netOutBps: number;
+    };
+    vyreLoad?: {
+      cpuPct: number;
+      memBytes: number;
+    };
+    runs: {
+      turns: number;
+      agentComputers: number;
+      sites: number;
+      automations: number;
+    };
+    can: Array<"claude_code" | "codex" | "docker" | "chrome">;
+    limits: {
+      maxTurns: number;
+      maxAgentComputers: number;
+    };
+    pinned: Array<{
+        agentId: string;
+      }>;
+    room: {
+      score: number;
+      tightest: "cpu" | "memory" | "turns" | "disk" | "offline" | "draining" | "busy";
+    };
+    alerts: number;
+    agentComputers: Array<{
+        computerId: string;
+        agentId: string;
+        state: string;
+        tabs: number;
+        tabLimit: number;
+        caption?: string;
+      }>;
+  };
 };
 export type MailAttachmentSaveIn = {
   messageId: string;
@@ -25297,304 +26073,6 @@ export type NetworkIngressCheckOut = {
   reachable: boolean;
   detail?: string;
 };
-export type NetworkMachineIn = {
-  serverId: string;
-  range?: "1h" | "24h" | "7d" | "30d";
-};
-export type NetworkMachineOut = {
-  machine: {
-    serverId: string;
-    name: string;
-    nickname?: string;
-    kind: "space" | "server" | "linked";
-    owner?: string;
-    mine: boolean;
-    state: "healthy" | "degraded" | "down";
-    online: boolean;
-    lastSeenAt?: number;
-    version?: string;
-    os?: string;
-    arch?: string;
-    cores?: number;
-    memBytes?: number;
-    diskBytes?: number;
-    latencyMs?: number;
-    load?: {
-      cpu: number;
-      memPct: number;
-      diskPct: number;
-      diskFreeBytes: number;
-    };
-    vyre?: {
-      cpu: number;
-      memPct: number;
-    };
-    private: boolean;
-    runs: {
-      turns: number;
-      agentComputers: number;
-      sites: number;
-      automations: number;
-    };
-    can: Array<string>;
-    room: {
-      n: number;
-      why: string;
-    };
-    limits: {
-      maxTurns: number | null;
-      maxAgentComputers: number | null;
-    };
-    drain: boolean;
-    pins: Array<string>;
-  };
-  series: {
-    range: "1h" | "24h" | "7d" | "30d";
-    step: number;
-    points: Array<{
-        t: number;
-        cpu: number | null;
-        mem: number | null;
-        disk: number | null;
-        netIn: number | null;
-        netOut: number | null;
-      }>;
-  };
-  findings: Array<{
-      key: string;
-      state: "healthy" | "degraded" | "down";
-      detail: string;
-      next: string;
-      fix: string | null;
-    }>;
-  work: Array<{
-      agent: string;
-      what: string;
-      where: string;
-      cpu: number;
-    }>;
-  alerts: Array<{
-      alertId: string;
-      serverId: string;
-      kind: "disk" | "memory" | "offline" | "backup" | "update";
-      title: string;
-      detail: string;
-    }>;
-  privacy: "full" | "vyre_only";
-};
-export type NetworkMachineAlertsIn = Record<string, unknown>;
-export type NetworkMachineAlertsOut = {
-  alerts: Array<{
-      alertId: string;
-      serverId: string;
-      kind: "disk" | "memory" | "offline" | "backup" | "update";
-      title: string;
-      detail: string;
-    }>;
-};
-export type NetworkMachineAlertsNotifyIn = Record<string, unknown>;
-export type NetworkMachineAlertsNotifyOut = {
-  sent: number;
-};
-export type NetworkMachinePinIn = {
-  serverId: string;
-  agentId: string;
-  pinned: boolean;
-};
-export type NetworkMachinePinOut = {
-  machine: {
-    serverId: string;
-    name: string;
-    nickname?: string;
-    kind: "space" | "server" | "linked";
-    owner?: string;
-    mine: boolean;
-    state: "healthy" | "degraded" | "down";
-    online: boolean;
-    lastSeenAt?: number;
-    version?: string;
-    os?: string;
-    arch?: string;
-    cores?: number;
-    memBytes?: number;
-    diskBytes?: number;
-    latencyMs?: number;
-    load?: {
-      cpu: number;
-      memPct: number;
-      diskPct: number;
-      diskFreeBytes: number;
-    };
-    vyre?: {
-      cpu: number;
-      memPct: number;
-    };
-    private: boolean;
-    runs: {
-      turns: number;
-      agentComputers: number;
-      sites: number;
-      automations: number;
-    };
-    can: Array<string>;
-    room: {
-      n: number;
-      why: string;
-    };
-    limits: {
-      maxTurns: number | null;
-      maxAgentComputers: number | null;
-    };
-    drain: boolean;
-    pins: Array<string>;
-  };
-};
-export type NetworkMachinePlaceIn = {
-  order: Array<string>;
-};
-export type NetworkMachinePlaceOut = {
-  serverId: string | null;
-  name: string | null;
-  skipped: Array<{
-      serverId: string;
-      name: string;
-      why: string;
-    }>;
-  moved: boolean;
-  line: string | null;
-};
-export type NetworkMachineSetIn = {
-  serverId: string;
-  nickname?: string | null;
-  maxTurns?: number | null;
-  maxAgentComputers?: number | null;
-  drain?: boolean;
-};
-export type NetworkMachineSetOut = {
-  machine: {
-    serverId: string;
-    name: string;
-    nickname?: string;
-    kind: "space" | "server" | "linked";
-    owner?: string;
-    mine: boolean;
-    state: "healthy" | "degraded" | "down";
-    online: boolean;
-    lastSeenAt?: number;
-    version?: string;
-    os?: string;
-    arch?: string;
-    cores?: number;
-    memBytes?: number;
-    diskBytes?: number;
-    latencyMs?: number;
-    load?: {
-      cpu: number;
-      memPct: number;
-      diskPct: number;
-      diskFreeBytes: number;
-    };
-    vyre?: {
-      cpu: number;
-      memPct: number;
-    };
-    private: boolean;
-    runs: {
-      turns: number;
-      agentComputers: number;
-      sites: number;
-      automations: number;
-    };
-    can: Array<string>;
-    room: {
-      n: number;
-      why: string;
-    };
-    limits: {
-      maxTurns: number | null;
-      maxAgentComputers: number | null;
-    };
-    drain: boolean;
-    pins: Array<string>;
-  };
-};
-export type NetworkMachinesIn = Record<string, unknown>;
-export type NetworkMachinesOut = {
-  machines: Array<{
-      serverId: string;
-      name: string;
-      nickname?: string;
-      kind: "space" | "server" | "linked";
-      owner?: string;
-      mine: boolean;
-      state: "healthy" | "degraded" | "down";
-      online: boolean;
-      lastSeenAt?: number;
-      version?: string;
-      os?: string;
-      arch?: string;
-      cores?: number;
-      memBytes?: number;
-      diskBytes?: number;
-      latencyMs?: number;
-      load?: {
-        cpu: number;
-        memPct: number;
-        diskPct: number;
-        diskFreeBytes: number;
-      };
-      vyre?: {
-        cpu: number;
-        memPct: number;
-      };
-      private: boolean;
-      runs: {
-        turns: number;
-        agentComputers: number;
-        sites: number;
-        automations: number;
-      };
-      can: Array<string>;
-      room: {
-        n: number;
-        why: string;
-      };
-      limits: {
-        maxTurns: number | null;
-        maxAgentComputers: number | null;
-      };
-      drain: boolean;
-      pins: Array<string>;
-    }>;
-  waiting: Array<{
-      serverId: string;
-      name: string;
-      owner?: string;
-      fingerprint?: string;
-      requestedAt?: number;
-      facts?: {
-        os: string;
-        arch: string;
-        docker: boolean;
-        version: string;
-      };
-    }>;
-  alerts: Array<{
-      alertId: string;
-      serverId: string;
-      kind: "disk" | "memory" | "offline" | "backup" | "update";
-      title: string;
-      detail: string;
-    }>;
-  admin: boolean;
-  now: number;
-  spaceRoom?: {
-    n: number;
-    why: string;
-    turns: number;
-    maxTurns: number | null;
-  };
-};
 export type NetworkMyComputerApproveIn = {
   serverId: string;
 };
@@ -25757,13 +26235,11 @@ export type NetworkServerDeclineOut = {
   state: "declined";
 };
 export type NetworkServerJoinCodeIn = {
-  nickname?: string;
   idempotencyKey: string;
 };
 export type NetworkServerJoinCodeOut = {
   code: string;
   expiresAt: number;
-  address?: string;
 };
 export type NetworkServerReconnectIn = {
   serverId: string;
@@ -25851,6 +26327,13 @@ export type NotesClipOut = {
       hasShot: boolean;
       at: number;
     };
+    from?: {
+      threadId?: string;
+      messageId?: string;
+      title?: string;
+      at: number;
+      readable: boolean;
+    };
     linked: Array<{
         kind: "task" | "record";
         id: string;
@@ -25881,6 +26364,10 @@ export type NotesCreateIn = {
     contentType: "image/png" | "image/jpeg" | "image/gif" | "image/webp";
   };
   link?: string;
+  source?: {
+    threadId: string;
+    messageId: string;
+  };
   idempotencyKey: string;
 };
 export type NotesCreateOut = {
@@ -25906,6 +26393,13 @@ export type NotesCreateOut = {
       selection?: string;
       hasShot: boolean;
       at: number;
+    };
+    from?: {
+      threadId?: string;
+      messageId?: string;
+      title?: string;
+      at: number;
+      readable: boolean;
     };
     linked: Array<{
         kind: "task" | "record";
@@ -25961,6 +26455,13 @@ export type NotesGetOut = {
       selection?: string;
       hasShot: boolean;
       at: number;
+    };
+    from?: {
+      threadId?: string;
+      messageId?: string;
+      title?: string;
+      at: number;
+      readable: boolean;
     };
     linked: Array<{
         kind: "task" | "record";
@@ -26018,6 +26519,13 @@ export type NotesLabelOut = {
       hasShot: boolean;
       at: number;
     };
+    from?: {
+      threadId?: string;
+      messageId?: string;
+      title?: string;
+      at: number;
+      readable: boolean;
+    };
     linked: Array<{
         kind: "task" | "record";
         id: string;
@@ -26067,6 +26575,13 @@ export type NotesListOut = {
         selection?: string;
         hasShot: boolean;
         at: number;
+      };
+      from?: {
+        threadId?: string;
+        messageId?: string;
+        title?: string;
+        at: number;
+        readable: boolean;
       };
       linked: Array<{
           kind: "task" | "record";
@@ -26121,6 +26636,13 @@ export type NotesPinOut = {
       hasShot: boolean;
       at: number;
     };
+    from?: {
+      threadId?: string;
+      messageId?: string;
+      title?: string;
+      at: number;
+      readable: boolean;
+    };
     linked: Array<{
         kind: "task" | "record";
         id: string;
@@ -26166,6 +26688,13 @@ export type NotesRestoreOut = {
       selection?: string;
       hasShot: boolean;
       at: number;
+    };
+    from?: {
+      threadId?: string;
+      messageId?: string;
+      title?: string;
+      at: number;
+      readable: boolean;
     };
     linked: Array<{
         kind: "task" | "record";
@@ -26232,6 +26761,13 @@ export type NotesShareOut = {
       hasShot: boolean;
       at: number;
     };
+    from?: {
+      threadId?: string;
+      messageId?: string;
+      title?: string;
+      at: number;
+      readable: boolean;
+    };
     linked: Array<{
         kind: "task" | "record";
         id: string;
@@ -26281,6 +26817,13 @@ export type NotesToRecordOut = {
       selection?: string;
       hasShot: boolean;
       at: number;
+    };
+    from?: {
+      threadId?: string;
+      messageId?: string;
+      title?: string;
+      at: number;
+      readable: boolean;
     };
     linked: Array<{
         kind: "task" | "record";
@@ -26337,6 +26880,13 @@ export type NotesToTaskOut = {
       hasShot: boolean;
       at: number;
     };
+    from?: {
+      threadId?: string;
+      messageId?: string;
+      title?: string;
+      at: number;
+      readable: boolean;
+    };
     linked: Array<{
         kind: "task" | "record";
         id: string;
@@ -26391,6 +26941,13 @@ export type NotesUpdateOut = {
       selection?: string;
       hasShot: boolean;
       at: number;
+    };
+    from?: {
+      threadId?: string;
+      messageId?: string;
+      title?: string;
+      at: number;
+      readable: boolean;
     };
     linked: Array<{
         kind: "task" | "record";
@@ -31209,6 +31766,7 @@ export type SitesArtifactPublishOut = {
   artifactId: string;
   url?: string;
   updated: boolean;
+  opened: boolean;
 };
 export type SitesBuildIn = {
   siteId: string;
@@ -31217,6 +31775,12 @@ export type SitesBuildIn = {
 export type SitesBuildOut = {
   runId: string;
   deploymentId: string;
+};
+export type SitesChatViewingIn = {
+  threadId: string;
+};
+export type SitesChatViewingOut = {
+  ok: boolean;
 };
 export type SitesCreateIn = {
   name: string;
@@ -36951,6 +37515,7 @@ export type TasksWorkingNotesSetIn = {
   taskId: string;
   key: string;
   value: string;
+  expectedFrom?: string;
 };
 export type TasksWorkingNotesSetOut = {
   task: {
@@ -39735,6 +40300,7 @@ export type VaultItemsMatchOut = {
         updatedAt: number;
       };
       usernameField?: string;
+      username?: string;
     }>;
 };
 export type VaultPolicyGetIn = Record<string, unknown>;
@@ -40631,6 +41197,11 @@ export interface CapMap {
   "automations.validate": { in: AutomationsValidateIn; out: AutomationsValidateOut };
   "automations.vault_usage": { in: AutomationsVaultUsageIn; out: AutomationsVaultUsageOut };
   "automations.versions": { in: AutomationsVersionsIn; out: AutomationsVersionsOut };
+  "automations.watches.check": { in: AutomationsWatchesCheckIn; out: AutomationsWatchesCheckOut };
+  "automations.watches.list": { in: AutomationsWatchesListIn; out: AutomationsWatchesListOut };
+  "automations.watches.remove": { in: AutomationsWatchesRemoveIn; out: AutomationsWatchesRemoveOut };
+  "automations.watches.report": { in: AutomationsWatchesReportIn; out: AutomationsWatchesReportOut };
+  "automations.watches.save": { in: AutomationsWatchesSaveIn; out: AutomationsWatchesSaveOut };
   "automations.webhook_url.get": { in: AutomationsWebhookUrlGetIn; out: AutomationsWebhookUrlGetOut };
   "automations.webhook_url.rotate": { in: AutomationsWebhookUrlRotateIn; out: AutomationsWebhookUrlRotateOut };
   "backup.config_get": { in: BackupConfigGetIn; out: BackupConfigGetOut };
@@ -40649,6 +41220,11 @@ export interface CapMap {
   "bookings.cancel": { in: BookingsCancelIn; out: BookingsCancelOut };
   "bookings.list": { in: BookingsListIn; out: BookingsListOut };
   "bookings.page_create": { in: BookingsPageCreateIn; out: BookingsPageCreateOut };
+  "browser.cards.post": { in: BrowserCardsPostIn; out: BrowserCardsPostOut };
+  "browser.chrome.act": { in: BrowserChromeActIn; out: BrowserChromeActOut };
+  "browser.sites.list": { in: BrowserSitesListIn; out: BrowserSitesListOut };
+  "browser.sites.remove": { in: BrowserSitesRemoveIn; out: BrowserSitesRemoveOut };
+  "browser.sites.set": { in: BrowserSitesSetIn; out: BrowserSitesSetOut };
   "calendar.availability": { in: CalendarAvailabilityIn; out: CalendarAvailabilityOut };
   "calendar.connect_provider": { in: CalendarConnectProviderIn; out: CalendarConnectProviderOut };
   "calendar.create_calendar": { in: CalendarCreateCalendarIn; out: CalendarCreateCalendarOut };
@@ -40721,6 +41297,8 @@ export interface CapMap {
   "chat.message.get": { in: ChatMessageGetIn; out: ChatMessageGetOut };
   "chat.message_person": { in: ChatMessagePersonIn; out: ChatMessagePersonOut };
   "chat.messages.list": { in: ChatMessagesListIn; out: ChatMessagesListOut };
+  "chat.note_offer.answer": { in: ChatNoteOfferAnswerIn; out: ChatNoteOfferAnswerOut };
+  "chat.note_offer.make": { in: ChatNoteOfferMakeIn; out: ChatNoteOfferMakeOut };
   "chat.open_as_chat": { in: ChatOpenAsChatIn; out: ChatOpenAsChatOut };
   "chat.open_tab": { in: ChatOpenTabIn; out: ChatOpenTabOut };
   "chat.people_status": { in: ChatPeopleStatusIn; out: ChatPeopleStatusOut };
@@ -41001,6 +41579,7 @@ export interface CapMap {
   "engine.mcp.read": { in: EngineMcpReadIn; out: EngineMcpReadOut };
   "engine.mcp.tools": { in: EngineMcpToolsIn; out: EngineMcpToolsOut };
   "engine.models.list": { in: EngineModelsListIn; out: EngineModelsListOut };
+  "engine.my_ai": { in: EngineMyAiIn; out: EngineMyAiOut };
   "engine.now": { in: EngineNowIn; out: EngineNowOut };
   "engine.placement.decide": { in: EnginePlacementDecideIn; out: EnginePlacementDecideOut };
   "engine.placement.options": { in: EnginePlacementOptionsIn; out: EnginePlacementOptionsOut };
@@ -41042,6 +41621,7 @@ export interface CapMap {
   "engine.turn.start": { in: EngineTurnStartIn; out: EngineTurnStartOut };
   "engine.turn.wait": { in: EngineTurnWaitIn; out: EngineTurnWaitOut };
   "engine.turns.list": { in: EngineTurnsListIn; out: EngineTurnsListOut };
+  "engine.turns.running": { in: EngineTurnsRunningIn; out: EngineTurnsRunningOut };
   "engine.usage.get": { in: EngineUsageGetIn; out: EngineUsageGetOut };
   "engine.usage.query": { in: EngineUsageQueryIn; out: EngineUsageQueryOut };
   "engine.use_policy.export": { in: EngineUsePolicyExportIn; out: EngineUsePolicyExportOut };
@@ -41468,6 +42048,15 @@ export interface CapMap {
   "logs.spans": { in: LogsSpansIn; out: LogsSpansOut };
   "logs.tail": { in: LogsTailIn; out: LogsTailOut };
   "logs.trace": { in: LogsTraceIn; out: LogsTraceOut };
+  "machines.alerts": { in: MachinesAlertsIn; out: MachinesAlertsOut };
+  "machines.alerts_notify": { in: MachinesAlertsNotifyIn; out: MachinesAlertsNotifyOut };
+  "machines.fix": { in: MachinesFixIn; out: MachinesFixOut };
+  "machines.get": { in: MachinesGetIn; out: MachinesGetOut };
+  "machines.list": { in: MachinesListIn; out: MachinesListOut };
+  "machines.move_record": { in: MachinesMoveRecordIn; out: MachinesMoveRecordOut };
+  "machines.moves": { in: MachinesMovesIn; out: MachinesMovesOut };
+  "machines.rooms": { in: MachinesRoomsIn; out: MachinesRoomsOut };
+  "machines.set": { in: MachinesSetIn; out: MachinesSetOut };
   "mail.attachment.save": { in: MailAttachmentSaveIn; out: MailAttachmentSaveOut };
   "mail.auto_connect_members": { in: MailAutoConnectMembersIn; out: MailAutoConnectMembersOut };
   "mail.connect": { in: MailConnectIn; out: MailConnectOut };
@@ -41757,13 +42346,6 @@ export interface CapMap {
   "network.enroll_status": { in: NetworkEnrollStatusIn; out: NetworkEnrollStatusOut };
   "network.health": { in: NetworkHealthIn; out: NetworkHealthOut };
   "network.ingress_check": { in: NetworkIngressCheckIn; out: NetworkIngressCheckOut };
-  "network.machine": { in: NetworkMachineIn; out: NetworkMachineOut };
-  "network.machine_alerts": { in: NetworkMachineAlertsIn; out: NetworkMachineAlertsOut };
-  "network.machine_alerts_notify": { in: NetworkMachineAlertsNotifyIn; out: NetworkMachineAlertsNotifyOut };
-  "network.machine_pin": { in: NetworkMachinePinIn; out: NetworkMachinePinOut };
-  "network.machine_place": { in: NetworkMachinePlaceIn; out: NetworkMachinePlaceOut };
-  "network.machine_set": { in: NetworkMachineSetIn; out: NetworkMachineSetOut };
-  "network.machines": { in: NetworkMachinesIn; out: NetworkMachinesOut };
   "network.my_computer_approve": { in: NetworkMyComputerApproveIn; out: NetworkMyComputerApproveOut };
   "network.my_computer_code": { in: NetworkMyComputerCodeIn; out: NetworkMyComputerCodeOut };
   "network.my_computer_decline": { in: NetworkMyComputerDeclineIn; out: NetworkMyComputerDeclineOut };
@@ -42082,6 +42664,7 @@ export interface CapMap {
   "sites.artifact_open": { in: SitesArtifactOpenIn; out: SitesArtifactOpenOut };
   "sites.artifact_publish": { in: SitesArtifactPublishIn; out: SitesArtifactPublishOut };
   "sites.build": { in: SitesBuildIn; out: SitesBuildOut };
+  "sites.chat_viewing": { in: SitesChatViewingIn; out: SitesChatViewingOut };
   "sites.create": { in: SitesCreateIn; out: SitesCreateOut };
   "sites.db_import": { in: SitesDbImportIn; out: SitesDbImportOut };
   "sites.delete": { in: SitesDeleteIn; out: SitesDeleteOut };
@@ -42629,6 +43212,7 @@ export type AgentPrivacySetPayload = {
   agentId: string;
   ownerId: string;
   private: boolean;
+  assistant?: boolean;
 };
 export type AgentRestoredPayload = {
   agentId: string;
@@ -42788,6 +43372,16 @@ export type AutomationVersionRestoredPayload = {
   versionId: string;
   version: number;
 };
+export type AutomationWatchChangedPayload = {
+  watchId: string;
+  owner: string;
+  changes: number;
+};
+export type AutomationWatchSavedPayload = {
+  watchId: string;
+  owner: string;
+  op: "added" | "changed" | "paused" | "resumed" | "removed";
+};
 export type AwayClearedPayload = {
   person: string;
   waitedApprovals: number;
@@ -42839,6 +43433,12 @@ export type BookingCreatedPayload = {
   bookingId: string;
   formId: string;
   recordId: string;
+};
+export type BrowserSiteChangedPayload = {
+  siteId: string;
+  host: string;
+  runsIn: "chrome" | "computers" | "both";
+  removed: boolean;
 };
 export type CalendarCreatedPayload = {
   calendarId: string;
@@ -43268,7 +43868,7 @@ export type CrewJobStartedPayload = {
   jobId: string;
   threadId: string;
   leadThreadId: string;
-  projectId: string;
+  projectId?: string;
   agentId: string;
   branch: string;
 };
@@ -44152,6 +44752,17 @@ export type LogAccessedPayload = {
 export type LogsPurgedPayload = {
   removed: number;
 };
+export type MachineAlertPayload = {
+  alertId: string;
+  machineId: string;
+  kind: "disk_low" | "memory_pressure" | "offline_pinned" | "update_waiting" | "backup_failed";
+  title: string;
+  detail: string;
+};
+export type MachineChangedPayload = {
+  machineId: string;
+  what: Array<"nickname" | "limits" | "drain" | "pins" | "full" | "room">;
+};
 export type MailMessageErasedPayload = {
   messageId: string;
 };
@@ -44627,13 +45238,6 @@ export type NetworkCertificateRenewedPayload = {
 export type NetworkDomainChangedPayload = {
   address: string;
   mode: "own_domain" | "relay";
-};
-export type NetworkMachineAlertPayload = {
-  alertId: string;
-  serverId: string;
-  kind: "disk" | "memory" | "offline" | "backup" | "update";
-  title: string;
-  detail: string;
 };
 export type NetworkServerAddedPayload = {
   serverId: string;
@@ -46478,6 +47082,8 @@ export interface EventMap {
   "automation.trigger_dropped": AutomationTriggerDroppedPayload;
   "automation.updated": AutomationUpdatedPayload;
   "automation.version_restored": AutomationVersionRestoredPayload;
+  "automation.watch_changed": AutomationWatchChangedPayload;
+  "automation.watch_saved": AutomationWatchSavedPayload;
   "away.cleared": AwayClearedPayload;
   "away.set": AwaySetPayload;
   "backup.completed": BackupCompletedPayload;
@@ -46489,6 +47095,7 @@ export interface EventMap {
   "block.waiting": BlockWaitingPayload;
   "booking.cancelled": BookingCancelledPayload;
   "booking.created": BookingCreatedPayload;
+  "browser.site_changed": BrowserSiteChangedPayload;
   "calendar.created": CalendarCreatedPayload;
   "calendar.synced": CalendarSyncedPayload;
   "calendar_event.created": CalendarEventCreatedPayload;
@@ -46721,6 +47328,8 @@ export interface EventMap {
   "kit.updated": KitUpdatedPayload;
   "log.accessed": LogAccessedPayload;
   "logs.purged": LogsPurgedPayload;
+  "machine.alert": MachineAlertPayload;
+  "machine.changed": MachineChangedPayload;
   "mail.message_erased": MailMessageErasedPayload;
   "mail.received": MailReceivedPayload;
   "mail_draft.discarded": MailDraftDiscardedPayload;
@@ -46809,7 +47418,6 @@ export interface EventMap {
   "network.certificate_failed": NetworkCertificateFailedPayload;
   "network.certificate_renewed": NetworkCertificateRenewedPayload;
   "network.domain_changed": NetworkDomainChangedPayload;
-  "network.machine_alert": NetworkMachineAlertPayload;
   "network.server_added": NetworkServerAddedPayload;
   "network.server_removed": NetworkServerRemovedPayload;
   "network.server_requested": NetworkServerRequestedPayload;

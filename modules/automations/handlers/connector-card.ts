@@ -17,7 +17,7 @@ export async function connectorCard(ctx: AutoCtx, input: In): Promise<{ messageI
   const threadId = typeof input.threadId === "string" ? input.threadId : "";
   const title = typeof input.title === "string" ? input.title.trim().slice(0, 80) : "";
   const rows = Array.isArray(input.items) ? (input.items as Item[]) : [];
-  if (threadId === "" || title === "" || rows.length === 0) raise(ctx, "validation.bad_input", "A card needs a thread, a title and at least one row.");
+  if (threadId === "" || title === "" || rows.length === 0) raise(ctx, "validation.bad_input", "A card needs a chat, a title and at least one row.");
   const items = rows.slice(0, MAX_ROWS).map((r) => ({ text: String(r.text ?? "").replace(/\s+/g, " ").trim().slice(0, MAX_TEXT), done: r.done === true }));
   if (items.some((i) => i.text === "")) raise(ctx, "validation.bad_input", "Every row needs words.");
   if (containsSecret({ title, items }) || [title, ...items.map((i) => i.text)].some((x) => KEY_IN_TEXT.test(x))) raise(ctx, "validation.bad_input", "A card cannot hold a key or a secret.");

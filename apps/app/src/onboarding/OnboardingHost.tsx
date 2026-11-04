@@ -70,7 +70,7 @@ export function OnboardingHost({ call, space, children, cards, onAddSpace, mac =
   useEffect(() => {
     if (!call) return undefined;
     let off = false;
-    void (call("providers.list", {}) as Promise<{ providers: unknown[] }>).then((r) => { if (!off) setHasAi(r.providers.length > 0); }).catch(() => undefined);
+    void (call("engine.accounts.list", {}) as Promise<{ accounts: unknown[] }>).then((r) => { if (!off) setHasAi(r.accounts.length > 0); }).catch(() => undefined);
     return () => { off = true; };
   }, [call, aiProvider]);
 
