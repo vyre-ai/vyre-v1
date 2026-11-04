@@ -2482,6 +2482,43 @@ export const screens: ScreenIndexEntry[] = [
     }
   },
   {
+    "id": "console.ai-voice",
+    "module": "talk",
+    "place": "console",
+    "slot": "main",
+    "builtin": "ui:ConsoleAiVoice",
+    "caller": "principal",
+    "queries": {
+      "space": {
+        "cap": "talk.space.status",
+        "input": {},
+        "live": true
+      },
+      "me": {
+        "cap": "talk.status",
+        "input": {},
+        "live": true
+      }
+    },
+    "actions": {
+      "configure": {
+        "cap": "talk.space.configure",
+        "input": {}
+      },
+      "check": {
+        "cap": "talk.space.check",
+        "input": {}
+      }
+    },
+    "needs": [
+      "policy.manage"
+    ],
+    "perf": {
+      "firstPaintMs": 50,
+      "completeMs": 100
+    }
+  },
+  {
     "id": "console.backups",
     "module": "console-views",
     "place": "console",

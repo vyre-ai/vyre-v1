@@ -58385,6 +58385,139 @@
     },
     {
       "blocks": [],
+      "cap": "talk.ask_key",
+      "deferred": true,
+      "description": "Post the secret card that asks for a Talk key in this chat: their own, or the Space's. The value goes straight to the Vault and never into the chat",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "provider": {
+            "examples": [
+              "deepgram"
+            ],
+            "type": "string"
+          },
+          "scope": {
+            "enum": [
+              "mine",
+              "space"
+            ],
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "name": "talk_ask_key",
+      "planMode": "blocked",
+      "toolset": "meta",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "talk.configure",
+      "deferred": true,
+      "description": "Change a person's Talk: on or off, provider, language, model. An agent may do this for the person it acts for. Keys go through talk_ask_key",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "language": {
+            "examples": [
+              "es"
+            ],
+            "type": "string"
+          },
+          "model": {
+            "examples": [
+              "nova-3"
+            ],
+            "type": "string"
+          },
+          "on": {
+            "type": "boolean"
+          },
+          "provider": {
+            "examples": [
+              "deepgram"
+            ],
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "name": "talk_configure",
+      "planMode": "blocked",
+      "toolset": "meta",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "talk.space.check",
+      "deferred": true,
+      "description": "Check the Space key with the provider now",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "talk_space_check",
+      "planMode": "blocked",
+      "toolset": "meta",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "talk.space.configure",
+      "deferred": true,
+      "description": "Turn Talk for everyone on or off, and keep the key. An agent's change stops at the Gate for someone who may approve it",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "on": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "on"
+        ],
+        "type": "object"
+      },
+      "name": "talk_space_configure",
+      "planMode": "blocked",
+      "toolset": "meta",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "talk.space.status",
+      "deferred": true,
+      "description": "Talk for everyone in the Space: whether a key is set, on or off, who set it, when it was last checked and how many people use their own key",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "talk_space_status",
+      "planMode": "allowed",
+      "toolset": "meta",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "talk.status",
+      "deferred": true,
+      "description": "Talk for the person asking: on or off, provider, language, model and what covers them (their own key, the Space key or nothing). Never a key",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "talk_status",
+      "planMode": "allowed",
+      "toolset": "meta",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "tasks.ask",
       "deferred": false,
       "description": "Ask a question while you work on a task: an Answer task opens for the requester or a named person, the work waits, and the answer wakes you",

@@ -8359,6 +8359,42 @@
       "toolset": "records"
     },
     {
+      "deferred": true,
+      "name": "talk_ask_key",
+      "summary": "Post the secret card that asks for a Talk key in this chat: their own, or the Space's. The value goes straight to the Vault and never into the chat",
+      "toolset": "meta"
+    },
+    {
+      "deferred": true,
+      "name": "talk_configure",
+      "summary": "Change a person's Talk: on or off, provider, language, model. An agent may do this for the person it acts for. Keys go through talk_ask_key",
+      "toolset": "meta"
+    },
+    {
+      "deferred": true,
+      "name": "talk_space_check",
+      "summary": "Check the Space key with the provider now",
+      "toolset": "meta"
+    },
+    {
+      "deferred": true,
+      "name": "talk_space_configure",
+      "summary": "Turn Talk for everyone on or off, and keep the key. An agent's change stops at the Gate for someone who may approve it",
+      "toolset": "meta"
+    },
+    {
+      "deferred": true,
+      "name": "talk_space_status",
+      "summary": "Talk for everyone in the Space: whether a key is set, on or off, who set it, when it was last checked and how many people use their own key",
+      "toolset": "meta"
+    },
+    {
+      "deferred": true,
+      "name": "talk_status",
+      "summary": "Talk for the person asking: on or off, provider, language, model and what covers them (their own key, the Space key or nothing). Never a key",
+      "toolset": "meta"
+    },
+    {
       "deferred": false,
       "name": "task_ask",
       "summary": "Ask a question while you work on a task: an Answer task opens for the requester or a named person, the work waits, and the answer wakes you",

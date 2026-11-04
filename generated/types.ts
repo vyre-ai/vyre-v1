@@ -34920,6 +34920,191 @@ export type SyncTypesUpdateOut = {
     };
   };
 };
+export type TalkAskKeyIn = {
+  scope?: "mine" | "space";
+  provider?: string;
+};
+export type TalkAskKeyOut = {
+  ok: boolean;
+};
+export type TalkConfigureIn = {
+  on?: boolean;
+  provider?: string;
+  language?: string;
+  model?: string;
+};
+export type TalkConfigureOut = {
+  on: boolean;
+  provider: string;
+  language: string;
+  model: string;
+  source: "own" | "space" | "none";
+  spaceOn: boolean;
+  mayManage: boolean;
+  providers: Array<{
+      key: string;
+      name: string;
+      keyUrl: string;
+      models: Array<{
+          id: string;
+          label: string;
+        }>;
+      languages: Array<{
+          id: string;
+          label: string;
+        }>;
+    }>;
+};
+export type TalkConnectIn = {
+  provider: string;
+  fields: Array<{
+      key: string;
+      value: string;
+      secret?: boolean;
+    }>;
+  idempotencyKey: string;
+};
+export type TalkConnectOut = {
+  on: boolean;
+  provider: string;
+  language: string;
+  model: string;
+  source: "own" | "space" | "none";
+  spaceOn: boolean;
+  mayManage: boolean;
+  providers: Array<{
+      key: string;
+      name: string;
+      keyUrl: string;
+      models: Array<{
+          id: string;
+          label: string;
+        }>;
+      languages: Array<{
+          id: string;
+          label: string;
+        }>;
+    }>;
+};
+export type TalkDisconnectIn = Record<string, unknown>;
+export type TalkDisconnectOut = {
+  on: boolean;
+  provider: string;
+  language: string;
+  model: string;
+  source: "own" | "space" | "none";
+  spaceOn: boolean;
+  mayManage: boolean;
+  providers: Array<{
+      key: string;
+      name: string;
+      keyUrl: string;
+      models: Array<{
+          id: string;
+          label: string;
+        }>;
+      languages: Array<{
+          id: string;
+          label: string;
+        }>;
+    }>;
+};
+export type TalkSessionIn = Record<string, unknown>;
+export type TalkSessionOut = {
+  provider: string;
+  url: string;
+  protocols: Array<string>;
+  source: "own" | "space";
+  expiresIn: number;
+};
+export type TalkSpaceCheckIn = Record<string, unknown>;
+export type TalkSpaceCheckOut = {
+  set: boolean;
+  on: boolean;
+  provider?: string;
+  itemId?: string;
+  setBy?: string;
+  checkedAt?: number;
+  state?: "ok" | "failing";
+  peopleOwnKey?: number;
+};
+export type TalkSpaceConfigureIn = {
+  on: boolean;
+};
+export type TalkSpaceConfigureOut = {
+  set: boolean;
+  on: boolean;
+  provider?: string;
+  itemId?: string;
+  setBy?: string;
+  checkedAt?: number;
+  state?: "ok" | "failing";
+  peopleOwnKey?: number;
+};
+export type TalkSpaceConnectIn = {
+  provider: string;
+  fields: Array<{
+      key: string;
+      value: string;
+      secret?: boolean;
+    }>;
+  idempotencyKey: string;
+};
+export type TalkSpaceConnectOut = {
+  set: boolean;
+  on: boolean;
+  provider?: string;
+  itemId?: string;
+  setBy?: string;
+  checkedAt?: number;
+  state?: "ok" | "failing";
+  peopleOwnKey?: number;
+};
+export type TalkSpaceDisconnectIn = Record<string, unknown>;
+export type TalkSpaceDisconnectOut = {
+  set: boolean;
+  on: boolean;
+  provider?: string;
+  itemId?: string;
+  setBy?: string;
+  checkedAt?: number;
+  state?: "ok" | "failing";
+  peopleOwnKey?: number;
+};
+export type TalkSpaceStatusIn = Record<string, unknown>;
+export type TalkSpaceStatusOut = {
+  set: boolean;
+  on: boolean;
+  provider?: string;
+  itemId?: string;
+  setBy?: string;
+  checkedAt?: number;
+  state?: "ok" | "failing";
+  peopleOwnKey?: number;
+};
+export type TalkStatusIn = Record<string, unknown>;
+export type TalkStatusOut = {
+  on: boolean;
+  provider: string;
+  language: string;
+  model: string;
+  source: "own" | "space" | "none";
+  spaceOn: boolean;
+  mayManage: boolean;
+  providers: Array<{
+      key: string;
+      name: string;
+      keyUrl: string;
+      models: Array<{
+          id: string;
+          label: string;
+        }>;
+      languages: Array<{
+          id: string;
+          label: string;
+        }>;
+    }>;
+};
 export type TasksActIn = {
   taskId: string;
   action: string;
@@ -42401,6 +42586,17 @@ export interface CapMap {
   "sync_types.status": { in: SyncTypesStatusIn; out: SyncTypesStatusOut };
   "sync_types.undo_push": { in: SyncTypesUndoPushIn; out: SyncTypesUndoPushOut };
   "sync_types.update": { in: SyncTypesUpdateIn; out: SyncTypesUpdateOut };
+  "talk.ask_key": { in: TalkAskKeyIn; out: TalkAskKeyOut };
+  "talk.configure": { in: TalkConfigureIn; out: TalkConfigureOut };
+  "talk.connect": { in: TalkConnectIn; out: TalkConnectOut };
+  "talk.disconnect": { in: TalkDisconnectIn; out: TalkDisconnectOut };
+  "talk.session": { in: TalkSessionIn; out: TalkSessionOut };
+  "talk.space.check": { in: TalkSpaceCheckIn; out: TalkSpaceCheckOut };
+  "talk.space.configure": { in: TalkSpaceConfigureIn; out: TalkSpaceConfigureOut };
+  "talk.space.connect": { in: TalkSpaceConnectIn; out: TalkSpaceConnectOut };
+  "talk.space.disconnect": { in: TalkSpaceDisconnectIn; out: TalkSpaceDisconnectOut };
+  "talk.space.status": { in: TalkSpaceStatusIn; out: TalkSpaceStatusOut };
+  "talk.status": { in: TalkStatusIn; out: TalkStatusOut };
   "tasks.act": { in: TasksActIn; out: TasksActOut };
   "tasks.ask": { in: TasksAskIn; out: TasksAskOut };
   "tasks.assign": { in: TasksAssignIn; out: TasksAssignOut };
@@ -46006,6 +46202,31 @@ export type TabOpenedPayload = {
   targetId: string;
   agentId: string;
 };
+export type TalkConfiguredPayload = {
+  person: string;
+  on: boolean;
+  provider: string;
+  language: string;
+  model: string;
+  by: string;
+};
+export type TalkConnectedPayload = {
+  scope: "mine" | "space";
+  provider: string;
+  by: string;
+};
+export type TalkDisconnectedPayload = {
+  scope: "mine" | "space";
+  provider: string;
+  by: string;
+};
+export type TalkSpaceChangedPayload = {
+  on: boolean;
+  by: string;
+};
+export type TalkSpaceCheckedPayload = {
+  state: "ok" | "failing";
+};
 export type TaskApprovedPayload = {
   taskId: string;
   kind: "work" | "approve" | "review" | "answer" | "unblock" | "signature";
@@ -47207,6 +47428,11 @@ export interface EventMap {
   "sync.type_resumed": SyncTypeResumedPayload;
   "sync.type_updated": SyncTypeUpdatedPayload;
   "tab.opened": TabOpenedPayload;
+  "talk.configured": TalkConfiguredPayload;
+  "talk.connected": TalkConnectedPayload;
+  "talk.disconnected": TalkDisconnectedPayload;
+  "talk.space_changed": TalkSpaceChangedPayload;
+  "talk.space_checked": TalkSpaceCheckedPayload;
   "task.approved": TaskApprovedPayload;
   "task.assigned": TaskAssignedPayload;
   "task.children_settled": TaskChildrenSettledPayload;

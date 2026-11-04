@@ -2517,6 +2517,21 @@ export function createClient(transport: Transport) {
       undo_push: call("sync_types.undo_push", 1),
       update: call("sync_types.update", 1),
     },
+    talk: {
+      ask_key: call("talk.ask_key", 1),
+      configure: call("talk.configure", 1),
+      connect: call("talk.connect", 1),
+      disconnect: call("talk.disconnect", 1),
+      session: call("talk.session", 1),
+      space: {
+        check: call("talk.space.check", 1),
+        configure: call("talk.space.configure", 1),
+        connect: call("talk.space.connect", 1),
+        disconnect: call("talk.space.disconnect", 1),
+        status: call("talk.space.status", 1),
+      },
+      status: call("talk.status", 1),
+    },
     tasks: {
       act: call("tasks.act", 1),
       ask: call("tasks.ask", 1),

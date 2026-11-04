@@ -2517,6 +2517,21 @@ export function stubs(ctx: CallCtx) {
       undo_push: call("sync_types.undo_push"),
       update: call("sync_types.update"),
     },
+    talk: {
+      ask_key: call("talk.ask_key"),
+      configure: call("talk.configure"),
+      connect: call("talk.connect"),
+      disconnect: call("talk.disconnect"),
+      session: call("talk.session"),
+      space: {
+        check: call("talk.space.check"),
+        configure: call("talk.space.configure"),
+        connect: call("talk.space.connect"),
+        disconnect: call("talk.space.disconnect"),
+        status: call("talk.space.status"),
+      },
+      status: call("talk.status"),
+    },
     tasks: {
       act: call("tasks.act"),
       ask: call("tasks.ask"),
