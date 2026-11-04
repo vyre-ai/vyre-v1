@@ -113,10 +113,10 @@ test("History lists each version with who made it; Undo takes back the latest an
     const root = await open(s);
     await press(find(root, "overview-history-open"));
     await wait(() => find(root, "overview-history") !== null);
-    await wait(() => find(root, "rev-2") !== null);
-    assert.match(textOf(find(root, "rev-2")), /Added a live tasks block/);
-    assert.match(textOf(find(root, "rev-2")), /Docs \(Agent\)/);
-    assert.match(textOf(find(root, "rev-1")), /Maya Chen/);
+    await wait(() => find(root, "row-rev-2") !== null);
+    assert.match(textOf(find(root, "row-rev-2")), /Added a live tasks block/);
+    assert.match(textOf(find(root, "row-rev-2")), /Docs \(Agent\)/);
+    assert.match(textOf(find(root, "row-rev-1")), /Maya Chen/);
     assert.ok(find(root, "rev-undo-2"), "only the latest has Undo");
     assert.equal(find(root, "rev-undo-1"), null);
     await press(find(root, "rev-undo-2"));
@@ -156,9 +156,9 @@ test("a template replaces the page after a choice; the page it had stays in the 
     const s = createSampleOverview();
     const root = await open(s);
     await press(find(root, "overview-template-open"));
-    await wait(() => find(root, "tpl-tpl_hiring") !== null);
-    assert.ok(find(root, "tpl-tpl_client_account") && find(root, "tpl-tpl_software_project"), "the three built-in templates");
-    await press(find(root, "tpl-tpl_hiring"));
+    await wait(() => find(root, "row-tpl-tpl_hiring") !== null);
+    assert.ok(find(root, "row-tpl-tpl_client_account") && find(root, "row-tpl-tpl_software_project"), "the three built-in templates");
+    await press(find(root, "row-tpl-tpl_hiring"));
     await wait(() => s.state().markdown.includes("# Hiring"));
     const call = s.calls.find((c) => c.cap === "projects.overview_doc.apply_template")!.input as { templateId: string; baseRev: number };
     assert.deepEqual([call.templateId, call.baseRev], ["tpl_hiring", 1]);
@@ -190,8 +190,8 @@ test("a page someone else changed is not overwritten: the person is told, and Re
     const root = await open(s);
     s.racing();
     await press(find(root, "overview-template-open"));
-    await wait(() => find(root, "tpl-tpl_hiring") !== null);
-    await press(find(root, "tpl-tpl_hiring"));
+    await wait(() => find(root, "row-tpl-tpl_hiring") !== null);
+    await press(find(root, "row-tpl-tpl_hiring"));
     await wait(() => find(root, "overview-stale") !== null);
     assert.match(textOf(find(root, "overview-stale")), /Someone changed this page/);
     assert.equal(s.state().markdown.includes("# Hiring"), false, "nothing was written");
@@ -212,7 +212,7 @@ test("a live block draws the project's data as a list, a table, cards or a count
       return root;
     };
     const list = await draw({ type: "tasks", spec: { title: "Open tasks", status: "open" }, view: "list" });
-    assert.ok(find(list, "live-list") && find(list, "live-row-t3"));
+    assert.ok(find(list, "live-list") && find(list, "row-live-t3"));
     assert.match(textOf(find(list, "live-tag")), /Live · 4 rows, 2 you can't open/);
     assert.match(textOf(find(list, "live-hidden")), /2 more you can't open/);
     const call = s.calls.filter((c) => c.cap === "projects.live_block.query").at(-1)!.input as { type: string; spec: { status: string } };
@@ -256,8 +256,8 @@ test("a row opens what it is: a task or a record, a goal's page; Edit and the me
     const log: string[] = [];
     const api = { update: (p: unknown) => log.push(`update ${JSON.stringify(p)}`), remove: () => log.push("remove") };
     const root = await mount(createRoot, <ProjectPageDataProvider value={s.data}><LiveBlockView projectId="prj_rivera" attrs={{ blockId: "b", type: "tasks", spec: { title: "Open tasks" }, view: "list" }} readOnly={false} api={api} onSettings={(a) => log.push(`settings ${a.type}`)} /></ProjectPageDataProvider>);
-    await wait(() => find(root, "live-row-t3") !== null);
-    await press(find(root, "live-row-t3"));
+    await wait(() => find(root, "row-live-t3") !== null);
+    await press(find(root, "row-live-t3"));
     assert.deepEqual(s.opened, ["record:task:t3"]);
     await press(find(root, "live-edit"));
     assert.deepEqual(log, ["settings tasks"]);

@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import type { ReactElement } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { Dialog } from "../../../../../../../ui/src/Dialog/index.tsx";
+import { Row } from "../../../../../../../ui/src/Row/index.tsx";
 import { Avatar } from "../../../../../../../ui/src/Avatar/index.tsx";
 import { useProjectPageData } from "../data.tsx";
 import { SPEC_CHOICES, VIEWS, kindOf, liveReady, liveTitle, revisionLine } from "./model.ts";
@@ -14,6 +15,7 @@ function Chips<T extends string>({ label, value, options, onChange, testID }: { 
     <View style={s.field}>
       <Text style={s.label}>{label}</Text>
       <View style={s.chips} accessibilityRole="radiogroup" accessibilityLabel={label}>
+        {/* ui-rows-lint: not a list (choice chips) */}
         {options.map((o) => (
           <Pressable key={o.id} accessibilityRole="radio" accessibilityState={{ checked: value === o.id }} accessibilityLabel={o.label} testID={`${testID}-${o.id || "any"}`} onPress={() => onChange(o.id)} style={[s.chip, value === o.id && s.chipOn]}>
             <Text style={[s.chipText, value === o.id && s.chipTextOn]}>{o.label}</Text>
@@ -48,11 +50,13 @@ export function LiveSettings({ attrs, onSave, onClose }: { attrs: LiveAttrs; onS
           <Text style={s.label}>Record type</Text>
           {types.length > 0 ? (
             <View style={s.chips} accessibilityRole="radiogroup" accessibilityLabel="Record type">
+              {/* ui-rows-lint: not a list (choice chips) */}
               {types.map((t) => <Pressable key={t.key} accessibilityRole="radio" accessibilityState={{ checked: spec["type"] === t.key }} accessibilityLabel={t.title} testID={`live-type-${t.key}`} onPress={() => set("type", t.key)} style={[s.chip, spec["type"] === t.key && s.chipOn]}><Text style={[s.chipText, spec["type"] === t.key && s.chipTextOn]}>{t.title}</Text></Pressable>)}
             </View>
           ) : <TextInput accessibilityLabel="Record type" testID="live-type" value={String(spec["type"] ?? "")} onChangeText={(v) => set("type", v.trim())} placeholder="The record type's key" placeholderTextColor="var(--ink-4)" style={s.input} />}
         </View>
       ) : null}
+      {/* ui-rows-lint: not a list (one group of choice chips per setting) */}
       {choices.map((c) => <Chips key={c.key} label={c.label} value={String(spec[c.key] ?? c.choices[0]?.id ?? "")} options={c.choices} onChange={(v) => set(c.key, v === "" ? undefined : v)} testID={`live-spec-${c.key}`} />)}
       {attrs.type === "metric" && spec["op"] === "sum" ? <View style={s.field}><Text style={s.label}>Field to add up</Text><TextInput accessibilityLabel="Field to add up" testID="live-field" value={String(spec["field"] ?? "")} onChangeText={(v) => set("field", v.trim())} placeholder="amount" placeholderTextColor="var(--ink-4)" style={s.input} /></View> : null}
       {kind && kind.views.length > 1 ? <Chips label="View" value={view as LiveView} options={VIEWS.filter((v) => kind.views.includes(v.id))} onChange={(v) => setView(v)} testID="live-view" /> : null}
@@ -78,11 +82,8 @@ export function HistorySheet({ projectId, now, canEdit, me, onUndone, onClose }:
           const who = r.by === me ? "you" : d.nameOf(r.by);
           const l = revisionLine(r, who, now);
           return (
-            <View key={r.rev} style={s.hrow} testID={`rev-${r.rev}`}>
-              <Avatar name={d.nameOf(r.by)} kind={r.authorKind === "agent" ? "agent" : "person"} size={22} />
-              <View style={{ flex: 1, minWidth: 0 }}><Text numberOfLines={2} style={s.hTitle}>{l.title}</Text><Text style={s.hNote}>{l.note}</Text></View>
-              {i === 0 ? (canEdit && r.undoOf === undefined && rows.length > 1 ? <Pressable accessibilityRole="button" accessibilityLabel={`Undo version ${r.rev}`} testID={`rev-undo-${r.rev}`} onPress={() => void undo(r.rev)} style={s.act}><Text style={s.actText}>Undo</Text></Pressable> : <Text style={s.cur}>Current</Text>) : null}
-            </View>
+            <Row key={r.rev} id={`rev-${r.rev}`} title={l.title} note={l.note} leading={<Avatar name={d.nameOf(r.by)} kind={r.authorKind === "agent" ? "agent" : "person"} size={22} />}
+              trailing={i === 0 ? (canEdit && r.undoOf === undefined && rows.length > 1 ? <Pressable accessibilityRole="button" accessibilityLabel={`Undo version ${r.rev}`} testID={`rev-undo-${r.rev}`} onPress={() => void undo(r.rev)} style={s.act}><Text style={s.actText}>Undo</Text></Pressable> : <Text style={s.cur}>Current</Text>) : undefined} />
           );
         })}
       </ScrollView>
@@ -106,10 +107,7 @@ export function TemplateSheet({ projectId, canEdit, onApply, onSaved, onClose }:
     <Dialog title="Start from a template" onClose={onClose} testID="overview-templates" actions={[{ label: "Cancel", onPress: onClose, testID: "overview-templates-cancel" }]}>
       <Text style={s.note}>This replaces the blocks on this page. The current page stays in the history.</Text>
       {list === null ? <Text style={s.note}>Loading…</Text> : list.map((t) => (
-        <Pressable key={t.templateId} accessibilityRole="button" accessibilityLabel={t.title} testID={`tpl-${t.templateId}`} disabled={!canEdit} onPress={() => onApply(t)} style={({ hovered }: { hovered?: boolean }) => [s.trow, hovered === true && s.over]}>
-          <View style={{ flex: 1, minWidth: 0 }}><Text style={s.hTitle}>{t.title}</Text>{t.summary ? <Text numberOfLines={2} style={s.hNote}>{t.summary}</Text> : null}</View>
-          <Text style={s.hNote}>{t.blocks} blocks</Text>
-        </Pressable>
+        <Row key={t.templateId} id={`tpl-${t.templateId}`} title={t.title} {...(t.summary ? { note: t.summary } : {})} trailing={<Text style={s.hNote}>{`${t.blocks} blocks`}</Text>} {...(canEdit ? { onPress: () => onApply(t) } : { inert: true })} />
       ))}
       {canEdit ? (
         <View style={s.field}>
