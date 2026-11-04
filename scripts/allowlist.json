@@ -275,6 +275,11 @@
       "dev": false
     },
     {
+      "name": "katex",
+      "reason": "math in chat replies, written as MathML; loaded only when a reply holds a formula (ui/src/stream/enable-diagrams.ts)",
+      "dev": false
+    },
+    {
       "name": "y-prosemirror",
       "reason": "binds the Yjs fragment to ProseMirror for TipTap collaboration",
       "dev": false
