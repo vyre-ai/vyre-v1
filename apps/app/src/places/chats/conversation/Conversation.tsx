@@ -471,7 +471,7 @@ function ConversationView(): ReactElement {
     return items;
   };
   const moreMenu = (x: number, y: number): void => { menu.show(moreEntries(), x, y, "other", { label: "Chat" }); };
-  // in a project's frame the page draws these in its own header (conversation/frame.ts). The controls are built here, and a small child hands them over: hooks cannot sit down here, after the early returns.
+  // in a project's frame the page draws these in its own header (conversation/frame.ts). The controls are built here, and a small child hands them over: hooks cannot sit down here, after the early returns above.
   const frameFeed: FrameControls | null = frame ? {
     find: { active: finding, toggle: () => setFinding((f) => !f) },
     pane: { toggle: () => data.nav.togglePane() },
