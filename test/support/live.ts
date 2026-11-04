@@ -43,7 +43,7 @@ export async function boot(dir: string, standIn: OpenSession | null, extra: { en
     }),
     fetch: caddyFetch,
     intervals: { fast: 3_600_000, slow: 3_600_000, encryption: 3_600_000, commands: 3_600_000, hooks: 3_600_000 },
-    ...(extra.realVault ? {} : { vault: { secret: async () => KEY, signRs256: async () => "" } }),
+    ...(extra.realVault ? {} : { vault: { secret: async () => process.env["VYRE_TEST_VAULT_SECRET"] ?? KEY, signRs256: async () => "" } }),   // a live test pointed at a real vendor sets VYRE_TEST_VAULT_SECRET to its key: the stand-in Vault then fills that key, not the fake one
     ...(standIn ? { engineOpenSession: standIn } : {}),
     ...(extra.engineCli !== undefined ? { engineCli: extra.engineCli as never } : {}),
     ...(extra.seams !== undefined ? { seams: extra.seams as never } : {}),
