@@ -4,6 +4,7 @@ import { HostError, makeError } from "../../../host/src/routes/errors.ts";
 import type { CtxSeed, Invoke } from "../../../host/src/invoke.ts";
 import { heldCard, recordWork, workCardOf } from "./work-cards.ts";
 import type { CapName, ErrorCode, NextStep, VyreError } from "../../../packages/contracts/src/types.ts";
+import { limited, shapeOutput } from "./compact.ts";
 import { askLevel, refusalFor, searchTools, TASK_BATON_TOOLS, toolsFor, reachesScope } from "./access.ts";
 import type { AccessDeps } from "./access.ts";
 import type { LocalDecision } from "./local.ts";
@@ -155,7 +156,7 @@ export function createToolSession(deps: CallDeps): ToolSession {
       ...(t.effects !== "read" && t.planMode === "blocked" ? { askable: true } : {}),
     };
     try {
-      const res = await deps.invoke(t.cap, isDynamic && deps.dynamic ? deps.dynamic.input(ctx, t, input) : unstringified(t.inputSchema, input), seed);
+      const res = await deps.invoke(t.cap, isDynamic && deps.dynamic ? deps.dynamic.input(ctx, t, input) : limited(t.cap, unstringified(t.inputSchema, input)), seed);
       if (res.status === "held") {
         recordWork(ctx.turnId, heldCard(t.cap, res.taskId, input));
         return {
@@ -170,7 +171,9 @@ export function createToolSession(deps: CallDeps): ToolSession {
         if (typeof made === "string") await deps.invoke("chat.flow_card", { threadId: ctx.thread.threadId, automationId: made, idempotencyKey: `flow-card:${made}` }, seed).catch(() => undefined);
       }
       recordWork(ctx.turnId, workCardOf(t.cap, input, res.output));
-      const content: { data: unknown; blocks?: string[] } = { data: res.output };
+      // the calendar and mail reads come back to a model as compact rows with a count and a size (compact.ts); the full answer is what the hooks and the work card see
+      const shaped = isDynamic ? null : shapeOutput(t.cap, res.output);
+      const content: { data: unknown; meta?: unknown; blocks?: string[] } = shaped ? { data: shaped.data, meta: shaped.meta } : { data: res.output };
       if (t.blocks.length > 0) content.blocks = t.blocks;
       if (deps.hooks?.after) void Promise.resolve(deps.hooks.after(ctx, t, input, { ok: true, output: res.output })).catch(() => undefined);
       return { kind: "result", traceId: res.traceId, result: { ok: true, content } };
