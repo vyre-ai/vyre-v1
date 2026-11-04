@@ -10,7 +10,11 @@ import type { ConversationData } from "../conversation/data.tsx";
 import type { LiveTurn } from "../../../shell/session/turn-streams.ts";
 import type { ReplySummary } from "../conversation/replies.ts";
 import type { Clock } from "../rightpane/model.ts";
-import { footerOf, showsFooter } from "./model.ts";
+import { CONVERSATION_SCREEN } from "../conversation/Conversation.tsx";
+import { useLive } from "../mounts/live.ts";
+import type { CapMap } from "../../../../../../generated/types.ts";
+import { footerOf, parkedTask, showsFooter } from "./model.ts";
+import type { Waiting } from "./model.ts";
 
 const NO_TURNS: readonly LiveTurn[] = [];
 const noSub = (): (() => void) => () => undefined;
@@ -44,6 +48,31 @@ export function useTurnsOf(data: Pick<ConversationData, "live" | "call" | "conne
   return useSyncExternalStore(live ? live.subscribe : noSub, read, read);
 }
 
+type MessagesOut = CapMap["chat.messages.list"]["out"];
+
+/** A turn in the thread that is parked on an approval: the one line of the approval and who must say yes. Read only when an agent wrote last, so a thread of people costs nothing. */
+function useWaiting(threadId: string, lastByAgent: boolean): Waiting | undefined {
+  const data = useConversationData();
+  const q = useLive<MessagesOut>(data.screens, CONVERSATION_SCREEN, "messages", lastByAgent ? { threadId } : null);
+  const taskId = lastByAgent && q.status === "ready" ? parkedTask(q.data.messages as never) : null;
+  const [w, setW] = useState<Waiting | undefined>(undefined);
+  useEffect(() => {
+    if (taskId === null) { setW(undefined); return undefined; }
+    let gone = false;
+    const say = (title: string, who: string): void => { if (!gone) setW({ line: title, who }); };
+    say("", "");   // parked now; the line follows once the approval is read
+    try {
+      void Promise.resolve(data.call("tasks.get", { taskId })).then((r) => {
+        const t = (r as { task?: { title?: string; assigned?: { kind?: string; id?: string } } }).task;
+        const to = t?.assigned?.kind === "person" && t.assigned.id !== data.me.id ? t.assigned.id : undefined;
+        say(String(t?.title ?? "").replace(/^.*? asks: /, "").replace(/^Approve: /, ""), to ? `${data.nameOf(to).split(" ")[0]}'s` : "");
+      }, () => undefined);
+    } catch { /* the approval cannot be read here: the footer still says it waits */ }
+    return () => { gone = true; };
+  }, [taskId, data]);
+  return w;
+}
+
 export function ThreadFooter({ s, clock, nameOf, onOpen, mine = false, testID, threadId }: { s: ReplySummary | undefined; clock: Clock; nameOf(id: string): string; onOpen(): void; mine?: boolean; testID: string; threadId: string }): ReactElement | null {
   const turns = useThreadTurns(threadId);
   const writing = turns.some((t) => t.state === "writing");
@@ -55,8 +84,18 @@ export function ThreadFooter({ s, clock, nameOf, onOpen, mine = false, testID, t
     (t as { unref?: () => void }).unref?.();   // a timer must never keep a process alive
     return () => clearInterval(t);
   }, [writing]);
-  const f = footerOf(s, turns, now, clock);
+  const waiting = useWaiting(threadId, s?.lastBy?.kind === "agent" && !writing);
+  const f = footerOf(s, turns, now, clock, waiting);
   if (!showsFooter(f, s) || f === null) return null;
+  if (f.waiting) {
+    return (
+      <Pressable testID={testID} accessibilityRole="button" accessibilityLabel={`Open the thread: ${f.label}`} onPress={onOpen} style={({ hovered }: { hovered?: boolean }) => [st.line, mine && st.mine, hovered === true && st.over]}>
+        <View style={st.face}><Face name={nameOf(s?.lastBy?.id ?? "")} seedId={s?.lastBy?.id} kind="agent" size={18} /></View>
+        <Text testID={`${testID}-waiting`} numberOfLines={1} style={st.doneText}><Text style={st.head}>{f.head}</Text>{f.waiting.line !== "" ? ` \u00b7 ${f.waiting.line}` : ""}</Text>
+        {f.count !== "0 replies" ? <Text testID={`${testID}-count`} style={[st.count, f.bold && st.bold]}>{f.count}</Text> : null}
+      </Pressable>
+    );
+  }
   if (f.done && s) {
     return (
       <Pressable testID={testID} accessibilityRole="button" accessibilityLabel={`Open the thread: Done, ${f.done.line}, ${f.label}`} onPress={onOpen} style={({ hovered }: { hovered?: boolean }) => [st.line, mine && st.mine, hovered === true && st.over]}>

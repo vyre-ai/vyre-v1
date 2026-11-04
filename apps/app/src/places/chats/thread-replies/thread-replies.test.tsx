@@ -17,7 +17,7 @@ import type { Message } from "../conversation/model.ts";
 import { replySummaries } from "../conversation/replies.ts";
 import * as actions from "../conversation/actions.ts";
 import { alsoSentIds } from "./also-sent.ts";
-import { footerOf, mmss, repliesOf, SWITCH_TITLE } from "./model.ts";
+import { footerOf, mmss, parkedTask, repliesOf, SWITCH_TITLE } from "./model.ts";
 
 const widen = (width: number): void => Dimensions.set({ window: { width, height: 844, scale: 1, fontScale: 1 } });
 const at = (h: number, min: number): number => Date.UTC(2025, 9, 24, h, min, 0);
@@ -80,6 +80,59 @@ test("when the agent has finished the footer says Done with its one-line outcome
   s.replica.put("threads", [threadRow({ replyCount: 4, lastMessageAt: at(9, 50), repliers: [{ kind: "person", id: "usr_irfad" }], preview: "Thanks" })]);
   await flush();
   assert.doesNotMatch(textOf(find(root, "replies-c2")), /Done/);
+});
+
+const waitingBlock = [{ type: "turn_status", v: 1, id: "ts1", data: { state: "waiting", turnId: "turn_1", taskId: "tsk_1" } }] as never;
+function parked(assignee: string): Sample {
+  const s = channel();
+  s.replica.put("threads", [threadRow({ replyCount: 1, lastMessageAt: at(9, 40), repliers: [{ kind: "agent", id: "agt_intake" }], preview: "I will tell Noah." })]);
+  s.replica.put("messages", [msg("pm1", "t_c2", 1, intake, "I will tell Noah.", { blocks: waitingBlock })]);
+  const call = s.data.call;
+  s.data.call = async (cap: string, input: unknown) => (cap === "tasks.get" ? { task: { title: "Intake asks: Send a message", assigned: { kind: "person", id: assignee } } } : call(cap, input));
+  return s;
+}
+
+test("a turn parked on an approval says Waiting for your OK with the approval's line, never Done; when someone else must say yes it names them; it turns to Done when the turn ends", async () => {
+  installDom(); widen(1280);
+  // yours to approve
+  const mine = parked("usr_irfad");
+  const root = await mount(createRoot, <Conversation data={mine.data} />);
+  await flush(); await flush();
+  const foot = textOf(find(root, "replies-c2"));
+  assert.match(foot, /Waiting for your OK/);
+  assert.match(foot, /Send a message/, "the approval's one line");
+  assert.match(foot, /1 reply/);
+  assert.doesNotMatch(foot, /Done/, "not Done while it waits");
+  // someone else's to approve
+  const theirs = parked("usr_maya");
+  const r2 = await mount(createRoot, <Conversation data={theirs.data} />);
+  await flush(); await flush();
+  assert.match(textOf(find(r2, "replies-c2")), /Waiting for Maya's OK/);
+  // the turn ends: a later message from the agent, and the footer says Done with its line
+  mine.replica.put("messages", [msg("pm2", "t_c2", 2, intake, "Sent. Noah has the time.")]);
+  mine.replica.put("threads", [threadRow({ replyCount: 2, lastMessageAt: at(9, 50), repliers: [{ kind: "agent", id: "agt_intake" }], preview: "Sent. Noah has the time." })]);
+  await flush(); await flush();
+  const done = textOf(find(root, "replies-c2"));
+  assert.match(done, /Done\s+\S\s+Sent\. Noah has the time\./);
+  assert.doesNotMatch(done, /Waiting/);
+  assert.equal(parkedTask([{ blocks: waitingBlock as never }, { kind: "agent", blocks: [] }]), null, "a later message ends the wait");
+  assert.equal(parkedTask([{ blocks: waitingBlock as never }]), "tsk_1");
+});
+
+test("the quiet approval line in the chat is one button that opens the thread, with a hover state and keyboard focus", async () => {
+  installDom(); widen(1280);
+  const s = channel();
+  s.replica.put("messages", [msg("ap1", "c1", 3, intake, "", { blocks: [{ type: "turn_status", v: 1, id: "n1", data: { state: "note", text: "needs your OK" } }, { type: "from_thread", v: 1, id: "f1", data: { threadId: "t_c2", messageId: "" } }] as never })]);
+  const root = await mount(createRoot, <Conversation data={s.data} />);
+  await flush();
+  const line = find(root, "approval-line-ap1");
+  assert.ok(line, "the line is a button");
+  assert.equal(line!.props.role, "button");
+  assert.equal(line!.props.tabIndex, 0, "reachable by keyboard");
+  assert.match(textOf(line), /Intake needs your OK in a thread\.\s+Open the thread/, "one line, the link on the last part");
+  assert.equal(find(root, "from-thread-ap1"), null, "no second link beside it");
+  await press(line);
+  assert.deepEqual(s.opened.filter((o) => o.startsWith("thread:")), ["thread:t_c2"], "pressing it opens the thread");
 });
 
 test("the no-agent hint agrees with the routing: no line under an ask an agent answers in a thread; with nobody answering it is a quiet line, not underlined", async () => {

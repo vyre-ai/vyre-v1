@@ -846,7 +846,7 @@ function OlderPage({ before, onPage }: { before: number; onPage: (page: Messages
 
 const st = StyleSheet.create({
   /** "Also post to the chat" sits above a thread's composer, as the prototype draws it, so the composer's own bar keeps its room in a narrow pane. */
-  alsoRow: { paddingHorizontal: 20, paddingTop: 2 },
+  alsoRow: { paddingLeft: 28, paddingRight: 20, marginBottom: -6 },
   outsideOffline: { paddingHorizontal: 16, paddingBottom: 6, fontSize: 12.5, lineHeight: 17, color: "var(--ink-3)" as string, textAlign: "center" },
   root: { flex: 1, minHeight: 0, backgroundColor: "var(--win)" as string },
   head: { minHeight: 48, flexDirection: "row", alignItems: "center", gap: 8, paddingLeft: 20, paddingRight: 10 },

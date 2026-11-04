@@ -163,14 +163,17 @@ try {
     { const { page, ctx } = await open("usr_mia", { mode });
       await page.getByText(/needs your OK/).first().waitFor({ timeout: 15000 }).catch(() => console.log("noquiet"));
       await shot(page, `main-approval-${mode}`);
-      await page.getByText(/needs your OK/).first().click({ timeout: 8000 }).catch(() => console.log("noopen"));
+      await page.getByText("Open the thread", { exact: true }).first().click({ timeout: 8000 }).catch(() => console.log("noopen"));
       await page.waitForTimeout(1500);
       await shot(page, `thread-approval-${mode}`);
       await ctx.close(); }
   }
   { const { page, ctx } = await open("usr_mia", { mode: "light", w: 390, hh: 844 });
     await page.getByText(/needs your OK/).first().waitFor({ timeout: 15000 }).catch(() => console.log("noquiet-phone"));
-    await shot(page, "phone-main-approval-light"); await ctx.close(); }
+    await shot(page, "phone-main-approval-light");
+    await page.getByText("Open the thread", { exact: true }).first().click({ timeout: 8000 }).catch(() => console.log("noopen-phone"));
+    await page.waitForTimeout(1500);
+    await shot(page, "phone-thread-approval-light"); await ctx.close(); }
 } catch (e) { console.log("WALK FAILED", e); }
 console.log("CHECKS\n" + checks.join("\n"));
 await browser.close(); web.close(); await eco.stop(d); process.exit(0);

@@ -396,6 +396,17 @@ function Mine({ item, actions, sending, mark, replies }: MessageViewProps & { it
 
 /* ---------- anyone else's ---------- */
 
+/** An approval asked in a thread rises to the chat as one quiet line: the whole line is a button that opens the thread, where the held card is the newest thing. */
+const isApprovalUp = (b: { type: string; data?: unknown }): boolean => b.type === "from_thread" && (b.data as { messageId?: unknown } | null)?.messageId === "";
+function ApprovalLine({ id, who, threadId, open }: { id: string; who: string; threadId: string; open(threadId: string): void }): ReactElement {
+  return (
+    <Pressable testID={`approval-line-${id}`} accessibilityRole="button" accessibilityLabel={`${who} needs your OK. Open the thread`} onPress={() => open(threadId)}
+      style={({ hovered, focused }: { hovered?: boolean; focused?: boolean }) => [st.approvalLine, hovered === true && st.approvalOver, focused === true && st.approvalFocus]}>
+      <Text style={st.approvalText}>{`${who} needs your OK in a thread. `}<Text style={st.approvalOpen}>Open the thread</Text></Text>
+    </Pressable>
+  );
+}
+
 function Theirs({ item, actions, stream, openWork, mark, meId, replies }: MessageViewProps & { item: Extract<Item, { kind: "other" }> }): ReactElement {
   const m = item.message;
   const [sheet, setSheet] = useState(false);
@@ -484,6 +495,7 @@ function Theirs({ item, actions, stream, openWork, mark, meId, replies }: Messag
         if (isQuote(b.type)) return <QuoteCard key={b.id} id={b.id} data={b.data} />;
         if (isChromeHeld(b.type)) return <HeldSendCard key={b.id} id={b.id} data={b.data} agentId={item.who.id} agentName={item.who.name} actions={actions.chrome} />;
         if (isChromeStep(b.type)) return <ChromeStepCard key={b.id} id={b.id} data={b.data} agentId={item.who.id} agentName={item.who.name} actions={actions.chrome} />;
+        if (isApprovalUp(b)) return <ApprovalLine key={b.id} id={m.messageId} who={item.who.name} threadId={String((b.data as { threadId?: unknown } | null)?.threadId ?? "")} open={(t) => actions.openMessage?.(t, "")} />;
         if (b.type === "from_thread") {
           const tid = String((b.data as { threadId?: unknown } | null)?.threadId ?? "");
           return <Pressable key={b.id} accessibilityRole="link" testID={`from-thread-${m.messageId}`} onPress={() => (tid !== "" ? actions.openMessage?.(tid, "") : undefined)}><Text style={st.edited}>{typeof (b.data as { messageId?: unknown } | null)?.messageId === "string" && (b.data as { messageId: string }).messageId !== "" ? FROM_THREAD_LINE : "Open the thread"}</Text></Pressable>;
@@ -511,7 +523,7 @@ function Theirs({ item, actions, stream, openWork, mark, meId, replies }: Messag
         return <Card key={b.id} line={cardLine(b)} actions={actions} />;
       })}
       {collect(errors, (b) => <ErrorRowView key={b.id} block={b} actions={actions} />)}
-      {collect(statuses, (x) => (x.kind === "note" ? <Text key={x.id} testID={`status-${x.id}`} style={st.edited}>{x.text}</Text>
+      {collect(m.blocks.some(isApprovalUp) ? statuses.filter((x) => x.kind !== "note") : statuses, (x) => (x.kind === "note" ? <Text key={x.id} testID={`status-${x.id}`} style={st.edited}>{x.text}</Text>
         : x.kind === "wait" ? <View key={x.id} testID={`status-${x.id}`} style={st.waitRow}><Text style={st.edited}>{x.text}</Text><TextButton link label={x.action.label} testID={`status-${x.action.key}`} onPress={() => actions.errorNext(x.action.key)} /></View>
         : x.kind === "approval" && actions.files ? <ApprovalCard key={x.id} taskId={x.taskId} agent={item.who.name} agentId={item.who.id} {...(item.who.face ? { face: item.who.face } : {})} data={actions.files} /> : null))}
       {item.who.forPerson && actions.agentMute && actions.agentMute.offerFor === m.messageId && onBehalfOf(m)?.teammate === actions.agentMute.me ? (
@@ -690,6 +702,11 @@ function ErrorRowView({ block, actions }: { block: Message["blocks"][number]; ac
 }
 
 export const st = StyleSheet.create({
+  approvalLine: { flexDirection: "row", alignItems: "center", gap: 10, alignSelf: "flex-start", marginTop: 4, paddingVertical: 5, paddingHorizontal: 10, marginLeft: -10, borderRadius: 8 },
+  approvalOver: { backgroundColor: "var(--hover)" as string },
+  approvalFocus: { borderWidth: 2, borderColor: "var(--accent)" as string, paddingVertical: 3, paddingHorizontal: 8 },
+  approvalText: { fontSize: 13, color: "var(--ink-2)" as string },
+  approvalOpen: { color: "var(--accent)" as string, fontWeight: "500" },
   fromThreadMine: { alignSelf: "flex-end", marginTop: 4 },
   day: { alignSelf: "center", fontSize: 12, color: "var(--ink-3)" as string, marginTop: 18, marginBottom: 6 },
   eventCard: { flexShrink: 1, minWidth: 0 },
