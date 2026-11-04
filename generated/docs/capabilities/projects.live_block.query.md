@@ -50,6 +50,7 @@ type Out = {
   total: number;
   value?: number;
   label?: string;
+  unit?: string;
 };
 ```
 
@@ -88,6 +89,7 @@ type Out = {
     ],
     "total": 1,
     "type": "tasks",
+    "unit": "example",
     "value": 1
   }
 }

@@ -30185,6 +30185,7 @@ export type ProjectsLiveBlockQueryOut = {
   total: number;
   value?: number;
   label?: string;
+  unit?: string;
 };
 export type ProjectsMembersListIn = {
   projectId: string;

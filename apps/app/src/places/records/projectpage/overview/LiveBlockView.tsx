@@ -54,7 +54,7 @@ function useCurrency(type: unknown, field: unknown, on: boolean): string | undef
     let live = true;
     void Promise.resolve(d.call("schema.types.get", { type })).then((o) => {
       const f = ((o as { type?: { fields?: { key: string; type: string; options?: Record<string, unknown> }[] } }).type?.fields ?? []).find((x) => x.key === field);
-      if (live && f && f.type === "currency") setCode(typeof f.options?.["currency"] === "string" ? String(f.options["currency"]) : "USD");
+      if (live && f && (f.type === "currency" || f.type === "money")) setCode(typeof f.options?.["currency"] === "string" ? String(f.options["currency"]) : "USD");
     }, () => undefined);
     return () => { live = false; };
   }, [d, type, field, on]);
@@ -146,7 +146,8 @@ export function LiveBlockView({ projectId, attrs, readOnly, api, fresh = false, 
   const title = liveTitle(attrs.type, attrs.spec);
   const ready = liveReady(attrs.type, attrs.spec);
   const spec = (attrs.spec ?? {}) as Record<string, unknown>;
-  const unit = useCurrency(spec["type"], spec["field"], attrs.type === "metric" && spec["op"] === "sum");
+  const looked = useCurrency(spec["type"], spec["field"], attrs.type === "metric" && spec["op"] === "sum" && out !== null && out !== "error" && out.unit === undefined);
+  const unit = out !== null && out !== "error" ? out.unit ?? looked : looked;
   const noun = types.find((x) => x.key === spec["type"])?.plural ?? "rows";
   let body: ReactElement;
   if (kind === undefined) body = <Text testID="live-unknown" style={s.dim}>This block (&quot;{attrs.type}&quot;) is kept as written. This version of Vyre cannot draw it.</Text>;

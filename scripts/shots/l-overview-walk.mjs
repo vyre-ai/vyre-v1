@@ -30,8 +30,8 @@ for (const skin of ["paper", "graphite"]) for (const [size, vp] of [["wide", { w
   await go();
   check(`${tag}: the page shows properties, two live blocks and the editor`, (await page.locator(T("prop-contract")).count()) === 1 && (await page.locator(T("live-tasks")).count()) === 1 && (await page.locator(T("live-records")).count()) === 1 && (await page.locator(".ProseMirror").count()) === 1);
   check(`${tag}: a live block counts what the reader cannot open`, /2 more you can't open/.test((await page.textContent(T("live-hidden"))) ?? ""));
-  const op = await page.evaluate(() => getComputedStyle(document.querySelector("[data-lb-tools]")).opacity);
-  check(`${tag}: a live block's strip is hidden at rest on a wide page and always on at phone width`, size === "wide" ? op === "0" : op === "1", `opacity ${op}`);
+  const op = size === "wide" ? await page.evaluate(() => getComputedStyle(document.querySelector("[data-lb-tools]")).opacity) : (await page.locator(`${T("live-tasks")} ${T("live-edit")}`).isVisible() ? "on" : "off");
+  check(`${tag}: a live block's strip is hidden at rest on a wide page and always on at phone width`, size === "wide" ? op === "0" : op === "on", `opacity ${op}`);
   check(`${tag}: a live block has no card border`, (await page.evaluate(() => { const b = document.querySelector("[data-lb]"); const c = getComputedStyle(b); return c.borderTopWidth === "0px" && (c.backgroundColor === "rgba(0, 0, 0, 0)" || c.backgroundColor === "transparent"); })));
   await page.screenshot({ path: path.join(out, `overview-page-${tag}.png`) });
   if (size === "wide") { await page.locator(`${T("live-tasks")}`).hover(); await page.waitForTimeout(300); await page.screenshot({ path: path.join(out, `overview-hover-${tag}.png`) }); }

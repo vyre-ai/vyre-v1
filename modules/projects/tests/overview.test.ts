@@ -399,3 +399,21 @@ test("a tasks block can show what is waiting, and what is assigned to the reader
   const mine = await run(h, "projects.live_block.query", { projectId: p.projectId, type: "tasks", spec: { status: "all", assigned: "me" } });
   assert.ok(Array.isArray(mine.rows));
 });
+
+test("a metric that sums a money field adds the amounts, whether the field holds a number or { amount, currency }, and says the currency", async () => {
+  const h = harness();
+  const p = await mkProject(h);
+  const money = [
+    { id: "m1", fields: { number: "A", status: "sent", amount: { amount: 1200, currency: "USD" } }, openTo: [DANA] },
+    { id: "m2", fields: { number: "B", status: "sent", amount: { amount: 800.5, currency: "USD" } }, openTo: [DANA] },
+    { id: "m3", fields: { number: "C", status: "sent", amount: 99 }, openTo: [DANA] },
+  ];
+  invoices(h, money);
+  const out = await run(h, "projects.live_block.query", { projectId: p.projectId, type: "metric", spec: { title: "Unpaid", type: "invoice", op: "sum", field: "amount" } });
+  assert.equal(out.value, 2099.5, "a money value is its amount, not NaN or 0");
+  assert.equal(out.unit, "USD");
+  assert.deepEqual(contractErrors("projects.live_block.query", "out", out), []);
+  const count = await run(h, "projects.live_block.query", { projectId: p.projectId, type: "metric", spec: { title: "Invoices", type: "invoice", op: "count" } });
+  assert.equal(count.value, 3);
+  assert.equal(count.unit, undefined);
+});
