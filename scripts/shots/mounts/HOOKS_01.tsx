@@ -44,7 +44,7 @@ function Page({ view, skin }: { view: string; skin: string }): ReactNode {
     const made = [
       quiet("msg_hook1", "Intake added a hook in this chat: before any email, check the address is in Contacts", "added"),
       quiet("msg_hook2", "Intake set a hook for its helpers: before a helper opens a link, only open links from the quotes you were sent", "added", { hookId: "hok_run", scope: "run" }),
-      quiet("msg_hook3", "A hook stopped this: the address isn't in Contacts", "blocked", { reason: "the address isn't in Contacts", agentId: "agt_intake", next: [{ label: "Add Harbor Supply to Contacts", ask: "Please add Harbor Supply to Contacts, then send the email" }, { label: "Send once without adding", ask: "Send it once without adding them, I will check it myself" }] }),
+      quiet("msg_hook3", "A hook stopped this: the address isn't in Contacts", "blocked", { reason: "the address isn't in Contacts", tool: "mail_send", ...(view === "answered" ? { resolved: "denied" } : {}), agentId: "agt_intake", next: [{ label: "Add Harbor Supply to Contacts", ask: "Please add Harbor Supply to Contacts, then send the email" }, { label: "Send once without adding", ask: "Send it once without adding them, I will check it myself" }] }),
       { messageId: "msg_hook4", threadId: s.data.threadId, threadSeq: seq + 1, author: { kind: "agent", id: "agt_intake" }, kind: "agent", body: "I did not send it. Harbor Supply's address is not in Contacts yet.", depth: 0, attachments: [], reactions: [], pinned: false, createdAt: at + 5_000, blocks: [] } as unknown as Message,
     ];
     s.replica.put("messages", made.map((m) => ({ id: m.messageId, ...m })));
