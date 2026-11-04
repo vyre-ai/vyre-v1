@@ -22,3 +22,4 @@
 - Profile: Notifies never reveals a private mute (a thread they left reads Off); a chat in Shared context takes the one chat name; no chats together reads "Not enough chats yet".
 - chat.pace_of matches mentions by person id (chat_mention, kept per message from the composer chips), not by a name in the words; two people with one first name are told apart.
 - chat_mention is migration 0007 of the chat module; deleting a message, erasing a chat, the retention purge and removing a person delete its rows.
+- Tests: addsheet.test.tsx is split in two (shared helpers in addsheet.support.tsx) so each file stays under the 30 s CI cap; the agent done-glow timer no longer keeps a process alive for 90 s.
