@@ -251,7 +251,7 @@ function Pane({ type, row, def, tab, onTab, phone = false }: { type: string; row
       onLayout={(e) => { const w = Math.round(e.nativeEvent.layout.width); if (w > 0 && w !== paneW) setPaneW(w); }}
     >
       <TabMeasure titles={PANE_TABS.map((x) => x.title)} onWidth={titles.set} />
-      <TabStrip tabs={strip as never} active={tab} onSelect={select} />
+      <TabStrip underline tabs={strip as never} active={tab} onSelect={select} />
       {fill ? <View style={p.paneFill}>{body}</View> : <ScrollView style={p.paneScroll}>{body}</ScrollView>}
       {menu.element}
     </ResizableColumn>

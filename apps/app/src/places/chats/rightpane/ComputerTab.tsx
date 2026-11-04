@@ -40,6 +40,7 @@ function Screen({ view, caption, onPress, name, online, live }: { view: ReturnTy
           <View style={[st.line, { width: "56%" }]} />
         </View>
       </View>
+      <View style={st.dock}>{(["globe", "terminal", "folder"] as const).map((n) => <View key={n} style={st.dockItem}><Icon name={n} size={9} color="#fff" /></View>)}</View>
       {dim ? <View style={st.center}><View style={st.wake}><Icon name="moon" size={13} color="var(--ink-2)" /><Text style={st.wakeText}>Wake</Text></View></View> : null}
       {!dim ? <View style={st.cap}><Text numberOfLines={1} style={st.capText}>{view.screen === "mine" ? "You're typing" : caption}</Text></View> : null}
     </>
@@ -338,8 +339,8 @@ const st = StyleSheet.create({
   pic: { borderRadius: 12, backgroundColor: "#211f33" as string, overflow: "hidden", marginBottom: 12, borderWidth: 1, borderColor: "var(--line-2)" as string },
   picWin: { position: "absolute", left: "12%", right: "12%", top: 14, bottom: 22, borderRadius: 6, backgroundColor: "#f4f3f8" as string, overflow: "hidden" },
   picBar: { height: 10, backgroundColor: "#dcdbe6" as string },
-  dock: { position: "absolute", bottom: 5, left: 0, right: 0, flexDirection: "row", justifyContent: "center", gap: 5 },
-  dockItem: { width: 15, height: 15, borderRadius: 5, backgroundColor: "rgba(255,255,255,0.22)" as string, alignItems: "center", justifyContent: "center" },
+  dock: { position: "absolute", bottom: 6, left: 0, right: 0, flexDirection: "row", justifyContent: "center", gap: 6 },
+  dockItem: { width: 17, height: 17, borderRadius: 6, backgroundColor: "rgba(255,255,255,0.22)" as string, alignItems: "center", justifyContent: "center" },
   headline: { fontSize: 16.5, fontWeight: "600", color: "var(--ink)" as string, marginBottom: 8 },
   gets: { gap: 7, marginBottom: 14 },
   get: { flexDirection: "row", gap: 9, alignItems: "flex-start" },
@@ -389,19 +390,19 @@ const st = StyleSheet.create({
   dotLive: { backgroundColor: "var(--ok)" as string },
   dotMine: { backgroundColor: "var(--accent)" as string },
   statusText: { flexShrink: 1, fontSize: 12.5, fontWeight: "500", color: "var(--ink-2)" as string },
-  screen: { height: SCREEN_H, borderRadius: 14, backgroundColor: "var(--sunk)" as string, overflow: "hidden" },
+  screen: { height: SCREEN_H, borderRadius: 14, backgroundColor: "#17161f" as string, backgroundImage: "radial-gradient(120% 120% at 20% 10%, #3a3468, #17161f 70%)", overflow: "hidden" } as object,
   screenMine: { borderWidth: 1.5, borderColor: "var(--accent)" as string },
-  window: { position: "absolute", left: 14, right: 14, top: 14, bottom: 0, borderTopLeftRadius: 8, borderTopRightRadius: 8, backgroundColor: "var(--raised)" as string, overflow: "hidden" },
-  bar: { height: 18, flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8, backgroundColor: "var(--hover)" as string },
-  dot: { width: 5, height: 5, borderRadius: 3, backgroundColor: "var(--ink-4)" as string },
-  url: { flex: 1, height: 8, marginLeft: 8, borderRadius: 4, backgroundColor: "var(--sunk)" as string },
+  window: { position: "absolute", left: "10%", right: "10%", top: 14, bottom: 30, borderRadius: 8, backgroundColor: "#f8f8fb" as string, overflow: "hidden" },
+  bar: { height: 18, flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8, backgroundColor: "#e9e8ef" as string },
+  dot: { width: 5, height: 5, borderRadius: 3, backgroundColor: "#b9b8c6" as string },
+  url: { flex: 1, height: 8, marginLeft: 8, borderRadius: 4, backgroundColor: "#f8f8fb" as string },
   body: { padding: 10, gap: 7 },
-  line: { height: 7, borderRadius: 4, backgroundColor: "var(--sunk)" as string },
-  field: { height: 16, borderRadius: 5, borderWidth: 1, borderColor: "var(--line-2)" as string },
+  line: { height: 7, borderRadius: 4, backgroundColor: "#dcdbe6" as string },
+  field: { height: 16, borderRadius: 5, borderWidth: 1, borderColor: "#cfcedb" as string },
   center: { position: "absolute", left: 0, right: 0, top: 0, bottom: 0, alignItems: "center", justifyContent: "center" },
   wake: { height: 28, flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, borderRadius: 14, backgroundColor: "var(--raised)" as string },
   wakeText: { fontSize: 12.5, fontWeight: "500", color: "var(--ink)" as string },
-  cap: { position: "absolute", left: 10, right: 10, bottom: 10, alignItems: "flex-start" },
+  cap: { position: "absolute", left: 10, right: 10, top: 8, alignItems: "flex-start" },
   capText: { maxWidth: "100%", fontSize: 11.5, color: "var(--accent-ink)" as string, backgroundColor: "var(--ink)" as string, opacity: 0.86, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10, overflow: "hidden" },
   skHead: { height: 20, width: "40%", borderRadius: 5, backgroundColor: "var(--sunk)" as string, marginBottom: 10 },
   skScreen: { height: SCREEN_H, borderRadius: 10, backgroundColor: "var(--sunk)" as string },
