@@ -23,7 +23,7 @@ const real = await serve(path.join(appDir, "dist"), { spa: true });
 const { createRequire } = await import("node:module");
 const { chromium } = createRequire(path.join(REPO, "package.json"))("playwright-core");
 const browser = await chromium.launch({ args: ["--no-sandbox"] });
-const targets = loadTargets(path.join(REPO, "scripts/shots")).filter((t) => t.id.startsWith("INSTALL_01") && (only.length === 0 || only.includes(t.id.replace("INSTALL_01-", ""))));
+const targets = loadTargets(path.join(REPO, "scripts/shots")).filter((t) => t.id.startsWith("INSTALL_02") && (only.length === 0 || only.includes(t.id.replace("INSTALL_02-", ""))));
 for (const t of targets) for (const skin of ["paper", "graphite"]) for (const [size, vp] of Object.entries(SIZES)) {
   if (sizeOnly && size !== sizeOnly) continue;
   if (size === "wide" && t.id.includes("phone")) continue;
@@ -36,10 +36,12 @@ for (const t of targets) for (const skin of ["paper", "graphite"]) for (const [s
   await page.goto(url, { waitUntil: "load", timeout: 60000 }).catch(() => page.goto(url, { waitUntil: "load", timeout: 60000 }));
   await page.waitForTimeout(500);
   let found = true;
+  const jump = () => page.click("text=Jump to latest", { timeout: 1500 }).then(() => page.waitForTimeout(400)).catch(() => undefined);
   if (t.waitFor) await page.waitForSelector(t.waitFor, { timeout: 8000 }).catch(() => { found = false; });
-  for (const sel of [].concat(t.click ?? [])) { await page.click(sel).catch(() => { found = false; }); await page.waitForTimeout(700); }
+  await jump();
+  for (const sel of [].concat(t.click ?? [])) { await page.click(sel).catch(() => { found = false; }); await page.waitForTimeout(700); await jump(); }
   await page.waitForTimeout(900);
-  const file = path.join(out, `${t.id.replace("INSTALL_01-", "")}-${skin}-${size}.png`);
+  const file = path.join(out, `${t.id.replace("INSTALL_02-", "")}-${skin}-${size}.png`);
   await page.screenshot({ path: file });
   console.log(`shot ${path.basename(file)} waitFor=${found}${errs.length ? " errors=" + errs.join(" | ").slice(0, 400) : ""}`);
   await ctx.close();

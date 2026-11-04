@@ -1,0 +1,104 @@
+{
+  "targets": [
+    {
+      "id": "INSTALL_02-skill",
+      "route": "/m/INSTALL_02?part=chat&kind=skill",
+      "proto": "chat,{skin}",
+      "waitFor": "[data-testid='install-blk_inst']",
+      "note": "Held skill card in the chat feed."
+    },
+    {
+      "id": "INSTALL_02-plugin",
+      "route": "/m/INSTALL_02?part=chat&kind=plugin",
+      "proto": "chat,{skin}",
+      "waitFor": "[data-testid='install-blk_inst']",
+      "note": "Held plugin card."
+    },
+    {
+      "id": "INSTALL_02-mcp",
+      "route": "/m/INSTALL_02?part=chat&kind=mcp",
+      "proto": "chat,{skin}",
+      "waitFor": "[data-testid='install-vault-blk_inst']",
+      "note": "Local MCP server: DATABASE_URL is not in the Vault, Add it, Install held."
+    },
+    {
+      "id": "INSTALL_02-mcp-addkey",
+      "route": "/m/INSTALL_02?part=chat&kind=mcp",
+      "proto": "chat,{skin}",
+      "waitFor": "[data-testid='install-vault-blk_inst']",
+      "note": "Add it opened: paste field, Save to Vault, Cancel.",
+      "click": [
+        "[data-testid='install-addkey-DATABASE_URL-blk_inst']"
+      ]
+    },
+    {
+      "id": "INSTALL_02-mcp-added",
+      "route": "/m/INSTALL_02?part=chat&kind=mcpadded",
+      "proto": "chat,{skin}",
+      "waitFor": "[data-testid='install-blk_inst']",
+      "note": "The key is in the Vault: Install is on."
+    },
+    {
+      "id": "INSTALL_02-remote",
+      "route": "/m/INSTALL_02?part=chat&kind=remote",
+      "proto": "chat,{skin}",
+      "waitFor": "[data-testid='install-blk_inst']",
+      "note": "Remote MCP: Vault line says the sign-in comes after, no key picker."
+    },
+    {
+      "id": "INSTALL_02-member",
+      "route": "/m/INSTALL_02?part=chat&kind=member",
+      "proto": "chat,{skin}",
+      "waitFor": "[data-testid='install-blk_inst']",
+      "note": "A member: no Everyone in the Space choice."
+    },
+    {
+      "id": "INSTALL_02-done",
+      "route": "/m/INSTALL_02?part=chat&kind=done",
+      "proto": "chat,{skin}",
+      "waitFor": "[data-testid='install-done-blk_inst']",
+      "note": "The quiet line after Install."
+    },
+    {
+      "id": "INSTALL_02-update",
+      "route": "/m/INSTALL_02?part=chat&kind=update",
+      "proto": "chat,{skin}",
+      "waitFor": "[data-testid='install-update-blk_inst']",
+      "note": "An update is one quiet line."
+    },
+    {
+      "id": "INSTALL_02-update-diff",
+      "route": "/m/INSTALL_02?part=chat&kind=update",
+      "proto": "chat,{skin}",
+      "waitFor": "[data-testid='install-update-blk_inst']",
+      "note": "See changes opened: the diff, New access, Update, Not now.",
+      "click": [
+        "[data-testid='install-diff-toggle-blk_inst']"
+      ]
+    },
+    {
+      "id": "INSTALL_02-skills",
+      "route": "/m/INSTALL_02?part=pane",
+      "proto": "chat,{skin}",
+      "waitFor": "[data-testid='skills-list']",
+      "note": "Skills in the chat's right pane."
+    },
+    {
+      "id": "INSTALL_02-skills-history",
+      "route": "/m/INSTALL_02?part=pane",
+      "proto": "chat,{skin}",
+      "waitFor": "[data-testid='skills-list']",
+      "note": "History opened on a skill.",
+      "click": [
+        "[data-testid='skill-history-sko_1']"
+      ]
+    },
+    {
+      "id": "INSTALL_02-console",
+      "route": "/m/INSTALL_02?part=console",
+      "proto": "chat,{skin}",
+      "waitFor": "[data-testid='skills-installed']",
+      "note": "Console > Skills: Installed from links."
+    }
+  ]
+}

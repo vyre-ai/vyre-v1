@@ -9,9 +9,9 @@ import { SkillsTab } from "../../../apps/app/src/places/chats/install/SkillsTab.
 import { InstalledFromLinks } from "../../../apps/app/src/skills/InstalledFromLinks.tsx";
 
 export const title = "Install from a link";
-const WHO = (space: boolean) => [{ key: "me", label: "Just you", allowed: true }, { key: "agent", label: "This agent", allowed: true }, { key: "space", label: "Everyone in the Space", allowed: space, adminOnly: true }];
-const base = { state: "planned", skills: [] as string[], problems: [] as string[] };
-const PLANS: Record<string, unknown> = {
+export const WHO = (space: boolean) => [{ key: "me", label: "Just you", allowed: true }, { key: "agent", label: "This agent", allowed: true }, { key: "space", label: "Everyone in the Space", allowed: space, adminOnly: true }];
+export const base = { state: "planned", skills: [] as string[], problems: [] as string[] };
+export const PLANS: Record<string, unknown> = {
   skill: { ...base, planId: "ins_1", kind: "skill", name: "pdf-tools", summary: "Reads, splits and fills in PDF forms for your agents.", repo: "acme/pdf-tools", commit: "a41f9c2".padEnd(40, "0"), url: "https://github.com/acme/pdf-tools", needs: { domains: ["api.example.com"], vaultKeys: [], files: [] }, who: WHO(true) },
   plugin: { ...base, planId: "ins_2", kind: "plugin", flavor: "claude", name: "review-kit", summary: "Adds a pull request review command and a review checklist skill.", repo: "acme/review-kit", commit: "3be07d1".padEnd(40, "0"), url: "https://github.com/acme/review-kit", skills: ["review-checklist"], needs: { domains: ["api.github.com"], vaultKeys: ["GitHub token (yours)"], files: ["1 skill"] }, who: WHO(true) },
   mcp: { ...base, planId: "ins_3", kind: "mcp_local", name: "sql-reader", summary: "Lets agents ask read-only questions of a database.", repo: "acme/sql-reader", commit: "c90e5a3".padEnd(40, "0"), url: "https://github.com/acme/sql-reader", needs: { domains: [], vaultKeys: ["DATABASE_URL"], files: ["A copy of the repository, in the sandbox"] }, runs: { command: "node", args: ["server.js"] }, who: WHO(true),
@@ -20,8 +20,8 @@ const PLANS: Record<string, unknown> = {
   update: { ...base, planId: "ins_5", kind: "skill", name: "pdf-tools", summary: "x", repo: "acme/pdf-tools", commit: "7d03be8".padEnd(40, "0"), url: "u", needs: { domains: ["api.example.com", "cdn.example.com"], vaultKeys: [], files: [] }, who: WHO(true),
     diff: { from: "a41f9c2".padEnd(40, "0"), to: "7d03be8".padEnd(40, "0"), added: ["tools.json"], removed: [], changed: [{ path: "SKILL.md", minus: ["Splits a PDF into single pages."], plus: ["Splits a PDF into single pages or page ranges.", "Fills in form fields from a record."] }] } },
 };
-const KEY: Record<string, string> = { skill: "skill", plugin: "plugin", mcp: "mcp", remote: "remote", member: "skill", done: "skill", update: "update" };
-const INSTALLS = [
+export const KEY: Record<string, string> = { skill: "skill", plugin: "plugin", mcp: "mcp", remote: "remote", member: "skill", done: "skill", update: "update" };
+export const INSTALLS = [
   { installId: "ins_1", kind: "skill", name: "pdf-tools", repo: "acme/pdf-tools", commit: "a41f9c2".padEnd(40, "0"), url: "u", by: "usr_dana", at: 1, installed: {} },
   { installId: "ins_3", kind: "mcp_local", name: "sql-reader", repo: "acme/sql-reader", commit: "c90e5a3".padEnd(40, "0"), url: "u", by: "usr_maya", at: 1, installed: {} },
   { installId: "ins_4", kind: "mcp_remote", name: "tasks-mcp", repo: "mcp.tasks.example", commit: "", url: "https://mcp.tasks.example/sse", by: "usr_dana", at: 1, installed: {} },
@@ -45,6 +45,7 @@ export default function Mount(): ReactNode {
       case "skills.history": return { revisions: [{ rev: 2, by: "usr_irfad", authorKind: "person", summary: "Updated to 7d03be8", at: Date.UTC(2025, 10, 4) }, { rev: 1, by: "usr_irfad", authorKind: "person", summary: "Installed from a link", at: Date.UTC(2025, 9, 20) }] };
       case "skills.grants": return { owner: "usr_irfad", ownerKind: "person", grants: [{ agentId: "agt_mira", level: "use", by: "usr_irfad", at: 1 }] };
       case "install.list": return { installs: INSTALLS };
+      case "vault.items.list": return { items: [] };
       default: void i; throw new Error(`no ${cap}`);
     }
   }, [part]);
