@@ -486,9 +486,17 @@ function LinkCardView({ id, data, actions, size, trusted }: { id: string; data: 
   };
   const seen = useCardState(data, actions);
   // the Space's link policy (ui/reach): a card for a thing this person cannot open draws as plain words before anyone presses it
-  const link = useLinkState(data.target ? { type: data.target.type, id: data.target.id } : undefined);
+  const link = useLinkState(data.reach === undefined && data.target ? { type: data.target.type, id: data.target.id } : undefined);
+  // the level the Space attached when it served the message decides the first draw; the probe and the policy are only the fallback for a card that came without one
+  const hidden = data.reach !== undefined ? data.reach === "none" : seen.hidden || link.state === "plain";
+  const [asked, setAsked] = useState(false);
+  const askAccess = (): void => {
+    const t = data.target;
+    if (!t) return;
+    void Promise.resolve(actions.host.invoke("access.request", { resource: { type: t.type === "chat" ? "thread" : t.type, id: t.id }, level: "view", idempotencyKey: `ask:${t.type}:${t.id}` })).then(() => setAsked(true), () => undefined);
+  };
   const open = (t: NonNullable<LinkCardData["target"]>): void => { if (t.type === "thread" && actions.openMessage) actions.openMessage(t.id, ""); else if (t.type === "fact" && memory?.memory.showKnows) memory.memory.showKnows(); else actions.openBeside(t.type, t.id); };
-  return <LinkCard id={id} data={data} nameOf={actions.nameOf ?? ((x) => x)} icon={<Glyph name={linkGlyph(data.icon)} size={size} color="var(--ink-3)" />} onOpen={open} onAction={act} done={new Set([...done, ...doneByState(data, seen.state)])} state={seen.state} hidden={seen.hidden || link.state === "plain"} />;
+  return <LinkCard id={id} data={data} nameOf={actions.nameOf ?? ((x) => x)} icon={<Glyph name={linkGlyph(data.icon)} size={size} color="var(--ink-3)" />} onOpen={open} onAction={act} done={new Set([...done, ...doneByState(data, seen.state)])} state={seen.state} hidden={hidden} {...(hidden && data.target ? { onAskAccess: askAccess, asked } : {})} />;
 }
 
 /** What a work card says now, read as this reader: its state while it is live (read again on every change in the Space), and whether they may open it at all. */

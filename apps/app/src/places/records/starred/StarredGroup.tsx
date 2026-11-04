@@ -6,7 +6,6 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 import type { LiveQuery } from "../../../../../../client/src/index.ts";
 import type { CapMap } from "../../../../../../generated/types.ts";
 import { Row } from "../../../../../../ui/src/Row/index.tsx";
-import { ReachRow } from "../../../../../../ui/src/Row/ReachRow.tsx";
 import { Face, Glyph, TypeTile, typeHue, typeIcon } from "../sidebar/parts.tsx";
 
 export type StarsOut = CapMap["stars.list"]["out"];
@@ -38,7 +37,7 @@ export function StarredGroup({ query, typeOf, onOpen, closed = false, onToggle, 
     for (const s of stars) {
       const kind = starKind(s, typeOf);
       const lead = PEOPLE.has(kind) ? <Face name={s.title} seedId={s.resource.id} size={18} /> : <TypeTile icon={typeIcon(kind)} hue={typeHue(kind)} />;
-      rows.push(<ReachRow subject={{ type: s.resource.type, id: s.resource.id }} key={`${s.resource.type}:${s.resource.id}`} id={`nav:star:${s.resource.id}`} title={s.title} leading={<View style={styles.glyph}>{lead}</View>} trailing={<View />} selected={false} onPress={() => onOpen(s)} />);
+      rows.push(<Row key={`${s.resource.type}:${s.resource.id}`} id={`nav:star:${s.resource.id}`} title={s.title} leading={<View style={styles.glyph}>{lead}</View>} trailing={<View />} selected={false} onPress={() => onOpen(s)} />);
     }
   }
   return (

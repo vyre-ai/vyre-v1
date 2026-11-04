@@ -1,6 +1,6 @@
 {
   "targets": [
-    { "id": "REACH_02-member", "route": "/m/REACH_02?part=member", "proto": "files,{skin}", "waitFor": "[data-testid='reach-files-member']", "note": "A member in Files, Sales: the Pricing sheet is plain text (no pointer, no hover); the other files are live rows. One access.reach call asked about all of them." },
-    { "id": "REACH_02-admin", "route": "/m/REACH_02?part=admin", "proto": "files,{skin}", "waitFor": "[data-testid='reach-files-admin']", "note": "An admin: every row is a live link." }
+    { "id": "REACH_02-member", "route": "/m/REACH_02?part=member", "proto": "chat,{skin}", "waitFor": "[data-testid='reach-cards-member']", "note": "A member in a chat: the card they can open is a link; the task and the file they cannot open show only what kind of thing it is, with Ask for access. The level came with the message, so the first draw is final." },
+    { "id": "REACH_02-admin", "route": "/m/REACH_02?part=admin", "proto": "chat,{skin}", "waitFor": "[data-testid='reach-cards-admin']", "note": "An admin: every card is a link." }
   ]
 }

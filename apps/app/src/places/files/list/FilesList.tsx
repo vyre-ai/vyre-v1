@@ -7,7 +7,6 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { ReactElement } from "react";
 import { Platform, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import { Row } from "../../../../../../ui/src/Row/index.tsx";
-import { ReachRow } from "../../../../../../ui/src/Row/ReachRow.tsx";
 import { States } from "../../../../../../ui/src/States/index.tsx";
 import { VirtualList } from "../../../../../../ui/src/VirtualList/index.tsx";
 import { menuTrigger, useMenu } from "../../../../../../ui/src/Menu/index.tsx";
@@ -240,7 +239,7 @@ function List(): ReactElement {
   const renderLine = (l: Line): ReactElement => {
     registry.current.set(l.key, handlersOf(l));
     const row = (
-      <ReachRow subject={{ type: l.type, id: l.id }}
+      <Row
         id={`line:${l.key}`}
         title={l.name}
         {...(l.starred === true || l.conflict === true || layerOf(l) !== null ? { titleMarks: <View style={styles.marksRow}><LineMarks starred={l.starred === true} conflict={l.conflict === true} onResolve={data.nav.resolveConflict ? () => data.nav.resolveConflict?.(l.id) : undefined} />{layerOf(l)}</View> } : {})}
