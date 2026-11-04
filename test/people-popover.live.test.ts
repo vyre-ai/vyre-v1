@@ -26,6 +26,7 @@ test("people popover, team: a chat and a project show People and agents with rol
     assert.equal((await me.page.getByTestId("people-title").innerText()).trim(), "People and agents");
     assert.ok(await me.page.locator('[data-testid^="people-row-"]').count() >= 2, "a row per member");
     assert.equal((await me.page.getByTestId("people-footer").innerText()).trim(), "Add people and agents");
+    await me.page.waitForTimeout(1500);   // the faces draw a moment after the popover: shoot them drawn
     await shoot(me.page, OUT, "chat-people");
     await me.page.keyboard.press("ArrowDown");
     await me.page.keyboard.press("Escape");
@@ -40,6 +41,7 @@ test("people popover, team: a chat and a project show People and agents with rol
     await me.page.getByTestId("project-members").click();
     await me.page.getByTestId("people-popover").waitFor({ timeout: 15_000 });
     assert.equal((await me.page.getByTestId("people-footer").innerText()).trim(), "Manage on the Overview");
+    await me.page.waitForTimeout(1500);   // the faces draw a moment after the popover: shoot them drawn
     await shoot(me.page, OUT, "project-people");
     await me.page.getByTestId("people-footer").click();
     await me.page.getByTestId("people-popover").waitFor({ state: "detached", timeout: 10_000 });
@@ -51,6 +53,7 @@ test("people popover, team: a chat and a project show People and agents with rol
     await me.page.getByTestId("project-members").click();
     await me.page.getByTestId("people-popover").waitFor({ timeout: 15_000 });
     assert.equal(await me.page.getByTestId("people-popover").getAttribute("data-sheet"), "phone", "a phone gets the bottom sheet");
+    await me.page.waitForTimeout(1500);   // the faces draw a moment after the popover: shoot them drawn
     await shoot(me.page, OUT, "project-people-phone");
     // the Add people and agents sheet at the same size, for the comparison
     await me.page.keyboard.press("Escape");

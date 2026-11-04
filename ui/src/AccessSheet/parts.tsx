@@ -635,7 +635,7 @@ export const st = StyleSheet.create({
   veil: { position: (web ? "fixed" : "absolute") as unknown as "absolute", top: 0, left: 0, right: 0, bottom: 0, zIndex: 99998, backgroundColor: "rgba(8,8,10,0.5)", alignItems: "center", justifyContent: "center", paddingHorizontal: 16 },
   veilPhone: { paddingHorizontal: 0, alignItems: "stretch", justifyContent: "flex-end" },
   card: { width: "100%", maxWidth: 560, maxHeight: "90%", backgroundColor: t("raised"), borderRadius: 18, overflow: "hidden", color: t("ink") } as never,
-  cardPhone: { maxWidth: "100%", maxHeight: "92%", borderBottomLeftRadius: 0, borderBottomRightRadius: 0, borderTopLeftRadius: 18, borderTopRightRadius: 18 },
+  cardPhone: { maxWidth: "100%", maxHeight: "92%", paddingBottom: "env(safe-area-inset-bottom, 0px)" as unknown as number, borderBottomLeftRadius: 0, borderBottomRightRadius: 0, borderTopLeftRadius: 18, borderTopRightRadius: 18 },
   head: { flexDirection: "row", alignItems: "flex-start", gap: 8, paddingTop: 16, paddingLeft: 18, paddingRight: 14, paddingBottom: 6 },
   title: { color: t("ink"), fontSize: 17, lineHeight: 23, fontWeight: "600" },
   sub: { color: t("ink-3"), fontSize: 12.5, lineHeight: 17 },
