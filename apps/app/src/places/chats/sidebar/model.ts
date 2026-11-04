@@ -383,7 +383,10 @@ export function buildEntries(i: SidebarInput): Entry[] {
     if (shown.length < rest.length) out.push({ key: "m:recent", type: "more", label: `${rest.length - shown.length} more`, to: "recent" });
   }
   if (i.filter === "all") {
-    const { plain, projects } = splitChannels(i.channels);
+    // a project's channel belongs to the project (its Chat tab): with the Projects group above, the channel list does not repeat it
+    const split = splitChannels(i.channels);
+    const plain = split.plain;
+    const projects = (i.projects?.length ?? 0) > 0 ? [] : split.projects;
     if (!i.personal && (plain.length || projects.length || i.errors?.channels || !i.searching)) {
       out.push({ key: "h:channels", type: "head", section: "channels", label: "Channels", count: plain.length + projects.length, open: open("channels") });
       if (open("channels")) {

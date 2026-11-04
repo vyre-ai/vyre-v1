@@ -46,3 +46,13 @@ test("the rows: a health dot and the name, a star mark for a starred one; a pres
     assert.ok(s.opened.includes("project:prj_rec_rivera"), "opens in its own tab");
   } finally { off(); }
 });
+
+test("with the Projects group, a project's channel is not listed a second time under Channels; with no group it still is", () => {
+  const ch = (id: string, project: boolean) => ({ channelId: id, mainThreadId: `thr_${id}`, name: id, visibility: "public", archived: false, members: [], agents: [], ...(project ? { recordId: `rec_${id}` } : {}) }) as never;
+  const base = { closed: new Set(), groups: [], faces: [], tasksCount: 0, channels: [ch("ops", false), ch("rivera", true)], filter: "all" } as never;
+  const withGroup = buildEntries({ ...(base as object), projects: projectLines([row("prj_rivera", "Rivera account")], new Set()) } as never);
+  assert.ok(!withGroup.some((x) => x.key === "g:projects" || x.key === "ch:rivera"), "no second Projects group, no project channel row");
+  assert.ok(withGroup.some((x) => x.key === "ch:ops"), "plain channels stay");
+  const without = buildEntries(base);
+  assert.ok(without.some((x) => x.key === "g:projects") && without.some((x) => x.key === "ch:rivera"));
+});

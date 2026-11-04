@@ -37,6 +37,8 @@ test("Projects shell: sidebar group, project tab, header, tabs and status, as an
     const type = (types.find((x) => /project|matter/.test(x.key)) ?? types[0]!).key;
     const made = await call("projects.create", { type, title: "Rivera account", goal: "Close the Rivera engagement", idempotencyKey: "pj-rivera" });
     const pid = made.projectId as string;
+    // the page reads these two: ask the Space for them first, so a refusal shows here and not as a blank page
+    await call("projects.overview", { projectId: pid }); await call("projects.plan", { projectId: pid });
     await call("projects.create", { type, title: "Q4 billing", idempotencyKey: "pj-q4" });
 
     // Maya joins through the real join screens, and is made a member of the first project
@@ -66,7 +68,11 @@ test("Projects shell: sidebar group, project tab, header, tabs and status, as an
       } else {
         await p.goto(`${web.origin}/chat#subject=project:${pid}`, { waitUntil: "load" });
       }
-      await p.getByTestId("project-page").waitFor({ timeout: 30_000 });
+      await p.getByTestId("project-page").waitFor({ timeout: 30_000 }).catch(async (e: Error) => {
+        const ids = await p.evaluate(() => [...document.querySelectorAll("[data-testid]")].map((x) => x.getAttribute("data-testid")).filter((x) => /project|chats-|conversation|loading|gone/.test(x ?? "")).slice(0, 30));
+        await p.screenshot({ path: path.join(shots, `debug-${who}-${size}.png`) });
+        throw new Error(`no project page at ${p.url()}: ${JSON.stringify(ids)} errors=${JSON.stringify(errs.slice(0, 3))} / ${e.message.slice(0, 60)}`);
+      });
       assert.equal(await p.getByTestId("project-title").innerText(), "Rivera account");
       await p.waitForTimeout(500);
       await p.screenshot({ path: path.join(shots, `projects-2-project-${who}-${size}-paper.png`) });
