@@ -1,3 +1,4 @@
+// @tsx
 // A chat's one name in the list: the title the server made or a person gave, else who is in it. No first line of a message and no date stand in for it (lib/chat-name.ts has the rule, rowOf applies it).
 import assert from "node:assert/strict";
 import { test } from "node:test";
