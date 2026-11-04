@@ -3,6 +3,7 @@
 // (never a file, never the command line, never a Vault item) and is gone when the process ends. A person with no connected GitHub, a chat with no linked repository, or a policy that asks first gets nothing.
 // DECISION: git reads the helper from GIT_CONFIG_COUNT, GIT_CONFIG_KEY_n and GIT_CONFIG_VALUE_n, so nothing is written to the work folder's config and nothing outlives the process.
 import type { LaunchSpec } from "../../agent/src/drivers/cli/types.ts";
+import { holdSecret } from "../../agent/src/drivers/cli/redact.ts";
 
 export interface GithubSessionPort {
   call(cap: string, input: unknown, as?: string): Promise<unknown>;
@@ -35,6 +36,8 @@ export async function githubEnv(port: GithubSessionPort, person: string, threadI
   const handle = got.env?.["GH_TOKEN"];
   const token = handle ? port.fill(handle) : null;
   if (!token) return {};
+  // whatever the process writes back is cleaned of this token, until the token ends (agent/src/drivers/cli/redact.ts)
+  holdSecret(token, Number((got as { expiresAt?: number }).expiresAt ?? 0) + 5 * 60_000 || Date.now() + 65 * 60_000);
   const out: Record<string, string> = { GH_TOKEN: token, GITHUB_TOKEN: token };
   const pairs = (got.gitConfig ?? []).map((l) => { const i = l.indexOf("="); return i > 0 ? [l.slice(0, i), l.slice(i + 1)] as const : null; }).filter((p): p is readonly [string, string] => p !== null);
   out["GIT_CONFIG_COUNT"] = String(pairs.length);

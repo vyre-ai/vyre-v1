@@ -21,6 +21,6 @@ type Payload = {
   repo: string;
   jobId: number;
   reason: string;
-  code: "fork_with_secrets" | "cap_reached" | "not_enabled" | "no_key";
+  code: "fork_with_secrets" | "cap_reached" | "not_enabled" | "no_key" | "runner_unverified";
 };
 ```

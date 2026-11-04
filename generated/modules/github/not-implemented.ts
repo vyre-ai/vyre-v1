@@ -43,6 +43,7 @@ export const handlers: Handlers<HandlerCtx> = {
   "github.receive_webhook": async (ctx) => { throw new VyreErr(notImplemented("github.receive_webhook", ctx.trace)); },
   "github.repo.get": async (ctx) => { throw new VyreErr(notImplemented("github.repo.get", ctx.trace)); },
   "github.repos.list": async (ctx) => { throw new VyreErr(notImplemented("github.repos.list", ctx.trace)); },
+  "github.runner_release": async (ctx) => { throw new VyreErr(notImplemented("github.runner_release", ctx.trace)); },
   "github.runners.jit_config": async (ctx) => { throw new VyreErr(notImplemented("github.runners.jit_config", ctx.trace)); },
   "github.runners.remove": async (ctx) => { throw new VyreErr(notImplemented("github.runners.remove", ctx.trace)); },
   "github.session_env": async (ctx) => { throw new VyreErr(notImplemented("github.session_env", ctx.trace)); },

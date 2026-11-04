@@ -33,7 +33,7 @@ export function world(f: Fakes = {}) {
     now: T0, events: [] as Array<{ name: string; subject: string; payload: Record<string, any> }>,   // eslint-disable-line @typescript-eslint/no-explicit-any
     droplets: [] as FakeDroplet[], nextId: 1000, cloudCalls: [] as Array<{ method: string; path: string }>, keysUsed: [] as string[], jit: [] as Array<Record<string, unknown>>, removed: [] as number[],
     secrets: f.secrets === undefined ? 0 : f.secrets, links: f.links ?? { "northwind/site": "prj_site" }, members: f.members ?? {},
-    links_: [] as Array<Record<string, unknown>>, noLinkCap: false, appPerms: { actions: "read", administration: "write", secrets: "read" } as Record<string, string>, appEvents: ["push", "workflow_job"], failCreate: 0, failList: false, failDelete: false, jitFails: false, runnerSeq: 1,
+    links_: [] as Array<Record<string, unknown>>, noLinkCap: false, appPerms: { actions: "read", administration: "write", secrets: "read" } as Record<string, string>, appEvents: ["push", "workflow_job"], runnerDigest: "sha256:baebf204307bac6193480852732f0aba2ae97b6c5597c244f4d5558390147c40" as string | null, releaseDown: false, linkRules: {} as Record<string, string>, linkedPrs: {} as Record<string, string>, noRemote: new Set<string>(), failCreate: 0, failList: false, failDelete: false, jitFails: false, runnerSeq: 1,
   };
   const cloud: CiHost = {
     async cloud(_ctx, handle, req) {
@@ -75,6 +75,7 @@ export function world(f: Fakes = {}) {
         st.jit.push(i);
         return { runnerId: 7000 + st.runnerSeq++, jitConfig: "eyJhbGciOiJIUzI1NiJ9abc123==" };
       }
+      if (cap === "github.runner_release") { if (st.releaseDown) throw Object.assign(new Error("x"), { error: { code: "provider.unavailable" } }); return { assets: [{ name: "actions-runner-linux-x64-2.338.2.tar.gz", digest: st.runnerDigest }, { name: "other.tar.gz", digest: null }] }; }
       if (cap === "github.app.get") return { permissions: st.appPerms, events: st.appEvents };
       if (cap === "github.installations.list") return { installations: [{ id: 555, account: "northwind", repositorySelection: "all" }] };
       if (cap === "github.runners.remove") { st.removed.push(i["runnerId"]); return { removed: true }; }
@@ -88,8 +89,12 @@ export function world(f: Fakes = {}) {
         if (!ok) throw Object.assign(new Error("no"), { error: { code: "permission.no_grant" } });
         return { project: { projectId: i["projectId"], folderId: `fld_${i["projectId"]}` } };
       }
+      if (cap === "projects.links.list") {
+        const projectId = String(i["projectId"]);
+        return { links: st.linkedPrs[projectId] ? [{ kind: "github.pr", ref: `${st.linkedPrs[projectId]}#12` }] : [], rules: st.linkRules[projectId] ? [{ kind: "repo", repo: st.linkRules[projectId] }] : [] };
+      }
       if (cap === "git.status") {
-        const projectId = String(i["folderId"]).slice(4), repo = Object.entries(st.links).find(([, p]) => p === projectId)?.[0];
+        const projectId = String(i["folderId"]).slice(4), repo = st.noRemote.has(projectId) ? undefined : Object.entries(st.links).find(([, p]) => p === projectId)?.[0];
         return { remotes: repo ? [{ name: "origin", url: `https://github.com/${repo}.git` }] : [] };
       }
       throw new Error(`no ${cap}`);

@@ -30,7 +30,8 @@ export default defineManifest({
     ev('ci.run_finished', 'A job ended and its machine was deleted; the cost is recorded', { p: { runId: t.id('cir'), repo, jobId: t.int(), conclusion: t.str(), costUsd: t.num(), minutes: t.int() }, subject: ['entity', '/runId'] }),
     ev('ci.run_failed', 'A machine could not be made for a job, or it was lost before the job ran', { p: { runId: t.id('cir'), repo, jobId: t.int(), reason: t.str() }, subject: ['entity', '/runId'] }),
     ev('ci.run_swept', 'The sweeper deleted a machine: past its time limit, or with no live run', { p: { runId: t.nullable(t.id('cir')), dropletId: t.str(), reason: t.enm('too_long', 'no_run'), costUsd: t.num() }, subject: ['entity', '/dropletId'] }),
-    ev('ci.job_refused', 'A job asked for a runner and was refused, with the reason in plain words', { p: { repo, jobId: t.int(), reason: t.str(), code: t.enm('fork_with_secrets', 'cap_reached', 'not_enabled', 'no_key') }, subject: ['entity', '/repo'] }),
+    ev('ci.job_refused', 'A job asked for a runner and was refused, with the reason in plain words', { p: { repo, jobId: t.int(), reason: t.str(), code: t.enm('fork_with_secrets', 'cap_reached', 'not_enabled', 'no_key', 'runner_unverified') }, subject: ['entity', '/repo'] }),
+    ev('ci.blocked', 'CI cannot start machines until something is fixed (for example the runner download cannot be verified); the admins\' Inbox line, once a day', { p: { title: t.str(), why: t.enm('runner_unverified'), day: t.str() }, subject: ['entity', '/day'], notify: 'ci.paused' }),
     ev('ci.paused', 'CI paused: this month\'s cap is reached (once a month; the admins\' Inbox line)', { p: { title: t.str(), capUsd: t.num(), month: t.str() }, subject: ['entity', '/month'], notify: 'ci.paused' }),
     ev('ci.settings_changed', 'An admin changed the CI settings (never the key)', { p: { fields: t.arr(t.str()), enabled: t.bool() }, subject: ['entity', '/enabled'], retention: 'audit' }),
   ],
@@ -56,11 +57,12 @@ export default defineManifest({
       out: { month: t.str(), spentUsd: t.num(), capUsd: t.num(), leftUsd: t.num(), runs: t.int(), paused: t.bool(), byRepo: t.arr(t.obj({ repo, runs: t.int(), costUsd: t.num() })) },
     }),
     read('ci.project.get', 'Whether a project shows the CI tab: its repository is linked and runners are on. Anyone who can see the project', {
-      ...V, in: { projectId: id.project }, out: { linked: t.bool(), repo: t.nullable(repo), enabled: t.bool(), labels: t.arr(t.str()), live: t.int({ minimum: 0 }), queued: t.int({ minimum: 0 }) },
+      ...V, in: { projectId: id.project }, out: { linked: t.bool(), repo: t.nullable(repo), enabled: t.bool(), labels: t.arr(t.str()), live: t.int({ minimum: 0 }), queued: t.int({ minimum: 0 }),
+        appNeedsAccept: t.bool({ description: 'The GitHub App needs new permissions: show "Accept on GitHub" on the CI rows' }), acceptUrl: t.nullable(t.str()), orgAcceptUrl: t.nullable(t.str()) },
     }),
     write('ci.job.intake', 'Host only: a job is waiting (or ended) on GitHub; start or stop its machine. Called for the workflow_job events, never by a person', {
       ...V, in: { action: t.enm('queued', 'completed'), repo, jobId: t.int(), runId: t.int(), name: t.opt(t.str()), labels: t.arr(t.str()), fork: t.opt(t.enm('no', 'yes', 'unknown')), conclusion: t.opt(t.str()) },
-      out: { handled: t.enm('started', 'queued', 'refused', 'ignored', 'finished', 'failed') }, emits: ['ci.run_started', 'ci.run_failed', 'ci.run_finished', 'ci.job_refused', 'ci.paused'], offline: 'online', idem: 'natural', errors: [],
+      out: { handled: t.enm('started', 'queued', 'refused', 'ignored', 'finished', 'failed') }, emits: ['ci.run_started', 'ci.run_failed', 'ci.run_finished', 'ci.job_refused', 'ci.paused', 'ci.blocked'], offline: 'online', idem: 'natural', errors: [],
     }),
     write('ci.sweep', 'Host only: every 2 minutes, delete any machine tagged vyre-ci that is too old or has no live run, and start queued jobs that now fit', {
       ...V, in: {}, out: { deleted: t.int({ minimum: 0 }), started: t.int({ minimum: 0 }) }, emits: ['ci.run_swept', 'ci.run_started', 'ci.run_failed'], offline: 'online', errors: [],

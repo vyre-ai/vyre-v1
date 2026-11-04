@@ -1166,6 +1166,7 @@ export function createClient(transport: Transport) {
       repos: {
         list: call("github.repos.list", 1),
       },
+      runner_release: call("github.runner_release", 1),
       runners: {
         jit_config: call("github.runners.jit_config", 1),
         remove: call("github.runners.remove", 1),

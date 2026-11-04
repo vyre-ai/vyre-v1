@@ -3,6 +3,7 @@ import { costOf } from "../cost.ts";
 import { ensure, isAdmin, monthOf, raise, readSettings, round4, runBy, RUN_COLS, runOf, runsIn } from "../projections.ts";
 import type { CiCtx, Row, Run } from "../projections.ts";
 import { projectOfRepo, repoOfProject } from "./link.ts";
+import { appState } from "./settings.ts";
 
 const view = (r: Run) => ({
   runId: r.runId, jobId: r.jobId, workflowRunId: r.workflowRunId, repo: r.repo, jobName: r.jobName, projectId: r.projectId, state: r.state, dropletId: r.dropletId, size: r.size,
@@ -64,5 +65,10 @@ export async function projectGet(ctx: CiCtx, input: { projectId: string }) {
   ensure(ctx);
   const repo = await repoOfProject(ctx, input.projectId), s = readSettings(ctx);
   const mine = (states: Parameters<typeof runsIn>[1]) => runsIn(ctx, states).filter((r) => r.projectId === input.projectId).length;
-  return { linked: repo !== null, repo, enabled: s.enabled && s.vaultKeyRef !== null, labels: s.labels, live: mine(["starting", "running"]), queued: mine(["queued"]) };
+  // the GitHub App still lacks the permissions runners need: the CI rows say so and offer Accept, which opens GitHub (the same words as the Console card)
+  const app = s.enabled ? await appState(ctx) : null;
+  return {
+    linked: repo !== null, repo, enabled: s.enabled && s.vaultKeyRef !== null, labels: s.labels, live: mine(["starting", "running"]), queued: mine(["queued"]),
+    appNeedsAccept: app !== null && app.installed && !app.ready, acceptUrl: app?.acceptUrl ?? null, orgAcceptUrl: app?.orgAcceptUrl ?? null,
+  };
 }
