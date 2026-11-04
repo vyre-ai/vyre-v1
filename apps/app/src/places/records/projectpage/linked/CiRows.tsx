@@ -23,7 +23,7 @@ export function CiGroup({ repo, runs, now, projectTitle, askAssistant }: { repo:
               <Text numberOfLines={1} style={st.sub}>{runLine(r, now)}</Text>
               {look === "failed" && r.note ? <Text numberOfLines={2} testID={`ci-why-${r.runId}`} style={st.why}>{r.note}</Text> : null}
             </View>
-            <Text style={[st.state, look === "failed" && st.bad, look === "passed" && st.ok]}>{RUN_WORD[look]}</Text>
+            <Text style={st.state}>{RUN_WORD[look]}</Text>
           </View>
         );
       })}
@@ -44,7 +44,7 @@ const st = StyleSheet.create({
   head: { flexDirection: "row", alignItems: "center", gap: 10, minHeight: 28 },
   repo: { fontSize: 12.5, color: "var(--ink-3)" as string },
   run: { fontSize: 12, color: "var(--accent)" as string },
-  row: { flexDirection: "row", alignItems: "center", gap: 10, minHeight: 50, paddingVertical: 7, paddingHorizontal: 10, borderRadius: 8 },
+  row: { flexDirection: "row", alignItems: "center", gap: 10, minHeight: 50, paddingVertical: 7, paddingHorizontal: 8, borderRadius: 11 },
   mark: { width: 28, height: 28, borderRadius: 8, alignItems: "center", justifyContent: "center", backgroundColor: "var(--sunk)" as string },
   markText: { fontSize: 13, color: "var(--ink-2)" as string },
   title: { fontSize: 13.5, fontWeight: "500", color: "var(--ink)" as string },
