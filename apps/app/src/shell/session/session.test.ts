@@ -958,3 +958,27 @@ test("session: a tab change inside the page already open is not a new door: it n
   assert.deepEqual(went, ["records subject=project%3Aprj_1&tab=plan"], "the local move goes; the same open as a new door is refused");
   assert.equal(said.length, 1);
 });
+
+test("session: a person's profile that reach refuses opens nothing and says so in plain words; an allowed one opens", async () => {
+  const routes: RouteRow[] = [...ROUTES, { method: "POST", path: "/v1/memory/profile/get", cap: "memory.profile.get", v: 1 }];
+  const screens = async (): Promise<Map<string, ScreenIndexEntry>> => new Map();
+  const run = async (refused: boolean): Promise<{ went: string[]; said: string[] }> => {
+    const gw = sessionGateway({
+      "POST /v1/identity/whoami": () => ({ body: { data: WHOAMI } }),
+      "POST /v1/memory/profile/get": () => (refused ? { status: 403, body: { error: { code: "auth.forbidden", message: "no", traceId: "t" } } } : { body: { data: { audience: "shared", basics: [], public: [], private: [] } } }),
+    });
+    const went: string[] = [];
+    const said: string[] = [];
+    const s = await openRealSession({ baseUrl: "http://s.test", token: "t", fetch: gw.fetch, routes: async () => routes, screens, dial: fakeServer().dial, navigate: (p, h) => went.push(`${p} ${h}`), notice: (t) => said.push(t), pollMs: 1_000_000 });
+    s.runtime.open({ subject: { type: "person", id: "usr_omar" } });
+    await new Promise((r) => setTimeout(r, 40));
+    s.close();
+    return { went, said };
+  };
+  const refused = await run(true);
+  assert.deepEqual(refused.went, [], "nothing opened");
+  assert.deepEqual(refused.said, ["You can't see this person's profile"], "and the click says why");
+  const allowed = await run(false);
+  assert.equal(allowed.went.length, 1, "an allowed profile opens");
+  assert.deepEqual(allowed.said, []);
+});

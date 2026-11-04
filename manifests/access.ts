@@ -176,7 +176,7 @@ export default defineManifest({
       level: 'member', in: { agentId: id.agent }, out: { on: t.bool() }, tool: 'meta', errors: ['validation.not_found'],
     }),
     write('access.make_owner', 'The owner hands an item to someone else: they become the owner and the previous owner keeps Manage', {
-      ...V, idem: 'key', in: { resource: resourceRef, personId: id.user }, out: { ok: t.bool() }, emits: ['grant.created', 'access.changed'], audit: 'always', team: true, agent: false,
+      ...V, idem: 'key', in: { resource: resourceRef, personId: id.user }, out: { ok: t.bool() }, emits: ['grant.created', 'access.changed', 'grant.revoked'], audit: 'always', team: true, agent: false,
       gate: { act: 'transfer', when: "actor.kind != 'person'" }, errors: ['permission.no_grant', 'validation.bad_input', 'validation.not_found'],
     }),
     write('access.audience_set', 'Choose who a record type or one record is open to: everyone, only people added or only me; a type also says who may export; a record\'s Files folder can follow its record', {

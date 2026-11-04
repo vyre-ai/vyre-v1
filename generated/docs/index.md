@@ -51,6 +51,7 @@ Counts are not written down: they change with every contract change. Run `node t
 - [harbor-studio](modules/harbor-studio.md) (L8, kit)
 - [health](modules/health.md) (L7b, module)
 - [home](modules/home.md) (L6, module)
+- [hooks](modules/hooks.md) (L2, module)
 - [hubspot](modules/hubspot.md) (L3, connector)
 - [identity](modules/identity.md) (L7a, module)
 - [import](modules/import.md) (L3, module)

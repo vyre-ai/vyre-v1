@@ -2598,6 +2598,11 @@ export const syncEntities: SyncEntityConfig[] = [
         "label": null,
         "required": false
       },
+      "repliesIn": {
+        "type": "number",
+        "label": null,
+        "required": false
+      },
       "createdAt": {
         "type": "datetime",
         "label": null,

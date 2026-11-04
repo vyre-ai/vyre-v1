@@ -1,16 +1,15 @@
-// Console > Space profile > Space image, the way any app sets a picture: Choose image… opens the file picker; a picture dropped on the section or pasted (Cmd-V) opens too. The picture opens in a
-// square crop with a zoom and a drag, beside how it will look on the rail and on the sign-in page; Save image uploads the square to Shared knowledge/Branding and makes it the Space image.
-// Choose from Files… is the second way in: every picture in the Space's folders the person can see, newest first, with a search; the one chosen opens in the same crop.
+// Console > Space > General, Identity: the Logo row. The letter tile (or the saved picture) with Upload on the right; Upload opens the file picker, and a picture dropped on the row or pasted (Cmd-V) opens too.
+// The picture opens in a square crop with a zoom and a drag, beside how it will look on the rail and on the sign-in page; Save image uploads the square to Shared knowledge/Branding and makes it the Space image.
 import { createElement, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactElement } from "react";
-import { Image, Platform, StyleSheet, Text, View, useWindowDimensions } from "react-native";
+import { Image, Platform, StyleSheet, Text, View } from "react-native";
 import type { CapMap } from "../../../../../generated/types.ts";
 import { Row } from "../../../../../ui/src/Row/index.tsx";
 import { DropZone, pastedFiles } from "../../../../../ui/src/FileDrop/index.tsx";
 import type { DroppedFile } from "../../../../../ui/src/FileDrop/index.tsx";
-import { Empty, Group, Section } from "../shell/ui.tsx";
+import { Line } from "../shell/ui.tsx";
 import { useConsoleData } from "../shell/data.tsx";
-import { Actions, Button, Field, Help, Note, ReadState, attempt, useRead } from "./shared.tsx";
+import { Actions, Button, Note, attempt, useRead } from "./shared.tsx";
 import { FULL, IMAGE_MAX_BYTES, IMAGE_SIDE, MAX_ZOOM, base64Bytes, cropSquare, dragged, isPicture, notPictureLine, saveSpaceImage, splitDataUrl } from "./space-image.ts";
 import type { Crop } from "./space-image.ts";
 
@@ -85,35 +84,14 @@ function Faces({ url, name }: { url: string; name: string }): ReactElement {
   );
 }
 
-/** Choose from Files: every picture in the Space's folders the person can see, newest first, with a search. */
-function FilesPicker({ onChoose, onClose }: { onChoose(file: { fileId: string; name: string }): void; onClose(): void }): ReactElement {
-  const [q, setQ] = useState("");
-  const files = useRead<CapMap["files.list"]["out"]>("files.list", { section: "space", deep: true, kind: "image", sort: "updated", dir: "desc", limit: 60, ...(q.trim() ? { q: q.trim() } : {}) }, { direct: true });
-  const list = files.data?.files ?? null;
-  return (
-    <Section title="Choose a Space image from Files" testID="space-image-files">
-      <Group>
-        <Field label="Search pictures" value={q} onChange={setQ} testID="space-image-files-search" />
-        {list === null ? <ReadState error={files.error} retry={files.refresh} />
-          : list.length === 0 ? <Empty icon="doc">{q.trim() ? `No pictures named like “${q.trim()}”` : "No pictures in this Space’s folders yet. Choose image… uploads one."}</Empty>
-          : list.map((f) => <Row key={f.fileId} id={`space-image-file-${f.fileId}`} title={f.name} note={new Date(f.updatedAt).toLocaleDateString()} onPress={() => onChoose(f)} trailing={<Button label="Use" onPress={() => onChoose(f)} />} />)}
-        <Actions><Button label="Close" onPress={onClose} /></Actions>
-      </Group>
-    </Section>
-  );
-}
-
-export function SpaceImage({ spaceName, logoFileId, onSaved }: { spaceName: string; logoFileId: string | null; onSaved(): void }): ReactElement {
+export function SpaceLogoRow({ spaceName, logoFileId, onSaved }: { spaceName: string; logoFileId: string | null; onSaved(): void }): ReactElement {
   const { call } = useConsoleData();
-  const winW = useWindowDimensions().width;
-  const narrow = winW > 0 && winW < 720;
   const current = useRead<CapMap["spaces.image"]["out"]>("spaces.image", {}, { direct: true });
   const [source, setSource] = useState<Source | null>(null);
   const [loaded, setLoaded] = useState<Loaded | null>(null);
   const [crop, setCrop] = useState<Crop>(FULL);
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
-  const [fromFiles, setFromFiles] = useState(false);
   const input = useRef<HTMLInputElement | null>(null);
   const key = useRef(attempt());
 
@@ -154,17 +132,6 @@ export function SpaceImage({ spaceName, logoFileId, onSaved }: { spaceName: stri
 
   const square = useMemo(() => (loaded ? squareOf(loaded, crop) : null), [loaded, crop]);
 
-  const fromFile = async (file: { fileId: string; name: string }): Promise<void> => {
-    setFromFiles(false);
-    setNote("");
-    try {
-      const got = (await call("files.read", { fileId: file.fileId, as: "base64" })) as { base64?: string; mime?: string; truncated?: boolean };
-      if (!got.base64 || got.truncated) { setNote(`${file.name} is too large to open here. Download it and use Choose image….`); return; }
-      if (!isPicture({ name: file.name, type: got.mime ?? "" })) { setNote(notPictureLine({ name: file.name })); return; }
-      setSource({ url: `data:${got.mime};base64,${got.base64}`, name: file.name });
-    } catch { setNote(`${file.name} could not be opened.`); }
-  };
-
   const save = async (): Promise<void> => {
     if (!square || busy) return;
     setBusy(true); setNote("");
@@ -197,42 +164,30 @@ export function SpaceImage({ spaceName, logoFileId, onSaved }: { spaceName: stri
     : <View testID="space-image-letter" style={s.letter}><Text style={s.letterText}>{(spaceName.trim()[0] ?? "?").toUpperCase()}</Text></View>}</View>;
 
   return (
-    <View testID="space-image">
-      <DropZone onFiles={(files) => void open(files)} paste={false} label="Drop a picture to use it as the Space image" testID="space-image-drop" radius={12}>
-        <Section title="Space image">
-          <Group>
-            <Row id="space-logo" title="Space image" note={shown ? "Shows on the rail, the switcher, sign-in, join and invites" : logoFileId ? "Choose it again to show it everywhere" : "No image: the Space shows its letter"} leading={leading}
-              {...(narrow ? {} : { trailing: <Actions>
-                <Button label="Choose image…" testID="space-image-choose" disabled={busy} onPress={() => input.current?.click()} />
-                <Button label="Choose from Files…" testID="space-image-from-files" disabled={busy} onPress={() => setFromFiles(!fromFiles)} />
-                {logoFileId ? <Button label="Remove image" testID="space-image-remove" disabled={busy} onPress={() => void remove()} /> : null}
-              </Actions> })} />
-            {narrow ? <View style={{ paddingHorizontal: 12, paddingBottom: 10 }} testID="space-image-actions"><Actions>
-                <Button label="Choose image…" testID="space-image-choose" disabled={busy} onPress={() => input.current?.click()} />
-                <Button label="Choose from Files…" testID="space-image-from-files" disabled={busy} onPress={() => setFromFiles(!fromFiles)} />
-                {logoFileId ? <Button label="Remove image" testID="space-image-remove" disabled={busy} onPress={() => void remove()} /> : null}
-              </Actions></View> : null}
-            {picker}
-            {source && loaded && square ? (
-              <View style={s.editor} testID="space-image-editor">
-                <Cropper loaded={loaded} crop={crop} onCrop={setCrop} />
-                <View style={s.side}>
-                  <Text style={s.label}>Preview</Text>
-                  <Faces url={square.url} name={spaceName} />
-                  <Text style={s.small}>{source.name} · saved as a {IMAGE_SIDE} × {IMAGE_SIDE} square in Shared knowledge/Branding</Text>
-                  <Actions>
-                    <Button label={busy ? "Saving…" : "Save image"} testID="space-image-save" disabled={busy} onPress={() => void save()} />
-                    <Button label="Cancel" testID="space-image-cancel" disabled={busy} onPress={() => { setSource(null); setLoaded(null); }} />
-                  </Actions>
-                </View>
-              </View>
-            ) : <Help>Choose a picture, drop one here or paste it. A square crop works best for a logo.</Help>}
-            {note ? <Note>{note}</Note> : null}
-          </Group>
-        </Section>
-      </DropZone>
-      {fromFiles ? <FilesPicker onChoose={(f) => void fromFile(f)} onClose={() => setFromFiles(false)} /> : null}
-    </View>
+    <DropZone onFiles={(files) => void open(files)} paste={false} label="Drop a picture to use it as the Space logo" testID="space-image-drop" radius={12}>
+      <View testID="space-image">
+        <Line index={0}><Row id="space-logo" title="Logo" leading={leading} trailing={<Actions>
+          <Button label="Upload" testID="space-image-choose" disabled={busy} onPress={() => input.current?.click()} />
+          {logoFileId ? <Button label="Remove" testID="space-image-remove" disabled={busy} onPress={() => void remove()} /> : null}
+        </Actions>} /></Line>
+        {picker}
+        {source && loaded && square ? (
+          <View style={s.editor} testID="space-image-editor">
+            <Cropper loaded={loaded} crop={crop} onCrop={setCrop} />
+            <View style={s.side}>
+              <Text style={s.label}>Preview</Text>
+              <Faces url={square.url} name={spaceName} />
+              <Text style={s.small}>{source.name} · saved as a {IMAGE_SIDE} × {IMAGE_SIDE} square in Shared knowledge/Branding</Text>
+              <Actions>
+                <Button label={busy ? "Saving…" : "Save image"} testID="space-image-save" disabled={busy} onPress={() => void save()} />
+                <Button label="Cancel" testID="space-image-cancel" disabled={busy} onPress={() => { setSource(null); setLoaded(null); }} />
+              </Actions>
+            </View>
+          </View>
+        ) : null}
+        {note ? <Note>{note}</Note> : null}
+      </View>
+    </DropZone>
   );
 }
 

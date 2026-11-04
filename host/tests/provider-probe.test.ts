@@ -163,3 +163,12 @@ test("OpenCode Go's check is a real one-token chat with vyre's user agent and a 
   const second = await run((n) => (n === 0 ? { status: 404, text: "{}" } : { status: 200, text: "{}" }));
   assert.equal(second.r.ok, true, "a model this endpoint does not serve is tried past");
 });
+
+test("a Codex API key is checked with one cheap call to the OpenAI model list, and the key is in no answer", async () => {
+  const seen: { url: string; auth: string | undefined }[] = [];
+  const fetchFn = (async (url: string, init?: { headers?: Record<string, string> }) => { seen.push({ url, auth: init?.headers?.["authorization"] }); return { status: 200, ok: true, json: async () => ({ data: [{ id: "gpt-5-codex" }] }) }; }) as unknown as typeof fetch;
+  const r = await createProviderProbe({ fetch: fetchFn })({ providerKey: "codex", connection: "api_key", caller: "usr_a", apiKey: KEY });
+  assert.deepEqual([r.ok, r.models], [true, ["gpt-5-codex"]]);
+  assert.deepEqual(seen, [{ url: "https://api.openai.com/v1/models", auth: `Bearer ${KEY}` }]);
+  assert.ok(!JSON.stringify(r).includes(KEY));
+});

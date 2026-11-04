@@ -43,6 +43,31 @@ export function userData(jitConfig: string, maxMinutes: number): string {
   ].join("\n");
 }
 
+/** The runner's download name for the pin. */
+export const RUNNER_FILE = `actions-runner-linux-x64-${RUNNER_VERSION}.tar.gz`;
+const VERIFIED_MS = 6 * 3_600_000;
+
+/**
+ * Before any machine starts, the pinned checksum is compared with the one GitHub itself lists for that release file. They must be equal; a mismatch, a missing checksum or a GitHub that cannot be asked all refuse
+ * (a download that was swapped must never run a job). A pass is remembered for six hours. The machine checks the downloaded file against the same pin again before it runs it.
+ */
+export async function runnerVerified(ctx: CiCtx): Promise<{ ok: true } | { ok: false; why: string }> {
+  const at = Number(metaGet(ctx, "runner_verified") ?? 0);
+  if (at && ctx.now() - at < VERIFIED_MS) return { ok: true };
+  let digest: string | null = null;
+  try {
+    const rel = (await ctx.call("github.runner_release", { version: RUNNER_VERSION })) as { assets?: Array<{ name: string; digest: string | null }> };
+    digest = rel.assets?.find((a) => a.name === RUNNER_FILE)?.digest ?? null;
+  } catch (e) {
+    ctx.log.warn("ci: the runner release could not be read", { code: code(e) });
+    return { ok: false, why: "Vyre could not check the runner download with GitHub, so no machine was started. It tries again on the next job." };
+  }
+  if (digest === null) return { ok: false, why: "GitHub lists no checksum for the runner download, so Vyre cannot check it and started no machine." };
+  if (digest.toLowerCase() !== `sha256:${RUNNER_SHA256}`) return { ok: false, why: "The runner download is not the one this version of Vyre trusts (its checksum differs), so no machine was started. Update Vyre." };
+  metaSet(ctx, "runner_verified", String(ctx.now()));
+  return { ok: true };
+}
+
 const newRunId = (): string => `cir_${Array.from(globalThis.crypto.getRandomValues(new Uint8Array(6)), (b) => b.toString(16).padStart(2, "0")).join("")}`;
 const monthStart = (ms: number): number => { const d = new Date(ms); return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1); };
 
@@ -105,6 +130,14 @@ export async function intake(ctx: CiCtx, a: JobIn): Promise<{ handled: Handled }
 async function begin(ctx: CiCtx, s: Settings, run: Run): Promise<Handled> {
   const live = liveCount(ctx);
   if (live >= s.maxConcurrent) { patchRun(ctx, run.runId, { note: `Waiting for a free machine: ${live} of ${s.maxConcurrent} are busy.` }); return "queued"; }
+  const pin = await runnerVerified(ctx);
+  if (!pin.ok) {
+    const day = new Date(ctx.now()).toISOString().slice(0, 10);
+    patchRun(ctx, run.runId, { state: "refused", ended_at: ctx.now(), note: pin.why });
+    ctx.emit("ci.job_refused", `entity/${run.repo}`, { repo: run.repo, jobId: run.jobId, reason: pin.why, code: "runner_unverified" });
+    if (metaGet(ctx, `blocked:${day}`) === null) { metaSet(ctx, `blocked:${day}`, String(ctx.now())); ctx.emit("ci.blocked", `entity/${day}`, { title: `CI is waiting on you: ${pin.why}`, why: "runner_unverified", day }); }
+    return "refused";
+  }
   const price = PRICE_HOURLY[s.size] ?? 0, estimate = costOf(price, s.maxJobMinutes * 60), spent = spentThisMonth(ctx);
   if (spent + estimate > s.monthlyCapUsd) {
     const month = monthOf(ctx.now()), title = `CI paused: this month's cap of $${money(s.monthlyCapUsd)} is reached`;
@@ -121,7 +154,7 @@ async function start(ctx: CiCtx, s: Settings, run: Run, price: number): Promise<
   const name = `vyre-ci-${run.runId.slice(4)}`;
   let runnerId: number | null = null, dropletId: string | null = null;
   try {
-    const jit = (await ctx.call("github.runners.jit_config", { repo: run.repo, name, labels: s.labels })) as { runnerId: number; jitConfig: string };
+    const jit = (await ctx.call("github.runners.jit_config", { repo: run.repo, name, labels: s.labels, idempotencyKey: `jit-${run.runId}` })) as { runnerId: number; jitConfig: string };
     runnerId = jit.runnerId;
     const made = await cloud(ctx, s, {
       method: "POST", path: "/v2/droplets",

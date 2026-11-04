@@ -66,7 +66,7 @@ export function HelperChip({ m, now, selected = false, index = 0, onPress, onRet
         <Avatar name={name} seedId={m.agentId} kind="agent" size={28} />
       </View>
       <View style={st.main}>
-        <View style={st.l1}><Text numberOfLines={1} style={st.name}>{name}</Text><Text numberOfLines={1} testID={`${id}-role`} style={st.role}>{roleOf(m)}</Text></View>
+        <View style={st.l1}><Text numberOfLines={1} style={st.name}>{name}</Text>{roleOf(m) !== "" ? <Text numberOfLines={1} testID={`${id}-role`} style={st.role}>{roleOf(m)}</Text> : null}</View>
         <Text numberOfLines={1} testID={`${id}-line`} style={[st.line, m.state === "failed" && st.lineFail, m.state === "needs_you" && st.lineWait]}>{lineOf(m)}</Text>
         {code || tag ? (
           <View style={st.l3}>
@@ -99,7 +99,7 @@ export function CrewStrip({ members, totals, selectedId, onPeek, onStopAll, onOp
         {onOpenPane ? <Pressable accessibilityRole="button" accessibilityLabel="Open the Crew pane" testID="crew-strip-pane" onPress={onOpenPane} style={st.headBtn}><Text style={st.headBtnText}>Crew</Text></Pressable> : null}
       </View>
       <View style={st.list}>
-        {/* ui-rows-lint: not a list (helper chips in a strip) */}
+        {/* ui-rows-lint: not a list (the chips of one strip: each a face in a ring with a state, a name, a line and a clock, drawn together as the prototype p-crew shows them) */}
         {members.map((m, i) => <HelperChip key={m.id} m={m} now={now} index={i} selected={selectedId === m.id} onPress={onPeek} {...(onRetry ? { onRetry } : {})} />)}
       </View>
     </View>

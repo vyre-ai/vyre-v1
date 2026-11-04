@@ -34,6 +34,7 @@ type Out = {
   provider: string;
   url: string;
   protocols: Array<string>;
+  context?: string;
   source: "own" | "space";
   expiresIn: number;
 };
@@ -58,6 +59,7 @@ type Out = {
   "name": "example",
   "input": {},
   "output": {
+    "context": "example",
     "expiresIn": 1,
     "protocols": [
       "example"

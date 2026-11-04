@@ -22,5 +22,7 @@
   "modules/dropbox/handlers/connect.ts#connectComplete": "single-use sign-in state: it is spent before the expiry, decline and token checks so a leaked link can never be replayed",
   "modules/google/handlers/personal.ts#userComplete": "single-use sign-in state: it is spent before the expiry, decline and token checks so a leaked link can never be replayed",
   "modules/microsoft/handlers/personal.ts#userComplete": "single-use sign-in state: it is spent before the expiry, decline and token checks so a leaked link can never be replayed",
-  "modules/engine/mcp-oauth.ts#createMcpOauth": "single-use sign-in state: it is spent on a decline, a lost verifier or the token exchange so a leaked link can never be replayed"
+  "modules/engine/mcp-oauth.ts#createMcpOauth": "single-use sign-in state: it is spent on a decline, a lost verifier or the token exchange so a leaked link can never be replayed",
+  "modules/settings/handlers/contact.ts#contactVerifyStart": "the send counter (settings_contact_sent) counts the attempt it refuses; a code that could not be sent is deleted before the refusal",
+  "modules/settings/handlers/contact.ts#contactVerifyConfirm": "the wrong-code count must survive the refusal (it ends the code after the tries run out); a changed, expired or used-up code is dropped before its refusal, and every refusal emits settings.contact_code_failed"
 }

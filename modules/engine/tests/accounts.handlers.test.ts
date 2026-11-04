@@ -45,6 +45,19 @@ test("accounts.list: handles, kinds, Mine or shared, and sign-in state, no secre
   assert.ok(!JSON.stringify(out).toLowerCase().includes("secret"));
 });
 
+test("accounts.list: Codex on an API key resolves to the Codex CLI as an API key account, next to the ChatGPT sign-in", async () => {
+  const { ctx } = fake(routes([
+    prov({ id: "prv_1", handle: "#Dana_Codex", providerKey: "codex", engine: "codex", connection: "subscription" }),
+    prov({ id: "prv_2", handle: "#Dana_CodexKey", providerKey: "codex", engine: "codex", connection: "api_key" }),
+  ]));
+  const out = await accountsList(ctx, {});
+  assert.deepEqual(out.accounts.map((a) => [a.ref, a.driver, a.kind]), [["#Dana_Codex", "codex", "subscription"], ["#Dana_CodexKey", "codex", "api_key"]]);
+  assert.ok(!JSON.stringify(out).includes("sk-"));
+  assert.equal(out.accounts[1]!.name, "Codex, with an API key", "the key reads in plain words");
+  const named = await accountsList(fake(routes([prov({ id: "prv_3", handle: "#Mine", providerKey: "codex", engine: "codex", connection: "api_key", itemName: "Work Codex key" } as Partial<Prov> & { id: string; handle: string })])).ctx, {});
+  assert.equal(named.accounts[0]!.name, "Work Codex key", "a name the person gave stays");
+});
+
 test("accounts.list says which accounts keep nothing (a local model always does); a Restricted thread runs only on one that does", async () => {
   const mix = [prov({ id: "prv_1", handle: "#Dana_Anthropic" }), prov({ id: "prv_3", handle: "#Team_Anthropic_Key", scope: "shared", keepsNothing: true }), prov({ id: "prv_5", handle: "#Local", connection: "local_model", engine: "local", providerKey: "local" })];
   const listed = await accountsList(fake(routes(mix)).ctx, {});

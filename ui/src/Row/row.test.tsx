@@ -2,7 +2,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
-import { Row, ROW_HEIGHT, ROW_HEIGHT_WITH_NOTE, ROW_HEIGHT_TALL, rowHeight } from "./index.tsx";
+import { Row, RowWrapContext, ROW_HEIGHT, ROW_HEIGHT_WITH_NOTE, ROW_HEIGHT_TALL, rowHeight } from "./index.tsx";
 
 test("a selected row paints the selection token on the row itself, full width", () => {
   const html = renderToStaticMarkup(<Row id="a" title="Weekly sync" selected />);
@@ -137,4 +137,12 @@ test("a row nothing presses is not a button", () => {
   const html = renderToStaticMarkup(<Row id="r" title="Mira used this sign-in" />);
   assert.match(html, /^<div role="listitem"/);
   assert.ok(!html.includes('tabindex="0"'));
+});
+
+test("a title with a help mark wraps to two lines on a phone instead of clipping", () => {
+  const mark = <span>i</span>;
+  const on = renderToStaticMarkup(<RowWrapContext.Provider value={true}><Row id="w" title="Public address for file changes" titleMarks={mark} /></RowWrapContext.Provider>);
+  const off = renderToStaticMarkup(<Row id="w" title="Public address for file changes" titleMarks={mark} />);
+  assert.match(on, /-webkit-line-clamp:2/);
+  assert.doesNotMatch(off, /-webkit-line-clamp:2/);
 });

@@ -48,7 +48,7 @@ test("copy: no banned word in what any page draws (sample Space, Owner)", () => 
 const LANDS: Record<string, [string, string]> = {
   overview: ["overview", "overview"], people: ["access", "people"], groups: ["access", "groups"], roles: ["access", "roles"], permissions: ["access", "permissions"], grants: ["access", "grants"], checker: ["access", "people"],
   invites: ["access", "requests"], policies: ["security", "policies"], reviews: ["security", "reviews"], sessions: ["security", "sessions"],
-  agents: ["agents", "agents"], actors: ["agents", "actors"], skills: ["agents", "skills"], plugins: ["agents", "plugins"], template: ["agents", "template"], runs: ["agents", "activity"],
+  agents: ["agents", "agents"], actors: ["agents", "actors"], skills: ["agents", "skills"], hooks: ["agents", "hooks"], plugins: ["agents", "plugins"], template: ["agents", "template"], runs: ["agents", "activity"],
   models: ["ai", "aisee"], voice: ["ai", "voice"], gate: ["ai", "gate"], spend: ["ai", "spend"], usage: ["ai", "usage"], review: ["ai", "review"], incidents: ["ai", "incidents"], aipolicy: ["ai", "aipolicy"], internet: ["ai", "internet"], memlearn: ["ai", "memlearn"],
   schema: ["data", "schema"], labels: ["data", "labels"], retention: ["data", "retention"], holds: ["data", "holds"], erase: ["data", "erase"], backups: ["data", "backups"], export: ["data", "export"],
   domains: ["messaging", "domains"], inboxes: ["messaging", "inboxes"], numbers: ["messaging", "numbers"], texting: ["messaging", "texting"],

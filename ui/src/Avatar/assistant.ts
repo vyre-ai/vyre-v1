@@ -84,7 +84,7 @@ export function setAgentStatuses(rows: readonly { id: string; status: string }[]
   for (const r of rows) {
     if (r.status === "working") { next.set(r.id, "working"); working.add(r.id); continue; }
     // it was working and now is not: it just finished
-    if (working.delete(r.id)) { doneUntil.set(r.id, now + DONE_MS); setTimeout(emit, DONE_MS + 50); }
+    if (working.delete(r.id)) { doneUntil.set(r.id, now + DONE_MS); const t = setTimeout(emit, DONE_MS + 50) as unknown as { unref?: () => void }; t.unref?.(); }   // a timer that only repaints a glow must not keep a process alive for 90 s
     if (r.status === "asleep" || r.status === "paused") next.set(r.id, "asleep");
     else if ((doneUntil.get(r.id) ?? 0) > now) next.set(r.id, "done");
   }

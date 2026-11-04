@@ -380,7 +380,7 @@ export function createContextBuilder(d: ContextDeps) {
   }
 
   /** A thread hangs off a message in a conversation. An agent in it reads what it hangs off and the conversation around it, as the person it works for: what they cannot read gives nothing. */
-  async function parentOf(th: Obj | undefined, asker: string): Promise<string> {
+  async function parentOf(th: Obj | undefined, asker: string, roomPack = false): Promise<string> {
     const threadId = str(th?.["parentThreadId"]);
     if (!threadId) return "";
     const messageId = str(th?.["parentMessageId"]);
@@ -395,6 +395,8 @@ export function createContextBuilder(d: ContextDeps) {
     const out: string[] = [];
     const m = parent?.["message"] as Obj | undefined;
     if (m && words(m) !== "") out.push(`This thread hangs off this message by ${speaker(m)}:\n${cutTo(str(m["body"]) ?? "", 2_000)}`);
+    // the parent chat is a room: its roster, digest and recent messages come in the room pack, which keeps to what was said after the latest join; the loose lines here would not
+    if (roomPack) return out.join("\n\n");
     const older = str(summary?.["summary"]);
     if (older) out.push(`The conversation it came from, in short:\n${cutTo(older, 1_500)}`);
     else {
@@ -560,32 +562,45 @@ export function createContextBuilder(d: ContextDeps) {
     }
     if (str(digest?.["text"])) sections.push({ id: "digest", stable: false, once: true, text: `Tasks in hand (tasks_get has the detail):\n${str(digest?.["text"])}` });
 
-    add("parent", false, await parentOf(th, asker));
+    // a thread under a room (a channel, a project chat, a group chat) is answered with the room's own pack, the same as a turn in the chat: the thread's conversation comes with its own history
+    let roomTh = th;
+    let roomId = input.threadId;
+    const parentId = kind === "thread" ? str(th?.["parentThreadId"]) : undefined;
+    if (parentId) {
+      const pth = ((await read<Obj>("threads.get", { threadId: parentId }, asker))?.["thread"] as Obj | undefined) ?? undefined;
+      if (isRoom(pth)) { roomTh = pth; roomId = parentId; }
+    }
+    const inRoom = roomId !== input.threadId;
+    add("parent", false, await parentOf(th, asker, inRoom));
 
     // a room (a group chat, a project chat, a channel): the roster, a digest of what came before, and the recent messages with names and times, from the database and with no tool call
     let roomKeep = false;
     let cutFromSeq: number | undefined;
-    if (isRoom(th) && process.env["VYRE_ROOM_PACK"] !== "off") {   // the switch is for measuring the pack against none
+    if (isRoom(roomTh) && process.env["VYRE_ROOM_PACK"] !== "off") {   // the switch is for measuring the pack against none
       const zoneName = str((zone?.["row"] as Obj | undefined)?.["value"]) ?? "UTC";
       const isThread = kind === "thread" || str(th?.["parentThreadId"]) !== undefined;
-      const listed = await read<Obj>("chat.messages.list", { threadId: input.threadId, limit: READ_LIMIT }, asker);
+      const listed = await read<Obj>("chat.messages.list", { threadId: roomId, limit: READ_LIMIT }, asker);
       const all = arr<Obj>(listed?.["messages"]).map((m): RoomMessage => ({ messageId: str(m["messageId"]) ?? "", threadSeq: Number(m["threadSeq"] ?? 0), author: { kind: String((m["author"] as Obj | undefined)?.["kind"] ?? ""), id: str((m["author"] as Obj | undefined)?.["id"]) ?? "" }, kind: str(m["kind"]) ?? "text", body: str(m["body"]) ?? "", createdAt: Number(m["createdAt"] ?? 0) }));
       // the cut: what was said before the latest person came in was not said to the room, and what the agent answers is read by the whole room. So for every asker, in every turn of a shared chat,
       // nothing from before the last join is sent to the model (a chat with one person has no join and is read whole)
-      const joins = Object.values((th?.["joinedAt"] as Record<string, unknown> | undefined) ?? {}).filter((x): x is number => typeof x === "number");
+      const joins = Object.values((roomTh?.["joinedAt"] as Record<string, unknown> | undefined) ?? {}).filter((x): x is number => typeof x === "number");
       const sharedAt = joins.length > 0 ? Math.max(...joins) : undefined;
       const visible = sharedAt === undefined ? all : all.filter((m) => m.createdAt >= sharedAt);
       const agentIds = new Set(agents.map((a) => a.id));
-      const win = recentWindow({ messages: all, agentId, ...(input.trigger?.id ? { triggerId: input.trigger.id } : {}), ...(sharedAt !== undefined ? { sharedAt } : {}), isThread, zone: zoneName, nameOf: who, isAgent: (id) => id.startsWith("agt_") || agentIds.has(id) });
-      const stored = d.digests?.get(input.threadId, agentId);
+      const win = recentWindow({ messages: all, agentId, ...(input.trigger?.id ? { triggerId: input.trigger.id } : {}), ...(sharedAt !== undefined ? { sharedAt } : {}), isThread: inRoom ? false : isThread, zone: zoneName, nameOf: who, isAgent: (id) => id.startsWith("agt_") || agentIds.has(id) });
+      const stored = d.digests?.get(roomId, agentId);
       const digestText = stored && stored.upToSeq > 0 ? stored : undefined;
-      const roster = `The room (${title ? `"${one(title, 80)}", ` : ""}${kind === "channel" ? "a channel" : "a group chat"}). People: ${people.slice(0, 20).map((p) => `${who(p)}${p === asker ? " (asked you)" : ""}`).join(", ") || "none"}. Agents: ${[{ id: agentId, mode: "" }, ...agents.filter((a) => a.id !== agentId)].slice(0, 12).map((a) => `${a.id === agentId ? "you" : who(a.id)} (${a.id === agentId ? "this is you" : a.mode === "lead" ? "lead" : "answers when tagged"})`).join(", ")}.`;
+      const rTitle = inRoom ? str(roomTh?.["title"]) : title;
+      const rKind = inRoom ? str(roomTh?.["kind"]) ?? "chat" : kind;
+      const rPeople = inRoom ? arr(roomTh?.["members"]).filter((m) => m["kind"] === "person").map((m) => String(m["id"])) : people;
+      const rAgents = inRoom ? arr(roomTh?.["agents"]).map((a) => ({ id: String(a["agentId"]), mode: String(a["mode"] ?? "") })) : agents;
+      const roster = `The room (${rTitle ? `"${one(rTitle, 80)}", ` : ""}${rKind === "channel" ? "a channel" : "a group chat"}). People: ${rPeople.slice(0, 20).map((p) => `${who(p)}${p === asker ? " (asked you)" : ""}`).join(", ") || "none"}. Agents: ${[{ id: agentId, mode: "" }, ...rAgents.filter((a) => a.id !== agentId)].slice(0, 12).map((a) => `${a.id === agentId ? "you" : who(a.id)} (${a.id === agentId ? "this is you" : a.mode === "lead" ? "lead" : "answers when tagged"})`).join(", ")}.`;
       const pack = packText({ roster, ...(digestText ? { digest: digestText } : {}), window: win, zone: zoneName, hasMessage: input.trigger !== null });
       add("room", true, pack.stable);
       add("recent", false, pack.recent);
-      d.digests?.refresh({ threadId: input.threadId, agentId, asker, messages: visible, nameOf: who });
+      d.digests?.refresh({ threadId: roomId, agentId, asker, messages: visible, nameOf: who });
       roomKeep = win.lines.length > 0;
-      if (sharedAt !== undefined) {
+      if (sharedAt !== undefined && !inRoom) {
         // every message the driver would be given for this asker starts at the first one they could read; the summary of the whole chat is the earlier turns, so it goes
         const firstSeq = all.find((m) => m.createdAt >= sharedAt)?.threadSeq;
         cutFromSeq = firstSeq ?? Number.MAX_SAFE_INTEGER;

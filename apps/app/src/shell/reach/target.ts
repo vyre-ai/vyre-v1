@@ -34,6 +34,8 @@ const READS: Readonly<Record<string, (id: string, args: Readonly<Record<string, 
   automation: (id) => ({ cap: "automations.get", input: { automationId: id } }),
   project: (id) => ({ cap: "projects.get", input: { projectId: id } }),
   agent: (id) => ({ cap: "agents.get", input: { agentId: id } }),
+  // a teammate opens as their public profile: the read the person pane makes
+  person: (id) => ({ cap: "memory.profile.get", input: { personId: id } }),
   file: (id) => ({ cap: "files.get", input: { fileId: id } }),
   doc: (id) => ({ cap: "files.get", input: { fileId: id } }),
   document: (id) => ({ cap: "files.get", input: { fileId: id } }),
@@ -102,3 +104,8 @@ export async function judge(t: OpenTarget, j: Judge): Promise<Reach> {
 
 /** What a click that reach turned away says. */
 export const NO_ACCESS = "You do not have access to that";
+
+/** The plain line for a refused click: the same quiet notice for every subject, worded for a person's profile. */
+export function noAccessLine(t: OpenTarget): string {
+  return t.subject?.type === "person" ? "You can't see this person's profile" : NO_ACCESS;
+}
