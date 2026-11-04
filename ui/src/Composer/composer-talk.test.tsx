@@ -35,6 +35,7 @@ const pressOut = async (n: Node | null): Promise<void> => { await act(async () =
 const open = async (s: TalkSocket): Promise<void> => { await act(async () => { s.readyState = 1; s.onopen?.({}); }); };
 const hear = async (s: TalkSocket, text: string, final = false): Promise<void> => { await act(async () => { s.onmessage?.({ data: words(text, final) }); }); };
 const esc = async (): Promise<void> => { await act(async () => { (globalThis as unknown as { dispatchKey?: (k: string) => void }).dispatchKey?.("Escape"); }); };
+const undoKey = async (): Promise<void> => { await act(async () => { (globalThis as unknown as { dispatchKey?: (k: string, m?: object) => void }).dispatchKey?.("z", { ctrlKey: true }); }); };
 async function withDom(run: () => Promise<void>): Promise<void> {
   const restore = installDom();
   const listeners: ((e: { key: string; preventDefault(): void; stopPropagation(): void }) => void)[] = [];
@@ -42,7 +43,7 @@ async function withDom(run: () => Promise<void>): Promise<void> {
   const before = [g["addEventListener"], g["removeEventListener"]];
   g["addEventListener"] = (t: string, f: never) => { if (t === "keydown") listeners.push(f); };
   g["removeEventListener"] = (t: string, f: never) => { const i = listeners.indexOf(f); if (t === "keydown" && i >= 0) listeners.splice(i, 1); };
-  g["dispatchKey"] = (key: string) => { for (const f of [...listeners]) f({ key, preventDefault() {}, stopPropagation() {} }); };
+  g["dispatchKey"] = (key: string, mods: object = {}) => { for (const f of [...listeners]) f({ key, ...mods, preventDefault() {}, stopPropagation() {} }); };
   try { await run(); } finally { g["addEventListener"] = before[0]; g["removeEventListener"] = before[1]; delete g["dispatchKey"]; restore(); }
 }
 const tree = (port: TalkPort, el: ReactElement): ReactElement => <TalkContext.Provider value={port}>{el}</TalkContext.Provider>;
@@ -232,5 +233,37 @@ test("with a key covering them nothing changes: a Personal Space or a covered pe
     await pressIn(find(root, "composer-talk")); await pressOut(find(root, "composer-talk"));
     await flush();
     assert.equal(t.state.setups, 1, "no unset: the sheet, as before");
+  });
+});
+
+test("Undo while Talk waits for the last words ends Talk at once, drops the late words and restores the field", async () => {
+  await withDom(async () => {
+    const t = rig();   // later() never fires: the two seconds Talk waits after a stop are still running
+    const root = await mount(createRoot, tree(t.port, <Composer whoWillAnswer="" value="Hello there" />));
+    await pressIn(find(root, "composer-talk")); await pressOut(find(root, "composer-talk"));
+    await flush();
+    await open(t.sockets[0]!);
+    await hear(t.sockets[0]!, "send the lease", true);
+    assert.equal(field(root)!.props.value, "Hello there send the lease");
+    await pressIn(find(root, "composer-talk")); await pressOut(find(root, "composer-talk"));   // stop: now it waits for the last words
+    await undoKey();
+    assert.equal(field(root)!.props.value, "Hello there", "the field is as it was before Talk");
+    assert.ok(t.state.micStopped >= 1, "the mic is off");
+    await hear(t.sockets[0]!, "and a late word", true);
+    assert.equal(field(root)!.props.value, "Hello there", "a word that arrives late is dropped");
+    assert.equal(find(root, "composer-talk-level"), null, "it is not listening any more");
+  });
+});
+
+test("Redo (Shift Z) and a plain z are not Undo: Talk goes on", async () => {
+  await withDom(async () => {
+    const t = rig();
+    const root = await mount(createRoot, tree(t.port, <Composer whoWillAnswer="" />));
+    await pressIn(find(root, "composer-talk")); await pressOut(find(root, "composer-talk"));
+    await flush();
+    await open(t.sockets[0]!);
+    await act(async () => { (globalThis as unknown as { dispatchKey?: (k: string, m?: object) => void }).dispatchKey?.("z", {}); });
+    await act(async () => { (globalThis as unknown as { dispatchKey?: (k: string, m?: object) => void }).dispatchKey?.("Z", { ctrlKey: true, shiftKey: true }); });
+    assert.ok(find(root, "composer-talk-level"), "still listening");
   });
 });

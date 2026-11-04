@@ -165,9 +165,13 @@ export function useTalk(o: { read(): { text: string; cursor: number }; write(tex
 
   useEffect(() => {
     if (phase === "idle" || !web) return undefined;
-    type Key = { key: string; preventDefault(): void; stopPropagation(): void };
+    type Key = { key: string; metaKey?: boolean; ctrlKey?: boolean; shiftKey?: boolean; preventDefault(): void; stopPropagation(): void };
     const w = globalThis as unknown as { addEventListener(t: string, f: (e: Key) => void, c: boolean): void; removeEventListener(t: string, f: (e: Key) => void, c: boolean): void };
-    const onKey = (e: Key): void => { if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); cancel(); } };
+    // Esc, and Undo (Cmd or Ctrl Z): Talk ends at once, the words still on their way are dropped and the field goes back to what it was before Talk, so Undo works the moment it is pressed, even in the moments Talk waits for the last words
+    const onKey = (e: Key): void => {
+      const undo = (e.key === "z" || e.key === "Z") && (e.metaKey === true || e.ctrlKey === true) && e.shiftKey !== true;
+      if (e.key === "Escape" || undo) { e.preventDefault(); e.stopPropagation(); cancel(); }
+    };
     w.addEventListener("keydown", onKey, true);
     return () => w.removeEventListener("keydown", onKey, true);
   }, [phase, cancel]);
