@@ -61,7 +61,9 @@ export function linkCardLine(d: LinkCardData, nameOf: (id: string) => string): s
 }
 
 /** A card that is more than a line: it has words under it or buttons. */
-export const isFullCard = (d: LinkCardData): boolean => d.body !== undefined || (d.actions?.length ?? 0) > 0;
+/** A line with one button and no words under it ("Noted: decision, go with Harbor \u00b7 Undo") stays a line: the button is a link at its end. */
+export const isInlineAction = (d: LinkCardData): boolean => d.body === undefined && d.actions?.length === 1;
+export const isFullCard = (d: LinkCardData): boolean => !isInlineAction(d) && (d.body !== undefined || (d.actions?.length ?? 0) > 0);
 
 /** The block a handler writes into a thread: the one place the shape is built, so every module's card is the same. */
 export function linkCardBlock(id: string, traceId: string, d: LinkCardData): { type: string; v: number; id: string; data: LinkCardData; state: string; traceId: string } {

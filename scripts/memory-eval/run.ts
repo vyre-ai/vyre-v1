@@ -249,7 +249,10 @@ try {
       ]);
       const usedNow = JSON.stringify((await asker.call("memory.used", { threadId: thread, messageId: askedId })).data ?? {}).toLowerCase();
       const viaTools = metrics.trace.filter((t) => t.startsWith("result")).join(" ").toLowerCase();   // what the tools returned, not what the model typed into them
-      const fromMemory = forbidHit.some((f) => direct.toLowerCase().includes(f) || usedNow.includes(f) || viaTools.includes(f));
+      // `direct` reads as the asker outside any chat (their own memory panel), so it is not what the turn was given: only what recall recorded for the turn and what the tools returned count
+      void direct;
+      const fromMemory = forbidHit.some((f) => usedNow.includes(f) || viaTools.includes(f));
+      if (process.env["EVAL_VERBOSE"]) log(`   thread: ${JSON.stringify((await asker.call("threads.get", { threadId: thread })).data).slice(0, 700)}; used ${usedNow.slice(0, 400)}`);
       memoryLeaks += fromMemory ? 1 : 0;
       log(`   LEAK PROBE #${q.id}: ${fromMemory ? "memory (recall or a memory tool) HANDED the secret to this asker" : "memory did not hand it over: the words came from the chat transcript the engine gave the turn"}; tools ${metrics.tools.join(",") || "none"}`);
     }

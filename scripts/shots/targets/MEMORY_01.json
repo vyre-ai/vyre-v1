@@ -1,0 +1,25 @@
+{
+  "targets": [
+    {
+      "id": "MEMORY_01-knows",
+      "route": "/m/MEMORY_01?part=knows",
+      "proto": "chats,{skin}",
+      "waitFor": "[data-testid='knows']",
+      "note": "The Knows tab in the side pane of a shared place: decisions, facts, commitments, preferences, open questions, with who and when, what was replaced, Source, Edit and Remove."
+    },
+    {
+      "id": "MEMORY_01-noted",
+      "route": "/m/MEMORY_01?part=noted",
+      "proto": "chats,{skin}",
+      "waitFor": "[data-testid='memory-noted']",
+      "note": "The quiet Noted line with Undo, and the open question with a choice per answer."
+    },
+    {
+      "id": "MEMORY_01-chip",
+      "route": "/m/MEMORY_01?part=chip",
+      "proto": "chats,{skin}",
+      "waitFor": "[data-testid='memory-chip']",
+      "note": "An agent's answer with its source chip."
+    }
+  ]
+}

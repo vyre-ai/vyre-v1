@@ -2,7 +2,7 @@
 // name lookup and what opening and a button do, so this file knows nothing about tasks or facts.
 import type { ReactElement, ReactNode } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
-import { isFullCard, linkCardLine } from "./model.ts";
+import { isFullCard, isInlineAction, linkCardLine } from "./model.ts";
 import type { LinkCardData } from "./model.ts";
 import type { CardState } from "./state.ts";
 import { HIDDEN_TITLE } from "./state.ts";
@@ -46,6 +46,16 @@ export function LinkCard({ id, data, nameOf, icon, onOpen, onAction, done, state
       </Pressable>,
     );
   }
+  if (isInlineAction(data)) {
+    const a = data.actions![0]!;
+    const was = done?.has(a.key) === true;
+    return (
+      <View testID={`link-card-${id}`} style={st.line}>
+        {head}
+        <Pressable accessibilityRole="button" accessibilityLabel={a.label} disabled={was || !onAction} testID={`link-card-${id}-${a.key}`} onPress={() => onAction?.(a.key)}><Text style={[st.link, st.inlineBtn]}>{was ? `${a.label} \u2713` : a.label}</Text></Pressable>
+      </View>
+    );
+  }
   if (!isFullCard(data)) return <View testID={`link-card-${id}`} accessibilityRole="text" style={st.line}>{head}</View>;
   return (
     <View testID={`link-card-${id}`} style={st.card}>
@@ -61,7 +71,8 @@ export function LinkCard({ id, data, nameOf, icon, onOpen, onAction, done, state
 }
 
 const st = StyleSheet.create({
-  line: { paddingVertical: 4, marginVertical: 2 },
+  line: { paddingVertical: 4, marginVertical: 2, flexDirection: "row", alignItems: "baseline", flexWrap: "wrap", gap: 8 },
+  inlineBtn: { fontSize: 13, lineHeight: 20 },
   card: { marginVertical: 6, maxWidth: 520, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, gap: 8, boxShadow: "inset 0 0 0 1px var(--line-2)" } as object,
   head: { flexDirection: "row", alignItems: "flex-start", gap: 8 },
   icon: { width: 18, height: 20, alignItems: "center", justifyContent: "center" },
