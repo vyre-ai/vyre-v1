@@ -18,12 +18,16 @@ export interface FrameStore {
   subscribe(l: () => void): () => void;
   /** Moves when something the header draws changes, not on every render of the conversation. */
   version(): number;
+  /** The composer's words in a project: "Message <the project>", not the lead agent's name. */
+  placeholder(): string | null;
+  setPlaceholder(p: string | null): void;
 }
 
 export function createFrameStore(): FrameStore {
   let cur: FrameControls | null = null;
   let sig = "";
   let v = 0;
+  let ph: string | null = null;
   const ls = new Set<() => void>();
   return {
     get: () => cur,
@@ -36,6 +40,8 @@ export function createFrameStore(): FrameStore {
     },
     subscribe(l) { ls.add(l); return () => { ls.delete(l); }; },
     version: () => v,
+    placeholder: () => ph,
+    setPlaceholder(p) { ph = p; },
   };
 }
 

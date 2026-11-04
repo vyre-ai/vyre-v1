@@ -9,6 +9,16 @@ import { guardCrashes } from "./crash-guard.ts";
 
 const PASSWORD = "fixture password 123";
 
+/** The review shots: the page in paper, then the same page in graphite (the skin attributes the theme controller sets), then back. */
+async function both(p: { screenshot(o: { path: string }): Promise<unknown>; evaluate<T, A>(f: (a: A) => T, a: A): Promise<T>; evaluate<T>(f: () => T): Promise<T>; waitForTimeout(ms: number): Promise<void> }, name: string): Promise<void> {
+  const dir = process.env["VYRE_PROJECTS_SHOTS"] ?? "";
+  await p.screenshot({ path: path.join(dir, `${name}-paper.png`) });
+  const prev = await p.evaluate(() => { const r = document.documentElement; const was = [r.getAttribute("data-skin"), r.getAttribute("data-theme"), r.getAttribute("data-mode")]; for (const k of ["data-skin", "data-theme", "data-mode"]) r.setAttribute(k, "graphite"); return was; });
+  await p.waitForTimeout(250);
+  await p.screenshot({ path: path.join(dir, `${name}-graphite.png`) });
+  await p.evaluate((was) => { const r = document.documentElement; ["data-skin", "data-theme", "data-mode"].forEach((k, i) => { if (was[i] === null) r.removeAttribute(k); else r.setAttribute(k, was[i]!); }); }, prev);
+}
+
 test("Projects shell: sidebar group, project tab, header, tabs and status, as an admin and as a member", async (t) => {
   const dist = process.env["VYRE_APP_DIST"];
   if (!dist) { t.skip("VYRE_APP_DIST required for production browser evidence"); return; }
@@ -78,14 +88,14 @@ test("Projects shell: sidebar group, project tab, header, tabs and status, as an
         await p.waitForTimeout(800);
         assert.equal(await p.getByText("Couldn't draw this page").count(), 0, "a plain chat draws");
         await ok("a plain chat");
-        await p.screenshot({ path: path.join(shots, `projects-0-plain-chat-${who}-${size}-paper.png`) });
+        await both(p, `projects-0-plain-chat-${who}-${size}`);
         await p.goto(`${web.origin}/chat`, { waitUntil: "load" });
       }
       // the group in the sidebar, after Goals, and a row
       if (size === "wide") {
         await p.getByTestId("head-projects").waitFor({ timeout: 20_000 });
         await ok("the sidebar");
-        await p.screenshot({ path: path.join(shots, `projects-1-sidebar-${who}-${size}-paper.png`) });
+        await both(p, `projects-1-sidebar-${who}-${size}`);
         await p.getByTestId(`row-pj:${pid}`).click();
       } else {
         await p.goto(`${web.origin}/chat#subject=project:${pid}`, { waitUntil: "load" });
@@ -100,7 +110,7 @@ test("Projects shell: sidebar group, project tab, header, tabs and status, as an
       await p.waitForTimeout(800);
       assert.equal(await p.getByText("Couldn't draw this page").count(), 0, "the project page draws with its chat loaded");
       await ok("the project page");
-      await p.screenshot({ path: path.join(shots, `projects-2-project-${who}-${size}-paper.png`) });
+      await both(p, `projects-2-project-${who}-${size}`);
       // the regression: pressing Plan opens the Plan
       await p.getByTestId("tab-plan").click();
       await p.getByTestId("project-plan").waitFor({ timeout: 15_000 }).catch(async (e: Error) => {
@@ -110,7 +120,7 @@ test("Projects shell: sidebar group, project tab, header, tabs and status, as an
       });
       await p.waitForTimeout(500);
       await ok("Plan");
-      await p.screenshot({ path: path.join(shots, `projects-3-plan-${who}-${size}-paper.png`) });
+      await both(p, `projects-3-plan-${who}-${size}`);
       for (const k of ["overview", "linked", "knows", "chat"]) { await p.getByTestId(`tab-${k}`).click(); await p.waitForTimeout(500); await ok(`the ${k} tab`); }
       await p.getByTestId("project-chat-main").waitFor({ timeout: 15_000 });
       if (who === "admin" && size === "wide") {
@@ -120,7 +130,7 @@ test("Projects shell: sidebar group, project tab, header, tabs and status, as an
         await p.getByTestId("tab-knows").click();
         await p.getByTestId("project-knows").waitFor({ timeout: 10_000 });
         await ok("Knows and the status");
-        await p.screenshot({ path: path.join(shots, `projects-4-knows-${who}-${size}-paper.png`) });
+        await both(p, `projects-4-knows-${who}-${size}`);
       }
     };
     await walk("admin", page, "wide");

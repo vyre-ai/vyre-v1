@@ -779,7 +779,7 @@ function ConversationView(): ReactElement {
           {thread.kind === "thread" && thread.parentThreadId ? <View testID="also-to-chat-row" style={st.alsoRow}><AlsoToChat on={alsoOn} onChange={setAlso} /></View> : null}
           <Composer
             key={`composer-${seed.n}`} {...(seed.value !== "" ? { value: seed.value } : {})}
-            testID="composer" whoWillAnswer={whoLine(thread, nameOf)} placeholder={data.placeholder ?? placeholderFor(thread, nameOf, isWorking, canSteer)} working={isWorking}
+            testID="composer" whoWillAnswer={whoLine(thread, nameOf)} placeholder={data.placeholder ?? frame?.placeholder() ?? placeholderFor(thread, nameOf, isWorking, canSteer)} working={isWorking}
             {...(place.chip ? { runsChip: place.chip } : {})}
             agents={composerAgents} mode={mode} onMode={chooseChatMode}
             barExtra={<MemorySwitch threadId={thread.threadId} call={data.call} say={say} />}

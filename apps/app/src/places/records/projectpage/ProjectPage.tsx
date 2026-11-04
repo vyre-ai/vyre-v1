@@ -146,9 +146,10 @@ export function ProjectPage({ projectId, tab: first = DEFAULT_PROJECT_TAB, planV
             style={({ hovered }: { hovered?: boolean }) => [s.pill, hovered === true && canEdit && s.hover]}>
             <View style={[s.dot, { backgroundColor: HEALTH_COLOR[health ?? "none"] }]} />
             <Text style={s.pillText}>{health ? HEALTH_LABEL[health] : "No status"}</Text>
+            {canEdit ? <Text style={s.chev}>{"\u2304"}</Text> : null}
           </Pressable>
           {lead ? (
-            <View style={s.pill} testID="project-lead"><Avatar name={d.nameOf(lead)} size={18} /><Text style={s.pillText}>{d.nameOf(lead)}</Text></View>
+            <Pressable accessibilityRole="button" accessibilityLabel={`Lead: ${d.nameOf(lead)}`} testID="project-lead" disabled={!canEdit} onPress={(e: { nativeEvent?: { pageX?: number; pageY?: number }; currentTarget?: { getBoundingClientRect?: () => { left: number; right: number; bottom: number } } }) => { const r = e.currentTarget?.getBoundingClientRect?.(); setPeople(r ? { x: r.right, y: r.bottom, left: r.left } : { x: e.nativeEvent?.pageX ?? 0, y: e.nativeEvent?.pageY ?? 0 }); }} style={({ hovered }: { hovered?: boolean }) => [s.pill, hovered === true && canEdit && s.hover]}><Avatar name={d.nameOf(lead)} size={18} /><Text style={s.pillText}>{d.nameOf(lead)}</Text>{canEdit ? <Text style={s.chev}>{"\u2304"}</Text> : null}</Pressable>
           ) : null}
         </View>
         <Pressable accessibilityRole="button" accessibilityLabel="People and agents" testID="project-members" aria-haspopup="dialog" onPress={(e: { nativeEvent?: { pageX?: number; pageY?: number }; currentTarget?: { getBoundingClientRect?: () => { left: number; right: number; bottom: number } } }) => { const r = e.currentTarget?.getBoundingClientRect?.(); setPeople(r ? { x: r.right, y: r.bottom, left: r.left } : { x: e.nativeEvent?.pageX ?? 0, y: e.nativeEvent?.pageY ?? 0 }); }} style={({ hovered }: { hovered?: boolean }) => [s.pill, hovered === true && s.hover]}>
@@ -166,7 +167,7 @@ export function ProjectPage({ projectId, tab: first = DEFAULT_PROJECT_TAB, planV
         ) : null}
         <Pressable accessibilityRole="button" accessibilityLabel="More" testID="project-more" onPress={(e: unknown) => { const q = at(e); menu.show(moreEntries(), q.x, q.y, "other", { label: p.title }); }} style={({ hovered }: { hovered?: boolean }) => [s.iconBtn, hovered === true && s.hover]}><Text style={s.iconText}>{"\u2026"}</Text></Pressable>
       </View>
-      <TabStrip underline noOptions noClose tabs={tabs} active={tab} onSelect={(k) => pick(k as ProjectTabKey)} />
+      <TabStrip noOptions noClose tabs={tabs} active={tab} onSelect={(k) => pick(k as ProjectTabKey)} />
       {tab === "chat" && chatSlot ? <View style={s.chatSlot} testID="project-chat-main">{chatSlot}</View> : null}
       {tab === "chat" && !chatSlot ? <ChatTab o={o} projectId={projectId} channelName={`#${p.title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}`} now={now} /> : null}
       {tab === "plan" ? (
@@ -301,6 +302,7 @@ const s = StyleSheet.create({
   star: { fontSize: 16, color: "var(--ink-3)" as string },
   starOn: { color: "var(--warn)" as string },
   pill: { height: 28, flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 8, borderRadius: 8 },
+  chev: { fontSize: 12, color: "var(--ink-3)" as string, marginLeft: 2 },
   pillText: { fontSize: 12.5, color: "var(--ink-2)" as string },
   dot: { width: 8, height: 8, borderRadius: 4 },
   stack: { flexDirection: "row", marginRight: 2 },

@@ -578,8 +578,8 @@ function Sidebar({ window, query, slot, open: shown, startFilter }: { window?: V
       }
       case "project": return wrap(
         <Row id={e.key} title={e.project.title} selected={sel} hovered={lit} onPress={() => open(e)}
-          leading={<View style={[st.healthDot, { backgroundColor: HEALTH_DOT[e.project.health ?? "none"] }]} testID={`project-dot-${e.project.id}`} accessibilityLabel={e.project.health ? HEALTH_LABEL[e.project.health] : "No status"} />}
-          trailing={e.project.starred ? <Text style={st.starMark}>{"\u2605"}</Text> : undefined} />, ROW_H);
+          leading={<LeadGlyph name="project" />}
+          trailing={<View style={st.tools}>{e.project.starred ? <Text style={st.starMark}>{"\u2605"}</Text> : null}<View style={[st.healthDot, { backgroundColor: HEALTH_DOT[e.project.health ?? "none"] }]} testID={`project-dot-${e.project.id}`} accessibilityLabel={e.project.health ? HEALTH_LABEL[e.project.health] : "No status"} /></View>} />, ROW_H);
       case "goal": return wrap(<GoalRow goal={e.goal} selected={sel} hovered={lit} now={data.clock().now} offsetMin={data.clock().offsetMin} me={data.me?.id} leadName={agentName(e.goal.leadAgentId)} onPress={() => open(e)} />, GOAL_ROW_H);
       case "group": return <GroupLabel label={e.label} />;
       case "action": return (
