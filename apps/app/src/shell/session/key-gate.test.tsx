@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
-import { BANNER_LINE, KeyGate, LockScreen, LockedBanner, NoPasswordKey, SHEET_LINE } from "./KeyGate.tsx";
+import { KeyGate, LockScreen, NOTICE_LINE, NoPasswordKey, SHEET_LINE } from "./KeyGate.tsx";
 import { lockName } from "./stored.ts";
 import { forgetKey, keepKey, keyIsKept, rehandKey } from "../../../../../client/src/gateway/key-keeper.ts";
 
@@ -106,22 +106,11 @@ test("the launch lock for a Space server: shown only when no one holds the key a
   assert.doesNotMatch(text(renderToStaticMarkup(<LockScreen name="Irfad" onUnlock={async () => undefined} />)), /Not now/, "the lock on this computer has no way round");
 });
 
-test("mid-session after a server restart the lock shows once; Not now is remembered until the server holds the key again, then a later loss asks once more", async () => {
-  const { afterBeat } = await import("./key-unlock.ts");
-  assert.deepEqual(afterBeat("open", { dismissed: false }), { show: false, dismissed: false }, "held: never a prompt");
-  assert.deepEqual(afterBeat("locked", { dismissed: false }), { show: true, dismissed: false }, "lost: ask once");
-  assert.deepEqual(afterBeat("locked", { dismissed: true }), { show: false, dismissed: true }, "Not now: not asked again for the same loss");
-  assert.deepEqual(afterBeat("open", { dismissed: true }), { show: false, dismissed: false }, "the server holds it again: forgotten");
-  assert.deepEqual(afterBeat("locked", { dismissed: false }), { show: true, dismissed: false }, "a later loss asks once more");
-});
-
-test("mid-session the app stays on screen: a slim banner says the sign-ins are locked after a restart, with Unlock and a dismiss; the full-screen lock is for launch only", () => {
-  const banner = renderToStaticMarkup(<LockedBanner onUnlock={() => undefined} onDismiss={() => undefined} />);
-  assert.match(text(banner), new RegExp(BANNER_LINE.replace(".", "\\.")));
-  assert.match(banner, /data-testid="key-banner-unlock"/);
-  assert.match(banner, /data-testid="key-banner-dismiss"/);
-  assert.equal(BANNER_LINE, "Your sign-ins are locked on this server after a restart.");
-  assert.doesNotMatch(text(banner), /error|failed|unauthenticated/i);
+test("mid-session the app stays on screen: the lock is a quiet notice in the top bar with Unlock and no dismiss; the full-screen lock is for launch only", async () => {
+  const { noticeAfterBeat } = await import("./key-unlock.ts");
+  assert.equal(noticeAfterBeat("locked"), "show", "a restart that lost the key raises the notice, every time it is found");
+  assert.equal(noticeAfterBeat("open"), "clear", "another device unlocked: it clears");
+  assert.equal(NOTICE_LINE, "Sign-ins locked");
   assert.match(SHEET_LINE, /unlocks your sign-ins on this server/);
 });
 
