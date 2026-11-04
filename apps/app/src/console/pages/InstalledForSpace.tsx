@@ -10,6 +10,8 @@ import { Section, SmallButton } from "../../places/settings/ui.tsx";
 import { IconTile } from "./CiRunners.tsx";
 import { changedCount, diffRows, needsLines, pinnedLine, shortOf } from "../../places/chats/install/model.ts";
 import type { Plan } from "../../places/chats/install/model.ts";
+import { errorSentence } from "../../errors/details.ts";
+import { Note } from "./shared.tsx";
 
 type Call = (cap: string, input: Record<string, unknown>) => Promise<unknown>;
 export interface Install { installId: string; kind: Plan["kind"]; name: string; repo: string; commit: string; url: string; by: string; at: number; installed: Record<string, unknown> }
@@ -18,7 +20,7 @@ type Who = "me" | "agent" | "space";
 const key = (): string => globalThis.crypto?.randomUUID?.() ?? `k-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
 const quiet = { fontSize: 12, color: "var(--ink-3)", lineHeight: 17 } as const;
 const mono = { fontSize: 12, color: "var(--ink-2)", fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace", lineHeight: 19 } as const;
-const say = (e: unknown, fallback: string): string => (e instanceof Error && e.message ? e.message : fallback);
+const say = (e: unknown, fallback: string): string => (e instanceof Error && e.message ? errorSentence(e, fallback) : fallback);
 
 export const KIND_LABEL: Readonly<Record<Plan["kind"], string>> = { skill: "Skill", plugin: "Plugin", mcp_local: "MCP server", mcp_remote: "Remote MCP", site: "Site" };
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -153,7 +155,7 @@ export function InstalledForSpace({ call, nameOf = (id) => id, onAddSkill }: { c
       })}
       {list.length > 0 ? <View style={{ padding: 12, alignItems: "flex-start" }}><SmallButton label="Install from a link" testID="installed-add" onPress={() => setAdding(true)} /></View> : null}
     </Section>
-    {note ? <Text testID="skills-installed-note" style={quiet} accessibilityLiveRegion="polite">{note}</Text> : null}
+    {note ? <Note testID="skills-installed-note">{note}</Note> : null}
 
     {updating && up ? (
       <Dialog title={`${updating.name} ${shortOf(up.diff?.from ?? updating.commit)} to ${shortOf(up.commit)}`} onClose={() => setUpdating(null)} width={600} fill testID="install-update-sheet"
