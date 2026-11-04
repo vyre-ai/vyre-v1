@@ -32,6 +32,8 @@ type In = {
   model?: string;
   provider?: string;
   effort?: "low" | "medium" | "high" | "max";
+  account?: string;
+  why?: string;
   crew?: boolean;
   taskId?: string;
 };
@@ -105,6 +107,7 @@ type Out = {
 {
   "name": "example",
   "input": {
+    "account": "example",
     "agentId": "agt_a1b2c3",
     "crew": true,
     "effort": "low",
@@ -113,7 +116,8 @@ type Out = {
     "provider": "example",
     "taskId": "tsk_a1b2c3",
     "threadId": "thr_a1b2c3",
-    "title": "example"
+    "title": "example",
+    "why": "cheap reader"
   },
   "output": {
     "blockId": "blk_a1b2c3",

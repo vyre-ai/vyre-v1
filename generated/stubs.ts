@@ -401,6 +401,7 @@ export function stubs(ctx: CallCtx) {
       handoff: call("chat.handoff"),
       helper: {
         start: call("chat.helper.start"),
+        steer: call("chat.helper.steer"),
       },
       helpers: {
         list: call("chat.helpers.list"),
@@ -777,6 +778,11 @@ export function stubs(ctx: CallCtx) {
       },
       drop_queued: call("engine.drop_queued"),
       health: call("engine.health"),
+      helper_models: call("engine.helper_models"),
+      helpers: {
+        status: call("engine.helpers.status"),
+        stop_all: call("engine.helpers.stop_all"),
+      },
       incident: {
         assign: call("engine.incident.assign"),
         get: call("engine.incident.get"),

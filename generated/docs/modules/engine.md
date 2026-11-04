@@ -4,7 +4,7 @@ Lane L2. Kind module. Version 0.1.0.
 
 Requires: nothing.
 
-## Capabilities (83)
+## Capabilities (86)
 
 - [engine.account.resolve](../capabilities/engine.account.resolve.md): Resolve the account that pays for a turn: a pin (the chat's account, the agent's key, the step's key), the person's own, the Space AI accounts whose uses cover the turn (cheapest that fits, not capped), the backups, else an Unblock
 - [engine.accounts.list](../capabilities/engine.accounts.list.md): Accounts the caller can run on: API keys by handle and subscription sign-ins (Mine), with status. With a place (chat, automation, agent, space) each says whether it can run there and why not
@@ -25,6 +25,9 @@ Requires: nothing.
 - [engine.defaults.set](../capabilities/engine.defaults.set.md): Set the caller default model, provider, effort and fallback order (the chat default)
 - [engine.drop_queued](../capabilities/engine.drop_queued.md): Take a message that is waiting behind a running turn out of the queue so it can be edited and sent again; it stays in the chat and the agent will not answer it
 - [engine.health](../capabilities/engine.health.md): Engine health: queue age, lease holders, provider reachability
+- [engine.helper_models](../capabilities/engine.helper_models.md): The catalogue before you start helpers: every AI account the person may use with its provider, label and models (tools, vision, context, a cost tier cheap, standard or strong, whether it is available now), and where a helper goes by default
+- [engine.helpers.status](../capabilities/engine.helpers.status.md): The helpers of a chat, live: each one working, done, needing a person or failed, the step it is on, one line of what it found, how long it took and what it cost
+- [engine.helpers.stop_all](../capabilities/engine.helpers.stop_all.md): Stop every helper still working under a chat; what they did so far is kept
 - [engine.incident.assign](../capabilities/engine.incident.assign.md): Assign an incident to an owner
 - [engine.incident.get](../capabilities/engine.incident.get.md): Read one AI incident with its notes
 - [engine.incident.note](../capabilities/engine.incident.note.md): Add a note to an incident

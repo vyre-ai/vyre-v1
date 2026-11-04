@@ -1391,6 +1391,7 @@ export type AgentsCreateOut = {
     folderId: string;
     model?: string;
     fallbackModel?: string;
+    helperModels?: "same_provider" | "any" | "ask";
     accountPolicy: "asker" | "key";
     accountKey?: string;
     accountFallback: Array<string>;
@@ -1440,6 +1441,7 @@ export type AgentsGetOut = {
     folderId: string;
     model?: string;
     fallbackModel?: string;
+    helperModels?: "same_provider" | "any" | "ask";
     accountPolicy: "asker" | "key";
     accountKey?: string;
     accountFallback: Array<string>;
@@ -1490,6 +1492,7 @@ export type AgentsInstructionAppendOut = {
     folderId: string;
     model?: string;
     fallbackModel?: string;
+    helperModels?: "same_provider" | "any" | "ask";
     accountPolicy: "asker" | "key";
     accountKey?: string;
     accountFallback: Array<string>;
@@ -1556,6 +1559,7 @@ export type AgentsListOut = {
       folderId: string;
       model?: string;
       fallbackModel?: string;
+      helperModels?: "same_provider" | "any" | "ask";
       accountPolicy: "asker" | "key";
       accountKey?: string;
       accountFallback: Array<string>;
@@ -1656,6 +1660,7 @@ export type AgentsPauseOut = {
     folderId: string;
     model?: string;
     fallbackModel?: string;
+    helperModels?: "same_provider" | "any" | "ask";
     accountPolicy: "asker" | "key";
     accountKey?: string;
     accountFallback: Array<string>;
@@ -1699,6 +1704,7 @@ export type AgentsRestoreOut = {
     folderId: string;
     model?: string;
     fallbackModel?: string;
+    helperModels?: "same_provider" | "any" | "ask";
     accountPolicy: "asker" | "key";
     accountKey?: string;
     accountFallback: Array<string>;
@@ -1744,6 +1750,7 @@ export type AgentsRestoreVersionOut = {
     folderId: string;
     model?: string;
     fallbackModel?: string;
+    helperModels?: "same_provider" | "any" | "ask";
     accountPolicy: "asker" | "key";
     accountKey?: string;
     accountFallback: Array<string>;
@@ -1787,6 +1794,7 @@ export type AgentsResumeOut = {
     folderId: string;
     model?: string;
     fallbackModel?: string;
+    helperModels?: "same_provider" | "any" | "ask";
     accountPolicy: "asker" | "key";
     accountKey?: string;
     accountFallback: Array<string>;
@@ -1831,6 +1839,7 @@ export type AgentsRoleLineSetOut = {
     folderId: string;
     model?: string;
     fallbackModel?: string;
+    helperModels?: "same_provider" | "any" | "ask";
     accountPolicy: "asker" | "key";
     accountKey?: string;
     accountFallback: Array<string>;
@@ -2025,6 +2034,7 @@ export type AgentsSetOwnerOut = {
     folderId: string;
     model?: string;
     fallbackModel?: string;
+    helperModels?: "same_provider" | "any" | "ask";
     accountPolicy: "asker" | "key";
     accountKey?: string;
     accountFallback: Array<string>;
@@ -2218,6 +2228,7 @@ export type AgentsUpdateOut = {
     folderId: string;
     model?: string;
     fallbackModel?: string;
+    helperModels?: "same_provider" | "any" | "ask";
     accountPolicy: "asker" | "key";
     accountKey?: string;
     accountFallback: Array<string>;
@@ -6632,6 +6643,8 @@ export type ChatHelperStartIn = {
   model?: string;
   provider?: string;
   effort?: "low" | "medium" | "high" | "max";
+  account?: string;
+  why?: string;
   crew?: boolean;
   taskId?: string;
 };
@@ -6684,6 +6697,14 @@ export type ChatHelperStartOut = {
   };
   blockId: string;
 };
+export type ChatHelperSteerIn = {
+  threadId: string;
+  body: string;
+  idempotencyKey: string;
+};
+export type ChatHelperSteerOut = {
+  messageId: string;
+};
 export type ChatHelpersListIn = {
   threadId: string;
 };
@@ -6694,6 +6715,7 @@ export type ChatHelpersListOut = {
       status: "running" | "done" | "failed" | "stopped";
       agentId: string;
       model?: string;
+      pick?: Record<string, unknown>;
       startedAt: number;
     }>;
 };
@@ -10693,6 +10715,81 @@ export type EngineHealthOut = {
   latencyMs?: number;
   oldestQueuedMs: number;
 };
+export type EngineHelperModelsIn = {
+  threadId?: string;
+  agentId?: string;
+};
+export type EngineHelperModelsOut = {
+  accounts: Array<{
+      ref: string;
+      provider: string;
+      label: string;
+      mine: boolean;
+      shared: boolean;
+      spaceKey: boolean;
+      models: Array<{
+          model: string;
+          title?: string;
+          tier: "cheap" | "standard" | "strong";
+          tools: boolean;
+          vision: boolean;
+          contextTokens?: number;
+          available: boolean;
+          why?: string;
+        }>;
+    }>;
+  parent: {
+    provider?: string;
+    accountRef?: string;
+    model?: string;
+  };
+  policy: "same_provider" | "any" | "ask";
+  suggest: {
+    read: {
+      account: string;
+      accountLabel: string;
+      model: string;
+      why: string;
+    } | null;
+    think: {
+      account: string;
+      accountLabel: string;
+      model: string;
+      why: string;
+    } | null;
+  };
+  rule: string;
+};
+export type EngineHelpersStatusIn = {
+  threadId: string;
+};
+export type EngineHelpersStatusOut = {
+  helpers: Array<{
+      threadId: string;
+      title: string;
+      agentId: string;
+      provider?: string;
+      accountLabel?: string;
+      model?: string;
+      why?: string;
+      fellBackFrom?: string;
+      state: "working" | "done" | "needs_you" | "failed" | "stopped";
+      step?: string;
+      found?: string;
+      startedAt: number;
+      endedAt?: number;
+      elapsedMs: number;
+      tokensIn: number;
+      tokensOut: number;
+      costMicros: number;
+    }>;
+};
+export type EngineHelpersStopAllIn = {
+  threadId: string;
+};
+export type EngineHelpersStopAllOut = {
+  stopped: number;
+};
 export type EngineIncidentAssignIn = {
   incidentId: string;
   ownerId: string;
@@ -10869,6 +10966,7 @@ export type EngineLiveTurnsOut = {
       turnId: string;
       agentId: string;
       text: string;
+      step?: string;
     }>;
 };
 export type EngineMcpCallIn = {
@@ -40902,6 +41000,7 @@ export interface CapMap {
   "chat.fork": { in: ChatForkIn; out: ChatForkOut };
   "chat.handoff": { in: ChatHandoffIn; out: ChatHandoffOut };
   "chat.helper.start": { in: ChatHelperStartIn; out: ChatHelperStartOut };
+  "chat.helper.steer": { in: ChatHelperSteerIn; out: ChatHelperSteerOut };
   "chat.helpers.list": { in: ChatHelpersListIn; out: ChatHelpersListOut };
   "chat.history.search": { in: ChatHistorySearchIn; out: ChatHistorySearchOut };
   "chat.make_task": { in: ChatMakeTaskIn; out: ChatMakeTaskOut };
@@ -41173,6 +41272,9 @@ export interface CapMap {
   "engine.defaults.set": { in: EngineDefaultsSetIn; out: EngineDefaultsSetOut };
   "engine.drop_queued": { in: EngineDropQueuedIn; out: EngineDropQueuedOut };
   "engine.health": { in: EngineHealthIn; out: EngineHealthOut };
+  "engine.helper_models": { in: EngineHelperModelsIn; out: EngineHelperModelsOut };
+  "engine.helpers.status": { in: EngineHelpersStatusIn; out: EngineHelpersStatusOut };
+  "engine.helpers.stop_all": { in: EngineHelpersStopAllIn; out: EngineHelpersStopAllOut };
   "engine.incident.assign": { in: EngineIncidentAssignIn; out: EngineIncidentAssignOut };
   "engine.incident.get": { in: EngineIncidentGetIn; out: EngineIncidentGetOut };
   "engine.incident.note": { in: EngineIncidentNoteIn; out: EngineIncidentNoteOut };

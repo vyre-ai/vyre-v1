@@ -4,7 +4,7 @@ Lane L2. Kind module. Version 0.1.0.
 
 Requires: engine, mcp.
 
-## Capabilities (92)
+## Capabilities (93)
 
 - [channels.agent_watch.set](../capabilities/channels.agent_watch.set.md): Let an agent act unmentioned in a channel ("watches this channel"); every such act is logged like a routine
 - [channels.agents.add](../capabilities/channels.agents.add.md): Invite an agent into a channel; agents listen by default
@@ -41,6 +41,7 @@ Requires: engine, mcp.
 - [chat.fork](../capabilities/chat.fork.md): Branch a chat at one message: a new private chat that holds a copy of everything up to there, with the same agents and a line that links back
 - [chat.handoff](../capabilities/chat.handoff.md): Hand work to another agent: opens that agent thread linked from this one, counted against the hop limit
 - [chat.helper.start](../capabilities/chat.helper.start.md): Start a helper sub-task thread with its own model, provider and effort; helper chats are read-only
+- [chat.helper.steer](../capabilities/chat.helper.steer.md): Ask a helper that is working something, in its own chat: the person it works for only, while it runs
 - [chat.helpers.list](../capabilities/chat.helpers.list.md): Helpers running under a chat, with status
 - [chat.history.search](../capabilities/chat.history.search.md): Word-for-word search over the chat messages and transcript rows (turns, tool calls and results) the asker could open themselves; used by memory for exact quotes. Returns the stored words, author, time and a link that opens the chat at that line
 - [chat.make_task](../capabilities/chat.make_task.md): Turn a message into a task: the title is its first line, the task points back at it and a "Task created" card in the thread links to the task. An agent may do it for the person it acts for

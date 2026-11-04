@@ -40,6 +40,7 @@ export const handlers: Handlers<HandlerCtx> = {
   "chat.fork": async (ctx) => { throw new VyreErr(notImplemented("chat.fork", ctx.trace)); },
   "chat.handoff": async (ctx) => { throw new VyreErr(notImplemented("chat.handoff", ctx.trace)); },
   "chat.helper.start": async (ctx) => { throw new VyreErr(notImplemented("chat.helper.start", ctx.trace)); },
+  "chat.helper.steer": async (ctx) => { throw new VyreErr(notImplemented("chat.helper.steer", ctx.trace)); },
   "chat.helpers.list": async (ctx) => { throw new VyreErr(notImplemented("chat.helpers.list", ctx.trace)); },
   "chat.history.search": async (ctx) => { throw new VyreErr(notImplemented("chat.history.search", ctx.trace)); },
   "chat.make_task": async (ctx) => { throw new VyreErr(notImplemented("chat.make_task", ctx.trace)); },

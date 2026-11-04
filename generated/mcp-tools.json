@@ -10262,6 +10262,45 @@
     },
     {
       "blocks": [],
+      "cap": "chat.helper.steer",
+      "deferred": false,
+      "description": "Ask a helper that is working something, in its own chat: the person it works for only, while it runs",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "body": {
+            "maxLength": 20000,
+            "type": "string"
+          },
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "threadId",
+          "body",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "name": "chat_helper_steer",
+      "planMode": "blocked",
+      "toolset": "chats",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "chat.helpers.list",
       "deferred": false,
       "description": "Helpers running under a chat, with status",
@@ -17419,6 +17458,58 @@
         "type": "object"
       },
       "name": "engine_drop_queued",
+      "planMode": "blocked",
+      "toolset": "chats",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "engine.helpers.status",
+      "deferred": false,
+      "description": "The helpers of a chat, live: each one working, done, needing a person or failed, the step it is on, one line of what it found, how long it took and what it cost",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "threadId"
+        ],
+        "type": "object"
+      },
+      "name": "engine_helpers_status",
+      "planMode": "allowed",
+      "toolset": "chats",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "engine.helpers.stop_all",
+      "deferred": false,
+      "description": "Stop every helper still working under a chat; what they did so far is kept",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "threadId"
+        ],
+        "type": "object"
+      },
+      "name": "engine_helpers_stop_all",
       "planMode": "blocked",
       "toolset": "chats",
       "v": 1
@@ -38423,6 +38514,36 @@
     },
     {
       "blocks": [],
+      "cap": "engine.helper_models",
+      "deferred": false,
+      "description": "The catalogue before you start helpers: every AI account the person may use with its provider, label and models (tools, vision, context, a cost tier cheap, standard or strong, whether it is available now), and where a helper goes by default",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          },
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "name": "models_for_helpers",
+      "planMode": "allowed",
+      "toolset": "chats",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "mounts.add",
       "deferred": false,
       "description": "Mount a Google, SharePoint, OneDrive or Dropbox folder, a folder on your computer or a GitHub repository into a folder of the tree; the first sync is a Run",
@@ -55226,6 +55347,10 @@
       "effects": "write",
       "inputSchema": {
         "properties": {
+          "account": {
+            "description": "An account from models_for_helpers: its ref, or its label",
+            "type": "string"
+          },
           "agentId": {
             "examples": [
               "agt_a1b2c3"
@@ -55269,6 +55394,13 @@
             "type": "string"
           },
           "title": {
+            "type": "string"
+          },
+          "why": {
+            "description": "Why this model: \"cheap reader\", \"strong for reasoning\" or \"you asked\"",
+            "examples": [
+              "cheap reader"
+            ],
             "type": "string"
           }
         },

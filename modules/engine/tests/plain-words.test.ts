@@ -29,3 +29,13 @@ test("every agent's context carries the rule, and the helper guidance says one s
   assert.match(text("where"), /one short answer in your own words that brings what they found together/);
   assert.match(text("where"), /Never paste a helper's reply/);
 });
+
+import { stepWords, oneLine } from "../../../lib/plain-words.ts";
+test("the step a helper is on is said in plain words, never a tool name", () => {
+  assert.equal(stepWords("Read", "pricing.md"), "Reading pricing.md");
+  assert.equal(stepWords("WebSearch"), "Searching the web");
+  assert.equal(stepWords("Bash"), "Running a command");
+  assert.equal(stepWords("task_submit"), "Working");
+  for (const t of ["Read", "Edit", "Bash", "WebFetch", "Agent", "task_submit", "mcp__vyre__files_tree"]) assert.deepEqual(internalNames(stepWords(t, "a.md")), [], t);
+  assert.equal(oneLine("One fact. Two facts."), "One fact.");
+});

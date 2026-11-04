@@ -192,7 +192,7 @@ test("tools/list for an outside agent: common tools it may use, none of the vaul
 test("tools/list for a CLI engine's session is the whole default set (the agent's own rules apply), not the outside tool's cut", async () => {
   const r = rig();
   const names = new Set((await r.list("drv")).map((t) => t.name));
-  assert.equal(names.size, g.defaults.size + 8);   // and people_status, message_person: who is in and a message to a teammate (lane l-agentdm), task_submit and task_ask: how a helper hands in
+  assert.equal(names.size, g.defaults.size + 9);   // and people_status, message_person: who is in and a message to a teammate (lane l-agentdm), task_submit and task_ask: how a helper hands in
   assert.ok(names.has("terminal_run") && names.has("vault_use") && names.has("screen_screenshot") && names.has("use_tool") && names.has("files_create") && names.has("files_tree"));
   assert.ok(names.has("people_status") && names.has("message_person"));
   assert.ok(names.has("task_submit") && names.has("task_ask"), "a helper hands in with what is already listed, never searching for it");

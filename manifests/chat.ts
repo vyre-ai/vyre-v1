@@ -383,13 +383,17 @@ export default defineManifest({
     write('chat.helper.start', 'Start a helper sub-task thread with its own model, provider and effort; helper chats are read-only', {
       in: {
         ...threadT, title: t.str(), instruction: t.str(), agentId: t.opt(id.agent), model: t.opt(t.str()), provider: t.opt(t.str()), effort: t.opt(effort),
+        account: t.opt(t.str({ description: 'An account from models_for_helpers: its ref, or its label' })), why: t.opt(t.str({ description: 'Why this model: "cheap reader", "strong for reasoning" or "you asked"', examples: ['cheap reader'] })),
         crew: t.opt(t.bool()), taskId: t.opt(id.task),
       },
       out: { helper: threadRow, blockId: id.block }, on: ['thread', '/threadId'], level: 'use', emits: ['helper.started', 'thread.started', 'message.received', 'thread.unarchived'],
       tool: 'chats', mcpName: 'sub_task_model', agent: { planMode: 'blocked', blocks: ['model_switch', 'helper'] },
     }),
+    write('chat.helper.steer', 'Ask a helper that is working something, in its own chat: the person it works for only, while it runs', {
+      in: { ...threadT, body: t.str({ maxLength: 20000 }) }, out: { messageId: id.message }, on: ['thread', '/threadId'], level: 'use', idem: 'key', emits: ['message.received'], tool: 'chats', errors: ['validation.not_found', 'validation.precondition_failed'],
+    }),
     read('chat.helpers.list', 'Helpers running under a chat, with status', {
-      in: threadT, out: { helpers: t.arr(t.obj({ threadId: id.thread, title: t.str(), status: t.enm('running', 'done', 'failed', 'stopped'), agentId: id.agent, model: t.opt(t.str()), startedAt: t.ts() })) },
+      in: threadT, out: { helpers: t.arr(t.obj({ threadId: id.thread, title: t.str(), status: t.enm('running', 'done', 'failed', 'stopped'), agentId: id.agent, model: t.opt(t.str()), pick: t.opt(t.rec()), startedAt: t.ts() })) },
       on: ['thread', '/threadId'], tool: 'chats',
     }),
     // ---- transcript

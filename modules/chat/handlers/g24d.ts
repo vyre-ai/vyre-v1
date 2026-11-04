@@ -435,9 +435,42 @@ async function bindHelperTask(ctx: ChatCtx, h: { taskId: string | undefined; tit
   } catch { /* the helper goes on; only the task is missing */ }
 }
 
+interface Picked { account: string; provider: string; model: string; pick: Record<string, unknown> }
+
+/**
+ * The model and account a helper runs on, when the agent named one (or its rule asks it to). Only accounts the person may use are ever found: an account they may not use is refused, never guessed. A model that is
+ * not available falls back to the nearest available one of the same account and the pick says which it asked for. The agent's own setting decides how free it is: its provider only (the default), any provider
+ * when the person asked, or always ask first.
+ */
+async function chooseHelperModel(ctx: ChatCtx, parentId: string, askingAgent: string, input: { model?: string; provider?: string; account?: string; why?: string }): Promise<Picked | null> {
+  if (!ctx.call) return null;
+  type Cat = { accounts: Array<{ ref: string; provider: string; label: string; models: Array<{ model: string; tier: string; available: boolean }> }>; parent: { provider?: string }; policy: "same_provider" | "any" | "ask" };
+  let cat: Cat | null = null;
+  try { cat = (await ctx.call("engine.helper_models", { threadId: parentId, agentId: askingAgent })) as Cat; } catch { cat = null; }
+  if (cat === null) return null;
+  if (cat.policy === "ask" && input.model === undefined && input.account === undefined) raise(ctx, "validation.precondition_failed", "Ask the person which model this helper should use, with the choices, before you start it.", { reason: "ask_first" });
+  if (input.model === undefined && input.account === undefined) return null;
+  const account = input.account !== undefined ? cat.accounts.find((a) => a.ref === input.account || a.label === input.account) : cat.accounts.find((a) => a.models.some((m) => m.model === input.model && m.available)) ?? cat.accounts.find((a) => a.models.some((m) => m.model === input.model));
+  if (!account) raise(ctx, "permission.no_grant", "That account is not one you can use for this person. Read models_for_helpers for the accounts you can.", { reason: "account_not_theirs" });
+  if (cat.policy === "same_provider" && cat.parent.provider && account.provider !== cat.parent.provider && input.why !== "you asked") {
+    raise(ctx, "validation.precondition_failed", `Stay with ${cat.parent.provider} unless the person asked for another provider. If they did, say why: "you asked".`, { reason: "other_provider" });
+  }
+  const asked = input.model ?? account.models.find((m) => m.available)?.model;
+  if (!asked) raise(ctx, "validation.not_found", "That account has no model to use right now.");
+  const have = account.models.find((m) => m.model === asked);
+  let model = asked, fellBackFrom: string | undefined;
+  if (!have || !have.available) {
+    const same = have ? account.models.filter((m) => m.available && m.tier === have.tier) : [];
+    const next = same[0] ?? account.models.find((m) => m.available);
+    if (!next) raise(ctx, "provider.unavailable", "No model of that account is available right now.");
+    fellBackFrom = asked; model = next.model;
+  }
+  return { account: account.ref, provider: account.provider, model, pick: { accountRef: account.ref, accountLabel: account.label, provider: account.provider, model, ...(input.why ? { why: input.why } : {}), ...(fellBackFrom ? { fellBackFrom } : {}) } };
+}
+
 export async function helperStart(
   ctx: ChatCtx,
-  input: { threadId: string; title: string; instruction: string; agentId?: string; model?: string; provider?: string; effort?: string; crew?: boolean; taskId?: string; idempotencyKey?: string },
+  input: { threadId: string; title: string; instruction: string; agentId?: string; model?: string; provider?: string; effort?: string; account?: string; why?: string; crew?: boolean; taskId?: string; idempotencyKey?: string },
 ) {
   ensure(ctx.db);
   const parent = open(ctx, input.threadId);
@@ -449,6 +482,9 @@ export async function helperStart(
   const agentId = workerFor(ctx, parent, input.agentId);
   const asker = askerOf(ctx);
   const by = author(ctx);
+  // which model the helper runs on: the agent's pick, checked against the accounts the person may use and the agent's own rule (owner, 4 Nov 2026)
+  const chosen = await chooseHelperModel(ctx, parent.id, ctx.principal.kind === "agent" ? ctx.principal.id : agentId, input);
+  if (chosen) { input = { ...input, model: chosen.model, provider: chosen.provider, account: chosen.account }; }
 
   // Helpers and teammates count against the chat's one budget of agent turns (owner ruling, 3 Nov 2026): an agent's brief is one turn past whatever the chat holds now, and at
   // the limit no helper starts until a person replies or presses Continue. A person starting a helper starts the count again.
@@ -465,12 +501,12 @@ export async function helperStart(
   const blockId = mintId("blk", ctx.now());
   const line = insertMessage(ctx, parent.id, {
     author: ctx.principal.id, kind: authorKind(ctx), body: `Started a helper: ${title}`, depth,
-    blocks: [{ type: "helper", v: 1, id: blockId, data: { title, agentId, ...(input.model !== undefined ? { model: input.model } : {}), ...(input.crew === true ? { crew: true } : {}) }, state: "live", traceId: ctx.trace.traceId }],
+    blocks: [{ type: "helper", v: 1, id: blockId, data: { title, agentId, ...(input.model !== undefined ? { model: input.model } : {}), ...(chosen ? { pick: chosen.pick } : {}), ...(input.crew === true ? { crew: true } : {}) }, state: "live", traceId: ctx.trace.traceId }],
   });
   const helper = insertThread(ctx, { kind: "helper", title, starter: asker, parentThreadId: parent.id, parentMessageId: line.id, listed: false });
   patchBlockInMessage(ctx.db, line.id, blockId, (b) => ({ ...b, data: { ...(b["data"] as Record<string, unknown>), helperThreadId: helper.id } }));
   if (asker.startsWith("usr_")) addMember(ctx, helper.id, asker, "owner");
-  addAgent(ctx, helper.id, { agentId, mode: "lead", model: input.model, provider: input.provider, effort: input.effort, addedBy: asker });
+  addAgent(ctx, helper.id, { agentId, mode: "lead", model: input.model, provider: input.provider, effort: input.effort, ...(chosen ? { accountRef: chosen.account } : {}), addedBy: asker });
 
   // A worker that outlives the turn is a task: the one named, else a new one. A crew job binds its own (engine.crew.start). Best effort: the helper runs whether or not this lands.
   if (input.crew !== true) await bindHelperTask(ctx, { taskId: input.taskId, title, instruction, agentId, parentThreadId: parent.id, helperThreadId: helper.id, lineId: line.id, blockId });
@@ -483,6 +519,26 @@ export async function helperStart(
   // a brief an agent gives itself is a Job's line: it stays the agent's words, and it starts the helper, which an agent's own message never does
   deliver(ctx, helper, first, addressed, by, { notify: false, job: ctx.principal.kind === "agent" && agentId === ctx.principal.id });
   return { helper: threadOut(ctx.db, threadBy(ctx.db, helper.id)!), blockId };
+}
+
+/**
+ * Steer a helper that is working: the person who started it asks it something, in its own chat. A plain helper chat takes no messages through chat.post (it works from its brief); this is the one door, for the
+ * person it works for, while it is running. The question reaches the helper's agent as a message from the person.
+ */
+export async function helperSteer(ctx: ChatCtx, input: { threadId: string; body: string }) {
+  ensure(ctx.db);
+  const t = threadBy(ctx.db, input.threadId);
+  if (!t || t.kind !== "helper") raise(ctx, "validation.not_found", "That is not a helper chat.");
+  const asker = askerOf(ctx);
+  if (!asker.startsWith("usr_") || t.starter !== asker) raise(ctx, "validation.precondition_failed", "Only the person the helper works for can ask it something.");
+  if (t.closedAt !== undefined) raise(ctx, "validation.precondition_failed", "This helper has finished. Ask in the chat that started it.");
+  const body = input.body.trim();
+  if (body === "" || body.length > 20_000) raise(ctx, "validation.bad_input", "Write what to ask it.");
+  const lead = agentsOf(ctx.db, t.id)[0];
+  if (!lead) raise(ctx, "validation.precondition_failed", "This helper has no agent to ask.");
+  const m = insertMessage(ctx, t.id, { author: asker, kind: "text", body });
+  deliver(ctx, t, m, [{ kind: "agent", id: lead.agentId }], { kind: "person", id: asker }, { notify: false });
+  return { messageId: m.id };
 }
 
 export async function helpersList(ctx: ChatCtx, input: { threadId: string }) {
@@ -499,7 +555,8 @@ export async function helpersList(ctx: ChatCtx, input: { threadId: string }) {
     const line = h.parentMessageId !== undefined ? messageBy(ctx.db, h.parentMessageId) : null;
     const state = line?.blocks.find((b) => b["type"] === "helper" && (b["data"] as Row | undefined)?.["helperThreadId"] === h.id)?.["state"];
     const status = state === "error" ? "failed" : state === "done" || h.closedAt !== undefined ? "done" : "running";
-    helpers.push({ threadId: h.id, title: h.title ?? "Helper", status, agentId: lead.agentId, ...(lead.model !== undefined ? { model: lead.model } : {}), startedAt: h.createdAt });
+    const pick = line?.blocks.find((b) => b["type"] === "helper" && (b["data"] as Row | undefined)?.["helperThreadId"] === h.id) ? ((line.blocks.find((b) => b["type"] === "helper")?.["data"] as Row | undefined)?.["pick"] as Row | undefined) : undefined;
+    helpers.push({ threadId: h.id, title: h.title ?? "Helper", status, agentId: lead.agentId, ...(lead.model !== undefined ? { model: lead.model } : {}), ...(pick ? { pick } : {}), startedAt: h.createdAt });
   }
   return { helpers };
 }
@@ -547,5 +604,6 @@ export const g24dHandlers = {
   "chat.question.ask": questionAsk,
   "chat.helper.start": helperStart,
   "chat.helpers.list": helpersList,
+  "chat.helper.steer": helperSteer,
   "chat.handoff": handoff,
 };

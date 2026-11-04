@@ -1370,6 +1370,12 @@
     },
     {
       "deferred": false,
+      "name": "chat_helper_steer",
+      "summary": "Ask a helper that is working something, in its own chat: the person it works for only, while it runs",
+      "toolset": "chats"
+    },
+    {
+      "deferred": false,
       "name": "chat_helpers_list",
       "summary": "Helpers running under a chat, with status",
       "toolset": "chats"
@@ -2566,6 +2572,18 @@
       "deferred": false,
       "name": "engine_drop_queued",
       "summary": "Take a message that is waiting behind a running turn out of the queue so it can be edited and sent again; it stays in the chat and the agent will not answer it",
+      "toolset": "chats"
+    },
+    {
+      "deferred": false,
+      "name": "engine_helpers_status",
+      "summary": "The helpers of a chat, live: each one working, done, needing a person or failed, the step it is on, one line of what it found, how long it took and what it cost",
+      "toolset": "chats"
+    },
+    {
+      "deferred": false,
+      "name": "engine_helpers_stop_all",
+      "summary": "Stop every helper still working under a chat; what they did so far is kept",
       "toolset": "chats"
     },
     {
@@ -5572,6 +5590,12 @@
       "deferred": true,
       "name": "message_person",
       "summary": "Message a teammate. An Assistant writes for its person in their direct chat, signed as them (Agent). Any other agent writes as itself in its own chat with them. Cards allowed; waits for away and after hours unless urgent; 3 an hour",
+      "toolset": "chats"
+    },
+    {
+      "deferred": false,
+      "name": "models_for_helpers",
+      "summary": "The catalogue before you start helpers: every AI account the person may use with its provider, label and models (tools, vision, context, a cost tier cheap, standard or strong, whether it is available now), and where a helper goes by default",
       "toolset": "chats"
     },
     {

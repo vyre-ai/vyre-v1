@@ -401,6 +401,7 @@ export function createClient(transport: Transport) {
       handoff: call("chat.handoff", 1),
       helper: {
         start: call("chat.helper.start", 1),
+        steer: call("chat.helper.steer", 1),
       },
       helpers: {
         list: call("chat.helpers.list", 1),
@@ -777,6 +778,11 @@ export function createClient(transport: Transport) {
       },
       drop_queued: call("engine.drop_queued", 1),
       health: call("engine.health", 1),
+      helper_models: call("engine.helper_models", 1),
+      helpers: {
+        status: call("engine.helpers.status", 1),
+        stop_all: call("engine.helpers.stop_all", 1),
+      },
       incident: {
         assign: call("engine.incident.assign", 1),
         get: call("engine.incident.get", 1),

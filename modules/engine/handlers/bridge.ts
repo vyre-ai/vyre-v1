@@ -8,6 +8,7 @@
 // to chat with the id the engine gave it as clientId), written only by the engine's own store, so the two cannot drift (a later edit is copied by the same consumer).
 // No echo: a message.received for a message the engine already holds, or one the bridge posted itself (id prefix BRIDGE_PREFIX), is never fed back to engine.receive.
 import { askedIn } from "../../../lib/asked.ts";
+import { stepWords } from "../../../lib/plain-words.ts";
 import { handleOf } from "../../../lib/person-handle.ts";
 import { linksIn } from "../../../lib/grants.ts";
 import { redact } from "../../../agent/src/transcript/sanitize.ts";
@@ -102,10 +103,10 @@ export interface Bridge {
   /** Resolves when every chat post queued so far is done (tests, shutdown). */
   flush(): Promise<void>;
   /** The turns being written in a thread right now, with the text so far (a chat opened or reconnected mid-turn). */
-  liveTurns(threadId: string): Array<{ turnId: string; agentId: string; text: string }>;
+  liveTurns(threadId: string): Array<{ turnId: string; agentId: string; text: string; step?: string }>;
 }
 
-interface Segment { blocks: PostBlock[]; text: string; mentions: number; t0?: number; calls?: Map<string, { name: string; at: number }>; /** its live text goes to the asker only */ private?: boolean }
+interface Segment { blocks: PostBlock[]; text: string; mentions: number; t0?: number; /** the call it is inside now, in plain words once asked */ step?: { id: string; name: string; detail?: string }; calls?: Map<string, { name: string; at: number }>; /** its live text goes to the asker only */ private?: boolean }
 interface Ready { blocks: PostBlock[]; text: string; mentions: number; routineOwner: string | null; turnId: string }
 
 const str = (v: unknown): string => (typeof v === "string" ? v : "");
@@ -282,6 +283,7 @@ export function createBridge(o: BridgeOptions): Bridge {
         else if (ev.type === "block" && ev.kind === "tool_input") {
           // what a call touches goes to the live line only, over the same gated link as the words: it is never saved with the reply
           const p = (ev.payload ?? {}) as { id?: unknown; detail?: unknown };
+          if (seg.step && seg.step.id === p.id && typeof p.detail === "string" && p.detail !== "") seg.step.detail = p.detail;
           if (typeof p.id === "string" && typeof p.detail === "string" && p.detail !== "") emit({ kind: "step", threadId: input.threadId, turnId: input.turnId, agentId: input.agent.id, phase: "input", id: p.id, detail: p.detail });
           // a subagent's own one-line description is saved on its call, so the trail names it ("Working with a helper: Check the pricing page") instead of a bare "Using agent"
           const call = typeof p.id === "string" && typeof p.detail === "string" && p.detail !== "" ? seg.blocks.find((x) => x.type === "tool_call" && (x.data as { id?: unknown }).id === p.id) : undefined;
@@ -296,11 +298,13 @@ export function createBridge(o: BridgeOptions): Bridge {
           if (ev.kind === "tool_call" && id !== "") {
             const name = typeof p.name === "string" ? p.name : "";
             seg.calls?.set(id, { name, at: now });
+            seg.step = { id, name };
             // the engine's own web tools run on the vendor's side, so the Gate never sees them: the words they bring in stop outward acts all the same
             if (NATIVE_OUTSIDE.has(name)) { try { await o.callAs?.("gate.taint.mark", { threads: [input.threadId], source: name }, input.asker); } catch (e) { warn("a web read was not marked", { threadId: input.threadId, error: e instanceof Error ? e.message : String(e) }); } }
             emit({ kind: "step", threadId: input.threadId, turnId: input.turnId, agentId: input.agent.id, phase: "call", id, ...(name ? { name } : {}) });
           } else if (ev.kind === "tool_result" && id !== "") {
             const call = seg.calls?.get(id);
+            if (seg.step?.id === id) delete seg.step;
             emit({ kind: "step", threadId: input.threadId, turnId: input.turnId, agentId: input.agent.id, phase: "result", id, ...(call?.name ? { name: call.name } : {}), ...(typeof p.ok === "boolean" ? { ok: p.ok } : {}) });
             if (call) data = { ...data, name: call.name, secs: Math.max(0, Math.round((now - call.at) / 1000)) };
           }
@@ -512,9 +516,9 @@ export function createBridge(o: BridgeOptions): Bridge {
     },
     onEvent: (ctx, event) => (event.name === "message.edited" ? onEdited(ctx, event.payload) : onReceived(ctx, event.payload, event.device)),
     liveTurns(threadId) {
-      const out: Array<{ turnId: string; agentId: string; text: string }> = [];
+      const out: Array<{ turnId: string; agentId: string; text: string; step?: string }> = [];
       // a turn whose text is the asker's alone for now shows no text to whoever opens the chat mid-turn: its answer arrives checked
-      for (const [turnId, w] of writing) if (w.threadId === threadId) out.push({ turnId, agentId: w.agentId, text: live.get(turnId)?.private ? "" : live.get(turnId)?.text ?? "" });
+      for (const [turnId, w] of writing) if (w.threadId === threadId) out.push({ turnId, agentId: w.agentId, text: live.get(turnId)?.private ? "" : live.get(turnId)?.text ?? "", ...(live.get(turnId)?.step ? { step: stepWords(live.get(turnId)!.step!.name, live.get(turnId)!.step!.detail) } : {}) });
       return out;
     },
     async flush() {
@@ -529,7 +533,7 @@ let bound: Bridge | null = null;
 export function bindBridge(b: Bridge | null): void { bound = b; }
 
 /** engine.live_turns: the turns being written in a thread the caller can read, with their text so far. */
-export async function liveTurns(ctx: EngineCtx, input: { threadId: string }): Promise<{ turns: Array<{ turnId: string; agentId: string; text: string }> }> {
+export async function liveTurns(ctx: EngineCtx, input: { threadId: string }): Promise<{ turns: Array<{ turnId: string; agentId: string; text: string; step?: string }> }> {
   await ctx.call("threads.get", { threadId: input.threadId });   // the caller's own access to the thread decides, as for any read of it
   return { turns: bound ? bound.liveTurns(input.threadId) : [] };
 }

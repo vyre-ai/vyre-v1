@@ -260,7 +260,7 @@ export function dumpToml(doc: TomlDoc, header = ""): string {
 export interface Limits { runCostMicros?: number; dayCostMicros?: number; monthCostMicros?: number; turnsPerDay?: number; minutesPerRun?: number; tokensPerDay?: number }
 export type LimitKey = keyof Limits;
 export interface AgentConfig {
-  name: string; description?: string; model?: string; fallbackModel?: string; accountPolicy: "asker" | "key"; accountKey?: string; accountFallback: string[]; memoryKey?: string; /** The AI account for the agent's own work (routines, watchers, helpers: turns nobody asked for). Absent: Automatic, the cheapest Space AI account kept for that. */ workKey?: string; /** Switch to the next usable account when this one runs out of its limit. Absent means on. */ switchOnLimit?: boolean; handoffs: string[];
+  name: string; description?: string; model?: string; fallbackModel?: string; accountPolicy: "asker" | "key"; accountKey?: string; accountFallback: string[]; memoryKey?: string; /** The AI account for the agent's own work (routines, watchers, helpers: turns nobody asked for). Absent: Automatic, the cheapest Space AI account kept for that. */ workKey?: string; /** Switch to the next usable account when this one runs out of its limit. Absent means on. */ switchOnLimit?: boolean; /** Which models a helper this agent starts may use: its own provider (default), any provider when the person asks, or always ask first. */ helperModels?: "same_provider" | "any" | "ask"; handoffs: string[];
   toolsAllowed: string[]; toolsDenied: string[]; vaultKeys: string[]; limits: Limits; captureMode: "auto" | "propose" | "auto_low_risk" | "off";
 }
 /** manifest limit name -> key in [limits] of agent.toml (the keys files.lint knows). */
@@ -318,6 +318,9 @@ export function checkToml(text: string, o: { agentNames?: readonly string[]; sel
   let memoryKey: string | undefined;
   let workKey: string | undefined;
   let switchOnLimit: boolean | undefined;
+  let helperModels: AgentConfig["helperModels"];
+  const hmRaw = d["helper_models"];
+  if (hmRaw !== undefined) { if (hmRaw === "same_provider" || hmRaw === "any" || hmRaw === "ask") helperModels = hmRaw; else err("helper_models", 'helper_models is "same_provider", "any" or "ask".'); }
   if (vault) {
     const k = strList(vault["keys"]);
     if (k === null) err("vault.keys", "vault.keys is a list of key names."); else keys = k;
@@ -360,6 +363,7 @@ export function checkToml(text: string, o: { agentNames?: readonly string[]; sel
   if (memoryKey !== undefined) config.memoryKey = memoryKey;
   if (workKey !== undefined) config.workKey = workKey;
   if (switchOnLimit !== undefined) config.switchOnLimit = switchOnLimit;
+  if (helperModels !== undefined) config.helperModels = helperModels;
   return { ok: true, errors, warnings, config };
 }
 
@@ -380,6 +384,7 @@ export function writeConfig(doc: TomlDoc, c: AgentConfig): TomlDoc {
   if (c.memoryKey !== undefined) vault["memory_key"] = c.memoryKey; else delete vault["memory_key"];
   if (c.workKey !== undefined) vault["work_key"] = c.workKey; else delete vault["work_key"];
   if (c.switchOnLimit !== undefined) vault["switch_on_limit"] = c.switchOnLimit; else delete vault["switch_on_limit"];
+  if (c.helperModels !== undefined) out["helper_models"] = c.helperModels; else delete out["helper_models"];
   out["vault"] = vault;
   const limits = sub("limits");
   for (const k of LIMIT_KEYS) { const v = c.limits[k]; if (v === undefined) delete limits[LIMIT_TOML[k]]; else limits[LIMIT_TOML[k]] = v; }
@@ -423,7 +428,7 @@ export function widenings(before: AgentConfig, after: AgentConfig): string[] {
 
 export type PatchResult = { ok: true; doc: TomlDoc; config: AgentConfig; fields: string[]; face?: string } | { ok: false; code: "validation.field_locked" | "validation.bad_input"; message: string };
 const LOCKED = new Set(["agentId", "ownerId", "folderId", "status", "pausedReason", "pausedBy", "templateVersion", "createdAt", "lastActiveAt", "hasComputer"]);
-const SETTABLE = new Set(["name", "face", "role", "model", "fallbackModel", "accountPolicy", "accountKey", "accountFallback", "memoryKey", "workKey", "switchOnLimit", "toolsAllowed", "toolsDenied", "vaultKeys", "limits", "captureMode", "handoffs"]);
+const SETTABLE = new Set(["name", "face", "role", "model", "fallbackModel", "accountPolicy", "accountKey", "accountFallback", "memoryKey", "workKey", "switchOnLimit", "helperModels", "toolsAllowed", "toolsDenied", "vaultKeys", "limits", "captureMode", "handoffs"]);
 
 /** Apply the fields of agents.update to the current document. Nothing is half applied: the answer is the new document or the reason it cannot be. */
 export function applyPatch(doc: TomlDoc, current: AgentConfig, patch: Record<string, unknown>): PatchResult {
@@ -453,6 +458,7 @@ export function applyPatch(doc: TomlDoc, current: AgentConfig, patch: Record<str
         break;
       }
       case "switchOnLimit": if (typeof v !== "boolean") return bad("switchOnLimit is true or false."); next.switchOnLimit = v; break;
+      case "helperModels": if (v !== "same_provider" && v !== "any" && v !== "ask") return bad('helperModels is "same_provider", "any" or "ask".'); next.helperModels = v; break;
       case "accountPolicy": if (v !== "asker" && v !== "key") return bad('accountPolicy is "asker" or "key".'); next.accountPolicy = v; break;
       case "captureMode": if (typeof v !== "string" || !CAPTURE.has(v)) return bad('captureMode is "auto", "propose", "auto_low_risk" or "off".'); next.captureMode = v as AgentConfig["captureMode"]; break;
       case "accountFallback": { const l = list(); if (!Array.isArray(l)) return l; if (l.some((x) => !HANDLE.test(x))) return bad("The fallback keys are Vault names like #Team_Anthropic_Key, best first."); next.accountFallback = [...new Set(l)]; break; }
@@ -531,7 +537,7 @@ export function agentOut(a: AgentRec, now: number): Record<string, unknown> {
     agentId: a.id, name: a.name, kind: a.kind, ...(a.runtime === "outside" ? { runtime: a.runtime } : {}), face: a.face, ...(c.description !== undefined ? { role: c.description } : {}), status: statusOf(a, now),
     ...(a.paused && a.pausedReason !== undefined ? { pausedReason: a.pausedReason } : {}), ...(a.paused && a.pausedBy !== undefined ? { pausedBy: a.pausedBy } : {}),
     ownerId: a.ownerId, folderId: a.folderId ?? "fld_unset", ...(c.model !== undefined ? { model: c.model } : {}), ...(c.fallbackModel !== undefined ? { fallbackModel: c.fallbackModel } : {}),
-    accountPolicy: c.accountPolicy, ...(c.accountKey !== undefined ? { accountKey: c.accountKey } : {}), accountFallback: c.accountFallback ?? [], ...(c.memoryKey !== undefined ? { memoryKey: c.memoryKey } : {}), ...(c.workKey !== undefined ? { workKey: c.workKey } : {}), ...(c.switchOnLimit !== undefined ? { switchOnLimit: c.switchOnLimit } : {}), toolsAllowed: c.toolsAllowed, toolsDenied: c.toolsDenied, vaultKeys: c.vaultKeys,
+    accountPolicy: c.accountPolicy, ...(c.accountKey !== undefined ? { accountKey: c.accountKey } : {}), accountFallback: c.accountFallback ?? [], ...(c.memoryKey !== undefined ? { memoryKey: c.memoryKey } : {}), ...(c.workKey !== undefined ? { workKey: c.workKey } : {}), ...(c.helperModels !== undefined ? { helperModels: c.helperModels } : {}), ...(c.switchOnLimit !== undefined ? { switchOnLimit: c.switchOnLimit } : {}), toolsAllowed: c.toolsAllowed, toolsDenied: c.toolsDenied, vaultKeys: c.vaultKeys,
     limits: c.limits, captureMode: c.captureMode, hasComputer: a.hasComputer, templateVersion: a.templateVersion, createdAt: a.createdAt,
     ...(a.lastActiveAt !== undefined ? { lastActiveAt: a.lastActiveAt } : {}),
   };

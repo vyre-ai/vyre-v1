@@ -56,11 +56,11 @@ test("REAL MODEL: helpers are one row each, the lead answers once, a helper chat
     const key = process.env["OPENCODE_API_KEY"] ?? "";
     assert.notEqual(key, "", "OPENCODE_API_KEY is needed");
     await api("providers.space_key.set", { idempotencyKey: "r-key", providerKey: "opencode-go", apiKey: key });
-    await api("engine.spend.caps.set", { scope: "space", monthMicros: 500_000, idempotencyKey: "r-cap" });
+    await api("engine.spend.caps.set", { scope: "space", caps: { monthMicros: 500_000, dayMicros: 500_000 }, idempotencyKey: "r-cap" });
     await api("engine.pool.status", {});
 
     lead = await waitFor(async () => { await d.hooks?.pump?.(); const r = await api("agents.assistant_of", { personId: (await api("identity.whoami", {})).principal.id }); return typeof r.agentId === "string" ? (r.agentId as string) : null; }, 40_000);
-    chat = (await api("chat.start", { kind: "chat", agentIds: [lead], title: "Pricing research", idempotencyKey: "j-chat" })).thread.threadId as string;
+    chat = (await api("chat.start", { kind: "chat", agentIds: [lead], title: "Pricing research", model: "deepseek-v4.1-flash", idempotencyKey: "j-chat" })).thread.threadId as string;
     for (const flow of ["team", "personal", "member"]) await api("spaces.onboarding.seen", { flow }).catch(() => undefined);
     const me = (await api("identity.whoami", {})).principal.id as string;
     const marker = (await api("spaces.get", {})).space.fingerprint as string;
@@ -76,7 +76,7 @@ test("REAL MODEL: helpers are one row each, the lead answers once, a helper chat
       const reports = rows.filter((b) => b.data?.["status"] === "done" || b.data?.["status"] === "failed");
       const agentTexts = ms.filter((m) => m.author.kind === "agent" && m.blocks.every((b) => b.type !== "helper") && m.body.trim() !== "");
       return rows.length >= 3 && reports.length >= 2 && agentTexts.length >= 1 ? ms : null;
-    }, 170_000, () => hostLog(d)).catch(async (e) => { console.log("TRANSCRIPT", JSON.stringify((await list(chat)).map((m) => [m.author.kind, m.body.slice(0, 200), m.blocks.map((b) => b.type)]))); throw e; });
+    }, 170_000, () => hostLog(d)).catch(async (e) => { console.log("TRANSCRIPT", JSON.stringify((await list(chat)).map((m) => [m.author.kind, m.body.slice(0, 200), m.blocks.map((b) => b.type)]))); { const { DatabaseSync } = await import("node:sqlite"); const db = new DatabaseSync(d.paths.modules, { readOnly: true }); console.log("TURNS", JSON.stringify(db.prepare("SELECT model, engine, account_ref, state, substr(error, 1, 600) AS error FROM engine_turns").all())); db.close(); } throw e; });
     const ms = await list(chat);
     console.log("TRANSCRIPT", JSON.stringify(ms.map((m) => [m.author.kind, m.body.slice(0, 400), m.blocks.map((b) => `${b.type}:${b.state ?? ""}:${String(b.data?.["status"] ?? "")}`)])));
     const helperThreads = [...new Set(ms.flatMap((m) => m.blocks.filter((b) => b.type === "helper").map((b) => String(b.data?.["helperThreadId"] ?? b.data?.["threadId"] ?? ""))))].filter((x) => x !== "");

@@ -24,6 +24,9 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "engine.defaults.set": Handler<"engine.defaults.set", X>;
   "engine.drop_queued": Handler<"engine.drop_queued", X>;
   "engine.health": Handler<"engine.health", X>;
+  "engine.helper_models": Handler<"engine.helper_models", X>;
+  "engine.helpers.status": Handler<"engine.helpers.status", X>;
+  "engine.helpers.stop_all": Handler<"engine.helpers.stop_all", X>;
   "engine.incident.assign": Handler<"engine.incident.assign", X>;
   "engine.incident.get": Handler<"engine.incident.get", X>;
   "engine.incident.note": Handler<"engine.incident.note", X>;
