@@ -1,4 +1,4 @@
-// Share on a folder in the real app: in a Team Space the folder menu's Share opens the one Access sheet (ui/AccessSheet) Records uses, on the folder, through access.share.
+// Share on a folder in the real app: in a Team Space the folder menu's Share opens the same ShareSheet Records uses, on the folder, through access.share.
 // Needs the production web export (VYRE_APP_DIST) and Chromium; with VYRE_REQUIRE_CHROME=1 (CI) it fails instead of skipping.
 import test from "node:test";
 import assert from "node:assert/strict";
@@ -23,9 +23,7 @@ test("files share journey, team: a folder's Share opens the sheet on that folder
     await me.page.getByText("Share…", { exact: true }).first().click({ timeout: 10_000 });
     await me.page.getByTestId("files-share").waitFor({ timeout: 15_000 });
     await me.page.getByText("Share \u201CShared plans\u201D").waitFor({ timeout: 15_000 });   // titled with the folder's own name
-    await me.page.getByText(/Folder · \d+ with access/).waitFor({ timeout: 15_000 });   // the subtitle counts the owner and whoever else holds it
-    await me.page.getByText("General access", { exact: true }).waitFor({ timeout: 15_000 });
-    await me.page.getByTestId("row-as-acc-owner").waitFor({ timeout: 15_000 });
+    await me.page.getByText(/Folder\. Sharing it covers everything inside/).waitFor({ timeout: 15_000 });
     await shoot(me.page, "shots-evidence/files-share", "team-folder-share");
     assert.equal(await me.page.getByTestId("share-error").count(), 0, "no error line");
     assert.deepEqual(me.errors, [], "no page errors");

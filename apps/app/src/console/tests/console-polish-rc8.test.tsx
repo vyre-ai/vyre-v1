@@ -12,7 +12,6 @@ import { People } from "../pages/Access.tsx";
 import { ConsoleShell } from "../shell/ConsoleShell.tsx";
 import { AgentsRegister } from "../pages/Agents.tsx";
 import { PAGES } from "../shell/nav.ts";
-import { SECTIONS } from "../shell/sections.ts";
 import { PATHS } from "../shell/glyphs.tsx";
 import { createRoot } from "test-renderer";
 import { hasTip, openSheet } from "./sheet-helper.tsx";
@@ -44,7 +43,7 @@ test("Lead gives a Row's leading slot its gap", () => {
   assert.match(out, /r-marginRight-/, "a right margin is set");
 });
 
-test("Invite people is a button that opens a sheet, and the disabled Create says why as its tooltip", async () => {
+test("Invite a person is a button that opens a sheet, and the disabled Create says why as its tooltip", async () => {
   const rows = { "access.principals.list": { principals: [] }, "access.roles.list": { roles: [] }, "access.groups.list": { groups: [] } };
   const out = await openSheet(createRoot, <People />, rows, "console-invite-open");
   assert.ok(!out.before.includes("Create invite"), "no form on the page");
@@ -64,11 +63,11 @@ test("Agents: New agent opens a sheet with a model picker, and rows carry a face
   assert.ok(out.text.includes("Model") && out.text.includes("Default"), "Model is a picker that starts on Default, not a text field");
 });
 
-test("every Console place has its own icon, and every icon is drawn", () => {
-  const icons = SECTIONS.map((s) => s.icon);
+test("every Console page has its own icon", () => {
+  const icons = PAGES.map((p) => p.icon);
   const dupes = icons.filter((icon, i) => icons.indexOf(icon) !== i);
   assert.deepEqual(dupes, []);
-  for (const icon of [...icons, ...PAGES.map((p) => p.icon)]) assert.ok(PATHS[icon], `${icon} is drawn`);
+  for (const icon of icons) assert.ok(PATHS[icon], `${icon} is drawn`);
 });
 
 test("on a phone the page title is the way to another page, and the Space name is not cut to a letter", () => {

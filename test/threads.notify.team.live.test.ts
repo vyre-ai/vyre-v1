@@ -9,9 +9,7 @@ import { boot, hostLog, seededDir, waitFor } from "./memory-live-kit.ts";
 import { api, join, ok, standIn } from "./member-key-kit.ts";
 import { createRemoteScreenHooks } from "../apps/app/src/shell/session/remote-hooks.ts";
 import type { RemoteHooks } from "../apps/app/src/shell/session/remote-hooks.ts";
-import { BANNER_QUERY } from "../apps/app/src/shell/notifications/model.ts";
-import { noticeIdOf, syncNotifications } from "../apps/app/src/shell/noticeslot/bridge.ts";
-import { createNoticeStore } from "../apps/app/src/shell/noticeslot/model.ts";
+import { BANNER_QUERY, arrivals } from "../apps/app/src/shell/notifications/model.ts";
 import type { Notification } from "../apps/app/src/shell/notifications/model.ts";
 import { replySummaries, replyWords } from "../apps/app/src/places/chats/conversation/replies.ts";
 import type { Daemon } from "../host/src/daemon/daemon.ts";
@@ -53,11 +51,7 @@ test("Team server: a reply notifies the person who follows the thread, a mention
     // the server's clock may be outside Ana's working hours, where a reply waits as a dot: she works around the clock here
     await ok(d, ana.token, "notifications.rules.set", { workingHours: null });
     // what the shell's banners already know when it opens: nothing is raised for it
-    // the shell keeps what needs her in the top bar's notifications slot: each unseen interrupt notification is a persisting notice with one action (shell/noticeslot/bridge.ts)
-    const slot = createNoticeStore();
-    let ids = new Set<string>();
-    const raise = (items: Notification[]): Notification[] => { const before = ids; ids = syncNotifications(slot, ids, items, () => undefined); return items.filter((n) => !before.has(noticeIdOf(n))); };
-    assert.deepEqual(raise(await waitFor(async () => banners(ana), 10_000)), [], "nothing needs her when she opens");
+    let known = arrivals(null, await waitFor(async () => banners(ana), 10_000)).known;
 
     const ch = (await ok(d, d.token, "channels.create", { name: "intake", visibility: "public", memberIds: [ana.personId, ben.personId], agentIds: [] })).channel as { mainThreadId: string };
     const said = (await ok(d, ana.token, "chat.post", { threadId: ch.mainThreadId, body: "Who takes the Rivera intake?" })).message.messageId as string;
@@ -66,18 +60,18 @@ test("Team server: a reply notifies the person who follows the thread, a mention
     // Ben replies: Ana wrote the message, so the reply reaches her as a banner with Reply, through her own live socket
     const before = ana.changed;
     await ok(d, ben.token, "chat.post", { threadId: thread, body: "I can take it.\nCalling at 3" });
-    const raised = await waitFor(async () => { await pump(); const got = raise(banners(ana) ?? []); return got.length > 0 ? got : null; }, 15_000, () => `${hostLog(d)} ana sees ${JSON.stringify(banners(ana))}`);
-    const reply = raised[0]!;
-    assert.deepEqual([slot.getSnapshot().live[0]!.text, slot.getSnapshot().live[0]!.action?.label, slot.getSnapshot().live[0]!.persist], ["ben replied in #intake", "Open", true], "in the slot, with Open");
+    const raised = await waitFor(async () => { await pump(); const got = arrivals(known, banners(ana) ?? []); return got.raise.length > 0 ? got : null; }, 15_000, () => `${hostLog(d)} ana sees ${JSON.stringify(banners(ana))}`);
+    known = raised.known;
+    const reply = raised.raise[0]!;
     assert.deepEqual([reply.kind, reply.title, reply.body, reply.subject, reply.actions], ["reply.thread", "ben replied in #intake", "I can take it.", { type: "thread", id: thread }, [{ label: "Reply", cap: "chat.post" }]]);
     assert.ok(ana.changed > before, "it came through Ana's own live socket");
     assert.equal((await ok(d, ben.token, "notifications.list", { unseenOnly: true })).notifications.length, 0, "Ben hears nothing about his own reply");
 
     // Ben mentions Ana: she hears the mention, not the reply as well
     await ok(d, ben.token, "chat.post", { threadId: thread, body: "@ana can you send me the file?", mentions: [{ kind: "person", id: ana.personId }] });
-    const mention = await waitFor(async () => { await pump(); const got = raise(banners(ana) ?? []); return got.length > 0 ? got : null; }, 15_000);
-    assert.deepEqual(mention.map((n) => [n.kind, n.title]), [["mention", "ben mentioned you in #intake"]]);
-    assert.equal(slot.getSnapshot().live.length, 2, "the reply and the mention are two notices");
+    const mention = await waitFor(async () => { await pump(); const got = arrivals(known, banners(ana) ?? []); return got.raise.length > 0 ? got : null; }, 15_000);
+    known = mention.known;
+    assert.deepEqual(mention.raise.map((n) => [n.kind, n.title]), [["mention", "ben mentioned you in #intake"]]);
     assert.equal((banners(ana) ?? []).find((n) => n.kind === "reply.thread")!.count, 1, "the mention did not count as a second reply");
 
     // the line under Ana's message: two replies, from Ben, both new to her
@@ -97,7 +91,7 @@ test("Team server: a reply notifies the person who follows the thread, a mention
     await pump();
     ana.hooks.invalidate();
     await new Promise((r) => setTimeout(r, 300));
-    assert.deepEqual(raise(banners(ana) ?? []), [], "nothing new in the slot from a muted thread");
+    assert.deepEqual(arrivals(known, banners(ana) ?? []).raise, [], "no banner from a muted thread");
     const all = (await ok(d, ana.token, "notifications.list", {})).notifications as Notification[];
     assert.equal(all.filter((n) => n.kind === "reply.thread").reduce((s, n) => s + n.count, 0), 1, "the muted reply filed nothing");
     assert.equal(threadsUnread(ana), 0);

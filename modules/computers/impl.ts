@@ -467,10 +467,6 @@ export function createDockerComputerHost(o: DockerHostOptions): ComputerHost & T
         return { ok: false, latencyMs: Date.now() - t0, detail: explainEngine(r.status, null, o.runner ? "runner" : "engine") };
       } catch (e) { return { ok: false, latencyMs: Date.now() - t0, detail: explainEngine(0, e, o.runner ? "runner" : "engine") }; }
     },
-    async capacity() {
-      const os = process.getBuiltinModule("node:os");
-      return { totalMb: Math.round(os.totalmem() / 1048576), freeMb: Math.round(os.freemem() / 1048576), cpus: os.cpus().length, os: os.platform() };
-    },
     subnets: () => [...subnets.values()],
     async knownNetworks(ids: readonly string[]) { for (const id of ids) await learnSubnet(id); return [...subnets.values()]; },
   };

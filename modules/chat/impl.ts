@@ -6,7 +6,6 @@ import { onAgentDeleted, onPersonLeft } from "./handlers/departures.ts";
 import { onCardAnswered, onDirectReply, sendDue } from "./handlers/agent-dm.ts";
 import type { ChatCtx } from "./projections.ts";
 import { ensureHome } from "./handlers/home-channel.ts";
-import { closePlaceholderQuestions } from "./handlers/placeholders.ts";
 import { NOTIFY_EVENTS, notify } from "./handlers/notify.ts";
 import type { NotifyEvent } from "./handlers/notify.ts";
 
@@ -16,8 +15,6 @@ export const handlers: Record<string, Handler> = table as unknown as Record<stri
 export const periodic = {
   "chat.home_channel": { everyMs: 3_600_000, immediate: true, run: async (ctx: ChatCtx) => { await ensureHome(ctx); } },
   /** Agent messages to teammates whose time came: checked again and sent, or moved to their new time (lane l-agentdm). */
-  /** Once, on update: question cards an agent threw in as a test close, and their tasks leave Needs you. */
-  "chat.placeholder_cleanup": { everyMs: 86_400_000, immediate: true, run: (ctx: ChatCtx) => { closePlaceholderQuestions(ctx); } },
   "chat.agent_dm_due": { everyMs: 30_000, run: (ctx: ChatCtx) => sendDue(ctx) },
 };
 

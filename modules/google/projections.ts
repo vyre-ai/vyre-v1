@@ -325,23 +325,6 @@ export async function bearer(ctx: GoogleCtx, c: Pick<Call, "cap" | "connectionId
   return { sub, token: await tokenFor(ctx, c.connectionId, sub, c.scope, false) };
 }
 
-/** When each connection of one Space's database was last told: per database, so two Spaces in one process never share a beat. */
-const stamps = new WeakMap<object, Map<string, number>>();
-/**
- * Tell the connection it works: Google delegation reads mail and calendar with tokens this module mints itself, so the connectors runtime never sees a call and would leave the connection "pending, never
- * used". A good answer from Google makes it active and stamps its last use, at most once a minute per connection. Never throws: a connection that cannot be told does not stop the read.
- */
-export async function markWorking(ctx: GoogleCtx, connectionId: string, o: { force?: boolean } = {}): Promise<void> {
-  const now = ctx.now();
-  const lastStamp = stamps.get(ctx.db) ?? new Map<string, number>();
-  stamps.set(ctx.db, lastStamp);
-  const last = lastStamp.get(connectionId);
-  if (o.force !== true && last !== undefined && now - last < 60_000) return;
-  lastStamp.set(connectionId, now);
-  try { await ctx.call("connections.mark_working", { connectionId }); }
-  catch (e) { /* tried again in a minute, not on every call */ ctx.log.warn("google could not tell its connection it works", { connectionId, code: codeOf(e) }); }
-}
-
 /** The call, answered as Google gave it. A 401 mints a new token once. Never throws for an HTTP status; a network failure is provider.network. */
 export async function apiRaw(ctx: GoogleCtx, c: Call): Promise<Answer & { sub: string; token: string }> {
   ensure(ctx);
@@ -368,7 +351,6 @@ export async function apiRaw(ctx: GoogleCtx, c: Call): Promise<Answer & { sub: s
     } catch {
       if (res.status < 300) throw fail("provider.bad_response", ctx.trace.traceId, { message: "Google answered something unreadable." });
     }
-    if (res.status < 300) await markWorking(ctx, c.connectionId);
     return { status: res.status, json, sub, token };
   }
 }

@@ -15,9 +15,6 @@ Area: space. Risk: medium. Applies to: connector, connection.
 ## Capabilities that need it
 
 - calendar.connect_provider
-- ci.cost.month
-- ci.settings.get
-- ci.settings.set
 - company.access_log
 - company.check
 - company.connect

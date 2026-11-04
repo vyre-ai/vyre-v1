@@ -39,9 +39,6 @@ jobs:
       - name: Exclusive disk for a perf job
         run: bash scripts/ci-iolock.sh exclusive
       - uses: ./.github/actions/deps
-      - name: Build the full-scale perf Space template once, outside the file's 120 s watchdog (the server probe files only load it)
-        if: contains(matrix.files, 'perf/server/')
-        run: node scripts/seed-perf.ts --scale full
       - name: Run the perf file (budgets unchanged)
         env:
           FILES: ${{ matrix.files }}

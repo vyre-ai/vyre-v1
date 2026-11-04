@@ -111,9 +111,7 @@ export async function githubSignIn(ctx: IdentityCtx, input: Device & { code: str
     noteFail(ctx, a, a.username, "locked");
     raise(ctx.trace.traceId, "auth.bad_credentials");
   }
-  const out = await afterFirstFactor(ctx, a, input, "github");
-  if (out.status !== "second_factor_required") await ctx.github.signedIn?.(gh.id, a.person_id).catch(() => undefined);   // signing in with GitHub connects it too
-  return out;
+  return await afterFirstFactor(ctx, a, input, "github");
 }
 
 /** A signed-in person starts proving a provider identity is theirs: the owner does this before everyone must use it, so the rule cannot lock them out. The address opens in any browser; the sign-in that comes back is bound to them. */
@@ -249,8 +247,7 @@ export async function passkeyRemove(ctx: IdentityCtx, _input: { name: string }):
 export async function githubLink(ctx: IdentityCtx, input: { code: string }) {
   const a = me(ctx);
   if (!ctx.github) raise(ctx.trace.traceId, "internal.unavailable", "GitHub sign-in isn't set up on this server");
-  // a ticket the host minted when the person connected their GitHub stands for a code that was already spent
-  const gh = (ctx.github.redeem && input.code.startsWith("vyre-gh-link.") ? ctx.github.redeem(input.code) ?? undefined : await ctx.github.resolve(input.code).catch(() => undefined));
+  const gh = await ctx.github.resolve(input.code).catch(() => undefined);
   if (!gh) raise(ctx.trace.traceId, "auth.invalid_code");
   const other = ctx.db.all(`SELECT person_id FROM identity_accounts WHERE github_id = ?`, gh.id)[0] as { person_id: string } | undefined;
   if (other && other.person_id !== a.person_id) raise(ctx.trace.traceId, "validation.duplicate", "that GitHub account is linked to someone else");

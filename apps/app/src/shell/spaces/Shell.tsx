@@ -22,9 +22,7 @@ import type { SidebarStorage } from "../sidebar/index.ts";
 import type { KitDef, PlaceId } from "../rail/kits.ts";
 import { MainTabs, useTabs } from "../tabs/MainTabs.tsx";
 import { TitleBar } from "../titlebar/TitleBar.tsx";
-import { notices } from "../noticeslot/model.ts";
-import { toggleLock } from "../noticeslot/lock-control.ts";
-import { inTerminal } from "../keyboard/useShellKeys.ts";
+import { Toast } from "./Toast.tsx";
 import { HubProvider, useHubState } from "./context.tsx";
 import { titleText } from "./hub.ts";
 import type { ShellHub, ShellTheme } from "./hub.ts";
@@ -213,15 +211,6 @@ export function Shell(props: ShellProps): ReactElement {
     if (hub.switchTo(spaceId) && to !== undefined) hub.flash(`Switched to ${to.name}`);
   };
 
-  // what used to be a toast is a passing notice in the top bar (shell/noticeslot): it shows briefly there, with Undo when it can be taken back, then fades
-  const lastStatus = useRef<number | null>(null);
-  useEffect(() => {
-    const st = state.status;
-    if (st === null || lastStatus.current === st.id) return;
-    lastStatus.current = st.id;
-    notices.pass(st.text, st.undo ? { label: "Undo", run: () => hub.undoStatus() } : undefined);
-  }, [state.status, hub]);
-
   // the keys the shell owns: Shift-Cmd-1..3 Space, Cmd-T new tab, Cmd-W close tab, Cmd-K search, Shift-Cmd-/ report
   useEffect(() => {
     if (Platform.OS !== "web") return undefined;
@@ -239,8 +228,6 @@ export function Shell(props: ShellProps): ReactElement {
       else if (k.type === "close-tab") { e.preventDefault(); hub.closeTab(); }
       else if (k.type === "search") { e.preventDefault(); props.onSearch?.(); }
       else if (k.type === "report") { e.preventDefault(); reportProblem({}); }
-      // Lock Vyre / Unlock (Cmd-L, Ctrl-L elsewhere): a terminal keeps Ctrl-L to clear its screen
-      else if (k.type === "lock") { if (!inTerminal(e.target) && toggleLock()) e.preventDefault(); }
     };
     doc.addEventListener("keydown", onKey);
     return () => doc.removeEventListener("keydown", onKey);
@@ -305,8 +292,8 @@ export function Shell(props: ShellProps): ReactElement {
             epoch={state.epoch} compact={compact} storage={props.sidebar?.storage ?? null}
           >
             {compact
-              ? <View style={styles.main}><Stage>{stage}</Stage></View>
-              : <Sheets hub={hub} tabs={<MainTabs controller={session.tabs} onNavigate={(tab) => hub.showTab(tab)} onNewTab={() => hub.newTab()} onGoToPlace={(place) => hub.go(place)} />}><Stage>{stage}</Stage></Sheets>}
+              ? <View style={styles.main}><Stage>{stage}</Stage><Toast status={state.status} onUndo={() => hub.undoStatus()} /></View>
+              : <Sheets hub={hub} toast={<Toast status={state.status} onUndo={() => hub.undoStatus()} />} tabs={<MainTabs controller={session.tabs} onNavigate={(tab) => hub.showTab(tab)} onNewTab={() => hub.newTab()} onGoToPlace={(place) => hub.go(place)} />}><Stage>{stage}</Stage></Sheets>}
           </SidebarSlotProvider>
           {compact ? (
             <Rail

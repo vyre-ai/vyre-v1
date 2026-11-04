@@ -9,7 +9,7 @@ import { codeOf, harness } from "../fixtures/db.ts";
 import { MAYA, OMAR } from "../fixtures/seed.ts";
 
 test("every spaces capability has a handler and the migration tables exist", () => {
-  assert.equal(Object.keys(handlers).length, 23);
+  assert.equal(Object.keys(handlers).length, 20);
   const sql = readFileSync(new URL("../migrations/0001_spaces.sql", import.meta.url), "utf8");
   for (const t of ["spaces_profile", "spaces_star", "spaces_follow", "spaces_onboarding", "spaces_onboarding_state"]) assert.match(sql, new RegExp(`CREATE TABLE IF NOT EXISTS "${t}"`));
 });

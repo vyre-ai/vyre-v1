@@ -5,7 +5,7 @@
 import { fail } from "../../../host/src/routes/errors.ts";
 import { isTrustedService } from "../../../lib/trust.ts";
 import {
-  ADMIN_CONSOLE_URL, api, apiRaw, bad, bearer, CALENDAR, CONFIG_ID, config, DOCS, DRIVE, EMAIL, enc, ensure, EVENTS, first, forgetTokens, int, list, markWorking, MEET,
+  ADMIN_CONSOLE_URL, api, apiRaw, bad, bearer, CALENDAR, CONFIG_ID, config, DOCS, DRIVE, EMAIL, enc, ensure, EVENTS, first, forgetTokens, int, list, MEET,
   needHost, newId, normalizeEmail, num, obj, pushToken, refusal, rowsOf, SHEETS, DIRECTORY_SCOPE, dataOf, scopesFor, str, strOrNull, subjectFor, text, codeOf, userAccountByEmail,
 } from "../projections.ts";
 import type { Call, DataChoice, GoogleCtx } from "../projections.ts";
@@ -208,8 +208,6 @@ export async function dwdSetup(ctx: GoogleCtx, input: { vaultItem: string; admin
     throw e;
   });
   ctx.db.run(`UPDATE google_config SET "lastProbeAt" = ?, "lastProbeOk" = ? WHERE id = ?`, now, probe.status < 300 ? 1 : 0, CONFIG_ID);
-  // delegation passed its check: the connection is active now, not "pending" until some connector call that never comes
-  if (probe.status < 300) await markWorking(ctx, connectionId, { force: true });
   if (probe.status >= 300) {
     throw fail("provider.auth_failed", ctx.trace.traceId, { message: "Google did not accept the delegated sign-in for the admin. Check the scopes in the Admin console.", details: { status: probe.status } });
   }

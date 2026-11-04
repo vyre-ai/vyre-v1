@@ -1,6 +1,6 @@
 // One handler per goals capability.
 import {
-  activityList, ask, brief, checklistTick, complete, confirm, count, create, extend, finish, folder, get, go, list, markStuck, numberSet, pause, plan, progress, report, resume, searchPast, sources, step, stop,
+  activityList, ask, brief, checklistTick, complete, confirm, create, extend, finish, folder, get, go, list, markStuck, numberSet, pause, plan, progress, report, resume, searchPast, sources, step, stop,
   update, wakeClaim,
 } from "./caps.ts";
 
@@ -11,7 +11,6 @@ export const handlers = {
   "goals.checklist.tick": checklistTick,
   "goals.complete": complete,
   "goals.confirm": confirm,
-  "goals.count": count,
   "goals.create": create,
   "goals.extend": extend,
   "goals.finish": finish,

@@ -142,7 +142,6 @@ test("send windows and caps apply to agents and automations, not to a person typ
   const t = harness();
   const numberId = await setup(t);
   t.actAs("agent", AGENT);
-  t.settings.set("send.window", "any");   // this test is about the number's own window; the Space window has its own tests below
   t.settings.set("telephony.send_window", { days: [1, 2, 3, 4, 5], startHour: 8, endHour: 18, zone: "space" });
   // Thursday 08:53 UTC is inside this Space's window (Monday to Friday, 08:00 to 18:00, its own zone)
   assert.equal(out(await send(t, numberId, { body: "Inside the window." })).status, "queued");
@@ -201,7 +200,6 @@ test("caps per number: over the hourly limit is refused with when it resets, and
   const numberId = await setup(t);
   t.settings.set("telephony.sender_caps", { perHour: 2, perDay: 3 });
   t.settings.set("telephony.send_window", { days: [1, 2, 3, 4, 5, 6, 7], startHour: 0, endHour: 24, zone: "space" });
-  t.settings.set("send.window", "any");
   t.actAs("agent", AGENT);
   await send(t, numberId);
   await send(t, numberId);

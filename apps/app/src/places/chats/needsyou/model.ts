@@ -76,15 +76,6 @@ export function sortItems(items: readonly Item[]): Item[] {
   return [...items.filter((i) => i.task.state !== "canceled"), ...items.filter((i) => i.task.state === "canceled")];
 }
 
-/** An ask this old is "Older": it waited days for a person, and sits apart from what just arrived instead of mixed with it. */
-export const OLDER_MS = 3 * 24 * 3_600_000;
-
-/** The list in order, with what just arrived first and what has waited days after it (each keeps the queue's order). */
-export function splitOlder(items: readonly Item[], now: number): { fresh: Item[]; older: Item[] } {
-  const older = items.filter((i) => now - i.task.createdAt >= OLDER_MS);
-  return { fresh: items.filter((i) => !older.includes(i)), older };
-}
-
 /** The id to select after `id` leaves the list: the next row, else the one before, else none. */
 export function nextSelection(list: readonly Item[], id: string): string | null {
   const i = list.findIndex((x) => x.task.id === id);
@@ -341,7 +332,7 @@ export function footerHint(t: Task | undefined): string {
   const keys = ["\u2191 \u2193 to move"];
   if (!t) return keys.join(" \u00b7 ");
   const a = fixOf(t) === null && keyRequestOf(t) === null && accessRequestOf(t) === null && connectionFixOf(t) === null ? splitActions(t) : { primary: null, sendBack: null, more: [] };
-  if (a.primary) keys.push(t.state === "canceled" ? `A ${a.primary.label.toLowerCase()}` : "A approve");
+  if (a.primary) keys.push("A approve");
   if (a.sendBack) keys.push("B send back");
   if (!a.primary && !a.sendBack) keys.push("Enter to open");
   return keys.join(" \u00b7 ");

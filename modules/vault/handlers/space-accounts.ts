@@ -17,9 +17,7 @@ export interface SpaceUses { teamChats?: { who: "everyone" | string[] }; automat
 export interface Kept { uses: SpaceUses; capCents: number | null; models: string[]; set: boolean }
 
 const sql = readFileSync(new URL("../migrations/0007_provider_uses.sql", import.meta.url), "utf8");
-const keepsSql = readFileSync(new URL("../migrations/0008_provider_keeps.sql", import.meta.url), "utf8");
 const ready = new WeakSet<object>();
-const keepsReady = new WeakSet<object>();
 const me = (ctx: VaultCtx): string => ctx.actingFor ?? ctx.principal.id;
 const live = (r: Row): boolean => r["deleted_at"] === null || r["deleted_at"] === undefined;
 
@@ -153,34 +151,4 @@ export async function useSpaceAccount(ctx: VaultCtx, want: string): Promise<{ ha
     return { handle: str(item, "handle"), itemId: str(item, "id") };
   }
   return null;
-}
-
-function ensureKeeps(ctx: VaultCtx): void {
-  if (keepsReady.has(ctx.db)) return;
-  try { ctx.db.all(`SELECT "providerId" FROM vault_provider_keeps WHERE "providerId" = ?`, "probe"); } catch { for (const s of statements(keepsSql)) ctx.db.run(s); }
-  keepsReady.add(ctx.db);
-}
-
-/** Does this account keep nothing of what it is sent? A local model always does; any other account does only when an owner or admin said so (false until then). */
-export function keepsNothingOf(ctx: VaultCtx, p: Row): boolean {
-  if (str(p, "connection") === "local_model") return true;
-  ensureKeeps(ctx);
-  const r = first(ctx.db.all(`SELECT "keepsNothing" FROM vault_provider_keeps WHERE "providerId" = ?`, str(p, "id")));
-  return r !== null && num(r, "keepsNothing") === 1;
-}
-
-/** providers.set_keeps_nothing: an owner or admin says an account keeps nothing (or not). Only an account shared with the Space; a local model always keeps nothing and cannot be turned off. */
-export function setKeepsNothing(ctx: VaultCtx, p: Row, keepsNothing: unknown): boolean {
-  if (typeof keepsNothing !== "boolean") return bad(ctx, "Keeps nothing is yes or no.");
-  if (str(p, "connection") === "local_model") { if (!keepsNothing) bad(ctx, "A local model always keeps nothing."); return true; }
-  if (str(p, "scope") !== "shared") return bad(ctx, "Only an account shared with the Space can be marked. Your own accounts are not.");
-  ensureKeeps(ctx);
-  const was = keepsNothingOf(ctx, p);
-  ctx.db.run(`DELETE FROM vault_provider_keeps WHERE "providerId" = ?`, str(p, "id"));
-  ctx.db.run(`INSERT INTO vault_provider_keeps ("providerId", "keepsNothing", "setBy", "setAt") VALUES (?, ?, ?, ?)`, str(p, "id"), keepsNothing ? 1 : 0, me(ctx), ctx.now());
-  if (was !== keepsNothing) {
-    record(ctx, str(p, "itemId"), "edited", { detail: keepsNothing ? "Marked as keeping nothing" : "No longer marked as keeping nothing" });
-    ctx.emit("provider.keeps_nothing_changed", `entity/${str(p, "id")}`, { providerId: str(p, "id"), keepsNothing }, { vis: "participants" });
-  }
-  return keepsNothing;
 }

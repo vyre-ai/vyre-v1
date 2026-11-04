@@ -15,7 +15,6 @@ export const handlers: Handlers<HandlerCtx> = {
   "notes.pin": async (ctx) => { throw new VyreErr(notImplemented("notes.pin", ctx.trace)); },
   "notes.restore": async (ctx) => { throw new VyreErr(notImplemented("notes.restore", ctx.trace)); },
   "notes.search": async (ctx) => { throw new VyreErr(notImplemented("notes.search", ctx.trace)); },
-  "notes.set_owner": async (ctx) => { throw new VyreErr(notImplemented("notes.set_owner", ctx.trace)); },
   "notes.share": async (ctx) => { throw new VyreErr(notImplemented("notes.share", ctx.trace)); },
   "notes.to_record": async (ctx) => { throw new VyreErr(notImplemented("notes.to_record", ctx.trace)); },
   "notes.to_task": async (ctx) => { throw new VyreErr(notImplemented("notes.to_task", ctx.trace)); },

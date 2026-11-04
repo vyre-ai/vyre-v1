@@ -344,32 +344,3 @@ test("a pending connection says which slot is empty; filling it from a handle ma
   assert.deepEqual([done.connection.state, done.connection.filled], ["active", ["Acme_Hook", "Acme_Key"]]);
   assert.equal(JSON.stringify(done).includes(SECRET), false);
 });
-
-test("mark_working (Google delegation, which mints its own tokens, tells the connection it works): pending becomes active, the last use is stamped at most once a minute, paused stays paused", async () => {
-  const k = kit();
-  k.install(ACME);
-  const made = (await create(k, { secrets: { Acme_Key: "#AcmeKey" } })).connection;   // one secret missing: pending
-  assert.equal(made.state, "pending");
-  assert.equal(made.lastSyncAt, undefined);
-  const first = await k.hs["connections.mark_working"](k.ctx, { connectionId: made.connectionId });
-  assert.deepEqual(first, { state: "active", stamped: true });
-  assert.deepEqual([(await k.hs["connections.get"](k.ctx, { connectionId: made.connectionId })).connection.state, (await k.hs["connections.get"](k.ctx, { connectionId: made.connectionId })).connection.lastSyncAt], ["active", NOW]);
-  assert.deepEqual(await k.hs["connections.mark_working"](k.ctx, { connectionId: made.connectionId }), { state: "active", stamped: false }, "inside the minute nothing is written");
-  k.clock.t += 61_000;
-  assert.deepEqual(await k.hs["connections.mark_working"](k.ctx, { connectionId: made.connectionId }), { state: "active", stamped: true });
-  assert.equal((await k.hs["connections.get"](k.ctx, { connectionId: made.connectionId })).connection.lastSyncAt, NOW + 61_000);
-  await k.hs["connections.pause"](k.ctx, { connectionId: made.connectionId });
-  k.clock.t += 120_000;
-  assert.deepEqual(await k.hs["connections.mark_working"](k.ctx, { connectionId: made.connectionId }), { state: "paused", stamped: false }, "a paused connection stays paused and is not stamped");
-  await assert.rejects(k.hs["connections.mark_working"](k.ctx, { connectionId: "con_nope" }), code("validation.not_found"));
-});
-
-test("mark_working: a member who may not manage the Space cannot call a failing Space connection active; the server's own jobs can", async () => {
-  const k = kit();
-  k.install(ACME);
-  const made = (await create(k, { secrets: { Acme_Key: "#AcmeKey" } })).connection;
-  const member = { ...k.mk("usr_member"), canManageSpace: () => false, canViewSpace: () => true };
-  await assert.rejects(k.hs["connections.mark_working"](member, { connectionId: made.connectionId }), code("permission.no_grant"));
-  const job = { ...k.mk("svc_host"), trusted: true, canManageSpace: () => false };
-  assert.equal((await k.hs["connections.mark_working"](job, { connectionId: made.connectionId })).state, "active");
-});

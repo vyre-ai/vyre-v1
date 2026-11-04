@@ -361,8 +361,7 @@ test("the shell registers the tray, notification and dialog plugins and exposes 
   assert.match(native, /spawn_blocking/, "filesystem and Git discovery run on a blocking worker");
   assert.match(native, /MAX_REPO_PROBES/, "one bounded probe budget covers large provider stores");
   assert.match(native, /#\[serde\(skip_serializing\)\]\s*pub transcript_path:/, "native transcript paths remain opaque to the renderer");
-  // "unstable" carries the child webview an artifact opens in (l-engine21, 175152bb5)
-  assert.match(read("Cargo.toml"), /tauri = \{ version = "2", features = \["tray-icon", "unstable"\] \}/);
+  assert.match(read("Cargo.toml"), /tauri = \{ version = "2", features = \["tray-icon"\] \}/);
 });
 
 test("the Rust side agrees with the TypeScript rules: click window, banner links, text caps, and no notification text in a log", () => {

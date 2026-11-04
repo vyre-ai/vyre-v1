@@ -38,7 +38,7 @@ export const consumers = {
   "tasks.run_resume": { on: ["task.transitioned"], run: (ctx: TasksCtx, event: Parameters<typeof resumeRunOf>[1]) => resumeRunOf(ctx, event) },
   /** The source decided (a card in the chat, the access or key card): its tasks close, for everyone they were addressed to (handlers/resume.ts). */
   "tasks.source_settle": {
-    on: ["block.answered", "block.withdrawn", "plan.approved", "plan.rejected", "access.granted", "access.declined", "vault.request_fulfilled", "vault.request_declined", "vault.request_canceled"],
+    on: ["block.answered", "plan.approved", "plan.rejected", "access.granted", "access.declined", "vault.request_fulfilled", "vault.request_declined", "vault.request_canceled"],
     run: (ctx: TasksCtx, event: Parameters<typeof settleFromSource>[1]) => settleFromSource(ctx, event),
   },
   /** Nothing waits on someone who is gone: what they held moves on, with one line of history. */

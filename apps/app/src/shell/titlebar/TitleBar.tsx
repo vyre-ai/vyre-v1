@@ -1,13 +1,11 @@
-// The title bar on the rail ground: the one search in the middle (Cmd-K) and, to its right, the notifications slot (shell/noticeslot): the lock, the connection ("Sending 2 changes", "Offline, 3 changes
-// waiting"; Open goes to Waiting and Conflicts), updates and the things that used to be toasts. A calm bar is one field. The skin lives in Settings and Cmd-K.
-import { useEffect, useState } from "react";
+// The title bar on the rail ground: the one search in the middle (Cmd-K). The connection shows only when it is broken ("Sending 2 changes", "Offline, 3 changes waiting"; click opens Waiting and Conflicts),
+// so a calm bar is one field. Confirmations are toasts near the composer (shell/spaces/Toast); the skin lives in Settings and Cmd-K.
+import { useState } from "react";
 import type { ReactElement, ReactNode } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { ShellIcon } from "../rail/icons.tsx";
 import { useResume } from "../../onboarding/resume-context.ts";
 import { syncLabel } from "./model.ts";
-import { NoticeSlot } from "../noticeslot/NoticeSlot.tsx";
-import { notices } from "../noticeslot/model.ts";
 
 export const TITLE_BAR_HEIGHT = 38;
 
@@ -29,11 +27,7 @@ export function TitleBar(props: TitleBarProps): ReactElement {
   const sync = syncLabel(online, waiting);
   const resume = useResume();
   const [over, setOver] = useState(false);
-  // the connection is a notice like any other: raised while it is not plain "Connected", resolved when it is
-  useEffect(() => {
-    if (sync.tone === "ok") notices.resolve("sync");
-    else notices.raise({ id: "sync", kind: "offline", text: sync.text, ...(sync.opens ? { action: { label: "Open", run: props.onOpenWaiting } } : {}) });
-  }, [sync.tone, sync.text, sync.opens]);   // eslint-disable-line react-hooks/exhaustive-deps
+  const toneColor = sync.tone === "offline" ? "var(--warn)" : "var(--accent)";
   return (
     <View testID="shell-titlebar" accessibilityRole="header" accessibilityLabel={title} style={styles.bar}>
       <View style={styles.side}>
@@ -49,16 +43,22 @@ export function TitleBar(props: TitleBarProps): ReactElement {
         {compact ? null : <Text numberOfLines={1} style={[styles.omniText, over ? styles.omniOver : null]}>Search or run a command</Text>}
         {compact ? null : <Text style={styles.kbd}>⌘K</Text>}
       </Pressable>
-      <View style={[styles.side, styles.noticeSide]} testID="title-notices"><NoticeSlot compact={compact} /></View>
+      <View style={[styles.side, styles.right]}>
+        {sync.tone === "ok" ? null : (
+          <Pressable role="button" aria-label={sync.text} testID="title-sync" disabled={!sync.opens} onPress={sync.opens ? props.onOpenWaiting : undefined} style={styles.state}>
+            <View style={[styles.sdot, { backgroundColor: toneColor as string }]} />
+            {compact ? null : <Text numberOfLines={1} style={styles.stateText}>{sync.text}</Text>}
+          </Pressable>
+        )}
+      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  // above the place below it, so the notifications popover opens over the page instead of under it
-  bar: { height: TITLE_BAR_HEIGHT, flexDirection: "row", alignItems: "center", paddingLeft: 14, paddingRight: 14, position: "relative", zIndex: 30, overflow: "visible" },
+  bar: { height: TITLE_BAR_HEIGHT, flexDirection: "row", alignItems: "center", paddingLeft: 14, paddingRight: 14 },
   side: { flex: 1, flexBasis: 0, minWidth: 0, flexDirection: "row", alignItems: "center", gap: 6 },
-  noticeSide: { justifyContent: "flex-start", paddingLeft: 10 },
+  right: { justifyContent: "flex-end" },
   call: { justifyContent: "center" },
   setup: { justifyContent: "center", flexShrink: 0 },
   omni: { width: 340, maxWidth: "60%" as unknown as number, height: 26, flexDirection: "row", alignItems: "center", gap: 8, paddingLeft: 11, paddingRight: 6, borderRadius: 8, backgroundColor: "var(--sunk)" as string },
@@ -66,4 +66,7 @@ const styles = StyleSheet.create({
   omniText: { flex: 1, minWidth: 0, fontSize: 12.5, color: "var(--ink-3)" as string },
   omniOver: { color: "var(--ink-2)" as string },
   kbd: { fontSize: 10.5, lineHeight: 15, color: "var(--ink-4)" as string, paddingHorizontal: 4, borderRadius: 4, borderWidth: 1, borderColor: "var(--line-2)" as string },
+  state: { flexDirection: "row", alignItems: "center", gap: 6, height: 26, paddingHorizontal: 8, borderRadius: 7 },
+  stateText: { fontSize: 12, color: "var(--ink-3)" as string },
+  sdot: { width: 6, height: 6, borderRadius: 3 },
 });

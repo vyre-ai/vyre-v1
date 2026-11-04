@@ -6,7 +6,6 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import type { Page } from "playwright-core";
-import { resolve, sectionOf, tabOf } from "../src/console/shell/sections.ts";
 import { bootFreshSpace, claimOnEdge, edge, dismissOnboarding } from "./real-app-harness.test.ts";
 
 const KEYS = { personKeyByPassword: "cGVyc29uLWJ5LXBhc3N3b3Jk", publicKey: "cHVibGljLWtleQ==", privateKeyWrapped: "cHJpdmF0ZS13cmFwcGVk", spaceKeys: [{ epoch: 1, wrapped: "c3BhY2Uta2V5LTE=" }] };
@@ -37,12 +36,11 @@ test("production Console Permissions: matrix, exceptions, the person page, the c
       const body = await r.json(); assert.equal(r.status(), 200, `${cap}: ${JSON.stringify(body)}`); return body.data;
     };
     const roles = (await api("access.roles.list", {})).roles as { id: string; name: string }[];
-    const tokens: Record<string, string> = {};
     const join = async (username: string, displayName: string, role: string): Promise<string> => {
       const inv = await api("members.invites.create", { role: roles.find((r) => r.name === role)!.id, idempotencyKey: `inv-${username}` });
       const code = decodeURIComponent(new URL(inv.link).pathname.split("/").pop()!);
       const r = await context.request.post(`${web.origin}/v1/members/accept`, { data: { code, username, displayName, password: PASSWORD, deviceName: "Laptop", deviceClass: "desktop", keys: KEYS } });
-      assert.equal(r.status(), 200, await r.text()); const out = (await r.json()).data as { personId: string; token: string }; tokens[username] = out.token; return out.personId;
+      assert.equal(r.status(), 200, await r.text()); return (await r.json()).data.personId as string;
     };
     const omar = await join("omar", "Omar Haddad", "Member"), lena = await join("lena", "Lena Ortiz", "Member"), dana = await join("dana", "Dana Whitfield", "Member"), elena = await join("elena", "Elena Rivera", "Guest");
     await join("maya", "Maya Chen", "Admin");
@@ -54,20 +52,10 @@ test("production Console Permissions: matrix, exceptions, the person page, the c
     const maya = (await api("access.principals.list", { kind: "person" })).principals.find((p: { name: string }) => p.name === "Maya Chen").id as string;
     await api("access.exceptions.set", { subject: { kind: "person", id: maya }, area: "sites", effect: "own", why: "Staging only this month", idempotencyKey: "x5" });
 
-    /** Reach a Console page through the real navigation: the place in the side list, then its tab, then the view under the tab's text switch. */
-    const goPage = async (p: Page, pageId: string): Promise<void> => {
-      const id = resolve(pageId), section = sectionOf(id), tab = tabOf(id);
-      assert.ok(section && tab, `${pageId} has a place in the Console`);
-      await p.getByTestId(`row-nav-${section.id}`).click({ timeout: 60_000 });
-      if (section.tabs.length > 1) await p.getByTestId(`tab-${tab.views[0]!.page}`).click();
-      if (tab.views[0]!.page !== id) await p.getByTestId(`view-${id}`).click();
-      await p.getByTestId(`page-${id}`).waitFor();
-    };
-    const open = async (p: Page, pageId: string, testId: string, skin = "vyre-light"): Promise<void> => {
+    const open = async (p: Page, nav: string, testId: string, skin = "vyre-light"): Promise<void> => {
       await p.goto(`${web.origin}/console?skin=${skin}`, { waitUntil: "load" }); await p.getByTestId("console").waitFor({ timeout: 30_000 });
-      await goPage(p, pageId);
-      if (pageId === "checker") await p.getByTestId("people-check-open").click(); // the check sits above the Members table
-      await p.getByTestId(testId).waitFor({ timeout: 20_000 });
+      const group = p.getByTestId("navgroup-Access"); if ((await group.count()) && (await group.getAttribute("aria-expanded")) !== "true") await group.click();
+      await p.getByTestId(`row-nav-${nav}`).click(); await p.getByTestId(testId).waitFor({ timeout: 20_000 });
     };
     const shot = async (p: Page, name: string): Promise<void> => { await p.waitForTimeout(300); await p.screenshot({ path: path.join(shots, name), animations: "disabled" }); };
 
@@ -128,35 +116,6 @@ test("production Console Permissions: matrix, exceptions, the person page, the c
     assert.equal(why.allowed, false); assert.match(why.words, /^Exception set by Irfad on .*, overrides Member: Allowed\. Reason: First week/);
     const audit = (await api("audit.list", { limit: 50 })).rows as Array<{ action: string }>;
     assert.ok(audit.filter((r) => r.action === "access.exceptions.set").length >= 4, "every exception added is in the Audit log");
-    // a plain member who may not manage cannot open the Console (owner ruling): the server refuses console.nav, and the page says so and shows no admin data
-    {
-      const asMember = await context.request.post(`${web.origin}/v1/console/nav`, { headers: { authorization: `Bearer ${tokens["omar"]}` }, data: {} });
-      assert.notEqual(asMember.status(), 200, "console.nav refuses a member who may not manage");
-      // a real member signs in: a fresh browser takes a Member invite through the join screens, then asks for /console
-      const memberContext = await browser.newContext({ viewport: { width: 1280, height: 900 } });
-      const memberPage = await memberContext.newPage();
-      const memberErrors: string[] = []; memberPage.on("pageerror", (e) => memberErrors.push(e.message));
-      const invite = await api("members.invites.create", { role: roles.find((r) => r.name === "Member")!.id, idempotencyKey: "inv-browser-member" });
-      const link = new URL(invite.link);
-      await memberPage.goto(`${web.origin}${link.pathname}${link.hash}`, { waitUntil: "load" });
-      await memberPage.getByTestId("step-accept").waitFor({ timeout: 20_000 });
-      await memberPage.getByTestId("web").click();
-      await memberPage.getByTestId("first").fill("Mia"); await memberPage.getByTestId("last").fill("Member"); await memberPage.getByTestId("next").click();
-      await memberPage.getByTestId("username").fill("mia"); await memberPage.getByTestId("password").fill(PASSWORD); await memberPage.getByTestId("confirm").fill(PASSWORD); await memberPage.getByTestId("next").click();
-      await memberPage.getByTestId("device").fill("Mia's browser"); await memberPage.getByTestId("next").click();
-      await memberPage.getByTestId("ai-none").click(); await memberPage.getByTestId("next").click();
-      await memberPage.getByTestId("shell").waitFor({ timeout: 30_000 }); await dismissOnboarding(memberPage);
-      await memberPage.goto(`${web.origin}/console?skin=vyre-light`, { waitUntil: "load" });
-      await memberPage.getByTestId("console-refused").waitFor({ timeout: 30_000 }).catch(async (e) => { await shot(memberPage, "console-member-fail.png"); throw new Error(`${e.message} at ${memberPage.url()}: ${(await memberPage.locator("body").innerText().catch(() => "")).slice(0, 600)}`); });
-      await memberPage.getByText("Console is for admins and owners", { exact: true }).waitFor();
-      assert.equal(await memberPage.getByTestId("console").count(), 0, "no Console frame for a member");
-      assert.equal(await memberPage.getByTestId("console-nav").count(), 0, "no navigation");
-      const body = await memberPage.locator("body").innerText();
-      for (const secret of ["Maya Chen", "Dana Whitfield", "Elena Rivera", "Delivery", "Audit log"]) assert.ok(!body.includes(secret), `no admin data on the page: ${secret}`);
-      await shot(memberPage, "console-member-refused.png");
-      assert.deepEqual(memberErrors, []);
-      await memberContext.close();
-    }
     // the phone: one role at a time, read only
     // the phone: the Console opens on a computer (owner ruling, 3 Nov 2026), so a phone never shows a grid to press; it offers to chat about it
     for (const skin of ["vyre-light", "vyre-black"]) {

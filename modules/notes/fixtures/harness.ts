@@ -46,8 +46,6 @@ export function harness(o: { threads?: Record<string, ThreadDef>; channels?: Rec
   const messages = o.messages ?? {};
   const taskKeys: Record<string, string> = {};
   const callees: Record<string, Callee> = {
-    "access.principals.get": () => ({ principal: { name: "Irfad" } }),
-    "notifications.send": () => ({ outcome: "badge" }),
     // reading a chat is for its starter, its members, and (a channel) the channel's members or everyone when it is public: anyone else is told it does not exist, as the chat module does
     "threads.get": (i: { threadId: string }, who: Who) => {
       const t = threads[i.threadId];

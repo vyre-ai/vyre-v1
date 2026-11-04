@@ -54,7 +54,6 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "google.dwd.status": Handler<"google.dwd.status", X>;
   "google.dwd.sync_members": Handler<"google.dwd.sync_members", X>;
   "google.gmail.create_draft": Handler<"google.gmail.create_draft", X>;
-  "google.gmail.delete_draft": Handler<"google.gmail.delete_draft", X>;
   "google.gmail.get_attachment": Handler<"google.gmail.get_attachment", X>;
   "google.gmail.get_message": Handler<"google.gmail.get_message", X>;
   "google.gmail.get_profile": Handler<"google.gmail.get_profile", X>;

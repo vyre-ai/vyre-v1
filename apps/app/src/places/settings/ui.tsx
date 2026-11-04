@@ -65,10 +65,10 @@ export function Glyph({ name, size = 15, color = "var(--ink-3)", fill }: { name:
 
 // ---------------------------------------------------------------- the card and the row
 
-export function Section({ title, note, help, children, testID, right }: { title?: string; note?: string; help?: string; children: ReactNode; testID?: string; right?: ReactNode }): ReactElement {
+export function Section({ title, note, help, children, testID }: { title?: string; note?: string; help?: string; children: ReactNode; testID?: string }): ReactElement {
   return (
     <Tip help={help}><View style={s.section} testID={testID ?? (title ? `section-${title}` : undefined)} accessibilityLabel={title}>
-      {title && right ? <View style={s.sHead}><Text accessibilityRole="header" style={[s.sTitle, { marginBottom: 0 }]}>{title}</Text>{right}</View> : title ? <Text accessibilityRole="header" style={s.sTitle}>{title}</Text> : null}
+      {title ? <Text accessibilityRole="header" style={s.sTitle}>{title}</Text> : null}
       <View style={s.card}>{children}</View>
       {note ? <Text style={s.sNote}>{note}</Text> : null}
     </View></Tip>
@@ -278,7 +278,6 @@ export function Mark({ name, size = 22, square = true }: { name: string; size?: 
 
 export const s = StyleSheet.create({
   section: { marginTop: 26 },
-  sHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 8, marginTop: -4 },
   sTitle: { fontSize: 12.5, fontWeight: "600", color: "var(--ink-2)" as string, marginBottom: 8, paddingHorizontal: 2 },
   sNote: { fontSize: 12, lineHeight: 17, color: "var(--ink-3)" as string, marginTop: 8, paddingHorizontal: 2 },
   card: { borderRadius: 12, borderWidth: 1, borderColor: "var(--line)" as string, backgroundColor: "var(--raised)" as string, overflow: "hidden" },

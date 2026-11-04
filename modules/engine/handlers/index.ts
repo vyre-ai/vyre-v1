@@ -1,14 +1,11 @@
 import { liveTurns } from "./bridge.ts";
-import { helpersChangeModel, helpersStatus, helpersStopAll } from "./helpers.ts";
-import { helperModels } from "./helper-models.ts";
-import { crewStatus } from "./crew-status.ts";
 import { now as engineNow } from "./now.ts";
 // Handler table of the engine module for the capabilities this module implements so far. The rest of engine.* is served by the generated stubs
 // until the packets that own them land (the turn worker's engine.turn.*, the pool P-L2_04, models, policy and review).
 import { complete } from "./complete.ts";
 import { compact } from "./compact.ts";
 import { accountProbe, accountResolve, accountsList } from "./accounts.ts";
-import { incidentAssign, incidentGet, incidentNote, incidentOpen, incidentResolve, incidentsList, dropQueued, interrupt, lastPickGet, setMode, setModel, stop, stopAll, switchEngine } from "./control.ts";
+import { incidentAssign, incidentGet, incidentNote, incidentOpen, incidentResolve, incidentsList, dropQueued, interrupt, setMode, setModel, stop, stopAll, switchEngine } from "./control.ts";
 import { extraHandlers } from "./extra/index.ts";
 import { mcpCall, mcpRead, mcpTools, mcpOauthComplete, mcpOauthStart, mcpOauthStatus } from "./mcp.ts";
 import { stepTurn } from "../step-turn.ts";
@@ -16,7 +13,6 @@ import { usageGet } from "./usage.ts";
 import { selfAi } from "./self-ai.ts";
 import { list as crewList, merge as crewMerge, message as crewMessage, push as crewPush, repoGet as crewRepoGet, chatRepoGet as crewChatRepo, repoSet as crewRepoSet, start as crewStart, stop as crewStop, wait as crewWait, workspace as crewWorkspace } from "./crew.ts";
 import { capsSet, pauseAll, raiseLimit, recordUsage, resumeAll, spendGet, usageQuery } from "./spend.ts";
-import { timeConvert } from "./time-convert.ts";
 
 export const handlers = {
   "engine.accounts.list": accountsList,
@@ -29,14 +25,8 @@ export const handlers = {
   "engine.stop": stop,
   "engine.stop_all": stopAll,
   "engine.live_turns": liveTurns,
-  "engine.helpers.status": helpersStatus,
-  "engine.crew.status": crewStatus,
-  "engine.helper_models": helperModels,
-  "engine.helpers.stop_all": helpersStopAll,
-  "engine.helpers.change_model": helpersChangeModel,
   "engine.now": engineNow,
   "engine.set_mode": setMode,
-  "engine.last_pick.get": lastPickGet,
   "engine.set_model": setModel,
   "engine.switch": switchEngine,
   "engine.compact": compact as never,
@@ -54,7 +44,6 @@ export const handlers = {
   "engine.usage.query": usageQuery,
   "engine.usage.get": usageGet as never,
   "engine.my_ai": selfAi as never,
-  "engine.time_convert": timeConvert as never,
   "engine.turn.record_usage": recordUsage,
   "engine.crew.repo.set": crewRepoSet,
   "engine.crew.repo.get": crewRepoGet,

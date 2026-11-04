@@ -53,7 +53,7 @@ function request(req: CallRequest): WireRequest {
     body: {
       model: req.model, max_tokens: req.maxOutputTokens, stream: true,
       ...(system.length > 0 ? { system } : {}),
-      ...(tools.length > 0 ? { tools, tool_choice: { type: "auto", disable_parallel_tool_use: false } } : {}),
+      ...(tools.length > 0 ? { tools } : {}),
       ...(req.effort !== undefined && takesEffort(req.model) ? { output_config: { effort: req.effort } } : {}),
       messages: wireMessages(req),
     },

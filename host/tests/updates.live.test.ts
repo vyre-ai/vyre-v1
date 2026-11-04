@@ -173,10 +173,3 @@ test('installer busy exit is a typed refusal for apply and rollback without leak
  await assert.rejects(host.installer.install({version:'1.1.0',tarball:'fixture.tgz',sha256:'a'.repeat(64)}),busy);
  await assert.rejects(host.installer.switchTo('0.9.0'),busy);
 });
-
-test("updates seam: without vyre-server the installer is missing (ENOENT) and names the daemon's own version as the one running", async () => {
-  const host = createUpdatesHost({ version: "1.0.0-rc.21", run: async () => ({ code: 127, stdout: "", stderr: "" }) });
-  await assert.rejects(host.installer.current(), (e: unknown) => (e as { code?: string }).code === "ENOENT");
-  assert.equal(host.installer.running?.(), "1.0.0-rc.21");
-  assert.equal(createUpdatesHost({ run: async () => ({ code: 127, stdout: "", stderr: "" }) }).installer.running?.(), undefined);
-});

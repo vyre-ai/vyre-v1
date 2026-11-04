@@ -40,10 +40,10 @@ test("each person's row carries the unread of the direct message with them, and 
   assert.deepEqual(dmThreads(recent).get(BEN), "thr_dm_ben", "his row's menu marks that chat");
 });
 
-test("a direct message reads as the person's name, not New chat, and its face is theirs, even when a title was given", () => {
+test("a direct message reads as the person's name, not New chat, and its face is theirs; a title someone gave still wins", () => {
   const row = rowOf(item({ threadId: "thr_dm", people: [ANA], unread: 1 }), names, names);
   assert.deepEqual([row.title, row.who, row.whoId, row.kind, row.withPeople], ["Ana Ruiz", "Ana Ruiz", ANA, "person", true]);
-  assert.equal(rowOf(item({ people: [ANA], title: "Rivera handoff" }), names, names).title, "Ana Ruiz", "a direct message always carries the person's name, as the tab does");
+  assert.equal(rowOf(item({ people: [ANA], title: "Rivera handoff" }), names, names).title, "Rivera handoff");
   assert.equal(groupRecent(recentOf([item({ threadId: "thr_dm", people: [ANA], unread: 1 })]), [], names, names)[0]!.rows[0]!.unread, 1, "Recent keeps the server's count");
 });
 

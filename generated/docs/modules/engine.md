@@ -4,7 +4,7 @@ Lane L2. Kind module. Version 0.1.0.
 
 Requires: nothing.
 
-## Capabilities (92)
+## Capabilities (84)
 
 - [engine.account.resolve](../capabilities/engine.account.resolve.md): Resolve the account that pays for a turn: a pin (the chat's account, the agent's key, the step's key), the person's own, the Space AI accounts whose uses cover the turn (cheapest that fits, not capped), the backups, else an Unblock
 - [engine.accounts.list](../capabilities/engine.accounts.list.md): Accounts the caller can run on: API keys by handle and subscription sign-ins (Mine), with status. With a place (chat, automation, agent, space) each says whether it can run there and why not
@@ -18,7 +18,6 @@ Requires: nothing.
 - [engine.crew.repo.get](../capabilities/engine.crew.repo.get.md): The project's repository for the crew, or nothing when none is set
 - [engine.crew.repo.set](../capabilities/engine.crew.repo.set.md): Say which folder on this computer holds the project's repository, and the branch teammates start from; the folder must be a git repository
 - [engine.crew.start](../capabilities/engine.crew.start.md): Start a teammate on a brief in any chat. It works on its own branch in its own copy of the repository: the chat's project's, else the chat's own work folder on this computer (made on first use). Nothing to set up first
-- [engine.crew.status](../capabilities/engine.crew.status.md): Everything that works for a chat, in one read for the Island, the header chip and the Crew pane: each helper and teammate with its state, the step it is on, model, account, branch, files changed, tokens and cost, and the totals for the crew. Only what is known; nothing is estimated
 - [engine.crew.stop](../capabilities/engine.crew.stop.md): Stop a teammate: its running turn ends and anything queued for it is dropped; its work stays on its branch
 - [engine.crew.wait](../capabilities/engine.crew.wait.md): Wake me when the checks of a pull request end: the host looks at them, not the model, shows the progress in the Crew tab, and posts one message here that wakes the lead when they finish
 - [engine.crew.workspace](../capabilities/engine.crew.workspace.md): System: the repository copy a teammate thread works in, so the engine can make it before the first turn
@@ -26,10 +25,6 @@ Requires: nothing.
 - [engine.defaults.set](../capabilities/engine.defaults.set.md): Set the caller default model, provider, effort and fallback order (the chat default)
 - [engine.drop_queued](../capabilities/engine.drop_queued.md): Take a message that is waiting behind a running turn out of the queue so it can be edited and sent again; it stays in the chat and the agent will not answer it
 - [engine.health](../capabilities/engine.health.md): Engine health: queue age, lease holders, provider reachability
-- [engine.helper_models](../capabilities/engine.helper_models.md): The catalogue before you start helpers: every AI account the person may use with its provider, label and models (tools, vision, context, a cost tier cheap, standard or strong, whether it is available now), and where a helper goes by default
-- [engine.helpers.change_model](../capabilities/engine.helpers.change_model.md): Change the model of one helper of a chat: it stops, then starts again on the account and model the person picked, doing its brief from the start
-- [engine.helpers.status](../capabilities/engine.helpers.status.md): The helpers of a chat, live: each one working, done, needing a person or failed, the step it is on, one line of what it found, how long it took and what it cost
-- [engine.helpers.stop_all](../capabilities/engine.helpers.stop_all.md): Stop every helper still working under a chat; what they did so far is kept
 - [engine.incident.assign](../capabilities/engine.incident.assign.md): Assign an incident to an owner
 - [engine.incident.get](../capabilities/engine.incident.get.md): Read one AI incident with its notes
 - [engine.incident.note](../capabilities/engine.incident.note.md): Add a note to an incident
@@ -37,7 +32,6 @@ Requires: nothing.
 - [engine.incident.resolve](../capabilities/engine.incident.resolve.md): Resolve an incident with a note
 - [engine.incidents.list](../capabilities/engine.incidents.list.md): AI incidents for review
 - [engine.interrupt](../capabilities/engine.interrupt.md): Interrupt now: cancel the current turn and queue the message at top priority ("stop and send")
-- [engine.last_pick.get](../capabilities/engine.last_pick.get.md): The model the caller last picked in a chat (any agent): a new chat starts on it. Empty when they have not picked one yet
 - [engine.lease.acquire](../capabilities/engine.lease.acquire.md): Take the lease on a thread (compare and set; heartbeat every 5 s, expires after 20 s)
 - [engine.lease.heartbeat](../capabilities/engine.lease.heartbeat.md): Extend the lease on a thread
 - [engine.lease.release](../capabilities/engine.lease.release.md): Release the lease on a thread
@@ -49,7 +43,6 @@ Requires: nothing.
 - [engine.mcp.read](../capabilities/engine.mcp.read.md): Call a tool of an outside tool server or connection (app hub, OAuth server, remote MCP) that only reads, as mcp_tools lists it with readOnly true; a tool that may change things goes through mcp_call
 - [engine.mcp.tools](../capabilities/engine.mcp.tools.md): The MCP servers a chat with this agent connects to and the tools each offers (starts the server in the sandbox if it is not running)
 - [engine.models.list](../capabilities/engine.models.list.md): Models the account can reach; models that the open labels or policy forbid are listed greyed with the reason
-- [engine.models_catalog](../capabilities/engine.models_catalog.md): Every AI account the asker can use with its models, what each can do (tools, images, context), a cost tier (cheap, standard or strong) and whether the probe found it available; for helpers that pick a model across accounts. Reads saved lists and the probe's marks only
 - [engine.my_ai](../capabilities/engine.my_ai.md): What AI this chat runs on and what else the person may use now: model, account and who paid, each usable account with models and limits (or not readable), and use today and this month. Ask it for what model, what else, what is left, /usage
 - [engine.now](../capabilities/engine.now.md): Which agents are working right now: the agent, the person it works for, where it runs (the Space, their computer, their server) and since when; the chat is named only to someone who may read it
 - [engine.placement.decide](../capabilities/engine.placement.decide.md): Decide where a turn runs: host or the asker device (private chat rules, computers, routines, phone and web askers)
@@ -80,7 +73,6 @@ Requires: nothing.
 - [engine.stop_all](../capabilities/engine.stop_all.md): Stop every agent working in a thread (Stop all in the conversation header)
 - [engine.subscription_share.set](../capabilities/engine.subscription_share.set.md): Let the Space run work on my subscription (server runs for my chats, routines and personal automations); off kills my sandbox
 - [engine.switch](../capabilities/engine.switch.md): Switch engine mid-chat: the new engine starts from the rolling summary, the last turns and a pointer to the transcript
-- [engine.time_convert](../capabilities/engine.time_convert.md): Convert a time between time zones, or turn "tomorrow 2pm" into a time. Use it for any time not already in the person's zone; never work out zones, dates or epoch numbers yourself
 - [engine.turn.append](../capabilities/engine.turn.append.md): Persist a coalesced chunk of a running turn (text, tool call, tool result, block)
 - [engine.turn.enqueue](../capabilities/engine.turn.enqueue.md): Queue a turn for a responder (message, interrupt, wake or handoff)
 - [engine.turn.fallback](../capabilities/engine.turn.fallback.md): Record a fallback during a turn error: another model or the backup key

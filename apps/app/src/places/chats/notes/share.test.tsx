@@ -71,7 +71,7 @@ test("General access sets the Space: Can edit, then No access", async () => {
     await press(find(s.tree, "as-acc-level-space"));
     await press(find(s.tree, "menu-item-Can edit"));
     await press(find(s.tree, "as-acc-level-space"));
-    await press(find(s.tree, "menu-item-Only people added"));
+    await press(find(s.tree, "menu-item-No access"));
     await flush();
     assert.deepEqual(s.patches, [{ space: "edit" }, { space: "off" }]);
   } finally { restore(); }
@@ -83,33 +83,5 @@ test("a reader of someone else's note can give nothing above View", async () => 
     const s = await open(note({ owner: "usr_omar", mine: false, share: { people: [{ personId: "usr_me", role: "edit" }, { personId: "usr_sara", role: "view" }], space: "off" } }));
     await press(find(s.tree, "as-acc-level-usr_sara"));
     assert.ok(find(s.tree, "menu-item-Can edit") === null, "a person gives no more than they have");
-  } finally { restore(); }
-});
-
-test("notify goes with the patch for a person just added, and Notify people shows", async () => {
-  assert.deepEqual(notePatchOf({ subject: { kind: "person", id: "usr_omar" }, level: "view" }, false, { notify: true, message: "Take a look" }), { people: [{ personId: "usr_omar", role: "view" }], notify: { message: "Take a look" } });
-  assert.deepEqual(notePatchOf({ subject: { kind: "person", id: "usr_omar" }, level: "view" }, false, { notify: false }), { people: [{ personId: "usr_omar", role: "view" }] });
-  assert.deepEqual(notePatchOf({ subject: { kind: "person", id: "usr_omar" } }, true, { notify: true }), { people: [{ personId: "usr_omar", role: "remove" }] }, "no word for a removal");
-  const restore = installDom();
-  try {
-    const s = await open(note());
-    await press(find(s.tree, "as-row-person:usr_sara"));
-    assert.ok(find(s.tree, "as-notify-switch") !== null);
-  } finally { restore(); }
-});
-
-test("Make owner hands the note over: only the owner sees it, and it asks first", async () => {
-  const restore = installDom();
-  try {
-    const made: string[] = [];
-    const root = createRoot();
-    await act(async () => { root.render(<ShareSheet n={note()} who={who} people={people} onShare={() => undefined} onMakeOwner={(id) => made.push(id)} onClose={() => undefined} />); });
-    await flush();
-    const tree = root.container as unknown as Parameters<typeof find>[0];
-    await press(find(tree, "as-acc-level-usr_omar"));
-    await press(find(tree, "menu-item-Make owner"));
-    assert.match(textOf(find(tree, "as-confirm")), /You'll become a manager/);
-    await press(find(tree, "as-confirm-yes"));
-    assert.deepEqual(made, ["usr_omar"]);
   } finally { restore(); }
 });

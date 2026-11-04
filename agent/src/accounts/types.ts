@@ -31,8 +31,6 @@ export interface AccountRow {
   spaceKey?: boolean;
   /** An older sign-in of the same provider whose account cannot be read, listed under another row. It still pays when a chat, an agent or a fallback names it; it is never picked on its own. */
   older?: boolean;
-  /** An owner or admin said this account keeps nothing of what it is sent (a local model always does). Restricted data runs only on such accounts. */
-  keepsNothing?: boolean;
   /** A Space AI account: what it may pay for. Absent on Mine accounts. */
   uses?: SpaceUses;
   /** teamChats.who covers the person this list is for. */

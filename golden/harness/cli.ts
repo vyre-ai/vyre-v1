@@ -5,7 +5,6 @@ const modules = loadRegistryModules();
 const results = [];
 for (const f of await loadFlows()) {
   const t0 = Date.now();
-  if (process.env["GOLDEN_TIMES"]) console.error(`golden flow ${f.n}: start`);
   results.push(await evaluate(f, modules, fileSteps()));
   if (process.env["GOLDEN_TIMES"]) console.error(`golden flow ${f.n}: ${Date.now() - t0} ms`);
 }

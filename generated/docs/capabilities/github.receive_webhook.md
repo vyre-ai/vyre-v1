@@ -19,14 +19,14 @@ Record a verified GitHub delivery after dedupe; normalise push, pull request, is
 | HTTP | POST /v1/github/receive_webhook |
 | MCP tool | none |
 | CLI | none |
-| Emits | github.event_received, repo.pushed, pull_request.opened, pull_request.merged, pull_request.closed, issue.opened, github.check_completed, workflow.completed, workflow_job.queued, workflow_job.completed |
+| Emits | github.event_received, repo.pushed, pull_request.opened, pull_request.merged, pull_request.closed, issue.opened, github.check_completed, workflow.completed |
 
 ## Input
 
 ```ts
 type In = {
   deliveryId: string;
-  event: "ping" | "installation" | "push" | "pull_request" | "issues" | "check_run" | "workflow_run" | "workflow_job";
+  event: "ping" | "installation" | "push" | "pull_request" | "issues" | "check_run" | "workflow_run";
   action?: string;
   repo?: string;
   installationId?: number;
@@ -35,10 +35,6 @@ type In = {
   branch?: string;
   conclusion?: string;
   name?: string;
-  jobId?: number;
-  runId?: number;
-  labels?: Array<string>;
-  runnerName?: string;
 };
 ```
 
@@ -69,15 +65,9 @@ type Out = {
     "deliveryId": "example",
     "event": "ping",
     "installationId": 1,
-    "jobId": 1,
-    "labels": [
-      "example"
-    ],
     "name": "example",
     "number": 1,
     "repo": "vyre-ai/website",
-    "runId": 1,
-    "runnerName": "example",
     "sha": "example"
   },
   "output": {

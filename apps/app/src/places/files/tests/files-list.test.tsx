@@ -228,20 +228,6 @@ test("the line's menu: open, Quick Look, share and rename where they apply, the 
   assert.equal(items(lineMenuEntries([f], false, h)).find((x) => x.label === "Move to Trash")?.danger, true);
 });
 
-test("the file menu shows the keys the list answers to, and a file gets Share where the shell can share one", () => {
-  const did: string[] = [];
-  const h = {
-    open: (l: Line) => void did.push(`open:${l.id}`), quickLook: (l: Line) => void did.push(`ql:${l.id}`), shareFile: (l: Line) => void did.push(`share-file:${l.id}`), rename: (l: Line) => void did.push(`rename:${l.id}`),
-    trash: (ls: readonly Line[]) => void did.push(`trash:${ls.map((l) => l.id).join("+")}`), restore: (ls: readonly Line[]) => void did.push(`restore:${ls.length}`),
-  };
-  const f = fileLine(row("fil_1"));
-  const es = items(lineMenuEntries([f], false, h));
-  assert.deepEqual(es.map((x) => x.label), ["Open", "Quick Look", "Share…", "Rename…", "Move to Trash"]);
-  assert.deepEqual(es.map((x) => x.hint), ["Enter", "Space", undefined, "F2", "\u232b"]);
-  es.find((x) => x.label === "Share…")!.onSelect?.();
-  assert.deepEqual(did, ["share-file:fil_1"]);
-});
-
 test("moving to the Trash and restoring change what the Trash and the folder list", async () => {
   const s = createSampleFiles();
   const html = (initial: Partial<FilesState>): string => wrap(s, initial, <FilesList />);

@@ -1,7 +1,5 @@
 // Right pane > Everything: one feed of what has happened around this record, newest first: edits, comments, mail and texts, files, tasks, runs, chats and meetings. Each source is an ordinary read made as the
 // person, so what they may not see never arrives (a source that answers no is left out, and the feed says nothing about it). This file is the pure part: turning each answer into feed items and merging them.
-import { RESOURCE_OF } from "../../../shell/reach/policy.ts";
-import { hiddenTitle } from "../../../../../../ui/src/blocks/link-card/state.ts";
 import type { CapMap } from "../../../../../../generated/types.ts";
 import type { TypeDef } from "../recordpage/model.ts";
 import { activityLine } from "./model.ts";
@@ -101,33 +99,8 @@ export async function loadEverything(o: { call: Call; type: string; recordId: st
     (async () => { const folder = await o.folderOf().catch(() => null); return folder ? ask<CapMap["files.list"]["out"]>("files.list", { folder, limit: 50 }) : null; })(),
     ask<CapMap["meetings.closeout.list"]["out"]>("meetings.closeout.list", { recordId: o.recordId, limit: 50 }),
   ]);
-  const feed = merge([
+  return merge([
     fromActivity(activity?.entries ?? [], o.def, o.names), fromComments(comments?.comments ?? [], o.names), fromConversation(thread?.items ?? []), fromFiles(files?.files ?? [], o.names),
     fromTasks(tasks?.tasks ?? []), fromRuns(runs?.runs ?? []), fromThreads(threads?.threads ?? []), fromMeetings(meetings?.meetings ?? []),
   ]);
-  return withReach(o.call, feed);
-}
-
-/**
- * The feed is drawn once, with each row's level already known: one access.reach for every thing the rows point at, before the first draw, so no row flips after it shows. A row for a thing the
- * person cannot open keeps its kind and its time and loses its name and its link: it says what kind of thing it is, and nothing about it. A Space that does not answer leaves the rows as they are.
- */
-export async function withReach(call: Call, feed: Item[]): Promise<Item[]> {
-  const asked = new Map<string, { type: string; id: string }>();
-  for (const it of feed) {
-    const type = it.subject ? RESOURCE_OF[it.subject.type] : undefined;
-    if (it.subject && type) asked.set(`${type}:${it.subject.id}`, { type, id: it.subject.id });
-  }
-  if (asked.size === 0) return feed;
-  const level = new Map<string, string>();
-  try {
-    const out = (await call("access.reach", { items: [...asked.values()].slice(0, 200) })) as { items?: Array<{ type: string; id: string; level: string }> };
-    for (const r of out.items ?? []) level.set(`${r.type}:${r.id}`, r.level);
-  } catch { return feed; }
-  return feed.map((it) => {
-    const type = it.subject ? RESOURCE_OF[it.subject.type] : undefined;
-    if (!it.subject || !type || level.get(`${type}:${it.subject.id}`) !== "none") return it;
-    const { subject: _s, note: _n, ...rest } = it;
-    return { ...rest, title: hiddenTitle(it.subject.type) };
-  });
 }

@@ -7,16 +7,6 @@ import { openFor } from "../runtime.ts";
 interface GateEvent { name: string; payload: { holdId: string; taskId: string; note?: string; askedBy?: unknown } }
 
 export const gateResumeConsumers = {
-  /** A question a turn parked on was answered or taken back: the wait is over. The agent hears the answer as a message, which is the one wake (chat tellAgent), so nothing is queued here. */
-  "engine.question_release": {
-    on: ["block.answered", "block.withdrawn"],
-    run: async (ctx: EngineCtx, event: { name: string; payload: { blockId?: string } }): Promise<{ skipped?: string; released?: boolean }> => {
-      if (typeof event.payload.blockId !== "string") return { skipped: "no_block" };
-      let engine;
-      try { engine = boundEngine(ctx); } catch { return { skipped: "engine_not_running" }; }
-      return { released: engine.release(event.payload.blockId) };
-    },
-  },
   "engine.gate_resume": {
     on: ["gate.approved", "gate.denied", "gate.expired"],
     run: async (ctx: EngineCtx, event: GateEvent): Promise<{ skipped?: string; queued?: number | null }> => {

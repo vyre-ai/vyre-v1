@@ -62,26 +62,3 @@ test("the [[ and @ menus open on the trigger and its query, and close once the t
   assert.deepEqual(findTrigger("@Aliza", "@"), { query: "Aliza", length: 6 });
   assert.equal(findTrigger("mail me@example.com", "@"), null, "an @ inside an address is not a mention");
 });
-
-test("an editor opened to type in has a stand-in field that takes keys until TipTap has loaded; one not opened to type in has none", () => {
-  const open = clean(renderToStaticMarkup(<MarkdownEditor label="Note" value="" autoFocus onChange={() => undefined} />));
-  assert.match(open, /data-testid="markdown-editor-early"/, "keys typed while the editor loads are not lost");
-  const read = clean(renderToStaticMarkup(<MarkdownEditor label="Note" value="x" mode="read" />));
-  assert.doesNotMatch(read, /markdown-editor-early/);
-});
-
-test("the slash menu opens only at the start of a line, and a pick can insert a block", async () => {
-  const { findTrigger } = await import("./index.tsx");
-  assert.deepEqual(findTrigger("/", "/"), { query: "", length: 1 });
-  assert.deepEqual(findTrigger("/live bl", "/"), { query: "live bl", length: 8 });
-  assert.equal(findTrigger("see a/b", "/"), null, "a slash inside a sentence is not a menu");
-  assert.equal(findTrigger("and /", "/"), null);
-});
-
-test("read mode with a live block view keeps the live blocks (the page, not editable); without one it is the chat's renderer", () => {
-  const withView = clean(renderToStaticMarkup(<MarkdownEditor label="Overview" value={":::live {\"type\":\"tasks\"}"} mode="read" liveBlockView={() => null} />));
-  assert.match(withView, /markdown-editor-host/);
-  assert.doesNotMatch(withView, /md-bar/, "no formatting bar in read mode");
-  const plain = clean(renderToStaticMarkup(<MarkdownEditor label="Overview" value="Hello" mode="read" />));
-  assert.doesNotMatch(plain, /markdown-editor-host/);
-});

@@ -10,7 +10,6 @@ import { ConsoleShell } from "../../console/shell/ConsoleShell.tsx";
 import { ConsoleDataProvider } from "../../console/shell/data.tsx";
 import type { ConsoleData } from "../../console/shell/data.tsx";
 import { PAGES, pageById } from "../../console/shell/nav.ts";
-import { parseConsolePage } from "../../console/shell/route.ts";
 import { Server, Diagnostics, Support } from "../../console/pages/Infrastructure.tsx";
 import { Backups } from "../../console/pages/Backups.tsx";
 import { Devices } from "../../console/pages/Devices.tsx";
@@ -25,14 +24,13 @@ import { AgentsRegister, AgentTemplate, OutsideActors } from "../../console/page
 import { MachinesPage } from "../../console/pages/Machines.tsx";
 import { DomainsPage, InboxesPage, NumbersPage, TextingPage } from "../../console/pages/Comms.tsx";
 import { LabelsPage, SchemaPage } from "../../console/pages/Data.tsx";
-import { ApiKeysPage, WebhooksPage } from "../../console/pages/Integrations.tsx";
+import { ApiKeysPage, ConnectorsPage, ConnectionsPage, WebhooksPage } from "../../console/pages/Integrations.tsx";
 import { SkillsPage } from "../../console/pages/Skills.tsx";
 import { PluginsPage } from "../../console/pages/Plugins.tsx";
 import { ConnectCompanyPage } from "../../console/pages/company/ConnectCompany.tsx";
 import { GoogleWorkspacePage } from "../../console/pages/suite/GoogleWorkspace.tsx";
 import { Microsoft365Page } from "../../console/pages/suite/Microsoft365.tsx";
 import { Models } from "../../console/pages/Models.tsx";
-import { VoiceSettings } from "../../console/pages/Voice.tsx";
 import { Spend } from "../../console/pages/Spend.tsx";
 import { ReviewSampling } from "../../console/pages/AiSettings.tsx";
 import { Incidents } from "../../console/pages/Incidents.tsx";
@@ -42,19 +40,6 @@ import { GateRules } from "../../console/pages/GateRules.tsx";
 import { Retention } from "../../console/pages/Retention.tsx";
 import { Holds } from "../../console/pages/Holds.tsx";
 import { ErasePerson } from "../../console/pages/ErasePerson.tsx";
-import { AiAccountsPage } from "../../console/pages/AiAccounts.tsx";
-import { AiSeePage } from "../../console/pages/AiSee.tsx";
-import { RequestsPage } from "../../console/pages/Requests.tsx";
-import { ActivityPage } from "../../console/pages/Activity.tsx";
-import { AppsPage } from "../../console/pages/AppsList.tsx";
-import { ServersPage } from "../../console/pages/Servers.tsx";
-import { AgentComputersPage } from "../../console/pages/AgentComputersPage.tsx";
-import { CiRunnersPage } from "../../console/pages/CiRunners.tsx";
-import { GithubAppPage } from "../../console/pages/GithubApp.tsx";
-import { SpaceDeletePage } from "../../console/pages/SpaceDelete.tsx";
-import { ExportPage } from "../../console/pages/ExportPage.tsx";
-import { SendRulesPage } from "../../console/pages/SendRules.tsx";
-import { DncPage } from "../../console/pages/Dnc.tsx";
 import { Assistant } from "../../console/Assistant.tsx";
 import { Audit } from "../../console/pages/audit/Audit.tsx";
 import { Overview } from "../../console/pages/overview/Overview.tsx";
@@ -75,19 +60,6 @@ export function consolePagesFromNav(out: { groups: Array<{ pages: Array<{ key: s
 export function consolePageFor(id: string, args: Record<string, string | undefined>): ReactElement {
   const aiPage = aiDataPageFor(id);
   if (aiPage) return aiPage;
-  if (id === "aiaccounts") return <AiAccountsPage />;
-  if (id === "aisee") return <AiSeePage />;
-  if (id === "requests") return <RequestsPage />;
-  if (id === "activity") return <ActivityPage />;
-  if (id === "apps") return <AppsPage />;
-  if (id === "servers") return <ServersPage />;
-  if (id === "agentcomputers") return <AgentComputersPage />;
-  if (id === "ci") return <CiRunnersPage />;
-  if (id === "ghapp") return <GithubAppPage />;
-  if (id === "spacedel") return <SpaceDeletePage />;
-  if (id === "export") return <ExportPage />;
-  if (id === "sendrules") return <SendRulesPage />;
-  if (id === "dnc") return <DncPage />;
   if (id === "network") return <Network />;
   if (id === "speed") return <Speed />;
   if (id === "updates") return <Updates />;
@@ -107,26 +79,27 @@ export function consolePageFor(id: string, args: Record<string, string | undefin
   if (id === "checker") return <Checker />;
   if (id === "agents") return <AgentsRegister key={args.agentId??"agents-list"} {...(args.agentId?{initialAgentId:args.agentId}:{})} />;
   if (id === "actors") return <OutsideActors key={args.actorId??"actors-list"} {...(args.actorId?{initialActorId:args.actorId}:{})} />;
-  if (id === "machines") return <MachinesPage key={args["machineId"] ?? "machines-list"} {...(args["machineId"] ? { initialId: args["machineId"] } : {})} />;
+  if (id === "machines") return <MachinesPage {...(args["machineId"] ? { initialId: args["machineId"] } : {})} />;
   if (id === "template") return <AgentTemplate />;
   if (id === "skills") return <SkillsPage />;
   if (id === "plugins") return <PluginsPage />;
   if (id === "schema") return <SchemaPage />;
   if (id === "labels") return <LabelsPage />;
-  if (id === "domains") return <DomainsPage {...(args["domainId"]?{initialId:args["domainId"]}:{})} {...(args["create"]==="true"?{initialCreate:true}:{})} />;
+  if (id === "domains") return <DomainsPage {...(args["domainId"]?{initialId:args["domainId"]}:{})} />;
   if (id === "numbers") return <NumbersPage {...(args["numberId"]?{initialId:args["numberId"]}:{})} />;
   if (id === "inboxes") return <InboxesPage {...(args["mailboxId"]?{initialId:args["mailboxId"]}:{})} />;
   if (id === "texting") return <TextingPage />;
   if (id === "company") return <ConnectCompanyPage />;
   if (id === "google") return <GoogleWorkspacePage />;
   if (id === "microsoft") return <Microsoft365Page />;
+  if (id === "connectors") return <ConnectorsPage {...(args["connectorKey"]?{initialKey:args["connectorKey"]}:{})} />;
+  if (id === "connections") return <ConnectionsPage {...(args["connectionId"]?{initialId:args["connectionId"]}:{})} />;
   if (id === "webhooks") return <WebhooksPage {...(args["webhookId"]?{initialId:args["webhookId"]}:{})} />;
   if (id === "keys") return <ApiKeysPage {...(args.sessionId?{initialSessionId:args.sessionId}:{})} />;
   return <States kind="error" message={`${pageById(id)?.title ?? id} is not implemented in this candidate yet.`} />;
 }
 export function aiDataPageFor(id: string): ReactElement | null {
   if (id === "models") return <Models />;
-  if (id === "voice") return <VoiceSettings />;
   if (id === "spend") return <Spend />;
   if (id === "usage") return <Usage />;
   if (id === "review") return <ReviewSampling />;
@@ -186,12 +159,9 @@ export default function ConsolePlace(): ReactElement {
   if (failed && refused) return <OutsideShell rt={rt ?? null} testID="console-refused"><States kind="empty" title="Console is for admins and owners" icon="search" /></OutsideShell>;
   if (failed) return <OutsideShell rt={rt ?? null}><States kind="error" message="Couldn’t open the Console" cause="You may not have console access, or the server is unavailable." retryable onRetry={() => setAttempt((n) => n + 1)} /></OutsideShell>;
   if (!rt || !data) return <OutsideShell rt={rt ?? null}><States kind="empty" title="Opening the Console…" icon="search" /></OutsideShell>;
-  // console.page opens any page by name, machines~<id> with a machine selected; any other screen opens the page that draws it
-  const routed = target.screen === "console.page" ? parseConsolePage(target.args.page) : null;
-  const requestedPage = routed ? (pageById(routed.page) ? routed.page : null) : target.args.page && pageById(target.args.page)?.screen === target.screen ? target.args.page : null;
+  const requestedPage = target.args.page && pageById(target.args.page)?.screen === target.screen ? target.args.page : null;
   const page = requestedPage ?? PAGES.find((entry) => entry.screen === target.screen)?.id ?? "overview";
-  const pageArgs = { ...target.args, ...(routed?.args ?? {}) };
-  return <ConsoleDataProvider value={data}><ConsoleShell initialPage={page} embedded={!alone} {...(onConsoleHost() ? { noApp: true } : {})} skin={skin} onSkin={(id) => { theme?.setSkin(id); setSkin(id); }} assistant={<Assistant rt={rt} page={target.screen ?? "console.overview"} />} renderPage={(id) => spaceDefaults(rt, id) ?? consolePageFor(id, pageArgs)} /></ConsoleDataProvider>;
+  return <ConsoleDataProvider value={data}><ConsoleShell initialPage={page} embedded={!alone} {...(onConsoleHost() ? { noApp: true } : {})} skin={skin} onSkin={(id) => { theme?.setSkin(id); setSkin(id); }} assistant={<Assistant rt={rt} page={target.screen ?? "console.overview"} />} renderPage={(id) => spaceDefaults(rt, id) ?? consolePageFor(id, target.args)} /></ConsoleDataProvider>;
 }
 
 /** The states of the Console that are not the Console itself keep the theme and a way back to the app. */

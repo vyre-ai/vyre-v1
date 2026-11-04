@@ -40,7 +40,7 @@ test("a chat's tab carries the chat's one name: the person for a direct message,
   assert.equal(await resolve({ kind: "chat", agents: [{ agentId: "agt_dex" }], members: [{ kind: "person", id: "usr_me" }] }), "Dex");
   assert.equal(await resolve({ kind: "chat", agents: [{ agentId: "agt_dex" }], members: [{ kind: "person", id: "usr_me" }, { kind: "person", id: "usr_aliza" }] }), "Dex and Aliza");
   assert.equal(await resolve({ kind: "chat", title: "GHL onboarding goal", agents: [{ agentId: "agt_dex" }], members: [] }), "GHL onboarding goal");
-  assert.equal(ask.name({ thread: { title: "New chat" } }) ?? ask.empty, "New chat", "until the names arrive the tab says New chat (the ask's empty name)");
+  assert.equal(ask.name({ thread: { title: "New chat" } }), "New chat", "until the names arrive");
 });
 
 test("a tab opened on an artifact is named for the artifact", () => {

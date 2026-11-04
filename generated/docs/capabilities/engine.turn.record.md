@@ -28,7 +28,7 @@ type In = {
   threadId: string;
   turnId: string;
   agentId: string;
-  phase: "started" | "waiting" | "completed" | "failed" | "cancelled";
+  phase: "started" | "completed" | "failed" | "cancelled";
   qseq: number;
   asker?: string;
   engine?: string;

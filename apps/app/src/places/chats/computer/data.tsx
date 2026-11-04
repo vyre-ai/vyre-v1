@@ -4,7 +4,6 @@ import { createContext, useContext, useMemo, useSyncExternalStore } from "react"
 import type { ReactElement, ReactNode } from "react";
 import type { LiveQuery, QueryState, ScreenHooks } from "../../../../../../client/src/index.ts";
 import type { CaptureStore, Clock, Display } from "./model.ts";
-import type { Target, Viewer } from "../../../shell/reach/reach.ts";
 
 export interface Connection { get(): "online" | "offline"; subscribe(l: () => void): () => void }
 
@@ -30,8 +29,6 @@ export interface ComputerPopupData {
   renderChat?: (agent: { agentId: string; name: string }) => ReactElement;
   nav: PopupNav;
   clock(): Clock;
-  /** Where the computer runs, judged for this person (reach): the viewer, how to open a target, and a name for an id. Absent: the label is plain text. */
-  reach?: { viewer: Viewer; open(target: Target): void; nameOf(id: string): string };
 }
 
 const Ctx = createContext<ComputerPopupData | null>(null);

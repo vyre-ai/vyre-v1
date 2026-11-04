@@ -15,7 +15,7 @@ const chrome = g.chrome;
 const $ = (/** @type {string} */ s) => /** @type {HTMLElement} */ (document.querySelector(s));
 const params = new URLSearchParams(location.search);
 
-/** @typedef {{ id: string, who: string, kind?: string, avatar?: string | null, face?: string | null, assistant?: boolean, text: string, at: number, turnId?: string, streaming?: boolean, error?: string | null, att?: { title: string, shot: string | null, selection: string } | null }} Msg */
+/** @typedef {{ id: string, who: string, kind?: string, avatar?: string | null, assistant?: boolean, text: string, at: number, turnId?: string, streaming?: boolean, error?: string | null, att?: { title: string, shot: string | null, selection: string } | null }} Msg */
 const S = {
   windowId: /** @type {number | null} */ (null),
   status: "connecting", off: /** @type {string | null} */ (null), locked: false,
@@ -75,7 +75,7 @@ function top() {
 
 /** @param {Msg} m */
 function msgView(m) {
-  const who = m.who === "me" ? { name: "You", kind: "person" } : { name: m.who, kind: m.kind ?? "agent", avatar: m.avatar ?? null, face: m.face ?? null, assistant: Boolean(m.assistant) };
+  const who = m.who === "me" ? { name: "You", kind: "person" } : { name: m.who, kind: m.kind ?? "agent", avatar: m.avatar ?? null, assistant: Boolean(m.assistant) };
   const t = new Date(m.at).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
   const att = m.att ? h("div.att", null, m.att.shot ? h("img", { alt: "", src: m.att.shot }) : ic("globe", "xs"),
     h("span.ell", null, `${m.att.title}${m.att.selection ? `${m.att.title ? " · " : ""}Selected text` : ""}`)) : null;
@@ -96,7 +96,7 @@ function recordLine() {
     h("span.ell", null, h("span", { css: { color: "var(--ink)" } }, rec.name), ` · ${kind}`), h("span.rv", null, ic("chev", "xs")));
   if (!S.recOpen) return [line];
   const rows = [
-    ...(rec.chats ?? []).slice(0, 3).map((/** @type {any} */ c) => h("button.rrow", act("openThread", { data: { id: c.threadId } }), face({ name: c.agentName || "?", kind: c.kind ?? "agent", avatar: c.avatar ?? null, face: c.face ?? null }, 18), h("span.grow.ell", null, c.title), h("span.xs.mut", null, ago(c.at, Date.now())))),
+    ...(rec.chats ?? []).slice(0, 3).map((/** @type {any} */ c) => h("button.rrow", act("openThread", { data: { id: c.threadId } }), face({ name: c.agentName || "?", kind: c.kind ?? "agent", avatar: c.avatar ?? null }, 18), h("span.grow.ell", null, c.title), h("span.xs.mut", null, ago(c.at, Date.now())))),
     ...(rec.goals ?? []).slice(0, 2).map((/** @type {any} */ gl) => h("button.rrow", act("openGoal", { data: { id: gl.goalId } }), ic("goal", "s"), h("span.grow.ell", null, gl.title),
       typeof gl.progress === "number" ? h("span.prog", { css: { width: "40px" } }, h("i", { css: { width: `${Math.round(Math.max(0, Math.min(1, gl.progress)) * 100)}%` } })) : null, gl.label ? h("span.xs.mut", null, gl.label) : null)),
     h("button.rrow", act("openRecord", { data: { id: rec.id } }), ic("open", "s"), h("span.grow.ell", null, `Open ${rec.name} in Vyre`)),
@@ -125,7 +125,7 @@ function chatView() {
     list.length ? h("div.chips", { id: "chips" }, list) : null,
     q,
     h("div.cbar2", null,
-      h("button.mp", act("agent", { "data-tip": "Who answers", "aria-haspopup": "menu" }), a ? face({ name: a.name, avatar: a.avatar ?? null, face: a.face ?? null, assistant: Boolean(a.assistant) }, 18) : null, h("span.ell", null, a ? a.name : "No agent"), ic("chev", "xs")),
+      h("button.mp", act("agent", { "data-tip": "Who answers", "aria-haspopup": "menu" }), a ? face({ name: a.name, avatar: a.avatar ?? null, assistant: Boolean(a.assistant) }, 18) : null, h("span.ell", null, a ? a.name : "No agent"), ic("chev", "xs")),
       h("button.mp", act("model", { "data-tip": "Model", "aria-haspopup": "menu" }), h("span.ell", null, S.models ? modelLabel(S.models, S.model) : S.model ? String(S.model.split("/").pop()) : "Default model"), ic("chev", "xs")),
       c.never ? ib("site", "eyeoff", "This site is never sent") : c.canAttach ? ib("attach", "clip", "Attach this page") : null,
       h("span.grow"),
@@ -143,7 +143,7 @@ function chatView() {
 function historyView() {
   const host = S.page && S.page.privacy && S.page.privacy.read ? S.page.host : null;
   const gr = groupThreads(S.threads, host);
-  const row = (/** @type {any} */ t) => h("button.hrow", act("openThread", { data: { id: t.threadId } }), face({ name: t.agentName || "?", avatar: t.avatar ?? null, face: t.face ?? null, assistant: Boolean(t.assistant), kind: t.kind ?? "agent" }, 20),
+  const row = (/** @type {any} */ t) => h("button.hrow", act("openThread", { data: { id: t.threadId } }), face({ name: t.agentName || "?", avatar: t.avatar ?? null, assistant: Boolean(t.assistant), kind: t.kind ?? "agent" }, 20),
     h("div.grow", null, h("div.ell", null, t.title), h("div.xs.mut.ell", null, `${t.agentName || ""}${t.host ? ` · ${t.host}` : ""}`)), h("span.xs.mut", null, ago(t.updatedAt, Date.now())));
   const body = S.searching && !S.threads.length ? [h("div.qline.pad", null, "Searching")]
     : !S.threads.length ? [h("div.qline.pad", null, S.hq ? `No chats match "${S.hq}"` : "No chats yet")]
@@ -334,7 +334,7 @@ async function openThread(/** @type {string} */ id) {
     S.threadId = String(t.threadId || id);
     S.conv = (Array.isArray(t.messages) ? t.messages : []).map((/** @type {any} */ m) => ({
       id: String(m.id), who: m.author && m.author.me ? "me" : String((m.author && m.author.name) || "Vyre"), kind: m.author ? m.author.kind : "agent",
-      avatar: m.author ? m.author.avatar ?? null : null, face: m.author ? m.author.face ?? null : null, assistant: Boolean(m.author && m.author.assistant), text: String(m.text ?? ""), at: Date.parse(m.at) || Date.now(),
+      avatar: m.author ? m.author.avatar ?? null : null, assistant: Boolean(m.author && m.author.assistant), text: String(m.text ?? ""), at: Date.parse(m.at) || Date.now(),
       artifacts: Array.isArray(m.artifacts) ? m.artifacts.map((/** @type {any} */ a) => ({ id: String(a.id), title: String(a.title || "Artifact") })) : [],
     }));
     if (t.agentId && S.agents.some((a) => a.id === t.agentId)) S.agent = t.agentId;

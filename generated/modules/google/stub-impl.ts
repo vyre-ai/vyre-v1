@@ -53,7 +53,6 @@ export const handlers: Handlers<HandlerCtx> = {
   "google.dwd.status": async () => ({"adminEmail":"maya@example.com","autoConnect":true,"clientId":"example","configured":true,"data":{"calendar":true,"files":true,"mail":true},"domain":"example","excluded":["maya@example.com"],"keyStored":true,"lastProbeAt":1760000000000,"lastProbeOk":true,"mappedMembers":1,"pushToken":"example"} as unknown) as never,
   "google.dwd.sync_members": async () => ({"connected":1,"matched":1} as unknown) as never,
   "google.gmail.create_draft": async () => ({"draftId":"example"} as unknown) as never,
-  "google.gmail.delete_draft": async () => ({"deleted":true} as unknown) as never,
   "google.gmail.get_attachment": async () => ({"blobId":"blb_a1b2c3","size":1} as unknown) as never,
   "google.gmail.get_message": async () => ({"message":{"historyId":"example","id":"example","internalDate":1760000000000,"labelIds":["example"],"payload":{},"snippet":"example","threadId":"example"}} as unknown) as never,
   "google.gmail.get_profile": async () => ({"emailAddress":"maya@example.com","historyId":"example","messagesTotal":1} as unknown) as never,

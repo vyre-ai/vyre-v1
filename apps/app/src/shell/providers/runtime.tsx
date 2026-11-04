@@ -8,7 +8,6 @@ import { createContext, useContext } from "react";
 import type { ReactElement, ReactNode } from "react";
 import type { HomeData } from "../../places/home/sections-a/data.tsx";
 import { setAssistantId } from "../../../../../ui/src/Avatar/assistant.ts";
-import type { LinkPolicy } from "../../../../../ui/src/reach/index.tsx";
 import type { TurnStreams } from "../session/turn-streams.ts";
 
 /** Where a click goes. The shell resolves a screen id (generated/screens.ts) or a subject to a place and a tab. */
@@ -50,8 +49,6 @@ export interface ShellRuntime extends Omit<HomeData, "nav"> {
   /** True when the server defers this capability (it answers "Not in this version yet"). */
   isDeferred(cap: string): boolean;
   open(target: ShellTarget): void;
-  /** How a link to a thing renders for this person (ui/reach): live, a peek or plain text. Absent: every link is live. */
-  links?: LinkPolicy;
   openUrl(url: string): void;
   /** Agent replies as they are written, from the live socket. Absent where there is no live link (tests, a replica-only shell). */
   turns?: TurnStreams;

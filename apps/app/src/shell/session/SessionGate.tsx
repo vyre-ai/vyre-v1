@@ -1,7 +1,6 @@
 import{activationUrl,isPackagedOrigin,storedPlace}from'./space-catalog.ts';
 // The production session boundary. Signed-out and desktop-link flows stay in the startup chunk;
 // the authenticated application shell is loaded only after a stored or verified session exists.
-import { holdOpen } from "../reach/open-link.ts";
 import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactElement, ReactNode } from "react";
 import { StyleSheet, View } from "react-native";
@@ -442,8 +441,6 @@ export function SessionGate(props: SessionGateProps): ReactElement {
         if (!readStored(undefined, route.address)) { setEntry(false); setPersonalClaim(null); setDesktopRoute({ kind: "signin", address: route.address }); setPhase({ kind: "signin" }); }
         return;
       }
-      // a link to one thing in a Space this computer is signed in to opens in place, through reach: no sign-in screen, nobody signed out for it
-      if (route.kind === "signin" && route.item) { holdOpen(route.item); if (readStored(undefined, route.address)) return; }
       // a link opens its own screen from wherever the person is: the doors, a half-filled entry, a Personal claim
       setEntry(false);
       setPersonalClaim(null);

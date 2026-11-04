@@ -65,7 +65,7 @@ export function Permissions(): ReactElement {
   };
 
   const toolbar = <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
-    <TextInput accessibilityLabel="Search actions" placeholder="Search actions" placeholderTextColor="var(--ink-4)" value={q} onChangeText={setQ} testID="perms-search"
+    <TextInput accessibilityLabel="Search permissions" placeholder="Search permissions" placeholderTextColor="var(--ink-4)" value={q} onChangeText={setQ} testID="perms-search"
       style={{ minWidth: 220, flexGrow: 0, height: 30, paddingHorizontal: 10, borderRadius: 8, backgroundColor: "var(--sunk)" as string, color: "var(--ink)" as string, fontSize: 13 }} />
     {phone ? null : <Button label={`Exceptions ${exceptions.length}`} onPress={() => setList(!list)} testID="perms-exceptions" />}
     <View style={{ flex: 1 }} />

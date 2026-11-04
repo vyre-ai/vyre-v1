@@ -22,11 +22,11 @@ const grant = (kind: string, id: string, level: Level, through = "direct", resId
 const ownerRow = grant("person", "usr_me", "manage", "owner");
 
 const SIMPLE: Array<[Exclude<ShareKind, "note">, string[]]> = [
-  ["vault_item", ["Can use without seeing", "Can see", "Can manage"]],
-  ["vault_folder", ["Can use without seeing", "Can see", "Can manage"]],
+  ["vault_item", ["Can use without seeing", "Can view", "Can edit"]],
+  ["vault_folder", ["Can use without seeing", "Can view", "Can edit"]],
   ["record_type", ["Can view records", "Can edit records", "Can manage the type"]],
   ["record", ["Can view", "Can edit", "Can manage"]],
-  ["agent", ["Can use", "Can edit", "Can manage"]],
+  ["agent", ["Can chat with", "Can use", "Can edit", "Can manage"]],
   ["file", ["Can view", "Can edit", "Can manage"]],
   ["folder", ["Can view", "Can edit", "Can manage"]],
   ["artifact", ["Can view", "Can edit", "Can manage"]],

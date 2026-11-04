@@ -21,13 +21,7 @@ export interface Sso {
   /** The address a finished sign-in proved, for joining by invitation when everyone must use it. */
   prove?(key: string, invite: string): { email: string; bind(person: string): void } | null;
 }
-export interface Github {
-  resolve(code: string): Promise<{ id: string; login: string }>;
-  /** The GitHub identity a ticket the host minted vouches for (github.me.complete made it), once. Linking accepts it in place of a code. */
-  redeem?(ticket: string): { id: string; login: string } | null;
-  /** A sign-in with GitHub finished for this person: the host connects their GitHub with the tokens the sign-in left, if it has any. Never fails the sign-in. */
-  signedIn?(githubId: string, person: string): Promise<void>;
-}
+export interface Github { resolve(code: string): Promise<{ id: string; login: string }> }
 export interface IdentityCtx {
   recoveryCommit?:RecoveryCommit;
   signInPolicy?: {current():Readonly<SignInPolicy>;methods:Readonly<SignInMethods>};

@@ -21,11 +21,9 @@ export interface Person { id: string; name: string; kind: "person" | "agent"; us
 
 /* ---------- share ---------- */
 
-export function ShareSheet({ n, who, people, onShare, onCopyLink, onMakeOwner, onClose }: {
+export function ShareSheet({ n, who, people, onShare, onClose }: {
   n: Note; who: Who; people: readonly Person[];
   onShare(patch: NoteSharePatch): void;
-  onCopyLink?(): void;
-  onMakeOwner?(personId: string): void;
   onClose(): void;
 }): ReactElement {
   // the one Access sheet: a note is shared with people (Can view, Can edit) or with the Space; agents read what their person can see, so none are offered
@@ -37,8 +35,7 @@ export function ShareSheet({ n, who, people, onShare, onCopyLink, onMakeOwner, o
       levels={["view", "edit"]} shares={noteShareRows(n, who.nameOf)} allowExternal={false} density="regular"
       {...(n.owner === who.meId ? {} : { maxLevel: "view" as const })}
       directory={{ people: inSpace.map((p) => ({ id: p.id, name: p.name, kind: "person" as const, ...(p.username ? { sub: p.username } : {}) })), space: { id: "space", name: `Everyone in ${who.spaceName}`, kind: "space", subject: { kind: "group", id: EVERYONE_ID } } }}
-      meId={who.meId} notifyPeople {...(onCopyLink ? { onCopyLink } : {})} {...(onMakeOwner ? { onMakeOwner: (s) => onMakeOwner(s.id) } : {})}
-      onShare={(i, opts) => send(notePatchOf(i, false, opts))} onUnshare={(i) => send(notePatchOf(i, true))}
+      onShare={(i) => send(notePatchOf(i))} onUnshare={(i) => send(notePatchOf(i, true))}
       onClose={onClose}
     />
   );

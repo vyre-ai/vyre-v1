@@ -50,12 +50,7 @@ test("Team: a held message to Noah shows his name and the words; Mia edits it an
     assert.equal((await api("usr_olivia", "agents.update", { agentId, patch: { accountPolicy: "key", accountKey: acct.data.provider.handle }, idempotencyKey: "hm-upd" })).status, 200);
     const chat = (await api("usr_mia", "chat.start", { kind: "chat", agentIds: [agentId], idempotencyKey: "hm-chat" })).data.thread.threadId as string;
     const say = (body: string, k: string) => api("usr_mia", "chat.post", { threadId: chat, body, mentions: [{ kind: "agent", id: agentId }], idempotencyKey: k });
-    // a Space agent (not a person's own Assistant) writes as itself, in its own chat with the teammate (owner ruling 4 Nov): Noah reads what it sent in whichever of his chats it is
-    const noahSees = async (): Promise<Msg[]> => {
-      await d.hooks?.pump?.();
-      const threads = ((await api("usr_noah", "threads.list", { kind: ["chat"], limit: 50 })).data.threads ?? []) as Array<{ threadId: string }>;
-      return (await Promise.all(threads.map((t) => list("usr_noah", t.threadId)))).flat();
-    };
+    const dm = (await api("usr_mia", "chat.start", { kind: "chat", agentIds: [], personId: "usr_noah", idempotencyKey: "hm-open" })).data.thread.threadId as string;
     const cardOf = async (not: string[]): Promise<string> => waitFor(async () => (await list("usr_mia", chat)).flatMap((m) => m.blocks ?? []).filter((b) => b.type === "link_card" && b.data?.["icon"] === "approval").map((b) => String((b.data?.["target"] as { id?: string }).id)).find((id) => !not.includes(id)) ?? null, 30_000, () => hostLog(d));
 
     // 1. the hold: the card names Noah, carries the words as markdown, and nothing went yet
@@ -70,23 +65,23 @@ test("Team: a held message to Noah shows his name and the words; Mia edits it an
     assert.equal(out!.body, "**Friday** works?\n\n- the Rivera draft\n- the invoice");
     assert.ok(!/online/.test(JSON.stringify(out)), "no internal field leaks");
     const holdId = String(block!.data!["holdId"]);
-    assert.equal((await noahSees()).length, 0, "nothing went yet");
+    assert.equal((await list("usr_noah", dm)).length, 0, "nothing went yet");
 
     // 2. Mia edits it: still held, marked edited; only she may
     const edit = await api("usr_mia", "gate.holds.revise", { holdId, taskId: t1, body: "Friday at 3 works?\n\n- the Rivera draft" });
     assert.equal(edit.status, 200, JSON.stringify(edit.data));
     assert.notEqual((await api("usr_noah", "gate.holds.revise", { holdId, taskId: t1, body: "hijack" })).status, 200, "only the person it is for edits it");
-    assert.equal((await noahSees()).length, 0, "still held after the edit");
+    assert.equal((await list("usr_noah", dm)).length, 0, "still held after the edit");
     const again = (await api("usr_mia", "tasks.get", { taskId: t1 })).data.task as { blocks: Array<{ data?: Record<string, any> }> };   // eslint-disable-line @typescript-eslint/no-explicit-any
     assert.ok(again.blocks.some((b) => b.data?.["outward"]?.edited), "the card says edited");
 
     // 3. Send: Noah reads the edited words, once
     assert.equal((await api("usr_mia", "tasks.act", { taskId: t1, action: "approve" })).status, 200);
-    const got = await waitFor(async () => (await noahSees()).find((m) => /Friday at 3/.test(m.body ?? "")) ?? null, 30_000, () => hostLog(d));
+    const got = await waitFor(async () => (await list("usr_noah", dm)).find((m) => /Friday at 3/.test(m.body ?? "")) ?? null, 30_000, () => hostLog(d));
     assert.equal(got.body, "Friday at 3 works?\n\n- the Rivera draft");
     await waitFor(async () => resumed.length >= 1 ? true : null, 30_000, () => hostLog(d));
     assert.match(resumed[0]!, /^true:/);
-    assert.ok(!(await noahSees()).some((m) => /\*\*Friday\*\* works/.test(m.body ?? "")), "the first wording never went");
+    assert.ok(!(await list("usr_noah", dm)).some((m) => /\*\*Friday\*\* works/.test(m.body ?? "")), "the first wording never went");
 
     // 4. Don't send, with a reason: nothing reaches Noah and the agent hears why
     await say("check with Noah about Monday", "hm-p2");
@@ -94,6 +89,6 @@ test("Team: a held message to Noah shows his name and the words; Mia edits it an
     assert.equal((await api("usr_mia", "tasks.act", { taskId: t2, action: "reject", note: "Ask Adam first, not Noah." })).status, 200);
     await waitFor(async () => resumed.length >= 2 ? true : null, 30_000, () => hostLog(d));
     assert.match(resumed[1]!, /^false:.*Ask Adam first, not Noah\./);
-    assert.ok(!(await noahSees()).some((m) => /Monday works/.test(m.body ?? "")), "nothing went");
+    assert.ok(!(await list("usr_noah", dm)).some((m) => /Monday works/.test(m.body ?? "")), "nothing went");
   } catch (e) { console.error("FAILED:", e instanceof Error ? e.message.slice(0, 1500) : e); console.error("RESUMED", JSON.stringify(resumed)); throw e; } finally { await stop(d); }
 });

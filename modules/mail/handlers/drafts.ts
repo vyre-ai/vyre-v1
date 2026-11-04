@@ -43,13 +43,7 @@ export interface MessageRowOut {
   contactId?: string;
   isPrivate: boolean;
   draftedByAgent?: string;
-  earlier?: { at: number; text: string; subject: string };
 }
-
-/** What an agent's draft said before the same agent drafted again on the same thread: one pending draft per thread per agent, the earlier text one click away. */
-const PRIOR = 'CREATE TABLE IF NOT EXISTS "mail_draft_prior" ("draftId" TEXT PRIMARY KEY, "at" INTEGER NOT NULL, "subject" TEXT NOT NULL, "text" TEXT NOT NULL)';
-const priorReady = new WeakSet<object>();
-function ensurePrior(ctx: MailCtx): void { if (priorReady.has(ctx.db)) return; ctx.db.run(PRIOR); priorReady.add(ctx.db); }
 
 const GATE_LINE = "An agent wrote this draft. It is sent only after a person approves.";
 const DEFAULT_LIMIT = 50;
@@ -64,20 +58,13 @@ export async function draft(ctx: MailCtx, input: DraftIn): Promise<DraftOut> {
   const prior = strOrNull(first(ctx.db.all(`SELECT "refId" FROM mail_idem WHERE "idemKey" = ? AND kind = ?`, input.idempotencyKey, "draft")), "refId");
   if (prior) return answer(ctx, prior);
 
-  let existing = input.draftId === undefined ? null : loadDraft(ctx, input.draftId);
+  const existing = input.draftId === undefined ? null : loadDraft(ctx, input.draftId);
   if (input.draftId !== undefined) {
     if (!existing) missing(ctx, "Draft does not exist.");
     if (str(existing, "mailboxId") !== input.mailboxId) bad(ctx, "That draft belongs to another mailbox.");
   }
 
   const parent = input.replyToMessageId === undefined ? null : loadParent(ctx, input, box);
-  // one pending draft per thread per agent: a new draft by the same agent on the same thread takes the place of the old one, which is kept as the earlier text
-  const drafting = ctx.principal.kind === "agent" && isId("agt", ctx.principal.id) ? ctx.principal.id : null;
-  let replaced: Row | null = null;
-  if (!existing && drafting && parent) {
-    replaced = first(ctx.db.all(`SELECT * FROM mail_message WHERE "threadId" = ? AND "draftedByAgent" = ? AND status = ? AND "mailboxId" = ? AND deleted_at IS NULL ORDER BY updated_at DESC`, str(parent, "threadId"), drafting, "draft", input.mailboxId)) ?? null;
-    if (replaced) existing = replaced;
-  }
   const own = str(box, "address");
   const text = input.text;
   const to = cleanParties(ctx, input.to ?? (parent ? replyTargets(parent, own) : existing ? readParties(str(existing, "toAddresses")) : []));
@@ -91,7 +78,7 @@ export async function draft(ctx: MailCtx, input: DraftIn): Promise<DraftOut> {
   const subject = input.subject ?? (existing ? str(existing, "subject") : parent ? replySubject(str(parent, "subject")) : "");
   const bodyText = text ?? (existing ? textOf(ctx, str(existing, "id")) : undefined);
   const bodyHtml = input.html ?? (existing ? htmlOf(ctx, str(existing, "id")) : undefined);
-  const contactId = contactFor(ctx, [input.contactId ?? null, strOrNull(existing, "contactId"), strOrNull(parent, "contactId")], lists.to, parent);
+  const contactId = input.contactId ?? strOrNull(existing, "contactId") ?? strOrNull(parent, "contactId");
   const agentId = ctx.principal.kind === "agent" && isId("agt", ctx.principal.id) ? ctx.principal.id : null;
   const now = ctx.now();
   const draftId = existing ? str(existing, "id") : newId("eml", now);
@@ -99,11 +86,6 @@ export async function draft(ctx: MailCtx, input: DraftIn): Promise<DraftOut> {
   const draftedBy = strOrNull(existing, "draftedByAgent") ?? agentId;
 
   const was = existing ? textOf(ctx, str(existing, "id")) : undefined;
-  if (replaced) {
-    ensurePrior(ctx);
-    ctx.db.run('INSERT OR IGNORE INTO "mail_draft_prior" ("draftId", "at", "subject", "text") VALUES (?, ?, ?, ?)', str(replaced, "id"), num(replaced, "updated_at"), str(replaced, "subject"), was ?? "");
-    ctx.db.run('UPDATE "mail_draft_prior" SET "at" = ?, "subject" = ?, "text" = ? WHERE "draftId" = ?', num(replaced, "updated_at"), str(replaced, "subject"), was ?? "", str(replaced, "id"));
-  }
   if (existing) {
     ctx.db.run(
       `UPDATE mail_message SET "toAddresses" = ?, "ccAddresses" = ?, subject = ?, snippet = ?, body = ?, "sentAt" = ?, "contactId" = ?,
@@ -164,15 +146,13 @@ export async function draftsList(
 
   // Drafts are mail: a caller sees the drafts of mailboxes they may read.
   const verdict = new Map<string, boolean>();
-  // By contact shows only what is to or from that contact: a draft filed under a contact by mistake (to someone else) is left out
-  const ofContact = input.contactId ? rows.filter((r) => contactFor(ctx, [input.contactId!], readParties(str(r, "toAddresses")), null) === input.contactId) : rows;
-  const visible = ofContact.filter((r) => {
+  const visible = rows.filter((r) => {
     const id = str(r, "mailboxId");
     if (!verdict.has(id)) verdict.set(id, can(ctx, "view", { type: "mailbox", id }));
     return verdict.get(id) === true;
   });
   const page = visible.slice(offset, offset + limit);
-  const out: { drafts: MessageRowOut[]; next?: string; total: number } = { drafts: page.map((r) => rowOut(r, ctx)), total: visible.length };
+  const out: { drafts: MessageRowOut[]; next?: string; total: number } = { drafts: page.map(rowOut), total: visible.length };
   if (offset + limit < visible.length) out.next = String(offset + limit);
   return out;
 }
@@ -272,7 +252,7 @@ function attachmentIds(value: string): string[] {
   }
 }
 
-function rowOut(row: Row, ctx?: MailCtx): MessageRowOut {
+function rowOut(row: Row): MessageRowOut {
   const out: MessageRowOut = {
     id: str(row, "id"),
     mailboxId: str(row, "mailboxId"),
@@ -292,33 +272,5 @@ function rowOut(row: Row, ctx?: MailCtx): MessageRowOut {
   const agent = strOrNull(row, "draftedByAgent");
   if (contactId) out.contactId = contactId;
   if (agent) out.draftedByAgent = agent;
-  if (ctx && agent && str(row, "status") === "draft") {
-    ensurePrior(ctx);
-    const prior = first(ctx.db.all('SELECT "at", "subject", "text" FROM "mail_draft_prior" WHERE "draftId" = ?', str(row, "id")));
-    if (prior) out.earlier = { at: num(prior, "at"), subject: str(prior, "subject"), text: str(prior, "text") };
-  }
   return out;
-}
-
-/**
- * The contact a draft belongs to (By contact shows only messages and drafts to or from that contact). A recipient that already carries a contact says which; otherwise the contact the draft came
- * with (the agent's own, or the thread's) holds only if a TO recipient is an address that contact has written from or been written to at; a draft to someone else belongs to no one's view but its thread.
- * Only the people a draft is addressed to count: someone on Cc (Aliza, copied on two contacts' threads) never files it under herself or under the other contact.
- */
-export function contactFor(ctx: MailCtx, candidates: readonly (string | null)[], recipients: readonly Party[], parent: Row | null): string | null {
-  const named = recipients.find((p) => typeof (p as { contactId?: unknown }).contactId === "string");
-  if (named) return (named as { contactId: string }).contactId;
-  const to = new Set(recipients.map((p) => p.address.toLowerCase()));
-  for (const candidate of [...new Set(candidates.filter((c): c is string => typeof c === "string" && c !== ""))]) {
-    if (to.size === 0) return candidate;
-    const known = new Set<string>();
-    const add = (v: unknown): void => { if (typeof v === "string" && v !== "") for (const a of v.match(/[^\s"<>,;\[\]{}:]+@[^\s"<>,;\[\]{}:]+/g) ?? []) known.add(a.toLowerCase().replace(/[.,;]+$/, "")); };
-    for (const r of ctx.db.all(`SELECT "fromAddress", "toAddresses", direction, status FROM mail_message WHERE "contactId" = ? AND deleted_at IS NULL`, candidate) as Row[]) { if (r["status"] === "draft") continue; if (r["direction"] === "in") add(r["fromAddress"]); else add(r["toAddresses"]); }   // the contact is who wrote in, or who we wrote to: never someone only copied
-
-    if (parent && strOrNull(parent, "contactId") === candidate) { if (str(parent, "direction") === "in") add(parent["fromAddress"]); else add(parent["toAddresses"]); }
-    // a contact with no mail on record yet cannot be checked: the draft keeps what it was given
-    if (known.size === 0) return candidate;
-    for (const a of to) if (known.has(a)) return candidate;
-  }
-  return null;
 }

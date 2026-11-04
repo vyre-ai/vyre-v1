@@ -24,8 +24,7 @@ test("the placer shows the page once, then only moves it; a hide takes it away a
   const calls: Array<[string, Record<string, unknown> | undefined]> = [];
   const invoke = async (cmd: string, args?: Record<string, unknown>): Promise<unknown> => { calls.push([cmd, args]); return undefined; };
   const url = "https://harbor-a.vyre.run/x/" + "a".repeat(48);
-  let placed = 0;
-  const p = createPlacer(invoke, url, undefined, () => { placed++; });
+  const p = createPlacer(invoke, url);
   const r1 = { x: 20, y: 80, width: 480, height: 320 };
   p.place(r1);
   p.place({ ...r1 });                       // the same place again says nothing
@@ -33,7 +32,6 @@ test("the placer shows the page once, then only moves it; a hide takes it away a
   p.place(null);                            // an element that is not drawn says nothing
   await new Promise<void>((r) => setImmediate(r));
   assert.deepEqual(calls.map(([c]) => c), ["artifact_view_show", "artifact_view_bounds"]);
-  assert.equal(placed, 1, "told once, when the shell has placed the page");
   assert.deepEqual(calls[0]![1], { url, ...r1 });
   assert.deepEqual(calls[1]![1], { ...r1, width: 500 }, "bounds carry no address");
   p.hide();

@@ -188,13 +188,3 @@ test("a Team Space with no AI account the team can use says so first; a shared k
   const personal = await handlers["console.attention"](world({ ...quiet, "spaces.get": { space: { kind: "personal" } }, "providers.list": { providers: [] } }).ctx, {});
   assert.deepEqual(personal.items, []);
 });
-
-test("a Space scheduled for deletion is the first thing that needs an admin: the date, and Cancel deletion as the next step; nothing scheduled shows nothing", async () => {
-  const at = Date.UTC(2026, 10, 18, 9, 0, 0);
-  const scheduled = await handlers["console.attention"](world({ ...quiet, "spaces.get": { space: { kind: "team", deletionAt: at } }, "providers.list": { providers: [{ id: "prv_2", scope: "shared", spaceKey: true }] } }).ctx, {});
-  assert.deepEqual(scheduled.items.map((i) => [i.kind, i.title, i.next]), [["space_deletion_scheduled", "Scheduled for deletion on 18 November 2026", "Cancel deletion"]]);
-  const withAi = await handlers["console.attention"](world({ ...quiet, "spaces.get": { space: { kind: "team", deletionAt: at } }, "providers.list": { providers: [{ id: "prv_1", scope: "mine" }] } }).ctx, {});
-  assert.deepEqual(withAi.items.map((i) => i.kind), ["space_deletion_scheduled", "no_ai_account"], "the deletion comes first");
-  const none = await handlers["console.attention"](world({ ...quiet, "spaces.get": { space: { kind: "team" } }, "providers.list": { providers: [{ id: "prv_2", scope: "shared", spaceKey: true }] } }).ctx, {});
-  assert.deepEqual(none.items, []);
-});

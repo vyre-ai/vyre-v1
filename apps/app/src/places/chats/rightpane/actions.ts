@@ -27,15 +27,8 @@ export function wake(d: PaneDeps, computerId: string, name: string): Promise<boo
   return attempt(d, "wake it", async () => { await d.call("computers.wake", { computerId }); d.note(`${name} is awake`); });
 }
 
-/** Make the computer and wake it: "Set up its computer" is one press. `nodeId` is a server of the person's, left out for the Space server. */
-export function provision(d: PaneDeps, agentId: string, name: string, nodeId?: string): Promise<boolean> {
-  return attempt(d, "set up its computer", async () => {
-    const out = (await d.call("computers.provision", { agentId, ...(nodeId ? { nodeId } : {}), idempotencyKey: key("computer", agentId) })) as { computer?: { computerId?: string } } | null;
-    d.note(`Setting up ${name}'s computer`);
-    const id = out?.computer?.computerId;
-    // waking can take a minute: the pane follows its state, so this does not wait here; a failure shows on the computer itself, with its reason
-    if (id) void d.call("computers.wake", { computerId: id }).catch(() => undefined);
-  });
+export function provision(d: PaneDeps, agentId: string, name: string): Promise<boolean> {
+  return attempt(d, "set up its computer", async () => { await d.call("computers.provision", { agentId, idempotencyKey: key("computer", agentId) }); d.note(`Setting up ${name}'s computer`); });
 }
 
 export function signOut(d: PaneDeps, computerId: string, site: string): Promise<boolean> {

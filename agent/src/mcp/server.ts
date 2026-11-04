@@ -5,7 +5,6 @@
 //               what was never offered, and the invoke pipeline intersects access, applies the Gate and writes the audit row
 // Nothing here decides access. A tool being listed grants nothing.
 import { safeContent } from "../tools/model-error.ts";
-import { PROBE_MESSAGE, probeIn } from "../../../lib/probe.ts";
 import { createToolSession } from "../tools/call.ts";
 import { decideLocal, dialFor } from "../tools/local.ts";
 import { localFacts } from "../tools/local-facts.ts";
@@ -45,7 +44,7 @@ const SETUP_NOTE = "Runs as the person you act for, under the setup grant they g
 /** Listed for an outside agent from the start, so it can get work and answer without a search. */
 const OUTSIDE_PRELOAD: readonly string[] = ["agents_next"];
 /** Listed for a CLI engine from the start: "make me a file" is a first-hour ask, and it needs a new file and a place to put it. */
-const ENGINE_PRELOAD: readonly string[] = ["files_tree", "files_create", "files_folder_create", "people_status", "message_person", "task_submit", "task_ask", "models_for_helpers", "helper_note"];   // and who is in, and a message to a teammate (lane l-agentdm), and the two a helper hands in or asks with, so it never has to search for them
+const ENGINE_PRELOAD: readonly string[] = ["files_tree", "files_create", "files_folder_create", "people_status", "message_person"];   // and who is in, and a message to a teammate (lane l-agentdm)
 
 interface Session {
   caller: McpCaller;
@@ -191,12 +190,6 @@ export function createMcpServer(deps: McpServerDeps): McpServer {
     const t = deps.catalog.byName(p.name);
     if (!t) return { invalid: `Unknown tool: ${p.name}` };
     const traceId = s.ctx.trace?.traceId ?? hex(16);
-    // no tool is called to see if it works, and none with placeholder content: refused before it reaches the chat, a hold, a task or a person's list
-    if (probeIn(args) !== null) {
-      const error = makeError("validation.bad_input", traceId, { message: PROBE_MESSAGE, details: { tool: t.name, reason: "placeholder" } });
-      deps.onCall?.(s.caller, t.name, "error", { cap: t.cap, threadId: s.ctx.thread.threadId });
-      return { result: textResult({ error }, true, { error }) };
-    }
 
     if (!allowed(s, t)) {
       const door = outsideDoor(t);

@@ -83,9 +83,9 @@ test("each item type offers its own levels with its own words", () => {
   assert.deepEqual(names("artifact"), ["Can view", "Can edit", "Can manage"]);
   assert.deepEqual(names("project"), ["Can view", "Can edit", "Can manage"]);
   assert.deepEqual(names("rtype"), ["Can view records", "Can edit records", "Can manage the type"]);
-  assert.deepEqual(levelDefs("vault", ["use", "view", "manage"]).map((l) => l.label), ["Can use without seeing", "Can see", "Can manage"]);
-  assert.deepEqual(names("agent"), ["Can use", "Can edit", "Can manage"], "Can chat with is merged into Can use");
-  assert.equal(levelName("vault", "edit"), "Can edit", "an old Edit grant still reads");
+  assert.deepEqual(names("vault"), ["Can use without seeing", "Can view", "Can edit"]);
+  assert.deepEqual(names("agent"), ["Can chat with", "Can use", "Can edit", "Can manage"]);
+  assert.equal(levelName("agent", "view"), "Can chat with", "chat with is the view level");
   assert.equal(levelName("vault", "use"), "Can use without seeing");
   assert.equal(levelName("note", "owner"), "Owner");
 });
@@ -106,10 +106,10 @@ test("what they get, for every item type and level", () => {
   assert.equal(shareVerb("vault", "use", "GHL key"), "use “GHL key” in actions without seeing its value");
   assert.equal(shareVerb("vault", "view", n), "view “Q4”");
   assert.equal(shareVerb("vault", "edit", n), "view and edit “Q4”");
-  assert.equal(shareVerb("agent", "use", "Ember"), "use Ember in their chats, tasks and automations");
-  assert.equal(shareVerb("agent", "view", "Ember"), shareVerb("agent", "use", "Ember"), "an old chat grant reads as use");
-  assert.equal(shareVerb("agent", "edit", "Ember"), "change Ember's instructions, context and tools");
-  assert.equal(shareVerb("agent", "manage", "Ember"), "share, move and delete Ember");
+  assert.equal(shareVerb("agent", "view", "Ember"), "chat with Ember and add it to their chats");
+  assert.equal(shareVerb("agent", "use", "Ember"), "use Ember in their automations, tasks and crews, on their own account");
+  assert.equal(shareVerb("agent", "edit", "Ember"), "edit Ember's instructions (AGENT.md), skills and memory settings");
+  assert.equal(shareVerb("agent", "manage", "Ember"), "share, rename and delete Ember");
 });
 
 test("the tail of each item type", () => {
@@ -144,13 +144,10 @@ test("a Vault pick that can only use it says so, and the value stays out of chat
   assert.match(lines[lines.length - 1] ?? "", /The value is never shown or sent in chat/);
 });
 
-test("sharing an agent: the pays-with-their-own-account note, named and never guessed, and no legend with nobody picked", () => {
+test("sharing an agent: the pays-with-their-own-account note, and the four levels with nobody picked", () => {
   const picked = shareLines({ type: "agent", name: "Ember", ownerName: "Irfad", picks: [sara("use", "person", "Omar Reyes")] }).map((l) => l.text);
-  assert.equal(picked[0], "Omar Reyes can use Ember in Omar Reyes's chats, tasks and automations.");
-  assert.ok(picked.includes("Omar Reyes pays with Omar Reyes's own AI account, and Ember only sees what Omar Reyes can see."));
-  const two = shareLines({ type: "agent", name: "Ember", ownerName: "Irfad", picks: [sara("use", "person", "Omar"), sara("use", "person", "Sara")] }).map((l) => l.text);
-  assert.equal(two[0], "Omar and Sara can use Ember in their chats, tasks and automations.");
-  assert.ok(!two.join(" ").match(/\b(he|she|him|her|his)\b/i), "pronouns are never guessed");
+  assert.equal(picked[0], "Omar Reyes can use Ember in their automations, tasks and crews, on their own account.");
+  assert.ok(picked.includes("Whoever uses Ember pays with their own AI account. Ember reaches for them only what they can reach themselves."));
   const idle = shareLines({ type: "agent", name: "Ember", ownerName: "Irfad", picks: [] });
   assert.equal(idle.length, 0, "no legend: each level describes itself in its picker menu");
   assert.equal(shareLines({ type: "note", name: "x", ownerName: "I", picks: [] }).length, 0);
@@ -163,12 +160,13 @@ test("a limited giver is told they can give only what they have", () => {
 
 /* ---------- a person can only give what they have ---------- */
 
-test("levels above the giver's are not offered at all", () => {
+test("levels above the giver's are locked, with the words the sheet shows", () => {
   const giving = { maxLevel: "edit" as ShareLevel };
   assert.equal(canGiveLevel("note", "edit", giving), true);
   assert.equal(canGiveLevel("note", "manage", giving), false);
   const opts = roleOptions("person", { mode: "share", itemType: "note", giving });
-  assert.deepEqual(opts.map((o) => [o.id, o.locked]), [["view", false], ["edit", false]], "Can manage is hidden, not greyed");
+  assert.deepEqual(opts.map((o) => [o.id, o.locked]), [["view", false], ["edit", false], ["manage", true]]);
+  assert.equal(roleLabel(opts[2]!), "Can manage (you do not have this)");
   assert.equal(roleLabel(opts[0]!), "Can view");
 });
 
@@ -185,7 +183,7 @@ test("add mode: a viewer adds viewers only; a member can add members", () => {
   assert.equal(isViewOnly({}), false);
   assert.equal(isViewOnly({ canGive: (l) => l === "view" }), true);
   const limited = roleOptions("person", { ...addCtx, giving: { maxLevel: "view" } });
-  assert.deepEqual(limited.map((o) => [o.label, o.locked]), [["Can view", false]], "Member is not offered to a viewer");
+  assert.deepEqual(limited.map((o) => [o.label, o.locked]), [["Member", true], ["Can view", false]]);
   assert.equal(defaultRole("person", { ...addCtx, giving: { maxLevel: "view" } }), "view");
   assert.equal(defaultRole("person", addCtx), "member");
   assert.match(VIEW_ONLY_NOTE, /^You can view here, so you can add people as viewers only\. A person can give only what they have\.$/);
@@ -196,13 +194,10 @@ test("role lists: people Member or Can view, guests Can view or Can reply, agent
   assert.deepEqual(roleOptions("guest", addCtx).map((o) => o.label), ["Can view", "Can reply"]);
   assert.deepEqual(roleOptions("agent", addCtx), []);
   assert.deepEqual(roleOptions("outside", addCtx), []);
-  assert.deepEqual(roleOptions("guest", { mode: "share", itemType: "agent" }).map((o) => o.label), ["Can use"], "a guest gets the first level only");
+  assert.deepEqual(roleOptions("guest", { mode: "share", itemType: "agent" }).map((o) => o.label), ["Can chat with"], "a guest gets the first level only");
   assert.equal(defaultRole("guest", addCtx), "gview");
   assert.equal(defaultRole("person", { mode: "share", itemType: "vault" }), "use");
-  assert.equal(defaultRole("person", { mode: "share", itemType: "agent" }), "use");
-  assert.equal(defaultRole("person", { mode: "share", itemType: "agent", general: "use" }), "edit", "a new person starts one level above the general one");
-  assert.equal(defaultRole("person", { mode: "share", itemType: "agent", general: null }), "use", "with Only people added, Can use");
-  assert.equal(defaultRole("person", { mode: "share", itemType: "agent", general: "use", giving: { maxLevel: "use" } }), "use", "nothing above is on offer: the default stays");
+  assert.equal(defaultRole("person", { mode: "share", itemType: "agent" }), "view");
 });
 
 /* ---------- buttons ---------- */
@@ -234,7 +229,7 @@ test("a phone is under 640 px", () => {
 test("add lines: messages from now on or the start, files folder, records", () => {
   const picks = [sara("member")];
   assert.equal(addLines({ target, picks, earlier: false, ownerName: "Irfad" })[0]?.text, "They'll see this chat's messages from now on, its files folder Portal uploads, and records in Clients.");
-  assert.equal(addLines({ target, picks, earlier: true, ownerName: "Irfad" })[0]?.text, "They'll see the whole chat, its files folder Portal uploads, and records in Clients.");
+  assert.equal(addLines({ target, picks, earlier: true, ownerName: "Irfad" })[0]?.text, "They'll see this chat's messages from the start, its files folder Portal uploads, and records in Clients.");
   assert.deepEqual(addLines({ target, picks: [], earlier: false, ownerName: "Irfad" }), []);
 });
 
@@ -255,8 +250,8 @@ test("the earlier switch shows when a person, not only a guest or an agent, is p
   assert.equal(showsEarlier([sara("gview", "guest")]), false);
   assert.equal(showsEarlier([sara("", "agent", "Docs")]), false);
   assert.equal(idleLine("add"), "Pick who to add. You will see what they get before you confirm.");
-  assert.equal(idleLine("share", "note"), "", "the explainer covers it");
-  assert.equal(idleLine("share", "agent", "Ember"), "");
+  assert.equal(idleLine("share", "note"), "Pick who to share with. You will see what they get before you confirm.");
+  assert.equal(idleLine("share", "agent", "Ember"), "Pick who to share with. You will see what they get before you confirm.");
 });
 
 /* ---------- the lists ---------- */
@@ -349,10 +344,10 @@ test("the three Hows map to the modes the contract has", () => {
   assert.equal(modeOf("lead"), "lead");
   assert.equal(modeOf("tag"), "listen");
   assert.equal(modeOf("listen"), "quiet");
-  assert.equal(settingsSummary(DEFAULT_AGENT_SETTINGS), "Answers when mentioned · Any time · Short replies");
+  assert.equal(settingsSummary(DEFAULT_AGENT_SETTINGS), "Answers when tagged · Always · Keep replies short");
   assert.equal(settingsSummary({ ...DEFAULT_AGENT_SETTINGS, how: "lead", when: "topics", topics: "invoices, billing", style: "full" }), "Answers everything · Only on invoices, billing · Full detail");
-  assert.equal(settingsSummary({ ...DEFAULT_AGENT_SETTINGS, how: "listen", when: "hours", hoursFrom: "08:00", hoursTo: "18:00" }), "Only listens · 08:00 to 18:00 · Short replies");
-  assert.equal(pokeNote("Docs"), "Poke asks Docs to read the chat now and reply. It only sees what you can see.");
+  assert.equal(settingsSummary({ ...DEFAULT_AGENT_SETTINGS, how: "listen", when: "hours", hoursFrom: "08:00", hoursTo: "18:00" }), "Listening · 08:00 to 18:00 · Keep replies short");
+  assert.equal(pokeNote("Docs"), "A poke starts one turn now. Docs reads the last 12 messages and tool calls, answers whoever poked, and can read further back with a tool. It reads only what the poker can read.");
 });
 
 /* ---------- capability inputs: add mode (each one must satisfy CapMap[...]["in"]) ---------- */
@@ -370,7 +365,7 @@ test("threads.agent.create: name, brief, model, mode and the key", () => {
   assert.deepEqual(agentCreateInput("thr_1", { name: "Checker", brief: "  " }, "k2"), { threadId: "thr_1", name: "Checker", idempotencyKey: "k2" });
 });
 
-test("threads.agent_settings.set: Answers everything is lead, when it is mentioned is listen, Only listens is quiet", () => {
+test("threads.agent_settings.set: Answers everything is lead, when it is tagged is listen, Listening is quiet", () => {
   const s = agentSettingsInput("thr_1", "agt_docs", { how: "tag", when: "topics", topics: " invoices, billing ", style: "short" }) satisfies CapMap["threads.agent_settings.set"]["in"];
   assert.deepEqual(s, { threadId: "thr_1", agentId: "agt_docs", mode: "listen", when: "topics", topics: "invoices, billing", hoursFrom: null, hoursTo: null, style: "short" });
   assert.deepEqual(agentSettingsInput("t", "a", { how: "lead", when: "hours", hoursFrom: "08:00", hoursTo: "18:00" }), { threadId: "t", agentId: "a", mode: "lead", when: "hours", topics: null, hoursFrom: "08:00", hoursTo: "18:00" });
@@ -454,11 +449,11 @@ test("rows ported from the old sheet: raise never lower, link is view only, only
   const row = (over: Partial<ShareRow> & Pick<ShareRow, "name">): ShareRow => ({ subjectKind: "person", subjectId: `prs_${over.name.toLowerCase()}`, level: "view", via: "grant", fromFolderId: null, ...over });
   assert.deepEqual(levelsFor(row({ name: "Maya", via: "folder", level: "edit" }), "note"), ["edit", "manage"]);
   assert.deepEqual(levelsFor(row({ name: "Maya" }), "note"), ["view", "edit", "manage"]);
-  assert.deepEqual(levelsFor(row({ name: "Maya" }), "agent"), ["use", "edit", "manage"]);
+  assert.deepEqual(levelsFor(row({ name: "Maya" }), "agent"), ["view", "use", "edit", "manage"]);
   assert.deepEqual(levelsFor(row({ name: "Maya" }), "note", ["view", "edit"]), ["view", "edit"]);
   assert.deepEqual(levelsFor(row({ name: "Public", subjectKind: "link" }), "note"), ["view"]);
-  assert.deepEqual(levelsFor(row({ name: "Maya", via: "grant", level: "view" }), "vault"), ["use", "view", "edit", "manage"]);
-  assert.deepEqual(levelsFor(row({ name: "Maya", via: "folder", level: "view" }), "vault"), ["view", "edit", "manage"], "a Vault row from a folder cannot drop to use");
+  assert.deepEqual(levelsFor(row({ name: "Maya", via: "grant", level: "view" }), "vault"), ["use", "view", "edit"]);
+  assert.deepEqual(levelsFor(row({ name: "Maya", via: "folder", level: "view" }), "vault"), ["view", "edit"], "a Vault row from a folder cannot drop to use");
   assert.equal(removable({ via: "grant" }), true);
   assert.equal(removable({ via: "folder" }), false);
   assert.equal(removable({ via: "owner" }), false);
@@ -482,9 +477,17 @@ test("no string shown to people holds an em dash or a section sign", async () =>
   }
 });
 
+test("addCalls sends fromStart only when Include earlier messages is on", () => {
+  const person = { key: "person:usr_sara", kind: "person", id: "usr_sara", name: "Sara", role: "member" } as never;
+  const off = addCalls({ kind: "chat", threadId: "thr_1" }, [person], () => "k");
+  assert.deepEqual(off.calls.map((c) => c.input), [{ threadId: "thr_1", personId: "usr_sara" }]);
+  const on = addCalls({ kind: "chat", threadId: "thr_1" }, [person], () => "k", { earlier: true });
+  assert.deepEqual(on.calls.map((c) => c.input), [{ threadId: "thr_1", personId: "usr_sara", fromStart: true }]);
+});
+
 /* ---------- accessView: the rules behind the Dex sheet ---------- */
 
-import { accessCount, accessSubtitle, accessView, generalSub, levelHint, redundantVia, rowSub } from "./model.ts";
+import { accessCount, accessSubtitle, accessView, levelHint, rowSub } from "./model.ts";
 import type { ShareRow as Row } from "./props.ts";
 
 const r = (o: Partial<Row> & Pick<Row, "subjectKind" | "subjectId">): Row => ({ name: o.subjectId, level: "view", via: "grant", fromFolderId: null, ...o });
@@ -550,34 +553,13 @@ test("accessView: the count behind the sheet is the same deduped list", () => {
   assert.equal(accessView({ ...base, shares }).count, 3);
 });
 
-test("levelHint: every level each item type offers has a one line description", () => {
+test("levelHint: every level of every item has a one line description", () => {
   for (const type of ["note", "file", "record", "rtype", "artifact", "project", "vault", "agent", "automation"] as const) {
-    for (const l of levelDefs(type)) assert.ok(levelHint(type, l.id).length > 0 && !/\n/.test(levelHint(type, l.id)), `${type} ${l.id}`);
+    for (const l of ["view", "use", "edit", "manage"] as const) assert.ok(levelHint(type, l).length > 0 && !/\n/.test(levelHint(type, l)));
   }
-  assert.equal(levelHint("agent", "use"), "Chat with it and put it to work in their own chats, tasks, automations and crews, on their own AI account.");
-  assert.equal(levelHint("agent", "edit"), "Change its instructions, context and tools.");
-  assert.equal(levelHint("agent", "manage"), "Share it, move it and delete it.");
-});
-
-test("general access and redundancy words", () => {
-  assert.equal(generalSub("agent", "use", "Northwind", "Dex"), "Anyone in Northwind can use Dex");
-  assert.equal(generalSub("note", "edit", "Northwind", "Plan"), "Anyone in Northwind can edit Plan");
-  assert.equal(generalSub("agent", null, "Northwind", "Dex"), "Only people added can open it");
-  assert.equal(redundantVia("agent", "edit", "use", "Northwind"), "Already has access through Everyone in Northwind");
-  assert.equal(redundantVia("agent", "edit", "edit", "Northwind"), "Already has access through Everyone in Northwind");
-  assert.equal(redundantVia("agent", "use", "manage", "Northwind"), null, "a higher level adds something");
-  assert.equal(redundantVia("agent", null, "use", "Northwind"), null);
 });
 
 test("an automation offers View, Edit and Manage", () => {
   assert.deepEqual(levelDefs("automation").map((l) => l.label), ["Can view", "Can edit", "Can manage"]);
   assert.equal(accessSubtitle("automation", 3), "Automation · 3 with access");
-});
-
-test("addCalls sends fromStart only when Include earlier messages is on", () => {
-  const person = { key: "person:usr_sara", kind: "person", id: "usr_sara", name: "Sara", role: "member" } as never;
-  const off = addCalls({ kind: "chat", threadId: "thr_1" }, [person], () => "k");
-  assert.deepEqual(off.calls.map((c) => c.input), [{ threadId: "thr_1", personId: "usr_sara" }]);
-  const on = addCalls({ kind: "chat", threadId: "thr_1" }, [person], () => "k", { earlier: true });
-  assert.deepEqual(on.calls.map((c) => c.input), [{ threadId: "thr_1", personId: "usr_sara", fromStart: true }]);
 });

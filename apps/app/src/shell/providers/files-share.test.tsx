@@ -3,7 +3,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { createRoot } from "test-renderer";
 import { act } from "react";
-import { find, flush, installDom, press, textOf, typeInto } from "../../../../../ui/src/testing/dom.ts";
+import { find, flush, installDom, press, textOf } from "../../../../../ui/src/testing/dom.ts";
 import { FolderShareSheet } from "./files-share.tsx";
 import type { ShellRuntime } from "./runtime.tsx";
 
@@ -81,37 +81,5 @@ test("an artifact is shared on its site resource, as an artifact", async () => {
     await press(find(s.tree, "menu-item-Can view"));
     await flush();
     assert.deepEqual(s.calls.find((c) => c.cap === "access.share")?.input, { resource: { type: "site", id: "sit_1" }, subject: { kind: "person", id: "usr_bea" }, level: "view" });
-  } finally { restore(); }
-});
-
-test("a folder: Notify people goes with the share as `notify`, with the message, and Copy link is there", async () => {
-  const restore = installDom();
-  try {
-    const s = await open({ shares: [{ grant: grant("usr_ada", "manage"), through: "owner" }], mine: "manage" });
-    await typeInto(find(s.tree, "as-search"), "cal");
-    await press(find(s.tree, "as-row-person:usr_cal"));
-    await typeInto(find(s.tree, "as-message"), "For the Q4 close");
-    await press(find(s.tree, "as-add"));
-    await flush();
-    const call = s.calls.find((c) => c.cap === "access.share");
-    assert.deepEqual(call?.input, { resource: { type: "folder", id: "fld_clients" }, subject: { kind: "person", id: "usr_cal" }, level: "view", notify: { message: "For the Q4 close" } });
-  } finally { restore(); }
-  const restore2 = installDom();
-  try {
-    const s = await open(shares("manage"));
-    assert.ok(find(s.tree, "as-copy-link") !== null, "Copy link at the foot");
-    assert.ok(find(s.tree, "as-acc-level-usr_bea") !== null);
-  } finally { restore2(); }
-});
-
-test("a folder: Make owner is access.make_owner on the folder", async () => {
-  const restore = installDom();
-  try {
-    const s = await open(shares("manage"));
-    await press(find(s.tree, "as-acc-level-usr_bea"));
-    await press(find(s.tree, "menu-item-Make owner"));
-    await press(find(s.tree, "as-confirm-yes"));
-    await flush();
-    assert.deepEqual(s.calls.find((c) => c.cap === "access.make_owner")?.input, { resource: { type: "folder", id: "fld_clients" }, personId: "usr_bea", idempotencyKey: "owner:fld_clients:usr_bea" });
   } finally { restore(); }
 });

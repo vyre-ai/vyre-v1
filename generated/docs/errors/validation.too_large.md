@@ -21,7 +21,6 @@ HTTP 422. Retryable: no.
 - skills.add
 - skills.mine.add
 - skills.preview
-- skills.save
 - skills.space.install
 - sources.ingest
 - sync.push

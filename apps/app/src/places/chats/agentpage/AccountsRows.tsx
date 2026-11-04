@@ -13,8 +13,8 @@ import type { Entry } from "../rightpane/parts.tsx";
 import { aiMenu } from "../../vault/providers/aiMenu.ts";
 import { aiName } from "../../vault/providers/pick.ts";
 import { useSpaceAi } from "../../vault/providers/useSpaceAi.ts";
-import { HELPER_MODEL_WORDS, setAccounts, setHelperModels } from "./actions.ts";
-import type { AccountPatch, HelperModels, PageDeps } from "./actions.ts";
+import { setAccounts } from "./actions.ts";
+import type { AccountPatch, PageDeps } from "./actions.ts";
 import { STATUS_NOTE, accountName, accountOptions, chatKeyNote, memoryKeyNote, moveRef, workKeyNote } from "./model.ts";
 import type { AccountChoice, AgentRow } from "./model.ts";
 
@@ -109,18 +109,6 @@ export function useAccountEntries({ agent, deps, accounts, canEdit }: AccountsIn
       <Pressable accessibilityRole="button" accessibilityLabel={`Memory key: ${agent.memoryKey ? accountName(accounts, agent.memoryKey) : "the Space key"}. Change`} testID="pick-memory-key" onPress={(e) => pick(e, agent.memoryKey ?? null, "The Space memory key", (ref) =>
         save({ memoryKey: ref }, ref ? `${accountName(accounts, ref)} now pays for ${agent.name}'s memory upkeep.` : `${agent.name}'s memory upkeep uses the Space key again.`))} style={st.pick}>
         <Text numberOfLines={1} style={st.pickText}>{agent.memoryKey ? accountName(accounts, agent.memoryKey) : "Space key"}</Text><Icon name="chev" size={12} />
-      </Pressable>) } : {}),
-  });
-  // where helpers get their models: one setting on the agent; the default keeps them inside this provider and picks a cheap or a strong model by the job
-  const hm: HelperModels = (agent as { helperModels?: HelperModels }).helperModels ?? "same_provider";
-  entries.push({
-    key: "acct-helper-models", type: "row", title: "Helper models", note: HELPER_MODEL_WORDS[hm].note, leading: <LeadIcon name="helper" />, testID: "setting-helper-models",
-    ...(canEdit ? { onPress: () => undefined, trailing: (
-      <Pressable accessibilityRole="button" accessibilityLabel={`Helper models: ${HELPER_MODEL_WORDS[hm].title}. Change`} testID="pick-helper-models" onPress={(e) => {
-        const { x, y } = menuAt(e);
-        menu.show((Object.keys(HELPER_MODEL_WORDS) as HelperModels[]).map((v) => ({ label: HELPER_MODEL_WORDS[v].title, checked: v === hm, onSelect: () => void setHelperModels(deps, agent.agentId, v, hm) })), x, y, "other");
-      }} style={st.pick}>
-        <Text numberOfLines={1} style={st.pickText}>{HELPER_MODEL_WORDS[hm].title}</Text><Icon name="chev" size={12} />
       </Pressable>) } : {}),
   });
   return { entries, element: menu.element };

@@ -6,8 +6,6 @@ export interface Keyring {
   /** `sessionId`: the session whose client handed the key over; without one (the local admin) the key stays until lock or shutdown */
   hold(personId: string, key: Uint8Array, sessionId?: string): boolean;
   clear(personId: string): void;
-  /** The person pressed Lock (Cmd-L): the key is forgotten and stays so, even for a session a provider proved and the server's wrap could reopen, until they unlock again or sign in afresh. */
-  lock(personId: string): void;
   /** a copy of the key, for the vault's KeyPort; null when the person has not unlocked here or every session that unlocked it has ended */
   get(personId: string): Uint8Array | null;
   /** Drop every key whose sessions have all ended, now (a timer calls this, so a signed-out person's key does not wait for a read). Answers how many keys it wiped. */
@@ -26,16 +24,14 @@ export function createKeyring(o: {
    * The key is not held (the server restarted, or deployed) but the person is still signed in through a provider that proved who they are: the server's wrap opens again for those sessions (fix for
    * "every deploy logs the team out of their own AI"). Answers the key and the sessions it is bound to, or null. The keyring copies the key and wipes the one it was given.
    */
-  reopen?(personId: string, since?: number): { key: Uint8Array; sessions: string[] } | null;
+  reopen?(personId: string): { key: Uint8Array; sessions: string[] } | null;
 }): Keyring {
   const held = new Map<string, Entry>();
-  /** Persons who pressed Lock, and when: the server's wrap reopens only for a provider session made after that. */
-  const locked = new Map<string, number>();
   const wipe = (e: Entry | undefined): void => { e?.key.fill(0); };
   const fresh = (personId: string): Uint8Array | null => {
     let e = held.get(personId);
     if (!e && o.reopen) {
-      const r = o.reopen(personId, locked.get(personId));
+      const r = o.reopen(personId);
       if (r) {
         try { if (r.key.length === 32 && r.sessions.length > 0) { e = { key: Uint8Array.from(r.key), sessions: new Set(r.sessions), unbound: false }; held.set(personId, e); } } finally { r.key.fill(0); }
       }
@@ -48,7 +44,6 @@ export function createKeyring(o: {
   return {
     hold(personId, key, sessionId) {
       if (!o.allowed(personId, sessionId) || key.length !== 32) return false;
-      locked.delete(personId);
       const old = held.get(personId);
       wipe(old);
       held.set(personId, {
@@ -59,7 +54,6 @@ export function createKeyring(o: {
       return true;
     },
     clear(personId) { wipe(held.get(personId)); held.delete(personId); },
-    lock(personId) { wipe(held.get(personId)); held.delete(personId); locked.set(personId, Date.now()); },
     get: (personId) => fresh(personId),
     sweep() {
       let n = 0;
@@ -67,6 +61,6 @@ export function createKeyring(o: {
       return n;
     },
     holds: (personId) => held.has(personId),
-    clearAll() { for (const e of held.values()) wipe(e); held.clear(); locked.clear(); },
+    clearAll() { for (const e of held.values()) wipe(e); held.clear(); },
   };
 }

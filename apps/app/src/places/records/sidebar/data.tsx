@@ -9,7 +9,7 @@ import type { AskAbout } from "../askpane/model.ts";
 export interface Connection { get(): "online" | "offline"; subscribe(l: () => void): () => void }
 
 /** The capabilities the table reads live. */
-export type LiveCap = "records.query" | "records.counts" | "schema.describe" | "access.record_marks" | "access.shares_of" | "stars.list";
+export type LiveCap = "records.query" | "records.counts" | "schema.describe" | "access.record_marks" | "access.shares_of";
 
 /** What the Share sheet opens for: a record type (all its records) or one record. */
 export interface ShareTarget {

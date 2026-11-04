@@ -2,9 +2,9 @@
   "module": "console-views",
   "capabilities": {
     "console.activity@1": "0302375ebed06da97134676680d1def95c355655fbec0aa470fbb04e3a5343dd",
-    "console.attention@1": "e8cae29aee437e6143143975928c112950960a60d702ad44cc2149684504d8f4",
+    "console.attention@1": "dfd0706ec82819b6bd45d4ca57ee72ea6f88a4756c0b6a43b947f295d70d666b",
     "console.nav@1": "152a200f177e59737b14ea2d9f75f0ea2d81ba5149f3ec21f4c612dabe59eb2e",
-    "console.overview@1": "569552dbcad89645deb0b3470607dfd092cd678ac9d8811eccfbf812f00350f1",
+    "console.overview@1": "dbb5364ccadb8c6c6199fe52fe6ef6749dc22193776d0411ac260f67ab082df5",
     "console.speed@1": "ab8e203fb36481931c52a4cf87f2dc3a55cea2ff7a8c732b04be5c4572a826fd",
     "console.usage@1": "7212f7211373863b3422a4b4d258a1b90d9d1fc903c14edb40ddd13780bd6f76"
   },

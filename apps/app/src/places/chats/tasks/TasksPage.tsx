@@ -25,7 +25,6 @@ import { useLive } from "../mounts/live.ts";
 import { QuickField } from "./QuickField.tsx";
 import { Avatar } from "../../../../../../ui/src/Avatar/index.tsx";
 import type { ActEnv } from "./actions.ts";
-import { taskRowEntries } from "./row-menu.ts";
 import { bulkAssign, bulkDelete, bulkDue, bulkLabel, bulkMove, bulkPriority, bulkStatus, dueEntries, failure, keepQuiet, letGo, priorityEntries, setStatus, snoozeQuiet } from "./actions.ts";
 import { Board } from "./Board.tsx";
 import { buildEntries, DAY, filterRows, GROUPS, heightOf, holderOf, isFiltered, NO_FILTER, SORTS } from "./model.ts";
@@ -156,23 +155,20 @@ export function TasksPage({ rt, openTask, openAgent, openChat, window }: TasksPa
 
   const rowMenu = useCallback((row: TaskRow, at: { x: number; y: number }): void => {
     const ids = selected.has(row.id) ? [...selected] : [row.id];
-    const items = taskRowEntries({ done: row.state === "done", selected: selected.has(row.id) }, {
-      open: () => openTask(row.id),
-      toggleSelect: () => pick(row.id, false),
-      markDone: () => void bulkStatus(act, ids, "done"),
-      reopen: () => void bulkStatus(act, ids, "todo"),
-      status: () => statusMenu(row, at),
-      assign: () => assignMenu(ids, at),
-      due: () => dueMenu(ids, at),
-      priority: () => menu.show(priorityEntries(row.priority, (k, w) => void bulkPriority(act, ids, k, w)), at.x, at.y, "other", { label: "Priority" }),
-      labels: () => labelMenu(ids, at),
-      moveToProject: () => moveMenu(ids, at),
-      follow: () => void rt.call("tasks.get", { taskId: row.id }).then((o) => { const th = (o as CapMap["tasks.get"]["out"]).task.threadId; if (!th) { say("This task has no thread to follow yet."); return; } return rt.call("threads.follow", { threadId: th, mode: "follow" }).then(() => say("Following. Its replies reach you.")); }).catch((e: unknown) => say(failure(e, "It could not be followed."))),
-      copyLink: () => { const l = (globalThis as { location?: { origin?: string; pathname?: string } }).location; const c = (globalThis as { navigator?: { clipboard?: { writeText(x: string): unknown } } }).navigator?.clipboard; if (c) void c.writeText(`${l?.origin ?? ""}${l?.pathname ?? ""}#screen=tasks.page&taskId=${row.id}`); say("Link copied"); },
-      snooze: () => menu.show(dueEntries(act, (when, words) => { if (when !== null) void snoozeQuiet(act, ids, when, words); }).filter((e) => !("label" in e && e.label === "No date")), at.x, at.y, "other", { label: "Snooze until" }),
-      duplicate: () => void rt.call("tasks.create", { title: `${row.title} (copy)`, assigned: row.assigned, labels: row.labels, ...(row.due !== undefined ? { due: row.due } : {}), ...(row.priority ? { priority: row.priority } : {}), ...(row.recordId ? { recordId: row.recordId } : {}), idempotencyKey: newKey() }).then(() => say("Duplicated"), (e: unknown) => say(failure(e, "It could not be copied."))),
-      remove: () => void bulkDelete(act, ids),
-    });
+    const items: MenuEntry[] = [
+      { label: "Open", onSelect: () => openTask(row.id) },
+      { label: selected.has(row.id) ? "Deselect" : "Select", onSelect: () => pick(row.id, false) },
+      { separator: true },
+      { label: "Status…", onSelect: () => statusMenu(row, at) },
+      { label: "Assign…", onSelect: () => assignMenu(ids, at) },
+      { label: "Due…", onSelect: () => dueMenu(ids, at) },
+      { label: "Priority…", onSelect: () => menu.show(priorityEntries(row.priority, (k, w) => void bulkPriority(act, ids, k, w)), at.x, at.y, "other", { label: "Priority" }) },
+      { label: "Labels…", onSelect: () => labelMenu(ids, at) },
+      { label: "Move to a project…", onSelect: () => moveMenu(ids, at) },
+      { separator: true },
+      { label: "Duplicate", onSelect: () => void rt.call("tasks.create", { title: `${row.title} (copy)`, assigned: row.assigned, labels: row.labels, ...(row.due !== undefined ? { due: row.due } : {}), ...(row.priority ? { priority: row.priority } : {}), ...(row.recordId ? { recordId: row.recordId } : {}), idempotencyKey: newKey() }).then(() => say("Duplicated"), (e: unknown) => say(failure(e, "It could not be copied."))) },
+      { label: "Delete", danger: true, onSelect: () => void bulkDelete(act, ids) },
+    ];
     menu.show(items, at.x, at.y, "context", { label: row.title });
   }, [act, assignMenu, dueMenu, labelMenu, menu, moveMenu, openTask, pick, rt, say, selected, statusMenu]);
 
@@ -252,20 +248,19 @@ export function TasksPage({ rt, openTask, openAgent, openChat, window }: TasksPa
   }, [list, quick, quickFiles, rt, say, scope, store]);
 
   // the Ask line under the list: words open a chat with the assistant; with files, the chat is started here so the files go with the first message
-  const askAssistant = useCallback((p: ComposerSend): Promise<void> | void => {
+  const askAssistant = useCallback((p: ComposerSend): void => {
     if (p.files.length === 0) { openChat(p.text); return; }
     const text = p.text.trim();
     const key = newKey();
-    // a failed start gives the draft back with the reason (the composer keeps what was written)
-    return realAssistant(rt.assistant.id, (cap, input) => rt.call(cap as never, input as never)).then((agentId) => {
+    void realAssistant(rt.assistant.id, (cap, input) => rt.call(cap as never, input as never)).then((agentId) => {
       if (agentId === null) throw new Error("no assistant yet");
       return rt.call("chat.start", { kind: "chat", agentIds: [agentId], title: (text || p.files[0]!.name).split(/\s+/).slice(0, 6).join(" "), idempotencyKey: key });
     }).then(async (out) => {
       const id = (out as CapMap["chat.start"]["out"]).thread.threadId;
       await postWithFiles(uploadDeps(rt), id, text, p.files, `tasks-ask:${key}`);
       rt.open({ subject: { type: "thread", id } });
-    }).catch((e: unknown) => { throw new Error(failure(e, "Could not start the chat with those files.")); });
-  }, [openChat, rt]);
+    }).catch((e: unknown) => say(failure(e, "Could not start the chat with those files.")));
+  }, [openChat, rt, say]);
 
   /* ---------- keys ---------- */
   useEffect(() => {

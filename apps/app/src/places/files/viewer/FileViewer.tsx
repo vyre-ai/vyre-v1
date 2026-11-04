@@ -46,7 +46,7 @@ export function FileViewer({ fileId, pane = "main" }: FileViewerProps): ReactEle
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const say = useCallback((e: unknown): void => setNote(e instanceof Error ? e.message : "That did not work."), []);
   // Redaction for AI: the layer of this file, the Redact and Activity tabs, and the access menu
-  const layer = useLayer(d, fileId, load.status === "ready" ? load.data.file.name : undefined);
+  const layer = useLayer(d, fileId);
   const [panel, setPanel] = useState<"redact" | "activity" | null>(null);
   const accessMenu = useMenu();
   useEffect(() => { if (layer.said) { setNote(layer.said); layer.setSaid(null); } }, [layer]);

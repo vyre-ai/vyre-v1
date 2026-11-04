@@ -22,7 +22,6 @@ CREATE INDEX IF NOT EXISTS health_restart_open ON health_restart(done_at, at);
 CREATE TABLE IF NOT EXISTS network_config (
   id INTEGER PRIMARY KEY, address TEXT NOT NULL, mode TEXT NOT NULL, domain TEXT, relay_address TEXT, public_ingress INTEGER NOT NULL, ingress_detail TEXT, reported_at INTEGER NOT NULL
 );
-CREATE TABLE IF NOT EXISTS network_info (key TEXT PRIMARY KEY, value TEXT NOT NULL, at INTEGER NOT NULL);
 CREATE TABLE IF NOT EXISTS network_cert (host TEXT PRIMARY KEY, expires_at INTEGER, reason TEXT, reported_at INTEGER NOT NULL);
 CREATE TABLE IF NOT EXISTS network_dns (domain TEXT PRIMARY KEY, ok INTEGER NOT NULL, records_json TEXT NOT NULL, checked_at INTEGER NOT NULL);
 CREATE TABLE IF NOT EXISTS network_server (server_id TEXT PRIMARY KEY, name TEXT NOT NULL, role TEXT NOT NULL, state TEXT NOT NULL, heartbeat_at INTEGER);

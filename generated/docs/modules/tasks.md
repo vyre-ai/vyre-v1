@@ -4,10 +4,9 @@ Lane L6. Kind module. Version 0.1.0.
 
 Requires: nothing.
 
-## Capabilities (40)
+## Capabilities (39)
 
 - [tasks.act](../capabilities/tasks.act.md): Act on a request at its source: approve, reject, send back, answer, resolve, with a note; continues the chat or run at once
-- [tasks.agent_on_it](../capabilities/tasks.agent_on_it.md): Say that an agent is on a task for the person it is assigned to: the task moves to Doing and its row reads "<Agent> is on it for you". Only that person, or the host, may say so
 - [tasks.ask](../capabilities/tasks.ask.md): Ask a question while you work on a task: an Answer task opens for the requester or a named person, the work waits, and the answer wakes you
 - [tasks.assign](../capabilities/tasks.assign.md): Set or clear a slot: Assigned, Reviewer or Approver (person, agent, group, role or automation)
 - [tasks.block](../capabilities/tasks.block.md): Report what is in the way of a task: an Unblock task opens for whoever the task escalates to, and the work waits

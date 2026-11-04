@@ -257,18 +257,6 @@ export function createContactTabSample(space: SampleSpace = northwind, o: { onli
       if (c) addItem(c, { kind: "sms", id: `sms_${sent.length}`, at: SAMPLE_NOW, direction: "out", preview: i.body, ref: { body: i.body, via: i.numberId, address: i.to, status: "queued" } });
       return { smsId: `sms_${sent.length}`, status: "queued" };
     },
-    // a draft as stored: the whole body (a seed may hold more than its list preview), its own recipients, Cc and thread
-    "mail.message.get": (i: { messageId: string }) => {
-      const d = (replica.rows("drafts") as unknown as Array<DraftRow & { full?: string }>).find((r) => r.id === i.messageId);
-      if (!d) throw new Error("There is no such message.");
-      return { message: d, text: d.full ?? d.snippet, attachments: [], provider: { traceId: "0".repeat(32) } };
-    },
-    "mail.draft": (i: { draftId?: string; text?: string; subject?: string }) => {
-      const d = (replica.rows("drafts") as unknown as Array<DraftRow & { full?: string }>).find((r) => r.id === i.draftId);
-      if (d) replica.put("drafts", [{ ...d, ...(i.text !== undefined ? { snippet: i.text.slice(0, 120), full: i.text } : {}), ...(i.subject !== undefined ? { subject: i.subject } : {}), sentAt: SAMPLE_NOW }] as unknown as Row[]);
-      base.calls.push({ cap: "mail.draft", input: i });
-      return { draftId: i.draftId ?? "" };
-    },
     "mail.drafts.discard": (i: { draftId: string }) => {
       replica.remove("drafts", [i.draftId]);
       return { ok: true };
@@ -277,7 +265,6 @@ export function createContactTabSample(space: SampleSpace = northwind, o: { onli
 
   const data: InboxData = {
     ...base.data,
-    agents: () => new Map([["agt_intake", "Intake"], ["agt_billing", "Billing"]]),
     async call(cap, input) {
       const w = writes[cap];
       if (!w) return base.data.call(cap, input);

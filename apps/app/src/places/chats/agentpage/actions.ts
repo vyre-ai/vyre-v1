@@ -29,16 +29,6 @@ export function saveRoleLine(d: PageDeps, agentId: string, description: string, 
   });
 }
 
-/** A face picked on the agent's page: saved on the agent, and the line below offers Undo, which puts the face it wore back. */
-export function saveFace(d: PageDeps, agentId: string, face: string, previous: string): Promise<boolean> {
-  return attempt(d, "save the face", async () => {
-    await d.call("agents.update", { agentId, patch: { face } } satisfies CapMap["agents.update"]["in"]);
-    d.note("Face changed.", async () => {
-      try { await d.call("agents.update", { agentId, patch: { face: previous } } satisfies CapMap["agents.update"]["in"]); d.note("Face is back."); } catch { d.note("Could not undo the face. Try again."); }
-    });
-  });
-}
-
 /** The Chat button: a new chat with this agent, opened in place. */
 export async function startChat(d: PageDeps, agentId: string, name: string): Promise<string | null> {
   try {
@@ -117,23 +107,6 @@ export function setAccounts(d: PageDeps, agentId: string, patch: AccountPatch, b
     await d.call("agents.update", { agentId, patch, idempotencyKey: key("accounts", agentId) });
     d.note(said, async () => {
       try { await d.call("agents.update", { agentId, patch: before, idempotencyKey: key("accounts-undo", agentId) }); d.note("Back to what it was."); } catch { d.note("Could not undo that. Try again."); }
-    });
-  });
-}
-
-export type HelperModels = "same_provider" | "any" | "ask";
-export const HELPER_MODEL_WORDS: Record<HelperModels, { title: string; note: string }> = {
-  same_provider: { title: "Pick for me (same provider)", note: "Helpers use a cheap or a strong model from the same provider, whichever the job needs." },
-  any: { title: "Any provider when I ask", note: "Helpers stay in this provider unless you ask for another." },
-  ask: { title: "Always ask me first", note: "Before a helper starts, the agent asks which model to use." },
-};
-
-/** Where helpers get their models: the one setting on the agent, with Undo. */
-export function setHelperModels(d: PageDeps, agentId: string, value: HelperModels, before: HelperModels): Promise<boolean> {
-  return attempt(d, "save the helper models", async () => {
-    await d.call("agents.update", { agentId, patch: { helperModels: value }, idempotencyKey: key("helper-models", agentId) });
-    d.note(`Helper models: ${HELPER_MODEL_WORDS[value].title}.`, async () => {
-      try { await d.call("agents.update", { agentId, patch: { helperModels: before }, idempotencyKey: key("helper-models-undo", agentId) }); d.note("Back to what it was."); } catch { d.note("Could not undo that. Try again."); }
     });
   });
 }

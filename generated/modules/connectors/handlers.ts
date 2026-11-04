@@ -10,7 +10,6 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "connections.delete": Handler<"connections.delete", X>;
   "connections.get": Handler<"connections.get", X>;
   "connections.list": Handler<"connections.list", X>;
-  "connections.mark_working": Handler<"connections.mark_working", X>;
   "connections.pause": Handler<"connections.pause", X>;
   "connections.reconnect": Handler<"connections.reconnect", X>;
   "connections.resume": Handler<"connections.resume", X>;

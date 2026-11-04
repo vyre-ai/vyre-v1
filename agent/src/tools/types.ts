@@ -76,8 +76,6 @@ export interface ToolCtx {
   turnId?: string;
   runId?: string;
   trace?: { traceId: string; spanId: string; parent?: string };
-  /** What the people in the chat said since this agent last spoke: a value they typed themselves passes the probe guard. */
-  said?: string;
 }
 
 export interface ToolResult { ok: boolean; content: unknown }

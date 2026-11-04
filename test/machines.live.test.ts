@@ -6,15 +6,18 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
-import { NOAH, bootDevice, bootSpace, calm, hostLog, makeAgent, messages, replyAfter, send, startChat, waitFor } from "./support/runson.ts";
+import type { Report } from "../host/src/machines/report.ts";
+import { NOAH, bootDevice, bootSpace, hostLog, makeAgent, replyAfter, send, startChat, waitFor } from "./support/runson.ts";
 
+/** The machines these daemons run on are busy with the test itself: pin their load so the room each has is the same on every run. */
+const calm = (r: Report): Report => ({ ...r, load: { ...r.load, cpuPct: 20, memUsedBytes: Math.round(r.specs.memBytes * 0.4), diskFreeBytes: Math.round(r.specs.diskBytes * 0.6) } });
 
 interface M { machineId: string; name: string; kind: string; online: boolean; restricted: boolean; mine: boolean; cores?: number; os?: string; load?: unknown; vyreLoad?: unknown; can: string[]; room: { score: number; tightest: string }; draining: boolean; runs: { turns: number } }
 const OLIVIA = "device:dev_olivia_mac", NOAHS = "device:dev_noah_mac";
 
 test("machines: reports, history, the admin's limited view, drain and the turn limit with their reasons, an agent's pin, Recent moves, Fix", { timeout: 150_000 }, async () => {
   const s = await bootSpace({ machineReport: calm });
-  const mac = await bootDevice({ reportMs: 500, slowMs: 5000, machineReport: calm });
+  const mac = await bootDevice({ reportMs: 500, slowMs: 2500, machineReport: calm });
   const noah = await bootDevice({ reportMs: 500, name: "Noah's Mac", machineReport: calm });
   try {
     const agentId = await makeAgent(s.d, "Placer");
@@ -74,7 +77,7 @@ test("machines: reports, history, the admin's limited view, drain and the turn l
     // the turn limit: while her one turn runs, the next chat's turn goes to the Space
     assert.equal((await s.as(null, "machines.set", { machineId: OLIVIA, maxTurns: 1 })).status, 200);
     const chatA = await startChat(s, agentId, "mc-a"), chatB = await startChat(s, agentId, "mc-b");
-    const beforeA = await send(s, chatA, agentId, "slowwhere", "mc-slow");
+    const beforeA = await send(s, chatA, agentId, "whereami", "mc-slow");
     await waitFor(async () => ((await list(null)).find((x) => x.machineId === OLIVIA)!.runs.turns >= 1 ? true : null), 15_000, () => hostLog(s.d));
     const full = (await list(null)).find((x) => x.machineId === OLIVIA)!;
     assert.deepEqual([full.room.score, full.room.tightest], [0, "turns"]);
@@ -82,16 +85,10 @@ test("machines: reports, history, the admin's limited view, drain and the turn l
     const work = ((await get(null, OLIVIA)).data as { work: Array<{ kind: string; agentId?: string }> }).work;
     assert.ok(work.some((w) => w.kind === "turn" && w.agentId === agentId), "the running turn is listed under the machine");
     const busy = (await s.as(null, "engine.placement.decide", { threadId: chatB, agentId, kind: "message" })).data;
-    assert.equal(busy.reason, "space", JSON.stringify(busy) + JSON.stringify((await s.as(null, "machines.rooms", { ids: [OLIVIA, "space"] })).data));
+    assert.equal(busy.reason, "space", JSON.stringify(busy));
     assert.match(busy.moved.why, /1 of 1 turns running/);
     assert.equal(await replyAfter(s, chatB, await send(s, chatB, agentId, "whereami", "mc-b1")), "ran-on=space handover=no");
-    const finalA = await waitFor(async () => { const m = (await messages(s, chatA)).slice(beforeA).filter((x) => x.author?.kind === "agent").at(-1)?.body ?? ""; return /ran-on=/.test(m) ? m : null; }, 30_000, () => hostLog(s.d));
-    assert.match(finalA, /ran-on=device handover=no$/, "her slow turn ran on her computer to the end");
-    // two turns started back to back respect a limit of 1: the Space counts what it has started, so one runs on her computer and the other goes to the Space
-    const chatD = await startChat(s, agentId, "mc-d"), chatE = await startChat(s, agentId, "mc-e");
-    const [beforeD, beforeE] = await Promise.all([send(s, chatD, agentId, "whereami", "mc-d1"), send(s, chatE, agentId, "whereami", "mc-e1")]);
-    const where = [await replyAfter(s, chatD, beforeD), await replyAfter(s, chatE, beforeE)].sort();
-    assert.deepEqual(where, ["ran-on=device handover=no", "ran-on=space handover=no"], hostLog(s.d));
+    assert.equal(await replyAfter(s, chatA, beforeA), "ran-on=device handover=no");
     assert.equal((await s.as(null, "machines.set", { machineId: OLIVIA, maxTurns: 4 })).status, 200);
 
     // an agent pinned to the Space server runs there; draining the server moves the agent on, and the turn says why
@@ -123,6 +120,6 @@ test("machines: reports, history, the admin's limited view, drain and the turn l
     assert.notEqual((await s.as(null, "machines.fix", { machineId: NOAHS, fix: "stop_idle" })).status, 200, "an admin does not fix a member's computer");
     const nf = await s.as(NOAH, "machines.fix", { machineId: NOAHS, fix: "stop_idle" });
     assert.equal(nf.status, 200, JSON.stringify(nf.data));
-    assert.deepEqual(nf.data, { state: "done", detail: "No idle engine sessions." });
+    assert.deepEqual(nf.data, { state: "done", detail: "No engine runs on this machine." });
   } finally { await noah.stop(); await mac.stop(); await s.stop(); }
 });

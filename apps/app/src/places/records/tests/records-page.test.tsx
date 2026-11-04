@@ -227,7 +227,7 @@ test("screen: the pane's tabs: Activity after an edit, Memory with the fact and 
   assert.ok(has(memory, 'data-testid="pane-memory"') && has(memory, "Elena prefers email over phone calls") && has(memory, "project"));
   const history = page(s, { tab: "history" });
   assert.ok(has(history, 'data-testid="pane-history"') && has(history, "Signed the retainer") && has(history, "Moved the next step") && has(history, "Edited on the page"));
-  assert.ok(has(page(s, { tab: "files" }), 'data-testid="pane-files"') && has(page(s, { tab: "comments" }), 'data-testid="pane-comments"'), "each tab is its own pane now, not a link to another place");
+  assert.ok(has(page(s, { tab: "chat" }), "Ask pane for clients cl_0") && has(page(s, { tab: "files" }), 'data-testid="pane-files"') && has(page(s, { tab: "comments" }), 'data-testid="pane-comments"'), "each tab is its own pane now, not a link to another place");
 });
 
 test("screen: a field open for editing is an input with its label, no Save button anywhere", () => {

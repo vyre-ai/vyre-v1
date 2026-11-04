@@ -41,7 +41,7 @@ export interface MemoryView { view: KnowRoute | null; open(v: KnowRoute | null):
 export interface MountDoor { connect(into: string | null): void; live?(): void; liveView?: boolean }
 
 /** What the place does for the doors that need its own screen: ask for a name, then make the change. */
-export interface FilesActs { newFolder(scope: "personal" | "space", parentId: string | null): void; rename(kind: "file" | "folder", id: string, current: string): void; upload(folderId: string | null): void; uploadFiles?(folderId: string | null, files: readonly { name: string; type?: string }[]): void; share?(folderId: string): void; shareFile?(fileId: string, name: string): void }
+export interface FilesActs { newFolder(scope: "personal" | "space", parentId: string | null): void; rename(kind: "file" | "folder", id: string, current: string): void; upload(folderId: string | null): void; uploadFiles?(folderId: string | null, files: readonly { name: string; type?: string }[]): void; share?(folderId: string): void }
 
 export function filesData(rt: ShellRuntime, memory?: MemoryView, mounts?: MountDoor, acts?: FilesActs): FilesData {
   return {
@@ -59,7 +59,6 @@ export function filesData(rt: ShellRuntime, memory?: MemoryView, mounts?: MountD
       openFile: (fileId) => rt.open({ screen: "files.viewer", args: { fileId } }),
       openGoal: (goalId: string) => rt.open({ subject: { type: "goal", id: goalId } }),
       ...(acts?.share ? { shareFolder: (folderId: string) => acts.share?.(folderId) } : {}),
-      ...(acts?.shareFile ? { shareFile: (fileId: string, name: string) => acts.shareFile?.(fileId, name) } : {}),
       renameEntry: (kind, id, current) => acts?.rename(kind, id, current),
       ...(mounts ? { connectFolder: (into: string | null) => mounts.connect(into) } : {}),
       ...(mounts?.live ? { openLive: () => mounts.live?.() } : {}),

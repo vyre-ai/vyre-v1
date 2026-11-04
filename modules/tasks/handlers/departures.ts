@@ -63,7 +63,6 @@ export async function onAgentDeleted(ctx: TasksCtx, event: { payload: { agentId?
       // a question or a request nobody is left to read the answer to
       const note = "The agent that asked was deleted.";
       t.state = "canceled";
-      t.workingNotes = { ...t.workingNotes, withdrawn: note };
       delete t.snoozedUntil;
       touch(ctx, ctx.db, t);
       emitTask(ctx, ctx.db, "task.withdrawn", t, { note, sourceKind: t.source?.kind, sourceId: t.source?.id }, { type: "withdrawn", by: ctx.principal.id, note });

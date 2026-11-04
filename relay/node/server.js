@@ -326,7 +326,7 @@ export function createRelay(o = {}) {
 
   const server = http.createServer((req, res) => {
     const url = new URL(req.url || "/", "http://relay");
-    if (url.pathname === "/health") { res.writeHead(200, { "content-type": "application/json" }); res.end(JSON.stringify({ ok: true, version: String(process.env.RELAY_VERSION || "dev") })); return; }
+    if (url.pathname === "/health") { res.writeHead(200, { "content-type": "application/json" }); res.end('{"ok":true}'); return; }
     // /v1/pair alone answers any origin, with no credentials (ADR 0045; relay/worker/index.js
     // does the same): its safety is the ticket, never the caller's origin.
     if (url.pathname === "/v1/pair" && req.method === "OPTIONS") {

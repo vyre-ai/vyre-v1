@@ -54,7 +54,6 @@ export const handlers: Handlers<HandlerCtx> = {
   "google.dwd.status": async (ctx) => { throw new VyreErr(notImplemented("google.dwd.status", ctx.trace)); },
   "google.dwd.sync_members": async (ctx) => { throw new VyreErr(notImplemented("google.dwd.sync_members", ctx.trace)); },
   "google.gmail.create_draft": async (ctx) => { throw new VyreErr(notImplemented("google.gmail.create_draft", ctx.trace)); },
-  "google.gmail.delete_draft": async (ctx) => { throw new VyreErr(notImplemented("google.gmail.delete_draft", ctx.trace)); },
   "google.gmail.get_attachment": async (ctx) => { throw new VyreErr(notImplemented("google.gmail.get_attachment", ctx.trace)); },
   "google.gmail.get_message": async (ctx) => { throw new VyreErr(notImplemented("google.gmail.get_message", ctx.trace)); },
   "google.gmail.get_profile": async (ctx) => { throw new VyreErr(notImplemented("google.gmail.get_profile", ctx.trace)); },

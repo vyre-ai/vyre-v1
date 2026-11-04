@@ -78,7 +78,7 @@ test("production Console AI/Data: policies, spend, Gate, review, incidents, hold
 
     await open("governance.holds", 'text="Place a hold"', "holds");
     await page.getByTestId("hold-new").click(); const holdSheet = page.getByTestId("hold-sheet"); await holdSheet.waitFor();
-    await holdSheet.getByLabel("Find a person, file, folder, channel or chat", { exact: true }).fill(owner.name);
+    await holdSheet.getByLabel("Find a person, file, folder, channel or thread", { exact: true }).fill(owner.name);
     await holdSheet.getByText(owner.name, { exact: true }).first().click();
     await holdSheet.getByLabel("Reason", { exact: true }).fill("Production browser release proof"); await holdSheet.getByRole("button", { name: "Review hold", exact: true }).click(); await holdSheet.getByRole("button", { name: "Place hold", exact: true }).click(); await page.getByText("Hold placed", { exact: true }).waitFor();
     const held = (await api("governance.holds.list", { kind: "person", limit: 100 }) as { holds: { target: { id: string }; reason: string }[] }).holds.find((hold) => hold.reason === "Production browser release proof"); assert.ok(held);

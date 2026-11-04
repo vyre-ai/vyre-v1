@@ -36,7 +36,6 @@ import { AnalyticsPanel, LiveEvents } from "../operations/StudioViews.tsx";
 import { statesFromSteps, stepsFromCall } from "../runs/ledger.ts";
 import type { StepRowLite } from "../runs/ledger.ts";
 import { attemptLine, childRunLine, containerForChildren } from "../runs/lineage.ts";
-import { stepNamer } from "../runs/model.ts";
 import { definitionLabel } from "../versions/cohorts.ts";
 import { CohortMigration } from "../versions/CohortMigration.tsx";
 import { AddDot, StepCard, TriggerCard } from "./Cards.tsx";
@@ -795,13 +794,12 @@ const webTransformOrigin = { transformOrigin: "0 0" } as unknown as Record<strin
 
 function RunsList({ automationId, nodes, onLight, onAsk }: {
   automationId: string;
-  nodes: readonly { id: string; key: string; title?: string | undefined; input?: Record<string, unknown> | undefined }[];
+  nodes: readonly { id: string; key: string }[];
   onLight(r: { id: string; label: string; states: Record<string, RunState> }): void;
   onAsk(message: string): void;
 }): ReactElement {
   const q = useScreenQuery<RunsOut>(CONFIG, "runs", { subject: { type: "automation", id: automationId }, scope: "subject" });
   const data = useAutomationsData();
-  const nameOf = useMemo(() => stepNamer(nodes), [nodes]);
   const [picked, setPicked] = useState<string | null>(null);
   const [steps, setSteps] = useState<StepRowLite[] | null>(null);
   const [err, setErr] = useState<string | null>(null);
@@ -838,12 +836,12 @@ function RunsList({ automationId, nodes, onLight, onAsk }: {
       </View>
       {selected ? (
         <View testID="run-detail" style={s.runDetail}>
-          <Text style={s.kindText}>{selected.summary ?? "Run"}</Text>
-          {selected.parentRun ? <Text style={s.dim}>Retry of an earlier run</Text> : null}
+          <Text style={s.kindText}>{selected.summary ?? selected.id}</Text>
+          {selected.parentRun ? <Text style={s.dim}>{`Parent ${selected.parentRun}`}</Text> : null}
           {/* ui-rows-lint: not a list (one attempt sentence per step) */}
           {steps?.map((step, index) => (
             <View key={`${step.step}-${index}`}>
-              <Text testID={`run-attempt-${step.step}`} style={s.dim}>{attemptLine(step, nameOf)}</Text>
+              <Text testID={`run-attempt-${step.step}`} style={s.dim}>{attemptLine(step)}</Text>
               {/* ui-rows-lint: not a list (one sentence per child run) */}
               {container === step.step ? children.map((child) => <Text key={child.id} testID={`run-child-${child.id}`} style={s.dim}>{childRunLine({ runId: child.id })}</Text>) : null}
             </View>

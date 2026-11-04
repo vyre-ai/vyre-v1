@@ -11,7 +11,6 @@ const spaceRow = t.obj({
   id: id.space, name: t.str(), legalName: t.opt(t.str()), logoFileId: t.opt(id.file), kind: t.enm('personal', 'team'), owner: id.user,
   fingerprint: t.str({ examples: ['ab12 cd34 ef56 7890'] }), address: t.obj({ mode: t.enm('relay', 'own_domain', 'device'), host: t.opt(t.str()) }), hostedOn: t.opt(t.str()),
   defaults: t.rec(), createdAt: t.ts(),
-  deletionAt: t.opt(t.ts()), // set while the Space is scheduled for deletion: when everything is removed unless an admin cancels
 });
 const stepKey = t.enm('photo_title', 'connect_mailbox', 'meet_assistant', 'first_project', 'import');
 const flowKind = t.enm('personal', 'team', 'member');
@@ -27,9 +26,7 @@ export default defineManifest({
     ev('space.updated', 'The Space profile changed (name, legal name, logo, defaults)', { p: { fields: t.arr(t.str()), by: t.str() }, subject: ['entity', '/by'], trigger: { title: 'The Space profile changes' }, retention: 'audit' }),
     ev('space.address_changed', 'The Space address moved between relay and an own domain; devices keep the pinned Space key', { p: { mode: t.enm('relay', 'own_domain'), host: t.opt(t.str()), by: t.str() }, subject: ['entity', '/mode'], retention: 'audit' }),
     ev('space.ownership_transferred', 'Ownership moved to another person', { p: { from: id.user, to: id.user }, subject: ['entity', '/to'], retention: 'audit' }),
-    ev('space.deleted', 'The Space was deleted: its owner scheduled it and the date passed', { p: { by: id.user }, subject: ['entity', '/by'], retention: 'audit' }),
-    ev('space.deletion_scheduled', 'The owner scheduled the Space for deletion; everything is removed on the date unless an admin cancels (every admin gets an Inbox line and an email)', { p: { by: id.user, at: t.ts() }, subject: ['entity', '/by'], retention: 'audit', notify: 'space.deletion_scheduled' }),
-    ev('space.deletion_cancelled', 'An admin cancelled the scheduled deletion; the Space carries on (every admin gets an Inbox line and an email)', { p: { by: id.user }, subject: ['entity', '/by'], retention: 'audit', notify: 'space.deletion_cancelled' }),
+    ev('space.deleted', 'The Space was deleted by its owner', { p: { by: id.user }, subject: ['entity', '/by'], retention: 'audit' }),
     ev('star.added', 'Something was starred', { p: { person: id.user, resource: resourceRef }, subject: ['entity', '/resource/id'], vis: 'owner' }),
     ev('star.removed', 'A star was removed', { p: { person: id.user, resource: resourceRef }, subject: ['entity', '/resource/id'], vis: 'owner' }),
     ev('follow.added', 'Something was followed', { p: { person: id.user, resource: resourceRef }, subject: ['entity', '/resource/id'], vis: 'owner' }),
@@ -86,17 +83,8 @@ export default defineManifest({
     write('spaces.transfer_ownership', 'Owner only: hand the Space to another person', {
       level: 'manage', in: { to: id.user }, out: ok, emits: ['space.ownership_transferred', 'access.changed'], audit: 'always', risk: 'high', tool: 'meta', team: true,
     }),
-    read('spaces.export_latest', 'When the newest finished export of this Space was taken, or nothing when none was; Delete this Space asks for one from the last 24 hours', {
-      ...V, level: 'manage', in: {}, out: { at: t.opt(t.ts()) }, perm: 'records.export', tool: 'meta',
-    }),
-    write('spaces.delete', 'Owner only: schedule the Space for deletion 14 days out after typing its legal name. Needs an export from the last 24 hours, or withoutExport. Everything keeps working until the date', {
-      level: 'manage', in: { confirmName: t.str(), withoutExport: t.opt(t.bool()) }, out: { ...ok, deletionAt: t.ts() }, emits: ['space.deletion_scheduled'], gate: { act: 'delete', when: "actor.kind != 'person'" }, audit: 'always', risk: 'high', tool: 'meta', errors: ['validation.precondition_failed'],
-    }),
-    write('spaces.delete_cancel', 'Owner or an admin: cancel the scheduled deletion with one click; the Space carries on and every admin is told', {
-      level: 'manage', in: {}, out: ok, emits: ['space.deletion_cancelled'], audit: 'always', tool: 'meta', errors: ['validation.precondition_failed'],
-    }),
-    write('spaces.delete_due', 'Host only: when the scheduled date has passed, remove the Space\'s data and stop serving it', {
-      ...V, in: {}, out: { deleted: t.bool() }, emits: ['space.deleted'], audit: 'always', risk: 'high', tool: 'meta',
+    write('spaces.delete', 'Owner only: delete the Space after typing its legal name', {
+      level: 'manage', in: { confirmName: t.str() }, out: ok, emits: ['space.deleted'], gate: { act: 'delete', when: "actor.kind != 'person'" }, audit: 'always', risk: 'high', tool: 'meta', errors: ['validation.precondition_failed'],
     }),
     write('spaces.switch_address', 'Move the Space between the relay and an own domain; devices pin the Space key, so nobody is re-invited', {
       level: 'manage', in: { mode: t.enm('relay', 'own_domain'), host: t.opt(t.str({ examples: ['team.example.com'] })) }, out: { space: spaceRow }, perm: 'server.network', emits: ['space.address_changed'], audit: 'always', risk: 'high', tool: 'engineer', team: true,
@@ -111,7 +99,7 @@ export default defineManifest({
   screens: [
     screen('spaces.console', 'console', 'ui:ConsoleSpace', {
       needs: ['console.access'], q: { space: ['spaces.get'] },
-      a: { cancel: ['spaces.delete_cancel'], update: ['spaces.update', { name: '/state/name', legalName: '/state/legalName', logoFileId: '/state/logoFileId', defaults: '/state/defaults' }], export: ['spaces.export'], transfer: ['spaces.transfer_ownership', { to: '/state/to' }, 'Hand the Space over?'], delete: ['spaces.delete', { confirmName: '/state/confirmName', withoutExport: '/state/withoutExport' }, 'Delete the Space for everyone?'], address: ['spaces.switch_address', { mode: '/state/mode', host: '/state/host' }] },
+      a: { update: ['spaces.update', { name: '/state/name', legalName: '/state/legalName', logoFileId: '/state/logoFileId', defaults: '/state/defaults' }], export: ['spaces.export'], transfer: ['spaces.transfer_ownership', { to: '/state/to' }, 'Hand the Space over?'], delete: ['spaces.delete', { confirmName: '/state/confirmName' }, 'Delete the Space for everyone?'], address: ['spaces.switch_address', { mode: '/state/mode', host: '/state/host' }] },
     }),
     screen('spaces.settings_index', 'settings', 'ui:SettingsSpaces', { q: { tile: ['spaces.switcher'], space: ['spaces.get'] }, a: { leave: ['spaces.leave', { confirm: '/state/confirm' }, 'Leave this Space and wipe its local copy?'] } }),
     screen('spaces.onboarding', 'home', 'ui:OnboardingChecklist', { q: { checklist: ['spaces.onboarding.get'] }, a: { done: ['spaces.onboarding.complete', { step: '/state/step' }], dismiss: ['spaces.onboarding.dismiss'] }, empty: 'You are all set' }),

@@ -11,7 +11,6 @@ export const handlers: Handlers<HandlerCtx> = {
   "goals.checklist.tick": async (ctx) => { throw new VyreErr(notImplemented("goals.checklist.tick", ctx.trace)); },
   "goals.complete": async (ctx) => { throw new VyreErr(notImplemented("goals.complete", ctx.trace)); },
   "goals.confirm": async (ctx) => { throw new VyreErr(notImplemented("goals.confirm", ctx.trace)); },
-  "goals.count": async (ctx) => { throw new VyreErr(notImplemented("goals.count", ctx.trace)); },
   "goals.create": async (ctx) => { throw new VyreErr(notImplemented("goals.create", ctx.trace)); },
   "goals.extend": async (ctx) => { throw new VyreErr(notImplemented("goals.extend", ctx.trace)); },
   "goals.finish": async (ctx) => { throw new VyreErr(notImplemented("goals.finish", ctx.trace)); },

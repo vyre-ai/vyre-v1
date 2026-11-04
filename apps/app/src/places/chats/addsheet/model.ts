@@ -26,7 +26,7 @@ export interface AddSheetDeps {
 
 /* ---------- how an agent answers in a chat ---------- */
 
-/** The row a chat keeps for an agent, in the sheet's words: answers everything, answers when mentioned, or listens and posts only when poked. */
+/** The row a chat keeps for an agent, in the sheet's words: answers everything, answers when tagged, or listens and posts only when poked. */
 export function settingsOf(a: Pick<ThreadAgentRow, "mode" | "quiet" | "when" | "topics" | "hoursFrom" | "hoursTo" | "style">): AgentSettings {
   const how: AgentHow = a.quiet === true ? "listen" : a.mode === "lead" ? "lead" : "tag";
   return {
@@ -41,7 +41,7 @@ export function settingsOf(a: Pick<ThreadAgentRow, "mode" | "quiet" | "when" | "
 
 /** The line under an agent on a Here now row. */
 export function hereSub(a: Pick<ThreadAgentRow, "mode" | "quiet" | "owned">, only: boolean): string {
-  const how = a.quiet === true ? "Only listens" : a.mode === "lead" ? (only ? "In this chat" : "Answers everything") : "Answers when mentioned";
+  const how = a.quiet === true ? "Listening" : a.mode === "lead" ? (only ? "In this chat" : "Answers everything") : "Answers when tagged";
   return a.owned === true ? `${how} · made for this chat` : how;
 }
 
@@ -117,11 +117,3 @@ export function titleOfTarget(kind: AddTarget["kind"], name: string): string {
 
 /** The calls that change who is in, with the agent's id for the line (a call that is only settings adds nobody). */
 export const addsSomeone = (c: AddCall): boolean => c.cap !== "threads.agent_settings.set";
-
-/** A person's role in the Space as one word for the people menu: Owner, Admin, Member, Guest (the built-in roles), else the role's own name. */
-export function roleWord(roles: readonly string[] | undefined): string {
-  const r = (roles ?? [])[0];
-  if (r === undefined) return "Member";
-  const bare = r.replace(/^rol_/, "").replace(/[_-]+/g, " ").trim();
-  return bare === "" ? "Member" : bare.charAt(0).toUpperCase() + bare.slice(1);
-}

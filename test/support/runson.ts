@@ -16,7 +16,6 @@ import { loadConfig } from "../../host/src/daemon/config.ts";
 import { CODE_ROOT, startDaemon } from "../../host/src/daemon/daemon.ts";
 import type { Daemon } from "../../host/src/daemon/daemon.ts";
 import type { NodeLauncher, NodeProc } from "../../host/src/compute/node.ts";
-import type { Report } from "../../host/src/machines/report.ts";
 import { KEY, connect, hostLog, makeAgent, seededDir, waitFor } from "./live.ts";
 
 export { KEY, hostLog, makeAgent, waitFor };
@@ -41,14 +40,6 @@ function rmStrict(dir: string): void {
   }
 }
 
-/**
- * The machines these daemons run on are busy with the test itself (and on a shared CI runner, with other jobs): every rig reports the same fixed load unless a test passes its own `machineReport`, so
- * the room each computer has never depends on the host and Automatic never skips a test's linked computer as busy. The product rule is untouched; a test of the rule passes a loaded report (`loaded`).
- */
-export const calm = (r: Report): Report => ({ ...r, load: { ...r.load, cpuPct: 20, memUsedBytes: Math.round(r.specs.memBytes * 0.4), diskFreeBytes: Math.round(r.specs.diskBytes * 0.6) } });
-/** A machine reported with its CPU and memory nearly all in use. */
-export const loaded = (r: Report): Report => ({ ...r, load: { ...r.load, cpuPct: 98, memUsedBytes: Math.round(r.specs.memBytes * 0.98), diskFreeBytes: Math.round(r.specs.diskBytes * 0.6) } });
-
 export interface SpaceRig { d: Daemon; dir: string; /** the address a computer links to: loopback, or this machine's private address for a LAN Space */ address: string; as(token: string | null, cap: string, input: unknown): Promise<{ status: number; data: any } >; stop(): Promise<void> }   // eslint-disable-line @typescript-eslint/no-explicit-any
 
 /** An address of this machine on its private network (not loopback): a Space there is reached by an engine only through its wall, the way a LAN Space is. */
@@ -69,7 +60,7 @@ export async function bootSpace(o: { lan?: boolean; machineReport?: NonNullable<
     intervals: { fast: 3_600_000, slow: 3_600_000, encryption: 3_600_000, commands: o.commandsMs ?? 3_600_000, hooks: 3_600_000 },
     vault: { secret: async () => KEY, signRs256: async () => "" },
     engineCli: { command: { claude: [process.execPath, FAKE_CLI, "claude"] }, programRead: [path.dirname(FAKE_CLI)] } as never,
-    computeStreamSecure: () => true, computeStreamRecheckMs: 200, machineReport: o.machineReport ?? calm,
+    computeStreamSecure: () => true, computeStreamRecheckMs: 200, ...(o.machineReport ? { machineReport: o.machineReport } : {}),
     session: (h) => {
       const t = /^Bearer (.+)$/.exec(String(h["authorization"] ?? ""))?.[1] ?? "";
       if (t !== "" && t === admin) return { space: "spc_core", principal: { kind: "person", id: "usr_olivia" }, device: "local-admin" };
@@ -117,7 +108,7 @@ export async function bootDevice(o: { slowMs?: number; signedIn?: "claude"; name
     platform: fakePlatform({ os: "linux", hostname: "olivia-mac", free: 80e9, commands: { [`findmnt -n -o SOURCE --target ${dir}`]: { stdout: "/dev/mapper/vyre\n" }, "lsblk -s -n -o TYPE /dev/mapper/vyre": { stdout: "crypt\ndisk\n" } } }),
     fetch: caddyFetch,
     intervals: { fast: 3_600_000, slow: 3_600_000, encryption: 3_600_000, commands: 3_600_000, hooks: 3_600_000 },
-    machineReport: o.machineReport ?? calm,
+    ...(o.machineReport ? { machineReport: o.machineReport } : {}),
     deviceLink: { launcher, engines: ["claude_code"], name: o.name ?? "Olivia's Mac", retryMs: 100, ...(o.reportMs !== undefined ? { reportMs: o.reportMs } : {}), homes: { home, env: {}, platform: "linux", exists: (p) => fs.existsSync(p) } },
   });
   let linked: { space: SpaceRig } | null = null;

@@ -7,8 +7,6 @@
     <key>NSAllowsLocalNetworking</key>
     <true/>
   </dict>
-  <key>NSMicrophoneUsageDescription</key>
-  <string>Vyre listens only while you press the mic, so your words land in the message.</string>
   <key>LSApplicationCategoryType</key>
   <string>public.app-category.productivity</string>
 </dict>

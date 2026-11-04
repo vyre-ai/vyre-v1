@@ -914,31 +914,3 @@ test('browser invite acceptance registers a web device instead of a native deskt
 });
 
 test('Stored Personal Space identity survives loopback endpoint changes without selecting another Space',()=>{const store=memoryStore();const def={spaceId:'spc_personal',name:'Personal',kind:'personal'} as never;writeStored({baseUrl:'http://127.0.0.1:41000',token:'fixture-bearer',def,personId:'usr_fixture',marker:'fixture-marker'},store);assert.equal(readStoredSpace('spc_personal',store)?.baseUrl,'http://127.0.0.1:41000');assert.equal(readStoredSpace('spc_other',store),null);});
-
-
-test("session: the one door asks reach: a member's click on a Console page or on a chat they cannot read goes nowhere and says so; an admin's goes through", async () => {
-  const routes: RouteRow[] = [...ROUTES, { method: "POST", path: "/v1/threads/get", cap: "threads.get", v: 1 }, { method: "POST", path: "/v1/console/nav", cap: "console.nav", v: 1 }, { method: "POST", path: "/v1/tasks/get", cap: "tasks.get", v: 1 }];
-  const screens = async (): Promise<Map<string, ScreenIndexEntry>> => new Map([["console.backups", { ...SCREENS.get("files.list")!, id: "console.backups", place: "console" }], ["chats.conversation", { ...SCREENS.get("files.list")!, id: "chats.conversation", place: "chats" }]]);
-  const run = async (roles: string[], nav: unknown, threadRefused: boolean): Promise<{ went: string[]; said: string[] }> => {
-    const gw = sessionGateway({
-      "POST /v1/identity/whoami": () => ({ body: { data: { ...WHOAMI, roles } } }),
-      "POST /v1/console/nav": () => ({ body: { data: nav } }),
-      "POST /v1/threads/get": () => (threadRefused ? { status: 403, body: { error: { code: "auth.forbidden", message: "no", traceId: "t" } } } : { body: { data: { thread: { threadId: "thr_1" } } } }),
-    });
-    const went: string[] = [];
-    const said: string[] = [];
-    const s = await openRealSession({ baseUrl: "http://s.test", token: "t", fetch: gw.fetch, routes: async () => routes, screens, dial: fakeServer().dial, navigate: (p, h) => went.push(`${p} ${h}`), notice: (t) => said.push(t), pollMs: 1_000_000 });
-    s.runtime.open({ screen: "console.backups" });
-    s.runtime.open({ subject: { type: "thread", id: "thr_1" } });
-    s.runtime.open({ screen: "chats.conversation", args: { threadId: "thr_1" } });
-    await new Promise((r) => setTimeout(r, 40));
-    s.close();
-    return { went, said };
-  };
-  const member = await run(["member"], { groups: [] }, true);
-  assert.deepEqual(member.went, [], "nothing opened for a member");
-  assert.deepEqual(member.said, ["You do not have access to that", "You do not have access to that", "You do not have access to that"], "the Console page and both ways to the chat each say so");
-  const admin = await run(["owner"], { groups: [{ pages: [{ key: "console.backups" }] }] }, false);
-  assert.equal(admin.went.length, 3, "an admin goes everywhere");
-  assert.deepEqual(admin.said, []);
-});

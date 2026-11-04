@@ -67,7 +67,7 @@ export async function agentSettingsSet(ctx: ChatCtx, input: {
   const cur = agentsOf(ctx.db, t.id).find((a) => a.agentId === input.agentId);
   if (!cur) raise(ctx, "validation.not_found", "That agent is not in this chat.");
   await mayAdjust(ctx, t, input.agentId);
-  if (input.mode !== undefined && input.mode !== "lead" && input.mode !== "listen" && input.mode !== "quiet") raise(ctx, "validation.bad_input", "An agent answers everything, answers when mentioned, or listens.", { field: "mode" });
+  if (input.mode !== undefined && input.mode !== "lead" && input.mode !== "listen" && input.mode !== "quiet") raise(ctx, "validation.bad_input", "An agent answers everything, answers when tagged, or listens.", { field: "mode" });
   if (input.when !== undefined && input.when !== "always" && input.when !== "topics" && input.when !== "hours") raise(ctx, "validation.bad_input", "When is always, topics or hours.", { field: "when" });
   if (input.style !== undefined && input.style !== "short" && input.style !== "full") raise(ctx, "validation.bad_input", "Style is short or full.", { field: "style" });
   const clean = (k: "hoursFrom" | "hoursTo"): string | null | undefined => {
@@ -112,7 +112,7 @@ export async function agentCreate(ctx: ChatCtx, input: { threadId: string; name:
   if (!ctx.call) raise(ctx, "internal.unavailable", "Making an agent is not available here.");
   if (!agentMayChange(ctx, t)) raise(ctx, "permission.role_lacks_permission", "Only the lead agent of a chat adds agents to it.");
   if (t.closedAt !== undefined) raise(ctx, "validation.precondition_failed", "This thread is closed. Reopen it first.");
-  if (input.mode !== undefined && input.mode !== "lead" && input.mode !== "listen" && input.mode !== "quiet") raise(ctx, "validation.bad_input", "An agent answers everything, answers when mentioned, or listens.", { field: "mode" });
+  if (input.mode !== undefined && input.mode !== "lead" && input.mode !== "listen" && input.mode !== "quiet") raise(ctx, "validation.bad_input", "An agent answers everything, answers when tagged, or listens.", { field: "mode" });
   if (agentsOf(ctx.db, t.id).length >= MAX_AGENTS) raise(ctx, "validation.bad_input", `A chat can have at most ${MAX_AGENTS} agents.`);
   const brief = input.brief?.replace(/\s+/g, " ").trim();
   const key = input.idempotencyKey ?? ctx.trace.traceId;
@@ -269,7 +269,7 @@ export async function outsideAgentAdd(ctx: ChatCtx, input: { threadId: string; a
   const t = load(ctx, input.threadId);
   if (!ctx.call) raise(ctx, "internal.unavailable", "Adding an agent is not available here.");
   if (!input.agentId.startsWith("agt_")) raise(ctx, "validation.bad_input", "That is not an agent.", { agentId: input.agentId });
-  if (input.mode !== undefined && input.mode !== "listen" && input.mode !== "quiet") raise(ctx, "validation.bad_input", "An outside agent answers when mentioned, or listens.", { field: "mode" });
+  if (input.mode !== undefined && input.mode !== "listen" && input.mode !== "quiet") raise(ctx, "validation.bad_input", "An outside agent answers when tagged, or listens.", { field: "mode" });
   if (!agentMayChange(ctx, t)) raise(ctx, "permission.role_lacks_permission", "Only the lead agent of a chat adds agents to it.");
   if (t.closedAt !== undefined) raise(ctx, "validation.precondition_failed", "This thread is closed. Reopen it first.");
   const agent = await mustBeUsable(ctx, input.agentId);

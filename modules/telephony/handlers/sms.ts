@@ -13,13 +13,9 @@ import { HostError, fail } from "../../../host/src/routes/errors.ts";
 import {
   actorOf, bad, ensure, first, isId, isInt, keyOf, liveNumber, list, newId, seesNumber, num, obj, pageOf, paging, parseJson, patch, phone, refuse, rowsOf, setting, smsOut, str, strOrNull, strOrUndef, text, validZone,
 } from "../projections.ts";
-import { agentsMaySend, statements } from "../projections.ts";
+import { agentsMaySend } from "../projections.ts";
 import type { Json, Row, TelCtx } from "../projections.ts";
 import { zoneOfNumber } from "./zones.ts";
-import { DAY as LIMIT_DAY, DEFAULT_LIMITS, capMessage, capOk, heldText, planSend, throttleOk, windowOk as sendWindowOk } from "../../../lib/send-limits.ts";
-import type { SendLimits } from "../../../lib/send-limits.ts";
-import { readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
 
 interface Caps { perHour: number; perDay: number }
 interface Window { days: number[]; startHour: number; endHour: number; zone: "recipient" | "space" }
@@ -67,42 +63,6 @@ export function nextWindowStart(ms: number, zone: string, w: Pick<Window, "days"
   let t = ms - (ms % STEP) + STEP;
   for (let i = 0; i < 8 * 96; i++, t += STEP) if (inWindow(t, zone, w)) return t;
   return null;
-}
-
-// ---- the Space sending limits (send.cap, send.window, send.throttle; lib/send-limits.ts)
-
-const tickSql = readFileSync(fileURLToPath(new URL("../migrations/0003_send_ticks.sql", import.meta.url)), "utf8");
-const tickReady = new WeakSet<object>();
-function ensureTicks(ctx: TelCtx): void {
-  if (tickReady.has(ctx.db)) return;
-  try { ctx.db.all(`SELECT id FROM telephony_send_tick WHERE id = ?`, "probe"); } catch { for (const statement of statements(tickSql)) ctx.db.run(statement); }
-  tickReady.add(ctx.db);
-}
-
-/**
- * One text against the Space's daily limit, sending window (the recipient's time zone, else the Space's) and speed limit. Over the daily limit: refused with reason send_cap_reached. Otherwise the time it may
- * leave, with the slot taken; a later time than asked means the text is held. A person is not made to wait. The send_window above (telephony.send_window) still applies; the stricter of the two wins.
- */
-async function reserveSlot(ctx: TelCtx, to: string, wanted: number, now: number, bulk: boolean, id: string): Promise<{ at: number; note: string | null }> {
-  ensureTicks(ctx);
-  const own = await setting<string>(ctx, "profile.timezone", "UTC", zoneOk);
-  const zone = zoneOfNumber(to) ?? own;
-  const limits: SendLimits = {
-    cap: await setting(ctx, "send.cap", DEFAULT_LIMITS.cap, capOk),
-    window: await setting(ctx, "send.window", DEFAULT_LIMITS.window, sendWindowOk),
-    perMinute: await setting(ctx, "send.throttle", DEFAULT_LIMITS.perMinute, throttleOk),
-  };
-  const ticks: number[] = [];
-  for (const r of rowsOf(ctx.db.all(`SELECT * FROM telephony_send_tick`))) {
-    if (num(r, "at") < now - 2 * LIMIT_DAY) ctx.db.run(`DELETE FROM telephony_send_tick WHERE id = ?`, str(r, "id"));
-    else ticks.push(num(r, "at"));
-  }
-  const plan = planSend({ now, wanted, zone, limits, ticks, bulk });
-  if (!plan.ok) {
-    throw fail("validation.precondition_failed", ctx.trace.traceId, { message: capMessage(plan.limit, plan.resetAt, zone), details: { reason: plan.reason, limit: plan.limit, resetAt: plan.resetAt } });
-  }
-  ctx.db.run(`INSERT INTO telephony_send_tick (id, at) VALUES (?, ?)`, id, plan.at);
-  return { at: plan.at, note: plan.held ? heldText(plan.held, plan.at, zone) : null };
 }
 
 // ---- the plan
@@ -160,7 +120,7 @@ function capCheck(ctx: TelCtx, numberId: string, caps: Caps, now: number): void 
 interface SendIn {
   numberId: string; senderId?: string; to: string; body: string; mediaFileIds?: string[]; contactId?: string; replyToId?: string; transactional?: boolean; sendAt?: number; idempotencyKey: string;
 }
-interface SendOut { smsId?: string; status: "queued" | "sent" | "held" | "suppressed"; taskId?: string; note?: string }
+interface SendOut { smsId?: string; status: "queued" | "sent" | "held" | "suppressed"; taskId?: string }
 
 function check(ctx: TelCtx, input: SendIn): void {
   keyOf(ctx, input);
@@ -217,25 +177,16 @@ export async function sendSms(ctx: TelCtx, input: SendIn): Promise<SendOut> {
     capCheck(ctx, input.numberId, await setting<Caps>(ctx, "telephony.sender_caps", DEFAULT_CAPS, capsOk), now);
   }
 
-  // the Space's sending limits; a text coming back from the queue at its time already holds its slot
-  let note: string | null = null;
-  const textId = due ? str(due, "id") : newId("sms", now);
-  if (!due) {
-    const slot = await reserveSlot(ctx, input.to, when, now, bulk, textId);
-    when = slot.at;
-    note = slot.note;
-  }
-
   if (when > now) {
     if (!ctx.schedule) throw fail("internal.unavailable", ctx.trace.traceId, { message: "Scheduling is not available right now." });
-    const id = textId;
+    const id = due ? str(due, "id") : newId("sms", now);
     if (due) patch(ctx, "telephony_sms", id, { at: when });
     else insertSms(ctx, id, { n, input, contactId, status: "queued", at: when, direction: "out" });
     await ctx.schedule(when, "telephony.send_sms", { ...stripUndefined(input), sendAt: when, idempotencyKey: `${input.idempotencyKey}:due` });
-    return { smsId: id, status: "queued", ...(note ? { note } : {}) };
+    return { smsId: id, status: "queued" };
   }
 
-  const id = textId;
+  const id = due ? str(due, "id") : newId("sms", now);
   if (!due) insertSms(ctx, id, { n, input, contactId, status: "queued", at: now, direction: "out" });
   let sent: Json;
   try {

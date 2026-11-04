@@ -112,7 +112,6 @@ export async function send(ctx: NotifCtx, input: SendIn, handed = false): Promis
 
   if (def.key === "approval.requested" && !collapsed) await scheduleBackstop(ctx, def, person, rules.emailBackstop, input, title);
   if (def.key === "approval.backstop" && rules.emailBackstop) await sendBackstopEmail(ctx, person, row, collapseKey ?? row.id);
-  if (EMAIL_KINDS.has(def.key) && !collapsed) await sendKindEmail(ctx, person, row);
   return { outcome: capped ? "capped" : row.level, notificationId: row.id };
 }
 
@@ -124,14 +123,6 @@ async function scheduleBackstop(ctx: NotifCtx, def: KindDef, person: string, wan
       to: person, kind: "approval.backstop", subject: input.subject, title: input.title ?? title, collapseKey: `approval.backstop:${input.subject.id}`,
     });
   } catch (e) { ctx.log?.warn("backstop not scheduled", (e as Error).message); }
-}
-/** Kinds that also go out as one email to the person, whatever their backstop setting: a Space scheduled for deletion, and the deletion cancelled. */
-const EMAIL_KINDS: ReadonlySet<string> = new Set(["space.deletion_scheduled", "space.deletion_cancelled"]);
-async function sendKindEmail(ctx: NotifCtx, person: string, row: Row): Promise<void> {
-  const p = pushPort();
-  if (!p?.email) return;
-  try { await p.email({ to: person, subject: row.title, deepLink: row.kind === "space.deletion_scheduled" ? "vyre://console/spacedel" : "vyre://inbox" }); }
-  catch (e) { ctx.log?.warn("notification email failed", (e as Error).message); }
 }
 async function sendBackstopEmail(ctx: NotifCtx, person: string, row: Row, key: string): Promise<void> {
   const p = pushPort();

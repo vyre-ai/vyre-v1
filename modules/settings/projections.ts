@@ -7,7 +7,7 @@ import { fail } from "../../host/src/routes/errors.ts";
 import { registry } from "../../generated/registry.ts";
 
 /** The part of the host Ctx these handlers use. The full Ctx satisfies it. */
-export type SettingsCtx = Pick<Ctx, "space" | "principal" | "actingFor" | "trace" | "now" | "db" | "emit" | "authorize" | "call">;
+export type SettingsCtx = Pick<Ctx, "space" | "principal" | "actingFor" | "trace" | "now" | "db" | "emit" | "authorize">;
 type Code = Parameters<typeof fail>[0];
 export function raise(ctx: Pick<SettingsCtx, "trace">, code: Code, message?: string): never {
   throw fail(code, ctx.trace.traceId, message ? { message } : {});

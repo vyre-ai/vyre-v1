@@ -48,10 +48,6 @@ type Out = {
     memberCount: number;
     openTasks: number;
     lateTasks: number;
-    health?: "on" | "risk" | "off" | "hold" | "done";
-    healthSetBy?: string;
-    healthSetAt?: number;
-    archivedAt?: number;
   };
   goal?: string;
   statusUpdate?: {
@@ -59,11 +55,6 @@ type Out = {
     at: number;
     by: string;
     drafted: boolean;
-  };
-  updateDraft?: {
-    text: string;
-    at: number;
-    by: string;
   };
   milestones: Array<{
       taskId: string;
@@ -213,13 +204,9 @@ type Out = {
       "fil_a1b2c3"
     ],
     "project": {
-      "archivedAt": 1760000000000,
       "channelId": "chn_a1b2c3",
       "due": 1760000000000,
       "folderId": "fld_a1b2c3",
-      "health": "on",
-      "healthSetAt": 1760000000000,
-      "healthSetBy": "usr_a1b2c3",
       "lateTasks": 1,
       "lead": "usr_a1b2c3",
       "memberCount": 1,
@@ -243,11 +230,6 @@ type Out = {
       "at": 1760000000000,
       "by": "example",
       "drafted": true,
-      "text": "example"
-    },
-    "updateDraft": {
-      "at": 1760000000000,
-      "by": "example",
       "text": "example"
     },
     "waiting": [

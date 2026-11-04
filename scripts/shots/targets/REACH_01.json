@@ -1,9 +1,0 @@
-{
-  "targets": [
-    { "id": "REACH_01-member", "route": "/m/REACH_01?part=member", "proto": "chat,{skin}", "waitFor": "[data-testid='popup-host']", "note": "A member sees the machine the computer runs on as a link." },
-    { "id": "REACH_01-member-open", "route": "/m/REACH_01?part=member-open", "proto": "chat,{skin}", "waitFor": "[data-testid='popup-host-peek']", "note": "The member presses it: a peek with Offline, the agents there, whose computer it is and Tell an admin. The Console does not open." },
-    { "id": "REACH_01-member-sent", "route": "/m/REACH_01?part=member-sent", "proto": "chat,{skin}", "waitFor": "[data-testid='popup-host-sent']", "note": "After Tell an admin: one quiet line, Sent to the Space's admins." },
-    { "id": "REACH_01-admin", "route": "/m/REACH_01?part=admin", "proto": "chat,{skin}", "waitFor": "[data-testid='reach-went']", "note": "An admin presses it and goes to Console, Computers with the machine selected." },
-    { "id": "REACH_01-owner", "route": "/m/REACH_01?part=owner", "proto": "chat,{skin}", "waitFor": "[data-testid='reach-went']", "note": "The machine's owner goes to Settings, This device." }
-  ]
-}

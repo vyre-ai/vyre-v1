@@ -8,8 +8,6 @@ import type { ArtifactFilter } from "../../../../../../ui/src/ArtifactCard/index
 import { useMenu } from "../../../../../../ui/src/Menu/index.tsx";
 import type { CapMap } from "../../../../../../generated/types.ts";
 import type { ShellRuntime } from "../../../shell/providers/runtime.tsx";
-import { artifactMenu } from "../menus/artifact.ts";
-import { TextAsk } from "../menus/TextAsk.tsx";
 import { nameLookup } from "../../../shell/providers/records-live.ts";
 import { infoOf } from "./ArtifactView.tsx";
 import { plainLink } from "./artifact-address.ts";
@@ -23,7 +21,6 @@ export function ArtifactsPage({ rt }: { rt: ShellRuntime }): ReactElement {
   const [rows, setRows] = useState<readonly Row[] | null>(null);
   const [filter, setFilter] = useState<ArtifactFilter>("Mine");
   const [q, setQ] = useState("");
-  const [renaming, setRenaming] = useState<{ id: string; name: string } | null>(null);
   const { element, show } = useMenu();
   const nameOf = useMemo(() => nameLookup(rt), [rt]);
   const load = useCallback((): (() => void) => {
@@ -42,7 +39,6 @@ export function ArtifactsPage({ rt }: { rt: ShellRuntime }): ReactElement {
     const box = doc?.activeElement?.getBoundingClientRect?.();
     show(ARTIFACT_FILTERS.map((f) => ({ label: `${f === filter ? "✓ " : " "}${f}`, onSelect: () => setFilter(f) })), box?.left ?? 8, box ? box.bottom + 4 : 48, "other", { label: "Show" });
   };
-  const copy = (id: string): void => { void (globalThis as { navigator?: { clipboard?: { writeText?: (t: string) => Promise<void> } } }).navigator?.clipboard?.writeText?.(plainLink(rt.baseUrl, id)); };
   const empty = rows !== null && shown.length === 0;
   return (
     <ScrollView testID="artifacts-page" style={LIST_PAGE.root} contentContainerStyle={LIST_PAGE.content}>
@@ -66,10 +62,7 @@ export function ArtifactsPage({ rt }: { rt: ShellRuntime }): ReactElement {
                 <ArtifactCard
                   grid info={a} meId={rt.me.id} now={now} nameOf={nameOf}
                   onOpen={() => open(a.id)} onShare={() => open(a.id, true)}
-                  menu={(askDelete) => artifactMenu({ mine: a.owner === rt.me.id }, {
-                    open: () => open(a.id), share: () => open(a.id, true), copyLink: () => copy(a.id), rename: () => setRenaming({ id: a.id, name: a.name }), remove: askDelete,
-                  })}
-                  onCopyLink={() => copy(a.id)}
+                  onCopyLink={() => { void (globalThis as { navigator?: { clipboard?: { writeText?: (t: string) => Promise<void> } } }).navigator?.clipboard?.writeText?.(plainLink(rt.baseUrl, a.id)); }}
                   onBrowser={() => void address(a.id).then((u) => rt.openUrl(u), () => undefined)}
                   onDelete={a.owner === rt.me.id ? () => void Promise.resolve(rt.call("sites.delete", { siteId: a.id })).then(() => load(), () => undefined) : undefined}
                   onFrom={(chatId) => rt.open({ subject: { type: "thread", id: chatId } })}
@@ -80,7 +73,6 @@ export function ArtifactsPage({ rt }: { rt: ShellRuntime }): ReactElement {
         )}
       </View>
       {element}
-      {renaming ? <TextAsk title="Rename" label="Name" action="Rename" initial={renaming.name} onClose={() => setRenaming(null)} onDone={(name) => { const id = renaming.id; setRenaming(null); void Promise.resolve(rt.call("sites.update", { siteId: id, name })).then(() => load(), () => undefined); }} /> : null}
     </ScrollView>
   );
 }

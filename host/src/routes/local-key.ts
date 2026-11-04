@@ -76,7 +76,7 @@ export function createLocalKeyRoute(deps: LocalKeyDeps): { handle(req: http.Inco
       deps.log?.(op === "forget" ? "vault.wrap_forgotten" : "vault.wrap_remembered", { person });
       return send(res, 204);
     }
-    if (op === "lock") { deps.keyring.lock(person); deps.log?.("vault.key_dropped", { person, door: local ? "local" : "space" }); return send(res, 204); }
+    if (op === "lock") { deps.keyring.clear(person); deps.log?.("vault.key_dropped", { person, door: local ? "local" : "space" }); return send(res, 204); }
     let key: Buffer;
     try {
       const k = (await bodyOf(req) as { key?: unknown }).key;

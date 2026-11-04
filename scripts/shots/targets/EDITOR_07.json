@@ -1,5 +1,0 @@
-{
-  "targets": [
-    { "id": "EDITOR_07-composer", "route": "/m/EDITOR_07", "proto": "chats,{skin}", "waitFor": "[data-testid='composer']", "note": "The composer's layout at every width." }
-  ]
-}

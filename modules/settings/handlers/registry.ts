@@ -2,7 +2,6 @@
 // value so Undo is one more call; the Space-wide rows and the owner floor; Cmd-F; Copy from another Space; and the Kit choice. A value no schema accepts is refused with a sentence.
 import { COPY_KEY, DEFAULT_KIT, PAGES, byOf, comparable, defOf, defs, drop, effective, floorOf, meetsFloor, me, meRead, pageOf, put, raise, refusal, rowOut, search, stored } from "../projections.ts";
 import type { CopyField, SettingsCtx } from "../projections.ts";
-import { clearStale } from "./contact.ts";
 import { isHostService } from "../../../lib/trust.ts";
 
 // ---- reads
@@ -72,7 +71,6 @@ export async function set(ctx: SettingsCtx, input: { key: string; value: unknown
   const before = effective(ctx, d, person).value;
   put(ctx, input.key, "person", person, input.value);
   changed(ctx, input.key, "person", person, before, input.value);
-  if (input.key === "profile.contact") clearStale(ctx, person);
   return { row: rowOut(ctx, d, person), previous: before };
 }
 
@@ -84,7 +82,6 @@ export async function reset(ctx: SettingsCtx, input: { key: string }) {
   drop(ctx, input.key, "person", person);
   const after = effective(ctx, d, person).value;
   if (JSON.stringify(before) !== JSON.stringify(after)) changed(ctx, input.key, "person", person, before, after);
-  if (input.key === "profile.contact") clearStale(ctx, person);
   return { row: rowOut(ctx, d, person) };
 }
 
@@ -150,17 +147,11 @@ export async function copySource(ctx: SettingsCtx, _input: Record<string, never>
 export async function publicOf(ctx: SettingsCtx, input: { personId: string }) {
   spaceReader(ctx);
   if (typeof input.personId !== "string" || !input.personId.startsWith("usr_")) raise(ctx, "validation.bad_input", "That is not a person.");
-  const out: { timezone?: string; hours?: unknown; pronouns?: string; title?: string; phone?: string } = {};
+  const out: { timezone?: string; hours?: unknown } = {};
   const zone = stored(ctx, "profile.timezone", "person", input.personId)?.value;
   if (typeof zone === "string" && zone.trim() !== "") out.timezone = zone.trim();
   const hours = stored(ctx, "profile.working_hours", "person", input.personId)?.value;
   if (hours !== null && typeof hours === "object") out.hours = hours;
-  const pronouns = stored(ctx, "profile.pronouns", "person", input.personId)?.value;
-  if (typeof pronouns === "string" && pronouns.trim() !== "") out.pronouns = pronouns.trim();
-  const phone = stored(ctx, "profile.public_phone", "person", input.personId)?.value;
-  if (typeof phone === "string" && phone.trim() !== "") out.phone = phone.trim();
-  const title = stored(ctx, "profile.title", "person", input.personId)?.value;
-  if (typeof title === "string" && title.trim() !== "") out.title = title.trim();
   return out;
 }
 
@@ -184,7 +175,6 @@ export async function copyProfile(ctx: SettingsCtx, input: { fields: CopyField[]
     changed(ctx, t.key, "person", person, before, t.value);
     if (!applied.includes(t.f)) applied.push(t.f);
   }
-  clearStale(ctx, person);
   return { applied };
 }
 

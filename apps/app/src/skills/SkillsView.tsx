@@ -6,7 +6,7 @@
 // Adding is one sheet: paste a link, drop a folder or zip, browse a marketplace, or ask the Assistant. What a skill can touch is shown before it is added and on every card.
 import { createElement, useCallback, useEffect, useRef, useState } from "react";
 import type { ReactElement } from "react";
-import { Platform, Pressable, Text, View } from "react-native";
+import { Platform, Text, View } from "react-native";
 import { Dialog } from "../../../../ui/src/Dialog/index.tsx";
 import { DropZone } from "../../../../ui/src/FileDrop/index.tsx";
 import type { DroppedFile } from "../../../../ui/src/FileDrop/index.tsx";
@@ -32,10 +32,6 @@ const t = {
 };
 const card = { padding: 14, gap: 8, borderBottomWidth: 1, borderBottomColor: "var(--line)" } as const;
 const actions = { flexDirection: "row", gap: 8, flexWrap: "wrap", marginTop: 4 } as const;
-/** In the Console a card's rows sit 10px from the card edge and 1px lines divide them. `index` is the row's place in its list. */
-export const consoleLine = (index: number): { paddingVertical: number; borderTopWidth: number; borderTopColor: string } => ({ paddingVertical: 10, borderTopWidth: index === 0 ? 0 : 1, borderTopColor: "var(--line)" });
-// ui-rows-lint: not a list (a divider around rows that are each a ui/Row already)
-const lined = (rows: readonly ReactElement[]): ReactElement[] => rows.map((r, i) => <View key={r.key ?? i} style={consoleLine(i)}>{r}</View>);
 const quietText = (s: string): ReactElement => <Text style={t.quiet}>{s}</Text>;
 
 /** What a skill can touch, as plain lines under a small heading. */
@@ -69,17 +65,12 @@ export interface ListsProps {
   onToggle(target: { kind: "mine" | "shared"; skillId: string } | { kind: "space"; name: string }, on: boolean): void; onAdd(): void; onAdopt(m: MemberSkill): void; onPolicy(on: boolean): void;
 }
 
-/** The add button of the page: quiet text, no frame until the pointer is over it, so it never competes with the lists. */
-function GhostAdd({ label, onPress }: { label: string; onPress: () => void }): ReactElement {
-  return <Pressable accessibilityRole="button" accessibilityLabel={label} testID="skill-add" onPress={onPress} style={({ hovered }: { hovered?: boolean }) => ({ height: 28, paddingHorizontal: 10, borderRadius: 7, justifyContent: "center", backgroundColor: hovered ? "var(--hover)" : "transparent" }) as never}><Text style={{ fontSize: 12.5, fontWeight: "500", color: "var(--ink-2)" as string }}>{`+ ${label}`}</Text></Pressable>;
-}
-
 /** The lists of the page, drawn from skills.page. Pure: the static test renders it with a page and no server. */
 export function SkillsLists(p: ListsProps): ReactElement {
   const { page, mode } = p;
   const added = page.shared.filter((c) => c.state === "added");
   const later = page.shared.filter((c) => c.state === "not_now");
-  const addButton = <GhostAdd label={mode === "console" ? "Add a Space skill" : "Add a skill"} onPress={p.onAdd} />;
+  const addButton = <SmallButton primary label={mode === "console" ? "Add a Space skill" : "Add a skill"} testID="skill-add" onPress={p.onAdd} />;
   const spaceRow = (s: SpaceSkill): ReactElement => <Row key={s.skillId} id={`skill-space-${s.name}`} title={titleOf(s)}
     note={`${s.description} · ${mode === "console" ? sourceLine(s) : "Set by an admin for everyone"}${s.needs.length > 0 ? ` · Needs ${s.needs.length === 1 ? "a key" : `${s.needs.length} keys`}` : ""}${s.enabled ? "" : " · Off"}`}
     onPress={() => p.onOpen({ kind: "space", skillId: s.skillId })}
@@ -91,18 +82,18 @@ export function SkillsLists(p: ListsProps): ReactElement {
   if (mode === "console") {
     const members = p.members ?? [];
     return <View testID="skills-console" style={{ gap: 4 }}>
-      <View style={{ flexDirection: "row", alignItems: "center", marginTop: 10, marginBottom: 6 }}><Text style={[t.lead, { flex: 1 }]}>Space-wide skills apply to every member and their agents at once, with no card to approve.</Text></View>
+      <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 6 }}><Text style={[t.lead, { flex: 1 }]}>Space-wide skills apply to every member and their agents at once, with no card to approve.</Text>{addButton}</View>
       <Section title="Space-wide" testID="skills-space">
-        {page.space.length > 0 ? lined(page.space.map(spaceRow)) : <View style={consoleLine(0)}><Row id="skills-space-none" title="No Space-wide skills yet" note="Add one, or make a member's shared skill Space-wide" /></View>}
+        {page.space.length > 0 ? page.space.map(spaceRow) : <Row id="skills-space-none" title="No Space-wide skills yet" note="Add one, or make a member's shared skill Space-wide" />}
       </Section>
       <Section title="Who may add skills that run code" testID="skills-policy" note="Off by default. Members approve their own skills and the ones shared with them either way.">
-        <View style={consoleLine(0)}><Row id="skills-policy-scripts" title="Only admins add skills that run scripts or start tool servers" trailing={<Switch on={page.policy.scriptsAdminOnly} label="Only admins add skills that run scripts" testID="skills-policy-switch" onChange={p.onPolicy} />} /></View>
+        <Row id="skills-policy-scripts" title="Only admins add skills that run scripts or start tool servers" trailing={<Switch on={page.policy.scriptsAdminOnly} label="Only admins add skills that run scripts" testID="skills-policy-switch" onChange={p.onPolicy} />} />
       </Section>
       <Section title="Members' skills" testID="skills-members" note="Names only. You can read a skill only when its owner shared it.">
-        {members.length > 0 ? lined(members.map((m) => <Row key={`${m.owner}:${m.name}`} id={`skill-member-${m.owner}-${m.name}`} title={m.name} note={`${m.ownerName}${m.shared ? (m.toSpace ? " · Shared with everyone here" : " · Shared") : ""}`}
+        {members.length > 0 ? members.map((m) => <Row key={`${m.owner}:${m.name}`} id={`skill-member-${m.owner}-${m.name}`} title={m.name} note={`${m.ownerName}${m.shared ? (m.toSpace ? " · Shared with everyone here" : " · Shared") : ""}`}
           {...(m.skillId ? { onPress: () => p.onView({ skillId: m.skillId! }) } : {})}
-          trailing={m.shared ? <SmallButton label="Make Space-wide" testID={`skill-adopt-${m.name}`} disabled={p.busy === true} onPress={() => p.onAdopt(m)} /> : undefined} />))
-          : <View style={consoleLine(0)}><Row id="skills-members-none" title="No member has a skill of their own yet" /></View>}
+          trailing={m.shared ? <SmallButton label="Make Space-wide" testID={`skill-adopt-${m.name}`} disabled={p.busy === true} onPress={() => p.onAdopt(m)} /> : undefined} />)
+          : <Row id="skills-members-none" title="No member has a skill of their own yet" />}
       </Section>
       {builtin}
     </View>;
@@ -305,13 +296,11 @@ export interface SkillsPageProps {
   ask?: (draft: string) => void;
   /** Open the page with the Add sheet up (the screenshots and a deep link). */
   initialAdd?: boolean;
-  /** Console: a count the page above raises to open the Add sheet (its "Add a Space skill" button lives in the Installed for the Space header). */
-  addTick?: number;
 }
 
 const msg = (e: unknown): string => { const x = e as { message?: string; error?: { message?: string } }; return x.error?.message ?? x.message ?? "That did not work."; };
 
-export function SkillsPage({ call, mode, ask, initialAdd = false, addTick = 0 }: SkillsPageProps): ReactElement {
+export function SkillsPage({ call, mode, ask, initialAdd = false }: SkillsPageProps): ReactElement {
   const [page, setPage] = useState<Page | null>(null);
   const [members, setMembers] = useState<MemberSkill[]>([]);
   const [people, setPeople] = useState<{ id: string; name: string }[]>([]);
@@ -320,7 +309,6 @@ export function SkillsPage({ call, mode, ask, initialAdd = false, addTick = 0 }:
   const [open, setOpen] = useState<{ kind: "mine" | "shared" | "space"; skillId: string } | null>(null);
   const [viewing, setViewing] = useState<{ name: string; text: string; files: { path: string; bytes: number }[] } | null>(null);
   const [adding, setAdding] = useState(initialAdd);
-  useEffect(() => { if (addTick > 0) { setAdding(true); setFound(null); setAddError(null); } }, [addTick]);
   const [found, setFound] = useState<AddProps["found"]>(null);
   const [addError, setAddError] = useState<string | null>(null);
   const [browse, setBrowse] = useState<BrowseRow[]>([]);

@@ -4,9 +4,6 @@ import type { Handlers } from './handlers.ts';
 
 /** Example answers: the first example output of each capability (used when the host serves a stub module). */
 export const handlers: Handlers<HandlerCtx> = {
-  "settings.contact.status": async () => ({"email":{"canVerify":true,"pending":true,"verified":true},"phone":{"canVerify":true,"pending":true,"verified":true}} as unknown) as never,
-  "settings.contact.verify_confirm": async () => ({"verified":true} as unknown) as never,
-  "settings.contact.verify_start": async () => ({"expiresAt":1,"sent":true,"verified":true} as unknown) as never,
   "settings.copy_profile": async () => ({"applied":["photo"]} as unknown) as never,
   "settings.copy_source": async () => ({"contact":{"email":"example","phone":"example"},"handle":"example","hours":{},"name":"example","photoFileId":"fil_a1b2c3","timezone":"example"} as unknown) as never,
   "settings.floor_set": async () => ({"row":{"default":{},"floor":{},"floorable":true,"key":"profile.timezone","page":"profile","scope":"space","source":"default","title":"example","value":{}}} as unknown) as never,
@@ -16,7 +13,7 @@ export const handlers: Handlers<HandlerCtx> = {
   "settings.kit.set_space": async () => ({"kit":{"effective":"kit_a1b2c3","person":"kit_a1b2c3","space":"kit_a1b2c3"}} as unknown) as never,
   "settings.list": async () => ({"rows":[{"default":{},"floor":{},"floorable":true,"key":"profile.timezone","page":"profile","scope":"space","source":"default","title":"example","value":{}}]} as unknown) as never,
   "settings.pages": async () => ({"pages":[{"group":"you","key":"example","rows":1,"title":"example"}]} as unknown) as never,
-  "settings.public_of": async () => ({"hours":{"days":[1],"from":"example","to":"example"},"phone":"example","pronouns":"example","timezone":"example","title":"example"} as unknown) as never,
+  "settings.public_of": async () => ({"hours":{"days":[1],"from":"example","to":"example"},"timezone":"example"} as unknown) as never,
   "settings.reset": async () => ({"row":{"default":{},"floor":{},"floorable":true,"key":"profile.timezone","page":"profile","scope":"space","source":"default","title":"example","value":{}}} as unknown) as never,
   "settings.reset_space": async () => ({"row":{"default":{},"floor":{},"floorable":true,"key":"profile.timezone","page":"profile","scope":"space","source":"default","title":"example","value":{}}} as unknown) as never,
   "settings.search": async () => ({"rows":[{"key":"example","page":"example","score":1,"title":"example"}]} as unknown) as never,

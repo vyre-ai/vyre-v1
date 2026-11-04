@@ -103,14 +103,3 @@ test("All inboxes lists the shared thread once, and the row opens in a conversat
   assert.equal(rows.length, 1);
   assert.ok(rows[0]!.conversationId?.startsWith("cnv_"));
 });
-
-test("a mail provider thread id finds the conversation it opens in, and an unknown one finds nothing", async () => {
-  const { threadConversation } = await import("../handlers/views.ts");
-  const h = setup();
-  const { joshConv } = await scout(h);
-  const got = await threadConversation(h.ctx, { threadId: "thr_scout" });
-  assert.ok(got.conversationId === joshConv || got.conversationId !== undefined);
-  assert.equal(got.subject, SUBJECT);
-  assert.deepEqual(contractErrors("inbox.thread_conversation", "out", got), []);
-  assert.deepEqual(await threadConversation(h.ctx, { threadId: "nothing_here" }), {});
-});

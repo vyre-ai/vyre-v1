@@ -61,8 +61,6 @@ export interface InboxData {
   extras?(key: string): RowExtras | undefined;
   /** Naming and grouping for the Space's numbers. */
   numbers?(): ReadonlyMap<string, NumberInfo>;
-  /** The Space's agents by name, so a draft says who drafted it by name. Absent: the contact tab reads the directory itself. */
-  agents?(): ReadonlyMap<string, string>;
 }
 
 const DataCtx = createContext<InboxData | null>(null);

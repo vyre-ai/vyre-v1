@@ -35,5 +35,5 @@ export const handlers: Handlers<HandlerCtx> = {
   "network.server_reconnect": async () => ({"state":"healthy"} as unknown) as never,
   "network.server_remove": async () => ({"removed":true} as unknown) as never,
   "network.servers": async () => ({"servers":[{"enrollment":"pending","facts":{"arch":"example","docker":true,"os":"example","version":"example"},"fingerprint":"example","lastSeenAt":1760000000000,"name":"example","owner":"example","requestedAt":1760000000000,"role":"space","serverId":"srv_a1b2c3","state":"healthy"}]} as unknown) as never,
-  "network.status": async () => ({"address":"example","certificate":{"expiresAt":1760000000000,"host":"example","state":"healthy"},"commands":[{"at":1760000000000,"detail":"example","kind":"example","state":"pending","target":"example"}],"mode":"own_domain","publicIngress":true,"relayOlder":true,"relayVersion":"example","version":"example"} as unknown) as never,
+  "network.status": async () => ({"address":"example","certificate":{"expiresAt":1760000000000,"host":"example","state":"healthy"},"commands":[{"at":1760000000000,"detail":"example","kind":"example","state":"pending","target":"example"}],"mode":"own_domain","publicIngress":true} as unknown) as never,
 };

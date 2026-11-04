@@ -4,26 +4,25 @@ import type { CapMap } from "../../../../../generated/types.ts";
 
 export type SettingRow = CapMap["settings.list"]["out"]["rows"][number];
 export type PageInfo = CapMap["settings.pages"]["out"]["pages"][number];
-export type YouPage = "github" | "profile" | "notifications" | "appearance" | "ai" | "memory" | "notes" | "skills" | "connected" | "mail" | "signin" | "computer" | "about";
+export type YouPage = "profile" | "notifications" | "appearance" | "ai" | "memory" | "notes" | "skills" | "connected" | "mail" | "signin" | "computer" | "about";
 export type SpacePage = "space" | "people" | "agents" | "data" | "apps" | "advanced";
 export type PageKey = YouPage | SpacePage;
 
-export interface PageDef { key: PageKey; title: string; group: "you" | "space"; icon: string; /** left out of the page list: its address still works and lands on `home(key)` */ hidden?: boolean; /** the other `page` strings a registry row can carry for this page */ pages: readonly string[] }
+export interface PageDef { key: PageKey; title: string; group: "you" | "space"; icon: string; /** the other `page` strings a registry row can carry for this page */ pages: readonly string[] }
 
 export const PAGES: readonly PageDef[] = [
   { key: "profile", title: "Profile", group: "you", icon: "person", pages: [] },
-  { key: "ai", title: "Your AI", group: "you", icon: "chip", pages: ["Models and usage", "Chats", "Memory and privacy"] },
-  { key: "github", title: "GitHub", group: "you", icon: "link", pages: ["GitHub"] },
   { key: "notifications", title: "Notifications", group: "you", icon: "bell", pages: ["Notifications"] },
   { key: "appearance", title: "Appearance", group: "you", icon: "palette", pages: [] },
-  { key: "computer", title: "This device", group: "you", icon: "laptop", pages: ["This computer"] },
-  { key: "signin", title: "Privacy and security", group: "you", icon: "key", pages: ["Sign-in and devices"] },
-  { key: "memory", title: "Memory and privacy", group: "you", icon: "lock", pages: [], hidden: true },
-  { key: "notes", title: "Notes", group: "you", icon: "doc", pages: ["Notes"], hidden: true },
-  { key: "skills", title: "Skills", group: "you", icon: "spark", pages: ["Skills"], hidden: true },
-  { key: "connected", title: "Moved to Vault", group: "you", icon: "link", pages: ["Connections"], hidden: true },
-  { key: "mail", title: "Moved to Inbox", group: "you", icon: "mail", pages: [], hidden: true },
-  { key: "about", title: "About Vyre", group: "you", icon: "info", pages: ["About"], hidden: true },
+  { key: "ai", title: "AI", group: "you", icon: "chip", pages: ["Models and usage", "Chats", "Memory and privacy"] },
+  { key: "memory", title: "Memory and privacy", group: "you", icon: "lock", pages: [] },
+  { key: "notes", title: "Notes", group: "you", icon: "doc", pages: ["Notes"] },
+  { key: "skills", title: "Skills", group: "you", icon: "spark", pages: ["Skills"] },
+  { key: "connected", title: "Connected", group: "you", icon: "link", pages: ["Connections"] },
+  { key: "mail", title: "Email and calendar", group: "you", icon: "mail", pages: [] },
+  { key: "signin", title: "Sign-in and devices", group: "you", icon: "key", pages: ["Sign-in and devices"] },
+  { key: "computer", title: "This computer", group: "you", icon: "laptop", pages: ["This computer"] },
+  { key: "about", title: "About Vyre", group: "you", icon: "info", pages: ["About"] },
   { key: "space", title: "Space", group: "space", icon: "grid", pages: [] },
   { key: "people", title: "People and access", group: "space", icon: "people", pages: [] },
   { key: "agents", title: "Agents and rules", group: "space", icon: "shield", pages: [] },
@@ -32,20 +31,8 @@ export const PAGES: readonly PageDef[] = [
   { key: "advanced", title: "Advanced", group: "space", icon: "gear", pages: [] },
 ];
 
-/** One sentence under every page title: the job in plain words. */
-export const PAGE_SUB: Readonly<Partial<Record<PageKey, string>>> = {
-  profile: "How people in this Space see you.", ai: "The AI accounts and models you use.", github: "One GitHub connection that every model and feature in Vyre uses.",
-  notifications: "What reaches you and where.", appearance: "How Vyre looks for you.", computer: "This computer and what Vyre can do on it.",
-  signin: "Your password, two-step sign-in and where you are signed in.", connected: "Your app connections live in Vault now.", mail: "Add an inbox or a calendar from Inbox.",
-};
-
-/** Pages that folded into another: the address still works and the page it lands on shows what was there. */
-export const FOLDED_INTO: Readonly<Partial<Record<PageKey, PageKey>>> = { memory: "profile", notes: "ai", skills: "ai", about: "computer" };
-/** The page that shows `key`: itself, or the one it folded into. */
-export const homeOf = (key: PageKey): PageKey => FOLDED_INTO[key] ?? key;
-
 /** Addresses from before the pages folded together still land on the right page. */
-export const OLD_PAGES: Readonly<Record<string, PageKey>> = { connections: "connected", models: "ai", privacy: "ai", keyboard: "appearance", spaces: "signin", you: "profile", "this-computer": "computer", "sign-in": "signin" };
+export const OLD_PAGES: Readonly<Record<string, PageKey>> = { connections: "connected", models: "ai", privacy: "ai", keyboard: "appearance", spaces: "signin" };
 
 export function pageByKey(key: string): PageDef {
   return PAGES.find((p) => p.key === key) ?? PAGES[0]!;
@@ -63,8 +50,8 @@ export interface SectionDef { title: string; note?: string; keys: readonly strin
 
 /** Person rows that stay in the registry but are not rows here: remembered state, what a Kit install or the composer sets, and what the chat's mode dial replaces. */
 export const HIDDEN_ROWS: readonly string[] = [
-  "chat.ask_agent", "kit.person_choice", "notifications.alert_replies", "comms.default_sender_email", "comms.default_sender_text",
-  "security.terminal_mode", "security.chrome_mode", "security.team_agents_on_my_computer", "chrome.agents_use_my_browser", "appearance.look",
+  "chat.ask_agent", "kit.person_choice", "comms.default_sender_email", "comms.default_sender_text",
+  "security.terminal_mode", "security.chrome_mode", "security.team_agents_on_my_computer", "chrome.agents_use_my_browser",
 ];
 
 /** Settings that a page draws itself (a card, a picker, a table) and so are not repeated as rows. */
@@ -234,7 +221,7 @@ export const ROW_LABELS: Readonly<Record<string, string>> = {
   "notifications.email_backstop": "Email me if an approval waits",
   "notifications.routines_all": "Tell me when routines succeed",
   "notifications.alert_replies": "Alert me on replies",
-  "notifications.hand_needs_you_to": "While you're away, send Needs you to",
+  "notifications.hand_needs_you_to": "Hand Needs you to",
   "notifications.quiet_hours": "Quiet hours",
   "engine.local_runs": "Run my chats on this computer",
   "chat.agent_tabs": "Agents can open side tabs",
@@ -322,7 +309,6 @@ export const DRAWN_ROWS: readonly { key: string; page: PageKey; title: string; s
   { key: "signin.spaces", page: "signin", title: "Your Spaces", sub: "Open or leave a Space", words: "switch leave" },
   { key: "shortcuts", page: "appearance", title: "Keyboard shortcuts", sub: "Every shortcut, in one list", words: "keys hotkey keybinding" },
   { key: "model.default", page: "ai", title: "Default model", sub: "For new chats", words: "claude sonnet opus gpt" },
-  { key: "voice.cover", page: "ai", title: "Voice", sub: "What covers your Talk, language and model", words: "talk mic microphone speech dictation deepgram transcription language" },
   { key: "model.fallback", page: "ai", title: "Fallback model", sub: "When the default is unavailable", words: "backup" },
   { key: "usage", page: "ai", title: "Usage this month", sub: "You and your agents", words: "limit cost tokens spend" },
   { key: "open-vault", page: "ai", title: "AI accounts", sub: "Sign-ins and keys live in the Vault", words: "provider api key openai anthropic subscription" },

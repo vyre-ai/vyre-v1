@@ -10,10 +10,3 @@ test("a known person's id in a reply shows as their name; an unknown one and pla
   assert.equal(namedIds("nothing here", nameOf), "nothing here");
   assert.equal(namedIds("usr_2191954f8e634c40c6", undefined), "usr_2191954f8e634c40c6");
 });
-
-import { stoppedWords } from "./status.ts";
-test("a stopped turn always says why", () => {
-  for (const r of ["interrupt", "stop", "limit", "left", "moved", "lease", ""]) assert.notEqual(stoppedWords(r), "Stopped.", `reason "${r}"`);
-  assert.match(stoppedWords("interrupt"), /new message/);
-  assert.match(stoppedWords(""), /no reason was recorded/);
-});

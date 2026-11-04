@@ -20,7 +20,7 @@ test("an agent made for a chat is a teammate of that chat: it carries chatOf, th
   withChat(hn);
   const space = (await call(hn, hn.ctx, "agents.create", { name: "Intake", role: "Takes intake." })).agent;
   const mine = (await call(hn, hn.ctx, "agents.create", { name: "Checker", role: "Checks every upload against the spec", threadId: "thr_chat1" })).agent;
-  assert.deepEqual([mine.kind, mine.chatOf, mine.teammateOf], ["teammate", "thr_chat1", "thr_chat1"], "teammateOf is the chat too, the shape crews and teammates read");
+  assert.deepEqual([mine.kind, mine.chatOf, mine.teammateOf], ["teammate", "thr_chat1", undefined]);
   const ids = async (input: Record<string, unknown>): Promise<string[]> => (await call(hn, hn.ctx, "agents.list", input)).agents.map((a: { agentId: string }) => a.agentId);
   assert.deepEqual(await ids({}), [space.agentId]);
   assert.deepEqual((await ids({ teammates: "include" })).sort(), [space.agentId, mine.agentId].sort());

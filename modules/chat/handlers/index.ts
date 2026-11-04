@@ -9,7 +9,6 @@ import { share } from "./share.ts";
 import { makeTask } from "./make-task.ts";
 import { flowCard } from "./flow-card.ts";
 import { remember } from "./remember.ts";
-import { noted } from "./noted.ts";
 import { askLevel, askSuggest, asksOf, openAsChat } from "./ask.ts";
 import { g24aHandlers } from "./g24a.ts";
 import { g24bHandlers } from "./g24b.ts";
@@ -50,7 +49,6 @@ export const handlers = {
   "chat.flow_card": flowCard,
   "chat.catch_up": catchUp,
   "chat.remember": remember,
-  "chat.noted": noted,
   "chat.thread": thread,
   "chat.answer_block": answerBlock,
   "chat.approve_plan": approvePlan,

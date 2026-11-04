@@ -18,6 +18,7 @@ import { sampleRuntime } from "../src/shell/providers/misc-test-runtime.tsx";
 import { stepOf } from "../src/places/apps/shell/EmailDesigner.tsx";
 import type { SampleApps } from "../src/places/apps/shell/sample.ts";
 import { siteLine } from "../src/places/apps/shell/SiteDetail.tsx";
+import { artifactAddress } from "../src/places/apps/shell/Artifacts.tsx";
 
 const size = (width: number): void => Dimensions.set({ window: { width, height: 800, scale: 1, fontScale: 1 }, screen: { width, height: 800, scale: 1, fontScale: 1 } });
 size(1280);
@@ -57,12 +58,13 @@ test("Templates and Sites lists open; Templates offers Build a Kit", () => {
   assert.ok(has(s, "Booking widget") && has(s, "Northwind site") && has(s, "Not published") && has(s, 'data-testid="apps-new-site"'));
 });
 
-// how an artifact opens moved with the Artifacts grid into Chats (l-artifacts): apps/app/src/places/chats/mounts/artifact-address.test.tsx holds it
-test("a site says in one line what is true of it", () => {
+test("a site says in one line what is true of it, and an artifact opens from the Space's address or this app's gateway", () => {
   assert.equal(siteLine({ live: false, blocked: false }, null), "Not published. Nothing is served at its address.");
   assert.equal(siteLine({ live: true, blocked: false }, { answering: true }), "Live and answering.");
   assert.equal(siteLine({ live: true, blocked: false }, { answering: false, detail: "Nothing is listening on port 3000." }), "Nothing is listening on port 3000.");
   assert.equal(siteLine({ live: true, blocked: true }, { answering: true }), "Taken down by an admin of this server.");
+  assert.equal(artifactAddress({ path: "/a/x/k/t/", url: "https://harbor.vyre.run/a/x/k/t/" }, "http://127.0.0.1:8420"), "https://harbor.vyre.run/a/x/k/t/");
+  assert.equal(artifactAddress({ path: "/a/x/k/t/" }, "http://127.0.0.1:8420/"), "http://127.0.0.1:8420/a/x/k/t/");
 });
 
 test("the hash reaches Sites and Artifacts", () => {
@@ -181,20 +183,6 @@ test("only working create flows are offered: templates use the Kit builder and d
   assert.ok(has(templates, 'data-testid="apps-kit"') && !has(templates, 'aria-label="New template"'));
   const domains = html(createSampleApps(), { group: "domains" });
   assert.ok(has(domains, 'aria-label="Add sending domain"') && !has(domains, 'aria-label="New domain"'));
-});
-
-test("Add sending domain goes to the Console's Sending domains with Add domain open, and is not drawn for someone who cannot open the Console", () => {
-  const s = createSampleApps();
-  const { addDomain: _gone, ...nav } = s.data.nav;
-  const without = renderToStaticMarkup(<Apps data={{ ...s.data, nav }} start={{ group: "domains" }} />).replaceAll("<!-- -->", "");
-  assert.ok(!has(without, 'aria-label="Add sending domain"') && !has(without, 'data-testid="apps-new-group"'), "no button, no menu entry");
-  assert.ok(has(without, 'data-testid="apps-domains-admin"') && has(without, "An owner or admin adds sending domains."), "a plain line says who adds them");
-  assert.ok(!has(html(createSampleApps(), { group: "domains" }), 'data-testid="apps-domains-admin"'), "someone who can add them gets the button, not the line");
-  const opened: string[] = [];
-  const allowed = appsData(sampleRuntime({ screens: s.data.screens, call: s.data.call, opened }), true);
-  allowed.nav.addDomain?.();
-  assert.deepEqual(opened, ["mail.domains"]);
-  assert.equal(appsData(sampleRuntime({ screens: s.data.screens, call: s.data.call, opened: [] })).nav.addDomain, undefined, "nobody is sent to a page they cannot open");
 });
 
 test("in the real app, a Personal Space gets the Team Space line, and a click out goes through the shell's door", () => {

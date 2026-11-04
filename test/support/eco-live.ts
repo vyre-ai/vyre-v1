@@ -140,12 +140,12 @@ export type Api = (cap: string, input: unknown) => Promise<any>;   // eslint-dis
  * A Space the way a person starts one: the owner claims it (so their Assistant exists, as for every real person), signs in, and connects their own Claude account. `api` calls as that person.
  * The model vendor is the scripted one. Nothing else is faked.
  */
-export async function claimedSpace(standIn: OpenSession, name = "Crew Co", extra: Record<string, unknown> = {}): Promise<{ d: Daemon; api: Api; owner: string; assistant: string }> {
+export async function claimedSpace(standIn: OpenSession, name = "Crew Co"): Promise<{ d: Daemon; api: Api; owner: string; assistant: string }> {
   const { makeBundle } = await import("../../client/src/crypto/keys.ts");
   const { holdKeyOnOwnNode } = await import("../../client/src/gateway/local-key.ts");
   const dir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "vyre-claimed-")));
   const PASSWORD = "claimed space password 7731";
-  const d = await boot(dir, standIn, { config: loadConfig(["--data-dir", dir, "--port", "0", "--space", "spc_claimed", "--space-name", name], {}, "1.2.3"), ...extra });
+  const d = await boot(dir, standIn, { config: loadConfig(["--data-dir", dir, "--port", "0", "--space", "spc_claimed", "--space-name", name], {}, "1.2.3") });
   assert.ok(d.claim, "a fresh Space offers a claim link");
   const code = /claim\/([^#]+)/.exec(d.claim!.url)![1]!;
   const spaceId = /s=([^&]+)/.exec(d.claim!.url)![1]!;

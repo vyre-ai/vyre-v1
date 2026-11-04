@@ -4,7 +4,7 @@
 // Durable rows and shared helpers of the memory module (spec 2.15, 4.15; ARCH 6.10): the context type the handlers use, the schema bootstrap, fact rows and their
 // contract shape, the sealing of person-layer text, layer access, and the local ranking (BM25 over words, trigram similarity, recency) that search and the pointer block share.
 // Every statement names a memory_* table, which is all ctx.db lets a module touch. The migration file is the one source of the schema.
-import { audienceFrom, chatAudience, othersRead, placeAudience, within } from "../../lib/audience.ts";
+import { audienceFrom, chatAudience, othersRead, within } from "../../lib/audience.ts";
 import type { Audience } from "../../lib/audience.ts";
 import { readFileSync } from "node:fs";
 import { fail } from "../../host/src/routes/errors.ts";
@@ -76,8 +76,6 @@ const ready = new WeakSet<object>();
 const FACT_COLUMNS = [
   // the people a fact learned in a chat others read is kept for (lib/audience.ts, JSON); null: whoever may open its layer
   '"audience" TEXT',
-  // rule 1 and 3 (shared-place memory): the place a fact was learned in, the exact message and words it came from, and a state the status cannot hold (disputed, source_removed)
-  '"place_kind" TEXT', '"place_id" TEXT', '"msg_id" TEXT', '"span" TEXT', '"state" TEXT', '"parent_kind" TEXT', '"parent_id" TEXT',
   '"trashed_at" INTEGER', '"trash_reason" TEXT', '"trashed_by" TEXT', '"prev_status" TEXT', '"prev_valid_to" INTEGER', '"merged_into" TEXT', '"touched_at" INTEGER', '"archived_at" INTEGER', '"archived_by" TEXT',
 ];
 /** Columns added to the page and link tables after their first version. */
@@ -155,10 +153,6 @@ export interface Fact {
   archivedAt: number | null;
   /** Learned in a chat other people read: kept for those people (lib/audience.ts). Null: whoever may open its layer. */
   audience: Audience | null;
-  /** The place it was learned in (a thread maps to its parent place), the message it came from, and the words as written there. */
-  placeKind: string | null; placeId: string | null; parentKind: string | null; parentId: string | null; msgId: string | null; span: string | null;
-  /** disputed or source_removed when set; a replaced fact is a closed one another fact replaces. */
-  state: string | null;
 }
 
 /** Row to Fact. A person-layer row opens only for its owner; for anyone else its text stays empty and callers drop it before it reaches an answer. */
@@ -167,11 +161,6 @@ export function readFact(ctx: Pick<MemCtx, "seal" | "principal" | "actingFor"> &
   const owner = str(r["owner_ref"]);
   const sealed = orNull(r["sealed"]);
   let text = str(r["text"]);
-  // a marker (rule 6) holds no words of its own: it reads as its source reads now, and reads as nothing once the source is gone
-  if (orNull(r["state"]) === "marker" && ctx.db) {
-    const src = rowsOf(ctx.db, "SELECT text FROM memory_facts WHERE id = ? AND status = 'current' AND trashed_at IS NULL AND layer <> 'person'", str(r["promoted_from"]))[0];
-    text = src ? str(src["text"]) : "";
-  }
   if (num(r["enc"]) === 2 && sealed !== null) {
     text = owner === actorOf(ctx) ? openFactText(ctx as SealCtx, str(r["id"]), owner, sealed) : "";
   }
@@ -182,7 +171,6 @@ export function readFact(ctx: Pick<MemCtx, "seal" | "principal" | "actingFor"> &
     proposedBy: str(r["proposed_by"]), status: str(r["status"]) as FactStatus, lowRisk: num(r["low_risk"]) === 1, subject: orNull(r["subject"]), replaces: orNull(r["replaces"]),
     promotedFrom: orNull(r["promoted_from"]), trashedAt: numOrNull(r["trashed_at"]), trashReason: orNull(r["trash_reason"]), mergedInto: orNull(r["merged_into"]), archivedAt: numOrNull(r["archived_at"]),
     audience: audienceFrom(r["audience"]),
-    placeKind: orNull(r["place_kind"]), placeId: orNull(r["place_id"]), parentKind: orNull(r["parent_kind"]), parentId: orNull(r["parent_id"]), msgId: orNull(r["msg_id"]), span: orNull(r["span"]), state: orNull(r["state"]),
   };
 }
 
@@ -267,17 +255,8 @@ export function makeAccess(ctx: MemCtx, o: { thread?: string; /** a write's own 
     if (others.length === 0) return true;
     return ctx.mayAll ? ctx.mayAll(others, { perm: null, level: "view" }, resource) : true;
   };
-  const placeNow = new Map<string, Promise<Audience | null>>();
   const keptFor = async (kept: Audience | null | undefined): Promise<boolean> => {
     if (!kept || kept.space) return true;
-    // memory kept for a place: whoever may open that place now (a late joiner reads it, a removed member and a place that went invite-only no longer do)
-    if (kept.live) {
-      let now = placeNow.get(kept.live);
-      if (!now) { now = placeAudience((cap, input) => ctx.call(cap, input), kept.live); placeNow.set(kept.live, now); }
-      const open = await now;
-      if (open === null || (!open.space && !open.people.includes(me))) return false;
-      return here === undefined || within(await audience(), open);
-    }
     if (!kept.people.includes(me)) return false;
     return here === undefined || within(await audience(), kept);
   };

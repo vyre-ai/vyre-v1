@@ -45,7 +45,6 @@ type Out = {
   smsId?: string;
   status: "queued" | "sent" | "held" | "suppressed";
   taskId?: string;
-  note?: string;
 };
 ```
 
@@ -84,7 +83,6 @@ type Out = {
     "transactional": true
   },
   "output": {
-    "note": "example",
     "smsId": "sms_a1b2c3",
     "status": "queued",
     "taskId": "tsk_a1b2c3"

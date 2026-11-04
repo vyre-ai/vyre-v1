@@ -214,17 +214,3 @@ test("seed rows fit the migration and impl exposes every handler", async () => {
   assert.equal(Object.keys(impl.handlers).length, 32);
   assert.deepEqual([impl.projections, impl.consumers, impl.inline, impl.codecs], [[], {}, {}, {}]);
 });
-
-test("status carries this Space server's version and the relay's, and says when the relay is older (the Console's Relay card)", async () => {
-  const { harness } = await import("../fixtures/db.ts");
-  const { statusOf, versionLess } = await import("../handlers/status.ts");
-  const h = harness();
-  assert.equal("relayVersion" in statusOf(h.ctx), false, "nothing read yet: nothing said");
-  h.raw.run("INSERT INTO network_info (key, value, at) VALUES (?, ?, ?)", "space_version", "1.4.1", 1);
-  h.raw.run("INSERT INTO network_info (key, value, at) VALUES (?, ?, ?)", "relay_version", "1.4.0", 1);
-  const s = statusOf(h.ctx);
-  assert.deepEqual([s.version, s.relayVersion, s.relayOlder], ["1.4.1", "1.4.0", true]);
-  h.raw.run("UPDATE network_info SET value = ? WHERE key = ?", "1.4.1", "relay_version");
-  assert.equal(statusOf(h.ctx).relayOlder, undefined, "the same release is not older");
-  assert.deepEqual([versionLess("1.4.0", "1.4.1"), versionLess("1.10.0", "1.9.9"), versionLess("1.4.1-rc.2", "1.4.1"), versionLess("1.4.1", "1.4.1-rc.2"), versionLess("dev", "1.4.1")], [true, false, true, false, false]);
-});

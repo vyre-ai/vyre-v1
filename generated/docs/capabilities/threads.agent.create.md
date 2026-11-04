@@ -75,8 +75,6 @@ type Out = {
       }>;
     createdAt: number;
     closedAt?: number;
-    joinedAt?: Record<string, unknown>;
-    sharedAt?: number;
     replyCount?: number;
     lastMessageAt?: number;
     path?: Array<{
@@ -147,7 +145,6 @@ type Out = {
       "createdAt": 1760000000000,
       "folderId": "fld_a1b2c3",
       "following": true,
-      "joinedAt": {},
       "kind": "chat",
       "lastMessageAt": 1760000000000,
       "listed": true,
@@ -180,7 +177,6 @@ type Out = {
       "replyCount": 1,
       "scopeId": "example",
       "scopeType": "record",
-      "sharedAt": 1760000000000,
       "starter": "example",
       "threadId": "thr_a1b2c3",
       "title": "example",

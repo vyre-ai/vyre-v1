@@ -32,7 +32,7 @@ import { TabMeasure, useFittedTabs, useTitleWidths } from "../../chats/rightpane
 import { PANE_CHROME, PANE_TAB_EXTRA } from "../../chats/rightpane/ChatRightPane.tsx";
 import { ResizableColumn } from "../../../../../../ui/src/SidePane/resize.tsx";
 import { channelFieldToAdd, findContact } from "./askfor.ts";
-import { ActivityTab, CommentsTab, EverythingTab, FilesTab } from "../recordpane/index.ts";
+import { ActivityTab, ChatTab, CommentsTab, EverythingTab, FilesTab } from "../recordpane/index.ts";
 import type { FieldDef, PaneKey, RecordRow, RelNode, Section, TypeDef, Undo } from "./model.ts";
 import { SealedField } from "./SealedField.tsx";
 import { DropZone } from "../../../../../../ui/src/FileDrop/index.tsx";
@@ -246,6 +246,7 @@ function Pane({ type, row, def, tab, onTab, phone = false }: { type: string; row
   if (tab === "everything") body = <EverythingTab type={type} recordId={row.id} def={def} onComments={() => onTab("comments")} />;
   else if (tab === "activity") body = <ActivityTab type={type} recordId={row.id} def={def} />;
   else if (tab === "comments") { fill = true; body = <CommentsTab type={type} recordId={row.id} />; }
+  else if (tab === "chat") { fill = true; body = <ChatTab type={type} recordId={row.id} />; }
   else if (tab === "files") { fill = true; body = <FilesTab type={type} recordId={row.id} title={String(row.fields[def.titleField] ?? row.id)} {...(typeof row.fields["folder"] === "string" ? { fieldFolder: row.fields["folder"] as string } : {})} />; }
   else if (tab === "memory") body = facts.length + notes.length > 0 ? <View testID="pane-memory">{facts}{notes}</View> : <Text style={p.paneEmpty}>No agent has remembered anything about this record.</Text>;
   else body = vq.status === "ready" ? (
@@ -258,7 +259,7 @@ function Pane({ type, row, def, tab, onTab, phone = false }: { type: string; row
       onLayout={(e) => { const w = Math.round(e.nativeEvent.layout.width); if (w > 0 && w !== paneW) setPaneW(w); }}
     >
       <TabMeasure titles={PANE_TABS.map((x) => x.title)} onWidth={titles.set} />
-      <TabStrip underline tabs={strip as never} active={tab} onSelect={select} />
+      <TabStrip tabs={strip as never} active={tab} onSelect={select} />
       {fill ? <View style={p.paneFill}>{body}</View> : <ScrollView style={p.paneScroll}>{body}</ScrollView>}
       {menu.element}
     </ResizableColumn>

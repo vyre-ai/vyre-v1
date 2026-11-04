@@ -45,7 +45,7 @@ export interface AccessDirectory {
 
 /* ---------- how an agent answers in a chat ---------- */
 
-/** lead: answers everything. tag: answers when mentioned. listen: reads, and posts only when poked. */
+/** lead: answers everything. tag: answers when tagged. listen: reads, and posts only when poked. */
 export type AgentHow = "lead" | "tag" | "listen";
 export type AgentWhen = "always" | "topics" | "hours";
 export type AgentStyle = "short" | "full";
@@ -113,7 +113,7 @@ export type ShareLevel = "view" | "use" | "edit" | "manage";
 export type ShareSubjectKind = "person" | "group" | "role" | "agent" | "link";
 export type ShareVia = "owner" | "grant" | "folder" | "space";
 
-export type ShareItemType = "note" | "file" | "record" | "rtype" | "artifact" | "project" | "vault" | "agent" | "automation" | "skill";
+export type ShareItemType = "note" | "file" | "record" | "rtype" | "artifact" | "project" | "vault" | "agent" | "automation";
 
 /** One row of "Who has access". */
 export interface ShareRow {
@@ -160,12 +160,6 @@ export interface ShareInput {
   level: ShareLevel;
   /** Set when the host gives the sheet newKey; access.share requires one. */
   idempotencyKey?: string;
-}
-
-/** Whether the people hear of it (a notification and an Inbox line: "Irfad shared Dex with you"), and an optional message to go with it. */
-export interface ShareOpts {
-  notify: boolean;
-  message?: string;
 }
 
 export interface UnshareInput {
@@ -233,8 +227,7 @@ export interface ShareSheetProps extends CommonProps {
   /** Who ends up seeing it: name, how, level. Shown as a quiet box when given. */
   sees?: readonly { name: string; via: string; level: string }[];
   records?: RecordsMode;
-  /** `opts` says whether to tell the people, and the line to send with it: Share sends one call per person, each with the same opts. */
-  onShare?(input: ShareInput, opts?: ShareOpts): void;
+  onShare?(input: ShareInput): void;
   onUnshare?(input: UnshareInput): void;
   onCopyLink?(): void;
   /** One fresh idempotency key per call, so every ShareInput the sheet hands back can go straight to access.share. */
@@ -245,12 +238,6 @@ export interface ShareSheetProps extends CommonProps {
   onNewAgent?(): void;
   /** The Space's name, for "Everyone in Northwind". */
   spaceName?: string;
-  /** The signed-in person: removing themselves asks first, and only the owner sees Make owner. */
-  meId?: string;
-  /** The host can tell the people it shares with (Notify people): without it the switch is not shown. */
-  notifyPeople?: boolean;
-  /** Make this person the owner (the owner's own view only). Left out: no such item in the menu. */
-  onMakeOwner?(subject: { kind: ShareSubjectKind; id: string }): void;
   /** Agents in the Space may call this item: left out, the line is shown as it is and cannot be flipped. */
   onAgents?(on: boolean): void;
   /** Whether agents in the Space may call this item, when the server says (access.shares_of agentsCanCall). Left out: read from the rows. */

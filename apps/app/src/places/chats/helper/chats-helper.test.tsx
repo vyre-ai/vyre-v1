@@ -128,10 +128,3 @@ test("variants exist for the screenshots", () => {
   const variants: Variant[] = ["done", "running"];
   for (const v of variants) assert.ok(createSample(v).data.threadId.length > 0, v);
 });
-
-test("the brief is a labelled block at the top, not the helper talking to itself, and the header says who started it and where", () => {
-  const out = html(createSample("done"));
-  assert.ok(has(out, 'data-testid="helper-brief"') && has(out, "Brief from "), "the brief is its own block");
-  assert.ok(has(out, 'data-testid="helper-started-by"') && has(out, "Helper chat · started by ") && has(out, " in Competitor pricing"));
-  inOrder(out, ["Helper chat · started by", "Brief from", "Read the pricing pages of Harlow & Price"]);
-});

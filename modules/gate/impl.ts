@@ -3,20 +3,11 @@
 import { handlers } from "./handlers/index.ts";
 import { rejectAllOf, recover } from "./handlers/hold.ts";
 import { sweep } from "./handlers/approve.ts";
-import { dropPlaceholderHolds } from "./handlers/placeholders.ts";
-import { expireStaleHolds } from "./handlers/stale.ts";
 import { syncPolicy } from "./projections.ts";
 import type { GateCtx } from "./projections.ts";
 
 export { handlers, recover, rejectAllOf, sweep };
 export { ACTS, effectiveRule, summaryLine } from "./projections.ts";
-
-/** Once, on update: holds raised for a placeholder call (example.com, "test", __probe_none__) are dropped and their tasks leave Needs you. */
-export const periodic = {
-  /** A held act nobody answered in 7 days, or whose chat or task closed, expires as "Not sent"; at start it also clears what earlier releases left. */
-  "gate.stale_holds": { everyMs: 3_600_000, immediate: true, run: async (ctx: GateCtx) => { await expireStaleHolds(ctx); } },
-  "gate.placeholder_cleanup": { everyMs: 86_400_000, immediate: true, run: async (ctx: GateCtx) => { await dropPlaceholderHolds(ctx); } },
-};
 
 /** Async consumers by name: the events each one reads and what it does with one. */
 export const consumers = {

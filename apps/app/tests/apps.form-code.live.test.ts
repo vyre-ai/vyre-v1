@@ -51,8 +51,6 @@ test("production Apps: form Code tab, sandboxed public page and inline Ask with 
 
     // a form made in the app, its questions chosen in Build
     await page.goto(`${web.origin}/sites`, { waitUntil: "load" });
-    // the Apps place opens on Sites now: pick the Forms group before its New button exists
-    await page.getByTestId("apps-head-forms").click();
     await page.getByTestId("apps-new-group").click();
     await page.getByRole("menuitem", { name: "New form", exact: true }).click();
     await page.getByTestId("apps-create-form").waitFor({ timeout: 30_000 });

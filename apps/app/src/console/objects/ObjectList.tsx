@@ -72,7 +72,6 @@ export function ObjectList<T = unknown>(props: ObjectListProps<T>): ReactElement
   const [localSearch, setLocalSearch] = useState("");
   const menu = useMenu();
   const filterButton = useRef<unknown>(null);
-  const lastAt = useRef({ x: 0, y: 0 });
   const query = props.search?.value ?? localSearch;
   const active = props.activeFilters ?? new Set<string>();
   const picked = props.picked ?? new Set<string>();
@@ -90,11 +89,7 @@ export function ObjectList<T = unknown>(props: ObjectListProps<T>): ReactElement
   const rowMenu = (row: ObjectListRow<T>): MenuEntry[] => {
     const out: MenuEntry[] = [{ label: "Open", onSelect: () => props.onOpen(row) }];
     if (props.onPicked) out.push({ label: picked.has(row.id) ? "Remove from selection" : "Select", onSelect: () => togglePicked(row.id) });
-    // anything that removes or deletes asks first (CONTEXT-MENUS.md rule 7): the item becomes a question with the real choice and Cancel
-    const asked = (entry: MenuEntry): MenuEntry => ("label" in entry && entry.danger === true && entry.onSelect !== undefined && entry.disabled !== true
-      ? { ...entry, onSelect: () => menu.show([{ head: `${entry.label.replace(/…$/, "")}?` }, { label: entry.label.replace(/…$/, ""), danger: true, onSelect: entry.onSelect }, { label: "Cancel" }], lastAt.current.x, lastAt.current.y, "other")}
-      : entry);
-    if (row.actions.length) out.push({ separator: true }, ...row.actions.map(asked));
+    if (row.actions.length) out.push({ separator: true }, ...row.actions);
     return out;
   };
   const filterEntries = (): MenuEntry[] => (props.filters ?? []).map((filter) => ({
@@ -132,7 +127,7 @@ export function ObjectList<T = unknown>(props: ObjectListProps<T>): ReactElement
       {picked.size > 0 ? <Text style={styles.selected}>{picked.size} selected</Text> : null}
       {picked.size > 0 ? props.bulkActions?.map((action) => "separator" in action ? null : "head" in action ? null : <Pressable key={action.label} accessibilityRole="button" onPress={action.onSelect} style={[styles.bulk, pointer]}><Text style={styles.bulkText}>{action.label}</Text></Pressable>) : null}
     </View>
-    <View style={styles.rows}>{visible.length ? visible.map((row) => <Row key={row.id} id={`object-row-${row.id}`} title={row.title} {...(row.note === undefined ? {} : { note: row.note })} selected={row.id === focusedId} {...(row.leading === undefined ? {} : { leading: row.leading })} {...(row.trailing === undefined ? {} : { trailing: row.trailing })} onPress={() => props.onOpen(row)} domProps={{...menuTrigger((x, y) => { lastAt.current = { x, y }; menu.show(rowMenu(row), x, y, "context", { label: row.title }); }), "data-object-id": row.id, onFocus: () => setFocusedId(row.id)}} />) : (query.trim() || active.size > 0) && props.rows.length ? <Empty icon="search">Nothing matches</Empty> : <Empty>{props.empty}</Empty>}</View>
+    <View style={styles.rows}>{visible.length ? visible.map((row) => <Row key={row.id} id={`object-row-${row.id}`} title={row.title} {...(row.note === undefined ? {} : { note: row.note })} selected={row.id === focusedId} {...(row.leading === undefined ? {} : { leading: row.leading })} {...(row.trailing === undefined ? {} : { trailing: row.trailing })} onPress={() => props.onOpen(row)} domProps={{...menuTrigger((x, y) => menu.show(rowMenu(row), x, y, "context", { label: row.title })), "data-object-id": row.id, onFocus: () => setFocusedId(row.id)}} />) : (query.trim() || active.size > 0) && props.rows.length ? <Empty icon="search">Nothing matches</Empty> : <Empty>{props.empty}</Empty>}</View>
     {props.pagination?.next ? <Pressable accessibilityRole="button" accessibilityLabel="Load more" disabled={props.pagination.busy} onPress={props.pagination.onMore} style={[styles.more, pointer]}><Text style={styles.moreText}>{props.pagination.busy ? "Loading…" : "Load more"}</Text></Pressable> : null}
     {menu.element}
   </View>;

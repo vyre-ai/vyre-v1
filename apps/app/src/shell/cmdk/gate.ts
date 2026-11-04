@@ -1,13 +1,9 @@
 // The search of the real shell (P-L9_23): CmdKData built from what a signed-in Space gives the shell. Local hits come from the replica's live queries (people and agents, recent chats)
 // in the same task as the keystroke; the server is search.query behind the capability caller; Recent is search.recent.list read ahead of the sheet opening.
-import { isLocked, lockAvailable, toggleLock } from "../noticeslot/lock-control.ts";
 import type { ShellRuntime } from "../providers/runtime.tsx";
 import type { PlaceId } from "../rail/kits.ts";
 import { skins, system } from "../../../../../ui/src/tokens/skins.ts";
 import { applySkinToWindow } from "../providers/settings-skin.ts";
-import { listable } from "../reach/reach.ts";
-import type { Viewer } from "../reach/reach.ts";
-import { livePlace } from "../rail/kits.ts";
 import type { CmdKData } from "./controller.ts";
 import type { AskAnswer, CmdAction, Hit, HitKind } from "./model.ts";
 import { requestChannelSheet } from "../../places/chats/channels/request.ts";
@@ -32,8 +28,6 @@ export interface GateSearchDeps {
   state: { away: boolean; offline: boolean; terminal?: boolean; inbox?: boolean };
   /** The recent hits read ahead of the sheet (search.recent.list). */
   recent: () => readonly Hit[];
-  /** Who is searching and where they can go (reach). A result whose place the viewer cannot open is never listed. Left out: nothing is held back here (tests). */
-  viewer?: () => Viewer | null;
   /** Set away for real (stored, seen by teammates). Left out: the action only shows it here. */
   away?: (on: boolean) => void;
 }
@@ -92,9 +86,8 @@ export function shellHitTarget(hit: Hit, state: { inbox?: boolean }): { place: P
   return null;
 }
 
-export function gateActions(state: { away: boolean; offline: boolean; terminal?: boolean; lock?: { available: boolean; locked: boolean } }, team = true): readonly CmdAction[] {
+export function gateActions(state: { away: boolean; offline: boolean; terminal?: boolean }, team = true): readonly CmdAction[] {
   return [
-    ...(state.lock?.available ? [{ key: "vault.lock", title: state.lock.locked ? "Unlock" : "Lock Vyre", icon: "lock" }] : []),
     { key: "task.new", title: "New task", icon: "plus" },
     { key: "mail.connect", title: "Connect email", icon: "plus" },
     ...(team ? [{ key: "channel.new", title: "New channel", icon: "plus" }] : []),
@@ -123,15 +116,8 @@ export function askHere(screen: ScreenContext | null = currentScreen()): boolean
   return openAskPane({ thing: thingOfScreen(screen), context: rest }, place) !== null;
 }
 
-/** Keeps the results the viewer can open: a result whose place is not on their rail never shows (reach). */
-export function reachable(hits: readonly Hit[], viewer: Viewer | null, state: { inbox?: boolean }): Hit[] {
-  if (viewer === null) return [...hits];
-  return hits.filter((h) => listable({ kind: h.kind, place: livePlace(shellHitTarget(h, state)?.place ?? placeOfHit(h)) }, viewer));
-}
-
 export function createGateSearch(d: GateSearchDeps): CmdKData {
   const { runtime: rt, nav, state } = d;
-  const mine = (hits: readonly Hit[]): Hit[] => reachable(hits, d.viewer?.() ?? null, state);
   const online = (): boolean => !state.offline && rt.connection.get() === "online";
   const open = (hit: Hit, opts: { newTab: boolean }): void => {
     if (opts.newTab) nav.newTab();
@@ -144,13 +130,13 @@ export function createGateSearch(d: GateSearchDeps): CmdKData {
     scope: () => (online() ? "space" : "device"),
     online,
     // Inbox and Connect email answer a typed word only; the replica's people and chats stay the whole of an empty search
-    local: (text, types) => mine([...replicaHits(rt), ...(text.trim() === "" ? [] : shellHits(state))].filter((h) => (!types || types.includes(h.kind)) && (text === "" || matches(h, text)))),
+    local: (text, types) => [...replicaHits(rt), ...(text.trim() === "" ? [] : shellHits(state))].filter((h) => (!types || types.includes(h.kind)) && (text === "" || matches(h, text))),
     server: async (text, types) => {
       const out = (await rt.call("search.query", { q: text, ...(types ? { types: [...types] } : {}), limit: 20 })) as { hits: Hit[] };
-      return mine(out.hits);
+      return out.hits;
     },
-    recent: () => mine(d.recent()),
-    actions: (text) => [...askActions(currentScreen()), ...gateActions({ ...state, lock: { available: lockAvailable(), locked: isLocked() } }, rt.space.kind === "team")].filter((a) => !text || a.title.toLowerCase().includes(text.toLowerCase())),
+    recent: d.recent,
+    actions: (text) => [...askActions(currentScreen()), ...gateActions(state, rt.space.kind === "team")].filter((a) => !text || a.title.toLowerCase().includes(text.toLowerCase())),
     skins: () => [{ id: system.id, name: system.name }, ...skins.map((s) => ({ id: s.id, name: s.name, swatch: s.palette.accent }))],
     currentSkin: () => (globalThis as { document?: { documentElement?: { getAttribute(k: string): string | null } } }).document?.documentElement?.getAttribute("data-skin") ?? "system",
     previewSkin: () => undefined,
@@ -164,7 +150,6 @@ export function createGateSearch(d: GateSearchDeps): CmdKData {
     },
     runAction: (a) => {
       if (a.key === ASK_HERE) askHere();
-      else if (a.key === "vault.lock") toggleLock();
       else if (a.key === "presence.away") {
         state.away = !state.away;
         if (d.away) d.away(state.away);

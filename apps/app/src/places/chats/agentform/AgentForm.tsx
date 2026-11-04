@@ -4,25 +4,23 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ReactElement, ReactNode } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
-import { Avatar, takenFaces } from "../../../../../../ui/src/Avatar/index.tsx";
-import { formatFace, isFace, parseFace, suggestFace } from "../../../../../../ui/src/Avatar/agentface.ts";
-import { FacePicker } from "../../../../../../ui/src/FacePicker/index.tsx";
-import { saveFaceFile } from "../agentpage/face-file.ts";
+import { Avatar } from "../../../../../../ui/src/Avatar/index.tsx";
 import { each } from "../../../shell/sidebar/model.ts";
 import type { CapMap } from "../../../../../../generated/types.ts";
 import type { ConfigDirectory } from "../../automations/config/data.tsx";
-import { AgentShareSheet } from "./AgentShare.tsx";
+import { Overlay } from "../../automations/config/Overlay.tsx";
 import { Switch } from "../../automations/config/parts.tsx";
-import { shareRows } from "../../../share/rows.ts";
-import { accessCount } from "../../../../../../ui/src/AccessSheet/index.tsx";
+import { shareRows, sheetDirectory } from "../../../share/rows.ts";
+import { AccessSheet, accessCount } from "../../../../../../ui/src/AccessSheet/index.tsx";
 import { useMenu } from "../../../../../../ui/src/Menu/index.tsx";
 import { MarkdownEditor } from "../../../../../../ui/src/RichEditor/index.tsx";
 import { aiMenu } from "../../vault/providers/aiMenu.ts";
 import { aiCaption, aiName, automaticLine } from "../../vault/providers/pick.ts";
 import { useSpaceAi } from "../../vault/providers/useSpaceAi.ts";
+import type { ShareInput, UnshareInput } from "../../../../../../ui/src/AccessSheet/index.tsx";
 import { Glyph as Mark } from "../conversation/parts.tsx";
 import { Glyph } from "../sidebar/parts.tsx";
-import { createInput, draftInstructions, grantsFor, reachOffers, updatePatch, workPatch, chatKeyPatch } from "./model.ts";
+import { createInput, draftInstructions, faceChoices, faceSeed, grantsFor, reachOffers, updatePatch, workPatch, chatKeyPatch } from "./model.ts";
 import type { AgentDraft, ComputerChoice, VaultItem } from "./model.ts";
 
 type Call = (cap: string, input: unknown) => Promise<unknown>;
@@ -51,7 +49,7 @@ const COMPUTERS: readonly { id: ComputerChoice; title: string; note: string }[] 
 ];
 
 export function AgentForm({ agentId, call, newKey, onDone, onCancel, say, sharing, openVault }: AgentFormProps): ReactElement {
-  const [d, setD] = useState<AgentDraft>(() => ({ ...EMPTY, face: agentId === null ? formatFace(suggestFace(takenFaces())) : "" }));
+  const [d, setD] = useState<AgentDraft>(() => ({ ...EMPTY, face: agentId === null ? faceSeed() : "" }));
   const [shares, setShares] = useState<CapMap["access.shares_of"]["out"] | null>(null);
   const [sharingOpen, setSharingOpen] = useState(false);
   const loadShares = useCallback((): void => {
@@ -60,8 +58,7 @@ export function AgentForm({ agentId, call, newKey, onDone, onCancel, say, sharin
   }, [agentId, call]);
   useEffect(loadShares, [loadShares]);
   const [touched, setTouched] = useState(false);
-  const [facing, setFacing] = useState(false);
-  const [was, setWas] = useState<string | null>(null);
+  const [offers, setOffers] = useState<string[]>(() => faceChoices());
   const [items, setItems] = useState<readonly VaultItem[]>([]);
   const [picked, setPicked] = useState<readonly VaultItem[]>([]);
   const [q, setQ] = useState("");
@@ -90,7 +87,7 @@ export function AgentForm({ agentId, call, newKey, onDone, onCancel, say, sharin
     void Promise.resolve(call("agents.get", { agentId })).then(async (o) => {
       const a = (o as CapMap["agents.get"]["out"]).agent;
       if (!live) return;
-      setD((c) => ({ ...c, name: a.name, does: a.role ?? "", face: a.face.startsWith("pick-") || isFace(a.face) ? a.face : "", model: a.model ?? "", fallbackModel: a.fallbackModel ?? "", workKey: a.workKey ?? "", chatKey: a.accountPolicy === "key" ? a.accountKey ?? "" : "", chatOn: a.accountPolicy === "key" }));
+      setD((c) => ({ ...c, name: a.name, does: a.role ?? "", face: a.face.startsWith("pick-") ? a.face : "", model: a.model ?? "", fallbackModel: a.fallbackModel ?? "", workKey: a.workKey ?? "", chatKey: a.accountPolicy === "key" ? a.accountKey ?? "" : "", chatOn: a.accountPolicy === "key" }));
       setSavedWork(a.workKey ?? "");
       setSavedChat(a.accountPolicy === "key" ? a.accountKey ?? "" : "");
       setFolderId(a.folderId);
@@ -118,9 +115,6 @@ export function AgentForm({ agentId, call, newKey, onDone, onCancel, say, sharin
         // the AI account is not part of agents.create: set it on the new agent
         const work = { ...workPatch(d.workKey, ""), ...(mayManageAi ? chatKeyPatch(chatOn ? d.chatKey : "", "") : {}) };
         if (Object.keys(work).length > 0) await call("agents.update", { agentId: id, patch: work });
-        // a picture chosen before the agent existed goes into its new folder now, and the face names the file
-        const held = parseFace(d.face);
-        if (held?.fam === "img") { const face = await saveFaceFile(call, folder, held.url, newKey); if (face !== null) await call("agents.update", { agentId: id, patch: { face } }); }
       } else await call("agents.update", { agentId: id, patch: { ...updatePatch(d), ...workPatch(d.workKey, savedWork), ...(mayManageAi ? chatKeyPatch(chatOn ? d.chatKey : "", savedChat) : {}) } });
       if (folder) {
         const ls = (await call("files.list", { section: "space", folder, limit: 50 })) as CapMap["files.list"]["out"];
@@ -142,16 +136,17 @@ export function AgentForm({ agentId, call, newKey, onDone, onCancel, say, sharin
       <View style={st.col}>
         <View style={st.head}>
           <View>
-            <Pressable role="button" aria-label="Change the face" testID="agent-face" onPress={() => setFacing(true)}><Avatar name={d.name || "Agent"} seedId={d.face || agentId || ""} kind="agent" size={72} face={isFace(d.face) ? d.face : undefined} /></Pressable>
-            <Pressable role="button" aria-label="Another face" testID="agent-shuffle" onPress={() => { setWas(d.face); set({ face: formatFace(suggestFace(takenFaces())) }); }} style={st.shuffle}><Glyph name="retry" size={13} color="var(--ink-2)" /></Pressable>
+            <Avatar name={d.name || "Agent"} seedId={d.face || agentId || ""} kind="agent" size={72} />
+            <Pressable role="button" aria-label="Shuffle the face" testID="agent-shuffle" onPress={() => { set({ face: faceSeed() }); setOffers(faceChoices()); }} style={st.shuffle}><Glyph name="retry" size={13} color="var(--ink-2)" /></Pressable>
           </View>
           <View style={st.names}>
             <TextInput testID="agent-name" accessibilityLabel="Name" value={d.name} onChangeText={(name) => set({ name })} placeholder="Name" placeholderTextColor="var(--ink-4)" style={st.name} />
             <TextInput testID="agent-does" accessibilityLabel="What does it do?" value={d.does} onChangeText={(does) => set({ does })} placeholder="What does it do?" placeholderTextColor="var(--ink-4)" style={st.does} />
           </View>
         </View>
-        {was !== null ? <View style={st.undo}><Text style={st.undoText}>Face changed.</Text><Pressable role="button" aria-label="Undo the face change" testID="agent-face-undo" onPress={() => { set({ face: was }); setWas(null); }}><Text style={st.undoLink}>Undo</Text></Pressable></View> : null}
-        {facing ? <FacePicker name={d.name} value={d.face} {...(folderId ? { saveImage: (url: string) => saveFaceFile(call, folderId, url, newKey) } : {})} onDone={(face) => { setFacing(false); if (face !== null) { setWas(d.face); set({ face }); } }} /> : null}
+        <View style={st.picks}>
+          {each(offers, (seed) => <Pressable key={seed} role="button" aria-label="Use this face" testID={`agent-face-${seed}`} onPress={() => set({ face: seed })} style={[st.pick, d.face === seed && st.pickOn]}><Avatar name="Agent" seedId={seed} kind="agent" size={32} /></Pressable>)}
+        </View>
 
         <Section title="Instructions" note="AGENT.md">
           <View style={st.md}><MarkdownEditor testID="agent-instructions" label="Instructions" value={shown} onChange={(instructions) => { setTouched(true); set({ instructions }); }} minHeight={260} /></View>
@@ -247,7 +242,20 @@ export function AgentForm({ agentId, call, newKey, onDone, onCancel, say, sharin
         </View>
       </View>
       {aiPop.element}
-      {sharing && sharingOpen && agentId !== null && shares ? <AgentShareSheet agentId={agentId} name={d.name} call={call} newKey={newKey} say={say} sharing={sharing} shares={shares} reload={loadShares} onClose={() => setSharingOpen(false)} /> : null}
+      {sharing && sharingOpen && agentId !== null && shares ? (
+        <Overlay label="Who can use it" onClose={() => setSharingOpen(false)} testID="agent-share-overlay">
+          <AccessSheet
+            mode="share" itemType="agent" resourceType="agent" resourceId={agentId} itemName={d.name} target="item" ownerName={sharing.meName} ownerId={sharing.meId} {...(sharing.spaceName ? { spaceName: sharing.spaceName } : {})} levels={["view", "use", "edit", "manage"]}
+            shares={shareRows(shares, sharing.nameOf, agentId)} allowExternal={false} density="compact" newKey={newKey}
+            {...(shares.agentsCanCall === undefined ? {} : { agentsOn: shares.agentsCanCall })}
+            onAgents={(on) => { void Promise.resolve(call("access.agents_can_call.set", { agentId, on, idempotencyKey: newKey() })).then(loadShares, () => say("Could not change who can call this agent.")); }}
+            directory={sheetDirectory(sharing.directory)}
+            onShare={(i: ShareInput) => { void Promise.resolve(call("access.share", i)).then(loadShares, () => say("Could not change access.")); }}
+            onUnshare={(i: UnshareInput) => { void Promise.resolve(call("access.unshare", i)).then(loadShares, () => say("Could not change access.")); }}
+            onClose={() => setSharingOpen(false)}
+          />
+        </Overlay>
+      ) : null}
     </ScrollView>
   );
 }
@@ -270,9 +278,9 @@ const st = StyleSheet.create({
   names: { flex: 1, minWidth: 0 },
   name: { fontSize: 26, fontWeight: "600", letterSpacing: -0.4, color: "var(--ink)" as string, padding: 0, outlineStyle: "none", outlineWidth: 0 } as object,
   does: { marginTop: 4, fontSize: 15, color: "var(--ink-2)" as string, padding: 0, outlineStyle: "none", outlineWidth: 0 } as object,
-  undo: { flexDirection: "row", gap: 8, marginTop: 10, alignItems: "center" },
-  undoText: { fontSize: 13, color: "var(--ink-3)" as string },
-  undoLink: { fontSize: 13, color: "var(--accent)" as string, fontWeight: "500" },
+  picks: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 14 },
+  pick: { padding: 2, borderRadius: 12 },
+  pickOn: { boxShadow: "0 0 0 2px var(--accent)" } as object,
   sec: { paddingTop: 26 },
   secHead: { flexDirection: "row", justifyContent: "space-between", alignItems: "baseline", marginBottom: 8 },
   secTitle: { fontSize: 13, fontWeight: "600", color: "var(--ink-2)" as string },

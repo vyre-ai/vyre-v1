@@ -34,9 +34,6 @@ type In = {
     id: string;
   };
   level: "view" | "use" | "edit" | "manage";
-  notify?: {
-    message?: string;
-  };
   idempotencyKey: string;
 };
 ```
@@ -67,9 +64,6 @@ type Out = {
   "input": {
     "idempotencyKey": "idem_1",
     "level": "view",
-    "notify": {
-      "message": "example"
-    },
     "resource": {
       "id": "vit_a1b2c3",
       "type": "vault_item"

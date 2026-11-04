@@ -1,6 +1,6 @@
 // One handler per tasks capability (30). State changes and reads live in state.ts; act, delegate, escalate and stuck detection in act.ts.
 import { act, delegate, escalate } from "./act.ts";
-import { agentOnIt, ask, block, decide, review, submit } from "./baton.ts";
+import { ask, block, decide, review, submit } from "./baton.ts";
 import {
   assign, countNeedsYou, create, dependenciesAdd, dependenciesRemove, followersAdd, followersRemove, get, history, linksAdd, linksRemove, list, myWorkList,
   needsYouList, heldRevise, notesDelete, notesSet, release, snooze, take, transition, update, withdraw,
@@ -47,7 +47,6 @@ const base = {
   "tasks.release": release,
   "tasks.review": review,
   "tasks.snooze": snooze,
-  "tasks.agent_on_it": agentOnIt,
   "tasks.submit": submit,
   "tasks.take": take,
   "tasks.transition": transition,

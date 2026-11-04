@@ -1,6 +1,5 @@
 // Shared pieces of the booted-daemon chat tests (test/chat-brain.live.test.ts): a seeded data directory, a daemon with a model stand-in, capability calls over HTTP, and a chat that waits for a reply.
 // Nothing inside the daemon is faked. The model vendor stand-in is an OpenSession the test supplies.
-import type { SeamFetch } from "../../host/src/seams/ports.ts";
 import { DatabaseSync } from "node:sqlite";
 import assert from "node:assert/strict";
 import fs from "node:fs";
@@ -29,7 +28,7 @@ export function seededDir(): string {
 }
 
 /** `standIn` null with `engineCli` boots the real driver around a CLI process (the fake claude of host/tests/fixtures/fake-cli-driver). */
-export async function boot(dir: string, standIn: OpenSession | null, extra: { engineCli?: unknown; now?: () => number; seams?: unknown; realVault?: boolean } = {}): Promise<Daemon> {
+export async function boot(dir: string, standIn: OpenSession | null, extra: { engineCli?: unknown; now?: () => number; seams?: unknown } = {}): Promise<Daemon> {
   return startDaemon({
     ...(extra.now ? { now: extra.now } : {}),
     config: loadConfig(["--data-dir", dir, "--port", "0"], {}, "1.2.3"),
@@ -44,8 +43,7 @@ export async function boot(dir: string, standIn: OpenSession | null, extra: { en
     }),
     fetch: caddyFetch,
     intervals: { fast: 3_600_000, slow: 3_600_000, encryption: 3_600_000, commands: 3_600_000, hooks: 3_600_000 },
-    ...(extra.realVault ? {} : { vault: { secret: async () => KEY, signRs256: async () => "" } }),
-    ...(extra.seamFetch ? { seams: { fetch: extra.seamFetch } } : {}),
+    vault: { secret: async () => KEY, signRs256: async () => "" },
     ...(standIn ? { engineOpenSession: standIn } : {}),
     ...(extra.engineCli !== undefined ? { engineCli: extra.engineCli as never } : {}),
     ...(extra.seams !== undefined ? { seams: extra.seams as never } : {}),

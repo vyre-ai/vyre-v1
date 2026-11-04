@@ -470,15 +470,3 @@ test("an agent starts a draft only when the owner just asked in their own messag
   assert.equal(started.status, "planning");
   assert.ok(started.permissions.every((p: { granted: boolean }) => p.granted === false), "an agent's start grants no permission");
 });
-
-test("goals.count says how many goals a project has and nothing else; only the system may ask when the caller manages nothing", async () => {
-  const w = world({ count: 120 });
-  await w.call("goals.create", labGoal({ projectId: "prj_lab8", idempotencyKey: "c1" }));
-  await w.call("goals.create", labGoal({ projectId: "prj_lab8", idempotencyKey: "c2", title: "Second" }));
-  await w.call("goals.create", labGoal({ projectId: "prj_other", idempotencyKey: "c3", title: "Elsewhere" }));
-  const out = await w.call("goals.count", { projectId: "prj_lab8" }, host);
-  assert.deepEqual(out, { count: 2 });
-  assert.equal(JSON.stringify(out).includes("Second"), false);
-  assert.equal((await w.call("goals.count", { projectId: "prj_none" }, host)).count, 0);
-  await assert.rejects(() => w.call("goals.count", { projectId: "prj_lab8" }, { id: STRANGER, kind: "person" }), (e: { error?: { code?: string } }) => e.error?.code === "validation.not_found");
-});

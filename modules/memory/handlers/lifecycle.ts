@@ -36,11 +36,6 @@ export function trashFact(ctx: MemCtx, f: Fact, o: TrashOpts): boolean {
     action: o.action ?? "delete", factId: f.id, ...scopeOf(f), who, reason: o.reason, ...(o.source ? { source: o.source } : {}), ...(o.runId ? { runId: o.runId } : {}),
     detail: { from: f.status, ...(o.mergedInto ? { mergedInto: o.mergedInto } : {}) },
   });
-  // markers that point back at it end with it (rule 6)
-  for (const m of rowsOf(ctx.db, "SELECT * FROM memory_facts WHERE promoted_from = ? AND state = 'marker' AND trashed_at IS NULL", f.id)) {
-    const mf = readFact(ctx, m);
-    if (mf.id !== f.id) trashFact(ctx, mf, { ...o, reason: "source of the marker is gone" });
-  }
   return true;
 }
 

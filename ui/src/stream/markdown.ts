@@ -70,21 +70,6 @@ export function parseInline(src: string): Inline[] {
       i += 2;
       continue;
     }
-    // An internal reference address (https://ref.vyre.invalid/<kind>/<id>) is never text a person reads. Well formed or not, with its brackets or without, it becomes a link with no words of its own, which the
-    // page draws as a chip with the item's name (or draws as nothing when it cannot): the raw address and the id never show. A half-written one waits.
-    if (ch === "]" || ch === "(" || ch === "h" || ch === "H") {
-      // the address is still being written: wait, show nothing of it
-      const tail = src.slice(i).replace(/^\]?\s*\(?\s*/, "").toLowerCase();
-      if (tail.length >= 8 && "https://ref.vyre.invalid/".startsWith(tail)) { flush(); i = src.length; continue; }
-      const ref = /^\]?\s*\(?\s*(https:\/\/ref\.vyre\.invalid\/[^\s)\]]*)\s*\)?/i.exec(src.slice(i));
-      if (ref && (ch !== "h" && ch !== "H" ? true : !isWord(src.charAt(i - 1)))) {
-        const url = ref[1] ?? "";
-        flush();
-        if (/\/[a-z]+\/[\w-]{6,}$/i.test(url)) out.push({ t: "link", href: url, c: [{ t: "text", v: "\u200b" }] });
-        i += ref[0].length;
-        continue;
-      }
-    }
     if (ch === "<") {
       const tag = /^<(\/?)([a-zA-Z][\w-]*)\b[^>]*?(\/?)>/.exec(src.slice(i));
       if (tag) {

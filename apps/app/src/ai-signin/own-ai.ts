@@ -39,7 +39,7 @@ const messageOf = (e: unknown): string => {
 /** The Space refused because the person's own key is not open where it asked: by its reason (vault_locked), or in the words older daemons and the connectors module use. */
 export function isOwnKeyRefusal(e: unknown): boolean {
   // the reason when the error carries it; else the Vault's words, old ("vault key is locked") and new (modules/vault MINE_CLOSED: "Your Mine items open while you are signed in")
-  return codeOf(e) === "auth.unauthenticated" && (isVaultLockedError(e) || /vault (key )?is locked|sign-ins are locked|Mine items open while you are signed in/i.test(messageOf(e)));
+  return codeOf(e) === "auth.unauthenticated" && (isVaultLockedError(e) || /vault (key )?is locked|Mine items open while you are signed in/i.test(messageOf(e)));
 }
 
 /**

@@ -87,15 +87,7 @@ export async function health(ctx: CompCtx, _input: Record<string, never>) {
 
 // ---- where agent computers can run
 
-export interface HostRow { hostId: string; kind: "this" | "space" | "server"; name: string; online: boolean; canRun: boolean; runs: number; reason?: string; detail?: string; room?: { fits: number; freeMb: number; totalMb: number } }
-
-const COMPUTER_MB = 4096;
-const OS_WORDS: Record<string, string> = { linux: "Linux", darwin: "macOS", win32: "Windows" };
-const gb = (mb: number): string => `${(mb / 1024).toFixed(mb >= 10240 ? 0 : 1)} GB`;
-/** The machine in a line and how many more computers its free memory holds. */
-export function roomOf(c: { totalMb: number; freeMb: number; cpus: number; os: string }): { detail: string; room: { fits: number; freeMb: number; totalMb: number } } {
-  return { detail: `${OS_WORDS[c.os] ?? c.os}, ${gb(c.totalMb)}, ${gb(c.freeMb)} free`, room: { fits: Math.max(0, Math.floor(c.freeMb / COMPUTER_MB)), freeMb: c.freeMb, totalMb: c.totalMb } };
-}
+export interface HostRow { hostId: string; kind: "this" | "space" | "server"; name: string; online: boolean; canRun: boolean; runs: number; reason?: string }
 
 /**
  * The machines an agent computer can live on, for the person asking: this computer (a Personal Space) or the Space server (a Team Space) when the container runtime answers, and every server they
@@ -113,9 +105,7 @@ export async function hosts(ctx: CompCtx, _input: Record<string, never>) {
   let why = "";
   if (!bound) why = team ? "This Space's server has no container runner, so it cannot run agent computers. Run the server from its compose file (it starts the runner), or add a server that has Docker." : "Agent computers are not set up on this computer. Install Docker, or add a server that has it.";
   else { try { const h = await bound.health(); ready = h.ok; if (!ready) why = h.detail ?? "The container runtime did not answer."; } catch (e) { why = e instanceof Error ? `The container runtime failed: ${e.message.slice(0, 160)}` : "The container runtime did not answer."; } }
-  let cap: ReturnType<typeof roomOf> | null = null;
-  if (bound?.capacity && ready) { try { cap = roomOf(await bound.capacity()); } catch { cap = null; } }
-  out.push({ hostId: team ? "space" : "this", kind: team ? "space" : "this", name: team ? "The Space" : "This computer", online: true, canRun: ready, runs: placed.filter((n) => n === null).length, ...(ready ? {} : { reason: why }), ...(cap ?? {}) });
+  out.push({ hostId: team ? "space" : "this", kind: team ? "space" : "this", name: team ? "The Space" : "This computer", online: true, canRun: ready, runs: placed.filter((n) => n === null).length, ...(ready ? {} : { reason: why }) });
   let mine: Array<{ serverId: string; name: string; state: string; enrollment: string; facts?: { docker?: boolean } }> = [];
   try { mine = ((await ctx.call("network.my_computers", {})) as { computers?: typeof mine }).computers ?? []; } catch { /* the network module is not running: no servers */ }
   for (const m of mine) {

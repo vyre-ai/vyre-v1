@@ -344,19 +344,3 @@ test("impl.ts exposes every reports-client handler, the host wiring and no proje
     "reports.get", "reports.health", "reports.list", "reports.policy_get", "reports.policy_set", "reports.preview", "reports.resolved", "reports.send_to_vyre", "reports.submit",
   ]);
 });
-
-test("a person who turned off Send problem reports to Vyre never sends automatically, even when the Space says On; the Space policy still reads back as On", async () => {
-  const w = ready({ policy: "on" });
-  w.settings.set("reports.send", false);
-  const { reportId } = await call("reports.submit", w.ctx, { bundle: bundleOf() }) as { reportId: string };
-  assert.equal(w.posted.length, 0, "kept, not sent");
-  assert.deepEqual(await call("reports.policy_get", w.ctx, {}), { policy: "on" }, "the Space's own policy is unchanged");
-  assert.deepEqual(await call("reports.send_to_vyre", w.ctx, { reportId }), { issueNumber: 1234, stored: true }, "they can still choose Send");
-  const other = ready({ policy: "on" });
-  other.settings.set("reports.send", true);
-  await call("reports.submit", other.ctx, { bundle: bundleOf() });
-  assert.equal(other.posted.length, 1, "with the switch on, On sends");
-  const off = ready({ policy: "off" });
-  off.settings.set("reports.send", true);
-  assert.deepEqual(await call("reports.policy_get", off.ctx, {}), { policy: "off" }, "a person cannot raise the Space's Off");
-});

@@ -192,35 +192,3 @@ test("the golden message: every format at once draws every block, in both skins'
   // colours are skin tokens, so one markup serves paper and graphite: no hard-coded light or dark colour in the message
   assert.ok(!/#[0-9a-fA-F]{6}\b/.test(html.replace(/data:image[^"]*/g, "")), "no fixed colours");
 });
-
-const RAW = /ref\.vyre\.invalid|tsk_|usr_|rec_|\]\(/;
-
-test("an internal reference address never shows, however the link around it is broken", () => {
-  const url = "https://ref.vyre.invalid/task/tsk_sirxsh97mm3gw1";
-  const cases = [
-    `RM-9 Send Josh the meeting link... Send Josh the meeting link...](${url})`,
-    `[Send Josh the meeting link](${url})`,
-    `Open [Send Josh the meeting link](${url} and then`,
-    `See ${url} for the task`,
-    `See (${url}) for the task`,
-    `Done: ]( ${url} ) x`,
-    `[[RM-9|Send Josh the link]](${url})`,
-  ];
-  for (const md of cases) {
-    const html = draw(md);
-    assert.ok(!RAW.test(html.replace(/data-testid="[^"]*"/g, "")), `no raw address or id in ${JSON.stringify(md)}`);
-  }
-  // a well formed link keeps its words and carries the address for the page to turn into a chip; a dangling one is a link with no words
-  const good = parseInline(`[Send Josh the link](${url})`)[0];
-  assert.equal(good?.t === "link" ? good.href : "", url);
-  const dangling = parseInline(`broken words](${url}) after`);
-  assert.ok(dangling.some((n) => n.t === "link" && n.href === url), "the dangling address is a link the page can name");
-  assert.ok(!dangling.some((n) => n.t === "text" && n.v.includes("ref.vyre")), "and not text");
-  // half written while streaming: nothing shows until the address is whole
-  const p = createIncrementalMarkdown();
-  for (const part of ["Task ", "](https://ref.vy", "re.invalid/task/ts", "k_sirxsh97mm3gw1)", " done."]) {
-    p.append(part);
-    const text = clean(renderToStaticMarkup(<MarkdownBlocks blocks={p.view().blocks} streaming />));
-    assert.ok(!/ref\.vy|invalid\/task|tsk_/.test(text.replace(/data-testid="[^"]*"/g, "")), `nothing raw after ${JSON.stringify(part)}`);
-  }
-});

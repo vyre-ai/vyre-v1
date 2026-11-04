@@ -54,7 +54,6 @@ export default defineManifest({
         machine: machineRow, series: t.obj({ '1h': t.arr(point), '24h': t.arr(point), '7d': t.arr(point), '30d': t.arr(point) }), alerts: t.arr(alertRow),
         work: t.arr(t.obj({ kind: t.enm('turn', 'site', 'automation'), agentId: t.opt(id.agent), what: t.str(), where: t.str(), minutes: t.int({ minimum: 0 }) })),
         findings: t.arr(t.obj({ key: t.str(), state: t.enm('healthy', 'degraded', 'down'), detail: t.str(), next: t.str(), fix: t.nullable(t.enm('clear_caches', 'stop_idle', 'update')) })),
-        idleSessions: t.int({ minimum: 0, description: 'What Stop idle sessions would stop: all of them on the Space server, only the owner\'s on a member\'s own computer' }),
         privacy: t.enm('full', 'vyre_only'), lastFix: t.opt(t.obj({ fix: t.str(), at: t.ts(), state: t.enm('done', 'failed'), detail: t.str() })),
       },
       errors: ['validation.not_found'],

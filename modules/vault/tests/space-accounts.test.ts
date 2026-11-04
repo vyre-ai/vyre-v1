@@ -9,7 +9,7 @@ import * as v from "../handlers/index.ts";
 import * as u from "../handlers/use.ts";
 import * as p from "../handlers/providers.ts";
 import * as sk from "../handlers/space-key.ts";
-import { ADMIN, MAYA, ROB, contractErrors, harness, refusedWith } from "../fixtures/harness.ts";
+import { ADMIN, MAYA, ROB, harness, refusedWith } from "../fixtures/harness.ts";
 import type { Harness } from "../fixtures/harness.ts";
 
 type Json = Record<string, unknown>;
@@ -115,37 +115,5 @@ test("the Space AI key from before is a Space account with every use on, with th
   h.ctx.db.run(`DELETE FROM vault_provider_uses WHERE "providerId" = ?`, String(row.id));
   const again = (await listed(h, ROB)).find((x) => x.spaceKey === true)!;
   assert.deepEqual([again.uses, again.usesSet, again.teamChatsForMe], [ALL, true, true]);
-  done(h);
-});
-
-test("keeps nothing: false until an owner or admin says so, listed for every member, audited with an event; a local model always keeps nothing", async () => {
-  const { h } = space();
-  const row = await credits(h);
-  const mark = (v: boolean): Promise<unknown> => p.setKeepsNothingFor(h.ctx, { providerId: String(row.id), keepsNothing: v });
-  assert.equal((await listed(h, ADMIN)).find((x) => x.id === row.id)!.keepsNothing, false, "false by default");
-  const set = ((await mark(true)) as { provider: Json }).provider;
-  assert.equal(set.keepsNothing, true);
-  assert.equal(contractErrors("providers.set_keeps_nothing", "out", { provider: set }).length, 0);
-  // a plain shared key is listed only for those who can Use it; once it is a Space account every member lists it with the flag
-  await p.usesSet(h.ctx, { providerId: String(row.id), uses: { automations: true } });
-  assert.equal((await listed(h, ROB)).find((x) => x.id === row.id)!.keepsNothing, true, "kept across a change of uses");
-  assert.ok(h.rows(`SELECT * FROM vault_history WHERE "itemId" = ?`, String(row.itemId)).some((r) => /Marked as keeping nothing/.test(String(r.detail))));
-  assert.equal(h.named("provider.keeps_nothing_changed").length, 1);
-  assert.deepEqual(h.named("provider.keeps_nothing_changed")[0]?.payload, { providerId: row.id, keepsNothing: true });
-  await mark(true);
-  assert.equal(h.named("provider.keeps_nothing_changed").length, 1, "no change, no event");
-  assert.equal(((await mark(false)) as { provider: Json }).provider.keepsNothing, false);
-  assert.equal(h.named("provider.keeps_nothing_changed").length, 2);
-  assert.equal(await refusedWith(p.setKeepsNothingFor(h.ctx, { providerId: String(row.id), keepsNothing: "yes" as never })), "validation.bad_input");
-  // a local model keeps nothing whatever is said, and cannot be turned off
-  const folder = (await v.foldersCreate(h.ctx, { name: "Local", scope: "shared", idempotencyKey: idem() })) as { folder: { id: string } };
-  h.grant(ADMIN, folder.folder.id, "manage");
-  const local = ((await p.add(h.ctx, { providerKey: "local", connection: "local_model", scope: "shared", address: "http://localhost:11434", folderId: folder.folder.id, idempotencyKey: idem() })) as { provider: Json }).provider;
-  assert.equal(local.keepsNothing, true);
-  assert.equal(await refusedWith(p.setKeepsNothingFor(h.ctx, { providerId: String(local.id), keepsNothing: false })), "validation.bad_input");
-  // an account of someone's own is not the Space's to mark
-  const mine = ((await p.add(h.ctx, { providerKey: "opencode-go", connection: "api_key", scope: "mine", apiKey: OCG, idempotencyKey: idem() })) as { provider: Json }).provider;
-  assert.equal(mine.keepsNothing, false);
-  assert.equal(await refusedWith(p.setKeepsNothingFor(h.ctx, { providerId: String(mine.id), keepsNothing: true })), "validation.bad_input");
   done(h);
 });

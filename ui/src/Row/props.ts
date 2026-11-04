@@ -29,12 +29,6 @@ export interface RowProps {
   /** After the title, right aligned (count, level picker, controls). */
   trailing?: ReactNode;
   onPress?: (event?: unknown) => void;
-  /** A row that goes nowhere the person can open: drawn as plain text, no pointer, no hover paint (reach). */
-  inert?: boolean;
-  /** The hover text of a link row ("Opens Console, Computers", "Shows a summary"). */
-  hint?: string;
-  /** A peek row: the same look, and a small lock at the right edge on hover. */
-  locked?: boolean;
   /** Web only: more attributes and handlers for the row's element (draggable, a data attribute a list delegates on, a context-menu trigger). Off the web it is ignored. */
   domProps?: Record<string, unknown>;
 }

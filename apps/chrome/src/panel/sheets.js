@@ -73,7 +73,7 @@ export function watchSheet(s) {
       h("div.lbl", null, "How often"),
       h("button.pick", act("wFreq", { css: { marginLeft: "-8px" }, "aria-haspopup": "menu" }), ic("clock", "s"), freqLabel(w.every), h("span.chev", null, ic("chev", "xs"))),
       h("div.lbl", null, "Who checks it"),
-      agent ? h("button.pick", act("wWho", { css: { marginLeft: "-8px" }, "aria-haspopup": "menu" }), face({ name: agent.name, avatar: agent.avatar ?? null, face: agent.face ?? null, assistant: Boolean(agent.assistant) }, 20), agent.name, h("span.chev", null, ic("chev", "xs")))
+      agent ? h("button.pick", act("wWho", { css: { marginLeft: "-8px" }, "aria-haspopup": "menu" }), face({ name: agent.name, avatar: agent.avatar ?? null, assistant: Boolean(agent.assistant) }, 20), agent.name, h("span.chev", null, ic("chev", "xs")))
         : h("div.xs.mut", null, "No agent to check it yet."),
       h("div.lbl", null, "Run on"),
       h("div.seg", { css: { width: "100%" } },

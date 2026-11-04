@@ -12,7 +12,6 @@ export const NOW = 1_760_000_000_000;
 export const TRACE = "0123456789abcdef0123456789abcdef";
 export const SPACE = "spc_test";
 export const MIGRATION = fileURLToPath(new URL("../migrations/0001_settings.sql", import.meta.url));
-export const MIGRATION_CONTACT = fileURLToPath(new URL("../migrations/0003_contact_verify.sql", import.meta.url));
 
 type Cell = string | number | null;
 export type Row = Record<string, Cell>;
@@ -171,7 +170,7 @@ export class FakeSettingsDb implements RawDb {
   readonly log: string[] = [];
 
   constructor(migrationPath: string = MIGRATION) {
-    this.tables = parseMigration(readFileSync(migrationPath, "utf8") + (migrationPath === MIGRATION ? `\n${readFileSync(MIGRATION_CONTACT, "utf8")}` : ""));
+    this.tables = parseMigration(readFileSync(migrationPath, "utf8"));
   }
 
   rows(table: string): Row[] { return this.table(table).rows.map((r) => ({ ...r })); }
@@ -323,9 +322,6 @@ export interface Harness {
   /** A system call with no person behind it. */
   system(): SettingsCtx;
   advance(ms: number): void;
-  /** the calls a handler made to other modules, and a way to answer them */
-  calls: { cap: string; input: Record<string, unknown> }[];
-  callee(cap: string, fn: (input: Record<string, unknown>) => unknown): void;
 }
 
 export function harness(now = NOW): Harness {
@@ -333,10 +329,7 @@ export function harness(now = NOW): Harness {
   const db = scopedDb("settings", raw, TRACE);
   const events: Event[] = [];
   let clock = now;
-  const calls: { cap: string; input: Record<string, unknown> }[] = [];
-  const callees = new Map<string, (input: Record<string, unknown>) => unknown>();
   const base = {
-    call: async (cap: string, input: unknown) => { calls.push({ cap, input: input as Record<string, unknown> }); const f = callees.get(cap); if (!f) throw new Error(`no callee for ${cap}`); return f(input as Record<string, unknown>); },
     space: SPACE,
     trace: { traceId: TRACE, spanId: "abcdef0123456789" },
     now: () => clock,
@@ -349,7 +342,6 @@ export function harness(now = NOW): Harness {
     as: (id, o = {}) => ({ ...base, principal: { kind: "person", id }, authorize: authorize(!!o.admin) }) as SettingsCtx,
     system: () => ({ ...base, principal: { kind: "service", id: "svc_sync" }, authorize: authorize(false) }) as SettingsCtx,
     advance(ms) { clock += ms; },
-    calls, callee(cap, fn) { callees.set(cap, fn); },
   };
 }
 

@@ -26,10 +26,6 @@ export interface RightPaneNav {
   openRoutineFile(agentId: string, title: string): void;
   /** "Make a Skill from Here": drafts a skill from a step to the end. */
   skillFromStep(computerId: string, stepId: string): void;
-  /** What the header offers beside Message, only where the shell can do it: Poke asks the agent to read the latest and answer now, Share opens the share sheet, Machines opens Console, Computers with that machine selected. Left out, the button is not drawn. */
-  poke?(agentId: string, threadId: string): void;
-  share?(agentId: string): void;
-  openMachines?(nodeId?: string): void;
 }
 
 export interface Connection { get(): "online" | "offline"; subscribe(l: () => void): () => void }
@@ -67,8 +63,6 @@ export interface ChatRightPaneData {
   people?: readonly DirectoryEntry[];
   /** What the Knows tab reads and writes (facts in scope for this chat and this asker, live and editable). Left out where the shell has none: the tab then shows the agent's own facts as it always did. */
   memory?: ChatMemoryData;
-  /** The shared Share sheet on something the pane lists (a skill), drawn by the shell, which has the runtime the sheet reads through. */
-  renderShare?(resource: { type: string; id: string; name: string }, onClose: () => void): ReactElement;
 }
 
 const Ctx = createContext<ChatRightPaneData | null>(null);

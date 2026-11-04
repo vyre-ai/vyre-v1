@@ -409,8 +409,6 @@ export interface Pending {
   files?: readonly PendingFile[];
   /** Links picked for [[ ]] or # chips, sent as the message's refs. */
   refs?: readonly PendingRef[];
-  /** From a thread: also post these words to the chat the thread hangs in. */
-  alsoToChat?: boolean;
 }
 
 export interface PendingFile { name: string; file?: unknown; size?: number; mime?: string; fileId?: string }

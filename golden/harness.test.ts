@@ -82,7 +82,7 @@ test("golden-ready prints blockers per flow and applies the hour 6, 9 and 11 dea
 });
 
 test("the CLIs run: pending flows keep the exit code at 0, golden-ready lists all 15", () => {
-  const sh = (f: string, a: string[] = []) => spawnSync(process.execPath, [f, ...a], { cwd: ROOT, encoding: "utf8", timeout: 100_000, env: { ...process.env, GOLDEN_TIMES: "1" } });
+  const sh = (f: string, a: string[] = []) => spawnSync(process.execPath, [f, ...a], { cwd: ROOT, encoding: "utf8", timeout: 100_000 });
   const g = sh("golden/harness/cli.ts");
   const m = /^15 flows: (\d+) pass, (\d+) pending, (\d+) fail$/m.exec(g.stdout);
   assert.ok(m, g.stdout + g.stderr);

@@ -51,11 +51,11 @@ for (const kind of ["team", "personal"] as const) {
       await api("agents.update", { agentId: assistant.agentId, patch: { model: "gpt-4o-mini" }, idempotencyKey: "cs-model" });
       const rec = (await api("records.create", { type: "contact", fields: { name: "Ada Lovelace" }, idempotencyKey: "cs-rec" })).record as { id: string };
 
-      // the record's Ask: the pane beside the page, about the record
+      // the record Chat tab: the right pane's overflow, then Chat
       await page.goto(`${web.origin}/records#subject=record:${rec.id}&type=contact`, { waitUntil: "load" });
-      await page.getByTestId("record-ask").waitFor({ timeout: 20_000 });
-      await page.getByTestId("record-ask").click();
-      const field = page.getByTestId("ask-pane-chat").getByTestId("composer-field").first();
+      await page.getByTestId("tab-more").waitFor({ timeout: 20_000 });
+      await page.getByTestId("tab-more").click(); await page.getByRole("menuitem", { name: "Chat", exact: true }).click();
+      const field = page.getByTestId("composer-field").first();
       await field.waitFor({ timeout: 30_000 });
       const ask = async (text: string): Promise<void> => { await field.fill(text); await field.press("Enter"); };
 

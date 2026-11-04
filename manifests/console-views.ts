@@ -3,7 +3,7 @@ import { defineManifest, read, screen, t } from '../packages/contracts/src/index
 import { id } from './_common.ts';
 
 const state = t.enm('healthy', 'degraded', 'down');
-const attention = t.obj({ kind: t.enm('failing_check', 'expiring_certificate', 'failed_run', 'stuck_update', 'limit_hit', 'access_review_due', 'join_stuck', 'home_channel', 'no_ai_account', 'space_deletion_scheduled'), title: t.str(), ref: t.opt(t.str()), since: t.ts(), next: t.str() });
+const attention = t.obj({ kind: t.enm('failing_check', 'expiring_certificate', 'failed_run', 'stuck_update', 'limit_hit', 'access_review_due', 'join_stuck', 'home_channel', 'no_ai_account'), title: t.str(), ref: t.opt(t.str()), since: t.ts(), next: t.str() });
 const usageRow = t.obj({ key: t.str(), name: t.str(), turns: t.int(), tokensIn: t.int(), tokensOut: t.int(), costMicros: t.int() });
 
 export default defineManifest({
@@ -33,8 +33,6 @@ export default defineManifest({
   screens: [
     screen('console.overview', 'console', 'ui:ConsoleOverview', { q: { overview: ['console.overview'] }, a: {}, needs: ['console.access'], empty: 'Nothing needs attention', perf: { firstPaintMs: 100, completeMs: 300 } }),
     screen('console.speed', 'console', 'ui:ConsoleSpeed', { q: { speed: ['console.speed'] }, needs: ['console.access'], empty: 'No speed samples yet' }),
-    // any Console page by name, for places that link into the Console: args.page is a page id, or machines~<machineId> for Computers with that machine open (machines~space is the Space server)
-    screen('console.page', 'console', 'ui:ConsolePage', { needs: ['console.access'], empty: 'Opening the Console' }),
     screen('console.usage', 'console', 'ui:ConsoleUsage', { q: { usage: ['console.usage', { period: '/period', by: '/by' }] }, needs: ['console.access'], empty: 'No usage in this period' }),
     screen('console.machines', 'console', 'ui:ConsoleMachines', { needs: ['console.access'], q: { machines: ['machines.list'] }, a: { set: ['machines.set', { machineId: '/state/machineId' }], fix: ['machines.fix', { machineId: '/state/machineId', fix: '/state/fix' }] }, empty: 'No machines yet', primary: 'Add a server' }),
     screen('console.network', 'console', 'ui:ConsoleNetwork', {

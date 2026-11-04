@@ -2,13 +2,13 @@
 // computer, and the call that was waiting goes again. Cancel leaves the page as it was. Mounted once by the shell; skin tokens only, so every skin paints it.
 import { useEffect, useState } from "react";
 import type { ReactElement } from "react";
-import { Pressable, StyleSheet, Text } from "react-native";
+import { StyleSheet, Text } from "react-native";
 import { Dialog } from "../../../../../ui/src/Dialog/index.tsx";
 import { TextField } from "../../../../../ui/src/TextField/index.tsx";
 import { registerVaultPrompt } from "./vault-gate.ts";
-import type { PromptWords, Unlock } from "./vault-gate.ts";
+import type { Unlock } from "./vault-gate.ts";
 
-interface Req { unlock: Unlock; done: (ok: boolean) => void; words?: PromptWords | undefined }
+interface Req { unlock: Unlock; done: (ok: boolean) => void }
 
 export function VaultUnlockHost(): ReactElement | null {
   const [req, setReq] = useState<Req | null>(null);
@@ -16,7 +16,7 @@ export function VaultUnlockHost(): ReactElement | null {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   useEffect(() => {
-    registerVaultPrompt((unlock, words) => new Promise<boolean>((done) => { setPassword(""); setError(null); setBusy(false); setReq({ unlock, done, words }); }));
+    registerVaultPrompt((unlock) => new Promise<boolean>((done) => { setPassword(""); setError(null); setBusy(false); setReq({ unlock, done }); }));
     return () => registerVaultPrompt(null);
   }, []);
   if (!req) return null;
@@ -29,15 +29,14 @@ export function VaultUnlockHost(): ReactElement | null {
   };
   return (
     <Dialog
-      title={req.words?.title ?? "Unlock your Vault"} testID="vault-unlock" width={400} onClose={() => close(false)}
+      title="Unlock your Vault" testID="vault-unlock" width={400} onClose={() => close(false)}
       actions={[{ label: "Cancel", testID: "vault-unlock-cancel", onPress: () => close(false) }, { label: busy ? "Unlocking" : "Unlock", primary: true, disabled: busy, testID: "vault-unlock-go", onPress: submit }]}
     >
-      <Text style={s.sub}>{req.words?.sub ?? "Your password opens your Mine items on this computer."}</Text>
+      <Text style={s.sub}>Your password opens your Mine items on this computer.</Text>
       <TextField
         value={password} onChangeText={(v) => { setPassword(v); setError(null); }} secureTextEntry placeholder="Your password" accessibilityLabel="Your password"
         autoFocus onSubmitEditing={submit} editable={!busy} testID="vault-unlock-password"
       />
-      {req.words?.forgot ? <Pressable accessibilityRole="button" accessibilityLabel="Forgot password" testID="vault-unlock-forgot" onPress={() => { const f = req.words!.forgot!; close(false); f(); }}><Text style={s.link}>Forgot password</Text></Pressable> : null}
       {error ? <Text style={s.error} accessibilityRole="alert" testID="vault-unlock-error">{error}</Text> : null}
     </Dialog>
   );
@@ -45,6 +44,5 @@ export function VaultUnlockHost(): ReactElement | null {
 
 const s = StyleSheet.create({
   sub: { fontSize: 13.5, lineHeight: 20, color: "var(--ink-3)" as string },
-  link: { fontSize: 12.5, color: "var(--ink-3)" as string },
   error: { fontSize: 12.5, color: "var(--danger)" as string },
 });

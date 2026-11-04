@@ -31,7 +31,7 @@ test("turn context: identity, where, skills, what the agent can do here and the 
     assert.match(front, /Other skills, by name\. When one fits what you are doing, load it with load_skill \{name\}[^\n]*:\n- about-vyre: [^\n]*\n- agent-computer: /);
     assert.match(front, /agents_routine_save/);
     assert.match(front, /Vault: no items are set for you/);
-    assert.match(front, /\nIt is \w+day, \d+ \w+ 20\d\d, \d\d:\d\d \([A-Za-z/_]+\)\. That is UTC[+-]\d+(:\d\d)?\. The person's time zone is [A-Za-z/_]+: say times in it\..*call time_convert[^\n]*yourself\.$/);
+    assert.match(front, /\nIt is \w+day, \d+ \w+ 20\d\d, \d\d:\d\d \([A-Za-z/_]+\)\.$/);
     assert.ok(reply.endsWith("hello"), "the person's words come last");
     assert.doesNotMatch(reply, /sk-ant-/, "no key in the context");
   } finally { await d.stop(); }

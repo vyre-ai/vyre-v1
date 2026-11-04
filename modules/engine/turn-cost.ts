@@ -9,7 +9,7 @@ import { resolvePick, shippedModels } from "./live-models.ts";
 
 export interface Price { in: number; out: number; cacheRead?: number; cacheWrite?: number; longPrompt?: { over: number; in: number; out: number } }
 export interface CostLine { kind: "input" | "output" | "cache_read" | "cache_write"; tokens: number; perMillion: number; micros: number }
-export interface TurnCost { source: "subscription" | "reported" | "catalog" | "estimate" | "unknown" | "flat"; micros?: number; lines?: CostLine[]; priceAsOf?: string; missing?: string[] }
+export interface TurnCost { source: "subscription" | "reported" | "catalog" | "estimate" | "unknown"; micros?: number; lines?: CostLine[]; priceAsOf?: string; missing?: string[] }
 export interface CostIn {
   model: string; driver?: string; provider?: string; accountKind?: string;
   tokensIn: number; tokensOut: number; cacheReadTokens?: number; cacheWriteTokens?: number; costUsd?: number;
@@ -37,13 +37,8 @@ export function priceFor(model: string, driver?: string, provider?: string): { p
 
 const micros = (tokens: number, perMillion: number): number => Math.round(tokens * perMillion);
 
-/** Drivers whose accounts are a flat plan: the provider reports no per-token cost. */
-export const FLAT_PLANS: ReadonlySet<string> = new Set(["opencode_go"]);
-
 export function costOf(c: CostIn): TurnCost {
   if (c.accountKind === "subscription") return { source: "subscription" };
-  // a flat-plan account (OpenCode Go) reports a cost of 0: that is a plan, not a free answer, so it is never shown as $0.00
-  if (c.costUsd === 0 && FLAT_PLANS.has(c.driver ?? "")) return { source: "flat" };
   if (c.costUsd !== undefined) return { source: "reported", micros: Math.round(c.costUsd * 1e6) };
   let found = priceFor(c.model, c.driver, c.provider);
   let source: "catalog" | "estimate" = "catalog";

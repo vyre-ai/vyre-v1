@@ -62,11 +62,6 @@ type Out = {
     contactId?: string;
     isPrivate: boolean;
     draftedByAgent?: string;
-    earlier?: {
-      at: number;
-      text: string;
-      subject: string;
-    };
   };
 };
 ```
@@ -99,11 +94,6 @@ type Out = {
       "contactId": "rec_a1b2c3",
       "direction": "in",
       "draftedByAgent": "agt_a1b2c3",
-      "earlier": {
-        "at": 1760000000000,
-        "subject": "example",
-        "text": "example"
-      },
       "from": {
         "address": "maya@example.com",
         "contactId": "rec_a1b2c3",

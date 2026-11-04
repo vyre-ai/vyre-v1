@@ -72,29 +72,3 @@ test("a turn Automatic moved off a busy machine keeps the reason on its record, 
   await routed(open as never, { call: async () => ({ placement: "host", reason: "space" }), relay: relay(true), nodeOpener: () => open as never, db: h.db })(calm);
   assert.equal(whereOfTurn(h.db, "trn_3")[0]?.note, undefined, "a turn that was not moved has no note");
 });
-
-test("two turns started back to back respect a limit of 1: the second is placed after the first is on its machine", async () => {
-  const h = harness();
-  let running = 0;
-  const opened: string[] = [];
-  const rel: NodeRelay = { connected: () => true, secure: () => true, devices: () => [{ nodeId: "device:dev_mac", deviceId: "dev_mac", person: "usr_dana", name: "Dana's Mac", engines: ["claude_code"] }], spawn: async () => { throw new Error("not used"); } };
-  // the Space decides from the processes it has started on the machine, as engine.placement.decide does with the machines module (limit 1)
-  const call = async (cap: string): Promise<unknown> => {
-    if (cap !== "engine.placement.decide") return {};
-    await new Promise((r) => setTimeout(r, 5));
-    return running >= 1 ? { placement: "host", reason: "space", moved: { from: "Dana's Mac", why: "it was busy, 1 of 1 turns running" } } : { placement: "device", reason: "device", deviceId: "dev_mac" };
-  };
-  const go = routed((async () => { opened.push("space"); return {} as never; }) as never, {
-    call, relay: rel, db: h.db, nodeOpener: (id) => (async () => { await new Promise((r) => setTimeout(r, 20)); running++; opened.push(`node:${id}`); return {} as never; }) as never,
-  });
-  const two = (n: number) => ({ ...spec, turnId: `trn_${n}`, account: { driver: "claude_code" } }) as unknown as SessionSpec;
-  const a = go(two(1)), b = go(two(2));
-  await Promise.allSettled([a, b]);
-  assert.deepEqual(opened.sort(), ["node:device:dev_mac", "space"], "one on her computer, the other moved to the Space");
-  running = 0; opened.length = 0;
-  // the Space's own engine does not hold the next one back
-  const slowSpace = routed((async () => { await new Promise((r) => setTimeout(r, 80)); opened.push("space"); return {} as never; }) as never, { call: async () => ({ placement: "host", reason: "space" }), relay: rel, db: h.db, nodeOpener: () => (async () => ({}) as never) as never });
-  const t0 = Date.now();
-  await Promise.all([slowSpace(two(3)), slowSpace(two(4))]);
-  assert.ok(Date.now() - t0 < 140, "both opened at the same time");
-});

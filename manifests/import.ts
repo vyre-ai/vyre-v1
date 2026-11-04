@@ -107,7 +107,7 @@ export default defineManifest({
     read('import.template', 'A CSV template for a record type: header row and one example row', {
       in: { type: id.recordType }, out: { text: t.str(), fileId: t.opt(id.file) }, on: ['record_type', '/type'], tool: 'records',
     }),
-    read('sessions.list', 'List the current owner private imported session archive in this Personal Space; in any other Space the list is empty and personalOnly is true', { in: pageIn, out: { sessions: t.arr(archiveSession), next: t.opt(t.str()), personalOnly: t.opt(t.bool()) }, perm: 'chats.private', tool: 'chats' }),
+    read('sessions.list', 'List the current owner private imported session archive in this Personal Space', { in: pageIn, out: { sessions: t.arr(archiveSession), next: t.opt(t.str()) }, perm: 'chats.private', tool: 'chats' }),
     read('sessions.get', 'Read an immutable imported session transcript owned by the signed-in person', { in: { conversationId: t.id('isc') }, out: { session: archiveSession, messages: t.arr(importedMessage) }, perm: 'chats.private', tool: 'chats', errors: ['validation.not_found'] }),
     write('sessions.import', 'Copy previewed local Codex or Claude Code sessions into immutable owner-private Vyre conversations; provider adapters supply visible user and assistant text and, on assistant messages, the tool calls with their one-line summaries and the start of their results (credentials removed)', {
       in: { provider: sessionProvider, sourceKey: t.str(), consent: t.obj({ previewedAt: t.ts(), confirmedAt: t.ts() }), destination: t.opt(sessionDestination), sessions: t.arr(importedSession, { minItems: 1 }) },

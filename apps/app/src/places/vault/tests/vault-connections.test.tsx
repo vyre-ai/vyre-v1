@@ -92,9 +92,9 @@ test("Settings and the Console open Vault > Connections, and the address opens t
   assert.deepEqual(vaultRoute({ screen: "vault.layout", args: { connections: "add" } }), { surface: "connections", add: true });
   const placed = renderToStaticMarkup(<ShellRuntimeProvider value={base}><PlaceHashProvider hash="screen=vault.layout&connections=true" opened={() => undefined}><VaultPlace place="vault" /></PlaceHashProvider></ShellRuntimeProvider>);
   assert.ok(has(placed, 'data-testid="vault-connections"'), "the address mounts the page");
-  // Settings > Connected left Settings (the seven pages): the old page says the connections are in Vault and opens it
+  // Settings > Connected: the summary and Open in Vault
   const conn = renderToStaticMarkup(<SettingsDataProvider value={settings.data}><SettingsPlace initialPage="connected" /></SettingsDataProvider>);
-  assert.ok(has(conn, 'data-testid="moved-vault-go"') && has(conn, "Your app connections are in Vault") && has(conn, "Open Vault"));
+  assert.ok(has(conn, 'data-testid="settings-open-connections"') && has(conn, "Open in Vault"));
   assert.ok(!has(conn, "App hubs"), "the hub card moved to the Vault");
   // the Console's Plugins page: the same link, through openApp
   const c = createSampleConsole();

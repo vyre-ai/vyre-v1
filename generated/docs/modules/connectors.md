@@ -4,14 +4,13 @@ Lane L3. Kind module. Version 0.1.0.
 
 Requires: records, schema.
 
-## Capabilities (62)
+## Capabilities (61)
 
 - [connections.complete_auth](../capabilities/connections.complete_auth.md): Finish an OAuth sign-in from the callback: the state and the code, or the error the app sent back when the person declined. Only the person who started the sign-in can finish it
 - [connections.create](../capabilities/connections.create.md): Plug an account into a connector; secrets are named Vault items, never values. Your own (person) needs no permission; a Space one needs connectors.manage
 - [connections.delete](../capabilities/connections.delete.md): Remove a connection; synced types bound to it pause
 - [connections.get](../capabilities/connections.get.md): Read one connection
 - [connections.list](../capabilities/connections.list.md): List connections; mine, the Space ones or all the caller may see
-- [connections.mark_working](../capabilities/connections.mark_working.md): System: another module proved this connection works (Google delegation passed its check, or a mailbox or calendar poll succeeded). A pending, failing or signed-out connection becomes active, and its last used time is stamped at most once a minute. A paused one stays paused
 - [connections.pause](../capabilities/connections.pause.md): The owner pauses a connection; syncing and actions stop
 - [connections.reconnect](../capabilities/connections.reconnect.md): Start signing in again; returns the provider sign-in address when one is needed
 - [connections.resume](../capabilities/connections.resume.md): The owner resumes a connection

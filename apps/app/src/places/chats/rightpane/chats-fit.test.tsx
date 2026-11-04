@@ -31,7 +31,7 @@ test("on a wide screen the agent page draws all five tabs and no More", () => {
   const s = createSample("owner");
   const out = renderToStaticMarkup(<AgentPage data={s.data} window={{ start: 0, end: 500 }} />).replaceAll("<!-- -->", "");
   for (const t of ["Chats", "Memory", "Files", "Computer", "Settings"]) assert.ok(out.includes(`>${t}<`), t);
-  assert.ok(!out.includes('aria-label="More tabs"'));
+  assert.ok(!out.includes(">More<"));
 });
 
 test("Run now and Delegate call the P-CC_20 capabilities with their real inputs", async () => {

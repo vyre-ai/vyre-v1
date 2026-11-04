@@ -12,7 +12,6 @@ import { meaningRank, meaningStatusRead } from "./meaning.ts";
 import { maintain, questionResolve, questionsList, upkeepStatus } from "./upkeep.ts";
 import { keyResolve, keySet, keysGet } from "./keys.ts";
 import { quote } from "./quotes.ts";
-import { placeArchive, placeList, sourceRemoved } from "./places.ts";
 import { recallRecord, used } from "./recalllog.ts";
 import { forget, remember } from "./tools.ts";
 import { recordCorrection } from "./corrections.ts";
@@ -74,9 +73,6 @@ export const handlers = {
   "memory.questions.list": questionsList,
   "memory.question.resolve": questionResolve,
   "memory.quote": quote,
-  "memory.place.list": placeList,
-  "memory.place.archive": placeArchive,
-  "memory.source_removed": sourceRemoved,
   "memory.used": used,
   "memory.recall.record": recallRecord,
   "memory.keys.get": keysGet,

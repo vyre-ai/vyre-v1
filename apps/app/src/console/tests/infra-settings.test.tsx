@@ -11,5 +11,5 @@ test('Updates shows observed version and failure, review action and history with
 });
 test('Space profile displays actual fingerprint and profile actions',()=>{
  const html=draw(<SpaceProfile/>,{'spaces.get':{space:{id:'spc_fixture',name:'Fixture Team',legalName:'Fixture Legal',owner:'usr_other',kind:'team',fingerprint:'ab12 cd34',address:{mode:'relay',host:'fixture.vyre.test'},defaults:{},createdAt:1}}});
- assert.match(html,/ab12 cd34/);assert.match(html,/fixture.vyre.test/);assert.match(html,/infra-space-save/);assert.match(html,/Defaults for new members/);assert.doesNotMatch(html,/Delete this Space/);
+ assert.match(html,/ab12 cd34/);assert.match(html,/fixture.vyre.test/);assert.match(html,/Save profile/);assert.doesNotMatch(html,/Delete this Space/);
 });

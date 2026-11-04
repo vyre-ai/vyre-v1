@@ -2,7 +2,6 @@
 // owner floor and the agent's own rule), the fixed summary line of a hold, and the exact preview blocks.
 // Durable tables: migrations/0001_gate_holds.sql. Every statement names only gate_* tables (ctx.db refuses anything else, ARCH B2).
 // The act kinds below mirror manifests/gate.ts gateActs (frozen, ruling 9); the contract test of this module compares them.
-import { holdTitle } from "../../lib/hold-words.ts";
 import { outwardOf } from "../../lib/outward.ts";
 import { isTrustedService } from "../../lib/trust.ts";
 import { fail } from "../../host/src/routes/errors.ts";
@@ -318,7 +317,7 @@ export function summaryLine(a: ActDef, capName: string, input: unknown): string 
     if (Array.isArray(v)) recipients += v.length;
     else if (typeof v === "string" && v.length > 0) recipients += 1;
   }
-  const parts = [a.key === "send" && (outwardOf(capName, input) === null || outwardOf(capName, input)?.channel === "event") ? holdTitle(capName, input, a.title) : `${a.title} via ${capName}`];
+  const parts = [`${a.title} via ${capName}`];
   if (recipients > 0) parts.push(`to ${recipients} ${recipients === 1 ? "recipient" : "recipients"}`);
   const amount = o.amount;
   if (typeof amount === "number" && Number.isFinite(amount)) parts.push(`for ${amount}${typeof o.currency === "string" ? ` ${o.currency.slice(0, 3).toUpperCase()}` : ""}`);

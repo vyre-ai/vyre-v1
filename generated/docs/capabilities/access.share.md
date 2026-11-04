@@ -19,14 +19,14 @@ Give a person, group, role, agent or automation a level on a resource (flows dow
 | HTTP | POST /v1/access/share |
 | MCP tool | access_share (meta) |
 | CLI | none |
-| Emits | grant.created, access.changed, folder.shared, access.shared_with |
+| Emits | grant.created, access.changed, folder.shared |
 
 ## Input
 
 ```ts
 type In = {
   resource: {
-    type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar" | "skill";
+    type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
     id: string;
   };
   subject: {
@@ -49,9 +49,6 @@ type In = {
   source?: string;
   export?: boolean;
   reshare?: boolean;
-  notify?: {
-    message?: string;
-  };
   idempotencyKey: string;
 };
 ```
@@ -67,7 +64,7 @@ type Out = {
       id: string;
     };
     resource: {
-      type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar" | "skill";
+      type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
       id: string;
     };
     level: "view" | "use" | "edit" | "manage";
@@ -123,9 +120,6 @@ type Out = {
     "export": true,
     "idempotencyKey": "idem_1",
     "level": "view",
-    "notify": {
-      "message": "example"
-    },
     "reshare": true,
     "resource": {
       "id": "rec_a1b2c3",

@@ -1,7 +1,7 @@
 // One handler per notes capability (lane L2).
 import { clipPage, toRecord, toTask } from "./convert.ts";
 import { createNote, getNote, labelNote, listNotes, noteImage, pinNote, searchNotes, updateNote } from "./notes.ts";
-import { deleteNote, restoreNote, setNoteOwner, shareNote } from "./share.ts";
+import { deleteNote, restoreNote, shareNote } from "./share.ts";
 
 export const handlers = {
   "notes.create": createNote,
@@ -13,7 +13,6 @@ export const handlers = {
   "notes.pin": pinNote,
   "notes.label": labelNote,
   "notes.share": shareNote,
-  "notes.set_owner": setNoteOwner,
   "notes.delete": deleteNote,
   "notes.restore": restoreNote,
   "notes.to_task": toTask,

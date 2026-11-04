@@ -7,10 +7,6 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 import { Glyph } from "./parts.tsx";
 
 export const SWITCH_LABEL = "Don't remember this chat";
-/** The hover text of the lock: what it is and what pressing does. */
-export const SWITCH_TIP = "Remembering this chat. Press to stop.";
-/** The hover text for the switch in each state. */
-export const tipOf = (remember: boolean): string => (remember ? SWITCH_TIP : `${QUIET_LINE}. Press to remember it again.`);
 export const QUIET_LINE = "Not remembering this chat";
 
 /** What memory.chat_learning.get answers, as far as the switch reads it. A chat memory cannot answer for is remembered. */
@@ -42,11 +38,11 @@ export function MemorySwitch({ threadId, call, say }: { threadId: string; call(c
   return (
     <Pressable
       accessibilityRole="switch" accessibilityLabel={SWITCH_LABEL} accessibilityState={{ checked: !remember, busy }} aria-checked={!remember} testID="memory-switch"
-      {...{ title: tipOf(remember) }}
+      {...{ title: remember ? SWITCH_LABEL : `${QUIET_LINE}. Press to remember it again.` }}
       onPress={flip} style={st.box}
     >
       <View style={st.row}>
-        <Glyph name={remember ? "memory" : "memoryoff"} size={16} color={remember ? "var(--ink-3)" : "var(--ink-2)"} />
+        <Glyph name="lock" size={14} color={remember ? "var(--ink-3)" : "var(--ink-2)"} />
         {remember ? null : <Text testID="memory-off-line" style={st.line}>{QUIET_LINE}</Text>}
       </View>
     </Pressable>
@@ -54,7 +50,7 @@ export function MemorySwitch({ threadId, call, say }: { threadId: string; call(c
 }
 
 const st = StyleSheet.create({
-  box: { height: 32, minWidth: 32, justifyContent: "center", alignItems: "center", paddingHorizontal: 8, borderRadius: 16 },
+  box: { minHeight: 28, minWidth: 28, justifyContent: "center", alignItems: "center", paddingHorizontal: 4, borderRadius: 6 },
   row: { flexDirection: "row", alignItems: "center", gap: 6 },
   line: { fontSize: 12.5, color: "var(--ink-2)" as string },
 });

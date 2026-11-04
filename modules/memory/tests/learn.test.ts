@@ -23,7 +23,7 @@ interface Seen { complete: Array<{ accountRef: string; model: string; prompt: st
 
 function chat(s: Script, seen: Seen): Record<string, Responder> {
   return {
-    "threads.get": (b: Record<string, unknown>) => ({ thread: { threadId: b["threadId"], kind: s.kind ?? "chat", starter: DANA, agents: [{ agentId: "agt_intake", mode: "lead" }], members: (s.members ?? [DANA]).map(person) } }),
+    "threads.get": () => ({ thread: { kind: s.kind ?? "chat", starter: DANA, agents: [{ agentId: "agt_intake", mode: "lead" }], members: (s.members ?? [DANA]).map(person) } }),
     "agents.get": () => ({ agent: { folderId: "fld_intake", ownerId: "usr_boss", captureMode: s.mode ?? "auto" } }),
     "chat.messages.list": (i) => ({ messages: s.messages.filter((m) => i["after"] === undefined || m.threadSeq > Number(i["after"])), hasMore: false }),
     "engine.models.list": () => { seen.listed++; return { models: s.models ?? [] }; },
@@ -207,7 +207,7 @@ test("a provider's rate or usage limit pauses learning on that account with a ba
   assert.ok(!h.emitted.some((e) => /error|failed/.test(e.name)), "no event a chat would show");
 });
 
-test("in a shared chat only what the asker said about themselves is kept, as that place's memory (rule 8); other people's words never reach the pass", async () => {
+test("in a shared chat only what the asker said about themselves is kept, in their own memory; other people's words never reach the pass", async () => {
   const seen: Seen = { complete: [], listed: 0 };
   const s: Script = {
     members: [DANA, OMAR], models: priced,
@@ -220,20 +220,17 @@ test("in a shared chat only what the asker said about themselves is kept, as tha
   assert.ok(!prompt.includes("salary") && !prompt.includes("tea"), "Omar's line is not in the pass");
   assert.ok(prompt.includes("Other people are in this chat"));
   const dana = h.rows("SELECT id, owner_ref, layer FROM memory_facts");
-  // owner ruling: what is said in a place others read is the place's memory, kept by the agent that is in it; never Dana's private layer
-  assert.deepEqual(dana.map((r) => [r["owner_ref"], r["layer"]]), [["agt_intake", "agent"]]);
-  assert.equal(h.rows("SELECT COUNT(*) AS n FROM memory_facts WHERE layer = 'person'")[0]!["n"], 0);
+  assert.deepEqual(dana.map((r) => [r["owner_ref"], r["layer"]]), [[DANA, "person"]]);
   assert.deepEqual(h.rows("SELECT ref FROM memory_fact_links WHERE kind = 'heard_in'"), [{ ref: THREAD }], "the chat it was said in travels with it (the audience rule)");
   const facts = await factsAsOf(h.ctx, { date: NOW + 1 });
   assert.deepEqual(facts.facts.map((f) => f.text), ["Dana prefers morning meetings"]);
-  // the rules in a shared chat: Dana's own lines become the place's memory (a decision too, so it is not lost behind the pass's cursor), and nothing of Omar's
+  // the rules in a shared chat: Dana's own preference only, not the group's decision, and nothing of Omar's
   const { answer: _unused, ...plain } = s;
   const rules = harness({ respond: chat(plain, { complete: [], listed: 0 }) });
   await capture(rules.ctx, turn(null));
-  assert.equal(rules.rows("SELECT id FROM memory_facts").length, 2);
+  assert.equal(rules.rows("SELECT id FROM memory_facts").length, 1);
   const omar = asPerson(rules, { kind: "person", id: OMAR }, { respond: chat(s, { complete: [], listed: 0 }) });
-  // Omar is in the room, so he reads the room's memory (Dana's preference); nothing of his own words was stored
-  assert.deepEqual((await factsAsOf(omar.ctx, { date: NOW + 1 })).facts.map((f) => f.text).sort(), ["I prefer morning meetings.", "We decided to ship on Friday."]);   // two facts learned in one instant: no order is promised
+  assert.equal((await factsAsOf(omar.ctx, { date: NOW + 1 })).facts.length, 0, "nothing was stored about or for Omar");
 });
 
 test("Don't remember this chat: nothing is learned from it by a turn pass or at its end, and only who turned it off, or the starter, turns it back on", async () => {
@@ -261,7 +258,7 @@ test("the thread setting memory.off (the composer switch) stops every learning p
   const seen: Seen = { complete: [], listed: 0 };
   const s: Script = { messages: [say(1, "I prefer the blue theme for reports.")], models: priced };
   for (const thread of [{ "memory.off": true }, { settings: { "memory.off": true } }]) {
-    const respond = { ...chat(s, seen), "threads.get": (b: Record<string, unknown>) => ({ thread: { threadId: b["threadId"], kind: "chat", starter: DANA, agents: [{ agentId: "agt_intake", mode: "lead" }], members: [person(DANA)], ...thread } }) };
+    const respond = { ...chat(s, seen), "threads.get": () => ({ thread: { kind: "chat", starter: DANA, agents: [{ agentId: "agt_intake", mode: "lead" }], members: [person(DANA)], ...thread } }) };
     const h = harness({ respond });
     assert.equal(shouldLearn(h.ctx, THREAD, thread), false);
     assert.equal((await capture(h.ctx, turn())).skipped, "forgotten");

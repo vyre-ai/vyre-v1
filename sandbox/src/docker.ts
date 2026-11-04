@@ -36,13 +36,13 @@ export const WANTED_API_VERSION = "1.43";
  * Without an `apiVersion` the daemon is asked once (an unversioned GET /version) what it serves, and the request path uses WANTED_API_VERSION clamped into that range:
  * a pinned 1.43 is refused outright by Docker 29 ("client version 1.43 is too old", minimum 1.44), which a real daemon showed.
  */
-export function unixSocketHttp(socketPath = "/var/run/docker.sock", apiVersion?: string, extraHeaders?: () => Record<string, string>): DockerHttp {
+export function unixSocketHttp(socketPath = "/var/run/docker.sock", apiVersion?: string): DockerHttp {
   const call = (path: string, req: DockerRequest): Promise<DockerResponse> => new Promise((resolve, reject) => {
     const qs = req.query && Object.keys(req.query).length > 0 ? `?${new URLSearchParams(req.query).toString()}` : "";
     const payload = req.json !== undefined ? Buffer.from(JSON.stringify(req.json)) : req.body ? Buffer.from(req.body) : undefined;
     const r = http.request({
       socketPath, method: req.method, path: `${path}${qs}`, timeout: req.timeoutMs ?? 60_000,
-      headers: { ...(extraHeaders ? extraHeaders() : {}), ...(payload ? { "content-type": req.contentType ?? "application/json", "content-length": payload.length } : {}) },
+      headers: { ...(payload ? { "content-type": req.contentType ?? "application/json", "content-length": payload.length } : {}) },
     }, (res) => {
       const chunks: Buffer[] = [];
       res.on("data", (c: Buffer) => chunks.push(c));

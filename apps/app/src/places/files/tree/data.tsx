@@ -18,8 +18,6 @@ export interface FilesNav {
   openFile(fileId: string): void;
   /** Share a folder: the shell opens ui/ShareSheet for it. Left out where there is no one to share with (a Personal Space), and then no Share item shows. */
   shareFolder?(folderId: string): void;
-  /** Share a file: the same sheet, on the file. Left out where there is no one to share with. */
-  shareFile?(fileId: string, name: string): void;
   /** Rename and Move need a name or a place; the shell asks for it and calls the capability. */
   renameEntry(kind: "file" | "folder", id: string, current: string): void;
   newFolder(scope: "personal" | "space", parentId: string | null): void;

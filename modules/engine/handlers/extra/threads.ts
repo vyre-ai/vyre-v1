@@ -65,7 +65,7 @@ export function queuePeek(ctx: EngineCtx, input: { threadId: string }): { messag
 
 // ---- route preview
 
-interface ThreadOut { thread: { kind?: string; scopeType?: string; members?: Array<{ kind?: string; id: string }>; agents: Array<{ agentId: string; mode: "lead" | "listen"; name?: string }> } }
+interface ThreadOut { thread: { kind?: string; members?: Array<{ kind?: string; id: string }>; agents: Array<{ agentId: string; mode: "lead" | "listen"; name?: string }> } }
 
 /** The composer line, from the same route() the server uses to enqueue. A draft is a person's message. */
 export async function routePreview(ctx: EngineCtx, input: { threadId: string; mentions?: RouteMention[]; text?: string }): Promise<{ responders: string[]; line: string }> {
@@ -77,7 +77,7 @@ export async function routePreview(ctx: EngineCtx, input: { threadId: string; me
   }
   const agents = out.thread.agents.map((a) => ({ id: a.agentId, mode: a.mode, ...(a.name === undefined ? {} : { name: a.name }) }));
   const people = out.thread.members?.filter((x) => (x.kind ?? "person") === "person").map((x) => x.id);
-  const res = preview(agents, { kind: "person", id: actorOf(ctx) }, input.mentions ?? [], 0, {}, { ...(out.thread.kind ? { kind: out.thread.kind } : {}), ...(["task", "note", "goal"].includes(out.thread.scopeType ?? "") ? { personal: true } : {}), ...(people ? { people } : {}) }, input.text);
+  const res = preview(agents, { kind: "person", id: actorOf(ctx) }, input.mentions ?? [], 0, {}, { ...(out.thread.kind ? { kind: out.thread.kind } : {}), ...(people ? { people } : {}) }, input.text);
   if (res.reason === "person_addressed") {
     const lead = agents.find((a) => a.mode === "lead");
     return { responders: [], line: `Goes to the person you named; no agent will reply${lead?.name ? `. Ask ${lead.name} too` : ""}` };

@@ -95,15 +95,3 @@ test("seams: when the later daemon stops, the earlier one that is still running 
   d.unwire();
   assert.equal(held, null);
 });
-
-test("seams: a daemon that stops without holding the seam any more has its driver's retire called", () => {
-  const retired: string[] = [];
-  const setters = { setEngineHost: () => undefined } as unknown as SeamSetters;
-  const deps = (tag: string): SeamDeps => ({ vault: {}, files: {}, blobs: {}, members: { emails: () => Promise.resolve([]) }, space: "spc_t", tag, drivers: { setEngineHost: () => ({ tag, retire: () => { retired.push(tag); return Promise.resolve(); } }) } } as unknown as SeamDeps);
-  const a = wireSeams(setters, deps("A"));
-  const b = wireSeams(setters, deps("B"));
-  a.unwire();
-  assert.deepEqual(retired, ["A"], "A stopped while B held the seam: A's leftovers are closed");
-  b.unwire();
-  assert.deepEqual(retired, ["A"], "B held the seam: it is cleared the normal way");
-});

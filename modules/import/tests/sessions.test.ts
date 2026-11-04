@@ -86,16 +86,6 @@ test("sessions.import refuses unconsented or unsafe payloads before any write", 
   assert.equal(h.rows("SELECT * FROM import_conversation").length, 0);
 });
 
-test("sessions.list on a Team node answers an empty list that says personalOnly, and a Personal node answers its archive with no flag", async () => {
-  const h = harness();
-  await sessionsImport(h.ctx, payload);
-  const personal = await sessionsList(h.ctx, {}) as { sessions: unknown[]; personalOnly?: boolean };
-  assert.equal(personal.sessions.length, 1);
-  assert.equal(personal.personalOnly, undefined, "a Personal Space carries no flag");
-  h.world.handlers["spaces.matrix"] = () => ({ kind: "team", features: [] });
-  assert.deepEqual(await sessionsList(h.ctx, {}), { sessions: [], personalOnly: true }, "a Team Space is told so, with no refusal");
-});
-
 test("sessions.import scopes identical provider source keys to the personal owner and never lets another person continue them", async () => {
   const h = harness();
   const dana = await sessionsImport(h.ctx, payload);

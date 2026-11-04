@@ -54,7 +54,6 @@ type Out = {
     engine: string;
     spaceMayUse: boolean;
     state: "ok" | "needs_sign_in" | "failing";
-    keepsNothing?: boolean;
     address?: string;
     keyless?: boolean;
     spaceKey?: boolean;
@@ -116,7 +115,6 @@ type Out = {
       "identity": "dana@example.com",
       "itemId": "vit_a1b2c3",
       "itemName": "Dana Claude Max",
-      "keepsNothing": true,
       "keyless": true,
       "logo": "example",
       "models": [

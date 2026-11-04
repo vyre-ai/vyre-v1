@@ -227,11 +227,10 @@ function directChat(ctx: ChatCtx, a: string, b: string): ThreadRec {
  * The agent's own chat with a teammate, when it writes as itself: the teammate and the agent are in it and nobody else (the person who asked is not, unless the teammate adds them). Made the first time,
  * found after. The teammate's replies land here and the agent answers them under its own response rules.
  */
-function agentChat(ctx: ChatCtx, agent: string, teammate: string, agentName: string): ThreadRec {
+function agentChat(ctx: ChatCtx, agent: string, teammate: string): ThreadRec {
   const had = (ctx.db.all("SELECT dm FROM chat_agent_dm WHERE agent = ? AND teammate = ? AND mode = 'self' ORDER BY created_at DESC LIMIT 5", agent, teammate) as Row[]).map((r) => threadBy(ctx.db, String(r["dm"]))).find((t) => t !== null && t !== undefined);
   if (had) return had;
-  // named after the agent, like any direct chat with an agent
-  const t = insertThread(ctx, { kind: "chat", title: agentName, starter: teammate, listed: true });
+  const t = insertThread(ctx, { kind: "chat", starter: teammate, listed: true });
   addMember(ctx, t.id, teammate, "owner");
   addAgent(ctx, t.id, { agentId: agent, mode: "lead", addedBy: agent });
   ctx.emit("thread.started", t.id, { threadId: t.id, kind: t.kind, starter: teammate });
@@ -381,8 +380,7 @@ export async function messagePerson(ctx: ChatCtx, rawInput: MessageIn) {
   const self = !(await writesForPerson(call, agent));
   const d = decide(ctx.db, { person: me, teammate: input.to, timing, wantedAt: input.at ?? null, urgent: input.urgent === true, presence, time, now, ...(self ? { agent } : {}) });
 
-  const agentName = self ? ((await call("agents.get", { agentId: agent }).catch(() => null)) as { agent?: { name?: string } } | null)?.agent?.name ?? "Agent" : "";
-  const dm = self ? agentChat(ctx, agent, input.to, agentName) : directChat(ctx, me, input.to);
+  const dm = self ? agentChat(ctx, agent, input.to) : directChat(ctx, me, input.to);
   const id = mintId("adm", now);
   const key = input.idempotencyKey ?? id;
   // a card says it all: its title is the ask, its detail the reason (the agent's words when it gave none), so the message carries the card alone and nothing is said twice
@@ -399,8 +397,6 @@ export async function messagePerson(ctx: ChatCtx, rawInput: MessageIn) {
   const row = rows(ctx.db, "SELECT * FROM chat_agent_dm WHERE id = ?", id)[0]!;
   if (d.at !== null && d.at <= now) {
     const m = sendNow(ctx, row);
-    // as itself, the agent says where it went, in the chat it was asked in, and that the chat is theirs
-    if (self) quietLine(ctx, origin, agent, `Sent to ${first(them.name)} in ${agentName}'s chat with them (private to them).`, { dmId: id, state: "sent", teammate: input.to, threadId: dm.id });
     return answer(ctx, { ...row, state: "sent", message: m.id, sentAt: now }, them.name, words);
   }
   quietLine(ctx, origin, agent, `Scheduled for ${them.name}: ${words}.`, { dmId: id, state: "scheduled", teammate: input.to, threadId: dm.id, ...(d.at !== null ? { dueAt: d.at } : {}), ...(d.reason ? { reason: d.reason } : {}) });

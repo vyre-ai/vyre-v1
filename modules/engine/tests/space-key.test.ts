@@ -131,14 +131,6 @@ test("every member sees the Space AI key as the provider it is, not a special op
   const dflt = ctxWith({ "agents.get": () => ({ agent: { accountPolicy: "asker", model: "claude-sonnet-5-5" } }) }, [{ threadId: "thr_1", starter: "usr_mia", agents: [{ agentId: "agt_1", mode: "lead" as const }] }] as never).ctx;
   const swapped = await accountResolve(dflt, { threadId: "thr_1", agentId: "agt_1" });
   assert.deepEqual([swapped.accountRef, swapped.modelFallback], ["#OpenCode_Go_for_everyone", { from: "claude-sonnet-5-5", to: "glm-5.3" }]);
-  assert.equal(swapped.via, "space", "a Space account runs it: Details never says the asker's own key for a swapped turn, and the served model is the one named in modelFallback");
-});
-
-test("the model a turn really ran on goes out through the outermost session, not the one the chat asked for", async () => {
-  const { withHeldNotes } = await import("../held-notes.ts");
-  const inner = { warm: false, model: "deepseek-v4-pro", async *send() { yield { type: "done" } as DriverEvent; }, sendToolResult() {}, inject() {}, async cancel() {}, async close() {} } as unknown as EngineSession;
-  const s = await withHeldNotes(async () => inner)({ threadId: "thr_1", agent: { id: "agt_1", mode: "lead", model: "claude-sonnet-5-5" }, asker: "usr_mia", turnId: "trn_1", traceId: "a".repeat(32) } as SessionSpec);
-  assert.equal((s as { model?: string }).model, "deepseek-v4-pro", "the turn row and its usage are keyed by the served model");
 });
 
 test("the model list of the Space AI key comes from the Vault's kept list, never from a member testing the key", async () => {

@@ -220,23 +220,3 @@ test("a pair code opens only the kind of device it was made for, and a refusal l
   await assert.rejects(handlers["identity.pair_redeem"](h.anon, { code: ext.code, deviceName: "x", deviceClass: "phone" }), (e) => codeOf(e) === "auth.invalid_code");
   assert.equal((await handlers["identity.pair_redeem"](h.anon, { code: ext.code, deviceName: "Chrome", deviceClass: "extension" })).status, "ok");
 });
-
-test("GitHub: a ticket the host minted links the account in place of a spent code, once, and signing in with GitHub tells the host so it can connect too", async () => {
-  const h = await world();
-  const tickets = new Map<string, { id: string; login: string }>([["vyre-gh-link.abc", { id: "4242", login: "maya-codes" }]]);
-  const told: Array<[string, string]> = [];
-  const gh = {
-    resolve: async (code: string) => { if (code === "good") return { id: "4242", login: "maya-codes" }; throw new Error("bad code"); },
-    redeem: (t: string) => { const v = tickets.get(t) ?? null; tickets.delete(t); return v; },
-    signedIn: async (id: string, person: string) => { told.push([id, person]); },
-  };
-  const ctx = { ...h.as(P.personId), github: gh };
-  assert.equal((await handlers["identity.github_link"](ctx, { code: "vyre-gh-link.abc" })).login, "maya-codes");
-  await assert.rejects(handlers["identity.github_link"](ctx, { code: "vyre-gh-link.abc" }), (e) => codeOf(e) === "auth.invalid_code");   // once
-  await assert.rejects(handlers["identity.github_sign_in"]({ ...h.anon, github: gh }, { code: "vyre-gh-link.abc", ...DEVICE }), (e) => codeOf(e) === "auth.invalid_code");   // a ticket never signs anyone in
-  const ok = await handlers["identity.github_sign_in"]({ ...h.anon, github: gh }, { code: "good", ...DEVICE });
-  assert.equal(ok.status, "ok");
-  assert.deepEqual(told, [["4242", P.personId]]);
-  const boom = { ...gh, signedIn: async () => { throw new Error("vault locked"); } };
-  assert.equal((await handlers["identity.github_sign_in"]({ ...h.anon, github: boom }, { code: "good", ...DEVICE })).status, "ok", "the sign-in never fails because connecting did");
-});

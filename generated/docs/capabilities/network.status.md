@@ -46,9 +46,6 @@ type Out = {
       at: number;
       detail?: string;
     }>;
-  version?: string;
-  relayVersion?: string;
-  relayOlder?: boolean;
 };
 ```
 
@@ -83,10 +80,7 @@ type Out = {
       }
     ],
     "mode": "own_domain",
-    "publicIngress": true,
-    "relayOlder": true,
-    "relayVersion": "example",
-    "version": "example"
+    "publicIngress": true
   }
 }
 ```

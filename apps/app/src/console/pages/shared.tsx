@@ -60,8 +60,8 @@ export function Field({ label, value, onChange, testID, secure = false, multilin
   return <View style={s.field}><Text style={s.label}>{label}</Text><TextInput multiline={multiline} value={value} onChangeText={onChange} accessibilityLabel={label} testID={testID} secureTextEntry={secure} autoCapitalize="none" autoCorrect={false} style={s.input} /></View>;
 }
 /** `why`: a disabled button says why as its tooltip, so nobody meets a dead button without a reason and no sentence sits beside it. */
-export function Button({ label, onPress, disabled = false, testID, danger = false, why, small = false }: { label: string; onPress: () => void; disabled?: boolean; testID?: string; danger?: boolean; why?: string; small?: boolean }): ReactElement {
-  const button = <Pressable accessibilityRole="button" accessibilityState={{ disabled }} {...(disabled && why ? { accessibilityHint: why } : {})} onPress={onPress} disabled={disabled} testID={testID} style={[s.button, { alignSelf: "flex-start" }, small && { height: 28 }, disabled && { opacity: 0.5 }]}><Text style={[s.buttonText, danger && { color: "var(--danger)" as string }]}>{label}</Text></Pressable>;
+export function Button({ label, onPress, disabled = false, testID, danger = false, why }: { label: string; onPress: () => void; disabled?: boolean; testID?: string; danger?: boolean; why?: string }): ReactElement {
+  const button = <Pressable accessibilityRole="button" accessibilityState={{ disabled }} {...(disabled && why ? { accessibilityHint: why } : {})} onPress={onPress} disabled={disabled} testID={testID} style={[s.button, { alignSelf: "flex-start" }, disabled && { opacity: 0.5 }]}><Text style={[s.buttonText, danger && { color: "var(--danger)" as string }]}>{label}</Text></Pressable>;
   return disabled && why ? <Tip help={why}>{button}</Tip> : button;
 }
 /** A help sentence as a quiet info mark with the sentence in its tooltip. */

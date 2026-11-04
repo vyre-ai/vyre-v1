@@ -231,7 +231,7 @@ export async function turnFinish(
  */
 export async function turnRecord(
   ctx: EngineCtx,
-  input: { threadId: string; turnId: string; agentId: string; phase: "started" | "waiting" | "completed" | "failed" | "cancelled"; qseq: number; asker?: string; engine?: string; model?: string; accountRef?: string; tokensIn?: number; tokensOut?: number; costMicros?: number; code?: string; message?: string; info?: TurnInfo },
+  input: { threadId: string; turnId: string; agentId: string; phase: "started" | "completed" | "failed" | "cancelled"; qseq: number; asker?: string; engine?: string; model?: string; accountRef?: string; tokensIn?: number; tokensOut?: number; costMicros?: number; code?: string; message?: string; info?: TurnInfo },
 ): Promise<{ turn: TurnOut }> {
   ensureExtra(ctx.db);
   for (const [field, v] of [["tokensIn", input.tokensIn], ["tokensOut", input.tokensOut], ["costMicros", input.costMicros]] as const) {
@@ -260,11 +260,6 @@ export async function turnRecord(
   }
   if (input.phase === "started" || !isOpen(str(row["state"]))) return { turn: turnOf(row) };
 
-  // a turn parked on a hold or a question: what it cost so far is kept now, the row waits, and the turn ends when its wake starts
-  if (input.phase === "waiting") {
-    ctx.db.run("UPDATE engine_turns SET state = 'waiting', tokens_in = ?, tokens_out = ?, cost_micros = COALESCE(?, cost_micros) WHERE turn_id = ?", input.tokensIn ?? num(row["tokens_in"]), input.tokensOut ?? num(row["tokens_out"]), input.costMicros ?? null, input.turnId);
-    return { turn: turnOf(loadTurn(ctx, input.turnId)) };
-  }
   const tokensIn = input.tokensIn ?? num(row["tokens_in"]), tokensOut = input.tokensOut ?? num(row["tokens_out"]);
   // what the turn engine saw is kept for the reply's Details, and the turn is priced once, at today's price (reply-info.ts); a cost the caller gave wins
   const priced = input.info ? saveTurnInfo(ctx.db, { turnId: input.turnId, threadId: input.threadId, model: input.model ?? str(row["model"]), ...(input.engine ? { driver: input.engine } : {}), tokensIn, tokensOut }, input.info, now) : undefined;

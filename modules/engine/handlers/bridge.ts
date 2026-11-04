@@ -7,8 +7,7 @@
 // One source of truth: chat_message holds the conversation. engine_messages is a mirror keyed by the SAME id (a person's message is stored under the id chat gave it, an agent reply is posted
 // to chat with the id the engine gave it as clientId), written only by the engine's own store, so the two cannot drift (a later edit is copied by the same consumer).
 // No echo: a message.received for a message the engine already holds, or one the bridge posted itself (id prefix BRIDGE_PREFIX), is never fed back to engine.receive.
-import { askedIn, isGoAhead, proposedIn } from "../../../lib/asked.ts";
-import { stepWords } from "../../../lib/plain-words.ts";
+import { askedIn } from "../../../lib/asked.ts";
 import { handleOf } from "../../../lib/person-handle.ts";
 import { linksIn } from "../../../lib/grants.ts";
 import { redact } from "../../../agent/src/transcript/sanitize.ts";
@@ -106,10 +105,10 @@ export interface Bridge {
   /** The agents of a chat changed (added, removed, Listening, topics, hours, style): the engine reads the line-up again before the next message. */
   rosterChanged(threadId: string): void;
   /** The turns being written in a thread right now, with the text so far (a chat opened or reconnected mid-turn). */
-  liveTurns(threadId: string): Array<{ turnId: string; agentId: string; text: string; step?: string }>;
+  liveTurns(threadId: string): Array<{ turnId: string; agentId: string; text: string }>;
 }
 
-interface Segment { blocks: PostBlock[]; text: string; mentions: number; t0?: number; /** the call it is inside now, in plain words once asked */ step?: { id: string; name: string; detail?: string }; calls?: Map<string, { name: string; at: number }>; /** its live text goes to the asker only */ private?: boolean }
+interface Segment { blocks: PostBlock[]; text: string; mentions: number; t0?: number; calls?: Map<string, { name: string; at: number }>; /** its live text goes to the asker only */ private?: boolean }
 interface Ready { blocks: PostBlock[]; text: string; mentions: number; routineOwner: string | null; turnId: string }
 
 const str = (v: unknown): string => (typeof v === "string" ? v : "");
@@ -204,7 +203,7 @@ export function createBridge(o: BridgeOptions): Bridge {
       const detail = e.code === "engine.model_unavailable" ? e.message : undefined;
       return { type: "turn_status", v: 1, data: { state: "failed", turnId: e.turnId, code: e.code, ...(detail ? { detail } : {}), ...(program ? { program } : {}), ...(setup ? { setup } : {}), ...(reason ? { reason } : {}) } };
     }
-    return { type: "turn_status", v: 1, data: { state: "cancelled", turnId: e.turnId, ...(e.type === "turn.cancelled" && e.reason ? { reason: e.reason } : {}) } };
+    return { type: "turn_status", v: 1, data: { state: "cancelled", turnId: e.turnId } };
   };
 
   const onEngine = (e: EngineEvent): void => {
@@ -295,7 +294,6 @@ export function createBridge(o: BridgeOptions): Bridge {
         else if (ev.type === "block" && ev.kind === "tool_input") {
           // what a call touches goes to the live line only, over the same gated link as the words: it is never saved with the reply
           const p = (ev.payload ?? {}) as { id?: unknown; detail?: unknown };
-          if (seg.step && seg.step.id === p.id && typeof p.detail === "string" && p.detail !== "") seg.step.detail = p.detail;
           if (typeof p.id === "string" && typeof p.detail === "string" && p.detail !== "") emit({ kind: "step", threadId: input.threadId, turnId: input.turnId, agentId: input.agent.id, phase: "input", id: p.id, detail: p.detail });
           // a subagent's own one-line description is saved on its call, so the trail names it ("Working with a helper: Check the pricing page") instead of a bare "Using agent"
           const call = typeof p.id === "string" && typeof p.detail === "string" && p.detail !== "" ? seg.blocks.find((x) => x.type === "tool_call" && (x.data as { id?: unknown }).id === p.id) : undefined;
@@ -310,13 +308,11 @@ export function createBridge(o: BridgeOptions): Bridge {
           if (ev.kind === "tool_call" && id !== "") {
             const name = typeof p.name === "string" ? p.name : "";
             seg.calls?.set(id, { name, at: now });
-            seg.step = { id, name };
             // the engine's own web tools run on the vendor's side, so the Gate never sees them: the words they bring in stop outward acts all the same
             if (NATIVE_OUTSIDE.has(name)) { try { await o.callAs?.("gate.taint.mark", { threads: [input.threadId], source: name }, input.asker); } catch (e) { warn("a web read was not marked", { threadId: input.threadId, error: e instanceof Error ? e.message : String(e) }); } }
             emit({ kind: "step", threadId: input.threadId, turnId: input.turnId, agentId: input.agent.id, phase: "call", id, ...(name ? { name } : {}) });
           } else if (ev.kind === "tool_result" && id !== "") {
             const call = seg.calls?.get(id);
-            if (seg.step?.id === id) delete seg.step;
             emit({ kind: "step", threadId: input.threadId, turnId: input.turnId, agentId: input.agent.id, phase: "result", id, ...(call?.name ? { name: call.name } : {}), ...(typeof p.ok === "boolean" ? { ok: p.ok } : {}) });
             if (call) data = { ...data, name: call.name, secs: Math.max(0, Math.round((now - call.at) / 1000)) };
           }
@@ -343,7 +339,7 @@ export function createBridge(o: BridgeOptions): Bridge {
   }
 
   type RosterAgent = { agentId: string; name?: string; mode: "lead" | "listen"; model?: string; accountRef?: string; watches?: unknown; quiet?: boolean; when?: "always" | "topics" | "hours"; topics?: string; hoursFrom?: string; hoursTo?: string; style?: "short" | "full" };
-  type ThreadGet = { thread: { kind?: string; scopeType?: string; scopeId?: string; starter?: string; members?: Array<{ kind?: string; id: string }>; agents: RosterAgent[] } };
+  type ThreadGet = { thread: { kind?: string; starter?: string; members?: Array<{ kind?: string; id: string }>; agents: RosterAgent[] } };
   const peopleOf = (g: ThreadGet): string[] | undefined => (g.thread.members ? g.thread.members.filter((x) => (x.kind ?? "person") === "person").map((x) => x.id) : undefined);
   /** How and when an agent answers in this chat, as the chat holds it, for the engine's routing and for the turn. */
   const settingsOf = (a: RosterAgent): Pick<EngineAgent, "quiet" | "when" | "topics" | "hoursFrom" | "hoursTo" | "style"> => ({
@@ -406,17 +402,8 @@ export function createBridge(o: BridgeOptions): Bridge {
         if (m) own.set(a.agentId, m);
       } catch { /* an agent that cannot be read runs on the account's default */ }
     }
-    // a task's thread with several agents: the one that works the task, else the one that made it, answers without an @ (the others need one)
-    let taskLead: string | undefined;
-    if (got.thread.scopeType === "task" && !got.thread.agents.some((a) => a.mode === "lead") && got.thread.agents.length > 1) {
-      try {
-        const t = ((await read("tasks.get", { taskId: (got.thread as { scopeId?: string }).scopeId })) as { task?: { assigned?: { kind?: string; id?: string }; createdBy?: string } } | null)?.task;
-        const ids = new Set(got.thread.agents.map((a) => a.agentId));
-        taskLead = [t?.assigned?.kind === "agent" ? t.assigned.id : undefined, t?.createdBy].find((x): x is string => typeof x === "string" && ids.has(x));
-      } catch { /* no task to read: the agents listen as before */ }
-    }
     const agents: EngineAgent[] = got.thread.agents.map((a) => ({
-      id: a.agentId, ...(a.name ? { name: a.name } : {}), mode: taskLead === a.agentId ? "lead" : a.mode, ...(a.model || own.get(a.agentId) ? { model: a.model ?? own.get(a.agentId) as string } : {}), ...(a.accountRef ? { accountRef: a.accountRef } : {}), ...(a.watches !== undefined ? { watching: true } : {}), ...(outside.has(a.agentId) ? { outside: true } : {}), ...settingsOf(a),
+      id: a.agentId, ...(a.name ? { name: a.name } : {}), mode: a.mode, ...(a.model || own.get(a.agentId) ? { model: a.model ?? own.get(a.agentId) as string } : {}), ...(a.accountRef ? { accountRef: a.accountRef } : {}), ...(a.watches !== undefined ? { watching: true } : {}), ...(outside.has(a.agentId) ? { outside: true } : {}), ...settingsOf(a),
     }));
     const store = sqlMessages(ctx.db, ctx.now);
     if (store.recent(threadId, 1).length === 0) {
@@ -431,7 +418,7 @@ export function createBridge(o: BridgeOptions): Bridge {
       }
     }
     try {
-      engine.openThread({ id: threadId, kind: (got.thread.kind ?? "chat") as ThreadKind, starter: got.thread.starter ?? "", agents, ...(["task", "note", "goal"].includes(got.thread.scopeType ?? "") ? { personal: true } : {}), ...(peopleOf(got) ? { people: peopleOf(got)! } : {}) });
+      engine.openThread({ id: threadId, kind: (got.thread.kind ?? "chat") as ThreadKind, starter: got.thread.starter ?? "", agents, ...(peopleOf(got) ? { people: peopleOf(got)! } : {}) });
     } catch (e) {
       if (!(e instanceof RangeError) || !/already open/.test(e.message)) throw e;
     }
@@ -444,8 +431,6 @@ export function createBridge(o: BridgeOptions): Bridge {
     if (!engine) return { skipped: "engine_not_running" };
     if (messageId === "" || threadId === "") return { skipped: "no_ids" };
     if (messageId.startsWith(BRIDGE_PREFIX)) return { skipped: "own_post" };
-    // a copy of a thread message into its chat ("Also post to the chat") is for reading, not for answering: the thread already woke whoever it was for
-    if (p["copy"] === true) return { skipped: "copy" };
     // a poke of an outside agent went to its own queue when it was made (threads.poke): nothing runs here for it
     if ((p["poke"] as { outside?: unknown } | undefined)?.outside === true) return { skipped: "poke_outside" };
     // the computer the person is using (step 1 of where a turn runs): the device their message came from
@@ -465,16 +450,7 @@ export function createBridge(o: BridgeOptions): Bridge {
     if (a.kind === "person" && p["typed"] === true) {
       try {
         const ask = reader(ctx, authorId, threadId);
-        // what the agent last said, when this is a plain yes to it: the yes opens that one kind of act, once. Every message since the agent's last reply counts as asked, so a second one with no words does not undo the first.
-        let lastAgent: { body: string; at: number } | undefined;
-        try {
-          const recent = ((await ask("chat.messages.list", { threadId, limit: 30 })) as { messages: Array<Row & { createdAt?: number }> }).messages;
-          const before = [...recent].filter((r) => (r.threadSeq ?? 0) < (got.message.threadSeq ?? Number.MAX_SAFE_INTEGER) && r.author.kind === "agent").sort((x, y) => (y.threadSeq ?? 0) - (x.threadSeq ?? 0))[0];
-          if (before) lastAgent = { body: before.body, at: before.createdAt ?? 0 };
-        } catch { /* the proposal could not be read: the person's own words still count */ }
-        const own = askedIn(str(got.message.body));
-        const yes = lastAgent && isGoAhead(str(got.message.body)) ? proposedIn(lastAgent.body).filter((p) => !own.some((o) => o.act === p.act)) : [];
-        await ask("gate.grants.ask", { threadId, messageId, asked: await withTeammates(ask, [...own, ...yes]), links: linksIn(str(got.message.body)), ...(lastAgent && lastAgent.at > 0 ? { since: lastAgent.at } : {}) });
+        await ask("gate.grants.ask", { threadId, messageId, asked: await withTeammates(ask, askedIn(str(got.message.body))), links: linksIn(str(got.message.body)) });
       }
       catch (e) { warn("the request in a message was not read, so outward acts will ask", { threadId, messageId, error: e instanceof Error ? e.message : String(e) }); }
     }
@@ -527,16 +503,6 @@ export function createBridge(o: BridgeOptions): Bridge {
       threadId, author: { kind: a.kind === "agent" ? "agent" : "person", id: authorId }, mentions, depth: Number(p["depth"] ?? 0), body: got.message.body + note + (poke ? POKE_NOTE : ""), replyToPerson, ...(people ? { people } : {}), ...(job ? { job } : {}), ...(speaksFor ? { asker: speaksFor } : {}),
       ...(poke ? { poke: { agentId: poke.agentId, by: poke.by ?? authorId } } : {}), ...(minutes === undefined ? {} : { minutes }),
     }));
-    // the person said go in the thread of a task assigned to them, and an agent answers: the task is theirs to do through it, so it moves to Doing and says who is on it for them
-    if (a.kind === "person" && res.responders.length > 0) {
-      try {
-        const g = (await reader(ctx, authorId, threadId)("threads.get", { threadId })) as { thread: { scopeType?: string; scopeId?: string } };
-        if (g.thread.scopeType === "task" && typeof g.thread.scopeId === "string") {
-          const taskId = g.thread.scopeId;
-          for (const agent of res.responders.filter((r) => r.startsWith("agt_")).slice(0, 1)) await reader(ctx, authorId, threadId)("tasks.agent_on_it", { taskId, agentId: agent });
-        }
-      } catch { /* not a task of theirs, or already moving: the agent's own work goes on */ }
-    }
     // an agent handed the chat to another: one quiet line shows the chain ("Intake asked Docs")
     if (res.chain) {
       const nameOfAgent = (id: string): string => eng.agents(threadId).find((x) => x.id === id)?.name ?? "an agent";
@@ -569,9 +535,9 @@ export function createBridge(o: BridgeOptions): Bridge {
     rosterChanged: (threadId) => { dirty.add(threadId); },
     onEvent: (ctx, event) => (event.name === "message.edited" ? onEdited(ctx, event.payload) : onReceived(ctx, event.payload, event.device)),
     liveTurns(threadId) {
-      const out: Array<{ turnId: string; agentId: string; text: string; step?: string }> = [];
+      const out: Array<{ turnId: string; agentId: string; text: string }> = [];
       // a turn whose text is the asker's alone for now shows no text to whoever opens the chat mid-turn: its answer arrives checked
-      for (const [turnId, w] of writing) if (w.threadId === threadId) out.push({ turnId, agentId: w.agentId, text: live.get(turnId)?.private ? "" : live.get(turnId)?.text ?? "", ...(live.get(turnId)?.step ? { step: stepWords(live.get(turnId)!.step!.name, live.get(turnId)!.step!.detail) } : {}) });
+      for (const [turnId, w] of writing) if (w.threadId === threadId) out.push({ turnId, agentId: w.agentId, text: live.get(turnId)?.private ? "" : live.get(turnId)?.text ?? "" });
       return out;
     },
     async flush() {
@@ -586,7 +552,7 @@ let bound: Bridge | null = null;
 export function bindBridge(b: Bridge | null): void { bound = b; }
 
 /** engine.live_turns: the turns being written in a thread the caller can read, with their text so far. */
-export async function liveTurns(ctx: EngineCtx, input: { threadId: string }): Promise<{ turns: Array<{ turnId: string; agentId: string; text: string; step?: string }> }> {
+export async function liveTurns(ctx: EngineCtx, input: { threadId: string }): Promise<{ turns: Array<{ turnId: string; agentId: string; text: string }> }> {
   await ctx.call("threads.get", { threadId: input.threadId });   // the caller's own access to the thread decides, as for any read of it
   return { turns: bound ? bound.liveTurns(input.threadId) : [] };
 }

@@ -19,7 +19,7 @@ export const permissions: Registry["permissions"] = [
     "key": "access.manage",
     "module": "access",
     "risk": "high",
-    "title": "Manage roles, teams, extra access and outside agents"
+    "title": "Manage roles, groups, grants and outside actors"
   },
   {
     "appliesTo": [
@@ -586,7 +586,7 @@ export const permissions: Registry["permissions"] = [
     "key": "policy.manage",
     "module": "access",
     "risk": "high",
-    "title": "Manage sign-in rules, keep and delete, and erase a person"
+    "title": "Manage policies, retention and erase a person"
   },
   {
     "appliesTo": [
@@ -780,7 +780,7 @@ export const permissions: Registry["permissions"] = [
     "key": "server.logs",
     "module": "access",
     "risk": "medium",
-    "title": "Read server logs and error ids"
+    "title": "Read server logs and traces"
   },
   {
     "appliesTo": [
@@ -883,7 +883,7 @@ export const permissions: Registry["permissions"] = [
     "key": "sites.promote",
     "module": "access",
     "risk": "high",
-    "title": "Promote sites to production (needs approval)"
+    "title": "Promote sites to production (Gate)"
   },
   {
     "appliesTo": [

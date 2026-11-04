@@ -78,8 +78,6 @@ export interface ComputerHost {
   sessions(computerId: string): Promise<SessionInfo[]>;
   signOut(a: { computerId: string; site: string }): Promise<boolean>;
   health(): Promise<{ ok: boolean; detail?: string; latencyMs?: number }>;
-  /** What this machine has to give: memory and CPUs, for the host picker (how many more computers fit). */
-  capacity?(): Promise<{ totalMb: number; freeMb: number; cpus: number; os: string }>;
   /** The address a port of this computer is reached at from this machine, or null while it is not running. */
   address?(computerId: string): Promise<string | null>;
   /** The last lines of a site's log: `~/sites/<slug>/site.log` by the shipped skill's convention. */
@@ -207,7 +205,7 @@ export function computerOut(c: ComputerRow) {
   return {
     computerId: c.computerId, agentId: c.agentId, state: c.state, ...(c.nodeId !== undefined ? { nodeId: c.nodeId } : {}), ...(c.caption !== undefined ? { caption: c.caption } : {}), tabs: c.tabs, tabLimit: c.tabLimit, host: c.host,
     ...(c.diskBytes !== undefined ? { diskBytes: c.diskBytes } : {}), ...(c.lastFrameAt !== undefined ? { lastFrameAt: c.lastFrameAt } : {}),
-    ...(c.lastActiveAt !== undefined ? { lastActiveAt: c.lastActiveAt } : {}), ...(c.takeoverBy !== undefined ? { takeoverBy: c.takeoverBy } : {}), recording: c.recordingId !== undefined, ...(c.error !== undefined && c.state === "error" ? { error: c.error } : {}),
+    ...(c.lastActiveAt !== undefined ? { lastActiveAt: c.lastActiveAt } : {}), ...(c.takeoverBy !== undefined ? { takeoverBy: c.takeoverBy } : {}), recording: c.recordingId !== undefined,
   };
 }
 

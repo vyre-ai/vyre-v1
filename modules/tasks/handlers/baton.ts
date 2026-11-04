@@ -8,7 +8,6 @@
 // What was handed over is written to the task's working notes (outputs, summary, fixes) and as a line in its thread, so the next holder and the people reading the thread see the same words.
 import { validate } from "../../../packages/contracts/src/jsonschema.ts";
 import type { JsonSchema } from "../../../packages/contracts/src/types.ts";
-import { isTrustedService } from "../../../lib/trust.ts";
 import { allTasks, clean, emitTask, getTask, holds, isOpen, out, raise, readPolicy, touch, visibleTo, whoIs } from "../projections.ts";
 import type { Assignee, Task, TaskState, TasksCtx } from "../projections.ts";
 import { afterReview, checkMove, commitMove, create, dependenciesAdd, label, submitTarget } from "./state.ts";
@@ -75,18 +74,7 @@ function checkOutputs(ctx: TasksCtx, t: Task, outputs: unknown): Record<string, 
 
 /** One line in the thread by the person or agent that acted. Failing to write it never undoes the move. */
 async function line(ctx: TasksCtx, t: Task, kind: string, body: string): Promise<void> {
-  await postLine(ctx, t, cut(`${await didForLine(ctx, t)}${body}`, LINE_CHARS), `${kind}:${t.version}`);
-}
-
-/** An agent finishing a seat that belongs to the person it acts for says so, by name: "Assistant did this for Irfad." Empty for anyone else. */
-async function didForLine(ctx: TasksCtx, t: Task): Promise<string> {
-  const person = ctx.actingFor;
-  if (ctx.principal.kind !== "agent" || !person || !ctx.call) return "";
-  if (![t.assigned, t.reviewer, t.approver].some((a) => a !== undefined && a.kind === "person" && a.id === person)) return "";
-  const nameOf = async (kind: string, id: string, fallback: string): Promise<string> => {
-    try { const r = (await ctx.call!("access.principals.get", { principal: { kind, id } })) as { principal?: { name?: unknown } } | null; return typeof r?.principal?.name === "string" && r.principal.name !== "" ? r.principal.name : fallback; } catch { return fallback; }
-  };
-  return `${await nameOf("agent", ctx.principal.id, "An agent")} did this for ${await nameOf("person", person, "them")}.\n\n`;
+  await postLine(ctx, t, cut(body, LINE_CHARS), `${kind}:${t.version}`);
 }
 
 // ---- tasks.submit ----
@@ -106,33 +94,6 @@ export async function submit(ctx: TasksCtx, input: In): Promise<unknown> {
   const shown = Object.keys(outputs).length > 0 ? `\n\nDeliverable:\n${JSON.stringify(outputs, null, 2)}` : "";
   await line(ctx, t, "submit", `Submitted: ${summary}${shown}`);
   return { task: out(ctx, t), next: to === "in_review" ? "review" : to === "awaiting_approval" ? "approval" : "done", from: applied.from };
-}
-
-// ---- tasks.agent_on_it ----
-
-/** The working note that says an agent is on the task for the person it is assigned to. */
-export const ON_IT = "baton.on_it";
-
-/**
- * A person's Assistant, or an agent acting for them, was asked to do a task assigned to that person (the person said go in its thread). The task moves to Doing, and says which agent is on it for them,
- * so the row reads "Assistant is on it for you". Only the person it is assigned to may say so (or the host); it changes nothing else, and the agent still ends its turn with a baton call.
- */
-export async function agentOnIt(ctx: TasksCtx, input: In): Promise<unknown> {
-  const t = workTask(ctx, input.taskId);
-  if (t.assigned.kind !== "person") raise(ctx, "validation.precondition_failed", "Only a task assigned to a person has an agent on it for them.", { reason: "not_a_person_task" });
-  if (!isTrustedService(ctx.principal) && !(ctx.principal.kind === "person" && ctx.principal.id === t.assigned.id)) raise(ctx, "validation.precondition_failed", "Only the person this task is assigned to can have an agent on it for them.", { reason: "wrong_actor" });
-  const agentId = String(input.agentId ?? "");
-  if (!agentId.startsWith("agt_")) raise(ctx, "validation.bad_input", "Name the agent.", { errors: ["/agentId: an agent id"] });
-  if (!isOpen(t.state) || t.workingNotes[ON_IT] === agentId && t.state !== "todo") return { task: out(ctx, t) };
-  t.workingNotes = { ...t.workingNotes, [ON_IT]: agentId };
-  if (t.state === "todo") {
-    const applied = commitMove(ctx, t, "doing", checkMove(ctx, t, "doing"));
-    if (applied.took) await syncThread(ctx, t);
-  } else {
-    touch(ctx, ctx.db, t);
-    emitTask(ctx, ctx.db, "task.updated", t, { fields: ["workingNotes"] }, { type: "updated", by: ctx.principal.id });
-  }
-  return { task: out(ctx, t) };
 }
 
 // ---- tasks.ask and tasks.block ----

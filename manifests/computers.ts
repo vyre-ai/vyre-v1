@@ -17,7 +17,7 @@ import { id, pageIn, pageOut } from './_common.ts';
 const cmpState = t.enm('provisioning', 'asleep', 'waking', 'working', 'takeover', 'error');
 const computerRow = t.obj({
   computerId: id.computer, agentId: id.agent, state: cmpState, caption: t.opt(t.str({ description: 'What it is doing, shown under the live view' })), tabs: t.int(), tabLimit: t.int(),
-  host: t.enm('server', 'vm'), nodeId: t.opt(t.str({ description: 'The computer that joined the Space and runs this one; absent when it runs on the Space server' })), diskBytes: t.opt(t.int()), lastFrameAt: t.opt(t.ts()), lastActiveAt: t.opt(t.ts()), takeoverBy: t.opt(id.user), recording: t.bool(), error: t.opt(t.str({ description: 'Why it is in error, in words' })),
+  host: t.enm('server', 'vm'), nodeId: t.opt(t.str({ description: 'The computer that joined the Space and runs this one; absent when it runs on the Space server' })), diskBytes: t.opt(t.int()), lastFrameAt: t.opt(t.ts()), lastActiveAt: t.opt(t.ts()), takeoverBy: t.opt(id.user), recording: t.bool(),
 });
 const stepRow = t.obj({ stepId: t.id('stp'), idx: t.int(), at: t.ts(), caption: t.str(), tool: t.str(), frameFileId: t.opt(id.file), by: t.enm('agent', 'person'), runId: t.opt(id.run) });
 const recordingRow = t.obj({
@@ -46,7 +46,7 @@ export default defineManifest({
       in: { state: t.opt(t.arr(cmpState)), ...pageIn }, out: { computers: t.arr(computerRow), ...pageOut }, perm: 'computers.watch', tool: 'computer', label: 'filter',
     }),
     read('computers.hosts', 'The machines an agent computer can run on for you: this computer or the Space server when its container runtime answers, and each server you added that has Docker. Nothing about agent computers is offered until one can run them', {
-      in: {}, out: { available: t.bool(), hosts: t.arr(t.obj({ hostId: t.str(), kind: t.enm('this', 'space', 'server'), name: t.str(), online: t.bool(), canRun: t.bool(), runs: t.int({ minimum: 0 }), reason: t.opt(t.str()), detail: t.opt(t.str({ description: 'What the machine is, in a line: "Linux, 16 GB, 6.2 GB free"' })), room: t.opt(t.obj({ fits: t.int({ minimum: 0 }), freeMb: t.int({ minimum: 0 }), totalMb: t.int({ minimum: 0 }) }, { description: 'How many more agent computers fit in the memory that is free' })) })) },
+      in: {}, out: { available: t.bool(), hosts: t.arr(t.obj({ hostId: t.str(), kind: t.enm('this', 'space', 'server'), name: t.str(), online: t.bool(), canRun: t.bool(), runs: t.int({ minimum: 0 }), reason: t.opt(t.str()) })) },
       perm: null, level: 'view', tool: 'computer', label: 'check',
     }),
     read('computers.get', 'Read one agent computer: state, caption, tabs, disk and who took over', {

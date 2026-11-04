@@ -3,7 +3,7 @@
 // Choose from Files… is the second way in: every picture in the Space's folders the person can see, newest first, with a search; the one chosen opens in the same crop.
 import { createElement, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactElement } from "react";
-import { Image, Platform, StyleSheet, Text, View, useWindowDimensions } from "react-native";
+import { Image, Platform, StyleSheet, Text, View } from "react-native";
 import type { CapMap } from "../../../../../generated/types.ts";
 import { Row } from "../../../../../ui/src/Row/index.tsx";
 import { DropZone, pastedFiles } from "../../../../../ui/src/FileDrop/index.tsx";
@@ -105,8 +105,6 @@ function FilesPicker({ onChoose, onClose }: { onChoose(file: { fileId: string; n
 
 export function SpaceImage({ spaceName, logoFileId, onSaved }: { spaceName: string; logoFileId: string | null; onSaved(): void }): ReactElement {
   const { call } = useConsoleData();
-  const winW = useWindowDimensions().width;
-  const narrow = winW > 0 && winW < 720;
   const current = useRead<CapMap["spaces.image"]["out"]>("spaces.image", {}, { direct: true });
   const [source, setSource] = useState<Source | null>(null);
   const [loaded, setLoaded] = useState<Loaded | null>(null);
@@ -202,16 +200,11 @@ export function SpaceImage({ spaceName, logoFileId, onSaved }: { spaceName: stri
         <Section title="Space image">
           <Group>
             <Row id="space-logo" title="Space image" note={shown ? "Shows on the rail, the switcher, sign-in, join and invites" : logoFileId ? "Choose it again to show it everywhere" : "No image: the Space shows its letter"} leading={leading}
-              {...(narrow ? {} : { trailing: <Actions>
+              trailing={<Actions>
                 <Button label="Choose image…" testID="space-image-choose" disabled={busy} onPress={() => input.current?.click()} />
                 <Button label="Choose from Files…" testID="space-image-from-files" disabled={busy} onPress={() => setFromFiles(!fromFiles)} />
                 {logoFileId ? <Button label="Remove image" testID="space-image-remove" disabled={busy} onPress={() => void remove()} /> : null}
-              </Actions> })} />
-            {narrow ? <View style={{ paddingHorizontal: 12, paddingBottom: 10 }} testID="space-image-actions"><Actions>
-                <Button label="Choose image…" testID="space-image-choose" disabled={busy} onPress={() => input.current?.click()} />
-                <Button label="Choose from Files…" testID="space-image-from-files" disabled={busy} onPress={() => setFromFiles(!fromFiles)} />
-                {logoFileId ? <Button label="Remove image" testID="space-image-remove" disabled={busy} onPress={() => void remove()} /> : null}
-              </Actions></View> : null}
+              </Actions>} />
             {picker}
             {source && loaded && square ? (
               <View style={s.editor} testID="space-image-editor">

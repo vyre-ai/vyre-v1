@@ -15,13 +15,7 @@ const LEVEL_NOTE: Readonly<Record<Share["level"], string>> = {
   use: "Works with it without seeing the value", view: "Can reveal values (asks once, logged)", edit: "Can edit the fields", manage: "Can edit, share and delete",
 };
 const LEVELS: readonly Share["level"][] = ["use", "view", "edit", "manage"];
-// A person or an agent needs no label: the face and the name say it. Only what a name alone does not say is written (a group, a role, an Automation, an outside agent, a link), the way the share sheet's rows read.
-const KIND_LABEL: Readonly<Record<Share["subject"]["kind"], string>> = { person: "", group: "Group", role: "Role", agent: "", actor: "Outside agent", service: "Automation", link: "Link" };
-/** The one line under a name: what it is when the name does not say, and how it came to hold the item when it is not a direct grant. Empty is no line. */
-export function noteOf(kind: Share["subject"]["kind"], through: Share["through"]): string {
-  const via = through === "folder" ? "from the folder" : through === "group" || through === "role" ? `through a ${through}` : "";
-  return [KIND_LABEL[kind], via].filter((x) => x !== "").join(" · ");
-}
+const KIND_LABEL: Readonly<Record<Share["subject"]["kind"], string>> = { person: "Person", group: "Group", role: "Role", agent: "Agent", actor: "Outside", service: "Automation", link: "Link" };
 const FACE: Readonly<Record<Share["subject"]["kind"], AvatarKind>> = { person: "person", group: "group", role: "group", agent: "agent", actor: "person", service: "automation", link: "group" };
 /** People first, then agents, groups and roles, then Automations, then anything outside. */
 const ORDER: Readonly<Record<Share["subject"]["kind"], number>> = { person: 0, agent: 1, group: 2, role: 2, service: 3, actor: 4, link: 5 };
@@ -54,7 +48,7 @@ export interface WhoCanUseProps {
 export function WhoCanUse({ shares, you, nameOf, meId, canManage, onLevel, onRemove, onShare, onMenu }: WhoCanUseProps): ReactElement {
   const rows: ReactElement[] = [
     <Row
-      key="you" id="who:you" title="You" {...(you.owner ? { note: "Owner" } : {})}
+      key="you" id="who:you" title="You" note={you.owner ? "Owner" : "Person"}
       leading={<View style={s.face}><Avatar name={you.name} seedId={meId} kind="person" size={28} /></View>}
       trailing={<Text style={s.levelFixed} testID="who-level-you">{LEVEL_LABEL[you.level]}</Text>}
     />,
@@ -68,11 +62,11 @@ export function WhoCanUse({ shares, you, nameOf, meId, canManage, onLevel, onRem
     const direct = sh.through === "direct" && canManage;
     const open = (x: number, y: number): void => onMenu(levelEntries(sh.level, (l) => onLevel(sh, l), () => onRemove(sh)), x, y);
     rows.push(
-      <View key={key} style={noteOf(sh.subject.kind, sh.through) === "" ? s.bare : undefined} {...(direct ? menuTrigger(open) : {})}>
+      <View key={key} {...(direct ? menuTrigger(open) : {})}>
         <Row
           id={`who:${key}`}
           title={name}
-          {...(noteOf(sh.subject.kind, sh.through) !== "" ? { note: noteOf(sh.subject.kind, sh.through) } : {})}
+          note={sh.through === "folder" ? `${KIND_LABEL[sh.subject.kind]} · from the folder` : sh.through === "group" || sh.through === "role" ? `${KIND_LABEL[sh.subject.kind]} · through a ${sh.through}` : KIND_LABEL[sh.subject.kind]}
           leading={<View style={s.face}><Avatar name={name} seedId={sh.subject.id} kind={FACE[sh.subject.kind]} size={28} /></View>}
           trailing={direct ? (
             <Pressable accessibilityRole="button" accessibilityLabel={`${name} can ${LEVEL_LABEL[sh.level]}. Change`} testID={`who-level-${key}`} onPress={(e) => { const r = rectOf(e); open(r.x, r.y); }} style={s.level}>
@@ -105,8 +99,6 @@ const s = StyleSheet.create({
   head: { flexDirection: "row", alignItems: "center", marginTop: 10, marginBottom: 6 },
   h2: { fontSize: 14, fontWeight: "600", color: "var(--ink)" as string },
   face: { marginRight: 10 },
-  /** a row with no line under the name still has the room of one with a line */
-  bare: { paddingVertical: 6 },
   level: { flexDirection: "row", alignItems: "center", gap: 5, height: 26, paddingHorizontal: 8, borderRadius: 7 },
   levelText: { fontSize: 13, color: "var(--ink-2)" as string },
   levelFixed: { fontSize: 13, color: "var(--ink-3)" as string, paddingHorizontal: 8 },

@@ -71,10 +71,6 @@ export async function settleFromSource(ctx: TasksCtx, event: SourceEvent): Promi
   if (event.name === "block.answered") {
     return closeAll(ctx, asked.filter((t) => t.kind === "answer" && t.workingNotes["chat.block"] === p["blockId"]), { to: "done", note: "Answered" });
   }
-  // an agent took its own question back: the task is closed, not answered
-  if (event.name === "block.withdrawn") {
-    return closeAll(ctx, asked.filter((t) => t.kind === "answer" && t.workingNotes["chat.block"] === p["blockId"]), { to: "canceled", note: "Withdrawn" });
-  }
   const plan = asked.filter((t) => t.kind === "approve" && t.workingNotes["chat.plan"] === p["planId"]);
   return closeAll(ctx, plan, event.name === "plan.approved" ? { to: "done", note: "Approved" } : { to: "canceled", note: "Sent back" });
 }

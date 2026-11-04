@@ -30,7 +30,7 @@ type In = {
   press: "save" | "on";
   steps: Array<{
       stepId: string;
-      act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "install" | "approve";
+      act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "approve";
       targets: Array<string>;
       computed: boolean;
       changed: boolean;
@@ -44,7 +44,7 @@ type In = {
 type Out = {
   grants: Array<{
       id: string;
-      act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "install" | "approve";
+      act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "approve";
       target: string;
       stepId?: string;
     }>;

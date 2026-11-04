@@ -1,4 +1,4 @@
-// When a message leaves (spec 2.18): now, or at the time the sender chose, inside the Space's own sending limits (send.cap, send.window, send.throttle; tests in send.limits.test.ts). Nothing counts against a mailbox.
+// When a message leaves (spec 2.18): now, or at the time the sender chose. Regular email is an Automation, so nothing here waits for a window, counts against a mailbox or throttles a domain.
 import test from "node:test";
 import assert from "node:assert/strict";
 import { send } from "../handlers/send.ts";
@@ -13,22 +13,22 @@ const SATURDAY_3AM = 1_760_151_600_000;
 const rows = (r: Rig, table: string) => r.h.rows(`SELECT * FROM ${table}`);
 const due = (r: Rig, n = 0): SendIn => r.scheduled[n]!.input as unknown as SendIn;
 
-test("with the Space window set to any time, an appointment confirmation booked at 3am on a Saturday leaves now, not on Monday", async () => {
-  const r = rig({ origin: "automation:aut_confirm", principal: { kind: "service", id: "svc_automations" }, settings: { "send.window": "any" } });
+test("an appointment confirmation booked at 3am on a Saturday leaves now, not on Monday", async () => {
+  const r = rig({ origin: "automation:aut_confirm", principal: { kind: "service", id: "svc_automations" } });
   r.goto(SATURDAY_3AM);
   assert.equal((await send(r.ctx, sendIn())).status, "sent");
   assert.equal(r.scheduled.length, 0);
   assert.equal(r.sent().length, 1);
 });
 
-test("the old mail.send_window, mail.sender_caps and mail.throttle settings on a Space change nothing", async () => {
+test("an old send window, cap or throttle setting on a Space changes nothing", async () => {
   const r = rig({ settings: { "mail.send_window": { days: [6], startHour: 9, endHour: 10, zone: "space" }, "mail.sender_caps": { perHour: 1, perDay: 1 }, "mail.throttle": { perMinute: 1 } } });
   assert.equal((await send(r.ctx, sendIn())).status, "sent");
   assert.equal((await send(r.ctx, sendIn())).status, "sent");
 });
 
-test("a newsletter to more people than the old daily cap all goes out when the Space speed allows it", async () => {
-  const r = rig({ origin: "automation:aut_news", principal: { kind: "service", id: "svc_automations" }, settings: { "send.throttle": 600 } });
+test("a newsletter to more people than the old daily cap all goes out", async () => {
+  const r = rig({ origin: "automation:aut_news", principal: { kind: "service", id: "svc_automations" } });
   for (let i = 0; i < 200; i++) assert.equal((await send(r.ctx, sendIn({ to: [{ address: `reader${i}@acme.test` }] }))).status, "sent");
   assert.equal(r.sent().length, 200);
 });

@@ -1,1 +1,0 @@
-- Right-click menus for Vault items, automations, goals, projects, tabs and the Console rows (people, groups, roles, numbers, domains): each kind has its own menu built from real state and the person's rights, items follow state ("Pause" or "Resume", "Pin Tab" or "Unpin Tab"), anything they cannot do is left out, a removing item asks first, and Delete or Remove is last.

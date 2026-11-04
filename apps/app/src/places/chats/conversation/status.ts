@@ -50,7 +50,7 @@ const STATUS_WORDS: Record<string, { message: string; cause?: string; next?: { k
   "engine.device_gone": { message: "Your computer went away in the middle of this.", next: [{ key: "run_on_server", label: "Run it on the server instead" }], retryable: true },
   "engine.link_insecure": { message: "Your server needs a secure link (https) before it can run your chats.", retryable: true },
   "engine.cli_missing": { message: "The engine is not installed here.", next: [{ key: "connect_ai", label: "Connect an account" }], retryable: true },
-  "engine.vault_locked": { message: "Your sign-ins are locked on this server.", cause: "Unlock Vyre to use them.", next: [{ key: "unlock_vault", label: "Unlock" }], retryable: false },
+  "engine.vault_locked": { message: "Your Vault is locked.", cause: "Unlock it to let this chat use your AI account.", next: [{ key: "unlock_vault", label: "Unlock" }], retryable: false },
   "engine.vault_unreadable": { message: "Your Vault could not be read just now.", next: [{ key: "open_vault", label: "Open the Vault" }], retryable: true },
   "sandbox.unavailable": { message: "This engine cannot run safely on this computer yet.", cause: "Vyre runs Claude Code, Codex and Grok in a sandbox, and this computer has none it can use. An API key works now.", next: [{ key: "connect_ai", label: "Use an API key" }], retryable: false },
   "sandbox.wsl_off": { message: "Claude Code, Codex and Grok need WSL on Windows.", cause: "Vyre runs them in a Linux sandbox, and WSL is off on this computer. Turn it on once (admin and a restart), or use an API key now.", next: [{ key: "turn_on_wsl", label: "Turn on WSL (needs admin and a restart)" }, { key: "connect_ai", label: "Use an API key" }], retryable: false },
@@ -72,7 +72,6 @@ const STATUS_WORDS: Record<string, { message: string; cause?: string; next?: { k
   "engine.timeout": { message: "The engine did not answer in time.", retryable: true },
   "engine.session_gone": { message: "The engine lost this chat's earlier session.", cause: "Try again: it starts from the chat's summary.", retryable: true },
   "engine.model_unavailable": { message: "That model cannot run here.", next: [{ key: "pick_model", label: "Choose another model" }, { key: "run_on_my_computer", label: "Run it on my computer" }], retryable: false },
-  "engine.no_model_works": { message: "None of your AI accounts can answer right now.", cause: "Check your AI accounts, then try again.", next: [{ key: "connect_ai", label: "Open AI accounts" }], retryable: true },
   "engine.no_account": { message: "Connect your AI to get replies.", cause: "No AI account is saved for this chat yet.", next: [{ key: "connect_ai", label: "Connect your AI" }], retryable: false },
   "engine.account_unavailable": { message: "Your AI account could not be reached just now.", next: [{ key: "connect_ai", label: "Check your AI account" }], retryable: true },
   "engine.account_unsupported": { message: "This engine cannot run on this kind of account yet.", cause: "Use an API key for it.", next: [{ key: "connect_ai", label: "Use an API key" }], retryable: false },
@@ -116,19 +115,6 @@ export type StatusView = { kind: "error"; block: MessageBlock } | { kind: "note"
 export const DEVICE_WAIT_TEXT = "Your computer is off. This chat runs when it is back.";
 export const RUN_ON_SERVER = { key: "run_on_server", label: "Run it on the server instead" } as const;
 
-/** Why a turn stopped, in words: never a bare "Stopped." (owner, 4 Nov 2026). */
-export function stoppedWords(reason: string): string {
-  switch (reason) {
-    case "interrupt": return "Stopped because a new message came in while it was working. It answers that one next.";
-    case "stop": return "Stopped because Stop was pressed.";
-    case "limit": return "Stopped because it reached a spending or turn limit.";
-    case "left": return "Stopped because the person it was working for left.";
-    case "moved": return "Stopped because the task was handed to someone else.";
-    case "lease": return "Stopped because the server it was running on went away. Send it again.";
-    default: return "Stopped, and no reason was recorded. Send it again.";
-  }
-}
-
 export function statusView(b: MessageBlock): StatusView {
   const d = dataOf(b);
   const state = str(d.state);
@@ -137,9 +123,7 @@ export function statusView(b: MessageBlock): StatusView {
   if (state === "device_wait") return { kind: "wait", id: b.id, text: str(d.text) || DEVICE_WAIT_TEXT, action: { ...RUN_ON_SERVER } };
   // files a terminal agent deleted in goal/ went to Vyre's Trash (modules/engine/goal-folder.ts): the line carries Undo, which brings them back
   if (state === "trashed" && str(d.text) !== "" && Array.isArray(d.fileIds)) return { kind: "wait", id: b.id, text: str(d.text), action: { key: `undo_trash:${(d.fileIds as unknown[]).filter((x): x is string => typeof x === "string").join(",")}`, label: "Undo" } };
-  // the chat was answered by another account because the person's own sign-in is locked on this server: the one line carries Unlock, which opens the same small sheet as the banner
-  if (state === "key_locked" && str(d.text) !== "") return { kind: "wait", id: b.id, text: str(d.text), action: { key: "unlock_vault", label: "Unlock" } };
-  if (state === "cancelled") return { kind: "note", id: b.id, text: stoppedWords(str(d.reason)) };
+  if (state === "cancelled") return { kind: "note", id: b.id, text: "Stopped." };
   if (state === "waiting" && str(d.taskId) !== "") return { kind: "approval", id: b.id, taskId: str(d.taskId) };
   if (state === "waiting") return { kind: "note", id: b.id, text: "Waiting for your approval." };
   let w = wordsFor(str(d.code));

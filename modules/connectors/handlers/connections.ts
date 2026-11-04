@@ -27,7 +27,6 @@ export interface ConnectionsHandlers {
   "connections.reconnect"(ctx: ConnectorsCtx, input: { connectionId: string }): Promise<{ authUrl?: string }>;
   "connections.complete_auth"(ctx: ConnectorsCtx, input: { state: string; code?: string; error?: string }): Promise<{ connectionId: string }>;
   "connections.test"(ctx: ConnectorsCtx, input: { connectionId: string }): Promise<Health>;
-  "connections.mark_working"(ctx: ConnectorsCtx, input: { connectionId: string }): Promise<{ state: ConnectionState; stamped: boolean }>;
   "connections.delete"(ctx: ConnectorsCtx, input: { connectionId: string }): Promise<{ deleted: boolean }>;
 }
 
@@ -240,27 +239,6 @@ export function createConnectionsHandlers(deps: ConnectorsDeps): ConnectionsHand
       if (r.state === "pending" || r.state === "failing" || r.state === "needs_reconnect") tx.run("UPDATE cn_connections SET state = 'active' WHERE connection_id = ?", r.connection_id);
       await clearReconnectTask(deps, ctx, r.connection_id);
       return { state: "healthy" as const, latencyMs: nowOf(deps) - started };
-    },
-
-    // The connection's own module proved it works without going through the connector runtime (Google delegation reads mail and calendar with a token it mints itself), so nothing else would ever
-    // make it active or stamp it used. Only the server's own jobs and people who may change the connection can say so.
-    "connections.mark_working": async (ctx, input) => {
-      const r = need(ctx, input.connectionId);
-      // the server's own jobs, or whoever may change this connection: a member cannot mark a failing Space connection active
-      if (ctx.trusted !== true) {
-        owned(ctx, r);
-        if (r.owner_kind === "space" && ctx.canManageSpace && !ctx.canManageSpace()) refuse(ctx, "permission.no_grant", "Only someone who manages connections can change this one.");
-      }
-      let state = r.state;
-      if (r.state === "pending" || r.state === "failing" || r.state === "needs_reconnect") {
-        tx.run("UPDATE cn_connections SET state = 'active' WHERE connection_id = ?", r.connection_id);
-        state = "active";
-        await clearReconnectTask(deps, ctx, r.connection_id);
-      }
-      const now = nowOf(deps);
-      const stamped = r.state !== "paused" && (r.last_sync_at === null || r.last_sync_at === undefined || now - r.last_sync_at >= 60_000);
-      if (stamped) tx.run("UPDATE cn_connections SET last_sync_at = ? WHERE connection_id = ?", now, r.connection_id);
-      return { state, stamped };
     },
 
     "connections.delete": async (ctx, input) => {

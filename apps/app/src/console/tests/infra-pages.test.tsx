@@ -16,28 +16,3 @@ test('Support shows actual doctor findings and a bundle action; Server mounts ty
  assert.match(draw(<Support/>,{'health.doctor':{ok:false,findings:[{key:'test',state:'degraded',next:'Run the check again'}]}}),/Run the check again|infra-support-create/);
  assert.match(draw(<Server/>,{'logs.query':{rows:[]}}),/infra-log-search|Server logs/);
 });
-// Diagnostics > Details: the Kit's blocked actions, the Doctor's raw checks and a field that takes the id from an error message.
-import { createRoot } from 'test-renderer';
-import {mountPage} from './page-kit.tsx';
-const DIAG={'health.status':{overall:'healthy',checks:[]},'health.machine':{state:'healthy',machine:{diskFreeBytes:2e9}},'health.disk_space':{state:'healthy',freeBytes:2e9},'health.disk_encrypted':{state:'healthy'},
- 'health.doctor':{ok:false,findings:[{key:'disk.free',state:'degraded',next:'Free some space'}]},'kits.list':{kits:[{kitId:'kit_1',key:'vyre',title:'Vyre Kit',version:'1.0.0',channel:'stable',installed:true,contents:['ui']}]},'kits.health':{state:'degraded',denials:3}};
-test('Details starts closed, opens the blocked actions and debug output, and hides again',async()=>{
- const p=await mountPage(createRoot, <Diagnostics/>,DIAG);
- try{
-  assert.ok(!p.has('diagnostics-details'));assert.match(p.text(),/Blocked actions, debug output and ids for support/);
-  await p.press('diagnostics-details-toggle');
-  assert.ok(p.has('diagnostics-details'));assert.match(p.text(),/Vyre Kit/);assert.match(p.text(),/3\s+actions\s+blocked/);assert.match(p.text(),/Free some space/);assert.match(p.text(),/Hide details/);
-  await p.press('diagnostics-details-toggle');assert.ok(!p.has('diagnostics-details'));
- }finally{p.restore();}
-});
-test('Look up an error takes the id from an error message and reads logs.trace; a short id is refused',async()=>{
- const id='a1b2c3d4e5f60718293a4b5c6d7e8f90';
- const p=await mountPage(createRoot, <Diagnostics/>,DIAG,(cap)=>cap==='logs.trace'?{logs:[{id:1,at:1,level:'error',msg:'The tool was blocked',traceId:id}],spans:[],events:[]}:{ok:true});
- try{
-  await p.press('diagnostics-details-toggle');
-  await p.type('diagnostics-lookup-id','abc');await p.press('diagnostics-lookup');
-  assert.equal(p.called('logs.trace').length,0);assert.match(p.text(),/32-character id/);
-  await p.type('diagnostics-lookup-id',id);await p.press('diagnostics-lookup');
-  assert.deepEqual(p.called('logs.trace').at(-1)!.input,{traceId:id});assert.match(p.text(),/The tool was blocked/);assert.match(p.text(),/Error details/);
- }finally{p.restore();}
-});

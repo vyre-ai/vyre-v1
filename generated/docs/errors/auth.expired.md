@@ -16,5 +16,4 @@ HTTP 401. Retryable: no.
 - mcp.oauth.request
 - members.accept
 - members.invites.preview
-- settings.contact.verify_confirm
 - sync.hello

@@ -160,7 +160,6 @@ async function run(prompt) {
     case "nopartial": replay("nopartial"); break;
     case "tool": replay((await callTool(words[1] ?? "schema_describe")).ok ? "tool" : "tool-denied"); break;
     case "authfail": replay("error-auth"); break;
-    case "nomodel": replay("error-model"); break;
     case "maxturns": replay("max-turns"); break;
     case "mcpfail": replay("mcp-failed"); break;
     case "limits": out(JSON.stringify({ type: "rate_limit_event", rate_limit_info: { status: "allowed_warning", resetsAt: 1_792_000_000, rateLimitType: "five_hour", utilization: 0.43 }, session_id: session })); say("ok"); break;

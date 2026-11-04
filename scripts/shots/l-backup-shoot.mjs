@@ -18,8 +18,6 @@ if (!args.includes("--skip-export")) {
   execSync("/root/wt/base/node_modules/.bin/expo export --platform web --output-dir dist", { cwd: appDir, stdio: "inherit", env: exportEnv() });
 }
 fs.mkdirSync(out, { recursive: true });
-// the shots app has no public folder, so the brand icon files the real app serves from /tools are copied in: without them every tool icon is a broken image in a shot
-if (fs.existsSync(path.join(REPO, "apps/app/public/tools"))) fs.cpSync(path.join(REPO, "apps/app/public/tools"), path.join(appDir, "dist/tools"), { recursive: true });
 const SIZES = { wide: { width: 1440, height: 900 }, phone: { width: 390, height: 844 } };
 const real = await serve(path.join(appDir, "dist"), { spa: true });
 const { createRequire } = await import("node:module");

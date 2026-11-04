@@ -48,7 +48,6 @@ export const handlers: Record<string, Handler> = {
   "google.gmail.get_attachment": (ctx, i) => h.getAttachment(ctx, i),
   "google.gmail.modify_labels": (ctx, i) => h.modifyLabels(ctx, i),
   "google.gmail.create_draft": (ctx, i) => h.createDraft(ctx, i),
-  "google.gmail.delete_draft": (ctx, i) => h.deleteDraft(ctx, i),
   "google.gmail.send_message": (ctx, i) => h.sendMessage(ctx, i),
   "google.gmail.trash_message": (ctx, i) => h.trashMessage(ctx, i),
   "google.gmail.watch": (ctx, i) => h.watch(ctx, i),

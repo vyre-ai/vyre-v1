@@ -9,7 +9,6 @@ HTTP 503. Retryable: yes.
 - engine.compact
 - engine.complete
 - engine.step_turn
-- github.me.connect
 - sync_specs.apply
 - sync_specs.preview
 - sync_specs.sample

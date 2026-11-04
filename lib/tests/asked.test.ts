@@ -77,26 +77,3 @@ test("what counts as outside words", () => {
   assert.equal(bringsOutside("records.get", "read"), false);
   assert.equal(bringsOutside("google.gmail.send_message", "outward"), false);
 });
-
-import { isGoAhead, proposedIn } from "../asked.ts";
-
-test("a calendar entry is a send: 'put it on the calendar', 'add an event', 'book a meeting with Sam'", () => {
-  assert.deepEqual(acts("Yes put it on calendar"), ["send:"]);
-  assert.deepEqual(acts("please add an event for Friday"), ["send:"]);
-  assert.deepEqual(acts("book a meeting with Sam"), ["send:sam"]);
-  assert.deepEqual(acts("what is on the calendar"), []);
-});
-
-test("a plain go-ahead is yes, ok, go ahead, do it: not a question, a refusal or a long message", () => {
-  for (const s of ["yes", "Yes put it on calendar", "@Assistant yes please", "ok go ahead", "do it", "sounds good"]) assert.equal(isGoAhead(s), true, s);
-  for (const s of ["yes?", "no", "yes but don't send it", "not yet", "what about Friday", "", "maybe later", `yes ${"and more ".repeat(40)}`]) assert.equal(isGoAhead(s), false, s);
-  assert.equal(isGoAhead("> yes\nsomething else"), false, "a quoted line is not the person's yes");
-});
-
-test("what a yes answers: the kind of act the agent said it would do, once, with no target, a send or a post only", () => {
-  assert.deepEqual(proposedIn("I can put it on the calendar. It waits for your yes."), [{ act: "send", target: "" }]);
-  assert.deepEqual(proposedIn("Shall I email Josh about the lease?"), [{ act: "send", target: "" }]);
-  assert.deepEqual(proposedIn("I'll post the update to #launch and email Sam.").map((x) => x.act).sort(), ["post", "send"]);
-  assert.deepEqual(proposedIn("I will push to main and deploy the site."), [], "never a push or a deploy");
-  assert.deepEqual(proposedIn("Here are the figures."), []);
-});

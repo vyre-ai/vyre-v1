@@ -89,30 +89,3 @@ test("after a restart the key reopens for a person still signed in through a pro
   live.delete("ses_google");
   assert.equal(ring.get("usr_rubab"), null);
 });
-
-test("Lock (Cmd-L) forgets the key and keeps it forgotten, even for a provider session the wrap could reopen; an unlock or a provider session made after the lock brings it back", () => {
-  const wrap = Uint8Array.from({ length: 32 }, (_, i) => i + 1);
-  const sessions: Record<string, number> = { ses_old: 100, ses_new: 300 };
-  const ring = createKeyring({
-    allowed: () => true, live: () => true,
-    reopen: (_p, since = 0) => { const ids = Object.entries(sessions).filter(([, at]) => at > since).map(([id]) => id); return ids.length ? { key: Uint8Array.from(wrap), sessions: ids } : null; },
-  });
-  assert.ok(ring.get("usr_a"), "before the lock the wrap opens it for the provider session");
-  const realNow = Date.now;
-  Date.now = () => 200;
-  try { ring.lock("usr_a"); } finally { Date.now = realNow; }
-  assert.equal(ring.holds("usr_a"), false);
-  delete sessions["ses_new"];
-  assert.equal(ring.get("usr_a"), null, "locked: the older provider session does not reopen it");
-  // a provider sign-in made after the lock opens it again, bound to that session only
-  sessions["ses_new"] = 300;
-  const again = ring.get("usr_a");
-  assert.ok(again && again.length === 32, "a session made after the lock reopens it");
-  // the password unlock also clears the lock
-  const ring3 = createKeyring({ allowed: () => true, live: () => true });
-  assert.equal(ring3.hold("usr_c", new Uint8Array(32).fill(1), "ses_1"), true);
-  ring3.lock("usr_c");
-  assert.equal(ring3.get("usr_c"), null);
-  assert.equal(ring3.hold("usr_c", new Uint8Array(32).fill(1), "ses_1"), true);
-  assert.ok(ring3.get("usr_c"), "unlocked with the password");
-});

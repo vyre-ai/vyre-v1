@@ -4,7 +4,7 @@ Lane L5. Kind module. Version 0.1.0.
 
 Requires: calendar, mail, telephony.
 
-## Capabilities (21)
+## Capabilities (20)
 
 - [comms.senders.list](../capabilities/comms.senders.list.md): Every address the caller can send from: mailboxes (Gmail, Outlook, IMAP, shared, agent, service), the Space sending domain (Resend or Mailgun) and texting numbers (Twilio). Senders the caller may not use are left out; ones that cannot send now come with usable false and why
 - [comms.senders.set_default](../capabilities/comms.senders.set_default.md): Choose the default sender of a channel for me; it must be a usable sender from comms.senders.list
@@ -23,7 +23,6 @@ Requires: calendar, mail, telephony.
 - [inbox.recipients_search](../capabilities/inbox.recipients_search.md): Ranked recipient search across contacts, members, inboxes and groups (the shared Recipients field)
 - [inbox.send_options](../capabilities/inbox.send_options.md): Channels and sending inboxes for a contact; the default is the inbox the thread came in on
 - [inbox.thread](../capabilities/inbox.thread.md): The whole history of one contact: emails, texts, calls, meetings and record chips
-- [inbox.thread_conversation](../capabilities/inbox.thread_conversation.md): The conversation an email thread opens in, found by the mail provider thread id a mail tool returned (a chat link to an email thread uses it)
 - [inbox.threads](../capabilities/inbox.threads.md): One contact's email threads, each whole: every thread they are on (From, To or Cc), newest first, with everyone's messages, quoted history and signatures apart, reactions, what is new and your role
 - [inbox.unmatch](../capabilities/inbox.unmatch.md): Undo a match; the sender goes back to Unmatched
 - [inbox.unmatched](../capabilities/inbox.unmatched.md): The Unmatched list: senders with no record that did not raise Needs a match

@@ -15,8 +15,6 @@ export interface AppsNav {
   openArtifact?(artifactId?: string): void;
   /** One email design on its own, or a new one without an id: the builder Inbox templates and Automation email steps share. */
   openEmailDesign?(emailId?: string): void;
-  /** Add a sending domain: the Console's Sending domains page with its Add domain form open. Present only for someone who can open the Console. */
-  addDomain?(): void;
   /** A Personal Space creates or joins a Team Space. */
   joinTeam(): void;
   /** The Gate task a held call is waiting on. */

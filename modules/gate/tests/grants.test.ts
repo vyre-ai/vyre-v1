@@ -193,21 +193,6 @@ test("Always allow: only a person, one agent or chat, an outward act needs an ad
   await assert.rejects(allow(admin, alice, { act: "pay", target: "stripe" }), (e) => codeOf(e) === "permission.role_lacks_permission");
 });
 
-test("Always let this agent message one recipient: a person's own to allow, no wider than that recipient and agent, never money", async () => {
-  const h = harness();   // no admin
-  const set = (hh: Harness, over: Record<string, unknown>) => hh.call("gate.allow.set", over, alice as never);
-  const { rule } = await set(h, { act: "send", target: "lee@acme.test", agentId: bot.id, recipient: true });
-  assert.equal(rule.act, "send");
-  const sent = (to: string, agentId = bot.id) => h.call("gate.grants.take", { act: "send", targets: [to], always: { person: alice.id, agentId, threads: ["thr_chat"], cap: "mail.send" } }, gate);
-  assert.equal(await granted(sent("lee@acme.test")), true);
-  assert.equal(await granted(sent("sam@acme.test")), false, "another recipient");
-  assert.equal(await granted(sent("lee@acme.test", "agt_other")), false, "another agent");
-  await assert.rejects(set(h, { act: "send", target: "*", agentId: bot.id, recipient: true }), (e) => codeOf(e) === "validation.bad_input");
-  await assert.rejects(set(h, { act: "send", target: "lee@acme.test", recipient: true }), (e) => codeOf(e) === "validation.bad_input", "an agent is named");
-  await assert.rejects(set(h, { act: "pay", target: "lee@acme.test", agentId: bot.id, recipient: true }), (e) => codeOf(e) === "permission.role_lacks_permission");
-  await assert.rejects(set(h, { act: "send", target: "mail.send", agentId: bot.id }), (e) => codeOf(e) === "permission.role_lacks_permission", "without the recipient flag an outward rule still needs an admin");
-});
-
 test("a rule is removed only by who wrote it or an admin; a person leaving takes their asks and rules with them", async () => {
   const h = harness();
   const { rule } = await allow(h, alice);
@@ -235,17 +220,4 @@ test("an outside agent working as its person under the setup grant has pressed n
   await set(h, alice);
   assert.equal((await set(h, { ...alice, origin: "mcp" })).grants.length, 0);
   assert.equal(await granted(stepTake(h, ["lee@acme.test"])), false, "its sends still stop for a person at run time");
-});
-
-test("an ask is taken back by the next message only when the agent has replied since it: a second message with no words keeps the first", async () => {
-  const h = harness();
-  const askFor = (messageId: string, asked: { act: string; target: string }[], since?: number) => h.call("gate.grants.ask", { threadId: "thr_chat", messageId, asked, ...(since !== undefined ? { since } : {}) }, alice as never);
-  await askFor("msg_1", [{ act: "send", target: "" }], h.now() - 1000);   // the agent last replied before the first message
-  h.advance(1000);
-  await askFor("msg_2", [], h.now() - 2000);                              // no reply since: the first ask stays
-  assert.equal(await granted(take(h, ["lee@acme.test"])), true, "the yes still holds after a message with no words");
-  await askFor("msg_3", [{ act: "send", target: "" }], h.now() - 5000);
-  h.advance(1000);
-  await askFor("msg_4", [], h.now());                                     // the agent replied after message 3: it is taken back
-  assert.equal(await granted(take(h, ["lee@acme.test"])), false);
 });

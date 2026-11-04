@@ -88,7 +88,7 @@ test("threads.agent_settings.set: bad input is refused in words, a stranger find
   assert.equal(await failure(set({ style: "full" }, hn.agent(DRAFTER))), "permission.role_lacks_permission", "a listener does not reshuffle the chat");
 });
 
-test("threads.agent_settings.set mode: Answers everything leads (one lead, the engine is told), Answers when mentioned listens, Only listens is listen with quiet", async () => {
+test("threads.agent_settings.set mode: Answers everything leads (one lead, the engine is told), Answers when tagged listens, Listening is listen with quiet", async () => {
   const { w, hn } = world();
   const id = await chatOf(hn);
   await h["threads.add_agent"]!(hn.ctx, { threadId: id, agentId: DRAFTER });

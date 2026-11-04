@@ -4,7 +4,7 @@ Lane L2. Kind module. Version 0.1.0.
 
 Requires: nothing.
 
-## Capabilities (15)
+## Capabilities (14)
 
 - [notes.clip](../capabilities/notes.clip.md): Vyre for Chrome: clip a page into a private note with its address, title, the selected text and a screenshot
 - [notes.create](../capabilities/notes.create.md): Take a note: text, an image, or a link that becomes a card. Private to the person until shared
@@ -16,7 +16,6 @@ Requires: nothing.
 - [notes.pin](../capabilities/notes.pin.md): Pin or unpin a note
 - [notes.restore](../capabilities/notes.restore.md): Undo a delete
 - [notes.search](../capabilities/notes.search.md): Search the notes the asker may read: title, text, labels, link and clipped page. An agent finds only notes everyone in its chat may read
-- [notes.set_owner](../capabilities/notes.set_owner.md): Hand a note to someone it is shared with: they become the owner and the previous owner keeps Edit. Only the owner does this
 - [notes.share](../capabilities/notes.share.md): Share a note with people or the Space, change a role, or take it back. Only the owner shares
 - [notes.to_record](../capabilities/notes.to_record.md): Turn a note into a record of a type, with fields filled from it. The note keeps the record, so each opens the other
 - [notes.to_task](../capabilities/notes.to_task.md): Turn a note into a task. The task holds the note text; the note keeps the task, so each opens the other

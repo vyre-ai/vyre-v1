@@ -9,8 +9,8 @@ const mine = registry.capabilities.filter((c) => c.module === "goals").map((c) =
 const toolName = (c: { name: string; surfaces?: { mcp?: { name?: string } } }): string => c.surfaces?.mcp?.name ?? c.name.replaceAll(".", "_");
 const tools = new Set((registry.capabilities as unknown as Array<{ name: string; surfaces?: { mcp?: { name?: string } } }>).filter((c) => c.surfaces?.mcp).map(toolName));
 
-test("goals live: the handler map equals the manifest's 27 capabilities", () => {
-  assert.equal(mine.length, 27);
+test("goals live: the handler map equals the manifest's 26 capabilities", () => {
+  assert.equal(mine.length, 26);
   assert.deepEqual(Object.keys(handlers).sort(), mine);
 });
 

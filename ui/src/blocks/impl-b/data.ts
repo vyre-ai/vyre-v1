@@ -120,10 +120,6 @@ export interface HelperData {
   agentId: string;
   model: string;
   path: { title: string; threadId: string }[];
-  /** One line of what the helper found, once it is done. */
-  found: string;
-  startedAt: number | null;
-  finishedAt: number | null;
 }
 
 export function helperData(data: unknown): HelperData {
@@ -132,7 +128,7 @@ export function helperData(data: unknown): HelperData {
     const r = rec(p);
     return { title: str(r["title"]), threadId: str(r["threadId"]) };
   });
-  return { threadId: str(d["threadId"]), title: str(d["title"], "Helper"), status: oneOf(d["status"], ["running", "done", "failed", "stopped"] as const, "running"), agentId: str(d["agentId"]), model: str(d["model"]), path, found: str(d["found"]), startedAt: typeof d["startedAt"] === "number" ? d["startedAt"] : null, finishedAt: typeof d["finishedAt"] === "number" ? d["finishedAt"] : null };
+  return { threadId: str(d["threadId"]), title: str(d["title"], "Helper"), status: oneOf(d["status"], ["running", "done", "failed", "stopped"] as const, "running"), agentId: str(d["agentId"]), model: str(d["model"]), path };
 }
 
 export interface DiffChange {

@@ -126,11 +126,6 @@ export async function modifyLabels(ctx: GoogleCtx, a: Act & { messageId: string;
   return { message: mapMessage(r) };
 }
 
-export async function deleteDraft(ctx: GoogleCtx, a: Act & { draftId: string }) {
-  await call(ctx, a, "google.gmail.delete_draft", { method: "DELETE", url: `${GMAIL}/drafts/${enc(a.draftId)}` });
-  return { deleted: true };
-}
-
 export async function trashMessage(ctx: GoogleCtx, a: Act & { messageId: string }) {
   await call(ctx, a, "google.gmail.trash_message", { method: "POST", url: `${GMAIL}/messages/${enc(a.messageId)}/trash` });
   return { trashed: true };

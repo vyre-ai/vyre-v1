@@ -24,8 +24,6 @@ export interface SessionContext {
   system: SystemBlock[];
   tools: ApiTool[];
   maxOutputTokens?: number;
-  /** The tool set as it stands now. Read again after a step that ran tool_search: what the search loaded is callable in the next step of the same turn. */
-  reload?(): Promise<readonly ApiTool[]>;
 }
 
 export interface RetryPolicy {
@@ -207,8 +205,8 @@ export function createApiSession(deps: SessionDeps, spec: SessionSpec): ApiSessi
       const asked = await deps.context(spec, input);
       const ctx = { ...asked, tools: asked.tools.map(slimTool) };   // the copy the model reads is trimmed (slim.ts); calls are still validated against the full schema
       const system = orderSystem(ctx.system);
-      let hash = prefixHash(system, ctx.tools, model);
-      let fixed = fixedTokens(system, ctx.tools);
+      const hash = prefixHash(system, ctx.tools, model);
+      const fixed = fixedTokens(system, ctx.tools);
       const window = windowFor(model, deps.adapter.id);
       let messages: Msg[] = threadMessages(input);
       const maxSteps = deps.maxSteps ?? MAX_STEPS;
@@ -246,23 +244,11 @@ export function createApiSession(deps: SessionDeps, spec: SessionSpec): ApiSessi
         if (stop === "filtered" && text === "" && pending.length === 0) { yield { type: "error", code: "provider.filtered", message: "The provider declined to answer." }; return; }
 
         if (pending.length > 0) {
-          // the step is complete: these calls are the whole batch, and results may come back in any order
-          yield { type: "tool_wait" };
           messages.push({ role: "assistant", text, calls: pending });
           for (const p of pending) {
             const r = await waitFor(p.id, ac.signal);
             if (r === null) return;
             messages.push({ role: "tool", callId: p.id, name: p.name, ok: r.ok, content: cap(typeof r.content === "string" ? r.content : JSON.stringify(r.content ?? null)) });
-          }
-          // A tool the search just found is callable in the very next step. The new ones go at the end, so the tools already sent keep their place and the cached prefix up to them stays valid.
-          if (ctx.reload && pending.some((p) => p.name === "tool_search")) {
-            const known = new Set(ctx.tools.map((t) => t.name));
-            const fresh = (await ctx.reload().catch(() => [] as readonly ApiTool[])).filter((t) => !known.has(t.name)).map(slimTool);
-            if (fresh.length > 0) {
-              ctx.tools = [...ctx.tools, ...fresh];
-              hash = prefixHash(system, ctx.tools, model);
-              fixed = fixedTokens(system, ctx.tools);
-            }
           }
         } else if (text !== "") {
           messages.push({ role: "assistant", text, calls: [] });
@@ -291,7 +277,6 @@ export function createApiSession(deps: SessionDeps, spec: SessionSpec): ApiSessi
 
   return {
     get warm() { return sends > 0; },
-    parallelTools: true,
     send: (input) => send(input),
     sendToolResult(callId, result) { results.set(callId, result); poke(); },
     inject(msg) { injected.push(msg); },

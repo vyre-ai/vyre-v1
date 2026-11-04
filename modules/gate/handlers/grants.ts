@@ -137,10 +137,7 @@ export async function allowSet(ctx: GateCtx, input: In): Promise<unknown> {
   if (!input.agentId && !input.threadId) raise(ctx, "validation.bad_input", "Always allow is for one agent or one chat.");
   if (input.act === "pay") raise(ctx, "permission.role_lacks_permission", "Sending money always asks.", { reason: "money" });
   if (actOf(input.act).alwaysStops) raise(ctx, "permission.role_lacks_permission", "A company connection or a sign-in change always asks.", { reason: "always_stops" });
-  // "Always let this agent message Aliza": one agent, one named recipient, a send or a post. It reaches no further than that person, so it is the person's own to allow; a wider outward rule needs an admin
-  const toOne = input.recipient === true && (input.act === "send" || input.act === "post") && Boolean(input.agentId) && input.target !== ANY_TARGET && !String(input.target).includes("*");
-  if (input.recipient === true && !toOne) raise(ctx, "validation.bad_input", "Always allow for a recipient names one agent and one recipient.");
-  if (input.act !== "approve" && !toOne && !isAdmin(ctx)) raise(ctx, "permission.role_lacks_permission", "An admin allows this.", { reason: "admin_only" });
+  if (input.act !== "approve" && !isAdmin(ctx)) raise(ctx, "permission.role_lacks_permission", "An admin allows this.", { reason: "admin_only" });
   const now = ctx.now();
   const row: AllowRow = { id: newGrantId(), kind: "always", act: input.act, target: input.target, agent_id: input.agentId ?? null, thread_id: input.threadId ?? null, subject_id: null, step_id: null, expires_at: now + (input.days ?? ALWAYS_DAYS) * DAY_MS, person: ctx.principal.id };
   ctx.db.run("INSERT INTO gate_grants (id, kind, person, act, target, agent_id, thread_id, expires_at, created_at) VALUES (?, 'always', ?, ?, ?, ?, ?, ?, ?)", row.id, row.person, row.act, row.target, row.agent_id, row.thread_id, row.expires_at, now);
@@ -192,8 +189,7 @@ export async function taintMark(ctx: GateCtx, input: In): Promise<unknown> {
 export async function grantsAsk(ctx: GateCtx, input: In): Promise<unknown> {
   if (ctx.principal.kind !== "person") raise(ctx, "permission.role_lacks_permission", "Only a person's own message asks.", { reason: "people_only" });
   const person = ctx.principal.id, now = ctx.now();
-  // an older ask is taken back when this message arrives, unless the agent has not replied since it: every message the person sends between two replies is one ask
-  ctx.db.run("UPDATE gate_grants SET expires_at = ? WHERE kind = 'turn' AND person = ? AND thread_id = ? AND used_at IS NULL AND message_id <> ? AND created_at <= ?", now, person, input.threadId, input.messageId, input.since ?? now);
+  ctx.db.run("UPDATE gate_grants SET expires_at = ? WHERE kind = 'turn' AND person = ? AND thread_id = ? AND used_at IS NULL AND message_id <> ?", now, person, input.threadId, input.messageId);
   ctx.db.run("UPDATE gate_taint SET cleared_at = ? WHERE thread_id = ? AND cleared_at IS NULL", now, input.threadId);
   for (const a of input.asked as { act: string; target: string }[]) {
     ctx.db.run("INSERT OR IGNORE INTO gate_grants (id, kind, person, act, target, thread_id, message_id, expires_at, created_at) VALUES (?, 'turn', ?, ?, ?, ?, ?, ?, ?)", newGrantId(), person, a.act, a.target, input.threadId, input.messageId, now + TURN_MS, now);

@@ -2,7 +2,6 @@
 // and puts a Needs you card "Raise once or Stop" in front of the person who pays. Real SQLite, fake provider, events checked against the frozen schema.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
 import { handlers } from "../impl.ts";
 import { capsSet, isPaused, pauseAll, raiseLimit, recordUsage, resumeAll, spendGet, usageQuery } from "../handlers/spend.ts";
 import { ensure } from "../projections.ts";
@@ -321,29 +320,4 @@ test('spend reads cannot expose another person or Space totals without spend-man
   assert.throws(()=>spendGet(h.ctx,{scope:'person',scopeId:'usr_sam'}),error=>codeOf(error)==='permission.no_grant');
   assert.throws(()=>spendGet(h.ctx,{scope:'space'}),error=>codeOf(error)==='permission.no_grant');
   assert.equal(spendGet(h.ctx,{scope:'person'}).monthMicros,0);
-});
-
-test("Settings > AI usage is this person's own turns this month: an admin who manages AI spend asking with their own id and the start of the month gets only their rows", async () => {
-  const h = harness();
-  ensure(h.db);
-  const DAY = 86_400_000;
-  const monthStart = 1_760_000_000_000;
-  const put = (turn: string, person: string, model: string, at: number, cost: number): void => {
-    h.db.run("INSERT INTO engine_usage (turn_id, thread_id, agent_id, person_id, model, at, tokens_in, tokens_out, cost_micros) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)", turn, THREAD, AGENT, person, model, at, 100, 10, cost);
-  };
-  put("trn_old", "usr_dana", "claude-sonnet-5-5", monthStart - 3 * DAY, 900);   // last month
-  put("trn_mine", "usr_dana", "claude-sonnet-5-5", monthStart + DAY, 500);
-  put("trn_sam", "usr_sam", "gpt-5", monthStart + DAY, 300);                    // another member
-  const everything = await usageQuery(h.ctx, { by: "model" });
-  assert.equal(everything.totals.costMicros, 1700, "without the scope, a manager is handed the whole Space for all time: this was the bug");
-  const mine = await usageQuery(h.ctx, { by: "model", personId: "usr_dana", from: monthStart });
-  assert.deepEqual(mine.rows.map((r) => [r.key, r.totals.costMicros]), [["claude-sonnet-5-5", 500]], "only the admin's own rows, this month");
-  assert.equal(mine.totals.costMicros, 500);
-});
-
-test("the Settings usage screen forwards the person and the start of the month to engine.usage.query", () => {
-  const reg = JSON.parse(readFileSync(new URL("../../../generated/registry.json", import.meta.url), "utf8")) as { screens: { id: string; queries: Record<string, { cap: string; input: Record<string, string> }> }[] };
-  const q = reg.screens.find((s) => s.id === "settings.models-usage")!.queries["usage"]!;
-  assert.equal(q.cap, "engine.usage.query");
-  assert.deepEqual(Object.keys(q.input).sort(), ["by", "from", "personId", "to"]);
 });

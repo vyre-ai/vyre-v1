@@ -11,5 +11,5 @@ export const handlers: Handlers<HandlerCtx> = {
   "updates.health": async () => ({"detail":"example","latencyMs":1,"state":"healthy"} as unknown) as never,
   "updates.history": async () => ({"updates":[{"at":1760000000000,"from":"1.0.0","result":"ok","seconds":1,"to":"1.0.0"}]} as unknown) as never,
   "updates.rollback": async () => ({"runId":"run_a1b2c3"} as unknown) as never,
-  "updates.status": async () => ({"available":"1.0.0","channel":"stable","current":"1.0.0","lastResult":"ok","managedElsewhere":true} as unknown) as never,
+  "updates.status": async () => ({"available":"1.0.0","channel":"stable","current":"1.0.0","lastResult":"ok"} as unknown) as never,
 };

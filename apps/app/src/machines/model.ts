@@ -25,8 +25,6 @@ export interface Finding { key: string; state: "healthy" | "degraded" | "down"; 
 export interface MachineOut {
   machine: MachineRow; series: Series; findings: Finding[]; work: Array<{ agent: string; what: string; where: string; cpu: number }>; alerts: MachineAlert[]; privacy: "full" | "vyre_only";
   lastFix?: { fix: string; at: number; state: "done" | "failed"; detail: string };
-  /** What Stop idle sessions would stop: all on the Space server, only the owner's on a member's own computer. */
-  idleSessions?: number;
 }
 
 export const RANGES: readonly { key: Range; label: string }[] = [{ key: "1h", label: "1\u00a0h" }, { key: "24h", label: "24\u00a0h" }, { key: "7d", label: "7\u00a0d" }, { key: "30d", label: "30\u00a0d" }];

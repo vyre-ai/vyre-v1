@@ -17,7 +17,7 @@ export interface BlockHostB extends BlockHost {
   nameOf?: (id: string) => string | undefined;
 }
 
-export const PART_TWO_TYPES = ["memory_saved", "vault_used", "access_request", "secret_input", "talk_key", "model_switch", "helper", "diff_card"] as const;
+export const PART_TWO_TYPES = ["memory_saved", "vault_used", "access_request", "secret_input", "model_switch", "helper", "diff_card"] as const;
 export type PartTwoType = (typeof PART_TWO_TYPES)[number];
 
 export interface BlockSpecB {
@@ -47,13 +47,6 @@ export const BLOCK_SPECS_B: Readonly<Record<PartTwoType, BlockSpecB>> = {
   secret_input: {
     type: "secret_input",
     actions: [{ key: "save", label: "Save to Vault", cap: "vault.item.put", input: { folderId: "/folderId", kind: "/kind", name: "/name" } }],
-  },
-  talk_key: {
-    type: "talk_key",
-    actions: [
-      { key: "save", label: "Turn on Talk", cap: "talk.connect", input: { provider: "/provider" } },
-      { key: "save_space", label: "Turn on for everyone", cap: "talk.space.connect", input: { provider: "/provider" } },
-    ],
   },
   model_switch: { type: "model_switch", actions: [] },
   helper: {
@@ -229,13 +222,6 @@ export type HelperStatus = "running" | "done" | "failed" | "stopped";
 
 export function helperStatusWord(status: HelperStatus): string {
   return status === "running" ? "Working" : status === "done" ? "Done" : status === "failed" ? "Failed" : "Stopped";
-}
-
-/** "Working · 13s" while it runs, then the plain word. */
-export function helperTag(status: HelperStatus, startedAt: number | null, now: number): string {
-  if (status !== "running" || startedAt === null) return helperStatusWord(status);
-  const secs = Math.max(0, Math.round((now - startedAt) / 1000));
-  return `Working \u00B7 ${secs < 60 ? `${secs}s` : `${Math.floor(secs / 60)}m ${secs % 60}s`}`;
 }
 
 export function helperTone(status: HelperStatus): "ok" | "bad" | "plain" {

@@ -78,13 +78,10 @@ export const openSync = async (s: Space, page: Pg, type = "person"): Promise<voi
 };
 /** The Looks good tap on the question card in the chat, in the browser. */
 export const tapIn = (page: Pg | null, s: Space, pics: ReturnType<typeof shots> | null) => page === null ? undefined : async (threadId: string): Promise<void> => {
-  // the question is a card under the agent's message in the chat the person asked in
+  // the chat the person asked in is the one Chats opens on (the newest); the card is under the agent's message
   void threadId;
-  // the rail marks the place it is on as rail-chats-selected: both are the Chats entry
-  await page.getByTestId("rail-chats").or(page.getByTestId("rail-chats-selected")).first().click();
+  await page.getByTestId("rail-chats").first().click();
   await page.getByTestId("chats-place").waitFor().catch(async (e: Error) => { throw new Error(`${e.message} :: ${await seen(page)}`); });
-  // Chats opens on its landing now, with the question waiting under Needs you: Answer opens that chat, where the card is
-  await page.getByRole("button", { name: "Answer", exact: true }).first().click();
   const looksGood = page.getByRole("button", { name: "Looks good" }).first();
   await looksGood.waitFor({ timeout: 30_000 });
   if (pics) await pics.take(page, "the-proposal");

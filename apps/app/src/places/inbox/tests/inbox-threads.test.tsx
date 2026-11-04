@@ -136,25 +136,3 @@ test("list: an email thread row opens in its conversation; a text thread opens a
   assert.equal(threadEntry(row, northwind.mailboxes, new Map()).conversationId, "cnv_josh");
   assert.equal(threadEntry({ ...row, channel: "sms" }, northwind.mailboxes, new Map()).conversationId, undefined);
 });
-
-test("a link to an email thread opens its conversation on that thread: open, marked for a moment, and the scroll lands on it", () => {
-  const s = createContactTabSample(northwind);
-  const plain = wrap(s, <ContactTab conversationId="josh" contactId="rec_josh" />);
-  assert.ok(!has(plain, `data-marked="1"`), "no thread is marked without a link");
-  assert.ok(!has(plain, 'data-testid="email:eml_w1"'), "the older Scout thread is closed by default");
-  const linked = wrap(s, <ContactTab conversationId="josh" contactId="rec_josh" threadId={SCOUT} />);
-  assert.ok(has(linked, `data-marked="1"`), "the asked thread is marked");
-  const tagOf = (id: string): string => { const i = linked.indexOf(`data-testid="thread:${id}"`); return linked.slice(linked.lastIndexOf("<", i), linked.indexOf(">", i)); };
-  assert.ok(has(tagOf(SCOUT), 'data-marked="1"') && !has(tagOf(CHROME), "data-marked"), "the mark is on the Scout card, not the other");
-  assert.ok(has(linked, 'data-testid="email:eml_w1"'), "the asked thread opens even though it is not the newest");
-});
-
-test("the scroll lands on the asked thread when the conversation holds it, else on the first with something new", async () => {
-  const { askedThread, landsOn, MARK_MS } = await import("../contacttab/model.ts");
-  assert.equal(askedThread(SCOUT, josh()), SCOUT);
-  assert.equal(askedThread("not_here", josh()), undefined, "a thread the conversation does not hold is ignored");
-  assert.equal(landsOn(SCOUT, SCOUT, false), true);
-  assert.equal(landsOn(SCOUT, CHROME, true), false, "the asked thread wins over the one with new mail");
-  assert.equal(landsOn(undefined, CHROME, true), true);
-  assert.ok(MARK_MS >= 1500 && MARK_MS <= 4000);
-});

@@ -1,6 +1,6 @@
 # settings.public_of
 
-A teammate's time zone, working hours, pronouns, title and a public phone, only when they set them themselves
+A teammate's time zone and working hours, only when they set them themselves
 
 | | |
 |---|---|
@@ -39,9 +39,6 @@ type Out = {
     from: string;
     to: string;
   };
-  pronouns?: string;
-  title?: string;
-  phone?: string;
 };
 ```
 
@@ -68,10 +65,7 @@ type Out = {
       "from": "example",
       "to": "example"
     },
-    "phone": "example",
-    "pronouns": "example",
-    "timezone": "example",
-    "title": "example"
+    "timezone": "example"
   }
 }
 ```

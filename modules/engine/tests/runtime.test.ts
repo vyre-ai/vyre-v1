@@ -453,7 +453,7 @@ test("a turn's account says when it is a key of the Space and not the person's o
 });
 
 
-test("two daemons in one process: a second host half wired over the first does not close the first's opener (its daemon may still be running); the first is handed a retire that does", async () => {
+test("two daemons in one process: when a second host half is wired over the first, the first one's opener is closed and its host half is told to wait for it", async () => {
   bindEngine(null);
   const h = harness({ threads: THREADS });
   const f: Fake = { calls: [], haveKey: true, accountsDown: false };
@@ -464,9 +464,8 @@ test("two daemons in one process: a second host half wired over the first does n
   hostSeams.setEngineHost(first);
   assert.ok(await ensureRuntime(h.ctx), "the first daemon's runtime and opener are built");
   hostSeams.setEngineHost(hostFor(scriptedProvider({ script: say }), f));   // the second daemon wires the seam
-  assert.equal(closing.length, 0, "the first daemon is still running: nothing is closed under it");
-  assert.equal(typeof first.retire, "function", "the first host half can close its own opener when its daemon stops");
-  await first.retire!();
-  assert.equal(closing.length, 1, "retire closed the opener and told the host half");
+  assert.equal(closing.length, 1, "the first host half was handed its opener's close");
+  await closing[0];
   hostSeams.setEngineHost(null);
+  assert.equal(closing.length, 1, "nothing is closed twice: the second wiring had no opener of its own yet");
 });

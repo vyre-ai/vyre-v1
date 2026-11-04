@@ -268,62 +268,17 @@ function parseList(lines: readonly string[], start: number, tight: boolean): { n
   return { node: nodes, end: i };
 }
 
-/** A block's id, written by a host as a comment line before the block: <!--b:blk_abc123-->. The editor keeps it as the block's blockId and writes it back. */
-const BLOCK_MARK = /^<!--b:([A-Za-z0-9_-]{1,64})-->\s*$/;
-/** A live block is one line: :::live {json}. The json keeps every key it came with. */
-const LIVE_LINE = /^:::live\s+(\{.*\})\s*$/;
-export interface LiveBlockAttrs { blockId?: string | null; type: string; spec: unknown; view: string; /** The line's json as written, kept while type, spec and view are as they were. */ json: string; /** Keys of the json other than type, spec and view. */ extra: Record<string, unknown> }
-const liveSig = (a: { type: unknown; spec: unknown; view: unknown }): string => JSON.stringify([a.type, a.spec, a.view]);
-
-/** The node of one :::live line, or null when its json cannot be read (then the line is kept as written in a raw block). */
-export function liveNode(json: string, tight: boolean): PMNode | null {
-  let o: unknown;
-  try { o = JSON.parse(json); } catch { return null; }
-  if (o === null || typeof o !== "object" || Array.isArray(o)) return null;
-  const { type, spec, view, ...extra } = o as Record<string, unknown>;
-  return { type: "liveBlock", attrs: { type: typeof type === "string" ? type : "", spec: spec ?? null, view: typeof view === "string" ? view : "", json, extra, sig: liveSig({ type, spec, view }), tight } };
-}
-
-/** A new live block, as the node a slash-menu pick inserts (ProseMirror JSON): its type, spec and view. */
-export function liveBlockNode(type: string, spec: unknown, view: string): PMNode {
-  return { type: "liveBlock", attrs: { type, spec, view, json: "", extra: {}, sig: "", tight: false } };
-}
-
-function liveText(a: Record<string, unknown>): string {
-  const same = typeof a["json"] === "string" && a["sig"] === liveSig({ type: a["type"], spec: a["spec"], view: a["view"]});
-  if (same) return `:::live ${String(a["json"])}`;
-  const out: Record<string, unknown> = { type: a["type"], ...(a["spec"] === null || a["spec"] === undefined ? {} : { spec: a["spec"] }), ...(a["view"] ? { view: a["view"] } : {}), ...((a["extra"] as Record<string, unknown> | undefined) ?? {}) };
-  return `:::live ${JSON.stringify(out)}`;
-}
-
 /** Markdown lines to blocks. */
 function parseBlocks(lines: readonly string[], depth: number): PMNode[] {
   const out: PMNode[] = [];
   let i = 0;
   let blank = false;
   const tightNow = (): boolean => !blank && out.length > 0;
-  // a block-id comment line leads the block after it; the id is attached once that block exists, and the block keeps how it sat against the one before the comment
-  let lead: { id: string; at: number; tight: boolean } | null = null;
-  const attach = (): void => {
-    if (lead === null || out.length <= lead.at) return;
-    const n = out[lead.at] as PMNode;
-    n.attrs = { ...(n.attrs ?? {}), blockId: lead.id, tight: lead.tight };
-    lead = null;
-  };
   while (i < lines.length) {
-    attach();
     const line = lines[i] ?? "";
     if (isBlank(line)) { blank = true; i += 1; continue; }
-    if (depth === 0 && lead === null) {
-      const mk = BLOCK_MARK.exec(line);
-      if (mk) { lead = { id: mk[1] as string, at: out.length, tight: tightNow() }; i += 1; blank = false; continue; }
-    }
     const tight = tightNow();
     blank = false;
-    if (depth === 0) {
-      const lv = LIVE_LINE.exec(line);
-      if (lv) { const n = liveNode(lv[1] as string, tight); if (n) { out.push(n); i += 1; continue; } }
-    }
     const fence = FENCE.exec(line);
     if (fence) {
       const ind = (fence[1] ?? "").length;
@@ -397,10 +352,6 @@ function parseBlocks(lines: readonly string[], depth: number): PMNode[] {
     while (i < lines.length && !isBlank(lines[i]) && (para.length === 0 || !startsBlock(lines[i] ?? "", lines[i + 1]))) { para.push((lines[i] ?? "").replace(/^\s+/, "").replace(/(\s{2,}|\\)$/, (m) => (m === "\\" ? "\\" : "")).replace(/\s+$/, "")); i += 1; }
     out.push({ type: "paragraph", attrs: { tight }, content: inlineToNodes(para.join("\n")) });
   }
-  attach();
-  // a comment with no block after it is kept as it was written
-  const left = lead as { id: string; tight: boolean } | null;
-  if (left !== null) out.push(raw("html", `<!--b:${left.id}-->`, left.tight));
   return out;
 }
 
@@ -431,7 +382,6 @@ function blockText(b: PMNode): string {
     case "heading": return `${"#".repeat(Math.min(6, Math.max(1, Number(b.attrs?.["level"] ?? 1))))} ${nodesToInline(b.content)}`.replace(/\s+$/, "");
     case "horizontalRule": return String(b.attrs?.["mark"] ?? "---");
     case "rawBlock": return nodesText(b.content);
-    case "liveBlock": return liveText(b.attrs ?? {});
     case "codeBlock": {
       const body = nodesText(b.content);
       const longest = (body.match(/`{3,}/g) ?? []).reduce((a, x) => Math.max(a, x.length), 2);
@@ -458,8 +408,6 @@ function blocksToMarkdownBody(blocks: readonly PMNode[]): string {
   let out = "";
   for (const [i, b] of blocks.entries()) {
     if (i > 0) out += b.attrs?.["tight"] === true ? "\n" : "\n\n";
-    const id = b.attrs?.["blockId"];
-    if (typeof id === "string" && id !== "") out += `<!--b:${id}-->\n`;
     out += blockText(b);
   }
   return out;

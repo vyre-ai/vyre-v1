@@ -10,8 +10,6 @@ import { Row } from "../../../../../../ui/src/Row/index.tsx";
 import { Avatar } from "../../../../../../ui/src/Avatar/index.tsx";
 import type { LayerAct, ViewerMark } from "../../../../../../ui/src/Viewer/index.tsx";
 import type { FilesViewerData } from "./data.tsx";
-import { fileEventWords } from "../../../../../../lib/words/files.ts";
-import type { FileWords } from "../../../../../../lib/words/files.ts";
 
 export type Access = "on" | "redact" | "off";
 export interface LayerMarkRow { markId: string; kind: "redact" | "highlight"; shape: "span" | "box" | "range" | "name"; text?: string; occurrence?: number; box?: { x: number; y: number; w: number; h: number }; from?: number; to?: number; label?: string; by: string; byAgent?: string; at: number; unplaced: boolean }
@@ -51,19 +49,28 @@ export function viewerMarks(list: LayerList | null, name: (id: string) => string
   }));
 }
 
-/** An event of the file's log, as one line of its Activity: who did what to which file. Events nobody needs to read are left out. */
-export function activityOf(e: { id: string; type: string; actor: string; at: number; payload: unknown }, name: (id: string) => string, o: FileWords = {}): ActivityRow | null {
+/** An event of the file's log, as one line of its Activity. Unknown events are left out. */
+export function activityOf(e: { id: string; type: string; actor: string; at: number; payload: unknown }, name: (id: string) => string): ActivityRow | null {
   const p = (e.payload ?? {}) as Record<string, unknown>;
+  const first = (id: string): string => name(id).split(" ")[0] ?? name(id);
   const agentId = typeof p["agentId"] === "string" ? p["agentId"] : typeof p["byAgent"] === "string" ? p["byAgent"] : undefined;
   const by = typeof p["by"] === "string" ? p["by"] : e.actor;
-  const text = fileEventWords(e.type, e.payload, o);
-  if (text === null) return null;
+  const label = typeof p["label"] === "string" && p["label"] !== "Text" ? (p["label"] as string).toLowerCase() : null;
+  const person = (): string => (typeof p["byAgent"] === "string" ? `${name(by)} (Agent)` : first(by));
   const at = typeof p["markId"] === "string" ? { markId: p["markId"] as string } : {};
-  const mine = (e.type === "file.agent_read" || e.type === "file.redact_requested");
-  if (mine) return agentId ? { id: e.id, who: `${name(agentId)} (Agent)`, agent: true, text, at: e.at } : null;
-  if (e.type === "file.needs_review") return { id: e.id, who: "Vyre", agent: false, text, at: e.at };
-  const byAgent = typeof p["byAgent"] === "string";
-  return { id: e.id, ...at, who: byAgent ? `${name(by)} (Agent)` : name(by), agent: byAgent, text, at: e.at };
+  switch (e.type) {
+    case "file.redacted": return { id: e.id, ...at, who: person(), agent: typeof p["byAgent"] === "string", text: p["placed"] === true ? "placed a redaction on the new version" : `redacted ${label ? `a ${label}` : p["shape"] === "box" ? "an area" : p["shape"] === "range" ? "a time range" : p["shape"] === "name" ? "part of the name" : "a passage"}`, at: e.at };
+    case "file.unredacted": return { id: e.id, who: first(by), agent: false, text: p["dropped"] === true ? "dropped a redaction the new version no longer has" : `un-redacted ${label ? `a ${label}` : "a passage"}`, at: e.at };
+    case "file.highlighted": return { id: e.id, ...at, who: person(), agent: typeof p["byAgent"] === "string", text: "highlighted a passage", at: e.at };
+    case "file.highlight_removed": return { id: e.id, who: first(by), agent: false, text: "removed a highlight", at: e.at };
+    case "file.reviewed": return { id: e.id, who: first(by), agent: false, text: "marked it reviewed", at: e.at };
+    case "file.needs_review": return { id: e.id, who: "Vyre", agent: false, text: `could not place ${String(p["unplaced"] ?? 1)} ${p["unplaced"] === 1 ? "redaction" : "redactions"} on version ${String(p["version"] ?? "")}`, at: e.at };
+    case "file.agent_read": return agentId ? { id: e.id, who: `${name(agentId)} (Agent)`, agent: true, text: p["redacted"] === true ? "read the redacted version" : "read it", at: e.at } : null;
+    case "file.redact_requested": return agentId ? { id: e.id, who: `${name(agentId)} (Agent)`, agent: true, text: "asked to read it", at: e.at } : null;
+    case "file.agent_access_changed": return { id: e.id, who: first(by), agent: false, text: `set Agent access to ${ACCESS_WORD[(p["value"] as Access) ?? "on"]}`, at: e.at };
+    case "file.comment_added": return { id: e.id, who: first(e.actor), agent: false, text: "commented", at: e.at };
+    default: return null;
+  }
 }
 
 /** Show a mark in the file: scroll it to the middle and flash it (web). */
@@ -76,7 +83,7 @@ export function jumpToMark(markId: string): void {
 }
 
 /** The layer of one file: its list, the agent's view on demand, the suggestions, its activity, and the calls that change it. */
-export function useLayer(d: FilesViewerData, fileId: string, fileName?: string) {
+export function useLayer(d: FilesViewerData, fileId: string) {
   const [list, setList] = useState<LayerList | null>(null);
   const [view, setView] = useState<AgentView | null>(null);
   const [preview, setPreview] = useState(false);
@@ -88,9 +95,9 @@ export function useLayer(d: FilesViewerData, fileId: string, fileName?: string) 
     try { setList((await d.call("files.marks.list", { fileId })) as LayerList); } catch { setList(null); }
     try {
       const ev = (await d.call("events.list", { subject: { type: "file", id: fileId }, limit: 100 })) as { events: { id: string; type: string; actor: string; at: number; payload: unknown }[] };
-      setActivity(ev.events.map((e) => activityOf(e, d.name, { fileName, folder: d.pathOf })).filter((x): x is ActivityRow => x !== null).sort((a, b) => b.at - a.at));
+      setActivity(ev.events.map((e) => activityOf(e, d.name)).filter((x): x is ActivityRow => x !== null).sort((a, b) => b.at - a.at));
     } catch { setActivity([]); }
-  }, [d, fileId, fileName]);
+  }, [d, fileId]);
   useEffect(() => { void reload(); }, [reload]);
   // read with the layer, so "Name agents see" is the server's own answer; the file shows it only in Preview as agent
   useEffect(() => { if (!list) return; void d.call("files.agent_view", { fileId }).then((v) => setView(v as AgentView)).catch(() => setView(null)); }, [d, fileId, list]);

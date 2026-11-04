@@ -22,7 +22,6 @@ export const handlers: Handlers<HandlerCtx> = {
   "inbox.recipients_search": async (ctx) => { throw new VyreErr(notImplemented("inbox.recipients_search", ctx.trace)); },
   "inbox.send_options": async (ctx) => { throw new VyreErr(notImplemented("inbox.send_options", ctx.trace)); },
   "inbox.thread": async (ctx) => { throw new VyreErr(notImplemented("inbox.thread", ctx.trace)); },
-  "inbox.thread_conversation": async (ctx) => { throw new VyreErr(notImplemented("inbox.thread_conversation", ctx.trace)); },
   "inbox.threads": async (ctx) => { throw new VyreErr(notImplemented("inbox.threads", ctx.trace)); },
   "inbox.unmatch": async (ctx) => { throw new VyreErr(notImplemented("inbox.unmatch", ctx.trace)); },
   "inbox.unmatched": async (ctx) => { throw new VyreErr(notImplemented("inbox.unmatched", ctx.trace)); },

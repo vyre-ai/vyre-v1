@@ -45,11 +45,10 @@ function useActivity(store: ActivityStore | undefined): string {
 }
 
 /** The agent's words while it works: what it is doing right now. */
-export function LiveWords({ turn, turns, name, forWho }: { turn: LiveTurn; turns: TurnStreams | undefined; name: string; /** the person it works for when the task is theirs: "you" or their name */ forWho?: string }): ReactElement {
+export function LiveWords({ turn, turns, name }: { turn: LiveTurn; turns: TurnStreams | undefined; name: string }): ReactElement {
   const store = useMemo(() => turns?.activityOf(`turn:${turn.turnId}`), [turns, turn.turnId]);
   const label = useActivity(store);
-  // a task assigned to a person that an agent is doing for them says so, not just "Working"
-  return <Text numberOfLines={1} testID="task-live" style={s.live}>{forWho ? `${name} is on it for ${forWho}${label ? ` · ${label}` : ""}` : `${name}: ${label || "Working"}`}</Text>;
+  return <Text numberOfLines={1} testID="task-live" style={s.live}>{`${name}: ${label || "Working"}`}</Text>;
 }
 
 export const BatonMarks = memo(function BatonMarks({ row, title }: { row: Pick<TaskRow, "state" | "reviewer" | "approver">; title?: string }): ReactElement | null {
@@ -109,7 +108,7 @@ function WebLine({ row, env, selected, current }: { row: TaskRow; env: RowEnv; s
         h("span", { className: `vt-title${closed ? " dn" : ""}` }, row.title),
         row.priority === "urgent" || row.priority === "high" ? h("span", { className: `vt-pri${row.priority === "urgent" ? " u" : ""}` }, row.priority === "urgent" ? "Urgent" : "High") : null,
       ),
-      turn ? <LiveWords turn={turn} turns={env.turns} name={env.nameOf(turn.agentId)} {...forWhoOf(row, env, turn.agentId)} /> : sub ? h("div", { className: "vt-sub" }, sub) : null,
+      turn ? <LiveWords turn={turn} turns={env.turns} name={env.nameOf(turn.agentId)} /> : sub ? h("div", { className: "vt-sub" }, sub) : null,
     ),
     row.labels.length > 0 ? h("span", { className: "vt-lab" }, `#${row.labels[0]}`) : null,
     h("span", { className: "vt-bat", style: { flex: "none" } }, <BatonMarks row={row} {...(other ? { title: `With ${env.nameOf(other.id)}` } : {})} />),
@@ -118,18 +117,10 @@ function WebLine({ row, env, selected, current }: { row: TaskRow; env: RowEnv; s
   );
 }
 
-/** A task assigned to a person that an agent is doing for them: who it is for, as "you" or their name. */
-function forWhoOf(row: TaskRow, env: RowEnv, agentId: string): { forWho?: string } {
-  return row.assigned.kind === "person" && row.assigned.id !== agentId ? { forWho: row.assigned.id === env.me ? "you" : env.nameOf(row.assigned.id) } : {};
-}
-
 /** The second line of a row: what it waits on, else who took a team task (or that it waits for someone to take it), its project and its breakdown. */
 function subOf(row: TaskRow, env: RowEnv, waits: readonly string[], project: string | undefined): string {
   if (waits.length > 0) return `Waits on ${waits.slice(0, 3).join(", ")}`;
   const team = row.assigned.kind === "group" || row.assigned.kind === "role";
-  // an agent that was asked to do a person's own task: "Assistant is on it for you", whether or not it is writing right now
-  const onIt = row.assigned.kind === "person" && row.state === "doing" ? (row.workingNotes as Record<string, string> | undefined)?.["baton.on_it"] : undefined;
-  if (onIt) return `${env.nameOf(onIt)} is on it for ${row.assigned.id === env.me ? "you" : env.nameOf(row.assigned.id)}`;
   const taken = team && isOpenState(row.state) ? (row.takenBy ? `Taken by ${row.takenBy === env.me ? "you" : env.nameOf(row.takenBy)}` : `${env.nameOf(row.assigned.id)}: nobody took it yet`) : "";
   return [taken, project, row.children ? `${row.children.done} of ${row.children.total}` : ""].filter(Boolean).join(" · ");
 }
@@ -162,7 +153,7 @@ function NativeLine({ row, env, selected, current }: { row: TaskRow; env: RowEnv
             <Text numberOfLines={1} style={[s.title, closed && s.titleDone]}>{row.title}</Text>
             {row.priority === "urgent" || row.priority === "high" ? <Text style={[s.pri, row.priority === "urgent" && s.priUrgent]}>{row.priority === "urgent" ? "Urgent" : "High"}</Text> : null}
           </View>
-          {turn ? <LiveWords turn={turn} turns={env.turns} name={env.nameOf(turn.agentId)} {...forWhoOf(row, env, turn.agentId)} /> : sub ? <Text numberOfLines={1} style={s.sub}>{sub}</Text> : null}
+          {turn ? <LiveWords turn={turn} turns={env.turns} name={env.nameOf(turn.agentId)} /> : sub ? <Text numberOfLines={1} style={s.sub}>{sub}</Text> : null}
         </View>
         {row.labels.length > 0 && roomy ? <Text numberOfLines={1} style={s.labels}>{`#${row.labels[0]}`}</Text> : null}
         {roomy ? <BatonMarks row={row} {...(other ? { title: `With ${env.nameOf(other.id)}` } : {})} /> : null}

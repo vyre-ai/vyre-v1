@@ -1,6 +1,6 @@
 # access.manage
 
-Manage roles, teams, extra access and outside agents
+Manage roles, groups, grants and outside actors
 
 Area: space. Risk: high. Applies to: space.
 

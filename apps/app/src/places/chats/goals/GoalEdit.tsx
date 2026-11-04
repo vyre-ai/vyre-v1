@@ -101,9 +101,7 @@ export function HelpersRow({ helpers, nameOf, canEdit, onRemove, onAdd }: { help
     <View testID="goal-helpers" style={st.helpers}>
       <Text style={st.helpersLabel}>Helpers</Text>
       {helpers.length === 0 ? <Text style={st.helpersNone}>None yet</Text> : null}
-      {/* ui-rows-lint: not a list (the goal's helpers being edited: each line has its own remove control) */}
       {helpers.map((h) => (
-        // ui-rows-lint: not a list (helper chips laid side by side in a wrapping row)
         <View key={`${h.kind}-${h.id}`} testID={`goal-helper-${h.id}`} style={st.helper}>
           <Avatar {...avatarOf({ id: h.id, name: nameOf(h.id), kind: h.kind === "agent" ? "agent" : "person" })} size={18} />
           <Text style={st.helperName}>{nameOf(h.id)}</Text>
@@ -166,9 +164,7 @@ export const newId = (prefix: string): string => `${prefix}_${Date.now().toStrin
 export function ChecklistEdit({ items, onChange }: { items: ReadonlyArray<{ id: string; text: string; done?: boolean; taskId?: string }>; onChange(next: Array<{ id: string; text: string; done?: boolean; taskId?: string }>): void }): ReactElement {
   return (
     <View testID="goal-checklist-edit" style={st.list}>
-      {/* ui-rows-lint: not a list (checklist items being edited: each has its own text field and move buttons) */}
       {items.map((it, i) => (
-        // ui-rows-lint: not a list (each row is an inline editor with its own field, drag handle and remove, not a pressable list row)
         <DragRow key={it.id} index={i} count={items.length} onMove={(a, b) => onChange(moved(items, a, b))} testID={`goal-item-${it.id}`}>
           <View style={st.rowBody}>
             <EditText value={it.text} canEdit label="this item" testID={`goal-item-text-${it.id}`} textStyle={st.rowText} onSave={(text) => onChange(items.map((x) => (x.id === it.id ? { ...x, text } : x)))} />
@@ -186,7 +182,6 @@ export function DraftPlanEdit({ steps, leadAgentId, canEdit, nameOf, onChange }:
   return (
     <View testID="goal-draft-plan" style={st.list}>
       {steps.length === 0 ? <Text style={st.helpersNone}>{canEdit ? "No steps yet. Add the first one." : "No steps yet."}</Text> : null}
-      {/* ui-rows-lint: not a list (plan steps being edited: each has its own text fields and move buttons) */}
       {steps.map((s, i) => {
         const face = <Avatar {...avatarOf({ id: s.assigned.id, name: nameOf(s.assigned.id), kind: s.assigned.kind === "agent" ? "agent" : "person" })} size={18} />;
         if (!canEdit) {
@@ -197,7 +192,6 @@ export function DraftPlanEdit({ steps, leadAgentId, canEdit, nameOf, onChange }:
           );
         }
         return (
-          // ui-rows-lint: not a list (each row is an inline editor with its own fields, drag handle and remove, not a pressable list row)
           <DragRow key={s.key} index={i} count={steps.length} onMove={(a, b) => onChange(moved(steps, a, b))} testID={`goal-step-${s.key}`}>
             <View style={st.rowBody}>
               <EditText value={s.title} canEdit label="this step" testID={`goal-step-title-${s.key}`} textStyle={st.rowText} onSave={(title) => onChange(steps.map((x) => (x.key === s.key ? { ...x, title } : x)))} />

@@ -5,26 +5,20 @@
 import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
 import type { ChatRow } from "./model.ts";
 import type { ImportedRow } from "../imported/model.ts";
-import { chatMenu } from "../menus/kinds.ts";
 
-export interface ChatMenuDo {
-  open(): void; star(): void; markRead(): void; markUnread(): void; archive(): void; unarchive(): void; leaveChat(): void; deleteChat(): void;
-  rename?: (() => void) | undefined;
-  openTab?: (() => void) | undefined;
-  muted?: boolean | undefined;
-  mute?: ((on: boolean) => void) | undefined;
-  addPeople?: (() => void) | undefined;
-  copyLink?: (() => void) | undefined;
-  notifications?: (() => void) | undefined;
-  moveToProject?: (() => void) | undefined;
-}
+export interface ChatMenuDo { open(): void; star(): void; markRead(): void; markUnread(): void; archive(): void; unarchive(): void; leaveChat(): void; deleteChat(): void }
 
-/** The chat row's menu is the Chats menu of kinds.ts (open, change, archive, then leave or delete); the sidebar gives it what each item does. A part the sidebar does not give (Rename, Mute, a new tab) is left out. */
 export function chatMenuEntries(r: ChatRow, d: ChatMenuDo): MenuEntry[] {
-  return chatMenu({ starred: r.starred, unread: r.unread > 0, local: r.local, archived: r.archived === true, withPeople: r.withPeople === true, muted: d.muted === true }, {
-    open: d.open, openTab: d.openTab, rename: d.rename ?? (() => undefined), star: () => d.star(), markRead: d.markRead, markUnread: d.markUnread, mute: d.mute ?? (() => undefined),
-    archive: d.archive, unarchive: d.unarchive, leave: d.leaveChat, remove: d.deleteChat, addPeople: d.addPeople, copyLink: d.copyLink, notifications: d.notifications, moveToProject: d.moveToProject,
-  }, { rename: d.rename !== undefined, mute: d.mute !== undefined });
+  const items: MenuEntry[] = [
+    { label: "Open", onSelect: d.open },
+    { separator: true },
+    { label: r.starred ? "Remove Star" : "Star", onSelect: d.star },
+    ...(r.unread > 0 ? [{ label: "Mark as Read", onSelect: d.markRead }] : r.local ? [] : [{ label: "Mark as Unread", onSelect: d.markUnread }]),
+    { separator: true },
+    r.archived ? { label: "Unarchive", onSelect: d.unarchive } : { label: "Archive", onSelect: d.archive },
+  ];
+  if (!r.local) items.push({ separator: true }, r.withPeople === true ? { label: "Leave chat", danger: true, onSelect: d.leaveChat } : { label: "Delete chat", danger: true, onSelect: d.deleteChat });
+  return items;
 }
 
 export interface ImportedMenuDo { open(): void; rename(): void; archive(): void; unarchive(): void; deleteSession(): void }

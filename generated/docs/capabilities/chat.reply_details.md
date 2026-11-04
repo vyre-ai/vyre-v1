@@ -73,7 +73,7 @@ type Out = {
         reasoning?: number;
       };
       cost?: {
-        source: "subscription" | "reported" | "catalog" | "estimate" | "unknown" | "flat";
+        source: "subscription" | "reported" | "catalog" | "estimate" | "unknown";
         micros?: number;
         lines?: Array<{
             kind: "input" | "output" | "cache_read" | "cache_write";

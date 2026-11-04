@@ -53,14 +53,3 @@ test("a finished reply folds its steps into \"Worked 14s\" from the blocks the h
   assert.equal(w.summary, "Worked 14s · 2 steps");
   assert.deepEqual(w.steps.map((s) => s.title), ["Reading", "Searching the web"]);
 });
-
-test("tools running together read as one line that says how many, with the calls named", () => {
-  const step = (id: string, name: string, state: "live" | "done" = "live") => ({ id, name, state, detail: "" });
-  const reads = activityLine(snap({ steps: [step("a", "calendar_list_events"), step("b", "mail_message_search"), step("c", "tasks_list")] }));
-  assert.equal(reads.label, "Reading 3 things");
-  assert.equal(reads.detail, "Using calendar list events · Searching mail message · Looking through tasks");
-  const mixed = activityLine(snap({ steps: [step("a", "calendar_list_events"), step("b", "tasks_create")] }));
-  assert.equal(mixed.label, "Working on 2 things");
-  const one = activityLine(snap({ steps: [step("a", "calendar_list_events"), step("b", "tasks_list", "done")] }));
-  assert.equal(one.label, "Using calendar list events", "one running step keeps its own words");
-});

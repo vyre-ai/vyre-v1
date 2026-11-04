@@ -1,7 +1,7 @@
 // The first screen is a new chat (no Home): the mark and "What are we working on?", the composer, who it starts with, then what needs you (top 3, "N more in Tasks") and what is running. Start typing or
 // answer something without going anywhere. With nothing waiting it shows only the composer and what is running; on a first day the setup checklist takes the list's place. Home's Needs you model and actions are
 // reused as they are, so a thing decided here is decided everywhere. Until mail, a calendar or a number flows in, the checklist carries an Email and calendar row that opens where they connect.
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import type { ReactElement, ReactNode } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import { Avatar, avatarOf } from "../../../../../../ui/src/Avatar/index.tsx";
@@ -27,7 +27,7 @@ import { postWithFiles, uploadDeps } from "../conversation/actions.ts";
 import { each } from "../../../shell/sidebar/model.ts";
 import { Glyph } from "../sidebar/parts.tsx";
 import { useLive } from "../mounts/live.ts";
-import { LANDING_NEEDS, moreLine, realAssistant, startFailure, startInput, workingChats, workingLine } from "./model.ts";
+import { LANDING_NEEDS, moreLine, realAssistant, startInput, workingChats, workingLine } from "./model.ts";
 import type { NeedItem, NeedsOut, RecentOut, WithEntry } from "./model.ts";
 
 export interface LandingProps {
@@ -52,8 +52,6 @@ export function Landing(p: LandingProps): ReactElement {
   const { rt } = p;
   const you: WithEntry = useMemo(() => ({ id: rt.assistant.id, name: rt.assistant.name, kind: "assistant" }), [rt.assistant.id, rt.assistant.name]);
   const [picked, setPicked] = useState<readonly WithEntry[]>([you]);
-  // the Assistant is made a moment after the account: when the real one arrives, the one picked is it, not the placeholder the page mounted with
-  useEffect(() => { setPicked((cur) => (cur.some((c) => c.kind === "assistant" && (c.id !== you.id || c.name !== you.name)) ? cur.map((c) => (c.kind === "assistant" ? you : c)) : cur)); }, [you]);
   const [choice, setChoice] = useState<NewChoice>({ mode: "auto" });
   const needs = useLive<NeedsOut>(rt.screens, "tasks.my-work", "needs", { limit: LANDING_NEEDS });
   const recent = useLive<RecentOut>(rt.screens, "chats.sidebar", "recent", { filter: "all" });
@@ -72,13 +70,13 @@ export function Landing(p: LandingProps): ReactElement {
   const hasInbox = useInboxSources(rt.screens, rt.me.id);
   const mailRow = hasInbox === false ? <SetupLine key="mail" testID="landing-setup-mail" title="Email and calendar" sub="Gmail, Outlook or a number" done={false} open={() => rt.open({ screen: "settings.page", args: { page: "mail" } })} /> : null;
 
-  const start = useCallback((payload: ComposerSend): Promise<void> => {
+  const start = useCallback((payload: ComposerSend): void => {
     const text = payload.text.trim();
     // files dropped, pasted or picked here go with the first message, the way the chat's own composer sends them
     const files = payload.files;
     const slash = text.startsWith("/") && files.length === 0;
     const words = (text || files[0]?.name || "").split(/\s+/).slice(0, 6).join(" ");
-    return realAssistant(rt.assistant.id, (cap, input) => rt.call(cap as never, input as never)).then((assistantId) => {
+    void realAssistant(rt.assistant.id, (cap, input) => rt.call(cap as never, input as never)).then((assistantId) => {
       if (assistantId === null) throw new Error("no assistant yet");
       return rt.call("chat.start", {
       kind: "chat", ...startInput(picked, assistantId), ...(slash || words === "" ? {} : files.length > 0 ? { title: words } : { first: text, title: words }), ...(choice.model ? { model: choice.model } : {}), ...(choice.provider ? { provider: choice.provider } : {}), ...(choice.effort ? { effort: choice.effort } : {}), idempotencyKey: p.newKey(),
@@ -91,7 +89,7 @@ export function Landing(p: LandingProps): ReactElement {
       if (kept.length > 0) await runAfterStart(sheetDeps, id, kept);
       if (slash) p.fill(text);
       p.openChat(id);
-    }).catch((e: unknown) => { throw new Error(startFailure(e)); });
+    }, () => p.say("Could not start the chat. Try again."));
   }, [picked, choice, rt, p, held, sheetDeps]);
 
   const withSheet = (): void => sheet.pick({

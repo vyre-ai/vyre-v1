@@ -127,11 +127,6 @@
       "status": "live"
     },
     {
-      "id": "ci",
-      "owner": "L5",
-      "status": "live"
-    },
-    {
       "id": "github",
       "owner": "L5",
       "status": "live"
@@ -383,11 +378,6 @@
     },
     {
       "id": "vault-requests",
-      "owner": "L7a",
-      "status": "live"
-    },
-    {
-      "id": "talk",
       "owner": "L7a",
       "status": "live"
     },

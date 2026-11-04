@@ -72,8 +72,6 @@ test("the people menu lists who is here and starts with Add people and agents, w
     const pop = find(root, "people-pop");
     assert.ok(pop);
     assert.match(textOf(pop), /^\s*Add people and agents/);
-    // your own row reads "You" with your role under it, not "You / You"
-    assert.match(textOf(find(root, "people-row-usr_irfad")), /^\s*You\s+Member\s*$/);
     // a person row has nothing new; an agent row has Poke and a gear
     assert.equal(find(root, "people-poke-usr_irfad"), null);
     assert.equal(find(root, "people-gear-usr_irfad"), null);
@@ -213,7 +211,7 @@ test("an outside agent goes through threads.outside_agent.add, and its x on Here
   });
 });
 
-test("an agent picked with Only listens is added, then set quiet; a person is added to the chat", async () => {
+test("an agent picked with Listening is added, then set quiet; a person is added to the chat", async () => {
   await withDom(async () => {
     const s = createSample("idle");
     const root = await mount(createRoot, <Conversation data={s.data} />);
@@ -232,7 +230,7 @@ test("an agent picked with Only listens is added, then set quiet; a person is ad
   });
 });
 
-test("a person who can only view cannot give Member: the option is not offered and the footer says why", async () => {
+test("a person who can only view cannot give Member: the option is grey and the footer says why", async () => {
   await withDom(async () => {
     const s = createSample("idle", { viewOnly: true });
     const root = await mount(createRoot, <Conversation data={s.data} />);
@@ -242,7 +240,7 @@ test("a person who can only view cannot give Member: the option is not offered a
     assert.match(textOf(find(root, "as-pick-person:usr_maya")), /Can view/);
     assert.match(textOf(find(root, "as-line-limited")), /You can view here/);
     await press(find(root, "as-role-person:usr_maya"));
-    assert.ok(find(root, "menu-item-Member") === null && find(root, "menu-item-Member (you do not have this)") === null, "a level above your own is hidden, not greyed");
+    assert.match(textOf(find(root, "menu-item-Member (you do not have this)")), /you do not have this/);
   });
 });
 
@@ -262,7 +260,7 @@ test("Include earlier messages shows for a chat and is off by default; on, the p
     await flush();
     await press(find(root, "as-row-person:usr_omar"));
     await press(find(root, "as-earlier"));
-    assert.match(textOf(find(root, "as-line-std")), /They'll see the whole chat/);
+    assert.match(textOf(find(root, "as-line-std")), /from the start/);
     await press(find(root, "as-add"));
     await flush();
     assert.deepEqual(s.calls.filter((c) => c.cap === "threads.members.add").at(-1)?.input, { threadId: "c1", personId: "usr_omar", fromStart: true });
@@ -275,47 +273,25 @@ test("Include earlier messages shows for a chat and is off by default; on, the p
   });
 });
 
-test("@mentioning someone who is not in the chat shows one strip on the composer: the line, a primary Add, and a caret menu with the other ways", async () => {
+test("@mentioning someone who is not in the chat offers Add first and Start a channel instead second, and says what they will see", async () => {
   await withDom(async () => {
     const s = createSample("idle");
     const root = await mount(createRoot, <Conversation data={s.data} />);
     await typeInto(find(root, "composer-field"), "@Maya Chen can you look at this");
     await flush();
-    const strip = find(root, "channel-offer");
-    assert.ok(strip, "the strip shows");
-    assert.match(textOf(find(root, "channel-offer-text")), /^Maya isn't in this chat$/);
-    assert.equal(textOf(find(root, "channel-add")).trim(), "Add Maya");
-    // the loose lines and the switch are gone
-    const text = textOf(strip);
-    assert.ok(!/They will read|Earlier messages stay hidden|Include earlier messages|never gains people/i.test(text), text);
-    assert.equal(find(root, "channel-earlier"), null);
-    assert.equal(find(root, "channel-start"), null, "the channel is in the caret menu now");
-    // the caret holds the three ways, the default first
-    await press(find(root, "channel-add-menu"));
-    for (const label of ["Add, from now on", "Add, with earlier messages", "Start a channel instead"]) assert.ok(find(root, `menu-item-${label}`), label);
-    await press(find(root, "menu-item-Add, with earlier messages"));
-    await flush();
-    assert.deepEqual(s.calls.filter((c) => c.cap === "threads.members.add").map((c) => c.input), [{ threadId: "c1", personId: "usr_maya", fromStart: true }]);
-  });
-});
-
-test("the strip's Add is from now on (no flag); Start a channel instead makes a channel", async () => {
-  await withDom(async () => {
-    const s = createSample("idle");
-    const root = await mount(createRoot, <Conversation data={s.data} />);
-    await typeInto(find(root, "composer-field"), "@Maya Chen can you look at this");
-    await flush();
+    const offer = find(root, "channel-offer");
+    assert.ok(offer, "the offer shows");
+    const text = textOf(offer);
+    assert.match(text, /Maya isn't in this chat\./);
+    assert.ok(text.indexOf("Add Maya") >= 0 && text.indexOf("Start a channel instead") > text.indexOf("Add Maya"), "Add first, the channel second");
+    assert.match(text, /They will read from now on\. Earlier messages stay hidden\./);
+    assert.ok(!/never gains people/i.test(text));
+    await press(find(root, "channel-earlier"));
+    assert.match(textOf(find(root, "channel-offer")), /They will read the whole chat\./);
     await press(find(root, "channel-add"));
     await flush();
-    assert.deepEqual(s.calls.filter((c) => c.cap === "threads.members.add").map((c) => c.input), [{ threadId: "c1", personId: "usr_maya" }]);
-    const again = createSample("idle");
-    const root2 = await mount(createRoot, <Conversation data={again.data} />);
-    await typeInto(find(root2, "composer-field"), "@Maya Chen can you look at this");
-    await flush();
-    await press(find(root2, "channel-add-menu"));
-    await press(find(root2, "menu-item-Start a channel instead"));
-    await flush();
-    assert.ok(again.calls.some((c) => c.cap === "threads.make_channel"));
+    assert.deepEqual(s.calls.filter((c) => c.cap === "threads.members.add").map((c) => c.input), [{ threadId: "c1", personId: "usr_maya", fromStart: true }]);
+    assert.ok(s.data.toast !== undefined);
   });
 });
 
@@ -369,7 +345,7 @@ test("the gear opens How, When and Style; Listening is mode quiet; making anothe
     await press(find(root, "menu-item-Swap"));
     await flush();
     assert.equal((s.calls.filter((c) => c.cap === "threads.agent_settings.set").at(-1)?.input as { mode: string }).mode, "lead");
-    assert.ok(s.toasts.some((t) => /Docs now answers everything\. Intake answers only when mentioned\./.test(t)));
+    assert.ok(s.toasts.some((t) => /Docs now answers everything\. Intake answers only when tagged\./.test(t)));
   });
 });
 
@@ -392,7 +368,7 @@ test("settingsOf maps the chat's row to the sheet's words, and Listening is quie
   assert.equal(settingsOf({ mode: "listen" }).how, "tag");
   assert.equal(settingsOf({ mode: "listen", quiet: true }).how, "listen");
   assert.deepEqual(settingsOf({ mode: "listen", when: "hours", hoursFrom: "08:00", hoursTo: "12:00", style: "full" }), { how: "tag", when: "hours", topics: "", hoursFrom: "08:00", hoursTo: "12:00", style: "full" });
-  assert.equal(hereSub({ mode: "listen", quiet: true, owned: true }, false), "Only listens · made for this chat");
+  assert.equal(hereSub({ mode: "listen", quiet: true, owned: true }, false), "Listening · made for this chat");
 });
 
 test("directoryOf offers the Space's people and agents, the person's Assistant first, and never someone else's Assistant or a chat's own agent", () => {

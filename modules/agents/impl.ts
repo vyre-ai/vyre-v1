@@ -1,6 +1,5 @@
 // agents module entry (lane L2). The host loads the generated stubs while host/modules.json says `status: 'stub'` and this file once it says `live` (ruling 25).
 // Also here: what the module reads from the event log. `consumers` lists, by name, the events each one reads and what it does with one; the host runs them after commit, at least once, so each is safe to repeat.
-import { followGrant } from "./handlers/install.ts";
 import type { Handler } from "../../host/src/invoke.ts";
 import { handlers as table } from "./handlers/index.ts";
 import { OWNER_LEFT, announcePrivacy, onFileVersion, onDisplayNameChanged, onPersonCreated, onPersonLeft, onTurn, renameOldAssistants, restoreAgentFiles, retire, upgradeStarterAgentMd } from "./handlers/crud.ts";
@@ -33,11 +32,6 @@ export { restoreAgentFiles };
 export const hostSeams = { setPluginsHost };
 
 export const consumers = {
-  /** A grant on a skill changed in access (the shared Share sheet): agents' grants and people's cards follow (handlers/install.ts). */
-  "agents.skill_grants": {
-    on: ["grant.created", "grant.revoked"],
-    async run(ctx: Ctx, event: { name: string; payload: Record<string, unknown> }): Promise<void> { followGrant(ctx as never, event as never); },
-  },
   ...memoryGuideConsumers,
   /** A routine's run ended (the engine finishes it when the agent's turn ends): the routine's Last run says how it went. */
   "agents.routine_outcome": {

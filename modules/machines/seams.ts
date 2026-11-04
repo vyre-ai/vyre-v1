@@ -12,19 +12,16 @@ export interface HostSeams {
   /** The doctor's findings for the Space server (host/src/daemon/doctor.ts). */
   findings(): Promise<DoctorFinding[]>;
   /** Run one of the Doctor's Fixes on a machine (the Space server here, any other over its link); one plain line back. */
-  fix(machineId: string, fix: string, service?: string, person?: string): Promise<string>;
-  /** Idle engine sessions that "stop idle sessions" would stop on this machine: all of them for the Space server, only the owner's for a member's own computer. */
-  idle(machineId: string, person?: string): number;
+  fix(machineId: string, fix: string, service?: string): Promise<string>;
 }
 
-export const hostSeams: HostSeams = { turns: () => undefined, own: () => Promise.resolve(null), findings: () => Promise.resolve([]), fix: () => Promise.reject(new Error("this host runs no fixes")), idle: () => 0 };
+export const hostSeams: HostSeams = { turns: () => undefined, own: () => Promise.resolve(null), findings: () => Promise.resolve([]), fix: () => Promise.reject(new Error("this host runs no fixes")) };
 
 /** Bind (or, with null, unbind) what the host knows. */
 export function bindMachines(h: Partial<HostSeams> | null): void {
   hostSeams.turns = h?.turns ?? (() => undefined);
   hostSeams.own = h?.own ?? (() => Promise.resolve(null));
   hostSeams.findings = h?.findings ?? (() => Promise.resolve([]));
-  hostSeams.idle = h?.idle ?? (() => 0);
   hostSeams.fix = h?.fix ?? (() => Promise.reject(new Error("this host runs no fixes")));
 }
 

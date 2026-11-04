@@ -37,12 +37,6 @@ const PATHS = {
   copy: ["M5.500 5.500h7v8h-7z", "M3.500 10.500v-8h7"],
   bubble: ["M3 4.500A2 2 0 015 2.500h6a2 2 0 012 2v4.500a2 2 0 01-2 2H7l-3 2.500V11a2 2 0 01-1-1.700z"],
   rec: ["M8 11.500a3.500 3.500 0 100-7 3.500 3.500 0 000 7z"],
-  globe: ["M8 13.500a5.500 5.500 0 100-11 5.500 5.500 0 000 11z", "M2.500 8h11M8 2.500c1.500 1.600 2.200 3.400 2.200 5.500S9.500 11.900 8 13.500C6.500 11.900 5.800 10.100 5.800 8S6.500 4.100 8 2.500z"],
-  server: ["M2.500 3h11v4h-11z", "M2.500 9h11v4h-11z", "M5 5h.01M5 11h.01"],
-  share: ["M8 10V2.500M5 5.200L8 2.200l3 3M3.500 8.500v4.500h9V8.500"],
-  phone: ["M4.500 2.500h2l.8 2.800-1.400 1a7.500 7.500 0 003.300 3.300l1-1.400 2.800.8v2a1.300 1.300 0 01-1.400 1.300C7.600 12 4 8.400 3.200 3.900A1.300 1.300 0 014.500 2.500z"],
-  bolt: ["M9 2L4 9h3.500L7 14l5-7H8.500z"],
-  warn: ["M8 2.500l6 10.500H2z", "M8 6.500v3M8 11.200h.01"],
 } as const;
 export type IconName = keyof typeof PATHS;
 
@@ -56,10 +50,10 @@ export function Icon({ name, size = 15, color = "var(--ink-3)", width = 1.4, fil
 const webProps = (props: Record<string, unknown>): Record<string, unknown> => (Platform.OS === "web" ? props : {});
 
 /** An agent is a pixel face on a soft tint: the shared Avatar. `pulse` rings it while it works. */
-export function Face({ name, seedId, size = 18, pulse = false, asleep = false }: { name: string; seedId?: string | undefined; size?: number; pulse?: boolean; asleep?: boolean }): ReactElement {
+export function Face({ name, seedId, size = 18, pulse = false }: { name: string; seedId?: string | undefined; size?: number; pulse?: boolean }): ReactElement {
   return (
     <View aria-hidden testID={`face-${name}`} style={{ width: size, height: size, flexShrink: 0, flexGrow: 0 }}>
-      <Avatar name={name} seedId={seedId} kind="agent" size={size} state={pulse ? "working" : asleep ? "asleep" : undefined} {...(pulse ? { testID: "pulse" } : {})} />
+      <Avatar name={name} seedId={seedId} kind="agent" size={size} state={pulse ? "working" : undefined} {...(pulse ? { testID: "pulse" } : {})} />
     </View>
   );
 }
@@ -104,13 +98,13 @@ export function Switch({ on, label, onPress, testID }: { on: boolean; label: str
 }
 
 /** A small text button in a section: "Wake", "Give back", "Run now". `primary` is the one filled action. */
-export function TextButton({ label, onPress, primary = false, filled = false, disabled = false, testID }: { label: string; onPress: () => void; primary?: boolean; /** a quiet filled button, for an offer that has to be seen */ filled?: boolean; disabled?: boolean; testID?: string }): ReactElement {
+export function TextButton({ label, onPress, primary = false, disabled = false, testID }: { label: string; onPress: () => void; primary?: boolean; disabled?: boolean; testID?: string }): ReactElement {
   const [over, setOver] = useState(false);
   return (
     <Pressable
       accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ disabled }} disabled={disabled} testID={testID} onPress={onPress}
       onHoverIn={() => setOver(true)} onHoverOut={() => setOver(false)}
-      style={[s.btn, primary ? s.btnPrimary : filled ? s.btnFilled : over && s.btnOver, disabled && { opacity: 0.5 }]}
+      style={[s.btn, primary ? s.btnPrimary : over && s.btnOver, disabled && { opacity: 0.5 }]}
     >
       <Text style={[s.btnText, primary && s.btnTextPrimary]}>{label}</Text>
     </Pressable>
@@ -166,9 +160,9 @@ export function PaneList({ entries, window, testID, plain = false }: { entries: 
         );
         const menuItems = e.menu;
         const body = <Hot>{row}</Hot>;
-        return <View style={s.rowGutter}>{menuItems && menuItems.length > 0
+        return menuItems && menuItems.length > 0
           ? <View {...menuTrigger((x, y) => menu.show(menuItems, x, y, "context", { label: e.title }))}>{body}</View>
-          : body}</View>;
+          : body;
       }
     }
   };
@@ -203,16 +197,14 @@ export const s = StyleSheet.create({
   switchKnobOn: { alignSelf: "flex-end" },
   btn: { height: 26, paddingHorizontal: 10, borderRadius: 7, alignItems: "center", justifyContent: "center", flexDirection: "row" },
   btnOver: { backgroundColor: "var(--hover)" as string },
-  btnFilled: { backgroundColor: "var(--sel)" as string },
   btnPrimary: { backgroundColor: "var(--accent)" as string },
   btnText: { fontSize: 12.5, fontWeight: "500", color: "var(--ink)" as string },
   btnTextPrimary: { color: "var(--accent-ink)" as string },
   list: { flex: 1, minHeight: 0 },
-  label: { minHeight: 30, flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between", paddingHorizontal: 24, paddingTop: 26, paddingBottom: 8 },
-  labelText: { fontSize: 12, fontWeight: "400", color: "var(--ink-3)" as string },
+  label: { minHeight: 30, flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between", paddingHorizontal: 8, paddingTop: 12, paddingBottom: 4 },
+  labelText: { fontSize: 11.5, fontWeight: "600", color: "var(--ink-3)" as string },
   labelRight: { fontSize: 11.5, color: "var(--ink-4)" as string },
-  rowGutter: { paddingHorizontal: 16, paddingVertical: 2 },
-  empty: { minHeight: 36, justifyContent: "center", paddingHorizontal: 24, paddingVertical: 6 },
+  empty: { minHeight: 28, justifyContent: "center", paddingHorizontal: 8, paddingVertical: 4 },
   emptyText: { fontSize: 12.5, color: "var(--ink-3)" as string },
   notice: { flexDirection: "row", alignItems: "center", gap: 6, minHeight: 36, paddingLeft: 12, paddingRight: 6, borderTopWidth: 1, borderTopColor: "var(--line)" as string, backgroundColor: "var(--raised)" as string },
   noticeText: { flex: 1, fontSize: 12.5, color: "var(--ink-2)" as string },

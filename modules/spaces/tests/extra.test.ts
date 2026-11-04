@@ -28,9 +28,9 @@ function ready(o: Parameters<typeof world>[0] = {}): World {
 
 afterEach(() => configureSpaceAdmin(null));
 
-test("exactly the twelve capabilities that had no packet are handled", () => {
+test("exactly the nine capabilities that had no packet are handled", () => {
   assert.deepEqual(Object.keys(extraHandlers).sort(), [
-    "spaces.delete", "spaces.delete_cancel", "spaces.delete_due", "spaces.export", "spaces.export_latest", "spaces.get", "spaces.image", "spaces.leave", "spaces.matrix", "spaces.switch_address", "spaces.transfer_ownership", "spaces.update",
+    "spaces.delete", "spaces.export", "spaces.get", "spaces.image", "spaces.leave", "spaces.matrix", "spaces.switch_address", "spaces.transfer_ownership", "spaces.update",
   ]);
 });
 
@@ -149,128 +149,28 @@ test("transfer refuses a non-owner caller, yourself and someone who is not a mem
   assert.deepEqual(w.events, []);
 });
 
-const DAY = 86_400_000;
-const FOURTEEN = 14 * DAY;
-type Sp = { space: Record<string, unknown> };
-
-test("delete needs the owner and the legal name typed exactly; it schedules the deletion 14 days out and removes nothing yet", async () => {
+test("delete needs the owner and the legal name typed exactly; then the host removes the data", async () => {
   const w = ready();
   await call("spaces.update", w.ctx, { legalName: "Northwind Law LLP" });
   w.events.length = 0;
-  assert.equal((await failed(call("spaces.delete", w.ctx, { confirmName: "Northwind", withoutExport: true }))).error.code, "validation.precondition_failed");
-  assert.equal((await failed(call("spaces.delete", w.ctx, { confirmName: "northwind law llp", withoutExport: true }))).error.code, "validation.precondition_failed");
+  assert.equal((await failed(call("spaces.delete", w.ctx, { confirmName: "Northwind" }))).error.code, "validation.precondition_failed");
+  assert.equal((await failed(call("spaces.delete", w.ctx, { confirmName: "northwind law llp" }))).error.code, "validation.precondition_failed");
   w.asPerson("usr_ines");
-  assert.equal((await failed(call("spaces.delete", w.ctx, { confirmName: "Northwind Law LLP", withoutExport: true }))).error.code, "permission.role_lacks_permission");
+  assert.equal((await failed(call("spaces.delete", w.ctx, { confirmName: "Northwind Law LLP" }))).error.code, "permission.role_lacks_permission");
   assert.deepEqual([w.events, w.host], [[], []]);
   w.asPerson("usr_owner");
-  assert.deepEqual(await call("spaces.delete", w.ctx, { confirmName: "Northwind Law LLP", withoutExport: true }), { ok: true, deletionAt: NOW + FOURTEEN });
-  assert.deepEqual(w.host, [], "the data stays until the date");
-  assert.deepEqual(w.events.map((e) => [e.name, e.payload]), [["space.deletion_scheduled", { by: "usr_owner", at: NOW + FOURTEEN }]]);
-  // everything keeps working, and the Space says when it goes
-  const got = ((await call("spaces.get", w.ctx, {})) as Sp).space;
-  assert.equal(got["deletionAt"], NOW + FOURTEEN);
-  assert.equal(((await call("spaces.update", w.ctx, { name: "Still here" })) as Sp).space["name"], "Still here");
-  // asking again keeps the date and announces nothing more
-  w.events.length = 0;
-  w.setNow(NOW + 2 * DAY);
-  assert.deepEqual(await call("spaces.delete", w.ctx, { confirmName: "Northwind Law LLP", withoutExport: true }), { ok: true, deletionAt: NOW + FOURTEEN });
-  assert.deepEqual(w.events, []);
-});
-
-test("a Space with no legal name is scheduled by typing its name", async () => {
-  const w = ready({ name: "Harbor Studio" });
-  assert.equal((await failed(call("spaces.delete", w.ctx, { confirmName: "Northwind", withoutExport: true }))).error.code, "validation.precondition_failed");
-  await call("spaces.delete", w.ctx, { confirmName: "Harbor Studio", withoutExport: true });
-  assert.deepEqual(w.host, []);
-  assert.equal(((await call("spaces.get", w.ctx, {})) as Sp).space["deletionAt"], NOW + FOURTEEN);
-});
-
-test("delete cannot be scheduled without an export from the last 24 hours, unless the owner says without an export", async () => {
-  const w = ready();
-  const refused = await failed(call("spaces.delete", w.ctx, { confirmName: "Northwind" }));
-  assert.equal(refused.error.code, "validation.precondition_failed");
-  assert.deepEqual(refused.error.details, { reason: "export_required" });
-  assert.deepEqual(w.events, []);
-  assert.equal(((await call("spaces.get", w.ctx, {})) as Sp).space["deletionAt"], undefined);
-  // an export older than a day does not count
-  assert.deepEqual(await call("spaces.export_latest", w.ctx, {}), {});
-  await call("spaces.export", w.ctx, { idempotencyKey: "k1" });
-  w.setNow(NOW + 25 * 3_600_000);
-  assert.equal((await failed(call("spaces.delete", w.ctx, { confirmName: "Northwind" }))).error.details?.["reason"], "export_required");
-  // a fresh export does
-  await call("spaces.export", w.ctx, { idempotencyKey: "k2" });
-  assert.deepEqual(await call("spaces.delete", w.ctx, { confirmName: "Northwind" }), { ok: true, deletionAt: NOW + 25 * 3_600_000 + FOURTEEN });
-});
-
-test("export.latest answers the newest export's time, or nothing", async () => {
-  const w = ready();
-  assert.deepEqual(await call("spaces.export_latest", w.ctx, {}), {});
-  await call("spaces.export", w.ctx, { idempotencyKey: "a" });
-  w.setNow(NOW + 3_600_000);
-  assert.deepEqual(await call("spaces.export_latest", w.ctx, {}), { at: NOW });
-  await call("spaces.export", w.ctx, { idempotencyKey: "b" });
-  assert.deepEqual(await call("spaces.export_latest", w.ctx, {}), { at: NOW + 3_600_000 });
-});
-
-test("cancel clears the schedule with one call, tells everyone by event, and the Space is not deleted afterwards", async () => {
-  const w = ready();
-  assert.equal((await failed(call("spaces.delete_cancel", w.ctx, {}))).error.code, "validation.precondition_failed", "nothing is scheduled");
-  await call("spaces.delete", w.ctx, { confirmName: "Northwind", withoutExport: true });
-  w.events.length = 0;
-  w.asPerson("usr_ines");   // an admin who is not the owner
-  assert.deepEqual(await call("spaces.delete_cancel", w.ctx, {}), { ok: true });
-  assert.deepEqual(w.events.map((e) => [e.name, e.payload]), [["space.deletion_cancelled", { by: "usr_ines" }]]);
-  assert.equal(((await call("spaces.get", w.ctx, {})) as Sp).space["deletionAt"], undefined);
-  w.setNow(NOW + FOURTEEN + DAY);
-  w.asService();
-  assert.deepEqual(await call("spaces.delete_due", w.ctx, {}), { deleted: false });
-  assert.deepEqual(w.host, []);
-});
-
-test("the minute job removes the Space only once the date has passed, then announces space.deleted", async () => {
-  const w = ready();
-  const due = (): Promise<unknown> => call("spaces.delete_due", w.ctx, {});
-  w.asService();
-  assert.deepEqual(await due(), { deleted: false }, "nothing scheduled");
-  w.asPerson("usr_owner");
-  await call("spaces.delete", w.ctx, { confirmName: "Northwind", withoutExport: true });
-  w.events.length = 0;
-  w.asService();
-  w.setNow(NOW + FOURTEEN - 1);
-  assert.deepEqual(await due(), { deleted: false }, "a moment before the date");
-  assert.deepEqual([w.host, w.events], [[], []]);
-  w.setNow(NOW + FOURTEEN);
-  assert.deepEqual(await due(), { deleted: true });
+  assert.deepEqual(await call("spaces.delete", w.ctx, { confirmName: "Northwind Law LLP" }), { ok: true });
   assert.deepEqual(w.host, ["delete"]);
   assert.deepEqual(w.events.map((e) => [e.name, e.payload]), [["space.deleted", { by: "usr_owner" }]]);
-  // once only
-  assert.deepEqual(await due(), { deleted: false });
-  assert.deepEqual(w.host, ["delete"]);
   // a deleted Space answers nothing more
-  w.asPerson("usr_owner");
   assert.equal((await failed(call("spaces.get", w.ctx, {}))).error.code, "validation.not_found");
   assert.equal((await failed(call("spaces.update", w.ctx, { name: "Again" }))).error.code, "validation.not_found");
 });
 
-test("only the host's own job removes a Space whose date has passed; a person is refused", async () => {
-  const w = ready();
-  await call("spaces.delete", w.ctx, { confirmName: "Northwind", withoutExport: true });
-  w.setNow(NOW + FOURTEEN + 1);
-  assert.equal((await failed(call("spaces.delete_due", w.ctx, {}))).error.code, "permission.no_grant");
-  assert.deepEqual(w.host, []);
-});
-
-test("the module exports the minute job that does it", async () => {
-  const { periodic } = await import("../impl.ts");
-  const job = periodic["spaces.delete_due"];
-  assert.equal(job.everyMs, 60_000);
-  const w = ready();
-  await call("spaces.delete", w.ctx, { confirmName: "Northwind", withoutExport: true });
-  w.asService();
-  await job.run(w.ctx);
-  assert.deepEqual(w.host, []);
-  w.setNow(NOW + FOURTEEN);
-  assert.deepEqual(await job.run(w.ctx), []);
+test("a Space with no legal name is deleted by typing its name", async () => {
+  const w = ready({ name: "Harbor Studio" });
+  assert.equal((await failed(call("spaces.delete", w.ctx, { confirmName: "Northwind" }))).error.code, "validation.precondition_failed");
+  await call("spaces.delete", w.ctx, { confirmName: "Harbor Studio" });
   assert.deepEqual(w.host, ["delete"]);
 });
 

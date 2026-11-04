@@ -80,7 +80,7 @@ function inputRows() {
 function whoLine() {
   const picked = S.agents.filter((a) => S.who.has(a.id));
   return h("button.pick", { data: { a: "who" }, css: { marginLeft: "-8px" }, "aria-haspopup": "menu" },
-    h("span.agents", null, picked.map((a) => face({ name: a.name, avatar: a.avatar ?? null, face: a.face ?? null, assistant: Boolean(a.assistant) }, 20))),
+    h("span.agents", null, picked.map((a) => face({ name: a.name, avatar: a.avatar ?? null, assistant: Boolean(a.assistant) }, 20))),
     h("span", null, picked.length ? picked.map((a) => a.name).join(", ") : "Nobody yet"), h("span.chev", null, ic("chev", "xs")));
 }
 

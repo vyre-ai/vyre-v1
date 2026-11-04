@@ -575,9 +575,7 @@ async function probeImap(ctx: MailCtx, imap: ImapConfig): Promise<void> {
   try {
     await session.connect();
     await session.noop();
-  } catch (e) {
-    // the Vault could not release the password (missing, locked): its own words say so, not that the mailbox refused. A refusal from the mailbox stays the one generic line.
-    if (e instanceof Error && e.name === "HostError") throw e;
+  } catch {
     return refuse();
   } finally {
     await session.logout().catch(() => undefined);

@@ -107,8 +107,6 @@ export interface ConnectorsCtx {
   schedule?(at: number | string, cap: string, input: unknown): Promise<string>;
   log?: { info(msg: string, attrs?: Record<string, unknown>): void; warn(msg: string, attrs?: Record<string, unknown>): void; error(msg: string, attrs?: Record<string, unknown>): void };
   actor?: string;
-  /** The caller is one of the server's own jobs (svc_host, svc_engine...), never a service a tenant made. */
-  trusted?: boolean;
   /** May the caller manage the Space's connections (connectors.manage)? A Space-owned connection needs it; a person's own does not. Absent only in module tests. */
   canManageSpace?(): boolean;
   /** Does the caller see the Space as a whole (View on it)? A guest does not, and so sees only their own connections. Absent only in module tests. */

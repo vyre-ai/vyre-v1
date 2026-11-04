@@ -1,6 +1,6 @@
 # github.pull_request.get
 
-Read a pull request live from GitHub. A person with a connected GitHub is read as them: their policy for reading and the repositories they reach apply, and consumer (such as linked.prs) shows in Used by
+Read a pull request live from GitHub
 
 | | |
 |---|---|
@@ -27,7 +27,6 @@ Read a pull request live from GitHub. A person with a connected GitHub is read a
 type In = {
   repo: string;
   number: number;
-  consumer?: string;
 };
 ```
 
@@ -70,7 +69,6 @@ type Out = {
 {
   "name": "example",
   "input": {
-    "consumer": "linked.prs",
     "number": 1,
     "repo": "vyre-ai/website"
   },

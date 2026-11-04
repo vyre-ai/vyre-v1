@@ -4,7 +4,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { act } from "react";
 import { createRoot } from "test-renderer";
-import { find, flush, installDom, press, textOf, typeInto } from "../../../../../../ui/src/testing/dom.ts";
+import { find, flush, installDom, press, textOf } from "../../../../../../ui/src/testing/dom.ts";
 import type { Node } from "../../../../../../ui/src/testing/dom.ts";
 import { Composer } from "../../../../../../ui/src/Composer/index.tsx";
 import { installComposerForTests } from "../../../../../../ui/src/Composer/Deferred.tsx";
@@ -71,32 +71,5 @@ test("a screenshot pasted into the Ask box goes with the question, stored in Cha
     assert.equal(post["body"], "", "a file alone is a question too");
     for (let i = 0; i < 10 && opened.length === 0; i++) await flush();
     assert.deepEqual(opened, [{ type: "thread", id: "thr_new1" }], "and the chat opens");
-  } finally { await act(async () => { r.unmount(); }); restore(); }
-});
-
-test("an ask that cannot start a chat gives the draft back with the reason and Try again", async () => {
-  const restore = installDom();
-  publishProgress(null);
-  const h = createSampleHomeB("northwind", { aiConnected: true });
-  const base = h.data.call;
-  let refuse = true;
-  h.data.call = async (cap: string, input: unknown) => { if (cap === "chat.start" && refuse) throw new Error("refused"); return base(cap, input); };
-  const opened: unknown[] = [];
-  h.data.nav = { ...h.data.nav, openSubject: (s: unknown) => void opened.push(s) } as typeof h.data.nav;
-  const { top, bottom } = homeBSlots(h.extras);
-  const r = createRoot();
-  try {
-    await act(async () => { r.render(<Home data={h.data} top={top} bottom={bottom} personal={false} />); });
-    await flush(); await flush();
-    const root = r.container as unknown as Node;
-    await typeInto(find(root, "composer-field"), "What is this?");
-    await press(find(root, "composer-send"));
-    for (let i = 0; i < 10 && find(root, "composer-send-error") === null; i++) await flush();
-    assert.match(textOf(find(root, "composer-send-error")), /Could not start that chat\.\s*Try again/);
-    assert.equal(String((find(root, "composer-field")!.props as { value?: string }).value), "What is this?", "the question is still in the box");
-    refuse = false;
-    await press(find(root, "composer-send-retry"));
-    for (let i = 0; i < 10 && opened.length === 0; i++) await flush();
-    assert.deepEqual(opened, [{ type: "thread", id: "thr_new1" }], "trying again starts it");
   } finally { await act(async () => { r.unmount(); }); restore(); }
 });

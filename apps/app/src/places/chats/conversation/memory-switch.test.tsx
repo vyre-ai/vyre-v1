@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import { createRoot } from "test-renderer";
 import { renderToStaticMarkup } from "react-dom/server";
 import { find, flush, installDom, mount, press, textOf } from "../../../onboarding/test-dom.ts";
-import { MemorySwitch, QUIET_LINE, SWITCH_LABEL, SWITCH_TIP, rememberOf, tipOf } from "./memory-switch.tsx";
+import { MemorySwitch, QUIET_LINE, SWITCH_LABEL, rememberOf } from "./memory-switch.tsx";
 
 test("off by default: a chat memory cannot answer for is remembered, and nothing quiet is shown", () => {
   assert.equal(rememberOf(undefined), true);
@@ -35,12 +35,9 @@ test("turning it on writes remember: false to memory and shows the quiet line; p
     await flush();
     assert.deepEqual(calls.at(-1), { cap: "memory.chat_learning.set", input: { threadId: "thr_1", remember: false } });
     assert.ok(textOf(find(root, "memory-off-line")).includes(QUIET_LINE));
-    assert.equal(tipOf(false), "Not remembering this chat. Press to remember it again.");
     assert.equal(find(root, "memory-switch")?.props["aria-checked"], true);
     await press(find(root, "memory-switch"));
     await flush();
-    assert.equal(tipOf(true), SWITCH_TIP);
-    assert.equal(SWITCH_TIP, "Remembering this chat. Press to stop.");
     assert.deepEqual(calls.at(-1), { cap: "memory.chat_learning.set", input: { threadId: "thr_1", remember: true } });
     assert.equal(find(root, "memory-off-line"), null);
     assert.deepEqual(said, ["Nothing from this chat will be remembered", "This chat is remembered again"]);

@@ -1,6 +1,6 @@
 # sites.promote
 
-Promote sites to production (needs approval)
+Promote sites to production (Gate)
 
 Area: sites. Risk: high. Applies to: site.
 

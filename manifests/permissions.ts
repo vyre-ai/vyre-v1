@@ -7,8 +7,8 @@ export const PERMISSIONS: PermissionDef[] = [
   // Space
   perm('members.invite', 'space', 'Invite people', 'medium', ['owner', 'admin']),
   perm('members.remove', 'space', 'Remove people', 'high', ['owner', 'admin']),
-  perm('access.manage', 'space', 'Manage roles, teams, extra access and outside agents', 'high', ['owner', 'admin']),
-  perm('policy.manage', 'space', 'Manage sign-in rules, keep and delete, and erase a person', 'high', ['owner', 'admin']),
+  perm('access.manage', 'space', 'Manage roles, groups, grants and outside actors', 'high', ['owner', 'admin']),
+  perm('policy.manage', 'space', 'Manage policies, retention and erase a person', 'high', ['owner', 'admin']),
   perm('audit.read', 'space', 'Read the audit log', 'medium', ['owner', 'admin']),
   perm('console.access', 'space', 'Open the Console', 'medium', ['owner', 'admin', 'developer']),
   perm('engineer.mcp', 'space', 'Use the Engineer MCP toolset', 'high', ['owner', 'admin', 'developer']),
@@ -58,14 +58,14 @@ export const PERMISSIONS: PermissionDef[] = [
   perm('ai.incidents', 'ai', 'Manage AI incidents', 'medium', ['owner', 'admin']),
   // Server
   perm('server.update', 'server', 'Update the server', 'high', ['owner', 'admin']),
-  perm('server.logs', 'server', 'Read server logs and error ids', 'medium', ['owner', 'admin', 'developer']),
+  perm('server.logs', 'server', 'Read server logs and traces', 'medium', ['owner', 'admin', 'developer']),
   perm('server.services', 'server', 'Restart services and use the server shell', 'high', ['owner', 'admin']),
   perm('server.backups', 'server', 'Run and restore backups', 'high', ['owner', 'admin']),
   perm('server.network', 'server', 'Change domain, certificate and relay', 'high', ['owner', 'admin']),
   // Added by gap rulings
   perm('forms.publish', 'apps', 'Publish forms and booking pages', 'medium', ['owner', 'admin', 'developer', 'member'], ['form']),
   perm('sites.deploy', 'sites', 'Deploy sites to staging', 'medium', ['owner', 'admin', 'developer', 'member'], ['site']),
-  perm('sites.promote', 'sites', 'Promote sites to production (needs approval)', 'high', ['owner', 'admin'], ['site']),
+  perm('sites.promote', 'sites', 'Promote sites to production (Gate)', 'high', ['owner', 'admin'], ['site']),
   perm('sites.domains', 'sites', 'Manage site domains', 'medium', ['owner', 'admin'], ['site', 'domain']),
   perm('kits.install', 'kits', 'Install Kits and templates', 'high', ['owner', 'admin'], ['kit']),
   perm('kits.publish', 'kits', 'Publish Kits', 'high', ['owner', 'admin'], ['kit']),

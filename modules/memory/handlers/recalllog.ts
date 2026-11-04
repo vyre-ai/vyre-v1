@@ -49,7 +49,7 @@ export async function used(ctx: MemCtx, input: { threadId: string; messageId: st
   const me = actorOf(ctx);
   const rows = rowsOf(ctx.db, "SELECT kind, ref, agent_id, at FROM memory_recall_log WHERE thread_id = ? AND message_id = ? AND asker = ? ORDER BY rowid", input.threadId, t.id, me);
   const access = makeAccess(ctx);
-  const facts: Array<ReturnType<typeof factOut> & { kind?: string; agentId?: string; sourceTitle?: string; by?: string; byKind?: string }> = [];
+  const facts: Array<ReturnType<typeof factOut> & { kind?: string; agentId?: string; sourceTitle?: string }> = [];
   const titles = new Map<string, string | undefined>();
   const quotes: Awaited<ReturnType<typeof findQuotes>> = [];
   for (const r of rows) {
@@ -64,7 +64,7 @@ export async function used(ctx: MemCtx, input: { threadId: string; messageId: st
         if (!titles.has(f.sourceRef)) { try { titles.set(f.sourceRef, ((await ctx.call("threads.get", { threadId: f.sourceRef })) as { thread?: { title?: string } }).thread?.title); } catch { titles.set(f.sourceRef, undefined); } }
         title = titles.get(f.sourceRef);
       }
-      facts.push({ ...factOut(f), ...(f.layer !== "person" && f.sourcePerson ? { by: f.sourcePerson, byKind: f.sourcePerson.startsWith("agt_") ? "agent" : "person" } : {}), ...(f.kind ? { kind: f.kind } : {}), ...(a ? { agentId: a } : {}), ...(title ? { sourceTitle: title } : {}) });
+      facts.push({ ...factOut(f), ...(f.kind ? { kind: f.kind } : {}), ...(a ? { agentId: a } : {}), ...(title ? { sourceTitle: title } : {}) });
     } else {
       for (const q of await findQuotes(ctx, { ref: str(r["ref"]) })) if (await access.showsFrom(q.threadId)) quotes.push(q);
     }

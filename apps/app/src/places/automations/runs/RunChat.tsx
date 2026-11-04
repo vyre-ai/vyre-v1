@@ -9,8 +9,7 @@ import type { CapMap } from "../../../../../../generated/types.ts";
 import { CHAT, useRunsData, useScreenQuery, useThread } from "./data.tsx";
 import { decideTask, isActive, postToRun, pressPoint, previewUndo, undoRun, useRunActions } from "./actions.tsx";
 import { Glyph } from "./glyphs.tsx";
-import { STATUS_WORD, buildLines, stepNamer, durationSeconds, failedStep, runTitle, stamp, waitWords } from "./model.ts";
-import type { StepNode } from "../../../../../../lib/words/steps.ts";
+import { STATUS_WORD, buildLines, durationSeconds, failedStep, runTitle, stamp, waitWords } from "./model.ts";
 import type { Run, RunLine, RunStep, ThreadMessage, UndoPreview } from "./model.ts";
 import { MainHead, QuietButton, Tile, pointer, statusColor, statusGlyph, webOnly } from "./parts.tsx";
 import type { KeyEventLike } from "./parts.tsx";
@@ -66,14 +65,6 @@ export function RunChat({ runId, wide = false, retriedIds = NONE, openThoughts =
     void previewUndo(data, runId).then((p) => setUndo({ phase: "ready", preview: p })).catch(() => setUndo(null));
   }, [initialUndo, runId, data]);
 
-  // the steps' own titles, read from the automation at view time, so a stored step id never reaches the screen
-  const subjectId = run?.subject?.type === "automation" ? run.subject.id : null;
-  const [nodes, setNodes] = useState<readonly StepNode[] | undefined>(undefined);
-  useEffect(() => {
-    if (subjectId === null) return;
-    void Promise.resolve(data.call("automations.get", { automationId: subjectId })).then((o) => setNodes((o as { automation?: { definition?: { nodes?: StepNode[] } } } | null)?.automation?.definition?.nodes)).catch(() => setNodes(undefined));
-  }, [subjectId, data]);
-
   if (q.status === "loading") {
     return <View testID="run-chat-loading" style={s.frame}><View style={s.skHead} /><View style={s.skBody}>{each([0, 1, 2, 3], (i) => <View key={i} style={s.skLine} />)}</View></View>;
   }
@@ -81,7 +72,7 @@ export function RunChat({ runId, wide = false, retriedIds = NONE, openThoughts =
 
   const steps: readonly RunStep[] = stepsQ.status === "ready" ? stepsQ.data.steps : [];
   const messages = threadQ.status === "ready" ? threadQ.data.messages : [];
-  const lines: RunLine[] = [...buildLines(run, messages, steps, stepNamer(nodes)), ...results];
+  const lines: RunLine[] = [...buildLines(run, messages, steps), ...results];
   const automation = run.subject?.type === "automation" ? run.subject.id : null;
   const known = automation ? data.name(automation) : "";
   // data.name knows people and agents and gives an automation's id back as it is; then the run's own name (a test run carries its automation's name) is the better title

@@ -48,8 +48,6 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "memory.page.restore_version": Handler<"memory.page.restore_version", X>;
   "memory.page.set_visibility": Handler<"memory.page.set_visibility", X>;
   "memory.page.versions": Handler<"memory.page.versions", X>;
-  "memory.place.archive": Handler<"memory.place.archive", X>;
-  "memory.place.list": Handler<"memory.place.list", X>;
   "memory.pointer": Handler<"memory.pointer", X>;
   "memory.profile.add": Handler<"memory.profile.add", X>;
   "memory.profile.context": Handler<"memory.profile.context", X>;
@@ -70,7 +68,6 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "memory.restore": Handler<"memory.restore", X>;
   "memory.restore_version": Handler<"memory.restore_version", X>;
   "memory.search": Handler<"memory.search", X>;
-  "memory.source_removed": Handler<"memory.source_removed", X>;
   "memory.trail": Handler<"memory.trail", X>;
   "memory.trash.search": Handler<"memory.trash.search", X>;
   "memory.undo": Handler<"memory.undo", X>;

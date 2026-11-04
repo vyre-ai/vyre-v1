@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import type { ReactElement } from "react";
 import { Text, View } from "react-native";
 import type { CapMap } from "../../../../../generated/types.ts";
@@ -6,15 +6,14 @@ import { Row } from "../../../../../ui/src/Row/index.tsx";
 import { ObjectPage, ObjectSection, withBaseTabs } from "../../../../../ui/src/ObjectPage/index.tsx";
 import { Empty, Group, Section } from "../shell/ui.tsx";
 import { useConsoleData } from "../shell/data.tsx";
-import { personRowActions } from "../objects/row-menus.ts";
-import { createMenuApiB } from "../../places/chats/menus/actions-b.ts";
 import { ObjectList } from "../objects/ObjectList.tsx";
 import type { ObjectListRow } from "../objects/ObjectList.tsx";
 import { useObjectNames } from "../objects/names.ts";
 import { PersonLifecycle } from "./PersonLifecycle.tsx";
-import { InviteSheet } from "./Invites.tsx";
-import { Checker } from "./Checker.tsx";
+import { EXPIRY_CHOICES, OpenInvites, emailInvite } from "./Invites.tsx";
+import { EMPTY_START, InviteStart, startInput } from "./InviteStart.tsx";
 import { EveryoneGets } from "./EveryoneGets.tsx";
+import type { StartSet } from "./InviteStart.tsx";
 import { Help,  Actions, Button, Field, FormSheet, Note, ReadState, Select, attempt, useAction, useRead } from "./shared.tsx";
 import { PersonExceptions, WhatTheyCanDo, useExceptions } from "./exceptions.tsx";
 import type { PersonLite } from "./permissions-model.ts";
@@ -25,13 +24,13 @@ type Principals = CapMap["access.principals.list"]["out"];
 type Person = Principals["principals"][number];
 type Bulk = { kind: "role" | "group" | "suspend"; value: string } | null;
 
-/** The filters a person list offers: one status, role or team each. A row carries `status:`, `role:` and `group:` keys, so several filters narrow together. */
+/** The filters a person list offers: one status, role or group each. A row carries `status:`, `role:` and `group:` keys, so several filters narrow together. */
 export function personFilters(people: readonly Person[], roles: Roles["roles"], groups: Groups["groups"]): { id: string; label: string }[] {
   const statuses = [...new Set(people.map((p) => p.status))].sort();
   return [
     ...statuses.map((status) => ({ id: `status:${status}`, label: `Status: ${status[0]!.toUpperCase()}${status.slice(1)}` })),
     ...roles.filter((role) => people.some((p) => p.roles.includes(role.id))).map((role) => ({ id: `role:${role.id}`, label: `Role: ${role.name}` })),
-    ...groups.filter((group) => people.some((p) => p.groups.includes(group.id))).map((group) => ({ id: `group:${group.id}`, label: `Team: ${group.name}` })),
+    ...groups.filter((group) => people.some((p) => p.groups.includes(group.id))).map((group) => ({ id: `group:${group.id}`, label: `Group: ${group.name}` })),
   ];
 }
 /** Permissions grouped by area: `records.edit` and `records.create` become records: create, edit. */
@@ -47,8 +46,14 @@ export function People({ initialPersonId }: { initialPersonId?: string } = {}): 
   const people = useRead<Principals>("access.principals.list", { kind: "person" });
   const roles = useRead<Roles>("access.roles.list");
   const groups = useRead<Groups>("access.groups.list", {});
+  const [email, setEmail] = useState("");
+  const [role, setRole] = useState("");
+  const [link, setLink] = useState("");
   const [inviting, setInviting] = useState(false);
-  const [checking, setChecking] = useState(false);
+  const [days, setDays] = useState("7");
+  const [start, setStart] = useState<StartSet>(EMPTY_START);
+  const [mailNote, setMailNote] = useState("");
+  const [inviteRev, setInviteRev] = useState(0);
   const [selected, setSelected] = useState<string | null>(initialPersonId ?? null);
   const [filters, setFilters] = useState<ReadonlySet<string>>(new Set());
   const [picked, setPicked] = useState<ReadonlySet<string>>(new Set());
@@ -57,7 +62,6 @@ export function People({ initialPersonId }: { initialPersonId?: string } = {}): 
   useEffect(() => setSelected(initialPersonId ?? null), [initialPersonId]);
   const refreshAll = (): void => { people.refresh(); groups.refresh(); };
   const action = useAction(refreshAll);
-  const menuApi = useMemo(() => createMenuApiB(consoleData), [consoleData]);
   if (!people.data || !roles.data || !groups.data) return <ReadState error={people.error ?? roles.error ?? groups.error} retry={() => { people.refresh(); roles.refresh(); groups.refresh(); }} />;
   const everyone = people.data.principals;
   const roleName = (id: string): string => roles.data?.roles.find((r) => r.id === id)?.name ?? "Role";
@@ -66,13 +70,14 @@ export function People({ initialPersonId }: { initialPersonId?: string } = {}): 
   if (selected) return <PersonById key={selected} id={selected} roles={roles.data.roles} groups={groups.data.groups} onBack={() => { setSelected(null); refreshAll(); }} refresh={refreshAll} />;
   const rows: ObjectListRow<Person>[] = everyone.map((person) => ({
     id: `console-person-${person.id}`, title: person.name === person.id ? "Person profile unavailable" : person.name,
-    note: `${person.status[0]!.toUpperCase()}${person.status.slice(1)} · ${person.roles.map(roleName).join(", ") || "No role"}${person.groups.length ? ` · ${person.groups.length} ${person.groups.length === 1 ? "team" : "teams"}` : ""}`,
+    note: `${person.status[0]!.toUpperCase()}${person.status.slice(1)} · ${person.roles.map(roleName).join(", ") || "No role"}${person.groups.length ? ` · ${person.groups.length} ${person.groups.length === 1 ? "group" : "groups"}` : ""}`,
     search: `${person.title ?? ""}`, filters: personRowFilters(person), value: person,
-    actions: personRowActions(person, consoleData.me.id, { api: menuApi, can: consoleData.can, open: () => setSelected(person.id), done: refreshAll, fail: (e) => setReport(e instanceof Error ? e.message : "That did not work.") }),
+    actions: [{ label: "Open", onSelect: () => setSelected(person.id) }],
   }));
   const pickedPeople = everyone.filter((p) => picked.has(`console-person-${p.id}`));
   const protectedIds = new Set([consoleData.me.id, ...everyone.filter((p) => p.roles.some((id) => id === "rol_owner" || id === "owner")).map((p) => p.id)]);
   const inviteRoles = roles.data.roles.filter((r) => r.id !== "rol_owner" && r.id !== "owner" && r.name.toLowerCase() !== "owner");
+  const chosenRole = role || inviteRoles.find((r) => r.name === "Member")?.id || inviteRoles[0]?.id || "";
   const startBulk = (kind: "role" | "group" | "suspend"): void => { setReport(""); setBulk({ kind, value: kind === "role" ? inviteRoles[0]?.id ?? "" : kind === "group" ? groups.data!.groups[0]?.id ?? "" : "" }); };
   const applyBulk = async (): Promise<void> => {
     if (!bulk) return;
@@ -90,25 +95,31 @@ export function People({ initialPersonId }: { initialPersonId?: string } = {}): 
     setReport(`${done.length} changed${skipped.length ? `, ${skipped.length} skipped (${skipped.join(", ")})` : ""}${failed.length ? `, ${failed.length} failed (${failed.join(", ")})` : ""}.`);
     setPicked(new Set()); setBulk(null); refreshAll();
   };
-  const bulkLabel = bulk?.kind === "role" ? `Assign ${roleName(bulk.value)}` : bulk?.kind === "group" ? `Add to ${groups.data.groups.find((g) => g.id === bulk.value)?.name ?? "team"}` : "Suspend";
+  const bulkLabel = bulk?.kind === "role" ? `Assign ${roleName(bulk.value)}` : bulk?.kind === "group" ? `Add to ${groups.data.groups.find((g) => g.id === bulk.value)?.name ?? "group"}` : "Suspend";
   return <View testID="console-people">
-    {checking ? <Section title="Check someone's access" right={<Button label="Hide access check" testID="people-check-close" onPress={() => setChecking(false)} />}><Checker /></Section> : null}
-    <Section title="Members" count={rows.length} right={<Actions>{checking ? null : <Button label="Check someone's access" testID="people-check-open" onPress={() => setChecking(true)} />}<Button label="Invite people" testID="console-invite-open" onPress={() => setInviting(true)} /></Actions>}>
+    <Section title="People" count={rows.length} right={<Button label="Invite a person" testID="console-invite-open" onPress={() => setInviting(true)} />}>
       <ObjectList rows={rows} selectedId={null} onOpen={(row) => setSelected(row.value!.id)} filters={personFilters(everyone, roles.data.roles, groups.data.groups)} activeFilters={filters} onFilters={setFilters} picked={picked} onPicked={setPicked}
-        bulkActions={[{ label: "Assign role…", onSelect: () => startBulk("role") }, { label: "Add to team…", onSelect: () => startBulk("group") }, { label: "Suspend…", onSelect: () => startBulk("suspend") }]} empty="No people match." testID="console-people-list" />
+        bulkActions={[{ label: "Assign role…", onSelect: () => startBulk("role") }, { label: "Add to group…", onSelect: () => startBulk("group") }, { label: "Suspend…", onSelect: () => startBulk("suspend") }]} empty="No people match." testID="console-people-list" />
     </Section>
     {bulk && pickedPeople.length ? <Section title={`${bulkLabel} for ${pickedPeople.length} ${pickedPeople.length === 1 ? "person" : "people"}`} testID="people-bulk">
       <Group>
         {bulk.kind === "role" ? <Select label="Role" value={bulk.value} options={inviteRoles.map((r) => ({ key: r.id, title: r.name }))} onChange={(value) => setBulk({ ...bulk, value })} /> : null}
-        {bulk.kind === "group" ? <Select label="Team" value={bulk.value} options={groups.data.groups.map((g) => ({ key: g.id, title: g.name }))} onChange={(value) => setBulk({ ...bulk, value })} /> : null}
+        {bulk.kind === "group" ? <Select label="Group" value={bulk.value} options={groups.data.groups.map((g) => ({ key: g.id, title: g.name }))} onChange={(value) => setBulk({ ...bulk, value })} /> : null}
         {bulk.kind === "suspend" ? <Field label="Reason (optional)" value={bulk.value} onChange={(value) => setBulk({ ...bulk, value })} testID="people-bulk-reason" /> : null}
         <Note>{bulk.kind === "suspend" ? "Suspending ends their sessions at once. You and the Space owner are skipped." : "People who already have this are skipped."} Each person is changed on its own; a refusal for one does not stop the rest.</Note>
         <Actions><Button label="Cancel" onPress={() => setBulk(null)} /><Button label={`Confirm: ${bulkLabel}`} testID="people-bulk-confirm" danger={bulk.kind === "suspend"} disabled={action.busy || !bulk.value && bulk.kind !== "suspend"} onPress={() => void applyBulk()} /></Actions>
       </Group>
     </Section> : null}
     {report ? <Note>{report}</Note> : null}
+    <OpenInvites key={inviteRev} roleName={roleName} />
     <EveryoneGets />
-    {inviting ? <InviteSheet onClose={() => setInviting(false)} onCreated={refreshAll} /> : null}
+    {inviting ? <FormSheet title="Invite a person" testID="invite-sheet" onClose={() => { setInviting(false); setLink(""); setMailNote(""); setStart(EMPTY_START); }} submit={link ? "Done" : "Create invite"} disabled={!link && (!chosenRole || action.busy)} why={!chosenRole ? "Pick a role first" : undefined}
+      onSubmit={() => { if (link) { setInviting(false); setLink(""); setEmail(""); setMailNote(""); setStart(EMPTY_START); return; } void action.run<CapMap["members.invites.create"]["out"]>("members.invites.create", { role: chosenRole, ...(email.trim() ? { email: email.trim() } : {}), ...startInput(start), expiresInDays: Number(days), idempotencyKey: attempt() }, "Invite created").then((out) => { if (out) { setLink(out.link); setInviteRev((n) => n + 1); } }); }}>
+      {link ? <><Note>Copy this one-time invite link:</Note><Text selectable testID="console-invite-link">{link}</Text>
+        {email.trim() ? <Actions><Button label={`Email it to ${email.trim()}`} testID="console-invite-mail" disabled={mailNote === "Sending"} onPress={() => { setMailNote("Sending"); void emailInvite(consoleData.call, { to: email.trim(), link, by: consoleData.me.name, space: consoleData.space.name }).then((line) => setMailNote(line ?? "Connect your own mailbox in Inbox to send from here. Copy the link instead."), () => setMailNote("Could not send. Copy the link and send it yourself.")); }} /></Actions> : null}
+        {mailNote ? <Note>{mailNote}</Note> : null}</>
+        : <><Field label="Email (optional)" testID="console-invite-email" value={email} onChange={setEmail} /><Select label="Role" value={chosenRole} options={inviteRoles.map((r) => ({ key: r.id, title: r.name }))} onChange={setRole} /><Select label="Ends after" value={days} options={EXPIRY_CHOICES} onChange={setDays} /><InviteStart value={start} onChange={setStart} groups={groups.data.groups} /></>}
+    </FormSheet> : null}
     {action.note && !report ? <Note>{action.note}</Note> : null}
   </View>;
 }
@@ -159,17 +170,17 @@ function PersonObject({ person, roles, groups, onBack, refresh }: { person: Pers
       {effective.data ? <>
         <Row id="person-eff-roles" title="Roles" note={effective.data.roles.map(roleName).join(", ") || "No roles"} />
 
-        {effective.data.grants.map((grant) => <Row key={grant.id} id={`person-grant-${grant.id}`} title={names.resource(grant.resource)} note={`${grant.level} · extra access`} />)}
+        {effective.data.grants.map((grant) => <Row key={grant.id} id={`person-grant-${grant.id}`} title={names.resource(grant.resource)} note={`${grant.level} · direct grant`} />)}
         {effective.data.owns.map((own) => <Row key={`${own.type}:${own.id}`} id={`person-owns-${own.id}`} title={names.resource(own)} note="Owns" />)}
-        {effective.data.grants.length + effective.data.owns.length === 0 ? <Empty icon="doc">No extra access and nothing owned</Empty> : null}
+        {effective.data.grants.length + effective.data.owns.length === 0 ? <Empty icon="doc">No direct grants and nothing owned</Empty> : null}
       </> : <ReadState error={effective.error} retry={effective.refresh} />}
     </ObjectSection>
     </>;
   } else if (tab === "groups") {
-    body = <ObjectSection title="Teams" count={mine.length} testID="person-groups">
-      {mine.map((group) => <Row key={group.id} id={`person-group-${group.id}`} title={group.name} note={group.builtIn ? "Built-in team" : `${group.members.length} members`} trailing={<Button label="Remove" disabled={action.busy} onPress={() => void action.run("access.groups.remove_member", { groupId: group.id, member: { kind: "person", id: person.id } }, "Removed from team")} />} />)}
-      {mine.length === 0 ? <Note>Not in any team.</Note> : null}
-      {free.length ? <><Select label="Add to a team" value={addGroup || free[0]!.id} options={free.map((g) => ({ key: g.id, title: g.name }))} onChange={setAddGroup} /><Button label="Add to team" testID="person-group-add" disabled={action.busy} onPress={() => void action.run("access.groups.add_member", { groupId: addGroup || free[0]!.id, member: { kind: "person", id: person.id } }, "Added to team").then(() => setAddGroup(""))} /></> : null}
+    body = <ObjectSection title="Groups" count={mine.length} testID="person-groups">
+      {mine.map((group) => <Row key={group.id} id={`person-group-${group.id}`} title={group.name} note={group.builtIn ? "Built-in group" : `${group.members.length} members`} trailing={<Button label="Remove" disabled={action.busy} onPress={() => void action.run("access.groups.remove_member", { groupId: group.id, member: { kind: "person", id: person.id } }, "Removed from group")} />} />)}
+      {mine.length === 0 ? <Note>Not in any group.</Note> : null}
+      {free.length ? <><Select label="Add to a group" value={addGroup || free[0]!.id} options={free.map((g) => ({ key: g.id, title: g.name }))} onChange={setAddGroup} /><Button label="Add to group" testID="person-group-add" disabled={action.busy} onPress={() => void action.run("access.groups.add_member", { groupId: addGroup || free[0]!.id, member: { kind: "person", id: person.id } }, "Added to group").then(() => setAddGroup(""))} /></> : null}
       {action.note ? <Note>{action.note}</Note> : null}
     </ObjectSection>;
   } else if (tab === "devices") {
@@ -186,5 +197,5 @@ function PersonObject({ person, roles, groups, onBack, refresh }: { person: Pers
   } else {
     body = <View testID="person-overview"><Section title="Roles"><PersonRoles personId={person.id} /></Section><PersonLifecycle personId={person.id} refresh={refresh} /></View>;
   }
-  return <ObjectPage id={person.id} name={name} kind="Person" owner={person.title ?? (person.roles.map(roleName).join(", ") || "No role")} status={person.status} parent="People" onBack={onBack} density="regular" actions={[]} tabs={withBaseTabs([{ id: "groups", label: "Teams", count: mine.length }, { id: "devices", label: "Devices", count: devices.data ? devices.data.devices.filter((d) => !d.revokedAt).length : null }])} activeTabId={tab} onTab={setTab} sheetOpen={false} testID="person-object">{body}</ObjectPage>;
+  return <ObjectPage id={person.id} name={name} kind="Person" owner={person.title ?? (person.roles.map(roleName).join(", ") || "No role")} status={person.status} parent="People" onBack={onBack} density="regular" actions={[]} tabs={withBaseTabs([{ id: "groups", label: "Groups", count: mine.length }, { id: "devices", label: "Devices", count: devices.data ? devices.data.devices.filter((d) => !d.revokedAt).length : null }])} activeTabId={tab} onTab={setTab} sheetOpen={false} testID="person-object">{body}</ObjectPage>;
 }

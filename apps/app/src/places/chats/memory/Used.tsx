@@ -26,10 +26,8 @@ export function ReplyMemory({ messageId, threadId, reply = "", startOpen = false
   // what an older reply recorded may include a greeting or an imported session's preamble matched as a quote: those say nothing and are not shown or counted
   // and a fact is shown only when the reply carries it (most replies match some memory a little and are not shaped by it); quotes are only recalled when the person asked to find words
   // a lesson is a rule the agent follows, not a fact its words repeat: it is shown whenever it was put in front of the agent, on a line of its own ("Used a lesson"), outside the fold of the work so it is seen
-  // memory.used rows say `learnedAt`; the rows here say `at`
-  const facts = read.data.facts.map((f) => ({ ...f, at: f.at ?? (f as { learnedAt?: number }).learnedAt ?? 0 }));
-  const lessons = facts.filter(isLesson);
-  const used = { ...read.data, quotes: read.data.quotes.filter((q) => recallable(q.text)), facts: facts.filter((f) => !isLesson(f) && (reply === "" || shapedReply(factLine(f), reply))) };
+  const lessons = read.data.facts.filter(isLesson);
+  const used = { ...read.data, quotes: read.data.quotes.filter((q) => recallable(q.text)), facts: read.data.facts.filter((f) => !isLesson(f) && (reply === "" || shapedReply(factLine(f), reply))) };
   if (usedCount(used) === 0 && lessons.length === 0) return null;
   return (
     <View testID={`used-${messageId}`} style={st.root}>
@@ -58,7 +56,6 @@ function UsedLine({ messageId, used, startOpen }: { messageId: string; used: Use
   const mem = useChatMemory()!;
   const [open, setOpen] = useState(startOpen);
   const menu = useMenu();
-  const openSource = useOpenSource();
   const n = usedCount(used);
   const entries = (x: number, y: number): void => menu.show([
     { label: open ? "Hide Memories" : "Show Memories", onSelect: () => setOpen((o) => !o) },
@@ -66,20 +63,14 @@ function UsedLine({ messageId, used, startOpen }: { messageId: string; used: Use
   ] as MenuEntry[], x, y, "context", { label: "Used memories" });
   return (
     <View testID={`mused-${messageId}`} style={st.mused} {...ownMenu(entries)}>
-      <View style={st.line}>
-        <Pressable
-          accessibilityRole="button" accessibilityState={{ expanded: open }} aria-expanded={open} accessibilityLabel={`${usedLabel(n)}, ${open ? "hide" : "show"}`} testID={`mused-toggle-${messageId}`} onPress={() => setOpen((o) => !o)}
-          style={({ hovered }: { hovered?: boolean }) => [st.head, hovered === true && st.headOver]}
-        >
-          <Icon name="bulb" size={13} color="var(--ink-3)" />
-          <Text style={st.headText}>{usedLabel(n)}</Text>
-          <View style={open ? st.flip : undefined}><Icon name="chevd" size={9} color="var(--ink-3)" /></View>
-        </Pressable>
-        {!open ? (
-          // rule 7: the citation is on the message itself, on the same quiet line: who said what the answer rests on, and when; a press jumps to the message
-          each(used.facts.filter((f) => f.by).slice(0, 1), (f) => <CiteChip key={f.factId} fact={f} onPress={() => openSource(f)} />)
-        ) : null}
-      </View>
+      <Pressable
+        accessibilityRole="button" accessibilityState={{ expanded: open }} aria-expanded={open} accessibilityLabel={`${usedLabel(n)}, ${open ? "hide" : "show"}`} testID={`mused-toggle-${messageId}`} onPress={() => setOpen((o) => !o)}
+        style={({ hovered }: { hovered?: boolean }) => [st.head, hovered === true && st.headOver]}
+      >
+        <Icon name="bulb" size={13} color="var(--ink-3)" />
+        <Text style={st.headText}>{usedLabel(n)}</Text>
+        <View style={open ? st.flip : undefined}><Icon name="chevd" size={9} color="var(--ink-3)" /></View>
+      </Pressable>
       {open ? (
         <View testID={`mused-list-${messageId}`} style={st.list}>
           {each(used.facts, (f, i) => <FactRow key={f.factId} fact={f} first={i === 0} />)}
@@ -89,17 +80,6 @@ function UsedLine({ messageId, used, startOpen }: { messageId: string; used: Use
       ) : null}
       {menu.element}
     </View>
-  );
-}
-
-/** "(chat) Remembered from Omar Haddad, 9:50 am": a bordered 24 px chip, the whole of it a press. */
-function CiteChip({ fact, onPress }: { fact: ChatFact; onPress: () => void }): ReactElement {
-  const mem = useChatMemory()!;
-  return (
-    <Pressable accessibilityRole="link" accessibilityLabel="Open the source" testID={`mused-cite-${fact.factId}`} onPress={onPress} style={({ hovered }: { hovered?: boolean }) => [st.cite, hovered === true && st.headOver]}>
-      <Icon name="chat" size={12} color="var(--ink-3)" />
-      <Text numberOfLines={1} style={st.citeText}>{`Remembered from ${fact.by === mem.me.id ? "you" : mem.nameOf(fact.by!)}, ${mem.time ? mem.time(fact.at) : ageText(fact.at, mem.now())}`}</Text>
-    </Pressable>
   );
 }
 
@@ -200,9 +180,6 @@ const st = StyleSheet.create({
   lessonLine: { alignSelf: "flex-start", flexDirection: "row", alignItems: "center", gap: 8, minHeight: 24, marginTop: 6, paddingLeft: 4, paddingRight: 6, marginLeft: -4, borderRadius: 6 },
   lessonText: { flexShrink: 1, fontSize: 12.5, color: "var(--ink-3)" as string },
   lessonBold: { fontWeight: "500", color: "var(--ink-2)" as string },
-  line: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 10 },
-  cite: { flexDirection: "row", alignItems: "center", gap: 6, height: 24, paddingHorizontal: 8, borderRadius: 6, boxShadow: "inset 0 0 0 1px var(--line-2)" } as object,
-  citeText: { fontSize: 12, color: "var(--ink-3)" as string },
   list: { alignSelf: "stretch", marginTop: 4, marginBottom: 2, paddingTop: 4, paddingHorizontal: 12, paddingBottom: 8, borderRadius: 12, backgroundColor: "var(--sunk)" as string, boxShadow: "inset 0 0 0 1px var(--line)" } as object,
   item: { flexDirection: "row", columnGap: 8, paddingVertical: 9 },
   itemRule: { borderTopWidth: 1, borderTopColor: "var(--line)" as string },

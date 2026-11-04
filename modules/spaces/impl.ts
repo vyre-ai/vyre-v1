@@ -4,18 +4,12 @@ import type { Ctx } from "../../packages/contracts/src/ctx.ts";
 import type { SeamSetters } from "../../host/src/seams/index.ts";
 import { handlers as base } from "./handlers/index.ts";
 import { configureSpaceAdmin, extraHandlers } from "./handlers/extra/index.ts";
-import { SCHEMA, deleteDue } from "./handlers/extra/core.ts";
-import type { ExtraCtx } from "./handlers/extra/core.ts";
+import { SCHEMA } from "./handlers/extra/core.ts";
 import { STEP_EVENTS, completeStep } from "./projections.ts";
 
 export const handlers = { ...base, ...extraHandlers };
 export { STEP_EVENTS, completeStep as autoComplete };
 export const projections = {};
-
-/** Every minute: a Space whose deletion date has passed is removed and marked deleted. Before the date, and with nothing scheduled, it does nothing. */
-export const periodic = {
-  "spaces.delete_due": { everyMs: 60_000, run: async (ctx: ExtraCtx): Promise<string[]> => { await deleteDue(ctx, {}); return []; } },
-};
 export const codecs = {};
 export const hostSeams: SeamSetters = { configureSpaceAdmin };
 

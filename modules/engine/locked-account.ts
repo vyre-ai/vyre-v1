@@ -18,8 +18,8 @@ export interface LockedDeps {
 }
 
 /** The chat's line when the Space AI key (or another shared account) answered for a person whose own account is closed. */
-export const LOCKED_SPACE_KEY_LINE = "Your sign-ins are locked on this server, so the Space AI key answered.";
-export const lockedLine = (to: ResolvedAccount): string => (to.spaceKey === true ? LOCKED_SPACE_KEY_LINE : "Your sign-ins are locked on this server, so another account answered.");
+export const LOCKED_SPACE_KEY_LINE = "Your own AI account opens when you sign in to this Space, so the Space AI key answered.";
+export const lockedLine = (to: ResolvedAccount): string => (to.spaceKey === true ? LOCKED_SPACE_KEY_LINE : "Your own AI account opens when you sign in to this Space, so another account answered.");
 
 const ENGINE = { claude_code: "Claude Code", codex: "Codex", grok: "Grok" } as const;
 /** The line when the person's own sign-in is the only way to run the picked model and the server does not hold it. */
@@ -50,7 +50,7 @@ export function skipLocked(d: LockedDeps): (q: AccountQuery) => Promise<Resolved
       if (d.postAs && !said.has(key)) {
         said.add(key);
         try {
-          await d.postAs(q.agentId, { actingFor: q.askerId, threadId: q.threadId, body: "", mentions: [], clientId: BRIDGE_PREFIX + mintId("b").slice(2), blocks: [{ type: "turn_status", v: 1, data: { state: "key_locked", text: lockedLine(next) } }] });
+          await d.postAs(q.agentId, { actingFor: q.askerId, threadId: q.threadId, body: "", mentions: [], clientId: BRIDGE_PREFIX + mintId("b").slice(2), blocks: [{ type: "turn_status", v: 1, data: { state: "note", text: lockedLine(next) } }] });
         } catch (e) { d.log?.("the account change could not be shown in the chat", { threadId: q.threadId, error: e instanceof Error ? e.message : String(e) }); }
       }
       d.log?.("the person's own account is closed on this server; another answered", { threadId: q.threadId, payer: first.payer, from: first.ref, to: next.ref });

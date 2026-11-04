@@ -5,8 +5,7 @@
 // Web mounts TipTap; the phone keeps a plain multiline field until a native editor exists (the same rule as the Notes editor).
 
 import { createElement, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { LiveBlockApi, LiveBlockAttrsLike, LiveBlockRenderer } from "./extensions.ts";
-import type { ReactElement, ReactNode } from "react";
+import type { ReactElement } from "react";
 import { Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions } from "react-native";
 import type { LayoutChangeEvent } from "react-native";
 import { MenuIcon, useMenu } from "../Menu/index.tsx";
@@ -25,11 +24,8 @@ export interface SuggestItem { id: string; label: string; detail?: string }
  * answers with the rows to show, and a pick writes `insert(item)` in place of the trigger and the query. Arrows move, Enter or Tab pick, Escape closes, a press picks.
  */
 export interface SuggestOptions {
-  /** "/" opens at the start of an empty line (the slash menu: the host lists what it can insert). */
-  trigger: "[[" | "@" | "/";
+  trigger: "[[" | "@";
   items: readonly SuggestItem[];
-  /** A pick that inserts a block rather than text: the node (ProseMirror JSON, see liveBlockNode) to put in place of the trigger. Null falls back to `insert`. */
-  insertNode?: (item: SuggestItem) => unknown;
   onQuery: (query: string | null) => void;
   /** The text a pick writes. Default: [[Label]] for [[, @Label and a space for @. */
   insert?: (item: SuggestItem) => string;
@@ -72,11 +68,6 @@ export interface MarkdownEditorProps {
   focusKey?: number;
   /** A menu at the caret for a trigger typed in the styled view. */
   suggest?: SuggestOptions;
-  /**
-   * How a live block (a `:::live {json}` line) is drawn: the host returns its own view for the block's attributes. `api.update` changes the block's type, spec or view; `api.remove` deletes it.
-   * Read mode with this prop keeps the live blocks drawn (the rest is the same styled page, not editable).
-   */
-  liveBlockView?: (attrs: LiveBlockAttrsLike, readOnly: boolean, api: LiveBlockApi) => ReactNode;
   /** Cmd or Ctrl with Enter (close the note). */
   onModEnter?: () => void;
   testID?: string;
@@ -210,8 +201,8 @@ function RawMarkdown(p: { value: string; onChange: (v: string) => void; editable
 }
 
 /** Where the text before the caret ends in a trigger: the query typed after it and how many characters the trigger and query take. "[[Bro" is `Bro`, 5; "hi @Sa" is `Sa`, 3; text with the trigger closed or far behind is null. */
-export function findTrigger(before: string, trigger: "[[" | "@" | "/"): { query: string; length: number } | null {
-  const m = trigger === "[[" ? /\[\[([^\]\n]*)$/.exec(before) : trigger === "/" ? /^\/([\p{L}\p{N} _-]*)$/u.exec(before) : /(?:^|\s)@([\p{L}\p{N}_.-]*)$/u.exec(before);
+export function findTrigger(before: string, trigger: "[[" | "@"): { query: string; length: number } | null {
+  const m = trigger === "[[" ? /\[\[([^\]\n]*)$/.exec(before) : /(?:^|\s)@([\p{L}\p{N}_.-]*)$/u.exec(before);
   if (!m) return null;
   const query = m[1] ?? "";
   return { query, length: trigger.length + query.length };
@@ -313,7 +304,7 @@ const rectOf = (e: unknown): { x: number; y: number } => {
 
 /** Read-only text is the chat's block renderer, so a note read and a reply read the same; editing is the editor. */
 export function MarkdownEditor(props: MarkdownEditorProps): ReactElement {
-  if (props.mode === "read" && props.liveBlockView === undefined) return <View testID={props.testID ?? "markdown-editor"} accessibilityLabel={props.label} style={props.bare === true ? undefined : st.page}><MarkdownText text={props.value} /></View>;
+  if (props.mode === "read") return <View testID={props.testID ?? "markdown-editor"} accessibilityLabel={props.label} style={props.bare === true ? undefined : st.page}><MarkdownText text={props.value} /></View>;
   return <MarkdownEditorEdit {...props} />;
 }
 
@@ -381,28 +372,14 @@ function MarkdownEditorEdit(props: MarkdownEditorProps): ReactElement {
     const ed = editorRef.current;
     if (!opt || !o || !ed) return;
     const to = ed.state.selection.from;
-    const node = opt.insertNode?.(item);
-    const text = opt.insert ? opt.insert(item) : opt.trigger === "[[" ? `[[${item.label}]]` : opt.trigger === "/" ? "" : `@${item.label} `;
-    (ed.chain().focus() as unknown as { insertContentAt(r: { from: number; to: number }, c: unknown): { run(): boolean } }).insertContentAt({ from: o.start, to }, node ?? text).run();
+    const text = opt.insert ? opt.insert(item) : opt.trigger === "[[" ? `[[${item.label}]]` : `@${item.label} `;
+    (ed.chain().focus() as unknown as { insertContentAt(r: { from: number; to: number }, c: string): { run(): boolean } }).insertContentAt({ from: o.start, to }, text).run();
   }, []);
   const openLink = useCallback(() => {
     const e = editorRef.current;
     if (!e) return;
     const href = (e as unknown as { getAttributes(n: string): { href?: string } }).getAttributes("link").href ?? "";
     setLinkAt(href);
-  }, []);
-
-  // Keys typed while the editor is still loading (it is imported on demand) land in this stand-in field, and are put into the editor the moment it exists, so nothing typed early is lost.
-  const shim = useRef<{ value: string; focus(): void } | null>(null);
-  useEffect(() => { if (web && view === "styled" && props.autoFocus === true) shim.current?.focus?.(); }, [view]);
-
-  // a live block's view is the host's React; it is drawn into the block's own element and kept current as the block changes
-  const domRoot = useRef<unknown>(null);
-  const renderLive = useCallback<LiveBlockRenderer>((el, attrs, readOnly, api) => {
-    const root = (domRoot.current as (e: HTMLElement) => { render(n: ReactNode): void; unmount(): void })(el);
-    const draw = (a: LiveBlockAttrsLike, ro: boolean): void => { root.render(cb.current.liveBlockView ? <>{cb.current.liveBlockView(a, ro, api)}</> : null); };
-    draw(attrs, readOnly);
-    return { update: draw, destroy: () => { setTimeout(() => root.unmount(), 0); } };
   }, []);
 
   // Web, styled: TipTap on the page's document.
@@ -413,12 +390,11 @@ function MarkdownEditorEdit(props: MarkdownEditorProps): ReactElement {
     void (async () => {
       const core = await import("@tiptap/core");
       const { markdownExtensions } = await import("./extensions.ts");
-      if (cb.current.liveBlockView) domRoot.current = (await import("react-dom/client")).createRoot;
       // a real element only: a test renderer hands back a stand-in with no DOM behind it
       if (gone || host.current === null || (host.current as { nodeType?: number }).nodeType !== 1) return;
       const e = new core.Editor({
         element: host.current as never,
-        extensions: markdownExtensions({ onLink: openLink, ...(cb.current.liveBlockView ? { liveBlock: renderLive } : {}) }),
+        extensions: markdownExtensions({ onLink: openLink }),
         content: markdownToDoc(last.current) as never,
         editable,
         editorProps: {
@@ -486,9 +462,7 @@ function MarkdownEditorEdit(props: MarkdownEditorProps): ReactElement {
       e.view.dom.setAttribute("data-empty", last.current.trim() === "" ? "true" : "false");
       made = e;
       setEditor(e);
-      const early = shim.current?.value ?? "";
-      if (cb.current.autoFocus || early !== "") e.commands.focus("end");
-      if (early !== "") e.commands.insertContent(early);
+      if (cb.current.autoFocus) e.commands.focus("end");
     })();
     return () => { gone = true; made?.destroy(); editorRef.current = null; setEditor(null); setBubble(null); };
     // eslint-disable-next-line
@@ -607,8 +581,7 @@ function MarkdownEditorEdit(props: MarkdownEditorProps): ReactElement {
     body = <RawMarkdown value={props.value} onChange={onRawChange} editable={editable} label={props.label} placeholder={placeholder} autoFocus={props.autoFocus === true} jump={props.jump ?? null} onNote={say} minHeight={minHeight}
       {...(props.onSave ? { onSave: props.onSave } : {})} {...(props.onModEnter ? { onModEnter: props.onModEnter } : {})} {...(props.focusKey ? { focusKey: props.focusKey } : {})} {...(props.onEscape ? { onEscape: props.onEscape } : {})} {...(props.onBlur ? { onBlur: props.onBlur } : {})} />;
   } else {
-    body = createElement("div", { ref: (el: unknown) => { host.current = el; }, "data-testid": "markdown-editor-host", style: { minHeight } },
-      editor === null ? createElement("textarea", { ref: (el: unknown) => { shim.current = el as never; }, "data-testid": "markdown-editor-early", "aria-label": props.label, placeholder, rows: 1, style: { width: "100%", border: 0, outline: "none", background: "transparent", resize: "none", font: "inherit", color: "inherit", padding: 0 } }) : null);
+    body = createElement("div", { ref: (el: unknown) => { host.current = el; }, "data-testid": "markdown-editor-host", style: { minHeight } });
   }
 
   return (

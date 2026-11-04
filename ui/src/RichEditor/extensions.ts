@@ -37,7 +37,7 @@ const Keeps = Extension.create({
   addGlobalAttributes() {
     const quiet = (v: unknown) => ({ default: v, rendered: false });
     return [
-      { types: ["paragraph", "heading", "bulletList", "orderedList", "taskList", "blockquote", "codeBlock", "horizontalRule", "rawBlock", "liveBlock"], attributes: { tight: quiet(false), blockId: { default: null, rendered: false, keepOnSplit: false } } },
+      { types: ["paragraph", "heading", "bulletList", "orderedList", "taskList", "blockquote", "codeBlock", "horizontalRule", "rawBlock"], attributes: { tight: quiet(false) } },
       { types: ["bulletList", "orderedList", "taskList"], attributes: { marker: quiet("-"), delim: quiet(".") } },
       { types: ["listItem", "taskItem"], attributes: { gap: quiet(false) } },
       { types: ["codeBlock"], attributes: { fence: quiet("```") } },
@@ -58,16 +58,7 @@ const Shortcuts = Extension.create({
   },
 });
 
-/** What a host's live block view is told and can do. `update` merges into the block's attributes (type, spec, view); `remove` deletes the block. */
-export interface LiveBlockApi { update(patch: { type?: string; spec?: unknown; view?: string }): void; remove(): void }
-export interface LiveBlockView { update(attrs: LiveBlockAttrsLike, readOnly: boolean): void; destroy(): void }
-export interface LiveBlockAttrsLike { blockId: string | null; type: string; spec: unknown; view: string }
-/** Draws a live block into `el` (the host renders its own view there) and says how to update and tear it down. */
-export type LiveBlockRenderer = (el: HTMLElement, attrs: LiveBlockAttrsLike, readOnly: boolean, api: LiveBlockApi) => LiveBlockView;
-
 export interface MarkdownExtensionOptions {
-  /** How a live block is drawn. Without it a live block shows its type and view as a quiet line. */
-  liveBlock?: LiveBlockRenderer;
   /** Cmd+K: the editor opens its link field. */
   onLink?: () => void;
 }
@@ -158,50 +149,7 @@ export const RawBlock = Node.create({
   renderHTML({ HTMLAttributes }) { return ["pre", mergeAttributes(HTMLAttributes, { class: "vyre-raw" }), ["code", 0]]; },
 });
 
-/** A live block: one line in the file (:::live {json}), an atom in the page. Only the host's view edits it. */
-export const LiveBlock = Node.create<{ render?: LiveBlockRenderer | undefined }>({
-  name: "liveBlock",
-  group: "block",
-  atom: true,
-  selectable: true,
-  draggable: true,
-  addOptions() { return {}; },
-  addAttributes() {
-    const keep = (d: unknown) => ({ default: d, rendered: false });
-    return { type: keep(""), spec: keep(null), view: keep(""), json: keep(""), extra: keep({}), sig: keep("") };
-  },
-  parseHTML() { return [{ tag: "div[data-live]" }]; },
-  renderHTML({ node }) { return ["div", { "data-live": String(node.attrs["type"]) }]; },
-  addNodeView() {
-    const render = this.options.render;
-    return ({ node, editor, getPos }) => {
-      const dom = document.createElement("div");
-      dom.setAttribute("data-live", String(node.attrs["type"]));
-      dom.setAttribute("contenteditable", "false");
-      dom.setAttribute("data-testid", "live-block");
-      const attrsOf = (n: typeof node): LiveBlockAttrsLike => ({ blockId: (n.attrs["blockId"] as string | null) ?? null, type: String(n.attrs["type"] ?? ""), spec: n.attrs["spec"], view: String(n.attrs["view"] ?? "") });
-      const api: LiveBlockApi = {
-        update: (patch) => { const at = typeof getPos === "function" ? getPos() : undefined; const cur = at === undefined ? null : editor.state.doc.nodeAt(at); if (at === undefined || cur === null) return; editor.view.dispatch(editor.state.tr.setNodeMarkup(at, undefined, { ...cur.attrs, ...patch })); },
-        remove: () => { const at = typeof getPos === "function" ? getPos() : undefined; const cur = at === undefined ? null : editor.state.doc.nodeAt(at); if (at === undefined || cur === null) return; editor.view.dispatch(editor.state.tr.delete(at, at + cur.nodeSize)); },
-      };
-      if (!render) {
-        dom.textContent = `${String(node.attrs["type"])} (${String(node.attrs["view"] || "list")})`;
-        return { dom, update: (n) => n.type === node.type };
-      }
-      let current = node;
-      const view = render(dom, attrsOf(node), !editor.isEditable, api);
-      return {
-        dom,
-        stopEvent: () => true,
-        ignoreMutation: () => true,
-        update: (n) => { if (n.type !== current.type) return false; current = n; view.update(attrsOf(n), !editor.isEditable); return true; },
-        destroy: () => view.destroy(),
-      };
-    };
-  },
-});
-
 /** The extension list the Markdown editor mounts. History stays on: this is a single-author editor; collaboration is the Notes editor's job. */
 export function markdownExtensions(options: MarkdownExtensionOptions = {}): Extensions {
-  return [Document, Paragraph, Text, HardBreak, Heading, Bold, Italic, Strike, Code, BulletList, OrderedList, ListItem, Blockquote, CodeBlock, Divider, History, Dropcursor, Gapcursor, Keeps, Shortcuts, Link.configure(options), TaskList, TaskItem, RawBlock, LiveBlock.configure({ render: options.liveBlock })];
+  return [Document, Paragraph, Text, HardBreak, Heading, Bold, Italic, Strike, Code, BulletList, OrderedList, ListItem, Blockquote, CodeBlock, Divider, History, Dropcursor, Gapcursor, Keeps, Shortcuts, Link.configure(options), TaskList, TaskItem, RawBlock];
 }

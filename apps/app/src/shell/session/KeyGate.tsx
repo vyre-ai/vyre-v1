@@ -5,15 +5,9 @@
 // retried, a forgotten password goes straight to recovery, and Sign out always leaves.
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ReactElement, ReactNode } from "react";
-import { View } from "react-native";
 import { isLoopbackUrl, keyDoor, keyStatusOnOwnNode, serverKeyState } from "../../../../../client/src/gateway/local-key.ts";
 import { keyIsKept, rehandKey } from "../../../../../client/src/gateway/key-keeper.ts";
-import { askVaultUnlock } from "./vault-gate.ts";
-import { OFFLINE_OWN, SESSION_OVER, WRONG_PASSWORD, noticeAfterBeat, passwordKeyState, remoteGateState, unlockWithPassword } from "./key-unlock.ts";
-import { dropKeyOnOwnNode } from "../../../../../client/src/gateway/local-key.ts";
-import { forgetKey } from "../../../../../client/src/gateway/key-keeper.ts";
-import { notices } from "../noticeslot/model.ts";
-import { registerLockControl } from "../noticeslot/lock-control.ts";
+import { OFFLINE_OWN, SESSION_OVER, WRONG_PASSWORD, passwordKeyState, remoteGateState, unlockWithPassword } from "./key-unlock.ts";
 export { hasPasswordKey, passwordKeyState, unlockWithPassword } from "./key-unlock.ts";
 import { Bar, Button, ErrorLine, Field, Group, JoinFrame, Links, Opening, Panel, Step, TextButton, Title, useHoldFirstFrame } from "../../join/kit.tsx";
 import { whenUsable } from "../../startup/marks.ts";
@@ -25,7 +19,7 @@ export const LOCK_WAIT_MS = 30_000;
 /** The app is mounted but not drawn yet: the first frame stays until the first place is usable. */
 function HoldUntilUsable(): null { useHoldFirstFrame(whenUsable); return null; }
 
-export function LockScreen({ name, onUnlock, onForgot, onSignOut, onSkip, notice, sub }: { name: string; onUnlock: (password: string) => Promise<void>; onForgot?: () => void; onSignOut?: () => void; /** a Space server: go on without unlocking; the Mine items stay closed */ onSkip?: () => void; /** one quiet line under the greeting: why the lock is back while Vyre was open */ sub?: string; /** a line to start with: the Space on this computer did not answer */ notice?: string }): ReactElement {
+export function LockScreen({ name, onUnlock, onForgot, onSignOut, onSkip, notice }: { name: string; onUnlock: (password: string) => Promise<void>; onForgot?: () => void; onSignOut?: () => void; /** a Space server: go on without unlocking; the Mine items stay closed */ onSkip?: () => void; /** a line to start with: the Space on this computer did not answer */ notice?: string }): ReactElement {
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(notice ?? "");
@@ -52,7 +46,7 @@ export function LockScreen({ name, onUnlock, onForgot, onSignOut, onSkip, notice
     <JoinFrame>
       <Panel hug below={<LockLinks {...(onForgot ? { onForgot } : {})} {...(onSignOut && !gone ? { onSignOut } : {})} {...(onSkip && !gone ? { onSkip } : {})} />} bar={<Bar cont={gone && onSignOut ? <Button label="Sign in" onPress={onSignOut} testID="lock-signout" /> : <Button label={busy ? "Unlocking" : "Unlock"} onPress={submit} busy={busy} disabled={password === "" || held} testID="lock-unlock" />} />}>
         <Step id="lock">
-          <Title title={name ? `Welcome back, ${name}` : "Welcome back"} {...(sub ? { sub } : {})} />
+          <Title title={name ? `Welcome back, ${name}` : "Welcome back"} />
           <Group>
             <Field label="Password" value={password} onChange={(v) => { setPassword(v); if (!held) setError(""); }} secure autoFocus onSubmit={submit} disabled={busy} testID="lock-password" autoComplete="current-password" error={!!error && !held} visibilityTestID="lock-password-visibility" />
           </Group>
@@ -124,48 +118,6 @@ export function KeyGate({ baseUrl, token, name, onSignOut, onForgot, children }:
     }).then((next) => { if (live) setState(next); }, () => { if (live) setState("open"); });
     return () => { live = false; };
   }, [remote, baseUrl, token]);
-  // Locked while Vyre is open (the server restarted and lost the key, or the person pressed Lock): the notice is in the top bar until they unlock. There is nothing to dismiss.
-  const [midLocked, setMidLocked] = useState(false);
-  const lockedRef = useRef(false);
-  lockedRef.current = midLocked;
-  useEffect(() => {
-    if (!remote || state !== "open") return undefined;
-    let live = true;
-    const timer = setInterval(() => {
-      if (lockedRef.current) return;   // the person locked it, or it already says so: a beat never unlocks it
-      void remoteGateState({
-        kept: keyIsKept, rehand: () => rehandKey(baseUrl, token),
-        serverHolds: async () => { const k = await serverKeyState(baseUrl, token); return k === null ? null : k.held; },
-        passwordKey: () => passwordKeyState(baseUrl, token),
-      }).then((now) => { if (live && noticeAfterBeat(now) === "show") setMidLocked(true); }, () => undefined);
-    }, 30_000);
-    return () => { live = false; clearInterval(timer); };
-  }, [remote, state, baseUrl, token]);
-  const forgot = onForgot ?? onSignOut;
-  const unlockHere = (): void => {
-    void askVaultUnlock((password) => unlockWithPassword(baseUrl, token, password), { title: "Unlock your sign-ins", sub: SHEET_LINE, ...(forgot ? { forgot } : {}) }).then((ok) => { if (ok) setMidLocked(false); });
-  };
-  const unlockRef = useRef(unlockHere);
-  unlockRef.current = unlockHere;
-  // Lock Vyre (Cmd-L): the key leaves this app's memory and the server forgets it for this person in this Space, so their Mine sign-ins and items lock everywhere
-  const lockNow = async (): Promise<void> => {
-    forgetKey();
-    try { await dropKeyOnOwnNode(baseUrl, token); } catch { /* the app's copy is gone; a server that did not answer forgets it when the person's sessions end */ }
-    setMidLocked(true);
-  };
-  const lockRef = useRef(lockNow);
-  lockRef.current = lockNow;
-  const door = own || remote;
-  useEffect(() => {
-    if (!door) return undefined;
-    registerLockControl({ locked: () => lockedRef.current, lock: () => lockRef.current(), unlock: () => unlockRef.current() });
-    return () => registerLockControl(null);
-  }, [door]);
-  useEffect(() => {
-    if (midLocked) notices.raise({ id: "locked", kind: "locked", text: NOTICE_LINE, action: { label: "Unlock", run: () => unlockRef.current() } });
-    else notices.resolve("locked");
-    return () => notices.resolve("locked");
-  }, [midLocked]);
   // while the app is open: a daemon that lost the key (a restart) gets it back from this app's memory, silently
   useEffect(() => {
     if (!own || state !== "open") return undefined;
@@ -175,17 +127,8 @@ export function KeyGate({ baseUrl, token, name, onSignOut, onForgot, children }:
   if (state === "checking") return <Opening testID="lock-checking" />;
   if (state === "nopassword") return <NoPasswordKey onContinue={() => setState("open")} {...(onSignOut ? { onSignOut } : {})} />;
   if (state === "locked" || state === "offline") {
-    return <LockScreen name={name} {...(forgot ? { onForgot: forgot } : {})} {...(onSignOut ? { onSignOut } : {})} {...(remote ? { onSkip: () => { setMidLocked(true); setState("open"); } } : {})} {...(state === "offline" ? { notice: OFFLINE_OWN } : {})} onUnlock={async (password) => { await unlockWithPassword(baseUrl, token, password); if (alive.current) setState("open"); }} />;
+    const forgot = onForgot ?? onSignOut;
+    return <LockScreen name={name} {...(forgot ? { onForgot: forgot } : {})} {...(onSignOut ? { onSignOut } : {})} {...(remote ? { onSkip: () => setState("open") } : {})} {...(state === "offline" ? { notice: OFFLINE_OWN } : {})} onUnlock={async (password) => { await unlockWithPassword(baseUrl, token, password); if (alive.current) setState("open"); }} />;
   }
-  // the app stays on screen while it works: a locked key is a quiet notice in the top bar (shell/noticeslot), Unlock opens the small sheet over whatever is open
-  return (
-    <View style={{ flex: 1 }}>
-      <HoldUntilUsable />
-      <View style={{ flex: 1 }}>{children}</View>
-    </View>
-  );
+  return <><HoldUntilUsable />{children}</>;
 }
-
-/** The notice in the top bar while the sign-ins are locked (no dismiss: it goes when they are unlocked), and the line of the sheet Unlock opens. */
-export const NOTICE_LINE = "Sign-ins locked";
-export const SHEET_LINE = "Your password unlocks your sign-ins on this server.";

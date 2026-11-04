@@ -209,7 +209,7 @@ export async function usageQuery(ctx: EngineCtx, input: { by: UsageBy; from?: nu
           // agents.get answers only for an agent the asker may see: a person's own private agent is not named here, not even through the principal directory
           let a: { name?: string; face?: string } | undefined;
           try { a = ((await ctx.call("agents.get", { agentId: row.key })) as { agent?: { name?: string; face?: string } } | null)?.agent; } catch { a = undefined; }
-          if (a?.name) { row.title = a.name; if (a.face) row.face = a.face; } else if (row.key.startsWith("agt_")) hidden.add(row.key);   // only an agent the asker may not see is folded: "step" (an automation's AI step) is not an agent
+          if (a?.name) { row.title = a.name; if (a.face) row.face = a.face; } else hidden.add(row.key);
         } else {
           const p = (await ctx.call("access.principals.get", { principal: { kind: "person", id: row.key } })) as { principal?: { name?: string } } | null;
           if (p?.principal?.name) row.title = p.principal.name;
@@ -308,7 +308,7 @@ export async function recordUsage(
   const hit = firstHit(ctx, turn, at);
   if (!hit) return {};
   // Stop the turn that crossed the line, then tell the person who pays. The card is one per scope, limit and period.
-  await engine.stop(turn.threadId, { agentId: turn.agentId, reason: "limit" });
+  await engine.stop(turn.threadId, { agentId: turn.agentId });
   const taskId = await limitCard(ctx, hit, { agentId: turn.agentId, threadId: turn.threadId, asker: turn.asker }, at);
   ctx.emit("agent.limit_hit", turn.agentId, {
     agentId: turn.agentId, threadId: turn.threadId, turnId: turn.id, limit: hit.limit, used: hit.used, cap: hit.cap, ...(taskId === undefined ? {} : { taskId }),

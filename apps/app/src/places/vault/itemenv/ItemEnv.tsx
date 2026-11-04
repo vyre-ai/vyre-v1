@@ -46,8 +46,6 @@ export interface ItemEnvProps {
   onBack?: (() => void) | undefined;
   /** Bumps when the Delete key is pressed in the list: asks to move this item to Trash. */
   askDelete?: number | undefined;
-  /** Bumps when the row menu says Reveal Values: every field is revealed, as the logged vault.item.reveal call does. */
-  revealAll?: number | undefined;
   /** The view the card opens in; by default .env for keys and Fields for logins and cards. The parent keys this component by item, so a new item starts fresh. */
   initialMode?: "env" | "fields" | undefined;
 }
@@ -60,7 +58,7 @@ export function useRevealStore(itemId: string): RevealStore {
   return store;
 }
 
-export function ItemEnv({ itemId, onEdit, onAddField, onGone, onNote, onBack, askDelete, revealAll, initialMode }: ItemEnvProps): ReactElement {
+export function ItemEnv({ itemId, onEdit, onAddField, onGone, onNote, onBack, askDelete, initialMode }: ItemEnvProps): ReactElement {
   const data = useVaultData();
   const online = useOnline();
   const names = usePrincipals();
@@ -90,8 +88,6 @@ export function ItemEnv({ itemId, onEdit, onAddField, onGone, onNote, onBack, as
     return () => { live = false; };
   }, [data, itemId, sharesAt]);
   useEffect(() => { if (askDelete) setConfirmDelete(true); }, [askDelete]);
-  const fieldKeys = got.status === "ready" ? got.data.fields.map((f) => f.key) : [];
-  useEffect(() => { if (revealAll && fieldKeys.length > 0) void store.reveal(fieldKeys); }, [revealAll, fieldKeys.length]);   // eslint-disable-line react-hooks/exhaustive-deps
 
   if (got.status !== "ready") return <DetailSkeleton />;
   const item = got.data.item;

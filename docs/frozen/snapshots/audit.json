@@ -1,15 +1,15 @@
 {
   "module": "audit",
   "capabilities": {
-    "audit.append@1": "7a00bde84fe9dab20a7edcc974e7675984adba319c97dd616712e28ad1287ff2",
+    "audit.append@1": "9bcd9f7861bcddcf0fa77454ff9d944864ea1ee5c698c842bea49dc987832b88",
     "audit.archive@1": "6722d438f02a67e86b20f46d73921977cd738592172a55aeb2b391c22cab85e6",
     "audit.archives.list@1": "095fa7153cf1789eb05922180624808be79d96ff7eb654add68a98f748839557",
     "audit.chain_health@1": "7513203bbaeda2d48c308c52f4832c43fc6c831aa0f5843a3842701dba20240c",
     "audit.checkpoint@1": "82c4e83de164c5045690826e76f7e7dead52e16acc3dd14b402ff38718ee4a31",
     "audit.checkpoints.list@1": "aeb6f8ecba5f868d0133a3aee5fa801a6e9a2d27dd7545f475e1db9d262d8a3c",
-    "audit.export@1": "395efee7d2b87cf8058e264026657c6ec9860c4f7a258c5ce064b697eef93eaa",
-    "audit.get@1": "55fed6a68baef53be4b6351db0936e4722c5353580ec50c7af799bba0b828e58",
-    "audit.list@1": "82a015601b3739513b0680c63c023991e50ec26aa46061f850bf00ca3f0fe63b",
+    "audit.export@1": "6209089285eb922b0adc891f77594177cd2bf3cd852a3efba16e133ac40adb4a",
+    "audit.get@1": "ea97486167279f4474470603fd4dc9aa04490f4ddbfb8b9c87c406c5ee4a926a",
+    "audit.list@1": "1c2e5708fafaaa7ab0f2c35ec593d471a2f998d2e4ed144c8b44f19d9e464339",
     "audit.verify@1": "4a7a3902e5dca8ff7fb736c66e8357e6ffaa8ebdef4f632619f5fba8ac980b7d"
   },
   "events": {

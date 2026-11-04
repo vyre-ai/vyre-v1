@@ -1,6 +1,6 @@
 # chat.question.ask
 
-Ask the person a structured question (single, multi or free text); the turn parks until it is answered and makes no further model call; a question of fewer than three words, or only a test, is refused
+Ask the person a structured question (single, multi or free text); the turn parks until it is answered
 
 | | |
 |---|---|

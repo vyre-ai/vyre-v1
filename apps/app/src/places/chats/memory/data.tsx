@@ -26,8 +26,6 @@ export interface ChatMemoryData {
   now(): number;
   me: { id: string; name: string };
   nameOf(id: string): string;
-  /** A time as the message header writes it (the person's clock): the chat gives it, so a citation and its message read the same. */
-  time?(at: number): string;
   nav: ChatMemoryNav;
   /** Opens the right pane on the Knows tab (the shell opens the pane if it is closed). Absent where the chat has no pane. */
   showKnows?(): void;

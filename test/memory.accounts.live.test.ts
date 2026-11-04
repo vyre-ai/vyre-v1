@@ -124,34 +124,33 @@ test("accounts live: the chat key, then the agent's ordered fallbacks in order, 
     const defaults = await call(d, "engine.defaults.set", { fallback: [{ provider: "anthropic", model: "claude-haiku-5-5", accountRef: k["E"] }] });
     assert.equal(defaults.status, 200, JSON.stringify(defaults.data));
 
-    // (a test message is small talk, so no chat title is made and no second call opens an account: modules/chat/handlers/title.ts)
     // the chat key serves while it works
-    assert.equal(await reply(d, agentId, "test 1", "ac1"), `served by ${k["A"]}`);
+    assert.equal(await reply(d, agentId, "hello one", "ac1"), `served by ${k["A"]}`);
     assert.deepEqual(opened, [k["A"]]);
 
     // the chat key is refused: the first fallback in the list serves, not the first one connected
     opened.length = 0;
     refused.add(k["A"]!);
-    assert.equal(await reply(d, agentId, "test 2", "ac2"), `served by ${k["C"]}`);
+    assert.equal(await reply(d, agentId, "hello two", "ac2"), `served by ${k["C"]}`);
     assert.deepEqual(opened, [k["A"], k["C"]], "chat key, then fallback 1");
 
     // fallback 1 is refused too: fallback 2, then fallback 3, in the order they were listed
     opened.length = 0;
     refused.add(k["C"]!);
     refused.add(k["B"]!);
-    assert.equal(await reply(d, agentId, "test 3", "ac3"), `served by ${k["D"]}`);
+    assert.equal(await reply(d, agentId, "hello three", "ac3"), `served by ${k["D"]}`);
     assert.deepEqual(opened, [k["A"], k["C"], k["B"], k["D"]], "the list order, not the order the keys were added");
 
     // the whole list is refused: the Space backup serves
     opened.length = 0;
     refused.add(k["D"]!);
-    assert.equal(await reply(d, agentId, "test 4", "ac4"), `served by ${k["E"]}`);
+    assert.equal(await reply(d, agentId, "hello four", "ac4"), `served by ${k["E"]}`);
     assert.deepEqual(opened, [k["A"], k["C"], k["B"], k["D"], k["E"]], "agent list first, then the Space backups");
 
     // nothing is left: no reply, the turn fails with the last refusal
     opened.length = 0;
     refused.add(k["E"]!);
-    assert.equal(await reply(d, agentId, "test 5", "ac5", "none"), null);
+    assert.equal(await reply(d, agentId, "hello five", "ac5", "none"), null);
     assert.deepEqual(opened, [k["A"], k["C"], k["B"], k["D"], k["E"]]);
     assert.match(hostLog(d), /rate_limited/);
   } finally { await d.stop(); }

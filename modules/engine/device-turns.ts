@@ -114,7 +114,6 @@ export function handoverSession(first: EngineSession, d: HandoverDeps): EngineSe
     async cancel() { stop.abort(); await cur.cancel(); },
     async close() { closed = true; stop.abort(); await cur.close(); },
     get warm() { return cur.warm; },
-    get model() { return (cur as { model?: string }).model; },
     ...(first.providerLatencyMs !== undefined ? { providerLatencyMs: first.providerLatencyMs } : {}),
   };
 }

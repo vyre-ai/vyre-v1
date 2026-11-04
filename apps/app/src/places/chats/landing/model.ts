@@ -14,8 +14,7 @@ export interface WithEntry { id: string; name: string; kind: "agent" | "assistan
 
 /** What chat.start takes for the people and agents picked in With. Nobody picked is the Assistant: a new chat always has someone to answer. */
 export function startInput(picked: readonly WithEntry[], assistantId: string): { agentIds: string[]; personId?: string } {
-  // the Assistant picked before it existed carries the placeholder id: it is the real one now
-  const agentIds = picked.filter((w) => w.kind !== "person").map((w) => (w.kind === "assistant" ? assistantId : w.id));
+  const agentIds = picked.filter((w) => w.kind !== "person").map((w) => w.id);
   const person = picked.find((w) => w.kind === "person");
   if (agentIds.length === 0 && person === undefined) return { agentIds: [assistantId] };
   return { agentIds, ...(person ? { personId: person.id } : {}) };
@@ -35,9 +34,6 @@ export async function realAssistant(id: string, call: (cap: string, input: unkno
   }
   return null;
 }
-
-/** What the composer says when the first message could not start a chat: plain words, the draft stays. */
-export const startFailure = (e: unknown): string => (e instanceof Error && e.message === "no assistant yet" ? "Your Assistant is not ready yet. Try again in a moment." : "Could not start the chat.");
 
 export const moreLine = (total: number, shown: number): string | null => (total > shown ? `${total - shown} more in Tasks` : null);
 

@@ -37,7 +37,7 @@ export const periodic = {
 /** Ingest from the host: one machine's report, as it came over its socket. Never a capability: a session cannot reach it, and a report that does not parse is dropped. */
 export const hostCalls = {
   /** A turn started or ended on a machine: who has room may have changed. */
-  "machines.sync": (ctx: MachinesCtx): Promise<{ filled: string[]; freed: string[] }> => tellRoom(ctx),
+  "machines.sync": (ctx: MachinesCtx): { filled: string[]; freed: string[] } => tellRoom(ctx),
   "machines.ingest": (ctx: MachinesCtx, input: { machineId: string; kind: Kind; name: string; ownerId?: string; latencyMs?: number; report: unknown }): { ok: boolean } => {
     if (!/^(space|srv_[a-z0-9]{1,64}|device:[A-Za-z0-9_]{1,64})$/.test(input.machineId) || !["server", "computer", "space"].includes(input.kind)) return { ok: false };
     const report: Report | null = parseReport(input.report);

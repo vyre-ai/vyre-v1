@@ -54,7 +54,6 @@ type Out = {
       folderId: string;
       model?: string;
       fallbackModel?: string;
-      helperModels?: "same_provider" | "any" | "ask";
       accountPolicy: "asker" | "key";
       accountKey?: string;
       accountFallback: Array<string>;
@@ -125,7 +124,6 @@ type Out = {
         "fallbackModel": "example",
         "folderId": "fld_a1b2c3",
         "hasComputer": true,
-        "helperModels": "same_provider",
         "kind": "assistant",
         "lastActiveAt": 1760000000000,
         "limits": {

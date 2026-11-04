@@ -136,9 +136,9 @@ test("Basic and Advanced write one typed value, and the other section 17 models 
   assert.equal(lineageLines(undefined, [{ attempt: 2 }], []), null);
   const lines = lineageLines("run_parent", [{ attempt: 1 }], [{ runId: "run_child", attempt: 2 }]);
   assert.deepEqual(lines, {
-    parent: "Retry of an earlier run",
+    parent: "Parent run_parent",
     attempt: "Attempt 2",
-    children: [{ id: "run_child", text: "Side run, attempt 2" }],
+    children: [{ id: "run_child", text: "Child run_child, attempt 2" }],
   });
   assert.equal(JSON.stringify(lineageLines(undefined, [], []) ?? {}).includes("No parent"), false);
   assert.equal(JSON.stringify(lineageLines(undefined, [], []) ?? {}).includes("No child"), false);
@@ -222,8 +222,8 @@ test("section 17 controls render in light, dark, desktop, and compact", () => {
       assert.ok(has(out, "Fix this mapping. node missing is not in this Automation."));
       assert.ok(has(out, "Use output from test"));
       assert.equal(has(out, 'data-testid="problem-go"'), false);
-      assert.ok(has(out, "Retry of an earlier run"));
-      assert.ok(has(out, "Side run, attempt 2"));
+      assert.ok(has(out, "Parent run_parent"));
+      assert.ok(has(out, "Child run_child, attempt 2"));
       assert.ok(has(out, "Attempt 2"));
       assert.equal(has(out, 'data-testid="lineage-empty"'), false);
       assert.ok(has(out, "Safe group, version 12, pinned"));

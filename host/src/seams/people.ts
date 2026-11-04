@@ -16,7 +16,6 @@ import {DEFAULT_SIGN_IN_POLICY,parseSignInPolicy} from "../../../lib/sign-in-pol
 import { pinIssuer } from "../../../lib/oidc-issuer.ts";
 import type { AccessSnapshot } from "../../../kernel/src/authorize/snapshot.ts";
 import type { Keyring } from "./keyring.ts";
-import type { GithubTickets } from "./github-tickets.ts";
 import type { KeyWraps } from "./key-wraps.ts";
 import type { SsoTickets } from "../routes/sso-signin.ts";
 import type { SsoProvider } from "./oidc.ts";
@@ -30,8 +29,6 @@ export interface PeopleDeps {
   call(name: string, input: unknown, as?: { principal: { kind: "person" | "agent" | "service"; id: string } }): Promise<unknown>;
   /** GitHub sign-in; omitted: identity answers that it is not set up on this server */
   github?: GithubOAuth | null | (() => GithubOAuth | null);
-  /** what connecting GitHub and signing in with GitHub hand each other (seams/github-tickets.ts) */
-  githubTickets?: GithubTickets;
   /** the GitHub app an admin sets in the app (members.sign_in_github.*): the host writes the secret to the Vault as that admin and reloads what sign-in uses */
   githubApp?: {
     envClientId(): string | null;
@@ -63,27 +60,18 @@ export function githubOAuthFromEnv(env: NodeJS.ProcessEnv): GithubOAuth | null {
 }
 
 /** Trade a sign-in code for who it belongs to: the code goes to GitHub with the app's secret, the token that comes back is used once to read the user, then dropped. */
-export function createGithub(o: GithubOAuth, tickets?: GithubTickets, adopt?: (githubId: string, person: string) => Promise<unknown>): {
-  resolve(code: string): Promise<{ id: string; login: string }>; redeem?(ticket: string): { id: string; login: string } | null; signedIn?(githubId: string, person: string): Promise<void>;
-} {
+export function createGithub(o: GithubOAuth): { resolve(code: string): Promise<{ id: string; login: string }> } {
   const f = o.fetch ?? globalThis.fetch;
   return {
-    ...(tickets ? { redeem: (ticket: string) => tickets.takeLink(ticket) } : {}),
-    // a sign-in finished for this person: tokens GitHub gave with it (an app with expiring tokens) connect their GitHub too. Best effort: the sign-in never waits on it or fails by it.
-    ...(tickets && adopt ? { async signedIn(githubId: string, person: string) { try { await adopt(githubId, person); } catch { /* the sign-in stands */ } } } : {}),
     async resolve(code) {
       const t = await f(o.tokenUrl ?? "https://github.com/login/oauth/access_token", {
         method: "POST", headers: { accept: "application/json", "content-type": "application/json" }, body: JSON.stringify({ client_id: o.clientId, client_secret: o.clientSecret, code }), redirect: "error",
       });
-      const tj = (await t.json()) as { access_token?: unknown; refresh_token?: unknown; expires_in?: unknown };
-      const token = tj.access_token;
+      const token = ((await t.json()) as { access_token?: unknown }).access_token;
       if (typeof token !== "string" || token === "") throw new Error("GitHub did not accept the code");
       const u = await f(o.userUrl ?? "https://api.github.com/user", { headers: { authorization: `Bearer ${token}`, accept: "application/vnd.github+json", "user-agent": "vyre-server" }, redirect: "error" });
       const user = (await u.json()) as { id?: unknown; login?: unknown };
       if ((typeof user.id !== "number" && typeof user.id !== "string") || typeof user.login !== "string") throw new Error("GitHub did not say who this is");
-      if (tickets && typeof tj.refresh_token === "string" && tj.refresh_token) {
-        tickets.holdPending({ id: String(user.id), login: user.login }, { accessToken: token, refreshToken: tj.refresh_token, expiresAt: Date.now() + (typeof tj.expires_in === "number" ? tj.expires_in : 28_800) * 1000 });
-      }
       return { id: String(user.id), login: user.login };
     },
   };
@@ -321,6 +309,6 @@ export function createPeopleExtras(d: PeopleDeps): (module: string, ctx: { devic
     if (module !== "identity") return base;
     // GitHub sign-in is read per call: the app an admin saves takes effect without a restart
     const gh = githubNow();
-    return { ...base, ...(gh ? { github: createGithub(gh, d.githubTickets, (githubId, person) => d.call("github.adopt_sign_in", { githubId, person })) } : {}), ...(ctx.device ? { session: { deviceId: ctx.device } } : {}) };
+    return { ...base, ...(gh ? { github: createGithub(gh) } : {}), ...(ctx.device ? { session: { deviceId: ctx.device } } : {}) };
   };
 }

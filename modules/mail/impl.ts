@@ -88,7 +88,7 @@ export interface LiveImapDeps {
   loadImapflow(): Promise<FlowCtor>;
   parseMail(source: Uint8Array): Promise<ParsedMail>;
   /** The Vault password for a handle. The host injects the value at the last moment; module code never stores it. */
-  secret(handle: string, ctx: MailCtx, asker?: string): Promise<string>;
+  secret(handle: string, ctx: MailCtx): Promise<string>;
 }
 
 let secretResolver: LiveImapDeps["secret"] | null = null;
@@ -100,23 +100,7 @@ export function setImapSecretResolver(fn: LiveImapDeps["secret"] | null): void {
 /** The default secret source: the resolver the host registered, else a refusal the owner sees as a failed sign-in. */
 export async function vaultSecret(handle: string, ctx: MailCtx): Promise<string> {
   if (!secretResolver) throw fail("provider.auth_failed", ctx.trace.traceId, { message: "The vault did not release the mailbox password." });
-  return secretResolver(handle, ctx, askerFor(ctx, handle));
-}
-
-/**
- * Whose Vault the password is read from. A mailbox password a person saves lives in their own Mine, which only they can open: the asker is the person making the call, or, for a sync that runs
- * as the host, the person who owns the mailbox using this handle. With no asker the Vault answers only for Shared items, and a Mine password reads as missing.
- */
-function askerFor(ctx: MailCtx, handle: string): string | undefined {
-  if (ctx.principal.kind === "person") return ctx.principal.id;
-  try {
-    const imap = ctx.db.all(`SELECT "mailboxId" FROM mail_imap WHERE "passwordHandle" = ?`, handle) as Array<Record<string, unknown>>;
-    for (const r of imap) {
-      const box = (ctx.db.all(`SELECT "ownerId" FROM mail_mailbox WHERE id = ? AND "deleted_at" IS NULL`, r["mailboxId"]) as Array<Record<string, unknown>>)[0];
-      if (typeof box?.["ownerId"] === "string") return box["ownerId"];
-    }
-  } catch { /* no such table yet: no asker */ }
-  return undefined;
+  return secretResolver(handle, ctx);
 }
 
 const defaultDeps: LiveImapDeps = {

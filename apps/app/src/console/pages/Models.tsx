@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { ReactElement } from "react";
-import { View } from "react-native";
+import { Text, View } from "react-native";
 import type { CapMap } from "../../../../../generated/types.ts";
 import { Row } from "../../../../../ui/src/Row/index.tsx";
 import { Group, Section } from "../shell/ui.tsx";
@@ -13,6 +13,7 @@ import { SpaceKey } from "./SpaceKey.tsx";
 type Policy = CapMap["engine.policy.get"]["out"];
 type Providers = CapMap["engine.providers.list"]["out"];
 type ModelsOut = CapMap["engine.models.list"]["out"];
+const LABELS = ["public", "internal", "confidential", "restricted"] as const;
 const toggle = (values: readonly string[], key: string): string[] => values.includes(key) ? values.filter((value) => value !== key) : [...values, key];
 
 export function Models(): ReactElement {
@@ -45,6 +46,7 @@ function ModelsEditor({ policy, providers, models, refresh }: { policy: Policy; 
   const q = search.trim().toLowerCase();
   return <View testID="console-models">
     <SpaceKey />
+    <Section title="Accounts"><Group><Choice label="Accounts agents may use" value={current.allowedAccounts} options={[{ key: "any", title: "Company and personal accounts" }, { key: "company", title: "Company accounts only" }]} onChange={(value) => patch({ allowedAccounts: value as Policy["allowedAccounts"] })} /></Group></Section>
     <Section title="Providers" right={<Button label="Open Vault" onPress={() => data.nav.openApp({ screen: "vault.layout" })} />}><Group>
       <Choice label="Allowed providers" value={providerMode} options={[{ key: "all", title: "All providers" }, { key: "selected", title: "Selected providers" }]} onChange={(value) => { setDraftProviderMode(value as "all" | "selected"); setPreview(null); }} />
       {providerIds.map((driver) => {
@@ -63,9 +65,18 @@ function ModelsEditor({ policy, providers, models, refresh }: { policy: Policy; 
         return <Row key={id} title={model?.title ?? id} note={model ? `${model.provider}${model.contextTokens ? ` · ${model.contextTokens.toLocaleString()} context tokens` : ""}` : "Not currently available"} onPress={change} trailing={<Tick label={`Allow ${model?.title ?? id}`} checked={modelMode === "all" || current.allowedModels.includes(id)} onChange={change} />} />;
       })}
     </Group></Section>
+    <Section title="Providers by sensitivity label"><Group>
+    {/* ui-rows-lint: not a list (sensitivity label fieldsets contain policy controls and nested provider rows) */}
+    {LABELS.map((label) => <View key={label} style={{ padding: 10 }}>
+      <Text style={{ fontWeight: "600", fontSize: 13, color: "var(--ink)" as string }}>{label[0]!.toUpperCase() + label.slice(1)}</Text>
+      <Choice label={`${label} provider rule`} value={current.labelProviders[label] === undefined ? "inherit" : "selected"} options={[{ key: "inherit", title: "Use Space provider policy" }, { key: "selected", title: "Only selected providers" }]} onChange={(value) => { const next = { ...current.labelProviders }; if (value === "inherit") delete next[label]; else next[label] ??= []; patch({ labelProviders: next }); }} />
+      {current.labelProviders[label] !== undefined ? providerIds.map((driver) => <Row key={driver} title={providers.find((item) => item.driver === driver)?.title ?? driver} onPress={() => patch({ labelProviders: { ...current.labelProviders, [label]: toggle(current.labelProviders[label] ?? [], driver) } })} trailing={<Tick label={`Allow ${driver} for ${label}`} checked={current.labelProviders[label]!.includes(driver)} onChange={() => patch({ labelProviders: { ...current.labelProviders, [label]: toggle(current.labelProviders[label] ?? [], driver) } })} />} />) : null}
+    </View>)}
+    </Group></Section>
     {error ? <Note>{error}</Note> : null}
     {preview ? <Section title="Review policy change"><Group>
       <Help>These rules apply to subsequent AI turns throughout this Space.</Help>
+      <Row title="Accounts" note={preview.allowedAccounts === "company" ? "Company accounts only" : "Company and personal accounts"} />
       <Row title="Providers" note={preview.allowedProviders?.length ? preview.allowedProviders.join(", ") : "All providers"} />
       <Row title="Models" note={preview.allowedModels?.length ? preview.allowedModels.join(", ") : "All models"} />
       <Actions><Button label="Back to editing" onPress={() => setPreview(null)} /><Button label="Apply policy" testID="models-policy-apply" disabled={action.busy} onPress={() => void action.run("engine.policy.set", preview, async () => {

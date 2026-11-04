@@ -19,13 +19,6 @@ const SECRET = "zebra";
 const person = (id: string) => ({ kind: "person", id });
 const chatOf = (...people: string[]) => ({ thread: { kind: "chat", starter: people[0], members: [...people.map(person), { kind: "agent", id: AGENT }] } });
 
-/** threads.get as the host answers it: a chat the caller can open answers with its own threadId; any other is refused (a place is not readable through some other chat). */
-const threadsById = (known: Record<string, unknown>) => (b: Record<string, unknown>): unknown => {
-  const t = known[String(b["threadId"])] as { thread?: Record<string, unknown> } | undefined;
-  if (!t) throw new Error("not found");
-  return { thread: { threadId: b["threadId"], ...t.thread } };
-};
-
 /** Dana's world: what she told the agent in her own chat, a personal note and a personal page, all mentioning the secret word; a recall of one fact in her own chat; one personal fact in Trash. */
 async function danasWorld(raw = openRaw()): Promise<{ raw: ReturnType<typeof openRaw>; factId: string; noteId: string; pageId: string }> {
   const dana = harness({ raw, respond: { "files.read": () => ({ text: `my ${SECRET} notes` }) } });
@@ -80,7 +73,6 @@ const INPUTS: Record<string, (w: { factId: string; noteId: string; pageId: strin
   "memory.questions.list": () => ({}),
   "memory.versions": (w) => ({ noteId: w.noteId }),
   "memory.profile.get": () => ({}),
-  "memory.place.list": () => ({ placeKind: "chat", placeId: "thr_dana", history: true }),
 };
 const NO_CONTENT: Record<string, string> = {
   "memory.keys.get": "which account pays for upkeep: no memory text",
@@ -154,17 +146,17 @@ test("what an agent learns in an invite-only channel is kept for that channel's 
   const out = await capture(capturing.ctx, { threadId: "thr_ch", reason: "closed" });
   assert.ok(out.merged >= 1, JSON.stringify(out));
   const ask = `the ${SECRET} merger closes in May`;
-  const lines = async (who: string, threadId: string, known: Record<string, unknown>): Promise<string> => {
-    const h = harness({ raw, principal: { kind: "person", id: who }, respond: { "agents.get": () => ({ agent: { folderId: "fld_intake" } }), "threads.get": threadsById(known), "channels.get": () => channelGet } });
+  const lines = async (who: string, threadId: string, respond: Record<string, (b: Record<string, unknown>) => unknown>): Promise<string> => {
+    const h = harness({ raw, principal: { kind: "person", id: who }, respond: { "agents.get": () => ({ agent: { folderId: "fld_intake" } }), ...respond } });
     return JSON.stringify(await pointer(h.ctx, { threadId, agentId: AGENT, text: ask }));
   };
   // in the channel itself, and in Maya's own chat with the agent (she is in the channel): it comes back
-  assert.match(await lines(MAYA, "thr_ch", { thr_ch: channel }), /merger/);
-  assert.match(await lines(MAYA, "thr_maya", { thr_maya: chatOf(MAYA), thr_ch: channel }), /merger/);
-  // Leo was never in the channel: he cannot open it, so not in his own chat with the agent
-  assert.doesNotMatch(await lines("usr_leo", "thr_leo", { thr_leo: chatOf("usr_leo") }), /merger/);
+  assert.match(await lines(MAYA, "thr_ch", { "threads.get": () => channel, "channels.get": () => channelGet }), /merger/);
+  assert.match(await lines(MAYA, "thr_maya", { "threads.get": () => chatOf(MAYA) }), /merger/);
+  // Leo was never in the channel: not in his own chat with the agent
+  assert.doesNotMatch(await lines("usr_leo", "thr_leo", { "threads.get": () => chatOf("usr_leo") }), /merger/);
   // nor in a chat of Maya's that Leo is in
-  assert.doesNotMatch(await lines(MAYA, "thr_mix", { thr_mix: chatOf(MAYA, "usr_leo"), thr_ch: channel }), /merger/);
+  assert.doesNotMatch(await lines(MAYA, "thr_mix", { "threads.get": () => chatOf(MAYA, "usr_leo") }), /merger/);
   // and an agent's own search outside any chat, for Leo, does not find it either
   const leo = harness({ raw, principal: { kind: "agent", id: AGENT }, actingFor: "usr_leo", respond: { "agents.get": () => ({ agent: { folderId: "fld_intake" } }) } });
   assert.doesNotMatch(JSON.stringify(await search(leo.ctx, { q: "merger", mode: "keyword" })), /merger/);
@@ -175,9 +167,9 @@ test("a fact an agent saves for its own memory from a mixed chat is kept for tha
   const h = agentInShared(raw, { respond: { "agents.get": () => ({ agent: { folderId: "fld_intake", captureMode: "auto", ownerId: DANA } }) } });
   const saved = await remember(h.ctx, { text: `Maya's ${SECRET} budget is tight`, layer: "agent", agentId: AGENT, threadId: "thr_shared" });
   assert.equal(saved.fact.layer, "agent");
-  const leo = harness({ raw, principal: { kind: "person", id: "usr_leo" }, respond: { "threads.get": threadsById({ thr_leo: chatOf("usr_leo") }), "agents.get": () => ({ agent: { folderId: "fld_intake" } }) } });
+  const leo = harness({ raw, principal: { kind: "person", id: "usr_leo" }, respond: { "threads.get": () => chatOf("usr_leo"), "agents.get": () => ({ agent: { folderId: "fld_intake" } }) } });
   assert.doesNotMatch(JSON.stringify(await pointer(leo.ctx, { threadId: "thr_leo", agentId: AGENT, text: `Maya ${SECRET} budget tight` })), /budget/);
-  const maya = harness({ raw, principal: { kind: "person", id: MAYA }, respond: { "threads.get": threadsById({ thr_maya: chatOf(MAYA), thr_shared: chatOf(DANA, MAYA) }), "agents.get": () => ({ agent: { folderId: "fld_intake" } }) } });
+  const maya = harness({ raw, principal: { kind: "person", id: MAYA }, respond: { "threads.get": () => chatOf(MAYA), "agents.get": () => ({ agent: { folderId: "fld_intake" } }) } });
   assert.match(JSON.stringify(await pointer(maya.ctx, { threadId: "thr_maya", agentId: AGENT, text: `Maya ${SECRET} budget tight` })), /budget/);
 });
 
@@ -209,7 +201,7 @@ test("D5: an agent learns from a private channel, and those facts stay with its 
   assert.ok((await capture(cap.ctx, { threadId: "thr_ch", reason: "idle" })).merged >= 1, "the agent learned it");
   const row = raw.all("SELECT layer, audience FROM memory_facts WHERE agent_id = ?", AGENT)[0] as { layer: string; audience: string };
   assert.equal(row.layer, "agent");
-  assert.deepEqual(JSON.parse(row.audience), { people: [DANA, MAYA], live: "thr_ch" }, "tagged with the channel's people and the place it is read against now");
+  assert.deepEqual(JSON.parse(row.audience), { people: [DANA, MAYA] }, "tagged with the channel's people");
   // every memory read an agent can make, as Dana's agent in a chat Leo is also in: none returns it
   const mixed = harness({ raw, principal: { kind: "agent", id: AGENT }, actingFor: DANA, respond: { "threads.get": () => chatOf(DANA, "usr_leo"), "agents.get": () => ({ agent: { folderId: "fld_intake" } }) } });
   (mixed.ctx as MemCtx & { thread?: string }).thread = "thr_mix";

@@ -5,9 +5,6 @@ import type { CapMap, HandlerCtx } from '../../types.ts';
 export type Handler<C extends keyof CapMap, X extends HandlerCtx = HandlerCtx> = (ctx: X, input: CapMap[C]['in']) => Promise<CapMap[C]['out']>;
 
 export type Handlers<X extends HandlerCtx = HandlerCtx> = {
-  "settings.contact.status": Handler<"settings.contact.status", X>;
-  "settings.contact.verify_confirm": Handler<"settings.contact.verify_confirm", X>;
-  "settings.contact.verify_start": Handler<"settings.contact.verify_start", X>;
   "settings.copy_profile": Handler<"settings.copy_profile", X>;
   "settings.copy_source": Handler<"settings.copy_source", X>;
   "settings.floor_set": Handler<"settings.floor_set", X>;

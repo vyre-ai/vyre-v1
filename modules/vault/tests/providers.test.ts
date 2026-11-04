@@ -332,18 +332,3 @@ test("signing in again to an account the person already has refreshes that item 
     assert.equal(h.everything().includes(NEW) || h.everything().includes(OLD), false, "no token in a row, event or answer");
   } finally { u.configureVault(null); h.cleanup(); }
 });
-
-test("providers.own_people counts the people on their own sign-ins and carries no account name or value", async () => {
-  const h = harness();
-  await p.add(h.ctx, { providerKey: "openai", connection: "api_key", scope: "mine", apiKey: SECRET, idempotencyKey: key() });
-  await p.add(h.ctx, { providerKey: "anthropic", connection: "api_key", scope: "mine", apiKey: `${SECRET}-2`, idempotencyKey: key() });
-  h.actAs("person", ROB);
-  await p.add(h.ctx, { providerKey: "openai", connection: "api_key", scope: "mine", apiKey: `${SECRET}-3`, idempotencyKey: key() });
-  const got = out(await p.ownPeople(h.ctx, {}));
-  assert.deepEqual(contractErrors("providers.own_people", "out", got), []);
-  const people = got.people as { personId: string; accounts: number }[];
-  assert.deepEqual(people.map((x) => x.accounts), [2, 1]);
-  assert.equal(people[1]!.personId, ROB);
-  assert.ok(!JSON.stringify(got).includes(SECRET) && !JSON.stringify(got).includes("openai"), "no value, no provider name");
-  h.cleanup();
-});
