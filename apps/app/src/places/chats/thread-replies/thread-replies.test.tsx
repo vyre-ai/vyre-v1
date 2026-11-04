@@ -261,6 +261,27 @@ test("while the agent writes its first reply the divider says who is writing, no
   assert.doesNotMatch(divider, /No replies yet/);
 });
 
+test("a finished thread has the same footer under the ask whether its pane is open or closed", async () => {
+  installDom(); widen(1280);
+  const row = threadRow({ replyCount: 3, lastMessageAt: at(9, 40), repliers: [{ kind: "agent", id: "agt_intake" }], preview: "Decision: book Thursday 14:00 and go with Harbor." });
+  const closed = channel();
+  closed.replica.put("threads", [row]);
+  const a = await mount(createRoot, <Conversation data={closed.data} />);
+  await flush();
+  const open = withThread();
+  open.replica.put("threads", [row]);
+  const b = await mount(createRoot, (
+    <>
+      <Conversation data={open.data} />
+      {side(open, false)}
+    </>
+  ));
+  await flush();
+  const one = textOf(find(a, "replies-c2")), two = textOf(find(b, "replies-c2"));
+  assert.match(one, /Done\s+\S\s+Decision: book Thursday/);
+  assert.equal(two, one, "one footer, one state, pane open or not");
+});
+
 test("a reply that was also sent to the chat carries the mark in the thread; one that was not does not", async () => {
   installDom(); widen(1280);
   const s = withThread();

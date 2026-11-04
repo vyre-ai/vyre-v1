@@ -119,7 +119,8 @@ export function ThreadFooter({ s, clock, nameOf, onOpen, mine = false, testID, t
 
 const st = StyleSheet.create({
   line: { flexDirection: "row", alignItems: "center", gap: 8, alignSelf: "flex-start", maxWidth: "100%", minWidth: 0, flexShrink: 1, marginTop: 6, paddingVertical: 4, paddingHorizontal: 6, marginLeft: -6, borderRadius: 8 },
-  mine: { alignSelf: "flex-end" },
+  // under your own ask: the bubble's column, right edge to right edge (the bubble is at most 85% wide)
+  mine: { alignSelf: "flex-end", maxWidth: "85%", marginLeft: 0, marginRight: -6 },
   over: { backgroundColor: "var(--hover)" as string },
   face: { flexShrink: 0 },
   doneText: { flexShrink: 1, minWidth: 0, fontSize: 13, color: "var(--ink-2)" as string },

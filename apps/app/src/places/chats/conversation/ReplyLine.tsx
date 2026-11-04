@@ -23,7 +23,7 @@ export function ReplyLine({ s, clock, nameOf, onOpen, mine = false, testID }: { 
 
 const st = StyleSheet.create({
   line: { flexDirection: "row", alignItems: "center", gap: 6, alignSelf: "flex-start", maxWidth: "100%", minWidth: 0, marginTop: 4, paddingVertical: 3, paddingHorizontal: 6, marginLeft: -6, borderRadius: 6 },
-  mine: { alignSelf: "flex-end", marginLeft: 0, marginRight: -6 },
+  mine: { alignSelf: "flex-end", maxWidth: "85%", marginLeft: 0, marginRight: -6 },
   over: { backgroundColor: "var(--hover)" as string },
   faces: { flexDirection: "row", gap: 2 },
   count: { fontSize: 12.5, color: "var(--accent)" as string, fontWeight: "500" },
