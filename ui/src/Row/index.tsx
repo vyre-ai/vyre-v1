@@ -4,7 +4,7 @@
 // Optional leading and trailing slots sit inside the Pressable, so the hover and selection paint stays whole-row (ruling 36): leading and trailing are centred to the text column.
 // Colours are skin tokens (CSS variables on web), so a skin switch repaints with no re-render.
 
-import { createElement, memo, useState } from "react";
+import { createContext, createElement, memo, useContext, useState } from "react";
 import type { ReactElement } from "react";
 import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import type { RowProps } from "./props.ts";
@@ -30,7 +30,7 @@ function ensureRowCss(): void {
   if (cssDone) return;
   const d = (globalThis as { document?: Parameters<typeof injectCss>[0] }).document;
   if (!d || !d.head) return;
-  injectCss(d, "vyre-ui-row", ".vyre-row:hover{background-color:var(--hover)}.vyre-row{outline-offset:-2px;cursor:pointer}");
+  injectCss(d, "vyre-ui-row", ".vyre-row:hover{background-color:var(--hover)}.vyre-row{outline-offset:-2px;cursor:pointer}.vyre-row .vyre-lock{opacity:0;margin-left:6px;font-size:11px}.vyre-row:hover .vyre-lock{opacity:.6}");
   cssDone = true;
 }
 ensureRowCss();
@@ -45,23 +45,29 @@ const TITLE_IN_LINE_S = { ...TITLE_S, flex: "none", maxWidth: "70%" } as const;
 const SUFFIX_S = { flex: "0 1 auto", minWidth: 0, color: "var(--ink-3)", fontSize: 12, lineHeight: "18px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } as const;
 const MARKS_S = { flex: "none", display: "flex", flexDirection: "row", alignItems: "center", gap: 4 } as const;
 const NOTE_S = { color: "var(--ink-3)", fontSize: 11.5, lineHeight: "16px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } as const;
-const NOTE2_S = { color: "var(--ink-3)", fontSize: 11.5, lineHeight: "16px", overflow: "hidden", display: "-webkit-box", WebkitBoxOrient: "vertical", WebkitLineClamp: 2 } as const;
+const NOTE2_S = { color: "var(--ink-3)", fontSize: 11.5, lineHeight: "16px", whiteSpace: "pre-line", overflow: "hidden", display: "-webkit-box", WebkitBoxOrient: "vertical", WebkitLineClamp: 2 } as const;
+
+const TITLE_WRAP_S = { color: "var(--ink)", fontSize: 13, lineHeight: "18px", overflow: "hidden", display: "-webkit-box", WebkitBoxOrient: "vertical", WebkitLineClamp: 2, overflowWrap: "anywhere" } as const;
+/** On a phone a title may run to two lines instead of one clipped one (the Console turns it on below 900 wide). The row grows with it, as it does for a taller trailing slot. */
+export const RowWrapContext = createContext(false);
 
 const h = createElement;
-function WebRow({ id, title, titleSuffix, titleMarks, noteLead, noteLeadTone = "accent", tall = false, emphasis = false, note, selected = false, hovered = false, accentLit = false, leading, trailing, onPress, domProps }: RowProps): ReactElement {
+function WebRow({ inert = false, hint, locked = false, id, title, titleSuffix, titleMarks, noteLead, noteLeadTone = "accent", tall = false, emphasis = false, note, selected = false, hovered = false, accentLit = false, leading, trailing, onPress, domProps }: RowProps): ReactElement {
   ensureRowCss();
   const filled = accentLit && hovered && !selected;
   const inkOn = filled ? { color: "var(--accent-ink)" } : null;
   const tid = (suffix: string): string | undefined => (id ? `row-${id}${suffix}` : undefined);
   const { style: extra, ...dom } = (domProps ?? {}) as { style?: Record<string, unknown> } & Record<string, unknown>;
-  const titleEl = h("span", { style: { ...(emphasis ? { ...TITLE_S, ...BOLD } : TITLE_S), ...inkOn } }, title);
+  const wrapTitle = useContext(RowWrapContext);
+  const titleBase = wrapTitle ? TITLE_WRAP_S : TITLE_S;
+  const titleEl = h("span", { style: { ...(emphasis ? { ...titleBase, ...BOLD } : titleBase), ...inkOn } }, title);
   return h(
     "div",
     {
       // a row nothing presses (no onPress, no list that handles it through domProps) is not a button: it is not announced or focused as one
-      ...(onPress || domProps !== undefined ? { role: "button", tabIndex: 0, "aria-selected": selected } : { role: "listitem" }), "aria-label": title, "data-testid": tid(""), className: "vyre-row",
-      style: { ...ROW_S, minHeight: rowHeight(note, tall), ...(onPress ? { cursor: "pointer" } : null), ...(selected ? SELECTED : filled ? HOVER_ACCENT : hovered ? HOVER : null), ...extra },
-      ...(onPress ? {
+      ...((onPress && !inert) || domProps !== undefined ? { role: "button", tabIndex: 0, "aria-selected": selected } : { role: "listitem" }), "aria-label": title, "data-testid": tid(""), className: inert ? "vyre-row-plain" : "vyre-row", ...(hint !== undefined ? { title: hint } : {}),
+      style: { ...ROW_S, minHeight: rowHeight(note, tall), ...(onPress && !inert ? { cursor: "pointer" } : inert ? { cursor: "default" } : null), ...(selected ? SELECTED : filled ? HOVER_ACCENT : hovered ? HOVER : null), ...extra },
+      ...(onPress && !inert ? {
         onClick: (e: unknown) => onPress(e as never),
         onKeyDown: (e: { key?: string; preventDefault?: () => void }) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault?.(); onPress(e as never); } },
       } : {}),
@@ -73,9 +79,10 @@ function WebRow({ id, title, titleSuffix, titleMarks, noteLead, noteLeadTone = "
       titleSuffix || titleMarks
         ? h("div", { style: TLINE_S }, h("span", { style: emphasis ? { ...TITLE_IN_LINE_S, ...BOLD } : TITLE_IN_LINE_S }, title), titleSuffix ? h("span", { style: SUFFIX_S, "data-testid": tid("-suffix") }, titleSuffix) : null, titleMarks ? h("div", { style: MARKS_S, "data-testid": tid("-marks") }, titleMarks) : null)
         : titleEl,
-      note ? h("div", { style: { ...(tall ? NOTE2_S : NOTE_S), ...(filled ? { color: "var(--accent-ink)", opacity: 0.8 } : null) } }, noteLead ? h("span", { "data-testid": tid("-notelead"), style: noteLeadTone === "warning" ? NOTE_LEAD_WARN : NOTE_LEAD }, noteLead) : null, noteLead ? " \u00b7 " : null, note) : null,
+      note ? h("div", { style: { ...(tall || wrapTitle ? NOTE2_S : NOTE_S), ...(filled ? { color: "var(--accent-ink)", opacity: 0.8 } : null) } }, noteLead ? h("span", { "data-testid": tid("-notelead"), style: noteLeadTone === "warning" ? NOTE_LEAD_WARN : NOTE_LEAD }, noteLead) : null, noteLead ? " \u00b7 " : null, note) : null,
     ),
     trailing ? h("div", { style: TRAIL_S, "data-testid": tid("-trailing") }, trailing) : null,
+    locked ? h("span", { className: "vyre-lock", "data-testid": tid("-lock"), "aria-hidden": true, style: { display: "inline-flex", alignItems: "center", color: "var(--ink-3)" } }, h("svg", { width: 11, height: 11, viewBox: "0 0 16 16", fill: "none", stroke: "currentColor", strokeWidth: 1.5, strokeLinecap: "round", strokeLinejoin: "round" }, h("rect", { x: 3, y: 7, width: 10, height: 7, rx: 1.5 }), h("path", { d: "M5.5 7V5a2.5 2.5 0 0 1 5 0v2" }))) : null,
   );
 }
 
@@ -83,7 +90,7 @@ export const Row = memo(function Row(props: RowProps) {
   return Platform.OS === "web" ? WebRow(props) : <NativeRow {...props} />;
 });
 
-const NativeRow = memo(function NativeRow({ id, title, titleSuffix, titleMarks, noteLead, noteLeadTone = "accent", tall = false, emphasis = false, note, selected = false, hovered = false, leading, trailing, onPress }: RowProps) {
+const NativeRow = memo(function NativeRow({ inert = false, id, title, titleSuffix, titleMarks, noteLead, noteLeadTone = "accent", tall = false, emphasis = false, note, selected = false, hovered = false, leading, trailing, onPress }: RowProps) {
   const [over, setOver] = useState(false);
   const lit = hovered || over;
   return (
@@ -91,7 +98,7 @@ const NativeRow = memo(function NativeRow({ id, title, titleSuffix, titleMarks, 
       accessibilityRole="button"
       accessibilityLabel={title}
       accessibilityState={{ selected }}
-      onPress={onPress}
+      onPress={inert ? undefined : onPress}
       onHoverIn={() => setOver(true)}
       onHoverOut={() => setOver(false)}
       testID={id ? `row-${id}` : undefined}

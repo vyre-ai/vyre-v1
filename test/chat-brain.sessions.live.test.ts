@@ -38,6 +38,7 @@ test("long sessions: every turn is written to the transcript, older turns stand 
     const verbatim = shown.slice(shown.indexOf("</vyre-context>"));
     assert.doesNotMatch(verbatim, /message number 1 about/, "the oldest message is in the summary, not word for word");
     assert.match(verbatim, /message number 16 about the Smith matter/);
+    // without a Codex sign-in the switch is refused up front, in words (see modules/engine/tests/control.test.ts)
     const sw = await call(d, "engine.switch", { threadId, agentId: id, driver: "codex", model: "gpt-5" });
     assert.equal(sw.status, 200, JSON.stringify(sw.data));
     const after = await post(d, threadId, id, "show me again", "long-show2");

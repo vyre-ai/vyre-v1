@@ -19,5 +19,6 @@ test("an expired approval reads 'Not sent, it waited 7 days' under Withdrawn, wi
   assert.ok(out.indexOf('data-testid="needs-withdrawn-label"') < out.indexOf("Send the Pruitt fee letter"), "it sits under Withdrawn");
   const detail = out.slice(out.indexOf('data-testid="needs-detail"'));
   assert.ok(detail.includes(NOTE) && detail.includes(">Dismiss<"), "the open request is the expired one, and Dismiss is all that is left");
+  assert.ok(out.includes("A dismiss") && !out.includes("A approve"), "the footer names the key for what is left, not Approve");
   for (const gone of [">Approve<", ">Send<", ">Send back<", 'data-testid="needs-sendback"', 'data-testid="needs-take"']) assert.ok(!detail.includes(gone), `no ${gone}`);
 });

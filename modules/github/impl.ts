@@ -3,6 +3,7 @@
 // verifyWebhook is what the host's /hooks/github route calls first: it refuses a body GitHub did not sign and returns the input of github.receive_webhook.
 import type { Handler } from "../../host/src/invoke.ts";
 import * as h from "./handlers/index.ts";
+import * as me from "./handlers/me.ts";
 import { hostOnly } from "../../host/src/ctx/host-only.ts";
 import type { Ctx } from "../../packages/contracts/src/ctx.ts";
 import type { WebhookAccept } from "../../host/src/routes/webhooks.ts";
@@ -41,6 +42,20 @@ export const handlers: Record<string, Handler> = {
   "github.issue.comment": (ctx, i) => h.issueComment(ctx, i),
   "github.issue.close": (ctx, i) => h.issueClose(ctx, i),
   "github.issue.assign_agent": (ctx, i) => h.issueAssignAgent(ctx, i),
+  "github.me.connect": (ctx, i) => me.meConnect(ctx, i as never),
+  "github.me.complete": (ctx, i) => me.meComplete(ctx, i),
+  "github.me.status": (ctx) => me.meStatus(ctx),
+  "github.me.disconnect": (ctx) => me.meDisconnect(ctx),
+  "github.me.reach": (ctx) => me.meReach(ctx),
+  "github.me.policy.get": (ctx) => me.policyGet(ctx),
+  "github.me.policy.set": (ctx, i) => me.policySet(ctx, i),
+  "github.me.approve": (ctx, i) => me.meApprove(ctx, i),
+  "github.token": (ctx, i) => me.token(ctx, i),
+  "github.session_env": (ctx, i) => me.sessionEnv(ctx, i),
+  "github.me.usage": (ctx) => me.meUsage(ctx),
+  "github.runners.jit_config": (ctx, i) => h.runnersJitConfig(ctx, i),
+  "github.runners.remove": (ctx, i) => h.runnersRemove(ctx, i),
+  "github.actions.secrets": (ctx, i) => h.actionsSecrets(ctx, i),
   "github.receive_webhook": async (ctx, i) => { hostOnly(ctx, "github.receive_webhook"); return h.receiveWebhook(ctx, i); },
 };
 
@@ -56,4 +71,6 @@ export const hostCalls = {
     const input = await h.verifyWebhook(ctx, { signature: a.headers["x-hub-signature-256"], event: a.headers["x-github-event"], deliveryId: a.headers["x-github-delivery"], body: a.body });
     return input === null ? { accepted: true } : h.receiveWebhook(ctx, input);
   },
+  /** A sign-in with GitHub finished (identity, through the host): connect that person's GitHub with the tokens it left. The host's own call. */
+  "github.adopt_sign_in": (ctx: Ctx, a: { githubId: string; person: string }): Promise<unknown> => { hostOnly(ctx, "github.adopt_sign_in"); return me.adoptSignIn(ctx as never, a); },
 };

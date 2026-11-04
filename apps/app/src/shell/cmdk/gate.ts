@@ -5,6 +5,9 @@ import type { ShellRuntime } from "../providers/runtime.tsx";
 import type { PlaceId } from "../rail/kits.ts";
 import { skins, system } from "../../../../../ui/src/tokens/skins.ts";
 import { applySkinToWindow } from "../providers/settings-skin.ts";
+import { listable } from "../reach/reach.ts";
+import type { Viewer } from "../reach/reach.ts";
+import { livePlace } from "../rail/kits.ts";
 import type { CmdKData } from "./controller.ts";
 import type { AskAnswer, CmdAction, Hit, HitKind } from "./model.ts";
 import { requestChannelSheet } from "../../places/chats/channels/request.ts";
@@ -29,6 +32,8 @@ export interface GateSearchDeps {
   state: { away: boolean; offline: boolean; terminal?: boolean; inbox?: boolean };
   /** The recent hits read ahead of the sheet (search.recent.list). */
   recent: () => readonly Hit[];
+  /** Who is searching and where they can go (reach). A result whose place the viewer cannot open is never listed. Left out: nothing is held back here (tests). */
+  viewer?: () => Viewer | null;
   /** Set away for real (stored, seen by teammates). Left out: the action only shows it here. */
   away?: (on: boolean) => void;
 }
@@ -118,8 +123,15 @@ export function askHere(screen: ScreenContext | null = currentScreen()): boolean
   return openAskPane({ thing: thingOfScreen(screen), context: rest }, place) !== null;
 }
 
+/** Keeps the results the viewer can open: a result whose place is not on their rail never shows (reach). */
+export function reachable(hits: readonly Hit[], viewer: Viewer | null, state: { inbox?: boolean }): Hit[] {
+  if (viewer === null) return [...hits];
+  return hits.filter((h) => listable({ kind: h.kind, place: livePlace(shellHitTarget(h, state)?.place ?? placeOfHit(h)) }, viewer));
+}
+
 export function createGateSearch(d: GateSearchDeps): CmdKData {
   const { runtime: rt, nav, state } = d;
+  const mine = (hits: readonly Hit[]): Hit[] => reachable(hits, d.viewer?.() ?? null, state);
   const online = (): boolean => !state.offline && rt.connection.get() === "online";
   const open = (hit: Hit, opts: { newTab: boolean }): void => {
     if (opts.newTab) nav.newTab();
@@ -132,12 +144,12 @@ export function createGateSearch(d: GateSearchDeps): CmdKData {
     scope: () => (online() ? "space" : "device"),
     online,
     // Inbox and Connect email answer a typed word only; the replica's people and chats stay the whole of an empty search
-    local: (text, types) => [...replicaHits(rt), ...(text.trim() === "" ? [] : shellHits(state))].filter((h) => (!types || types.includes(h.kind)) && (text === "" || matches(h, text))),
+    local: (text, types) => mine([...replicaHits(rt), ...(text.trim() === "" ? [] : shellHits(state))].filter((h) => (!types || types.includes(h.kind)) && (text === "" || matches(h, text)))),
     server: async (text, types) => {
       const out = (await rt.call("search.query", { q: text, ...(types ? { types: [...types] } : {}), limit: 20 })) as { hits: Hit[] };
-      return out.hits;
+      return mine(out.hits);
     },
-    recent: d.recent,
+    recent: () => mine(d.recent()),
     actions: (text) => [...askActions(currentScreen()), ...gateActions({ ...state, lock: { available: lockAvailable(), locked: isLocked() } }, rt.space.kind === "team")].filter((a) => !text || a.title.toLowerCase().includes(text.toLowerCase())),
     skins: () => [{ id: system.id, name: system.name }, ...skins.map((s) => ({ id: s.id, name: s.name, swatch: s.palette.accent }))],
     currentSkin: () => (globalThis as { document?: { documentElement?: { getAttribute(k: string): string | null } } }).document?.documentElement?.getAttribute("data-skin") ?? "system",

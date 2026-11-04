@@ -231,6 +231,13 @@ export function helperStatusWord(status: HelperStatus): string {
   return status === "running" ? "Working" : status === "done" ? "Done" : status === "failed" ? "Failed" : "Stopped";
 }
 
+/** "Working · 13s" while it runs, then the plain word. */
+export function helperTag(status: HelperStatus, startedAt: number | null, now: number): string {
+  if (status !== "running" || startedAt === null) return helperStatusWord(status);
+  const secs = Math.max(0, Math.round((now - startedAt) / 1000));
+  return `Working \u00B7 ${secs < 60 ? `${secs}s` : `${Math.floor(secs / 60)}m ${secs % 60}s`}`;
+}
+
 export function helperTone(status: HelperStatus): "ok" | "bad" | "plain" {
   return status === "done" ? "ok" : status === "failed" ? "bad" : "plain";
 }

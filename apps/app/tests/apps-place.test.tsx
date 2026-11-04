@@ -183,6 +183,18 @@ test("only working create flows are offered: templates use the Kit builder and d
   assert.ok(has(domains, 'aria-label="Add sending domain"') && !has(domains, 'aria-label="New domain"'));
 });
 
+test("Add sending domain goes to the Console's Sending domains with Add domain open, and is not drawn for someone who cannot open the Console", () => {
+  const s = createSampleApps();
+  const { addDomain: _gone, ...nav } = s.data.nav;
+  const without = renderToStaticMarkup(<Apps data={{ ...s.data, nav }} start={{ group: "domains" }} />).replaceAll("<!-- -->", "");
+  assert.ok(!has(without, 'aria-label="Add sending domain"') && !has(without, 'data-testid="apps-new-group"'), "no button, no menu entry");
+  const opened: string[] = [];
+  const allowed = appsData(sampleRuntime({ screens: s.data.screens, call: s.data.call, opened }), true);
+  allowed.nav.addDomain?.();
+  assert.deepEqual(opened, ["mail.domains"]);
+  assert.equal(appsData(sampleRuntime({ screens: s.data.screens, call: s.data.call, opened: [] })).nav.addDomain, undefined, "nobody is sent to a page they cannot open");
+});
+
 test("in the real app, a Personal Space gets the Team Space line, and a click out goes through the shell's door", () => {
   assert.ok(has(placeIn([], "personal"), 'data-testid="apps-needs-team"'));
   const s = createSampleApps();

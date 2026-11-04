@@ -61,7 +61,7 @@ export async function maySealMine(owner: string): Promise<boolean> {
   return Boolean(await port?.publicKey?.(owner).catch(() => null));
 }
 
-function sealedOf(ctx: VaultCtx, itemId: string): SealedFields {
+export function sealedOf(ctx: VaultCtx, itemId: string): SealedFields {
   const r = first(ctx.db.all(`SELECT * FROM vault_secret WHERE "itemId" = ?`, itemId));
   if (!r) throw fail("internal.unexpected", ctx.trace.traceId, { message: "This item has no stored value." });
   return {
@@ -70,7 +70,7 @@ function sealedOf(ctx: VaultCtx, itemId: string): SealedFields {
   };
 }
 
-function storeSealed(ctx: VaultCtx, itemId: string, s: SealedFields): void {
+export function storeSealed(ctx: VaultCtx, itemId: string, s: SealedFields): void {
   const have = first(ctx.db.all(`SELECT * FROM vault_secret WHERE "itemId" = ?`, itemId));
   if (have) ctx.db.run(`UPDATE vault_secret SET "enc" = ?, "keyId" = ?, "wrapped" = ?, "box" = ?, "rev" = ? WHERE "itemId" = ?`, s.enc, s.keyId, s.wrapped ? JSON.stringify(s.wrapped) : null, JSON.stringify(s.box), s.rev, itemId);
   else ctx.db.run(`INSERT INTO vault_secret ("itemId", "enc", "keyId", "wrapped", "box", "rev") VALUES (?, ?, ?, ?, ?, ?)`, itemId, s.enc, s.keyId, s.wrapped ? JSON.stringify(s.wrapped) : null, JSON.stringify(s.box), s.rev);

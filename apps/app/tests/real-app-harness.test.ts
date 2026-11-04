@@ -146,7 +146,7 @@ export async function dismissOnboarding(page: Pg, o: { wait?: number } = {}): Pr
   await page.getByTestId("shell").or(page.getByTestId("mobile-shell")).first().waitFor({ timeout: 30_000 });
   const screen = page.getByTestId("onboarding");
   try { await screen.waitFor({ timeout: o.wait ?? 8_000 }); } catch { return false; }
-  // the wide screen closes from its rail ("onboarding-close"), the phone screen from the x in its corner
+  // the wide layout closes with "Finish later" (onboarding-close); a phone or a narrow window has the X (onboarding-x)
   await page.getByTestId("onboarding-close").or(page.getByTestId("onboarding-x")).first().click({ timeout: 10_000 });
   await screen.waitFor({ state: "detached", timeout: 10_000 });
   return true;

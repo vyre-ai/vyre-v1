@@ -69,6 +69,17 @@ test("the real app on a booted daemon: sign-in screen, then Home, Chats, Records
     await page.getByTestId("cmdk-list").getByText(name, { exact: true }).click();
     await page.getByTestId("cmdk").waitFor({ state: "detached" });
   };
+  /** The Console is not on a phone (it opens on a computer, mobile-map.ts desktopLine): a phone window on the same address says so and does not overflow. A second window, so the staged work in this one stays. */
+  const phoneConsole = async (shot: string): Promise<void> => {
+    const phone = await ctx.newPage();
+    try {
+      await phone.setViewportSize({ width: 390, height: 844 });
+      await phone.goto(page.url(), { waitUntil: "load" });
+      await phone.getByText(/The Console opens on a computer/).waitFor({ timeout: 20_000 });
+      await phone.screenshot({ path: `shots-evidence/console/${shot}.png` });
+      assert.ok(await phone.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `the phone notice for ${shot} does not overflow horizontally`);
+    } finally { await phone.close(); }
+  };
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
   // What the app asked the Space and what it answered: a step that times out shows these, so a failure names its cause (a refused call, a console error, the text on screen).
@@ -103,6 +114,8 @@ test("the real app on a booted daemon: sign-in screen, then Home, Chats, Records
       await desk.goto(`${web.origin}/chat?space=tauri%3A%2F%2Flocalhost`, { waitUntil: "load" });
       for (const door of ["door-me", "door-invited", "door-team"]) await desk.getByTestId(door).waitFor({ timeout: 15_000 });
       await desk.getByTestId("door-existing").click();
+      // Sign in now opens with the Personal Space on this computer first; a Space by its address is the link under it
+      await desk.getByTestId("peer-address").click();
       await desk.getByTestId("space-address").waitFor({ timeout: 15_000 });
       assert.equal(await desk.getByTestId("si-user").count(), 0, "no credentials before choosing a Space");
       fs.mkdirSync("shots-evidence/connect-space", { recursive: true });
@@ -115,7 +128,7 @@ test("the real app on a booted daemon: sign-in screen, then Home, Chats, Records
       await desk.getByTestId("space-address").fill("http://127.0.0.1:1");
       await desk.getByTestId("resolve-space").click();
       await desk.getByTestId("space-error").waitFor({ timeout: 15_000 });
-      assert.match(await desk.getByTestId("space-error").innerText(), /Check its address/);
+      assert.match(await desk.getByTestId("space-error").innerText(), /cannot reach this Space/);
       await desk.getByTestId("space-address").fill(web.origin);
       await desk.getByTestId("resolve-space").click();
       await desk.getByTestId("si-user").waitFor({ timeout: 15_000 });
@@ -159,7 +172,7 @@ test("the real app on a booted daemon: sign-in screen, then Home, Chats, Records
       await page.getByTestId("si-user").waitFor({ timeout: 15_000 });
       assert.equal(await page.getByTestId("shell").count(), 0, "no shell before sign-in");
       await page.getByRole("heading", { name: "Sign in to Fresh Co", exact: true }).waitFor({ timeout: 15_000 });
-      assert.ok((await page.getByTestId("si-user").boundingBox())!.width > 500, "the username field uses the full reading column");
+      { const w = (await page.getByTestId("si-user").boundingBox())!.width, col = (await page.getByTestId("step-sign-in").boundingBox())!.width; assert.ok(Math.abs(w - col) < 2, `the username field uses the full reading column (${w}px of ${col}px)`); }
       const header = await page.getByTestId("auth-form-header").boundingBox();
       const column = await page.getByTestId("step-sign-in").boundingBox();
       const primary = await page.getByTestId("next").boundingBox();
@@ -167,6 +180,8 @@ test("the real app on a booted daemon: sign-in screen, then Home, Chats, Records
       assert.ok(header && column && primary && surface);
       assert.ok(header.y < column.y && primary.y > column.y, "reference header and primary surround the reading column");
       assert.ok(Math.abs(primary.width - column.width) < 2, "the primary fills the reading column");
+      // the sheet is 420 wide with a 356 column: the field spans that column bar its own padding
+      assert.ok((await page.getByTestId("si-user").boundingBox())!.width > column.width - 24, "the username field uses the full reading column");
       assert.ok(surface.height < 624, "the sign-in form sizes to its content");
       fs.mkdirSync("shots-evidence/auth-forms", { recursive: true });
       await page.screenshot({ path: "shots-evidence/auth-forms/signin-light.png" });
@@ -215,12 +230,15 @@ test("the real app on a booted daemon: sign-in screen, then Home, Chats, Records
         await page.getByTestId("rail-chats").or(page.getByTestId("rail-chats-selected")).first().click();
         await page.getByTestId("chats-place").waitFor({ timeout: 15_000 });
         // A claimed Space starts with no chats: the sidebar then says so (the shared empty state) and there is no composer to type in. With a chat open, a sent message must appear.
-        const composer = page.getByTestId("composer-field");
-        if (await composer.count() === 0) { await page.getByTestId("state-empty").first().waitFor({ timeout: 15_000 }); return; }
+        // The composer is the shared editor (ChatField, contenteditable) once it has mounted; a plain field stands in for the first frame, and what is typed into that is lost when the editor replaces it. Wait for the editor.
+        const composer = page.getByTestId("composer-field").and(page.locator('[contenteditable="true"]'));
+        await composer.waitFor({ timeout: 15_000 });
         const text = `real app check ${Date.now()}`;
         await composer.fill(text);
         await composer.press("Enter");
-        await page.getByText(text).first().waitFor({ timeout: 15_000 });
+        // the sent message is on the page (the Recent row, then the conversation it opens); innerText counts only what is drawn
+        await page.waitForFunction((t) => document.body.innerText.includes(t), text, { timeout: 15_000 });
+        await page.getByTestId("composer-field").first().waitFor({ timeout: 15_000 });
       });
     });
 
@@ -480,10 +498,7 @@ test("the real app on a booted daemon: sign-in screen, then Home, Chats, Records
         await page.screenshot({path:"shots-evidence/console/groups-activity.png"});
         await pickSkin("Obsidian");
         await page.screenshot({path:"shots-evidence/console/groups-dark.png"});
-        await page.setViewportSize({width:390,height:844});
-        await page.screenshot({path:"shots-evidence/console/groups-phone.png"});
-        assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),"phone Console does not overflow horizontally");
-        await page.setViewportSize({width:1280,height:800});
+        await phoneConsole("groups-phone");
         await pickSkin("Vyre");
         await page.getByRole("tab", {name:/^Members/}).click();
         await page.getByRole("button", {name:"Remove…", exact:true}).click();
@@ -550,8 +565,7 @@ test("the real app on a booted daemon: sign-in screen, then Home, Chats, Records
         await page.screenshot({path:"shots-evidence/console/grant-conditions.png",fullPage:true});
         await pickSkin("Obsidian");
         await page.getByTestId("grant-window-to").scrollIntoViewIfNeeded();await page.screenshot({path:"shots-evidence/console/grant-conditions-dark.png"});
-        await page.setViewportSize({width:390,height:844});await page.getByTestId("grant-window-to").scrollIntoViewIfNeeded();await page.screenshot({path:"shots-evidence/console/grant-conditions-phone.png"});assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),"Grant conditions fit the phone viewport");
-        await page.setViewportSize({width:1280,height:800});await pickSkin("Vyre");
+        await phoneConsole("grant-conditions-phone");await pickSkin("Vyre");
         await page.getByTestId("grant-add").click();await page.getByTestId("grant-save-confirm").click();await page.getByText("Access granted",{exact:true}).waitFor({timeout:5000}).catch(async error=>{console.log("grant conditions save: "+(await page.locator("body").innerText()).slice(-1800));throw error;});
         const conditionReadback=await api("access.grants.list",{resource:{type:"record_type",id:"grant_conditions"}}) as {grants:{id:string;conditions:{rowFilter:unknown;hiddenFields:string[];labelCeiling:string;window:{from:number;to:number}}}[]};
         const bounded=conditionReadback.grants[0]!;assert.deepEqual(bounded.conditions.rowFilter,{field:"name",op:"eq",value:"Allowed"});assert.deepEqual(bounded.conditions.hiddenFields,["secret"]);assert.equal(bounded.conditions.labelCeiling,"public");assert.equal(bounded.conditions.window.from,Date.parse(from.replace(" ","T")+":00Z"));
@@ -570,7 +584,7 @@ test("the real app on a booted daemon: sign-in screen, then Home, Chats, Records
         await page.getByRole("button",{name:"Target agent",exact:true}).click();await page.getByTestId("menu-item-Template proof assistant").click();await page.getByTestId("template-preview").click();await page.getByRole("button",{name:"Apply template",exact:true}).waitFor();
         await page.screenshot({path:"shots-evidence/console/template-files-preview.png"});
         await pickSkin("Obsidian");await page.getByTestId("template-preview").scrollIntoViewIfNeeded();await page.screenshot({path:"shots-evidence/console/template-files-dark.png"});
-        await page.setViewportSize({width:390,height:844});await page.getByTestId("template-preview").scrollIntoViewIfNeeded();await page.screenshot({path:"shots-evidence/console/template-files-phone.png"});assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),"Template editor fits the phone viewport");await page.setViewportSize({width:1280,height:800});await pickSkin("Vyre");
+        await phoneConsole("template-files-phone");await pickSkin("Vyre");
         await page.getByRole("button",{name:"Apply template",exact:true}).click();await page.getByText("Template applied",{exact:true}).waitFor();
         const appliedFiles=await api("files.list",{section:"space",folder:templateAgent.agent.folderId}) as {files:{fileId:string;name:string}[]};const appliedFile=appliedFiles.files.find(file=>file.name==="RELEASE.md")!;assert.ok(appliedFile,"one-agent apply creates the actual template file in the target agent home");assert.match((await api("files.read",{fileId:appliedFile.fileId,as:"text"}) as {text:string}).text,/record the release evidence/);
         await openConsole("console.agent-computers");const hostHealth=await api("computers.health",{}) as {state:string;runtime?:string};const hostState=hostHealth.state;const hostLabel=hostHealth.runtime==="missing"&&hostState==="healthy"?"No container runtime":hostState==="down"?"Host unavailable":hostState==="degraded"?"Host needs attention":"Host ready";await page.getByText(hostLabel,{exact:true}).waitFor();await page.getByTestId("computer-new").click();const provisionSheet=page.getByTestId("computer-new-sheet");await provisionSheet.waitFor();await page.getByTestId(`row-provision-agent-${templateAgent.agent.agentId}`).click();if(hostState==="down")assert.equal(await provisionSheet.getByRole("button",{name:"Provision",exact:true}).isDisabled(),true,"a down host cannot pretend to provision an agent computer");await page.screenshot({path:"shots-evidence/console/computer-host-unavailable.png"});await provisionSheet.getByRole("button",{name:"Cancel",exact:true}).click();await provisionSheet.waitFor({state:"detached"});
@@ -633,11 +647,7 @@ test("the real app on a booted daemon: sign-in screen, then Home, Chats, Records
         await page.screenshot({path:"shots-evidence/console/policies-signin.png"});
         await pickSkin("Obsidian");
         await page.screenshot({path:"shots-evidence/console/policies-dark.png"});
-        await page.setViewportSize({width:390,height:844});await page.reload();await page.getByTestId("policy-object").waitFor();
-        assert.equal(await page.getByTestId("console").count(),1,"fresh phone Console has one frame");
-        await page.screenshot({path:"shots-evidence/console/policies-phone.png"});
-        assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),"phone Policies does not overflow");
-        await page.setViewportSize({width:1280,height:800});await pickSkin("Vyre");
+        await phoneConsole("policies-phone");await pickSkin("Vyre");
 
         await openConsole("access.checker");
         await page.getByTestId("checker-resource-picker-search").fill("Console access proof");
@@ -757,14 +767,15 @@ test("the real app on a booted daemon: sign-in screen, then Home, Chats, Records
         await joined.getByTestId("joined-provider-error").waitFor({ timeout: 15_000 });
         assert.equal(await joined.getByText("Your AI account is connected", { exact: true }).count(), 0);
         await joined.getByTestId("joined-provider-continue").click();
-        await joined.getByTestId("joined-provider-error").filter({ hasText: "Your Mine Vault opens when you sign in to this Space" }).waitFor({ timeout: 15_000 });
-        assert.equal(await joined.getByText("Your API key is saved", { exact: true }).count(), 0, "a Team server never reports Mine saved without the member’s own-node key");
+        // the second try reaches the Space, which keeps a member's AI key for them on the server (encrypted, opened when they sign in; owner decision 3 Nov), so it connects now
+        await joined.getByText("Your AI is connected", { exact: true }).waitFor({ timeout: 15_000 });
+        assert.equal(await joined.getByTestId("joined-provider-error").filter({ hasText: /\S/ }).count(), 0, "no error once it connects");
         assert.equal(accepted, 1, "retry never consumes the invite twice");
         assert.equal(providerAttempts, 2);
         assert.equal(await joined.evaluate(() => JSON.stringify(localStorage).includes("synthetic-release-api-key")), false, "raw key is never persisted on the device");
         fs.mkdirSync("shots-evidence/join-provider", { recursive: true });
-        await joined.screenshot({ path: "shots-evidence/join-provider/locked-mine.png" });
-        await joined.getByTestId("joined-provider-later").click();
+        await joined.screenshot({ path: "shots-evidence/join-provider/connected.png" });
+        await joined.getByTestId("joined-provider-continue").click();
         await joined.getByTestId("shell").waitFor({ timeout: 15_000 });
       } finally { await joinedContext.close(); secureWeb.close(); }
     });

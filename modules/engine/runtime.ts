@@ -14,6 +14,7 @@ import { createCrewWatcher } from "./crew-watch.ts";
 import type { StreamEvent } from "./handlers/bridge.ts";
 import type { Invoke } from "../../host/src/invoke.ts";
 import { createEngineApiTools } from "./api-tools.ts";
+import { recordToolUse, topTools } from "./tool-use.ts";
 import { buildNodeOpener, buildOpener, roleBlocks } from "./session.ts";
 import { remoteLauncher, routed, waitsForComputer } from "./node-turns.ts";
 import { bindRelay } from "./relay.ts";
@@ -35,6 +36,7 @@ import { configureEngines, engines, enginesRoot } from "./engine-install.ts";
 import { capabilitySkills, createContextBuilder, runningLine, takeHandoff, withTurnContext } from "./context.ts";
 import { withTranscript } from "./transcript.ts";
 import { withNativeSkills } from "./skills-native.ts";
+import { getDigest, maybeRefreshDigest } from "./room-digest.ts";
 import { withGoalFolder } from "./goal-folder.ts";
 import { createRoller } from "./rollover.ts";
 import { forgetPlacement, placementOf } from "./placement-cache.ts";
@@ -74,6 +76,8 @@ export interface EngineHostSeam {
   call(cap: string, input: unknown, as?: string): Promise<unknown>;
   /** The real session opener. A daemon passes the host's `session` ports instead and the module builds it; a test passes a scripted one here. */
   openSession?: OpenSession;
+  /** Told the API tool set when it is built (a measurement hands a real driver the engine's own tool context). */
+  onApiTools?: (t: ReturnType<typeof createEngineApiTools>) => void;
   /** The host's ports for the real opener (Vault lookup, loopback MCP, scrub-miss report). With these and no `openSession`, the module builds the opener itself. */
   session?: EngineSessionPorts;
   /** Where CLI engines run sandboxed (work folders, the wall). Absent: CLI turns fail closed. */
@@ -83,6 +87,8 @@ export interface EngineHostSeam {
   space?: string;
   /** The computers that joined the Space, for a turn pinned to one of them (node-turns.ts). Absent: no turn runs on a server. */
   nodes?: NodeRelay;
+  /** The token behind a filler handle, once: GitHub for a CLI engine's process (github-session.ts). */
+  githubFill?: (handle: string) => string | null;
   /** True when the person is on their own computer (a local model on this machine is then reachable). */
   own?: (person: string) => boolean;
   /** A Space server only: does it hold this person's key now (locked-account.ts). Absent on a person's own computer. */
@@ -382,7 +388,8 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
   // for closeOpener, so Quit closed an empty pool and the engine process, its MCP socket and its egress proxy outlived the daemon.
   if (building) return building;
   const h = host;
-  const apiTools = host.invoke && host.space ? createEngineApiTools({ invoke: host.invoke, space: host.space, system: roleBlocks(h.call), call: h.call, plugins: createPluginTools({ call: h.call, runtime: pluginRuntime, ...(h.log ? { log: h.log } : {}) }) }) : undefined;
+  const apiTools = host.invoke && host.space ? createEngineApiTools({ invoke: host.invoke, space: host.space, usage: { record: (agentId, tool) => recordToolUse(ctx.db, agentId, tool, (h.now ?? Date.now)()), top: (agentId) => topTools(ctx.db, agentId) }, system: roleBlocks(h.call), call: h.call, plugins: createPluginTools({ call: h.call, runtime: pluginRuntime, ...(h.log ? { log: h.log } : {}) }) }) : undefined;
+  if (apiTools) host.onApiTools?.(apiTools);
   const now0 = h.now ?? Date.now;
   // a CLI engine's own session id, kept per chat, agent and person so a restart or an eviction resumes it; and the chat's "Keep this every time" for the CLI's own compaction
   const sessions = {
@@ -393,7 +400,7 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
   // the Space's internet setting, read as each engine process starts, and where the process went (the turn's details, and the audit log for a refusal)
   const egress = { rule: () => spaceRule(h.call), record: (where: { person: string; threadId: string }, e: Parameters<typeof recordEgress>[3]) => recordEgress(ctx.db, h.call, where, e, now0, h.log) };
   const access = (asker: string) => engineAccessFor(h.call, asker);
-  const opener = host.openSession ? null : buildOpener({ sessions, egress, access, ...(h.own ? { own: h.own } : {}), ...(apiTools ? { apiTools } : {}), session: host.session as EngineSessionPorts, call: h.call, ...(host.sandbox ? { sandbox: host.sandbox } : {}), ...(host.cli?.command ? { cliCommand: host.cli.command } : {}), ...(cliProbeOf(host) ? { cliProbe: cliProbeOf(host) as NodeCliProbe } : {}), ...(host.cli?.apiFetch ? { apiFetch: host.cli.apiFetch } : {}), ...(host.dataDir ? { dataDir: host.dataDir, defaultSandbox: defaultPlan(host.dataDir, cliRead(host)) } : {}) });
+  const opener = host.openSession ? null : buildOpener({ sessions, egress, access, ...(h.githubFill ? { githubFill: h.githubFill } : {}), ...(h.own ? { own: h.own } : {}), ...(apiTools ? { apiTools } : {}), session: host.session as EngineSessionPorts, call: h.call, ...(host.sandbox ? { sandbox: host.sandbox } : {}), ...(host.cli?.command ? { cliCommand: host.cli.command } : {}), ...(cliProbeOf(host) ? { cliProbe: cliProbeOf(host) as NodeCliProbe } : {}), ...(host.cli?.apiFetch ? { apiFetch: host.cli.apiFetch } : {}), ...(host.dataDir ? { dataDir: host.dataDir, defaultSandbox: defaultPlan(host.dataDir, cliRead(host)) } : {}) });
   // the composer's model menu asks each subscription engine for its own list, through this opener: the person's sandbox and sign-in, as a turn would run (live-models.ts)
   bindModelLister(opener ? (account, asker, o) => opener.models(account, asker, o) : null);
   // a turn whose engine Vyre is installing says so on its live line ("Setting up Codex"); the line is the bridge's, which exists once the runtime is built below
@@ -487,6 +494,7 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
     const roller = createRoller({ db: ctx.db, engine: () => running, compactor: () => compactor, ...(h.log ? { log: h.log } : {}) });
     const turnContext = createContextBuilder({
       call: h.call, skills: h.skills ?? capabilitySkills(h.call), now, handoff: takeHandoff,
+      digests: { get: (t, a) => getDigest(ctx.db, t, a), refresh: (o) => { maybeRefreshDigest({ db: ctx.db, call: h.call, now, ...(h.log ? { log: h.log } : {}) }, o); } },
       waiting: (threadId, agentId) => (running?.waiting(threadId) ?? []).filter((w) => w.agentId === agentId).map((w) => `an answer to task ${w.taskId} (a held call needs approval)`),
     });
     const limitSwitch = createLimitSwitch({
@@ -527,7 +535,7 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
           return s;
         },
       } : {}),
-      ...(apiTools ? { callTool: apiTools.runner } : {}),
+      ...(apiTools ? { callTool: apiTools.runner, ...(apiTools.toolClass ? { toolClass: apiTools.toolClass } : {}) } : {}),
       // a chat pinned to a computer that is not linked waits in the queue for it: the turn does not start (nothing reads "Working"), the chat says so once, and it starts when the computer links
       ...(h.nodes?.devices ? { place: (thread: { id: string }) => (waitsForComputer(ctx.db, h.nodes, thread.id) ? "device" as const : "host" as const) } : {}),
     });

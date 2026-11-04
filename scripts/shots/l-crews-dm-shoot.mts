@@ -125,8 +125,15 @@ try {
       await shot(page, `mia-dex-report-${mode}`);
       await ctx.close(); }
   }
-  { const { page, ctx } = await open("usr_noah", { mode: "dark", w: 390, hh: 844 });
-    await page.getByText(/^Dex/).first().click({ timeout: 15000 }).catch((e: any) => console.log("nodex-phone", String(e).slice(0, 160)));
-    await shot(page, "noah-dex-chat-phone-dark"); await ctx.close(); }
+  for (const mode of ["light", "dark"] as const) {
+    { const { page, ctx } = await open("usr_noah", { mode, w: 390, hh: 844 });
+      await page.getByText(/^Dex/).first().click({ timeout: 15000 }).catch((e: any) => console.log("nodex-phone", String(e).slice(0, 160)));
+      await page.getByText("Brightwater brief").first().waitFor({ timeout: 15000 }).catch(() => undefined);
+      await shot(page, `noah-dex-chat-phone-${mode}`); await ctx.close(); }
+    { const { page, ctx } = await open("usr_mia", { mode, w: 390, hh: 844 });
+      await page.getByText("Brief Noah").first().click({ timeout: 15000 }).catch((e: any) => console.log("nochat-phone", String(e).slice(0, 160)));
+      await page.getByText(/Noah replied/).first().waitFor({ timeout: 15000 }).catch(() => undefined);
+      await shot(page, `mia-dex-report-phone-${mode}`); await ctx.close(); }
+  }
 } catch (e) { console.log("SHOOT FAILED", e); }
 await browser.close(); web.close(); await eco.stop(d); process.exit(0);

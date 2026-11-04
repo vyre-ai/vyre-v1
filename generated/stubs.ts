@@ -74,6 +74,7 @@ export function stubs(ctx: CallCtx) {
       projection_health: call("access.projection_health"),
       propose_change: call("access.propose_change"),
       provider_check: call("access.provider_check"),
+      reach: call("access.reach"),
       record_marks: call("access.record_marks"),
       request: call("access.request"),
       requests: {
@@ -408,7 +409,12 @@ export function stubs(ctx: CallCtx) {
       fork: call("chat.fork"),
       handoff: call("chat.handoff"),
       helper: {
+        note: call("chat.helper.note"),
+        note_seen: call("chat.helper.note_seen"),
+        notes: call("chat.helper.notes"),
+        restart: call("chat.helper.restart"),
         start: call("chat.helper.start"),
+        steer: call("chat.helper.steer"),
       },
       helpers: {
         list: call("chat.helpers.list"),
@@ -429,6 +435,7 @@ export function stubs(ctx: CallCtx) {
         answer: call("chat.note_offer.answer"),
         make: call("chat.note_offer.make"),
       },
+      noted: call("chat.noted"),
       open_as_chat: call("chat.open_as_chat"),
       open_tab: call("chat.open_tab"),
       people_status: call("chat.people_status"),
@@ -469,6 +476,26 @@ export function stubs(ctx: CallCtx) {
         summary: call("chat.transcript.summary"),
       },
       unpin: call("chat.unpin"),
+    },
+    ci: {
+      cost: {
+        month: call("ci.cost.month"),
+      },
+      job: {
+        intake: call("ci.job.intake"),
+      },
+      project: {
+        get: call("ci.project.get"),
+      },
+      runs: {
+        get: call("ci.runs.get"),
+        list: call("ci.runs.list"),
+      },
+      settings: {
+        get: call("ci.settings.get"),
+        set: call("ci.settings.set"),
+      },
+      sweep: call("ci.sweep"),
     },
     comms: {
       senders: {
@@ -780,6 +807,7 @@ export function stubs(ctx: CallCtx) {
           set: call("engine.crew.repo.set"),
         },
         start: call("engine.crew.start"),
+        status: call("engine.crew.status"),
         stop: call("engine.crew.stop"),
         wait: call("engine.crew.wait"),
         workspace: call("engine.crew.workspace"),
@@ -790,6 +818,12 @@ export function stubs(ctx: CallCtx) {
       },
       drop_queued: call("engine.drop_queued"),
       health: call("engine.health"),
+      helper_models: call("engine.helper_models"),
+      helpers: {
+        change_model: call("engine.helpers.change_model"),
+        status: call("engine.helpers.status"),
+        stop_all: call("engine.helpers.stop_all"),
+      },
       incident: {
         assign: call("engine.incident.assign"),
         get: call("engine.incident.get"),
@@ -821,6 +855,7 @@ export function stubs(ctx: CallCtx) {
       models: {
         list: call("engine.models.list"),
       },
+      models_catalog: call("engine.models_catalog"),
       my_ai: call("engine.my_ai"),
       now: call("engine.now"),
       placement: {
@@ -1088,6 +1123,9 @@ export function stubs(ctx: CallCtx) {
       sync: call("git.sync"),
     },
     github: {
+      actions: {
+        secrets: call("github.actions.secrets"),
+      },
       app: {
         complete: call("github.app.complete"),
         create_manifest: call("github.app.create_manifest"),
@@ -1108,6 +1146,19 @@ export function stubs(ctx: CallCtx) {
         create: call("github.issue.create"),
         get: call("github.issue.get"),
         update: call("github.issue.update"),
+      },
+      me: {
+        approve: call("github.me.approve"),
+        complete: call("github.me.complete"),
+        connect: call("github.me.connect"),
+        disconnect: call("github.me.disconnect"),
+        policy: {
+          get: call("github.me.policy.get"),
+          set: call("github.me.policy.set"),
+        },
+        reach: call("github.me.reach"),
+        status: call("github.me.status"),
+        usage: call("github.me.usage"),
       },
       pull_request: {
         ask_author_fix: call("github.pull_request.ask_author_fix"),
@@ -1130,6 +1181,12 @@ export function stubs(ctx: CallCtx) {
       repos: {
         list: call("github.repos.list"),
       },
+      runners: {
+        jit_config: call("github.runners.jit_config"),
+        remove: call("github.runners.remove"),
+      },
+      session_env: call("github.session_env"),
+      token: call("github.token"),
     },
     goals: {
       activity: call("goals.activity"),
@@ -1140,6 +1197,7 @@ export function stubs(ctx: CallCtx) {
       },
       complete: call("goals.complete"),
       confirm: call("goals.confirm"),
+      count: call("goals.count"),
       create: call("goals.create"),
       extend: call("goals.extend"),
       finish: call("goals.finish"),
@@ -1400,6 +1458,14 @@ export function stubs(ctx: CallCtx) {
       unmatch: call("inbox.unmatch"),
       unmatched: call("inbox.unmatched"),
     },
+    install: {
+      apply: call("install.apply"),
+      check_update: call("install.check_update"),
+      from_link: call("install.from_link"),
+      get: call("install.get"),
+      list: call("install.list"),
+      remove: call("install.remove"),
+    },
     invites: {
       accept_create_account: call("invites.accept_create_account"),
     },
@@ -1620,6 +1686,19 @@ export function stubs(ctx: CallCtx) {
         preview: call("members.invites.preview"),
         revoke: call("members.invites.revoke"),
       },
+      join_link: {
+        create: call("members.join_link.create"),
+        disable: call("members.join_link.disable"),
+        get: call("members.join_link.get"),
+        preview: call("members.join_link.preview"),
+        request: call("members.join_link.request"),
+        rotate: call("members.join_link.rotate"),
+      },
+      join_requests: {
+        approve: call("members.join_requests.approve"),
+        decline: call("members.join_requests.decline"),
+        list: call("members.join_requests.list"),
+      },
       joins: {
         list: call("members.joins.list"),
         retry: call("members.joins.retry"),
@@ -1717,6 +1796,10 @@ export function stubs(ctx: CallCtx) {
         set_visibility: call("memory.page.set_visibility"),
         versions: call("memory.page.versions"),
       },
+      place: {
+        archive: call("memory.place.archive"),
+        list: call("memory.place.list"),
+      },
       pointer: call("memory.pointer"),
       profile: {
         add: call("memory.profile.add"),
@@ -1747,6 +1830,7 @@ export function stubs(ctx: CallCtx) {
       restore: call("memory.restore"),
       restore_version: call("memory.restore_version"),
       search: call("memory.search"),
+      source_removed: call("memory.source_removed"),
       trail: call("memory.trail"),
       trash: {
         search: call("memory.trash.search"),
@@ -2048,14 +2132,28 @@ export function stubs(ctx: CallCtx) {
     },
     projects: {
       apply_cascade: call("projects.apply_cascade"),
+      archive: call("projects.archive"),
       cascade: call("projects.cascade"),
       create: call("projects.create"),
+      crew: call("projects.crew"),
       file_chat: call("projects.file_chat"),
       files_folder: call("projects.files_folder"),
+      for_channel: call("projects.for_channel"),
       from_channel: call("projects.from_channel"),
       get: call("projects.get"),
       link_tasks: call("projects.link_tasks"),
+      links: {
+        link: call("projects.links.link"),
+        list: call("projects.links.list"),
+        rules: {
+          set: call("projects.links.rules.set"),
+        },
+        unlink: call("projects.links.unlink"),
+      },
       list: call("projects.list"),
+      live_block: {
+        query: call("projects.live_block.query"),
+      },
       members: {
         list: call("projects.members.list"),
         remove: call("projects.members.remove"),
@@ -2063,11 +2161,25 @@ export function stubs(ctx: CallCtx) {
       },
       open_task_thread: call("projects.open_task_thread"),
       overview: call("projects.overview"),
+      overview_doc: {
+        apply_template: call("projects.overview_doc.apply_template"),
+        get: call("projects.overview_doc.get"),
+        history: call("projects.overview_doc.history"),
+        save: call("projects.overview_doc.save"),
+        templates: {
+          list: call("projects.overview_doc.templates.list"),
+          save: call("projects.overview_doc.templates.save"),
+        },
+        undo: call("projects.overview_doc.undo"),
+      },
+      overview_edit: call("projects.overview_edit"),
+      overview_get: call("projects.overview_get"),
       pin_file: call("projects.pin_file"),
       plan: call("projects.plan"),
       post_update: call("projects.post_update"),
       reschedule: call("projects.reschedule"),
       roles_of: call("projects.roles_of"),
+      set: call("projects.set"),
       share_out: call("projects.share_out"),
       shared_view: call("projects.shared_view"),
       stages: {
@@ -2081,9 +2193,14 @@ export function stubs(ctx: CallCtx) {
       templates: {
         list: call("projects.templates.list"),
       },
+      unarchive: call("projects.unarchive"),
       unlink_tasks: call("projects.unlink_tasks"),
       unpin_file: call("projects.unpin_file"),
       unshare_out: call("projects.unshare_out"),
+      update: {
+        draft: call("projects.update.draft"),
+        edit: call("projects.update.edit"),
+      },
     },
     providers: {
       add: call("providers.add"),
@@ -2092,7 +2209,9 @@ export function stubs(ctx: CallCtx) {
       custom_list: call("providers.custom_list"),
       custom_remove: call("providers.custom_remove"),
       list: call("providers.list"),
+      own_people: call("providers.own_people"),
       remove: call("providers.remove"),
+      set_keeps_nothing: call("providers.set_keeps_nothing"),
       set_space_use: call("providers.set_space_use"),
       space_key: {
         get: call("providers.space_key.get"),
@@ -2377,6 +2496,9 @@ export function stubs(ctx: CallCtx) {
     },
     skills: {
       add: call("skills.add"),
+      grant: call("skills.grant"),
+      grants: call("skills.grants"),
+      history: call("skills.history"),
       list: call("skills.list"),
       load: call("skills.load"),
       members: call("skills.members"),
@@ -2386,12 +2508,14 @@ export function stubs(ctx: CallCtx) {
         set: call("skills.mine.set"),
         update: call("skills.mine.update"),
       },
+      of_agents: call("skills.of_agents"),
       page: call("skills.page"),
       policy: {
         set: call("skills.policy.set"),
       },
       preview: call("skills.preview"),
       remove: call("skills.remove"),
+      save: call("skills.save"),
       set_enabled: call("skills.set_enabled"),
       share: call("skills.share"),
       shared: {
@@ -2403,6 +2527,7 @@ export function stubs(ctx: CallCtx) {
         setup: call("skills.space.setup"),
         update: call("skills.space.update"),
       },
+      undo: call("skills.undo"),
       view: call("skills.view"),
     },
     source_rules: {
@@ -2434,7 +2559,10 @@ export function stubs(ctx: CallCtx) {
     },
     spaces: {
       delete: call("spaces.delete"),
+      delete_cancel: call("spaces.delete_cancel"),
+      delete_due: call("spaces.delete_due"),
       export: call("spaces.export"),
+      export_latest: call("spaces.export_latest"),
       get: call("spaces.get"),
       image: call("spaces.image"),
       leave: call("spaces.leave"),
@@ -2719,10 +2847,12 @@ export function stubs(ctx: CallCtx) {
       list: call("threads.list"),
       make_channel: call("threads.make_channel"),
       mark_read: call("threads.mark_read"),
+      mark_unread_from: call("threads.mark_unread_from"),
       members: {
         add: call("threads.members.add"),
         remove: call("threads.members.remove"),
       },
+      move: call("threads.move"),
       outside_agent: {
         add: call("threads.outside_agent.add"),
         remove: call("threads.outside_agent.remove"),

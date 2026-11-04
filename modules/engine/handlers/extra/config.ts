@@ -79,6 +79,18 @@ export async function policySet(
       cleanLabels[label] = uniq(providers);
     }
   }
+  // Restricted may be given only to a provider that has an account keeping nothing (a local model always does)
+  if (cleanLabels?.["restricted"]?.length) {
+    const now = new Set(policyRow<Record<string, string[]>>(ctx, "labelProviders")?.["restricted"] ?? []);
+    const added = cleanLabels["restricted"].filter((d) => !now.has(d) && d !== "local");
+    if (added.length > 0) {
+      const all = ((await ctx.call("providers.list", {})) as { providers: Array<{ providerKey: string; engine: string; connection: string; keepsNothing?: boolean }> }).providers;
+      for (const d of added) {
+        const accounts = all.filter((p) => p.providerKey === d || p.engine.replace(/-/g, "_") === d);
+        if (!accounts.some((p) => p.connection === "local_model" || p.keepsNothing === true)) raise(ctx, "validation.bad_input", `Restricted data may only go to accounts that keep nothing. No ${d} account is marked that way.`, { field: "labelProviders", label: "restricted", provider: d });
+      }
+    }
+  }
   const keys: string[] = [];
   const put = (key: string, value: unknown): void => {
     ctx.db.run("INSERT OR REPLACE INTO engine_policy (key, value, updated_at) VALUES (?, ?, ?)", key, JSON.stringify(value), ctx.now());
@@ -98,7 +110,9 @@ export async function policySet(
 }
 
 /** Why a provider or model may not run, or null. `label` is the label of the open record or thread, when there is one. */
-export function blockedBy(policy: Policy, o: { provider?: string | undefined; model?: string | undefined; label?: string | undefined }): "label_provider" | "policy_model" | null {
+export function blockedBy(policy: Policy, o: { provider?: string | undefined; model?: string | undefined; label?: string | undefined; keepsNothing?: boolean | undefined }): "label_provider" | "policy_model" | null {
+  // Restricted records go only to an account that keeps nothing, whatever the label list says (when the caller knows the account)
+  if (o.label === "restricted" && o.keepsNothing === false) return "label_provider";
   if (o.label !== undefined && o.provider !== undefined) {
     const allowed = policy.labelProviders[o.label];
     if (allowed !== undefined && !allowed.includes(o.provider)) return "label_provider";

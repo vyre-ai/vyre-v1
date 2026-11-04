@@ -115,6 +115,7 @@
         "modules/twilio/",
         "modules/zoom/",
         "modules/github/",
+        "modules/ci/",
         "modules/stripe/",
         "package-lock.json"
       ],
@@ -132,6 +133,7 @@
         "twilio",
         "zoom",
         "github",
+        "ci",
         "stripe"
       ]
     },
@@ -438,6 +440,7 @@
     "forms": "L8",
     "gate": "L6",
     "git": "L4",
+    "ci": "L5",
     "github": "L5",
     "google": "L5",
     "governance": "L7a",

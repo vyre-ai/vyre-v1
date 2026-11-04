@@ -15,3 +15,4 @@ Area: ai. Risk: medium. Applies to: space.
 ## Capabilities that need it
 
 - engine.policy.set
+- providers.own_people

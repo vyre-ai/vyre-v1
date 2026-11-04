@@ -1,3 +1,4 @@
+// @tsx
 // The Console's one line and Settings' one line: what they say for each state of the Space key.
 import test from "node:test";
 import assert from "node:assert/strict";

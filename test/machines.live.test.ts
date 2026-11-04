@@ -6,11 +6,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
-import type { Report } from "../host/src/machines/report.ts";
-import { NOAH, bootDevice, bootSpace, hostLog, makeAgent, messages, replyAfter, send, startChat, waitFor } from "./support/runson.ts";
+import { NOAH, bootDevice, bootSpace, calm, hostLog, makeAgent, messages, replyAfter, send, startChat, waitFor } from "./support/runson.ts";
 
-/** The machines these daemons run on are busy with the test itself: pin their load so the room each has is the same on every run. */
-const calm = (r: Report): Report => ({ ...r, load: { ...r.load, cpuPct: 20, memUsedBytes: Math.round(r.specs.memBytes * 0.4), diskFreeBytes: Math.round(r.specs.diskBytes * 0.6) } });
 
 interface M { machineId: string; name: string; kind: string; online: boolean; restricted: boolean; mine: boolean; cores?: number; os?: string; load?: unknown; vyreLoad?: unknown; can: string[]; room: { score: number; tightest: string }; draining: boolean; runs: { turns: number } }
 const OLIVIA = "device:dev_olivia_mac", NOAHS = "device:dev_noah_mac";

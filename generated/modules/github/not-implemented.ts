@@ -5,6 +5,7 @@ import type { Handlers } from './handlers.ts';
 
 /** Served while the module is a stub and no example answer is wanted: every capability fails with a typed error carrying the trace id. */
 export const handlers: Handlers<HandlerCtx> = {
+  "github.actions.secrets": async (ctx) => { throw new VyreErr(notImplemented("github.actions.secrets", ctx.trace)); },
   "github.app.complete": async (ctx) => { throw new VyreErr(notImplemented("github.app.complete", ctx.trace)); },
   "github.app.create_manifest": async (ctx) => { throw new VyreErr(notImplemented("github.app.create_manifest", ctx.trace)); },
   "github.app.get": async (ctx) => { throw new VyreErr(notImplemented("github.app.get", ctx.trace)); },
@@ -18,6 +19,15 @@ export const handlers: Handlers<HandlerCtx> = {
   "github.issue.create": async (ctx) => { throw new VyreErr(notImplemented("github.issue.create", ctx.trace)); },
   "github.issue.get": async (ctx) => { throw new VyreErr(notImplemented("github.issue.get", ctx.trace)); },
   "github.issue.update": async (ctx) => { throw new VyreErr(notImplemented("github.issue.update", ctx.trace)); },
+  "github.me.approve": async (ctx) => { throw new VyreErr(notImplemented("github.me.approve", ctx.trace)); },
+  "github.me.complete": async (ctx) => { throw new VyreErr(notImplemented("github.me.complete", ctx.trace)); },
+  "github.me.connect": async (ctx) => { throw new VyreErr(notImplemented("github.me.connect", ctx.trace)); },
+  "github.me.disconnect": async (ctx) => { throw new VyreErr(notImplemented("github.me.disconnect", ctx.trace)); },
+  "github.me.policy.get": async (ctx) => { throw new VyreErr(notImplemented("github.me.policy.get", ctx.trace)); },
+  "github.me.policy.set": async (ctx) => { throw new VyreErr(notImplemented("github.me.policy.set", ctx.trace)); },
+  "github.me.reach": async (ctx) => { throw new VyreErr(notImplemented("github.me.reach", ctx.trace)); },
+  "github.me.status": async (ctx) => { throw new VyreErr(notImplemented("github.me.status", ctx.trace)); },
+  "github.me.usage": async (ctx) => { throw new VyreErr(notImplemented("github.me.usage", ctx.trace)); },
   "github.pull_request.ask_author_fix": async (ctx) => { throw new VyreErr(notImplemented("github.pull_request.ask_author_fix", ctx.trace)); },
   "github.pull_request.checks": async (ctx) => { throw new VyreErr(notImplemented("github.pull_request.checks", ctx.trace)); },
   "github.pull_request.close": async (ctx) => { throw new VyreErr(notImplemented("github.pull_request.close", ctx.trace)); },
@@ -33,4 +43,8 @@ export const handlers: Handlers<HandlerCtx> = {
   "github.receive_webhook": async (ctx) => { throw new VyreErr(notImplemented("github.receive_webhook", ctx.trace)); },
   "github.repo.get": async (ctx) => { throw new VyreErr(notImplemented("github.repo.get", ctx.trace)); },
   "github.repos.list": async (ctx) => { throw new VyreErr(notImplemented("github.repos.list", ctx.trace)); },
+  "github.runners.jit_config": async (ctx) => { throw new VyreErr(notImplemented("github.runners.jit_config", ctx.trace)); },
+  "github.runners.remove": async (ctx) => { throw new VyreErr(notImplemented("github.runners.remove", ctx.trace)); },
+  "github.session_env": async (ctx) => { throw new VyreErr(notImplemented("github.session_env", ctx.trace)); },
+  "github.token": async (ctx) => { throw new VyreErr(notImplemented("github.token", ctx.trace)); },
 };

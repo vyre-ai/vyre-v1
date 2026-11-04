@@ -6,24 +6,42 @@ export type Handler<C extends keyof CapMap, X extends HandlerCtx = HandlerCtx> =
 
 export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "projects.apply_cascade": Handler<"projects.apply_cascade", X>;
+  "projects.archive": Handler<"projects.archive", X>;
   "projects.cascade": Handler<"projects.cascade", X>;
   "projects.create": Handler<"projects.create", X>;
+  "projects.crew": Handler<"projects.crew", X>;
   "projects.file_chat": Handler<"projects.file_chat", X>;
   "projects.files_folder": Handler<"projects.files_folder", X>;
+  "projects.for_channel": Handler<"projects.for_channel", X>;
   "projects.from_channel": Handler<"projects.from_channel", X>;
   "projects.get": Handler<"projects.get", X>;
   "projects.link_tasks": Handler<"projects.link_tasks", X>;
+  "projects.links.link": Handler<"projects.links.link", X>;
+  "projects.links.list": Handler<"projects.links.list", X>;
+  "projects.links.rules.set": Handler<"projects.links.rules.set", X>;
+  "projects.links.unlink": Handler<"projects.links.unlink", X>;
   "projects.list": Handler<"projects.list", X>;
+  "projects.live_block.query": Handler<"projects.live_block.query", X>;
   "projects.members.list": Handler<"projects.members.list", X>;
   "projects.members.remove": Handler<"projects.members.remove", X>;
   "projects.members.set": Handler<"projects.members.set", X>;
   "projects.open_task_thread": Handler<"projects.open_task_thread", X>;
   "projects.overview": Handler<"projects.overview", X>;
+  "projects.overview_doc.apply_template": Handler<"projects.overview_doc.apply_template", X>;
+  "projects.overview_doc.get": Handler<"projects.overview_doc.get", X>;
+  "projects.overview_doc.history": Handler<"projects.overview_doc.history", X>;
+  "projects.overview_doc.save": Handler<"projects.overview_doc.save", X>;
+  "projects.overview_doc.templates.list": Handler<"projects.overview_doc.templates.list", X>;
+  "projects.overview_doc.templates.save": Handler<"projects.overview_doc.templates.save", X>;
+  "projects.overview_doc.undo": Handler<"projects.overview_doc.undo", X>;
+  "projects.overview_edit": Handler<"projects.overview_edit", X>;
+  "projects.overview_get": Handler<"projects.overview_get", X>;
   "projects.pin_file": Handler<"projects.pin_file", X>;
   "projects.plan": Handler<"projects.plan", X>;
   "projects.post_update": Handler<"projects.post_update", X>;
   "projects.reschedule": Handler<"projects.reschedule", X>;
   "projects.roles_of": Handler<"projects.roles_of", X>;
+  "projects.set": Handler<"projects.set", X>;
   "projects.share_out": Handler<"projects.share_out", X>;
   "projects.shared_view": Handler<"projects.shared_view", X>;
   "projects.stages.set": Handler<"projects.stages.set", X>;
@@ -31,7 +49,10 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "projects.teammates.list": Handler<"projects.teammates.list", X>;
   "projects.teammates.remove": Handler<"projects.teammates.remove", X>;
   "projects.templates.list": Handler<"projects.templates.list", X>;
+  "projects.unarchive": Handler<"projects.unarchive", X>;
   "projects.unlink_tasks": Handler<"projects.unlink_tasks", X>;
   "projects.unpin_file": Handler<"projects.unpin_file", X>;
   "projects.unshare_out": Handler<"projects.unshare_out", X>;
+  "projects.update.draft": Handler<"projects.update.draft", X>;
+  "projects.update.edit": Handler<"projects.update.edit", X>;
 }

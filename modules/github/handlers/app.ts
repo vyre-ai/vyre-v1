@@ -14,7 +14,7 @@
 import { HostError, fail } from "../../../host/src/routes/errors.ts";
 import { mintUuid } from "../../../lib/ids.ts";
 import {
-  APP_EVENTS, APP_PERMISSIONS, APP_ROW, api, bad, codeOf, ensure, first, HANDLE, installationFor, intOrUndef, list, mintToken, needHost, num, obj, raw, refuse, refusal, repoPath, strOrUndef, text, WEB,
+  APP_EVENTS, APP_PERMISSIONS, APP_ROW, api, bad, codeOf, ensure, first, HANDLE, installationFor, intOrUndef, list, mintToken, needHost, num, numberOf, obj, raw, refuse, refusal, repoPath, strOrUndef, text, WEB,
 } from "../projections.ts";
 import type { GithubCtx, Json } from "../projections.ts";
 
@@ -232,7 +232,7 @@ export async function signatureMatches(secret: string, header: string, body: str
 
 export interface WebhookIn {
   deliveryId: string;
-  event: "ping" | "installation" | "push" | "pull_request" | "issues" | "check_run" | "workflow_run";
+  event: "ping" | "installation" | "push" | "pull_request" | "issues" | "check_run" | "workflow_run" | "workflow_job";
   action?: string;
   repo?: string;
   installationId?: number;
@@ -241,9 +241,14 @@ export interface WebhookIn {
   branch?: string;
   conclusion?: string;
   name?: string;
+  /** workflow_job: the job, its run, the labels it asks a runner for, and the runner that took it. */
+  jobId?: number;
+  runId?: number;
+  labels?: string[];
+  runnerName?: string;
 }
 
-const EVENTS: readonly string[] = ["ping", "installation", "push", "pull_request", "issues", "check_run", "workflow_run"];
+const EVENTS: readonly string[] = ["ping", "installation", "push", "pull_request", "issues", "check_run", "workflow_run", "workflow_job"];
 
 /** What the host's /hooks/github route calls first: the body is GitHub's only if the signature is. Returns the input of github.receive_webhook, or null for an event Vyre does not follow. */
 export async function verifyWebhook(ctx: GithubCtx, a: { signature: string | undefined; event: string | undefined; deliveryId: string | undefined; body: string }): Promise<WebhookIn | null> {
@@ -307,6 +312,21 @@ export function parseDelivery(event: string, deliveryId: string, body: unknown):
     if (conclusion) out.conclusion = conclusion;
     const sha = strOrUndef(run.head_sha);
     if (sha) out.sha = sha;
+  } else if (event === "workflow_job") {
+    const job = obj(b.workflow_job);
+    const jobId = intOrUndef(job.id);
+    if (jobId !== undefined) out.jobId = jobId;
+    const runId = intOrUndef(job.run_id);
+    if (runId !== undefined) out.runId = runId;
+    const name = strOrUndef(job.name);
+    if (name) out.name = name;
+    const conclusion = strOrUndef(job.conclusion);
+    if (conclusion) out.conclusion = conclusion;
+    const sha = strOrUndef(job.head_sha);
+    if (sha) out.sha = sha;
+    const runnerName = strOrUndef(job.runner_name);
+    if (runnerName) out.runnerName = runnerName;
+    out.labels = list(job.labels).filter((l): l is string => typeof l === "string").slice(0, 20);
   }
   return out;
 }
@@ -343,8 +363,26 @@ export async function receiveWebhook(ctx: GithubCtx, input: WebhookIn): Promise<
     if (conclusion) ctx.emit("github.check_completed", `entity/${repo}`, { repo, sha: input.sha, name: input.name, conclusion, ...(number !== undefined ? { number } : {}) });
   } else if (input.event === "workflow_run" && input.action === "completed" && repo && input.sha && input.name && input.conclusion) {
     ctx.emit("workflow.completed", `entity/${repo}`, { repo, name: input.name, conclusion: input.conclusion, sha: input.sha });
+  } else if (input.event === "workflow_job" && repo && input.jobId !== undefined && input.runId !== undefined && (input.action === "queued" || input.action === "completed")) {
+    const base = { repo, jobId: input.jobId, runId: input.runId, name: input.name ?? "job", labels: input.labels ?? [], ...(input.runnerName ? { runnerName: input.runnerName } : {}) };
+    if (input.action === "queued") ctx.emit("workflow_job.queued", `entity/${repo}`, { ...base, fork: await forkOf(ctx, input) });
+    else ctx.emit("workflow_job.completed", `entity/${repo}`, { ...base, conclusion: input.conclusion ?? "unknown" });
   }
   return { accepted: true };
+}
+
+/** Whether a run came from a fork's pull request, asked of GitHub (a job's own payload does not say). "unknown" when GitHub cannot be asked: the caller must treat it as a fork. */
+async function forkOf(ctx: GithubCtx, input: WebhookIn): Promise<"no" | "yes" | "unknown"> {
+  try {
+    const installationId = await installationFor(ctx, input.installationId !== undefined ? { installationId: input.installationId } : { repo: input.repo ?? "" });
+    const run = await api(ctx, { path: `${repoPath(ctx, input.repo)}/actions/runs/${input.runId}`, auth: { as: "installation", installationId } });
+    const head = strOrUndef(obj(run.head_repository).full_name), base = strOrUndef(obj(run.repository).full_name);
+    if (!head || !base) return "unknown";
+    return head.toLowerCase() === base.toLowerCase() ? "no" : "yes";
+  } catch (e) {
+    ctx.log.warn("github: could not tell whether a job came from a fork", { code: codeOf(e) });
+    return "unknown";
+  }
 }
 
 /** The synced record for a pull request or issue, if the sync has made it yet. A records module that is down gives none. */
@@ -370,3 +408,42 @@ async function authorOf(ctx: GithubCtx, input: WebhookIn, kind: "pulls" | "issue
   }
 }
 
+
+// ---- runners (the CI module): a just-in-time runner for one job, and whether the repository holds secrets
+
+/** A just-in-time runner config for one job. The runner takes one job and is gone; the config is passed to the new machine and never stored. */
+export async function runnersJitConfig(ctx: GithubCtx, input: { repo: string; name: string; labels: string[]; installationId?: number }): Promise<{ runnerId: number; jitConfig: string }> {
+  ensure(ctx);
+  const installationId = await installationFor(ctx, input.installationId !== undefined ? { installationId: input.installationId } : { repo: input.repo });
+  const j = await api(ctx, { method: "POST", path: `${repoPath(ctx, input.repo)}/actions/runners/generate-jitconfig`, auth: { as: "installation", installationId }, body: { name: input.name, runner_group_id: 1, labels: input.labels, work_folder: "_work" } });
+  const jitConfig = text(j.encoded_jit_config), runnerId = intOrUndef(obj(j.runner).id);
+  if (!jitConfig || runnerId === undefined) throw fail("provider.bad_response", ctx.trace.traceId, { message: "GitHub answered a runner request with no runner." });
+  return { runnerId, jitConfig };
+}
+
+/** How many Actions secrets the repository holds, or null when GitHub would not say (the caller then treats it as having some). */
+export async function actionsSecrets(ctx: GithubCtx, input: { repo: string }): Promise<{ count: number | null }> {
+  ensure(ctx);
+  try {
+    const installationId = await installationFor(ctx, { repo: input.repo });
+    const j = await api(ctx, { path: `${repoPath(ctx, input.repo)}/actions/secrets`, query: { per_page: 1 }, auth: { as: "installation", installationId } });
+    const n = intOrUndef(j.total_count);
+    return { count: n ?? null };
+  } catch (e) {
+    ctx.log.warn("github: could not count a repository's secrets", { code: codeOf(e) });
+    return { count: null };
+  }
+}
+
+/** Take a runner that never ran back from GitHub (a machine that failed to start). A runner that is already gone answers fine. */
+export async function runnersRemove(ctx: GithubCtx, input: { repo: string; runnerId: number }): Promise<{ removed: boolean }> {
+  ensure(ctx);
+  try {
+    const installationId = await installationFor(ctx, { repo: input.repo });
+    const a = await raw(ctx, { method: "DELETE", path: `${repoPath(ctx, input.repo)}/actions/runners/${numberOf(ctx, input.runnerId, "The runner")}`, auth: { as: "installation", installationId } });
+    return { removed: a.status < 300 || a.status === 404 };
+  } catch (e) {
+    ctx.log.warn("github: could not remove a runner", { code: codeOf(e) });
+    return { removed: false };
+  }
+}

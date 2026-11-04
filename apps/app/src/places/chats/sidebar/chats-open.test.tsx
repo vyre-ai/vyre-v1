@@ -81,6 +81,15 @@ test("selection follows the open page across a tab switch, a link and Cmd-K for 
   assert.deepEqual(selectedRows(personal.root), ["c:c3"], "Cmd-K to another chat: the imported row is no longer lit while you are not in it");
 });
 
+test("an imported transcript is selected while it is open and not once Cmd-K goes to a chat (a Personal Space lists imported sessions)", async () => {
+  const { root, show } = await drawn(createRoot, { imported: IMPORTED, open: "t:c1" });
+  assert.deepEqual(selectedRows(root), ["c:c1"], "the open chat");
+  await show("i:isc_a");
+  assert.deepEqual(selectedRows(root), ["i:isc_a"], "an imported transcript");
+  await show("t:c3");
+  assert.deepEqual(selectedRows(root), ["c:c3"], "Cmd-K to another chat: the imported row is no longer lit while you are not in it");
+});
+
 test("a press opens the page but the selection waits for it: a row stays unselected until the place shows it", async () => {
   const { s, root, show } = await drawn(createRoot, { imported: IMPORTED, open: "t:c1" });
   await press(find(root, "row-i:isc_a"));
