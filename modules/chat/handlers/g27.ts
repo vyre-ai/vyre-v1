@@ -2,6 +2,7 @@
 //   chat.fork    a new private chat that holds a copy of one chat up to a message, with the same agents and a line that links back
 //   chat.search  the words and the meaning of messages across every chat and channel the asker is in, each hit naming its message
 // Both read only what the asker may read. A sealed chat is not the server's to read: fork refuses it, search leaves it out and says how many.
+import { readFloor } from "./floor.ts";
 import {
   agentsOf, askerOf, channelBy, ensure, addAgent, addMember, insertMessage, insertThread, messageBy, messageOf, mintId, raise, refOf, threadBy, threadOut, membersOf,
 } from "../projections.ts";
@@ -59,7 +60,8 @@ export async function fork(ctx: ChatCtx, input: { threadId: string; messageId?: 
     upTo = r ? messageOf(r) : null;
   }
   if (!upTo) raise(ctx, "validation.precondition_failed", "There is nothing in this chat to fork yet.");
-  const rows = (ctx.db.all("SELECT * FROM chat_message WHERE thread = ? AND threadSeq <= ? AND deleted_at IS NULL ORDER BY threadSeq DESC LIMIT ?", src.id, upTo.seq, MAX_FORK) as Row[]).map(messageOf).reverse();
+  // a fork copies only what the person who forks may read
+  const rows = (ctx.db.all("SELECT * FROM chat_message WHERE thread = ? AND threadSeq <= ? AND createdAt >= ? AND deleted_at IS NULL ORDER BY threadSeq DESC LIMIT ?", src.id, upTo.seq, readFloor(ctx, src), MAX_FORK) as Row[]).map(messageOf).reverse();
 
   const srcTitle = titleOf(ctx, src);
   const t = insertThread(ctx, {
@@ -208,7 +210,10 @@ export async function search(ctx: ChatCtx, input: { q: string; mode?: "keyword" 
     }
   }
 
-  const scored = [...found.values()].map((f) => ({ ...f, score: usedMeaning ? Math.max(f.keyword, f.meaning) * 0.8 + Math.min(f.keyword, f.meaning) * 0.2 + (f.keyword > 0 && f.meaning > 0 ? 0.1 : 0) : f.keyword }));
+  // what a person added without earlier messages never finds by searching
+  const floors = new Map<string, number>();
+  const floorOf = (thread: string): number => { let f = floors.get(thread); if (f === undefined) { const t = threadBy(ctx.db, thread); f = t ? readFloor(ctx, t) : 0; floors.set(thread, f); } return f; };
+  const scored = [...found.values()].filter((f) => f.m.createdAt >= floorOf(f.m.thread)).map((f) => ({ ...f, score: usedMeaning ? Math.max(f.keyword, f.meaning) * 0.8 + Math.min(f.keyword, f.meaning) * 0.2 + (f.keyword > 0 && f.meaning > 0 ? 0.1 : 0) : f.keyword }));
   scored.sort((a, b) => b.score - a.score || b.m.createdAt - a.m.createdAt);
   const cache = new Map<string, Record<string, unknown>>();
   const threadInfo = (id: string): Record<string, unknown> => {

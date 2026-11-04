@@ -6,7 +6,7 @@
 //   snapshot.take / versions / restore_version             the files a run uses, and rolling back
 // A broken agent.toml never stops an agent: the last good configuration stays in agents_agent.config and is what every read here returns.
 import {
-  AGENT_MD_DEFAULT, isAgentMdV1, AWAKE_MS, agentFor, agentView, governs, isPrivateAgent, seesSetup, withoutSetup, teammateOf, isAssistant, LIMIT_KEYS, LIMIT_TOML, MAX_NAME, MAX_ROLE, NAME_BAD, TREE_FOLDERS, agentBy, agentByName, agentOf, agentOut, allAgents, applyPatch, askerOf, call, canSee, checkToml,
+  AGENT_MD_DEFAULT, isAgentMdV1, AWAKE_MS, agentFor, agentView, allows, governs, isPrivateAgent, seesSetup, withoutSetup, teammateOf, chatOf, isAssistant, LIMIT_KEYS, LIMIT_TOML, MAX_NAME, MAX_ROLE, NAME_BAD, TREE_FOLDERS, agentBy, agentByName, agentOf, agentOut, allAgents, applyPatch, askerOf, call, canSee, checkToml,
   codeOf, ensure, insertAgent, makeFile, makeFolder, meta, mintId, mustChangeSettings, newConfig, nameKey, parseToml, raise, saveFile, setMeta, settingsRefusal, slug, statusOf, storeConfig, textOf, tolerant, tomlFor,
   versionsOf, visible, widenings, writeConfig,
 } from "../projections.ts";
@@ -23,7 +23,7 @@ export const OWNER_LEFT = "The owner left this Space";
 
 // ---- reads ---------------------------------------------------------------------------------------------------------------------------------------------
 
-export async function list(ctx: AgentsCtx, input: { section?: "personal" | "shared" | "space"; folderId?: string; status?: string[]; teammates?: "hide" | "include" | "only"; projectId?: string; cursor?: string; limit?: number }) {
+export async function list(ctx: AgentsCtx, input: { section?: "personal" | "shared" | "space"; folderId?: string; status?: string[]; teammates?: "hide" | "include" | "only"; projectId?: string; threadId?: string; cursor?: string; limit?: number }) {
   ensure(ctx.db);
   const asker = askerOf(ctx);
   const now = ctx.now();
@@ -34,9 +34,11 @@ export async function list(ctx: AgentsCtx, input: { section?: "personal" | "shar
   if (input.folderId !== undefined && input.folderId !== root) rows = rows.filter((a) => a.folderId === input.folderId);
   if (input.status && input.status.length > 0) rows = rows.filter((a) => input.status!.includes(statusOf(a, now)));
   // teammates belong to a project: the Agents page does not list them unless asked
-  const mode = input.projectId !== undefined ? "only" : input.teammates ?? "hide";
-  if (mode === "hide") rows = rows.filter((a) => teammateOf(a) === undefined);
-  else if (mode === "only") rows = rows.filter((a) => { const p = teammateOf(a); return p !== undefined && (input.projectId === undefined || p === input.projectId); });
+  const mode = input.projectId !== undefined || input.threadId !== undefined ? "only" : input.teammates ?? "hide";
+  // an agent a chat made for itself is a teammate of that chat: hidden the same way, listed for its chat
+  if (mode === "hide") rows = rows.filter((a) => teammateOf(a) === undefined && chatOf(a) === undefined);
+  else if (input.threadId !== undefined) rows = rows.filter((a) => chatOf(a) === input.threadId);
+  else if (mode === "only") rows = rows.filter((a) => { const p = teammateOf(a); return (p !== undefined || chatOf(a) !== undefined) && (input.projectId === undefined || p === input.projectId); });
   const offset = input.cursor !== undefined && /^\d+$/.test(input.cursor) ? Number(input.cursor) : 0;
   const limit = input.limit ?? 100;
   const page = rows.slice(offset, offset + limit);
@@ -155,10 +157,10 @@ async function createTree(ctx: AgentsCtx, agentId: string, name: string, tomlTex
   return { folderId: home.folderId, tomlFileId: toml.fileId, agentMdFileId: md.fileId };
 }
 
-type CreateInput = { name: string; role?: string; face?: string; model?: string; ownerId?: string; computer?: boolean; templateKey?: string; tools?: { allowed: string[]; denied: string[] }; limits?: Limits; projectId?: string; idempotencyKey?: string };
+type CreateInput = { name: string; role?: string; face?: string; model?: string; ownerId?: string; computer?: boolean; templateKey?: string; tools?: { allowed: string[]; denied: string[] }; limits?: Limits; projectId?: string; threadId?: string; idempotencyKey?: string };
 
 /** agents.create: a teammate when it names a project, otherwise an agent of the Space. A private assistant is never asked for: only a person's account makes one (onPersonCreated). */
-export const create = (ctx: AgentsCtx, input: CreateInput) => make(ctx, input, input.projectId !== undefined ? "teammate" : "agent");
+export const create = (ctx: AgentsCtx, input: CreateInput) => make(ctx, input, input.projectId !== undefined || input.threadId !== undefined ? "teammate" : "agent");
 
 /** agents.outside.connect: the agent an app becomes when a person allows it. Only the sign-in reaches this: a nested call from mcp.oauth.allow, as that person. */
 export async function connectOutside(ctx: AgentsCtx, input: { clientName: string }) {
@@ -175,6 +177,9 @@ async function make(ctx: AgentsCtx, input: CreateInput, kind: AgentKind, runtime
   if (name === "" || name.length > MAX_NAME || NAME_BAD.test(name) || name.startsWith(".")) raise(ctx, "validation.bad_input", `An agent's name is up to ${MAX_NAME} characters with none of / \\ : * ? " < > | and no dot at the start.`);
   if (input.role !== undefined && (input.role.length > MAX_ROLE || input.role.includes("\n"))) raise(ctx, "validation.bad_input", `The role line is one line of up to ${MAX_ROLE} characters.`);
   if (agentByName(ctx.db, name)) raise(ctx, "validation.duplicate", "An agent with that name already exists.", { name });
+  if (input.projectId !== undefined && input.threadId !== undefined) raise(ctx, "validation.bad_input", "An agent belongs to a project or to a chat, not both.");
+  // an agent made for a chat: the chat must be one the maker can open (threads.get answers not found for one they cannot)
+  if (input.threadId !== undefined) await call(ctx, "threads.get", { threadId: input.threadId });
   const owner = input.ownerId ?? askerOf(ctx);
   if (!owner.startsWith("usr_")) raise(ctx, "validation.bad_input", "An agent's owner is a person.", { ownerId: owner });
   // naming someone else as the owner hands them an agent and grants on its folder: that is for whoever manages access (owner and admin, permission access.manage), not for any member
@@ -195,7 +200,7 @@ async function make(ctx: AgentsCtx, input: CreateInput, kind: AgentKind, runtime
   const agentMd = starter !== undefined && kind !== "assistant" ? starter.replaceAll("{{name}}", name).replaceAll("{{role}}", input.role?.trim() ?? "") : AGENT_MD_DEFAULT(name, input.role, kind);
   const tree = await createTree(ctx, id, name, tomlText, agentMd);
   const rec: AgentRec = {
-    id, name, kind, runtime, ...(input.projectId !== undefined ? { projectId: input.projectId } : {}), face: input.face?.trim() || slug(name), ownerId: owner, folderId: tree.folderId, tomlFileId: tree.tomlFileId, agentMdFileId: tree.agentMdFileId, tomlText, config, hasComputer: input.computer === true,
+    id, name, kind, runtime, ...(input.projectId !== undefined ? { projectId: input.projectId } : {}), ...(input.threadId !== undefined ? { threadId: input.threadId } : {}), face: input.face?.trim() || slug(name), ownerId: owner, folderId: tree.folderId, tomlFileId: tree.tomlFileId, agentMdFileId: tree.agentMdFileId, tomlText, config, hasComputer: input.computer === true,
     templateVersion: await templateVersion(ctx, template), paused: false, working: 0, lastActiveAt: now, createdAt: now, updatedAt: now,
   };
   insertAgent(ctx.db, rec);
@@ -232,6 +237,8 @@ export async function update(ctx: AgentsCtx, input: { agentId: string; patch: Re
   // The Chat key (owner, 3 Nov): paying for every person's chats with one Space account instead of each person's own is an override that only people who manage the Space's AI accounts set
   if ((res.fields.includes("accountPolicy") || res.fields.includes("accountKey")) && !isHostService(ctx.principal) && !isAdmin(ctx)) raise(ctx, "permission.no_grant", "Only people who manage the Space's AI accounts can make an agent pay for chats with one account.", { reason: "chat_key_admin" });
   const newName = res.config.name;
+  // Can edit changes AGENT.md, skills and memory settings; renaming belongs with Can manage (the Share sheet's four levels)
+  if (res.fields.includes("name") && !(a.ownerId === askerOf(ctx) || allows(ctx, null, "manage", "agent", a.id) || isHostService(ctx.principal))) raise(ctx, "permission.no_grant", "Renaming an agent needs Can manage on it.", { reason: "rename_needs_manage" });
   if (nameKey(newName) !== nameKey(a.name) && agentByName(ctx.db, newName)) raise(ctx, "validation.bad_input", "An agent with that name already exists.", { name: newName });
   const text = tomlFor(res.doc);
   const checked = checkToml(text, { self: newName });

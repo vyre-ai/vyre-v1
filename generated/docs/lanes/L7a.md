@@ -236,7 +236,7 @@ Events:
 
 ### members
 
-Capabilities to implement: 33. Events to emit: 6. Contract tests that must go green: `generated/tests/members/`.
+Capabilities to implement: 34. Events to emit: 6. Contract tests that must go green: `generated/tests/members/`.
 
 Capabilities:
 - company.access_log (read, connectors.manage, level view)
@@ -253,6 +253,7 @@ Capabilities:
 - members.accept (write, grant only, level view)
 - members.invites.create (write, members.invite, level view)
 - members.invites.extend (write, members.invite, level view)
+- members.invites.guest (write, grant only, level member)
 - members.invites.list (read, members.invite, level view)
 - members.invites.preview (read, grant only, level view)
 - members.invites.revoke (write, members.invite, level view)
