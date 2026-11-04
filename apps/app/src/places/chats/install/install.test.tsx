@@ -246,3 +246,8 @@ test("no skills yet says how to get one", async () => {
   await flush(); await flush();
   assert.match(textOf(find(root!, "skills-empty")!), /Give the Assistant a GitHub link/);
 });
+
+test("the right pane draws the Skills tab once (a merge once left two copies of the line)", async () => {
+  const src = (await import("node:fs")).readFileSync(new URL("../rightpane/ChatRightPane.tsx", import.meta.url), "utf8");
+  assert.equal((src.match(/<SkillsTab\b/g) ?? []).length, 1);
+});
