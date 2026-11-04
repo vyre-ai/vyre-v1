@@ -137,9 +137,10 @@ test("rows that have no reader or belong elsewhere are not drawn", () => {
 
 test("Notifications: each kind with how it arrives, the delivery rows and who is muted", () => {
   const out = html(createSampleSettings(northwind), { initialPage: "notifications" });
-  assert.ok(has(out, "Notify me on") && has(out, "Needs you") && has(out, "Mentions") && has(out, ">Interrupt<") && has(out, "Badge only") && has(out, "Digest"));
+  assert.ok(has(out, "Notify me on") && has(out, "Needs you") && has(out, "Mentions") && has(out, "Desktop and phone") && has(out, "Badge only") && has(out, "In my summary"));
+  assert.ok(!has(out, "Interrupt") && !has(out, "threads"), "no system words");
   assert.ok(!has(out, "Waits outside your working hours") && !has(out, "How each kind arrives"));
-  assert.ok(has(out, "Email me if an approval waits") && has(out, "Alert me on replies") && has(out, "Tell me when routines succeed") && has(out, 'data-testid="ctl-quiet-on"') && has(out, 'data-testid="ctl-hand-to"'));
+  assert.ok(has(out, "Email me if an approval waits") && !has(out, "Alert me on replies") && has(out, "away, send Needs you to") && has(out, "Tell me when routines succeed") && has(out, 'data-testid="ctl-quiet-on"') && has(out, 'data-testid="ctl-hand-to"'));
   assert.ok(!has(out, "Idle minutes"), "nothing reads it, and it was refused anyway");
   assert.ok(has(out, ">Muted<") && has(out, "Docs") && has(out, "#sales") && has(out, "Unmute"));
 });
@@ -280,7 +281,7 @@ test("model helpers: hours, clock, times in a zone, summaries, lists and where a
   assert.equal(pageOfRow(rows.find((r) => r.key === "engine.local_runs")!)?.key, "ai");
   assert.equal(pageOfRow(rows.find((r) => r.key === "chat.agent_tabs")!)?.key, "ai");
   assert.equal(pageOfRow({ ...rows.find((r) => r.key === "chat.agent_tabs")!, page: "ai" })?.key, "ai", "the server sends the page key");
-  assert.equal(pageOfRow({ ...rows.find((r) => r.key === "notifications.alert_replies")!, page: "notifications" })?.key, "notifications", "the server sends the page key");
+  assert.equal(pageOfRow({ ...rows.find((r) => r.key === "notifications.email_backstop")!, page: "notifications" })?.key, "notifications", "the server sends the page key");
   assert.equal(pageOfRow({ ...rows[0]!, scope: "space", page: "Policies" }), null, "the Space pages place Space rows");
 });
 

@@ -63,7 +63,7 @@ export interface SectionDef { title: string; note?: string; keys: readonly strin
 
 /** Person rows that stay in the registry but are not rows here: remembered state, what a Kit install or the composer sets, and what the chat's mode dial replaces. */
 export const HIDDEN_ROWS: readonly string[] = [
-  "chat.ask_agent", "kit.person_choice", "comms.default_sender_email", "comms.default_sender_text",
+  "chat.ask_agent", "kit.person_choice", "notifications.alert_replies", "comms.default_sender_email", "comms.default_sender_text",
   "security.terminal_mode", "security.chrome_mode", "security.team_agents_on_my_computer", "chrome.agents_use_my_browser", "appearance.look",
 ];
 
@@ -234,7 +234,7 @@ export const ROW_LABELS: Readonly<Record<string, string>> = {
   "notifications.email_backstop": "Email me if an approval waits",
   "notifications.routines_all": "Tell me when routines succeed",
   "notifications.alert_replies": "Alert me on replies",
-  "notifications.hand_needs_you_to": "Hand Needs you to",
+  "notifications.hand_needs_you_to": "While you're away, send Needs you to",
   "notifications.quiet_hours": "Quiet hours",
   "engine.local_runs": "Run my chats on this computer",
   "chat.agent_tabs": "Agents can open side tabs",

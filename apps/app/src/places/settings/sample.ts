@@ -230,7 +230,7 @@ export function createSampleSettings(space: SampleSpace = northwind): SampleSett
     kinds: [
       { key: "approval.requested", level: "interrupt", place: "home", title: "Needs you", respectHours: false },
       { key: "mention", level: "interrupt", place: "chats", title: "Mentions", respectHours: true },
-      { key: "reply.followed", level: "badge", place: "chats", title: "Replies in your threads", respectHours: true },
+      { key: "reply.followed", level: "badge", place: "chats", title: "Replies to you", respectHours: true },
       { key: "task.assigned", level: "badge", place: "home", title: "Agent finished a long task", respectHours: true },
       { key: "routine.failed", level: "interrupt", place: "home", title: "Routines", respectHours: true },
       { key: "digest.other", level: "digest", place: "chats", title: "Channel messages", respectHours: true },
