@@ -184,6 +184,7 @@ test("a skill installed from a link starts its history with where it came from a
   const mine = (await call(hn, "install.apply", { planId: (await plan(hn, "acme/pdf-skill")).planId, for: "me" })).installed;
   const revs = (await call(hn, "skills.history", { skillId: mine.skillId })).revisions;
   assert.deepEqual(revs.map((r: { summary: string }) => r.summary), ["Installed from a link · aaaaaaa"]);
+  assert.equal(revs[0].version, "aaaaaaa", "a repo that names no version: the commit stands in");
   const agent = await agentOf(hn, hn.ctx, "Intake");
   const theirs = (await call(hn, "install.apply", { planId: (await plan(hn, "acme/pdf-skill")).planId, for: "agent", agentId: agent })).installed;
   assert.deepEqual((await call(hn, "skills.history", { skillId: theirs.skillId })).revisions.map((r: { summary: string }) => r.summary), ["Installed from a link · aaaaaaa"]);
@@ -237,7 +238,7 @@ test("a commit that names a lower version than the installed one is flagged olde
     const down = await offer("1.9.0", "9090909bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb90");
     assert.equal(down.changed, true);
     assert.deepEqual([down.plan.diff.older, down.plan.diff.fromVersion, down.plan.diff.toVersion], [true, "1.10.0", "1.9.0"], "1.9.0 is below 1.10.0 (numbers, not text)");
-    assert.equal(String(hn.rows("SELECT version FROM agents_plugins")[0]!["version"]), "1010101", "looking changes nothing: still on the installed commit");
+    assert.equal(String(hn.rows("SELECT version FROM agents_plugins")[0]!["version"]), "1.10.0", "looking changes nothing: still on the installed version");
     assert.equal(hn.rows("SELECT * FROM agents_install WHERE state = 'installed'").length, 1);
     const up = await offer("1.11.0", "1111111cccccccccccccccccccccccccccccccc11");
     assert.equal(up.plan.diff.older, undefined, "a higher version is an update, not flagged");
@@ -245,7 +246,7 @@ test("a commit that names a lower version than the installed one is flagged olde
     const same = await offer("1.10.0", "1212121dddddddddddddddddddddddddddddddd12");
     assert.equal(same.plan.diff.older, undefined, "the same version on a different commit is not older");
     await offer("1.9.0", "9191919eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee91");
-    assert.equal(String(hn.rows("SELECT version FROM agents_plugins")[0]!["version"]), "1010101", "still nothing applied after three looks");
+    assert.equal(String(hn.rows("SELECT version FROM agents_plugins")[0]!["version"]), "1.10.0", "still nothing applied after three looks");
   } finally { repos.set("acme/versioned-plugin", before); }
 });
 
