@@ -2182,6 +2182,8 @@ if ("body" in o1980) lf(o1980["body"], p + "/notes" + '/' + i1979 + "/body", e, 
 if ("kind" in o1980) lf(o1980["kind"], p + "/notes" + '/' + i1979 + "/kind", e, L1);
 if ("state" in o1980) lf(o1980["state"], p + "/notes" + '/' + i1979 + "/state", e, L1);
 if ("seenAt" in o1980) lf(o1980["seenAt"], p + "/notes" + '/' + i1979 + "/seenAt", e, L17);
+if ("restart" in o1980) lf(o1980["restart"], p + "/notes" + '/' + i1979 + "/restart", e, L3);
+if ("model" in o1980) lf(o1980["model"], p + "/notes" + '/' + i1979 + "/model", e, L1);
 }
 }
 }
@@ -2203,7 +2205,9 @@ const b1981: string[] = []; lf(x1981, p, b1981, L0); if (b1981.length) e.push(..
 if (g1981 === "object") {
 if (g1981 === 'object') { const o1981 = x1981 as Record<string, unknown>;
 if (!("threadId" in o1981)) e.push(p + "/threadId" + ': required');
+if (!("helperId" in o1981)) e.push(p + "/helperId" + ': required');
 if ("threadId" in o1981) lf(o1981["threadId"], p + "/threadId", e, L13);
+if ("helperId" in o1981) lf(o1981["helperId"], p + "/helperId", e, L13);
 if ("model" in o1981) lf(o1981["model"], p + "/model", e, L1);
 if ("account" in o1981) lf(o1981["account"], p + "/account", e, L1);
 if ("provider" in o1981) lf(o1981["provider"], p + "/provider", e, L1);

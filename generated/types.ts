@@ -6955,10 +6955,13 @@ export type ChatHelperNotesOut = {
       kind?: string;
       state?: string;
       seenAt?: number;
+      restart?: boolean;
+      model?: string;
     }>;
 };
 export type ChatHelperRestartIn = {
   threadId: string;
+  helperId: string;
   model?: string;
   account?: string;
   provider?: string;
@@ -11312,6 +11315,7 @@ export type EngineCrewStatusOut = {
   members: Array<{
       kind: "helper" | "teammate";
       id: string;
+      jobId?: string;
       parentThreadId: string;
       title: string;
       name?: string;

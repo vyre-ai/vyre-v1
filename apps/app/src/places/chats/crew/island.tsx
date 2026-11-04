@@ -3,20 +3,20 @@
 import type { ReactElement } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { Avatar } from "../../../../../../ui/src/Avatar/index.tsx";
-import { counts, nameOf } from "./model.ts";
+import { counts, nameOf, faceSeed } from "./model.ts";
 import type { CrewStatusOut } from "./model.ts";
 
 export function CrewIsland({ status, onPress }: { status: CrewStatusOut; onPress: () => void }): ReactElement | null {
   const c = counts(status.totals);
   if (c.active === 0) return null;
-  const active = status.members.filter((m) => m.state === "working" || m.state === "needs_you");
+  const active = c.needsYou > 0 ? status.members.filter((m) => m.state === "needs_you") : status.members.filter((m) => m.state === "working");
   return (
     <View style={st.wrap}>
       <Pressable accessibilityRole="button" accessibilityLabel={c.needsYou > 0 ? `${c.needsYou} helper needs you` : `${c.active} helpers working`} testID="crew-island" onPress={onPress} style={st.pill}>
         <View style={[st.dot, { backgroundColor: (c.needsYou > 0 ? "var(--warn)" : "var(--accent)") as string }]} />
         <Text testID="crew-island-text" style={st.text}>{c.needsYou > 0 ? "Needs you" : "Working"}</Text>
         {/* ui-rows-lint: not a list (the faces of the helpers at work, a decoration on one pill) */}
-        <View style={st.faces}>{active.slice(0, 5).map((m) => <Avatar key={m.id} name={nameOf(m)} seedId={m.agentId} kind="agent" size={20} />)}</View>
+        <View style={st.faces}>{active.slice(0, 5).map((m) => <Avatar key={m.id} name={nameOf(m)} seedId={faceSeed(m)} kind="agent" size={20} />)}</View>
       </Pressable>
     </View>
   );

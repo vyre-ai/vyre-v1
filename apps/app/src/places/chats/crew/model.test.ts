@@ -1,7 +1,7 @@
 // The crew model: every sentence a person reads about the crew, from the numbers engine.crew.status returns.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { holdsOf, keyAction, testsWords, clock, counts, isCode, lineOf, modelTag, money, ranTogether, roleOf, shows, sorted, span, stripTitle, stripTone, timeline, tokenSplit, totalsLine, tokens } from "./model.ts";
+import { totalsParts, sortedBy, withTeammates, middle, faceSeed, holdsOf, keyAction, testsWords, clock, counts, isCode, lineOf, modelTag, money, ranTogether, roleOf, shows, sorted, span, stripTitle, stripTone, timeline, tokenSplit, totalsLine, tokens } from "./model.ts";
 import type { CrewMember, CrewTotals } from "./model.ts";
 
 const T = (o: Partial<CrewTotals> = {}): CrewTotals => ({ members: 3, working: 0, done: 3, needsYou: 0, failed: 0, stopped: 0, tokensIn: 0, tokensOut: 0, costMicros: 0, filesChanged: 0, added: 0, deleted: 0, elapsedMs: 41_000, ...o });
@@ -34,7 +34,10 @@ test("the strip's line counts them, says who needs you, and the light follows", 
   assert.equal(stripTitle(T({ members: 0, done: 0 })), "");
   assert.equal(stripTone(T({ needsYou: 1 })), "need"); assert.equal(stripTone(T({ working: 1 })), "live"); assert.equal(stripTone(T()), "idle");
   assert.deepEqual(counts(T({ working: 2, needsYou: 1, done: 0 })), { active: 3, needsYou: 1 });
-  assert.equal(totalsLine(T({ done: 1, working: 2, failed: 0 })), "1 of 3 done · 2 working · 41 s");
+  assert.equal(totalsLine(T({ done: 1, working: 2, failed: 0 })), "2 working · 1 done · 41 s");
+  assert.equal(totalsLine(T({ done: 2, working: 0, needsYou: 0, members: 2, tokensIn: 60_000, tokensOut: 15_000, costMicros: 130_000 })), "2 done · 41 s · 75k tokens · $0.13");
+  assert.equal(middle("Crew test: subagent 1", 16), "Crew tes…agent 1");
+  assert.equal(middle("Orin", 16), "Orin");
 });
 
 test("rows sort needs you, failed, working, then the rest, and Show keeps one kind", () => {
@@ -57,8 +60,8 @@ test("the timeline and Ran together come from real start and end times", () => {
 
 test("code work shows branch and change, the model tag says what really ran, the token bar splits input from output", () => {
   assert.equal(isCode(M({ branch: "helper/invoice-dates" })), true); assert.equal(isCode(M()), false);
-  assert.equal(modelTag({ model: "Sonnet 5.5" }), "Sonnet 5.5");
-  assert.equal(modelTag({ model: "deepseek-v4.1-flash", fellBackFrom: "claude-sonnet-5-5" }), "deepseek-v4.1-flash (not claude-sonnet-5-5)");
+  assert.equal(modelTag({ model: "claude-sonnet-5-5" }), "Sonnet 5.5");
+  assert.equal(modelTag({ model: "deepseek-v4.1-flash", fellBackFrom: "claude-sonnet-5-5" }), "DeepSeek V4.1 Flash (not Sonnet 5.5)");
   assert.equal(modelTag({}), "");
   assert.deepEqual(tokenSplit({ tokensIn: 750, tokensOut: 250 }), { input: 0.75, output: 0.25 });
   assert.deepEqual(tokenSplit({ tokensIn: 0, tokensOut: 0 }), { input: 0, output: 0 });
@@ -84,4 +87,27 @@ test("tests read as a person says them, and the keys do what the pane says", () 
 test("only a helper that needs you and holds a request gets an approval card", () => {
   const rows = [M({ id: "a", state: "needs_you", holdTaskId: "tsk_1" } as never), M({ id: "b", state: "needs_you" }), M({ id: "c", state: "working", holdTaskId: "tsk_2" } as never), M({ id: "d", state: "needs_you", holdTaskId: "" } as never)];
   assert.deepEqual(holdsOf(rows as never).map((r) => r.id), ["a"]);
+});
+
+test("a helper's face is seeded by its own id, so helpers that run as one agent still look different", () => {
+  const a = M({ id: "thr_a1", agentId: "agt_assistant" }), b = M({ id: "thr_b2", agentId: "agt_assistant" });
+  assert.notEqual(faceSeed(a), faceSeed(b));
+  assert.equal(faceSeed(a), faceSeed(M({ id: "thr_a1", agentId: "agt_other" })), "the same helper, the same face, whoever runs it");
+});
+
+test("the coders join the strip that holds the earliest helper, and no other", () => {
+  const h1 = M({ id: "h1", startedAt: 10 }), h2 = M({ id: "h2", startedAt: 50 }), mate = M({ id: "t1", kind: "teammate" as never, startedAt: 20 });
+  const live = { members: [h1, h2, mate], totals: T() } as never;
+  assert.deepEqual(withTeammates([h1], live).map((r) => (r as { id: string }).id), ["h1", "t1"]);
+  assert.deepEqual(withTeammates([h2], live).map((r) => (r as { id: string }).id), ["h2"], "a later strip has none");
+  assert.deepEqual(withTeammates([h1], null).map((r) => (r as { id: string }).id), ["h1"], "no read, no coders");
+});
+
+test("each figure of the totals sorts the helpers by it", () => {
+  const rows = [M({ id: "a", elapsedMs: 5000, tokensIn: 100, tokensOut: 0, costMicros: 30_000 }), M({ id: "b", elapsedMs: 9000, tokensIn: 10, tokensOut: 0, costMicros: 90_000 }), M({ id: "c", elapsedMs: 1000, tokensIn: 900, tokensOut: 100, costMicros: 10_000 })];
+  assert.deepEqual(sortedBy(rows, "time").map((r) => r.id), ["b", "a", "c"]);
+  assert.deepEqual(sortedBy(rows, "tokens").map((r) => r.id), ["c", "a", "b"]);
+  assert.deepEqual(sortedBy(rows, "cost").map((r) => r.id), ["b", "a", "c"]);
+  assert.deepEqual(totalsParts(T({ done: 2, working: 0, needsYou: 0, members: 2, tokensIn: 60_000, tokensOut: 15_000, costMicros: 130_000 })).map((p) => [p.key, p.text]), [["state", "2 done"], ["time", "41 s"], ["tokens", "75k tokens"], ["cost", "$0.13"]]);
+  assert.deepEqual(totalsParts(T({ members: 0 })), []);
 });

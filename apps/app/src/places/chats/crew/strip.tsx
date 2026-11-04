@@ -2,10 +2,11 @@
 // works and closes when it is done, the name and what it was asked, one line of what it is on or found, a clock, and for code its branch and change. The whole row opens the peek; there is no Open button.
 import { createElement, useEffect, useState } from "react";
 import type { ReactElement } from "react";
-import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import { Platform, Pressable, StyleSheet, Text, View, useWindowDimensions } from "react-native";
+import { Glyph } from "../conversation/parts.tsx";
 import { Avatar } from "../../../../../../ui/src/Avatar/index.tsx";
 import { injectCss } from "../../../../../../ui/src/theme/css.ts";
-import { clock, isCode, lineOf, modelTag, nameOf, roleOf, stripTitle, stripTone, testsWords } from "./model.ts";
+import { jobLine, clock, isCode, lineOf, modelTag, nameOf, roleOf, stripTitle, stripTone, testsWords, faceSeed } from "./model.ts";
 import type { CrewMember, CrewTotals } from "./model.ts";
 
 const web = Platform.OS === "web";
@@ -49,24 +50,28 @@ export function useNow(live: boolean): number {
 /** What a row's clock shows: running time while it works, total once it ended. */
 export const timeOf = (m: Pick<CrewMember, "state" | "startedAt" | "elapsedMs">, now: number): string => clock(m.state === "working" || m.state === "needs_you" ? Math.max(m.elapsedMs, now - m.startedAt) : m.elapsedMs);
 
-export function HelperChip({ m, now, selected = false, index = 0, onPress, onRetry }: { m: CrewMember; now: number; selected?: boolean; index?: number; onPress: (m: CrewMember) => void; onRetry?: (m: CrewMember) => void }): ReactElement {
+export function HelperChip({ m, now, selected = false, index = 0, last = false, parentName, onPress, onRetry }: { m: CrewMember; now: number; selected?: boolean; index?: number; last?: boolean; parentName?: string; onPress: (m: CrewMember) => void; onRetry?: (m: CrewMember) => void }): ReactElement {
   const id = `crew-chip-${m.id}`;
   const name = nameOf(m);
   const code = isCode(m);
+  // below the width of a phone the muted "Assistant's helper" goes first, so the name has the room
+  const winW = useWindowDimensions().width;
+  const compact = winW > 0 && winW < 640;
   const tag = m.why ? modelTag(m) : "";
   const canRetry = m.state === "failed" || m.state === "stopped";
   return (
     <Pressable
       accessibilityRole="button" accessibilityLabel={`${name}, ${lineOf(m)}`} testID={id} onPress={() => onPress(m)}
       {...(web ? { dataSet: { state: m.state } } : {})}
-      style={[st.chip, m.state === "needs_you" && st.chipWait, selected && st.chipSel, web ? ({ animationDelay: `${index * 70}ms` } as object) : null]}
+      style={[st.chip, !last && st.chipDivide, m.state === "needs_you" && st.chipWait, selected && st.chipSel, web ? ({ animationDelay: `${index * 70}ms` } as object) : null]}
     >
       <View style={st.av}>
         <MemberRing state={m.state} id={id} />
-        <Avatar name={name} seedId={m.agentId} kind="agent" size={28} />
+        <Avatar name={name} seedId={faceSeed(m)} kind="agent" size={28} />
+        {m.state === "done" || m.state === "failed" ? <View testID={`${id}-badge`} style={[st.badge, m.state === "failed" && st.badgeFail]}><Text style={st.badgeMark}>{m.state === "done" ? "✓" : "!"}</Text></View> : null}
       </View>
       <View style={st.main}>
-        <View style={st.l1}><Text numberOfLines={1} style={st.name}>{name}</Text>{roleOf(m) !== "" ? <Text numberOfLines={1} testID={`${id}-role`} style={st.role}>{roleOf(m)}</Text> : null}</View>
+        <View style={st.l1}><Text numberOfLines={1} style={st.name}>{name}</Text>{jobLine(m, compact ? undefined : parentName) !== "" ? <Text numberOfLines={1} testID={`${id}-role`} style={st.role}>{jobLine(m, compact ? undefined : parentName)}</Text> : null}</View>
         <Text numberOfLines={1} testID={`${id}-line`} style={[st.line, m.state === "failed" && st.lineFail, m.state === "needs_you" && st.lineWait]}>{lineOf(m)}</Text>
         {code || tag ? (
           <View style={st.l3}>
@@ -82,8 +87,8 @@ export function HelperChip({ m, now, selected = false, index = 0, onPress, onRet
   );
 }
 
-export function CrewStrip({ members, totals, selectedId, onPeek, onStopAll, onOpenPane, onRetry }: {
-  members: readonly CrewMember[]; totals: CrewTotals; selectedId?: string | null; onPeek: (m: CrewMember) => void; onStopAll?: () => void; onOpenPane?: () => void; onRetry?: (m: CrewMember) => void;
+export function CrewStrip({ members, totals, selectedId, parentName, merge, onPeek, onStopAll, onOpenPane, onRetry }: {
+  members: readonly CrewMember[]; totals: CrewTotals; parentName?: string; merge?: { state: "working" | "ready" | "merged"; onReview(): void; onMerge(): void }; selectedId?: string | null; onPeek: (m: CrewMember) => void; onStopAll?: () => void; onOpenPane?: () => void; onRetry?: (m: CrewMember) => void;
 }): ReactElement | null {
   const live = totals.working + totals.needsYou > 0;
   const now = useNow(live);
@@ -95,39 +100,45 @@ export function CrewStrip({ members, totals, selectedId, onPeek, onStopAll, onOp
       <View style={st.head}>
         <View testID="crew-strip-dot" style={[st.dot, tone === "idle" && { backgroundColor: "var(--ok)" as string }, tone === "need" && { backgroundColor: "var(--warn)" as string }]} {...(web && tone !== "idle" ? { className: "vy-cw-dot" } : {})} />
         <Text numberOfLines={1} testID="crew-strip-title" style={st.title}>{stripTitle(totals)}</Text>
+        {merge && merge.state === "ready" ? <><Pressable accessibilityRole="button" testID="crew-strip-review" onPress={merge.onReview} style={st.headBtn}><Text style={st.headBtnText}>Review all</Text></Pressable><Pressable accessibilityRole="button" testID="crew-strip-merge" onPress={merge.onMerge} style={[st.headBtn, { backgroundColor: "var(--accent)" as string }]}><Text style={[st.headBtnText, { color: "var(--accent-ink)" as string }]}>Merge</Text></Pressable></> : null}
+        {merge && merge.state === "merged" ? <Text testID="crew-strip-merged" style={st.headBtnText}>Merged</Text> : null}
         {live && onStopAll ? <Pressable accessibilityRole="button" testID="crew-strip-stop-all" onPress={onStopAll} style={st.headBtn}><Text style={st.headBtnText}>Stop all</Text></Pressable> : null}
-        {onOpenPane ? <Pressable accessibilityRole="button" accessibilityLabel="Open the Crew pane" testID="crew-strip-pane" onPress={onOpenPane} style={st.headBtn}><Text style={st.headBtnText}>Crew</Text></Pressable> : null}
+        {onOpenPane ? <Pressable accessibilityRole="button" accessibilityLabel="Open Crew" testID="crew-strip-pane" onPress={onOpenPane} style={st.headBtn}><Glyph name="pane" size={14} /></Pressable> : null}
       </View>
       <View style={st.list}>
         {/* ui-rows-lint: not a list (the chips of one strip: each a face in a ring with a state, a name, a line and a clock, drawn together as the prototype p-crew shows them) */}
-        {members.map((m, i) => <HelperChip key={m.id} m={m} now={now} index={i} selected={selectedId === m.id} onPress={onPeek} {...(onRetry ? { onRetry } : {})} />)}
+        {members.map((m, i) => <HelperChip key={m.id} m={m} now={now} index={i} last={i === members.length - 1} {...(parentName ? { parentName } : {})} selected={selectedId === m.id} onPress={onPeek} {...(onRetry ? { onRetry } : {})} />)}
       </View>
     </View>
   );
 }
 
 const st = StyleSheet.create({
-  strip: { marginVertical: 14, padding: 5, borderRadius: 20, maxWidth: 660, backgroundColor: "var(--sunk)" as string },
+  strip: { marginVertical: 14, borderRadius: 14, maxWidth: 660, overflow: "hidden", backgroundColor: "var(--raised)" as string, boxShadow: "inset 0 0 0 1px var(--line)" } as object,
   head: { flexDirection: "row", alignItems: "center", gap: 4, minHeight: 34, paddingLeft: 12, paddingRight: 3 },
   dot: { width: 7, height: 7, borderRadius: 4, marginRight: 9, backgroundColor: "var(--accent)" as string },
   title: { flex: 1, minWidth: 0, fontSize: 13, color: "var(--ink-2)" as string },
   headBtn: { height: 27, paddingHorizontal: 10, borderRadius: 8, justifyContent: "center" },
   headBtnText: { fontSize: 12.5, color: "var(--ink-2)" as string },
-  list: { gap: 4 },
-  chip: { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 9, paddingLeft: 10, paddingRight: 12, borderRadius: 15, backgroundColor: "var(--raised)" as string },
-  chipWait: { backgroundColor: "color-mix(in srgb, var(--warn) 12%, var(--raised))" as string },
+  list: { gap: 0 },
+  chip: { flexDirection: "row", alignItems: "center", gap: 12, minHeight: 56, paddingVertical: 8, paddingLeft: 12, paddingRight: 12 },
+  chipDivide: { borderBottomWidth: 1, borderBottomColor: "var(--line)" as string },
+  badge: { position: "absolute", right: -2, bottom: -2, width: 16, height: 16, borderRadius: 8, alignItems: "center", justifyContent: "center", backgroundColor: "var(--ok)" as string, borderWidth: 2, borderColor: "var(--raised)" as string },
+  badgeFail: { backgroundColor: "var(--warn)" as string },
+  badgeMark: { fontSize: 9, lineHeight: 10, fontWeight: "700", color: "#fff" },
+  chipWait: { backgroundColor: "color-mix(in srgb, var(--warn) 10%, var(--raised))" as string },
   chipSel: { boxShadow: "0 0 0 1.5px var(--accent)" } as object,
   av: { width: 38, height: 38, alignItems: "center", justifyContent: "center" },
   main: { flex: 1, minWidth: 0, gap: 1 },
   l1: { flexDirection: "row", alignItems: "baseline", gap: 8, minWidth: 0 },
-  name: { fontSize: 14, fontWeight: "600", color: "var(--ink)" as string },
+  name: { flexShrink: 0, maxWidth: "60%", fontSize: 14, fontWeight: "600", color: "var(--ink)" as string },
   role: { flexShrink: 1, fontSize: 12.5, color: "var(--ink-3)" as string },
   line: { fontSize: 13, lineHeight: 19, color: "var(--ink-2)" as string },
   lineFail: { color: "var(--ink)" as string },
   lineWait: { color: "var(--ink)" as string },
   l3: { flexDirection: "row", alignItems: "center", gap: 10, marginTop: 1 },
   branch: { flexShrink: 1, fontSize: 12, color: "var(--ink-2)" as string, backgroundColor: "var(--hover)" as string, borderRadius: 6, paddingHorizontal: 6, fontFamily: "var(--mono)" as string },
-  mono: { fontSize: 12, color: "var(--ink-3)" as string, fontFamily: "var(--mono)" as string },
+  mono: { flexShrink: 0, fontSize: 12, color: "var(--ink-3)" as string, fontFamily: "var(--mono)" as string },
   add: { color: "var(--ok)" as string },
   del: { color: "var(--danger)" as string },
   time: { fontSize: 12.5, color: "var(--ink-3)" as string, fontVariant: ["tabular-nums"] },

@@ -72,13 +72,13 @@ test("the overview: totals in one sentence, rows sorted needs you first, the tim
   const calls: Array<{ cap: string; input: unknown }> = [];
   const peeked: string[] = [];
   const root = await mount(createRoot, <CrewOverview status={status(three(), T({ failed: 1 }))} call={async (cap, input) => { calls.push({ cap, input }); return {}; }} threadId="thr_0" onPeek={(id) => peeked.push(id)} onRefresh={() => undefined} />);
-  assert.equal(textOf(find(root, "crew-overview-totals")), "1 of 3 done · 1 needs you · 1 working · 1 failed · 12 s");
-  const order = ["thr_a", "thr_c", "thr_b"].map((id) => find(root, `row-crew-row-${id}`));
+  assert.equal(textOf(find(root, "crew-overview-totals")).replace(/\s+/g, " "), "1 working · 1 needs you · 1 done · 1 failed · 12 s · 1,200 tokens · $0.12");
+  const order = ["thr_a", "thr_c", "thr_b"].map((id) => find(root, `crew-chip-${id}`));
   assert.ok(order.every((n) => n !== null));
   assert.ok(find(root, "crew-tl-thr_b-bar"));
   assert.equal(textOf(find(root, "crew-cost")), "$0.12");
   assert.match(textOf(find(root, "crew-keys")), /stops all/);
-  await press(find(root, "row-crew-row-thr_b"));
+  await press(find(root, "crew-chip-thr_b"));
   assert.deepEqual(peeked, ["thr_b"]);
   await press(find(root, "crew-stop-all")); await flush();
   assert.deepEqual(calls.map((c) => c.cap), ["engine.helpers.stop_all"]);
@@ -140,7 +140,8 @@ test("the Island says Working with the faces of the helpers on it, Needs you in 
   const none = await mount(createRoot, <CrewIsland status={status([M({ state: "done" })], T({ members: 1, working: 0, needsYou: 0, done: 1 }))} onPress={() => undefined} />);
   assert.equal(find(none, "crew-island"), null);
   // the header chip counts from the same read
-  assert.deepEqual(crewChipOf(T()), { active: 2, total: 3, label: "3 helpers, 1 needs you" });
+  assert.deepEqual(crewChipOf(T()), { active: 2, total: 3, label: "3 helpers, 1 needs you", text: "1 working · 1 needs you" });
+  assert.equal(crewChipOf(T({ working: 3, needsYou: 0, done: 0 })).text, "3 working"); assert.equal(crewChipOf(T({ working: 0, needsYou: 0, done: 3 })).text, "", "nothing running, no words");
   assert.equal(crewChipOf(T({ working: 2, needsYou: 0, done: 1 })).label, "2 helpers working");
   assert.equal(crewChipOf(T({ working: 0, needsYou: 0, done: 3 })).label, "3 helpers, all done");
 });
@@ -173,7 +174,7 @@ test("Show keeps one kind of helper and checks the one showing; the token bar sp
   assert.deepEqual(entries.filter((e) => e.checked).map((e) => e.label), ["Working"]);
   entries[3]!.onSelect(); assert.deepEqual(picked, ["done"]);
   const only = await mount(createRoot, <CrewOverview status={status(three(), T({ failed: 1 }))} call={async () => ({})} threadId="thr_0" onPeek={() => undefined} onRefresh={() => undefined} initialShow="failed" />);
-  assert.ok(find(only, "row-crew-row-thr_c")); assert.equal(find(only, "row-crew-row-thr_a"), null); assert.equal(find(only, "row-crew-row-thr_b"), null);
+  assert.ok(find(only, "crew-chip-thr_c")); assert.equal(find(only, "crew-chip-thr_a"), null); assert.equal(find(only, "crew-chip-thr_b"), null);
   const none = await mount(createRoot, <CrewOverview status={status([three()[1]!])} call={async () => ({})} threadId="thr_0" onPeek={() => undefined} onRefresh={() => undefined} initialShow="done" />);
   assert.match(textOf(find(none, "crew-empty-show")), /No helper is done yet/);
   const tok = await mount(createRoot, <CrewOverview status={status(three(), T({ tokensIn: 12_300, tokensOut: 800 }))} call={async () => ({})} threadId="thr_0" onPeek={() => undefined} onRefresh={() => undefined} />);
@@ -188,7 +189,7 @@ test("Change model lists the other models the person may use, confirms with what
   const { modelChoices, restartWords } = await import("./pane.tsx");
   const cat = { accounts: [{ ref: "#A", provider: "anthropic", label: "Claude · Maya", models: [{ model: "claude-haiku-5-5", tier: "cheap", available: true }, { model: "claude-opus-5-5", tier: "strong", available: true }, { model: "claude-sonnet-5-5", available: false }] }, { ref: "#B", provider: "openai", label: "OpenAI · Maya", models: [{ model: "gpt-6", tier: "strong", available: true }] }] };
   assert.deepEqual(modelChoices(cat, "claude-haiku-5-5").map((c) => c.model), ["claude-opus-5-5", "gpt-6"], "not the one it runs on, not an unavailable one");
-  assert.equal(restartWords("Orin", "gpt-6", 20_000), "Restart Orin on gpt-6? It has used $0.02 so far and starts over.");
+  assert.equal(restartWords("Orin", "gpt-6", 20_000), "Restart Orin on GPT-6? It has used $0.02 so far and starts over.");
   const calls: Array<{ cap: string; input: Record<string, unknown> }> = [];
   const call = async (cap: string, input: unknown): Promise<unknown> => { calls.push({ cap, input: input as Record<string, unknown> }); return cap === "engine.helper_models" ? cat : cap === "chat.helper.notes" ? { notes: [] } : {}; };
   let refreshed = 0;
@@ -197,7 +198,7 @@ test("Change model lists the other models the person may use, confirms with what
   await press(find(root, "crew-peek-change-model")); await flush();
   assert.ok(find(root, "row-crew-change-claude-opus-5-5") && find(root, "row-crew-change-gpt-6")); assert.equal(find(root, "row-crew-change-claude-haiku-5-5"), null);
   await press(find(root, "row-crew-change-gpt-6"));
-  assert.match(textOf(find(root, "crew-change-confirm")), /Restart Orin on gpt-6\? It has used \$0\.02 so far and starts over\./);
+  assert.match(textOf(find(root, "crew-change-confirm")), /Restart Orin on GPT-6\? It has used \$0\.02 so far and starts over\./);
   await press(find(root, "crew-change-cancel")); assert.equal(find(root, "crew-change-confirm"), null);
   await press(find(root, "row-crew-change-gpt-6")); await press(find(root, "crew-change-go")); await flush();
   const call2 = calls.find((c) => c.cap === "engine.helpers.change_model")!;
@@ -238,4 +239,153 @@ test("a message from a thread with Also post to the chat on goes to chat.post wi
   await sendMessage(data, { text: "Decision: book Thursday.", mentions: [], key: "k1", kind: "send" as never, working: false, alsoToChat: true });
   await sendMessage(data, { text: "Working", mentions: [], key: "k2", kind: "send" as never, working: false });
   assert.equal(calls[0]!.input["alsoToChat"], true); assert.equal(calls[1]!.input["alsoToChat"], undefined);
+});
+
+test("strip rows are flush: a check badge on a done helper and a warning on a failed one, the job and whose helper it is on the first line", async () => {
+  const rows = [M({ id: "d1", state: "done", found: "x", endedAt: 5000, elapsedMs: 5000 }), M({ id: "f1", state: "failed", found: "y", endedAt: 5000, elapsedMs: 5000 }), M({ id: "w1", state: "working" })];
+  const root = await mount(createRoot, <CrewStrip members={rows} totals={T({ members: 3, working: 1, done: 1, failed: 1, needsYou: 0 })} parentName="Assistant" onPeek={() => undefined} />);
+  assert.equal(textOf(find(root, "crew-chip-d1-badge")), "✓"); assert.equal(textOf(find(root, "crew-chip-f1-badge")), "!"); assert.equal(find(root, "crew-chip-w1-badge"), null);
+  assert.match(textOf(find(root, "crew-chip-d1-role")), /Calendar\s*·\s*Assistant's helper/);
+  const bare = await mount(createRoot, <CrewStrip members={[M({ id: "n1", name: undefined as never, title: "Read page 1" })]} totals={T({ members: 1, working: 1, done: 0, needsYou: 0 })} parentName="Assistant" onPeek={() => undefined} />);
+  assert.equal(textOf(find(bare, "crew-chip-n1-role")), "Assistant's helper", "a helper with no name of its own says only whose it is");
+});
+
+test("the peek lists the steps it has taken in plain words, says what it runs on, and a failed helper has Retry that starts it again from its brief", async () => {
+  const calls: Array<{ cap: string; input: Record<string, unknown> }> = [];
+  const call = async (cap: string, input: unknown): Promise<unknown> => {
+    calls.push({ cap, input: input as Record<string, unknown> });
+    if (cap === "chat.helper.notes") return { notes: [{ messageId: "m1", who: "brief", authorId: "agt_1", body: "Read the price table." }] };
+    if (cap === "chat.messages.list") return { messages: [{ blocks: [{ id: "s1", type: "step", data: { title: "Opened the vendor page", sub: "headless Chrome" }, state: "done" }, { id: "s2", type: "step", data: { title: "Read the price table" }, state: "live" }] }] };
+    return {};
+  };
+  const root = await mount(createRoot, <CrewPeek member={M({ id: "thr_f", state: "failed", found: "Could not open the page.", model: "glm-5.3", accountLabel: "OpenCode Go" })} call={call} onBack={() => undefined} onOpenChat={() => undefined} onRefresh={() => undefined} />);
+  await flush();
+  const text = textOf(find(root, "crew-peek"));
+  assert.match(text, /Steps/); assert.match(text, /Opened the vendor page/); assert.doesNotMatch(text, /headless Chrome/i, "no engine name in a step");
+  assert.match(textOf(find(root, "crew-peek-model")), /GLM 5\.3\s*·\s*OpenCode Go/);
+  await press(find(root, "crew-peek-retry")); await flush();
+  const start = calls.find((c) => c.cap === "chat.helper.start")!;
+  assert.deepEqual([start.input["threadId"], start.input["instruction"]], ["thr_0", "Read the price table."]);
+});
+
+test("the helper chat of a done helper says so: no Working, no Stop; the helper's own words wear its own name", async () => {
+  const { HelperChat } = await import("../helper/HelperChat.tsx");
+  const { createSample } = await import("../helper/sample.ts");
+  const s = createSample("notes");
+  const call = async (cap: string, input: unknown): Promise<unknown> => (cap === "engine.crew.status" ? { members: [{ id: s.data.threadId, state: "done" }], totals: {} } : s.data.call(cap, input));
+  const root = await mount(createRoot, <HelperChat data={{ ...s.data, call }} />);
+  await flush(); await flush();
+  assert.equal(find(root, "helper-stop"), null); assert.equal(find(root, "helper-live"), null);
+  assert.match(textOf(find(root, "msg-m5")), /County mirrors/, "the helper's reply is under the helper's name, not the agent's");
+});
+
+test("pressing a figure of the totals puts the helpers in that order", async () => {
+  const rows = [M({ id: "thr_x", name: "Xi", elapsedMs: 1000, endedAt: 2000, state: "done", found: "a", costMicros: 10_000 }), M({ id: "thr_y", name: "Yo", elapsedMs: 9000, endedAt: 9000, state: "done", found: "b", agentId: "agt_y", costMicros: 90_000 })];
+  const root = await mount(createRoot, <CrewOverview status={status(rows, T({ members: 2, working: 0, needsYou: 0, done: 2, costMicros: 100_000, elapsedMs: 9000 }))} call={async () => ({})} threadId="thr_0" onPeek={() => undefined} onRefresh={() => undefined} />);
+  const order = (): string[] => (JSON.stringify(root, (_k, v) => (typeof v === "function" ? undefined : v)).match(/crew-chip-thr_[xy]"/g) ?? []).map((x) => x.replace(/crew-chip-|"/g, ""));
+  assert.deepEqual(order().slice(0, 2), ["thr_x", "thr_y"], "state order: started first");
+  await press(find(root, "crew-sort-cost"));
+  assert.deepEqual(order().slice(0, 2), ["thr_y", "thr_x"], "dearest first");
+});
+
+test("the turn's own status is not a step: it shows neither in the peek nor in the helper chat", async () => {
+  const call = async (cap: string): Promise<unknown> => (cap === "chat.messages.list" ? { messages: [{ blocks: [{ id: "x1", type: "turn_status", data: {}, state: "done" }, { id: "x2", type: "step", data: { title: "Read the price table" }, state: "done" }] }] } : cap === "chat.helper.notes" ? { notes: [] } : {});
+  const root = await mount(createRoot, <CrewPeek member={M({ id: "thr_s", state: "working" })} call={call} onBack={() => undefined} onOpenChat={() => undefined} onRefresh={() => undefined} />);
+  await flush();
+  assert.ok(find(root, "crew-step-x2")); assert.equal(find(root, "crew-step-x1"), null);
+});
+
+test("the peek carries the helper's hooks, from the one hooks component: asked for by the helper's thread, headed Hooks for <name>, its lead's rules marked From the lead", async () => {
+  const calls: Array<{ cap: string; input: unknown }> = [];
+  const call = async (cap: string, input: unknown): Promise<unknown> => {
+    calls.push({ cap, input });
+    if (cap === "chat.helper.notes") return { notes: [{ messageId: "m1", who: "brief", authorId: "agt_lead", body: "Read the quote." }] };
+    if (cap === "hooks.list") return { hooks: [{ id: "hok_own", scope: "run", threadId: "thr_b", line: "before a helper acts, ask", kind: "check", spec: { instruction: "x" }, event: "tool.before", matcher: "", paused: false, madeBy: "agt_lead" }] };
+    return {};
+  };
+  const root = await mount(createRoot, <CrewPeek member={three()[1]!} call={call} nameOfId={() => "Assistant"} onBack={() => undefined} onOpenChat={() => undefined} onRefresh={() => undefined} />);
+  await flush();
+  assert.deepEqual(calls.find((c) => c.cap === "hooks.list")!.input, { threadId: "thr_b" });
+  assert.match(textOf(find(root, "helper-hooks")), /Hooks for Orin/);
+  assert.match(textOf(find(root, "helper-hook-hok_own")), /From Assistant/);
+});
+
+
+test("the crew UI says Allow, Always allow and Deny for a helper's request and never the older words", async () => {
+  const fs = await import("node:fs");
+  const path = await import("node:path");
+  const dirs = [new URL("./", import.meta.url).pathname, new URL("../helper/", import.meta.url).pathname];
+  const files = dirs.flatMap((d) => fs.readdirSync(d).filter((f) => /\.tsx?$/.test(f) && !/\.test\./.test(f) && f !== "sample.ts").map((f) => path.join(d, f)));
+  for (const f of files) {
+    const src = fs.readFileSync(f, "utf8").replace(/\/\/.*$/gm, "").replace(/\/\*[\s\S]*?\*\//g, "");
+    assert.doesNotMatch(src, /["'>`]\s*(Approve|Reject|Allow this once|Send back)\s*["'<`]/, `${path.basename(f)} uses an older approval word`);
+  }
+  // the helper's held request is the Gate's approval card: Deny, Always allow where it is the person's to give, Allow
+  const { ApprovalCard } = await import("../conversation/approval.tsx");
+  const root = await mount(createRoot, <ApprovalCard taskId="tsk_1" agent="Tess" agentId="agt_1" data={{ call: async () => ({}), nav: {}, threadId: "thr_1" } as never} />);
+  await flush();
+  const labels = textOf(find(root, "approval-tsk_1"));
+  assert.ok(!/Approve|Reject|Allow this once/.test(labels), labels);
+});
+
+test("on a phone, Open chat from the Crew screen closes the screen so the helper chat is what shows", async () => {
+  const { CrewProvider, useCrew } = await import("./context.tsx");
+  const { CrewSide } = await import("./CrewSide.tsx");
+  const opened: string[] = [];
+  const member = M({ id: "thr_p", state: "working" });
+  const call = async (cap: string): Promise<unknown> => (cap === "engine.crew.status" ? { members: [member], totals: T({ members: 1, working: 1, done: 0, needsYou: 0 }) } : cap === "chat.helper.notes" ? { notes: [] } : {});
+  let ctx: ReturnType<typeof useCrew> = null;
+  const Probe = (): null => { ctx = useCrew(); return null; };
+  const root = await mount(createRoot, <CrewProvider call={call} threadId="thr_0"><Probe /><CrewSide fallback={null} nameOf={() => "x"} openHelper={(id) => opened.push(id)} narrow /></CrewProvider>);
+  await flush(); await flush();
+  const { act } = await import("react");
+  await act(async () => { ctx!.show("thr_p"); });
+  await flush();
+  await press(find(root, "crew-peek-open"));
+  assert.deepEqual(opened, ["thr_p"]);
+  assert.equal(ctx!.open, false, "the Crew screen is closed, so the helper chat shows");
+});
+
+test("no raw model, engine or account id is written anywhere in the crew UI: not in its strings, not on screen", async () => {
+  const fs = await import("node:fs");
+  const path = await import("node:path");
+  const dirs = [new URL("./", import.meta.url).pathname, new URL("../helper/", import.meta.url).pathname];
+  const files = dirs.flatMap((d) => fs.readdirSync(d).filter((f) => /\.tsx?$/.test(f) && !/\.test\./.test(f) && f !== "sample.ts").map((f) => path.join(d, f)));
+  const RAW = /claude-code|claude-(?:opus|sonnet|haiku|fable)|gpt-\d|glm-\d|deepseek-v|opencode-go|\bMaya_Claude\b|\b[A-Z][a-z]+_[A-Z][a-z]+\b/;
+  for (const f of files) {
+    const src = fs.readFileSync(f, "utf8").replace(/\/\/.*$/gm, "").replace(/\/\*[\s\S]*?\*\//g, "");
+    const strings = [...src.matchAll(/(["'`])((?:\\.|(?!\1).)*)\1/g)].map((m) => m[2]!);
+    for (const s of strings) assert.doesNotMatch(s, RAW, `${path.basename(f)}: a raw id in the string "${s.slice(0, 60)}"`);
+  }
+  // and what a person reads for a helper that runs on a model and an account
+  const call = async (cap: string): Promise<unknown> => (cap === "chat.helper.notes" ? { notes: [{ messageId: "m1", who: "brief", authorId: "agt_1", body: "Read it." }, { messageId: "m2", who: "parent", authorId: "agt_1", body: "Starting again on Opus 5.5.", kind: "followup", restart: true }] } : cap === "engine.helper_models" ? { accounts: [{ ref: "#A", provider: "anthropic", label: "claude-code · Maya_Claude", models: [{ model: "claude-fable-5-1", available: true, tier: "strong" }] }] } : {});
+  const root = await mount(createRoot, <CrewPeek member={{ ...three()[1]!, model: "claude-opus-5-5", accountLabel: "claude-code · Maya_Claude", startedAt: Date.now() - 4000 }} call={call} onBack={() => undefined} onOpenChat={() => undefined} onRefresh={() => undefined} />);
+  await flush();
+  await press(find(root, "crew-peek-change-model")); await flush();
+  const text = textOf(find(root, "crew-peek")).replace(/\s+/g, " ");
+  assert.match(text, /Opus 5\.5 · Maya Claude/); assert.match(text, /Fable 5\.1/);
+  assert.doesNotMatch(text, /claude-|Maya_Claude|claude-code/);
+  assert.equal(find(root, "crew-note-m2"), null, "a restart is not a note");
+});
+
+test("the coders' Review all and Merge sit in the strip header: they appear once every coder is done, Merge lands them, and after it the header says Merged", async () => {
+  const calls: string[] = [];
+  const rows = [M({ id: "c1", kind: "teammate" as never, state: "done", branch: "crew/ember", added: 12, deleted: 3, found: "Fixed it." }), M({ id: "h1", state: "done", found: "Read it." })];
+  const totals = T({ members: 2, working: 0, done: 2, needsYou: 0 });
+  const ready = await mount(createRoot, <CrewStrip members={rows} totals={totals} merge={{ state: "ready", onReview: () => calls.push("review"), onMerge: () => calls.push("merge") }} onPeek={() => undefined} />);
+  await press(find(ready, "crew-strip-review")); await press(find(ready, "crew-strip-merge"));
+  assert.deepEqual(calls, ["review", "merge"]);
+  const working = await mount(createRoot, <CrewStrip members={rows} totals={totals} merge={{ state: "working", onReview: () => undefined, onMerge: () => undefined }} onPeek={() => undefined} />);
+  assert.equal(find(working, "crew-strip-merge"), null, "not before they are done");
+  const merged = await mount(createRoot, <CrewStrip members={rows} totals={totals} merge={{ state: "merged", onReview: () => undefined, onMerge: () => undefined }} onPeek={() => undefined} />);
+  assert.equal(textOf(find(merged, "crew-strip-merged")), "Merged"); assert.equal(find(merged, "crew-strip-merge"), null);
+});
+
+test("on a phone the muted 'Assistant's helper' is dropped so the name has the room; the helper's request card wears the helper's own face", async () => {
+  const { jobLine } = await import("./model.ts");
+  assert.equal(jobLine({ title: "Harbor quote", name: "Orin" }, "Assistant"), "Harbor quote · Assistant's helper");
+  assert.equal(jobLine({ title: "Harbor quote", name: "Orin" }, undefined), "Harbor quote");
+  const fs = await import("node:fs");
+  const src = fs.readFileSync(new URL("../conversation/approval.tsx", import.meta.url).pathname, "utf8");
+  assert.match(src, /seedId=\{face \?\? faceSeed \?\? agentId\}/, "the card's face is the helper's when it has one");
 });

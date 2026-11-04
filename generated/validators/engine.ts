@@ -1278,6 +1278,7 @@ if (!("tokensOut" in o2680)) e.push(p + "/members" + '/' + i2679 + "/tokensOut" 
 if (!("costMicros" in o2680)) e.push(p + "/members" + '/' + i2679 + "/costMicros" + ': required');
 if ("kind" in o2680) lf(o2680["kind"], p + "/members" + '/' + i2679 + "/kind", e, L653);
 if ("id" in o2680) lf(o2680["id"], p + "/members" + '/' + i2679 + "/id", e, L13);
+if ("jobId" in o2680) lf(o2680["jobId"], p + "/members" + '/' + i2679 + "/jobId", e, L1);
 if ("parentThreadId" in o2680) lf(o2680["parentThreadId"], p + "/members" + '/' + i2679 + "/parentThreadId", e, L13);
 if ("title" in o2680) lf(o2680["title"], p + "/members" + '/' + i2679 + "/title", e, L1);
 if ("name" in o2680) lf(o2680["name"], p + "/members" + '/' + i2679 + "/name", e, L1);

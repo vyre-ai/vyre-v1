@@ -4,6 +4,7 @@
 //   chat.helper.start / chat.helpers.list / chat.handoff   sub-task threads and agent-to-agent threads
 // No handler here calls a model. transcript.summarize writes the plain extract of agent/src/transcript (the floor every switch and rollover already uses) and marks the thread as wanting a
 // model refresh; search is lexical, because the module holds no embedding index.
+import { modelName } from "../../../lib/model-names.ts";
 import { readFloor } from "./floor.ts";
 import { createTranscript, redact, refreshSummary, transcriptPath } from "../../../agent/src/transcript/index.ts";
 import type { Part, Turn } from "../../../agent/src/transcript/index.ts";
@@ -581,7 +582,7 @@ export async function helperSteer(ctx: ChatCtx, input: { threadId: string; body:
   deliver(ctx, t, m, [{ kind: "agent", id: lead.agentId }], { kind: "person", id: asker }, { notify: false });
   // the chat above sees it, as a line to be read and not answered, so the agent that started the helper knows what it was told
   if (root) {
-    const seen = insertMessage(ctx, root.id, { author: asker, kind: "text", body: `To "${t.title ?? "a helper"}": ${body}`, depth: 0 });
+    const seen = insertMessage(ctx, root.id, { author: asker, kind: "quiet", body: `To "${t.title ?? "a helper"}": ${body}`, depth: 0 });
     deliver(ctx, root, seen, [], { kind: "person", id: asker }, { notify: false, copy: true });
   }
   ctx.emit("helper.note", t.id, { helperThreadId: t.id, direction: "down", kind: "followup", messageId: m.id });
@@ -701,7 +702,7 @@ export async function helperNotes(ctx: ChatCtx, input: { threadId: string }) {
     const d = (b?.["data"] as Row | undefined) ?? {};
     // the three voices: the person (a steer, or the brief), the agent that started it, and the helper
     const who = i === 0 && !b ? "brief" : m.author.startsWith("usr_") ? "person" : d["direction"] === "down" ? "parent" : "helper";
-    return { messageId: m.id, authorId: m.author, who, body: m.body, ...(b ? { kind: d["kind"], state: d["state"], ...(d["seenAt"] !== undefined ? { seenAt: d["seenAt"] } : {}) } : {}) };
+    return { messageId: m.id, authorId: m.author, who, body: m.body, ...(b ? { kind: d["kind"], state: d["state"], ...(d["seenAt"] !== undefined ? { seenAt: d["seenAt"] } : {}), ...(d["restart"] === true ? { restart: true, ...(typeof d["model"] === "string" ? { model: d["model"] } : {}) } : {}) } : {}) };
   });
   return { notes };
 }
@@ -711,10 +712,11 @@ export async function helperNotes(ctx: ChatCtx, input: { threadId: string }) {
  * account they may use, a model that is available, or the nearest one that is), the helper's agent takes it, and the brief is given again as a fresh job, so the helper starts over on the new model. What it
  * had used so far stays on its row; the new work is billed to the person as any other.
  */
-export async function helperRestart(ctx: ChatCtx, input: { threadId: string; model?: string; account?: string; provider?: string }) {
+export async function helperRestart(ctx: ChatCtx, input: { threadId: string; helperId: string; model?: string; account?: string; provider?: string }) {
   ensure(ctx.db);
-  const t = threadBy(ctx.db, input.threadId);
-  if (!t || t.kind !== "helper" || t.parentThreadId === undefined) raise(ctx, "validation.not_found", "That is not a helper chat.");
+  // the capability is on the chat the helper works in (threadId), which is always there; the helper is named by helperId
+  const t = threadBy(ctx.db, input.helperId);
+  if (!t || t.kind !== "helper" || t.parentThreadId === undefined || t.parentThreadId !== input.threadId) raise(ctx, "validation.not_found", "That is not a helper of this chat.");
   const asker = askerOf(ctx);
   if (!asker.startsWith("usr_") || t.starter !== asker) raise(ctx, "validation.precondition_failed", "Only the person the helper works for can change its model.");
   if (input.model === undefined && input.account === undefined) raise(ctx, "validation.bad_input", "Say which model to use.");
@@ -727,8 +729,8 @@ export async function helperRestart(ctx: ChatCtx, input: { threadId: string; mod
   ctx.db.run("UPDATE chat_thread_agent SET model = ?, provider = ?, accountRef = ?, version = version + 1, updated_at = ? WHERE thread = ? AND agentId = ? AND deleted_at IS NULL", chosen.model, chosen.provider, chosen.account, ctx.now(), t.id, lead.agentId);
   if (t.closedAt !== undefined) touch(ctx, t.id, "closedAt = NULL");
   const blockId = mintId("blk", ctx.now());
-  const word = chosen.pick["fellBackFrom"] ? `Starting again on ${chosen.model} (${String(chosen.pick["fellBackFrom"])} is not available). ` : `Starting again on ${chosen.model}. `;
-  const m = insertMessage(ctx, t.id, { author: asker, kind: "text", body: `${word}Do the brief again from the start.`, blocks: [{ type: "helper_note", v: 1, id: blockId, data: { direction: "down", kind: "followup", from: { kind: "person", id: asker }, state: "sent", restart: true }, state: "sent", traceId: ctx.trace.traceId }] });
+  const word = chosen.pick["fellBackFrom"] ? `Starting again on ${modelName(chosen.model)} (${modelName(String(chosen.pick["fellBackFrom"]))} is not available). ` : `Starting again on ${modelName(chosen.model)}. `;
+  const m = insertMessage(ctx, t.id, { author: asker, kind: "text", body: `${word}Do the brief again from the start.`, blocks: [{ type: "helper_note", v: 1, id: blockId, data: { direction: "down", kind: "followup", from: { kind: "person", id: asker }, state: "sent", restart: true, model: modelName(chosen.model) }, state: "sent", traceId: ctx.trace.traceId }] });
   ctx.emit("helper.note", t.id, { helperThreadId: t.id, direction: "down", kind: "followup", messageId: m.id });
   deliver(ctx, t, m, [{ kind: "agent", id: lead.agentId }], { kind: "person", id: asker }, { notify: false, job: true });
   // the row in the chat above wears the new pick

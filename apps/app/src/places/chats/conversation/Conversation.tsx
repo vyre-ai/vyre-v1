@@ -4,7 +4,7 @@
 // send queues for its next step and Interrupt sends it now.
 import { useFrameStore } from "./frame.ts";
 import type { FrameControls, FrameStore } from "./frame.ts";
-import { foldHelperRows, groupHelperStrips } from "./helper-rows.ts";
+import { foldHelperRows, groupHelperStrips, hideCrewPosts, mergeCrewAnswer, stripFromCoders } from "./helper-rows.ts";
 import { useCrew } from "../crew/context.tsx";
 import { crewChipOf } from "../crew/model.ts";
 import { CrewIsland } from "../crew/island.tsx";
@@ -396,7 +396,9 @@ function ConversationView(): ReactElement {
   const timelineMessages = byOrder([...win.rows, ...collect(liveView ? stillPending(pending, win.rows) : [], (p, i) => pendingMessage(p, data.me.id, thread.threadId, (win.rows[win.rows.length - 1]?.threadSeq ?? 0) + 1 + i)), ...ghosts]);
   const pendingState = new Map<string, "sending" | "failed">();
   for (const p of stillPending(pending, win.rows)) pendingState.set(`pending:${p.key}`, p.state);
-  const folded = groupHelperStrips(foldHelperRows(timelineMessages));
+  const coders = (crew?.status?.members ?? []).filter((x) => x.kind === "teammate");
+  const coderThreads = new Set(coders.map((x) => x.id));
+  const folded = mergeCrewAnswer(hideCrewPosts(stripFromCoders(groupHelperStrips(foldHelperRows(timelineMessages)), coderThreads), coderThreads, new Set(coders.flatMap((x) => (x.jobId ? [x.jobId] : [])))));
   const woven = data.activity ? weave(folded, data.activity.events).filter((m) => keepItem(m, data.activity!.show)) : folded;
   // a channel, or a chat between people, is shared: its times read in the Space zone; a chat with only you and your agents reads in your own
   const sharedChat = thread.kind === "channel" || thread.members.filter((p) => p.kind === "person").length >= 2;
@@ -573,6 +575,7 @@ function ConversationView(): ReactElement {
       status: crew.status, selected: crew.selected, peek: (id: string) => crew.show(id), openPane: () => crew.show(null),
       stopAll: () => void act.stopHelpers(data).then(() => crew.refresh(), fail("Could not stop the helpers.")),
       retry: (id: string) => void act.retryHelper(data, id, data.newKey()).then(() => crew.refresh(), fail("Could not start it again.")),
+      merge: (jobIds: readonly string[]) => void Promise.all(jobIds.map((jobId) => data.call("engine.crew.merge", { jobId, idempotencyKey: data.newKey() }))).then(() => { crew.refresh(); say("Merged."); }, fail("Could not merge it.")),
     } } : {}),
     share: (id, x, y) => void act.shareTargets(data, thread.threadId).then((targets) => {
       const entries: MenuEntry[] = [];
@@ -671,7 +674,7 @@ function ConversationView(): ReactElement {
         {isWorking ? <View testID="conversation-live" accessibilityLabel="Working" style={st.live}><View style={st.liveDot} /></View> : null}
         <View style={{ flex: 1 }} />
         {online ? null : <Text testID="conversation-offline" style={st.meta}>Offline</Text>}
-        {crewChip ? <IconButton icon="helper" label={crewChip.label} badge={crewChip.active > 0 ? crewChip.active : crewChip.total} testID="helpers-button" onPress={() => crew!.show(null)} />
+        {crewChip ? (crewChip.text !== "" && !narrow ? <Pressable accessibilityRole="button" accessibilityLabel={crewChip.label} testID="helpers-button" onPress={() => crew!.show(null)} style={st.crewChip}><Text testID="helpers-chip-text" style={st.crewChipText}>{crewChip.text}</Text></Pressable> : <IconButton icon="helper" label={crewChip.label} badge={crewChip.active > 0 ? crewChip.active : crewChip.total} testID="helpers-button" onPress={() => crew!.show(null)} />)
           : helpers.length > 0 ? <IconButton icon="helper" label={`${helpers.length} ${helpers.length === 1 ? "helper" : "helpers"} running`} badge={helpers.length} testID="helpers-button" onPress={helpersMenu} /> : null}
         {isWorking ? <IconButton icon="stop" label={stopLabel(working, nameOf)} danger testID="stop-button" onPress={stopMenu} /> : null}
         <IconButton icon="people" label={`${thread.members.length} in this chat`} badge={thread.members.length} testID="participants-button" onPress={peopleMenu} />
@@ -888,6 +891,8 @@ const st = StyleSheet.create({
   liveDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: "var(--ok)" as string },
   liveText: { fontSize: 12, color: "var(--ink-2)" as string },
   meta: { fontSize: 12, color: "var(--ink-3)" as string },
+  crewChip: { height: 26, paddingHorizontal: 10, borderRadius: 13, justifyContent: "center", backgroundColor: "var(--accent-wash)" as string },
+  crewChipText: { fontSize: 12.5, color: "var(--accent)" as string, fontWeight: "500" },
   earlierBar: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10, minHeight: 34, backgroundColor: "var(--side)" as string, borderBottomWidth: 1, borderBottomColor: "var(--line)" as string },
   earlierText: { fontSize: 12.5, color: "var(--ink-2)" as string },
   noteLine: { paddingHorizontal: 16, paddingTop: 6, fontSize: 12, color: "var(--ink-3)" as string },
