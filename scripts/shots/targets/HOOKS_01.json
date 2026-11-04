@@ -1,0 +1,25 @@
+{
+  "targets": [
+    {
+      "id": "HOOKS_01-lines",
+      "route": "/m/HOOKS_01?view=lines",
+      "proto": "chat,at:crew;t=55;hooks=hchat,{skin}",
+      "waitFor": "[data-testid^='event-']",
+      "note": "The quiet lines a hook leaves in the chat: added a hook, set a hook for helpers, and A hook stopped this with Details."
+    },
+    {
+      "id": "HOOKS_01-tab",
+      "route": "/m/HOOKS_01?view=tab",
+      "proto": "chat,at:crew;t=55;hooks=hchat,{skin}",
+      "waitFor": "[data-testid='hooks-list']",
+      "note": "The Hooks tab in the shared side pane, grouped by scope, with Pause, Edit and Remove; a Space hook says only an admin can remove it."
+    },
+    {
+      "id": "HOOKS_01-helper",
+      "route": "/m/HOOKS_01?view=helper",
+      "proto": "chat,at:crew;t=55;hooks=hchat,{skin}",
+      "waitFor": "[data-testid='helper-hooks']",
+      "note": "A helper's page with its hooks: the ones its lead gave it, and the Inherited ones."
+    }
+  ]
+}

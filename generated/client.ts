@@ -423,6 +423,7 @@ export function createClient(transport: Transport) {
         page: call("chat.history.page", 1),
         search: call("chat.history.search", 1),
       },
+      hook_line: call("chat.hook_line", 1),
       make_task: call("chat.make_task", 1),
       message: {
         get: call("chat.message.get", 1),
@@ -1379,6 +1380,20 @@ export function createClient(transport: Transport) {
       mark_digest_seen: call("home.mark_digest_seen", 1),
       routines_today: call("home.routines_today", 1),
       write_digest: call("home.write_digest", 1),
+    },
+    hooks: {
+      fire: call("hooks.fire", 1),
+      list: call("hooks.list", 1),
+      pause: call("hooks.pause", 1),
+      policy: {
+        get: call("hooks.policy.get", 1),
+        set: call("hooks.policy.set", 1),
+      },
+      remove: call("hooks.remove", 1),
+      runs: {
+        list: call("hooks.runs.list", 1),
+      },
+      set: call("hooks.set", 1),
     },
     hubspot: {
       health: call("hubspot.health", 1),

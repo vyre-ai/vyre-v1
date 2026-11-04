@@ -4430,6 +4430,24 @@
     },
     {
       "deferred": false,
+      "name": "hooks_list",
+      "summary": "List hooks: the Space's, yours, and an agent's or one chat's. Each has a plain line, when it runs, what it does and who made it. Use this before you add one",
+      "toolset": "agents"
+    },
+    {
+      "deferred": false,
+      "name": "hooks_remove",
+      "summary": "Remove a hook you made",
+      "toolset": "agents"
+    },
+    {
+      "deferred": false,
+      "name": "hooks_set",
+      "summary": "Add or change a hook that runs at an event (before a tool, before anything leaves Vyre, a message, a turn end, a helper) as a command, a check or one action. For yourself: scope agent, chat or run. It can stop something, add a note or run its own action; never skip a rule",
+      "toolset": "agents"
+    },
+    {
+      "deferred": false,
       "name": "hubspot_list_objects",
       "summary": "List remote objects of a type (contacts, companies, deals) for mapping",
       "toolset": "engineer"

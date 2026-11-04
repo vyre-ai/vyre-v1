@@ -14,6 +14,7 @@
 // and a ChatGPT sign-in (auth.json) through the sandbox. The docs give no complete schema for every event.
 // Codex does not stream deltas: a message arrives whole when it is done.
 import { num, obj, parseLine, str } from "./json.ts";
+import { codexTrust } from "./hooks-config.ts";
 import type { Json } from "./json.ts";
 import type { Effort } from "../../turn-engine/types.ts";
 import type { CliAdapter, CliDecoder, CliEvent, CommandOptions } from "./types.ts";
@@ -248,6 +249,7 @@ export const codex: CliAdapter = {
           ...(m.envVars.length ? ["-c", `mcp_servers.plugin_${n}.env_vars=[${m.envVars.map(toml).join(", ")}]`] : []),
         ];
       }),
+      ...(o.noTools !== true && o.mcpStdio && o.workFolder !== null ? codexTrust(o.workFolder, o.mcpStdio) : []),
       ...(o.model !== null ? ["-m", o.model] : []),
       ...(o.resume !== null ? ["resume", o.resume] : []),
       // The prompt comes on stdin.

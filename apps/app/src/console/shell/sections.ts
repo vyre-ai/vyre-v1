@@ -28,6 +28,7 @@ export const SECTIONS: readonly SectionDef[] = [
     { label: "Space agents", views: [v("agents", "Space agents")] },
     { label: "Outside agents", views: [v("actors", "Outside agents")] },
     { label: "Skills and plugins", views: [v("skills", "Skills"), v("plugins", "Plugins and tools")] },
+    { label: "Hooks", views: [v("hooks", "Hooks")] },
     { label: "Activity", views: [v("activity", "Activity")] },
     { label: "Defaults for new agents", views: [v("template", "Defaults for new agents")] },
   ] },

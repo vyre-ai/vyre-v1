@@ -147,6 +147,16 @@ export type HelperBlockData = {
       threadId: string;
     }>;
 };
+export type HookBlockData = {
+  threadId: string;
+  kind: "added" | "changed" | "removed" | "paused" | "resumed" | "blocked" | "failed";
+  line: string;
+  hookId?: string;
+  scope?: string;
+  by?: string;
+  byKind?: "admin" | "person" | "agent";
+  reason?: string;
+};
 export type InstallPlanBlockData = {
   planId: string;
   name: string;
@@ -325,6 +335,7 @@ export interface BlockDataMap {
   "form_fields": FormFieldsBlockData;
   "goal": GoalBlockData;
   "helper": HelperBlockData;
+  "hook": HookBlockData;
   "install_plan": InstallPlanBlockData;
   "memory_saved": MemorySavedBlockData;
   "model_switch": ModelSwitchBlockData;
@@ -645,6 +656,16 @@ export const blockRegistry = [
         "threadId": "/threadId"
       }
     }
+  },
+  {
+    "type": "hook",
+    "v": 1,
+    "module": "hooks",
+    "component": "ui:BlockHook",
+    "fallback": "{{line}}",
+    "waitsForAnswer": false,
+    "actions": [],
+    "opens": null
   },
   {
     "type": "install_plan",

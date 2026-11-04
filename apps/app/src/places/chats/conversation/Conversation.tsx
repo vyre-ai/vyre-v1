@@ -540,6 +540,7 @@ function ConversationView(): ReactElement {
     },
     ...(data.activityOf ? { activityOf: (id: string) => data.activityOf!(id) } : {}),
     nameOf,
+    ...(data.nav.openHooks ? { openHooks: (hookId: string | undefined) => data.nav.openHooks?.(thread.threadId, hookId) } : {}),
     openMessage: (threadId, messageId) => (messageId === "" ? data.nav.openThread(threadId) : data.nav.openThread(threadId, messageId)),
     ...(crew ? { crew: {
       status: crew.status, selected: crew.selected, peek: (id: string) => crew.show(id), openPane: () => crew.show(null),
