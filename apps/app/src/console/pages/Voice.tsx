@@ -8,7 +8,7 @@ import { useConsoleData } from "../shell/data.tsx";
 import { Glyph } from "../shell/glyphs.tsx";
 import { Group, Section } from "../shell/ui.tsx";
 import { IconTile } from "./CiRunners.tsx";
-import { Actions, Button, Field, ReadState, Select, useAction, useRead, QuietButton } from "./shared.tsx";
+import { Actions, Button, Field, Note, ReadState, Select, useAction, useRead, QuietButton } from "./shared.tsx";
 
 type SpaceOut = CapMap["talk.space.status"]["out"];
 type VoiceOut = CapMap["talk.status"]["out"];
@@ -120,7 +120,7 @@ export function VoiceSettings(): ReactElement {
               : <QuietButton danger label="Remove key" onPress={() => setGone(true)} testID="voice-remove" />}
           </Actions>
         )}
-        {action.note !== "" ? <Text accessibilityRole="status" testID="voice-note" style={{ marginTop: 8, fontSize: 12.5, color: "var(--ink-3)" }}>{action.note}</Text> : null}
+        {action.note !== "" ? <View style={{ marginTop: 8 }}><Note testID="voice-note">{action.note}</Note></View> : null}
       </View>
     </View>
   );
